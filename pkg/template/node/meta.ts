@@ -15,8 +15,8 @@ const processRuntimeBinding = (
 
 /**
  * Валидирует src атрибут в meta узлах.
- * src должен адресовать корневой или внутренний Atom:
- * owner/repository[/meta-package].
+ * src должен адресовать независимый peer Meta-репозиторий:
+ * owner/repository.
  *
  * @param src - Значение src атрибута
  * @param path - Путь узла для сообщения об ошибке
@@ -25,12 +25,12 @@ const processRuntimeBinding = (
 function validateSrc(src: string, path: string): void {
   const segments = src.split("/")
   const segment = /^[a-zA-Z0-9][a-zA-Z0-9._-]*$/
-  const valid = (segments.length === 2 || segments.length === 3) &&
+  const valid = segments.length === 2 &&
     segments.every((value) => segment.test(value))
   if (!valid) {
     throw new Error(
       `Невалидный src в meta узле "${path}": "${src}". ` +
-        "Ожидается owner/repository[/meta-package].",
+        "Ожидается owner/repository.",
     )
   }
 }
@@ -57,7 +57,7 @@ export const createNodeDataMeta = (
   if (src === undefined || src === null || src === "") {
     throw new Error(
       `Отсутствует обязательный атрибут src в meta узле "${srcPath}". ` +
-        "meta-узел должен иметь src вида owner/repository[/meta-package].",
+        "meta-узел должен иметь src вида owner/repository.",
     )
   }
 

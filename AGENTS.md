@@ -24,6 +24,10 @@
 - Одна изменённая entity передаётся одним `ForceMessage` с одной `Particle`.
 - Не возвращать старый `qTp` как смысловую замену текущей архитектуре.
 - `cluster/` содержит внешние Meta-репозитории и не является workspace MetaFor.
+- Каждая Meta в canonical Cluster является независимым peer Git-репозиторием
+  `cluster/<owner>/<repository>`. Canonical `src` имеет ровно два сегмента
+  `<owner>/<repository>`; nested Meta repositories и третий address segment
+  запрещены. Композиция выполняется через Meta/Matter/Monad references.
 - При задаче внутри `cluster/` по умолчанию работать только с Meta-пакетом по
   границе `docs/META_PACKAGES.md`. Продуктовый runtime внешнего репозитория и
   ядро MetaFor требуют отдельного явного запроса.

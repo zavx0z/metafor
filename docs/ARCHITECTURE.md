@@ -21,7 +21,9 @@ Root workspace graph задан явным списком в `package.json`:
 
 Игнорируемый каталог `cluster/` является физическим resolver root внешних Meta,
 но не workspace. Его непосредственные каталоги представляют Galaxy-владельцев,
-а их Git-репозитории — корневые Atom и монорепозитории внутренних Meta-пакетов.
+а каждый их непосредственный дочерний каталог — независимый peer
+Meta-репозиторий `cluster/<owner>/<repository>`. Вложенные Meta-репозитории
+запрещены; runtime composition не кодируется файловой вложенностью.
 
 ## Архитектурное чтение
 
@@ -88,8 +90,9 @@ process work.
 - Domain handlers применяют входные particles к собственным runtime structures.
 - Dark читает внешний `cluster/<src>/meta.ts` в ширину и испускает отдельные
   декларационные Particle по мере чтения; Meta не становится внутренней
-  сущностью. Canonical `src` имеет форму `<owner>/<repository>` либо
-  `<owner>/<repository>/<meta-package>`.
+  сущностью. Canonical `src` имеет ровно два сегмента
+  `<owner>/<repository>`. Составные имена репозиториев используют дефисы, а
+  composition выражается Meta/Matter/Monad references.
 - `boundary/server.ts` открывает SQLite, материализует Particle в
   нормализованные реляционные таблицы и публикует результаты через Force.
 - `energy/server.ts` читает полный текущий Boundary projection через Monad,

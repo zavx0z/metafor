@@ -54,7 +54,7 @@ Matter передаёт дочернему Atom оба runtime-контекст�
 ```typescript
 .matter(({ mass, energy, html }) => html`
   <meta-for
-    src="zavx0z/capsule/profile"
+    src="zavx0z/capsule-profile"
     mass=${{ profiles: mass.profiles }}
     energy=${{ socket: energy.socket }}
   />
@@ -119,13 +119,14 @@ bun install
 
 ```text
 cluster/<owner>/<repository>/meta.ts
-cluster/<owner>/<repository>/<meta-package>/meta.ts
 ```
 
-Dark принимает WIMP `src` `<owner>/<repository>` для корневого Atom либо
-`<owner>/<repository>/<meta-package>` для внутреннего Atom. `cluster/` в `src`
-не входит. Meta остаётся внешней декларацией: внутрь Вселенной входят только
-сформированные из неё WIMP, Field, State, Matter и другие отдельные сущности.
+Каждая Meta является независимым peer Git-репозиторием. Dark принимает только
+двухсегментный WIMP `src` `<owner>/<repository>`; `cluster/` в `src` не входит,
+третий сегмент и nested Meta repositories запрещены. Композиция выражается
+Meta/Matter/Monad references, а не файловой вложенностью. Meta остаётся внешней
+декларацией: внутрь Вселенной входят только сформированные из неё WIMP, Field,
+State, Matter и другие отдельные сущности.
 
 ## Запуск Вселенной
 

@@ -4,12 +4,15 @@
 
 ```text
 cluster/<owner>/<repository>/meta.ts
-cluster/<owner>/<repository>/<meta-package>/meta.ts
 ```
 
-Git существует на уровне `cluster/<owner>/<repository>`. Внутренний Meta-пакет
-является обычной директорией этого репозитория, а не отдельным submodule.
-Canonical `src` не содержит префикс `cluster/`.
+Каждая Meta является независимым peer Git-репозиторием непосредственно под
+`cluster/<owner>/`. Canonical `src` имеет ровно два сегмента
+`<owner>/<repository>` и не содержит префикс `cluster/`. Третий сегмент,
+вложенные Meta-репозитории и кодирование композиции файловой вложенностью
+запрещены. Составные роли получают уникальные hyphenated repository names
+(`git-commit`, `git-history-commit`, `git-worktree`), а композиция выражается
+явными Meta/Matter/Monad references.
 
 ## Граница работы агента
 
@@ -24,9 +27,9 @@ submodule или ядро MetaFor. Такая работа начинается 
 Внешний Concept не является зависимостью Meta-пакета и не используется как
 скрытый источник требований.
 
-Пример: задача про Browser Atom в Capsule разрешает менять `browser/meta.ts`,
-его actions/types и Meta-тест. Она сама по себе не разрешает менять Capsule UI,
-Chrome Studio или контейнерный API.
+Пример: задача про Browser Atom в peer repository `capsule-browser` разрешает
+менять его `meta.ts`, actions/types и Meta-тест. Она сама по себе не разрешает
+менять Capsule UI, Chrome Studio или контейнерный API.
 
 ## Проверка
 

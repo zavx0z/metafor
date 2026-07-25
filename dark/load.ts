@@ -8,14 +8,14 @@ const SEGMENT = /^[A-Za-z0-9][A-Za-z0-9._-]*$/
 
 export const canonicalMetaSource = (address: string): boolean => {
   const segments = address.split("/")
-  return (segments.length === 2 || segments.length === 3) &&
+  return segments.length === 2 &&
     segments.every((segment) => SEGMENT.test(segment))
 }
 
 const assertMetaSource = (address: string): void => {
   if (!canonicalMetaSource(address)) {
     throw new Error(
-      `Неканонический WIMP src: ${address}. Ожидается <github-user>/<repository>[/<meta-package>]`,
+      `Неканонический WIMP src: ${address}. Ожидается <owner>/<repository>`,
     )
   }
 }

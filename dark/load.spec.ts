@@ -4,11 +4,12 @@ import {resolve} from "node:path"
 import {canonicalMetaSource, metaImportSpecifier, resolveMetaPath} from "./load.ts"
 
 describe("Dark Meta source addressing", () => {
-  test("accepts a root Atom or one internal Meta-package segment", () => {
+  test("accepts exactly one owner and one peer repository segment", () => {
     expect(canonicalMetaSource("zavx0z/capsule")).toBe(true)
-    expect(canonicalMetaSource("zavx0z/capsule/profile")).toBe(true)
+    expect(canonicalMetaSource("zavx0z/capsule-profile")).toBe(true)
 
     expect(canonicalMetaSource("capsule")).toBe(false)
+    expect(canonicalMetaSource("zavx0z/capsule/profile")).toBe(false)
     expect(canonicalMetaSource("zavx0z/capsule/profile/nested")).toBe(false)
     expect(canonicalMetaSource("zavx0z/capsule/../profile")).toBe(false)
     expect(canonicalMetaSource("/zavx0z/capsule/profile")).toBe(false)
@@ -20,14 +21,17 @@ describe("Dark Meta source addressing", () => {
     expect(resolveMetaPath("zavx0z/capsule")).toBe(
       resolve(root, "zavx0z", "capsule", "meta.ts"),
     )
-    expect(resolveMetaPath("zavx0z/capsule/profile")).toBe(
-      resolve(root, "zavx0z", "capsule", "profile", "meta.ts"),
+    expect(resolveMetaPath("zavx0z/capsule-profile")).toBe(
+      resolve(root, "zavx0z", "capsule-profile", "meta.ts"),
     )
   })
 
   test("rejects noncanonical sources before filesystem access", () => {
     expect(() => resolveMetaPath("capsule")).toThrow(
-      "Ожидается <github-user>/<repository>[/<meta-package>]",
+      "Ожидается <owner>/<repository>",
+    )
+    expect(() => resolveMetaPath("zavx0z/capsule/profile")).toThrow(
+      "Ожидается <owner>/<repository>",
     )
   })
 
