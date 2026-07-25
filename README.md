@@ -30,7 +30,7 @@ MetaFor — открытая эволюционирующая среда, в к�
 Строго типизированная Meta-декларация разделяет два runtime-домена:
 
 ```typescript
-.mass({ profiles: {}, attempts: 0 })
+.mass((mass) => ({profiles: mass.json(), attempts: mass.json()}))
 .energy<{socket: WebSocket}>()
 ```
 

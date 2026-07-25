@@ -7,5 +7,5 @@ export async function releaseProfile(input: {
 }): Promise<void> {
   input.energy.socket.close()
   input.energy.channel.close()
-  input.mass.profile = null
+  await input.mass.profile.write(null)
 }

@@ -1,6 +1,8 @@
+import type {MassHandle} from "../../../types/metafor/mass.ts"
+
 export interface ProfileMass {
-  profile: {id: string} | null
-  attempts: number
+  profile: MassHandle
+  attempts: MassHandle
 }
 
 export interface ProfileEnergy {
@@ -21,7 +23,7 @@ export async function startProfile(input: {
   void input.field.command
   void input.self.atom
   return {
-    profileId: input.mass.profile?.id ?? input.command,
-    attempts: input.mass.attempts + 1,
+    profileId: input.command,
+    attempts: 1,
   }
 }

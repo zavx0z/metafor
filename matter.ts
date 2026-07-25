@@ -29,7 +29,48 @@ const normalizeMatterData = <T extends string | string[]>(data: T): T =>
 const normalizeMatterBinding = <T extends MatterBindingValue | undefined>(value: T): T => {
   if (value === undefined || typeof value === "string" || value.data === undefined) return value
   const binding = value as Exclude<MatterBindingValue, string>
-  return {...binding, data: normalizeMatterData(binding.data!)} as T
+  const data = normalizeMatterData(binding.data!)
+  return {...binding, data} as T
+}
+
+/**
+ * The DSL is intentionally the only place that recognizes a direct Mass
+ * projection.  Boundary persists the result and never recovers semantics from
+ * `expr`.  This recognizer accepts only a flat object of bare keys pointing to
+ * the parser's numbered dependency slots.
+ */
+const normalizeDirectMassBinding = <T extends MatterBindingValue | undefined>(value: T): T => {
+  const normalized = normalizeMatterBinding(value)
+  if (normalized === undefined || typeof normalized === "string") return normalized
+  if (normalized.data === "/mass" && normalized.expr === undefined) {
+    return {...normalized, directMass: {kind: "whole"}} as unknown as T
+  }
+  if (normalized.expr === undefined) return normalized
+
+  const paths = normalized.data === undefined
+    ? []
+    : Array.isArray(normalized.data) ? normalized.data : [normalized.data]
+  const body = /^\{\s*([\s\S]*)\s*\}$/.exec(normalized.expr)?.[1]
+  if (!body || paths.length === 0 || paths.some((path) => !/^\/mass\/[^/]+$/.test(path))) return normalized
+
+  const entries: Array<{target: string; source: string}> = []
+  const targets = new Set<string>()
+  const sources = new Set<string>()
+  const item = /(?:^|,)\s*([A-Za-z_$][\w$]*)\s*:\s*_\[(\d+)\]\s*/g
+  let cursor = 0
+  for (let match = item.exec(body); match; match = item.exec(body)) {
+    if (body.slice(cursor, match.index).trim() !== "") return normalized
+    cursor = item.lastIndex
+    const target = match[1]!
+    const index = Number(match[2])
+    const path = paths[index]
+    if (!Number.isSafeInteger(index) || path === undefined || targets.has(target) || sources.has(path)) return normalized
+    targets.add(target)
+    sources.add(path)
+    entries.push({target, source: path.slice("/mass/".length)})
+  }
+  if (entries.length === 0 || body.slice(cursor).trim() !== "" || entries.length !== paths.length) return normalized
+  return {...normalized, directMass: {kind: "keys", entries}} as unknown as T
 }
 
 const extractFieldKey = (path: string): string | undefined => {
@@ -128,6 +169,9 @@ const validateRuntimeBinding = (
   if (binding.expr !== undefined && EXECUTABLE_BINDING_RE.test(binding.expr)) {
     throw new Error(`Matter violation at "${location}": ${domain} binding must not create or call executable resources.`)
   }
+  if (domain === "mass" && binding.directMass === undefined) {
+    throw new Error(`Matter violation at "${location}": mass binding must be a direct whole or declared-key projection.`)
+  }
 }
 
 const validateDynamicSrc = (src: Exclude<NodeMeta["src"], string>, fields: MatterFields, location: string): void => {
@@ -198,7 +242,7 @@ const normalizeMatterNode = (node: NodeType): NodeType => {
         ...node,
         src: normalizeMatterBinding(node.src),
         ...(node.fields !== undefined ? {fields: normalizeMatterBinding(node.fields)} : {}),
-        ...(node.mass !== undefined ? {mass: normalizeMatterBinding(node.mass)} : {}),
+        ...(node.mass !== undefined ? {mass: normalizeDirectMassBinding(node.mass)} : {}),
         ...(node.energy !== undefined ? {energy: normalizeMatterBinding(node.energy)} : {}),
         ...(node.child !== undefined ? {child: node.child.map(normalizeMatterNode)} : {}),
       }

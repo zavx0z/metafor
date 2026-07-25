@@ -30,7 +30,7 @@ describe("generateMetaFile", () => {
     const result = generateMetaFile("auth", "Authentication", "Error")
 
     expect(result).toContain(".superposition({})")
-    expect(result).toContain(".mass({})")
+    expect(result).toContain(".mass(() => ({}))")
     expect(result).toContain(".energy()")
     expect(result).toContain(".processes(() => [])")
     expect(result).toContain(".reactions(() => [])")

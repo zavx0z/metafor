@@ -1,5 +1,6 @@
 import {describe, expect, test} from "bun:test"
 import {MetaFor} from "../../index.ts"
+import type {MassHandle} from "../../types/metafor/mass.ts"
 
 const declareStrictProcessContract = () =>
   MetaFor("strict-process-contract")
@@ -21,10 +22,7 @@ const declareStrictProcessContract = () =>
       },
       destroyed: null,
     })
-    .mass({
-      profile: null as {id: string} | null,
-      attempts: 0,
-    })
+    .mass((mass) => ({profile: mass.json(), attempts: mass.json()}))
     .energy<{
       channel: BroadcastChannel
       socket: WebSocket
@@ -41,8 +39,8 @@ const declareStrictProcessContract = () =>
             self,
             proof: {
               operation: value.operation satisfies "start" | "stop",
-              attempts: mass.attempts satisfies number,
-              profile: mass.profile satisfies {id: string} | null,
+              attempts: mass.attempts satisfies MassHandle,
+              profile: mass.profile satisfies MassHandle,
               channel: energy.channel satisfies BroadcastChannel,
               socket: energy.socket satisfies WebSocket,
               commandType: field.command.type satisfies "string",
@@ -99,7 +97,7 @@ const declareStrictProcessContract = () =>
           proof: {
             channel: energy.channel satisfies BroadcastChannel,
             socket: energy.socket satisfies WebSocket,
-            attempts: mass.attempts satisfies number,
+            attempts: mass.attempts satisfies MassHandle,
             // @ts-expect-error destroy сохраняет раздельность Energy и Mass
             missingEnergyMass: energy.profile,
             // @ts-expect-error destroy не подменяет Mass сущностями Energy
@@ -110,7 +108,7 @@ const declareStrictProcessContract = () =>
     ])
     .reactions(() => [])
     .matter(({mass, energy, html}) => {
-      const attempts: number = mass.attempts
+      const attempts: MassHandle = mass.attempts
       const socket: WebSocket = energy.socket
       void attempts
       void socket
@@ -132,7 +130,7 @@ const declareInvalidEnergyFunction = () =>
   MetaFor("invalid-energy-function")
     .fields(() => ({}))
     .superposition({})
-    .mass({})
+    .mass(() => ({}))
     // @ts-expect-error Energy содержит сущности, а не функции или фабрики
     .energy<{connect: () => WebSocket}>()
 
@@ -140,7 +138,7 @@ const declareInvalidEnergyObject = () =>
   MetaFor("invalid-energy-object")
     .fields(() => ({}))
     .superposition({})
-    .mass({})
+    .mass(() => ({}))
     // @ts-expect-error Energy объявляется generic-типом, а не runtime-объектом
     .energy({socket: null as unknown as WebSocket})
 
@@ -148,7 +146,7 @@ const declareInvalidMassFunction = () =>
   MetaFor("invalid-mass-function")
     .fields(() => ({}))
     .superposition({})
-    .mass({
+    .mass((mass) => ({
       // @ts-expect-error Mass содержит рабочий материал, а не функции
       execute: () => true,
       // @ts-expect-error nullable union всё равно содержит исполняемую функцию
@@ -161,13 +159,13 @@ const declareInvalidMassFunction = () =>
       nested: {execute: () => true},
       // @ts-expect-error unknown не доказывает сериализуемость Mass
       observation: null as unknown,
-    })
+    }))
 
 const declareInvalidProcessState = () =>
   MetaFor("invalid-process-state")
     .fields(() => ({}))
     .superposition({idle: null})
-    .mass({})
+    .mass(() => ({}))
     .energy()
     .processes((process, destroy) => [
       // @ts-expect-error Process обязан принадлежать состоянию Superposition

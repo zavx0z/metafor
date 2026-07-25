@@ -9,7 +9,7 @@ describe("matter validation", () => {
         title: field.string.required("draft"),
       }))
       .superposition({ idle: null })
-      .mass({})
+      .mass(() => ({}))
       .energy()
       .processes()
       .reactions()
@@ -35,7 +35,7 @@ describe("matter validation", () => {
     const schema = MetaFor("matter-runtime-bindings")
       .fields((field) => ({title: field.string.required("draft")}))
       .superposition({idle: null})
-      .mass({cache: {title: "cached"}})
+      .mass((mass) => ({cache: mass.json()}))
       .energy<{socket: WebSocket}>()
       .processes()
       .reactions()
@@ -51,7 +51,7 @@ describe("matter validation", () => {
     expect(schema.matter).toEqual([{
       kind: "wimp",
       src: "demo/child",
-      massBinding: {data: "/mass/cache", expr: "{ cache: _[0] }"},
+      massBinding: {data: "/mass/cache", expr: "{ cache: _[0] }", directMass: {kind: "keys", entries: [{target: "cache", source: "cache"}]}},
       energyBinding: {data: "/energy/socket", expr: "{ socket: _[0] }"},
     }])
   })
@@ -60,7 +60,7 @@ describe("matter validation", () => {
     const schema = MetaFor("matter-runtime-aliases")
       .fields(() => ({}))
       .superposition({idle: null})
-      .mass({cache: {ready: true}})
+      .mass((mass) => ({cache: mass.json()}))
       .energy<{socket: WebSocket}>()
       .processes()
       .reactions()
@@ -70,9 +70,43 @@ describe("matter validation", () => {
     expect(schema.matter).toEqual([{
       kind: "wimp",
       src: "demo/child",
-      massBinding: {data: "/mass"},
+      massBinding: {data: "/mass", directMass: {kind: "whole"}},
       energyBinding: {data: "/energy"},
     }])
+  })
+
+  test("нормализует именованное direct Mass mapping без expression semantics", () => {
+    const schema = MetaFor("matter-renamed-mass")
+      .fields(() => ({}))
+      .superposition({idle: null})
+      .mass((mass) => ({source: mass.json(), other: mass.binary({mime: "application/octet-stream"})}))
+      .energy()
+      .processes()
+      .reactions()
+      .matter(({mass, html}) => html`<meta-for src="demo/child" mass=${{target: mass.source, alternate: mass.other}} />`)
+      .bulk()
+
+    expect((schema.matter?.[0] as any).massBinding).toEqual({
+      data: ["/mass/source", "/mass/other"],
+      expr: "{ target: _[0], alternate: _[1] }",
+      directMass: {kind: "keys", entries: [
+        {target: "target", source: "source"},
+        {target: "alternate", source: "other"},
+      ]},
+    })
+  })
+
+  test("rejects computed Mass bindings that are not a direct mapping", () => {
+    expect(() => MetaFor("matter-computed-mass")
+      .fields(() => ({}))
+      .superposition({idle: null})
+      .mass((mass) => ({cache: mass.json()}))
+      .energy()
+      .processes()
+      .reactions()
+      .matter(({mass, html}) => html`<meta-for src="demo/child" mass=${{cache: `${mass.cache}`}} />`)
+      .bulk(),
+    ).toThrow("mass binding must be a direct whole or declared-key projection")
   })
 
   test("запрещает смешивать Mass/Energy paths и помещать функции в runtime binding", () => {
@@ -80,7 +114,7 @@ describe("matter validation", () => {
       MetaFor("invalid-runtime-binding-domain")
         .fields(() => ({}))
         .superposition({idle: null})
-        .mass({cache: {ready: true}})
+        .mass((mass) => ({cache: mass.json()}))
         .energy<{socket: WebSocket}>()
         .processes()
         .reactions()
@@ -92,7 +126,7 @@ describe("matter validation", () => {
       MetaFor("invalid-runtime-binding-function")
         .fields(() => ({}))
         .superposition({idle: null})
-        .mass({})
+        .mass(() => ({}))
         .energy<{socket: WebSocket}>()
         .processes()
         .reactions()
@@ -114,7 +148,7 @@ describe("matter validation", () => {
           },
           готово: null,
         })
-        .mass({})
+        .mass(() => ({}))
         .energy()
         .processes()
         .reactions()
@@ -137,7 +171,7 @@ describe("matter validation", () => {
           args: field.string.optional({ label: "Аргументы" }),
         }))
         .superposition({})
-        .mass({})
+        .mass(() => ({}))
         .energy()
         .processes()
         .reactions()
@@ -153,7 +187,7 @@ describe("matter validation", () => {
           name: field.string.required("meta"),
         }))
         .superposition({ idle: null })
-        .mass({})
+        .mass(() => ({}))
         .energy()
         .processes()
         .reactions()
@@ -171,7 +205,7 @@ describe("matter validation", () => {
           name: field.string.required("meta"),
         }))
         .superposition({ idle: null })
-        .mass({})
+        .mass(() => ({}))
         .energy()
         .processes()
         .reactions()
@@ -189,7 +223,7 @@ describe("matter validation", () => {
           error: field.string.optional({ label: "Ошибка" }),
         }))
         .superposition({ idle: null })
-        .mass({})
+        .mass(() => ({}))
         .energy()
         .processes()
         .reactions()
@@ -207,7 +241,7 @@ describe("matter validation", () => {
           operation: field.enum("clone", "init").optional({ label: "Тип операции" }),
         }))
         .superposition({})
-        .mass({})
+        .mass(() => ({}))
         .energy()
         .processes()
         .reactions()
@@ -225,20 +259,16 @@ describe("matter validation", () => {
           mode: field.enum("idle", "done").required("idle"),
         }))
         .superposition({ idle: null })
-        .mass({
-          session: {
-            active: true,
-          },
-        })
+        .mass((mass) => ({session: mass.json()}))
         .energy()
         .processes()
         .reactions()
         .matter(
-          ({ mass, html }) => html`${mass.session.active ? html`<meta-for src="demo/panel" />` : html`<meta-for src="demo/fallback" />`}`,
+          ({ mass, html }) => html`${mass.session ? html`<meta-for src="demo/panel" />` : html`<meta-for src="demo/fallback" />`}`,
         )
         .bulk(),
     ).toThrow(
-      'Matter violation at "invalid-mass-branch.matter[0]": conditional branch uses mass path "/mass/session/active".',
+      'Matter violation at "invalid-mass-branch.matter[0]": conditional branch uses mass path "/mass/session".',
     )
   })
 
@@ -249,7 +279,7 @@ describe("matter validation", () => {
           title: field.string.required("hello"),
         }))
         .superposition({ idle: null })
-        .mass({})
+        .mass(() => ({}))
         .energy()
         .processes()
         .reactions()
@@ -269,7 +299,7 @@ describe("matter validation", () => {
           target: field.string.required("demo/error"),
         }))
         .superposition({ idle: null })
-        .mass({})
+        .mass(() => ({}))
         .energy()
         .processes()
         .reactions()

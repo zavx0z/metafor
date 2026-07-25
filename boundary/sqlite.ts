@@ -12,6 +12,7 @@ import {BoundaryReactionStore} from "./reaction.ts"
 import {BoundaryInputStore} from "./input.ts"
 import {readBoundaryInitialState} from "./initial.ts"
 import type {BoundaryInitialProjection} from "@metafor/types/boundary/initial"
+import {MassCatalog} from "../shared/mass.ts"
 
 const isFieldConsequence = (message: ForceMessage): boolean => {
   const part = message.parts[0]
@@ -67,7 +68,7 @@ export const open = async (filename?: string) => {
   const topology = await BoundaryTopologySqlite.open(sql)
   const atom = await BoundaryAtomSqlite.open(sql)
   const wimp = await BoundaryWimpSqlite.open(sql)
-  const projection = new BoundaryIncrementalStore(sql)
+  const projection = new BoundaryIncrementalStore(sql, new MassCatalog())
   await projection.init()
   const execution = new BoundaryExecutionStore(sql)
   await execution.init()

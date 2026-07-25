@@ -30,6 +30,8 @@ const metaforDslTableNames = [
   "reaction_write",
   "matter_binding",
   "matter_binding_dep",
+  "matter_binding_direct_mass",
+  "matter_binding_direct_mass_key",
   "matter_particle",
   "matter_particle_wimp",
   "matter_particle_fuzzy",
@@ -124,7 +126,7 @@ describe("sqlite ddl", () => {
                   kind: "wimp",
                   src: "alpha/child",
                   fieldsBinding: {data: "status", expr: "{ status: _[0] }"},
-                  massBinding: {data: "/mass/cache", expr: "{ cache: _[0] }"},
+                  massBinding: {data: "/mass/cache", expr: "{ cache: _[0] }", directMass: {kind: "keys", entries: [{target: "cache", source: "cache"}]}},
                   energyBinding: {data: "/energy/socket", expr: "{ socket: _[0] }"},
                 },
               },
@@ -152,7 +154,7 @@ describe("sqlite ddl", () => {
                 kind: "wimp",
                 src: "alpha/child",
                 fieldsBinding: {data: "status", expr: "{ status: _[0] }"},
-                massBinding: {data: "/mass/cache", expr: "{ cache: _[0] }"},
+                massBinding: {data: "/mass/cache", expr: "{ cache: _[0] }", directMass: {kind: "keys", entries: [{target: "cache", source: "cache"}]}},
                 energyBinding: {data: "/energy/socket", expr: "{ socket: _[0] }"},
               },
             },
@@ -168,6 +170,26 @@ describe("sqlite ddl", () => {
     await wimps.create("alpha/meta")
 
     expect(await wimps.exists("alpha/meta")).toBe(true)
+  })
+
+  test("migrates, orders, round-trips and cascades normalized direct Mass mappings", async () => {
+    await db.unsafe("DROP TABLE matter_binding_direct_mass_key; DROP TABLE matter_binding_direct_mass;")
+    wimps = await BoundaryWimpSqlite.open(db)
+    await db`INSERT INTO wimp(src) VALUES (${"alpha/meta"})`
+    await db`INSERT INTO matter_binding(id, wimp, binding_kind, expr) VALUES (${1}, ${"alpha/meta"}, ${"dynamic"}, ${"{ second: _[0], first: _[1] }"})`
+    await db`INSERT INTO matter_binding_direct_mass(binding, kind) VALUES (${1}, ${"keys"})`
+    await db`INSERT INTO matter_binding_direct_mass_key(binding, key_order, target_key, source_key) VALUES
+      (${1}, ${0}, ${"second"}, ${"sourceB"}),
+      (${1}, ${1}, ${"first"}, ${"sourceA"})`
+
+    expect(await db<Array<{target: string; source: string}>>`
+      SELECT target_key AS target, source_key AS source
+        FROM matter_binding_direct_mass_key WHERE binding = ${1} ORDER BY key_order
+    `).toEqual([{target: "second", source: "sourceB"}, {target: "first", source: "sourceA"}])
+
+    await db`DELETE FROM matter_binding WHERE id = ${1}`
+    expect(await db<Array<{count: number}>>`SELECT COUNT(*) AS count FROM matter_binding_direct_mass`).toEqual([{count: 0}])
+    expect(await db<Array<{count: number}>>`SELECT COUNT(*) AS count FROM matter_binding_direct_mass_key`).toEqual([{count: 0}])
   })
 
   test("создаёт meta-level таблицы и индексы из sql-модулей dsl без trigger-слоя", async () => {

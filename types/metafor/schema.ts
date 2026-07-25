@@ -5,13 +5,13 @@ import type { ReactionsSchema } from "./reactions.ts"
 import type { SuperpositionInputCheck, SuperpositionStateKeys } from "./superposition.ts"
 import type { ReactionsDeclaration } from "./reactions.ts"
 import type { ParticleOperation } from "shared/protocol/force/particle"
-import type {MassDeclarationDSL, MassDeclarations, MassFactory, MassValue} from "./mass.ts"
+import type {MassDeclarationDSL, MassDeclarations, MassFactory, MassHandles} from "./mass.ts"
 
 export interface BulkSchema {
   view: string
 }
 
-export type {MassDeclaration, MassDeclarations, MassFactory, MassValue} from "./mass.ts"
+export type {MassDeclaration, MassDeclarations, MassFactory, MassHandle, MassHandles} from "./mass.ts"
 export type MetaMassDSL = MassDeclarationDSL
 
 /**
@@ -148,9 +148,6 @@ type IsSerializableMassValue<T> = IsAny<T> extends true
     ? false
     : true
 
-export type SerializableMassDeclaration<m extends Mass> = {
-  [K in keyof m]: IsSerializableMassValue<m[K]> extends true ? m[K] : never
-}
 
 /**
  * Energy — постоянно типизированный набор живых runtime-сущностей Process.
@@ -202,7 +199,7 @@ declare const MetaDSLEnergyType: unique symbol
  * const component = MetaFor("my-component")
  *   .fields((field) => ({ mode: field.enum("summary", "details").required("summary") }))
  *   .superposition({ idle: { loading: {} } })
- *   .mass({ users: [] })
+ *   .mass((mass) => ({users: mass.json()}))
  *   .energy<{socket: WebSocket}>()
  *   .processes((process) => [process("loading").action(...)])
  *   .reactions((reaction) => [...])
@@ -267,16 +264,16 @@ export type MetaForFn = (
        *
        * @example
        * ```typescript
-       * .mass({
+       * .mass((mass) => ({
        *   users: [],
        *   settings: { theme: 'dark' },
        *   cache: new Map()
-       * })
+       * }))
        * ```
        * @param mass
        */
-      mass<m extends Mass>(
-        mass: (m & SerializableMassDeclaration<m>) | ((factory: MassFactory) => MassDeclarations),
+      mass<Schema extends MassDeclarations>(
+        mass: (factory: MassFactory) => Schema,
       ): {
         /**
          * Объявляет постоянно типизированные runtime-сущности Energy.
@@ -315,7 +312,7 @@ export type MetaForFn = (
          *
          * @returns Массив процессов и destroy-хуков только для нужных суперпозиций
          */
-        processes(process?: ProcessesDeclaration<ɸ, SuperpositionStateKeys<ψ>, m, ψ, e>): {
+        processes(process?: ProcessesDeclaration<ɸ, SuperpositionStateKeys<ψ>, MassHandles<Schema>, ψ, e>): {
           /**
            * Регистрирует карту реакций для автомата.
            *
@@ -347,7 +344,7 @@ export type MetaForFn = (
            * // Вместо этого используйте процессы и их success/error обработчики
            * ```
            */
-          reactions(reaction?: ReactionsDeclaration<ɸ, SuperpositionStateKeys<ψ>, m>): {
+          reactions(reaction?: ReactionsDeclaration<ɸ, SuperpositionStateKeys<ψ>, MassHandles<Schema>>): {
             /**
              * Регистрирует matter-функцию компонента и возвращает финальный bulk-этап.
              *
@@ -371,14 +368,14 @@ export type MetaForFn = (
              * document.body.innerHTML = `<meta-my-component></meta-my-component>`
              * ```
              */
-            matter(matter?: MatterDeclaration<ɸ, m, SuperpositionStateKeys<ψ>, e>): {
+            matter(matter?: MatterDeclaration<ɸ, MassHandles<Schema>, SuperpositionStateKeys<ψ>, e>): {
               /**
                * Регистрирует bulk-view конфигурацию компонента и завершает конфигурацию.
                *
                * @param bulk Конфигурация bulk-view
                * @returns Компонент для создания элемента с тегом `meta-${name}`
                */
-              bulk(bulk?: BulkDeclaration): MetaDSL<ɸ, SuperpositionStateKeys<ψ>, m, e>
+              bulk(bulk?: BulkDeclaration): MetaDSL<ɸ, SuperpositionStateKeys<ψ>, MassHandles<Schema>, e>
             }
           }
         }
@@ -420,7 +417,7 @@ declare global {
    * const component = MetaFor("my-component")
    *   .fields((field) => ({ mode: field.enum("summary", "details").required("summary") }))
    *   .superposition({ idle: { loading: {} } })
-   *   .mass({ users: [] })
+   *   .mass((mass) => ({users: mass.json()}))
    *   .energy<{socket: WebSocket}>()
    *   .processes((process) => [process("loading").action(...)])
    *   .reactions((reaction) => [...])

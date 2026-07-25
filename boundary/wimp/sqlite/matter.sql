@@ -35,6 +35,24 @@ CREATE INDEX IF NOT EXISTS matter_binding_by_wimp
 CREATE INDEX IF NOT EXISTS matter_binding_dep_by_binding
     ON matter_binding_dep (binding);
 
+CREATE TABLE IF NOT EXISTS matter_binding_direct_mass
+(
+    binding INTEGER PRIMARY KEY,
+    kind TEXT NOT NULL CHECK (kind IN ('whole', 'keys')),
+    FOREIGN KEY (binding) REFERENCES matter_binding (id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS matter_binding_direct_mass_key
+(
+    binding INTEGER NOT NULL,
+    key_order INTEGER NOT NULL CHECK (key_order >= 0),
+    target_key TEXT NOT NULL,
+    source_key TEXT NOT NULL,
+    PRIMARY KEY (binding, key_order),
+    UNIQUE (binding, target_key),
+    FOREIGN KEY (binding) REFERENCES matter_binding_direct_mass (binding) ON DELETE CASCADE
+);
+
 CREATE TABLE IF NOT EXISTS matter_particle
 (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,

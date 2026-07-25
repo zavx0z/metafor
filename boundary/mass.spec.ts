@@ -49,9 +49,9 @@ describe("Boundary Mass relations", () => {
     const parentMember = (await store.memberships(parent))[0]!
     const childMember = (await store.memberships(child))[0]!
     await store.source(child, childMember.declarationId, parent, parentMember.declarationId)
-    const copies: Array<[string, string]> = []
-    const next = await store.detach(child, childMember.declarationId, async (from, to) => { copies.push([from, to]) })
-    expect(copies).toEqual([[parentMember.keyId, next]])
-    expect((await store.memberships(child))[0]).toEqual({atomId: child, declarationId: childMember.declarationId, keyId: next})
+    const plan = await store.prepareDetach(boundary.projection.sql, child, childMember.declarationId)
+    expect(plan.sourceKey).toBe(parentMember.keyId)
+    await boundary.projection.sql.begin(async (tx) => await store.commitDetachIn(tx, plan))
+    expect((await store.memberships(child))[0]).toEqual({atomId: child, declarationId: childMember.declarationId, keyId: plan.nextKey})
   })
 })

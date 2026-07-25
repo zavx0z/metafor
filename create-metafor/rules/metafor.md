@@ -6,7 +6,7 @@
 export default MetaFor("<name>")
   .fields((field) => ({}))
   .superposition({})
-  .mass({})
+  .mass(() => ({}))
   .energy()
   .processes((process, destroy) => [])
   .reactions((reaction) => [])
@@ -260,10 +260,10 @@ Fields управляют работой Atom. Внешний агент или 
 ## Mass — изменяемый рабочий материал
 
 ```typescript
-.mass({
+.mass((mass) => ({
   profiles: {} as Record<string, { id: string }>,
   attempts: 0,
-})
+}))
 ```
 
 Mass содержит только сериализуемые данные и материал, которые Process читает и
@@ -280,7 +280,7 @@ Mass-object между несколькими Atom.
 Если нет сложных данных:
 
 ```typescript
-.mass({})
+.mass(() => ({}))
 ```
 
 ---
@@ -730,7 +730,7 @@ export default MetaFor("git")
       "получение команды": { error: null },
     },
   })
-  .mass({ attempts: 0 })
+  .mass((mass) => ({attempts: mass.json()}))
   .energy()
   .processes((process) => [
     process("определение операции")
@@ -845,9 +845,9 @@ export default MetaFor("git")...
 ```typescript
 // ✅ В MetaFor только данные Mass и типы Energy
 export default MetaFor("git")
-  .mass({
+  .mass((mass) => ({
     attempts: 0,
-  })
+  }))
   .energy<{
     socket: WebSocket
   }>()
@@ -956,7 +956,7 @@ export default MetaFor("git")
       "получение команды": { error: null },
     },
   })
-  .mass({ attempts: 0 })
+  .mass((mass) => ({attempts: mass.json()}))
   .energy()
   .processes((process) => [
     process("определение операции")

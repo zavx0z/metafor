@@ -11,6 +11,7 @@ export type BoundaryMonadState = "created" | "registering" | "ready" | "error" |
 export class BoundaryMonad {
   #state: BoundaryMonadState = "created"
   #error: string | null = null
+  #peer: MonadRpcPeer | null = null
 
   constructor(private readonly boundary: BoundaryDatabase) {}
 
@@ -19,11 +20,19 @@ export class BoundaryMonad {
     this.#state = "registering"
     peer.expose(BOUNDARY_INITIAL_STATE_METHOD, async () => await this.boundary.initialState())
     peer.expose(BOUNDARY_INITIAL_PROJECTION_METHOD, async () => await this.boundary.initialProjection())
+    this.#peer = peer
   }
 
   onChannelOpened(): void {
     if (this.#state !== "registering") throw new Error(`Boundary Monad channel cannot open from state: ${this.#state}`)
     this.#state = "ready"
+    const peer = this.#peer
+    if (peer) this.boundary.projection.setMassFence(async (request) => {
+      await peer.call("energy", "energy.mass.fence", request, {waitMs: 30_000})
+    })
+    if (peer) this.boundary.projection.setMassRelease(async (request) => {
+      await peer.call("energy", "energy.mass.release", request, {waitMs: 30_000})
+    })
   }
 
   onChannelFailed(error: unknown): void {

@@ -3,7 +3,7 @@ export default MetaFor(/* @template nameJson */ "", { desc: /* @template descrip
     error: field.string.optional({ label: /* @template errorLabelJson */ "" }),
   }))
   .superposition({})
-  .mass({})
+  .mass(() => ({}))
   .energy()
   .processes(() => [])
   .reactions(() => [])

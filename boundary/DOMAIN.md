@@ -17,7 +17,7 @@ Browser #10
 └── Control #12
 ```
 
-## Идентичность Mass Artifact
+## Идентичность Mass file
 
 Mass declaration WIMP-local: factory property key определяет declaration, а
 global key ID определяет ровно один файл `mass/<key-id>`. Boundary хранит

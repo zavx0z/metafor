@@ -47,7 +47,62 @@ export function generateMetaFile(name: string, description: string, errorLabel: 
  * Сгенерировать локальные декларации DSL-глобалов
  */
 export function generateMetaforTypesFile(): string {
-  return loadTemplate("metafor.d.ts")
+  const template = loadTemplate("metafor.d.ts")
+  const metadataOnlyMass = `type MetaForMassFormat = "json" | "binary"
+
+type MetaForMassDeclaration = {
+  readonly format: MetaForMassFormat
+  readonly mime: string
+  readonly label?: string
+  readonly description?: string
+}
+
+type MetaForMassDeclarations = Record<string, MetaForMassDeclaration>
+
+type MetaForMassHandle = {
+  readBytes(): Promise<Uint8Array>
+  readText(): Promise<string>
+  readJson(): Promise<unknown>
+  write(value: unknown): Promise<void>
+}
+
+type MetaForMassHandles<Schema extends MetaForMassDeclarations> = {
+  [Key in keyof Schema]: MetaForMassHandle
+}
+
+type MetaForMassOptions = {
+  mime?: string
+  label?: string
+  description?: string
+}
+
+type MetaForMassFactory = {
+  json(options?: MetaForMassOptions): MetaForMassDeclaration
+  binary(options?: MetaForMassOptions): MetaForMassDeclaration
+}
+
+`
+  const withoutLegacyMass = template.replace(
+    /type MetaForIsAny<Value>[\s\S]*?(?=type MetaForSelf =)/,
+    metadataOnlyMass,
+  )
+  if (withoutLegacyMass === template) throw new Error("Generated MetaFor declaration is missing the legacy Mass contract")
+
+  const generated = withoutLegacyMass.replace(
+    /type MetaForMassStage<[\s\S]*?\n}\n\ntype MetaForSuperpositionStage/,
+    `type MetaForMassStage<
+  Fields extends MetaForFields,
+  Superposition,
+> = {
+  mass<Factory extends (mass: MetaForMassFactory) => MetaForMassDeclarations>(
+    factory: Factory,
+  ): MetaForEnergyStage<Fields, Superposition, MetaForMassHandles<ReturnType<Factory>>>
+}
+
+type MetaForSuperpositionStage`,
+  )
+  if (generated === withoutLegacyMass) throw new Error("Generated MetaFor declaration is missing the Mass stage")
+  return generated
 }
 
 /**

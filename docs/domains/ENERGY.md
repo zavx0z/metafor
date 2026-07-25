@@ -30,7 +30,7 @@ TypeScript:
 
 ## Закон хранения Mass
 
-Mass — filesystem Artifact Energy. Фабрика `.mass((mass) => ({profile:
+Mass — persisted filesystem data, not an Artifact domain/entity. Фабрика `.mass((mass) => ({profile:
 mass.json()}))` объявляет только ключ, format/MIME и описательную metadata.
 Boundary выдаёт независимый ID декларации и глобальный ID key-file; Atom хранит
 membership прямо в key ID, без aggregate Mass ID. Energy открывает только key,
@@ -87,7 +87,7 @@ Reaction результаты удалённого Atom подавляются.
 
 - generic сохраняет точные типы сущностей в action, destroy и Matter;
 - Mass и Energy не смешиваются;
-- Mass filesystem-backed, versioned и сохраняет shared identity;
+- Mass filesystem-backed и сохраняет declared key identity without versioning;
 - runtime-объект нельзя передать аргументом `.energy(...)`;
 - функция верхнего уровня отклоняется;
 - вызов не добавляет Energy value в MetaDSL;

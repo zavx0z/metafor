@@ -64,7 +64,7 @@ describe("field typing", () => {
         },
         ready: null,
       })
-      .mass({})
+      .mass(() => ({}))
       .energy()
       .processes(() => [])
       .reactions(() => [])
@@ -116,7 +116,7 @@ describe("field typing", () => {
         },
         ready: null,
       })
-      .mass({})
+      .mass(() => ({}))
       .energy()
       .processes((process) => [
         process("ready", { env: ["any"] })
@@ -155,7 +155,7 @@ describe("field typing", () => {
         },
         ready: null,
       })
-      .mass({})
+      .mass(() => ({}))
       .energy()
       .processes((process) => [
         process("ready").action(async ({ value }) => {
@@ -179,7 +179,7 @@ describe("field typing", () => {
       .superposition({
         ready: null,
       })
-      .mass({})
+      .mass(() => ({}))
       .energy()
       .processes((process) => [
         process("ready").action(async ({ value }) => {

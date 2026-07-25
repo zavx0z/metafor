@@ -1,6 +1,6 @@
 import type {SQL} from "bun"
 import type { AxionParticleRow, FuzzyParticleRow, MachoParticleRow, MatterBindingRow, MatterParticleRow, WimpParticleRow } from "@metafor/types/boundary/matter"
-import type { MatterBindingValue, MatterEdgeSlot, MatterParticle, MatterParticleKind } from "@metafor/types/metafor/matter"
+import type { MatterBindingValue, MatterDirectMassBinding, MatterEdgeSlot, MatterParticle, MatterParticleKind } from "@metafor/types/metafor/matter"
 import type {Wimp} from "./wimp.ts"
 import {validateRuntimeMatterBinding} from "./create.ts"
 
@@ -50,6 +50,12 @@ const insertBinding = async (sql: SQL, src: string, value: MatterBindingValue | 
   for (let index = 0; index < paths.length; index++) {
     const path = paths[index]!
     await sql`INSERT INTO matter_binding_dep (binding, dep_order, path) VALUES (${id}, ${index}, ${path})`
+  }
+  if (value.directMass !== undefined) {
+    await sql`INSERT INTO matter_binding_direct_mass (binding, kind) VALUES (${id}, ${value.directMass.kind})`
+    if (value.directMass.kind === "keys") for (const [index, entry] of value.directMass.entries.entries()) {
+      await sql`INSERT INTO matter_binding_direct_mass_key (binding, key_order, target_key, source_key) VALUES (${id}, ${index}, ${entry.target}, ${entry.source})`
+    }
   }
 
   return id
@@ -163,6 +169,19 @@ const getParticleBindings = async (sql: SQL, src: string) => {
     bindingDeps.set(row.binding, deps)
   }
 
+  const directMass = new Map<number, {kind: MatterDirectMassBinding["kind"]; entries: Array<{target: string; source: string}>}>()
+  for (const row of await sql<Array<{binding: number; kind: "whole" | "keys"; target: string | null; source: string | null}>>`
+    SELECT direct.binding, direct.kind, entry.target_key AS target, entry.source_key AS source
+      FROM matter_binding_direct_mass AS direct
+      LEFT JOIN matter_binding_direct_mass_key AS entry ON entry.binding = direct.binding
+     WHERE direct.binding IN (SELECT id FROM matter_binding WHERE wimp = ${src})
+     ORDER BY direct.binding, entry.key_order
+  `) {
+    const current = directMass.get(row.binding) ?? {kind: row.kind, entries: []}
+    if (row.target !== null && row.source !== null) current.entries.push({target: row.target, source: row.source})
+    directMass.set(row.binding, current)
+  }
+
   const cache = new Map<number, MatterBindingValue | undefined>()
   const getBinding = (bindingId: number | null | undefined): MatterBindingValue | undefined => {
     if (!bindingId) return
@@ -179,7 +198,13 @@ const getParticleBindings = async (sql: SQL, src: string) => {
       value = row.literal_text ?? ""
     } else {
       const deps = bindingDeps.get(bindingId) ?? []
-      value = row.expr !== null ? {...(deps.length > 0 ? {data: toMaybeArray(deps)} : {}), expr: row.expr} : {data: toMaybeArray(deps)}
+      const direct = directMass.get(bindingId)
+      const directMassValue = direct === undefined ? undefined : direct.kind === "whole"
+        ? {kind: "whole" as const}
+        : {kind: "keys" as const, entries: direct.entries}
+      value = row.expr !== null
+        ? {...(deps.length > 0 ? {data: toMaybeArray(deps)} : {}), expr: row.expr, ...(directMassValue === undefined ? {} : {directMass: directMassValue})}
+        : {data: toMaybeArray(deps), ...(directMassValue === undefined ? {} : {directMass: directMassValue})}
     }
 
     cache.set(bindingId, value)

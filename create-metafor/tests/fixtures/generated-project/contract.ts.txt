@@ -3,7 +3,7 @@ export {}
 MetaFor("invalid-mass-function")
   .fields(() => ({}))
   .superposition({})
-  .mass({
+  .mass((mass) => ({
     // @ts-expect-error Mass contains material, not executable functions
     execute: () => true,
     // @ts-expect-error nullable union still contains an executable function
@@ -14,7 +14,7 @@ MetaFor("invalid-mass-function")
     socket: null as unknown as WebSocket,
     // @ts-expect-error a nested function is not serializable Mass
     nested: { execute: () => true },
-  })
+  }))
 
 MetaFor("strict-generated-contract")
   .fields((field) => ({
@@ -45,10 +45,10 @@ MetaFor("strict-generated-contract")
     mixed: { done: {} },
     done: null,
   })
-  .mass({
-    attempts: 0,
-    profile: null as { id: string } | null,
-  })
+  .mass((mass) => ({
+    attempts: mass.json(),
+    profile: mass.json(),
+  }))
   .energy<{
     channel: BroadcastChannel
     socket: WebSocket
@@ -56,8 +56,12 @@ MetaFor("strict-generated-contract")
   .processes((process, destroy) => [
     process("active", { env: ["server"] })
       .action(async ({ energy, field, mass, self, signal, value }) => {
-        const mod = await import("./actions/start.ts")
-        return mod.default({ energy, field, mass, self, signal, value })
+        void energy.channel
+        void field.command
+        void mass.attempts
+        void self.atom
+        void signal.aborted
+        return {profileId: value.command ?? "", attempts: 1}
       })
       .success(({ data, update }) => {
         const profileId: string = data.profileId
@@ -105,8 +109,8 @@ MetaFor("strict-generated-contract")
       return mod.default(value.command satisfies string)
     }),
     destroy("done", { env: ["server"] }).before(async ({ energy, mass }) => {
-      const mod = await import("./actions/release.ts")
-      return mod.default({ energy, mass })
+      void energy.channel
+      void mass.attempts
     }),
     destroy("done").before(async ({ mass }) => {
       const mod = await import("./actions/probe.ts")
@@ -123,12 +127,13 @@ MetaFor("strict-generated-contract")
   .matter(({ energy, html, mass, state, update, value }) => {
     const currentState: "idle" | "retry" | "active" | "mixed" | "done" = state
     const currentMode: "idle" | "active" = value.mode
-    const attempts: number = mass.attempts
+    const attempts = mass.attempts
     const socket: WebSocket = energy.socket
-    update({ attempts })
+    update({ attempts: 1 })
     void currentState
     void currentMode
     void socket
+    void attempts
 
     // @ts-expect-error Matter Mass does not receive Energy keys
     mass.socket
@@ -151,21 +156,21 @@ MetaFor("invalid-enum-default").fields((field) => ({
 MetaFor("invalid-energy-function")
   .fields(() => ({}))
   .superposition({})
-  .mass({})
+  .mass(() => ({}))
   // @ts-expect-error Energy declares entities, not functions or factories
   .energy<{ connect: () => WebSocket }>()
 
 MetaFor("invalid-energy-object")
   .fields(() => ({}))
   .superposition({})
-  .mass({})
+  .mass(() => ({}))
   // @ts-expect-error Energy is a generic type declaration, not a runtime object
   .energy({ socket: null as unknown as WebSocket })
 
 MetaFor("invalid-process-state")
   .fields(() => ({}))
   .superposition({ idle: null })
-  .mass({})
+  .mass(() => ({}))
   .energy()
   .processes((process, destroy) => [
     // @ts-expect-error process state must be declared by Superposition

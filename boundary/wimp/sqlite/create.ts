@@ -404,6 +404,12 @@ export const insertMatterBinding = async (
   for (let index = 0; index < paths.length; index++) {
     await sql`INSERT INTO matter_binding_dep (binding, dep_order, path) VALUES (${id}, ${index}, ${paths[index]!})`
   }
+  if (value.directMass !== undefined) {
+    await sql`INSERT INTO matter_binding_direct_mass (binding, kind) VALUES (${id}, ${value.directMass.kind})`
+    if (value.directMass.kind === "keys") for (const [index, entry] of value.directMass.entries.entries()) {
+      await sql`INSERT INTO matter_binding_direct_mass_key (binding, key_order, target_key, source_key) VALUES (${id}, ${index}, ${entry.target}, ${entry.source})`
+    }
+  }
 
   return id
 }

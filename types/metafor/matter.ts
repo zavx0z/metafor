@@ -2,11 +2,16 @@ import type { Fields, Update, Values } from "./fields.ts"
 import type { Energy, Mass } from "./schema.ts"
 import type { NodeType } from "../template/node/index.ts"
 
+export type MatterDirectMassBinding =
+  | {kind: "whole"}
+  | {kind: "keys"; entries: readonly {target: string; source: string}[]}
+
 export type MatterBindingValue =
   | string
   | {
       data?: string | string[]
       expr?: string
+      directMass?: MatterDirectMassBinding
     }
 
 export type TopologyBasis = "state" | "enum" | "array" | "ordinary" | "mass" | "energy" | "unknown"

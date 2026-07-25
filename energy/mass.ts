@@ -17,6 +17,23 @@ export type EnergyMassHandle = {
   write(value: unknown): Promise<void>
 }
 
+export class EnergyMassGate {
+  #generation = new Map<string, number>()
+  #live = new Set<string>()
+  authorize(atom: number, declaration: number, key: string): number {
+    const identity = `${atom}\0${declaration}\0${key}`
+    const generation = (this.#generation.get(identity) ?? 0) + 1
+    this.#generation.set(identity, generation); this.#live.add(`${identity}\0${generation}`)
+    return generation
+  }
+  revoke(atom: number, declaration: number, key: string, generation: number): void {
+    this.#live.delete(`${atom}\0${declaration}\0${key}\0${generation}`)
+  }
+  assert(atom: number, declaration: number, key: string, generation: number): void {
+    if (!this.#live.has(`${atom}\0${declaration}\0${key}\0${generation}`)) throw new Error("Energy Mass handle generation is not live")
+  }
+}
+
 /** Flat worktree-local file catalog. No caller-provided filesystem path exists. */
 export class EnergyMassCatalog {
   readonly root = resolve(import.meta.dir, "..", "mass")
@@ -77,15 +94,17 @@ export class EnergyMassCatalog {
     await this.write(to, await this.read(from))
   }
 
-  handle(artifact: Pick<EnergyMassArtifact, "keyId" | "format" | "mime">): EnergyMassHandle {
+  handle(artifact: Pick<EnergyMassArtifact, "id" | "keyId" | "format" | "mime">, guard?: {gate: EnergyMassGate; atom: number; generation: number}): EnergyMassHandle {
+    const live = (): void => guard?.gate.assert(guard.atom, artifact.id, artifact.keyId, guard.generation)
     return {
       keyId: artifact.keyId,
       format: artifact.format,
       mime: artifact.mime,
-      readBytes: () => this.read(artifact.keyId),
-      readText: async () => new TextDecoder().decode(await this.read(artifact.keyId)),
-      readJson: async <Value>() => JSON.parse(new TextDecoder().decode(await this.read(artifact.keyId))) as Value,
+      readBytes: async () => { live(); return await this.read(artifact.keyId) },
+      readText: async () => { live(); return new TextDecoder().decode(await this.read(artifact.keyId)) },
+      readJson: async <Value>() => { live(); return JSON.parse(new TextDecoder().decode(await this.read(artifact.keyId))) as Value },
       write: async (value) => {
+        live()
         if (artifact.format === "json") await this.write(artifact.keyId, JSON.stringify(value))
         else if (value instanceof Uint8Array) await this.write(artifact.keyId, value)
         else throw new Error("Binary Mass accepts Uint8Array only")
@@ -97,6 +116,7 @@ export class EnergyMassCatalog {
 /** Energy-local handle projection. It contains no membership or source registry. */
 export const createFilesystemEnergyMassStore = (): EnergyMassStore => {
   const catalog = new EnergyMassCatalog()
+  const gate = new EnergyMassGate()
   const values = new Map<string, Record<string, unknown>>()
   const keyOf = (ctx: EnergyMassContext): string => `${ctx.wimp}\0${ctx.atomId}`
   return {
@@ -111,7 +131,9 @@ export const createFilesystemEnergyMassStore = (): EnergyMassStore => {
     },
     bind(ctx, value) { values.set(keyOf(ctx), value) },
     authorize(ctx, artifacts) {
-      values.set(keyOf(ctx), Object.fromEntries(artifacts.map((artifact) => [artifact.key, catalog.handle(artifact)])))
+      values.set(keyOf(ctx), Object.fromEntries(artifacts.map((artifact) => [artifact.key, catalog.handle(artifact, {
+        gate, atom: ctx.atomId, generation: gate.authorize(ctx.atomId, artifact.id, artifact.keyId),
+      })])))
     },
     clear() { values.clear() },
   }

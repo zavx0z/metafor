@@ -43,6 +43,55 @@ describe("Boundary incremental relational projection", () => {
     expect(parseInflatonAddress("mass", {wimp: "owner/project", id: 17})).toBeNull()
   })
 
+  test("reconciles Mass only from persisted direct mappings and repoints selected keys", async () => {
+    await apply("add", "wimp", {
+      src: ROOT, name: "Root", mass: [
+        {key: "source", format: "json", mime: "application/json"},
+        {key: "cache", format: "json", mime: "application/json"},
+      ],
+    })
+    await apply("add", "matter", {
+      wimp: ROOT, id: 1, parent: null, edgeSlot: "root", position: 0, kind: "wimp", src: CHILD,
+      massBinding: {data: "/mass", directMass: {kind: "whole"}},
+    })
+    await apply("add", "wimp", {
+      src: CHILD, name: "Child", mass: [
+        {key: "cache", format: "json", mime: "application/json"},
+        {key: "target", format: "json", mime: "application/json"},
+      ],
+    })
+
+    const atoms = await boundary.projection.sql<Array<{id: number; wimp: string}>>`
+      SELECT id, wimp FROM atom WHERE wimp IN (${ROOT}, ${CHILD}) ORDER BY id
+    `
+    const parent = Number(atoms.find((atom) => atom.wimp === ROOT)!.id)
+    const child = Number(atoms.find((atom) => atom.wimp === CHILD)!.id)
+    const membership = async (atom: number, key: string) => (await boundary.projection.sql<Array<{keyId: string; source: number | null}>>`
+      SELECT membership.key AS keyId, relation.parent_atom AS source
+        FROM mass_membership AS membership
+        JOIN mass_declaration AS declaration ON declaration.id = membership.declaration
+        LEFT JOIN mass_key_source AS relation
+          ON relation.child_atom = membership.atom AND relation.child_declaration = membership.declaration
+       WHERE membership.atom = ${atom} AND declaration.local_key = ${key}
+    `)[0]!
+
+    expect((await membership(child, "cache")).source).toBe(parent)
+    expect((await membership(child, "target")).source).toBeNull()
+
+    await apply("replace", "matter", {
+      wimp: ROOT, id: 1, parent: null, edgeSlot: "root", position: 0, kind: "wimp", src: CHILD,
+      massBinding: {
+        data: "/mass/source", expr: "{ target: _[0] }",
+        directMass: {kind: "keys", entries: [{target: "target", source: "source"}]},
+      },
+    })
+
+    const parentSource = await membership(parent, "source")
+    const childTarget = await membership(child, "target")
+    expect(childTarget).toEqual({keyId: parentSource.keyId, source: parent})
+    expect((await membership(child, "cache")).source).toBeNull()
+  })
+
   test("drops the legacy WIMP Mass declaration table when opening an existing Boundary database", async () => {
     const directory = await mkdtemp(join(tmpdir(), "metafor-boundary-mass-migration-"))
     const filename = join(directory, "boundary.sqlite")

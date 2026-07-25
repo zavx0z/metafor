@@ -21,8 +21,9 @@ export class EnergyMonad {
   readonly catalog = new EnergyCatalogStore()
   #state: EnergyMonadState = "created"
   #error: string | null = null
+  #fenced = new Set<string>()
 
-  async onServerStarted(peer: Pick<MonadRpcPeer, "call">): Promise<{
+  async onServerStarted(peer: Pick<MonadRpcPeer, "call"> & Partial<Pick<MonadRpcPeer, "expose">>): Promise<{
     atoms: number
     topologies: number
     fields: number
@@ -41,6 +42,18 @@ export class EnergyMonad {
       )
       if (!isInitialProjection(initial)) throw new Error("Boundary returned an invalid initial Energy projection")
       for (const entry of initial.entries) this.catalog.apply(particle(entry))
+      peer.expose?.("energy.mass.fence", async (request: unknown) => {
+        if (!isRecord(request) || !Number.isSafeInteger(request.atom) || !Number.isSafeInteger(request.declaration) || typeof request.key !== "string") throw new Error("Invalid Mass fence request")
+        const artifact = this.catalog.mass(Number(request.atom)).find((entry) => entry.id === Number(request.declaration) && entry.keyId === request.key)
+        if (!artifact) throw new Error("Mass fence identity is stale")
+        this.#fenced.add(`${request.atom}\0${request.declaration}\0${request.key}`)
+        return {ok: true}
+      })
+      peer.expose?.("energy.mass.release", async (request: unknown) => {
+        if (!isRecord(request) || !Number.isSafeInteger(request.atom) || !Number.isSafeInteger(request.declaration) || typeof request.key !== "string") throw new Error("Invalid Mass release request")
+        this.#fenced.delete(`${request.atom}\0${request.declaration}\0${request.key}`)
+        return {ok: true}
+      })
       this.#state = "prepared"
       return {
         atoms: this.catalog.atoms.size,

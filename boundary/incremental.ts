@@ -15,7 +15,8 @@ import {
   validateRuntimeMatterBinding,
 } from "./wimp/sqlite/create.ts"
 import {writeBoundaryAtomValue} from "./world.ts"
-import {BoundaryMassStore} from "./mass.ts"
+import {BoundaryMassStore, type BoundaryMassDetachPlan} from "./mass.ts"
+import {MassCatalog} from "../shared/mass.ts"
 
 type Database = SQL | ReservedSQL
 type JsonRecord = Record<string, unknown>
@@ -249,11 +250,21 @@ export class BoundaryIncrementalStore {
   readonly originByInstance = new Map<string, string>()
   readonly parentByInstance = new Map<string, string>()
   private readonly pendingEnumDefaults = new Map<string, unknown>()
+  private massFence: ((request: {atom: number; declaration: number; key: string}) => Promise<void>) | undefined
+  private massRelease: ((request: {atom: number; declaration: number; key: string}) => Promise<void>) | undefined
 
   readonly mass: BoundaryMassStore
 
-  constructor(readonly sql: SQL) {
-    this.mass = new BoundaryMassStore(sql)
+  constructor(readonly sql: SQL, catalog = new MassCatalog()) {
+    this.mass = new BoundaryMassStore(sql, catalog)
+  }
+
+  setMassFence(fence: (request: {atom: number; declaration: number; key: string}) => Promise<void>): void {
+    this.massFence = fence
+  }
+
+  setMassRelease(release: (request: {atom: number; declaration: number; key: string}) => Promise<void>): void {
+    this.massRelease = release
   }
 
   async init(): Promise<void> {
@@ -394,11 +405,15 @@ export class BoundaryIncrementalStore {
     const address = parseInflatonAddress(part.path, part.value)
     if (!address) throw new Error(`Invalid categorical Inflaton identity: ${String(part.path)}`)
     const input = record(part.value, `${address.path} value`)
+    let detachPlans: BoundaryMassDetachPlan[] = []
+    try { detachPlans = await this.preflightMassDetach(address, part.op, input) }
+    catch (error) { throw error }
     const repositoryRemoval = part.op === "remove" && address.path === "wimp" && isRootWimpSource(address.src)
       ? await this.repositoryRemovalEffects(address.src)
       : null
 
-    const effects = await this.sql.begin(async (tx): Promise<Particle[]> => {
+    let effects: Particle[]
+    try { effects = await this.sql.begin(async (tx): Promise<Particle[]> => {
       const committed: Particle[] = []
       const supersedeCommittedWimps = async (): Promise<void> => {
         const wimps = new Set<string>()
@@ -474,7 +489,9 @@ export class BoundaryIncrementalStore {
         ))
         : false
       await this.persist(tx, address, input)
+      for (const plan of detachPlans) await this.mass.commitDetachIn(tx, plan)
       await this.mass.ensureIndependentMemberships(tx)
+      await this.reconcileMassBindingSources(tx)
       const canonical = await this.canonical(tx, address, input)
       const declarationChanged = !sameJson(previous, canonical)
       if (declarationChanged) {
@@ -502,6 +519,11 @@ export class BoundaryIncrementalStore {
       }
       if (declarationChanged) await this.addRuntimeConsequences(tx, address, input, committed)
       await this.mass.ensureIndependentMemberships(tx)
+      // Materializing a Matter child can create the membership only after its
+      // declaration was persisted.  Reconcile the already-persisted direct
+      // relation once those child rows exist; no dependency path or expr is
+      // consulted here.
+      await this.reconcileMassBindingSources(tx)
       for (const effect of committed) {
         if (effect.part !== "graviton" || effect.op === "remove" || typeof effect.path !== "string") continue
         const match = /^atom\/(\d+)$/.exec(effect.path)
@@ -521,7 +543,13 @@ export class BoundaryIncrementalStore {
       }
       await supersedeCommittedWimps()
       return committed
-    })
+    }) } catch (error) {
+      for (const plan of detachPlans) {
+        await this.mass.catalog.cleanupSafe(plan.nextKey)
+        await this.massRelease?.({atom: plan.childAtom, declaration: plan.childDeclaration, key: plan.sourceKey})
+      }
+      throw error
+    }
 
     await this.updateIndexes(effects)
     if (repositoryRemoval) {
@@ -531,6 +559,38 @@ export class BoundaryIncrementalStore {
       }
     }
     return {rootSrc: await this.rootSrc(), messages: effects.map(particleMessage)}
+  }
+
+  private async preflightMassDetach(address: InflatonAddress, op: Particle["op"], input: JsonRecord): Promise<BoundaryMassDetachPlan[]> {
+    if (op !== "replace" || address.path !== "matter") return []
+    const next = input.massBinding
+    const direct = isRecord(next) && isRecord(next.directMass)
+    if (direct) return []
+    const stale = await this.sql<Array<{atom: number; declaration: number; key: string}>>`
+      SELECT source.child_atom AS atom, source.child_declaration AS declaration, membership.key
+        FROM mass_key_source AS source
+        JOIN boundary_runtime_origin AS origin
+          ON origin.kind = ${"atom"} AND origin.runtime_id = source.child_atom
+        JOIN mass_membership AS membership
+          ON membership.atom = source.child_atom AND membership.declaration = source.child_declaration
+       WHERE origin.declaration_kind = ${"matter"}
+         AND origin.declaration_wimp = ${address.src}
+         AND origin.declaration_local_id = ${address.localId}
+    `
+    const plans: BoundaryMassDetachPlan[] = []
+    try { for (const request of stale) {
+      await this.massFence?.({atom: Number(request.atom), declaration: Number(request.declaration), key: request.key})
+      const plan = await this.mass.prepareDetach(this.sql, Number(request.atom), Number(request.declaration))
+      plans.push(plan)
+      await this.mass.catalog.copy(plan.sourceKey, plan.nextKey)
+    } } catch (error) {
+      for (const plan of plans) {
+        await this.mass.catalog.cleanupSafe(plan.nextKey)
+        await this.massRelease?.({atom: plan.childAtom, declaration: plan.childDeclaration, key: plan.sourceKey})
+      }
+      throw error
+    }
+    return plans
   }
 
   async replay(): Promise<ForceMessage[]> {
@@ -2139,9 +2199,21 @@ export class BoundaryIncrementalStore {
     const paths = (await sql<Array<{path: string}>>`
       SELECT path FROM matter_binding_dep WHERE binding = ${bindingId} ORDER BY dep_order
     `).map((dependency) => dependency.path)
+    const direct = (await sql<Array<{kind: "whole" | "keys"}>>`
+      SELECT kind FROM matter_binding_direct_mass WHERE binding = ${bindingId}
+    `)[0]
+    const directMass = direct === undefined ? undefined : direct.kind === "whole"
+      ? {kind: "whole" as const}
+      : {kind: "keys" as const, entries: (await sql<Array<{target: string; source: string}>>`
+          SELECT target_key AS target, source_key AS source
+            FROM matter_binding_direct_mass_key
+           WHERE binding = ${bindingId}
+           ORDER BY key_order
+        `).map((entry) => ({target: entry.target, source: entry.source}))}
     return {
       ...(paths.length === 0 ? {} : {data: paths.length === 1 ? paths[0] : paths}),
       ...(row.kind === "dynamic" ? {expr: row.expr} : {}),
+      ...(directMass === undefined ? {} : {directMass}),
     }
   }
 
@@ -2610,6 +2682,33 @@ export class BoundaryIncrementalStore {
     })
     await this.updateIndexes(effects)
     return {rootSrc: await this.rootSrc(), messages: effects.map(particleMessage)}
+  }
+
+  /** Reuses Boundary key identities for direct /mass and /mass/<key> Matter bindings. */
+  private async reconcileMassBindingSources(sql: Database): Promise<void> {
+    const bindings = await sql<Array<{childAtom: number; parentAtom: number; kind: string; target: string | null; source: string | null}>>`
+      SELECT child.id AS childAtom, child.parent_atom AS parentAtom, direct.kind,
+             entry.target_key AS target, entry.source_key AS source
+        FROM boundary_runtime_origin AS origin
+        JOIN atom AS child ON child.id = origin.runtime_id
+        JOIN matter_particle_wimp AS edge
+          ON edge.particle = (SELECT id FROM matter_particle
+                                WHERE wimp = origin.declaration_wimp AND local_id = origin.declaration_local_id)
+        JOIN matter_binding_direct_mass AS direct ON direct.binding = edge.mass_binding
+        LEFT JOIN matter_binding_direct_mass_key AS entry ON entry.binding = direct.binding
+       WHERE origin.kind = ${"atom"} AND child.parent_atom IS NOT NULL
+       ORDER BY child.id, direct.kind, entry.key_order
+    `
+    let childAtom: number | null = null
+    for (const binding of bindings) {
+      const nextChild = Number(binding.childAtom)
+      if (childAtom !== nextChild) {
+        childAtom = nextChild
+        await this.mass.clearSourcesIn(sql, childAtom)
+      }
+      if (binding.kind === "whole") await this.mass.sourceMatchingKeys(sql, nextChild, Number(binding.parentAtom))
+      else if (binding.target !== null && binding.source !== null) await this.mass.sourceMappedKey(sql, nextChild, Number(binding.parentAtom), binding.target, binding.source)
+    }
   }
 
   private async atomEntity(sql: Database, id: number): Promise<JsonRecord | null> {

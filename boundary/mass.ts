@@ -1,10 +1,19 @@
 import type {SQL, ReservedSQL} from "bun"
 import type {MetaMassDSL} from "@metafor/types/metafor/schema"
+import {MassCatalog} from "../shared/mass.ts"
 
 type Database = SQL | ReservedSQL
 
 export type BoundaryMassDeclaration = MetaMassDSL & {id: number; wimp: string}
 export type BoundaryMassMembership = {atomId: number; declarationId: number; keyId: string; source?: {atomId: number; declarationId: number}}
+export type BoundaryMassDetachPlan = Readonly<{
+  childAtom: number
+  childDeclaration: number
+  sourceAtom: number
+  sourceDeclaration: number
+  sourceKey: string
+  nextKey: string
+}>
 
 const keyId = (): string => crypto.randomUUID()
 
@@ -14,7 +23,7 @@ const keyId = (): string => crypto.randomUUID()
  * one global key/file identity.
  */
 export class BoundaryMassStore {
-  constructor(private readonly sql: SQL) {}
+  constructor(private readonly sql: SQL, readonly catalog: MassCatalog) {}
 
   async init(): Promise<void> {
     await this.sql.unsafe(`
@@ -150,25 +159,66 @@ export class BoundaryMassStore {
     `
   }
 
-  /**
-   * Splitting a direct source has the caller atomically publish the copied
-   * file before Boundary makes the new key canonical.
-   */
-  async detach(childAtom: number, childDeclaration: number, copy: (from: string, to: string) => Promise<void>): Promise<string> {
-    return await this.sql.begin(async (sql) => {
-      const source = (await sql<Array<{key: string}>>`
-        SELECT parent.key FROM mass_key_source AS relation
-        JOIN mass_membership AS parent
+  /** A direct Matter rebind replaces its exact child mapping, never guesses by expression. */
+  async clearSourcesIn(sql: Database, childAtom: number): Promise<void> {
+    await sql`DELETE FROM mass_key_source WHERE child_atom = ${childAtom}`
+  }
+
+  /** Whole direct bindings share only declarations with identical codecs. */
+  async sourceMatchingKeys(sql: Database, childAtom: number, parentAtom: number, key?: string): Promise<void> {
+    const rows = await sql<Array<{childDeclaration: number; parentDeclaration: number}>>`
+      SELECT child.declaration AS childDeclaration, parent.declaration AS parentDeclaration
+        FROM mass_membership AS child
+        JOIN mass_declaration AS child_declaration ON child_declaration.id = child.declaration
+        JOIN mass_membership AS parent ON parent.atom = ${parentAtom}
+        JOIN mass_declaration AS parent_declaration ON parent_declaration.id = parent.declaration
+       WHERE child.atom = ${childAtom}
+         AND child_declaration.local_key = parent_declaration.local_key
+         AND child_declaration.format = parent_declaration.format
+         AND child_declaration.mime = parent_declaration.mime
+         AND (${key ?? null} IS NULL OR child_declaration.local_key = ${key ?? null})
+    `
+    for (const row of rows) await this.sourceIn(sql, childAtom, Number(row.childDeclaration), parentAtom, Number(row.parentDeclaration))
+  }
+
+  async sourceMappedKey(sql: Database, childAtom: number, parentAtom: number, target: string, source: string): Promise<void> {
+    const row = (await sql<Array<{childDeclaration: number; parentDeclaration: number; childFormat: string; childMime: string; parentFormat: string; parentMime: string}>>`
+      SELECT child.declaration AS childDeclaration, parent.declaration AS parentDeclaration,
+             child_declaration.format AS childFormat, child_declaration.mime AS childMime,
+             parent_declaration.format AS parentFormat, parent_declaration.mime AS parentMime
+        FROM mass_membership AS child JOIN mass_declaration AS child_declaration ON child_declaration.id = child.declaration
+        JOIN mass_membership AS parent ON parent.atom = ${parentAtom}
+        JOIN mass_declaration AS parent_declaration ON parent_declaration.id = parent.declaration
+       WHERE child.atom = ${childAtom} AND child_declaration.local_key = ${target} AND parent_declaration.local_key = ${source}
+    `)[0]
+    if (!row) throw new Error("Direct Mass mapping references an undeclared key")
+    if (row.childFormat !== row.parentFormat || row.childMime !== row.parentMime) {
+      throw new Error("Direct Mass mapping requires matching format and MIME")
+    }
+    await this.sourceIn(sql, childAtom, Number(row.childDeclaration), parentAtom, Number(row.parentDeclaration))
+  }
+
+  async prepareDetach(sql: Database, childAtom: number, childDeclaration: number): Promise<BoundaryMassDetachPlan> {
+    const source = (await sql<Array<{sourceAtom: number; sourceDeclaration: number; sourceKey: string}>>`
+      SELECT relation.parent_atom AS sourceAtom, relation.parent_declaration AS sourceDeclaration, parent.key AS sourceKey
+        FROM mass_key_source AS relation JOIN mass_membership AS parent
           ON parent.atom = relation.parent_atom AND parent.declaration = relation.parent_declaration
        WHERE relation.child_atom = ${childAtom} AND relation.child_declaration = ${childDeclaration}
-      `)[0]
-      if (!source) throw new Error("Mass membership has no direct source to detach")
-      const next = keyId()
-      await copy(source.key, next)
-      await sql`INSERT INTO mass_key (id) VALUES (${next})`
-      await sql`UPDATE mass_membership SET key = ${next} WHERE atom = ${childAtom} AND declaration = ${childDeclaration}`
-      await sql`DELETE FROM mass_key_source WHERE child_atom = ${childAtom} AND child_declaration = ${childDeclaration}`
-      return next
-    })
+    `)[0]
+    if (!source) throw new Error("Mass membership has no direct source to detach")
+    return Object.freeze({childAtom, childDeclaration, sourceAtom: Number(source.sourceAtom), sourceDeclaration: Number(source.sourceDeclaration), sourceKey: source.sourceKey, nextKey: keyId()})
+  }
+
+  async commitDetachIn(sql: Database, plan: BoundaryMassDetachPlan): Promise<void> {
+    const current = (await sql<Array<{key: string}>>`
+      SELECT parent.key FROM mass_key_source AS relation JOIN mass_membership AS parent
+        ON parent.atom = relation.parent_atom AND parent.declaration = relation.parent_declaration
+       WHERE relation.child_atom = ${plan.childAtom} AND relation.child_declaration = ${plan.childDeclaration}
+         AND relation.parent_atom = ${plan.sourceAtom} AND relation.parent_declaration = ${plan.sourceDeclaration}
+    `)[0]
+    if (!current || current.key !== plan.sourceKey) throw new Error("Mass detach source changed before commit")
+    await sql`INSERT INTO mass_key (id) VALUES (${plan.nextKey})`
+    await sql`UPDATE mass_membership SET key = ${plan.nextKey} WHERE atom = ${plan.childAtom} AND declaration = ${plan.childDeclaration}`
+    await sql`DELETE FROM mass_key_source WHERE child_atom = ${plan.childAtom} AND child_declaration = ${plan.childDeclaration}`
   }
 }
