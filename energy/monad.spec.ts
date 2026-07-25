@@ -29,7 +29,7 @@ describe("Energy Monad", () => {
               value: {
                 atom: {id: 2, parentAtom: null, parentTopology: 4, wimp: "owner/child", position: 0},
                 continuation: {
-                  massBinding: {data: "/mass"},
+                  massBinding: {data: "/mass", directMass: {kind: "whole"}},
                   energyBinding: {data: "/energy"},
                 },
                 values: [], valueRecords: [], valueItems: [], state: null,
@@ -75,7 +75,7 @@ describe("Energy Monad", () => {
     })
     expect(monad.catalog.parentAtom(2)?.id).toBe(1)
     expect(monad.catalog.continuation(2)).toEqual({
-      massBinding: {data: "/mass"},
+      massBinding: {data: "/mass", directMass: {kind: "whole"}},
       energyBinding: {data: "/energy"},
     })
     expect(await monad.onHealthRequested().json()).toMatchObject({initialized: false, rpc: "prepared"})

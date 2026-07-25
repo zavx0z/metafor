@@ -92,7 +92,7 @@ describe("Energy cold start", () => {
     await apply("matter", {
       wimp: "owner/root", id: 2, parent: 1, edgeSlot: "child", position: 0, kind: "wimp",
       src: "owner/child",
-      massBinding: {data: "/mass"},
+      massBinding: {data: "/mass", directMass: {kind: "whole"}},
       energyBinding: {data: "/energy"},
     })
     await apply("wimp", {src: "owner/child", name: "Child", desc: null})
@@ -186,7 +186,7 @@ describe("Energy cold start", () => {
         expect(monad.catalog.continuations.size).toBe(1)
         expect(monad.catalog.parentAtom(persisted.childId)?.id).toBe(persisted.rootId)
         expect(monad.catalog.continuation(persisted.childId)).toEqual({
-          massBinding: {data: "/mass"},
+          massBinding: {data: "/mass", directMass: {kind: "whole"}},
           energyBinding: {data: "/energy"},
         })
         events.push("force.create")
@@ -218,7 +218,7 @@ describe("Energy cold start", () => {
     })
     expect(monad.catalog.parentAtom(persisted.childId)?.id).toBe(persisted.rootId)
     expect(monad.catalog.continuation(persisted.childId)).toEqual({
-      massBinding: {data: "/mass"},
+      massBinding: {data: "/mass", directMass: {kind: "whole"}},
       energyBinding: {data: "/energy"},
     })
     expect(await monad.onHealthRequested().json()).toMatchObject({initialized: false, rpc: "prepared"})

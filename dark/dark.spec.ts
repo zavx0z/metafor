@@ -175,7 +175,11 @@ describe("Dark incremental Inflaton projection", () => {
         matter: [{
           kind: "wimp",
           src: child,
-          massBinding: {data: "/mass/cache", expr: "{cache: _[0]}"},
+          massBinding: {
+            data: "/mass/cache",
+            expr: "{cache: _[0]}",
+            directMass: {kind: "keys", entries: [{target: "cache", source: "cache"}]},
+          },
           energyBinding: {data: "/energy/socket", expr: "{socket: _[0]}"},
         }],
         mass: {ready: true},
@@ -209,7 +213,11 @@ describe("Dark incremental Inflaton projection", () => {
       position: 0,
       kind: "wimp",
       src: child,
-      massBinding: {data: "/mass/cache", expr: "{cache: _[0]}"},
+      massBinding: {
+        data: "/mass/cache",
+        expr: "{cache: _[0]}",
+        directMass: {kind: "keys", entries: [{target: "cache", source: "cache"}]},
+      },
       energyBinding: {data: "/energy/socket", expr: "{socket: _[0]}"},
     })
     expect(rootMatter).toBeLessThan(childWimp)

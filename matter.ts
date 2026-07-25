@@ -147,6 +147,9 @@ const validateRuntimeBinding = (
 ): void => {
   if (binding === undefined) return
   if (typeof binding === "string") {
+    if (domain === "mass") {
+      throw new Error(`Matter violation at "${location}": mass binding must be a direct whole or declared-key projection.`)
+    }
     const source = binding.trim()
     if (!source.startsWith("{") || !source.endsWith("}") || EXECUTABLE_BINDING_RE.test(source)) {
       throw new Error(`Matter violation at "${location}": ${domain} binding must be a pure object projection.`)

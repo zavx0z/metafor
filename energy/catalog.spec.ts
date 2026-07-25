@@ -110,14 +110,20 @@ describe("Energy incremental catalog", () => {
     store.apply(part("add", "atom/2", {
       atom: {id: 2, parentAtom: null, parentTopology: 7, wimp: "owner/child", position: 0},
       continuation: {
-        massBinding: {data: "/mass/cache"},
+        massBinding: {
+          data: "/mass/cache",
+          directMass: {kind: "keys", entries: [{target: "cache", source: "cache"}]},
+        },
         energyBinding: {data: "/energy/socket"},
       },
     }))
 
     expect(store.parentAtom(2)).toBe(store.atoms.get(1))
     expect(store.continuation(2)).toEqual({
-      massBinding: {data: "/mass/cache"},
+      massBinding: {
+        data: "/mass/cache",
+        directMass: {kind: "keys", entries: [{target: "cache", source: "cache"}]},
+      },
       energyBinding: {data: "/energy/socket"},
     })
     expect("continuation" in store.atoms.get(2)!).toBe(false)

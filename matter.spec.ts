@@ -107,6 +107,17 @@ describe("matter validation", () => {
       .matter(({mass, html}) => html`<meta-for src="demo/child" mass=${{cache: `${mass.cache}`}} />`)
       .bulk(),
     ).toThrow("mass binding must be a direct whole or declared-key projection")
+
+    expect(() => MetaFor("matter-static-mass")
+      .fields(() => ({}))
+      .superposition({idle: null})
+      .mass(() => ({}))
+      .energy()
+      .processes()
+      .reactions()
+      .matter(({html}) => html`<meta-for src="demo/child" mass=${{cache: "value"} as never} />`)
+      .bulk(),
+    ).toThrow("mass binding must be a direct whole or declared-key projection")
   })
 
   test("запрещает смешивать Mass/Energy paths и помещать функции в runtime binding", () => {

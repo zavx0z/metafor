@@ -15,6 +15,7 @@ export const validateRuntimeMatterBinding = (
 ): void => {
   if (value === undefined || value === null) return
   if (typeof value === "string") {
+    if (domain === "mass") throw new Error(`${label} must include normalized directMass metadata`)
     const source = value.trim()
     if (!source.startsWith("{") || !source.endsWith("}") || EXECUTABLE_BINDING_RE.test(source)) {
       throw new Error(`${label} must be a pure object projection`)
@@ -38,6 +39,50 @@ export const validateRuntimeMatterBinding = (
   if (value.expr !== undefined && (
     typeof value.expr !== "string" || EXECUTABLE_BINDING_RE.test(value.expr)
   )) throw new Error(`${label} must not create executable resources`)
+
+  if (domain === "energy") {
+    if (value.directMass !== undefined) throw new Error(`${label} must not declare directMass metadata`)
+    return
+  }
+
+  const direct = value.directMass
+  if (!isRecord(direct)) throw new Error(`${label} must include normalized directMass metadata`)
+  if (direct.kind === "whole") {
+    if (rawPaths.length !== 1 || rawPaths[0] !== "/mass" || value.expr !== undefined) {
+      throw new Error(`${label} whole directMass must depend only on /mass`)
+    }
+    return
+  }
+  if (direct.kind !== "keys" || !Array.isArray(direct.entries) || direct.entries.length === 0) {
+    throw new Error(`${label} directMass must be whole or a non-empty key mapping`)
+  }
+
+  const sources = new Set(
+    (rawPaths as string[])
+      .filter((path) => /^\/mass\/[^/]+$/.test(path))
+      .map((path) => path.slice("/mass/".length)),
+  )
+  const targets = new Set<string>()
+  const mappedSources = new Set<string>()
+  for (const entry of direct.entries) {
+    if (
+      !isRecord(entry) ||
+      typeof entry.target !== "string" ||
+      typeof entry.source !== "string" ||
+      !/^[A-Za-z_$][\w$]*$/.test(entry.target) ||
+      !/^[A-Za-z_$][\w$]*$/.test(entry.source) ||
+      targets.has(entry.target) ||
+      mappedSources.has(entry.source) ||
+      !sources.has(entry.source)
+    ) {
+      throw new Error(`${label} directMass key mapping is invalid`)
+    }
+    targets.add(entry.target)
+    mappedSources.add(entry.source)
+  }
+  if (mappedSources.size !== sources.size || direct.entries.length !== rawPaths.length) {
+    throw new Error(`${label} directMass must map every declared /mass/<key> dependency exactly once`)
+  }
 }
 
 const insertId = async (rows: Promise<Array<{id: number}>>, label: string): Promise<number> => {

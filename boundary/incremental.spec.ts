@@ -433,7 +433,7 @@ describe("Boundary incremental relational projection", () => {
     })
     await apply("add", "matter", {
       wimp: ROOT, id: 1, parent: null, edgeSlot: "root", position: 0, kind: "wimp", src: CHILD,
-      massBinding: {data: "/mass"},
+      massBinding: {data: "/mass", directMass: {kind: "whole"}},
     })
     await declareWimp(CHILD, "Child")
 
@@ -444,7 +444,7 @@ describe("Boundary incremental relational projection", () => {
 
     const commit = await apply("replace", "matter", {
       wimp: ROOT, id: 1, parent: null, edgeSlot: "root", position: 0, kind: "wimp", src: CHILD,
-      massBinding: {data: "/mass"},
+      massBinding: {data: "/mass", directMass: {kind: "whole"}},
       energyBinding: {data: "/energy"},
     })
     const rebuiltAtomIds = (commit?.messages ?? [])
@@ -737,7 +737,7 @@ describe("Boundary incremental relational projection", () => {
     })
     await apply("add", "matter", {
       wimp: ROOT, id: 4, parent: 3, edgeSlot: "then", position: 0, kind: "wimp", src: PEER,
-      massBinding: {data: "/mass/cache", expr: "{cache: _[0]}"},
+      massBinding: {data: "/mass", directMass: {kind: "whole"}},
       energyBinding: {data: "/energy/socket", expr: "{socket: _[0]}"},
     })
     await declareWimp(CHILD, "Parent")
@@ -777,7 +777,7 @@ describe("Boundary incremental relational projection", () => {
       value: expect.objectContaining({
         atom: expect.objectContaining({id: leafId}),
         continuation: {
-          massBinding: {data: "/mass/cache", expr: "{cache: _[0]}"},
+          massBinding: {data: "/mass", directMass: {kind: "whole"}},
           energyBinding: {data: "/energy/socket", expr: "{socket: _[0]}"},
         },
       }),
@@ -1103,7 +1103,7 @@ describe("Boundary incremental relational projection", () => {
     await apply("add", "matter", {
       wimp: ROOT, id: 1, parent: null, edgeSlot: "root", position: 0, kind: "wimp", src: CHILD,
       fieldsBinding: {data: ["operation", "args"], expr: "{operation: _[0], args: _[1]}"},
-      massBinding: {data: "/mass/cache", expr: "{cache: _[0]}"},
+      massBinding: {data: "/mass", directMass: {kind: "whole"}},
       energyBinding: {data: "/energy/socket", expr: "{socket: _[0]}"},
     })
     await declareWimp(CHILD, "Child")
@@ -1150,7 +1150,7 @@ describe("Boundary incremental relational projection", () => {
       return value?.atom?.wimp === CHILD && (value.atom.parentAtom !== null || value.atom.parentTopology !== null)
     })?.parts[0].value as Record<string, unknown> | undefined
     expect(childAtom?.continuation).toEqual({
-      massBinding: {data: "/mass/cache", expr: "{cache: _[0]}"},
+      massBinding: {data: "/mass", directMass: {kind: "whole"}},
       energyBinding: {data: "/energy/socket", expr: "{socket: _[0]}"},
     })
     expect((await boundary.replay()).find((message) => {
@@ -1183,14 +1183,16 @@ describe("Boundary incremental relational projection", () => {
     const rebound = await apply("replace", "matter", {
       wimp: ROOT, id: 1, parent: null, edgeSlot: "root", position: 0, kind: "wimp", src: CHILD,
       fieldsBinding: {data: ["operation", "args"], expr: "{operation: _[0], args: _[1]}"},
-      massBinding: {data: "/mass"},
+      massBinding: {data: "/mass", directMass: {kind: "whole"}},
     })
     expect(rebound?.messages).toContainEqual({parts: [{
       part: "graviton",
       op: "replace",
       path: `atom/${childId}`,
       ts: expect.any(Number),
-      value: expect.objectContaining({continuation: {massBinding: {data: "/mass"}}}),
+      value: expect.objectContaining({
+        continuation: {massBinding: {data: "/mass", directMass: {kind: "whole"}}},
+      }),
     }]})
     expect((await boundary.projection.sql<Array<{mass: number | null; energy: number | null}>>`
       SELECT edge.mass_binding AS mass, edge.energy_binding AS energy
@@ -1199,7 +1201,9 @@ describe("Boundary incremental relational projection", () => {
        WHERE particle.wimp = ${ROOT} AND particle.local_id = ${1}
     `)[0]).toEqual({mass: expect.any(Number), energy: null})
     expect((await boundary.replay()).find((message) => message.parts[0].path === `atom/${childId}`)?.parts[0].value)
-      .toEqual(expect.objectContaining({continuation: {massBinding: {data: "/mass"}}}))
+      .toEqual(expect.objectContaining({
+        continuation: {massBinding: {data: "/mass", directMass: {kind: "whole"}}},
+      }))
   })
 
   test("keeps computed child Field values independent from their parent dependencies", async () => {
@@ -1393,18 +1397,33 @@ describe("Boundary incremental relational projection", () => {
 
     await expect(apply("add", "matter", {
       wimp: ROOT, id: 1, parent: null, edgeSlot: "root", position: 0, kind: "wimp", src: CHILD,
+      massBinding: {data: "/mass"},
+    })).rejects.toThrow("matter.massBinding must include normalized directMass metadata")
+
+    await expect(apply("add", "matter", {
+      wimp: ROOT, id: 2, parent: null, edgeSlot: "root", position: 0, kind: "wimp", src: CHILD,
+      massBinding: "{cache: 'value'}",
+    })).rejects.toThrow("matter.massBinding must include normalized directMass metadata")
+
+    await expect(apply("add", "matter", {
+      wimp: ROOT, id: 3, parent: null, edgeSlot: "root", position: 0, kind: "wimp", src: CHILD,
       massBinding: {data: "/energy/socket", expr: "{socket: _[0]}"},
     })).rejects.toThrow("matter.massBinding dependency must use /mass")
 
     await expect(apply("add", "matter", {
-      wimp: ROOT, id: 2, parent: null, edgeSlot: "root", position: 0, kind: "wimp", src: CHILD,
+      wimp: ROOT, id: 4, parent: null, edgeSlot: "root", position: 0, kind: "wimp", src: CHILD,
       energyBinding: {data: "/energy/socket", expr: "() => _[0]"},
     })).rejects.toThrow("matter.energyBinding must not create executable resources")
 
     await expect(apply("add", "matter", {
-      wimp: ROOT, id: 3, parent: null, edgeSlot: "root", position: 0, kind: "wimp", src: CHILD,
+      wimp: ROOT, id: 5, parent: null, edgeSlot: "root", position: 0, kind: "wimp", src: CHILD,
       energyBinding: {data: "/energy/socket", expr: "{socket: _[0].close()}"},
     })).rejects.toThrow("matter.energyBinding must not create executable resources")
+
+    await expect(apply("add", "matter", {
+      wimp: ROOT, id: 6, parent: null, edgeSlot: "root", position: 0, kind: "wimp", src: CHILD,
+      energyBinding: {data: "/energy", directMass: {kind: "whole"}},
+    })).rejects.toThrow("matter.energyBinding must not declare directMass metadata")
 
     expect(await boundary.projection.sql<unknown[]>`SELECT id FROM matter_particle WHERE wimp = ${ROOT}`).toEqual([])
   })
