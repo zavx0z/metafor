@@ -1,6 +1,13 @@
-/** Metadata-only declaration of one persisted Mass artifact. */
+/** Codec of one persisted Mass key-file. */
 export type MassFormat = "json" | "binary"
 
+/**
+ * Authored metadata of one Mass key.
+ *
+ * The property name supplied to `.mass(...)` is the local key. Boundary owns
+ * its declaration ID and global key ID; paths, MIME and versions are not
+ * authored metadata.
+ */
 export type MassDeclaration = {
   readonly format: MassFormat
   readonly label?: string
@@ -9,7 +16,13 @@ export type MassDeclaration = {
 
 export type MassDeclarations = Record<string, MassDeclaration>
 
-/** Declared-key file handle; its content intentionally has no schema type. */
+/**
+ * Handle of one declared Mass key-file.
+ *
+ * The declared codec controls `write`: JSON keys serialize the value and
+ * binary keys accept `Uint8Array`. The content intentionally has no schema
+ * type; persistence identity and filesystem paths remain outside the action.
+ */
 export type MassHandle = {
   readBytes(): Promise<Uint8Array>
   readText(): Promise<string>
@@ -39,7 +52,7 @@ const declaration = (
   options: MassOptions = {},
 ): MassDeclaration => ({format, ...options})
 
-/** The only authored Mass metadata. It never contains a key ID or file path. */
+/** Builds the only authored Mass metadata; key IDs and paths are Boundary/runtime-owned. */
 export const massFactory: MassFactory = {
   json: (options = {}) => declaration("json", options),
   binary: (options = {}) => declaration("binary", options),

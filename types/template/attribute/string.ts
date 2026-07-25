@@ -9,7 +9,7 @@ import type { ValueVariable, ValueDynamic } from "../parser.ts"
  * @example
  * ```html
  * <img src=${fields.url} alt=${fields.alt} title=${fields.title} />
- * <a href="/user/${mass.user.id}">Профиль пользователя</a>
+ * <a href="/user/${value.userId}">Профиль пользователя</a>
  * ```
  */
 

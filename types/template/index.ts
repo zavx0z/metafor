@@ -6,7 +6,8 @@ import type { NodeType } from "./node/index.ts"
 /**
  * Парсит HTML-шаблон и возвращает обогащенную иерархию с метаданными о путях к данным.
  *
- * @param template - Функция шаблонизатора, которая принимает параметры { html, fields, mass, state, update }
+ * @param template - Функция шаблонизатора; `mass` в её параметрах содержит
+ * handles объявленных key-files, а не их JSON/binary содержимое
  * @returns Массив узлов с полной структурой и метаданными о путях к данным
  */
 export declare function parse<

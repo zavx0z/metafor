@@ -25,9 +25,9 @@ import type { PartText } from "./text.ts"
  * @example Итерация с индексом
  * ```html
  * <ul>
- *   ${mass.items.map((item, index) => html`
+ *   ${value.itemIds.map((itemId, index) => html`
  *     <li class=${index % 2 === 0 ? 'even' : 'odd'}>
- *       ${index + 1}. ${item.name}
+ *       ${index + 1}. #${itemId}
  *     </li>
  *   `)}
  * </ul>
@@ -41,21 +41,21 @@ import type { PartText } from "./text.ts"
  *   "child": [
  *     {
  *       "type": "map",
- *       "data": "/mass/items",
+ *       "data": "/value/itemIds",
  *       "child": [
  *         {
  *           "tag": "li",
  *           "type": "el",
  *           "string": {
  *             "class": {
- *               "data": ["index", "item.name"],
+ *               "data": "index",
  *               "expr": "${[0]} % 2 === 0 ? 'even' : 'odd'"
  *             }
  *           },
  *           "child": [
  *             {
  *               "type": "text",
- *               "data": ["index", "item.name"],
+ *               "data": ["index", "itemId"],
  *               "expr": "${[0] + 1}. ${[1]}"
  *             }
  *           ]
@@ -69,7 +69,7 @@ import type { PartText } from "./text.ts"
  * @example Вложенная итерация
  * ```html
  * <div>
- *   ${mass.categories.map(category => html`
+ *   ${value.categories.map(category => html`
  *     <section>
  *       <h1>${category.name}</h1>
  *       ${category.products.map(product => html`
@@ -83,7 +83,7 @@ import type { PartText } from "./text.ts"
 export interface NodeMap {
   /** Тип узла — всегда `"map"` для map операций */
   type: "map"
-  /** Путь к массиву данных для итерации (например, `"/fields/users"`, `"/mass/products"`) */
+  /** Путь к массиву данных для итерации (например, `"/value/userIds"`) */
   data: string
   /** Дочерние узлы, которые будут повторены для каждого элемента массива */
   child: NodeType[]
@@ -94,7 +94,7 @@ export interface NodeMap {
  * Используется для отслеживания текущей итерации при парсинге вложенных структур.
  */
 export interface ParseMapContext {
-  /** Путь к массиву данных (например, `"/mass/items"`) */
+  /** Путь к массиву данных (например, `"/value/itemIds"`) */
   path: string
   /**
    * Параметры map функции.
@@ -112,7 +112,7 @@ export interface TokenMapOpen { kind: "map-open"; sig: string }
 export interface PartAttrMap {
   /** Тип узла — `"map"` для map операций */
   type: "map"
-  /** Исходный текст map-выражения (например, `"mass.items.map(item => html`...`)"`) */
+  /** Исходный текст map-выражения (например, `"value.itemIds.map(item => html`...`)"`) */
   text: string
   /** Дочерние элементы, повторяемые для каждого элемента коллекции */
   child: (PartAttrElement | PartText | PartAttrMap | PartAttrMeta | PartAttrCondition | PartAttrLogical)[]

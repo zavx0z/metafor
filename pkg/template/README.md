@@ -12,38 +12,31 @@
 🛠 Пример
 
 ```typescript
-const { context: fields, update, onUpdate } = new Context((t) => ({
+const { context: value, update, onUpdate } = new Context((t) => ({
   cups: t.number.required(0)({ title: "orders" }),
   last: t.string.optional()({ title: "last ordered drink" }),
+  productIds: t.array.required([101, 102, 103])({ title: "products" }),
 }))
-
-const mass = {
-  menu: [
-    { label: "Espresso", size: "30ml" },
-    { label: "Cappuccino", size: "200ml" },
-    { label: "Latte", size: "250ml" },
-  ],
-}
 
 let state = "open"
 
-const nodes = parse<typeof fields, typeof mass, "open" | "closed">(
-  ({ html, fields, update, mass, state }) => html`
+const nodes = parse<typeof value, Record<never, never>, "open" | "closed">(
+  ({ html, value, update, state }) => html`
     <h1>☕ Quick Coffee Order</h1>
 
     <p>
-      Status: ${state === "open" ? "🟢 Open" : "🔴 Closed"} · Orders: ${fields.cups}${fields.last &&
-      ` · last: ${fields.last}`}
+      Status: ${state === "open" ? "🟢 Open" : "🔴 Closed"} · Orders: ${value.cups}${value.last &&
+      ` · last: ${value.last}`}
     </p>
 
     ${state === "open" &&
     html`
       <ul>
-        ${mass.menu.map(
-          (product) =>
+        ${value.productIds.map(
+          (productId) =>
             html`<li>
-              ${product.label} (${product.size})
-              <button onclick=${() => update({ cups: fields.cups + 1, last: product.label })}>Add</button>
+              Drink #${productId}
+              <button onclick=${() => update({ cups: value.cups + 1 })}>Add</button>
             </li>`
         )}
       </ul>

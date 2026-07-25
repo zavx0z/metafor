@@ -133,7 +133,7 @@ export type ProcessesList<
  *
  * @template ɸ - схема полей автомата
  * @template 𝛴 - строковые ключи состояний/процессов
- * @template m - тип mass объекта
+ * @template m - тип проекции объявленных Mass handles
  * @param process - фабрика для создания цепочки ProcessChain
  * @returns массив state-bound chain-элементов
  */

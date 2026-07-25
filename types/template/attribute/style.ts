@@ -14,7 +14,7 @@ import type { ValueVariable, ValueDynamic } from "../parser.ts"
  *
  * @example Динамические стили
  * ```html
- * <div style=${{backgroundColor: mass.theme.primary, color: mass.theme.text}}>
+ * <div style=${{backgroundColor: value.theme === "dark" ? "black" : "white"}}>
  *   Элемент с темой
  * </div>
  * ```

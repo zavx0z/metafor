@@ -45,9 +45,9 @@ import type { PartAttrMeta } from "./meta.ts"
  * @example Логическое условие с проверкой массива
  * ```html
  * <div>
- *   ${mass.notifications.length > 0 && html`
+ *   ${value.notificationIds.length > 0 && html`
  *     <div class="notifications">
- *       ${mass.notifications.map(n => html`<div>${n.message}</div>`)}
+ *       ${value.notificationIds.map(id => html`<div>#${id}</div>`)}
  *     </div>
  *   `}
  * </div>
@@ -61,7 +61,7 @@ import type { PartAttrMeta } from "./meta.ts"
  *   "child": [
  *     {
  *       "type": "log",
- *       "data": "/mass/notifications.length",
+ *       "data": "/value/notificationIds.length",
  *       "expr": "${[0]} > 0",
  *       "child": [
  *         {
@@ -73,7 +73,7 @@ import type { PartAttrMeta } from "./meta.ts"
  *           "child": [
  *             {
  *               "type": "map",
- *               "data": "/mass/notifications",
+ *               "data": "/value/notificationIds",
  *               "child": [
  *                 {
  *                   "tag": "div",
@@ -81,7 +81,7 @@ import type { PartAttrMeta } from "./meta.ts"
  *                   "child": [
  *                     {
  *                       "type": "text",
- *                       "data": "[item]/message"
+ *                       "data": "[item]"
  *                     }
  *                   ]
  *                 }

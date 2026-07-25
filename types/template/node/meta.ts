@@ -16,7 +16,7 @@ import type { NodeType } from "./index.ts"
  * </meta-for>
  * ```
  *
- * @example Мета-элемент с mass, energy и fields
+ * @example Мета-элемент с Mass handle, Energy entity и Fields
  * ```html
  * <meta-widget mass=${mass.widgetConfig} energy=${energy.channel} fields=${fields.userData}>
  * </meta-widget>
@@ -39,7 +39,7 @@ export interface NodeMeta extends Attributes {
   src: string | ValueDynamic | ValueVariable
   /** Дочерние элементы (опционально) */
   child?: NodeType[]
-  /** mass свойство для meta-компонентов (передача mass объекта) */
+  /** Mass binding для передачи объявленного handle дочернему Atom */
   mass?: string | ValueDynamic | ValueVariable
   /** energy свойство для meta-компонентов (передача живых Energy-сущностей) */
   energy?: string | ValueDynamic | ValueVariable
@@ -51,7 +51,7 @@ export interface PartAttrMeta extends AttrNodeElement {
   type: "meta"
   /** src вида owner/repository[/meta-package]; опционален, т.к. извлекается из string */
   src?: string | ValueDynamic | ValueVariable
-  /** mass объекты */
+  /** Mass handle bindings */
   mass?: string
   /** energy объекты */
   energy?: string

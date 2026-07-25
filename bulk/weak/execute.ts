@@ -26,7 +26,7 @@ import type { ExecuteParams } from "@metafor/types/bulk/weak"
  *   self: { atom: "test", path: "0", meta: "meta" },
  *   field: { count: { type: "number" } },
  *   value: { count: 42 },
- *   mass: { counter: 0 },
+ *   mass: {},
  *   energy: { channel }
  * })
  * ```

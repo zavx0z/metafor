@@ -22,7 +22,7 @@
  * ## Формат путей к данным
  *
  * - `/fields/...` — доступ к полям контекста
- * - `/mass/...` — доступ к mass объекту
+ * - `/mass/...` — доступ к проекции объявленных Mass handles
  * - `[item]/...` — доступ к элементу итерации в map
  * - `[index]` — индекс элемента в map
  * - `../` — переход к родительскому контексту map
@@ -39,7 +39,8 @@ import type { Energy, Mass } from "@metafor/types/metafor/schema"
 /**
  * Парсит HTML-шаблон и возвращает обогащенную иерархию с метаданными о путях к данным.
  *
- * @param template - Template-функция, принимающая `{ html, fields, mass, state, update }`.
+ * @param template - Template-функция; `mass` содержит handles объявленных
+ * key-files, а не их JSON/binary содержимое.
  * Функция должна возвращать результат вызова `html`...`` (template literal).
  *
  * @returns Массив корневых узлов AST с полной структурой и метаданными о путях к данным.

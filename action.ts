@@ -43,9 +43,9 @@ export function destroyAppendArg(funcString: string, arg: string) {
  *
  * @example
  * ```ts
- * const fn = ({ mass }) => { mass.active = true }
+ * const fn = () => !0
  * const str = normalizeFunctionString(fn.toString())
- * // "({ mass }) => { mass.active = true }"
+ * // "() => true"
  * ```
  */
 export function normalizeFunctionString(funcString: string): string {

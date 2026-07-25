@@ -30,8 +30,11 @@ TypeScript:
 
 ## Закон хранения Mass
 
-Mass — persisted filesystem data, not an Artifact domain/entity. Фабрика `.mass((mass) => ({profile:
-mass.json()}))` объявляет только ключ, codec и описательную metadata.
+Mass — persisted filesystem data, а не отдельный Artifact domain/entity. Фабрика
+`.mass((mass) => ({profile: mass.json()}))` объявляет только ключ, codec и
+описательную metadata. Process, Reaction, destroy и Matter получают по каждому
+разрешённому ключу `MassHandle` с `readBytes`, `readText`, `readJson` и `write`;
+содержимое не становится свойством runtime-объекта Mass.
 Boundary выдаёт независимый ID декларации и глобальный ID key-file; Atom хранит
 membership прямо в key ID, без aggregate Mass ID. Energy открывает только key,
 разрешённые в canonical Atom projection, по плоскому пути
@@ -43,6 +46,8 @@ Codec однозначно владеет расширением: `json → .jso
 совпадающими codec; совпадающие bytes никогда не создают sharing. Detach создаёт
 новый key ID, файловый контур атомарно копирует файл с тем же расширением, а
 Boundary меняет membership и удаляет source.
+Обычная запись также атомарно заменяет key-file через temporary в том же
+каталоге. JSON codec сериализует значение, binary принимает только `Uint8Array`.
 Mass bytes, manifests и binding registries не проходят через Boundary, Force или
 Matrix. Runtime не создаёт и не удаляет key IDs.
 

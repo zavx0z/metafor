@@ -20,6 +20,8 @@
 
 ## Карта документов
 
+- [Агентные Вселенные](AGENT_UNIVERSES.md) — Agent Atom, окружающие Tool,
+  Device и Service Atoms, предметное изменение Fields и будущий интерфейс Bulk.
 - [Архитектура runtime](ARCHITECTURE.md) — состав contour и связи доменов.
 - [Force](FORCE.md) — центральный relay, transport и fail-stop.
 - [Boundary](../boundary/DOMAIN.md) — каноническое состояние, identity,

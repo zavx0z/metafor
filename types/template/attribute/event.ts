@@ -7,14 +7,14 @@ import type { ValueVariable, ValueDynamic } from "../parser.ts"
  * @group Значения атрибутов
  * @example Простая функция без параметров
  * ```html
- * <button onclick=${mass.handleClick}>Кнопка</button>
+ * <button onclick=${energy.controls.handleClick}>Кнопка</button>
  * ```
  *
  * Результат:
  * ```json
  * {
  *   "onclick": {
- *     "data": "/mass/handleClick"
+ *     "data": "/energy/controls/handleClick"
  *   }
  * }
  * ```
@@ -36,15 +36,15 @@ import type { ValueVariable, ValueDynamic } from "../parser.ts"
  *
  * @example Событие в массиве
  * ```html
- * <li onclick=${() => mass.item.onClick()}>${mass.item.name}</li>
+ * <li onclick=${() => update({ selectedId: item.id })}>${item.name}</li>
  * ```
  *
  * Результат:
  * ```json
  * {
  *   "onclick": {
- *     "data": "/mass/item/onClick",
- *     "expr": "() => ${[0]}()"
+ *     "upd": "selectedId",
+ *     "expr": "() => update({ selectedId: item.id })"
  *   }
  * }
  * ```

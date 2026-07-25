@@ -104,10 +104,11 @@ process work.
 ## Energy и Mass в DSL/runtime
 
 Цепочка MetaFor имеет обязательный порядок `fields → superposition → mass →
-energy → processes → reactions → matter → bulk`. `Mass` задаёт тип изменяемого
-рабочего материала. Следующая декларация `energy<EnergyType>()` задаёт только
-постоянные TypeScript-типы живых runtime-сущностей. Она не принимает runtime-
-объект и не добавляет значение Energy в MetaDSL; функции в типе запрещены.
+energy → processes → reactions → matter → bulk`. `Mass` объявляет именованные
+key-files и их codec; Process получает типизированную по ключам проекцию
+`MassHandle`. Следующая декларация `energy<EnergyType>()` задаёт только постоянные
+TypeScript-типы живых runtime-сущностей. Она не принимает runtime-объект и не
+добавляет значение Energy в MetaDSL; функции в типе запрещены.
 
 Action получает раздельные `{field, value, mass, energy, self, signal}`. Реализация
 action находится во внешнем ESM-модуле, подключаемом динамическим `import()`;
@@ -140,10 +141,11 @@ claim старой связи. Прямой root alias сохраняет object
 ребёнка.
 
 Cold projection через Monad содержит только сериализуемые canonical entities и
-binding descriptors. Живые объекты Mass/Energy создаются и остаются в локальных
-Energy stores; ни Monad, ни Force их не переносят. После рождения изменение
-continuation или owning-parent relation переустанавливает binding только по
-обычному Graviton, включая изменение владельца через Topology.
+binding descriptors. Mass handles и живые Energy-сущности создаются и остаются
+в локальных Energy stores; Mass bytes хранятся в файловом каталоге. Ни Monad, ни
+Force их не переносят. После рождения изменение continuation или
+owning-parent relation переустанавливает binding только по обычному Graviton,
+включая изменение владельца через Topology.
 
 Между initial projection и рождением Energy не нужен отдельный handoff frame:
 общий Force до подключения последней Matrix остаётся в `starting` и не
@@ -206,9 +208,9 @@ lifecycle API.
 В готовом состоянии conditional Matter materialize Screenshot и Control Atom.
 Они используют постоянные video/DataChannel handles родителя через Energy,
 меняют только объявленные shared Fields и после одного действия возвращаются в
-состояние ожидания через отдельный transition. Mass содержит только
-сериализуемые сведения; `MediaStream`, track, peer, decoder, socket и
-DataChannel находятся только в Energy.
+состояние ожидания через отдельный transition. Сохраняемые сведения записываются
+через объявленные JSON/binary Mass handles; `MediaStream`, track, peer, decoder,
+socket и DataChannel находятся только в Energy.
 
 Декларационный `path` является категорией (`wimp`, `field`, `state`, `matter` и
 так далее), а не slash-адресом дерева Meta. WIMP идентифицируется своим `src`;

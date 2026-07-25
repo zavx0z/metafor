@@ -4,8 +4,8 @@ Energy исполняет Process/Reaction и владеет локальным�
 сущностями. Проверяемые законы находятся в
 [`docs/domains/ENERGY.md`](../docs/domains/ENERGY.md), Process wire flow — в
 [`docs/proto/weak.md`](../docs/proto/weak.md), общая карта — в
-[`docs/README.md`](../docs/README.md), незакрытая реализация — в
-[`TODO.md`](TODO.md).
+[`docs/README.md`](../docs/README.md). Отложенная работа, если она появляется,
+фиксируется в [`TODO.md`](TODO.md).
 
 Этот README описывает только точки реализации и не создаёт второй контракт.
 
@@ -21,7 +21,7 @@ Energy исполняет Process/Reaction и владеет локальным�
 - `catalog.ts` — Atom/WIMP/Process/continuation projection и индексы;
 - `energy.ts` — Photon/Z/W, Process execution, binding, rebuild и Atom cleanup;
 - `reaction.ts` — Reaction execution;
-- `mass.ts` — текущий in-memory Mass store;
+- `mass.ts` — filesystem catalog, атомарная запись и gated Mass handles;
 - `runtime.ts` — живые Energy-сущности и их release;
 - `monad.ts` — initial projection RPC;
 - `server.ts` — process lifecycle и transport wiring.
@@ -37,9 +37,9 @@ Action invocation имеет форму:
 await fn({field, value, mass, energy, self, signal})
 ```
 
-Mass и Energy хранятся раздельно и не проходят через Force/Boundary. Целевой
-Mass store находится на filesystem и сохраняет версии. Текущий default store в
-памяти — временный implementation gap, перечисленный в `TODO.md`.
+Mass и Energy хранятся раздельно. Default Mass store открывает только разрешённые
+Boundary key IDs как handles плоского filesystem-каталога; bytes не проходят
+через Force/Boundary. Версионирование не входит в текущий контракт.
 
 ## Проверка
 

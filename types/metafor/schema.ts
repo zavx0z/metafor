@@ -101,17 +101,17 @@ export interface Self {
   path: string
 }
 /**
- * Mass — сериализуемый изменяемый рабочий материал исполнения.
+ * Структурная граница runtime-проекции Mass.
  *
- * Process читает и изменяет Mass, получая из неё промежуточные данные,
- * накопленные результаты и материализуемые артефакты. Живые runtime-сущности
- * среды (WebSocket, BroadcastChannel и подобные ресурсы) принадлежат Energy.
- *
- * Масса не сериализуется в Boundary — она проявляется только в Volume.
+ * В публичном DSL `.mass(...)` преобразует metadata-декларации в
+ * `MassHandles<Schema>`. Поэтому значения ключей в Process, Reaction, destroy и
+ * Matter — файловые `MassHandle`, а не сохранённое содержимое. Bytes остаются в
+ * Energy-local filesystem catalog и не проходят через Boundary/Force/Matrix.
  *
  * @example
  * ```typescript
- * const mass: Mass = { profiles: {}, attempts: 0 }
+ * import type { MassHandle } from "@metafor/types/metafor/schema"
+ * type ProfileMass = { profile: MassHandle }
  * ```
  */
 export interface Mass {
@@ -183,7 +183,7 @@ declare const MetaDSLEnergyType: unique symbol
  * Предоставляет цепочку методов для настройки компонента:
  * - `fields()` - определение типизированных полей
  * - `superposition()` - определение суперпозиции состояний
- * - `mass()` - декларация изменяемого рабочего материала
+ * - `mass()` - декларация JSON/binary key-files
  * - `energy()` - декларация типов живых runtime-сущностей
  * - `processes()` - определение процессов (действий)
  * - `reactions()` - определение реакций на события
@@ -218,7 +218,8 @@ export type MetaForFn = (
   /**
    * Регистрирует схему полей для автомата.
    *
-   * Поля содержат только простые типы данных. Сложные объекты храните в mass.
+   * Поля содержат только простые типы данных. Сохраняемые сложные значения
+   * записывайте через объявленный JSON `MassHandle`.
    *
    * @param fields Функция, принимающая field и возвращающая объект-схему полей
    * @returns chain API для вызова .superposition(...)
@@ -255,22 +256,22 @@ export type MetaForFn = (
       ..._check: SuperpositionInputCheck<ɸ, ψ>
     ): {
       /**
-       * Регистрирует mass объект для автомата.
+       * Объявляет именованные JSON/binary key-files Mass.
        *
-       * Mass — изменяемый рабочий материал Process.
-       * Mass доступен в процессах, destroy, реакциях и Matter.
+       * Callback создаёт только codec и описательную metadata. После
+       * materialization Process, destroy, Reaction и Matter получают объект с
+       * `MassHandle` для каждого объявленного ключа.
        *
        * @returns chain API для вызова .energy(...)
        *
        * @example
        * ```typescript
        * .mass((mass) => ({
-       *   users: [],
-       *   settings: { theme: 'dark' },
-       *   cache: new Map()
+       *   users: mass.json({ label: "Пользователи" }),
+       *   snapshot: mass.binary({ description: "Последний снимок" })
        * }))
        * ```
-       * @param mass
+       * @param mass - Фабрика metadata-деклараций `json` и `binary`
        */
       mass<Schema extends MassDeclarations>(
         mass: (factory: MassFactory) => Schema,
@@ -405,7 +406,7 @@ declare global {
    * Предоставляет цепочку методов для настройки компонента:
    * - `fields()` - определение типизированных полей
    * - `superposition()` - определение суперпозиции состояний
-   * - `mass()` - декларация типа изменяемого рабочего материала
+   * - `mass()` - декларация JSON/binary key-files
    * - `energy()` - декларация типов живых runtime-сущностей
    * - `processes()` - определение процессов (действий)
    * - `reactions()` - определение реакций на события
@@ -463,7 +464,7 @@ export interface MetaForConfig {
  * - `html` — шаблонизация для `<meta-for>` элементов
  * - `value` — данные атома для передачи дочерним атомам
  * - `update` — функция обновления контекста
- * - `mass` — изменяемый рабочий материал
+ * - `mass` — handles объявленных Mass key-files
  *
  * Matter описывает только иерархию атомов.
  * Выбор topology в matter допускается только по `state`, `enum` и `array`.
@@ -517,11 +518,12 @@ export interface BulkDeclaration {
  * Схема компонента MetaFor
  *
  * Определяет полную структуру компонента включая поля, суперпозицию,
- * процессы, реакции, Mass и Energy declaration. Используется для создания атомов.
+ * процессы, реакции, нормализованные Mass declarations и Energy declaration.
+ * Используется для создания атомов.
  *
  * @template ɸ - Тип полей (схема полей)
  * @template 𝛴 - Тип состояний (строковые литералы)
- * @template m - Тип изменяемого рабочего материала Mass
+ * @template m - Тип runtime-проекции объявленных Mass handles
  * @template e - Тип runtime-сущностей Energy
  *
  * @example
@@ -530,7 +532,7 @@ export interface BulkDeclaration {
  *   name: "user-profile",
  *   fields: [{ key: "name", type: "string", required: true, default: "" }],
  *   superposition: [{ name: "idle", transitions: { loading: {} } }],
- *   mass: { users: [] },
+ *   mass: [{ key: "users", format: "json" }],
  *   // Energy declaration не является runtime-полем MetaDSL.
  * }
  * ```

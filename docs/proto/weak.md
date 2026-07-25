@@ -135,10 +135,11 @@ execution и выбранной Energy. Запоздалый proposal замен
 
 ## Runtime values
 
-Mass и живые Energy-сущности остаются в локальных stores Energy и не проходят
-через Force или Boundary. Matter binding передаёт только сериализуемые
-descriptors; child values разрешаются локально из owning parent Atom.
+Mass handles и живые Energy-сущности остаются в локальных stores Energy и не
+проходят через Force или Boundary. Mass bytes лежат в файловом каталоге, а
+Matter binding передаёт только сериализуемые descriptors; child handles и
+Energy values разрешаются локально из owning parent Atom.
 
 Большие файлы, stdout/stderr и бинарные результаты также не следует переносить
-в W payload. Process записывает их во внешнее хранилище, а через Fields передаёт
-компактный address/identity.
+в W payload. Process записывает их в объявленный Mass key через `MassHandle`, а
+через Fields при необходимости передаёт компактную предметную identity.

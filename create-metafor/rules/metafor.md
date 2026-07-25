@@ -1,5 +1,49 @@
 # Правила создания meta.ts
 
+## Meta-пакеты агентной Вселенной
+
+MetaFor является Мультивселенной и не сводится к агентной системе. Но если
+Meta-пакет участвует во Вселенной с агентами, его нужно проектировать по
+следующей границе:
+
+> Agent понимает, что должно измениться в предметном мире, но не обязан знать,
+> каким инструментом и каким техническим способом это будет выполнено.
+
+Agent, окружающие его Tool, Device и Service описываются через Meta и
+материализуются как Atoms:
+
+- Agent Atom предлагает изменение доступных ему Fields;
+- Tool Atom владеет предметным действием и его Process;
+- Device Atom представляет устройство и живые ресурсы в Energy;
+- Service Atom представляет доступность, запросы и результаты.
+
+Agent не вызывает Action, не запускает Process напрямую и не устанавливает
+State. Он изменяет предметный Field; Matrix вычисляет State, Energy исполняет
+объявленный Process, а Boundary фиксирует только разрешённый фактический
+результат.
+
+При авторинге такого Meta-пакета:
+
+1. Оставляй минимальное число независимых предметных Fields.
+2. Используй достаточно смысловых States, но не превращай каждый технический
+   этап Process в State.
+3. Не записывай успех внешнего действия до фактического результата Process.
+4. Храни сохраняемый материал в Mass, а живые handles — в Energy.
+5. Связывай Agent с Tool, Device и Service Atoms через Matter.
+6. Не раскрывай рабочему Agent API, transport и техническую
+   последовательность, принадлежащие Process.
+7. Оставляй наблюдаемую форму мира за Bulk; законченный универсальный интерфейс
+   является направлением его развития.
+
+Критерий:
+
+> Agent достигает цели небольшим изменением Fields, а причинная система
+> детерминированно выбирает и исполняет объявленное поведение.
+
+Полное объяснение подхода, преимуществ и границы между действующим runtime и
+направлением развития находится в
+[`docs/AGENT_UNIVERSES.md`](../../docs/AGENT_UNIVERSES.md).
+
 ## Структура
 
 ```typescript
@@ -36,7 +80,8 @@ export default MetaFor("<name>")
 **Правила:**
 
 - Только примитивы: `string`, `number`, `boolean`, `enum`, `array`
-- Объекты — в `mass`
+- Сохраняемые объекты — в содержимом объявленного JSON-ключа Mass; Process
+  читает и пишет их через `MassHandle`
 - `.optional({ label: "..." })` — метаданные для enum
 - **array сейчас является topology/runtime-связью `number[]`:** `field.array.required([], { label })`
 - **Label должен быть человекопонятным:** язык выбирается по контексту пакета, но подпись должна описывать поле или флаг так, как пользователь увидит его в UI/документации.
@@ -257,25 +302,32 @@ Fields управляют работой Atom. Внешний агент или 
 
 ---
 
-## Mass — изменяемый рабочий материал
+## Mass — сохраняемые key-files
 
 ```typescript
 .mass((mass) => ({
-  profiles: {} as Record<string, { id: string }>,
-  attempts: 0,
+  profiles: mass.json({ label: "Профили" }),
+  screenshot: mass.binary({ label: "Последний скриншот" }),
 }))
 ```
 
-Mass содержит только сериализуемые данные и материал, которые Process читает и
-изменяет: примитивы, массивы, чистые object-значения, payload, диагностику и
-адреса файлов. В Mass нельзя помещать `Map`, `Set`, функции, фабрики,
-`MediaStream`, track, `RTCDataChannel`, socket, peer connection, decoder или
-другие runtime handles. Живые сущности относятся к Energy.
+`.mass(...)` объявляет только локальное имя ключа, codec (`json` или `binary`) и
+необязательные `label`/`description`. Key ID, путь, MIME и начальное содержимое в
+Meta не задаются.
 
-Mass принадлежит Energy, но её целевое хранилище находится на filesystem и
-сохраняет версии. Она не передаётся через Force/Boundary/Matrix. Storage identity
-нельзя выводить только из Atom ID: прямые Matter aliases могут разделять один
-Mass-object между несколькими Atom.
+Process, Reaction, destroy и Matter получают не содержимое файлов, а объект
+объявленных `MassHandle`. Handle предоставляет `readBytes()`, `readText()`,
+`readJson()` и `write(value)`. JSON-ключ сериализует переданное значение;
+binary-ключ принимает только `Uint8Array`. `Map`, `Set`, функции и живые handles
+не являются JSON-содержимым Mass; `MediaStream`, track, `RTCDataChannel`, socket,
+peer connection и decoder относятся к Energy.
+
+Boundary владеет declaration identity, глобальным key ID, membership и sources
+Matter binding. Energy открывает разрешённые ключи в плоском каталоге
+`mass/<key-id>.<extension>` и заменяет файл атомарно. Bytes не проходят через
+Force/Boundary/Matrix, а версионирование в текущий контракт не входит. Прямые
+Matter bindings переиспользуют выданные key IDs; identity нельзя выводить из
+Atom ID или совпадения bytes.
 
 Если нет сложных данных:
 
@@ -379,14 +431,13 @@ canonical `ts`, а Matrix разрешает все подходящие пер�
 ```
 
 Каждый Process по-прежнему использует только тонкий wrapper `dynamic import →
-direct return`. `.mass()` задаёт сериализуемый типовой контракт, но runtime не
-гидратирует его placeholder автоматически: первый owning action создаёт рабочий
-Mass-object в Energy store. Текущий in-memory adapter должен быть заменён
-filesystem-backed versioned store без изменения DSL. Дочерние прямые `mass=${mass}` и
-`energy=${energy}` сохраняют identity. Исходный путь Meta-пакета не задаёт
-runtime-вложенность; граф задаёт Matter. Постоянный WebRTC listener остаётся в
-Energy между тактами: возвращение Screenshot/Control Atom в ожидание не
-переподключает socket, peer или DataChannel и не создаёт окно потери сообщения.
+direct return`. `.mass()` объявляет metadata ключей, а Energy проецирует выданные
+Boundary key IDs в `MassHandle`. Дочерние прямые `mass=${mass}` и
+`energy=${energy}` сохраняют локальную handle/store identity. Исходный путь
+Meta-пакета не задаёт runtime-вложенность; граф задаёт Matter. Постоянный WebRTC
+listener остаётся в Energy между тактами: возвращение Screenshot/Control Atom в
+ожидание не переподключает socket, peer или DataChannel и не создаёт окно потери
+сообщения.
 
 ---
 
@@ -398,7 +449,7 @@ Energy между тактами: возвращение Screenshot/Control Atom
 | -------- | ------------------------------------------------- |
 | `field`  | **Fields** — типизированные декларации полей      |
 | `value`  | **Значения полей** — текущие данные атома         |
-| `mass`   | **Mass** — изменяемый рабочий материал            |
+| `mass`   | **Mass** — handles объявленных key-files          |
 | `energy` | **Energy** — живые runtime-сущности               |
 | `signal` | **AbortSignal** — остановка старого execution     |
 | `self`   | **Идентификатор** — полный путь к атому           |
@@ -416,6 +467,7 @@ Energy между тактами: возвращение Screenshot/Control Atom
 // actions/fetchUser.ts
 import type { ActionParams } from "@metafor/types/metafor/action"
 import type { FieldType } from "@metafor/types/metafor/fields"
+import type { MassHandle } from "@metafor/types/metafor/schema"
 
 export interface FetchUserResult {
   name: string
@@ -424,7 +476,7 @@ export interface FetchUserResult {
 
 type FetchUserFields = { id: FieldType<"number", true, number> }
 type FetchUserValue = { id: number }
-type FetchUserMass = { cache: Map<number, FetchUserResult> }
+type FetchUserMass = { cache: MassHandle }
 type FetchUserEnergy = { client: { get(url: string): Promise<Response> } }
 
 export default async function action({
@@ -436,10 +488,12 @@ export default async function action({
 }: ActionParams<FetchUserFields, FetchUserMass, FetchUserValue, FetchUserEnergy>): Promise<FetchUserResult> {
   // field.id — декларация поля (схема)
   // value.id — значение поля (данные)
-  // mass — изменяемый рабочий материал
+  // mass.cache — handle объявленного JSON key-file
   // energy — живые сущности текущего Energy runtime
   const res = await fetch(`/api/users/${value.id}`, {signal})
-  return await res.json()
+  const user = await res.json() as FetchUserResult
+  await mass.cache.write({ [value.id]: user })
+  return user
 }
 ```
 
@@ -449,7 +503,7 @@ export default async function action({
 | -------- | ------------------------------------------------------------- |
 | `field`  | **Декларация полей** — схема, тип, валидатор (из `.fields()`) |
 | `value`  | **Значения полей** — текущие данные атома                     |
-| `mass`   | **Mass** — изменяемый рабочий материал                        |
+| `mass`   | **Mass** — handles объявленных JSON/binary key-files          |
 | `energy` | **Energy** — живые runtime-сущности                           |
 | `signal` | **AbortSignal** — cooperative остановка execution             |
 | `self`   | **Идентификатор** — полный путь к атому                       |
@@ -689,7 +743,7 @@ return { group: group as "start" }
 
 // ❌ Нельзя: mass не является topology basis
 .matter(({ mass, html }) => html`
-  ${mass.session ? html`<meta-for src="owner/project/x" />` : html`<meta-for src="owner/project/y" />`}
+  ${mass.cache ? html`<meta-for src="owner/project/x" />` : html`<meta-for src="owner/project/y" />`}
 `)
 
 // ❌ Нельзя: optional enum не нужно проверять через truthy/null guard
@@ -763,6 +817,7 @@ export default MetaFor("git")
 // actions/detectOperation.ts
 import type { ActionParams } from "@metafor/types/metafor/action"
 import type { FieldType } from "@metafor/types/metafor/fields"
+import type { MassHandle } from "@metafor/types/metafor/schema"
 
 interface DetectOperationValue {
   command?: string | null
@@ -784,7 +839,7 @@ type GitValue = {
   command: string | null
   args: string | null
 }
-type GitMass = { attempts: number }
+type GitMass = { attempts: MassHandle }
 type GitEnergy = Record<never, never>
 
 export default async function action({
@@ -824,7 +879,8 @@ export default async function action({
 8. **Структура action:** `import("...")` + `return`
 9. **Работа запускается Fields:** значение Field разрешает переход и Process
 10. **Без самопереходов:** цикл всегда проходит через другое состояние
-11. **Mass сериализуема:** все живые handles находятся только в Energy
+11. **Mass файловая:** Meta объявляет codec и metadata, Process получает
+    `MassHandle`; живые runtime-сущности находятся только в Energy
 
 ---
 
@@ -843,10 +899,10 @@ export default MetaFor("git")...
 **Можно:**
 
 ```typescript
-// ✅ В MetaFor только данные Mass и типы Energy
+// ✅ В MetaFor только декларации Mass и типы Energy
 export default MetaFor("git")
   .mass((mass) => ({
-    attempts: 0,
+    attempts: mass.json(),
   }))
   .energy<{
     socket: WebSocket
@@ -991,6 +1047,7 @@ export default MetaFor("git")
 // actions/detectOperation.ts
 import type { ActionParams } from "@metafor/types/metafor/action"
 import type { FieldType } from "@metafor/types/metafor/fields"
+import type { MassHandle } from "@metafor/types/metafor/schema"
 
 interface DetectOperationValue {
   command?: string | null
@@ -1010,7 +1067,7 @@ type GitValue = {
   command: string | null
   args: string | null
 }
-type GitMass = { attempts: number }
+type GitMass = { attempts: MassHandle }
 type GitEnergy = Record<never, never>
 
 export default async function action({

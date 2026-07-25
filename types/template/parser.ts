@@ -60,7 +60,7 @@ export interface ValueVariable {
    *
    * Форматы путей:
    * - `/fields/...` — доступ к полям контекста
-   * - `/mass/...` — доступ к mass объекту
+   * - `/mass/...` — доступ к проекции объявленных Mass handles
    * - `[item]/...` — доступ к элементу итерации в map
    * - `[index]` — индекс элемента в map
    * - `../[item]/...` — доступ к родительскому контексту map
@@ -80,7 +80,7 @@ export interface ValueVariable {
  * @group Варианты значений
  * @example Тернарный оператор
  * ```html
- * <div class="${mass.role === 'admin' ? 'admin-panel' : 'user-panel'}">
+ * <div class="${value.role === 'admin' ? 'admin-panel' : 'user-panel'}">
  *   Панель управления
  * </div>
  * ```
@@ -88,7 +88,7 @@ export interface ValueVariable {
  * Результат:
  * ```typescript
  * {
- *   data: ["/mass/role"],
+ *   data: ["/value/role"],
  *   expr: "${_[0]} === 'admin' ? 'admin-panel' : 'user-panel'"
  * }
  * ```

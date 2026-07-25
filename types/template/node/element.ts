@@ -47,7 +47,7 @@ import type { NodeType } from "./index.ts"
  * ```
  */
 export interface NodeElement extends Attributes {
-  /** Имя HTML тега (например, `"div"`, `"button"`, `"meta-${mass.componentName}"`) */
+  /** Имя HTML тега (например, `"div"`, `"button"`, `"meta-${value.componentName}"`) */
   tag: string
   /** Тип узла — всегда `"el"` для HTML элементов */
   type: "el"

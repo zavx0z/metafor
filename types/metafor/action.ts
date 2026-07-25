@@ -19,7 +19,7 @@ export interface ActionParams<
    * Текущие значения полей.
    */
   value: v
-  /** Масса */
+  /** Handles объявленных Mass key-files */
   mass: m
   /** Живые runtime-сущности Energy */
   energy: e

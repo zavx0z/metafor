@@ -422,7 +422,7 @@ class Hierarchy {
   /**
    * Добавляет map операцию в `child` массив.
    *
-   * @param value - Выражение map (например, `"mass.items.map(item => html`...`)"`)
+   * @param value - Выражение map (например, `"value.itemIds.map(item => html`...`)"`)
    *
    * **Side effects:**
    * - Создаёт новый узел `{ type: "map", text: value, child: [] }`
@@ -628,8 +628,8 @@ const buildItemPath = (prefix: string, variableParts: string[], isDestructured: 
  * // { data: "/fields/userName", expr: "{ name: ${_[0]} }" }
  *
  * // Объект с несколькими переменными
- * processSemanticAttributes("{ user: fields.user, count: mass.count }", context)
- * // { data: ["/fields/user", "/mass/count"], expr: "{ user: ${_[0]}, count: ${_[1]} }" }
+ * processSemanticAttributes("{ user: value.userId, cache: mass.cache }", context)
+ * // { data: ["/value/userId", "/mass/cache"], expr: "{ user: ${_[0]}, cache: ${_[1]} }" }
  * ```
  */
 export const processSemanticAttributes = (
@@ -689,7 +689,7 @@ export const processSemanticAttributes = (
  * ```typescript
  * // Вне map
  * resolveDataPath("fields.name", context)     // "/fields/name"
- * resolveDataPath("mass.users", context)      // "/mass/users"
+ * resolveDataPath("mass.profile", context)    // "/mass/profile" (MassHandle)
  *
  * // В map с простым параметром: map((item) => ...)
  * resolveDataPath("item.name", context)       // "[item]/name"
@@ -866,7 +866,7 @@ export const createUnifiedExpression = (value: string, variables: string[]): str
  * - Новый контекст для вложенных операций
  *
  * Поддерживает различные сценарии:
- * - Абсолютные пути к данным (например, mass.list.map)
+ * - Абсолютные пути к данным (например, value.itemIds.map)
  * - Относительные пути в контексте map (например, nested.map)
  * - Вложенные map в контексте существующих map
  *
@@ -875,8 +875,8 @@ export const createUnifiedExpression = (value: string, variables: string[]): str
  * @returns Результат парсинга с путем, новым контекстом и метаданными
  *
  * @example
- * parseMap("mass.list.map(({ title }) => ...)")
- * // Возвращает: { path: "/mass/list", context: {...}, metadata: { params: ["title"] } }
+ * parseMap("value.itemIds.map((itemId) => ...)")
+ * // Возвращает: { path: "/value/itemIds", context: {...}, metadata: { params: ["itemId"] } }
  *
  * parseMap("nested.map((item) => ...)", context)
  * // Возвращает: { path: "[item]/nested", context: {...}, metadata: { params: ["item"] } }
@@ -941,7 +941,7 @@ export const processBasicAttributes = (node: PartAttrElement | PartAttrMeta, con
  *
  * Функция извлекает переменные из тернарного оператора и создаёт выражение:
  * - Удаляет `html`...`` блоки из условия
- * - Извлекает переменные (например, `fields.isLoggedIn`, `mass.role`)
+ * - Извлекает переменные (например, `value.isLoggedIn`, `value.role`)
  * - Создаёт выражение с индексами для сложного условия
  *
  * @param condText - Текст условия (например, `"fields.isLoggedIn ? html`...` : html`...`"`)
@@ -955,8 +955,8 @@ export const processBasicAttributes = (node: PartAttrElement | PartAttrMeta, con
  * // { path: "/fields/isLoggedIn", metadata: { expression: "_[0]" } }
  *
  * // Сложное условие
- * parseCondition("mass.role === 'admin' && mass.permissions.includes('write') ? html`...` : html`...`", context)
- * // { path: ["/mass/role", "/mass/permissions"], metadata: { expression: "_[0] === 'admin' && _[1].includes('write')" } }
+ * parseCondition("value.role === 'admin' && value.canWrite ? html`...` : html`...`", context)
+ * // { path: ["/value/role", "/value/canWrite"], metadata: { expression: "_[0] === 'admin' && _[1]" } }
  * ```
  */
 export const parseCondition = (condText: string, context: ParseContext = { pathStack: [], level: 0 }): ParseResult => {

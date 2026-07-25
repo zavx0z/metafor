@@ -109,7 +109,7 @@ export interface MatterFields {
  * - `html` — шаблонизация для `<meta-for>` элементов
  * - `value` — данные Atom для передачи дочерним Atom
  * - `update` — функция обновления контекста
- * - `mass` — изменяемый рабочий материал
+ * - `mass` — handles объявленных Mass key-files
  * - `energy` — живые runtime-сущности Energy
  *
  * Matter описывает только порождение и topology Atom.
@@ -161,8 +161,8 @@ export type MatterDefinitionParams<
    */
   value: Values<ɸ>
   /**
-   * Изменяемый рабочий материал Atom.
-   * Он не является местом хранения живых Energy-сущностей.
+   * Проекция объявленных Mass key-files на `MassHandle`.
+   * Matter использует её только как источник `mass=${...}` binding.
    */
   mass: m
   /**

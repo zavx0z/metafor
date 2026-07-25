@@ -57,7 +57,7 @@ import type { PartAttrMeta } from "./meta.ts"
  * @example Сложное условие
  * ```html
  * <div>
- *   ${mass.role === 'admin' && mass.permissions.includes('write') ?
+ *   ${value.role === 'admin' && value.canWrite ?
  *     html`<button>Редактировать</button>` :
  *     html`<span>Нет прав</span>`
  *   }
@@ -72,8 +72,8 @@ import type { PartAttrMeta } from "./meta.ts"
  *   "child": [
  *     {
  *       "type": "cond",
- *       "data": ["user.role", "user.permissions"],
- *       "expr": "${[0]} === 'admin' && ${[1]}.includes('write')",
+ *       "data": ["/value/role", "/value/canWrite"],
+ *       "expr": "${[0]} === 'admin' && ${[1]}",
  *       "child": [
  *         { "tag": "button", "type": "el", "child": [{ "type": "text", "value": "Редактировать" }] },
  *         { "tag": "span", "type": "el", "child": [{ "type": "text", "value": "Нет прав" }] }

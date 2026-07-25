@@ -34,10 +34,14 @@ MetaFor — открытая эволюционирующая среда, в к�
 .energy<{socket: WebSocket}>()
 ```
 
-`Mass` — сериализуемый изменяемый рабочий материал Energy. Его целевое хранилище
-находится на filesystem и сохраняет версии; текущий in-memory store является
-незавершённой реализацией. `Energy` — постоянно типизированные живые сущности,
-которые создаются внешними action-модулями и освобождаются через `destroy`.
+`Mass` — сохраняемый файловый материал. `.mass(...)` объявляет только именованные
+ключи, codec (`json` или `binary`) и описательную metadata; Process получает для
+каждого ключа `MassHandle` с `readBytes`, `readText`, `readJson` и `write`.
+Boundary владеет identity ключей и bindings, а Energy читает и атомарно заменяет
+файлы плоского worktree-каталога `mass/<key-id>.<extension>`. MIME, путь и
+версионирование в текущий контракт не входят. `Energy` — постоянно
+типизированные живые сущности, которые создаются внешними action-модулями и
+освобождаются через `destroy`.
 Generic `.energy<EnergyType>()` нужен только TypeScript: runtime не
 получает объект и не добавляет Energy в MetaDSL/WIMP. В типе нет функций верхнего
 уровня; inline action и destroy только динамически
@@ -60,8 +64,9 @@ Matter передаёт дочернему Atom оба runtime-контекст�
 Boundary/SQLite хранит только сериализуемые `massBinding` и `energyBinding`
 этого Matter edge. Перед claim дочернего Process Energy локально разрешает их из
 stores ближайшего owning parent Atom. Прямые `mass=${mass}` и
-`energy=${energy}` сохраняют identity объектов; сами Mass, Energy-сущности и
-runtime-ссылки не проходят через Force и не записываются в Boundary.
+`energy=${energy}` сохраняют локальную identity handle/store projection; сами
+Mass bytes, Energy-сущности и runtime-ссылки не проходят через Force и не
+записываются в Boundary.
 
 При cold start Energy сначала через собственную Monad получает полную canonical
 проекцию Boundary и гидратирует локальный catalog
@@ -165,6 +170,7 @@ archive/pre-core-split-2026-07-11
 ## Документация
 
 - [Карта документации](docs/README.md)
+- [Агентные Вселенные](docs/AGENT_UNIVERSES.md)
 - [Архитектура](docs/ARCHITECTURE.md)
 - [Доменные контракты](docs/domains/README.md)
 - [Matrix](docs/domains/MATRIX.md)

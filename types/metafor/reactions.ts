@@ -344,7 +344,7 @@ export interface ReactionFilterConditions {
  *
  * @template ɸ - схема полей
  * @template 𝛴 - строковые ключи состояний
- * @template m - тип mass объекта
+ * @template m - тип проекции объявленных Mass handles
  *
  * @example
  * ```typescript
@@ -381,7 +381,7 @@ export interface Reaction<ɸ extends Fields, 𝛴 extends string, m extends Mass
  *
  * @template ɸ - схема полей
  * @template 𝛴 - строковые ключи состояний
- * @template m - тип mass объекта
+ * @template m - тип проекции объявленных Mass handles
  *
  * @example
  * ```typescript
@@ -442,7 +442,7 @@ export type ReactionsDeclaration<ɸ extends Fields, 𝛴 extends string, m exten
        * Получает полный доступ к параметрам события:
        * - `update` - функция для обновления полей
        * - `value` - текущие значения полей
-       * - `mass` - mass объект для хранения состояния
+       * - `mass` - handles объявленных Mass key-files
        * - `meta` - название компонента-отправителя из MetaFor("label")
        * - `atom` - идентификатор атома-отправителя
        * - `timestamp` - временная метка события
@@ -450,22 +450,21 @@ export type ReactionsDeclaration<ɸ extends Fields, 𝛴 extends string, m exten
        * - `state` - текущее состояние
        * - `self` - полный идентификатор атома
        *
-       * Функция может использовать `update()` для изменения полей, обращаться к `mass`
-       * для работы с внешним состоянием, анализировать `part` для получения данных события.
+       * Функция может использовать `update()` для изменения полей и анализировать
+       * `part` для получения данных события. `mass` содержит handles, а не
+       * сохранённые JSON/binary значения.
        *
        * @param reaction - Функция обработки события, вызываемая при срабатывании реакции
        * @returns Объект реакции с методом `registerStates` для регистрации состояний
        *
        * @example
        * ```typescript
-       * .equal(({ update, value, part, mass }) => {
+       * .equal(({ update, value, part }) => {
        *   // Обновление контекста
        *   update({
        *     lastMessage: part.value,
        *     messageCount: value.messageCount + 1
        *   })
-       *   // Работа с mass объектом
-       *   mass.log.push({ message: part.value, time: Date.now() })
        * })
        * ```
        */
@@ -515,7 +514,7 @@ export interface ReactionsSchema {
  *
  * @template ɸ - схема контекста
  * @template 𝛴 - строковые ключи состояний
- * @template m - тип mass объекта
+ * @template m - тип проекции объявленных Mass handles
  *
  * @includeExample ./react/test/reactions.basic.spec.ts
  * @includeExample ./react/test/reactions.execution.spec.ts
@@ -525,7 +524,7 @@ export interface ReactionsSchema {
  * const updateFn: ReactionUpdate<MyContext, "idle" | "loading"> = ({
  *   update,    // Функция для обновления контекста
  *   value,   // Текущие значения полей
- *   mass,      // Масса
+ *   mass,      // Handles объявленных Mass key-files
  *   meta,      // имя meta
  *   atom,      // ID атома
  *   timestamp, // Временная метка
@@ -547,7 +546,7 @@ export type ReactionAction<ɸ extends Fields, 𝛴 extends string, m extends Mas
   update: Update<ɸ>
   /** Текущие значения полей */
   value: Values<ɸ>
-  /** Масса */
+  /** Handles объявленных Mass key-files */
   mass: m
   /** Название компонента-отправителя из MetaFor("label") */
   meta: string
