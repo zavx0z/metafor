@@ -4,8 +4,11 @@
 task `019f9b10-44b2-7ab2-9ae8-e831d4f9ccea`; `MF-000` и контрактный срез
 `MF-010`, восстановление Create MetaFor `MF-011`, migration gate `MF-012` и
 offline source split `MF-013` завершены. Шесть Meta находятся в независимых
-flat peer repositories; live contour, cleanup и cold cut не затрагивались.
-Следующий runtime этап остаётся отдельным owner-approved cold gate `MF-014`.
+flat peer repositories. Owner-approved cold proof `MF-014` выполнен до
+recoverable rollback и заблокирован фактической несовместимостью старого
+derived Store с новыми identities: cold load сохраняет legacy WIMP declarations
+рядом с flat declarations, после чего Mass binding Auth не материализуется.
+Pre-cut Store/Mass/history восстановлены, прежний contour снова рождён и healthy.
 
 Этот файл — изменяемая рабочая карта. Он не заменяет документы-владельцы из
 `docs/README.md`. Новый действующий закон сначала переносится в соответствующий
@@ -269,6 +272,15 @@ Acceptance cold materialization:
     подключение к чату, чтение истории, обработку входящего сообщения и ответ.
 11. Никакого runtime, Store cut, process restart или запуска Лады нет на
     `MF-013`.
+
+Первый фактический `MF-014` cut подтвердил full cold lifecycle и чтение всех
+пяти новых peer references, но не acceptance всего graph. Boundary сохранил
+шесть legacy three-segment WIMP declarations и добавил пять flat declarations
+вместо замены identities; первый Auth process затем завершился ошибкой
+неразрешённого Mass handle. Failed candidate сохранён отдельно, а pre-cut
+SQLite, Dark history и Mass восстановлены побайтно. Следующая попытка требует
+owner decision из раздела 15 о clean derived-store cut либо явной migration
+старых identities.
 
 ## 5. MetaJSON и nested projections
 
@@ -677,8 +689,10 @@ patch vertical slice.
 2. GitHub remote names и provenance/history policy при физическом split
    существующего Inference repository.
 3. Форма общего `lada-chat` / `lada-chat-send` Energy/send contract.
-4. Cold migration policy существующих runtime Stores: clean derived-store cut
-   либо явное удаление старых WIMP identities.
+4. Повторный `MF-014` cut: создать чистый derived Boundary Store и
+   materialize flat graph из сохранённых source/Mass, либо реализовать явную
+   migration/removal шести legacy WIMP identities перед load. Простое чтение
+   flat root поверх существующего Store фактически доказано несовместимым.
 5. Локальная capability identity/policy первого Codex→Monad write endpoint до
    его открытия за пределы trusted development contour.
 

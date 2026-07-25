@@ -181,13 +181,37 @@
 
 ### MF-014 — Доказать strict resolver и cold materialization
 
-- Status: `IN_PROGRESS`
+- Status: `BLOCKED`
 - Dependencies: `MF-013`
 - Current task: Codex task `019f9b10-44b2-7ab2-9ae8-e831d4f9ccea`
 - Authority:
   - owner approved pre-cut evidence/backup, controlled full contour stop/start,
     fresh Lada launch, acceptance and recoverable rollback;
   - no hot reload, cleanup, source evidence deletion, remote creation or push.
+- Evidence:
+  - canonical runtime ownership был проверен по launcher и шести child
+    processes до stop; unrelated/archive processes не затрагивались;
+  - recoverable snapshot
+    `.metafor/backups/mf014-flat-peers-20260725T230711Z` содержит integrity-ok
+    SQLite, byte-identical Dark history/Mass и verified Git bundles core плюс
+    шести Meta repositories;
+  - full cold birth прошёл: Force, Boundary, Dark, Energy, Bulk и Matrix
+    ответили `200`, Force вошёл в `running`, Matrix использовал GPU backend;
+  - `zavx0z/inference` прочитал все пять flat peer references, но Boundary
+    сохранил шесть legacy WIMP declarations и добавил пять flat declarations:
+    получилось 11 WIMP вместо ожидаемых 6;
+  - первый Auth process не получил ожидаемый Mass handle и завершился
+    технической ошибкой; chat acceptance поэтому не выполнялся;
+  - failed candidate сохранён отдельно без message/Mass disclosure;
+  - candidate остановлен, pre-cut SQLite/Dark history/Mass восстановлены
+    побайтно; rollback contour снова отвечает `200` на всех шести health
+    endpoints и содержит исходные 6 WIMP/6 Atom и прежние states;
+  - source repositories остались clean, cleanup, push и hot reload не
+    выполнялись.
+- Blocker:
+  - нужен owner decision: clean derived Boundary Store cut с последующей
+    materialization из source/Mass либо явная migration/removal legacy WIMP
+    identities. Повторять flat load поверх прежнего Store нельзя.
 - Acceptance:
   - two-segment resolver positive/negative tests;
   - third segment rejected before filesystem read;
