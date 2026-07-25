@@ -1,6 +1,7 @@
 import {describe, expect, test} from "bun:test"
 import {BOUNDARY_INITIAL_PROJECTION_METHOD} from "@metafor/types/boundary/initial"
 import {EnergyMonad} from "./monad.ts"
+import type {EnergyMassHandle} from "./mass.ts"
 
 describe("Energy Monad", () => {
   test("hydrates only the Energy-local catalog through Boundary RPC", async () => {
@@ -85,5 +86,32 @@ describe("Energy Monad", () => {
     await expect(monad.onServerStarted({async call() { return {version: 2, entries: []} }} as never))
       .rejects.toThrow("invalid initial Energy projection")
     expect(await monad.onHealthRequested().json()).toMatchObject({ok: false, rpc: "error"})
+  })
+
+  test("registers exact Mass fence methods before opening and gates their handles", async () => {
+    const handlers = new Map<string, (request: unknown) => Promise<unknown>>()
+    const monad = new EnergyMonad()
+    monad.onServerStarting({
+      expose(method: string, handler: unknown) { handlers.set(method, handler as (request: unknown) => Promise<unknown>) },
+    } as never)
+    const key = "33333333-3333-4333-8333-333333333333"
+    monad.catalog.apply({
+      part: "graviton", op: "add", path: "atom/2", ts: 0,
+      value: {
+        atom: {id: 2, parentAtom: 1, parentTopology: null, wimp: "owner/child", position: 0},
+        mass: [{id: 7, key: "profile", keyId: key, format: "json", mime: "application/json", label: null, description: null}],
+        values: [], valueRecords: [], valueItems: [], state: null,
+      },
+    })
+    const artifact = monad.catalog.mass(2)
+    monad.massStore.authorize?.({energyId: "energy", atomId: 2, wimp: "owner/child", state: ""}, artifact)
+    const child = monad.massStore.get({energyId: "energy", atomId: 2, wimp: "owner/child", state: ""}).profile as EnergyMassHandle
+
+    expect([...handlers.keys()].sort()).toEqual(["energy.mass.fence", "energy.mass.release"])
+    await handlers.get("energy.mass.fence")!({atom: 2, declaration: 7, key})
+    await expect(child.readBytes()).rejects.toThrow("not live")
+    await handlers.get("energy.mass.release")!({atom: 2, declaration: 7, key})
+    await expect(child.readBytes()).resolves.toBeInstanceOf(Uint8Array)
+    await expect(handlers.get("energy.mass.fence")!({atom: 2, declaration: 7, key: "wrong"})).rejects.toThrow("stale")
   })
 })

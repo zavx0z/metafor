@@ -20,17 +20,35 @@ export type EnergyMassHandle = {
 export class EnergyMassGate {
   #generation = new Map<string, number>()
   #live = new Set<string>()
+  #fenced = new Set<string>()
+
+  private identity(atom: number, declaration: number, key: string): string {
+    return `${atom}\0${declaration}\0${key}`
+  }
+
   authorize(atom: number, declaration: number, key: string): number {
-    const identity = `${atom}\0${declaration}\0${key}`
-    const generation = (this.#generation.get(identity) ?? 0) + 1
-    this.#generation.set(identity, generation); this.#live.add(`${identity}\0${generation}`)
+    const identity = this.identity(atom, declaration, key)
+    const previous = this.#generation.get(identity)
+    if (previous !== undefined) this.#live.delete(`${identity}\0${previous}`)
+    const generation = (previous ?? 0) + 1
+    this.#generation.set(identity, generation)
+    this.#live.add(`${identity}\0${generation}`)
     return generation
   }
   revoke(atom: number, declaration: number, key: string, generation: number): void {
-    this.#live.delete(`${atom}\0${declaration}\0${key}\0${generation}`)
+    this.#live.delete(`${this.identity(atom, declaration, key)}\0${generation}`)
+  }
+  fence(atom: number, declaration: number, key: string): void {
+    this.#fenced.add(this.identity(atom, declaration, key))
+  }
+  release(atom: number, declaration: number, key: string): void {
+    this.#fenced.delete(this.identity(atom, declaration, key))
   }
   assert(atom: number, declaration: number, key: string, generation: number): void {
-    if (!this.#live.has(`${atom}\0${declaration}\0${key}\0${generation}`)) throw new Error("Energy Mass handle generation is not live")
+    const identity = this.identity(atom, declaration, key)
+    if (this.#fenced.has(identity) || !this.#live.has(`${identity}\0${generation}`)) {
+      throw new Error("Energy Mass handle generation is not live")
+    }
   }
 }
 
@@ -114,9 +132,8 @@ export class EnergyMassCatalog {
 }
 
 /** Energy-local handle projection. It contains no membership or source registry. */
-export const createFilesystemEnergyMassStore = (): EnergyMassStore => {
+export const createFilesystemEnergyMassStore = (gate = new EnergyMassGate()): EnergyMassStore => {
   const catalog = new EnergyMassCatalog()
-  const gate = new EnergyMassGate()
   const values = new Map<string, Record<string, unknown>>()
   const keyOf = (ctx: EnergyMassContext): string => `${ctx.wimp}\0${ctx.atomId}`
   return {

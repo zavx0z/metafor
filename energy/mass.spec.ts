@@ -41,4 +41,25 @@ describe("Energy Mass file catalog", () => {
     await expect(child.readBytes()).rejects.toThrow("not live")
     await expect(parent.readBytes()).resolves.toBeInstanceOf(Uint8Array)
   })
+
+  test("supersedes and fences only the exact child handle generation", async () => {
+    const catalog = new EnergyMassCatalog()
+    const gate = new EnergyMassGate()
+    const parentGeneration = gate.authorize(1, 1, key)
+    const oldChildGeneration = gate.authorize(2, 1, key)
+    const nextChildGeneration = gate.authorize(2, 1, key)
+    const artifact = {id: 1, keyId: key, format: "json" as const, mime: "application/json"}
+    const parent = catalog.handle(artifact, {gate, atom: 1, generation: parentGeneration})
+    const oldChild = catalog.handle(artifact, {gate, atom: 2, generation: oldChildGeneration})
+    const child = catalog.handle(artifact, {gate, atom: 2, generation: nextChildGeneration})
+
+    await expect(oldChild.readBytes()).rejects.toThrow("not live")
+    await expect(child.readBytes()).resolves.toBeInstanceOf(Uint8Array)
+    await expect(parent.readBytes()).resolves.toBeInstanceOf(Uint8Array)
+    gate.fence(2, 1, key)
+    await expect(child.write({blocked: true})).rejects.toThrow("not live")
+    await expect(parent.write({still: "writable"})).resolves.toBeUndefined()
+    gate.release(2, 1, key)
+    await expect(child.readBytes()).resolves.toBeInstanceOf(Uint8Array)
+  })
 })

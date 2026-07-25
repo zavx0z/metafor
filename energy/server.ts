@@ -6,6 +6,7 @@ import {EnergyMonad} from "./monad.ts"
 const monad = new EnergyMonad()
 const transport = new MonadTransport("energy")
 const rpc = new MonadRpcPeer(transport.channel)
+monad.onServerStarting(rpc)
 let runtime: EnergyRuntimeBirth | null = null
 
 const server = Bun.serve({
@@ -14,6 +15,11 @@ const server = Bun.serve({
     "/health": {
       GET() {
         return monad.onHealthRequested()
+      },
+    },
+    "/monad/channel": {
+      POST(request) {
+        return transport.receive(request)
       },
     },
   },
@@ -42,8 +48,13 @@ try {
   runtime = await birthEnergyRuntime({
     monad,
     peer: rpc,
-    openMonad: async () => await transport.open({waitMs: 30_000}),
+    openMonad: async () => await transport.open({
+      methods: rpc.methods(),
+      endpoint: new URL("/monad/channel", server.url),
+      waitMs: 30_000,
+    }),
     createForce: () => new Force("energy"),
+    protocol: {massStore: monad.massStore},
     onBorn(summary) {
       console.log(
         `[energy] born atoms=${summary.atoms} topologies=${summary.topologies} ` +

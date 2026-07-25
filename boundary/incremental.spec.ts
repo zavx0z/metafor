@@ -1,6 +1,6 @@
 import {SQL} from "bun"
 import {afterEach, beforeEach, describe, expect, test} from "bun:test"
-import {mkdtemp, rm} from "node:fs/promises"
+import {mkdir, mkdtemp, rm, unlink, writeFile} from "node:fs/promises"
 import {tmpdir} from "node:os"
 import {join} from "node:path"
 import type {DeclarationPath} from "shared/protocol/force/declaration"
@@ -90,6 +90,41 @@ describe("Boundary incremental relational projection", () => {
     const childTarget = await membership(child, "target")
     expect(childTarget).toEqual({keyId: parentSource.keyId, source: parent})
     expect((await membership(child, "cache")).source).toBeNull()
+
+    const target = (await boundary.projection.sql<Array<{declaration: number}>>`
+      SELECT membership.declaration FROM mass_membership AS membership
+      JOIN mass_declaration AS declaration ON declaration.id = membership.declaration
+      WHERE membership.atom = ${child} AND declaration.local_key = ${"target"}
+    `)[0]!
+    const exact = {atom: child, declaration: Number(target.declaration), key: parentSource.keyId}
+    const fences: typeof exact[] = []
+    const releases: typeof exact[] = []
+    boundary.projection.setMassFence(async (request) => { fences.push(request) })
+    boundary.projection.setMassRelease(async (request) => { releases.push(request) })
+
+    await expect(apply("replace", "matter", {
+      wimp: ROOT, id: 1, parent: null, edgeSlot: "root", position: 0, kind: "wimp", src: CHILD,
+    })).rejects.toThrow()
+    expect(fences).toEqual([exact])
+    expect(releases).toEqual([exact])
+    expect(await membership(child, "target")).toEqual(childTarget)
+
+    const keysBefore = await boundary.projection.sql<Array<{count: number}>>`SELECT COUNT(*) AS count FROM mass_key`
+    await mkdir(boundary.projection.mass.catalog.root, {recursive: true})
+    await writeFile(join(boundary.projection.mass.catalog.root, parentSource.keyId), "source")
+    fences.length = 0
+    releases.length = 0
+    try {
+      await expect(apply("replace", "matter", {
+        wimp: ROOT, id: 1, parent: null, edgeSlot: "root", position: 0, kind: "wimp",
+      })).rejects.toThrow("matter.src")
+      expect(fences).toEqual([exact])
+      expect(releases).toEqual([exact])
+      expect(await membership(child, "target")).toEqual(childTarget)
+      expect(await boundary.projection.sql<Array<{count: number}>>`SELECT COUNT(*) AS count FROM mass_key`).toEqual(keysBefore)
+    } finally {
+      await unlink(join(boundary.projection.mass.catalog.root, parentSource.keyId)).catch(() => undefined)
+    }
   })
 
   test("drops the legacy WIMP Mass declaration table when opening an existing Boundary database", async () => {

@@ -578,16 +578,19 @@ export class BoundaryIncrementalStore {
          AND origin.declaration_local_id = ${address.localId}
     `
     const plans: BoundaryMassDetachPlan[] = []
+    const fenced: Array<{atom: number; declaration: number; key: string}> = []
     try { for (const request of stale) {
-      await this.massFence?.({atom: Number(request.atom), declaration: Number(request.declaration), key: request.key})
+      const identity = {atom: Number(request.atom), declaration: Number(request.declaration), key: request.key}
+      await this.massFence?.(identity)
+      fenced.push(identity)
       const plan = await this.mass.prepareDetach(this.sql, Number(request.atom), Number(request.declaration))
       plans.push(plan)
       await this.mass.catalog.copy(plan.sourceKey, plan.nextKey)
     } } catch (error) {
       for (const plan of plans) {
         await this.mass.catalog.cleanupSafe(plan.nextKey)
-        await this.massRelease?.({atom: plan.childAtom, declaration: plan.childDeclaration, key: plan.sourceKey})
       }
+      for (const identity of fenced) await this.massRelease?.(identity)
       throw error
     }
     return plans
