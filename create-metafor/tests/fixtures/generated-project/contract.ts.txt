@@ -141,7 +141,7 @@ MetaFor("strict-generated-contract")
     energy.attempts
 
     return html`<meta-for
-      src="owner/project/child"
+      src="owner/project-child"
       mass=${mass}
       energy=${energy}
     />`

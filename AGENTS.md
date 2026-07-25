@@ -58,11 +58,17 @@
   зафиксировать и разрешить его, а не молча выбрать план или код.
 - Брать highest-priority item со статусом `READY`, все dependencies которого
   завершены. Не перескакивать к более позднему этапу ради удобной реализации.
+- До завершения `MF-000` implementation не начинать. После `MF-000` первым
+  implementation priority является цепочка flat topology
+  `MF-010 → MF-011 → MF-012 → MF-013 → MF-014`; Monad patch slice начинается
+  только после её cold proof.
 - `WAITING` означает только незавершённые dependencies; `BLOCKED` — фактическое
   препятствие с evidence. После завершения item перевести ставшие доступными
   зависимые `WAITING` items в `READY`.
-- Item со статусом `GATE` требует явного owner approval. Агент не выбирает
-  архитектурный вариант за владельца и не начинает зависимые items.
+- Item со статусом `GATE` требует явного owner approval конкретного решения.
+  `GATE` не добавляется перед каждым structural patch: внутри уже утверждённых
+  capability и policy Codex выполняет итеративный цикл
+  `read → plan → validate → patch → materialize → observe`.
 - Перед изменениями пометить выбранный item `IN_PROGRESS` и указать текущую
   задачу/исполнителя. Параллельно выполнять только независимые items.
 - После работы обновить item: `DONE` только с фактическими checks и evidence;
@@ -70,8 +76,15 @@
 - Новое обязательное понятие или изменённый закон сначала внести в
   соответствующий domain owner document. Plan/TODO обновить следом, чтобы они
   не расходились с утверждённым контрактом.
-- Сохранять границы первого vertical slice. Не добавлять Process generation,
-  package creation, Runtime Agent autonomy, convergence, Git commit, restart
-  или hot reload до их отдельных items и gates.
+- Create интегрирует только существующий Create MetaFor template path:
+  `template → validate → target patch → validate → materialize`. Не создавать
+  параллельный Monad generator и не заменять полный package на
+  `directory + meta.ts`.
+- В первом Monad patch slice не добавлять `pending/active` Meta heads,
+  transactional outbox, Force v2, branches/merge/rollback/push, Process
+  generator, restart или hot reload. Source write не считать доказательством
+  materialization; точный outcome записывать в operational journal.
+- Лада не является fixture или центром текущего authoring/topology work. Это не
+  вечный запрет: constrained self-evolution остаётся отдельным будущим item.
 - При новом существенном evidence допускается править план и приоритеты TODO,
   но нельзя удалять acceptance criterion без объяснения и owner decision.

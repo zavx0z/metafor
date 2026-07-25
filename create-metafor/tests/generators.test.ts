@@ -79,7 +79,7 @@ describe("generateTodoFile", () => {
 })
 
 describe("generatePackageJsonFile", () => {
-  test("должен генерировать корневой package.json с npm scope владельца", () => {
+  test("должен генерировать peer package.json с npm scope владельца", () => {
     const result = generatePackageJsonFile(
       {owner: "zavx0z", repository: "capsule"},
       "Капсула",
@@ -90,15 +90,15 @@ describe("generatePackageJsonFile", () => {
     expect(parsed.name).toBe("@zavx0z/capsule")
     expect(parsed.description).toBe("Капсула")
     expect(parsed.author).toBe("zavx0z")
-    expect(parsed.workspaces).toEqual(["*"])
+    expect(parsed.workspaces).toBeUndefined()
     expect(parsed.version).toBe("0.1.0")
     expect(parsed.type).toBe("module")
     expect(parsed.private).toBe(true)
     expect(parsed.exports["."]).toBe("./meta.ts")
   })
 
-  test("должен разворачивать внутренний src в плоское валидное npm-имя", () => {
-    const identity = {owner: "zavx0z", repository: "capsule", metaPackage: "profile"}
+  test("должен выводить npm identity только из owner/repository", () => {
+    const identity = {owner: "zavx0z", repository: "capsule-profile"}
     const parsed = JSON.parse(generatePackageJsonFile(identity, "Профиль", "zavx0z"))
 
     expect(npmPackageName(identity)).toBe("@zavx0z/capsule-profile")
@@ -124,7 +124,7 @@ describe("generatePackageJsonFile", () => {
 
   test("должен безопасно генерировать JSON-строки", () => {
     const result = generatePackageJsonFile(
-      {owner: "zavx0z", repository: "capsule", metaPackage: "auth"},
+      {owner: "zavx0z", repository: "capsule-auth"},
       "Auth \"quoted\"",
       "Test \"User\"",
     )
@@ -163,22 +163,22 @@ describe("generateTsconfigFile", () => {
 
 describe("generateIndexHtmlFile", () => {
   test("должен генерировать index.html с правильными подстановками", () => {
-    const result = generateIndexHtmlFile("auth", "Авторизация", "ru", "zavx0z/capsule/auth")
+    const result = generateIndexHtmlFile("auth", "Авторизация", "ru", "zavx0z/capsule-auth")
     
     expect(result).toContain('lang="ru"')
     expect(result).toContain("<title>Авторизация</title>")
-    expect(result).toContain('src="zavx0z/capsule/auth"')
+    expect(result).toContain('src="zavx0z/capsule-auth"')
   })
 
   test("должен генерировать index.html с английским языком", () => {
-    const result = generateIndexHtmlFile("auth", "Authentication", "en", "zavx0z/capsule/auth")
+    const result = generateIndexHtmlFile("auth", "Authentication", "en", "zavx0z/capsule-auth")
     
     expect(result).toContain('lang="en"')
     expect(result).toContain("<title>Authentication</title>")
   })
 
   test("должен экранировать HTML в description", () => {
-    const result = generateIndexHtmlFile("test", "<script>alert('xss')</script>", "en", "zavx0z/capsule/test")
+    const result = generateIndexHtmlFile("test", "<script>alert('xss')</script>", "en", "zavx0z/capsule-test")
     
     expect(result).toContain("&lt;script&gt;")
     expect(result).toContain("&lt;/script&gt;")

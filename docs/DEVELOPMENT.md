@@ -110,12 +110,15 @@ tmpdir="$(mktemp -d)"
 mkdir -p "$tmpdir/cluster/zavx0z"
 bun run --filter create-metafor build
 bun create-metafor/dist/cli.js capsule --dir "$tmpdir/cluster/zavx0z" --lang en
-bun create-metafor/dist/cli.js profile --dir "$tmpdir/cluster/zavx0z/capsule" --lang en
+bun create-metafor/dist/cli.js capsule-profile --dir "$tmpdir/cluster/zavx0z" --lang en
 bun build "$tmpdir/cluster/zavx0z/capsule/meta.ts" --outdir "$tmpdir/dist" --target browser --format esm
+bun build "$tmpdir/cluster/zavx0z/capsule-profile/meta.ts" --outdir "$tmpdir/dist-profile" --target browser --format esm
 rm -rf "$tmpdir"
 ```
 
 Каталог `cluster/` является локальным resolver root, не входит в WIMP `src`, не
-является workspace и игнорируется внешним репозиторием MetaFor. Git существует
-только на уровне каждого Atom-репозитория `cluster/<owner>/<repository>`;
-внутренние Meta-пакеты не являются submodule или nested repository.
+является workspace и игнорируется внешним репозиторием MetaFor. Каждый
+`cluster/<owner>/<repository>` является независимым peer Git-репозиторием.
+Третьего сегмента и nested Meta repository нет; composition выполняется через
+Meta/Matter/Monad references. Оба вызова создают полный template, lockfile,
+собственный Git и один `Initial commit`.

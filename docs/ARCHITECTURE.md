@@ -261,7 +261,10 @@ platform-neutral, чтобы одна точка наблюдения могла
 
 ## Create MetaFor
 
-`create-metafor` остаётся активным workspace и CLI. В Galaxy-каталоге он создаёт
-корневой Atom с собственным Git; в существующем Atom-репозитории — внутренний
-Meta-пакет без nested Git. Его templates, generator tests и
-`rules/metafor.md` проверяются локально вместе с остальным runtime.
+`create-metafor` остаётся активным workspace и CLI. Его утверждённый контракт:
+под переданным parent с owner basename создавать новый независимый peer
+`<repository>` с полным актуальным template, lockfile после `bun install`,
+собственным Git и одним `Initial commit`. Режима создания Meta внутри
+существующего Meta-репозитория нет; root/internal branching и workspace child
+template отсутствуют. Templates, generator tests и `rules/metafor.md`
+проверяются локально вместе с остальным runtime.
