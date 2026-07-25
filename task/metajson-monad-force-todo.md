@@ -135,9 +135,33 @@
 
 ### MF-013 — Разделить Inference на peer repositories
 
-- Status: `IN_PROGRESS`
+- Status: `DONE`
 - Dependencies: `MF-012`
-- Current task: Codex task `019f9b10-44b2-7ab2-9ae8-e831d4f9ccea`
+- Evidence:
+  - пять target directories созданы исключительно прямыми Create MetaFor
+    invocations с `--dir cluster/zavx0z --lang en`;
+  - каждый новый peer имеет полный template, lockfile, отдельный Git,
+    template `Initial commit` и отдельный verified migration commit;
+  - migration commits:
+    - `zavx0z/lada`: `0d46d2a feat: migrate Lada agent package`;
+    - `zavx0z/lada-auth`: `357ffc1 feat: migrate Lada auth package`;
+    - `zavx0z/lada-chat`: `5478b76 feat: migrate Lada chat package`;
+    - `zavx0z/lada-chat-send`: `a795503 feat: migrate Lada chat send package`;
+    - `zavx0z/lada-model`: `e2da1a8 feat: migrate Lada model package`;
+    - `zavx0z/inference`: `ea92008 refactor: compose flat Lada peer packages`;
+  - Chat/Send boundary перенесён механически через стабильный package subpath
+    export; action semantics не менялись;
+  - normalized Lada `meta.ts` совпадает с исходным после замены ровно трёх
+    `src`; `consider-message.ts` совпадает побайтно, greeting меняет только
+    import boundary;
+  - peer tests: Lada 3, Auth 7, Chat 6, Chat Send 2, Model 4 — все pass;
+  - все пять peer builds и strict typechecks pass;
+  - Inference composition suite: 20 pass, typecheck/build pass;
+  - core `bun run typecheck`: pass;
+  - production source active topology не содержит three-segment `src` или
+    cross-repository relative imports;
+  - все шесть repositories clean; старые nested directories сохранены;
+  - live contour, runtime processes, Store/Mass, remotes и push не изменялись.
 - Scope:
   - не менять product runtime сверх необходимого source boundary split;
   - каждый новый peer target directory создаётся исключительно вызовом
@@ -157,8 +181,12 @@
 
 ### MF-014 — Доказать strict resolver и cold materialization
 
-- Status: `WAITING`
+- Status: `GATE`
 - Dependencies: `MF-013`
+- Gate:
+  - source/static prerequisites завершены;
+  - cleanup, Store/Mass cut, runtime stop/start и fresh Lada launch требуют
+    отдельного owner approval после согласованного offline plan work.
 - Acceptance:
   - two-segment resolver positive/negative tests;
   - third segment rejected before filesystem read;

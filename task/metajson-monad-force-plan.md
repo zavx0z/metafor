@@ -2,9 +2,10 @@
 
 Статус: consolidated owner-направление и living plan утверждены owner в Codex
 task `019f9b10-44b2-7ab2-9ae8-e831d4f9ccea`; `MF-000` и контрактный срез
-`MF-010`, восстановление Create MetaFor `MF-011` и migration gate `MF-012`
-завершены. `MF-013` выполняет approved offline split Inference children в
-независимые flat peer repositories; live contour и cold cut не затрагиваются.
+`MF-010`, восстановление Create MetaFor `MF-011`, migration gate `MF-012` и
+offline source split `MF-013` завершены. Шесть Meta находятся в независимых
+flat peer repositories; live contour, cleanup и cold cut не затрагивались.
+Следующий runtime этап остаётся отдельным owner-approved cold gate `MF-014`.
 
 Этот файл — изменяемая рабочая карта. Он не заменяет документы-владельцы из
 `docs/README.md`. Новый действующий закон сначала переносится в соответствующий
