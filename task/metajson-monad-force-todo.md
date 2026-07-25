@@ -181,12 +181,13 @@
 
 ### MF-014 — Доказать strict resolver и cold materialization
 
-- Status: `GATE`
+- Status: `IN_PROGRESS`
 - Dependencies: `MF-013`
-- Gate:
-  - source/static prerequisites завершены;
-  - cleanup, Store/Mass cut, runtime stop/start и fresh Lada launch требуют
-    отдельного owner approval после согласованного offline plan work.
+- Current task: Codex task `019f9b10-44b2-7ab2-9ae8-e831d4f9ccea`
+- Authority:
+  - owner approved pre-cut evidence/backup, controlled full contour stop/start,
+    fresh Lada launch, acceptance and recoverable rollback;
+  - no hot reload, cleanup, source evidence deletion, remote creation or push.
 - Acceptance:
   - two-segment resolver positive/negative tests;
   - third segment rejected before filesystem read;
