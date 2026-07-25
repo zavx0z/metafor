@@ -69,6 +69,12 @@ export class EnergyMonad {
       )
       if (!isInitialProjection(initial)) throw new Error("Boundary returned an invalid initial Energy projection")
       for (const entry of initial.entries) this.catalog.apply(particle(entry))
+      for (const atom of this.catalog.atoms.values()) {
+        this.massStore.authorize?.(
+          {energyId: "energy-local", atomId: atom.id, wimp: atom.wimp, state: ""},
+          this.catalog.mass(atom.id),
+        )
+      }
       this.#state = "prepared"
       return {
         atoms: this.catalog.atoms.size,

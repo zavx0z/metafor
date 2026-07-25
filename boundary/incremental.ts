@@ -564,15 +564,19 @@ export class BoundaryIncrementalStore {
   private async preflightMassDetach(address: InflatonAddress, op: Particle["op"], input: JsonRecord): Promise<BoundaryMassDetachPlan[]> {
     if (op !== "replace" || address.path !== "matter") return []
     const next = input.massBinding
-    const direct = isRecord(next) && isRecord(next.directMass)
-    if (direct) return []
-    const stale = await this.sql<Array<{atom: number; declaration: number; key: string}>>`
+    const direct = isRecord(next) && isRecord(next.directMass) ? next.directMass : undefined
+    const directTargets = direct && direct.kind === "keys" && Array.isArray(direct.entries)
+      ? new Set(direct.entries.filter(isRecord).map((entry) => entry.target).filter((key): key is string => typeof key === "string"))
+      : undefined
+    const stale = await this.sql<Array<{atom: number; declaration: number; key: string; childKey: string}>>`
       SELECT source.child_atom AS atom, source.child_declaration AS declaration, membership.key
+             , declaration.local_key AS childKey
         FROM mass_key_source AS source
         JOIN boundary_runtime_origin AS origin
           ON origin.kind = ${"atom"} AND origin.runtime_id = source.child_atom
         JOIN mass_membership AS membership
           ON membership.atom = source.child_atom AND membership.declaration = source.child_declaration
+        JOIN mass_declaration AS declaration ON declaration.id = source.child_declaration
        WHERE origin.declaration_kind = ${"matter"}
          AND origin.declaration_wimp = ${address.src}
          AND origin.declaration_local_id = ${address.localId}
@@ -580,6 +584,7 @@ export class BoundaryIncrementalStore {
     const plans: BoundaryMassDetachPlan[] = []
     const fenced: Array<{atom: number; declaration: number; key: string}> = []
     try { for (const request of stale) {
+      if (direct && (direct.kind === "whole" || directTargets?.has(request.childKey))) continue
       const identity = {atom: Number(request.atom), declaration: Number(request.declaration), key: request.key}
       await this.massFence?.(identity)
       fenced.push(identity)
@@ -2690,7 +2695,7 @@ export class BoundaryIncrementalStore {
   /** Reuses Boundary key identities for direct /mass and /mass/<key> Matter bindings. */
   private async reconcileMassBindingSources(sql: Database): Promise<void> {
     const bindings = await sql<Array<{childAtom: number; parentAtom: number; kind: string; target: string | null; source: string | null}>>`
-      SELECT child.id AS childAtom, child.parent_atom AS parentAtom, direct.kind,
+      SELECT child.id AS childAtom, COALESCE(child.parent_atom, origin.owner_atom) AS parentAtom, direct.kind,
              entry.target_key AS target, entry.source_key AS source
         FROM boundary_runtime_origin AS origin
         JOIN atom AS child ON child.id = origin.runtime_id
@@ -2699,7 +2704,7 @@ export class BoundaryIncrementalStore {
                                 WHERE wimp = origin.declaration_wimp AND local_id = origin.declaration_local_id)
         JOIN matter_binding_direct_mass AS direct ON direct.binding = edge.mass_binding
         LEFT JOIN matter_binding_direct_mass_key AS entry ON entry.binding = direct.binding
-       WHERE origin.kind = ${"atom"} AND child.parent_atom IS NOT NULL
+       WHERE origin.kind = ${"atom"}
        ORDER BY child.id, direct.kind, entry.key_order
     `
     let childAtom: number | null = null

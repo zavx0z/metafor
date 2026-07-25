@@ -169,6 +169,13 @@ const evaluateRuntimeBinding = (
   scope: RuntimeBindingScope,
   domain: "mass" | "energy",
 ): {ready: boolean; value?: Record<string, unknown>} => {
+  if (domain === "mass") {
+    if (typeof binding === "string") return {ready: false}
+    const paths = binding.data === undefined ? [] : Array.isArray(binding.data) ? binding.data : [binding.data]
+    if (paths.length !== 1) return {ready: false}
+    const resolved = readRuntimeBindingPath(scope, paths[0]!, "mass")
+    return resolved.ready && isRecord(resolved.value) ? {ready: true, value: resolved.value} : {ready: false}
+  }
   if (typeof binding === "string") {
     let value: unknown
     try {
@@ -249,9 +256,13 @@ const hydrateRuntimeBindings = (
       energy: energyStore.get(parentContext),
     }
     activeEnergy.add(parent.id)
+    // Mass is a Boundary-authorized declared-key handle projection.  It is
+    // never reconstructed by evaluating Matter expressions in Energy.
     const mass = continuation?.massBinding === undefined
       ? undefined
-      : evaluateRuntimeBinding(continuation.massBinding, scope, "mass")
+      : massStore.authorize !== undefined
+        ? {ready: true, value: massStore.get(childContext)}
+        : evaluateRuntimeBinding(continuation.massBinding, scope, "mass")
     const energy = continuation?.energyBinding === undefined
       ? undefined
       : evaluateRuntimeBinding(continuation.energyBinding, scope, "energy")
