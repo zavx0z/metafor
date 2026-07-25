@@ -1,4 +1,4 @@
-# MetaJSON, Monad и Force: приоритетный TODO
+# MetaJSON, Monad и Force: приоритетный исполнимый TODO
 
 Этот backlog исполняется по
 [`task/metajson-monad-force-plan.md`](metajson-monad-force-plan.md).
@@ -8,440 +8,414 @@
 - Приоритет: `P0` выше `P1`, затем `P2` и так далее.
 - Брать highest-priority item со статусом `READY`, у которого завершены все
   dependencies.
-- `GATE` требует явного owner approval; агент не выбирает решение сам.
-- `WAITING` означает, что ещё не завершены объявленные dependencies.
-- `BLOCKED` используется только для фактического препятствия и обязан содержать
-  точную причину и evidence.
-- `IN_PROGRESS` содержит исполнителя/задачу.
-- `DONE` содержит команды проверки и наблюдаемый результат.
-- После перевода item в `DONE` проверить все непосредственно зависимые
-  `WAITING` items и перевести в `READY` те, у которых завершены все
-  dependencies и нет owner gate.
-- Параллельно можно выполнять только независимые items.
-- Plan и TODO не отменяют domain owner documents.
+- `GATE` означает конкретное owner decision. Он не требуется перед каждым
+  structural patch, если capability и policy уже утверждены.
+- `WAITING` означает незавершённые dependencies.
+- `BLOCKED` содержит фактическое препятствие и evidence.
+- `IN_PROGRESS` содержит исполнителя/текущую Codex task.
+- `DONE` содержит diff/commit, выполненные проверки и наблюдаемый результат.
+- После `DONE` перевести в `READY` непосредственно зависимые items, у которых
+  завершены dependencies и нет gate.
+- Параллельно выполняются только независимые items.
+- Plan/TODO не заменяют domain owner documents.
+- До завершения `MF-000` implementation items не начинаются.
 
 Статусы: `GATE`, `WAITING`, `BLOCKED`, `READY`, `IN_PROGRESS`, `DONE`.
 
-## P0 — утверждение контрактов
+## P0 — принять план и восстановить flat topology
 
-### MF-000 — Финально утвердить living plan
+### MF-000 — Совместно утвердить обновлённый living plan
 
-- Status: `GATE`
+- Status: `DONE`
 - Dependencies: нет
-- Scope: утвердить `task/metajson-monad-force-plan.md` как основание работы.
-- Done when:
-  - owner подтвердил план;
-  - решения, ещё не подтверждённые владельцем, остались отдельными gates;
-  - реализация не выдаёт proposal за действующий контракт.
-
-### MF-001 — Зафиксировать source-of-truth hierarchy
-
-- Status: `WAITING`
-- Dependencies: `MF-000`
-- Owners: Dark, Boundary, architecture docs
+- Evidence:
+  - owner approval получен в Codex task `019f9b10-44b2-7ab2-9ae8-e831d4f9ccea`;
+  - consolidated plan/TODO принят как основание последовательной реализации;
+  - реализация начинается только с `MF-010`.
 - Scope:
-  - authored source;
-  - Meta Store `active/pending`;
-  - Boundary canonical world;
-  - Force Journal;
-  - derived views.
-- Acceptance:
-  - Dark MetaJSON не содержит канонические runtime values;
-  - Boundary не восстанавливается из Dark runtime mirror;
-  - `initialize(metaJSON)` использует round-trip source proof.
+  - owner и coordinator перечитывают plan/TODO после documentation patch;
+  - подтверждают, что consolidated owner decisions отражены без противоречий.
+- Done when:
+  - подтверждён продуктивный Codex↔Universe iteration loop;
+  - Monad и Force разведены;
+  - `pending/active` и Force v2 не являются prerequisites первого patch slice;
+  - flat topology является первым implementation priority;
+  - creation использует существующий Create MetaFor path;
+  - оставшиеся решения перечислены отдельно.
 
-### MF-002 — Утвердить Force v2 delivery-control contract
+### MF-010 — Зафиксировать flat topology в owner contracts
 
-- Status: `GATE`
+- Status: `DONE`
 - Dependencies: `MF-000`
-- Decision:
-  - versioned `particle/ack/nack/resume` frames; либо
-  - отдельный delivery-control channel.
+- Evidence:
+  - owner documents и public comments фиксируют только
+    `cluster/<owner>/<repository>` и `<owner>/<repository>`;
+  - Dark и Matter/template validators отклоняют third segment до filesystem
+    read/materialization;
+  - `bun test pkg/template/node/test/meta/attr.src.test.ts dark/load.spec.ts`:
+    22 pass, 0 fail;
+  - `bun run typecheck`: pass;
+  - независимый review выявил и после исправления не оставил расхождения
+    `Meta/Matter/Monad references`;
+  - `git diff --check`: pass;
+  - commit `e208bc8c feat(topology): enforce flat peer meta addresses`.
+- Owners: architecture, Dark, Matter/template, Meta package docs
+- Law:
+  - physical path `cluster/<owner>/<repository>`;
+  - canonical address ровно `<owner>/<repository>`;
+  - peer repository имеет собственный Git;
+  - nesting и third segment запрещены;
+  - composition выполняется Meta/Matter/Monad references.
 - Acceptance:
-  - `ForceMessage` по-прежнему содержит одну Particle;
-  - ACK не является Particle;
-  - observer/browser sockets не участвуют в commit receipt;
-  - authoritative consumer определён для каждого домена.
+  - domain documents и public comments согласованы;
+  - strict validators имеют negative three-segment cases;
+  - compatibility alias отсутствует;
+  - `git diff --check`.
 
-### MF-003 — Утвердить ordering, causality и identity
+### MF-011 — Восстановить flat peer Create MetaFor
 
-- Status: `GATE`
-- Dependencies: `MF-000`
-- Decide:
-  - `UniverseId`/`ContourId`;
-  - scope `ForceSequence`;
-  - `causedBy`, `causalRoot`, `observedAt`;
-  - migration текущего `Particle.ts`;
-  - uniqueness idempotency keys.
+- Status: `DONE`
+- Dependencies: `MF-010`
+- Evidence:
+  - archaeology `b10a4c0724bc2bf74596e65048178ebb22800486 →
+    dd66370112ed0d443b04bcad0905b6ffb80ad2f8` локализовала root/internal
+    experiment без побайтного отката новых улучшений;
+  - CLI всегда создаёт `resolve(parentDirectory, repositoryName)` с identity
+    только `owner/repository`;
+  - CLI tests фактически доказали два flat peers, полный template, lockfile,
+    отдельный `.git`, один `Initial commit` и чистый worktree каждого;
+  - overwrite, nested creation и repository argument с slash отклоняются до
+    target write;
+  - `bun test create-metafor`: 32 pass, 0 fail, 169 expect;
+  - `bun run --filter create-metafor build`: pass;
+  - `bun run typecheck`: pass;
+  - независимый read-only review: `PASS`;
+  - `git diff --check`: pass;
+  - commit `10f12ed8 feat(create-metafor): restore flat peer repositories`.
+- Archaeology: baseline `b10a4c0724bc2bf74596e65048178ebb22800486`,
+  experiment begins at `dd66370112ed0d443b04bcad0905b6ffb80ad2f8`.
+- Scope:
+  - удалить root/internal branching;
+  - arbitrary flat parent + new peer target;
+  - полный актуальный template set;
+  - `bun install`;
+  - отдельный Git + `Initial commit`;
+  - owner/repository npm identity и HTML source;
+  - no nested creation и no workspace child template.
 - Acceptance:
-  - sequence не объявляется причинностью;
-  - shared Field consequences сохраняют общий causal root;
-  - append и idempotency index атомарны.
+  - два peers создаются рядом;
+  - оба имеют полный template, lockfile, `.git` и один initial commit;
+  - target overwrite и nested repository creation отклоняются;
+  - current DSL/Mass/Energy/type improvements сохранены;
+  - `bun test create-metafor`;
+  - `bun run --filter create-metafor build`;
+  - `bun run typecheck`.
 
-### MF-004 — Утвердить authority × Particle matrix
+### MF-012 — Решить execution details миграции Inference
 
-- Status: `GATE`
-- Dependencies: `MF-000`
+- Status: `DONE`
+- Dependencies: `MF-011`
+- Evidence:
+  - owner approval получен в Codex task
+    `019f9b10-44b2-7ab2-9ae8-e831d4f9ccea`;
+  - `zavx0z/inference` сохраняется существующим composition/load root и
+    независимым flat repository;
+  - пять child Meta создаются с нуля через Create MetaFor как peers
+    `lada`, `lada-auth`, `lada-chat`, `lada-chat-send`, `lada-model`;
+  - новые peers получают только template `Initial commit`, без переноса
+    Inference Git history и без push;
+  - Лада сохраняет Fields, States, Processes, Matter, Mass bindings, поведение
+    и acceptance semantics; меняются только topology/package references;
+  - semantic redesign Chat/Send boundary требует остановки и нового owner
+    decision;
+  - old nested packages, Store/Mass и live contour на `MF-013` не удаляются и
+    не изменяются;
+  - migration является offline evolution; fresh Lada cold start выполняется
+    позднее после завершения approved plan.
+
+### MF-013 — Разделить Inference на peer repositories
+
+- Status: `IN_PROGRESS`
+- Dependencies: `MF-012`
+- Current task: Codex task `019f9b10-44b2-7ab2-9ae8-e831d4f9ccea`
+- Scope:
+  - не менять product runtime сверх необходимого source boundary split;
+  - каждый новый peer target directory создаётся исключительно вызовом
+    восстановленного Create MetaFor CLI и начинается с полного template;
+  - authored content переносится только после успешного canonical creation;
+  - перенести Meta/actions/tests по ownership;
+  - удалить cross-repository relative imports;
+  - обновить Matter references на двухсегментные;
+  - сохранить root Mass declarations и relationships.
 - Acceptance:
-  - external Agent/User может испускать только разрешённые Gluon/Higgs;
-  - Inflaton исходит только из Dark Monad;
-  - `by` и routing metadata не принимаются из payload;
-  - Runtime Agent не вызывает Force/Monad напрямую;
-  - audit identity отделена от causal emitter.
+  - шесть независимых Git repositories;
+  - active topology не содержит nested Meta repository/address;
+  - unit checks каждого peer проходят отдельно;
+  - root composition test использует logical addresses;
+  - старые nested packages сохранены до отдельного cleanup/cold-cut item;
+  - live contour, Store/Mass и процессы не изменены.
 
-### MF-005 — Зафиксировать operation state machine в owner documents
+### MF-014 — Доказать strict resolver и cold materialization
 
 - Status: `WAITING`
-- Dependencies: `MF-002`, `MF-003`
-- States:
-  - `planned`;
-  - `staged`;
-  - `source_committed`;
-  - `force_accepted`;
-  - `canonical_committed`;
-  - `converged`;
-  - `rejected`/`blocked`.
+- Dependencies: `MF-013`
 - Acceptance:
-  - фактом мира считается Boundary canonical commit;
-  - после него только forward recovery;
-  - первый slice не заявляет convergence.
+  - two-segment resolver positive/negative tests;
+  - third segment rejected before filesystem read;
+  - Dark BFS загружает ровно шесть peers;
+  - Boundary materialize ожидаемый graph;
+  - Mass source relationships сохранены;
+  - повторный read является no-op;
+  - полный cold lifecycle пройден без hot reload;
+  - backup/migration evidence записано до Store cut.
 
-### MF-006 — Утвердить Process source revision law
+## P1 — MetaJSON read/observe loop
 
-- Status: `GATE`
-- Dependencies: `MF-000`
-- Proposed: `SourceSetRevision` как hash sorted path → SourceRevision.
-- Acceptance:
-  - изменение action module наблюдаемо даже без изменения MetaRevision;
-  - возвращается explicit restart impact;
-  - partial hot reload отсутствует.
-
-### MF-007 — Утвердить multi-entity Boundary staging
-
-- Status: `GATE`
-- Dependencies: `MF-002`, `MF-003`, `MF-005`
-- Proposed:
-  - одна entity operation на Particle/ForceMessage;
-  - общий ChangeSet correlation;
-  - Boundary staging;
-  - один SQLite commit;
-  - derived domains сходятся вперёд.
-- Первый slice от этого решения не зависит.
-
-## P1 — behavior-preserving перенос Force в Dark
-
-### MF-100 — Зафиксировать parity baseline standalone Force
+### MF-100 — Утвердить MetaJSON v1 read contracts
 
 - Status: `WAITING`
-- Dependencies: `MF-000`
+- Dependencies: `MF-014`
 - Acceptance:
-  - endpoints, routing, lifecycle, birth gate и fail-stop покрыты тестами;
-  - текущий agent Inflaton отмечен как legacy;
-  - Matrix-last birth доказан.
+  - `MetaDocument` описывает одну Meta;
+  - `MetaProjection` является nested lazy composite;
+  - runtime schema/validators;
+  - occurrence ports и crossing-edge stubs;
+  - sparse completeness/missing/default/explicit value;
+  - Mass bytes, Energy objects, history и patches отсутствуют в snapshot;
+  - compact projection не содержит executable source по умолчанию.
 
-### MF-101 — Извлечь transport-neutral Force kernel в `dark/force/*`
+### MF-101 — Реализовать pure MetaDSL → MetaDocument
 
 - Status: `WAITING`
 - Dependencies: `MF-100`
-- Scope: relay, lifecycle, routing, channel Store без semantic изменений.
-- Acceptance: старый compatibility host проходит parity suite.
+- Acceptance:
+  - deterministic normalization/JCS digest;
+  - one Meta per document;
+  - round-trip fixtures;
+  - no authored MetaJSON Store.
 
-### MF-102 — Спроектировать Dark compatibility host
+### MF-102 — Реализовать nested MetaProjection RPC
 
-- Status: `GATE`
+- Status: `WAITING`
 - Dependencies: `MF-101`
-- Decide:
-  - один или два временных HTTP listeners;
-  - ports;
-  - unified health;
-  - local in-process Dark adapter вместо self-WebSocket.
+- Acceptance:
+  - full и selected-branch reads;
+  - nested child template/instance expansion;
+  - `$ref` для omitted branches;
+  - relative occurrence ports и boundary stubs;
+  - consumer повторно валидирует payload.
 
-### MF-103 — Реализовать Dark birth без startup cycle
+### MF-103 — Добавить read-only operation/history/Mass observation
 
 - Status: `WAITING`
 - Dependencies: `MF-102`
-- Target order:
-  - Dark host/root Force;
-  - Boundary;
-  - Energy;
-  - Bulk;
-  - Matrix;
-  - running.
+- Scope:
+  - structural operation outcomes;
+  - particle history отдельно;
+  - разрешённые Mass results через owner API;
+  - revision vector для сопоставления observations.
 - Acceptance:
-  - local Dark readiness + четыре authoritative remote domains;
-  - reconnect из `error` не оживляет Universe.
+  - MetaJSON snapshot не смешивается с history/Mass;
+  - direct Store/SQLite/filesystem reads со стороны Codex отсутствуют;
+  - selector/time/operation filters валидируются.
 
-### MF-104 — Переключить launcher на пять процессов
+### MF-104 — Доказать первый read/observe iteration
 
 - Status: `WAITING`
 - Dependencies: `MF-103`
 - Acceptance:
-  - production contour не имеет standalone Force process;
-  - endpoints/health работают по утверждённому compatibility law;
-  - `runtime:universe` и `runtime:universe:once` доказаны.
+  - Codex читает branch projection;
+  - связывает её с history и Mass result;
+  - формулирует проверяемое improvement intent;
+  - никаких writes на этом item.
 
-### MF-105 — Удалить compatibility Force package/entry
+## P2 — Monad structural patch vertical slice
+
+### MF-200 — Утвердить structural operation contract
 
 - Status: `WAITING`
-- Dependencies: `MF-104`
-- Scope: перенести server, REST/WS transport, MonadRouter, lifecycle, fixtures,
-  tests и документацию.
+- Dependencies: `MF-100`, `MF-104`
 - Acceptance:
-  - отдельного runtime process/domain Force нет;
-  - `shared/protocol/force` остаётся общим языком.
+  - operation id и target;
+  - JSON Patch;
+  - optional base source/meta digests как CAS, не VCS;
+  - capability/policy identity;
+  - runtime validation и negative tests;
+  - один patch может содержать несколько поддерживаемых entity operations.
 
-## P2 — Force v2 durability
-
-### MF-200 — Добавить public Force v2 envelopes
+### MF-201 — Реализовать fast Monad validator
 
 - Status: `WAITING`
-- Dependencies: `MF-002`, `MF-003`, `MF-004`, `MF-105`
-- Acceptance: runtime validators и negative tests для source authority.
+- Dependencies: `MF-200`
+- Checks:
+  - schema/JSON Pointer;
+  - references;
+  - semantic DSL constraints;
+  - forbidden cycles/graph constraints;
+  - capability/policy;
+  - supported round-trip source form.
+- Acceptance:
+  - invalid operation не пишет filesystem и не меняет Universe;
+  - error указывает точную phase/path.
 
-### MF-201 — Добавить durable append Journal и idempotency index
+### MF-202 — Реализовать atomic update source adapter
+
+- Status: `WAITING`
+- Dependencies: `MF-201`
+- Scope: существующая fixture Meta, один поддерживаемый `meta.ts`.
+- Acceptance:
+  - same-directory temp + atomic rename;
+  - CAS guard;
+  - unsupported/dynamic source rejected;
+  - no Git branch/commit/push;
+  - no pending/active Store.
+
+### MF-203 — Добавить append-only operational journal
 
 - Status: `WAITING`
 - Dependencies: `MF-200`
 - Acceptance:
-  - sequence + idempotency одной transaction;
-  - routing destinations вычислены и сохранены в той же transaction;
-  - replay использует сохранённые destinations;
-  - duplicate key возвращает существующий receipt;
-  - `DarkHistory` не используется как journal.
+  - serialized/idempotent `operationId`;
+  - полный serialized patch и patch/base/written/normalized digests;
+  - distinct validation/write/execute/round-trip/materialize phases;
+  - exact outcome/error;
+  - journal не является MetaJSON, Particle history или VCS.
 
-### MF-202 — Выделить authoritative consumers и observer channels
-
-- Status: `WAITING`
-- Dependencies: `MF-200`
-- Acceptance:
-  - один authoritative consumer на domain;
-  - browser sockets не блокируют receipt.
-
-### MF-203 — Boundary atomic inbox/cursor
+### MF-204 — Немедленно materialize через текущий runtime path
 
 - Status: `WAITING`
-- Dependencies: `MF-201`, `MF-202`
+- Dependencies: `MF-202`, `MF-203`
 - Acceptance:
-  - canonical mutation, cursor, monotonic BoundaryRevision и commit receipt
-    фиксируются одной SQLite transaction;
-  - receipt содержит `sequence`, `changeSetId`, `metaRevision` и
-    `boundaryRevision`;
-  - no-op BoundaryRevision не увеличивает;
-  - duplicate sequence не меняет мир;
-  - ACK с receipt отправляется только после commit;
-  - после restart неизвестные authoritative sequences запрашиваются/доставляются
-    повторно без зависимости от полного derived-domain replay.
+  - successful write запускает MetaFor execution/normalization/round-trip;
+  - structure применяется в живую Universe;
+  - entity consequences идут отдельными Particles через существующий Force;
+  - Force v2/ACK/replay не являются dependency;
+  - journal фиксирует materialized либо exact failure.
 
-### MF-204 — Derived-domain cold cut
+### MF-205 — Реализовать retry/reconcile post-write failure
 
 - Status: `WAITING`
-- Dependencies: `MF-201`, `MF-202`
-- Scope: Matrix/Energy/Bulk projection с `throughSequence` либо durable inbox.
-- Acceptance: replay начинается строго после hydrated cut.
+- Dependencies: `MF-204`
+- Acceptance:
+  - `written_materialization_failed` наблюдаем;
+  - retry с тем же operation id не создаёт duplicate write;
+  - reconcile перечитывает и валидирует source;
+  - source не откатывается и не перезаписывается молча.
 
-### MF-205 — Включить ACK/NACK, fail-stop и replay
+### MF-206 — Принять optional Field vertical slice
 
 - Status: `WAITING`
-- Dependencies: `MF-203`, `MF-204`
+- Dependencies: `MF-102`, `MF-103`, `MF-205`
+- Fixture: существующая изолированная Meta, не Лада.
+- Path:
+  - projection read;
+  - patch optional scalar Field без default;
+  - fast validation;
+  - atomic write;
+  - immediate materialization;
+  - operation/particle history read;
+  - projection reread;
+  - next Codex iteration.
 - Acceptance:
-  - relevant sequence order;
-  - NACK/потеря channel закрывает gate;
-  - полный restart восстанавливает delivery;
-  - observer delivery и external side effect не входят в ACK.
+  - invalid/stale/no-op/idempotent cases;
+  - Field declaration materialized;
+  - sparse instance показывает `missing`;
+  - post-write failure recovery доказан;
+  - без VCS workflow, pending/active, Force v2, restart или hot reload.
 
-## P3 — MetaDocument и Dark Store
+## P3 — unified Create через существующий template path
 
-### MF-300 — Утвердить MetaJSON v1 owner contracts
-
-- Status: `GATE`
-- Dependencies: `MF-001`, `MF-006`
-- Acceptance:
-  - Dark declaration contract;
-  - Boundary runtime projection addition;
-  - public types/validators;
-  - MetaDocument не содержит Bulk/history/runtime authority.
-
-### MF-301 — Реализовать pure MetaDSL → MetaDocument normalizer
+### MF-300 — Выделить нематериализующий Create MetaFor template boundary
 
 - Status: `WAITING`
-- Dependencies: `MF-300`
+- Dependencies: `MF-011`, `MF-201`
 - Acceptance:
-  - one Meta;
-  - deterministic JCS/hash vectors;
-  - runtime validation;
-  - canonical MatterBindingValue без derived duplicate.
+  - используются существующие templates;
+  - возвращается полный template file set до target write;
+  - параллельный Monad generator отсутствует;
+  - CLI behavior не дублируется.
 
-### MF-302 — Реализовать read-only Dark Meta Store
+### MF-301 — Реализовать create template→patch→validate→materialize
+
+- Status: `WAITING`
+- Dependencies: `MF-205`, `MF-300`
+- Exact path:
+  - Create MetaFor template;
+  - Monad validation(template);
+  - target patch;
+  - Monad validation(result);
+  - atomic directory publication;
+  - Create MetaFor install/Git bootstrap;
+  - MetaFor execution/normalization/round-trip;
+  - apply to Universe;
+  - operation outcome.
+- Acceptance:
+  - template является semantic-empty legal start;
+  - полный package, не `directory + meta.ts`;
+  - filesystem target отсутствует до обеих validation phases;
+  - failure phases наблюдаемы и reconcileable.
+
+### MF-302 — Доказать единый contract create/update
 
 - Status: `WAITING`
 - Dependencies: `MF-301`
 - Acceptance:
-  - content-addressed documents либо эквивалент;
-  - отдельные `active/pending`;
-  - Store не содержит Boundary runtime truth.
+  - общий operation schema/journal;
+  - различаются только template start и target existence precondition;
+  - результат читается тем же MetaProjection RPC.
 
-### MF-303 — Реализовать Authoring read RPC
+## P4 — отложенные расширения
+
+### MF-400 — Force v2 durability/replay
+
+- Status: `GATE`
+- Dependencies: `MF-206`
+- Deferred decision:
+  - delivery control frames/channel;
+  - journal, ACK/NACK/resume;
+  - authoritative consumer cursors.
+
+### MF-401 — Multi-entity Boundary staging
+
+- Status: `GATE`
+- Dependencies: `MF-206`
+- Реализуется только при доказанной operation, которой недостаточно
+  последовательных single-entity Particles.
+
+### MF-402 — Full VCS model
+
+- Status: `GATE`
+- Dependencies: `MF-302`
+- Scope: branches, merges, generic rollback, push и source version graph.
+- Не является продолжением Create MetaFor initial Git bootstrap автоматически.
+
+### MF-403 — Causal convergence barrier
+
+- Status: `GATE`
+- Dependencies: `MF-206`
+
+### MF-404 — Process generator/updater
 
 - Status: `WAITING`
 - Dependencies: `MF-302`
-- Acceptance:
-  - source refs;
-  - nested expansion/$ref;
-  - executable descriptors только по selector;
-  - RPC consumer повторно валидирует payload.
 
-### MF-304 — Реализовать minimal planner для `add optional field`
+### MF-405 — Runtime Agent structural capabilities
 
-- Status: `WAITING`
-- Dependencies: `MF-301`
-- Acceptance:
-  - читает только редактируемую Meta;
-  - выдаёт одну typed entity operation;
-  - dry-run не пишет;
-  - no-op не создаёт plan/outbox Particle.
+- Status: `GATE`
+- Dependencies: `MF-302`
+- Capability/policy определяется отдельно; внешний Codex loop не запрещает
+  будущую внутреннюю автономию.
 
-### MF-305 — Реализовать one-file source adapter
+### MF-406 — Constrained Lada self-evolution
 
-- Status: `WAITING`
-- Dependencies: `MF-304`
-- Acceptance:
-  - guarded SourceRevision;
-  - AST update canonical fluent chain;
-  - unsupported/dynamic source rejected;
-  - Bulk span сохраняется внутренне;
-  - round-trip semantic proof;
-  - Git commit отсутствует.
-
-### MF-306 — Реализовать pending/active saga и outbox
-
-- Status: `WAITING`
-- Dependencies: `MF-005`, `MF-201`, `MF-203`, `MF-302`, `MF-305`
-- Acceptance:
-  - durable recovery manifest;
-  - keys `changeSetId:index`;
-  - outbox eligible для drain только после durable `source_committed`;
-  - active продвигается только после Boundary commit;
-  - active promotion проверяет полный Boundary commit receipt;
-  - permanent отказ после source publication переводит plan в blocked, не
-    rejected;
-  - source drift переводит plan в blocked.
-
-## P4 — первый функциональный vertical slice
-
-### MF-400 — Подготовить изолированную fixture Meta
-
-- Status: `WAITING`
-- Dependencies: `MF-304`, `MF-305`, `MF-306`, `MF-203`
-- Scope: одна Meta, один Atom, optional scalar Field без default.
-
-### MF-401 — Реализовать end-to-end Field apply
-
-- Status: `WAITING`
-- Dependencies: `MF-400`
-- Path:
-  - read;
-  - dry-run;
-  - guarded source write;
-  - pending/outbox;
-  - один исходный Inflaton;
-  - Journal;
-  - Boundary canonical commit;
-  - active promotion.
-
-### MF-402 — Добавить Authoring/Planner reread
-
-- Status: `WAITING`
-- Dependencies: `MF-401`
-- Acceptance:
-  - Atom identity сохранена;
-  - Field declaration присутствует;
-  - Planner показывает Field в `missing`;
-  - compact projection не содержит debug/source internals.
-
-### MF-403 — Доказать idempotency, CAS и no-op
-
-- Status: `WAITING`
-- Dependencies: `MF-401`
-- Acceptance:
-  - stale source/meta rejected без writes;
-  - repeat apply не создаёт вторую Particle;
-  - no-op initialize не испускает Particle.
-
-### MF-404 — Доказать crash/recovery matrix
-
-- Status: `WAITING`
-- Dependencies: `MF-401`
-- Cuts:
-  - staged/source old;
-  - partial manifest;
-  - source committed/outbox pending;
-  - Force accepted/Boundary pending;
-  - Boundary committed/Dark active old;
-  - source committed/Boundary permanently rejected;
-  - source drift.
-- Acceptance: forward recovery без duplicate commit и silent overwrite.
-
-### MF-405 — Принять vertical slice
-
-- Status: `WAITING`
-- Dependencies: `MF-402`, `MF-403`, `MF-404`
-- Acceptance:
-  - результат называется `canonical_committed`;
-  - convergence не заявлена;
-  - нет Git commit, restart или hot reload;
-  - минимальные релевантные проверки пройдены.
-
-## P5 — расширение после первого среза
-
-### MF-500 — Multi-entity ChangeSet и Boundary staging
-
-- Status: `WAITING`
-- Dependencies: `MF-007`, `MF-405`
-
-### MF-501 — Полный dependency/topology impact planner
-
-- Status: `WAITING`
-- Dependencies: `MF-500`
-
-### MF-502 — `initialize(src)` и explicit reconcile
-
-- Status: `WAITING`
+- Status: `GATE`
 - Dependencies: `MF-405`
-
-### MF-503 — `initialize(metaJSON)` и package creation
-
-- Status: `WAITING`
-- Dependencies: `MF-502`
-
-### MF-504 — Process generator/updater и SourceSetRevision
-
-- Status: `WAITING`
-- Dependencies: `MF-006`, `MF-503`
-
-### MF-505 — Полные Authoring/Planner/Diagnostic projections
-
-- Status: `WAITING`
-- Dependencies: `MF-405`
-
-### MF-506 — Causal closure и `converged`
-
-- Status: `GATE`
-- Dependencies: `MF-205`, `MF-405`
-
-### MF-507 — Meta Catalog/Edit/Create Tool/Service Atoms
-
-- Status: `WAITING`
-- Dependencies: `MF-503`, `MF-505`
-
-### MF-508 — Runtime Agent structural capabilities
-
-- Status: `GATE`
-- Dependencies: `MF-507`
-
-### MF-509 — Explicit Contour Service/Tool
-
-- Status: `GATE`
-- Dependencies: `MF-506`, `MF-507`
+- Scope:
+  - только собственная branch projection;
+  - resource limits;
+  - Monad validation;
+  - operational observability;
+  - не является изменением текущей Lada topology.
 
 ## Evidence log
 
