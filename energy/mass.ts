@@ -2,6 +2,7 @@ import {mkdir, open, readFile, lstat, rename, unlink} from "node:fs/promises"
 import {dirname, join, resolve} from "node:path"
 import type {EnergyMassArtifact} from "@metafor/types/energy/catalog"
 import type {EnergyMassContext, EnergyMassStore} from "@metafor/types/energy/mass"
+import {massFileName, type MassFileFormat} from "../shared/mass.ts"
 
 const keyPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
@@ -10,7 +11,6 @@ const bytes = (value: string | Uint8Array): Uint8Array => typeof value === "stri
 export type EnergyMassHandle = {
   readonly keyId: string
   readonly format: "json" | "binary"
-  readonly mime: string
   readBytes(): Promise<Uint8Array>
   readText(): Promise<string>
   readJson<Value = unknown>(): Promise<Value>
@@ -56,9 +56,9 @@ export class EnergyMassGate {
 export class EnergyMassCatalog {
   readonly root = resolve(import.meta.dir, "..", "mass")
 
-  private path(keyId: string): string {
+  private path(keyId: string, format: MassFileFormat): string {
     if (!keyPattern.test(keyId)) throw new Error("Energy Mass key is not a Boundary-issued key ID")
-    return join(this.root, keyId)
+    return join(this.root, massFileName(keyId, format))
   }
 
   private async ensureRoot(): Promise<void> {
@@ -76,9 +76,9 @@ export class EnergyMassCatalog {
     }
   }
 
-  async read(keyId: string): Promise<Uint8Array> {
+  async read(keyId: string, format: MassFileFormat): Promise<Uint8Array> {
     await this.ensureRoot()
-    const target = this.path(keyId)
+    const target = this.path(keyId, format)
     await this.verifyTarget(target)
     try { return new Uint8Array(await readFile(target)) }
     catch (error) {
@@ -88,11 +88,11 @@ export class EnergyMassCatalog {
   }
 
   /** Same-directory temporary + fsync + rename leaves the prior target intact on failure. */
-  async write(keyId: string, value: string | Uint8Array): Promise<void> {
+  async write(keyId: string, format: MassFileFormat, value: string | Uint8Array): Promise<void> {
     await this.ensureRoot()
-    const target = this.path(keyId)
+    const target = this.path(keyId, format)
     await this.verifyTarget(target)
-    const temporary = join(this.root, `.${keyId}.${crypto.randomUUID()}.tmp`)
+    const temporary = join(this.root, `.${massFileName(keyId, format)}.${crypto.randomUUID()}.tmp`)
     let handle: Awaited<ReturnType<typeof open>> | undefined
     try {
       handle = await open(temporary, "wx", 0o600)
@@ -108,23 +108,28 @@ export class EnergyMassCatalog {
     }
   }
 
-  async copy(from: string, to: string): Promise<void> {
-    await this.write(to, await this.read(from))
+  async copy(from: string, to: string, format: MassFileFormat): Promise<void> {
+    await this.write(to, format, await this.read(from, format))
   }
 
-  handle(artifact: Pick<EnergyMassArtifact, "id" | "keyId" | "format" | "mime">, guard?: {gate: EnergyMassGate; atom: number; generation: number}): EnergyMassHandle {
+  handle(artifact: Pick<EnergyMassArtifact, "id" | "keyId" | "format">, guard?: {gate: EnergyMassGate; atom: number; generation: number}): EnergyMassHandle {
     const live = (): void => guard?.gate.assert(guard.atom, artifact.id, artifact.keyId, guard.generation)
     return {
       keyId: artifact.keyId,
       format: artifact.format,
-      mime: artifact.mime,
-      readBytes: async () => { live(); return await this.read(artifact.keyId) },
-      readText: async () => { live(); return new TextDecoder().decode(await this.read(artifact.keyId)) },
-      readJson: async <Value>() => { live(); return JSON.parse(new TextDecoder().decode(await this.read(artifact.keyId))) as Value },
+      readBytes: async () => { live(); return await this.read(artifact.keyId, artifact.format) },
+      readText: async () => {
+        live()
+        return new TextDecoder().decode(await this.read(artifact.keyId, artifact.format))
+      },
+      readJson: async <Value>() => {
+        live()
+        return JSON.parse(new TextDecoder().decode(await this.read(artifact.keyId, artifact.format))) as Value
+      },
       write: async (value) => {
         live()
-        if (artifact.format === "json") await this.write(artifact.keyId, JSON.stringify(value))
-        else if (value instanceof Uint8Array) await this.write(artifact.keyId, value)
+        if (artifact.format === "json") await this.write(artifact.keyId, artifact.format, JSON.stringify(value))
+        else if (value instanceof Uint8Array) await this.write(artifact.keyId, artifact.format, value)
         else throw new Error("Binary Mass accepts Uint8Array only")
       },
     }

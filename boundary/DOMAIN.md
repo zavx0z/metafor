@@ -20,11 +20,14 @@ Browser #10
 ## Идентичность Mass file
 
 Mass declaration WIMP-local: factory property key определяет declaration, а
-global key ID определяет ровно один файл `mass/<key-id>`. Boundary хранит
+global key ID и codec определяют ровно один файл
+`mass/<key-id>.<extension>`. Codec однозначно задаёт расширение
+`json → .json`, `binary → .bin`; MIME в Mass не существует. Boundary хранит
 Atom/declaration → key membership и child declaration → parent declaration
 source; aggregate Mass ID, Atom-to-Mass relation и bytes в SQLite запрещены.
 Direct whole/partial Matter binding переиспользует только существующие key IDs.
-Detach публикует новый key ID после атомарной file copy и удаляет source.
+Binding требует одинаковый codec. Detach публикует новый key ID после атомарной
+file copy с тем же расширением и удаляет source.
 
 Если меняется только `Browser.energyBinding`, после commit остаются те же
 `#10`, `#11`, `#12`. Дети по-прежнему ссылаются на `#10`.

@@ -5,6 +5,7 @@ import {tmpdir} from "node:os"
 import {join} from "node:path"
 import type {DeclarationPath} from "shared/protocol/force/declaration"
 import type {Particle} from "shared/protocol/force/particle"
+import {massFileName} from "../shared/mass.ts"
 import {gravitonDeclarationPath, parseInflatonAddress} from "./incremental.ts"
 import {open, type BoundaryDatabase} from "./sqlite.ts"
 
@@ -46,8 +47,8 @@ describe("Boundary incremental relational projection", () => {
   test("reconciles Mass only from persisted direct mappings and repoints selected keys", async () => {
     await apply("add", "wimp", {
       src: ROOT, name: "Root", mass: [
-        {key: "source", format: "json", mime: "application/json"},
-        {key: "cache", format: "json", mime: "application/json"},
+        {key: "source", format: "json"},
+        {key: "cache", format: "json"},
       ],
     })
     await apply("add", "matter", {
@@ -56,8 +57,8 @@ describe("Boundary incremental relational projection", () => {
     })
     await apply("add", "wimp", {
       src: CHILD, name: "Child", mass: [
-        {key: "cache", format: "json", mime: "application/json"},
-        {key: "target", format: "json", mime: "application/json"},
+        {key: "cache", format: "json"},
+        {key: "target", format: "json"},
       ],
     })
 
@@ -80,7 +81,7 @@ describe("Boundary incremental relational projection", () => {
 
     const parentCache = await membership(parent, "cache")
     await mkdir(boundary.projection.mass.catalog.root, {recursive: true})
-    await writeFile(join(boundary.projection.mass.catalog.root, parentCache.keyId), "cache")
+    await writeFile(join(boundary.projection.mass.catalog.root, massFileName(parentCache.keyId, "json")), "cache")
     await apply("replace", "matter", {
       wimp: ROOT, id: 1, parent: null, edgeSlot: "root", position: 0, kind: "wimp", src: CHILD,
       massBinding: {
@@ -115,7 +116,7 @@ describe("Boundary incremental relational projection", () => {
 
     const keysBefore = await boundary.projection.sql<Array<{count: number}>>`SELECT COUNT(*) AS count FROM mass_key`
     await mkdir(boundary.projection.mass.catalog.root, {recursive: true})
-    await writeFile(join(boundary.projection.mass.catalog.root, parentSource.keyId), "source")
+    await writeFile(join(boundary.projection.mass.catalog.root, massFileName(parentSource.keyId, "json")), "source")
     fences.length = 0
     releases.length = 0
     try {
@@ -127,9 +128,9 @@ describe("Boundary incremental relational projection", () => {
       expect(await membership(child, "target")).toEqual(childTarget)
       expect(await boundary.projection.sql<Array<{count: number}>>`SELECT COUNT(*) AS count FROM mass_key`).toEqual(keysBefore)
     } finally {
-      await unlink(join(boundary.projection.mass.catalog.root, parentSource.keyId)).catch(() => undefined)
-      await unlink(join(boundary.projection.mass.catalog.root, parentCache.keyId)).catch(() => undefined)
-      await unlink(join(boundary.projection.mass.catalog.root, detachedCache.keyId)).catch(() => undefined)
+      await unlink(join(boundary.projection.mass.catalog.root, massFileName(parentSource.keyId, "json"))).catch(() => undefined)
+      await unlink(join(boundary.projection.mass.catalog.root, massFileName(parentCache.keyId, "json"))).catch(() => undefined)
+      await unlink(join(boundary.projection.mass.catalog.root, massFileName(detachedCache.keyId, "json"))).catch(() => undefined)
     }
   })
 

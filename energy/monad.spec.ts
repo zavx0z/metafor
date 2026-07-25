@@ -99,7 +99,7 @@ describe("Energy Monad", () => {
       part: "graviton", op: "add", path: "atom/2", ts: 0,
       value: {
         atom: {id: 2, parentAtom: 1, parentTopology: null, wimp: "owner/child", position: 0},
-        mass: [{id: 7, key: "profile", keyId: key, format: "json", mime: "application/json", label: null, description: null}],
+        mass: [{id: 7, key: "profile", keyId: key, format: "json", label: null, description: null}],
         values: [], valueRecords: [], valueItems: [], state: null,
       },
     })

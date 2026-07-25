@@ -79,7 +79,7 @@ describe("matter validation", () => {
     const schema = MetaFor("matter-renamed-mass")
       .fields(() => ({}))
       .superposition({idle: null})
-      .mass((mass) => ({source: mass.json(), other: mass.binary({mime: "application/octet-stream"})}))
+      .mass((mass) => ({source: mass.json(), other: mass.binary()}))
       .energy()
       .processes()
       .reactions()

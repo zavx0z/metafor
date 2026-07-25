@@ -161,6 +161,15 @@ const declareInvalidMassFunction = () =>
       observation: null as unknown,
     }))
 
+const declareInvalidMassMime = () =>
+  MetaFor("invalid-mass-mime")
+    .fields(() => ({}))
+    .superposition({})
+    .mass((mass) => ({
+      // @ts-expect-error MIME не является metadata Mass declaration
+      profile: mass.json({mime: "application/json"}),
+    }))
+
 const declareInvalidProcessState = () =>
   MetaFor("invalid-process-state")
     .fields(() => ({}))
@@ -183,6 +192,7 @@ describe("strict process typing", () => {
     expect(typeof declareInvalidEnergyFunction).toBe("function")
     expect(typeof declareInvalidEnergyObject).toBe("function")
     expect(typeof declareInvalidMassFunction).toBe("function")
+    expect(typeof declareInvalidMassMime).toBe("function")
     expect(typeof declareInvalidProcessState).toBe("function")
   })
 })

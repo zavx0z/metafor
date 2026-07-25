@@ -1,6 +1,6 @@
 import type {SQL, ReservedSQL} from "bun"
 import type {MetaMassDSL} from "@metafor/types/metafor/schema"
-import {MassCatalog} from "../shared/mass.ts"
+import {MassCatalog, type MassFileFormat} from "../shared/mass.ts"
 
 type Database = SQL | ReservedSQL
 
@@ -13,6 +13,7 @@ export type BoundaryMassDetachPlan = Readonly<{
   sourceDeclaration: number
   sourceKey: string
   nextKey: string
+  format: MassFileFormat
 }>
 
 const keyId = (): string => crypto.randomUUID()
@@ -32,7 +33,6 @@ export class BoundaryMassStore {
         wimp TEXT NOT NULL,
         local_key TEXT NOT NULL,
         format TEXT NOT NULL CHECK (format IN ('json', 'binary')),
-        mime TEXT NOT NULL,
         label TEXT,
         description TEXT,
         active INTEGER NOT NULL DEFAULT 1 CHECK (active IN (0, 1)),
@@ -58,6 +58,25 @@ export class BoundaryMassStore {
       );
       CREATE INDEX IF NOT EXISTS mass_membership_by_key ON mass_membership(key);
     `)
+    const columns = await this.sql.unsafe<Array<{name: string}>>("PRAGMA table_info(mass_declaration)")
+    if (columns.some((column) => column.name === "mime")) {
+      await this.sql.unsafe("ALTER TABLE mass_declaration DROP COLUMN mime")
+    }
+    const formats = new Map<string, MassFileFormat>()
+    for (const row of await this.sql<Array<{key: string; format: string}>>`
+      SELECT membership.key, declaration.format
+        FROM mass_membership AS membership
+        JOIN mass_declaration AS declaration ON declaration.id = membership.declaration
+       GROUP BY membership.key, declaration.format
+    `) {
+      if (row.format !== "json" && row.format !== "binary") throw new Error(`Unknown Mass format: ${row.format}`)
+      const previous = formats.get(row.key)
+      if (previous !== undefined && previous !== row.format) {
+        throw new Error(`Mass key ${row.key} is associated with incompatible formats`)
+      }
+      formats.set(row.key, row.format)
+    }
+    for (const [id, format] of formats) await this.catalog.migrateLegacy(id, format)
   }
 
   async synchronizeDeclarations(sql: Database, wimp: string, declarations: readonly MetaMassDSL[]): Promise<void> {
@@ -69,10 +88,10 @@ export class BoundaryMassStore {
       if (seen.has(declaration.key)) throw new Error(`Mass declaration key is duplicated: ${declaration.key}`)
       seen.add(declaration.key)
       await sql`
-        INSERT INTO mass_declaration (wimp, local_key, format, mime, label, description, active)
-        VALUES (${wimp}, ${declaration.key}, ${declaration.format}, ${declaration.mime}, ${declaration.label ?? null}, ${declaration.description ?? null}, 1)
+        INSERT INTO mass_declaration (wimp, local_key, format, label, description, active)
+        VALUES (${wimp}, ${declaration.key}, ${declaration.format}, ${declaration.label ?? null}, ${declaration.description ?? null}, 1)
         ON CONFLICT (wimp, local_key) DO UPDATE SET
-          format = excluded.format, mime = excluded.mime, label = excluded.label,
+          format = excluded.format, label = excluded.label,
           description = excluded.description, active = 1
       `
       void position
@@ -121,7 +140,7 @@ export class BoundaryMassStore {
 
   async declarations(wimp: string, sql: Database = this.sql): Promise<BoundaryMassDeclaration[]> {
     return await sql<Array<BoundaryMassDeclaration>>`
-      SELECT id, wimp, local_key AS key, format, mime, label, description
+      SELECT id, wimp, local_key AS key, format, label, description
         FROM mass_declaration WHERE wimp = ${wimp} AND active = 1 ORDER BY id
     `
   }
@@ -129,7 +148,7 @@ export class BoundaryMassStore {
   async authorized(atomId: number, sql: Database = this.sql): Promise<Array<BoundaryMassDeclaration & {keyId: string}>> {
     return await sql<Array<BoundaryMassDeclaration & {keyId: string}>>`
       SELECT declaration.id, declaration.wimp, declaration.local_key AS key,
-             declaration.format, declaration.mime, declaration.label, declaration.description,
+             declaration.format, declaration.label, declaration.description,
              membership.key AS keyId
         FROM mass_membership AS membership
         JOIN mass_declaration AS declaration ON declaration.id = membership.declaration
@@ -175,38 +194,46 @@ export class BoundaryMassStore {
        WHERE child.atom = ${childAtom}
          AND child_declaration.local_key = parent_declaration.local_key
          AND child_declaration.format = parent_declaration.format
-         AND child_declaration.mime = parent_declaration.mime
          AND (${key ?? null} IS NULL OR child_declaration.local_key = ${key ?? null})
     `
     for (const row of rows) await this.sourceIn(sql, childAtom, Number(row.childDeclaration), parentAtom, Number(row.parentDeclaration))
   }
 
   async sourceMappedKey(sql: Database, childAtom: number, parentAtom: number, target: string, source: string): Promise<void> {
-    const row = (await sql<Array<{childDeclaration: number; parentDeclaration: number; childFormat: string; childMime: string; parentFormat: string; parentMime: string}>>`
+    const row = (await sql<Array<{childDeclaration: number; parentDeclaration: number; childFormat: string; parentFormat: string}>>`
       SELECT child.declaration AS childDeclaration, parent.declaration AS parentDeclaration,
-             child_declaration.format AS childFormat, child_declaration.mime AS childMime,
-             parent_declaration.format AS parentFormat, parent_declaration.mime AS parentMime
+             child_declaration.format AS childFormat, parent_declaration.format AS parentFormat
         FROM mass_membership AS child JOIN mass_declaration AS child_declaration ON child_declaration.id = child.declaration
         JOIN mass_membership AS parent ON parent.atom = ${parentAtom}
         JOIN mass_declaration AS parent_declaration ON parent_declaration.id = parent.declaration
        WHERE child.atom = ${childAtom} AND child_declaration.local_key = ${target} AND parent_declaration.local_key = ${source}
     `)[0]
     if (!row) throw new Error("Direct Mass mapping references an undeclared key")
-    if (row.childFormat !== row.parentFormat || row.childMime !== row.parentMime) {
-      throw new Error("Direct Mass mapping requires matching format and MIME")
+    if (row.childFormat !== row.parentFormat) {
+      throw new Error("Direct Mass mapping requires matching formats")
     }
     await this.sourceIn(sql, childAtom, Number(row.childDeclaration), parentAtom, Number(row.parentDeclaration))
   }
 
   async prepareDetach(sql: Database, childAtom: number, childDeclaration: number): Promise<BoundaryMassDetachPlan> {
-    const source = (await sql<Array<{sourceAtom: number; sourceDeclaration: number; sourceKey: string}>>`
-      SELECT relation.parent_atom AS sourceAtom, relation.parent_declaration AS sourceDeclaration, parent.key AS sourceKey
+    const source = (await sql<Array<{sourceAtom: number; sourceDeclaration: number; sourceKey: string; format: MassFileFormat}>>`
+      SELECT relation.parent_atom AS sourceAtom, relation.parent_declaration AS sourceDeclaration,
+             parent.key AS sourceKey, declaration.format
         FROM mass_key_source AS relation JOIN mass_membership AS parent
           ON parent.atom = relation.parent_atom AND parent.declaration = relation.parent_declaration
+        JOIN mass_declaration AS declaration ON declaration.id = relation.child_declaration
        WHERE relation.child_atom = ${childAtom} AND relation.child_declaration = ${childDeclaration}
     `)[0]
     if (!source) throw new Error("Mass membership has no direct source to detach")
-    return Object.freeze({childAtom, childDeclaration, sourceAtom: Number(source.sourceAtom), sourceDeclaration: Number(source.sourceDeclaration), sourceKey: source.sourceKey, nextKey: keyId()})
+    return Object.freeze({
+      childAtom,
+      childDeclaration,
+      sourceAtom: Number(source.sourceAtom),
+      sourceDeclaration: Number(source.sourceDeclaration),
+      sourceKey: source.sourceKey,
+      nextKey: keyId(),
+      format: source.format,
+    })
   }
 
   async commitDetachIn(sql: Database, plan: BoundaryMassDetachPlan): Promise<void> {

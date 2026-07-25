@@ -1,4 +1,8 @@
+import {SQL} from "bun"
 import {afterEach, describe, expect, test} from "bun:test"
+import {mkdtemp, rm} from "node:fs/promises"
+import {tmpdir} from "node:os"
+import {join} from "node:path"
 import {open, type BoundaryDatabase} from "./sqlite.ts"
 
 describe("Boundary Mass relations", () => {
@@ -14,8 +18,8 @@ describe("Boundary Mass relations", () => {
     const apply = async (value: Record<string, unknown>) => await boundary!.materialize({parts: [{
       part: "inflaton", op: "add", path: "wimp", ts: 1, value,
     }]})
-    await apply({src: "test/parent", name: "Parent", mass: [{key: "profile", format: "json", mime: "application/json"}]})
-    await apply({src: "test/child", name: "Child", mass: [{key: "profile", format: "json", mime: "application/json"}]})
+    await apply({src: "test/parent", name: "Parent", mass: [{key: "profile", format: "json"}]})
+    await apply({src: "test/child", name: "Child", mass: [{key: "profile", format: "json"}]})
     await boundary.projection.mass.ensureIndependentMemberships(boundary.projection.sql)
 
     const rows = await boundary.projection.sql<Array<{id: number; wimp: string}>>`
@@ -39,8 +43,8 @@ describe("Boundary Mass relations", () => {
     boundary = await open(":memory:")
     const store = boundary.projection.mass
     await boundary.projection.sql`INSERT INTO wimp (src, name, desc) VALUES (${"test/a"}, ${"A"}, NULL), (${"test/b"}, ${"B"}, NULL)`
-    await store.synchronizeDeclarations(boundary.projection.sql, "test/a", [{key: "artifact", format: "binary", mime: "application/octet-stream"}])
-    await store.synchronizeDeclarations(boundary.projection.sql, "test/b", [{key: "artifact", format: "binary", mime: "application/octet-stream"}])
+    await store.synchronizeDeclarations(boundary.projection.sql, "test/a", [{key: "artifact", format: "binary"}])
+    await store.synchronizeDeclarations(boundary.projection.sql, "test/b", [{key: "artifact", format: "binary"}])
     await boundary.projection.sql`INSERT INTO atom (wimp, parent_atom, parent_topology, position) VALUES (${"test/a"}, NULL, NULL, 0), (${"test/b"}, NULL, NULL, 0)`
     await store.ensureIndependentMemberships(boundary.projection.sql)
     const atoms = await boundary.projection.sql<Array<{id: number; wimp: string}>>`SELECT id, wimp FROM atom ORDER BY id DESC LIMIT 2`
@@ -53,5 +57,27 @@ describe("Boundary Mass relations", () => {
     expect(plan.sourceKey).toBe(parentMember.keyId)
     await boundary.projection.sql.begin(async (tx) => await store.commitDetachIn(tx, plan))
     expect((await store.memberships(child))[0]).toEqual({atomId: child, declarationId: childMember.declarationId, keyId: plan.nextKey})
+  })
+
+  test("drops legacy Mass MIME metadata when reopening Boundary", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "metafor-mass-mime-"))
+    const filename = join(directory, "boundary.sqlite")
+    try {
+      boundary = await open(filename)
+      await boundary.close()
+      boundary = undefined
+
+      const legacy = new SQL(`sqlite://${filename}`)
+      await legacy.unsafe("ALTER TABLE mass_declaration ADD COLUMN mime TEXT NOT NULL DEFAULT 'application/octet-stream'")
+      await legacy.close()
+
+      boundary = await open(filename)
+      const columns = await boundary.projection.sql.unsafe<Array<{name: string}>>("PRAGMA table_info(mass_declaration)")
+      expect(columns.map((column) => column.name)).not.toContain("mime")
+    } finally {
+      await boundary?.close()
+      boundary = undefined
+      await rm(directory, {recursive: true, force: true})
+    }
   })
 })

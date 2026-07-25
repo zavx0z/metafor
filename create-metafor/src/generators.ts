@@ -52,7 +52,6 @@ export function generateMetaforTypesFile(): string {
 
 type MetaForMassDeclaration = {
   readonly format: MetaForMassFormat
-  readonly mime: string
   readonly label?: string
   readonly description?: string
 }
@@ -71,7 +70,6 @@ type MetaForMassHandles<Schema extends MetaForMassDeclarations> = {
 }
 
 type MetaForMassOptions = {
-  mime?: string
   label?: string
   description?: string
 }

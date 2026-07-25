@@ -21,7 +21,6 @@ export interface EnergyMassArtifact {
   key: string
   keyId: string
   format: "json" | "binary"
-  mime: string
   label: string | null
   description: string | null
 }

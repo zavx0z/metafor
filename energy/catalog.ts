@@ -70,7 +70,7 @@ const massFromValue = (value: unknown): EnergyMassArtifact[] => {
   if (!isRecord(value) || !Array.isArray(value.mass)) return []
   return value.mass.filter((item): item is EnergyMassArtifact => isRecord(item) &&
     Number.isSafeInteger(item.id) && typeof item.key === "string" && typeof item.keyId === "string" &&
-    (item.format === "json" || item.format === "binary") && typeof item.mime === "string" &&
+    (item.format === "json" || item.format === "binary") &&
     (typeof item.label === "string" || item.label === null) && (typeof item.description === "string" || item.description === null),
   ).map((item) => structuredClone(item))
 }

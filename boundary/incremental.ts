@@ -545,7 +545,7 @@ export class BoundaryIncrementalStore {
       return committed
     }) } catch (error) {
       for (const plan of detachPlans) {
-        await this.mass.catalog.cleanupSafe(plan.nextKey)
+        await this.mass.catalog.cleanupSafe(plan.nextKey, plan.format)
         await this.massRelease?.({atom: plan.childAtom, declaration: plan.childDeclaration, key: plan.sourceKey})
       }
       throw error
@@ -590,10 +590,10 @@ export class BoundaryIncrementalStore {
       fenced.push(identity)
       const plan = await this.mass.prepareDetach(this.sql, Number(request.atom), Number(request.declaration))
       plans.push(plan)
-      await this.mass.catalog.copy(plan.sourceKey, plan.nextKey)
+      await this.mass.catalog.copy(plan.sourceKey, plan.nextKey, plan.format)
     } } catch (error) {
       for (const plan of plans) {
-        await this.mass.catalog.cleanupSafe(plan.nextKey)
+        await this.mass.catalog.cleanupSafe(plan.nextKey, plan.format)
       }
       for (const identity of fenced) await this.massRelease?.(identity)
       throw error

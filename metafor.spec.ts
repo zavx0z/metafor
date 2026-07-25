@@ -14,7 +14,7 @@ describe("MetaFor Energy declaration", () => {
       .bulk()
 
     expect(schema.mass).toEqual([{
-      key: "attempts", format: "json", mime: "application/json", label: "Attempts",
+      key: "attempts", format: "json", label: "Attempts",
     }])
     expect("energy" in schema).toBe(false)
   })
