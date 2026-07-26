@@ -20,9 +20,13 @@ export const DEFAULT_BULK_SETTINGS: BulkSettingsConfig = {
     animationEnabled: false,
     detailDensityFactor: 2,
     detailLevelMultiplier: 1,
-    labelVisibleLevels: 2,
+    // Space остаётся геометрией: подписи — только ближайший слой, иначе они
+    // перекрывают атомы и превращают обзор в текстовую стену.
+    labelVisibleLevels: 1,
     baseDepth: 0,
-    labelFontSizeMm: DEFAULT_BULK_LAYOUT_SNAPSHOT_CONFIG.rootOuterDiameterMm * 0.02,
+    // Крупную подпись можно прочитать приближением камеры; она не должна
+    // конкурировать с формой Atom на общем плане.
+    labelFontSizeMm: DEFAULT_BULK_LAYOUT_SNAPSHOT_CONFIG.rootOuterDiameterMm * 0.008,
     labelSurfaceOffsetMm: DEFAULT_BULK_LAYOUT_SNAPSHOT_CONFIG.rootOuterDiameterMm * 0.01,
     torusCrossRingRotationDeg: 44,
     torusRadialSegments: 14,

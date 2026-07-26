@@ -25,7 +25,7 @@ describe("bulk visual laws", () => {
 
   test("keeps the root label inside the canonical Atom scale", () => {
     expect(DEFAULT_BULK_SETTINGS.render.labelFontSizeMm).toBeCloseTo(
-      DEFAULT_BULK_LAYOUT_SNAPSHOT_CONFIG.rootOuterDiameterMm * 0.02,
+      DEFAULT_BULK_LAYOUT_SNAPSHOT_CONFIG.rootOuterDiameterMm * 0.008,
       6,
     )
     expect(DEFAULT_BULK_SETTINGS.render.labelSurfaceOffsetMm).toBeCloseTo(

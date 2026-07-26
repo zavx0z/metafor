@@ -331,6 +331,28 @@ describe("bulk/gravity/layout manifest", () => {
     expectFieldNucleiHaveNoIntersections(manifest)
   })
 
+  test("две ветви расходятся диаметрально в объёме родительского тора", () => {
+    const manifest = createBulkManifestFromDarkParticleInputs("root", [
+      createDarkParticle(1, [
+        createDarkParticle(2),
+        createDarkParticle(3),
+      ]),
+    ])
+
+    const left = getDarkParticle(manifest, 2)
+    const right = getDarkParticle(manifest, 3)
+    const leftRadius = Math.hypot(left.localX, left.localY, left.localZ)
+    const rightRadius = Math.hypot(right.localX, right.localY, right.localZ)
+    const normalizedDot = (
+      left.localX * right.localX + left.localY * right.localY + left.localZ * right.localZ
+    ) / (leftRadius * rightRadius)
+
+    expect(left.localZ).not.toBe(0)
+    expect(right.localZ).toBeCloseTo(-left.localZ, 6)
+    expect(normalizedDot).toBeCloseTo(-1, 6)
+    expectSubtreesInsideParents(manifest)
+  })
+
   test("плотное ядро Fields использует несколько трехмерных lattice shells", () => {
     const manifest = createBulkManifestFromDarkParticleInputs("root", [
       createDarkParticle(1, [], Array.from({ length: 40 }, (_, index) => 100 + index)),

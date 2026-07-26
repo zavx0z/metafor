@@ -162,13 +162,26 @@ const placeChildrenByFractalLaw = (node: LayoutDarkParticleNode, padding: number
   const orbitRadius = availableRadius - childOuterExtent * density
   const phase = hashAngle(`${node.darkParticleId}:${children.map((child) => child.darkParticleId).join(":")}`)
 
-  children.forEach((child, index) => {
-    const angle = phase + (Math.PI * 2 * index) / children.length
-    child.localX = Math.cos(angle) * orbitRadius
-    child.localY = Math.sin(angle) * orbitRadius
-    child.localZ = 0
-    child.torusScale = childOuterExtent / Math.max(0.001, child.outerRadius)
-  })
+	children.forEach((child, index) => {
+		// Ветви существуют в объёме родительского тора, а не в сплющенной
+		// XY-плоскости. Один ребёнок остаётся на экваторе. Два занимают
+		// противоположные точки 3D-орбиты; больше двух расходятся по
+		// детерминированной сферической (Fibonacci) раскладке.
+		let angle = phase
+		let elevation = 0
+		if (children.length === 2) {
+			angle = phase + Math.PI * index
+			elevation = index === 0 ? 0.5 : -0.5
+		} else if (children.length > 2) {
+			angle = phase + GOLDEN_ANGLE * index
+			elevation = 1 - (2 * (index + 0.5)) / children.length
+		}
+		const planarRadius = Math.sqrt(Math.max(0, 1 - elevation * elevation)) * orbitRadius
+		child.localX = Math.cos(angle) * planarRadius
+		child.localY = Math.sin(angle) * planarRadius
+		child.localZ = elevation * orbitRadius
+		child.torusScale = childOuterExtent / Math.max(0.001, child.outerRadius)
+	})
 }
 
 const materializeFractalDarkParticleNode = (

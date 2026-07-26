@@ -5,6 +5,7 @@ import { createBulkViewport } from "bulk/web"
 import { DEFAULT_BULK_SCENE_SRC, DEFAULT_BULK_SETTINGS } from "bulk/settings"
 import { installBulkHud } from "./hud.ts"
 import { BulkProjectionStore } from "./projection.ts"
+import {buildBulkNodeView} from "./node-view.ts"
 import { observedRootSrc } from "./web/force-protocol.ts"
 import { buildBulkManifestation } from "./manifestation.ts"
 
@@ -12,6 +13,7 @@ const bulkCanvas = document.getElementById("bulk-canvas") as HTMLCanvasElement |
 if (bulkCanvas === null) throw new Error("bulk-canvas not found")
 
 let bulkViewport: BulkViewportWithHud | null = null
+let bulkHud: ReturnType<typeof installBulkHud> | null = null
 const projection = new BulkProjectionStore()
 let activeSrc = DEFAULT_BULK_SCENE_SRC
 
@@ -42,7 +44,7 @@ const initBulkViewport = async (): Promise<void> => {
 		width: Math.max(1, Math.floor(rect.width)),
 		height: Math.max(1, Math.floor(rect.height)),
 	})
-	installBulkHud({viewport: bulkViewport})
+	bulkHud = installBulkHud({viewport: bulkViewport})
 	const resizeBulkViewport = (): void => {
 		if (!bulkViewport) return
 		const rect = bulkCanvas.getBoundingClientRect()
@@ -69,6 +71,7 @@ const receiveImpulse = (forceMessage: Parameters<Force["onImpulse"]>[0]): void =
 	const nextRootSrc = observedRootSrc(part, rootSrcs)
 	if (nextRootSrc !== null) activeSrc = nextRootSrc
 	if (change.changed) applyProjectionManifestation(activeSrc)
+	if (change.changed) bulkHud?.setNodeView(buildBulkNodeView(projection.view()))
 	bulkViewport?.handleForce(part.part, part)
 }
 
@@ -82,6 +85,7 @@ const start = async (): Promise<void> => {
 	await initBulkViewport()
 	const initial = await readInitialPackage()
 	projection.hydrate(initial.projection)
+	bulkHud?.setNodeView(buildBulkNodeView(projection.view()))
 	activeSrc = initial.rootSrc
 	bulkViewport?.applyManifestPatch(initial.manifest)
 

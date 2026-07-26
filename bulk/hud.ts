@@ -1,9 +1,10 @@
 import type { BulkHudController, BulkHudOptions } from "@metafor/types/bulk/hud"
-import { UiSurface, uiIcons, type UiSurfaceRect } from "@ui/elements"
-import { HudSideTab } from "@ui/hud"
+import {palette, UiSurface, uiIcons, type UiSurfaceRect} from "@ui/elements"
+import {HudNodeViewPanel, HudSideTab, type HudNodeViewDocument} from "@ui/hud"
 
 const HUD_DOCK_Z = 90
 const APP_FULLSCREEN_FALLBACK_CLASS = "metafor-app-fullscreen-fallback"
+const NODE_VIEW_ACTIVE_CLASS = "metafor-node-view-active"
 
 let appFullscreenFallbackActive = false
 
@@ -14,18 +15,40 @@ export function installBulkHud(options: BulkHudOptions): BulkHudController {
 class BulkHud implements BulkHudController {
 	readonly #viewport: BulkHudOptions["viewport"]
 	readonly #fullscreenDock: BulkFullscreenDock
+	readonly #nodeViewDock: BulkNodeViewDock
+	readonly #nodeView: BulkNodeViewSurface
 	#fullscreen = appFullscreenActive()
 
 	constructor(options: BulkHudOptions) {
 		this.#viewport = options.viewport
 		this.#fullscreenDock = new BulkFullscreenDock(this)
+		this.#nodeViewDock = new BulkNodeViewDock(this)
+		this.#nodeView = new BulkNodeViewSurface(this)
 		this.#viewport.hud.addSurface(
 			this.#fullscreenDock,
 			(bounds) => this.#fullscreenDockRect(bounds),
 			{zIndex: HUD_DOCK_Z},
 		)
+		this.#viewport.hud.addSurface(this.#nodeViewDock, () => ({x: 0, y: 116, w: 106, h: 34}), {zIndex: HUD_DOCK_Z})
+		this.#viewport.hud.addSurface(this.#nodeView, (bounds) => this.#nodeViewRect(bounds), {zIndex: HUD_DOCK_Z + 1})
 		document.addEventListener("fullscreenchange", () => this.#handleFullscreenChange())
 		document.addEventListener("webkitfullscreenchange", () => this.#handleFullscreenChange())
+	}
+
+	setNodeView(document: HudNodeViewDocument): void {
+		this.#nodeView.setDocument(document)
+	}
+
+	toggleNodeView(): void {
+		this.#nodeView.toggle()
+		this.#nodeViewDock.requestRender()
+		this.#viewport.hud.relayout()
+	}
+
+	nodeViewActive(): boolean { return this.#nodeView.active }
+
+	#nodeViewRect(bounds: {w: number; h: number}): UiSurfaceRect {
+		return this.#nodeView.active ? {x: 0, y: 0, w: bounds.w, h: bounds.h} : {x: -1, y: -1, w: 0, h: 0}
 	}
 
 	relayout(): void {
@@ -87,6 +110,85 @@ class BulkFullscreenDock extends UiSurface {
 			tone: "neutral",
 			onClick: () => void this.hud.toggleFullscreen(),
 		})
+	}
+}
+
+class BulkNodeViewDock extends UiSurface {
+	constructor(private readonly hud: BulkHud) {
+		super({bgColor: null, borderColor: null})
+		this.node.name = "BulkNodeViewDock"
+	}
+
+	protected render(): void {
+		HudSideTab(this, {
+			rect: {x: 0, y: 0, w: this.rectW, h: this.rectH},
+			key: "bulk-dock:node-view",
+			edge: "left",
+			label: "Ноды",
+			tooltip: this.hud.nodeViewActive() ? "Закрыть Node View" : "Открыть Node View",
+			tone: this.hud.nodeViewActive() ? "active" : "neutral",
+			onClick: () => this.hud.toggleNodeView(),
+		})
+	}
+}
+
+class BulkNodeViewSurface extends UiSurface {
+	#document: HudNodeViewDocument = {atoms: [], transitions: [], wires: []}
+	#active = false
+	#pan = {x: 36, y: 64}
+	#zoom = 1
+	#drag: {x: number; y: number; panX: number; panY: number} | null = null
+
+	constructor(private readonly hud: BulkHud) {
+		super({bgColor: null, borderColor: null})
+		this.node.name = "BulkNodeViewSurface"
+	}
+
+	override get active(): boolean { return this.#active }
+
+	toggle(): void {
+		this.#active = !this.#active
+		document.documentElement.classList.toggle(NODE_VIEW_ACTIVE_CLASS, this.#active)
+		this.#drag = null
+		this.requestRender()
+	}
+
+	setDocument(document: HudNodeViewDocument): void {
+		this.#document = document
+		this.requestRender()
+	}
+
+	protected override render(): void {
+		if (!this.#active) return
+		this.drawRect(0, 0, this.rectW, this.rectH, palette.bg, 0)
+		this.drawText("NODE VIEW · перетаскивай холст · колесо — масштаб", 18, 16, {fontPx: 12, material: this.materials.cyan, z: 0.2})
+		HudSideTab(this, {rect: {x: Math.max(18, this.rectW - 150), y: 8, w: 132, h: 30}, key: "node-view:fullscreen", edge: "top", label: "Полный режим", tooltip: "Полный экран", tone: "active", onClick: () => void this.hud.toggleFullscreen()})
+		const document = this.#scaledDocument()
+		HudNodeViewPanel(this, document, {x: 0, y: 0, w: this.rectW, h: this.rectH}, 0.3)
+		this.hit(0, 0, this.rectW, this.rectH, () => {}, {
+			key: "node-view:pan",
+			cursor: "grab",
+			activeCursor: "grabbing",
+			onPointerDown: (x, y) => { this.#drag = {x, y, panX: this.#pan.x, panY: this.#pan.y} },
+			onPointerMove: (x, y) => {
+				if (!this.#drag) return
+				this.#pan = {x: this.#drag.panX + x - this.#drag.x, y: this.#drag.panY + y - this.#drag.y}
+				this.requestRender()
+			},
+			onPointerUp: () => { this.#drag = null },
+		})
+		this.wheel(0, 0, this.rectW, this.rectH, (event) => {
+			event.preventDefault()
+			this.#zoom = Math.max(0.35, Math.min(2.2, this.#zoom * (event.deltaY > 0 ? 0.9 : 1.1)))
+			this.requestRender()
+		}, "node-view:zoom")
+	}
+
+	#scaledDocument(): HudNodeViewDocument {
+		return {
+			...this.#document,
+			atoms: this.#document.atoms.map((atom) => ({...atom, x: this.#pan.x + atom.x * this.#zoom, y: this.#pan.y + atom.y * this.#zoom, width: (atom.width ?? 290) * this.#zoom})),
+		}
 	}
 }
 

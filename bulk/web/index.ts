@@ -180,7 +180,18 @@ type ImpulseRenderRecord = {
 const FIELD_GLOW_ALPHA = 0.1
 const FIELD_GLOW_INTENSITY = 0.8
 const FIELD_OPACITY_MULTIPLIER = 0.9
-const FIELD_BILLBOARD_PIXEL_WIDTH = 240
+// Field cards are an inspect-at-close-range affordance, never foreground
+// typography for the whole Space. More texture resolution makes their text
+// physically smaller while preserving a crisp close inspection.
+const FIELD_BILLBOARD_PIXEL_WIDTH = 360
+// Полные карточки поля не принадлежат обзорной 3D-сцене: они перекрывают
+// геометрию и дублируют данные Node View. Параметры доступны в ноде по
+// запросу, а Space оставляет только форму и краткую метку.
+const FIELD_INFO_PANELS_ENABLED = false
+// Детальные подписи Field/State не являются обзорным слоем Space. Когда они
+// размечают всё сразу, сцена превращается в набор надписей. Их читает Node
+// View после выбора Atom; в Space сохраняются только короткие Atom-метки.
+const SPACE_DETAIL_LABELS_ENABLED = false
 const FIELD_BILLBOARD_PIXEL_HEIGHT = FIELD_BILLBOARD_PIXEL_WIDTH
 const FIELD_BILLBOARD_BORDER_RADIUS_PX = 6
 const FIELD_BILLBOARD_TITLE_PAD_X_PX = 10
@@ -188,8 +199,8 @@ const FIELD_BILLBOARD_TITLE_Y_PX = 8
 const FIELD_BILLBOARD_TITLE_FONT_PX = 12
 const FIELD_BILLBOARD_TITLE_Z_MM = 0.7
 const NAVIGATION_VIEWPORT_FIT_PADDING_RATIO = 1.25
-const FIELD_LABEL_TITLE_MORPH_START_DISTANCE_RATIO = 4
-const FIELD_LABEL_TITLE_MORPH_END_DISTANCE_RATIO = 2
+const FIELD_LABEL_TITLE_MORPH_START_DISTANCE_RATIO = 1.35
+const FIELD_LABEL_TITLE_MORPH_END_DISTANCE_RATIO = 0.75
 const BULK_RADIAL_MENU_SECTOR_COUNT = 12
 const BULK_RADIAL_MENU_SIZE_PX = 296
 const BULK_RADIAL_MENU_INNER_SIZE_PX = 150
@@ -576,7 +587,7 @@ class FieldParticleBillboardSurface extends UiSurface {
 		if (this.#mode === "summary") {
 			this.drawTextCentered(compactFieldBillboardText(field.valueText), this.rectW / 2, this.rectH / 2, {
 				clip: false,
-				fontPx: 18,
+			fontPx: 14,
 				material: this.#valueMaterial,
 				maxWidthPx: Math.max(1, this.rectW - 20),
 				z: Z.TEXT,
@@ -584,9 +595,9 @@ class FieldParticleBillboardSurface extends UiSurface {
 			return
 		}
 
-		const padX = 10
-		const valueX = padX + 36
-		const contentW = Math.max(1, this.rectW - padX - 8)
+		const padX = 14
+		const valueX = padX + 42
+		const contentW = Math.max(1, this.rectW - padX - 12)
 
 		this.drawRoundedRect(0, 0, this.rectW, this.rectH, {
 			radius: FIELD_BILLBOARD_BORDER_RADIUS_PX,
@@ -595,16 +606,16 @@ class FieldParticleBillboardSurface extends UiSurface {
 			borderWidth: 1,
 			z: Z.CONTAINER,
 		})
-		this.drawText(`id:${field.fieldParticleId} field:${field.fieldId} parent:${field.parentDarkParticleId}`, padX, 28, {
+		this.drawText(field.fieldLabel || field.fieldKey, padX, 28, {
 			clip: false,
-			fontPx: 8,
-			material: this.#metaMaterial,
+			fontPx: 10,
+			material: this.#keyMaterial,
 			maxWidthPx: contentW,
 			z: Z.TEXT,
 		})
-		this.#drawPair("key", field.fieldKey, padX, valueX, 48, contentW - 36)
-		this.#drawPair("type", field.fieldParticleKind, padX, valueX, 68, contentW - 36)
-		this.#drawPair("value", compactFieldBillboardText(field.valueText), padX, valueX, 88, contentW - 36, this.#valueMaterial)
+		this.#drawPair("key", field.fieldKey, padX, valueX, 50, contentW - 42)
+		this.#drawPair("type", field.fieldParticleKind, padX, valueX, 70, contentW - 42)
+		this.#drawPair("value", compactFieldBillboardText(field.valueText), padX, valueX, 90, contentW - 42, this.#valueMaterial)
 	}
 
 	#drawPair(
@@ -618,14 +629,14 @@ class FieldParticleBillboardSurface extends UiSurface {
 	): void {
 		this.drawText(label, labelX, y, {
 			clip: false,
-			fontPx: 8,
+			fontPx: 7,
 			material: this.#metaMaterial,
 			maxWidthPx: 30,
 			z: Z.TEXT,
 		})
 		this.drawText(value, valueX, y, {
 			clip: false,
-			fontPx: 9,
+			fontPx: 8,
 			material: valueMaterial,
 			maxWidthPx: Math.max(1, valueW),
 			z: Z.TEXT,
@@ -1747,8 +1758,24 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		near: viewportConfig.camera.near,
 		far: viewportConfig.camera.far,
 		position: viewportConfig.camera.position,
-		target: viewportConfig.camera.target,
+		 target: viewportConfig.camera.target,
 	})
+	/**
+	 * Камера в Bulk свободно подходит к атомам. Постоянный near=1 обрезал
+	 * геометрию ровно в момент близкого просмотра: камера уже рядом, а её
+	 * frustum ещё рассчитан на обзор всего мира. Near зависит только от
+	 * текущей дистанции до точки взгляда; far остаётся достаточным для
+	 * полного контура, поэтому этот пересчёт не меняет layout или данные.
+	 */
+	const syncViewportClipPlanes = (): void => {
+		const distance = viewPoint.position.distanceTo(viewPoint.getTarget())
+		const nextNear = Math.min(1, Math.max(0.001, distance * 0.0001))
+		const nextFar = Math.max(viewportConfig.camera.far, distance * 8)
+		if (Math.abs(viewPoint.near - nextNear) < 1e-6 && Math.abs(viewPoint.far - nextFar) < 1e-3) return
+		viewPoint.near = nextNear
+		viewPoint.far = nextFar
+		viewPoint.updateProjectionMatrix()
+	}
 	viewPoint.setAspectRatio(options.width / options.height)
 	const restoredViewPose = readStoredBulkViewPose()
 	if (restoredViewPose !== null) {
@@ -2585,6 +2612,10 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	}
 
 	const syncFieldParticleBillboardRecords = (): void => {
+		if (!FIELD_INFO_PANELS_ENABLED) {
+			for (const fieldParticleId of [...fieldParticleBillboardRecords.keys()]) removeFieldParticleBillboardRecord(fieldParticleId)
+			return
+		}
 		const nextFieldParticleIds = new Set<string>()
 		for (const record of [...fieldParticleRecords.values()].sort(
 			(left, right) =>
@@ -2648,6 +2679,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	}
 
 	const createFieldParticleLabelSpec = (record: FieldParticleRenderRecord): LabelSpec | null => {
+		if (!SPACE_DETAIL_LABELS_ENABLED) return null
 		if (!labelFont) return null
 		if (!isLabelDepthVisible(record.depth)) return null
 		const text =
@@ -2675,6 +2707,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	}
 
 	const createOrbitalParticleLabelSpec = (record: OrbitalParticleRenderRecord): LabelSpec | null => {
+		if (!SPACE_DETAIL_LABELS_ENABLED) return null
 		if (!labelFont) return null
 		if (record.snapshot.orbitalParticleKind === "state" &&
 			record.snapshot.sleeveRootStateId !== record.snapshot.sourceId &&
@@ -4351,6 +4384,11 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		flushFieldParticleBillboardSurfaces()
 		hudRuntime.flushPendingRender()
 		space.updateWorldMatrix()
+		syncViewportClipPlanes()
+		// Node View — самостоятельный HUD-режим. Не тратим GPU на 3D-мир,
+		// который полностью закрыт нодовым холстом; при возврате в Space он
+		// снова рендерится без пересборки данных.
+		space.visible = !document.documentElement.classList.contains("metafor-node-view-active")
 		renderer.renderFrame(space, hudRuntime.overlay, viewPoint)
 		if (navigationState || hasPendingMotion || hasCosmosMotion || timestamp < renderWakeUntilMs) {
 			frameHandle = requestAnimationFrame(animate)
