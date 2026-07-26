@@ -334,8 +334,35 @@
 
 ### MF-103 — Добавить read-only operation/history/Mass observation
 
-- Status: `READY`
+- Status: `IN_PROGRESS`
 - Dependencies: `MF-101`
+- Current task: Architect task
+  `019f9c3a-a2ec-7460-bd80-34ec2a630697`
+- Execution DAG:
+  - `H1` — read-only evidence существующего Dark particle-history owner
+    surface; единственный существующий Dark Technical Lead session
+    `019f9da9-3c09-7823-9bc6-395865a8725a`, callback
+    `MF103_HISTORY_EVIDENCE|BLOCKED` Архитектору;
+  - `M1` — read-only evidence Energy/Mass owner surface; требует ровно одну
+    отдельную session в том же saved project и canonical worktree,
+    предоставленную Organizer, callback
+    `MF103_MASS_EVIDENCE|BLOCKED` Архитектору;
+  - `G1` — Architect reconciliation после `H1` и `M1`: отделить доступное
+    particle/Mass observation от structural outcomes будущего operational
+    journal, не создавая его преждевременно;
+  - `I1` — bounded observation contract/integration только после принятого
+    `G1`, с отдельным independent verifier gate.
+- Read-only gate:
+  - canonical checkout
+    `/home/zavx0z/repozitarium/metafor-inference`, accepted MF-101
+    documentation baseline `7148ed72`; каждая session сверяет exact current
+    clean HEAD, переданный Архитектором при старте;
+  - для каждой session обязательны `danger-full-access`, approval `never`,
+    disabled/unrestricted filesystem и чистый exact checkout;
+  - source/docs/Git, History/Store/Mass data, runtime/contour/Lada и process
+    lifecycle не изменяются;
+  - worktree, branch, checkout copy, nested subagent и duplicate session не
+    создаются; session naming остаётся ответственностью Organizer.
 - Scope:
   - structural operation outcomes;
   - particle history отдельно;
