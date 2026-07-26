@@ -40,6 +40,8 @@ export type HudNodeViewAtomLayout = {atom: HudNodeViewAtom; rect: HudNodeViewRec
 export type HudNodeViewTransitionLayout = {transition: HudNodeViewTransition; rect: HudNodeViewRect}
 export type HudNodeViewWireLayout = {id: string; kind: "field-state" | "relation" | "transition-in" | "transition-out"; from: HudNodeViewPoint; to: HudNodeViewPoint; color: Color}
 export type HudNodeViewPoint = {x: number; y: number}
+export type HudNodeViewTransform = {x: number; y: number; scale: number}
+export type HudNodeViewDrawOptions = {transform?: HudNodeViewTransform; viewport?: HudNodeViewRect}
 
 const NODE_WIDTH = 290
 const HEADER_H = 28
@@ -92,10 +94,36 @@ export function planHudNodeView(document: HudNodeViewDocument, bounds: HudNodeVi
 /** Draws Blender-like atom cards. Wires are sampled cubic Beziers so UiSurface stays the single renderer. */
 export function HudNodeViewPanel(host: UiSurface, document: HudNodeViewDocument, bounds: HudNodeViewRect, z = Z.ELEMENT): HudNodeViewPlan {
   const plan = planHudNodeView(document, bounds)
-  for (const wire of plan.wires) drawBezier(host, wire.from, wire.to, wire.color, wire.kind.startsWith("transition") ? 2.2 : 1.3, z)
-  for (const layout of plan.atoms) drawAtom(host, layout, z + 0.08)
-  for (const layout of plan.transitions) drawTransition(host, layout, z + 0.16)
+  drawHudNodeViewPlan(host, plan, z)
   return plan
+}
+
+/**
+ * Renders a precomputed logical plan through one affine view transform.
+ * Layout therefore never depends on zoom: pan/zoom only changes the camera.
+ */
+export function drawHudNodeViewPlan(host: UiSurface, plan: HudNodeViewPlan, z = Z.ELEMENT, options: HudNodeViewDrawOptions = {}): void {
+  const transform = options.transform ?? {x: 0, y: 0, scale: 1}
+  const scaled = transformHudNodeViewPlan(plan, transform)
+  const visible = (rect: HudNodeViewRect): boolean => options.viewport === undefined || intersects(rect, options.viewport)
+  for (const wire of scaled.wires) {
+    if (!visible(boundsForWire(wire.from, wire.to))) continue
+    drawBezier(host, wire.from, wire.to, wire.color, (wire.kind.startsWith("transition") ? 2.2 : 1.3) * transform.scale, z)
+  }
+  for (const layout of scaled.atoms) if (visible(layout.rect)) drawAtom(host, layout, z + 0.08, transform.scale)
+  for (const layout of scaled.transitions) if (visible(layout.rect)) drawTransition(host, layout, z + 0.16, transform.scale)
+}
+
+/** A pure transform makes fit-to-view and viewport culling testable without a renderer. */
+export function transformHudNodeViewPlan(plan: HudNodeViewPlan, transform: HudNodeViewTransform): HudNodeViewPlan {
+  const point = (value: HudNodeViewPoint): HudNodeViewPoint => ({x: transform.x + value.x * transform.scale, y: transform.y + value.y * transform.scale})
+  const rect = (value: HudNodeViewRect): HudNodeViewRect => ({x: transform.x + value.x * transform.scale, y: transform.y + value.y * transform.scale, w: value.w * transform.scale, h: value.h * transform.scale})
+  const mapRects = (items: ReadonlyMap<string, HudNodeViewRect>): ReadonlyMap<string, HudNodeViewRect> => new Map([...items].map(([id, value]) => [id, rect(value)]))
+  return {
+    atoms: plan.atoms.map((layout) => ({...layout, rect: rect(layout.rect), fields: mapRects(layout.fields), states: mapRects(layout.states)})),
+    transitions: plan.transitions.map((layout) => ({...layout, rect: rect(layout.rect)})),
+    wires: plan.wires.map((wire) => ({...wire, from: point(wire.from), to: point(wire.to)})),
+  }
 }
 
 function layoutAtom(atom: HudNodeViewAtom, bounds: HudNodeViewRect): HudNodeViewAtomLayout {
@@ -112,42 +140,43 @@ function layoutAtom(atom: HudNodeViewAtom, bounds: HudNodeViewRect): HudNodeView
   return {atom, rect: {x, y, w, h: Math.max(HEADER_H + SECTION_H * 2 + NODE_PAD * 2, cursor - y + NODE_PAD)}, fields, states}
 }
 
-function drawAtom(host: UiSurface, layout: HudNodeViewAtomLayout, z: number): void {
+function drawAtom(host: UiSurface, layout: HudNodeViewAtomLayout, z: number, scale = 1): void {
   const {atom, rect} = layout
-  host.drawRoundedRect(rect.x, rect.y, rect.w, rect.h, {radius: 11, fill: palette.bgElevated, border: palette.border, borderWidth: 1, z})
-  host.drawRoundedRect(rect.x, rect.y, rect.w, HEADER_H, {radius: 10, fill: palette.bgHot, border: palette.windowActiveBorder, borderWidth: 1, z: z + 0.01})
-  host.drawText(atom.title, rect.x + 10, rect.y + 9, {fontPx: 12, material: host.materials.text, maxWidthPx: rect.w - 20, z: z + 0.04})
-  let sectionY = rect.y + HEADER_H + 5
-  host.drawText("ПОЛЯ", rect.x + 10, sectionY, {fontPx: 9, material: host.materials.muted, z: z + 0.04})
+  const s = (value: number): number => value * scale
+  host.drawRoundedRect(rect.x, rect.y, rect.w, rect.h, {radius: s(11), fill: palette.bgElevated, border: palette.border, borderWidth: Math.max(0.5, s(1)), z})
+  host.drawRoundedRect(rect.x, rect.y, rect.w, s(HEADER_H), {radius: s(10), fill: palette.bgHot, border: palette.windowActiveBorder, borderWidth: Math.max(0.5, s(1)), z: z + 0.01})
+  host.drawText(atom.title, rect.x + s(10), rect.y + s(9), {fontPx: s(12), material: host.materials.text, maxWidthPx: rect.w - s(20), z: z + 0.04})
+  let sectionY = rect.y + s(HEADER_H + 5)
+  host.drawText("ПОЛЯ", rect.x + s(10), sectionY, {fontPx: s(9), material: host.materials.muted, z: z + 0.04})
   for (const field of atom.fields) {
     const row = layout.fields.get(field.id)!
-    host.drawRoundedRect(row.x, row.y, row.w, row.h, {radius: 5, fill: palette.bgInput, border: palette.borderDim, borderWidth: 1, z: z + 0.02})
-    drawPort(host, row.x - 4, row.y + row.h / 2, palette.blue, z + 0.05)
-    drawPort(host, row.x + row.w - 4, row.y + row.h / 2, palette.blue, z + 0.05)
-    host.drawText(field.label, row.x + 9, row.y + 7, {fontPx: 10, material: host.materials.text, maxWidthPx: row.w - 18, z: z + 0.06})
+    host.drawRoundedRect(row.x, row.y, row.w, row.h, {radius: s(5), fill: palette.bgInput, border: palette.borderDim, borderWidth: Math.max(0.5, s(1)), z: z + 0.02})
+    drawPort(host, row.x - s(4), row.y + row.h / 2, palette.blue, z + 0.05, scale)
+    drawPort(host, row.x + row.w - s(4), row.y + row.h / 2, palette.blue, z + 0.05, scale)
+    host.drawText(field.label, row.x + s(9), row.y + s(7), {fontPx: s(10), material: host.materials.text, maxWidthPx: row.w - s(18), z: z + 0.06})
   }
-  sectionY = (atom.fields.length === 0 ? rect.y + HEADER_H + 5 : [...layout.fields.values()].at(-1)!.y + ROW_H + 9)
-  host.drawText("СОСТОЯНИЯ", rect.x + 10, sectionY, {fontPx: 9, material: host.materials.muted, z: z + 0.04})
+  sectionY = (atom.fields.length === 0 ? rect.y + s(HEADER_H + 5) : [...layout.fields.values()].at(-1)!.y + s(ROW_H + 9))
+  host.drawText("СОСТОЯНИЯ", rect.x + s(10), sectionY, {fontPx: s(9), material: host.materials.muted, z: z + 0.04})
   for (const state of atom.states) {
     const row = layout.states.get(state.id)!
-    host.drawRoundedRect(row.x, row.y, row.w, row.h, {radius: 5, fill: state.active === true ? palette.liveFill : palette.bgPanel, border: state.active === true ? palette.green : palette.borderDim, borderWidth: 1, z: z + 0.02})
-    drawPort(host, row.x - 4, row.y + row.h / 2, palette.orange, z + 0.05)
-    drawPort(host, row.x + row.w - 4, row.y + row.h / 2, palette.orange, z + 0.05)
-    host.drawText(`${state.active === true ? "●" : "○"} ${state.label}`, row.x + 9, row.y + 7, {fontPx: 10, material: state.active === true ? host.materials.green : host.materials.muted, maxWidthPx: row.w - 18, z: z + 0.06})
+    host.drawRoundedRect(row.x, row.y, row.w, row.h, {radius: s(5), fill: state.active === true ? palette.liveFill : palette.bgPanel, border: state.active === true ? palette.green : palette.borderDim, borderWidth: Math.max(0.5, s(1)), z: z + 0.02})
+    drawPort(host, row.x - s(4), row.y + row.h / 2, palette.orange, z + 0.05, scale)
+    drawPort(host, row.x + row.w - s(4), row.y + row.h / 2, palette.orange, z + 0.05, scale)
+    host.drawText(`${state.active === true ? "●" : "○"} ${state.label}`, row.x + s(9), row.y + s(7), {fontPx: s(10), material: state.active === true ? host.materials.green : host.materials.muted, maxWidthPx: row.w - s(18), z: z + 0.06})
   }
-  if (atom.process !== undefined) host.drawText(`Процесс: ${atom.process}`, rect.x + 10, rect.y + rect.h - 18, {fontPx: 9, material: host.materials.violet, maxWidthPx: rect.w - 20, z: z + 0.06})
+  if (atom.process !== undefined) host.drawText(`Процесс: ${atom.process}`, rect.x + s(10), rect.y + rect.h - s(18), {fontPx: s(9), material: host.materials.violet, maxWidthPx: rect.w - s(20), z: z + 0.06})
 }
 
-function drawTransition(host: UiSurface, layout: HudNodeViewTransitionLayout, z: number): void {
+function drawTransition(host: UiSurface, layout: HudNodeViewTransitionLayout, z: number, scale = 1): void {
   const {rect, transition} = layout
-  host.drawRoundedRect(rect.x, rect.y, rect.w, rect.h, {radius: rect.h / 2, fill: palette.warnFill, border: palette.orange, borderWidth: 1, z})
-  drawPort(host, rect.x - 4, rect.y + rect.h / 2, palette.orange, z + 0.04)
-  drawPort(host, rect.x + rect.w - 4, rect.y + rect.h / 2, palette.orange, z + 0.04)
-  host.drawText(transition.condition ?? transition.label ?? "переход", rect.x + 8, rect.y + 8, {fontPx: 9, material: host.materials.text, maxWidthPx: rect.w - 16, z: z + 0.05})
+  host.drawRoundedRect(rect.x, rect.y, rect.w, rect.h, {radius: rect.h / 2, fill: palette.warnFill, border: palette.orange, borderWidth: Math.max(0.5, scale), z})
+  drawPort(host, rect.x - 4 * scale, rect.y + rect.h / 2, palette.orange, z + 0.04, scale)
+  drawPort(host, rect.x + rect.w - 4 * scale, rect.y + rect.h / 2, palette.orange, z + 0.04, scale)
+  host.drawText(transition.condition ?? transition.label ?? "переход", rect.x + 8 * scale, rect.y + 8 * scale, {fontPx: 9 * scale, material: host.materials.text, maxWidthPx: rect.w - 16 * scale, z: z + 0.05})
 }
 
-function drawPort(host: UiSurface, x: number, y: number, color: Color, z: number): void {
-  host.drawRoundedRect(x - 4, y - 4, 8, 8, {radius: 4, fill: color, border: palette.bg, borderWidth: 1, z})
+function drawPort(host: UiSurface, x: number, y: number, color: Color, z: number, scale = 1): void {
+  host.drawRoundedRect(x - 4 * scale, y - 4 * scale, 8 * scale, 8 * scale, {radius: 4 * scale, fill: color, border: palette.bg, borderWidth: Math.max(0.5, scale), z})
 }
 
 function drawBezier(host: UiSurface, from: HudNodeViewPoint, to: HudNodeViewPoint, color: Color, thickness: number, z: number): void {
@@ -164,4 +193,12 @@ function drawBezier(host: UiSurface, from: HudNodeViewPoint, to: HudNodeViewPoin
 function cubic(a: HudNodeViewPoint, b: HudNodeViewPoint, c: HudNodeViewPoint, d: HudNodeViewPoint, t: number): HudNodeViewPoint {
   const u = 1 - t
   return {x: u ** 3 * a.x + 3 * u ** 2 * t * b.x + 3 * u * t ** 2 * c.x + t ** 3 * d.x, y: u ** 3 * a.y + 3 * u ** 2 * t * b.y + 3 * u * t ** 2 * c.y + t ** 3 * d.y}
+}
+
+function boundsForWire(from: HudNodeViewPoint, to: HudNodeViewPoint): HudNodeViewRect {
+  return {x: Math.min(from.x, to.x), y: Math.min(from.y, to.y), w: Math.abs(to.x - from.x), h: Math.abs(to.y - from.y)}
+}
+
+function intersects(a: HudNodeViewRect, b: HudNodeViewRect): boolean {
+  return a.x + a.w >= b.x && b.x + b.w >= a.x && a.y + a.h >= b.y && b.y + b.h >= a.y
 }

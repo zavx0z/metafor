@@ -1,6 +1,6 @@
 import type { BulkHudController, BulkHudOptions } from "@metafor/types/bulk/hud"
 import {palette, UiSurface, uiIcons, type UiSurfaceRect} from "@ui/elements"
-import {HudNodeViewPanel, HudSideTab, type HudNodeViewDocument} from "@ui/hud"
+import {drawHudNodeViewPlan, HudSideTab, planHudNodeView, type HudNodeViewDocument, type HudNodeViewPlan} from "@ui/hud"
 
 const HUD_DOCK_Z = 90
 const APP_FULLSCREEN_FALLBACK_CLASS = "metafor-app-fullscreen-fallback"
@@ -134,9 +134,11 @@ class BulkNodeViewDock extends UiSurface {
 
 class BulkNodeViewSurface extends UiSurface {
 	#document: HudNodeViewDocument = {atoms: [], transitions: [], wires: []}
+	#plan: HudNodeViewPlan = planHudNodeView(this.#document, {x: 0, y: 0, w: 0, h: 0})
 	#active = false
-	#pan = {x: 36, y: 64}
+	#pan = {x: 0, y: 0}
 	#zoom = 1
+	#fitPending = true
 	#drag: {x: number; y: number; panX: number; panY: number} | null = null
 
 	constructor(private readonly hud: BulkHud) {
@@ -150,11 +152,15 @@ class BulkNodeViewSurface extends UiSurface {
 		this.#active = !this.#active
 		document.documentElement.classList.toggle(NODE_VIEW_ACTIVE_CLASS, this.#active)
 		this.#drag = null
+		this.#fitPending = true
 		this.requestRender()
 	}
 
 	setDocument(document: HudNodeViewDocument): void {
 		this.#document = document
+		// Geometry is derived once per projection update, never once per wheel/pan redraw.
+		this.#plan = planHudNodeView(document, {x: 0, y: 0, w: 0, h: 0})
+		this.#fitPending = true
 		this.requestRender()
 	}
 
@@ -163,8 +169,11 @@ class BulkNodeViewSurface extends UiSurface {
 		this.drawRect(0, 0, this.rectW, this.rectH, palette.bg, 0)
 		this.drawText("NODE VIEW · перетаскивай холст · колесо — масштаб", 18, 16, {fontPx: 12, material: this.materials.cyan, z: 0.2})
 		HudSideTab(this, {rect: {x: Math.max(18, this.rectW - 150), y: 8, w: 132, h: 30}, key: "node-view:fullscreen", edge: "top", label: "Полный режим", tooltip: "Полный экран", tone: "active", onClick: () => void this.hud.toggleFullscreen()})
-		const document = this.#scaledDocument()
-		HudNodeViewPanel(this, document, {x: 0, y: 0, w: this.rectW, h: this.rectH}, 0.3)
+		if (this.#fitPending) this.#fitToView()
+		drawHudNodeViewPlan(this, this.#plan, 0.3, {
+			transform: {x: this.#pan.x, y: this.#pan.y, scale: this.#zoom},
+			viewport: {x: 0, y: 42, w: this.rectW, h: Math.max(0, this.rectH - 42)},
+		})
 		this.hit(0, 0, this.rectW, this.rectH, () => {}, {
 			key: "node-view:pan",
 			cursor: "grab",
@@ -179,16 +188,28 @@ class BulkNodeViewSurface extends UiSurface {
 		})
 		this.wheel(0, 0, this.rectW, this.rectH, (event) => {
 			event.preventDefault()
-			this.#zoom = Math.max(0.35, Math.min(2.2, this.#zoom * (event.deltaY > 0 ? 0.9 : 1.1)))
+			const previous = this.#zoom
+			const next = Math.max(0.18, Math.min(3, previous * (event.deltaY > 0 ? 0.9 : 1.1)))
+			// Preserve the logical point under the cursor while zooming.
+			this.#pan = {x: event.offsetX - (event.offsetX - this.#pan.x) * next / previous, y: event.offsetY - (event.offsetY - this.#pan.y) * next / previous}
+			this.#zoom = next
 			this.requestRender()
 		}, "node-view:zoom")
 	}
 
-	#scaledDocument(): HudNodeViewDocument {
-		return {
-			...this.#document,
-			atoms: this.#document.atoms.map((atom) => ({...atom, x: this.#pan.x + atom.x * this.#zoom, y: this.#pan.y + atom.y * this.#zoom, width: (atom.width ?? 290) * this.#zoom})),
-		}
+	#fitToView(): void {
+		this.#fitPending = false
+		const rects = [...this.#plan.atoms.map((layout) => layout.rect), ...this.#plan.transitions.map((layout) => layout.rect)]
+		if (rects.length === 0 || this.rectW <= 0 || this.rectH <= 0) return
+		const left = Math.min(...rects.map((rect) => rect.x))
+		const top = Math.min(...rects.map((rect) => rect.y))
+		const right = Math.max(...rects.map((rect) => rect.x + rect.w))
+		const bottom = Math.max(...rects.map((rect) => rect.y + rect.h))
+		const padding = 42
+		const zoomX = Math.max(0.01, (this.rectW - padding * 2) / Math.max(1, right - left))
+		const zoomY = Math.max(0.01, (this.rectH - 42 - padding * 2) / Math.max(1, bottom - top))
+		this.#zoom = Math.max(0.18, Math.min(1, zoomX, zoomY))
+		this.#pan = {x: (this.rectW - (right - left) * this.#zoom) / 2 - left * this.#zoom, y: 42 + (this.rectH - 42 - (bottom - top) * this.#zoom) / 2 - top * this.#zoom}
 	}
 }
 

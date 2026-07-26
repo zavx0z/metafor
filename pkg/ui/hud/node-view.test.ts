@@ -1,5 +1,5 @@
 import {describe, expect, test} from "bun:test"
-import {planHudNodeView, type HudNodeViewDocument} from "./node-view.ts"
+import {planHudNodeView, transformHudNodeViewPlan, type HudNodeViewDocument} from "./node-view.ts"
 
 const document: HudNodeViewDocument = {
   atoms: [
@@ -22,5 +22,17 @@ describe("HUD node-view plan", () => {
 
   test("rejects dangling endpoints instead of silently dropping a relation", () => {
     expect(() => planHudNodeView({...document, wires: [{id: "bad", from: {atomId: "auth", itemId: "missing"}, to: {atomId: "chat", itemId: "chat.waiting"}}]}, {x: 0, y: 0, w: 1, h: 1})).toThrow("Unknown endpoint")
+  })
+
+  test("applies one camera transform to every node, port, transition, and wire", () => {
+    const plan = planHudNodeView(document, {x: 0, y: 0, w: 1200, h: 900})
+    const transformed = transformHudNodeViewPlan(plan, {x: 40, y: 60, scale: 0.5})
+    const source = plan.atoms[0]!
+    const target = transformed.atoms[0]!
+    expect(target.rect).toEqual({x: 40 + source.rect.x * 0.5, y: 60 + source.rect.y * 0.5, w: source.rect.w * 0.5, h: source.rect.h * 0.5})
+    const sourcePort = source.fields.get("auth.session")!
+    expect(target.fields.get("auth.session")).toEqual({x: 40 + sourcePort.x * 0.5, y: 60 + sourcePort.y * 0.5, w: sourcePort.w * 0.5, h: sourcePort.h * 0.5})
+    expect(transformed.transitions[0]!.rect.w).toBe(plan.transitions[0]!.rect.w * 0.5)
+    expect(transformed.wires[0]!.from).toEqual({x: 40 + plan.wires[0]!.from.x * 0.5, y: 60 + plan.wires[0]!.from.y * 0.5})
   })
 })
