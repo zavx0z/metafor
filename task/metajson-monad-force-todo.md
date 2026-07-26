@@ -181,7 +181,7 @@
 
 ### MF-014 — Доказать strict resolver и cold materialization
 
-- Status: `BLOCKED`
+- Status: `IN_PROGRESS`
 - Dependencies: `MF-013`
 - Current task: Codex task `019f9b10-44b2-7ab2-9ae8-e831d4f9ccea`
 - Authority:
@@ -209,9 +209,9 @@
   - source repositories остались clean, cleanup, push и hot reload не
     выполнялись.
 - Blocker:
-  - нужен owner decision: clean derived Boundary Store cut с последующей
-    materialization из source/Mass либо явная migration/removal legacy WIMP
-    identities. Повторять flat load поверх прежнего Store нельзя.
+  - resolved by owner: clean only derived Boundary materialization and rebuild
+    it from canonical flat source while retaining recoverable legacy
+    SQLite/Mass/history evidence; rollback on any new degradation.
 - Acceptance:
   - two-segment resolver positive/negative tests;
   - third segment rejected before filesystem read;

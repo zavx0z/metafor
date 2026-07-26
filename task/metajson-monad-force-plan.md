@@ -8,7 +8,9 @@ flat peer repositories. Owner-approved cold proof `MF-014` выполнен до
 recoverable rollback и заблокирован фактической несовместимостью старого
 derived Store с новыми identities: cold load сохраняет legacy WIMP declarations
 рядом с flat declarations, после чего Mass binding Auth не материализуется.
-Pre-cut Store/Mass/history восстановлены, прежний contour снова рождён и healthy.
+Pre-cut Store/Mass/history были восстановлены, прежний contour снова рождён и
+healthy. Owner разрешил повторный `MF-014` cut через чистую derived Boundary
+materialization с сохранённой recoverable legacy копией.
 
 Этот файл — изменяемая рабочая карта. Он не заменяет документы-владельцы из
 `docs/README.md`. Новый действующий закон сначала переносится в соответствующий
@@ -689,10 +691,10 @@ patch vertical slice.
 2. GitHub remote names и provenance/history policy при физическом split
    существующего Inference repository.
 3. Форма общего `lada-chat` / `lada-chat-send` Energy/send contract.
-4. Повторный `MF-014` cut: создать чистый derived Boundary Store и
-   materialize flat graph из сохранённых source/Mass, либо реализовать явную
-   migration/removal шести legacy WIMP identities перед load. Простое чтение
-   flat root поверх существующего Store фактически доказано несовместимым.
+4. `MF-014` выполняется owner-approved clean derived Boundary Store cut с
+   materialization flat graph из сохранённых source/Mass. Legacy
+   SQLite/Mass/history сохраняются как recoverable evidence; при новой
+   деградации выполняется rollback.
 5. Локальная capability identity/policy первого Codex→Monad write endpoint до
    его открытия за пределы trusted development contour.
 
