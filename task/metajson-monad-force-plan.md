@@ -729,10 +729,10 @@ repository, никогда не в source repository. Particle timeline оста
 единственной canonical change history. Каждый commit также содержит
 deterministic canonical forward JSON Patch span с digest и точным coverage
 `[previous snapshot sequence + 1, S]`, выведенный из Particle timeline без
-новых mutation semantics и без control rows в history. Навигация использует
-nearest prior snapshot и только forward Particle/JSON patches; canonical
-inverse patches не создаются. Derived acceleration patch/state cache является
-server-side, disposable и rebuildable и не хранится в Git.
+новых mutation semantics и без control rows в history. Forward Particle/JSON
+patch replay остаётся единственным способом построить состояние из
+checkpoint; canonical inverse patches не создаются. Derived patch/state cache
+является server-side, disposable и rebuildable и не хранится в Git.
 
 Owner создал будущий distribution repository
 [`zavx0z/metafor-checkpoints`](https://github.com/zavx0z/metafor-checkpoints).
@@ -770,6 +770,30 @@ Checkpoint-specific applied-through coordinator не утверждает общ
 multi-domain delivery protocol: персистентный Dark Force v2, общий causal
 convergence barrier, full VCS и права внутренних Runtime Agents остаются
 будущими решениями и не блокируют этот изолированный foundation.
+
+### 15.5 Pause/Stack и ветвящийся execution workspace
+
+Owner уточнил назначение checkpoint line: это не только offline replay, а
+временная машина отладки и исследования выполнения. После pause Force должен
+собирать принятые Particle в причинные слои параллельного исполнения. Слой —
+не новая history row и не источник истины: это временный cache, привязанный к
+checkpoint, acceptance sequence и frontier evidence, который можно удалить и
+построить заново из checkpoint плюс canonical Particle timeline.
+
+Backward navigation означает выбор ранее сохранённого layer cache либо
+checkpoint и восстановление рабочей **изолированной** проекции; обратные
+Particle/patch не становятся canonical storage. От этой точки можно создать
+ветку execution workspace, подать альтернативный следующий input и двигаться
+вперёд по ней. Ветки позволяют отбросить путь с плохим результатом, сравнить
+результаты и продолжить выбранную ветку без перезапуска исходного live contour.
+Они не меняют live Boundary/Mass/Lada и не являются hot rollback: перенос
+удачной ветки в live мир остаётся отдельным owner-gated cold activation.
+
+Force владеет pause/admission и causal слоями; Dark Monad предоставляет
+контракт workspace; Interpreter — только пульт pause/step/back/branch и не
+обходит Force или Boundary. Старый монолитный Atom stack/debugger служит UX и
+семантическим референсом (`lock`, `step`, history view), но его ограниченный
+UI-стек не переносится как canonical runtime contract.
 
 ## 16. Как обновлять план
 

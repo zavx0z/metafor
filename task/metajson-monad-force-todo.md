@@ -640,27 +640,48 @@
 
 ### MF-108 — Опубликовать один commit на coherent snapshot
 
-- Status: `WAITING`
+- Status: `DONE`
 - Dependencies: `MF-106`, `MF-107`
+- Evidence:
+  - AI-server stopped capture опубликовал один local bare-Git checkpoint
+    commit `757700c6714e0da8d3ac98f3b43b2caecbd22d72` для
+    `(mf102-20260726T150016Z-53b4bd78-0930-4ccf-b83e-c147f3cea66a, 1)`;
+  - immutable sequence ref присутствует, control baseline записан только
+    после verified publication;
+  - source Git, GitHub remote/push и live restore не использовались.
 - Acceptance:
   - verified staging capture порождает ровно один commit;
   - sequence ref и cut head публикуются atomically/CAS;
   - incomplete/corrupt capture остаётся unpublished;
   - никаких source Git commits, data push или live restore.
 
-### MF-109 — Реализовать isolated forward replay
+### MF-109 — Реализовать Pause/Stack branchable execution workspace
 
 - Status: `WAITING`
 - Dependencies: `MF-103`, `MF-108`
 - Acceptance:
-  - выбирается nearest prior checkpoint `C ≤ T`;
-  - Boundary+Mass восстанавливаются только в isolated projection;
-  - canonical Particles `C+1..T` применяются вперёд с gap/order validation;
-  - committed forward spans можно полностью проверить и перестроить из
-    canonical Particle timeline;
-  - backward navigation выбирает более ранний checkpoint и снова replay
-    forward, не хранит inverse patches;
-  - derived cache можно удалить и полностью восстановить.
+  - Force ставит внешний admission на pause, дренирует уже причинно начатые
+    deliveries и публикует доказуемый causal layer frontier;
+  - accepted Particle собираются в причинные параллельные слои, привязанные к
+    checkpoint/sequence/frontier; слой cache disposable и rebuildable;
+  - workspace выбирает прежний layer либо checkpoint, восстанавливает только
+    isolated Boundary+Mass projection и строит состояние canonical forward
+    Particle/JSON Patch replay без inverse storage;
+  - от выбранной точки создаётся execution branch с альтернативным следующим
+    input; ветви сравнимы и не меняют live contour;
+  - неудачная ветвь удаляется без следа в canonical history, promotion удачной
+    ветви в live contour остаётся отдельным cold owner gate.
+
+### MF-110 — Добавить Interpreter pause/stack control surface
+
+- Status: `WAITING`
+- Dependencies: `MF-109`
+- Acceptance:
+  - Interpreter через closed Dark Monad contract умеет pause, inspect layer,
+    step forward/backward и create/list/discard execution branch;
+  - Interpreter не вызывает Boundary/Mass напрямую и не может hot-replace
+    live contour;
+  - UI показывает только structural/debug metadata, не raw Mass payload.
 
 ## P2 — Dark Monad structural patch vertical slice
 
