@@ -104,6 +104,60 @@ process work.
   `gpu` является явным строгим режимом, `cpu` принудительно выбирает reference
   backend.
 
+## Публичное чтение MetaJSON
+
+MetaJSON v1 имеет ровно один публичный JSON-документ и одну schema. Отдельных
+`authoring`, `planner`, `diagnostic`, compact либо иных public views нет.
+Частичный selector может быть только операцией чтения над этим же документом:
+он не создаёт второй payload или контракт.
+
+Документ содержит две явно разделённые части:
+
+- `template` — компактную, но полную сериализуемую нормализацию действующего
+  `MetaDSL`, включая все declarations, defaults, Process/Reaction descriptors,
+  Matter bindings и объявленный Bulk;
+- `runtime` — вложенные текущие Atom occurrences с реально присутствующими
+  State и Field values.
+
+Runtime не объясняет происхождение значения. Если текущий Field value
+присутствует у Atom, он находится в runtime occurrence; если отсутствует, ключа
+нет. Default остаётся declaration в `template`. Статусы `materialized`,
+`inherited-default`, `missing`, `not-projected`, отдельный `values/missing`
+envelope и provenance default-vs-write запрещены.
+
+Публичная identity задаётся logical Meta address, вложенной структурой
+документа и JSON paths/references. Boundary `Atom.id`, `Field.id`, `valueId`,
+локальные SQLite handles и другие внутренние числовые identity за публичную
+границу не выходят. MetaJSON не вводит направленные ports, boundary stubs или
+отдельный global edges graph: relations остаются в нормализованной Matter
+structure и её публичных structural references.
+
+Последовательность сохраняется только там, где она уже влияет на смысл или
+materialization:
+
+- первый State является initial State;
+- первый подошедший Transition одного State имеет приоритет;
+- порядок enum variants задаёт ordinal mapping;
+- declaration sequence Fields, Processes и Reactions сохраняет действующие
+  local identities, а порядок `finally` Processes — runtime causality;
+- Matter сохраняет parent/edge slot/sibling и repeated-occurrence order.
+
+Conditions одного Transition являются чистой конъюнкцией и отдельного
+priority-order не получают. Mass declaration и display order также не
+становятся новым законом. Универсального `order` vector в MetaJSON нет.
+
+Операцию чтения предоставляет Monad. Stateless assembler получает полную
+declaration projection через Dark, текущую runtime projection через Boundary,
+собирает и валидирует один документ, но не хранит его и не читает Store другого
+домена напрямую. Dark и Boundary остаются владельцами своих projections; Force
+только переносит Monad RPC.
+
+MetaJSON v1 не содержит revision, digest или CAS fields. Particle/operation
+history, patches, Git history, Mass bytes и живые Energy objects не являются
+частями этого snapshot и читаются через их собственные разрешённые интерфейсы.
+`meta.ts` и Git остаются canonical human-authored source; MetaJSON всегда
+является derived read representation.
+
 ## Energy и Mass в DSL/runtime
 
 Цепочка MetaFor имеет обязательный порядок `fields → superposition → mass →

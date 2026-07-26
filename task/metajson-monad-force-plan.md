@@ -7,8 +7,9 @@ offline source split `MF-013` завершены. Шесть Meta находят
 flat peer repositories. `MF-014` принят owner: единственный вручную запущенный
 flat contour materialize ровно шесть Meta, сохранил Matter/Mass relationships,
 восстановил Auth и открыл свежий Chat Realtime connection. Live contour
-остаётся без изменений. Следующий этап `MF-100` готовит MetaJSON v1 read
-contract без implementation изменений.
+остаётся без изменений. Owner завершил `MF-100` review и утвердил один полный
+MetaJSON v1 read-contract. Documentation baseline согласуется перед переводом
+`MF-101` в implementation; live contour остаётся неприкасаемым.
 
 Этот файл — изменяемая рабочая карта. Он не заменяет документы-владельцы из
 `docs/README.md`. Новый действующий закон сначала переносится в соответствующий
@@ -83,25 +84,25 @@ Force причинно проводит жизнь уже принятого у�
 | --- | --- | --- |
 | `meta.ts` | Meta package | каноническое human-authored описание |
 | Create MetaFor templates | Create MetaFor | законная исходная структура нового Meta package |
-| MetaJSON `MetaDocument` | DSL → Dark | детерминированная семантическая проекция одной Meta |
-| MetaJSON `MetaProjection` | владелец projection RPC | составная lazy read-model для Codex, AI и Bulk |
+| MetaJSON v1 read operation | Monad | stateless assembly одного полного declaration/runtime document |
+| Declaration projection | Dark | полная compact normalization загруженного MetaDSL graph |
+| Current projection | Boundary | текущие sparse Atom values в structural occurrences |
 | Boundary Store | Boundary | канонический текущий materialized мир |
 | Domain Stores | соответствующий домен | локальные projections и живые ресурсы |
 | Operational journal | Monad operation service | append-only исход и фазы структурных operations |
 | Particle history | соответствующий runtime/history service | наблюдаемая причинная runtime-история |
 | Mass bytes/results | Energy/Mass owner | данные и результаты, читаемые отдельным разрешённым API |
 
-`meta.ts` остаётся каноническим source. MetaJSON генерируется из него и не
-редактируется как второй source of truth.
+`meta.ts` остаётся каноническим authored source. MetaJSON собирается из Dark
+declaration и текущей Boundary projection и не редактируется как второй source
+of truth.
 
 MetaJSON snapshot не содержит:
 
 - historical data;
 - JSON Patch history;
 - Mass bytes;
-- живые Energy objects;
-- каноническую runtime authority Boundary;
-- generated executable source в compact projection по умолчанию.
+- живые Energy objects.
 
 History, operation outcomes, Mass results и JSON Patch передаются отдельными
 форматами/API. Чтение этих данных не даёт права напрямую писать их Stores.
@@ -296,123 +297,60 @@ contour. Fresh execution evidence подтвердил Auth, Chat Realtime conne
 переход Лады в рабочее состояние без failed executions. Owner принял
 `MF-014`; дальнейшая MetaJSON работа не изменяет этот live contour.
 
-## 5. MetaJSON и nested projections
+## 5. MetaJSON v1
 
-### 5.1 MetaDocument
+Утверждённый read-contract `MF-100`, его аудит и точная implementation boundary
+находятся в
+[`task/metajson-v1-read-contract.md`](metajson-v1-read-contract.md).
 
-Один `MetaDocument` описывает ровно одну Meta и используется на границе
-`MetaDSL → Dark`.
+MetaJSON v1 — один полный public JSON document с одной schema. Он содержит:
 
-```ts
-type Digest = `sha256:${string}`
-type JSONPointer = "" | `/${string}`
+- `template`: полный сериализуемый результат действующей compact normalized
+  `MetaDSL`, включая Fields/defaults, Superposition, Mass, Processes,
+  Reactions, Matter bindings и объявленный Bulk;
+- `runtime`: вложенные structural occurrences текущих Atom, их State и только
+  реально присутствующие Field values.
 
-interface MetaDocumentV1 {
-  schema: "metafor/meta-document/v1"
-  meta: string
-  revision: Digest
-  name: string
-  description?: string
-  fields: Record<string, FieldDeclarationV1>
-  superposition: SuperpositionV1
-  mass: Record<string, MassDeclarationV1>
-  processes: ProcessDeclarationV1[]
-  reactions: ReactionDeclarationV1[]
-  matter: MatterNodeV1[]
-}
-```
+`meta.ts` и Git остаются canonical authored source. MetaJSON собирается при
+чтении и не хранится как второй Store. В нём нет альтернативных
+`authoring`/`planner`/`diagnostic` schemas или compact views. Partial
+selection/query является retrieval operation над тем же документом и не
+создаёт второй payload.
 
-Законы:
+Runtime не сообщает, появился value из default или из последующей write.
+Отсутствующий у Atom key означает только отсутствие текущего value; default
+читается в `template`. Отдельных status cells и `values/missing` envelope нет.
 
-- Mass declaration содержит `format`, `label`, `description`; `mime` отсутствует;
-- одна загружаемая единица — одна Meta;
-- declaration представлена template;
-- runtime Atom представлены sparse instance projections на template;
-- nested JSON задаёт structural paths;
-- точные ссылки и JSON Patch используют JSON Pointer;
-- JSONPath используется только для выбора частичной projection;
-- рёбра находятся у ближайшего общего предка endpoints;
-- edges адресуются occurrence ports, а не `contract/fields`;
-- незагруженная внешняя Meta представлена `$ref` и минимальным контрактом;
-- history и patches не входят в snapshot.
+Public identity и relations задаются canonical Meta addresses, вложенной JSON
+structure и public paths/references. Raw Boundary/SQLite identities, включая
+Atom/Field IDs и `valueId`, не выходят в MetaJSON. Directed ports, boundary
+stubs и отдельный global edges graph отсутствуют; Matter relations остаются в
+нормализованной structure.
 
-Revision документа вычисляется детерминированно:
+Порядок сохраняется только там, где текущий runtime либо materialization
+придают ему смысл: States, per-State Transitions, enum variants,
+materialization identities Fields/Processes/Reactions, `finally` Process
+causality и Matter sibling/occurrence order. Conditions одного Transition
+остаются конъюнкцией; Mass/display order не становятся новым законом.
+Универсального `order` vector нет.
 
-```text
-revision = SHA-256(UTF-8(JCS(MetaDocument без revision)))
-```
-
-Это content digest и CAS guard, а не VCS revision graph.
-
-`templateRevision` instance projection равен `revision` соответствующего
-`MetaDocument`.
-
-### 5.2 MetaProjection
-
-`MetaProjection` — составная lazy read-model для Codex, AI и Bulk. Она может
-вложенно раскрывать child templates и child instances, оставляя `$ref` на
-нераскрытых ветвях.
-
-Partial projection сохраняет nested structure и не превращается в плоский
-`matches[path,value]`.
-
-Правила:
-
-- selector определяет раскрываемые branches;
-- раскрытый child содержит template и запрошенные sparse instances;
-- нераскрытый child сохраняет `$ref`, identity и минимальный contract;
-- occurrence port принадлежит конкретному появлению endpoint в Matter graph;
-- crossing edge сохраняется boundary stub на каждой видимой стороне;
-- relative JSON Pointer считается от ближайшего общего предка;
-- `position` присутствует только там, где порядок семантически значим;
-- compact projection не содержит source modules, Git details и executable
-  source по умолчанию.
-
-### 5.3 Sparse instance completeness
-
-Для каждого раскрытого instance:
-
-- `complete: true` означает, что перечислены все materialized rows template;
-- иначе `omitted` точно описывает невыданные branches/fields;
-- materialized shared Field имеет один source row, остальные occurrences
-  ссылаются на него через JSON Pointer alias;
-- `missing` означает отсутствие materialized row;
-- inherited `default` вычисляется из template и не считается записанным value;
-- explicit value — реально materialized row, даже если он равен default.
-
-Полная sparse instance projection имеет вычислимую revision:
-
-```text
-instanceRevision =
-  SHA-256(UTF-8(JCS({
-    templateRevision,
-    boundaryRevision,
-    occurrence,
-    values,
-    aliases
-  })))
-```
-
-Здесь `values` содержит только materialized rows, а `aliases` — canonical
-shared-source pointers. `missing` и inherited defaults выводятся из отсутствия
-row вместе с `templateRevision` и отдельно в hash не дублируются. Partial
-projection переносит `instanceRevision` полной source instance и не вычисляет
-новую revision из обрезанного selector result.
+MetaJSON v1 не содержит revisions, digests или CAS fields. History, patches,
+Mass bytes и live Energy objects остаются отдельными разрешёнными read
+interfaces.
 
 ## 6. Итеративный read/observe contract
 
 Codex должен уметь через объявленные RPC:
 
-- запросить весь `MetaDocument`;
-- запросить nested `MetaProjection` выбранных branches;
-- запросить текущие runtime instance values с Boundary revision;
+- запросить через Monad весь MetaJSON для canonical root Meta;
+- выполнить partial retrieval над тем же document contract без второй schema;
 - запросить operational journal по operation/target/time;
 - запросить particle history отдельно от structural history;
 - запросить разрешённые Mass results без включения Mass bytes в MetaJSON;
 - сравнить projection до/после operation;
 - продолжить работу с новым наблюдением.
 
-Projection RPC и history RPC read-only. Mass read проходит через Monad владельца
+MetaJSON RPC и history RPC read-only. Mass read проходит через Monad владельца
 или объявленный Energy/Mass service; Codex не читает Boundary SQLite, domain
 Store или files другого domain напрямую.
 
@@ -605,7 +543,7 @@ incoming message
 patch slice и не используется как его fixture.
 
 Это ограничение текущего этапа, а не вечный запрет. В будущем Лада может
-получить capability-scoped возможность изменять собственную branch projection.
+получить capability-scoped возможность изменять собственную structural scope.
 Такое право требует отдельной policy, resource limits, validation и
 observability, но не должно заранее исключаться архитектурой.
 
@@ -622,7 +560,7 @@ Scope:
 - atomic write;
 - немедленные execution, round-trip и materialization;
 - append-only operation outcome;
-- reread MetaProjection, runtime instance и history;
+- reread MetaJSON, runtime Atom occurrence и history;
 - retry/reconcile для post-write materialization failure;
 - без Git branch/merge/push, pending/active Store, Force v2, hot reload и
   generic rollback.
@@ -637,7 +575,8 @@ Acceptance:
 6. Разрешённые runtime Particles проходят существующим Force channel.
 7. Journal точно различает validation, write и materialization outcomes.
 8. После post-write failure retry/reconcile не выполняет silent overwrite.
-9. Reread показывает Field declaration и `missing` instance row.
+9. Reread показывает Field declaration и отсутствие этого key в sparse
+   runtime Atom occurrence.
 10. Повтор той же operation дедуплицируется по `operationId`.
 11. Codex может прочитать outcome и продолжить следующий iteration.
 12. Никаких изменений Лады, Cluster topology или runtime lifecycle вне fixture.
@@ -663,8 +602,8 @@ patch vertical slice.
 
 | ID | История |
 | --- | --- |
-| US-01 | Codex читает полную MetaDocument одной Meta |
-| US-02 | Codex читает nested projection только выбранных branches |
+| US-01 | Codex читает один полный MetaJSON declaration/runtime document |
+| US-02 | Codex выполняет partial retrieval над тем же MetaJSON contract |
 | US-03 | Codex сопоставляет projection, particle history и разрешённый Mass result |
 | US-04 | Codex валидирует и применяет разрешённый structural patch |
 | US-05 | Codex наблюдает materialized result и продолжает улучшение |
@@ -685,7 +624,7 @@ patch vertical slice.
 5. Создать независимые peer repositories и мигрировать references/source.
 6. Доказать strict two-segment resolver и cold materialization.
 7. Утвердить MetaJSON v1 read contracts.
-8. Реализовать MetaDocument и nested MetaProjection RPC.
+8. Реализовать один MetaJSON read через stateless Monad assembly Dark + Boundary.
 9. Добавить read-only operation history и Mass-result observation.
 10. Реализовать structural operation schema и fast Monad validation.
 11. Реализовать atomic update adapter и operational journal.
@@ -695,20 +634,28 @@ patch vertical slice.
 15. Интегрировать нематериализованный Create MetaFor template path для create.
 16. Только затем выбирать отложенные Force/VCS/agent capabilities.
 
-## 15. Оставшиеся owner decisions
+## 15. Owner decisions и последующие gates
 
-До соответствующих implementation items нужны только следующие решения:
+`MF-100` owner review завершён. Для MetaJSON v1 закрыты следующие решения:
 
-1. CLI owner input для arbitrary non-Cluster `--dir`.
-2. GitHub remote names и provenance/history policy при физическом split
-   существующего Inference repository.
-3. Форма общего `lada-chat` / `lada-chat-send` Energy/send contract.
-4. `MF-014` выполняется owner-approved clean derived Boundary Store cut с
-   materialization flat graph из сохранённых source/Mass. Legacy
-   SQLite/Mass/history сохраняются как recoverable evidence; при новой
-   деградации выполняется rollback.
-5. Локальная capability identity/policy первого Codex→Monad write endpoint до
-   его открытия за пределы trusted development contour.
+1. существует один полный public JSON document без alternate views/schemas;
+2. stateless Monad собирает его из Dark declaration и Boundary current
+   projections, не владея Store state;
+3. `template` является compact complete normalized MetaDSL, включая Bulk и
+   executable declaration descriptors;
+4. `runtime` содержит только присутствующие current Atom values без provenance
+   и status/missing envelope;
+5. revisions, digests, CAS и raw internal identities в MetaJSON отсутствуют;
+6. directed ports/stubs/global edges отсутствуют;
+7. сохраняется только порядок, доказанный runtime/materialization semantics.
+
+Новых owner decisions для начала `MF-101` нет. Нужны только явный start,
+documentation baseline и обычные implementation/verification gates.
+
+До будущего write slice отдельно потребуется локальная capability
+identity/policy первого Codex→Monad write endpoint за пределами trusted
+development contour. Structural-operation CAS/digests относятся к будущему
+`MF-200` contract, а не к MetaJSON v1.
 
 Force v2, full VCS и права внутренних Runtime Agents остаются будущими
 решениями и не блокируют текущую последовательность.

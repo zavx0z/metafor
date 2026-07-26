@@ -264,52 +264,74 @@
 
 ### MF-100 — Утвердить MetaJSON v1 read contracts
 
-- Status: `IN_PROGRESS`
+- Status: `DONE`
 - Dependencies: `MF-014`
-- Current task: Codex task `019f9b10-44b2-7ab2-9ae8-e831d4f9ccea`
+- Current task: Codex task `019f9c3a-a2ec-7460-bd80-34ec2a630697`
+- Contract baseline:
+  [`task/metajson-v1-read-contract.md`](metajson-v1-read-contract.md)
+- Evidence:
+  - current `MetaDSL → Dark` normalization и declaration flattening audited;
+  - historical `MonadJson → ActorAST → MetaAST` line audited without restoring
+    old AST literally;
+  - Boundary current Atom/topology/origin data и Monad RPC envelope/router
+    audited;
+  - focused order review separated semantic/materialization order from
+    incidental declaration/display order;
+  - owner completed real-time review and locked every public v1 decision;
+  - `docs/ARCHITECTURE.md`, living plan, TODO and contract baseline reconciled;
+  - independent mechanical verification: one public schema, no stale positive
+    shapes, valid local links, balanced fences and `git diff --check` pass;
+  - no implementation/runtime/Lada/Store/Mass change began.
 - Authority:
-  - owner approved architecture/specification preparation only;
-  - no `MF-101` implementation or MetaDSL/Dark/Boundary/RPC/runtime/Lada
-    changes before separate contract approval.
+  - owner approved A0 documentation/contract reconciliation and local
+    checkpoint commit;
+  - code and child implementation work begin only after G1 report.
 - Acceptance:
-  - `MetaDocument` описывает одну Meta;
-  - `MetaProjection` является nested lazy composite;
-  - runtime schema/validators;
-  - occurrence ports и crossing-edge stubs;
-  - sparse completeness/missing/default/explicit value;
-  - Mass bytes, Energy objects, history и patches отсутствуют в snapshot;
-  - compact projection не содержит executable source по умолчанию.
+  - один полный public MetaJSON document и одна schema;
+  - stateless Monad assembly Dark declaration + Boundary current projection;
+  - compact complete normalized MetaDSL template;
+  - nested sparse current Atom values без provenance/status envelope;
+  - public structural paths/references без raw storage identities;
+  - порядок сохраняется только по доказанным domain/materialization laws;
+  - revisions/digests/CAS и directed ports/stubs/global edges отсутствуют;
+  - Mass bytes, live Energy, history и patches отсутствуют в snapshot.
 
-### MF-101 — Реализовать pure MetaDSL → MetaDocument
+### MF-101 — Реализовать единый MetaJSON v1 read
 
-- Status: `WAITING`
+- Status: `READY`
 - Dependencies: `MF-100`
+- Start gate:
+  - текущий A0 заканчивается G1 report; implementation и child work в этой
+    задаче не начинаются;
+  - перед будущими child tasks выполняется Organization Governance permission
+    preflight для полного native ai-srv profile, наследуемого children;
+  - harmless preflight подтверждает canonical cwd, обычные read/write
+    permissions в выделенном worktree, Bun и non-mutating Git access;
+  - child authority запрещает live runtime/process, Store/Mass, Lada, contour
+    lifecycle и push;
+  - если launcher не может дать такой inherited profile без per-command
+    prompts, item получает один platform capability blocker до child launch.
 - Acceptance:
-  - deterministic normalization/JCS digest;
-  - one Meta per document;
-  - round-trip fixtures;
+  - один public document/schema и один runtime validator;
+  - `template` содержит полный сериализуемый normalized MetaDSL graph, включая
+    defaults, Process/Reaction descriptors, Matter bindings и Bulk;
+  - `runtime` содержит nested Atom occurrences, current State и только
+    присутствующие current Field values;
+  - identity/relations выражены structure и public paths/references; raw
+    Atom/Field/Value IDs отсутствуют;
+  - semantic/materialization order сохранён без universal order vector;
+  - Dark предоставляет declaration projection, Boundary — current projection,
+    Monad statelessly собирает и валидирует результат;
   - no authored MetaJSON Store.
-
-### MF-102 — Реализовать nested MetaProjection RPC
-
-- Status: `WAITING`
-- Dependencies: `MF-101`
-- Acceptance:
-  - full и selected-branch reads;
-  - nested child template/instance expansion;
-  - `$ref` для omitted branches;
-  - relative occurrence ports и boundary stubs;
-  - consumer повторно валидирует payload.
 
 ### MF-103 — Добавить read-only operation/history/Mass observation
 
 - Status: `WAITING`
-- Dependencies: `MF-102`
+- Dependencies: `MF-101`
 - Scope:
   - structural operation outcomes;
   - particle history отдельно;
-  - разрешённые Mass results через owner API;
-  - revision vector для сопоставления observations.
+  - разрешённые Mass results через owner API.
 - Acceptance:
   - MetaJSON snapshot не смешивается с history/Mass;
   - direct Store/SQLite/filesystem reads со стороны Codex отсутствуют;
@@ -320,8 +342,8 @@
 - Status: `WAITING`
 - Dependencies: `MF-103`
 - Acceptance:
-  - Codex читает branch projection;
-  - связывает её с history и Mass result;
+  - Codex читает полный MetaJSON либо partial retrieval над тем же contract;
+  - связывает его с history и Mass result;
   - формулирует проверяемое improvement intent;
   - никаких writes на этом item.
 
@@ -401,21 +423,22 @@
 ### MF-206 — Принять optional Field vertical slice
 
 - Status: `WAITING`
-- Dependencies: `MF-102`, `MF-103`, `MF-205`
+- Dependencies: `MF-101`, `MF-103`, `MF-205`
 - Fixture: существующая изолированная Meta, не Лада.
 - Path:
-  - projection read;
+  - MetaJSON read;
   - patch optional scalar Field без default;
   - fast validation;
   - atomic write;
   - immediate materialization;
   - operation/particle history read;
-  - projection reread;
+  - MetaJSON reread;
   - next Codex iteration.
 - Acceptance:
   - invalid/stale/no-op/idempotent cases;
   - Field declaration materialized;
-  - sparse instance показывает `missing`;
+  - sparse runtime Atom не содержит key, для которого current value
+    отсутствует;
   - post-write failure recovery доказан;
   - без VCS workflow, pending/active, Force v2, restart или hot reload.
 
@@ -458,7 +481,7 @@
 - Acceptance:
   - общий operation schema/journal;
   - различаются только template start и target existence precondition;
-  - результат читается тем же MetaProjection RPC.
+  - результат читается тем же MetaJSON RPC.
 
 ## P4 — отложенные расширения
 
@@ -507,7 +530,7 @@
 - Status: `GATE`
 - Dependencies: `MF-405`
 - Scope:
-  - только собственная branch projection;
+  - только собственная structural scope через тот же MetaJSON contract;
   - resource limits;
   - Monad validation;
   - operational observability;
