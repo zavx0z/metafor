@@ -181,7 +181,7 @@
 
 ### MF-014 — Доказать strict resolver и cold materialization
 
-- Status: `IN_PROGRESS`
+- Status: `BLOCKED`
 - Dependencies: `MF-013`
 - Current task: Codex task `019f9b10-44b2-7ab2-9ae8-e831d4f9ccea`
 - Authority:
@@ -208,10 +208,27 @@
     endpoints и содержит исходные 6 WIMP/6 Atom и прежние states;
   - source repositories остались clean, cleanup, push и hot reload не
     выполнялись.
+  - owner-approved clean retry сначала materialize 177 canonical Dark
+    declarations офлайн, до рождения Matrix/Energy Processes;
+  - semantic root Mass declarations были сопоставлены с пятью сохранёнными
+    global key identities; все 18 memberships сохранили source relations, а
+    четыре существующих Mass files снова стали доступны flat graph;
+  - cold retry materialize ровно 6 flat WIMP/6 Atom, 5 Matter WIMP edges,
+    18 Mass declarations/memberships и 13 Mass source relations; legacy WIMP
+    в candidate отсутствовали;
+  - Auth успешно восстановилась из сохранённой session; HTTP rooms/history
+    phase прошла, после чего внешний Realtime WebSocket завершился ошибкой при
+    открытии и Chat перешёл в `ошибка подключения`;
+  - повторные сетевые attempts остановлены; flat failure snapshot сохранён,
+    затем verified legacy SQLite/Dark history/Mass восстановлены;
+  - итоговый rollback contour снова отвечает `200` на всех health endpoints и
+    находится в прежних состояниях `auth=авторизована`,
+    `chat=ожидание события`, `lada=работа`.
 - Blocker:
-  - resolved by owner: clean only derived Boundary materialization and rebuild
-    it from canonical flat source while retaining recoverable legacy
-    SQLite/Mass/history evidence; rollback on any new degradation.
+  - topology, Matter, Mass и Auth доказаны; остаётся внешний Chat Realtime
+    WebSocket open failure. Нужна доступность/диагностика внешнего endpoint
+    перед повтором chat acceptance; автоматические reconnect attempts сейчас
+    не оставлены активными.
 - Acceptance:
   - two-segment resolver positive/negative tests;
   - third segment rejected before filesystem read;

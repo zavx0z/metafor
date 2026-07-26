@@ -10,7 +10,10 @@ derived Store с новыми identities: cold load сохраняет legacy WI
 рядом с flat declarations, после чего Mass binding Auth не материализуется.
 Pre-cut Store/Mass/history были восстановлены, прежний contour снова рождён и
 healthy. Owner разрешил повторный `MF-014` cut через чистую derived Boundary
-materialization с сохранённой recoverable legacy копией.
+materialization с сохранённой recoverable legacy копией. Повторный cut доказал
+ровно шесть flat identities, Matter/Mass relationships и восстановление Auth,
+но внешний Realtime WebSocket чата не открылся; candidate снова откачен к
+verified legacy contour.
 
 Этот файл — изменяемая рабочая карта. Он не заменяет документы-владельцы из
 `docs/README.md`. Новый действующий закон сначала переносится в соответствующий
@@ -283,6 +286,15 @@ Acceptance cold materialization:
 SQLite, Dark history и Mass восстановлены побайтно. Следующая попытка требует
 owner decision из раздела 15 о clean derived-store cut либо явной migration
 старых identities.
+
+Owner-approved clean retry построил Boundary офлайн из canonical Dark stream,
+сопоставил новые semantic Mass declarations с сохранёнными global Mass key
+identities и затем выполнил единый cold birth. Результат содержал ровно шесть
+flat WIMP/Atom, пять Matter edges, 18 Mass memberships и 13 source relations.
+Auth восстановилась из сохранённой SSO session; HTTP-чтение комнат/истории
+дошло до Realtime phase. Внешний WebSocket завершился ошибкой при открытии,
+поэтому chat behavior acceptance не пройден. Failure snapshot сохранён, а
+verified legacy SQLite/Mass/history и healthy contour восстановлены.
 
 ## 5. MetaJSON и nested projections
 
