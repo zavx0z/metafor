@@ -8,8 +8,10 @@ flat peer repositories. `MF-014` принят owner: единственный в
 flat contour materialize ровно шесть Meta, сохранил Matter/Mass relationships,
 восстановил Auth и открыл свежий Chat Realtime connection. Live contour
 остаётся без изменений. Owner завершил `MF-100` review и утвердил один полный
-MetaJSON v1 read-contract. Documentation baseline согласуется перед переводом
-`MF-101` в implementation; live contour остаётся неприкасаемым.
+MetaJSON v1 read-contract. `MF-101` implementation gate завершён и независимо
+принят: public contract, Dark/Boundary projections и stateless Monad assembly
+зафиксированы тремя локальными commits. Следующий item — строго read-only
+`MF-103`; live contour остаётся неприкасаемым.
 
 Этот файл — изменяемая рабочая карта. Он не заменяет документы-владельцы из
 `docs/README.md`. Новый действующий закон сначала переносится в соответствующий
@@ -636,7 +638,8 @@ patch vertical slice.
 
 ## 15. Owner decisions и последующие gates
 
-`MF-100` owner review завершён. Для MetaJSON v1 закрыты следующие решения:
+`MF-100` owner review и `MF-101` implementation gate завершены. Для MetaJSON
+v1 закрыты и реализованы следующие решения:
 
 1. существует один полный public JSON document без alternate views/schemas;
 2. stateless Monad собирает его из Dark declaration и Boundary current
@@ -649,8 +652,9 @@ patch vertical slice.
 6. directed ports/stubs/global edges отсутствуют;
 7. сохраняется только порядок, доказанный runtime/materialization semantics.
 
-Новых owner decisions для начала `MF-101` нет. Нужны только явный start,
-documentation baseline и обычные implementation/verification gates.
+Новых owner decisions для read-only `MF-103` нет, пока observation APIs
+остаются отдельными от MetaJSON snapshot, читают данные только через владельцев
+доменов и не изменяют live contour либо domain Stores.
 
 До будущего write slice отдельно потребуется локальная capability
 identity/policy первого Codex→Monad write endpoint за пределами trusted

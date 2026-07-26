@@ -298,19 +298,27 @@
 
 ### MF-101 — Реализовать единый MetaJSON v1 read
 
-- Status: `READY`
+- Status: `DONE`
 - Dependencies: `MF-100`
-- Start gate:
-  - текущий A0 заканчивается G1 report; implementation и child work в этой
-    задаче не начинаются;
-  - перед будущими child tasks выполняется Organization Governance permission
-    preflight для полного native ai-srv profile, наследуемого children;
-  - harmless preflight подтверждает canonical cwd, обычные read/write
-    permissions в выделенном worktree, Bun и non-mutating Git access;
-  - child authority запрещает live runtime/process, Store/Mass, Lada, contour
-    lifecycle и push;
-  - если launcher не может дать такой inherited profile без per-command
-    prompts, item получает один platform capability blocker до child launch.
+- Current task: Codex task `019f9c3a-a2ec-7460-bd80-34ec2a630697`
+- Evidence:
+  - public MetaJSON v1 document/types/closed validator:
+    commit `b8e061e3 feat(metajson): define public v1 contract`;
+  - Dark complete declaration projection и Boundary coherent current
+    projection: commit
+    `f9779aba feat(metajson): add Dark and Boundary projections`;
+  - stateless Monad assembly, provider isolation и final public validation:
+    commit `9a0a8739 feat(metajson): assemble reads through Monad`;
+  - независимые verifier gates приняли Public, Dark, Boundary temporal
+    coherence и Monad assembly после adversarial corrections;
+  - final targeted integration:
+    `bun test monad/meta-json.spec.ts dark/meta-json.spec.ts
+    boundary/meta-json.spec.ts tests/metajson/public.spec.ts` —
+    70 pass, 0 fail, 282 expect;
+  - `bun run typecheck`: pass;
+  - `git diff --check`: pass;
+  - push, live runtime/process, Store/Mass, Lada, contour lifecycle и hot
+    reload не выполнялись.
 - Acceptance:
   - один public document/schema и один runtime validator;
   - `template` содержит полный сериализуемый normalized MetaDSL graph, включая
@@ -326,7 +334,7 @@
 
 ### MF-103 — Добавить read-only operation/history/Mass observation
 
-- Status: `WAITING`
+- Status: `READY`
 - Dependencies: `MF-101`
 - Scope:
   - structural operation outcomes;
