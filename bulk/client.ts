@@ -5,7 +5,6 @@ import { createBulkViewport } from "bulk/web"
 import { DEFAULT_BULK_SCENE_SRC, DEFAULT_BULK_SETTINGS } from "bulk/settings"
 import { installBulkHud } from "./hud.ts"
 import { BulkProjectionStore } from "./projection.ts"
-import {buildBulkNodeView} from "./node-view.ts"
 import { observedRootSrc } from "./web/force-protocol.ts"
 import { buildBulkManifestation } from "./manifestation.ts"
 
@@ -71,7 +70,6 @@ const receiveImpulse = (forceMessage: Parameters<Force["onImpulse"]>[0]): void =
 	const nextRootSrc = observedRootSrc(part, rootSrcs)
 	if (nextRootSrc !== null) activeSrc = nextRootSrc
 	if (change.changed) applyProjectionManifestation(activeSrc)
-	if (change.changed) bulkHud?.setNodeView(buildBulkNodeView(projection.view()))
 	bulkViewport?.handleForce(part.part, part)
 }
 
@@ -85,7 +83,6 @@ const start = async (): Promise<void> => {
 	await initBulkViewport()
 	const initial = await readInitialPackage()
 	projection.hydrate(initial.projection)
-	bulkHud?.setNodeView(buildBulkNodeView(projection.view()))
 	activeSrc = initial.rootSrc
 	bulkViewport?.applyManifestPatch(initial.manifest)
 

@@ -5,6 +5,9 @@ import {drawHudNodeViewPlan, HudSideTab, planHudNodeView, type HudNodeViewDocume
 const HUD_DOCK_Z = 90
 const APP_FULLSCREEN_FALLBACK_CLASS = "metafor-app-fullscreen-fallback"
 const NODE_VIEW_ACTIVE_CLASS = "metafor-node-view-active"
+// Keep the node renderer as an isolated local prototype. It must not receive
+// the live Bulk projection or allocate HUD surfaces until explicitly enabled.
+const NODE_VIEW_CONNECTED = false
 
 let appFullscreenFallbackActive = false
 
@@ -29,17 +32,21 @@ class BulkHud implements BulkHudController {
 			(bounds) => this.#fullscreenDockRect(bounds),
 			{zIndex: HUD_DOCK_Z},
 		)
-		this.#viewport.hud.addSurface(this.#nodeViewDock, () => ({x: 0, y: 116, w: 106, h: 34}), {zIndex: HUD_DOCK_Z})
-		this.#viewport.hud.addSurface(this.#nodeView, (bounds) => this.#nodeViewRect(bounds), {zIndex: HUD_DOCK_Z + 1})
+		if (NODE_VIEW_CONNECTED) {
+			this.#viewport.hud.addSurface(this.#nodeViewDock, () => ({x: 0, y: 116, w: 106, h: 34}), {zIndex: HUD_DOCK_Z})
+			this.#viewport.hud.addSurface(this.#nodeView, (bounds) => this.#nodeViewRect(bounds), {zIndex: HUD_DOCK_Z + 1})
+		}
 		document.addEventListener("fullscreenchange", () => this.#handleFullscreenChange())
 		document.addEventListener("webkitfullscreenchange", () => this.#handleFullscreenChange())
 	}
 
 	setNodeView(document: HudNodeViewDocument): void {
+		if (!NODE_VIEW_CONNECTED) return
 		this.#nodeView.setDocument(document)
 	}
 
 	toggleNodeView(): void {
+		if (!NODE_VIEW_CONNECTED) return
 		this.#nodeView.toggle()
 		this.#nodeViewDock.requestRender()
 		this.#viewport.hud.relayout()
