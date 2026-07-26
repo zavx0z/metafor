@@ -1,4 +1,5 @@
 import {resolve} from "node:path"
+import "../metafor.ts"
 import {captureOfflineCheckpoint} from "../dark/checkpoint/capture.ts"
 
 const required = [
