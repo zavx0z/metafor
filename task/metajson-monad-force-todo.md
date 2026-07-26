@@ -336,7 +336,7 @@
 
 ### MF-102 — Перенести standalone Force runtime в Dark
 
-- Status: `GATE`
+- Status: `DONE`
 - Dependencies: `MF-101`
 - Current task: Codex coordinator task
   `019f9ea9-8bbc-7f60-9b7a-5f12b40a32d4`; один canonical checkout и один
@@ -360,8 +360,7 @@
   - архитектура не переоткрывается;
   - owner принял parity/source migration и public ingress compatibility на
     `4000`;
-  - source migration gate завершён; следующий gate — отдельная owner authority
-    на backup, полный stop, cold start, acceptance и rollback live contour;
+  - owner разрешил backup, controlled full cold cut, acceptance и rollback;
   - legacy Dark JSONL не объявляется ретроактивно полной: после verified
     pre-cut backup/hash он удаляется из active contour, не пересоздаётся и не
     exposes read/clear continuity;
@@ -403,6 +402,34 @@
     1600 tests pass, 0 fail, 5281 expect;
   - `git diff --check`: pass; проверки использовали только ephemeral listeners
     и temporary data, live contour/Store/Mass/legacy history не изменялись.
+- Cold-cut evidence:
+  - source migration зафиксирована commit
+    `ba08361a492bb7687aa908a1f3da107f0741b331`, legacy history surface удалён
+    follow-up commit `873dc9a3a65045470107aedf5db3f78ed2d104f7`;
+  - перед cut старый contour и listeners `4000..4005` отсутствовали, поэтому
+    останавливать live six-process contour не потребовалось;
+  - verified backup
+    `.metafor/backups/mf102-dark-force-cut-20260726T150016Z` содержит
+    byte-identical SQLite с WAL/SHM, четыре Mass files и legacy
+    `dark-history.jsonl`; legacy hash
+    `f8e7173ac849119950c85a38b5e543be8a07a2f1983942f6746a757c13ff1f29`;
+  - legacy JSONL удалён только из active contour после backup/hash/cmp proof и
+    не был пересоздан;
+  - новый immutable manifest получил cut
+    `mf102-20260726T150016Z-53b4bd78-0930-4ccf-b83e-c147f3cea66a`,
+    `retroactiveComplete:false` и `legacyHistory:"removed-after-backup"`;
+  - canonical launcher родил ровно пять domain processes, Matrix последней;
+    standalone `force/server.ts` process отсутствует, health `4000..4005`
+    отвечает `200`, а `4002` является same-process Dark compatibility health;
+  - acceptance probe принят с sequence `1`, durably записан до routing в
+    segment `00000000000000000001.ndjson` с SHA-256
+    `76007c85cb297c879b9517fd028da5949434caf1fa24a9dd15668ea42484345d`
+    и доставлен Dark, Boundary, Matrix, Energy и Bulk;
+  - live `readMetaJSON` для `zavx0z/inference` вернул schema
+    `metafor/meta-json/v1`, шесть template entries и один runtime root;
+  - SQLite `PRAGMA quick_check` вернул `ok`; SQLite/WAL/SHM и четыре Mass files
+    остались byte-identical pre-cut backup;
+  - candidate остаётся запущенным; hot reload, rollback и push не выполнялись.
 - Required order:
   1. `DONE` — зафиксировать parity baseline endpoints, routing, lifecycle, history,
      birth gate, fail-stop и tests.
@@ -417,8 +444,8 @@
      semantics удалённых domains.
   6. `DONE` — переключить launcher на пять domain processes.
   7. `DONE` — удалить standalone Force package/entry после source parity.
-  8. `GATE` — выполнить owner-approved backup/full stop/cold start/acceptance
-     либо rollback; hot reload запрещён.
+  8. `DONE` — owner-approved backup/full stop/cold start/acceptance выполнены;
+     rollback не потребовался, hot reload не применялся.
 - Acceptance:
   - каждая принятая Particle, включая Gluon/Higgs и Inflaton, проходит один
     Dark Force ingress и сохраняется в complete filesystem history;
@@ -433,9 +460,9 @@
 
 ### MF-103 — Добавить read-only operation/history/Mass observation
 
-- Status: `WAITING`
+- Status: `READY`
 - Dependencies: `MF-102`
-- Current task: нет; source start удерживается до завершения `MF-102`
+- Current task: нет
 - Execution DAG:
   - `H1` — `DONE`: read-only evidence существующего Dark particle-history
     surface; единственный существующий Dark Technical Lead session
@@ -446,9 +473,9 @@
   - `G1` — `SUPERSEDED`: вывод commit `04580a91` о Dark-surface-only history и
     переносе structural observation целиком в `MF-203` отозван после
     восстановления upstream owner law;
-  - `I1` — `WAITING`: complete Dark Force Particle-history/Mass observation
-    contract и stateless Dark Monad integration только после `MF-102`, с
-    отдельным independent verifier gate.
+  - `I1` — `READY`: complete Dark Force Particle-history/Mass observation
+    contract и stateless Dark Monad integration, с отдельным independent
+    verifier gate.
 - Read-only evidence:
   - `H1` принят на clean `dac81d10`: существующий pre-migration
     `dark.history.read` наблюдает только incoming/outgoing Particles на Dark

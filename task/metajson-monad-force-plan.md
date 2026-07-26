@@ -10,13 +10,11 @@ flat contour materialize ровно шесть Meta, сохранил Matter/Mas
 остаётся без изменений. Owner завершил `MF-100` review и утвердил один полный
 MetaJSON v1 read-contract. `MF-101` implementation gate завершён и независимо
 принят: public contract, Dark/Boundary projections и stateless Monad assembly
-зафиксированы тремя локальными commits. Следующий обязательный item — `MF-102`:
-behavior-preserving перенос standalone Force runtime в Dark до продолжения
-read-only `MF-103`. Live contour остаётся неприкасаемым до отдельного
-`MF-102` cold-cut start. Owner отдельно разрешил `MF-102` parity/source
-migration в canonical checkout. Source migration и isolated five-process proof
-завершены; live contour, Store/Mass/history и процессы остаются
-неприкосновенными до последующего cold-cut gate.
+зафиксированы тремя локальными commits. `MF-102` также завершён: standalone
+Force runtime перенесён в Dark, legacy history surface удалён, а
+owner-approved full cold cut принял новый five-process contour и complete
+post-cut Dark Force Particle history. Следующий обязательный item — read-only
+`MF-103`; принятый contour остаётся запущенным без hot reload.
 
 Этот файл — изменяемая рабочая карта. Он не заменяет документы-владельцы из
 `docs/README.md`. Новый действующий закон сначала переносится в соответствующий
@@ -707,10 +705,10 @@ v1 закрыты и реализованы следующие решения:
 6. directed ports/stubs/global edges отсутствуют;
 7. сохраняется только порядок, доказанный runtime/materialization semantics.
 
-Owner-approved upstream law восстановлен как обязательный `MF-102`: Dark
-содержит peer layers Monad и Force; весь standalone Force runtime/domain
-переносится в Dark, а отдельный Force process/package прекращает существовать.
-До завершения migration `MF-103` не реализуется.
+Owner-approved upstream law реализован в `MF-102`: Dark содержит peer layers
+Monad и Force; весь standalone Force runtime/domain перенесён в Dark, а
+отдельный Force process/package прекратил существовать. После принятого cold
+cut `MF-103` разблокирован как следующий read-only item.
 
 Предыдущий вывод commit `04580a91`, ограничивший `MF-103` Dark-surface history
 и отложивший structural observation целиком в `MF-203`, superseded. H1/M1
