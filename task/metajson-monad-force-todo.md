@@ -596,8 +596,8 @@
 
 ### MF-107 — Реализовать coherent Boundary+Mass capture
 
-- Status: `IN_PROGRESS`
-- Current executor: canonical MF-107 owner-authorized source/cold-cut task.
+- Status: `DONE`
+- Current executor: closed by the owner-authorized AI-server cold cut.
 - Dependencies: `MF-105`
 - Isolated foundation: `DONE`
 - Evidence:
@@ -621,21 +621,16 @@
     typecheck проходит, 42 expected type errors подтверждены,
     `git diff --check` проходит;
   - canonical Particle, Force wire/history row и routing semantics не
-    изменены; live contour/Boundary/Mass до cold gate не затрагивались.
-- Gate:
-  - отдельная owner authority на live receipt/source integration и один полный
-    controlled Lada cold cut в существующем contour;
-  - до cold cut доказать, что applied acknowledgement не может обогнать Dark
-    Force acceptance причинно испущенного Particle;
-  - определить cold-start persistence/reconstruction receipt state и первый
-    non-zero applied-through baseline; sequence 0 не считается доказательством;
-  - encryption/device keys, production blob budgets и точное правило material
-    Mass trigger должны быть закрыты до real Mass publication;
-  - operational sequence: verified backup/hash → stop whole contour →
-    coherent local snapshot commit → cold start Lada в том же live contour →
-    health/functional verification → exact rollback при failure;
-  - clone, parallel replacement contour, hot/partial restart и remote push
-    запрещены.
+    изменены;
+  - owner-authorized AI-server cut: active Boundary, Force history и четыре
+    Mass files сохранены в `.metafor/backups/mf107-retry-20260726T233344Z`;
+    stopped capture опубликовал local checkpoint commit `757700c6714e0da8d3ac98f3b43b2caecbd22d72` для
+    `(mf102-20260726T150016Z-53b4bd78-0930-4ccf-b83e-c147f3cea66a, 1)` и
+    создал durable control baseline;
+  - full cold start на `2fc9de0a` прошёл: Dark, Boundary, Matrix (GPU), Energy
+    и Bulk healthy; Bulk projection подтверждает `zavx0z/inference`, 6 Atom,
+    54 Fields, 24 States и 13 Processes;
+  - remote push, Node View и пользовательские auth/chat действия не выполнялись.
 - Acceptance:
   - Dark Force фиксирует `S` и доказывает applied-through causal fence;
   - Boundary создаёт полный standalone checkpoint в своём serialized cut;
