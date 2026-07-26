@@ -1,5 +1,5 @@
 import {afterEach, describe, expect, test} from "bun:test"
-import {mkdtempSync, rmSync} from "node:fs"
+import {existsSync, mkdtempSync, rmSync} from "node:fs"
 import {tmpdir} from "node:os"
 import {join} from "node:path"
 
@@ -20,7 +20,6 @@ describe("Universe launcher", () => {
       env: {
         ...process.env,
         BOUNDARY_PATH: join(directory, "boundary.sqlite"),
-        DARK_HISTORY_PATH: join(directory, "dark-history.jsonl"),
         DARK_FORCE_HISTORY_PATH: join(directory, "dark-force-history", "v1"),
         DARK_FORCE_HISTORY_CUT_ID: "universe-spec-cut",
         FORCE_RECONNECT: "0",
@@ -49,5 +48,6 @@ describe("Universe launcher", () => {
     expect(output).toContain(`\"dark\":${basePort}`)
     expect(output).toContain(`\"darkCompatibility\":${basePort + 2}`)
     expect(output).toContain("\"backend\":\"cpu\"")
+    expect(existsSync(join(directory, "dark-history.jsonl"))).toBe(false)
   }, 50_000)
 })

@@ -35,7 +35,7 @@ export type DarkForceHistoryManifest = {
   cutId: string
   startedAt: string
   retroactiveComplete: false
-  legacyHistory: "preserved"
+  legacyHistory: "removed-after-backup"
   segmentCapacity: number
 }
 
@@ -208,7 +208,7 @@ const parseManifest = (value: unknown, filename: string): DarkForceHistoryManife
     !/^[A-Za-z0-9._-]+$/.test(value.cutId) ||
     !isCanonicalTime(value.startedAt) ||
     value.retroactiveComplete !== false ||
-    value.legacyHistory !== "preserved" ||
+    value.legacyHistory !== "removed-after-backup" ||
     !isSafeSequence(value.segmentCapacity)
   ) throw new Error(`Dark Force history manifest is invalid: ${filename}`)
   return value as DarkForceHistoryManifest
@@ -379,7 +379,7 @@ export class DarkForceHistory {
         cutId,
         startedAt,
         retroactiveComplete: false,
-        legacyHistory: "preserved",
+        legacyHistory: "removed-after-backup",
         segmentCapacity,
       } satisfies DarkForceHistoryManifest, true)
     }

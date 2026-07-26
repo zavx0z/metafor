@@ -362,7 +362,9 @@
     `4000`;
   - source migration gate завершён; следующий gate — отдельная owner authority
     на backup, полный stop, cold start, acceptance и rollback live contour;
-  - legacy Dark JSONL не объявляется ретроактивно полной и не переписывается;
+  - legacy Dark JSONL не объявляется ретроактивно полной: после verified
+    pre-cut backup/hash он удаляется из active contour, не пересоздаётся и не
+    exposes read/clear continuity;
   - новая history boundary утверждена: portable каталог
     `.metafor/dark-force-history/v1/`, отдельный immutable manifest/cut,
     Particle-only bounded NDJSON segments и rebuildable navigation catalog;
@@ -395,9 +397,10 @@
   - все восемь Part kinds, включая Gluon/Higgs и Inflaton, проходят один
     lifecycle acceptance point; ошибка history append закрывает gate без
     доставки;
-  - targeted migration proof: 60 pass, 0 fail, 314 expect;
+  - targeted migration proof after legacy-surface removal:
+    61 pass, 0 fail, 314 expect;
   - полный `bun run check`: typecheck и expect-error verification pass,
-    1599 tests pass, 0 fail, 5281 expect;
+    1600 tests pass, 0 fail, 5281 expect;
   - `git diff --check`: pass; проверки использовали только ephemeral listeners
     и temporary data, live contour/Store/Mass/legacy history не изменялись.
 - Required order:

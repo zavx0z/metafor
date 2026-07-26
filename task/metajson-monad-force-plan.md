@@ -133,6 +133,8 @@ post-cut identity, а Particle truth хранится только в bounded ND
 Производный `catalog.json` ускоряет навигацию по segment/sequence/time, но
 полностью rebuildable и не участвует в acceptance. Durable append завершается
 до routing; snapshots, Mass, Store и иные events в эту history не входят.
+Legacy `.metafor/dark-history.jsonl` после verified pre-cut backup удаляется из
+active contour; Dark Monad больше не предоставляет его read/clear surface.
 
 History, operation outcomes, Mass results и JSON Patch передаются отдельными
 форматами/API. Чтение этих данных не даёт права напрямую писать их Stores.

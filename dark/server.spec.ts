@@ -1,5 +1,5 @@
 import {afterAll, beforeAll, describe, expect, test} from "bun:test"
-import {mkdtempSync, rmSync} from "node:fs"
+import {existsSync, mkdtempSync, rmSync} from "node:fs"
 import {tmpdir} from "node:os"
 import {join} from "node:path"
 import type {ForceMessage} from "shared/protocol/force/message"
@@ -14,7 +14,6 @@ type ConnectedClient = {
 
 let previousPort: string | undefined
 let previousCompatPort: string | undefined
-let previousLegacyHistory: string | undefined
 let previousForceHistory: string | undefined
 let previousCutId: string | undefined
 let server: Bun.Server<unknown>
@@ -123,12 +122,10 @@ beforeAll(async () => {
   })
   previousPort = Bun.env.PORT
   previousCompatPort = Bun.env.DARK_COMPAT_PORT
-  previousLegacyHistory = Bun.env.DARK_HISTORY_PATH
   previousForceHistory = Bun.env.DARK_FORCE_HISTORY_PATH
   previousCutId = Bun.env.DARK_FORCE_HISTORY_CUT_ID
   Bun.env.PORT = "0"
   Bun.env.DARK_COMPAT_PORT = "0"
-  Bun.env.DARK_HISTORY_PATH = join(directory, "legacy.jsonl")
   Bun.env.DARK_FORCE_HISTORY_PATH = join(directory, "force-history", "v1")
   Bun.env.DARK_FORCE_HISTORY_CUT_ID = "server-spec-cut"
   const module = await import(`./server.ts?test=${crypto.randomUUID()}`)
@@ -145,8 +142,6 @@ afterAll(async () => {
   else Bun.env.PORT = previousPort
   if (previousCompatPort === undefined) delete Bun.env.DARK_COMPAT_PORT
   else Bun.env.DARK_COMPAT_PORT = previousCompatPort
-  if (previousLegacyHistory === undefined) delete Bun.env.DARK_HISTORY_PATH
-  else Bun.env.DARK_HISTORY_PATH = previousLegacyHistory
   if (previousForceHistory === undefined) delete Bun.env.DARK_FORCE_HISTORY_PATH
   else Bun.env.DARK_FORCE_HISTORY_PATH = previousForceHistory
   if (previousCutId === undefined) delete Bun.env.DARK_FORCE_HISTORY_CUT_ID
@@ -155,6 +150,10 @@ afterAll(async () => {
 })
 
 describe("Force server transport and relay", () => {
+  test("does not create or expose the retired legacy Dark history", () => {
+    expect(existsSync(join(directory, "dark-history.jsonl"))).toBe(false)
+  })
+
   test("binds Monad identity to one duplex REST channel and removes it on close", async () => {
     const boundaryChannel = await openMonadChannel(
       "boundary",

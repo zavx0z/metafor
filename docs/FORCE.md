@@ -54,10 +54,12 @@ Particles. Particle не считается принятой Dark Force, есл�
 Первый unified contour открывает новый portable versioned каталог
 `.metafor/dark-force-history/v1/`. `manifest.json` содержит только immutable
 cut metadata: `cutId`, время начала, `retroactiveComplete: false`, отметку о
-сохранённой legacy history и размер сегмента. Запуск, создающий каталог, обязан
+удалённой после verified pre-cut backup legacy history и размер сегмента.
+Запуск, создающий каталог, обязан
 получить `DARK_FORCE_HISTORY_CUT_ID`. Существующий
-`.metafor/dark-history.jsonl` сохраняется побайтно как legacy surface evidence
-и не объявляется полной историей задним числом.
+`.metafor/dark-history.jsonl` хешируется и сохраняется только во внешнем
+pre-cut backup, затем удаляется из active contour. Dark больше не создаёт этот
+файл и не exposes legacy `dark.history.read/clear`.
 
 Истиной history являются только файлы
 `segments/<first-sequence-20-digits>.ndjson`. Каждая строка содержит ровно одну
@@ -78,7 +80,7 @@ Append NDJSON и filesystem sync завершаются до routing. Тольк
 append Particle считается принятой. Ошибка append закрывает causal gate и не
 допускает доставку этой Particle. Повреждённый, разорванный или имеющий gap
 segment приводит к fail-stop без auto-truncate, cleanup или переписывания
-legacy history. Формат использует только UTF-8 JSON/NDJSON и обычные filesystem
+Particle history. Формат использует только UTF-8 JSON/NDJSON и обычные filesystem
 операции; он не зависит от Bun storage API.
 
 Dark Monad может предоставлять read/query service над этой history, но не

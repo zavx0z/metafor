@@ -15,22 +15,17 @@ import {ForceLifecycle} from "./force/lifecycle.ts"
 import {LocalDarkForce} from "./force/local.ts"
 import type {ForceStore} from "./force/store.ts"
 import {createForceWebSocketChannels, type ForceSocketData} from "./force/websocket.ts"
-import {DarkHistory} from "./history.ts"
 import {DarkMonad} from "./monad.ts"
 import {createLocalMonadChannelPair} from "./monad/local.ts"
 import {MonadRouter} from "./monad/router.ts"
 
 const repositoryState = resolve(import.meta.dir, "..", ".metafor")
-const legacyHistoryPath = resolve(
-  Bun.env.DARK_HISTORY_PATH?.trim() || join(repositoryState, "dark-history.jsonl"),
-)
 const forceHistoryPath = resolve(
   Bun.env.DARK_FORCE_HISTORY_PATH?.trim() || join(repositoryState, "dark-force-history", "v1"),
 )
 const forceHistoryCutId = Bun.env.DARK_FORCE_HISTORY_CUT_ID?.trim() || undefined
 const forceHistoryStartedAt = Bun.env.DARK_FORCE_HISTORY_STARTED_AT?.trim() || undefined
 
-const legacyHistory = new DarkHistory(legacyHistoryPath)
 export const forceHistory = new DarkForceHistory(
   forceHistoryPath,
   forceHistoryCutId === undefined
@@ -54,7 +49,7 @@ const channels = Object.assign(
 )
 lifecycle.start(channels)
 
-const monad = new DarkMonad(legacyHistory)
+const monad = new DarkMonad()
 let rpc!: MonadRpcPeer
 const localMonad = createLocalMonadChannelPair("dark", () => rpc.methods())
 rpc = new MonadRpcPeer(localMonad.peer)
@@ -218,5 +213,5 @@ process.once("SIGTERM", stop)
 
 console.log(
   `[dark] listening on ${server.url} compatibility=${compatibilityServer?.url ?? "disabled"} ` +
-  `forceHistory=${forceHistoryPath} legacyHistory=${legacyHistoryPath}`,
+  `forceHistory=${forceHistoryPath}`,
 )

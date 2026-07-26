@@ -1,9 +1,4 @@
-import {
-  DARK_HISTORY_CLEAR_METHOD,
-  DARK_HISTORY_READ_METHOD,
-} from "@metafor/types/dark/history"
 import type {MonadRpcPeer} from "shared/transport/monad"
-import type {DarkHistory} from "./history.ts"
 import {
   DARK_DECLARATION_PROJECTION_METHOD,
   readDarkDeclarationProjection,
@@ -22,7 +17,6 @@ export class DarkMonad {
   readonly #metaJSON = new MetaJSONMonad()
 
   constructor(
-    private readonly history: DarkHistory,
     private readonly readDeclarationProjection: DeclarationProjectionReader = readDarkDeclarationProjection,
   ) {}
 
@@ -33,8 +27,6 @@ export class DarkMonad {
       DARK_DECLARATION_PROJECTION_METHOD,
       async (params) => await this.readDeclarationProjection(params),
     )
-    peer.expose(DARK_HISTORY_READ_METHOD, async (params) => this.history.read(params))
-    peer.expose(DARK_HISTORY_CLEAR_METHOD, async (params) => this.history.clear(params))
     this.#metaJSON.onServerStarted(peer)
   }
 
@@ -57,18 +49,12 @@ export class DarkMonad {
     ok: boolean
     domain: "dark"
     rpc: DarkMonadState
-    history: {path: string; latestTs: number | null; completeness: "legacy-surface"}
     error: string | null
   } {
     return {
       ok: this.#state !== "error" && this.#state !== "stopped",
       domain: "dark",
       rpc: this.#state,
-      history: {
-        path: this.history.filename,
-        latestTs: this.history.latestTs,
-        completeness: "legacy-surface",
-      },
       error: this.#error,
     }
   }

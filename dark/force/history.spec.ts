@@ -67,7 +67,7 @@ describe("Dark Force complete Particle history", () => {
       cutId: "mf102-test-cut",
       startedAt: "2026-07-26T12:00:00.000Z",
       retroactiveComplete: false,
-      legacyHistory: "preserved",
+      legacyHistory: "removed-after-backup",
       segmentCapacity: 4096,
     })
     const files = readdirSync(join(directory, "segments"))
