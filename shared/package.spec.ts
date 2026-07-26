@@ -3,10 +3,13 @@ import {describe, expect, test} from "bun:test"
 describe("shared package public API", () => {
   test("resolves server Force and Monad transports through public subpaths", async () => {
     const force = await import("shared/transport/force")
+    const checkpoint = await import("shared/transport/force/checkpoint")
     const monad = await import("shared/transport/monad")
 
     expect(Object.keys(force)).toEqual(["Force"])
     expect(force.Force).toBeFunction()
+    expect(checkpoint.FORCE_CHECKPOINT_SESSION_METHOD).toBe("force.checkpoint.session.open")
+    expect(checkpoint.ForceCheckpointDomainSideband).toBeFunction()
     expect(Object.keys(monad).sort()).toEqual([
       "MonadRpcPeer",
       "MonadRpcRemoteError",

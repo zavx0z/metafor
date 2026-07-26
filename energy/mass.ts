@@ -54,7 +54,11 @@ export class EnergyMassGate {
 
 /** Flat worktree-local file catalog. No caller-provided filesystem path exists. */
 export class EnergyMassCatalog {
-  readonly root = resolve(import.meta.dir, "..", "mass")
+  readonly root: string
+
+  constructor(root = process.env.METAFOR_MASS_PATH?.trim() || resolve(import.meta.dir, "..", "mass")) {
+    this.root = resolve(root)
+  }
 
   private path(keyId: string, format: MassFileFormat): string {
     if (!keyPattern.test(keyId)) throw new Error("Energy Mass key is not a Boundary-issued key ID")

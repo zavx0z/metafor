@@ -25,6 +25,18 @@ export interface CheckpointBarrierFrontier {
   domains: CheckpointDomainFrontier[]
 }
 
+export interface CheckpointBarrierStateV1 {
+  schema: "metafor/checkpoint-barrier-state/v1"
+  cutId: string
+  acceptanceSequence: number
+  domains: Array<{
+    domain: ForceDomain
+    receipts: CheckpointDeliveryReceipt[]
+    appliedOrdinal: number
+    appliedAcceptanceSequence: number
+  }>
+}
+
 export type CheckpointBarrierErrorCode =
   | "invalid_cut_id"
   | "invalid_acceptance_sequence"
@@ -37,6 +49,7 @@ export type CheckpointBarrierErrorCode =
   | "barrier_held"
   | "barrier_not_held"
   | "barrier_aborted"
+  | "invalid_persisted_state"
 
 export class CheckpointBarrierError extends Error {
   constructor(
@@ -95,14 +108,13 @@ const isForceDomain = (value: unknown): value is ForceDomain =>
 const cloneReceipt = (receipt: CheckpointDeliveryReceipt): CheckpointDeliveryReceipt => ({...receipt})
 
 /**
- * Isolated checkpoint control-plane model.
+ * Transport-neutral checkpoint control-plane model.
  *
- * This coordinator does not send Force messages and is not attached to the
- * live contour. A caller records one accepted sequence together with its
- * complete destination set, then delivers each returned receipt over a
- * sideband control plane. A domain may acknowledge a receipt only after it
- * has applied that delivery and all causal output Particles produced by the
- * application have returned to Dark Force acceptance.
+ * A caller records one accepted sequence together with its complete
+ * destination set, then delivers each returned receipt over the Monad
+ * sideband. A domain may acknowledge a receipt only after it has applied that
+ * delivery and all causal output Particles produced by the application have
+ * returned to Dark Force acceptance.
  */
 export class CheckpointAppliedThroughBarrier {
   readonly cutId: string
@@ -118,7 +130,7 @@ export class CheckpointAppliedThroughBarrier {
     }]),
   )
 
-  constructor(cutId: string) {
+  constructor(cutId: string, restored?: CheckpointBarrierStateV1) {
     if (!cutIdPattern.test(cutId)) {
       throw new CheckpointBarrierError(
         "invalid_cut_id",
@@ -126,6 +138,27 @@ export class CheckpointAppliedThroughBarrier {
       )
     }
     this.cutId = cutId
+    if (restored) this.#restore(restored)
+  }
+
+  static baseline(cutId: string, acceptanceSequence: number): CheckpointAppliedThroughBarrier {
+    if (!Number.isSafeInteger(acceptanceSequence) || acceptanceSequence < 0) {
+      throw new CheckpointBarrierError(
+        "invalid_persisted_state",
+        "Checkpoint baseline sequence must be a non-negative safe integer",
+      )
+    }
+    return new CheckpointAppliedThroughBarrier(cutId, {
+      schema: "metafor/checkpoint-barrier-state/v1",
+      cutId,
+      acceptanceSequence,
+      domains: forceDomains.map((domain) => ({
+        domain,
+        receipts: [],
+        appliedOrdinal: 0,
+        appliedAcceptanceSequence: 0,
+      })),
+    })
   }
 
   get phase(): CheckpointBarrierPhase {
@@ -313,8 +346,90 @@ export class CheckpointAppliedThroughBarrier {
     }
   }
 
+  state(): CheckpointBarrierStateV1 {
+    return {
+      schema: "metafor/checkpoint-barrier-state/v1",
+      cutId: this.cutId,
+      acceptanceSequence: this.#acceptanceSequence,
+      domains: forceDomains.map((domain) => {
+        const state = this.#domain(domain)
+        return {
+          domain,
+          receipts: state.receipts.map(cloneReceipt),
+          appliedOrdinal: state.appliedOrdinal,
+          appliedAcceptanceSequence: state.appliedAcceptanceSequence,
+        }
+      }),
+    }
+  }
+
   #domain(domain: ForceDomain): DomainState {
     return this.#domains.get(domain)!
+  }
+
+  #restore(input: CheckpointBarrierStateV1): void {
+    const invalid = (): never => {
+      throw new CheckpointBarrierError(
+        "invalid_persisted_state",
+        "Checkpoint persisted barrier state is invalid",
+      )
+    }
+    if (
+      !isClosedDataRecord(input, ["schema", "cutId", "acceptanceSequence", "domains"]) ||
+      input.schema !== "metafor/checkpoint-barrier-state/v1" ||
+      input.cutId !== this.cutId ||
+      !Number.isSafeInteger(input.acceptanceSequence) ||
+      input.acceptanceSequence < 0 ||
+      !Array.isArray(input.domains) ||
+      input.domains.length !== forceDomains.length
+    ) invalid()
+
+    const seen = new Set<ForceDomain>()
+    for (const value of input.domains) {
+      if (
+        !isClosedDataRecord(value, [
+          "domain",
+          "receipts",
+          "appliedOrdinal",
+          "appliedAcceptanceSequence",
+        ]) ||
+        !isForceDomain(value.domain) ||
+        seen.has(value.domain) ||
+        !Array.isArray(value.receipts) ||
+        !Number.isSafeInteger(value.appliedOrdinal) ||
+        value.appliedOrdinal < 0 ||
+        value.appliedOrdinal > value.receipts.length ||
+        !Number.isSafeInteger(value.appliedAcceptanceSequence) ||
+        value.appliedAcceptanceSequence < 0
+      ) invalid()
+      seen.add(value.domain)
+      const receipts = value.receipts.map((receipt, index) => {
+        if (
+          !isClosedDataRecord(receipt, ["cutId", "domain", "sentOrdinal", "acceptanceSequence"]) ||
+          receipt.cutId !== this.cutId ||
+          receipt.domain !== value.domain ||
+          receipt.sentOrdinal !== index + 1 ||
+          !isPositiveSafeInteger(receipt.acceptanceSequence) ||
+          receipt.acceptanceSequence > input.acceptanceSequence
+        ) invalid()
+        return {
+          cutId: this.cutId,
+          domain: value.domain,
+          sentOrdinal: receipt.sentOrdinal,
+          acceptanceSequence: receipt.acceptanceSequence,
+        }
+      })
+      const expectedApplied = value.appliedOrdinal === 0
+        ? 0
+        : receipts[value.appliedOrdinal - 1]!.acceptanceSequence
+      if (value.appliedAcceptanceSequence !== expectedApplied) invalid()
+      const target = this.#domain(value.domain)
+      target.receipts.push(...receipts)
+      target.appliedOrdinal = value.appliedOrdinal
+      target.appliedAcceptanceSequence = value.appliedAcceptanceSequence
+    }
+    if (seen.size !== forceDomains.length) invalid()
+    this.#acceptanceSequence = input.acceptanceSequence
   }
 
   #acknowledgement(input: unknown): CheckpointAppliedAcknowledgement {

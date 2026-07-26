@@ -11,6 +11,11 @@ import {
   type CheckpointManifestV1,
 } from "@metafor/types/dark/checkpoint"
 import {
+  META_JSON_V1_SCHEMA,
+  parseMetaAddress,
+  type MetaJSONV1,
+} from "@metafor/types/metafor/meta-json"
+import {
   CheckpointGitRepository,
   CheckpointRepositoryError,
   type CheckpointCapture,
@@ -40,10 +45,36 @@ const git = (repository: string, ...args: string[]): string => {
   return result.stdout.trim()
 }
 
+const ROOT = parseMetaAddress("example/root")!
+
+const projection = (sequence: number): MetaJSONV1 => ({
+  schema: META_JSON_V1_SCHEMA,
+  root: ROOT,
+  template: {
+    [ROOT]: {
+      name: `Root ${sequence}`,
+      fields: [],
+      superposition: [{name: "idle", transitions: null}],
+      mass: [],
+      processes: [],
+    },
+  },
+  runtime: {
+    roots: [{
+      kind: "atom",
+      declaration: "#/template/example~1root",
+      meta: ROOT,
+      state: "idle",
+      values: {},
+      children: [],
+    }],
+  },
+})
+
 const operations = (sequence: number): CheckpointJsonPatchOperationV1[] => [{
   op: "replace",
-  path: "/sequence",
-  value: sequence,
+  path: "/template/example~1root/name",
+  value: `Root ${sequence}`,
 }]
 
 const capture = (
@@ -57,6 +88,10 @@ const capture = (
     capturedAt: `2026-07-26T16:00:${sequence.toString().padStart(2, "0")}.000Z`,
     trigger: "owner-bookmark",
     boundary: encoder.encode(`sqlite-${sequence}`),
+    projection: {
+      base: projection(previousSnapshotSequence ?? sequence),
+      result: projection(sequence),
+    },
     mass: [
       {
         keyId: "11111111-1111-4111-8111-111111111111",
@@ -73,7 +108,10 @@ const capture = (
       previousSnapshotSequence,
       entries: Array.from(
         {length: Math.max(0, sequence - first + 1)},
-        (_, index) => ({sequence: first + index, operations: operations(first + index)}),
+        (_, index) => ({
+          sequence: first + index,
+          operations: previousSnapshotSequence === null ? [] : operations(first + index),
+        }),
       ),
     },
     ...override,
@@ -107,6 +145,13 @@ describe("isolated checkpoint Git repository", () => {
       fromSequence: 1,
       throughSequence: 2,
       entries: 2,
+      base: {sequence: 0},
+      result: {sequence: 2},
+    })
+    expect(result.manifest.projection).toMatchObject({
+      schema: "metafor/meta-json/v1",
+      root: ROOT,
+      canonicalization: "rfc8785",
     })
     expect(result.manifest.mass[0]!.blob.sha256).toBe(result.manifest.mass[1]!.blob.sha256)
     const sharedDigest = result.manifest.mass[0]!.blob.chunks[0]!.sha256
@@ -146,9 +191,16 @@ describe("isolated checkpoint Git repository", () => {
     expect(validateCheckpointForwardPatchDocumentV1({
       schema: "metafor/checkpoint-forward-patches/v1",
       cutId: "synthetic-cut",
+      projection: {
+        schema: "metafor/meta-json/v1",
+        root: ROOT,
+        canonicalization: "rfc8785",
+      },
       previousSnapshotSequence: 1,
       fromSequence: 2,
       throughSequence: 2,
+      base: {sequence: 1, sha256: "0".repeat(64)},
+      result: {sequence: 2, sha256: "1".repeat(64)},
       entries: [{
         sequence: 2,
         operations: [{op: "remove", path: "/value", inverse: true}],

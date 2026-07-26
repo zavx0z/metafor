@@ -1,4 +1,5 @@
 import {MonadRpcPeer, MonadTransport} from "shared/transport/monad"
+import {installForceCheckpointSideband} from "shared/transport/force/checkpoint"
 import {waitForMatrixBirthGate} from "./birth-order.ts"
 import {MatrixMonad} from "./monad.ts"
 
@@ -21,6 +22,7 @@ const readForceStatus = async (): Promise<Record<string, unknown>> => {
 const monad = new MatrixMonad()
 const transport = new MonadTransport("matrix")
 const rpc = new MonadRpcPeer(transport.channel)
+const checkpoint = installForceCheckpointSideband("matrix", rpc)
 
 const server = Bun.serve({
   port: Number(Bun.env.PORT ?? 4003),
@@ -55,7 +57,12 @@ const close = (): Promise<void> => {
 }
 
 try {
-  await transport.open({waitMs: 30_000})
+  await transport.open({
+    methods: rpc.methods(),
+    endpoint: new URL("/monad/channel", server.url),
+    waitMs: 30_000,
+  })
+  await checkpoint.open()
   await waitForMatrixBirthGate(readForceStatus)
   const summary = await monad.onServerStarted(rpc)
   await import("./matrix.ts")

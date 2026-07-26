@@ -4,9 +4,10 @@ import {
   type ForceMessageInput,
   type SourcedForceMessage,
 } from "shared/protocol/force/message"
+import {forceCheckpointSideband} from "shared/transport/force/checkpoint"
 import type {ForceChannel} from "./store.ts"
 
-type AcceptDarkParticle = (message: SourcedForceMessage) => void
+type AcceptDarkParticle = (message: SourcedForceMessage) => Promise<void>
 
 /** In-process Dark adapter replacing the former Dark self-WebSocket. */
 export class LocalDarkForce {
@@ -25,6 +26,7 @@ export class LocalDarkForce {
       domain: "dark",
       send: (message) => this.#emitImpulse(message),
     }
+    forceCheckpointSideband(this.domain)?.bindDrain(async () => await this.#receiving)
   }
 
   get connected(): boolean {
@@ -43,7 +45,11 @@ export class LocalDarkForce {
 
   impulse(input: ForceMessageInput): void {
     if (this.#closed) throw new Error("Local Dark Force is closed")
-    this.accept(sourceForceMessage(input, "dark"))
+    const message = sourceForceMessage(input, "dark")
+    forceCheckpointSideband(this.domain)?.trackOutgoing()
+    void this.accept(message).catch((error) => {
+      console.error("[dark] local Force output acceptance failed", error)
+    })
   }
 
   close(): void {
@@ -62,7 +68,14 @@ export class LocalDarkForce {
   }
 
   #enqueue(handler: (impulse: ForceMessage) => void | Promise<void>, impulse: ForceMessage): void {
-    this.#receiving = this.#receiving.then(() => handler(impulse)).catch((error) => {
+    const checkpoint = forceCheckpointSideband(this.domain)
+    this.#receiving = this.#receiving.then(async () => {
+      if (checkpoint) {
+        await checkpoint.processIncoming(impulse, handler)
+      } else {
+        await handler(impulse)
+      }
+    }).catch((error) => {
       console.error("[dark] local Force onImpulse failed", error)
     })
   }

@@ -1,6 +1,7 @@
 import {mkdir} from "node:fs/promises"
 import {dirname, join, resolve} from "node:path"
 import {Force} from "shared/transport/force"
+import {installForceCheckpointSideband} from "shared/transport/force/checkpoint"
 import {MonadRpcPeer, MonadTransport} from "shared/transport/monad"
 import {unsourceForceMessage} from "shared/protocol/force/message"
 import {BoundaryMonad} from "./monad.ts"
@@ -14,6 +15,7 @@ const monad = new BoundaryMonad(boundary)
 const transport = new MonadTransport("boundary")
 const rpc = new MonadRpcPeer(transport.channel)
 monad.onServerStarted(rpc)
+const checkpoint = installForceCheckpointSideband("boundary", rpc)
 
 const server = Bun.serve({
   port: Number(Bun.env.PORT ?? 4001),
@@ -54,6 +56,7 @@ try {
     endpoint: new URL("/monad/channel", server.url),
     waitMs: 30_000,
   })
+  await checkpoint.open()
   monad.onChannelOpened()
 
   const force = new Force("boundary")

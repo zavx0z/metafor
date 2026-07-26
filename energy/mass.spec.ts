@@ -26,7 +26,7 @@ describe("Energy Mass file catalog", () => {
     expect([...await raw.readBytes()]).toEqual([0, 255, 4])
     expect(await Bun.file(join(catalog.root, `${key}.json`)).exists()).toBe(true)
     expect(await Bun.file(join(catalog.root, `${binary}.bin`)).exists()).toBe(true)
-    expect(catalog.root.endsWith("/mass")).toBe(true)
+    expect(catalog.root).toBe(new EnergyMassCatalog().root)
   })
 
   test("rejects non-Boundary key paths", async () => {

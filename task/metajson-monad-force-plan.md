@@ -736,27 +736,30 @@ server-side, disposable и rebuildable и не хранится в Git.
 
 Owner создал будущий distribution repository
 [`zavx0z/metafor-checkpoints`](https://github.com/zavx0z/metafor-checkpoints).
-Его remote, credentials и push не настраиваются без отдельной authority.
+Текущий implementation использует только local bare Git; GitHub остаётся
+пустым. Его remote, credentials и push не настраиваются без отдельной
+authority.
 Checkpoint foundation выполняется независимо от read-only `MF-103` и сходится
 с ним только на replay/navigation. До реализации остаются gates по шифрованию
 и device keys, blob backend/size budgets, точному определению material Mass
 trigger, retention/GC и live cold restore.
 
-Owner отдельно разрешил bounded `MF-107` foundation без live integration.
+Owner разрешил полный `MF-107` source slice и один controlled live cold cut.
 Внутренний control-plane contract назначает принятым Dark Force Particles
 per-domain sent ordinals, принимает applied acknowledgements и удерживает
 causal fixed point только после равенства applied/sent frontiers. Receipt и
 ack не являются Particle, не меняют Force wire/history и не добавляют control
-rows. Foundation изолирован от live contour; его sequence-0 baseline
-намеренно остаётся нерешённым, потому что пустой tracker не доказывает
-состояние уже существующих Boundary/Mass.
+rows. Receipt sideband подключается без изменения Particle/wire/history; Dark
+персистит frontiers и fail-stop восстанавливает unresolved delivery. Первый
+non-zero baseline не выводится из пустого tracker: stopped pre-cut/current
+Boundary должны дать одинаковый canonical MetaJSON digest at sequence 0/1,
+после чего checkpoint `(cutId, 1)` и control baseline создаются до cold start.
 
 Live target для первого Lada checkpoint — тот же действующий contour, а не
-clone или параллельная replacement environment. Следующая отдельная authority
-должна разрешить один полный cold cut: backup/hash → stop whole contour →
-coherent local snapshot commit → cold start Lada в том же contour →
-health/functional acceptance либо точный rollback. Hot/partial restart,
-capture до этого gate и remote push запрещены.
+clone или параллельная replacement environment. Выданная authority разрешает
+ровно один полный cold cut: backup/hash → stop whole contour → coherent local
+snapshot commit → cold start Lada в том же contour → health/functional
+acceptance либо точный rollback. Hot/partial restart и remote push запрещены.
 
 До будущего write slice отдельно потребуется локальная capability
 identity/policy первого Codex→Monad write endpoint за пределами trusted

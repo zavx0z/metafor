@@ -1,7 +1,11 @@
-import {join, resolve} from "node:path"
+import {dirname, join, resolve} from "node:path"
 import type {ForceMessageInput} from "shared/protocol/force/message"
 import {MONAD_RPC_VERSION, type MonadRpcResponse} from "shared/protocol/monad/rpc"
 import {logImpulse} from "shared/transport/force/log"
+import {
+  installForceCheckpointSideband,
+  uninstallForceCheckpointSideband,
+} from "shared/transport/force/checkpoint"
 import {
   createHttpMonadChannelRegistry,
   isLoopbackAddress,
@@ -18,6 +22,10 @@ import {createForceWebSocketChannels, type ForceSocketData} from "./force/websoc
 import {DarkMonad} from "./monad.ts"
 import {createLocalMonadChannelPair} from "./monad/local.ts"
 import {MonadRouter} from "./monad/router.ts"
+import {
+  checkpointControlStatePath,
+  DarkCheckpointControl,
+} from "./checkpoint/control.ts"
 
 const repositoryState = resolve(import.meta.dir, "..", ".metafor")
 const forceHistoryPath = resolve(
@@ -25,6 +33,13 @@ const forceHistoryPath = resolve(
 )
 const forceHistoryCutId = Bun.env.DARK_FORCE_HISTORY_CUT_ID?.trim() || undefined
 const forceHistoryStartedAt = Bun.env.DARK_FORCE_HISTORY_STARTED_AT?.trim() || undefined
+const checkpointEnabled = Bun.env.DARK_CHECKPOINT_SIDEBAND !== "0"
+const checkpointStatePath = resolve(
+  Bun.env.DARK_CHECKPOINT_CONTROL_PATH?.trim() ||
+    (Bun.env.DARK_FORCE_HISTORY_PATH?.trim()
+      ? join(dirname(forceHistoryPath), "checkpoint-control", "v1", "state.json")
+      : checkpointControlStatePath(repositoryState)),
+)
 
 export const forceHistory = new DarkForceHistory(
   forceHistoryPath,
@@ -35,11 +50,31 @@ export const forceHistory = new DarkForceHistory(
         ...(forceHistoryStartedAt === undefined ? {} : {startedAt: forceHistoryStartedAt}),
       },
 )
-export const lifecycle = new ForceLifecycle(forceHistory)
 export const router = new MonadRouter()
 const websocket = createForceWebSocketChannels()
-const localForce = new LocalDarkForce((message) => {
-  const decision = lifecycle.acceptParticle("dark", message)
+
+const monad = new DarkMonad()
+let rpc!: MonadRpcPeer
+const localMonad = createLocalMonadChannelPair("dark", () => rpc.methods())
+rpc = new MonadRpcPeer(localMonad.peer)
+monad.onServerStarted(rpc)
+const checkpoint = checkpointEnabled
+  ? new DarkCheckpointControl(
+      checkpointStatePath,
+      forceHistory.status(),
+      rpc,
+    )
+  : null
+const darkCheckpoint = checkpointEnabled
+  ? installForceCheckpointSideband("dark", rpc)
+  : null
+router.attach(localMonad.router)
+monad.onChannelOpened()
+await darkCheckpoint?.open()
+
+export const lifecycle = new ForceLifecycle(forceHistory, checkpoint ?? undefined)
+const localForce = new LocalDarkForce(async (message) => {
+  const decision = await lifecycle.acceptParticle("dark", message)
   if (!decision.ok) throw new Error(decision.error)
 })
 const channels = Object.assign(
@@ -48,14 +83,6 @@ const channels = Object.assign(
   {dark: localForce.channel},
 )
 lifecycle.start(channels)
-
-const monad = new DarkMonad()
-let rpc!: MonadRpcPeer
-const localMonad = createLocalMonadChannelPair("dark", () => rpc.methods())
-rpc = new MonadRpcPeer(localMonad.peer)
-monad.onServerStarted(rpc)
-router.attach(localMonad.router)
-monad.onChannelOpened()
 
 startDarkRuntime(localForce)
 localForce.activate()
@@ -102,7 +129,7 @@ export const server = Bun.serve<ForceSocketData>({
         }
         const payload = await readJson<ForceMessageInput>(request)
         if (!payload.ok) return Response.json({ok: false, error: payload.error}, {status: 400})
-        const decision = lifecycle.acceptAgentParticle(payload.value)
+        const decision = await lifecycle.acceptAgentParticle(payload.value)
         return Response.json(decision, {status: decision.ok ? 200 : decision.reason === "not_running" ? 503 : 500})
       },
     },
@@ -157,11 +184,11 @@ export const server = Bun.serve<ForceSocketData>({
       }
       console.log(`[dark:force] disconnected: ${socket.data.domain} ${socket.data.id}`)
     },
-    message(socket, raw) {
+    async message(socket, raw) {
       try {
         const particle = websocket.decode(raw)
         logImpulse(`dark:force:${socket.data.domain}`, "<-", particle)
-        lifecycle.acceptParticle(socket.data.domain, particle)
+        await lifecycle.acceptParticle(socket.data.domain, particle)
       } catch (error) {
         console.error(`[dark:force] could not decode ${socket.data.domain} Particle`, error)
         socket.close()
@@ -194,6 +221,7 @@ export const stop = (): Promise<void> => {
   if (closing) return closing
   closing = (async () => {
     lifecycle.stop()
+    if (darkCheckpoint) uninstallForceCheckpointSideband("dark", darkCheckpoint)
     monad.onServerStopping()
     rpc.close()
     router.detach(localMonad.router)

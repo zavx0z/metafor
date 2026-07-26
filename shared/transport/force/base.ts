@@ -1,4 +1,5 @@
 import type {ForceMessage, ForceMessageInput} from "../../protocol/force/message.ts"
+import {forceCheckpointSideband} from "./checkpoint.ts"
 
 export type ForceTransportOptions = {
   id?: string
@@ -91,6 +92,16 @@ export abstract class ForceBase {
     if (handler) this.#notifyConnection(handler, connected)
   }
 
+  /** Records one domain-originated Particle in the sideband ordinal only. */
+  protected checkpointOutgoing(): void {
+    forceCheckpointSideband(this.domain)?.trackOutgoing()
+  }
+
+  /** Binds the domain control-plane drain to this transport's sequential input queue. */
+  protected bindCheckpointDrain(): void {
+    forceCheckpointSideband(this.domain)?.bindDrain(async () => await this.#receiving)
+  }
+
   #notifyConnection(handler: (connected: boolean) => void, connected: boolean): void {
     try {
       handler(connected)
@@ -103,7 +114,14 @@ export abstract class ForceBase {
     handler: (impulse: ForceMessage) => void | Promise<void>,
     impulse: ForceMessage,
   ): void {
-    this.#receiving = this.#receiving.then(() => handler(impulse)).catch((error) => {
+    const checkpoint = forceCheckpointSideband(this.domain)
+    this.#receiving = this.#receiving.then(async () => {
+      if (checkpoint) {
+        await checkpoint.processIncoming(impulse, handler)
+      } else {
+        await handler(impulse)
+      }
+    }).catch((error) => {
       console.error(`[${this.domain}] Force onImpulse failed`, error)
     })
   }

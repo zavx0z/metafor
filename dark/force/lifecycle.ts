@@ -3,9 +3,10 @@ import {
   type ForceMessageInput,
   type SourcedForceMessage,
 } from "shared/protocol/force/message"
-import {routeParticle} from "./route.ts"
+import {particleDestinations, routeParticle, type ForceOrigin} from "./route.ts"
 import {force$, forceDomains, type ForceDomain, type ForceStore} from "./store.ts"
-import type {DarkForceHistory} from "./history.ts"
+import type {DarkForceHistory, DarkForceHistoryParticle} from "./history.ts"
+import type {CheckpointDeliveryReceipt} from "../checkpoint/barrier.ts"
 
 export type ForceLifecycleState = "created" | "starting" | "running" | "error" | "stopped"
 
@@ -26,6 +27,16 @@ export type ForceAgentDecision =
   | {ok: true; delivered: ForceDomain[]; particle: SourcedForceMessage["parts"][0]}
   | {ok: false; reason: "not_running" | "runtime_error"; error: string}
 
+export interface ForceCheckpointTransfer {
+  recordAccepted(
+    acceptanceSequence: number,
+    destinations: readonly ForceDomain[],
+  ): CheckpointDeliveryReceipt[]
+  prepare(receipts: readonly CheckpointDeliveryReceipt[]): Promise<void>
+  waitApplied(receipts: readonly CheckpointDeliveryReceipt[]): Promise<void>
+  acceptedFrom(domain: ForceDomain): void
+}
+
 /**
  * Lifecycle божественного уровня Force.
  *
@@ -37,7 +48,10 @@ export class ForceLifecycle {
   #error: string | null = null
   #connectedDomains = new Set<ForceDomain>()
 
-  constructor(private readonly history: Pick<DarkForceHistory, "accept">) {}
+  constructor(
+    private readonly history: Pick<DarkForceHistory, "accept">,
+    private readonly checkpoint?: ForceCheckpointTransfer,
+  ) {}
 
   /**
    * Сервер запущен и просит подготовить Force к рождению runtime.
@@ -81,14 +95,13 @@ export class ForceLifecycle {
    * runtime-закону. Декодирование и проверка физического входа уже выполнены
    * снаружи. Ошибка runtime закрывает общий gate и переводит lifecycle в `error`.
    */
-  acceptAgentParticle(input: ForceMessageInput): ForceAgentDecision {
+  async acceptAgentParticle(input: ForceMessageInput): Promise<ForceAgentDecision> {
     if (this.#state !== "running") {
       return {ok: false, reason: "not_running", error: this.#blockedReason()}
     }
     const message = sourceForceMessage(input, "agent")
     try {
-      this.history.accept(message.parts[0])
-      const delivered = routeParticle(message, "agent")
+      const delivered = await this.#transfer(message, "agent")
       return {ok: true, delivered, particle: message.parts[0]}
     } catch (error) {
       this.#failStop("force", `runtime could not transfer a Particle: ${this.#reason(error)}`)
@@ -103,17 +116,30 @@ export class ForceLifecycle {
    * проверяет форму или источник повторно. Только фактическая ошибка передачи
    * выполняет fail-stop. В остальных состояниях Particle не проходит дальше.
    */
-  acceptParticle(domain: ForceDomain, value: SourcedForceMessage): ForceLifecycleDecision {
+  async acceptParticle(domain: ForceDomain, value: SourcedForceMessage): Promise<ForceLifecycleDecision> {
     if (this.#state !== "running") {
       return {ok: false, reason: "not_running", error: this.#blockedReason()}
     }
     try {
-      this.history.accept(value.parts[0])
-      return {ok: true, delivered: routeParticle(value, domain)}
+      return {ok: true, delivered: await this.#transfer(value, domain)}
     } catch (error) {
       this.#failStop(domain, `could not transfer a Particle: ${this.#reason(error)}`)
       return {ok: false, reason: "runtime_error", error: this.#blockedReason()}
     }
+  }
+
+  async #transfer(
+    message: SourcedForceMessage,
+    origin: ForceOrigin,
+  ): Promise<ForceDomain[]> {
+    const accepted = this.history.accept(message.parts[0]) as DarkForceHistoryParticle
+    const destinations = particleDestinations(message, origin)
+    const receipts = this.checkpoint?.recordAccepted(accepted.sequence, destinations) ?? []
+    if (this.checkpoint) await this.checkpoint.prepare(receipts)
+    const delivered = routeParticle(message, origin)
+    if (origin !== "agent" && this.checkpoint) this.checkpoint.acceptedFrom(origin)
+    if (this.checkpoint) await this.checkpoint.waitApplied(receipts)
+    return delivered
   }
 
   /**

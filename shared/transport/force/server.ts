@@ -45,6 +45,7 @@ export class Force extends ForceBase {
         void Force.#shutdown.finally(() => process.exit(143))
       })
     }
+    this.bindCheckpointDrain()
     this.#socket = this.#connect()
   }
 
@@ -86,6 +87,7 @@ export class Force extends ForceBase {
 
   override impulse(input: ForceMessageInput): void {
     const message = sourceForceMessage(input, this.domain)
+    this.checkpointOutgoing()
     if (this.#socket.readyState !== WebSocket.OPEN) {
       this.#outbox.push(message)
       return

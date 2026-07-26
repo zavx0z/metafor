@@ -51,6 +51,13 @@ Development database по умолчанию:
 BOUNDARY_PATH=/absolute/path/boundary.sqlite bun run runtime:universe
 ```
 
+Изолированный test run может перенаправить flat Mass catalog, не касаясь
+canonical live `mass/`:
+
+```bash
+METAFOR_MASS_PATH=/absolute/temporary/mass bun run test
+```
+
 Первый позиционный аргумент `boundary/server.ts` имеет приоритет над
 `BOUNDARY_PATH`. Parent directory создаётся автоматически. Boundary tests
 используют отдельные `:memory:` databases и всегда закрывают их; development

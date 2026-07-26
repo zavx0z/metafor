@@ -71,14 +71,14 @@ describe("ForceLifecycle", () => {
     })
   })
 
-  test("accepts an agent Particle only in running state", () => {
-    expect(lifecycle.acceptAgentParticle(agentInflaton(1))).toMatchObject({
+  test("accepts an agent Particle only in running state", async () => {
+    expect(await lifecycle.acceptAgentParticle(agentInflaton(1))).toMatchObject({
       ok: false,
       reason: "not_running",
     })
 
     start()
-    expect(lifecycle.acceptAgentParticle(agentInflaton(2))).toEqual({
+    expect(await lifecycle.acceptAgentParticle(agentInflaton(2))).toEqual({
       ok: true,
       delivered: ["dark", "bulk"],
       particle: {
@@ -100,10 +100,10 @@ describe("ForceLifecycle", () => {
     }])
   })
 
-  test("accepts and sources the agent WIMP remove through the same Force Monad ingress", () => {
+  test("accepts and sources the agent WIMP remove through the same Force Monad ingress", async () => {
     start()
 
-    expect(lifecycle.acceptAgentParticle(agentRemove(5))).toEqual({
+    expect(await lifecycle.acceptAgentParticle(agentRemove(5))).toEqual({
       ok: true,
       delivered: ["dark", "bulk"],
       particle: {
@@ -117,20 +117,20 @@ describe("ForceLifecycle", () => {
     })
   })
 
-  test("routes a numeric Energy z/test as an ordinary Particle", () => {
+  test("routes a numeric Energy z/test as an ordinary Particle", async () => {
     start()
     const claim: SourcedForceMessage = {
       parts: [{part: "z", op: "test", path: 17, by: "energy", ts: 4, value: {energy: "energy-local"}}],
     }
 
-    expect(lifecycle.acceptParticle("energy", claim)).toEqual({
+    expect(await lifecycle.acceptParticle("energy", claim)).toEqual({
       ok: true,
       delivered: ["dark", "boundary", "matrix", "bulk"],
     })
     expect(accepted).toEqual([claim.parts[0]])
   })
 
-  test("persists direct Gluon and Higgs mutations before Boundary delivery", () => {
+  test("persists direct Gluon and Higgs mutations before Boundary delivery", async () => {
     start()
     const gluon: SourcedForceMessage = {
       parts: [{part: "gluon", op: "replace", path: 17, by: "matrix", ts: 5, value: {fields: {1: 2}}}],
@@ -139,14 +139,14 @@ describe("ForceLifecycle", () => {
       parts: [{part: "higgs", op: "add", path: 17, by: "energy", ts: 6, value: {field: 1}}],
     }
 
-    expect(lifecycle.acceptParticle("matrix", gluon)).toEqual({ok: true, delivered: ["boundary"]})
-    expect(lifecycle.acceptParticle("energy", higgs)).toEqual({ok: true, delivered: ["boundary"]})
+    expect(await lifecycle.acceptParticle("matrix", gluon)).toEqual({ok: true, delivered: ["boundary"]})
+    expect(await lifecycle.acceptParticle("energy", higgs)).toEqual({ok: true, delivered: ["boundary"]})
     expect(accepted).toEqual([gluon.parts[0], higgs.parts[0]])
     expect(recording.deliveries("dark")).toEqual([])
     expect(recording.deliveries("boundary")).toEqual([gluon, higgs])
   })
 
-  test("persists every Force Particle kind through the same acceptance point before routing", () => {
+  test("persists every Force Particle kind through the same acceptance point before routing", async () => {
     start()
     const parts: Part[] = ["inflaton", "graviton", "photon", "gluon", "higgs", "w+", "w-", "z"]
 
@@ -161,22 +161,22 @@ describe("ForceLifecycle", () => {
           value: {part},
         }],
       }
-      expect(lifecycle.acceptParticle("matrix", message).ok).toBe(true)
+      expect((await lifecycle.acceptParticle("matrix", message)).ok).toBe(true)
       expect(accepted.at(-1)).toEqual(message.parts[0])
     }
 
     expect(accepted.map((particle) => particle.part)).toEqual(parts)
   })
 
-  test("owns fail-stop when one domain channel is destroyed", () => {
+  test("owns fail-stop when one domain channel is destroyed", async () => {
     start()
-    expect(lifecycle.acceptAgentParticle(agentInflaton(3)).ok).toBe(true)
+    expect((await lifecycle.acceptAgentParticle(agentInflaton(3))).ok).toBe(true)
     const darkBefore = recording.deliveries("dark")
     const bulkBefore = recording.deliveries("bulk")
 
     lifecycle.channelDestroyed("matrix", new Error("channel closed"))
 
-    expect(lifecycle.acceptAgentParticle(agentInflaton(4))).toEqual({
+    expect(await lifecycle.acceptAgentParticle(agentInflaton(4))).toEqual({
       ok: false,
       reason: "not_running",
       error: "Force stopped: matrix channel was destroyed: channel closed",
@@ -195,7 +195,7 @@ describe("ForceLifecycle", () => {
     }
   })
 
-  test("persists before routing and fail-stops without delivery when history append fails", () => {
+  test("persists before routing and fail-stops without delivery when history append fails", async () => {
     recording = createRecordingChannels()
     lifecycle = new ForceLifecycle({
       accept() {
@@ -204,7 +204,7 @@ describe("ForceLifecycle", () => {
     })
     start()
 
-    expect(lifecycle.acceptAgentParticle(agentInflaton(9))).toEqual({
+    expect(await lifecycle.acceptAgentParticle(agentInflaton(9))).toEqual({
       ok: false,
       reason: "runtime_error",
       error: "Force stopped: runtime could not transfer a Particle: history fsync failed",

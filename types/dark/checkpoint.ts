@@ -41,6 +41,13 @@ export interface CheckpointMassV1 {
   blob: CheckpointBlobV1
 }
 
+export interface CheckpointProjectionV1 {
+  schema: "metafor/meta-json/v1"
+  root: string
+  canonicalization: "rfc8785"
+  blob: CheckpointBlobV1
+}
+
 export type CheckpointJsonValue =
   | null
   | boolean
@@ -50,21 +57,32 @@ export type CheckpointJsonValue =
   | {[key: string]: CheckpointJsonValue}
 
 export type CheckpointJsonPatchOperationV1 =
-  | {op: "add" | "replace" | "test"; path: string; value: CheckpointJsonValue}
+  | {op: "add" | "replace"; path: string; value: CheckpointJsonValue}
   | {op: "remove"; path: string}
-  | {op: "move" | "copy"; path: string; from: string}
 
 export interface CheckpointPatchEntryV1 {
   sequence: number
   operations: CheckpointJsonPatchOperationV1[]
 }
 
+export interface CheckpointProjectionDigestV1 {
+  sequence: number
+  sha256: string
+}
+
 export interface CheckpointForwardPatchDocumentV1 {
   schema: "metafor/checkpoint-forward-patches/v1"
   cutId: string
+  projection: {
+    schema: "metafor/meta-json/v1"
+    root: string
+    canonicalization: "rfc8785"
+  }
   previousSnapshotSequence: number | null
   fromSequence: number
   throughSequence: number
+  base: CheckpointProjectionDigestV1
+  result: CheckpointProjectionDigestV1
   entries: CheckpointPatchEntryV1[]
 }
 
@@ -74,6 +92,8 @@ export interface CheckpointForwardPatchesV1 {
   fromSequence: number
   throughSequence: number
   entries: number
+  base: CheckpointProjectionDigestV1
+  result: CheckpointProjectionDigestV1
   blob: CheckpointBlobV1
 }
 
@@ -85,6 +105,7 @@ export interface CheckpointManifestV1 {
   trigger: CheckpointTriggerV1
   boundary: CheckpointBoundaryV1
   mass: CheckpointMassV1[]
+  projection: CheckpointProjectionV1
   patches: CheckpointForwardPatchesV1
 }
 
@@ -199,11 +220,13 @@ class Validator {
 
   patches(input: unknown, identity: unknown): input is CheckpointForwardPatchesV1 {
     if (!record(input) || !exact(input, [
+      "base",
       "blob",
       "entries",
       "format",
       "fromSequence",
       "previousSnapshotSequence",
+      "result",
       "throughSequence",
     ])) {
       this.issue("/patches", "invalid_patches", "Checkpoint patch span must be a closed object")
@@ -230,6 +253,22 @@ class Validator {
     if (!Number.isSafeInteger(input.entries) || Number(input.entries) < 0) {
       this.issue("/patches/entries", "invalid_patch_entries", "Patch span entry count is invalid")
       valid = false
+    }
+    for (const [key, expectedSequence] of [
+      ["base", previous === null ? 0 : Number(previous)] as const,
+      ["result", record(identity) && Number.isSafeInteger(identity.sequence) ? Number(identity.sequence) : -1] as const,
+    ]) {
+      const digest = input[key]
+      if (
+        !record(digest) ||
+        !exact(digest, ["sequence", "sha256"]) ||
+        digest.sequence !== expectedSequence ||
+        typeof digest.sha256 !== "string" ||
+        !digestPattern.test(digest.sha256)
+      ) {
+        this.issue(`/patches/${key}`, "invalid_projection_digest", `Checkpoint patch ${key} digest is invalid`)
+        valid = false
+      }
     }
     if (
       (previous === null && input.fromSequence !== 1) ||
@@ -258,6 +297,7 @@ class Validator {
       "identity",
       "mass",
       "patches",
+      "projection",
       "repository",
       "schema",
       "trigger",
@@ -327,7 +367,32 @@ class Validator {
         this.blob(entry.blob, `${path}/blob`)
       })
     }
+    if (
+      !record(input.projection) ||
+      !exact(input.projection, ["blob", "canonicalization", "root", "schema"]) ||
+      input.projection.schema !== "metafor/meta-json/v1" ||
+      input.projection.canonicalization !== "rfc8785" ||
+      typeof input.projection.root !== "string" ||
+      !/^[^/]+\/[^/]+$/.test(input.projection.root)
+    ) {
+      this.issue("/projection", "invalid_projection", "Checkpoint projection must be one canonical MetaJSON v1 root")
+    } else {
+      this.blob(input.projection.blob, "/projection/blob")
+    }
     this.patches(input.patches, input.identity)
+    if (
+      record(input.projection) &&
+      record(input.projection.blob) &&
+      record(input.patches) &&
+      record(input.patches.result) &&
+      input.projection.blob.sha256 !== input.patches.result.sha256
+    ) {
+      this.issue(
+        "/patches/result/sha256",
+        "projection_digest_mismatch",
+        "Checkpoint result digest must equal the stored projection blob digest",
+      )
+    }
     return this.issues.length === 0
       ? {ok: true, value: input as unknown as CheckpointManifestV1}
       : {ok: false, issues: this.issues}
@@ -383,11 +448,7 @@ const patchOperation = (value: unknown): value is CheckpointJsonPatchOperationV1
     return false
   }
   if (value.op === "remove") return exact(value, ["op", "path"])
-  if (value.op === "move" || value.op === "copy") {
-    return exact(value, ["from", "op", "path"]) &&
-      typeof value.from === "string" && pointerPattern.test(value.from)
-  }
-  if (value.op === "add" || value.op === "replace" || value.op === "test") {
+  if (value.op === "add" || value.op === "replace") {
     return exact(value, ["op", "path", "value"]) && jsonValue(value.value, new Set())
   }
   return false
@@ -399,8 +460,11 @@ export const validateCheckpointForwardPatchDocumentV1 = (
   if (!record(input) || !exact(input, [
     "cutId",
     "entries",
+    "base",
     "fromSequence",
     "previousSnapshotSequence",
+    "projection",
+    "result",
     "schema",
     "throughSequence",
   ])) return false
@@ -423,6 +487,26 @@ export const validateCheckpointForwardPatchDocumentV1 = (
     (previous === null && input.fromSequence !== 1) ||
     (typeof previous === "number" && input.fromSequence !== previous + 1) ||
     input.entries.length !== Math.max(0, Number(input.throughSequence) - Number(input.fromSequence) + 1)
+  ) return false
+  if (
+    !record(input.projection) ||
+    !exact(input.projection, ["canonicalization", "root", "schema"]) ||
+    input.projection.schema !== "metafor/meta-json/v1" ||
+    input.projection.canonicalization !== "rfc8785" ||
+    typeof input.projection.root !== "string" ||
+    !/^[^/]+\/[^/]+$/.test(input.projection.root)
+  ) return false
+  if (
+    !record(input.base) ||
+    !exact(input.base, ["sequence", "sha256"]) ||
+    input.base.sequence !== (previous === null ? 0 : previous) ||
+    typeof input.base.sha256 !== "string" ||
+    !digestPattern.test(input.base.sha256) ||
+    !record(input.result) ||
+    !exact(input.result, ["sequence", "sha256"]) ||
+    input.result.sequence !== input.throughSequence ||
+    typeof input.result.sha256 !== "string" ||
+    !digestPattern.test(input.result.sha256)
   ) return false
   return input.entries.every((entry, index) =>
     record(entry) &&

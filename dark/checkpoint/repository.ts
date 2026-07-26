@@ -17,6 +17,11 @@ import {
   validateCheckpointForwardPatchDocumentV1,
   validateCheckpointManifestV1,
 } from "@metafor/types/dark/checkpoint"
+import type {MetaJSONV1} from "@metafor/types/metafor/meta-json"
+import {
+  applyMetaJSONPatchV1,
+  canonicalizeMetaJSONV1,
+} from "./projection.ts"
 
 export interface CheckpointRepositoryLimits {
   maxBlobBytes: number
@@ -41,6 +46,10 @@ export interface CheckpointCapture {
   trigger: CheckpointTriggerKindV1
   boundary: Uint8Array
   mass: CheckpointMassCapture[]
+  projection: {
+    base: MetaJSONV1
+    result: MetaJSONV1
+  }
   patches: {
     previousSnapshotSequence: number | null
     entries: CheckpointPatchCaptureEntry[]
@@ -76,12 +85,15 @@ const headRef = (cutId: string): string => `refs/metafor/checkpoints/${cutId}/he
 const chunkPath = (sha256: string): string => `objects/sha256/${sha256.slice(0, 2)}/${sha256}`
 const commitPattern = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/
 
+const utf16Compare = (left: string, right: string): number =>
+  left < right ? -1 : left > right ? 1 : 0
+
 const canonicalValue = (value: unknown): unknown => {
   if (Array.isArray(value)) return value.map(canonicalValue)
   if (typeof value === "object" && value !== null) {
     return Object.fromEntries(
       Object.entries(value)
-        .toSorted(([left], [right]) => left.localeCompare(right))
+        .toSorted(([left], [right]) => utf16Compare(left, right))
         .map(([key, entry]) => [key, canonicalValue(entry)]),
     )
   }
@@ -89,7 +101,7 @@ const canonicalValue = (value: unknown): unknown => {
 }
 
 const canonicalJSON = (value: unknown): Uint8Array =>
-  new TextEncoder().encode(`${JSON.stringify(canonicalValue(value))}\n`)
+  new TextEncoder().encode(JSON.stringify(canonicalValue(value)))
 
 const validateLimits = (limits: CheckpointRepositoryLimits): CheckpointRepositoryLimits => {
   for (const [key, value] of Object.entries(limits)) {
@@ -195,16 +207,33 @@ const blob = (
   return {sha256: digest(value), bytes: value.byteLength, chunks: entries}
 }
 
-const patchDocument = (capture: CheckpointCapture): CheckpointForwardPatchDocumentV1 => {
+const patchDocument = (
+  capture: CheckpointCapture,
+  base: ReturnType<typeof canonicalizeMetaJSONV1>,
+  result: ReturnType<typeof canonicalizeMetaJSONV1>,
+): CheckpointForwardPatchDocumentV1 => {
   const fromSequence = capture.patches.previousSnapshotSequence === null
     ? 1
     : capture.patches.previousSnapshotSequence + 1
   const document: CheckpointForwardPatchDocumentV1 = {
     schema: "metafor/checkpoint-forward-patches/v1",
     cutId: capture.identity.cutId,
+    projection: {
+      schema: "metafor/meta-json/v1",
+      root: result.value.root,
+      canonicalization: "rfc8785",
+    },
     previousSnapshotSequence: capture.patches.previousSnapshotSequence,
     fromSequence,
     throughSequence: capture.identity.sequence,
+    base: {
+      sequence: capture.patches.previousSnapshotSequence ?? 0,
+      sha256: base.sha256,
+    },
+    result: {
+      sequence: capture.identity.sequence,
+      sha256: result.sha256,
+    },
     entries: capture.patches.entries.map((entry) => ({
       sequence: entry.sequence,
       operations: entry.operations,
@@ -319,6 +348,14 @@ export class CheckpointGitRepository {
     const expectedPaths = new Set<string>(["checkpoint.json"])
     this.verifyBlob(commit, manifest.boundary.blob, expectedPaths)
     for (const entry of manifest.mass) this.verifyBlob(commit, entry.blob, expectedPaths)
+    const projection = this.verifyBlob(commit, manifest.projection.blob, expectedPaths)
+    const canonicalProjection = canonicalizeMetaJSONV1(parseJSON(Buffer.from(projection), "Checkpoint MetaJSON projection"))
+    if (
+      canonicalProjection.sha256 !== manifest.projection.blob.sha256 ||
+      canonicalProjection.value.root !== manifest.projection.root
+    ) {
+      throw new CheckpointRepositoryError("invalid_projection", "Checkpoint MetaJSON projection does not match its manifest")
+    }
     const patches = parseJSON(
       Buffer.from(this.verifyBlob(commit, manifest.patches.blob, expectedPaths)),
       "Checkpoint forward patch span",
@@ -329,7 +366,12 @@ export class CheckpointGitRepository {
       patches.previousSnapshotSequence !== manifest.patches.previousSnapshotSequence ||
       patches.fromSequence !== manifest.patches.fromSequence ||
       patches.throughSequence !== manifest.patches.throughSequence ||
-      patches.entries.length !== manifest.patches.entries
+      patches.entries.length !== manifest.patches.entries ||
+      patches.base.sequence !== manifest.patches.base.sequence ||
+      patches.base.sha256 !== manifest.patches.base.sha256 ||
+      patches.result.sequence !== manifest.patches.result.sequence ||
+      patches.result.sha256 !== manifest.patches.result.sha256 ||
+      patches.result.sha256 !== canonicalProjection.sha256
     ) {
       throw new CheckpointRepositoryError("invalid_patch_span", "Checkpoint forward patch span does not match its manifest")
     }
@@ -371,18 +413,43 @@ export class CheckpointGitRepository {
 
     const chunks = new Map<string, Uint8Array>()
     const boundaryBytes = bytes(capture.boundary, "Boundary checkpoint")
+    const baseProjection = canonicalizeMetaJSONV1(capture.projection.base)
+    const resultProjection = canonicalizeMetaJSONV1(capture.projection.result)
+    if (baseProjection.value.root !== resultProjection.value.root) {
+      throw new CheckpointRepositoryError("projection_root_mismatch", "Checkpoint base and result roots differ")
+    }
+    if (
+      previousManifest &&
+      previousManifest.projection.blob.sha256 !== baseProjection.sha256
+    ) {
+      throw new CheckpointRepositoryError("projection_base_mismatch", "Checkpoint base projection is not the previous snapshot")
+    }
+    if (!previousManifest && baseProjection.sha256 !== resultProjection.sha256) {
+      throw new CheckpointRepositoryError(
+        "first_projection_base_missing",
+        "First non-zero checkpoint requires a proven unchanged sequence-zero projection baseline",
+      )
+    }
     const mass = capture.mass
       .map((entry) => ({
         keyId: entry.keyId,
         format: entry.format,
         bytes: bytes(entry.bytes, `Mass ${entry.keyId}`),
       }))
-      .toSorted((left, right) => left.keyId.localeCompare(right.keyId))
-    const patches = patchDocument(capture)
+      .toSorted((left, right) => utf16Compare(left.keyId, right.keyId))
+    const patches = patchDocument(capture, baseProjection, resultProjection)
+    let replayed = baseProjection.value
+    for (const entry of patches.entries) {
+      replayed = applyMetaJSONPatchV1(replayed, entry.operations)
+    }
+    if (canonicalizeMetaJSONV1(replayed).sha256 !== resultProjection.sha256) {
+      throw new CheckpointRepositoryError("invalid_patch_result", "Checkpoint patch span does not produce its result projection")
+    }
     const patchBytes = canonicalJSON(patches)
     const logicalBytes = boundaryBytes.byteLength +
       mass.reduce((total, entry) => total + entry.bytes.byteLength, 0) +
-      patchBytes.byteLength
+      patchBytes.byteLength +
+      resultProjection.bytes.byteLength
     if (logicalBytes > this.limits.maxTotalBytes) {
       throw new CheckpointRepositoryError("checkpoint_too_large", "Checkpoint exceeds its configured total byte budget")
     }
@@ -399,12 +466,20 @@ export class CheckpointGitRepository {
       trigger: {kind: capture.trigger},
       boundary: {format: "sqlite", blob: blob(boundaryBytes, chunks, this.limits, "Boundary checkpoint")},
       mass: massManifest,
+      projection: {
+        schema: "metafor/meta-json/v1",
+        root: resultProjection.value.root,
+        canonicalization: "rfc8785",
+        blob: blob(resultProjection.bytes, chunks, this.limits, "MetaJSON projection"),
+      },
       patches: {
         format: "json-patch",
         previousSnapshotSequence: patches.previousSnapshotSequence,
         fromSequence: patches.fromSequence,
         throughSequence: patches.throughSequence,
         entries: patches.entries.length,
+        base: structuredClone(patches.base),
+        result: structuredClone(patches.result),
         blob: blob(patchBytes, chunks, this.limits, "Forward patch span"),
       },
     }
@@ -430,7 +505,7 @@ export class CheckpointGitRepository {
       const index = join(temporary, "index")
       const environment = {GIT_INDEX_FILE: index}
       git(this.directory, ["read-tree", "--empty"], undefined, environment)
-      for (const [path, object] of [...files].toSorted(([left], [right]) => left.localeCompare(right))) {
+      for (const [path, object] of [...files].toSorted(([left], [right]) => utf16Compare(left, right))) {
         git(this.directory, ["update-index", "--add", "--cacheinfo", "100644", object, path], undefined, environment)
       }
       tree = gitText(this.directory, ["write-tree"], undefined, environment)

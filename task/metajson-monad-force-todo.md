@@ -596,25 +596,32 @@
 
 ### MF-107 — Реализовать coherent Boundary+Mass capture
 
-- Status: `GATE`
+- Status: `IN_PROGRESS`
+- Current executor: canonical MF-107 owner-authorized source/cold-cut task.
 - Dependencies: `MF-105`
 - Isolated foundation: `DONE`
 - Evidence:
-  - `dark/checkpoint/barrier.ts` реализует только внутренний, не подключённый к
-    contour receipt/barrier coordinator;
+  - `dark/checkpoint/barrier.ts` задаёт transport-neutral coordinator, а
+    `dark/checkpoint/control.ts` персистит его exact state и восстанавливает
+    non-zero baseline только при совпадении с Dark Force history;
+  - Monad sideband подготовляет receipt до неизменённого ForceMessage; domain
+    подтверждает применение только после Dark acceptance всех причинных
+    outputs;
+  - `dark/checkpoint/capture.ts` копирует stopped history/SQLite в private
+    staging, требует одинаковый MetaJSON digest at sequence 0/1 и публикует
+    local bare Git checkpoint до durable control baseline;
   - один accepted sequence атомарно назначает per-domain `sentOrdinal`;
   - closed applied acknowledgement продвигает монотонный per-domain frontier;
   - settling barrier принимает причинно испущенные accepted Particles,
     расширяет frontier и удерживает fixed point только при равенстве всех
     applied/sent ordinals;
   - held frontier блокирует acceptance/ack до явного release;
-  - sequence 0 отклоняется как `sequence_zero_baseline_unresolved`;
-  - targeted synthetic suite: 8 pass, 0 fail, 31 expect;
-  - checkpoint suites: 16 pass, 0 fail, 63 expect; полный `bun run check`:
-    1616 pass, 0 fail, 5344 expect и 42 expected type errors;
+  - sequence 0 по-прежнему отклоняется без equality proof и stopped capture;
+  - source gate: 1671 pass, 0 fail, 5518 expect без parallel Universe fixture;
+    typecheck проходит, 42 expected type errors подтверждены,
     `git diff --check` проходит;
-  - canonical Particle, Force wire/history, live contour, Boundary/Mass data и
-    runtime lifecycle не изменены и к coordinator не подключены.
+  - canonical Particle, Force wire/history row и routing semantics не
+    изменены; live contour/Boundary/Mass до cold gate не затрагивались.
 - Gate:
   - отдельная owner authority на live receipt/source integration и один полный
     controlled Lada cold cut в существующем contour;

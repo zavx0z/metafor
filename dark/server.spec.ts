@@ -16,6 +16,7 @@ let previousPort: string | undefined
 let previousCompatPort: string | undefined
 let previousForceHistory: string | undefined
 let previousCutId: string | undefined
+let previousCheckpointSideband: string | undefined
 let server: Bun.Server<unknown>
 let stopDark: () => Promise<void>
 let forceHistory: {status(): {sequence: number}}
@@ -124,10 +125,12 @@ beforeAll(async () => {
   previousCompatPort = Bun.env.DARK_COMPAT_PORT
   previousForceHistory = Bun.env.DARK_FORCE_HISTORY_PATH
   previousCutId = Bun.env.DARK_FORCE_HISTORY_CUT_ID
+  previousCheckpointSideband = Bun.env.DARK_CHECKPOINT_SIDEBAND
   Bun.env.PORT = "0"
   Bun.env.DARK_COMPAT_PORT = "0"
   Bun.env.DARK_FORCE_HISTORY_PATH = join(directory, "force-history", "v1")
   Bun.env.DARK_FORCE_HISTORY_CUT_ID = "server-spec-cut"
+  Bun.env.DARK_CHECKPOINT_SIDEBAND = "0"
   const module = await import(`./server.ts?test=${crypto.randomUUID()}`)
   server = module.server
   stopDark = module.stop
@@ -146,6 +149,8 @@ afterAll(async () => {
   else Bun.env.DARK_FORCE_HISTORY_PATH = previousForceHistory
   if (previousCutId === undefined) delete Bun.env.DARK_FORCE_HISTORY_CUT_ID
   else Bun.env.DARK_FORCE_HISTORY_CUT_ID = previousCutId
+  if (previousCheckpointSideband === undefined) delete Bun.env.DARK_CHECKPOINT_SIDEBAND
+  else Bun.env.DARK_CHECKPOINT_SIDEBAND = previousCheckpointSideband
   rmSync(directory, {recursive: true, force: true})
 })
 

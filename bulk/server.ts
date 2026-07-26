@@ -4,6 +4,7 @@ import {unsourceForceMessage} from "shared/protocol/force/message"
 import {MonadRpcPeer, MonadTransport} from "shared/transport/monad"
 import index from "./index.html"
 import {Force} from "shared/transport/force"
+import {installForceCheckpointSideband} from "shared/transport/force/checkpoint"
 import {BulkObserverHandoffs} from "./handoff.ts"
 import {BulkMonad} from "./monad.ts"
 import {bulkMonadRoutes} from "./monad-route.ts"
@@ -15,6 +16,7 @@ const handoffs = new BulkObserverHandoffs()
 const monad = new BulkMonad()
 const transport = new MonadTransport("bulk")
 const rpc = new MonadRpcPeer(transport.channel)
+const checkpoint = installForceCheckpointSideband("bulk", rpc)
 let force: Force | null = null
 
 const sendBrowser = (ws: ServerWebSocket<BrowserClient>, payload: unknown): void => {
@@ -108,7 +110,12 @@ const close = (): Promise<void> => {
 }
 
 try {
-  await transport.open({waitMs: 30_000})
+  await transport.open({
+    methods: rpc.methods(),
+    endpoint: new URL("/monad/channel", server.url),
+    waitMs: 30_000,
+  })
+  await checkpoint.open()
   const summary = await monad.onServerStarted(rpc)
   force = new Force("bulk")
   force.onImpulse = (impulse) => {

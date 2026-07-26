@@ -28,6 +28,36 @@ const nextTurn = async (): Promise<void> => {
 }
 
 describe("isolated checkpoint applied-through barrier", () => {
+  test("restores a durable non-zero baseline and continues exact acceptance sequence", () => {
+    const baseline = CheckpointAppliedThroughBarrier.baseline("cut-persisted", 7)
+    const restored = new CheckpointAppliedThroughBarrier("cut-persisted", baseline.state())
+
+    expect(restored.frontier()).toMatchObject({acceptanceSequence: 7, phase: "open"})
+    expect(restored.recordAccepted(8, ["boundary"])).toEqual([{
+      cutId: "cut-persisted",
+      domain: "boundary",
+      sentOrdinal: 1,
+      acceptanceSequence: 8,
+    }])
+  })
+
+  test("round-trips receipts and applied frontiers without treating them as Particle history", () => {
+    const original = new CheckpointAppliedThroughBarrier("cut-round-trip")
+    const [receipt] = original.recordAccepted(1, ["dark", "bulk"])
+    original.acknowledgeApplied(receipt)
+
+    const restored = new CheckpointAppliedThroughBarrier("cut-round-trip", original.state())
+    expect(restored.state()).toEqual(original.state())
+    expect(restored.frontier().domains.find(({domain}) => domain === "dark")).toMatchObject({
+      sentOrdinal: 1,
+      appliedOrdinal: 1,
+    })
+    expect(restored.frontier().domains.find(({domain}) => domain === "bulk")).toMatchObject({
+      sentOrdinal: 1,
+      appliedOrdinal: 0,
+    })
+  })
+
   test("maps accepted sequences to per-domain sent ordinals and holds the exact frontier", async () => {
     const barrier = new CheckpointAppliedThroughBarrier("cut-a")
     const [boundary] = barrier.recordAccepted(1, ["boundary"])

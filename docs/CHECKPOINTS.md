@@ -18,10 +18,11 @@ Timer и голый count не являются trigger. Trigger только з
 сам checkpoint появляется после coherent causal fence.
 
 Каждый coherent snapshot создаёт ровно один immutable Git commit. Checkpoint
-commits принадлежат отдельному private repository
-[`zavx0z/metafor-checkpoints`](https://github.com/zavx0z/metafor-checkpoints),
-никогда не source repository MetaFor или Meta package. Remote, credentials и
-push требуют отдельной owner authority.
+commits принадлежат отдельному local bare Git repository, никогда не source
+repository MetaFor или Meta package. Созданный
+[`zavx0z/metafor-checkpoints`](https://github.com/zavx0z/metafor-checkpoints)
+остаётся пустым и не является настроенным remote. Credentials, remote и push
+требуют отдельной owner authority.
 
 ## Содержимое commit
 
@@ -30,6 +31,7 @@ Commit содержит один closed manifest и content-addressed bytes по
 
 - standalone canonical Boundary SQLite checkpoint;
 - все Mass files, выбранные Boundary membership данного capture;
+- canonical MetaJSON v1 projection результата;
 - canonical forward JSON Patch span от предыдущего snapshot до `S`;
 - точные byte length, whole-file SHA-256 и ordered SHA-256 chunks;
 - `(cutId, acceptanceSequence)`, canonical capture time и trigger kind.
@@ -41,6 +43,14 @@ sequence в точном диапазоне
 projection имеет пустой operations array. Artifact имеет собственный digest и
 не добавляет control rows в Particle history. Он не становится второй
 canonical change history и не определяет новых mutation semantics.
+
+Canonical patch target — ровно один validated complete MetaJSON v1 document.
+Его bytes являются UTF-8 без BOM, пробелов и завершающего LF с RFC 8785/JCS
+object-key order и lowercase SHA-256. `base` указывает digest projection
+предыдущего checkpoint, `result` — digest projection этого commit. Diff
+детерминирован: object members используют только `add/remove/replace`, а
+изменённый массив заменяется целиком. Bulk manifestation, ELK layout и другие
+UI-проекции не входят в digest law.
 
 Boundary остаётся владельцем declaration, membership, source relations и
 `keyId`. Energy/Mass остаётся владельцем bytes и materialization локальных
@@ -88,17 +98,21 @@ frontiers и достигает fixed point только когда для ка�
 `appliedOrdinal == sentOrdinal`. После этого frontier удерживается неизменным
 до окончания coherent capture.
 
-Первый isolated foundation реализует только этот детерминированный coordinator
-и synthetic tests. Он не подключён к live Force/domain transports, не
-персистит receipts и не читает Boundary, Mass или history. Отдельный live gate
-должен доказать, что sideband acknowledgement не может обогнать acceptance
-причинно испущенного Particle, а receipt state можно однозначно восстановить
-после cold start.
+Dark персистит barrier state после durable Particle acceptance до routing.
+Domain получает receipt отдельным Monad RPC до неизменённого ForceMessage,
+применяет вход через свой последовательный Force handler и подтверждает его
+только после возврата всех причинно испущенных Particles в durable Dark Force
+acceptance. Перезапуск восстанавливает точные sent/applied и outgoing
+frontiers; unresolved delivery после crash вызывает fail-stop, а не
+пропускается.
 
 Пустой tracker с sequence `0` не доказывает applied-through состояние уже
-существующих Boundary/Mass. Foundation поэтому явно отклоняет sequence-0
-barrier. Первый live baseline требует отдельного owner-approved cold cut или
-доказанного правила восстановления; он не выводится из отсутствия receipts.
+существующих Boundary/Mass. Первый live baseline строится только остановленным
+cold capture: pre-cut Boundary copy для sequence `0` и остановленный current
+Boundary at sequence `1` должны дать один и тот же canonical MetaJSON digest и
+пустой deterministic patch. Любое отличие отклоняет capture. После verified
+checkpoint `(cutId, 1)` создаётся durable control baseline `1`; отсутствие или
+расхождение baseline с history закрывает следующий cold start.
 
 ## Replay и cache
 
@@ -132,20 +146,19 @@ cold start Lada в том же contour, health/functional acceptance и точн
 rollback из backup при любой ошибке. До этой authority никакие live lifecycle
 или data actions не выполняются.
 
-## Initial foundation boundary
+## Local capture boundary
 
-Первый foundation slice использует только synthetic bytes и temporary bare Git
-repositories. Он доказывает closed manifest, digest/chunk integrity,
-closed forward-patch coverage, exactly-one commit, immutable refs,
-compare-and-swap publication, crash и corruption rejection. Он не читает live
-Boundary, Mass или Particle history, не конфигурирует remote и не выполняет
-push.
+Source foundation использует synthetic bytes и temporary bare Git repositories
+для доказательства closed manifest, digest/chunk/projection integrity, exact
+forward-patch coverage, exactly-one commit, immutable refs, compare-and-swap,
+crash/resume и corruption rejection. Operational capture разрешён только после
+полной остановки contour: он копирует history и обе SQLite inputs в private
+temporary staging, создаёт standalone SQLite bytes после WAL checkpoint,
+считывает все regular UUID `.json/.bin` Mass files и публикует local bare Git
+ref только после полной проверки. Он не открывает live SQLite in place и не
+настраивает remote.
 
-До real capture/publication отдельно утверждаются:
-
-- encryption и device key distribution;
-- blob size/checkpoint/repository budgets;
-- точное правило material Mass trigger;
-- retention/GC и bookmark holds;
-- GitHub credentials/push;
-- live cold restore.
+Для первого local owner-bookmark capture действуют пределы: 64 MiB на один
+logical blob, 256 MiB на checkpoint и не более 256 Mass entries. Другие
+triggers, retention/GC, encryption/device distribution, remote и push остаются
+отдельными будущими gates.

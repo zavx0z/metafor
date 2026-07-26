@@ -412,8 +412,17 @@ export function startEnergyProtocol(options: StartEnergyProtocolOptions): Energy
   const pendingReactions = new Map<string, ReactionExecutionSignal>()
   const runningReactionIds = new Set<string>()
   const retiredDestroyControllers = new Set<AbortController>()
+  const activeTasks = new Set<Promise<void>>()
   let retiredDestroyQueue = Promise.resolve()
   let closed = false
+
+  const trackTask = (task: Promise<unknown>): void => {
+    let tracked!: Promise<void>
+    tracked = task.then(() => undefined, () => undefined).finally(() => {
+      activeTasks.delete(tracked)
+    })
+    activeTasks.add(tracked)
+  }
 
   const executeRetiredDestroy = async (retired: RetiredAtomDestroy): Promise<void> => {
     const controller = new AbortController()
@@ -632,7 +641,7 @@ export function startEnergyProtocol(options: StartEnergyProtocolOptions): Energy
           const pending = pendingReactions.get(signal.reactionExecutionId)
           if (!pending || pending.target.atomId !== atomId || runningReactionIds.has(signal.reactionExecutionId)) break
           runningReactionIds.add(signal.reactionExecutionId)
-          void executeReaction(signal, energyId, massStore)
+          trackTask(executeReaction(signal, energyId, massStore)
             .then((result) => {
               if (!pendingReactions.has(signal.reactionExecutionId) || !runningReactionIds.has(signal.reactionExecutionId)) return
               if (!result.matched) {
@@ -664,7 +673,7 @@ export function startEnergyProtocol(options: StartEnergyProtocolOptions): Energy
             .finally(() => {
               pendingReactions.delete(signal.reactionExecutionId)
               runningReactionIds.delete(signal.reactionExecutionId)
-            })
+            }))
           break
         }
 
@@ -684,7 +693,7 @@ export function startEnergyProtocol(options: StartEnergyProtocolOptions): Energy
           const running = runningByAtomId.get(atomId)
           return running?.pending.processExecutionId === pending.processExecutionId && !controller.signal.aborted
         }
-        void executeProcess(pending, grant.fields, catalog, controller.signal, mass, energy)
+        trackTask(executeProcess(pending, grant.fields, catalog, controller.signal, mass, energy)
           .then(async (data) => {
             if (!isCurrent()) return
             if (pending.descriptor.type === "finally") {
@@ -766,13 +775,21 @@ export function startEnergyProtocol(options: StartEnergyProtocolOptions): Energy
             if (runningByAtomId.get(atomId)?.pending.processExecutionId === pending.processExecutionId) {
               runningByAtomId.delete(atomId)
             }
-          })
+          }))
         break
       }
     }
   }
 
   return {
+    async quiesce() {
+      while (true) {
+        const retired = retiredDestroyQueue
+        const tasks = [...activeTasks]
+        await Promise.all([retired, ...tasks])
+        if (retired === retiredDestroyQueue && activeTasks.size === 0) return
+      }
+    },
     close() {
       closed = true
       for (const running of runningByAtomId.values()) running.controller.abort(new Error("Energy protocol closed"))

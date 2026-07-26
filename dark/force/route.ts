@@ -18,6 +18,16 @@ const relevantDomains = (message: SourcedForceMessage, origin: ForceOrigin): Set
   return null
 }
 
+export function particleDestinations(
+  message: SourcedForceMessage,
+  origin: ForceOrigin,
+): ForceDomain[] {
+  const relevant = relevantDomains(message, origin)
+  return forceDomains.filter((domain) =>
+    domain !== origin && (relevant === null || relevant.has(domain))
+  )
+}
+
 /**
  * Применяет routing laws Dark Force к одной Particle.
  *
@@ -27,14 +37,11 @@ const relevantDomains = (message: SourcedForceMessage, origin: ForceOrigin): Set
  * серверного жизненного цикла принимает `ForceLifecycle` до вызова этой функции.
  */
 export function routeParticle(message: SourcedForceMessage, origin: ForceOrigin): ForceDomain[] {
-  const relevant = relevantDomains(message, origin)
-  const delivered: ForceDomain[] = []
-  for (const domain of forceDomains) {
-    if (domain === origin || (relevant !== null && !relevant.has(domain))) continue
+  const delivered = particleDestinations(message, origin)
+  for (const domain of delivered) {
     const channel = (force$ as Partial<ForceStore>)[domain]
     if (!channel) throw new Error(`Force Store has no ${domain} channel`)
     channel.send(message)
-    delivered.push(domain)
   }
   return delivered
 }

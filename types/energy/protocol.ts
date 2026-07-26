@@ -3,6 +3,8 @@ import type {EnergyRuntimeStore} from "./energy.ts"
 import type {ForceMessage} from "shared/protocol/force/message"
 
 export type EnergyProtocol = {
+  /** Waits only for already-started local Process/Reaction/finalizer work. */
+  quiesce(): Promise<void>
   close(): void
 }
 
