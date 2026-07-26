@@ -334,7 +334,7 @@
 
 ### MF-103 — Добавить read-only operation/history/Mass observation
 
-- Status: `IN_PROGRESS`
+- Status: `BLOCKED`
 - Dependencies: `MF-101`
 - Current task: Architect task
   `019f9c3a-a2ec-7460-bd80-34ec2a630697`
@@ -352,6 +352,27 @@
     journal, не создавая его преждевременно;
   - `I1` — bounded observation contract/integration только после принятого
     `G1`, с отдельным independent verifier gate.
+- Read-only evidence:
+  - `H1` принят на clean `dac81d10`: существующий `dark.history.read`
+    наблюдает только incoming/outgoing Particles на Dark surface, сохраняет
+    целые equal-timestamp steps и имеет только time/limit filters; request не
+    закрыт, direction/by/part/op/path selectors и global completeness
+    отсутствуют;
+  - `M1` принят на clean `7148ed72`: Energy владеет guarded Mass `readJson`,
+    catalog и internal handles, но read-only owner RPC, public structural
+    selector, JSON-result DTO и observation error contract отсутствуют;
+  - обе evidence sessions работали read-only без чтения live Mass/history
+    data, source/docs/Git, runtime или contour mutations.
+- Blocker:
+  - structural operation outcomes не имеют текущего источника: plan относит
+    их к future operational journal `MF-203` и явно отделяет от
+    `DarkHistory`;
+  - текущие dependencies образуют невозможную для этой acceptance
+    последовательность: `MF-104` зависит от `MF-103`, `MF-200` — от
+    `MF-104`, а `MF-203` — от `MF-200`;
+  - требуется owner decision: перенести только structural operation outcomes
+    из `MF-103` в `MF-203`, не меняя particle-history и Mass-result scope.
+    До решения `I1` не запускается.
 - Read-only gate:
   - canonical checkout
     `/home/zavx0z/repozitarium/metafor-inference`, accepted MF-101
