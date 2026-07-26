@@ -168,7 +168,6 @@ class BulkNodeViewSurface extends UiSurface {
 		if (!this.#active) return
 		this.drawRect(0, 0, this.rectW, this.rectH, palette.bg, 0)
 		this.drawText("NODE VIEW · перетаскивай холст · колесо — масштаб", 18, 16, {fontPx: 12, material: this.materials.cyan, z: 0.2})
-		HudSideTab(this, {rect: {x: Math.max(18, this.rectW - 150), y: 8, w: 132, h: 30}, key: "node-view:fullscreen", edge: "top", label: "Полный режим", tooltip: "Полный экран", tone: "active", onClick: () => void this.hud.toggleFullscreen()})
 		if (this.#fitPending) this.#fitToView()
 		drawHudNodeViewPlan(this, this.#plan, 0.3, {
 			transform: {x: this.#pan.x, y: this.#pan.y, scale: this.#zoom},
@@ -195,6 +194,10 @@ class BulkNodeViewSurface extends UiSurface {
 			this.#zoom = next
 			this.requestRender()
 		}, "node-view:zoom")
+		// Пункты навигации регистрируются после бесконечного холста, иначе
+		// его обработчик pan перехватывает клик и из Node View нельзя выйти.
+		HudSideTab(this, {rect: {x: 18, y: 8, w: 92, h: 30}, key: "node-view:space", edge: "top", label: "Space", tooltip: "Вернуться в Space", tone: "active", onClick: () => this.hud.toggleNodeView()})
+		HudSideTab(this, {rect: {x: Math.max(122, this.rectW - 150), y: 8, w: 132, h: 30}, key: "node-view:fullscreen", edge: "top", label: "Полный режим", tooltip: "Полный экран", tone: "active", onClick: () => void this.hud.toggleFullscreen()})
 	}
 
 	#fitToView(): void {
