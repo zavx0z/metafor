@@ -598,12 +598,37 @@
 
 - Status: `GATE`
 - Dependencies: `MF-105`
+- Isolated foundation: `DONE`
+- Evidence:
+  - `dark/checkpoint/barrier.ts` реализует только внутренний, не подключённый к
+    contour receipt/barrier coordinator;
+  - один accepted sequence атомарно назначает per-domain `sentOrdinal`;
+  - closed applied acknowledgement продвигает монотонный per-domain frontier;
+  - settling barrier принимает причинно испущенные accepted Particles,
+    расширяет frontier и удерживает fixed point только при равенстве всех
+    applied/sent ordinals;
+  - held frontier блокирует acceptance/ack до явного release;
+  - sequence 0 отклоняется как `sequence_zero_baseline_unresolved`;
+  - targeted synthetic suite: 8 pass, 0 fail, 31 expect;
+  - checkpoint suites: 16 pass, 0 fail, 63 expect; полный `bun run check`:
+    1616 pass, 0 fail, 5344 expect и 42 expected type errors;
+    `git diff --check` проходит;
+  - canonical Particle, Force wire/history, live contour, Boundary/Mass data и
+    runtime lifecycle не изменены и к coordinator не подключены.
 - Gate:
-  - отдельная owner authority на live capture/source integration;
+  - отдельная owner authority на live receipt/source integration и один полный
+    controlled Lada cold cut в существующем contour;
+  - до cold cut доказать, что applied acknowledgement не может обогнать Dark
+    Force acceptance причинно испущенного Particle;
+  - определить cold-start persistence/reconstruction receipt state и первый
+    non-zero applied-through baseline; sequence 0 не считается доказательством;
   - encryption/device keys, production blob budgets и точное правило material
     Mass trigger должны быть закрыты до real Mass publication;
-  - applied-through barrier должен быть доказан без control rows в Particle
-    history и без изменения canonical Particle payload.
+  - operational sequence: verified backup/hash → stop whole contour →
+    coherent local snapshot commit → cold start Lada в том же live contour →
+    health/functional verification → exact rollback при failure;
+  - clone, parallel replacement contour, hot/partial restart и remote push
+    запрещены.
 - Acceptance:
   - Dark Force фиксирует `S` и доказывает applied-through causal fence;
   - Boundary создаёт полный standalone checkpoint в своём serialized cut;

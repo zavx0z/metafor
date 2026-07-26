@@ -71,6 +71,35 @@ Commit object до ref publication не является checkpoint. Ошибк�
 Normal branches, worktrees, amend, rebase, reset, force-update, merge и
 cherry-pick в checkpoint repository отсутствуют.
 
+## Applied-through control plane
+
+Checkpoint barrier является внутренним service/control-plane contract и не
+меняет canonical Particle, Force wire frame или строку Dark Force history.
+Для каждого принятого Particle Dark Force атомарно с полным destination set
+назначает отдельный монотонный `sentOrdinal` каждому целевому домену. Sideband
+receipt содержит только `cutId`, domain, `sentOrdinal` и
+`acceptanceSequence`.
+
+Domain может подтвердить receipt только после последовательного применения
+всех deliveries до этого ordinal и возврата в Dark Force acceptance всех
+Particle, причинно испущенных их применением. При закрытом external admission
+barrier продолжает принимать такие causal Particles, расширяет per-domain sent
+frontiers и достигает fixed point только когда для каждого домена
+`appliedOrdinal == sentOrdinal`. После этого frontier удерживается неизменным
+до окончания coherent capture.
+
+Первый isolated foundation реализует только этот детерминированный coordinator
+и synthetic tests. Он не подключён к live Force/domain transports, не
+персистит receipts и не читает Boundary, Mass или history. Отдельный live gate
+должен доказать, что sideband acknowledgement не может обогнать acceptance
+причинно испущенного Particle, а receipt state можно однозначно восстановить
+после cold start.
+
+Пустой tracker с sequence `0` не доказывает applied-through состояние уже
+существующих Boundary/Mass. Foundation поэтому явно отклоняет sequence-0
+barrier. Первый live baseline требует отдельного owner-approved cold cut или
+доказанного правила восстановления; он не выводится из отсутствия receipts.
+
 ## Replay и cache
 
 Particle timeline остаётся единственной canonical change history. Для target
@@ -94,6 +123,14 @@ identities и создаёт новые локальные Energy handles обы
 Read-only isolated replay не меняет live contour. Применение checkpoint в live
 Universe является отдельным owner-approved full cold cut с backup, новым
 `cutId`, acceptance или rollback. Hot/partial restart запрещён.
+
+Целевой operational contour для первого Lada checkpoint — существующий live
+contour, не clone и не параллельная replacement environment. Его выполнение
+разрешается только одной отдельной authority на полный controlled cold cut:
+verified backup/hash, остановка всего contour, coherent local snapshot commit,
+cold start Lada в том же contour, health/functional acceptance и точный
+rollback из backup при любой ошибке. До этой authority никакие live lifecycle
+или data actions не выполняются.
 
 ## Initial foundation boundary
 

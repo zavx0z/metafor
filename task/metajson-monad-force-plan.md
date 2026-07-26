@@ -742,13 +742,31 @@ Checkpoint foundation выполняется независимо от read-only
 и device keys, blob backend/size budgets, точному определению material Mass
 trigger, retention/GC и live cold restore.
 
+Owner отдельно разрешил bounded `MF-107` foundation без live integration.
+Внутренний control-plane contract назначает принятым Dark Force Particles
+per-domain sent ordinals, принимает applied acknowledgements и удерживает
+causal fixed point только после равенства applied/sent frontiers. Receipt и
+ack не являются Particle, не меняют Force wire/history и не добавляют control
+rows. Foundation изолирован от live contour; его sequence-0 baseline
+намеренно остаётся нерешённым, потому что пустой tracker не доказывает
+состояние уже существующих Boundary/Mass.
+
+Live target для первого Lada checkpoint — тот же действующий contour, а не
+clone или параллельная replacement environment. Следующая отдельная authority
+должна разрешить один полный cold cut: backup/hash → stop whole contour →
+coherent local snapshot commit → cold start Lada в том же contour →
+health/functional acceptance либо точный rollback. Hot/partial restart,
+capture до этого gate и remote push запрещены.
+
 До будущего write slice отдельно потребуется локальная capability
 identity/policy первого Codex→Monad write endpoint за пределами trusted
 development contour. Structural-operation CAS/digests относятся к будущему
 `MF-200` contract, а не к MetaJSON v1.
 
-Dark Force v2, full VCS и права внутренних Runtime Agents остаются будущими
-решениями и не блокируют текущую последовательность.
+Checkpoint-specific applied-through coordinator не утверждает общий
+multi-domain delivery protocol: персистентный Dark Force v2, общий causal
+convergence barrier, full VCS и права внутренних Runtime Agents остаются
+будущими решениями и не блокируют этот изолированный foundation.
 
 ## 16. Как обновлять план
 
