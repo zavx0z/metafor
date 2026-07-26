@@ -20,6 +20,7 @@
     "./boundary/runtime": "./boundary/runtime.ts",
     "./boundary/initial": "./boundary/initial.ts",
     "./dark/history": "./dark/history.ts",
+    "./dark/checkpoint": "./dark/checkpoint.ts",
     "./matrix/data": "./matrix/data.ts",
     "./matrix/store": "./matrix/store.ts",
     "./matrix/runtime": "./matrix/runtime.ts",

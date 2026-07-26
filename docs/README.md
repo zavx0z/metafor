@@ -25,6 +25,8 @@
 - [Архитектура runtime](ARCHITECTURE.md) — состав contour и связи доменов.
 - [Force](FORCE.md) — Dark Force: единый Particle channel, complete post-cut
   history, relay и fail-stop внутри Dark process.
+- [Immutable checkpoints](CHECKPOINTS.md) — coherent Boundary+Mass capture,
+  отдельный Git provenance и forward-only replay.
 - [Boundary](../boundary/DOMAIN.md) — каноническое состояние, identity,
   materialization и commit.
 - [Matrix](domains/MATRIX.md) — State/Transition и инкрементальная проекция.

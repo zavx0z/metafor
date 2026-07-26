@@ -14,7 +14,9 @@ MetaJSON v1 read-contract. `MF-101` implementation gate завершён и не
 Force runtime перенесён в Dark, legacy history surface удалён, а
 owner-approved full cold cut принял новый five-process contour и complete
 post-cut Dark Force Particle history. Следующий обязательный item — read-only
-`MF-103`; принятый contour остаётся запущенным без hot reload.
+`MF-103`; параллельный isolated checkpoint foundation `MF-105/MF-106`
+зафиксировал contract и synthetic bare-Git proof без live capture. Принятый
+contour остаётся запущенным без hot reload.
 
 Этот файл — изменяемая рабочая карта. Он не заменяет документы-владельцы из
 `docs/README.md`. Новый действующий закон сначала переносится в соответствующий
@@ -717,6 +719,28 @@ Particles и входят в complete Dark Force history. После `MF-102` re
 `MF-103` добавляет closed filters над этой history и отдельный Mass-result
 observation: external Mass identity задаётся canonical root, public runtime
 Atom path и authored Mass key, результат является detached JSON-only data.
+
+Owner отдельно утвердил checkpoint-направление. Coherent snapshot создаётся
+только в semantic, quiescent, material-Mass, explicit owner bookmark либо
+measured replay-cost point; timer и голый count не являются trigger. Один
+snapshot `(cutId, acceptance sequence)` создаёт ровно один immutable commit с
+полным согласованным Boundary+Mass capture в отдельном private checkpoint
+repository, никогда не в source repository. Particle timeline остаётся
+единственной canonical change history. Каждый commit также содержит
+deterministic canonical forward JSON Patch span с digest и точным coverage
+`[previous snapshot sequence + 1, S]`, выведенный из Particle timeline без
+новых mutation semantics и без control rows в history. Навигация использует
+nearest prior snapshot и только forward Particle/JSON patches; canonical
+inverse patches не создаются. Derived acceleration patch/state cache является
+server-side, disposable и rebuildable и не хранится в Git.
+
+Owner создал будущий distribution repository
+[`zavx0z/metafor-checkpoints`](https://github.com/zavx0z/metafor-checkpoints).
+Его remote, credentials и push не настраиваются без отдельной authority.
+Checkpoint foundation выполняется независимо от read-only `MF-103` и сходится
+с ним только на replay/navigation. До реализации остаются gates по шифрованию
+и device keys, blob backend/size budgets, точному определению material Mass
+trigger, retention/GC и live cold restore.
 
 До будущего write slice отдельно потребуется локальная capability
 identity/policy первого Codex→Monad write endpoint за пределами trusted

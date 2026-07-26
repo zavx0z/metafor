@@ -514,6 +514,127 @@
   - формулирует проверяемое improvement intent;
   - никаких writes на этом item.
 
+## P1.5 — Immutable checkpoint foundation
+
+Эта линия независима от read-only `MF-103`. Она не меняет Particle history и
+сходится с `MF-103` только в replay/navigation.
+
+### MF-105 — Утвердить checkpoint и Git/Mass contract
+
+- Status: `DONE`
+- Dependencies: `MF-102`
+- Evidence:
+  - owner contract добавлен в `docs/CHECKPOINTS.md` и карту
+    `docs/README.md`;
+  - closed manifest/forward-patch types и validators экспортированы как
+    `@metafor/types/dark/checkpoint`;
+  - planned private distribution repository зафиксирован как
+    `zavx0z/metafor-checkpoints`, но remote не настроен и push отсутствует;
+  - deterministic forward JSON Patch span имеет whole/chunk digest и exact
+    sequence coverage, но Particle timeline остаётся единственной causal
+    change history;
+  - `bun run typecheck`, expect-error proof и `git diff --check` проходят.
+- Locked owner law:
+  - coherent snapshot создаётся только в semantic, quiescent, material-Mass,
+    owner-bookmark либо measured replay-cost point, никогда по timer/count;
+  - один snapshot `(cutId, acceptance sequence)` создаёт ровно один immutable
+    commit с полным Boundary+Mass capture;
+  - checkpoint commits принадлежат отдельному private repository
+    [`zavx0z/metafor-checkpoints`](https://github.com/zavx0z/metafor-checkpoints),
+    а не source repository;
+  - Particle timeline является единственной canonical change history;
+  - commit содержит deterministic forward JSON Patch span с digest и точным
+    coverage `[previousSnapshotSequence + 1, S]`; Particle остаётся causal
+    truth, control rows в history отсутствуют;
+  - replay использует snapshot и только forward Particle/JSON patches;
+    canonical inverse patches отсутствуют;
+  - derived patch/state cache server-side, disposable, rebuildable и не Git.
+- Remaining owner decisions:
+  - encryption и distribution device keys;
+  - Git-native blob chunks либо отдельно утверждённый blob backend и hard
+    budgets;
+  - точное правило material Mass trigger;
+  - retention/GC и bookmark holds;
+  - remote credentials/push и live cold restore имеют отдельную authority.
+- Acceptance:
+  - domain documents, closed types и recovery laws согласованы;
+  - source repository, live contour, Store/Mass и Particle history не
+    используются как checkpoint storage.
+
+### MF-106 — Реализовать isolated checkpoint Git substrate
+
+- Status: `DONE`
+- Dependencies: `MF-105`
+- Evidence:
+  - `dark/checkpoint/repository.ts` принимает только переданные capture bytes
+    и не имеет Boundary/Mass/history/runtime reader;
+  - temporary bare repository не создаёт normal branches, worktree или
+    remotes;
+  - one snapshot создаёт один linear commit и immutable sequence ref; cut head
+    обновляется compare-and-swap transaction;
+  - одинаковые Mass chunks переиспользуют один SHA-256-addressed Git object;
+  - closed manifest, complete forward-patch span, whole/chunk digests и exact
+    tree проверяются до ref publication;
+  - duplicate identity, incomplete span, pre-publication crash, concurrent
+    head conflict, corrupt object/manifest и explicit size budget violation
+    отклоняются;
+  - targeted `bun test dark/checkpoint/repository.spec.ts`: 8 pass, 0 fail,
+    32 expect;
+  - полный `bun run check`: 1608 pass, 0 fail, 5313 expect; 42 expected type
+    errors подтверждены;
+  - live Boundary/Mass/history, contour, runtime, source repository Git
+    metadata и GitHub remote не использовались; push отсутствует.
+- Acceptance:
+  - dedicated bare repository без worktree/normal branches;
+  - immutable `(cutId, sequence)` ref и exactly-one commit;
+  - Boundary/Mass manifests, canonical forward-patch span, content digests,
+    blob dedup и size guards;
+  - patch coverage не имеет gaps, inverse operations или history control rows;
+  - crash до atomic ref publication не создаёт видимый checkpoint;
+  - tests используют только synthetic temporary data;
+  - remote и push отсутствуют.
+
+### MF-107 — Реализовать coherent Boundary+Mass capture
+
+- Status: `GATE`
+- Dependencies: `MF-105`
+- Gate:
+  - отдельная owner authority на live capture/source integration;
+  - encryption/device keys, production blob budgets и точное правило material
+    Mass trigger должны быть закрыты до real Mass publication;
+  - applied-through barrier должен быть доказан без control rows в Particle
+    history и без изменения canonical Particle payload.
+- Acceptance:
+  - Dark Force фиксирует `S` и доказывает applied-through causal fence;
+  - Boundary создаёт полный standalone checkpoint в своём serialized cut;
+  - единый Mass-owner fence включает prior writes/copies и исключает later;
+  - immutable staging capture содержит exact Boundary+Mass state at `S`;
+  - Particle payload/history format не изменяется.
+
+### MF-108 — Опубликовать один commit на coherent snapshot
+
+- Status: `WAITING`
+- Dependencies: `MF-106`, `MF-107`
+- Acceptance:
+  - verified staging capture порождает ровно один commit;
+  - sequence ref и cut head публикуются atomically/CAS;
+  - incomplete/corrupt capture остаётся unpublished;
+  - никаких source Git commits, data push или live restore.
+
+### MF-109 — Реализовать isolated forward replay
+
+- Status: `WAITING`
+- Dependencies: `MF-103`, `MF-108`
+- Acceptance:
+  - выбирается nearest prior checkpoint `C ≤ T`;
+  - Boundary+Mass восстанавливаются только в isolated projection;
+  - canonical Particles `C+1..T` применяются вперёд с gap/order validation;
+  - committed forward spans можно полностью проверить и перестроить из
+    canonical Particle timeline;
+  - backward navigation выбирает более ранний checkpoint и снова replay
+    forward, не хранит inverse patches;
+  - derived cache можно удалить и полностью восстановить.
+
 ## P2 — Dark Monad structural patch vertical slice
 
 ### MF-200 — Утвердить structural operation contract
