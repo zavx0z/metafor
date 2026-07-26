@@ -6,8 +6,10 @@ import type {MetaDSL} from "@metafor/types/metafor/schema"
 import {Force} from "shared/transport/force"
 import type {DarkHistory} from "./history.ts"
 import {canonicalMetaSource, loadMeta} from "./load.ts"
-
-type MetaLoader = (src: string) => Promise<MetaDSL>
+import {
+  loadMetaDeclarationGraph,
+  type MetaLoader,
+} from "./meta-json.ts"
 
 type DeclarationEntity = {
   key: string
@@ -62,13 +64,16 @@ const localEntity = (
   value: jsonRecord({wimp, id, ...value}),
 })
 
-const declaration = (src: string, dsl: MetaDSL): WimpProjection => {
+const declaration = (
+  src: string,
+  dsl: MetaDSL,
+  children: string[],
+): WimpProjection => {
   const entities: DeclarationEntity[] = [wimpEntity(src, {
     name: dsl.name,
     desc: dsl.desc ?? null,
     ...(Array.isArray(dsl.mass) ? {mass: dsl.mass} : {}),
   })]
-  const children: string[] = []
   const fieldIds = new Map<string, number>()
   const stateIds = new Map<string, number>()
 
@@ -204,7 +209,6 @@ const declaration = (src: string, dsl: MetaDSL): WimpProjection => {
         position: item.position,
         ...definition,
       }))
-      if (item.particle.kind === "wimp") children.push(item.particle.src)
       for (let position = 0; position < (nested?.length ?? 0); position++) {
         const child = nested![position]!
         next.push({particle: child.particle, edgeSlot: child.edgeSlot, position, parent: id})
@@ -273,32 +277,20 @@ export async function* matterParticles(
 ): AsyncGenerator<Particle, void, void> {
   roots.add(src)
   const next = new Map<string, WimpProjection>()
-  const seen = new Set<string>()
-  let frontier = [src]
+  for await (const {address, dsl, references} of loadMetaDeclarationGraph(src, readMeta)) {
+    const current = declaration(address, dsl, references)
+    next.set(address, current)
+    const previous = projection.get(address)
+    const previousByKey = new Map(previous?.entities.map((item) => [item.key, item]))
+    const nextKeys = new Set(current.entities.map((item) => item.key))
 
-  while (frontier.length > 0) {
-    const nextFrontier: string[] = []
-    for (const address of frontier) {
-      if (seen.has(address)) continue
-      seen.add(address)
-      const current = declaration(address, await readMeta(address))
-      next.set(address, current)
-      const previous = projection.get(address)
-      const previousByKey = new Map(previous?.entities.map((item) => [item.key, item]))
-      const nextKeys = new Set(current.entities.map((item) => item.key))
-
-      for (const item of previous?.entities.toReversed() ?? []) {
-        if (!nextKeys.has(item.key)) yield remove(item)
-      }
-      for (const item of current.entities) {
-        const particle = change(previousByKey, item)
-        if (particle) yield particle
-      }
-      for (const child of current.children) {
-        if (!seen.has(child) && !nextFrontier.includes(child)) nextFrontier.push(child)
-      }
+    for (const item of previous?.entities.toReversed() ?? []) {
+      if (!nextKeys.has(item.key)) yield remove(item)
     }
-    frontier = nextFrontier
+    for (const item of current.entities) {
+      const particle = change(previousByKey, item)
+      if (particle) yield particle
+    }
   }
 
   const target = new Map(projection)

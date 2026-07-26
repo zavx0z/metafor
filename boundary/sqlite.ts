@@ -11,8 +11,18 @@ import {BoundaryExecutionStore} from "./execution.ts"
 import {BoundaryReactionStore} from "./reaction.ts"
 import {BoundaryInputStore} from "./input.ts"
 import {readBoundaryInitialState} from "./initial.ts"
-import type {BoundaryInitialProjection} from "@metafor/types/boundary/initial"
+import type {
+  BoundaryInitialProjection,
+  BoundaryInitialState,
+} from "@metafor/types/boundary/initial"
 import {MassCatalog} from "../shared/mass.ts"
+
+export type BoundaryMetaJSONSnapshot = {
+  initialState: BoundaryInitialState
+  initialProjection: BoundaryInitialProjection
+  originByInstance: Map<string, string>
+  parentByInstance: Map<string, string>
+}
 
 const isFieldConsequence = (message: ForceMessage): boolean => {
   const part = message.parts[0]
@@ -75,10 +85,16 @@ export const open = async (filename?: string) => {
   const reaction = new BoundaryReactionStore(sql)
   await reaction.init()
   const input = new BoundaryInputStore(sql)
-  let absorbQueue: Promise<unknown> = Promise.resolve()
+  let absorbQueue: Promise<void> = Promise.resolve()
+
+  const serialize = <T>(operation: () => Promise<T>): Promise<T> => {
+    const task = absorbQueue.then(operation)
+    absorbQueue = task.then(() => undefined, () => undefined)
+    return task
+  }
 
   const materialize = (message: ForceMessage): Promise<BoundaryIncrementalCommit | null> => {
-    const task = absorbQueue.then(async () => {
+    return serialize(async () => {
       const executionCommit = await execution.apply(message)
       const reactionCommit = await reaction.apply(message)
       const inputCommit = await input.apply(message)
@@ -117,9 +133,28 @@ export const open = async (filename?: string) => {
         ? commit
         : {...commit, messages: [...commit.messages, ...reactionSignals]}
     })
-    absorbQueue = task.then(() => undefined, () => undefined)
-    return task
   }
+
+  const readInitialProjection = async (): Promise<BoundaryInitialProjection> => ({
+    version: 1,
+    entries: (await projection.replay()).map((message) => {
+      const {by: _by, ts: _ts, ...entry} = message.parts[0]
+      return entry
+    }),
+  })
+
+  const readMetaJSONSnapshot = (): Promise<BoundaryMetaJSONSnapshot> => serialize(async () => {
+    const [initialState, initialProjection] = await Promise.all([
+      readBoundaryInitialState(sql),
+      readInitialProjection(),
+    ])
+    return {
+      initialState,
+      initialProjection,
+      originByInstance: new Map(projection.originByInstance),
+      parentByInstance: new Map(projection.parentByInstance),
+    }
+  })
 
   return {
     wimp,
@@ -132,13 +167,8 @@ export const open = async (filename?: string) => {
     replay: () => projection.replay(),
     materialize,
     initialState: () => readBoundaryInitialState(sql),
-    initialProjection: async (): Promise<BoundaryInitialProjection> => ({
-      version: 1,
-      entries: (await projection.replay()).map((message) => {
-        const {by: _by, ts: _ts, ...entry} = message.parts[0]
-        return entry
-      }),
-    }),
+    initialProjection: readInitialProjection,
+    metaJSONSnapshot: readMetaJSONSnapshot,
     async close() {
       try {
         if (fileBacked) await sql.unsafe("PRAGMA wal_checkpoint(TRUNCATE);")

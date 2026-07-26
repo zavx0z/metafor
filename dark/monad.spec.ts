@@ -6,6 +6,7 @@ import {
   DARK_HISTORY_CLEAR_METHOD,
   DARK_HISTORY_READ_METHOD,
 } from "@metafor/types/dark/history"
+import {parseMetaAddress} from "@metafor/types/metafor/meta-json"
 import {
   MonadRpcPeer,
   type MonadChannel,
@@ -16,6 +17,7 @@ import {
   type MonadRpcMessage,
 } from "shared/protocol/monad/rpc"
 import {DarkHistory} from "./history.ts"
+import {DARK_DECLARATION_PROJECTION_METHOD} from "./meta-json.ts"
 import {DarkMonad} from "./monad.ts"
 
 class TestChannel implements MonadChannel {
@@ -57,12 +59,31 @@ describe("Dark Monad", () => {
       by: "matrix",
       ts: 9,
     })
-    const monad = new DarkMonad(history)
+    const root = parseMetaAddress("example/dark-monad")!
+    const monad = new DarkMonad(history, async (params) => {
+      expect(params).toEqual({root})
+      return {
+        root,
+        template: {
+          [root]: {
+            name: "Dark Monad",
+            fields: [],
+            superposition: [],
+            mass: [],
+            processes: [],
+          },
+        },
+      }
+    })
     const channel = new TestChannel()
     const peer = new MonadRpcPeer(channel)
 
     monad.onServerStarted(peer)
-    expect(peer.methods()).toEqual([DARK_HISTORY_CLEAR_METHOD, DARK_HISTORY_READ_METHOD])
+    expect(peer.methods()).toEqual([
+      DARK_DECLARATION_PROJECTION_METHOD,
+      DARK_HISTORY_CLEAR_METHOD,
+      DARK_HISTORY_READ_METHOD,
+    ])
     monad.onChannelOpened()
 
     await channel.receive({
@@ -91,6 +112,32 @@ describe("Dark Monad", () => {
       id: "history-clear",
       ok: true,
       result: {removed: 1, latestTs: null},
+    })
+
+    await channel.receive({
+      version: MONAD_RPC_VERSION,
+      id: "declaration-read",
+      source: "force",
+      target: "dark",
+      method: DARK_DECLARATION_PROJECTION_METHOD,
+      params: {root},
+    })
+    expect(channel.sent[2]).toEqual({
+      version: MONAD_RPC_VERSION,
+      id: "declaration-read",
+      ok: true,
+      result: {
+        root,
+        template: {
+          [root]: {
+            name: "Dark Monad",
+            fields: [],
+            superposition: [],
+            mass: [],
+            processes: [],
+          },
+        },
+      },
     })
   })
 })

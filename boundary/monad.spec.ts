@@ -12,6 +12,7 @@ import {
   MONAD_RPC_VERSION,
   type MonadRpcMessage,
 } from "shared/protocol/monad/rpc"
+import {BOUNDARY_META_JSON_PROJECTION_METHOD} from "./meta-json.ts"
 import {BoundaryMonad} from "./monad.ts"
 import {open, type BoundaryDatabase} from "./sqlite.ts"
 
@@ -56,6 +57,7 @@ describe("Boundary Monad", () => {
     expect(peer.methods()).toEqual([
       BOUNDARY_INITIAL_PROJECTION_METHOD,
       BOUNDARY_INITIAL_STATE_METHOD,
+      BOUNDARY_META_JSON_PROJECTION_METHOD,
     ])
     expect(await monad.onHealthRequested(":memory:").json()).toMatchObject({rpc: "registering"})
 
@@ -92,6 +94,25 @@ describe("Boundary Monad", () => {
       id: "bulk-birth",
       ok: true,
       result: {version: 1, entries: []},
+    })
+
+    await channel.receive({
+      version: MONAD_RPC_VERSION,
+      id: "metajson-read",
+      source: "monad",
+      target: "boundary",
+      method: BOUNDARY_META_JSON_PROJECTION_METHOD,
+      params: {root: "owner/runtime"},
+    })
+
+    expect(channel.sent[2]).toEqual({
+      version: MONAD_RPC_VERSION,
+      id: "metajson-read",
+      ok: true,
+      result: {
+        root: "owner/runtime",
+        runtime: {roots: []},
+      },
     })
   })
 })

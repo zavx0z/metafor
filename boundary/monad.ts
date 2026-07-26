@@ -3,6 +3,10 @@ import {
   BOUNDARY_INITIAL_STATE_METHOD,
 } from "@metafor/types/boundary/initial"
 import type {MonadRpcPeer} from "shared/transport/monad"
+import {
+  BOUNDARY_META_JSON_PROJECTION_METHOD,
+  readBoundaryMetaJSONProjection,
+} from "./meta-json.ts"
 import type {BoundaryDatabase} from "./sqlite.ts"
 
 export type BoundaryMonadState = "created" | "registering" | "ready" | "error" | "stopped"
@@ -20,6 +24,10 @@ export class BoundaryMonad {
     this.#state = "registering"
     peer.expose(BOUNDARY_INITIAL_STATE_METHOD, async () => await this.boundary.initialState())
     peer.expose(BOUNDARY_INITIAL_PROJECTION_METHOD, async () => await this.boundary.initialProjection())
+    peer.expose(
+      BOUNDARY_META_JSON_PROJECTION_METHOD,
+      async (params) => await readBoundaryMetaJSONProjection(this.boundary, params),
+    )
     this.#peer = peer
   }
 
