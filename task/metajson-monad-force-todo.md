@@ -334,7 +334,7 @@
 
 ### MF-103 — Добавить read-only operation/history/Mass observation
 
-- Status: `BLOCKED`
+- Status: `IN_PROGRESS`
 - Dependencies: `MF-101`
 - Current task: Architect task
   `019f9c3a-a2ec-7460-bd80-34ec2a630697`
@@ -347,11 +347,12 @@
     отдельную session в том же saved project и canonical worktree,
     предоставленную Organizer, callback
     `MF103_MASS_EVIDENCE|BLOCKED` Архитектору;
-  - `G1` — Architect reconciliation после `H1` и `M1`: отделить доступное
+  - `G1` — `DONE`: Architect reconciliation после `H1` и `M1` отделил доступное
     particle/Mass observation от structural outcomes будущего operational
     journal, не создавая его преждевременно;
-  - `I1` — bounded observation contract/integration только после принятого
-    `G1`, с отдельным independent verifier gate.
+  - `I1` — `IN_PROGRESS`: bounded particle/Mass observation contract и
+    stateless Monad integration после принятого `G1`, с отдельным independent
+    verifier gate.
 - Read-only evidence:
   - `H1` принят на clean `dac81d10`: существующий `dark.history.read`
     наблюдает только incoming/outgoing Particles на Dark surface, сохраняет
@@ -363,16 +364,15 @@
     selector, JSON-result DTO и observation error contract отсутствуют;
   - обе evidence sessions работали read-only без чтения live Mass/history
     data, source/docs/Git, runtime или contour mutations.
-- Blocker:
+- Resolved owner gate:
   - structural operation outcomes не имеют текущего источника: plan относит
     их к future operational journal `MF-203` и явно отделяет от
     `DarkHistory`;
   - текущие dependencies образуют невозможную для этой acceptance
     последовательность: `MF-104` зависит от `MF-103`, `MF-200` — от
     `MF-104`, а `MF-203` — от `MF-200`;
-  - требуется owner decision: перенести только structural operation outcomes
-    из `MF-103` в `MF-203`, не меняя particle-history и Mass-result scope.
-    До решения `I1` не запускается.
+  - owner перенёс только structural operation outcomes из `MF-103` в
+    `MF-203`; particle-history и Mass-result scope сохранены.
 - Read-only gate:
   - canonical checkout
     `/home/zavx0z/repozitarium/metafor-inference`, accepted MF-101
@@ -385,13 +385,15 @@
   - worktree, branch, checkout copy, nested subagent и duplicate session не
     создаются; session naming остаётся ответственностью Organizer.
 - Scope:
-  - structural operation outcomes;
-  - particle history отдельно;
+  - честно обозначенная Dark-surface particle history с closed filters;
   - разрешённые Mass results через owner API.
 - Acceptance:
   - MetaJSON snapshot не смешивается с history/Mass;
   - direct Store/SQLite/filesystem reads со стороны Codex отсутствуют;
-  - selector/time/operation filters валидируются.
+  - selector/time filters валидируются;
+  - external Mass identity использует canonical root, public runtime Atom path
+    и authored Mass key; internal IDs и raw bytes не выходят наружу;
+  - Mass result является detached JSON-only data.
 
 ### MF-104 — Доказать первый read/observe iteration
 
@@ -453,6 +455,8 @@
   - полный serialized patch и patch/base/written/normalized digests;
   - distinct validation/write/execute/round-trip/materialize phases;
   - exact outcome/error;
+  - read-only structural outcome observation валидирует
+    operation/target/time filters;
   - journal не является MetaJSON, Particle history или VCS.
 
 ### MF-204 — Немедленно materialize через текущий runtime path

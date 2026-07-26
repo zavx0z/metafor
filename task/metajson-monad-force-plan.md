@@ -346,15 +346,21 @@ Codex должен уметь через объявленные RPC:
 
 - запросить через Monad весь MetaJSON для canonical root Meta;
 - выполнить partial retrieval над тем же document contract без второй schema;
-- запросить operational journal по operation/target/time;
-- запросить particle history отдельно от structural history;
+- запросить Dark-surface particle history отдельно от structural history;
 - запросить разрешённые Mass results без включения Mass bytes в MetaJSON;
+- после появления operational journal в `MF-203` запросить structural operation
+  outcomes по operation/target/time;
 - сравнить projection до/после operation;
 - продолжить работу с новым наблюдением.
 
 MetaJSON RPC и history RPC read-only. Mass read проходит через Monad владельца
 или объявленный Energy/Mass service; Codex не читает Boundary SQLite, domain
 Store или files другого domain напрямую.
+
+`MF-103` реализует только честно обозначенную Dark-surface particle history и
+разрешённые Mass results. Structural operation outcomes не имеют отдельного
+источника до operational journal и добавляются вместе с ним в `MF-203`; они не
+подменяются пустым ответом, `DarkHistory` или вторым MetaJSON view.
 
 ## 7. Structural operation первого среза
 
@@ -652,9 +658,13 @@ v1 закрыты и реализованы следующие решения:
 6. directed ports/stubs/global edges отсутствуют;
 7. сохраняется только порядок, доказанный runtime/materialization semantics.
 
-Новых owner decisions для read-only `MF-103` нет, пока observation APIs
-остаются отдельными от MetaJSON snapshot, читают данные только через владельцев
-доменов и не изменяют live contour либо domain Stores.
+Owner перенёс structural operation outcomes observation из `MF-103` в
+`MF-203`. Read-only `MF-103` ограничен Dark-surface particle history с closed
+filters и отдельным Mass-result observation через владельцев доменов:
+external identity задаётся canonical root, public runtime Atom path и authored
+Mass key, а результат является detached JSON-only data. Observation APIs
+остаются отдельными от MetaJSON snapshot и не изменяют live contour либо domain
+Stores.
 
 До будущего write slice отдельно потребуется локальная capability
 identity/policy первого Codex→Monad write endpoint за пределами trusted
