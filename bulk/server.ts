@@ -6,6 +6,7 @@ import index from "./index.html"
 import {Force} from "shared/transport/force"
 import {BulkObserverHandoffs} from "./handoff.ts"
 import {BulkMonad} from "./monad.ts"
+import {bulkMonadRoutes} from "./monad-route.ts"
 
 type BrowserClient = {domain: string; id: string; session: string}
 
@@ -24,6 +25,7 @@ const sendBrowser = (ws: ServerWebSocket<BrowserClient>, payload: unknown): void
 const server = Bun.serve<BrowserClient>({
   port: Number(Bun.env.PORT ?? 4004),
   routes: {
+    ...bulkMonadRoutes(transport),
     "/": index,
     "/health": {
       GET() {
