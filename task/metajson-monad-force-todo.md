@@ -181,7 +181,7 @@
 
 ### MF-014 — Доказать strict resolver и cold materialization
 
-- Status: `BLOCKED`
+- Status: `DONE`
 - Dependencies: `MF-013`
 - Current task: Codex task `019f9b10-44b2-7ab2-9ae8-e831d4f9ccea`
 - Authority:
@@ -236,12 +236,20 @@
     `.metafor/backups/mf014-full-contour-20260726T020320Z`; candidate
     остановлен, verified legacy SQLite/history/Mass восстановлены и полный
     rollback contour снова healthy.
-- Blocker:
-  - topology, Matter, Mass и Auth доказаны; остаётся внешний Chat Realtime
-    WebSocket open failure. Full MetaFor contour не владеет DNS/proxy service,
-    который мог бы изменить этот outbound path. Нужна доступность прямого
-    resolver path либо отдельно утверждённый contour-owned outbound WebSocket
-    transport; автоматические reconnect attempts сейчас не оставлены активными.
+  - owner вручную запустил единственный prepared flat contour вне Codex
+    network namespace; один launcher владеет шестью domain processes и
+    listener ports `4000..4005`;
+  - live Boundary: integrity ok, ровно 6 flat WIMP/6 Atom, 5 Matter WIMP
+    edges, 18 Mass memberships и 13 source relations;
+  - fresh executions из пустой execution history: 3 committed, 1 pending,
+    0 failed; Auth `авторизована`, Lada `работа`;
+  - fresh Chat `подключение` committed, `ожидание события` pending,
+    `connected=true`, `historyReady=true`; root Lada получил
+    `chatConnected=true`, `chatHistoryReady=true`;
+  - сохранённые `ssoSession`, `greetingDraft` и `messages` Mass не изменены,
+    `chatMessages` обновлён штатным чтением истории; Dark history вырос
+    `2186 → 2216` записей без раскрытия payload;
+  - owner явно принял `MF-014`; live flat contour оставлен без изменений.
 - Acceptance:
   - two-segment resolver positive/negative tests;
   - third segment rejected before filesystem read;
@@ -256,8 +264,13 @@
 
 ### MF-100 — Утвердить MetaJSON v1 read contracts
 
-- Status: `WAITING`
+- Status: `IN_PROGRESS`
 - Dependencies: `MF-014`
+- Current task: Codex task `019f9b10-44b2-7ab2-9ae8-e831d4f9ccea`
+- Authority:
+  - owner approved architecture/specification preparation only;
+  - no `MF-101` implementation or MetaDSL/Dark/Boundary/RPC/runtime/Lada
+    changes before separate contract approval.
 - Acceptance:
   - `MetaDocument` описывает одну Meta;
   - `MetaProjection` является nested lazy composite;

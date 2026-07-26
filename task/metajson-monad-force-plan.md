@@ -4,16 +4,11 @@
 task `019f9b10-44b2-7ab2-9ae8-e831d4f9ccea`; `MF-000` и контрактный срез
 `MF-010`, восстановление Create MetaFor `MF-011`, migration gate `MF-012` и
 offline source split `MF-013` завершены. Шесть Meta находятся в независимых
-flat peer repositories. Owner-approved cold proof `MF-014` выполнен до
-recoverable rollback и заблокирован фактической несовместимостью старого
-derived Store с новыми identities: cold load сохраняет legacy WIMP declarations
-рядом с flat declarations, после чего Mass binding Auth не материализуется.
-Pre-cut Store/Mass/history были восстановлены, прежний contour снова рождён и
-healthy. Owner разрешил повторный `MF-014` cut через чистую derived Boundary
-materialization с сохранённой recoverable legacy копией. Повторный cut доказал
-ровно шесть flat identities, Matter/Mass relationships и восстановление Auth,
-но внешний Realtime WebSocket чата не открылся; candidate снова откачен к
-verified legacy contour.
+flat peer repositories. `MF-014` принят owner: единственный вручную запущенный
+flat contour materialize ровно шесть Meta, сохранил Matter/Mass relationships,
+восстановил Auth и открыл свежий Chat Realtime connection. Live contour
+остаётся без изменений. Следующий этап `MF-100` готовит MetaJSON v1 read
+contract без implementation изменений.
 
 Этот файл — изменяемая рабочая карта. Он не заменяет документы-владельцы из
 `docs/README.md`. Новый действующий закон сначала переносится в соответствующий
@@ -295,6 +290,11 @@ Auth восстановилась из сохранённой SSO session; HTTP-
 дошло до Realtime phase. Внешний WebSocket завершился ошибкой при открытии,
 поэтому chat behavior acceptance не пройден. Failure snapshot сохранён, а
 verified legacy SQLite/Mass/history и healthy contour восстановлены.
+
+Финальный owner-run использовал подготовленный flat Store в единственном полном
+contour. Fresh execution evidence подтвердил Auth, Chat Realtime connect и
+переход Лады в рабочее состояние без failed executions. Owner принял
+`MF-014`; дальнейшая MetaJSON работа не изменяет этот live contour.
 
 ## 5. MetaJSON и nested projections
 
