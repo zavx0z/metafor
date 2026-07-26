@@ -1,30 +1,87 @@
-# Force: текущая реализация
+# Force
 
-Этот файл является действующим контрактом реализованной границы центрального
-Force. Общая карта документов находится в [`docs/README.md`](README.md).
+Force — законы существования и единый причинный канал Particles. В целевой
+архитектуре Force не является отдельным доменом, package или process: он
+является равноправным слоем Dark рядом с Monad.
 
-## Relay и transport
+```text
+Dark
+├── Monad — законы мироздания и service level
+└── Force — законы существования и Particle causality
+```
 
-`force/force.ts` — runtime relay. Он получает одну типизированную Particle,
-применяет вшитые routing laws и вызывает готовые каналы Store. В этом модуле нет
-WebSocket client, server lifecycle или transport mock.
+Dark Monad решает, каким должно стать устройство мира: читает, создаёт и
+обновляет Meta-пакеты и Processes, ведёт собственные service Stores, проверяет
+структурное намерение и подготавливает Particles. Dark Force делает принятое
+изменение фактом живой Вселенной: принимает Particle, сохраняет её в полной
+filesystem history, проводит причинный порядок и маршрутизирует обязательным
+потребителям.
 
-Используемый доменами `new Force(domain)` — transport client из public subpath
-`shared/transport/force`. Conditional exports package `shared` выбирают
-`server.ts` для Bun/Node и `web.ts` для browser. Оба сохраняют единый порядок
-Particle, outbox до открытия и reconnect физического соединения.
+## Единый Particle path
 
-Wire contract один для обеих сред и экспортируется из
-`shared/protocol/force/*`. Package `force` больше не экспортирует production
-transport: relay, Store, `ForceLifecycle` и `MonadRouter` остаются его внутренней
-implementation; fixtures доступны отдельно через test-only subpath
-`force/fixture`.
+Force переносит все виды Particles, в том числе:
 
-## Создание канала
+- Gluon/Higgs — изменения текущих Field values;
+- Inflaton — изменения структуры;
+- Graviton и остальные объявленные Particles.
 
-Доменный transport добавляет `domain` и `id` в HTTP Upgrade URL. Force server
-читает identity до открытия WebSocket и оборачивает физический socket в канал
-соответствующего домена. Отдельного WebSocket-сообщения `register` нет.
+Структурное изменение начинается в Dark Monad:
+
+```text
+structural intent
+→ Dark Monad validate/create/update/normalize
+→ Inflaton
+→ Dark Force persist/route
+→ Boundary materialization
+→ derived Particles через тот же Dark Force
+```
+
+Dark Monad не пишет декларации напрямую в Boundary SQLite. Изменение, которое
+должно стать фактом существующей Вселенной, выражается Particle через Dark
+Force.
+
+Одна изменённая entity передаётся одним `ForceMessage` с одной `Particle`.
+Общий wire language остаётся в `shared/protocol/force`; его совместное
+использование доменами не создаёт отдельный Force domain.
+
+## Particle history
+
+Dark Force владеет полной append-only filesystem history всех принятых
+Particles. Particle не считается принятой Dark Force, если её запись в history
+не состоялась. History сохраняет саму Particle и порядок принятия, достаточные
+для объяснения причинного Particle-пути.
+
+Dark Monad может предоставлять read/query service над этой history, но не
+становится владельцем её persistence. Отдельный operation-service log, если он
+будет утверждён, может описывать только фазы Monad до или вокруг Particle
+acceptance и не заменяет Force history.
+
+## Relay, lifecycle и service transport
+
+После migration Dark Force владеет:
+
+- server и внешним Particle ingress;
+- REST/WebSocket transport;
+- particle relay и routing laws;
+- `ForceLifecycle` и общим causal gate;
+- domain channel Store;
+- fixtures, health и `/force`.
+
+Dark Monad владеет `MonadRouter`, service RPC и `/monad/*`. Оба слоя находятся
+в одном Dark process и используют локальную границу вместо self-WebSocket.
+Потеря обязательного domain channel сохраняет fail-stop law; перенос не
+разрешает hot reload или частичный restart contour.
+
+Routing решает, какие домены получают принятую Particle, но не может обойти
+Dark Force history. Gluon/Higgs и Inflaton проходят один ingress независимо от
+набора конечных потребителей.
+
+### Wire и channel compatibility
+
+Доменные transports из `shared/transport/force` сохраняют один порядок
+Particles, outbox до открытия и reconnect физического соединения. Domain и
+channel identity определяются до открытия WebSocket; отдельного wire-message
+`register` нет.
 
 После Upgrade WebSocket передаёт только:
 
@@ -34,45 +91,49 @@ interface ForceMessage {
 }
 ```
 
-Readiness, health, snapshot, replay, pause, error и прочие служебные payload по
-этому каналу не передаются. JSON decoding остаётся технической операцией
-transport-а; повторной Particle-валидации в Монаде и relay нет.
+Readiness, health, snapshot, replay, pause, error и service RPC не добавляются
+в Particle channel. Открытие transport само по себе не испускает Particle.
 
-Открытие transport-а само по себе не испускает Particle. Первым сообщением
-канала становится только фактический доменный Impulse.
+### Lifecycle compatibility
 
-## ForceLifecycle
+Dark Force lifecycle ждёт готовности локального Dark adapter и четырёх
+обязательных remote domain channels: Boundary, Matrix, Energy и Bulk. Только
+после их готовности общий causal gate принимает Particles. Потеря последнего
+обязательного channel переводит lifecycle в `error`; физический reconnect не
+оживляет Universe и не снимает fail-stop.
 
-`ForceLifecycle` получает пять заранее созданных `ForceChannel` и ждёт готовности
-Dark, Boundary, Matrix, Energy и Bulk. Он не знает о WebSocket, REST, WebRTC и
-RPC. Только после готовности всех пяти `GET /health` возвращает `running`, а
-relay принимает Particle.
+### MonadRouter compatibility
 
-Потеря последнего соединения любого обязательного домена переводит lifecycle в
-`error` и закрывает общий relay gate. Transport может физически попытаться
-подключиться повторно, но это не перезапускает runtime и не снимает ошибку.
+Service RPC проходят постоянными `MonadChannel`. `MonadRouter` связывает
+identity/capabilities при создании channel, маршрутизирует call в target и
+correlated response обратно в source. RPC payload не может объявить или
+подменить source. Router не интерпретирует domain data и не управляет Dark
+Force lifecycle.
 
-## MonadRouter
+### Routing compatibility
 
-Служебные RPC проходят через отдельные постоянные `MonadChannel`. Их identity не
-ограничена пятью runtime-доменами. Канал умеет только `send`, `subscribe` и
-`close`; он не является client или provider. Каждая Монада использует
-`MonadRpcPeer` над своим каналом и может одновременно вызывать чужие методы и
-предоставлять собственные.
+Behavior-preserving migration сохраняет действующие routing results:
 
-Первый REST adapter открывает `MonadChannel` только локальному серверному
-процессу, один раз связывает identity/capabilities с непрозрачным токеном и затем
-получает source из состояния этого канала. RPC payload не может объявить или
-подменить source. `MonadRouter` маршрутизирует call в target channel и response
-обратно в source channel по correlation id, не управляя `ForceLifecycle` и
-runtime Force. Для межхостового transport-а потребуется собственная авторизация
-identity при создании канала.
+- agent Inflaton доставляется Dark Monad adapter и Bulk;
+- подготовленный Dark Monad Inflaton доставляется Boundary и Bulk;
+- uncommitted Gluon/Higgs mutation без `from` доставляется Boundary;
+- остальные Particles доставляются всем релевантным доменам, кроме source.
 
-## Routing laws
+Каждый из этих случаев сначала проходит единый Dark Force ingress и history.
+Изменение routing semantics требует отдельного owner decision и не маскируется
+под перенос package/process ownership.
 
-- agent Inflaton доставляется Dark и Bulk;
-- Dark Inflaton доставляется Boundary и Bulk;
-- uncommitted `gluon`/`higgs` mutation без `from` доставляется Boundary;
-- остальные Particle доставляются всем доменам, кроме канала происхождения.
+## Текущее расхождение реализации
 
-Числовой `z/test` Energy остаётся обычной Particle.
+До выполнения `MF-102` repository всё ещё содержит активный standalone
+`force/` workspace и `force/server.ts`, а launcher рождает отдельные Force и
+Dark processes. Это pre-migration implementation debt, а не целевая
+архитектура.
+
+`MF-102` выполняет behavior-preserving перенос server, ingress, transports,
+`MonadRouter`, `ForceLifecycle`, relay/routing, channel Store, fixtures,
+health, `/force`, `/monad/*`, tests и документации в Dark. После parity и
+полного cold proof standalone Force package/entry/process удаляются.
+
+До этого cut текущие endpoints и process topology остаются фактическим
+описанием работающего contour. Их нельзя частично переключать или hot reload.

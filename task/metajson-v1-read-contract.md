@@ -172,9 +172,9 @@ Template serializer сохраняет действующую normalized MetaDSL
 но consumer не приписывает semantic priority sections, для которых она не
 доказана.
 
-## 5. Stateless Monad assembly
+## 5. Stateless Dark Monad assembly
 
-Public operation предоставляется через Monad, например:
+Public operation предоставляется через Dark Monad, например:
 
 ```ts
 readMetaJSON({root: MetaAddress}): Promise<MetaJSONV1>
@@ -198,14 +198,15 @@ validated canonical root
 
 | Компонент | Ответственность |
 | --- | --- |
-| Dark | complete normalized MetaDSL graph выбранного root |
+| Dark Monad | complete normalized MetaDSL graph выбранного root |
 | Boundary | current Atom/topology structure, State и present Field values |
-| Monad | stateless orchestration, structural join и final validation |
-| Force | transport Monad RPC, без интерпретации MetaJSON payload |
+| Dark Monad | stateless orchestration, structural join и final validation |
+| Dark Force | transport Monad RPC, без интерпретации MetaJSON payload |
 
-Monad не хранит assembled document, не становится Store owner и не читает Dark
-или Boundary storage напрямую. Dark не читает Boundary/SQLite, Boundary не
-загружает `meta.ts`.
+Dark Monad не хранит assembled document и не читает Boundary storage напрямую.
+Её declaration provider не читает Boundary/SQLite, Boundary не загружает
+`meta.ts`. После `MF-102` provider и assembler находятся в Dark Monad, а
+принятый public MetaJSON contract и stateless behavior не меняются.
 
 Если Dark и Boundary projections нельзя согласовать по canonical Meta address
 и public structural declaration references, read завершается точной validation
@@ -273,10 +274,10 @@ History, patches и разрешённые Mass results имеют отдель�
 
 1. Зафиксировать explicit public types и closed runtime validator одного
    документа.
-2. Получить complete declaration projection от Dark без создания authored
-   MetaJSON Store.
+2. Получить complete declaration projection от Dark Monad без создания
+   authored MetaJSON Store.
 3. Получить current structural projection от Boundary без public raw IDs.
-4. Statelessly собрать projection через Monad.
+4. Statelessly собрать projection через Dark Monad.
 5. Доказать full document на небольшой изолированной fixture Meta, не на Ладе.
 6. Доказать negative cases всех запрещённых properties.
 7. Доказать State/Transition/Variant/Process/Matter ordering laws и отсутствие
@@ -298,7 +299,7 @@ History, patches и разрешённые Mass results имеют отдель�
 Owner review `MF-100` завершён. Для начала `MF-101` не осталось product или
 architecture choices:
 
-- public format и assembly owner определены;
+- public format и Dark Monad assembly owner определены;
 - template/runtime boundary определена;
 - sparse semantics и public identity определены;
 - forbidden revision/diagnostic/graph concepts определены;

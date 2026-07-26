@@ -37,7 +37,8 @@
   - подтверждают, что consolidated owner decisions отражены без противоречий.
 - Done when:
   - подтверждён продуктивный Codex↔Universe iteration loop;
-  - Monad и Force разведены;
+  - Monad и Force разведены как peer layers Dark, а не отдельные runtime
+    domains;
   - `pending/active` и Force v2 не являются prerequisites первого patch slice;
   - flat topology является первым implementation priority;
   - creation использует существующий Create MetaFor path;
@@ -288,7 +289,8 @@
   - code and child implementation work begin only after G1 report.
 - Acceptance:
   - один полный public MetaJSON document и одна schema;
-  - stateless Monad assembly Dark declaration + Boundary current projection;
+  - stateless Dark Monad assembly Dark declaration + Boundary current
+    projection;
   - compact complete normalized MetaDSL template;
   - nested sparse current Atom values без provenance/status envelope;
   - public structural paths/references без raw storage identities;
@@ -328,69 +330,103 @@
   - identity/relations выражены structure и public paths/references; raw
     Atom/Field/Value IDs отсутствуют;
   - semantic/materialization order сохранён без universal order vector;
-  - Dark предоставляет declaration projection, Boundary — current projection,
-    Monad statelessly собирает и валидирует результат;
+  - Dark Monad предоставляет declaration projection, Boundary — current
+    projection, Dark Monad statelessly собирает и валидирует результат;
   - no authored MetaJSON Store.
+
+### MF-102 — Перенести standalone Force runtime в Dark
+
+- Status: `GATE`
+- Dependencies: `MF-101`
+- Locked architecture:
+  - Dark содержит два равноправных слоя: Monad и Force;
+  - весь runtime/domain нынешнего `force` переносится в Dark;
+  - отдельный Force package/entry/process после migration отсутствует;
+  - `shared/protocol/force` остаётся общим wire language;
+  - Dark Monad подготавливает structural intent и испускает Inflaton через Dark
+    Force; Gluon/Higgs и остальные Particles используют тот же Force;
+  - Dark Force владеет complete filesystem Particle history.
+- Historical continuity:
+  - owner law зафиксирован в upstream turn
+    `019f97d3-6ece-7d82-8405-e298ad122e1d` /
+    `019f9abc-aa84-7403-8f09-74a59c30d4dc`;
+  - первоначальный plan commit `51874304` уже содержал behavior-preserving
+    Force→Dark migration, но rewrite `0b775e75` удалил этот dependency;
+  - выполненные MF-014 six-process proofs остаются pre-migration evidence.
+- Gate:
+  - архитектура не переоткрывается;
+  - до source work owner принимает точный compatibility/cold-cut plan и даёт
+    отдельный source/runtime authority;
+  - никаких roles, source/runtime/data/contour changes на docs-only gate.
+- Required order:
+  1. Зафиксировать parity baseline endpoints, routing, lifecycle, history,
+     birth gate, fail-stop и tests.
+  2. Перенести server, REST/WebSocket ingress, `MonadRouter`,
+     `ForceLifecycle`, particle relay/routing, channel Store, fixtures,
+     health, `/force`, `/monad/*`, tests и docs в Dark.
+  3. Перенести functionality нынешнего `dark/dark.ts` в Dark Monad и
+     разместить там Meta/source/service operations; отдельного третьего Dark
+     runtime layer не оставлять.
+  4. Разместить ingress/history/relay/routing/lifecycle в Dark Force.
+  5. Заменить Dark self-WebSocket локальной process boundary без изменения wire
+     semantics удалённых domains.
+  6. Переключить launcher на пять domain processes.
+  7. Удалить standalone Force package/entry только после parity.
+  8. Выполнить полный cold proof; hot reload запрещён.
+- Acceptance:
+  - каждая принятая Particle, включая Gluon/Higgs и Inflaton, проходит один
+    Dark Force ingress и сохраняется в complete filesystem history;
+  - structural Inflaton проходит Dark Force до Boundary materialization;
+  - endpoint/routing/lifecycle/fail-stop compatibility доказана;
+  - `/force`, `/monad/*`, REST/WebSocket и health доступны через Dark;
+  - `runtime:universe` и `runtime:universe:once` рождают пять domain processes;
+  - standalone Force workspace, domain и process отсутствуют;
+  - `shared/protocol/force` остаётся общим protocol package;
+  - targeted/parity tests, typecheck, `git diff --check` и full cold proof pass;
+  - никакого hot reload, silent Store/Mass/history rewrite или push.
 
 ### MF-103 — Добавить read-only operation/history/Mass observation
 
-- Status: `IN_PROGRESS`
-- Dependencies: `MF-101`
-- Current task: Architect task
-  `019f9c3a-a2ec-7460-bd80-34ec2a630697`
+- Status: `WAITING`
+- Dependencies: `MF-102`
+- Current task: нет; source start удерживается до завершения `MF-102`
 - Execution DAG:
-  - `H1` — read-only evidence существующего Dark particle-history owner
+  - `H1` — `DONE`: read-only evidence существующего Dark particle-history
     surface; единственный существующий Dark Technical Lead session
     `019f9da9-3c09-7823-9bc6-395865a8725a`, callback
     `MF103_HISTORY_EVIDENCE|BLOCKED` Архитектору;
-  - `M1` — read-only evidence Energy/Mass owner surface; требует ровно одну
-    отдельную session в том же saved project и canonical worktree,
-    предоставленную Organizer, callback
+  - `M1` — `DONE`: read-only evidence Energy/Mass owner surface, callback
     `MF103_MASS_EVIDENCE|BLOCKED` Архитектору;
-  - `G1` — `DONE`: Architect reconciliation после `H1` и `M1` отделил доступное
-    particle/Mass observation от structural outcomes будущего operational
-    journal, не создавая его преждевременно;
-  - `I1` — `IN_PROGRESS`: bounded particle/Mass observation contract и
-    stateless Monad integration после принятого `G1`, с отдельным independent
-    verifier gate.
+  - `G1` — `SUPERSEDED`: вывод commit `04580a91` о Dark-surface-only history и
+    переносе structural observation целиком в `MF-203` отозван после
+    восстановления upstream owner law;
+  - `I1` — `WAITING`: complete Dark Force Particle-history/Mass observation
+    contract и stateless Dark Monad integration только после `MF-102`, с
+    отдельным independent verifier gate.
 - Read-only evidence:
-  - `H1` принят на clean `dac81d10`: существующий `dark.history.read`
-    наблюдает только incoming/outgoing Particles на Dark surface, сохраняет
-    целые equal-timestamp steps и имеет только time/limit filters; request не
-    закрыт, direction/by/part/op/path selectors и global completeness
-    отсутствуют;
+  - `H1` принят на clean `dac81d10`: существующий pre-migration
+    `dark.history.read` наблюдает только incoming/outgoing Particles на Dark
+    surface, сохраняет целые equal-timestamp steps и имеет только time/limit
+    filters; request не закрыт, direction/by/part/op/path selectors и
+    completeness отсутствуют;
   - `M1` принят на clean `7148ed72`: Energy владеет guarded Mass `readJson`,
     catalog и internal handles, но read-only owner RPC, public structural
     selector, JSON-result DTO и observation error contract отсутствуют;
   - обе evidence sessions работали read-only без чтения live Mass/history
-    data, source/docs/Git, runtime или contour mutations.
-- Resolved owner gate:
-  - structural operation outcomes не имеют текущего источника: plan относит
-    их к future operational journal `MF-203` и явно отделяет от
-    `DarkHistory`;
-  - текущие dependencies образуют невозможную для этой acceptance
-    последовательность: `MF-104` зависит от `MF-103`, `MF-200` — от
-    `MF-104`, а `MF-203` — от `MF-200`;
-  - owner перенёс только structural operation outcomes из `MF-103` в
-    `MF-203`; particle-history и Mass-result scope сохранены.
-- Read-only gate:
-  - canonical checkout
-    `/home/zavx0z/repozitarium/metafor-inference`, accepted MF-101
-    documentation baseline `7148ed72`; каждая session сверяет exact current
-    clean HEAD, переданный Архитектором при старте;
-  - для каждой session обязательны `danger-full-access`, approval `never`,
-    disabled/unrestricted filesystem и чистый exact checkout;
-  - source/docs/Git, History/Store/Mass data, runtime/contour/Lada и process
-    lifecycle не изменяются;
-  - worktree, branch, checkout copy, nested subagent и duplicate session не
-    создаются; session naming остаётся ответственностью Organizer.
+    data, source/docs/Git, runtime или contour mutations;
+  - H1 доказывает текущее расхождение реализации, но не сужает owner law:
+    после `MF-102` Dark Force history полна для всех принятых Particles.
 - Scope:
-  - честно обозначенная Dark-surface particle history с closed filters;
+  - complete Dark Force Particle history с closed filters;
+  - Gluon/Higgs, structural Inflaton и остальные Particles доступны через один
+    owner read contract;
   - разрешённые Mass results через owner API.
 - Acceptance:
   - MetaJSON snapshot не смешивается с history/Mass;
   - direct Store/SQLite/filesystem reads со стороны Codex отсутствуют;
-  - selector/time filters валидируются;
+  - Particle selector/time/type/direction/identity filters закрыты и
+    валидируются;
+  - structural Particle observation не зависит от `MF-203`;
   - external Mass identity использует canonical root, public runtime Atom path
     и authored Mass key; internal IDs и raw bytes не выходят наружу;
   - Mass result является detached JSON-only data.
@@ -405,7 +441,7 @@
   - формулирует проверяемое improvement intent;
   - никаких writes на этом item.
 
-## P2 — Monad structural patch vertical slice
+## P2 — Dark Monad structural patch vertical slice
 
 ### MF-200 — Утвердить structural operation contract
 
@@ -419,7 +455,7 @@
   - runtime validation и negative tests;
   - один patch может содержать несколько поддерживаемых entity operations.
 
-### MF-201 — Реализовать fast Monad validator
+### MF-201 — Реализовать fast Dark Monad validator
 
 - Status: `WAITING`
 - Dependencies: `MF-200`
@@ -448,27 +484,36 @@
 
 ### MF-203 — Добавить append-only operational journal
 
-- Status: `WAITING`
+- Status: `GATE`
 - Dependencies: `MF-200`
+- Owner decision:
+  - нужен ли отдельный Dark Monad operation-service log для pre-Force phases;
+  - он не является Force history и не нужен для наблюдения structural
+    Inflaton;
+  - без отдельного approval storage/implementation не создаются.
 - Acceptance:
   - serialized/idempotent `operationId`;
   - полный serialized patch и patch/base/written/normalized digests;
   - distinct validation/write/execute/round-trip/materialize phases;
   - exact outcome/error;
-  - read-only structural outcome observation валидирует
-    operation/target/time filters;
-  - journal не является MetaJSON, Particle history или VCS.
+  - read-only service-phase observation валидирует operation/target/time
+    filters;
+  - journal не дублирует Dark Force Particles и не является MetaJSON, Particle
+    history или VCS.
 
 ### MF-204 — Немедленно materialize через текущий runtime path
 
 - Status: `WAITING`
-- Dependencies: `MF-202`, `MF-203`
+- Dependencies: `MF-202`
 - Acceptance:
   - successful write запускает MetaFor execution/normalization/round-trip;
-  - structure применяется в живую Universe;
-  - entity consequences идут отдельными Particles через существующий Force;
+  - Dark Monad испускает structural Inflaton через Dark Force;
+  - Boundary materialize structure только после Dark Force acceptance;
+  - derived entity consequences идут отдельными Particles через Dark Force;
   - Force v2/ACK/replay не являются dependency;
-  - journal фиксирует materialized либо exact failure.
+  - exact service result возвращает materialized либо точную failure;
+  - approved `MF-203` log, если он существует, фиксирует тот же outcome, но не
+    блокирует materialization.
 
 ### MF-205 — Реализовать retry/reconcile post-write failure
 
@@ -511,7 +556,7 @@
 - Acceptance:
   - используются существующие templates;
   - возвращается полный template file set до target write;
-  - параллельный Monad generator отсутствует;
+  - параллельный Dark Monad generator отсутствует;
   - CLI behavior не дублируется.
 
 ### MF-301 — Реализовать create template→patch→validate→materialize
@@ -520,9 +565,9 @@
 - Dependencies: `MF-205`, `MF-300`
 - Exact path:
   - Create MetaFor template;
-  - Monad validation(template);
+  - Dark Monad validation(template);
   - target patch;
-  - Monad validation(result);
+  - Dark Monad validation(result);
   - atomic directory publication;
   - Create MetaFor install/Git bootstrap;
   - MetaFor execution/normalization/round-trip;
@@ -545,7 +590,7 @@
 
 ## P4 — отложенные расширения
 
-### MF-400 — Force v2 durability/replay
+### MF-400 — Dark Force v2 durability/replay
 
 - Status: `GATE`
 - Dependencies: `MF-206`
@@ -592,7 +637,7 @@
 - Scope:
   - только собственная structural scope через тот же MetaJSON contract;
   - resource limits;
-  - Monad validation;
+  - Dark Monad validation;
   - operational observability;
   - не является изменением текущей Lada topology.
 

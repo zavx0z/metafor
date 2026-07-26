@@ -4,7 +4,7 @@
 и точные документы-владельцы находятся в [`docs/README.md`](README.md). Для
 работы с реализацией внешняя документация не требуется.
 
-## Активный package graph
+## Текущий pre-migration package graph
 
 Root workspace graph задан явным списком в `package.json`:
 
@@ -19,6 +19,10 @@ Root workspace graph задан явным списком в `package.json`:
   `pkg/ui/{elements,components,hud}`, `fixture`;
 - constructor and operational DSL: `create-metafor`.
 
+Standalone `force` в этом списке описывает только текущую реализацию. Owner
+утвердил её обязательный перенос в Dark: после `MF-102` отдельного Force
+workspace, runtime-domain и process не остаётся.
+
 Игнорируемый каталог `cluster/` является физическим resolver root внешних Meta,
 но не workspace. Его непосредственные каталоги представляют Galaxy-владельцев,
 а каждый их непосредственный дочерний каталог — независимый peer
@@ -32,11 +36,23 @@ Package graph нельзя читать как полную онтологию. 
 корневой `force` реализует только текущий внешний ingress и междоменную связь.
 Он не является всей Force.
 
+Утверждённая целевая модель имеет один Dark с двумя равноправными слоями:
+
+```text
+Dark
+├── Monad — Meta/source/Store/service operations и structural planning
+└── Force — Particle ingress/history/relay/routing/lifecycle
+```
+
+Весь runtime/domain нынешнего `force` переносится в эти слои Dark.
+`shared/protocol/force` остаётся общим wire language. Gluon/Higgs и Inflaton
+проходят один Dark Force; структурный Inflaton подготавливает Dark Monad.
+
 Сохранившиеся domain packages `gravity`, `strong` и `weak` подтверждают это
 измерение, но их текущий неполный состав ещё не является завершённой таблицей
 сил. Возвращать обязанности старых реализаций только по имени каталога нельзя.
 
-## Runtime entries
+## Текущие runtime entries
 
 | Process  | Entry                | Default port |
 | -------- | -------------------- | ------------ |
@@ -46,6 +62,15 @@ Package graph нельзя читать как полную онтологию. 
 | Matrix   | `matrix/server.ts`   | 4003         |
 | Bulk     | `bulk/server.ts`     | 4004         |
 | Energy   | `energy/server.ts`   | 4005         |
+
+Это factual pre-migration contour, на котором были выполнены предыдущие cold
+proof. Его исторические результаты не переписываются задним числом.
+
+После `MF-102` production contour содержит пять domain processes: Dark,
+Boundary, Matrix, Bulk и Energy. Dark process содержит Dark Monad и Dark Force,
+а отдельный `force/server.ts` отсутствует. Внешние `/force`, `/monad/*`,
+REST/WebSocket и health contracts переносятся behavior-preserving; точная
+listener/port compatibility фиксируется execution gate `MF-102` до source cut.
 
 Root scripts запускают entries только как обычные Bun processes. После изменения
 кода весь contour останавливается и запускается заново: частичная горячая
@@ -70,7 +95,7 @@ Matrix birth gate уже означает завершённую cold hydration.
 gate. Это необходимо, потому что первая Weak evaluation уже может испустить
 process work.
 
-## Реализованное соединение
+## Реализованное pre-migration соединение
 
 - `force/server.ts` принимает REST и создаёт пять доменных WebSocket-каналов.
 - Domain transports из `shared/transport/force` подключаются к
@@ -103,6 +128,12 @@ process work.
 - Matrix weak backend по умолчанию — `auto`: WebGPU при доступности, иначе CPU.
   `gpu` является явным строгим режимом, `cpu` принудительно выбирает reference
   backend.
+
+Эти пункты описывают текущий split, но не отменяют owner law. `MF-102`
+переносит server, REST/WS ingress, `MonadRouter`, `ForceLifecycle`, relay,
+routing, channel Store, fixtures, health и tests в Dark, заменяет Dark
+self-WebSocket локальной границей и только после parity переключает launcher.
+Полный contour затем запускается холодно; hot reload запрещён.
 
 ## Публичное чтение MetaJSON
 
@@ -146,11 +177,11 @@ Conditions одного Transition являются чистой конъюнк�
 priority-order не получают. Mass declaration и display order также не
 становятся новым законом. Универсального `order` vector в MetaJSON нет.
 
-Операцию чтения предоставляет Monad. Stateless assembler получает полную
-declaration projection через Dark, текущую runtime projection через Boundary,
-собирает и валидирует один документ, но не хранит его и не читает Store другого
-домена напрямую. Dark и Boundary остаются владельцами своих projections; Force
-только переносит Monad RPC.
+Операцию чтения предоставляет Dark Monad. Stateless assembler получает полную
+declaration projection от Dark Monad, текущую runtime projection через
+Boundary, собирает и валидирует один документ, но не хранит его и не читает
+Store другого домена напрямую. Dark Monad и Boundary остаются владельцами
+своих projections; Dark Force только переносит Monad RPC.
 
 MetaJSON v1 не содержит revision, digest или CAS fields. Particle/operation
 history, patches, Git history, Mass bytes и живые Energy objects не являются

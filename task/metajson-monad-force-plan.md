@@ -10,8 +10,10 @@ flat contour materialize ровно шесть Meta, сохранил Matter/Mas
 остаётся без изменений. Owner завершил `MF-100` review и утвердил один полный
 MetaJSON v1 read-contract. `MF-101` implementation gate завершён и независимо
 принят: public contract, Dark/Boundary projections и stateless Monad assembly
-зафиксированы тремя локальными commits. Следующий item — строго read-only
-`MF-103`; live contour остаётся неприкасаемым.
+зафиксированы тремя локальными commits. Следующий обязательный item — `MF-102`:
+behavior-preserving перенос standalone Force runtime в Dark до продолжения
+read-only `MF-103`. Live contour остаётся неприкасаемым до отдельного
+source/cold-cut start.
 
 Этот файл — изменяемая рабочая карта. Он не заменяет документы-владельцы из
 `docs/README.md`. Новый действующий закон сначала переносится в соответствующий
@@ -30,7 +32,7 @@ Owner даёт Codex доступ к Вселенной и цель. После 
 → прочитать релевантную историю и разрешённые Mass results
 → определить место улучшения
 → построить и проверить структурный patch
-→ отправить patch через Monad
+→ отправить patch через Dark Monad
 → запустить разрешённые runtime consequences через Force
 → прочитать результат и историю
 → продолжить работу
@@ -68,6 +70,19 @@ Force переносит события, текущие факты и после
 законами. Force не является вторым представлением Monad patch и не подменяет
 структурную валидацию.
 
+Monad и Force являются двумя равноправными слоями Dark, а не отдельными
+runtime-доменами:
+
+```text
+Dark
+├── Monad — законы мироздания и service level
+└── Force — законы существования и Particle causality
+```
+
+Весь runtime/domain нынешнего standalone `force` переносится в Dark на
+`MF-102`; после migration отдельного Force package/entry/process нет.
+`shared/protocol/force` остаётся общим wire language.
+
 Короткий закон:
 
 ```text
@@ -75,10 +90,11 @@ Monad изменяет возможное устройство мира.
 Force причинно проводит жизнь уже принятого устройства.
 ```
 
-Структурная Monad operation может после materialization породить одну или
-несколько разрешённых Particles. Каждая изменённая entity по-прежнему
-передаётся отдельным `ForceMessage` с одной `Particle`; это wire law, а не
-формат структурного patch.
+Dark Monad подготавливает структурное изменение и испускает Inflaton в Dark
+Force до Boundary materialization. После materialization производные
+consequences также проходят Dark Force. Gluon/Higgs и Inflaton используют один
+причинный канал. Каждая изменённая entity по-прежнему передаётся отдельным
+`ForceMessage` с одной `Particle`; это wire law, а не формат structural patch.
 
 ## 3. Источники истины и наблюдаемость
 
@@ -86,13 +102,13 @@ Force причинно проводит жизнь уже принятого у�
 | --- | --- | --- |
 | `meta.ts` | Meta package | каноническое human-authored описание |
 | Create MetaFor templates | Create MetaFor | законная исходная структура нового Meta package |
-| MetaJSON v1 read operation | Monad | stateless assembly одного полного declaration/runtime document |
-| Declaration projection | Dark | полная compact normalization загруженного MetaDSL graph |
+| MetaJSON v1 read operation | Dark Monad | stateless assembly одного полного declaration/runtime document |
+| Declaration projection | Dark Monad | полная compact normalization загруженного MetaDSL graph |
 | Current projection | Boundary | текущие sparse Atom values в structural occurrences |
 | Boundary Store | Boundary | канонический текущий materialized мир |
 | Domain Stores | соответствующий домен | локальные projections и живые ресурсы |
-| Operational journal | Monad operation service | append-only исход и фазы структурных operations |
-| Particle history | соответствующий runtime/history service | наблюдаемая причинная runtime-история |
+| Operation-service log, если утверждён | Dark Monad | фазы service operation, не выраженные Particle |
+| Particle history | Dark Force | полная filesystem history всех принятых Particles |
 | Mass bytes/results | Energy/Mass owner | данные и результаты, читаемые отдельным разрешённым API |
 
 `meta.ts` остаётся каноническим authored source. MetaJSON собирается из Dark
@@ -116,10 +132,11 @@ merges, generic rollback, push workflow или отдельной модели s
 - serialized structural operations;
 - content digest/CAS текущего файла как guard конкурентной записи;
 - atomic filesystem writes;
-- append-only operational journal.
+- отдельно утверждённый append-only Dark Monad operation-service log.
 
 Initial Git repository и `Initial commit`, выполняемые Create MetaFor, остаются
-bootstrap-поведением template creator. Monad не развивает это в VCS subsystem.
+bootstrap-поведением template creator. Dark Monad не развивает это в VCS
+subsystem.
 
 ## 4. Flat topology — обязательный первый приоритет
 
@@ -344,12 +361,13 @@ interfaces.
 
 Codex должен уметь через объявленные RPC:
 
-- запросить через Monad весь MetaJSON для canonical root Meta;
+- запросить через Dark Monad весь MetaJSON для canonical root Meta;
 - выполнить partial retrieval над тем же document contract без второй schema;
-- запросить Dark-surface particle history отдельно от structural history;
+- запросить полную Dark Force Particle history, включая Gluon/Higgs и
+  структурные Inflaton;
 - запросить разрешённые Mass results без включения Mass bytes в MetaJSON;
-- после появления operational journal в `MF-203` запросить structural operation
-  outcomes по operation/target/time;
+- при отдельно утверждённом Dark Monad operation-service log запросить
+  pre-Force service phases по operation/target/time;
 - сравнить projection до/после operation;
 - продолжить работу с новым наблюдением.
 
@@ -357,10 +375,12 @@ MetaJSON RPC и history RPC read-only. Mass read проходит через Mon
 или объявленный Energy/Mass service; Codex не читает Boundary SQLite, domain
 Store или files другого domain напрямую.
 
-`MF-103` реализует только честно обозначенную Dark-surface particle history и
-разрешённые Mass results. Structural operation outcomes не имеют отдельного
-источника до operational journal и добавляются вместе с ним в `MF-203`; они не
-подменяются пустым ответом, `DarkHistory` или вторым MetaJSON view.
+`MF-103` реализует complete Dark Force Particle-history read и разрешённые Mass
+results только после `MF-102`. Текущее `DarkHistory` является неполной
+pre-migration surface-реализацией: её evidence сохраняется, но не сужает owner
+law. Structural Particles уже принадлежат Force history; будущий
+operation-service log не заменяет их и не является prerequisite такого
+наблюдения.
 
 ## 7. Structural operation первого среза
 
@@ -388,12 +408,13 @@ optimistic concurrency guard текущего source, а не началом ver
 
 Один JSON Patch может изменять несколько связанных entities, если validator и
 materializer поддерживают эту operation. Закон «одна entity на patch» не
-является общим. При передаче runtime consequences каждая entity всё равно
-компилируется в отдельную Particle/ForceMessage.
+является общим. Каждая структурно изменяемая entity компилируется Dark Monad в
+отдельную Inflaton/ForceMessage до materialization; производные runtime
+consequences также передаются отдельными Particles.
 
-### 7.2 Fast Monad validation
+### 7.2 Fast Dark Monad validation
 
-До filesystem write Monad синхронно проверяет:
+До filesystem write Dark Monad синхронно проверяет:
 
 1. JSON и runtime schema.
 2. Canonical two-segment target address.
@@ -405,8 +426,9 @@ materializer поддерживают эту operation. Закон «одна en
 8. Capability/policy вызывающего identity.
 9. Round-trip способность поддерживаемого source adapter.
 
-Validation rejection не меняет filesystem или живую Вселенную. Его точный
-результат может быть записан в operational journal.
+Validation rejection не меняет filesystem или живую Вселенную. При отдельном
+`MF-203` approval его точный service result может быть записан в Dark Monad
+operation-service log.
 
 ### 7.3 Write, materialize, observe
 
@@ -418,9 +440,11 @@ request
 → atomic filesystem write
 → MetaFor execution/normalization
 → round-trip proof
-→ immediate materialization into the living Universe
-→ allowed Force particles/consequences
-→ append exact outcome
+→ structural Inflaton(s)
+→ Dark Force persist/route
+→ Boundary materialization into the living Universe
+→ derived Particles через Dark Force
+→ optional approved service outcome
 → reread projection/history/Mass result
 ```
 
@@ -436,13 +460,13 @@ source publication saga или Force v2 receipt protocol.
 Если filesystem write успешен, а execution/materialization не удались:
 
 - source не откатывается автоматически;
-- journal фиксирует `written_materialization_failed`;
-- entry содержит phase, error и digests;
+- failure возвращается как точный service result;
+- при утверждённом `MF-203` log entry содержит phase, error и digests;
 - retry использует тот же `operationId`;
 - reconcile перечитывает source, повторно валидирует его и либо продолжает
   materialization, либо возвращает точный conflict/error.
 
-### 7.4 Operational journal
+### 7.4 Предлагаемый operation-service log (`MF-203` owner gate)
 
 ```ts
 type StructuralOutcome =
@@ -468,7 +492,8 @@ interface MonadOperationJournalEntryV1 {
 }
 ```
 
-Journal append-only и достаточен для ответа:
+Если owner отдельно утверждает эту capability, log append-only и достаточен
+для ответа:
 
 - какой patch был принят;
 - что проверено;
@@ -477,9 +502,11 @@ Journal append-only и достаточен для ответа:
 - почему operation остановилась;
 - можно ли повторить или reconcile.
 
-Это не Force Journal, не MetaJSON snapshot и не VCS history. Текущий
-`DarkHistory` хранит particle history и сам по себе не покрывает structural
-operation lifecycle.
+Это не Dark Force Particle history, не MetaJSON snapshot и не VCS history.
+Такой service log является отдельным будущим owner gate: если он будет
+утверждён, он описывает только validation/write/execute/round-trip и другие
+Dark Monad phases, которые ещё не выражены принятой Particle. Inflaton и
+последующие structural Particles уже наблюдаются через Dark Force history.
 
 ## 8. Creation и update — единый закон
 
@@ -490,9 +517,9 @@ Create отличается только законным начальным tem
 
 ```text
 Create MetaFor template
-→ Monad validation(template)
+→ Dark Monad validation(template)
 → target patch applied to validated template
-→ Monad validation(result)
+→ Dark Monad validation(result)
 → filesystem write/materialization
 → MetaFor execution/normalization
 → round-trip proof
@@ -503,7 +530,7 @@ Create MetaFor template
 Create MetaFor template является законным, но семантически пустым стартом.
 Target patch придаёт ему требуемый смысл.
 
-Monad:
+Dark Monad:
 
 - интегрирует существующий Create MetaFor template path;
 - не копирует templates;
@@ -524,9 +551,8 @@ templates остаются единственными.
 | --- | --- |
 | DSL / `meta.ts` | human-readable canonical declaration |
 | Create MetaFor | полный законный template нового flat peer Meta repository |
-| Monad | projections, validation, structural patch, atomic source write, execution/round-trip orchestration, retry/reconcile |
-| Dark | DSL loading/normalization и участие в текущей structural materialization path |
-| Force | runtime causal transport событий и consequences |
+| Dark Monad | projections, Meta/package/source/TS/Process service operations, validation, structural planning, atomic source write, execution/round-trip orchestration, retry/reconcile и Inflaton generation |
+| Dark Force | полный Particle ingress/history, causal order, relay/routing, lifecycle gate и domain channels |
 | Boundary | канонический materialized мир и runtime instance values |
 | Matrix | States, Transitions, Conditions и их runtime evaluation |
 | Energy | Processes, Mass handles/results и живые resources |
@@ -535,6 +561,7 @@ templates остаются единственными.
 
 Ни Monad, ни Codex не пишут напрямую в Boundary/Matrix/Energy/Bulk Stores.
 Dark не читает Boundary SQLite напрямую. Mass bytes не проходят через MetaJSON.
+После `MF-102` отдельного standalone Force runtime/domain/process нет.
 
 ## 10. Лада
 
@@ -567,7 +594,7 @@ Scope:
 - fast validation;
 - atomic write;
 - немедленные execution, round-trip и materialization;
-- append-only operation outcome;
+- optional operation-service outcome только после `MF-203` owner approval;
 - reread MetaJSON, runtime Atom occurrence и history;
 - retry/reconcile для post-write materialization failure;
 - без Git branch/merge/push, pending/active Store, Force v2, hot reload и
@@ -579,9 +606,12 @@ Acceptance:
 2. Invalid JSON/schema/reference/cycle отклоняется до write.
 3. Stale base digest отклоняется до write.
 4. Atomic write не оставляет partial target.
-5. Успешный source немедленно materialize в Boundary.
-6. Разрешённые runtime Particles проходят существующим Force channel.
-7. Journal точно различает validation, write и materialization outcomes.
+5. Успешный source порождает Inflaton через Dark Force и materialize в
+   Boundary.
+6. Structural Inflaton до materialization и derived runtime Particles проходят
+   Dark Force.
+7. Dark Force history показывает Particles; при утверждённом `MF-203` service
+   log отдельно различает validation, write и materialization phases.
 8. После post-write failure retry/reconcile не выполняет silent overwrite.
 9. Reread показывает Field declaration и отсутствие этого key в sparse
    runtime Atom occurrence.
@@ -595,7 +625,7 @@ Acceptance:
 
 - full VCS: branches, merges, rollback, push и source version graph;
 - `pending/active` Meta heads и сложная publication saga;
-- durable Force v2 journal, ACK/NACK/resume и replay;
+- durable Dark Force v2 delivery control, ACK/NACK/resume и replay;
 - multi-domain convergence barrier;
 - multi-entity Boundary staging, если его потребует конкретная operation;
 - Process generator/updater beyond supported patch adapters;
@@ -632,15 +662,20 @@ patch vertical slice.
 5. Создать независимые peer repositories и мигрировать references/source.
 6. Доказать strict two-segment resolver и cold materialization.
 7. Утвердить MetaJSON v1 read contracts.
-8. Реализовать один MetaJSON read через stateless Monad assembly Dark + Boundary.
-9. Добавить read-only operation history и Mass-result observation.
-10. Реализовать structural operation schema и fast Monad validation.
-11. Реализовать atomic update adapter и operational journal.
-12. Немедленно materialize через существующие Dark/Force/Boundary paths.
-13. Реализовать retry/reconcile.
-14. Принять первый Field vertical slice.
-15. Интегрировать нематериализованный Create MetaFor template path для create.
-16. Только затем выбирать отложенные Force/VCS/agent capabilities.
+8. Реализовать один MetaJSON read через stateless Dark Monad assembly
+   Dark + Boundary.
+9. Behavior-preserving перенести весь standalone Force runtime/domain в два
+   слоя Dark, доказать endpoint/routing/history parity, переключить launcher на
+   пять processes и удалить standalone Force entry/package.
+10. Добавить complete Dark Force Particle-history и Mass-result observation.
+11. Реализовать structural operation schema и fast Dark Monad validation.
+12. Реализовать atomic update adapter и, только после отдельного owner gate,
+    operation-service log.
+13. Испускать structural Inflaton через Dark Force и materialize в Boundary.
+14. Реализовать retry/reconcile.
+15. Принять первый Field vertical slice.
+16. Интегрировать нематериализованный Create MetaFor template path для create.
+17. Только затем выбирать отложенные Dark Force/VCS/agent capabilities.
 
 ## 15. Owner decisions и последующие gates
 
@@ -648,7 +683,7 @@ patch vertical slice.
 v1 закрыты и реализованы следующие решения:
 
 1. существует один полный public JSON document без alternate views/schemas;
-2. stateless Monad собирает его из Dark declaration и Boundary current
+2. stateless Dark Monad собирает его из Dark declaration и Boundary current
    projections, не владея Store state;
 3. `template` является compact complete normalized MetaDSL, включая Bulk и
    executable declaration descriptors;
@@ -658,20 +693,25 @@ v1 закрыты и реализованы следующие решения:
 6. directed ports/stubs/global edges отсутствуют;
 7. сохраняется только порядок, доказанный runtime/materialization semantics.
 
-Owner перенёс structural operation outcomes observation из `MF-103` в
-`MF-203`. Read-only `MF-103` ограничен Dark-surface particle history с closed
-filters и отдельным Mass-result observation через владельцев доменов:
-external identity задаётся canonical root, public runtime Atom path и authored
-Mass key, а результат является detached JSON-only data. Observation APIs
-остаются отдельными от MetaJSON snapshot и не изменяют live contour либо domain
-Stores.
+Owner-approved upstream law восстановлен как обязательный `MF-102`: Dark
+содержит peer layers Monad и Force; весь standalone Force runtime/domain
+переносится в Dark, а отдельный Force process/package прекращает существовать.
+До завершения migration `MF-103` не реализуется.
+
+Предыдущий вывод commit `04580a91`, ограничивший `MF-103` Dark-surface history
+и отложивший structural observation целиком в `MF-203`, superseded. H1/M1
+остаются достоверным evidence текущего кода, но structural Inflaton являются
+Particles и входят в complete Dark Force history. После `MF-102` read-only
+`MF-103` добавляет closed filters над этой history и отдельный Mass-result
+observation: external Mass identity задаётся canonical root, public runtime
+Atom path и authored Mass key, результат является detached JSON-only data.
 
 До будущего write slice отдельно потребуется локальная capability
 identity/policy первого Codex→Monad write endpoint за пределами trusted
 development contour. Structural-operation CAS/digests относятся к будущему
 `MF-200` contract, а не к MetaJSON v1.
 
-Force v2, full VCS и права внутренних Runtime Agents остаются будущими
+Dark Force v2, full VCS и права внутренних Runtime Agents остаются будущими
 решениями и не блокируют текущую последовательность.
 
 ## 16. Как обновлять план
@@ -695,7 +735,7 @@ Force v2, full VCS и права внутренних Runtime Agents остаю�
 - `pending/active` Meta heads как prerequisite;
 - full source saga и transactional outbox как prerequisite;
 - Force v2 journal/ACK/replay как prerequisite Monad patch;
-- Dark как владелец Git/source version control;
+- full VCS graph/push как обязательная функция Dark Monad первого slice;
 - root/internal Create MetaFor topology;
 - nested Meta addresses;
 - новый минимальный Monad package generator;
@@ -705,6 +745,8 @@ Force v2, full VCS и права внутренних Runtime Agents остаю�
 Сохраняются:
 
 - `meta.ts` как canonical authored source;
+- Dark Monad как владелец Meta/package/source/TS/Process service operations;
+- Dark Force как единственный Particle ingress/history/relay внутри Dark;
 - MetaJSON как generated semantic projection;
 - history и patches отдельно от snapshots;
 - JSON Patch/JSON Pointer laws;
