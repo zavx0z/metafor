@@ -11,7 +11,7 @@ import {
   createForceTestFixture,
   type ForceTestClient,
   type ForceTestFixture,
-} from "force/fixture"
+} from "../dark/force/fixture.ts"
 import {installTestGpuDevice} from "./weak/tests/shared/gpu.ts"
 import {weak$} from "./weak"
 import {prepareMatrixBirth} from "./birth.ts"

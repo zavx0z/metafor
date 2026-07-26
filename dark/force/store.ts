@@ -1,9 +1,12 @@
 import type {SourcedForceMessage} from "shared/protocol/force/message"
 
-/** Пять обязательных доменов одной работающей Вселенной. */
+/** Local Dark adapter и четыре обязательных remote domain channel. */
 export const forceDomains = ["dark", "boundary", "matrix", "energy", "bulk"] as const
 
 export type ForceDomain = typeof forceDomains[number]
+export type RemoteForceDomain = Exclude<ForceDomain, "dark">
+
+export const remoteForceDomains = ["boundary", "matrix", "energy", "bulk"] as const satisfies readonly RemoteForceDomain[]
 
 /**
  * Типизированный канал одного обязательного runtime-домена.

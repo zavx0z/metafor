@@ -1,14 +1,11 @@
 import {afterAll, beforeAll, describe, expect, test} from "bun:test"
-import {mkdtempSync, rmSync} from "node:fs"
-import {tmpdir} from "node:os"
-import {join} from "node:path"
 import type {DeclarationPath} from "shared/protocol/force/declaration"
 import type {ForceMessage} from "shared/protocol/force/message"
 import type {Particle} from "shared/protocol/force/particle"
+import {Force} from "shared/transport/force"
 import type {MatterParticle} from "@metafor/types/metafor/matter"
 import type {MetaDSL} from "@metafor/types/metafor/schema"
-import {createForceTestFixture, type ForceTestFixture} from "force/fixture"
-import {DarkHistory} from "./history.ts"
+import {createForceTestFixture, type ForceTestFixture} from "./force/fixture.ts"
 
 const dsl = ({
   name,
@@ -64,20 +61,22 @@ const matches = (
 describe("Dark incremental Inflaton projection", () => {
   let fixture: ForceTestFixture
   let matterParticles: typeof import("./dark.ts").matterParticles
-  let historyDirectory: string
+  let stopRuntime: typeof import("./dark.ts").stopDarkRuntime
+  let force: Force
 
   beforeAll(async () => {
     fixture = createForceTestFixture()
     const dark = await import("./dark.ts")
     matterParticles = dark.matterParticles
-    historyDirectory = mkdtempSync(join(tmpdir(), "metafor-dark-runtime-"))
-    dark.startDarkRuntime(new DarkHistory(join(historyDirectory, "particles.jsonl")))
+    stopRuntime = dark.stopDarkRuntime
+    force = new Force("dark")
+    dark.startDarkRuntime(force)
     await fixture.waitForClient("dark", 5_000)
   })
 
   afterAll(() => {
+    stopRuntime(force)
     fixture.close()
-    rmSync(historyDirectory, {recursive: true, force: true})
   })
 
   const read = async (root: string, load: (src: string) => Promise<MetaDSL>): Promise<BareParticle[]> => {

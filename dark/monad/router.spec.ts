@@ -5,7 +5,7 @@ import {
   type RoutedMonadRpcCall,
 } from "shared/protocol/monad/rpc"
 import type {MonadChannel, MonadChannelListener} from "shared/transport/monad"
-import {MonadRouter} from "./rpc.ts"
+import {MonadRouter} from "./router.ts"
 
 class TestChannel implements MonadChannel {
   readonly sent: MonadRpcMessage[] = []

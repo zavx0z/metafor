@@ -1,16 +1,20 @@
 import type {ServerWebSocket} from "bun"
 import type {SourcedForceMessage} from "shared/protocol/force/message"
-import {forceDomains, type ForceDomain, type ForceStore} from "../store.ts"
+import {
+  remoteForceDomains,
+  type ForceChannel,
+  type RemoteForceDomain,
+} from "./store.ts"
 
 export type ForceSocketData = {
-  domain: ForceDomain
+  domain: RemoteForceDomain
   id: string
 }
 
 export type ForceSocket = ServerWebSocket<ForceSocketData>
 
 export type ForceWebSocketChannels = {
-  channels: ForceStore
+  channels: Record<RemoteForceDomain, ForceChannel>
   readUpgradeIdentity(request: Request): ForceSocketData | null
   opened(socket: ForceSocket): boolean
   closed(socket: ForceSocket): boolean
@@ -19,7 +23,7 @@ export type ForceWebSocketChannels = {
 }
 
 /**
- * Оборачивает физические WebSocket-соединения в пять каналов Store.
+ * Оборачивает физические WebSocket-соединения в четыре remote channel.
  *
  * Функция обслуживает только transport: identity HTTP Upgrade, набор открытых
  * сокетов и JSON-кодирование одной Particle. Решения о server state, готовности
@@ -27,11 +31,11 @@ export type ForceWebSocketChannels = {
  */
 export function createForceWebSocketChannels(): ForceWebSocketChannels {
   const sockets = Object.fromEntries(
-    forceDomains.map((domain) => [domain, new Set<ForceSocket>()]),
-  ) as Record<ForceDomain, Set<ForceSocket>>
-  const channels = Object.create(null) as ForceStore
+    remoteForceDomains.map((domain) => [domain, new Set<ForceSocket>()]),
+  ) as Record<RemoteForceDomain, Set<ForceSocket>>
+  const channels = Object.create(null) as Record<RemoteForceDomain, ForceChannel>
 
-  for (const domain of forceDomains) {
+  for (const domain of remoteForceDomains) {
     channels[domain] = {
       domain,
       send(message) {
@@ -49,8 +53,8 @@ export function createForceWebSocketChannels(): ForceWebSocketChannels {
       const url = new URL(request.url)
       const domain = url.searchParams.get("domain")
       const id = url.searchParams.get("id")
-      if (!domain || !id || !forceDomains.includes(domain as ForceDomain)) return null
-      return {domain: domain as ForceDomain, id}
+      if (!domain || !id || !remoteForceDomains.includes(domain as RemoteForceDomain)) return null
+      return {domain: domain as RemoteForceDomain, id}
     },
     opened(socket) {
       const domainSockets = sockets[socket.data.domain]
@@ -67,7 +71,7 @@ export function createForceWebSocketChannels(): ForceWebSocketChannels {
       return JSON.parse(String(raw)) as SourcedForceMessage
     },
     close() {
-      for (const domain of forceDomains) {
+      for (const domain of remoteForceDomains) {
         for (const socket of sockets[domain]) socket.close()
         sockets[domain].clear()
       }

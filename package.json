@@ -13,7 +13,6 @@
   "workspaces": [
     "types",
     "shared",
-    "force",
     "dark",
     "boundary",
     "boundary/atom",

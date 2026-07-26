@@ -28,13 +28,18 @@ let closing = false
 
 const port = (offset: number): number => configuredBasePort + offset
 
-const spawnDomain = (domain: string, entry: string, domainPort: number): ManagedProcess => {
+const spawnDomain = (
+  domain: string,
+  entry: string,
+  domainPort: number,
+  additionalEnv: Record<string, string> = {},
+): ManagedProcess => {
   const managed: ManagedProcess = {
     domain,
     process: Bun.spawn({
       cmd: ["bun", entry],
       cwd: repositoryRoot,
-      env: {...domainEnv, PORT: String(domainPort)},
+      env: {...domainEnv, ...additionalEnv, PORT: String(domainPort)},
       stdin: "inherit",
       stdout: "inherit",
       stderr: "inherit",
@@ -84,14 +89,16 @@ const stop = async (): Promise<void> => {
 }
 
 const birth = async (): Promise<{ports: Record<string, number>; backend: unknown}> => {
-  const force = spawnDomain("force", "force/server.ts", port(0))
-  await waitForHealth(force, `${forceHttp}/health`, (health) =>
-    health.state === "starting" || health.state === "running")
+  const dark = spawnDomain("dark", "dark/server.ts", port(0), {
+    DARK_COMPAT_PORT: String(port(2)),
+  })
+  await waitForHealth(dark, `${forceHttp}/health`, (health) =>
+    (health.state === "starting" || health.state === "running") &&
+    (health.dark as Health | undefined)?.rpc === "ready")
 
   const boundary = spawnDomain("boundary", "boundary/server.ts", port(1))
   await waitForHealth(boundary, `http://127.0.0.1:${port(1)}/health`, (health) => health.rpc === "ready")
 
-  const dark = spawnDomain("dark", "dark/server.ts", port(2))
   await waitForHealth(dark, `http://127.0.0.1:${port(2)}/health`, (health) => health.rpc === "ready")
 
   const energy = spawnDomain("energy", "energy/server.ts", port(5))
@@ -106,13 +113,13 @@ const birth = async (): Promise<{ports: Record<string, number>; backend: unknown
     `http://127.0.0.1:${port(3)}/health`,
     (health) => health.initialized === true,
   )
-  await waitForHealth(force, `${forceHttp}/health`, (health) => health.state === "running")
+  await waitForHealth(dark, `${forceHttp}/health`, (health) => health.state === "running")
 
   return {
     ports: {
-      force: port(0),
+      dark: port(0),
+      darkCompatibility: port(2),
       boundary: port(1),
-      dark: port(2),
       matrix: port(3),
       bulk: port(4),
       energy: port(5),

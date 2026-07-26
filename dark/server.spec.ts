@@ -1,8 +1,11 @@
 import {afterAll, beforeAll, describe, expect, test} from "bun:test"
+import {mkdtempSync, rmSync} from "node:fs"
+import {tmpdir} from "node:os"
+import {join} from "node:path"
 import type {ForceMessage} from "shared/protocol/force/message"
 import {MONAD_RPC_VERSION, type RoutedMonadRpcCall} from "shared/protocol/monad/rpc"
-import type {ForceLifecycle} from "./monad.ts"
-import type {ForceDomain} from "./store.ts"
+import {READ_META_JSON_METHOD} from "@metafor/types/metafor/meta-json"
+import type {RemoteForceDomain} from "./force/store.ts"
 
 type ConnectedClient = {
   socket: WebSocket
@@ -10,9 +13,15 @@ type ConnectedClient = {
 }
 
 let previousPort: string | undefined
+let previousCompatPort: string | undefined
+let previousLegacyHistory: string | undefined
+let previousForceHistory: string | undefined
+let previousCutId: string | undefined
 let server: Bun.Server<unknown>
-let lifecycle: ForceLifecycle
+let stopDark: () => Promise<void>
+let forceHistory: {status(): {sequence: number}}
 let providerServer: Bun.Server<unknown>
+let directory: string
 const rpcCalls: RoutedMonadRpcCall[] = []
 const clients: ConnectedClient[] = []
 
@@ -24,7 +33,7 @@ const waitFor = async (predicate: () => boolean | Promise<boolean>): Promise<voi
   }
 }
 
-const connect = (domain: ForceDomain): Promise<ConnectedClient> => new Promise((resolve, reject) => {
+const connect = (domain: RemoteForceDomain): Promise<ConnectedClient> => new Promise((resolve, reject) => {
   const address = new URL("/ws", server.url)
   address.protocol = "ws:"
   address.searchParams.set("domain", domain)
@@ -86,6 +95,7 @@ const monadRequest = (
 }
 
 beforeAll(async () => {
+  directory = mkdtempSync(join(tmpdir(), "metafor-dark-server-"))
   providerServer = Bun.serve({
     port: 0,
     routes: {
@@ -112,19 +122,36 @@ beforeAll(async () => {
     },
   })
   previousPort = Bun.env.PORT
+  previousCompatPort = Bun.env.DARK_COMPAT_PORT
+  previousLegacyHistory = Bun.env.DARK_HISTORY_PATH
+  previousForceHistory = Bun.env.DARK_FORCE_HISTORY_PATH
+  previousCutId = Bun.env.DARK_FORCE_HISTORY_CUT_ID
   Bun.env.PORT = "0"
+  Bun.env.DARK_COMPAT_PORT = "0"
+  Bun.env.DARK_HISTORY_PATH = join(directory, "legacy.jsonl")
+  Bun.env.DARK_FORCE_HISTORY_PATH = join(directory, "force-history", "v1")
+  Bun.env.DARK_FORCE_HISTORY_CUT_ID = "server-spec-cut"
   const module = await import(`./server.ts?test=${crypto.randomUUID()}`)
   server = module.server
-  lifecycle = module.lifecycle
+  stopDark = module.stop
+  forceHistory = module.forceHistory
 })
 
-afterAll(() => {
-  lifecycle.stop()
+afterAll(async () => {
   for (const client of clients) client.socket.close()
-  server.stop(true)
+  await stopDark()
   providerServer.stop(true)
   if (previousPort === undefined) delete Bun.env.PORT
   else Bun.env.PORT = previousPort
+  if (previousCompatPort === undefined) delete Bun.env.DARK_COMPAT_PORT
+  else Bun.env.DARK_COMPAT_PORT = previousCompatPort
+  if (previousLegacyHistory === undefined) delete Bun.env.DARK_HISTORY_PATH
+  else Bun.env.DARK_HISTORY_PATH = previousLegacyHistory
+  if (previousForceHistory === undefined) delete Bun.env.DARK_FORCE_HISTORY_PATH
+  else Bun.env.DARK_FORCE_HISTORY_PATH = previousForceHistory
+  if (previousCutId === undefined) delete Bun.env.DARK_FORCE_HISTORY_CUT_ID
+  else Bun.env.DARK_FORCE_HISTORY_CUT_ID = previousCutId
+  rmSync(directory, {recursive: true, force: true})
 })
 
 describe("Force server transport and relay", () => {
@@ -135,6 +162,22 @@ describe("Force server transport and relay", () => {
       new URL("/rpc", providerServer.url),
     )
     const interpreterChannel = await openMonadChannel("interpreter")
+
+    const liveMetaJSON = await monadRequest("/monad/rpc", interpreterChannel, "POST", {
+      version: MONAD_RPC_VERSION,
+      id: "live-metajson",
+      target: "dark",
+      method: READ_META_JSON_METHOD,
+      params: {root: "not-canonical"},
+    })
+    expect(liveMetaJSON.status).toBe(502)
+    expect(await liveMetaJSON.json()).toMatchObject({
+      ok: false,
+      error: {
+        code: "method_error",
+        message: "MetaJSON read root must be a canonical <owner>/<repository> address",
+      },
+    })
 
     const response = await monadRequest("/monad/rpc", interpreterChannel, "POST", {
         version: MONAD_RPC_VERSION,
@@ -228,21 +271,23 @@ describe("Force server transport and relay", () => {
 
     const health = await fetch(new URL("/health", server.url))
     expect(health.status).toBe(503)
-    expect(await health.json()).toMatchObject({state: "starting", connectedDomains: []})
+    expect(await health.json()).toMatchObject({state: "starting", connectedDomains: ["dark"]})
   })
 
-  test("builds five channels through HTTP Upgrade and relays only Particle frames", async () => {
+  test("combines one local Dark adapter with four remote channels and relays only Particle frames", async () => {
     const before = await fetch(new URL("/health", server.url))
     expect(before.status).toBe(503)
-    expect(await before.json()).toMatchObject({state: "starting", connectedDomains: []})
+    expect(await before.json()).toMatchObject({state: "starting", connectedDomains: ["dark"]})
+    const selfWebSocket = await fetch(new URL("/ws?domain=dark&id=forbidden-self-socket", server.url))
+    expect(selfWebSocket.status).toBe(400)
 
     const connected = Object.fromEntries(await Promise.all(
-      (["dark", "boundary", "matrix", "energy", "bulk"] as const).map(async (domain) => [domain, await connect(domain)]),
-    )) as Record<ForceDomain, ConnectedClient>
+      (["boundary", "matrix", "energy", "bulk"] as const).map(async (domain) => [domain, await connect(domain)]),
+    )) as Record<RemoteForceDomain, ConnectedClient>
 
     await waitFor(async () => (await fetch(new URL("/health", server.url))).status === 200)
     await Bun.sleep(10)
-    for (const domain of ["dark", "boundary", "matrix", "energy", "bulk"] as const) {
+    for (const domain of ["boundary", "matrix", "energy", "bulk"] as const) {
       expect(connected[domain].messages).toEqual([])
     }
 
@@ -255,27 +300,37 @@ describe("Force server transport and relay", () => {
           op: "add",
           path: "wimp",
           ts: 7,
-          value: {src: "capsule", name: "Capsule"},
+          value: {src: "example/capsule", name: "Capsule"},
         }],
       }),
     })
 
     expect(response.status).toBe(200)
     expect(await response.json()).toMatchObject({ok: true, delivered: ["dark", "bulk"]})
-    await waitFor(() => connected.dark.messages.length === 1 && connected.bulk.messages.length === 1)
-    expect(connected.dark.messages[0]).toEqual({
+    await waitFor(() => connected.boundary.messages.length === 1 && connected.bulk.messages.length === 2)
+    expect(connected.bulk.messages[0]).toEqual({
       parts: [{
         part: "inflaton",
         op: "add",
         path: "wimp",
         by: "agent",
         ts: 7,
-        value: {src: "capsule", name: "Capsule"},
+        value: {src: "example/capsule", name: "Capsule"},
       }],
     })
-    expect(connected.boundary.messages).toEqual([])
+    expect(connected.boundary.messages[0]).toMatchObject({
+      parts: [{
+        part: "inflaton",
+        op: "add",
+        path: "wimp",
+        by: "dark",
+        ts: 7,
+        value: {src: "example/capsule", name: "Capsule"},
+      }],
+    })
     expect(connected.matrix.messages).toEqual([])
     expect(connected.energy.messages).toEqual([])
+    expect(forceHistory.status().sequence).toBe(2)
 
     connected.matrix.socket.close()
     await waitFor(async () => (await fetch(new URL("/health", server.url))).status === 503)

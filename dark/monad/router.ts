@@ -23,7 +23,7 @@ type PendingRoute = {
 }
 
 /**
- * Transport-neutral service router between permanent MonadChannels.
+ * Dark Monad service router between permanent MonadChannels.
  *
  * The router attaches source identity from the incoming channel, checks the
  * target capabilities and routes the correlated response back through the

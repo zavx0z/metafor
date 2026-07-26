@@ -19,7 +19,7 @@ const relevantDomains = (message: SourcedForceMessage, origin: ForceOrigin): Set
 }
 
 /**
- * Применяет законы центрального Force к одной Particle.
+ * Применяет routing laws Dark Force к одной Particle.
  *
  * Закон канала уже гарантирует, что сюда попадает одна Particle с назначенным
  * источником. Runtime не проверяет это условие повторно: он только определяет

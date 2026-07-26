@@ -23,8 +23,8 @@
 - [Агентные Вселенные](AGENT_UNIVERSES.md) — Agent Atom, окружающие Tool,
   Device и Service Atoms, предметное изменение Fields и будущий интерфейс Bulk.
 - [Архитектура runtime](ARCHITECTURE.md) — состав contour и связи доменов.
-- [Force](FORCE.md) — Dark Force: единый Particle channel, history, relay и
-  fail-stop; текущий standalone `force/` является pre-migration debt.
+- [Force](FORCE.md) — Dark Force: единый Particle channel, complete post-cut
+  history, relay и fail-stop внутри Dark process.
 - [Boundary](../boundary/DOMAIN.md) — каноническое состояние, identity,
   materialization и commit.
 - [Matrix](domains/MATRIX.md) — State/Transition и инкрементальная проекция.

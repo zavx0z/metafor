@@ -4,14 +4,14 @@
 и точные документы-владельцы находятся в [`docs/README.md`](README.md). Для
 работы с реализацией внешняя документация не требуется.
 
-## Текущий pre-migration package graph
+## Canonical package graph
 
 Root workspace graph задан явным списком в `package.json`:
 
 - domain contracts: `types`;
 - shared wire protocols и server/web transports: `shared`;
-- central relay, `ForceLifecycle` и `MonadRouter`: `force`;
 - domains: `dark`, `boundary`, `matrix`, `energy`, `bulk`;
+- Dark Monad/Force assembly, relay, `ForceLifecycle` и `MonadRouter`: `dark`;
 - domain packages: `dark/{gravity,strong}`,
   `boundary/{atom,topology,wimp}`, `matrix/{gravity,strong,weak}`,
   `bulk/{gravity,strong,weak}`;
@@ -19,9 +19,8 @@ Root workspace graph задан явным списком в `package.json`:
   `pkg/ui/{elements,components,hud}`, `fixture`;
 - constructor and operational DSL: `create-metafor`.
 
-Standalone `force` в этом списке описывает только текущую реализацию. Owner
-утвердил её обязательный перенос в Dark: после `MF-102` отдельного Force
-workspace, runtime-domain и process не остаётся.
+Standalone Force workspace отсутствует. Общие Particle types и физические
+domain transports остаются в `shared`, но не образуют отдельный runtime-domain.
 
 Игнорируемый каталог `cluster/` является физическим resolver root внешних Meta,
 но не workspace. Его непосредственные каталоги представляют Galaxy-владельцев,
@@ -32,11 +31,10 @@ Meta-репозиторий `cluster/<owner>/<repository>`. Вложенные M
 ## Архитектурное чтение
 
 Package graph нельзя читать как полную онтологию. Каноническая проекция имеет
-вид `Domain × Force × Entity`: силы локально проявляются внутри доменов, а
-корневой `force` реализует только текущий внешний ingress и междоменную связь.
-Он не является всей Force.
+вид `Domain × Force × Entity`: силы локально проявляются внутри доменов, а Dark
+Force реализует единый внешний ingress и междоменную причинную связь.
 
-Утверждённая целевая модель имеет один Dark с двумя равноправными слоями:
+Dark имеет два равноправных слоя:
 
 ```text
 Dark
@@ -44,7 +42,7 @@ Dark
 └── Force — Particle ingress/history/relay/routing/lifecycle
 ```
 
-Весь runtime/domain нынешнего `force` переносится в эти слои Dark.
+Server/runtime бывшего standalone Force находится в этих слоях Dark.
 `shared/protocol/force` остаётся общим wire language. Gluon/Higgs и Inflaton
 проходят один Dark Force; структурный Inflaton подготавливает Dark Monad.
 
@@ -52,25 +50,24 @@ Dark
 измерение, но их текущий неполный состав ещё не является завершённой таблицей
 сил. Возвращать обязанности старых реализаций только по имени каталога нельзя.
 
-## Текущие runtime entries
+## Runtime entries
 
-| Process  | Entry                | Default port |
-| -------- | -------------------- | ------------ |
-| Force    | `force/server.ts`    | 4000         |
-| Boundary | `boundary/server.ts` | 4001         |
-| Dark     | `dark/server.ts`     | 4002         |
-| Matrix   | `matrix/server.ts`   | 4003         |
-| Bulk     | `bulk/server.ts`     | 4004         |
-| Energy   | `energy/server.ts`   | 4005         |
+| Process  | Entry                | Default listener |
+| -------- | -------------------- | ---------------- |
+| Dark     | `dark/server.ts`     | 4000; compatibility health 4002 |
+| Boundary | `boundary/server.ts` | 4001 |
+| Matrix   | `matrix/server.ts`   | 4003 |
+| Bulk     | `bulk/server.ts`     | 4004 |
+| Energy   | `energy/server.ts`   | 4005 |
 
-Это factual pre-migration contour, на котором были выполнены предыдущие cold
-proof. Его исторические результаты не переписываются задним числом.
+Canonical launcher содержит пять domain processes. Dark process содержит Dark
+Monad и Dark Force; отдельного Force entry нет. Public `/force`, `/monad/*`,
+REST/WebSocket и Force health сохраняют адрес `4000`. Listener `4002` держит
+health compatibility в том же Dark process и не является шестым process.
 
-После `MF-102` production contour содержит пять domain processes: Dark,
-Boundary, Matrix, Bulk и Energy. Dark process содержит Dark Monad и Dark Force,
-а отдельный `force/server.ts` отсутствует. Внешние `/force`, `/monad/*`,
-REST/WebSocket и health contracts переносятся behavior-preserving; точная
-listener/port compatibility фиксируется execution gate `MF-102` до source cut.
+Ранее принятый live contour был шестипроцессным. Его исторические cold proofs
+не переписываются задним числом; новый source требует отдельного owner-approved
+cold cut с backup/rollback до объявления production acceptance.
 
 Root scripts запускают entries только как обычные Bun processes. После изменения
 кода весь contour останавливается и запускается заново: частичная горячая
@@ -87,31 +84,33 @@ ForceChannel Energy открывает MonadChannel, читает
 `boundary.initialProjection.read` и гидратит постоянный локальный catalog
 Atom/Topology/Field/Variant/Process/continuation. Только затем Energy создаёт
 ForceChannel.
-Matrix server ждёт, пока Force увидит готовые `ForceChannel` Dark, Boundary,
-Energy и Bulk, затем получает final initial state Boundary, готовит Store/Weak
-и только после этого рождает Matrix runtime. Поэтому присутствие Energy в
-Matrix birth gate уже означает завершённую cold hydration. Созданный при
-импорте `Force("matrix")` становится пятым каналом и открывает общий realtime
-gate. Это необходимо, потому что первая Weak evaluation уже может испустить
-process work.
+Matrix server ждёт, пока Dark Force увидит готовые remote `ForceChannel`
+Boundary, Energy и Bulk и локальный Dark adapter, затем получает final initial
+state Boundary, готовит Store/Weak и только после этого рождает Matrix runtime.
+Поэтому присутствие Energy в Matrix birth gate уже означает завершённую cold
+hydration. Созданный при импорте `Force("matrix")` становится последним remote
+channel и открывает общий realtime gate. Это необходимо, потому что первая Weak
+evaluation уже может испустить process work.
 
-## Реализованное pre-migration соединение
+## Реализованное соединение
 
-- `force/server.ts` принимает REST и создаёт пять доменных WebSocket-каналов.
+- `dark/server.ts` принимает REST, содержит локальный Dark adapter и создаёт
+  четыре remote domain WebSocket-канала.
 - Domain transports из `shared/transport/force` подключаются к
   `ws://127.0.0.1:4000/ws`, если
   `FORCE_ADDRESS` не задан; `domain/id` передаются в HTTP Upgrade query.
-- Domain Monads открывают отдельный локальный REST-канал к Force; его identity
+- Remote domain Monads открывают отдельный локальный REST-канал к Dark; его identity
   и method capabilities сохраняются сервером за непрозрачным токеном. Над
   каналом `MonadRpcPeer` одинаково обслуживает исходящие и входящие RPC, а
   закрытие удаляет канал из `MonadRouter`.
 - Потеря только `MonadChannel` делает RPC этой identity недоступным, но не
   останавливает уже рождённый runtime. Fail-stop вызывается потерей одного из
-  пяти обязательных realtime `ForceChannel`.
+  четырёх обязательных remote `ForceChannel`; локальный Dark adapter готов до
+  открытия общего gate.
 - После Upgrade по WebSocket идут только Particle без register, readiness или
   bootstrap messages; само подключение Particle не создаёт.
-- `force/force.ts` является только relay и перенаправляет Particle по готовым
-  каналам Store.
+- `dark/force/route.ts` перенаправляет Particle по готовым каналам Store только
+  после durable history append.
 - Domain handlers применяют входные particles к собственным runtime structures.
 - Dark читает внешний `cluster/<src>/meta.ts` в ширину и испускает отдельные
   декларационные Particle по мере чтения; Meta не становится внутренней
@@ -129,11 +128,8 @@ process work.
   `gpu` является явным строгим режимом, `cpu` принудительно выбирает reference
   backend.
 
-Эти пункты описывают текущий split, но не отменяют owner law. `MF-102`
-переносит server, REST/WS ingress, `MonadRouter`, `ForceLifecycle`, relay,
-routing, channel Store, fixtures, health и tests в Dark, заменяет Dark
-self-WebSocket локальной границей и только после parity переключает launcher.
-Полный contour затем запускается холодно; hot reload запрещён.
+Source parity использует тот же wire и endpoints, но production acceptance
+требует отдельного полного cold restart. Hot reload запрещён.
 
 ## Публичное чтение MetaJSON
 

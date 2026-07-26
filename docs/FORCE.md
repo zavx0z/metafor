@@ -51,6 +51,36 @@ Particles. Particle не считается принятой Dark Force, есл�
 не состоялась. History сохраняет саму Particle и порядок принятия, достаточные
 для объяснения причинного Particle-пути.
 
+Первый unified contour открывает новый portable versioned каталог
+`.metafor/dark-force-history/v1/`. `manifest.json` содержит только immutable
+cut metadata: `cutId`, время начала, `retroactiveComplete: false`, отметку о
+сохранённой legacy history и размер сегмента. Запуск, создающий каталог, обязан
+получить `DARK_FORCE_HISTORY_CUT_ID`. Существующий
+`.metafor/dark-history.jsonl` сохраняется побайтно как legacy surface evidence
+и не объявляется полной историей задним числом.
+
+Истиной history являются только файлы
+`segments/<first-sequence-20-digits>.ndjson`. Каждая строка содержит ровно одну
+принятую `SourcedParticle` вместе с её стабильным record ID
+`<cutId>:<acceptance-sequence>`, монотонной acceptance sequence и
+`acceptedAt`. Сегменты ограничены 4096 Particles. Ни snapshot, ни Mass, ни
+Store, ни service/process log или другой event не может быть строкой этой
+history.
+
+`catalog.json` содержит только производный rebuildable индекс сегментов:
+границы sequence, `acceptedAt`, authored `particle.ts` и число записей. Он не
+является источником истины и его отсутствие или stale содержимое исправляется
+сканированием NDJSON без изменения Particles. Основной cursor — пара
+`(cutId, sequence)`; время принятия Force и authored Particle time остаются
+разными фильтрами.
+
+Append NDJSON и filesystem sync завершаются до routing. Только после durable
+append Particle считается принятой. Ошибка append закрывает causal gate и не
+допускает доставку этой Particle. Повреждённый, разорванный или имеющий gap
+segment приводит к fail-stop без auto-truncate, cleanup или переписывания
+legacy history. Формат использует только UTF-8 JSON/NDJSON и обычные filesystem
+операции; он не зависит от Bun storage API.
+
 Dark Monad может предоставлять read/query service над этой history, но не
 становится владельцем её persistence. Отдельный operation-service log, если он
 будет утверждён, может описывать только фазы Monad до или вокруг Particle
@@ -58,7 +88,7 @@ acceptance и не заменяет Force history.
 
 ## Relay, lifecycle и service transport
 
-После migration Dark Force владеет:
+Dark Force владеет:
 
 - server и внешним Particle ingress;
 - REST/WebSocket transport;
@@ -123,17 +153,16 @@ Behavior-preserving migration сохраняет действующие routing 
 Изменение routing semantics требует отдельного owner decision и не маскируется
 под перенос package/process ownership.
 
-## Текущее расхождение реализации
+## Реализация и cold-cut boundary
 
-До выполнения `MF-102` repository всё ещё содержит активный standalone
-`force/` workspace и `force/server.ts`, а launcher рождает отдельные Force и
-Dark processes. Это pre-migration implementation debt, а не целевая
-архитектура.
+Canonical source содержит server, ingress, `MonadRouter`, `ForceLifecycle`,
+relay/routing, channel Store, fixtures, health, `/force` и `/monad/*` внутри
+Dark. `dark/server.ts` слушает совместимый public ingress `4000`; тот же process
+может держать health-only compatibility listener `4002`. Локальный Dark
+adapter заменяет self-WebSocket, а Boundary, Matrix, Energy и Bulk сохраняют
+прежний remote wire.
 
-`MF-102` выполняет behavior-preserving перенос server, ingress, transports,
-`MonadRouter`, `ForceLifecycle`, relay/routing, channel Store, fixtures,
-health, `/force`, `/monad/*`, tests и документации в Dark. После parity и
-полного cold proof standalone Force package/entry/process удаляются.
-
-До этого cut текущие endpoints и process topology остаются фактическим
-описанием работающего contour. Их нельзя частично переключать или hot reload.
+Standalone `force` workspace, entry и process в canonical source отсутствуют.
+Предыдущий live contour остаётся pre-cut фактом до отдельного полного cold
+restart. Source parity и isolated five-process birth не являются утверждением,
+что live cut уже выполнен. Hot reload и частичный restart запрещены.

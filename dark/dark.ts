@@ -1,10 +1,9 @@
 import ".."
 import type {DeclarationPath} from "shared/protocol/force/declaration"
-import type {Particle, SourcedParticle} from "shared/protocol/force/particle"
+import type {ForceMessage, ForceMessageInput} from "shared/protocol/force/message"
+import type {Particle} from "shared/protocol/force/particle"
 import type {MatterEdgeSlot, MatterParticle} from "@metafor/types/metafor/matter"
 import type {MetaDSL} from "@metafor/types/metafor/schema"
-import {Force} from "shared/transport/force"
-import type {DarkHistory} from "./history.ts"
 import {canonicalMetaSource, loadMeta} from "./load.ts"
 import {
   loadMetaDeclarationGraph,
@@ -24,7 +23,13 @@ type WimpProjection = {
 
 const projection = new Map<string, WimpProjection>()
 const roots = new Set<string>()
-let runtime: {force: Force; history: DarkHistory} | null = null
+
+export type DarkForcePort = {
+  impulse(message: ForceMessageInput): void
+  onImpulse: (impulse: ForceMessage) => void | Promise<void>
+}
+
+let runtime: {force: DarkForcePort} | null = null
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)
@@ -224,7 +229,6 @@ const declaration = (
 const emit = (particle: Particle): void => {
   if (!runtime) throw new Error("Dark runtime has not been born")
   const {by: _by, ...input} = particle
-  runtime.history.record("outgoing", {...input, by: "dark"} as SourcedParticle)
   runtime.force.impulse({parts: [input]})
 }
 
@@ -358,17 +362,15 @@ export const applyAgentInflaton = (part: Particle): boolean => {
   return true
 }
 
-/** Creates Dark's Force channel only after its Monad and history are ready. */
-export const startDarkRuntime = (history: DarkHistory): Force => {
+/** Connects Dark Monad runtime to the in-process Dark Force adapter. */
+export const startDarkRuntime = (force: DarkForcePort): DarkForcePort => {
   if (runtime) return runtime.force
-  const force = new Force("dark")
-  runtime = {force, history}
+  runtime = {force}
   force.onImpulse = async (impulse) => {
     for (const part of impulse.parts) {
       if (typeof part.by !== "string" || part.by.length === 0) {
         throw new Error("Dark received an unsourced Particle")
       }
-      history.record("incoming", {...part, by: part.by})
       if (applyAgentInflaton(part)) continue
       if (part.part === "inflaton" && part.op === "test" && typeof part.path === "string") {
         await matter(part.path)
@@ -377,4 +379,9 @@ export const startDarkRuntime = (history: DarkHistory): Force => {
     }
   }
   return force
+}
+
+/** Releases only the matching in-process adapter during full server shutdown. */
+export const stopDarkRuntime = (force: DarkForcePort): void => {
+  if (runtime?.force === force) runtime = null
 }

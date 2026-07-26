@@ -1,7 +1,7 @@
 import {beforeEach, describe, expect, test} from "bun:test"
 import type {SourcedForceMessage} from "shared/protocol/force/message"
-import {routeParticle} from "./force.ts"
-import {ForceLifecycle} from "./monad.ts"
+import {routeParticle} from "./route.ts"
+import {ForceLifecycle} from "./lifecycle.ts"
 import {force$, forceDomains, type ForceDomain, type ForceStore} from "./store.ts"
 
 let lifecycle: ForceLifecycle
@@ -25,7 +25,9 @@ const createRecordingChannels = () => {
 
 beforeEach(() => {
   recording = createRecordingChannels()
-  lifecycle = new ForceLifecycle()
+  lifecycle = new ForceLifecycle({accept() {
+    return {} as never
+  }})
   lifecycle.start(recording.channels)
   for (const domain of forceDomains) lifecycle.channelReady(domain)
 })

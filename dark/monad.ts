@@ -9,6 +9,7 @@ import {
   readDarkDeclarationProjection,
   type DarkDeclarationProjectionV1,
 } from "./meta-json.ts"
+import {MetaJSONMonad} from "./monad/meta-json.ts"
 
 export type DarkMonadState = "created" | "registering" | "ready" | "error" | "stopped"
 
@@ -18,6 +19,7 @@ type DeclarationProjectionReader = (params: unknown) => Promise<DarkDeclarationP
 export class DarkMonad {
   #state: DarkMonadState = "created"
   #error: string | null = null
+  readonly #metaJSON = new MetaJSONMonad()
 
   constructor(
     private readonly history: DarkHistory,
@@ -33,6 +35,7 @@ export class DarkMonad {
     )
     peer.expose(DARK_HISTORY_READ_METHOD, async (params) => this.history.read(params))
     peer.expose(DARK_HISTORY_CLEAR_METHOD, async (params) => this.history.clear(params))
+    this.#metaJSON.onServerStarted(peer)
   }
 
   onChannelOpened(): void {
@@ -47,16 +50,27 @@ export class DarkMonad {
   }
 
   onHealthRequested(): Response {
-    return Response.json({
+    return Response.json(this.health())
+  }
+
+  health(): {
+    ok: boolean
+    domain: "dark"
+    rpc: DarkMonadState
+    history: {path: string; latestTs: number | null; completeness: "legacy-surface"}
+    error: string | null
+  } {
+    return {
       ok: this.#state !== "error" && this.#state !== "stopped",
       domain: "dark",
       rpc: this.#state,
       history: {
         path: this.history.filename,
         latestTs: this.history.latestTs,
+        completeness: "legacy-surface",
       },
       error: this.#error,
-    })
+    }
   }
 
   onServerStopping(): void {

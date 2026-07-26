@@ -3,8 +3,9 @@ import {
   type ForceMessageInput,
   type SourcedForceMessage,
 } from "shared/protocol/force/message"
-import {routeParticle} from "./force.ts"
+import {routeParticle} from "./route.ts"
 import {force$, forceDomains, type ForceDomain, type ForceStore} from "./store.ts"
+import type {DarkForceHistory} from "./history.ts"
 
 export type ForceLifecycleState = "created" | "starting" | "running" | "error" | "stopped"
 
@@ -35,6 +36,8 @@ export class ForceLifecycle {
   #state: ForceLifecycleState = "created"
   #error: string | null = null
   #connectedDomains = new Set<ForceDomain>()
+
+  constructor(private readonly history: Pick<DarkForceHistory, "accept">) {}
 
   /**
    * Сервер запущен и просит подготовить Force к рождению runtime.
@@ -84,6 +87,7 @@ export class ForceLifecycle {
     }
     const message = sourceForceMessage(input, "agent")
     try {
+      this.history.accept(message.parts[0])
       const delivered = routeParticle(message, "agent")
       return {ok: true, delivered, particle: message.parts[0]}
     } catch (error) {
@@ -104,6 +108,7 @@ export class ForceLifecycle {
       return {ok: false, reason: "not_running", error: this.#blockedReason()}
     }
     try {
+      this.history.accept(value.parts[0])
       return {ok: true, delivered: routeParticle(value, domain)}
     } catch (error) {
       this.#failStop(domain, `could not transfer a Particle: ${this.#reason(error)}`)

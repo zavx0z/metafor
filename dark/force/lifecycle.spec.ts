@@ -1,6 +1,7 @@
 import {beforeEach, describe, expect, test} from "bun:test"
+import type {Part} from "shared/protocol/force/particle"
 import type {ForceMessageInput, SourcedForceMessage} from "shared/protocol/force/message"
-import {ForceLifecycle} from "./monad.ts"
+import {ForceLifecycle} from "./lifecycle.ts"
 import {forceDomains, type ForceDomain, type ForceStore} from "./store.ts"
 
 const agentInflaton = (ts: number): ForceMessageInput => ({
@@ -13,6 +14,7 @@ const agentRemove = (ts: number): ForceMessageInput => ({
 
 let lifecycle: ForceLifecycle
 let recording: ReturnType<typeof createRecordingChannels>
+let accepted: SourcedForceMessage["parts"][0][]
 
 const createRecordingChannels = () => {
   const messages = Object.fromEntries(
@@ -32,7 +34,13 @@ const createRecordingChannels = () => {
 
 beforeEach(() => {
   recording = createRecordingChannels()
-  lifecycle = new ForceLifecycle()
+  accepted = []
+  lifecycle = new ForceLifecycle({
+    accept(particle) {
+      accepted.push(structuredClone(particle))
+      return {} as never
+    },
+  })
 })
 
 const start = (): void => {
@@ -82,6 +90,14 @@ describe("ForceLifecycle", () => {
         value: {src: "capsule", name: "Capsule"},
       },
     })
+    expect(accepted).toEqual([{
+      part: "inflaton",
+      op: "add",
+      path: "wimp",
+      by: "agent",
+      ts: 2,
+      value: {src: "capsule", name: "Capsule"},
+    }])
   })
 
   test("accepts and sources the agent WIMP remove through the same Force Monad ingress", () => {
@@ -111,6 +127,45 @@ describe("ForceLifecycle", () => {
       ok: true,
       delivered: ["dark", "boundary", "matrix", "bulk"],
     })
+    expect(accepted).toEqual([claim.parts[0]])
+  })
+
+  test("persists direct Gluon and Higgs mutations before Boundary delivery", () => {
+    start()
+    const gluon: SourcedForceMessage = {
+      parts: [{part: "gluon", op: "replace", path: 17, by: "matrix", ts: 5, value: {fields: {1: 2}}}],
+    }
+    const higgs: SourcedForceMessage = {
+      parts: [{part: "higgs", op: "add", path: 17, by: "energy", ts: 6, value: {field: 1}}],
+    }
+
+    expect(lifecycle.acceptParticle("matrix", gluon)).toEqual({ok: true, delivered: ["boundary"]})
+    expect(lifecycle.acceptParticle("energy", higgs)).toEqual({ok: true, delivered: ["boundary"]})
+    expect(accepted).toEqual([gluon.parts[0], higgs.parts[0]])
+    expect(recording.deliveries("dark")).toEqual([])
+    expect(recording.deliveries("boundary")).toEqual([gluon, higgs])
+  })
+
+  test("persists every Force Particle kind through the same acceptance point before routing", () => {
+    start()
+    const parts: Part[] = ["inflaton", "graviton", "photon", "gluon", "higgs", "w+", "w-", "z"]
+
+    for (const [index, part] of parts.entries()) {
+      const message: SourcedForceMessage = {
+        parts: [{
+          part,
+          op: "test",
+          path: index,
+          by: "matrix",
+          ts: index,
+          value: {part},
+        }],
+      }
+      expect(lifecycle.acceptParticle("matrix", message).ok).toBe(true)
+      expect(accepted.at(-1)).toEqual(message.parts[0])
+    }
+
+    expect(accepted.map((particle) => particle.part)).toEqual(parts)
   })
 
   test("owns fail-stop when one domain channel is destroyed", () => {
@@ -138,5 +193,24 @@ describe("ForceLifecycle", () => {
     for (const domain of ["dark", "boundary", "matrix", "energy", "bulk"] as const) {
       expect(recording.deliveries(domain)).toEqual([])
     }
+  })
+
+  test("persists before routing and fail-stops without delivery when history append fails", () => {
+    recording = createRecordingChannels()
+    lifecycle = new ForceLifecycle({
+      accept() {
+        throw new Error("history fsync failed")
+      },
+    })
+    start()
+
+    expect(lifecycle.acceptAgentParticle(agentInflaton(9))).toEqual({
+      ok: false,
+      reason: "runtime_error",
+      error: "Force stopped: runtime could not transfer a Particle: history fsync failed",
+    })
+    expect(recording.deliveries("dark")).toEqual([])
+    expect(recording.deliveries("bulk")).toEqual([])
+    expect(lifecycle.status()).toMatchObject({state: "error"})
   })
 })

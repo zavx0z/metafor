@@ -11,11 +11,11 @@ import type {MonadRpcPeer} from "shared/transport/monad"
 import {
   DARK_DECLARATION_PROJECTION_METHOD,
   type DarkDeclarationProjectionV1,
-} from "../dark/meta-json.ts"
+} from "../meta-json.ts"
 import {
   BOUNDARY_META_JSON_PROJECTION_METHOD,
   type BoundaryMetaJSONProjectionV1,
-} from "../boundary/meta-json.ts"
+} from "../../boundary/meta-json.ts"
 
 export type MetaJSONMonadPeer = Pick<MonadRpcPeer, "call" | "expose">
 
@@ -221,7 +221,7 @@ export const assembleMetaJSON = async (
   return validation.value
 }
 
-/** Transport-neutral service surface; it retains no assembled document or provider result. */
+/** Dark Monad service surface; it retains no assembled document or provider result. */
 export class MetaJSONMonad {
   onServerStarted(peer: MetaJSONMonadPeer): void {
     peer.expose(

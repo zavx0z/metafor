@@ -10,8 +10,8 @@ import type {
   MonadRpcContext,
   MonadRpcHandler,
 } from "shared/transport/monad"
-import {BOUNDARY_META_JSON_PROJECTION_METHOD} from "../boundary/meta-json.ts"
-import {DARK_DECLARATION_PROJECTION_METHOD} from "../dark/meta-json.ts"
+import {BOUNDARY_META_JSON_PROJECTION_METHOD} from "../../boundary/meta-json.ts"
+import {DARK_DECLARATION_PROJECTION_METHOD} from "../meta-json.ts"
 import {
   MetaJSONAssemblyError,
   MetaJSONMonad,

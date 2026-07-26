@@ -119,13 +119,6 @@
         "typescript": "^5",
       },
     },
-    "force": {
-      "name": "force",
-      "version": "0.0.1",
-      "dependencies": {
-        "shared": "workspace:*",
-      },
-    },
     "matrix": {
       "name": "matrix",
       "version": "0.0.1",
@@ -308,8 +301,6 @@
     "escalade": ["escalade@3.2.0", "https://registry.yarnpkg.com/escalade/-/escalade-3.2.0.tgz", {}, "sha512-WUj2qlxaQtO4g6Pq5c29GTcWGDyd8itL8zTlipgECz3JesAiiOKotd8JU6otB3PACgG6xkJUyVhboMS+bje/jA=="],
 
     "fixture": ["fixture@workspace:fixture"],
-
-    "force": ["force@workspace:force"],
 
     "get-caller-file": ["get-caller-file@2.0.5", "https://registry.yarnpkg.com/get-caller-file/-/get-caller-file-2.0.5.tgz", {}, "sha512-DyFP3BM/3YHTQOCUL/w0OZHR0lpKeGrxotcHWcqNEdnltqFwXVfhEBQ94eIo34AfQpo0rGki4cyIiftY06h2Fg=="],
 

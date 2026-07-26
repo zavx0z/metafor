@@ -13,7 +13,10 @@ MetaJSON v1 read-contract. `MF-101` implementation gate завершён и не
 зафиксированы тремя локальными commits. Следующий обязательный item — `MF-102`:
 behavior-preserving перенос standalone Force runtime в Dark до продолжения
 read-only `MF-103`. Live contour остаётся неприкасаемым до отдельного
-source/cold-cut start.
+`MF-102` cold-cut start. Owner отдельно разрешил `MF-102` parity/source
+migration в canonical checkout. Source migration и isolated five-process proof
+завершены; live contour, Store/Mass/history и процессы остаются
+неприкосновенными до последующего cold-cut gate.
 
 Этот файл — изменяемая рабочая карта. Он не заменяет документы-владельцы из
 `docs/README.md`. Новый действующий закон сначала переносится в соответствующий
@@ -121,6 +124,15 @@ MetaJSON snapshot не содержит:
 - JSON Patch history;
 - Mass bytes;
 - живые Energy objects.
+
+Dark Force Particle history является portable append-only каталогом
+`.metafor/dark-force-history/v1/`. Immutable `manifest.json` задаёт только
+post-cut identity, а Particle truth хранится только в bounded NDJSON segments.
+Каждая запись имеет стабильный `(cutId, acceptance sequence)` ID, Force
+`acceptedAt` и неизменённую `SourcedParticle` с её authored `particle.ts`.
+Производный `catalog.json` ускоряет навигацию по segment/sequence/time, но
+полностью rebuildable и не участвует в acceptance. Durable append завершается
+до routing; snapshots, Mass, Store и иные events в эту history не входят.
 
 History, operation outcomes, Mass results и JSON Patch передаются отдельными
 форматами/API. Чтение этих данных не даёт права напрямую писать их Stores.

@@ -21,6 +21,8 @@ describe("Universe launcher", () => {
         ...process.env,
         BOUNDARY_PATH: join(directory, "boundary.sqlite"),
         DARK_HISTORY_PATH: join(directory, "dark-history.jsonl"),
+        DARK_FORCE_HISTORY_PATH: join(directory, "dark-force-history", "v1"),
+        DARK_FORCE_HISTORY_CUT_ID: "universe-spec-cut",
         FORCE_RECONNECT: "0",
         METAFOR_LOG_IMPULSES: "0",
         METAFOR_UNIVERSE_PORT_BASE: String(basePort),
@@ -44,7 +46,8 @@ describe("Universe launcher", () => {
 
     expect(exitCode, errors).toBe(0)
     expect(output).toContain("[metafor] Universe born")
-    expect(output).toContain(`\"force\":${basePort}`)
+    expect(output).toContain(`\"dark\":${basePort}`)
+    expect(output).toContain(`\"darkCompatibility\":${basePort + 2}`)
     expect(output).toContain("\"backend\":\"cpu\"")
   }, 50_000)
 })

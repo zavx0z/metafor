@@ -338,6 +338,9 @@
 
 - Status: `GATE`
 - Dependencies: `MF-101`
+- Current task: Codex coordinator task
+  `019f9ea9-8bbc-7f60-9b7a-5f12b40a32d4`; один canonical checkout и один
+  последовательный integration owner, без дополнительных branches/worktrees.
 - Locked architecture:
   - Dark содержит два равноправных слоя: Monad и Force;
   - весь runtime/domain нынешнего `force` переносится в Dark;
@@ -355,24 +358,64 @@
   - выполненные MF-014 six-process proofs остаются pre-migration evidence.
 - Gate:
   - архитектура не переоткрывается;
-  - до source work owner принимает точный compatibility/cold-cut plan и даёт
-    отдельный source/runtime authority;
-  - никаких roles, source/runtime/data/contour changes на docs-only gate.
+  - owner принял parity/source migration и public ingress compatibility на
+    `4000`;
+  - source migration gate завершён; следующий gate — отдельная owner authority
+    на backup, полный stop, cold start, acceptance и rollback live contour;
+  - legacy Dark JSONL не объявляется ретроактивно полной и не переписывается;
+  - новая history boundary утверждена: portable каталог
+    `.metafor/dark-force-history/v1/`, отдельный immutable manifest/cut,
+    Particle-only bounded NDJSON segments и rebuildable navigation catalog;
+    live cut требует явного нового `cutId`.
+- G0 parity baseline:
+  - canonical clean HEAD `f4a770a9`;
+  - подтверждены current standalone endpoints `/health`, `/force`, `/ws`,
+    `/monad/channels`, `/monad/rpc`, `/monad/channel`;
+  - зафиксированы current routing matrix, five-remote-channel lifecycle,
+    Monad source binding, fail-stop и six-process launcher;
+  - isolated baseline
+    `bun test force/server.spec.ts force/force.spec.ts force/monad.spec.ts
+    force/rpc.spec.ts runtime/universe.spec.ts`: 17 pass, 0 fail, 77 expect;
+  - тест использовал только ephemeral listeners и temporary Store/history;
+    live contour и owner data не затрагивались.
+- Source migration gate:
+  - бывшие server/REST/WebSocket ingress, `ForceLifecycle`, routing, channel
+    Store, fixtures, health и tests находятся в `dark/force`; `MonadRouter` и
+    local Monad channel находятся в `dark/monad`; отдельный `force`
+    workspace/entry удалён;
+  - Dark self-WebSocket заменён локальным process adapter, remote channels
+    ограничены Boundary, Matrix, Energy и Bulk;
+  - `dark/server.ts` содержит Dark Monad + Dark Force, сохраняет public ingress
+    `4000` и предоставляет same-process compatibility health на `4002`;
+  - `runtime/universe.ts` рождает пять процессов и Matrix последней;
+  - complete post-cut history содержит только accepted `SourcedParticle`;
+    record ID — `<cutId>:<sequence>`, `acceptedAt` отделён от `particle.ts`,
+    сегменты ограничены 4096 entries, catalog rebuildable, append+fsync
+    завершается до routing;
+  - все восемь Part kinds, включая Gluon/Higgs и Inflaton, проходят один
+    lifecycle acceptance point; ошибка history append закрывает gate без
+    доставки;
+  - targeted migration proof: 60 pass, 0 fail, 314 expect;
+  - полный `bun run check`: typecheck и expect-error verification pass,
+    1599 tests pass, 0 fail, 5281 expect;
+  - `git diff --check`: pass; проверки использовали только ephemeral listeners
+    и temporary data, live contour/Store/Mass/legacy history не изменялись.
 - Required order:
-  1. Зафиксировать parity baseline endpoints, routing, lifecycle, history,
+  1. `DONE` — зафиксировать parity baseline endpoints, routing, lifecycle, history,
      birth gate, fail-stop и tests.
-  2. Перенести server, REST/WebSocket ingress, `MonadRouter`,
+  2. `DONE` — перенести server, REST/WebSocket ingress, `MonadRouter`,
      `ForceLifecycle`, particle relay/routing, channel Store, fixtures,
      health, `/force`, `/monad/*`, tests и docs в Dark.
-  3. Перенести functionality нынешнего `dark/dark.ts` в Dark Monad и
+  3. `DONE` — перенести functionality нынешнего `dark/dark.ts` в Dark Monad и
      разместить там Meta/source/service operations; отдельного третьего Dark
      runtime layer не оставлять.
-  4. Разместить ingress/history/relay/routing/lifecycle в Dark Force.
-  5. Заменить Dark self-WebSocket локальной process boundary без изменения wire
+  4. `DONE` — разместить ingress/history/relay/routing/lifecycle в Dark Force.
+  5. `DONE` — заменить Dark self-WebSocket локальной process boundary без изменения wire
      semantics удалённых domains.
-  6. Переключить launcher на пять domain processes.
-  7. Удалить standalone Force package/entry только после parity.
-  8. Выполнить полный cold proof; hot reload запрещён.
+  6. `DONE` — переключить launcher на пять domain processes.
+  7. `DONE` — удалить standalone Force package/entry после source parity.
+  8. `GATE` — выполнить owner-approved backup/full stop/cold start/acceptance
+     либо rollback; hot reload запрещён.
 - Acceptance:
   - каждая принятая Particle, включая Gluon/Higgs и Inflaton, проходит один
     Dark Force ingress и сохраняется в complete filesystem history;

@@ -38,7 +38,7 @@ type InternalClient = ForceTestClient & {
 }
 
 /**
- * Поднимает настоящий WebSocket transport для старых доменных unit fixtures.
+ * Поднимает настоящий WebSocket transport для доменных unit fixtures Dark Force.
  *
  * Identity домена читается из HTTP Upgrade. После открытия сокета fixture и
  * транспортные клиенты обмениваются только одной Particle без register или

@@ -83,6 +83,7 @@ describe("Dark Monad", () => {
       DARK_DECLARATION_PROJECTION_METHOD,
       DARK_HISTORY_CLEAR_METHOD,
       DARK_HISTORY_READ_METHOD,
+      "readMetaJSON",
     ])
     monad.onChannelOpened()
 
