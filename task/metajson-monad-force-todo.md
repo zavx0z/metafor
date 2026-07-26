@@ -224,11 +224,24 @@
   - итоговый rollback contour снова отвечает `200` на всех health endpoints и
     находится в прежних состояниях `auth=авторизована`,
     `chat=ожидание события`, `lada=работа`.
+  - canonical `bun run runtime:universe` и owner architecture определяют
+    полный contour ровно как launcher плюс Force, Boundary, Dark, Energy,
+    Bulk и Matrix-last; отдельного DNS resolver, outbound proxy или WebSocket
+    gateway process в lifecycle нет;
+  - повторный запуск flat candidate выполнен тем же canonical full launcher:
+    все шесть child processes присутствовали, все health endpoints ответили
+    `200`, topology/Matter/Mass/Auth снова прошли, а Chat получил тот же
+    Realtime open failure signature;
+  - evidence сохранён в
+    `.metafor/backups/mf014-full-contour-20260726T020320Z`; candidate
+    остановлен, verified legacy SQLite/history/Mass восстановлены и полный
+    rollback contour снова healthy.
 - Blocker:
   - topology, Matter, Mass и Auth доказаны; остаётся внешний Chat Realtime
-    WebSocket open failure. Нужна доступность/диагностика внешнего endpoint
-    перед повтором chat acceptance; автоматические reconnect attempts сейчас
-    не оставлены активными.
+    WebSocket open failure. Full MetaFor contour не владеет DNS/proxy service,
+    который мог бы изменить этот outbound path. Нужна доступность прямого
+    resolver path либо отдельно утверждённый contour-owned outbound WebSocket
+    transport; автоматические reconnect attempts сейчас не оставлены активными.
 - Acceptance:
   - two-segment resolver positive/negative tests;
   - third segment rejected before filesystem read;
