@@ -66,6 +66,280 @@ export default MetaFor("<name>")
 
 ---
 
+## RPC — компактная read-only проекция структуры мира
+
+Этот раздел является каноническим смысловым контрактом RPC-проекций для
+клиентов Create MetaFor. [`docs/FORCE.md`](../../docs/FORCE.md) владеет
+transport и routing законами Monad RPC, но не формой клиентской проекции.
+
+### Что реализовано и проверено сейчас
+
+- `boundary.initialState.read` возвращает полный нормализованный initial state,
+  нужный Matrix при рождении.
+- `boundary.initialProjection.read` возвращает полный текущий canonical
+  projection, которым при рождении пользуются Energy и Bulk.
+- `dark.history.read` читает ограниченные параметрами временные шаги и
+  неизменённые Particle из истории Dark. Он не строит структурное замыкание
+  шаблонов и topology.
+- `dark.history.clear` является отдельным подтверждаемым административным
+  удалением истории. Это не read-only projection и не управление временем мира.
+- `energy.mass.fence` и `energy.mass.release` являются внутренними lifecycle RPC
+  для безопасной работы Boundary с Mass identity, а не клиентским чтением.
+
+В текущем public contract нет проверенного RPC, который возвращает компактный
+фрагмент Dark templates/particles вместе с минимальной структурой мира.
+
+### Требование к планируемой проекции
+
+Клиент должен иметь возможность запросить ограниченный read-only фрагмент,
+не загружая и не разворачивая всё дерево мира. Точное имя метода и public
+request/response types должны появиться одновременно с реализацией и тестами;
+до этого они не считаются действующим API.
+
+Планируемая проекция обязана:
+
+1. начинаться с явно выбранного корня или набора Dark template/Particle
+   identities и оставаться ограниченной запросом;
+2. возвращать только выбранные Dark templates/particles и минимальное topology
+   замыкание, необходимое для понимания их положения: требуемую цепочку
+   предков, соединяющие edges и identities их endpoints;
+3. не раскрывать siblings, descendants или другие ветви только ради построения
+   полного дерева; любое дополнительное раскрытие должно быть явно запрошено и
+   ограничено;
+4. явно отмечать границу или усечение фрагмента, чтобы клиент не принимал
+   частичную структуру за полный мир;
+5. не возвращать Mass bytes, содержимое key-files, filesystem paths или
+   `MassHandle`, а также живые Energy handles. Допустима только уже существующая
+   non-content identity декларации, если без неё нельзя понять выбранную
+   структуру;
+6. не подменять Boundary canonical state и не создавать второй источник истины:
+   это наблюдаемая проекция Dark, а не собственный world store клиента.
+
+Этот контракт только read-only. Он не утверждает наличие pause, step, scrub,
+historical reconstruction, rewind, write, commit или promotion RPC. Такие
+методы не считаются существующими без отдельных public types, реализации и
+проверяющих тестов.
+
+### Планируемый bootstrap короткой agent-сессии
+
+Qwen, Gem и другие агенты должны использовать один и тот же RPC surface и одни
+public contracts. Отдельные методы или формы ответа под конкретную модель не
+создаются. Различаются только выданные сессии capabilities и авторизованная
+граница графа; сервер обязан применять эту границу к каждому ответу и каждой
+capability.
+
+Каждая новая короткоживущая agent-сессия должна получить явный bootstrap из
+трёх согласованных частей:
+
+1. стабильный RPC rules/capability contract с версией и перечнем действительно
+   доступных возможностей;
+2. ссылку на Git/source snapshot: identity репозитория, неизменяемую revision и
+   корень исходной проекции;
+3. сериализуемый RPC JSON world snapshot с явно указанным scope.
+
+Bootstrap является переданным новой сессии свидетельством. Агент не должен
+полагаться на скрытый долговременный context предыдущей сессии, не указанный в
+этом bootstrap, Git/source snapshot или RPC JSON snapshot.
+
+### Scope полной и частичной проекции
+
+Поддерживаются два смысловых режима одного будущего read-only contract:
+
+- **partial/subtree** — проекция внутреннего Atom subtree или связанного
+  подграфа ответственности агента;
+- **full-world** — проекция всего разрешённого мира, выдаваемая только по
+  отдельной явной capability.
+
+По умолчанию scope равен авторизованному внутреннему Atom subtree/graph
+responsibility агента. Обычный topology read возвращает только Dark
+templates/particles этого scope и минимальное topology замыкание. Если
+необходимый edge выходит за границу, внешний endpoint остаётся непрозрачной
+boundary identity без раскрытия его содержимого или соседних ветвей.
+
+Full-world scope не подразумевает Mass access. Чтение Mass требует отдельной
+явной capability и отдельного контракта. Обычная структурная проекция, включая
+full-world, не возвращает unrelated Mass bytes, содержимое key-files,
+filesystem paths, `MassHandle` или живые Energy handles.
+
+### Метаданные воспроизводимого snapshot
+
+Каждый bootstrap snapshot должен нести достаточно метаданных, чтобы другая
+короткая сессия могла проверить, к какому свидетельству относится JSON:
+
+- версию rules/capability contract;
+- identity Git/source repository и неизменяемую revision;
+- projection root и объявленную graph boundary;
+- identity canonical Boundary snapshot и causal frontier, относительно которых
+  построена проекция;
+- resolution `exact`, `coarse` или `unknown`;
+- явные признаки усечения и непрочитанных branches.
+
+`exact` означает точное свидетельство для указанной revision, frontier и scope,
+а не полноту всего мира. `coarse` обозначает агрегированный или интервальный
+фрагмент с неопределённостью; его нельзя выдавать за точный набор Particle.
+`unknown` означает, что точность или причинная позиция не доказаны. Snapshot с
+усечёнными branches остаётся partial, даже если все данные внутри его
+объявленной границы имеют resolution `exact`.
+
+Имена bootstrap/projection методов, JSON schema, Boundary snapshot identity и
+frontier representation пока не реализованы и не входят в действующий public
+API. Текущий проверенный RPC surface остаётся перечисленным в разделе
+«Что реализовано и проверено сейчас».
+
+### Gem на AI-server — планируемый bootstrap profile
+
+Gem на AI-server использует тот же RPC surface и contracts, что другие агенты.
+Это профиль bootstrap и budget, а не отдельный набор Gem endpoints. Он не
+считается реализованным, пока соответствующие public types, providers и tests
+не подтверждены.
+
+Начальный task bootstrap должен содержать:
+
+- scoped JSON snapshot Dark templates/particles и минимального topology
+  замыкания для авторизованного Atom subtree/graph;
+- task envelope с immutable source revision, projection root/scope, ожидаемым
+  output или proposal, resource budget и явным owner gate для canonical commit;
+- capability registry, уже отфильтрованный по этому graph scope и task budget.
+
+После bootstrap сессия получает не повтор полного context, а компактный delta
+на каждый доступный logical tick. Delta содержит только изменившиеся
+templates/particles, минимальные topology consequences и новую causal frontier
+identity. Пропущенный frontier или разрыв последовательности требует явного
+resync в пределах того же scope; клиент не достраивает пропуск из скрытого
+context и не объявляет его точным.
+
+Mass отсутствует в обычном topology snapshot и delta. Отложенный fetch
+допускается только отдельной Mass-read capability для объявленного key identity
+и ожидаемого digest в разрешённом Atom scope. Ответ возвращает запрошенное
+содержимое как отдельный bounded result, а не `MassHandle`, filesystem path или
+расширение world snapshot. Действующий runtime не имеет подтверждённого
+клиентского RPC такого fetch и digest contract; это proposed capability.
+
+History fetch также остаётся отдельной capability. Каждый результат обязан
+сообщать resolution:
+
+- `exact` — точные Particle для доказанного causal frontier/interval;
+- `coarse` — агрегат или интервал неопределённости без выдуманных точных ticks;
+- `unknown` — история или frontier недостаточны для доказательства.
+
+Текущий `dark.history.read` умеет читать ограниченные временные шаги, но не
+выдаёт этот resolution contract и не является scoped template/topology
+projection. Поэтому он не подтверждает planned Gem history endpoint, pause,
+step или rewind.
+
+Gem возвращает proposal и доказательства выполненных validations в формате,
+заданном task envelope. Даже при наличии source-write capability canonical
+commit не выполняется без отдельной `commit` capability и решения владельца.
+Resource budget ограничивает время, вычисление, объём snapshot/delta/history и
+число tool calls; исчерпание budget не расширяет scope и не разрешает commit.
+
+### Capability registry для авторинга Process
+
+Bootstrap Process-authoring агента должен включать явный capability registry.
+Registry описывает только действительно подключённые и проверенные tool
+contracts; отсутствие записи означает отсутствие capability. Нельзя считать
+tool доступным по имени агента, окружению, прошлой сессии или наличию кода в
+репозитории.
+
+Каждая registry entry должна указывать:
+
+- стабильную identity и версию tool contract;
+- owning contour: MetaFor, Interpreter либо явно предоставленный
+  production/vendor tool contract;
+- разрешённый operation class: `read`, `propose/write Process`,
+  `validate/test` или `commit`;
+- требуемый Atom subtree/graph scope и дополнительные ограничения ресурса;
+- может ли операция касаться live state; по умолчанию — нет;
+- отдельное approval/owner gate, если capability допускает commit или live
+  mutation.
+
+Группировка по owning contour является routing requirement, а не утверждением,
+что все такие tools существуют:
+
+- **MetaFor** — source/contracts и разрешённые проверки внутри указанного
+  MetaFor graph scope;
+- **Interpreter** — только явно зарегистрированные операции управления
+  принадлежащими ему source/process surfaces;
+- **production/vendor** — только отдельно переданные contracts с явным scope и
+  approval. Само упоминание Production или vendor не даёт права читать их
+  деревья, данные или runtime.
+
+Process-authoring агент получает минимальный набор tools/capabilities,
+необходимый для его Atom subtree. `propose/write Process` разрешает подготовить
+изолированное source-предложение в указанном scope, но не даёт права изменить
+canonical live world или самостоятельно опубликовать результат. Агент обязан
+вернуть предложение, доказательства `validate/test` и точный требуемый owner
+gate. Canonical commit выполняется только отдельной `commit` capability после
+решения владельца.
+
+Фактическая интеграция inventory, проверка contract versions и привязка
+capabilities к конкретным tool implementations являются отдельным follow-up
+gate. До его прохождения этот раздел задаёт routing и safety contract, но не
+объявляет ни один дополнительный tool доступным.
+
+### Фактически подтверждённые tool surfaces
+
+Этот inventory фиксирует найденные entrypoints, но сам по себе не выдаёт их
+agent-сессии. Registry bootstrap должен повторно связать каждый tool с точной
+версией contract и graph scope.
+
+**MetaFor**
+
+- `create-metafor/src/cli.ts`, вызываемый как `bun create metafor`, создаёт новый
+  root или internal Atom Meta-пакет. Требует имя и canonical
+  `cluster/<owner>[/<repository>]` scope, записывает source-файлы, а для нового
+  root также выполняет `git init`, `git add` и initial commit. Это write/commit
+  entrypoint с высоким side-effect risk, а не default tool для авторинга
+  Process в существующем Atom.
+- Root scripts `bun run typecheck`, `bun run typecheck:expect-errors`,
+  `bun run test` и `bun run check` являются validation entrypoints для
+  разрешённого MetaFor checkout. `typecheck` использует `--noEmit`; test/check
+  запускают код тестов и поэтому требуют отдельного resource/process scope.
+- В MetaFor нет подтверждённого RPC/tool registry для редактирования Process или
+  owner-gated commit. Текущие Monad RPC из раздела выше не являются средствами
+  авторинга.
+
+**Interpreter**
+
+- Единственный поддерживаемый client entrypoint —
+  `.codex/skills/interpreter/scripts/interpreter.ts` из точного project root;
+  он открывает `/tools` конкретного project-owned Interpreter и требует exact
+  process selector.
+- Подтверждённые read surfaces: `health.get`, `process.list`, `process.get`,
+  `context.get`, `source.read`, `source.read_many`, `git.status`,
+  `events.tail`, `console.tail`. Они читают только выбранный Interpreter
+  workspace/process context; UI-only `space.*`, `process.focus` и
+  `source.open` не являются авторингом Process.
+- Подтверждённые write/debug surfaces: `source.write` и
+  `source.apply_patch` изменяют source выбранного workspace и автоматически
+  перезапускают его Bun process; `process.start`, `process.close`,
+  `process.action` и `breakpoint.set/remove` меняют live debugger/process
+  state. Их нельзя выдавать proposal-only сессии без отдельного isolated
+  workspace и `liveState: true`.
+- Interpreter предоставляет только `git.status`. `git commit`, push и
+  owner-gated commit tool в его registry не подтверждены.
+
+**Production**
+
+- Архивный `/Users/zavx0z/production/package.json` содержит project scripts, а
+  не agent tool registry. Подтверждённый статический validation entrypoint
+  `admin:typecheck` запускает TypeScript с `--noEmit` в `app/admin`.
+- `admin:test`, `admin:build` и `email:test` существуют, но запускают tests,
+  build или environment-backed SMTP code. Без отдельной изоляции и проверки
+  side effects они не являются безопасными default capabilities.
+- `.ai/commit.md` является prompt-контрактом генерации текста commit message из
+  переданного diff, а не исполняемым commit tool. Подтверждённых Production
+  source-write или commit tools для Process-authoring registry не найдено.
+
+**Production vendor**
+
+- Путь `/Users/zavx0z/production/vendor` в проверенном архивном контуре
+  отсутствует. Ни одного vendor tool contract, version или entrypoint
+  подтвердить нельзя; registry обязан оставить этот contour пустым до явной
+  поставки и отдельной проверки inventory.
+
+---
+
 ## fields — только примитивы
 
 ```typescript

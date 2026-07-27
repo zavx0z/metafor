@@ -10,6 +10,10 @@
 - Внешний Concept не является зависимостью проекта. В обычной работе, в том
   числе на `ai-srv`, не клонировать, не читать и не изменять его. Обращаться к
   нему можно только по отдельному прямому запросу пользователя.
+- Канонические смысловые правила RPC-проекций для клиентов находятся в разделе
+  `RPC — компактная read-only проекция структуры мира` файла
+  `create-metafor/rules/metafor.md`. `docs/FORCE.md` владеет transport и routing
+  законами Monad RPC, но не заменяет этот клиентский projection contract.
 - Новое понятие сначала формулируется простым проверяемым законом в документе
   соответствующего домена, затем отражается в типах, коде и тестах.
 
@@ -22,6 +26,26 @@
 - Dark передаёт Boundary отдельные Inflaton particles. Dark, Matrix, Energy и
   Bulk не читают Boundary или SQLite напрямую.
 - Одна изменённая entity передаётся одним `ForceMessage` с одной `Particle`.
+- Планируемый bootstrap короткой agent-сессии использует один RPC surface для
+  всех агентов и явно передаёт rules/capabilities, Git/source revision и
+  scoped RPC JSON snapshot. По умолчанию scope ограничен авторизованным
+  внутренним Atom subtree/graph; full-world и Mass требуют отдельных
+  capabilities. Скрытый context прошлой сессии не является источником истины.
+- Proposed Gem profile на AI-server получает начальный scoped snapshot, затем
+  per-tick delta с causal frontier, а не повтор полного context. Mass/history
+  читаются только отдельными capabilities с явной resolution; task envelope
+  задаёт revision, scope, proposal, budget и owner-gated commit. Не считать
+  этот профиль реализованным без public types, providers и tests.
+- Process-authoring агент получает минимальный capability registry для своего
+  Atom subtree. Tools группируются по owning contour, operation class, graph
+  scope и праву касаться live state. Авторинг возвращает proposal и результаты
+  проверок; canonical commit требует отдельной capability и owner gate.
+- Не считать package script, prompt или найденный executable автоматически
+  выданным tool. Текущий Interpreter подтверждает source/process/debug surfaces
+  и `git.status`, но не commit tool; MetaFor и архивный Production не имеют
+  подтверждённого общего Process-authoring registry, а Production vendor
+  inventory отсутствует. Каждая capability требует версии contract и
+  повторной привязки к точному scope.
 - Не возвращать старый `qTp` как смысловую замену текущей архитектуре.
 - `cluster/` содержит внешние Meta-репозитории и не является workspace MetaFor.
 - При задаче внутри `cluster/` по умолчанию работать только с Meta-пакетом по
@@ -32,6 +56,10 @@
 
 - Перед нетривиальным изменением прочитать документ соответствующего домена,
   код, public contracts и обычные тесты.
+- Перед изменением RPC сверить exposed methods, public types и тесты, а в
+  документации явно разделить `реализовано и проверено сейчас` и планируемый
+  контракт. Не выдавать имя метода или возможность за действующий API до их
+  реализации и проверки.
 - Не добавлять новую обязательную обвязку разработки без прямого запроса
   пользователя. Работать через обычные команды и инструменты проекта.
 - Не использовать частичную горячую перезагрузку доменов. После изменения кода
