@@ -234,6 +234,20 @@ contour: корневой Atom и все его runtime-потомки удал�
 не разрешает удаление Inference и не определяет activation lifecycle.
 Рекурсивное удаление и dissolve доказываются соседними, но раздельными тестами.
 
+Следующий non-live prerequisite — приватный staging adapter. Он принимает
+закрытый proposal только с operation `dissolve`; recursive `remove` через него
+выразить нельзя. Adapter работает с отдельной in-memory SQLite, строит
+проверенный dissolve plan, валидирует текущий полный MetaJSON и повторно
+сверяет весь plan до атомарной записи immutable receipt. Receipt фиксирует
+proposal, plan и MetaJSON digests, source/target Atom identities и требование
+ровно пяти fence, но не является разрешением на execution.
+
+Staging не вызывает `materialize`, dissolve execution, fence/release, Force или
+runtime lifecycle и не меняет Boundary/Mass. Повтор того же `proposalId`
+идемпотентен только при canonical-equivalent proposal; конфликт полностью
+откатывает staging transaction. Этот adapter не экспортируется из Boundary
+package и не снимает отдельный live preflight/owner gate.
+
 ## Проверка
 
 Регрессии доказывают in-place identity Matter, live-reparent и rebind, смену
@@ -246,3 +260,5 @@ WIMP `src`, Atom↔Topology, Axion↔Macho, вложенные Macho repetitions
 parent вместе с descendants, а `dissolve` удаляет только parent, сохраняет и
 reparent/reorder-ит descendants, явно переносит пять Mass identities и
 полностью откатывается при CAS mismatch.
+Staging-регрессии отдельно доказывают immutable/idempotent receipt, отклонение
+recursive-remove shape и отсутствие Boundary/Mass/deletion effects.

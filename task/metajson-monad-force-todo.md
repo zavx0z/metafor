@@ -711,6 +711,55 @@
   - следующий шаг остаётся owner decision в `MF-401`; этот item не разрешает
     live dissolve или deletion.
 
+### MF-112 — Добавить isolated dissolve staging/receipt prerequisite
+
+- Status: `DONE`
+- Current executor: isolated Codex worktree `fdd1`, delegated from task
+  `019fa120-7413-7d32-938c-16aa6dac3fdc`.
+- Dependencies: `MF-111`
+- Authority:
+  - owner разрешил следующий non-live integration prerequisite;
+  - live Inference/Boundary/Mass, deletion, Force command, runtime export,
+    processes, restart и hot reload запрещены;
+  - `MF-401` остаётся live owner gate.
+- Acceptance:
+  - private adapter принимает только closed `dissolve` proposal и не смешивает
+    его с recursive `inflaton remove wimp`;
+  - validation повторно использует proven plan, exact five mappings, current
+    full MetaJSON и whole-plan CAS до staging write;
+  - отдельная in-memory SQLite атомарно сохраняет immutable receipt с proposal,
+    plan/pre-state и MetaJSON digests;
+  - одинаковый `proposalId` идемпотентен только для того же proposal, collision
+    или mismatch не оставляет partial receipt;
+  - staging не вызывает execution/materialize/fence/Force, не меняет Boundary
+    или Mass и ничего не удаляет;
+  - focused tests сохраняют recursive-remove/dissolve distinction и late
+    five-key rollback proof;
+  - remaining live preflight перечислен явно.
+- Evidence:
+  - scoped implementation: этот commit; `boundary/dissolve-staging.ts`
+    отсутствует в `boundary/index.ts` и package exports;
+  - staging storage всегда `sqlite::memory:` и receipt имеет `effects: none`;
+  - `bun test boundary/dissolve.spec.ts`: `6 pass`, `0 fail`;
+  - `bun test boundary/dissolve.spec.ts boundary/incremental.spec.ts
+    boundary/meta-json.spec.ts boundary/mass.spec.ts`: `52 pass`, `0 fail`,
+    `241 expect()`;
+  - `bun run check`: typecheck, `42` expected type diagnostics и `1648 pass`,
+    `0 fail` в `184` файлах;
+  - `git diff --check`: clean;
+  - все проверки использовали только temporary Boundary/Mass fixtures; live
+    contour, runtime и filesystem data не читались и не изменялись.
+- Remaining live preflight gate:
+  - in-memory receipt ещё не является durable Boundary-owned serialized stage
+    и не связан с stopped checkpoint/cut;
+  - нужны проверенные реальные source/target mappings и declarations, exact
+    MetaJSON/Mass digests, backup и cold rollback package;
+  - нужны actual Energy five-handle fence/retarget, authenticated Monad/Force
+    admission и post-commit consequences;
+  - GC policy для superseded target keys/bytes остаётся неразрешённым;
+  - только отдельное owner decision в `MF-401` может разрешить live staging;
+    deletion и activation этим item не разрешены.
+
 ### MF-109 — Реализовать Pause/Stack branchable execution workspace
 
 - Status: `WAITING`

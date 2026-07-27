@@ -24,6 +24,12 @@ import {
   type BoundaryDissolveRequest,
   type BoundaryMassFenceIdentity,
 } from "./dissolve.ts"
+import {
+  BOUNDARY_DISSOLVE_PROPOSAL_V1,
+  BoundaryDissolveStagingError,
+  IsolatedBoundaryDissolveStaging,
+  type BoundaryDissolveProposalV1,
+} from "./dissolve-staging.ts"
 import {open, type BoundaryDatabase} from "./sqlite.ts"
 
 const SOURCE = parseMetaAddress("synthetic/inference")!
@@ -72,8 +78,10 @@ type Fixture = {
 }
 
 const fixtures: Fixture[] = []
+const stagingStores: IsolatedBoundaryDissolveStaging[] = []
 
 afterEach(async () => {
+  for (const staging of stagingStores.splice(0)) await staging.close()
   for (const fixture of fixtures.splice(0)) {
     await fixture.boundary.close()
     await rm(fixture.directory, {recursive: true, force: true})
@@ -196,6 +204,21 @@ const request = (): BoundaryDissolveRequest => ({
   targetPosition: 0,
   mass: MASS_KEYS.map((key) => ({sourceKey: key, targetKey: key})) as unknown as BoundaryDissolveRequest["mass"],
 })
+
+const proposal = (
+  proposalId = "synthetic-dissolve-1",
+): BoundaryDissolveProposalV1 => ({
+  schema: BOUNDARY_DISSOLVE_PROPOSAL_V1,
+  proposalId,
+  operation: "dissolve",
+  request: request(),
+})
+
+const openStaging = async (): Promise<IsolatedBoundaryDissolveStaging> => {
+  const staging = await IsolatedBoundaryDissolveStaging.open()
+  stagingStores.push(staging)
+  return staging
+}
 
 const metaJSONReader = (
   fixture: Fixture,
@@ -397,5 +420,125 @@ describe("Boundary recursive remove and offline dissolve", () => {
     expect(await worldFingerprint(fixture)).toEqual(before)
     expect(await massSnapshot(fixture)).toEqual(filesBefore)
     expect(await fixture.boundary.projection.sql<unknown[]>`PRAGMA foreign_key_check`).toEqual([])
+  })
+
+  test("stages an immutable five-key dissolve receipt without executing or deleting anything", async () => {
+    const fixture = await createFixture()
+    const staging = await openStaging()
+    const worldBefore = await worldFingerprint(fixture)
+    const filesBefore = await massSnapshot(fixture)
+    const fences: BoundaryMassFenceIdentity[] = []
+    const releases: BoundaryMassFenceIdentity[] = []
+    const phases: Array<{phase: "before" | "planned"; root: MetaAddress}> = []
+    const input = proposal()
+
+    const receipt = await staging.stage(
+      fixture.boundary,
+      input,
+      hooks(fixture, fences, releases, phases),
+    )
+    const repeated = await staging.stage(
+      fixture.boundary,
+      input,
+      hooks(fixture, fences, releases, phases),
+    )
+
+    expect(receipt).toMatchObject({
+      proposalId: input.proposalId,
+      operation: "dissolve",
+      status: "staged",
+      source: SOURCE,
+      target: TARGET,
+      sourceAtom: fixture.sourceAtom,
+      targetAtom: fixture.targetAtom,
+      fenceCount: 5,
+      effects: "none",
+    })
+    expect(receipt.receiptId).toMatch(/^[0-9a-f]{64}$/)
+    expect(receipt.proposalSha256).toMatch(/^[0-9a-f]{64}$/)
+    expect(receipt.planSha256).toMatch(/^[0-9a-f]{64}$/)
+    expect(receipt.privateManifestSha256).toMatch(/^[0-9a-f]{64}$/)
+    expect(Object.isFrozen(receipt)).toBe(true)
+    expect(repeated).toEqual(receipt)
+    expect(await staging.receipt(input.proposalId)).toEqual(receipt)
+    expect(await staging.count()).toBe(1)
+    expect(phases).toEqual([{phase: "before", root: SOURCE}])
+    expect(fences).toEqual([])
+    expect(releases).toEqual([])
+    expect(await worldFingerprint(fixture)).toEqual(worldBefore)
+    expect(await massSnapshot(fixture)).toEqual(filesBefore)
+  })
+
+  test("rejects recursive-remove shape and rolls back a conflicting proposal id", async () => {
+    const fixture = await createFixture()
+    const staging = await openStaging()
+    const worldBefore = await worldFingerprint(fixture)
+    const filesBefore = await massSnapshot(fixture)
+    const fences: BoundaryMassFenceIdentity[] = []
+    const releases: BoundaryMassFenceIdentity[] = []
+    const phases: Array<{phase: "before" | "planned"; root: MetaAddress}> = []
+    const stagingHooks = hooks(fixture, fences, releases, phases)
+    const input = proposal("synthetic-dissolve-conflict")
+
+    await expect(staging.stage(fixture.boundary, {
+      ...input,
+      operation: "remove",
+    }, stagingHooks)).rejects.toMatchObject({
+      name: BoundaryDissolveStagingError.name,
+      code: "invalid_proposal",
+    })
+    expect(await staging.count()).toBe(0)
+
+    const receipt = await staging.stage(fixture.boundary, input, stagingHooks)
+    await expect(staging.stage(fixture.boundary, {
+      ...input,
+      request: {...input.request, targetPosition: 1},
+    }, stagingHooks)).rejects.toMatchObject({
+      name: BoundaryDissolveStagingError.name,
+      code: "proposal_conflict",
+    })
+
+    expect(await staging.count()).toBe(1)
+    expect(await staging.receipt(input.proposalId)).toEqual(receipt)
+    expect(phases).toEqual([{phase: "before", root: SOURCE}])
+    expect(fences).toEqual([])
+    expect(releases).toEqual([])
+    expect(await worldFingerprint(fixture)).toEqual(worldBefore)
+    expect(await massSnapshot(fixture)).toEqual(filesBefore)
+  })
+
+  test("publishes no receipt when the fifth Mass membership drifts during validation", async () => {
+    const fixture = await createFixture()
+    const staging = await openStaging()
+    const filesBefore = await massSnapshot(fixture)
+    const initialPlan = await planBoundaryDissolve(
+      fixture.boundary,
+      request(),
+      digestReader(fixture),
+    )
+    const fifth = initialPlan.transfers[4]!
+    const replacement = crypto.randomUUID()
+    const phases: Array<{phase: "before" | "planned"; root: MetaAddress}> = []
+    const readMetaJSON = metaJSONReader(fixture, phases)
+
+    await expect(staging.stage(fixture.boundary, proposal("synthetic-dissolve-race"), {
+      digest: digestReader(fixture),
+      async readMetaJSON(root, phase) {
+        const document = await readMetaJSON(root, phase)
+        await fixture.boundary.projection.sql`INSERT INTO mass_key (id) VALUES (${replacement})`
+        await fixture.boundary.projection.sql`
+          UPDATE mass_membership SET key = ${replacement}
+           WHERE atom = ${fixture.targetAtom} AND declaration = ${fifth.targetDeclaration}
+        `
+        return document
+      },
+    })).rejects.toMatchObject({
+      name: BoundaryDissolveStagingError.name,
+      code: "pre_state_conflict",
+    })
+
+    expect(phases).toEqual([{phase: "before", root: SOURCE}])
+    expect(await staging.count()).toBe(0)
+    expect(await massSnapshot(fixture)).toEqual(filesBefore)
   })
 })
