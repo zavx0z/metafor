@@ -8,6 +8,7 @@ import {
 } from "@metafor/types/boundary/initial"
 import type {BulkInitialPackage} from "@metafor/types/bulk/initial"
 import type {BulkRootPromotionReceipt} from "@metafor/types/bulk/manifest"
+import type {BulkRuntimeProjection} from "@metafor/types/bulk/runtime"
 import type {ForceMessage} from "shared/protocol/force/message"
 import type {MonadRpcPeer} from "shared/transport/monad"
 import {DEFAULT_BULK_SCENE_SRC, DEFAULT_BULK_SETTINGS} from "./settings.ts"
@@ -18,6 +19,7 @@ import {
   MF117_BULK_PREFLIGHT_METHOD,
   MF117_BULK_PROMOTE_METHOD,
   MF117_BULK_VERIFY_METHOD,
+  MF117_RETENTION,
   MF117_SOURCE,
   MF117_STATE_DIRECTORY,
   MF117_TARGET,
@@ -33,6 +35,8 @@ const isInitialProjection = (value: unknown): value is BoundaryInitialProjection
 
 const particle = (entry: BoundaryInitialProjectionEntry) => ({...structuredClone(entry), ts: 0})
 const mf117Schema = "metafor/bulk-mf117-live/v1" as const
+const mf117DurableSchema = "metafor/bulk-mf117-promotion/v2" as const
+const hexSha256 = /^[0-9a-f]{64}$/
 const canonicalValue = (value: unknown): unknown => {
   if (Array.isArray(value)) return value.map(canonicalValue)
   if (typeof value === "object" && value !== null) {
@@ -46,6 +50,141 @@ const canonicalValue = (value: unknown): unknown => {
 }
 const sha256 = (value: unknown): string =>
   createHash("sha256").update(JSON.stringify(canonicalValue(value))).digest("hex")
+
+type MF117StructuralEntity =
+  | Readonly<{
+      kind: "atom"
+      id: number
+      wimp: string
+      parentAtom: number | null
+      parentTopology: number | null
+      position: number
+    }>
+  | Readonly<{
+      kind: "topology"
+      id: number
+      topologyKind: string
+      parentAtom: number | null
+      parentTopology: number | null
+      position: number
+    }>
+
+type MF117StructuralProof = Readonly<{
+  version: 1
+  removedRoot: Readonly<{
+    id: 1
+    src: typeof MF117_SOURCE
+    absent: true
+  }>
+  promotedRoot: Readonly<{
+    id: 2
+    src: typeof MF117_TARGET
+    formerRootFrame: BulkRootPromotionReceipt["formerRootFrame"]
+  }>
+  subtree: readonly MF117StructuralEntity[]
+}>
+
+type MF117DurablePromotion = Readonly<{
+  receiptId: string
+  promotion: BulkRootPromotionReceipt
+  structuralProof: MF117StructuralProof
+  structuralSha256: string
+  legacyManifestSha256: string | null
+}>
+
+const expectedMF117Subtree = (promoted: boolean): readonly MF117StructuralEntity[] => [
+  {
+    kind: "atom",
+    id: 2,
+    wimp: MF117_TARGET,
+    parentAtom: promoted ? null : 1,
+    parentTopology: null,
+    position: 0,
+  },
+  {
+    kind: "atom",
+    id: 3,
+    wimp: "zavx0z/lada-auth",
+    parentAtom: 2,
+    parentTopology: null,
+    position: 0,
+  },
+  {
+    kind: "atom",
+    id: 4,
+    wimp: "zavx0z/lada-chat",
+    parentAtom: 2,
+    parentTopology: null,
+    position: 1,
+  },
+  {
+    kind: "atom",
+    id: 5,
+    wimp: "zavx0z/lada-model",
+    parentAtom: 2,
+    parentTopology: null,
+    position: 2,
+  },
+  {
+    kind: "atom",
+    id: 6,
+    wimp: "zavx0z/lada-chat-send",
+    parentAtom: 4,
+    parentTopology: null,
+    position: 0,
+  },
+]
+
+const exactKeys = (value: Record<string, unknown>, keys: readonly string[]): boolean =>
+  JSON.stringify(Object.keys(value).toSorted()) === JSON.stringify([...keys].toSorted())
+
+const structuralSubtree = (
+  projection: BulkRuntimeProjection,
+): readonly MF117StructuralEntity[] => {
+  const entities: MF117StructuralEntity[] = []
+  const visited = new Set<string>()
+  const pending: Array<{kind: "atom" | "topology"; id: number}> = [
+    {kind: "atom", id: 2},
+  ]
+  while (pending.length > 0) {
+    const current = pending.shift()!
+    const key = `${current.kind}/${current.id}`
+    if (visited.has(key)) throw new Error("Bulk MF-117 promoted subtree contains a structural cycle")
+    visited.add(key)
+    if (current.kind === "atom") {
+      const atom = projection.atoms.find(({id}) => id === current.id)
+      if (!atom) continue
+      entities.push({kind: "atom", ...atom})
+    } else {
+      const topology = projection.topologies.find(({id}) => id === current.id)
+      if (!topology) continue
+      entities.push({
+        kind: "topology",
+        id: topology.id,
+        topologyKind: topology.kind,
+        parentAtom: topology.parentAtom,
+        parentTopology: topology.parentTopology,
+        position: topology.position,
+      })
+    }
+    for (const atom of projection.atoms) {
+      if (
+        current.kind === "atom"
+          ? atom.parentAtom === current.id
+          : atom.parentTopology === current.id
+      ) pending.push({kind: "atom", id: atom.id})
+    }
+    for (const topology of projection.topologies) {
+      if (
+        current.kind === "atom"
+          ? topology.parentAtom === current.id
+          : topology.parentTopology === current.id
+      ) pending.push({kind: "topology", id: topology.id})
+    }
+  }
+  return entities.toSorted((left, right) =>
+    left.kind.localeCompare(right.kind) || left.id - right.id)
+}
 
 const durableJSON = (filename: string, value: unknown): void => {
   const directory = dirname(filename)
@@ -109,6 +248,22 @@ export class BulkMonad {
       this.#activeSrc = [...this.#projection.atoms.values()]
         .filter((atom) => atom.parentAtom === null && atom.parentTopology === null)
         .at(-1)?.wimp ?? DEFAULT_BULK_SCENE_SRC
+      const hasMF117Projection = [...this.#projection.atoms.values()].some(({id, wimp}) =>
+        (id === 1 && wimp === MF117_SOURCE) ||
+        (id === 2 && wimp === MF117_TARGET))
+      if (hasMF117Projection && existsSync(this.#promotionPath)) {
+        const durable = this.#readDurablePromotion()
+        const proof = this.#verifyPromotedProjection(durable.promotion)
+        if (
+          durable.legacyManifestSha256 === null &&
+          (
+            durable.structuralSha256 !== sha256(proof) ||
+            sha256(durable.structuralProof) !== sha256(proof)
+          )
+        ) throw new Error("Bulk MF-117 durable structural proof conflicts")
+        this.#promotionReceipt = structuredClone(durable.promotion)
+        this.#activeSrc = MF117_TARGET
+      }
       this.#state = "prepared"
       return {atoms: this.#projection.atoms.size, rootSrc: this.#activeSrc}
     } catch (error) {
@@ -171,6 +326,10 @@ export class BulkMonad {
       throw new Error("Bulk MF-117 promotion already exists")
     }
     const projection = this.#projection.view()
+    if (
+      sha256(structuralSubtree(projection)) !==
+        sha256(expectedMF117Subtree(false))
+    ) throw new Error("Bulk MF-117 current Lada subtree changed before promotion")
     const manifest = buildBulkManifestation(
       projection,
       MF117_SOURCE,
@@ -216,61 +375,59 @@ export class BulkMonad {
     rootSrc: typeof MF117_TARGET
     removedInferenceTorusAbsent: true
     promotedRootTorus: {darkParticleId: number; parentDarkParticleId: null}
-    manifestSha256: string
+    structuralSha256: string
   } {
     const input = this.#mf117Input(value)
-    const projection = this.#projection.view()
-    const manifest = buildBulkManifestation(
-      projection,
-      input.promotion.removedRootSrc,
-      DEFAULT_BULK_SETTINGS.layout,
-      input.promotion,
-    )
-    const sourceId = input.promotion.removedRootAtomId * 2
+    const proof = this.#verifyPromotedProjection(input.promotion)
     const targetId = input.promotion.promotedAtomId * 2
-    const target = manifest.darkParticles.filter(({darkParticleId}) =>
-      darkParticleId === targetId)
-    if (
-      projection.atoms.some(({id, wimp}) =>
-        id === input.promotion.removedRootAtomId || wimp === MF117_SOURCE) ||
-      manifest.rootSrc !== MF117_TARGET ||
-      manifest.darkParticles.some(({darkParticleId, src}) =>
-        darkParticleId === sourceId || src === MF117_SOURCE) ||
-      target.length !== 1 ||
-      target[0]?.parentDarkParticleId !== null ||
-      target[0].src !== MF117_TARGET ||
-      manifest.darkParticles.some(({parentDarkParticleId}) =>
-        parentDarkParticleId !== null &&
-        !manifest.darkParticles.some(({darkParticleId}) =>
-          darkParticleId === parentDarkParticleId))
-    ) throw new Error("Bulk MF-117 projection retained a ghost torus or lost the Lada root frame")
-    const body = {
-      schema: mf117Schema,
-      promotion: input.promotion,
-      rootSrc: MF117_TARGET,
-      manifestSha256: sha256(manifest),
-      removedInferenceTorusAbsent: true,
-      retention: "retain-until-explicit-gc",
-    } as const
-    const receipt = {receiptId: sha256(body), ...body}
+    const structuralSha256 = sha256(proof)
+    let durable: MF117DurablePromotion
     if (existsSync(this.#promotionPath)) {
-      const current = JSON.parse(readFileSync(this.#promotionPath, "utf8")) as typeof receipt
-      if (JSON.stringify(current) !== JSON.stringify(receipt)) {
+      durable = this.#readDurablePromotion()
+      if (
+        sha256(durable.promotion) !== sha256(input.promotion) ||
+        (
+          durable.legacyManifestSha256 === null &&
+          (
+            durable.structuralSha256 !== structuralSha256 ||
+            sha256(durable.structuralProof) !== structuralSha256
+          )
+        )
+      ) {
         throw new Error("Bulk MF-117 durable promotion receipt conflicts")
       }
-    } else durableJSON(this.#promotionPath, receipt)
+    } else {
+      const body = {
+        schema: mf117DurableSchema,
+        promotion: input.promotion,
+        rootSrc: MF117_TARGET,
+        structuralProof: proof,
+        structuralSha256,
+        removedInferenceTorusAbsent: true,
+        retention: MF117_RETENTION,
+      } as const
+      const receipt = {receiptId: sha256(body), ...body}
+      durableJSON(this.#promotionPath, receipt)
+      durable = {
+        receiptId: receipt.receiptId,
+        promotion: structuredClone(input.promotion),
+        structuralProof: structuredClone(proof),
+        structuralSha256,
+        legacyManifestSha256: null,
+      }
+    }
     this.#promotionReceipt = structuredClone(input.promotion)
     this.#activeSrc = MF117_TARGET
     return {
       schema: mf117Schema,
-      receiptId: receipt.receiptId,
+      receiptId: durable.receiptId,
       rootSrc: MF117_TARGET,
       removedInferenceTorusAbsent: true,
       promotedRootTorus: {
         darkParticleId: targetId,
         parentDarkParticleId: null,
       },
-      manifestSha256: receipt.manifestSha256,
+      structuralSha256,
     }
   }
 
@@ -282,6 +439,78 @@ export class BulkMonad {
       schema: mf117Schema,
       promotion: this.#promotionReceipt,
     })
+  }
+
+  #verifyPromotedProjection(
+    promotion: BulkRootPromotionReceipt,
+  ): MF117StructuralProof {
+    const projection = this.#projection.view()
+    const subtree = structuralSubtree(projection)
+    if (
+      sha256(subtree) !==
+        sha256(expectedMF117Subtree(true))
+    ) throw new Error("Bulk MF-117 promoted Lada subtree is missing or reparented")
+    const manifest = buildBulkManifestation(
+      projection,
+      promotion.removedRootSrc,
+      DEFAULT_BULK_SETTINGS.layout,
+      promotion,
+    )
+    const sourceId = promotion.removedRootAtomId * 2
+    const targetId = promotion.promotedAtomId * 2
+    const target = manifest.darkParticles.filter(({darkParticleId}) =>
+      darkParticleId === targetId)
+    const expectedAtomToruses = expectedMF117Subtree(true)
+      .filter((entity): entity is Extract<MF117StructuralEntity, {kind: "atom"}> =>
+        entity.kind === "atom")
+      .map(({id}) => id * 2)
+      .toSorted((left, right) => left - right)
+    const actualAtomToruses = manifest.darkParticles
+      .filter(({darkParticleKind}) => darkParticleKind === "atom")
+      .map(({darkParticleId}) => darkParticleId)
+      .toSorted((left, right) => left - right)
+    const root = target[0]
+    const rootOuterDiameterMm = root
+      ? (root.torusRadius + root.torusTube) * root.torusScale * 2
+      : Number.NaN
+    if (
+      projection.atoms.some(({id, wimp}) =>
+        id === promotion.removedRootAtomId || wimp === MF117_SOURCE) ||
+      projection.atoms.filter(({id, wimp}) =>
+        id === promotion.promotedAtomId && wimp === MF117_TARGET).length !== 1 ||
+      manifest.rootSrc !== MF117_TARGET ||
+      manifest.darkParticles.some(({darkParticleId, src}) =>
+        darkParticleId === sourceId || src === MF117_SOURCE) ||
+      JSON.stringify(actualAtomToruses) !== JSON.stringify(expectedAtomToruses) ||
+      target.length !== 1 ||
+      root?.parentDarkParticleId !== null ||
+      root.src !== MF117_TARGET ||
+      root.localX !== promotion.formerRootFrame.localX ||
+      root.localY !== promotion.formerRootFrame.localY ||
+      root.localZ !== promotion.formerRootFrame.localZ ||
+      Math.abs(
+        rootOuterDiameterMm -
+          promotion.formerRootFrame.outerDiameterMm,
+      ) > 1e-9 ||
+      manifest.darkParticles.some(({parentDarkParticleId}) =>
+        parentDarkParticleId !== null &&
+        !manifest.darkParticles.some(({darkParticleId}) =>
+          darkParticleId === parentDarkParticleId))
+    ) throw new Error("Bulk MF-117 projection retained a ghost torus or lost the Lada root frame")
+    return {
+      version: 1,
+      removedRoot: {
+        id: 1,
+        src: MF117_SOURCE,
+        absent: true,
+      },
+      promotedRoot: {
+        id: 2,
+        src: MF117_TARGET,
+        formerRootFrame: structuredClone(promotion.formerRootFrame),
+      },
+      subtree,
+    }
   }
 
   #mf117Input(value: unknown): {
@@ -308,9 +537,120 @@ export class BulkMonad {
       promotion.removedRootAtomId !== 1 ||
       promotion.removedRootSrc !== MF117_SOURCE ||
       promotion.promotedAtomId !== 2 ||
-      promotion.promotedRootSrc !== MF117_TARGET
+      promotion.promotedRootSrc !== MF117_TARGET ||
+      !isRecord(promotion.formerRootFrame) ||
+      !exactKeys(
+        promotion.formerRootFrame as unknown as Record<string, unknown>,
+        ["localX", "localY", "localZ", "outerDiameterMm"],
+      ) ||
+      promotion.formerRootFrame.localX !== 0 ||
+      promotion.formerRootFrame.localY !== 0 ||
+      promotion.formerRootFrame.localZ !== 0 ||
+      promotion.formerRootFrame.outerDiameterMm !== 100
     ) throw new Error("Bulk MF-117 promotion receipt is not exact")
     return {schema: mf117Schema, promotion}
+  }
+
+  #readDurablePromotion(): MF117DurablePromotion {
+    let value: unknown
+    try {
+      value = JSON.parse(readFileSync(this.#promotionPath, "utf8"))
+    } catch {
+      throw new Error("Bulk MF-117 durable promotion receipt is unreadable")
+    }
+    if (!isRecord(value)) {
+      throw new Error("Bulk MF-117 durable promotion receipt is invalid")
+    }
+    const promotion = this.#mf117Input({
+      schema: mf117Schema,
+      promotion: value.promotion,
+    }).promotion
+    if (
+      value.schema === mf117Schema &&
+      exactKeys(value, [
+        "receiptId",
+        "schema",
+        "promotion",
+        "rootSrc",
+        "manifestSha256",
+        "removedInferenceTorusAbsent",
+        "retention",
+      ])
+    ) {
+      const body = {
+        schema: value.schema,
+        promotion: value.promotion,
+        rootSrc: value.rootSrc,
+        manifestSha256: value.manifestSha256,
+        removedInferenceTorusAbsent: value.removedInferenceTorusAbsent,
+        retention: value.retention,
+      }
+      if (
+        typeof value.receiptId !== "string" ||
+        value.receiptId !== sha256(body) ||
+        value.rootSrc !== MF117_TARGET ||
+        typeof value.manifestSha256 !== "string" ||
+        !hexSha256.test(value.manifestSha256) ||
+        value.removedInferenceTorusAbsent !== true ||
+        value.retention !== MF117_RETENTION
+      ) throw new Error("Bulk MF-117 legacy durable promotion receipt conflicts")
+      const structuralProof: MF117StructuralProof = {
+        version: 1,
+        removedRoot: {id: 1, src: MF117_SOURCE, absent: true},
+        promotedRoot: {
+          id: 2,
+          src: MF117_TARGET,
+          formerRootFrame: structuredClone(promotion.formerRootFrame),
+        },
+        subtree: expectedMF117Subtree(true),
+      }
+      return {
+        receiptId: value.receiptId,
+        promotion,
+        structuralProof,
+        structuralSha256: sha256(structuralProof),
+        legacyManifestSha256: value.manifestSha256,
+      }
+    }
+    if (
+      value.schema !== mf117DurableSchema ||
+      !exactKeys(value, [
+        "receiptId",
+        "schema",
+        "promotion",
+        "rootSrc",
+        "structuralProof",
+        "structuralSha256",
+        "removedInferenceTorusAbsent",
+        "retention",
+      ]) ||
+      !isRecord(value.structuralProof) ||
+      typeof value.structuralSha256 !== "string"
+    ) throw new Error("Bulk MF-117 durable promotion receipt is invalid")
+    const body = {
+      schema: value.schema,
+      promotion: value.promotion,
+      rootSrc: value.rootSrc,
+      structuralProof: value.structuralProof,
+      structuralSha256: value.structuralSha256,
+      removedInferenceTorusAbsent: value.removedInferenceTorusAbsent,
+      retention: value.retention,
+    }
+    if (
+      typeof value.receiptId !== "string" ||
+      value.receiptId !== sha256(body) ||
+      value.rootSrc !== MF117_TARGET ||
+      value.structuralSha256 !== sha256(value.structuralProof) ||
+      value.removedInferenceTorusAbsent !== true ||
+      value.retention !== MF117_RETENTION
+    ) throw new Error("Bulk MF-117 durable structural proof conflicts")
+    return {
+      receiptId: value.receiptId,
+      promotion,
+      structuralProof: structuredClone(value.structuralProof) as MF117StructuralProof,
+      structuralSha256: value.structuralSha256,
+      legacyManifestSha256: null,
+    }
   }
 
   onHealthRequested(): Response {

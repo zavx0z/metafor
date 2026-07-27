@@ -1039,16 +1039,34 @@
     release/delete; Mass bytes/key identities/history/checkpoint/rollback,
     receipts and superseded metadata remain `retain-until-explicit-gc`;
   - restored exact-cut Boundary, Energy and Bulk adapter tests pass;
-    `bun run check`: typecheck pass, `42` expected diagnostics,
-    `1679 pass`, `0 fail`, `5643 expect` in `192` test files.
+  - the one approved activation committed all six durable Boundary steps and
+    reopened admission, but its final Bulk verification returned HTTP `409`:
+    legacy v1 compared a volatile full manifestation hash after ordinary
+    Gluon/Photon consequences had advanced the same intact projection;
+  - offline repair verifies immutable exact structural proof instead:
+    source absence, Lada identities, full five-Atom recursive subtree,
+    former-root frame and retention. Existing v1 receipt is read-only
+    backward-validated by closed shape/self-hash and the same live structural
+    invariants; dynamic state no longer conflicts;
+  - server/browser selected root advances on the accepted Lada root
+    `replace`; before it Inference remains normally manifested, after complete
+    projection only its torus is absent and Lada owns the root frame;
+  - existing State markers on Capsule toruses use bounded GPU line-glow
+    material contrast: current is strongest, potential markers are readable
+    but secondary, inactive sleeves remain subdued. No CPU particle
+    simulation or perpetual render-loop condition was added;
+  - `bun run check`: typecheck pass, `42` expected diagnostics,
+    `1685 pass`, `0 fail`, `5674 expect` in `193` test files.
 - Activation constraints:
-  - no live mutation or process lifecycle has been performed by this
-    implementation task;
-  - coordinator must perform the one authorized standard service restart,
-    confirm all five domains/Force healthy, then run the exact fresh preflight;
-  - activation is permitted only from that successful current-cut preflight
-    receipt; no additional restart, hot reload, data deletion or GC is
-    permitted.
+  - this repair task performed no retry, restart, rollback, deletion, GC or
+    other live mutation;
+  - the world is already complete at active root `zavx0z/lada`; activation
+    must not be retried and a new preflight is neither required nor valid;
+  - installation now requires a separately authorized single standard
+    service restart. On birth Bulk must read-only validate the retained v1
+    receipt against the exact post-projection before becoming ready; then all
+    five domains/Force and a freshly reloaded browser must be verified. No
+    hot reload, config/environment/port change, rollback or GC is permitted.
 
 ### MF-109 — Реализовать Pause/Stack branchable execution workspace
 

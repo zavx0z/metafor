@@ -70,9 +70,14 @@ export const resolveForceImpulseTiming = (part: Particle, nowMs: number): ForceI
 	}
 }
 
-/** A newly materialized root is the deterministic next scene for the Viewpoint. */
+/** An accepted materialized root is the deterministic next scene for the Viewpoint. */
 export const materializedRootSrc = (part: Particle): string | null => {
-	if (part.part !== "graviton" || part.op !== "add" || typeof part.path !== "string" || !/^atom\/\d+$/.test(part.path)) return null
+	if (
+		part.part !== "graviton" ||
+		(part.op !== "add" && part.op !== "replace") ||
+		typeof part.path !== "string" ||
+		!/^atom\/\d+$/.test(part.path)
+	) return null
 	if (typeof part.value !== "object" || part.value === null || Array.isArray(part.value)) return null
 	const value = part.value as Record<string, unknown>
 	const atom = typeof value.atom === "object" && value.atom !== null && !Array.isArray(value.atom)

@@ -39,11 +39,29 @@
   отсутствие бывшего root и полное promoted subtree, затем сохраняет Lada как
   active root вместе с former-root frame. Receipt не является Particle и не
   создаёт общий Bulk command.
+- Durable verification связывается с immutable structural proof: exact
+  removed/promoted identities, former-root frame, retention и полным
+  рекурсивным составом/reparent promoted subtree. Текущие Gluon/Photon/Process
+  values не входят в этот proof и не могут создать конфликт при повторной
+  проверке того же уже принятого promotion. Старый durable v1 receipt
+  принимается только после проверки собственного hash, exact closed shape и
+  тех же текущих structural invariants; он не переписывается.
+- Принятый root Atom `replace` с `parentAtom = parentTopology = null`
+  переводит selected root server и уже открытого observer на названный `wimp`.
+  До такого structural consequence исходный Inference остаётся выбранным и
+  проявляется обычным образом; удаление source без принятого нового root не
+  является основанием выбрать другой root.
 - Torus всегда принадлежит реально присутствующему materialized Atom. После
   accepted dissolve отсутствие Inference Inflaton/Atom в post-projection
   удаляет и его torus; promoted Lada получает собственный root torus в
   verified former-root frame. Отдельный ghost, stale либо decorative torus
   бывшего Inference запрещён.
+- Существующие State markers на торе Capsule показывают текущий State самым
+  сильным читаемым material/glow; достижимые potential State markers остаются
+  явно видимыми, но вторичными, а неактивные sleeves — приглушёнными. Эта
+  градация меняет только visual material markers и не меняет Capsule
+  structure, State/Transition identity, activity, timeline либо projection
+  semantics.
 
 ## Следствие
 

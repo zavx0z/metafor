@@ -49,6 +49,7 @@ import {
 } from "bulk/settings"
 import {shouldContinueBulkRenderLoop} from "./render-loop.ts"
 import {resolveDarkParticleTorusOpacity} from "./torus-visual.ts"
+import {resolveTorusStateVisual} from "./torus-state-visual.ts"
 import {
 	createLevelResolver,
 	resolveOuterRadiusFromSphereRadius,
@@ -2145,18 +2146,20 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 
 	const orbitalMaterialVisual = (particle: BulkOrbitalParticle): {color: Color; glowColor: Color; glowIntensity: number} => {
 		const isState = particle.orbitalParticleKind === "state"
-		const alpha = isState
-			? particle.current ? 0.82 : particle.active ? 0.3 : 0.015
-			: particle.current ? 0.82 : particle.active ? 0.5 : 0.16
-		const glowAlpha = isState
-			? particle.current ? 0.34 : particle.active ? 0.1 : 0.002
-			: particle.current ? 0.34 : particle.active ? 0.16 : 0.035
+		if (isState) {
+			const visual = resolveTorusStateVisual(particle)
+			return {
+				color: new Color(...visual.color),
+				glowColor: new Color(...visual.glowColor),
+				glowIntensity: visual.glowIntensity,
+			}
+		}
+		const alpha = particle.current ? 0.82 : particle.active ? 0.5 : 0.16
+		const glowAlpha = particle.current ? 0.34 : particle.active ? 0.16 : 0.035
 		return {
 			color: new Color(particle.colorR, particle.colorG, particle.colorB, alpha),
 			glowColor: new Color(particle.colorR, particle.colorG, particle.colorB, glowAlpha),
-			glowIntensity: isState
-				? particle.current ? 1.9 : particle.active ? 1.05 : 0.08
-				: particle.current ? 1.9 : particle.active ? 1.15 : 0.42,
+			glowIntensity: particle.current ? 1.9 : particle.active ? 1.15 : 0.42,
 		}
 	}
 

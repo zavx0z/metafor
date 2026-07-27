@@ -855,6 +855,18 @@ work и всё поддерево и получает former-root frame. Пос�
 post-projection обязано удалить его torus, а promoted Lada обязана иметь ровно
 один собственный root torus; ghost/stale decorative torus запрещён.
 
+Фактический world commit завершил все шесть durable steps и сохранил полное
+пяти-Atom Lada subtree, но финальный Bulk verify ошибочно сравнил
+старый full manifestation hash с тем же projection после обычных dynamic
+consequences и вернул `409`. Repair меняет только verification/observer
+projection: durable proof связывает immutable structural identities, frame,
+полное рекурсивное subtree и retention, а volatile state values из сравнения
+исключены; существующий v1 receipt остаётся неизменным и проходит строгую
+backward validation. Принятый Lada root `replace` обновляет selected root уже
+открытых observer. Установка repair требует отдельного owner-approved
+standard restart и browser reload; повторять activation/preflight, выполнять
+rollback/GC либо hot reload нельзя.
+
 ### 15.5 Pause/Stack и ветвящийся execution workspace
 
 Owner уточнил назначение checkpoint line: это не только offline replay, а

@@ -1,5 +1,6 @@
 import {afterEach, describe, expect, test} from "bun:test"
-import {mkdtempSync, rmSync} from "node:fs"
+import {mkdtempSync, readFileSync, rmSync, writeFileSync} from "node:fs"
+import {createHash} from "node:crypto"
 import {tmpdir} from "node:os"
 import {join} from "node:path"
 import {BOUNDARY_INITIAL_PROJECTION_METHOD} from "@metafor/types/boundary/initial"
@@ -21,6 +22,112 @@ afterEach(() => {
     rmSync(directory, {recursive: true, force: true})
   }
 })
+
+const promotion = {
+  version: 1 as const,
+  kind: "root-promotion" as const,
+  verified: true as const,
+  removedRootAtomId: 1,
+  removedRootSrc: "zavx0z/inference",
+  promotedAtomId: 2,
+  promotedRootSrc: "zavx0z/lada",
+  formerRootFrame: {
+    localX: 0,
+    localY: 0,
+    localZ: 0,
+    outerDiameterMm: 100,
+  },
+}
+
+const mf117Entries = (
+  promoted = false,
+): BoundaryInitialProjectionEntry[] => {
+  const atoms = [
+    {id: 1, parentAtom: null, parentTopology: null, wimp: "zavx0z/inference", position: 0},
+    {id: 2, parentAtom: promoted ? null : 1, parentTopology: null, wimp: "zavx0z/lada", position: 0},
+    {id: 3, parentAtom: 2, parentTopology: null, wimp: "zavx0z/lada-auth", position: 0},
+    {id: 4, parentAtom: 2, parentTopology: null, wimp: "zavx0z/lada-chat", position: 1},
+    {id: 5, parentAtom: 2, parentTopology: null, wimp: "zavx0z/lada-model", position: 2},
+    {id: 6, parentAtom: 4, parentTopology: null, wimp: "zavx0z/lada-chat-send", position: 0},
+  ].filter(({id}) => !(promoted && id === 1))
+  return [
+    ...[
+      ["zavx0z/inference", "Inference"],
+      ["zavx0z/lada", "Lada"],
+      ["zavx0z/lada-auth", "Auth"],
+      ["zavx0z/lada-chat", "Chat"],
+      ["zavx0z/lada-model", "Model"],
+      ["zavx0z/lada-chat-send", "Chat send"],
+    ].map(([src, name]) => ({
+      part: "graviton" as const,
+      op: "add" as const,
+      path: "wimp",
+      value: {src, name},
+    })),
+    {
+      part: "graviton",
+      op: "add",
+      path: "state",
+      value: {
+        id: 21,
+        localId: 1,
+        wimp: "zavx0z/lada",
+        name: "working",
+        position: 0,
+      },
+    },
+    ...atoms.map((atom) => ({
+      part: "graviton" as const,
+      op: "add" as const,
+      path: `atom/${atom.id}`,
+      value: {
+        atom,
+        values: [],
+        valueRecords: [],
+        valueItems: [],
+        state: null,
+        mass: [],
+      },
+    })),
+  ]
+}
+
+const canonicalValue = (value: unknown): unknown => {
+  if (Array.isArray(value)) return value.map(canonicalValue)
+  if (typeof value === "object" && value !== null) {
+    return Object.fromEntries(
+      Object.entries(value)
+        .toSorted(([left], [right]) => left.localeCompare(right))
+        .map(([key, entry]) => [key, canonicalValue(entry)]),
+    )
+  }
+  return value
+}
+
+const sha256 = (value: unknown): string =>
+  createHash("sha256").update(JSON.stringify(canonicalValue(value))).digest("hex")
+
+const legacyPromotionReceipt = (): Record<string, unknown> => {
+  const store = new BulkProjectionStore()
+  mf117Entries(true).forEach((entry, index) => {
+    store.apply({...structuredClone(entry), ts: index + 1} as Particle)
+  })
+  const manifest = buildBulkManifestation(
+    store.view(),
+    promotion.removedRootSrc,
+    DEFAULT_BULK_SETTINGS.layout,
+    promotion,
+  )
+  const body = {
+    schema: "metafor/bulk-mf117-live/v1",
+    promotion,
+    rootSrc: "zavx0z/lada",
+    manifestSha256: sha256(manifest),
+    removedInferenceTorusAbsent: true,
+    retention: "retain-until-explicit-gc",
+  }
+  return {receiptId: sha256(body), ...body}
+}
 
 describe("Bulk Monad", () => {
   test("registers the closed MF-117 methods before the channel advertises them", () => {
@@ -150,46 +257,27 @@ describe("Bulk Monad", () => {
   test("removes the Inference torus and persists one promoted Lada root torus", async () => {
     const directory = mkdtempSync(join(tmpdir(), "metafor-mf117-bulk-"))
     temporaryDirectories.push(directory)
-    const entries: BoundaryInitialProjectionEntry[] = [
-      {part: "graviton", op: "add", path: "wimp", value: {src: "zavx0z/inference", name: "Inference"}},
-      {part: "graviton", op: "add", path: "wimp", value: {src: "zavx0z/lada", name: "Lada"}},
-      {
-        part: "graviton", op: "add", path: "atom/1",
-        value: {
-          atom: {id: 1, parentAtom: null, parentTopology: null, wimp: "zavx0z/inference", position: 0},
-          values: [], valueRecords: [], valueItems: [], state: null, mass: [],
-        },
-      },
-      {
-        part: "graviton", op: "add", path: "atom/2",
-        value: {
-          atom: {id: 2, parentAtom: 1, parentTopology: null, wimp: "zavx0z/lada", position: 0},
-          values: [], valueRecords: [], valueItems: [], state: null, mass: [],
-        },
-      },
-    ]
+    const promotionPath = join(directory, "bulk-promotion.json")
     const monad = new BulkMonad({
-      promotionPath: join(directory, "bulk-promotion.json"),
+      promotionPath,
     })
     await monad.onServerStarted({
-      async call() { return {version: 1, entries} },
+      async call() { return {version: 1, entries: mf117Entries()} },
     } as never)
     monad.onRuntimeBorn()
-    const promotion = {
-      version: 1 as const,
-      kind: "root-promotion" as const,
-      verified: true as const,
-      removedRootAtomId: 1,
-      removedRootSrc: "zavx0z/inference",
-      promotedAtomId: 2,
-      promotedRootSrc: "zavx0z/lada",
-      formerRootFrame: {
-        localX: 0,
-        localY: 0,
-        localZ: 0,
-        outerDiameterMm: 100,
+    const before = monad.openObserver("mf117-before")
+    expect(before.rootSrc).toBe("zavx0z/inference")
+    expect(before.manifest.darkParticles.filter(({src}) =>
+      src === "zavx0z/inference")).toHaveLength(1)
+    expect(before.manifest.darkParticles.filter(({src}) =>
+      src?.startsWith("zavx0z/lada"))).toHaveLength(5)
+    expect(() => monad.mf117Preflight({
+      schema: "metafor/bulk-mf117-live/v1",
+      promotion: {
+        ...promotion,
+        formerRootFrame: {...promotion.formerRootFrame, outerDiameterMm: 99},
       },
-    }
+    })).toThrow("promotion receipt is not exact")
     expect(monad.mf117Preflight({
       schema: "metafor/bulk-mf117-live/v1",
       promotion,
@@ -208,15 +296,18 @@ describe("Bulk Monad", () => {
         },
       }],
     })
+    expect(monad.openObserver("mf117-after-root-replace").rootSrc)
+      .toBe("zavx0z/lada")
     monad.onImpulse({
       parts: [{
         part: "graviton", op: "remove", path: "atom/1", by: "boundary", ts: 3,
       }],
     })
-    expect(monad.mf117Promote({
+    const promoted = monad.mf117Promote({
       schema: "metafor/bulk-mf117-live/v1",
       promotion,
-    })).toMatchObject({
+    })
+    expect(promoted).toMatchObject({
       rootSrc: "zavx0z/lada",
       removedInferenceTorusAbsent: true,
       promotedRootTorus: {darkParticleId: 4, parentDarkParticleId: null},
@@ -229,9 +320,153 @@ describe("Bulk Monad", () => {
       darkParticleId === 2)).toHaveLength(0)
     expect(observer.manifest.darkParticles.filter(({darkParticleId, parentDarkParticleId}) =>
       darkParticleId === 4 && parentDarkParticleId === null)).toHaveLength(1)
+    const rootTorus = observer.manifest.darkParticles.find(({darkParticleId}) =>
+      darkParticleId === 4)!
+    expect({
+      localX: rootTorus.localX,
+      localY: rootTorus.localY,
+      localZ: rootTorus.localZ,
+      outerDiameterMm:
+        (rootTorus.torusRadius + rootTorus.torusTube) *
+        rootTorus.torusScale * 2,
+    }).toEqual(promotion.formerRootFrame)
+    expect(observer.manifest.darkParticles.map((particle) => ({
+      id: particle.darkParticleId,
+      parent: particle.parentDarkParticleId,
+      src: particle.src,
+    }))).toEqual([
+      {id: 4, parent: null, src: "zavx0z/lada"},
+      {id: 6, parent: 4, src: "zavx0z/lada-auth"},
+      {id: 8, parent: 4, src: "zavx0z/lada-chat"},
+      {id: 12, parent: 8, src: "zavx0z/lada-chat-send"},
+      {id: 10, parent: 4, src: "zavx0z/lada-model"},
+    ])
+    const durable = JSON.parse(readFileSync(promotionPath, "utf8")) as Record<string, unknown>
+    expect(durable).toMatchObject({
+      schema: "metafor/bulk-mf117-promotion/v2",
+      retention: "retain-until-explicit-gc",
+      structuralSha256: promoted.structuralSha256,
+    })
+
+    monad.onImpulse({
+      parts: [{
+        part: "photon", op: "replace", path: 2, by: "boundary", ts: 4,
+        value: "working",
+      }],
+    })
+    expect(sha256(monad.openObserver("mf117-dynamic").manifest))
+      .not.toBe(sha256(observer.manifest))
     expect(monad.mf117Verify()).toMatchObject({
+      receiptId: promoted.receiptId,
+      structuralSha256: promoted.structuralSha256,
       removedInferenceTorusAbsent: true,
       promotedRootTorus: {darkParticleId: 4, parentDarkParticleId: null},
     })
+
+    const recovered = new BulkMonad({promotionPath})
+    await recovered.onServerStarted({
+      async call() { return {version: 1, entries: mf117Entries(true)} },
+    } as never)
+    recovered.onRuntimeBorn()
+    expect(recovered.mf117Verify()).toMatchObject({
+      receiptId: promoted.receiptId,
+      structuralSha256: promoted.structuralSha256,
+      rootSrc: "zavx0z/lada",
+    })
+  })
+
+  test("recovers the immutable v1 receipt without comparing volatile state", async () => {
+    const directory = mkdtempSync(join(tmpdir(), "metafor-mf117-bulk-v1-"))
+    temporaryDirectories.push(directory)
+    const promotionPath = join(directory, "bulk-promotion.json")
+    const legacy = legacyPromotionReceipt()
+    writeFileSync(promotionPath, `${JSON.stringify(legacy, null, 2)}\n`)
+    const monad = new BulkMonad({promotionPath})
+
+    await monad.onServerStarted({
+      async call() { return {version: 1, entries: mf117Entries(true)} },
+    } as never)
+    monad.onRuntimeBorn()
+    monad.onImpulse({
+      parts: [{
+        part: "photon", op: "replace", path: 2, by: "boundary", ts: 40,
+        value: "working",
+      }],
+    })
+
+    expect(sha256(monad.openObserver("legacy-dynamic").manifest))
+      .not.toBe(legacy.manifestSha256)
+    expect(monad.mf117Verify()).toMatchObject({
+      receiptId: legacy.receiptId,
+      rootSrc: "zavx0z/lada",
+      removedInferenceTorusAbsent: true,
+    })
+    expect(JSON.parse(readFileSync(promotionPath, "utf8"))).toEqual(legacy)
+  })
+
+  test("fails closed when a durable receipt loses retention or self-integrity", async () => {
+    for (const corruption of ["retention", "receipt"] as const) {
+      const directory = mkdtempSync(join(tmpdir(), `metafor-mf117-bulk-${corruption}-`))
+      temporaryDirectories.push(directory)
+      const promotionPath = join(directory, "bulk-promotion.json")
+      const legacy = legacyPromotionReceipt()
+      if (corruption === "retention") {
+        legacy.retention = "delete-after-promotion"
+        const {receiptId: _receiptId, ...body} = legacy
+        legacy.receiptId = sha256(body)
+      } else {
+        legacy.receiptId = "0".repeat(64)
+      }
+      writeFileSync(promotionPath, `${JSON.stringify(legacy, null, 2)}\n`)
+      const monad = new BulkMonad({promotionPath})
+
+      await expect(monad.onServerStarted({
+        async call() { return {version: 1, entries: mf117Entries(true)} },
+      } as never)).rejects.toThrow("durable promotion receipt conflicts")
+    }
+  })
+
+  test("fails closed on a missing, reparented or ghost MF-117 subtree", async () => {
+    const cases = [
+      {
+        name: "missing",
+        entries: mf117Entries(true).filter(({path}) => path !== "atom/6"),
+        error: "missing or reparented",
+      },
+      {
+        name: "reparented",
+        entries: mf117Entries(true).map((entry) => entry.path === "atom/6"
+          ? {
+              ...entry,
+              value: {
+                ...(entry.value as Record<string, unknown>),
+                atom: {
+                  ...((entry.value as {atom: Record<string, unknown>}).atom),
+                  parentAtom: 5,
+                },
+              },
+            }
+          : entry),
+        error: "missing or reparented",
+      },
+      {
+        name: "ghost",
+        entries: mf117Entries(true).concat(
+          mf117Entries().filter(({path}) => path === "atom/1"),
+        ),
+        error: "ghost torus",
+      },
+    ]
+    for (const scenario of cases) {
+      const directory = mkdtempSync(join(tmpdir(), `metafor-mf117-bulk-${scenario.name}-`))
+      temporaryDirectories.push(directory)
+      const promotionPath = join(directory, "bulk-promotion.json")
+      writeFileSync(promotionPath, `${JSON.stringify(legacyPromotionReceipt(), null, 2)}\n`)
+      const monad = new BulkMonad({promotionPath})
+
+      await expect(monad.onServerStarted({
+        async call() { return {version: 1, entries: scenario.entries} },
+      } as never)).rejects.toThrow(scenario.error)
+    }
   })
 })
