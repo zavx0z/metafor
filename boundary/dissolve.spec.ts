@@ -297,6 +297,49 @@ const worldFingerprint = async (fixture: Fixture): Promise<unknown> => ({
 })
 
 describe("Boundary recursive remove and offline dissolve", () => {
+  test("does not rematerialize the retired Inference root after Lada activation", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "metafor-boundary-active-root-"))
+    const boundary = await open(":memory:", {
+      massCatalog: new MassCatalog(join(directory, "mass")),
+    })
+    fixtures.push({
+      boundary,
+      directory,
+      massRoot: join(directory, "mass"),
+      sourceAtom: 0,
+      targetAtom: 0,
+      leafAtom: 0,
+    })
+    await boundary.projection.sql.unsafe(`
+      CREATE TABLE boundary_active_root (
+        singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+        active_src TEXT NOT NULL,
+        previous_src TEXT,
+        dissolve_plan_sha256 TEXT,
+        retention TEXT NOT NULL
+      ) STRICT;
+      INSERT INTO boundary_active_root (
+        singleton, active_src, previous_src, dissolve_plan_sha256, retention
+      ) VALUES (
+        1, 'zavx0z/lada', 'zavx0z/inference',
+        '${"a".repeat(64)}', 'retain-until-explicit-gc'
+      );
+    `)
+
+    await expect(boundary.materialize({parts: [{
+      part: "inflaton",
+      op: "add",
+      path: "wimp",
+      value: {src: "zavx0z/inference", name: "Inference"},
+      by: "dark",
+      ts: 1,
+    }]})).rejects.toThrow("structural role is retired")
+    expect(await boundary.projection.sql<Array<{count: number}>>`
+      SELECT COUNT(*) AS count FROM wimp
+       WHERE src = ${"zavx0z/inference"}
+    `).toEqual([{count: 0}])
+  })
+
   test("recursive remove uses inflaton/remove/wimp and removes parent plus descendants", async () => {
     const fixture = await createFixture()
     const filesBefore = await massSnapshot(fixture)
@@ -396,6 +439,19 @@ describe("Boundary recursive remove and offline dissolve", () => {
       parent_atom: fixture.targetAtom,
     })))
     expect(await fixture.boundary.projection.sql<unknown[]>`PRAGMA foreign_key_check`).toEqual([])
+    expect(await fixture.boundary.projection.sql<Array<{
+      active_src: string
+      previous_src: string
+      retention: string
+    }>>`
+      SELECT active_src, previous_src, retention
+        FROM boundary_active_root
+       WHERE singleton = 1
+    `).toEqual([{
+      active_src: TARGET,
+      previous_src: SOURCE,
+      retention: "retain-until-explicit-gc",
+    }])
     expect(await fixture.boundary.projection.sql<Array<{id: string}>>`
       SELECT id FROM mass_key
        WHERE id IN (
@@ -406,6 +462,35 @@ describe("Boundary recursive remove and offline dissolve", () => {
     `).toEqual(targetBefore.slice(1).map((mass) => ({id: mass.keyId}))
       .toSorted((left, right) => left.id.localeCompare(right.id)))
     expect(await massSnapshot(fixture)).toEqual(filesBefore)
+  })
+
+  test("rolls back the root transition when the atomic live receipt cannot persist", async () => {
+    const fixture = await createFixture()
+    const before = await worldFingerprint(fixture)
+    const plan = await planBoundaryDissolve(
+      fixture.boundary,
+      request(),
+      massEvidenceReader(fixture),
+    )
+    const base = hooks(fixture, [], [], [])
+
+    await expect(executeBoundaryDissolveProof(
+      fixture.boundary,
+      request(),
+      plan,
+      {
+        ...base,
+        async beforeCommit() {
+          throw new Error("live receipt unavailable")
+        },
+      },
+    )).rejects.toThrow("live receipt unavailable")
+
+    expect(await worldFingerprint(fixture)).toEqual(before)
+    expect(await fixture.boundary.projection.sql<Array<{count: number}>>`
+      SELECT COUNT(*) AS count FROM sqlite_master
+       WHERE type = ${"table"} AND name = ${"boundary_active_root"}
+    `).toEqual([{count: 0}])
   })
 
   test("uses an explicit absent marker for chatOutbox without materializing bytes or changing its key identity", async () => {

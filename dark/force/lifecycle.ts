@@ -14,6 +14,7 @@ export type ForceLifecycleStatus = {
   ok: boolean
   domain: "force"
   state: ForceLifecycleState
+  externalAdmission: "open" | "closed"
   requiredDomains: ForceDomain[]
   connectedDomains: ForceDomain[]
   error: string | null
@@ -25,7 +26,7 @@ export type ForceLifecycleDecision =
 
 export type ForceAgentDecision =
   | {ok: true; delivered: ForceDomain[]; particle: SourcedForceMessage["parts"][0]}
-  | {ok: false; reason: "not_running" | "runtime_error"; error: string}
+  | {ok: false; reason: "not_running" | "admission_closed" | "runtime_error"; error: string}
 
 export interface ForceCheckpointTransfer {
   recordAccepted(
@@ -47,6 +48,7 @@ export class ForceLifecycle {
   #state: ForceLifecycleState = "created"
   #error: string | null = null
   #connectedDomains = new Set<ForceDomain>()
+  #externalAdmissionClosed = false
 
   constructor(
     private readonly history: Pick<DarkForceHistory, "accept">,
@@ -98,6 +100,13 @@ export class ForceLifecycle {
   async acceptAgentParticle(input: ForceMessageInput): Promise<ForceAgentDecision> {
     if (this.#state !== "running") {
       return {ok: false, reason: "not_running", error: this.#blockedReason()}
+    }
+    if (this.#externalAdmissionClosed) {
+      return {
+        ok: false,
+        reason: "admission_closed",
+        error: "Force external admission is held by an internal causal operation",
+      }
     }
     const message = sourceForceMessage(input, "agent")
     try {
@@ -165,6 +174,25 @@ export class ForceLifecycle {
    */
   stop(): void {
     this.#state = "stopped"
+    this.#externalAdmissionClosed = true
+  }
+
+  /** Closes only agent ingress; domain causal output remains accepted. */
+  closeExternalAdmission(): ForceLifecycleStatus {
+    if (this.#state !== "running") {
+      throw new Error(this.#blockedReason())
+    }
+    this.#externalAdmissionClosed = true
+    return this.status()
+  }
+
+  /** Reopens agent ingress only while the same Force lifecycle is healthy. */
+  openExternalAdmission(): ForceLifecycleStatus {
+    if (this.#state !== "running") {
+      throw new Error(this.#blockedReason())
+    }
+    this.#externalAdmissionClosed = false
+    return this.status()
   }
 
   #failStop(domain: ForceDomain | "force", reason: string): void {
@@ -188,6 +216,7 @@ export class ForceLifecycle {
       ok: this.#state === "running",
       domain: "force",
       state: this.#state,
+      externalAdmission: this.#externalAdmissionClosed ? "closed" : "open",
       requiredDomains: [...forceDomains],
       connectedDomains: forceDomains.filter((domain) => this.#connectedDomains.has(domain)),
       error: this.#error,

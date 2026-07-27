@@ -33,6 +33,17 @@
   пересчитываются. Receipt, не согласованный с post-projection, игнорируется.
 - Без verified promotion receipt действует обычный закон выбранного `rootSrc`;
   удаление или текущая форма дерева не являются основанием угадывать promotion.
+- Live promotion принимает receipt только через закрытый internal MF-117
+  adapter после того, как projection уже получила все preceding entity
+  consequences. Adapter заново сверяет removed/promoted Atom identities,
+  отсутствие бывшего root и полное promoted subtree, затем сохраняет Lada как
+  active root вместе с former-root frame. Receipt не является Particle и не
+  создаёт общий Bulk command.
+- Torus всегда принадлежит реально присутствующему materialized Atom. После
+  accepted dissolve отсутствие Inference Inflaton/Atom в post-projection
+  удаляет и его torus; promoted Lada получает собственный root torus в
+  verified former-root frame. Отдельный ghost, stale либо decorative torus
+  бывшего Inference запрещён.
 
 ## Следствие
 

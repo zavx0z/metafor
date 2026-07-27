@@ -7,6 +7,7 @@ import {
   BOUNDARY_META_JSON_PROJECTION_METHOD,
   readBoundaryMetaJSONProjection,
 } from "./meta-json.ts"
+import {BoundaryMF117LiveAdapter} from "./dissolve-live.ts"
 import type {BoundaryDatabase} from "./sqlite.ts"
 
 export type BoundaryMonadState = "created" | "registering" | "ready" | "error" | "stopped"
@@ -16,8 +17,11 @@ export class BoundaryMonad {
   #state: BoundaryMonadState = "created"
   #error: string | null = null
   #peer: MonadRpcPeer | null = null
+  readonly mf117: BoundaryMF117LiveAdapter
 
-  constructor(private readonly boundary: BoundaryDatabase) {}
+  constructor(private readonly boundary: BoundaryDatabase) {
+    this.mf117 = new BoundaryMF117LiveAdapter(boundary)
+  }
 
   onServerStarted(peer: MonadRpcPeer): void {
     if (this.#state !== "created") return
@@ -28,6 +32,7 @@ export class BoundaryMonad {
       BOUNDARY_META_JSON_PROJECTION_METHOD,
       async (params) => await readBoundaryMetaJSONProjection(this.boundary, params),
     )
+    this.mf117.register(peer)
     this.#peer = peer
   }
 

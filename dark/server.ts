@@ -26,6 +26,11 @@ import {
   checkpointControlStatePath,
   DarkCheckpointControl,
 } from "./checkpoint/control.ts"
+import {MF117LiveCoordinator} from "./dissolve-live.ts"
+import {
+  MF117OwnerCapability,
+  readMF117Command,
+} from "./dissolve-command.ts"
 
 const repositoryState = resolve(import.meta.dir, "..", ".metafor")
 const forceHistoryPath = resolve(
@@ -73,6 +78,15 @@ monad.onChannelOpened()
 await darkCheckpoint?.open()
 
 export const lifecycle = new ForceLifecycle(forceHistory, checkpoint ?? undefined)
+const mf117 = checkpoint === null
+  ? null
+  : new MF117LiveCoordinator(
+      lifecycle,
+      checkpoint,
+      forceHistory,
+      rpc,
+    )
+const mf117Capability = mf117 === null ? null : new MF117OwnerCapability()
 const localForce = new LocalDarkForce(async (message) => {
   const decision = await lifecycle.acceptParticle("dark", message)
   if (!decision.ok) throw new Error(decision.error)
@@ -130,7 +144,43 @@ export const server = Bun.serve<ForceSocketData>({
         const payload = await readJson<ForceMessageInput>(request)
         if (!payload.ok) return Response.json({ok: false, error: payload.error}, {status: 400})
         const decision = await lifecycle.acceptAgentParticle(payload.value)
-        return Response.json(decision, {status: decision.ok ? 200 : decision.reason === "not_running" ? 503 : 500})
+        return Response.json(decision, {
+          status: decision.ok
+            ? 200
+            : decision.reason === "not_running"
+              ? 503
+              : decision.reason === "admission_closed"
+                ? 423
+                : 500,
+        })
+      },
+    },
+    "/internal/mf117/inference-to-lada": {
+      async POST(request: Request) {
+        if (
+          mf117 === null ||
+          mf117Capability === null ||
+          !isLoopbackAddress(server.requestIP(request)?.address)
+        ) {
+          return Response.json({ok: false, error: "MF-117 command is unavailable"}, {status: 404})
+        }
+        if (!mf117Capability.authorize(request.headers.get("authorization"))) {
+          return Response.json({ok: false, error: "MF-117 owner capability is required"}, {status: 401})
+        }
+        const payload = await readJson<unknown>(request)
+        if (!payload.ok) return Response.json({ok: false, error: payload.error}, {status: 400})
+        try {
+          const command = readMF117Command(payload.value)
+          const result = command.action === "preflight"
+            ? await mf117.preflight()
+            : await mf117.activate(command.preflightReceiptId)
+          return Response.json({ok: true, result})
+        } catch (error) {
+          return Response.json({
+            ok: false,
+            error: error instanceof Error ? error.message : String(error),
+          }, {status: 409})
+        }
       },
     },
     "/monad/channels": {

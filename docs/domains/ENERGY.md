@@ -110,6 +110,15 @@ IDs и generations сохраняются в receipt с
 не копируются и не удаляются; отдельного delete/release шага в protocol нет.
 Crash/retry не может превратить absent Mass evidence в payload.
 
+Live adapter принимает этот protocol только от exact internal MF-117
+coordinator. Read-only preflight сверяет пять текущих source generations,
+target handles и Mass evidence без fence либо записи receipt. После общего
+preflight durable receipt создаётся и все пять source handles fence-ятся до
+Boundary commit. Retarget после commit не копирует bytes: он подтверждает
+существующие target handles на тех же global keys и сохраняет их generations.
+Source fence, прежние target generations и receipt остаются retained; общего
+Energy RPC, release либо delete operation этот command не публикует.
+
 ## Что обязаны доказывать тесты
 
 - generic сохраняет точные типы сущностей в action, destroy и Matter;

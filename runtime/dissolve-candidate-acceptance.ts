@@ -406,7 +406,13 @@ const manifestHealth = (
     projection.atoms.find(({id}) => id === targetAtom)?.parentAtom !== null ||
     manifest.rootSrc !== TARGET ||
     manifestedAtoms.length !== projection.atoms.length ||
+    manifest.darkParticles.some(
+      ({darkParticleId}) => darkParticleId === sourceAtom * 2,
+    ) ||
     manifest.darkParticles.some(({src}) => src === SOURCE) ||
+    manifest.darkParticles.filter(
+      ({darkParticleId}) => darkParticleId === targetAtom * 2,
+    ).length !== 1 ||
     !root ||
     root.parentDarkParticleId !== null ||
     Math.abs(promotedOuterDiameterMm - formerRootOuterDiameterMm) > 1e-9 ||

@@ -14,6 +14,7 @@ import type {MonadRpcPeer} from "shared/transport/monad"
 import {
   FORCE_CHECKPOINT_OUTGOING_THROUGH_METHOD,
   FORCE_CHECKPOINT_PREPARE_METHOD,
+  FORCE_CHECKPOINT_QUIESCE_METHOD,
   FORCE_CHECKPOINT_SESSION_METHOD,
   FORCE_CHECKPOINT_WAIT_APPLIED_METHOD,
   type CheckpointForceDomain,
@@ -22,6 +23,7 @@ import {
 } from "shared/transport/force/checkpoint"
 import {
   CheckpointAppliedThroughBarrier,
+  type CheckpointBarrierFrontier,
   type CheckpointBarrierStateV1,
   type CheckpointDeliveryReceipt,
 } from "./barrier.ts"
@@ -259,6 +261,35 @@ export class DarkCheckpointControl {
       if (waiter.ordinal <= ordinal) waiter.resolve()
       else waiters.push(waiter)
     }
+  }
+
+  /**
+   * Quiesces every domain and holds the exact current applied-through frontier.
+   *
+   * The caller must close external Force admission before invoking this method.
+   * Domain causal output remains accepted while quiescence settles.
+   */
+  async holdUnderClosedAdmission(
+    signal?: AbortSignal,
+  ): Promise<CheckpointBarrierFrontier> {
+    if (this.barrier.phase === "held") return this.barrier.frontier()
+    await Promise.all(forceDomains.map(async (domain) => {
+      await this.peer.call(
+        domain,
+        FORCE_CHECKPOINT_QUIESCE_METHOD,
+        {},
+        {waitMs: 30_000},
+      )
+    }))
+    const frontier = await this.barrier.holdUnderClosedAdmission(signal)
+    this.persist()
+    return frontier
+  }
+
+  releaseAdmissionHold(): CheckpointBarrierFrontier {
+    this.barrier.release()
+    this.persist()
+    return this.barrier.frontier()
   }
 
   state(): CheckpointControlStateV1 {

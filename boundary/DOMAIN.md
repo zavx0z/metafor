@@ -323,6 +323,43 @@ identity в immutable admission/Energy receipts. Все эти records, вклю
 прежние target key IDs, имеют policy `retain-until-explicit-gc`; автоматический
 GC запрещён до отдельного owner decision.
 
+## Live causal dissolve
+
+Единственный owner-approved live command снимает только structural parent role
+`zavx0z/inference` и делает уже существующий `zavx0z/lada` тем же корневым
+runtime Atom. Command закрыт точными source/target и принимается только от
+аутентифицированного internal Dark coordinator; общего Boundary write RPC он
+не создаёт.
+
+До world transaction coordinator обязан удерживать fresh current
+`(cutId, acceptance sequence)` frontier, а Boundary — построить новую private
+candidate copy из своего serialized cut, повторно доказать весь plan и
+проверить rollback capture. Ошибка любого preflight-инварианта не создаёт stage,
+admission либо world mutation. Durable stage/admission пишутся только после
+полностью успешного read-only preflight.
+
+В одной Boundary SQLite transaction:
+
+1. повторно проверяются current structural/Mass CAS;
+2. Lada и всё её поддерево сохраняют identity, values, State, order и work;
+3. пять membership переводятся на сохранённые global key identities;
+4. canonical active root меняется `Inference → Lada`;
+5. удаляются только runtime Atom и WIMP declaration бывшего structural parent.
+
+Transaction не удаляет Mass key rows/bytes, history, checkpoints, rollback,
+candidate, receipts, retired execution fences или superseded binding metadata.
+После commit Boundary возвращает exact proof и ordered snapshot каждой реально
+изменённой runtime entity. Каждая snapshot затем может стать только одним
+`ForceMessage` с одной Particle. До complete ordered consequence receipt
+external admission остаётся закрытым; crash/retry продолжает тот же durable
+admission, а не строит новую mutation.
+
+Canonical authored packages сохраняются неизменными как retained source
+evidence. Записанный в той же transaction active-root transition является
+единственным разрешённым load root; после release новый read/materialize root
+`zavx0z/inference` обязан fail closed и не может снова создать structural
+parent.
+
 ## Проверка
 
 Регрессии доказывают in-place identity Matter, live-reparent и rebind, смену

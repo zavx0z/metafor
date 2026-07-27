@@ -61,6 +61,31 @@ applied-through frontier, candidate/stage receipts и commit являются
 обязательными causal guards. Текущий срез не публикует endpoint, не принимает
 live command и не маршрутизирует эти consequences.
 
+Owner-approved MF-117 открывает ровно один internal command для
+`zavx0z/inference → zavx0z/lada`. Он доступен только loopback caller с
+отдельной owner capability и закрытым request shape; Monad channel и `/force`
+не получают общего write method. До command Boundary commit Dark закрывает
+только external agent admission, вызывает quiescence всех пяти domains и
+удерживает exact applied-through frontier. Causal domain outputs продолжают
+приниматься до fixed point; процессы и transports не останавливаются.
+Единственный разрешённый installation lifecycle выполняется раньше: после
+clean implementation commit и checks caller устанавливается ровно одним
+обычным полным restart `metafor-inference-universe.service`, без изменения
+config, environment или ports, и только затем запускается fresh preflight.
+Сам preflight и causal transition не выполняют stop/start/restart либо hot
+reload.
+
+После commit Dark проводит сохранённый plan в точном порядке: Energy retarget,
+отдельные target/scope replacements, source Atom remove, verified Bulk
+promotion, retained evidence и release. Каждая entity consequence сначала
+durably принимается обычной Dark Force history и только затем маршрутизируется.
+Повтор command с тем же operation/evidence продолжает durable receipt;
+другая capability, cut, sequence или evidence fail closed. Preflight failure
+открывает agent admission без world mutation. После первого world commit
+автоматический rollback или открытие admission при незавершённых последствиях
+запрещены: восстановление продолжает тот же plan, а verified rollback package
+сохраняется для отдельного recovery.
+
 ## Particle history
 
 Dark Force владеет полной append-only filesystem history всех принятых

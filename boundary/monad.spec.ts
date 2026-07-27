@@ -57,6 +57,13 @@ describe("Boundary Monad", () => {
     expect(peer.methods()).toEqual([
       BOUNDARY_INITIAL_PROJECTION_METHOD,
       BOUNDARY_INITIAL_STATE_METHOD,
+      "boundary.internal.mf117.admit",
+      "boundary.internal.mf117.commit",
+      "boundary.internal.mf117.complete",
+      "boundary.internal.mf117.preflight",
+      "boundary.internal.mf117.quiescent",
+      "boundary.internal.mf117.receipt",
+      "boundary.internal.mf117.verify",
       BOUNDARY_META_JSON_PROJECTION_METHOD,
     ])
     expect(await monad.onHealthRequested(":memory:").json()).toMatchObject({rpc: "registering"})

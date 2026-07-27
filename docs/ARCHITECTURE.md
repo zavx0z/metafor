@@ -131,6 +131,18 @@ evaluation уже может испустить process work.
 Source parity использует тот же wire и endpoints, но production acceptance
 требует отдельного полного cold restart. Hot reload запрещён.
 
+Единственный rollout этого owner-approved `MF-117` caller выполняется до
+preflight ровно одним обычным полным restart
+`metafor-inference-universe.service` без изменения config, environment или
+ports. После этого live structural transition не является reload: уже
+рождённый contour остаётся в тех же пяти processes, и дополнительный restart
+либо hot reload запрещён. Закрытый loopback owner command в Dark удерживает
+external admission и current applied-through frontier, а private Monad
+adapters Boundary, Energy и Bulk исполняют только exact `Inference → Lada`
+receipts. Общего write RPC нет. Boundary atomically меняет canonical active
+root; Dark Force проводит one-entity consequences;
+Mass/history/checkpoint/rollback/source evidence не удаляются.
+
 ## Публичное чтение MetaJSON
 
 MetaJSON v1 имеет ровно один публичный JSON-документ и одну schema. Отдельных

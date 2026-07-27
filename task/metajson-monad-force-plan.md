@@ -840,6 +840,21 @@ source/target identity в immutable admission/Energy receipts; прежние ta
 keys и все evidence остаются `retain-until-explicit-gc` до отдельного owner
 decision.
 
+Owner затем явно утвердил `MF-117`: ровно один canonical
+`zavx0z/inference → zavx0z/lada` causal transition через закрытый loopback
+caller с owner capability и exact private Boundary/Energy/Bulk adapters.
+Fresh preflight обязан заново связать текущий cut/sequence, полный plan,
+rollback, пять Energy handles и Bulk projection; любое расхождение завершает
+command без live mutation. Для установки clean implementation разрешён ровно
+один обычный полный restart `metafor-inference-universe.service` без изменения
+config, environment или ports. После него transition выполняется в уже
+рождённых пяти processes без дополнительного restart либо hot reload.
+Inference снимает только structural parent role; Lada сохраняет identity,
+work и всё поддерево и получает former-root frame. Поскольку Bulk torus
+принадлежит manifestation Inflaton/Atom, исчезновение Inference из принятой
+post-projection обязано удалить его torus, а promoted Lada обязана иметь ровно
+один собственный root torus; ghost/stale decorative torus запрещён.
+
 ### 15.5 Pause/Stack и ветвящийся execution workspace
 
 Owner уточнил назначение checkpoint line: это не только offline replay, а

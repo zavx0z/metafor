@@ -67,4 +67,25 @@ describe("Energy Mass file catalog", () => {
     gate.release(2, 1, key)
     await expect(child.readBytes()).resolves.toBeInstanceOf(Uint8Array)
   })
+
+  test("retargets one fenced source without advancing the next target authorization", () => {
+    const gate = new EnergyMassGate()
+    const sourceGeneration = gate.authorize(1, 11, key)
+    gate.fence(1, 11, key)
+
+    const targetGeneration = gate.retarget(
+      {atom: 1, declaration: 11, key, generation: sourceGeneration},
+      {atom: 2, declaration: 22, key},
+      "entry-1",
+    )
+
+    expect(gate.fenced(1, 11, key)).toBe(true)
+    expect(gate.generation(2, 22, key)).toBe(targetGeneration)
+    expect(gate.authorize(2, 22, key)).toBe(targetGeneration)
+    expect(gate.retarget(
+      {atom: 1, declaration: 11, key, generation: sourceGeneration},
+      {atom: 2, declaration: 22, key},
+      "entry-1",
+    )).toBe(targetGeneration)
+  })
 })

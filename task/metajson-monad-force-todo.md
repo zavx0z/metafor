@@ -1003,25 +1003,52 @@
 
 ### MF-117 — Активировать causal Inference→Lada dissolve
 
-- Status: `GATE`
+- Status: `IN_PROGRESS`
 - Dependencies: `MF-116`
-- Current activation command: отсутствует; MF-116 намеренно не создаёт caller
-  или live RPC.
-- Owner gate:
-  - утвердить canonical authored source/root transition, который не
-    rematerialize Inference;
-  - утвердить authenticated capability-scoped caller и exact operational
-    command для fresh current-stage admission;
-  - связать live external-admission hold/domain quiescence, current frontier,
-    Energy driver, Boundary commit и Force/Bulk consequence dispatch с
-    private MF-116 receipts;
-  - повторно собрать exact candidate/proof на текущем cut/sequence; MF-115
-    receipt нельзя считать вечным live admission;
-  - отдельно принять live rollback/runbook evidence и сохранение всех
-    Mass/history/checkpoint/receipt/binding artifacts без GC.
-- Prohibited before approval:
-  - live stage/admission/dissolve, source switch, Force routing, process
-    lifecycle, stop/start/restart/hot reload и любой GC.
+- Current executor: canonical Inference integration checkout, delegated from
+  Codex task `019fa120-7413-7d32-938c-16aa6dac3fdc`.
+- Owner approval:
+  - owner explicitly approved one canonical no-stop live
+    `zavx0z/inference → zavx0z/lada` causal transition;
+  - implementation must add only an authenticated internal capability caller,
+    run a fresh exact-cut preflight with recoverable rollback evidence, and
+    stop without live mutation on any failed invariant;
+  - after a successful preflight, authority permits exactly one atomic causal
+    dissolve with no process stop/start/restart or hot reload and no GC;
+  - after clean implementation commit and passing checks, owner separately
+    authorized exactly one standard
+    `metafor-inference-universe.service` restart with no config, environment
+    or port changes, followed by live preflight.
+- Implementation readiness:
+  - loopback-only Dark route accepts only the exact operation and a private
+    owner capability stored with mode `0600`; no public or generic Monad/Force
+    write RPC was added;
+  - fresh read-only preflight rebuilds the exact plan from the current
+    cut/sequence, verifies Boundary integrity/current projection, eleven
+    rollback files, five Energy handles and the pre-projection Bulk toruses,
+    and writes no stage/admission/fence on failure;
+  - Boundary root transition and durable admission commit share one SQLite
+    transaction; a failure before commit rolls back structural rows, active
+    root and receipt together;
+  - the actual accepted candidate yields exactly two ordered one-entity Force
+    consequences: Lada Atom replace, then Inference Atom remove;
+  - post-projection acceptance requires no Inference Atom/Inflaton/torus,
+    exactly one Lada root torus in the former-root frame, and the unchanged
+    whole Lada subtree;
+  - Energy fences exactly five source generations and retargets without
+    release/delete; Mass bytes/key identities/history/checkpoint/rollback,
+    receipts and superseded metadata remain `retain-until-explicit-gc`;
+  - restored exact-cut Boundary, Energy and Bulk adapter tests pass;
+    `bun run check`: typecheck pass, `42` expected diagnostics,
+    `1679 pass`, `0 fail`, `5643 expect` in `192` test files.
+- Activation constraints:
+  - no live mutation or process lifecycle has been performed by this
+    implementation task;
+  - coordinator must perform the one authorized standard service restart,
+    confirm all five domains/Force healthy, then run the exact fresh preflight;
+  - activation is permitted only from that successful current-cut preflight
+    receipt; no additional restart, hot reload, data deletion or GC is
+    permitted.
 
 ### MF-109 — Реализовать Pause/Stack branchable execution workspace
 

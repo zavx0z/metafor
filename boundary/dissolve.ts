@@ -60,6 +60,14 @@ export type BoundaryDissolveHooks = Readonly<{
   release(identity: BoundaryMassFenceIdentity): Promise<void>
   massEvidence: BoundaryDissolveMassEvidenceReader
   readMetaJSON: BoundaryDissolveMetaJSONReader
+  /**
+   * Optional live-only control receipt written through the same SQLite
+   * transaction after every structural proof check and before COMMIT.
+   */
+  beforeCommit?(
+    proof: BoundaryDissolveProof,
+    plannedMetaJSON: MetaJSONV1,
+  ): Promise<void>
 }>
 
 export type BoundaryDissolveErrorCode =
@@ -734,6 +742,43 @@ const removeSourceRoot = async (
   }
 }
 
+const transitionActiveRoot = async (
+  sql: SQL,
+  plan: BoundaryDissolvePlan,
+): Promise<void> => {
+  await sql.unsafe(`
+    CREATE TABLE IF NOT EXISTS boundary_active_root (
+      singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+      active_src TEXT NOT NULL,
+      previous_src TEXT,
+      dissolve_plan_sha256 TEXT,
+      retention TEXT NOT NULL
+        CHECK (retention = 'retain-until-explicit-gc')
+    ) STRICT;
+  `)
+  await sql`
+    INSERT OR IGNORE INTO boundary_active_root (
+      singleton, active_src, previous_src, dissolve_plan_sha256, retention
+    ) VALUES (
+      1, ${plan.source.src}, NULL, NULL, ${"retain-until-explicit-gc"}
+    )
+  `
+  const changed = await sql<Array<{activeSrc: string}>>`
+    UPDATE boundary_active_root
+       SET active_src = ${plan.target.src},
+           previous_src = ${plan.source.src},
+           dissolve_plan_sha256 = ${sha256(JSON.stringify(plan))}
+     WHERE singleton = 1 AND active_src = ${plan.source.src}
+     RETURNING active_src AS activeSrc
+  `
+  if (changed.length !== 1 || changed[0]?.activeSrc !== plan.target.src) {
+    throw new BoundaryDissolveError(
+      "pre_state_conflict",
+      "Boundary canonical active root changed before dissolve",
+    )
+  }
+}
+
 const expectedRuntime = (plan: BoundaryDissolvePlan): RuntimeRow[] =>
   plan.preservedRuntime.map((runtime, index) => index === 0
     ? {
@@ -884,14 +929,16 @@ export async function executeBoundaryDissolveProof(
 
     await moveRuntimeRoot(boundary.projection.sql, plan)
     await transferMass(boundary.projection.sql, plan)
+    await transitionActiveRoot(boundary.projection.sql, plan)
     await removeSourceRoot(boundary.projection.sql, plan)
     await boundary.projection.refreshRuntimeIndexesForOfflineProof()
     await verifyPlannedState(boundary, plan, hooks)
-    await validatedMetaJSON(hooks.readMetaJSON, request.target, "planned")
-
-    await boundary.projection.sql.unsafe("COMMIT")
-    transaction = false
-    return {
+    const plannedMetaJSON = await validatedMetaJSON(
+      hooks.readMetaJSON,
+      request.target,
+      "planned",
+    )
+    const proof: BoundaryDissolveProof = {
       sourceAtom: plan.source.atom,
       targetAtom: plan.target.atom,
       planSha256: sha256(JSON.stringify(plan)),
@@ -904,6 +951,10 @@ export async function executeBoundaryDissolveProof(
       privateManifestSha256: sha256(JSON.stringify(plan.privateManifest)),
       metaJSON: {before: request.source, planned: request.target},
     }
+    await hooks.beforeCommit?.(proof, plannedMetaJSON)
+    await boundary.projection.sql.unsafe("COMMIT")
+    transaction = false
+    return proof
   } catch (error) {
     if (transaction) {
       await boundary.projection.sql.unsafe("ROLLBACK").catch(() => undefined)

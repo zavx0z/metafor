@@ -1,4 +1,7 @@
-import {describe, expect, test} from "bun:test"
+import {afterEach, describe, expect, test} from "bun:test"
+import {mkdtempSync, rmSync} from "node:fs"
+import {tmpdir} from "node:os"
+import {join} from "node:path"
 import {BOUNDARY_INITIAL_PROJECTION_METHOD} from "@metafor/types/boundary/initial"
 import type {BoundaryInitialProjectionEntry} from "@metafor/types/boundary/initial"
 import type {Particle} from "shared/protocol/force/particle"
@@ -6,6 +9,13 @@ import {DEFAULT_BULK_SETTINGS} from "./settings.ts"
 import {BulkMonad} from "./monad.ts"
 import {BulkProjectionStore} from "./projection.ts"
 import {buildBulkManifestation} from "./manifestation.ts"
+
+const temporaryDirectories: string[] = []
+afterEach(() => {
+  for (const directory of temporaryDirectories.splice(0)) {
+    rmSync(directory, {recursive: true, force: true})
+  }
+})
 
 describe("Bulk Monad", () => {
   test("loads the complete Boundary projection before preparing an observer package", async () => {
@@ -113,5 +123,93 @@ describe("Bulk Monad", () => {
     )
 
     expect(realtimeManifest).toEqual(initial.manifest)
+  })
+
+  test("removes the Inference torus and persists one promoted Lada root torus", async () => {
+    const directory = mkdtempSync(join(tmpdir(), "metafor-mf117-bulk-"))
+    temporaryDirectories.push(directory)
+    const entries: BoundaryInitialProjectionEntry[] = [
+      {part: "graviton", op: "add", path: "wimp", value: {src: "zavx0z/inference", name: "Inference"}},
+      {part: "graviton", op: "add", path: "wimp", value: {src: "zavx0z/lada", name: "Lada"}},
+      {
+        part: "graviton", op: "add", path: "atom/1",
+        value: {
+          atom: {id: 1, parentAtom: null, parentTopology: null, wimp: "zavx0z/inference", position: 0},
+          values: [], valueRecords: [], valueItems: [], state: null, mass: [],
+        },
+      },
+      {
+        part: "graviton", op: "add", path: "atom/2",
+        value: {
+          atom: {id: 2, parentAtom: 1, parentTopology: null, wimp: "zavx0z/lada", position: 0},
+          values: [], valueRecords: [], valueItems: [], state: null, mass: [],
+        },
+      },
+    ]
+    const monad = new BulkMonad({
+      promotionPath: join(directory, "bulk-promotion.json"),
+    })
+    await monad.onServerStarted({
+      async call() { return {version: 1, entries} },
+    } as never)
+    monad.onRuntimeBorn()
+    const promotion = {
+      version: 1 as const,
+      kind: "root-promotion" as const,
+      verified: true as const,
+      removedRootAtomId: 1,
+      removedRootSrc: "zavx0z/inference",
+      promotedAtomId: 2,
+      promotedRootSrc: "zavx0z/lada",
+      formerRootFrame: {
+        localX: 0,
+        localY: 0,
+        localZ: 0,
+        outerDiameterMm: 100,
+      },
+    }
+    expect(monad.mf117Preflight({
+      schema: "metafor/bulk-mf117-live/v1",
+      promotion,
+    })).toMatchObject({
+      sourceRootTorus: {darkParticleId: 2},
+      targetChildTorus: {darkParticleId: 4, parentDarkParticleId: 2},
+      noGhostTorus: true,
+    })
+
+    monad.onImpulse({
+      parts: [{
+        part: "graviton", op: "replace", path: "atom/2", by: "boundary", ts: 2,
+        value: {
+          atom: {id: 2, parentAtom: null, parentTopology: null, wimp: "zavx0z/lada", position: 0},
+          values: [], valueRecords: [], valueItems: [], state: null, mass: [],
+        },
+      }],
+    })
+    monad.onImpulse({
+      parts: [{
+        part: "graviton", op: "remove", path: "atom/1", by: "boundary", ts: 3,
+      }],
+    })
+    expect(monad.mf117Promote({
+      schema: "metafor/bulk-mf117-live/v1",
+      promotion,
+    })).toMatchObject({
+      rootSrc: "zavx0z/lada",
+      removedInferenceTorusAbsent: true,
+      promotedRootTorus: {darkParticleId: 4, parentDarkParticleId: null},
+    })
+    const observer = monad.openObserver("mf117-observer")
+    expect(observer.rootSrc).toBe("zavx0z/lada")
+    expect(observer.manifest.darkParticles.filter(({src}) =>
+      src === "zavx0z/inference")).toHaveLength(0)
+    expect(observer.manifest.darkParticles.filter(({darkParticleId}) =>
+      darkParticleId === 2)).toHaveLength(0)
+    expect(observer.manifest.darkParticles.filter(({darkParticleId, parentDarkParticleId}) =>
+      darkParticleId === 4 && parentDarkParticleId === null)).toHaveLength(1)
+    expect(monad.mf117Verify()).toMatchObject({
+      removedInferenceTorusAbsent: true,
+      promotedRootTorus: {darkParticleId: 4, parentDarkParticleId: null},
+    })
   })
 })

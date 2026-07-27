@@ -54,6 +54,7 @@ describe("ForceLifecycle", () => {
       ok: false,
       domain: "force",
       state: "created",
+      externalAdmission: "open",
       requiredDomains: ["dark", "boundary", "matrix", "energy", "bulk"],
       connectedDomains: [],
       error: null,
@@ -65,6 +66,7 @@ describe("ForceLifecycle", () => {
       ok: true,
       domain: "force",
       state: "running",
+      externalAdmission: "open",
       requiredDomains: ["dark", "boundary", "matrix", "energy", "bulk"],
       connectedDomains: ["dark", "boundary", "matrix", "energy", "bulk"],
       error: null,
@@ -98,6 +100,38 @@ describe("ForceLifecycle", () => {
       ts: 2,
       value: {src: "capsule", name: "Capsule"},
     }])
+  })
+
+  test("holds only external agent admission while domain causality continues", async () => {
+    start()
+    expect(lifecycle.closeExternalAdmission()).toMatchObject({
+      state: "running",
+      externalAdmission: "closed",
+    })
+    expect(await lifecycle.acceptAgentParticle(agentInflaton(3))).toEqual({
+      ok: false,
+      reason: "admission_closed",
+      error: "Force external admission is held by an internal causal operation",
+    })
+
+    const causal: SourcedForceMessage = {
+      parts: [{
+        part: "graviton",
+        op: "replace",
+        path: "atom/2",
+        by: "boundary",
+        ts: 4,
+        value: {atom: {id: 2, wimp: "zavx0z/lada"}},
+      }],
+    }
+    expect(await lifecycle.acceptParticle("boundary", causal)).toMatchObject({ok: true})
+    expect(accepted).toEqual([causal.parts[0]])
+
+    expect(lifecycle.openExternalAdmission()).toMatchObject({
+      state: "running",
+      externalAdmission: "open",
+    })
+    expect((await lifecycle.acceptAgentParticle(agentInflaton(5))).ok).toBe(true)
   })
 
   test("accepts and sources the agent WIMP remove through the same Force Monad ingress", async () => {

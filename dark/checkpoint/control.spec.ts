@@ -5,6 +5,7 @@ import {join} from "node:path"
 import {
   FORCE_CHECKPOINT_OUTGOING_THROUGH_METHOD,
   FORCE_CHECKPOINT_PREPARE_METHOD,
+  FORCE_CHECKPOINT_QUIESCE_METHOD,
   FORCE_CHECKPOINT_SESSION_METHOD,
   FORCE_CHECKPOINT_WAIT_APPLIED_METHOD,
 } from "shared/transport/force/checkpoint"
@@ -34,6 +35,7 @@ class Peer {
   async call(_target: string, method: string, params: unknown): Promise<unknown> {
     if (method === FORCE_CHECKPOINT_PREPARE_METHOD) return {ok: true}
     if (method === FORCE_CHECKPOINT_WAIT_APPLIED_METHOD) return structuredClone(params)
+    if (method === FORCE_CHECKPOINT_QUIESCE_METHOD) return {ok: true, outgoingOrdinal: 0}
     throw new Error(`Unexpected method: ${method}`)
   }
 }
@@ -96,5 +98,30 @@ describe("Dark checkpoint receipt persistence", () => {
       ordinal: 0,
     })
     expect(await waiting).toEqual({ok: true, ordinal: 0})
+  })
+
+  test("quiesces all domains, holds the exact baseline and releases explicitly", async () => {
+    const filename = join(root(), "control", "state.json")
+    initializeCheckpointControlBaseline(filename, "cut-control", 7)
+    const peer = new Peer()
+    const calls: string[] = []
+    const original = peer.call.bind(peer)
+    peer.call = async (target, method, params) => {
+      if (method === FORCE_CHECKPOINT_QUIESCE_METHOD) calls.push(target)
+      return await original(target, method, params)
+    }
+    const control = new DarkCheckpointControl(
+      filename,
+      {cutId: "cut-control", sequence: 7},
+      peer as never,
+    )
+
+    await expect(control.holdUnderClosedAdmission()).resolves.toMatchObject({
+      cutId: "cut-control",
+      acceptanceSequence: 7,
+      phase: "held",
+    })
+    expect(calls).toEqual(["dark", "boundary", "matrix", "energy", "bulk"])
+    expect(control.releaseAdmissionHold()).toMatchObject({phase: "open"})
   })
 })
