@@ -82,8 +82,18 @@ export class BulkMonad {
       options.promotionPath ?? join(MF117_STATE_DIRECTORY, "bulk-promotion.json")
   }
 
+  /** Register the closed MF-117 provider methods before the channel advertises them. */
+  onServerStarting(peer: Pick<MonadRpcPeer, "expose">): void {
+    peer.expose(MF117_BULK_PREFLIGHT_METHOD, async (input) =>
+      this.mf117Preflight(input))
+    peer.expose(MF117_BULK_PROMOTE_METHOD, async (input) =>
+      this.mf117Promote(input))
+    peer.expose(MF117_BULK_VERIFY_METHOD, async () =>
+      this.mf117Verify())
+  }
+
   async onServerStarted(
-    peer: Pick<MonadRpcPeer, "call"> & Partial<Pick<MonadRpcPeer, "expose">>,
+    peer: Pick<MonadRpcPeer, "call">,
   ): Promise<{atoms: number; rootSrc: string}> {
     if (this.#state !== "created") throw new Error(`Bulk Monad cannot start from state: ${this.#state}`)
     this.#state = "loading"
@@ -99,12 +109,6 @@ export class BulkMonad {
       this.#activeSrc = [...this.#projection.atoms.values()]
         .filter((atom) => atom.parentAtom === null && atom.parentTopology === null)
         .at(-1)?.wimp ?? DEFAULT_BULK_SCENE_SRC
-      peer.expose?.(MF117_BULK_PREFLIGHT_METHOD, async (input) =>
-        this.mf117Preflight(input))
-      peer.expose?.(MF117_BULK_PROMOTE_METHOD, async (input) =>
-        this.mf117Promote(input))
-      peer.expose?.(MF117_BULK_VERIFY_METHOD, async () =>
-        this.mf117Verify())
       this.#state = "prepared"
       return {atoms: this.#projection.atoms.size, rootSrc: this.#activeSrc}
     } catch (error) {

@@ -16,6 +16,7 @@ const handoffs = new BulkObserverHandoffs()
 const monad = new BulkMonad()
 const transport = new MonadTransport("bulk")
 const rpc = new MonadRpcPeer(transport.channel)
+monad.onServerStarting(rpc)
 const checkpoint = installForceCheckpointSideband("bulk", rpc)
 let force: Force | null = null
 

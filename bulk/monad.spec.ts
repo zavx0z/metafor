@@ -5,6 +5,11 @@ import {join} from "node:path"
 import {BOUNDARY_INITIAL_PROJECTION_METHOD} from "@metafor/types/boundary/initial"
 import type {BoundaryInitialProjectionEntry} from "@metafor/types/boundary/initial"
 import type {Particle} from "shared/protocol/force/particle"
+import {
+  MF117_BULK_PREFLIGHT_METHOD,
+  MF117_BULK_PROMOTE_METHOD,
+  MF117_BULK_VERIFY_METHOD,
+} from "../shared/mf117.ts"
 import {DEFAULT_BULK_SETTINGS} from "./settings.ts"
 import {BulkMonad} from "./monad.ts"
 import {BulkProjectionStore} from "./projection.ts"
@@ -18,6 +23,23 @@ afterEach(() => {
 })
 
 describe("Bulk Monad", () => {
+  test("registers the closed MF-117 methods before the channel advertises them", () => {
+    const methods: string[] = []
+    const monad = new BulkMonad()
+
+    monad.onServerStarting({
+      expose(method: string) {
+        methods.push(method)
+      },
+    } as never)
+
+    expect(methods.toSorted()).toEqual([
+      MF117_BULK_PREFLIGHT_METHOD,
+      MF117_BULK_PROMOTE_METHOD,
+      MF117_BULK_VERIFY_METHOD,
+    ])
+  })
+
   test("loads the complete Boundary projection before preparing an observer package", async () => {
     const calls: unknown[] = []
     const peer = {
