@@ -196,3 +196,18 @@ stage с `effects: none` сам по себе никогда не станови
 Bridge возвращает значение только для уже существующего локального аргумента
 Bulk manifestation. Он не создаёт Monad/Force/RPC endpoint, не публикует
 external capability и не разрешает activation или lifecycle transition.
+
+Owner-approved detached acceptance может передать bridge proof только после
+выполнения exact staged plan внутри candidate Boundary copy. Перед выполнением
+private executor заново связывает bundle, checkpoint, rollback manifest,
+stage receipt и сохранённые proposal/plan bytes; любое расхождение закрывает
+gate до transaction. Post-dissolve Boundary projection и Bulk manifestation
+являются read-only evidence этого candidate, а не новым checkpoint или live
+state.
+
+Rollback acceptance не перезаписывает active paths. Она восстанавливает ещё
+одну private copy только из `rollback/`, сверяет каждый ordered
+`path + length + SHA-256`, SQLite integrity, history/control identity и
+pre-MetaJSON digest. Даже успешные detached execution, browser proof и
+restoration proof не разрешают live publication, source/root transition,
+Force/Monad admission, Energy retarget, restart или hot reload.

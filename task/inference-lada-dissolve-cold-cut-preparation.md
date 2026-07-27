@@ -1,9 +1,9 @@
 # Inference → Lada dissolve: cold-cut preparation
 
-Status: non-live durable-candidate prerequisite implemented; live evidence and
-cold-cut runbook remain preparatory only. This document does not expose a
-runtime capability, authorize staging against live data, or authorize
-activation/deletion.
+Status: non-live durable-candidate and detached acceptance prerequisites
+implemented; live evidence and cold-cut runbook remain preparatory only. This
+document does not expose a runtime capability, authorize staging against live
+data, or authorize activation/deletion.
 
 The owner documents remain [`boundary/DOMAIN.md`](../boundary/DOMAIN.md),
 [`docs/CHECKPOINTS.md`](../docs/CHECKPOINTS.md),
@@ -12,7 +12,7 @@ The owner documents remain [`boundary/DOMAIN.md`](../boundary/DOMAIN.md),
 
 ## Confirmed implementation boundary
 
-The integrated private proof has five parts:
+The integrated private proof has six parts:
 
 1. `boundary/dissolve.ts` plans and executes one atomic transaction only on a
    caller-provided isolated Boundary database. It preserves the Lada Atom and
@@ -35,6 +35,12 @@ The integrated private proof has five parts:
    records ordered hashes and an immutable local current-sequence checkpoint,
    stages only the detached candidate, reopens it for verification, and keeps
    both successful and failed bundles.
+6. `boundary/dissolve-candidate-execution.ts` reopens the exact stored plan,
+   proves byte-identical current planning and all CAS, executes only inside the
+   detached candidate and returns `BoundaryDissolveProof` plus post-MetaJSON.
+   The matching bridge receipt is passed into Bulk manifestation, while
+   `runtime/dissolve-candidate-acceptance.ts` verifies a second private
+   rollback restoration and produces browser/static evidence.
 
 The observed five authored mappings are:
 
@@ -60,16 +66,17 @@ The remaining reusable primitives have narrower behavior:
   Generalized publication is deliberately reachable only through the private
   candidate orchestration and requires exact history/patch coverage;
 - the private bundle includes Dark Force history, checkpoint-control state,
-  raw rollback hashes and the dissolve stage, but it does not capture source
-  Git evidence or prove a real authored Lada projection;
+  raw rollback hashes and the dissolve stage; MF-115 proves its exact accepted
+  declaration/runtime projection and detached Lada root, but it still does
+  not define a canonical authored source transition for live activation;
 - `holdUnderClosedAdmission()` has no authenticated service endpoint or
   lifecycle coordinator that closes external ingress and invokes all domain
   quiescence methods;
 - Energy fence state is process-local and per identity. It has no durable
   aggregate five-handle receipt, no crash recovery, and no post-commit retarget
   from source declarations to target declarations;
-- the dissolve proof returns no Force/Graviton consequence plan and has no
-  Monad/Force admission path.
+- the dissolve proof still returns no Force/Graviton consequence plan and has
+  no Monad/Force admission path.
 
 ## Implemented durable stage boundary
 
@@ -185,13 +192,15 @@ No step below is authorized by this document.
 11. Prove the stage did not change Boundary/Mass/history/control/source bytes.
     Stop here for a separate activation decision.
 
-### D. Future activation, only after a new owner gate
+### D. Completed detached acceptance and future activation
 
-12. Apply the staged transaction only to a detached candidate Boundary copy.
-13. Verify planned MetaJSON, SQLite integrity, exact runtime order, five Mass
-    ownership transfers, four unchanged present files, absent `chatOutbox`,
-    retained superseded target keys, and zero unexpected files.
-14. Resolve the chosen causal model before publication:
+12. Completed by MF-115: apply the exact staged transaction only to a detached
+    candidate Boundary copy.
+13. Completed by MF-115: verify planned MetaJSON, SQLite integrity, exact
+    runtime order, five Mass ownership transfers, four unchanged present
+    files, absent `chatOutbox`, retained superseded target keys, Bulk reframe,
+    browser/static scene and a second private rollback restoration.
+14. Before any live publication, resolve the chosen causal model:
     either a new-cut cold baseline for the already transformed candidate, or
     an authenticated Monad→Force→Boundary multi-entity admission protocol.
 15. Atomically publish the verified candidate according to that chosen model,
@@ -258,10 +267,9 @@ No step below is authorized by this document.
 
 ## Exact remaining owner decisions
 
-The owner has approved and MF-114 implements the non-live durable stage,
-detached-candidate table ownership, and generalized private current-sequence
-checkpoint/rollback capture. None of those decisions authorizes use against
-live paths.
+The owner has approved MF-114 durable staging and MF-115 exact detached
+execution, Bulk reframe, browser/static acceptance and private restoration
+proof. None of those decisions authorizes use against live paths.
 
 Live activation remains a later gate. Before it, the owner must separately
 choose:

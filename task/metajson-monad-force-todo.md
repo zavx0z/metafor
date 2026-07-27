@@ -874,11 +874,75 @@
   - live Boundary/Mass/Inference, процессы и listeners не читались и не
     изменялись; runtime lifecycle и hot reload не вызывались.
 - Remaining blocked gates:
-  - live preflight/stage/activation, detached transaction execution и
-    publication не разрешены;
+  - live preflight/stage/activation и publication не разрешены;
+  - detached transaction execution закрыт следующим non-live item `MF-115`,
+    но не создаёт live capability;
   - canonical Inference→Lada source/root transition не определён;
   - Force/Monad admission и Energy five-handle fence/retarget не реализованы;
   - retention GC требует отдельного owner decision.
+
+### MF-115 — Принять detached dissolve, Bulk reframe и browser proof
+
+- Status: `DONE`
+- Current executor: canonical Inference integration checkout, delegated from
+  Codex task `019fa120-7413-7d32-938c-16aa6dac3fdc`.
+- Dependencies: `MF-114`
+- Authority:
+  - owner разрешил exact staged dissolve только внутри detached candidate,
+    заново собранного из exact accepted stopped cut;
+  - разрешены `BoundaryDissolveProof`, post-dissolve projection, non-null
+    `BulkRootPromotionReceipt`, isolated browser/static visual proof и private
+    rollback restoration proof;
+  - live Inference/Boundary/Mass mutation, activation, authored source/root
+    transition, Force/Monad, Energy, processes, restart и hot reload запрещены.
+- Acceptance:
+  - candidate+rollback bundle заново связывает exact accepted
+    `(cutId, sequence)`, pre-projection и former Inference root frame;
+  - executor читает и повторно проверяет exact stored proposal/plan bytes,
+    stage/bundle/checkpoint digests и current CAS до detached transaction;
+  - proof и post-projection подтверждают отсутствие Inference, Lada root,
+    сохранение всей Lada subtree identity/order и пяти Mass mappings;
+  - matching non-null promotion receipt передаётся в Bulk manifestation, а
+    captured former-root frame применяется ко всему Lada subtree;
+  - реальный browser check из isolated launch/static fixture показывает
+    здоровую candidate scene и сохраняет screenshot/DOM evidence;
+  - отдельная private restoration из rollback bytes повторно проходит ordered
+    hashes, SQLite/history/control и pre-projection verification;
+  - live activation остаётся отдельным owner gate.
+- Evidence:
+  - private executor повторно читает exact stored proposal/plan, требует
+    byte-identical fresh plan, stage MetaJSON digest и все structural/Mass CAS,
+    затем вызывает transaction только на caller-owned detached Boundary;
+  - exact accepted checkpoint
+    `757700c6714e0da8d3ac98f3b43b2caecbd22d72` /
+    `(mf102-20260726T150016Z-53b4bd78-0930-4ccf-b83e-c147f3cea66a, 1)`
+    с pre-projection
+    `ea0511057c063d0aaa40f34888ce8d70102e8733581ddc0f719f7dd5b8484cd1`
+    породил retained bundle
+    `6129bd683cc1f1f39103b33ee0662d088a2a17f8581cee3b335b85c651d317e8`
+    и private checkpoint commit
+    `a97c057c3520fcd63afd6b38df99504ba1c634be`;
+  - `BoundaryDissolveProof` сохранил Atom `2..6`, перенёс пять global Mass
+    identities, включая deterministic absent `chatOutbox`, и post-projection
+    получил SHA-256
+    `9d4d8bb5976c1988095ed2eeb445056dc846882a22b97b17031e98207a0edd5d`;
+  - non-null promotion receipt проявил ровно пять Lada Atom, depth `2`, без
+    Inference; former/promoted outer diameter совпал `100 mm`;
+  - headless Chrome static fixture выставил `data-acceptance="pass"` и
+    `PASS · SCENE HEALTHY`; PNG `1440×1000` имеет SHA-256
+    `3e0b35bc949e9eaa50b548affb5f9ca89c131dbba9f4ce0abf58acf7ab065b9e`;
+    WebGPU probe точно вернул `adapter unavailable`, поэтому production WebGPU
+    renderer этим browser proof не заявлен;
+  - rollback restoration повторно проверил `11` ordered files, Boundary
+    `quick_check=ok`, zero foreign-key violations, history/control exact
+    cut/sequence и вернул исходный pre-projection digest;
+  - source stopped inputs и checkpoint-control hash остались неизменны;
+    launcher/domain PIDs до/после совпали, lifecycle command не выполнялся;
+  - focused dissolve/promotion/manifestation: `24 pass`, `0 fail`,
+    `160 expect`;
+  - `bun run check`: typecheck pass, `42` expected diagnostics,
+    `1663 pass`, `0 fail`, `5562 expect` в `187` test files;
+  - `git diff --check`: clean; scoped implementation: этот commit.
 
 ### MF-109 — Реализовать Pause/Stack branchable execution workspace
 

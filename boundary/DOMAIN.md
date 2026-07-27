@@ -285,6 +285,20 @@ Energy fence/retarget, process lifecycle или source/root transition. Успе
 и failed candidate не удаляются автоматически; retention/GC остаётся отдельным
 owner gate.
 
+Следующий owner-approved non-live gate разрешает выполнить только exact
+`plan_json` из такого stage и только внутри того же detached candidate. Перед
+transaction private executor повторно проверяет bundle/checkpoint/stage
+binding, receipt и plan digests, текущие structural/Mass CAS и pre-MetaJSON.
+Локальные fence/release являются лишь записываемым proof порядка пяти identity
+и не вызывают Energy.
+
+Успех обязан вернуть `BoundaryDissolveProof` и валидный post-MetaJSON с Lada
+как root; исходный Inference Atom в candidate отсутствует, а сохранённые Lada
+Atom и всё её поддерево сохраняют identity и порядок. Это разрешение не
+распространяется на rollback copy, live Boundary, Monad/Force, Energy,
+authored source или process lifecycle. Detached execution не является
+materialization либо activation live Universe.
+
 ## Проверка
 
 Регрессии доказывают in-place identity Matter, live-reparent и rebind, смену
@@ -306,3 +320,6 @@ Durable candidate-регрессии дополнительно использу
 copies, повторно открывают stage из candidate SQLite, доказывают неизменность
 world rows/Mass bytes, точную checkpoint/rollback binding и отсутствие
 автоматического cleanup.
+Detached acceptance-регрессия дополнительно выполняет сохранённый plan только
+в candidate, сверяет proof/post-projection с immutable stage и доказывает
+побайтное восстановление отдельной rollback copy без записи в исходный cut.

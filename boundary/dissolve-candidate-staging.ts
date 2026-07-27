@@ -10,6 +10,7 @@ import {
 } from "./dissolve.ts"
 import {
   normalizeBoundaryDissolveProposalV1,
+  type BoundaryDissolveProposalV1,
   type BoundaryDissolveStagingHooks,
 } from "./dissolve-staging.ts"
 import type {BoundaryDatabase} from "./sqlite.ts"
@@ -55,6 +56,12 @@ export type BoundaryDissolveCandidateStageReceiptV1 = Readonly<{
   rollbackManifestSha256: string
   retention: typeof BOUNDARY_DISSOLVE_CANDIDATE_RETENTION
   effects: "none"
+}>
+
+export type BoundaryDissolveCandidateExactPlanV1 = Readonly<{
+  proposal: BoundaryDissolveProposalV1
+  plan: BoundaryDissolvePlan
+  receipt: BoundaryDissolveCandidateStageReceiptV1
 }>
 
 export type BoundaryDissolveCandidateStageErrorCode =
@@ -558,6 +565,69 @@ export class DetachedBoundaryDissolveCandidateStaging {
   ): Promise<BoundaryDissolveCandidateStageReceiptV1 | null> {
     const row = await this.#row(proposalId)
     return row ? receiptFromRow(row) : null
+  }
+
+  owns(boundary: BoundaryDatabase): boolean {
+    return this.#boundary === boundary
+  }
+
+  /**
+   * Returns only the exact plan bytes already persisted by this detached stage.
+   *
+   * A freshly planned current candidate must serialize identically before the
+   * stored plan can be used by the separate non-live acceptance executor.
+   */
+  async exactPlan(
+    proposalId: string,
+    hooks: BoundaryDissolveStagingHooks,
+  ): Promise<BoundaryDissolveCandidateExactPlanV1> {
+    return await this.#serialize(async () => {
+      const row = await this.#row(proposalId)
+      if (!row) {
+        throw new BoundaryDissolveCandidateStageError(
+          "stage_corrupt",
+          `Detached dissolve candidate stage ${proposalId} is missing`,
+        )
+      }
+      const receipt = receiptFromRow(row)
+      const proposal = normalizeBoundaryDissolveProposalV1(
+        JSON.parse(row.proposalJson) as unknown,
+      )
+      const currentPlan = await planBoundaryDissolve(
+        this.#boundary,
+        proposal.request,
+        hooks.massEvidence,
+      )
+      validateCandidateMassEvidence(currentPlan)
+      if (
+        JSON.stringify(currentPlan) !== row.planJson ||
+        planSha256(currentPlan) !== receipt.planSha256
+      ) {
+        throw new BoundaryDissolveCandidateStageError(
+          "pre_state_conflict",
+          "Detached dissolve candidate no longer matches its exact staged plan",
+        )
+      }
+      const metaJSON = await hooks.readMetaJSON(
+        proposal.request.source,
+        "before",
+      )
+      if (
+        !validateMetaJSONV1(metaJSON) ||
+        metaJSON.root !== proposal.request.source ||
+        sha256(JSON.stringify(metaJSON)) !== receipt.metaJSONSha256
+      ) {
+        throw new BoundaryDissolveCandidateStageError(
+          "pre_state_conflict",
+          "Detached dissolve candidate MetaJSON no longer matches its stage",
+        )
+      }
+      return Object.freeze({
+        proposal,
+        plan: JSON.parse(row.planJson) as BoundaryDissolvePlan,
+        receipt,
+      })
+    })
   }
 
   async count(): Promise<number> {

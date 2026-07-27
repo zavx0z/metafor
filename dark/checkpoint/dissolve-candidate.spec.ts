@@ -30,6 +30,12 @@ import {
   DetachedBoundaryDissolveCandidateStaging,
 } from "../../boundary/dissolve-candidate-staging.ts"
 import {
+  executeDetachedBoundaryDissolveCandidate,
+} from "../../boundary/dissolve-candidate-execution.ts"
+import {
+  createIsolatedBoundaryDissolveMassEvidenceReader,
+} from "../../boundary/dissolve-mass-evidence.ts"
+import {
   BOUNDARY_DISSOLVE_PROPOSAL_V1,
   type BoundaryDissolveProposalV1,
 } from "../../boundary/dissolve-staging.ts"
@@ -46,6 +52,12 @@ import {
 import {
   createDetachedDissolveCandidateBundle,
 } from "./dissolve-candidate.ts"
+import {
+  captureDetachedDissolveRootFrame,
+  produceBulkRootPromotionReceipt,
+} from "./dissolve-promotion.ts"
+import {BulkProjectionStore} from "../../bulk/projection.ts"
+import {buildBulkManifestation} from "../../bulk/manifestation.ts"
 
 const SOURCE = parseMetaAddress("synthetic/inference")!
 const TARGET = parseMetaAddress("synthetic/lada")!
@@ -121,18 +133,22 @@ const templateEntry = (
   ...(matter ? {matter} : {}),
 })
 
-const template = (): MetaJSONV1["template"] => ({
-  [SOURCE]: templateEntry("Inference", SOURCE_KEYS, [{
-    kind: "wimp",
-    src: TARGET,
-  }]),
-  [TARGET]: templateEntry("Lada", TARGET_KEYS, [{
-    kind: "wimp",
-    src: LEAF,
-    massBinding: {data: "/mass", directMass: {kind: "whole"}},
-  }]),
-  [LEAF]: templateEntry("Lada child", TARGET_KEYS),
-})
+const template = (root: MetaAddress): MetaJSONV1["template"] => {
+  const value: MetaJSONV1["template"] = {
+    [SOURCE]: templateEntry("Inference", SOURCE_KEYS, [{
+      kind: "wimp",
+      src: TARGET,
+    }]),
+    [TARGET]: templateEntry("Lada", TARGET_KEYS, [{
+      kind: "wimp",
+      src: LEAF,
+      massBinding: {data: "/mass", directMass: {kind: "whole"}},
+    }]),
+    [LEAF]: templateEntry("Lada child", TARGET_KEYS),
+  }
+  if (root !== SOURCE) delete value[SOURCE]
+  return value
+}
 
 const metaJSONReader = (
   boundary: BoundaryDatabase,
@@ -141,7 +157,8 @@ const metaJSONReader = (
   assembleMetaJSON({
     async call<T>(target: string, method: string): Promise<T> {
       if (target === "dark" && method === DARK_DECLARATION_PROJECTION_METHOD) {
-        return {root, template: template()} as T
+        const declaration = template(root)
+        return {root, template: declaration} as T
       }
       if (
         target === "boundary" &&
@@ -289,6 +306,16 @@ const createFixture = async (): Promise<Fixture> => {
     readMetaJSON: async (candidate, requested) =>
       await metaJSONReader(candidate, requested),
   }
+}
+
+const bulkProjection = async (
+  boundary: BoundaryDatabase,
+): Promise<ReturnType<BulkProjectionStore["view"]>> => {
+  const store = new BulkProjectionStore()
+  for (const entry of (await boundary.initialProjection()).entries) {
+    store.apply({...entry, by: "boundary", ts: 0} as Particle)
+  }
+  return store.view()
 }
 
 const massSnapshot = (directory: string): Array<{
@@ -487,5 +514,119 @@ describe("detached durable dissolve candidate bundle", () => {
       retention: BOUNDARY_DISSOLVE_CANDIDATE_RETENTION,
       effects: "none",
     })
+  })
+
+  test("executes only the exact detached stage and reframes the complete promoted subtree", async () => {
+    const fixture = await createFixture()
+    const target = join(fixture.root, "accepted-candidate")
+    const result = await createDetachedDissolveCandidateBundle({
+      targetDirectory: target,
+      root: SOURCE,
+      stoppedBoundary: fixture.boundary,
+      stoppedMassDirectory: fixture.mass,
+      stoppedHistoryDirectory: fixture.history,
+      stoppedControlState: fixture.control,
+      previousSnapshotSequence: null,
+      baseProjection: fixture.projection,
+      patches: [
+        {sequence: 1, operations: []},
+        {sequence: 2, operations: []},
+      ],
+      proposal: fixture.proposal,
+      validAbsent: [fixture.absent],
+      capturedAt: "2026-07-27T08:03:00.000Z",
+      confirmStoppedPrivateCopies: true,
+      readMetaJSON: fixture.readMetaJSON,
+    })
+    const candidatePath = join(target, "candidate", "boundary.sqlite")
+    const candidateMass = join(target, "candidate", "mass")
+    const candidate = await openBoundary(candidatePath, {
+      massCatalog: new MassCatalog(candidateMass),
+    })
+    const beforeProjection = await bulkProjection(candidate)
+    const beforeManifest = buildBulkManifestation(beforeProjection, SOURCE)
+    const formerRoot = beforeManifest.darkParticles.find(
+      ({darkParticleId}) => darkParticleId === result.stage.sourceAtom * 2,
+    )!
+    const frame = {
+      localX: formerRoot.localX,
+      localY: formerRoot.localY,
+      localZ: formerRoot.localZ,
+      outerDiameterMm:
+        (formerRoot.torusRadius + formerRoot.torusTube) *
+        formerRoot.torusScale * 2,
+    }
+    const frameCapture = captureDetachedDissolveRootFrame(
+      result.receipt,
+      result.stage,
+      frame,
+    )
+    const staging = await DetachedBoundaryDissolveCandidateStaging.open(
+      candidate,
+      {
+        checkpoint: result.stage.checkpoint,
+        rollbackManifestSha256: result.rollbackManifestSha256,
+      },
+    )
+    const massEvidence = createIsolatedBoundaryDissolveMassEvidenceReader(
+      candidateMass,
+      [fixture.absent],
+    )
+    const acceptance = await executeDetachedBoundaryDissolveCandidate(
+      candidate,
+      staging,
+      fixture.proposal.proposalId,
+      {
+        massEvidence,
+        readMetaJSON: async (root) => await metaJSONReader(candidate, root),
+      },
+    )
+    const promotion = produceBulkRootPromotionReceipt({
+      bundle: result.receipt,
+      stage: result.stage,
+      frameCapture: frameCapture!,
+      proof: acceptance.proof,
+    })
+    const afterProjection = await bulkProjection(candidate)
+    const manifestation = buildBulkManifestation(
+      afterProjection,
+      SOURCE,
+      {},
+      promotion,
+    )
+
+    expect(frameCapture).not.toBeNull()
+    expect(promotion).not.toBeNull()
+    expect(acceptance.localFenceProof.effects).toBe("none")
+    expect(acceptance.localFenceProof.fenced).toHaveLength(5)
+    expect(acceptance.localFenceProof.released)
+      .toEqual(acceptance.localFenceProof.fenced.toReversed())
+    expect(acceptance.postMetaJSON.root).toBe(TARGET)
+    expect(acceptance.postMetaJSON.template[SOURCE]).toBeUndefined()
+    expect(afterProjection.atoms.some(({id}) => id === result.stage.sourceAtom))
+      .toBe(false)
+    expect(afterProjection.atoms.find(({id}) => id === result.stage.targetAtom))
+      .toMatchObject({
+        parentAtom: null,
+        parentTopology: null,
+        wimp: TARGET,
+      })
+    expect(manifestation.rootSrc).toBe(TARGET)
+    expect(manifestation.darkParticles.map(({darkParticleId}) => darkParticleId))
+      .toEqual([result.stage.targetAtom * 2, (result.stage.targetAtom + 1) * 2])
+    expect(manifestation.darkParticles[0]).toMatchObject({
+      parentDarkParticleId: null,
+      localX: frame.localX,
+      localY: frame.localY,
+      localZ: frame.localZ,
+    })
+    expect(
+      (manifestation.darkParticles[0]!.torusRadius +
+        manifestation.darkParticles[0]!.torusTube) *
+      manifestation.darkParticles[0]!.torusScale * 2,
+    ).toBeCloseTo(frame.outerDiameterMm, 12)
+    expect(await candidate.projection.sql<unknown[]>`PRAGMA foreign_key_check`)
+      .toEqual([])
+    await candidate.close()
   })
 })

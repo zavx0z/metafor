@@ -811,6 +811,17 @@ current-sequence local checkpoint, связывает raw rollback hashes/receip
 canonical Inference→Lada source/root transition, Force admission и Energy
 retarget этим решением не утверждены.
 
+Owner отдельно утвердил следующий `MF-115` NON-LIVE acceptance gate. Exact
+serialized plan разрешено выполнить только внутри candidate, собранного из
+принятого stopped cut; rollback copy и исходные accepted inputs остаются
+неизменными. Успех связывает `BoundaryDissolveProof`, post-dissolve projection,
+non-null Bulk root-promotion receipt и browser/static visual evidence. Fence
+hooks на этом gate являются только локальным proof и не обращаются к Energy.
+Rollback проверяется восстановлением ещё одной private copy с повторной
+проверкой hashes/SQLite/history/control/pre-projection. Live activation,
+source/root transition, Force/Monad, Energy и lifecycle по-прежнему требуют
+отдельного owner gate.
+
 ### 15.5 Pause/Stack и ветвящийся execution workspace
 
 Owner уточнил назначение checkpoint line: это не только offline replay, а
