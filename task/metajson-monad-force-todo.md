@@ -701,6 +701,20 @@
   - keep pause/step outside Force wire and keep UI controls inactive until
     `MF-103` and `MF-109` are complete and an independent verifier accepts the
     read-only reconstruction boundary.
+- Documentation authority gate `MF-110R-DOC`:
+  - Status: `GATE`; canonical RPC law belongs to Create MetaFor in the separate
+    general MetaFor repository, under All Rules `create-metafor/rules/`;
+  - read-only inspection of published general MetaFor `origin/main` revision
+    `35c201f04d814ef5028bf1b8a0841185cb0e6da1` found only
+    `create-metafor/rules/metafor.md`, an authoring guide with no RPC/service,
+    Monad, history, checkpoint or pause/step contract;
+  - exact missing rule slot is `create-metafor/rules/rpc.md`;
+  - next available general-MetaFor executor must create that rule, define
+    method ownership/discovery, closed read/status DTOs, pause/step commands,
+    selected-tick isolated projection and Force-wire exclusions, then register
+    the owner document in general MetaFor `docs/README.md`;
+  - this Inference worktree must not create or edit the external rule; its
+    plan/TODO remain evidence pointers until the canonical rule is accepted.
 - Acceptance:
   - Interpreter через closed Dark Monad contract умеет pause, inspect layer,
     step forward/backward и create/list/discard execution branch;

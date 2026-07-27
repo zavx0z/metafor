@@ -834,6 +834,18 @@ resolution. Pause/step являются service commands владельцев, �
 Force wire и не активируются в UI либо live contour до завершения
 `MF-103`/`MF-109` и отдельного verification gate.
 
+Canonical documentation authority этого RPC contract находится не в
+Inference-specific plan, а в отдельном общем MetaFor: Create MetaFor,
+директория All Rules `create-metafor/rules/`. На проверенном published general
+MetaFor `origin/main` revision `35c201f04d814ef5028bf1b8a0841185cb0e6da1`
+там существует только
+`create-metafor/rules/metafor.md` с правилами authoring `meta.ts`; RPC rule либо
+соответствующего section нет. Целевой missing slot —
+`create-metafor/rules/rpc.md`. До его появления этот plan фиксирует только
+Inference evidence и dependency, но не становится вторым владельцем RPC law.
+Создание canonical rule и регистрация его в `docs/README.md` общего MetaFor
+выполняются отдельным executor в том репозитории.
+
 ## 16. Как обновлять план
 
 - Новый обязательный закон сначала фиксируется у domain owner.
