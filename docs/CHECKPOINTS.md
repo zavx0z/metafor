@@ -162,3 +162,25 @@ ref только после полной проверки. Он не откры�
 logical blob, 256 MiB на checkpoint и не более 256 Mass entries. Другие
 triggers, retention/GC, encryption/device distribution, remote и push остаются
 отдельными будущими gates.
+
+Generalized current-sequence capture разрешён только для private detached
+candidate/rollback bundle после доказанной полной остановки. Он принимает
+current `(cutId, S)`, существующий previous snapshot либо доказанный initial
+base и полный canonical forward-patch span для каждой history sequence от
+`previous + 1` до `S`. Отсутствующая sequence, invented empty patch при
+изменившейся projection, несовпадающий previous digest или history gap
+отклоняют публикацию.
+
+Bundle копирует Boundary SQLite/WAL/SHM, Mass, Dark Force history и checkpoint
+control state в новый private target, не открывая source paths in place.
+Rollback manifest фиксирует deterministic ordered hashes/lengths каждого
+regular file, checkpoint commit/identity и полный bundle digest. Detached
+candidate Boundary затем может добавить только Boundary-owned stage table;
+pre-stage checkpoint остаётся rollback truth, а staged Boundary получает
+отдельный digest в candidate receipt.
+
+Candidate bundle имеет `effects: none` и retention
+`retain-until-explicit-gc`. Ни успешный preparation, ни corruption/failure не
+удаляют bundle автоматически. Такой capture не является live restore,
+activation, новым Force cut или правом менять canonical source; эти действия
+остаются отдельными owner gates.

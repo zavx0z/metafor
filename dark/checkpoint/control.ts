@@ -135,7 +135,9 @@ const parseState = (value: unknown): CheckpointControlStateV1 => {
   }
 }
 
-const readState = (filename: string): CheckpointControlStateV1 => {
+export const readCheckpointControlState = (
+  filename: string,
+): CheckpointControlStateV1 => {
   let value: unknown
   try {
     value = JSON.parse(readFileSync(filename, "utf8")) as unknown
@@ -159,7 +161,7 @@ export const initializeCheckpointControlBaseline = (
     acceptedOutgoing: forceDomains.map((domain) => ({domain, ordinal: 0})),
   }
   if (existsSync(filename)) {
-    const current = readState(filename)
+    const current = readCheckpointControlState(filename)
     if (JSON.stringify(current) !== JSON.stringify(state)) {
       throw new Error("Checkpoint control baseline already exists with different content")
     }
@@ -197,7 +199,7 @@ export class DarkCheckpointControl {
       }
       initializeCheckpointControlBaseline(this.filename, history.cutId, 0)
     }
-    const state = readState(this.filename)
+    const state = readCheckpointControlState(this.filename)
     if (
       state.barrier.cutId !== history.cutId ||
       state.barrier.acceptanceSequence !== history.sequence

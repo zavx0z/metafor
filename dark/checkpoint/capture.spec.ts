@@ -9,7 +9,9 @@ import {
 } from "@metafor/types/metafor/meta-json"
 import {
   LOCAL_CHECKPOINT_LIMITS_V1,
+  publishCurrentOfflineCheckpoint,
   publishFirstOfflineCheckpoint,
+  type CurrentOfflineCheckpointPublication,
   type FirstOfflineCheckpointPublication,
 } from "./capture.ts"
 
@@ -106,5 +108,101 @@ describe("first offline checkpoint publication", () => {
       ...accepted,
       capturedAt: "2026-07-26T18:00:01.000Z",
     })).toThrow("does not match")
+  })
+})
+
+describe("generalized stopped checkpoint publication", () => {
+  test("publishes and resumes an exact current-sequence span after the prior checkpoint", () => {
+    const root = directory()
+    const first = publication(root)
+    publishFirstOfflineCheckpoint(first)
+    const current: CurrentOfflineCheckpointPublication = {
+      cutId: first.cutId,
+      sequence: 3,
+      previousSnapshotSequence: 1,
+      acceptedSequences: [2, 3],
+      base: first.result,
+      result: projection("Current"),
+      boundary: new TextEncoder().encode("standalone-sqlite-current"),
+      mass: first.mass,
+      patches: [
+        {
+          sequence: 2,
+          operations: [{
+            op: "replace",
+            path: "/template/example~1root/name",
+            value: "Intermediate",
+          }],
+        },
+        {
+          sequence: 3,
+          operations: [{
+            op: "replace",
+            path: "/template/example~1root/name",
+            value: "Current",
+          }],
+        },
+      ],
+      repository: first.repository,
+      capturedAt: "2026-07-26T18:00:03.000Z",
+      trigger: "owner-bookmark",
+      limits: LOCAL_CHECKPOINT_LIMITS_V1,
+    }
+
+    const published = publishCurrentOfflineCheckpoint(current)
+    const resumed = publishCurrentOfflineCheckpoint(current)
+    expect(resumed.commit).toBe(published.commit)
+    expect(published.manifest.identity).toEqual({cutId: first.cutId, sequence: 3})
+    expect(published.manifest.patches).toMatchObject({
+      previousSnapshotSequence: 1,
+      fromSequence: 2,
+      throughSequence: 3,
+      entries: 2,
+    })
+  })
+
+  test("rejects gaps and a different patch span on resume", () => {
+    const root = directory()
+    const first = publication(root)
+    publishFirstOfflineCheckpoint(first)
+    const current: CurrentOfflineCheckpointPublication = {
+      cutId: first.cutId,
+      sequence: 2,
+      previousSnapshotSequence: 1,
+      acceptedSequences: [2],
+      base: first.result,
+      result: projection("Current"),
+      boundary: new TextEncoder().encode("standalone-sqlite-current"),
+      mass: first.mass,
+      patches: [{
+        sequence: 2,
+        operations: [{
+          op: "replace",
+          path: "/template/example~1root/name",
+          value: "Current",
+        }],
+      }],
+      repository: first.repository,
+      capturedAt: "2026-07-26T18:00:02.000Z",
+      trigger: "owner-bookmark",
+      limits: LOCAL_CHECKPOINT_LIMITS_V1,
+    }
+    expect(() => publishCurrentOfflineCheckpoint({
+      ...current,
+      acceptedSequences: [],
+    })).toThrow("coverage")
+
+    publishCurrentOfflineCheckpoint(current)
+    expect(() => publishCurrentOfflineCheckpoint({
+      ...current,
+      patches: [{
+        sequence: 2,
+        operations: [{
+          op: "replace",
+          path: "/template/example~1root/name",
+          value: "Different but same final digest is impossible",
+        }],
+      }],
+    })).toThrow()
   })
 })

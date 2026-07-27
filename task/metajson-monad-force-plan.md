@@ -490,6 +490,19 @@ Mass, Force history или runtime processes.
 Energy cleanup/destroy и cold rollout остаются отдельными owner gates после
 основного structural slice.
 
+Owner-approved следующий non-live prerequisite использует только detached
+candidate bundle из caller-certified stopped private copies. Raw
+Boundary/WAL/SHM, Mass, Dark Force history и checkpoint control сохраняются как
+hashed rollback set. Отдельный candidate Boundary получает standalone SQLite
+и только Boundary-owned durable stage table с `effects: none`, exact
+checkpoint/rollback binding и explicit retention без automatic GC.
+
+Generalized current-sequence checkpoint требует полный verified history/forward
+patch coverage от предыдущего snapshot до current `S`; count не превращается в
+invented empty patches. Candidate stage не exposed в runtime и не разрешает
+transaction execution, materialization, Force/Energy admission/retarget,
+source/root transition, lifecycle или deletion.
+
 Если filesystem write успешен, а execution/materialization не удались:
 
 - source не откатывается автоматически;
@@ -789,6 +802,14 @@ Checkpoint-specific applied-through coordinator не утверждает общ
 multi-domain delivery protocol: персистентный Dark Force v2, общий causal
 convergence barrier, full VCS и права внутренних Runtime Agents остаются
 будущими решениями и не блокируют этот изолированный foundation.
+
+Owner отдельно утвердил `MF-114` как bounded continuation dissolve proof.
+Durable stage принадлежит таблице только detached candidate Boundary SQLite,
+а Dark checkpoint orchestration копирует stopped private inputs, публикует
+current-sequence local checkpoint, связывает raw rollback hashes/receipt и
+сохраняет successful/failed bundle до explicit GC. Live activation,
+canonical Inference→Lada source/root transition, Force admission и Energy
+retarget этим решением не утверждены.
 
 ### 15.5 Pause/Stack и ветвящийся execution workspace
 

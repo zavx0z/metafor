@@ -263,6 +263,28 @@ runtime lifecycle и не меняет Boundary/Mass. Повтор того же
 откатывает staging transaction. Этот adapter не экспортируется из Boundary
 package и не снимает отдельный live preflight/owner gate.
 
+Следующий разрешённый non-live срез делает stage durable только внутри
+detached candidate Boundary SQLite. Candidate сначала копируется из уже
+остановленного private checkpoint/rollback capture и никогда не открывает
+исходный Boundary path in place. В отдельной transaction candidate создаёт
+закрытую stage table и immutable receipt, связанный с точными
+`(cutId, acceptance sequence)`, checkpoint commit, rollback manifest и
+pre-state digests.
+
+Stage table является Boundary-owned служебным состоянием candidate, но не
+каноническим миром: world tables, Mass bytes, Force history и authored source
+при staging не меняются. Receipt по-прежнему имеет `effects: "none"` и содержит
+полный serialized plan, пять Mass mappings/evidence и explicit retention
+`retain-until-explicit-gc`. Reopen обязан проверить closed schema, hashes,
+SQLite integrity и checkpoint binding; collision, corruption или changed
+pre-state закрывают candidate.
+
+Candidate stage не экспортируется через Boundary/Monad/Force runtime. Он не
+разрешает activation, dissolve transaction, materialization, deletion,
+Energy fence/retarget, process lifecycle или source/root transition. Успешный
+и failed candidate не удаляются автоматически; retention/GC остаётся отдельным
+owner gate.
+
 ## Проверка
 
 Регрессии доказывают in-place identity Matter, live-reparent и rebind, смену
@@ -280,3 +302,7 @@ recursive-remove shape и отсутствие Boundary/Mass/deletion effects.
 Отдельная offline-регрессия доказывает deterministic absent marker для одной
 явно разрешённой Mass identity, отсутствие materialization bytes и отклонение
 directory/symlink либо неразрешённого missing path как corruption.
+Durable candidate-регрессии дополнительно используют только temporary stopped
+copies, повторно открывают stage из candidate SQLite, доказывают неизменность
+world rows/Mass bytes, точную checkpoint/rollback binding и отсутствие
+автоматического cleanup.

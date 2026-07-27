@@ -815,6 +815,71 @@
   - этот item не разрешает live staging, Mass materialization, activation или
     deletion; `MF-401` остаётся owner gate.
 
+### MF-114 — Добавить durable detached candidate stage и rollback capture
+
+- Status: `DONE`
+- Current executor: canonical Inference integration checkout, delegated from
+  Codex task `019fa120-7413-7d32-938c-16aa6dac3fdc`.
+- Dependencies: `MF-113`, `MF-108`
+- Authority:
+  - owner выбрал stage table внутри detached candidate Boundary SQLite;
+  - входами могут быть только stopped private checkpoint copies и synthetic
+    fixtures; live Boundary/Mass/Inference и процессы запрещены;
+  - разрешён generalized current-sequence checkpoint/rollback capture только
+    для private candidate bundle с hashes, receipts и explicit retention;
+  - activation, deletion, materialization, Force/Energy admission/retarget,
+    runtime lifecycle, hot reload и canonical source/root transition
+    запрещены.
+- Acceptance:
+  - owner law сначала фиксирует detached candidate и rollback retention;
+  - candidate создаётся копированием stopped Boundary/Mass/history/control
+    inputs в новый private bundle и никогда не открывает source paths in place;
+  - generalized capture связывает current `(cutId, sequence)`, verified history
+    coverage, Boundary/projection/Mass/history/control hashes и immutable local
+    checkpoint commit без first-sequence-only restriction;
+  - candidate Boundary SQLite содержит durable closed stage table/receipt,
+    exact checkpoint/backup binding, пять mappings и Mass evidence, но world
+    tables и Mass bytes не меняются;
+  - reopen/corruption/idempotency/CAS/retention/rollback tests используют
+    только temporary fixtures;
+  - bundle retention явная: successful preparation и failed candidates не
+    удаляются автоматически; GC остаётся отдельным owner gate;
+  - live activation и canonical source/root transition остаются `BLOCKED`
+    owner gates.
+- Evidence:
+  - `boundary/dissolve-candidate-staging.ts` добавляет closed strict stage
+    table только в caller-provided detached Boundary SQLite; receipt связывает
+    canonical proposal/plan, checkpoint commit/digests, raw rollback manifest,
+    пять Mass mappings/evidence, `effects: "none"` и
+    `retain-until-explicit-gc`;
+  - `dark/checkpoint/dissolve-candidate.ts` копирует stopped private
+    Boundary/WAL/SHM, Mass, history и control в новый bundle, фиксирует ordered
+    raw-file hashes, публикует local bare-Git checkpoint текущей sequence,
+    fsync/reopen-проверяет candidate и сохраняет successful/failed targets;
+  - generalized publisher проверяет exact contiguous history/patch span,
+    previous checkpoint identity и byte-identical resume; gap либо changed
+    retry отклоняются;
+  - temporary synthetic proof на sequence `2` подтверждает неизменность всех
+    source bytes, точный raw rollback hash, отсутствие remote, retained Lada,
+    отсутствующий `chatOutbox`, stage reopen/idempotency, wrong-binding и
+    corruption rejection; failure bundle также сохраняется с
+    `effects: "none"`;
+  - `bun test dark/checkpoint/capture.spec.ts
+    dark/checkpoint/repository.spec.ts
+    dark/checkpoint/dissolve-candidate.spec.ts boundary/dissolve.spec.ts`:
+    `22 pass`, `0 fail`, `139 expect()`;
+  - `bun run check`: typecheck, `42` expected type diagnostics и `1654 pass`,
+    `0 fail` в `185` файлах;
+  - `git diff --check`: clean;
+  - live Boundary/Mass/Inference, процессы и listeners не читались и не
+    изменялись; runtime lifecycle и hot reload не вызывались.
+- Remaining blocked gates:
+  - live preflight/stage/activation, detached transaction execution и
+    publication не разрешены;
+  - canonical Inference→Lada source/root transition не определён;
+  - Force/Monad admission и Energy five-handle fence/retarget не реализованы;
+  - retention GC требует отдельного owner decision.
+
 ### MF-109 — Реализовать Pause/Stack branchable execution workspace
 
 - Status: `WAITING`

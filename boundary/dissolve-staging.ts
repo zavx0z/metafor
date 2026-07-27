@@ -96,7 +96,9 @@ const invalidProposal = (message: string): never => {
   throw new BoundaryDissolveStagingError("invalid_proposal", message)
 }
 
-const normalizeProposal = (value: unknown): BoundaryDissolveProposalV1 => {
+export const normalizeBoundaryDissolveProposalV1 = (
+  value: unknown,
+): BoundaryDissolveProposalV1 => {
   if (
     !isRecord(value) ||
     !hasExactKeys(value, ["schema", "proposalId", "operation", "request"]) ||
@@ -250,7 +252,7 @@ export class IsolatedBoundaryDissolveStaging {
     hooks: BoundaryDissolveStagingHooks,
   ): Promise<BoundaryDissolveStageReceiptV1> {
     return await this.#serialize(async () => {
-      const proposal = normalizeProposal(input)
+      const proposal = normalizeBoundaryDissolveProposalV1(input)
       const proposalJson = JSON.stringify(proposal)
       const proposalDigest = sha256(proposalJson)
       let transaction = false

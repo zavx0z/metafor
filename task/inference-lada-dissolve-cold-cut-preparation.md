@@ -1,8 +1,9 @@
 # Inference → Lada dissolve: cold-cut preparation
 
-Status: evidence and proposed runbook only. This document does not change a
-domain law, expose a runtime capability, authorize staging against live data,
-or authorize activation/deletion.
+Status: non-live durable-candidate prerequisite implemented; live evidence and
+cold-cut runbook remain preparatory only. This document does not expose a
+runtime capability, authorize staging against live data, or authorize
+activation/deletion.
 
 The owner documents remain [`boundary/DOMAIN.md`](../boundary/DOMAIN.md),
 [`docs/CHECKPOINTS.md`](../docs/CHECKPOINTS.md),
@@ -11,7 +12,7 @@ The owner documents remain [`boundary/DOMAIN.md`](../boundary/DOMAIN.md),
 
 ## Confirmed implementation boundary
 
-The integrated private proof has three parts:
+The integrated private proof has five parts:
 
 1. `boundary/dissolve.ts` plans and executes one atomic transaction only on a
    caller-provided isolated Boundary database. It preserves the Lada Atom and
@@ -24,6 +25,16 @@ The integrated private proof has three parts:
    regular files may be represented by lowercase SHA-256, while the explicitly
    allowlisted `chatOutbox` identity may be represented by
    `{kind: "absent", marker: "metafor/mass-absent/v1"}` without creating bytes.
+4. `boundary/dissolve-candidate-staging.ts` stores a closed durable stage table
+   only inside a detached candidate Boundary SQLite. Its receipt binds the
+   checkpoint commit/identity, raw rollback manifest, full plan, five Mass
+   entries and explicit `retain-until-explicit-gc` policy while keeping
+   `effects: "none"`.
+5. `dark/checkpoint/dissolve-candidate.ts` copies caller-certified stopped
+   private Boundary/Mass/history/control inputs into a new private bundle,
+   records ordered hashes and an immutable local current-sequence checkpoint,
+   stages only the detached candidate, reopens it for verification, and keeps
+   both successful and failed bundles.
 
 The observed five authored mappings are:
 
@@ -33,8 +44,8 @@ The observed five authored mappings are:
 - `chatOutbox → chatOutbox` with the explicit absent marker;
 - `greetingDraft → greetingDraft`.
 
-The following existing primitives are reusable but do not close the dissolve
-gate:
+The following existing primitives are reusable but do not close the live
+dissolve gate:
 
 - checkpoint identity `(cutId, acceptanceSequence)`, immutable local bare-Git
   commit, Boundary/Mass capture, and control baseline;
@@ -42,13 +53,15 @@ gate:
   `holdUnderClosedAdmission()` barrier model;
 - per-identity Energy Mass `fence`/`release` RPC.
 
-They have narrower current behavior:
+The remaining reusable primitives have narrower behavior:
 
 - `runtime/checkpoint.ts` requires external stopped-contour proof, but
-  `captureOfflineCheckpoint()` only publishes the first non-zero checkpoint
-  where history sequence is exactly `1` and base/current MetaJSON are equal;
-- checkpoint capture does not include Dark Force history, checkpoint-control
-  state, a dissolve stage, source Git evidence, or a complete rollback bundle;
+  its operational CLI still publishes only the first non-zero checkpoint.
+  Generalized publication is deliberately reachable only through the private
+  candidate orchestration and requires exact history/patch coverage;
+- the private bundle includes Dark Force history, checkpoint-control state,
+  raw rollback hashes and the dissolve stage, but it does not capture source
+  Git evidence or prove a real authored Lada projection;
 - `holdUnderClosedAdmission()` has no authenticated service endpoint or
   lifecycle coordinator that closes external ingress and invokes all domain
   quiescence methods;
@@ -58,12 +71,12 @@ They have narrower current behavior:
 - the dissolve proof returns no Force/Graviton consequence plan and has no
   Monad/Force admission path.
 
-## Minimal durable stage required before any activation gate
+## Implemented durable stage boundary
 
-A minimal future stage must be Boundary-owned private service state, not a
-Particle, MetaJSON field, source commit, checkpoint-history row, or public Mass
-observation. It must be created only from private copies made after the whole
-contour is proven stopped.
+The implemented stage is Boundary-owned private service state, not a Particle,
+MetaJSON field, source commit, checkpoint-history row, or public Mass
+observation. It can be created only from private copies whose caller explicitly
+certifies a stopped contour.
 
 The stage must contain closed, recoverably validated data:
 
@@ -99,18 +112,10 @@ Durability requires:
 - no live Boundary/Mass reader and no automatic creation of a missing Mass
   payload.
 
-Storage ownership still needs an owner choice:
-
-- a separate Boundary-owned stage SQLite keeps operation service state outside
-  the canonical world, but the rollback package must include it explicitly; or
-- a stage table inside a detached candidate Boundary SQLite is automatically
-  covered by that candidate's bytes, but it mixes service state into the
-  canonical database and therefore requires an explicit Boundary law.
-
-The existing checkpoint manifest cannot accept a new sidecar artifact without
-a schema/closed-tree change. A stage may instead reference an already verified
-checkpoint commit, but then the separate stage file and its hash must be part
-of the rollback/operation evidence.
+The owner selected a stage table inside the detached candidate Boundary
+SQLite. The immutable checkpoint remains the pre-stage truth; the rollback
+manifest hash is part of the stage binding, and the post-stage candidate
+Boundary hash is recorded separately in the bundle receipt.
 
 ## Required preflight evidence
 
@@ -164,8 +169,9 @@ No step below is authorized by this document.
    history, checkpoint-control state, and required source Git evidence into a
    private backup. Hash every item and verify restore readability.
 7. Publish and verify an immutable checkpoint for the current stopped state.
-   This requires a generalized current-sequence capture implementation; the
-   existing first-sequence-only CLI is insufficient.
+   The private candidate API now implements generalized current-sequence
+   capture, but the existing first-sequence-only operational CLI remains
+   intentionally insufficient for a live cut.
 8. Keep the original active paths unchanged. All following preparation uses
    private copies.
 
@@ -252,24 +258,18 @@ No step below is authorized by this document.
 
 ## Exact remaining owner decisions
 
-The next reversible implementation gate can be narrow only if the owner
-approves all of the following:
+The owner has approved and MF-114 implements the non-live durable stage,
+detached-candidate table ownership, and generalized private current-sequence
+checkpoint/rollback capture. None of those decisions authorizes use against
+live paths.
 
-1. Implement a **non-live durable stage only**, created from stopped private
-   checkpoint copies and still returning `effects: "none"`.
-2. Choose stage storage ownership: separate Boundary service SQLite
-   (recommended for separation) or a table in a detached candidate Boundary
-   SQLite.
-3. Authorize a generalized current-sequence checkpoint/rollback capture,
-   without remote/push or live restore.
-
-Live activation must remain a later gate. Before it, the owner must separately
+Live activation remains a later gate. Before it, the owner must separately
 choose:
 
-4. **Cold new-cut activation**: publish an offline-transformed candidate,
+1. **Cold new-cut activation**: publish an offline-transformed candidate,
    start a new cut, let Energy cold-rehydrate target handles, and accept that
    old live generations/destroy hooks do not participate; or
-5. **Causal activation**: first implement authenticated Monad/Force admission,
+2. **Causal activation**: first implement authenticated Monad/Force admission,
    persistent external-admission hold, atomic multi-entity staging,
    five-handle Energy fence/retarget and explicit post-commit consequences.
 

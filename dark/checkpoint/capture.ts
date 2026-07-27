@@ -27,6 +27,7 @@ import {
   CheckpointGitRepository,
   CheckpointRepositoryError,
   type CheckpointMassCapture,
+  type CheckpointPatchCaptureEntry,
   type CheckpointRepositoryLimits,
   type CheckpointWriteResult,
 } from "./repository.ts"
@@ -81,8 +82,42 @@ export type FirstOfflineCheckpointPublication = {
   limits?: CheckpointRepositoryLimits
 }
 
+export type CurrentOfflineCheckpointPublication = {
+  cutId: string
+  sequence: number
+  previousSnapshotSequence: number | null
+  acceptedSequences: number[]
+  base: MetaJSONV1
+  result: MetaJSONV1
+  boundary: Uint8Array
+  mass: CheckpointMassCapture[]
+  patches: CheckpointPatchCaptureEntry[]
+  repository: string
+  capturedAt: string
+  trigger: NonNullable<OfflineCheckpointCaptureOptions["trigger"]>
+  limits?: CheckpointRepositoryLimits
+}
+
 const sha256 = (value: Uint8Array): string =>
   createHash("sha256").update(value).digest("hex")
+
+const utf16Compare = (left: string, right: string): number =>
+  left < right ? -1 : left > right ? 1 : 0
+
+const canonicalValue = (value: unknown): unknown => {
+  if (Array.isArray(value)) return value.map(canonicalValue)
+  if (typeof value === "object" && value !== null) {
+    return Object.fromEntries(
+      Object.entries(value)
+        .toSorted(([left], [right]) => utf16Compare(left, right))
+        .map(([key, entry]) => [key, canonicalValue(entry)]),
+    )
+  }
+  return value
+}
+
+const canonicalBytes = (value: unknown): Uint8Array =>
+  new TextEncoder().encode(JSON.stringify(canonicalValue(value)))
 
 const copySQLiteSet = (source: string, targetDirectory: string): string => {
   const target = join(targetDirectory, basename(source))
@@ -235,6 +270,130 @@ const samePublishedCapture = (
     })
 }
 
+const expectedPatchSha256 = (
+  publication: CurrentOfflineCheckpointPublication,
+): string => {
+  const base = canonicalizeMetaJSONV1(publication.base)
+  const result = canonicalizeMetaJSONV1(publication.result)
+  return sha256(canonicalBytes({
+    schema: "metafor/checkpoint-forward-patches/v1",
+    cutId: publication.cutId,
+    projection: {
+      schema: "metafor/meta-json/v1",
+      root: result.value.root,
+      canonicalization: "rfc8785",
+    },
+    previousSnapshotSequence: publication.previousSnapshotSequence,
+    fromSequence: (publication.previousSnapshotSequence ?? 0) + 1,
+    throughSequence: publication.sequence,
+    base: {
+      sequence: publication.previousSnapshotSequence ?? 0,
+      sha256: base.sha256,
+    },
+    result: {
+      sequence: publication.sequence,
+      sha256: result.sha256,
+    },
+    entries: publication.patches,
+  }))
+}
+
+const samePublishedCurrentCapture = (
+  checkpoint: CheckpointWriteResult,
+  publication: CurrentOfflineCheckpointPublication,
+): boolean => {
+  const manifest = checkpoint.manifest
+  const result = canonicalizeMetaJSONV1(publication.result)
+  const expectedMass = publication.mass
+    .map((entry) => ({
+      keyId: entry.keyId,
+      format: entry.format,
+      sha256: sha256(entry.bytes),
+      bytes: entry.bytes.byteLength,
+    }))
+    .toSorted((left, right) => utf16Compare(left.keyId, right.keyId))
+  return manifest.identity.cutId === publication.cutId &&
+    manifest.identity.sequence === publication.sequence &&
+    manifest.capturedAt === publication.capturedAt &&
+    manifest.trigger.kind === publication.trigger &&
+    manifest.boundary.blob.sha256 === sha256(publication.boundary) &&
+    manifest.boundary.blob.bytes === publication.boundary.byteLength &&
+    manifest.projection.blob.sha256 === result.sha256 &&
+    manifest.patches.previousSnapshotSequence === publication.previousSnapshotSequence &&
+    manifest.patches.fromSequence === (publication.previousSnapshotSequence ?? 0) + 1 &&
+    manifest.patches.throughSequence === publication.sequence &&
+    manifest.patches.entries === publication.patches.length &&
+    manifest.patches.blob.sha256 === expectedPatchSha256(publication) &&
+    manifest.mass.length === expectedMass.length &&
+    manifest.mass.every((entry, index) => {
+      const expected = expectedMass[index]
+      return expected !== undefined &&
+        entry.keyId === expected.keyId &&
+        entry.format === expected.format &&
+        entry.blob.sha256 === expected.sha256 &&
+        entry.blob.bytes === expected.bytes
+    })
+}
+
+/**
+ * Publishes or resumes any verified stopped checkpoint sequence.
+ *
+ * The caller must provide the exact previous snapshot projection and one
+ * canonical patch entry for every accepted history sequence in the span.
+ * This function does not infer empty mutations from a count and does not
+ * initialize or change a live checkpoint-control baseline.
+ */
+export const publishCurrentOfflineCheckpoint = (
+  publication: CurrentOfflineCheckpointPublication,
+): CheckpointWriteResult => {
+  const fromSequence = (publication.previousSnapshotSequence ?? 0) + 1
+  if (
+    !Number.isSafeInteger(publication.sequence) ||
+    publication.sequence < fromSequence ||
+    publication.acceptedSequences.length !== publication.sequence - fromSequence + 1 ||
+    publication.acceptedSequences.some((sequence, index) => sequence !== fromSequence + index) ||
+    publication.patches.length !== publication.acceptedSequences.length ||
+    publication.patches.some((entry, index) =>
+      entry.sequence !== publication.acceptedSequences[index]
+    )
+  ) {
+    throw new Error("Current checkpoint history/patch coverage is incomplete")
+  }
+
+  const repositoryPath = resolve(publication.repository)
+  const limits = publication.limits ?? LOCAL_CHECKPOINT_LIMITS_V1
+  const repository = existsSync(repositoryPath)
+    ? CheckpointGitRepository.open(repositoryPath, limits)
+    : CheckpointGitRepository.initialize(repositoryPath, limits)
+  const capture = {
+    identity: {cutId: publication.cutId, sequence: publication.sequence},
+    capturedAt: publication.capturedAt,
+    trigger: publication.trigger,
+    boundary: publication.boundary,
+    mass: publication.mass,
+    projection: {
+      base: publication.base,
+      result: publication.result,
+    },
+    patches: {
+      previousSnapshotSequence: publication.previousSnapshotSequence,
+      entries: publication.patches,
+    },
+  } as const
+  try {
+    return repository.write(capture)
+  } catch (error) {
+    if (!(error instanceof CheckpointRepositoryError) || error.code !== "duplicate_checkpoint") throw error
+    const checkpoint = repository.verify(capture.identity)
+    if (!samePublishedCurrentCapture(checkpoint, publication)) {
+      throw new Error("Existing current checkpoint does not match the requested stopped capture", {
+        cause: error,
+      })
+    }
+    return checkpoint
+  }
+}
+
 /**
  * Publishes or resumes the first non-zero checkpoint.
  *
@@ -258,34 +417,23 @@ export const publishFirstOfflineCheckpoint = (
   }
 
   const repositoryPath = resolve(publication.repository)
-  const limits = publication.limits ?? LOCAL_CHECKPOINT_LIMITS_V1
-  const repository = existsSync(repositoryPath)
-    ? CheckpointGitRepository.open(repositoryPath, limits)
-    : CheckpointGitRepository.initialize(repositoryPath, limits)
-  const capture = {
-    identity: {cutId: publication.cutId, sequence: publication.sequence},
-    capturedAt: publication.capturedAt,
-    trigger: publication.trigger,
+  const checkpoint = publishCurrentOfflineCheckpoint({
+    cutId: publication.cutId,
+    sequence: publication.sequence,
+    previousSnapshotSequence: null,
+    acceptedSequences: publication.acceptedSequences,
+    base: publication.base,
+    result: publication.result,
     boundary: publication.boundary,
     mass: publication.mass,
-    projection: {
-      base: publication.base,
-      result: publication.result,
-    },
-    patches: {
-      previousSnapshotSequence: null,
-      entries: publication.acceptedSequences.map((sequence) => ({sequence, operations: []})),
-    },
-  } as const
-  let checkpoint: CheckpointWriteResult
-  try {
-    checkpoint = repository.write(capture)
-  } catch (error) {
-    if (!(error instanceof CheckpointRepositoryError) || error.code !== "duplicate_checkpoint") throw error
-    checkpoint = repository.verify(capture.identity)
-    if (!samePublishedCapture(checkpoint, publication)) {
-      throw new Error("Existing first checkpoint does not match the requested capture", {cause: error})
-    }
+    patches: publication.acceptedSequences.map((sequence) => ({sequence, operations: []})),
+    repository: repositoryPath,
+    capturedAt: publication.capturedAt,
+    trigger: publication.trigger,
+    ...(publication.limits ? {limits: publication.limits} : {}),
+  })
+  if (!samePublishedCapture(checkpoint, publication)) {
+    throw new Error("Published first checkpoint does not match the requested capture")
   }
   initializeCheckpointControlBaseline(
     resolve(publication.controlState),
