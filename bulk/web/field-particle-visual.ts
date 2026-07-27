@@ -11,6 +11,7 @@ export type FieldParticleVisual = Readonly<{
 	glowIntensity: number
 	luminanceBoost: number
 	opacity: number
+	visualScale: number
 	visibilityMode: "scene" | "overlay"
 }>
 
@@ -33,6 +34,7 @@ export const resolveFieldParticleVisual = (
 			glowIntensity: 2.2,
 			luminanceBoost: 1.25,
 			opacity: 0.85,
+			visualScale: 0.38,
 			visibilityMode: "overlay",
 		}
 	}
@@ -48,6 +50,7 @@ export const resolveFieldParticleVisual = (
 		glowIntensity: 0.8,
 		luminanceBoost: 1,
 		opacity: Math.min(1, Math.max(0, wireframeOpacity * 0.9)),
+		visualScale: 1,
 		visibilityMode: "scene",
 	}
 }

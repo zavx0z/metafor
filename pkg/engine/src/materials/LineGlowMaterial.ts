@@ -1,7 +1,7 @@
 import { Color } from "../math"
 import { LineBasicMaterial, type LineBasicMaterialParameters } from "./LineBasicMaterial"
 
-export type LineVisibilityMode = "scene" | "overlay"
+export type LineVisibilityMode = "scene" | "overlay" | "silhouette"
 
 /**
  * Параметры для создания {@link LineGlowMaterial}.
@@ -39,10 +39,24 @@ export interface LineGlowMaterialParameters extends LineBasicMaterialParameters 
 
   /**
    * Scene lines use ordinary depth. Overlay lines remain visible through an
-   * enclosing wireframe and are rendered in the final bounded line pass.
+   * enclosing wireframe in the final bounded pass. Silhouettes keep scene
+   * blending and multisampling but do not write depth.
    * @default "scene"
    */
   visibilityMode?: LineVisibilityMode
+
+  /**
+   * Shader-local scale around the line object's own origin.
+   * @default 1.0
+   */
+  visualScale?: number
+
+  /**
+   * Strength of a camera-facing translucent rim. The neutral value preserves
+   * the complete line object; 1 leaves only a faint body and readable contour.
+   * @default 0.0
+   */
+  silhouetteAmount?: number
 }
 
 /**
@@ -68,6 +82,12 @@ export class LineGlowMaterial extends LineBasicMaterial {
   /** @default "scene" */
   public visibilityMode: LineVisibilityMode
 
+  /** @default 1.0 */
+  public visualScale: number
+
+  /** @default 0.0 */
+  public silhouetteAmount: number
+
   /**
    * @param parameters - Параметры материала.
    */
@@ -79,6 +99,8 @@ export class LineGlowMaterial extends LineBasicMaterial {
     this.shimmerPhase = parameters.shimmerPhase ?? 0.0
     this.shimmerAmount = parameters.shimmerAmount ?? 0.0
     this.visibilityMode = parameters.visibilityMode ?? "scene"
+    this.visualScale = parameters.visualScale ?? 1.0
+    this.silhouetteAmount = parameters.silhouetteAmount ?? 0.0
     
     if (parameters.glowColor) {
       if (parameters.glowColor instanceof Color) {

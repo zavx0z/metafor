@@ -54,6 +54,7 @@ import {
 } from "./torus-visual.ts"
 import {resolveOrbitalMaterialVisual} from "./orbital-material-visual.ts"
 import {resolveFieldParticleVisual} from "./field-particle-visual.ts"
+import {resolveShellMarkerPositions} from "./shell-marker-placement.ts"
 import {
 	createLevelResolver,
 	resolveOuterRadiusFromSphereRadius,
@@ -1015,7 +1016,8 @@ const resolveDarkParticleVisualState = (darkParticle: BulkDarkParticle): {
 	glowIntensity: number
 	luminanceBoost: number
 	opacity: number
-	visibilityMode: "scene" | "overlay"
+	silhouetteAmount: number
+	visibilityMode: "scene" | "overlay" | "silhouette"
 } => {
 	const baseColor = particleColor(darkParticle)
 	const root = darkParticle.parentDarkParticleId === null
@@ -1931,7 +1933,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	const refreshFieldParticleRecordOrientation = (record: FieldParticleRenderRecord): void => {
 		const qBase = new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), Math.PI / 2)
 		const tiltRad = (-activeRenderSettings.torusCrossRingRotationDeg * Math.PI) / 180
-		const u = Math.atan2(record.snapshot.localY, record.snapshot.localX)
+		const u = Math.atan2(record.targetLocalPosition.y, record.targetLocalPosition.x)
 		const radialAxis = new Vector3(Math.cos(u), Math.sin(u), 0)
 		const qTilt = new Quaternion().setFromAxisAngle(radialAxis, tiltRad)
 		record.node.quaternion.multiplyQuaternions(qTilt, qBase)
@@ -1982,6 +1984,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		record.pickTarget.baseGlowIntensity = visual.glowIntensity
 		record.pickTarget.baseOpacity = visual.opacity
 		record.material.luminanceBoost = visual.luminanceBoost
+		record.material.silhouetteAmount = visual.silhouetteAmount
 		record.material.visibilityMode = visual.visibilityMode
 		syncPickTargetMaterialState(record.pickTarget)
 	}
@@ -1998,6 +2001,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		record.pickTarget.baseGlowIntensity = visual.glowIntensity
 		record.pickTarget.baseOpacity = visual.opacity
 		record.material.luminanceBoost = visual.luminanceBoost
+		record.material.visualScale = visual.visualScale
 		record.material.visibilityMode = visual.visibilityMode
 		syncPickTargetMaterialState(record.pickTarget)
 	}
@@ -2208,18 +2212,78 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		return existing
 	}
 
+	const applyDerivedMarkerShells = (nextManifest: BulkManifest): void => {
+		const markerGroups = new Map<number, Array<{identity: string; radius: number}>>()
+		const pushMarker = (
+			parentDarkParticleId: number,
+			identity: string,
+			radius: number,
+		): void => {
+			const markers = markerGroups.get(parentDarkParticleId) ?? []
+			markers.push({identity, radius})
+			markerGroups.set(parentDarkParticleId, markers)
+		}
+		for (const field of nextManifest.fieldParticles) {
+			pushMarker(
+				field.parentDarkParticleId,
+				`field:${field.fieldParticleId}`,
+				field.sphereRadius,
+			)
+		}
+		for (const particle of nextManifest.orbitalParticles ?? []) {
+			if (particle.orbitalParticleKind !== "state") continue
+			pushMarker(
+				particle.parentDarkParticleId,
+				`state:${particle.orbitalParticleId}`,
+				particle.sphereRadius,
+			)
+		}
+
+		for (const [parentDarkParticleId, markers] of markerGroups) {
+			const parent = darkParticleRecords.get(parentDarkParticleId)?.snapshot
+			if (!parent) continue
+			const fallback = getTorusFallback()
+			const positions = resolveShellMarkerPositions(
+				markers,
+				(parent.torusRadius || fallback.radius) +
+					(parent.torusTube || fallback.tube),
+			)
+			for (const marker of markers) {
+				const position = positions.get(marker.identity)
+				if (!position) continue
+				if (marker.identity.startsWith("field:")) {
+					const record = fieldParticleRecords.get(marker.identity.slice("field:".length))
+					if (!record) continue
+					record.targetLocalPosition.set(position.x, position.y, position.z)
+					record.node.position.copy(record.targetLocalPosition)
+					refreshFieldParticleRecordOrientation(record)
+					record.node.updateMatrix()
+					continue
+				}
+				const record = orbitalParticleRecords.get(marker.identity.slice("state:".length))
+				if (!record) continue
+				record.targetLocalPosition.set(position.x, position.y, position.z)
+				record.node.position.copy(record.targetLocalPosition)
+				record.node.updateMatrix()
+			}
+		}
+	}
+
 	const transitionGeometry = (channel: BulkTransitionChannel): BufferGeometry => {
-		const from = orbitalParticleRecords.get(channel.fromOrbitalParticleId)?.snapshot
-		const to = orbitalParticleRecords.get(channel.toOrbitalParticleId)?.snapshot
+		const from = orbitalParticleRecords.get(channel.fromOrbitalParticleId)
+		const to = orbitalParticleRecords.get(channel.toOrbitalParticleId)
 		const geometry = new BufferGeometry()
 		if (!from || !to) {
 			geometry.setAttribute("position", new BufferAttribute(new Float32Array(), 3))
 			return geometry
 		}
-		const dx = to.localX - from.localX
-		const dy = to.localY - from.localY
+		const dx = to.targetLocalPosition.x - from.targetLocalPosition.x
+		const dy = to.targetLocalPosition.y - from.targetLocalPosition.y
 		const length = Math.max(1, Math.hypot(dx, dy))
-		const bend = Math.min(length * 0.32, Math.max(from.sphereRadius, to.sphereRadius) * 5)
+		const bend = Math.min(
+			length * 0.32,
+			Math.max(from.snapshot.sphereRadius, to.snapshot.sphereRadius) * 5,
+		)
 		const nx = -dy / length
 		const ny = dx / length
 		const segments = 24
@@ -2229,9 +2293,11 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			const t = index / segments
 			const curve = Math.sin(Math.PI * t)
 			const point: [number, number, number] = [
-				from.localX + dx * t + nx * bend * curve,
-				from.localY + dy * t + ny * bend * curve,
-				from.localZ + (to.localZ - from.localZ) * t + Math.sin(Math.PI * 2 * t) * bend * 0.16,
+				from.targetLocalPosition.x + dx * t + nx * bend * curve,
+				from.targetLocalPosition.y + dy * t + ny * bend * curve,
+				from.targetLocalPosition.z +
+					(to.targetLocalPosition.z - from.targetLocalPosition.z) * t +
+					Math.sin(Math.PI * 2 * t) * bend * 0.16,
 			]
 			if (previous) positions.push(...previous, ...point)
 			previous = point
@@ -2265,12 +2331,12 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	}
 
 	const orientFieldProxy = (record: FieldProxyRenderRecord): void => {
-		const state = orbitalParticleRecords.get(record.snapshot.stateOrbitalParticleId)?.snapshot
+		const state = orbitalParticleRecords.get(record.snapshot.stateOrbitalParticleId)
 		if (!state) return
 		const normal = new Vector3(
-			record.snapshot.localX - state.localX,
-			record.snapshot.localY - state.localY,
-			record.snapshot.localZ - state.localZ,
+			record.node.position.x - state.targetLocalPosition.x,
+			record.node.position.y - state.targetLocalPosition.y,
+			record.node.position.z - state.targetLocalPosition.z,
 		).normalize()
 		const angle = Math.acos(Math.max(-1, Math.min(1, normal.z)))
 		const axis = new Vector3(-normal.y, normal.x, 0)
@@ -2278,6 +2344,16 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		else axis.normalize()
 		record.node.quaternion.setFromAxisAngle(axis, angle)
 		record.node.updateMatrix()
+	}
+
+	const resolveFieldProxyVisualPosition = (proxy: BulkFieldProxy): Vector3 => {
+		const state = orbitalParticleRecords.get(proxy.stateOrbitalParticleId)
+		if (!state) return new Vector3(proxy.localX, proxy.localY, proxy.localZ)
+		return state.targetLocalPosition.clone().add(new Vector3(
+			proxy.localX - state.snapshot.localX,
+			proxy.localY - state.snapshot.localY,
+			proxy.localZ - state.snapshot.localZ,
+		))
 	}
 
 	const upsertFieldProxyRecord = (proxy: BulkFieldProxy, depth: number): FieldProxyRenderRecord => {
@@ -2291,7 +2367,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 				getTorusWireframeGeometry(proxy.ringRadius, Math.max(0.45, proxy.ringRadius * 0.14), depth),
 				material,
 			)
-			node.position.set(proxy.localX, proxy.localY, proxy.localZ)
+			node.position.copy(resolveFieldProxyVisualPosition(proxy))
 			const record = {node, material, snapshot: {...proxy}}
 			fieldProxyRecords.set(proxy.fieldProxyId, record)
 			orientFieldProxy(record)
@@ -2302,22 +2378,20 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		existing.material.glowColor?.copy(glow)
 		existing.material.glowIntensity = active ? 1.4 : 0.04
 		existing.node.geometry = getTorusWireframeGeometry(proxy.ringRadius, Math.max(0.45, proxy.ringRadius * 0.14), depth)
-		existing.node.position.set(proxy.localX, proxy.localY, proxy.localZ)
+		existing.node.position.copy(resolveFieldProxyVisualPosition(proxy))
 		orientFieldProxy(existing)
 		return existing
 	}
 
 	const relationEndpointPosition = (kind: BulkRelationChannel["fromKind"], id: string): Vector3 | null => {
 		if (kind === "field") {
-			const field = fieldParticleRecords.get(id)?.snapshot
-			return field ? new Vector3(field.localX, field.localY, field.localZ) : null
+			const field = fieldParticleRecords.get(id)
+			return field?.targetLocalPosition.clone() ?? null
 		}
 		if (kind === "field-proxy") {
-			const proxy = fieldProxyRecords.get(id)?.snapshot
-			return proxy ? new Vector3(proxy.localX, proxy.localY, proxy.localZ) : null
+			return fieldProxyRecords.get(id)?.node.position.clone() ?? null
 		}
-		const orbital = orbitalParticleRecords.get(id)?.snapshot
-		return orbital ? new Vector3(orbital.localX, orbital.localY, orbital.localZ) : null
+		return orbitalParticleRecords.get(id)?.targetLocalPosition.clone() ?? null
 	}
 
 	const relationGeometry = (channel: BulkRelationChannel): BufferGeometry => {
@@ -2887,9 +2961,6 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		const changedDarkParticleIds = new Set(patch.darkParticleIds)
 		const changedFieldParticleIds = new Set(patch.fieldParticleIds)
 		const changedOrbitalParticleIds = new Set(patch.orbitalParticleIds)
-		const changedTransitionChannelIds = new Set(patch.transitionChannelIds)
-		const changedFieldProxyIds = new Set(patch.fieldProxyIds)
-		const changedRelationChannelIds = new Set(patch.relationChannelIds)
 
 		for (const darkParticle of nextManifest.darkParticles) {
 			if (!changedDarkParticleIds.has(darkParticle.darkParticleId)) continue
@@ -2929,8 +3000,9 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			if (record.node.parent !== parent.container) parent.container.add(record.node)
 		}
 
+		applyDerivedMarkerShells(nextManifest)
+
 		for (const proxy of nextManifest.fieldProxies ?? []) {
-			if (!changedFieldProxyIds.has(proxy.fieldProxyId) && !changedOrbitalParticleIds.has(proxy.stateOrbitalParticleId)) continue
 			const parent = darkParticleRecords.get(proxy.parentDarkParticleId)
 			if (!parent) continue
 			const record = upsertFieldProxyRecord(proxy, parent.snapshot.depth + 1)
@@ -2938,9 +3010,6 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		}
 
 		for (const channel of nextManifest.transitionChannels ?? []) {
-			if (!changedTransitionChannelIds.has(channel.transitionChannelId) &&
-				!changedOrbitalParticleIds.has(channel.fromOrbitalParticleId) &&
-				!changedOrbitalParticleIds.has(channel.toOrbitalParticleId)) continue
 			const parent = darkParticleRecords.get(channel.parentDarkParticleId)
 			if (!parent) continue
 			const record = upsertTransitionChannelRecord(channel)
@@ -2948,13 +3017,6 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		}
 
 		for (const channel of nextManifest.relationChannels ?? []) {
-			if (!changedRelationChannelIds.has(channel.relationChannelId) &&
-				!(channel.fromKind === "field" && changedFieldParticleIds.has(channel.fromId)) &&
-				!(channel.toKind === "field" && changedFieldParticleIds.has(channel.toId)) &&
-				!(channel.fromKind === "field-proxy" && changedFieldProxyIds.has(channel.fromId)) &&
-				!(channel.toKind === "field-proxy" && changedFieldProxyIds.has(channel.toId)) &&
-				!(channel.fromKind === "orbital" && changedOrbitalParticleIds.has(channel.fromId)) &&
-				!(channel.toKind === "orbital" && changedOrbitalParticleIds.has(channel.toId))) continue
 			const parent = darkParticleRecords.get(channel.parentDarkParticleId)
 			if (!parent) continue
 			const record = upsertRelationChannelRecord(channel)

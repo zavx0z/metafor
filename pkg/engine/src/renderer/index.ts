@@ -26,6 +26,7 @@ import {
   LINE_OVERLAY_BLEND_STATE,
   LINE_SCENE_BLEND_STATE,
   LINE_SCENE_DEPTH_STATE,
+  LINE_SILHOUETTE_DEPTH_STATE,
 } from "./line-pipeline"
 import {collectSpaceObjects, type LightItem, type RenderItem} from "./utils/RenderList"
 import {GlassMaterial} from "../materials/GlassMaterial"
@@ -106,6 +107,7 @@ export class Renderer {
   private skinnedMeshPipeline: GPURenderPipeline | null = null
   private linePipeline: GPURenderPipeline | null = null
   private lineOverlayPipeline: GPURenderPipeline | null = null
+  private lineSilhouettePipeline: GPURenderPipeline | null = null
   private instancedLinePipeline: GPURenderPipeline | null = null
   private textStencilPipeline: GPURenderPipeline | null = null
   private textCoverPipeline: GPURenderPipeline | null = null
@@ -826,6 +828,12 @@ export class Renderer {
       LINE_OVERLAY_BLEND_STATE,
       1,
     )
+    this.lineSilhouettePipeline = await createLinePipeline(
+      "silhouette line pipeline",
+      LINE_SCENE_BLEND_STATE,
+      this.sampleCount,
+      LINE_SILHOUETTE_DEPTH_STATE,
+    )
 
     // --- Pipeline для Instanced Lines ---
     const lineInstancedWGSL = `
@@ -1074,13 +1082,25 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
       (item.object as LineSegments).material instanceof LineGlowMaterial &&
       ((item.object as LineSegments).material as LineGlowMaterial).visibilityMode === "overlay"
 
+    const isSilhouetteLine = (item: RenderItem): boolean =>
+      item.type === "line" &&
+      (item.object as LineSegments).material instanceof LineGlowMaterial &&
+      ((item.object as LineSegments).material as LineGlowMaterial).visibilityMode === "silhouette"
+
+    const regularObjects = renderList.filter(item =>
+      !(item.object.material as any)?.isGlassMaterial &&
+      !isUiLayerObject(item.object) &&
+      !isOverlayLine(item)
+    )
+
     return {
       glassObjects: renderList.filter(item => (item.object.material as any)?.isGlassMaterial === true),
-      regularObjects: renderList.filter(item =>
-        !(item.object.material as any)?.isGlassMaterial &&
-        !isUiLayerObject(item.object) &&
-        !isOverlayLine(item)
-      ),
+      // Non-depth-writing silhouettes go first so later relation lines retain
+      // visual priority even where their projected paths cross the shell.
+      regularObjects: [
+        ...regularObjects.filter(isSilhouetteLine),
+        ...regularObjects.filter(item => !isSilhouetteLine(item)),
+      ],
       overlayLines: renderList.filter(item =>
         !isUiLayerObject(item.object) &&
         isOverlayLine(item)
@@ -1100,6 +1120,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
       this.skinnedMeshPipeline &&
       this.linePipeline &&
       this.lineOverlayPipeline &&
+      this.lineSilhouettePipeline &&
       this.instancedLinePipeline &&
       this.textStencilPipeline &&
       this.textCoverPipeline &&
@@ -1501,6 +1522,8 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let luminanceBoost = 1.0
     let shimmerPhase = 0
     let shimmerAmount = 0
+    let visualScale = 1
+    let silhouetteAmount = 0
     let glowR = 0
     let glowG = 0
     let glowB = 0
@@ -1511,6 +1534,8 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
       luminanceBoost = (material as LineGlowMaterial).luminanceBoost
       shimmerPhase = (material as LineGlowMaterial).shimmerPhase
       shimmerAmount = (material as LineGlowMaterial).shimmerAmount
+      visualScale = (material as LineGlowMaterial).visualScale
+      silhouetteAmount = (material as LineGlowMaterial).silhouetteAmount
       const glowColorObj = (material as LineGlowMaterial).glowColor
       if (glowColorObj) {
         glowR = glowColorObj.r
@@ -1528,6 +1553,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
       shimmerAmount,
     )
     this.writePerObjectVec4(offsetFloats + 24, glowR, glowG, glowB, glowA)
+    this.writePerObjectVec4(offsetFloats + 28, visualScale, silhouetteAmount, 0, 0)
   }
 
   private updateTextData(text: Text, worldMatrix: Matrix4, offsetFloats: number, isStencil: boolean): void {
@@ -1587,11 +1613,17 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
           pipeline = this.instancedLinePipeline
           break
         case "line":
-          pipeline =
-            (item.object as LineSegments).material instanceof LineGlowMaterial &&
-            ((item.object as LineSegments).material as LineGlowMaterial).visibilityMode === "overlay"
+          if ((item.object as LineSegments).material instanceof LineGlowMaterial) {
+            const visibilityMode =
+              ((item.object as LineSegments).material as LineGlowMaterial).visibilityMode
+            pipeline = visibilityMode === "overlay"
               ? this.lineOverlayPipeline
-              : this.linePipeline
+              : visibilityMode === "silhouette"
+                ? this.lineSilhouettePipeline
+                : this.linePipeline
+          } else {
+            pipeline = this.linePipeline
+          }
           break
         case "text-stencil":
           pipeline = this.textStencilPipeline

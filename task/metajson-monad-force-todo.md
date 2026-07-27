@@ -1084,21 +1084,34 @@
     UNORM presentation target, while native one-pixel markers remained behind
     scene depth and were attenuated again by 4× MSAA resolve;
   - the final bounded visual repair leaves the current marker at its earlier
-    softer `4.8` glow / `1.45` luminance scene-depth look. Potential and
-    inactive State balls retain their blue hierarchy in one final
-    single-sample additive material overlay, where `potential > inactive >
-    background`;
+    softer `4.8` glow / `1.45` luminance scene-depth look. State identity now
+    deterministically controls hue across occurrences, while activity changes
+    only brightness/opacity. Potential and inactive State balls retain their
+    secondary hierarchy in one final single-sample additive material overlay,
+    where `potential > inactive > background`;
   - existing non-root Atom toruses use the same overlay for legible inner-core
     contrast, and their existing Field spheres become bounded red nucleus
-    accents. No object/geometry, topology, data, RPC, camera, layout or
-    render-loop condition changes;
+    accents with shader-local visual scale below the State marker scale;
+  - the root Atom torus uses the existing line material as a sparse,
+    translucent camera-facing energy-bubble rim. Its pipeline does not write
+    depth and renders before ordinary relation lines, preserving connection
+    priority without new geometry;
+  - Field and State spheres receive an equal-area deterministic display-only
+    spherical-shell position per parent Atom. The torus is centered wholly
+    inside that sphere—the markers are not placed on its torus surface. Shell
+    radius increases monotonically from the torus outer radius with marker
+    count/radius; relation, transition and Field-proxy visuals consume those
+    same derived endpoints. Persisted coordinates, causal layout, topology,
+    identity, data, RPC, camera and render-loop conditions are unchanged;
   - executable Dawn/WebGPU readback proves the bounded
     `current > potential > inactive > background` output hierarchy and a
-    red-dominant, non-saturating nucleus accent;
-  - focused shader/material/readability/core/render-loop suite: `19 pass`,
-    `0 fail`, `92 expect`; browser bundle compiled `148` modules successfully;
+    red-dominant, non-saturating, smaller nucleus accent; the production
+    silhouette pipeline also compiles with depth writes disabled;
+  - focused shader/material/readability/core/shell/render-loop suite:
+    `23 pass`, `0 fail`, `157 expect`; browser bundle compiled `120` modules
+    successfully;
   - `bun run check`: typecheck pass, `42` expected diagnostics,
-    `1698 pass`, `0 fail`, `5747 expect` in `197` test files.
+    `1702 pass`, `0 fail`, `5812 expect` in `198` test files.
 - Activation constraints:
   - this repair task performed no retry, restart, rollback, deletion, GC or
     other live mutation;

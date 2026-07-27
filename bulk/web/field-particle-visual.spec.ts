@@ -14,6 +14,7 @@ describe("nested Atom nucleus Field accents", () => {
 		expect(visual.color).toEqual([0.2, 0.68, 1, 1])
 		expect(visual.opacity).toBeCloseTo(0.072, 6)
 		expect(visual.luminanceBoost).toBe(1)
+		expect(visual.visualScale).toBe(1)
 		expect(visual.visibilityMode).toBe("scene")
 	})
 
@@ -26,6 +27,8 @@ describe("nested Atom nucleus Field accents", () => {
 		expect(visual.glowIntensity).toBe(2.2)
 		expect(visual.luminanceBoost).toBe(1.25)
 		expect(visual.opacity).toBeLessThan(1)
+		expect(visual.visualScale).toBe(0.38)
+		expect(visual.visualScale).toBeLessThan(1)
 		expect(visual.visibilityMode).toBe("overlay")
 	})
 })

@@ -61,7 +61,10 @@
   явно видимыми, но вторичными, а неактивные sleeves — приглушёнными. Эта
   градация меняет только visual material markers и не меняет Capsule
   structure, State/Transition identity, activity, timeline либо projection
-  semantics. Лёгкий shimmer является ограниченной пространственной функцией
+  semantics. Hue marker-а детерминирован semantic State identity: все
+  occurrences одного State имеют один цвет, разные State — разные стабильные
+  цвета. Current/potential/inactive меняют только brightness/opacity, не
+  semantic hue. Лёгкий shimmer является ограниченной пространственной функцией
   GPU material с фазой от identity и текущего visual state: он обновляется
   вместе с обычной projection/state change, не создаёт CPU simulation,
   дополнительных marker objects или собственного perpetual render-loop gate.
@@ -78,7 +81,24 @@
   identity или projection; root torus и connectivity geometry сохраняют
   обычный scene-depth material. Существующие Field spheres внутри этих nested
   Atom получают bounded red accent material в том же overlay и читаются как
-  nucleus lights/orbs; новые objects/geometry для accent не создаются.
+  nucleus lights/orbs; их shader-local material scale меньше единицы и
+  удерживает nucleus accent визуально меньше State-electron marker. Geometry,
+  node transform, layout и pick/projection radius не меняются; новые
+  objects/geometry для accent не создаются.
+- Root Atom torus сохраняет outer form как subtle sparse/translucent material
+  silhouette, а не dense foreground grid. Silhouette не пишет depth и поэтому
+  не перекрывает relation/connection lines; пространственная rim-маска
+  вычисляется в существующем line shader без новой geometry или render-loop.
+- Field spheres и State spheres получают только в Bulk renderer
+  детерминированную derived visual position на общей **сферической** shell
+  поверхности своего parent Atom. Torus находится в центре и целиком внутри
+  этой сферы; marker-ы не проецируются на torus surface. Shell radius
+  монотонно растёт от torus outer radius с количеством marker-ов и их visual
+  radius, предотвращая crowding. Распределение стабильно по marker identity и
+  пересчитывается только при projection/state change. Persisted
+  `localX/localY/localZ`, topology, causal layout и identity не меняются;
+  relation/transition geometry использует те же derived visual endpoints и
+  остаётся читаемой.
 
 ## Следствие
 

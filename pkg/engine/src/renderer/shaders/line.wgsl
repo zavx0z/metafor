@@ -22,7 +22,9 @@ struct PerObjectUniforms {
   luminanceBoost: f32,
   shimmerPhase: f32,
   shimmerAmount: f32,
-  glowColor: vec4<f32>
+  glowColor: vec4<f32>,
+  visualScale: f32,
+  silhouetteAmount: f32
 };
 @binding(0) @group(1) var<uniform> perObject: PerObjectUniforms;
 
@@ -38,7 +40,10 @@ fn vs_main(
     @location(1) color: vec3<f32>
 ) -> VertexOutput {
   var out: VertexOutput;
-  let worldPos = (perObject.modelMatrix * vec4<f32>(pos, 1.0)).xyz;
+  let worldPos = (
+    perObject.modelMatrix *
+    vec4<f32>(pos * max(perObject.visualScale, 0.0001), 1.0)
+  ).xyz;
   out.position = globalUniforms.viewProjectionMatrix * vec4<f32>(worldPos, 1.0);
   out.worldPosition = worldPos;
   out.vertexColor = vec4<f32>(color * perObject.color.rgb, perObject.color.a);
@@ -76,6 +81,23 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     shimmer += perObject.shimmerAmount * (0.5 + 0.5 * shimmerWave);
   }
   finalColor *= perObject.luminanceBoost * shimmer;
+
+  // A sparse, camera-facing energy-bubble rim for enclosing line shells. The
+  // low body alpha keeps the form perceptible without filling its interior
+  // with a dense lattice. This is spatial and only runs in requested frames.
+  var silhouette = 1.0;
+  if (perObject.silhouetteAmount > 0.0) {
+    let objectCenter = perObject.modelMatrix[3].xyz;
+    let radialDirection = normalize(in.worldPosition - objectCenter);
+    let viewDirection = normalize(sceneUniforms.cameraPosition - in.worldPosition);
+    let grazingAngle = 1.0 - abs(dot(radialDirection, viewDirection));
+    let rim = smoothstep(0.54, 0.96, grazingAngle);
+    let bubble = 0.035 + 0.965 * pow(rim, 1.6);
+    silhouette = mix(1.0, bubble, clamp(perObject.silhouetteAmount, 0.0, 1.0));
+  }
   
-  return vec4<f32>(finalColor * finalFade, in.vertexColor.a * finalFade);
+  return vec4<f32>(
+    finalColor * finalFade,
+    in.vertexColor.a * finalFade * silhouette
+  );
 }

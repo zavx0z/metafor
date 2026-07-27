@@ -1,6 +1,9 @@
 import {describe, expect, test} from "bun:test"
 import {shouldContinueBulkRenderLoop} from "./render-loop.ts"
-import {resolveTorusStateVisual} from "./torus-state-visual.ts"
+import {
+	resolveSemanticStateColor,
+	resolveTorusStateVisual,
+} from "./torus-state-visual.ts"
 
 const marker = (overrides: Partial<{
 	active: boolean
@@ -12,8 +15,25 @@ const marker = (overrides: Partial<{
 	colorG: 0.68,
 	colorB: 1,
 	orbitalParticleId: "state:fixture",
+	sourceId: 17,
 	...overrides,
 })
+
+const rgbHue = (color: readonly number[]): number => {
+	const red = color[0]!
+	const green = color[1]!
+	const blue = color[2]!
+	const maximum = Math.max(red, green, blue)
+	const minimum = Math.min(red, green, blue)
+	const delta = maximum - minimum
+	if (delta === 0) return 0
+	const sector = maximum === red
+		? ((green - blue) / delta) % 6
+		: maximum === green
+			? (blue - red) / delta + 2
+			: (red - green) / delta + 4
+	return ((sector * 60) + 360) % 360
+}
 
 describe("Capsule torus State marker readability", () => {
 	test("makes the current marker strongest and potential markers clearly secondary", () => {
@@ -35,19 +55,18 @@ describe("Capsule torus State marker readability", () => {
 		expect(current.glowIntensity / potential.glowIntensity).toBeGreaterThanOrEqual(2)
 	})
 
-	test("keeps the projected hue in the aura while giving the current core an electron-like white peak", () => {
+	test("keeps semantic hue in the aura while giving the current core a white peak", () => {
 		const visual = resolveTorusStateVisual({
 			active: true,
 			current: true,
-			colorR: 0.41,
-			colorG: 0.72,
-			colorB: 0.93,
 			orbitalParticleId: "state:colored",
+			sourceId: 23,
 		})
+		const semanticColor = resolveSemanticStateColor(23)
 
-		expect(visual.color[0]).toBeGreaterThan(0.41)
-		expect(visual.color[1]).toBeGreaterThan(0.72)
-		expect(visual.color[2]).toBeGreaterThan(0.93)
+		expect(visual.color[0]).toBeGreaterThan(semanticColor[0])
+		expect(visual.color[1]).toBeGreaterThan(semanticColor[1])
+		expect(visual.color[2]).toBeGreaterThan(semanticColor[2])
 		expect(visual.glowColor[0]).toBeGreaterThan(visual.color[0])
 		expect(visual.glowColor[1]).toBeGreaterThan(visual.color[1])
 		expect(visual.glowColor[2]).toBeGreaterThan(visual.color[2])
@@ -86,5 +105,39 @@ describe("Capsule torus State marker readability", () => {
 			timestamp: 10_000,
 			wakeUntilMs: 10_000,
 		})).toBe(false)
+	})
+
+	test("keys hue by semantic State identity rather than occurrence or activity", () => {
+		const firstOccurrence = resolveTorusStateVisual({
+			...marker({active: true}),
+			orbitalParticleId: "state:17:first",
+		})
+		const secondOccurrence = resolveTorusStateVisual({
+			...marker({active: true}),
+			orbitalParticleId: "state:17:second",
+		})
+		const differentState = resolveTorusStateVisual({
+			...marker({active: true}),
+			orbitalParticleId: "state:18:first",
+			sourceId: 18,
+		})
+		const current = resolveTorusStateVisual(marker({active: true, current: true}))
+		const inactive = resolveTorusStateVisual(marker())
+
+		expect(firstOccurrence.color).toEqual(secondOccurrence.color)
+		expect(firstOccurrence.glowColor).toEqual(secondOccurrence.glowColor)
+		expect(resolveSemanticStateColor(17)).not.toEqual(
+			resolveSemanticStateColor(18),
+		)
+		expect(firstOccurrence.color).not.toEqual(differentState.color)
+		expect(rgbHue(current.color)).toBeCloseTo(rgbHue(firstOccurrence.color), 8)
+		expect(rgbHue(inactive.color)).toBeCloseTo(
+			rgbHue(firstOccurrence.color),
+			8,
+		)
+		expect(new Set(
+			Array.from({length: 16}, (_, index) =>
+				resolveSemanticStateColor(index + 1).join(":")),
+		).size).toBe(16)
 	})
 })

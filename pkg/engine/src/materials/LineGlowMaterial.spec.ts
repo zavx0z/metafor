@@ -10,6 +10,8 @@ describe("LineGlowMaterial GPU effect controls", () => {
     expect(material.shimmerAmount).toBe(0)
     expect(material.shimmerPhase).toBe(0)
     expect(material.visibilityMode).toBe("scene")
+    expect(material.visualScale).toBe(1)
+    expect(material.silhouetteAmount).toBe(0)
   })
 
   test("stores bounded marker luminance and shimmer as scalar uniforms", () => {
@@ -21,12 +23,16 @@ describe("LineGlowMaterial GPU effect controls", () => {
       shimmerAmount: 0.13,
       shimmerPhase: Math.PI,
       visibilityMode: "overlay",
+      visualScale: 0.38,
+      silhouetteAmount: 1,
     })
 
     expect(material.luminanceBoost).toBe(1.45)
     expect(material.shimmerAmount).toBe(0.13)
     expect(material.shimmerPhase).toBe(Math.PI)
     expect(material.visibilityMode).toBe("overlay")
+    expect(material.visualScale).toBe(0.38)
+    expect(material.silhouetteAmount).toBe(1)
     expect(Array.isArray(material.shimmerAmount)).toBe(false)
   })
 })

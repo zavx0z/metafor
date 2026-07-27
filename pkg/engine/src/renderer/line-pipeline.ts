@@ -29,3 +29,9 @@ export const LINE_SCENE_DEPTH_STATE: GPUDepthStencilState = {
   depthCompare: "less",
   format: "depth24plus-stencil8",
 }
+
+export const LINE_SILHOUETTE_DEPTH_STATE: GPUDepthStencilState = {
+  depthWriteEnabled: false,
+  depthCompare: "less",
+  format: "depth24plus-stencil8",
+}

@@ -49,19 +49,29 @@ describe("Capsule torus visual contrast", () => {
 	test("places only the existing nested Atom core in the bounded overlay layer", () => {
 		expect(resolveDarkParticleTorusLayer(input())).toEqual({
 			luminanceBoost: 1.35,
+			silhouetteAmount: 0,
 			visibilityMode: "overlay",
 		})
 		expect(resolveDarkParticleTorusLayer(
 			input({activity: "inactive"}),
 		)).toEqual({
 			luminanceBoost: 1.15,
+			silhouetteAmount: 0,
 			visibilityMode: "overlay",
 		})
 		expect(resolveDarkParticleTorusLayer(
 			input({parentDarkParticleId: null}),
-		).visibilityMode).toBe("scene")
+		)).toEqual({
+			luminanceBoost: 1,
+			silhouetteAmount: 1,
+			visibilityMode: "silhouette",
+		})
 		expect(resolveDarkParticleTorusLayer(
 			input({darkParticleKind: "fuzzy"}),
-		).visibilityMode).toBe("scene")
+		)).toEqual({
+			luminanceBoost: 1,
+			silhouetteAmount: 0,
+			visibilityMode: "scene",
+		})
 	})
 })

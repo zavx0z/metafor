@@ -870,6 +870,9 @@ rollback/GC либо hot reload нельзя.
 State markers остаются существующими single-object Capsule markers. Их
 readability material может использовать только bounded per-object GPU
 luminance и пространственный shimmer с детерминированной state-change phase;
+semantic State identity детерминирует hue: occurrences одного State имеют один
+цвет, разные State — разные стабильные цвета, а activity меняет только
+brightness/opacity;
 current marker сохраняет прежний узнаваемый, но не glaring, scene-depth look,
 а только non-current potential/inactive markers проходят последний bounded
 single-sample additive line-material overlay без depth write, чтобы внешний
@@ -881,7 +884,18 @@ visual effect не допускаются.
 bounded single-sample material overlay с отдельным opacity/luminance contrast.
 Их geometry/transform/nesting, root torus и connectivity scene-depth material
 не меняются. Существующие nested-Atom Field spheres получают bounded red
-nucleus accent в том же overlay без новых objects/geometry.
+nucleus accent в том же overlay с shader-local material scale меньше
+State-electron marker, без изменения geometry/transform/layout/pick radius и
+без новых objects.
+Root Atom torus остаётся subtle sparse/translucent shader silhouette без depth
+write; relation/connection lines имеют визуальный приоритет над tor grid.
+Field и State spheres получают deterministic renderer-only placement на
+сферической shell своего parent Atom. Torus центрирован внутри этой сферы;
+marker-ы не лежат на torus surface. Shell radius растёт от torus outer radius
+монотонно с marker count/radius, распределение стабильно по identity и
+пересчитывается только с projection/state change. Persisted coordinates,
+topology и causal layout не меняются, а relation/transition используют derived
+visual endpoints.
 
 ### 15.5 Pause/Stack и ветвящийся execution workspace
 
