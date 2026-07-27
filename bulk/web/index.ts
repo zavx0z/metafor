@@ -47,6 +47,7 @@ import {
 	toBulkLevelGeometrySettings,
 	toLevelSettings,
 } from "bulk/settings"
+import {shouldContinueBulkRenderLoop} from "./render-loop.ts"
 import {
 	createLevelResolver,
 	resolveOuterRadiusFromSphereRadius,
@@ -4390,7 +4391,13 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		// снова рендерится без пересборки данных.
 		space.visible = !document.documentElement.classList.contains("metafor-node-view-active")
 		renderer.renderFrame(space, hudRuntime.overlay, viewPoint)
-		if (navigationState || hasPendingMotion || hasCosmosMotion || timestamp < renderWakeUntilMs) {
+		if (shouldContinueBulkRenderLoop({
+			navigationActive: navigationState !== null,
+			pendingMotion: hasPendingMotion,
+			cosmosMotion: hasCosmosMotion,
+			timestamp,
+			wakeUntilMs: renderWakeUntilMs,
+		})) {
 			frameHandle = requestAnimationFrame(animate)
 		} else {
 			lastAnimationTimestamp = 0

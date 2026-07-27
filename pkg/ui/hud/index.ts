@@ -3,6 +3,7 @@ import {Z, drawIconCentered, type DrawTextOpts, type HitState, type UiSurface} f
 
 export * from "./window.ts"
 export * from "./node-view.ts"
+export * from "./timeline.ts"
 
 export type HudPoint = {x: number; y: number}
 export type HudRect = {x: number; y: number; w: number; h: number}

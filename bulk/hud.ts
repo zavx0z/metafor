@@ -1,8 +1,17 @@
 import type { BulkHudController, BulkHudOptions } from "@metafor/types/bulk/hud"
 import {palette, UiSurface, uiIcons, type UiSurfaceRect} from "@ui/elements"
-import {drawHudNodeViewPlan, HudSideTab, planHudNodeView, type HudNodeViewDocument, type HudNodeViewPlan} from "@ui/hud"
+import {
+	drawHudNodeViewPlan,
+	HudSideTab,
+	HudTimelinePanel,
+	planHudNodeView,
+	type HudNodeViewDocument,
+	type HudNodeViewPlan,
+	type HudTimelineDocument,
+} from "@ui/hud"
 
 const HUD_DOCK_Z = 90
+const HUD_TIMELINE_Z = 80
 const APP_FULLSCREEN_FALLBACK_CLASS = "metafor-app-fullscreen-fallback"
 const NODE_VIEW_ACTIVE_CLASS = "metafor-node-view-active"
 // Keep the node renderer as an isolated local prototype. It must not receive
@@ -11,22 +20,38 @@ const NODE_VIEW_CONNECTED = false
 
 let appFullscreenFallbackActive = false
 
-export function installBulkHud(options: BulkHudOptions): BulkHudController {
+export type BulkHudInstallOptions = BulkHudOptions & {
+	timeline: HudTimelineDocument
+}
+
+export type InstalledBulkHudController = BulkHudController & {
+	setTimelineDocument(document: HudTimelineDocument): void
+	timelineDocument(): HudTimelineDocument
+}
+
+export function installBulkHud(options: BulkHudInstallOptions): InstalledBulkHudController {
 	return new BulkHud(options)
 }
 
 class BulkHud implements BulkHudController {
 	readonly #viewport: BulkHudOptions["viewport"]
 	readonly #fullscreenDock: BulkFullscreenDock
+	readonly #timeline: BulkTimelineHudSurface
 	readonly #nodeViewDock: BulkNodeViewDock
 	readonly #nodeView: BulkNodeViewSurface
 	#fullscreen = appFullscreenActive()
 
-	constructor(options: BulkHudOptions) {
+	constructor(options: BulkHudInstallOptions) {
 		this.#viewport = options.viewport
+		this.#timeline = new BulkTimelineHudSurface(options.timeline)
 		this.#fullscreenDock = new BulkFullscreenDock(this)
 		this.#nodeViewDock = new BulkNodeViewDock(this)
 		this.#nodeView = new BulkNodeViewSurface(this)
+		this.#viewport.hud.addSurface(
+			this.#timeline,
+			(bounds) => this.#timelineRect(bounds),
+			{zIndex: HUD_TIMELINE_Z},
+		)
 		this.#viewport.hud.addSurface(
 			this.#fullscreenDock,
 			(bounds) => this.#fullscreenDockRect(bounds),
@@ -36,8 +61,18 @@ class BulkHud implements BulkHudController {
 			this.#viewport.hud.addSurface(this.#nodeViewDock, () => ({x: 0, y: 116, w: 106, h: 34}), {zIndex: HUD_DOCK_Z})
 			this.#viewport.hud.addSurface(this.#nodeView, (bounds) => this.#nodeViewRect(bounds), {zIndex: HUD_DOCK_Z + 1})
 		}
-		document.addEventListener("fullscreenchange", () => this.#handleFullscreenChange())
-		document.addEventListener("webkitfullscreenchange", () => this.#handleFullscreenChange())
+		if (typeof document !== "undefined") {
+			document.addEventListener("fullscreenchange", () => this.#handleFullscreenChange())
+			document.addEventListener("webkitfullscreenchange", () => this.#handleFullscreenChange())
+		}
+	}
+
+	setTimelineDocument(document: HudTimelineDocument): void {
+		this.#timeline.setDocument(document)
+	}
+
+	timelineDocument(): HudTimelineDocument {
+		return this.#timeline.document
 	}
 
 	setNodeView(document: HudNodeViewDocument): void {
@@ -89,6 +124,17 @@ class BulkHud implements BulkHudController {
 		return {x: Math.max(12, bounds.w - w - 12), y: 0, w, h: 34}
 	}
 
+	#timelineRect(bounds: {w: number; h: number}): UiSurfaceRect {
+		const margin = Math.min(52, Math.max(18, Math.floor(bounds.w * 0.035)))
+		const h = Math.min(224, Math.max(160, Math.floor(bounds.h * 0.32)))
+		return {
+			x: margin,
+			y: Math.max(42, bounds.h - h - 18),
+			w: Math.max(1, bounds.w - margin * 2),
+			h,
+		}
+	}
+
 	#handleFullscreenChange(): void {
 		if (appFullscreenElement() !== null && appFullscreenFallbackActive) {
 			setAppFullscreenFallback(false)
@@ -97,6 +143,32 @@ class BulkHud implements BulkHudController {
 		if (this.#fullscreen === next) return
 		this.#fullscreen = next
 		this.#fullscreenDock.requestRender()
+	}
+}
+
+export class BulkTimelineHudSurface extends UiSurface {
+	#document: HudTimelineDocument
+
+	constructor(document: HudTimelineDocument) {
+		super({
+			borderRadiusPx: 12,
+			padding: 8,
+		})
+		this.#document = document
+		this.node.name = "BulkTimelineHudSurface"
+	}
+
+	get document(): HudTimelineDocument {
+		return this.#document
+	}
+
+	setDocument(document: HudTimelineDocument): void {
+		this.#document = document
+		this.requestRender()
+	}
+
+	protected render(): void {
+		HudTimelinePanel(this, this.#document, {x: 0, y: 0, w: this.rectW, h: this.rectH})
 	}
 }
 
@@ -224,6 +296,7 @@ class BulkNodeViewSurface extends UiSurface {
 }
 
 function appFullscreenElement(): Element | null {
+	if (typeof document === "undefined") return null
 	const webkitDocument = document as Document & {webkitFullscreenElement?: Element | null}
 	return document.fullscreenElement ?? webkitDocument.webkitFullscreenElement ?? null
 }

@@ -7,6 +7,7 @@ import { installBulkHud } from "./hud.ts"
 import { BulkProjectionStore } from "./projection.ts"
 import { observedRootSrc } from "./web/force-protocol.ts"
 import { buildBulkManifestation } from "./manifestation.ts"
+import {buildBulkTimeline} from "./timeline.ts"
 
 const bulkCanvas = document.getElementById("bulk-canvas") as HTMLCanvasElement | null
 if (bulkCanvas === null) throw new Error("bulk-canvas not found")
@@ -15,6 +16,7 @@ let bulkViewport: BulkViewportWithHud | null = null
 let bulkHud: ReturnType<typeof installBulkHud> | null = null
 const projection = new BulkProjectionStore()
 let activeSrc = DEFAULT_BULK_SCENE_SRC
+let throughTs: number | null = null
 
 const applyProjectionManifestation = (src: string): void => {
 	if (!bulkViewport) return
@@ -43,7 +45,6 @@ const initBulkViewport = async (): Promise<void> => {
 		width: Math.max(1, Math.floor(rect.width)),
 		height: Math.max(1, Math.floor(rect.height)),
 	})
-	bulkHud = installBulkHud({viewport: bulkViewport})
 	const resizeBulkViewport = (): void => {
 		if (!bulkViewport) return
 		const rect = bulkCanvas.getBoundingClientRect()
@@ -70,6 +71,8 @@ const receiveImpulse = (forceMessage: Parameters<Force["onImpulse"]>[0]): void =
 	const nextRootSrc = observedRootSrc(part, rootSrcs)
 	if (nextRootSrc !== null) activeSrc = nextRootSrc
 	if (change.changed) applyProjectionManifestation(activeSrc)
+	throughTs = part.ts
+	bulkHud?.setTimelineDocument(buildBulkTimeline(projection.view(), activeSrc, throughTs))
 	bulkViewport?.handleForce(part.part, part)
 }
 
@@ -84,6 +87,12 @@ const start = async (): Promise<void> => {
 	const initial = await readInitialPackage()
 	projection.hydrate(initial.projection)
 	activeSrc = initial.rootSrc
+	throughTs = initial.throughTs
+	if (!bulkViewport) throw new Error("Bulk viewport is not initialized")
+	bulkHud = installBulkHud({
+		viewport: bulkViewport,
+		timeline: buildBulkTimeline(projection.view(), activeSrc, throughTs),
+	})
 	bulkViewport?.applyManifestPatch(initial.manifest)
 
 	const force = new Force("bulk", {
