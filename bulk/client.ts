@@ -7,6 +7,10 @@ import { installBulkHud } from "./hud.ts"
 import { BulkProjectionStore } from "./projection.ts"
 import { observedRootSrc } from "./web/force-protocol.ts"
 import { buildBulkManifestation } from "./manifestation.ts"
+import {
+	adaptBulkTimelineProjection,
+	createBulkTimelineFixtureProjection,
+} from "./timeline.ts"
 
 const bulkCanvas = document.getElementById("bulk-canvas") as HTMLCanvasElement | null
 if (bulkCanvas === null) throw new Error("bulk-canvas not found")
@@ -42,7 +46,10 @@ const initBulkViewport = async (): Promise<void> => {
 		width: Math.max(1, Math.floor(rect.width)),
 		height: Math.max(1, Math.floor(rect.height)),
 	})
-	installBulkHud({viewport: bulkViewport})
+	installBulkHud({
+		viewport: bulkViewport,
+		timeline: adaptBulkTimelineProjection(createBulkTimelineFixtureProjection()),
+	})
 	const resizeBulkViewport = (): void => {
 		if (!bulkViewport) return
 		const rect = bulkCanvas.getBoundingClientRect()
