@@ -24,6 +24,15 @@
 - `orbitEdgeGapMm` влияет только на локальные зазоры внутри фиксированного envelope.
 - Нормализация к корневому диаметру выполняется одним глобальным scale-проходом. Она
   не меняет рекурсивные transform и materialized отношения.
+- Удаление корневого Atom само по себе не выбирает новый root для manifestation.
+  Promotion применяется только по отдельному verified receipt, который называет
+  удалённый root Atom, promoted Atom и захваченный frame бывшего root.
+- При verified promotion promoted Atom занимает захваченный root frame одним
+  uniform reframe. Тот же transform охватывает всё его поддерево на любую глубину;
+  локальные позиции, размеры и materialized links внутри поддерева не
+  пересчитываются. Receipt, не согласованный с post-projection, игнорируется.
+- Без verified promotion receipt действует обычный закон выбранного `rootSrc`;
+  удаление или текущая форма дерева не являются основанием угадывать promotion.
 
 ## Следствие
 

@@ -129,6 +129,23 @@ export interface BulkManifest {
   relationChannels?: BulkRelationChannel[]
 }
 
+/** Read-only evidence that a completed operation promoted one Atom into a captured root frame. */
+export interface BulkRootPromotionReceipt {
+  version: 1
+  kind: "root-promotion"
+  verified: true
+  removedRootAtomId: number
+  removedRootSrc: string
+  promotedAtomId: number
+  promotedRootSrc: string
+  formerRootFrame: {
+    localX: number
+    localY: number
+    localZ: number
+    outerDiameterMm: number
+  }
+}
+
 export interface BulkManifestSink {
   clearManifest(rootSrc: string): Promise<void> | void
   insertDarkParticle(rootSrc: string, particle: BulkDarkParticle): Promise<void> | void

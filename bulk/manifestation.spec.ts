@@ -1,4 +1,5 @@
 import {describe, expect, test} from "bun:test"
+import type {BulkManifest, BulkRootPromotionReceipt} from "@metafor/types/bulk/manifest"
 import type { BulkRuntimeProjection } from "@metafor/types/bulk/runtime"
 import {buildBulkManifestation} from "./manifestation.ts"
 
@@ -27,6 +28,36 @@ const createProjection = (): BulkRuntimeProjection => ({
 	matterTopologyBindingPaths: [],
 	matterChildWimpBindingPaths: [],
 })
+
+const worldFrames = (manifest: BulkManifest): Map<number, {
+	x: number
+	y: number
+	z: number
+	scale: number
+	outerRadius: number
+}> => {
+	const byId = new Map(manifest.darkParticles.map((particle) => [particle.darkParticleId, particle] as const))
+	const frames = new Map<number, {x: number; y: number; z: number; scale: number; outerRadius: number}>()
+	const resolve = (id: number): {x: number; y: number; z: number; scale: number; outerRadius: number} => {
+		const existing = frames.get(id)
+		if (existing) return existing
+		const particle = byId.get(id)
+		if (!particle) throw new Error(`Missing Dark particle ${id}`)
+		const parent = particle.parentDarkParticleId === null ? null : resolve(particle.parentDarkParticleId)
+		const parentScale = parent?.scale ?? 1
+		const frame = {
+			x: (parent?.x ?? 0) + particle.localX * parentScale,
+			y: (parent?.y ?? 0) + particle.localY * parentScale,
+			z: (parent?.z ?? 0) + particle.localZ * parentScale,
+			scale: parentScale * particle.torusScale,
+			outerRadius: (particle.torusRadius + particle.torusTube) * parentScale * particle.torusScale,
+		}
+		frames.set(id, frame)
+		return frame
+	}
+	for (const particle of manifest.darkParticles) resolve(particle.darkParticleId)
+	return frames
+}
 
 describe("Boundary projection -> Bulk manifestation", () => {
 	test("передаёт Boundary field ID отдельно от Bulk field particle ID", () => {
@@ -121,6 +152,104 @@ describe("Boundary projection -> Bulk manifestation", () => {
 		expect(manifest.rootSrc).toBe("zavx0z/missing")
 		expect(manifest.darkParticles).toEqual([])
 		expect(manifest.fieldParticles).toEqual([])
+	})
+
+	test("verified promotion recursively reframes a deep subtree into the former root frame", () => {
+		const beforeProjection = createProjection()
+		beforeProjection.wimps.push(
+			{src: "owner/lada", name: "Lada"},
+			{src: "owner/chat", name: "Chat"},
+			{src: "owner/send", name: "Send"},
+		)
+		beforeProjection.atoms.push(
+			{id: 18, parentAtom: 17, parentTopology: null, wimp: "owner/lada", position: 0},
+			{id: 19, parentAtom: 18, parentTopology: null, wimp: "owner/chat", position: 0},
+			{id: 20, parentAtom: 19, parentTopology: null, wimp: "owner/send", position: 0},
+		)
+		const before = buildBulkManifestation(beforeProjection, SRC)
+		const beforeFrames = worldFrames(before)
+		const formerRoot = before.darkParticles.find((particle) => particle.darkParticleId === 17 * 2)!
+
+		const afterProjection = structuredClone(beforeProjection)
+		afterProjection.atoms = afterProjection.atoms
+			.filter((atom) => atom.id !== 17)
+			.map((atom) => atom.id === 18 ? {...atom, parentAtom: null} : atom)
+		const receipt: BulkRootPromotionReceipt = {
+			version: 1,
+			kind: "root-promotion",
+			verified: true,
+			removedRootAtomId: 17,
+			removedRootSrc: SRC,
+			promotedAtomId: 18,
+			promotedRootSrc: "owner/lada",
+			formerRootFrame: {
+				localX: formerRoot.localX,
+				localY: formerRoot.localY,
+				localZ: formerRoot.localZ,
+				outerDiameterMm: (formerRoot.torusRadius + formerRoot.torusTube) * formerRoot.torusScale * 2,
+			},
+		}
+
+		const promoted = buildBulkManifestation(afterProjection, SRC, {}, receipt)
+		const promotedFrames = worldFrames(promoted)
+		const beforeLada = beforeFrames.get(18 * 2)!
+		const promotedLada = promotedFrames.get(18 * 2)!
+
+		expect(promoted.rootSrc).toBe("owner/lada")
+		expect(promoted.darkParticles.map((particle) => particle.darkParticleId)).toEqual([18 * 2, 19 * 2, 20 * 2])
+		expect(promoted.darkParticles.map((particle) => ({
+			id: particle.darkParticleId,
+			parent: particle.parentDarkParticleId,
+			depth: particle.depth,
+		}))).toEqual([
+			{id: 18 * 2, parent: null, depth: 0},
+			{id: 19 * 2, parent: 18 * 2, depth: 1},
+			{id: 20 * 2, parent: 19 * 2, depth: 2},
+		])
+		expect(promotedLada).toMatchObject({
+			x: formerRoot.localX,
+			y: formerRoot.localY,
+			z: formerRoot.localZ,
+			outerRadius: (formerRoot.torusRadius + formerRoot.torusTube) * formerRoot.torusScale,
+		})
+
+		for (const atomId of [19, 20]) {
+			const oldFrame = beforeFrames.get(atomId * 2)!
+			const newFrame = promotedFrames.get(atomId * 2)!
+			const oldRelativeFrame = [
+				(oldFrame.x - beforeLada.x) / beforeLada.outerRadius,
+				(oldFrame.y - beforeLada.y) / beforeLada.outerRadius,
+				(oldFrame.z - beforeLada.z) / beforeLada.outerRadius,
+				oldFrame.outerRadius / beforeLada.outerRadius,
+			]
+			const newRelativeFrame = [
+				(newFrame.x - promotedLada.x) / promotedLada.outerRadius,
+				(newFrame.y - promotedLada.y) / promotedLada.outerRadius,
+				(newFrame.z - promotedLada.z) / promotedLada.outerRadius,
+				newFrame.outerRadius / promotedLada.outerRadius,
+			]
+			oldRelativeFrame.forEach((value, index) => {
+				expect(newRelativeFrame[index]).toBeCloseTo(value, 12)
+			})
+		}
+	})
+
+	test("keeps ordinary rendering unchanged without a projection-verified promotion", () => {
+		const projection = createProjection()
+		const ordinary = buildBulkManifestation(projection, SRC)
+		const staleReceipt: BulkRootPromotionReceipt = {
+			version: 1,
+			kind: "root-promotion",
+			verified: true,
+			removedRootAtomId: 17,
+			removedRootSrc: SRC,
+			promotedAtomId: 99,
+			promotedRootSrc: "owner/lada",
+			formerRootFrame: {localX: 0, localY: 0, localZ: 0, outerDiameterMm: 100},
+		}
+
+		expect(buildBulkManifestation(projection, SRC, {}, null)).toEqual(ordinary)
+		expect(buildBulkManifestation(projection, SRC, {}, staleReceipt)).toEqual(ordinary)
 	})
 
 	test("именует Fuzzy по enum-протону, а state Axion проявляет одной орбитальной частицей", () => {

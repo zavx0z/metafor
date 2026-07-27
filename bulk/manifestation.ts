@@ -8,6 +8,7 @@ import type {
   BulkManifest,
   BulkOrbitalParticle,
   BulkRelationChannel,
+  BulkRootPromotionReceipt,
   BulkTransitionChannel,
 } from "@metafor/types/bulk/manifest"
 import {
@@ -149,10 +150,46 @@ const fieldKeyFromMatterPath = (path: string): string | null => {
   return path
 }
 
+const verifiedRootPromotion = (
+  projection: BulkRuntimeProjection,
+  requestedRootSrc: string,
+  receipt: BulkRootPromotionReceipt | null,
+): BulkRootPromotionReceipt | null => {
+  if (receipt === null || receipt.verified !== true || receipt.kind !== "root-promotion" || receipt.version !== 1) {
+    return null
+  }
+  if (
+    receipt.removedRootSrc !== requestedRootSrc ||
+    receipt.removedRootAtomId === receipt.promotedAtomId ||
+    !Number.isSafeInteger(receipt.removedRootAtomId) ||
+    !Number.isSafeInteger(receipt.promotedAtomId) ||
+    receipt.removedRootAtomId <= 0 ||
+    receipt.promotedAtomId <= 0
+  ) return null
+  const frame = receipt.formerRootFrame
+  if (
+    !Number.isFinite(frame.localX) ||
+    !Number.isFinite(frame.localY) ||
+    !Number.isFinite(frame.localZ) ||
+    !Number.isFinite(frame.outerDiameterMm) ||
+    frame.outerDiameterMm <= 0
+  ) return null
+  if (projection.atoms.some((atom) => atom.id === receipt.removedRootAtomId)) return null
+  const promoted = projection.atoms.find((atom) => atom.id === receipt.promotedAtomId)
+  if (
+    !promoted ||
+    promoted.wimp !== receipt.promotedRootSrc ||
+    promoted.parentAtom !== null ||
+    promoted.parentTopology !== null
+  ) return null
+  return receipt
+}
+
 export function buildBulkManifestation(
   projection: BulkRuntimeProjection,
   rootSrc: string,
   settings: Partial<BulkLayoutSettings> = {},
+  promotionReceipt: BulkRootPromotionReceipt | null = null,
 ): BulkManifest {
   const {
     atoms,
@@ -397,16 +434,30 @@ export function buildBulkManifestation(
     }
   }
 
+  const promotion = verifiedRootPromotion(projection, rootSrc, promotionReceipt)
+  const manifestedRootSrc = promotion?.promotedRootSrc ?? rootSrc
   const rootAtoms = atoms.filter((atom) => atom.parentAtom === null && atom.parentTopology === null)
-  const inputs = sortByPosition(rootAtoms.filter((atom) => atom.wimp === rootSrc))
+  const selectedRoots = promotion
+    ? rootAtoms.filter((atom) => atom.id === promotion.promotedAtomId)
+    : rootAtoms.filter((atom) => atom.wimp === rootSrc)
+  const inputs = sortByPosition(selectedRoots)
     .filter((atom) => atomById.has(atom.id))
     .map((atom) => atomDarkParticleInputFromAtom(atom, new Set()))
 
   const manifest = scaleBulkManifestToRootOuterDiameter(
-    createBulkManifestFromDarkParticleInputs(rootSrc, inputs, settings),
-    undefined,
+    createBulkManifestFromDarkParticleInputs(manifestedRootSrc, inputs, settings),
+    promotion?.formerRootFrame.outerDiameterMm,
     settings,
   )
+  if (promotion) {
+    const promotedRootId = atomDarkParticleIdFromAtomId(promotion.promotedAtomId)
+    const promotedRoot = manifest.darkParticles.find((particle) => particle.darkParticleId === promotedRootId)
+    if (promotedRoot) {
+      promotedRoot.localX = promotion.formerRootFrame.localX
+      promotedRoot.localY = promotion.formerRootFrame.localY
+      promotedRoot.localZ = promotion.formerRootFrame.localZ
+    }
+  }
 
   const darkParticleById = new Map(manifest.darkParticles.map((particle) => [particle.darkParticleId, particle] as const))
   const atomStateByAtom = new Map(atomStates.map((state) => [state.atom, state.state] as const))
