@@ -16,6 +16,24 @@ export interface LineGlowMaterialParameters extends LineBasicMaterialParameters 
    * @default undefined (используется основной цвет)
    */
   glowColor?: number | Color
+
+  /**
+   * GPU-side luminance multiplier. The neutral value preserves ordinary lines.
+   * @default 1.0
+   */
+  luminanceBoost?: number
+
+  /**
+   * Phase for an optional static spatial shimmer pattern.
+   * @default 0.0
+   */
+  shimmerPhase?: number
+
+  /**
+   * Strength of an optional static spatial shimmer pattern.
+   * @default 0.0
+   */
+  shimmerAmount?: number
 }
 
 /**
@@ -29,6 +47,15 @@ export class LineGlowMaterial extends LineBasicMaterial {
   /** @default undefined (используется основной цвет) */
   public glowColor: Color | null
 
+  /** @default 1.0 */
+  public luminanceBoost: number
+
+  /** @default 0.0 */
+  public shimmerPhase: number
+
+  /** @default 0.0 */
+  public shimmerAmount: number
+
   /**
    * @param parameters - Параметры материала.
    */
@@ -36,6 +63,9 @@ export class LineGlowMaterial extends LineBasicMaterial {
     super(parameters)
     
     this.glowIntensity = parameters.glowIntensity ?? 2.0
+    this.luminanceBoost = parameters.luminanceBoost ?? 1.0
+    this.shimmerPhase = parameters.shimmerPhase ?? 0.0
+    this.shimmerAmount = parameters.shimmerAmount ?? 0.0
     
     if (parameters.glowColor) {
       if (parameters.glowColor instanceof Color) {

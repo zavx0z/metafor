@@ -61,7 +61,10 @@
   явно видимыми, но вторичными, а неактивные sleeves — приглушёнными. Эта
   градация меняет только visual material markers и не меняет Capsule
   structure, State/Transition identity, activity, timeline либо projection
-  semantics.
+  semantics. Лёгкий shimmer является ограниченной пространственной функцией
+  GPU material с фазой от identity и текущего visual state: он обновляется
+  вместе с обычной projection/state change, не создаёт CPU simulation,
+  дополнительных marker objects или собственного perpetual render-loop gate.
 
 ## Следствие
 

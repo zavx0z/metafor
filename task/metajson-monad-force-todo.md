@@ -1053,10 +1053,15 @@
     projection only its torus is absent and Lada owns the root frame;
   - existing State markers on Capsule toruses use bounded GPU line-glow
     material contrast: current is strongest, potential markers are readable
-    but secondary, inactive sleeves remain subdued. No CPU particle
-    simulation or perpetual render-loop condition was added;
+    but secondary, inactive sleeves remain subdued. The follow-up readability
+    slice uses the same marker object and per-object uniform with deterministic
+    state-change phase plus bounded spatial shimmer; no CPU particle
+    simulation, extra marker geometry or perpetual render-loop condition is
+    added;
+  - focused material/readability/render-loop suite: `7 pass`, `0 fail`,
+    `35 expect`; browser bundle compiled `144` modules successfully;
   - `bun run check`: typecheck pass, `42` expected diagnostics,
-    `1685 pass`, `0 fail`, `5674 expect` in `193` test files.
+    `1688 pass`, `0 fail`, `5695 expect` in `194` test files.
 - Activation constraints:
   - this repair task performed no retry, restart, rollback, deletion, GC or
     other live mutation;

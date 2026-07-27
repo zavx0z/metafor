@@ -19,7 +19,9 @@ struct PerObjectUniforms {
   modelMatrix: mat4x4<f32>,
   color: vec4<f32>,
   glowIntensity: f32,
-  _padding: vec3<f32>, // для выравнивания после glowIntensity
+  luminanceBoost: f32,
+  shimmerPhase: f32,
+  shimmerAmount: f32,
   glowColor: vec4<f32>
 };
 @binding(0) @group(1) var<uniform> perObject: PerObjectUniforms;
@@ -62,6 +64,18 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
   let glowColor = perObject.glowColor;
   let useGlowColor = glowColor.a > 0.0;
   let finalColor = select(in.vertexColor.rgb, glowColor.rgb, useGlowColor);
+
+  // Optional material-local sparkle. This is spatial, not time-driven: it costs
+  // a few fragment ALU operations only on frames the caller already renders.
+  var shimmer = 1.0;
+  if (perObject.shimmerAmount > 0.0) {
+    let shimmerWave = sin(
+      dot(in.worldPosition, vec3<f32>(2.31, 3.17, 1.73)) +
+      perObject.shimmerPhase
+    );
+    shimmer += perObject.shimmerAmount * (0.5 + 0.5 * shimmerWave);
+  }
+  finalColor *= perObject.luminanceBoost * shimmer;
   
   return vec4<f32>(finalColor * finalFade, in.vertexColor.a * finalFade);
 }

@@ -1446,6 +1446,9 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     this.writePerObjectRgba(offsetFloats + 16, material.color, material.color.a * material.opacity)
 
     let glowIntensity = 1.0
+    let luminanceBoost = 1.0
+    let shimmerPhase = 0
+    let shimmerAmount = 0
     let glowR = 0
     let glowG = 0
     let glowB = 0
@@ -1453,6 +1456,9 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     if (isLineGlow) {
       glowIntensity = (material as LineGlowMaterial).glowIntensity
+      luminanceBoost = (material as LineGlowMaterial).luminanceBoost
+      shimmerPhase = (material as LineGlowMaterial).shimmerPhase
+      shimmerAmount = (material as LineGlowMaterial).shimmerAmount
       const glowColorObj = (material as LineGlowMaterial).glowColor
       if (glowColorObj) {
         glowR = glowColorObj.r
@@ -1462,7 +1468,13 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
       }
     }
 
-    this.writePerObjectVec4(offsetFloats + 20, glowIntensity, 0, 0, 0)
+    this.writePerObjectVec4(
+      offsetFloats + 20,
+      glowIntensity,
+      luminanceBoost,
+      shimmerPhase,
+      shimmerAmount,
+    )
     this.writePerObjectVec4(offsetFloats + 24, glowR, glowG, glowB, glowA)
   }
 

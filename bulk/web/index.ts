@@ -2144,7 +2144,14 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		return existing
 	}
 
-	const orbitalMaterialVisual = (particle: BulkOrbitalParticle): {color: Color; glowColor: Color; glowIntensity: number} => {
+	const orbitalMaterialVisual = (particle: BulkOrbitalParticle): {
+		color: Color
+		glowColor: Color
+		glowIntensity: number
+		luminanceBoost?: number
+		shimmerAmount?: number
+		shimmerPhase?: number
+	} => {
 		const isState = particle.orbitalParticleKind === "state"
 		if (isState) {
 			const visual = resolveTorusStateVisual(particle)
@@ -2186,6 +2193,9 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		existing.material.color.copy(visual.color)
 		existing.material.glowColor?.copy(visual.glowColor)
 		existing.material.glowIntensity = visual.glowIntensity
+		existing.material.luminanceBoost = visual.luminanceBoost ?? 1
+		existing.material.shimmerAmount = visual.shimmerAmount ?? 0
+		existing.material.shimmerPhase = visual.shimmerPhase ?? 0
 		return existing
 	}
 

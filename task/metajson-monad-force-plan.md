@@ -867,6 +867,12 @@ backward validation. Принятый Lada root `replace` обновляет sel
 standard restart и browser reload; повторять activation/preflight, выполнять
 rollback/GC либо hot reload нельзя.
 
+State markers остаются существующими single-object Capsule markers. Их
+readability material может использовать только bounded per-object GPU
+luminance и пространственный shimmer с детерминированной state-change phase;
+ни отдельная particle geometry/CPU simulation, ни новый perpetual render-loop
+condition для этого visual effect не допускаются.
+
 ### 15.5 Pause/Stack и ветвящийся execution workspace
 
 Owner уточнил назначение checkpoint line: это не только offline replay, а
