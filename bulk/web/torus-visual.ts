@@ -45,13 +45,7 @@ export type DarkParticleTorusLayer = Readonly<{
 export const resolveDarkParticleTorusLayer = (
 	particle: DarkParticleTorusVisualInput,
 ): DarkParticleTorusLayer =>
-	particle.parentDarkParticleId === null && particle.darkParticleKind === "atom"
-		? {
-			luminanceBoost: 1,
-			silhouetteAmount: 1,
-			visibilityMode: "silhouette",
-		}
-		: particle.parentDarkParticleId !== null && particle.darkParticleKind === "atom"
+	particle.parentDarkParticleId !== null && particle.darkParticleKind === "atom"
 		? {
 			luminanceBoost: particle.activity === "inactive" ? 1.15 : 1.35,
 			silhouetteAmount: 0,

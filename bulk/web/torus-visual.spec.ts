@@ -63,8 +63,8 @@ describe("Capsule torus visual contrast", () => {
 			input({parentDarkParticleId: null}),
 		)).toEqual({
 			luminanceBoost: 1,
-			silhouetteAmount: 1,
-			visibilityMode: "silhouette",
+			silhouetteAmount: 0,
+			visibilityMode: "scene",
 		})
 		expect(resolveDarkParticleTorusLayer(
 			input({darkParticleKind: "fuzzy"}),

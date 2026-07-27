@@ -887,20 +887,15 @@ bounded single-sample material overlay с отдельным opacity/luminance c
 nucleus accent в том же overlay с shader-local material scale меньше
 State-electron marker, без изменения geometry/transform/layout/pick radius и
 без новых objects.
-Root Atom torus остаётся subtle sparse/translucent shader silhouette без depth
-write; relation/connection lines имеют визуальный приоритет над tor grid.
-Field и State spheres получают deterministic renderer-only placement на
-отдельной сферической shell своего owning Atom. Torus этого Atom центрирован
-внутри сферы; root-wide shell запрещена, marker-ы не лежат на torus surface.
-Shell radius растёт от owning torus outer radius монотонно с Atom-local marker
-count/radius, но его center radius bounded значением `0.59` final-world
-diameter этого torus; локальный relation endpoint с Field-proxy offset bounded
-значением `0.64` того же diameter. Uniform recursive `matrixWorld` scale
-сохраняет эти отношения на любой глубине. Распределение стабильно по identity
-и пересчитывается только с projection/state change. Каждый Atom владеет identity `markerShell` frame в
-собственном render container; marker/proxy/connection visuals используют
-только его. Persisted coordinates, parent ownership, topology и causal layout
-не меняются, а relation/transition используют derived Atom-local endpoints.
+Owner superseded renderer-only spherical-shell placement после live visual
+review. Current law возвращает последнюю принятую pre-sphere композицию:
+Fields используют materialized Atom-local coordinates и остаются в локальном
+ядре, State markers сохраняют тороидальную manifestation composition, а root
+torus остаётся читаемым обычным scene-depth object. Renderer не создаёт
+`markerShell`, не выводит marker position из identity/count/radius и не
+переписывает локальные endpoints; marker/proxy/transition/relation geometry
+использует один owning Atom container и materialized coordinates. Data,
+topology, parent ownership, causal layout и identity остаются неизменными.
 Initial root fit и click/focused fit используют один final-world envelope
 owning Atom, включающий torus, marker sphere bounds, Field proxies, transitions
 и локальные relations. Target остаётся в центре torus, направление камеры и

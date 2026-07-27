@@ -1092,24 +1092,25 @@
   - existing non-root Atom toruses use the same overlay for legible inner-core
     contrast, and their existing Field spheres become bounded red nucleus
     accents with shader-local visual scale below the State marker scale;
-  - the root Atom torus uses the existing line material as a sparse,
-    translucent camera-facing energy-bubble rim. Its pipeline does not write
-    depth and renders before ordinary relation lines, preserving connection
-    priority without new geometry;
-  - Field and State spheres receive an equal-area deterministic display-only
-    position on the owning Atom's own spherical shell. That Atom's torus is
-    centered wholly inside the sphere; a root-wide shell is forbidden and
-    markers are not placed on torus geometry. Shell radius increases
-    monotonically from the owning torus outer radius with that Atom's marker
-    count/radius, while its center radius remains at or below `0.59` of that
-    torus final-world diameter and local relation endpoints, including
-    Field-proxy offsets, remain at or below `0.64`. Uniform recursive
-    `matrixWorld` scaling preserves both ratios at every depth. Every Atom owns
-    an identity marker-shell render frame;
-    marker, relation, transition and Field-proxy visuals consume only that
-    frame and the same Atom-local derived endpoints. Persisted coordinates,
-    semantic parent ownership, causal layout, topology, identity, data, RPC,
-    camera and render-loop conditions are unchanged;
+  - owner live review superseded the spherical-shell placement introduced by
+    `faa6a33d`, refined by `b325f7b7` and bounded by `9d9f375d`; its accepted
+    visual baseline is the immediately preceding `41e76f48`;
+  - the correction restores that placement wholesale: Fields consume their
+    materialized Atom-local nucleus coordinates, State markers keep the
+    toroidal manifestation composition, all marker/proxy/connection visuals
+    use the owning Atom container, and root torus returns to readable
+    scene-depth material;
+  - no spherical marker frame/remap remains; marker count, radius and identity
+    do not derive a renderer placement. Persisted coordinates, semantic parent
+    ownership, causal layout, topology, identity, data, RPC, camera and
+    render-loop conditions remain unchanged;
+  - focused placement/torus/material/manifestation/camera/render-loop suite:
+    `38 pass`, `0 fail`, `1636 expect`;
+  - browser bundle compiled `150` modules; `bun run check` passed typecheck,
+    `42` expected diagnostics and `1703 pass`, `0 fail`, `5782 expect` in
+    `199` test files; `git diff --check` is clean;
+  - no runtime lifecycle command, restart, hot reload, activation retry,
+    rollback, deletion or GC was performed; scoped correction: this commit;
   - initial root fit and click/focused fit consume one conservative final-world
     envelope of the owning Atom's torus, marker spheres, Field proxies,
     transitions and local relations. The target remains the owning torus
@@ -1144,6 +1145,9 @@
     Field-proxy endpoint reached `1.287`;
   - the final-world Atom visual-fit follow-up performs no runtime, HMR,
     restart, rollback, deletion or GC action;
+  - the pre-sphere visual restoration keeps that later camera-fit algorithm
+    unchanged and remains cold-unverified until a separately authorized
+    complete service restart and fresh browser proof;
   - the world is already complete at active root `zavx0z/lada`; activation
     must not be retried and a new preflight is neither required nor valid;
   - this Atom visual-fit follow-up remains cold-unverified; live HMR was not

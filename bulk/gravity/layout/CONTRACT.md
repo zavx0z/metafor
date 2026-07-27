@@ -85,29 +85,16 @@
   удерживает nucleus accent визуально меньше State-electron marker. Geometry,
   node transform, layout и pick/projection radius не меняются; новые
   objects/geometry для accent не создаются.
-- Root Atom torus сохраняет outer form как subtle sparse/translucent material
-  silhouette, а не dense foreground grid. Silhouette не пишет depth и поэтому
-  не перекрывает relation/connection lines; пространственная rim-маска
-  вычисляется в существующем line shader без новой geometry или render-loop.
-- Field spheres и State spheres получают только в Bulk renderer
-  детерминированную derived visual position на одной **сферической** shell
-  поверхности своего owning Atom. Torus этого Atom находится в центре и
-  целиком внутри сферы; marker-ы не объединяются в root-wide shell и не
-  проецируются на torus surface. Shell radius монотонно растёт от outer radius
-  owning torus с количеством marker-ов этого Atom и их visual radius,
-  предотвращая crowding. Каждый Atom имеет отдельный identity
-  `markerShell`-frame внутри собственного render container; его
-  marker/proxy/connection render objects используют этот frame и не попадают в
-  frame другого Atom. Shell center radius монотонно, но bounded растёт с
-  occupancy и не превышает `0.59` final-world diameter собственного torus;
-  endpoint локальной relation, включая Field-proxy offset, не превышает
-  `0.64` того же diameter. Uniform recursive `matrixWorld` scale применяется
-  одинаково к torus, shell и локальным relation endpoints, поэтому эти bounds
-  сохраняются на любой глубине. Распределение стабильно по marker identity и
-  пересчитывается только при projection/state change. Persisted
-  `localX/localY/localZ`, parent ownership, topology, causal layout и identity
-  не меняются; relation/transition geometry использует те же derived
-  Atom-local endpoints и остаётся читаемой.
+- Root Atom torus сохраняет читаемую outer form в обычном scene-depth
+  material; renderer не заменяет её sparse silhouette.
+- Renderer использует materialized Atom-local `localX/localY/localZ` без
+  дополнительной spherical-shell проекции. Поэтому Fields остаются в
+  упакованном локальном ядре owning Atom, а State markers сохраняют
+  тороидальную композицию manifestation. Marker-ы, Field proxies,
+  transitions и локальные relations принадлежат одному render container
+  owning Atom и используют те же materialized endpoints. Marker count,
+  identity и visual radius не создают отдельную renderer-only раскладку и не
+  меняют parent ownership, topology, causal layout либо identity.
 - Initial root fit и click/focused fit используют один renderer-only visual
   envelope owning Atom: torus, Field/State sphere bounds, Field-proxy,
   transition и локальные relation geometry после их final-world transforms.

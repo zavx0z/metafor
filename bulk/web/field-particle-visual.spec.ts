@@ -8,7 +8,7 @@ const field = {
 }
 
 describe("nested Atom nucleus Field accents", () => {
-	test("preserves root-shell Field color and ordinary scene depth", () => {
+	test("preserves root-nucleus Field color and ordinary scene depth", () => {
 		const visual = resolveFieldParticleVisual(field, 1, 0.08)
 
 		expect(visual.color).toEqual([0.2, 0.68, 1, 1])
