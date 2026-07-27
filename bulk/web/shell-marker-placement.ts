@@ -29,6 +29,8 @@ export type AtomMarkerShell = Readonly<{
 
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5))
 
+export const MAX_MARKER_SHELL_RADIUS_TO_TORUS_DIAMETER = 0.59
+
 export const createAtomMarkerShellFrame = (atomId: number): Object3D => {
 	const markerShell = new Object3D()
 	markerShell.name = `AtomMarkerShell:${atomId}`
@@ -47,7 +49,10 @@ const stableHash = (value: string): number => {
 
 /**
  * Builds a spherical shell outside a torus centered at the same origin. The
- * radius expands strictly with occupancy and is bounded by marker scale.
+ * radius expands monotonically with occupancy, but cannot outgrow the local
+ * Atom merely because its declaration graph produces many marker occurrences.
+ * The same uniform recursive transform applies to torus and shell, preserving
+ * this ratio in final world space.
  */
 export const resolveMarkerShellRadius = (
 	markerCount: number,
@@ -57,7 +62,10 @@ export const resolveMarkerShellRadius = (
 	const count = Math.max(1, Math.floor(markerCount))
 	const torusOuterRadius = Math.max(0, centeredTorusOuterRadius)
 	const marker = Math.max(0.001, maxMarkerRadius)
-	return torusOuterRadius + marker * (0.45 + 0.82 * Math.sqrt(count))
+	const crowdingExpansion = marker * (0.45 + 0.82 * Math.sqrt(count))
+	const maximumShellRadius =
+		torusOuterRadius * MAX_MARKER_SHELL_RADIUS_TO_TORUS_DIAMETER * 2
+	return Math.min(torusOuterRadius + crowdingExpansion, maximumShellRadius)
 }
 
 /**

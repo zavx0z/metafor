@@ -98,7 +98,12 @@
   предотвращая crowding. Каждый Atom имеет отдельный identity
   `markerShell`-frame внутри собственного render container; его
   marker/proxy/connection render objects используют этот frame и не попадают в
-  frame другого Atom. Распределение стабильно по marker identity и
+  frame другого Atom. Shell center radius монотонно, но bounded растёт с
+  occupancy и не превышает `0.59` final-world diameter собственного torus;
+  endpoint локальной relation, включая Field-proxy offset, не превышает
+  `0.64` того же diameter. Uniform recursive `matrixWorld` scale применяется
+  одинаково к torus, shell и локальным relation endpoints, поэтому эти bounds
+  сохраняются на любой глубине. Распределение стабильно по marker identity и
   пересчитывается только при projection/state change. Persisted
   `localX/localY/localZ`, parent ownership, topology, causal layout и identity
   не меняются; relation/transition geometry использует те же derived

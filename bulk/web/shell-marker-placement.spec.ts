@@ -2,22 +2,32 @@ import {describe, expect, test} from "bun:test"
 import {Object3D} from "@metafor/engine"
 import {
 	createAtomMarkerShellFrame,
+	MAX_MARKER_SHELL_RADIUS_TO_TORUS_DIAMETER,
 	resolvePerAtomMarkerShells,
 	resolveMarkerShellRadius,
 	resolveShellMarkerPositions,
 } from "./shell-marker-placement.ts"
 
+const MAX_LOCAL_RELATION_ENDPOINT_RADIUS_TO_TORUS_DIAMETER = 0.64
+const WORLD_RATIO_TOLERANCE = 1e-5
+
 describe("derived marker shell placement", () => {
-	test("grows shell radius monotonically with marker count", () => {
+	test("grows shell radius monotonically with marker count within its Atom envelope", () => {
 		const sparse = resolveMarkerShellRadius(3, 120, 8)
 		const populated = resolveMarkerShellRadius(12, 120, 8)
 		const crowded = resolveMarkerShellRadius(48, 120, 8)
 		const largerMarkers = resolveMarkerShellRadius(48, 120, 12)
 
 		expect(populated).toBeGreaterThan(sparse)
-		expect(crowded).toBeGreaterThan(populated)
-		expect(largerMarkers).toBeGreaterThan(crowded)
+		expect(crowded).toBeGreaterThanOrEqual(populated)
+		expect(largerMarkers).toBeGreaterThanOrEqual(crowded)
 		expect(sparse).toBeGreaterThan(120)
+		expect(crowded / (120 * 2)).toBeLessThanOrEqual(
+			MAX_MARKER_SHELL_RADIUS_TO_TORUS_DIAMETER,
+		)
+		expect(largerMarkers / (120 * 2)).toBeLessThanOrEqual(
+			MAX_MARKER_SHELL_RADIUS_TO_TORUS_DIAMETER,
+		)
 	})
 
 	test("distributes identities on a sphere enclosing the centered torus", () => {
@@ -140,5 +150,87 @@ describe("derived marker shell placement", () => {
 			markerCenter[1]! - shellCenter[1]!,
 			markerCenter[2]! - shellCenter[2]!,
 		)).toBeCloseTo(80 * 0.8 * 0.5, 8)
+	})
+
+	test("bounds a busy nested Atom shell and local relation endpoints against its own world torus", () => {
+		const scene = new Object3D()
+		const lada = new Object3D()
+		lada.position.set(14, -8, 3)
+		lada.scale.set(0.82, 0.82, 0.82)
+		scene.add(lada)
+		const chat = new Object3D()
+		chat.position.set(31, 12, -4)
+		chat.scale.set(0.13, 0.13, 0.13)
+		lada.add(chat)
+		const chatSend = new Object3D()
+		chatSend.position.set(-27, 16, 5)
+		chatSend.scale.set(0.1, 0.1, 0.1)
+		chat.add(chatSend)
+
+		const torus = new Object3D()
+		const shell = createAtomMarkerShellFrame(12)
+		chatSend.add(torus)
+		chatSend.add(shell)
+		const markers = Array.from({length: 96}, (_, index) => ({
+			identity: index % 2 === 0 ? `field:${index}` : `state:${index}`,
+			radius: 5,
+		}))
+		const positions = resolveShellMarkerPositions(markers, 50)
+		const field = new Object3D()
+		const state = new Object3D()
+		const fieldPosition = positions.get("field:0")!
+		const statePosition = positions.get("state:1")!
+		field.position.set(fieldPosition.x, fieldPosition.y, fieldPosition.z)
+		state.position.set(statePosition.x, statePosition.y, statePosition.z)
+		shell.add(field)
+		shell.add(state)
+
+		// This is the exact derived render offset used by a Field-proxy endpoint.
+		const proxy = new Object3D()
+		const stateRadius = Math.hypot(statePosition.x, statePosition.y, statePosition.z)
+		const proxyOffset = {
+			x: statePosition.x / stateRadius * 5 * 0.93,
+			y: statePosition.y / stateRadius * 5 * 0.93,
+			z: statePosition.z / stateRadius * 5 * 0.93,
+		}
+		proxy.position.set(
+			statePosition.x + proxyOffset.x,
+			statePosition.y + proxyOffset.y,
+			statePosition.z + proxyOffset.z,
+		)
+		shell.add(proxy)
+		scene.updateWorldMatrix(true)
+
+		const worldPoint = (object: Object3D): readonly [number, number, number] => [
+			object.matrixWorld.elements[12]!,
+			object.matrixWorld.elements[13]!,
+			object.matrixWorld.elements[14]!,
+		]
+		const distance = (
+			left: readonly [number, number, number],
+			right: readonly [number, number, number],
+		): number => Math.hypot(
+			left[0] - right[0],
+			left[1] - right[1],
+			left[2] - right[2],
+		)
+		const torusCenter = worldPoint(torus)
+		const cumulativeScale = 0.82 * 0.13 * 0.1
+		const worldTorusDiameter = 50 * 2 * cumulativeScale
+		const legacyUnboundedRadius = 50 + 5 * (0.45 + 0.82 * Math.sqrt(markers.length))
+
+		expect(legacyUnboundedRadius / 100).toBeGreaterThan(0.9)
+		const fieldRatio = distance(worldPoint(field), torusCenter) / worldTorusDiameter
+		const stateRatio = distance(worldPoint(state), torusCenter) / worldTorusDiameter
+		const worstCaseProxyRatio = distance(worldPoint(proxy), torusCenter) / worldTorusDiameter
+		expect(fieldRatio).toBeCloseTo(MAX_MARKER_SHELL_RADIUS_TO_TORUS_DIAMETER, 5)
+		expect(stateRatio).toBeCloseTo(MAX_MARKER_SHELL_RADIUS_TO_TORUS_DIAMETER, 5)
+		expect(fieldRatio)
+			.toBeLessThanOrEqual(MAX_MARKER_SHELL_RADIUS_TO_TORUS_DIAMETER + WORLD_RATIO_TOLERANCE)
+		expect(stateRatio)
+			.toBeLessThanOrEqual(MAX_MARKER_SHELL_RADIUS_TO_TORUS_DIAMETER + WORLD_RATIO_TOLERANCE)
+		expect(worstCaseProxyRatio).toBeCloseTo(0.6365, 4)
+		expect(worstCaseProxyRatio)
+			.toBeLessThanOrEqual(MAX_LOCAL_RELATION_ENDPOINT_RADIUS_TO_TORUS_DIAMETER + WORLD_RATIO_TOLERANCE)
 	})
 })

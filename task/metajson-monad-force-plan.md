@@ -893,8 +893,11 @@ Field и State spheres получают deterministic renderer-only placement н
 отдельной сферической shell своего owning Atom. Torus этого Atom центрирован
 внутри сферы; root-wide shell запрещена, marker-ы не лежат на torus surface.
 Shell radius растёт от owning torus outer radius монотонно с Atom-local marker
-count/radius, распределение стабильно по identity и пересчитывается только с
-projection/state change. Каждый Atom владеет identity `markerShell` frame в
+count/radius, но его center radius bounded значением `0.59` final-world
+diameter этого torus; локальный relation endpoint с Field-proxy offset bounded
+значением `0.64` того же diameter. Uniform recursive `matrixWorld` scale
+сохраняет эти отношения на любой глубине. Распределение стабильно по identity
+и пересчитывается только с projection/state change. Каждый Atom владеет identity `markerShell` frame в
 собственном render container; marker/proxy/connection visuals используют
 только его. Persisted coordinates, parent ownership, topology и causal layout
 не меняются, а relation/transition используют derived Atom-local endpoints.

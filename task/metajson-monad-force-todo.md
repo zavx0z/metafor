@@ -1101,7 +1101,11 @@
     centered wholly inside the sphere; a root-wide shell is forbidden and
     markers are not placed on torus geometry. Shell radius increases
     monotonically from the owning torus outer radius with that Atom's marker
-    count/radius. Every Atom owns an identity marker-shell render frame;
+    count/radius, while its center radius remains at or below `0.59` of that
+    torus final-world diameter and local relation endpoints, including
+    Field-proxy offsets, remain at or below `0.64`. Uniform recursive
+    `matrixWorld` scaling preserves both ratios at every depth. Every Atom owns
+    an identity marker-shell render frame;
     marker, relation, transition and Field-proxy visuals consume only that
     frame and the same Atom-local derived endpoints. Persisted coordinates,
     semantic parent ownership, causal layout, topology, identity, data, RPC,
@@ -1111,22 +1115,27 @@
     red-dominant, non-saturating, smaller nucleus accent; the production
     silhouette pipeline also compiles with depth writes disabled;
   - focused shader/material/readability/core/shell/render-loop suite:
-    `25 pass`, `0 fail`, `174 expect`; browser bundle compiled `120` modules
+    `23 pass`, `0 fail`, `167 expect`; browser bundle compiled `120` modules
     successfully;
   - `bun run check`: typecheck pass, `42` expected diagnostics,
-    `1704 pass`, `0 fail`, `5829 expect` in `198` test files.
+    `1705 pass`, `0 fail`, `5838 expect` in `198` test files.
 - Activation constraints:
   - visual commit `faa6a33d` received one authorized standard cold restart;
     the service returned active/running, all six ports listened and startup
     evidence showed all five domains connected to Force. Direct HTTP health
     remained inaccessible from the isolated executor network namespace;
-  - the fresh deployed browser screenshot rejected its implicit per-parent
-    composition because Atom-local frame ownership was not explicit/tested;
-    this follow-up adds identity marker-shell frames and performs no runtime,
-    HMR, restart, rollback, deletion or GC action;
+  - `b325f7b7` then received one authorized standard cold restart and returned
+    healthy, but its fresh screenshot rejected the still-unbounded local shell:
+    the owning frame was correct while the `sqrt(markerCount)` radius could
+    outgrow its nested Atom. A three-level render fixture measures the former
+    busy-shell center at `0.9242` of its own torus diameter. The bounded law
+    measures marker centers at `0.5900` and the worst outward Field-proxy
+    relation endpoint at `0.6365` after the full recursive `matrixWorld`;
+  - this bounded-radius follow-up performs no runtime, HMR, restart, rollback,
+    deletion or GC action;
   - the world is already complete at active root `zavx0z/lada`; activation
     must not be retried and a new preflight is neither required nor valid;
-  - this Atom-local marker-shell follow-up remains cold-unverified; live HMR
+  - this bounded Atom-local marker-shell follow-up remains cold-unverified; live HMR
     was not used as acceptance. Any later installation requires separate
     authorization and a fresh browser screenshot. No hot reload,
     config/environment/port change, rollback or GC is permitted.
