@@ -102,10 +102,14 @@ bun test matrix/runtime.parity.spec.ts
 bun test energy/energy.spec.ts
 bun test energy/reaction.spec.ts
 bun test bulk/world.spec.ts
+bun test pkg/engine/src/renderer/shaders/line.webgpu.spec.ts
 ```
 
 WebGPU suite запускается отдельно при доступном adapter. Недоступность adapter
 должна быть отмечена как `NOT EXECUTED`, а не как успешная проверка.
+Line shader suite через настоящий WebGPU device компилирует production WGSL
+vertex/fragment stages и создаёт production-shaped render pipeline; обычная
+проверка текста или browser bundle не заменяет этот gate.
 
 ## Временная Meta
 

@@ -63,7 +63,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
   // Используем цвет свечения если он задан, иначе цвет вершины
   let glowColor = perObject.glowColor;
   let useGlowColor = glowColor.a > 0.0;
-  let finalColor = select(in.vertexColor.rgb, glowColor.rgb, useGlowColor);
+  var finalColor = select(in.vertexColor.rgb, glowColor.rgb, useGlowColor);
 
   // Optional material-local sparkle. This is spatial, not time-driven: it costs
   // a few fragment ALU operations only on frames the caller already renders.

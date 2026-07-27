@@ -1058,10 +1058,20 @@
     state-change phase plus bounded spatial shimmer; no CPU particle
     simulation, extra marker geometry or perpetual render-loop condition is
     added;
-  - focused material/readability/render-loop suite: `7 pass`, `0 fail`,
-    `35 expect`; browser bundle compiled `144` modules successfully;
+  - deployed readability commit `e0e27766` exposed a real browser-only WGSL
+    regression: the fragment stage declared `finalColor` with immutable `let`
+    and then applied `*=`, invalidating the whole shader module and therefore
+    the line render pipeline during Bulk initialization;
+  - follow-up repair changes only that shader-local declaration to mutable
+    `var`; the luminance/shimmer uniforms, current-versus-potential contrast,
+    marker geometry and render-loop law remain unchanged;
+  - executable Dawn/WebGPU gate compiles the production line WGSL into the
+    production-shaped vertex/fragment render pipeline and proves the exact
+    former `let finalColor` variant is rejected as `Invalid ShaderModule`;
+  - focused shader/material/readability/render-loop suite: `9 pass`, `0 fail`,
+    `39 expect`; browser bundle compiled `116` modules successfully;
   - `bun run check`: typecheck pass, `42` expected diagnostics,
-    `1688 pass`, `0 fail`, `5695 expect` in `194` test files.
+    `1690 pass`, `0 fail`, `5699 expect` in `195` test files.
 - Activation constraints:
   - this repair task performed no retry, restart, rollback, deletion, GC or
     other live mutation;
