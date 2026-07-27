@@ -22,15 +22,16 @@ describe("Capsule torus State marker readability", () => {
 		const inactive = resolveTorusStateVisual(marker())
 
 		expect(current.color[3]).toBe(1)
-		expect(potential.color[3]).toBe(0.86)
-		expect(inactive.color[3]).toBe(0.015)
+		expect(potential.color[3]).toBe(0.5)
+		expect(inactive.color[3]).toBe(0.14)
 		expect(current.color[3]).toBeGreaterThan(potential.color[3])
 		expect(potential.color[3]).toBeGreaterThan(inactive.color[3])
 		expect(current.glowIntensity).toBeGreaterThan(potential.glowIntensity)
 		expect(potential.glowIntensity).toBeGreaterThan(inactive.glowIntensity)
 		expect(current.luminanceBoost).toBeGreaterThan(potential.luminanceBoost)
-		expect(current.luminanceBoost).toBeGreaterThanOrEqual(2)
-		expect(potential.luminanceBoost).toBeGreaterThanOrEqual(1.5)
+		expect(current.glowIntensity).toBe(4.8)
+		expect(current.luminanceBoost).toBe(1.45)
+		expect(potential.luminanceBoost).toBeGreaterThanOrEqual(1.1)
 		expect(current.glowIntensity / potential.glowIntensity).toBeGreaterThanOrEqual(2)
 	})
 
@@ -58,6 +59,7 @@ describe("Capsule torus State marker readability", () => {
 			"luminanceBoost",
 			"shimmerAmount",
 			"shimmerPhase",
+			"visibilityMode",
 		])
 	})
 
@@ -72,6 +74,9 @@ describe("Capsule torus State marker readability", () => {
 		expect(repeatedPotential.shimmerPhase).toBe(potential.shimmerPhase)
 		expect(current.shimmerAmount).toBeLessThanOrEqual(0.13)
 		expect(potential.shimmerAmount).toBeLessThan(current.shimmerAmount)
+		expect(current.visibilityMode).toBe("scene")
+		expect(potential.visibilityMode).toBe("overlay")
+		expect(resolveTorusStateVisual(marker()).visibilityMode).toBe("overlay")
 		expect(Object.values(current).filter(Array.isArray)).toHaveLength(2)
 
 		expect(shouldContinueBulkRenderLoop({

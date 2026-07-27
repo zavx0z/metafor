@@ -48,8 +48,12 @@ import {
 	toLevelSettings,
 } from "bulk/settings"
 import {shouldContinueBulkRenderLoop} from "./render-loop.ts"
-import {resolveDarkParticleTorusOpacity} from "./torus-visual.ts"
+import {
+	resolveDarkParticleTorusLayer,
+	resolveDarkParticleTorusOpacity,
+} from "./torus-visual.ts"
 import {resolveOrbitalMaterialVisual} from "./orbital-material-visual.ts"
+import {resolveFieldParticleVisual} from "./field-particle-visual.ts"
 import {
 	createLevelResolver,
 	resolveOuterRadiusFromSphereRadius,
@@ -180,9 +184,6 @@ type ImpulseRenderRecord = {
 	startedAtMs: number
 	durationMs: number
 }
-const FIELD_GLOW_ALPHA = 0.1
-const FIELD_GLOW_INTENSITY = 0.8
-const FIELD_OPACITY_MULTIPLIER = 0.9
 // Field cards are an inspect-at-close-range affordance, never foreground
 // typography for the whole Space. More texture resolution makes their text
 // physically smaller while preserving a crisp close inspection.
@@ -1008,45 +1009,70 @@ const mixColor = (left: Color, right: Color, amount: number): Color =>
 
 const brightenColor = (color: Color, amount: number): Color => mixColor(color, new Color(1, 1, 1, color.a), amount)
 
-const resolveDarkParticleVisualState = (darkParticle: BulkDarkParticle): { color: Color; glowColor: Color; glowIntensity: number; opacity: number } => {
+const resolveDarkParticleVisualState = (darkParticle: BulkDarkParticle): {
+	color: Color
+	glowColor: Color
+	glowIntensity: number
+	luminanceBoost: number
+	opacity: number
+	visibilityMode: "scene" | "overlay"
+} => {
 	const baseColor = particleColor(darkParticle)
 	const root = darkParticle.parentDarkParticleId === null
-	const glowIntensity = root ? 0.95 : darkParticle.darkParticleKind === "atom" ? 0.58 : 0.36
+	const core = !root && darkParticle.darkParticleKind === "atom"
+	const glowIntensity = root ? 0.95 : core ? 1.25 : 0.36
 	const opacity = resolveDarkParticleTorusOpacity(
 		darkParticle,
 		activeRenderSettings.wireframeOpacity,
 	)
+	const layer = resolveDarkParticleTorusLayer(darkParticle)
 	if (darkParticle.activity === "active") {
 		return {
-			color: mixColor(baseColor, new Color(1, 1, 1), 0.18),
-			glowColor: glowColor(baseColor, 0.18),
+			color: mixColor(baseColor, new Color(1, 1, 1), core ? 0.3 : 0.18),
+			glowColor: glowColor(baseColor, core ? 0.5 : 0.18),
 			glowIntensity: glowIntensity * 1.25,
+			...layer,
 			opacity,
 		}
 	}
 	if (darkParticle.activity === "inactive") {
 		return {
-			color: mixColor(mixColor(baseColor, new Color(1, 1, 1), 0.24), ROOT_BACKGROUND, 0.28),
-			glowColor: glowColor(mixColor(baseColor, new Color(1, 1, 1), 0.3), 0.08),
-			glowIntensity: glowIntensity * 0.35,
+			color: mixColor(
+				mixColor(baseColor, new Color(1, 1, 1), core ? 0.34 : 0.24),
+				ROOT_BACKGROUND,
+				core ? 0.12 : 0.28,
+			),
+			glowColor: glowColor(
+				mixColor(baseColor, new Color(1, 1, 1), core ? 0.42 : 0.3),
+				core ? 0.22 : 0.08,
+			),
+			glowIntensity: glowIntensity * (core ? 0.55 : 0.35),
+			...layer,
 			opacity,
 		}
 	}
 	return {
-		color: baseColor,
-		glowColor: glowColor(baseColor),
+		color: core ? mixColor(baseColor, new Color(1, 1, 1), 0.22) : baseColor,
+		glowColor: glowColor(baseColor, core ? 0.38 : 0.14),
 		glowIntensity,
+		...layer,
 		opacity,
 	}
 }
 
-const createFieldParticleMaterial = (fieldParticle: BulkFieldParticle): LineGlowMaterial => {
-	const color = particleColor(fieldParticle)
+const createFieldParticleMaterial = (
+	fieldParticle: BulkFieldParticle,
+	depth: number,
+): LineGlowMaterial => {
+	const visual = resolveFieldParticleVisual(
+		fieldParticle,
+		depth,
+		activeRenderSettings.wireframeOpacity,
+	)
 	return new LineGlowMaterial({
-		color,
-		glowIntensity: FIELD_GLOW_INTENSITY,
-		glowColor: glowColor(color, FIELD_GLOW_ALPHA),
-		opacity: Math.min(1, activeRenderSettings.wireframeOpacity * FIELD_OPACITY_MULTIPLIER),
+		...visual,
+		color: new Color(...visual.color),
+		glowColor: new Color(...visual.glowColor),
 	})
 }
 
@@ -1955,16 +1981,24 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		record.pickTarget.baseGlowColor = visual.glowColor.clone()
 		record.pickTarget.baseGlowIntensity = visual.glowIntensity
 		record.pickTarget.baseOpacity = visual.opacity
+		record.material.luminanceBoost = visual.luminanceBoost
+		record.material.visibilityMode = visual.visibilityMode
 		syncPickTargetMaterialState(record.pickTarget)
 	}
 
 	const refreshFieldParticleRecordGeometryAndMaterial = (record: FieldParticleRenderRecord): void => {
 		record.node.geometry = getSphereWireframeGeometry(record.snapshot.sphereRadius, record.depth)
-		const color = particleColor(record.snapshot)
-		record.pickTarget.baseColor.copy(color)
-		record.pickTarget.baseGlowColor = glowColor(color, FIELD_GLOW_ALPHA)
-		record.pickTarget.baseGlowIntensity = FIELD_GLOW_INTENSITY
-		record.pickTarget.baseOpacity = Math.min(1, activeRenderSettings.wireframeOpacity * FIELD_OPACITY_MULTIPLIER)
+		const visual = resolveFieldParticleVisual(
+			record.snapshot,
+			record.depth,
+			activeRenderSettings.wireframeOpacity,
+		)
+		record.pickTarget.baseColor.copy(new Color(...visual.color))
+		record.pickTarget.baseGlowColor = new Color(...visual.glowColor)
+		record.pickTarget.baseGlowIntensity = visual.glowIntensity
+		record.pickTarget.baseOpacity = visual.opacity
+		record.material.luminanceBoost = visual.luminanceBoost
+		record.material.visibilityMode = visual.visibilityMode
 		syncPickTargetMaterialState(record.pickTarget)
 	}
 
@@ -2023,7 +2057,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	}
 
 	const createFieldParticleRecord = (field: BulkFieldParticle, depth: number): FieldParticleRenderRecord => {
-		const material = createFieldParticleMaterial(field)
+		const material = createFieldParticleMaterial(field, depth)
 		const node = new LineSegments(getSphereWireframeGeometry(field.sphereRadius, depth), material)
 		node.position.set(field.localX, field.localY, field.localZ)
 
@@ -2170,6 +2204,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		existing.material.luminanceBoost = visual.luminanceBoost
 		existing.material.shimmerAmount = visual.shimmerAmount
 		existing.material.shimmerPhase = visual.shimmerPhase
+		existing.material.visibilityMode = visual.visibilityMode
 		return existing
 	}
 

@@ -1076,23 +1076,39 @@
     adapter forwarded only color/glow/glowIntensity. New materials therefore
     took neutral defaults and updates explicitly reset those controls to
     neutral values;
-  - the visual-only repair forwards the complete material state and raises
-    bounded current/potential luminance and glow contrast. It changes no
-    topology, data, RPC, camera, layout, geometry or render-loop condition;
-  - focused shader/material/readability/render-loop suite: `12 pass`, `0 fail`,
-    `54 expect`; browser bundle compiled `146` modules successfully;
+  - a read-only deployment/cache audit proved the failed browser screenshot
+    received the commit `46f0b817` bundle with the complete adapter and raised
+    values. HTML/JS return full `200` responses even for matching ETags and no
+    service worker exists, so stale browser cache is not the cause;
+  - exact remaining render cause: near-white RGB was already saturated by the
+    UNORM presentation target, while native one-pixel markers remained behind
+    scene depth and were attenuated again by 4× MSAA resolve;
+  - the final bounded visual repair leaves the current marker at its earlier
+    softer `4.8` glow / `1.45` luminance scene-depth look. Potential and
+    inactive State balls retain their blue hierarchy in one final
+    single-sample additive material overlay, where `potential > inactive >
+    background`;
+  - existing non-root Atom toruses use the same overlay for legible inner-core
+    contrast, and their existing Field spheres become bounded red nucleus
+    accents. No object/geometry, topology, data, RPC, camera, layout or
+    render-loop condition changes;
+  - executable Dawn/WebGPU readback proves the bounded
+    `current > potential > inactive > background` output hierarchy and a
+    red-dominant, non-saturating nucleus accent;
+  - focused shader/material/readability/core/render-loop suite: `19 pass`,
+    `0 fail`, `92 expect`; browser bundle compiled `148` modules successfully;
   - `bun run check`: typecheck pass, `42` expected diagnostics,
-    `1693 pass`, `0 fail`, `5714 expect` in `196` test files.
+    `1698 pass`, `0 fail`, `5747 expect` in `197` test files.
 - Activation constraints:
   - this repair task performed no retry, restart, rollback, deletion, GC or
     other live mutation;
   - the world is already complete at active root `zavx0z/lada`; activation
     must not be retried and a new preflight is neither required nor valid;
-  - the visual-only material repair remains undeployed by this task. Its later
-    installation requires a separately authorized single standard service
-    restart; then all five domains/Force and a freshly reloaded browser must
-    be verified. No hot reload, config/environment/port change, rollback or GC
-    is permitted.
+  - this final visual material/core slice remains cold-unverified by this task;
+    live HMR was not used as acceptance. Its later installation requires a
+    separately authorized single standard service restart; then all five
+    domains/Force and a fresh browser screenshot must be verified. No hot
+    reload, config/environment/port change, rollback or GC is permitted.
 
 ### MF-109 — Реализовать Pause/Stack branchable execution workspace
 

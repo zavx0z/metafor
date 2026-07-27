@@ -22,6 +22,11 @@ import imageExternalShaderCode from "./shaders/image_external.wgsl"
 import roundedShaderCode from "./shaders/rounded.wgsl"
 import radialBackdropShaderCode from "./shaders/radial_backdrop.ts"
 import {TEXT_COVER_FACE_STATE, TEXT_STENCIL_BACK_FACE_STATE, TEXT_STENCIL_FACE_STATE} from "./text-stencil"
+import {
+  LINE_OVERLAY_BLEND_STATE,
+  LINE_SCENE_BLEND_STATE,
+  LINE_SCENE_DEPTH_STATE,
+} from "./line-pipeline"
 import {collectSpaceObjects, type LightItem, type RenderItem} from "./utils/RenderList"
 import {GlassMaterial} from "../materials/GlassMaterial"
 import {TextureLoader} from "../loaders/TextureLoader"
@@ -75,6 +80,7 @@ interface PreparedRenderLayer {
   background: GPUColor | undefined
   glassObjects: RenderItem[]
   regularObjects: RenderItem[]
+  overlayLines: RenderItem[]
   uiObjects: RenderItem[]
 }
 
@@ -99,6 +105,7 @@ export class Renderer {
   private instancedMeshPipeline: GPURenderPipeline | null = null
   private skinnedMeshPipeline: GPURenderPipeline | null = null
   private linePipeline: GPURenderPipeline | null = null
+  private lineOverlayPipeline: GPURenderPipeline | null = null
   private instancedLinePipeline: GPURenderPipeline | null = null
   private textStencilPipeline: GPURenderPipeline | null = null
   private textCoverPipeline: GPURenderPipeline | null = null
@@ -773,46 +780,52 @@ export class Renderer {
       multisample: {count: this.sampleCount},
     })
 
-    // --- Pipeline для Lines ---
-    this.linePipeline = await this.device.createRenderPipelineAsync({
-      layout: pipelineLayout,
-      vertex: {
-        module: lineShaderModule,
-        entryPoint: "vs_main",
-        buffers: [
-          {arrayStride: 12, attributes: [{shaderLocation: 0, offset: 0, format: "float32x3"}]},
-          {arrayStride: 12, attributes: [{shaderLocation: 1, offset: 0, format: "float32x3"}]},
-        ],
-      },
-      fragment: {
-        module: lineShaderModule,
-        entryPoint: "fs_main",
-        targets: [
-          {
-            format: this.presentationFormat,
-            blend: {
-              color: {
-                srcFactor: "src-alpha",
-                dstFactor: "one-minus-src-alpha",
-                operation: "add",
-              },
-              alpha: {
-                srcFactor: "one",
-                dstFactor: "one-minus-src-alpha",
-                operation: "add",
-              },
+    // --- Pipelines для Lines ---
+    const linePresentationFormat = this.presentationFormat
+    const createLinePipeline = (
+      label: string,
+      blend: GPUBlendState,
+      sampleCount: number,
+      depthStencil?: GPUDepthStencilState,
+    ): Promise<GPURenderPipeline> => {
+      const descriptor: GPURenderPipelineDescriptor = {
+        label,
+        layout: pipelineLayout,
+        vertex: {
+          module: lineShaderModule,
+          entryPoint: "vs_main",
+          buffers: [
+            {arrayStride: 12, attributes: [{shaderLocation: 0, offset: 0, format: "float32x3"}]},
+            {arrayStride: 12, attributes: [{shaderLocation: 1, offset: 0, format: "float32x3"}]},
+          ],
+        },
+        fragment: {
+          module: lineShaderModule,
+          entryPoint: "fs_main",
+          targets: [
+            {
+              format: linePresentationFormat,
+              blend,
             },
-          },
-        ],
-      },
-      primitive: {topology: "line-list"},
-      depthStencil: {
-        depthWriteEnabled: true, // Включаем запись глубины для придания объема
-        depthCompare: "less",
-        format: "depth24plus-stencil8",
-      },
-      multisample: {count: this.sampleCount},
-    })
+          ],
+        },
+        primitive: {topology: "line-list"},
+        multisample: {count: sampleCount},
+      }
+      if (depthStencil) descriptor.depthStencil = depthStencil
+      return this.device!.createRenderPipelineAsync(descriptor)
+    }
+    this.linePipeline = await createLinePipeline(
+      "scene line pipeline",
+      LINE_SCENE_BLEND_STATE,
+      this.sampleCount,
+      LINE_SCENE_DEPTH_STATE,
+    )
+    this.lineOverlayPipeline = await createLinePipeline(
+      "overlay line pipeline",
+      LINE_OVERLAY_BLEND_STATE,
+      1,
+    )
 
     // --- Pipeline для Instanced Lines ---
     const lineInstancedWGSL = `
@@ -1043,6 +1056,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
   ): {
     glassObjects: RenderItem[],
     regularObjects: RenderItem[],
+    overlayLines: RenderItem[],
     uiObjects: RenderItem[]
   } {
     const isUiLayerObject = (obj: Object3D): boolean => {
@@ -1055,11 +1069,21 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
       return false
     }
 
+    const isOverlayLine = (item: RenderItem): boolean =>
+      item.type === "line" &&
+      (item.object as LineSegments).material instanceof LineGlowMaterial &&
+      ((item.object as LineSegments).material as LineGlowMaterial).visibilityMode === "overlay"
+
     return {
       glassObjects: renderList.filter(item => (item.object.material as any)?.isGlassMaterial === true),
       regularObjects: renderList.filter(item =>
         !(item.object.material as any)?.isGlassMaterial &&
-        !isUiLayerObject(item.object)
+        !isUiLayerObject(item.object) &&
+        !isOverlayLine(item)
+      ),
+      overlayLines: renderList.filter(item =>
+        !isUiLayerObject(item.object) &&
+        isOverlayLine(item)
       ),
       uiObjects: renderList.filter(item => isUiLayerObject(item.object))
     }
@@ -1075,6 +1099,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
       this.instancedMeshPipeline &&
       this.skinnedMeshPipeline &&
       this.linePipeline &&
+      this.lineOverlayPipeline &&
       this.instancedLinePipeline &&
       this.textStencilPipeline &&
       this.textCoverPipeline &&
@@ -1168,6 +1193,12 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     preparedLayers.forEach((layer, index) => {
       this.renderPreparedLayer(commandEncoder, textureView, layer, renderIndexByItem, index === 0)
     })
+    this.renderOverlayLines(
+      commandEncoder,
+      textureView,
+      preparedLayers.flatMap((layer) => layer.overlayLines),
+      renderIndexByItem,
+    )
 
     this.device!.queue.submit([commandEncoder.finish()])
   }
@@ -1181,7 +1212,8 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     const allRenderItems: RenderItem[] = []
     const lights: LightItem[] = []
     collectSpaceObjects(root, allRenderItems, lights, this.frustum)
-    const {glassObjects, regularObjects, uiObjects} = this.collectSpaceObjectsByType(allRenderItems)
+    const {glassObjects, regularObjects, overlayLines, uiObjects} =
+      this.collectSpaceObjectsByType(allRenderItems)
 
     frameRenderItems.push(...allRenderItems)
     frameLights.push(...lights)
@@ -1190,6 +1222,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
       background,
       glassObjects,
       regularObjects,
+      overlayLines,
       uiObjects,
     }
   }
@@ -1233,6 +1266,25 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     this.renderObjectList(passEncoder, layer.uiObjects, renderIndexByItem, true)
 
     passEncoder.end()
+  }
+
+  private renderOverlayLines(
+    commandEncoder: GPUCommandEncoder,
+    textureView: GPUTextureView,
+    overlayLines: RenderItem[],
+    renderIndexByItem: ReadonlyMap<RenderItem, number>,
+  ): void {
+    if (overlayLines.length === 0) return
+    const overlayPass = commandEncoder.beginRenderPass({
+      colorAttachments: [{
+        view: textureView,
+        loadOp: "load",
+        storeOp: "store",
+      }],
+    })
+    overlayPass.setBindGroup(0, this.globalBindGroup!)
+    this.renderObjectList(overlayPass, overlayLines, renderIndexByItem)
+    overlayPass.end()
   }
 
 
@@ -1535,7 +1587,11 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
           pipeline = this.instancedLinePipeline
           break
         case "line":
-          pipeline = this.linePipeline
+          pipeline =
+            (item.object as LineSegments).material instanceof LineGlowMaterial &&
+            ((item.object as LineSegments).material as LineGlowMaterial).visibilityMode === "overlay"
+              ? this.lineOverlayPipeline
+              : this.linePipeline
           break
         case "text-stencil":
           pipeline = this.textStencilPipeline

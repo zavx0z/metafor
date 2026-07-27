@@ -65,6 +65,20 @@
   GPU material с фазой от identity и текущего visual state: он обновляется
   вместе с обычной projection/state change, не создаёт CPU simulation,
   дополнительных marker objects или собственного perpetual render-loop gate.
+  Current marker сохраняет обычный scene-depth material и прежний узнаваемый,
+  но не glaring, look. Только non-current potential/inactive markers проходят
+  последним
+  bounded single-sample line-material overlay pass без depth write, чтобы
+  внешняя wireframe geometry и MSAA resolve не скрывали их; pass использует
+  saturating additive blend той же single-object marker geometry. Potential
+  остаётся явно сильнее subdued inactive marker, а inactive — различимее фона.
+- Существующие non-root Atom toruses образуют inner core и используют тот же
+  bounded single-sample material overlay с отдельным opacity/luminance
+  contrast. Это не меняет их torus geometry, transform, nesting/layout,
+  identity или projection; root torus и connectivity geometry сохраняют
+  обычный scene-depth material. Существующие Field spheres внутри этих nested
+  Atom получают bounded red accent material в том же overlay и читаются как
+  nucleus lights/orbs; новые objects/geometry для accent не создаются.
 
 ## Следствие
 

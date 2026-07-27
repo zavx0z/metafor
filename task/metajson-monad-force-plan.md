@@ -870,8 +870,18 @@ rollback/GC либо hot reload нельзя.
 State markers остаются существующими single-object Capsule markers. Их
 readability material может использовать только bounded per-object GPU
 luminance и пространственный shimmer с детерминированной state-change phase;
-ни отдельная particle geometry/CPU simulation, ни новый perpetual render-loop
-condition для этого visual effect не допускаются.
+current marker сохраняет прежний узнаваемый, но не glaring, scene-depth look,
+а только non-current potential/inactive markers проходят последний bounded
+single-sample additive line-material overlay без depth write, чтобы внешний
+wireframe и MSAA resolve не скрывали малые markers. Potential остаётся сильнее
+subdued inactive, а inactive — различимее фона. Ни отдельная particle
+geometry/CPU simulation, ни новый perpetual render-loop condition для этого
+visual effect не допускаются.
+Существующие non-root Atom toruses образуют inner core и используют тот же
+bounded single-sample material overlay с отдельным opacity/luminance contrast.
+Их geometry/transform/nesting, root torus и connectivity scene-depth material
+не меняются. Существующие nested-Atom Field spheres получают bounded red
+nucleus accent в том же overlay без новых objects/geometry.
 
 ### 15.5 Pause/Stack и ветвящийся execution workspace
 

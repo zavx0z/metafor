@@ -37,6 +37,7 @@ describe("Bulk orbital material visual boundary", () => {
 		expect(material.shimmerAmount).toBe(stateVisual.shimmerAmount)
 		expect(material.shimmerPhase).toBe(stateVisual.shimmerPhase)
 		expect(material.glowIntensity).toBe(stateVisual.glowIntensity)
+		expect(material.visibilityMode).toBe("scene")
 		expect(material.luminanceBoost).toBeGreaterThan(1)
 		expect(material.shimmerAmount).toBeGreaterThan(0)
 	})
@@ -49,6 +50,7 @@ describe("Bulk orbital material visual boundary", () => {
 
 		expect(potential.luminanceBoost).toBeGreaterThan(1)
 		expect(potential.shimmerAmount).toBeGreaterThan(0)
+		expect(potential.visibilityMode).toBe("overlay")
 		expect(current.luminanceBoost).toBeGreaterThan(
 			potential.luminanceBoost,
 		)
@@ -65,5 +67,6 @@ describe("Bulk orbital material visual boundary", () => {
 		expect(visual.luminanceBoost).toBe(1)
 		expect(visual.shimmerAmount).toBe(0)
 		expect(visual.shimmerPhase).toBe(0)
+		expect(visual.visibilityMode).toBe("scene")
 	})
 })

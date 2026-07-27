@@ -1,7 +1,10 @@
 import {describe, expect, test} from "bun:test"
 import type {BulkDarkParticle} from "@metafor/types/bulk/manifest"
 import {DEFAULT_BULK_SETTINGS} from "../settings.ts"
-import {resolveDarkParticleTorusOpacity} from "./torus-visual.ts"
+import {
+	resolveDarkParticleTorusLayer,
+	resolveDarkParticleTorusOpacity,
+} from "./torus-visual.ts"
 
 type TorusVisualInput = Pick<
 	BulkDarkParticle,
@@ -25,11 +28,11 @@ describe("Capsule torus visual contrast", () => {
 			input({parentDarkParticleId: null}),
 			opacity,
 		)).toBeCloseTo(0.22, 6)
-		expect(resolveDarkParticleTorusOpacity(input(), opacity)).toBeCloseTo(0.14, 6)
+		expect(resolveDarkParticleTorusOpacity(input(), opacity)).toBeCloseTo(0.36, 6)
 		expect(resolveDarkParticleTorusOpacity(
 			input({activity: "inactive"}),
 			opacity,
-		)).toBeCloseTo(0.0812, 6)
+		)).toBeCloseTo(0.2088, 6)
 	})
 
 	test("does not brighten non-Atom connectivity toruses and clamps the final alpha", () => {
@@ -41,5 +44,24 @@ describe("Capsule torus visual contrast", () => {
 			input({activity: "active", parentDarkParticleId: null}),
 			1,
 		)).toBe(1)
+	})
+
+	test("places only the existing nested Atom core in the bounded overlay layer", () => {
+		expect(resolveDarkParticleTorusLayer(input())).toEqual({
+			luminanceBoost: 1.35,
+			visibilityMode: "overlay",
+		})
+		expect(resolveDarkParticleTorusLayer(
+			input({activity: "inactive"}),
+		)).toEqual({
+			luminanceBoost: 1.15,
+			visibilityMode: "overlay",
+		})
+		expect(resolveDarkParticleTorusLayer(
+			input({parentDarkParticleId: null}),
+		).visibilityMode).toBe("scene")
+		expect(resolveDarkParticleTorusLayer(
+			input({darkParticleKind: "fuzzy"}),
+		).visibilityMode).toBe("scene")
 	})
 })

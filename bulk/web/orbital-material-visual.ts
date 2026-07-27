@@ -9,6 +9,7 @@ export type OrbitalMaterialVisual = Readonly<{
 	luminanceBoost: number
 	shimmerAmount: number
 	shimmerPhase: number
+	visibilityMode: "scene" | "overlay"
 }>
 
 /**
@@ -27,6 +28,7 @@ export const resolveOrbitalMaterialVisual = (
 			luminanceBoost: visual.luminanceBoost,
 			shimmerAmount: visual.shimmerAmount,
 			shimmerPhase: visual.shimmerPhase,
+			visibilityMode: visual.visibilityMode,
 		}
 	}
 
@@ -44,5 +46,6 @@ export const resolveOrbitalMaterialVisual = (
 		luminanceBoost: 1,
 		shimmerAmount: 0,
 		shimmerPhase: 0,
+		visibilityMode: "scene",
 	}
 }

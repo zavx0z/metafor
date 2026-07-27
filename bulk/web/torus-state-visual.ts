@@ -12,6 +12,7 @@ export type TorusStateVisual = Readonly<{
 	luminanceBoost: number
 	shimmerAmount: number
 	shimmerPhase: number
+	visibilityMode: "scene" | "overlay"
 }>
 
 const TAU = Math.PI * 2
@@ -55,28 +56,31 @@ export const resolveTorusStateVisual = (
 		return {
 			color: brightenColor(particle, 0.64, 1),
 			glowColor: brightenColor(particle, 0.88, 0.9),
-			glowIntensity: 6.4,
-			luminanceBoost: 2.2,
+			glowIntensity: 4.8,
+			luminanceBoost: 1.45,
 			shimmerAmount: 0.13,
 			shimmerPhase: resolveStatePhase(particle),
+			visibilityMode: "scene",
 		}
 	}
 	if (particle.active) {
 		return {
-			color: brightenColor(particle, 0.28, 0.86),
-			glowColor: brightenColor(particle, 0.48, 0.65),
-			glowIntensity: 3.2,
-			luminanceBoost: 1.5,
+			color: brightenColor(particle, 0.28, 0.5),
+			glowColor: brightenColor(particle, 0.48, 0.4),
+			glowIntensity: 2.4,
+			luminanceBoost: 1.1,
 			shimmerAmount: 0.065,
 			shimmerPhase: resolveStatePhase(particle),
+			visibilityMode: "overlay",
 		}
 	}
 	return {
-		color: [particle.colorR, particle.colorG, particle.colorB, 0.015],
-		glowColor: [particle.colorR, particle.colorG, particle.colorB, 0.002],
-		glowIntensity: 0.08,
-		luminanceBoost: 1,
+		color: [particle.colorR, particle.colorG, particle.colorB, 0.14],
+		glowColor: [particle.colorR, particle.colorG, particle.colorB, 0.04],
+		glowIntensity: 0.3,
+		luminanceBoost: 1.05,
 		shimmerAmount: 0,
 		shimmerPhase: resolveStatePhase(particle),
+		visibilityMode: "overlay",
 	}
 }

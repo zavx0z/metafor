@@ -1,6 +1,8 @@
 import { Color } from "../math"
 import { LineBasicMaterial, type LineBasicMaterialParameters } from "./LineBasicMaterial"
 
+export type LineVisibilityMode = "scene" | "overlay"
+
 /**
  * Параметры для создания {@link LineGlowMaterial}.
  */
@@ -34,6 +36,13 @@ export interface LineGlowMaterialParameters extends LineBasicMaterialParameters 
    * @default 0.0
    */
   shimmerAmount?: number
+
+  /**
+   * Scene lines use ordinary depth. Overlay lines remain visible through an
+   * enclosing wireframe and are rendered in the final bounded line pass.
+   * @default "scene"
+   */
+  visibilityMode?: LineVisibilityMode
 }
 
 /**
@@ -56,6 +65,9 @@ export class LineGlowMaterial extends LineBasicMaterial {
   /** @default 0.0 */
   public shimmerAmount: number
 
+  /** @default "scene" */
+  public visibilityMode: LineVisibilityMode
+
   /**
    * @param parameters - Параметры материала.
    */
@@ -66,6 +78,7 @@ export class LineGlowMaterial extends LineBasicMaterial {
     this.luminanceBoost = parameters.luminanceBoost ?? 1.0
     this.shimmerPhase = parameters.shimmerPhase ?? 0.0
     this.shimmerAmount = parameters.shimmerAmount ?? 0.0
+    this.visibilityMode = parameters.visibilityMode ?? "scene"
     
     if (parameters.glowColor) {
       if (parameters.glowColor instanceof Color) {
