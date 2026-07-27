@@ -48,6 +48,7 @@ import {
 	toLevelSettings,
 } from "bulk/settings"
 import {shouldContinueBulkRenderLoop} from "./render-loop.ts"
+import {resolveDarkParticleTorusOpacity} from "./torus-visual.ts"
 import {
 	createLevelResolver,
 	resolveOuterRadiusFromSphereRadius,
@@ -1010,24 +1011,25 @@ const resolveDarkParticleVisualState = (darkParticle: BulkDarkParticle): { color
 	const baseColor = particleColor(darkParticle)
 	const root = darkParticle.parentDarkParticleId === null
 	const glowIntensity = root ? 0.95 : darkParticle.darkParticleKind === "atom" ? 0.58 : 0.36
-	const opacity = activeRenderSettings.wireframeOpacity * (
-		root ? 1.25 : darkParticle.darkParticleKind === "atom" ? 0.52 : 0.32
+	const opacity = resolveDarkParticleTorusOpacity(
+		darkParticle,
+		activeRenderSettings.wireframeOpacity,
 	)
 	if (darkParticle.activity === "active") {
 		return {
 			color: mixColor(baseColor, new Color(1, 1, 1), 0.18),
 			glowColor: glowColor(baseColor, 0.18),
 			glowIntensity: glowIntensity * 1.25,
-			opacity: Math.min(1, opacity * 1.08),
-	}
+			opacity,
+		}
 	}
 	if (darkParticle.activity === "inactive") {
 		return {
 			color: mixColor(mixColor(baseColor, new Color(1, 1, 1), 0.24), ROOT_BACKGROUND, 0.28),
 			glowColor: glowColor(mixColor(baseColor, new Color(1, 1, 1), 0.3), 0.08),
 			glowIntensity: glowIntensity * 0.35,
-			opacity: opacity * 0.58,
-	}
+			opacity,
+		}
 	}
 	return {
 		color: baseColor,
