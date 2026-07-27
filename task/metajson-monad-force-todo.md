@@ -655,6 +655,62 @@
   - incomplete/corrupt capture остаётся unpublished;
   - никаких source Git commits, data push или live restore.
 
+### MF-111 — Доказать offline prerequisite Inference→Lada dissolve
+
+- Status: `DONE`
+- Current executor: isolated Codex worktree `fdd1`, delegated from task
+  `019fa120-7413-7d32-938c-16aa6dac3fdc`.
+- Dependencies: `MF-101`
+- Authority:
+  - owner разрешил только synthetic/offline SQLite и test Mass fixtures;
+  - live Inference, Boundary/Mass data, processes, source Meta repositories,
+    deletion, restart и hot reload запрещены;
+  - этот proof не переводит `MF-401` из `GATE` и не разрешает live dissolve.
+- Scope:
+  - две соседние, разные проверки: действующий recursive
+    `inflaton remove wimp` и новый offline dissolve;
+  - exact five-handle fence;
+  - aggregate и per-membership CAS;
+  - перенос существующих global Mass key identities на целевые Lada
+    declarations без copy/delete bytes;
+  - прежние target key IDs остаются unreferenced metadata; byte/key GC не
+    выполняется и остаётся отдельным activation decision;
+  - атомарный synthetic dissolve/reparent;
+  - rollback всей SQLite transaction при позднем mismatch;
+  - validated `readMetaJSON` до и внутри transaction после planned state;
+  - private source/target equality manifest по authored key mapping, codec,
+    global key и SHA-256 metadata.
+- Acceptance:
+  - реализация не exposed через Monad/Force/runtime;
+  - focused tests используют только temporary SQLite/Mass fixtures;
+  - recursive remove через существующий API удаляет parent и descendants по
+    действующему контракту;
+  - dissolve сохраняет target Atom и descendants, reparent/reorder-ит их и
+    явно переносит Mass ownership, меняя root;
+  - mismatch после нескольких CAS updates не оставляет partial transfer;
+  - Mass fixture filenames/bytes/digests остаются неизменными;
+  - remaining live activation blockers и следующий owner gate перечислены.
+- Evidence:
+  - scoped implementation: этот commit; новый `boundary/dissolve.ts` намеренно
+    не экспортирован через public Boundary API;
+  - `bun test boundary/dissolve.spec.ts`: `3 pass`, `0 fail`, `26 expect()`;
+  - `bun test boundary/dissolve.spec.ts boundary/incremental.spec.ts
+    boundary/meta-json.spec.ts boundary/mass.spec.ts`: `49 pass`, `0 fail`,
+    `212 expect()`;
+  - `bun run check`: typecheck, `42` expected type diagnostics и `1645 pass`,
+    `0 fail` в `184` файлах;
+  - `git diff --check`: clean;
+  - проверки выполнялись только с temporary SQLite и injected temporary Mass
+    catalog; live contour и процессы не читались и не изменялись.
+- Remaining blockers / next gate:
+  - proof не предоставляет live multi-entity staging/receipt API, post-commit
+    Energy handle retarget, Force consequences или activation lifecycle;
+  - реальные Inference/Lada mappings, digests, backup и cold activation
+    требуют отдельного preflight;
+  - судьба unreferenced прежних target keys/bytes требует явного GC policy;
+  - следующий шаг остаётся owner decision в `MF-401`; этот item не разрешает
+    live dissolve или deletion.
+
 ### MF-109 — Реализовать Pause/Stack branchable execution workspace
 
 - Status: `WAITING`

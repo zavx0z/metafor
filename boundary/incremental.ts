@@ -395,6 +395,19 @@ export class BoundaryIncrementalStore {
     await this.loadIndexes()
   }
 
+  /**
+   * Rebuilds disposable runtime indexes after an isolated SQL transaction.
+   * This is not a materialization or live mutation surface.
+   */
+  async refreshRuntimeIndexesForOfflineProof(): Promise<void> {
+    this.childrenByParent.clear()
+    this.atomIdsByDeclaration.clear()
+    this.instanceIdsByTopology.clear()
+    this.originByInstance.clear()
+    this.parentByInstance.clear()
+    await this.loadIndexes()
+  }
+
   async apply(message: ForceMessage): Promise<BoundaryIncrementalCommit | null> {
     const part = message.parts[0]
     if (part.part === "higgs") return await this.applyHiggs(part)

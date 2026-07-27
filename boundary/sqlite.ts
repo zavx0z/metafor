@@ -62,7 +62,12 @@ const stampBoundaryCommit = (
   }
 }
 
-export const open = async (filename?: string) => {
+export type BoundaryOpenOptions = {
+  /** Explicit catalog injection keeps offline proofs away from the default Mass path. */
+  massCatalog?: MassCatalog
+}
+
+export const open = async (filename?: string, options: BoundaryOpenOptions = {}) => {
   const fileBacked = filename !== undefined && filename !== ":memory:"
   if (fileBacked) mkdirSync(dirname(filename), {recursive: true})
 
@@ -78,7 +83,7 @@ export const open = async (filename?: string) => {
   const topology = await BoundaryTopologySqlite.open(sql)
   const atom = await BoundaryAtomSqlite.open(sql)
   const wimp = await BoundaryWimpSqlite.open(sql)
-  const projection = new BoundaryIncrementalStore(sql, new MassCatalog())
+  const projection = new BoundaryIncrementalStore(sql, options.massCatalog ?? new MassCatalog())
   await projection.init()
   const execution = new BoundaryExecutionStore(sql)
   await execution.init()

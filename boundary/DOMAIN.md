@@ -203,6 +203,37 @@ Energy освобождает активный runtime сразу, а destroy в
 остальные hooks продолжаются, поэтому физическое закрытие внешнего ресурса
 остаётся cooperative best-effort до отдельного lifecycle health.
 
+## Recursive remove и dissolve — разные операции
+
+Действующий `inflaton remove wimp` является рекурсивным удалением repository
+contour: корневой Atom и все его runtime-потомки удаляются снизу вверх.
+Внешние WIMP declarations потомков и посторонний Boundary state сохраняются,
+но identity удалённых Atom не переносится.
+
+`dissolve` не является alias или режимом `remove`. Его первый разрешённый срез
+существует только как offline proof над изолированной SQLite:
+
+1. план называет один удаляемый root Atom и один его сохраняемый дочерний Atom;
+2. дочерний Atom становится root, сохраняет ID, порядок и потомков, а их
+   `scope Atom` переносится на него;
+3. ровно пять явно сопоставленных Mass declarations сначала получают fence;
+4. target memberships принимают те же global key IDs при одинаковом codec;
+   Mass bytes не копируются и не удаляются;
+5. source relations этих keys переводятся на target declarations, а target
+   становится владельцем вместо alias на удаляемый parent;
+   прежние independent target key IDs остаются unreferenced metadata и не
+   удаляются этим proof, потому что byte GC требует отдельного решения;
+6. aggregate pre-state и каждая membership меняются только по CAS;
+7. любой mismatch, включая поздний mismatch после частичных SQL updates,
+   откатывает всю transaction;
+8. полный `readMetaJSON` валиден до изменения и для planned результата до
+   commit; private manifest подтверждает равенство mapped source/target
+   `authored key + codec + global key ID + digest`.
+
+Этот proof не является live capability: он не exposed через Monad/Force,
+не разрешает удаление Inference и не определяет activation lifecycle.
+Рекурсивное удаление и dissolve доказываются соседними, но раздельными тестами.
+
 ## Проверка
 
 Регрессии доказывают in-place identity Matter, live-reparent и rebind, смену
@@ -211,3 +242,7 @@ WIMP `src`, Atom↔Topology, Axion↔Macho, вложенные Macho repetitions
 `detach → rebuild → abort` без результата от старого execution. Удаление ветки
 дополнительно доказывает `release → abort → destroy`, child-before-parent,
 изоляцию новой generation и подавление поздних Process/Reaction результатов.
+Отдельная пара offline-регрессий доказывает, что recursive `remove` удаляет
+parent вместе с descendants, а `dissolve` удаляет только parent, сохраняет и
+reparent/reorder-ит descendants, явно переносит пять Mass identities и
+полностью откатывается при CAS mismatch.
