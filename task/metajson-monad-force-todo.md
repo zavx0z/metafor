@@ -1097,31 +1097,39 @@
     depth and renders before ordinary relation lines, preserving connection
     priority without new geometry;
   - Field and State spheres receive an equal-area deterministic display-only
-    spherical-shell position per parent Atom. The torus is centered wholly
-    inside that sphere—the markers are not placed on its torus surface. Shell
-    radius increases monotonically from the torus outer radius with marker
-    count/radius; relation, transition and Field-proxy visuals consume those
-    same derived endpoints. Persisted coordinates, causal layout, topology,
-    identity, data, RPC, camera and render-loop conditions are unchanged;
+    position on the owning Atom's own spherical shell. That Atom's torus is
+    centered wholly inside the sphere; a root-wide shell is forbidden and
+    markers are not placed on torus geometry. Shell radius increases
+    monotonically from the owning torus outer radius with that Atom's marker
+    count/radius. Every Atom owns an identity marker-shell render frame;
+    marker, relation, transition and Field-proxy visuals consume only that
+    frame and the same Atom-local derived endpoints. Persisted coordinates,
+    semantic parent ownership, causal layout, topology, identity, data, RPC,
+    camera and render-loop conditions are unchanged;
   - executable Dawn/WebGPU readback proves the bounded
     `current > potential > inactive > background` output hierarchy and a
     red-dominant, non-saturating, smaller nucleus accent; the production
     silhouette pipeline also compiles with depth writes disabled;
   - focused shader/material/readability/core/shell/render-loop suite:
-    `23 pass`, `0 fail`, `157 expect`; browser bundle compiled `120` modules
+    `25 pass`, `0 fail`, `174 expect`; browser bundle compiled `120` modules
     successfully;
   - `bun run check`: typecheck pass, `42` expected diagnostics,
-    `1702 pass`, `0 fail`, `5812 expect` in `198` test files.
+    `1704 pass`, `0 fail`, `5829 expect` in `198` test files.
 - Activation constraints:
-  - this repair task performed no retry, restart, rollback, deletion, GC or
-    other live mutation;
+  - visual commit `faa6a33d` received one authorized standard cold restart;
+    the service returned active/running, all six ports listened and startup
+    evidence showed all five domains connected to Force. Direct HTTP health
+    remained inaccessible from the isolated executor network namespace;
+  - the fresh deployed browser screenshot rejected its implicit per-parent
+    composition because Atom-local frame ownership was not explicit/tested;
+    this follow-up adds identity marker-shell frames and performs no runtime,
+    HMR, restart, rollback, deletion or GC action;
   - the world is already complete at active root `zavx0z/lada`; activation
     must not be retried and a new preflight is neither required nor valid;
-  - this final visual material/core slice remains cold-unverified by this task;
-    live HMR was not used as acceptance. Its later installation requires a
-    separately authorized single standard service restart; then all five
-    domains/Force and a fresh browser screenshot must be verified. No hot
-    reload, config/environment/port change, rollback or GC is permitted.
+  - this Atom-local marker-shell follow-up remains cold-unverified; live HMR
+    was not used as acceptance. Any later installation requires separate
+    authorization and a fresh browser screenshot. No hot reload,
+    config/environment/port change, rollback or GC is permitted.
 
 ### MF-109 — Реализовать Pause/Stack branchable execution workspace
 

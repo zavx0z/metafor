@@ -182,6 +182,7 @@ export type DarkParticleRenderRecord = {
   container: Object3D
   cosmosOrbitAngle: number
   currentTransitionScale: number
+  markerShell: Object3D
   material: LineGlowMaterial
   pickTarget: HoverablePickTarget
   snapshot: BulkDarkParticle

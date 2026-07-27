@@ -90,15 +90,19 @@
   не перекрывает relation/connection lines; пространственная rim-маска
   вычисляется в существующем line shader без новой geometry или render-loop.
 - Field spheres и State spheres получают только в Bulk renderer
-  детерминированную derived visual position на общей **сферической** shell
-  поверхности своего parent Atom. Torus находится в центре и целиком внутри
-  этой сферы; marker-ы не проецируются на torus surface. Shell radius
-  монотонно растёт от torus outer radius с количеством marker-ов и их visual
-  radius, предотвращая crowding. Распределение стабильно по marker identity и
+  детерминированную derived visual position на одной **сферической** shell
+  поверхности своего owning Atom. Torus этого Atom находится в центре и
+  целиком внутри сферы; marker-ы не объединяются в root-wide shell и не
+  проецируются на torus surface. Shell radius монотонно растёт от outer radius
+  owning torus с количеством marker-ов этого Atom и их visual radius,
+  предотвращая crowding. Каждый Atom имеет отдельный identity
+  `markerShell`-frame внутри собственного render container; его
+  marker/proxy/connection render objects используют этот frame и не попадают в
+  frame другого Atom. Распределение стабильно по marker identity и
   пересчитывается только при projection/state change. Persisted
-  `localX/localY/localZ`, topology, causal layout и identity не меняются;
-  relation/transition geometry использует те же derived visual endpoints и
-  остаётся читаемой.
+  `localX/localY/localZ`, parent ownership, topology, causal layout и identity
+  не меняются; relation/transition geometry использует те же derived
+  Atom-local endpoints и остаётся читаемой.
 
 ## Следствие
 

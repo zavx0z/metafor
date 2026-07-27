@@ -890,12 +890,14 @@ State-electron marker, без изменения geometry/transform/layout/pick 
 Root Atom torus остаётся subtle sparse/translucent shader silhouette без depth
 write; relation/connection lines имеют визуальный приоритет над tor grid.
 Field и State spheres получают deterministic renderer-only placement на
-сферической shell своего parent Atom. Torus центрирован внутри этой сферы;
-marker-ы не лежат на torus surface. Shell radius растёт от torus outer radius
-монотонно с marker count/radius, распределение стабильно по identity и
-пересчитывается только с projection/state change. Persisted coordinates,
-topology и causal layout не меняются, а relation/transition используют derived
-visual endpoints.
+отдельной сферической shell своего owning Atom. Torus этого Atom центрирован
+внутри сферы; root-wide shell запрещена, marker-ы не лежат на torus surface.
+Shell radius растёт от owning torus outer radius монотонно с Atom-local marker
+count/radius, распределение стабильно по identity и пересчитывается только с
+projection/state change. Каждый Atom владеет identity `markerShell` frame в
+собственном render container; marker/proxy/connection visuals используют
+только его. Persisted coordinates, parent ownership, topology и causal layout
+не меняются, а relation/transition используют derived Atom-local endpoints.
 
 ### 15.5 Pause/Stack и ветвящийся execution workspace
 
