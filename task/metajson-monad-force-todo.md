@@ -676,6 +676,31 @@
 
 - Status: `WAITING`
 - Dependencies: `MF-109`
+- Completed precursor evidence:
+  - `MF-110T` — `CODE COMPLETE / VISUAL ACCEPTANCE PENDING`: read-only Bulk
+    current-cut timeline adapter integrated as commit
+    `1274fe76da42fc1ea74902f79f228c1ac8475820`;
+  - adapter consumes the real Inference Bulk Atom projection and shared
+    `throughTs`; cold projection is `unknown`, and no historical sample,
+    Force-history/Mass read or command is invented;
+  - focused
+    `bun test bulk/timeline.spec.ts bulk/hud.spec.ts bulk/web/render-loop.spec.ts pkg/ui/hud/timeline.test.ts`
+    passes: 8 tests, 0 failures, 20 expectations;
+  - cold AI-server contour served Bulk and kept all five domains connected,
+    but the captured frame remained blank with the host
+    `WebgpuSwapChainTexture`/SharedImage backing defect; therefore visual
+    acceptance requires a known-working browser/GPU context and remains open.
+- Next gate `MF-110R` — RPC discovery и read-only selected-tick projection:
+  - Status: `GATE`; Production One audit has no final evidence yet and at the
+    time of this update is waiting for approval after a failed read-only probe;
+  - first record only discovered RPC methods plus read/status response forms;
+    presence of pause/step may be observed, but no control method is invoked;
+  - define a closed selected-tick result reconstructed only into an isolated
+    projection from verified checkpoint + canonical forward history, with
+    explicit `exact`/`coarse`/`unknown` resolution;
+  - keep pause/step outside Force wire and keep UI controls inactive until
+    `MF-103` and `MF-109` are complete and an independent verifier accepts the
+    read-only reconstruction boundary.
 - Acceptance:
   - Interpreter через closed Dark Monad contract умеет pause, inspect layer,
     step forward/backward и create/list/discard execution branch;
@@ -845,8 +870,28 @@
 
 - Status: `GATE`
 - Dependencies: `MF-206`
-- Реализуется только при доказанной operation, которой недостаточно
-  последовательных single-entity Particles.
+- Read-only evidence boundary:
+  - detached branch commit
+    `963f52b386a9d33ab0731c632628aa3add833f51` proves only a local pure
+    `dissolve(parent, massDisposition)` planner and its synthetic tests;
+  - that commit is not integrated into the canonical Inference branch and has
+    no Boundary write, Force Particle, RPC write endpoint or runtime proof, so
+    it does not make dissolve implementation complete or ready.
+- Next gate `MF-401A` — offline multi-entity Boundary dissolve proof:
+  - Status: `GATE`, explicitly not `READY`;
+  - run only on detached synthetic input and an isolated Boundary fixture; no
+    live Boundary/Mass/history/process may be read or changed;
+  - deterministically promote direct children into the removed parent's
+    lexical interval and require one explicit promoted-child disposition for
+    every parent Mass key;
+  - validate the complete staged batch before apply, preserve untouched
+    identities/order, reject missing references or partial apply, and emit the
+    expected one-entity-per-`ForceMessage` Particle plan;
+  - verify pre/post MetaJSON projection, Boundary integrity and zero mutation
+    on validation failure.
+- Live dissolve/delete, Energy destroy/cleanup, runtime rollout and any
+  deletion from the current Inference contour remain separate owner-gated
+  work; none is complete or ready.
 
 ### MF-402 — Full VCS model
 

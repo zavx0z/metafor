@@ -471,6 +471,25 @@ bootstrap steps.
 Первый срез не требует `pending/active` Meta heads, transactional outbox,
 source publication saga или Force v2 receipt protocol.
 
+#### 7.3.1 Offline gate для multi-entity Boundary dissolve
+
+`dissolve` сначала доказывается только над detached structural projection и
+изолированной Boundary fixture. План обязан детерминированно удалить выбранного
+родителя, поднять его прямых детей в прежний lexical interval и потребовать
+явную disposition каждого authored Mass key родителя. Отсутствующая, лишняя
+либо направленная не в promoted child disposition отклоняет весь plan.
+
+Multi-entity materialization остаётся атомарным staged proof: до commit
+проверяются полный набор изменяемых entities, references, sibling order и
+Mass disposition. Каждая изменённая entity всё равно компилируется в отдельный
+`ForceMessage` с одной `Particle`; batch не становится новой Force wire
+семантикой. Первый proof не имеет capability на live Boundary, Energy destroy,
+Mass, Force history или runtime processes.
+
+Даже успешный offline proof не разрешает live dissolve/delete. Live execution,
+Energy cleanup/destroy и cold rollout остаются отдельными owner gates после
+основного structural slice.
+
 Если filesystem write успешен, а execution/materialization не удались:
 
 - source не откатывается автоматически;
@@ -794,6 +813,26 @@ Force владеет pause/admission и causal слоями; Dark Monad пред
 обходит Force или Boundary. Старый монолитный Atom stack/debugger служит UX и
 семантическим референсом (`lock`, `step`, history view), но его ограниченный
 UI-стек не переносится как canonical runtime contract.
+
+Интегрированный Bulk timeline — более узкий завершённый adapter текущего
+observer cut. Он строит по одному marker для каждого реально материализованного
+Inference Atom на общем `throughTs`; cold projection помечается как
+`unknown`. Adapter не создаёт исторические samples, не читает Mass/Force
+history и не предоставляет pause/step либо Boundary/runtime commands.
+Code slice зафиксирован commit
+`1274fe76da42fc1ea74902f79f228c1ac8475820`; focused
+timeline/HUD/render-loop tests проходят. Visual acceptance не закрыта:
+AI-server cold page открывается, но capture остаётся blank из-за host WebGPU
+`WebgpuSwapChainTexture`/SharedImage backing defect.
+
+Следующий control gate начинается с read-only RPC discovery/read/status audit.
+Audit фиксирует фактически опубликованные methods и DTO, но не вызывает
+pause/step. Затем отдельно утверждается closed selected-tick reader: он может
+восстановить только изолированную projection из verified checkpoint и
+canonical forward history, явно сохраняя `exact`/`coarse`/`unknown`
+resolution. Pause/step являются service commands владельцев, не входят в
+Force wire и не активируются в UI либо live contour до завершения
+`MF-103`/`MF-109` и отдельного verification gate.
 
 ## 16. Как обновлять план
 
