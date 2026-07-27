@@ -58,6 +58,7 @@ import {
 	createAtomMarkerShellFrame,
 	resolvePerAtomMarkerShells,
 } from "./shell-marker-placement.ts"
+import {resolveOwnedAtomVisualFitBounds} from "./atom-visual-fit.ts"
 import {
 	createLevelResolver,
 	resolveOuterRadiusFromSphereRadius,
@@ -3210,8 +3211,17 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	const fitTargetForPickTarget = (target: HoverablePickTarget): { points: Vector3[]; radius: number; target: Vector3 } => {
 		if (target.kind === "darkParticle") {
 			const record = darkParticleRecords.get(target.darkParticleId)
+			if (record) {
+				const center = rootDarkParticleSceneCenter(record)
+				const bounds = atomVisualFitBounds(record, center)
+				return {
+					points: [...bounds.points],
+					radius: bounds.radius,
+					target: center,
+				}
+			}
 			return {
-				points: record ? darkParticleRecordViewportFitPoints(record) : [],
+				points: [],
 				radius: target.outerRadius,
 				target: target.center.clone(),
 			}
@@ -3311,21 +3321,17 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		const rootDarkParticle = rootDarkParticleForViewportFit()
 		if (rootDarkParticle === null) return
 		space.updateWorldMatrix()
-		const rootCenter = rootDarkParticleSceneCenter(rootDarkParticle)
-		const rootPoints = darkParticleRecordViewportFitPoints(rootDarkParticle)
-		const rootOuterRadius = rootPoints.reduce(
-			(maxRadius, point) => Math.max(maxRadius, point.distanceTo(rootCenter)),
-			(rootDarkParticle.snapshot.torusRadius + rootDarkParticle.snapshot.torusTube) * rootDarkParticle.baseTorusScale,
-		)
-		if (!Number.isFinite(rootOuterRadius) || rootOuterRadius <= 1e-6) return
+		const fitTarget = fitTargetForPickTarget(rootDarkParticle.pickTarget)
+		if (!Number.isFinite(fitTarget.radius) || fitTarget.radius <= 1e-6) return
 		const pose = resolveBulkViewportFitPose({
 			aspect: viewPoint.aspect,
+			centerProjectedBounds: false,
 			currentPosition: viewPoint.position,
 			currentTarget: viewPoint.getTarget(),
 			fovRad: viewPoint.fov,
-			points: rootPoints,
-			radius: rootOuterRadius,
-			target: rootCenter,
+			points: fitTarget.points,
+			radius: fitTarget.radius,
+			target: fitTarget.target,
 			up: viewPoint.getUp(),
 		})
 		applyViewPose({
@@ -3375,31 +3381,47 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		return true
 	}
 
-	const darkParticleRecordViewportFitPoints = (
+	const atomVisualFitBounds = (
 		record: DarkParticleRenderRecord,
-	): Vector3[] => {
-		const positions = getGeometryPositionArray(record.torus.geometry)
-		if (!positions || positions.length === 0) return []
-		const pointCount = Math.floor(positions.length / 3)
-		const vertexStep = Math.max(1, Math.floor(pointCount / 720))
-		const points: Vector3[] = []
-
-		for (let vertex = 0; vertex < pointCount; vertex += vertexStep) {
-			const index = vertex * 3
-			const point = new Vector3(
-				positions[index] ?? 0,
-				positions[index + 1] ?? 0,
-				positions[index + 2] ?? 0,
-			).applyMatrix4(record.torus.matrixWorld)
-			if (Math.abs(record.currentTransitionScale - 1) > 1e-6) {
-				const center = rootDarkParticleSceneCenter(record)
-				point.sub(center).multiplyScalar(1 / record.currentTransitionScale).add(center)
-			}
-			points.push(point)
-		}
-
-		return points
-	}
+		center: Vector3,
+	) => resolveOwnedAtomVisualFitBounds(
+		record.snapshot.darkParticleId,
+		center,
+		[
+			{
+				atomId: record.snapshot.darkParticleId,
+				geometry: record.torus.geometry,
+				node: record.torus,
+			},
+			...[...fieldProxyRecords.values()].map((proxy) => ({
+				atomId: proxy.snapshot.parentDarkParticleId,
+				geometry: proxy.node.geometry,
+				node: proxy.node,
+			})),
+			...[...transitionChannelRecords.values()].map((channel) => ({
+				atomId: channel.snapshot.parentDarkParticleId,
+				geometry: channel.line.geometry,
+				node: channel.line,
+			})),
+			...[...relationChannelRecords.values()].map((channel) => ({
+				atomId: channel.snapshot.parentDarkParticleId,
+				geometry: channel.line.geometry,
+				node: channel.line,
+			})),
+		],
+		[
+			...[...fieldParticleRecords.values()].map((field) => ({
+				atomId: field.snapshot.parentDarkParticleId,
+				node: field.node,
+				radius: field.snapshot.sphereRadius,
+			})),
+			...[...orbitalParticleRecords.values()].map((particle) => ({
+				atomId: particle.snapshot.parentDarkParticleId,
+				node: particle.node,
+				radius: particle.snapshot.sphereRadius,
+			})),
+		],
+	)
 
 	const fieldParticleRecordViewportFitPoints = (
 		record: FieldParticleRenderRecord,

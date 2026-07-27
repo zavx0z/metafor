@@ -108,6 +108,12 @@
   `localX/localY/localZ`, parent ownership, topology, causal layout и identity
   не меняются; relation/transition geometry использует те же derived
   Atom-local endpoints и остаётся читаемой.
+- Initial root fit и click/focused fit используют один renderer-only visual
+  envelope owning Atom: torus, Field/State sphere bounds, Field-proxy,
+  transition и локальные relation geometry после их final-world transforms.
+  Fit target остаётся в центре torus, а существующее направление камеры не
+  меняется. Persisted pose, layout и geometry этим framing-законом не
+  переписываются.
 
 ## Следствие
 

@@ -1110,15 +1110,20 @@
     frame and the same Atom-local derived endpoints. Persisted coordinates,
     semantic parent ownership, causal layout, topology, identity, data, RPC,
     camera and render-loop conditions are unchanged;
+  - initial root fit and click/focused fit consume one conservative final-world
+    envelope of the owning Atom's torus, marker spheres, Field proxies,
+    transitions and local relations. The target remains the owning torus
+    center and the existing camera direction, persisted pose and click-focus
+    interaction remain unchanged;
   - executable Dawn/WebGPU readback proves the bounded
     `current > potential > inactive > background` output hierarchy and a
     red-dominant, non-saturating, smaller nucleus accent; the production
     silhouette pipeline also compiles with depth writes disabled;
-  - focused shader/material/readability/core/shell/render-loop suite:
-    `23 pass`, `0 fail`, `167 expect`; browser bundle compiled `120` modules
+  - focused shader/material/readability/core/shell/navigation/render-loop suite:
+    `50 pass`, `0 fail`, `235 expect`; browser bundle compiled `121` modules
     successfully;
   - `bun run check`: typecheck pass, `42` expected diagnostics,
-    `1705 pass`, `0 fail`, `5838 expect` in `198` test files.
+    `1706 pass`, `0 fail`, `5846 expect` in `199` test files.
 - Activation constraints:
   - visual commit `faa6a33d` received one authorized standard cold restart;
     the service returned active/running, all six ports listened and startup
@@ -1131,14 +1136,20 @@
     busy-shell center at `0.9242` of its own torus diameter. The bounded law
     measures marker centers at `0.5900` and the worst outward Field-proxy
     relation endpoint at `0.6365` after the full recursive `matrixWorld`;
-  - this bounded-radius follow-up performs no runtime, HMR, restart, rollback,
-    deletion or GC action;
+  - `9d9f375d` received one authorized standard cold restart and returned
+    active/running with all five domains connected to Force. Its fresh
+    screenshot showed that bounded geometry was still framed as torus-only:
+    in the actual portrait viewport the old initial fit kept the torus at
+    NDC `0.927` while legal marker centers reached `1.154` and a local
+    Field-proxy endpoint reached `1.287`;
+  - the final-world Atom visual-fit follow-up performs no runtime, HMR,
+    restart, rollback, deletion or GC action;
   - the world is already complete at active root `zavx0z/lada`; activation
     must not be retried and a new preflight is neither required nor valid;
-  - this bounded Atom-local marker-shell follow-up remains cold-unverified; live HMR
-    was not used as acceptance. Any later installation requires separate
-    authorization and a fresh browser screenshot. No hot reload,
-    config/environment/port change, rollback or GC is permitted.
+  - this Atom visual-fit follow-up remains cold-unverified; live HMR was not
+    used as acceptance. Any later installation requires separate authorization
+    and a fresh browser screenshot. No hot reload, config/environment/port
+    change, rollback or GC is permitted.
 
 ### MF-109 — Реализовать Pause/Stack branchable execution workspace
 

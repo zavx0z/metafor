@@ -901,6 +901,10 @@ diameter этого torus; локальный relation endpoint с Field-proxy o
 собственном render container; marker/proxy/connection visuals используют
 только его. Persisted coordinates, parent ownership, topology и causal layout
 не меняются, а relation/transition используют derived Atom-local endpoints.
+Initial root fit и click/focused fit используют один final-world envelope
+owning Atom, включающий torus, marker sphere bounds, Field proxies, transitions
+и локальные relations. Target остаётся в центре torus, направление камеры и
+persisted pose не переписываются.
 
 ### 15.5 Pause/Stack и ветвящийся execution workspace
 
