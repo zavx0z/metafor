@@ -228,7 +228,22 @@ contour: корневой Atom и все его runtime-потомки удал�
    откатывает всю transaction;
 8. полный `readMetaJSON` валиден до изменения и для planned результата до
    commit; private manifest подтверждает равенство mapped source/target
-   `authored key + codec + global key ID + digest`.
+   `authored key + codec + global key ID + Mass evidence`.
+
+Mass evidence в private manifest является закрытым deterministic union:
+
+- существующий regular Mass file представлен
+  `{kind: "present", digestSha256: <lowercase SHA-256>}`;
+- только заранее явно разрешённое отсутствие конкретной пары
+  `global key ID + codec` представлено
+  `{kind: "absent", marker: "metafor/mass-absent/v1"}`.
+
+Absent marker является только manifest metadata: он сохраняет существующий
+global key ID, не создаёт Mass file и не изобретает даже пустой payload.
+Отсутствие неразрешённого key file, symlink, directory или нечитаемый path
+являются ошибкой, а не valid absence. Planned target обязан получить ту же
+identity и тот же evidence variant; поэтому valid absence отличается от
+corruption и участвует в обычной private manifest equality/CAS проверке.
 
 Этот proof не является live capability: он не exposed через Monad/Force,
 не разрешает удаление Inference и не определяет activation lifecycle.
@@ -262,3 +277,6 @@ reparent/reorder-ит descendants, явно переносит пять Mass ide
 полностью откатывается при CAS mismatch.
 Staging-регрессии отдельно доказывают immutable/idempotent receipt, отклонение
 recursive-remove shape и отсутствие Boundary/Mass/deletion effects.
+Отдельная offline-регрессия доказывает deterministic absent marker для одной
+явно разрешённой Mass identity, отсутствие materialization bytes и отклонение
+directory/symlink либо неразрешённого missing path как corruption.

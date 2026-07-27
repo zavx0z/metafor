@@ -10,6 +10,9 @@ import type {BoundaryDatabase} from "./sqlite.ts"
 
 const digestPattern = /^[0-9a-f]{64}$/
 
+export const BOUNDARY_DISSOLVE_ABSENT_MARKER =
+  "metafor/mass-absent/v1" as const
+
 export type BoundaryDissolveMassMapping = Readonly<{
   sourceKey: string
   targetKey: string
@@ -36,9 +39,16 @@ export type BoundaryDissolveRequest = Readonly<{
   mass: BoundaryDissolveFiveMassMappings
 }>
 
-export type BoundaryDissolveDigestReader = (
+export type BoundaryDissolveMassEvidence =
+  | Readonly<{kind: "present"; digestSha256: string}>
+  | Readonly<{
+    kind: "absent"
+    marker: typeof BOUNDARY_DISSOLVE_ABSENT_MARKER
+  }>
+
+export type BoundaryDissolveMassEvidenceReader = (
   input: Readonly<{keyId: string; format: MassFileFormat}>,
-) => Promise<string>
+) => Promise<BoundaryDissolveMassEvidence>
 
 export type BoundaryDissolveMetaJSONReader = (
   root: MetaAddress,
@@ -48,7 +58,7 @@ export type BoundaryDissolveMetaJSONReader = (
 export type BoundaryDissolveHooks = Readonly<{
   fence(identity: BoundaryMassFenceIdentity): Promise<void>
   release(identity: BoundaryMassFenceIdentity): Promise<void>
-  digest: BoundaryDissolveDigestReader
+  massEvidence: BoundaryDissolveMassEvidenceReader
   readMetaJSON: BoundaryDissolveMetaJSONReader
 }>
 
@@ -56,7 +66,7 @@ export type BoundaryDissolveErrorCode =
   | "invalid_request"
   | "invalid_shape"
   | "invalid_mass_mapping"
-  | "invalid_mass_digest"
+  | "invalid_mass_evidence"
   | "pre_state_conflict"
   | "mass_membership_conflict"
   | "post_state_mismatch"
@@ -122,7 +132,7 @@ type PrivateManifestEntry = Readonly<{
   targetAuthoredKey: string
   format: MassFileFormat
   globalKeyId: string
-  digestSha256: string
+  evidence: BoundaryDissolveMassEvidence
 }>
 
 type PrivateManifest = Readonly<{
@@ -154,11 +164,42 @@ const runtimeKey = (kind: RuntimeRow["kind"], id: number): string => `${kind}/${
 const membershipKey = (atom: number, declaration: number): string => `${atom}/${declaration}`
 const sha256 = (value: string): string => createHash("sha256").update(value).digest("hex")
 
-const expectDigest = (value: string, label: string): string => {
-  if (!digestPattern.test(value)) {
-    throw new BoundaryDissolveError("invalid_mass_digest", `${label} must be a lowercase SHA-256 digest`)
+const expectMassEvidence = (
+  value: unknown,
+  label: string,
+): BoundaryDissolveMassEvidence => {
+  if (
+    typeof value === "object" &&
+    value !== null &&
+    !Array.isArray(value) &&
+    "kind" in value &&
+    value.kind === "present" &&
+    Object.keys(value).length === 2 &&
+    "digestSha256" in value &&
+    typeof value.digestSha256 === "string" &&
+    digestPattern.test(value.digestSha256)
+  ) {
+    return Object.freeze({kind: "present", digestSha256: value.digestSha256})
   }
-  return value
+  if (
+    typeof value === "object" &&
+    value !== null &&
+    !Array.isArray(value) &&
+    "kind" in value &&
+    value.kind === "absent" &&
+    Object.keys(value).length === 2 &&
+    "marker" in value &&
+    value.marker === BOUNDARY_DISSOLVE_ABSENT_MARKER
+  ) {
+    return Object.freeze({
+      kind: "absent",
+      marker: BOUNDARY_DISSOLVE_ABSENT_MARKER,
+    })
+  }
+  throw new BoundaryDissolveError(
+    "invalid_mass_evidence",
+    `${label} must be closed present SHA-256 or explicit absent evidence`,
+  )
 }
 
 const validPosition = (value: number): number => {
@@ -388,15 +429,15 @@ const structuralView = (
 
 const manifest = async (
   transfers: readonly DissolveTransfer[],
-  digest: BoundaryDissolveDigestReader,
+  massEvidence: BoundaryDissolveMassEvidenceReader,
 ): Promise<PrivateManifest> => ({
   entries: await Promise.all(transfers.map(async (transfer) => ({
     sourceAuthoredKey: transfer.sourceAuthoredKey,
     targetAuthoredKey: transfer.targetAuthoredKey,
     format: transfer.format,
     globalKeyId: transfer.sourceGlobalKey,
-    digestSha256: expectDigest(
-      await digest({keyId: transfer.sourceGlobalKey, format: transfer.format}),
+    evidence: expectMassEvidence(
+      await massEvidence({keyId: transfer.sourceGlobalKey, format: transfer.format}),
       `Mass ${transfer.sourceAuthoredKey}`,
     ),
   }))),
@@ -530,10 +571,10 @@ const buildPlanState = async (
 export async function planBoundaryDissolve(
   boundary: BoundaryDatabase,
   request: BoundaryDissolveRequest,
-  digest: BoundaryDissolveDigestReader,
+  massEvidence: BoundaryDissolveMassEvidenceReader,
 ): Promise<BoundaryDissolvePlan> {
   const state = await buildPlanState(boundary.projection.sql, request)
-  const privateManifest = await manifest(state.transfers, digest)
+  const privateManifest = await manifest(state.transfers, massEvidence)
   return Object.freeze({
     ...state,
     structuralSha256: sha256(JSON.stringify(structuralView(
@@ -783,8 +824,8 @@ const verifyPlannedState = async (
         targetAuthoredKey: transfer.targetAuthoredKey,
         format: targetMass.format,
         globalKeyId: targetMass.globalKey,
-        digestSha256: expectDigest(
-          await hooks.digest({keyId: targetMass.globalKey, format: targetMass.format}),
+        evidence: expectMassEvidence(
+          await hooks.massEvidence({keyId: targetMass.globalKey, format: targetMass.format}),
           `Transferred Mass ${transfer.targetAuthoredKey}`,
         ),
       }
@@ -834,7 +875,7 @@ export async function executeBoundaryDissolveProof(
     if (structuralSha256 !== plan.structuralSha256) {
       throw new BoundaryDissolveError("pre_state_conflict", "Boundary dissolve structural pre-state changed")
     }
-    const currentManifest = await manifest(current.transfers, hooks.digest)
+    const currentManifest = await manifest(current.transfers, hooks.massEvidence)
     if (!sameManifest(plan.privateManifest, currentManifest)) {
       throw new BoundaryDissolveError("pre_state_conflict", "Boundary dissolve Mass pre-state changed")
     }

@@ -7,8 +7,8 @@ import {
 } from "@metafor/types/metafor/meta-json"
 import {
   planBoundaryDissolve,
-  type BoundaryDissolveDigestReader,
   type BoundaryDissolveFiveMassMappings,
+  type BoundaryDissolveMassEvidenceReader,
   type BoundaryDissolveMetaJSONReader,
   type BoundaryDissolvePlan,
   type BoundaryDissolveRequest,
@@ -47,7 +47,7 @@ export type BoundaryDissolveStageReceiptV1 = Readonly<{
 }>
 
 export type BoundaryDissolveStagingHooks = Readonly<{
-  digest: BoundaryDissolveDigestReader
+  massEvidence: BoundaryDissolveMassEvidenceReader
   readMetaJSON: BoundaryDissolveMetaJSONReader
 }>
 
@@ -274,7 +274,7 @@ export class IsolatedBoundaryDissolveStaging {
           return receipt
         }
 
-        const plan = await planBoundaryDissolve(boundary, proposal.request, hooks.digest)
+        const plan = await planBoundaryDissolve(boundary, proposal.request, hooks.massEvidence)
         const firstPlanDigest = planSha256(plan)
         const metaJSON = await hooks.readMetaJSON(proposal.request.source, "before")
         if (!validateMetaJSONV1(metaJSON) || metaJSON.root !== proposal.request.source) {
@@ -284,7 +284,7 @@ export class IsolatedBoundaryDissolveStaging {
           )
         }
 
-        const currentPlan = await planBoundaryDissolve(boundary, proposal.request, hooks.digest)
+        const currentPlan = await planBoundaryDissolve(boundary, proposal.request, hooks.massEvidence)
         const currentPlanDigest = planSha256(currentPlan)
         if (currentPlanDigest !== firstPlanDigest) {
           throw new BoundaryDissolveStagingError(

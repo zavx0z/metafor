@@ -1,6 +1,15 @@
 import {afterEach, describe, expect, test} from "bun:test"
 import {createHash} from "node:crypto"
-import {mkdir, mkdtemp, readFile, readdir, rm, writeFile} from "node:fs/promises"
+import {
+  lstat,
+  mkdir,
+  mkdtemp,
+  readFile,
+  readdir,
+  rm,
+  unlink,
+  writeFile,
+} from "node:fs/promises"
 import {tmpdir} from "node:os"
 import {join} from "node:path"
 import {
@@ -17,13 +26,20 @@ import {
 } from "./meta-json.ts"
 import {MassCatalog, massFileName, type MassFileFormat} from "../shared/mass.ts"
 import {
+  BOUNDARY_DISSOLVE_ABSENT_MARKER,
   BoundaryDissolveError,
   executeBoundaryDissolveProof,
   planBoundaryDissolve,
   type BoundaryDissolveHooks,
+  type BoundaryDissolveMassEvidenceReader,
   type BoundaryDissolveRequest,
   type BoundaryMassFenceIdentity,
 } from "./dissolve.ts"
+import {
+  BoundaryDissolveMassEvidenceError,
+  createIsolatedBoundaryDissolveMassEvidenceReader,
+  type BoundaryDissolveValidAbsence,
+} from "./dissolve-mass-evidence.ts"
 import {
   BOUNDARY_DISSOLVE_PROPOSAL_V1,
   BoundaryDissolveStagingError,
@@ -35,7 +51,7 @@ import {open, type BoundaryDatabase} from "./sqlite.ts"
 const SOURCE = parseMetaAddress("synthetic/inference")!
 const TARGET = parseMetaAddress("synthetic/lada")!
 const LEAF = parseMetaAddress("synthetic/lada-child")!
-const MASS_KEYS = ["session", "draft", "messages", "history", "model"] as const
+const MASS_KEYS = ["session", "draft", "messages", "chatOutbox", "model"] as const
 
 const templateEntry = (
   name: string,
@@ -181,12 +197,14 @@ const createFixture = async (): Promise<Fixture> => {
   return fixture
 }
 
-const digestReader = (fixture: Fixture) => async (
-  input: {keyId: string; format: MassFileFormat},
-): Promise<string> =>
-  createHash("sha256")
-    .update(await readFile(join(fixture.massRoot, massFileName(input.keyId, input.format))))
-    .digest("hex")
+const massEvidenceReader = (
+  fixture: Fixture,
+  validAbsent: readonly BoundaryDissolveValidAbsence[] = [],
+): BoundaryDissolveMassEvidenceReader =>
+  createIsolatedBoundaryDissolveMassEvidenceReader(
+    fixture.massRoot,
+    validAbsent,
+  )
 
 const massSnapshot = async (fixture: Fixture): Promise<Array<{file: string; bytes: string; sha256: string}>> =>
   await Promise.all((await readdir(fixture.massRoot)).toSorted().map(async (file) => {
@@ -246,6 +264,7 @@ const hooks = (
   fences: BoundaryMassFenceIdentity[],
   releases: BoundaryMassFenceIdentity[],
   phases: Array<{phase: "before" | "planned"; root: MetaAddress}>,
+  massEvidence: BoundaryDissolveMassEvidenceReader = massEvidenceReader(fixture),
 ): BoundaryDissolveHooks => ({
   async fence(identity) {
     fences.push(structuredClone(identity))
@@ -253,7 +272,7 @@ const hooks = (
   async release(identity) {
     releases.push(structuredClone(identity))
   },
-  digest: digestReader(fixture),
+  massEvidence,
   readMetaJSON: metaJSONReader(fixture, phases),
 })
 
@@ -314,7 +333,7 @@ describe("Boundary recursive remove and offline dissolve", () => {
     const targetBefore = await authorized(fixture.boundary, fixture.targetAtom)
     const sourceBefore = await authorized(fixture.boundary, fixture.sourceAtom)
     const leafBefore = await authorized(fixture.boundary, fixture.leafAtom)
-    const plan = await planBoundaryDissolve(fixture.boundary, request(), digestReader(fixture))
+    const plan = await planBoundaryDissolve(fixture.boundary, request(), massEvidenceReader(fixture))
     const fences: BoundaryMassFenceIdentity[] = []
     const releases: BoundaryMassFenceIdentity[] = []
     const phases: Array<{phase: "before" | "planned"; root: MetaAddress}> = []
@@ -387,10 +406,124 @@ describe("Boundary recursive remove and offline dissolve", () => {
     expect(await massSnapshot(fixture)).toEqual(filesBefore)
   })
 
+  test("uses an explicit absent marker for chatOutbox without materializing bytes or changing its key identity", async () => {
+    const fixture = await createFixture()
+    const staging = await openStaging()
+    const sourceBefore = await authorized(fixture.boundary, fixture.sourceAtom)
+    const chatOutbox = sourceBefore.find((mass) => mass.key === "chatOutbox")!
+    const chatOutboxPath = join(
+      fixture.massRoot,
+      massFileName(chatOutbox.keyId, chatOutbox.format),
+    )
+    await unlink(chatOutboxPath)
+    const filesBefore = await massSnapshot(fixture)
+    const worldBefore = await worldFingerprint(fixture)
+    const massEvidence = massEvidenceReader(fixture, [{
+      keyId: chatOutbox.keyId,
+      format: chatOutbox.format,
+    }])
+
+    const plan = await planBoundaryDissolve(fixture.boundary, request(), massEvidence)
+    const repeatedPlan = await planBoundaryDissolve(fixture.boundary, request(), massEvidence)
+    const absentEntry = plan.privateManifest.entries.find(
+      (entry) => entry.sourceAuthoredKey === "chatOutbox",
+    )
+    expect(absentEntry).toEqual({
+      sourceAuthoredKey: "chatOutbox",
+      targetAuthoredKey: "chatOutbox",
+      format: chatOutbox.format,
+      globalKeyId: chatOutbox.keyId,
+      evidence: {
+        kind: "absent",
+        marker: BOUNDARY_DISSOLVE_ABSENT_MARKER,
+      },
+    })
+    expect(plan.privateManifest).toEqual(repeatedPlan.privateManifest)
+    expect(plan.privateManifest.entries.filter(
+      (entry) => entry.evidence.kind === "present",
+    )).toHaveLength(4)
+    expect(plan.privateManifest.entries.filter(
+      (entry) => entry.evidence.kind === "absent",
+    )).toHaveLength(1)
+
+    const phases: Array<{phase: "before" | "planned"; root: MetaAddress}> = []
+    const receipt = await staging.stage(
+      fixture.boundary,
+      proposal("synthetic-dissolve-absent"),
+      {
+        massEvidence,
+        readMetaJSON: metaJSONReader(fixture, phases),
+      },
+    )
+    expect(receipt.privateManifestSha256).toBe(
+      createHash("sha256").update(JSON.stringify(plan.privateManifest)).digest("hex"),
+    )
+    expect(await staging.count()).toBe(1)
+    expect(await worldFingerprint(fixture)).toEqual(worldBefore)
+    expect(await massSnapshot(fixture)).toEqual(filesBefore)
+    await expect(lstat(chatOutboxPath)).rejects.toMatchObject({code: "ENOENT"})
+
+    const proof = await executeBoundaryDissolveProof(
+      fixture.boundary,
+      request(),
+      plan,
+      hooks(fixture, [], [], phases, massEvidence),
+    )
+    const targetAfter = await authorized(fixture.boundary, fixture.targetAtom)
+    expect(targetAfter.find((mass) => mass.key === "chatOutbox")?.keyId)
+      .toBe(chatOutbox.keyId)
+    expect(proof.privateManifestSha256).toBe(receipt.privateManifestSha256)
+    expect(await massSnapshot(fixture)).toEqual(filesBefore)
+    await expect(lstat(chatOutboxPath)).rejects.toMatchObject({code: "ENOENT"})
+  })
+
+  test("rejects unmarked missing chatOutbox and a directory at its allowed identity as corruption", async () => {
+    const fixture = await createFixture()
+    const staging = await openStaging()
+    const chatOutbox = (await authorized(fixture.boundary, fixture.sourceAtom))
+      .find((mass) => mass.key === "chatOutbox")!
+    const chatOutboxPath = join(
+      fixture.massRoot,
+      massFileName(chatOutbox.keyId, chatOutbox.format),
+    )
+    await unlink(chatOutboxPath)
+    const worldBefore = await worldFingerprint(fixture)
+
+    await expect(planBoundaryDissolve(
+      fixture.boundary,
+      request(),
+      massEvidenceReader(fixture),
+    )).rejects.toMatchObject({
+      name: BoundaryDissolveMassEvidenceError.name,
+      code: "missing_mass",
+    })
+
+    await mkdir(chatOutboxPath)
+    const massEvidence = massEvidenceReader(fixture, [{
+      keyId: chatOutbox.keyId,
+      format: chatOutbox.format,
+    }])
+    await expect(staging.stage(
+      fixture.boundary,
+      proposal("synthetic-dissolve-corrupt-mass"),
+      {
+        massEvidence,
+        readMetaJSON: metaJSONReader(fixture, []),
+      },
+    )).rejects.toMatchObject({
+      name: BoundaryDissolveMassEvidenceError.name,
+      code: "corrupt_mass",
+    })
+
+    expect(await staging.count()).toBe(0)
+    expect(await worldFingerprint(fixture)).toEqual(worldBefore)
+    expect((await lstat(chatOutboxPath)).isDirectory()).toBe(true)
+  })
+
   test("dissolve rolls back reparent and earlier Mass transfers on a late membership CAS mismatch", async () => {
     const fixture = await createFixture()
     const filesBefore = await massSnapshot(fixture)
-    const plan = await planBoundaryDissolve(fixture.boundary, request(), digestReader(fixture))
+    const plan = await planBoundaryDissolve(fixture.boundary, request(), massEvidenceReader(fixture))
     const stale = plan.transfers[4]!
     const replacement = crypto.randomUUID()
     await fixture.boundary.projection.sql`INSERT INTO mass_key (id) VALUES (${replacement})`
@@ -514,7 +647,7 @@ describe("Boundary recursive remove and offline dissolve", () => {
     const initialPlan = await planBoundaryDissolve(
       fixture.boundary,
       request(),
-      digestReader(fixture),
+      massEvidenceReader(fixture),
     )
     const fifth = initialPlan.transfers[4]!
     const replacement = crypto.randomUUID()
@@ -522,7 +655,7 @@ describe("Boundary recursive remove and offline dissolve", () => {
     const readMetaJSON = metaJSONReader(fixture, phases)
 
     await expect(staging.stage(fixture.boundary, proposal("synthetic-dissolve-race"), {
-      digest: digestReader(fixture),
+      massEvidence: massEvidenceReader(fixture),
       async readMetaJSON(root, phase) {
         const document = await readMetaJSON(root, phase)
         await fixture.boundary.projection.sql`INSERT INTO mass_key (id) VALUES (${replacement})`

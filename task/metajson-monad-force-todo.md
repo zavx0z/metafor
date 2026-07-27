@@ -705,8 +705,8 @@
 - Remaining blockers / next gate:
   - proof не предоставляет live multi-entity staging/receipt API, post-commit
     Energy handle retarget, Force consequences или activation lifecycle;
-  - реальные Inference/Lada mappings, digests, backup и cold activation
-    требуют отдельного preflight;
+  - реальные Inference/Lada mappings, present digests/explicit absent evidence,
+    backup и cold activation требуют отдельного preflight;
   - судьба unreferenced прежних target keys/bytes требует явного GC policy;
   - следующий шаг остаётся owner decision в `MF-401`; этот item не разрешает
     live dissolve или deletion.
@@ -753,12 +753,64 @@
   - in-memory receipt ещё не является durable Boundary-owned serialized stage
     и не связан с stopped checkpoint/cut;
   - нужны проверенные реальные source/target mappings и declarations, exact
-    MetaJSON/Mass digests, backup и cold rollback package;
+    MetaJSON/Mass evidence, backup и cold rollback package;
   - нужны actual Energy five-handle fence/retarget, authenticated Monad/Force
     admission и post-commit consequences;
   - GC policy для superseded target keys/bytes остаётся неразрешённым;
   - только отдельное owner decision в `MF-401` может разрешить live staging;
     deletion и activation этим item не разрешены.
+
+### MF-113 — Зафиксировать explicit absent Mass evidence для dissolve
+
+- Status: `DONE`
+- Current executor: isolated Codex worktree `fdd1`, delegated from task
+  `019fa120-7413-7d32-938c-16aa6dac3fdc`.
+- Dependencies: `MF-112`
+- Authority:
+  - owner выбрал deterministic explicit absent marker для `chatOutbox`;
+  - empty Mass file и любые придуманные bytes запрещены;
+  - только offline/synthetic fixtures; live Boundary/Mass, staging,
+    activation, deletion и процессы запрещены.
+- Acceptance:
+  - private manifest использует closed present/absent evidence union;
+  - absent marker привязан к exact existing `global key ID + codec` и
+    детерминирован между plan, staging и post-state proof;
+  - только явно разрешённое отсутствие получает marker; неразрешённый missing,
+    symlink, directory или unreadable path являются ошибкой;
+  - reader не создаёт file или payload, а dissolve сохраняет global key
+    identity и проверяет обычную source/target manifest equality;
+  - focused tests доказывают valid absence, отсутствие materialization,
+    corruption rejection и сохранение пяти-key rollback proof;
+  - remaining live preflight gate перечислен явно.
+- Evidence:
+  - scoped implementation: этот commit; новый private
+    `boundary/dissolve-mass-evidence.ts` отсутствует в Boundary exports и
+    использует только read-only `lstat/open/read`;
+  - `chatOutbox` fixture сохраняет существующий global key ID и codec, но
+    private manifest вместо digest содержит
+    `{kind: "absent", marker: "metafor/mass-absent/v1"}`;
+  - repeated plan, isolated receipt и post-state proof получают один manifest
+    digest; absent file остаётся `ENOENT` до и после dissolve;
+  - unmarked `ENOENT` отклонён как `missing_mass`, directory на allowlisted
+    identity — как `corrupt_mass`, staging receipt не записан;
+  - `bun test boundary/dissolve.spec.ts`: `8 pass`, `0 fail`,
+    `73 expect()`;
+  - `bun test boundary/dissolve.spec.ts boundary/incremental.spec.ts
+    boundary/meta-json.spec.ts boundary/mass.spec.ts`: `54 pass`, `0 fail`,
+    `259 expect()`;
+  - `bun run check`: typecheck, `42` expected type diagnostics и `1650 pass`,
+    `0 fail` в `184` файлах;
+  - `git diff --check`: clean;
+  - все Mass paths были temporary synthetic fixtures; live contour, Mass,
+    Boundary и процессы не читались и не изменялись.
+- Remaining mandatory live gate:
+  - durable Boundary-owned serialized stage, связанный со stopped
+    checkpoint/cut и содержащий exact live allowlist/absent marker, всё ещё
+    отсутствует;
+  - только после него отдельно нужны backup/cold rollback proof, actual Energy
+    five-handle fence/retarget и authenticated Monad/Force admission;
+  - этот item не разрешает live staging, Mass materialization, activation или
+    deletion; `MF-401` остаётся owner gate.
 
 ### MF-109 — Реализовать Pause/Stack branchable execution workspace
 
