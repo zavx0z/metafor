@@ -1068,20 +1068,31 @@
   - executable Dawn/WebGPU gate compiles the production line WGSL into the
     production-shaped vertex/fragment render pipeline and proves the exact
     former `let finalColor` variant is rejected as `Invalid ShaderModule`;
-  - focused shader/material/readability/render-loop suite: `9 pass`, `0 fail`,
-    `39 expect`; browser bundle compiled `116` modules successfully;
+  - fresh-browser evidence after the shader repair proves that the Lada root,
+    five-Atom subtree and State markers are present, but the markers remain
+    tiny and dim at the retained 100 mm root scale;
+  - exact material-boundary cause: the State visual resolver computed
+    `luminanceBoost`, `shimmerAmount` and `shimmerPhase`, while Bulk's orbital
+    adapter forwarded only color/glow/glowIntensity. New materials therefore
+    took neutral defaults and updates explicitly reset those controls to
+    neutral values;
+  - the visual-only repair forwards the complete material state and raises
+    bounded current/potential luminance and glow contrast. It changes no
+    topology, data, RPC, camera, layout, geometry or render-loop condition;
+  - focused shader/material/readability/render-loop suite: `12 pass`, `0 fail`,
+    `54 expect`; browser bundle compiled `146` modules successfully;
   - `bun run check`: typecheck pass, `42` expected diagnostics,
-    `1690 pass`, `0 fail`, `5699 expect` in `195` test files.
+    `1693 pass`, `0 fail`, `5714 expect` in `196` test files.
 - Activation constraints:
   - this repair task performed no retry, restart, rollback, deletion, GC or
     other live mutation;
   - the world is already complete at active root `zavx0z/lada`; activation
     must not be retried and a new preflight is neither required nor valid;
-  - installation now requires a separately authorized single standard
-    service restart. On birth Bulk must read-only validate the retained v1
-    receipt against the exact post-projection before becoming ready; then all
-    five domains/Force and a freshly reloaded browser must be verified. No
-    hot reload, config/environment/port change, rollback or GC is permitted.
+  - the visual-only material repair remains undeployed by this task. Its later
+    installation requires a separately authorized single standard service
+    restart; then all five domains/Force and a freshly reloaded browser must
+    be verified. No hot reload, config/environment/port change, rollback or GC
+    is permitted.
 
 ### MF-109 — Реализовать Pause/Stack branchable execution workspace
 

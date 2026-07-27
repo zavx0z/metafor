@@ -55,18 +55,18 @@ export const resolveTorusStateVisual = (
 		return {
 			color: brightenColor(particle, 0.64, 1),
 			glowColor: brightenColor(particle, 0.88, 0.9),
-			glowIntensity: 4.8,
-			luminanceBoost: 1.45,
+			glowIntensity: 6.4,
+			luminanceBoost: 2.2,
 			shimmerAmount: 0.13,
 			shimmerPhase: resolveStatePhase(particle),
 		}
 	}
 	if (particle.active) {
 		return {
-			color: brightenColor(particle, 0.28, 0.78),
-			glowColor: brightenColor(particle, 0.48, 0.54),
-			glowIntensity: 2.4,
-			luminanceBoost: 1.1,
+			color: brightenColor(particle, 0.28, 0.86),
+			glowColor: brightenColor(particle, 0.48, 0.65),
+			glowIntensity: 3.2,
+			luminanceBoost: 1.5,
 			shimmerAmount: 0.065,
 			shimmerPhase: resolveStatePhase(particle),
 		}

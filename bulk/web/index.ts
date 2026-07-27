@@ -49,7 +49,7 @@ import {
 } from "bulk/settings"
 import {shouldContinueBulkRenderLoop} from "./render-loop.ts"
 import {resolveDarkParticleTorusOpacity} from "./torus-visual.ts"
-import {resolveTorusStateVisual} from "./torus-state-visual.ts"
+import {resolveOrbitalMaterialVisual} from "./orbital-material-visual.ts"
 import {
 	createLevelResolver,
 	resolveOuterRadiusFromSphereRadius,
@@ -2144,35 +2144,9 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		return existing
 	}
 
-	const orbitalMaterialVisual = (particle: BulkOrbitalParticle): {
-		color: Color
-		glowColor: Color
-		glowIntensity: number
-		luminanceBoost?: number
-		shimmerAmount?: number
-		shimmerPhase?: number
-	} => {
-		const isState = particle.orbitalParticleKind === "state"
-		if (isState) {
-			const visual = resolveTorusStateVisual(particle)
-			return {
-				color: new Color(...visual.color),
-				glowColor: new Color(...visual.glowColor),
-				glowIntensity: visual.glowIntensity,
-			}
-		}
-		const alpha = particle.current ? 0.82 : particle.active ? 0.5 : 0.16
-		const glowAlpha = particle.current ? 0.34 : particle.active ? 0.16 : 0.035
-		return {
-			color: new Color(particle.colorR, particle.colorG, particle.colorB, alpha),
-			glowColor: new Color(particle.colorR, particle.colorG, particle.colorB, glowAlpha),
-			glowIntensity: particle.current ? 1.9 : particle.active ? 1.15 : 0.42,
-		}
-	}
-
 	const upsertOrbitalParticleRecord = (particle: BulkOrbitalParticle, depth: number): OrbitalParticleRenderRecord => {
 		const existing = orbitalParticleRecords.get(particle.orbitalParticleId)
-		const visual = orbitalMaterialVisual(particle)
+		const visual = resolveOrbitalMaterialVisual(particle)
 		if (!existing) {
 			const material = new LineGlowMaterial({...visual, opacity: 1})
 			const node = new LineSegments(getSphereWireframeGeometry(particle.sphereRadius, depth), material)
@@ -2193,9 +2167,9 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		existing.material.color.copy(visual.color)
 		existing.material.glowColor?.copy(visual.glowColor)
 		existing.material.glowIntensity = visual.glowIntensity
-		existing.material.luminanceBoost = visual.luminanceBoost ?? 1
-		existing.material.shimmerAmount = visual.shimmerAmount ?? 0
-		existing.material.shimmerPhase = visual.shimmerPhase ?? 0
+		existing.material.luminanceBoost = visual.luminanceBoost
+		existing.material.shimmerAmount = visual.shimmerAmount
+		existing.material.shimmerPhase = visual.shimmerPhase
 		return existing
 	}
 

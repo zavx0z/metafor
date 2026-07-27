@@ -22,13 +22,15 @@ describe("Capsule torus State marker readability", () => {
 		const inactive = resolveTorusStateVisual(marker())
 
 		expect(current.color[3]).toBe(1)
-		expect(potential.color[3]).toBe(0.78)
+		expect(potential.color[3]).toBe(0.86)
 		expect(inactive.color[3]).toBe(0.015)
 		expect(current.color[3]).toBeGreaterThan(potential.color[3])
 		expect(potential.color[3]).toBeGreaterThan(inactive.color[3])
 		expect(current.glowIntensity).toBeGreaterThan(potential.glowIntensity)
 		expect(potential.glowIntensity).toBeGreaterThan(inactive.glowIntensity)
 		expect(current.luminanceBoost).toBeGreaterThan(potential.luminanceBoost)
+		expect(current.luminanceBoost).toBeGreaterThanOrEqual(2)
+		expect(potential.luminanceBoost).toBeGreaterThanOrEqual(1.5)
 		expect(current.glowIntensity / potential.glowIntensity).toBeGreaterThanOrEqual(2)
 	})
 
