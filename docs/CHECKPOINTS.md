@@ -184,3 +184,15 @@ Candidate bundle имеет `effects: none` и retention
 удаляют bundle автоматически. Такой capture не является live restore,
 activation, новым Force cut или правом менять canonical source; эти действия
 остаются отдельными owner gates.
+
+Offline promotion bridge не читает live Boundary или Bulk tree. Он сначала
+привязывает явно захваченный former-root frame к точным `bundleId`, stage
+receipt и checkpoint candidate. Read-only Bulk promotion receipt появляется
+только после успешного dissolve proof с теми же source/target Atom identities,
+serialized plan, structural и private Mass manifest digests. Отсутствующий
+proof, устаревшая stage binding или любое расхождение дают `null`, поэтому
+stage с `effects: none` сам по себе никогда не становится promotion.
+
+Bridge возвращает значение только для уже существующего локального аргумента
+Bulk manifestation. Он не создаёт Monad/Force/RPC endpoint, не публикует
+external capability и не разрешает activation или lifecycle transition.

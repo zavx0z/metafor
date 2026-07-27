@@ -358,6 +358,8 @@ describe("Boundary recursive remove and offline dissolve", () => {
     expect(proof).toMatchObject({
       sourceAtom: fixture.sourceAtom,
       targetAtom: fixture.targetAtom,
+      planSha256: createHash("sha256").update(JSON.stringify(plan)).digest("hex"),
+      structuralSha256: plan.structuralSha256,
       preservedRuntimeIds: [`atom/${fixture.targetAtom}`, `atom/${fixture.leafAtom}`],
       transferredGlobalKeys: sourceBefore.map((mass) => mass.keyId),
       retainedUnreferencedKeys: targetBefore.slice(1).map((mass) => mass.keyId),

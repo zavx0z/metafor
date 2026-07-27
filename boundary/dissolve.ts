@@ -152,6 +152,8 @@ export type BoundaryDissolvePlan = Readonly<{
 export type BoundaryDissolveProof = Readonly<{
   sourceAtom: number
   targetAtom: number
+  planSha256: string
+  structuralSha256: string
   preservedRuntimeIds: readonly string[]
   transferredGlobalKeys: readonly string[]
   /** Superseded target identities remain metadata-only; this proof performs no byte GC. */
@@ -892,6 +894,8 @@ export async function executeBoundaryDissolveProof(
     return {
       sourceAtom: plan.source.atom,
       targetAtom: plan.target.atom,
+      planSha256: sha256(JSON.stringify(plan)),
+      structuralSha256: plan.structuralSha256,
       preservedRuntimeIds: plan.preservedRuntime.map((runtime) => runtimeKey(runtime.kind, runtime.id)),
       transferredGlobalKeys: plan.transfers.map((transfer) => transfer.sourceGlobalKey),
       retainedUnreferencedKeys: [...new Set(plan.transfers
