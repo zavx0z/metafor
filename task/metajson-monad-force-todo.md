@@ -807,6 +807,9 @@
   - durable Boundary-owned serialized stage, связанный со stopped
     checkpoint/cut и содержащий exact live allowlist/absent marker, всё ещё
     отсутствует;
+  - evidence-only design и cold-cut runbook зафиксированы в
+    [`task/inference-lada-dissolve-cold-cut-preparation.md`](inference-lada-dissolve-cold-cut-preparation.md);
+    это не owner contract и не authority на staging/activation;
   - только после него отдельно нужны backup/cold rollback proof, actual Energy
     five-handle fence/retarget и authenticated Monad/Force admission;
   - этот item не разрешает live staging, Mass materialization, activation или
