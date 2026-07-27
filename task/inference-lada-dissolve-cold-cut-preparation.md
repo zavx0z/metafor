@@ -1,9 +1,9 @@
 # Inference → Lada dissolve: cold-cut preparation
 
-Status: non-live durable-candidate and detached acceptance prerequisites
-implemented; live evidence and cold-cut runbook remain preparatory only. This
-document does not expose a runtime capability, authorize staging against live
-data, or authorize activation/deletion.
+Status: non-live durable-candidate, detached acceptance and causal admission
+prerequisites implemented; live evidence and activation remain preparatory
+only. This document does not expose a runtime capability, authorize staging
+against live data, or authorize activation/deletion.
 
 The owner documents remain [`boundary/DOMAIN.md`](../boundary/DOMAIN.md),
 [`docs/CHECKPOINTS.md`](../docs/CHECKPOINTS.md),
@@ -41,6 +41,14 @@ The integrated private proof has six parts:
    The matching bridge receipt is passed into Bulk manifestation, while
    `runtime/dissolve-candidate-acceptance.ts` verifies a second private
    rollback restoration and produces browser/static evidence.
+7. `boundary/dissolve-causal-admission.ts` persists an exact private
+   admission/quiescence/commit/consequence record in caller-provided Boundary
+   SQLite. It binds candidate, stage, proof, Bulk receipt, current held
+   frontier and an ordered one-entity consequence plan, but dispatches
+   nothing.
+8. `energy/dissolve-retarget.ts` persists five exact source-generation
+   fence/retarget entries with per-entry fsync, reopen/retry and a stable
+   idempotency key. It has no release, delete, RPC or runtime caller.
 
 The observed five authored mappings are:
 
@@ -69,14 +77,14 @@ The remaining reusable primitives have narrower behavior:
   raw rollback hashes and the dissolve stage; MF-115 proves its exact accepted
   declaration/runtime projection and detached Lada root, but it still does
   not define a canonical authored source transition for live activation;
-- `holdUnderClosedAdmission()` has no authenticated service endpoint or
-  lifecycle coordinator that closes external ingress and invokes all domain
-  quiescence methods;
-- Energy fence state is process-local and per identity. It has no durable
-  aggregate five-handle receipt, no crash recovery, and no post-commit retarget
-  from source declarations to target declarations;
-- the dissolve proof still returns no Force/Graviton consequence plan and has
-  no Monad/Force admission path.
+- `holdUnderClosedAdmission()` still has no authenticated service endpoint or
+  live lifecycle coordinator that closes external ingress and invokes all
+  domain quiescence methods;
+- Energy process-local gates now have a private durable five-handle
+  orchestration receipt, but no installed live driver/caller;
+- the private causal plan now fixes post-commit entity order without inventing
+  a batch Force message, but has no Monad/Force admission endpoint or
+  dispatcher.
 
 ## Implemented durable stage boundary
 
@@ -222,34 +230,33 @@ No step below is authorized by this document.
     match the pre-cut evidence. Preserve failed candidate/stage evidence
     privately without Mass payload disclosure.
 
-## Missing Force, Energy and source contracts
+## Remaining live Force, Energy and source integration
 
 ### Force/Monad
 
 - No authenticated capability-scoped command accepts an exact
   `(stageId, checkpoint identity, receipt digest)` and rejects arbitrary
   Particle or stale-stage activation.
-- No service coordinator closes external admission, invokes every domain's
-  quiescence, reaches/holds the applied-through frontier, and persists the
-  hold/release outcome.
-- No contract explains how multiple one-entity `ForceMessage` Particles are
-  associated with one atomic Boundary stage without turning a batch into new
-  Force wire semantics.
-- No accepted consequence set/order exists for source removal, target
-  promotion, descendant scope changes, Mass ownership changes and retired
-  executions.
+- No live service coordinator closes external admission, invokes every
+  domain's quiescence, reaches/holds the applied-through frontier, and feeds
+  its receipts to the private Boundary record.
+- The non-live plan associates each changed runtime entity with one ordered
+  one-Particle message entry, but no dispatcher emits those messages.
+- The accepted private order is Energy retarget, target/scope replacements,
+  source Atom remove, verified Bulk promotion, evidence retention and
+  admission release; live routing/application remains unimplemented.
 - An offline database replacement is not present in the old cut's Particle
   history. A new-cut baseline versus causally admitted Particles is therefore
   an owner decision, not an implementation detail.
 
 ### Energy
 
-- Current `energy.mass.fence/release` is unauthenticated operation-wise,
-  process-local, per identity, and unavailable after full stop.
-- No atomic five-handle fence receipt binds source declarations, key IDs,
-  generations, checkpoint identity and stage ID.
-- No post-commit retarget/re-authorize contract moves live ownership to Lada,
-  and no crash rule proves whether source fences remain held or are released.
+- Current `energy.mass.fence/release` remains unauthenticated operation-wise
+  and process-local. The private durable receipt binds five declarations,
+  key IDs, generations, checkpoint and stage, but no live adapter invokes it.
+- Post-commit retarget/re-authorize is now durable and retryable only through
+  an injected idempotent driver. Source fences remain held; the protocol has
+  no release/delete step.
 - Cold rehydration would naturally create new target handles and discard old
   process-local generations, but then no old Inference destroy hook runs.
   Whether cold rehydration is sufficient or pre-stop retire/destroy is required
@@ -267,20 +274,22 @@ No step below is authorized by this document.
 
 ## Exact remaining owner decisions
 
-The owner has approved MF-114 durable staging and MF-115 exact detached
-execution, Bulk reframe, browser/static acceptance and private restoration
-proof. None of those decisions authorizes use against live paths.
+The owner selected causal no-stop preparation and MF-116 now proves its private
+durable state machines. None of these decisions authorizes live paths.
 
-Live activation remains a later gate. Before it, the owner must separately
-choose:
+The exact remaining activation gate is `MF-117`. There is currently no
+activation command: MF-116 intentionally added neither caller nor RPC. The
+next owner decision must approve:
 
-1. **Cold new-cut activation**: publish an offline-transformed candidate,
-   start a new cut, let Energy cold-rehydrate target handles, and accept that
-   old live generations/destroy hooks do not participate; or
-2. **Causal activation**: first implement authenticated Monad/Force admission,
-   persistent external-admission hold, atomic multi-entity staging,
-   five-handle Energy fence/retarget and explicit post-commit consequences.
+1. canonical authored source/root transition that cannot rematerialize
+   Inference;
+2. authenticated capability-scoped caller and exact operational command;
+3. live adapters for external-admission hold, all-domain quiescence, Energy
+   fence/retarget, Boundary commit and ordered Force/Bulk dispatch;
+4. a fresh candidate/stage/proof at the then-current cut/sequence plus live
+   rollback evidence.
 
-The owner must also decide the canonical source/root transition and whether
-superseded target key metadata/files remain indefinitely. Current evidence
-supports retention with no GC; it does not support deletion.
+Retention is no longer open inside this slice: Mass bytes and key identities,
+history, checkpoint/rollback artifacts, receipts and superseded source/target
+binding metadata remain `retain-until-explicit-gc`. A separate owner GC
+decision is required for any deletion.

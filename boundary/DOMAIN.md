@@ -299,6 +299,30 @@ Atom и всё её поддерево сохраняют identity и поряд
 authored source или process lifecycle. Detached execution не является
 materialization либо activation live Universe.
 
+Следующий owner-approved causal prerequisite остаётся non-live и не добавляет
+RPC либо caller. Boundary владеет durable admission/quiescence record, который
+связывает один `admissionId` с exact candidate bundle, stage receipt,
+checkpoint, detached proof, Bulk promotion receipt и ordered causal plan.
+Admission закрывается fail-closed: duplicate разрешён только для тех же
+canonical bytes, stale checkpoint/frontier либо подменённый receipt не меняют
+record.
+
+До Boundary commit допустимы только control-plane admission/quiescence и
+Energy fence. Ни structural world row, ни Mass binding, ни Bulk projection, ни
+post-commit consequence до commit не меняются. Quiescence принимается только
+для held applied-through frontier того же `(cutId, sequence)` и complete
+five-handle fence receipt. После commit последствия отмечаются строго в
+сохранённом порядке; каждая runtime entity имеет отдельный causal entry,
+пригодный ровно для одного `ForceMessage` с одной Particle.
+
+`dissolve` снимает только structural parent role. Он не имеет права физически
+удалять Mass bytes или key identities, Dark Force history, checkpoint/rollback
+artifacts, receipts либо superseded binding metadata. Active membership может
+быть переведён на Lada только при сохранении прежней source/target binding
+identity в immutable admission/Energy receipts. Все эти records, включая
+прежние target key IDs, имеют policy `retain-until-explicit-gc`; автоматический
+GC запрещён до отдельного owner decision.
+
 ## Проверка
 
 Регрессии доказывают in-place identity Matter, live-reparent и rebind, смену
@@ -323,3 +347,7 @@ world rows/Mass bytes, точную checkpoint/rollback binding и отсутс�
 Detached acceptance-регрессия дополнительно выполняет сохранённый plan только
 в candidate, сверяет proof/post-projection с immutable stage и доказывает
 побайтное восстановление отдельной rollback copy без записи в исходный cut.
+Causal-admission регрессии отдельно доказывают exact candidate/receipt binding,
+stale/duplicate rejection, отсутствие world/Bulk/consequence effects до commit,
+ordered one-entity consequence plan и retention superseded Mass bindings без
+GC.

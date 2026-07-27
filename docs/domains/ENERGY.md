@@ -91,6 +91,25 @@ Reaction результаты удалённого Atom подавляются.
 Не гидратированный Atom не создаёт пустые Mass/Energy ради cleanup; Mass имеет
 отдельный lifetime и автоматически не удаляется.
 
+## Causal retarget для dissolve
+
+Owner-approved non-live prerequisite не подключён к Energy RPC/runtime. Energy
+владеет отдельным durable receipt ровно пяти Mass handles, связанным с exact
+Boundary admission, stage receipt, checkpoint, plan digest и текущими source
+generations. Fence выполняется в deterministic mapping order; результат
+каждого handle fsync-ится до следующего, поэтому failure на пятом сохраняет
+первые четыре как fenced, а retry/reopen идемпотентно переутверждает их и
+продолжает тот же receipt.
+
+Retarget запрещён до exact Boundary commit receipt. После commit каждый
+source→target handle retarget идемпотентен по стабильному entry ID, а полученная
+target generation сохраняется до следующего entry. Source fence не снимается
+этой операцией: superseded source/target binding metadata, прежние target key
+IDs и generations сохраняются в receipt с
+`retain-until-explicit-gc`. Mass bytes, key rows, history и rollback artifacts
+не копируются и не удаляются; отдельного delete/release шага в protocol нет.
+Crash/retry не может превратить absent Mass evidence в payload.
+
 ## Что обязаны доказывать тесты
 
 - generic сохраняет точные типы сущностей в action, destroy и Matter;
@@ -105,6 +124,10 @@ Reaction результаты удалённого Atom подавляются.
   только execution этого Atom.
 - Atom remove освобождает активный slot до abort, выполняет destroy на старых
   ссылках ровно один раз и не затрагивает новую generation того же ID.
+- dissolve fence/retarget receipt переживает reopen, продолжает late
+  five-handle failure без duplicate retarget и не выполняет retarget до
+  Boundary commit;
+- superseded binding/key metadata сохраняется до отдельного owner GC decision.
 
 Публичный контракт находится в `types/metafor/schema.ts`, runtime-цепочка — в
 `metafor.ts`, проверки — в `metafor.spec.ts` и

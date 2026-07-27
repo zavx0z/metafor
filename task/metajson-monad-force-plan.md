@@ -822,6 +822,24 @@ Rollback проверяется восстановлением ещё одной
 source/root transition, Force/Monad, Energy и lifecycle по-прежнему требуют
 отдельного owner gate.
 
+Owner затем выбрал causal no-stop направление и разрешил `MF-116` только как
+durable non-live admission preparation. Boundary persistence связывает exact
+candidate/stage/proof/Bulk receipt с held applied-through frontier и ordered
+plan; Energy persistence доказывает five-handle fence/retarget retry. До exact
+Boundary commit запрещены retarget, Bulk projection и entity consequences.
+После commit порядок фиксирован как Energy retarget → отдельные target/scope
+entity consequences → source Atom remove → verified Bulk promotion →
+admission release, причём каждая entity остаётся одним `ForceMessage` с одной
+Particle. Endpoint/caller, live admission, live dissolve и lifecycle этим
+решением не разрешены.
+
+Retention law закрыт консервативно: dissolve снимает structural parent role,
+но не удаляет Mass bytes/keys, history, rollback/checkpoint artifacts,
+receipts или superseded bindings. Active binding transition сохраняет полную
+source/target identity в immutable admission/Energy receipts; прежние target
+keys и все evidence остаются `retain-until-explicit-gc` до отдельного owner
+decision.
+
 ### 15.5 Pause/Stack и ветвящийся execution workspace
 
 Owner уточнил назначение checkpoint line: это не только offline replay, а

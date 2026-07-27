@@ -944,6 +944,85 @@
     `1663 pass`, `0 fail`, `5562 expect` в `187` test files;
   - `git diff --check`: clean; scoped implementation: этот commit.
 
+### MF-116 — Подготовить durable causal admission и Energy retarget
+
+- Status: `DONE`
+- Current executor: canonical Inference integration checkout, delegated from
+  Codex task `019fa120-7413-7d32-938c-16aa6dac3fdc`.
+- Dependencies: `MF-115`
+- Authority:
+  - owner выбрал causal no-stop dissolve preparation;
+  - разрешены только private non-live protocol/storage/tests без endpoint или
+    caller;
+  - live admission/dissolve, Boundary/Mass data, Force routing, processes,
+    restart, stop/start и hot reload запрещены;
+  - dissolve удаляет только structural parent role; Mass bytes/keys/history,
+    rollback/checkpoint artifacts, receipts и superseded bindings сохраняются
+    до отдельного owner GC decision.
+- Acceptance:
+  - Boundary-owned durable admission/quiescence record связан с exact
+    candidate bundle, stage/proof/Bulk receipt and checkpoint;
+  - duplicate exact admission идемпотентен, changed receipt или stale frontier
+    fail closed;
+  - ordered causal plan фиксирует no effects before commit и отдельный
+    one-entity-per-`ForceMessage` post-commit порядок;
+  - Energy-owned durable five-handle fence/retarget receipt переживает reopen,
+    late fifth-handle failure и retry без release/delete;
+  - retarget и post-commit consequences невозможны до exact Boundary commit;
+  - immutable receipts сохраняют source/target/superseded binding metadata и
+    прежние target key IDs с `retain-until-explicit-gc`;
+  - focused happy-path, late failure/retry, stale/duplicate и pre-commit
+    no-effects tests; typecheck/check и clean commit.
+- Remaining gate:
+  - никакой public live RPC/caller не создаётся;
+  - actual live admission/activation и exact operational command требуют
+    отдельного owner gate после source/root transition proof.
+- Evidence:
+  - `boundary/dissolve-causal-admission.ts` хранит private Boundary-owned
+    admission/quiescence/commit/consequence record, exact candidate/stage/
+    proof/Bulk binding, complete five-domain held frontier и ordered plan;
+  - runtime consequences выводятся только из exact retained runtime identities:
+    target и реально сменившие scope entities получают отдельный
+    one-entity/one-message replace, source Atom remove следует после них;
+  - `energy/dissolve-retarget.ts` fsync-ит каждый из пяти fence/retarget
+    outcomes, reasserts exact idempotency entry after reopen и не имеет
+    release/delete path;
+  - immutable Boundary/Energy receipts сохраняют source/target declarations,
+    global keys, previous target keys, dependent bindings, generations,
+    candidate/checkpoint/proof receipts и policy
+    `retain-until-explicit-gc`;
+  - focused causal tests: `4 pass`, `0 fail`, `28 expect`;
+  - dissolve/candidate/promotion/Energy/Bulk integration suite:
+    `32 pass`, `0 fail`, `203 expect`;
+  - `bun run check`: typecheck pass, `42` expected diagnostics,
+    `1667 pass`, `0 fail`, `5590 expect` в `188` test files;
+  - `git diff --check`: clean;
+  - live data/listeners/processes и runtime lifecycle не читались и не
+    изменялись; endpoint/caller не добавлен; scoped implementation: этот
+    commit.
+
+### MF-117 — Активировать causal Inference→Lada dissolve
+
+- Status: `GATE`
+- Dependencies: `MF-116`
+- Current activation command: отсутствует; MF-116 намеренно не создаёт caller
+  или live RPC.
+- Owner gate:
+  - утвердить canonical authored source/root transition, который не
+    rematerialize Inference;
+  - утвердить authenticated capability-scoped caller и exact operational
+    command для fresh current-stage admission;
+  - связать live external-admission hold/domain quiescence, current frontier,
+    Energy driver, Boundary commit и Force/Bulk consequence dispatch с
+    private MF-116 receipts;
+  - повторно собрать exact candidate/proof на текущем cut/sequence; MF-115
+    receipt нельзя считать вечным live admission;
+  - отдельно принять live rollback/runbook evidence и сохранение всех
+    Mass/history/checkpoint/receipt/binding artifacts без GC.
+- Prohibited before approval:
+  - live stage/admission/dissolve, source switch, Force routing, process
+    lifecycle, stop/start/restart/hot reload и любой GC.
+
 ### MF-109 — Реализовать Pause/Stack branchable execution workspace
 
 - Status: `WAITING`

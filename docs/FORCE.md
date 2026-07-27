@@ -44,6 +44,23 @@ Force.
 Общий wire language остаётся в `shared/protocol/force`; его совместное
 использование доменами не создаёт отдельный Force domain.
 
+Для causal `dissolve` multi-entity Boundary commit не становится batch wire
+message. Non-live admission protocol сохраняет ordered post-commit plan:
+Energy retarget завершается первым; затем target promotion и каждое реально
+перепривязанное runtime entity получают отдельный consequence entry; source
+Atom remove идёт после сохранённых replacements; verified Bulk promotion
+receipt применяется только к post-commit projection; admission открывается
+только после complete ordered receipt. Каждый entity entry требует ровно один
+`ForceMessage` с одной Particle. Service admission/quiescence, Energy fence
+receipt и Bulk projection receipt не являются Particles и не добавляются в
+Particle history.
+
+Persistent admission hold относится только к входу этой structural operation:
+он не означает stop/restart процессов либо уничтожение Лады. Exact held
+applied-through frontier, candidate/stage receipts и commit являются
+обязательными causal guards. Текущий срез не публикует endpoint, не принимает
+live command и не маршрутизирует эти consequences.
+
 ## Particle history
 
 Dark Force владеет полной append-only filesystem history всех принятых
