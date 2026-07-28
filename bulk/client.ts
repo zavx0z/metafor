@@ -1,4 +1,9 @@
 import type { BulkViewportWithHud } from "@metafor/types/bulk/hud"
+import {
+	BULK_VIEWPORT_CAPTURE_VERSION,
+	isBulkViewportCaptureControlRequest,
+	type BulkViewportCaptureControlResponse,
+} from "@metafor/types/bulk/capture"
 import type {BulkInitialPackage} from "@metafor/types/bulk/initial"
 import { Force } from "shared/transport/force"
 import { createBulkViewport } from "bulk/web"
@@ -8,6 +13,7 @@ import { BulkProjectionStore } from "./projection.ts"
 import { observedRootSrc } from "./web/force-protocol.ts"
 import { buildBulkManifestation } from "./manifestation.ts"
 import {buildBulkTimeline} from "./timeline.ts"
+import {captureBulkViewportCanvas} from "./web/viewport-capture.ts"
 
 const bulkCanvas = document.getElementById("bulk-canvas") as HTMLCanvasElement | null
 if (bulkCanvas === null) throw new Error("bulk-canvas not found")
@@ -95,10 +101,26 @@ const start = async (): Promise<void> => {
 	})
 	bulkViewport?.applyManifestPatch(initial.manifest)
 
+	const observerId = `bulk-web-${crypto.randomUUID()}`
 	const force = new Force("bulk", {
-		id: `bulk-web-${crypto.randomUUID()}`,
+		id: observerId,
 		parameters: {session: initial.session},
 	})
+	force.onControl = async (message) => {
+		if (!isBulkViewportCaptureControlRequest(message)) return
+		const result = await captureBulkViewportCanvas(
+			bulkCanvas,
+			message,
+			{observerId, throughTs, rootSrc: activeSrc},
+		)
+		const response: BulkViewportCaptureControlResponse = {
+			control: "bulk.viewport.capture.response",
+			version: BULK_VIEWPORT_CAPTURE_VERSION,
+			id: message.id,
+			result,
+		}
+		force.sendControl(response)
+	}
 	force.onImpulse = receiveImpulse
 }
 

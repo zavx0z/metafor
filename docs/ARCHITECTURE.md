@@ -360,6 +360,32 @@ Read-only timeline показывает только текущий observer cut
 platform-neutral, чтобы одна точка наблюдения могла представлять обычный экран,
 телефон, WebXR, AR или VR без изменения законов Bulk.
 
+### Observer viewport capture
+
+Read-only Monad method `bulk.observer.captureViewport` получает PNG именно
+последнего уже представленного canvas подключённого browser observer: сцену,
+его текущие camera/zoom/root и HUD. Capture использует browser
+`HTMLCanvasElement.toBlob("image/png")`, не запускает новый render loop, не
+меняет projection или состояние и не является server/headless/desktop
+screenshot.
+
+Observer выбирается по `id`; без `id` capture допустим только при ровно одном
+подключённом observer. `id` является selector, но не правом доступа. Monad
+caller обязан передать capability, связанную с его source identity. Переменная
+`BULK_VIEWPORT_CAPTURE_GRANTS` содержит JSON-массив
+`{"source": string, "capability": string}`; отсутствующая или некорректная
+конфигурация запрещает все capture.
+
+Capture request/response идут по browser WebSocket-соединению, уже
+аутентифицированному одноразовой session, как явно дискриминированные control
+messages. Они разбираются до Force и никогда не создают Impulse. На одного
+observer разрешён один capture одновременно; действуют rate, timeout, viewport
+и PNG payload limits, а disconnect отменяет ожидание.
+
+Ответ фиксирует observer id, `throughTs`/`rootSrc` browser projection cut,
+CSS/pixel dimensions, DPR, capture sequence, wall-clock time, PNG byte count и
+base64. Capture time не является и не подменяет simulation tick.
+
 ## Create MetaFor
 
 `create-metafor` остаётся активным workspace и CLI. Его утверждённый контракт:

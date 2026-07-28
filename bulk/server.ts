@@ -1,5 +1,4 @@
 import {file, type ServerWebSocket} from "bun"
-import type {ForceMessage} from "shared/protocol/force/message"
 import {unsourceForceMessage} from "shared/protocol/force/message"
 import {MonadRpcPeer, MonadTransport} from "shared/transport/monad"
 import index from "./index.html"
@@ -8,21 +7,36 @@ import {installForceCheckpointSideband} from "shared/transport/force/checkpoint"
 import {BulkObserverHandoffs} from "./handoff.ts"
 import {BulkMonad} from "./monad.ts"
 import {bulkMonadRoutes} from "./monad-route.ts"
+import {
+  BULK_VIEWPORT_CAPTURE_MAX_CONTROL_CHARS,
+  BulkViewportCaptureRegistry,
+  bulkViewportCaptureAuthorizationFromJson,
+  type BulkViewportObserverClient,
+} from "./capture.ts"
+import {routeBulkBrowserPayload} from "./browser-protocol.ts"
 
 type BrowserClient = {domain: string; id: string; session: string}
 
 const browserClients = new Set<ServerWebSocket<BrowserClient>>()
 const handoffs = new BulkObserverHandoffs()
 const monad = new BulkMonad()
+const captures = new BulkViewportCaptureRegistry({
+  authorize: bulkViewportCaptureAuthorizationFromJson(Bun.env.BULK_VIEWPORT_CAPTURE_GRANTS),
+})
 const transport = new MonadTransport("bulk")
 const rpc = new MonadRpcPeer(transport.channel)
-monad.onServerStarting(rpc)
+monad.onServerStarting(rpc, captures)
 const checkpoint = installForceCheckpointSideband("bulk", rpc)
 let force: Force | null = null
+const captureConnections = new WeakMap<
+  ServerWebSocket<BrowserClient>,
+  {client: BulkViewportObserverClient; disconnect: () => void}
+>()
 
-const sendBrowser = (ws: ServerWebSocket<BrowserClient>, payload: unknown): void => {
-  if (ws.readyState !== WebSocket.OPEN) return
+const sendBrowser = (ws: ServerWebSocket<BrowserClient>, payload: unknown): boolean => {
+  if (ws.readyState !== WebSocket.OPEN) return false
   ws.send(JSON.stringify(payload))
+  return true
 }
 
 const server = Bun.serve<BrowserClient>({
@@ -49,13 +63,24 @@ const server = Bun.serve<BrowserClient>({
         }
       },
     },
+    "/monad/channel": {
+      POST(request: Request) {
+        return transport.receive(request)
+      },
+    },
     "/ws": {
       GET(req: Bun.BunRequest<"/ws">, server: Bun.Server<BrowserClient>) {
         const url = new URL(req.url)
         const domain = url.searchParams.get("domain")
         const id = url.searchParams.get("id")
         const session = url.searchParams.get("session")
-        if (!domain || !id || !session) return new Response("Bulk observer identity and session are required", {status: 400})
+        if (
+          domain !== "bulk" ||
+          !id ||
+          id.length > 256 ||
+          !session ||
+          session.length > 256
+        ) return new Response("Bulk observer identity and session are required", {status: 400})
         const upgraded = server.upgrade(req, {data: {domain, id, session}})
         return upgraded ? undefined : new Response("WebSocket upgrade failed", {status: 426})
       },
@@ -71,22 +96,45 @@ const server = Bun.serve<BrowserClient>({
       }
       for (const message of pending) sendBrowser(ws, message)
       browserClients.add(ws)
+      const client: BulkViewportObserverClient = {
+        domain: ws.data.domain,
+        id: ws.data.id,
+        send: (message) => sendBrowser(ws, message),
+      }
+      captureConnections.set(ws, {client, disconnect: captures.connect(client)})
       console.log(`[bulk] browser connected ${ws.data.domain} ${ws.data.id}`)
     },
     close(ws) {
+      captureConnections.get(ws)?.disconnect()
+      captureConnections.delete(ws)
       browserClients.delete(ws)
       console.log(`[bulk] browser disconnected ${ws.data.domain} ${ws.data.id}`)
     },
     message(ws, raw) {
-      let message: ForceMessage
+      const text = String(raw)
+      if (text.length > BULK_VIEWPORT_CAPTURE_MAX_CONTROL_CHARS) {
+        ws.close(1009, "Bulk browser payload exceeds limit")
+        return
+      }
+      let value: unknown
       try {
-        message = JSON.parse(String(raw)) as ForceMessage
+        value = JSON.parse(text) as unknown
       } catch {
         ws.close()
         return
       }
-      console.log(`[bulk] browser -> force part=${message.parts[0].part}`)
-      force?.impulse(unsourceForceMessage(message))
+      const captureConnection = captureConnections.get(ws)
+      const routed = routeBulkBrowserPayload(value, {
+        consumeControl: (payload) =>
+          captureConnection !== undefined && captures.receive(captureConnection.client, payload),
+        onImpulse(message) {
+          console.log(`[bulk] browser -> force part=${message.parts[0].part}`)
+          force?.impulse(unsourceForceMessage(message))
+        },
+      })
+      if (routed === "invalid") {
+        ws.close(1003, "Bulk browser payload is invalid")
+      }
     },
   },
 })
@@ -99,6 +147,7 @@ const close = (): Promise<void> => {
   closing = (async () => {
     monad.onServerStopping()
     handoffs.clear()
+    captures.close()
     rpc.close()
     try {
       await transport.close()

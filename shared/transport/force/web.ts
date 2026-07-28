@@ -1,8 +1,13 @@
 import {sourceForceMessage, type ForceMessageInput, type SourcedForceMessage} from "../../protocol/force/message.ts"
 import {logImpulse} from "./log.ts"
-import {ForceBase, type ForceTransportOptions} from "./base.ts"
+import {
+  ForceBase,
+  isForceControlMessage,
+  type ForceControlMessage,
+  type ForceTransportOptions,
+} from "./base.ts"
 
-export type {ForceTransportOptions} from "./base.ts"
+export type {ForceControlMessage, ForceTransportOptions} from "./base.ts"
 
 const forceBrowserAddress = (domain: string, id: string, parameters: Readonly<Record<string, string>>): string => {
   const address = new URL(`${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/ws`)
@@ -19,12 +24,16 @@ export class Force extends ForceBase {
   #reconnectTimer: ReturnType<typeof setTimeout> | undefined
   #closed = false
   #outbox: SourcedForceMessage[] = []
+  #onControl: ((message: ForceControlMessage) => void | Promise<void>) | undefined
+  #pendingControls: ForceControlMessage[] = []
+  #receivingControls: Promise<void> = Promise.resolve()
   override onDestroy?: () => void | Promise<void>
   override readonly id: string
 
   constructor(override readonly domain: string, options: ForceTransportOptions = {}) {
     super()
     this.id = options.id?.trim() || `${domain}-web`
+    this.#onControl = options.onControl
     if (Force.#instance) Force.#instance.#closeTransport()
     Force.#instance = this
     this.#socket = this.#connect(options.parameters ?? {})
@@ -44,12 +53,17 @@ export class Force extends ForceBase {
       }
     }
     socket.onmessage = (event) => {
-      let impulse: SourcedForceMessage
+      let value: unknown
       try {
-        impulse = JSON.parse(String(event.data)) as SourcedForceMessage
+        value = JSON.parse(String(event.data)) as unknown
       } catch {
         return
       }
+      if (isForceControlMessage(value)) {
+        this.#emitControl(value)
+        return
+      }
+      const impulse = value as SourcedForceMessage
       logImpulse(this.domain, "<-", impulse)
       this.emitImpulse(impulse)
     }
@@ -70,9 +84,43 @@ export class Force extends ForceBase {
     this.#send(this.#socket, message)
   }
 
+  get onControl(): (message: ForceControlMessage) => void | Promise<void> {
+    return this.#onControl ?? (() => {})
+  }
+
+  set onControl(handler: (message: ForceControlMessage) => void | Promise<void>) {
+    this.#onControl = handler
+    for (const message of this.#pendingControls.splice(0)) this.#enqueueControl(handler, message)
+  }
+
+  /** Sends one already-discriminated browser service-plane frame without queuing across reconnects. */
+  sendControl(message: ForceControlMessage): boolean {
+    if (!isForceControlMessage(message) || this.#socket.readyState !== WebSocket.OPEN) return false
+    this.#socket.send(JSON.stringify(message))
+    return true
+  }
+
   #send(socket: WebSocket, message: SourcedForceMessage): void {
     logImpulse(this.domain, "->", message)
     socket.send(JSON.stringify(message))
+  }
+
+  #emitControl(message: ForceControlMessage): void {
+    const handler = this.#onControl
+    if (!handler) {
+      this.#pendingControls.push(message)
+      return
+    }
+    this.#enqueueControl(handler, message)
+  }
+
+  #enqueueControl(
+    handler: (message: ForceControlMessage) => void | Promise<void>,
+    message: ForceControlMessage,
+  ): void {
+    this.#receivingControls = this.#receivingControls.then(() => handler(message)).catch((error) => {
+      console.error(`[${this.domain}] Force control handler failed`, error)
+    })
   }
 
   #closeTransport(): void {

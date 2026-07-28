@@ -6,6 +6,7 @@ import {
   type BoundaryInitialProjection,
   type BoundaryInitialProjectionEntry,
 } from "@metafor/types/boundary/initial"
+import {BULK_VIEWPORT_CAPTURE_METHOD} from "@metafor/types/bulk/capture"
 import type {BulkInitialPackage} from "@metafor/types/bulk/initial"
 import type {BulkRootPromotionReceipt} from "@metafor/types/bulk/manifest"
 import type {BulkRuntimeProjection} from "@metafor/types/bulk/runtime"
@@ -24,6 +25,7 @@ import {
   MF117_STATE_DIRECTORY,
   MF117_TARGET,
 } from "../shared/mf117.ts"
+import type {BulkViewportCaptureRegistry} from "./capture.ts"
 
 export type BulkMonadState = "created" | "loading" | "prepared" | "ready" | "error" | "stopped"
 
@@ -221,14 +223,21 @@ export class BulkMonad {
       options.promotionPath ?? join(MF117_STATE_DIRECTORY, "bulk-promotion.json")
   }
 
-  /** Register the closed MF-117 provider methods before the channel advertises them. */
-  onServerStarting(peer: Pick<MonadRpcPeer, "expose">): void {
+  /** Register closed promotion and read-only observer methods before advertising them. */
+  onServerStarting(
+    peer: Pick<MonadRpcPeer, "expose">,
+    captures: Pick<BulkViewportCaptureRegistry, "capture">,
+  ): void {
     peer.expose(MF117_BULK_PREFLIGHT_METHOD, async (input) =>
       this.mf117Preflight(input))
     peer.expose(MF117_BULK_PROMOTE_METHOD, async (input) =>
       this.mf117Promote(input))
     peer.expose(MF117_BULK_VERIFY_METHOD, async () =>
       this.mf117Verify())
+    peer.expose(
+      BULK_VIEWPORT_CAPTURE_METHOD,
+      async (params, context) => await captures.capture(params, context),
+    )
   }
 
   async onServerStarted(

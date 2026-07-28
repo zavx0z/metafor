@@ -5,6 +5,7 @@ import {tmpdir} from "node:os"
 import {join} from "node:path"
 import {BOUNDARY_INITIAL_PROJECTION_METHOD} from "@metafor/types/boundary/initial"
 import type {BoundaryInitialProjectionEntry} from "@metafor/types/boundary/initial"
+import {BULK_VIEWPORT_CAPTURE_METHOD} from "@metafor/types/bulk/capture"
 import type {Particle} from "shared/protocol/force/particle"
 import {
   MF117_BULK_PREFLIGHT_METHOD,
@@ -123,21 +124,41 @@ const legacyPromotionReceipt = (): Record<string, unknown> => {
 }
 
 describe("Bulk Monad", () => {
-  test("registers the closed MF-117 methods before the channel advertises them", () => {
+  test("registers closed MF-117 and typed observer capture methods before advertising them", async () => {
     const methods: string[] = []
+    let captureHandler:
+      | ((params: unknown, context: {source: string}) => unknown | Promise<unknown>)
+      | null = null
+    const captureCalls: unknown[] = []
     const monad = new BulkMonad()
 
     monad.onServerStarting({
-      expose(method: string) {
+      expose(method: string, handler: typeof captureHandler) {
         methods.push(method)
+        if (method === BULK_VIEWPORT_CAPTURE_METHOD) captureHandler = handler
       },
-    } as never)
+    } as never, {
+      capture(params, context) {
+        captureCalls.push({params, context})
+        return Promise.resolve({
+          ok: false as const,
+          error: {code: "permission_denied" as const, message: "denied"},
+        })
+      },
+    })
 
     expect(methods.toSorted()).toEqual([
+      BULK_VIEWPORT_CAPTURE_METHOD,
       MF117_BULK_PREFLIGHT_METHOD,
       MF117_BULK_PROMOTE_METHOD,
       MF117_BULK_VERIFY_METHOD,
     ])
+    const params = {version: 1, grant: "capability"}
+    expect(await captureHandler!(params, {source: "codex"})).toEqual({
+      ok: false,
+      error: {code: "permission_denied", message: "denied"},
+    })
+    expect(captureCalls).toEqual([{params, context: {source: "codex"}}])
   })
 
   test("loads the complete Boundary projection before preparing an observer package", async () => {

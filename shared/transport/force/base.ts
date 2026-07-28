@@ -3,8 +3,22 @@ import {forceCheckpointSideband} from "./checkpoint.ts"
 
 export type ForceTransportOptions = {
   id?: string
+  /** Browser-only service-plane frames, consumed before Force decoding. */
+  onControl?: (message: ForceControlMessage) => void | Promise<void>
   parameters?: Readonly<Record<string, string>>
 }
+
+export type ForceControlMessage = {
+  control: string
+  [key: string]: unknown
+}
+
+export const isForceControlMessage = (value: unknown): value is ForceControlMessage =>
+  typeof value === "object" &&
+  value !== null &&
+  !Array.isArray(value) &&
+  typeof (value as Record<string, unknown>).control === "string" &&
+  ((value as Record<string, unknown>).control as string).length > 0
 
 /**
  * Общий публичный контракт транспортного клиента Force.
@@ -16,8 +30,10 @@ export type ForceTransportOptions = {
  * использует.
  *
  * Identity `domain/id` передаётся серверу во время HTTP Upgrade. После открытия
- * WebSocket по каналу идут только `{parts: [particle]}`: register, readiness и
- * другие служебные payload отсутствуют.
+ * Обычные сообщения WebSocket имеют форму `{parts: [particle]}`. Browser
+ * adapter также может перехватить явно дискриминированный `{control: string}`
+ * service-plane payload до Force decoding; такой payload никогда не становится
+ * Particle.
  */
 export abstract class ForceBase {
   #connected = false
