@@ -1,4 +1,5 @@
 import type {BulkFieldParticle} from "@metafor/types/bulk/manifest"
+import {resolvePotentialMarkerReadability} from "./torus-state-visual.ts"
 
 type FieldParticleVisualInput = Pick<
 	BulkFieldParticle,
@@ -15,24 +16,18 @@ export type FieldParticleVisual = Readonly<{
 	visibilityMode: "scene" | "overlay"
 }>
 
-const brighten = (channel: number): number =>
-	channel + (1 - channel) * 0.7
-
-/** Applies the same semantic Field material in every self-similar Atom. */
+/** Applies the potential-State marker class with the semantic Field type color. */
 export const resolveFieldParticleVisual = (
 	particle: FieldParticleVisualInput,
-	wireframeOpacity: number,
-): FieldParticleVisual => ({
-		color: [particle.colorR, particle.colorG, particle.colorB, 1],
-		glowColor: [
-			brighten(particle.colorR),
-			brighten(particle.colorG),
-			brighten(particle.colorB),
-			0.1,
-		],
-		glowIntensity: 0.8,
-		luminanceBoost: 1,
-		opacity: Math.min(1, Math.max(0, wireframeOpacity * 0.9)),
+): FieldParticleVisual => {
+	const marker = resolvePotentialMarkerReadability([
+		particle.colorR,
+		particle.colorG,
+		particle.colorB,
+	])
+	return {
+		...marker,
+		opacity: 1,
 		visualScale: 1,
-		visibilityMode: "scene",
-	})
+	}
+}

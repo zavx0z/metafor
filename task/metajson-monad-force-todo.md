@@ -1248,6 +1248,39 @@
     eight Fields (`5 string`, `3 boolean`) and exactly three Process particles;
     all three Processes are anchored to their canonical Auth State
     occurrences at unchanged orbit radius and height.
+  - owner follow-up review found two remaining Field-marker inconsistencies:
+    Auth Fields retained `sphereRadius = 4.353398` while its State markers had
+    `sphereRadius = 0.8`; after geometric equality was installed, Fields still
+    inherited shell `wireframeOpacity` and rendered at effective opacity
+    `0.072`, making them almost invisible;
+  - the owner contract now requires one exact Field/State `sphereRadius` inside
+    every Atom with State. The State-density result uniformly scales both the
+    Field sphere geometry and the whole local Field lattice, while the
+    semantic colors remain distinct for `string`, `number`, `boolean`, `enum`
+    and `array`;
+  - Field and potential State now reuse one readable marker class. Field keeps
+    its type color and unit visual scale but uses the potential-State
+    `overlay`, alpha `0.5`, glow intensity `2.4`, luminance `1.1` and material
+    opacity `1`; it no longer inherits torus `wireframeOpacity` and does not
+    claim current/active State semantics;
+  - final focused manifestation/material/WebGPU proof: `22 pass`, `0 fail`,
+    `165 expect`; final `bun run check`: typecheck pass, `42` expected
+    diagnostics, `1748 pass`, `0 fail`, `6058 expect` in `209` test files;
+    `git diff --check` clean;
+  - one owner-requested normal cold restart installed the completed marker
+    source without config, environment or port changes as invocation
+    `78b43fcdc6c444d09ad8d1a6b64f564f`, PID `2622413`. All six `/health`
+    endpoints returned `ok`; Force was `running` with all five domains
+    connected, Matrix was `gpu`/`initialized`, and Bulk was initialized;
+  - fresh Monad Capture from observer
+    `bulk-web-2b5c440d-309d-41a4-adba-c9c9e5d8dd45` returned a non-black
+    `1676×2178` PNG, `729799` bytes, SHA-256
+    `693a0137d33283e7329df9c84a52e33caf2c1d6ae71ba055b7989881a0aad5f7`.
+    Its latched proof reports `Field radius = State radius = 0.8` in every one
+    of the five Lada Atom, distinct colors for every Field type present and
+    the readable potential-State marker material on every Field. Auth retains
+    exactly eight Fields, now at the State radius with separate pink
+    `string` and cyan `boolean` colors.
 - Activation constraints:
   - visual commit `faa6a33d` received one authorized standard cold restart;
     the service returned active/running, all six ports listened and startup
@@ -1272,11 +1305,10 @@
     acceptance is claimed;
   - the world is already complete at active root `zavx0z/lada`; activation
     must not be retried and a new preflight is neither required nor valid;
-  - the immediate-parent planar-orbit slice received its authorized normal
-    post-commit cold restart. The later owner-requested self-similar Atom
-    correction received the separate final cold proof and Monad Capture
-    recorded above. No further restart, hot reload, activation retry, rollback
-    or GC is required by this slice.
+  - the immediate-parent planar-orbit slice and the later owner-requested
+    self-similar Atom/Field-marker corrections received their separate cold
+    proofs and Monad Captures recorded above. No further restart, hot reload,
+    activation retry, rollback or GC is required by this slice.
 
 ### MF-109 — Реализовать Pause/Stack branchable execution workspace
 

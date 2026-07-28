@@ -518,7 +518,10 @@ export function buildBulkManifestation(
     }
     const stateInnerRadius = manifestedAtom.torusRadius
     const atomOuterRadius = manifestedAtom.torusRadius + manifestedAtom.torusTube
-    const fieldRadius = manifest.fieldParticles.find((field) => field.parentDarkParticleId === parentDarkParticleId)?.sphereRadius
+    const atomFieldParticles = manifest.fieldParticles.filter(
+      (field) => field.parentDarkParticleId === parentDarkParticleId,
+    )
+    const fieldRadius = atomFieldParticles[0]?.sphereRadius
       ?? Math.max(1, Math.min(manifestedAtom.torusTube * 0.115, manifestedAtom.torusRadius * 0.06))
     const radiusCap = fieldRadius
     const layoutMargin = radiusCap * 1.45
@@ -543,7 +546,19 @@ export function buildBulkManifestation(
         densityRadius = Math.min(densityRadius, arcWidth / columns / 2.8, bandWidth / rows / 2.8)
       }
     })
-    const radius = Math.max(0.8, Math.min(radiusCap, densityRadius))
+    const radius = Math.min(
+      fieldRadius,
+      Math.max(Math.min(0.8, fieldRadius), Math.min(radiusCap, densityRadius)),
+    )
+    if (atomStates.length > 0 && atomFieldParticles.length > 0 && fieldRadius > 0) {
+      const fieldScale = radius / fieldRadius
+      for (const field of atomFieldParticles) {
+        field.localX *= fieldScale
+        field.localY *= fieldScale
+        field.localZ *= fieldScale
+        field.sphereRadius = radius
+      }
+    }
     const stateOccurrencesByStateId = new Map<number, BulkOrbitalParticle[]>()
     const stateOccurrenceById = new Map<string, BulkOrbitalParticle>()
     const fieldProxyByOccurrenceField = new Map<string, BulkFieldProxy>()

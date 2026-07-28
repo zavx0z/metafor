@@ -33,6 +33,18 @@ particles.
   allocation содержимого внутри родителя.
 - Собственные Fields Atom детерминированно упаковываются в его локальное ядро. При
   нехватке места уменьшаются сферы Fields, а не внешний envelope Atom.
+- Если Atom имеет State, все его видимые Field и State particles используют
+  один точный `sphereRadius`. Итоговый marker radius вычисляется по плотности
+  State-рукавов и затем одним uniform scale применяется к размерам и локальным
+  позициям всей Field-решётки ядра; Field не может остаться крупнее State или
+  уменьшиться только shader-эффектом. Равный размер не стирает семантику:
+  каждый Field сохраняет отдельный цвет своего типа (`string`, `number`,
+  `boolean`, `enum`, `array` или legacy `other`) на любой глубине Atom.
+- Field и State используют один marker render-class. Field не наследует
+  `wireframeOpacity` оболочки и не становится прозрачной scene-линией: для
+  постоянной читаемости он использует тот же additive overlay, alpha, glow и
+  luminance, что potential State marker, но сохраняет semantic color своего
+  Field type и не притворяется current/active State.
 - На каждом уровне действует один и тот же радиальный порядок: собственные
   Fields находятся в ядре Atom до `r_inner`; полные торы immediate Matter
   children занимают первую внутреннюю орбиту родительского тора между

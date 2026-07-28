@@ -80,6 +80,8 @@ describe("Boundary projection -> Bulk manifestation", () => {
 		projection.fields.push(
 			{id: 3, wimp: SRC, key: "mode", type: "enum", label: "Mode"},
 			{id: 4, wimp: SRC, key: "items", type: "array", label: "Items"},
+			{id: 5, wimp: SRC, key: "count", type: "number", label: "Count"},
+			{id: 6, wimp: SRC, key: "enabled", type: "boolean", label: "Enabled"},
 		)
 		projection.states.push(
 			{id: 21, wimp: SRC, name: "idle", position: 0},
@@ -96,8 +98,19 @@ describe("Boundary projection -> Bulk manifestation", () => {
 		expect(manifest.orbitalParticles?.filter((particle) => particle.orbitalParticleKind === "state").length).toBe(3)
 		const stateParticles = manifest.orbitalParticles?.filter((particle) => particle.orbitalParticleKind === "state") ?? []
 		const fieldRadius = manifest.fieldParticles[0]?.sphereRadius ?? 0
-		expect(stateParticles.every((particle) => particle.sphereRadius <= fieldRadius)).toBe(true)
-		expect(stateParticles.some((particle) => particle.sphereRadius < fieldRadius)).toBe(true)
+		expect(fieldRadius).toBeGreaterThan(0)
+		expect(manifest.fieldParticles.every((particle) => particle.sphereRadius === fieldRadius)).toBe(true)
+		expect(stateParticles.every((particle) => particle.sphereRadius === fieldRadius)).toBe(true)
+		const fieldColors = new Map(manifest.fieldParticles.map((particle) => [
+			particle.fieldParticleKind,
+			[particle.colorR, particle.colorG, particle.colorB],
+		]))
+		expect(fieldColors.get("string")).toEqual([1, 0.08, 0.58])
+		expect(fieldColors.get("number")).toEqual([1, 0.88, 0])
+		expect(fieldColors.get("boolean")).toEqual([0, 0.9, 1])
+		expect(fieldColors.get("enum")).toEqual([0.58, 0.32, 1])
+		expect(fieldColors.get("array")).toEqual([1, 0.42, 0])
+		expect(new Set([...fieldColors.values()].map((color) => color.join(":"))).size).toBe(fieldColors.size)
 		expect(manifest.orbitalParticles?.some((particle) => particle.sourceId === 21 && particle.current)).toBe(true)
 		expect(manifest.transitionChannels?.some((channel) => channel.sourceId === 31 && channel.conditionFieldIds[0] === 2)).toBe(true)
 	})

@@ -440,18 +440,18 @@ describe("line shader WebGPU pipeline", () => {
     expect(LINE_SILHOUETTE_DEPTH_STATE.depthWriteEnabled).toBe(false)
   })
 
-  test("renders a semantic Field nucleus at unit visual scale in scene depth", async () => {
+  test("renders a semantic Field nucleus with the readable potential-State marker class", async () => {
     const fieldMaterial: TestLineMaterial = {
-      color: [0, 0.9, 1, 1],
-      glowColor: [0.7, 0.97, 1, 0.1],
-      glowIntensity: 0.8,
-      luminanceBoost: 1,
+      color: [0.28, 0.928, 1, 0.5],
+      glowColor: [0.48, 0.948, 1, 0.4],
+      glowIntensity: 2.4,
+      luminanceBoost: 1.1,
       shimmerAmount: 0,
       silhouetteAmount: 0,
       visualScale: 1,
     }
-    const field = await renderMarkerLevel(device, "scene", fieldMaterial)
-    const shrunkenField = await renderMarkerLevel(device, "scene", {
+    const field = await renderMarkerLevel(device, "overlay", fieldMaterial)
+    const shrunkenField = await renderMarkerLevel(device, "overlay", {
       ...fieldMaterial,
       visualScale: 0.38,
     })

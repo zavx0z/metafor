@@ -1065,10 +1065,7 @@ const resolveDarkParticleVisualState = (darkParticle: BulkDarkParticle): {
 const createFieldParticleMaterial = (
 	fieldParticle: BulkFieldParticle,
 ): LineGlowMaterial => {
-	const visual = resolveFieldParticleVisual(
-		fieldParticle,
-		activeRenderSettings.wireframeOpacity,
-	)
+	const visual = resolveFieldParticleVisual(fieldParticle)
 	return new LineGlowMaterial({
 		...visual,
 		color: new Color(...visual.color),
@@ -1989,10 +1986,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 
 	const refreshFieldParticleRecordGeometryAndMaterial = (record: FieldParticleRenderRecord): void => {
 		record.node.geometry = getSphereWireframeGeometry(record.snapshot.sphereRadius, record.depth)
-		const visual = resolveFieldParticleVisual(
-			record.snapshot,
-			activeRenderSettings.wireframeOpacity,
-		)
+		const visual = resolveFieldParticleVisual(record.snapshot)
 		record.pickTarget.baseColor.copy(new Color(...visual.color))
 		record.pickTarget.baseGlowColor = new Color(...visual.glowColor)
 		record.pickTarget.baseGlowIntensity = visual.glowIntensity

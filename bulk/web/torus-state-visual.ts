@@ -15,6 +15,11 @@ export type TorusStateVisual = Readonly<{
 	visibilityMode: "scene" | "overlay"
 }>
 
+export type PotentialMarkerReadability = Pick<
+	TorusStateVisual,
+	"color" | "glowColor" | "glowIntensity" | "luminanceBoost" | "visibilityMode"
+>
+
 const TAU = Math.PI * 2
 const GOLDEN_RATIO_CONJUGATE = (Math.sqrt(5) - 1) / 2
 
@@ -61,6 +66,17 @@ const brightenColor = (
 	alpha,
 ]
 
+/** Shared readable marker class used by potential State and semantic Fields. */
+export const resolvePotentialMarkerReadability = (
+	semanticColor: readonly [number, number, number],
+): PotentialMarkerReadability => ({
+	color: brightenColor(semanticColor, 0.28, 0.5),
+	glowColor: brightenColor(semanticColor, 0.48, 0.4),
+	glowIntensity: 2.4,
+	luminanceBoost: 1.1,
+	visibilityMode: "overlay",
+})
+
 /**
  * Stable spatial phase which changes only with the projected current/active state.
  * It gives the GPU pattern a new facet on a real state change without a CPU clock.
@@ -96,13 +112,9 @@ export const resolveTorusStateVisual = (
 	}
 	if (particle.active) {
 		return {
-			color: brightenColor(semanticColor, 0.28, 0.5),
-			glowColor: brightenColor(semanticColor, 0.48, 0.4),
-			glowIntensity: 2.4,
-			luminanceBoost: 1.1,
+			...resolvePotentialMarkerReadability(semanticColor),
 			shimmerAmount: 0.065,
 			shimmerPhase: resolveStatePhase(particle),
-			visibilityMode: "overlay",
 		}
 	}
 	return {
