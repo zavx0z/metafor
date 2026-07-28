@@ -161,6 +161,47 @@ describe("Lada three-level coordinate contract", () => {
 		expect(directChildren).not.toContain(chatSend)
 	})
 
+	test("keeps the real Lada and ChatSend toruses visually legible in their owning frames", () => {
+		const manifest = ladaTopologyManifestFixture()
+		const lada = particleBySrc(manifest, "zavx0z/lada")
+		const chat = particleBySrc(manifest, "zavx0z/lada-chat")
+		const chatSend = particleBySrc(manifest, "zavx0z/lada-chat-send")
+		const directChildren = manifest.darkParticles
+			.filter(({parentDarkParticleId}) => parentDarkParticleId === lada.darkParticleId)
+		const directChildDiameters = directChildren.map((child) =>
+			outerRadius(child) * child.torusScale * 2)
+
+		// The accepted 100 mm Lada fixture must keep each first-level Atom large
+		// enough to read as a torus, rather than as a marker in the root core.
+		expect(directChildDiameters).toHaveLength(3)
+		expect(Math.min(...directChildDiameters)).toBeGreaterThanOrEqual(14)
+
+		// ChatSend is authored in Chat's local frame. A sparse one-child level
+		// receives its allocation from Chat's envelope, not a fixed depth cap.
+		const chatSendOwnerLocalDiameter =
+			outerRadius(chatSend) * chatSend.torusScale * 2
+		expect(chatSendOwnerLocalDiameter).toBeGreaterThanOrEqual(15)
+
+		const ladaWorld = worldFrame(manifest, lada)
+		const chatWorld = worldFrame(manifest, chat)
+		const chatSendWorld = worldFrame(manifest, chatSend)
+		const chatSendWorldDiameter = outerRadius(chatSend) * chatSendWorld.scale * 2
+		const rootWorldDiameter = outerRadius(lada) * ladaWorld.scale * 2
+
+		// At the initial Lada fit, the second-level torus still has a material
+		// world extent and a distinct owner-local center.
+		expect(chatSendWorldDiameter).toBeGreaterThanOrEqual(2)
+		expect(chatSendWorldDiameter / rootWorldDiameter).toBeGreaterThanOrEqual(0.02)
+		expect(distance(chatSendWorld.origin, chatWorld.origin)).toBeGreaterThanOrEqual(
+			chatSendWorldDiameter / 2 - 1e-9,
+		)
+
+		const chatSendLocalBound =
+			Math.hypot(chatSend.localX, chatSend.localY, chatSend.localZ) +
+			outerRadius(chatSend) * chatSend.torusScale
+		expect(chatSendLocalBound).toBeLessThanOrEqual(innerRadius(chat) + 1e-9)
+	})
+
 	test("does not collapse ChatSend into a root-authored global coordinate", () => {
 		const manifest = ladaTopologyManifestFixture()
 		const lada = particleBySrc(manifest, "zavx0z/lada")

@@ -152,13 +152,19 @@ const placeFieldNucleus = (fields: LayoutFieldParticleNode[], padding: number): 
 const placeChildrenOnLocalOrbit = (node: LayoutDarkParticleNode, padding: number): void => {
   const children = [...node.children]
   if (children.length === 0) return
+
+  // Solve one equal-circle allocation inside the immediate owner's fixed
+  // inner envelope. The angular constraint controls sibling competition;
+  // a sparse nested level therefore uses its available local frame instead
+  // of inheriting an unrelated percentage cap from its recursion depth.
   const density = Math.max(1, snapshotLayoutConfig.packingDensityCoefficient)
-  const levelExtent = node.outerRadius * snapshotLayoutConfig.nestingCoefficient
   const edgePadding = Math.min(Math.max(0, padding), node.torusTube * 0.25)
   const availableRadius = Math.max(0.001, node.innerRadius - edgePadding)
   const separationSin = children.length === 1 ? 1 : Math.sin(Math.PI / children.length)
-  const separationExtent = availableRadius * separationSin / (density + separationSin)
-  const childOuterExtent = Math.max(0.001, Math.min(levelExtent, availableRadius, separationExtent))
+  const childOuterExtent = Math.max(
+    0.001,
+    Math.min(availableRadius, availableRadius * separationSin / (density + separationSin)),
+  )
   const orbitRadius = availableRadius - childOuterExtent * density
   const phase = hashAngle(`${node.darkParticleId}:${children.map((child) => child.darkParticleId).join(":")}`)
 
