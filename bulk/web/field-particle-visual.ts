@@ -1,8 +1,9 @@
 import type {BulkFieldParticle} from "@metafor/types/bulk/manifest"
+import {resolveMarkerBubbleVisual} from "./marker-bubble-visual.ts"
 
 type FieldParticleVisualInput = Pick<
 	BulkFieldParticle,
-	"colorB" | "colorG" | "colorR"
+	"colorB" | "colorG" | "colorR" | "fieldParticleId"
 >
 
 export type FieldParticleVisual = Readonly<{
@@ -10,20 +11,30 @@ export type FieldParticleVisual = Readonly<{
 	glowColor: readonly [number, number, number, number]
 	glowIntensity: number
 	luminanceBoost: number
+	shimmerAmount: number
+	shimmerPhase: number
 	opacity: number
 	visualScale: number
 	visibilityMode: "scene" | "overlay"
 }>
 
-/** Keeps dense nucleus markers opaque and type-colored without additive washout. */
+/**
+ * Reuses the State bubble style while keeping dense type colors depth-tested,
+ * so overlapping Fields cannot accumulate through the additive overlay pass.
+ */
 export const resolveFieldParticleVisual = (
 	particle: FieldParticleVisualInput,
-): FieldParticleVisual => ({
-	color: [particle.colorR, particle.colorG, particle.colorB, 1],
-	glowColor: [particle.colorR, particle.colorG, particle.colorB, 0.1],
-	glowIntensity: 0.8,
-	luminanceBoost: 1,
-	opacity: 1,
-	visualScale: 1,
-	visibilityMode: "scene",
-})
+): FieldParticleVisual => {
+	const bubble = resolveMarkerBubbleVisual({
+		semanticColor: [particle.colorR, particle.colorG, particle.colorB],
+		phaseIdentity: particle.fieldParticleId,
+		colorBrightening: 0,
+		glowBrightening: 0,
+		visibilityMode: "scene",
+	})
+	return {
+		...bubble,
+		opacity: 1,
+		visualScale: 1,
+	}
+}

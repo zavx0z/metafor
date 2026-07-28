@@ -1,4 +1,8 @@
 import type {BulkOrbitalParticle} from "@metafor/types/bulk/manifest"
+import {
+	resolveMarkerBubblePhase,
+	resolveMarkerBubbleVisual,
+} from "./marker-bubble-visual.ts"
 
 type TorusStateVisualInput = Pick<
 	BulkOrbitalParticle,
@@ -15,16 +19,7 @@ export type TorusStateVisual = Readonly<{
 	visibilityMode: "scene" | "overlay"
 }>
 
-export type PotentialMarkerReadability = Pick<
-	TorusStateVisual,
-	"color" | "glowColor" | "glowIntensity" | "luminanceBoost" | "visibilityMode"
->
-
-const TAU = Math.PI * 2
 const GOLDEN_RATIO_CONJUGATE = (Math.sqrt(5) - 1) / 2
-
-const brighten = (channel: number, strength: number): number =>
-	channel + (1 - channel) * strength
 
 const hueChannel = (p: number, q: number, input: number): number => {
 	let hue = input
@@ -60,36 +55,20 @@ const brightenColor = (
 	strength: number,
 	alpha: number,
 ): readonly [number, number, number, number] => [
-	brighten(color[0], strength),
-	brighten(color[1], strength),
-	brighten(color[2], strength),
+	color[0] + (1 - color[0]) * strength,
+	color[1] + (1 - color[1]) * strength,
+	color[2] + (1 - color[2]) * strength,
 	alpha,
 ]
-
-/** Shared readable marker class used by potential State and semantic Fields. */
-export const resolvePotentialMarkerReadability = (
-	semanticColor: readonly [number, number, number],
-): PotentialMarkerReadability => ({
-	color: brightenColor(semanticColor, 0.28, 0.5),
-	glowColor: brightenColor(semanticColor, 0.48, 0.4),
-	glowIntensity: 2.4,
-	luminanceBoost: 1.1,
-	visibilityMode: "overlay",
-})
 
 /**
  * Stable spatial phase which changes only with the projected current/active state.
  * It gives the GPU pattern a new facet on a real state change without a CPU clock.
  */
-const resolveStatePhase = (particle: TorusStateVisualInput): number => {
-	const key = `${particle.orbitalParticleId}:${particle.current ? 1 : 0}:${particle.active ? 1 : 0}`
-	let hash = 2_166_136_261
-	for (let index = 0; index < key.length; index++) {
-		hash ^= key.charCodeAt(index)
-		hash = Math.imul(hash, 16_777_619)
-	}
-	return ((hash >>> 0) / 0x1_0000_0000) * TAU
-}
+const resolveStatePhase = (particle: TorusStateVisualInput): number =>
+	resolveMarkerBubblePhase(
+		`${particle.orbitalParticleId}:${particle.current ? 1 : 0}:${particle.active ? 1 : 0}`,
+	)
 
 /**
  * Material contrast for the existing State markers carried by a Capsule torus.
@@ -111,11 +90,10 @@ export const resolveTorusStateVisual = (
 		}
 	}
 	if (particle.active) {
-		return {
-			...resolvePotentialMarkerReadability(semanticColor),
-			shimmerAmount: 0.065,
-			shimmerPhase: resolveStatePhase(particle),
-		}
+		return resolveMarkerBubbleVisual({
+			semanticColor,
+			phaseIdentity: `${particle.orbitalParticleId}:${particle.current ? 1 : 0}:${particle.active ? 1 : 0}`,
+		})
 	}
 	return {
 		color: [...semanticColor, 0.14],

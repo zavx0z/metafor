@@ -40,12 +40,15 @@ particles.
   уменьшиться только shader-эффектом. Равный размер не стирает семантику:
   каждый Field сохраняет отдельный цвет своего типа (`string`, `number`,
   `boolean`, `enum`, `array` или legacy `other`) на любой глубине Atom.
-- Field и State используют одну sphere-marker geometry и единичный visual
-  scale. Плотное Field-ядро не наследует `wireframeOpacity` оболочки и не
+- Field и State используют одну sphere-marker geometry, единичный visual
+  scale и одну bubble-style функцию: полупрозрачную цветную оболочку, цветной
+  glow и ограниченный пространственный shimmer со стабильной фазой от
+  identity. Плотное Field-ядро не наследует `wireframeOpacity` оболочки и не
   использует additive State overlay: несколько перекрывающихся type colors не
-  должны складываться в белое пятно. Field рендерится непрозрачным
-  depth-tested `scene` marker с исходным semantic color типа и малым цветным
-  glow; State сохраняет собственные current/potential/inactive material states.
+  должны складываться в белое пятно. Field использует уровень выразительности
+  potential State, но рендерится обычным depth-tested `scene` blend с исходным
+  semantic color типа; State сохраняет собственные current/potential/inactive
+  material states.
 - На каждом уровне действует один и тот же радиальный порядок: собственные
   Fields находятся в ядре Atom до `r_inner`; полные торы immediate Matter
   children занимают первую внутреннюю орбиту родительского тора между

@@ -1992,6 +1992,8 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		record.pickTarget.baseGlowIntensity = visual.glowIntensity
 		record.pickTarget.baseOpacity = visual.opacity
 		record.material.luminanceBoost = visual.luminanceBoost
+		record.material.shimmerAmount = visual.shimmerAmount
+		record.material.shimmerPhase = visual.shimmerPhase
 		record.material.visualScale = visual.visualScale
 		record.material.visibilityMode = visual.visibilityMode
 		syncPickTargetMaterialState(record.pickTarget)

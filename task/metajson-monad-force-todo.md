@@ -1304,6 +1304,35 @@
     Lada Atom, distinct Field type RGB and the opaque depth-tested material on
     every Field. The captured nucleus shows separate saturated pink and cyan
     particles instead of the rejected white additive patch.
+  - owner accepted the non-additive color separation but rejected the final
+    opaque Field look as visually flat and required the same soap-bubble style
+    used by State. The domain contract now names one shared bubble-style
+    sphere-marker function: translucent shell, colored glow and bounded stable
+    spatial shimmer. Field reuses the potential-State effect level while
+    preserving raw type RGB and the ordinary depth-tested `scene` blend; it
+    does not re-enter the rejected additive overlay;
+  - implementation extracts that style into
+    `bulk/web/marker-bubble-visual.ts`. Potential State and Field both consume
+    it; Field refresh forwards shimmer amount and phase together with the
+    existing material controls. Focused State/Field/material/WebGPU proof:
+    `15 pass`, `0 fail`, `86 expect`; final `bun run check`: typecheck pass,
+    `42` expected diagnostics, `1749 pass`, `0 fail`, `6058 expect` in `209`
+    test files; `git diff --check` clean;
+  - one owner-requested normal cold restart installed the shared bubble style
+    without config, environment or port changes as invocation
+    `6dbca8b719a547a6aed50b5b2f8353ed`, PID `2691583`. All six `/health`
+    endpoints returned `ok`; Force was `running` with all five domains
+    connected, Matrix was `gpu`/`initialized`, and Bulk was initialized;
+  - fresh Monad Capture from observer
+    `bulk-web-24711576-f700-45cb-8760-754f8b2ea213` returned a non-black
+    `1676×2178` PNG, `980794` bytes, SHA-256
+    `341433c6812d4eeb43daf1e396681cd0460dfdc5f17c6c5b3b5ada6104b4c7e1`.
+    Latched proof reports `Field radius = State radius = 0.8` in all five
+    Lada Atom, common potential-State bubble alpha/glow/luminance/shimmer on
+    every Field, stable per-Field shimmer phase, raw semantic type RGB, unit
+    scale and depth-tested `scene` mode. The captured nuclei show separate
+    translucent pink/cyan/yellow bubble shells without the rejected additive
+    white patch.
 - Activation constraints:
   - visual commit `faa6a33d` received one authorized standard cold restart;
     the service returned active/running, all six ports listened and startup
@@ -1330,7 +1359,8 @@
     must not be retried and a new preflight is neither required nor valid;
   - the immediate-parent planar-orbit slice and the later owner-requested
     self-similar Atom/Field-marker corrections received their separate cold
-    proofs and Monad Captures recorded above. No further restart, hot reload,
+    proofs and Monad Captures recorded above. The latest installed state is the
+    shared State/Field bubble-style capture; no further restart, hot reload,
     activation retry, rollback or GC is required by this slice.
 
 ### MF-109 — Реализовать Pause/Stack branchable execution workspace

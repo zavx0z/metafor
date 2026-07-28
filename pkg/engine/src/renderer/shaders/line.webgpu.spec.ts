@@ -442,11 +442,11 @@ describe("line shader WebGPU pipeline", () => {
 
   test("renders a semantic Field nucleus without additive color washout", async () => {
     const fieldMaterial: TestLineMaterial = {
-      color: [0, 0.9, 1, 1],
-      glowColor: [0, 0.9, 1, 0.1],
-      glowIntensity: 0.8,
-      luminanceBoost: 1,
-      shimmerAmount: 0,
+      color: [0, 0.9, 1, 0.5],
+      glowColor: [0, 0.9, 1, 0.4],
+      glowIntensity: 2.4,
+      luminanceBoost: 1.1,
+      shimmerAmount: 0.065,
       silhouetteAmount: 0,
       visualScale: 1,
     }
