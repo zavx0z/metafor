@@ -13,6 +13,12 @@ import {
   type BulkViewportObserverClient,
 } from "./capture.ts"
 import {routeBulkBrowserPayload} from "./browser-protocol.ts"
+import {
+  BULK_TIME_PAUSE_METHOD,
+  BULK_TIME_RESUME_METHOD,
+  BULK_TIME_STACK_METHOD,
+  bulkTimeControlResponse,
+} from "./time-control.ts"
 
 type BrowserClient = {domain: string; id: string; session: string}
 
@@ -36,18 +42,6 @@ const sendBrowser = (ws: ServerWebSocket<BrowserClient>, payload: unknown): bool
   return true
 }
 
-const timeControl = async (method: string, params: unknown = {}): Promise<Response> => {
-  try {
-    const result = await rpc.call("dark", method, params, {waitMs: 1_000})
-    return Response.json(result)
-  } catch (error) {
-    return Response.json({
-      ok: false,
-      error: error instanceof Error ? error.message : String(error),
-    }, {status: 503})
-  }
-}
-
 const server = Bun.serve<BrowserClient>({
   port: Number(Bun.env.PORT ?? 4004),
   routes: {
@@ -62,17 +56,17 @@ const server = Bun.serve<BrowserClient>({
     // already authenticated local Monad channel.
     "/time/stack": {
       GET() {
-        return timeControl("dark.force.stack")
+        return bulkTimeControlResponse(rpc, BULK_TIME_STACK_METHOD)
       },
     },
     "/time/pause": {
       POST() {
-        return timeControl("dark.force.pause")
+        return bulkTimeControlResponse(rpc, BULK_TIME_PAUSE_METHOD)
       },
     },
     "/time/resume": {
       POST() {
-        return timeControl("dark.force.resume")
+        return bulkTimeControlResponse(rpc, BULK_TIME_RESUME_METHOD)
       },
     },
     "/initial": {

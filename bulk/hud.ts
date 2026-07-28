@@ -1,4 +1,9 @@
-import type { BulkHudController, BulkHudOptions } from "@metafor/types/bulk/hud"
+import type {
+	BulkHudController,
+	BulkHudOptions,
+	BulkTimeFrame,
+	BulkTimeFrameTone,
+} from "@metafor/types/bulk/hud"
 import {palette, UiSurface, uiIcons, type UiSurfaceRect} from "@ui/elements"
 import {
 	drawHudNodeViewPlan,
@@ -9,6 +14,13 @@ import {
 	type HudNodeViewPlan,
 	type HudTimelineDocument,
 } from "@ui/hud"
+import {
+	BULK_TIME_TRACKS,
+	bulkTimeFramePosition,
+	bulkTimeFrameTone,
+	bulkTimeSurfaceRect,
+	readBulkTimeFrames,
+} from "./causal-time.ts"
 
 const HUD_DOCK_Z = 90
 const HUD_TIMELINE_Z = 80
@@ -115,15 +127,7 @@ class BulkHud implements BulkHudController {
 	timeActive(): boolean { return this.#time.active }
 
 	#timeRect(bounds: {w: number; h: number}): UiSurfaceRect {
-		if (!this.#time.active) return {x: -1, y: -1, w: 0, h: 0}
-		const timeline = this.#timelineRect(bounds)
-		const h = Math.min(bounds.h, Math.min(192, Math.max(148, Math.round(bounds.h * 0.24))))
-		return {
-			x: timeline.x,
-			y: Math.max(0, timeline.y - h - 12),
-			w: timeline.w,
-			h,
-		}
+		return bulkTimeSurfaceRect(bounds, this.#time.active, this.#timelineRect(bounds))
 	}
 
 	#nodeViewRect(bounds: {w: number; h: number}): UiSurfaceRect {
@@ -267,16 +271,9 @@ class BulkTimeDock extends UiSurface {
 	}
 }
 
-type TimeFrame = {
-	id: number
-	frontier: {acceptanceSequence: number}
-	/** Filled by capture policy once a frame owns a measured snapshot cost. */
-	resolution?: "exact" | "degraded" | "overloaded"
-}
-
 class BulkTimeSurface extends UiSurface {
 	#active = false
-	#frames: TimeFrame[] = []
+	#frames: BulkTimeFrame[] = []
 	#state: "open" | "paused" | "error" = "open"
 	#message = "Пауза создаёт первый keyframe"
 	#playhead = 0
@@ -323,7 +320,7 @@ class BulkTimeSurface extends UiSurface {
 		const left = 28
 		const right = Math.max(left + 1, this.rectW - 28)
 		const trackTop = 92
-		for (const [index, label] of ["Force", "Mass", "Boundary"].entries()) {
+		for (const [index, label] of BULK_TIME_TRACKS.entries()) {
 			const y = trackTop + index * 23
 			this.drawText(label, left, y - 4, {
 				fontPx: 9, material: this.materials.muted, z: z + 0.1,
@@ -334,18 +331,10 @@ class BulkTimeSurface extends UiSurface {
 		const railLeft = left + 58
 		const railWidth = Math.max(1, right - railLeft)
 		for (const frame of this.#frames) {
-			const x = railLeft + railWidth * framePosition(frame, this.#frames)
+			const x = railLeft + railWidth * bulkTimeFramePosition(frame, this.#frames)
 			const selected = frame === this.#frames.at(-1)
-			const fill = selected
-				? palette.red
-				: frame.resolution === "exact"
-					? palette.green
-					: frame.resolution === "degraded"
-						? palette.orange
-						: frame.resolution === "overloaded"
-							? palette.red
-							: palette.borderDim
-			for (let row = 0; row < 3; row++) {
+			const fill = timeFrameColor(bulkTimeFrameTone(frame, selected))
+			for (let row = 0; row < BULK_TIME_TRACKS.length; row++) {
 				this.drawRoundedRect(x - 3, trackTop - 4 + row * 23, 6, 8, {
 					radius: 2, fill, border: palette.bg, borderWidth: 1, z: z + 0.08,
 				})
@@ -396,14 +385,14 @@ class BulkTimeSurface extends UiSurface {
 	async #refresh(): Promise<void> {
 		try {
 			const response = await fetch("/time/stack")
-			if (!response.ok) throw new Error(await response.text())
-			this.#frames = await response.json() as TimeFrame[]
+			if (!response.ok) throw new Error(await responseError(response))
+			this.#frames = readBulkTimeFrames(await response.json())
 			this.#state = this.#frames.length > 0 ? "paused" : "open"
 			this.#playhead = this.#frames.length === 0 ? 0 : 1
 			this.#message = this.#frames.length === 0 ? "Пауза создаёт первый keyframe" : `Keyframes: ${this.#frames.length}`
 		} catch (error) {
 			this.#state = "error"
-			this.#message = `Время недоступно: ${error instanceof Error ? error.message : String(error)}`
+			this.#message = `Время недоступно: ${errorMessage(error)}`
 		}
 		this.requestRender()
 	}
@@ -413,11 +402,11 @@ class BulkTimeSurface extends UiSurface {
 		this.requestRender()
 		try {
 			const response = await fetch("/time/pause", {method: "POST"})
-			if (!response.ok) throw new Error(await response.text())
+			if (!response.ok) throw new Error(await responseError(response))
 			await this.#refresh()
 		} catch (error) {
 			this.#state = "error"
-			this.#message = `Пауза не установлена: ${error instanceof Error ? error.message : String(error)}`
+			this.#message = `Пауза не установлена: ${errorMessage(error)}`
 			this.requestRender()
 		}
 	}
@@ -425,14 +414,14 @@ class BulkTimeSurface extends UiSurface {
 	async #resume(): Promise<void> {
 		try {
 			const response = await fetch("/time/resume", {method: "POST"})
-			if (!response.ok) throw new Error(await response.text())
+			if (!response.ok) throw new Error(await responseError(response))
 			this.#frames = []
 			this.#state = "open"
 			this.#playhead = 0
 			this.#message = "Приём Particle снова открыт"
 		} catch (error) {
 			this.#state = "error"
-			this.#message = `Продолжение не выполнено: ${error instanceof Error ? error.message : String(error)}`
+			this.#message = `Продолжение не выполнено: ${errorMessage(error)}`
 		}
 		this.requestRender()
 	}
@@ -443,17 +432,32 @@ class BulkTimeSurface extends UiSurface {
 	}
 }
 
-const framePosition = (frame: TimeFrame, frames: readonly TimeFrame[]): number => {
-	const first = frames[0]?.frontier.acceptanceSequence ?? 0
-	const last = frames.at(-1)?.frontier.acceptanceSequence ?? first
-	return last === first ? 0.5 : (frame.frontier.acceptanceSequence - first) / (last - first)
+const timeFrameColor = (tone: BulkTimeFrameTone) => {
+	if (tone === "selected" || tone === "overloaded") return palette.red
+	if (tone === "exact") return palette.green
+	if (tone === "degraded") return palette.orange
+	return palette.borderDim
 }
 
-const keyframeLegend = (frame: TimeFrame): string =>
+const keyframeLegend = (frame: BulkTimeFrame): string =>
 	frame.resolution === "exact" ? "точный" :
 	frame.resolution === "degraded" ? "интервал" :
 	frame.resolution === "overloaded" ? "перегруз" :
 	"capture-метрика не подключена"
+
+const errorMessage = (error: unknown): string =>
+	error instanceof Error ? error.message : String(error)
+
+const responseError = async (response: Response): Promise<string> => {
+	const text = await response.text()
+	try {
+		const value = JSON.parse(text) as {error?: unknown}
+		if (typeof value.error === "string" && value.error.length > 0) return value.error
+		return `HTTP ${response.status}`
+	} catch {
+		return text || `HTTP ${response.status}`
+	}
+}
 
 class BulkNodeViewSurface extends UiSurface {
 	#document: HudNodeViewDocument = {atoms: [], transitions: [], wires: []}

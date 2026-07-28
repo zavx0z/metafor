@@ -1226,6 +1226,21 @@
 
 - Status: `WAITING`
 - Dependencies: `MF-109`
+- Owner-approved narrow precursor `MF-110C`:
+  - Status: `IN_PROGRESS`;
+  - Current task: canonical integration delegated from Codex task
+    `019fa7d5-59ce-7fc3-9be7-350e1bc5770c`;
+  - authority is limited to the existing Dark Force pause/stack/resume
+    service, Bulk Monad relay and visible causal-time HUD;
+  - this precursor does not complete `MF-109`, does not add backward
+    reconstruction, execution branches, promotion, generic Interpreter
+    commands or a new Force wire message;
+  - target-native Mass history resolution policy may classify future
+    measured capture pressure, but this precursor does not invent capture
+    metrics or attach an unmeasured resolution to a frame;
+  - completion requires focused/full source checks, one ordinary full cold
+    restart, a fresh observer, Monad PNG evidence of the keyframe and verified
+    pause/resume behavior.
 - Completed precursor evidence:
   - `MF-110T` — `CODE COMPLETE / VISUAL ACCEPTANCE PENDING`: read-only Bulk
     current-cut timeline adapter integrated as commit

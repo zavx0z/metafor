@@ -64,6 +64,19 @@ export type BulkHudOptions = {
   viewport: BulkViewportWithHud
 }
 
+export type BulkTimeFrameResolution = "exact" | "degraded" | "overloaded"
+
+export type BulkTimeFrameTone = BulkTimeFrameResolution | "selected" | "unknown"
+
+export type BulkTimeFrame = {
+  id: number
+  frontier: {
+    acceptanceSequence: number
+  }
+  /** Filled only after the capture policy has measured this snapshot. */
+  resolution?: BulkTimeFrameResolution
+}
+
 export type BulkHudController = {
 	nodeViewActive(): boolean
   relayout(): void

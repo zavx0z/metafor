@@ -333,11 +333,17 @@ Boundary отсутствует. Производные runtime-проекции
 ## Bulk и renderer
 
 Сохранены source-backed world projection, generic viewport, navigation,
-fullscreen и WebGPU renderer. HUD ограничен кнопкой полноэкранного режима:
-пользовательских настроек изображения, ручного выбора Root SRC, статуса и
-пересчёта сцены в нём нет. Удалённые bot, phone, Android и WebRTC application
-paths были отключёнными product-specific ветками и не входили в причинный
-runtime contour.
+fullscreen и WebGPU renderer. HUD содержит кнопку полноэкранного режима и
+открытую по умолчанию causal time-панель: дорожки Force, Mass и Boundary,
+playhead и keyframe-маркеры кадров pause-stack, фактически прочитанных из Dark
+через локальный Monad Bulk. Pause закрывает external admission и создаёт
+causal frame на удержанном frontier; Resume освобождает admission и очищает
+disposable stack. Step не испускает Particle из UI и остаётся неактивным без
+отдельного явного следующего input. Выбранный кадр красный, измеренный exact —
+зелёный, degraded — янтарный, overloaded — красный, кадр без capture-метрики —
+серый. Перемещение playhead само по себе не меняет live-мир, 3D, checkpoint
+или Particle history. Недоступность либо malformed ответ time-control RPC
+показывается в панели, а не подменяется вымышленным состоянием.
 
 Legacy manifestation evidence, State occurrences, Conditions, relations,
 projections и visual implementation остаются доступными для последующего
@@ -355,6 +361,11 @@ Read-only timeline показывает только текущий observer cut
 общем `throughTs`. Cold projection без realtime Particle явно имеет неизвестное
 время. Timeline не создаёт историю, не читает Mass и не предоставляет команд
 изменения Boundary или runtime.
+
+Causal time-панель является отдельным service-control surface и не подменяет
+observer-cut timeline. Этот узкий live adapter предоставляет только
+pause/stack/resume; он не заявляет backward reconstruction, isolated execution
+branch, promotion в live contour или завершение `MF-109`.
 
 Текущий `ViewPoint` привязан к DOM element. Смысловой контракт должен стать
 platform-neutral, чтобы одна точка наблюдения могла представлять обычный экран,
