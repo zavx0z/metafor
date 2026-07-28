@@ -149,10 +149,10 @@ describe("Bulk Monad", () => {
     })
 
     expect(methods.toSorted()).toEqual([
-      BULK_VIEWPORT_CAPTURE_METHOD,
       MF117_BULK_PREFLIGHT_METHOD,
       MF117_BULK_PROMOTE_METHOD,
       MF117_BULK_VERIFY_METHOD,
+      BULK_VIEWPORT_CAPTURE_METHOD,
     ])
     const params = {version: 1, grant: "capability"}
     expect(await captureHandler!(params, {source: "codex"})).toEqual({
