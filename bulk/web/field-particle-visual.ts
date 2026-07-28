@@ -18,28 +18,11 @@ export type FieldParticleVisual = Readonly<{
 const brighten = (channel: number): number =>
 	channel + (1 - channel) * 0.7
 
-/**
- * Uses existing nested-Atom Field spheres as bounded red nucleus accents.
- * Every sphere remains in its owning Atom nucleus; depth only selects visual material.
- */
+/** Applies the same semantic Field material in every self-similar Atom. */
 export const resolveFieldParticleVisual = (
 	particle: FieldParticleVisualInput,
-	depth: number,
 	wireframeOpacity: number,
-): FieldParticleVisual => {
-	if (depth > 1) {
-		return {
-			color: [1, 0.12, 0.08, 0.68],
-			glowColor: [1, 0.34, 0.16, 0.5],
-			glowIntensity: 2.2,
-			luminanceBoost: 1.25,
-			opacity: 0.85,
-			visualScale: 0.38,
-			visibilityMode: "overlay",
-		}
-	}
-
-	return {
+): FieldParticleVisual => ({
 		color: [particle.colorR, particle.colorG, particle.colorB, 1],
 		glowColor: [
 			brighten(particle.colorR),
@@ -52,5 +35,4 @@ export const resolveFieldParticleVisual = (
 		opacity: Math.min(1, Math.max(0, wireframeOpacity * 0.9)),
 		visualScale: 1,
 		visibilityMode: "scene",
-	}
-}
+	})

@@ -440,29 +440,27 @@ describe("line shader WebGPU pipeline", () => {
     expect(LINE_SILHOUETTE_DEPTH_STATE.depthWriteEnabled).toBe(false)
   })
 
-  test("renders an existing nucleus sphere as a bounded red overlay accent", async () => {
-    const accentMaterial: TestLineMaterial = {
-      color: [1, 0.12, 0.08, 0.578],
-      glowColor: [1, 0.34, 0.16, 0.5],
-      glowIntensity: 2.2,
-      luminanceBoost: 1.25,
+  test("renders a semantic Field nucleus at unit visual scale in scene depth", async () => {
+    const fieldMaterial: TestLineMaterial = {
+      color: [0, 0.9, 1, 1],
+      glowColor: [0.7, 0.97, 1, 0.1],
+      glowIntensity: 0.8,
+      luminanceBoost: 1,
       shimmerAmount: 0,
       silhouetteAmount: 0,
-      visualScale: 0.38,
-    }
-    const accent = await renderMarkerLevel(device, "overlay", accentMaterial)
-    const unscaledAccent = await renderMarkerLevel(device, "overlay", {
-      ...accentMaterial,
       visualScale: 1,
+    }
+    const field = await renderMarkerLevel(device, "scene", fieldMaterial)
+    const shrunkenField = await renderMarkerLevel(device, "scene", {
+      ...fieldMaterial,
+      visualScale: 0.38,
     })
 
-    expect(accent.rgb[0]).toBeGreaterThan(140)
-    expect(accent.rgb[0]).toBeGreaterThan(accent.rgb[1] * 1.8)
-    expect(accent.rgb[1]).toBeGreaterThan(accent.rgb[2])
-    expect(accent.brightness).toBeLessThan(400)
-    expect(accent.redAccentPixelCount).toBeGreaterThan(0)
-    expect(accent.redAccentPixelCount).toBeLessThan(
-      unscaledAccent.redAccentPixelCount,
+    expect(field.rgb[1]).toBeGreaterThan(field.rgb[0])
+    expect(field.rgb[2]).toBeGreaterThan(field.rgb[0])
+    expect(field.brightness).toBeLessThan(600)
+    expect(field.totalBrightness).toBeGreaterThan(
+      shrunkenField.totalBrightness,
     )
   })
 

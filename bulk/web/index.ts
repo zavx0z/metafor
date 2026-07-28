@@ -1021,9 +1021,8 @@ const resolveDarkParticleVisualState = (darkParticle: BulkDarkParticle): {
 	visibilityMode: "scene" | "overlay" | "silhouette"
 } => {
 	const baseColor = particleColor(darkParticle)
-	const root = darkParticle.parentDarkParticleId === null
-	const core = !root && darkParticle.darkParticleKind === "atom"
-	const glowIntensity = root ? 0.95 : core ? 1.25 : 0.36
+	const atom = darkParticle.darkParticleKind === "atom"
+	const glowIntensity = atom ? 0.95 : 0.36
 	const opacity = resolveDarkParticleTorusOpacity(
 		darkParticle,
 		activeRenderSettings.wireframeOpacity,
@@ -1031,8 +1030,8 @@ const resolveDarkParticleVisualState = (darkParticle: BulkDarkParticle): {
 	const layer = resolveDarkParticleTorusLayer(darkParticle)
 	if (darkParticle.activity === "active") {
 		return {
-			color: mixColor(baseColor, new Color(1, 1, 1), core ? 0.3 : 0.18),
-			glowColor: glowColor(baseColor, core ? 0.5 : 0.18),
+			color: mixColor(baseColor, new Color(1, 1, 1), atom ? 0.3 : 0.18),
+			glowColor: glowColor(baseColor, atom ? 0.5 : 0.18),
 			glowIntensity: glowIntensity * 1.25,
 			...layer,
 			opacity,
@@ -1041,22 +1040,22 @@ const resolveDarkParticleVisualState = (darkParticle: BulkDarkParticle): {
 	if (darkParticle.activity === "inactive") {
 		return {
 			color: mixColor(
-				mixColor(baseColor, new Color(1, 1, 1), core ? 0.34 : 0.24),
+				mixColor(baseColor, new Color(1, 1, 1), atom ? 0.34 : 0.24),
 				ROOT_BACKGROUND,
-				core ? 0.12 : 0.28,
+				atom ? 0.12 : 0.28,
 			),
 			glowColor: glowColor(
-				mixColor(baseColor, new Color(1, 1, 1), core ? 0.42 : 0.3),
-				core ? 0.22 : 0.08,
+				mixColor(baseColor, new Color(1, 1, 1), atom ? 0.42 : 0.3),
+				atom ? 0.22 : 0.08,
 			),
-			glowIntensity: glowIntensity * (core ? 0.55 : 0.35),
+			glowIntensity: glowIntensity * (atom ? 0.55 : 0.35),
 			...layer,
 			opacity,
 		}
 	}
 	return {
-		color: core ? mixColor(baseColor, new Color(1, 1, 1), 0.22) : baseColor,
-		glowColor: glowColor(baseColor, core ? 0.38 : 0.14),
+		color: atom ? mixColor(baseColor, new Color(1, 1, 1), 0.22) : baseColor,
+		glowColor: glowColor(baseColor, atom ? 0.38 : 0.14),
 		glowIntensity,
 		...layer,
 		opacity,
@@ -1065,11 +1064,9 @@ const resolveDarkParticleVisualState = (darkParticle: BulkDarkParticle): {
 
 const createFieldParticleMaterial = (
 	fieldParticle: BulkFieldParticle,
-	depth: number,
 ): LineGlowMaterial => {
 	const visual = resolveFieldParticleVisual(
 		fieldParticle,
-		depth,
 		activeRenderSettings.wireframeOpacity,
 	)
 	return new LineGlowMaterial({
@@ -1994,7 +1991,6 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		record.node.geometry = getSphereWireframeGeometry(record.snapshot.sphereRadius, record.depth)
 		const visual = resolveFieldParticleVisual(
 			record.snapshot,
-			record.depth,
 			activeRenderSettings.wireframeOpacity,
 		)
 		record.pickTarget.baseColor.copy(new Color(...visual.color))
@@ -2062,7 +2058,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	}
 
 	const createFieldParticleRecord = (field: BulkFieldParticle, depth: number): FieldParticleRenderRecord => {
-		const material = createFieldParticleMaterial(field, depth)
+		const material = createFieldParticleMaterial(field)
 		const node = new LineSegments(getSphereWireframeGeometry(field.sphereRadius, depth), material)
 		const position = resolveAtomMarkerPosition(field)
 		node.position.set(position.x, position.y, position.z)

@@ -21,18 +21,18 @@ const input = (
 })
 
 describe("Capsule torus visual contrast", () => {
-	test("keeps root and nested Atom toruses visibly opaque at the default render setting", () => {
+	test("uses the same opacity law for root and nested Atom toruses", () => {
 		const opacity = DEFAULT_BULK_SETTINGS.render.wireframeOpacity
 
 		expect(resolveDarkParticleTorusOpacity(
 			input({parentDarkParticleId: null}),
 			opacity,
 		)).toBeCloseTo(0.22, 6)
-		expect(resolveDarkParticleTorusOpacity(input(), opacity)).toBeCloseTo(0.36, 6)
+		expect(resolveDarkParticleTorusOpacity(input(), opacity)).toBeCloseTo(0.22, 6)
 		expect(resolveDarkParticleTorusOpacity(
 			input({activity: "inactive"}),
 			opacity,
-		)).toBeCloseTo(0.2088, 6)
+		)).toBeCloseTo(0.1276, 6)
 	})
 
 	test("does not brighten non-Atom connectivity toruses and clamps the final alpha", () => {
@@ -46,18 +46,11 @@ describe("Capsule torus visual contrast", () => {
 		)).toBe(1)
 	})
 
-	test("places only the existing nested Atom core in the bounded overlay layer", () => {
+	test("uses the same scene-depth layer at every Atom depth", () => {
 		expect(resolveDarkParticleTorusLayer(input())).toEqual({
-			luminanceBoost: 1.35,
+			luminanceBoost: 1,
 			silhouetteAmount: 0,
-			visibilityMode: "overlay",
-		})
-		expect(resolveDarkParticleTorusLayer(
-			input({activity: "inactive"}),
-		)).toEqual({
-			luminanceBoost: 1.15,
-			silhouetteAmount: 0,
-			visibilityMode: "overlay",
+			visibilityMode: "scene",
 		})
 		expect(resolveDarkParticleTorusLayer(
 			input({parentDarkParticleId: null}),

@@ -880,13 +880,12 @@ wireframe и MSAA resolve не скрывали малые markers. Potential о
 subdued inactive, а inactive — различимее фона. Ни отдельная particle
 geometry/CPU simulation, ни новый perpetual render-loop condition для этого
 visual effect не допускаются.
-Существующие non-root Atom toruses занимают внутреннюю Matter-орбиту owning
-Atom и используют тот же bounded single-sample material overlay с отдельным
-opacity/luminance contrast. Их geometry/transform/nesting, root torus и
-connectivity scene-depth material не меняются. Существующие nested-Atom Field
-spheres остаются в собственных ядрах и получают bounded red nucleus accent в
-том же overlay с shader-local material scale меньше State-electron marker, без
-изменения geometry/transform/layout/pick radius и без новых objects.
+Root и non-root Atom toruses используют одну scene-depth visual-функцию:
+наличие родителя не меняет opacity, luminance, glow или render layer.
+Собственные Fields каждого Atom используют одну semantic material-функцию,
+сохраняют цвет типа и единичный shader-local scale независимо от depth.
+Activity и particle kind могут менять material одним и тем же правилом на
+каждом уровне, но отдельный nested-only accent запрещён.
 Owner superseded renderer-only spherical-shell placement после live visual
 review. Current law возвращает последнюю принятую pre-sphere композицию:
 Fields используют materialized Atom-local coordinates и остаются в локальном
@@ -902,7 +901,10 @@ Matter toruses выносятся из ядра на первую внутрен
 тора до `r_torus`, а собственные State-рукава этого же Atom занимают следующие
 внешние орбиты до `r_outer`. State дочернего Atom остаётся внутри child-local
 frame и не переносится на орбиту родителя; каждый child рекурсивно повторяет
-тот же порядок.
+тот же порядок. Process, Finally, Reaction и state-Axion являются причинными
+элементами State-рукава: видимое occurrence якорится к конкретному occurrence
+связанного State и остаётся рядом с ним в той же внешней полосе owning Atom.
+Произвольные Process в ядре и Reaction за `r_outer` запрещены.
 Initial root fit и click/focused fit используют один final-world envelope
 owning Atom, включающий torus, marker sphere bounds, Field proxies, transitions
 и локальные relations. Target остаётся в центре torus, направление камеры и

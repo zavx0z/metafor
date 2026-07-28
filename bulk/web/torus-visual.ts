@@ -5,8 +5,7 @@ type DarkParticleTorusVisualInput = Pick<
 	"activity" | "darkParticleKind" | "parentDarkParticleId"
 >
 
-const ROOT_TORUS_OPACITY_MULTIPLIER = 2.75
-const ATOM_TORUS_OPACITY_MULTIPLIER = 4.5
+const ATOM_TORUS_OPACITY_MULTIPLIER = 2.75
 const CONNECTIVITY_TORUS_OPACITY_MULTIPLIER = 0.32
 const ACTIVE_TORUS_OPACITY_MULTIPLIER = 1.08
 const INACTIVE_TORUS_OPACITY_MULTIPLIER = 0.58
@@ -19,11 +18,9 @@ export const resolveDarkParticleTorusOpacity = (
 	particle: DarkParticleTorusVisualInput,
 	wireframeOpacity: number,
 ): number => {
-	const baseMultiplier = particle.parentDarkParticleId === null
-		? ROOT_TORUS_OPACITY_MULTIPLIER
-		: particle.darkParticleKind === "atom"
-			? ATOM_TORUS_OPACITY_MULTIPLIER
-			: CONNECTIVITY_TORUS_OPACITY_MULTIPLIER
+	const baseMultiplier = particle.darkParticleKind === "atom"
+		? ATOM_TORUS_OPACITY_MULTIPLIER
+		: CONNECTIVITY_TORUS_OPACITY_MULTIPLIER
 	const activityMultiplier = particle.activity === "active"
 		? ACTIVE_TORUS_OPACITY_MULTIPLIER
 		: particle.activity === "inactive"
@@ -38,21 +35,11 @@ export type DarkParticleTorusLayer = Readonly<{
 	visibilityMode: "scene" | "overlay" | "silhouette"
 }>
 
-/**
- * Nested Atom toruses are the existing visual core. They stay one object with
- * unchanged geometry, but render after the enclosing root wireframe.
- */
+/** Keeps root and nested Atom shells on the same scene-depth visual path. */
 export const resolveDarkParticleTorusLayer = (
-	particle: DarkParticleTorusVisualInput,
-): DarkParticleTorusLayer =>
-	particle.parentDarkParticleId !== null && particle.darkParticleKind === "atom"
-		? {
-			luminanceBoost: particle.activity === "inactive" ? 1.15 : 1.35,
-			silhouetteAmount: 0,
-			visibilityMode: "overlay",
-		}
-		: {
-			luminanceBoost: 1,
-			silhouetteAmount: 0,
-			visibilityMode: "scene",
-		}
+	_particle: DarkParticleTorusVisualInput,
+): DarkParticleTorusLayer => ({
+	luminanceBoost: 1,
+	silhouetteAmount: 0,
+	visibilityMode: "scene",
+})

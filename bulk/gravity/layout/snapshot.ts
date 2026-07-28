@@ -291,7 +291,8 @@ const flattenDarkParticleNode = (
  * - descendant frames compose recursively and never collapse into a root row or sphere;
  * - direct descendants stay inside a fixed parent envelope and never resize it;
  * - topology-owned WIMPs retain the real Boundary relation and never become fake nucleus Fields;
- * - State/Process/Reaction geometry is added later from the real Boundary declarations.
+ * - the causal stage traverses this same materialized parent-child tree and
+ *   adds each Atom's State sleeves and State-anchored causal occurrences.
  */
 export const createBulkManifestFromDarkParticleInputs = (
   rootSrc: string,

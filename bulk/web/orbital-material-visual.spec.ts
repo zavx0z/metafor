@@ -14,6 +14,7 @@ const particle = (
 	label: "Fixture",
 	active: true,
 	current: true,
+	anchorStateOrbitalParticleId: null,
 	sleeveRootStateId: 1,
 	relatedStateIds: [],
 	colorR: 0.2,

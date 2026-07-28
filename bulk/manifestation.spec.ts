@@ -296,6 +296,15 @@ describe("Boundary projection -> Bulk manifestation", () => {
 		expect(axions).toHaveLength(1)
 		expect(axions[0]?.label).toBe("Axion · ошибка")
 		expect(axions[0]?.relatedStateIds).toEqual([21])
+		expect(axions[0]?.anchorStateOrbitalParticleId).not.toBeNull()
+		const axionState = manifest.orbitalParticles?.find(
+			(particle) => particle.orbitalParticleId === axions[0]?.anchorStateOrbitalParticleId,
+		)
+		expect(axionState?.orbitalParticleKind).toBe("state")
+		expect(Math.hypot(axions[0]!.localX, axions[0]!.localY)).toBeCloseTo(
+			Math.hypot(axionState!.localX, axionState!.localY),
+			12,
+		)
 		expect(manifest.relationChannels?.some((channel) =>
 			channel.relationKind === "axion-read" &&
 			channel.toId === axions[0]?.orbitalParticleId &&
@@ -327,6 +336,77 @@ describe("Boundary projection -> Bulk manifestation", () => {
 
 		expect(states.length).toBeGreaterThan(projection.states.length)
 		expect(positions.size).toBe(states.length)
+	})
+
+	test("anchors every causal particle to a concrete State occurrence in the same outer band", () => {
+		const projection = createProjection()
+		projection.states.push(
+			{id: 21, wimp: SRC, name: "idle", position: 0},
+			{id: 22, wimp: SRC, name: "ready", position: 1},
+		)
+		projection.atomStates.push({atom: 17, state: 21})
+		projection.processes.push(
+			{
+				id: 31,
+				wimp: SRC,
+				state: "idle",
+				descriptor: {type: "action", key: "start", readFields: [2]},
+			},
+			{
+				id: 32,
+				wimp: SRC,
+				state: "idle",
+				descriptor: {type: "finally", key: "finish", writeFields: [2]},
+			},
+			{
+				id: 33,
+				wimp: SRC,
+				state: "missing",
+				descriptor: {type: "action", key: "unbound"},
+			},
+		)
+		projection.reactions.push({
+			id: 41,
+			wimp: SRC,
+			key: "retry",
+			read: [2],
+			write: [],
+			states: [22],
+		})
+
+		const manifest = buildBulkManifestation(projection, SRC)
+		const atom = manifest.darkParticles[0]!
+		const orbitalById = new Map(
+			(manifest.orbitalParticles ?? []).map((particle) => [particle.orbitalParticleId, particle] as const),
+		)
+		const causal = (manifest.orbitalParticles ?? []).filter(
+			(particle) => particle.orbitalParticleKind !== "state",
+		)
+
+		expect(causal.map((particle) => particle.orbitalParticleKind).toSorted()).toEqual([
+			"finally",
+			"process",
+			"reaction",
+		])
+		expect(causal.some((particle) => particle.sourceId === 33)).toBe(false)
+		for (const particle of causal) {
+			expect(particle.anchorStateOrbitalParticleId).not.toBeNull()
+			const state = orbitalById.get(particle.anchorStateOrbitalParticleId!)
+			if (!state) throw new Error(`Missing anchor State ${particle.anchorStateOrbitalParticleId}`)
+			expect(state?.orbitalParticleKind).toBe("state")
+			expect(particle.parentDarkParticleId).toBe(state.parentDarkParticleId)
+			expect(particle.sleeveRootStateId).toBe(state.sleeveRootStateId)
+			expect(Math.hypot(particle.localX, particle.localY)).toBeCloseTo(
+				Math.hypot(state.localX, state.localY),
+				12,
+			)
+			expect(particle.localZ).toBe(state.localZ)
+			const radial = Math.hypot(particle.localX, particle.localY)
+			expect(radial - particle.sphereRadius).toBeGreaterThanOrEqual(atom.torusRadius - 1e-9)
+			expect(
+				Math.hypot(radial - atom.torusRadius, particle.localZ) + particle.sphereRadius,
+			).toBeLessThanOrEqual(atom.torusTube + 1e-9)
+		}
 	})
 
 	test("keeps nested State sleeves in the owning Atom-local toroidal band after its Matter band", () => {
@@ -392,5 +472,17 @@ describe("Boundary projection -> Bulk manifestation", () => {
 				Math.hypot(radial - child.torusRadius, particle.localZ) + particle.sphereRadius,
 			).toBeLessThanOrEqual(child.torusTube + 1e-9)
 		}
+
+		const nestedProcess = (nested.orbitalParticles ?? []).find((particle) =>
+			particle.parentDarkParticleId === child.darkParticleId &&
+			particle.orbitalParticleKind === "process")
+		expect(nestedProcess).toBeDefined()
+		expect(nestedProcess).toEqual(standaloneStates.get(nestedProcess!.orbitalParticleId))
+		const processAnchor = standaloneStates.get(nestedProcess!.anchorStateOrbitalParticleId!)
+		expect(processAnchor?.orbitalParticleKind).toBe("state")
+		expect(Math.hypot(nestedProcess!.localX, nestedProcess!.localY)).toBeCloseTo(
+			Math.hypot(processAnchor!.localX, processAnchor!.localY),
+			12,
+		)
 	})
 })

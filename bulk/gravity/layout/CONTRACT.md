@@ -39,11 +39,27 @@ particles.
   `r_inner` и `r_torus`; собственные State-рукава этого же Atom идут следом на
   следующих внешних орбитах между `r_torus` и `r_outer`. Matter-торы не
   остаются в ядре и не делят полосу со State.
+- Process, Finally, Reaction и state-Axion не являются Fields, Matter-детьми
+  или самостоятельными частицами ядра. Это причинные элементы State-рукава:
+  каждый declaration даёт ровно одну видимую частицу, якорится к каноническому
+  root-occurrence связанного State, наследует `sleeveRootStateId` этого рукава
+  и располагается рядом с якорем в той же внешней State-полосе. Повторные
+  occurrences одного State не размножают причинную declaration. Declaration
+  без разрешимого связанного State не получает произвольной позиции в ядре
+  или за оболочкой Atom.
 - Вся геометрия State-рукава остаётся в локальном frame owning Atom и целиком
   внутри его `r_outer`. State дочернего Atom не поднимается в frame родителя,
   не раскладывается вместе со State родителя и не получает отдельный
   межуровневый translation. Тот же закон без исключений действует для root и
   для каждого вложенного Atom.
+- Полный состав одного Atom проходит один рекурсивно переиспользуемый
+  Atom-local pipeline: structural stage строит shell, Fields и immediate
+  Matter, causal stage того же owning Atom строит State-рукава, их причинные
+  элементы, proxies и channels. Стадии применяются обходом materialized
+  parent-child tree, а не отдельными глобальными циклами по particle kind.
+  Flat-массивы `BulkManifest` являются только формой передачи результата и не
+  дают позднему проходу права придумать Process/Reaction position или сменить
+  ownership.
 - `orbitEdgeGapMm` влияет только на локальные зазоры внутри фиксированного envelope.
 - Нормализация к корневому диаметру выполняется одним глобальным scale-проходом. Она
   не меняет рекурсивные transform и materialized отношения.
@@ -98,18 +114,13 @@ particles.
   внешняя wireframe geometry и MSAA resolve не скрывали их; pass использует
   saturating additive blend той же single-object marker geometry. Potential
   остаётся явно сильнее subdued inactive marker, а inactive — различимее фона.
-- Существующие non-root Atom toruses занимают внутреннюю Matter-орбиту owning
-  Atom и используют тот же bounded single-sample material overlay с отдельным
-  opacity/luminance contrast. Это не меняет их torus geometry, transform,
-  nesting/layout, identity или projection; root torus и connectivity geometry
-  сохраняют обычный scene-depth material. Существующие Field spheres внутри
-  собственных ядер этих nested Atom получают bounded red accent material в том
-  же overlay и читаются как nucleus lights/orbs; их shader-local material
-  scale меньше единицы и удерживает nucleus accent визуально меньше
-  State-electron marker. Geometry, node transform, layout и pick/projection
-  radius не меняются; новые objects/geometry для accent не создаются.
-- Root Atom torus сохраняет читаемую outer form в обычном scene-depth
-  material; renderer не заменяет её sparse silhouette.
+- Root и nested Atom используют одну visual-функцию shell и Fields. Глубина
+  влияет только на унаследованный uniform transform и допустимую детализацию
+  mesh, но не меняет semantic color, shader-local scale, opacity, glow или
+  depth/overlay mode. Field сохраняет цвет своего типа и единичный
+  `visualScale` в ядре любого Atom; Atom torus не получает отдельный material
+  только из-за наличия родителя. Activity и particle kind могут менять
+  material одинаковым правилом на любой глубине.
 - Renderer использует materialized Atom-local `localX/localY/localZ` без
   дополнительной spherical-shell проекции. Поэтому Fields остаются в
   упакованном локальном ядре owning Atom, а State markers сохраняют

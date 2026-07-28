@@ -1007,8 +1007,8 @@
 - Dependencies: `MF-116`
 - Current executor: canonical Inference integration checkout, delegated from
   Codex task `019fa120-7413-7d32-938c-16aa6dac3fdc`.
-- Current slice: canonical `codex-local-integration` self-similar Atom radial
-  band correction after owner visual rejection.
+- Current slice: canonical `codex-local-integration` self-similar Atom
+  component and causal State-sleeve correction after owner visual review.
 - Owner approval:
   - owner explicitly approved one canonical no-stop live
     `zavx0z/inference → zavx0z/lada` causal transition;
@@ -1091,10 +1091,9 @@
     only brightness/opacity. Potential and inactive State balls retain their
     secondary hierarchy in one final single-sample additive material overlay,
     where `potential > inactive > background`;
-  - existing non-root Atom toruses use the same overlay for legible inner
-    Matter-orbit contrast, and their existing Field spheres remain in their
-    own nuclei as bounded red accents with shader-local visual scale below the
-    State marker scale;
+  - the then-current non-root overlay and nested-only red Field accent were
+    intermediate visual choices; the later owner self-similarity review below
+    supersedes both and they are not part of the current law;
   - owner live review superseded the spherical-shell placement introduced by
     `faa6a33d`, refined by `b325f7b7` and bounded by `9d9f375d`; its accepted
     visual baseline is the immediately preceding `41e76f48`;
@@ -1119,10 +1118,11 @@
     transitions and local relations. The target remains the owning torus
     center and the existing camera direction, persisted pose and click-focus
     interaction remain unchanged;
-  - executable Dawn/WebGPU readback proves the bounded
-    `current > potential > inactive > background` output hierarchy and a
-    red-dominant, non-saturating, smaller nucleus accent; the production
-    silhouette pipeline also compiles with depth writes disabled;
+  - that intermediate executable Dawn/WebGPU readback proved the bounded
+    `current > potential > inactive > background` output hierarchy and the
+    then-current nucleus material; the later owner self-similarity review
+    supersedes the depth-specific nucleus material while retaining the State
+    hierarchy and production shader compilation gate;
   - focused shader/material/readability/core/shell/navigation/render-loop suite:
     `50 pass`, `0 fail`, `235 expect`; browser bundle compiled `121` modules
     successfully;
@@ -1211,6 +1211,43 @@
     `torusTube = 16.667`. The image shows the three complete child Atom toruses
     on Lada's inner Matter orbit and the owning State sleeves on the following
     outer orbits.
+  - a subsequent owner review identified the three non-Field spheres in the
+    Auth screenshot as Process declarations, rejected their former placement
+    in the Field nucleus and rejected the depth-specific red/scaled nested
+    Field material. The clarified law is now owned by
+    `bulk/gravity/layout/CONTRACT.md`: one Atom-local component pipeline at
+    every depth, semantic Fields only in the nucleus, immediate Matter on the
+    inner band, then State sleeves and their causal elements in the outer
+    band;
+  - `Process`, `Finally`, `Reaction` and state-Axion now each manifest exactly
+    one stable visible particle at the canonical root occurrence of a related
+    State. The whole causal particle keeps the anchor State's `rho` and `z`
+    and receives only a tangential slot transform; repeated State path
+    occurrences do not multiply the declaration. An unresolved declaration
+    receives no arbitrary core or out-of-shell fallback;
+  - root and nested Atom now share the same Field and torus visual functions:
+    depth no longer changes semantic Field color, unit `visualScale`,
+    opacity, glow or scene/overlay mode. The causal stage traverses the same
+    materialized parent-child Atom tree as the structural stage;
+  - final focused proof: `37 pass`, `0 fail`, `1656 expect`; final
+    `bun run check`: typecheck pass, `42` expected diagnostics, `1748 pass`,
+    `0 fail`, `6044 expect` in `209` test files; `git diff --check` clean;
+  - one owner-requested normal cold restart installed the final source without
+    config, environment or port changes as invocation
+    `53f8d20c2e87434eacc7936754106405`, PID `2543671`. All six `/health`
+    endpoints returned `ok`; Force was `running` with all five domains
+    connected, Matrix was `gpu`/`initialized`, and Bulk was initialized;
+  - final Monad Capture from observer
+    `bulk-web-bb3e1c4f-055c-46ea-a498-d101d1e5d77e` returned a non-black
+    `1450×2178` PNG, `489804` bytes, SHA-256
+    `1115e7aff1b58d2b01b772c4df857a295436b9788e97b14581a3ea43ca235e47`.
+    Its latched structural proof reports every Field inside its owning core,
+    every immediate Matter child inside `[r_inner, r_torus]`, every State and
+    causal particle inside the owning torus cross-section, valid State anchors
+    and one visible causal particle per declaration. Auth contains exactly
+    eight Fields (`5 string`, `3 boolean`) and exactly three Process particles;
+    all three Processes are anchored to their canonical Auth State
+    occurrences at unchanged orbit radius and height.
 - Activation constraints:
   - visual commit `faa6a33d` received one authorized standard cold restart;
     the service returned active/running, all six ports listened and startup
@@ -1235,11 +1272,11 @@
     acceptance is claimed;
   - the world is already complete at active root `zavx0z/lada`; activation
     must not be retried and a new preflight is neither required nor valid;
-  - the immediate-parent planar-orbit slice received its one authorized normal
-    post-commit cold restart; health and a fresh browser-observer reconnect
-    path are verified. Visual acceptance remains open until a fresh relevant
-    screenshot. No additional restart, hot reload, activation retry, rollback
-    or GC is permitted.
+  - the immediate-parent planar-orbit slice received its authorized normal
+    post-commit cold restart. The later owner-requested self-similar Atom
+    correction received the separate final cold proof and Monad Capture
+    recorded above. No further restart, hot reload, activation retry, rollback
+    or GC is required by this slice.
 
 ### MF-109 — Реализовать Pause/Stack branchable execution workspace
 

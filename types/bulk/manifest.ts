@@ -60,6 +60,8 @@ export interface BulkOrbitalParticle {
   label: string
   current: boolean
   active: boolean
+  /** Concrete State occurrence that owns this causal occurrence; null only for State itself. */
+  anchorStateOrbitalParticleId: string | null
   sleeveRootStateId: number | null
   relatedStateIds: number[]
   localX: number
