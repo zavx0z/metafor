@@ -1227,7 +1227,7 @@
 - Status: `WAITING`
 - Dependencies: `MF-109`
 - Owner-approved narrow precursor `MF-110C`:
-  - Status: `IN_PROGRESS`;
+  - Status: `DONE`;
   - Current task: canonical integration delegated from Codex task
     `019fa7d5-59ce-7fc3-9be7-350e1bc5770c`;
   - authority is limited to the existing Dark Force pause/stack/resume
@@ -1241,6 +1241,32 @@
   - completion requires focused/full source checks, one ordinary full cold
     restart, a fresh observer, Monad PNG evidence of the keyframe and verified
     pause/resume behavior.
+  - Evidence:
+    - Dark time controller/Monad/HUD baseline remains commit `85cedcad`;
+      target-native Mass resolution policy is commit `47dbbb13`; semantic
+      non-conflicting `ff462229` remainder is commit `a1b077b7`;
+    - focused policy/relay/frame/HUD/Dark tests: `13 pass`, `0 fail`;
+      full `bun run check`: typecheck pass, `42` expected diagnostics,
+      `1744 pass`, `0 fail`, `5973 expect` in `209` test files;
+    - exactly one ordinary full restart produced systemd invocation
+      `e2bca877c70c4a7b9c03745f3cde87e8`; all six health endpoints passed,
+      Force returned `running`, Matrix returned `gpu`/`initialized`, and
+      fresh observer `bulk-web-280b3710-d94f-43a9-ab5b-72a78bbce6c9`
+      connected;
+    - live stack began empty; Pause created frame `1` at acceptance sequence
+      `29` with checkpoint phase `held` and closed external admission;
+    - Monad observer capture returned a real non-black `2560×1440` PNG,
+      `817658` bytes, SHA-256
+      `329659dbaf1f1755440352af9dbfdad2c31f018de5e0c41026aae4240ab29fda`;
+      the frame visibly contains one keyframe on Force/Mass/Boundary,
+      disabled Pause/Step and active Resume;
+    - live `dark.force.step` was reachable and rejected missing explicit
+      Particle input without mutation; the focused controller test proves
+      exactly-one stepping only with an owner-supplied Particle;
+    - Resume returned `{ok:true}`, cleared stack to `[]` and reopened external
+      admission. The same PNG leaves the nested torus visual gate open:
+      Chat/ChatSend ownership is not yet visibly separated; no coefficient or
+      layout change was made in this precursor.
 - Completed precursor evidence:
   - `MF-110T` — `CODE COMPLETE / VISUAL ACCEPTANCE PENDING`: read-only Bulk
     current-cut timeline adapter integrated as commit
