@@ -149,8 +149,8 @@ const placeFieldNucleus = (fields: LayoutFieldParticleNode[], padding: number): 
   })
 }
 
-const placeChildrenByFractalLaw = (node: LayoutDarkParticleNode, padding: number): void => {
-  const children = [...node.children].sort((left, right) => left.darkParticleId - right.darkParticleId)
+const placeChildrenOnLocalOrbit = (node: LayoutDarkParticleNode, padding: number): void => {
+  const children = [...node.children]
   if (children.length === 0) return
   const density = Math.max(1, snapshotLayoutConfig.packingDensityCoefficient)
   const levelExtent = node.outerRadius * snapshotLayoutConfig.nestingCoefficient
@@ -162,26 +162,16 @@ const placeChildrenByFractalLaw = (node: LayoutDarkParticleNode, padding: number
   const orbitRadius = availableRadius - childOuterExtent * density
   const phase = hashAngle(`${node.darkParticleId}:${children.map((child) => child.darkParticleId).join(":")}`)
 
-	children.forEach((child, index) => {
-		// Ветви существуют в объёме родительского тора, а не в сплющенной
-		// XY-плоскости. Один ребёнок остаётся на экваторе. Два занимают
-		// противоположные точки 3D-орбиты; больше двух расходятся по
-		// детерминированной сферической (Fibonacci) раскладке.
-		let angle = phase
-		let elevation = 0
-		if (children.length === 2) {
-			angle = phase + Math.PI * index
-			elevation = index === 0 ? 0.5 : -0.5
-		} else if (children.length > 2) {
-			angle = phase + GOLDEN_ANGLE * index
-			elevation = 1 - (2 * (index + 0.5)) / children.length
-		}
-		const planarRadius = Math.sqrt(Math.max(0, 1 - elevation * elevation)) * orbitRadius
-		child.localX = Math.cos(angle) * planarRadius
-		child.localY = Math.sin(angle) * planarRadius
-		child.localZ = elevation * orbitRadius
-		child.torusScale = childOuterExtent / Math.max(0.001, child.outerRadius)
-	})
+  children.forEach((child, index) => {
+    // Only immediate Matter children occupy this owning Atom's planar orbit.
+    // A nested child becomes the origin of its own orbit, so no descendant is
+    // flattened into a root-authored row, sphere or global allocation.
+    const angle = phase + index * Math.PI * 2 / children.length
+    child.localX = Math.cos(angle) * orbitRadius
+    child.localY = Math.sin(angle) * orbitRadius
+    child.localZ = 0
+    child.torusScale = childOuterExtent / Math.max(0.001, child.outerRadius)
+  })
 }
 
 const materializeFractalDarkParticleNode = (
@@ -228,7 +218,7 @@ const materializeFractalDarkParticleNode = (
     innerRadius,
     outerRadius,
   }
-  placeChildrenByFractalLaw(materialized, padding)
+  placeChildrenOnLocalOrbit(materialized, padding)
   return materialized
 }
 const flattenDarkParticleNode = (
@@ -289,9 +279,10 @@ const flattenDarkParticleNode = (
  *
  * Layout law:
  * - the scene stays `Z-up`;
- * - one local Atom law is repeated fractally at every materialized level;
+ * - Monad-supplied sibling order is preserved on one immediate parent-local planar orbit;
  * - a child uniform transform scales its torus, label anchor, Fields and complete subtree;
- * - descendants are packed inside a fixed parent envelope and never resize it;
+ * - descendant frames compose recursively and never collapse into a root row or sphere;
+ * - direct descendants stay inside a fixed parent envelope and never resize it;
  * - topology-owned WIMPs retain the real Boundary relation and never become fake nucleus Fields;
  * - State/Process/Reaction geometry is added later from the real Boundary declarations.
  */

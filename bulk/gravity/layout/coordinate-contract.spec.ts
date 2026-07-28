@@ -132,6 +132,65 @@ describe("Lada three-level coordinate contract", () => {
 		expect(distance(chatSendWorld.origin, ladaWorld.origin)).toBeGreaterThan(1e-6)
 	})
 
+	test("allocates only direct children on one parent-local planar orbit without row or spherical packing", () => {
+		const manifest = ladaTopologyManifestFixture()
+		const lada = particleBySrc(manifest, "zavx0z/lada")
+		const chat = particleBySrc(manifest, "zavx0z/lada-chat")
+		const directChildren = manifest.darkParticles
+			.filter(({parentDarkParticleId}) => parentDarkParticleId === lada.darkParticleId)
+			.toSorted((left, right) => left.darkParticleOrder - right.darkParticleOrder)
+
+		expect(directChildren.map(({src}) => src)).toEqual([
+			"zavx0z/lada-auth",
+			"zavx0z/lada-chat",
+			"zavx0z/lada-model",
+		])
+		expect(directChildren.every(({localZ}) => localZ === 0)).toBe(true)
+		const localRadii = directChildren.map(({localX, localY}) => Math.hypot(localX, localY))
+		expect(localRadii[1]!).toBeCloseTo(localRadii[0]!, 12)
+		expect(localRadii[2]!).toBeCloseTo(localRadii[0]!, 12)
+		expect(new Set(directChildren.map(({localX}) => localX.toFixed(9))).size).toBeGreaterThan(1)
+		expect(new Set(directChildren.map(({localY}) => localY.toFixed(9))).size).toBeGreaterThan(1)
+		expect(Math.abs(
+			directChildren[0]!.localX * directChildren[1]!.localY -
+			directChildren[0]!.localY * directChildren[1]!.localX,
+		)).toBeGreaterThan(1e-6)
+
+		const chatSend = particleBySrc(manifest, "zavx0z/lada-chat-send")
+		expect(chatSend.parentDarkParticleId).toBe(chat.darkParticleId)
+		expect(directChildren).not.toContain(chatSend)
+	})
+
+	test("does not collapse ChatSend into a root-authored global coordinate", () => {
+		const manifest = ladaTopologyManifestFixture()
+		const lada = particleBySrc(manifest, "zavx0z/lada")
+		const chat = particleBySrc(manifest, "zavx0z/lada-chat")
+		const chatSend = particleBySrc(manifest, "zavx0z/lada-chat-send")
+		const ladaWorld = worldFrame(manifest, lada)
+		const chatWorld = worldFrame(manifest, chat)
+		const chatSendWorld = worldFrame(manifest, chatSend)
+		const chatRelativeWorldOrigin = scale(
+			[
+				chatSendWorld.origin[0] - chatWorld.origin[0],
+				chatSendWorld.origin[1] - chatWorld.origin[1],
+				chatSendWorld.origin[2] - chatWorld.origin[2],
+			],
+			1 / chatWorld.scale,
+		)
+		const rootRelativeWorldOrigin = scale(
+			[
+				chatSendWorld.origin[0] - ladaWorld.origin[0],
+				chatSendWorld.origin[1] - ladaWorld.origin[1],
+				chatSendWorld.origin[2] - ladaWorld.origin[2],
+			],
+			1 / ladaWorld.scale,
+		)
+
+		expectPointClose(chatRelativeWorldOrigin, localOrigin(chatSend))
+		expect(distance(rootRelativeWorldOrigin, localOrigin(chatSend))).toBeGreaterThan(1e-6)
+		expect(chatSendWorld.scale).toBeCloseTo(chatWorld.scale * chatSend.torusScale, 12)
+	})
+
 	test("keeps each direct Matter child inside its owning local frame in local and world coordinates", () => {
 		const manifest = ladaTopologyManifestFixture()
 		const byId = new Map(manifest.darkParticles.map((particle) =>

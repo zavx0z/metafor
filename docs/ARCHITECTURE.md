@@ -123,7 +123,9 @@ evaluation уже может испустить process work.
   локально готовит `EnergyCatalogStore` и только после этого открывает
   обязательный realtime ForceChannel. На каждый claim RPC не выполняется.
 - `bulk/server.ts` обслуживает web entry, шрифт, browser WebSocket и связывает
-  browser manifestation с Force.
+  browser manifestation с Force. Structural source layout-а — current
+  recursive projection snapshot, переданный Bulk Monad; manifestation строит
+  parent-local transforms напрямую и не использует ELK/graph-layout adapter.
 - Matrix weak backend по умолчанию — `auto`: WebGPU при доступности, иначе CPU.
   `gpu` является явным строгим режимом, `cpu` принудительно выбирает reference
   backend.

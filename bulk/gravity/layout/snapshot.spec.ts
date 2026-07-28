@@ -284,7 +284,7 @@ describe("bulk/gravity/layout manifest", () => {
     expectFieldNucleiHaveNoIntersections(expanded)
   })
 
-  test("Fuzzy и MACHO детерминированно упакованы внутри root вместо общего плоского центра", () => {
+  test("Fuzzy и MACHO занимают разные точки одного parent-local planar orbit", () => {
     const manifest = createBulkManifestFromDarkParticleInputs("root", [
       createDarkParticle(1, [
         createTopologyParticle(20, "fuzzy", [createDarkParticle(2, [], [102])]),
@@ -302,6 +302,9 @@ describe("bulk/gravity/layout manifest", () => {
     expect(Math.hypot(fuzzy.localX, fuzzy.localY, fuzzy.localZ)).toBeGreaterThan(0)
     expect(Math.hypot(macho.localX, macho.localY, macho.localZ)).toBeGreaterThan(0)
     expect([fuzzy.localX, fuzzy.localY, fuzzy.localZ]).not.toEqual([macho.localX, macho.localY, macho.localZ])
+    expect(fuzzy.localZ).toBe(0)
+    expect(macho.localZ).toBe(0)
+    expect(Math.hypot(fuzzy.localX, fuzzy.localY)).toBeCloseTo(Math.hypot(macho.localX, macho.localY), 12)
     expect(fuzzy.torusScale).toBeLessThan(1)
     expect(macho.torusScale).toBeLessThan(1)
     expectSubtreesInsideParents(manifest)
@@ -331,7 +334,7 @@ describe("bulk/gravity/layout manifest", () => {
     expectFieldNucleiHaveNoIntersections(manifest)
   })
 
-  test("две ветви расходятся диаметрально в объёме родительского тора", () => {
+  test("две ветви расходятся диаметрально на parent-local planar orbit", () => {
     const manifest = createBulkManifestFromDarkParticleInputs("root", [
       createDarkParticle(1, [
         createDarkParticle(2),
@@ -347,8 +350,9 @@ describe("bulk/gravity/layout manifest", () => {
       left.localX * right.localX + left.localY * right.localY + left.localZ * right.localZ
     ) / (leftRadius * rightRadius)
 
-    expect(left.localZ).not.toBe(0)
-    expect(right.localZ).toBeCloseTo(-left.localZ, 6)
+    expect(left.localZ).toBe(0)
+    expect(right.localZ).toBe(0)
+    expect(leftRadius).toBeCloseTo(rightRadius, 12)
     expect(normalizedDot).toBeCloseTo(-1, 6)
     expectSubtreesInsideParents(manifest)
   })

@@ -49,8 +49,8 @@ Canonical patch target — ровно один validated complete MetaJSON v1 do
 object-key order и lowercase SHA-256. `base` указывает digest projection
 предыдущего checkpoint, `result` — digest projection этого commit. Diff
 детерминирован: object members используют только `add/remove/replace`, а
-изменённый массив заменяется целиком. Bulk manifestation, ELK layout и другие
-UI-проекции не входят в digest law.
+изменённый массив заменяется целиком. Bulk manifestation, его direct recursive
+layout из Monad snapshot и другие UI-проекции не входят в digest law.
 
 Boundary остаётся владельцем declaration, membership, source relations и
 `keyId`. Energy/Mass остаётся владельцем bytes и materialization локальных

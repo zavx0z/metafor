@@ -1147,6 +1147,34 @@
     State computation, topology/identity, config/ports, activation/preflight,
     GC, navigation, links or Monad capture changed. No new visual success is
     claimed.
+  - owner then authorized one minimal recursive geometry slice on this
+    accepted contract. Bulk layout now preserves Monad-supplied sibling order
+    on one bounded immediate-parent planar orbit; spherical/Fibonacci
+    elevation is removed, and nested Matter starts a new local orbit instead
+    of joining a root/global allocation;
+  - exact Lada proof keeps Auth/Chat/Model as the only direct Lada children,
+    composes ChatSend only through Chat, rejects a root-authored ChatSend
+    coordinate, checks local/world bounds and proves the direct layout is
+    neither a row nor spherical packing;
+  - current architecture/layout docs name the Monad-supplied recursive
+    snapshot as structural source. Stale ELK-provider/integration claims were
+    removed without adding an adapter;
+  - focused layout/manifestation/Monad/HUD proof: `37 pass`, `0 fail`,
+    `1650 expect`; current `bun run check`: typecheck pass, `42` expected
+    diagnostics, `1708 pass`, `0 fail`, `5847 expect` in `200` test files;
+    `git diff --check` clean;
+  - the implementation does not change data, topology, State computation,
+    links/proxies, navigation, Monad capture, ports/config or unrelated
+    styling; scoped implementation: this commit;
+  - exactly one authorized normal cold restart installed that commit without
+    config/environment/port changes. All six health endpoints returned `ok`,
+    Force returned `running`, Matrix returned `gpu`/`initialized`, and a fresh
+    standard `/initial → /ws` browser-observer handshake logged
+    `browser connected` for the five-Atom `zavx0z/lada` manifest;
+  - pre-restart browser tabs that retained consumed one-shot observer sessions
+    continued to disconnect until a fresh page/session; no transport or
+    reconnect semantics were changed in this geometry slice. No screenshot was
+    captured and no visual acceptance is claimed.
 - Activation constraints:
   - visual commit `faa6a33d` received one authorized standard cold restart;
     the service returned active/running, all six ports listened and startup
@@ -1171,10 +1199,11 @@
     acceptance is claimed;
   - the world is already complete at active root `zavx0z/lada`; activation
     must not be retried and a new preflight is neither required nor valid;
-  - no later geometry variation is installed or authorized. Any later
-    renderer/layout implementation requires separate authority and a fresh
-    browser screenshot. No hot reload, config/environment/port change,
-    rollback or GC is permitted.
+  - the immediate-parent planar-orbit slice received its one authorized normal
+    post-commit cold restart; health and a fresh browser-observer reconnect
+    path are verified. Visual acceptance remains open until a fresh relevant
+    screenshot. No additional restart, hot reload, activation retry, rollback
+    or GC is permitted.
 
 ### MF-109 — Реализовать Pause/Stack branchable execution workspace
 

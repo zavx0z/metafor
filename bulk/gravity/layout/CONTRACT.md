@@ -1,9 +1,12 @@
 # Договор раскладки Bulk × Gravity
 
-`bulk/gravity/layout` строит runtime-снимок manifestation для визуализации. Рендер и
-`pkg/engine` не участвуют в этом законе: сюда приходит реальное дерево Dark particles
-из полного Boundary projection, отсюда выходит `BulkManifest` с локальными transform,
-координатами и размерами materialized particles.
+`bulk/gravity/layout` строит runtime-снимок manifestation для визуализации.
+Канонический structural input — текущий рекурсивный projection snapshot,
+переданный Bulk Monad из полного Boundary projection. Layout не восстанавливает
+topology из координат и не использует ELK либо другой graph-layout engine.
+Рендер и `pkg/engine` не участвуют в этом законе: на выходе получается
+`BulkManifest` с локальными transform, координатами и размерами materialized
+particles.
 
 ## Закон Atom
 
@@ -14,8 +17,11 @@
   примерно `100 мм`; дочерний Atom получает единый uniform scale относительно родителя.
 - Один transform дочернего Atom охватывает его тор, подпись, Fields, orbital geometry,
   channels и всё реальное дочернее поддерево.
-- Дочерние Atom детерминированно упаковываются внутрь внутреннего envelope родителя по
-  materialized `parentDarkParticleId`. Отдельная декоративная иерархия не строится.
+- Только прямые дочерние Atom занимают один bounded planar orbit во внутреннем
+  envelope immediate owning Atom, в sibling order из Monad snapshot и по
+  materialized `parentDarkParticleId`. Это не row, spherical/Fibonacci packing
+  либо global allocation. Вложенный Atom начинает собственный локальный orbit;
+  отдельная декоративная иерархия не строится.
 - Внешний envelope родителя фиксирован. Число, содержимое или изменение потомков не
   пересчитывает размер parent torus снизу вверх; при плотном составе уменьшается
   allocation содержимого внутри родителя.
