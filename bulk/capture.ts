@@ -1,4 +1,4 @@
-import {createHash, timingSafeEqual} from "node:crypto"
+import {createHash} from "node:crypto"
 import {
   BULK_VIEWPORT_CAPTURE_VERSION,
   isBulkViewportCaptureControlResponse,
@@ -76,16 +76,10 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 const sessionDigest = (session: string): Uint8Array =>
   createHash("sha256").update(session).digest()
 
-const sameSession = (observer: Observer, session: string): boolean =>
-  timingSafeEqual(observer.sessionDigest, sessionDigest(session))
-
 const readRequest = (value: unknown): BulkViewportCaptureRequest | null => {
   if (
     !isRecord(value) ||
-    value.version !== BULK_VIEWPORT_CAPTURE_VERSION ||
-    typeof value.grant !== "string" ||
-    value.grant.length === 0 ||
-    value.grant.length > 512
+    value.version !== BULK_VIEWPORT_CAPTURE_VERSION
   ) return null
   if (
     value.observerId !== undefined &&
@@ -97,7 +91,6 @@ const readRequest = (value: unknown): BulkViewportCaptureRequest | null => {
   ) return null
   return {
     version: BULK_VIEWPORT_CAPTURE_VERSION,
-    grant: value.grant,
     ...(value.observerId === undefined ? {} : {observerId: value.observerId}),
   }
 }
@@ -300,11 +293,8 @@ export class BulkViewportCaptureRegistry {
     }
 
     const observer = matches[0]!
-    if (
-      !sameSession(observer, request.grant) ||
-      (observer.boundSource !== null && observer.boundSource !== context.source)
-    ) {
-      return failure("permission_denied", "Bulk observer session is not bound to this Monad caller")
+    if (observer.boundSource !== null && observer.boundSource !== context.source) {
+      return failure("permission_denied", "Bulk observer is bound to another Monad caller")
     }
     observer.boundSource ??= context.source
 

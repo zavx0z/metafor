@@ -6,11 +6,10 @@ export const BULK_VIEWPORT_CAPTURE_VERSION = 1 as const
 export type BulkViewportCaptureRequest = {
   version: typeof BULK_VIEWPORT_CAPTURE_VERSION
   /**
-   * The selected live observer's consumed one-use session capability. The first
-   * valid use binds that observer to the authenticated Monad caller identity.
+   * Selects an observer whose one-use browser session was already consumed by
+   * its live WebSocket. The first capture binds it to the authenticated Monad
+   * caller identity.
    */
-  grant: string
-  /** May be omitted only while exactly one Bulk observer is connected. */
   observerId?: string
 }
 

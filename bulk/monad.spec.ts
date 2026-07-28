@@ -154,7 +154,7 @@ describe("Bulk Monad", () => {
       MF117_BULK_VERIFY_METHOD,
       BULK_VIEWPORT_CAPTURE_METHOD,
     ])
-    const params = {version: 1, grant: "capability"}
+    const params = {version: 1, observerId: "bulk-web-owner"}
     expect(await captureHandler!(params, {source: "codex"})).toEqual({
       ok: false,
       error: {code: "permission_denied", message: "denied"},

@@ -372,13 +372,13 @@ WebGPU canvas texture в ограниченную browser-side texture. Capture 
 состояние и не является server/headless/desktop screenshot.
 
 Observer выбирается по `id`; без `id` capture допустим только при ровно одном
-подключённом observer. `id` является selector, но не правом доступа. Monad
-caller обязан передать одноразовую session capability именно выбранного
-observer. После её поглощения WebSocket Upgrade Bulk хранит только digest
-session на время этого соединения. Первый валидный capture связывает observer
-с аутентифицированным `source` Monad channel; до disconnect та же session не
-даёт другому caller и другому observer право чтения. Ручной deployment grant
-для basic capture не требуется.
+подключённом observer. Capture eligible только пока жив WebSocket, который
+успешно поглотил одноразовую browser session при Upgrade; Bulk хранит только
+digest session на время этого соединения. Monad request не переносит session
+или ручной grant. Первый валидный capture связывает выбранный observer с
+аутентифицированным `source` Monad channel, и до disconnect другой caller не
+получает право чтения. Ручная deployment-конфигурация для basic capture не
+требуется.
 
 Capture request/response идут по browser WebSocket-соединению, уже
 аутентифицированному одноразовой session, как явно дискриминированные control

@@ -56,10 +56,8 @@ class Client implements BulkViewportObserverClient {
 
 const request = (
   observerId?: string,
-  grant = OWNER_SESSION,
 ) => ({
   version: BULK_VIEWPORT_CAPTURE_VERSION,
-  grant,
   ...(observerId === undefined ? {} : {observerId}),
 })
 
@@ -116,20 +114,23 @@ const allowedRegistry = (
 })
 
 describe("Bulk observer viewport capture registry", () => {
-  test("defaults to deny and never treats an observer id as authorization", async () => {
-    const registry = new BulkViewportCaptureRegistry()
-    registry.connect(new Client("visible-observer"), OTHER_SESSION)
-
-    expect(await registry.capture(request("visible-observer"), {source: "codex"})).toEqual({
+  test("derives capture eligibility only from a session-authenticated live observer", async () => {
+    const registry = allowedRegistry()
+    const client = new Client("visible-observer")
+    expect(() => registry.connect(client, "")).toThrow("session capability is invalid")
+    expect(await registry.capture(request("visible-observer"), {source: "codex"})).toMatchObject({
       ok: false,
-      error: {
-        code: "permission_denied",
-        message: "Bulk observer session is not bound to this Monad caller",
-      },
+      error: {code: "observer_not_found"},
     })
+
+    registry.connect(client, OTHER_SESSION)
+    const pending = registry.capture(request("visible-observer"), {source: "codex"})
+    await Bun.sleep(0)
+    respond(registry, client, client.sent[0]!)
+    expect((await pending).ok).toBe(true)
   })
 
-  test("binds the live observer session to one Monad caller without deployment configuration", async () => {
+  test("binds each live observer to its first Monad caller without a request grant", async () => {
     const registry = allowedRegistry()
     const owner = new Client("owner")
     const unrelated = new Client("unrelated")
@@ -145,11 +146,14 @@ describe("Bulk observer viewport capture registry", () => {
       ok: false,
       error: {code: "permission_denied"},
     })
+    const unrelatedAllowed = registry.capture(request("unrelated"), {source: "other-caller"})
+    await Bun.sleep(0)
+    respond(registry, unrelated, unrelated.sent[0]!)
+    expect((await unrelatedAllowed).ok).toBe(true)
     expect(await registry.capture(request("unrelated"), {source: "codex"})).toMatchObject({
       ok: false,
       error: {code: "permission_denied"},
     })
-    expect(unrelated.sent).toHaveLength(0)
   })
 
   test("requires exactly one observer when selector is omitted and reports missing selectors", async () => {
@@ -267,7 +271,7 @@ describe("Bulk observer viewport capture registry", () => {
     expect((await pending).ok).toBe(true)
     expect(respond(registry, owner, control)).toBe(true)
 
-    const timedOut = registry.capture(request("spoof", OTHER_SESSION), {source: "codex"})
+    const timedOut = registry.capture(request("spoof"), {source: "codex"})
     await Bun.sleep(0)
     const late = spoof.sent[0]!
     expect(await timedOut).toMatchObject({ok: false, error: {code: "capture_timeout"}})
