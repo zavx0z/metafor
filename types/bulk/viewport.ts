@@ -108,11 +108,29 @@ export interface BulkViewportStats {
   darkParticleCount: number
 }
 
+/**
+ * Renderer-owned visibility gates used by the Visual playground. They never
+ * rewrite manifestation coordinates, ownership, scale or identity.
+ */
+export type BulkVisualLayer =
+  | "atom"
+  | "matter"
+  | "field"
+  | "state"
+  | "causal"
+  | "transition"
+  | "field-proxy"
+  | "relation"
+  | "label"
+  | "grid"
+
 export interface BulkViewportController {
   dispose(): void
   handleForce(_channel: string, _message: unknown): void
+  setAnimationEnabled(enabled: boolean): void
   setAnimationSuspended(suspended: boolean): void
   setSize(width: number, height: number): void
+  setVisualLayers(layers: readonly BulkVisualLayer[] | null): void
   /** Applies a manifest diff while retaining all unchanged render records. */
   applyManifestPatch(manifest: BulkManifest): void
 }
@@ -121,6 +139,7 @@ export type BulkViewportOptions = {
   canvas: HTMLCanvasElement
   height: number
   onStats?: (stats: BulkViewportStats) => void
+  visualLayers?: readonly BulkVisualLayer[]
   width: number
 }
 

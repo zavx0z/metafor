@@ -1,8 +1,10 @@
 import {describe, expect, test} from "bun:test"
 import type {BulkOrbitalParticle} from "@metafor/types/bulk/manifest"
 import {LineGlowMaterial} from "@metafor/engine"
-import {resolveOrbitalMaterialVisual} from "./orbital-material-visual.ts"
-import {resolveTorusStateVisual} from "./torus-state-visual.ts"
+import {
+	resolveOrbitalMaterialVisual,
+	resolveTorusStateVisual,
+} from "@metafor/visual"
 
 const particle = (
 	overrides: Partial<BulkOrbitalParticle> = {},

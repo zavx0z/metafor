@@ -1,0 +1,20 @@
+{
+  "name": "@metafor/visual",
+  "version": "0.0.1",
+  "description": "Shared Atom visualization components and their static-snapshot playground.",
+  "type": "module",
+  "private": true,
+  "main": "index.ts",
+  "types": "index.ts",
+  "exports": {
+    ".": "./index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit --pretty false",
+    "playground": "bun playground/server.ts"
+  },
+  "dependencies": {
+    "@metafor/engine": "workspace:*",
+    "@metafor/types": "workspace:*"
+  }
+}

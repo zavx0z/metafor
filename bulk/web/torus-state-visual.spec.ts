@@ -3,7 +3,7 @@ import {shouldContinueBulkRenderLoop} from "./render-loop.ts"
 import {
 	resolveSemanticStateColor,
 	resolveTorusStateVisual,
-} from "./torus-state-visual.ts"
+} from "@metafor/visual"
 
 const marker = (overrides: Partial<{
 	active: boolean

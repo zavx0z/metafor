@@ -1,6 +1,8 @@
 import {describe, expect, test} from "bun:test"
-import {resolveFieldParticleVisual} from "./field-particle-visual.ts"
-import {resolveTorusStateVisual} from "./torus-state-visual.ts"
+import {
+	resolveFieldParticleVisual,
+	resolveTorusStateVisual,
+} from "@metafor/visual"
 
 const field = {
 	fieldParticleId: "field:fixture",

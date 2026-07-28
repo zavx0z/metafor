@@ -1312,7 +1312,7 @@
     preserving raw type RGB and the ordinary depth-tested `scene` blend; it
     does not re-enter the rejected additive overlay;
   - implementation extracts that style into
-    `bulk/web/marker-bubble-visual.ts`. Potential State and Field both consume
+    `pkg/visual/internal/marker-bubble.ts`. Potential State and Field both consume
     it; Field refresh forwards shimmer amount and phase together with the
     existing material controls. Focused State/Field/material/WebGPU proof:
     `15 pass`, `0 fail`, `86 expect`; final `bun run check`: typecheck pass,

@@ -1,0 +1,604 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MetaFor Visual</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: "JetBrains Mono", ui-monospace, monospace;
+        background: #050b12;
+        color: #e8edf7;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body,
+      main {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+      }
+
+      main {
+        display: grid;
+        grid-template-columns: 250px minmax(0, 1fr) 280px;
+        background: #050b12;
+      }
+
+      main.state-graph-mode {
+        grid-template-columns: 220px minmax(520px, 1fr) 360px;
+      }
+
+      aside {
+        z-index: 2;
+        padding: 18px;
+        overflow: auto;
+        background: rgba(8, 15, 25, 0.94);
+        border-color: rgba(145, 171, 214, 0.18);
+      }
+
+      #stories {
+        border-right: 1px solid rgba(145, 171, 214, 0.18);
+      }
+
+      #controls {
+        border-left: 1px solid rgba(145, 171, 214, 0.18);
+      }
+
+      h1 {
+        margin: 0 0 4px;
+        font-size: 17px;
+      }
+
+      .eyebrow,
+      .meta,
+      output {
+        color: #8190a7;
+        font-size: 11px;
+      }
+
+      nav {
+        display: grid;
+        gap: 6px;
+        margin-top: 22px;
+      }
+
+      nav a {
+        display: block;
+        padding: 9px 11px;
+        border: 1px solid transparent;
+        border-radius: 8px;
+        color: #aebbd0;
+        text-decoration: none;
+      }
+
+      nav a:hover,
+      nav a.active {
+        color: white;
+        border-color: rgba(75, 205, 255, 0.42);
+        background: rgba(38, 137, 192, 0.14);
+      }
+
+      .nav-section {
+        margin: 14px 10px 2px;
+        padding-top: 14px;
+        border-top: 1px solid rgba(145, 171, 214, 0.14);
+        color: #6f7f96;
+        font-size: 10px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      #stage {
+        position: relative;
+        min-width: 0;
+        min-height: 0;
+        overflow: hidden;
+      }
+
+      canvas {
+        display: block;
+        width: 100%;
+        height: 100%;
+        touch-action: none;
+      }
+
+      [hidden] {
+        display: none !important;
+      }
+
+      #title {
+        position: absolute;
+        top: 18px;
+        left: 20px;
+        z-index: 1;
+        max-width: min(560px, calc(100% - 40px));
+        padding: 12px 14px;
+        border: 1px solid rgba(145, 171, 214, 0.18);
+        border-radius: 10px;
+        background: rgba(5, 11, 18, 0.78);
+        backdrop-filter: blur(12px);
+        pointer-events: none;
+      }
+
+      #title h2 {
+        margin: 0 0 5px;
+        font-size: 16px;
+      }
+
+      #description {
+        margin: 0;
+        color: #a7b4c9;
+        font-size: 12px;
+        line-height: 1.45;
+      }
+
+      #state-graph-stage {
+        position: absolute;
+        inset: 0;
+        min-height: 0;
+        padding: 24px;
+        overflow: auto;
+        background:
+          radial-gradient(circle at 22% 0%, rgba(39, 128, 178, 0.12), transparent 38%),
+          #050b12;
+      }
+
+      .state-graph-overview {
+        max-width: 1040px;
+        margin: 0 auto 22px;
+        padding: 17px 19px;
+        border: 1px solid rgba(145, 171, 214, 0.2);
+        border-radius: 12px;
+        background: rgba(8, 17, 29, 0.88);
+      }
+
+      .state-graph-overview h2 {
+        margin: 0 0 8px;
+        font-size: 17px;
+      }
+
+      .state-graph-overview p {
+        margin: 0;
+        color: #a7b4c9;
+        font-size: 11px;
+        line-height: 1.6;
+      }
+
+      #state-graph-cards {
+        display: grid;
+        gap: 18px;
+        max-width: 1040px;
+        margin: 0 auto;
+      }
+
+      .state-branch-card {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        min-height: 360px;
+        overflow: hidden;
+        border: 1px solid rgba(145, 171, 214, 0.2);
+        border-radius: 13px;
+        background: rgba(7, 14, 24, 0.9);
+        box-shadow: 0 14px 50px rgba(0, 0, 0, 0.18);
+      }
+
+      .state-branch-viewer {
+        position: relative;
+        min-height: 360px;
+        border-right: 1px solid rgba(145, 171, 214, 0.16);
+        background:
+          radial-gradient(circle at 50% 48%, rgba(31, 113, 154, 0.12), transparent 56%),
+          #030810;
+      }
+
+      .state-branch-canvas {
+        position: absolute;
+        inset: 0;
+      }
+
+      .state-branch-hint {
+        position: absolute;
+        right: 10px;
+        bottom: 9px;
+        z-index: 1;
+        padding: 5px 7px;
+        border: 1px solid rgba(145, 171, 214, 0.14);
+        border-radius: 6px;
+        background: rgba(3, 8, 15, 0.72);
+        color: #697b94;
+        font-size: 8px;
+        pointer-events: none;
+      }
+
+      .state-view-cube {
+        position: absolute;
+        top: 20px;
+        right: 24px;
+        z-index: 3;
+        width: 70px;
+        height: 70px;
+        perspective: 190px;
+      }
+
+      .state-view-cube-body {
+        position: absolute;
+        top: 9px;
+        left: 9px;
+        width: 52px;
+        height: 52px;
+        transform: rotateX(-24deg) rotateY(36deg);
+        transform-style: preserve-3d;
+      }
+
+      .state-view-cube-face {
+        position: absolute;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        padding: 0;
+        border: 1px solid rgba(133, 218, 255, 0.72);
+        border-radius: 3px;
+        background: rgba(20, 52, 72, 0.82);
+        color: #c6efff;
+        font: 700 7px/1 "JetBrains Mono", ui-monospace, monospace;
+        letter-spacing: 0.02em;
+        cursor: pointer;
+        backface-visibility: visible;
+        transition:
+          background 120ms ease,
+          color 120ms ease,
+          box-shadow 120ms ease;
+      }
+
+      .state-view-cube-face:hover,
+      .state-view-cube-face.active {
+        background: rgba(52, 174, 226, 0.92);
+        color: white;
+        box-shadow: inset 0 0 16px rgba(150, 234, 255, 0.38);
+      }
+
+      .state-view-cube-face.front {
+        transform: translateZ(26px);
+      }
+
+      .state-view-cube-face.back {
+        transform: rotateY(180deg) translateZ(26px);
+      }
+
+      .state-view-cube-face.right {
+        transform: rotateY(90deg) translateZ(26px);
+      }
+
+      .state-view-cube-face.left {
+        transform: rotateY(-90deg) translateZ(26px);
+      }
+
+      .state-view-cube-face.top {
+        transform: rotateX(90deg) translateZ(26px);
+      }
+
+      .state-view-cube-face.bottom {
+        transform: rotateX(-90deg) translateZ(26px);
+      }
+
+      .state-branch-detail {
+        min-width: 0;
+        padding: 18px;
+        overflow: auto;
+      }
+
+      .state-branch-heading {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 16px;
+      }
+
+      .state-branch-heading h3 {
+        margin: 0;
+        font-size: 14px;
+      }
+
+      .state-branch-outcome {
+        padding: 4px 7px;
+        border: 1px solid rgba(98, 218, 255, 0.28);
+        border-radius: 999px;
+        color: #7ddcfb;
+        font-size: 8px;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+      }
+
+      .state-branch-outcome.cycle {
+        border-color: rgba(255, 174, 76, 0.32);
+        color: #e7ae67;
+      }
+
+      .state-branch-outcome.missing-state {
+        border-color: rgba(255, 86, 108, 0.34);
+        color: #ef8190;
+      }
+
+      .state-branch-section-label {
+        margin: 15px 0 6px;
+        color: #6f819b;
+        font-size: 8px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .state-branch-path,
+      .state-branch-outcome-text {
+        margin: 0;
+        color: #dbe5f3;
+        font-size: 10px;
+        line-height: 1.55;
+        overflow-wrap: anywhere;
+      }
+
+      .state-branch-outcome-text {
+        margin-top: 7px;
+        color: #91a2b9;
+      }
+
+      .state-branch-counts {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 6px 12px;
+        margin: 14px 0 0;
+        padding: 11px 0;
+        border-top: 1px solid rgba(145, 171, 214, 0.12);
+        border-bottom: 1px solid rgba(145, 171, 214, 0.12);
+        color: #91a2b9;
+        font-size: 9px;
+      }
+
+      .state-branch-counts dt,
+      .state-branch-counts dd {
+        margin: 0;
+      }
+
+      .state-branch-counts dd {
+        color: white;
+      }
+
+      .state-branch-transitions {
+        display: grid;
+        gap: 6px;
+        margin: 0;
+        padding-left: 18px;
+        color: #9fb0c7;
+        font-size: 9px;
+        line-height: 1.5;
+      }
+
+      .state-graph-empty {
+        margin: 0;
+        padding: 24px;
+        border: 1px dashed rgba(145, 171, 214, 0.2);
+        border-radius: 12px;
+        color: #8190a7;
+        font-size: 11px;
+      }
+
+      fieldset {
+        display: grid;
+        gap: 10px;
+        margin: 0 0 18px;
+        padding: 0;
+        border: 0;
+      }
+
+      legend {
+        margin-bottom: 11px;
+        color: #d4dcea;
+        font-size: 12px;
+      }
+
+      label {
+        display: grid;
+        gap: 5px;
+        color: #aebbd0;
+        font-size: 11px;
+      }
+
+      label.inline {
+        grid-template-columns: 18px 1fr;
+        align-items: center;
+      }
+
+      input[type="range"] {
+        width: 100%;
+      }
+
+      #counts,
+      #state-graph-counts {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 7px 12px;
+        margin: 0;
+        color: #aebbd0;
+        font-size: 11px;
+      }
+
+      #counts dt,
+      #counts dd,
+      #state-graph-counts dt,
+      #state-graph-counts dd {
+        margin: 0;
+      }
+
+      #counts dd,
+      #state-graph-counts dd {
+        color: white;
+      }
+
+      #state-graph-controls label {
+        margin-bottom: 18px;
+      }
+
+      #state-graph-controls select {
+        width: 100%;
+        padding: 7px 8px;
+        border: 1px solid rgba(145, 171, 214, 0.22);
+        border-radius: 7px;
+        background: #08111d;
+        color: #dce5f3;
+      }
+
+      #state-graph-summary {
+        margin: -5px 0 18px;
+        color: #8190a7;
+        font-size: 10px;
+        line-height: 1.5;
+      }
+
+      .code-panel {
+        margin: 0 0 18px;
+      }
+
+      .code-panel h3 {
+        margin: 0 0 8px;
+        color: #d4dcea;
+        font-size: 12px;
+        font-weight: 400;
+      }
+
+      .code-source {
+        display: block;
+        margin: -3px 0 8px;
+        color: #71839d;
+        font-size: 8px;
+        line-height: 1.4;
+        overflow-wrap: anywhere;
+      }
+
+      .code-panel pre {
+        max-height: 285px;
+        margin: 0;
+        padding: 11px;
+        overflow: auto;
+        border: 1px solid rgba(145, 171, 214, 0.16);
+        border-radius: 8px;
+        background: rgba(3, 8, 14, 0.72);
+        color: #9fb1c9;
+        font: 10px/1.45 "JetBrains Mono", ui-monospace, monospace;
+        white-space: pre;
+      }
+
+      @media (max-width: 900px) {
+        main {
+          grid-template-columns: 180px minmax(0, 1fr);
+        }
+
+        #controls {
+          display: none;
+        }
+
+        .state-branch-card {
+          grid-template-columns: 1fr;
+        }
+
+        .state-branch-viewer {
+          border-right: 0;
+          border-bottom: 1px solid rgba(145, 171, 214, 0.16);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <aside id="stories">
+        <div class="eyebrow">pkg/visual</div>
+        <h1>Atom stories</h1>
+        <div class="meta">static Monad snapshot</div>
+        <nav id="navigation"></nav>
+      </aside>
+      <section id="stage">
+        <div id="title">
+          <h2 id="entity"></h2>
+          <p id="description"></p>
+        </div>
+        <canvas id="visual-canvas"></canvas>
+        <section id="state-graph-stage" hidden>
+          <header class="state-graph-overview">
+            <h2 id="state-graph-overview-title"></h2>
+            <p id="state-graph-overview"></p>
+          </header>
+          <div id="state-graph-cards"></div>
+        </section>
+      </section>
+      <aside id="controls">
+        <div id="visual-controls">
+          <fieldset>
+            <legend>Visual</legend>
+            <label class="inline">
+              <input id="context" type="checkbox" />
+              <span>Atom context</span>
+            </label>
+            <label class="inline">
+              <input id="labels" type="checkbox" checked />
+              <span>Labels</span>
+            </label>
+            <label class="inline">
+              <input id="grid" type="checkbox" checked />
+              <span>Grid</span>
+            </label>
+            <label class="inline">
+              <input id="animation" type="checkbox" />
+              <span>Animation</span>
+            </label>
+          </fieldset>
+          <fieldset>
+            <legend>Layout</legend>
+            <label>
+              <span>Inner diameter <output id="inner-output"></output></span>
+              <input id="inner" type="range" min="18" max="48" step="1" />
+            </label>
+            <label>
+              <span>Marker radius <output id="radius-output"></output></span>
+              <input id="radius" type="range" min="2" max="8" step="0.25" />
+            </label>
+            <label>
+              <span>Orbit gap <output id="gap-output"></output></span>
+              <input id="gap" type="range" min="0" max="5" step="0.25" />
+            </label>
+          </fieldset>
+          <fieldset>
+            <legend>Manifest</legend>
+            <dl id="counts"></dl>
+          </fieldset>
+        </div>
+        <div id="state-graph-controls" hidden>
+          <label>
+            <span>Atom</span>
+            <select id="state-graph-atom"></select>
+          </label>
+          <fieldset>
+            <legend>Граф будущих путей</legend>
+            <dl id="state-graph-counts"></dl>
+          </fieldset>
+          <p id="state-graph-summary"></p>
+          <section class="code-panel">
+            <h3>MetaFor DSL · superposition</h3>
+            <span id="state-graph-dsl-path" class="code-source"></span>
+            <pre id="state-graph-dsl"></pre>
+          </section>
+          <section class="code-panel">
+            <h3>JSON граф</h3>
+            <pre id="state-graph-json"></pre>
+          </section>
+        </div>
+      </aside>
+    </main>
+    <script type="module" src="./client.ts"></script>
+  </body>
+</html>

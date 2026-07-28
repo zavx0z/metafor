@@ -13,6 +13,7 @@ import type {
 	BulkViewportFitAxis,
 	BulkViewportOptions,
 	BulkViewportStats,
+	BulkVisualLayer,
 	BulkViewPose,
 	BulkWebkitFullscreenDocument,
 	BulkWebkitFullscreenElement,
@@ -52,8 +53,10 @@ import {
 	resolveDarkParticleTorusLayer,
 	resolveDarkParticleTorusOpacity,
 } from "./torus-visual.ts"
-import {resolveOrbitalMaterialVisual} from "./orbital-material-visual.ts"
-import {resolveFieldParticleVisual} from "./field-particle-visual.ts"
+import {
+	resolveFieldParticleVisual,
+	resolveOrbitalMaterialVisual,
+} from "@metafor/visual"
 import {resolveAtomMarkerPosition} from "./atom-marker-placement.ts"
 import {resolveOwnedAtomVisualFitBounds} from "./atom-visual-fit.ts"
 import {
@@ -1698,7 +1701,8 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	const raycaster = new Raycaster()
 	const space = new Space()
 	space.background = ROOT_BACKGROUND.clone()
-	space.add(createWorkspaceGrid())
+	const workspaceGrid = createWorkspaceGrid()
+	space.add(workspaceGrid)
 
 	const workspace = new Object3D()
 	workspace.position.set(0, 0, getWorkspaceBaseZ())
@@ -1750,6 +1754,8 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	const fadingRemovalRecords: FadingRemovalRecord[] = []
 	const labelRecords = new Map<string, LabelRenderRecord>()
 	const fadingLabelRemovalRecords: FadingLabelRemovalRecord[] = []
+	let activeVisualLayers: ReadonlySet<BulkVisualLayer> | null =
+		options.visualLayers === undefined ? null : new Set(options.visualLayers)
 	const reusableScenePosition = new Vector3()
 	const reusableInheritedScale = new Vector3()
 	const reusableSceneQuaternion = new Quaternion()
@@ -1779,13 +1785,67 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	const reusableCosmosAxis = new Vector3(0, 0, 1)
 	const reusableCosmosSpin = new Quaternion()
 
+	const visualLayerVisible = (layer: BulkVisualLayer): boolean =>
+		activeVisualLayers === null || activeVisualLayers.has(layer)
+
+	const orbitalVisualLayer = (
+		particle: Pick<BulkOrbitalParticle, "orbitalParticleKind">,
+	): BulkVisualLayer => particle.orbitalParticleKind === "state" ? "state" : "causal"
+
+	const syncVisualLayerVisibility = (): void => {
+		workspaceGrid.visible = visualLayerVisible("grid")
+		fieldBillboardsLayer.visible = visualLayerVisible("field")
+		for (const record of darkParticleRecords.values()) {
+			const layer: BulkVisualLayer =
+				record.snapshot.parentDarkParticleId === null ? "atom" : "matter"
+			record.torus.visible =
+				record.snapshot.darkParticleKind !== "axion" &&
+				visualLayerVisible(layer)
+		}
+		for (const record of fieldParticleRecords.values()) {
+			record.node.visible = visualLayerVisible("field")
+		}
+		for (const record of orbitalParticleRecords.values()) {
+			record.node.visible = visualLayerVisible(orbitalVisualLayer(record.snapshot))
+		}
+		for (const record of transitionChannelRecords.values()) {
+			record.line.visible = visualLayerVisible("transition")
+		}
+		for (const record of fieldProxyRecords.values()) {
+			record.node.visible = visualLayerVisible("field-proxy")
+		}
+		for (const record of relationChannelRecords.values()) {
+			record.line.visible = visualLayerVisible("relation")
+		}
+		for (const record of labelRecords.values()) {
+			let entityVisible = false
+			if (record.kind === "fieldParticle") {
+				entityVisible = visualLayerVisible("field")
+			} else if (record.kind === "orbitalParticle") {
+				const particle = orbitalParticleRecords.get(
+					record.key.slice("orbitalParticle:".length),
+				)
+				entityVisible = particle !== undefined &&
+					visualLayerVisible(orbitalVisualLayer(particle.snapshot))
+			} else {
+				const particle = darkParticleRecords.get(
+					Number(record.key.slice("darkParticle:".length)),
+				)
+				const layer: BulkVisualLayer =
+					particle?.snapshot.parentDarkParticleId === null ? "atom" : "matter"
+				entityVisible = particle !== undefined && visualLayerVisible(layer)
+			}
+			record.container.visible = visualLayerVisible("label") && entityVisible
+		}
+	}
+
 	const viewPoint = new ViewPoint({
 		element: options.canvas,
 		fov: viewportConfig.camera.fovRad,
 		near: viewportConfig.camera.near,
 		far: viewportConfig.camera.far,
 		position: viewportConfig.camera.position,
-		 target: viewportConfig.camera.target,
+		target: viewportConfig.camera.target,
 	})
 	/**
 	 * Камера в Bulk свободно подходит к атомам. Постоянный near=1 обрезал
@@ -1938,7 +1998,12 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	const refreshPickTargets = (): void => {
 		pickTargets = [
 			...[...darkParticleRecords.values()]
-				.filter((record) => record.snapshot.darkParticleKind !== "axion")
+				.filter((record) =>
+					record.snapshot.darkParticleKind !== "axion" &&
+					visualLayerVisible(
+						record.snapshot.parentDarkParticleId === null ? "atom" : "matter",
+					),
+				)
 				.sort(
 					(left, right) =>
 						left.snapshot.depth - right.snapshot.depth ||
@@ -1947,6 +2012,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 				)
 				.map((record) => record.pickTarget),
 			...[...fieldParticleRecords.values()]
+				.filter(() => visualLayerVisible("field"))
 				.sort(
 					(left, right) =>
 						left.depth - right.depth ||
@@ -1973,7 +2039,11 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			record.snapshot.depth,
 		)
 		const visual = resolveDarkParticleVisualState(record.snapshot)
-		record.torus.visible = record.snapshot.darkParticleKind !== "axion"
+		record.torus.visible =
+			record.snapshot.darkParticleKind !== "axion" &&
+			visualLayerVisible(
+				record.snapshot.parentDarkParticleId === null ? "atom" : "matter",
+			)
 		record.pickTarget.baseColor.copy(visual.color)
 		record.pickTarget.baseGlowColor = visual.glowColor.clone()
 		record.pickTarget.baseGlowIntensity = visual.glowIntensity
@@ -2009,7 +2079,11 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			),
 			material,
 		)
-		torus.visible = darkParticle.darkParticleKind !== "axion"
+		torus.visible =
+			darkParticle.darkParticleKind !== "axion" &&
+			visualLayerVisible(
+				darkParticle.parentDarkParticleId === null ? "atom" : "matter",
+			)
 		torus.updateMatrix()
 
 		const container = new Object3D()
@@ -2983,9 +3057,10 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		}
 
 		refreshParentByDarkParticleId()
-		refreshPickTargets()
 		syncLabelRecords()
 		syncFieldParticleBillboardRecords()
+		syncVisualLayerVisibility()
+		refreshPickTargets()
 		applyRootViewportFit()
 		requestRenderLoop(SCENE_TRANSITION_WAKE_MS)
 
@@ -3315,41 +3390,41 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	const atomVisualFitBounds = (
 		record: DarkParticleRenderRecord,
 		center: Vector3,
-	) => resolveOwnedAtomVisualFitBounds(
-		record.snapshot.darkParticleId,
-		center,
-		[
-			{
-				atomId: record.snapshot.darkParticleId,
-				geometry: record.torus.geometry,
-				node: record.torus,
-			},
-			...[...fieldProxyRecords.values()].map((proxy) => ({
-				atomId: proxy.snapshot.parentDarkParticleId,
-				geometry: proxy.node.geometry,
-				node: proxy.node,
-			})),
-			...[...transitionChannelRecords.values()].map((channel) => ({
-				atomId: channel.snapshot.parentDarkParticleId,
-				geometry: channel.line.geometry,
-				node: channel.line,
-			})),
-			...[...relationChannelRecords.values()].map((channel) => ({
-				atomId: channel.snapshot.parentDarkParticleId,
-				geometry: channel.line.geometry,
-				node: channel.line,
-			})),
-		],
-		[
-			...[...fieldParticleRecords.values()].map((field) => ({
-				atomId: field.snapshot.parentDarkParticleId,
-				node: field.node,
-				radius: field.snapshot.sphereRadius,
-			})),
-			...[...orbitalParticleRecords.values()].map((particle) => ({
-				atomId: particle.snapshot.parentDarkParticleId,
-				node: particle.node,
-				radius: particle.snapshot.sphereRadius,
+		) => resolveOwnedAtomVisualFitBounds(
+			record.snapshot.darkParticleId,
+			center,
+			[
+				...(record.torus.visible ? [{
+						atomId: record.snapshot.darkParticleId,
+						geometry: record.torus.geometry,
+						node: record.torus,
+					}] : []),
+				...[...fieldProxyRecords.values()].filter((proxy) => proxy.node.visible).map((proxy) => ({
+					atomId: proxy.snapshot.parentDarkParticleId,
+					geometry: proxy.node.geometry,
+					node: proxy.node,
+				})),
+				...[...transitionChannelRecords.values()].filter((channel) => channel.line.visible).map((channel) => ({
+					atomId: channel.snapshot.parentDarkParticleId,
+					geometry: channel.line.geometry,
+					node: channel.line,
+				})),
+				...[...relationChannelRecords.values()].filter((channel) => channel.line.visible).map((channel) => ({
+					atomId: channel.snapshot.parentDarkParticleId,
+					geometry: channel.line.geometry,
+					node: channel.line,
+				})),
+			],
+			[
+				...[...fieldParticleRecords.values()].filter((field) => field.node.visible).map((field) => ({
+					atomId: field.snapshot.parentDarkParticleId,
+					node: field.node,
+					radius: field.snapshot.sphereRadius,
+				})),
+				...[...orbitalParticleRecords.values()].filter((particle) => particle.node.visible).map((particle) => ({
+					atomId: particle.snapshot.parentDarkParticleId,
+					node: particle.node,
+					radius: particle.snapshot.sphereRadius,
 			})),
 		],
 	)
@@ -4503,6 +4578,16 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			applyGluonFieldsForce(_message)
 			spawnImpulseParticle(_message)
 		},
+		setAnimationEnabled(enabled: boolean) {
+			if (activeRenderSettings.animationEnabled === enabled) return
+			activeRenderSettings = normalizeBulkRenderSettings({
+				...activeRenderSettings,
+				animationEnabled: enabled,
+			})
+			lastAnimationTimestamp = 0
+			if (enabled && !animationSuspended) requestRenderLoop()
+			else requestRenderLoop(INPUT_RENDER_WAKE_MS)
+		},
 		setAnimationSuspended(suspended: boolean) {
 			if (animationSuspended === suspended) return
 			animationSuspended = suspended
@@ -4519,6 +4604,12 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			if (rootFitLockedToViewport) applyRootViewportFit({force: viewportSizeChanged})
 			else if (viewportSizeChanged) applyFocusedViewportFit()
 			hudRuntime.handleSize(width, height)
+			requestRenderLoop(INPUT_RENDER_WAKE_MS)
+		},
+		setVisualLayers(layers: readonly BulkVisualLayer[] | null) {
+			activeVisualLayers = layers === null ? null : new Set(layers)
+			syncVisualLayerVisibility()
+			refreshPickTargets()
 			requestRenderLoop(INPUT_RENDER_WAKE_MS)
 		},
 		applyManifestPatch(nextManifest: BulkManifest) {

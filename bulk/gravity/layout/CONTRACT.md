@@ -151,6 +151,20 @@ particles.
   Fit target остаётся в центре torus, а существующее направление камеры не
   меняется. Persisted pose, layout и geometry этим framing-законом не
   переписываются.
+- Production Bulk и entity-страницы отдельного Visual playground используют
+  одну реализацию Atom, его marker materials и renderer scene. Playground
+  получает один сохранённый полный `BulkObserverSnapshot`, проводит его через
+  обычные `BulkProjectionStore → buildBulkManifestation` и показывает такие
+  страницы только visibility-линзой. Такая линза может скрывать слои или
+  выбирать occurrences для исследования, но не вычисляет собственные
+  координаты, scale, ownership, channels или semantic color.
+- Явно названные algorithm-lab страницы playground не являются preview
+  production manifestation. Они могут строить из того же статического snapshot
+  изолированные экспериментальные сцены для сравнения раскладок, но эти
+  координаты и связи не становятся законом Bulk и не интегрируются в него без
+  отдельного решения. Playground остаётся отдельным dev-entry: не входит в
+  production bundle, не создаёт второй renderer в Bulk и не запрашивает live
+  contour во время работы.
 
 ## Трёхуровневый coordinate contract Лады
 

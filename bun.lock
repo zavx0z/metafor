@@ -59,6 +59,7 @@
         "@bulk/weak": "workspace:*",
         "@metafor/engine": "workspace:*",
         "@metafor/types": "workspace:*",
+        "@metafor/visual": "workspace:*",
         "@ui/components": "workspace:*",
         "@ui/elements": "workspace:*",
         "@ui/hud": "workspace:*",
@@ -186,6 +187,14 @@
         "@ui/elements": "workspace:*",
       },
     },
+    "pkg/visual": {
+      "name": "@metafor/visual",
+      "version": "0.0.1",
+      "dependencies": {
+        "@metafor/engine": "workspace:*",
+        "@metafor/types": "workspace:*",
+      },
+    },
     "shared": {
       "name": "shared",
       "version": "0.0.1",
@@ -227,6 +236,8 @@
     "@metafor/template": ["@metafor/template@workspace:pkg/template"],
 
     "@metafor/types": ["@metafor/types@workspace:types"],
+
+    "@metafor/visual": ["@metafor/visual@workspace:pkg/visual"],
 
     "@shikijs/engine-oniguruma": ["@shikijs/engine-oniguruma@3.23.0", "", { "dependencies": { "@shikijs/types": "3.23.0", "@shikijs/vscode-textmate": "^10.0.2" } }, "sha512-1nWINwKXxKKLqPibT5f4pAFLej9oZzQTsby8942OTlsJzOBZ0MWKiwzMsd+jhzu8YPCHAswGnnN1YtQfirL35g=="],
 
