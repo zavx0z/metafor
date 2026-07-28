@@ -38,6 +38,7 @@ export class TorusGeometry extends BufferGeometry {
     this.tubularSegments = tubularSegments
 
     const vertices: number[] = []
+    const normals: number[] = []
     const indices: number[] = []
 
     for (let j = 0; j <= radialSegments; j++) {
@@ -50,6 +51,11 @@ export class TorusGeometry extends BufferGeometry {
         const z = tube * Math.sin(v)
 
         vertices.push(x, y, z)
+        normals.push(
+          Math.cos(v) * Math.cos(u),
+          Math.cos(v) * Math.sin(u),
+          Math.sin(v),
+        )
       }
     }
 
@@ -67,6 +73,7 @@ export class TorusGeometry extends BufferGeometry {
 
     this.setIndex(new BufferAttribute(new Uint16Array(indices), 1))
     this.setAttribute("position", new BufferAttribute(new Float32Array(vertices), 3))
+    this.setAttribute("normal", new BufferAttribute(new Float32Array(normals), 3))
   }
 
   public override toWireframe(): BufferGeometry {
@@ -77,23 +84,19 @@ export class TorusGeometry extends BufferGeometry {
 
     const getIndex = (j: number, i: number) => (j * (tubularSegments + 1) + i) * 3
 
-    for (let j = 0; j <= radialSegments; j++) {
-      for (let i = 0; i <= tubularSegments; i++) {
+    for (let j = 0; j < radialSegments; j++) {
+      for (let i = 0; i < tubularSegments; i++) {
         const a = getIndex(j, i)
+        const b = getIndex(j, i + 1)
+        const c = getIndex(j + 1, i)
 
-        // Tubular line (around the tube)
-        if (i < tubularSegments) {
-          const b = getIndex(j, i + 1)
-          lines.push(positions[a]!, positions[a + 1]!, positions[a + 2]!)
-          lines.push(positions[b]!, positions[b + 1]!, positions[b + 2]!)
-        }
-
-        // Radial line (around the torus)
-        if (j < radialSegments) {
-          const c = getIndex(j + 1, i)
-          lines.push(positions[a]!, positions[a + 1]!, positions[a + 2]!)
-          lines.push(positions[c]!, positions[c + 1]!, positions[c + 2]!)
-        }
+        // Both parameter grids close through their duplicated 2π endpoint.
+        // Iterating only the unique 0..<segments cells avoids drawing each
+        // seam twice as an artificially bright ring.
+        lines.push(positions[a]!, positions[a + 1]!, positions[a + 2]!)
+        lines.push(positions[b]!, positions[b + 1]!, positions[b + 2]!)
+        lines.push(positions[a]!, positions[a + 1]!, positions[a + 2]!)
+        lines.push(positions[c]!, positions[c + 1]!, positions[c + 2]!)
       }
     }
 
