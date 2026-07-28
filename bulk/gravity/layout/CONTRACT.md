@@ -102,6 +102,62 @@
   меняется. Persisted pose, layout и geometry этим framing-законом не
   переписываются.
 
+## Трёхуровневый coordinate contract Лады
+
+Acceptance fixture использует ровно принятую MF-117 projection, а не
+альтернативную тестовую Вселенную:
+
+```text
+Lada (Atom 2; manifest 4)
+├── Auth (Atom 3; manifest 6)
+├── Chat (Atom 4; manifest 8)
+│   └── ChatSend (Atom 6; manifest 12)
+└── Model (Atom 5; manifest 10)
+```
+
+Текущий transform содержит только translation
+`t = (localX, localY, localZ)` и положительный uniform scale
+`s = torusScale`. Обозначим такой локальный transform как `L`, а полный frame
+Atom в world coordinates как `F`. Renderer материализует ровно эту parent
+chain и получает композицию через scene graph; он не создаёт для Matter второй
+envelope, центр или transform.
+
+| Уровень | Atom frame | Что authored/materialized локально | Что наследуется | World law |
+| --- | --- | --- | --- | --- |
+| 0 | `F_Lada` | root frame Lada и координаты её собственного содержимого | только verified former-root frame при promotion либо обычный selected-root frame | `F_Lada = L_Lada` |
+| 1 | `F_Auth`, `F_Chat`, `F_Model` | отдельные `L_Auth`, `L_Chat`, `L_Model` в frame Lada | ровно `F_Lada` | `F_child = F_Lada ∘ L_child` |
+| 2 | `F_ChatSend` | отдельный `L_ChatSend` в frame Chat | полный `F_Chat = F_Lada ∘ L_Chat` | `F_ChatSend = F_Lada ∘ L_Chat ∘ L_ChatSend` |
+
+Для translation и uniform scale композиция проверяется численно:
+
+```text
+worldOrigin(child) = worldOrigin(parent) + worldScale(parent) * t_child
+worldScale(child)  = worldScale(parent) * s_child
+```
+
+Matter child authored только в локальном frame своего непосредственного
+owning Atom. Для его полного локального outer radius `R_child`, uniform scale
+`s_child` и фиксированного inner envelope `r_inner(parent)` обязательно:
+
+```text
+|t_child| + s_child * R_child <= r_inner(parent)
+```
+
+В world coordinates тот же закон обязан сохраниться после композиции:
+
+```text
+|O_child^W - O_parent^W| + S_child^W * R_child
+  <= S_parent^W * r_inner(parent)
+```
+
+Bound проверяется сначала для Auth/Chat/Model относительно Lada, затем отдельно
+для ChatSend относительно Chat. ChatSend нельзя author-ить в frame Lada,
+прикреплять к root container либо вычислять как `F_Lada ∘ L_ChatSend`.
+Его world origin и scale обязаны быть результатом композиции через Chat и
+отличаться как от `F_Chat`, так и от `F_Lada`. Координаты из разных локальных
+frames нельзя сравнивать или соединять до явного приведения обеих точек в
+world coordinates.
+
 ## Следствие
 
 Добавление или изменение дочернего Atom может детерминированно изменить внутреннюю

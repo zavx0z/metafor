@@ -15,6 +15,7 @@ import {DEFAULT_BULK_SETTINGS} from "./settings.ts"
 import {BulkMonad} from "./monad.ts"
 import {BulkProjectionStore} from "./projection.ts"
 import {buildBulkManifestation} from "./manifestation.ts"
+import {LADA_TOPOLOGY_WIMPS, ladaTopologyAtoms} from "./gravity/layout/lada-topology.fixture.ts"
 
 const temporaryDirectories: string[] = []
 afterEach(() => {
@@ -44,20 +45,12 @@ const mf117Entries = (
 ): BoundaryInitialProjectionEntry[] => {
   const atoms = [
     {id: 1, parentAtom: null, parentTopology: null, wimp: "zavx0z/inference", position: 0},
-    {id: 2, parentAtom: promoted ? null : 1, parentTopology: null, wimp: "zavx0z/lada", position: 0},
-    {id: 3, parentAtom: 2, parentTopology: null, wimp: "zavx0z/lada-auth", position: 0},
-    {id: 4, parentAtom: 2, parentTopology: null, wimp: "zavx0z/lada-chat", position: 1},
-    {id: 5, parentAtom: 2, parentTopology: null, wimp: "zavx0z/lada-model", position: 2},
-    {id: 6, parentAtom: 4, parentTopology: null, wimp: "zavx0z/lada-chat-send", position: 0},
+    ...ladaTopologyAtoms(promoted ? null : 1),
   ].filter(({id}) => !(promoted && id === 1))
   return [
     ...[
       ["zavx0z/inference", "Inference"],
-      ["zavx0z/lada", "Lada"],
-      ["zavx0z/lada-auth", "Auth"],
-      ["zavx0z/lada-chat", "Chat"],
-      ["zavx0z/lada-model", "Model"],
-      ["zavx0z/lada-chat-send", "Chat send"],
+      ...LADA_TOPOLOGY_WIMPS.map(({src, name}) => [src, name]),
     ].map(([src, name]) => ({
       part: "graviton" as const,
       op: "add" as const,

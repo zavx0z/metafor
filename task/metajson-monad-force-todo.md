@@ -1125,6 +1125,28 @@
     successfully;
   - `bun run check`: typecheck pass, `42` expected diagnostics,
     `1706 pass`, `0 fail`, `5846 expect` in `199` test files.
+  - owner rejected the sole post-baseline centering commit
+    `7cb0d80ee527529c1ae3da5575c6eafe47b75ec5`; canonical
+    `codex-local-integration` was reset exactly to accepted baseline
+    `2651e064f70a1e22592a48cda7cec6f23909672b`;
+  - one owner-authorized standard cold restart restored that source without
+    config/environment/port changes. All six health endpoints returned `ok`,
+    Force returned `running`, Matrix returned `gpu`/`initialized`, and the
+    post-restart journal recorded a new Bulk browser connection;
+  - the follow-up source slice is contract/test-only: the existing accepted
+    five-Atom Lada projection is shared as one deterministic fixture, with
+    Auth/Chat/Model directly under Lada and ChatSend under Chat. The explicit
+    three-level law composes translation plus uniform scale as
+    `Lada → Chat → ChatSend`, checks direct-owner local/world bounds and
+    forbids a root-skipping ChatSend frame;
+  - focused coordinate plus existing MF-117 Monad proof:
+    `11 pass`, `0 fail`, `69 expect`; current `bun run check`: typecheck pass,
+    `42` expected diagnostics, `1706 pass`, `0 fail`, `5819 expect` in `200`
+    test files; `git diff --check` clean;
+  - no renderer/layout implementation, visual geometry, data, DB, receipts,
+    State computation, topology/identity, config/ports, activation/preflight,
+    GC, navigation, links or Monad capture changed. No new visual success is
+    claimed.
 - Activation constraints:
   - visual commit `faa6a33d` received one authorized standard cold restart;
     the service returned active/running, all six ports listened and startup
@@ -1143,17 +1165,16 @@
     in the actual portrait viewport the old initial fit kept the torus at
     NDC `0.927` while legal marker centers reached `1.154` and a local
     Field-proxy endpoint reached `1.287`;
-  - the final-world Atom visual-fit follow-up performs no runtime, HMR,
-    restart, rollback, deletion or GC action;
   - the pre-sphere visual restoration keeps that later camera-fit algorithm
-    unchanged and remains cold-unverified until a separately authorized
-    complete service restart and fresh browser proof;
+    unchanged. Accepted baseline `2651e064` is now cold-installed with health
+    and browser reconnect proof only; no fresh screenshot or new visual
+    acceptance is claimed;
   - the world is already complete at active root `zavx0z/lada`; activation
     must not be retried and a new preflight is neither required nor valid;
-  - this Atom visual-fit follow-up remains cold-unverified; live HMR was not
-    used as acceptance. Any later installation requires separate authorization
-    and a fresh browser screenshot. No hot reload, config/environment/port
-    change, rollback or GC is permitted.
+  - no later geometry variation is installed or authorized. Any later
+    renderer/layout implementation requires separate authority and a fresh
+    browser screenshot. No hot reload, config/environment/port change,
+    rollback or GC is permitted.
 
 ### MF-109 — Реализовать Pause/Stack branchable execution workspace
 
