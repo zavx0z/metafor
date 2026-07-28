@@ -884,8 +884,10 @@ Root и non-root Atom toruses используют одну scene-depth visual-�
 наличие родителя не меняет opacity, luminance, glow или render layer.
 Собственные Fields каждого Atom используют одну semantic material-функцию,
 сохраняют цвет типа и единичный shader-local scale независимо от depth. Field
-использует общий с potential State читаемый marker-class (`overlay`, alpha,
-glow, luminance), а не умноженный на `wireframeOpacity` материал оболочки.
+не умножает opacity на `wireframeOpacity` материала оболочки, но плотное
+Field-ядро также не использует additive State overlay: оно рендерится
+непрозрачным depth-tested `scene` marker с исходным type color и малым цветным
+glow, чтобы overlap не стирал semantic colors в белое пятно.
 Activity и particle kind могут менять material одним и тем же правилом на
 каждом уровне, но отдельный nested-only accent запрещён.
 Owner superseded renderer-only spherical-shell placement после live visual

@@ -1258,11 +1258,11 @@
     Field sphere geometry and the whole local Field lattice, while the
     semantic colors remain distinct for `string`, `number`, `boolean`, `enum`
     and `array`;
-  - Field and potential State now reuse one readable marker class. Field keeps
-    its type color and unit visual scale but uses the potential-State
-    `overlay`, alpha `0.5`, glow intensity `2.4`, luminance `1.1` and material
-    opacity `1`; it no longer inherits torus `wireframeOpacity` and does not
-    claim current/active State semantics;
+  - an intermediate follow-up made Field and potential State reuse one
+    readable marker class. Field kept its type color and unit visual scale but
+    used the potential-State `overlay`, alpha `0.5`, glow intensity `2.4`,
+    luminance `1.1` and material opacity `1`; it no longer inherited torus
+    `wireframeOpacity` and did not claim current/active State semantics;
   - final focused manifestation/material/WebGPU proof: `22 pass`, `0 fail`,
     `165 expect`; final `bun run check`: typecheck pass, `42` expected
     diagnostics, `1748 pass`, `0 fail`, `6058 expect` in `209` test files;
@@ -1281,6 +1281,29 @@
     the readable potential-State marker material on every Field. Auth retains
     exactly eight Fields, now at the State radius with separate pink
     `string` and cyan `boolean` colors.
+  - owner rejected that intermediate material because additive overlap of
+    differently colored Fields in the dense nucleus saturated into a white
+    patch. The final law keeps the common sphere-marker geometry and exact
+    Field/State radius but renders Fields as opaque depth-tested `scene`
+    markers: original type RGB, alpha/opacity `1`, glow intensity `0.8`,
+    luminance `1`, unit visual scale and no additive color accumulation;
+  - final focused manifestation/material/WebGPU proof after removing the
+    additive Field pass: `22 pass`, `0 fail`, `160 expect`; final
+    `bun run check`: typecheck pass, `42` expected diagnostics, `1748 pass`,
+    `0 fail`, `6053 expect` in `209` test files; `git diff --check` clean;
+  - one owner-requested normal cold restart installed the final non-additive
+    material without config, environment or port changes as invocation
+    `7a37bdd02f144fa984fa53c7a8d9fe71`, PID `2654327`. All six `/health`
+    endpoints returned `ok`; Force was `running` with all five domains
+    connected, Matrix was `gpu`/`initialized`, and Bulk was initialized;
+  - fresh Monad Capture from observer
+    `bulk-web-54dcca24-5e94-41c6-8ddd-282e379a7c78` returned a non-black
+    `1676×2178` PNG, `734560` bytes, SHA-256
+    `6a4fcbb2ed8e8b2456e47462720274ca38799ed3eb963c9b134b6ec3591d6133`.
+    Its latched proof retains `Field radius = State radius = 0.8` in every
+    Lada Atom, distinct Field type RGB and the opaque depth-tested material on
+    every Field. The captured nucleus shows separate saturated pink and cyan
+    particles instead of the rejected white additive patch.
 - Activation constraints:
   - visual commit `faa6a33d` received one authorized standard cold restart;
     the service returned active/running, all six ports listened and startup
