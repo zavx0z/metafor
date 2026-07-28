@@ -144,6 +144,35 @@ describe("Bulk browser viewport PNG capture", () => {
     }
   })
 
+  test("uses the preserved WebGPU frame instead of reading the swapchain canvas", async () => {
+    let toBlobCalls = 0
+    let readbackCalls = 0
+    const canvas = {
+      width: 2,
+      height: 2,
+      getBoundingClientRect: () => ({width: 2, height: 2}),
+      toBlob: (callback: (blob: Blob | null) => void) => {
+        toBlobCalls += 1
+        callback(null)
+      },
+    } as unknown as HTMLCanvasElement
+
+    expect((await captureBulkViewportCanvas(
+      canvas,
+      request(),
+      source(),
+      {
+        devicePixelRatio: 1,
+        readPng: async () => {
+          readbackCalls += 1
+          return new Blob([PNG_BYTES], {type: "image/png"})
+        },
+      },
+    )).ok).toBe(true)
+    expect(readbackCalls).toBe(1)
+    expect(toBlobCalls).toBe(0)
+  })
+
   test("fails gracefully when canvas PNG export is unsupported", async () => {
     const canvas = {
       width: 2,

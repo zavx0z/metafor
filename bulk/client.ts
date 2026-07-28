@@ -120,10 +120,14 @@ const start = async (): Promise<void> => {
 	force.onControl = async (message) => {
 		if (!isBulkViewportCaptureControlRequest(message)) return
 		const snapshot = await presentedSnapshot.read()
+		const viewport = bulkViewport
 		const result = await captureBulkViewportCanvas(
 			bulkCanvas,
 			message,
 			{observerId, snapshot},
+			viewport === null
+				? {}
+				: {readPng: () => viewport.hud.renderer.captureLastPresentedFramePng()},
 		)
 		const response: BulkViewportCaptureControlResponse = {
 			control: "bulk.viewport.capture.response",

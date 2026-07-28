@@ -364,10 +364,12 @@ platform-neutral, чтобы одна точка наблюдения могла
 
 Read-only Monad method `bulk.observer.captureViewport` получает PNG именно
 последнего уже представленного canvas подключённого browser observer: сцену,
-его текущие camera/zoom/root и HUD. Capture использует browser
-`HTMLCanvasElement.toBlob("image/png")`, не запускает новый render loop, не
-меняет projection или состояние и не является server/headless/desktop
-screenshot.
+его текущие camera/zoom/root и HUD. Обычный render path копирует готовую
+WebGPU canvas texture в ограниченную browser-side texture. Capture читает
+последнюю такую texture через `copyTextureToBuffer`, кодирует PNG во временном
+2D canvas и не запускает новый render loop. Это обходит недоступный для
+`HTMLCanvasElement.toBlob()` WebGPU swapchain, не меняет projection или
+состояние и не является server/headless/desktop screenshot.
 
 Observer выбирается по `id`; без `id` capture допустим только при ровно одном
 подключённом observer. `id` является selector, но не правом доступа. Monad

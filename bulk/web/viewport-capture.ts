@@ -65,7 +65,9 @@ const jsonBytes = (value: unknown): number =>
 
 /**
  * Reads the already-presented browser canvas. It neither requests a frame nor
- * changes camera, projection, HUD, renderer, or the viewport render loop.
+ * changes camera, projection, HUD, renderer state, or the viewport render loop.
+ * A WebGPU observer supplies a bounded readback of the frame preserved by its
+ * normal render path; toBlob remains only a non-WebGPU-compatible fallback.
  */
 export const captureBulkViewportCanvas = async (
   canvas: CapturableCanvas,
@@ -74,9 +76,10 @@ export const captureBulkViewportCanvas = async (
   options: {
     devicePixelRatio?: number
     now?: () => Date
+    readPng?: () => Promise<Blob | null>
   } = {},
 ): Promise<BulkViewportCaptureBrowserResult> => {
-  if (typeof canvas.toBlob !== "function") {
+  if (options.readPng === undefined && typeof canvas.toBlob !== "function") {
     return failure("capture_unavailable", "Browser canvas PNG capture is unavailable")
   }
   if (source.snapshot === null) {
@@ -117,7 +120,9 @@ export const captureBulkViewportCanvas = async (
 
   let png: Blob | null
   try {
-    png = await canvasPng(canvas)
+    png = options.readPng === undefined
+      ? await canvasPng(canvas)
+      : await options.readPng()
   } catch {
     return failure("capture_unavailable", "Browser canvas PNG capture failed")
   }

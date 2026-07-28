@@ -31,6 +31,12 @@ import {
 import {collectSpaceObjects, type LightItem, type RenderItem} from "./utils/RenderList"
 import {GlassMaterial} from "../materials/GlassMaterial"
 import {TextureLoader} from "../loaders/TextureLoader"
+import {
+  alignedGpuFrameBytesPerRow,
+  encodeRgbaFramePng,
+  isCapturableGpuFrameFormat,
+  unpackGpuFrameRgba,
+} from "./frame-readback"
 
 if (import.meta.hot) {
   (import.meta.hot.accept as unknown as (dependencies: string[], callback: () => void) => void)([
@@ -141,6 +147,8 @@ export class Renderer {
   geometryCache: Map<BufferGeometry, GeometryBuffers> = new Map()
   private depthTexture: GPUTexture | null = null
   private multisampleTexture: GPUTexture | null = null
+  private presentedFrameTexture: GPUTexture | null = null
+  private hasPresentedFrame = false
   private sampleCount = 4 // MSAA
   public pixelRatio = 1
   private frustum: Frustum = new Frustum()
@@ -182,7 +190,10 @@ export class Renderer {
 
   private configureCanvasContext(): void {
     if (!this.device || !this.context || !this.presentationFormat) return
-    const usage = GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING
+    const usage =
+      GPUTextureUsage.RENDER_ATTACHMENT |
+      GPUTextureUsage.TEXTURE_BINDING |
+      GPUTextureUsage.COPY_SRC
     this.context.configure({
       device: this.device,
       format: this.presentationFormat,
@@ -1150,6 +1161,58 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     this.renderFrame(space, viewPoint)
   }
 
+  /**
+   * Reads the last frame copied by the normal render path. This submits only a
+   * bounded texture-to-buffer copy and never requests or renders another frame.
+   */
+  public async captureLastPresentedFramePng(): Promise<Blob | null> {
+    const device = this.device
+    const texture = this.presentedFrameTexture
+    const format = this.presentationFormat
+    if (
+      !device ||
+      !texture ||
+      !this.hasPresentedFrame ||
+      !format ||
+      !isCapturableGpuFrameFormat(format)
+    ) return null
+
+    const width = texture.width
+    const height = texture.height
+    const bytesPerRow = alignedGpuFrameBytesPerRow(width)
+    const buffer = device.createBuffer({
+      size: bytesPerRow * height,
+      usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
+    })
+    let mapped = false
+    try {
+      const encoder = device.createCommandEncoder()
+      encoder.copyTextureToBuffer(
+        {texture},
+        {buffer, bytesPerRow, rowsPerImage: height},
+        {width, height, depthOrArrayLayers: 1},
+      )
+      device.queue.submit([encoder.finish()])
+      await buffer.mapAsync(GPUMapMode.READ)
+      mapped = true
+      const rgba = unpackGpuFrameRgba({
+        bytes: new Uint8Array(buffer.getMappedRange()),
+        bytesPerRow,
+        format,
+        width,
+        height,
+      })
+      buffer.unmap()
+      mapped = false
+      return await encodeRgbaFramePng(rgba, width, height)
+    } catch {
+      return null
+    } finally {
+      if (mapped) buffer.unmap()
+      buffer.destroy()
+    }
+  }
+
   public renderFrame(space: Space, viewPoint: ViewPoint): void
   public renderFrame(space: Space, overlay: RenderOverlay | readonly RenderOverlay[] | null | undefined, viewPoint: ViewPoint): void
   public renderFrame(
@@ -1172,7 +1235,8 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     this.updateTextures()
 
     const commandEncoder = this.device!.createCommandEncoder()
-    const textureView = this.context!.getCurrentTexture().createView()
+    const canvasTexture = this.context!.getCurrentTexture()
+    const textureView = canvasTexture.createView()
     this.viewProjectionMatrix.multiplyMatrices(viewPoint.projectionMatrix, viewPoint.viewMatrix)
     this.device!.queue.writeBuffer(this.globalUniformBuffer!, 0, this.viewProjectionMatrix.elements)
     this.frustum.setFromProjectionMatrix(this.viewProjectionMatrix)
@@ -1220,8 +1284,20 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
       preparedLayers.flatMap((layer) => layer.overlayLines),
       renderIndexByItem,
     )
+    if (this.presentedFrameTexture) {
+      commandEncoder.copyTextureToTexture(
+        {texture: canvasTexture},
+        {texture: this.presentedFrameTexture},
+        {
+          width: this.canvas!.width,
+          height: this.canvas!.height,
+          depthOrArrayLayers: 1,
+        },
+      )
+    }
 
     this.device!.queue.submit([commandEncoder.finish()])
+    this.hasPresentedFrame = this.presentedFrameTexture !== null
   }
 
   private prepareRenderLayer(
@@ -2126,6 +2202,8 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     if (needsResize) {
       if (this.depthTexture) this.depthTexture.destroy()
       if (this.multisampleTexture) this.multisampleTexture.destroy()
+      if (this.presentedFrameTexture) this.presentedFrameTexture.destroy()
+      this.hasPresentedFrame = false
 
       const size = {width: this.canvas.width, height: this.canvas.height}
 
@@ -2141,6 +2219,12 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         format: this.presentationFormat,
         usage: GPUTextureUsage.RENDER_ATTACHMENT,
         sampleCount: this.sampleCount,
+      })
+
+      this.presentedFrameTexture = this.device.createTexture({
+        size,
+        format: this.presentationFormat,
+        usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.COPY_SRC,
       })
     }
   }
