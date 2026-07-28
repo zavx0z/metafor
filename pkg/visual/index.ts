@@ -45,6 +45,7 @@ export {
   type CreateStateGraphViewportOptions,
   type StateGraphView,
   type StateGraphViewport,
+  type StateGraphViewportPose,
 } from "./StateGraphViewport.ts"
 export {Transition} from "./Transition.ts"
 export {

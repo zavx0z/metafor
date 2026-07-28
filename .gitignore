@@ -21,5 +21,6 @@ old
 **/Снимок экрана*.png
 task/*.png
 **/.metafor/**/*
+pkg/visual/playground/.annotations/
 /mass/
 /cluster/

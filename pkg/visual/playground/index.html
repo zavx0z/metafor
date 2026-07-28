@@ -35,6 +35,18 @@
         grid-template-columns: 220px minmax(520px, 1fr) 360px;
       }
 
+      main.form-skin-mode {
+        grid-template-columns: 220px minmax(520px, 1fr) 360px;
+      }
+
+      main.edges-mode {
+        grid-template-columns: 220px minmax(0, 1fr);
+      }
+
+      main.torus-analysis-mode {
+        grid-template-columns: 220px minmax(0, 1fr);
+      }
+
       aside {
         z-index: 2;
         padding: 18px;
@@ -148,6 +160,161 @@
         background:
           radial-gradient(circle at 22% 0%, rgba(39, 128, 178, 0.12), transparent 38%),
           #050b12;
+      }
+
+      #form-skin-stage {
+        position: absolute;
+        inset: 0;
+        display: grid;
+        grid-template-rows: auto auto minmax(420px, 1fr) auto auto;
+        gap: 14px;
+        min-height: 0;
+        padding: 24px;
+        overflow: auto;
+        background:
+          radial-gradient(circle at 48% 38%, rgba(39, 128, 178, 0.12), transparent 44%),
+          #050b12;
+      }
+
+      .form-skin-overview,
+      .form-skin-method {
+        width: min(100%, 1080px);
+        margin: 0 auto;
+        padding: 16px 18px;
+        border: 1px solid rgba(145, 171, 214, 0.2);
+        border-radius: 12px;
+        background: rgba(8, 17, 29, 0.88);
+      }
+
+      .form-skin-overview h2 {
+        margin: 0 0 7px;
+        font-size: 17px;
+      }
+
+      .form-skin-overview p,
+      .form-skin-method {
+        color: #91a2b9;
+        font-size: 10px;
+        line-height: 1.55;
+      }
+
+      #form-skin-variants {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 7px;
+        width: min(100%, 1080px);
+        margin: 0 auto;
+      }
+
+      #form-skin-variants button {
+        padding: 7px 11px;
+        border: 1px solid rgba(145, 171, 214, 0.2);
+        border-radius: 999px;
+        background: rgba(8, 17, 29, 0.82);
+        color: #8fa2ba;
+        font: 10px/1 "JetBrains Mono", ui-monospace, monospace;
+        cursor: pointer;
+      }
+
+      #form-skin-variants button:hover,
+      #form-skin-variants button.active {
+        border-color: rgba(84, 216, 255, 0.58);
+        background: rgba(35, 134, 178, 0.24);
+        color: #dff8ff;
+      }
+
+      .form-skin-viewport {
+        position: relative;
+        width: min(100%, 1080px);
+        min-height: 420px;
+        margin: 0 auto;
+        overflow: hidden;
+        border: 1px solid rgba(145, 171, 214, 0.22);
+        border-radius: 14px;
+        background:
+          radial-gradient(circle at 50% 46%, rgba(26, 112, 156, 0.13), transparent 52%),
+          #030810;
+        box-shadow: 0 18px 55px rgba(0, 0, 0, 0.2);
+      }
+
+      #form-skin-canvas {
+        position: absolute;
+        inset: 0;
+      }
+
+      .form-skin-viewport-hint {
+        position: absolute;
+        right: 12px;
+        bottom: 11px;
+        padding: 5px 7px;
+        border: 1px solid rgba(145, 171, 214, 0.14);
+        border-radius: 6px;
+        background: rgba(3, 8, 15, 0.76);
+        color: #697b94;
+        font-size: 8px;
+        pointer-events: none;
+      }
+
+      .form-skin-badge {
+        position: absolute;
+        top: 12px;
+        left: 12px;
+        padding: 5px 7px;
+        border: 1px solid rgba(84, 216, 255, 0.24);
+        border-radius: 6px;
+        background: rgba(3, 8, 15, 0.76);
+        color: #77d9f8;
+        font-size: 8px;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        pointer-events: none;
+      }
+
+      .form-skin-comparison {
+        width: min(100%, 1080px);
+        margin: 0 auto;
+        overflow: auto;
+        border: 1px solid rgba(145, 171, 214, 0.18);
+        border-radius: 12px;
+        background: rgba(8, 17, 29, 0.84);
+      }
+
+      .form-skin-comparison h3 {
+        margin: 0;
+        padding: 13px 15px 10px;
+        color: #d7e1ef;
+        font-size: 11px;
+        font-weight: 400;
+      }
+
+      .form-skin-comparison table {
+        width: 100%;
+        border-collapse: collapse;
+        color: #93a5bd;
+        font-size: 8px;
+        white-space: nowrap;
+      }
+
+      .form-skin-comparison th,
+      .form-skin-comparison td {
+        padding: 7px 10px;
+        border-top: 1px solid rgba(145, 171, 214, 0.1);
+        text-align: right;
+      }
+
+      .form-skin-comparison th:first-child,
+      .form-skin-comparison td:first-child {
+        text-align: left;
+      }
+
+      .form-skin-comparison th {
+        color: #677b96;
+        font-weight: 400;
+      }
+
+      .form-skin-comparison tr.active td {
+        background: rgba(39, 145, 190, 0.1);
+        color: #dff7ff;
       }
 
       .state-graph-overview {
@@ -286,6 +453,79 @@
 
       .state-view-cube-face.bottom {
         transform: rotateX(-90deg) translateZ(26px);
+      }
+
+      .state-annotation-canvas {
+        position: absolute;
+        inset: 0;
+        z-index: 2;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+        touch-action: none;
+      }
+
+      .state-annotation-canvas.active {
+        pointer-events: auto;
+        cursor: crosshair;
+      }
+
+      .state-annotation-controls {
+        position: absolute;
+        left: 12px;
+        bottom: 10px;
+        z-index: 4;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .state-annotation-button {
+        display: grid;
+        width: 30px;
+        height: 30px;
+        place-items: center;
+        padding: 0;
+        border: 1px solid rgba(145, 171, 214, 0.25);
+        border-radius: 7px;
+        background: rgba(4, 11, 19, 0.88);
+        color: #8fa5c1;
+        cursor: pointer;
+      }
+
+      .state-annotation-button svg {
+        width: 16px;
+        height: 16px;
+        fill: currentColor;
+      }
+
+      .state-annotation-button:hover {
+        color: #d8f4ff;
+        border-color: rgba(99, 211, 255, 0.52);
+      }
+
+      .state-annotation-button.pencil.active {
+        color: #ffd16f;
+        border-color: rgba(255, 191, 63, 0.72);
+        background: rgba(104, 67, 13, 0.72);
+        box-shadow: 0 0 16px rgba(255, 174, 31, 0.22);
+      }
+
+      .state-annotation-status {
+        max-width: 210px;
+        overflow: hidden;
+        color: #7f92ac;
+        font-size: 8px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .state-annotation-status.saved {
+        color: #72d6a0;
+      }
+
+      .state-annotation-status.error {
+        color: #ef8190;
       }
 
       .state-branch-detail {
@@ -454,6 +694,541 @@
         color: #dce5f3;
       }
 
+      #form-skin-controls select,
+      #form-skin-controls input[type="color"] {
+        width: 100%;
+        min-height: 32px;
+        padding: 6px 8px;
+        border: 1px solid rgba(145, 171, 214, 0.22);
+        border-radius: 7px;
+        background: #08111d;
+        color: #dce5f3;
+      }
+
+      #form-skin-controls input[type="color"] {
+        padding: 3px;
+        cursor: pointer;
+      }
+
+      #form-skin-description {
+        margin: -7px 0 18px;
+        color: #8190a7;
+        font-size: 9px;
+        line-height: 1.5;
+      }
+
+      #form-skin-metrics {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 7px 12px;
+        margin: 0;
+        color: #aebbd0;
+        font-size: 10px;
+      }
+
+      #form-skin-metrics dt,
+      #form-skin-metrics dd {
+        margin: 0;
+      }
+
+      #form-skin-metrics dd {
+        color: white;
+        text-align: right;
+      }
+
+      #form-skin-run-current,
+      #form-skin-run-all,
+      #form-skin-reset {
+        width: 100%;
+        margin: 2px 0 12px;
+        padding: 8px 10px;
+        border: 1px solid rgba(84, 216, 255, 0.3);
+        border-radius: 8px;
+        background: rgba(31, 121, 160, 0.14);
+        color: #bcefff;
+        font: 10px/1 "JetBrains Mono", ui-monospace, monospace;
+        cursor: pointer;
+      }
+
+      #form-skin-run-current:hover,
+      #form-skin-run-all:hover,
+      #form-skin-reset:hover {
+        border-color: rgba(84, 216, 255, 0.58);
+        background: rgba(31, 121, 160, 0.25);
+      }
+
+      #form-skin-run-current:disabled,
+      #form-skin-run-all:disabled {
+        cursor: wait;
+        opacity: 0.5;
+      }
+
+      #form-skin-benchmark-status {
+        min-height: 28px;
+        margin: -5px 0 8px;
+        color: #76cce8;
+        font-size: 8px;
+        line-height: 1.4;
+      }
+
+      .form-skin-metric-note {
+        margin: 0;
+        color: #6f819a;
+        font-size: 8px;
+        line-height: 1.5;
+      }
+
+      #edges-stage {
+        position: absolute;
+        inset: 0;
+        overflow: hidden;
+        background:
+          radial-gradient(circle at 50% 46%, rgba(31, 118, 162, 0.12), transparent 48%),
+          #030810;
+      }
+
+      #edges-canvas {
+        position: absolute;
+        inset: 0;
+      }
+
+      .edges-scene-controls {
+        position: absolute;
+        top: 18px;
+        left: 18px;
+        z-index: 2;
+        width: min(310px, calc(100% - 36px));
+        max-height: calc(100% - 150px);
+        padding: 14px;
+        overflow: auto;
+        border: 1px solid rgba(255, 255, 255, 0.22);
+        border-radius: 11px;
+        background: rgba(3, 9, 16, 0.82);
+        backdrop-filter: blur(14px);
+      }
+
+      .edges-scene-controls h2 {
+        margin: 0 0 5px;
+        font-size: 14px;
+      }
+
+      .edges-scene-controls > p {
+        margin: 0 0 13px;
+        color: #8597ae;
+        font-size: 8px;
+        line-height: 1.5;
+      }
+
+      .edges-scene-controls fieldset {
+        gap: 8px;
+        margin-bottom: 13px;
+      }
+
+      .edges-scene-controls legend {
+        margin-bottom: 8px;
+        font-size: 10px;
+      }
+
+      .edges-scene-controls label {
+        font-size: 9px;
+      }
+
+      .edges-scene-controls output {
+        float: right;
+        color: white;
+      }
+
+      .edges-analysis-control output {
+        float: none;
+        font-size: 8px;
+        text-align: right;
+      }
+
+      .edges-view-controls {
+        position: absolute;
+        top: 18px;
+        right: 18px;
+        z-index: 2;
+        display: flex;
+        gap: 6px;
+        padding: 6px;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        border-radius: 9px;
+        background: rgba(3, 9, 16, 0.78);
+        backdrop-filter: blur(12px);
+      }
+
+      .edges-view-controls button {
+        padding: 6px 8px;
+        border: 1px solid transparent;
+        border-radius: 6px;
+        background: transparent;
+        color: #879bb4;
+        font: 8px/1 "JetBrains Mono", ui-monospace, monospace;
+        cursor: pointer;
+      }
+
+      .edges-view-controls button:hover,
+      .edges-view-controls button.active {
+        border-color: rgba(255, 255, 255, 0.34);
+        background: rgba(255, 255, 255, 0.09);
+        color: white;
+      }
+
+      #edges-readout {
+        position: absolute;
+        right: 18px;
+        bottom: 18px;
+        left: 18px;
+        z-index: 2;
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 1px;
+        overflow: hidden;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        border-radius: 10px;
+        background: rgba(3, 9, 16, 0.8);
+        backdrop-filter: blur(12px);
+      }
+
+      #edges-readout div {
+        display: grid;
+        gap: 3px;
+        min-width: 0;
+        padding: 9px 11px;
+        border-right: 1px solid rgba(255, 255, 255, 0.08);
+      }
+
+      #edges-readout span {
+        color: #72869f;
+        font-size: 7px;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+      }
+
+      #edges-readout strong {
+        overflow: hidden;
+        color: white;
+        font-size: 9px;
+        font-weight: 400;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      #torus-analysis-stage {
+        position: absolute;
+        inset: 0;
+        overflow: hidden;
+        background:
+          radial-gradient(circle at 50% 46%, rgba(31, 118, 162, 0.12), transparent 48%),
+          #030810;
+      }
+
+      #torus-analysis-canvas {
+        position: absolute;
+        inset: 0;
+      }
+
+      .torus-analysis-card {
+        position: absolute;
+        top: 18px;
+        z-index: 2;
+        width: min(330px, calc(50% - 28px));
+        max-height: calc(100% - 145px);
+        padding: 14px;
+        overflow: auto;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 11px;
+        background: rgba(3, 9, 16, 0.82);
+        backdrop-filter: blur(14px);
+      }
+
+      .torus-analysis-card.standard {
+        left: 18px;
+      }
+
+      .torus-analysis-card.metafor {
+        right: 18px;
+      }
+
+      .torus-analysis-card h2,
+      .torus-analysis-card h3 {
+        margin: 0 0 5px;
+        font-size: 14px;
+      }
+
+      .torus-analysis-card h3 {
+        font-size: 12px;
+      }
+
+      .torus-analysis-card > p {
+        margin: 0 0 13px;
+        color: #8597ae;
+        font-size: 8px;
+        line-height: 1.5;
+      }
+
+      .torus-analysis-card a {
+        color: #7edcfb;
+      }
+
+      .torus-analysis-card fieldset {
+        gap: 8px;
+        margin-bottom: 10px;
+      }
+
+      .torus-analysis-control,
+      .edges-analysis-control {
+        position: relative;
+        display: grid;
+        gap: 4px;
+      }
+
+      .torus-analysis-control-header,
+      .edges-analysis-control-header {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto auto;
+        gap: 6px;
+        align-items: center;
+      }
+
+      .edges-analysis-control-header.no-output {
+        grid-template-columns: minmax(0, 1fr) auto;
+      }
+
+      .torus-analysis-control label,
+      .edges-analysis-control label {
+        font-size: 9px;
+      }
+
+      .torus-analysis-card output {
+        color: white;
+        font-size: 8px;
+        text-align: right;
+      }
+
+      .torus-default-values {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: 5px;
+      }
+
+      .torus-three-default,
+      .torus-our-default {
+        min-width: 0;
+        padding: 5px 6px;
+        overflow: hidden;
+        border: 1px solid rgba(145, 171, 214, 0.18);
+        border-radius: 6px;
+        background: rgba(5, 12, 21, 0.72);
+        color: #74879f;
+        font: 7px/1.25 "JetBrains Mono", ui-monospace, monospace;
+        text-align: left;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .torus-our-default {
+        border-color: rgba(126, 220, 251, 0.34);
+        color: #9ee7ff;
+        cursor: pointer;
+      }
+
+      .torus-our-default:hover,
+      .torus-our-default:focus-visible {
+        border-color: rgba(126, 220, 251, 0.7);
+        background: rgba(36, 126, 163, 0.2);
+        color: white;
+      }
+
+      #torus-analysis-default-status {
+        min-height: 12px;
+        margin: -4px 0 5px;
+        color: #7edcfb;
+        font-size: 7px;
+      }
+
+      .torus-parameter-help,
+      .edges-parameter-help {
+        position: relative;
+      }
+
+      .torus-parameter-help summary,
+      .edges-parameter-help summary {
+        display: grid;
+        width: 17px;
+        height: 17px;
+        place-items: center;
+        border: 1px solid rgba(126, 220, 251, 0.42);
+        border-radius: 50%;
+        color: #7edcfb;
+        cursor: pointer;
+        font-size: 9px;
+        line-height: 1;
+        list-style: none;
+        user-select: none;
+      }
+
+      .torus-parameter-help summary::-webkit-details-marker,
+      .edges-parameter-help summary::-webkit-details-marker {
+        display: none;
+      }
+
+      .torus-parameter-help[open] summary,
+      .edges-parameter-help[open] summary {
+        border-color: #7edcfb;
+        background: rgba(126, 220, 251, 0.14);
+        color: white;
+      }
+
+      .torus-parameter-help-text,
+      .edges-parameter-help-text {
+        position: absolute;
+        top: 23px;
+        right: 0;
+        z-index: 8;
+        width: 276px;
+        padding: 10px 11px;
+        border: 1px solid rgba(126, 220, 251, 0.38);
+        border-radius: 8px;
+        background: rgba(4, 11, 20, 0.98);
+        box-shadow: 0 12px 32px rgba(0, 0, 0, 0.48);
+        color: #c7d4e4;
+        font-size: 8px;
+        line-height: 1.55;
+      }
+
+      .torus-parameter-help-text strong,
+      .edges-parameter-help-text strong {
+        color: white;
+      }
+
+      #torus-analysis-validation {
+        margin: 7px 0 0;
+        padding: 7px 8px;
+        border: 1px solid rgba(111, 223, 159, 0.24);
+        border-radius: 7px;
+        color: #78d9a1;
+        font-size: 8px;
+      }
+
+      #torus-analysis-validation.error {
+        border-color: rgba(255, 101, 119, 0.32);
+        color: #f08391;
+      }
+
+      .torus-dependency-law {
+        display: grid;
+        gap: 4px;
+        margin-top: 12px;
+        padding: 9px 10px;
+        border: 1px solid rgba(126, 220, 251, 0.2);
+        border-radius: 9px;
+        background: rgba(18, 67, 87, 0.12);
+        color: #8ea5bd;
+        font-size: 8px;
+        line-height: 1.45;
+      }
+
+      .torus-dependency-law strong {
+        color: #d9f6ff;
+        font-weight: 500;
+      }
+
+      .torus-derived-dimensions {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 7px 12px;
+        margin: 12px 0 0;
+        padding: 9px 10px;
+        border: 1px solid rgba(145, 171, 214, 0.16);
+        border-radius: 9px;
+        background: rgba(5, 12, 21, 0.58);
+        font-size: 8px;
+      }
+
+      .torus-derived-dimensions dt,
+      .torus-derived-dimensions dd {
+        margin: 0;
+      }
+
+      .torus-derived-dimensions dt {
+        color: #8195ad;
+      }
+
+      .torus-derived-dimensions output {
+        color: #e6f8ff;
+        font-size: 8px;
+      }
+
+      .torus-analysis-view-controls {
+        position: absolute;
+        top: 18px;
+        left: 50%;
+        z-index: 3;
+        display: flex;
+        gap: 6px;
+        padding: 6px;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        border-radius: 9px;
+        background: rgba(3, 9, 16, 0.78);
+        transform: translateX(-50%);
+        backdrop-filter: blur(12px);
+      }
+
+      .torus-analysis-view-controls button {
+        padding: 6px 8px;
+        border: 1px solid transparent;
+        border-radius: 6px;
+        background: transparent;
+        color: #879bb4;
+        font: 8px/1 "JetBrains Mono", ui-monospace, monospace;
+        cursor: pointer;
+      }
+
+      .torus-analysis-view-controls button:hover,
+      .torus-analysis-view-controls button.active {
+        border-color: rgba(255, 255, 255, 0.34);
+        background: rgba(255, 255, 255, 0.09);
+        color: white;
+      }
+
+      #torus-analysis-readout {
+        position: absolute;
+        right: 18px;
+        bottom: 18px;
+        left: 18px;
+        z-index: 2;
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        overflow: hidden;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        border-radius: 10px;
+        background: rgba(3, 9, 16, 0.8);
+        backdrop-filter: blur(12px);
+      }
+
+      #torus-analysis-readout div {
+        display: grid;
+        gap: 3px;
+        min-width: 0;
+        padding: 9px 11px;
+        border-right: 1px solid rgba(255, 255, 255, 0.08);
+      }
+
+      #torus-analysis-readout span {
+        color: #72869f;
+        font-size: 7px;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+      }
+
+      #torus-analysis-readout strong {
+        color: white;
+        font-size: 9px;
+        font-weight: 400;
+      }
+
       #state-graph-summary {
         margin: -5px 0 18px;
         color: #8190a7;
@@ -511,6 +1286,23 @@
           border-right: 0;
           border-bottom: 1px solid rgba(145, 171, 214, 0.16);
         }
+
+        #edges-readout {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .torus-analysis-card {
+          width: min(300px, calc(100% - 36px));
+        }
+
+        .torus-analysis-card.metafor {
+          top: auto;
+          bottom: 126px;
+        }
+
+        #torus-analysis-readout {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
       }
     </style>
   </head>
@@ -518,7 +1310,7 @@
     <main>
       <aside id="stories">
         <div class="eyebrow">pkg/visual</div>
-        <h1>Atom stories</h1>
+        <h1>Visual stories</h1>
         <div class="meta">static Monad snapshot</div>
         <nav id="navigation"></nav>
       </aside>
@@ -534,6 +1326,480 @@
             <p id="state-graph-overview"></p>
           </header>
           <div id="state-graph-cards"></div>
+        </section>
+        <section id="form-skin-stage" hidden>
+          <header class="form-skin-overview">
+            <h2 id="form-skin-title">Sphere · скины формы</h2>
+            <p>
+              Изолированное сравнение материалов на одной фиксированной форме.
+              Геометрические параметры определяются отдельно в Analysis.
+            </p>
+          </header>
+          <div id="form-skin-variants" aria-label="Варианты скина"></div>
+          <section class="form-skin-viewport">
+            <canvas id="form-skin-canvas"></canvas>
+            <span class="form-skin-badge">WebGPU · live benchmark</span>
+            <span class="form-skin-viewport-hint">
+              drag — вращение · wheel — панорама · ctrl+wheel — масштаб
+            </span>
+          </section>
+          <section class="form-skin-comparison">
+            <h3>Сравнение скинов при одинаковой конфигурации</h3>
+            <table>
+              <thead>
+                <tr>
+                  <th>Скин</th>
+                  <th>FPS</th>
+                  <th>1% low</th>
+                  <th>CPU avg</th>
+                  <th>CPU p95</th>
+                  <th>Jank</th>
+                  <th>Vertex refs</th>
+                  <th>Geometry</th>
+                </tr>
+              </thead>
+              <tbody id="form-skin-comparison-body"></tbody>
+            </table>
+          </section>
+          <p class="form-skin-method">
+            FPS и CPU submit измеряются в живом RAF-цикле. Draw calls,
+            вершины, треугольники, линии и минимальный размер geometry buffers
+            вычисляются из фактически созданной геометрии. GPU timestamp пока
+            не показывается: Renderer не публикует timestamp query.
+          </p>
+        </section>
+        <section id="edges-stage" hidden>
+          <canvas id="edges-canvas"></canvas>
+          <section class="edges-scene-controls">
+            <h2>Edges · ограничители входа</h2>
+            <p>
+              Белая окружность перпендикулярна оси тора. Control-точка связи
+              обязана лежать на окружности; высота дуги вычисляется из двух
+              независимых углов входа.
+            </p>
+            <fieldset>
+              <legend>Формы</legend>
+              <div class="edges-analysis-control">
+                <div class="edges-analysis-control-header">
+                  <label for="edges-center-distance">Расстояние центров</label>
+                  <output id="edges-center-distance-output"></output>
+                  <details class="edges-parameter-help">
+                    <summary aria-label="Описание параметра Расстояние центров">?</summary>
+                    <div class="edges-parameter-help-text">
+                      <strong>Расстояние центров</strong> — дистанция по оси X
+                      между центрами двух Sphere и двух родительских Torus.
+                      Начало и конец Bézier-связи всегда совпадают с этими
+                      центрами. Увеличение значения растягивает связь, не меняя
+                      локальные параметры её ограничителей.
+                    </div>
+                  </details>
+                </div>
+                <input id="edges-center-distance" type="range" min="26" max="80" step="1" value="44" />
+              </div>
+              <div class="edges-analysis-control">
+                <div class="edges-analysis-control-header">
+                  <label for="edges-torus-radius">Радиус тора</label>
+                  <output id="edges-torus-radius-output"></output>
+                  <details class="edges-parameter-help">
+                    <summary aria-label="Описание параметра Радиус тора">?</summary>
+                    <div class="edges-parameter-help-text">
+                      <strong>Радиус тора</strong> задаёт радиус центральной
+                      окружности обеих вспомогательных форм. В этом стенде
+                      толщина трубки пока вычисляется автоматически как
+                      24% радиуса. Параметр влияет только на контекст формы,
+                      но не меняет центры и Bézier-контроль связи.
+                    </div>
+                  </details>
+                </div>
+                <input id="edges-torus-radius" type="range" min="5" max="14" step="0.5" value="9" />
+              </div>
+              <div class="edges-analysis-control">
+                <div class="edges-analysis-control-header">
+                  <label for="edges-sphere-radius">Радиус сферы</label>
+                  <output id="edges-sphere-radius-output"></output>
+                  <details class="edges-parameter-help">
+                    <summary aria-label="Описание параметра Радиус сферы">?</summary>
+                    <div class="edges-parameter-help-text">
+                      <strong>Радиус сферы</strong> задаёт видимый размер
+                      State-формы в центре каждого тора. Геометрический Edge
+                      проходит до центра Sphere, а не останавливается на её
+                      поверхности, поэтому изменение радиуса не сдвигает
+                      концы кривой.
+                    </div>
+                  </details>
+                </div>
+                <input id="edges-sphere-radius" type="range" min="1" max="5" step="0.25" value="2.5" />
+              </div>
+            </fieldset>
+            <fieldset>
+              <legend>Ограничительные окружности</legend>
+              <div class="edges-analysis-control">
+                <div class="edges-analysis-control-header">
+                  <label for="edges-constraint-radius">Радиус</label>
+                  <output id="edges-constraint-radius-output"></output>
+                  <details class="edges-parameter-help">
+                    <summary aria-label="Описание параметра Радиус ограничителя">?</summary>
+                    <div class="edges-parameter-help-text">
+                      <strong>Радиус ограничителя</strong> — расстояние от
+                      вертикальной оси Sphere до Bézier control-точки в
+                      плоскости XY. Control-точка обязана лежать на белой
+                      окружности. Вместе с высотой этот радиус определяет угол
+                      входа дуги в центр Sphere.
+                    </div>
+                  </details>
+                </div>
+                <input id="edges-constraint-radius" type="range" min="1" max="16" step="0.5" value="6" />
+              </div>
+              <div class="edges-analysis-control">
+                <div class="edges-analysis-control-header">
+                  <label for="edges-left-height">Высота слева</label>
+                  <output id="edges-left-height-output"></output>
+                  <details class="edges-parameter-help">
+                    <summary aria-label="Описание параметра Высота слева">?</summary>
+                    <div class="edges-parameter-help-text">
+                      <strong>Высота слева</strong> — координата Z левой
+                      ограничительной окружности и левой control-точки
+                      относительно центра Sphere. Положительное значение
+                      поднимает начало дуги, отрицательное опускает. Угол входа
+                      вычисляется из высоты и радиуса ограничителя.
+                    </div>
+                  </details>
+                </div>
+                <input id="edges-left-height" type="range" min="-24" max="30" step="0.5" value="9" />
+              </div>
+              <div class="edges-analysis-control">
+                <div class="edges-analysis-control-header">
+                  <label for="edges-right-height">Высота справа</label>
+                  <output id="edges-right-height-output"></output>
+                  <details class="edges-parameter-help">
+                    <summary aria-label="Описание параметра Высота справа">?</summary>
+                    <div class="edges-parameter-help-text">
+                      <strong>Высота справа</strong> независимо задаёт
+                      координату Z правой окружности и control-точки. Разные
+                      значения слева и справа создают асимметричные углы входа:
+                      максимальная высота кривой не задаётся отдельно, а
+                      получается из обеих control-точек.
+                    </div>
+                  </details>
+                </div>
+                <input id="edges-right-height" type="range" min="-24" max="30" step="0.5" value="16" />
+              </div>
+              <div class="edges-analysis-control">
+                <div class="edges-analysis-control-header">
+                  <label for="edges-left-azimuth">Азимут слева</label>
+                  <output id="edges-left-azimuth-output"></output>
+                  <details class="edges-parameter-help">
+                    <summary aria-label="Описание параметра Азимут слева">?</summary>
+                    <div class="edges-parameter-help-text">
+                      <strong>Азимут слева</strong> выбирает положение левой
+                      control-точки на окружности вокруг оси Z. Угол 0° смотрит
+                      вдоль +X, 90° — вдоль +Y. Параметр меняет боковое
+                      направление касательной, не меняя радиус и высоту.
+                    </div>
+                  </details>
+                </div>
+                <input id="edges-left-azimuth" type="range" min="-180" max="180" step="1" value="0" />
+              </div>
+              <div class="edges-analysis-control">
+                <div class="edges-analysis-control-header">
+                  <label for="edges-right-azimuth">Азимут справа</label>
+                  <output id="edges-right-azimuth-output"></output>
+                  <details class="edges-parameter-help">
+                    <summary aria-label="Описание параметра Азимут справа">?</summary>
+                    <div class="edges-parameter-help-text">
+                      <strong>Азимут справа</strong> независимо выбирает
+                      положение правой control-точки на её окружности. 180°
+                      направляет её вдоль −X, то есть к левой Sphere. Изменение
+                      угла позволяет исследовать прямые и боковые изгибы Edge.
+                    </div>
+                  </details>
+                </div>
+                <input id="edges-right-azimuth" type="range" min="-180" max="180" step="1" value="180" />
+              </div>
+              <div class="edges-analysis-control">
+                <div class="edges-analysis-control-header no-output">
+                  <label class="inline" for="edges-helpers">
+                    <input id="edges-helpers" type="checkbox" checked />
+                    <span>Белые оси и ограничители</span>
+                  </label>
+                  <details class="edges-parameter-help">
+                    <summary aria-label="Описание вспомогательных элементов">?</summary>
+                    <div class="edges-parameter-help-text">
+                      <strong>Белые вспомогательные элементы</strong> показывают
+                      вертикальные оси Sphere, плоскости ограничительных
+                      окружностей, радиусы до control-точек и сами
+                      control-точки. Переключатель влияет только на объясняющую
+                      разметку и не изменяет вычисленную Bézier-кривую.
+                    </div>
+                  </details>
+                </div>
+              </div>
+            </fieldset>
+          </section>
+          <div class="edges-view-controls" aria-label="Вид Edges Lab">
+            <button type="button" data-edges-view="perspective">Перспектива</button>
+            <button type="button" data-edges-view="front">Спереди</button>
+            <button type="button" data-edges-view="top">Сверху</button>
+          </div>
+          <section id="edges-readout" aria-label="Значения геометрии связи"></section>
+        </section>
+        <section id="torus-analysis-stage" hidden>
+          <canvas id="torus-analysis-canvas"></canvas>
+          <section class="torus-analysis-card standard">
+            <h2>THREE.TorusGeometry</h2>
+            <p>
+              Официальные параметры и defaults из
+              <a href="https://threejs.org/docs/pages/TorusGeometry.html" target="_blank" rel="noreferrer">
+                Three.js docs
+              </a>.
+            </p>
+            <fieldset>
+              <div class="torus-analysis-control">
+                <div class="torus-analysis-control-header">
+                  <label for="torus-analysis-radius">radius</label>
+                  <output id="torus-analysis-radius-output"></output>
+                  <details class="torus-parameter-help">
+                    <summary aria-label="Описание параметра radius">?</summary>
+                    <div class="torus-parameter-help-text">
+                      <strong>radius — радиус центральной окружности тора.</strong>
+                      Это расстояние от центра всей формы до центра поперечного
+                      сечения трубки. Параметр задаётся в единицах сцены и
+                      определяет общий размер и размер отверстия тора.
+                      Стандартное значение Three.js: <strong>1</strong>.
+                    </div>
+                  </details>
+                </div>
+                <input id="torus-analysis-radius" type="range" min="0.2" max="49.95" step="any" value="1" />
+                <div class="torus-default-values">
+                  <span class="torus-three-default">THREE default · 1.00</span>
+                  <button class="torus-our-default" type="button" data-torus-our-default="radius">
+                    Наш default · 1.10
+                  </button>
+                </div>
+              </div>
+              <div class="torus-analysis-control">
+                <div class="torus-analysis-control-header">
+                  <label for="torus-analysis-tube">tube</label>
+                  <output id="torus-analysis-tube-output"></output>
+                  <details class="torus-parameter-help">
+                    <summary aria-label="Описание параметра tube">?</summary>
+                    <div class="torus-parameter-help-text">
+                      <strong>tube — радиус трубки тора.</strong>
+                      Это радиус круглого поперечного сечения, которое движется
+                      по центральной окружности. Чем больше значение, тем толще
+                      тор и тем меньше его внутреннее отверстие. Стандартное
+                      значение Three.js: <strong>0.4</strong>.
+                    </div>
+                  </details>
+                </div>
+                <input id="torus-analysis-tube" type="range" min="0.05" max="49.8" step="any" value="0.4" />
+                <div class="torus-default-values">
+                  <span class="torus-three-default">THREE default · 0.40</span>
+                  <button class="torus-our-default" type="button" data-torus-our-default="tube">
+                    Наш default · 0.70
+                  </button>
+                </div>
+              </div>
+              <div class="torus-analysis-control">
+                <div class="torus-analysis-control-header">
+                  <label for="torus-analysis-radial-segments">radialSegments</label>
+                  <output id="torus-analysis-radial-segments-output"></output>
+                  <details class="torus-parameter-help">
+                    <summary aria-label="Описание параметра radialSegments">?</summary>
+                    <div class="torus-parameter-help-text">
+                      <strong>radialSegments — сегменты поперечного сечения.</strong>
+                      Определяет, на сколько частей разбита окружность самой
+                      трубки. Большее значение делает сечение визуально круглее,
+                      но увеличивает число вершин и треугольников. Минимально
+                      допустимо 3, стандарт Three.js: <strong>12</strong>.
+                    </div>
+                  </details>
+                </div>
+                <input id="torus-analysis-radial-segments" type="range" min="3" max="64" step="1" value="12" />
+                <div class="torus-default-values">
+                  <span class="torus-three-default">THREE default · 12</span>
+                  <button class="torus-our-default" type="button" data-torus-our-default="radialSegments">
+                    Наш default · 22
+                  </button>
+                </div>
+              </div>
+              <div class="torus-analysis-control">
+                <div class="torus-analysis-control-header">
+                  <label for="torus-analysis-tubular-segments">tubularSegments</label>
+                  <output id="torus-analysis-tubular-segments-output"></output>
+                  <details class="torus-parameter-help">
+                    <summary aria-label="Описание параметра tubularSegments">?</summary>
+                    <div class="torus-parameter-help-text">
+                      <strong>tubularSegments — сегменты вдоль кольца.</strong>
+                      Определяет, на сколько частей разбит путь трубки вокруг
+                      центра тора. Большее значение делает изгиб кольца плавнее,
+                      одновременно повышая стоимость геометрии. Минимально
+                      допустимо 3, стандарт Three.js: <strong>48</strong>.
+                    </div>
+                  </details>
+                </div>
+                <input id="torus-analysis-tubular-segments" type="range" min="3" max="256" step="1" value="48" />
+                <div class="torus-default-values">
+                  <span class="torus-three-default">THREE default · 48</span>
+                  <button class="torus-our-default" type="button" data-torus-our-default="tubularSegments">
+                    Наш default · 45
+                  </button>
+                </div>
+              </div>
+              <div class="torus-analysis-control">
+                <div class="torus-analysis-control-header">
+                  <label for="torus-analysis-arc">arc</label>
+                  <output id="torus-analysis-arc-output"></output>
+                  <details class="torus-parameter-help">
+                    <summary aria-label="Описание параметра arc">?</summary>
+                    <div class="torus-parameter-help-text">
+                      <strong>arc — длина дуги центрального кольца.</strong>
+                      Угол задаётся в радианах: 2π создаёт замкнутый тор, π —
+                      половину кольца. Значение меняет длину пути, по которому
+                      строится трубка, но не её толщину. Стандарт Three.js:
+                      <strong>2π</strong>.
+                    </div>
+                  </details>
+                </div>
+                <input id="torus-analysis-arc" type="range" min="0.1" max="6.283185307179586" step="any" value="6.283185307179586" />
+                <div class="torus-default-values">
+                  <span class="torus-three-default">THREE default · 6.283 rad · 2.00π</span>
+                  <button class="torus-our-default" type="button" data-torus-our-default="arc">
+                    Наш default · 6.280 rad · 2.00π
+                  </button>
+                </div>
+              </div>
+              <div class="torus-analysis-control">
+                <div class="torus-analysis-control-header">
+                  <label for="torus-analysis-theta-start">thetaStart</label>
+                  <output id="torus-analysis-theta-start-output"></output>
+                  <details class="torus-parameter-help">
+                    <summary aria-label="Описание параметра thetaStart">?</summary>
+                    <div class="torus-parameter-help-text">
+                      <strong>thetaStart — начальный угол сечения трубки.</strong>
+                      Задаётся в радианах и поворачивает начало используемой
+                      части поперечной окружности. Для полного сечения эффект
+                      заметен только по сетке; при неполном thetaLength он
+                      определяет положение разреза. Стандарт Three.js:
+                      <strong>0</strong>.
+                    </div>
+                  </details>
+                </div>
+                <input id="torus-analysis-theta-start" type="range" min="-6.283185307179586" max="6.283185307179586" step="any" value="0" />
+                <div class="torus-default-values">
+                  <span class="torus-three-default">THREE default · 0.000 rad · 0.00π</span>
+                  <button class="torus-our-default" type="button" data-torus-our-default="thetaStart">
+                    Наш default · −0.003 rad · −0.00π
+                  </button>
+                </div>
+              </div>
+              <div class="torus-analysis-control">
+                <div class="torus-analysis-control-header">
+                  <label for="torus-analysis-theta-length">thetaLength</label>
+                  <output id="torus-analysis-theta-length-output"></output>
+                  <details class="torus-parameter-help">
+                    <summary aria-label="Описание параметра thetaLength">?</summary>
+                    <div class="torus-parameter-help-text">
+                      <strong>thetaLength — угловая длина сечения трубки.</strong>
+                      Задаётся в радианах: 2π создаёт полное круглое сечение,
+                      меньшие значения оставляют трубку раскрытой вдоль всего
+                      кольца. Это независимый разрез поперёк трубки, не длина
+                      самого кольца. Стандарт Three.js: <strong>2π</strong>.
+                    </div>
+                  </details>
+                </div>
+                <input id="torus-analysis-theta-length" type="range" min="0.1" max="6.283185307179586" step="any" value="6.283185307179586" />
+                <div class="torus-default-values">
+                  <span class="torus-three-default">THREE default · 6.283 rad · 2.00π</span>
+                  <button class="torus-our-default" type="button" data-torus-our-default="thetaLength">
+                    Наш default · 6.280 rad · 2.00π
+                  </button>
+                </div>
+              </div>
+            </fieldset>
+            <p id="torus-analysis-default-status" aria-live="polite"></p>
+            <p id="torus-analysis-validation"></p>
+          </section>
+          <section class="torus-analysis-card metafor">
+            <h3>MetaFor · параметры и зависимости</h3>
+            <p>
+              Размеры нашей формы в миллиметрах. В этом стенде одна единица
+              сцены Three.js соответствует одному миллиметру. Удерживайте
+              Shift при перетаскивании для движения в 10 раз медленнее.
+            </p>
+            <fieldset>
+              <div class="torus-analysis-control">
+                <div class="torus-analysis-control-header">
+                  <label for="torus-analysis-inner-diameter">Внутренний диаметр</label>
+                  <output id="torus-analysis-inner-diameter-output"></output>
+                  <details class="torus-parameter-help">
+                    <summary aria-label="Описание параметра внутренний диаметр">?</summary>
+                    <div class="torus-parameter-help-text">
+                      <strong>Внутренний диаметр — диаметр свободного отверстия тора, мм.</strong>
+                      Он равен удвоенной разнице между Three.js
+                      <code>radius</code> и <code>tube</code>. При изменении
+                      здесь внешний диаметр сохраняется: одновременно
+                      пересчитываются <code>radius</code>, <code>tube</code>
+                      и зависимый диаметр трубки.
+                    </div>
+                  </details>
+                </div>
+                <input
+                  id="torus-analysis-inner-diameter"
+                  type="range"
+                  min="0.1"
+                  max="100"
+                  step="any"
+                  value="0.8"
+                />
+              </div>
+              <div class="torus-analysis-control">
+                <div class="torus-analysis-control-header">
+                  <label for="torus-analysis-tube-diameter">Диаметр трубки</label>
+                  <output id="torus-analysis-tube-diameter-output"></output>
+                  <details class="torus-parameter-help">
+                    <summary aria-label="Описание параметра диаметр трубки">?</summary>
+                    <div class="torus-parameter-help-text">
+                      <strong>Диаметр трубки — толщина круглого сечения тора, мм.</strong>
+                      Он равен удвоенному Three.js <code>tube</code>. При
+                      изменении здесь внутренний диаметр остаётся неизменным:
+                      одновременно пересчитываются <code>tube</code> и
+                      <code>radius</code>.
+                    </div>
+                  </details>
+                </div>
+                <input
+                  id="torus-analysis-tube-diameter"
+                  type="range"
+                  min="0.1"
+                  max="100"
+                  step="any"
+                  value="1.4"
+                />
+              </div>
+            </fieldset>
+            <div class="torus-dependency-law">
+              <strong>Связь с THREE.TorusGeometry</strong>
+              <span>внутренний диаметр = 2 × (radius − tube)</span>
+              <span>диаметр трубки = 2 × tube</span>
+              <span>внешний диаметр = 2 × (radius + tube)</span>
+              <span>ширина формы ≤ 100 мм</span>
+              <span>при изменении внутреннего диаметра внешний фиксирован</span>
+              <span>при изменении диаметра трубки внутренний фиксирован</span>
+            </div>
+            <dl class="torus-derived-dimensions" aria-label="Габариты тора">
+              <dt>Ширина формы</dt>
+              <dd><output id="torus-analysis-form-width-output"></output></dd>
+              <dt>Высота формы</dt>
+              <dd><output id="torus-analysis-form-height-output"></output></dd>
+            </dl>
+          </section>
+          <div class="torus-analysis-view-controls" aria-label="Вид Torus Analysis">
+            <button type="button" data-torus-analysis-view="perspective">Перспектива</button>
+            <button type="button" data-torus-analysis-view="front">Спереди</button>
+            <button type="button" data-torus-analysis-view="top">Сверху</button>
+          </div>
+          <section id="torus-analysis-readout" aria-label="Производные параметры тора"></section>
         </section>
       </section>
       <aside id="controls">
@@ -596,6 +1862,55 @@
             <h3>JSON граф</h3>
             <pre id="state-graph-json"></pre>
           </section>
+        </div>
+        <div id="form-skin-controls" hidden>
+          <fieldset>
+            <legend>Скин формы</legend>
+            <label>
+              <span>Вариант</span>
+              <select id="form-skin-select"></select>
+            </label>
+            <p id="form-skin-description"></p>
+            <label>
+              <span>Цвет</span>
+              <input id="form-skin-color" type="color" value="#52d7ff" />
+            </label>
+            <label>
+              <span>Glow <output id="form-skin-glow-output"></output></span>
+              <input id="form-skin-glow" type="range" min="0.1" max="6" step="0.1" value="2.4" />
+            </label>
+            <label>
+              <span>Opacity <output id="form-skin-opacity-output"></output></span>
+              <input id="form-skin-opacity" type="range" min="0.05" max="1" step="0.05" value="0.9" />
+            </label>
+          </fieldset>
+          <fieldset>
+            <legend>Нагрузка</legend>
+            <label>
+              <span>Копии <output id="form-skin-copies-output"></output></span>
+              <input id="form-skin-copies" type="range" min="1" max="64" step="1" value="1" />
+            </label>
+            <label>
+              <span>Pixel ratio <output id="form-skin-pixel-ratio-output"></output></span>
+              <input id="form-skin-pixel-ratio" type="range" min="0.5" max="2" step="0.25" value="1" />
+            </label>
+          </fieldset>
+          <fieldset>
+            <legend>Последнее измерение</legend>
+            <dl id="form-skin-metrics"></dl>
+          </fieldset>
+          <button id="form-skin-run-current" type="button">
+            Тестировать текущий скин · 2 сек
+          </button>
+          <button id="form-skin-run-all" type="button">
+            Сравнить все скины · ~10 сек
+          </button>
+          <p id="form-skin-benchmark-status"></p>
+          <button id="form-skin-reset" type="button">Сбросить замер</button>
+          <p class="form-skin-metric-note">
+            CPU submit включает обход сцены, подготовку команд WebGPU и submit,
+            но не выдаётся за полное GPU-время исполнения.
+          </p>
         </div>
       </aside>
     </main>

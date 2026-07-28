@@ -32,12 +32,26 @@ const LEVEL_LABEL_COLOR = new Color(0.48, 0.59, 0.74)
 const NODE_LABEL_SIZE = 1.2
 const LEVEL_LABEL_SIZE = 0.9
 const EDGE_SEGMENTS = 24
+const NORMAL_EDGE_HEIGHT = 0.7
+const RETURN_EDGE_CONTROL_HEIGHT = 14
 const FRAME_PADDING = 1.3
 
 export type StateGraphViewport = Readonly<{
+  capturePng(): Promise<Blob | null>
   dispose(): void
+  getPose(): StateGraphViewportPose
   setSize(width: number, height: number): void
   setView(view: StateGraphView): void
+}>
+
+export type StateGraphViewportPose = Readonly<{
+  aspect: number
+  far: number
+  fov: number
+  near: number
+  position: Readonly<{x: number; y: number; z: number}>
+  target: Readonly<{x: number; y: number; z: number}>
+  up: Readonly<{x: number; y: number; z: number}>
 }>
 
 export type StateGraphView =
@@ -82,6 +96,62 @@ const geometryFromSegments = (
 const nodePosition = (node: StateGraphLayoutNode): Vector3 =>
   new Vector3(node.x, node.y, node.z)
 
+export const buildStateGraphEdgeCurve = (
+  edge: StateGraphLayoutEdge,
+  fromNode: StateGraphLayoutNode,
+  toNode: StateGraphLayoutNode,
+): readonly Vector3[] => {
+  const fromCenter = nodePosition(fromNode)
+  const toCenter = nodePosition(toNode)
+  const direction = toCenter.clone().sub(fromCenter)
+  const length = Math.max(direction.length(), 1e-6)
+  const unit = direction.clone().multiplyScalar(1 / length)
+  const from = edge.returning
+    ? fromCenter
+    : fromCenter.clone().add(unit.clone().multiplyScalar(fromNode.radius))
+  const to = edge.returning
+    ? toCenter
+    : toCenter.clone().sub(unit.clone().multiplyScalar(toNode.radius))
+  const middleX = (from.x + to.x) / 2
+  const points = [from]
+  for (let index = 1; index <= EDGE_SEGMENTS; index += 1) {
+    const t = index / EDGE_SEGMENTS
+    const inverse = 1 - t
+    if (edge.returning) {
+      points.push(new Vector3(
+        inverse ** 3 * from.x +
+          3 * inverse ** 2 * t * from.x +
+          3 * inverse * t ** 2 * to.x +
+          t ** 3 * to.x,
+        inverse ** 3 * from.y +
+          3 * inverse ** 2 * t * from.y +
+          3 * inverse * t ** 2 * to.y +
+          t ** 3 * to.y,
+        inverse ** 3 * from.z +
+          3 * inverse ** 2 * t * (from.z + RETURN_EDGE_CONTROL_HEIGHT) +
+          3 * inverse * t ** 2 * (to.z + RETURN_EDGE_CONTROL_HEIGHT) +
+          t ** 3 * to.z,
+      ))
+      continue
+    }
+    const point = new Vector3(
+      inverse ** 3 * from.x +
+        3 * inverse ** 2 * t * middleX +
+        3 * inverse * t ** 2 * middleX +
+        t ** 3 * to.x,
+      inverse ** 3 * from.y +
+        3 * inverse ** 2 * t * from.y +
+        3 * inverse * t ** 2 * to.y +
+        t ** 3 * to.y,
+      inverse * from.z +
+        t * to.z +
+        Math.sin(Math.PI * t) * NORMAL_EDGE_HEIGHT,
+    )
+    points.push(point)
+  }
+  return points
+}
+
 const edgeGeometry = (
   edge: StateGraphLayoutEdge,
   nodeById: ReadonlyMap<string, StateGraphLayoutNode>,
@@ -89,35 +159,10 @@ const edgeGeometry = (
   const fromNode = nodeById.get(edge.fromNodeId)
   const toNode = nodeById.get(edge.toNodeId)
   if (!fromNode || !toNode) return geometryFromSegments([])
-  const fromCenter = nodePosition(fromNode)
-  const toCenter = nodePosition(toNode)
-  const direction = toCenter.clone().sub(fromCenter)
-  const length = Math.max(direction.length(), 1e-6)
-  const unit = direction.clone().multiplyScalar(1 / length)
-  const from = fromCenter.clone().add(unit.clone().multiplyScalar(fromNode.radius))
-  const to = toCenter.clone().sub(unit.clone().multiplyScalar(toNode.radius))
-  const middleX = (from.x + to.x) / 2
-  const returnOffset = edge.returning
-    ? (from.y <= to.y ? -8 : 8)
-    : 0
+  const points = buildStateGraphEdgeCurve(edge, fromNode, toNode)
   const segments: Array<readonly [Vector3, Vector3]> = []
-  let previous = from
-  for (let index = 1; index <= EDGE_SEGMENTS; index += 1) {
-    const t = index / EDGE_SEGMENTS
-    const inverse = 1 - t
-    const point = new Vector3(
-      inverse ** 3 * from.x +
-        3 * inverse ** 2 * t * middleX +
-        3 * inverse * t ** 2 * middleX +
-        t ** 3 * to.x,
-      inverse ** 3 * from.y +
-        3 * inverse ** 2 * t * (from.y + returnOffset) +
-        3 * inverse * t ** 2 * (to.y + returnOffset) +
-        t ** 3 * to.y,
-      Math.sin(Math.PI * t) * 0.7,
-    )
-    segments.push([previous, point])
-    previous = point
+  for (let index = 1; index < points.length; index += 1) {
+    segments.push([points[index - 1]!, points[index]!])
   }
   return geometryFromSegments(segments)
 }
@@ -383,6 +428,10 @@ export const createStateGraphViewport = async ({
   requestRender()
 
   return {
+    async capturePng() {
+      if (disposed) return null
+      return await renderer.captureLastPresentedFramePng()
+    },
     dispose() {
       if (disposed) return
       disposed = true
@@ -395,6 +444,23 @@ export const createStateGraphViewport = async ({
       canvas.removeEventListener("touchend", handleViewChange)
       document.removeEventListener("mousemove", handleMouseMove)
       document.removeEventListener("mouseup", handleMouseUp)
+    },
+    getPose() {
+      const target = viewPoint.getTarget()
+      const cameraUp = viewPoint.getUp()
+      return {
+        position: {
+          x: viewPoint.position.x,
+          y: viewPoint.position.y,
+          z: viewPoint.position.z,
+        },
+        target: {x: target.x, y: target.y, z: target.z},
+        up: {x: cameraUp.x, y: cameraUp.y, z: cameraUp.z},
+        fov: viewPoint.fov,
+        aspect: viewPoint.aspect,
+        near: viewPoint.near,
+        far: viewPoint.far,
+      }
     },
     setSize(nextWidth: number, nextHeight: number) {
       if (disposed) return

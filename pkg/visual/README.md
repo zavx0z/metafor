@@ -27,3 +27,66 @@ it. Every card also owns a top-right ViewCube for orthogonal camera selection.
 This viewer owns its geometry, camera, guides and screen-facing labels entirely
 inside `pkg/visual`; its experimental coordinates and presentation options are
 not consumed by Bulk.
+
+`Sphere` and `Torus` beneath `Form skins` are an isolated Form Skin Lab. Both
+pages run the same skin catalog (`wire`, `glow`, `silhouette`, `solid`,
+`hybrid`) against one fixed geometry per form. Geometric Torus controls do not
+live in the skin page; they are explored separately under `Analysis → Torus`.
+Copy count, pixel ratio, color, glow and opacity remain playground-only skin
+and load inputs. There is no idle render loop and no automatic form rotation.
+`Test current skin` explicitly starts a bounded dynamic measurement, while
+`Compare all skins` warms and measures every variant sequentially under the
+same fixed geometry and load. Both stop rendering when the requested
+measurement finishes. The benchmark reports RAF FPS and frame distribution,
+CPU command submission cost, draw/pass/object counts, submitted vertex
+references, triangles, line segments, geometry buffer size,
+framebuffer/render-target estimates, rebuild time and browser heap when
+exposed. GPU execution time is deliberately not reported until Renderer
+exposes a timestamp-query contract; CPU submit is not presented as GPU time.
+
+`Edges` beneath `Analysis` isolates the geometry of one connection before it
+is reused by State Graph or Bulk. The scene contains two Torus forms with one
+Sphere at each center. The Edge always runs center-to-center as one cubic
+Bézier. Each endpoint owns a white guide axis and a white constraint circle
+perpendicular to the Torus axis; its Bézier control must lie on that circle.
+Left and right circle heights are independent, while radius and control
+azimuth remain explicit scene controls. Consequently entry angles, curve
+maximum and curve length are derived values rather than one fixed arc-height
+constant. Every adjustable parameter has an in-scene Russian help disclosure.
+All experimental controls and values stay inside the scene. The scene renders
+only after a parameter, view or camera change.
+
+`Torus` beneath `Analysis` is a separate geometry laboratory, distinct from
+the Torus page in `Form skins`. Its first card exposes the current official
+`THREE.TorusGeometry` parameters and defaults: `radius = 1`, `tube = 0.4`,
+`radialSegments = 12`, `tubularSegments = 48`, `arc = 2π`,
+`thetaStart = 0`, and `thetaLength = 2π`. Every parameter has an in-scene
+Russian help disclosure describing its meaning, units and geometry cost. The
+immutable Three.js default is shown separately from the editable MetaFor
+default. Clicking a parameter's `Наш default` stores its current slider value
+as the new browser-local MetaFor default and restores it on later playground
+loads. The scene shows the resulting wire geometry, construction guides and
+derived primitive counts. The `MetaFor` card exposes the agreed millimetre
+dimensions `inner diameter` and `tube diameter` using one scene unit per
+millimetre. They stay bidirectionally synchronized with Three.js `radius` and
+`tube`; changing the MetaFor inner diameter preserves the outer diameter, while
+changing its tube diameter preserves the inner diameter. Read-only width
+(`2 × (radius + tube)`) and height (`2 × tube`) expose the resulting form
+dimensions in millimetres. Both editable MetaFor diameters range up to
+`100 mm`, while the resulting form width has a hard `100 mm` limit. The
+effective diameter limits therefore react to the other dimensions. When a
+larger form no longer fits, the camera retreats along its current view direction
+without automatically moving closer for smaller forms. The scene renders only
+after a parameter, view or camera change. Holding `Shift` while dragging any
+continuous Torus parameter reduces its movement to one tenth of the native
+slider delta; discrete segment counts retain their integer step.
+
+State Graph cards provide a local annotation layer. A completed stroke stores
+its normalized/screen points together with Atom, State, Transition, layout and
+camera identity, then uploads a composed viewport PNG to the playground REST
+server. Runtime records are ignored beneath `playground/.annotations/`.
+
+- `GET /api/annotations` — saved records;
+- `GET /api/annotations/latest` — latest JSON;
+- `GET /api/annotations/latest.png` or `GET /api/capture/latest` — latest PNG;
+- `GET /api/annotations/:id` and `GET /api/annotations/:id.png` — exact record.
