@@ -8,7 +8,6 @@ import {
 import type {BulkProjectionSnapshot} from "@metafor/types/bulk/initial"
 import {
   BulkViewportCaptureRegistry,
-  bulkViewportCaptureAuthorizationFromJson,
   type BulkViewportObserverClient,
 } from "./capture.ts"
 import {BulkProjectionStore} from "./projection.ts"
@@ -16,6 +15,8 @@ import {BulkProjectionStore} from "./projection.ts"
 const PNG_BASE64 =
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
 const PNG_BYTES = 68
+const OWNER_SESSION = "owner-observer-session"
+const OTHER_SESSION = "other-observer-session"
 const EMPTY_PROJECTION: BulkProjectionSnapshot = {
   runtime: {
     atoms: [],
@@ -53,9 +54,12 @@ class Client implements BulkViewportObserverClient {
   }
 }
 
-const request = (observerId?: string) => ({
+const request = (
+  observerId?: string,
+  grant = OWNER_SESSION,
+) => ({
   version: BULK_VIEWPORT_CAPTURE_VERSION,
-  grant: "owner-grant",
+  grant,
   ...(observerId === undefined ? {} : {observerId}),
 })
 
@@ -106,7 +110,6 @@ const respond = (
 const allowedRegistry = (
   options: ConstructorParameters<typeof BulkViewportCaptureRegistry>[0] = {},
 ) => new BulkViewportCaptureRegistry({
-  authorize: ({source, capability}) => source === "codex" && capability === "owner-grant",
   minIntervalMs: 0,
   randomId: () => "capture",
   ...options,
@@ -115,25 +118,38 @@ const allowedRegistry = (
 describe("Bulk observer viewport capture registry", () => {
   test("defaults to deny and never treats an observer id as authorization", async () => {
     const registry = new BulkViewportCaptureRegistry()
-    registry.connect(new Client("visible-observer"))
+    registry.connect(new Client("visible-observer"), OTHER_SESSION)
 
     expect(await registry.capture(request("visible-observer"), {source: "codex"})).toEqual({
       ok: false,
-      error: {code: "permission_denied", message: "Bulk viewport capture grant is required"},
+      error: {
+        code: "permission_denied",
+        message: "Bulk observer session is not bound to this Monad caller",
+      },
     })
   })
 
-  test("binds configured capabilities to the Monad caller identity", async () => {
-    const authorize = bulkViewportCaptureAuthorizationFromJson(JSON.stringify([
-      {source: "codex", capability: "owner-grant"},
-    ]))
-    expect(await authorize({source: "codex", capability: "owner-grant"})).toBe(true)
-    expect(await authorize({source: "other", capability: "owner-grant"})).toBe(false)
-    expect(await authorize({source: "codex", capability: "wrong"})).toBe(false)
-    expect(await bulkViewportCaptureAuthorizationFromJson("{broken")({
-      source: "codex",
-      capability: "owner-grant",
-    })).toBe(false)
+  test("binds the live observer session to one Monad caller without deployment configuration", async () => {
+    const registry = allowedRegistry()
+    const owner = new Client("owner")
+    const unrelated = new Client("unrelated")
+    registry.connect(owner, OWNER_SESSION)
+    registry.connect(unrelated, OTHER_SESSION)
+
+    const allowed = registry.capture(request("owner"), {source: "codex"})
+    await Bun.sleep(0)
+    expect(respond(registry, owner, owner.sent[0]!)).toBe(true)
+    expect((await allowed).ok).toBe(true)
+
+    expect(await registry.capture(request("owner"), {source: "other-caller"})).toMatchObject({
+      ok: false,
+      error: {code: "permission_denied"},
+    })
+    expect(await registry.capture(request("unrelated"), {source: "codex"})).toMatchObject({
+      ok: false,
+      error: {code: "permission_denied"},
+    })
+    expect(unrelated.sent).toHaveLength(0)
   })
 
   test("requires exactly one observer when selector is omitted and reports missing selectors", async () => {
@@ -143,8 +159,8 @@ describe("Bulk observer viewport capture registry", () => {
       error: {code: "observer_not_found"},
     })
 
-    registry.connect(new Client("one"))
-    registry.connect(new Client("two"))
+    registry.connect(new Client("one"), OWNER_SESSION)
+    registry.connect(new Client("two"), OTHER_SESSION)
     expect(await registry.capture(request(), {source: "codex"})).toMatchObject({
       ok: false,
       error: {code: "observer_ambiguous"},
@@ -157,8 +173,8 @@ describe("Bulk observer viewport capture registry", () => {
 
   test("treats duplicate observer ids as ambiguous instead of selecting a socket", async () => {
     const registry = allowedRegistry()
-    registry.connect(new Client("duplicate"))
-    registry.connect(new Client("duplicate"))
+    registry.connect(new Client("duplicate"), OWNER_SESSION)
+    registry.connect(new Client("duplicate"), OTHER_SESSION)
 
     expect(await registry.capture(request("duplicate"), {source: "codex"})).toMatchObject({
       ok: false,
@@ -169,7 +185,7 @@ describe("Bulk observer viewport capture registry", () => {
   test("returns the selected observer PNG with frozen projection and viewport metadata", async () => {
     const registry = allowedRegistry()
     const client = new Client("owner-viewport")
-    registry.connect(client)
+    registry.connect(client, OWNER_SESSION)
 
     const pending = registry.capture(request("owner-viewport"), {source: "codex"})
     await Bun.sleep(0)
@@ -195,7 +211,7 @@ describe("Bulk observer viewport capture registry", () => {
   test("allows only one in-flight capture per observer", async () => {
     const registry = allowedRegistry()
     const client = new Client("owner")
-    registry.connect(client)
+    registry.connect(client, OWNER_SESSION)
 
     const first = registry.capture(request("owner"), {source: "codex"})
     await Bun.sleep(0)
@@ -211,7 +227,7 @@ describe("Bulk observer viewport capture registry", () => {
     let now = 10_000
     const registry = allowedRegistry({minIntervalMs: 1_000, now: () => now})
     const client = new Client("owner")
-    registry.connect(client)
+    registry.connect(client, OWNER_SESSION)
 
     const first = registry.capture(request("owner"), {source: "codex"})
     await Bun.sleep(0)
@@ -233,8 +249,8 @@ describe("Bulk observer viewport capture registry", () => {
     const registry = allowedRegistry({timeoutMs: 15})
     const owner = new Client("owner")
     const spoof = new Client("spoof")
-    registry.connect(owner)
-    registry.connect(spoof)
+    registry.connect(owner, OWNER_SESSION)
+    registry.connect(spoof, OTHER_SESSION)
 
     let settled = false
     const pending = registry.capture(request("owner"), {source: "codex"}).then((result) => {
@@ -251,7 +267,7 @@ describe("Bulk observer viewport capture registry", () => {
     expect((await pending).ok).toBe(true)
     expect(respond(registry, owner, control)).toBe(true)
 
-    const timedOut = registry.capture(request("spoof"), {source: "codex"})
+    const timedOut = registry.capture(request("spoof", OTHER_SESSION), {source: "codex"})
     await Bun.sleep(0)
     const late = spoof.sent[0]!
     expect(await timedOut).toMatchObject({ok: false, error: {code: "capture_timeout"}})
@@ -261,7 +277,7 @@ describe("Bulk observer viewport capture registry", () => {
   test("cancels an in-flight capture when its selected observer disconnects", async () => {
     const registry = allowedRegistry()
     const client = new Client("owner")
-    const disconnect = registry.connect(client)
+    const disconnect = registry.connect(client, OWNER_SESSION)
 
     const pending = registry.capture(request("owner"), {source: "codex"})
     await Bun.sleep(0)
@@ -285,7 +301,7 @@ describe("Bulk observer viewport capture registry", () => {
       },
     })
     const client = new Client("owner")
-    registry.connect(client)
+    registry.connect(client, OWNER_SESSION)
 
     const unavailable = registry.capture(request("owner"), {source: "codex"})
     await Bun.sleep(0)

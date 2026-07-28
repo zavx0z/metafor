@@ -5,7 +5,10 @@ export const BULK_VIEWPORT_CAPTURE_VERSION = 1 as const
 
 export type BulkViewportCaptureRequest = {
   version: typeof BULK_VIEWPORT_CAPTURE_VERSION
-  /** Caller capability. Observer identity is only a selector and never a grant. */
+  /**
+   * The selected live observer's consumed one-use session capability. The first
+   * valid use binds that observer to the authenticated Monad caller identity.
+   */
   grant: string
   /** May be omitted only while exactly one Bulk observer is connected. */
   observerId?: string

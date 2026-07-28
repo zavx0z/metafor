@@ -371,10 +371,12 @@ screenshot.
 
 Observer выбирается по `id`; без `id` capture допустим только при ровно одном
 подключённом observer. `id` является selector, но не правом доступа. Monad
-caller обязан передать capability, связанную с его source identity. Переменная
-`BULK_VIEWPORT_CAPTURE_GRANTS` содержит JSON-массив
-`{"source": string, "capability": string}`; отсутствующая или некорректная
-конфигурация запрещает все capture.
+caller обязан передать одноразовую session capability именно выбранного
+observer. После её поглощения WebSocket Upgrade Bulk хранит только digest
+session на время этого соединения. Первый валидный capture связывает observer
+с аутентифицированным `source` Monad channel; до disconnect та же session не
+даёт другому caller и другому observer право чтения. Ручной deployment grant
+для basic capture не требуется.
 
 Capture request/response идут по browser WebSocket-соединению, уже
 аутентифицированному одноразовой session, как явно дискриминированные control

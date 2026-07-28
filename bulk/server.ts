@@ -10,7 +10,6 @@ import {bulkMonadRoutes} from "./monad-route.ts"
 import {
   BULK_VIEWPORT_CAPTURE_MAX_CONTROL_BYTES,
   BulkViewportCaptureRegistry,
-  bulkViewportCaptureAuthorizationFromJson,
   type BulkViewportObserverClient,
 } from "./capture.ts"
 import {routeBulkBrowserPayload} from "./browser-protocol.ts"
@@ -20,9 +19,7 @@ type BrowserClient = {domain: string; id: string; session: string}
 const browserClients = new Set<ServerWebSocket<BrowserClient>>()
 const handoffs = new BulkObserverHandoffs()
 const monad = new BulkMonad()
-const captures = new BulkViewportCaptureRegistry({
-  authorize: bulkViewportCaptureAuthorizationFromJson(Bun.env.BULK_VIEWPORT_CAPTURE_GRANTS),
-})
+const captures = new BulkViewportCaptureRegistry()
 const transport = new MonadTransport("bulk")
 const rpc = new MonadRpcPeer(transport.channel)
 monad.onServerStarting(rpc, captures)
@@ -102,7 +99,10 @@ const server = Bun.serve<BrowserClient>({
         id: ws.data.id,
         send: (message) => sendBrowser(ws, message),
       }
-      captureConnections.set(ws, {client, disconnect: captures.connect(client)})
+      captureConnections.set(ws, {
+        client,
+        disconnect: captures.connect(client, ws.data.session),
+      })
       console.log(`[bulk] browser connected ${ws.data.domain} ${ws.data.id}`)
     },
     close(ws) {

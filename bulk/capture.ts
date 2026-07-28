@@ -1,3 +1,4 @@
+import {createHash, timingSafeEqual} from "node:crypto"
 import {
   BULK_VIEWPORT_CAPTURE_VERSION,
   isBulkViewportCaptureControlResponse,
@@ -32,14 +33,7 @@ export type BulkViewportObserverClient = {
   send(message: BulkViewportCaptureControlRequest): boolean
 }
 
-export type BulkViewportCaptureAuthorization = (request: {
-  source: string
-  capability: string
-  observerId?: string
-}) => boolean | Promise<boolean>
-
 export type BulkViewportCaptureRegistryOptions = {
-  authorize?: BulkViewportCaptureAuthorization
   limits?: BulkViewportCaptureLimits
   minIntervalMs?: number
   timeoutMs?: number
@@ -49,6 +43,8 @@ export type BulkViewportCaptureRegistryOptions = {
 
 type Observer = {
   readonly client: BulkViewportObserverClient
+  readonly sessionDigest: Uint8Array
+  boundSource: string | null
   sequence: number
   lastCaptureAt: number | null
 }
@@ -76,6 +72,12 @@ const failure = (
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)
+
+const sessionDigest = (session: string): Uint8Array =>
+  createHash("sha256").update(session).digest()
+
+const sameSession = (observer: Observer, session: string): boolean =>
+  timingSafeEqual(observer.sessionDigest, sessionDigest(session))
 
 const readRequest = (value: unknown): BulkViewportCaptureRequest | null => {
   if (
@@ -242,7 +244,6 @@ const validateCaptureResult = (
  * observers. A browser id selects a socket; it never authorizes the caller.
  */
 export class BulkViewportCaptureRegistry {
-  readonly #authorize: BulkViewportCaptureAuthorization
   readonly #limits: BulkViewportCaptureLimits
   readonly #minIntervalMs: number
   readonly #timeoutMs: number
@@ -254,7 +255,6 @@ export class BulkViewportCaptureRegistry {
   #correlationSequence = 0
 
   constructor(options: BulkViewportCaptureRegistryOptions = {}) {
-    this.#authorize = options.authorize ?? (() => false)
     this.#limits = {...DEFAULT_BULK_VIEWPORT_CAPTURE_LIMITS, ...options.limits}
     this.#minIntervalMs = Math.max(0, options.minIntervalMs ?? 1_000)
     this.#timeoutMs = Math.max(1, options.timeoutMs ?? 5_000)
@@ -266,8 +266,17 @@ export class BulkViewportCaptureRegistry {
     return this.#observers.size
   }
 
-  connect(client: BulkViewportObserverClient): () => void {
-    const observer: Observer = {client, sequence: 0, lastCaptureAt: null}
+  connect(client: BulkViewportObserverClient, session: string): () => void {
+    if (session.length === 0 || session.length > 256) {
+      throw new Error("Bulk observer session capability is invalid")
+    }
+    const observer: Observer = {
+      client,
+      sessionDigest: sessionDigest(session),
+      boundSource: null,
+      sequence: 0,
+      lastCaptureAt: null,
+    }
     this.#observers.add(observer)
     return () => this.#disconnect(observer)
   }
@@ -280,14 +289,6 @@ export class BulkViewportCaptureRegistry {
     if (request === null) {
       return failure("invalid_request", "Bulk viewport capture request is invalid")
     }
-    if (!await this.#authorize({
-      source: context.source,
-      capability: request.grant,
-      ...(request.observerId === undefined ? {} : {observerId: request.observerId}),
-    })) {
-      return failure("permission_denied", "Bulk viewport capture grant is required")
-    }
-
     const matches = request.observerId === undefined
       ? [...this.#observers]
       : [...this.#observers].filter((observer) => observer.client.id === request.observerId)
@@ -299,6 +300,14 @@ export class BulkViewportCaptureRegistry {
     }
 
     const observer = matches[0]!
+    if (
+      !sameSession(observer, request.grant) ||
+      (observer.boundSource !== null && observer.boundSource !== context.source)
+    ) {
+      return failure("permission_denied", "Bulk observer session is not bound to this Monad caller")
+    }
+    observer.boundSource ??= context.source
+
     if (this.#pendingByObserver.has(observer)) {
       return failure("capture_in_flight", "Bulk observer already has a capture in flight")
     }
@@ -395,35 +404,4 @@ export class BulkViewportCaptureRegistry {
     clearTimeout(pending.timer)
     pending.resolve(result)
   }
-}
-
-type ConfiguredGrant = {source: string; capability: string}
-
-const configuredGrants = (raw: string | undefined): ConfiguredGrant[] => {
-  if (!raw) return []
-  try {
-    const value = JSON.parse(raw) as unknown
-    if (!Array.isArray(value)) return []
-    return value.flatMap((entry): ConfiguredGrant[] => {
-      if (
-        !isRecord(entry) ||
-        typeof entry.source !== "string" ||
-        entry.source.length === 0 ||
-        typeof entry.capability !== "string" ||
-        entry.capability.length === 0
-      ) return []
-      return [{source: entry.source, capability: entry.capability}]
-    })
-  } catch {
-    return []
-  }
-}
-
-/** Invalid or absent configuration deliberately produces a deny-all policy. */
-export const bulkViewportCaptureAuthorizationFromJson = (
-  raw: string | undefined,
-): BulkViewportCaptureAuthorization => {
-  const grants = configuredGrants(raw)
-  return ({source, capability}) =>
-    grants.some((grant) => grant.source === source && grant.capability === capability)
 }
