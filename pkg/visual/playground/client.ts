@@ -18,6 +18,7 @@ import {BulkProjectionStore} from "../../../bulk/projection.ts"
 import {DEFAULT_BULK_SETTINGS} from "../../../bulk/settings.ts"
 import {createBulkViewport} from "../../../bulk/web/index.ts"
 import {
+  createPageAnnotationLayer,
   createStateGraphAnnotationLayer,
   type StateGraphAnnotationLayer,
 } from "./AnnotationLayer.ts"
@@ -148,6 +149,24 @@ const viewport = await createBulkViewport({
   canvas,
   ...size(),
   visualLayers: initialComponent.layers,
+})
+const mainAnnotation = createPageAnnotationLayer({
+  sourceCanvas: canvas,
+  viewer: canvas.parentElement ??
+    (() => {
+      throw new Error("Visual canvas parent is missing")
+    })(),
+  capturePng: () => viewport.hud.renderer.captureLastPresentedFramePng(),
+  surface: () => {
+    const component = visualComponentForSlug(readSlug())
+    return {
+      canvasId: canvas.id,
+      kind: "playground-page",
+      route: window.location.hash,
+      slug: component.slug,
+      title: component.entity,
+    }
+  },
 })
 
 const storyLayers = (): BulkVisualLayer[] => {
@@ -445,6 +464,7 @@ const renderStateGraph = async (): Promise<void> => {
 }
 
 const applyStateGraphPage = (): void => {
+  mainAnnotation.hide()
   app.classList.add("state-graph-mode")
   app.classList.remove("form-skin-mode")
   app.classList.remove("edges-mode")
@@ -470,6 +490,7 @@ const applyStateGraphPage = (): void => {
 }
 
 const applyFormSkinPage = (form: FormSkinLabForm): void => {
+  mainAnnotation.hide()
   const slug = readSlug()
   stateGraphRenderVersion += 1
   disposeBranchViewports()
@@ -500,6 +521,7 @@ const applyFormSkinPage = (form: FormSkinLabForm): void => {
 }
 
 const applyEdgesPage = (): void => {
+  mainAnnotation.hide()
   const slug = readSlug()
   stateGraphRenderVersion += 1
   disposeBranchViewports()
@@ -530,6 +552,7 @@ const applyEdgesPage = (): void => {
 }
 
 const applyTorusAnalysisPage = (): void => {
+  mainAnnotation.hide()
   const slug = readSlug()
   stateGraphRenderVersion += 1
   disposeBranchViewports()
@@ -586,6 +609,7 @@ const applyStory = (): void => {
   }
   stateGraphRenderVersion += 1
   disposeBranchViewports()
+  mainAnnotation.show()
   app.classList.remove("state-graph-mode")
   app.classList.remove("form-skin-mode")
   app.classList.remove("edges-mode")
@@ -678,6 +702,7 @@ window.addEventListener("beforeunload", () => {
   if (torusAnalysisLabPromise) {
     void torusAnalysisLabPromise.then((lab) => lab.dispose())
   }
+  mainAnnotation.dispose()
   viewport.dispose()
 }, {once: true})
 context.addEventListener("change", applyStory)
@@ -694,6 +719,7 @@ stateGraphAtom.addEventListener("change", () => {
 const resizeObserver = new ResizeObserver(() => {
   const next = size()
   viewport.setSize(next.width, next.height)
+  mainAnnotation.resize()
 })
 resizeObserver.observe(canvas)
 

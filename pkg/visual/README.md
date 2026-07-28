@@ -46,9 +46,14 @@ exposes a timestamp-query contract; CPU submit is not presented as GPU time.
 
 `Edges` beneath `Analysis` isolates the geometry of one connection before it
 is reused by State Graph or Bulk. The scene contains two Torus forms with one
-Sphere at each center. The Edge always runs center-to-center as one cubic
-Bézier. Each endpoint owns a white guide axis and a white constraint circle
-perpendicular to the Torus axis; its Bézier control must lie on that circle.
+Sphere at each center. Both Torus forms use the browser-local `Наш default`
+fixed in `Analysis → Torus`; Edges exposes no separate Torus geometry control.
+Each Sphere is moved directly with the left mouse button in the Torus plane;
+its center is clamped so the complete Sphere stays inside the Torus hole.
+Their center distance is clamped to the saved outer diameter plus a `2 mm`
+gap, so the forms cannot touch. The Edge always runs center-to-center as one
+cubic Bézier. Each endpoint owns a white guide axis and a white constraint
+circle perpendicular to the Torus axis; its Bézier control must lie on that circle.
 Left and right circle heights are independent, while radius and control
 azimuth remain explicit scene controls. Consequently entry angles, curve
 maximum and curve length are derived values rather than one fixed arc-height
@@ -81,10 +86,13 @@ after a parameter, view or camera change. Holding `Shift` while dragging any
 continuous Torus parameter reduces its movement to one tenth of the native
 slider delta; discrete segment counts retain their integer step.
 
-State Graph cards provide a local annotation layer. A completed stroke stores
-its normalized/screen points together with Atom, State, Transition, layout and
-camera identity, then uploads a composed viewport PNG to the playground REST
-server. Runtime records are ignored beneath `playground/.annotations/`.
+Every playground viewport provides the same local annotation layer. Main Visual
+stories, Form Skin, Edges and Torus Analysis store their route, slug, title,
+canvas identity and normalized/screen points; State Graph cards additionally
+store Atom, State, Transition, layout and camera identity. Turning the pencil
+off uploads one composed viewport PNG plus its surface-specific metadata to the
+playground REST server. Runtime records are ignored beneath
+`playground/.annotations/`.
 
 - `GET /api/annotations` — saved records;
 - `GET /api/annotations/latest` — latest JSON;

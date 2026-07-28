@@ -9,6 +9,7 @@ import {
   Space,
   ViewPoint,
 } from "@metafor/engine"
+import {createPageAnnotationLayer} from "./AnnotationLayer.ts"
 
 export type ThreeTorusParameters = Readonly<{
   arc: number
@@ -40,7 +41,8 @@ export const METAFOR_TORUS_DEFAULTS: ThreeTorusParameters = Object.freeze({
   thetaLength: 6.28,
 })
 
-const TORUS_DEFAULT_STORAGE_KEY = "metafor.visual.torus-defaults.v1"
+export const TORUS_DEFAULT_STORAGE_KEY =
+  "metafor.visual.torus-defaults.v1"
 
 const torusParameterKeys = [
   "radius",
@@ -64,6 +66,19 @@ export const mergeTorusDefaults = (
     if (typeof next === "number" && Number.isFinite(next)) merged[key] = next
   }
   return merged
+}
+
+export const readStoredTorusDefaults = (
+  storage: Pick<Storage, "getItem">,
+): ThreeTorusParameters => {
+  try {
+    const stored = storage.getItem(TORUS_DEFAULT_STORAGE_KEY)
+    return stored === null
+      ? {...METAFOR_TORUS_DEFAULTS}
+      : mergeTorusDefaults(JSON.parse(stored))
+  } catch {
+    return {...METAFOR_TORUS_DEFAULTS}
+  }
 }
 
 export type ThreeTorusGeometryResult = Readonly<{
@@ -365,6 +380,21 @@ export const createTorusAnalysisLab = async (): Promise<TorusAnalysisLab> => {
   let disposed = false
   let frame = 0
   let geometries: BufferGeometry[] = []
+  const annotation = createPageAnnotationLayer({
+    sourceCanvas: elements.canvas,
+    viewer: elements.canvas.parentElement ??
+      (() => {
+        throw new Error("Torus Analysis canvas parent is missing")
+      })(),
+    capturePng: () => renderer.captureLastPresentedFramePng(),
+    surface: () => ({
+      canvasId: elements.canvas.id,
+      kind: "playground-page",
+      route: window.location.hash,
+      slug: "analysis-torus",
+      title: "Torus · параметры и зависимости",
+    }),
+  })
 
   const parameters = (): ThreeTorusParameters => ({
     radius: Number(elements.radius.value),
@@ -385,16 +415,6 @@ export const createTorusAnalysisLab = async (): Promise<TorusAnalysisLab> => {
     {input: elements.thetaStart, key: "thetaStart"},
     {input: elements.thetaLength, key: "thetaLength"},
   ] as const
-  const loadOurDefaults = (): ThreeTorusParameters => {
-    try {
-      const stored = localStorage.getItem(TORUS_DEFAULT_STORAGE_KEY)
-      return stored === null
-        ? {...METAFOR_TORUS_DEFAULTS}
-        : mergeTorusDefaults(JSON.parse(stored))
-    } catch {
-      return {...METAFOR_TORUS_DEFAULTS}
-    }
-  }
   const persistOurDefaults = (
     defaults: ThreeTorusParameters,
   ): boolean => {
@@ -405,7 +425,7 @@ export const createTorusAnalysisLab = async (): Promise<TorusAnalysisLab> => {
       return false
     }
   }
-  let ourDefaults = loadOurDefaults()
+  let ourDefaults = readStoredTorusDefaults(localStorage)
   for (const binding of defaultBindings) {
     binding.input.value = String(ourDefaults[binding.key])
   }
@@ -631,6 +651,7 @@ export const createTorusAnalysisLab = async (): Promise<TorusAnalysisLab> => {
 
   const observer = new ResizeObserver(() => {
     resize()
+    annotation.resize()
     requestRender()
   })
   observer.observe(elements.canvas)
@@ -762,6 +783,7 @@ export const createTorusAnalysisLab = async (): Promise<TorusAnalysisLab> => {
       active = false
       if (frame !== 0) cancelAnimationFrame(frame)
       observer.disconnect()
+      annotation.dispose()
       if (defaultStatusTimer !== 0) clearTimeout(defaultStatusTimer)
       window.removeEventListener("keydown", onKeyDown)
       window.removeEventListener("keyup", onKeyUp)
@@ -775,11 +797,13 @@ export const createTorusAnalysisLab = async (): Promise<TorusAnalysisLab> => {
     },
     hide() {
       active = false
+      annotation.hide()
       if (frame !== 0) cancelAnimationFrame(frame)
       frame = 0
     },
     show() {
       active = true
+      annotation.show()
       resize()
       setView("perspective")
       requestRender()

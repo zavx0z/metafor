@@ -1,16 +1,29 @@
 import type {StateGraphViewport} from "../StateGraphViewport.ts"
 import {
   VISUAL_ANNOTATION_SCHEMA,
+  type VisualAnnotationAtom,
   type VisualAnnotationDraft,
+  type VisualAnnotationGraph,
   type VisualAnnotationPoint,
   type VisualAnnotationStroke,
+  type VisualAnnotationSurface,
 } from "./Annotation.ts"
 
-type AnnotationContext = Pick<VisualAnnotationDraft, "atom" | "graph">
+type AnnotationContext =
+  Pick<VisualAnnotationDraft, "atom" | "graph" | "surface">
 
-export type StateGraphAnnotationLayer = Readonly<{
+export type CanvasAnnotationLayer = Readonly<{
   dispose(): void
+  hide(): void
   resize(): void
+  show(): void
+}>
+
+export type StateGraphAnnotationLayer = CanvasAnnotationLayer
+
+type AnnotationViewport = Readonly<{
+  capturePng(): Promise<Blob | null>
+  getPose(): VisualAnnotationStroke["camera"]
 }>
 
 type MutableStroke = {
@@ -66,7 +79,7 @@ const drawStroke = (
   }
 }
 
-export const createStateGraphAnnotationLayer = ({
+export const createCanvasAnnotationLayer = ({
   context,
   sourceCanvas,
   viewer,
@@ -75,8 +88,8 @@ export const createStateGraphAnnotationLayer = ({
   context(): AnnotationContext
   sourceCanvas: HTMLCanvasElement
   viewer: HTMLElement
-  viewport: StateGraphViewport
-}): StateGraphAnnotationLayer => {
+  viewport: AnnotationViewport
+}): CanvasAnnotationLayer => {
   const overlay = document.createElement("canvas")
   overlay.className = "state-annotation-canvas"
   const controls = document.createElement("div")
@@ -111,7 +124,12 @@ export const createStateGraphAnnotationLayer = ({
   if (overlayContext === null) {
     controls.remove()
     overlay.remove()
-    return {dispose() {}, resize() {}}
+    return {
+      dispose() {},
+      hide() {},
+      resize() {},
+      show() {},
+    }
   }
 
   const redraw = (): void => {
@@ -298,6 +316,75 @@ export const createStateGraphAnnotationLayer = ({
       controls.remove()
       overlay.remove()
     },
+    hide() {
+      if (pencil.classList.contains("active")) togglePencil()
+      controls.hidden = true
+      overlay.hidden = true
+    },
     resize,
+    show() {
+      controls.hidden = false
+      overlay.hidden = false
+      resize()
+    },
   }
 }
+
+export const createStateGraphAnnotationLayer = ({
+  context,
+  sourceCanvas,
+  viewer,
+  viewport,
+}: {
+  context(): Readonly<{
+    atom: VisualAnnotationAtom
+    graph: VisualAnnotationGraph
+  }>
+  sourceCanvas: HTMLCanvasElement
+  viewer: HTMLElement
+  viewport: StateGraphViewport
+}): StateGraphAnnotationLayer =>
+  createCanvasAnnotationLayer({
+    sourceCanvas,
+    viewer,
+    viewport,
+    context: () => {
+      const stateGraph = context()
+      return {
+        ...stateGraph,
+        surface: {
+          canvasId: sourceCanvas.id ||
+            `state-graph-card-${stateGraph.graph.cardIndex}`,
+          kind: "state-graph-card",
+          route: window.location.hash,
+          slug: "state-graph",
+          title: stateGraph.graph.rootStateLabel,
+        },
+      }
+    },
+  })
+
+export const createPageAnnotationLayer = ({
+  capturePng,
+  sourceCanvas,
+  surface,
+  viewer,
+}: {
+  capturePng(): Promise<Blob | null>
+  sourceCanvas: HTMLCanvasElement
+  surface(): VisualAnnotationSurface
+  viewer: HTMLElement
+}): CanvasAnnotationLayer =>
+  createCanvasAnnotationLayer({
+    sourceCanvas,
+    viewer,
+    viewport: {
+      capturePng,
+      getPose: () => null,
+    },
+    context: () => ({
+      atom: null,
+      graph: null,
+      surface: surface(),
+    }),
+  })

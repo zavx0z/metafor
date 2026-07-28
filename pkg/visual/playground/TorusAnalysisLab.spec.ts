@@ -9,6 +9,7 @@ import {
   constrainThreeTorusWidth,
   deriveMetaForTorusParameters,
   mergeTorusDefaults,
+  readStoredTorusDefaults,
   torusCameraFitDistance,
 } from "./TorusAnalysisLab.ts"
 
@@ -68,6 +69,25 @@ describe("Torus Analysis Lab", () => {
     })).toEqual({
       ...METAFOR_TORUS_DEFAULTS,
       radius: 1.35,
+    })
+  })
+
+  test("reads the fixed browser defaults for other playground labs", () => {
+    const stored = readStoredTorusDefaults({
+      getItem: () => JSON.stringify({
+        radius: 18,
+        tube: 7,
+        radialSegments: 32,
+        tubularSegments: 72,
+      }),
+    })
+
+    expect(stored).toEqual({
+      ...METAFOR_TORUS_DEFAULTS,
+      radius: 18,
+      tube: 7,
+      radialSegments: 32,
+      tubularSegments: 72,
     })
   })
 

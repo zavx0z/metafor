@@ -6,21 +6,31 @@ import {
   LineGlowMaterial,
   LineSegments,
   Object3D,
+  Raycaster,
   Renderer,
   Space,
   SphereGeometry,
-  TorusGeometry,
   Vector3,
   ViewPoint,
 } from "@metafor/engine"
+import {createPageAnnotationLayer} from "./AnnotationLayer.ts"
+import {
+  buildThreeTorusWireGeometry,
+  readStoredTorusDefaults,
+  type ThreeTorusParameters,
+} from "./TorusAnalysisLab.ts"
 
 export type EdgeConstraintInput = Readonly<{
   centerDistance: number
   constraintRadius: number
   leftAzimuthDeg: number
   leftHeight: number
+  leftSphereX: number
+  leftSphereY: number
   rightAzimuthDeg: number
   rightHeight: number
+  rightSphereX: number
+  rightSphereY: number
 }>
 
 export type EdgeConstraintPoint = Readonly<{
@@ -35,11 +45,36 @@ export type EdgeConstraintModel = Readonly<{
   leftCenter: EdgeConstraintPoint
   leftControl: EdgeConstraintPoint
   leftEntryAngleDeg: number
+  leftTorusCenter: EdgeConstraintPoint
   maximumHeight: number
   rightCenter: EdgeConstraintPoint
   rightControl: EdgeConstraintPoint
   rightEntryAngleDeg: number
+  rightTorusCenter: EdgeConstraintPoint
 }>
+
+export const EDGE_TORUS_GAP_MM = 2
+
+export const minimumEdgeTorusCenterDistance = (
+  torus: Pick<ThreeTorusParameters, "radius" | "tube">,
+): number => (torus.radius + torus.tube) * 2 + EDGE_TORUS_GAP_MM
+
+export const sphereOffsetLimit = (
+  torus: Pick<ThreeTorusParameters, "radius" | "tube">,
+  sphereRadius: number,
+): number => Math.max(0, torus.radius - torus.tube - sphereRadius)
+
+export const constrainSphereOffset = (
+  x: number,
+  y: number,
+  limit: number,
+): Readonly<{x: number; y: number}> => {
+  const safeLimit = Math.max(0, limit)
+  const distance = Math.hypot(x, y)
+  if (distance <= safeLimit || distance === 0) return {x, y}
+  const scale = safeLimit / distance
+  return {x: x * scale, y: y * scale}
+}
 
 const toRadians = (degrees: number): number => degrees * Math.PI / 180
 
@@ -81,8 +116,18 @@ export const buildEdgeConstraintModel = (
   segments = 96,
 ): EdgeConstraintModel => {
   const halfDistance = input.centerDistance / 2
-  const leftCenter = {x: -halfDistance, y: 0, z: 0}
-  const rightCenter = {x: halfDistance, y: 0, z: 0}
+  const leftTorusCenter = {x: -halfDistance, y: 0, z: 0}
+  const rightTorusCenter = {x: halfDistance, y: 0, z: 0}
+  const leftCenter = {
+    x: leftTorusCenter.x + input.leftSphereX,
+    y: leftTorusCenter.y + input.leftSphereY,
+    z: 0,
+  }
+  const rightCenter = {
+    x: rightTorusCenter.x + input.rightSphereX,
+    y: rightTorusCenter.y + input.rightSphereY,
+    z: 0,
+  }
   const leftAzimuth = toRadians(input.leftAzimuthDeg)
   const rightAzimuth = toRadians(input.rightAzimuthDeg)
   const leftControl = {
@@ -121,10 +166,12 @@ export const buildEdgeConstraintModel = (
     leftCenter,
     leftControl,
     leftEntryAngleDeg: entryAngle(input.leftHeight),
+    leftTorusCenter,
     maximumHeight,
     rightCenter,
     rightControl,
     rightEntryAngleDeg: entryAngle(input.rightHeight),
+    rightTorusCenter,
   }
 }
 
@@ -152,7 +199,6 @@ type EdgesLabElements = Readonly<{
   rightHeightOutput: HTMLOutputElement
   sphereRadius: HTMLInputElement
   sphereRadiusOutput: HTMLOutputElement
-  torusRadius: HTMLInputElement
   torusRadiusOutput: HTMLOutputElement
   viewButtons: NodeListOf<HTMLButtonElement>
 }>
@@ -181,7 +227,6 @@ const labElements = (): EdgesLabElements => ({
   rightHeightOutput: requireElement<HTMLOutputElement>("edges-right-height-output"),
   sphereRadius: requireElement<HTMLInputElement>("edges-sphere-radius"),
   sphereRadiusOutput: requireElement<HTMLOutputElement>("edges-sphere-radius-output"),
-  torusRadius: requireElement<HTMLInputElement>("edges-torus-radius"),
   torusRadiusOutput: requireElement<HTMLOutputElement>("edges-torus-radius-output"),
   viewButtons: document.querySelectorAll<HTMLButtonElement>("[data-edges-view]"),
 })
@@ -275,19 +320,46 @@ export const createEdgesLab = async (): Promise<EdgesLab> => {
   let disposed = false
   let frame = 0
   let geometries: BufferGeometry[] = []
+  let sphereOffsets = {
+    left: {x: 0, y: 0},
+    right: {x: 0, y: 0},
+  }
+  let interactionModel: EdgeConstraintModel | null = null
+  let interactionSphereRadius = 0
+  let interactionOffsetLimit = 0
+  const annotation = createPageAnnotationLayer({
+    sourceCanvas: elements.canvas,
+    viewer: elements.canvas.parentElement ??
+      (() => {
+        throw new Error("Edges canvas parent is missing")
+      })(),
+    capturePng: () => renderer.captureLastPresentedFramePng(),
+    surface: () => ({
+      canvasId: elements.canvas.id,
+      kind: "playground-page",
+      route: window.location.hash,
+      slug: "edges",
+      title: "Edges · ограничители входа",
+    }),
+  })
 
   const input = (): EdgeConstraintInput => ({
     centerDistance: Number(elements.centerDistance.value),
     constraintRadius: Number(elements.constraintRadius.value),
     leftAzimuthDeg: Number(elements.leftAzimuth.value),
     leftHeight: Number(elements.leftHeight.value),
+    leftSphereX: sphereOffsets.left.x,
+    leftSphereY: sphereOffsets.left.y,
     rightAzimuthDeg: Number(elements.rightAzimuth.value),
     rightHeight: Number(elements.rightHeight.value),
+    rightSphereX: sphereOffsets.right.x,
+    rightSphereY: sphereOffsets.right.y,
   })
 
   const updateOutputs = (
     model: EdgeConstraintModel,
     settings: EdgeConstraintInput,
+    torus: ThreeTorusParameters,
   ): void => {
     elements.centerDistanceOutput.value = `${settings.centerDistance.toFixed(1)} mm`
     elements.constraintRadiusOutput.value = `${settings.constraintRadius.toFixed(1)} mm`
@@ -298,7 +370,7 @@ export const createEdgesLab = async (): Promise<EdgesLab> => {
     elements.sphereRadiusOutput.value =
       `${Number(elements.sphereRadius.value).toFixed(1)} mm`
     elements.torusRadiusOutput.value =
-      `${Number(elements.torusRadius.value).toFixed(1)} mm`
+      `R ${torus.radius.toFixed(2)} · tube ${torus.tube.toFixed(2)} мм`
     replaceReadout(elements.readout, [
       ["Центры", `${settings.centerDistance.toFixed(1)} mm`],
       ["Ограничитель", `R ${settings.constraintRadius.toFixed(1)} mm`],
@@ -308,6 +380,8 @@ export const createEdgesLab = async (): Promise<EdgesLab> => {
       ["Длина дуги", `${model.approximateLength.toFixed(2)} mm`],
       ["Control L", formatPoint(model.leftControl)],
       ["Control R", formatPoint(model.rightControl)],
+      ["Sphere L", formatPoint(model.leftCenter)],
+      ["Sphere R", formatPoint(model.rightCenter)],
     ])
   }
 
@@ -328,16 +402,43 @@ export const createEdgesLab = async (): Promise<EdgesLab> => {
     geometries = []
     for (const child of [...space.children]) space.remove(child)
 
+    const torusParameters = readStoredTorusDefaults(localStorage)
+    const torusOuterRadius = torusParameters.radius + torusParameters.tube
+    const minimumCenterDistance =
+      minimumEdgeTorusCenterDistance(torusParameters)
+    elements.centerDistance.min = String(minimumCenterDistance)
+    elements.centerDistance.max = String(Math.max(200, minimumCenterDistance))
+    if (Number(elements.centerDistance.value) < minimumCenterDistance) {
+      elements.centerDistance.value = String(minimumCenterDistance)
+    }
+    const torusInnerRadius = Math.max(
+      0.05,
+      torusParameters.radius - torusParameters.tube,
+    )
+    elements.sphereRadius.max = String(torusInnerRadius)
+    if (Number(elements.sphereRadius.value) > torusInnerRadius) {
+      elements.sphereRadius.value = String(torusInnerRadius)
+    }
+    const sphereRadius = Number(elements.sphereRadius.value)
+    const offsetLimit = sphereOffsetLimit(torusParameters, sphereRadius)
+    const leftOffset = constrainSphereOffset(
+      sphereOffsets.left.x,
+      sphereOffsets.left.y,
+      offsetLimit,
+    )
+    const rightOffset = constrainSphereOffset(
+      sphereOffsets.right.x,
+      sphereOffsets.right.y,
+      offsetLimit,
+    )
+    sphereOffsets = {left: leftOffset, right: rightOffset}
     const settings = input()
     const model = buildEdgeConstraintModel(settings)
-    const torusRadius = Number(elements.torusRadius.value)
-    const sphereRadius = Number(elements.sphereRadius.value)
-    const torusGeometry = new TorusGeometry({
-      radius: torusRadius,
-      tube: Math.max(0.35, torusRadius * 0.24),
-      radialSegments: 20,
-      tubularSegments: 48,
-    }).toWireframe()
+    interactionModel = model
+    interactionSphereRadius = sphereRadius
+    interactionOffsetLimit = offsetLimit
+    const torusGeometry =
+      buildThreeTorusWireGeometry(torusParameters).geometry
     const sphereGeometry = new SphereGeometry({
       radius: sphereRadius,
       widthSegments: 28,
@@ -346,7 +447,7 @@ export const createEdgesLab = async (): Promise<EdgesLab> => {
     geometries.push(torusGeometry, sphereGeometry)
 
     const leftRoot = new Object3D()
-    leftRoot.position.copy(pointVector(model.leftCenter))
+    leftRoot.position.copy(pointVector(model.leftTorusCenter))
     leftRoot.add(new LineSegments(
       torusGeometry,
       new LineGlowMaterial({
@@ -360,7 +461,7 @@ export const createEdgesLab = async (): Promise<EdgesLab> => {
     space.add(leftRoot)
 
     const rightRoot = new Object3D()
-    rightRoot.position.copy(pointVector(model.rightCenter))
+    rightRoot.position.copy(pointVector(model.rightTorusCenter))
     rightRoot.add(new LineSegments(
       torusGeometry,
       new LineGlowMaterial({
@@ -419,12 +520,12 @@ export const createEdgesLab = async (): Promise<EdgesLab> => {
         color: new Color(1, 1, 1, 0.3),
         opacity: 1,
       })
-      const minimumZ = -torusRadius * 1.35
+      const minimumZ = -torusOuterRadius * 1.35
       const maximumZ = Math.max(
         settings.leftHeight,
         settings.rightHeight,
-        torusRadius,
-      ) + torusRadius * 0.9
+        torusOuterRadius,
+      ) + torusOuterRadius * 0.9
       addLine(segmentGeometry([
         [
           {...model.leftCenter, z: minimumZ},
@@ -477,7 +578,7 @@ export const createEdgesLab = async (): Promise<EdgesLab> => {
       rightControl.frustumCulled = false
       space.add(rightControl)
     }
-    updateOutputs(model, settings)
+    updateOutputs(model, settings, torusParameters)
     requestRender()
   }
 
@@ -491,8 +592,9 @@ export const createEdgesLab = async (): Promise<EdgesLab> => {
 
   const setView = (view: string): void => {
     const settings = input()
+    const torus = readStoredTorusDefaults(localStorage)
     const span = Math.max(
-      settings.centerDistance + Number(elements.torusRadius.value) * 3,
+      settings.centerDistance + (torus.radius + torus.tube) * 3,
       settings.leftHeight + settings.rightHeight + 30,
     )
     const target = viewPoint.getTarget()
@@ -532,6 +634,7 @@ export const createEdgesLab = async (): Promise<EdgesLab> => {
 
   const observer = new ResizeObserver(() => {
     resize()
+    annotation.resize()
     requestRender()
   })
   observer.observe(elements.canvas)
@@ -543,7 +646,6 @@ export const createEdgesLab = async (): Promise<EdgesLab> => {
     elements.rightAzimuth,
     elements.rightHeight,
     elements.sphereRadius,
-    elements.torusRadius,
   ]
   for (const control of rebuildInputs) {
     control.addEventListener("input", rebuild)
@@ -558,6 +660,139 @@ export const createEdgesLab = async (): Promise<EdgesLab> => {
     if (event.buttons !== 0) requestRender()
   }
   const requestRenderFromCamera = (): void => requestRender()
+  const raycaster = new Raycaster()
+  type SphereSide = "left" | "right"
+  let draggedSphere: SphereSide | null = null
+  let dragGrabOffset = {x: 0, y: 0}
+
+  const rayFromClient = (clientX: number, clientY: number) => {
+    const rect = elements.canvas.getBoundingClientRect()
+    if (rect.width <= 0 || rect.height <= 0) return null
+    viewPoint.update()
+    raycaster.setFromCamera({
+      x: ((clientX - rect.left) / rect.width) * 2 - 1,
+      y: 1 - ((clientY - rect.top) / rect.height) * 2,
+    }, viewPoint)
+    return raycaster.ray
+  }
+
+  const pointOnTorusPlane = (
+    clientX: number,
+    clientY: number,
+  ): EdgeConstraintPoint | null => {
+    const ray = rayFromClient(clientX, clientY)
+    if (!ray || Math.abs(ray.direction.z) < 1e-6) return null
+    const travel = -ray.origin.z / ray.direction.z
+    if (!Number.isFinite(travel) || travel < 0) return null
+    return {
+      x: ray.origin.x + ray.direction.x * travel,
+      y: ray.origin.y + ray.direction.y * travel,
+      z: 0,
+    }
+  }
+
+  const sphereHitDistance = (
+    center: EdgeConstraintPoint,
+    clientX: number,
+    clientY: number,
+  ): number | null => {
+    const ray = rayFromClient(clientX, clientY)
+    if (!ray) return null
+    const toCenterX = center.x - ray.origin.x
+    const toCenterY = center.y - ray.origin.y
+    const toCenterZ = center.z - ray.origin.z
+    const alongRay =
+      toCenterX * ray.direction.x +
+      toCenterY * ray.direction.y +
+      toCenterZ * ray.direction.z
+    if (alongRay < 0) return null
+    const centerDistanceSquared =
+      toCenterX ** 2 + toCenterY ** 2 + toCenterZ ** 2
+    const closestDistanceSquared =
+      centerDistanceSquared - alongRay ** 2
+    const radiusSquared = interactionSphereRadius ** 2
+    if (closestDistanceSquared > radiusSquared) return null
+    return alongRay - Math.sqrt(
+      Math.max(0, radiusSquared - closestDistanceSquared),
+    )
+  }
+
+  const sphereAtClient = (
+    clientX: number,
+    clientY: number,
+  ): SphereSide | null => {
+    if (!interactionModel || interactionSphereRadius <= 0) return null
+    const leftDistance = sphereHitDistance(
+      interactionModel.leftCenter,
+      clientX,
+      clientY,
+    )
+    const rightDistance = sphereHitDistance(
+      interactionModel.rightCenter,
+      clientX,
+      clientY,
+    )
+    if (leftDistance === null) {
+      return rightDistance === null ? null : "right"
+    }
+    if (rightDistance === null) return "left"
+    return leftDistance <= rightDistance ? "left" : "right"
+  }
+
+  const startSphereDrag = (event: MouseEvent): void => {
+    if (event.button !== 0 || !interactionModel) return
+    const side = sphereAtClient(event.clientX, event.clientY)
+    const planePoint = pointOnTorusPlane(event.clientX, event.clientY)
+    if (!side || !planePoint) return
+    const center = side === "left"
+      ? interactionModel.leftCenter
+      : interactionModel.rightCenter
+    dragGrabOffset = {
+      x: center.x - planePoint.x,
+      y: center.y - planePoint.y,
+    }
+    draggedSphere = side
+    elements.canvas.style.cursor = "grabbing"
+    event.preventDefault()
+    event.stopImmediatePropagation()
+  }
+
+  const moveSphere = (event: MouseEvent): void => {
+    if (!draggedSphere || !interactionModel) return
+    const planePoint = pointOnTorusPlane(event.clientX, event.clientY)
+    if (!planePoint) return
+    const torusCenter = draggedSphere === "left"
+      ? interactionModel.leftTorusCenter
+      : interactionModel.rightTorusCenter
+    const offset = constrainSphereOffset(
+      planePoint.x + dragGrabOffset.x - torusCenter.x,
+      planePoint.y + dragGrabOffset.y - torusCenter.y,
+      interactionOffsetLimit,
+    )
+    sphereOffsets = {...sphereOffsets, [draggedSphere]: offset}
+    event.preventDefault()
+    event.stopImmediatePropagation()
+    rebuild()
+  }
+
+  const finishSphereDrag = (event: MouseEvent): void => {
+    if (!draggedSphere) return
+    draggedSphere = null
+    elements.canvas.style.cursor = ""
+    event.preventDefault()
+    event.stopImmediatePropagation()
+  }
+
+  const updateSphereCursor = (event: MouseEvent): void => {
+    if (draggedSphere || event.buttons !== 0) return
+    elements.canvas.style.cursor =
+      sphereAtClient(event.clientX, event.clientY) ? "grab" : ""
+  }
+
+  elements.canvas.addEventListener("mousedown", startSphereDrag, true)
+  elements.canvas.addEventListener("mousemove", updateSphereCursor, true)
+  document.addEventListener("mousemove", moveSphere, true)
+  document.addEventListener("mouseup", finishSphereDrag, true)
   elements.canvas.addEventListener("mousemove", requestRenderFromDrag)
   elements.canvas.addEventListener("wheel", requestRenderFromCamera)
   elements.canvas.addEventListener("touchmove", requestRenderFromCamera)
@@ -570,6 +805,11 @@ export const createEdgesLab = async (): Promise<EdgesLab> => {
       active = false
       if (frame !== 0) cancelAnimationFrame(frame)
       observer.disconnect()
+      annotation.dispose()
+      elements.canvas.removeEventListener("mousedown", startSphereDrag, true)
+      elements.canvas.removeEventListener("mousemove", updateSphereCursor, true)
+      document.removeEventListener("mousemove", moveSphere, true)
+      document.removeEventListener("mouseup", finishSphereDrag, true)
       elements.canvas.removeEventListener("mousemove", requestRenderFromDrag)
       elements.canvas.removeEventListener("wheel", requestRenderFromCamera)
       elements.canvas.removeEventListener("touchmove", requestRenderFromCamera)
@@ -578,12 +818,15 @@ export const createEdgesLab = async (): Promise<EdgesLab> => {
     },
     hide() {
       active = false
+      annotation.hide()
       if (frame !== 0) cancelAnimationFrame(frame)
       frame = 0
     },
     show() {
       active = true
+      annotation.show()
       resize()
+      rebuild()
       setView("perspective")
       requestRender()
     },

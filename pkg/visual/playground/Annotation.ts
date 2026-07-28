@@ -12,34 +12,47 @@ export type VisualAnnotationPoint = Readonly<{
 }>
 
 export type VisualAnnotationStroke = Readonly<{
-  camera: StateGraphViewportPose
+  camera: StateGraphViewportPose | null
   color: string
   points: readonly VisualAnnotationPoint[]
   width: number
 }>
 
+export type VisualAnnotationAtom = Readonly<{
+  currentStateId: number | null
+  id: number
+  label: string
+  src: string
+}>
+
+export type VisualAnnotationGraph = Readonly<{
+  cardIndex: number
+  dslPath: string | null
+  layout: StateGraphRootLayout
+  paths: readonly string[]
+  rootStateId: number
+  rootStateLabel: string
+}>
+
+export type VisualAnnotationSurface = Readonly<{
+  canvasId: string
+  kind: "playground-page" | "state-graph-card"
+  route: string
+  slug: string
+  title: string
+}>
+
 export type VisualAnnotationDraft = Readonly<{
-  atom: Readonly<{
-    currentStateId: number | null
-    id: number
-    label: string
-    src: string
-  }>
+  atom: VisualAnnotationAtom | null
   capturedAt: string
   clientId: string
-  graph: Readonly<{
-    cardIndex: number
-    dslPath: string | null
-    layout: StateGraphRootLayout
-    paths: readonly string[]
-    rootStateId: number
-    rootStateLabel: string
-  }>
+  graph: VisualAnnotationGraph | null
   pageUrl: string
   schema: typeof VISUAL_ANNOTATION_SCHEMA
   strokes: readonly VisualAnnotationStroke[]
+  surface: VisualAnnotationSurface
   viewport: Readonly<{
-    camera: StateGraphViewportPose
+    camera: StateGraphViewportPose | null
     cssHeight: number
     cssWidth: number
     devicePixelRatio: number
@@ -94,8 +107,10 @@ export const parseVisualAnnotationDraft = (
     const stroke = candidate as Record<string, unknown>
     if (
       typeof stroke.color !== "string" ||
-      typeof stroke.camera !== "object" ||
-      stroke.camera === null ||
+      !(
+        stroke.camera === null ||
+        (typeof stroke.camera === "object" && stroke.camera !== null)
+      ) ||
       !finite(stroke.width) ||
       stroke.width <= 0 ||
       !Array.isArray(stroke.points) ||
@@ -107,38 +122,70 @@ export const parseVisualAnnotationDraft = (
 
   const atom = draft.atom
   const graph = draft.graph
+  const surface = draft.surface
   const viewport = draft.viewport
   if (
-    typeof atom !== "object" ||
-    atom === null ||
-    typeof graph !== "object" ||
-    graph === null ||
+    typeof surface !== "object" ||
+    surface === null ||
     typeof viewport !== "object" ||
     viewport === null
   ) return null
-  const atomRecord = atom as Record<string, unknown>
-  const graphRecord = graph as Record<string, unknown>
+  const surfaceRecord = surface as Record<string, unknown>
   const viewportRecord = viewport as Record<string, unknown>
   if (
-    !Number.isSafeInteger(atomRecord.id) ||
-    typeof atomRecord.label !== "string" ||
-    typeof atomRecord.src !== "string" ||
-    !(atomRecord.currentStateId === null || Number.isSafeInteger(atomRecord.currentStateId)) ||
-    !Number.isSafeInteger(graphRecord.cardIndex) ||
-    !Number.isSafeInteger(graphRecord.rootStateId) ||
-    typeof graphRecord.rootStateLabel !== "string" ||
-    !(graphRecord.dslPath === null || typeof graphRecord.dslPath === "string") ||
-    !Array.isArray(graphRecord.paths) ||
-    typeof graphRecord.layout !== "object" ||
-    graphRecord.layout === null ||
+    !(
+      surfaceRecord.kind === "playground-page" ||
+      surfaceRecord.kind === "state-graph-card"
+    ) ||
+    typeof surfaceRecord.canvasId !== "string" ||
+    typeof surfaceRecord.route !== "string" ||
+    typeof surfaceRecord.slug !== "string" ||
+    typeof surfaceRecord.title !== "string" ||
     !finite(viewportRecord.cssWidth) ||
     !finite(viewportRecord.cssHeight) ||
     !Number.isSafeInteger(viewportRecord.pixelWidth) ||
     !Number.isSafeInteger(viewportRecord.pixelHeight) ||
     !finite(viewportRecord.devicePixelRatio) ||
-    typeof viewportRecord.camera !== "object" ||
-    viewportRecord.camera === null
+    !(
+      viewportRecord.camera === null ||
+      (
+        typeof viewportRecord.camera === "object" &&
+        viewportRecord.camera !== null
+      )
+    )
   ) return null
+
+  if (surfaceRecord.kind === "playground-page") {
+    if (atom !== null || graph !== null) return null
+  } else {
+    if (
+      typeof atom !== "object" ||
+      atom === null ||
+      typeof graph !== "object" ||
+      graph === null
+    ) return null
+    const atomRecord = atom as Record<string, unknown>
+    const graphRecord = graph as Record<string, unknown>
+    if (
+      !Number.isSafeInteger(atomRecord.id) ||
+      typeof atomRecord.label !== "string" ||
+      typeof atomRecord.src !== "string" ||
+      !(
+        atomRecord.currentStateId === null ||
+        Number.isSafeInteger(atomRecord.currentStateId)
+      ) ||
+      !Number.isSafeInteger(graphRecord.cardIndex) ||
+      !Number.isSafeInteger(graphRecord.rootStateId) ||
+      typeof graphRecord.rootStateLabel !== "string" ||
+      !(
+        graphRecord.dslPath === null ||
+        typeof graphRecord.dslPath === "string"
+      ) ||
+      !Array.isArray(graphRecord.paths) ||
+      typeof graphRecord.layout !== "object" ||
+      graphRecord.layout === null
+    ) return null
+  }
 
   return structuredClone(value) as VisualAnnotationDraft
 }

@@ -18,6 +18,13 @@ const draft = () => ({
   clientId: "client-1",
   capturedAt: "2026-07-28T20:00:00.000Z",
   pageUrl: "http://localhost:4014/#/state-graph",
+  surface: {
+    canvasId: "state-graph-card-0",
+    kind: "state-graph-card",
+    route: "#/state-graph",
+    slug: "state-graph",
+    title: "ожидание мира",
+  },
   atom: {
     id: 2,
     label: "Лада",
@@ -149,5 +156,50 @@ describe("Visual playground annotation REST API", () => {
     }))
     expect(response?.status).toBe(400)
     expect(await response?.json()).toEqual({error: "invalid_annotation_contract"})
+  })
+
+  test("stores a page annotation without State Graph metadata", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "metafor-visual-annotation-"))
+    directories.push(directory)
+    const api = createVisualAnnotationApi(directory)
+    const pageDraft = {
+      ...draft(),
+      pageUrl: "http://localhost:4014/#/edges",
+      surface: {
+        canvasId: "edges-canvas",
+        kind: "playground-page",
+        route: "#/edges",
+        slug: "edges",
+        title: "Edges · ограничители входа",
+      },
+      atom: null,
+      graph: null,
+      strokes: [{
+        ...draft().strokes[0],
+        camera: null,
+      }],
+      viewport: {
+        ...draft().viewport,
+        camera: null,
+      },
+    }
+    const form = new FormData()
+    form.set("metadata", JSON.stringify(pageDraft))
+    form.set("image", new Blob(["png"], {type: "image/png"}), "annotation.png")
+
+    const response = await api(new Request("http://localhost/api/annotations", {
+      method: "POST",
+      body: form,
+    }))
+
+    expect(response?.status).toBe(201)
+    expect(await response?.json()).toMatchObject({
+      atom: null,
+      graph: null,
+      surface: {
+        kind: "playground-page",
+        slug: "edges",
+      },
+    })
   })
 })

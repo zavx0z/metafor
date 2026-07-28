@@ -13,6 +13,7 @@ import {
   TorusGeometry,
   ViewPoint,
 } from "@metafor/engine"
+import {createPageAnnotationLayer} from "./AnnotationLayer.ts"
 
 export type FormSkinLabForm = "sphere" | "torus"
 
@@ -382,6 +383,23 @@ export const createFormSkinLab = async (): Promise<FormSkinLab> => {
   let active = false
   let disposed = false
   let form: FormSkinLabForm = "sphere"
+  const annotation = createPageAnnotationLayer({
+    sourceCanvas: elements.canvas,
+    viewer: elements.canvas.parentElement ??
+      (() => {
+        throw new Error("Form Skin canvas parent is missing")
+      })(),
+    capturePng: () => renderer.captureLastPresentedFramePng(),
+    surface: () => ({
+      canvasId: elements.canvas.id,
+      kind: "playground-page",
+      route: window.location.hash,
+      slug: form === "sphere" ? "skin-sphere" : "skin-torus",
+      title: form === "sphere"
+        ? "Sphere · скины формы"
+        : "Torus · скины формы",
+    }),
+  })
   let geometry: FormGeometry | null = null
   let loadMetrics: FormSkinLoadMetrics | null = null
   let geometryBuildMs = 0
@@ -737,6 +755,7 @@ export const createFormSkinLab = async (): Promise<FormSkinLab> => {
 
   const observer = new ResizeObserver(() => {
     resize()
+    annotation.resize()
     requestRender()
   })
   observer.observe(elements.canvas)
@@ -805,6 +824,7 @@ export const createFormSkinLab = async (): Promise<FormSkinLab> => {
       cancelBenchmark()
       if (frame !== 0) cancelAnimationFrame(frame)
       observer.disconnect()
+      annotation.dispose()
       elements.canvas.removeEventListener("mousemove", requestRenderFromDrag)
       elements.canvas.removeEventListener("wheel", requestRenderFromCamera)
       elements.canvas.removeEventListener("touchmove", requestRenderFromCamera)
@@ -816,6 +836,7 @@ export const createFormSkinLab = async (): Promise<FormSkinLab> => {
     },
     hide() {
       active = false
+      annotation.hide()
       cancelBenchmark()
       if (frame !== 0) cancelAnimationFrame(frame)
       frame = 0
@@ -824,6 +845,7 @@ export const createFormSkinLab = async (): Promise<FormSkinLab> => {
     show(nextForm: FormSkinLabForm) {
       active = true
       if (form !== nextForm) {
+        annotation.hide()
         form = nextForm
         clearComparisons()
         elements.title.textContent = form === "sphere"
@@ -834,6 +856,7 @@ export const createFormSkinLab = async (): Promise<FormSkinLab> => {
         resize()
         fitCamera()
       }
+      annotation.show()
       requestRender()
     },
   }

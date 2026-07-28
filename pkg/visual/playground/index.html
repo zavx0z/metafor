@@ -844,6 +844,34 @@
         text-align: right;
       }
 
+      .edges-torus-source {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 5px 10px;
+        padding: 8px 9px;
+        border: 1px solid rgba(126, 220, 251, 0.18);
+        border-radius: 7px;
+        background: rgba(18, 67, 87, 0.1);
+        font-size: 8px;
+      }
+
+      .edges-torus-source span {
+        color: #8aa0b8;
+      }
+
+      .edges-torus-source output {
+        float: none;
+        color: #dff8ff;
+        text-align: right;
+      }
+
+      .edges-torus-source small {
+        grid-column: 1 / -1;
+        color: #687d96;
+        font-size: 7px;
+        line-height: 1.45;
+      }
+
       .edges-view-controls {
         position: absolute;
         top: 18px;
@@ -1375,7 +1403,8 @@
             <p>
               Белая окружность перпендикулярна оси тора. Control-точка связи
               обязана лежать на окружности; высота дуги вычисляется из двух
-              независимых углов входа.
+              независимых углов входа. Сфера перемещается внутри отверстия
+              прямым перетаскиванием левой кнопкой мыши.
             </p>
             <fieldset>
               <legend>Формы</legend>
@@ -1394,24 +1423,15 @@
                     </div>
                   </details>
                 </div>
-                <input id="edges-center-distance" type="range" min="26" max="80" step="1" value="44" />
+                <input id="edges-center-distance" type="range" min="26" max="200" step="any" value="44" />
               </div>
-              <div class="edges-analysis-control">
-                <div class="edges-analysis-control-header">
-                  <label for="edges-torus-radius">Радиус тора</label>
-                  <output id="edges-torus-radius-output"></output>
-                  <details class="edges-parameter-help">
-                    <summary aria-label="Описание параметра Радиус тора">?</summary>
-                    <div class="edges-parameter-help-text">
-                      <strong>Радиус тора</strong> задаёт радиус центральной
-                      окружности обеих вспомогательных форм. В этом стенде
-                      толщина трубки пока вычисляется автоматически как
-                      24% радиуса. Параметр влияет только на контекст формы,
-                      но не меняет центры и Bézier-контроль связи.
-                    </div>
-                  </details>
-                </div>
-                <input id="edges-torus-radius" type="range" min="5" max="14" step="0.5" value="9" />
+              <div class="edges-torus-source">
+                <span>Два Torus · «Наш default»</span>
+                <output id="edges-torus-radius-output"></output>
+                <small>
+                  Форма не регулируется в Edges. Значения читаются из
+                  Analysis → Torus при каждом открытии страницы.
+                </small>
               </div>
               <div class="edges-analysis-control">
                 <div class="edges-analysis-control-header">
@@ -1428,7 +1448,7 @@
                     </div>
                   </details>
                 </div>
-                <input id="edges-sphere-radius" type="range" min="1" max="5" step="0.25" value="2.5" />
+                <input id="edges-sphere-radius" type="range" min="0.05" max="50" step="any" value="2.5" />
               </div>
             </fieldset>
             <fieldset>
