@@ -4,11 +4,11 @@ import {
   type BulkViewportCaptureBrowserFailure,
   type BulkViewportCaptureBrowserResult,
 } from "@metafor/types/bulk/capture"
+import type {BulkObserverSnapshot} from "@metafor/types/bulk/initial"
 
-export type BulkViewportCaptureSnapshot = {
+export type BulkViewportCaptureSource = {
   observerId: string
-  throughTs: number | null
-  rootSrc: string
+  snapshot: BulkObserverSnapshot | null
 }
 
 type CapturableCanvas = Pick<
@@ -60,6 +60,9 @@ const blobBase64 = async (blob: Blob): Promise<string> => {
   return encoded
 }
 
+const jsonBytes = (value: unknown): number =>
+  new TextEncoder().encode(JSON.stringify(value)).byteLength
+
 /**
  * Reads the already-presented browser canvas. It neither requests a frame nor
  * changes camera, projection, HUD, renderer, or the viewport render loop.
@@ -67,7 +70,7 @@ const blobBase64 = async (blob: Blob): Promise<string> => {
 export const captureBulkViewportCanvas = async (
   canvas: CapturableCanvas,
   request: BulkViewportCaptureControlRequest,
-  snapshot: BulkViewportCaptureSnapshot,
+  source: BulkViewportCaptureSource,
   options: {
     devicePixelRatio?: number
     now?: () => Date
@@ -76,18 +79,28 @@ export const captureBulkViewportCanvas = async (
   if (typeof canvas.toBlob !== "function") {
     return failure("capture_unavailable", "Browser canvas PNG capture is unavailable")
   }
+  if (source.snapshot === null) {
+    return failure("capture_unavailable", "Bulk observer has not presented a structural snapshot")
+  }
 
   const rect = canvas.getBoundingClientRect()
   const cssWidth = rect.width
   const cssHeight = rect.height
   const pixelWidth = canvas.width
   const pixelHeight = canvas.height
-  const devicePixelRatio = options.devicePixelRatio ?? window.devicePixelRatio ?? 1
+  const devicePixelRatio = options.devicePixelRatio ?? (window.devicePixelRatio || 1)
   const capturedAt = (options.now?.() ?? new Date()).toISOString()
-  const frozen = {
-    observerId: snapshot.observerId,
-    throughTs: snapshot.throughTs,
-    rootSrc: snapshot.rootSrc,
+  let frozen: {observerId: string; snapshot: BulkObserverSnapshot}
+  try {
+    frozen = {
+      observerId: source.observerId,
+      snapshot: structuredClone(source.snapshot),
+    }
+  } catch {
+    return failure("capture_unavailable", "Bulk observer structural snapshot is unavailable")
+  }
+  if (jsonBytes(frozen.snapshot) > request.limits.maxSnapshotBytes) {
+    return failure("payload_too_large", "Bulk observer structural snapshot exceeds the capture payload limit")
   }
 
   if (
@@ -127,7 +140,10 @@ export const captureBulkViewportCanvas = async (
     capture: {
       version: BULK_VIEWPORT_CAPTURE_VERSION,
       observer: {domain: "bulk", id: frozen.observerId},
-      projection: {throughTs: frozen.throughTs, rootSrc: frozen.rootSrc},
+      projection: {
+        throughTs: frozen.snapshot.throughTs,
+        rootSrc: frozen.snapshot.rootSrc,
+      },
       viewport: {
         cssWidth,
         cssHeight,
@@ -137,6 +153,7 @@ export const captureBulkViewportCanvas = async (
       },
       sequence: request.sequence,
       capturedAt,
+      snapshot: frozen.snapshot,
       mimeType: "image/png",
       pngBytes: png.size,
       pngBase64,

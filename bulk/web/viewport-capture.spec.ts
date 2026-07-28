@@ -3,11 +3,47 @@ import {
   BULK_VIEWPORT_CAPTURE_VERSION,
   type BulkViewportCaptureControlRequest,
 } from "@metafor/types/bulk/capture"
+import type {BulkObserverSnapshot, BulkProjectionSnapshot} from "@metafor/types/bulk/initial"
 import {captureBulkViewportCanvas} from "./viewport-capture.ts"
 
 const PNG_BASE64 =
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
 const PNG_BYTES = Uint8Array.from(atob(PNG_BASE64), (value) => value.charCodeAt(0))
+const EMPTY_PROJECTION: BulkProjectionSnapshot = {
+  runtime: {
+    atoms: [],
+    topologies: [],
+    wimps: [],
+    fields: [],
+    states: [],
+    transitions: [],
+    conditions: [],
+    processes: [],
+    reactions: [],
+    atomStates: [],
+    fieldEnumVariants: [],
+    atomValues: [],
+    values: [],
+    valueItems: [],
+    matterParticles: [],
+    matterTopologyBindingPaths: [],
+    matterChildWimpBindingPaths: [],
+  },
+  declarations: [],
+}
+const snapshot = (
+  throughTs: number | null = null,
+  rootSrc = "root",
+): BulkObserverSnapshot => ({
+  version: 1,
+  throughTs,
+  rootSrc,
+  projection: structuredClone(EMPTY_PROJECTION),
+})
+const source = (
+  observerId = "owner",
+  observerSnapshot: BulkObserverSnapshot | null = snapshot(),
+) => ({observerId, snapshot: observerSnapshot})
 
 const request = (limits: Partial<BulkViewportCaptureControlRequest["limits"]> = {}): BulkViewportCaptureControlRequest => ({
   control: "bulk.viewport.capture.request",
@@ -21,6 +57,7 @@ const request = (limits: Partial<BulkViewportCaptureControlRequest["limits"]> = 
     maxPixelHeight: 8_192,
     maxPixels: 33_554_432,
     maxPngBytes: 16 * 1_024 * 1_024,
+    maxSnapshotBytes: 8 * 1_024 * 1_024,
     ...limits,
   },
 })
@@ -39,18 +76,14 @@ describe("Bulk browser viewport PNG capture", () => {
         complete = callback
       },
     } as unknown as HTMLCanvasElement
-    const snapshot = {
-      observerId: "owner-viewport",
-      throughTs: 1_700_000_000_123,
-      rootSrc: "world/selected",
-    }
+    const observerSnapshot = snapshot(1_700_000_000_123, "world/selected")
 
-    const pending = captureBulkViewportCanvas(canvas, request(), snapshot, {
+    const pending = captureBulkViewportCanvas(canvas, request(), source("owner-viewport", observerSnapshot), {
       devicePixelRatio: 2,
       now: () => new Date("2026-07-28T11:12:13.456Z"),
     })
-    snapshot.throughTs = 1_700_000_000_999
-    snapshot.rootSrc = "world/changed-after-request"
+    observerSnapshot.throughTs = 1_700_000_000_999
+    observerSnapshot.rootSrc = "world/changed-after-request"
     canvas.width = 10
     canvas.height = 10
     complete(new Blob([PNG_BYTES], {type: "image/png"}))
@@ -71,6 +104,7 @@ describe("Bulk browser viewport PNG capture", () => {
         },
         sequence: 7,
         capturedAt: "2026-07-28T11:12:13.456Z",
+        snapshot: snapshot(1_700_000_000_123, "world/selected"),
         mimeType: "image/png",
         pngBytes: PNG_BYTES.byteLength,
         pngBase64: PNG_BASE64,
@@ -100,7 +134,7 @@ describe("Bulk browser viewport PNG capture", () => {
       expect((await captureBulkViewportCanvas(
         canvas,
         request(),
-        {observerId: "owner", throughTs: null, rootSrc: "root"},
+        source(),
         {devicePixelRatio: 1},
       )).ok).toBe(true)
       expect(animationFrames).toBe(0)
@@ -121,9 +155,44 @@ describe("Bulk browser viewport PNG capture", () => {
     expect(await captureBulkViewportCanvas(
       canvas,
       request(),
-      {observerId: "owner", throughTs: null, rootSrc: "root"},
+      source(),
       {devicePixelRatio: 1},
     )).toMatchObject({ok: false, error: {code: "capture_unavailable"}})
+  })
+
+  test("requires a presented structural cut and bounds it before PNG export", async () => {
+    let toBlobCalls = 0
+    const canvas = {
+      width: 2,
+      height: 2,
+      getBoundingClientRect: () => ({width: 2, height: 2}),
+      toBlob: (callback: (blob: Blob | null) => void) => {
+        toBlobCalls += 1
+        callback(new Blob([PNG_BYTES], {type: "image/png"}))
+      },
+    } as unknown as HTMLCanvasElement
+
+    expect(await captureBulkViewportCanvas(
+      canvas,
+      request(),
+      source("owner", null),
+      {devicePixelRatio: 1},
+    )).toMatchObject({ok: false, error: {code: "capture_unavailable"}})
+
+    const oversized = snapshot()
+    oversized.projection.declarations.push({
+      src: "owner/root",
+      section: "meta",
+      localId: "root",
+      value: {payload: "x".repeat(2_000)},
+    })
+    expect(await captureBulkViewportCanvas(
+      canvas,
+      request({maxSnapshotBytes: 256}),
+      source("owner", oversized),
+      {devicePixelRatio: 1},
+    )).toMatchObject({ok: false, error: {code: "payload_too_large"}})
+    expect(toBlobCalls).toBe(0)
   })
 
   test("rejects viewport and PNG sizes at the browser boundary", async () => {
@@ -141,7 +210,7 @@ describe("Bulk browser viewport PNG capture", () => {
     expect(await captureBulkViewportCanvas(
       canvas,
       request({maxCssWidth: 1_000, maxPixelWidth: 2_000}),
-      {observerId: "owner", throughTs: null, rootSrc: "root"},
+      source(),
       {devicePixelRatio: 2},
     )).toMatchObject({ok: false, error: {code: "viewport_too_large"}})
     expect(toBlobCalls).toBe(0)
@@ -150,7 +219,7 @@ describe("Bulk browser viewport PNG capture", () => {
     expect(await captureBulkViewportCanvas(
       canvas,
       request({maxCssWidth: 2_000, maxPixelWidth: 2_000, maxPngBytes: PNG_BYTES.byteLength - 1}),
-      {observerId: "owner", throughTs: null, rootSrc: "root"},
+      source(),
       {devicePixelRatio: 1},
     )).toMatchObject({ok: false, error: {code: "payload_too_large"}})
     expect(toBlobCalls).toBe(1)

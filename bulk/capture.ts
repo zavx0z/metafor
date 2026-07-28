@@ -9,6 +9,7 @@ import {
   type BulkViewportCaptureRequest,
   type BulkViewportCaptureResult,
 } from "@metafor/types/bulk/capture"
+import type {BulkObserverSnapshot} from "@metafor/types/bulk/initial"
 
 export const DEFAULT_BULK_VIEWPORT_CAPTURE_LIMITS: BulkViewportCaptureLimits = {
   maxCssWidth: 4_096,
@@ -17,10 +18,13 @@ export const DEFAULT_BULK_VIEWPORT_CAPTURE_LIMITS: BulkViewportCaptureLimits = {
   maxPixelHeight: 8_192,
   maxPixels: 33_554_432,
   maxPngBytes: 16 * 1_024 * 1_024,
+  maxSnapshotBytes: 8 * 1_024 * 1_024,
 }
 
-export const BULK_VIEWPORT_CAPTURE_MAX_CONTROL_CHARS =
-  Math.ceil(DEFAULT_BULK_VIEWPORT_CAPTURE_LIMITS.maxPngBytes / 3) * 4 + 64 * 1_024
+export const BULK_VIEWPORT_CAPTURE_MAX_CONTROL_BYTES =
+  Math.ceil(DEFAULT_BULK_VIEWPORT_CAPTURE_LIMITS.maxPngBytes / 3) * 4 +
+  DEFAULT_BULK_VIEWPORT_CAPTURE_LIMITS.maxSnapshotBytes +
+  256 * 1_024
 
 export type BulkViewportObserverClient = {
   readonly domain: string
@@ -111,6 +115,27 @@ const isCaptureFailure = (value: unknown): value is BulkViewportCaptureFailure =
   ) && typeof value.error.message === "string" && value.error.message.length > 0
 }
 
+const jsonBytes = (value: unknown): number | null => {
+  try {
+    return new TextEncoder().encode(JSON.stringify(value)).byteLength
+  } catch {
+    return null
+  }
+}
+
+const isObserverSnapshot = (value: unknown): value is BulkObserverSnapshot =>
+  isRecord(value) &&
+  value.version === 1 &&
+  (
+    value.throughTs === null ||
+    Number.isSafeInteger(value.throughTs)
+  ) &&
+  typeof value.rootSrc === "string" &&
+  value.rootSrc.length > 0 &&
+  isRecord(value.projection) &&
+  isRecord(value.projection.runtime) &&
+  Array.isArray(value.projection.declarations)
+
 const validViewport = (
   capture: BulkViewportCaptureImage,
   limits: BulkViewportCaptureLimits,
@@ -151,6 +176,10 @@ const validateCaptureResult = (
     return failure("invalid_response", "Bulk observer returned an invalid capture response")
   }
   const capture = value.capture as unknown as BulkViewportCaptureImage
+  const snapshotBytes = jsonBytes(capture.snapshot)
+  if (snapshotBytes !== null && snapshotBytes > limits.maxSnapshotBytes) {
+    return failure("payload_too_large", "Bulk observer structural snapshot exceeds the capture payload limit")
+  }
   if (
     Number.isSafeInteger(capture.pngBytes) &&
     capture.pngBytes > limits.maxPngBytes
@@ -191,6 +220,10 @@ const validateCaptureResult = (
     capture.sequence !== sequence ||
     typeof capture.capturedAt !== "string" ||
     !Number.isFinite(Date.parse(capture.capturedAt)) ||
+    snapshotBytes === null ||
+    !isObserverSnapshot(capture.snapshot) ||
+    capture.snapshot.throughTs !== capture.projection.throughTs ||
+    capture.snapshot.rootSrc !== capture.projection.rootSrc ||
     capture.mimeType !== "image/png" ||
     !Number.isSafeInteger(capture.pngBytes) ||
     capture.pngBytes <= 0 ||

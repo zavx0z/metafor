@@ -5,15 +5,39 @@ import {
   type BulkViewportCaptureControlResponse,
   type BulkViewportCaptureImage,
 } from "@metafor/types/bulk/capture"
+import type {BulkProjectionSnapshot} from "@metafor/types/bulk/initial"
 import {
   BulkViewportCaptureRegistry,
   bulkViewportCaptureAuthorizationFromJson,
   type BulkViewportObserverClient,
 } from "./capture.ts"
+import {BulkProjectionStore} from "./projection.ts"
 
 const PNG_BASE64 =
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
 const PNG_BYTES = 68
+const EMPTY_PROJECTION: BulkProjectionSnapshot = {
+  runtime: {
+    atoms: [],
+    topologies: [],
+    wimps: [],
+    fields: [],
+    states: [],
+    transitions: [],
+    conditions: [],
+    processes: [],
+    reactions: [],
+    atomStates: [],
+    fieldEnumVariants: [],
+    atomValues: [],
+    values: [],
+    valueItems: [],
+    matterParticles: [],
+    matterTopologyBindingPaths: [],
+    matterChildWimpBindingPaths: [],
+  },
+  declarations: [],
+}
 
 class Client implements BulkViewportObserverClient {
   readonly domain = "bulk"
@@ -52,6 +76,12 @@ const captureImage = (
   },
   sequence,
   capturedAt: "2026-07-28T10:00:00.000Z",
+  snapshot: {
+    version: 1,
+    throughTs: 1_700_000_000_001,
+    rootSrc: "world/root",
+    projection: structuredClone(EMPTY_PROJECTION),
+  },
   mimeType: "image/png",
   pngBytes: PNG_BYTES,
   pngBase64: PNG_BASE64,
@@ -147,10 +177,19 @@ describe("Bulk observer viewport capture registry", () => {
     const control = client.sent[0]!
     expect(respond(registry, client, control)).toBe(true)
 
-    expect(await pending).toEqual({
+    const result = await pending
+    expect(result).toEqual({
       ok: true,
       capture: captureImage("owner-viewport", 1),
     })
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      const hydrated = new BulkProjectionStore()
+      hydrated.hydrate(result.capture.snapshot.projection)
+      expect(hydrated.snapshot()).toEqual(EMPTY_PROJECTION)
+      expect(result.capture.snapshot.throughTs).toBe(result.capture.projection.throughTs)
+      expect(result.capture.snapshot.rootSrc).toBe(result.capture.projection.rootSrc)
+    }
   })
 
   test("allows only one in-flight capture per observer", async () => {
@@ -242,6 +281,7 @@ describe("Bulk observer viewport capture registry", () => {
         maxPixelHeight: 2_000,
         maxPixels: 4_000_000,
         maxPngBytes: PNG_BYTES,
+        maxSnapshotBytes: 1_024,
       },
     })
     const client = new Client("owner")
@@ -285,5 +325,38 @@ describe("Bulk observer viewport capture registry", () => {
     const fourth = client.sent[3]!
     respond(registry, client, fourth, captureImage("other", fourth.sequence))
     expect(await malformed).toMatchObject({ok: false, error: {code: "invalid_response"}})
+
+    const mismatchedCut = registry.capture(request("owner"), {source: "codex"})
+    await Bun.sleep(0)
+    const fifth = client.sent[4]!
+    respond(registry, client, fifth, captureImage("owner", fifth.sequence, {
+      snapshot: {
+        version: 1,
+        throughTs: 1_700_000_000_001,
+        rootSrc: "another/root",
+        projection: structuredClone(EMPTY_PROJECTION),
+      },
+    }))
+    expect(await mismatchedCut).toMatchObject({ok: false, error: {code: "invalid_response"}})
+
+    const oversizedSnapshot = registry.capture(request("owner"), {source: "codex"})
+    await Bun.sleep(0)
+    const sixth = client.sent[5]!
+    const largeProjection = structuredClone(EMPTY_PROJECTION)
+    largeProjection.declarations.push({
+      src: "owner/root",
+      section: "meta",
+      localId: "root",
+      value: {payload: "x".repeat(2_000)},
+    })
+    respond(registry, client, sixth, captureImage("owner", sixth.sequence, {
+      snapshot: {
+        version: 1,
+        throughTs: 1_700_000_000_001,
+        rootSrc: "world/root",
+        projection: largeProjection,
+      },
+    }))
+    expect(await oversizedSnapshot).toMatchObject({ok: false, error: {code: "payload_too_large"}})
   })
 })

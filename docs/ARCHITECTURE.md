@@ -380,11 +380,20 @@ Capture request/response идут по browser WebSocket-соединению, �
 аутентифицированному одноразовой session, как явно дискриминированные control
 messages. Они разбираются до Force и никогда не создают Impulse. На одного
 observer разрешён один capture одновременно; действуют rate, timeout, viewport
-и PNG payload limits, а disconnect отменяет ожидание.
+structural snapshot и PNG payload limits, а disconnect отменяет ожидание.
 
 Ответ фиксирует observer id, `throughTs`/`rootSrc` browser projection cut,
 CSS/pixel dimensions, DPR, capture sequence, wall-clock time, PNG byte count и
-base64. Capture time не является и не подменяет simulation tick.
+base64. В том же результате находится существующий `BulkObserverSnapshot`:
+тот же `version`, `throughTs`, `rootSrc` и неизменённый
+`BulkProjectionSnapshot`, из которого observer рекурсивно строит manifestation.
+Отдельный structural graph capture не создаёт. Поля `capture.projection`
+сохраняются как совместимый короткий cut и обязаны точно совпадать со snapshot.
+
+Browser публикует snapshot для capture только после уже запрошенного обычного
+кадра renderer. Если structural update ещё ожидает этот кадр, capture ждёт его;
+сам capture не запрашивает render и не запускает постоянный loop. Capture time
+не является и не подменяет simulation tick.
 
 ## Create MetaFor
 

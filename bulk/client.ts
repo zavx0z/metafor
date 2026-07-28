@@ -4,7 +4,7 @@ import {
 	isBulkViewportCaptureControlRequest,
 	type BulkViewportCaptureControlResponse,
 } from "@metafor/types/bulk/capture"
-import type {BulkInitialPackage} from "@metafor/types/bulk/initial"
+import type {BulkInitialPackage, BulkObserverSnapshot} from "@metafor/types/bulk/initial"
 import { Force } from "shared/transport/force"
 import { createBulkViewport } from "bulk/web"
 import { DEFAULT_BULK_SCENE_SRC, DEFAULT_BULK_SETTINGS } from "bulk/settings"
@@ -14,6 +14,7 @@ import { observedRootSrc } from "./web/force-protocol.ts"
 import { buildBulkManifestation } from "./manifestation.ts"
 import {buildBulkTimeline} from "./timeline.ts"
 import {captureBulkViewportCanvas} from "./web/viewport-capture.ts"
+import {BulkPresentedSnapshot} from "./web/observer-snapshot.ts"
 
 const bulkCanvas = document.getElementById("bulk-canvas") as HTMLCanvasElement | null
 if (bulkCanvas === null) throw new Error("bulk-canvas not found")
@@ -23,6 +24,14 @@ let bulkHud: ReturnType<typeof installBulkHud> | null = null
 const projection = new BulkProjectionStore()
 let activeSrc = DEFAULT_BULK_SCENE_SRC
 let throughTs: number | null = null
+const presentedSnapshot = new BulkPresentedSnapshot()
+
+const observerSnapshot = (): BulkObserverSnapshot => ({
+	version: 1,
+	throughTs,
+	rootSrc: activeSrc,
+	projection: projection.snapshot(),
+})
 
 const applyProjectionManifestation = (src: string): void => {
 	if (!bulkViewport) return
@@ -80,6 +89,7 @@ const receiveImpulse = (forceMessage: Parameters<Force["onImpulse"]>[0]): void =
 	throughTs = part.ts
 	bulkHud?.setTimelineDocument(buildBulkTimeline(projection.view(), activeSrc, throughTs))
 	bulkViewport?.handleForce(part.part, part)
+	presentedSnapshot.stage(observerSnapshot)
 }
 
 const readInitialPackage = async (): Promise<BulkInitialPackage> => {
@@ -100,6 +110,7 @@ const start = async (): Promise<void> => {
 		timeline: buildBulkTimeline(projection.view(), activeSrc, throughTs),
 	})
 	bulkViewport?.applyManifestPatch(initial.manifest)
+	presentedSnapshot.stage(observerSnapshot)
 
 	const observerId = `bulk-web-${crypto.randomUUID()}`
 	const force = new Force("bulk", {
@@ -108,10 +119,11 @@ const start = async (): Promise<void> => {
 	})
 	force.onControl = async (message) => {
 		if (!isBulkViewportCaptureControlRequest(message)) return
+		const snapshot = await presentedSnapshot.read()
 		const result = await captureBulkViewportCanvas(
 			bulkCanvas,
 			message,
-			{observerId, throughTs, rootSrc: activeSrc},
+			{observerId, snapshot},
 		)
 		const response: BulkViewportCaptureControlResponse = {
 			control: "bulk.viewport.capture.response",

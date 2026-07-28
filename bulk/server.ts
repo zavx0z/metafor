@@ -8,7 +8,7 @@ import {BulkObserverHandoffs} from "./handoff.ts"
 import {BulkMonad} from "./monad.ts"
 import {bulkMonadRoutes} from "./monad-route.ts"
 import {
-  BULK_VIEWPORT_CAPTURE_MAX_CONTROL_CHARS,
+  BULK_VIEWPORT_CAPTURE_MAX_CONTROL_BYTES,
   BulkViewportCaptureRegistry,
   bulkViewportCaptureAuthorizationFromJson,
   type BulkViewportObserverClient,
@@ -88,6 +88,7 @@ const server = Bun.serve<BrowserClient>({
     "/engine-static/JetBrainsMono-Bold.ttf": file(new URL("../pkg/engine/static/JetBrainsMono-Bold.ttf", import.meta.url)),
   },
   websocket: {
+    maxPayloadLength: BULK_VIEWPORT_CAPTURE_MAX_CONTROL_BYTES,
     open(ws) {
       const pending = handoffs.take(ws.data.session)
       if (pending === null) {
@@ -112,7 +113,7 @@ const server = Bun.serve<BrowserClient>({
     },
     message(ws, raw) {
       const text = String(raw)
-      if (text.length > BULK_VIEWPORT_CAPTURE_MAX_CONTROL_CHARS) {
+      if (new TextEncoder().encode(text).byteLength > BULK_VIEWPORT_CAPTURE_MAX_CONTROL_BYTES) {
         ws.close(1009, "Bulk browser payload exceeds limit")
         return
       }

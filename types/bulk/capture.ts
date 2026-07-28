@@ -1,3 +1,5 @@
+import type {BulkObserverSnapshot} from "./initial.ts"
+
 export const BULK_VIEWPORT_CAPTURE_METHOD = "bulk.observer.captureViewport" as const
 export const BULK_VIEWPORT_CAPTURE_VERSION = 1 as const
 
@@ -52,6 +54,12 @@ export type BulkViewportCaptureImage = {
   sequence: number
   /** Wall-clock capture time. This is deliberately not a simulation tick. */
   capturedAt: string
+  /**
+   * The existing structural snapshot shape, latched at the same presented
+   * observer cut as the PNG. Existing projection consumers can hydrate it
+   * unchanged.
+   */
+  snapshot: BulkObserverSnapshot
   mimeType: "image/png"
   pngBytes: number
   pngBase64: string
@@ -88,6 +96,7 @@ export type BulkViewportCaptureLimits = {
   maxPixelHeight: number
   maxPixels: number
   maxPngBytes: number
+  maxSnapshotBytes: number
 }
 
 export type BulkViewportCaptureControlRequest = {
@@ -118,7 +127,8 @@ const isBulkViewportCaptureLimits = (value: unknown): value is BulkViewportCaptu
   isPositiveSafeInteger(value.maxPixelWidth) &&
   isPositiveSafeInteger(value.maxPixelHeight) &&
   isPositiveSafeInteger(value.maxPixels) &&
-  isPositiveSafeInteger(value.maxPngBytes)
+  isPositiveSafeInteger(value.maxPngBytes) &&
+  isPositiveSafeInteger(value.maxSnapshotBytes)
 
 export const isBulkViewportCaptureControlRequest = (
   value: unknown,

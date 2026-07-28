@@ -6,6 +6,7 @@ import {join} from "node:path"
 import {BOUNDARY_INITIAL_PROJECTION_METHOD} from "@metafor/types/boundary/initial"
 import type {BoundaryInitialProjectionEntry} from "@metafor/types/boundary/initial"
 import {BULK_VIEWPORT_CAPTURE_METHOD} from "@metafor/types/bulk/capture"
+import type {BulkObserverSnapshot} from "@metafor/types/bulk/initial"
 import type {Particle} from "shared/protocol/force/particle"
 import {
   MF117_BULK_PREFLIGHT_METHOD,
@@ -194,6 +195,7 @@ describe("Bulk Monad", () => {
 
     monad.onRuntimeBorn()
     const initial = monad.openObserver("observer-1")
+    const compatibleSnapshot: BulkObserverSnapshot = initial
 
     expect(initial).toMatchObject({
       version: 1,
@@ -204,6 +206,7 @@ describe("Bulk Monad", () => {
       manifest: {rootSrc: "owner/root"},
     })
     expect(initial.manifest.darkParticles).toHaveLength(1)
+    expect(compatibleSnapshot.projection).toBe(initial.projection)
   })
 
   test("advances the prepared Store with the unchanged realtime Particle", async () => {
