@@ -39,6 +39,8 @@ class BulkHud implements BulkHudController {
 	readonly #timeline: BulkTimelineHudSurface
 	readonly #nodeViewDock: BulkNodeViewDock
 	readonly #nodeView: BulkNodeViewSurface
+	readonly #timeDock: BulkTimeDock
+	readonly #time: BulkTimeSurface
 	#fullscreen = appFullscreenActive()
 
 	constructor(options: BulkHudInstallOptions) {
@@ -47,6 +49,8 @@ class BulkHud implements BulkHudController {
 		this.#fullscreenDock = new BulkFullscreenDock(this)
 		this.#nodeViewDock = new BulkNodeViewDock(this)
 		this.#nodeView = new BulkNodeViewSurface(this)
+		this.#timeDock = new BulkTimeDock(this)
+		this.#time = new BulkTimeSurface()
 		this.#viewport.hud.addSurface(
 			this.#timeline,
 			(bounds) => this.#timelineRect(bounds),
@@ -61,6 +65,19 @@ class BulkHud implements BulkHudController {
 			this.#viewport.hud.addSurface(this.#nodeViewDock, () => ({x: 0, y: 116, w: 106, h: 34}), {zIndex: HUD_DOCK_Z})
 			this.#viewport.hud.addSurface(this.#nodeView, (bounds) => this.#nodeViewRect(bounds), {zIndex: HUD_DOCK_Z + 1})
 		}
+		this.#viewport.hud.addSurface(
+			this.#timeDock,
+			() => ({x: 0, y: 72, w: 106, h: 34}),
+			{zIndex: HUD_DOCK_Z},
+		)
+		this.#viewport.hud.addSurface(
+			this.#time,
+			(bounds) => this.#timeRect(bounds),
+			{zIndex: HUD_DOCK_Z + 1},
+		)
+		// The causal panel is usable on first load without discovering its tab.
+		this.#time.open()
+		this.#viewport.hud.relayout()
 		if (typeof document !== "undefined") {
 			document.addEventListener("fullscreenchange", () => this.#handleFullscreenChange())
 			document.addEventListener("webkitfullscreenchange", () => this.#handleFullscreenChange())
@@ -88,6 +105,26 @@ class BulkHud implements BulkHudController {
 	}
 
 	nodeViewActive(): boolean { return this.#nodeView.active }
+
+	toggleTime(): void {
+		this.#time.toggle()
+		this.#timeDock.requestRender()
+		this.#viewport.hud.relayout()
+	}
+
+	timeActive(): boolean { return this.#time.active }
+
+	#timeRect(bounds: {w: number; h: number}): UiSurfaceRect {
+		if (!this.#time.active) return {x: -1, y: -1, w: 0, h: 0}
+		const timeline = this.#timelineRect(bounds)
+		const h = Math.min(bounds.h, Math.min(192, Math.max(148, Math.round(bounds.h * 0.24))))
+		return {
+			x: timeline.x,
+			y: Math.max(0, timeline.y - h - 12),
+			w: timeline.w,
+			h,
+		}
+	}
 
 	#nodeViewRect(bounds: {w: number; h: number}): UiSurfaceRect {
 		return this.#nodeView.active ? {x: 0, y: 0, w: bounds.w, h: bounds.h} : {x: -1, y: -1, w: 0, h: 0}
@@ -210,6 +247,213 @@ class BulkNodeViewDock extends UiSurface {
 		})
 	}
 }
+
+class BulkTimeDock extends UiSurface {
+	constructor(private readonly hud: BulkHud) {
+		super({bgColor: null, borderColor: null})
+		this.node.name = "BulkTimeDock"
+	}
+
+	protected render(): void {
+		HudSideTab(this, {
+			rect: {x: 0, y: 0, w: this.rectW, h: this.rectH},
+			key: "bulk-dock:time",
+			edge: "left",
+			label: "Время",
+			tooltip: this.hud.timeActive() ? "Закрыть временной стек" : "Открыть временной стек",
+			tone: this.hud.timeActive() ? "active" : "neutral",
+			onClick: () => this.hud.toggleTime(),
+		})
+	}
+}
+
+type TimeFrame = {
+	id: number
+	frontier: {acceptanceSequence: number}
+	/** Filled by capture policy once a frame owns a measured snapshot cost. */
+	resolution?: "exact" | "degraded" | "overloaded"
+}
+
+class BulkTimeSurface extends UiSurface {
+	#active = false
+	#frames: TimeFrame[] = []
+	#state: "open" | "paused" | "error" = "open"
+	#message = "Пауза создаёт первый keyframe"
+	#playhead = 0
+
+	constructor() {
+		super({bgColor: null, borderColor: null})
+		this.node.name = "BulkTimeSurface"
+	}
+
+	override get active(): boolean { return this.#active }
+
+	toggle(): void {
+		this.#active = !this.#active
+		if (this.#active) void this.#refresh()
+		this.requestRender()
+	}
+
+	open(): void {
+		this.#active = true
+		void this.#refresh()
+		this.requestRender()
+	}
+
+	protected override render(): void {
+		if (!this.#active) return
+		const z = 1
+		this.drawRoundedRect(12, 8, Math.max(0, this.rectW - 24), Math.max(0, this.rectH - 16), {
+			radius: 12, fill: palette.bgElevated, border: palette.border, borderWidth: 1, z,
+		})
+		this.drawText("ВРЕМЯ · causal stack", 28, 21, {
+			fontPx: 11, material: this.materials.cyan, z: z + 0.1,
+		})
+		this.drawText(this.#message, 28, 39, {
+			fontPx: 10,
+			material: this.#state === "error" ? this.materials.error : this.materials.muted,
+			maxWidthPx: Math.max(80, this.rectW - 230),
+			z: z + 0.1,
+		})
+
+		this.#button("time:pause", "Пауза", 28, 54, () => void this.#pause(), this.#state === "open")
+		this.#button("time:resume", "Продолжить", 104, 54, () => void this.#resume(), this.#state === "paused")
+		this.#button("time:step", "Шаг", 208, 54, () => this.#waitingStep(), false)
+
+		const left = 28
+		const right = Math.max(left + 1, this.rectW - 28)
+		const trackTop = 92
+		for (const [index, label] of ["Force", "Mass", "Boundary"].entries()) {
+			const y = trackTop + index * 23
+			this.drawText(label, left, y - 4, {
+				fontPx: 9, material: this.materials.muted, z: z + 0.1,
+			})
+			this.drawRect(left + 58, y, Math.max(1, right - left - 58), 1, palette.borderDim, z + 0.02)
+		}
+
+		const railLeft = left + 58
+		const railWidth = Math.max(1, right - railLeft)
+		for (const frame of this.#frames) {
+			const x = railLeft + railWidth * framePosition(frame, this.#frames)
+			const selected = frame === this.#frames.at(-1)
+			const fill = selected
+				? palette.red
+				: frame.resolution === "exact"
+					? palette.green
+					: frame.resolution === "degraded"
+						? palette.orange
+						: frame.resolution === "overloaded"
+							? palette.red
+							: palette.borderDim
+			for (let row = 0; row < 3; row++) {
+				this.drawRoundedRect(x - 3, trackTop - 4 + row * 23, 6, 8, {
+					radius: 2, fill, border: palette.bg, borderWidth: 1, z: z + 0.08,
+				})
+			}
+		}
+		const current = this.#frames.at(-1)
+		if (this.rectH >= 174) {
+			const summary = current === undefined
+				? "0 keyframes · точный снимок появится после Pause"
+				: `frame ${current.id} · seq ${current.frontier.acceptanceSequence} · ${this.#frames.length} keyframes · ${keyframeLegend(current)}`
+			this.drawText(summary, railLeft, trackTop + 73, {
+				fontPx: 9, material: this.materials.muted, maxWidthPx: railWidth, z: z + 0.1,
+			})
+		}
+		const headX = railLeft + railWidth * this.#playhead
+		this.drawRect(headX, trackTop - 12, 1.5, 66, palette.cyan, z + 0.12)
+		const movePlayhead = (x: number): void => {
+			this.#playhead = Math.max(0, Math.min(1, (x - railLeft) / railWidth))
+			this.#message = "Просмотр позиции; live и 3D не изменены"
+			this.requestRender()
+		}
+		this.hit(railLeft, trackTop - 16, railWidth, 76, () => {}, {
+			key: "time:playhead",
+			cursor: "ew-resize",
+			activeCursor: "ew-resize",
+			onPointerDown: movePlayhead,
+			onPointerMove: movePlayhead,
+		})
+	}
+
+	#button(key: string, label: string, x: number, y: number, onClick: () => void, enabled: boolean): void {
+		const w = label === "Продолжить" ? 94 : 62
+		this.drawRoundedRect(x, y, w, 25, {
+			radius: 7,
+			fill: enabled ? palette.bgHot : palette.bgPanel,
+			border: enabled ? palette.cyan : palette.borderDim,
+			borderWidth: 1,
+			z: 1.04,
+		})
+		this.drawText(label, x + 8, y + 7, {
+			fontPx: 9, material: enabled ? this.materials.text : this.materials.muted, z: 1.12,
+		})
+		if (enabled) this.hit(x, y, w, 25, onClick, {
+			key, cursor: "pointer", activeCursor: "pointer",
+		})
+	}
+
+	async #refresh(): Promise<void> {
+		try {
+			const response = await fetch("/time/stack")
+			if (!response.ok) throw new Error(await response.text())
+			this.#frames = await response.json() as TimeFrame[]
+			this.#state = this.#frames.length > 0 ? "paused" : "open"
+			this.#playhead = this.#frames.length === 0 ? 0 : 1
+			this.#message = this.#frames.length === 0 ? "Пауза создаёт первый keyframe" : `Keyframes: ${this.#frames.length}`
+		} catch (error) {
+			this.#state = "error"
+			this.#message = `Время недоступно: ${error instanceof Error ? error.message : String(error)}`
+		}
+		this.requestRender()
+	}
+
+	async #pause(): Promise<void> {
+		this.#message = "Жду causal frontier…"
+		this.requestRender()
+		try {
+			const response = await fetch("/time/pause", {method: "POST"})
+			if (!response.ok) throw new Error(await response.text())
+			await this.#refresh()
+		} catch (error) {
+			this.#state = "error"
+			this.#message = `Пауза не установлена: ${error instanceof Error ? error.message : String(error)}`
+			this.requestRender()
+		}
+	}
+
+	async #resume(): Promise<void> {
+		try {
+			const response = await fetch("/time/resume", {method: "POST"})
+			if (!response.ok) throw new Error(await response.text())
+			this.#frames = []
+			this.#state = "open"
+			this.#playhead = 0
+			this.#message = "Приём Particle снова открыт"
+		} catch (error) {
+			this.#state = "error"
+			this.#message = `Продолжение не выполнено: ${error instanceof Error ? error.message : String(error)}`
+		}
+		this.requestRender()
+	}
+
+	#waitingStep(): void {
+		this.#message = "Шаг ждёт следующую Particle: UI ничего не генерирует"
+		this.requestRender()
+	}
+}
+
+const framePosition = (frame: TimeFrame, frames: readonly TimeFrame[]): number => {
+	const first = frames[0]?.frontier.acceptanceSequence ?? 0
+	const last = frames.at(-1)?.frontier.acceptanceSequence ?? first
+	return last === first ? 0.5 : (frame.frontier.acceptanceSequence - first) / (last - first)
+}
+
+const keyframeLegend = (frame: TimeFrame): string =>
+	frame.resolution === "exact" ? "точный" :
+	frame.resolution === "degraded" ? "интервал" :
+	frame.resolution === "overloaded" ? "перегруз" :
+	"capture-метрика не подключена"
 
 class BulkNodeViewSurface extends UiSurface {
 	#document: HudNodeViewDocument = {atoms: [], transitions: [], wires: []}

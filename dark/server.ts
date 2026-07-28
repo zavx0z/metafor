@@ -22,6 +22,7 @@ import {createForceWebSocketChannels, type ForceSocketData} from "./force/websoc
 import {DarkMonad} from "./monad.ts"
 import {createLocalMonadChannelPair} from "./monad/local.ts"
 import {MonadRouter} from "./monad/router.ts"
+import {DarkForceTimeController} from "./time-control.ts"
 import {
   checkpointControlStatePath,
   DarkCheckpointControl,
@@ -78,6 +79,7 @@ monad.onChannelOpened()
 await darkCheckpoint?.open()
 
 export const lifecycle = new ForceLifecycle(forceHistory, checkpoint ?? undefined)
+monad.setTimeControl(new DarkForceTimeController(lifecycle, checkpoint))
 const mf117 = checkpoint === null
   ? null
   : new MF117LiveCoordinator(

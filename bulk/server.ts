@@ -36,6 +36,18 @@ const sendBrowser = (ws: ServerWebSocket<BrowserClient>, payload: unknown): bool
   return true
 }
 
+const timeControl = async (method: string, params: unknown = {}): Promise<Response> => {
+  try {
+    const result = await rpc.call("dark", method, params, {waitMs: 1_000})
+    return Response.json(result)
+  } catch (error) {
+    return Response.json({
+      ok: false,
+      error: error instanceof Error ? error.message : String(error),
+    }, {status: 503})
+  }
+}
+
 const server = Bun.serve<BrowserClient>({
   port: Number(Bun.env.PORT ?? 4004),
   routes: {
@@ -44,6 +56,23 @@ const server = Bun.serve<BrowserClient>({
     "/health": {
       GET() {
         return monad.onHealthRequested()
+      },
+    },
+    // The browser reaches only Bulk; bounded time intent is relayed over the
+    // already authenticated local Monad channel.
+    "/time/stack": {
+      GET() {
+        return timeControl("dark.force.stack")
+      },
+    },
+    "/time/pause": {
+      POST() {
+        return timeControl("dark.force.pause")
+      },
+    },
+    "/time/resume": {
+      POST() {
+        return timeControl("dark.force.resume")
       },
     },
     "/initial": {

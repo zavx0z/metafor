@@ -68,4 +68,7 @@ export type BulkHudController = {
 	nodeViewActive(): boolean
   relayout(): void
   setNodeView(document: import("@ui/hud").HudNodeViewDocument): void
+  /** Lightweight causal timeline; intentionally independent from Node View. */
+  toggleTime(): void
+  timeActive(): boolean
 }

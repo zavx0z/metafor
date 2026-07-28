@@ -10,7 +10,13 @@ import {
   type MonadRpcMessage,
 } from "shared/protocol/monad/rpc"
 import {DARK_DECLARATION_PROJECTION_METHOD} from "./meta-json.ts"
-import {DarkMonad} from "./monad.ts"
+import {
+  DARK_FORCE_PAUSE_METHOD,
+  DARK_FORCE_RESUME_METHOD,
+  DARK_FORCE_STACK_METHOD,
+  DARK_FORCE_STEP_METHOD,
+  DarkMonad,
+} from "./monad.ts"
 
 class TestChannel implements MonadChannel {
   readonly identity = "dark"
@@ -52,12 +58,36 @@ describe("Dark Monad", () => {
         },
       }
     })
+    monad.setTimeControl({
+      async pauseExternalAdmission() {
+        return {
+          id: 1,
+          frontier: {
+            cutId: "cut-monad",
+            phase: "held",
+            acceptanceSequence: 4,
+            domains: [],
+          },
+        }
+      },
+      async stepAgentParticle() {
+        throw new Error("not used")
+      },
+      resumeExternalAdmission() {},
+      pauseStack() {
+        return []
+      },
+    })
     const channel = new TestChannel()
     const peer = new MonadRpcPeer(channel)
 
     monad.onServerStarted(peer)
     expect(peer.methods()).toEqual([
       DARK_DECLARATION_PROJECTION_METHOD,
+      DARK_FORCE_PAUSE_METHOD,
+      DARK_FORCE_RESUME_METHOD,
+      DARK_FORCE_STACK_METHOD,
+      DARK_FORCE_STEP_METHOD,
       "readMetaJSON",
     ])
     monad.onChannelOpened()

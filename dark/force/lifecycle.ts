@@ -108,6 +108,29 @@ export class ForceLifecycle {
         error: "Force external admission is held by an internal causal operation",
       }
     }
+    return await this.#transferAgentParticle(input)
+  }
+
+  /**
+   * Executes exactly one owner-supplied agent Particle while ordinary external
+   * admission stays closed. The caller must hold and re-establish the causal
+   * checkpoint frontier around this operation.
+   */
+  async stepAgentParticle(input: ForceMessageInput): Promise<ForceAgentDecision> {
+    if (this.#state !== "running") {
+      return {ok: false, reason: "not_running", error: this.#blockedReason()}
+    }
+    if (!this.#externalAdmissionClosed) {
+      return {
+        ok: false,
+        reason: "admission_closed",
+        error: "Force internal step requires closed external admission",
+      }
+    }
+    return await this.#transferAgentParticle(input)
+  }
+
+  async #transferAgentParticle(input: ForceMessageInput): Promise<ForceAgentDecision> {
     const message = sourceForceMessage(input, "agent")
     try {
       const delivered = await this.#transfer(message, "agent")

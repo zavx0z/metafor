@@ -134,6 +134,26 @@ describe("ForceLifecycle", () => {
     expect((await lifecycle.acceptAgentParticle(agentInflaton(5))).ok).toBe(true)
   })
 
+  test("steps one agent Particle only while ordinary external admission stays closed", async () => {
+    start()
+    expect(await lifecycle.stepAgentParticle(agentInflaton(6))).toEqual({
+      ok: false,
+      reason: "admission_closed",
+      error: "Force internal step requires closed external admission",
+    })
+
+    lifecycle.closeExternalAdmission()
+    expect(await lifecycle.stepAgentParticle(agentInflaton(7))).toMatchObject({
+      ok: true,
+      particle: {by: "agent", ts: 7},
+    })
+    expect(lifecycle.status()).toMatchObject({externalAdmission: "closed"})
+    expect(await lifecycle.acceptAgentParticle(agentInflaton(8))).toMatchObject({
+      ok: false,
+      reason: "admission_closed",
+    })
+  })
+
   test("accepts and sources the agent WIMP remove through the same Force Monad ingress", async () => {
     start()
 
