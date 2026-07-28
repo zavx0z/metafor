@@ -15,8 +15,10 @@ particles.
   своему materialized Atom.
 - Локальная геометрия Atom одинакова на каждом уровне. Корневой внешний диаметр равен
   примерно `100 мм`; дочерний Atom получает единый uniform scale относительно родителя.
-- Один transform дочернего Atom охватывает его тор, подпись, Fields, orbital geometry,
-  channels и всё реальное дочернее поддерево.
+- Один transform дочернего Atom охватывает его тор, подпись, Fields, orbital
+  geometry, channels и всё реальное дочернее поддерево. Ничто из содержимого
+  дочернего Atom не переносится в локальный frame его родителя отдельно от
+  этого transform.
 - Только прямые дочерние Atom занимают один bounded planar orbit во внутреннем
   envelope immediate owning Atom, в sibling order из Monad snapshot и по
   materialized `parentDarkParticleId`. Это не row, spherical/Fibonacci packing
@@ -31,6 +33,17 @@ particles.
   allocation содержимого внутри родителя.
 - Собственные Fields Atom детерминированно упаковываются в его локальное ядро. При
   нехватке места уменьшаются сферы Fields, а не внешний envelope Atom.
+- На каждом уровне действует один и тот же радиальный порядок: собственные
+  Fields находятся в ядре Atom до `r_inner`; полные торы immediate Matter
+  children занимают первую внутреннюю орбиту родительского тора между
+  `r_inner` и `r_torus`; собственные State-рукава этого же Atom идут следом на
+  следующих внешних орбитах между `r_torus` и `r_outer`. Matter-торы не
+  остаются в ядре и не делят полосу со State.
+- Вся геометрия State-рукава остаётся в локальном frame owning Atom и целиком
+  внутри его `r_outer`. State дочернего Atom не поднимается в frame родителя,
+  не раскладывается вместе со State родителя и не получает отдельный
+  межуровневый translation. Тот же закон без исключений действует для root и
+  для каждого вложенного Atom.
 - `orbitEdgeGapMm` влияет только на локальные зазоры внутри фиксированного envelope.
 - Нормализация к корневому диаметру выполняется одним глобальным scale-проходом. Она
   не меняет рекурсивные transform и materialized отношения.
@@ -85,16 +98,16 @@ particles.
   внешняя wireframe geometry и MSAA resolve не скрывали их; pass использует
   saturating additive blend той же single-object marker geometry. Potential
   остаётся явно сильнее subdued inactive marker, а inactive — различимее фона.
-- Существующие non-root Atom toruses образуют inner core и используют тот же
-  bounded single-sample material overlay с отдельным opacity/luminance
-  contrast. Это не меняет их torus geometry, transform, nesting/layout,
-  identity или projection; root torus и connectivity geometry сохраняют
-  обычный scene-depth material. Существующие Field spheres внутри этих nested
-  Atom получают bounded red accent material в том же overlay и читаются как
-  nucleus lights/orbs; их shader-local material scale меньше единицы и
-  удерживает nucleus accent визуально меньше State-electron marker. Geometry,
-  node transform, layout и pick/projection radius не меняются; новые
-  objects/geometry для accent не создаются.
+- Существующие non-root Atom toruses занимают внутреннюю Matter-орбиту owning
+  Atom и используют тот же bounded single-sample material overlay с отдельным
+  opacity/luminance contrast. Это не меняет их torus geometry, transform,
+  nesting/layout, identity или projection; root torus и connectivity geometry
+  сохраняют обычный scene-depth material. Существующие Field spheres внутри
+  собственных ядер этих nested Atom получают bounded red accent material в том
+  же overlay и читаются как nucleus lights/orbs; их shader-local material
+  scale меньше единицы и удерживает nucleus accent визуально меньше
+  State-electron marker. Geometry, node transform, layout и pick/projection
+  radius не меняются; новые objects/geometry для accent не создаются.
 - Root Atom torus сохраняет читаемую outer form в обычном scene-depth
   material; renderer не заменяет её sparse silhouette.
 - Renderer использует materialized Atom-local `localX/localY/localZ` без
@@ -147,17 +160,21 @@ worldScale(child)  = worldScale(parent) * s_child
 
 Matter child authored только в локальном frame своего непосредственного
 owning Atom. Для его полного локального outer radius `R_child`, uniform scale
-`s_child` и фиксированного inner envelope `r_inner(parent)` обязательно:
+`s_child`, внутренней границы `r_inner(parent)` и центрального радиуса
+родительского тора `r_torus(parent)` обязательно:
 
 ```text
-|t_child| + s_child * R_child <= r_inner(parent)
+r_inner(parent) <= |t_child| - s_child * R_child
+|t_child| + s_child * R_child <= r_torus(parent)
 ```
 
 В world coordinates тот же закон обязан сохраниться после композиции:
 
 ```text
+S_parent^W * r_inner(parent)
+  <= |O_child^W - O_parent^W| - S_child^W * R_child
 |O_child^W - O_parent^W| + S_child^W * R_child
-  <= S_parent^W * r_inner(parent)
+  <= S_parent^W * r_torus(parent)
 ```
 
 Bound проверяется сначала для Auth/Chat/Model относительно Lada, затем отдельно
@@ -167,6 +184,20 @@ Bound проверяется сначала для Auth/Chat/Model относи�
 отличаться как от `F_Chat`, так и от `F_Lada`. Координаты из разных локальных
 frames нельзя сравнивать или соединять до явного приведения обеих точек в
 world coordinates.
+
+Для каждой точки `p_i = (x_i, y_i, z_i)` State-рукава owning Atom с радиусом
+marker-а `r_i` действует собственный Atom-local toroidal bound:
+
+```text
+ρ_i = sqrt(x_i² + y_i²)
+sqrt((ρ_i - r_torus(owner))² + z_i²) + r_i <= r_tube(owner)
+```
+
+В частности, planar State centres идут после полной Matter-орбиты:
+`ρ_i - r_i >= r_torus(owner)`. Эти bounds проверяются в локальном frame
+каждого owning Atom до композиции; uniform parent chain сохраняет их в world
+coordinates. Сравнивать State дочернего Atom с радиусами его родителя без
+полной world-композиции запрещено.
 
 ## Следствие
 

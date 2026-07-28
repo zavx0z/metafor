@@ -312,6 +312,28 @@ describe("bulk/gravity/layout manifest", () => {
     expectFieldNucleiHaveNoIntersections(manifest)
   })
 
+  test("выносит полные Matter-торы из Field-ядра на первую внутреннюю орбиту каждого Atom", () => {
+    const manifest = createBulkManifestFromDarkParticleInputs("root", [
+      createDarkParticle(1, [
+        createDarkParticle(2, [createDarkParticle(4)]),
+        createDarkParticle(3),
+      ], [1, 2, 3]),
+    ])
+    const byId = new Map(manifest.darkParticles.map((particle) =>
+      [particle.darkParticleId, particle] as const))
+
+    for (const child of manifest.darkParticles) {
+      if (child.parentDarkParticleId === null) continue
+      const parent = byId.get(child.parentDarkParticleId)
+      expect(parent).toBeDefined()
+      const orbitRadius = Math.hypot(child.localX, child.localY, child.localZ)
+      const childExtent = getVisualOuterRadius(child)
+      expect(orbitRadius - childExtent).toBeGreaterThanOrEqual(getInnerRadius(parent!) - 0.001)
+      expect(orbitRadius + childExtent).toBeLessThanOrEqual(parent!.torusRadius + 0.001)
+    }
+    expectFieldNucleiInsideParents(manifest)
+  })
+
   test("каждый sibling повторяет тот же фрактальный закон Atom в одном parent allocation", () => {
     const manifest = createBulkManifestFromDarkParticleInputs("root", [
       createDarkParticle(1, [createTopologyParticle(20, "macho", [

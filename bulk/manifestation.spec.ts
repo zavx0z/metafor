@@ -328,4 +328,69 @@ describe("Boundary projection -> Bulk manifestation", () => {
 		expect(states.length).toBeGreaterThan(projection.states.length)
 		expect(positions.size).toBe(states.length)
 	})
+
+	test("keeps nested State sleeves in the owning Atom-local toroidal band after its Matter band", () => {
+		const projection = createProjection()
+		const childSrc = "owner/child"
+		projection.wimps.push({src: childSrc, name: "Child"})
+		projection.atoms.push(
+			{id: 18, parentAtom: 17, parentTopology: null, wimp: childSrc, position: 0},
+		)
+		projection.fields.push(
+			{id: 101, wimp: childSrc, key: "ready", type: "boolean", label: "Ready"},
+		)
+		projection.states.push(
+			{id: 201, wimp: childSrc, name: "a", position: 0},
+			{id: 202, wimp: childSrc, name: "b", position: 1},
+		)
+		projection.transitions.push({id: 211, wimp: childSrc, fromState: 201, toState: 202, position: 0})
+		projection.conditions.push({
+			id: 221,
+			wimp: childSrc,
+			transition: 211,
+			field: 101,
+			position: 0,
+			predicate: {eq: true},
+		})
+		projection.processes.push({
+			id: 231,
+			wimp: childSrc,
+			state: "a",
+			descriptor: {type: "action", key: "stay-local"},
+		})
+
+		const nested = buildBulkManifestation(projection, SRC)
+		const root = nested.darkParticles.find(({src}) => src === SRC)!
+		const child = nested.darkParticles.find(({src}) => src === childSrc)!
+		const rootInnerRadius = root.torusRadius - root.torusTube
+		const childOuterRadius = child.torusRadius + child.torusTube
+		const childOrbitRadius = Math.hypot(child.localX, child.localY)
+		const childExtent = child.torusScale * childOuterRadius
+		expect(childOrbitRadius - childExtent).toBeGreaterThanOrEqual(rootInnerRadius - 1e-9)
+		expect(childOrbitRadius + childExtent).toBeLessThanOrEqual(root.torusRadius + 1e-9)
+
+		const standaloneProjection = structuredClone(projection)
+		standaloneProjection.atoms = standaloneProjection.atoms.map((atom) =>
+			atom.wimp === childSrc ? {...atom, parentAtom: null} : atom)
+		const standalone = buildBulkManifestation(standaloneProjection, childSrc)
+		const standaloneStates = new Map(
+			(standalone.orbitalParticles ?? []).map((particle) =>
+				[particle.orbitalParticleId, particle] as const),
+		)
+		const nestedStates = (nested.orbitalParticles ?? []).filter((particle) =>
+			particle.parentDarkParticleId === child.darkParticleId &&
+			particle.orbitalParticleKind === "state")
+
+		expect(nestedStates.length).toBeGreaterThan(0)
+		for (const particle of nestedStates) {
+			const standaloneState = standaloneStates.get(particle.orbitalParticleId)
+			if (!standaloneState) throw new Error(`Missing standalone State ${particle.orbitalParticleId}`)
+			expect(particle).toEqual(standaloneState)
+			const radial = Math.hypot(particle.localX, particle.localY)
+			expect(radial - particle.sphereRadius).toBeGreaterThanOrEqual(child.torusRadius - 1e-9)
+			expect(
+				Math.hypot(radial - child.torusRadius, particle.localZ) + particle.sphereRadius,
+			).toBeLessThanOrEqual(child.torusTube + 1e-9)
+		}
+	})
 })

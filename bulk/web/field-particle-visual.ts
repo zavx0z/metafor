@@ -20,7 +20,7 @@ const brighten = (channel: number): number =>
 
 /**
  * Uses existing nested-Atom Field spheres as bounded red nucleus accents.
- * Depth 1 belongs to the root Atom nucleus; deeper Fields belong to the inner core.
+ * Every sphere remains in its owning Atom nucleus; depth only selects visual material.
  */
 export const resolveFieldParticleVisual = (
 	particle: FieldParticleVisualInput,

@@ -489,7 +489,7 @@ export function buildBulkManifestation(
       const nextPath = new Set(path).add(stateId)
       for (const transition of outgoing.get(stateId) ?? []) countSleeveDepths(transition.toState, nextPath, depth + 1, counts)
     }
-    const atomInnerRadius = Math.max(0, manifestedAtom.torusRadius - manifestedAtom.torusTube)
+    const stateInnerRadius = manifestedAtom.torusRadius
     const atomOuterRadius = manifestedAtom.torusRadius + manifestedAtom.torusTube
     const fieldRadius = manifest.fieldParticles.find((field) => field.parentDarkParticleId === parentDarkParticleId)?.sphereRadius
       ?? manifest.fieldParticles[0]?.sphereRadius
@@ -507,10 +507,10 @@ export function buildBulkManifestation(
     let densityRadius = radiusCap
     sleeveStats.forEach((stats) => {
       const sleeveAngleSpan = Math.min((Math.PI * 2 / Math.max(1, atomStates.length)) * 0.78, 1.15)
-      const radialSpan = Math.max(1, atomOuterRadius - atomInnerRadius - layoutMargin * 2)
+      const radialSpan = Math.max(1, atomOuterRadius - stateInnerRadius - layoutMargin * 2)
       const bandWidth = radialSpan / (stats.maxDepth + 1)
       for (const [depth, count] of stats.depthCounts) {
-        const midRadius = atomInnerRadius + layoutMargin + (depth + 0.5) * bandWidth
+        const midRadius = stateInnerRadius + layoutMargin + (depth + 0.5) * bandWidth
         const arcWidth = Math.max(1, midRadius * sleeveAngleSpan)
         const columns = Math.max(1, Math.ceil(Math.sqrt(count * arcWidth / Math.max(1, bandWidth))))
         const rows = Math.max(1, Math.ceil(count / columns))
@@ -562,7 +562,7 @@ export function buildBulkManifestation(
       const rootAngle = (Math.PI * 2 * rootIndex) / Math.max(1, atomStates.length)
       const sleeveAngleSpan = Math.min((Math.PI * 2 / Math.max(1, atomStates.length)) * 0.78, 1.15)
       const stats = sleeveStats[rootIndex]!
-      const sleeveRadialSpan = Math.max(1, atomOuterRadius - atomInnerRadius - layoutMargin * 2)
+      const sleeveRadialSpan = Math.max(1, atomOuterRadius - stateInnerRadius - layoutMargin * 2)
       const sleeveBandWidth = sleeveRadialSpan / (stats.maxDepth + 1)
       const depthIndexes = new Map<number, number>()
       const occurrenceByPathState = new Map<number, string>()
@@ -579,14 +579,14 @@ export function buildBulkManifestation(
         const depthCount = stats.depthCounts.get(depth) ?? 1
         const depthIndex = depthIndexes.get(depth) ?? 0
         depthIndexes.set(depth, depthIndex + 1)
-        const midRadius = atomInnerRadius + layoutMargin + (depth + 0.5) * sleeveBandWidth
+        const midRadius = stateInnerRadius + layoutMargin + (depth + 0.5) * sleeveBandWidth
         const arcWidth = Math.max(1, midRadius * sleeveAngleSpan)
         const columns = Math.max(1, Math.ceil(Math.sqrt(depthCount * arcWidth / Math.max(1, sleeveBandWidth))))
         const rows = Math.max(1, Math.ceil(depthCount / columns))
         const column = depthIndex % columns
         const row = Math.floor(depthIndex / columns)
         const angle = rootAngle + ((column + 0.5) / columns - 0.5) * sleeveAngleSpan
-        const distance = atomInnerRadius + layoutMargin + depth * sleeveBandWidth + (row + 0.5) / rows * sleeveBandWidth
+        const distance = stateInnerRadius + layoutMargin + depth * sleeveBandWidth + (row + 0.5) / rows * sleeveBandWidth
         const stateOutgoing = outgoing.get(state.id) ?? []
         const terminal = stateOutgoing.length === 0
         const activeSleeve = rootState.id === currentStateId

@@ -153,25 +153,26 @@ const placeChildrenOnLocalOrbit = (node: LayoutDarkParticleNode, padding: number
   const children = [...node.children]
   if (children.length === 0) return
 
-  // Solve one equal-circle allocation inside the immediate owner's fixed
-  // inner envelope. The angular constraint controls sibling competition;
-  // a sparse nested level therefore uses its available local frame instead
-  // of inheriting an unrelated percentage cap from its recursion depth.
+  // The Field nucleus ends at the torus inner radius. Complete direct Matter
+  // toruses occupy the next, inner half of the owning torus body. The outer
+  // half remains available for this Atom's own State orbits.
   const density = Math.max(1, snapshotLayoutConfig.packingDensityCoefficient)
   const edgePadding = Math.min(Math.max(0, padding), node.torusTube * 0.25)
-  const availableRadius = Math.max(0.001, node.innerRadius - edgePadding)
+  const matterInnerBoundary = node.innerRadius + edgePadding
+  const matterOuterBoundary = node.torusRadius - edgePadding
+  const orbitRadius = (matterInnerBoundary + matterOuterBoundary) / 2
+  const radialHalfWidth = Math.max(0.001, (matterOuterBoundary - matterInnerBoundary) / 2)
   const separationSin = children.length === 1 ? 1 : Math.sin(Math.PI / children.length)
+  const siblingExtent = Math.max(0.001, orbitRadius * separationSin / density)
   const childOuterExtent = Math.max(
     0.001,
-    Math.min(availableRadius, availableRadius * separationSin / (density + separationSin)),
+    Math.min(radialHalfWidth, siblingExtent),
   )
-  const orbitRadius = availableRadius - childOuterExtent * density
   const phase = hashAngle(`${node.darkParticleId}:${children.map((child) => child.darkParticleId).join(":")}`)
 
   children.forEach((child, index) => {
-    // Only immediate Matter children occupy this owning Atom's planar orbit.
-    // A nested child becomes the origin of its own orbit, so no descendant is
-    // flattened into a root-authored row, sphere or global allocation.
+    // A nested child moves as one uniform subtree transform and starts the
+    // same Field -> Matter -> State radial law in its own local frame.
     const angle = phase + index * Math.PI * 2 / children.length
     child.localX = Math.cos(angle) * orbitRadius
     child.localY = Math.sin(angle) * orbitRadius

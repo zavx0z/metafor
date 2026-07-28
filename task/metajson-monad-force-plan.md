@@ -880,13 +880,13 @@ wireframe и MSAA resolve не скрывали малые markers. Potential о
 subdued inactive, а inactive — различимее фона. Ни отдельная particle
 geometry/CPU simulation, ни новый perpetual render-loop condition для этого
 visual effect не допускаются.
-Существующие non-root Atom toruses образуют inner core и используют тот же
-bounded single-sample material overlay с отдельным opacity/luminance contrast.
-Их geometry/transform/nesting, root torus и connectivity scene-depth material
-не меняются. Существующие nested-Atom Field spheres получают bounded red
-nucleus accent в том же overlay с shader-local material scale меньше
-State-electron marker, без изменения geometry/transform/layout/pick radius и
-без новых objects.
+Существующие non-root Atom toruses занимают внутреннюю Matter-орбиту owning
+Atom и используют тот же bounded single-sample material overlay с отдельным
+opacity/luminance contrast. Их geometry/transform/nesting, root torus и
+connectivity scene-depth material не меняются. Существующие nested-Atom Field
+spheres остаются в собственных ядрах и получают bounded red nucleus accent в
+том же overlay с shader-local material scale меньше State-electron marker, без
+изменения geometry/transform/layout/pick radius и без новых objects.
 Owner superseded renderer-only spherical-shell placement после live visual
 review. Current law возвращает последнюю принятую pre-sphere композицию:
 Fields используют materialized Atom-local coordinates и остаются в локальном
@@ -896,6 +896,13 @@ torus остаётся читаемым обычным scene-depth object. Rende
 переписывает локальные endpoints; marker/proxy/transition/relation geometry
 использует один owning Atom container и materialized coordinates. Data,
 topology, parent ownership, causal layout и identity остаются неизменными.
+Следующее owner-уточнение закрепляет один самоподобный радиальный закон на
+каждом уровне Atom: Fields остаются в ядре до `r_inner`, полные immediate
+Matter toruses выносятся из ядра на первую внутреннюю орбиту родительского
+тора до `r_torus`, а собственные State-рукава этого же Atom занимают следующие
+внешние орбиты до `r_outer`. State дочернего Atom остаётся внутри child-local
+frame и не переносится на орбиту родителя; каждый child рекурсивно повторяет
+тот же порядок.
 Initial root fit и click/focused fit используют один final-world envelope
 owning Atom, включающий torus, marker sphere bounds, Field proxies, transitions
 и локальные relations. Target остаётся в центре torus, направление камеры и

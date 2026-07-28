@@ -196,10 +196,12 @@ describe("Lada three-level coordinate contract", () => {
 			chatSendWorldDiameter / 2 - 1e-9,
 		)
 
-		const chatSendLocalBound =
-			Math.hypot(chatSend.localX, chatSend.localY, chatSend.localZ) +
-			outerRadius(chatSend) * chatSend.torusScale
-		expect(chatSendLocalBound).toBeLessThanOrEqual(innerRadius(chat) + 1e-9)
+		const chatSendLocalRadius = Math.hypot(chatSend.localX, chatSend.localY, chatSend.localZ)
+		const chatSendLocalExtent = outerRadius(chatSend) * chatSend.torusScale
+		expect(chatSendLocalRadius - chatSendLocalExtent)
+			.toBeGreaterThanOrEqual(innerRadius(chat) - 1e-9)
+		expect(chatSendLocalRadius + chatSendLocalExtent)
+			.toBeLessThanOrEqual(chat.torusRadius + 1e-9)
 	})
 
 	test("does not collapse ChatSend into a root-authored global coordinate", () => {
@@ -232,7 +234,7 @@ describe("Lada three-level coordinate contract", () => {
 		expect(chatSendWorld.scale).toBeCloseTo(chatWorld.scale * chatSend.torusScale, 12)
 	})
 
-	test("keeps each direct Matter child inside its owning local frame in local and world coordinates", () => {
+	test("keeps each Matter child after the Field core and before the owning State orbits", () => {
 		const manifest = ladaTopologyManifestFixture()
 		const byId = new Map(manifest.darkParticles.map((particle) =>
 			[particle.darkParticleId, particle] as const))
@@ -241,18 +243,22 @@ describe("Lada three-level coordinate contract", () => {
 			if (child.parentDarkParticleId === null) continue
 			const parent = byId.get(child.parentDarkParticleId)
 			expect(parent).toBeDefined()
-			const localBound =
-				Math.hypot(child.localX, child.localY, child.localZ) +
-				outerRadius(child) * child.torusScale
-			expect(localBound).toBeLessThanOrEqual(innerRadius(parent!) + 1e-9)
+			const localRadius = Math.hypot(child.localX, child.localY, child.localZ)
+			const localExtent = outerRadius(child) * child.torusScale
+			expect(localRadius - localExtent)
+				.toBeGreaterThanOrEqual(innerRadius(parent!) - 1e-9)
+			expect(localRadius + localExtent)
+				.toBeLessThanOrEqual(parent!.torusRadius + 1e-9)
 
 			const parentWorld = worldFrame(manifest, parent!)
 			const childWorld = worldFrame(manifest, child)
-			const worldBound =
-				distance(parentWorld.origin, childWorld.origin) +
-				outerRadius(child) * childWorld.scale
-			expect(worldBound).toBeLessThanOrEqual(
-				innerRadius(parent!) * parentWorld.scale + 1e-9,
+			const worldRadius = distance(parentWorld.origin, childWorld.origin)
+			const worldExtent = outerRadius(child) * childWorld.scale
+			expect(worldRadius - worldExtent).toBeGreaterThanOrEqual(
+				innerRadius(parent!) * parentWorld.scale - 1e-9,
+			)
+			expect(worldRadius + worldExtent).toBeLessThanOrEqual(
+				parent!.torusRadius * parentWorld.scale + 1e-9,
 			)
 		}
 	})

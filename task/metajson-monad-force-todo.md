@@ -1007,6 +1007,8 @@
 - Dependencies: `MF-116`
 - Current executor: canonical Inference integration checkout, delegated from
   Codex task `019fa120-7413-7d32-938c-16aa6dac3fdc`.
+- Current slice: canonical `codex-local-integration` self-similar Atom radial
+  band correction after owner visual rejection.
 - Owner approval:
   - owner explicitly approved one canonical no-stop live
     `zavx0z/inference → zavx0z/lada` causal transition;
@@ -1089,9 +1091,10 @@
     only brightness/opacity. Potential and inactive State balls retain their
     secondary hierarchy in one final single-sample additive material overlay,
     where `potential > inactive > background`;
-  - existing non-root Atom toruses use the same overlay for legible inner-core
-    contrast, and their existing Field spheres become bounded red nucleus
-    accents with shader-local visual scale below the State marker scale;
+  - existing non-root Atom toruses use the same overlay for legible inner
+    Matter-orbit contrast, and their existing Field spheres remain in their
+    own nuclei as bounded red accents with shader-local visual scale below the
+    State marker scale;
   - owner live review superseded the spherical-shell placement introduced by
     `faa6a33d`, refined by `b325f7b7` and bounded by `9d9f375d`; its accepted
     visual baseline is the immediately preceding `41e76f48`;
@@ -1175,6 +1178,39 @@
     continued to disconnect until a fresh page/session; no transport or
     reconnect semantics were changed in this geometry slice. No screenshot was
     captured and no visual acceptance is claimed.
+  - owner rejected both previous interpretations after live Monad Capture:
+    Matter on the torus centreline mixed with State, while moving nested State
+    to a parent orbit broke Atom self-similarity;
+  - the approved self-similar law is identical on every Atom level: Fields
+    remain in the nucleus; complete immediate Matter toruses leave the nucleus
+    and occupy the first inner orbit of the owning parent torus; the owning
+    Atom's own State sleeves occupy the following outer orbits, with all
+    geometry still inside that Atom;
+  - each child Atom repeats the same order recursively. Cross-level State
+    translation, renderer re-parent, Matter in the Field nucleus and
+    Matter/State band overlap are forbidden;
+  - `snapshot.ts` now places each complete immediate Matter subtree with one
+    uniform transform in `[r_inner, r_torus]`; `manifestation.ts` keeps every
+    owning Atom's State sleeves after that band in `[r_torus, r_outer]`.
+    Focused self-similarity/layout/manifestation proof: `31 pass`, `0 fail`,
+    `1670 expect`;
+  - full `bun run check`: typecheck pass, `42` expected diagnostics,
+    `1747 pass`, `0 fail`, `6022 expect` in `209` test files;
+    `git diff --check` clean;
+  - one normal cold restart installed the corrected source as invocation
+    `978c8583194c429d919f08ee618c8289`, PID `2354452`. All six contour
+    `/health` endpoints returned HTTP `200`; Bulk was initialized with five
+    Atom and root `zavx0z/lada`;
+  - fresh Monad Capture from observer
+    `bulk-web-360289a2-e3b2-473f-b142-494dade50954` returned a non-black
+    `1450×2178` PNG of the cold-installed contour. Its exact structural
+    snapshot proves for Lada and nested Chat:
+    `fieldOuter = r_inner = matterInner = 16.667`,
+    `matterOuter = r_torus = 33.333`, and the first State inner edges are
+    `38.531` and `39.183`; every Atom's State cross-section remains below
+    `torusTube = 16.667`. The image shows the three complete child Atom toruses
+    on Lada's inner Matter orbit and the owning State sleeves on the following
+    outer orbits.
 - Activation constraints:
   - visual commit `faa6a33d` received one authorized standard cold restart;
     the service returned active/running, all six ports listened and startup
