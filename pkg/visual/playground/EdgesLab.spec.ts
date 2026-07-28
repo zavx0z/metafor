@@ -15,11 +15,10 @@ describe("Edges Lab constraint geometry", () => {
     const descriptions = [
       "Расстояние центров",
       "Радиус сферы",
-      "Радиус ограничителя",
-      "Высота слева",
-      "Высота справа",
-      "Азимут слева",
-      "Азимут справа",
+      "Безопасный зазор",
+      "Дополнительный подъём",
+      "Масштаб левого Torus",
+      "Масштаб правого Torus",
     ]
 
     for (const description of descriptions) {
@@ -32,6 +31,41 @@ describe("Edges Lab constraint geometry", () => {
     expect(page).toContain("Два Torus · «Наш default»")
     expect(page).toContain("Analysis → Torus")
     expect(page).toContain("перетаскиванием левой кнопкой мыши")
+    expect(page).toContain("Высота маршрута")
+    expect(page).not.toContain("Азимут слева")
+    expect(page).toContain("Формула расчёта Edge")
+    for (const variable of [
+      "p",
+      "t",
+      "sl",
+      "sr",
+      "cl",
+      "cr",
+      "h",
+      "dt",
+      "c",
+      "dh",
+      "tl",
+      "tr",
+      "r-major",
+      "r-tube",
+      "rho",
+      "distance",
+      "scale-left",
+      "scale-right",
+    ]) {
+      expect(page).toContain(`id="edges-formula-${variable}"`)
+      expect(page).toContain(`data-edges-formula-link="${variable}"`)
+    }
+    expect(page).toContain(".edges-formula-variable.is-highlighted")
+    expect(page).toContain("#edges-formula-links path.is-highlighted")
+    expect(page).toContain('id="edges-formula-target"')
+    expect(page).toContain("pointer-events: stroke")
+    const labSource = await Bun.file(
+      new URL("./EdgesLab.ts", import.meta.url),
+    ).text()
+    expect(labSource).toContain('addEventListener("pointerenter", activate)')
+    expect(labSource).toContain("registerFormulaMaterial")
   })
 
   test("clamps direct Sphere movement to the circular Torus hole", () => {
@@ -46,15 +80,14 @@ describe("Edges Lab constraint geometry", () => {
   test("moves Edge endpoints with independently dragged Spheres", () => {
     const model = buildEdgeConstraintModel({
       centerDistance: 44,
-      constraintRadius: 6,
-      leftAzimuthDeg: 0,
-      leftHeight: 9,
+      clearance: 3,
+      extraLift: 0,
       leftSphereX: 2,
       leftSphereY: -3,
-      rightAzimuthDeg: 180,
-      rightHeight: 9,
       rightSphereX: -4,
       rightSphereY: 5,
+      torusRadius: 18,
+      torusTube: 7,
     })
 
     expect(model.leftTorusCenter).toEqual({x: -22, y: 0, z: 0})
@@ -74,67 +107,120 @@ describe("Edges Lab constraint geometry", () => {
       .toBe(EDGE_TORUS_GAP_MM)
   })
 
-  test("keeps both Bezier controls on their perpendicular guide circles", () => {
+  test("uses independent Torus scales in spacing and Edge clearance", () => {
+    const torus = {radius: 18, tube: 7}
+    const leftScale = 0.75
+    const rightScale = 1.5
+    const minimum = minimumEdgeTorusCenterDistance(
+      torus,
+      leftScale,
+      rightScale,
+    )
     const model = buildEdgeConstraintModel({
-      centerDistance: 44,
-      constraintRadius: 6,
-      leftAzimuthDeg: 25,
-      leftHeight: 9,
+      centerDistance: minimum,
+      clearance: 3,
+      extraLift: 0,
       leftSphereX: 0,
       leftSphereY: 0,
-      rightAzimuthDeg: 205,
-      rightHeight: 16,
+      leftTorusScale: leftScale,
       rightSphereX: 0,
       rightSphereY: 0,
+      rightTorusScale: rightScale,
+      torusRadius: torus.radius,
+      torusTube: torus.tube,
+    })
+
+    expect(minimum).toBe(58.25)
+    expect(model.minimumTorusClearance).toBeGreaterThanOrEqual(3)
+  })
+
+  test("routes one smooth field line outside both Torus bodies", () => {
+    const model = buildEdgeConstraintModel({
+      centerDistance: 52,
+      clearance: 3,
+      extraLift: 0,
+      leftSphereX: 0,
+      leftSphereY: 0,
+      rightSphereX: 0,
+      rightSphereY: 0,
+      torusRadius: 18,
+      torusTube: 7,
     })
 
     expect(model.curve[0]).toEqual(model.leftCenter)
     expect(model.curve.at(-1)).toEqual(model.rightCenter)
-    expect(Math.hypot(
-      model.leftControl.x - model.leftCenter.x,
-      model.leftControl.y - model.leftCenter.y,
-    )).toBeCloseTo(6)
-    expect(Math.hypot(
-      model.rightControl.x - model.rightCenter.x,
-      model.rightControl.y - model.rightCenter.y,
-    )).toBeCloseTo(6)
-    expect(model.leftControl.z).toBe(9)
-    expect(model.rightControl.z).toBe(16)
+    expect(model.leftControl).toEqual({
+      x: -26,
+      y: 0,
+      z: model.controlHeight,
+    })
+    expect(model.rightControl).toEqual({
+      x: 26,
+      y: 0,
+      z: model.controlHeight,
+    })
+    expect(model.maximumHeight).toBeCloseTo(model.controlHeight * 0.75)
+    expect(model.minimumTorusClearance).toBeGreaterThanOrEqual(3)
+    expect(model.curve[1]!.z).toBeGreaterThan(model.curve[0]!.z)
+    expect(
+      Math.abs(model.curve[1]!.x - model.curve[0]!.x),
+    ).toBeLessThan(model.curve[1]!.z - model.curve[0]!.z)
   })
 
-  test("derives asymmetric entry angles and curve height from constraints", () => {
-    const lowRight = buildEdgeConstraintModel({
-      centerDistance: 44,
-      constraintRadius: 6,
-      leftAzimuthDeg: 0,
-      leftHeight: 9,
+  test("derives control height from collision clearance and optional lift", () => {
+    const compact = buildEdgeConstraintModel({
+      centerDistance: 52,
+      clearance: 2,
+      extraLift: 0,
       leftSphereX: 0,
       leftSphereY: 0,
-      rightAzimuthDeg: 180,
-      rightHeight: 9,
       rightSphereX: 0,
       rightSphereY: 0,
+      torusRadius: 18,
+      torusTube: 7,
     })
-    const highRight = buildEdgeConstraintModel({
-      centerDistance: 44,
-      constraintRadius: 6,
-      leftAzimuthDeg: 0,
-      leftHeight: 9,
+    const spacious = buildEdgeConstraintModel({
+      centerDistance: 52,
+      clearance: 5,
+      extraLift: 8,
       leftSphereX: 0,
       leftSphereY: 0,
-      rightAzimuthDeg: 180,
-      rightHeight: 18,
       rightSphereX: 0,
       rightSphereY: 0,
+      torusRadius: 18,
+      torusTube: 7,
     })
 
-    expect(highRight.leftEntryAngleDeg).toBeCloseTo(lowRight.leftEntryAngleDeg)
-    expect(highRight.rightEntryAngleDeg).toBeGreaterThan(
-      lowRight.rightEntryAngleDeg,
-    )
-    expect(highRight.maximumHeight).toBeGreaterThan(lowRight.maximumHeight)
-    expect(highRight.approximateLength).toBeGreaterThan(
-      lowRight.approximateLength,
-    )
+    expect(compact.minimumTorusClearance).toBeGreaterThanOrEqual(2)
+    expect(spacious.minimumTorusClearance).toBeGreaterThanOrEqual(5)
+    expect(spacious.controlHeight).toBeGreaterThan(compact.controlHeight + 8)
+    expect(spacious.maximumHeight).toBeGreaterThan(compact.maximumHeight)
+  })
+
+  test("keeps a finite smooth field line when Sphere reaches its clearance boundary", () => {
+    const torus = {radius: 27.78, tube: 22.22}
+    const clearance = 3
+    const boundaryOffset = torus.radius - torus.tube - clearance
+    const model = buildEdgeConstraintModel({
+      centerDistance: 102,
+      clearance,
+      extraLift: 0,
+      leftSphereX: -boundaryOffset,
+      leftSphereY: 0,
+      rightSphereX: boundaryOffset,
+      rightSphereY: 0,
+      torusRadius: torus.radius,
+      torusTube: torus.tube,
+    })
+
+    expect(boundaryOffset).toBeCloseTo(2.56)
+    expect(Number.isFinite(model.controlHeight)).toBe(true)
+    expect(model.controlHeight).toBeLessThan(500)
+    expect(model.minimumTorusClearance).toBeGreaterThanOrEqual(clearance - 1e-6)
+    expect(model.curve.every((point) =>
+      Number.isFinite(point.x) &&
+      Number.isFinite(point.y) &&
+      Number.isFinite(point.z)
+    )).toBe(true)
   })
 })

@@ -51,13 +51,26 @@ fixed in `Analysis → Torus`; Edges exposes no separate Torus geometry control.
 Each Sphere is moved directly with the left mouse button in the Torus plane;
 its center is clamped so the complete Sphere stays inside the Torus hole.
 Their center distance is clamped to the saved outer diameter plus a `2 mm`
-gap, so the forms cannot touch. The Edge always runs center-to-center as one
-cubic Bézier. Each endpoint owns a white guide axis and a white constraint
-circle perpendicular to the Torus axis; its Bézier control must lie on that circle.
-Left and right circle heights are independent, while radius and control
-azimuth remain explicit scene controls. Consequently entry angles, curve
-maximum and curve length are derived values rather than one fixed arc-height
-constant. Every adjustable parameter has an in-scene Russian help disclosure.
+gap, so the forms cannot touch. The Edge runs center-to-center through a
+collision-free cubic field line with vertical endpoint tangents. The control
+height is raised automatically until the sampled curve clears both Torus
+safety envelopes (`tube + clearance`); an optional extra lift only increases
+that derived height. White safety envelopes, control vectors, dimension lines,
+allowable Sphere-offset circles and live labels expose every input and derived
+value used by this calculation directly in the scene. Every adjustable
+parameter has an in-scene Russian help disclosure. The complete cubic and
+Torus-distance formulas stay centered above the scene. Every unique formula
+variable owns a live connector to its source geometry or control, and
+the current scalar/vector values update with the same rebuild. Connectors are
+independent cubic curves: every variable glyph and its connector share one
+stable color, and the curve begins at that exact glyph rather than a common
+orthogonal bus. Links stay translucent at rest; hovering either the glyph or
+its curve raises both to full color and highlights the referenced scene form
+or complete dimension geometry with the same color. The same hover opens a
+short Russian explanation of the variable. Left and right Torus instances
+also have independent scale factors in the scene; their body, hole, safety
+envelope, spacing limit and Edge collision calculation change together while
+the base proportions still come from the saved Analysis Torus defaults.
 All experimental controls and values stay inside the scene. The scene renders
 only after a parameter, view or camera change.
 

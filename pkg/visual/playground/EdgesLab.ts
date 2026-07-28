@@ -22,15 +22,16 @@ import {
 
 export type EdgeConstraintInput = Readonly<{
   centerDistance: number
-  constraintRadius: number
-  leftAzimuthDeg: number
-  leftHeight: number
+  clearance: number
+  extraLift: number
+  leftTorusScale?: number
   leftSphereX: number
   leftSphereY: number
-  rightAzimuthDeg: number
-  rightHeight: number
+  rightTorusScale?: number
   rightSphereX: number
   rightSphereY: number
+  torusRadius: number
+  torusTube: number
 }>
 
 export type EdgeConstraintPoint = Readonly<{
@@ -41,23 +42,126 @@ export type EdgeConstraintPoint = Readonly<{
 
 export type EdgeConstraintModel = Readonly<{
   approximateLength: number
+  controlHeight: number
   curve: readonly EdgeConstraintPoint[]
   leftCenter: EdgeConstraintPoint
   leftControl: EdgeConstraintPoint
-  leftEntryAngleDeg: number
   leftTorusCenter: EdgeConstraintPoint
   maximumHeight: number
+  minimumTorusClearance: number
   rightCenter: EdgeConstraintPoint
   rightControl: EdgeConstraintPoint
-  rightEntryAngleDeg: number
   rightTorusCenter: EdgeConstraintPoint
 }>
 
 export const EDGE_TORUS_GAP_MM = 2
 
+const FORMULA_LINK_COLORS: Readonly<Record<string, string>> = {
+  p: "#ff8a3d",
+  t: "#ffd166",
+  sl: "#43d9ff",
+  sr: "#d979ff",
+  cl: "#35f2a1",
+  cr: "#ff6fae",
+  h: "#a78bfa",
+  dt: "#ff5d5d",
+  c: "#58f0d0",
+  dh: "#7aa7ff",
+  tl: "#00b8d9",
+  tr: "#bb6bd9",
+  "r-major": "#f9c74f",
+  "r-tube": "#90e65c",
+  rho: "#ff9fcb",
+  distance: "#e9f1ff",
+  "scale-left": "#36c9ff",
+  "scale-right": "#d96bff",
+}
+
+const FORMULA_HELP: Readonly<
+  Record<string, Readonly<{title: string; text: string}>>
+> = {
+  p: {
+    title: "P(t) · точка на Edge",
+    text: "Это вычисляемая точка линии связи. Все такие точки подряд образуют весь плавный Edge.",
+  },
+  t: {
+    title: "t · положение вдоль Edge",
+    text: "Число от 0 до 1: 0 — левая Sphere, 1 — правая Sphere, промежуточные значения идут между ними.",
+  },
+  sl: {
+    title: "Sₗ · центр левой Sphere",
+    text: "Начало Edge. Координаты берутся прямо из положения левой Sphere внутри отверстия Torus.",
+  },
+  sr: {
+    title: "Sᵣ · центр правой Sphere",
+    text: "Конец Edge. Координаты берутся прямо из положения правой Sphere внутри отверстия Torus.",
+  },
+  cl: {
+    title: "Cₗ · левая control-точка",
+    text: "Тянет начало кривой вверх и задаёт плавное направление выхода Edge из левой Sphere.",
+  },
+  cr: {
+    title: "Cᵣ · правая control-точка",
+    text: "Тянет конец кривой вверх и задаёт плавное направление входа Edge в правую Sphere.",
+  },
+  h: {
+    title: "H · высота control-точек",
+    text: "Автоматически найденная высота, на которой Edge уже не касается ни одного Torus с учётом зазора.",
+  },
+  dt: {
+    title: "dₜ · расстояние до Torus",
+    text: "Кратчайшее расстояние от проверяемой точки Edge до поверхности ближайшего Torus.",
+  },
+  c: {
+    title: "c · безопасный зазор",
+    text: "Минимальный воздушный промежуток между Edge и поверхностью Torus. Edge не может заходить внутрь этого запаса.",
+  },
+  dh: {
+    title: "Δh · дополнительный подъём",
+    text: "Ручная добавка к минимальной безопасной высоте. Увеличивает дугу, но не двигает её вход и выход.",
+  },
+  tl: {
+    title: "Tₗ · левый Torus",
+    text: "Левая форма-препятствие. Её положение и размеры участвуют в проверке безопасного маршрута.",
+  },
+  tr: {
+    title: "Tᵣ · правый Torus",
+    text: "Правая форма-препятствие. Её положение и размеры участвуют в проверке безопасного маршрута.",
+  },
+  "r-major": {
+    title: "R · основной радиус Torus",
+    text: "Расстояние от центра Torus до центра его трубки. Определяет общий размер кольца.",
+  },
+  "r-tube": {
+    title: "r · радиус трубки Torus",
+    text: "Толщина тела Torus от середины трубки до её поверхности.",
+  },
+  rho: {
+    title: "ρ · радиус Sphere",
+    text: "Размер сферической точки входа Edge. Он также ограничивает, насколько близко Sphere можно подвинуть к Torus.",
+  },
+  distance: {
+    title: "D · расстояние между центрами",
+    text: "Полная длина размерной стрелки от центра левого Torus до центра правого Torus.",
+  },
+  "scale-left": {
+    title: "κₗ · масштаб левого Torus",
+    text: "Умножает основной радиус и радиус трубки левого Torus. Защитная оболочка и маршрут Edge пересчитываются по новому размеру.",
+  },
+  "scale-right": {
+    title: "κᵣ · масштаб правого Torus",
+    text: "Умножает основной радиус и радиус трубки правого Torus. Это независимый размер правой формы.",
+  },
+}
+
 export const minimumEdgeTorusCenterDistance = (
   torus: Pick<ThreeTorusParameters, "radius" | "tube">,
-): number => (torus.radius + torus.tube) * 2 + EDGE_TORUS_GAP_MM
+  leftScale = 1,
+  rightScale = 1,
+): number =>
+  (torus.radius + torus.tube) *
+  (Math.max(0.1, leftScale) + Math.max(0.1, rightScale)) +
+  EDGE_TORUS_GAP_MM
 
 export const sphereOffsetLimit = (
   torus: Pick<ThreeTorusParameters, "radius" | "tube">,
@@ -75,8 +179,6 @@ export const constrainSphereOffset = (
   const scale = safeLimit / distance
   return {x: x * scale, y: y * scale}
 }
-
-const toRadians = (degrees: number): number => degrees * Math.PI / 180
 
 const distance = (
   left: EdgeConstraintPoint,
@@ -111,10 +213,26 @@ const cubicPoint = (
   }
 }
 
+const torusSurfaceDistance = (
+  point: EdgeConstraintPoint,
+  center: EdgeConstraintPoint,
+  radius: number,
+  tube: number,
+): number => Math.hypot(
+  Math.hypot(point.x - center.x, point.y - center.y) - radius,
+  point.z - center.z,
+) - tube
+
 export const buildEdgeConstraintModel = (
   input: EdgeConstraintInput,
-  segments = 96,
+  segments = 192,
 ): EdgeConstraintModel => {
+  const leftScale = Math.max(0.1, input.leftTorusScale ?? 1)
+  const rightScale = Math.max(0.1, input.rightTorusScale ?? 1)
+  const leftRadius = input.torusRadius * leftScale
+  const leftTube = input.torusTube * leftScale
+  const rightRadius = input.torusRadius * rightScale
+  const rightTube = input.torusTube * rightScale
   const halfDistance = input.centerDistance / 2
   const leftTorusCenter = {x: -halfDistance, y: 0, z: 0}
   const rightTorusCenter = {x: halfDistance, y: 0, z: 0}
@@ -128,49 +246,108 @@ export const buildEdgeConstraintModel = (
     y: rightTorusCenter.y + input.rightSphereY,
     z: 0,
   }
-  const leftAzimuth = toRadians(input.leftAzimuthDeg)
-  const rightAzimuth = toRadians(input.rightAzimuthDeg)
-  const leftControl = {
-    x: leftCenter.x + Math.cos(leftAzimuth) * input.constraintRadius,
-    y: leftCenter.y + Math.sin(leftAzimuth) * input.constraintRadius,
-    z: input.leftHeight,
+  const safeSegments = Math.max(48, Math.floor(segments))
+  const clearance = Math.max(0, input.clearance)
+  const minimumExpandedDistance = (height: number): number => {
+    const leftControl = {...leftCenter, z: height}
+    const rightControl = {...rightCenter, z: height}
+    let minimum = Number.POSITIVE_INFINITY
+    for (let index = 1; index < safeSegments; index += 1) {
+      const point = cubicPoint(
+        leftCenter,
+        leftControl,
+        rightControl,
+        rightCenter,
+        index / safeSegments,
+      )
+      minimum = Math.min(
+        minimum,
+        torusSurfaceDistance(
+          point,
+          leftTorusCenter,
+          leftRadius,
+          leftTube + clearance,
+        ),
+        torusSurfaceDistance(
+          point,
+          rightTorusCenter,
+          rightRadius,
+          rightTube + clearance,
+        ),
+      )
+    }
+    return minimum
   }
-  const rightControl = {
-    x: rightCenter.x + Math.cos(rightAzimuth) * input.constraintRadius,
-    y: rightCenter.y + Math.sin(rightAzimuth) * input.constraintRadius,
-    z: input.rightHeight,
+  const safeAtHeight = (height: number): boolean =>
+    minimumExpandedDistance(height) >= 0
+  let lowerHeight = 0
+  let upperHeight = Math.max(
+    1,
+    Math.max(leftTube, rightTube) + clearance,
+    input.centerDistance / 4,
+  )
+  for (
+    let iteration = 0;
+    iteration < 32 && !safeAtHeight(upperHeight);
+    iteration += 1
+  ) {
+    upperHeight *= 2
   }
-  const safeSegments = Math.max(8, Math.floor(segments))
-  const curve: EdgeConstraintPoint[] = []
-  let approximateLength = 0
-  let maximumHeight = Number.NEGATIVE_INFINITY
-  for (let index = 0; index <= safeSegments; index += 1) {
-    const point = cubicPoint(
+  for (let iteration = 0; iteration < 48; iteration += 1) {
+    const candidate = (lowerHeight + upperHeight) / 2
+    if (safeAtHeight(candidate)) {
+      upperHeight = candidate
+    } else {
+      lowerHeight = candidate
+    }
+  }
+  const controlHeight = upperHeight + Math.max(0, input.extraLift)
+  const leftControl = {...leftCenter, z: controlHeight}
+  const rightControl = {...rightCenter, z: controlHeight}
+  const curve = Array.from(
+    {length: safeSegments + 1},
+    (_, index) => cubicPoint(
       leftCenter,
       leftControl,
       rightControl,
       rightCenter,
       index / safeSegments,
-    )
-    const previous = curve.at(-1)
+    ),
+  )
+
+  let approximateLength = 0
+  let minimumTorusClearance = Number.POSITIVE_INFINITY
+  for (let index = 0; index < curve.length; index += 1) {
+    const point = curve[index]!
+    const previous = curve[index - 1]
     if (previous) approximateLength += distance(previous, point)
-    maximumHeight = Math.max(maximumHeight, point.z)
-    curve.push(point)
+    minimumTorusClearance = Math.min(
+      minimumTorusClearance,
+      torusSurfaceDistance(
+        point,
+        leftTorusCenter,
+        leftRadius,
+        leftTube,
+      ),
+      torusSurfaceDistance(
+        point,
+        rightTorusCenter,
+        rightRadius,
+        rightTube,
+      ),
+    )
   }
-  const entryAngle = (height: number): number =>
-    Math.atan2(height, Math.max(1e-6, input.constraintRadius)) *
-    180 / Math.PI
   return {
     approximateLength,
+    controlHeight,
     curve,
     leftCenter,
     leftControl,
-    leftEntryAngleDeg: entryAngle(input.leftHeight),
     leftTorusCenter,
-    maximumHeight,
+    maximumHeight: controlHeight * 0.75,
+    minimumTorusClearance,
     rightCenter,
     rightControl,
-    rightEntryAngleDeg: entryAngle(input.rightHeight),
     rightTorusCenter,
   }
 }
@@ -185,49 +362,75 @@ type EdgesLabElements = Readonly<{
   canvas: HTMLCanvasElement
   centerDistance: HTMLInputElement
   centerDistanceOutput: HTMLOutputElement
-  constraintRadius: HTMLInputElement
-  constraintRadiusOutput: HTMLOutputElement
+  clearance: HTMLInputElement
+  clearanceOutput: HTMLOutputElement
   helpers: HTMLInputElement
-  leftAzimuth: HTMLInputElement
-  leftAzimuthOutput: HTMLOutputElement
-  leftHeight: HTMLInputElement
-  leftHeightOutput: HTMLOutputElement
+  leftTorusScale: HTMLInputElement
+  leftTorusScaleOutput: HTMLOutputElement
+  measureClearance: HTMLElement
+  measureDistance: HTMLElement
+  measureLeftScale: HTMLElement
+  measureLift: HTMLElement
+  measureRightScale: HTMLElement
+  measureRoute: HTMLElement
+  measureSphere: HTMLElement
   readout: HTMLElement
-  rightAzimuth: HTMLInputElement
-  rightAzimuthOutput: HTMLOutputElement
-  rightHeight: HTMLInputElement
-  rightHeightOutput: HTMLOutputElement
+  rightTorusScale: HTMLInputElement
+  rightTorusScaleOutput: HTMLOutputElement
   sphereRadius: HTMLInputElement
   sphereRadiusOutput: HTMLOutputElement
   torusRadiusOutput: HTMLOutputElement
+  extraLift: HTMLInputElement
+  extraLiftOutput: HTMLOutputElement
+  formulaLinks: SVGSVGElement
+  formulaHelp: HTMLElement
+  formulaHelpText: HTMLElement
+  formulaHelpTitle: HTMLElement
+  formulaTarget: HTMLElement
+  formulaValues: HTMLElement
   viewButtons: NodeListOf<HTMLButtonElement>
 }>
 
-const requireElement = <T extends HTMLElement>(id: string): T => {
+const requireElement = <T extends Element>(id: string): T => {
   const element = document.getElementById(id)
   if (!element) throw new Error(`Edges Lab element #${id} is missing`)
-  return element as T
+  return element as unknown as T
 }
 
 const labElements = (): EdgesLabElements => ({
   canvas: requireElement<HTMLCanvasElement>("edges-canvas"),
   centerDistance: requireElement<HTMLInputElement>("edges-center-distance"),
   centerDistanceOutput: requireElement<HTMLOutputElement>("edges-center-distance-output"),
-  constraintRadius: requireElement<HTMLInputElement>("edges-constraint-radius"),
-  constraintRadiusOutput: requireElement<HTMLOutputElement>("edges-constraint-radius-output"),
+  clearance: requireElement<HTMLInputElement>("edges-clearance"),
+  clearanceOutput: requireElement<HTMLOutputElement>("edges-clearance-output"),
   helpers: requireElement<HTMLInputElement>("edges-helpers"),
-  leftAzimuth: requireElement<HTMLInputElement>("edges-left-azimuth"),
-  leftAzimuthOutput: requireElement<HTMLOutputElement>("edges-left-azimuth-output"),
-  leftHeight: requireElement<HTMLInputElement>("edges-left-height"),
-  leftHeightOutput: requireElement<HTMLOutputElement>("edges-left-height-output"),
+  leftTorusScale: requireElement<HTMLInputElement>("edges-left-torus-scale"),
+  leftTorusScaleOutput: requireElement<HTMLOutputElement>(
+    "edges-left-torus-scale-output",
+  ),
+  measureClearance: requireElement("edges-measure-clearance"),
+  measureDistance: requireElement("edges-measure-distance"),
+  measureLeftScale: requireElement("edges-measure-left-scale"),
+  measureLift: requireElement("edges-measure-lift"),
+  measureRightScale: requireElement("edges-measure-right-scale"),
+  measureRoute: requireElement("edges-measure-route"),
+  measureSphere: requireElement("edges-measure-sphere"),
   readout: requireElement("edges-readout"),
-  rightAzimuth: requireElement<HTMLInputElement>("edges-right-azimuth"),
-  rightAzimuthOutput: requireElement<HTMLOutputElement>("edges-right-azimuth-output"),
-  rightHeight: requireElement<HTMLInputElement>("edges-right-height"),
-  rightHeightOutput: requireElement<HTMLOutputElement>("edges-right-height-output"),
+  rightTorusScale: requireElement<HTMLInputElement>("edges-right-torus-scale"),
+  rightTorusScaleOutput: requireElement<HTMLOutputElement>(
+    "edges-right-torus-scale-output",
+  ),
   sphereRadius: requireElement<HTMLInputElement>("edges-sphere-radius"),
   sphereRadiusOutput: requireElement<HTMLOutputElement>("edges-sphere-radius-output"),
   torusRadiusOutput: requireElement<HTMLOutputElement>("edges-torus-radius-output"),
+  extraLift: requireElement<HTMLInputElement>("edges-extra-lift"),
+  extraLiftOutput: requireElement<HTMLOutputElement>("edges-extra-lift-output"),
+  formulaLinks: requireElement<SVGSVGElement>("edges-formula-links"),
+  formulaHelp: requireElement("edges-formula-help"),
+  formulaHelpText: requireElement("edges-formula-help-text"),
+  formulaHelpTitle: requireElement("edges-formula-help-title"),
+  formulaTarget: requireElement("edges-formula-target"),
+  formulaValues: requireElement("edges-formula-values"),
   viewButtons: document.querySelectorAll<HTMLButtonElement>("[data-edges-view]"),
 })
 
@@ -281,6 +484,24 @@ const circlePoints = (
     }
   })
 
+const centerDistanceDimension = (
+  model: EdgeConstraintModel,
+  offsetY: number,
+  arrowSize: number,
+): readonly (readonly [EdgeConstraintPoint, EdgeConstraintPoint])[] => {
+  const left = {...model.leftTorusCenter, y: offsetY}
+  const right = {...model.rightTorusCenter, y: offsetY}
+  return [
+    [model.leftTorusCenter, left],
+    [model.rightTorusCenter, right],
+    [left, right],
+    [left, {...left, x: left.x + arrowSize, y: left.y + arrowSize * 0.45}],
+    [left, {...left, x: left.x + arrowSize, y: left.y - arrowSize * 0.45}],
+    [right, {...right, x: right.x - arrowSize, y: right.y + arrowSize * 0.45}],
+    [right, {...right, x: right.x - arrowSize, y: right.y - arrowSize * 0.45}],
+  ]
+}
+
 const replaceReadout = (
   target: HTMLElement,
   values: ReadonlyArray<readonly [string, string]>,
@@ -317,6 +538,7 @@ export const createEdgesLab = async (): Promise<EdgesLab> => {
   viewPoint.getUp().set(0, 0, 1)
 
   let active = false
+  let activeView = "perspective"
   let disposed = false
   let frame = 0
   let geometries: BufferGeometry[] = []
@@ -326,7 +548,19 @@ export const createEdgesLab = async (): Promise<EdgesLab> => {
   }
   let interactionModel: EdgeConstraintModel | null = null
   let interactionSphereRadius = 0
-  let interactionOffsetLimit = 0
+  let interactionOffsetLimit = {left: 0, right: 0}
+  let activeFormulaKey: string | null = null
+  let formulaTargetPoints = new Map<string, Readonly<{x: number; y: number}>>()
+  let formulaSceneMaterials = new Map<string, Set<LineGlowMaterial>>()
+  let formulaMaterialBaselines = new Map<
+    LineGlowMaterial,
+    Readonly<{
+      color: Color
+      glowColor: Color | null
+      glowIntensity: number
+      luminanceBoost: number
+    }>
+  >()
   const annotation = createPageAnnotationLayer({
     sourceCanvas: elements.canvas,
     viewer: elements.canvas.parentElement ??
@@ -343,17 +577,20 @@ export const createEdgesLab = async (): Promise<EdgesLab> => {
     }),
   })
 
-  const input = (): EdgeConstraintInput => ({
+  const input = (
+    torus = readStoredTorusDefaults(localStorage),
+  ): EdgeConstraintInput => ({
     centerDistance: Number(elements.centerDistance.value),
-    constraintRadius: Number(elements.constraintRadius.value),
-    leftAzimuthDeg: Number(elements.leftAzimuth.value),
-    leftHeight: Number(elements.leftHeight.value),
+    clearance: Number(elements.clearance.value),
+    extraLift: Number(elements.extraLift.value),
+    leftTorusScale: Number(elements.leftTorusScale.value),
     leftSphereX: sphereOffsets.left.x,
     leftSphereY: sphereOffsets.left.y,
-    rightAzimuthDeg: Number(elements.rightAzimuth.value),
-    rightHeight: Number(elements.rightHeight.value),
+    rightTorusScale: Number(elements.rightTorusScale.value),
     rightSphereX: sphereOffsets.right.x,
     rightSphereY: sphereOffsets.right.y,
+    torusRadius: torus.radius,
+    torusTube: torus.tube,
   })
 
   const updateOutputs = (
@@ -362,24 +599,60 @@ export const createEdgesLab = async (): Promise<EdgesLab> => {
     torus: ThreeTorusParameters,
   ): void => {
     elements.centerDistanceOutput.value = `${settings.centerDistance.toFixed(1)} mm`
-    elements.constraintRadiusOutput.value = `${settings.constraintRadius.toFixed(1)} mm`
-    elements.leftHeightOutput.value = `${settings.leftHeight.toFixed(1)} mm`
-    elements.rightHeightOutput.value = `${settings.rightHeight.toFixed(1)} mm`
-    elements.leftAzimuthOutput.value = `${settings.leftAzimuthDeg.toFixed(0)}°`
-    elements.rightAzimuthOutput.value = `${settings.rightAzimuthDeg.toFixed(0)}°`
+    elements.clearanceOutput.value = `${settings.clearance.toFixed(1)} mm`
+    elements.leftTorusScaleOutput.value =
+      `${(settings.leftTorusScale ?? 1).toFixed(2)}×`
+    elements.rightTorusScaleOutput.value =
+      `${(settings.rightTorusScale ?? 1).toFixed(2)}×`
     elements.sphereRadiusOutput.value =
       `${Number(elements.sphereRadius.value).toFixed(1)} mm`
     elements.torusRadiusOutput.value =
       `R ${torus.radius.toFixed(2)} · tube ${torus.tube.toFixed(2)} мм`
+    elements.extraLiftOutput.value = `${settings.extraLift.toFixed(1)} mm`
+    const routeOutput = elements.measureRoute.querySelector("output")
+    if (routeOutput) {
+      routeOutput.textContent =
+        `${model.maximumHeight.toFixed(1)} mm · ` +
+        `${model.minimumTorusClearance.toFixed(1)} mm min`
+    }
+    elements.measureRoute.classList.toggle(
+      "safe",
+      model.minimumTorusClearance > 0,
+    )
+    elements.measureRoute.classList.toggle(
+      "unsafe",
+      model.minimumTorusClearance <= 0,
+    )
+    elements.formulaValues.textContent = [
+      `D=${settings.centerDistance.toFixed(1)} mm`,
+      `κₗ=${(settings.leftTorusScale ?? 1).toFixed(2)}×`,
+      `κᵣ=${(settings.rightTorusScale ?? 1).toFixed(2)}×`,
+      `R₀=${torus.radius.toFixed(2)} mm`,
+      `r₀=${torus.tube.toFixed(2)} mm`,
+      `Rₗ=${(torus.radius * (settings.leftTorusScale ?? 1)).toFixed(2)} mm`,
+      `Rᵣ=${(torus.radius * (settings.rightTorusScale ?? 1)).toFixed(2)} mm`,
+      `rₗ=${(torus.tube * (settings.leftTorusScale ?? 1)).toFixed(2)} mm`,
+      `rᵣ=${(torus.tube * (settings.rightTorusScale ?? 1)).toFixed(2)} mm`,
+      `ρ=${Number(elements.sphereRadius.value).toFixed(2)} mm`,
+      `c=${settings.clearance.toFixed(2)} mm`,
+      `Δh=${settings.extraLift.toFixed(2)} mm`,
+      `H=${model.controlHeight.toFixed(2)} mm`,
+      `Sₗ=(${formatPoint(model.leftCenter)})`,
+      `Sᵣ=(${formatPoint(model.rightCenter)})`,
+      `Cₗ=(${formatPoint(model.leftControl)})`,
+      `Cᵣ=(${formatPoint(model.rightControl)})`,
+      "t∈[0,1]",
+    ].join(" · ")
     replaceReadout(elements.readout, [
       ["Центры", `${settings.centerDistance.toFixed(1)} mm`],
-      ["Ограничитель", `R ${settings.constraintRadius.toFixed(1)} mm`],
-      ["Вход слева", `${model.leftEntryAngleDeg.toFixed(1)}°`],
-      ["Вход справа", `${model.rightEntryAngleDeg.toFixed(1)}°`],
-      ["Максимум дуги", `${model.maximumHeight.toFixed(2)} mm`],
-      ["Длина дуги", `${model.approximateLength.toFixed(2)} mm`],
-      ["Control L", formatPoint(model.leftControl)],
-      ["Control R", formatPoint(model.rightControl)],
+      ["Scale L", `${(settings.leftTorusScale ?? 1).toFixed(2)}×`],
+      ["Scale R", `${(settings.rightTorusScale ?? 1).toFixed(2)}×`],
+      ["Дополнительный подъём", `${settings.extraLift.toFixed(1)} mm`],
+      ["Высота control", `${model.controlHeight.toFixed(1)} mm`],
+      ["Безопасный зазор", `${settings.clearance.toFixed(1)} mm`],
+      ["Высота маршрута", `${model.maximumHeight.toFixed(2)} mm`],
+      ["Мин. до Torus", `${model.minimumTorusClearance.toFixed(2)} mm`],
+      ["Длина Edge", `${model.approximateLength.toFixed(2)} mm`],
       ["Sphere L", formatPoint(model.leftCenter)],
       ["Sphere R", formatPoint(model.rightCenter)],
     ])
@@ -396,47 +669,193 @@ export const createEdgesLab = async (): Promise<EdgesLab> => {
     return line
   }
 
+  const registerFormulaMaterial = (
+    keys: readonly string[],
+    material: LineGlowMaterial,
+  ): void => {
+    formulaMaterialBaselines.set(material, {
+      color: material.color.clone(),
+      glowColor: material.glowColor?.clone() ?? null,
+      glowIntensity: material.glowIntensity,
+      luminanceBoost: material.luminanceBoost,
+    })
+    for (const key of keys) {
+      const materials = formulaSceneMaterials.get(key) ?? new Set()
+      materials.add(material)
+      formulaSceneMaterials.set(key, materials)
+    }
+  }
+
+  const updateFormulaHighlight = (render = true): void => {
+    const variables = document.querySelectorAll<HTMLElement>(
+      "[id^='edges-formula-'].edges-formula-variable",
+    )
+    const paths = elements.formulaLinks.querySelectorAll<SVGPathElement>(
+      "[data-edges-formula-link]",
+    )
+    for (const variable of variables) {
+      variable.classList.toggle(
+        "is-highlighted",
+        variable.id === `edges-formula-${activeFormulaKey}`,
+      )
+    }
+    for (const path of paths) {
+      path.classList.toggle(
+        "is-highlighted",
+        path.dataset.edgesFormulaLink === activeFormulaKey,
+      )
+    }
+
+    for (const [material, baseline] of formulaMaterialBaselines) {
+      material.color.copy(baseline.color)
+      material.glowColor = baseline.glowColor?.clone() ?? null
+      material.glowIntensity = baseline.glowIntensity
+      material.luminanceBoost = baseline.luminanceBoost
+    }
+    if (activeFormulaKey) {
+      const highlightColor = new Color(
+        FORMULA_LINK_COLORS[activeFormulaKey] ?? "#ffffff",
+      )
+      for (const material of formulaSceneMaterials.get(activeFormulaKey) ?? []) {
+        material.color.copy(highlightColor)
+        material.glowColor = highlightColor.clone()
+        material.glowIntensity *= 1.8
+        material.luminanceBoost = Math.max(1.7, material.luminanceBoost)
+      }
+    }
+
+    const measureTargets: Readonly<Record<string, HTMLElement>> = {
+      c: elements.measureClearance,
+      dh: elements.measureLift,
+      distance: elements.measureDistance,
+      dt: elements.measureRoute,
+      h: elements.measureRoute,
+      p: elements.measureRoute,
+      rho: elements.measureSphere,
+      "scale-left": elements.measureLeftScale,
+      "scale-right": elements.measureRightScale,
+    }
+    for (const measure of [
+      elements.measureClearance,
+      elements.measureDistance,
+      elements.measureLeftScale,
+      elements.measureLift,
+      elements.measureRightScale,
+      elements.measureRoute,
+      elements.measureSphere,
+    ]) {
+      const highlighted = activeFormulaKey
+        ? measureTargets[activeFormulaKey] === measure
+        : false
+      measure.classList.toggle("is-formula-highlighted", highlighted)
+      measure.style.color = highlighted && activeFormulaKey
+        ? FORMULA_LINK_COLORS[activeFormulaKey] ?? "#ffffff"
+        : ""
+    }
+
+    const help = activeFormulaKey ? FORMULA_HELP[activeFormulaKey] : null
+    elements.formulaHelp.hidden = !help
+    if (help && activeFormulaKey) {
+      elements.formulaHelpTitle.textContent = help.title
+      elements.formulaHelpText.textContent = help.text
+      elements.formulaHelp.style.color =
+        FORMULA_LINK_COLORS[activeFormulaKey] ?? "#ffffff"
+    }
+
+    const target = activeFormulaKey
+      ? formulaTargetPoints.get(activeFormulaKey)
+      : null
+    elements.formulaTarget.classList.toggle("is-highlighted", Boolean(target))
+    if (target && activeFormulaKey) {
+      elements.formulaTarget.style.left = `${target.x}px`
+      elements.formulaTarget.style.top = `${target.y}px`
+      elements.formulaTarget.style.color =
+        FORMULA_LINK_COLORS[activeFormulaKey] ?? "#ffffff"
+    }
+    if (render) requestRender()
+  }
+
   const rebuild = (): void => {
     if (disposed) return
     for (const geometry of geometries) renderer.invalidateGeometry(geometry)
     geometries = []
+    formulaSceneMaterials = new Map()
+    formulaMaterialBaselines = new Map()
     for (const child of [...space.children]) space.remove(child)
 
     const torusParameters = readStoredTorusDefaults(localStorage)
-    const torusOuterRadius = torusParameters.radius + torusParameters.tube
-    const minimumCenterDistance =
-      minimumEdgeTorusCenterDistance(torusParameters)
+    const leftScale = Number(elements.leftTorusScale.value)
+    const rightScale = Number(elements.rightTorusScale.value)
+    const leftTorus = {
+      radius: torusParameters.radius * leftScale,
+      tube: torusParameters.tube * leftScale,
+    }
+    const rightTorus = {
+      radius: torusParameters.radius * rightScale,
+      tube: torusParameters.tube * rightScale,
+    }
+    const torusOuterRadius = Math.max(
+      leftTorus.radius + leftTorus.tube,
+      rightTorus.radius + rightTorus.tube,
+    )
+    const minimumCenterDistance = minimumEdgeTorusCenterDistance(
+      torusParameters,
+      leftScale,
+      rightScale,
+    )
     elements.centerDistance.min = String(minimumCenterDistance)
     elements.centerDistance.max = String(Math.max(200, minimumCenterDistance))
     if (Number(elements.centerDistance.value) < minimumCenterDistance) {
       elements.centerDistance.value = String(minimumCenterDistance)
     }
     const torusInnerRadius = Math.max(
-      0.05,
-      torusParameters.radius - torusParameters.tube,
+      0.02,
+      Math.min(
+        leftTorus.radius - leftTorus.tube,
+        rightTorus.radius - rightTorus.tube,
+      ),
     )
-    elements.sphereRadius.max = String(torusInnerRadius)
-    if (Number(elements.sphereRadius.value) > torusInnerRadius) {
-      elements.sphereRadius.value = String(torusInnerRadius)
+    const maximumSphereRadius = Math.max(0.01, torusInnerRadius - 0.01)
+    elements.sphereRadius.max = String(maximumSphereRadius)
+    if (Number(elements.sphereRadius.value) > maximumSphereRadius) {
+      elements.sphereRadius.value = String(maximumSphereRadius)
     }
     const sphereRadius = Number(elements.sphereRadius.value)
-    const offsetLimit = sphereOffsetLimit(torusParameters, sphereRadius)
+    const maximumClearance = Math.max(
+      0.01,
+      torusInnerRadius - sphereRadius,
+    )
+    elements.clearance.max = String(maximumClearance)
+    if (Number(elements.clearance.value) > maximumClearance) {
+      elements.clearance.value = String(maximumClearance)
+    }
+    const leftOffsetLimit = sphereOffsetLimit(
+      leftTorus,
+      Math.max(sphereRadius, Number(elements.clearance.value)),
+    )
+    const rightOffsetLimit = sphereOffsetLimit(
+      rightTorus,
+      Math.max(sphereRadius, Number(elements.clearance.value)),
+    )
     const leftOffset = constrainSphereOffset(
       sphereOffsets.left.x,
       sphereOffsets.left.y,
-      offsetLimit,
+      leftOffsetLimit,
     )
     const rightOffset = constrainSphereOffset(
       sphereOffsets.right.x,
       sphereOffsets.right.y,
-      offsetLimit,
+      rightOffsetLimit,
     )
     sphereOffsets = {left: leftOffset, right: rightOffset}
-    const settings = input()
+    const settings = input(torusParameters)
     const model = buildEdgeConstraintModel(settings)
     interactionModel = model
     interactionSphereRadius = sphereRadius
-    interactionOffsetLimit = offsetLimit
+    interactionOffsetLimit = {
+      left: leftOffsetLimit,
+      right: rightOffsetLimit,
+    }
     const torusGeometry =
       buildThreeTorusWireGeometry(torusParameters).geometry
     const sphereGeometry = new SphereGeometry({
@@ -448,68 +867,68 @@ export const createEdgesLab = async (): Promise<EdgesLab> => {
 
     const leftRoot = new Object3D()
     leftRoot.position.copy(pointVector(model.leftTorusCenter))
-    leftRoot.add(new LineSegments(
-      torusGeometry,
-      new LineGlowMaterial({
-        color: new Color(0.19, 0.75, 1, 0.58),
-        glowColor: new Color(0.25, 0.84, 1, 0.2),
-        glowIntensity: 1.3,
-        opacity: 1,
-        visibilityMode: "scene",
-      }),
-    ))
+    leftRoot.scale.set(leftScale, leftScale, leftScale)
+    const leftTorusMaterial = new LineGlowMaterial({
+      color: new Color(0.19, 0.75, 1, 0.58),
+      glowColor: new Color(0.25, 0.84, 1, 0.2),
+      glowIntensity: 1.3,
+      opacity: 1,
+      visibilityMode: "scene",
+    })
+    leftRoot.add(new LineSegments(torusGeometry, leftTorusMaterial))
+    registerFormulaMaterial(
+      ["tl", "r-major", "r-tube", "c", "scale-left"],
+      leftTorusMaterial,
+    )
     space.add(leftRoot)
 
     const rightRoot = new Object3D()
     rightRoot.position.copy(pointVector(model.rightTorusCenter))
-    rightRoot.add(new LineSegments(
-      torusGeometry,
-      new LineGlowMaterial({
-        color: new Color(0.75, 0.35, 1, 0.58),
-        glowColor: new Color(0.82, 0.5, 1, 0.2),
-        glowIntensity: 1.3,
-        opacity: 1,
-        visibilityMode: "scene",
-      }),
-    ))
+    rightRoot.scale.set(rightScale, rightScale, rightScale)
+    const rightTorusMaterial = new LineGlowMaterial({
+      color: new Color(0.75, 0.35, 1, 0.58),
+      glowColor: new Color(0.82, 0.5, 1, 0.2),
+      glowIntensity: 1.3,
+      opacity: 1,
+      visibilityMode: "scene",
+    })
+    rightRoot.add(new LineSegments(torusGeometry, rightTorusMaterial))
+    registerFormulaMaterial(["tr", "scale-right"], rightTorusMaterial)
     space.add(rightRoot)
 
-    const leftSphere = new LineSegments(
-      sphereGeometry,
-      new LineGlowMaterial({
-        color: new Color(0.25, 0.88, 1, 0.96),
-        glowColor: new Color(0.55, 0.94, 1, 0.58),
-        glowIntensity: 3,
-        opacity: 1,
-        visibilityMode: "scene",
-      }),
-    )
+    const leftSphereMaterial = new LineGlowMaterial({
+      color: new Color(0.25, 0.88, 1, 0.96),
+      glowColor: new Color(0.55, 0.94, 1, 0.58),
+      glowIntensity: 3,
+      opacity: 1,
+      visibilityMode: "scene",
+    })
+    const leftSphere = new LineSegments(sphereGeometry, leftSphereMaterial)
+    registerFormulaMaterial(["sl", "rho"], leftSphereMaterial)
     leftSphere.position.copy(pointVector(model.leftCenter))
     space.add(leftSphere)
-    const rightSphere = new LineSegments(
-      sphereGeometry,
-      new LineGlowMaterial({
-        color: new Color(0.89, 0.48, 1, 0.96),
-        glowColor: new Color(0.95, 0.7, 1, 0.58),
-        glowIntensity: 3,
-        opacity: 1,
-        visibilityMode: "scene",
-      }),
-    )
+    const rightSphereMaterial = new LineGlowMaterial({
+      color: new Color(0.89, 0.48, 1, 0.96),
+      glowColor: new Color(0.95, 0.7, 1, 0.58),
+      glowIntensity: 3,
+      opacity: 1,
+      visibilityMode: "scene",
+    })
+    const rightSphere = new LineSegments(sphereGeometry, rightSphereMaterial)
+    registerFormulaMaterial(["sr"], rightSphereMaterial)
     rightSphere.position.copy(pointVector(model.rightCenter))
     space.add(rightSphere)
 
-    addLine(
-      polylineGeometry(model.curve),
-      new LineGlowMaterial({
-        color: new Color(1, 0.48, 0.12, 0.96),
-        glowColor: new Color(1, 0.25, 0.04, 0.38),
-        glowIntensity: 2.8,
-        luminanceBoost: 1.2,
-        opacity: 1,
-        visibilityMode: "overlay",
-      }),
-    )
+    const edgeMaterial = new LineGlowMaterial({
+      color: new Color(1, 0.48, 0.12, 0.96),
+      glowColor: new Color(1, 0.25, 0.04, 0.38),
+      glowIntensity: 2.8,
+      luminanceBoost: 1.2,
+      opacity: 1,
+      visibilityMode: "overlay",
+    })
+    addLine(polylineGeometry(model.curve), edgeMaterial)
+    registerFormulaMaterial(["p", "t", "h", "dt", "dh"], edgeMaterial)
 
     if (elements.helpers.checked) {
       const helper = new LineBasicMaterial({
@@ -520,12 +939,8 @@ export const createEdgesLab = async (): Promise<EdgesLab> => {
         color: new Color(1, 1, 1, 0.3),
         opacity: 1,
       })
-      const minimumZ = -torusOuterRadius * 1.35
-      const maximumZ = Math.max(
-        settings.leftHeight,
-        settings.rightHeight,
-        torusOuterRadius,
-      ) + torusOuterRadius * 0.9
+      const minimumZ = -torusOuterRadius * 0.25
+      const maximumZ = model.maximumHeight + torusOuterRadius * 0.45
       addLine(segmentGeometry([
         [
           {...model.leftCenter, z: minimumZ},
@@ -537,48 +952,201 @@ export const createEdgesLab = async (): Promise<EdgesLab> => {
         ],
         [model.leftCenter, model.rightCenter],
       ]), faintHelper)
-      addLine(
-        polylineGeometry(
-          circlePoints(
-            model.leftCenter,
-            settings.leftHeight,
-            settings.constraintRadius,
-          ),
-          true,
-        ),
-        helper,
-      )
-      addLine(
-        polylineGeometry(
-          circlePoints(
-            model.rightCenter,
-            settings.rightHeight,
-            settings.constraintRadius,
-          ),
-          true,
-        ),
-        helper,
-      )
+
+      const formulaHelperMaterial = (
+        keys: readonly string[],
+      ): LineGlowMaterial => {
+        const material = new LineGlowMaterial({
+          color: new Color(1, 1, 1, 0.72),
+          glowIntensity: 0.8,
+          opacity: 1,
+          visibilityMode: "overlay",
+        })
+        registerFormulaMaterial(keys, material)
+        return material
+      }
+      const heightMaterial = formulaHelperMaterial(["h"])
       addLine(segmentGeometry([
         [model.leftCenter, model.leftControl],
         [model.rightCenter, model.rightControl],
-      ]), helper)
+      ]), heightMaterial)
+
+      const majorRadiusStart = model.leftTorusCenter
+      const majorRadiusEnd = {
+        ...model.leftTorusCenter,
+        y: model.leftTorusCenter.y + leftTorus.radius,
+      }
+      addLine(segmentGeometry([
+        [majorRadiusStart, majorRadiusEnd],
+      ]), formulaHelperMaterial(["r-major"]))
+
+      const tubeRadiusEnd = {
+        ...majorRadiusEnd,
+        z: leftTorus.tube,
+      }
+      addLine(segmentGeometry([
+        [majorRadiusEnd, tubeRadiusEnd],
+      ]), formulaHelperMaterial(["r-tube"]))
+
+      const clearanceEnd = {
+        ...tubeRadiusEnd,
+        z: leftTorus.tube + settings.clearance,
+      }
+      addLine(segmentGeometry([
+        [tubeRadiusEnd, clearanceEnd],
+      ]), formulaHelperMaterial(["c"]))
+
+      const heightBottom = {
+        ...model.leftTorusCenter,
+        y: -torusOuterRadius * 1.3,
+      }
+      const heightTop = {
+        ...heightBottom,
+        z: model.controlHeight,
+      }
+      const heightArrowSize = Math.max(0.8, torusOuterRadius * 0.08)
+      addLine(segmentGeometry([
+        [heightBottom, heightTop],
+        [
+          heightBottom,
+          {
+            ...heightBottom,
+            x: heightBottom.x + heightArrowSize,
+            z: heightBottom.z + heightArrowSize,
+          },
+        ],
+        [
+          heightBottom,
+          {
+            ...heightBottom,
+            x: heightBottom.x - heightArrowSize,
+            z: heightBottom.z + heightArrowSize,
+          },
+        ],
+        [
+          heightTop,
+          {
+            ...heightTop,
+            x: heightTop.x + heightArrowSize,
+            z: heightTop.z - heightArrowSize,
+          },
+        ],
+        [
+          heightTop,
+          {
+            ...heightTop,
+            x: heightTop.x - heightArrowSize,
+            z: heightTop.z - heightArrowSize,
+          },
+        ],
+      ]), heightMaterial)
+      for (const [center, scaledTorus] of [
+        [model.leftTorusCenter, leftTorus],
+        [model.rightTorusCenter, rightTorus],
+      ] as const) {
+        const safetyEnvelopeGeometry = buildThreeTorusWireGeometry({
+          ...torusParameters,
+          radius: scaledTorus.radius,
+          tube: scaledTorus.tube + settings.clearance,
+        }).geometry
+        geometries.push(safetyEnvelopeGeometry)
+        const envelope = new LineSegments(
+          safetyEnvelopeGeometry,
+          faintHelper,
+        )
+        envelope.position.copy(pointVector(center))
+        envelope.frustumCulled = false
+        space.add(envelope)
+      }
+      addLine(
+        polylineGeometry(
+          circlePoints(model.leftTorusCenter, 0, leftOffsetLimit),
+          true,
+        ),
+        faintHelper,
+      )
+      addLine(
+        polylineGeometry(
+          circlePoints(model.rightTorusCenter, 0, rightOffsetLimit),
+          true,
+        ),
+        faintHelper,
+      )
+      addLine(
+        segmentGeometry(centerDistanceDimension(
+          model,
+          -torusOuterRadius * 1.3,
+          Math.max(0.8, torusOuterRadius * 0.08),
+        )),
+        formulaHelperMaterial(["distance"]),
+      )
+      const sphereRadiusEnd = {
+        ...model.leftCenter,
+        x: model.leftCenter.x + sphereRadius,
+      }
+      addLine(segmentGeometry([
+        [model.leftCenter, sphereRadiusEnd],
+        [
+          sphereRadiusEnd,
+          {
+            ...sphereRadiusEnd,
+            x: sphereRadiusEnd.x - sphereRadius * 0.28,
+            y: sphereRadiusEnd.y + sphereRadius * 0.18,
+          },
+        ],
+        [
+          sphereRadiusEnd,
+          {
+            ...sphereRadiusEnd,
+            x: sphereRadiusEnd.x - sphereRadius * 0.28,
+            y: sphereRadiusEnd.y - sphereRadius * 0.18,
+          },
+        ],
+      ]), formulaHelperMaterial(["rho"]))
       const controlGeometry = new SphereGeometry({
-        radius: 0.72,
-        widthSegments: 14,
-        heightSegments: 9,
+        radius: Math.max(0.25, sphereRadius * 0.24),
+        widthSegments: 12,
+        heightSegments: 8,
       }).toWireframe()
       geometries.push(controlGeometry)
-      const leftControl = new LineSegments(controlGeometry, helper)
-      leftControl.position.copy(pointVector(model.leftControl))
-      leftControl.frustumCulled = false
-      space.add(leftControl)
-      const rightControl = new LineSegments(controlGeometry, helper)
-      rightControl.position.copy(pointVector(model.rightControl))
-      rightControl.frustumCulled = false
-      space.add(rightControl)
+      for (const [key, control] of [
+        ["cl", model.leftControl],
+        ["cr", model.rightControl],
+      ] as const) {
+        const controlMaterial = new LineGlowMaterial({
+          color: new Color(1, 1, 1, 0.72),
+          glowIntensity: 1,
+          opacity: 1,
+          visibilityMode: "overlay",
+        })
+        const marker = new LineSegments(controlGeometry, controlMaterial)
+        marker.position.copy(pointVector(control))
+        marker.frustumCulled = false
+        space.add(marker)
+        registerFormulaMaterial([key], controlMaterial)
+      }
+      const centerTick = Math.max(0.35, sphereRadius * 0.3)
+      addLine(segmentGeometry([
+        [
+          {...model.leftTorusCenter, x: model.leftTorusCenter.x - centerTick},
+          {...model.leftTorusCenter, x: model.leftTorusCenter.x + centerTick},
+        ],
+        [
+          {...model.leftTorusCenter, y: model.leftTorusCenter.y - centerTick},
+          {...model.leftTorusCenter, y: model.leftTorusCenter.y + centerTick},
+        ],
+        [
+          {...model.rightTorusCenter, x: model.rightTorusCenter.x - centerTick},
+          {...model.rightTorusCenter, x: model.rightTorusCenter.x + centerTick},
+        ],
+        [
+          {...model.rightTorusCenter, y: model.rightTorusCenter.y - centerTick},
+          {...model.rightTorusCenter, y: model.rightTorusCenter.y + centerTick},
+        ],
+      ]), helper)
     }
     updateOutputs(model, settings, torusParameters)
+    updateFormulaHighlight(false)
     requestRender()
   }
 
@@ -591,14 +1159,27 @@ export const createEdgesLab = async (): Promise<EdgesLab> => {
   }
 
   const setView = (view: string): void => {
-    const settings = input()
+    activeView = view
     const torus = readStoredTorusDefaults(localStorage)
+    const settings = input(torus)
     const span = Math.max(
-      settings.centerDistance + (torus.radius + torus.tube) * 3,
-      settings.leftHeight + settings.rightHeight + 30,
+      settings.centerDistance +
+        (torus.radius + torus.tube) *
+        Math.max(settings.leftTorusScale ?? 1, settings.rightTorusScale ?? 1) *
+        3,
+      modelSpanForSettings(settings),
     )
     const target = viewPoint.getTarget()
-    target.set(0, 0, Math.max(settings.leftHeight, settings.rightHeight) * 0.3)
+    target.set(
+      0,
+      0,
+      (
+        torus.tube *
+        Math.max(settings.leftTorusScale ?? 1, settings.rightTorusScale ?? 1) +
+        settings.clearance +
+        settings.extraLift
+      ) * 0.3,
+    )
     switch (view) {
       case "front":
         viewPoint.position.set(0, -span, target.z)
@@ -620,11 +1201,256 @@ export const createEdgesLab = async (): Promise<EdgesLab> => {
     requestRender()
   }
 
+  const modelSpanForSettings = (settings: EdgeConstraintInput): number =>
+    (
+      settings.torusTube *
+      Math.max(settings.leftTorusScale ?? 1, settings.rightTorusScale ?? 1) +
+      settings.clearance +
+      settings.extraLift +
+      1
+    ) * 4
+
+  const projectWorldPoint = (
+    point: EdgeConstraintPoint,
+  ): Readonly<{x: number; y: number}> => {
+    const rect = elements.canvas.getBoundingClientRect()
+    const projected = pointVector(point)
+      .applyMatrix4(viewPoint.viewMatrix)
+      .applyMatrix4(viewPoint.projectionMatrix)
+    return {
+      x: (projected.x * 0.5 + 0.5) * rect.width,
+      y: (0.5 - projected.y * 0.5) * rect.height,
+    }
+  }
+
+  const placeSceneMeasure = (
+    element: HTMLElement,
+    point: EdgeConstraintPoint,
+    offsetX = 0,
+    offsetY = 0,
+  ): void => {
+    const rect = elements.canvas.getBoundingClientRect()
+    const projected = projectWorldPoint(point)
+    const halfWidth = Math.max(95, element.offsetWidth / 2)
+    const halfHeight = Math.max(30, element.offsetHeight / 2)
+    const left = projected.x + offsetX
+    const top = projected.y + offsetY
+    element.style.left =
+      `${Math.min(rect.width - halfWidth, Math.max(halfWidth, left))}px`
+    element.style.top =
+      `${Math.min(rect.height - halfHeight, Math.max(halfHeight, top))}px`
+  }
+
+  const updateSceneMeasures = (): void => {
+    if (!interactionModel) return
+    const torus = readStoredTorusDefaults(localStorage)
+    const leftScale = Number(elements.leftTorusScale.value)
+    const rightScale = Number(elements.rightTorusScale.value)
+    const baseOuterRadius = torus.radius + torus.tube
+    const leftOuterRadius = baseOuterRadius * leftScale
+    const rightOuterRadius = baseOuterRadius * rightScale
+    const outerRadius = Math.max(leftOuterRadius, rightOuterRadius)
+    const distanceAnchor = {
+      x: 0,
+      y: -outerRadius * 1.3,
+      z: 0,
+    }
+    const sphereAnchor = {
+      ...interactionModel.leftCenter,
+      y: interactionModel.leftCenter.y - Number(elements.sphereRadius.value),
+    }
+    const clearanceAnchor = {
+      x: interactionModel.leftTorusCenter.x,
+      y: interactionModel.leftTorusCenter.y + leftOuterRadius * 0.9,
+      z: torus.tube * leftScale + Number(elements.clearance.value) / 2,
+    }
+    const routeAnchor = {
+      ...interactionModel.curve[Math.floor(interactionModel.curve.length / 2)]!,
+    }
+    placeSceneMeasure(elements.measureDistance, distanceAnchor, 0, 42)
+    placeSceneMeasure(
+      elements.measureLeftScale,
+      {
+        ...interactionModel.leftTorusCenter,
+        y: interactionModel.leftTorusCenter.y + leftOuterRadius,
+      },
+      -82,
+      72,
+    )
+    placeSceneMeasure(
+      elements.measureRightScale,
+      {
+        ...interactionModel.rightTorusCenter,
+        y: interactionModel.rightTorusCenter.y + rightOuterRadius,
+      },
+      82,
+      72,
+    )
+    placeSceneMeasure(elements.measureSphere, sphereAnchor, -72, 38)
+    placeSceneMeasure(
+      elements.measureClearance,
+      clearanceAnchor,
+      -105,
+      -10,
+    )
+    placeSceneMeasure(elements.measureLift, interactionModel.leftControl, 95, -35)
+    placeSceneMeasure(elements.measureRoute, routeAnchor, 0, -50)
+  }
+
+  const updateFormulaLinks = (): void => {
+    if (!interactionModel) return
+    const stageRect = elements.canvas.getBoundingClientRect()
+    const torus = readStoredTorusDefaults(localStorage)
+    const sphereRadius = Number(elements.sphereRadius.value)
+    const clearance = Number(elements.clearance.value)
+    const leftScale = Number(elements.leftTorusScale.value)
+    const rightScale = Number(elements.rightTorusScale.value)
+    const leftTorus = {
+      radius: torus.radius * leftScale,
+      tube: torus.tube * leftScale,
+    }
+    const rightTorus = {
+      radius: torus.radius * rightScale,
+      tube: torus.tube * rightScale,
+    }
+    const outerRadius = Math.max(
+      leftTorus.radius + leftTorus.tube,
+      rightTorus.radius + rightTorus.tube,
+    )
+    const curveMidpoint =
+      interactionModel.curve[Math.floor(interactionModel.curve.length / 2)]!
+    const curveQuarter =
+      interactionModel.curve[Math.floor(interactionModel.curve.length / 4)]!
+    let closestCurvePoint = curveMidpoint
+    let closestDistance = Number.POSITIVE_INFINITY
+    for (const point of interactionModel.curve) {
+      const candidate = Math.min(
+        torusSurfaceDistance(
+          point,
+          interactionModel.leftTorusCenter,
+          leftTorus.radius,
+          leftTorus.tube,
+        ),
+        torusSurfaceDistance(
+          point,
+          interactionModel.rightTorusCenter,
+          rightTorus.radius,
+          rightTorus.tube,
+        ),
+      )
+      if (candidate < closestDistance) {
+        closestDistance = candidate
+        closestCurvePoint = point
+      }
+    }
+    const worldTargets: Readonly<Record<string, EdgeConstraintPoint>> = {
+      p: curveMidpoint,
+      t: curveQuarter,
+      sl: interactionModel.leftCenter,
+      sr: interactionModel.rightCenter,
+      cl: interactionModel.leftControl,
+      cr: interactionModel.rightControl,
+      h: {
+        ...interactionModel.leftCenter,
+        z: interactionModel.controlHeight / 2,
+      },
+      dt: closestCurvePoint,
+      c: {
+        x: interactionModel.leftTorusCenter.x,
+        y: interactionModel.leftTorusCenter.y + leftTorus.radius,
+        z: leftTorus.tube + clearance,
+      },
+      tl: interactionModel.leftTorusCenter,
+      tr: interactionModel.rightTorusCenter,
+      "r-major": {
+        x: interactionModel.leftTorusCenter.x,
+        y: interactionModel.leftTorusCenter.y + leftTorus.radius,
+        z: 0,
+      },
+      "r-tube": {
+        x: interactionModel.leftTorusCenter.x,
+        y: interactionModel.leftTorusCenter.y + leftTorus.radius,
+        z: leftTorus.tube,
+      },
+      rho: {
+        ...interactionModel.leftCenter,
+        x: interactionModel.leftCenter.x + sphereRadius,
+      },
+      distance: {
+        x: 0,
+        y: -outerRadius * 1.3,
+        z: 0,
+      },
+      "scale-left": {
+        ...interactionModel.leftTorusCenter,
+        y: interactionModel.leftTorusCenter.y + leftTorus.radius,
+      },
+      "scale-right": {
+        ...interactionModel.rightTorusCenter,
+        y: interactionModel.rightTorusCenter.y + rightTorus.radius,
+      },
+    }
+    const domTargets: Readonly<Record<string, HTMLElement>> = {
+      dh: elements.measureLift,
+    }
+    const paths = elements.formulaLinks.querySelectorAll<SVGPathElement>(
+      "[data-edges-formula-link]",
+    )
+    formulaTargetPoints = new Map()
+    elements.formulaLinks.setAttribute(
+      "viewBox",
+      `0 0 ${stageRect.width} ${stageRect.height}`,
+    )
+    paths.forEach((path) => {
+      const key = path.dataset.edgesFormulaLink
+      const variable = key
+        ? document.getElementById(`edges-formula-${key}`)
+        : null
+      if (!key || !variable) {
+        path.setAttribute("d", "")
+        return
+      }
+      const color = FORMULA_LINK_COLORS[key] ?? "#ffffff"
+      variable.style.color = color
+      path.style.color = color
+      path.style.stroke = color
+      const variableRect = variable.getBoundingClientRect()
+      const source = {
+        x: variableRect.left - stageRect.left + variableRect.width / 2,
+        y: variableRect.bottom - stageRect.top,
+      }
+      const domTarget = domTargets[key]
+      const target = domTarget
+        ? (() => {
+            const rect = domTarget.getBoundingClientRect()
+            return {
+              x: rect.left - stageRect.left + rect.width / 2,
+              y: rect.top - stageRect.top,
+            }
+          })()
+        : projectWorldPoint(worldTargets[key] ?? curveMidpoint)
+      formulaTargetPoints.set(key, target)
+      const verticalDistance = target.y - source.y
+      const firstControlY = source.y + Math.max(34, verticalDistance * 0.22)
+      const secondControlY = target.y - Math.max(42, verticalDistance * 0.3)
+      path.setAttribute(
+        "d",
+        `M ${source.x.toFixed(1)} ${source.y.toFixed(1)} ` +
+        `C ${source.x.toFixed(1)} ${firstControlY.toFixed(1)} ` +
+        `${target.x.toFixed(1)} ${secondControlY.toFixed(1)} ` +
+        `${target.x.toFixed(1)} ${target.y.toFixed(1)}`,
+      )
+    })
+    updateFormulaHighlight(false)
+  }
+
   const renderOnce = (): void => {
     frame = 0
     if (!active || disposed) return
     space.updateWorldMatrix()
     renderer.render(space, viewPoint)
+    updateSceneMeasures()
+    updateFormulaLinks()
   }
 
   function requestRender(): void {
@@ -640,21 +1466,55 @@ export const createEdgesLab = async (): Promise<EdgesLab> => {
   observer.observe(elements.canvas)
   const rebuildInputs = [
     elements.centerDistance,
-    elements.constraintRadius,
-    elements.leftAzimuth,
-    elements.leftHeight,
-    elements.rightAzimuth,
-    elements.rightHeight,
+    elements.clearance,
+    elements.extraLift,
+    elements.leftTorusScale,
+    elements.rightTorusScale,
     elements.sphereRadius,
   ]
   for (const control of rebuildInputs) {
-    control.addEventListener("input", rebuild)
+    control.addEventListener("input", () => {
+      rebuild()
+      if (
+        control === elements.leftTorusScale ||
+        control === elements.rightTorusScale
+      ) {
+        setView(activeView)
+      }
+    })
   }
   elements.helpers.addEventListener("change", rebuild)
   for (const button of elements.viewButtons) {
     button.addEventListener("click", () => {
       setView(button.dataset.edgesView ?? "perspective")
     })
+  }
+  const formulaHighlightCleanups: Array<() => void> = []
+  for (const path of elements.formulaLinks.querySelectorAll<SVGPathElement>(
+    "[data-edges-formula-link]",
+  )) {
+    const key = path.dataset.edgesFormulaLink
+    const variable = key
+      ? document.getElementById(`edges-formula-${key}`)
+      : null
+    if (!key || !variable) continue
+    const activate = (): void => {
+      activeFormulaKey = key
+      updateFormulaHighlight()
+    }
+    const deactivate = (): void => {
+      if (activeFormulaKey !== key) return
+      activeFormulaKey = null
+      updateFormulaHighlight()
+    }
+    for (const target of [path, variable]) {
+      target.addEventListener("pointerenter", activate)
+      target.addEventListener("pointerleave", deactivate)
+      formulaHighlightCleanups.push(() => {
+        target.removeEventListener("pointerenter", activate)
+        target.removeEventListener("pointerleave", deactivate)
+      })
+    }
   }
   const requestRenderFromDrag = (event: MouseEvent): void => {
     if (event.buttons !== 0) requestRender()
@@ -767,7 +1627,7 @@ export const createEdgesLab = async (): Promise<EdgesLab> => {
     const offset = constrainSphereOffset(
       planePoint.x + dragGrabOffset.x - torusCenter.x,
       planePoint.y + dragGrabOffset.y - torusCenter.y,
-      interactionOffsetLimit,
+      interactionOffsetLimit[draggedSphere],
     )
     sphereOffsets = {...sphereOffsets, [draggedSphere]: offset}
     event.preventDefault()
@@ -806,6 +1666,7 @@ export const createEdgesLab = async (): Promise<EdgesLab> => {
       if (frame !== 0) cancelAnimationFrame(frame)
       observer.disconnect()
       annotation.dispose()
+      for (const cleanup of formulaHighlightCleanups) cleanup()
       elements.canvas.removeEventListener("mousedown", startSphereDrag, true)
       elements.canvas.removeEventListener("mousemove", updateSphereCursor, true)
       document.removeEventListener("mousemove", moveSphere, true)

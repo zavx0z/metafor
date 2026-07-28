@@ -474,7 +474,7 @@
         position: absolute;
         left: 12px;
         bottom: 10px;
-        z-index: 4;
+        z-index: 6;
         display: flex;
         align-items: center;
         gap: 6px;
@@ -792,15 +792,146 @@
         inset: 0;
       }
 
+      .edges-formula {
+        position: absolute;
+        top: 16px;
+        left: 50%;
+        z-index: 4;
+        width: min(940px, max(430px, calc(100% - 590px)));
+        padding: 11px 16px;
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        border-radius: 9px;
+        background: rgba(3, 9, 16, 0.9);
+        color: #f4f8ff;
+        font-size: 10px;
+        font-weight: 700;
+        line-height: 1.65;
+        text-align: center;
+        transform: translateX(-50%);
+        backdrop-filter: blur(14px);
+      }
+
+      .edges-formula-line {
+        white-space: nowrap;
+      }
+
+      .edges-formula-variable {
+        display: inline-block;
+        padding: 0 1px;
+        color: white;
+        font-size: 1.12em;
+        cursor: crosshair;
+        opacity: 0.42;
+        text-shadow: 0 0 7px currentColor;
+        transition:
+          opacity 120ms ease,
+          text-shadow 120ms ease;
+      }
+
+      .edges-formula-variable.is-highlighted {
+        opacity: 1;
+        text-shadow:
+          0 0 5px currentColor,
+          0 0 13px currentColor;
+      }
+
+      .edges-formula-values {
+        margin-top: 5px;
+        padding-top: 5px;
+        border-top: 1px solid rgba(255, 255, 255, 0.14);
+        color: #a8bad0;
+        font-size: 7px;
+        font-weight: 400;
+        white-space: normal;
+      }
+
+      #edges-formula-links {
+        position: absolute;
+        inset: 0;
+        z-index: 5;
+        width: 100%;
+        height: 100%;
+        overflow: visible;
+        pointer-events: none;
+      }
+
+      #edges-formula-links path {
+        fill: none;
+        opacity: 0.28;
+        pointer-events: stroke;
+        stroke-width: 1.5;
+        stroke-linecap: round;
+        transition:
+          filter 120ms ease,
+          opacity 120ms ease,
+          stroke-width 120ms ease;
+        vector-effect: non-scaling-stroke;
+      }
+
+      #edges-formula-links path.is-highlighted {
+        filter: drop-shadow(0 0 5px currentColor);
+        opacity: 1;
+        stroke-width: 2.5;
+      }
+
+      #edges-formula-target {
+        position: absolute;
+        z-index: 4;
+        width: 18px;
+        height: 18px;
+        border: 2px solid currentColor;
+        border-radius: 50%;
+        opacity: 0;
+        pointer-events: none;
+        transform: translate(-50%, -50%);
+        transition: opacity 100ms ease;
+      }
+
+      #edges-formula-target.is-highlighted {
+        opacity: 1;
+        box-shadow:
+          0 0 8px currentColor,
+          inset 0 0 8px currentColor;
+      }
+
+      #edges-formula-help {
+        position: absolute;
+        top: 128px;
+        left: 50%;
+        z-index: 6;
+        width: min(430px, calc(100% - 620px));
+        min-width: 310px;
+        padding: 9px 12px;
+        border: 1px solid currentColor;
+        border-radius: 8px;
+        background: rgba(3, 9, 16, 0.94);
+        color: white;
+        font-size: 9px;
+        line-height: 1.45;
+        pointer-events: none;
+        transform: translateX(-50%);
+        box-shadow: 0 0 10px color-mix(in srgb, currentColor 30%, transparent);
+      }
+
+      #edges-formula-help strong {
+        display: block;
+        margin-bottom: 3px;
+        color: currentColor;
+        font-size: 10px;
+      }
+
+      #edges-formula-help p {
+        margin: 0;
+        color: #d5dfec;
+      }
+
       .edges-scene-controls {
         position: absolute;
         top: 18px;
         left: 18px;
         z-index: 2;
-        width: min(310px, calc(100% - 36px));
-        max-height: calc(100% - 150px);
-        padding: 14px;
-        overflow: auto;
+        width: min(250px, calc(100% - 36px));
+        padding: 12px;
         border: 1px solid rgba(255, 255, 255, 0.22);
         border-radius: 11px;
         background: rgba(3, 9, 16, 0.82);
@@ -813,7 +944,7 @@
       }
 
       .edges-scene-controls > p {
-        margin: 0 0 13px;
+        margin: 0 0 9px;
         color: #8597ae;
         font-size: 8px;
         line-height: 1.5;
@@ -836,6 +967,80 @@
       .edges-scene-controls output {
         float: right;
         color: white;
+      }
+
+      .edges-scene-controls > .inline {
+        display: flex;
+        gap: 7px;
+        align-items: center;
+        margin-top: 9px;
+        color: #b5c7da;
+        font-size: 8px;
+      }
+
+      .edges-scene-controls > .edges-parameter-help {
+        position: absolute;
+        right: 10px;
+        bottom: 9px;
+      }
+
+      .edges-scene-measure {
+        position: absolute;
+        z-index: 3;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto auto;
+        gap: 5px 8px;
+        width: 190px;
+        padding: 7px 8px;
+        border: 1px solid rgba(255, 255, 255, 0.26);
+        border-radius: 7px;
+        background: rgba(3, 9, 16, 0.88);
+        color: #cbd8e8;
+        font-size: 8px;
+        line-height: 1.25;
+        transform: translate(-50%, -50%);
+        backdrop-filter: blur(10px);
+      }
+
+      .edges-scene-measure output {
+        color: white;
+        text-align: right;
+      }
+
+      .edges-scene-measure input[type="range"] {
+        grid-column: 1 / -1;
+        width: 100%;
+      }
+
+      .edges-scene-measure > .edges-parameter-help {
+        grid-column: 3;
+        grid-row: 1;
+      }
+
+      .edges-scene-measure.derived {
+        grid-template-columns: minmax(0, 1fr) auto;
+        pointer-events: none;
+      }
+
+      .edges-scene-measure.derived small {
+        grid-column: 1 / -1;
+        color: #71849c;
+        font-size: 7px;
+      }
+
+      .edges-scene-measure.safe {
+        border-color: rgba(115, 255, 190, 0.5);
+      }
+
+      .edges-scene-measure.unsafe {
+        border-color: rgba(255, 92, 92, 0.72);
+      }
+
+      .edges-scene-measure.is-formula-highlighted {
+        border-color: currentColor !important;
+        box-shadow:
+          0 0 8px currentColor,
+          inset 0 0 7px color-mix(in srgb, currentColor 24%, transparent);
       }
 
       .edges-analysis-control output {
@@ -1398,164 +1603,161 @@
         </section>
         <section id="edges-stage" hidden>
           <canvas id="edges-canvas"></canvas>
-          <section class="edges-scene-controls">
-            <h2>Edges · ограничители входа</h2>
-            <p>
-              Белая окружность перпендикулярна оси тора. Control-точка связи
-              обязана лежать на окружности; высота дуги вычисляется из двух
-              независимых углов входа. Сфера перемещается внутри отверстия
-              прямым перетаскиванием левой кнопкой мыши.
-            </p>
-            <fieldset>
-              <legend>Формы</legend>
-              <div class="edges-analysis-control">
-                <div class="edges-analysis-control-header">
-                  <label for="edges-center-distance">Расстояние центров</label>
-                  <output id="edges-center-distance-output"></output>
-                  <details class="edges-parameter-help">
-                    <summary aria-label="Описание параметра Расстояние центров">?</summary>
-                    <div class="edges-parameter-help-text">
-                      <strong>Расстояние центров</strong> — дистанция по оси X
-                      между центрами двух Sphere и двух родительских Torus.
-                      Начало и конец Bézier-связи всегда совпадают с этими
-                      центрами. Увеличение значения растягивает связь, не меняя
-                      локальные параметры её ограничителей.
-                    </div>
-                  </details>
-                </div>
-                <input id="edges-center-distance" type="range" min="26" max="200" step="any" value="44" />
-              </div>
-              <div class="edges-torus-source">
-                <span>Два Torus · «Наш default»</span>
-                <output id="edges-torus-radius-output"></output>
-                <small>
-                  Форма не регулируется в Edges. Значения читаются из
-                  Analysis → Torus при каждом открытии страницы.
-                </small>
-              </div>
-              <div class="edges-analysis-control">
-                <div class="edges-analysis-control-header">
-                  <label for="edges-sphere-radius">Радиус сферы</label>
-                  <output id="edges-sphere-radius-output"></output>
-                  <details class="edges-parameter-help">
-                    <summary aria-label="Описание параметра Радиус сферы">?</summary>
-                    <div class="edges-parameter-help-text">
-                      <strong>Радиус сферы</strong> задаёт видимый размер
-                      State-формы в центре каждого тора. Геометрический Edge
-                      проходит до центра Sphere, а не останавливается на её
-                      поверхности, поэтому изменение радиуса не сдвигает
-                      концы кривой.
-                    </div>
-                  </details>
-                </div>
-                <input id="edges-sphere-radius" type="range" min="0.05" max="50" step="any" value="2.5" />
-              </div>
-            </fieldset>
-            <fieldset>
-              <legend>Ограничительные окружности</legend>
-              <div class="edges-analysis-control">
-                <div class="edges-analysis-control-header">
-                  <label for="edges-constraint-radius">Радиус</label>
-                  <output id="edges-constraint-radius-output"></output>
-                  <details class="edges-parameter-help">
-                    <summary aria-label="Описание параметра Радиус ограничителя">?</summary>
-                    <div class="edges-parameter-help-text">
-                      <strong>Радиус ограничителя</strong> — расстояние от
-                      вертикальной оси Sphere до Bézier control-точки в
-                      плоскости XY. Control-точка обязана лежать на белой
-                      окружности. Вместе с высотой этот радиус определяет угол
-                      входа дуги в центр Sphere.
-                    </div>
-                  </details>
-                </div>
-                <input id="edges-constraint-radius" type="range" min="1" max="16" step="0.5" value="6" />
-              </div>
-              <div class="edges-analysis-control">
-                <div class="edges-analysis-control-header">
-                  <label for="edges-left-height">Высота слева</label>
-                  <output id="edges-left-height-output"></output>
-                  <details class="edges-parameter-help">
-                    <summary aria-label="Описание параметра Высота слева">?</summary>
-                    <div class="edges-parameter-help-text">
-                      <strong>Высота слева</strong> — координата Z левой
-                      ограничительной окружности и левой control-точки
-                      относительно центра Sphere. Положительное значение
-                      поднимает начало дуги, отрицательное опускает. Угол входа
-                      вычисляется из высоты и радиуса ограничителя.
-                    </div>
-                  </details>
-                </div>
-                <input id="edges-left-height" type="range" min="-24" max="30" step="0.5" value="9" />
-              </div>
-              <div class="edges-analysis-control">
-                <div class="edges-analysis-control-header">
-                  <label for="edges-right-height">Высота справа</label>
-                  <output id="edges-right-height-output"></output>
-                  <details class="edges-parameter-help">
-                    <summary aria-label="Описание параметра Высота справа">?</summary>
-                    <div class="edges-parameter-help-text">
-                      <strong>Высота справа</strong> независимо задаёт
-                      координату Z правой окружности и control-точки. Разные
-                      значения слева и справа создают асимметричные углы входа:
-                      максимальная высота кривой не задаётся отдельно, а
-                      получается из обеих control-точек.
-                    </div>
-                  </details>
-                </div>
-                <input id="edges-right-height" type="range" min="-24" max="30" step="0.5" value="16" />
-              </div>
-              <div class="edges-analysis-control">
-                <div class="edges-analysis-control-header">
-                  <label for="edges-left-azimuth">Азимут слева</label>
-                  <output id="edges-left-azimuth-output"></output>
-                  <details class="edges-parameter-help">
-                    <summary aria-label="Описание параметра Азимут слева">?</summary>
-                    <div class="edges-parameter-help-text">
-                      <strong>Азимут слева</strong> выбирает положение левой
-                      control-точки на окружности вокруг оси Z. Угол 0° смотрит
-                      вдоль +X, 90° — вдоль +Y. Параметр меняет боковое
-                      направление касательной, не меняя радиус и высоту.
-                    </div>
-                  </details>
-                </div>
-                <input id="edges-left-azimuth" type="range" min="-180" max="180" step="1" value="0" />
-              </div>
-              <div class="edges-analysis-control">
-                <div class="edges-analysis-control-header">
-                  <label for="edges-right-azimuth">Азимут справа</label>
-                  <output id="edges-right-azimuth-output"></output>
-                  <details class="edges-parameter-help">
-                    <summary aria-label="Описание параметра Азимут справа">?</summary>
-                    <div class="edges-parameter-help-text">
-                      <strong>Азимут справа</strong> независимо выбирает
-                      положение правой control-точки на её окружности. 180°
-                      направляет её вдоль −X, то есть к левой Sphere. Изменение
-                      угла позволяет исследовать прямые и боковые изгибы Edge.
-                    </div>
-                  </details>
-                </div>
-                <input id="edges-right-azimuth" type="range" min="-180" max="180" step="1" value="180" />
-              </div>
-              <div class="edges-analysis-control">
-                <div class="edges-analysis-control-header no-output">
-                  <label class="inline" for="edges-helpers">
-                    <input id="edges-helpers" type="checkbox" checked />
-                    <span>Белые оси и ограничители</span>
-                  </label>
-                  <details class="edges-parameter-help">
-                    <summary aria-label="Описание вспомогательных элементов">?</summary>
-                    <div class="edges-parameter-help-text">
-                      <strong>Белые вспомогательные элементы</strong> показывают
-                      вертикальные оси Sphere, плоскости ограничительных
-                      окружностей, радиусы до control-точек и сами
-                      control-точки. Переключатель влияет только на объясняющую
-                      разметку и не изменяет вычисленную Bézier-кривую.
-                    </div>
-                  </details>
-                </div>
-              </div>
-            </fieldset>
+          <section id="edges-formula" class="edges-formula" aria-label="Формула расчёта Edge">
+            <div class="edges-formula-line">
+              <span id="edges-formula-p" class="edges-formula-variable">P</span>(<span id="edges-formula-t" class="edges-formula-variable">t</span>)
+              = (1−t)³ <span id="edges-formula-sl" class="edges-formula-variable">Sₗ</span>
+              + 3(1−t)²t <span id="edges-formula-cl" class="edges-formula-variable">Cₗ</span>
+              + 3(1−t)t² <span id="edges-formula-cr" class="edges-formula-variable">Cᵣ</span>
+              + t³ <span id="edges-formula-sr" class="edges-formula-variable">Sᵣ</span>
+            </div>
+            <div class="edges-formula-line">
+              Cᵢ = Sᵢ + (0,0,<span id="edges-formula-h" class="edges-formula-variable">H</span>),
+              H = min { h ≥ 0 | <span id="edges-formula-dt" class="edges-formula-variable">dₜ</span>(Pₕ(t), Tₗ∪Tᵣ) ≥
+              <span id="edges-formula-c" class="edges-formula-variable">c</span> } +
+              <span id="edges-formula-dh" class="edges-formula-variable">Δh</span>
+            </div>
+            <div class="edges-formula-line">
+              dₜ(P,<span id="edges-formula-tl" class="edges-formula-variable">Tₗ</span>/<span id="edges-formula-tr" class="edges-formula-variable">Tᵣ</span>)
+              = √((√((Pₓ−Tₓ)²+(Pᵧ−Tᵧ)²)−<span id="edges-formula-r-major" class="edges-formula-variable">R</span>)²+(P𝓏−T𝓏)²)−<span id="edges-formula-r-tube" class="edges-formula-variable">r</span>
+            </div>
+            <div class="edges-formula-line">
+              ‖Sᵢ−Tᵢ‖ ≤ R−r−max(<span id="edges-formula-rho" class="edges-formula-variable">ρ</span>,c),
+              <span id="edges-formula-distance" class="edges-formula-variable">D</span> = ‖Tᵣ−Tₗ‖,
+              0 ≤ t ≤ 1
+            </div>
+            <div class="edges-formula-line">
+              Rᵢ = κᵢR₀, rᵢ = κᵢr₀:
+              <span id="edges-formula-scale-left" class="edges-formula-variable">κₗ</span>,
+              <span id="edges-formula-scale-right" class="edges-formula-variable">κᵣ</span>
+            </div>
+            <div id="edges-formula-values" class="edges-formula-values"></div>
           </section>
+          <svg id="edges-formula-links" aria-hidden="true">
+            <path data-edges-formula-link="p"></path>
+            <path data-edges-formula-link="t"></path>
+            <path data-edges-formula-link="sl"></path>
+            <path data-edges-formula-link="sr"></path>
+            <path data-edges-formula-link="cl"></path>
+            <path data-edges-formula-link="cr"></path>
+            <path data-edges-formula-link="h"></path>
+            <path data-edges-formula-link="dt"></path>
+            <path data-edges-formula-link="c"></path>
+            <path data-edges-formula-link="dh"></path>
+            <path data-edges-formula-link="tl"></path>
+            <path data-edges-formula-link="tr"></path>
+            <path data-edges-formula-link="r-major"></path>
+            <path data-edges-formula-link="r-tube"></path>
+            <path data-edges-formula-link="rho"></path>
+            <path data-edges-formula-link="distance"></path>
+            <path data-edges-formula-link="scale-left"></path>
+            <path data-edges-formula-link="scale-right"></path>
+          </svg>
+          <div id="edges-formula-target" aria-hidden="true"></div>
+          <section id="edges-formula-help" hidden>
+            <strong id="edges-formula-help-title"></strong>
+            <p id="edges-formula-help-text"></p>
+          </section>
+          <section class="edges-scene-controls">
+            <h2>Edge · безопасный маршрут</h2>
+            <p>
+              Белые элементы — входные и производные данные расчёта.
+              Оранжевый Edge выходит через отверстия и не пересекает Torus.
+              Sphere перемещается перетаскиванием левой кнопкой мыши.
+            </p>
+            <div class="edges-torus-source">
+              <span>Два Torus · «Наш default»</span>
+              <output id="edges-torus-radius-output"></output>
+              <small>Источник формы: Analysis → Torus.</small>
+            </div>
+            <label class="inline" for="edges-helpers">
+              <input id="edges-helpers" type="checkbox" checked />
+              <span>Размеры и вычислительная геометрия</span>
+            </label>
+            <details class="edges-parameter-help">
+              <summary aria-label="Описание вспомогательных элементов">?</summary>
+              <div class="edges-parameter-help-text">
+                Белая расширенная оболочка задаёт запрещённую для Edge область,
+                control-векторы задают вертикальные касательные, а размерные
+                линии показывают расстояние центров, радиус Sphere и высоту.
+              </div>
+            </details>
+          </section>
+          <label id="edges-measure-distance" class="edges-scene-measure">
+            <span>Расстояние центров</span>
+            <output id="edges-center-distance-output"></output>
+            <input id="edges-center-distance" type="range" min="26" max="200" step="any" value="44" />
+            <details class="edges-parameter-help">
+              <summary aria-label="Описание параметра Расстояние центров">?</summary>
+              <div class="edges-parameter-help-text">
+                Длина белой двусторонней стрелки между центрами Torus.
+              </div>
+            </details>
+          </label>
+          <label id="edges-measure-left-scale" class="edges-scene-measure">
+            <span>Масштаб Torus L</span>
+            <output id="edges-left-torus-scale-output"></output>
+            <input id="edges-left-torus-scale" type="range" min="0.5" max="2" step="0.05" value="1" />
+            <details class="edges-parameter-help">
+              <summary aria-label="Описание параметра Масштаб левого Torus">?</summary>
+              <div class="edges-parameter-help-text">
+                Независимо увеличивает или уменьшает левый Torus. Базовые
+                пропорции берутся из сохранённого «Наш default».
+              </div>
+            </details>
+          </label>
+          <label id="edges-measure-right-scale" class="edges-scene-measure">
+            <span>Масштаб Torus R</span>
+            <output id="edges-right-torus-scale-output"></output>
+            <input id="edges-right-torus-scale" type="range" min="0.5" max="2" step="0.05" value="1" />
+            <details class="edges-parameter-help">
+              <summary aria-label="Описание параметра Масштаб правого Torus">?</summary>
+              <div class="edges-parameter-help-text">
+                Независимо увеличивает или уменьшает правый Torus. Edge
+                пересчитывает безопасный маршрут по новому размеру.
+              </div>
+            </details>
+          </label>
+          <label id="edges-measure-sphere" class="edges-scene-measure">
+            <span>Радиус Sphere</span>
+            <output id="edges-sphere-radius-output"></output>
+            <input id="edges-sphere-radius" type="range" min="0.01" max="50" step="any" value="2.5" />
+            <details class="edges-parameter-help">
+              <summary aria-label="Описание параметра Радиус сферы">?</summary>
+              <div class="edges-parameter-help-text">
+                Размерная стрелка идёт от центра до поверхности Sphere.
+              </div>
+            </details>
+          </label>
+          <label id="edges-measure-clearance" class="edges-scene-measure">
+            <span>Зазор над Torus</span>
+            <output id="edges-clearance-output"></output>
+            <input id="edges-clearance" type="range" min="0.01" max="30" step="any" value="3" />
+            <details class="edges-parameter-help">
+              <summary aria-label="Описание параметра Безопасный зазор">?</summary>
+              <div class="edges-parameter-help-text">
+                Минимальное расстояние от верхней поверхности Torus до начала
+                поворота Edge.
+              </div>
+            </details>
+          </label>
+          <label id="edges-measure-lift" class="edges-scene-measure">
+            <span>Дополнительный подъём</span>
+            <output id="edges-extra-lift-output"></output>
+            <input id="edges-extra-lift" type="range" min="0" max="100" step="0.5" value="0" />
+            <details class="edges-parameter-help">
+              <summary aria-label="Описание параметра Дополнительный подъём">?</summary>
+              <div class="edges-parameter-help-text">
+                Добавляется к минимальной автоматически найденной высоте
+                control-точек и делает полевую линию выше, не меняя её входы.
+              </div>
+            </details>
+          </label>
+          <div id="edges-measure-route" class="edges-scene-measure derived">
+            <span>Высота маршрута</span>
+            <output></output>
+            <small>автоподбор по защитной оболочке Torus</small>
+          </div>
           <div class="edges-view-controls" aria-label="Вид Edges Lab">
             <button type="button" data-edges-view="perspective">Перспектива</button>
             <button type="button" data-edges-view="front">Спереди</button>
