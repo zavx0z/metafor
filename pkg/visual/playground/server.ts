@@ -1,10 +1,14 @@
 import {file} from "bun"
 import {fileURLToPath} from "node:url"
 import {createVisualAnnotationApi} from "./AnnotationApi.ts"
+import {createEdgeExampleApi} from "./EdgeExampleApi.ts"
 import index from "./index.html"
 
 const annotationApi = createVisualAnnotationApi(
   fileURLToPath(new URL("./.annotations", import.meta.url)),
+)
+const edgeExampleApi = createEdgeExampleApi(
+  fileURLToPath(new URL("./.edge-examples", import.meta.url)),
 )
 
 const server = Bun.serve({
@@ -17,7 +21,8 @@ const server = Bun.serve({
     ),
   },
   async fetch(request) {
-    return await annotationApi(request) ??
+    return await edgeExampleApi(request) ??
+      await annotationApi(request) ??
       new Response("Not found", {status: 404})
   },
 })

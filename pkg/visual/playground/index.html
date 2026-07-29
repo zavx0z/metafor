@@ -114,6 +114,62 @@
         overflow: hidden;
       }
 
+      #section-tabs {
+        position: absolute;
+        top: 0;
+        right: 0;
+        left: 0;
+        z-index: 20;
+        display: flex;
+        align-items: stretch;
+        height: 46px;
+        padding: 0 18px;
+        border-bottom: 1px solid rgba(145, 171, 214, 0.2);
+        background: rgba(5, 11, 18, 0.94);
+        backdrop-filter: blur(14px);
+      }
+
+      #section-tabs strong {
+        display: flex;
+        align-items: center;
+        margin-right: 16px;
+        color: #6f819a;
+        font-size: 9px;
+        font-weight: 400;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      #section-tabs a {
+        display: flex;
+        align-items: center;
+        padding: 0 15px;
+        border-right: 1px solid transparent;
+        border-left: 1px solid transparent;
+        color: #91a2b9;
+        font-size: 11px;
+        text-decoration: none;
+      }
+
+      #section-tabs a:hover {
+        color: #dbe8f8;
+        background: rgba(38, 137, 192, 0.08);
+      }
+
+      #section-tabs a.active {
+        border-right-color: rgba(75, 205, 255, 0.22);
+        border-bottom: 2px solid #4bcfff;
+        border-left-color: rgba(75, 205, 255, 0.22);
+        background: rgba(38, 137, 192, 0.14);
+        color: white;
+      }
+
+      main.section-tabs-mode #state-graph-stage,
+      main.section-tabs-mode #edges-stage,
+      main.section-tabs-mode #torus-analysis-stage {
+        top: 46px;
+      }
+
       canvas {
         display: block;
         width: 100%;
@@ -781,15 +837,162 @@
       #edges-stage {
         position: absolute;
         inset: 0;
-        overflow: hidden;
+        overflow-x: hidden;
+        overflow-y: auto;
         background:
           radial-gradient(circle at 50% 46%, rgba(31, 118, 162, 0.12), transparent 48%),
           #030810;
       }
 
+      #edges-viewport {
+        position: relative;
+        height: 100%;
+        min-height: 720px;
+        overflow: hidden;
+      }
+
       #edges-canvas {
         position: absolute;
         inset: 0;
+      }
+
+      .edges-example-save-control {
+        position: absolute;
+        right: 18px;
+        bottom: 112px;
+        z-index: 7;
+        display: grid;
+        justify-items: end;
+        gap: 5px;
+      }
+
+      #edges-add-example {
+        padding: 8px 12px;
+        border: 1px solid rgba(75, 207, 255, 0.55);
+        border-radius: 7px;
+        background: rgba(20, 91, 126, 0.78);
+        color: #effaff;
+        cursor: pointer;
+        font: inherit;
+        font-size: 10px;
+      }
+
+      #edges-add-example:hover,
+      #edges-add-example:focus-visible {
+        border-color: #72d7ff;
+        background: rgba(28, 118, 160, 0.9);
+      }
+
+      #edges-add-example:disabled {
+        cursor: wait;
+        opacity: 0.6;
+      }
+
+      #edges-add-example-status {
+        min-height: 14px;
+        color: #72d7ff;
+        font-size: 8px;
+      }
+
+      #edges-examples {
+        min-height: 320px;
+        padding: 26px 24px 42px;
+        border-top: 1px solid rgba(145, 171, 214, 0.2);
+        background: #050b12;
+      }
+
+      #edges-viewport[hidden] + #edges-examples {
+        min-height: 100%;
+        border-top: 0;
+      }
+
+      #edges-examples > header {
+        margin-bottom: 17px;
+      }
+
+      #edges-examples h2 {
+        margin: 0 0 5px;
+        color: #eaf4ff;
+        font-size: 16px;
+      }
+
+      #edges-examples header p,
+      #edges-examples-empty {
+        margin: 0;
+        color: #8192a9;
+        font-size: 10px;
+        line-height: 1.55;
+      }
+
+      .edges-examples-table-wrap {
+        max-width: 1600px;
+        overflow-x: auto;
+        border: 1px solid rgba(145, 171, 214, 0.18);
+        border-radius: 9px;
+      }
+
+      #edges-examples table {
+        width: 100%;
+        min-width: 980px;
+        border-collapse: collapse;
+        color: #b8c6d8;
+        font-size: 9px;
+      }
+
+      #edges-examples th,
+      #edges-examples td {
+        padding: 10px 11px;
+        border-bottom: 1px solid rgba(145, 171, 214, 0.13);
+        text-align: left;
+        vertical-align: top;
+      }
+
+      #edges-examples th {
+        background: rgba(12, 24, 37, 0.94);
+        color: #8498b2;
+        font-size: 8px;
+        font-weight: 500;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+      }
+
+      #edges-examples tbody tr:last-child td {
+        border-bottom: 0;
+      }
+
+      .edges-example-preview {
+        display: block;
+        width: 260px;
+        height: 140px;
+        border-radius: 6px;
+        background: #02070d;
+      }
+
+      .edges-example-algorithm {
+        display: grid;
+        gap: 7px;
+        min-width: 260px;
+      }
+
+      .edges-example-algorithm > a {
+        color: #79dafa;
+        font-size: 10px;
+        text-decoration: none;
+      }
+
+      .edges-example-algorithm > small,
+      .edges-example-parameters {
+        color: #8597ad;
+        line-height: 1.55;
+      }
+
+      .edges-example-parameters strong {
+        color: #d8e5f3;
+        font-weight: 500;
+      }
+
+      #edges-examples-empty {
+        padding: 34px 0;
       }
 
       .edges-formula {
@@ -813,6 +1016,68 @@
 
       .edges-formula-line {
         white-space: nowrap;
+      }
+
+      .edges-formula-description {
+        position: absolute;
+        top: 8px;
+        right: 9px;
+        z-index: 3;
+        text-align: left;
+      }
+
+      .edges-formula-description summary {
+        display: grid;
+        width: 20px;
+        height: 20px;
+        border: 1px solid rgba(75, 207, 255, 0.58);
+        border-radius: 50%;
+        color: #72d7ff;
+        cursor: pointer;
+        font-size: 11px;
+        line-height: 1;
+        list-style: none;
+        place-items: center;
+      }
+
+      .edges-formula-description summary::-webkit-details-marker {
+        display: none;
+      }
+
+      .edges-formula-description > div {
+        position: absolute;
+        top: 27px;
+        right: 0;
+        width: min(480px, calc(100vw - 620px));
+        min-width: 360px;
+        padding: 11px 13px;
+        border: 1px solid rgba(75, 207, 255, 0.48);
+        border-radius: 8px;
+        background: rgba(3, 9, 16, 0.98);
+        color: #d5dfec;
+        font-size: 9px;
+        font-weight: 400;
+        line-height: 1.5;
+        box-shadow: 0 0 16px rgba(75, 207, 255, 0.14);
+      }
+
+      .edges-formula-description strong {
+        display: block;
+        margin-bottom: 5px;
+        color: #f4f8ff;
+        font-size: 10px;
+      }
+
+      .edges-formula-description p {
+        margin: 0 0 6px;
+      }
+
+      .edges-formula-description p:last-child {
+        margin-bottom: 0;
+      }
+
+      .edges-formula-description a {
+        color: #72d7ff;
       }
 
       .edges-formula-variable {
@@ -1548,6 +1813,12 @@
         <nav id="navigation"></nav>
       </aside>
       <section id="stage">
+        <div
+          id="section-tabs"
+          role="navigation"
+          aria-label="Вложенные страницы раздела"
+          hidden
+        ></div>
         <div id="title">
           <h2 id="entity"></h2>
           <p id="description"></p>
@@ -1602,8 +1873,23 @@
           </p>
         </section>
         <section id="edges-stage" hidden>
+          <section id="edges-viewport">
           <canvas id="edges-canvas"></canvas>
           <section id="edges-formula" class="edges-formula" aria-label="Формула расчёта Edge">
+            <div id="edges-formula-composite">
+              <details class="edges-formula-description">
+                <summary aria-label="Описание составной экспериментальной формулы">?</summary>
+                <div>
+                  <strong>Составная экспериментальная формула MetaFor</strong>
+                  <p>
+                    Это не единый физический закон. Стенд соединяет кубическую
+                    Bézier-кривую, локальный профиль зазора до Torus и численный
+                    поиск минимальной безопасной высоты. Формула считает
+                    управляемый маршрут между центрами Sphere и нужна как
+                    исходный эксперимент для сравнения с физическими моделями.
+                  </p>
+                </div>
+              </details>
             <div class="edges-formula-line">
               <span id="edges-formula-p" class="edges-formula-variable">P</span>(<span id="edges-formula-t" class="edges-formula-variable">t</span>)
               = (1−t)³ <span id="edges-formula-sl" class="edges-formula-variable">Sₗ</span>
@@ -1644,6 +1930,66 @@
               <span id="edges-formula-scale-left" class="edges-formula-variable">κₗ</span>,
               <span id="edges-formula-scale-right" class="edges-formula-variable">κᵣ</span>
             </div>
+            </div>
+            <div id="edges-formula-source-sink" hidden>
+              <details class="edges-formula-description">
+                <summary aria-label="Описание формулы источник — сток">?</summary>
+                <div>
+                  <strong>Силовая линия «источник → сток»</strong>
+                  <p>
+                    Формула взята из двумерной теории потенциала: такая же
+                    комплексная функция описывает электростатическое поле
+                    линейных зарядов и потенциальное течение жидкости.
+                    Постоянная мнимая часть Ψ задаёт силовую линию. Здесь она
+                    аналитически считает все точки Edge без интегрирования, а
+                    стенд выбирает самый низкий контур, безопасный для Torus.
+                  </p>
+                  <p>
+                    Источники:
+                    <a href="https://ocw.mit.edu/courses/22-105-electromagnetic-interactions-fall-2005/00792e7e1aa2eae67ddae270022c044f_chap1.pdf" target="_blank" rel="noreferrer">MIT · complex potential</a>,
+                    <a href="https://www.feynmanlectures.caltech.edu/II_04.html" target="_blank" rel="noreferrer">Feynman · field lines</a>.
+                  </p>
+                </div>
+              </details>
+              <div class="edges-formula-line">
+                W(z) =
+                <span id="edges-source-formula-g-left" class="edges-formula-variable">gₗ</span>
+                ln(z−<span id="edges-source-formula-sl" class="edges-formula-variable">Sₗ</span>)
+                − <span id="edges-source-formula-g-right" class="edges-formula-variable">gᵣ</span>
+                ln(z−<span id="edges-source-formula-sr" class="edges-formula-variable">Sᵣ</span>)
+              </div>
+              <div class="edges-formula-line">
+                <span id="edges-source-formula-psi" class="edges-formula-variable">Ψ</span>(P)
+                = Im W =
+                gₗθₗ−gᵣθᵣ = Ψ₀,
+                θᵣ = (gₗ<span id="edges-source-formula-theta" class="edges-formula-variable">θₗ</span>−Ψ₀)/gᵣ
+              </div>
+              <div class="edges-formula-line">
+                dₗ =
+                <span id="edges-source-formula-span" class="edges-formula-variable">ℓ</span>
+                sin θᵣ / sin(θᵣ−θₗ),
+                <span id="edges-source-formula-p" class="edges-formula-variable">P</span>(θₗ)
+                = Sₗ+dₗ(cos θₗ·û+sin θₗ·ẑ)
+              </div>
+              <div class="edges-formula-line">
+                Psafe = (Pₓ,Pᵧ,<span id="edges-source-formula-lambda-field" class="edges-formula-variable">λ𝓏</span>P𝓏),
+                λ𝓏 = 1; резерв применяется только когда аналитическое семейство не даёт безопасный контур
+              </div>
+              <div class="edges-formula-line">
+                gᵢ = √(<span id="edges-source-formula-scale-left" class="edges-formula-variable">κₗ</span>(<span id="edges-source-formula-r-major" class="edges-formula-variable">R₀</span>+<span id="edges-source-formula-r-tube" class="edges-formula-variable">r₀</span>)),
+                Ψ₀ = lowest {
+                <span id="edges-source-formula-dt" class="edges-formula-variable">dₜ</span>(P,Tₗ∪Tᵣ)
+                ≥ <span id="edges-source-formula-c" class="edges-formula-variable">c</span>ᵣₑq(P) }
+              </div>
+              <div class="edges-formula-line">
+                <span id="edges-source-formula-tl" class="edges-formula-variable">Tₗ</span>,
+                <span id="edges-source-formula-tr" class="edges-formula-variable">Tᵣ</span>;
+                ρ=<span id="edges-source-formula-rho" class="edges-formula-variable">ρ</span>,
+                D=<span id="edges-source-formula-distance" class="edges-formula-variable">‖Tᵣ−Tₗ‖</span>,
+                κᵣ=<span id="edges-source-formula-scale-right" class="edges-formula-variable">κᵣ</span>,
+                подъём=<span id="edges-source-formula-dh" class="edges-formula-variable">Δh</span>
+              </div>
+            </div>
             <div id="edges-formula-values" class="edges-formula-values"></div>
           </section>
           <svg id="edges-formula-links" aria-hidden="true">
@@ -1666,6 +2012,11 @@
             <path data-edges-formula-link="scale-left"></path>
             <path data-edges-formula-link="scale-right"></path>
             <path data-edges-formula-link="span"></path>
+            <path data-edges-formula-link="theta"></path>
+            <path data-edges-formula-link="g-left"></path>
+            <path data-edges-formula-link="g-right"></path>
+            <path data-edges-formula-link="psi"></path>
+            <path data-edges-formula-link="lambda-field"></path>
           </svg>
           <div id="edges-formula-target" aria-hidden="true"></div>
           <section id="edges-formula-help" hidden>
@@ -1673,8 +2024,8 @@
             <p id="edges-formula-help-text"></p>
           </section>
           <section class="edges-scene-controls">
-            <h2>Edge · безопасный маршрут</h2>
-            <p>
+            <h2 id="edges-scene-title">Edge · составная экспериментальная формула</h2>
+            <p id="edges-scene-description">
               Белые элементы — входные и производные данные расчёта.
               Оранжевый Edge выходит через отверстия и не пересекает Torus.
               Sphere перемещается перетаскиванием левой кнопкой мыши.
@@ -1778,7 +2129,31 @@
             <button type="button" data-edges-view="front">Спереди</button>
             <button type="button" data-edges-view="top">Сверху</button>
           </div>
+          <div class="edges-example-save-control">
+            <button id="edges-add-example" type="button">Добавить в примеры</button>
+            <output id="edges-add-example-status" aria-live="polite"></output>
+          </div>
           <section id="edges-readout" aria-label="Значения геометрии связи"></section>
+          </section>
+          <section id="edges-examples" aria-labelledby="edges-examples-title">
+            <header>
+              <h2 id="edges-examples-title">Сохранённые примеры Edges</h2>
+              <p id="edges-examples-description">
+                Один набор параметров автоматически рассчитывается всеми
+                алгоритмами раздела.
+              </p>
+            </header>
+            <div class="edges-examples-table-wrap">
+              <table>
+                <thead id="edges-examples-head"></thead>
+                <tbody id="edges-examples-body"></tbody>
+              </table>
+            </div>
+            <p id="edges-examples-empty">
+              Примеров пока нет. Настройте любой эксперимент и нажмите
+              «Добавить в примеры».
+            </p>
+          </section>
         </section>
         <section id="torus-analysis-stage" hidden>
           <canvas id="torus-analysis-canvas"></canvas>

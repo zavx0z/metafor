@@ -45,7 +45,33 @@ exposed. GPU execution time is deliberately not reported until Renderer
 exposes a timestamp-query contract; CPU submit is not presented as GPU time.
 
 `Edges` beneath `Analysis` isolates the geometry of one connection before it
-is reused by State Graph or Bulk. The scene contains two Torus forms with one
+is reused by State Graph or Bulk. It is a parent section with independent
+experimental routes:
+
+- `#/edges/composite` — `Составная экспериментальная`: the existing cubic
+  Bézier, clearance profile and numerical safety search;
+- `#/edges/source-sink` — `Источник → сток`: an analytic two-dimensional
+  source/sink field line derived from the complex potential
+  `W(z) = gL log(z-SL) - gR log(z-SR)`.
+
+The parent route `#/edges` is the comparison page for saved input sets. The
+button inside either experiment viewport stores the current distance, Torus
+scales and defaults, Sphere radius and both dragged Sphere offsets, clearance
+and lift. It does not store a screenshot or an algorithm result. Every saved
+input set is recomputed by every current Edges algorithm: the parent table
+places the resulting live previews and metrics side by side, while the table
+below an individual experiment shows the same saved sets through only that
+experiment's function. Preview canvases contain only the Torus forms, endpoint
+Spheres and Edge; formula links, dimensions, labels and controls are excluded.
+Because previews are data-driven rather than PNG files, an algorithm change is
+visible for every saved example after the page reloads. Saved example JSON is
+served by the playground-local `/api/edge-examples` endpoint.
+
+Each formula has a `?` disclosure that states whether it is a MetaFor experiment
+or an external physical model, links the physical sources, and explains what
+the formula calculates.
+
+The shared scene contains two Torus forms with one
 Sphere at each center. Both Torus forms use the browser-local `Наш default`
 fixed in `Analysis → Torus`; Edges exposes no separate Torus geometry control.
 Each Sphere is moved directly with the left mouse button in the Torus plane;
@@ -87,6 +113,15 @@ short Russian explanation of the variable. Left and right Torus instances
 also have independent scale factors in the scene; their body, hole, Sphere
 limit, spacing limit and Edge collision calculation change together while
 the base proportions still come from the saved Analysis Torus defaults.
+The source/sink route uses a constant stream function `Ψ` to generate its
+points directly, without a per-point differential-equation integrator. Pole
+weights are mapped to the square roots of the scaled Torus outer radii so
+unequal forms produce unequal field shoulders without letting the larger form
+dominate the whole family. The lowest safe analytic contour is selected. At an
+extreme dragged-Sphere configuration where that contour family cannot clear a
+Torus, one explicit vertical safety factor `λz` is applied and disclosed in
+the formula and readout; it is `1` for the unmodified physical line.
+
 Sphere movement is bounded only by its own radius, so its surface may touch
 the inner edge of the Torus hole. Edge clearance applies to the free curve
 after its Sphere endpoint and does not shrink the Sphere movement area.

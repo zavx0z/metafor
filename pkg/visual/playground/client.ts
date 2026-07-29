@@ -27,7 +27,11 @@ import {
   type FormSkinLab,
   type FormSkinLabForm,
 } from "./FormSkinLab.ts"
-import {createEdgesLab, type EdgesLab} from "./EdgesLab.ts"
+import {
+  createEdgesLab,
+  type EdgeRouteVariant,
+  type EdgesLab,
+} from "./EdgesLab.ts"
 import {
   createTorusAnalysisLab,
   type TorusAnalysisLab,
@@ -39,6 +43,7 @@ const snapshot = snapshotJson as BulkObserverSnapshot
 const app = document.querySelector("main")
 const canvas = document.getElementById("visual-canvas") as HTMLCanvasElement | null
 const navigation = document.getElementById("navigation")
+const sectionTabs = document.getElementById("section-tabs")
 const controlsAside = document.getElementById("controls")
 const visualTitle = document.getElementById("title")
 const visualControls = document.getElementById("visual-controls")
@@ -75,6 +80,7 @@ if (
   !app ||
   !canvas ||
   !navigation ||
+  !sectionTabs ||
   !controlsAside ||
   !visualTitle ||
   !visualControls ||
@@ -107,6 +113,78 @@ if (
   !edgesStage ||
   !torusAnalysisStage
 ) throw new Error("Visual playground shell is incomplete")
+
+type SectionTab = Readonly<{
+  href: string
+  label: string
+}>
+
+type NestedPageGroup = Readonly<{
+  parent: string
+  tabs: readonly SectionTab[]
+}>
+
+const nestedPageGroups: Readonly<Record<string, NestedPageGroup>> = {
+  "analysis-torus": {
+    parent: "Torus",
+    tabs: [{href: "#/analysis-torus", label: "Геометрия"}],
+  },
+  edges: {
+    parent: "Edges",
+    tabs: [
+      {href: "#/edges", label: "Все примеры"},
+      {href: "#/edges/composite", label: "Составная экспериментальная"},
+      {href: "#/edges/source-sink", label: "Источник → сток"},
+    ],
+  },
+  "edges/composite": {
+    parent: "Edges",
+    tabs: [
+      {href: "#/edges", label: "Все примеры"},
+      {href: "#/edges/composite", label: "Составная экспериментальная"},
+      {href: "#/edges/source-sink", label: "Источник → сток"},
+    ],
+  },
+  "edges/source-sink": {
+    parent: "Edges",
+    tabs: [
+      {href: "#/edges", label: "Все примеры"},
+      {href: "#/edges/composite", label: "Составная экспериментальная"},
+      {href: "#/edges/source-sink", label: "Источник → сток"},
+    ],
+  },
+  "state-graph": {
+    parent: "State Graph",
+    tabs: [{href: "#/state-graph", label: "Ветки"}],
+  },
+}
+
+const showSectionTabs = (slug: string): void => {
+  const group = nestedPageGroups[slug]
+  if (!group) throw new Error(`Unknown nested page parent: ${slug}`)
+  const label = document.createElement("strong")
+  label.textContent = group.parent
+  sectionTabs.replaceChildren(
+    label,
+    ...group.tabs.map((tab) => {
+      const link = document.createElement("a")
+      link.href = tab.href
+      link.textContent = tab.label
+      const active = tab.href === `#/${slug}`
+      link.classList.toggle("active", active)
+      if (active) link.setAttribute("aria-current", "page")
+      return link
+    }),
+  )
+  sectionTabs.hidden = false
+  app.classList.add("section-tabs-mode")
+}
+
+const hideSectionTabs = (): void => {
+  sectionTabs.hidden = true
+  sectionTabs.replaceChildren()
+  app.classList.remove("section-tabs-mode")
+}
 
 const projection = new BulkProjectionStore()
 projection.hydrate(structuredClone(snapshot.projection))
@@ -144,7 +222,12 @@ const size = (): {width: number; height: number} => {
   }
 }
 
-const initialComponent = visualComponentForSlug(readSlug())
+const initialSlug = readSlug()
+const initialComponent = visualComponentForSlug(
+  initialSlug === "edges" || initialSlug.startsWith("edges/")
+    ? "atom"
+    : initialSlug,
+)
 const viewport = await createBulkViewport({
   canvas,
   ...size(),
@@ -483,6 +566,7 @@ const applyStateGraphPage = (): void => {
   hideEdgesLab()
   hideTorusAnalysisLab()
   viewport.setAnimationEnabled(false)
+  showSectionTabs("state-graph")
   void renderStateGraph()
   for (const link of navigation.querySelectorAll("a")) {
     link.classList.toggle("active", link.dataset.slug === "state-graph")
@@ -511,6 +595,7 @@ const applyFormSkinPage = (form: FormSkinLabForm): void => {
   hideEdgesLab()
   hideTorusAnalysisLab()
   viewport.setAnimationEnabled(false)
+  hideSectionTabs()
   for (const link of navigation.querySelectorAll("a")) {
     link.classList.toggle("active", link.dataset.slug === slug)
   }
@@ -520,7 +605,13 @@ const applyFormSkinPage = (form: FormSkinLabForm): void => {
   })
 }
 
-const applyEdgesPage = (): void => {
+const edgeVariantForSlug = (slug: string): EdgeRouteVariant | null => {
+  if (slug === "edges/composite") return "composite"
+  if (slug === "edges/source-sink") return "source-sink"
+  return null
+}
+
+const applyEdgesPage = (variant: EdgeRouteVariant | null): void => {
   mainAnnotation.hide()
   const slug = readSlug()
   stateGraphRenderVersion += 1
@@ -542,12 +633,17 @@ const applyEdgesPage = (): void => {
   hideFormSkinLab()
   hideTorusAnalysisLab()
   viewport.setAnimationEnabled(false)
+  showSectionTabs(slug)
   for (const link of navigation.querySelectorAll("a")) {
-    link.classList.toggle("active", link.dataset.slug === slug)
+    link.classList.toggle("active", link.dataset.slug === "edges")
   }
   void edgesLab().then((lab) => {
-    if (readSlug() === slug) lab.show()
-    else lab.hide()
+    if (readSlug() !== slug) {
+      lab.hide()
+      return
+    }
+    if (variant === null) lab.showOverview()
+    else lab.show(variant)
   })
 }
 
@@ -573,6 +669,7 @@ const applyTorusAnalysisPage = (): void => {
   hideFormSkinLab()
   hideEdgesLab()
   viewport.setAnimationEnabled(false)
+  showSectionTabs(slug)
   for (const link of navigation.querySelectorAll("a")) {
     link.classList.toggle("active", link.dataset.slug === slug)
   }
@@ -595,7 +692,12 @@ const applyStory = (): void => {
     return
   }
   if (slug === "edges") {
-    applyEdgesPage()
+    applyEdgesPage(null)
+    return
+  }
+  const edgeVariant = edgeVariantForSlug(slug)
+  if (edgeVariant) {
+    applyEdgesPage(edgeVariant)
     return
   }
   if (slug === "analysis-torus") {
@@ -627,6 +729,7 @@ const applyStory = (): void => {
   hideFormSkinLab()
   hideEdgesLab()
   hideTorusAnalysisLab()
+  hideSectionTabs()
   const component = visualComponentForSlug(readSlug())
   const fullManifest = buildBulkManifestation(
     projection.view(),

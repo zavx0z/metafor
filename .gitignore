@@ -22,5 +22,6 @@ old
 task/*.png
 **/.metafor/**/*
 pkg/visual/playground/.annotations/
+pkg/visual/playground/.edge-examples/
 /mass/
 /cluster/

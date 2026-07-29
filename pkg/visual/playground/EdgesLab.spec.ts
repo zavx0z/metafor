@@ -3,6 +3,7 @@ import {
   EDGE_TORUS_GAP_MM,
   ELECTROMAGNETIC_CONTROL_HEIGHT_RATIO,
   buildEdgeConstraintModel,
+  buildSourceSinkFieldModel,
   constrainSphereOffset,
   edgeClearanceTransitionDistance,
   fieldShapeControlHeights,
@@ -38,6 +39,14 @@ describe("Edges Lab constraint geometry", () => {
     expect(page).toContain("Высота маршрута")
     expect(page).not.toContain("Азимут слева")
     expect(page).toContain("Формула расчёта Edge")
+    expect(page).toContain("Составная экспериментальная формула MetaFor")
+    expect(page).toContain("Силовая линия «источник → сток»")
+    expect(page).toContain("Описание формулы источник — сток")
+    expect(page).toContain("MIT · complex potential")
+    expect(page).toContain('id="edges-add-example"')
+    expect(page).toContain("Добавить в примеры")
+    expect(page).toContain('id="edges-examples-body"')
+    expect(page).toContain('id="edges-example')
     expect(page).toContain("cᵣₑq(P)")
     expect(page).not.toContain("Белая расширенная оболочка")
     for (const variable of [
@@ -74,6 +83,10 @@ describe("Edges Lab constraint geometry", () => {
     expect(labSource).toContain('addEventListener("pointerenter", activate)')
     expect(labSource).toContain("registerFormulaMaterial")
     expect(labSource).toContain("thickPolylineGeometry")
+    expect(labSource).toContain("drawEdgeExamplePreview")
+    expect(labSource).toContain("edgeModelForVariant(example.input, variant)")
+    expect(labSource).toContain('fetch("/api/edge-examples"')
+    expect(labSource).not.toContain("examplePng")
   })
 
   test("clamps direct Sphere movement to the circular Torus hole", () => {
@@ -384,5 +397,96 @@ describe("Edges Lab constraint geometry", () => {
     expect(model.controlHeight).toBe(model.shapeControlHeight)
     expect(model.maximumHeight).toBeCloseTo(24.12)
     expect(model.minimumSafetyMargin).toBeGreaterThanOrEqual(-1e-6)
+  })
+
+  test("builds an exact source-to-sink field circle for equal poles", () => {
+    const model = buildSourceSinkFieldModel({
+      centerDistance: 102,
+      clearance: 3,
+      extraLift: 0,
+      leftSphereX: 0,
+      leftSphereY: 0,
+      rightSphereX: 0,
+      rightSphereY: 0,
+      sphereRadius: 2.5,
+      torusRadius: 27.78,
+      torusTube: 22.22,
+    })
+    const sourceSink = model.sourceSink
+
+    expect(model.routeVariant).toBe("source-sink")
+    expect(sourceSink).toBeDefined()
+    expect(sourceSink!.leftStrength).toBeCloseTo(sourceSink!.rightStrength)
+    expect(sourceSink!.leftDepartureAngle).toBeCloseTo(Math.PI / 2)
+    expect(sourceSink!.rightDepartureAngle).toBeCloseTo(Math.PI / 2)
+    expect(sourceSink!.verticalSafetyScale).toBe(1)
+    expect(model.curve[0]).toEqual(model.leftCenter)
+    expect(model.curve.at(-1)).toEqual(model.rightCenter)
+    for (const point of model.curve.slice(1, -1)) {
+      expect(point.x ** 2 + point.z ** 2).toBeCloseTo(51 ** 2, 5)
+    }
+    expect(model.minimumSafetyMargin).toBeGreaterThanOrEqual(0)
+  })
+
+  test("bends the source-to-sink line toward the weaker unequal pole", () => {
+    const model = buildSourceSinkFieldModel({
+      centerDistance: 200,
+      clearance: 3,
+      extraLift: 0,
+      leftSphereX: 0,
+      leftSphereY: 0,
+      leftTorusScale: 0.5,
+      rightSphereX: 0,
+      rightSphereY: 0,
+      rightTorusScale: 2,
+      sphereRadius: 2.5,
+      torusRadius: 27.78,
+      torusTube: 22.22,
+    })
+    const apex = model.curve.reduce(
+      (highest, point) => point.z > highest.z ? point : highest,
+      model.curve[0]!,
+    )
+
+    expect(model.sourceSink!.rightStrength / model.sourceSink!.leftStrength)
+      .toBeCloseTo(2)
+    expect(apex.x).toBeLessThan(0)
+    expect(model.minimumSafetyMargin).toBeGreaterThanOrEqual(-1e-6)
+  })
+
+  test("keeps an extreme dragged Sphere field route finite and safe", () => {
+    const sphereRadius = 0.1
+    const leftScale = 1
+    const rightScale = 2
+    const leftLimit = sphereOffsetLimit(
+      {radius: 27.78 * leftScale, tube: 22.22 * leftScale},
+      sphereRadius,
+    )
+    const rightLimit = sphereOffsetLimit(
+      {radius: 27.78 * rightScale, tube: 22.22 * rightScale},
+      sphereRadius,
+    )
+    const model = buildSourceSinkFieldModel({
+      centerDistance: 200,
+      clearance: 3,
+      extraLift: 0,
+      leftSphereX: 0,
+      leftSphereY: leftLimit,
+      leftTorusScale: leftScale,
+      rightSphereX: 0,
+      rightSphereY: -rightLimit,
+      rightTorusScale: rightScale,
+      sphereRadius,
+      torusRadius: 27.78,
+      torusTube: 22.22,
+    })
+
+    expect(model.sourceSink!.verticalSafetyScale).toBeGreaterThan(1)
+    expect(model.minimumSafetyMargin).toBeGreaterThanOrEqual(-1e-6)
+    expect(model.curve.every((point) =>
+      Number.isFinite(point.x) &&
+      Number.isFinite(point.y) &&
+      Number.isFinite(point.z)
+    )).toBe(true)
   })
 })
