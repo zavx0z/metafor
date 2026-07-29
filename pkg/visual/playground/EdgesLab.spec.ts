@@ -5,6 +5,7 @@ import {
   buildEdgeConstraintModel,
   constrainSphereOffset,
   edgeClearanceTransitionDistance,
+  fieldShapeControlHeights,
   minimumEdgeTorusCenterDistance,
   requiredEdgeClearance,
   sphereOffsetLimit,
@@ -245,6 +246,45 @@ describe("Edges Lab constraint geometry", () => {
     )
     expect(model.controlHeight).toBe(model.shapeControlHeight)
     expect(model.maximumHeight).toBeCloseTo(100)
+  })
+
+  test("gives unequal Torus forms unequal field-line shoulders", () => {
+    const span = 200
+    const leftScale = 0.5
+    const rightScale = 2
+    const torus = {radius: 27.78, tube: 22.22}
+    const shape = fieldShapeControlHeights(
+      span,
+      (torus.radius + torus.tube) * leftScale,
+      (torus.radius + torus.tube) * rightScale,
+    )
+    const model = buildEdgeConstraintModel({
+      centerDistance: span,
+      clearance: 0,
+      extraLift: 0,
+      leftSphereX: 0,
+      leftSphereY: 0,
+      leftTorusScale: leftScale,
+      rightSphereX: 0,
+      rightSphereY: 0,
+      rightTorusScale: rightScale,
+      sphereRadius: 0,
+      torusRadius: torus.radius,
+      torusTube: torus.tube,
+    })
+    const apexIndex = model.curve.findIndex(
+      (point) => point.z === model.maximumHeight,
+    )
+
+    expect(shape.right / shape.left).toBeCloseTo(2)
+    expect(model.rightControlHeight / model.leftControlHeight).toBeCloseTo(2)
+    expect(
+      model.rightControlHeight ** 2 / model.leftControlHeight ** 2,
+    ).toBeCloseTo(
+      rightScale / leftScale,
+    )
+    expect(apexIndex / (model.curve.length - 1)).toBeGreaterThan(0.5)
+    expect(model.minimumSafetyMargin).toBeGreaterThanOrEqual(-1e-6)
   })
 
   test("derives control height from collision clearance and optional lift", () => {

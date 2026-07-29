@@ -1612,13 +1612,17 @@
               + t³ <span id="edges-formula-sr" class="edges-formula-variable">Sᵣ</span>
             </div>
             <div class="edges-formula-line">
-              Hsafe = min { h ≥ 0 | <span id="edges-formula-dt" class="edges-formula-variable">dₜ</span>(Pₕ(t), Tₗ∪Tᵣ) ≥
-              cᵣₑq(Pₕ(t)) },
+              λsafe = min { λ ≥ 0 | <span id="edges-formula-dt" class="edges-formula-variable">dₜ</span>(Pλ(t), Tₗ∪Tᵣ) ≥
+              cᵣₑq(Pλ(t)) },
               <span id="edges-formula-span" class="edges-formula-variable">ℓ</span> = ‖Sᵣ−Sₗ‖
             </div>
             <div class="edges-formula-line">
-              Cᵢ = Sᵢ + (0,0,<span id="edges-formula-h" class="edges-formula-variable">H</span>),
-              H = max(Hsafe, 2ℓ/3) +
+              aᵢ = κᵢ(R₀+r₀),
+              Hshape,ᵢ = (2ℓ/3)·2√aᵢ/(√aₗ+√aᵣ)
+            </div>
+            <div class="edges-formula-line">
+              Cᵢ = Sᵢ + (0,0,<span id="edges-formula-h" class="edges-formula-variable">Hᵢ</span>),
+              Hᵢ = max(1,λsafe)Hshape,ᵢ +
               <span id="edges-formula-dh" class="edges-formula-variable">Δh</span>
             </div>
             <div class="edges-formula-line">

@@ -44,23 +44,45 @@ export type EdgeConstraintPoint = Readonly<{
 export type EdgeConstraintModel = Readonly<{
   approximateLength: number
   clearanceTransitionDistance: number
+  clearanceControlScale: number
   clearanceControlHeight: number
   controlHeight: number
   curve: readonly EdgeConstraintPoint[]
   leftCenter: EdgeConstraintPoint
   leftControl: EdgeConstraintPoint
+  leftControlHeight: number
+  leftShapeControlHeight: number
   leftTorusCenter: EdgeConstraintPoint
   maximumHeight: number
   minimumSafetyMargin: number
   minimumTorusClearance: number
   rightCenter: EdgeConstraintPoint
   rightControl: EdgeConstraintPoint
+  rightControlHeight: number
+  rightShapeControlHeight: number
   rightTorusCenter: EdgeConstraintPoint
   shapeControlHeight: number
 }>
 
 export const EDGE_TORUS_GAP_MM = 2
 export const ELECTROMAGNETIC_CONTROL_HEIGHT_RATIO = 2 / 3
+
+export const fieldShapeControlHeights = (
+  span: number,
+  leftOuterRadius: number,
+  rightOuterRadius: number,
+): Readonly<{left: number; right: number}> => {
+  const baseHeight =
+    Math.max(0, span) * ELECTROMAGNETIC_CONTROL_HEIGHT_RATIO
+  const leftWeight = Math.sqrt(Math.max(Number.EPSILON, leftOuterRadius))
+  const rightWeight = Math.sqrt(Math.max(Number.EPSILON, rightOuterRadius))
+  const weightMean = (leftWeight + rightWeight) / 2
+
+  return {
+    left: baseHeight * leftWeight / weightMean,
+    right: baseHeight * rightWeight / weightMean,
+  }
+}
 
 const FORMULA_LINK_COLORS: Readonly<Record<string, string>> = {
   p: "#ff8a3d",
@@ -112,8 +134,8 @@ const FORMULA_HELP: Readonly<
     text: "Тянет конец кривой вверх и задаёт плавное направление входа Edge в правую Sphere.",
   },
   h: {
-    title: "H · высота control-точек",
-    text: "Минимальная высота, при которой Edge не пересекает Torus и выдерживает плавно возрастающий зазор после выхода из обеих Sphere.",
+    title: "Hᵢ · локальная высота плеча",
+    text: "Левое и правое плечи рассчитываются отдельно. Их кривизна следует размеру своего Torus: у большой формы плечо длиннее и плавнее, у маленькой — короче и круче.",
   },
   dt: {
     title: "dₜ · расстояние до Torus",
@@ -161,7 +183,7 @@ const FORMULA_HELP: Readonly<
   },
   span: {
     title: "ℓ · пролёт между Sphere",
-    text: "Прямое расстояние между центрами Sphere. Базовая высота control-точек равна двум третям пролёта, поэтому вершина дуги остаётся на половине пролёта.",
+    text: "Прямое расстояние между центрами Sphere. Он задаёт общий масштаб дуги, после чего этот масштаб распределяется между левым и правым плечом по размерам форм.",
   },
 }
 
@@ -309,9 +331,20 @@ export const buildEdgeConstraintModel = (
     sphereRadius,
     clearance,
   )
-  const minimumSafetyMarginAtHeight = (height: number): number => {
-    const leftControl = {...leftCenter, z: height}
-    const rightControl = {...rightCenter, z: height}
+  const shapeControlHeights = fieldShapeControlHeights(
+    distance(leftCenter, rightCenter),
+    leftRadius + leftTube,
+    rightRadius + rightTube,
+  )
+  const minimumSafetyMarginAtScale = (scale: number): number => {
+    const leftControl = {
+      ...leftCenter,
+      z: shapeControlHeights.left * scale,
+    }
+    const rightControl = {
+      ...rightCenter,
+      z: shapeControlHeights.right * scale,
+    }
     let minimum = Number.POSITIVE_INFINITY
     for (let index = 0; index <= safeSegments; index += 1) {
       const point = cubicPoint(
@@ -347,37 +380,43 @@ export const buildEdgeConstraintModel = (
     }
     return minimum
   }
-  const safeAtHeight = (height: number): boolean =>
-    minimumSafetyMarginAtHeight(height) >= 0
-  let lowerHeight = 0
-  let upperHeight = Math.max(
-    1,
-    Math.max(leftTube, rightTube) + clearance,
-    input.centerDistance / 4,
-  )
+  const safeAtScale = (scale: number): boolean =>
+    minimumSafetyMarginAtScale(scale) >= 0
+  let lowerScale = 0
+  let upperScale = 1
   for (
     let iteration = 0;
-    iteration < 32 && !safeAtHeight(upperHeight);
+    iteration < 32 && !safeAtScale(upperScale);
     iteration += 1
   ) {
-    upperHeight *= 2
+    upperScale *= 2
   }
   for (let iteration = 0; iteration < 48; iteration += 1) {
-    const candidate = (lowerHeight + upperHeight) / 2
-    if (safeAtHeight(candidate)) {
-      upperHeight = candidate
+    const candidate = (lowerScale + upperScale) / 2
+    if (safeAtScale(candidate)) {
+      upperScale = candidate
     } else {
-      lowerHeight = candidate
+      lowerScale = candidate
     }
   }
-  const clearanceControlHeight = upperHeight
-  const shapeControlHeight =
-    distance(leftCenter, rightCenter) * ELECTROMAGNETIC_CONTROL_HEIGHT_RATIO
-  const controlHeight =
-    Math.max(clearanceControlHeight, shapeControlHeight) +
-    Math.max(0, input.extraLift)
-  const leftControl = {...leftCenter, z: controlHeight}
-  const rightControl = {...rightCenter, z: controlHeight}
+  const clearanceControlScale = upperScale
+  const finalControlScale = Math.max(1, clearanceControlScale)
+  const extraLift = Math.max(0, input.extraLift)
+  const leftShapeControlHeight = shapeControlHeights.left
+  const rightShapeControlHeight = shapeControlHeights.right
+  const leftControlHeight =
+    leftShapeControlHeight * finalControlScale + extraLift
+  const rightControlHeight =
+    rightShapeControlHeight * finalControlScale + extraLift
+  const shapeControlHeight = Math.max(
+    leftShapeControlHeight,
+    rightShapeControlHeight,
+  )
+  const clearanceControlHeight =
+    shapeControlHeight * clearanceControlScale
+  const controlHeight = Math.max(leftControlHeight, rightControlHeight)
+  const leftControl = {...leftCenter, z: leftControlHeight}
+  const rightControl = {...rightCenter, z: rightControlHeight}
   const curve = Array.from(
     {length: safeSegments + 1},
     (_, index) => cubicPoint(
@@ -429,17 +468,22 @@ export const buildEdgeConstraintModel = (
   return {
     approximateLength,
     clearanceTransitionDistance,
+    clearanceControlScale,
     clearanceControlHeight,
     controlHeight,
     curve,
     leftCenter,
     leftControl,
+    leftControlHeight,
+    leftShapeControlHeight,
     leftTorusCenter,
-    maximumHeight: controlHeight * 0.75,
+    maximumHeight: Math.max(...curve.map((point) => point.z)),
     minimumSafetyMargin,
     minimumTorusClearance,
     rightCenter,
     rightControl,
+    rightControlHeight,
+    rightShapeControlHeight,
     rightTorusCenter,
     shapeControlHeight,
   }
@@ -770,9 +814,11 @@ export const createEdgesLab = async (): Promise<EdgesLab> => {
       `qfull=${model.clearanceTransitionDistance.toFixed(2)} mm`,
       `Δh=${settings.extraLift.toFixed(2)} mm`,
       `ℓ=${distance(model.leftCenter, model.rightCenter).toFixed(2)} mm`,
-      `Hsafe=${model.clearanceControlHeight.toFixed(2)} mm`,
-      `Hshape=${model.shapeControlHeight.toFixed(2)} mm`,
-      `H=${model.controlHeight.toFixed(2)} mm`,
+      `λsafe=${model.clearanceControlScale.toFixed(3)}`,
+      `Hshape,ₗ=${model.leftShapeControlHeight.toFixed(2)} mm`,
+      `Hshape,ᵣ=${model.rightShapeControlHeight.toFixed(2)} mm`,
+      `Hₗ=${model.leftControlHeight.toFixed(2)} mm`,
+      `Hᵣ=${model.rightControlHeight.toFixed(2)} mm`,
       `Sₗ=(${formatPoint(model.leftCenter)})`,
       `Sᵣ=(${formatPoint(model.rightCenter)})`,
       `Cₗ=(${formatPoint(model.leftControl)})`,
@@ -784,9 +830,9 @@ export const createEdgesLab = async (): Promise<EdgesLab> => {
       ["Scale L", `${(settings.leftTorusScale ?? 1).toFixed(2)}×`],
       ["Scale R", `${(settings.rightTorusScale ?? 1).toFixed(2)}×`],
       ["Дополнительный подъём", `${settings.extraLift.toFixed(1)} mm`],
-      ["Высота control", `${model.controlHeight.toFixed(1)} mm`],
-      ["Высота зазора", `${model.clearanceControlHeight.toFixed(2)} mm`],
-      ["Высота формы", `${model.shapeControlHeight.toFixed(2)} mm`],
+      ["Плечо L", `${model.leftControlHeight.toFixed(1)} mm`],
+      ["Плечо R", `${model.rightControlHeight.toFixed(1)} mm`],
+      ["Масштаб безопасности", `${model.clearanceControlScale.toFixed(3)}×`],
       ["Безопасный зазор", `${settings.clearance.toFixed(1)} mm`],
       ["Переход зазора", `${model.clearanceTransitionDistance.toFixed(2)} mm`],
       ["Высота маршрута", `${model.maximumHeight.toFixed(2)} mm`],
@@ -1137,49 +1183,52 @@ export const createEdgesLab = async (): Promise<EdgesLab> => {
         [tubeRadiusEnd, clearanceEnd],
       ]), formulaHelperMaterial(["c"]))
 
-      const heightBottom = {
-        ...model.leftTorusCenter,
-        y: -torusOuterRadius * 1.3,
-      }
-      const heightTop = {
-        ...heightBottom,
-        z: model.controlHeight,
-      }
       const heightArrowSize = Math.max(0.8, torusOuterRadius * 0.08)
+      const heightDimension = (
+        center: EdgeConstraintPoint,
+        height: number,
+      ): readonly (readonly [EdgeConstraintPoint, EdgeConstraintPoint])[] => {
+        const bottom = {...center, y: -torusOuterRadius * 1.3}
+        const top = {...bottom, z: height}
+        return [
+          [bottom, top],
+          [
+            bottom,
+            {
+              ...bottom,
+              x: bottom.x + heightArrowSize,
+              z: bottom.z + heightArrowSize,
+            },
+          ],
+          [
+            bottom,
+            {
+              ...bottom,
+              x: bottom.x - heightArrowSize,
+              z: bottom.z + heightArrowSize,
+            },
+          ],
+          [
+            top,
+            {
+              ...top,
+              x: top.x + heightArrowSize,
+              z: top.z - heightArrowSize,
+            },
+          ],
+          [
+            top,
+            {
+              ...top,
+              x: top.x - heightArrowSize,
+              z: top.z - heightArrowSize,
+            },
+          ],
+        ]
+      }
       addLine(segmentGeometry([
-        [heightBottom, heightTop],
-        [
-          heightBottom,
-          {
-            ...heightBottom,
-            x: heightBottom.x + heightArrowSize,
-            z: heightBottom.z + heightArrowSize,
-          },
-        ],
-        [
-          heightBottom,
-          {
-            ...heightBottom,
-            x: heightBottom.x - heightArrowSize,
-            z: heightBottom.z + heightArrowSize,
-          },
-        ],
-        [
-          heightTop,
-          {
-            ...heightTop,
-            x: heightTop.x + heightArrowSize,
-            z: heightTop.z - heightArrowSize,
-          },
-        ],
-        [
-          heightTop,
-          {
-            ...heightTop,
-            x: heightTop.x - heightArrowSize,
-            z: heightTop.z - heightArrowSize,
-          },
-        ],
+        ...heightDimension(model.leftTorusCenter, model.leftControlHeight),
+        ...heightDimension(model.rightTorusCenter, model.rightControlHeight),
       ]), heightMaterial)
       addLine(
         polylineGeometry(
@@ -1387,9 +1436,10 @@ export const createEdgesLab = async (): Promise<EdgesLab> => {
       y: interactionModel.leftTorusCenter.y + leftOuterRadius * 0.9,
       z: torus.tube * leftScale + Number(elements.clearance.value) / 2,
     }
-    const routeAnchor = {
-      ...interactionModel.curve[Math.floor(interactionModel.curve.length / 2)]!,
-    }
+    const routeAnchor = interactionModel.curve.reduce(
+      (highest, point) => point.z > highest.z ? point : highest,
+      interactionModel.curve[0]!,
+    )
     placeSceneMeasure(elements.measureDistance, distanceAnchor, 0, 42)
     placeSceneMeasure(
       elements.measureLeftScale,
@@ -1475,7 +1525,7 @@ export const createEdgesLab = async (): Promise<EdgesLab> => {
       cr: interactionModel.rightControl,
       h: {
         ...interactionModel.leftCenter,
-        z: interactionModel.controlHeight / 2,
+        z: interactionModel.leftControlHeight / 2,
       },
       dt: closestCurvePoint,
       c: {

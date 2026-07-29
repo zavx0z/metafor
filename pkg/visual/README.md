@@ -59,11 +59,14 @@ is zero inside either endpoint Sphere, then follows the circular cross-section
 of the thickest scaled Torus tube until it reaches the full configured
 clearance. This gives the profile a zero starting slope and keeps a tiny Sphere
 tangent to the Torus hole solvable without an anomalously tall control point.
-The final control height is the greater of the clearance-derived
-height and `2/3` of the Sphere-center span; because a symmetric cubic reaches
-`3/4` of its control height, its apex stays at half the span and the field arc
-does not flatten as distance grows. An optional extra lift only increases the
-derived height. Control
+The two control heights are independent. Their common base is `2/3` of the
+Sphere-center span, distributed by the square roots of the scaled Torus outer
+radii. Since endpoint curvature is proportional to the square of a cubic
+control-handle length, this makes local Edge curvature proportional to the
+corresponding Torus size: a large form gets a longer, softer shoulder and a
+small form gets a shorter, tighter one. A shared collision scale can only
+increase both derived handles while preserving their ratio; an optional extra
+lift then increases both. Control
 vectors, dimension lines, allowable Sphere-offset circles and live labels
 expose every input and derived value directly in the scene. A full expanded
 Torus is intentionally not rendered because it is not a hard obstacle for an
