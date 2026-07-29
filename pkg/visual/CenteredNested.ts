@@ -390,7 +390,7 @@ const placeComponentFields = (
     const maximumRadius = Math.max(0, ...radii)
     const firstOrbitRadius =
       occupiedOuterBoundary + orbitGap + maximumRadius
-    const orbitStep = orbitGap + maximumRadius * 2
+    const orbitStep = maximumRadius * 2
     const orbitRadii: number[] = []
     const orbitCapacities: number[] = []
     let totalCapacity = 0

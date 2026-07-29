@@ -245,8 +245,8 @@ describe("Visual playground Monad fixture", () => {
       count: orbitFields.length,
       orbitIndex,
     }))).toEqual([
-      {count: 7, orbitIndex: 0},
-      {count: 13, orbitIndex: 1},
+      {count: 8, orbitIndex: 0},
+      {count: 12, orbitIndex: 1},
     ])
     const sharedOrbitRadii = sharedOrbits.map(([, orbitFields]) =>
       Math.hypot(
@@ -256,7 +256,7 @@ describe("Visual playground Monad fixture", () => {
       )
     )
     expect(sharedOrbitRadii[0]).toBeCloseTo(44)
-    expect(sharedOrbitRadii[1]).toBeCloseTo(88)
+    expect(sharedOrbitRadii[1]).toBeCloseTo(66)
     const rootPrivateOuterExtent = Math.max(...fields
       .filter((field) => field.bandKind === "root-private")
       .map((field) =>
@@ -265,7 +265,7 @@ describe("Visual playground Monad fixture", () => {
     expect(sharedOrbitRadii[0]! - 11 - rootPrivateOuterExtent)
       .toBeCloseTo(22)
     expect(sharedOrbitRadii[1]! - 11 - (sharedOrbitRadii[0]! + 11))
-      .toBeCloseTo(22)
+      .toBeCloseTo(0)
 
     const rootNodeCount = owners[0]!.layouts.reduce(
       (count, layout) => count + layout.nodes.length,

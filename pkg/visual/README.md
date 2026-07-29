@@ -98,13 +98,14 @@ same law repeats by Matter depth. Every orbit starts one complete Field
 diameter of its level after the preceding occupied boundary. An orbit keeps
 that minimum radius instead of expanding to fit more Fields. When its
 circumference is insufficient, the layout adds more concentric orbits with the
-same surface gap and distributes markers across them in proportion to their
-geometric capacities. All Field occurrences backed by one shared materialized
-`Value` render as one marker instead of repeating at every child owner. That
-marker belongs to the highest common ancestor of all occurrence owners and
-uses the Field size of that ancestor's level. The represented declaration
-identities remain listed on the placement even though their geometry is
-collapsed.
+same band but no repeated surface gap: adjacent orbit radii differ only by the
+sum of their marker radii. Markers are distributed across those orbits in
+proportion to their geometric capacities. All Field occurrences backed by one
+shared materialized `Value` render as one marker instead of repeating at every
+child owner. That marker belongs to the highest common ancestor of all
+occurrence owners and uses the Field size of that ancestor's level. The
+represented declaration identities remain listed on the placement even though
+their geometry is collapsed.
 
 This page uses the same code-owned Torus component and Hermite forward/return
 convention as the isolated State Graph lab. Atom/Matter Tori, nucleus Fields,
