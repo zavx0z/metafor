@@ -3,8 +3,10 @@ import {
   EDGE_TORUS_GAP_MM,
   ELECTROMAGNETIC_CONTROL_HEIGHT_RATIO,
   buildEdgeConstraintModel,
+  buildHermiteBeamModel,
   buildSourceSinkFieldModel,
   constrainSphereOffset,
+  defaultHermiteTangentLengths,
   edgeClearanceTransitionDistance,
   fieldShapeControlHeights,
   minimumEdgeTorusCenterDistance,
@@ -24,6 +26,10 @@ describe("Edges Lab constraint geometry", () => {
       "Дополнительный подъём",
       "Масштаб левого Torus",
       "Масштаб правого Torus",
+      "Направление выхода L",
+      "Направление входа R",
+      "Длина левого вектора",
+      "Длина правого вектора",
     ]
 
     for (const description of descriptions) {
@@ -42,6 +48,10 @@ describe("Edges Lab constraint geometry", () => {
     expect(page).toContain("Составная экспериментальная формула MetaFor")
     expect(page).toContain("Силовая линия «источник → сток»")
     expect(page).toContain("Описание формулы источник — сток")
+    expect(page).toContain("Кубическая Hermite-кривая")
+    expect(page).toContain("Описание формулы Hermite")
+    expect(page).toContain("UT Austin · Hermite curves")
+    expect(page).toContain("Euler–Bernoulli beam elements")
     expect(page).toContain("MIT · complex potential")
     expect(page).toContain('id="edges-add-example"')
     expect(page).toContain("Добавить в примеры")
@@ -488,5 +498,108 @@ describe("Edges Lab constraint geometry", () => {
       Number.isFinite(point.y) &&
       Number.isFinite(point.z)
     )).toBe(true)
+  })
+
+  test("builds the minimal Hermite curve from endpoint vectors", () => {
+    const model = buildHermiteBeamModel({
+      centerDistance: 120,
+      clearance: 3,
+      extraLift: 0,
+      leftDirectionDegrees: 60,
+      leftSphereX: 0,
+      leftSphereY: 0,
+      leftTangentLength: 90,
+      rightDirectionDegrees: 75,
+      rightSphereX: 0,
+      rightSphereY: 0,
+      rightTangentLength: 120,
+      sphereRadius: 2.5,
+      torusRadius: 27.78,
+      torusTube: 22.22,
+    })
+
+    expect(model.routeVariant).toBe("hermite")
+    expect(model.curve[0]).toEqual(model.leftCenter)
+    expect(model.curve.at(-1)).toEqual(model.rightCenter)
+    expect(model.hermite?.leftDirectionDegrees).toBe(60)
+    expect(model.hermite?.rightDirectionDegrees).toBe(75)
+    expect(model.leftControl.x).toBeCloseTo(-45)
+    expect(model.leftControl.z).toBeCloseTo(
+      90 * Math.sin(Math.PI / 3) / 3,
+    )
+    expect(model.rightControl.x).toBeCloseTo(
+      60 - 120 * Math.cos(75 * Math.PI / 180) / 3,
+    )
+    expect(model.rightControl.z).toBeCloseTo(
+      120 * Math.sin(75 * Math.PI / 180) / 3,
+    )
+    expect(model.curve.every((point) =>
+      Number.isFinite(point.x) &&
+      Number.isFinite(point.y) &&
+      Number.isFinite(point.z)
+    )).toBe(true)
+  })
+
+  test("inherits unequal default shoulders from unequal Torus forms", () => {
+    const input = {
+      centerDistance: 127,
+      clearance: 0,
+      extraLift: 0,
+      leftSphereX: 0,
+      leftSphereY: 0,
+      leftTorusScale: 0.5,
+      rightSphereX: 0,
+      rightSphereY: 0,
+      rightTorusScale: 2,
+      sphereRadius: 0,
+      torusRadius: 27.78,
+      torusTube: 22.22,
+    }
+    const composite = buildEdgeConstraintModel(input)
+    const hermite = buildHermiteBeamModel(input)
+    const defaults = defaultHermiteTangentLengths(
+      input.centerDistance,
+      (input.torusRadius + input.torusTube) * input.leftTorusScale,
+      (input.torusRadius + input.torusTube) * input.rightTorusScale,
+    )
+
+    expect(defaults.right / defaults.left).toBeCloseTo(2)
+    expect(hermite.hermite?.leftTangentLength).toBeCloseTo(defaults.left)
+    expect(hermite.hermite?.rightTangentLength).toBeCloseTo(defaults.right)
+    expect(hermite.leftControlHeight).toBeCloseTo(
+      composite.leftShapeControlHeight,
+    )
+    expect(hermite.rightControlHeight).toBeCloseTo(
+      composite.rightShapeControlHeight,
+    )
+    expect(hermite.curve).toHaveLength(composite.curve.length)
+    for (const [index, point] of hermite.curve.entries()) {
+      expect(point.x).toBeCloseTo(composite.curve[index]!.x)
+      expect(point.y).toBeCloseTo(composite.curve[index]!.y)
+      expect(point.z).toBeCloseTo(composite.curve[index]!.z)
+    }
+  })
+
+  test("measures an unsafe Hermite curve without changing it", () => {
+    const model = buildHermiteBeamModel({
+      centerDistance: 102,
+      clearance: 3,
+      extraLift: 80,
+      leftDirectionDegrees: 90,
+      leftSphereX: 0,
+      leftSphereY: 0,
+      leftTangentLength: 10,
+      rightDirectionDegrees: 90,
+      rightSphereX: 0,
+      rightSphereY: 0,
+      rightTangentLength: 10,
+      sphereRadius: 2.5,
+      torusRadius: 27.78,
+      torusTube: 22.22,
+    })
+
+    expect(model.clearanceControlScale).toBe(1)
+    expect(model.maximumHeight).toBeCloseTo(2.5)
+    expect(model.minimumSafetyMargin).toBeLessThan(0)
   })
 })

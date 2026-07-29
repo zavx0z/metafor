@@ -82,7 +82,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
   }
   finalColor *= perObject.luminanceBoost * shimmer;
 
-  // A sparse, camera-facing energy-bubble rim for enclosing line shells. The
+  // A sparse, camera-facing energy-bubble rim for enclosing line surfaces. The
   // low body alpha keeps the form perceptible without filling its interior
   // with a dense lattice. This is spatial and only runs in requested frames.
   var silhouette = 1.0;

@@ -51,12 +51,12 @@ describe("Torus Analysis Lab", () => {
 
   test("starts MetaFor defaults from the approved current scene", () => {
     expect(METAFOR_TORUS_DEFAULTS).toEqual({
-      radius: 1.1,
-      tube: 0.7,
+      radius: 27.78,
+      tube: 22.22,
       radialSegments: 22,
-      tubularSegments: 45,
+      tubularSegments: 44,
       arc: 6.28,
-      thetaStart: -0.003185307179586,
+      thetaStart: -0.003,
       thetaLength: 6.28,
     })
   })
@@ -105,10 +105,10 @@ describe("Torus Analysis Lab", () => {
     const input = {...METAFOR_TORUS_DEFAULTS}
     const changed = applyMetaForTorusParameter(input, "tubeDiameter", 2)
 
-    expect(changed.radius).toBeCloseTo(1.4)
+    expect(changed.radius).toBeCloseTo(6.56)
     expect(changed.tube).toBeCloseTo(1)
     const derived = deriveMetaForTorusParameters(changed)
-    expect(derived.innerDiameter).toBeCloseTo(0.8)
+    expect(derived.innerDiameter).toBeCloseTo(11.12)
     expect(derived.tubeDiameter).toBeCloseTo(2)
   })
 
@@ -117,12 +117,12 @@ describe("Torus Analysis Lab", () => {
     const outerDiameter = (input.radius + input.tube) * 2
     const changed = applyMetaForTorusParameter(input, "innerDiameter", 1.2)
 
-    expect(changed.radius).toBeCloseTo(1.2)
-    expect(changed.tube).toBeCloseTo(0.6)
+    expect(changed.radius).toBeCloseTo(25.3)
+    expect(changed.tube).toBeCloseTo(24.7)
     expect((changed.radius + changed.tube) * 2).toBeCloseTo(outerDiameter)
     const derived = deriveMetaForTorusParameters(changed)
     expect(derived.innerDiameter).toBeCloseTo(1.2)
-    expect(derived.tubeDiameter).toBeCloseTo(1.2)
+    expect(derived.tubeDiameter).toBeCloseTo(49.4)
   })
 
   test("exposes only the two agreed MetaFor diameter controls", async () => {
@@ -187,7 +187,7 @@ describe("Torus Analysis Lab", () => {
     expect((changed.radius + changed.tube) * 2)
       .toBeCloseTo(MAX_TORUS_WIDTH_MM)
     expect(deriveMetaForTorusParameters(changed).innerDiameter)
-      .toBeCloseTo(0.8)
+      .toBeCloseTo(11.12)
   })
 
   test("keeps direct Three.js size edits within 100 millimetres", () => {

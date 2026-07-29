@@ -1,6 +1,6 @@
 import {defineVisualComponent} from "./internal/component.ts"
 
-/** One complete self-similar Atom using the production renderer. */
+/** One complete Atom projected through the shared Torus visual form. */
 export const Atom = defineVisualComponent({
   entity: "Atom",
   slug: "atom",

@@ -21,18 +21,22 @@ const draft = {
     centerDistance: 152,
     clearance: 3,
     extraLift: 0,
+    leftDirectionDegrees: 72,
     leftSphereX: 1.2,
     leftSphereY: -0.4,
+    leftTangentLength: 180,
     leftTorusScale: 0.75,
+    rightDirectionDegrees: 84,
     rightSphereX: -2.1,
     rightSphereY: 0.8,
+    rightTangentLength: 210,
     rightTorusScale: 1.5,
     sphereRadius: 2.5,
     torusRadius: 27.78,
     torusTube: 22.22,
   },
   schema: EDGE_EXAMPLE_SCHEMA,
-  sourceVariant: "source-sink",
+  sourceVariant: "hermite",
 } as const
 
 describe("Edges saved-example REST API", () => {

@@ -48,8 +48,8 @@ export interface LevelGeometry {
   outerRadiusMm: number
   innerDiameterMm: number
   innerRadiusMm: number
-  shellRadiusMm: number
-  shellTubeMm: number
+  torusRadiusMm: number
+  torusTubeMm: number
   thicknessMm: number
   workingThicknessMm: number
   paddingMm: number

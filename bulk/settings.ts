@@ -15,7 +15,7 @@ export const DEFAULT_BULK_SCENE_SRC = ""
 
 /** Единственный программный источник визуальных законов Bulk. */
 export const DEFAULT_BULK_SETTINGS: BulkSettingsConfig = {
-  layout: { ...DEFAULT_BULK_LAYOUT_SETTINGS },
+  layout: DEFAULT_BULK_LAYOUT_SETTINGS,
   render: {
     animationEnabled: false,
     detailDensityFactor: 2,

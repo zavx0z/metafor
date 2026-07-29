@@ -24,6 +24,7 @@ struct PerObjectUniforms {
     baseColor: vec4<f32>,
     rimColor: vec4<f32>,
     filmParams: vec4<f32>,
+    highlightParams: vec4<f32>,
 };
 @binding(0) @group(1) var<uniform> perObject: PerObjectUniforms;
 
@@ -63,6 +64,7 @@ fn fs_main(
     let rimStrength = perObject.filmParams.y;
     let iridescence = perObject.filmParams.z;
     let filmThickness = perObject.filmParams.w;
+    let highlightSize = clamp(perObject.highlightParams.x, 0.0, 1.0);
 
     // Bounded interference waves modulate the material colors. The rim color
     // remains the source of every highlight instead of a fixed spectrum.
@@ -106,9 +108,10 @@ fn fs_main(
     let fillHalf = normalize(fillLight + viewDirection);
     let keyFacing = max(dot(normal, keyHalf), 0.0);
     let fillFacing = max(dot(normal, fillHalf), 0.0);
-    let keyHighlight = pow(keyFacing, 58.0);
-    let keySheen = pow(keyFacing, 7.0);
-    let fillHighlight = pow(fillFacing, 24.0);
+    let keyHighlight = pow(keyFacing, mix(120.0, 12.0, highlightSize));
+    let keySheen = pow(keyFacing, mix(12.0, 3.0, highlightSize));
+    let fillHighlight = pow(fillFacing, mix(60.0, 7.0, highlightSize));
+    let highlightEnergy = mix(1.0, 0.72, highlightSize);
 
     // A wide reflection band keeps the membrane readable between the pin
     // highlights and the silhouette, like a large softbox on a soap bubble.
@@ -123,15 +126,16 @@ fn fs_main(
         membraneColor * (0.045 + fresnel * 0.24) +
         spectralRim * fresnel * rimStrength * 0.62 +
         glowColor * outerRim * 0.22 +
-        highlightTint * keyHighlight * 1.45 +
-        glowColor * keySheen * 0.24 +
-        mix(glowColor, highlightTint, 0.42) * fillHighlight * 0.36 +
+        highlightTint * keyHighlight * 1.2 * highlightEnergy +
+        glowColor * keySheen * 0.2 * highlightEnergy +
+        mix(glowColor, highlightTint, 0.42) *
+            fillHighlight * 0.32 * highlightEnergy +
         filmTint * reflectionBand * (0.18 + fresnel * 0.28);
     let alpha = clamp(
         opacity * (0.045 + fresnel * 0.955) +
-        keyHighlight * 0.48 +
-        keySheen * 0.045 +
-        fillHighlight * 0.08 +
+        keyHighlight * 0.4 +
+        keySheen * 0.035 +
+        fillHighlight * 0.065 +
         reflectionBand * 0.035,
         0.0,
         0.92

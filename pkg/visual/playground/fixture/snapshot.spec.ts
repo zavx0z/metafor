@@ -5,6 +5,7 @@ import {BulkProjectionStore} from "../../../../bulk/projection.ts"
 import {DEFAULT_BULK_SETTINGS} from "../../../../bulk/settings.ts"
 import {buildStateGraph} from "../../StateGraph.ts"
 import {buildStateGraphRootLayout} from "../../StateGraphLayout.ts"
+import {buildOutsideInVisualScene} from "../../OutsideIn.ts"
 import snapshotJson from "./monad-snapshot.json"
 
 describe("Visual playground Monad fixture", () => {
@@ -64,5 +65,34 @@ describe("Visual playground Monad fixture", () => {
     expect(firstCard.levels).toHaveLength(3)
     expect(firstCard.levels[0]?.nodeIds).toHaveLength(1)
     expect(firstCard.levels[1]?.nodeIds).toHaveLength(2)
+  })
+
+  test("composes State sleeves for the root and every nested Atom", () => {
+    const snapshot = snapshotJson as BulkObserverSnapshot
+    const projection = new BulkProjectionStore()
+    projection.hydrate(structuredClone(snapshot.projection))
+    const view = projection.view()
+    const manifest = buildBulkManifestation(
+      view,
+      snapshot.rootSrc,
+      DEFAULT_BULK_SETTINGS.layout,
+    )
+    const owners = view.atoms.map((atom) => {
+      const graph = buildStateGraph(view, atom.id)
+      return {
+        atomSrc: atom.wimp,
+        layouts: graph.states.map((state) =>
+          buildStateGraphRootLayout(graph, state.id)
+        ),
+      }
+    })
+    const scene = buildOutsideInVisualScene(manifest, owners)
+
+    expect(owners).toHaveLength(5)
+    expect(owners.map(({layouts}) => layouts.length)).toEqual([4, 7, 6, 3, 3])
+    expect(scene.context.tori).toHaveLength(5)
+    expect(scene.layout.nodes).toHaveLength(98)
+    expect(scene.layout.edges).toHaveLength(130)
+    expect(new Set(scene.layout.nodes.map((node) => node.stateId)).size).toBe(23)
   })
 })

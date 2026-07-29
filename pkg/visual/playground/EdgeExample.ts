@@ -36,7 +36,15 @@ const parseInput = (value: unknown): EdgeConstraintInput | null => {
   ]) {
     if (!isFiniteNumber(candidate[key])) return null
   }
-  for (const key of ["leftTorusScale", "rightTorusScale", "sphereRadius"]) {
+  for (const key of [
+    "leftDirectionDegrees",
+    "leftTangentLength",
+    "leftTorusScale",
+    "rightDirectionDegrees",
+    "rightTangentLength",
+    "rightTorusScale",
+    "sphereRadius",
+  ]) {
     if (candidate[key] !== undefined && !isFiniteNumber(candidate[key])) {
       return null
     }
@@ -45,6 +53,12 @@ const parseInput = (value: unknown): EdgeConstraintInput | null => {
     centerDistance: candidate.centerDistance as number,
     clearance: candidate.clearance as number,
     extraLift: candidate.extraLift as number,
+    ...(candidate.leftDirectionDegrees === undefined
+      ? {}
+      : {leftDirectionDegrees: candidate.leftDirectionDegrees as number}),
+    ...(candidate.leftTangentLength === undefined
+      ? {}
+      : {leftTangentLength: candidate.leftTangentLength as number}),
     leftSphereX: candidate.leftSphereX as number,
     leftSphereY: candidate.leftSphereY as number,
     ...(candidate.leftTorusScale === undefined
@@ -52,6 +66,12 @@ const parseInput = (value: unknown): EdgeConstraintInput | null => {
       : {leftTorusScale: candidate.leftTorusScale as number}),
     rightSphereX: candidate.rightSphereX as number,
     rightSphereY: candidate.rightSphereY as number,
+    ...(candidate.rightDirectionDegrees === undefined
+      ? {}
+      : {rightDirectionDegrees: candidate.rightDirectionDegrees as number}),
+    ...(candidate.rightTangentLength === undefined
+      ? {}
+      : {rightTangentLength: candidate.rightTangentLength as number}),
     ...(candidate.rightTorusScale === undefined
       ? {}
       : {rightTorusScale: candidate.rightTorusScale as number}),
@@ -73,6 +93,7 @@ export const parseEdgeExampleDraft = (
     candidate.schema !== EDGE_EXAMPLE_SCHEMA ||
     (
       candidate.sourceVariant !== "composite" &&
+      candidate.sourceVariant !== "hermite" &&
       candidate.sourceVariant !== "source-sink"
     ) ||
     typeof candidate.createdAt !== "string" ||

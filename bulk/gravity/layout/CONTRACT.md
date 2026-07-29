@@ -62,14 +62,14 @@ particles.
   и располагается рядом с якорем в той же внешней State-полосе. Повторные
   occurrences одного State не размножают причинную declaration. Declaration
   без разрешимого связанного State не получает произвольной позиции в ядре
-  или за оболочкой Atom.
+  или за внешней границей Atom.
 - Вся геометрия State-рукава остаётся в локальном frame owning Atom и целиком
   внутри его `r_outer`. State дочернего Atom не поднимается в frame родителя,
   не раскладывается вместе со State родителя и не получает отдельный
   межуровневый translation. Тот же закон без исключений действует для root и
   для каждого вложенного Atom.
 - Полный состав одного Atom проходит один рекурсивно переиспользуемый
-  Atom-local pipeline: structural stage строит shell, Fields и immediate
+  Atom-local pipeline: structural stage строит Torus, Fields и immediate
   Matter, causal stage того же owning Atom строит State-рукава, их причинные
   элементы, proxies и channels. Стадии применяются обходом materialized
   parent-child tree, а не отдельными глобальными циклами по particle kind.
@@ -106,11 +106,11 @@ particles.
   До такого structural consequence исходный Inference остаётся выбранным и
   проявляется обычным образом; удаление source без принятого нового root не
   является основанием выбрать другой root.
-- Torus всегда принадлежит реально присутствующему materialized Atom. После
-  accepted dissolve отсутствие Inference Inflaton/Atom в post-projection
-  удаляет и его torus; promoted Lada получает собственный root torus в
-  verified former-root frame. Отдельный ghost, stale либо decorative torus
-  бывшего Inference запрещён.
+- Torus всегда проявляет реально присутствующую materialized particle:
+  Atom/WIMP либо topology Fuzzy, MACHO или Axion. После accepted dissolve
+  отсутствие Inference Inflaton/Atom в post-projection удаляет и его Torus;
+  promoted Lada получает собственный root Torus в verified former-root frame.
+  Отдельный ghost, stale либо decorative Torus бывшего Inference запрещён.
 - Существующие State markers на торе Capsule показывают текущий State самым
   сильным читаемым material/glow; достижимые potential State markers остаются
   явно видимыми, но вторичными, а неактивные sleeves — приглушёнными. Эта
@@ -130,7 +130,7 @@ particles.
   внешняя wireframe geometry и MSAA resolve не скрывали их; pass использует
   saturating additive blend той же single-object marker geometry. Potential
   остаётся явно сильнее subdued inactive marker, а inactive — различимее фона.
-- Root и nested Atom используют одну visual-функцию shell и Fields. Глубина
+- Root и nested Atom используют одну visual-функцию Torus и Fields. Глубина
   влияет только на унаследованный uniform transform и допустимую детализацию
   mesh, но не меняет semantic color, shader-local scale, opacity, glow или
   depth/overlay mode. Field сохраняет цвет своего типа и единичный
@@ -138,7 +138,7 @@ particles.
   только из-за наличия родителя. Activity и particle kind могут менять
   material одинаковым правилом на любой глубине.
 - Renderer использует materialized Atom-local `localX/localY/localZ` без
-  дополнительной spherical-shell проекции. Поэтому Fields остаются в
+  дополнительной сферической проекции. Поэтому Fields остаются в
   упакованном локальном ядре owning Atom, а State markers сохраняют
   тороидальную композицию manifestation. Marker-ы, Field proxies,
   transitions и локальные relations принадлежат одному render container

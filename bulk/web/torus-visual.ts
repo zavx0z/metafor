@@ -35,7 +35,7 @@ export type DarkParticleTorusLayer = Readonly<{
 	visibilityMode: "scene" | "overlay" | "silhouette"
 }>
 
-/** Keeps root and nested Atom shells on the same scene-depth visual path. */
+/** Keeps root and nested Atom toruses on the same scene-depth visual path. */
 export const resolveDarkParticleTorusLayer = (
 	_particle: DarkParticleTorusVisualInput,
 ): DarkParticleTorusLayer => ({

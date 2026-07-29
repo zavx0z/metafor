@@ -14,6 +14,10 @@ const edgeExampleApi = createEdgeExampleApi(
 const server = Bun.serve({
   hostname: Bun.env.VISUAL_HOST ?? "0.0.0.0",
   port: Number(Bun.env.VISUAL_PORT ?? 4014),
+  // The client owns long-lived GPU devices, canvases and document listeners
+  // that are disposed on a full page unload. Replacing its module graph in
+  // place leaves both Bun's bundle IDs and those browser resources stale.
+  development: {hmr: false},
   routes: {
     "/": index,
     "/engine-static/JetBrainsMono-Bold.ttf": file(

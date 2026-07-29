@@ -42,8 +42,8 @@ export const resolveLevelGeometry = ({
   const innerRadiusMm = innerDiameterMm / 2
 
   const thicknessMm = Math.max(MIN_DIMENSION_MM, (outerDiameterMm - innerDiameterMm) / 2)
-  const shellTubeMm = thicknessMm / 2
-  const shellRadiusMm = innerRadiusMm + shellTubeMm
+  const torusTubeMm = thicknessMm / 2
+  const torusRadiusMm = innerRadiusMm + torusTubeMm
 
   const maxObjectDiameterMm = Math.max(MIN_DIMENSION_MM, outerDiameterMm * settings.nestingCoefficient)
   const sphereMaxDiameterMm = maxObjectDiameterMm
@@ -71,8 +71,8 @@ export const resolveLevelGeometry = ({
     outerRadiusMm: outerRadiusMmOut,
     innerDiameterMm,
     innerRadiusMm,
-    shellRadiusMm,
-    shellTubeMm,
+    torusRadiusMm,
+    torusTubeMm,
     thicknessMm,
     workingThicknessMm,
     paddingMm,

@@ -28,6 +28,8 @@ describe("Form Skin Lab", () => {
     expect(FORM_SKIN_GEOMETRY).toEqual({
       detail: 48,
       size: 8,
+      torusRadialSegments: 22,
+      torusTubularSegments: 44,
       tubeRatio: 0.28,
     })
     const page = await Bun.file(
@@ -40,8 +42,19 @@ describe("Form Skin Lab", () => {
     expect(page).not.toContain("form-skin-animation")
     expect(page).toContain('<span>Цвет</span>')
     expect(page).not.toContain("form-skin-highlight-color")
+    expect(page).toContain("form-skin-highlight-size")
+    expect(page).toContain("Размер бликов")
+    expect(page).toContain(
+      'id="form-skin-highlight-size" type="range" min="0" max="1" step="0.05" value="0"',
+    )
     expect(page).toContain("form-skin-run-current")
     expect(page).toContain("form-skin-run-all")
+
+    const torus = buildFormGeometry("torus", 48, 8, 0.28, {
+      radial: FORM_SKIN_GEOMETRY.torusRadialSegments,
+      tubular: FORM_SKIN_GEOMETRY.torusTubularSegments,
+    })
+    expect(torus.mesh.index?.count).toBe(22 * 44 * 6)
   })
 
   test("derives film and glow tones from one selected color", () => {

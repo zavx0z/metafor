@@ -6,21 +6,30 @@ import {
   LineGlowMaterial,
   LineSegments,
   Matrix4,
+  Mesh,
   Object3D,
   Renderer,
   Space,
   SphereGeometry,
   Text,
   TextMaterial,
+  TorusGeometry,
   TrueTypeFont,
   Vector3,
   ViewPoint,
 } from "@metafor/engine"
+import {createQuantumFilmMaterial} from "./QuantumFilm.ts"
+import {
+  TORUS_MESH_DETAIL,
+  defineTorusComponent,
+  resolveSelfSimilarTorusForm,
+} from "./Torus.ts"
 import type {
   StateGraphLayoutEdge,
   StateGraphLayoutNode,
   StateGraphRootLayout,
 } from "./StateGraphLayout.ts"
+import type {StateGraphField} from "./StateGraph.ts"
 
 const BACKGROUND = new Color(0.012, 0.03, 0.05)
 const EDGE_COLOR = new Color(0.28, 0.78, 1, 0.82)
@@ -35,7 +44,6 @@ const EDGE_SEGMENTS = 24
 const NORMAL_EDGE_HEIGHT = 0.7
 const RETURN_EDGE_CONTROL_HEIGHT = 14
 const FRAME_PADDING = 1.3
-
 export type StateGraphViewport = Readonly<{
   capturePng(): Promise<Blob | null>
   dispose(): void
@@ -64,15 +72,124 @@ export type StateGraphView =
 
 export type CreateStateGraphViewportOptions = Readonly<{
   canvas: HTMLCanvasElement
+  context?: StateGraphViewportContext
+  edgeCurveBuilder?: StateGraphEdgeCurveBuilder
   height: number
   layout: StateGraphRootLayout
+  showGuides?: boolean
+  showLabels?: boolean
   width: number
+}>
+
+export type StateGraphCurvePoint = Readonly<{
+  x: number
+  y: number
+  z: number
+}>
+
+export type StateGraphEdgeCurveBuilder = (
+  edge: StateGraphLayoutEdge,
+  fromNode: StateGraphLayoutNode,
+  toNode: StateGraphLayoutNode,
+) => readonly StateGraphCurvePoint[]
+
+export type StateGraphContextTorus = Readonly<{
+  color: readonly [number, number, number]
+  radius: number
+  tube: number
+  x: number
+  y: number
+  z: number
+}>
+
+export type StateGraphContextField = Readonly<{
+  color: readonly [number, number, number]
+  radius: number
+  x: number
+  y: number
+  z: number
+}>
+
+export type StateGraphViewportContext = Readonly<{
+  fields: readonly StateGraphContextField[]
+  tori: readonly StateGraphContextTorus[]
+}>
+
+export type StateGraphNodeFormDimensions = Readonly<{
+  holeRadius: number
+  torusRadius: number
+  torusTube: number
 }>
 
 type LabelTracker = {
   anchor: Vector3
   container: Object3D
   offset: number
+}
+
+type FormGeometryCache = Readonly<{
+  spheres: Map<string, SphereGeometry>
+  tori: Map<string, TorusGeometry>
+}>
+
+export type StateGraphEdgeBatch = Readonly<{
+  edges: readonly StateGraphLayoutEdge[]
+  returning: boolean
+}>
+
+export const groupStateGraphEdges = (
+  edges: readonly StateGraphLayoutEdge[],
+): readonly StateGraphEdgeBatch[] => {
+  const forward = edges.filter((edge) => !edge.returning)
+  const returning = edges.filter((edge) => edge.returning)
+  return [
+    ...(forward.length === 0 ? [] : [{edges: forward, returning: false}]),
+    ...(returning.length === 0 ? [] : [{edges: returning, returning: true}]),
+  ]
+}
+
+const geometryKey = (...values: number[]): string =>
+  values.map((value) => value.toPrecision(12)).join(":")
+
+const cachedTorusGeometry = (
+  cache: FormGeometryCache,
+  radius: number,
+  tube: number,
+): TorusGeometry => {
+  const key = geometryKey(
+    radius,
+    tube,
+    TORUS_MESH_DETAIL.radialSegments,
+    TORUS_MESH_DETAIL.tubularSegments,
+  )
+  const cached = cache.tori.get(key)
+  if (cached) return cached
+  const geometry = new TorusGeometry({
+    radius,
+    tube,
+    radialSegments: TORUS_MESH_DETAIL.radialSegments,
+    tubularSegments: TORUS_MESH_DETAIL.tubularSegments,
+  })
+  cache.tori.set(key, geometry)
+  return geometry
+}
+
+const cachedSphereGeometry = (
+  cache: FormGeometryCache,
+  radius: number,
+  widthSegments: number,
+  heightSegments: number,
+): SphereGeometry => {
+  const key = geometryKey(radius, widthSegments, heightSegments)
+  const cached = cache.spheres.get(key)
+  if (cached) return cached
+  const geometry = new SphereGeometry({
+    radius,
+    widthSegments,
+    heightSegments,
+  })
+  cache.spheres.set(key, geometry)
+  return geometry
 }
 
 const geometryFromSegments = (
@@ -95,6 +212,64 @@ const geometryFromSegments = (
 
 const nodePosition = (node: StateGraphLayoutNode): Vector3 =>
   new Vector3(node.x, node.y, node.z)
+
+export const stateGraphNodeFormDimensions = (
+  outerRadius: number,
+): StateGraphNodeFormDimensions => {
+  const form = resolveSelfSimilarTorusForm(outerRadius)
+
+  return {
+    torusRadius: form.radius,
+    torusTube: form.tube,
+    holeRadius: form.innerRadius,
+  }
+}
+
+export const stateGraphFieldColor = (
+  type: StateGraphField["type"],
+): readonly [number, number, number] => {
+  if (type === "string") return [1, 0.08, 0.58]
+  if (type === "number") return [1, 0.88, 0]
+  if (type === "boolean") return [0, 0.9, 1]
+  if (type === "enum") return [0.58, 0.32, 1]
+  return [1, 0.42, 0]
+}
+
+export const stateGraphFieldSphereLayout = (
+  fields: readonly StateGraphField[],
+  holeRadius: number,
+): readonly Readonly<StateGraphField & {
+  radius: number
+  x: number
+  y: number
+}>[] => {
+  if (fields.length === 0) return []
+  if (fields.length === 1) {
+    return [{
+      ...fields[0]!,
+      radius: holeRadius * 0.58,
+      x: 0,
+      y: 0,
+    }]
+  }
+  const orbitRadius = holeRadius * 0.52
+  const sphereRadius = Math.max(
+    holeRadius * 0.08,
+    Math.min(
+      holeRadius * 0.24,
+      orbitRadius * Math.sin(Math.PI / fields.length) * 0.72,
+    ),
+  )
+  return fields.map((field, index) => {
+    const angle = Math.PI * 2 * index / fields.length - Math.PI / 2
+    return {
+      ...field,
+      radius: sphereRadius,
+      x: Math.cos(angle) * orbitRadius,
+      y: Math.sin(angle) * orbitRadius,
+    }
+  })
+}
 
 export const buildStateGraphEdgeCurve = (
   edge: StateGraphLayoutEdge,
@@ -152,19 +327,23 @@ export const buildStateGraphEdgeCurve = (
   return points
 }
 
-const edgeGeometry = (
+const edgeSegments = (
   edge: StateGraphLayoutEdge,
   nodeById: ReadonlyMap<string, StateGraphLayoutNode>,
-): BufferGeometry => {
+  curveBuilder?: StateGraphEdgeCurveBuilder,
+): readonly (readonly [Vector3, Vector3])[] => {
   const fromNode = nodeById.get(edge.fromNodeId)
   const toNode = nodeById.get(edge.toNodeId)
-  if (!fromNode || !toNode) return geometryFromSegments([])
-  const points = buildStateGraphEdgeCurve(edge, fromNode, toNode)
+  if (!fromNode || !toNode) return []
+  const points = (
+    curveBuilder?.(edge, fromNode, toNode) ??
+      buildStateGraphEdgeCurve(edge, fromNode, toNode)
+  ).map((point) => new Vector3(point.x, point.y, point.z))
   const segments: Array<readonly [Vector3, Vector3]> = []
   for (let index = 1; index < points.length; index += 1) {
     segments.push([points[index - 1]!, points[index]!])
   }
-  return geometryFromSegments(segments)
+  return segments
 }
 
 const textCenter = (text: Text): {x: number; y: number} => {
@@ -234,13 +413,59 @@ const addLevelGuides = (
   space.add(guides)
 }
 
+const addTorusContext = (
+  space: Space,
+  context: StateGraphViewportContext,
+  geometryCache: FormGeometryCache,
+): void => {
+  for (const torus of context.tori) {
+    const node = new Mesh(
+      cachedTorusGeometry(geometryCache, torus.radius, torus.tube),
+      createQuantumFilmMaterial(new Color(...torus.color), {
+        glowIntensity: 1.2,
+        highlightSize: 0,
+        opacity: 0.3,
+      }),
+    )
+    node.position.set(torus.x, torus.y, torus.z)
+    node.updateMatrix()
+    space.add(node)
+  }
+  for (const field of context.fields) {
+    const node = new Mesh(
+      cachedSphereGeometry(geometryCache, field.radius, 16, 10),
+      createQuantumFilmMaterial(new Color(...field.color), {
+        glowIntensity: 2.8,
+        highlightSize: 0,
+        opacity: 0.72,
+      }),
+    )
+    node.position.set(field.x, field.y, field.z)
+    node.updateMatrix()
+    space.add(node)
+  }
+}
+
 const fitDistance = (
   layout: StateGraphRootLayout,
   aspect: number,
   fov: number,
+  context?: StateGraphViewportContext,
 ): {distance: number; target: Vector3} => {
-  const xs = layout.nodes.map((node) => node.x)
-  const ys = layout.nodes.map((node) => node.y)
+  const xs = [
+    ...layout.nodes.map((node) => node.x),
+    ...(context?.tori.flatMap((torus) => [
+      torus.x - torus.radius - torus.tube,
+      torus.x + torus.radius + torus.tube,
+    ]) ?? []),
+  ]
+  const ys = [
+    ...layout.nodes.map((node) => node.y),
+    ...(context?.tori.flatMap((torus) => [
+      torus.y - torus.radius - torus.tube,
+      torus.y + torus.radius + torus.tube,
+    ]) ?? []),
+  ]
   const minX = Math.min(...xs, 0) - 9
   const maxX = Math.max(...xs, 0) + 9
   const minY = Math.min(...ys, 0) - 13
@@ -260,8 +485,12 @@ const fitDistance = (
 
 export const createStateGraphViewport = async ({
   canvas,
+  context,
+  edgeCurveBuilder,
   height,
   layout,
+  showGuides = true,
+  showLabels = true,
   width,
 }: CreateStateGraphViewportOptions): Promise<StateGraphViewport> => {
   const renderer = new Renderer()
@@ -272,13 +501,22 @@ export const createStateGraphViewport = async ({
   const space = new Space()
   space.background = BACKGROUND.clone()
   const nodeById = new Map(layout.nodes.map((node) => [node.id, node] as const))
+  const geometryCache: FormGeometryCache = {
+    spheres: new Map(),
+    tori: new Map(),
+  }
 
-  addLevelGuides(space, layout)
-  for (const edge of layout.edges) {
-    const color = edge.returning ? RETURN_EDGE_COLOR : EDGE_COLOR
-    const glowColor = edge.returning ? RETURN_EDGE_GLOW : EDGE_GLOW
+  if (context) addTorusContext(space, context, geometryCache)
+  if (showGuides) addLevelGuides(space, layout)
+  for (const batch of groupStateGraphEdges(layout.edges)) {
+    const color = batch.returning ? RETURN_EDGE_COLOR : EDGE_COLOR
+    const glowColor = batch.returning ? RETURN_EDGE_GLOW : EDGE_GLOW
     const line = new LineSegments(
-      edgeGeometry(edge, nodeById),
+      geometryFromSegments(
+        batch.edges.flatMap((edge) =>
+          edgeSegments(edge, nodeById, edgeCurveBuilder)
+        ),
+      ),
       new LineGlowMaterial({
         color,
         glowColor,
@@ -293,58 +531,95 @@ export const createStateGraphViewport = async ({
 
   const labels: LabelTracker[] = []
   for (const node of layout.nodes) {
-    const alpha = node.current ? 1 : 0.76
-    const color = new Color(node.color[0], node.color[1], node.color[2], alpha)
-    const glow = new Color(
+    const nodeContainer = new Object3D()
+    nodeContainer.position.set(node.x, node.y, node.z)
+    const dimensions = stateGraphNodeFormDimensions(node.radius)
+    const torus = defineTorusComponent({
+      id: node.id,
+      role: "state",
+      payload: node,
+      core: node.fields,
+      innerRadius: dimensions.holeRadius,
+      outerRadius: node.radius,
+    })
+    const color = new Color(
       node.color[0],
       node.color[1],
       node.color[2],
-      node.current ? 0.64 : 0.3,
     )
-    const sphere = new LineSegments(
-      new SphereGeometry({
-        radius: node.radius,
-        widthSegments: 22,
-        heightSegments: 14,
-      }).toWireframe(),
-      new LineGlowMaterial({
-        color,
-        glowColor: glow,
-        glowIntensity: node.current ? 3.8 : 2.1,
-        luminanceBoost: node.current ? 1.3 : 1,
-        opacity: 1,
-        visibilityMode: "scene",
+    const torusNode = new Mesh(
+      cachedTorusGeometry(
+        geometryCache,
+        torus.form.radius,
+        torus.form.tube,
+      ),
+      createQuantumFilmMaterial(color, {
+        glowIntensity: node.current ? 4.6 : 3,
+        highlightSize: 0,
+        opacity: node.current ? 0.82 : 0.64,
       }),
     )
-    sphere.position.set(node.x, node.y, node.z)
-    sphere.updateMatrix()
-    space.add(sphere)
-    labels.push(addLabel(
-      space,
-      font,
-      node.label,
-      NODE_LABEL_SIZE,
-      new Color(node.color[0], node.color[1], node.color[2]),
-      nodePosition(node),
-      node.radius + 1.8,
-    ))
+    torusNode.updateMatrix()
+    nodeContainer.add(torusNode)
+
+    for (const field of stateGraphFieldSphereLayout(
+      torus.core,
+      torus.form.innerRadius,
+    )) {
+      const fieldColor = stateGraphFieldColor(field.type)
+      const sphere = new Mesh(
+        cachedSphereGeometry(geometryCache, field.radius, 18, 12),
+        createQuantumFilmMaterial(new Color(...fieldColor), {
+          glowIntensity: node.current ? 5.2 : 3.4,
+          highlightSize: 0,
+          opacity: node.current ? 0.78 : 0.66,
+        }),
+      )
+      sphere.position.set(
+        field.x,
+        field.y,
+        0,
+      )
+      sphere.updateMatrix()
+      nodeContainer.add(sphere)
+    }
+    nodeContainer.updateMatrix()
+    space.add(nodeContainer)
+    if (showLabels) {
+      labels.push(addLabel(
+        space,
+        font,
+        node.label,
+        NODE_LABEL_SIZE,
+        new Color(node.color[0], node.color[1], node.color[2]),
+        nodePosition(node),
+        node.radius + 1.8,
+      ))
+    }
   }
 
-  const guideLabelY = Math.max(...layout.nodes.map((node) => node.y), 0) + 10
-  for (const level of layout.levels) {
-    labels.push(addLabel(
-      space,
-      font,
-      `Шаг ${level.step + 1}`,
-      LEVEL_LABEL_SIZE,
-      LEVEL_LABEL_COLOR,
-      new Vector3(level.x, guideLabelY, 0),
-      0,
-    ))
+  if (showGuides && showLabels) {
+    const guideLabelY = Math.max(...layout.nodes.map((node) => node.y), 0) + 10
+    for (const level of layout.levels) {
+      labels.push(addLabel(
+        space,
+        font,
+        `Шаг ${level.step + 1}`,
+        LEVEL_LABEL_SIZE,
+        LEVEL_LABEL_COLOR,
+        new Vector3(level.x, guideLabelY, 0),
+        0,
+      ))
+    }
   }
 
   const fov = Math.PI / 3.2
-  const initialFit = fitDistance(layout, width / Math.max(1, height), fov)
+  const initialFit = fitDistance(
+    layout,
+    width / Math.max(1, height),
+    fov,
+    context,
+  )
   const viewPoint = new ViewPoint({
     element: canvas,
     fov,
@@ -391,7 +666,6 @@ export const createStateGraphViewport = async ({
       label.container.updateMatrix()
     }
   }
-
   let disposed = false
   let frame = 0
   let dragging = false

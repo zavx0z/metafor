@@ -3,11 +3,11 @@ import type { BulkLayoutSettings } from "@metafor/types/bulk/settings"
 import type { LevelGeometrySettings } from "@metafor/types/bulk/level"
 
 /** Одноуровневый локальный закон Atom; каждый следующий уровень наследует его через uniform scale. */
-export const DEFAULT_BULK_LAYOUT_SETTINGS: BulkLayoutSettings = {
+export const DEFAULT_BULK_LAYOUT_SETTINGS: BulkLayoutSettings = Object.freeze({
   orbitEdgeGapMm: 0,
   rootInnerDiameterMm: 100 / 3,
   rootSphereRadiusMm: 5,
-}
+})
 
 /** Нередактируемый snapshot-контракт layout-а: целевой диаметр root, плотности, минимумы. */
 export const DEFAULT_BULK_LAYOUT_SNAPSHOT_CONFIG: BulkLayoutSnapshotConfig = {

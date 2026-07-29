@@ -1,30 +1,11 @@
-import {Atom} from "./Atom.ts"
-import {Axion} from "./Axion.ts"
-import {Field} from "./Field.ts"
-import {Fields} from "./Fields.ts"
-import {Finally} from "./Finally.ts"
-import {Matter} from "./Matter.ts"
-import {Process} from "./Process.ts"
-import {Reaction} from "./Reaction.ts"
-import {State} from "./State.ts"
-import {States} from "./States.ts"
-import {Transition} from "./Transition.ts"
-import type {VisualComponent} from "./internal/component.ts"
+import {OutsideIn} from "./OutsideIn.ts"
+import type {VisualLayout} from "./internal/layout.ts"
 
+/** Public catalog of complete Monad snapshot layouts. */
 export const Visual = Object.freeze([
-  Atom,
-  Matter,
-  Field,
-  Fields,
-  State,
-  States,
-  Transition,
-  Process,
-  Reaction,
-  Finally,
-  Axion,
-]) satisfies readonly VisualComponent[]
+  OutsideIn,
+]) satisfies readonly VisualLayout[]
 
-export const visualComponentForSlug = (
+export const visualLayoutForSlug = (
   slug: string,
-): VisualComponent => Visual.find((component) => component.slug === slug) ?? Atom
+): VisualLayout => Visual.find((layout) => layout.slug === slug) ?? OutsideIn

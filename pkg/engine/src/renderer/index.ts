@@ -1153,7 +1153,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     return {
       glassObjects: renderList.filter(item => (item.object.material as any)?.isGlassMaterial === true),
       // Non-depth-writing silhouettes go first so later relation lines retain
-      // visual priority even where their projected paths cross the shell.
+      // visual priority even where their projected paths cross the Torus.
       regularObjects: [
         ...regularObjects.filter(isSilhouetteLine),
         ...regularObjects.filter(item => !isSilhouetteLine(item)),
@@ -1569,6 +1569,13 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         material.rimStrength,
         material.iridescence,
         material.filmThickness,
+      )
+      this.writePerObjectVec4(
+        offsetFloats + 44,
+        material.highlightSize,
+        0,
+        0,
+        0,
       )
     } else if (isRadialBackdropMaterial(material)) {
       this.writePerObjectRgba(offsetFloats + 32, material.base)

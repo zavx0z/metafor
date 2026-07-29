@@ -28,9 +28,13 @@ export type EdgeConstraintInput = Readonly<{
   centerDistance: number
   clearance: number
   extraLift: number
+  leftDirectionDegrees?: number
+  leftTangentLength?: number
   leftTorusScale?: number
   leftSphereX: number
   leftSphereY: number
+  rightDirectionDegrees?: number
+  rightTangentLength?: number
   rightTorusScale?: number
   rightSphereX: number
   rightSphereY: number
@@ -75,9 +79,17 @@ export type EdgeConstraintModel = Readonly<{
     streamFunction: number
     verticalSafetyScale: number
   }>
+  hermite?: Readonly<{
+    leftDirection: EdgeConstraintPoint
+    leftDirectionDegrees: number
+    leftTangentLength: number
+    rightDirection: EdgeConstraintPoint
+    rightDirectionDegrees: number
+    rightTangentLength: number
+  }>
 }>
 
-export type EdgeRouteVariant = "composite" | "source-sink"
+export type EdgeRouteVariant = "composite" | "hermite" | "source-sink"
 
 export const EDGE_TORUS_GAP_MM = 2
 export const ELECTROMAGNETIC_CONTROL_HEIGHT_RATIO = 2 / 3
@@ -96,6 +108,26 @@ export const fieldShapeControlHeights = (
   return {
     left: baseHeight * leftWeight / weightMean,
     right: baseHeight * rightWeight / weightMean,
+  }
+}
+
+export const defaultHermiteTangentLengths = (
+  span: number,
+  leftOuterRadius: number,
+  rightOuterRadius: number,
+): Readonly<{left: number; right: number}> => {
+  const shoulders = fieldShapeControlHeights(
+    span,
+    leftOuterRadius,
+    rightOuterRadius,
+  )
+
+  // A cubic Hermite endpoint derivative is three times the equivalent
+  // cubic Bézier handle. Reusing the field shoulder handles makes the
+  // default Hermite silhouette match the proven unequal-form profile.
+  return {
+    left: shoulders.left * 3,
+    right: shoulders.right * 3,
   }
 }
 
@@ -124,6 +156,12 @@ const FORMULA_LINK_COLORS: Readonly<Record<string, string>> = {
   "g-right": "#d96bff",
   psi: "#35f2a1",
   "lambda-field": "#7aa7ff",
+  "d-left": "#35f2a1",
+  "d-right": "#ff6fae",
+  "l-left": "#36c9ff",
+  "l-right": "#d96bff",
+  "v-left": "#43d9ff",
+  "v-right": "#ff9fcb",
 }
 
 const FORMULA_HELP: Readonly<
@@ -224,6 +262,30 @@ const FORMULA_HELP: Readonly<
   "lambda-field": {
     title: "λ𝓏 · резервный масштаб безопасности",
     text: "Обычно равен 1 и линия остаётся точной линией поля. Если при крайнем смещении Sphere ни один аналитический контур семейства не обходит Torus, стенд увеличивает только высоту линии одним общим коэффициентом.",
+  },
+  "d-left": {
+    title: "dₗ · направление выхода",
+    text: "Единичный вектор задаёт направление, в котором Edge выходит из центра левой Sphere. Угол 90° совпадает с нормалью плоскости Torus.",
+  },
+  "d-right": {
+    title: "dᵣ · направление входа",
+    text: "Единичный внешний вектор правой Sphere. Edge входит в Sphere в противоположном направлении −dᵣ.",
+  },
+  "l-left": {
+    title: "Lₗ · длина левого вектора",
+    text: "Определяет длину и мягкость левого плеча Hermite-кривой, не меняя направление выхода.",
+  },
+  "l-right": {
+    title: "Lᵣ · длина правого вектора",
+    text: "Определяет длину и мягкость правого плеча Hermite-кривой независимо от левого.",
+  },
+  "v-left": {
+    title: "Vₗ · левый граничный вектор",
+    text: "Полный вектор производной в начале Edge: Vₗ = Lₗdₗ. Он задаёт и направление, и силу левого плеча.",
+  },
+  "v-right": {
+    title: "Vᵣ · правый граничный вектор",
+    text: "Производная в конце Edge направлена внутрь правой Sphere: Vᵣ = −Lᵣdᵣ.",
   },
 }
 
@@ -339,6 +401,211 @@ const torusSurfaceDistance = (
   Math.hypot(point.x - center.x, point.y - center.y) - radius,
   point.z - center.z,
 ) - tube
+
+const hermitePoint = (
+  from: EdgeConstraintPoint,
+  fromTangent: EdgeConstraintPoint,
+  to: EdgeConstraintPoint,
+  toTangent: EdgeConstraintPoint,
+  t: number,
+): EdgeConstraintPoint => {
+  const t2 = t * t
+  const t3 = t2 * t
+  const h00 = 2 * t3 - 3 * t2 + 1
+  const h10 = t3 - 2 * t2 + t
+  const h01 = -2 * t3 + 3 * t2
+  const h11 = t3 - t2
+  return {
+    x:
+      h00 * from.x +
+      h10 * fromTangent.x +
+      h01 * to.x +
+      h11 * toTangent.x,
+    y:
+      h00 * from.y +
+      h10 * fromTangent.y +
+      h01 * to.y +
+      h11 * toTangent.y,
+    z:
+      h00 * from.z +
+      h10 * fromTangent.z +
+      h01 * to.z +
+      h11 * toTangent.z,
+  }
+}
+
+export const buildHermiteBeamModel = (
+  input: EdgeConstraintInput,
+  segments = 192,
+): EdgeConstraintModel => {
+  const leftScale = Math.max(0.1, input.leftTorusScale ?? 1)
+  const rightScale = Math.max(0.1, input.rightTorusScale ?? 1)
+  const leftRadius = input.torusRadius * leftScale
+  const leftTube = input.torusTube * leftScale
+  const rightRadius = input.torusRadius * rightScale
+  const rightTube = input.torusTube * rightScale
+  const halfDistance = input.centerDistance / 2
+  const leftTorusCenter = {x: -halfDistance, y: 0, z: 0}
+  const rightTorusCenter = {x: halfDistance, y: 0, z: 0}
+  const leftCenter = {
+    x: leftTorusCenter.x + input.leftSphereX,
+    y: leftTorusCenter.y + input.leftSphereY,
+    z: 0,
+  }
+  const rightCenter = {
+    x: rightTorusCenter.x + input.rightSphereX,
+    y: rightTorusCenter.y + input.rightSphereY,
+    z: 0,
+  }
+  const spanX = rightCenter.x - leftCenter.x
+  const spanY = rightCenter.y - leftCenter.y
+  const horizontalSpan = Math.max(Number.EPSILON, Math.hypot(spanX, spanY))
+  const axis = {x: spanX / horizontalSpan, y: spanY / horizontalSpan}
+  const clampDegrees = (value: number): number =>
+    Math.max(0, Math.min(180, value))
+  const leftDirectionDegrees = clampDegrees(
+    input.leftDirectionDegrees ?? 90,
+  )
+  const rightDirectionDegrees = clampDegrees(
+    input.rightDirectionDegrees ?? 90,
+  )
+  const leftAngle = leftDirectionDegrees * Math.PI / 180
+  const rightAngle = rightDirectionDegrees * Math.PI / 180
+  const leftDirection = {
+    x: axis.x * Math.cos(leftAngle),
+    y: axis.y * Math.cos(leftAngle),
+    z: Math.sin(leftAngle),
+  }
+  const rightDirection = {
+    x: -axis.x * Math.cos(rightAngle),
+    y: -axis.y * Math.cos(rightAngle),
+    z: Math.sin(rightAngle),
+  }
+  const span = distance(leftCenter, rightCenter)
+  const defaultTangentLengths = defaultHermiteTangentLengths(
+    span,
+    leftRadius + leftTube,
+    rightRadius + rightTube,
+  )
+  const leftTangentLength = Math.max(
+    0.01,
+    input.leftTangentLength ?? defaultTangentLengths.left,
+  )
+  const rightTangentLength = Math.max(
+    0.01,
+    input.rightTangentLength ?? defaultTangentLengths.right,
+  )
+  const leftTangent = {
+    x: leftDirection.x * leftTangentLength,
+    y: leftDirection.y * leftTangentLength,
+    z: leftDirection.z * leftTangentLength,
+  }
+  const rightTangent = {
+    x: -rightDirection.x * rightTangentLength,
+    y: -rightDirection.y * rightTangentLength,
+    z: -rightDirection.z * rightTangentLength,
+  }
+  const leftControl = {
+    x: leftCenter.x + leftTangent.x / 3,
+    y: leftCenter.y + leftTangent.y / 3,
+    z: leftCenter.z + leftTangent.z / 3,
+  }
+  const rightControl = {
+    x: rightCenter.x - rightTangent.x / 3,
+    y: rightCenter.y - rightTangent.y / 3,
+    z: rightCenter.z - rightTangent.z / 3,
+  }
+  const safeSegments = Math.max(48, Math.floor(segments))
+  const curve = Array.from(
+    {length: safeSegments + 1},
+    (_, index) => hermitePoint(
+      leftCenter,
+      leftTangent,
+      rightCenter,
+      rightTangent,
+      index / safeSegments,
+    ),
+  )
+  const clearance = Math.max(0, input.clearance)
+  const sphereRadius = Math.max(0, input.sphereRadius ?? 0)
+  const maximumTube = Math.max(leftTube, rightTube)
+  const clearanceTransitionDistance = edgeClearanceTransitionDistance(
+    maximumTube,
+    sphereRadius,
+    clearance,
+  )
+  let approximateLength = 0
+  let minimumSafetyMargin = Number.POSITIVE_INFINITY
+  let minimumTorusClearance = Number.POSITIVE_INFINITY
+  for (let index = 0; index < curve.length; index += 1) {
+    const point = curve[index]!
+    const previous = curve[index - 1]
+    if (previous) approximateLength += distance(previous, point)
+    const actualClearance = Math.min(
+      torusSurfaceDistance(
+        point,
+        leftTorusCenter,
+        leftRadius,
+        leftTube,
+      ),
+      torusSurfaceDistance(
+        point,
+        rightTorusCenter,
+        rightRadius,
+        rightTube,
+      ),
+    )
+    minimumTorusClearance = Math.min(
+      minimumTorusClearance,
+      actualClearance,
+    )
+    minimumSafetyMargin = Math.min(
+      minimumSafetyMargin,
+      actualClearance - requiredEdgeClearance(
+        point,
+        leftCenter,
+        rightCenter,
+        sphereRadius,
+        clearance,
+        maximumTube,
+      ),
+    )
+  }
+  const maximumHeight = Math.max(...curve.map((point) => point.z))
+  const leftControlHeight = leftControl.z - leftCenter.z
+  const rightControlHeight = rightControl.z - rightCenter.z
+  return {
+    approximateLength,
+    clearanceTransitionDistance,
+    clearanceControlHeight: maximumHeight,
+    clearanceControlScale: 1,
+    controlHeight: Math.max(leftControlHeight, rightControlHeight),
+    curve,
+    hermite: {
+      leftDirection,
+      leftDirectionDegrees,
+      leftTangentLength,
+      rightDirection,
+      rightDirectionDegrees,
+      rightTangentLength,
+    },
+    leftCenter,
+    leftControl,
+    leftControlHeight,
+    leftShapeControlHeight: leftControlHeight,
+    leftTorusCenter,
+    maximumHeight,
+    minimumSafetyMargin,
+    minimumTorusClearance,
+    rightCenter,
+    rightControl,
+    rightControlHeight,
+    rightShapeControlHeight: rightControlHeight,
+    rightTorusCenter,
+    routeVariant: "hermite",
+    shapeControlHeight: Math.max(leftControlHeight, rightControlHeight),
+  }
+}
 
 export const buildEdgeConstraintModel = (
   input: EdgeConstraintInput,
@@ -917,11 +1184,25 @@ type EdgesLabElements = Readonly<{
   formulaHelpText: HTMLElement
   formulaHelpTitle: HTMLElement
   formulaComposite: HTMLElement
+  formulaHermite: HTMLElement
   formulaSourceSink: HTMLElement
   formulaTarget: HTMLElement
   formulaValues: HTMLElement
+  leftDirection: HTMLInputElement
+  leftDirectionOutput: HTMLOutputElement
+  leftTangentLength: HTMLInputElement
+  leftTangentLengthOutput: HTMLOutputElement
   sceneDescription: HTMLElement
   sceneTitle: HTMLElement
+  measureLeftDirection: HTMLElement
+  measureLeftTangent: HTMLElement
+  measureRightDirection: HTMLElement
+  measureRightTangent: HTMLElement
+  routeMeasureDescription: HTMLElement
+  rightDirection: HTMLInputElement
+  rightDirectionOutput: HTMLOutputElement
+  rightTangentLength: HTMLInputElement
+  rightTangentLengthOutput: HTMLOutputElement
   viewport: HTMLElement
   viewButtons: NodeListOf<HTMLButtonElement>
 }>
@@ -974,9 +1255,35 @@ const labElements = (): EdgesLabElements => ({
   formulaHelpText: requireElement("edges-formula-help-text"),
   formulaHelpTitle: requireElement("edges-formula-help-title"),
   formulaComposite: requireElement("edges-formula-composite"),
+  formulaHermite: requireElement("edges-formula-hermite"),
   formulaSourceSink: requireElement("edges-formula-source-sink"),
   formulaTarget: requireElement("edges-formula-target"),
   formulaValues: requireElement("edges-formula-values"),
+  leftDirection: requireElement<HTMLInputElement>("edges-left-direction"),
+  leftDirectionOutput: requireElement<HTMLOutputElement>(
+    "edges-left-direction-output",
+  ),
+  leftTangentLength: requireElement<HTMLInputElement>(
+    "edges-left-tangent-length",
+  ),
+  leftTangentLengthOutput: requireElement<HTMLOutputElement>(
+    "edges-left-tangent-length-output",
+  ),
+  measureLeftDirection: requireElement("edges-measure-left-direction"),
+  measureLeftTangent: requireElement("edges-measure-left-tangent"),
+  measureRightDirection: requireElement("edges-measure-right-direction"),
+  measureRightTangent: requireElement("edges-measure-right-tangent"),
+  routeMeasureDescription: requireElement("edges-route-measure-description"),
+  rightDirection: requireElement<HTMLInputElement>("edges-right-direction"),
+  rightDirectionOutput: requireElement<HTMLOutputElement>(
+    "edges-right-direction-output",
+  ),
+  rightTangentLength: requireElement<HTMLInputElement>(
+    "edges-right-tangent-length",
+  ),
+  rightTangentLengthOutput: requireElement<HTMLOutputElement>(
+    "edges-right-tangent-length-output",
+  ),
   sceneDescription: requireElement("edges-scene-description"),
   sceneTitle: requireElement("edges-scene-title"),
   viewport: requireElement("edges-viewport"),
@@ -1120,6 +1427,11 @@ const EDGE_VARIANTS: ReadonlyArray<
     route: "#/edges/source-sink",
     variant: "source-sink",
   },
+  {
+    label: "Hermite · балка",
+    route: "#/edges/hermite",
+    variant: "hermite",
+  },
 ]
 
 const edgeModelForVariant = (
@@ -1128,7 +1440,9 @@ const edgeModelForVariant = (
 ): EdgeConstraintModel =>
   variant === "source-sink"
     ? buildSourceSinkFieldModel(input)
-    : buildEdgeConstraintModel(input)
+    : variant === "hermite"
+      ? buildHermiteBeamModel(input)
+      : buildEdgeConstraintModel(input)
 
 const drawEdgeExamplePreview = (
   canvas: HTMLCanvasElement,
@@ -1291,6 +1605,8 @@ export const createEdgesLab = async (): Promise<EdgesLab> => {
   let interactionModel: EdgeConstraintModel | null = null
   let interactionSphereRadius = 0
   let interactionOffsetLimit = {left: 0, right: 0}
+  let hermiteControlsInitialized = false
+  let hermiteTangentsCustomized = false
   let activeFormulaKey: string | null = null
   let exampleScope: EdgeRouteVariant | null = "composite"
   let exampleLoadVersion = 0
@@ -1317,9 +1633,9 @@ export const createEdgesLab = async (): Promise<EdgesLab> => {
       kind: "playground-page",
       route: window.location.hash,
       slug: `edges-${activeVariant}`,
-      title: activeVariant === "source-sink"
-        ? "Edges · силовая линия источник → сток"
-        : "Edges · составная экспериментальная формула",
+      title: EDGE_VARIANTS.find((item) =>
+        item.variant === activeVariant
+      )?.label ?? "Edges",
     }),
   })
 
@@ -1329,16 +1645,48 @@ export const createEdgesLab = async (): Promise<EdgesLab> => {
     centerDistance: Number(elements.centerDistance.value),
     clearance: Number(elements.clearance.value),
     extraLift: Number(elements.extraLift.value),
+    ...(activeVariant === "hermite"
+      ? {
+          leftDirectionDegrees: Number(elements.leftDirection.value),
+          leftTangentLength: Number(elements.leftTangentLength.value),
+        }
+      : {}),
     leftTorusScale: Number(elements.leftTorusScale.value),
     leftSphereX: sphereOffsets.left.x,
     leftSphereY: sphereOffsets.left.y,
     rightTorusScale: Number(elements.rightTorusScale.value),
     rightSphereX: sphereOffsets.right.x,
     rightSphereY: sphereOffsets.right.y,
+    ...(activeVariant === "hermite"
+      ? {
+          rightDirectionDegrees: Number(elements.rightDirection.value),
+          rightTangentLength: Number(elements.rightTangentLength.value),
+        }
+      : {}),
     sphereRadius: Number(elements.sphereRadius.value),
     torusRadius: torus.radius,
     torusTube: torus.tube,
   })
+
+  const applyHermiteShoulderDefaults = (): void => {
+    const torus = readStoredTorusDefaults(localStorage)
+    const span = Math.hypot(
+      Number(elements.centerDistance.value) +
+        sphereOffsets.right.x -
+        sphereOffsets.left.x,
+      sphereOffsets.right.y - sphereOffsets.left.y,
+    )
+    const defaults = defaultHermiteTangentLengths(
+      span,
+      (torus.radius + torus.tube) *
+        Number(elements.leftTorusScale.value),
+      (torus.radius + torus.tube) *
+        Number(elements.rightTorusScale.value),
+    )
+    elements.leftTangentLength.value = String(defaults.left)
+    elements.rightTangentLength.value = String(defaults.right)
+    hermiteControlsInitialized = true
+  }
 
   const algorithmCell = (
     example: StoredEdgeExample,
@@ -1393,6 +1741,7 @@ export const createEdgesLab = async (): Promise<EdgesLab> => {
       year: "2-digit",
     }).format(new Date(example.createdAt))
     const values = document.createElement("div")
+    const hermite = buildHermiteBeamModel(example.input).hermite!
     values.textContent = [
       `D ${example.input.centerDistance.toFixed(1)} мм`,
       `Torus L ${(example.input.leftTorusScale ?? 1).toFixed(2)}×`,
@@ -1402,6 +1751,10 @@ export const createEdgesLab = async (): Promise<EdgesLab> => {
       `подъём ${example.input.extraLift.toFixed(1)} мм`,
       `Sₗ (${example.input.leftSphereX.toFixed(1)}, ${example.input.leftSphereY.toFixed(1)})`,
       `Sᵣ (${example.input.rightSphereX.toFixed(1)}, ${example.input.rightSphereY.toFixed(1)})`,
+      `dₗ ${(example.input.leftDirectionDegrees ?? 90).toFixed(1)}°`,
+      `Lₗ ${hermite.leftTangentLength.toFixed(1)} мм`,
+      `dᵣ ${(example.input.rightDirectionDegrees ?? 90).toFixed(1)}°`,
+      `Lᵣ ${hermite.rightTangentLength.toFixed(1)} мм`,
     ].join(" · ")
     const provenance = document.createElement("div")
     provenance.textContent = `Добавлен из: ${source.label}`
@@ -1523,6 +1876,14 @@ export const createEdgesLab = async (): Promise<EdgesLab> => {
     elements.torusRadiusOutput.value =
       `R ${torus.radius.toFixed(2)} · tube ${torus.tube.toFixed(2)} мм`
     elements.extraLiftOutput.value = `${settings.extraLift.toFixed(1)} mm`
+    elements.leftDirectionOutput.value =
+      `${(settings.leftDirectionDegrees ?? 90).toFixed(1)}°`
+    elements.rightDirectionOutput.value =
+      `${(settings.rightDirectionDegrees ?? 90).toFixed(1)}°`
+    elements.leftTangentLengthOutput.value =
+      `${(model.hermite?.leftTangentLength ?? 0).toFixed(1)} mm`
+    elements.rightTangentLengthOutput.value =
+      `${(model.hermite?.rightTangentLength ?? 0).toFixed(1)} mm`
     const routeOutput = elements.measureRoute.querySelector("output")
     if (routeOutput) {
       routeOutput.textContent =
@@ -1556,9 +1917,22 @@ export const createEdgesLab = async (): Promise<EdgesLab> => {
       `Sᵣ=(${formatPoint(model.rightCenter)})`,
     ]
     const sourceSink = model.sourceSink
+    const hermite = model.hermite
     elements.formulaValues.textContent = [
-      ...commonFormulaValues,
-      ...(sourceSink
+      ...(hermite
+        ? [
+            `Sₗ=(${formatPoint(model.leftCenter)})`,
+            `Sᵣ=(${formatPoint(model.rightCenter)})`,
+            `dₗ=(${formatPoint(hermite.leftDirection)})`,
+            `dᵣ=(${formatPoint(hermite.rightDirection)})`,
+            `Lₗ=${hermite.leftTangentLength.toFixed(2)} mm`,
+            `Lᵣ=${hermite.rightTangentLength.toFixed(2)} mm`,
+            `Vₗ=Lₗdₗ`,
+            `Vᵣ=−Lᵣdᵣ`,
+            "t∈[0,1]",
+          ]
+        : commonFormulaValues),
+      ...(!hermite && sourceSink
         ? [
             `gₗ=${sourceSink.leftStrength.toFixed(3)}`,
             `gᵣ=${sourceSink.rightStrength.toFixed(3)}`,
@@ -1568,7 +1942,8 @@ export const createEdgesLab = async (): Promise<EdgesLab> => {
             `αᵣ=${(sourceSink.rightDepartureAngle * 180 / Math.PI).toFixed(1)}°`,
             "θₗ∈[αₗ,0]",
           ]
-        : [
+        : !hermite
+          ? [
             `λsafe=${model.clearanceControlScale.toFixed(3)}`,
             `Hshape,ₗ=${model.leftShapeControlHeight.toFixed(2)} mm`,
             `Hshape,ᵣ=${model.rightShapeControlHeight.toFixed(2)} mm`,
@@ -1577,9 +1952,18 @@ export const createEdgesLab = async (): Promise<EdgesLab> => {
             `Cₗ=(${formatPoint(model.leftControl)})`,
             `Cᵣ=(${formatPoint(model.rightControl)})`,
             "t∈[0,1]",
-          ]),
+          ]
+          : []),
     ].join(" · ")
-    const routeReadout: ReadonlyArray<readonly [string, string]> = sourceSink
+    const routeReadout: ReadonlyArray<readonly [string, string]> = hermite
+      ? [
+          ["Угол выхода L", `${hermite.leftDirectionDegrees.toFixed(1)}°`],
+          ["Длина Vₗ", `${hermite.leftTangentLength.toFixed(1)} mm`],
+          ["Угол входа R", `${hermite.rightDirectionDegrees.toFixed(1)}°`],
+          ["Длина Vᵣ", `${hermite.rightTangentLength.toFixed(1)} mm`],
+          ["Автокоррекция", "нет"],
+        ]
+      : sourceSink
       ? [
           ["Полюс L", sourceSink.leftStrength.toFixed(3)],
           ["Полюс R", sourceSink.rightStrength.toFixed(3)],
@@ -1597,7 +1981,12 @@ export const createEdgesLab = async (): Promise<EdgesLab> => {
       ["Центры", `${settings.centerDistance.toFixed(1)} mm`],
       ["Scale L", `${(settings.leftTorusScale ?? 1).toFixed(2)}×`],
       ["Scale R", `${(settings.rightTorusScale ?? 1).toFixed(2)}×`],
-      ["Дополнительный подъём", `${settings.extraLift.toFixed(1)} mm`],
+      ...(hermite
+        ? []
+        : [[
+            "Дополнительный подъём",
+            `${settings.extraLift.toFixed(1)} mm`,
+          ] as const]),
       ...routeReadout,
       ["Безопасный зазор", `${settings.clearance.toFixed(1)} mm`],
       ["Переход зазора", `${model.clearanceTransitionDistance.toFixed(2)} mm`],
@@ -1642,12 +2031,16 @@ export const createEdgesLab = async (): Promise<EdgesLab> => {
     document.getElementById(
       activeVariant === "source-sink"
         ? `edges-source-formula-${key}`
+        : activeVariant === "hermite"
+          ? `edges-hermite-formula-${key}`
         : `edges-formula-${key}`,
     )
 
   const formulaKeyForVariable = (variable: HTMLElement): string | null => {
     const prefix = variable.id.startsWith("edges-source-formula-")
       ? "edges-source-formula-"
+      : variable.id.startsWith("edges-hermite-formula-")
+        ? "edges-hermite-formula-"
       : variable.id.startsWith("edges-formula-")
         ? "edges-formula-"
         : null
@@ -1704,6 +2097,12 @@ export const createEdgesLab = async (): Promise<EdgesLab> => {
       h: elements.measureRoute,
       p: elements.measureRoute,
       rho: elements.measureSphere,
+      "d-left": elements.measureLeftDirection,
+      "d-right": elements.measureRightDirection,
+      "l-left": elements.measureLeftTangent,
+      "l-right": elements.measureRightTangent,
+      "v-left": elements.measureLeftTangent,
+      "v-right": elements.measureRightTangent,
       "scale-left": elements.measureLeftScale,
       "scale-right": elements.measureRightScale,
     }
@@ -1712,7 +2111,11 @@ export const createEdgesLab = async (): Promise<EdgesLab> => {
       elements.measureDistance,
       elements.measureLeftScale,
       elements.measureLift,
+      elements.measureLeftDirection,
+      elements.measureLeftTangent,
       elements.measureRightScale,
+      elements.measureRightDirection,
+      elements.measureRightTangent,
       elements.measureRoute,
       elements.measureSphere,
     ]) {
@@ -1749,14 +2152,35 @@ export const createEdgesLab = async (): Promise<EdgesLab> => {
 
   const syncVariantContent = (): void => {
     const sourceSink = activeVariant === "source-sink"
-    elements.formulaComposite.hidden = sourceSink
+    const hermite = activeVariant === "hermite"
+    elements.formulaComposite.hidden = sourceSink || hermite
+    elements.formulaHermite.hidden = !hermite
     elements.formulaSourceSink.hidden = !sourceSink
-    elements.sceneTitle.textContent = sourceSink
-      ? "Edge · силовая линия источник → сток"
-      : "Edge · составная экспериментальная формула"
-    elements.sceneDescription.textContent = sourceSink
-      ? "Аналитическая линия двумерного поля соединяет Sphere как источник и сток. Стенд выбирает самый низкий контур, который проходит через отверстия и не пересекает Torus."
-      : "Экспериментальная составная схема: кубическая Bézier-кривая, профиль безопасного зазора и численный автоподбор высоты. Sphere перемещается перетаскиванием левой кнопкой мыши."
+    elements.measureLeftDirection.hidden = !hermite
+    elements.measureLeftTangent.hidden = !hermite
+    elements.measureRightDirection.hidden = !hermite
+    elements.measureRightTangent.hidden = !hermite
+    elements.measureLift.hidden = hermite
+    if (hermite) {
+      elements.sceneTitle.textContent = "Edge · Hermite / упругая балка"
+      elements.sceneDescription.textContent =
+        "Чистая кубическая Hermite-кривая соединяет центры Sphere по двум явным граничным векторам. Проверка Torus измеряет результат, но не исправляет формулу."
+      elements.routeMeasureDescription.textContent =
+        "проверка отдельно · без автокоррекции"
+    } else if (sourceSink) {
+      elements.sceneTitle.textContent = "Edge · силовая линия источник → сток"
+      elements.sceneDescription.textContent =
+        "Аналитическая линия двумерного поля соединяет Sphere как источник и сток. Стенд выбирает самый низкий контур, который проходит через отверстия и не пересекает Torus."
+      elements.routeMeasureDescription.textContent =
+        "выбор безопасной линии поля"
+    } else {
+      elements.sceneTitle.textContent =
+        "Edge · составная экспериментальная формула"
+      elements.sceneDescription.textContent =
+        "Экспериментальная составная схема: кубическая Bézier-кривая, профиль безопасного зазора и численный автоподбор высоты. Sphere перемещается перетаскиванием левой кнопкой мыши."
+      elements.routeMeasureDescription.textContent =
+        "автоподбор по плавному профилю зазора"
+    }
   }
 
   const rebuild = (): void => {
@@ -1825,10 +2249,14 @@ export const createEdgesLab = async (): Promise<EdgesLab> => {
       rightOffsetLimit,
     )
     sphereOffsets = {left: leftOffset, right: rightOffset}
+    const tangentMaximum = Math.max(
+      400,
+      Number(elements.centerDistance.value) * 3,
+    )
+    elements.leftTangentLength.max = String(tangentMaximum)
+    elements.rightTangentLength.max = String(tangentMaximum)
     const settings = input(torusParameters)
-    const model = activeVariant === "source-sink"
-      ? buildSourceSinkFieldModel(settings)
-      : buildEdgeConstraintModel(settings)
+    const model = edgeModelForVariant(settings, activeVariant)
     interactionModel = model
     interactionSphereRadius = sphereRadius
     interactionOffsetLimit = {
@@ -1960,10 +2388,21 @@ export const createEdgesLab = async (): Promise<EdgesLab> => {
         formulaHelperMaterial(["span"]),
       )
       const heightMaterial = formulaHelperMaterial(["h"])
-      addLine(segmentGeometry([
-        [model.leftCenter, model.leftControl],
-        [model.rightCenter, model.rightControl],
-      ]), heightMaterial)
+      if (model.hermite) {
+        addLine(
+          segmentGeometry([[model.leftCenter, model.leftControl]]),
+          formulaHelperMaterial(["v-left", "d-left", "l-left"]),
+        )
+        addLine(
+          segmentGeometry([[model.rightCenter, model.rightControl]]),
+          formulaHelperMaterial(["v-right", "d-right", "l-right"]),
+        )
+      } else {
+        addLine(segmentGeometry([
+          [model.leftCenter, model.leftControl],
+          [model.rightCenter, model.rightControl],
+        ]), heightMaterial)
+      }
 
       const majorRadiusStart = model.leftTorusCenter
       const majorRadiusEnd = {
@@ -2033,10 +2472,12 @@ export const createEdgesLab = async (): Promise<EdgesLab> => {
           ],
         ]
       }
-      addLine(segmentGeometry([
-        ...heightDimension(model.leftTorusCenter, model.leftControlHeight),
-        ...heightDimension(model.rightTorusCenter, model.rightControlHeight),
-      ]), heightMaterial)
+      if (!model.hermite) {
+        addLine(segmentGeometry([
+          ...heightDimension(model.leftTorusCenter, model.leftControlHeight),
+          ...heightDimension(model.rightTorusCenter, model.rightControlHeight),
+        ]), heightMaterial)
+      }
       addLine(
         polylineGeometry(
           circlePoints(model.leftTorusCenter, 0, leftOffsetLimit),
@@ -2102,7 +2543,14 @@ export const createEdgesLab = async (): Promise<EdgesLab> => {
         marker.position.copy(pointVector(control))
         marker.frustumCulled = false
         space.add(marker)
-        registerFormulaMaterial([key], controlMaterial)
+        registerFormulaMaterial(
+          model.hermite
+            ? key === "cl"
+              ? ["v-left", "d-left", "l-left"]
+              : ["v-right", "d-right", "l-right"]
+            : [key],
+          controlMaterial,
+        )
       }
       const centerTick = Math.max(0.35, sphereRadius * 0.3)
       addLine(segmentGeometry([
@@ -2156,7 +2604,14 @@ export const createEdgesLab = async (): Promise<EdgesLab> => {
         torus.tube *
         Math.max(settings.leftTorusScale ?? 1, settings.rightTorusScale ?? 1) +
         settings.clearance +
-        settings.extraLift
+        (
+          activeVariant === "hermite"
+            ? Math.max(
+                settings.leftTangentLength ?? settings.centerDistance * 2,
+                settings.rightTangentLength ?? settings.centerDistance * 2,
+              ) / 3
+            : settings.extraLift
+        )
       ) * 0.3,
     )
     switch (view) {
@@ -2185,7 +2640,14 @@ export const createEdgesLab = async (): Promise<EdgesLab> => {
       settings.torusTube *
       Math.max(settings.leftTorusScale ?? 1, settings.rightTorusScale ?? 1) +
       settings.clearance +
-      settings.extraLift +
+      (
+        activeVariant === "hermite"
+          ? Math.max(
+              settings.leftTangentLength ?? settings.centerDistance * 2,
+              settings.rightTangentLength ?? settings.centerDistance * 2,
+            ) / 3
+          : settings.extraLift
+      ) +
       1
     ) * 4
 
@@ -2273,7 +2735,40 @@ export const createEdgesLab = async (): Promise<EdgesLab> => {
       -105,
       -10,
     )
-    placeSceneMeasure(elements.measureLift, interactionModel.leftControl, 95, -35)
+    if (!elements.measureLift.hidden) {
+      placeSceneMeasure(
+        elements.measureLift,
+        interactionModel.leftControl,
+        95,
+        -35,
+      )
+    }
+    if (interactionModel.hermite) {
+      placeSceneMeasure(
+        elements.measureLeftDirection,
+        interactionModel.leftControl,
+        -115,
+        -38,
+      )
+      placeSceneMeasure(
+        elements.measureLeftTangent,
+        interactionModel.leftControl,
+        -115,
+        40,
+      )
+      placeSceneMeasure(
+        elements.measureRightDirection,
+        interactionModel.rightControl,
+        115,
+        -38,
+      )
+      placeSceneMeasure(
+        elements.measureRightTangent,
+        interactionModel.rightControl,
+        115,
+        40,
+      )
+    }
     placeSceneMeasure(elements.measureRoute, routeAnchor, 0, -50)
   }
 
@@ -2385,9 +2880,19 @@ export const createEdgesLab = async (): Promise<EdgesLab> => {
         (highest, point) => point.z > highest.z ? point : highest,
         interactionModel.curve[0]!,
       ),
+      "d-left": interactionModel.leftControl,
+      "d-right": interactionModel.rightControl,
+      "l-left": interactionModel.leftControl,
+      "l-right": interactionModel.rightControl,
+      "v-left": interactionModel.leftControl,
+      "v-right": interactionModel.rightControl,
     }
     const domTargets: Readonly<Record<string, HTMLElement>> = {
       dh: elements.measureLift,
+      "d-left": elements.measureLeftDirection,
+      "d-right": elements.measureRightDirection,
+      "l-left": elements.measureLeftTangent,
+      "l-right": elements.measureRightTangent,
     }
     const paths = elements.formulaLinks.querySelectorAll<SVGPathElement>(
       "[data-edges-formula-link]",
@@ -2463,12 +2968,32 @@ export const createEdgesLab = async (): Promise<EdgesLab> => {
     elements.centerDistance,
     elements.clearance,
     elements.extraLift,
+    elements.leftDirection,
+    elements.leftTangentLength,
     elements.leftTorusScale,
+    elements.rightDirection,
+    elements.rightTangentLength,
     elements.rightTorusScale,
     elements.sphereRadius,
   ]
   for (const control of rebuildInputs) {
     control.addEventListener("input", () => {
+      if (
+        control === elements.leftTangentLength ||
+        control === elements.rightTangentLength
+      ) {
+        hermiteTangentsCustomized = true
+      } else if (
+        activeVariant === "hermite" &&
+        !hermiteTangentsCustomized &&
+        (
+          control === elements.centerDistance ||
+          control === elements.leftTorusScale ||
+          control === elements.rightTorusScale
+        )
+      ) {
+        applyHermiteShoulderDefaults()
+      }
       rebuild()
       if (
         control === elements.leftTorusScale ||
@@ -2641,6 +3166,9 @@ export const createEdgesLab = async (): Promise<EdgesLab> => {
       interactionOffsetLimit[draggedSphere],
     )
     sphereOffsets = {...sphereOffsets, [draggedSphere]: offset}
+    if (activeVariant === "hermite" && !hermiteTangentsCustomized) {
+      applyHermiteShoulderDefaults()
+    }
     event.preventDefault()
     event.stopImmediatePropagation()
     rebuild()
@@ -2698,6 +3226,9 @@ export const createEdgesLab = async (): Promise<EdgesLab> => {
     },
     show(variant) {
       activeVariant = variant
+      if (variant === "hermite" && !hermiteControlsInitialized) {
+        applyHermiteShoulderDefaults()
+      }
       activeFormulaKey = null
       elements.viewport.hidden = false
       active = true

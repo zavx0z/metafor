@@ -1,5 +1,6 @@
 import type {
   StateGraph,
+  StateGraphField,
   StateGraphSleeve,
   StateGraphTransition,
 } from "./StateGraph.ts"
@@ -17,6 +18,7 @@ export type StateGraphLayoutNode = Readonly<{
   color: readonly [number, number, number]
   current: boolean
   end: StateGraphLayoutNodeEnd
+  fields: readonly StateGraphField[]
   id: string
   label: string
   radius: number
@@ -64,6 +66,7 @@ type MutableLayoutNode = {
   color: readonly [number, number, number]
   current: boolean
   end: StateGraphLayoutNodeEnd
+  fields: readonly StateGraphField[]
   id: string
   label: string
   radius: number
@@ -147,6 +150,7 @@ export const buildStateGraphRootLayout = (
 ): StateGraphRootLayout => {
   const states = new Map(graph.states.map((state) => [state.id, state] as const))
   const colors = stateGraphColors(graph)
+  const fieldById = new Map(graph.fields.map((field) => [field.id, field]))
   const outgoing = new Map<number, StateGraphTransition[]>()
   for (const transition of graph.transitions) {
     const bucket = outgoing.get(transition.fromStateId)
@@ -179,6 +183,20 @@ export const buildStateGraphRootLayout = (
         : colors.get(stateId) ?? [0.72, 0.78, 0.88],
       current: !missing && stateId === graph.currentStateId,
       end,
+      fields: [
+        ...new Set(
+          (outgoing.get(stateId) ?? []).flatMap((transition) =>
+            transition.conditions.map((condition) => condition.fieldId)
+          ),
+        ),
+      ].map((fieldId) =>
+        fieldById.get(fieldId) ?? {
+          id: fieldId,
+          key: `field-${fieldId}`,
+          label: `Field ${fieldId}`,
+          type: "string" as const,
+        }
+      ),
     }
     nodes.push(node)
     return node

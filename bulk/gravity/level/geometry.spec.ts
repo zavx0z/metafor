@@ -22,7 +22,7 @@ describe("bulk/gravity/level/geometry", () => {
       (root.outerDiameterMm - root.innerDiameterMm) / 2,
       6,
     )
-    expect(root.shellRadiusMm).toBeCloseTo(root.innerRadiusMm + root.shellTubeMm, 6)
+    expect(root.torusRadiusMm).toBeCloseTo(root.innerRadiusMm + root.torusTubeMm, 6)
     expect(root.levelScale).toBe(1)
   })
 

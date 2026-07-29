@@ -32,6 +32,11 @@ export interface ThinFilmMaterialParameters extends MaterialParameters {
    * @default 0.72
    */
   filmThickness?: number
+  /**
+   * Нормализованная угловая ширина зеркальных бликов.
+   * @default 0
+   */
+  highlightSize?: number
 }
 
 const clamp = (value: number, minimum: number, maximum: number): number =>
@@ -57,6 +62,7 @@ export class ThinFilmMaterial extends Material {
   public rimStrength: number
   public iridescence: number
   public filmThickness: number
+  public highlightSize: number
 
   constructor(parameters: ThinFilmMaterialParameters = {}) {
     super(parameters)
@@ -66,5 +72,6 @@ export class ThinFilmMaterial extends Material {
     this.rimStrength = clamp(parameters.rimStrength ?? 1.45, 0, 8)
     this.iridescence = clamp(parameters.iridescence ?? 0.82, 0, 1)
     this.filmThickness = clamp(parameters.filmThickness ?? 0.72, 0.05, 4)
+    this.highlightSize = clamp(parameters.highlightSize ?? 0, 0, 1)
   }
 }

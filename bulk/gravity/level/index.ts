@@ -6,7 +6,7 @@
  * её детализация для wireframe и вывод метрик подписей по глубине.
  *
  * Публичные слои:
- * - `geometry` — чистые размеры (outerR/innerR/shellR/tube/sphereR/thickness/padding) + `levelScale`
+ * - `geometry` — чистые размеры (outerR/innerR/torusR/torusTube/sphereR/thickness/padding) + `levelScale`
  * - `detail` — сегментация тора и сферы с ослаблением по глубине
  * - `label` — видимость и масштабирование подписи (font size, surface offset)
  * - `memo` — ленивый кэшированный резолвер всех трёх слоёв

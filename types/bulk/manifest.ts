@@ -51,7 +51,7 @@ export interface BulkFieldParticle {
 
 export type BulkOrbitalParticleKind = "state" | "process" | "reaction" | "axion" | "finally"
 
-/** A persistent declaration occurrence in an Atom's visible causal shell. */
+/** A persistent declaration occurrence in an Atom's visible State sleeve. */
 export interface BulkOrbitalParticle {
   orbitalParticleId: string
   sourceId: number

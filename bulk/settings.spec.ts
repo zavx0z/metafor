@@ -8,6 +8,7 @@ import { DEFAULT_BULK_SETTINGS, normalizeBulkRenderSettings } from "./settings.t
 describe("bulk visual laws", () => {
   test("uses the gravity layout law as the single layout source", () => {
     expect(DEFAULT_BULK_SETTINGS.layout).toEqual(DEFAULT_BULK_LAYOUT_SETTINGS)
+    expect(Object.isFrozen(DEFAULT_BULK_SETTINGS.layout)).toBe(true)
     expect(DEFAULT_BULK_LAYOUT_SETTINGS.rootInnerDiameterMm).toBeCloseTo(
       DEFAULT_BULK_LAYOUT_SNAPSHOT_CONFIG.rootOuterDiameterMm / 3,
       6,

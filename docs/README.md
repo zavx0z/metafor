@@ -34,6 +34,8 @@
   ресурсов.
 - [Bulk layout](../bulk/gravity/layout/CONTRACT.md) — проверяемая геометрия
   проявления.
+- [Visual layouts](../pkg/visual/CONTRACT.md) — именованные способы показать
+  один полный Monad snapshot.
 - [Протоколы сил](proto/) — справочное чтение wire-потоков; при конфликте
   приоритет имеет контракт домена и public type.
 - [Работа с Meta-пакетами](META_PACKAGES.md) — граница внешних репозиториев в

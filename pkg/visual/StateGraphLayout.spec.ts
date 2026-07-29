@@ -9,6 +9,12 @@ const graph = (): StateGraph => ({
   atomId: 1,
   atomLabel: "Example",
   currentStateId: 1,
+  fields: [{
+    id: 31,
+    key: "ready",
+    label: "Ready",
+    type: "boolean",
+  }],
   reachableStateIds: [1, 2, 3],
   src: "owner/example",
   states: [
@@ -86,6 +92,20 @@ describe("State Graph layered layout", () => {
 
     expect(colorsByState.size).toBe(3)
     expect(new Set(colorsByState.values()).size).toBe(3)
+  })
+
+  test("puts condition Fields inside the State that uses them", () => {
+    const layout = buildStateGraphRootLayout(graph(), 1)
+    const start = layout.nodes.find((node) => node.stateId === 1)
+    const next = layout.nodes.find((node) => node.stateId === 2)
+
+    expect(start?.fields).toEqual([{
+      id: 31,
+      key: "ready",
+      label: "Ready",
+      type: "boolean",
+    }])
+    expect(next?.fields).toEqual([])
   })
 
   test("describes every path sharing the selected start State", () => {

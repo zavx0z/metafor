@@ -91,21 +91,21 @@ const createDarkParticleInputNode = (descriptor: BulkDarkParticleInput): DarkPar
 const latticePoints = (count: number): Array<[number, number, number]> => {
   if (count <= 0) return []
   const points: Array<[number, number, number]> = [[0, 0, 0]]
-  for (let shell = 1; points.length < count; shell += 1) {
-    const shellPoints: Array<[number, number, number]> = []
-    for (let z = -shell; z <= shell; z += 1) {
-      for (let y = -shell; y <= shell; y += 1) {
-        for (let x = -shell; x <= shell; x += 1) {
-          if (Math.max(Math.abs(x), Math.abs(y), Math.abs(z)) !== shell) continue
-          shellPoints.push([x, y, z])
+  for (let layer = 1; points.length < count; layer += 1) {
+    const layerPoints: Array<[number, number, number]> = []
+    for (let z = -layer; z <= layer; z += 1) {
+      for (let y = -layer; y <= layer; y += 1) {
+        for (let x = -layer; x <= layer; x += 1) {
+          if (Math.max(Math.abs(x), Math.abs(y), Math.abs(z)) !== layer) continue
+          layerPoints.push([x, y, z])
         }
       }
     }
-    shellPoints.sort((left, right) =>
+    layerPoints.sort((left, right) =>
       Math.hypot(...left) - Math.hypot(...right) ||
       left[2] - right[2] || left[1] - right[1] || left[0] - right[0],
     )
-    points.push(...shellPoints)
+    points.push(...layerPoints)
   }
   return points.slice(0, count)
 }

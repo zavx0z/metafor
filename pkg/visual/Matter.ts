@@ -1,6 +1,6 @@
 import {defineVisualComponent} from "./internal/component.ts"
 
-/** Atom shells and their immediate recursive Matter composition. */
+/** Atom toruses and their immediate recursive Matter composition. */
 export const Matter = defineVisualComponent({
   entity: "Matter",
   slug: "matter",

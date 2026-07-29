@@ -12,7 +12,13 @@ const projection = (): BulkRuntimeProjection => ({
   }],
   topologies: [],
   wimps: [{src: "owner/graph", name: "Graph"}],
-  fields: [],
+  fields: [{
+    id: 31,
+    wimp: "owner/graph",
+    key: "ready",
+    label: "Ready",
+    type: "boolean",
+  }],
   states: [
     {id: 1, wimp: "owner/graph", name: "A", position: 0},
     {id: 2, wimp: "owner/graph", name: "B", position: 1},
@@ -80,7 +86,14 @@ describe("State Graph", () => {
   })
 
   test("retains exact Transition conditions in the inspected graph", () => {
-    expect(buildStateGraph(projection(), 1).transitions[0]).toMatchObject({
+    const graph = buildStateGraph(projection(), 1)
+    expect(graph.fields).toEqual([{
+      id: 31,
+      key: "ready",
+      label: "Ready",
+      type: "boolean",
+    }])
+    expect(graph.transitions[0]).toMatchObject({
       id: 11,
       conditions: [{id: 21, fieldId: 31, predicate: {eq: true}}],
     })

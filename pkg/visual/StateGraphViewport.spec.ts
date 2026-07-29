@@ -1,9 +1,17 @@
 import {describe, expect, test} from "bun:test"
+import {Color, ThinFilmMaterial} from "@metafor/engine"
 import type {
   StateGraphLayoutEdge,
   StateGraphLayoutNode,
 } from "./StateGraphLayout.ts"
-import {buildStateGraphEdgeCurve} from "./StateGraphViewport.ts"
+import {
+  buildStateGraphEdgeCurve,
+  groupStateGraphEdges,
+  stateGraphFieldColor,
+  stateGraphFieldSphereLayout,
+  stateGraphNodeFormDimensions,
+} from "./StateGraphViewport.ts"
+import {createQuantumFilmMaterial} from "./QuantumFilm.ts"
 
 const node = (
   id: string,
@@ -13,6 +21,7 @@ const node = (
   color: [1, 1, 1],
   current: false,
   end: null,
+  fields: [],
   id,
   label: id,
   radius: 3.2,
@@ -34,6 +43,47 @@ const edge = (returning: boolean): StateGraphLayoutEdge => ({
 })
 
 describe("State Graph viewport edge geometry", () => {
+  test("reuses the quantum ThinFilm skin for graph and context Torus forms", () => {
+    const material = createQuantumFilmMaterial(
+      new Color(0.2, 0.6, 0.9),
+      {glowIntensity: 3, opacity: 0.7},
+    )
+
+    expect(material).toBeInstanceOf(ThinFilmMaterial)
+    expect(material.opacity).toBe(0.7)
+    expect(material.filmThickness).toBe(0.88)
+    expect(material.iridescence).toBe(0.86)
+    expect(createQuantumFilmMaterial(new Color(0.2, 0.6, 0.9)).highlightSize)
+      .toBe(0)
+  })
+
+  test("fits the code-owned Torus proportions and exposes its hole for Fields", () => {
+    const form = stateGraphNodeFormDimensions(3.2)
+
+    expect(form.torusRadius + form.torusTube).toBeCloseTo(3.2)
+    expect(form.holeRadius).toBeGreaterThan(0)
+    expect(form.holeRadius).toBeCloseTo(
+      form.torusRadius - form.torusTube,
+    )
+  })
+
+  test("lays condition Fields out as type-colored Spheres inside the hole", () => {
+    const fields = stateGraphFieldSphereLayout([
+      {id: 1, key: "name", label: "Name", type: "string"},
+      {id: 2, key: "ready", label: "Ready", type: "boolean"},
+      {id: 3, key: "count", label: "Count", type: "number"},
+    ], 1.4)
+
+    expect(fields).toHaveLength(3)
+    expect(stateGraphFieldColor(fields[0]!.type)).not.toEqual(
+      stateGraphFieldColor(fields[1]!.type),
+    )
+    for (const field of fields) {
+      expect(Math.hypot(field.x, field.y) + field.radius)
+        .toBeLessThanOrEqual(1.4)
+    }
+  })
+
   test("draws a returning edge as a front arc and a top-view straight line", () => {
     const points = buildStateGraphEdgeCurve(
       edge(true),
@@ -64,5 +114,19 @@ describe("State Graph viewport edge geometry", () => {
     )
 
     expect(Math.max(...points.map((point) => point.z))).toBeCloseTo(0.7)
+  })
+
+  test("compiles all Transition into at most two render batches", () => {
+    const batches = groupStateGraphEdges([
+      edge(false),
+      {...edge(false), id: "transition:6", transitionId: 6},
+      edge(true),
+    ])
+
+    expect(batches).toHaveLength(2)
+    expect(batches[0]).toMatchObject({returning: false})
+    expect(batches[0]!.edges).toHaveLength(2)
+    expect(batches[1]).toMatchObject({returning: true})
+    expect(batches[1]!.edges).toHaveLength(1)
   })
 })

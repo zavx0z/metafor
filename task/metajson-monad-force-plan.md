@@ -884,23 +884,24 @@ Root и non-root Atom toruses используют одну scene-depth visual-�
 наличие родителя не меняет opacity, luminance, glow или render layer.
 Собственные Fields каждого Atom используют одну semantic material-функцию,
 сохраняют цвет типа и единичный shader-local scale независимо от depth. Field
-не умножает opacity на `wireframeOpacity` материала оболочки, но плотное
+не умножает opacity на `wireframeOpacity` материала Torus, но плотное
 Field-ядро также не использует additive State overlay: оно рендерится
 непрозрачным depth-tested `scene` marker с исходным type color и малым цветным
 glow, чтобы overlap не стирал semantic colors в белое пятно.
 Activity и particle kind могут менять material одним и тем же правилом на
 каждом уровне, но отдельный nested-only accent запрещён.
-Owner superseded renderer-only spherical-shell placement после live visual
+Owner superseded renderer-only spherical placement после live visual
 review. Current law возвращает последнюю принятую pre-sphere композицию:
 Fields используют materialized Atom-local coordinates и остаются в локальном
 ядре, State markers сохраняют тороидальную manifestation composition, а root
 torus остаётся читаемым обычным scene-depth object. Renderer не создаёт
-`markerShell`, не выводит marker position из identity/count/radius и не
+отдельный spherical marker frame, не выводит marker position из
+identity/count/radius и не
 переписывает локальные endpoints; marker/proxy/transition/relation geometry
 использует один owning Atom container и materialized coordinates. Data,
 topology, parent ownership, causal layout и identity остаются неизменными.
-Следующее owner-уточнение закрепляет один самоподобный радиальный закон на
-каждом уровне Atom: Fields остаются в ядре до `r_inner`, полные immediate
+Следующее owner-уточнение закрепляет один рекурсивный радиальный закон общего
+Torus-компонента на каждом уровне Atom manifestation: Fields остаются в ядре до `r_inner`, полные immediate
 Matter toruses выносятся из ядра на первую внутреннюю орбиту родительского
 тора до `r_torus`, а собственные State-рукава этого же Atom занимают следующие
 внешние орбиты до `r_outer`. State дочернего Atom остаётся внутри child-local

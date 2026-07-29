@@ -11,7 +11,7 @@ const field = {
 	colorB: 1,
 }
 
-describe("self-similar Atom nucleus Fields", () => {
+describe("depth-independent Atom nucleus Fields", () => {
 	test("uses the State bubble style without washing out the semantic Field color", () => {
 		const visual = resolveFieldParticleVisual(field)
 		const potentialState = resolveTorusStateVisual({

@@ -1,5 +1,6 @@
 import type {
   BulkRuntimeCondition,
+  BulkRuntimeField,
   BulkRuntimeProjection,
   BulkRuntimeState,
   BulkRuntimeTransition,
@@ -9,6 +10,13 @@ export type StateGraphCondition = Readonly<{
   fieldId: number
   id: number
   predicate: unknown
+}>
+
+export type StateGraphField = Readonly<{
+  id: number
+  key: string
+  label: string
+  type: BulkRuntimeField["type"]
 }>
 
 export type StateGraphTransition = Readonly<{
@@ -43,6 +51,7 @@ export type StateGraph = Readonly<{
   atomId: number
   atomLabel: string
   currentStateId: number | null
+  fields: readonly StateGraphField[]
   reachableStateIds: readonly number[]
   sleeves: readonly StateGraphSleeve[]
   src: string
@@ -105,6 +114,15 @@ export const buildStateGraph = (
     .filter((state) => state.wimp === atom.wimp)
     .sort(byPositionThenId)
     .map((state) => stateForGraph(state, currentStateId))
+  const fields = projection.fields
+    .filter((field) => field.wimp === atom.wimp)
+    .sort((left, right) => left.id - right.id)
+    .map((field): StateGraphField => ({
+      id: field.id,
+      key: field.key,
+      label: field.label ?? field.key,
+      type: field.type,
+    }))
   const stateById = new Map(states.map((state) => [state.id, state] as const))
   const transitions = projection.transitions
     .filter((transition) => transition.wimp === atom.wimp)
@@ -190,6 +208,7 @@ export const buildStateGraph = (
       projection.wimps.find((wimp) => wimp.src === atom.wimp)?.name ?? atom.wimp,
     src: atom.wimp,
     currentStateId,
+    fields,
     states,
     transitions,
     reachableStateIds: [...reachableStateIds],

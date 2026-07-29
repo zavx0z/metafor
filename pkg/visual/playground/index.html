@@ -47,6 +47,14 @@
         grid-template-columns: 220px minmax(0, 1fr);
       }
 
+      main.layout-mode #visual-visibility-controls {
+        display: none;
+      }
+
+      main.fields-analysis-mode {
+        grid-template-columns: 220px minmax(0, 1fr);
+      }
+
       aside {
         z-index: 2;
         padding: 18px;
@@ -95,6 +103,16 @@
         color: white;
         border-color: rgba(75, 205, 255, 0.42);
         background: rgba(38, 137, 192, 0.14);
+      }
+
+      nav a[data-status="in-progress"]::after {
+        display: block;
+        margin-top: 3px;
+        color: #6f819a;
+        font-size: 7px;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        content: "в работе";
       }
 
       .nav-section {
@@ -166,7 +184,8 @@
 
       main.section-tabs-mode #state-graph-stage,
       main.section-tabs-mode #edges-stage,
-      main.section-tabs-mode #torus-analysis-stage {
+      main.section-tabs-mode #torus-analysis-stage,
+      main.section-tabs-mode #fields-analysis-stage {
         top: 46px;
       }
 
@@ -1427,6 +1446,112 @@
         inset: 0;
       }
 
+      #fields-analysis-stage {
+        position: absolute;
+        inset: 0;
+        overflow: hidden;
+        background:
+          radial-gradient(circle at 50% 46%, rgba(31, 118, 162, 0.12), transparent 48%),
+          #030810;
+      }
+
+      #fields-analysis-canvas {
+        position: absolute;
+        inset: 0;
+      }
+
+      .fields-analysis-card {
+        position: absolute;
+        top: 18px;
+        left: 18px;
+        z-index: 2;
+        width: min(330px, calc(100% - 36px));
+        padding: 14px;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 11px;
+        background: rgba(3, 9, 16, 0.82);
+        backdrop-filter: blur(14px);
+      }
+
+      .fields-analysis-card h2 {
+        margin: 0 0 5px;
+        font-size: 14px;
+      }
+
+      .fields-analysis-card p {
+        margin: 0 0 13px;
+        color: #8597ae;
+        font-size: 8px;
+        line-height: 1.5;
+      }
+
+      .fields-analysis-control {
+        display: grid;
+        gap: 7px;
+      }
+
+      .fields-analysis-control span {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        font-size: 9px;
+      }
+
+      .fields-analysis-control output {
+        color: white;
+      }
+
+      .fields-analysis-hint {
+        position: absolute;
+        right: 14px;
+        bottom: 84px;
+        z-index: 2;
+        padding: 5px 7px;
+        border: 1px solid rgba(145, 171, 214, 0.14);
+        border-radius: 6px;
+        background: rgba(3, 8, 15, 0.76);
+        color: #697b94;
+        font-size: 8px;
+        pointer-events: none;
+      }
+
+      #fields-analysis-readout {
+        position: absolute;
+        right: 18px;
+        bottom: 18px;
+        left: 18px;
+        z-index: 2;
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        overflow: hidden;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        border-radius: 10px;
+        background: rgba(3, 9, 16, 0.8);
+        backdrop-filter: blur(12px);
+      }
+
+      #fields-analysis-readout div {
+        display: grid;
+        gap: 3px;
+        min-width: 0;
+        padding: 9px 11px;
+        border-right: 1px solid rgba(255, 255, 255, 0.08);
+      }
+
+      #fields-analysis-readout span {
+        color: #72869f;
+        font-size: 7px;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+      }
+
+      #fields-analysis-readout output,
+      #fields-analysis-readout strong {
+        color: white;
+        font-size: 9px;
+        font-weight: 400;
+      }
+
       .torus-analysis-card {
         position: absolute;
         top: 18px;
@@ -1768,7 +1893,12 @@
       }
 
       @media (max-width: 900px) {
-        main {
+        main,
+        main.state-graph-mode,
+        main.form-skin-mode,
+        main.edges-mode,
+        main.torus-analysis-mode,
+        main.fields-analysis-mode {
           grid-template-columns: 180px minmax(0, 1fr);
         }
 
@@ -1801,6 +1931,98 @@
         #torus-analysis-readout {
           grid-template-columns: repeat(2, minmax(0, 1fr));
         }
+
+        #fields-analysis-readout {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+      }
+
+      @media (max-width: 600px) {
+        main,
+        main.state-graph-mode,
+        main.form-skin-mode,
+        main.edges-mode,
+        main.torus-analysis-mode,
+        main.fields-analysis-mode {
+          grid-template-rows: auto minmax(0, 1fr);
+          grid-template-columns: minmax(0, 1fr);
+        }
+
+        #stories {
+          display: grid;
+          grid-template-rows: auto auto;
+          grid-template-columns: auto minmax(0, 1fr);
+          grid-row: 1;
+          gap: 2px 14px;
+          min-width: 0;
+          padding: 10px 12px;
+          overflow: hidden;
+          border-right: 0;
+          border-bottom: 1px solid rgba(145, 171, 214, 0.18);
+        }
+
+        #stories .eyebrow {
+          grid-row: 1;
+          grid-column: 1;
+        }
+
+        #stories h1 {
+          grid-row: 2;
+          grid-column: 1;
+          margin: 0;
+          white-space: nowrap;
+        }
+
+        #stories .meta {
+          display: none;
+        }
+
+        #stories nav {
+          display: flex;
+          grid-row: 1 / 3;
+          grid-column: 2;
+          gap: 5px;
+          min-width: 0;
+          margin: 0;
+          padding-bottom: 1px;
+          overflow-x: auto;
+          align-items: center;
+        }
+
+        #stories nav .nav-section {
+          display: none;
+        }
+
+        #stories nav a {
+          flex: 0 0 auto;
+          padding: 7px 9px;
+          font-size: 10px;
+        }
+
+        #stage {
+          grid-row: 2;
+          grid-column: 1;
+        }
+
+        #title {
+          top: 10px;
+          left: 10px;
+          max-width: calc(100% - 20px);
+          padding: 9px 10px;
+        }
+
+        #title h2 {
+          font-size: 13px;
+        }
+
+        #description {
+          font-size: 10px;
+        }
+
+        #state-graph-stage,
+        #form-skin-stage {
+          padding: 12px;
+        }
       }
     </style>
   </head>
@@ -1808,8 +2030,8 @@
     <main>
       <aside id="stories">
         <div class="eyebrow">pkg/visual</div>
-        <h1>Visual stories</h1>
-        <div class="meta">static Monad snapshot</div>
+        <h1>Visual layouts</h1>
+        <div class="meta">Monad snapshot</div>
         <nav id="navigation"></nav>
       </aside>
       <section id="stage">
@@ -1824,6 +2046,7 @@
           <p id="description"></p>
         </div>
         <canvas id="visual-canvas"></canvas>
+        <canvas id="outside-in-canvas" hidden></canvas>
         <section id="state-graph-stage" hidden>
           <header class="state-graph-overview">
             <h2 id="state-graph-overview-title"></h2>
@@ -1991,6 +2214,48 @@
                 подъём=<span id="edges-source-formula-dh" class="edges-formula-variable">Δh</span>
               </div>
             </div>
+            <div id="edges-formula-hermite" hidden>
+              <details class="edges-formula-description">
+                <summary aria-label="Описание формулы Hermite">?</summary>
+                <div>
+                  <strong>Кубическая Hermite-кривая · модель упругой балки</strong>
+                  <p>
+                    Это минимальный кубический полином, который одновременно
+                    фиксирует две конечные точки и два граничных вектора.
+                    Такая же Hermite-база используется в конечных элементах
+                    балки Euler–Bernoulli. Формула строит Edge напрямую и не
+                    подбирает безопасную высоту: пересечение с Torus
+                    измеряется отдельно и не изменяет кривую. Дефолтные длины
+                    двух векторов наследуют разные плечи составного
+                    эксперимента, поэтому большая и малая формы не дают
+                    равноплечую дугу.
+                  </p>
+                  <p>
+                    Источники:
+                    <a href="https://www.cs.utexas.edu/~fussell/courses/cs384g-fall2011/lectures/parametric_curves.pdf" target="_blank" rel="noreferrer">UT Austin · Hermite curves</a>,
+                    <a href="https://docs.software.vt.edu/abaqusv2024/English/SIMACAETHERefMap/simathe-c-eulerbernbeams.htm" target="_blank" rel="noreferrer">Euler–Bernoulli beam elements</a>.
+                  </p>
+                </div>
+              </details>
+              <div class="edges-formula-line">
+                <span id="edges-hermite-formula-p" class="edges-formula-variable">P</span>(<span id="edges-hermite-formula-t" class="edges-formula-variable">t</span>)
+                = h₀₀(t)<span id="edges-hermite-formula-sl" class="edges-formula-variable">Sₗ</span>
+                + h₁₀(t)<span id="edges-hermite-formula-v-left" class="edges-formula-variable">Vₗ</span>
+                + h₀₁(t)<span id="edges-hermite-formula-sr" class="edges-formula-variable">Sᵣ</span>
+                + h₁₁(t)<span id="edges-hermite-formula-v-right" class="edges-formula-variable">Vᵣ</span>
+              </div>
+              <div class="edges-formula-line">
+                h₀₀=2t³−3t²+1,
+                h₁₀=t³−2t²+t,
+                h₀₁=−2t³+3t²,
+                h₁₁=t³−t²
+              </div>
+              <div class="edges-formula-line">
+                Vₗ=<span id="edges-hermite-formula-l-left" class="edges-formula-variable">Lₗ</span><span id="edges-hermite-formula-d-left" class="edges-formula-variable">dₗ</span>,
+                Vᵣ=−<span id="edges-hermite-formula-l-right" class="edges-formula-variable">Lᵣ</span><span id="edges-hermite-formula-d-right" class="edges-formula-variable">dᵣ</span>,
+                0 ≤ t ≤ 1
+              </div>
+            </div>
             <div id="edges-formula-values" class="edges-formula-values"></div>
           </section>
           <svg id="edges-formula-links" aria-hidden="true">
@@ -2018,6 +2283,12 @@
             <path data-edges-formula-link="g-right"></path>
             <path data-edges-formula-link="psi"></path>
             <path data-edges-formula-link="lambda-field"></path>
+            <path data-edges-formula-link="d-left"></path>
+            <path data-edges-formula-link="d-right"></path>
+            <path data-edges-formula-link="l-left"></path>
+            <path data-edges-formula-link="l-right"></path>
+            <path data-edges-formula-link="v-left"></path>
+            <path data-edges-formula-link="v-right"></path>
           </svg>
           <div id="edges-formula-target" aria-hidden="true"></div>
           <section id="edges-formula-help" hidden>
@@ -2120,10 +2391,61 @@
               </div>
             </details>
           </label>
+          <label id="edges-measure-left-direction" class="edges-scene-measure" hidden>
+            <span>Направление выхода L</span>
+            <output id="edges-left-direction-output"></output>
+            <input id="edges-left-direction" type="range" min="0" max="180" step="0.5" value="90" />
+            <details class="edges-parameter-help">
+              <summary aria-label="Описание параметра Направление выхода L">?</summary>
+              <div class="edges-parameter-help-text">
+                Угол вектора dₗ относительно плоскости Torus. 90° направляет
+                Edge строго по нормали вверх; меньший угол наклоняет его к
+                правой Sphere.
+              </div>
+            </details>
+          </label>
+          <label id="edges-measure-left-tangent" class="edges-scene-measure" hidden>
+            <span>Длина вектора L</span>
+            <output id="edges-left-tangent-length-output"></output>
+            <input id="edges-left-tangent-length" type="range" min="0.1" max="400" step="0.5" value="100" />
+            <details class="edges-parameter-help">
+              <summary aria-label="Описание параметра Длина левого вектора">?</summary>
+              <div class="edges-parameter-help-text">
+                Длина Vₗ. Меняет мягкость левого плеча, сохраняя выбранное
+                направление выхода. До ручного изменения следует размеру
+                левого Torus так же, как плечо первого эксперимента.
+              </div>
+            </details>
+          </label>
+          <label id="edges-measure-right-direction" class="edges-scene-measure" hidden>
+            <span>Направление входа R</span>
+            <output id="edges-right-direction-output"></output>
+            <input id="edges-right-direction" type="range" min="0" max="180" step="0.5" value="90" />
+            <details class="edges-parameter-help">
+              <summary aria-label="Описание параметра Направление входа R">?</summary>
+              <div class="edges-parameter-help-text">
+                Угол внешнего вектора dᵣ относительно плоскости правого
+                Torus. Сам Edge входит в Sphere в противоположном направлении.
+              </div>
+            </details>
+          </label>
+          <label id="edges-measure-right-tangent" class="edges-scene-measure" hidden>
+            <span>Длина вектора R</span>
+            <output id="edges-right-tangent-length-output"></output>
+            <input id="edges-right-tangent-length" type="range" min="0.1" max="400" step="0.5" value="100" />
+            <details class="edges-parameter-help">
+              <summary aria-label="Описание параметра Длина правого вектора">?</summary>
+              <div class="edges-parameter-help-text">
+                Длина Vᵣ. Управляет правым плечом независимо от левого и не
+                запускает автоподбор маршрута. До ручного изменения следует
+                размеру правого Torus.
+              </div>
+            </details>
+          </label>
           <div id="edges-measure-route" class="edges-scene-measure derived">
             <span>Высота маршрута</span>
             <output></output>
-            <small>автоподбор по плавному профилю зазора</small>
+            <small id="edges-route-measure-description">автоподбор по плавному профилю зазора</small>
           </div>
           <div class="edges-view-controls" aria-label="Вид Edges Lab">
             <button type="button" data-edges-view="perspective">Перспектива</button>
@@ -2414,14 +2736,61 @@
           </div>
           <section id="torus-analysis-readout" aria-label="Производные параметры тора"></section>
         </section>
+        <section id="fields-analysis-stage" hidden>
+          <canvas id="fields-analysis-canvas"></canvas>
+          <section class="fields-analysis-card">
+            <h2>Fields · псевдосфера</h2>
+            <p>
+              Центры Field равномерно распределены по поверхности
+              Фибоначчиевой псевдосферы. Для каждого количества выбирается
+              минимальный радиус без пересечений: ближайшие Fields касаются,
+              поэтому поверхность заполнена максимально плотно.
+            </p>
+            <label class="fields-analysis-control" for="fields-analysis-count-control">
+              <span>
+                Количество Fields
+                <output id="fields-analysis-count-control-output"></output>
+              </span>
+              <input
+                id="fields-analysis-count-control"
+                type="range"
+                min="1"
+                max="128"
+                step="1"
+                value="54"
+              />
+            </label>
+          </section>
+          <span class="fields-analysis-hint">
+            drag — вращение · wheel — панорама · ctrl+wheel — масштаб
+          </span>
+          <section id="fields-analysis-readout" aria-label="Параметры раскладки Fields">
+            <div>
+              <span>Fields</span>
+              <output id="fields-analysis-count"></output>
+            </div>
+            <div>
+              <span>Типов</span>
+              <output id="fields-analysis-types"></output>
+            </div>
+            <div>
+              <span>Радиус псевдосферы</span>
+              <output id="fields-analysis-distribution-radius"></output>
+            </div>
+            <div>
+              <span>Радиус Field</span>
+              <output id="fields-analysis-marker-radius"></output>
+            </div>
+          </section>
+        </section>
       </section>
       <aside id="controls">
         <div id="visual-controls">
-          <fieldset>
+          <fieldset id="visual-visibility-controls">
             <legend>Visual</legend>
             <label class="inline">
               <input id="context" type="checkbox" />
-              <span>Atom context</span>
+              <span>Torus context</span>
             </label>
             <label class="inline">
               <input id="labels" type="checkbox" checked />
@@ -2434,21 +2803,6 @@
             <label class="inline">
               <input id="animation" type="checkbox" />
               <span>Animation</span>
-            </label>
-          </fieldset>
-          <fieldset>
-            <legend>Layout</legend>
-            <label>
-              <span>Inner diameter <output id="inner-output"></output></span>
-              <input id="inner" type="range" min="18" max="48" step="1" />
-            </label>
-            <label>
-              <span>Marker radius <output id="radius-output"></output></span>
-              <input id="radius" type="range" min="2" max="8" step="0.25" />
-            </label>
-            <label>
-              <span>Orbit gap <output id="gap-output"></output></span>
-              <input id="gap" type="range" min="0" max="5" step="0.25" />
             </label>
           </fieldset>
           <fieldset>
@@ -2491,6 +2845,10 @@
             <label>
               <span>Свечение края <output id="form-skin-glow-output"></output></span>
               <input id="form-skin-glow" type="range" min="0.1" max="6" step="0.1" value="2.4" />
+            </label>
+            <label>
+              <span>Размер бликов <output id="form-skin-highlight-size-output"></output></span>
+              <input id="form-skin-highlight-size" type="range" min="0" max="1" step="0.05" value="0" />
             </label>
             <label>
               <span>Плотность плёнки <output id="form-skin-opacity-output"></output></span>

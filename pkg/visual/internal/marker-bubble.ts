@@ -42,7 +42,7 @@ export const resolveMarkerBubblePhase = (identity: string): number => {
   return ((hash >>> 0) / 0x1_0000_0000) * TAU
 }
 
-/** Shared translucent shell, colored glow and bounded spatial shimmer. */
+/** Shared translucent surface, colored glow and bounded spatial shimmer. */
 export const resolveMarkerBubbleVisual = (
   input: MarkerBubbleVisualInput,
 ): MarkerBubbleVisual => ({

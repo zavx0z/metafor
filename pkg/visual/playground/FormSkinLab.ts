@@ -10,10 +10,13 @@ import {
   Renderer,
   Space,
   SphereGeometry,
-  ThinFilmMaterial,
   TorusGeometry,
   ViewPoint,
 } from "@metafor/engine"
+import {
+  createQuantumFilmMaterial,
+  deriveQuantumFilmPalette,
+} from "../QuantumFilm.ts"
 import {createPageAnnotationLayer} from "./AnnotationLayer.ts"
 
 export type FormSkinLabForm = "sphere" | "torus"
@@ -29,6 +32,8 @@ export type FormSkinId =
 export const FORM_SKIN_GEOMETRY = Object.freeze({
   detail: 48,
   size: 8,
+  torusRadialSegments: 22,
+  torusTubularSegments: 44,
   tubeRatio: 0.28,
 })
 
@@ -122,6 +127,13 @@ export const buildFormGeometry = (
   detail: number,
   size: number,
   tubeRatio: number,
+  torusSegments: Readonly<{
+    radial: number
+    tubular: number
+  }> = {
+    radial: Math.max(6, Math.floor(Math.max(8, detail) / 3)),
+    tubular: Math.max(8, Math.floor(detail)),
+  },
 ): FormGeometry => {
   const safeDetail = Math.max(8, Math.floor(detail))
   const mesh = form === "sphere"
@@ -133,8 +145,8 @@ export const buildFormGeometry = (
     : new TorusGeometry({
         radius: size * 0.68,
         tube: size * tubeRatio,
-        radialSegments: Math.max(6, Math.floor(safeDetail / 3)),
-        tubularSegments: safeDetail,
+        radialSegments: Math.max(3, Math.floor(torusSegments.radial)),
+        tubularSegments: Math.max(3, Math.floor(torusSegments.tubular)),
       })
   return {mesh, wire: mesh.toWireframe()}
 }
@@ -183,6 +195,8 @@ type LabElements = Readonly<{
   description: HTMLElement
   glow: HTMLInputElement
   glowOutput: HTMLOutputElement
+  highlightSize: HTMLInputElement
+  highlightSizeOutput: HTMLOutputElement
   metrics: HTMLElement
   opacity: HTMLInputElement
   opacityOutput: HTMLOutputElement
@@ -212,6 +226,9 @@ const labElements = (): LabElements => ({
   description: requireElement("form-skin-description"),
   glow: requireElement<HTMLInputElement>("form-skin-glow"),
   glowOutput: requireElement<HTMLOutputElement>("form-skin-glow-output"),
+  highlightSize: requireElement<HTMLInputElement>("form-skin-highlight-size"),
+  highlightSizeOutput:
+    requireElement<HTMLOutputElement>("form-skin-highlight-size-output"),
   metrics: requireElement("form-skin-metrics"),
   opacity: requireElement<HTMLInputElement>("form-skin-opacity"),
   opacityOutput: requireElement<HTMLOutputElement>("form-skin-opacity-output"),
@@ -235,22 +252,7 @@ const parseHexColor = (hex: string, alpha = 1): Color => {
   )
 }
 
-export const deriveFormSkinPalette = (
-  color: Color,
-  opacity: number,
-): Readonly<{film: Color; glow: Color}> => ({
-  film: new Color(
-    color.r * 0.42,
-    color.g * 0.42,
-    color.b * 0.42,
-    opacity,
-  ),
-  glow: new Color(
-    color.r + (1 - color.r) * 0.16,
-    color.g + (1 - color.g) * 0.16,
-    color.b + (1 - color.b) * 0.16,
-  ),
-})
+export const deriveFormSkinPalette = deriveQuantumFilmPalette
 
 const percentile = (values: readonly number[], ratio: number): number => {
   if (values.length === 0) return 0
@@ -306,6 +308,7 @@ const materialObjects = (
   skinId: FormSkinId,
   color: Color,
   glowIntensity: number,
+  highlightSize: number,
   opacity: number,
 ): readonly (LineSegments | Mesh)[] => {
   const palette = deriveFormSkinPalette(color, opacity)
@@ -314,13 +317,10 @@ const materialObjects = (
       return [
         new Mesh(
           geometry.mesh,
-          new ThinFilmMaterial({
-            color: palette.film,
-            rimColor: palette.glow,
-            filmThickness: 0.88,
-            iridescence: 0.86,
+          createQuantumFilmMaterial(color, {
+            glowIntensity,
+            highlightSize,
             opacity,
-            rimStrength: Math.min(4, 0.75 + glowIntensity * 0.45),
           }),
         ),
       ]
@@ -513,8 +513,11 @@ export const createFormSkinLab = async (): Promise<FormSkinLab> => {
     elements.copiesOutput.value = elements.copies.value
     elements.pixelRatioOutput.value = `${Number(elements.pixelRatio.value).toFixed(2)}×`
     elements.glowOutput.value = Number(elements.glow.value).toFixed(1)
+    elements.highlightSizeOutput.value =
+      Number(elements.highlightSize.value).toFixed(2)
     elements.opacityOutput.value = Number(elements.opacity.value).toFixed(2)
     elements.glow.disabled = selectedSkin() === "wire" || selectedSkin() === "solid"
+    elements.highlightSize.disabled = selectedSkin() !== "quantum"
     elements.opacity.disabled = selectedSkin() === "solid"
     for (const button of elements.variants.querySelectorAll<HTMLButtonElement>("button")) {
       button.classList.toggle("active", button.dataset.skin === selectedSkin())
@@ -557,13 +560,18 @@ export const createFormSkinLab = async (): Promise<FormSkinLab> => {
     const {
       detail,
       size,
+      torusRadialSegments,
+      torusTubularSegments,
       tubeRatio,
     } = FORM_SKIN_GEOMETRY
     const copies = Math.max(1, Number(elements.copies.value))
     const skinId = selectedSkin()
     const color = parseHexColor(elements.color.value)
     const geometryBuildStartedAt = performance.now()
-    geometry = buildFormGeometry(form, detail, size, tubeRatio)
+    geometry = buildFormGeometry(form, detail, size, tubeRatio, {
+      radial: torusRadialSegments,
+      tubular: torusTubularSegments,
+    })
     geometryBuildMs = performance.now() - geometryBuildStartedAt
     loadMetrics = measureFormSkinLoad(geometry, skinId, copies)
 
@@ -585,6 +593,7 @@ export const createFormSkinLab = async (): Promise<FormSkinLab> => {
         skinId,
         color,
         Number(elements.glow.value),
+        Number(elements.highlightSize.value),
         Number(elements.opacity.value),
       )) {
         root.add(object)
@@ -825,6 +834,11 @@ export const createFormSkinLab = async (): Promise<FormSkinLab> => {
     rebuild(false)
   })
   elements.glow.addEventListener("input", () => {
+    cancelBenchmark()
+    comparisons.delete(selectedSkin())
+    rebuild(false)
+  })
+  elements.highlightSize.addEventListener("input", () => {
     cancelBenchmark()
     comparisons.delete(selectedSkin())
     rebuild(false)

@@ -379,18 +379,18 @@ describe("bulk/gravity/layout manifest", () => {
     expectSubtreesInsideParents(manifest)
   })
 
-  test("плотное ядро Fields использует несколько трехмерных lattice shells", () => {
+  test("плотное ядро Fields использует несколько трехмерных lattice layers", () => {
     const manifest = createBulkManifestFromDarkParticleInputs("root", [
       createDarkParticle(1, [], Array.from({ length: 40 }, (_, index) => 100 + index)),
     ], { rootSphereRadiusMm: 280 })
 
-    const shellKeys = new Set(
+    const layerKeys = new Set(
       manifest.fieldParticles.map((fieldParticle) =>
         Math.hypot(fieldParticle.localX, fieldParticle.localY, fieldParticle.localZ).toFixed(6),
       ),
     )
 
-    expect(shellKeys.size).toBeGreaterThan(1)
+    expect(layerKeys.size).toBeGreaterThan(1)
     expect(manifest.fieldParticles.some((fieldParticle) => fieldParticle.localZ !== 0)).toBe(true)
     expectFieldNucleiInsideParents(manifest)
     expectFieldNucleiHaveNoIntersections(manifest)

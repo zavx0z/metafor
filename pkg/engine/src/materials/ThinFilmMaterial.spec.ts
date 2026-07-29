@@ -7,6 +7,7 @@ describe("ThinFilmMaterial", () => {
     const material = new ThinFilmMaterial({
       color: new Color(0.1, 0.2, 0.3),
       filmThickness: 99,
+      highlightSize: 99,
       iridescence: -1,
       opacity: 2,
       rimStrength: 99,
@@ -18,6 +19,7 @@ describe("ThinFilmMaterial", () => {
     expect(material.rimStrength).toBe(8)
     expect(material.iridescence).toBe(0)
     expect(material.filmThickness).toBe(4)
+    expect(material.highlightSize).toBe(1)
   })
 
   test("does not retain mutable caller colors", () => {
@@ -27,5 +29,6 @@ describe("ThinFilmMaterial", () => {
     color.setRGB(1, 0, 0)
 
     expect(material.color).toEqual(new Color(0.2, 0.4, 0.8))
+    expect(material.highlightSize).toBe(0)
   })
 })

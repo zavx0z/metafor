@@ -1005,10 +1005,11 @@
 
 - Status: `IN_PROGRESS`
 - Dependencies: `MF-116`
-- Current executor: canonical Inference integration checkout, delegated from
-  Codex task `019fa120-7413-7d32-938c-16aa6dac3fdc`.
-- Current slice: canonical `codex-local-integration` self-similar Atom
-  component and causal State-sleeve correction after owner visual review.
+- Current executor: canonical Inference integration checkout,
+  current Codex desktop task.
+- Current slice: replace the playground entity enumeration with the public
+  `pkg/visual` layout catalog, complete the current `outside-in` composition
+  boundary and keep `inside-out` as a future independent layout.
 - Owner approval:
   - owner explicitly approved one canonical no-stop live
     `zavx0z/inference → zavx0z/lada` causal transition;
@@ -1092,9 +1093,9 @@
     secondary hierarchy in one final single-sample additive material overlay,
     where `potential > inactive > background`;
   - the then-current non-root overlay and nested-only red Field accent were
-    intermediate visual choices; the later owner self-similarity review below
+    intermediate visual choices; the later owner Torus-consistency review below
     supersedes both and they are not part of the current law;
-  - owner live review superseded the spherical-shell placement introduced by
+  - owner live review superseded the spherical placement introduced by
     `faa6a33d`, refined by `b325f7b7` and bounded by `9d9f375d`; its accepted
     visual baseline is the immediately preceding `41e76f48`;
   - the correction restores that placement wholesale: Fields consume their
@@ -1120,10 +1121,10 @@
     interaction remain unchanged;
   - that intermediate executable Dawn/WebGPU readback proved the bounded
     `current > potential > inactive > background` output hierarchy and the
-    then-current nucleus material; the later owner self-similarity review
+    then-current nucleus material; the later owner Torus-consistency review
     supersedes the depth-specific nucleus material while retaining the State
     hierarchy and production shader compilation gate;
-  - focused shader/material/readability/core/shell/navigation/render-loop suite:
+  - focused shader/material/readability/core/torus/navigation/render-loop suite:
     `50 pass`, `0 fail`, `235 expect`; browser bundle compiled `121` modules
     successfully;
   - `bun run check`: typecheck pass, `42` expected diagnostics,
@@ -1180,8 +1181,8 @@
     captured and no visual acceptance is claimed.
   - owner rejected both previous interpretations after live Monad Capture:
     Matter on the torus centreline mixed with State, while moving nested State
-    to a parent orbit broke Atom self-similarity;
-  - the approved self-similar law is identical on every Atom level: Fields
+    to a parent orbit broke local Torus composition;
+  - the approved recursive Torus law is identical on every Atom level: Fields
     remain in the nucleus; complete immediate Matter toruses leave the nucleus
     and occupy the first inner orbit of the owning parent torus; the owning
     Atom's own State sleeves occupy the following outer orbits, with all
@@ -1192,7 +1193,7 @@
   - `snapshot.ts` now places each complete immediate Matter subtree with one
     uniform transform in `[r_inner, r_torus]`; `manifestation.ts` keeps every
     owning Atom's State sleeves after that band in `[r_torus, r_outer]`.
-    Focused self-similarity/layout/manifestation proof: `31 pass`, `0 fail`,
+    Focused recursive-layout/manifestation proof: `31 pass`, `0 fail`,
     `1670 expect`;
   - full `bun run check`: typecheck pass, `42` expected diagnostics,
     `1747 pass`, `0 fail`, `6022 expect` in `209` test files;
@@ -1224,7 +1225,7 @@
     State. The whole causal particle keeps the anchor State's `rho` and `z`
     and receives only a tangential slot transform; repeated State path
     occurrences do not multiply the declaration. An unresolved declaration
-    receives no arbitrary core or out-of-shell fallback;
+    receives no arbitrary core or outside-Torus fallback;
   - root and nested Atom now share the same Field and torus visual functions:
     depth no longer changes semantic Field color, unit `visualScale`,
     opacity, glow or scene/overlay mode. The causal stage traverses the same
@@ -1251,7 +1252,7 @@
   - owner follow-up review found two remaining Field-marker inconsistencies:
     Auth Fields retained `sphereRadius = 4.353398` while its State markers had
     `sphereRadius = 0.8`; after geometric equality was installed, Fields still
-    inherited shell `wireframeOpacity` and rendered at effective opacity
+    inherited Torus `wireframeOpacity` and rendered at effective opacity
     `0.072`, making them almost invisible;
   - the owner contract now requires one exact Field/State `sphereRadius` inside
     every Atom with State. The State-density result uniformly scales both the
@@ -1307,7 +1308,7 @@
   - owner accepted the non-additive color separation but rejected the final
     opaque Field look as visually flat and required the same soap-bubble style
     used by State. The domain contract now names one shared bubble-style
-    sphere-marker function: translucent shell, colored glow and bounded stable
+    sphere-marker function: translucent surface, colored glow and bounded stable
     spatial shimmer. Field reuses the potential-State effect level while
     preserving raw type RGB and the ordinary depth-tested `scene` blend; it
     does not re-enter the rejected additive overlay;
@@ -1331,18 +1332,95 @@
     Lada Atom, common potential-State bubble alpha/glow/luminance/shimmer on
     every Field, stable per-Field shimmer phase, raw semantic type RGB, unit
     scale and depth-tested `scene` mode. The captured nuclei show separate
-    translucent pink/cyan/yellow bubble shells without the rejected additive
+    translucent pink/cyan/yellow bubble surfaces without the rejected additive
     white patch.
+  - owner follow-up replaced the playground entity enumeration with the
+    public `pkg/visual` layout catalog. `Visual` now contains the current
+    `outside-in` strategy marked `in-progress`; reusable entity lenses moved
+    to `VisualComponents` and remain outside top-level navigation. The
+    outside-in scene composition moved from a playground-local lab into the
+    production package root, while future `inside-out` remains a distinct
+    strategy rather than a hidden flag;
+  - the `416×1170` browser/CDP proof measured a `75 px` compact layout bar and
+    a `416×1095` stage with active `Снаружи → внутрь`; the former
+    `Atom/Matter/Field/...` links are absent. The page bundle completed, DOM
+    counts reported `5` Atom/Matter Torus, `54` nucleus Fields, `23`
+    State sleeves, `98` State-Torus and `130` Transition;
+  - WebGPU pixel acceptance for this local proof remains open: headless capture
+    failed on the known SharedImage/external-instance boundary and Xvfb
+    capture returned a black GPU canvas. No visual geometry success is claimed
+    from those frames;
+  - a reported Bun runtime overlay after the module move was localized to the
+    default full-stack HMR graph, not to the clean `client.ts` bundle. The
+    playground now disables HMR because its top-level client owns GPU devices,
+    canvases and document listeners until full page unload. Clean browser proof
+    serves one ordinary bundled chunk with no `/_bun/client`, loads all six
+    navigation links and reports no `Failed to load bundled module` overlay;
+  - owner screenshots then exposed a separate outside-in composition defect:
+    graph fitting reduced State form radius together with its distances, the
+    fixed Field hole remained mostly empty and leaf Atom still reserved a
+    Matter band despite having no child Torus. An intermediate `12 px`
+    camera-dependent screen floor made the mismatch more obvious and was
+    explicitly rejected;
+  - that screen floor is removed completely from the viewport API and render
+    loop. The corrected `outside-in` geometry is computed once from snapshot
+    content: the inner Torus edge follows the actual Field nucleus, Matter is
+    allocated only for immediate child Atom-Tori, State starts after the last
+    occupied layer and the outer edge ends after the real State sleeves.
+    Camera distance, zoom and viewport size never change an individual form;
+  - State graph compaction changes centre distances only. Every State keeps
+    the owning Atom's exact static Field/State marker radius: root `0.8`,
+    depth one `0.133333` and ChatSend depth two `0.022222` in world units.
+    The full fixture root contracts from production `[inner=16.667,
+    outer=50]` to static visual `[inner=4.171, outer=28.427]`; leaf Model and
+    ChatSend each use local `[inner=3, outer=11.634]` with no phantom Matter
+    reservation;
+  - `bun test pkg/visual`: `73 pass`, `0 fail`, `1433 expect`;
+    package and root typecheck plus `git diff --check`: pass. The authorized
+    `metafor-visual-playground.service` restart entered active state at
+    `2026-07-29 12:25:05 MSK`, PID `1753959`, and serves ordinary chunk
+    `chunk-31hhscax.js` without `/_bun/client` or a new runtime overlay. No
+    fresh GPU pixel capture is claimed for the corrected static geometry. No
+    domain runtime, Store, data, config, port or activation was changed.
+  - owner review removed the duplicate Bulk surface name: it had no independent
+    entity, ownership or geometry law and only duplicated the existing Torus
+    radius, Torus tube and State-sleeve terminology. Public `LevelGeometry`
+    now exposes `torusRadiusMm` and `torusTubeMm`; the lattice implementation
+    uses neutral `layer` terminology. Focused level/layout proof: `20 pass`,
+    `0 fail`, `1542 expect`; root typecheck and `git diff --check`: pass.
+  - owner clarified that self-similarity belongs to the reusable Torus visual
+    component, not to Atom: Atom, State, Fuzzy, MACHO and Axion are semantic
+    owners of the same form. `pkg/visual/Torus.ts` now owns the recursive
+    component, code-owned proportions and mesh detail; `outside-in` no longer
+    drops Axion or labels every Dark particle as Atom. State consumes the same
+    constructor, while its condition Fields remain in the Torus core;
+  - the three playground geometry sliders (`inner diameter`, `marker radius`,
+    `orbit gap`) and their mutable browser handlers are removed. Named layouts
+    no longer read Torus defaults from `localStorage`; isolated algorithm labs
+    may still vary their own experiment without feeding a layout. Internal
+    production Bulk defaults remain frozen code values;
+  - State Graph rendering now reuses Torus/Sphere geometry per viewport and
+    compiles all Transition into at most two `LineSegments` batches
+    (forward/returning) instead of one draw object per Transition. Focused
+    Visual/Bulk proof: `105 pass`, `0 fail`, `3082 expect`; package and root
+    typecheck plus `git diff --check`: pass.
+  - the authorized visual-playground-only restart entered active/running at
+    `2026-07-29 13:00:08 MSK`, PID `1864050`, and serves
+    `chunk-1j83td9e.js`. Fresh HTTP proof contains `Visual layouts` and the
+    layout-mode rule that hides development visibility controls, while the
+    removed Layout fieldset, its three input ids and the rejected Fields
+    surface name are absent. No domain contour was restarted and no GPU pixel
+    acceptance is claimed from this HTTP proof.
 - Activation constraints:
   - visual commit `faa6a33d` received one authorized standard cold restart;
     the service returned active/running, all six ports listened and startup
     evidence showed all five domains connected to Force. Direct HTTP health
     remained inaccessible from the isolated executor network namespace;
   - `b325f7b7` then received one authorized standard cold restart and returned
-    healthy, but its fresh screenshot rejected the still-unbounded local shell:
+    healthy, but its fresh screenshot rejected the still-unbounded local spherical frame:
     the owning frame was correct while the `sqrt(markerCount)` radius could
     outgrow its nested Atom. A three-level render fixture measures the former
-    busy-shell center at `0.9242` of its own torus diameter. The bounded law
+    busy-frame center at `0.9242` of its own torus diameter. The bounded law
     measures marker centers at `0.5900` and the worst outward Field-proxy
     relation endpoint at `0.6365` after the full recursive `matrixWorld`;
   - `9d9f375d` received one authorized standard cold restart and returned
@@ -1358,7 +1436,7 @@
   - the world is already complete at active root `zavx0z/lada`; activation
     must not be retried and a new preflight is neither required nor valid;
   - the immediate-parent planar-orbit slice and the later owner-requested
-    self-similar Atom/Field-marker corrections received their separate cold
+    recursive Torus/Field-marker corrections received their separate cold
     proofs and Monad Captures recorded above. The latest installed state is the
     shared State/Field bubble-style capture; no further restart, hot reload,
     activation retry, rollback or GC is required by this slice.

@@ -1,10 +1,11 @@
 import type {BulkObserverSnapshot} from "@metafor/types/bulk/initial"
-import type {BulkLayoutSettings} from "@metafor/types/bulk/settings"
 import type {BulkVisualLayer} from "@metafor/types/bulk/viewport"
 import {
+  OutsideIn,
   Visual,
   buildStateGraph,
   buildStateGraphRootLayout,
+  buildOutsideInVisualScene,
   countVisualScene,
   createStateGraphViewport,
   describeStateGraphRoot,
@@ -36,12 +37,20 @@ import {
   createTorusAnalysisLab,
   type TorusAnalysisLab,
 } from "./TorusAnalysisLab.ts"
+import {
+  createFieldsAnalysisLab,
+  type FieldsAnalysisLab,
+} from "./FieldsAnalysisLab.ts"
+import {createStateGraphHermiteEdgeCurveBuilder} from "./StateGraphLab.ts"
 import {metaStateDslSource} from "./MetaSource.ts"
 import snapshotJson from "./fixture/monad-snapshot.json"
 
 const snapshot = snapshotJson as BulkObserverSnapshot
 const app = document.querySelector("main")
 const canvas = document.getElementById("visual-canvas") as HTMLCanvasElement | null
+const outsideInCanvas = document.getElementById(
+  "outside-in-canvas",
+) as HTMLCanvasElement | null
 const navigation = document.getElementById("navigation")
 const sectionTabs = document.getElementById("section-tabs")
 const controlsAside = document.getElementById("controls")
@@ -54,12 +63,6 @@ const context = document.getElementById("context") as HTMLInputElement | null
 const labels = document.getElementById("labels") as HTMLInputElement | null
 const grid = document.getElementById("grid") as HTMLInputElement | null
 const animation = document.getElementById("animation") as HTMLInputElement | null
-const inner = document.getElementById("inner") as HTMLInputElement | null
-const radius = document.getElementById("radius") as HTMLInputElement | null
-const gap = document.getElementById("gap") as HTMLInputElement | null
-const innerOutput = document.getElementById("inner-output")
-const radiusOutput = document.getElementById("radius-output")
-const gapOutput = document.getElementById("gap-output")
 const stateGraphStage = document.getElementById("state-graph-stage")
 const stateGraphOverviewTitle = document.getElementById("state-graph-overview-title")
 const stateGraphOverview = document.getElementById("state-graph-overview")
@@ -75,10 +78,12 @@ const formSkinStage = document.getElementById("form-skin-stage")
 const formSkinControls = document.getElementById("form-skin-controls")
 const edgesStage = document.getElementById("edges-stage")
 const torusAnalysisStage = document.getElementById("torus-analysis-stage")
+const fieldsAnalysisStage = document.getElementById("fields-analysis-stage")
 
 if (
   !app ||
   !canvas ||
+  !outsideInCanvas ||
   !navigation ||
   !sectionTabs ||
   !controlsAside ||
@@ -91,12 +96,6 @@ if (
   !labels ||
   !grid ||
   !animation ||
-  !inner ||
-  !radius ||
-  !gap ||
-  !innerOutput ||
-  !radiusOutput ||
-  !gapOutput ||
   !stateGraphStage ||
   !stateGraphOverviewTitle ||
   !stateGraphOverview ||
@@ -111,8 +110,9 @@ if (
   !formSkinStage ||
   !formSkinControls ||
   !edgesStage ||
-  !torusAnalysisStage
-) throw new Error("Visual playground shell is incomplete")
+  !torusAnalysisStage ||
+  !fieldsAnalysisStage
+) throw new Error("Visual playground composition is incomplete")
 
 type SectionTab = Readonly<{
   href: string
@@ -129,12 +129,17 @@ const nestedPageGroups: Readonly<Record<string, NestedPageGroup>> = {
     parent: "Torus",
     tabs: [{href: "#/analysis-torus", label: "Геометрия"}],
   },
+  "analysis-fields": {
+    parent: "Fields",
+    tabs: [{href: "#/analysis-fields", label: "Псевдосфера"}],
+  },
   edges: {
     parent: "Edges",
     tabs: [
       {href: "#/edges", label: "Все примеры"},
       {href: "#/edges/composite", label: "Составная экспериментальная"},
       {href: "#/edges/source-sink", label: "Источник → сток"},
+      {href: "#/edges/hermite", label: "Hermite · балка"},
     ],
   },
   "edges/composite": {
@@ -143,6 +148,7 @@ const nestedPageGroups: Readonly<Record<string, NestedPageGroup>> = {
       {href: "#/edges", label: "Все примеры"},
       {href: "#/edges/composite", label: "Составная экспериментальная"},
       {href: "#/edges/source-sink", label: "Источник → сток"},
+      {href: "#/edges/hermite", label: "Hermite · балка"},
     ],
   },
   "edges/source-sink": {
@@ -151,6 +157,16 @@ const nestedPageGroups: Readonly<Record<string, NestedPageGroup>> = {
       {href: "#/edges", label: "Все примеры"},
       {href: "#/edges/composite", label: "Составная экспериментальная"},
       {href: "#/edges/source-sink", label: "Источник → сток"},
+      {href: "#/edges/hermite", label: "Hermite · балка"},
+    ],
+  },
+  "edges/hermite": {
+    parent: "Edges",
+    tabs: [
+      {href: "#/edges", label: "Все примеры"},
+      {href: "#/edges/composite", label: "Составная экспериментальная"},
+      {href: "#/edges/source-sink", label: "Источник → сток"},
+      {href: "#/edges/hermite", label: "Hermite · балка"},
     ],
   },
   "state-graph": {
@@ -189,11 +205,6 @@ const hideSectionTabs = (): void => {
 const projection = new BulkProjectionStore()
 projection.hydrate(structuredClone(snapshot.projection))
 
-const layout: BulkLayoutSettings = {...DEFAULT_BULK_SETTINGS.layout}
-inner.value = String(layout.rootInnerDiameterMm)
-radius.value = String(layout.rootSphereRadiusMm)
-gap.value = String(layout.orbitEdgeGapMm)
-
 const runtime = projection.view()
 const wimpName = new Map(runtime.wimps.map((wimp) => [wimp.src, wimp.name ?? wimp.src] as const))
 const graphAtoms = [...runtime.atoms].sort((left, right) =>
@@ -212,7 +223,7 @@ const defaultGraphAtom = graphAtoms.find((atom) => atom.wimp === snapshot.rootSr
 if (defaultGraphAtom) stateGraphAtom.value = String(defaultGraphAtom.id)
 
 const readSlug = (): string =>
-  location.hash.replace(/^#\/?/, "").trim().toLowerCase() || "atom"
+  location.hash.replace(/^#\/?/, "").trim().toLowerCase() || OutsideIn.slug
 
 const size = (): {width: number; height: number} => {
   const rect = canvas.getBoundingClientRect()
@@ -223,8 +234,9 @@ const size = (): {width: number; height: number} => {
 }
 
 const initialSlug = readSlug()
+const initialLayout = Visual.find((layout) => layout.slug === initialSlug)
 const initialComponent = visualComponentForSlug(
-  initialSlug === "edges" || initialSlug.startsWith("edges/")
+  initialLayout || initialSlug === "edges" || initialSlug.startsWith("edges/")
     ? "atom"
     : initialSlug,
 )
@@ -303,9 +315,13 @@ type BranchViewport = {
 
 let branchViewports: BranchViewport[] = []
 let stateGraphRenderVersion = 0
+let outsideInRenderVersion = 0
+let outsideInViewport: StateGraphViewport | null = null
+let outsideInAnnotation: ReturnType<typeof createPageAnnotationLayer> | null = null
 let formSkinLabPromise: Promise<FormSkinLab> | null = null
 let edgesLabPromise: Promise<EdgesLab> | null = null
 let torusAnalysisLabPromise: Promise<TorusAnalysisLab> | null = null
+let fieldsAnalysisLabPromise: Promise<FieldsAnalysisLab> | null = null
 
 const formSkinForSlug = (slug: string): FormSkinLabForm | null => {
   if (slug === "skin-sphere") return "sphere"
@@ -342,6 +358,24 @@ const hideTorusAnalysisLab = (): void => {
   }
 }
 
+const fieldsAnalysisLab = (): Promise<FieldsAnalysisLab> => {
+  if (!fieldsAnalysisLabPromise) {
+    const manifest = buildBulkManifestation(
+      projection.view(),
+      snapshot.rootSrc,
+      DEFAULT_BULK_SETTINGS.layout,
+    )
+    fieldsAnalysisLabPromise = createFieldsAnalysisLab(manifest.fieldParticles)
+  }
+  return fieldsAnalysisLabPromise
+}
+
+const hideFieldsAnalysisLab = (): void => {
+  if (fieldsAnalysisLabPromise) {
+    void fieldsAnalysisLabPromise.then((lab) => lab.hide())
+  }
+}
+
 const disposeBranchViewports = (): void => {
   for (const runtime of branchViewports) {
     runtime.observer.disconnect()
@@ -349,6 +383,88 @@ const disposeBranchViewports = (): void => {
     runtime.viewport.dispose()
   }
   branchViewports = []
+}
+
+const hideOutsideIn = (): void => {
+  outsideInCanvas.hidden = true
+  outsideInAnnotation?.hide()
+}
+
+const renderOutsideIn = async (
+  fullManifest: ReturnType<typeof buildBulkManifestation>,
+): Promise<void> => {
+  const renderVersion = ++outsideInRenderVersion
+  outsideInAnnotation?.dispose()
+  outsideInAnnotation = null
+  outsideInViewport?.dispose()
+  outsideInViewport = null
+  const view = projection.view()
+  const atomGraphs = view.atoms.flatMap((atom) => {
+    const graph = buildStateGraph(view, atom.id)
+    return graph.states.length === 0 ? [] : [{atom, graph}]
+  })
+  const stateSleeveCount = atomGraphs.reduce(
+    (total, {graph}) => total + graph.states.length,
+    0,
+  )
+  if (stateSleeveCount === 0) return
+  const scene = buildOutsideInVisualScene(
+    fullManifest,
+    atomGraphs.map(({atom, graph}) => ({
+      atomSrc: atom.wimp,
+      layouts: graph.states.map((state) =>
+        buildStateGraphRootLayout(graph, state.id)
+      ),
+    })),
+  )
+  const rect = outsideInCanvas.getBoundingClientRect()
+  const graphViewport = await createStateGraphViewport({
+    canvas: outsideInCanvas,
+    context: scene.context,
+    edgeCurveBuilder: createStateGraphHermiteEdgeCurveBuilder(),
+    height: Math.max(1, Math.floor(rect.height)),
+    layout: scene.layout,
+    showGuides: false,
+    showLabels: false,
+    width: Math.max(1, Math.floor(rect.width)),
+  })
+  if (
+    renderVersion !== outsideInRenderVersion ||
+    readSlug() !== OutsideIn.slug
+  ) {
+    graphViewport.dispose()
+    return
+  }
+  outsideInViewport = graphViewport
+  replaceDefinitionList(counts, [
+    ["Torus контекста", scene.context.tori.length],
+    ["Ядерных Fields", scene.context.fields.length],
+    ["Atom со State", atomGraphs.length],
+    ["State-рукавов", stateSleeveCount],
+    ["State-Torus", scene.layout.nodes.length],
+    ["Fields условий", scene.layout.nodes.reduce(
+      (total, node) => total + node.fields.length,
+      0,
+    )],
+    ["Transition", scene.layout.edges.length],
+  ])
+  outsideInAnnotation = createPageAnnotationLayer({
+    sourceCanvas: outsideInCanvas,
+    viewer: outsideInCanvas.parentElement ??
+      (() => {
+        throw new Error("Outside-in canvas parent is missing")
+      })(),
+    capturePng: () => graphViewport.capturePng(),
+    surface: () => ({
+      canvasId: outsideInCanvas.id,
+      kind: "playground-page",
+      route: window.location.hash,
+      slug: OutsideIn.slug,
+      title:
+        `${OutsideIn.label} · ${stateSleeveCount} State-рукава во всех вложенных Atom`,
+    }),
+  })
+  outsideInAnnotation.show()
 }
 
 const renderStateGraph = async (): Promise<void> => {
@@ -380,7 +496,7 @@ const renderStateGraph = async (): Promise<void> => {
     )],
   ])
   stateGraphSummary.textContent =
-    "Одна карточка — один стартовый State и все его ветвления. Каждая вертикальная линия — минимальный шаг достижения State; цикл возвращается дугой к существующей State-сфере."
+    "Одна карточка — один стартовый State и все его ветвления. Сам State показан как Torus; сферы внутри него — это Fields, которые участвуют в условиях исходящих Transition. Hermite-переход вперёд проходит над плоскостью графа, возвратный — под ней."
   const metaSource = metaStateDslSource(graph.src)
   stateGraphDslPath.textContent = metaSource?.path ?? `Meta-пакет ${graph.src} не найден`
   stateGraphDsl.textContent = metaSource?.dsl ?? "MetaFor DSL недоступен."
@@ -397,6 +513,8 @@ const renderStateGraph = async (): Promise<void> => {
     return
   }
 
+  const stateGraphEdgeCurveBuilder =
+    createStateGraphHermiteEdgeCurveBuilder()
   const pendingViewports = graph.states.map(async (rootState, rootIndex) => {
     const layout = buildStateGraphRootLayout(graph, rootState.id)
     const details = describeStateGraphRoot(graph, layout, rootIndex)
@@ -466,12 +584,12 @@ const renderStateGraph = async (): Promise<void> => {
     const outcomeText = document.createElement("p")
     outcomeText.className = "state-branch-outcome-text"
     outcomeText.textContent =
-      "Каждая вертикальная направляющая — шаг первого достижения State. Оранжевая обратная дуга возвращается к уже существующей сфере и показывает цикл."
+      "Каждая вертикальная направляющая — шаг первого достижения State. Hermite-дуга вперёд идёт сверху, оранжевая возвратная дуга — снизу к уже существующему State-Torus. Сферы в отверстии Torus показывают Fields условий его исходящих переходов."
 
     const branchCounts = document.createElement("dl")
     branchCounts.className = "state-branch-counts"
     replaceDefinitionList(branchCounts, [
-      ["State-сфер", details.nodeCount],
+      ["State-форм", details.nodeCount],
       ["Transition-дуг", details.transitionCount],
       ["Условий на дугах", details.conditionCount],
       ["Шагов", details.levelCount],
@@ -497,6 +615,7 @@ const renderStateGraph = async (): Promise<void> => {
     }
     const branchViewport = await createStateGraphViewport({
       canvas: branchCanvas,
+      edgeCurveBuilder: stateGraphEdgeCurveBuilder,
       layout,
       ...canvasSize(),
     })
@@ -547,11 +666,13 @@ const renderStateGraph = async (): Promise<void> => {
 }
 
 const applyStateGraphPage = (): void => {
+  hideOutsideIn()
   mainAnnotation.hide()
   app.classList.add("state-graph-mode")
   app.classList.remove("form-skin-mode")
   app.classList.remove("edges-mode")
   app.classList.remove("torus-analysis-mode")
+  app.classList.remove("fields-analysis-mode")
   controlsAside.hidden = false
   canvas.hidden = true
   visualTitle.hidden = true
@@ -562,9 +683,11 @@ const applyStateGraphPage = (): void => {
   formSkinControls.hidden = true
   edgesStage.hidden = true
   torusAnalysisStage.hidden = true
+  fieldsAnalysisStage.hidden = true
   hideFormSkinLab()
   hideEdgesLab()
   hideTorusAnalysisLab()
+  hideFieldsAnalysisLab()
   viewport.setAnimationEnabled(false)
   showSectionTabs("state-graph")
   void renderStateGraph()
@@ -574,6 +697,7 @@ const applyStateGraphPage = (): void => {
 }
 
 const applyFormSkinPage = (form: FormSkinLabForm): void => {
+  hideOutsideIn()
   mainAnnotation.hide()
   const slug = readSlug()
   stateGraphRenderVersion += 1
@@ -582,6 +706,7 @@ const applyFormSkinPage = (form: FormSkinLabForm): void => {
   app.classList.add("form-skin-mode")
   app.classList.remove("edges-mode")
   app.classList.remove("torus-analysis-mode")
+  app.classList.remove("fields-analysis-mode")
   controlsAside.hidden = false
   canvas.hidden = true
   visualTitle.hidden = true
@@ -592,8 +717,10 @@ const applyFormSkinPage = (form: FormSkinLabForm): void => {
   formSkinControls.hidden = false
   edgesStage.hidden = true
   torusAnalysisStage.hidden = true
+  fieldsAnalysisStage.hidden = true
   hideEdgesLab()
   hideTorusAnalysisLab()
+  hideFieldsAnalysisLab()
   viewport.setAnimationEnabled(false)
   hideSectionTabs()
   for (const link of navigation.querySelectorAll("a")) {
@@ -608,10 +735,12 @@ const applyFormSkinPage = (form: FormSkinLabForm): void => {
 const edgeVariantForSlug = (slug: string): EdgeRouteVariant | null => {
   if (slug === "edges/composite") return "composite"
   if (slug === "edges/source-sink") return "source-sink"
+  if (slug === "edges/hermite") return "hermite"
   return null
 }
 
 const applyEdgesPage = (variant: EdgeRouteVariant | null): void => {
+  hideOutsideIn()
   mainAnnotation.hide()
   const slug = readSlug()
   stateGraphRenderVersion += 1
@@ -620,6 +749,7 @@ const applyEdgesPage = (variant: EdgeRouteVariant | null): void => {
   app.classList.remove("form-skin-mode")
   app.classList.add("edges-mode")
   app.classList.remove("torus-analysis-mode")
+  app.classList.remove("fields-analysis-mode")
   controlsAside.hidden = true
   canvas.hidden = true
   visualTitle.hidden = true
@@ -630,8 +760,10 @@ const applyEdgesPage = (variant: EdgeRouteVariant | null): void => {
   formSkinControls.hidden = true
   edgesStage.hidden = false
   torusAnalysisStage.hidden = true
+  fieldsAnalysisStage.hidden = true
   hideFormSkinLab()
   hideTorusAnalysisLab()
+  hideFieldsAnalysisLab()
   viewport.setAnimationEnabled(false)
   showSectionTabs(slug)
   for (const link of navigation.querySelectorAll("a")) {
@@ -648,6 +780,7 @@ const applyEdgesPage = (variant: EdgeRouteVariant | null): void => {
 }
 
 const applyTorusAnalysisPage = (): void => {
+  hideOutsideIn()
   mainAnnotation.hide()
   const slug = readSlug()
   stateGraphRenderVersion += 1
@@ -656,6 +789,7 @@ const applyTorusAnalysisPage = (): void => {
   app.classList.remove("form-skin-mode")
   app.classList.remove("edges-mode")
   app.classList.add("torus-analysis-mode")
+  app.classList.remove("fields-analysis-mode")
   controlsAside.hidden = true
   canvas.hidden = true
   visualTitle.hidden = true
@@ -666,8 +800,10 @@ const applyTorusAnalysisPage = (): void => {
   formSkinControls.hidden = true
   edgesStage.hidden = true
   torusAnalysisStage.hidden = false
+  fieldsAnalysisStage.hidden = true
   hideFormSkinLab()
   hideEdgesLab()
+  hideFieldsAnalysisLab()
   viewport.setAnimationEnabled(false)
   showSectionTabs(slug)
   for (const link of navigation.querySelectorAll("a")) {
@@ -679,14 +815,45 @@ const applyTorusAnalysisPage = (): void => {
   })
 }
 
-const syncLayoutOutputs = (): void => {
-  innerOutput.textContent = `${layout.rootInnerDiameterMm.toFixed(0)} mm`
-  radiusOutput.textContent = `${layout.rootSphereRadiusMm.toFixed(2)} mm`
-  gapOutput.textContent = `${layout.orbitEdgeGapMm.toFixed(2)} mm`
+const applyFieldsAnalysisPage = (): void => {
+  hideOutsideIn()
+  mainAnnotation.hide()
+  const slug = readSlug()
+  stateGraphRenderVersion += 1
+  disposeBranchViewports()
+  app.classList.remove("state-graph-mode")
+  app.classList.remove("form-skin-mode")
+  app.classList.remove("edges-mode")
+  app.classList.remove("torus-analysis-mode")
+  app.classList.add("fields-analysis-mode")
+  controlsAside.hidden = true
+  canvas.hidden = true
+  visualTitle.hidden = true
+  visualControls.hidden = true
+  stateGraphStage.hidden = true
+  stateGraphControls.hidden = true
+  formSkinStage.hidden = true
+  formSkinControls.hidden = true
+  edgesStage.hidden = true
+  torusAnalysisStage.hidden = true
+  fieldsAnalysisStage.hidden = false
+  hideFormSkinLab()
+  hideEdgesLab()
+  hideTorusAnalysisLab()
+  viewport.setAnimationEnabled(false)
+  showSectionTabs(slug)
+  for (const link of navigation.querySelectorAll("a")) {
+    link.classList.toggle("active", link.dataset.slug === slug)
+  }
+  void fieldsAnalysisLab().then((lab) => {
+    if (readSlug() === slug) lab.show()
+    else lab.hide()
+  })
 }
 
 const applyStory = (): void => {
   const slug = readSlug()
+  app.classList.remove("layout-mode")
   if (slug === "state-graph") {
     applyStateGraphPage()
     return
@@ -704,6 +871,10 @@ const applyStory = (): void => {
     applyTorusAnalysisPage()
     return
   }
+  if (slug === "analysis-fields") {
+    applyFieldsAnalysisPage()
+    return
+  }
   const formSkin = formSkinForSlug(slug)
   if (formSkin) {
     applyFormSkinPage(formSkin)
@@ -711,13 +882,26 @@ const applyStory = (): void => {
   }
   stateGraphRenderVersion += 1
   disposeBranchViewports()
-  mainAnnotation.show()
+  const selectedLayout = Visual.find((candidate) => candidate.slug === slug)
+  const component = selectedLayout
+    ? visualComponentForSlug("atom")
+    : visualComponentForSlug(slug)
+  const isOutsideIn = selectedLayout?.slug === OutsideIn.slug
+  app.classList.toggle("layout-mode", selectedLayout !== undefined)
+  animation.disabled = isOutsideIn
+  animation.title = isOutsideIn
+    ? "Раскладка снаружи внутрь не использует цикл анимации"
+    : ""
+  if (isOutsideIn) mainAnnotation.hide()
+  else mainAnnotation.show()
   app.classList.remove("state-graph-mode")
   app.classList.remove("form-skin-mode")
   app.classList.remove("edges-mode")
   app.classList.remove("torus-analysis-mode")
+  app.classList.remove("fields-analysis-mode")
   controlsAside.hidden = false
-  canvas.hidden = false
+  canvas.hidden = isOutsideIn
+  outsideInCanvas.hidden = !isOutsideIn
   visualTitle.hidden = false
   visualControls.hidden = false
   stateGraphStage.hidden = true
@@ -726,34 +910,53 @@ const applyStory = (): void => {
   formSkinControls.hidden = true
   edgesStage.hidden = true
   torusAnalysisStage.hidden = true
+  fieldsAnalysisStage.hidden = true
   hideFormSkinLab()
   hideEdgesLab()
   hideTorusAnalysisLab()
+  hideFieldsAnalysisLab()
   hideSectionTabs()
-  const component = visualComponentForSlug(readSlug())
   const fullManifest = buildBulkManifestation(
     projection.view(),
     snapshot.rootSrc,
-    layout,
+    DEFAULT_BULK_SETTINGS.layout,
   )
   const manifest = projectVisualScene(fullManifest, component)
-  viewport.setVisualLayers(storyLayers())
-  viewport.setAnimationEnabled(animation.checked)
-  viewport.applyManifestPatch(manifest)
-  entity.textContent = component.entity
-  description.textContent = component.description
+  if (isOutsideIn) {
+    viewport.setAnimationEnabled(false)
+    void renderOutsideIn(fullManifest)
+  } else {
+    hideOutsideIn()
+    viewport.setVisualLayers(storyLayers())
+    viewport.setAnimationEnabled(animation.checked)
+    viewport.applyManifestPatch(manifest)
+  }
+  entity.textContent = selectedLayout?.label ?? component.entity
+  description.textContent = isOutsideIn
+    ? `${OutsideIn.description} Общий компонент Torus проявляет Atom, Fuzzy, Axion, MACHO и State. Fields самого Atom остаются в ядре, Matter-торы занимают внутреннюю орбиту, а каждый объявленный State разворачивает отдельный рукав со всеми дальнейшими путями и переносится одним transform в собственный слот общей внешней State-орбиты. Внутри State-Torus находятся только Fields условий исходящих Transition.`
+    : selectedLayout?.description ?? component.description
   renderCounts(manifest)
-  syncLayoutOutputs()
   for (const link of navigation.querySelectorAll("a")) {
-    link.classList.toggle("active", link.dataset.slug === component.slug)
+    link.classList.toggle(
+      "active",
+      link.dataset.slug === (selectedLayout?.slug ?? component.slug),
+    )
   }
 }
 
-for (const component of Visual) {
+const layoutSection = document.createElement("span")
+layoutSection.className = "nav-section"
+layoutSection.textContent = "Layouts"
+navigation.append(layoutSection)
+for (const layout of Visual) {
   const link = document.createElement("a")
-  link.href = `#/${component.slug}`
-  link.dataset.slug = component.slug
-  link.textContent = component.entity
+  link.href = `#/${layout.slug}`
+  link.dataset.slug = layout.slug
+  link.textContent = layout.label
+  link.dataset.status = layout.status
+  link.title = layout.status === "in-progress"
+    ? `${layout.label} · раскладка в работе`
+    : layout.label
   navigation.append(link)
 }
 const skinSection = document.createElement("span")
@@ -783,17 +986,23 @@ const graphLink = document.createElement("a")
 graphLink.href = "#/state-graph"
 graphLink.dataset.slug = "state-graph"
 graphLink.textContent = "State Graph"
-navigation.append(graphSection, torusAnalysisLink, edgesLink, graphLink)
-
-const syncLayout = (): void => {
-  layout.rootInnerDiameterMm = Number(inner.value)
-  layout.rootSphereRadiusMm = Number(radius.value)
-  layout.orbitEdgeGapMm = Number(gap.value)
-  applyStory()
-}
+const fieldsAnalysisLink = document.createElement("a")
+fieldsAnalysisLink.href = "#/analysis-fields"
+fieldsAnalysisLink.dataset.slug = "analysis-fields"
+fieldsAnalysisLink.textContent = "Fields"
+navigation.append(
+  graphSection,
+  torusAnalysisLink,
+  edgesLink,
+  graphLink,
+  fieldsAnalysisLink,
+)
 
 window.addEventListener("hashchange", applyStory)
 window.addEventListener("beforeunload", () => {
+  outsideInRenderVersion += 1
+  outsideInAnnotation?.dispose()
+  outsideInViewport?.dispose()
   stateGraphRenderVersion += 1
   disposeBranchViewports()
   if (formSkinLabPromise) {
@@ -805,6 +1014,9 @@ window.addEventListener("beforeunload", () => {
   if (torusAnalysisLabPromise) {
     void torusAnalysisLabPromise.then((lab) => lab.dispose())
   }
+  if (fieldsAnalysisLabPromise) {
+    void fieldsAnalysisLabPromise.then((lab) => lab.dispose())
+  }
   mainAnnotation.dispose()
   viewport.dispose()
 }, {once: true})
@@ -812,9 +1024,6 @@ context.addEventListener("change", applyStory)
 labels.addEventListener("change", applyStory)
 grid.addEventListener("change", applyStory)
 animation.addEventListener("change", applyStory)
-inner.addEventListener("input", syncLayout)
-radius.addEventListener("input", syncLayout)
-gap.addEventListener("input", syncLayout)
 stateGraphAtom.addEventListener("change", () => {
   if (readSlug() === "state-graph") void renderStateGraph()
 })
@@ -823,8 +1032,17 @@ const resizeObserver = new ResizeObserver(() => {
   const next = size()
   viewport.setSize(next.width, next.height)
   mainAnnotation.resize()
+  if (outsideInViewport) {
+    const rect = outsideInCanvas.getBoundingClientRect()
+    outsideInViewport.setSize(
+      Math.max(1, Math.floor(rect.width)),
+      Math.max(1, Math.floor(rect.height)),
+    )
+    outsideInAnnotation?.resize()
+  }
 })
 resizeObserver.observe(canvas)
+resizeObserver.observe(outsideInCanvas)
 
-if (!location.hash) history.replaceState(null, "", "#/atom")
+if (!location.hash) history.replaceState(null, "", `#/${OutsideIn.slug}`)
 applyStory()
