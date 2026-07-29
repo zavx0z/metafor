@@ -10,6 +10,7 @@ import {
   Renderer,
   Space,
   SphereGeometry,
+  ThinFilmMaterial,
   TorusGeometry,
   ViewPoint,
 } from "@metafor/engine"
@@ -18,6 +19,7 @@ import {createPageAnnotationLayer} from "./AnnotationLayer.ts"
 export type FormSkinLabForm = "sphere" | "torus"
 
 export type FormSkinId =
+  | "quantum"
   | "wire"
   | "glow"
   | "silhouette"
@@ -25,7 +27,7 @@ export type FormSkinId =
   | "hybrid"
 
 export const FORM_SKIN_GEOMETRY = Object.freeze({
-  detail: 24,
+  detail: 48,
   size: 8,
   tubeRatio: 0.28,
 })
@@ -39,6 +41,14 @@ type FormSkinDefinition = Readonly<{
 }>
 
 export const FORM_SKINS: readonly FormSkinDefinition[] = [
+  {
+    id: "quantum",
+    label: "Квантовая плёнка",
+    description:
+      "Однопроходная прозрачная мембрана: Френель-край, мягкий блик и thin-film интерференция.",
+    mesh: true,
+    wire: false,
+  },
   {
     id: "wire",
     label: "Каркас",
@@ -225,6 +235,23 @@ const parseHexColor = (hex: string, alpha = 1): Color => {
   )
 }
 
+export const deriveFormSkinPalette = (
+  color: Color,
+  opacity: number,
+): Readonly<{film: Color; glow: Color}> => ({
+  film: new Color(
+    color.r * 0.42,
+    color.g * 0.42,
+    color.b * 0.42,
+    opacity,
+  ),
+  glow: new Color(
+    color.r + (1 - color.r) * 0.16,
+    color.g + (1 - color.g) * 0.16,
+    color.b + (1 - color.b) * 0.16,
+  ),
+})
+
 const percentile = (values: readonly number[], ratio: number): number => {
   if (values.length === 0) return 0
   const ordered = [...values].sort((left, right) => left - right)
@@ -281,7 +308,22 @@ const materialObjects = (
   glowIntensity: number,
   opacity: number,
 ): readonly (LineSegments | Mesh)[] => {
+  const palette = deriveFormSkinPalette(color, opacity)
   switch (skinId) {
+    case "quantum":
+      return [
+        new Mesh(
+          geometry.mesh,
+          new ThinFilmMaterial({
+            color: palette.film,
+            rimColor: palette.glow,
+            filmThickness: 0.88,
+            iridescence: 0.86,
+            opacity,
+            rimStrength: Math.min(4, 0.75 + glowIntensity * 0.45),
+          }),
+        ),
+      ]
     case "wire":
       return [
         new LineSegments(
@@ -295,7 +337,7 @@ const materialObjects = (
           geometry.wire,
           new LineGlowMaterial({
             color,
-            glowColor: color.clone(),
+            glowColor: palette.glow,
             glowIntensity,
             luminanceBoost: 1.12,
             opacity,
@@ -310,7 +352,7 @@ const materialObjects = (
           geometry.wire,
           new LineGlowMaterial({
             color,
-            glowColor: color.clone(),
+            glowColor: palette.glow,
             glowIntensity,
             luminanceBoost: 1.16,
             opacity,
@@ -335,7 +377,7 @@ const materialObjects = (
           geometry.wire,
           new LineGlowMaterial({
             color,
-            glowColor: color.clone(),
+            glowColor: palette.glow,
             glowIntensity,
             luminanceBoost: 1.18,
             opacity,
@@ -519,7 +561,7 @@ export const createFormSkinLab = async (): Promise<FormSkinLab> => {
     } = FORM_SKIN_GEOMETRY
     const copies = Math.max(1, Number(elements.copies.value))
     const skinId = selectedSkin()
-    const color = parseHexColor(elements.color.value, Number(elements.opacity.value))
+    const color = parseHexColor(elements.color.value)
     const geometryBuildStartedAt = performance.now()
     geometry = buildFormGeometry(form, detail, size, tubeRatio)
     geometryBuildMs = performance.now() - geometryBuildStartedAt
@@ -813,7 +855,7 @@ export const createFormSkinLab = async (): Promise<FormSkinLab> => {
   elements.canvas.addEventListener("wheel", requestRenderFromCamera)
   elements.canvas.addEventListener("touchmove", requestRenderFromCamera)
 
-  elements.select.value = "glow"
+  elements.select.value = "quantum"
   rebuild(true)
 
   return {

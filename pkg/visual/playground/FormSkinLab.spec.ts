@@ -1,14 +1,17 @@
 import {describe, expect, test} from "bun:test"
+import {Color} from "@metafor/engine"
 import {
   FORM_SKIN_GEOMETRY,
   FORM_SKINS,
   buildFormGeometry,
+  deriveFormSkinPalette,
   measureFormSkinLoad,
 } from "./FormSkinLab.ts"
 
 describe("Form Skin Lab", () => {
   test("offers the same skin catalog to Sphere and Torus geometry", () => {
     expect(FORM_SKINS.map((skin) => skin.id)).toEqual([
+      "quantum",
       "wire",
       "glow",
       "silhouette",
@@ -23,7 +26,7 @@ describe("Form Skin Lab", () => {
 
   test("keeps form geometry fixed outside the skin controls", async () => {
     expect(FORM_SKIN_GEOMETRY).toEqual({
-      detail: 24,
+      detail: 48,
       size: 8,
       tubeRatio: 0.28,
     })
@@ -35,15 +38,36 @@ describe("Form Skin Lab", () => {
     expect(page).not.toContain("form-skin-size")
     expect(page).not.toContain("form-skin-tube")
     expect(page).not.toContain("form-skin-animation")
+    expect(page).toContain('<span>Цвет</span>')
+    expect(page).not.toContain("form-skin-highlight-color")
     expect(page).toContain("form-skin-run-current")
     expect(page).toContain("form-skin-run-all")
   })
 
+  test("derives film and glow tones from one selected color", () => {
+    const selected = new Color(0.2, 0.6, 0.9)
+    const palette = deriveFormSkinPalette(selected, 0.55)
+
+    expect(palette.film.r).toBeCloseTo(selected.r * 0.42)
+    expect(palette.film.g).toBeCloseTo(selected.g * 0.42)
+    expect(palette.film.b).toBeCloseTo(selected.b * 0.42)
+    expect(palette.film.a).toBe(0.55)
+    expect(palette.glow.r).toBeGreaterThan(selected.r)
+    expect(palette.glow.g).toBeGreaterThan(selected.g)
+    expect(palette.glow.b).toBeGreaterThan(selected.b)
+  })
+
   test("reports exact pass multiplication and shared geometry cost", () => {
     const geometry = buildFormGeometry("sphere", 24, 8, 0.28)
+    const quantum = measureFormSkinLoad(geometry, "quantum", 3)
     const glow = measureFormSkinLoad(geometry, "glow", 3)
     const hybrid = measureFormSkinLoad(geometry, "hybrid", 3)
 
+    expect(quantum.drawCalls).toBe(3)
+    expect(quantum.passesPerForm).toBe(1)
+    expect(quantum.renderObjects).toBe(3)
+    expect(quantum.triangles).toBeGreaterThan(0)
+    expect(quantum.lineSegments).toBe(0)
     expect(glow.drawCalls).toBe(3)
     expect(glow.passesPerForm).toBe(1)
     expect(glow.renderObjects).toBe(3)

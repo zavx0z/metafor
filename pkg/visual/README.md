@@ -29,9 +29,16 @@ inside `pkg/visual`; its experimental coordinates and presentation options are
 not consumed by Bulk.
 
 `Sphere` and `Torus` beneath `Form skins` are an isolated Form Skin Lab. Both
-pages run the same skin catalog (`wire`, `glow`, `silhouette`, `solid`,
-`hybrid`) against one fixed geometry per form. Geometric Torus controls do not
-live in the skin page; they are explored separately under `Analysis → Torus`.
+pages run the same skin catalog (`quantum`, `wire`, `glow`, `silhouette`,
+`solid`, `hybrid`) against one fixed geometry per form. `quantum` is the
+default one-pass `ThinFilmMaterial`: camera/normal Fresnel, bounded spectral
+interference and alpha blending produce a translucent soap-film shell without
+textures, framebuffer reads, post-processing or an idle animation clock. Film
+and glow colors are derived from one selected color: the membrane receives a
+darker translucent tone, while Fresnel, reflections and highlights receive a
+brighter tone of the same color instead of using a fixed palette.
+Geometric Torus controls do not live in the skin page; they are explored
+separately under `Analysis → Torus`.
 Copy count, pixel ratio, color, glow and opacity remain playground-only skin
 and load inputs. There is no idle render loop and no automatic form rotation.
 `Test current skin` explicitly starts a bounded dynamic measurement, while

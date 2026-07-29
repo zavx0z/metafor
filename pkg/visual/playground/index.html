@@ -1836,13 +1836,14 @@
             <h2 id="form-skin-title">Sphere · скины формы</h2>
             <p>
               Изолированное сравнение материалов на одной фиксированной форме.
-              Геометрические параметры определяются отдельно в Analysis.
+              По умолчанию — прозрачная квантовая плёнка с Френель-краем и
+              спектральной интерференцией. Геометрия задаётся отдельно в Analysis.
             </p>
           </header>
           <div id="form-skin-variants" aria-label="Варианты скина"></div>
           <section class="form-skin-viewport">
             <canvas id="form-skin-canvas"></canvas>
-            <span class="form-skin-badge">WebGPU · live benchmark</span>
+            <span class="form-skin-badge">WebGPU · one-pass thin film</span>
             <span class="form-skin-viewport-hint">
               drag — вращение · wheel — панорама · ctrl+wheel — масштаб
             </span>
@@ -2488,12 +2489,12 @@
               <input id="form-skin-color" type="color" value="#52d7ff" />
             </label>
             <label>
-              <span>Glow <output id="form-skin-glow-output"></output></span>
+              <span>Свечение края <output id="form-skin-glow-output"></output></span>
               <input id="form-skin-glow" type="range" min="0.1" max="6" step="0.1" value="2.4" />
             </label>
             <label>
-              <span>Opacity <output id="form-skin-opacity-output"></output></span>
-              <input id="form-skin-opacity" type="range" min="0.05" max="1" step="0.05" value="0.9" />
+              <span>Плотность плёнки <output id="form-skin-opacity-output"></output></span>
+              <input id="form-skin-opacity" type="range" min="0.05" max="1" step="0.05" value="0.55" />
             </label>
           </fieldset>
           <fieldset>
@@ -2515,7 +2516,7 @@
             Тестировать текущий скин · 2 сек
           </button>
           <button id="form-skin-run-all" type="button">
-            Сравнить все скины · ~10 сек
+            Сравнить все скины · ~12 сек
           </button>
           <p id="form-skin-benchmark-status"></p>
           <button id="form-skin-reset" type="button">Сбросить замер</button>

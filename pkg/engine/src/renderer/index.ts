@@ -5,12 +5,13 @@ import {InstancedMesh} from "../core/InstancedMesh"
 import {SkinnedMesh} from "../core/SkinnedMesh"
 import {BufferGeometry} from "../core/BufferGeometry"
 import {WireframeInstancedMesh} from "../core/WireframeInstancedMesh"
-import {ImageMaterial, LineBasicMaterial, LineGlowMaterial, MeshBasicMaterial, MeshLambertMaterial, RadialBackdropMaterial, RoundedRectMaterial, TextMaterial} from "../materials"
+import {ImageMaterial, LineBasicMaterial, LineGlowMaterial, MeshBasicMaterial, MeshLambertMaterial, RadialBackdropMaterial, RoundedRectMaterial, TextMaterial, ThinFilmMaterial} from "../materials"
 import {Matrix4, Vector3, Frustum} from "../math"
 import {LineSegments} from "../objects/LineSegments"
 import {Text} from "../objects/Text"
 import {Object3D} from "../core/Object3D"
 import meshBasicWGSL from "./shaders/mesh_basic.wgsl"
+import thinFilmWGSL from "./shaders/thin_film.wgsl"
 import meshStaticWGSL from "./shaders/mesh_static.wgsl"
 import meshSkinnedWGSL from "./shaders/mesh_skinned.wgsl"
 import meshInstancedWGSL from "./shaders/mesh_instanced.wgsl"
@@ -37,10 +38,12 @@ import {
   isCapturableGpuFrameFormat,
   unpackGpuFrameRgba,
 } from "./frame-readback"
+import {createSceneUniformLayout} from "./scene-uniform-layout"
 
 if (import.meta.hot) {
   (import.meta.hot.accept as unknown as (dependencies: string[], callback: () => void) => void)([
     "./shaders/mesh_basic.wgsl",
+    "./shaders/thin_film.wgsl",
     "./shaders/mesh_static.wgsl",
     "./shaders/mesh_skinned.wgsl",
     "./shaders/mesh_instanced.wgsl",
@@ -66,9 +69,9 @@ const MAX_BONES = 128
 const BONE_MATRICES_SIZE = MAX_BONES * 16 * 4 // 128 * mat4x4<f32>
 const PER_OBJECT_DATA_SIZE = PER_OBJECT_UNIFORM_SIZE + BONE_MATRICES_SIZE
 
-// --- Размеры и смещения для данных сцены ---
-const SCENE_UNIFORMS_SIZE = 272 + 16 // + vec3<f32> cameraPosition + f32 padding
 const LIGHT_STRUCT_SIZE = 32
+const SCENE_UNIFORM_LAYOUT = createSceneUniformLayout(MAX_LIGHTS, LIGHT_STRUCT_SIZE)
+const SCENE_UNIFORMS_SIZE = SCENE_UNIFORM_LAYOUT.byteSize
 
 // --- Вспомогательные интерфейсы ---
 interface GeometryBuffers {
@@ -108,6 +111,7 @@ export class Renderer {
   private context: GPUCanvasContext | null = null
   private presentationFormat: GPUTextureFormat | null = null
   private basicMeshPipeline: GPURenderPipeline | null = null
+  private thinFilmMeshPipeline: GPURenderPipeline | null = null
   private staticMeshPipeline: GPURenderPipeline | null = null
   private instancedMeshPipeline: GPURenderPipeline | null = null
   private skinnedMeshPipeline: GPURenderPipeline | null = null
@@ -318,6 +322,9 @@ export class Renderer {
     const basicShaderModule = this.device.createShaderModule({
       code: meshBasicWGSL,
     })
+    const thinFilmShaderModule = this.device.createShaderModule({
+      code: thinFilmWGSL,
+    })
     const staticShaderModule = this.device.createShaderModule({
       code: meshStaticWGSL,
     })
@@ -379,6 +386,45 @@ export class Renderer {
       },
       primitive: {topology: "triangle-list", cullMode: "none"},
       depthStencil,
+      multisample: {count: this.sampleCount},
+    })
+
+    this.thinFilmMeshPipeline = await this.device.createRenderPipelineAsync({
+      label: "ThinFilmMaterial",
+      layout: pipelineLayout,
+      vertex: {
+        module: thinFilmShaderModule,
+        entryPoint: "vs_main",
+        buffers: [
+          {arrayStride: 12, attributes: [{shaderLocation: 0, offset: 0, format: "float32x3"}]},
+          {arrayStride: 12, attributes: [{shaderLocation: 1, offset: 0, format: "float32x3"}]},
+        ],
+      },
+      fragment: {
+        module: thinFilmShaderModule,
+        entryPoint: "fs_main",
+        targets: [{
+          format: this.presentationFormat,
+          blend: {
+            color: {
+              srcFactor: "src-alpha",
+              dstFactor: "one-minus-src-alpha",
+              operation: "add",
+            },
+            alpha: {
+              srcFactor: "one",
+              dstFactor: "one-minus-src-alpha",
+              operation: "add",
+            },
+          },
+        }],
+      },
+      primitive: {topology: "triangle-list", cullMode: "none"},
+      depthStencil: {
+        depthWriteEnabled: false,
+        depthCompare: "less",
+        format: "depth24plus-stencil8",
+      },
       multisample: {count: this.sampleCount},
     })
 
@@ -1125,6 +1171,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
       this.device &&
       this.context &&
       this.basicMeshPipeline &&
+      this.thinFilmMeshPipeline &&
       this.staticMeshPipeline &&
       this.uiBasicMeshPipeline &&
       this.instancedMeshPipeline &&
@@ -1513,6 +1560,16 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     if (material instanceof MeshBasicMaterial || material instanceof MeshLambertMaterial) {
       this.writePerObjectRgba(offsetFloats + 32, material.color)
+    } else if (material instanceof ThinFilmMaterial) {
+      this.writePerObjectRgba(offsetFloats + 32, material.color)
+      this.writePerObjectRgba(offsetFloats + 36, material.rimColor)
+      this.writePerObjectVec4(
+        offsetFloats + 40,
+        material.opacity,
+        material.rimStrength,
+        material.iridescence,
+        material.filmThickness,
+      )
     } else if (isRadialBackdropMaterial(material)) {
       this.writePerObjectRgba(offsetFloats + 32, material.base)
       this.writePerObjectRgba(offsetFloats + 36, material.glowA)
@@ -1670,13 +1727,15 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
                 ? this.usesExternalImageTexture(material)
                   ? (isUiLayer ? this.uiExternalImagePipeline : this.externalImagePipeline)
                   : (isUiLayer ? this.uiImagePipeline : this.imagePipeline)
-                : isRadialBackdropMaterial(material)
-                  ? (isUiLayer ? this.uiRadialBackdropPipeline : this.radialBackdropPipeline)
-                  : material instanceof RoundedRectMaterial
-                    ? (isUiLayer ? this.uiRoundedPipeline : this.roundedPipeline)
-                    : material instanceof MeshBasicMaterial
-                      ? (isUiLayer ? this.uiBasicMeshPipeline : this.basicMeshPipeline)
-                      : this.staticMeshPipeline
+                : material instanceof ThinFilmMaterial
+                  ? this.thinFilmMeshPipeline
+                  : isRadialBackdropMaterial(material)
+                    ? (isUiLayer ? this.uiRadialBackdropPipeline : this.radialBackdropPipeline)
+                    : material instanceof RoundedRectMaterial
+                      ? (isUiLayer ? this.uiRoundedPipeline : this.roundedPipeline)
+                      : material instanceof MeshBasicMaterial
+                        ? (isUiLayer ? this.uiBasicMeshPipeline : this.basicMeshPipeline)
+                        : this.staticMeshPipeline
           }
           break
         case "skinned-mesh":
@@ -1808,13 +1867,12 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
       -(te[4]! * tx + te[5]! * ty + te[6]! * tz),
       -(te[8]! * tx + te[9]! * ty + te[10]! * tz),
     )
-    // Записываем cameraPosition после lights (36 + 4*32 = 164)
-    // 36 + 4*32 = 164 байта, что соответствует 41 элементу float32 (164/4 = 41)
-    float32View[41] = cameraPosition.x
-    float32View[42] = cameraPosition.y
-    float32View[43] = cameraPosition.z
+    const cameraOffset = SCENE_UNIFORM_LAYOUT.cameraFloatOffset
+    float32View[cameraOffset] = cameraPosition.x
+    float32View[cameraOffset + 1] = cameraPosition.y
+    float32View[cameraOffset + 2] = cameraPosition.z
 
-    const lightsArrayOffset = 36
+    const lightsArrayOffset = SCENE_UNIFORM_LAYOUT.lightsFloatOffset
     for (let i = 0; i < uint32View[32]!; i++) {
       const lightItem = lights[i]!
       const light = lightItem.light
