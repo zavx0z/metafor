@@ -55,6 +55,8 @@ export type CenteredNestedFieldPlacement = Readonly<{
   band: number
   bandKind: CenteredNestedFieldBandKind
   field: BulkFieldParticle
+  fieldParticleIds: readonly string[]
+  ownerDarkParticleId: number
   radius: number
   x: number
   y: number
@@ -70,6 +72,13 @@ type ComponentFieldLayout = Readonly<{
   fieldExtentByParticle: ReadonlyMap<number, number>
   placements: readonly CenteredNestedFieldPlacement[]
   root: DarkNode
+}>
+
+type ComponentFieldEntry = Readonly<{
+  band: number
+  field: BulkFieldParticle
+  fieldParticleIds: readonly string[]
+  owner: DarkNode
 }>
 
 type ResolvedDarkTorus = Readonly<{
@@ -150,6 +159,57 @@ const fieldValueGroupKey = (
   ? `field:${field.fieldParticleId}`
   : `value:${field.valueId}`
 
+const fieldOrder = (
+  left: BulkFieldParticle,
+  right: BulkFieldParticle,
+): number =>
+  (left.valueId ?? Number.MAX_SAFE_INTEGER) -
+    (right.valueId ?? Number.MAX_SAFE_INTEGER) ||
+  left.parentDarkParticleId - right.parentDarkParticleId ||
+  left.fieldId - right.fieldId ||
+  left.fieldParticleId.localeCompare(right.fieldParticleId)
+
+const highestCommonOwner = (
+  fields: readonly BulkFieldParticle[],
+  root: DarkNode,
+  nodeById: ReadonlyMap<number, DarkNode>,
+): DarkNode => {
+  const ownerIds = [...new Set(fields.map((field) =>
+    field.parentDarkParticleId
+  ))]
+  const paths = ownerIds.flatMap((ownerId) => {
+    const owner = nodeById.get(ownerId)
+    if (!owner) return []
+    const path: DarkNode[] = []
+    let cursor: DarkNode | undefined = owner
+    while (cursor) {
+      path.push(cursor)
+      const parentId: number | null =
+        cursor.particle.parentDarkParticleId
+      cursor = parentId === null
+        ? undefined
+        : nodeById.get(parentId)
+    }
+    return [path.reverse()]
+  })
+  if (paths.length === 0) return root
+
+  let common = paths[0]?.[0] ?? root
+  const maximumCommonDepth = Math.min(...paths.map((path) => path.length))
+  for (let index = 0; index < maximumCommonDepth; index += 1) {
+    const candidate = paths[0]?.[index]
+    if (
+      !candidate ||
+      !paths.every((path) =>
+        path[index]?.particle.darkParticleId ===
+          candidate.particle.darkParticleId
+      )
+    ) break
+    common = candidate
+  }
+  return common
+}
+
 const fieldBandKind = (
   band: number,
 ): CenteredNestedFieldBandKind =>
@@ -169,63 +229,72 @@ const placeComponentFields = (
     particleIds.has(field.parentDarkParticleId)
   )
   const groups = new Map<string, BulkFieldParticle[]>()
-  const fieldsByOwner = new Map<number, BulkFieldParticle[]>()
   for (const field of fields) {
     const key = fieldValueGroupKey(field)
     const group = groups.get(key)
     if (group) group.push(field)
     else groups.set(key, [field])
-    const owned = fieldsByOwner.get(field.parentDarkParticleId)
-    if (owned) owned.push(field)
-    else fieldsByOwner.set(field.parentDarkParticleId, [field])
   }
+  for (const group of groups.values()) group.sort(fieldOrder)
 
   const rootDepth = root.particle.depth
-  const bandByFieldId = new Map<string, number>()
+  const visualEntries: ComponentFieldEntry[] = []
   for (const group of groups.values()) {
     const ownerIds = new Set(group.map((field) =>
       field.parentDarkParticleId
     ))
-    const ownerDepths = [...ownerIds].map((ownerId) =>
-      Math.max(
-        0,
-        (nodeById.get(ownerId)?.particle.depth ?? rootDepth) - rootDepth,
-      )
-    )
     const shared = ownerIds.size > 1 && group[0]?.valueId !== null
-    const band = shared
-      ? Math.min(...ownerDepths) * 2 + 1
-      : ownerDepths[0] === 0
-        ? 0
-        : ownerDepths[0]! * 2
-    for (const field of group) bandByFieldId.set(field.fieldParticleId, band)
+    if (shared) {
+      const owner = highestCommonOwner(group, root, nodeById)
+      const ownerDepth = Math.max(
+        0,
+        owner.particle.depth - rootDepth,
+      )
+      visualEntries.push({
+        band: ownerDepth * 2 + 1,
+        field: group.find((field) =>
+          field.parentDarkParticleId === owner.particle.darkParticleId
+        ) ?? group[0]!,
+        fieldParticleIds: group.map((field) => field.fieldParticleId),
+        owner,
+      })
+      continue
+    }
+    for (const field of group) {
+      const owner = nodeById.get(field.parentDarkParticleId) ?? root
+      const ownerDepth = Math.max(
+        0,
+        owner.particle.depth - rootDepth,
+      )
+      visualEntries.push({
+        band: ownerDepth === 0 ? 0 : ownerDepth * 2,
+        field,
+        fieldParticleIds: [field.fieldParticleId],
+        owner,
+      })
+    }
   }
 
-  const fieldsByBand = new Map<number, BulkFieldParticle[]>()
-  for (const field of fields) {
-    const band = bandByFieldId.get(field.fieldParticleId) ?? 0
-    const entries = fieldsByBand.get(band)
-    if (entries) entries.push(field)
-    else fieldsByBand.set(band, [field])
+  const fieldsByBand = new Map<number, ComponentFieldEntry[]>()
+  for (const entry of visualEntries) {
+    const entries = fieldsByBand.get(entry.band)
+    if (entries) entries.push(entry)
+    else fieldsByBand.set(entry.band, [entry])
   }
   for (const entries of fieldsByBand.values()) {
     entries.sort((left, right) =>
-      (left.valueId ?? Number.MAX_SAFE_INTEGER) -
-        (right.valueId ?? Number.MAX_SAFE_INTEGER) ||
-      left.parentDarkParticleId - right.parentDarkParticleId ||
-      left.fieldId - right.fieldId ||
-      left.fieldParticleId.localeCompare(right.fieldParticleId)
+      fieldOrder(left.field, right.field)
     )
   }
 
-  const localPlacements = new Map<string, CenteredNestedFieldPlacement>()
+  const localPlacements: CenteredNestedFieldPlacement[] = []
   let occupiedOuterBoundary = 0
   const bands = [...fieldsByBand.keys()].sort((left, right) => left - right)
   for (const band of bands) {
     const entries = fieldsByBand.get(band) ?? []
-    const radii = entries.map((field) =>
+    const radii = entries.map((entry) =>
       torusFieldRadiusAtLevel(
-        nodeById.get(field.parentDarkParticleId)?.particle.depth ?? rootDepth,
+        entry.owner.particle.depth,
       )
     )
     if (band === 0) {
@@ -234,13 +303,15 @@ const placeComponentFields = (
         entries.length,
         markerRadius,
       )
-      entries.forEach((field, index) => {
+      entries.forEach((entry, index) => {
         const point = layout.points[index] ?? {x: 0, y: 0, z: 0}
         const radius = radii[index] ?? markerRadius
-        localPlacements.set(field.fieldParticleId, {
+        localPlacements.push({
           band,
           bandKind: fieldBandKind(band),
-          field,
+          field: entry.field,
+          fieldParticleIds: entry.fieldParticleIds,
+          ownerDarkParticleId: entry.owner.particle.darkParticleId,
           radius,
           x: point.x,
           y: point.y,
@@ -273,13 +344,15 @@ const placeComponentFields = (
     const phase = stablePhase(
       `${root.particle.darkParticleId}:${band}`,
     )
-    entries.forEach((field, index) => {
+    entries.forEach((entry, index) => {
       const angle = phase + index * Math.PI * 2 / entries.length
       const radius = radii[index] ?? maximumRadius
-      localPlacements.set(field.fieldParticleId, {
+      localPlacements.push({
         band,
         bandKind: fieldBandKind(band),
-        field,
+        field: entry.field,
+        fieldParticleIds: entry.fieldParticleIds,
+        ownerDarkParticleId: entry.owner.particle.darkParticleId,
         radius,
         x: Math.cos(angle) * orbitRadius,
         y: Math.sin(angle) * orbitRadius,
@@ -293,40 +366,31 @@ const placeComponentFields = (
   }
 
   const fieldExtentByParticle = new Map<number, number>()
-  const resolveFieldExtent = (node: DarkNode): void => {
-    let extent = 0
-    for (
-      const field of fieldsByOwner.get(
-        node.particle.darkParticleId,
-      ) ?? []
-    ) {
-      const placement = localPlacements.get(field.fieldParticleId)
-      if (!placement) continue
-      extent = Math.max(
-        extent,
-        Math.hypot(placement.x, placement.y, placement.z) +
-        placement.radius,
-      )
-    }
-    fieldExtentByParticle.set(node.particle.darkParticleId, extent)
-    node.children.forEach(resolveFieldExtent)
+  const initializeFieldExtent = (node: DarkNode): void => {
+    fieldExtentByParticle.set(node.particle.darkParticleId, 0)
+    node.children.forEach(initializeFieldExtent)
   }
-  resolveFieldExtent(root)
+  initializeFieldExtent(root)
+  for (const placement of localPlacements) {
+    fieldExtentByParticle.set(
+      placement.ownerDarkParticleId,
+      Math.max(
+        fieldExtentByParticle.get(placement.ownerDarkParticleId) ?? 0,
+        Math.hypot(placement.x, placement.y, placement.z) +
+          placement.radius,
+      ),
+    )
+  }
 
   const center = root.particle
   return {
     fieldExtentByParticle,
-    placements: fields.flatMap((field) => {
-      const placement = localPlacements.get(field.fieldParticleId)
-      return placement
-        ? [{
-          ...placement,
-          x: center.localX + placement.x,
-          y: center.localY + placement.y,
-          z: center.localZ + placement.z,
-        }]
-        : []
-    }),
+    placements: localPlacements.map((placement) => ({
+      ...placement,
+      x: center.localX + placement.x,
+      y: center.localY + placement.y,
+      z: center.localZ + placement.z,
+    })),
     root,
   }
 }
@@ -459,14 +523,6 @@ export const buildCenteredNestedVisualScene = (
 ): CenteredNestedVisualScene => {
   const roots = buildDarkTrees(manifest)
   const components = buildComponentFieldLayouts(manifest, roots)
-  const fieldPlacementById = new Map(
-    components
-      .flatMap((component) => component.placements)
-      .map((placement) => [
-        placement.field.fieldParticleId,
-        placement,
-      ] as const),
-  )
   const tori: StateGraphContextTorus[] = []
   const stateLayouts: StateGraphRootLayout[] = []
   const visit = (
@@ -502,23 +558,18 @@ export const buildCenteredNestedVisualScene = (
     )
   })
 
-  const fields: StateGraphContextField[] = manifest.fieldParticles.flatMap(
-    (field) => {
-      const placement = fieldPlacementById.get(field.fieldParticleId)
-      return placement
-        ? [{
-          x: placement.x,
-          y: placement.y,
-          z: placement.z,
-          radius: placement.radius,
-          color: [
-            field.colorR,
-            field.colorG,
-            field.colorB,
-          ] as const,
-        }]
-        : []
-    },
+  const fields: StateGraphContextField[] = components.flatMap((component) =>
+    component.placements.map((placement) => ({
+      x: placement.x,
+      y: placement.y,
+      z: placement.z,
+      radius: placement.radius,
+      color: [
+        placement.field.colorR,
+        placement.field.colorG,
+        placement.field.colorB,
+      ] as const,
+    }))
   )
 
   return {

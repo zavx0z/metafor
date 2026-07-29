@@ -218,14 +218,24 @@ describe("Visual playground Monad fixture", () => {
     expect(new Set(scene.context.tori.map(({x, y, z}) =>
       `${x}:${y}:${z}`
     ))).toEqual(new Set(["0:0:0"]))
-    expect(scene.context.fields).toHaveLength(54)
+    expect(scene.context.fields).toHaveLength(28)
     expect(scene.layout.nodes).toHaveLength(98)
     expect(fields.filter((field) => field.bandKind === "root-private"))
       .toHaveLength(1)
     expect(fields.filter((field) => field.bandKind === "shared"))
-      .toHaveLength(46)
+      .toHaveLength(20)
     expect(fields.filter((field) => field.bandKind === "inner-private"))
       .toHaveLength(7)
+    const rootParticle = manifest.darkParticles.find((particle) =>
+      particle.parentDarkParticleId === null
+    )!
+    expect(fields
+      .filter((field) => field.bandKind === "shared")
+      .every((field) =>
+        field.ownerDarkParticleId === rootParticle.darkParticleId &&
+        field.radius === 11 &&
+        field.fieldParticleIds.length > 1
+      )).toBe(true)
 
     const rootNodeCount = owners[0]!.layouts.reduce(
       (count, layout) => count + layout.nodes.length,

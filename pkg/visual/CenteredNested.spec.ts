@@ -96,44 +96,53 @@ const radialBounds = (
 describe("centered-nested Visual layout", () => {
   test("derives recursive Field bands from canonical shared Value identity", () => {
     const placements = layoutCenteredNestedFields(manifest())
-    const byId = new Map(placements.map((placement) => [
-      placement.field.fieldParticleId,
-      placement,
-    ] as const))
+    const byId = new Map(placements.flatMap((placement) =>
+      placement.fieldParticleIds.map((fieldParticleId) => [
+        fieldParticleId,
+        placement,
+      ] as const)
+    ))
 
+    expect(placements).toHaveLength(5)
     expect(byId.get("root-private")).toMatchObject({
       band: 0,
       bandKind: "root-private",
+      fieldParticleIds: ["root-private"],
+      ownerDarkParticleId: 1,
       radius: 11,
     })
     expect(byId.get("root-shared")).toMatchObject({
       band: 1,
       bandKind: "shared",
+      fieldParticleIds: ["root-shared", "child-shared-up"],
+      ownerDarkParticleId: 1,
       radius: 11,
     })
-    expect(byId.get("child-shared-up")).toMatchObject({
-      band: 1,
-      bandKind: "shared",
-      radius: 5.5,
-    })
+    expect(byId.get("child-shared-up")).toBe(byId.get("root-shared"))
     expect(byId.get("child-private")).toMatchObject({
       band: 2,
       bandKind: "inner-private",
+      fieldParticleIds: ["child-private"],
+      ownerDarkParticleId: 2,
       radius: 5.5,
     })
     expect(byId.get("child-shared-down")).toMatchObject({
       band: 3,
       bandKind: "shared",
+      fieldParticleIds: [
+        "child-shared-down",
+        "grandchild-shared",
+      ],
+      ownerDarkParticleId: 2,
       radius: 5.5,
     })
-    expect(byId.get("grandchild-shared")).toMatchObject({
-      band: 3,
-      bandKind: "shared",
-      radius: 2.75,
-    })
+    expect(byId.get("grandchild-shared"))
+      .toBe(byId.get("child-shared-down"))
     expect(byId.get("grandchild-private")).toMatchObject({
       band: 4,
       bandKind: "inner-private",
+      fieldParticleIds: ["grandchild-private"],
+      ownerDarkParticleId: 3,
       radius: 2.75,
     })
 
@@ -141,6 +150,41 @@ describe("centered-nested Visual layout", () => {
       .toBe(byId.get("child-private")?.field.valueText)
     expect(byId.get("root-private")?.band)
       .not.toBe(byId.get("child-private")?.band)
+  })
+
+  test("places a cross-branch shared Value at its highest common owner", () => {
+    const source = manifest()
+    const placements = layoutCenteredNestedFields({
+      ...source,
+      darkParticles: [
+        ...source.darkParticles,
+        darkParticle(4, 1, 1),
+      ],
+      fieldParticles: [
+        ...source.fieldParticles,
+        field("left-branch-shared", 8, 106, 3, "shared"),
+        field("right-branch-shared", 9, 106, 4, "shared"),
+      ],
+    })
+    const shared = placements.find((placement) =>
+      placement.fieldParticleIds.includes("left-branch-shared")
+    )
+
+    expect(shared).toMatchObject({
+      band: 1,
+      bandKind: "shared",
+      fieldParticleIds: [
+        "left-branch-shared",
+        "right-branch-shared",
+      ],
+      ownerDarkParticleId: 1,
+      radius: 11,
+    })
+    expect(placements.filter((placement) =>
+      placement.fieldParticleIds.some((fieldParticleId) =>
+        fieldParticleId.endsWith("branch-shared")
+      )
+    )).toHaveLength(1)
   })
 
   test("keeps one Field-diameter surface gap before every next orbit", () => {
@@ -219,7 +263,7 @@ describe("centered-nested Visual layout", () => {
     expect(innerRadii[1]).toBeLessThan(innerRadii[2]!)
     const rootOwnedOuterExtent = Math.max(
       ...layoutCenteredNestedFields(manifest())
-        .filter((placement) => placement.field.parentDarkParticleId === 1)
+        .filter((placement) => placement.ownerDarkParticleId === 1)
         .map((placement) =>
           Math.hypot(
             placement.x - 17,
@@ -237,6 +281,6 @@ describe("centered-nested Visual layout", () => {
     ))
     expect(rootStateInnerExtent - outerRadii[1]!).toBeCloseTo(8.25)
     expect(outerRadii[0]! - rootStateOuterExtent).toBeCloseTo(8.25)
-    expect(scene.context.fields).toHaveLength(7)
+    expect(scene.context.fields).toHaveLength(5)
   })
 })

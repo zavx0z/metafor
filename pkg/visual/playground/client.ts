@@ -953,7 +953,7 @@ const applyStory = (): void => {
   description.textContent = selectedLayout?.slug === OutsideIn.slug
     ? `${OutsideIn.description} Общий компонент Torus проявляет Atom, Fuzzy, Axion, MACHO и State. Пустой корневой Torus имеет внешний диаметр 100 мм, а пустой Torus и Fields уменьшаются вдвое на каждом уровне; фактическое содержимое не сжимается и расширяет владельца наружу. Fields самого Torus остаются в ядре, Matter-торы занимают внутреннюю орбиту, а каждый объявленный State разворачивает отдельный причинный рукав со всеми достижимыми путями и ветвлениями. Внутри State-Torus находятся только фиксированные Fields условий исходящих Transition.`
     : selectedLayout?.slug === CenteredNested.slug
-      ? `${CenteredNested.description} Fields с одним materialized Value образуют общую Matter-орбиту, независимые Fields корня остаются в центральной псевдоокружности, а частные Fields внутренних Atom последовательно раскрываются наружу с зазором в один диаметр своего уровня.`
+      ? `${CenteredNested.description} Fields с одним materialized Value отображаются одним маркером у их верхнего общего предка, независимые Fields корня остаются в центральной псевдоокружности, а частные Fields внутренних Atom последовательно раскрываются наружу с зазором в один диаметр своего уровня.`
       : component.description
   renderCounts(manifest)
   for (const link of navigation.querySelectorAll("a")) {
