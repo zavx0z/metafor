@@ -54,12 +54,25 @@ Their center distance is clamped to the saved outer diameter plus a `2 mm`
 gap, so the forms cannot touch. The Edge runs center-to-center through a
 collision-free cubic field line with vertical endpoint tangents. The control
 height is raised automatically until the sampled curve clears both Torus
-safety envelopes (`tube + clearance`); an optional extra lift only increases
-that derived height. White safety envelopes, control vectors, dimension lines,
-allowable Sphere-offset circles and live labels expose every input and derived
-value used by this calculation directly in the scene. Every adjustable
-parameter has an in-scene Russian help disclosure. The complete cubic and
-Torus-distance formulas stay centered above the scene. Every unique formula
+surfaces with a continuous required-clearance profile. The required clearance
+is zero inside either endpoint Sphere, then follows the circular cross-section
+of the thickest scaled Torus tube until it reaches the full configured
+clearance. This gives the profile a zero starting slope and keeps a tiny Sphere
+tangent to the Torus hole solvable without an anomalously tall control point.
+The final control height is the greater of the clearance-derived
+height and `2/3` of the Sphere-center span; because a symmetric cubic reaches
+`3/4` of its control height, its apex stays at half the span and the field arc
+does not flatten as distance grows. An optional extra lift only increases the
+derived height. Control
+vectors, dimension lines, allowable Sphere-offset circles and live labels
+expose every input and derived value directly in the scene. A full expanded
+Torus is intentionally not rendered because it is not a hard obstacle for an
+endpoint Sphere. The experimental Edge is drawn as a seven-strand subpixel
+bundle around the exact center curve, giving it readable thickness from every
+camera direction without changing the calculated route. Every adjustable
+parameter has an in-scene Russian help
+disclosure. The complete cubic, clearance-profile and Torus-distance formulas
+stay centered above the scene. Every unique formula
 variable owns a live connector to its source geometry or control, and
 the current scalar/vector values update with the same rebuild. Connectors are
 independent cubic curves: every variable glyph and its connector share one
@@ -68,9 +81,12 @@ orthogonal bus. Links stay translucent at rest; hovering either the glyph or
 its curve raises both to full color and highlights the referenced scene form
 or complete dimension geometry with the same color. The same hover opens a
 short Russian explanation of the variable. Left and right Torus instances
-also have independent scale factors in the scene; their body, hole, safety
-envelope, spacing limit and Edge collision calculation change together while
+also have independent scale factors in the scene; their body, hole, Sphere
+limit, spacing limit and Edge collision calculation change together while
 the base proportions still come from the saved Analysis Torus defaults.
+Sphere movement is bounded only by its own radius, so its surface may touch
+the inner edge of the Torus hole. Edge clearance applies to the free curve
+after its Sphere endpoint and does not shrink the Sphere movement area.
 All experimental controls and values stay inside the scene. The scene renders
 only after a parameter, view or camera change.
 

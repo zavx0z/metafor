@@ -1,9 +1,12 @@
 import {describe, expect, test} from "bun:test"
 import {
   EDGE_TORUS_GAP_MM,
+  ELECTROMAGNETIC_CONTROL_HEIGHT_RATIO,
   buildEdgeConstraintModel,
   constrainSphereOffset,
+  edgeClearanceTransitionDistance,
   minimumEdgeTorusCenterDistance,
+  requiredEdgeClearance,
   sphereOffsetLimit,
 } from "./EdgesLab.ts"
 
@@ -34,6 +37,8 @@ describe("Edges Lab constraint geometry", () => {
     expect(page).toContain("Высота маршрута")
     expect(page).not.toContain("Азимут слева")
     expect(page).toContain("Формула расчёта Edge")
+    expect(page).toContain("cᵣₑq(P)")
+    expect(page).not.toContain("Белая расширенная оболочка")
     for (const variable of [
       "p",
       "t",
@@ -53,6 +58,7 @@ describe("Edges Lab constraint geometry", () => {
       "distance",
       "scale-left",
       "scale-right",
+      "span",
     ]) {
       expect(page).toContain(`id="edges-formula-${variable}"`)
       expect(page).toContain(`data-edges-formula-link="${variable}"`)
@@ -66,6 +72,7 @@ describe("Edges Lab constraint geometry", () => {
     ).text()
     expect(labSource).toContain('addEventListener("pointerenter", activate)')
     expect(labSource).toContain("registerFormulaMaterial")
+    expect(labSource).toContain("thickPolylineGeometry")
   })
 
   test("clamps direct Sphere movement to the circular Torus hole", () => {
@@ -75,6 +82,58 @@ describe("Edges Lab constraint geometry", () => {
     expect(limit).toBe(8.5)
     expect(Math.hypot(constrained.x, constrained.y)).toBeCloseTo(limit)
     expect(constrained.x / constrained.y).toBeCloseTo(12 / 9)
+  })
+
+  test("ramps Edge clearance by Torus curvature after leaving a Sphere", () => {
+    const left = {x: 0, y: 0, z: 0}
+    const right = {x: 100, y: 0, z: 0}
+    const sphereRadius = 2.5
+    const clearance = 3
+    const torusTube = 11.11
+    const transition = edgeClearanceTransitionDistance(
+      torusTube,
+      sphereRadius,
+      clearance,
+    )
+
+    expect(requiredEdgeClearance(
+      left,
+      left,
+      right,
+      sphereRadius,
+      clearance,
+    )).toBe(0)
+    expect(requiredEdgeClearance(
+      {x: 0, y: 0, z: sphereRadius},
+      left,
+      right,
+      sphereRadius,
+      clearance,
+    )).toBe(0)
+    expect(requiredEdgeClearance(
+      {x: 0, y: 0, z: sphereRadius + transition},
+      left,
+      right,
+      sphereRadius,
+      clearance,
+      torusTube,
+    )).toBeCloseTo(clearance)
+    expect(requiredEdgeClearance(
+      {x: 0, y: 0, z: sphereRadius + 0.01},
+      left,
+      right,
+      sphereRadius,
+      clearance,
+      torusTube,
+    )).toBeLessThan(0.000004)
+    expect(requiredEdgeClearance(
+      {x: 0, y: 0, z: sphereRadius + transition + 1},
+      left,
+      right,
+      sphereRadius,
+      clearance,
+      torusTube,
+    )).toBe(clearance)
   })
 
   test("moves Edge endpoints with independently dragged Spheres", () => {
@@ -167,6 +226,27 @@ describe("Edges Lab constraint geometry", () => {
     ).toBeLessThan(model.curve[1]!.z - model.curve[0]!.z)
   })
 
+  test("keeps electromagnetic arc proportions as the span grows", () => {
+    const model = buildEdgeConstraintModel({
+      centerDistance: 200,
+      clearance: 3,
+      extraLift: 0,
+      leftSphereX: 0,
+      leftSphereY: 0,
+      rightSphereX: 0,
+      rightSphereY: 0,
+      sphereRadius: 2.5,
+      torusRadius: 18,
+      torusTube: 7,
+    })
+
+    expect(model.shapeControlHeight).toBeCloseTo(
+      200 * ELECTROMAGNETIC_CONTROL_HEIGHT_RATIO,
+    )
+    expect(model.controlHeight).toBe(model.shapeControlHeight)
+    expect(model.maximumHeight).toBeCloseTo(100)
+  })
+
   test("derives control height from collision clearance and optional lift", () => {
     const compact = buildEdgeConstraintModel({
       centerDistance: 52,
@@ -193,14 +273,19 @@ describe("Edges Lab constraint geometry", () => {
 
     expect(compact.minimumTorusClearance).toBeGreaterThanOrEqual(2)
     expect(spacious.minimumTorusClearance).toBeGreaterThanOrEqual(5)
-    expect(spacious.controlHeight).toBeGreaterThan(compact.controlHeight + 8)
+    expect(spacious.clearanceControlHeight)
+      .toBeGreaterThan(compact.clearanceControlHeight)
+    expect(spacious.controlHeight).toBeCloseTo(
+      Math.max(spacious.clearanceControlHeight, spacious.shapeControlHeight) + 8,
+    )
     expect(spacious.maximumHeight).toBeGreaterThan(compact.maximumHeight)
   })
 
-  test("keeps a finite smooth field line when Sphere reaches its clearance boundary", () => {
+  test("lets Sphere touch the Torus hole while Edge keeps its own clearance", () => {
     const torus = {radius: 27.78, tube: 22.22}
     const clearance = 3
-    const boundaryOffset = torus.radius - torus.tube - clearance
+    const sphereRadius = 2.5
+    const boundaryOffset = sphereOffsetLimit(torus, sphereRadius)
     const model = buildEdgeConstraintModel({
       centerDistance: 102,
       clearance,
@@ -209,18 +294,55 @@ describe("Edges Lab constraint geometry", () => {
       leftSphereY: 0,
       rightSphereX: boundaryOffset,
       rightSphereY: 0,
+      sphereRadius,
       torusRadius: torus.radius,
       torusTube: torus.tube,
     })
 
-    expect(boundaryOffset).toBeCloseTo(2.56)
+    expect(boundaryOffset).toBeCloseTo(3.06)
+    expect(boundaryOffset + sphereRadius)
+      .toBeCloseTo(torus.radius - torus.tube)
+    expect(sphereRadius).toBeLessThan(clearance)
     expect(Number.isFinite(model.controlHeight)).toBe(true)
-    expect(model.controlHeight).toBeLessThan(500)
-    expect(model.minimumTorusClearance).toBeGreaterThanOrEqual(clearance - 1e-6)
+    expect(model.controlHeight).toBeLessThan(100)
+    expect(model.minimumTorusClearance).toBeCloseTo(sphereRadius)
+    expect(model.minimumSafetyMargin).toBeGreaterThanOrEqual(-1e-6)
     expect(model.curve.every((point) =>
       Number.isFinite(point.x) &&
       Number.isFinite(point.y) &&
       Number.isFinite(point.z)
     )).toBe(true)
+  })
+
+  test("keeps a 0.9 mm boundary Sphere on a proportional field arc", () => {
+    const torus = {radius: 27.78, tube: 22.22}
+    const scale = 0.5
+    const sphereRadius = 0.9
+    const scaledTorus = {
+      radius: torus.radius * scale,
+      tube: torus.tube * scale,
+    }
+    const boundaryOffset = sphereOffsetLimit(scaledTorus, sphereRadius)
+    const model = buildEdgeConstraintModel({
+      centerDistance: 52,
+      clearance: 3,
+      extraLift: 0,
+      leftSphereX: boundaryOffset,
+      leftSphereY: 0,
+      leftTorusScale: scale,
+      rightSphereX: -boundaryOffset,
+      rightSphereY: 0,
+      rightTorusScale: scale,
+      sphereRadius,
+      torusRadius: torus.radius,
+      torusTube: torus.tube,
+    })
+
+    expect(boundaryOffset).toBeCloseTo(1.88)
+    expect(model.clearanceTransitionDistance).toBeCloseTo(9)
+    expect(model.clearanceControlHeight).toBeLessThan(40)
+    expect(model.controlHeight).toBe(model.shapeControlHeight)
+    expect(model.maximumHeight).toBeCloseTo(24.12)
+    expect(model.minimumSafetyMargin).toBeGreaterThanOrEqual(-1e-6)
   })
 })

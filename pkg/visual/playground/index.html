@@ -896,7 +896,7 @@
 
       #edges-formula-help {
         position: absolute;
-        top: 128px;
+        top: 194px;
         left: 50%;
         z-index: 6;
         width: min(430px, calc(100% - 620px));
@@ -1612,17 +1612,26 @@
               + t³ <span id="edges-formula-sr" class="edges-formula-variable">Sᵣ</span>
             </div>
             <div class="edges-formula-line">
+              Hsafe = min { h ≥ 0 | <span id="edges-formula-dt" class="edges-formula-variable">dₜ</span>(Pₕ(t), Tₗ∪Tᵣ) ≥
+              cᵣₑq(Pₕ(t)) },
+              <span id="edges-formula-span" class="edges-formula-variable">ℓ</span> = ‖Sᵣ−Sₗ‖
+            </div>
+            <div class="edges-formula-line">
               Cᵢ = Sᵢ + (0,0,<span id="edges-formula-h" class="edges-formula-variable">H</span>),
-              H = min { h ≥ 0 | <span id="edges-formula-dt" class="edges-formula-variable">dₜ</span>(Pₕ(t), Tₗ∪Tᵣ) ≥
-              <span id="edges-formula-c" class="edges-formula-variable">c</span> } +
+              H = max(Hsafe, 2ℓ/3) +
               <span id="edges-formula-dh" class="edges-formula-variable">Δh</span>
+            </div>
+            <div class="edges-formula-line">
+              q = max(0, min(‖P−Sₗ‖, ‖P−Sᵣ‖)−ρ),
+              cᵣₑq(P) = min(<span id="edges-formula-c" class="edges-formula-variable">c</span>,
+              √((r*+ρ)²+q²)−(r*+ρ)), r* = max(rₗ,rᵣ)
             </div>
             <div class="edges-formula-line">
               dₜ(P,<span id="edges-formula-tl" class="edges-formula-variable">Tₗ</span>/<span id="edges-formula-tr" class="edges-formula-variable">Tᵣ</span>)
               = √((√((Pₓ−Tₓ)²+(Pᵧ−Tᵧ)²)−<span id="edges-formula-r-major" class="edges-formula-variable">R</span>)²+(P𝓏−T𝓏)²)−<span id="edges-formula-r-tube" class="edges-formula-variable">r</span>
             </div>
             <div class="edges-formula-line">
-              ‖Sᵢ−Tᵢ‖ ≤ R−r−max(<span id="edges-formula-rho" class="edges-formula-variable">ρ</span>,c),
+              ‖Sᵢ−Tᵢ‖ ≤ R−r−<span id="edges-formula-rho" class="edges-formula-variable">ρ</span>,
               <span id="edges-formula-distance" class="edges-formula-variable">D</span> = ‖Tᵣ−Tₗ‖,
               0 ≤ t ≤ 1
             </div>
@@ -1652,6 +1661,7 @@
             <path data-edges-formula-link="distance"></path>
             <path data-edges-formula-link="scale-left"></path>
             <path data-edges-formula-link="scale-right"></path>
+            <path data-edges-formula-link="span"></path>
           </svg>
           <div id="edges-formula-target" aria-hidden="true"></div>
           <section id="edges-formula-help" hidden>
@@ -1677,9 +1687,10 @@
             <details class="edges-parameter-help">
               <summary aria-label="Описание вспомогательных элементов">?</summary>
               <div class="edges-parameter-help-text">
-                Белая расширенная оболочка задаёт запрещённую для Edge область,
-                control-векторы задают вертикальные касательные, а размерные
-                линии показывают расстояние центров, радиус Sphere и высоту.
+                Белые control-векторы задают вертикальные касательные, а
+                размерные линии показывают расстояние центров, радиус Sphere,
+                высоту и базовый зазор. Полного Torus-отступа в сцене нет:
+                требуемый зазор плавно растёт после выхода Edge из Sphere.
               </div>
             </details>
           </section>
@@ -1756,7 +1767,7 @@
           <div id="edges-measure-route" class="edges-scene-measure derived">
             <span>Высота маршрута</span>
             <output></output>
-            <small>автоподбор по защитной оболочке Torus</small>
+            <small>автоподбор по плавному профилю зазора</small>
           </div>
           <div class="edges-view-controls" aria-label="Вид Edges Lab">
             <button type="button" data-edges-view="perspective">Перспектива</button>
