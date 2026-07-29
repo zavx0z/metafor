@@ -6,6 +6,7 @@ import {
   Visual,
   buildCenteredNestedVisualScene,
   buildStateGraph,
+  buildStateGraphBranchLayout,
   buildStateGraphRootLayout,
   buildOutsideInVisualScene,
   countVisualScene,
@@ -530,7 +531,7 @@ const renderStateGraph = async (): Promise<void> => {
   const stateGraphEdgeCurveBuilder =
     createStateGraphHermiteEdgeCurveBuilder()
   const pendingViewports = graph.states.map(async (rootState, rootIndex) => {
-    const layout = buildStateGraphRootLayout(graph, rootState.id)
+    const layout = buildStateGraphBranchLayout(graph, rootState.id)
     const details = describeStateGraphRoot(graph, layout, rootIndex)
     const card = document.createElement("article")
     card.className = "state-branch-card"

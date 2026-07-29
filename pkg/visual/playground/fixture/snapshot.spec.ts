@@ -4,7 +4,10 @@ import {buildBulkManifestation} from "../../../../bulk/manifestation.ts"
 import {BulkProjectionStore} from "../../../../bulk/projection.ts"
 import {DEFAULT_BULK_SETTINGS} from "../../../../bulk/settings.ts"
 import {buildStateGraph} from "../../StateGraph.ts"
-import {buildStateGraphRootLayout} from "../../StateGraphLayout.ts"
+import {
+  buildStateGraphBranchLayout,
+  buildStateGraphRootLayout,
+} from "../../StateGraphLayout.ts"
 import {
   buildCenteredNestedVisualScene,
   layoutCenteredNestedFields,
@@ -81,10 +84,16 @@ describe("Visual playground Monad fixture", () => {
     expect(graph.sleeves).toHaveLength(5)
     expect([...pathsByRoot.values()].sort()).toEqual([1, 1, 1, 2])
 
-    const firstCard = buildStateGraphRootLayout(graph, graph.states[0]!.id)
-    expect(firstCard.levels).toHaveLength(3)
-    expect(firstCard.levels[0]?.nodeIds).toHaveLength(1)
-    expect(firstCard.levels[1]?.nodeIds).toHaveLength(2)
+    const firstCard = buildStateGraphBranchLayout(
+      graph,
+      graph.states[0]!.id,
+    )
+    expect(firstCard.levels.map((level) =>
+      level.nodeIds.length
+    )).toEqual([1, 2, 2, 1])
+    expect(firstCard.nodes).toHaveLength(6)
+    expect(firstCard.edges.filter((edge) => edge.returning))
+      .toHaveLength(2)
   })
 
   test("composes State sleeves for the root and every nested Atom", () => {

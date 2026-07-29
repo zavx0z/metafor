@@ -341,6 +341,215 @@ export const buildStateGraphRootLayout = (
   }
 }
 
+const pathPrefixKey = (
+  transitionIds: readonly number[],
+): string =>
+  transitionIds.length === 0 ? "root" : transitionIds.join("-")
+
+/**
+ * Unfolds every possible path into a prefix tree. Prefixes are shared only
+ * until a real Transition split. Every descendant of a split then keeps the
+ * same lateral lane even when a neighbouring path ends.
+ */
+export const buildStateGraphBranchLayout = (
+  graph: StateGraph,
+  rootStateId: number,
+): StateGraphRootLayout => {
+  const templateLayout = buildStateGraphRootLayout(graph, rootStateId)
+  const rootTemplate = templateLayout.nodes.find(
+    (node) =>
+      node.stateId === rootStateId &&
+      node.end !== "missing-state",
+  )
+  const sleeves = graph.sleeves.filter(
+    (sleeve) => sleeve.rootStateId === rootStateId,
+  )
+  if (!rootTemplate || sleeves.length === 0) return templateLayout
+
+  const transitionById = new Map(
+    graph.transitions.map((transition) =>
+      [transition.id, transition] as const
+    ),
+  )
+  const stateTemplateById = new Map<number, StateGraphLayoutNode>()
+  const missingTemplateById = new Map<number, StateGraphLayoutNode>()
+  for (const node of templateLayout.nodes) {
+    const templates = node.end === "missing-state"
+      ? missingTemplateById
+      : stateTemplateById
+    if (!templates.has(node.stateId)) templates.set(node.stateId, node)
+  }
+
+  const levelStep = templateLayout.levels.find(
+    (level) => level.step > 0,
+  )
+  const levelDistance = levelStep
+    ? levelStep.x / levelStep.step
+    : LEVEL_STEP
+  const nodes: MutableLayoutNode[] = []
+  const nodeByPrefix = new Map<string, MutableLayoutNode>()
+  const childrenByNodeId = new Map<string, Set<string>>()
+  const edges: StateGraphLayoutEdge[] = []
+  const edgeKeys = new Set<string>()
+
+  const makeNode = (
+    template: StateGraphLayoutNode,
+    prefix: readonly number[],
+    step: number,
+  ): MutableLayoutNode => {
+    const prefixKey = pathPrefixKey(prefix)
+    const node: MutableLayoutNode = {
+      ...template,
+      id:
+        `root/${rootStateId}/path/${prefixKey}/state/` +
+        `${template.stateId}`,
+      step,
+      x: step * levelDistance,
+      y: 0,
+      z: 0,
+    }
+    nodes.push(node)
+    nodeByPrefix.set(prefixKey, node)
+    return node
+  }
+
+  const rootNode = makeNode(rootTemplate, [], 0)
+
+  const addEdge = (
+    transitionId: number,
+    prefix: readonly number[],
+    fromNode: MutableLayoutNode,
+    toNode: MutableLayoutNode,
+    returning: boolean,
+  ): void => {
+    const edgeKey =
+      `${pathPrefixKey(prefix)}:${transitionId}:${returning}`
+    if (edgeKeys.has(edgeKey)) return
+    const transition = transitionById.get(transitionId)
+    if (!transition) return
+    edgeKeys.add(edgeKey)
+    edges.push({
+      id: `root/${rootStateId}/edge/${edgeKey}`,
+      transitionId,
+      fromNodeId: fromNode.id,
+      toNodeId: toNode.id,
+      returning,
+      conditionCount: transition.conditions.length,
+      conditionFieldIds: transition.conditions.map(
+        (condition) => condition.fieldId,
+      ),
+    })
+    if (!returning) {
+      const children = childrenByNodeId.get(fromNode.id)
+      if (children) children.add(toNode.id)
+      else childrenByNodeId.set(fromNode.id, new Set([toNode.id]))
+    }
+  }
+
+  for (const sleeve of sleeves) {
+    let fromNode = rootNode
+    const occurrenceByStateId =
+      new Map<number, MutableLayoutNode>([
+        [rootStateId, rootNode],
+      ])
+
+    for (
+      let stateIndex = 1;
+      stateIndex < sleeve.stateIds.length;
+      stateIndex += 1
+    ) {
+      const transitionId = sleeve.transitionIds[stateIndex - 1]
+      const stateId = sleeve.stateIds[stateIndex]
+      if (transitionId === undefined || stateId === undefined) continue
+      const prefix = sleeve.transitionIds.slice(0, stateIndex)
+      const prefixKey = pathPrefixKey(prefix)
+      let toNode = nodeByPrefix.get(prefixKey)
+      if (!toNode) {
+        const template = stateTemplateById.get(stateId)
+        if (!template) continue
+        toNode = makeNode(template, prefix, stateIndex)
+      }
+      addEdge(transitionId, prefix, fromNode, toNode, false)
+      occurrenceByStateId.set(stateId, toNode)
+      fromNode = toNode
+    }
+
+    if (sleeve.end.kind === "cycle") {
+      const transitionId = sleeve.transitionIds.at(-1)
+      const toNode = occurrenceByStateId.get(
+        sleeve.end.targetStateId,
+      )
+      if (transitionId !== undefined && toNode) {
+        addEdge(
+          transitionId,
+          sleeve.transitionIds,
+          fromNode,
+          toNode,
+          true,
+        )
+      }
+    } else if (sleeve.end.kind === "missing-state") {
+      const transitionId = sleeve.transitionIds.at(-1)
+      if (transitionId === undefined) continue
+      const prefix = sleeve.transitionIds
+      const prefixKey = pathPrefixKey(prefix)
+      let toNode = nodeByPrefix.get(prefixKey)
+      if (!toNode) {
+        const template = missingTemplateById.get(
+          sleeve.end.targetStateId,
+        )
+        if (!template) continue
+        toNode = makeNode(
+          template,
+          prefix,
+          sleeve.stateIds.length,
+        )
+      }
+      addEdge(transitionId, prefix, fromNode, toNode, false)
+    }
+  }
+
+  const nodeById = new Map(
+    nodes.map((node) => [node.id, node] as const),
+  )
+  const leaves = nodes.filter(
+    (node) => (childrenByNodeId.get(node.id)?.size ?? 0) === 0,
+  )
+  for (const [index, leaf] of leaves.entries()) {
+    leaf.y = (index - (leaves.length - 1) / 2) * ROW_STEP
+  }
+  for (
+    const node of [...nodes].sort(
+      (left, right) => right.step - left.step,
+    )
+  ) {
+    const childIds = childrenByNodeId.get(node.id)
+    if (!childIds || childIds.size === 0) continue
+    const childYs = [...childIds]
+      .map((childId) => nodeById.get(childId)?.y)
+      .filter((value): value is number => value !== undefined)
+    if (childYs.length === 0) continue
+    node.y = (Math.min(...childYs) + Math.max(...childYs)) / 2
+  }
+
+  const levels = [...new Set(nodes.map((node) => node.step))]
+    .sort((left, right) => left - right)
+    .map((step) => ({
+      step,
+      x: step * levelDistance,
+      nodeIds: nodes
+        .filter((node) => node.step === step)
+        .map((node) => node.id),
+    }))
+
+  return {
+    rootStateId,
+    nodes,
+    edges,
+    levels,
+  }
+}
+
 export const describeStateGraphRoot = (
   graph: StateGraph,
   layout: StateGraphRootLayout,

@@ -30,9 +30,12 @@ graph, and gives every declared State one independently rotatable layered 3D
 viewer containing all paths and branch alternatives from that start. A graph
 with four declared States therefore has four cards even when those cards
 contain more than four possible paths. Every State identity has one stable
-unique color, and occurs at most once inside one card. X levels are path steps,
-while cycle Transitions draw back to an existing node instead of duplicating
-it. A State itself is a Torus. Spheres inside its hole are the typed Fields
+unique color. Paths share geometry only before their first differing
+Transition. After that split, every path-context occurrence keeps its own
+lateral lane on all remaining X-step levels; it is not re-centered when a
+neighbouring path ends. A cycle Transition draws back to the existing
+occurrence inside its own branch instead of adding another cycle marker. A
+State itself is a Torus. Spheres inside its hole are the typed Fields
 referenced by conditions of that State's outgoing Transitions; they are not
 State markers. State uses the same code-owned Torus form as the rest of the
 named layout; browser-local analysis values cannot change it. Transitions reuse the playground

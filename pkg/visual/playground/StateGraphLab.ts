@@ -1,3 +1,4 @@
+export {buildStateGraphBranchLayout} from "../StateGraphLayout.ts"
 import type {StateGraphEdgeCurveBuilder} from "../StateGraphViewport.ts"
 import {resolveSelfSimilarTorusForm} from "../Torus.ts"
 import {buildHermiteBeamModel} from "./EdgesLab.ts"

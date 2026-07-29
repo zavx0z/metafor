@@ -56,6 +56,7 @@ export {
   type StateGraphTransition,
 } from "./StateGraph.ts"
 export {
+  buildStateGraphBranchLayout,
   buildStateGraphRootLayout,
   describeStateGraphRoot,
   resolveStateGraphNodeGeometry,

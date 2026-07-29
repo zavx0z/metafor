@@ -3,7 +3,11 @@ import type {
   StateGraphLayoutEdge,
   StateGraphLayoutNode,
 } from "../StateGraphLayout.ts"
-import {createStateGraphHermiteEdgeCurveBuilder} from "./StateGraphLab.ts"
+import type {StateGraph} from "../StateGraph.ts"
+import {
+  buildStateGraphBranchLayout,
+  createStateGraphHermiteEdgeCurveBuilder,
+} from "./StateGraphLab.ts"
 
 const node = (
   id: string,
@@ -65,6 +69,100 @@ describe("State Graph playground Hermite edges", () => {
       expect(point.x).toBeCloseTo(forward[index]!.x)
       expect(point.y).toBeCloseTo(forward[index]!.y)
       expect(point.z).toBeCloseTo(-forward[index]!.z)
+    }
+  })
+})
+
+const branchingGraph = (): StateGraph => ({
+  atomId: 1,
+  atomLabel: "Branching",
+  currentStateId: 1,
+  fields: [],
+  reachableStateIds: [1, 2, 3, 4, 5],
+  src: "owner/branching",
+  states: [
+    {id: 1, name: "root", position: 0, current: true},
+    {id: 2, name: "left", position: 1, current: false},
+    {id: 3, name: "right", position: 2, current: false},
+    {id: 4, name: "shared", position: 3, current: false},
+    {id: 5, name: "cycle", position: 4, current: false},
+  ],
+  transitions: [
+    {id: 11, fromStateId: 1, toStateId: 2, position: 0, conditions: []},
+    {id: 12, fromStateId: 1, toStateId: 3, position: 1, conditions: []},
+    {id: 13, fromStateId: 2, toStateId: 4, position: 2, conditions: []},
+    {id: 14, fromStateId: 3, toStateId: 4, position: 3, conditions: []},
+    {id: 15, fromStateId: 4, toStateId: 5, position: 4, conditions: []},
+    {id: 16, fromStateId: 5, toStateId: 4, position: 5, conditions: []},
+  ],
+  sleeves: [
+    {
+      id: "left-path",
+      rootStateId: 1,
+      stateIds: [1, 2, 4, 5],
+      transitionIds: [11, 13, 15, 16],
+      end: {kind: "cycle", targetStateId: 4},
+    },
+    {
+      id: "right-path",
+      rootStateId: 1,
+      stateIds: [1, 3, 4, 5],
+      transitionIds: [12, 14, 15, 16],
+      end: {kind: "cycle", targetStateId: 4},
+    },
+  ],
+})
+
+describe("State Graph playground branch lanes", () => {
+  test("keeps every path in its own lane after a split", () => {
+    const layout = buildStateGraphBranchLayout(branchingGraph(), 1)
+
+    expect(layout.levels.map((level) => level.nodeIds.length)).toEqual([
+      1,
+      2,
+      2,
+      2,
+    ])
+    expect(layout.nodes.filter((node) => node.stateId === 4)).toHaveLength(2)
+    expect(layout.nodes.filter((node) => node.stateId === 5)).toHaveLength(2)
+
+    const branchLanes = layout.nodes
+      .filter((node) => node.step === 1)
+      .map((node) => node.y)
+      .sort((left, right) => left - right)
+    expect(branchLanes).toEqual([-7.5, 7.5])
+    for (const step of [2, 3]) {
+      expect(
+        layout.nodes
+          .filter((node) => node.step === step)
+          .map((node) => node.y)
+          .sort((left, right) => left - right),
+      ).toEqual(branchLanes)
+    }
+  })
+
+  test("closes every cycle inside the lane that produced it", () => {
+    const layout = buildStateGraphBranchLayout(branchingGraph(), 1)
+    const nodeById = new Map(
+      layout.nodes.map((layoutNode) => [layoutNode.id, layoutNode] as const),
+    )
+    const returning = layout.edges.filter((layoutEdge) => layoutEdge.returning)
+
+    expect(returning).toHaveLength(2)
+    for (const layoutEdge of returning) {
+      const from = nodeById.get(layoutEdge.fromNodeId)
+      const to = nodeById.get(layoutEdge.toNodeId)
+      expect(from?.stateId).toBe(5)
+      expect(to?.stateId).toBe(4)
+      expect(from?.y).toBe(to?.y)
+    }
+  })
+
+  test("keeps one stable color for repeated path occurrences", () => {
+    const layout = buildStateGraphBranchLayout(branchingGraph(), 1)
+    for (const stateId of [4, 5]) {
+      const occurrences = layout.nodes.filter((node) => node.stateId === stateId)
+      expect(new Set(occurrences.map((node) => node.color.join(","))).size).toBe(1)
     }
   })
 })
