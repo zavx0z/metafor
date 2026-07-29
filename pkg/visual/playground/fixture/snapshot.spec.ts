@@ -226,8 +226,10 @@ describe("Visual playground Monad fixture", () => {
       field.bandKind === "shared"
     )
     expect(sharedFields).toHaveLength(20)
-    expect(fields.filter((field) => field.bandKind === "inner-private"))
-      .toHaveLength(7)
+    const privateFields = fields.filter((field) =>
+      field.bandKind === "inner-private"
+    )
+    expect(privateFields).toHaveLength(7)
     const rootParticle = manifest.darkParticles.find((particle) =>
       particle.parentDarkParticleId === null
     )!
@@ -236,36 +238,89 @@ describe("Visual playground Monad fixture", () => {
       field.radius === 11 &&
       field.fieldParticleIds.length > 1
     )).toBe(true)
-    const sharedOrbits = [...Map.groupBy(
-      sharedFields,
+    const orbitalFields = fields.filter((field) =>
+      field.bandKind !== "root-private"
+    )
+    const fieldOrbits = [...Map.groupBy(
+      orbitalFields,
       (field) => field.orbitIndex,
     )]
       .sort(([left], [right]) => left - right)
-    expect(sharedOrbits.map(([orbitIndex, orbitFields]) => ({
+    expect(fieldOrbits.map(([orbitIndex, orbitFields]) => ({
       count: orbitFields.length,
+      deepestOwnerDepths: [...new Set(orbitFields.map((field) =>
+        field.deepestOwnerDepth
+      ))],
       orbitIndex,
     }))).toEqual([
-      {count: 8, orbitIndex: 0},
-      {count: 12, orbitIndex: 1},
+      {count: 5, deepestOwnerDepths: [2], orbitIndex: 0},
+      {count: 9, deepestOwnerDepths: [1], orbitIndex: 1},
+      {count: 13, deepestOwnerDepths: [1], orbitIndex: 2},
     ])
-    const sharedOrbitRadii = sharedOrbits.map(([, orbitFields]) =>
+    const fieldOrbitRadii = fieldOrbits.map(([, orbitFields]) =>
       Math.hypot(
         orbitFields[0]!.x,
         orbitFields[0]!.y,
         orbitFields[0]!.z,
       )
     )
-    expect(sharedOrbitRadii[0]).toBeCloseTo(44)
-    expect(sharedOrbitRadii[1]).toBeCloseTo(66)
+    expect(fieldOrbitRadii[0]).toBeCloseTo(44)
+    expect(fieldOrbitRadii[1]).toBeCloseTo(66)
+    expect(fieldOrbitRadii[2]).toBeCloseTo(88)
     const rootPrivateOuterExtent = Math.max(...fields
       .filter((field) => field.bandKind === "root-private")
       .map((field) =>
         Math.hypot(field.x, field.y, field.z) + field.radius
       ))
-    expect(sharedOrbitRadii[0]! - 11 - rootPrivateOuterExtent)
+    expect(fieldOrbitRadii[0]! - 11 - rootPrivateOuterExtent)
       .toBeCloseTo(22)
-    expect(sharedOrbitRadii[1]! - 11 - (sharedOrbitRadii[0]! + 11))
+    expect(fieldOrbitRadii[1]! - 11 - (fieldOrbitRadii[0]! + 11))
       .toBeCloseTo(0)
+    expect(fieldOrbitRadii[2]! - 11 - (fieldOrbitRadii[1]! + 11))
+      .toBeCloseTo(0)
+    const deepestOuterExtent = Math.max(...orbitalFields
+      .filter((field) => field.deepestOwnerDepth === 2)
+      .map((field) =>
+        Math.hypot(field.x, field.y, field.z) + field.radius
+      ))
+    const shallowerInnerExtent = Math.min(...orbitalFields
+      .filter((field) => field.deepestOwnerDepth === 1)
+      .map((field) =>
+        Math.hypot(field.x, field.y, field.z) - field.radius
+      ))
+    expect(deepestOuterExtent).toBeLessThanOrEqual(
+      shallowerInnerExtent + 1e-9,
+    )
+    const affinityRuns: number[] = []
+    for (
+      const field of orbitalFields.filter((candidate) =>
+        candidate.deepestOwnerDepth === 1
+      )
+    ) {
+      if (
+        affinityRuns.at(-1) !== field.affinityOwnerDarkParticleId
+      ) affinityRuns.push(field.affinityOwnerDarkParticleId)
+    }
+    expect(affinityRuns).toEqual([
+      manifest.darkParticles.find((particle) =>
+        particle.src === "zavx0z/lada-auth"
+      )!.darkParticleId,
+      manifest.darkParticles.find((particle) =>
+        particle.src === "zavx0z/lada-chat"
+      )!.darkParticleId,
+      manifest.darkParticles.find((particle) =>
+        particle.src === "zavx0z/lada-model"
+      )!.darkParticleId,
+    ])
+    expect(privateFields.map((field) => field.field.fieldKey)).toEqual([
+      "sessionChecked",
+      "codeRequested",
+      "historyCount",
+      "eventReady",
+      "retryReady",
+      "model",
+      "lastMessageId",
+    ])
 
     const rootNodeCount = owners[0]!.layouts.reduce(
       (count, layout) => count + layout.nodes.length,
@@ -293,12 +348,5 @@ describe("Visual playground Monad fixture", () => {
     expect(rootTorusOuterRadius - rootStateOuterExtent)
       .toBeCloseTo(8.25)
 
-    const sharedOuter = Math.max(...fields
-      .filter((field) => field.band === 1)
-      .map((field) => Math.hypot(field.x, field.y) + field.radius))
-    const innerPrivate = Math.min(...fields
-      .filter((field) => field.band === 2)
-      .map((field) => Math.hypot(field.x, field.y) - field.radius))
-    expect(innerPrivate - sharedOuter).toBeCloseTo(11)
   })
 })

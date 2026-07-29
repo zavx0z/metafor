@@ -52,11 +52,14 @@ export type CenteredNestedFieldBandKind =
   | "shared"
 
 export type CenteredNestedFieldPlacement = Readonly<{
+  affinityOwnerDarkParticleId: number
   band: number
   bandKind: CenteredNestedFieldBandKind
+  deepestOwnerDepth: number
   field: BulkFieldParticle
   fieldParticleIds: readonly string[]
   orbitIndex: number
+  ownerDarkParticleIds: readonly number[]
   ownerDarkParticleId: number
   radius: number
   x: number
@@ -76,10 +79,14 @@ type ComponentFieldLayout = Readonly<{
 }>
 
 type ComponentFieldEntry = Readonly<{
+  affinityOwner: DarkNode
   band: number
+  bandKind: CenteredNestedFieldBandKind
+  deepestOwnerDepth: number
   field: BulkFieldParticle
   fieldParticleIds: readonly string[]
   owner: DarkNode
+  owners: readonly DarkNode[]
 }>
 
 type ResolvedDarkTorus = Readonly<{
@@ -211,15 +218,6 @@ const highestCommonOwner = (
   return common
 }
 
-const fieldBandKind = (
-  band: number,
-): CenteredNestedFieldBandKind =>
-  band === 0
-    ? "root-private"
-    : band % 2 === 1
-      ? "shared"
-      : "inner-private"
-
 const fieldOrbitCapacity = (
   orbitRadius: number,
   markerRadius: number,
@@ -299,10 +297,24 @@ const placeComponentFields = (
   const rootDepth = root.particle.depth
   const visualEntries: ComponentFieldEntry[] = []
   for (const group of groups.values()) {
-    const ownerIds = new Set(group.map((field) =>
+    const owners = [...new Set(group.map((field) =>
       field.parentDarkParticleId
-    ))
-    const shared = ownerIds.size > 1 && group[0]?.valueId !== null
+    ))]
+      .flatMap((ownerId) => {
+        const owner = nodeById.get(ownerId)
+        return owner ? [owner] : []
+      })
+      .sort((left, right) =>
+        particleOrder(left.particle, right.particle)
+      )
+    const deepestOwnerDepth = Math.max(
+      rootDepth,
+      ...owners.map((owner) => owner.particle.depth),
+    )
+    const affinityOwner = owners.find((owner) =>
+      owner.particle.depth === deepestOwnerDepth
+    ) ?? root
+    const shared = owners.length > 1 && group[0]?.valueId !== null
     if (shared) {
       const owner = highestCommonOwner(group, root, nodeById)
       const ownerDepth = Math.max(
@@ -310,12 +322,16 @@ const placeComponentFields = (
         owner.particle.depth - rootDepth,
       )
       visualEntries.push({
+        affinityOwner,
         band: ownerDepth * 2 + 1,
+        bandKind: "shared",
+        deepestOwnerDepth,
         field: group.find((field) =>
           field.parentDarkParticleId === owner.particle.darkParticleId
         ) ?? group[0]!,
         fieldParticleIds: group.map((field) => field.fieldParticleId),
         owner,
+        owners,
       })
       continue
     }
@@ -326,70 +342,102 @@ const placeComponentFields = (
         owner.particle.depth - rootDepth,
       )
       visualEntries.push({
+        affinityOwner: owner,
         band: ownerDepth === 0 ? 0 : ownerDepth * 2,
+        bandKind: ownerDepth === 0
+          ? "root-private"
+          : "inner-private",
+        deepestOwnerDepth: owner.particle.depth,
         field,
         fieldParticleIds: [field.fieldParticleId],
         owner,
+        owners: [owner],
       })
     }
   }
 
-  const fieldsByBand = new Map<number, ComponentFieldEntry[]>()
-  for (const entry of visualEntries) {
-    const entries = fieldsByBand.get(entry.band)
+  const localPlacements: CenteredNestedFieldPlacement[] = []
+  let occupiedOuterBoundary = 0
+  const centerEntries = visualEntries
+    .filter((entry) => entry.bandKind === "root-private")
+    .sort((left, right) => fieldOrder(left.field, right.field))
+  const centerRadii = centerEntries.map((entry) =>
+    torusFieldRadiusAtLevel(entry.owner.particle.depth)
+  )
+  const centerMarkerRadius = Math.max(0, ...centerRadii)
+  const centerLayout = layoutFieldsInPseudoCircle(
+    centerEntries.length,
+    centerMarkerRadius,
+  )
+  centerEntries.forEach((entry, index) => {
+    const point = centerLayout.points[index] ?? {x: 0, y: 0, z: 0}
+    const radius = centerRadii[index] ?? centerMarkerRadius
+    localPlacements.push({
+      affinityOwnerDarkParticleId:
+        entry.affinityOwner.particle.darkParticleId,
+      band: entry.band,
+      bandKind: entry.bandKind,
+      deepestOwnerDepth: entry.deepestOwnerDepth,
+      field: entry.field,
+      fieldParticleIds: entry.fieldParticleIds,
+      orbitIndex: 0,
+      ownerDarkParticleIds: entry.owners.map((owner) =>
+        owner.particle.darkParticleId
+      ),
+      ownerDarkParticleId: entry.owner.particle.darkParticleId,
+      radius,
+      x: point.x,
+      y: point.y,
+      z: point.z,
+    })
+    occupiedOuterBoundary = Math.max(
+      occupiedOuterBoundary,
+      Math.hypot(point.x, point.y, point.z) + radius,
+    )
+  })
+
+  const entriesByDepth = new Map<number, ComponentFieldEntry[]>()
+  for (
+    const entry of visualEntries.filter((candidate) =>
+      candidate.bandKind !== "root-private"
+    )
+  ) {
+    const entries = entriesByDepth.get(entry.deepestOwnerDepth)
     if (entries) entries.push(entry)
-    else fieldsByBand.set(entry.band, [entry])
+    else entriesByDepth.set(entry.deepestOwnerDepth, [entry])
   }
-  for (const entries of fieldsByBand.values()) {
+  for (const entries of entriesByDepth.values()) {
     entries.sort((left, right) =>
+      particleOrder(
+        left.affinityOwner.particle,
+        right.affinityOwner.particle,
+      ) ||
+      (left.bandKind === right.bandKind
+        ? 0
+        : left.bandKind === "shared"
+          ? -1
+          : 1) ||
       fieldOrder(left.field, right.field)
     )
   }
 
-  const localPlacements: CenteredNestedFieldPlacement[] = []
-  let occupiedOuterBoundary = 0
-  const bands = [...fieldsByBand.keys()].sort((left, right) => left - right)
-  for (const band of bands) {
-    const entries = fieldsByBand.get(band) ?? []
+  let firstDepthGroup = true
+  let orbitSequence = 0
+  const depths = [...entriesByDepth.keys()].sort((left, right) =>
+    right - left
+  )
+  for (const depth of depths) {
+    const entries = entriesByDepth.get(depth) ?? []
     const radii = entries.map((entry) =>
       torusFieldRadiusAtLevel(
         entry.owner.particle.depth,
       )
     )
-    if (band === 0) {
-      const markerRadius = Math.max(0, ...radii)
-      const layout = layoutFieldsInPseudoCircle(
-        entries.length,
-        markerRadius,
-      )
-      entries.forEach((entry, index) => {
-        const point = layout.points[index] ?? {x: 0, y: 0, z: 0}
-        const radius = radii[index] ?? markerRadius
-        localPlacements.push({
-          band,
-          bandKind: fieldBandKind(band),
-          field: entry.field,
-          fieldParticleIds: entry.fieldParticleIds,
-          orbitIndex: 0,
-          ownerDarkParticleId: entry.owner.particle.darkParticleId,
-          radius,
-          x: point.x,
-          y: point.y,
-          z: point.z,
-        })
-        occupiedOuterBoundary = Math.max(
-          occupiedOuterBoundary,
-          Math.hypot(point.x, point.y, point.z) + radius,
-        )
-      })
-      continue
-    }
-
-    const orbitLevel = rootDepth + Math.floor(band / 2)
-    const orbitGap = torusFieldRadiusAtLevel(orbitLevel) * 2
     const maximumRadius = Math.max(0, ...radii)
     const firstOrbitRadius =
-      occupiedOuterBoundary + orbitGap + maximumRadius
+      occupiedOuterBoundary +
+      (firstDepthGroup ? maximumRadius * 2 : 0) +
+      maximumRadius
     const orbitStep = maximumRadius * 2
     const orbitRadii: number[] = []
     const orbitCapacities: number[] = []
@@ -410,10 +458,11 @@ const placeComponentFields = (
       orbitCapacities,
     )
     let entryCursor = 0
-    orbitCounts.forEach((orbitCount, orbitIndex) => {
-      const orbitRadius = orbitRadii[orbitIndex]!
+    orbitCounts.forEach((orbitCount, localOrbitIndex) => {
+      const orbitRadius = orbitRadii[localOrbitIndex]!
+      const orbitIndex = orbitSequence + localOrbitIndex
       const phase = stablePhase(
-        `${root.particle.darkParticleId}:${band}:${orbitIndex}`,
+        `${root.particle.darkParticleId}:${depth}:${orbitIndex}`,
       )
       for (let index = 0; index < orbitCount; index += 1) {
         const entryIndex = entryCursor + index
@@ -421,11 +470,17 @@ const placeComponentFields = (
         const angle = phase + index * Math.PI * 2 / orbitCount
         const radius = radii[entryIndex] ?? maximumRadius
         localPlacements.push({
-          band,
-          bandKind: fieldBandKind(band),
+          affinityOwnerDarkParticleId:
+            entry.affinityOwner.particle.darkParticleId,
+          band: entry.band,
+          bandKind: entry.bandKind,
+          deepestOwnerDepth: entry.deepestOwnerDepth,
           field: entry.field,
           fieldParticleIds: entry.fieldParticleIds,
           orbitIndex,
+          ownerDarkParticleIds: entry.owners.map((owner) =>
+            owner.particle.darkParticleId
+          ),
           ownerDarkParticleId: entry.owner.particle.darkParticleId,
           radius,
           x: Math.cos(angle) * orbitRadius,
@@ -439,6 +494,8 @@ const placeComponentFields = (
         orbitRadius + maximumRadius,
       )
     })
+    orbitSequence += orbitCounts.length
+    firstDepthGroup = false
   }
 
   const fieldExtentByParticle = new Map<number, number>()

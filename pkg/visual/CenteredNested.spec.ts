@@ -76,23 +76,6 @@ const manifest = (): BulkManifest => ({
   ],
 })
 
-const radialBounds = (
-  placements: ReturnType<typeof layoutCenteredNestedFields>,
-  band: number,
-): Readonly<{inner: number; outer: number}> => {
-  const entries = placements.filter((placement) => placement.band === band)
-  return {
-    inner: Math.min(...entries.map((placement) =>
-      Math.hypot(placement.x - 17, placement.y + 9, placement.z - 3) -
-        placement.radius
-    )),
-    outer: Math.max(...entries.map((placement) =>
-      Math.hypot(placement.x - 17, placement.y + 9, placement.z - 3) +
-        placement.radius
-    )),
-  }
-}
-
 describe("centered-nested Visual layout", () => {
   test("derives recursive Field bands from canonical shared Value identity", () => {
     const placements = layoutCenteredNestedFields(manifest())
@@ -105,48 +88,63 @@ describe("centered-nested Visual layout", () => {
 
     expect(placements).toHaveLength(5)
     expect(byId.get("root-private")).toMatchObject({
+      affinityOwnerDarkParticleId: 1,
       band: 0,
       bandKind: "root-private",
+      deepestOwnerDepth: 0,
       fieldParticleIds: ["root-private"],
       orbitIndex: 0,
+      ownerDarkParticleIds: [1],
       ownerDarkParticleId: 1,
       radius: 11,
     })
     expect(byId.get("root-shared")).toMatchObject({
+      affinityOwnerDarkParticleId: 2,
       band: 1,
       bandKind: "shared",
+      deepestOwnerDepth: 1,
       fieldParticleIds: ["root-shared", "child-shared-up"],
-      orbitIndex: 0,
+      orbitIndex: 1,
+      ownerDarkParticleIds: [1, 2],
       ownerDarkParticleId: 1,
       radius: 11,
     })
     expect(byId.get("child-shared-up")).toBe(byId.get("root-shared"))
     expect(byId.get("child-private")).toMatchObject({
+      affinityOwnerDarkParticleId: 2,
       band: 2,
       bandKind: "inner-private",
+      deepestOwnerDepth: 1,
       fieldParticleIds: ["child-private"],
-      orbitIndex: 0,
+      orbitIndex: 1,
+      ownerDarkParticleIds: [2],
       ownerDarkParticleId: 2,
       radius: 5.5,
     })
     expect(byId.get("child-shared-down")).toMatchObject({
+      affinityOwnerDarkParticleId: 3,
       band: 3,
       bandKind: "shared",
+      deepestOwnerDepth: 2,
       fieldParticleIds: [
         "child-shared-down",
         "grandchild-shared",
       ],
       orbitIndex: 0,
+      ownerDarkParticleIds: [2, 3],
       ownerDarkParticleId: 2,
       radius: 5.5,
     })
     expect(byId.get("grandchild-shared"))
       .toBe(byId.get("child-shared-down"))
     expect(byId.get("grandchild-private")).toMatchObject({
+      affinityOwnerDarkParticleId: 3,
       band: 4,
       bandKind: "inner-private",
+      deepestOwnerDepth: 2,
       fieldParticleIds: ["grandchild-private"],
       orbitIndex: 0,
+      ownerDarkParticleIds: [3],
       ownerDarkParticleId: 3,
       radius: 2.75,
     })
@@ -176,13 +174,16 @@ describe("centered-nested Visual layout", () => {
     )
 
     expect(shared).toMatchObject({
+      affinityOwnerDarkParticleId: 3,
       band: 1,
       bandKind: "shared",
+      deepestOwnerDepth: 2,
       fieldParticleIds: [
         "left-branch-shared",
         "right-branch-shared",
       ],
       orbitIndex: 0,
+      ownerDarkParticleIds: [4, 3],
       ownerDarkParticleId: 1,
       radius: 11,
     })
@@ -193,20 +194,44 @@ describe("centered-nested Visual layout", () => {
     )).toHaveLength(1)
   })
 
-  test("keeps one Field-diameter surface gap before every next orbit", () => {
+  test("keeps deeper ownership closer and clusters one owner's Fields", () => {
     const placements = layoutCenteredNestedFields(manifest())
-    const bounds = [0, 1, 2, 3, 4].map((band) =>
-      radialBounds(placements, band)
+    const center = placements.filter((placement) =>
+      placement.bandKind === "root-private"
     )
+    const deeper = placements.filter((placement) =>
+      placement.deepestOwnerDepth === 2
+    )
+    const shallower = placements.filter((placement) =>
+      placement.deepestOwnerDepth === 1
+    )
+    const radialInner = (
+      placement: (typeof placements)[number],
+    ): number =>
+      Math.hypot(
+        placement.x - 17,
+        placement.y + 9,
+        placement.z - 3,
+      ) - placement.radius
+    const radialOuter = (
+      placement: (typeof placements)[number],
+    ): number =>
+      Math.hypot(
+        placement.x - 17,
+        placement.y + 9,
+        placement.z - 3,
+      ) + placement.radius
 
-    expect(bounds[1]!.inner - bounds[0]!.outer)
-      .toBeGreaterThanOrEqual(22 - 1e-9)
-    expect(bounds[2]!.inner - bounds[1]!.outer)
-      .toBeGreaterThanOrEqual(11 - 1e-9)
-    expect(bounds[3]!.inner - bounds[2]!.outer)
-      .toBeGreaterThanOrEqual(11 - 1e-9)
-    expect(bounds[4]!.inner - bounds[3]!.outer)
-      .toBeGreaterThanOrEqual(5.5 - 1e-9)
+    expect(Math.min(...deeper.map(radialInner)) -
+      Math.max(...center.map(radialOuter))).toBeCloseTo(11)
+    expect(Math.max(...deeper.map(radialOuter)))
+      .toBeLessThanOrEqual(Math.min(...shallower.map(radialInner)) + 1e-9)
+    expect(deeper.map((placement) =>
+      placement.affinityOwnerDarkParticleId
+    )).toEqual([3, 3])
+    expect(shallower.map((placement) =>
+      placement.affinityOwnerDarkParticleId
+    )).toEqual([2, 2])
 
     for (let left = 0; left < placements.length; left += 1) {
       for (let right = left + 1; right < placements.length; right += 1) {
