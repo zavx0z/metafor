@@ -108,6 +108,7 @@ describe("centered-nested Visual layout", () => {
       band: 0,
       bandKind: "root-private",
       fieldParticleIds: ["root-private"],
+      orbitIndex: 0,
       ownerDarkParticleId: 1,
       radius: 11,
     })
@@ -115,6 +116,7 @@ describe("centered-nested Visual layout", () => {
       band: 1,
       bandKind: "shared",
       fieldParticleIds: ["root-shared", "child-shared-up"],
+      orbitIndex: 0,
       ownerDarkParticleId: 1,
       radius: 11,
     })
@@ -123,6 +125,7 @@ describe("centered-nested Visual layout", () => {
       band: 2,
       bandKind: "inner-private",
       fieldParticleIds: ["child-private"],
+      orbitIndex: 0,
       ownerDarkParticleId: 2,
       radius: 5.5,
     })
@@ -133,6 +136,7 @@ describe("centered-nested Visual layout", () => {
         "child-shared-down",
         "grandchild-shared",
       ],
+      orbitIndex: 0,
       ownerDarkParticleId: 2,
       radius: 5.5,
     })
@@ -142,6 +146,7 @@ describe("centered-nested Visual layout", () => {
       band: 4,
       bandKind: "inner-private",
       fieldParticleIds: ["grandchild-private"],
+      orbitIndex: 0,
       ownerDarkParticleId: 3,
       radius: 2.75,
     })
@@ -177,6 +182,7 @@ describe("centered-nested Visual layout", () => {
         "left-branch-shared",
         "right-branch-shared",
       ],
+      orbitIndex: 0,
       ownerDarkParticleId: 1,
       radius: 11,
     })

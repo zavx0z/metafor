@@ -56,6 +56,7 @@ export type CenteredNestedFieldPlacement = Readonly<{
   bandKind: CenteredNestedFieldBandKind
   field: BulkFieldParticle
   fieldParticleIds: readonly string[]
+  orbitIndex: number
   ownerDarkParticleId: number
   radius: number
   x: number
@@ -219,6 +220,64 @@ const fieldBandKind = (
       ? "shared"
       : "inner-private"
 
+const fieldOrbitCapacity = (
+  orbitRadius: number,
+  markerRadius: number,
+): number => {
+  if (markerRadius <= 0 || orbitRadius <= markerRadius) return 1
+  const halfAngle = Math.asin(
+    Math.min(1, markerRadius / orbitRadius),
+  )
+  return Math.max(
+    1,
+    Math.floor(Math.PI / Math.max(halfAngle, 1e-9) + 1e-9),
+  )
+}
+
+const proportionalOrbitCounts = (
+  count: number,
+  capacities: readonly number[],
+): readonly number[] => {
+  if (count <= 0 || capacities.length === 0) return []
+  const allocations = capacities.map(() => 1)
+  let remaining = count - allocations.length
+  if (remaining <= 0) return allocations
+
+  const available = capacities.map((capacity, index) =>
+    Math.max(0, capacity - allocations[index]!)
+  )
+  const totalAvailable = available.reduce(
+    (total, capacity) => total + capacity,
+    0,
+  )
+  const quotas = available.map((capacity) =>
+    totalAvailable === 0 ? 0 : remaining * capacity / totalAvailable
+  )
+  for (let index = 0; index < allocations.length; index += 1) {
+    const addition = Math.min(
+      available[index]!,
+      Math.floor(quotas[index]!),
+    )
+    allocations[index]! += addition
+    remaining -= addition
+  }
+  const remainderOrder = quotas
+    .map((quota, index) => ({
+      fraction: quota - Math.floor(quota),
+      index,
+    }))
+    .sort((left, right) =>
+      right.fraction - left.fraction || left.index - right.index
+    )
+  for (const {index} of remainderOrder) {
+    if (remaining === 0) break
+    if (allocations[index]! >= capacities[index]!) continue
+    allocations[index]! += 1
+    remaining -= 1
+  }
+  return allocations
+}
+
 const placeComponentFields = (
   manifest: BulkManifest,
   root: DarkNode,
@@ -311,6 +370,7 @@ const placeComponentFields = (
           bandKind: fieldBandKind(band),
           field: entry.field,
           fieldParticleIds: entry.fieldParticleIds,
+          orbitIndex: 0,
           ownerDarkParticleId: entry.owner.particle.darkParticleId,
           radius,
           x: point.x,
@@ -328,39 +388,55 @@ const placeComponentFields = (
     const orbitLevel = rootDepth + Math.floor(band / 2)
     const orbitGap = torusFieldRadiusAtLevel(orbitLevel) * 2
     const maximumRadius = Math.max(0, ...radii)
-    let orbitRadius = occupiedOuterBoundary + orbitGap + maximumRadius
-    if (entries.length > 1) {
-      const slotHalfAngle = Math.PI / entries.length
-      const slotSin = Math.max(1e-9, Math.sin(slotHalfAngle))
-      for (let index = 0; index < entries.length; index += 1) {
-        const next = (index + 1) % entries.length
-        orbitRadius = Math.max(
-          orbitRadius,
-          ((radii[index] ?? 0) + (radii[next] ?? 0)) /
-            (2 * slotSin),
-        )
-      }
+    const firstOrbitRadius =
+      occupiedOuterBoundary + orbitGap + maximumRadius
+    const orbitStep = orbitGap + maximumRadius * 2
+    const orbitRadii: number[] = []
+    const orbitCapacities: number[] = []
+    let totalCapacity = 0
+    while (totalCapacity < entries.length) {
+      const orbitRadius =
+        firstOrbitRadius + orbitRadii.length * orbitStep
+      const capacity = fieldOrbitCapacity(
+        orbitRadius,
+        maximumRadius,
+      )
+      orbitRadii.push(orbitRadius)
+      orbitCapacities.push(capacity)
+      totalCapacity += capacity
     }
-    const phase = stablePhase(
-      `${root.particle.darkParticleId}:${band}`,
+    const orbitCounts = proportionalOrbitCounts(
+      entries.length,
+      orbitCapacities,
     )
-    entries.forEach((entry, index) => {
-      const angle = phase + index * Math.PI * 2 / entries.length
-      const radius = radii[index] ?? maximumRadius
-      localPlacements.push({
-        band,
-        bandKind: fieldBandKind(band),
-        field: entry.field,
-        fieldParticleIds: entry.fieldParticleIds,
-        ownerDarkParticleId: entry.owner.particle.darkParticleId,
-        radius,
-        x: Math.cos(angle) * orbitRadius,
-        y: Math.sin(angle) * orbitRadius,
-        z: 0,
-      })
+    let entryCursor = 0
+    orbitCounts.forEach((orbitCount, orbitIndex) => {
+      const orbitRadius = orbitRadii[orbitIndex]!
+      const phase = stablePhase(
+        `${root.particle.darkParticleId}:${band}:${orbitIndex}`,
+      )
+      for (let index = 0; index < orbitCount; index += 1) {
+        const entryIndex = entryCursor + index
+        const entry = entries[entryIndex]!
+        const angle = phase + index * Math.PI * 2 / orbitCount
+        const radius = radii[entryIndex] ?? maximumRadius
+        localPlacements.push({
+          band,
+          bandKind: fieldBandKind(band),
+          field: entry.field,
+          fieldParticleIds: entry.fieldParticleIds,
+          orbitIndex,
+          ownerDarkParticleId: entry.owner.particle.darkParticleId,
+          radius,
+          x: Math.cos(angle) * orbitRadius,
+          y: Math.sin(angle) * orbitRadius,
+          z: 0,
+        })
+      }
+      entryCursor += orbitCount
       occupiedOuterBoundary = Math.max(
         occupiedOuterBoundary,
-        orbitRadius + radius,
+        orbitRadius + maximumRadius,
       )
     })
   }

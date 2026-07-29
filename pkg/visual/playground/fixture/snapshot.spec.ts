@@ -222,20 +222,50 @@ describe("Visual playground Monad fixture", () => {
     expect(scene.layout.nodes).toHaveLength(98)
     expect(fields.filter((field) => field.bandKind === "root-private"))
       .toHaveLength(1)
-    expect(fields.filter((field) => field.bandKind === "shared"))
-      .toHaveLength(20)
+    const sharedFields = fields.filter((field) =>
+      field.bandKind === "shared"
+    )
+    expect(sharedFields).toHaveLength(20)
     expect(fields.filter((field) => field.bandKind === "inner-private"))
       .toHaveLength(7)
     const rootParticle = manifest.darkParticles.find((particle) =>
       particle.parentDarkParticleId === null
     )!
-    expect(fields
-      .filter((field) => field.bandKind === "shared")
-      .every((field) =>
-        field.ownerDarkParticleId === rootParticle.darkParticleId &&
-        field.radius === 11 &&
-        field.fieldParticleIds.length > 1
-      )).toBe(true)
+    expect(sharedFields.every((field) =>
+      field.ownerDarkParticleId === rootParticle.darkParticleId &&
+      field.radius === 11 &&
+      field.fieldParticleIds.length > 1
+    )).toBe(true)
+    const sharedOrbits = [...Map.groupBy(
+      sharedFields,
+      (field) => field.orbitIndex,
+    )]
+      .sort(([left], [right]) => left - right)
+    expect(sharedOrbits.map(([orbitIndex, orbitFields]) => ({
+      count: orbitFields.length,
+      orbitIndex,
+    }))).toEqual([
+      {count: 7, orbitIndex: 0},
+      {count: 13, orbitIndex: 1},
+    ])
+    const sharedOrbitRadii = sharedOrbits.map(([, orbitFields]) =>
+      Math.hypot(
+        orbitFields[0]!.x,
+        orbitFields[0]!.y,
+        orbitFields[0]!.z,
+      )
+    )
+    expect(sharedOrbitRadii[0]).toBeCloseTo(44)
+    expect(sharedOrbitRadii[1]).toBeCloseTo(88)
+    const rootPrivateOuterExtent = Math.max(...fields
+      .filter((field) => field.bandKind === "root-private")
+      .map((field) =>
+        Math.hypot(field.x, field.y, field.z) + field.radius
+      ))
+    expect(sharedOrbitRadii[0]! - 11 - rootPrivateOuterExtent)
+      .toBeCloseTo(22)
+    expect(sharedOrbitRadii[1]! - 11 - (sharedOrbitRadii[0]! + 11))
+      .toBeCloseTo(22)
 
     const rootNodeCount = owners[0]!.layouts.reduce(
       (count, layout) => count + layout.nodes.length,
