@@ -85,25 +85,30 @@ individual form.
 The sibling `#/centered-nested` page keeps the same Torus, Field and State
 forms but gives every recursive Matter-Torus in one root tree a common world
 center. A Torus inner boundary starts immediately after the actual extent of
-its owned Field core: private Fields occupy the central pseudo-circle and
-Fields with a shared materialized `Value` occupy the next orbit. Nested
-Matter-Tori live inside the resulting parent shell volume and occupy its inner
-radial bands. The owner's State sleeves begin only after the actual outer edge
-of every child Matter-Torus and take the last occupied band next to the
-parent's outer edge. Parent States therefore never occupy a child shell and
-remain closer to the edge of their own Torus. Children may expand only the
-parent's outer boundary; they do not push its inner boundary away from the
-Field core. Root-private Fields are the sole exception and remain in the
-central pseudo-circle. Every other marker is ranked by the deepest owner among
-its represented Field occurrences: deeper ownership groups are strictly
-closer to the center. Within one depth, markers are clustered by their deepest
-owner so that the owner's private and shared Fields stay adjacent. One full
-Field-diameter surface gap separates the central pseudo-circle from the first
-depth group. Later orbits have no repeated gap; adjacent radii differ only by
-the sum of their maximum marker radii. An orbit keeps its minimum radius
-instead of expanding to fit more Fields. When its circumference is
-insufficient, the layout adds more concentric orbits for that depth and
-distributes markers across them in proportion to their geometric capacities.
+its owned Field core. Root-private Fields occupy the central pseudo-circle;
+private Fields of a nested owner occupy the outermost available orbit of that
+owner's core. Fields with a shared materialized `Value` belong to the core of
+their highest common owner. Nested Matter-Tori live inside the resulting
+parent shell volume and occupy its inner radial bands. The owner's State
+sleeves begin only after the actual outer edge of every child Matter-Torus and
+take the last occupied band next to the parent's outer edge. Parent States
+therefore never occupy a child shell and remain closer to the edge of their own
+Torus. Children may expand only the parent's outer boundary; they do not push
+its inner boundary away from the Field core. Shared markers owned by the root
+are ranked by the
+deepest occurrence owner: deeper groups are closer to the center and stable
+affinity grouping is retained within one depth. A private Field of a nested
+Atom is never pulled into that common root core. It occupies the outermost
+available orbit of its own Torus core, immediately before that Torus's inner
+boundary and local content gap. Child branches with the greatest maximum
+subtree depth receive the innermost Matter range; stable snapshot order breaks
+equal-depth ties. One full Field-diameter surface gap separates an owner's
+private core from its first shared orbit. Later orbits have no repeated gap;
+adjacent radii differ only by the sum of their maximum marker radii. An orbit
+keeps its minimum radius instead of expanding to fit more Fields. When its
+circumference is insufficient, the layout adds more concentric orbits for that
+group and distributes markers across them in proportion to their geometric
+capacities.
 All Field occurrences backed by one shared materialized `Value` render as one
 marker instead of repeating at every child owner. That marker belongs to the
 highest common ancestor of all occurrence owners and uses the Field size of

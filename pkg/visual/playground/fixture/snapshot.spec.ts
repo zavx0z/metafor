@@ -211,7 +211,7 @@ describe("Visual playground Monad fixture", () => {
         ),
       }
     })
-    const fields = layoutCenteredNestedFields(manifest)
+    const fields = layoutCenteredNestedFields(manifest, owners)
     const scene = buildCenteredNestedVisualScene(manifest, owners)
 
     expect(scene.context.tori).toHaveLength(5)
@@ -238,6 +238,24 @@ describe("Visual playground Monad fixture", () => {
       field.radius === 11 &&
       field.fieldParticleIds.length > 1
     )).toBe(true)
+    const particleBySrc = (src: string) =>
+      manifest.darkParticles.find((particle) => particle.src === src)!
+    expect(scene.context.tori.map((torus) => torus.color)).toEqual(
+      [
+        "zavx0z/lada",
+        "zavx0z/lada-chat",
+        "zavx0z/lada-chat-send",
+        "zavx0z/lada-auth",
+        "zavx0z/lada-model",
+      ].map((src) => {
+        const particle = particleBySrc(src)
+        return [
+          particle.colorR,
+          particle.colorG,
+          particle.colorB,
+        ]
+      }),
+    )
     const orbitalFields = fields.filter((field) =>
       field.bandKind !== "root-private"
     )
@@ -251,11 +269,41 @@ describe("Visual playground Monad fixture", () => {
       deepestOwnerDepths: [...new Set(orbitFields.map((field) =>
         field.deepestOwnerDepth
       ))],
+      kinds: [...new Set(orbitFields.map((field) =>
+        field.bandKind
+      ))],
       orbitIndex,
     }))).toEqual([
-      {count: 5, deepestOwnerDepths: [2], orbitIndex: 0},
-      {count: 9, deepestOwnerDepths: [1], orbitIndex: 1},
-      {count: 13, deepestOwnerDepths: [1], orbitIndex: 2},
+      {
+        count: 5,
+        deepestOwnerDepths: [2],
+        kinds: ["shared"],
+        orbitIndex: 0,
+      },
+      {
+        count: 15,
+        deepestOwnerDepths: [1],
+        kinds: ["shared"],
+        orbitIndex: 1,
+      },
+      {
+        count: 3,
+        deepestOwnerDepths: [1],
+        kinds: ["inner-private"],
+        orbitIndex: 2,
+      },
+      {
+        count: 2,
+        deepestOwnerDepths: [1],
+        kinds: ["inner-private"],
+        orbitIndex: 3,
+      },
+      {
+        count: 2,
+        deepestOwnerDepths: [1],
+        kinds: ["inner-private"],
+        orbitIndex: 4,
+      },
     ])
     const fieldOrbitRadii = fieldOrbits.map(([, orbitFields]) =>
       Math.hypot(
@@ -266,7 +314,6 @@ describe("Visual playground Monad fixture", () => {
     )
     expect(fieldOrbitRadii[0]).toBeCloseTo(44)
     expect(fieldOrbitRadii[1]).toBeCloseTo(66)
-    expect(fieldOrbitRadii[2]).toBeCloseTo(88)
     const rootPrivateOuterExtent = Math.max(...fields
       .filter((field) => field.bandKind === "root-private")
       .map((field) =>
@@ -276,14 +323,12 @@ describe("Visual playground Monad fixture", () => {
       .toBeCloseTo(22)
     expect(fieldOrbitRadii[1]! - 11 - (fieldOrbitRadii[0]! + 11))
       .toBeCloseTo(0)
-    expect(fieldOrbitRadii[2]! - 11 - (fieldOrbitRadii[1]! + 11))
-      .toBeCloseTo(0)
-    const deepestOuterExtent = Math.max(...orbitalFields
+    const deepestOuterExtent = Math.max(...sharedFields
       .filter((field) => field.deepestOwnerDepth === 2)
       .map((field) =>
         Math.hypot(field.x, field.y, field.z) + field.radius
       ))
-    const shallowerInnerExtent = Math.min(...orbitalFields
+    const shallowerInnerExtent = Math.min(...sharedFields
       .filter((field) => field.deepestOwnerDepth === 1)
       .map((field) =>
         Math.hypot(field.x, field.y, field.z) - field.radius
@@ -293,7 +338,7 @@ describe("Visual playground Monad fixture", () => {
     )
     const affinityRuns: number[] = []
     for (
-      const field of orbitalFields.filter((candidate) =>
+      const field of sharedFields.filter((candidate) =>
         candidate.deepestOwnerDepth === 1
       )
     ) {
@@ -302,25 +347,39 @@ describe("Visual playground Monad fixture", () => {
       ) affinityRuns.push(field.affinityOwnerDarkParticleId)
     }
     expect(affinityRuns).toEqual([
-      manifest.darkParticles.find((particle) =>
-        particle.src === "zavx0z/lada-auth"
-      )!.darkParticleId,
-      manifest.darkParticles.find((particle) =>
-        particle.src === "zavx0z/lada-chat"
-      )!.darkParticleId,
-      manifest.darkParticles.find((particle) =>
-        particle.src === "zavx0z/lada-model"
-      )!.darkParticleId,
+      particleBySrc("zavx0z/lada-auth").darkParticleId,
+      particleBySrc("zavx0z/lada-chat").darkParticleId,
+      particleBySrc("zavx0z/lada-model").darkParticleId,
     ])
     expect(privateFields.map((field) => field.field.fieldKey)).toEqual([
-      "sessionChecked",
-      "codeRequested",
       "historyCount",
       "eventReady",
       "retryReady",
+      "sessionChecked",
+      "codeRequested",
       "model",
       "lastMessageId",
     ])
+    const torusIndexByPrivateOwner = new Map([
+      [particleBySrc("zavx0z/lada-chat").darkParticleId, 1],
+      [particleBySrc("zavx0z/lada-auth").darkParticleId, 3],
+      [particleBySrc("zavx0z/lada-model").darkParticleId, 4],
+    ])
+    for (
+      const [ownerId, ownerFields] of Map.groupBy(
+        privateFields,
+        (field) => field.ownerDarkParticleId,
+      )
+    ) {
+      const torusIndex = torusIndexByPrivateOwner.get(ownerId)!
+      const privateOuterExtent = Math.max(...ownerFields.map((field) =>
+        Math.hypot(field.x, field.y, field.z) + field.radius
+      ))
+      const ownerTorus = scene.context.tori[torusIndex]!
+      expect(
+        ownerTorus.radius - ownerTorus.tube - privateOuterExtent,
+      ).toBeCloseTo(4.125)
+    }
 
     const rootNodeCount = owners[0]!.layouts.reduce(
       (count, layout) => count + layout.nodes.length,

@@ -104,7 +104,7 @@ describe("centered-nested Visual layout", () => {
       bandKind: "shared",
       deepestOwnerDepth: 1,
       fieldParticleIds: ["root-shared", "child-shared-up"],
-      orbitIndex: 1,
+      orbitIndex: 0,
       ownerDarkParticleIds: [1, 2],
       ownerDarkParticleId: 1,
       radius: 11,
@@ -130,7 +130,7 @@ describe("centered-nested Visual layout", () => {
         "child-shared-down",
         "grandchild-shared",
       ],
-      orbitIndex: 0,
+      orbitIndex: 2,
       ownerDarkParticleIds: [2, 3],
       ownerDarkParticleId: 2,
       radius: 5.5,
@@ -143,7 +143,7 @@ describe("centered-nested Visual layout", () => {
       bandKind: "inner-private",
       deepestOwnerDepth: 2,
       fieldParticleIds: ["grandchild-private"],
-      orbitIndex: 0,
+      orbitIndex: 3,
       ownerDarkParticleIds: [3],
       ownerDarkParticleId: 3,
       radius: 2.75,
@@ -194,16 +194,20 @@ describe("centered-nested Visual layout", () => {
     )).toHaveLength(1)
   })
 
-  test("keeps deeper ownership closer and clusters one owner's Fields", () => {
+  test("keeps nested private Fields in their owning Torus core", () => {
     const placements = layoutCenteredNestedFields(manifest())
     const center = placements.filter((placement) =>
       placement.bandKind === "root-private"
     )
-    const deeper = placements.filter((placement) =>
-      placement.deepestOwnerDepth === 2
+    const rootShared = placements.filter((placement) =>
+      placement.bandKind === "shared" &&
+      placement.ownerDarkParticleId === 1
     )
-    const shallower = placements.filter((placement) =>
-      placement.deepestOwnerDepth === 1
+    const childOwned = placements.filter((placement) =>
+      placement.ownerDarkParticleId === 2
+    )
+    const grandchildPrivate = placements.filter((placement) =>
+      placement.ownerDarkParticleId === 3
     )
     const radialInner = (
       placement: (typeof placements)[number],
@@ -222,15 +226,16 @@ describe("centered-nested Visual layout", () => {
         placement.z - 3,
       ) + placement.radius
 
-    expect(Math.min(...deeper.map(radialInner)) -
-      Math.max(...center.map(radialOuter))).toBeCloseTo(11)
-    expect(Math.max(...deeper.map(radialOuter)))
-      .toBeLessThanOrEqual(Math.min(...shallower.map(radialInner)) + 1e-9)
-    expect(deeper.map((placement) =>
-      placement.affinityOwnerDarkParticleId
-    )).toEqual([3, 3])
-    expect(shallower.map((placement) =>
-      placement.affinityOwnerDarkParticleId
+    expect(Math.min(...rootShared.map(radialInner)) -
+      Math.max(...center.map(radialOuter))).toBeCloseTo(22)
+    expect(Math.min(...childOwned.map(radialInner)))
+      .toBeGreaterThan(Math.max(...rootShared.map(radialOuter)))
+    expect(Math.min(...grandchildPrivate.map(radialInner)))
+      .toBeGreaterThan(Math.max(...childOwned.map(radialOuter)))
+    expect(childOwned.map((placement) => placement.bandKind))
+      .toEqual(["inner-private", "shared"])
+    expect(childOwned.map((placement) =>
+      placement.ownerDarkParticleId
     )).toEqual([2, 2])
 
     for (let left = 0; left < placements.length; left += 1) {
@@ -292,8 +297,23 @@ describe("centered-nested Visual layout", () => {
     expect(innerRadii[0]).toBeGreaterThan(0)
     expect(innerRadii[0]).toBeLessThan(innerRadii[1]!)
     expect(innerRadii[1]).toBeLessThan(innerRadii[2]!)
+    const fieldPlacements = layoutCenteredNestedFields(manifest())
+    const ownedOuterExtent = (ownerDarkParticleId: number): number =>
+      Math.max(
+        ...fieldPlacements
+          .filter((placement) =>
+            placement.ownerDarkParticleId === ownerDarkParticleId
+          )
+          .map((placement) =>
+            Math.hypot(
+              placement.x - 17,
+              placement.y + 9,
+              placement.z - 3,
+            ) + placement.radius
+          ),
+      )
     const rootOwnedOuterExtent = Math.max(
-      ...layoutCenteredNestedFields(manifest())
+      ...fieldPlacements
         .filter((placement) => placement.ownerDarkParticleId === 1)
         .map((placement) =>
           Math.hypot(
@@ -304,6 +324,8 @@ describe("centered-nested Visual layout", () => {
         ),
     )
     expect(innerRadii[0]! - rootOwnedOuterExtent).toBeCloseTo(8.25)
+    expect(innerRadii[1]! - ownedOuterExtent(2)).toBeCloseTo(4.125)
+    expect(innerRadii[2]! - ownedOuterExtent(3)).toBeCloseTo(2.0625)
     const rootStateInnerExtent = Math.min(...scene.layout.nodes.map((node) =>
       Math.hypot(node.x - 17, node.y + 9, node.z - 3) - node.radius
     ))
