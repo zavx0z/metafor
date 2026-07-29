@@ -1,8 +1,10 @@
 import type {BulkObserverSnapshot} from "@metafor/types/bulk/initial"
 import type {BulkVisualLayer} from "@metafor/types/bulk/viewport"
 import {
+  CenteredNested,
   OutsideIn,
   Visual,
+  buildCenteredNestedVisualScene,
   buildStateGraph,
   buildStateGraphRootLayout,
   buildOutsideInVisualScene,
@@ -12,6 +14,7 @@ import {
   projectVisualScene,
   type StateGraphView,
   type StateGraphViewport,
+  type VisualLayout,
   visualComponentForSlug,
 } from "@metafor/visual"
 import {buildBulkManifestation} from "../../../bulk/manifestation.ts"
@@ -39,6 +42,7 @@ import {
 } from "./TorusAnalysisLab.ts"
 import {
   createFieldsAnalysisLab,
+  type FieldsAnalysisMode,
   type FieldsAnalysisLab,
 } from "./FieldsAnalysisLab.ts"
 import {createStateGraphHermiteEdgeCurveBuilder} from "./StateGraphLab.ts"
@@ -48,8 +52,8 @@ import snapshotJson from "./fixture/monad-snapshot.json"
 const snapshot = snapshotJson as BulkObserverSnapshot
 const app = document.querySelector("main")
 const canvas = document.getElementById("visual-canvas") as HTMLCanvasElement | null
-const outsideInCanvas = document.getElementById(
-  "outside-in-canvas",
+const layoutCanvas = document.getElementById(
+  "layout-canvas",
 ) as HTMLCanvasElement | null
 const navigation = document.getElementById("navigation")
 const sectionTabs = document.getElementById("section-tabs")
@@ -83,7 +87,7 @@ const fieldsAnalysisStage = document.getElementById("fields-analysis-stage")
 if (
   !app ||
   !canvas ||
-  !outsideInCanvas ||
+  !layoutCanvas ||
   !navigation ||
   !sectionTabs ||
   !controlsAside ||
@@ -131,7 +135,17 @@ const nestedPageGroups: Readonly<Record<string, NestedPageGroup>> = {
   },
   "analysis-fields": {
     parent: "Fields",
-    tabs: [{href: "#/analysis-fields", label: "Псевдосфера"}],
+    tabs: [
+      {href: "#/analysis-fields", label: "Псевдосфера"},
+      {href: "#/analysis-fields/circle", label: "Псевдокруг"},
+    ],
+  },
+  "analysis-fields/circle": {
+    parent: "Fields",
+    tabs: [
+      {href: "#/analysis-fields", label: "Псевдосфера"},
+      {href: "#/analysis-fields/circle", label: "Псевдокруг"},
+    ],
   },
   edges: {
     parent: "Edges",
@@ -315,9 +329,9 @@ type BranchViewport = {
 
 let branchViewports: BranchViewport[] = []
 let stateGraphRenderVersion = 0
-let outsideInRenderVersion = 0
-let outsideInViewport: StateGraphViewport | null = null
-let outsideInAnnotation: ReturnType<typeof createPageAnnotationLayer> | null = null
+let layoutRenderVersion = 0
+let layoutViewport: StateGraphViewport | null = null
+let layoutAnnotation: ReturnType<typeof createPageAnnotationLayer> | null = null
 let formSkinLabPromise: Promise<FormSkinLab> | null = null
 let edgesLabPromise: Promise<EdgesLab> | null = null
 let torusAnalysisLabPromise: Promise<TorusAnalysisLab> | null = null
@@ -385,19 +399,20 @@ const disposeBranchViewports = (): void => {
   branchViewports = []
 }
 
-const hideOutsideIn = (): void => {
-  outsideInCanvas.hidden = true
-  outsideInAnnotation?.hide()
+const hideSnapshotLayout = (): void => {
+  layoutCanvas.hidden = true
+  layoutAnnotation?.hide()
 }
 
-const renderOutsideIn = async (
+const renderSnapshotLayout = async (
   fullManifest: ReturnType<typeof buildBulkManifestation>,
+  selectedLayout: VisualLayout,
 ): Promise<void> => {
-  const renderVersion = ++outsideInRenderVersion
-  outsideInAnnotation?.dispose()
-  outsideInAnnotation = null
-  outsideInViewport?.dispose()
-  outsideInViewport = null
+  const renderVersion = ++layoutRenderVersion
+  layoutAnnotation?.dispose()
+  layoutAnnotation = null
+  layoutViewport?.dispose()
+  layoutViewport = null
   const view = projection.view()
   const atomGraphs = view.atoms.flatMap((atom) => {
     const graph = buildStateGraph(view, atom.id)
@@ -407,19 +422,18 @@ const renderOutsideIn = async (
     (total, {graph}) => total + graph.states.length,
     0,
   )
-  if (stateSleeveCount === 0) return
-  const scene = buildOutsideInVisualScene(
-    fullManifest,
-    atomGraphs.map(({atom, graph}) => ({
-      atomSrc: atom.wimp,
-      layouts: graph.states.map((state) =>
-        buildStateGraphRootLayout(graph, state.id)
-      ),
-    })),
-  )
-  const rect = outsideInCanvas.getBoundingClientRect()
+  const owners = atomGraphs.map(({atom, graph}) => ({
+    atomSrc: atom.wimp,
+    layouts: graph.states.map((state) =>
+      buildStateGraphRootLayout(graph, state.id)
+    ),
+  }))
+  const scene = selectedLayout.slug === CenteredNested.slug
+    ? buildCenteredNestedVisualScene(fullManifest, owners)
+    : buildOutsideInVisualScene(fullManifest, owners)
+  const rect = layoutCanvas.getBoundingClientRect()
   const graphViewport = await createStateGraphViewport({
-    canvas: outsideInCanvas,
+    canvas: layoutCanvas,
     context: scene.context,
     edgeCurveBuilder: createStateGraphHermiteEdgeCurveBuilder(),
     height: Math.max(1, Math.floor(rect.height)),
@@ -429,13 +443,13 @@ const renderOutsideIn = async (
     width: Math.max(1, Math.floor(rect.width)),
   })
   if (
-    renderVersion !== outsideInRenderVersion ||
-    readSlug() !== OutsideIn.slug
+    renderVersion !== layoutRenderVersion ||
+    readSlug() !== selectedLayout.slug
   ) {
     graphViewport.dispose()
     return
   }
-  outsideInViewport = graphViewport
+  layoutViewport = graphViewport
   replaceDefinitionList(counts, [
     ["Torus контекста", scene.context.tori.length],
     ["Ядерных Fields", scene.context.fields.length],
@@ -448,23 +462,23 @@ const renderOutsideIn = async (
     )],
     ["Transition", scene.layout.edges.length],
   ])
-  outsideInAnnotation = createPageAnnotationLayer({
-    sourceCanvas: outsideInCanvas,
-    viewer: outsideInCanvas.parentElement ??
+  layoutAnnotation = createPageAnnotationLayer({
+    sourceCanvas: layoutCanvas,
+    viewer: layoutCanvas.parentElement ??
       (() => {
-        throw new Error("Outside-in canvas parent is missing")
+        throw new Error("Snapshot layout canvas parent is missing")
       })(),
     capturePng: () => graphViewport.capturePng(),
     surface: () => ({
-      canvasId: outsideInCanvas.id,
+      canvasId: layoutCanvas.id,
       kind: "playground-page",
       route: window.location.hash,
-      slug: OutsideIn.slug,
+      slug: selectedLayout.slug,
       title:
-        `${OutsideIn.label} · ${stateSleeveCount} State-рукава во всех вложенных Atom`,
+        `${selectedLayout.label} · ${stateSleeveCount} State-рукава во всех вложенных Atom`,
     }),
   })
-  outsideInAnnotation.show()
+  layoutAnnotation.show()
 }
 
 const renderStateGraph = async (): Promise<void> => {
@@ -666,7 +680,7 @@ const renderStateGraph = async (): Promise<void> => {
 }
 
 const applyStateGraphPage = (): void => {
-  hideOutsideIn()
+  hideSnapshotLayout()
   mainAnnotation.hide()
   app.classList.add("state-graph-mode")
   app.classList.remove("form-skin-mode")
@@ -697,7 +711,7 @@ const applyStateGraphPage = (): void => {
 }
 
 const applyFormSkinPage = (form: FormSkinLabForm): void => {
-  hideOutsideIn()
+  hideSnapshotLayout()
   mainAnnotation.hide()
   const slug = readSlug()
   stateGraphRenderVersion += 1
@@ -740,7 +754,7 @@ const edgeVariantForSlug = (slug: string): EdgeRouteVariant | null => {
 }
 
 const applyEdgesPage = (variant: EdgeRouteVariant | null): void => {
-  hideOutsideIn()
+  hideSnapshotLayout()
   mainAnnotation.hide()
   const slug = readSlug()
   stateGraphRenderVersion += 1
@@ -780,7 +794,7 @@ const applyEdgesPage = (variant: EdgeRouteVariant | null): void => {
 }
 
 const applyTorusAnalysisPage = (): void => {
-  hideOutsideIn()
+  hideSnapshotLayout()
   mainAnnotation.hide()
   const slug = readSlug()
   stateGraphRenderVersion += 1
@@ -815,8 +829,8 @@ const applyTorusAnalysisPage = (): void => {
   })
 }
 
-const applyFieldsAnalysisPage = (): void => {
-  hideOutsideIn()
+const applyFieldsAnalysisPage = (mode: FieldsAnalysisMode): void => {
+  hideSnapshotLayout()
   mainAnnotation.hide()
   const slug = readSlug()
   stateGraphRenderVersion += 1
@@ -843,10 +857,10 @@ const applyFieldsAnalysisPage = (): void => {
   viewport.setAnimationEnabled(false)
   showSectionTabs(slug)
   for (const link of navigation.querySelectorAll("a")) {
-    link.classList.toggle("active", link.dataset.slug === slug)
+    link.classList.toggle("active", link.dataset.slug === "analysis-fields")
   }
   void fieldsAnalysisLab().then((lab) => {
-    if (readSlug() === slug) lab.show()
+    if (readSlug() === slug) lab.show(mode)
     else lab.hide()
   })
 }
@@ -872,7 +886,11 @@ const applyStory = (): void => {
     return
   }
   if (slug === "analysis-fields") {
-    applyFieldsAnalysisPage()
+    applyFieldsAnalysisPage("sphere")
+    return
+  }
+  if (slug === "analysis-fields/circle") {
+    applyFieldsAnalysisPage("circle")
     return
   }
   const formSkin = formSkinForSlug(slug)
@@ -886,13 +904,13 @@ const applyStory = (): void => {
   const component = selectedLayout
     ? visualComponentForSlug("atom")
     : visualComponentForSlug(slug)
-  const isOutsideIn = selectedLayout?.slug === OutsideIn.slug
+  const isSnapshotLayout = selectedLayout !== undefined
   app.classList.toggle("layout-mode", selectedLayout !== undefined)
-  animation.disabled = isOutsideIn
-  animation.title = isOutsideIn
-    ? "Раскладка снаружи внутрь не использует цикл анимации"
+  animation.disabled = isSnapshotLayout
+  animation.title = isSnapshotLayout
+    ? "Статическая раскладка не использует цикл анимации"
     : ""
-  if (isOutsideIn) mainAnnotation.hide()
+  if (isSnapshotLayout) mainAnnotation.hide()
   else mainAnnotation.show()
   app.classList.remove("state-graph-mode")
   app.classList.remove("form-skin-mode")
@@ -900,8 +918,8 @@ const applyStory = (): void => {
   app.classList.remove("torus-analysis-mode")
   app.classList.remove("fields-analysis-mode")
   controlsAside.hidden = false
-  canvas.hidden = isOutsideIn
-  outsideInCanvas.hidden = !isOutsideIn
+  canvas.hidden = isSnapshotLayout
+  layoutCanvas.hidden = !isSnapshotLayout
   visualTitle.hidden = false
   visualControls.hidden = false
   stateGraphStage.hidden = true
@@ -922,19 +940,21 @@ const applyStory = (): void => {
     DEFAULT_BULK_SETTINGS.layout,
   )
   const manifest = projectVisualScene(fullManifest, component)
-  if (isOutsideIn) {
+  if (selectedLayout) {
     viewport.setAnimationEnabled(false)
-    void renderOutsideIn(fullManifest)
+    void renderSnapshotLayout(fullManifest, selectedLayout)
   } else {
-    hideOutsideIn()
+    hideSnapshotLayout()
     viewport.setVisualLayers(storyLayers())
     viewport.setAnimationEnabled(animation.checked)
     viewport.applyManifestPatch(manifest)
   }
   entity.textContent = selectedLayout?.label ?? component.entity
-  description.textContent = isOutsideIn
-    ? `${OutsideIn.description} Общий компонент Torus проявляет Atom, Fuzzy, Axion, MACHO и State. Fields самого Atom остаются в ядре, Matter-торы занимают внутреннюю орбиту, а каждый объявленный State разворачивает отдельный рукав со всеми дальнейшими путями и переносится одним transform в собственный слот общей внешней State-орбиты. Внутри State-Torus находятся только Fields условий исходящих Transition.`
-    : selectedLayout?.description ?? component.description
+  description.textContent = selectedLayout?.slug === OutsideIn.slug
+    ? `${OutsideIn.description} Общий компонент Torus проявляет Atom, Fuzzy, Axion, MACHO и State. Пустой корневой Torus имеет внешний диаметр 100 мм, а пустой Torus и Fields уменьшаются вдвое на каждом уровне; фактическое содержимое не сжимается и расширяет владельца наружу. Fields самого Torus остаются в ядре, Matter-торы занимают внутреннюю орбиту, а каждый объявленный State разворачивает отдельный причинный рукав со всеми достижимыми путями и ветвлениями. Внутри State-Torus находятся только фиксированные Fields условий исходящих Transition.`
+    : selectedLayout?.slug === CenteredNested.slug
+      ? `${CenteredNested.description} Fields с одним materialized Value образуют общую Matter-орбиту, независимые Fields корня остаются в центральной псевдоокружности, а частные Fields внутренних Atom последовательно раскрываются наружу с зазором в один диаметр своего уровня.`
+      : component.description
   renderCounts(manifest)
   for (const link of navigation.querySelectorAll("a")) {
     link.classList.toggle(
@@ -1000,9 +1020,9 @@ navigation.append(
 
 window.addEventListener("hashchange", applyStory)
 window.addEventListener("beforeunload", () => {
-  outsideInRenderVersion += 1
-  outsideInAnnotation?.dispose()
-  outsideInViewport?.dispose()
+  layoutRenderVersion += 1
+  layoutAnnotation?.dispose()
+  layoutViewport?.dispose()
   stateGraphRenderVersion += 1
   disposeBranchViewports()
   if (formSkinLabPromise) {
@@ -1032,17 +1052,17 @@ const resizeObserver = new ResizeObserver(() => {
   const next = size()
   viewport.setSize(next.width, next.height)
   mainAnnotation.resize()
-  if (outsideInViewport) {
-    const rect = outsideInCanvas.getBoundingClientRect()
-    outsideInViewport.setSize(
+  if (layoutViewport) {
+    const rect = layoutCanvas.getBoundingClientRect()
+    layoutViewport.setSize(
       Math.max(1, Math.floor(rect.width)),
       Math.max(1, Math.floor(rect.height)),
     )
-    outsideInAnnotation?.resize()
+    layoutAnnotation?.resize()
   }
 })
 resizeObserver.observe(canvas)
-resizeObserver.observe(outsideInCanvas)
+resizeObserver.observe(layoutCanvas)
 
 if (!location.hash) history.replaceState(null, "", `#/${OutsideIn.slug}`)
 applyStory()

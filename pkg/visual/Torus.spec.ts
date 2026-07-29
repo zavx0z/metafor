@@ -1,12 +1,24 @@
 import {describe, expect, test} from "bun:test"
 import {
   TORUS_FORM_RATIOS,
+  TORUS_LAYOUT_BASELINE,
+  TORUS_MESH_DETAIL,
   defineTorusComponent,
+  resolveContentTorusForm,
+  resolveEmptyTorusForm,
   resolveSelfSimilarTorusForm,
   resolveTorusForm,
+  torusFieldRadiusAtLevel,
 } from "./Torus.ts"
 
 describe("shared Torus visual component", () => {
+  test("uses one high-detail mesh for every Torus role", () => {
+    expect(TORUS_MESH_DETAIL).toEqual({
+      radialSegments: 32,
+      tubularSegments: 192,
+    })
+  })
+
   test("derives one Torus form from occupied inner and outer bounds", () => {
     expect(resolveTorusForm(3, 11)).toEqual({
       innerRadius: 3,
@@ -26,6 +38,40 @@ describe("shared Torus visual component", () => {
       .toBeCloseTo(TORUS_FORM_RATIOS.innerRadius)
     expect(root.radius / nested.radius).toBeCloseTo(10)
     expect(root.tube / nested.tube).toBeCloseTo(10)
+  })
+
+  test("uses the approved 100 mm empty root and halves every nested level", () => {
+    const root = resolveEmptyTorusForm(0)
+    const child = resolveEmptyTorusForm(1)
+    const grandchild = resolveEmptyTorusForm(2)
+
+    expect(root).toMatchObject({
+      innerRadius: 5.56,
+      outerRadius: 50,
+      radius: 27.78,
+      tube: 22.22,
+    })
+    expect(child.outerRadius).toBe(25)
+    expect(grandchild.outerRadius).toBe(12.5)
+    expect(torusFieldRadiusAtLevel(0)).toBe(11)
+    expect(torusFieldRadiusAtLevel(1)).toBe(5.5)
+    expect(torusFieldRadiusAtLevel(2)).toBe(2.75)
+    expect(TORUS_LAYOUT_BASELINE.levelScale).toBe(0.5)
+  })
+
+  test("grows outward around content without thinning the empty form", () => {
+    const empty = resolveEmptyTorusForm(0)
+    const filled = resolveContentTorusForm({
+      emptyOuterRadius: empty.outerRadius,
+      coreExtent: 12,
+      occupiedOuterExtent: 80,
+      gap: 3,
+    })
+
+    expect(filled.innerRadius).toBe(15)
+    expect(filled.outerRadius).toBe(83)
+    expect(filled.outerRadius - filled.innerRadius)
+      .toBeGreaterThanOrEqual(empty.outerRadius - empty.innerRadius)
   })
 
   test("recurses independently of the semantic owner", () => {

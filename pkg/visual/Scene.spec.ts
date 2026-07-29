@@ -32,6 +32,7 @@ const manifest = (): BulkManifest => ({
     {
       fieldParticleId: "field:1",
       fieldId: 1,
+      valueId: 1,
       parentDarkParticleId: 1,
       fieldKey: "one",
       fieldLabel: "One",
@@ -48,6 +49,7 @@ const manifest = (): BulkManifest => ({
     {
       fieldParticleId: "field:2",
       fieldId: 2,
+      valueId: 2,
       parentDarkParticleId: 1,
       fieldKey: "two",
       fieldLabel: "Two",

@@ -1,7 +1,11 @@
 import {describe, expect, test} from "bun:test"
 import type {BulkManifest} from "@metafor/types/bulk/manifest"
 import type {StateGraphRootLayout} from "./StateGraphLayout.ts"
-import {buildOutsideInVisualScene} from "./OutsideIn.ts"
+import {
+  buildOutsideInVisualScene,
+  packStateSleeves,
+  type StateSleevePackingEnvelope,
+} from "./OutsideIn.ts"
 
 const manifest = (): BulkManifest => ({
   rootSrc: "owner/root",
@@ -48,6 +52,7 @@ const manifest = (): BulkManifest => ({
   fieldParticles: [{
     fieldParticleId: "field/7",
     fieldId: 7,
+    valueId: 7,
     parentDarkParticleId: 2,
     fieldKey: "ready",
     fieldLabel: "Ready",
@@ -141,12 +146,14 @@ const layout = (): StateGraphRootLayout => ({
       color: [0, 1, 1],
       current: true,
       end: null,
+      fieldRadius: 0.32,
       fields: [{
         id: 7,
         key: "ready",
         label: "Ready",
         type: "boolean",
       }],
+      innerRadius: 0.35584,
     },
     {
       id: "state/12",
@@ -160,7 +167,9 @@ const layout = (): StateGraphRootLayout => ({
       color: [1, 0.4, 0],
       current: false,
       end: "terminal",
+      fieldRadius: 0.32,
       fields: [],
+      innerRadius: 0.35584,
     },
   ],
   edges: [{
@@ -189,7 +198,9 @@ const secondLayout = (): StateGraphRootLayout => ({
     color: [1, 0.4, 0],
     current: false,
     end: "terminal",
+    fieldRadius: 0.32,
     fields: [],
+    innerRadius: 0.35584,
   }],
   edges: [],
 })
@@ -209,12 +220,85 @@ const childLayout = (): StateGraphRootLayout => ({
     color: [0.4, 1, 0.3],
     current: true,
     end: null,
+    fieldRadius: 0.32,
     fields: [],
+    innerRadius: 0.35584,
   }],
   edges: [],
 })
 
 describe("outside-in Visual layout", () => {
+  test("packs unequal State sleeves with a direct linear sector formula", () => {
+    const gap = 3.75
+    const phase = 0.37
+    const tangentExtents = [
+      86.168,
+      59.015,
+      59.015,
+      58.217,
+      58.217,
+      60.331,
+      25,
+    ]
+    const sleeves: readonly StateSleevePackingEnvelope[] = tangentExtents.map(
+      (tangentExtent, index) => ({
+        disks: [
+          {radius: 25, x: 0, y: 0},
+          {
+            radius: 25,
+            x: 100 + index * 8,
+            y: tangentExtent - 25,
+          },
+        ],
+        inwardExtent: 25,
+      }),
+    )
+    const packing = packStateSleeves(sleeves, 0, gap, phase)
+    const formerMaximumSlotOrbit =
+      (Math.max(...tangentExtents) + gap * 0.5) /
+      Math.sin(Math.PI / sleeves.length)
+
+    expect(packing.angles).toHaveLength(sleeves.length)
+    expect(packing.halfAngles).toHaveLength(sleeves.length)
+    expect(packing.angles[0]).toBe(phase)
+    expect(packing.orbitRadius).toBeLessThan(formerMaximumSlotOrbit)
+    for (let index = 0; index < sleeves.length; index += 1) {
+      const next = (index + 1) % sleeves.length
+      const nextAngle = next === 0
+        ? packing.angles[0]! + Math.PI * 2
+        : packing.angles[next]!
+      expect(nextAngle - packing.angles[index]!).toBeCloseTo(
+        packing.halfAngles[index]! + packing.halfAngles[next]!,
+      )
+      for (const disk of sleeves[index]!.disks) {
+        const inflatedRadius = disk.radius + gap * 0.5
+        const centerX = packing.orbitRadius + disk.x
+        const centerDistance = Math.hypot(centerX, disk.y)
+        const actualHalfAngle =
+          Math.abs(Math.atan2(disk.y, centerX)) +
+          Math.asin(inflatedRadius / centerDistance)
+        expect(actualHalfAngle)
+          .toBeLessThanOrEqual(packing.halfAngles[index]! + 1e-12)
+      }
+    }
+
+    const changed = sleeves.map((sleeve, index) =>
+      index === 0
+        ? {
+          disks: sleeve.disks.map((disk, diskIndex) =>
+            diskIndex === 0
+              ? {...disk, radius: disk.radius + 12}
+              : disk
+          ),
+          inwardExtent: sleeve.inwardExtent + 12,
+        }
+        : sleeve
+    )
+    const rebuilt = packStateSleeves(changed, 0, gap, phase)
+    expect(rebuilt).not.toEqual(packing)
+    expect(packStateSleeves(changed, 0, gap, phase)).toEqual(rebuilt)
+  })
+
   test("packs Field, Matter and State into consecutive static Atom layers", () => {
     const scene = buildOutsideInVisualScene(
       manifest(),
@@ -232,17 +316,19 @@ describe("outside-in Visual layout", () => {
     const childOuterRadius = childTorus.radius + childTorus.tube
     const childDistance = Math.hypot(childTorus.x, childTorus.y)
 
-    expect(rootInnerRadius).toBeLessThan(18)
-    expect(rootOuterRadius).toBeLessThan(42)
+    expect(rootInnerRadius).toBeCloseTo(5.56)
+    expect(rootOuterRadius).toBeGreaterThanOrEqual(50)
     expect(childDistance - childOuterRadius)
       .toBeGreaterThanOrEqual(rootInnerRadius)
     expect(scene.context.fields[0]).toMatchObject({
-      x: childTorus.x + 1,
-      y: childTorus.y + 0.5,
-      radius: 0.5,
+      x: childTorus.x,
+      y: childTorus.y,
+      radius: 5.5,
     })
-    expect(scene.layout.nodes.slice(0, 3).map((node) => node.radius))
-      .toEqual([0.8, 0.8, 0.8])
+    expect(scene.layout.nodes.slice(0, 3).map((node) => node.fieldRadius))
+      .toEqual([5.5, 5.5, 5.5])
+    expect(scene.layout.nodes[0]!.radius)
+      .toBeGreaterThan(scene.layout.nodes[1]!.radius)
     expect(scene.layout.nodes[0]!.fields[0]?.id).toBe(7)
     expect(new Set(scene.layout.nodes.map((node) =>
       node.stateId
@@ -255,7 +341,8 @@ describe("outside-in Visual layout", () => {
     expect(rootStateInnerEdge)
       .toBeGreaterThan(childDistance + childOuterRadius)
     const childState = scene.layout.nodes[3]!
-    expect(childState.radius).toBe(scene.context.fields[0]!.radius)
+    expect(childState.radius).toBeCloseTo(12.5)
+    expect(childState.fieldRadius).toBeCloseTo(2.75)
     expect(Math.hypot(
       childState.x - childTorus.x,
       childState.y - childTorus.y,
@@ -263,8 +350,12 @@ describe("outside-in Visual layout", () => {
       .toBeGreaterThanOrEqual(childTorus.radius - childTorus.tube)
   })
 
-  test("compresses State spacing without shrinking the owning Atom marker", () => {
+  test("derives State spacing without shrinking either State Torus", () => {
     const source = layout()
+    const baseline = buildOutsideInVisualScene(
+      manifest(),
+      [{atomSrc: "owner/root", layouts: [source]}],
+    )
     const stretched: StateGraphRootLayout = {
       ...source,
       levels: source.levels.map((level) =>
@@ -279,11 +370,20 @@ describe("outside-in Visual layout", () => {
       [{atomSrc: "owner/root", layouts: [stretched]}],
     )
 
-    expect(scene.layout.nodes.map((node) => node.radius)).toEqual([0.8, 0.8])
+    expect(scene.layout.nodes[0]!.radius).toBeCloseTo(31.845)
+    expect(scene.layout.nodes[1]!.radius).toBeCloseTo(25)
     expect(Math.hypot(
       scene.layout.nodes[1]!.x - scene.layout.nodes[0]!.x,
       scene.layout.nodes[1]!.y - scene.layout.nodes[0]!.y,
-    )).toBeGreaterThan(1.6)
+    ) - scene.layout.nodes[0]!.radius - scene.layout.nodes[1]!.radius)
+      .toBeCloseTo(22)
+    expect(Math.hypot(
+      scene.layout.nodes[1]!.x - scene.layout.nodes[0]!.x,
+      scene.layout.nodes[1]!.y - scene.layout.nodes[0]!.y,
+    )).toBeCloseTo(Math.hypot(
+      baseline.layout.nodes[1]!.x - baseline.layout.nodes[0]!.x,
+      baseline.layout.nodes[1]!.y - baseline.layout.nodes[0]!.y,
+    ))
     const rootTorus = scene.context.tori[0]!
     const innerRadius = rootTorus.radius - rootTorus.tube
     const outerRadius = rootTorus.radius + rootTorus.tube
@@ -315,16 +415,15 @@ describe("outside-in Visual layout", () => {
     const torus = scene.context.tori[0]!
     const innerRadius = torus.radius - torus.tube
     const outerRadius = torus.radius + torus.tube
-    const fieldExtent =
-      Math.hypot(field.localX, field.localY, field.localZ) +
-      field.sphereRadius
+    const fieldExtent = 11
     const stateInnerEdge = Math.min(...scene.layout.nodes.map((node) =>
       Math.hypot(node.x, node.y) - node.radius
     ))
 
-    expect(innerRadius).toBeCloseTo(fieldExtent + 0.75)
-    expect(stateInnerEdge - innerRadius).toBeCloseTo(0.75)
-    expect(outerRadius).toBeLessThan(42)
+    expect(scene.context.fields[0]!.radius).toBe(fieldExtent)
+    expect(innerRadius).toBeCloseTo(fieldExtent + 8.25)
+    expect(stateInnerEdge - innerRadius).toBeCloseTo(8.25)
+    expect(outerRadius).toBeGreaterThanOrEqual(50)
   })
 
   test("uses the same Torus composition for Atom, Fuzzy, MACHO and Axion", () => {
@@ -363,5 +462,61 @@ describe("outside-in Visual layout", () => {
     const scene = buildOutsideInVisualScene(source, [])
 
     expect(scene.context.tori).toHaveLength(5)
+  })
+
+  test("reuses the Fields analysis pseudo-circle inside the owning Torus", () => {
+    const source = manifest()
+    const root = source.darkParticles[0]!
+    const field = source.fieldParticles[0]!
+    const fields = Array.from({length: 4}, (_, index) => ({
+      ...field,
+      fieldParticleId: `field/${index}`,
+      fieldId: index,
+      parentDarkParticleId: root.darkParticleId,
+      localX: 100 + index,
+      localY: 200 + index,
+      localZ: 300 + index,
+    }))
+    const scene = buildOutsideInVisualScene({
+      ...source,
+      darkParticles: [root],
+      fieldParticles: fields,
+    }, [])
+    const centers = scene.context.fields
+
+    expect(centers).toHaveLength(4)
+    for (const center of centers) {
+      expect(center.z).toBe(0)
+    }
+    let minimumDistance = Number.POSITIVE_INFINITY
+    for (let left = 0; left < centers.length; left += 1) {
+      for (let right = left + 1; right < centers.length; right += 1) {
+        const from = centers[left]!
+        const to = centers[right]!
+        minimumDistance = Math.min(
+          minimumDistance,
+          Math.hypot(from.x - to.x, from.y - to.y, from.z - to.z),
+        )
+      }
+    }
+    expect(centers.map((center) => center.radius)).toEqual([11, 11, 11, 11])
+    expect(minimumDistance).toBeCloseTo(22)
+  })
+
+  test("starts an actually empty root from the approved 100 mm Torus", () => {
+    const source = manifest()
+    const root = source.darkParticles[0]!
+    const scene = buildOutsideInVisualScene({
+      ...source,
+      darkParticles: [root],
+      fieldParticles: [],
+      orbitalParticles: [],
+    }, [])
+    const torus = scene.context.tori[0]!
+
+    expect(torus.radius).toBeCloseTo(27.78)
+    expect(torus.tube).toBeCloseTo(22.22)
+    expect(torus.radius - torus.tube).toBeCloseTo(5.56)
+    expect(torus.radius + torus.tube).toBeCloseTo(50)
   })
 })

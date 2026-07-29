@@ -1372,9 +1372,8 @@
     the owning Atom's exact static Field/State marker radius: root `0.8`,
     depth one `0.133333` and ChatSend depth two `0.022222` in world units.
     The full fixture root contracts from production `[inner=16.667,
-    outer=50]` to static visual `[inner=4.171, outer=28.427]`; leaf Model and
-    ChatSend each use local `[inner=3, outer=11.634]` with no phantom Matter
-    reservation;
+    outer=50]` to the then-current static visual `[inner=4.171,
+    outer=28.427]`; leaf Model and ChatSend use no phantom Matter reservation;
   - `bun test pkg/visual`: `73 pass`, `0 fail`, `1433 expect`;
     package and root typecheck plus `git diff --check`: pass. The authorized
     `metafor-visual-playground.service` restart entered active state at
@@ -1402,15 +1401,154 @@
   - State Graph rendering now reuses Torus/Sphere geometry per viewport and
     compiles all Transition into at most two `LineSegments` batches
     (forward/returning) instead of one draw object per Transition. Focused
-    Visual/Bulk proof: `105 pass`, `0 fail`, `3082 expect`; package and root
+    Visual/Bulk proof after the shared Fields promotion: `109 pass`, `0 fail`,
+    `3146 expect`; package and root
     typecheck plus `git diff --check`: pass.
   - the authorized visual-playground-only restart entered active/running at
-    `2026-07-29 13:00:08 MSK`, PID `1864050`, and serves
-    `chunk-1j83td9e.js`. Fresh HTTP proof contains `Visual layouts` and the
+    `2026-07-29 13:05:58 MSK`, PID `1881205`, and serves
+    `chunk-bbjdg47t.js`. Fresh HTTP proof contains `Visual layouts` and the
     layout-mode rule that hides development visibility controls, while the
     removed Layout fieldset, its three input ids and the rejected Fields
     surface name are absent. No domain contour was restarted and no GPU pixel
     acceptance is claimed from this HTTP proof.
+  - owner promoted the deterministic Fibonacci pseudo-sphere from
+    `Analysis → Fields` into the shared Torus Field-core law. The pure cached
+    `FieldsLayout` now derives the minimum non-overlapping distribution radius
+    from the actual marker size; production manifest coordinates remain input
+    data and are not mutated;
+  - owner then rejected the inverse State-core fit and the resulting
+    content-dependent marker sizes. The named layout now uses one recursive
+    baseline from the approved Torus study: an actually empty root is
+    `[inner=5.56, outer=50]` (`100 мм` outer diameter,
+    `radius=27.78`, `tube=22.22`) with fixed `5 мм` Fields. Empty Torus and
+    Fields both scale by exactly `0.5` at every containment level. Contents are
+    never reduced to fit: the Field nucleus expands the inner boundary and
+    Matter/State content expands the outer boundary while preserving at least
+    the empty Torus radial thickness;
+  - Outside-In no longer consumes production `sphereRadius` or `torusScale` as
+    presentation sizes. Condition Fields use the same direct fixed-size
+    Fibonacci law as nucleus Fields, so State-Torus grows around one, two or
+    more equal Fields instead of rescaling them into a pre-existing hole;
+  - an attempted follow-up incorrectly collapsed all per-start State sleeves
+    into one unique-State ring. Owner rejected that structural regression.
+    Outside-In again keeps every declared root State as a separate fully
+    expanded causal sleeve with its paths, branches and Transition; repeated
+    State occurrences retain sleeve context without creating new domain
+    identity. The full fixture is restored to `5` Dark Tori, `54` nucleus
+    Fields, `98` State-Torus occurrences (`23` identities) and `130`
+    Transition occurrences;
+  - the recursive size law remains independent of that correction: the filled
+    root is `[inner=23.598, outer=868.664]`; observed nucleus Field radii are
+    exactly `5`, `2.5`, `1.25`, and condition Field radii are exactly `2.5`,
+    `1.25`, `0.625`. Visual plus related Bulk-geometry proof: `111 pass`,
+    `0 fail`, `3170 expect`; root typecheck and `git diff --check`: pass. The
+    authorized visual-playground-only restart entered active/running at
+    `2026-07-29 13:46:26 MSK`, PID `2001557`, and serves
+    `chunk-whnqmkjs.js`; host-namespace bundle proof contains the restored
+    `отдельный причинный рукав` description. No production manifestation or
+    domain contour is changed, and no GPU pixel acceptance is claimed.
+  - owner then identified that equal angular State slots still treated every
+    sleeve as the largest sleeve and pushed all seven leaf Auth sleeves onto a
+    needlessly distant orbit. Outside-In now packs the actual polar envelope
+    of every separate sleeve. Exact disk demand, a direct safe sector bound
+    and one fixed midpoint verification require at most three linear node
+    passes plus one sleeve prefix pass; there is no pairwise sleeve collision
+    search, convergence loop, binary fit or frame-time layout work;
+  - the remaining all-pairs State-node scale fit was also removed. Each sleeve
+    now uses one organic linear level sweep: adjacent fixed State radii define
+    row distances and adjacent level maxima define forward distances. Input
+    coordinates no longer become a content-dependent scale. A structural
+    update builds one new immutable scene in work proportional to its emitted
+    occurrences; no layout work remains in the render loop;
+  - the full fixture retains `5` Dark Tori, `54` nucleus Fields, `98`
+    State-Torus occurrences (`23` identities) and `130` Transition
+    occurrences. Leaf `lada-auth` has no child Torus and contracts from the
+    rejected `[inner=8.946, outer=290.582, State inner=86.665]` to
+    `[inner=8.946, outer=175.608, State inner=23.862]`; the measured minimum
+    cross-sleeve surface gap is positive (`3.891`). The filled root is now
+    `[inner=23.598, outer=763.427]`. Visual plus related Bulk-geometry proof:
+    `113 pass`, `0 fail`, `3419 expect`; root typecheck and
+    `git diff --check`: pass. The authorized visual-playground-only restart
+    entered active/running at `2026-07-29 14:30:42 MSK`, PID `2135446`, and
+    serves `chunk-cd9ge3k0.js`; host-namespace proof contains
+    `packStateSleeves` and `Math.asin` but not `/_bun/client`. No domain
+    contour was restarted and no GPU pixel acceptance is claimed from the
+    bundle proof. A warm `5000`-run measurement of
+    `buildOutsideInVisualScene` over the prepared full fixture
+    (`5` Tori / `98` State occurrences / `130` Transition) averaged
+    `0.1047 ms` per immutable scene build; this measurement deliberately
+    excludes upstream graph construction.
+  - owner screenshots then showed that the former `0.75 × Field radius`
+    State-node spacing was visually consumed by the translucent Torus edge,
+    while branch/level maxima made other intervals look larger. Outside-In now
+    has one code-owned self-similar minimum surface gap of exactly one owning
+    Field radius for adjacent State-Torus: root `5`, depth-one `2.5` and
+    depth-two `1.25` mm. Branching may create a larger real interval, but no
+    adjacent State pair receives a smaller one and no browser control is added;
+  - owner also promoted `Analysis → Fields → Псевдокруг` from a
+    playground-only experiment to the shared Field-core law. The generic
+    cached `FieldsLayout` takes the actual marker radius and fills the nearest
+    triangular-lattice positions at one-diameter spacing. Both owning Torus
+    nuclei and condition Fields inside State-Torus now reuse this flat
+    hexagonal packing; the Fibonacci pseudo-sphere remains only as the sibling
+    comparison lab. Production Bulk coordinates are still input-only;
+  - the full fixture retains `5` Dark Tori, `54` nucleus Fields, `98`
+    State-Torus occurrences and `130` Transition occurrences. All nucleus
+    Fields are planar; leaf Auth is now
+    `[inner=11.953, outer=176.260, State inner=22.466]` and its minimum
+    adjacent-State surface gap is `2.5`. Visual plus related Bulk-geometry
+    proof: `114 pass`, `0 fail`, `3541 expect`; root typecheck and
+    `git diff --check`: pass. The authorized visual-playground-only restart
+    entered active/running at `2026-07-29 14:42:47 MSK`, PID `2174605`, and
+    serves `chunk-swj0jdhg.js`; host-namespace proof contains both
+    `layoutFieldsInPseudoCircle` and `packStateSleeves` but not
+    `/_bun/client`. No domain contour was restarted and no GPU pixel
+    acceptance is claimed.
+  - owner then fixed every solid Sphere highlight at `1` and rejected the
+    remaining horizontal faceting of Torus. `createQuantumSphereMaterial`
+    centrally owns the fixed Sphere highlight for nucleus Fields, condition
+    Fields, Fields Analysis and Sphere Skin Lab; Torus keeps its independent
+    highlight default. Every Torus role now reuses the same fixed
+    `radialSegments = 32` / `tubularSegments = 192` mesh detail, including the
+    formerly separate `22` / `44` Form Skin Lab geometry. Visual plus related
+    Bulk-geometry proof: `116 pass`, `0 fail`, `3549 expect`; root typecheck
+    and `git diff --check`: pass. The authorized visual-playground-only
+    restart entered active/running at `2026-07-29 14:51:02 MSK`, PID
+    `2198787`, and serves `chunk-9matgvaa.js`; host-namespace proof contains
+    `createQuantumSphereMaterial`, `SPHERE_QUANTUM_HIGHLIGHT_SIZE`,
+    `radialSegments: 32` and `tubularSegments: 192` but not `/_bun/client`.
+    No domain contour was restarted and no GPU pixel acceptance is claimed.
+  - the next fresh screenshot showed that the preceding one-radius State gap
+    was still not visually distinguishable and exposed a real inconsistency:
+    within-sleeve layout used `1 × owning Field radius`, while cross-sleeve
+    packing still used only the unrelated Torus content gap
+    `0.75 × Field radius`. Both paths now receive one shared State surface gap
+    equal to a full owning Field diameter: root `10`, depth-one `5` and
+    depth-two `2.5` mm. Full-fixture world-space measurement finds those exact
+    within-sleeve minima; cross-sleeve minima are no smaller (`lada-auth`:
+    `7.054` mm for a required `5` mm). The direct linear packing formula and
+    pass count are unchanged. Visual plus related Bulk-geometry proof:
+    `116 pass`, `0 fail`, `3549 expect`; root typecheck and
+    `git diff --check`: pass. The authorized visual-playground-only restart
+    entered active/running at `2026-07-29 14:56:06 MSK`, PID `2214708`, and
+    serves `chunk-ddfswmt5.js`; host-namespace proof contains
+    `stateNodeSurfaceGap` and `STATE_NODE_GAP_TO_FIELD_RADIUS` but not
+    `/_bun/client`. No domain contour was restarted and no GPU pixel
+    acceptance is claimed.
+  - owner requested a visual trial with top-level Field diameter increased
+    from `10` to `22` mm. The single code-owned baseline is now radius `11`
+    mm, yielding nucleus Field radii `[11, 5.5, 2.75]`, condition Field radii
+    `[5.5, 2.75, 1.375]` and State surface-gap diameters `[22, 11, 5.5]`
+    across the three observed levels. No control or dynamic scale was added.
+    The full fixture remains `5` Tori / `54` Fields / `98` State occurrences /
+    `130` Transition occurrences; its root Torus grows around the trial
+    content to `[inner=72.121, outer=1206.434]`. Visual plus related
+    Bulk-geometry proof: `116 pass`, `0 fail`, `3549 expect`; root typecheck
+    and `git diff --check`: pass. The authorized visual-playground-only
+    restart entered active/running at `2026-07-29 14:59:59 MSK`, PID
+    `2226403`, and serves `chunk-315m6gjk.js`; host-namespace proof contains
+    `rootFieldRadius: 11` but not `/_bun/client`. No domain contour was
+    restarted and no GPU pixel acceptance is claimed.
 - Activation constraints:
   - visual commit `faa6a33d` received one authorized standard cold restart;
     the service returned active/running, all six ports listened and startup

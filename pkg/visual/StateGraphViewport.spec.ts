@@ -11,7 +11,11 @@ import {
   stateGraphFieldSphereLayout,
   stateGraphNodeFormDimensions,
 } from "./StateGraphViewport.ts"
-import {createQuantumFilmMaterial} from "./QuantumFilm.ts"
+import {
+  createQuantumFilmMaterial,
+  createQuantumSphereMaterial,
+  SPHERE_QUANTUM_HIGHLIGHT_SIZE,
+} from "./QuantumFilm.ts"
 
 const node = (
   id: string,
@@ -21,8 +25,10 @@ const node = (
   color: [1, 1, 1],
   current: false,
   end: null,
+  fieldRadius: 0.32,
   fields: [],
   id,
+  innerRadius: 0.35584,
   label: id,
   radius: 3.2,
   stateId: Number(id),
@@ -57,8 +63,19 @@ describe("State Graph viewport edge geometry", () => {
       .toBe(0)
   })
 
+  test("fixes the shared Sphere highlight size at one", () => {
+    const material = createQuantumSphereMaterial(
+      new Color(0.2, 0.6, 0.9),
+      {glowIntensity: 3, opacity: 0.7},
+    )
+
+    expect(SPHERE_QUANTUM_HIGHLIGHT_SIZE).toBe(1)
+    expect(material).toBeInstanceOf(ThinFilmMaterial)
+    expect(material.highlightSize).toBe(1)
+  })
+
   test("fits the code-owned Torus proportions and exposes its hole for Fields", () => {
-    const form = stateGraphNodeFormDimensions(3.2)
+    const form = stateGraphNodeFormDimensions(3.2, 0.35584)
 
     expect(form.torusRadius + form.torusTube).toBeCloseTo(3.2)
     expect(form.holeRadius).toBeGreaterThan(0)
@@ -67,21 +84,35 @@ describe("State Graph viewport edge geometry", () => {
     )
   })
 
-  test("lays condition Fields out as type-colored Spheres inside the hole", () => {
+  test("lays fixed-size condition Fields out without fitting them to the hole", () => {
     const fields = stateGraphFieldSphereLayout([
       {id: 1, key: "name", label: "Name", type: "string"},
       {id: 2, key: "ready", label: "Ready", type: "boolean"},
       {id: 3, key: "count", label: "Count", type: "number"},
-    ], 1.4)
+    ], 0.4)
 
     expect(fields).toHaveLength(3)
     expect(stateGraphFieldColor(fields[0]!.type)).not.toEqual(
       stateGraphFieldColor(fields[1]!.type),
     )
     for (const field of fields) {
-      expect(Math.hypot(field.x, field.y) + field.radius)
-        .toBeLessThanOrEqual(1.4)
+      expect(field.radius).toBe(0.4)
+      expect(field.z).toBe(0)
     }
+    let minimumDistance = Number.POSITIVE_INFINITY
+    for (let left = 0; left < fields.length; left += 1) {
+      for (let right = left + 1; right < fields.length; right += 1) {
+        minimumDistance = Math.min(
+          minimumDistance,
+          Math.hypot(
+            fields[left]!.x - fields[right]!.x,
+            fields[left]!.y - fields[right]!.y,
+            fields[left]!.z - fields[right]!.z,
+          ),
+        )
+      }
+    }
+    expect(minimumDistance).toBeCloseTo(0.8)
   })
 
   test("draws a returning edge as a front arc and a top-view straight line", () => {

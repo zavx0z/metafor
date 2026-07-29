@@ -5,6 +5,7 @@ import { streamBulkManifest } from "./stream"
 const createFieldParticle = (fieldId: number) => ({
   fieldParticleId: `field:${fieldId}`,
   fieldId,
+  valueId: fieldId,
   fieldKey: String(fieldId),
   fieldLabel: String(fieldId),
   fieldParticleKind: "string" as const,

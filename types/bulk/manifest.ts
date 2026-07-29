@@ -35,6 +35,11 @@ export interface BulkFieldParticle {
   /** Stable occurrence identity: one declared Field inside one manifested Atom. */
   fieldParticleId: string
   fieldId: number
+  /**
+   * Canonical materialized Value identity. Equal non-null ids express one
+   * direct shared Matter quantity even when the Field declarations differ.
+   */
+  valueId: number | null
   parentDarkParticleId: number
   fieldKey: string
   fieldLabel: string
@@ -157,6 +162,7 @@ export interface BulkManifestSink {
 export interface BulkFieldParticleInput {
   fieldParticleId: string
   fieldId: number
+  valueId: number | null
   fieldKey: string
   fieldLabel: string
   fieldParticleKind: BulkFieldParticleKind

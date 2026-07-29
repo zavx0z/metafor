@@ -9,10 +9,22 @@ export const TORUS_FORM_RATIOS = Object.freeze({
   innerRadius: 0.1112,
 })
 
+/**
+ * Empty root form from the approved Torus study:
+ * radius 27.78 mm + tube 22.22 mm = outer radius 50 mm,
+ * radius 27.78 mm - tube 22.22 mm = inner radius 5.56 mm.
+ */
+export const TORUS_LAYOUT_BASELINE = Object.freeze({
+  rootOuterRadius: 50,
+  rootFieldRadius: 11,
+  levelScale: 0.5,
+  contentGapToFieldRadius: 0.75,
+})
+
 /** Shared immutable mesh detail for every Torus role in named layouts. */
 export const TORUS_MESH_DETAIL = Object.freeze({
-  radialSegments: 22,
-  tubularSegments: 44,
+  radialSegments: 32,
+  tubularSegments: 192,
 })
 
 export type TorusForm = Readonly<{
@@ -75,6 +87,56 @@ export const resolveSelfSimilarTorusForm = (
     safeOuterRadius * TORUS_FORM_RATIOS.innerRadius,
     safeOuterRadius,
   )
+}
+
+export const torusLevelScale = (level: number): number => {
+  const safeLevel = Number.isFinite(level)
+    ? Math.max(0, Math.floor(level))
+    : 0
+  return TORUS_LAYOUT_BASELINE.levelScale ** safeLevel
+}
+
+export const torusFieldRadiusAtLevel = (level: number): number =>
+  TORUS_LAYOUT_BASELINE.rootFieldRadius * torusLevelScale(level)
+
+export const resolveEmptyTorusForm = (level: number): TorusForm =>
+  resolveSelfSimilarTorusForm(
+    TORUS_LAYOUT_BASELINE.rootOuterRadius * torusLevelScale(level),
+  )
+
+/**
+ * Grows a Torus around real content without scaling that content down.
+ * The empty form supplies the minimum hole, outer radius and radial thickness.
+ */
+export const resolveContentTorusForm = (
+  input: Readonly<{
+    coreExtent?: number
+    emptyOuterRadius: number
+    gap?: number
+    occupiedOuterExtent?: number
+  }>,
+): TorusForm => {
+  const empty = resolveSelfSimilarTorusForm(input.emptyOuterRadius)
+  const coreExtent = Number.isFinite(input.coreExtent)
+    ? Math.max(0, input.coreExtent ?? 0)
+    : 0
+  const occupiedOuterExtent = Number.isFinite(input.occupiedOuterExtent)
+    ? Math.max(0, input.occupiedOuterExtent ?? 0)
+    : 0
+  const gap = Number.isFinite(input.gap)
+    ? Math.max(0, input.gap ?? 0)
+    : 0
+  const innerRadius = Math.max(
+    empty.innerRadius,
+    coreExtent > 0 ? coreExtent + gap : 0,
+  )
+  const emptyRadialThickness = empty.outerRadius - empty.innerRadius
+  const outerRadius = Math.max(
+    empty.outerRadius,
+    innerRadius + emptyRadialThickness,
+    occupiedOuterExtent > 0 ? occupiedOuterExtent + gap : 0,
+  )
+  return resolveTorusForm(innerRadius, outerRadius)
 }
 
 export const defineTorusComponent = <TPayload, TCore>(

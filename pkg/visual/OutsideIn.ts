@@ -1,15 +1,19 @@
 import type {BulkManifest} from "@metafor/types/bulk/manifest"
-import type {
-  StateGraphLayoutNode,
-  StateGraphRootLayout,
+import {
+  resolveStateGraphNodeGeometry,
+  type StateGraphLayoutNode,
+  type StateGraphRootLayout,
 } from "./StateGraphLayout.ts"
+import {layoutFieldsInPseudoCircle} from "./FieldsLayout.ts"
 import type {
   StateGraphContextField,
   StateGraphContextTorus,
   StateGraphViewportContext,
 } from "./StateGraphViewport.ts"
 import {
+  TORUS_LAYOUT_BASELINE,
   defineTorusComponent,
+  resolveContentTorusForm,
   type TorusComponent,
   type TorusPlacement,
 } from "./Torus.ts"
@@ -26,7 +30,7 @@ export const OutsideIn = defineVisualLayout({
 type DarkParticle = BulkManifest["darkParticles"][number]
 type FieldParticle = BulkManifest["fieldParticles"][number]
 
-type WorldTransform = Readonly<{
+export type WorldTransform = Readonly<{
   scale: number
   x: number
   y: number
@@ -35,28 +39,26 @@ type WorldTransform = Readonly<{
 
 type StateNodeOffset = Readonly<{
   node: StateGraphLayoutNode
+  radius: number
   x: number
   y: number
   z: number
 }>
 
-type PreparedStateLayout = Readonly<{
-  extent: number
+export type PreparedStateLayout = StateSleevePackingEnvelope & Readonly<{
   layout: StateGraphRootLayout
+  levelOffsets: ReadonlyMap<number, number>
   offsets: readonly StateNodeOffset[]
-  positionScale: number
   root: StateGraphLayoutNode
-  tangentExtent: number
 }>
 
-type StatePlacement = Readonly<{
+export type StatePlacement = Readonly<{
   angle: number
   orbitRadius: number
   prepared: PreparedStateLayout
 }>
 
 type DarkTorusPayload = Readonly<{
-  markerRadius: number
   particle: DarkParticle
   states: readonly StatePlacement[]
 }>
@@ -74,7 +76,130 @@ export type OutsideInOwnerLayouts = Readonly<{
   layouts: readonly StateGraphRootLayout[]
 }>
 
-const mergeStateSleeves = (
+export type StateSleevePackingEnvelope = Readonly<{
+  disks: readonly StateSleevePackingDisk[]
+  inwardExtent: number
+}>
+
+export type StateSleevePackingDisk = Readonly<{
+  radius: number
+  x: number
+  y: number
+}>
+
+export type StateSleevePacking = Readonly<{
+  angles: readonly number[]
+  halfAngles: readonly number[]
+  orbitRadius: number
+}>
+
+const finiteExtent = (value: number): number =>
+  Number.isFinite(value) ? Math.max(0, value) : 0
+
+const STATE_NODE_GAP_TO_FIELD_RADIUS = 2
+
+export const stateNodeSurfaceGap = (fieldRadius: number): number =>
+  fieldRadius * STATE_NODE_GAP_TO_FIELD_RADIUS
+
+export const packStateSleeves = (
+  sleeves: readonly StateSleevePackingEnvelope[],
+  minimumOrbitRadius: number,
+  gap: number,
+  phase: number,
+): StateSleevePacking => {
+  if (sleeves.length === 0) {
+    return {angles: [], halfAngles: [], orbitRadius: 0}
+  }
+  const safeMinimumOrbit = finiteExtent(minimumOrbitRadius)
+  if (sleeves.length === 1) {
+    return {
+      angles: [Number.isFinite(phase) ? phase : 0],
+      halfAngles: [Math.PI],
+      orbitRadius: safeMinimumOrbit,
+    }
+  }
+
+  const safeGap = finiteExtent(gap)
+  let baselineOrbitRadius = safeMinimumOrbit
+  for (const sleeve of sleeves) {
+    baselineOrbitRadius = Math.max(
+      baselineOrbitRadius,
+      finiteExtent(sleeve.inwardExtent) + safeGap * 0.5 + 1e-6,
+    )
+  }
+
+  const angularDemandsAt = (
+    orbitRadius: number,
+  ): Readonly<{demands: readonly number[]; sum: number}> => {
+    const demands = new Array<number>(sleeves.length)
+    let sum = 0
+    for (let index = 0; index < sleeves.length; index += 1) {
+      let demand = 0
+      for (const disk of sleeves[index]!.disks) {
+        const inflatedRadius = finiteExtent(disk.radius) + safeGap * 0.5
+        const x = Number.isFinite(disk.x) ? disk.x : 0
+        const y = Number.isFinite(disk.y) ? disk.y : 0
+        const centerX = orbitRadius + x
+        const centerDistance = Math.hypot(centerX, y)
+        demand = Math.max(
+          demand,
+          Math.abs(Math.atan2(y, centerX)) +
+            Math.asin(Math.min(1, inflatedRadius / centerDistance)),
+        )
+      }
+      demands[index] = Math.max(demand, 1e-6)
+      sum += demands[index]!
+    }
+    return {demands, sum}
+  }
+
+  const baselineDemands = angularDemandsAt(baselineOrbitRadius)
+  let halfAngles = baselineDemands.demands.map((demand) =>
+    baselineDemands.sum <= Math.PI
+      ? demand + (Math.PI - baselineDemands.sum) / sleeves.length
+      : demand * Math.PI / baselineDemands.sum
+  )
+  let orbitRadius = baselineOrbitRadius
+  if (baselineDemands.sum > Math.PI) {
+    for (let index = 0; index < sleeves.length; index += 1) {
+      const sine = Math.sin(halfAngles[index]!)
+      const cosine = Math.cos(halfAngles[index]!)
+      for (const disk of sleeves[index]!.disks) {
+        const inflatedRadius = finiteExtent(disk.radius) + safeGap * 0.5
+        orbitRadius = Math.max(
+          orbitRadius,
+          (
+            inflatedRadius +
+            Math.abs(Number.isFinite(disk.y) ? disk.y : 0) * cosine
+          ) / sine -
+            (Number.isFinite(disk.x) ? disk.x : 0),
+        )
+      }
+    }
+    const candidateOrbitRadius =
+      (baselineOrbitRadius + orbitRadius) * 0.5
+    const candidateDemands = angularDemandsAt(candidateOrbitRadius)
+    if (candidateDemands.sum <= Math.PI) {
+      orbitRadius = candidateOrbitRadius
+      halfAngles = candidateDemands.demands.map((demand) =>
+        demand + (Math.PI - candidateDemands.sum) / sleeves.length
+      )
+    }
+  }
+
+  const startAngle = Number.isFinite(phase) ? phase : 0
+  const angles = new Array<number>(sleeves.length)
+  angles[0] = startAngle
+  for (let index = 1; index < sleeves.length; index += 1) {
+    angles[index] =
+      angles[index - 1]! +
+      halfAngles[index - 1]! +
+      halfAngles[index]!
+  }
+  return {angles, halfAngles, orbitRadius}
+}
+
+export const mergeStateSleeves = (
   layouts: readonly StateGraphRootLayout[],
 ): StateGraphRootLayout => ({
   rootStateId: layouts[0]?.rootStateId ?? 0,
@@ -91,91 +216,30 @@ const particleOrder = (
   left.darkParticleOrder - right.darkParticleOrder ||
   left.darkParticleId - right.darkParticleId
 
-const fallbackMarkerRadius = (particle: DarkParticle): number =>
-  Math.max(
-    0.001,
-    Math.min(particle.torusTube * 0.08, particle.torusRadius * 0.04),
-  )
-
-const ownerMarkerRadius = (
-  manifest: BulkManifest,
-  particle: DarkParticle,
-  fields: readonly FieldParticle[],
-): number => {
-  const radii = [
-    ...fields.map((field) => field.sphereRadius),
-    ...(manifest.orbitalParticles ?? [])
-      .filter((orbital) =>
-        orbital.parentDarkParticleId === particle.darkParticleId &&
-        orbital.orbitalParticleKind === "state"
-      )
-      .map((orbital) => orbital.sphereRadius),
-  ].filter((radius) => Number.isFinite(radius) && radius > 0)
-  return radii.length > 0
-    ? Math.max(...radii)
-    : fallbackMarkerRadius(particle)
-}
-
 const fieldNucleusExtent = (
   fields: readonly FieldParticle[],
-  markerRadius: number,
 ): number => fields.length === 0
-  ? markerRadius * 0.75
+  ? 0
   : Math.max(...fields.map((field) =>
     Math.hypot(field.localX, field.localY, field.localZ) +
-    field.sphereRadius
+      field.sphereRadius
   ))
 
-const minimumNodeDistance = (
-  nodes: readonly StateGraphLayoutNode[],
-): number => {
-  let minimum = Number.POSITIVE_INFINITY
-  for (let left = 0; left < nodes.length; left += 1) {
-    for (let right = left + 1; right < nodes.length; right += 1) {
-      const distance = Math.hypot(
-        nodes[left]!.x - nodes[right]!.x,
-        nodes[left]!.y - nodes[right]!.y,
-        nodes[left]!.z - nodes[right]!.z,
-      )
-      if (distance > 1e-6) minimum = Math.min(minimum, distance)
-    }
-  }
-  return minimum
-}
-
-const prepareStateLayout = (
-  layout: StateGraphRootLayout,
+const placeFieldsInPseudoCircle = (
+  fields: readonly FieldParticle[],
   markerRadius: number,
-): PreparedStateLayout | null => {
-  const root = layout.nodes.find((node) => node.stateId === layout.rootStateId)
-  if (!root) return null
-  const radiusScale = markerRadius / Math.max(0.001, root.radius)
-  const sourceDistance = minimumNodeDistance(layout.nodes)
-  const positionScale = Number.isFinite(sourceDistance)
-    ? Math.min(radiusScale, markerRadius * 2.6 / sourceDistance)
-    : radiusScale
-  const offsets = layout.nodes.map((node) => ({
-    node,
-    x: (node.x - root.x) * positionScale,
-    y: (node.y - root.y) * positionScale,
-    z: (node.z - root.z) * positionScale,
+): readonly FieldParticle[] => {
+  const layout = layoutFieldsInPseudoCircle(
+    fields.length,
+    markerRadius,
+  )
+  return fields.map((field, index) => ({
+    ...field,
+    localX: layout.points[index]?.x ?? 0,
+    localY: layout.points[index]?.y ?? 0,
+    localZ: layout.points[index]?.z ?? 0,
+    sphereRadius: markerRadius,
   }))
-  return {
-    extent: Math.max(
-      markerRadius,
-      ...offsets.map((offset) =>
-        Math.hypot(offset.x, offset.y, offset.z) + markerRadius
-      ),
-    ),
-    layout,
-    offsets,
-    positionScale,
-    root,
-    tangentExtent: Math.max(
-      markerRadius,
-      ...offsets.map((offset) => Math.abs(offset.y) + markerRadius),
-    ),
-  }
 }
 
 const sourceChildPhase = (
@@ -186,7 +250,7 @@ const sourceChildPhase = (
   return Math.atan2(first.localY, first.localX)
 }
 
-const sourceStatePhase = (
+export const sourceStatePhase = (
   manifest: BulkManifest,
   particle: DarkParticle,
   layouts: readonly PreparedStateLayout[],
@@ -213,25 +277,158 @@ const siblingOrbitRadius = (
   ? 0
   : (maximumExtent + gap * 0.5) / Math.sin(Math.PI / count)
 
-const stateInnerOrbitRadius = (
+const organicStatePositions = (
+  nodes: readonly StateGraphLayoutNode[],
+  levels: readonly StateGraphRootLayout["levels"][number][],
+  gap: number,
+  root: StateGraphLayoutNode,
+): Readonly<{
+  levelOffsets: ReadonlyMap<number, number>
+  offsets: readonly StateNodeOffset[]
+}> => {
+  const nodeById = new Map(nodes.map((node) => [node.id, node] as const))
+  const orderedLevels = levels.map((level) => ({
+    nodes: level.nodeIds.flatMap((id) => {
+      const node = nodeById.get(id)
+      return node ? [node] : []
+    }),
+    step: level.step,
+  }))
+  const absolutePositions = new Map<
+    string,
+    Readonly<{x: number; y: number; z: number}>
+  >()
+  const absoluteLevelX = new Map<number, number>()
+  let previousLevelX = 0
+  let previousLevelRadius = 0
+  for (let levelIndex = 0; levelIndex < orderedLevels.length; levelIndex += 1) {
+    const level = orderedLevels[levelIndex]!
+    const levelRadius = Math.max(
+      0,
+      ...level.nodes.map((node) => node.radius),
+    )
+    const levelX = levelIndex === 0
+      ? 0
+      : previousLevelX + previousLevelRadius + levelRadius + gap
+    absoluteLevelX.set(level.step, levelX)
+
+    const yPositions = new Array<number>(level.nodes.length)
+    if (level.nodes.length > 0) yPositions[0] = 0
+    for (let index = 1; index < level.nodes.length; index += 1) {
+      yPositions[index] =
+        yPositions[index - 1]! +
+        level.nodes[index - 1]!.radius +
+        level.nodes[index]!.radius +
+        gap
+    }
+    const verticalCenter = level.nodes.length === 0
+      ? 0
+      : (
+        yPositions[0]! -
+        level.nodes[0]!.radius +
+        yPositions.at(-1)! +
+        level.nodes.at(-1)!.radius
+      ) * 0.5
+    for (let index = 0; index < level.nodes.length; index += 1) {
+      const node = level.nodes[index]!
+      absolutePositions.set(node.id, {
+        x: levelX,
+        y: yPositions[index]! - verticalCenter,
+        z: node.z,
+      })
+    }
+    previousLevelX = levelX
+    previousLevelRadius = levelRadius
+  }
+
+  const rootPosition = absolutePositions.get(root.id) ?? {x: 0, y: 0, z: 0}
+  return {
+    levelOffsets: new Map(
+      [...absoluteLevelX].map(([step, x]) => [
+        step,
+        x - rootPosition.x,
+      ]),
+    ),
+    offsets: nodes.map((node) => {
+      const position = absolutePositions.get(node.id) ?? rootPosition
+      return {
+        node,
+        radius: node.radius,
+        x: position.x - rootPosition.x,
+        y: position.y - rootPosition.y,
+        z: position.z - rootPosition.z,
+      }
+    }),
+  }
+}
+
+export const prepareStateLayout = (
+  layout: StateGraphRootLayout,
+  markerRadius: number,
+): PreparedStateLayout | null => {
+  const stateEmptyOuterRadius =
+    TORUS_LAYOUT_BASELINE.rootOuterRadius *
+    TORUS_LAYOUT_BASELINE.levelScale
+  const stateFieldRadius =
+    markerRadius * TORUS_LAYOUT_BASELINE.levelScale
+  const nodes = layout.nodes.map((node) => {
+    const geometry = resolveStateGraphNodeGeometry(
+      node.fields,
+      stateEmptyOuterRadius,
+      stateFieldRadius,
+    )
+    return {
+      ...node,
+      fieldRadius: geometry.fieldRadius,
+      innerRadius: geometry.innerRadius,
+      radius: geometry.outerRadius,
+    }
+  })
+  const organicLayout: StateGraphRootLayout = {
+    ...layout,
+    nodes,
+  }
+  const root = nodes.find((node) => node.stateId === layout.rootStateId)
+  if (!root) return null
+  const stateNodeGap = stateNodeSurfaceGap(markerRadius)
+  const positions = organicStatePositions(
+    nodes,
+    layout.levels,
+    stateNodeGap,
+    root,
+  )
+  return {
+    disks: positions.offsets,
+    inwardExtent: Math.max(
+      root.radius,
+      ...positions.offsets.map((offset) =>
+        offset.node.radius - offset.x
+      ),
+    ),
+    layout: organicLayout,
+    levelOffsets: positions.levelOffsets,
+    offsets: positions.offsets,
+    root,
+  }
+}
+
+export const stateInnerOrbitRadius = (
   layouts: readonly PreparedStateLayout[],
   innerBoundary: number,
-  markerRadius: number,
   gap: number,
-): number => {
-  const requiredInnerEdge = innerBoundary + gap + markerRadius
-  return Math.max(
-    requiredInnerEdge,
-    ...layouts.flatMap((layout) =>
-      layout.offsets.map((offset) => {
-        if (Math.abs(offset.y) >= requiredInnerEdge) return 0
-        return Math.sqrt(
-          requiredInnerEdge ** 2 - offset.y ** 2,
-        ) - offset.x
-      })
-    ),
-  )
-}
+): number => Math.max(
+  innerBoundary + gap,
+  ...layouts.flatMap((layout) =>
+    layout.offsets.map((offset) => {
+      const requiredInnerEdge =
+        innerBoundary + gap + offset.node.radius
+      if (Math.abs(offset.y) >= requiredInnerEdge) return 0
+      return Math.sqrt(
+        requiredInnerEdge ** 2 - offset.y ** 2,
+      ) - offset.x
+    })
+  ),
+)
 
 const buildDarkParticleTori = (
   manifest: BulkManifest,
@@ -267,17 +464,26 @@ const buildDarkParticleTori = (
   const resolve = (particle: DarkParticle): DarkTorus => {
     const cached = resolved.get(particle.darkParticleId)
     if (cached) return cached
-    const fields = fieldsByParent.get(particle.darkParticleId) ?? []
-    const markerRadius = ownerMarkerRadius(manifest, particle, fields)
-    const gap = Math.max(0.001, markerRadius * 0.75)
-    const innerRadius =
-      fieldNucleusExtent(fields, markerRadius) + gap
+    const sourceFields = fieldsByParent.get(particle.darkParticleId) ?? []
+    const markerRadius = TORUS_LAYOUT_BASELINE.rootFieldRadius
+    const fields = placeFieldsInPseudoCircle(sourceFields, markerRadius)
+    const gap = Math.max(
+      0.001,
+      markerRadius * TORUS_LAYOUT_BASELINE.contentGapToFieldRadius,
+    )
+    const coreExtent = fieldNucleusExtent(fields)
+    const coreForm = resolveContentTorusForm({
+      emptyOuterRadius: TORUS_LAYOUT_BASELINE.rootOuterRadius,
+      coreExtent,
+      gap,
+    })
+    const innerRadius = coreForm.innerRadius
     const childTori = (childrenByParent.get(particle.darkParticleId) ?? [])
       .map(resolve)
     const maximumChildExtent = Math.max(
       0,
       ...childTori.map((child) =>
-        child.form.outerRadius * child.payload.particle.torusScale
+        child.form.outerRadius * TORUS_LAYOUT_BASELINE.levelScale
       ),
     )
     const matterOrbitRadius = childTori.length === 0
@@ -295,7 +501,7 @@ const buildDarkParticleTori = (
       const angle = childPhase + index * Math.PI * 2 / childTori.length
       return {
         torus: child,
-        scale: child.payload.particle.torusScale,
+        scale: TORUS_LAYOUT_BASELINE.levelScale,
         x: Math.cos(angle) * matterOrbitRadius,
         y: Math.sin(angle) * matterOrbitRadius,
         z: 0,
@@ -305,36 +511,29 @@ const buildDarkParticleTori = (
       ? innerRadius
       : Math.max(...childTori.map((child) =>
         matterOrbitRadius +
-          child.form.outerRadius * child.payload.particle.torusScale
+          child.form.outerRadius * TORUS_LAYOUT_BASELINE.levelScale
       ))
     const preparedStates = (
       particle.src === null ? [] : layoutsBySrc.get(particle.src) ?? []
     )
       .map((layout) => prepareStateLayout(layout, markerRadius))
       .filter((layout): layout is PreparedStateLayout => layout !== null)
-    const maximumStateTangentExtent = Math.max(
-      markerRadius,
-      ...preparedStates.map((layout) => layout.tangentExtent),
-    )
-    const stateOrbitRadius = preparedStates.length === 0
-      ? 0
-      : Math.max(
-        stateInnerOrbitRadius(
+    const statePhase = sourceStatePhase(manifest, particle, preparedStates)
+    const statePacking = packStateSleeves(
+      preparedStates,
+      preparedStates.length === 0
+        ? 0
+        : stateInnerOrbitRadius(
           preparedStates,
           matterOuterRadius,
-          markerRadius,
           gap,
         ),
-        siblingOrbitRadius(
-          preparedStates.length,
-          maximumStateTangentExtent,
-          gap,
-        ),
-      )
-    const statePhase = sourceStatePhase(manifest, particle, preparedStates)
+      stateNodeSurfaceGap(markerRadius),
+      statePhase,
+    )
     const statePlacements = preparedStates.map((prepared, index) => ({
-      angle: statePhase + index * Math.PI * 2 / preparedStates.length,
-      orbitRadius: stateOrbitRadius,
+      angle: statePacking.angles[index] ?? statePhase,
+      orbitRadius: statePacking.orbitRadius,
       prepared,
     }))
     const stateOuterRadius = statePlacements.length === 0
@@ -345,25 +544,25 @@ const buildDarkParticleTori = (
             orbitRadius + offset.x,
             offset.y,
             offset.z,
-          ) + markerRadius
+          ) + offset.node.radius
         )
       ))
-    const outerRadius = Math.max(
-      innerRadius + markerRadius * 2,
-      matterOuterRadius + gap,
-      stateOuterRadius + gap,
-    )
+    const form = resolveContentTorusForm({
+      emptyOuterRadius: TORUS_LAYOUT_BASELINE.rootOuterRadius,
+      coreExtent,
+      gap,
+      occupiedOuterExtent: Math.max(matterOuterRadius, stateOuterRadius),
+    })
     const torus = defineTorusComponent({
       id: `${particle.darkParticleKind}:${particle.darkParticleId}`,
       role: particle.darkParticleKind,
       payload: {
-        markerRadius,
         particle,
         states: statePlacements,
       },
       core: fields,
-      innerRadius,
-      outerRadius,
+      innerRadius: form.innerRadius,
+      outerRadius: form.outerRadius,
       children: childPlacements,
     })
     resolved.set(particle.darkParticleId, torus)
@@ -389,9 +588,8 @@ const worldPoint = (
   z: transform.z + z * transform.scale,
 })
 
-const placeStateLayout = (
+export const placeStateLayout = (
   placement: StatePlacement,
-  owner: DarkTorus,
   transform: WorldTransform,
 ): StateGraphRootLayout => {
   const radialX = Math.cos(placement.angle)
@@ -422,12 +620,13 @@ const placeStateLayout = (
       return {
         ...node,
         ...localPoint(offset.x, offset.y, offset.z),
-        radius: owner.payload.markerRadius * transform.scale,
+        fieldRadius: node.fieldRadius * transform.scale,
+        innerRadius: node.innerRadius * transform.scale,
+        radius: node.radius * transform.scale,
       }
     }),
     levels: placement.prepared.layout.levels.map((level) => {
-      const x = (level.x - placement.prepared.root.x) *
-        placement.prepared.positionScale
+      const x = placement.prepared.levelOffsets.get(level.step) ?? 0
       return {
         ...level,
         x: localPoint(x, 0, 0).x,
@@ -472,7 +671,7 @@ export const buildOutsideInVisualScene = (
       })
     }
     for (const placement of torus.payload.states) {
-      stateLayouts.push(placeStateLayout(placement, torus, transform))
+      stateLayouts.push(placeStateLayout(placement, transform))
     }
     for (const child of torus.children) {
       const point = worldPoint(transform, child.x, child.y, child.z)
@@ -489,7 +688,7 @@ export const buildOutsideInVisualScene = (
       x: particle.localX,
       y: particle.localY,
       z: particle.localZ,
-      scale: particle.torusScale,
+      scale: 1,
     })
   }
 

@@ -161,7 +161,7 @@ bun run typecheck:expect-errors
 
 В рабочем дереве остаются только MetaFor, его домены, DSL/Matter/template,
 WebGPU engine, Bulk, reusable UI и нейтральные runtime fixtures. Прежние product
-shells — Interpreter, Voice, Android, Browser Agent, PTY и Tauri — удалены из
+interfaces — Interpreter, Voice, Android, Browser Agent, PTY и Tauri — удалены из
 активной ветки. Их история сохранена в:
 
 ```text

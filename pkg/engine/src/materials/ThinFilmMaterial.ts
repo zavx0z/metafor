@@ -33,7 +33,7 @@ export interface ThinFilmMaterialParameters extends MaterialParameters {
    */
   filmThickness?: number
   /**
-   * Нормализованная угловая ширина зеркальных бликов.
+   * Нормализованная угловая ширина зеркальных бликов; 0 отключает их.
    * @default 0
    */
   highlightSize?: number

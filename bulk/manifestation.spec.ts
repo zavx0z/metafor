@@ -71,6 +71,7 @@ describe("Boundary projection -> Bulk manifestation", () => {
 		})
 		expect(fieldParticle).toBeDefined()
 		expect(fieldParticle?.fieldId).toBe(2)
+		expect(fieldParticle?.valueId).toBeNull()
 		expect(fieldParticle?.fieldKey).toBe("title")
 		expect(fieldParticle?.fieldParticleId).not.toBe(fieldParticle?.fieldId)
 	})

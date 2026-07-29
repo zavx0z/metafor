@@ -18,11 +18,15 @@ import {
   Vector3,
   ViewPoint,
 } from "@metafor/engine"
-import {createQuantumFilmMaterial} from "./QuantumFilm.ts"
+import {
+  createQuantumFilmMaterial,
+  createQuantumSphereMaterial,
+} from "./QuantumFilm.ts"
+import {layoutFieldsInPseudoCircle} from "./FieldsLayout.ts"
 import {
   TORUS_MESH_DETAIL,
   defineTorusComponent,
-  resolveSelfSimilarTorusForm,
+  resolveTorusForm,
 } from "./Torus.ts"
 import type {
   StateGraphLayoutEdge,
@@ -215,8 +219,9 @@ const nodePosition = (node: StateGraphLayoutNode): Vector3 =>
 
 export const stateGraphNodeFormDimensions = (
   outerRadius: number,
+  innerRadius: number,
 ): StateGraphNodeFormDimensions => {
-  const form = resolveSelfSimilarTorusForm(outerRadius)
+  const form = resolveTorusForm(innerRadius, outerRadius)
 
   return {
     torusRadius: form.radius,
@@ -237,36 +242,24 @@ export const stateGraphFieldColor = (
 
 export const stateGraphFieldSphereLayout = (
   fields: readonly StateGraphField[],
-  holeRadius: number,
+  markerRadius: number,
 ): readonly Readonly<StateGraphField & {
   radius: number
   x: number
   y: number
+  z: number
 }>[] => {
   if (fields.length === 0) return []
-  if (fields.length === 1) {
-    return [{
-      ...fields[0]!,
-      radius: holeRadius * 0.58,
-      x: 0,
-      y: 0,
-    }]
-  }
-  const orbitRadius = holeRadius * 0.52
-  const sphereRadius = Math.max(
-    holeRadius * 0.08,
-    Math.min(
-      holeRadius * 0.24,
-      orbitRadius * Math.sin(Math.PI / fields.length) * 0.72,
-    ),
+  const layout = layoutFieldsInPseudoCircle(
+    fields.length,
+    markerRadius,
   )
   return fields.map((field, index) => {
-    const angle = Math.PI * 2 * index / fields.length - Math.PI / 2
+    const point = layout.points[index] ?? {x: 0, y: 0, z: 0}
     return {
       ...field,
-      radius: sphereRadius,
-      x: Math.cos(angle) * orbitRadius,
-      y: Math.sin(angle) * orbitRadius,
+      radius: markerRadius,
+      ...point,
     }
   })
 }
@@ -434,9 +427,8 @@ const addTorusContext = (
   for (const field of context.fields) {
     const node = new Mesh(
       cachedSphereGeometry(geometryCache, field.radius, 16, 10),
-      createQuantumFilmMaterial(new Color(...field.color), {
+      createQuantumSphereMaterial(new Color(...field.color), {
         glowIntensity: 2.8,
-        highlightSize: 0,
         opacity: 0.72,
       }),
     )
@@ -533,7 +525,10 @@ export const createStateGraphViewport = async ({
   for (const node of layout.nodes) {
     const nodeContainer = new Object3D()
     nodeContainer.position.set(node.x, node.y, node.z)
-    const dimensions = stateGraphNodeFormDimensions(node.radius)
+    const dimensions = stateGraphNodeFormDimensions(
+      node.radius,
+      node.innerRadius,
+    )
     const torus = defineTorusComponent({
       id: node.id,
       role: "state",
@@ -564,21 +559,20 @@ export const createStateGraphViewport = async ({
 
     for (const field of stateGraphFieldSphereLayout(
       torus.core,
-      torus.form.innerRadius,
+      node.fieldRadius,
     )) {
       const fieldColor = stateGraphFieldColor(field.type)
       const sphere = new Mesh(
         cachedSphereGeometry(geometryCache, field.radius, 18, 12),
-        createQuantumFilmMaterial(new Color(...fieldColor), {
+        createQuantumSphereMaterial(new Color(...fieldColor), {
           glowIntensity: node.current ? 5.2 : 3.4,
-          highlightSize: 0,
           opacity: node.current ? 0.78 : 0.66,
         }),
       )
       sphere.position.set(
         field.x,
         field.y,
-        0,
+        field.z,
       )
       sphere.updateMatrix()
       nodeContainer.add(sphere)

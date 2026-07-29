@@ -15,8 +15,11 @@ import {
 } from "@metafor/engine"
 import {
   createQuantumFilmMaterial,
+  createQuantumSphereMaterial,
   deriveQuantumFilmPalette,
+  SPHERE_QUANTUM_HIGHLIGHT_SIZE,
 } from "../QuantumFilm.ts"
+import {TORUS_MESH_DETAIL} from "../Torus.ts"
 import {createPageAnnotationLayer} from "./AnnotationLayer.ts"
 
 export type FormSkinLabForm = "sphere" | "torus"
@@ -32,8 +35,8 @@ export type FormSkinId =
 export const FORM_SKIN_GEOMETRY = Object.freeze({
   detail: 48,
   size: 8,
-  torusRadialSegments: 22,
-  torusTubularSegments: 44,
+  torusRadialSegments: TORUS_MESH_DETAIL.radialSegments,
+  torusTubularSegments: TORUS_MESH_DETAIL.tubularSegments,
   tubeRatio: 0.28,
 })
 
@@ -304,6 +307,7 @@ const replaceMetrics = (
 }
 
 const materialObjects = (
+  form: FormSkinLabForm,
   geometry: FormGeometry,
   skinId: FormSkinId,
   color: Color,
@@ -317,11 +321,16 @@ const materialObjects = (
       return [
         new Mesh(
           geometry.mesh,
-          createQuantumFilmMaterial(color, {
-            glowIntensity,
-            highlightSize,
-            opacity,
-          }),
+          form === "sphere"
+            ? createQuantumSphereMaterial(color, {
+              glowIntensity,
+              opacity,
+            })
+            : createQuantumFilmMaterial(color, {
+              glowIntensity,
+              highlightSize,
+              opacity,
+            }),
         ),
       ]
     case "wire":
@@ -425,6 +434,8 @@ export const createFormSkinLab = async (): Promise<FormSkinLab> => {
   let active = false
   let disposed = false
   let form: FormSkinLabForm = "sphere"
+  let torusHighlightSize = 0
+  elements.highlightSize.value = String(SPHERE_QUANTUM_HIGHLIGHT_SIZE)
   const annotation = createPageAnnotationLayer({
     sourceCanvas: elements.canvas,
     viewer: elements.canvas.parentElement ??
@@ -514,10 +525,15 @@ export const createFormSkinLab = async (): Promise<FormSkinLab> => {
     elements.pixelRatioOutput.value = `${Number(elements.pixelRatio.value).toFixed(2)}×`
     elements.glowOutput.value = Number(elements.glow.value).toFixed(1)
     elements.highlightSizeOutput.value =
-      Number(elements.highlightSize.value).toFixed(2)
+      (
+        form === "sphere"
+          ? SPHERE_QUANTUM_HIGHLIGHT_SIZE
+          : Number(elements.highlightSize.value)
+      ).toFixed(2)
     elements.opacityOutput.value = Number(elements.opacity.value).toFixed(2)
     elements.glow.disabled = selectedSkin() === "wire" || selectedSkin() === "solid"
-    elements.highlightSize.disabled = selectedSkin() !== "quantum"
+    elements.highlightSize.disabled =
+      form === "sphere" || selectedSkin() !== "quantum"
     elements.opacity.disabled = selectedSkin() === "solid"
     for (const button of elements.variants.querySelectorAll<HTMLButtonElement>("button")) {
       button.classList.toggle("active", button.dataset.skin === selectedSkin())
@@ -589,6 +605,7 @@ export const createFormSkinLab = async (): Promise<FormSkinLab> => {
       )
       if (form === "torus") root.rotation.x = Math.PI / 2
       for (const object of materialObjects(
+        form,
         geometry,
         skinId,
         color,
@@ -839,6 +856,9 @@ export const createFormSkinLab = async (): Promise<FormSkinLab> => {
     rebuild(false)
   })
   elements.highlightSize.addEventListener("input", () => {
+    if (form === "torus") {
+      torusHighlightSize = Number(elements.highlightSize.value)
+    }
     cancelBenchmark()
     comparisons.delete(selectedSkin())
     rebuild(false)
@@ -902,7 +922,15 @@ export const createFormSkinLab = async (): Promise<FormSkinLab> => {
       active = true
       if (form !== nextForm) {
         annotation.hide()
+        if (form === "torus") {
+          torusHighlightSize = Number(elements.highlightSize.value)
+        }
         form = nextForm
+        elements.highlightSize.value = String(
+          form === "sphere"
+            ? SPHERE_QUANTUM_HIGHLIGHT_SIZE
+            : torusHighlightSize,
+        )
         clearComparisons()
         elements.title.textContent = form === "sphere"
           ? "Sphere · скины формы"

@@ -37,7 +37,7 @@ export function requestNativeSoftKeyboard(): void {
   try {
     bridge?.show?.()
   } catch {
-    // The bridge is best-effort and only exists in Android WebView shells.
+    // The bridge is best-effort and only exists in Android WebView hosts.
   }
   const virtualKeyboard = (navigator as Navigator & {virtualKeyboard?: {show?: () => void}}).virtualKeyboard
   try {
@@ -52,7 +52,7 @@ export function hideNativeSoftKeyboard(): void {
   try {
     bridge?.hide?.()
   } catch {
-    // The bridge is best-effort and only exists in Android WebView shells.
+    // The bridge is best-effort and only exists in Android WebView hosts.
   }
   const virtualKeyboard = (navigator as Navigator & {virtualKeyboard?: {hide?: () => void}}).virtualKeyboard
   try {

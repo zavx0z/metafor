@@ -9,12 +9,13 @@ describe("Visual playground nested navigation", () => {
     ])
 
     expect(page).toContain("<h1>Visual layouts</h1>")
-    expect(page).toContain('id="outside-in-canvas"')
+    expect(page).toContain('id="layout-canvas"')
     expect(client).toContain('layoutSection.textContent = "Layouts"')
     expect(client).toContain("for (const layout of Visual)")
     expect(client).not.toContain("for (const component of Visual)")
     expect(client).toContain("link.dataset.status = layout.status")
     expect(client).toContain("`#/${OutsideIn.slug}`")
+    expect(client).toContain("buildCenteredNestedVisualScene")
     expect(client).not.toContain("minimumReadableDiameterPx")
     expect(page).not.toContain('id="inner"')
     expect(page).not.toContain('id="radius"')
@@ -73,7 +74,10 @@ describe("Visual playground nested navigation", () => {
     )
     expect(client).toContain('parent: "Fields"')
     expect(client).toContain(
-      'tabs: [{href: "#/analysis-fields", label: "Псевдосфера"}]',
+      '{href: "#/analysis-fields", label: "Псевдосфера"}',
+    )
+    expect(client).toContain(
+      '{href: "#/analysis-fields/circle", label: "Псевдокруг"}',
     )
     expect(client).toContain('fieldsAnalysisLink.textContent = "Fields"')
     expect(client).not.toContain('showSectionTabs("Form skins", slug)')

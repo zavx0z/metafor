@@ -368,13 +368,15 @@ export function buildBulkManifestation(
 
   const fieldParticleInputFromBoundaryField = (atom: AtomRecord, field: BulkRuntimeField): BulkFieldParticleInput => {
     const kind = fieldParticleKind(field.type)
+    const valueId = atomValueByAtomField.get(`${atom.id}\0${field.id}`) ?? null
     return {
       fieldParticleId: fieldParticleIdFromAtomField(atom.id, field.id),
       fieldId: field.id,
+      valueId,
       fieldKey: field.key,
       fieldLabel: field.label ?? field.key,
       fieldParticleKind: kind,
-      valueText: valueText(atomValueByAtomField.get(`${atom.id}\0${field.id}`), valuesById, valueItemsById),
+      valueText: valueText(valueId ?? undefined, valuesById, valueItemsById),
       ...fieldParticleColor(kind),
     }
   }

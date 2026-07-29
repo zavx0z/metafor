@@ -106,6 +106,9 @@ describe("State Graph layered layout", () => {
       type: "boolean",
     }])
     expect(next?.fields).toEqual([])
+    expect(start?.fieldRadius).toBe(next?.fieldRadius)
+    expect(start?.radius).toBeGreaterThan(next?.radius ?? 0)
+    expect(start?.innerRadius).toBeGreaterThan(next?.innerRadius ?? 0)
   })
 
   test("describes every path sharing the selected start State", () => {

@@ -6,6 +6,22 @@ export {
   type FieldParticleVisual,
 } from "./Field.ts"
 export {Fields} from "./Fields.ts"
+export {
+  CenteredNested,
+  buildCenteredNestedVisualScene,
+  layoutCenteredNestedFields,
+  type CenteredNestedFieldBandKind,
+  type CenteredNestedFieldPlacement,
+  type CenteredNestedOwnerLayouts,
+  type CenteredNestedVisualScene,
+} from "./CenteredNested.ts"
+export {
+  distributeOnPseudoSphere,
+  layoutFieldsInPseudoCircle,
+  pseudoSphereRadiusForFieldCount,
+  type PseudoCircleLayout,
+  type PseudoSpherePoint,
+} from "./FieldsLayout.ts"
 export {Finally} from "./Finally.ts"
 export {Matter} from "./Matter.ts"
 export {Process} from "./Process.ts"
@@ -18,8 +34,11 @@ export {
 } from "./State.ts"
 export {
   createQuantumFilmMaterial,
+  createQuantumSphereMaterial,
   deriveQuantumFilmPalette,
+  SPHERE_QUANTUM_HIGHLIGHT_SIZE,
   type QuantumFilmOptions,
+  type QuantumSphereOptions,
 } from "./QuantumFilm.ts"
 export {
   States,
@@ -39,6 +58,7 @@ export {
 export {
   buildStateGraphRootLayout,
   describeStateGraphRoot,
+  resolveStateGraphNodeGeometry,
   type StateGraphLayoutEdge,
   type StateGraphLayoutLevel,
   type StateGraphLayoutNode,
@@ -60,10 +80,15 @@ export {
 } from "./StateGraphViewport.ts"
 export {
   TORUS_FORM_RATIOS,
+  TORUS_LAYOUT_BASELINE,
   TORUS_MESH_DETAIL,
   defineTorusComponent,
+  resolveContentTorusForm,
+  resolveEmptyTorusForm,
   resolveSelfSimilarTorusForm,
   resolveTorusForm,
+  torusFieldRadiusAtLevel,
+  torusLevelScale,
   type TorusComponent,
   type TorusForm,
   type TorusPlacement,
@@ -72,8 +97,12 @@ export {Transition} from "./Transition.ts"
 export {
   OutsideIn,
   buildOutsideInVisualScene,
+  packStateSleeves,
   type OutsideInOwnerLayouts,
   type OutsideInVisualScene,
+  type StateSleevePackingEnvelope,
+  type StateSleevePacking,
+  type StateSleevePackingDisk,
 } from "./OutsideIn.ts"
 export {
   countVisualScene,

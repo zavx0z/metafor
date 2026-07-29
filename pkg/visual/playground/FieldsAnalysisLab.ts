@@ -1,5 +1,6 @@
 import type {BulkFieldParticle} from "@metafor/types/bulk/manifest"
 import {
+  BufferAttribute,
   BufferGeometry,
   Color,
   LineBasicMaterial,
@@ -10,59 +11,40 @@ import {
   SphereGeometry,
   ViewPoint,
 } from "@metafor/engine"
-import {createQuantumFilmMaterial} from "../QuantumFilm.ts"
+import {
+  distributeOnPseudoSphere,
+  layoutFieldsInPseudoCircle as resolvePseudoCircleLayout,
+  pseudoSphereRadiusForFieldCount as resolvePseudoSphereRadius,
+  type PseudoCircleLayout,
+  type PseudoSpherePoint,
+} from "../FieldsLayout.ts"
+import {createQuantumSphereMaterial} from "../QuantumFilm.ts"
 import {createPageAnnotationLayer} from "./AnnotationLayer.ts"
 
 export const FIELDS_PSEUDO_SPHERE_MARKER_RADIUS = 1.35
 
-export type PseudoSpherePoint = Readonly<{
-  x: number
-  y: number
-  z: number
-}>
+export {distributeOnPseudoSphere, type PseudoSpherePoint}
 
-export const distributeOnPseudoSphere = (
-  count: number,
-  radius: number,
-): readonly PseudoSpherePoint[] => {
-  const safeCount = Math.max(0, Math.floor(count))
-  const safeRadius = Math.max(0, radius)
-  if (safeCount === 0) return []
-  const goldenAngle = Math.PI * (3 - Math.sqrt(5))
-  return Array.from({length: safeCount}, (_, index) => {
-    const z = 1 - 2 * (index + 0.5) / safeCount
-    const planarRadius = Math.sqrt(Math.max(0, 1 - z * z))
-    const angle = index * goldenAngle
-    return {
-      x: Math.cos(angle) * planarRadius * safeRadius,
-      y: Math.sin(angle) * planarRadius * safeRadius,
-      z: z * safeRadius,
-    }
-  })
-}
+export type FieldsAnalysisMode = "circle" | "sphere"
 
 export const pseudoSphereRadiusForFieldCount = (count: number): number => {
-  const safeCount = Math.max(1, Math.floor(count))
-  if (safeCount === 1) return 0
-  const unitPoints = distributeOnPseudoSphere(safeCount, 1)
-  let minimumChord = Number.POSITIVE_INFINITY
-  for (let left = 0; left < unitPoints.length; left += 1) {
-    const from = unitPoints[left]!
-    for (let right = left + 1; right < unitPoints.length; right += 1) {
-      const to = unitPoints[right]!
-      minimumChord = Math.min(
-        minimumChord,
-        Math.hypot(from.x - to.x, from.y - to.y, from.z - to.z),
-      )
-    }
-  }
-  return FIELDS_PSEUDO_SPHERE_MARKER_RADIUS * 2 / minimumChord
+  return resolvePseudoSphereRadius(
+    count,
+    FIELDS_PSEUDO_SPHERE_MARKER_RADIUS,
+  )
 }
+
+export const layoutFieldsInPseudoCircle = (
+  count: number,
+): PseudoCircleLayout => resolvePseudoCircleLayout(
+  Number.isFinite(count) ? Math.max(1, Math.floor(count)) : 1,
+  FIELDS_PSEUDO_SPHERE_MARKER_RADIUS,
+)
 
 export type FieldsAnalysisLab = Readonly<{
   dispose(): void
   hide(): void
-  show(): void
+  show(mode: FieldsAnalysisMode): void
 }>
 
 type LabElements = Readonly<{
@@ -70,8 +52,11 @@ type LabElements = Readonly<{
   count: HTMLOutputElement
   countControl: HTMLInputElement
   countControlOutput: HTMLOutputElement
+  description: HTMLParagraphElement
+  distributionLabel: HTMLSpanElement
   markerRadius: HTMLOutputElement
   distributionRadius: HTMLOutputElement
+  title: HTMLHeadingElement
   types: HTMLOutputElement
 }>
 
@@ -88,15 +73,41 @@ const labElements = (): LabElements => ({
     requireElement<HTMLInputElement>("fields-analysis-count-control"),
   countControlOutput:
     requireElement<HTMLOutputElement>("fields-analysis-count-control-output"),
+  description:
+    requireElement<HTMLParagraphElement>("fields-analysis-description"),
+  distributionLabel:
+    requireElement<HTMLSpanElement>("fields-analysis-distribution-label"),
   markerRadius:
     requireElement<HTMLOutputElement>("fields-analysis-marker-radius"),
   distributionRadius:
     requireElement<HTMLOutputElement>("fields-analysis-distribution-radius"),
+  title: requireElement<HTMLHeadingElement>("fields-analysis-title"),
   types: requireElement<HTMLOutputElement>("fields-analysis-types"),
 })
 
 const colorKey = (field: BulkFieldParticle): string =>
   `${field.colorR.toFixed(6)}:${field.colorG.toFixed(6)}:${field.colorB.toFixed(6)}`
+
+const circleGuideGeometry = (
+  radius: number,
+  segments = 128,
+): BufferGeometry => {
+  const positions = new Float32Array(segments * 6)
+  let offset = 0
+  for (let index = 0; index < segments; index += 1) {
+    const from = index / segments * Math.PI * 2
+    const to = (index + 1) / segments * Math.PI * 2
+    positions[offset++] = Math.cos(from) * radius
+    positions[offset++] = Math.sin(from) * radius
+    positions[offset++] = 0
+    positions[offset++] = Math.cos(to) * radius
+    positions[offset++] = Math.sin(to) * radius
+    positions[offset++] = 0
+  }
+  const geometry = new BufferGeometry()
+  geometry.setAttribute("position", new BufferAttribute(positions, 3))
+  return geometry
+}
 
 export const createFieldsAnalysisLab = async (
   fields: readonly BulkFieldParticle[],
@@ -108,9 +119,11 @@ export const createFieldsAnalysisLab = async (
   const space = new Space()
   space.background = new Color(0.006, 0.014, 0.024)
   const maximumCount = Math.max(1, Number(elements.countControl.max))
-  const maximumOuterRadius =
+  const maximumSphereOuterRadius =
     pseudoSphereRadiusForFieldCount(maximumCount) +
     FIELDS_PSEUDO_SPHERE_MARKER_RADIUS
+  const maximumCircleOuterRadius =
+    layoutFieldsInPseudoCircle(maximumCount).radius
   const viewPoint = new ViewPoint({
     element: elements.canvas,
     fov: Math.PI / 3.4,
@@ -118,8 +131,8 @@ export const createFieldsAnalysisLab = async (
     far: 10000,
     position: {
       x: 0,
-      y: -maximumOuterRadius * 2.25,
-      z: maximumOuterRadius * 0.8,
+      y: -maximumSphereOuterRadius * 2.25,
+      z: maximumSphereOuterRadius * 0.8,
     },
     target: {x: 0, y: 0, z: 0},
   })
@@ -130,20 +143,22 @@ export const createFieldsAnalysisLab = async (
     widthSegments: 24,
     heightSegments: 16,
   })
-  const materials = new Map<string, ReturnType<typeof createQuantumFilmMaterial>>()
+  const materials = new Map<
+    string,
+    ReturnType<typeof createQuantumSphereMaterial>
+  >()
   const materialFor = (
     field: BulkFieldParticle | undefined,
-  ): ReturnType<typeof createQuantumFilmMaterial> => {
+  ): ReturnType<typeof createQuantumSphereMaterial> => {
     const key = field ? colorKey(field) : "fallback"
     const existing = materials.get(key)
     if (existing) return existing
-    const material = createQuantumFilmMaterial(
+    const material = createQuantumSphereMaterial(
       field
         ? new Color(field.colorR, field.colorG, field.colorB)
         : new Color(0.2, 0.82, 1),
       {
         glowIntensity: 3.1,
-        highlightSize: 0,
         opacity: 0.7,
       },
     )
@@ -155,16 +170,51 @@ export const createFieldsAnalysisLab = async (
   let active = false
   let disposed = false
   let frame = 0
+  let mode: FieldsAnalysisMode = "sphere"
+  const resetView = (): void => {
+    viewPoint.getTarget().set(0, 0, 0)
+    if (mode === "circle") {
+      viewPoint.position.set(0, 0, maximumCircleOuterRadius * 2.25)
+      viewPoint.getUp().set(0, 1, 0)
+    } else {
+      viewPoint.position.set(
+        0,
+        -maximumSphereOuterRadius * 2.25,
+        maximumSphereOuterRadius * 0.8,
+      )
+      viewPoint.getUp().set(0, 0, 1)
+    }
+    viewPoint.update()
+  }
+  const syncPresentation = (): void => {
+    const circle = mode === "circle"
+    elements.title.textContent = circle
+      ? "Fields · псевдокруг"
+      : "Fields · псевдосфера"
+    elements.description.textContent = circle
+      ? "Fields заполняют всю площадь плоского круга гексагональной плотной упаковкой. Ближайшие сферы касаются без пересечений."
+      : "Центры Field равномерно распределены по поверхности Фибоначчиевой псевдосферы. Выбирается минимальный радиус без пересечений."
+    elements.distributionLabel.textContent = circle
+      ? "Радиус внешнего круга"
+      : "Радиус псевдосферы"
+  }
   const rebuild = (): void => {
     for (const child of [...space.children]) space.remove(child)
     if (guideGeometry) renderer.invalidateGeometry(guideGeometry)
     const count = Math.max(1, Math.floor(Number(elements.countControl.value)))
-    const distributionRadius = pseudoSphereRadiusForFieldCount(count)
-    guideGeometry = new SphereGeometry({
-      radius: distributionRadius,
-      widthSegments: 32,
-      heightSegments: 20,
-    }).toWireframe()
+    const circleLayout = mode === "circle"
+      ? layoutFieldsInPseudoCircle(count)
+      : null
+    const distributionRadius = mode === "circle"
+      ? circleLayout!.radius
+      : pseudoSphereRadiusForFieldCount(count)
+    guideGeometry = mode === "circle"
+      ? circleGuideGeometry(distributionRadius)
+      : new SphereGeometry({
+        radius: distributionRadius,
+        widthSegments: 32,
+        heightSegments: 20,
+      }).toWireframe()
     const guide = new LineSegments(
       guideGeometry,
       new LineBasicMaterial({
@@ -174,7 +224,9 @@ export const createFieldsAnalysisLab = async (
     )
     guide.frustumCulled = false
     space.add(guide)
-    const points = distributeOnPseudoSphere(count, distributionRadius)
+    const points = mode === "circle"
+      ? circleLayout!.points
+      : distributeOnPseudoSphere(count, distributionRadius)
     for (let index = 0; index < count; index += 1) {
       const field = fields.length === 0
         ? undefined
@@ -209,8 +261,10 @@ export const createFieldsAnalysisLab = async (
       canvasId: elements.canvas.id,
       kind: "playground-page",
       route: window.location.hash,
-      slug: "analysis-fields",
-      title: "Fields · поверхность псевдосферы",
+      slug: mode === "circle" ? "analysis-fields-circle" : "analysis-fields",
+      title: mode === "circle"
+        ? "Fields · площадь плоского псевдокруга"
+        : "Fields · поверхность псевдосферы",
     }),
   })
 
@@ -271,9 +325,16 @@ export const createFieldsAnalysisLab = async (
       frame = 0
       annotation.hide()
     },
-    show() {
+    show(nextMode) {
+      const changed = mode !== nextMode
+      mode = nextMode
       active = true
       annotation.show()
+      syncPresentation()
+      if (changed) {
+        resetView()
+        rebuild()
+      }
       resize()
       requestRender()
     },

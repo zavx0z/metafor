@@ -28,13 +28,14 @@ describe("Form Skin Lab", () => {
     expect(FORM_SKIN_GEOMETRY).toEqual({
       detail: 48,
       size: 8,
-      torusRadialSegments: 22,
-      torusTubularSegments: 44,
+      torusRadialSegments: 32,
+      torusTubularSegments: 192,
       tubeRatio: 0.28,
     })
-    const page = await Bun.file(
-      new URL("./index.html", import.meta.url),
-    ).text()
+    const [page, source] = await Promise.all([
+      Bun.file(new URL("./index.html", import.meta.url)).text(),
+      Bun.file(new URL("./FormSkinLab.ts", import.meta.url)).text(),
+    ])
 
     expect(page).not.toContain("form-skin-detail")
     expect(page).not.toContain("form-skin-size")
@@ -45,8 +46,11 @@ describe("Form Skin Lab", () => {
     expect(page).toContain("form-skin-highlight-size")
     expect(page).toContain("Размер бликов")
     expect(page).toContain(
-      'id="form-skin-highlight-size" type="range" min="0" max="1" step="0.05" value="0"',
+      'id="form-skin-highlight-size" type="range" min="0" max="1" step="0.05" value="1"',
     )
+    expect(source).toContain("createQuantumSphereMaterial")
+    expect(source).toContain("form === \"sphere\"")
+    expect(source).toContain("SPHERE_QUANTUM_HIGHLIGHT_SIZE")
     expect(page).toContain("form-skin-run-current")
     expect(page).toContain("form-skin-run-all")
 
@@ -54,7 +58,7 @@ describe("Form Skin Lab", () => {
       radial: FORM_SKIN_GEOMETRY.torusRadialSegments,
       tubular: FORM_SKIN_GEOMETRY.torusTubularSegments,
     })
-    expect(torus.mesh.index?.count).toBe(22 * 44 * 6)
+    expect(torus.mesh.index?.count).toBe(32 * 192 * 6)
   })
 
   test("derives film and glow tones from one selected color", () => {

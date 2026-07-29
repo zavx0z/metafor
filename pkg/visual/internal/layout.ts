@@ -1,4 +1,4 @@
-export type VisualLayoutSlug = "outside-in"
+export type VisualLayoutSlug = "centered-nested" | "outside-in"
 
 export type VisualLayoutStatus = "in-progress" | "ready"
 

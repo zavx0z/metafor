@@ -2,6 +2,7 @@ import {describe, expect, test} from "bun:test"
 import {
   FIELDS_PSEUDO_SPHERE_MARKER_RADIUS,
   distributeOnPseudoSphere,
+  layoutFieldsInPseudoCircle,
   pseudoSphereRadiusForFieldCount,
 } from "./FieldsAnalysisLab.ts"
 
@@ -46,17 +47,48 @@ describe("Fields Analysis Lab", () => {
       .toBeGreaterThan(pseudoSphereRadiusForFieldCount(54))
   })
 
-  test("uses the shared Quantum Film skin without an idle animation", async () => {
+  test("packs equal Fields across a flat circle on a dense hexagonal lattice", () => {
+    for (const count of [2, 3, 17, 54, 128]) {
+      const {points, radius} = layoutFieldsInPseudoCircle(count)
+      expect(points).toHaveLength(count)
+      expect(points.every((point) => point.z === 0)).toBe(true)
+      let minimumDistance = Number.POSITIVE_INFINITY
+      for (let left = 0; left < points.length; left += 1) {
+        const point = points[left]!
+        expect(Math.hypot(point.x, point.y) +
+          FIELDS_PSEUDO_SPHERE_MARKER_RADIUS).toBeLessThanOrEqual(radius)
+        for (let right = left + 1; right < points.length; right += 1) {
+          const peer = points[right]!
+          minimumDistance = Math.min(
+            minimumDistance,
+            Math.hypot(point.x - peer.x, point.y - peer.y),
+          )
+        }
+      }
+      expect(minimumDistance)
+        .toBeCloseTo(FIELDS_PSEUDO_SPHERE_MARKER_RADIUS * 2)
+    }
+    const disk = layoutFieldsInPseudoCircle(54)
+    expect(new Set(disk.points.map((point) =>
+      Math.hypot(point.x, point.y).toFixed(3)
+    )).size).toBeGreaterThan(3)
+    expect(layoutFieldsInPseudoCircle(128).radius)
+      .toBeGreaterThan(layoutFieldsInPseudoCircle(54).radius)
+  })
+
+  test("uses the fixed-highlight Sphere skin without an idle animation", async () => {
     const [source, page] = await Promise.all([
       Bun.file(new URL("./FieldsAnalysisLab.ts", import.meta.url)).text(),
       Bun.file(new URL("./index.html", import.meta.url)).text(),
     ])
 
-    expect(source).toContain("createQuantumFilmMaterial")
-    expect(source).toContain("highlightSize: 0")
+    expect(source).toContain("createQuantumSphereMaterial")
+    expect(source).not.toContain("createQuantumFilmMaterial")
+    expect(source).not.toContain("highlightSize:")
     expect(source).not.toContain("renderLoop")
     expect(page).toContain('id="fields-analysis-stage"')
     expect(page).toContain('id="fields-analysis-canvas"')
     expect(page).toContain('id="fields-analysis-count-control"')
+    expect(page).toContain('id="fields-analysis-title"')
   })
 })

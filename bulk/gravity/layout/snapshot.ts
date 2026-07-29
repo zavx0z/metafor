@@ -16,6 +16,7 @@ const cloneFieldParticleInput = (
 ): LayoutFieldParticleNode => ({
   fieldParticleId: fieldParticle.fieldParticleId,
   fieldId: fieldParticle.fieldId,
+  valueId: fieldParticle.valueId,
   parentDarkParticleId: descriptor.darkParticleId,
   fieldKey: fieldParticle.fieldKey,
   fieldLabel: fieldParticle.fieldLabel,
@@ -261,6 +262,7 @@ const flattenDarkParticleNode = (
     fieldParticles.push({
       fieldParticleId: fieldParticle.fieldParticleId,
       fieldId: fieldParticle.fieldId,
+      valueId: fieldParticle.valueId,
       parentDarkParticleId: node.darkParticleId,
       fieldKey: fieldParticle.fieldKey,
       fieldLabel: fieldParticle.fieldLabel,

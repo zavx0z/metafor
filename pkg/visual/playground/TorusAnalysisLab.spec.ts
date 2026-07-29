@@ -53,8 +53,8 @@ describe("Torus Analysis Lab", () => {
     expect(METAFOR_TORUS_DEFAULTS).toEqual({
       radius: 27.78,
       tube: 22.22,
-      radialSegments: 22,
-      tubularSegments: 44,
+      radialSegments: 32,
+      tubularSegments: 192,
       arc: 6.28,
       thetaStart: -0.003,
       thetaLength: 6.28,

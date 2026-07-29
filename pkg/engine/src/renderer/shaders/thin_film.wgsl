@@ -111,7 +111,9 @@ fn fs_main(
     let keyHighlight = pow(keyFacing, mix(120.0, 12.0, highlightSize));
     let keySheen = pow(keyFacing, mix(12.0, 3.0, highlightSize));
     let fillHighlight = pow(fillFacing, mix(60.0, 7.0, highlightSize));
-    let highlightEnergy = mix(1.0, 0.72, highlightSize);
+    let highlightVisibility = smoothstep(0.0, 0.2, highlightSize);
+    let highlightEnergy =
+        mix(1.0, 0.72, highlightSize) * highlightVisibility;
 
     // A wide reflection band keeps the membrane readable between the pin
     // highlights and the silhouette, like a large softbox on a soap bubble.
@@ -133,9 +135,9 @@ fn fs_main(
         filmTint * reflectionBand * (0.18 + fresnel * 0.28);
     let alpha = clamp(
         opacity * (0.045 + fresnel * 0.955) +
-        keyHighlight * 0.4 +
-        keySheen * 0.035 +
-        fillHighlight * 0.065 +
+        keyHighlight * 0.4 * highlightVisibility +
+        keySheen * 0.035 * highlightVisibility +
+        fillHighlight * 0.065 * highlightVisibility +
         reflectionBand * 0.035,
         0.0,
         0.92

@@ -6,6 +6,10 @@ export type QuantumFilmOptions = Readonly<{
   opacity?: number
 }>
 
+export type QuantumSphereOptions = Omit<QuantumFilmOptions, "highlightSize">
+
+export const SPHERE_QUANTUM_HIGHLIGHT_SIZE = 1
+
 export const deriveQuantumFilmPalette = (
   color: Color,
   opacity: number,
@@ -42,3 +46,11 @@ export const createQuantumFilmMaterial = (
     highlightSize,
   })
 }
+
+export const createQuantumSphereMaterial = (
+  color: Color,
+  options: QuantumSphereOptions = {},
+): ThinFilmMaterial => createQuantumFilmMaterial(color, {
+  ...options,
+  highlightSize: SPHERE_QUANTUM_HIGHLIGHT_SIZE,
+})

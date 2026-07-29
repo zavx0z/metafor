@@ -4,8 +4,17 @@ import type {
   StateGraphSleeve,
   StateGraphTransition,
 } from "./StateGraph.ts"
+import {layoutFieldsInPseudoCircle} from "./FieldsLayout.ts"
+import {
+  TORUS_LAYOUT_BASELINE,
+  resolveContentTorusForm,
+} from "./Torus.ts"
 
-const NODE_RADIUS = 3.2
+const NODE_EMPTY_OUTER_RADIUS = 3.2
+const NODE_FIELD_RADIUS =
+  NODE_EMPTY_OUTER_RADIUS *
+  TORUS_LAYOUT_BASELINE.rootFieldRadius /
+  TORUS_LAYOUT_BASELINE.rootOuterRadius
 const LEVEL_STEP = 22
 const ROW_STEP = 15
 
@@ -18,8 +27,10 @@ export type StateGraphLayoutNode = Readonly<{
   color: readonly [number, number, number]
   current: boolean
   end: StateGraphLayoutNodeEnd
+  fieldRadius: number
   fields: readonly StateGraphField[]
   id: string
+  innerRadius: number
   label: string
   radius: number
   stateId: number
@@ -66,8 +77,10 @@ type MutableLayoutNode = {
   color: readonly [number, number, number]
   current: boolean
   end: StateGraphLayoutNodeEnd
+  fieldRadius: number
   fields: readonly StateGraphField[]
   id: string
+  innerRadius: number
   label: string
   radius: number
   stateId: number
@@ -125,6 +138,34 @@ const transitionOrder = (
   right: StateGraphTransition,
 ): number => left.position - right.position || left.id - right.id
 
+export const resolveStateGraphNodeGeometry = (
+  fields: readonly StateGraphField[],
+  emptyOuterRadius: number,
+  fieldRadius: number,
+): Readonly<{
+  fieldRadius: number
+  innerRadius: number
+  outerRadius: number
+}> => {
+  const safeFieldRadius = Number.isFinite(fieldRadius)
+    ? Math.max(0.001, fieldRadius)
+    : 0.001
+  const coreExtent = layoutFieldsInPseudoCircle(
+    fields.length,
+    safeFieldRadius,
+  ).radius
+  const form = resolveContentTorusForm({
+    emptyOuterRadius,
+    coreExtent,
+    gap: safeFieldRadius * TORUS_LAYOUT_BASELINE.contentGapToFieldRadius,
+  })
+  return {
+    fieldRadius: safeFieldRadius,
+    innerRadius: form.innerRadius,
+    outerRadius: form.outerRadius,
+  }
+}
+
 const pathText = (
   graph: StateGraph,
   sleeve: StateGraphSleeve,
@@ -169,6 +210,25 @@ export const buildStateGraphRootLayout = (
     id: string,
   ): MutableLayoutNode => {
     const missing = end === "missing-state"
+    const fields = [
+      ...new Set(
+        (outgoing.get(stateId) ?? []).flatMap((transition) =>
+          transition.conditions.map((condition) => condition.fieldId)
+        ),
+      ),
+    ].map((fieldId) =>
+      fieldById.get(fieldId) ?? {
+        id: fieldId,
+        key: `field-${fieldId}`,
+        label: `Field ${fieldId}`,
+        type: "string" as const,
+      }
+    )
+    const geometry = resolveStateGraphNodeGeometry(
+      fields,
+      NODE_EMPTY_OUTER_RADIUS,
+      NODE_FIELD_RADIUS,
+    )
     const node: MutableLayoutNode = {
       id,
       stateId,
@@ -177,26 +237,15 @@ export const buildStateGraphRootLayout = (
       x: step * LEVEL_STEP,
       y: 0,
       z: 0,
-      radius: NODE_RADIUS,
+      radius: geometry.outerRadius,
+      innerRadius: geometry.innerRadius,
+      fieldRadius: geometry.fieldRadius,
       color: missing
         ? [1, 0.24, 0.28]
         : colors.get(stateId) ?? [0.72, 0.78, 0.88],
       current: !missing && stateId === graph.currentStateId,
       end,
-      fields: [
-        ...new Set(
-          (outgoing.get(stateId) ?? []).flatMap((transition) =>
-            transition.conditions.map((condition) => condition.fieldId)
-          ),
-        ),
-      ].map((fieldId) =>
-        fieldById.get(fieldId) ?? {
-          id: fieldId,
-          key: `field-${fieldId}`,
-          label: `Field ${fieldId}`,
-          type: "string" as const,
-        }
-      ),
+      fields,
     }
     nodes.push(node)
     return node

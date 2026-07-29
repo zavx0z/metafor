@@ -2,10 +2,11 @@
 
 `@metafor/visual` exposes named complete-snapshot layouts. The playground
 navigation lists these layouts rather than enumerating semantic entities.
-`outside-in` is the current in-progress layout; a future `inside-out` will be
-an independent strategy over the same snapshot. Semantic components remain at
-the package root as reusable primitives, shared low-level code lives in
-`internal/`, and `index.ts` is the only production barrel.
+`outside-in` and `centered-nested` are independent in-progress strategies over
+the same snapshot; a future `inside-out` will be another independent strategy.
+Semantic components remain at the package root as reusable primitives, shared
+low-level code lives in `internal/`, and `index.ts` is the only production
+barrel.
 
 The playground is a separate Bun browser entry:
 
@@ -46,27 +47,61 @@ The playground `#/outside-in` page composes every declared State sleeve of the
 root and every nested Atom into one static recursive scene. It reads the
 production manifestation as structural input but computes its own compact
 presentation geometry without changing the Bulk contract or source
-`BulkManifest`. Every Atom's nucleus retains its real Field particles and
-local lattice. The inner Torus edge is fitted directly around that actual
-nucleus. A Matter band is created only when immediate child Atom-Tori exist;
+`BulkManifest`. Every owning Torus retains its real Field particles and
+re-packs them with the shared deterministic hexagonal pseudo-circle layout
+promoted from `Analysis → Fields → Псевдокруг`. The inner Torus edge is fitted
+directly around that actual flat nucleus. A Matter band is created only when
+immediate child Tori exist;
 otherwise State begins immediately after the Field core. The outer Torus edge
 ends immediately after the actual State sleeves, so neither an empty Matter
 band nor a fixed production-sized envelope survives in this overview.
 
-Every declared State is the root of a separate fully expanded graph containing
-all reachable paths and branches. Graph distances contract to a non-overlapping
-static spacing, while every State keeps the owning Atom's exact Field/State
-marker radius. The resulting sleeves are packed once around the first
-available State orbit. Only Fields referenced by conditions of a State's
-outgoing Transitions appear as typed Spheres inside that State-Torus. Nested
-Atom scale remains the authored static parent transform; camera distance,
-viewport size and zoom never rescale an individual form.
+In `outside-in`, every declared State starts one separate fully expanded causal
+sleeve containing all reachable paths and branches. Repeated State occurrences
+in different sleeves preserve path context and are not collapsed into one
+State ring. Actual non-overlapping sleeve extents are packed once around the
+first available State orbit with at most three bounded linear polar-envelope
+passes and one weighted angular prefix pass. Each sleeve receives a sector
+proportional to its actual angular demand at the first available orbit; the
+direct sector constraint yields a safe radius and one fixed midpoint check may
+tighten it. There is no maximum-sized common slot, pairwise collision search,
+convergence loop or binary radius fitting. A structural
+snapshot change builds one new immutable scene in work proportional to its
+emitted occurrences, while the render loop consumes that scene without layout
+work. Inside each sleeve, fixed-size State Tori use one linear level sweep:
+adjacent node radii define row distances and adjacent level maxima define
+forward distances. Their code-owned minimum surface gap is one owning Field
+diameter at every self-similar level, both within a sleeve and between
+different sleeves. No all-pairs scale fitting remains. Only
+Fields referenced by conditions of a State's outgoing Transitions appear as
+typed Spheres inside that State-Torus. The empty
+root Torus has a 100 mm outer diameter
+(`radius = 27.78 mm`, `tube = 22.22 mm`) and an 11 mm Field radius. Empty Torus
+and Field baselines both halve at every containment level; actual content is
+never shrunk and instead grows its owning Torus outward. Camera distance,
+viewport size, production particle radii and browser state never rescale an
+individual form.
+
+The sibling `#/centered-nested` page keeps the same Torus, Field and State
+forms but gives every recursive Matter-Torus in one root tree a common world
+center. It reads canonical materialized `Value` identity carried by each
+manifested Field occurrence. Root Fields not shared with descendants keep the
+central pseudo-circle; all occurrences of a Value shared across Atom owners
+occupy the next common orbit; Fields private to an inner Atom occupy the next
+outer orbit. The law repeats by Matter depth. Every orbit starts one complete
+Field diameter of its level after the preceding occupied boundary and expands
+only when its Fields need more circumference. Shared Values do not collapse
+their distinct Field declaration identities.
+
 This page uses the same code-owned Torus component and Hermite forward/return
 convention as the isolated State Graph lab. Atom/Matter Tori, nucleus Fields,
 State-Tori and their condition Fields all reuse the shared one-pass `quantum`
 ThinFilm skin. State labels are omitted only in the composed Atom view; the
 isolated State Graph cards retain them. The shared quantum skin starts with
-`highlightSize = 0`.
+`highlightSize = 1` for every solid Sphere, including nucleus Fields and
+condition Fields. This value is fixed by the shared Sphere material and does
+not adapt to containment level, projected form size, camera or viewport.
+Torus forms retain their independent `highlightSize = 0` default.
 
 `Torus` is the self-similar visual component; `Atom` is one semantic owner of
 that form, not the form implementation itself. The same Torus component also
@@ -78,8 +113,8 @@ and orbit gap were not part of that law and are removed.
 `Sphere` and `Torus` beneath `Form skins` are an isolated Form Skin Lab. Both
 pages run the same skin catalog (`quantum`, `wire`, `glow`, `silhouette`,
 `solid`, `hybrid`) against one fixed geometry per form. The fixed Torus uses
-the agreed MetaFor resolution `radialSegments = 22` and
-`tubularSegments = 44`; State Graph and Atom State-Tori use the same segment
+the agreed MetaFor resolution `radialSegments = 32` and
+`tubularSegments = 192`; State Graph and Atom State-Tori use the same segment
 counts instead of their former lower-resolution local constants. `quantum` is the
 default one-pass `ThinFilmMaterial`: camera/normal Fresnel, bounded spectral
 interference and alpha blending produce a translucent soap-film surface without
@@ -89,10 +124,12 @@ darker translucent tone, while Fresnel, reflections and highlights receive a
 brighter tone of the same color instead of using a fixed palette.
 Geometric Torus controls do not live in the skin page; they are explored
 separately under `Analysis → Torus`.
-Copy count, pixel ratio, color, glow, highlight size and opacity remain
-playground-only skin and load inputs. Highlight size changes the analytic
-specular width without adding a render pass. There is no idle render loop and
-no automatic form rotation.
+Copy count, pixel ratio, color, glow and opacity remain playground-only skin
+and load inputs. Highlight size remains an input only for Torus; Sphere always
+uses the shared value `1`, so its control is disabled. Highlight size changes
+the analytic specular width without adding a render pass; zero disables
+localized highlights entirely. There is no idle render loop and no automatic
+form rotation.
 `Test current skin` explicitly starts a bounded dynamic measurement, while
 `Compare all skins` warms and measures every variant sequentially under the
 same fixed geometry and load. Both stop rendering when the requested
@@ -209,9 +246,9 @@ after its Sphere endpoint and does not shrink the Sphere movement area.
 All experimental controls and values stay inside the scene. The scene renders
 only after a parameter, view or camera change.
 
-`Fields` beneath `Analysis` is an isolated surface-packing laboratory over the
-static Monad snapshot. It distributes Field centers with a deterministic
-Fibonacci sequence on the surface of one pseudo-sphere. Every Field uses the
+`Fields` beneath `Analysis` keeps the spherical comparison over the static
+Monad snapshot. It distributes Field centers with a deterministic Fibonacci
+sequence on the surface of one pseudo-sphere. Every Field uses the
 shared `quantum` ThinFilm skin and its semantic type color from the
 manifestation; a subtle white wire sphere exposes the surface used by the
 layout. The `Количество Fields` control ranges from `1` to `128` and starts at
@@ -222,9 +259,21 @@ chord`. The nearest Field pair therefore touches without intersecting: this is
 the maximum-density sphere for the selected deterministic distribution. Its
 radius still grows with the Field count, so the form's growth remains directly
 observable. Counts above the snapshot size repeat its typed visual samples only
-inside this analysis experiment. The page renders only after a parameter,
-camera or viewport change. This experimental distribution does not change the
-production Bulk layout contract.
+inside this analysis page. The page renders only after a parameter, camera or
+viewport change. This spherical experiment remains available for comparison;
+named Visual layouts use the sibling pseudo-circle law. Production Bulk
+manifestation coordinates remain unchanged.
+
+The sibling route `#/analysis-fields/circle` visualizes the shared
+`Псевдокруг` layout. It fills the area of one flat circle with the same
+fixed-size typed Field Spheres instead of placing them only on its
+circumference. Centers occupy a triangular lattice with spacing equal to one
+Field diameter—the hexagonal close packing of equal circles in a plane. The
+deterministic compact subset nearest the origin is recentered, and its outer
+circle encloses every complete Field. It shares the count control, Quantum Film
+skin and static snapshot samples with the pseudo-sphere page. The same pure
+function receives the actual marker radius in named layouts and places both
+Torus nucleus Fields and condition Fields inside State-Torus.
 
 `Torus` beneath `Analysis` is a separate geometry laboratory, distinct from
 the Torus page in `Form skins`. Its first card exposes the current official
@@ -236,7 +285,7 @@ immutable Three.js default is shown separately from the editable MetaFor
 default. Clicking a parameter's `Наш default` stores its current slider value
 as the new browser-local MetaFor default and restores it on later playground
 loads. The code default is `radius = 27.78 mm`, `tube = 22.22 mm`,
-`radialSegments = 22`, `tubularSegments = 44`, `arc = 6.28`,
+`radialSegments = 32`, `tubularSegments = 192`, `arc = 6.28`,
 `thetaStart = -0.003` and `thetaLength = 6.28`. The scene shows the resulting
 wire geometry, construction guides and derived primitive counts. The
 `MetaFor` card exposes the agreed millimetre
