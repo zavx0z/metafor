@@ -18,6 +18,22 @@ const NODE_FIELD_RADIUS =
 const LEVEL_STEP = 22
 const ROW_STEP = 15
 
+export type StateGraphLayoutSizing = Readonly<{
+  emptyOuterRadius: number
+  fieldRadius: number
+  surfaceGap: number
+}>
+
+export const STATE_GRAPH_PRODUCTION_SIZING: StateGraphLayoutSizing = {
+  emptyOuterRadius:
+    TORUS_LAYOUT_BASELINE.rootOuterRadius *
+    TORUS_LAYOUT_BASELINE.levelScale,
+  fieldRadius:
+    TORUS_LAYOUT_BASELINE.rootFieldRadius *
+    TORUS_LAYOUT_BASELINE.levelScale,
+  surfaceGap: TORUS_LAYOUT_BASELINE.rootFieldRadius * 2,
+}
+
 export type StateGraphLayoutNodeEnd =
   | "missing-state"
   | "terminal"
@@ -188,6 +204,7 @@ const pathText = (
 export const buildStateGraphRootLayout = (
   graph: StateGraph,
   rootStateId: number,
+  sizing?: StateGraphLayoutSizing,
 ): StateGraphRootLayout => {
   const states = new Map(graph.states.map((state) => [state.id, state] as const))
   const colors = stateGraphColors(graph)
@@ -226,8 +243,8 @@ export const buildStateGraphRootLayout = (
     )
     const geometry = resolveStateGraphNodeGeometry(
       fields,
-      NODE_EMPTY_OUTER_RADIUS,
-      NODE_FIELD_RADIUS,
+      sizing?.emptyOuterRadius ?? NODE_EMPTY_OUTER_RADIUS,
+      sizing?.fieldRadius ?? NODE_FIELD_RADIUS,
     )
     const node: MutableLayoutNode = {
       id,
@@ -320,18 +337,56 @@ export const buildStateGraphRootLayout = (
           (states.get(right.stateId)?.position ?? Number.MAX_SAFE_INTEGER) ||
         left.stateId - right.stateId,
     )
-    for (const [index, node] of levelNodes.entries()) {
-      node.y = (index - (levelNodes.length - 1) / 2) * ROW_STEP
+    if (sizing) {
+      const positions = new Array<number>(levelNodes.length)
+      if (levelNodes.length > 0) positions[0] = 0
+      for (let index = 1; index < levelNodes.length; index += 1) {
+        positions[index] =
+          positions[index - 1]! +
+          levelNodes[index - 1]!.radius +
+          sizing.surfaceGap +
+          levelNodes[index]!.radius
+      }
+      const center = levelNodes.length === 0
+        ? 0
+        : (positions[0]! + positions.at(-1)!) * 0.5
+      for (const [index, node] of levelNodes.entries()) {
+        node.y = positions[index]! - center
+      }
+    } else {
+      for (const [index, node] of levelNodes.entries()) {
+        node.y = (index - (levelNodes.length - 1) / 2) * ROW_STEP
+      }
     }
   }
 
-  const levels = [...new Set(nodes.map((node) => node.step))]
+  const orderedSteps = [...new Set(nodes.map((node) => node.step))]
     .sort((left, right) => left - right)
-    .map((step) => ({
-      step,
-      x: step * LEVEL_STEP,
-      nodeIds: nodes.filter((node) => node.step === step).map((node) => node.id),
-    }))
+  const levelXByStep = new Map<number, number>()
+  let previousX = 0
+  let previousRadius = 0
+  for (const [index, step] of orderedSteps.entries()) {
+    const levelRadius = Math.max(
+      0,
+      ...nodes
+        .filter((node) => node.step === step)
+        .map((node) => node.radius),
+    )
+    const x = sizing && index > 0
+      ? previousX + previousRadius + sizing.surfaceGap + levelRadius
+      : step * LEVEL_STEP
+    levelXByStep.set(step, x)
+    previousX = x
+    previousRadius = levelRadius
+  }
+  for (const node of nodes) {
+    node.x = levelXByStep.get(node.step) ?? node.x
+  }
+  const levels = orderedSteps.map((step) => ({
+    step,
+    x: levelXByStep.get(step) ?? step * LEVEL_STEP,
+    nodeIds: nodes.filter((node) => node.step === step).map((node) => node.id),
+  }))
 
   return {
     rootStateId,
@@ -354,8 +409,13 @@ const pathPrefixKey = (
 export const buildStateGraphBranchLayout = (
   graph: StateGraph,
   rootStateId: number,
+  sizing?: StateGraphLayoutSizing,
 ): StateGraphRootLayout => {
-  const templateLayout = buildStateGraphRootLayout(graph, rootStateId)
+  const templateLayout = buildStateGraphRootLayout(
+    graph,
+    rootStateId,
+    sizing,
+  )
   const rootTemplate = templateLayout.nodes.find(
     (node) =>
       node.stateId === rootStateId &&
@@ -516,7 +576,7 @@ export const buildStateGraphBranchLayout = (
     (node) => (childrenByNodeId.get(node.id)?.size ?? 0) === 0,
   )
   for (const [index, leaf] of leaves.entries()) {
-    leaf.y = (index - (leaves.length - 1) / 2) * ROW_STEP
+    leaf.y = index - (leaves.length - 1) / 2
   }
   for (
     const node of [...nodes].sort(
@@ -532,15 +592,60 @@ export const buildStateGraphBranchLayout = (
     node.y = (Math.min(...childYs) + Math.max(...childYs)) / 2
   }
 
-  const levels = [...new Set(nodes.map((node) => node.step))]
+  const orderedSteps = [...new Set(nodes.map((node) => node.step))]
     .sort((left, right) => left - right)
-    .map((step) => ({
-      step,
-      x: step * levelDistance,
-      nodeIds: nodes
-        .filter((node) => node.step === step)
-        .map((node) => node.id),
-    }))
+  const nodesByStep = new Map(orderedSteps.map((step) => [
+    step,
+    nodes.filter((node) => node.step === step),
+  ] as const))
+  let laneStep = ROW_STEP
+  if (sizing) {
+    laneStep = 0
+    for (const levelNodes of nodesByStep.values()) {
+      const orderedNodes = [...levelNodes].sort(
+        (left, right) => left.y - right.y,
+      )
+      for (let index = 1; index < orderedNodes.length; index += 1) {
+        const previous = orderedNodes[index - 1]!
+        const current = orderedNodes[index]!
+        const laneDistance = current.y - previous.y
+        if (laneDistance <= 1e-9) continue
+        laneStep = Math.max(
+          laneStep,
+          (
+            previous.radius +
+            sizing.surfaceGap +
+            current.radius
+          ) / laneDistance,
+        )
+      }
+    }
+  }
+  for (const node of nodes) node.y *= laneStep
+
+  const levelXByStep = new Map<number, number>()
+  let previousX = 0
+  let previousRadius = 0
+  for (const [index, step] of orderedSteps.entries()) {
+    const levelRadius = Math.max(
+      0,
+      ...(nodesByStep.get(step) ?? []).map((node) => node.radius),
+    )
+    const x = sizing && index > 0
+      ? previousX + previousRadius + sizing.surfaceGap + levelRadius
+      : step * levelDistance
+    levelXByStep.set(step, x)
+    previousX = x
+    previousRadius = levelRadius
+  }
+  for (const node of nodes) {
+    node.x = levelXByStep.get(node.step) ?? node.x
+  }
+  const levels = orderedSteps.map((step) => ({
+    step,
+    x: levelXByStep.get(step) ?? step * levelDistance,
+    nodeIds: (nodesByStep.get(step) ?? []).map((node) => node.id),
+  }))
 
   return {
     rootStateId,

@@ -326,9 +326,9 @@ describe("outside-in Visual layout", () => {
       radius: 5.5,
     })
     expect(scene.layout.nodes.slice(0, 3).map((node) => node.fieldRadius))
-      .toEqual([5.5, 5.5, 5.5])
-    expect(scene.layout.nodes[0]!.radius)
-      .toBeGreaterThan(scene.layout.nodes[1]!.radius)
+      .toEqual([0.32, 0.32, 0.32])
+    expect(scene.layout.nodes.slice(0, 3).map((node) => node.radius))
+      .toEqual([3.2, 3.2, 3.2])
     expect(scene.layout.nodes[0]!.fields[0]?.id).toBe(7)
     expect(new Set(scene.layout.nodes.map((node) =>
       node.stateId
@@ -340,9 +340,16 @@ describe("outside-in Visual layout", () => {
     )
     expect(rootStateInnerEdge)
       .toBeGreaterThan(childDistance + childOuterRadius)
+    expect(Math.hypot(
+      scene.layout.nodes[0]!.x,
+      scene.layout.nodes[0]!.y,
+    )).toBeCloseTo(Math.hypot(
+      scene.layout.nodes[2]!.x,
+      scene.layout.nodes[2]!.y,
+    ))
     const childState = scene.layout.nodes[3]!
-    expect(childState.radius).toBeCloseTo(12.5)
-    expect(childState.fieldRadius).toBeCloseTo(2.75)
+    expect(childState.radius).toBeCloseTo(1.6)
+    expect(childState.fieldRadius).toBeCloseTo(0.16)
     expect(Math.hypot(
       childState.x - childTorus.x,
       childState.y - childTorus.y,
@@ -350,7 +357,7 @@ describe("outside-in Visual layout", () => {
       .toBeGreaterThanOrEqual(childTorus.radius - childTorus.tube)
   })
 
-  test("derives State spacing without shrinking either State Torus", () => {
+  test("moves each complete State sleeve without repacking it", () => {
     const source = layout()
     const baseline = buildOutsideInVisualScene(
       manifest(),
@@ -370,17 +377,20 @@ describe("outside-in Visual layout", () => {
       [{atomSrc: "owner/root", layouts: [stretched]}],
     )
 
-    expect(scene.layout.nodes[0]!.radius).toBeCloseTo(31.845)
-    expect(scene.layout.nodes[1]!.radius).toBeCloseTo(25)
+    expect(scene.layout.nodes[0]!.radius).toBeCloseTo(
+      stretched.nodes[0]!.radius,
+    )
+    expect(scene.layout.nodes[1]!.radius).toBeCloseTo(
+      stretched.nodes[1]!.radius,
+    )
     expect(Math.hypot(
       scene.layout.nodes[1]!.x - scene.layout.nodes[0]!.x,
       scene.layout.nodes[1]!.y - scene.layout.nodes[0]!.y,
-    ) - scene.layout.nodes[0]!.radius - scene.layout.nodes[1]!.radius)
-      .toBeCloseTo(22)
+    )).toBeCloseTo(220)
     expect(Math.hypot(
       scene.layout.nodes[1]!.x - scene.layout.nodes[0]!.x,
       scene.layout.nodes[1]!.y - scene.layout.nodes[0]!.y,
-    )).toBeCloseTo(Math.hypot(
+    )).not.toBeCloseTo(Math.hypot(
       baseline.layout.nodes[1]!.x - baseline.layout.nodes[0]!.x,
       baseline.layout.nodes[1]!.y - baseline.layout.nodes[0]!.y,
     ))

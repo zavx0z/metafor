@@ -336,4 +336,105 @@ describe("centered-nested Visual layout", () => {
     expect(outerRadii[0]! - rootStateOuterExtent).toBeCloseTo(8.25)
     expect(scene.context.fields).toHaveLength(5)
   })
+
+  test("places complete State sleeves on one owner orbit without repacking", () => {
+    const firstSleeve = {
+      edges: [{
+        conditionCount: 0,
+        conditionFieldIds: [],
+        fromNodeId: "first/root",
+        id: "first/edge",
+        returning: false,
+        toNodeId: "first/next",
+        transitionId: 1,
+      }],
+      levels: [
+        {nodeIds: ["first/root"], step: 0, x: 4},
+        {nodeIds: ["first/next"], step: 1, x: 31},
+      ],
+      nodes: [
+        {
+          color: [0.2, 0.7, 0.9],
+          current: true,
+          end: null,
+          fieldRadius: 0.7,
+          fields: [],
+          id: "first/root",
+          innerRadius: 1,
+          label: "First root",
+          radius: 3.2,
+          stateId: 100,
+          step: 0,
+          x: 4,
+          y: -2,
+          z: 1,
+        },
+        {
+          color: [0.8, 0.3, 0.7],
+          current: false,
+          end: "terminal",
+          fieldRadius: 0.7,
+          fields: [],
+          id: "first/next",
+          innerRadius: 1,
+          label: "First next",
+          radius: 4.1,
+          stateId: 101,
+          step: 1,
+          x: 31,
+          y: 6,
+          z: 4,
+        },
+      ],
+      rootStateId: 100,
+    } satisfies StateGraphRootLayout
+    const secondSleeve = {
+      edges: [],
+      levels: [{nodeIds: ["second/root"], step: 0, x: 0}],
+      nodes: [{
+        color: [0.4, 0.9, 0.3],
+        current: false,
+        end: "terminal",
+        fieldRadius: 0.7,
+        fields: [],
+        id: "second/root",
+        innerRadius: 1,
+        label: "Second root",
+        radius: 2.7,
+        stateId: 200,
+        step: 0,
+        x: 0,
+        y: 0,
+        z: 0,
+      }],
+      rootStateId: 200,
+    } satisfies StateGraphRootLayout
+    const scene = buildCenteredNestedVisualScene(manifest(), [{
+      atomSrc: "owner/1",
+      layouts: [firstSleeve, secondSleeve],
+    }])
+    const center = {x: 17, y: -9, z: 3}
+    const [firstRoot, firstNext, secondRoot] = scene.layout.nodes
+
+    expect(Math.hypot(
+      firstNext!.x - firstRoot!.x,
+      firstNext!.y - firstRoot!.y,
+      firstNext!.z - firstRoot!.z,
+    )).toBeCloseTo(Math.hypot(27, 8, 3))
+    expect([firstRoot!.radius, firstNext!.radius, secondRoot!.radius])
+      .toEqual([3.2, 4.1, 2.7])
+    expect(Math.hypot(
+      firstRoot!.x - center.x,
+      firstRoot!.y - center.y,
+    )).toBeCloseTo(Math.hypot(
+      secondRoot!.x - center.x,
+      secondRoot!.y - center.y,
+    ))
+    const childOuterRadius =
+      scene.context.tori[1]!.radius + scene.context.tori[1]!.tube
+    expect(Math.hypot(
+      firstRoot!.x - center.x,
+      firstRoot!.y - center.y,
+    ) - firstRoot!.radius).toBeGreaterThan(childOuterRadius)
+  })
 })

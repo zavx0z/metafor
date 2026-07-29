@@ -71,11 +71,16 @@ tighten it. There is no maximum-sized common slot, pairwise collision search,
 convergence loop or binary radius fitting. A structural
 snapshot change builds one new immutable scene in work proportional to its
 emitted occurrences, while the render loop consumes that scene without layout
-work. Inside each sleeve, fixed-size State Tori use one linear level sweep:
-adjacent node radii define row distances and adjacent level maxima define
-forward distances. Their code-owned minimum surface gap is one owning Field
-diameter at every self-similar level, both within a sleeve and between
-different sleeves. No all-pairs scale fitting remains. Only
+work. All sleeves owned by one Atom start on one common next outer orbit after
+that Atom's immediate Matter-Tori. Production reuses only the prefix and
+branch-lane algorithm demonstrated by `#/state-graph`, never that lab's numeric
+sizes or coordinates. It builds a self-contained `StateGraphRootLayout`
+directly with the owner's State-Torus, condition-Field and surface-gap metrics.
+A named layout then assigns the sleeve root an angular slot and moves the
+complete sleeve with one rigid rotation and translation. It does not recompute
+branch lanes or relative node offsets. A nested owner contributes only its one
+uniform world transform. No secondary organic or radial repacking and no
+all-pairs scale fitting remains. Only
 Fields referenced by conditions of a State's outgoing Transitions appear as
 typed Spheres inside that State-Torus. The empty
 root Torus has a 100 mm outer diameter

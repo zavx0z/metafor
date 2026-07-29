@@ -3,11 +3,11 @@ import type {BulkVisualLayer} from "@metafor/types/bulk/viewport"
 import {
   CenteredNested,
   OutsideIn,
+  STATE_GRAPH_PRODUCTION_SIZING,
   Visual,
   buildCenteredNestedVisualScene,
   buildStateGraph,
   buildStateGraphBranchLayout,
-  buildStateGraphRootLayout,
   buildOutsideInVisualScene,
   countVisualScene,
   createStateGraphViewport,
@@ -426,7 +426,11 @@ const renderSnapshotLayout = async (
   const owners = atomGraphs.map(({atom, graph}) => ({
     atomSrc: atom.wimp,
     layouts: graph.states.map((state) =>
-      buildStateGraphRootLayout(graph, state.id)
+      buildStateGraphBranchLayout(
+        graph,
+        state.id,
+        STATE_GRAPH_PRODUCTION_SIZING,
+      )
     ),
   }))
   const scene = selectedLayout.slug === CenteredNested.slug

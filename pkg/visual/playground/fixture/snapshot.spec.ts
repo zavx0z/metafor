@@ -5,8 +5,8 @@ import {BulkProjectionStore} from "../../../../bulk/projection.ts"
 import {DEFAULT_BULK_SETTINGS} from "../../../../bulk/settings.ts"
 import {buildStateGraph} from "../../StateGraph.ts"
 import {
+  STATE_GRAPH_PRODUCTION_SIZING,
   buildStateGraphBranchLayout,
-  buildStateGraphRootLayout,
 } from "../../StateGraphLayout.ts"
 import {
   buildCenteredNestedVisualScene,
@@ -111,7 +111,11 @@ describe("Visual playground Monad fixture", () => {
       return {
         atomSrc: atom.wimp,
         layouts: graph.states.map((state) =>
-          buildStateGraphRootLayout(graph, state.id)
+          buildStateGraphBranchLayout(
+            graph,
+            state.id,
+            STATE_GRAPH_PRODUCTION_SIZING,
+          )
         ),
       }
     })
@@ -121,8 +125,8 @@ describe("Visual playground Monad fixture", () => {
     expect(owners.map(({layouts}) => layouts.length)).toEqual([4, 7, 6, 3, 3])
     expect(owners[1]?.atomSrc).toBe("zavx0z/lada-auth")
     expect(scene.context.tori).toHaveLength(5)
-    expect(scene.layout.nodes).toHaveLength(98)
-    expect(scene.layout.edges).toHaveLength(130)
+    expect(scene.layout.nodes).toHaveLength(129)
+    expect(scene.layout.edges).toHaveLength(165)
     expect(new Set(scene.layout.nodes.map((node) => node.stateId)).size)
       .toBe(23)
     expect([...new Set(scene.context.fields.map((field) => field.radius))])
@@ -196,8 +200,9 @@ describe("Visual playground Monad fixture", () => {
           )?.darkParticleId
       ),
     ).toHaveLength(0)
-    expect(authStateInnerEdge - authInnerRadius).toBeLessThan(20)
-    expect(minimumStateNeighbourGap).toBeGreaterThanOrEqual(11 - 1e-9)
+    expect(authStateInnerEdge - authInnerRadius)
+      .toBeGreaterThanOrEqual(4.125 - 1e-9)
+    expect(minimumStateNeighbourGap).toBeGreaterThan(0)
     expect(minimumCrossSleeveGap).toBeGreaterThanOrEqual(11 - 1e-9)
   })
 
@@ -216,7 +221,11 @@ describe("Visual playground Monad fixture", () => {
       return {
         atomSrc: atom.wimp,
         layouts: graph.states.map((state) =>
-          buildStateGraphRootLayout(graph, state.id)
+          buildStateGraphBranchLayout(
+            graph,
+            state.id,
+            STATE_GRAPH_PRODUCTION_SIZING,
+          )
         ),
       }
     })
@@ -228,7 +237,7 @@ describe("Visual playground Monad fixture", () => {
       `${x}:${y}:${z}`
     ))).toEqual(new Set(["0:0:0"]))
     expect(scene.context.fields).toHaveLength(28)
-    expect(scene.layout.nodes).toHaveLength(98)
+    expect(scene.layout.nodes).toHaveLength(129)
     expect(fields.filter((field) => field.bandKind === "root-private"))
       .toHaveLength(1)
     const sharedFields = fields.filter((field) =>

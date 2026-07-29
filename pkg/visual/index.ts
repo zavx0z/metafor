@@ -56,6 +56,7 @@ export {
   type StateGraphTransition,
 } from "./StateGraph.ts"
 export {
+  STATE_GRAPH_PRODUCTION_SIZING,
   buildStateGraphBranchLayout,
   buildStateGraphRootLayout,
   describeStateGraphRoot,
@@ -64,6 +65,7 @@ export {
   type StateGraphLayoutLevel,
   type StateGraphLayoutNode,
   type StateGraphLayoutNodeEnd,
+  type StateGraphLayoutSizing,
   type StateGraphRootDescription,
   type StateGraphRootLayout,
 } from "./StateGraphLayout.ts"

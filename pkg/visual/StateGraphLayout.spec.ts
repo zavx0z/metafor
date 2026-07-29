@@ -1,6 +1,8 @@
 import {describe, expect, test} from "bun:test"
 import type {StateGraph} from "./StateGraph.ts"
 import {
+  STATE_GRAPH_PRODUCTION_SIZING,
+  buildStateGraphBranchLayout,
   buildStateGraphRootLayout,
   describeStateGraphRoot,
 } from "./StateGraphLayout.ts"
@@ -125,5 +127,32 @@ describe("State Graph layered layout", () => {
         "start → done",
       ],
     })
+  })
+
+  test("reuses branch topology without copying lab metrics into production", () => {
+    const source = graph()
+    const lab = buildStateGraphBranchLayout(source, 1)
+    const production = buildStateGraphBranchLayout(
+      source,
+      1,
+      STATE_GRAPH_PRODUCTION_SIZING,
+    )
+
+    expect(production.nodes.map((node) => node.id))
+      .toEqual(lab.nodes.map((node) => node.id))
+    expect(production.edges).toEqual(lab.edges)
+    expect(new Set(lab.nodes.map((node) => node.fieldRadius)))
+      .not.toEqual(new Set([5.5]))
+    expect(new Set(production.nodes.map((node) => node.fieldRadius)))
+      .toEqual(new Set([5.5]))
+
+    const secondLevel = production.nodes.filter((node) => node.step === 1)
+    expect(Math.abs(secondLevel[1]!.y - secondLevel[0]!.y) -
+      secondLevel[0]!.radius - secondLevel[1]!.radius)
+      .toBeCloseTo(STATE_GRAPH_PRODUCTION_SIZING.surfaceGap)
+    const root = production.nodes.find((node) => node.step === 0)!
+    expect(secondLevel[0]!.x - root.x -
+      root.radius - Math.max(...secondLevel.map((node) => node.radius)))
+      .toBeCloseTo(STATE_GRAPH_PRODUCTION_SIZING.surfaceGap)
   })
 })

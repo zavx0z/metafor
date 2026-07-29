@@ -698,7 +698,7 @@ const resolveComponentTori = (
     const preparedStates = (
       particle.src === null ? [] : layoutsBySrc.get(particle.src) ?? []
     )
-      .map((layout) => prepareStateLayout(layout, markerRadius))
+      .map(prepareStateLayout)
       .filter((layout): layout is PreparedStateLayout => layout !== null)
     const statePhase = sourceStatePhase(
       manifest,

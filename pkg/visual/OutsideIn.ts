@@ -1,6 +1,5 @@
 import type {BulkManifest} from "@metafor/types/bulk/manifest"
 import {
-  resolveStateGraphNodeGeometry,
   type StateGraphLayoutNode,
   type StateGraphRootLayout,
 } from "./StateGraphLayout.ts"
@@ -277,137 +276,34 @@ const siblingOrbitRadius = (
   ? 0
   : (maximumExtent + gap * 0.5) / Math.sin(Math.PI / count)
 
-const organicStatePositions = (
-  nodes: readonly StateGraphLayoutNode[],
-  levels: readonly StateGraphRootLayout["levels"][number][],
-  gap: number,
-  root: StateGraphLayoutNode,
-): Readonly<{
-  levelOffsets: ReadonlyMap<number, number>
-  offsets: readonly StateNodeOffset[]
-}> => {
-  const nodeById = new Map(nodes.map((node) => [node.id, node] as const))
-  const orderedLevels = levels.map((level) => ({
-    nodes: level.nodeIds.flatMap((id) => {
-      const node = nodeById.get(id)
-      return node ? [node] : []
-    }),
-    step: level.step,
-  }))
-  const absolutePositions = new Map<
-    string,
-    Readonly<{x: number; y: number; z: number}>
-  >()
-  const absoluteLevelX = new Map<number, number>()
-  let previousLevelX = 0
-  let previousLevelRadius = 0
-  for (let levelIndex = 0; levelIndex < orderedLevels.length; levelIndex += 1) {
-    const level = orderedLevels[levelIndex]!
-    const levelRadius = Math.max(
-      0,
-      ...level.nodes.map((node) => node.radius),
-    )
-    const levelX = levelIndex === 0
-      ? 0
-      : previousLevelX + previousLevelRadius + levelRadius + gap
-    absoluteLevelX.set(level.step, levelX)
-
-    const yPositions = new Array<number>(level.nodes.length)
-    if (level.nodes.length > 0) yPositions[0] = 0
-    for (let index = 1; index < level.nodes.length; index += 1) {
-      yPositions[index] =
-        yPositions[index - 1]! +
-        level.nodes[index - 1]!.radius +
-        level.nodes[index]!.radius +
-        gap
-    }
-    const verticalCenter = level.nodes.length === 0
-      ? 0
-      : (
-        yPositions[0]! -
-        level.nodes[0]!.radius +
-        yPositions.at(-1)! +
-        level.nodes.at(-1)!.radius
-      ) * 0.5
-    for (let index = 0; index < level.nodes.length; index += 1) {
-      const node = level.nodes[index]!
-      absolutePositions.set(node.id, {
-        x: levelX,
-        y: yPositions[index]! - verticalCenter,
-        z: node.z,
-      })
-    }
-    previousLevelX = levelX
-    previousLevelRadius = levelRadius
-  }
-
-  const rootPosition = absolutePositions.get(root.id) ?? {x: 0, y: 0, z: 0}
-  return {
-    levelOffsets: new Map(
-      [...absoluteLevelX].map(([step, x]) => [
-        step,
-        x - rootPosition.x,
-      ]),
-    ),
-    offsets: nodes.map((node) => {
-      const position = absolutePositions.get(node.id) ?? rootPosition
-      return {
-        node,
-        radius: node.radius,
-        x: position.x - rootPosition.x,
-        y: position.y - rootPosition.y,
-        z: position.z - rootPosition.z,
-      }
-    }),
-  }
-}
-
 export const prepareStateLayout = (
   layout: StateGraphRootLayout,
-  markerRadius: number,
 ): PreparedStateLayout | null => {
-  const stateEmptyOuterRadius =
-    TORUS_LAYOUT_BASELINE.rootOuterRadius *
-    TORUS_LAYOUT_BASELINE.levelScale
-  const stateFieldRadius =
-    markerRadius * TORUS_LAYOUT_BASELINE.levelScale
-  const nodes = layout.nodes.map((node) => {
-    const geometry = resolveStateGraphNodeGeometry(
-      node.fields,
-      stateEmptyOuterRadius,
-      stateFieldRadius,
-    )
-    return {
-      ...node,
-      fieldRadius: geometry.fieldRadius,
-      innerRadius: geometry.innerRadius,
-      radius: geometry.outerRadius,
-    }
-  })
-  const organicLayout: StateGraphRootLayout = {
-    ...layout,
-    nodes,
-  }
-  const root = nodes.find((node) => node.stateId === layout.rootStateId)
-  if (!root) return null
-  const stateNodeGap = stateNodeSurfaceGap(markerRadius)
-  const positions = organicStatePositions(
-    nodes,
-    layout.levels,
-    stateNodeGap,
-    root,
+  const root = layout.nodes.find(
+    (node) => node.stateId === layout.rootStateId,
   )
+  if (!root) return null
+  const offsets = layout.nodes.map((node) => ({
+    node,
+    radius: node.radius,
+    x: node.x - root.x,
+    y: node.y - root.y,
+    z: node.z - root.z,
+  }))
   return {
-    disks: positions.offsets,
+    disks: offsets,
     inwardExtent: Math.max(
       root.radius,
-      ...positions.offsets.map((offset) =>
+      ...offsets.map((offset) =>
         offset.node.radius - offset.x
       ),
     ),
-    layout: organicLayout,
-    levelOffsets: positions.levelOffsets,
-    offsets: positions.offsets,
+    layout,
+    levelOffsets: new Map(layout.levels.map((level) => [
+      level.step,
+      level.x - root.x,
+    ])),
+    offsets,
     root,
   }
 }
@@ -516,7 +412,7 @@ const buildDarkParticleTori = (
     const preparedStates = (
       particle.src === null ? [] : layoutsBySrc.get(particle.src) ?? []
     )
-      .map((layout) => prepareStateLayout(layout, markerRadius))
+      .map(prepareStateLayout)
       .filter((layout): layout is PreparedStateLayout => layout !== null)
     const statePhase = sourceStatePhase(manifest, particle, preparedStates)
     const statePacking = packStateSleeves(
