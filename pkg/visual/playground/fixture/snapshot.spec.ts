@@ -227,6 +227,32 @@ describe("Visual playground Monad fixture", () => {
     expect(fields.filter((field) => field.bandKind === "inner-private"))
       .toHaveLength(7)
 
+    const rootNodeCount = owners[0]!.layouts.reduce(
+      (count, layout) => count + layout.nodes.length,
+      0,
+    )
+    const rootStateInnerExtent = Math.min(
+      ...scene.layout.nodes.slice(0, rootNodeCount).map((node) =>
+        Math.hypot(node.x, node.y, node.z) - node.radius
+      ),
+    )
+    const rootStateOuterExtent = Math.max(
+      ...scene.layout.nodes.slice(0, rootNodeCount).map((node) =>
+        Math.hypot(node.x, node.y, node.z) + node.radius
+      ),
+    )
+    const maximumNestedTorusOuterRadius = Math.max(
+      ...scene.context.tori.slice(1).map((torus) =>
+        torus.radius + torus.tube
+      ),
+    )
+    const rootTorus = scene.context.tori[0]!
+    const rootTorusOuterRadius = rootTorus.radius + rootTorus.tube
+    expect(rootStateInnerExtent - maximumNestedTorusOuterRadius)
+      .toBeCloseTo(8.25)
+    expect(rootTorusOuterRadius - rootStateOuterExtent)
+      .toBeCloseTo(8.25)
+
     const sharedOuter = Math.max(...fields
       .filter((field) => field.band === 1)
       .map((field) => Math.hypot(field.x, field.y) + field.radius))

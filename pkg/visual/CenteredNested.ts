@@ -67,7 +67,7 @@ type DarkNode = {
 }
 
 type ComponentFieldLayout = Readonly<{
-  extentByParticle: ReadonlyMap<number, number>
+  fieldExtentByParticle: ReadonlyMap<number, number>
   placements: readonly CenteredNestedFieldPlacement[]
   root: DarkNode
 }>
@@ -292,8 +292,8 @@ const placeComponentFields = (
     })
   }
 
-  const extentByParticle = new Map<number, number>()
-  const resolveExtent = (node: DarkNode): number => {
+  const fieldExtentByParticle = new Map<number, number>()
+  const resolveFieldExtent = (node: DarkNode): void => {
     let extent = 0
     for (
       const field of fieldsByOwner.get(
@@ -305,20 +305,17 @@ const placeComponentFields = (
       extent = Math.max(
         extent,
         Math.hypot(placement.x, placement.y, placement.z) +
-          placement.radius,
+        placement.radius,
       )
     }
-    for (const child of node.children) {
-      extent = Math.max(extent, resolveExtent(child))
-    }
-    extentByParticle.set(node.particle.darkParticleId, extent)
-    return extent
+    fieldExtentByParticle.set(node.particle.darkParticleId, extent)
+    node.children.forEach(resolveFieldExtent)
   }
-  resolveExtent(root)
+  resolveFieldExtent(root)
 
   const center = root.particle
   return {
-    extentByParticle,
+    fieldExtentByParticle,
     placements: fields.flatMap((field) => {
       const placement = localPlacements.get(field.fieldParticleId)
       return placement
@@ -388,18 +385,11 @@ const resolveComponentTori = (
     node: DarkNode,
     minimumCoreExtent: number,
   ): ResolvedDarkTorus => {
-    let childOuterExtent = 0
-    const children = node.children.map((child) => {
-      const resolved = resolve(child, childOuterExtent)
-      childOuterExtent = resolved.form.outerRadius
-      return resolved
-    })
     const particle = node.particle
     const scale = torusLevelScale(particle.depth)
     const coreExtent = Math.max(
       minimumCoreExtent,
-      component.extentByParticle.get(particle.darkParticleId) ?? 0,
-      childOuterExtent,
+      component.fieldExtentByParticle.get(particle.darkParticleId) ?? 0,
     )
     const gap = localGap * scale
     const emptyOuterRadius =
@@ -408,6 +398,12 @@ const resolveComponentTori = (
       coreExtent,
       emptyOuterRadius,
       gap,
+    })
+    let childOuterExtent = coreForm.innerRadius
+    const children = node.children.map((child) => {
+      const resolved = resolve(child, childOuterExtent)
+      childOuterExtent = resolved.form.outerRadius
+      return resolved
     })
     const preparedStates = (
       particle.src === null ? [] : layoutsBySrc.get(particle.src) ?? []
@@ -425,7 +421,7 @@ const resolveComponentTori = (
         ? 0
         : stateInnerOrbitRadius(
           preparedStates,
-          coreForm.innerRadius / scale,
+          childOuterExtent / scale,
           localGap,
         ),
       stateNodeSurfaceGap(markerRadius),
@@ -436,11 +432,15 @@ const resolveComponentTori = (
       orbitRadius: statePacking.orbitRadius,
       prepared,
     }))
+    const ownStateOuterExtent = stateOuterExtent(states) * scale
     const form = resolveContentTorusForm({
       coreExtent,
       emptyOuterRadius,
       gap,
-      occupiedOuterExtent: stateOuterExtent(states) * scale,
+      occupiedOuterExtent: Math.max(
+        childOuterExtent,
+        ownStateOuterExtent,
+      ),
     })
     return {
       children,

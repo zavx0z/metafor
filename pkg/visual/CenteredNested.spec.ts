@@ -8,6 +8,7 @@ import {
   buildCenteredNestedVisualScene,
   layoutCenteredNestedFields,
 } from "./CenteredNested.ts"
+import type {StateGraphRootLayout} from "./StateGraphLayout.ts"
 
 const darkParticle = (
   darkParticleId: number,
@@ -173,7 +174,31 @@ describe("centered-nested Visual layout", () => {
   })
 
   test("gives the complete recursive Torus chain one world center", () => {
-    const scene = buildCenteredNestedVisualScene(manifest(), [])
+    const rootStateLayout = {
+      edges: [],
+      levels: [{nodeIds: ["root-state"], step: 0, x: 0}],
+      nodes: [{
+        color: [0.2, 0.7, 0.9],
+        current: true,
+        end: "terminal",
+        fieldRadius: 1,
+        fields: [],
+        id: "root-state",
+        innerRadius: 1,
+        label: "Root state",
+        radius: 3,
+        stateId: 100,
+        step: 0,
+        x: 0,
+        y: 0,
+        z: 0,
+      }],
+      rootStateId: 100,
+    } satisfies StateGraphRootLayout
+    const scene = buildCenteredNestedVisualScene(manifest(), [{
+      atomSrc: "owner/1",
+      layouts: [rootStateLayout],
+    }])
 
     expect(scene.context.tori).toHaveLength(3)
     expect(scene.context.tori.map(({x, y, z}) => [x, y, z])).toEqual([
@@ -184,8 +209,34 @@ describe("centered-nested Visual layout", () => {
     const outerRadii = scene.context.tori.map((torus) =>
       torus.radius + torus.tube
     )
+    const innerRadii = scene.context.tori.map((torus) =>
+      torus.radius - torus.tube
+    )
     expect(outerRadii[0]).toBeGreaterThan(outerRadii[1]!)
     expect(outerRadii[1]).toBeGreaterThan(outerRadii[2]!)
+    expect(innerRadii[0]).toBeGreaterThan(0)
+    expect(innerRadii[0]).toBeLessThan(innerRadii[1]!)
+    expect(innerRadii[1]).toBeLessThan(innerRadii[2]!)
+    const rootOwnedOuterExtent = Math.max(
+      ...layoutCenteredNestedFields(manifest())
+        .filter((placement) => placement.field.parentDarkParticleId === 1)
+        .map((placement) =>
+          Math.hypot(
+            placement.x - 17,
+            placement.y + 9,
+            placement.z - 3,
+          ) + placement.radius
+        ),
+    )
+    expect(innerRadii[0]! - rootOwnedOuterExtent).toBeCloseTo(8.25)
+    const rootStateInnerExtent = Math.min(...scene.layout.nodes.map((node) =>
+      Math.hypot(node.x - 17, node.y + 9, node.z - 3) - node.radius
+    ))
+    const rootStateOuterExtent = Math.max(...scene.layout.nodes.map((node) =>
+      Math.hypot(node.x - 17, node.y + 9, node.z - 3) + node.radius
+    ))
+    expect(rootStateInnerExtent - outerRadii[1]!).toBeCloseTo(8.25)
+    expect(outerRadii[0]! - rootStateOuterExtent).toBeCloseTo(8.25)
     expect(scene.context.fields).toHaveLength(7)
   })
 })

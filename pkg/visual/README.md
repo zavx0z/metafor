@@ -84,14 +84,20 @@ individual form.
 
 The sibling `#/centered-nested` page keeps the same Torus, Field and State
 forms but gives every recursive Matter-Torus in one root tree a common world
-center. It reads canonical materialized `Value` identity carried by each
-manifested Field occurrence. Root Fields not shared with descendants keep the
-central pseudo-circle; all occurrences of a Value shared across Atom owners
-occupy the next common orbit; Fields private to an inner Atom occupy the next
-outer orbit. The law repeats by Matter depth. Every orbit starts one complete
-Field diameter of its level after the preceding occupied boundary and expands
-only when its Fields need more circumference. Shared Values do not collapse
-their distinct Field declaration identities.
+center. A Torus inner boundary starts immediately after the actual extent of
+its owned Field core: private Fields occupy the central pseudo-circle and
+Fields with a shared materialized `Value` occupy the next orbit. Nested
+Matter-Tori live inside the resulting parent shell volume and occupy its inner
+radial bands. The owner's State sleeves begin only after the actual outer edge
+of every child Matter-Torus and take the last occupied band next to the
+parent's outer edge. Parent States therefore never occupy a child shell and
+remain closer to the edge of their own Torus. Children may expand only the
+parent's outer boundary; they do not push its inner boundary away from the
+Field core. Fields private to an inner Atom occupy the next outer orbit and the
+same law repeats by Matter depth. Every orbit starts one complete Field
+diameter of its level after the preceding occupied boundary and expands only
+when its Fields need more circumference. Shared Values do not collapse their
+distinct Field declaration identities.
 
 This page uses the same code-owned Torus component and Hermite forward/return
 convention as the isolated State Graph lab. Atom/Matter Tori, nucleus Fields,
