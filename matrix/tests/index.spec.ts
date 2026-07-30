@@ -381,13 +381,10 @@ describe("write / update — параллельные вызовы", () => {
   /**
    * Тест на потокобезопасность update().
    *
-   * Проверяет, что mutex корректно очеряет параллельные вызовы:
-   * - Вызовы выполняются последовательно благодаря mutex
+   * Проверяет, что очередь корректно упорядочивает вызовы:
+   * - Вызовы выполняются последовательно благодаря общей очереди Matrix
    * - Все обновления должны примениться корректно
-   * - Не должно быть потерь данных или corruption
-   *
-   * Примечание: Promise.all() не используется, так как mutex гарантирует
-   * последовательное выполнение. Тест проверяет, что очередь вызовов работает.
+   * - Не должно быть потерь или повреждения данных
    */
   test("должен корректно обрабатывать последовательные update() вызовы", async () => {
     await write({
@@ -442,39 +439,45 @@ describe("write / update — параллельные вызовы", () => {
   })
 
   /**
-   * Тест на interleaved write() и update().
+   * Тест на одновременно вызванные write() и update().
    *
-   * Проверяет, что write() и update() используют разные mutex:
-   * - write() сбрасывает состояние
-   * - update() после write() работает с новыми данными
+   * Проверяет, что update() ждёт полного завершения write() и работает уже с
+   * новым согласованным Store и Weak.
    */
-  test("должен корректно обрабатывать чередование write() и update()", async () => {
-    const initialStates = await write({
+  test("update() ждёт одновременно вызванный перед ним write()", async () => {
+    const writePromise = write({
       fields: [{ type: FieldType.F32 }],
       branes: [
         { values: [[0, 0]], state: 0, collapses: [[[1, { 0: { gt: 50 } }]], [null as any]] },
       ],
     })
+    const updatePromise = update([[0, [[0, 100]]]])
+    const [initialStates, states] = await Promise.all([writePromise, updatePromise])
 
     expect(initialStates).toEqual([])
-
-    // update() должен работать с инициализированными данными
-    const states = await update([[0, [[0, 100]]]])
     expect(states).toContainEqual([0, 1])
+  })
 
-    // write() сбрасывает состояние
-    const newInitialStates = await write({
+  test("write() ждёт одновременно вызванный перед ним update() и затем заменяет Store", async () => {
+    await write({
       fields: [{ type: FieldType.F32 }],
       branes: [
         { values: [[0, 0]], state: 0, collapses: [[[1, { 0: { gt: 50 } }]], [null as any]] },
       ],
     })
 
-    expect(newInitialStates).toEqual([])
+    const updatePromise = update([[0, [[0, 100]]]])
+    const writePromise = write({
+      fields: [{ type: FieldType.F32 }],
+      branes: [
+        { values: [[0, 0]], state: 0, collapses: [[[1, { 0: { lt: 0 } }]], [null as any]] },
+      ],
+    })
+    const [updatedStates, newInitialStates] = await Promise.all([updatePromise, writePromise])
 
-    // update() после write() должен работать корректно
-    const states2 = await update([[0, [[0, 100]]]])
-    expect(states2).toContainEqual([0, 1])
+    expect(updatedStates).toContainEqual([0, 1])
+    expect(newInitialStates).toEqual([])
+    expect(await update([[0, [[0, 100]]]])).toEqual([])
   })
 })
 

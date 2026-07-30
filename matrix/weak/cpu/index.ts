@@ -27,6 +27,10 @@ export class CPUWeakRuntime implements WeakRuntime {
     return [...this.context.store$.states]
   }
 
+  fault(): string | null {
+    return null
+  }
+
   heapUpdate(_updates: WeakHeapUpdate[]): void {
     // CPU runtime читает canonical Matrix store напрямую.
   }

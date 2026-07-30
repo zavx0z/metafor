@@ -3,6 +3,7 @@
  */
 import { test, expect, describe, beforeEach } from "bun:test"
 import { compileSuperposition, compileConditions, compileEnsemble } from "../weak/program"
+import {compileFlattenedSuperposition as compileGpuSuperposition} from "../weak/gpu/bytecode"
 import { OP } from "../weak"
 import { FieldType } from "../gravity"
 import type { MatrixCollapse } from "@metafor/types/matrix/data"
@@ -129,6 +130,37 @@ describe("compileSuperposition — компиляция суперпозиции
 
     expect(result.bytecode).toBeInstanceOf(Uint32Array)
     expect(result.bytecode.length).toBeGreaterThan(0)
+  })
+
+  test("пустой переход перед настоящим не занимает исполняемый адрес", () => {
+    const result = compileSuperposition([
+      [null, [1, {}]],
+      [null],
+    ], [])
+
+    expect([...result.bytecode]).toEqual([
+      2, 5,
+      1, 1, 6,
+      0,
+      0,
+    ])
+  })
+
+  test("внутренний составитель WebGPU исключает пустой переход по тому же закону", () => {
+    const result = compileGpuSuperposition([
+      [
+        {targetState: null, conditions: []},
+        {targetState: 1, conditions: []},
+      ],
+      [{targetState: null, conditions: []}],
+    ], [], [""])
+
+    expect([...result.bytecode]).toEqual([
+      2, 5,
+      1, 1, 6,
+      0,
+      0,
+    ])
   })
 })
 

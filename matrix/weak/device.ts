@@ -35,6 +35,24 @@ export const GPU = {
   },
 }
 
+export function watchGpuDeviceLoss(
+  device: Pick<GPUDevice, "lost">,
+  onLost: (info: GPUDeviceLostInfo | null, error: unknown | null) => void,
+): void {
+  void device.lost.then(
+    (info) => onLost(info, null),
+    (error) => onLost(null, error),
+  )
+}
+
+function rememberGpuDevice(device: GPUDevice): GPUDevice {
+  GPU._device = device
+  watchGpuDeviceLoss(device, () => {
+    if (GPU._device === device) GPU._device = null
+  })
+  return device
+}
+
 /** Returns a WebGPU device, or null when the current environment has no GPU. */
 export async function ensureGPUDevice(): Promise<GPUDevice | null> {
   if (GPU._device) return GPU._device
@@ -53,8 +71,7 @@ export async function ensureGPUDevice(): Promise<GPUDevice | null> {
   try {
     const adapter = await gpu.requestAdapter()
     if (!adapter) return null
-    GPU._device = await adapter.requestDevice()
-    return GPU._device
+    return rememberGpuDevice(await adapter.requestDevice())
   } catch {
     return null
   }

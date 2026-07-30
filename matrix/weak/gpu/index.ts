@@ -15,16 +15,65 @@ import { runGpuStep } from "./step"
 import { createInitialArrayHeapIndex, updateGpuHeapFields } from "./heap"
 import { createStringAtlasAppendExport } from "./string-pack"
 import { StepMode } from "../constants"
+import {watchGpuDeviceLoss} from "../device"
 
 let gpuOperationQueue: Promise<void> = Promise.resolve()
 
-function enqueueGpuOperation<T>(task: () => Promise<T> | T): Promise<T> {
+function enqueueSerializedGpuOperation<T>(task: () => Promise<T> | T): Promise<T> {
   const scheduled = gpuOperationQueue.then(() => task())
   gpuOperationQueue = scheduled.then(
     () => undefined,
     () => undefined,
   )
   return scheduled
+}
+
+const gpuErrorScopes: GPUErrorFilter[] = ["validation", "out-of-memory", "internal"]
+
+const asError = (error: unknown): Error =>
+  error instanceof Error ? error : new Error(String(error))
+
+async function runCheckedGpuOperation<T>(
+  device: GPUDevice,
+  task: () => Promise<T> | T,
+): Promise<T> {
+  let pushedScopes = 0
+  let result!: T
+  let operationError: Error | null = null
+
+  try {
+    for (const scope of gpuErrorScopes) {
+      device.pushErrorScope(scope)
+      pushedScopes++
+    }
+    result = await task()
+  } catch (error) {
+    operationError = asError(error)
+  }
+
+  const scopedErrors: Array<{scope: GPUErrorFilter; error: GPUError}> = []
+  for (let index = pushedScopes - 1; index >= 0; index--) {
+    try {
+      const error = await device.popErrorScope()
+      if (error) scopedErrors.push({scope: gpuErrorScopes[index]!, error})
+    } catch (error) {
+      operationError ??= asError(error)
+    }
+  }
+
+  if (operationError) throw operationError
+  const scopedError = scopedErrors[0]
+  if (scopedError) {
+    throw new Error(`Ошибка WebGPU (${scopedError.scope}): ${scopedError.error.message}`)
+  }
+  return result
+}
+
+function enqueueGpuOperation<T>(
+  device: GPUDevice,
+  task: () => Promise<T> | T,
+): Promise<T> {
+  return enqueueSerializedGpuOperation(() => runCheckedGpuOperation(device, task))
 }
 
 function destroyContext(context: GpuRuntimeContext): void {
@@ -53,15 +102,30 @@ export class GPUWeakRuntime implements WeakRuntime {
   private readonly store$: MatrixStore
   private lastStates: number[]
   private pending: Promise<void> = Promise.resolve()
+  private faultError: Error | null = null
+  private closed = false
 
   private constructor(context: GpuRuntimeContext, store$: MatrixStore) {
     this.context = context
     this.store$ = store$
     this.lastStates = [...store$.states]
+
+    watchGpuDeviceLoss(context.device, (info, error) => {
+      if (this.closed) return
+      if (error) {
+        this.recordFault(error)
+        return
+      }
+      const details = [info?.reason, info?.message].filter(Boolean).join(": ")
+      this.recordFault(new Error(`GPU-устройство потеряно${details ? `: ${details}` : ""}`))
+    })
   }
 
   static async create(device: GPUDevice, store$: MatrixStore): Promise<GPUWeakRuntime> {
-    const context = createGpuRuntimeContext(device, shaderSource, store$, false)
+    const context = await enqueueGpuOperation(
+      device,
+      () => createGpuRuntimeContext(device, shaderSource, store$, false),
+    )
     return new GPUWeakRuntime(context, store$)
   }
 
@@ -96,6 +160,10 @@ export class GPUWeakRuntime implements WeakRuntime {
 
   statesSnapshot(): number[] {
     return [...this.lastStates]
+  }
+
+  fault(): string | null {
+    return this.faultError?.message ?? null
   }
 
   /**
@@ -205,12 +273,21 @@ export class GPUWeakRuntime implements WeakRuntime {
   }
 
   clear(): void {
+    if (this.closed) return
+    this.closed = true
     this.lastStates = []
-    this.schedule(() => destroyContext(this.context))
+    const scheduled = this.pending.then(() =>
+      enqueueSerializedGpuOperation(() => destroyContext(this.context)),
+    )
+    this.pending = scheduled.then(
+      () => undefined,
+      () => undefined,
+    )
+    void scheduled.catch(() => undefined)
   }
 
   private enqueue<T>(task: () => Promise<T> | T): Promise<T> {
-    const scheduled = this.pending.then(() => enqueueGpuOperation(task))
+    const scheduled = this.pending.then(() => this.execute(task))
     this.pending = scheduled.then(
       () => undefined,
       () => undefined,
@@ -219,10 +296,33 @@ export class GPUWeakRuntime implements WeakRuntime {
   }
 
   private schedule(task: () => Promise<void> | void): void {
-    this.pending = this.pending.then(() => enqueueGpuOperation(task)).then(
+    const scheduled = this.pending.then(() => this.execute(task))
+    this.pending = scheduled.then(
       () => undefined,
       () => undefined,
     )
+    void scheduled.catch(() => undefined)
+  }
+
+  private async execute<T>(task: () => Promise<T> | T): Promise<T> {
+    this.requireHealthy()
+    try {
+      return await enqueueGpuOperation(this.context.device, task)
+    } catch (error) {
+      throw this.recordFault(error)
+    }
+  }
+
+  private requireHealthy(): void {
+    if (this.closed) throw new Error("WebGPU runtime Matrix уже остановлен")
+    if (this.faultError) throw this.faultError
+  }
+
+  private recordFault(error: unknown): Error {
+    if (!this.faultError) {
+      this.faultError = new Error(`Сбой WebGPU Matrix: ${asError(error).message}`)
+    }
+    return this.faultError
   }
 
   private collectBraneFields(braneIndex: number): MatrixFieldValueRecord[] {

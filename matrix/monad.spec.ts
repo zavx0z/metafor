@@ -38,6 +38,18 @@ describe("Matrix Monad", () => {
 
     monad.onRuntimeBorn()
     expect(await monad.onHealthRequested().json()).toMatchObject({initialized: true, rpc: "ready", error: null})
+
+    const runtime = weak$.runtime!
+    const originalFault = runtime.fault
+    runtime.fault = () => "Сбой WebGPU Matrix: контрольная ошибка"
+    expect(await monad.onHealthRequested().json()).toMatchObject({
+      ok: false,
+      initialized: false,
+      rpc: "ready",
+      error: "Сбой WebGPU Matrix: контрольная ошибка",
+    })
+    runtime.fault = originalFault
+
     expect(consumePreparedMatrixBirth()).toBe(true)
   })
 })

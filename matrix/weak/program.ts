@@ -12,6 +12,7 @@ import type { StringInterner } from "@metafor/types/matrix/strong"
 import { createStoredStringInterner } from "../strong/string-table"
 import { OP, VALUE_TYPE } from "./constants"
 import { encodeValue, fieldTypeToBytecodeType } from "./encode"
+import {compileTransitionLayout} from "./transition-layout"
 
 export function compileSuperposition(
   collapses: MatrixCollapse[][],
@@ -40,77 +41,21 @@ export function compileFlattenedSuperposition(
   fields: MatrixFieldRecord[],
   stringInterner: StringInterner,
 ): FieldBytecode {
-  const numStates = transitions.length
-  const condBlocksData: { instructions: number[]; heap: number[] }[] = []
-  const stateTransitionsCount: number[] = []
-
-  for (const stateTransitions of transitions) {
-    const trCount = stateTransitions.filter((transition) => transition.targetState !== null).length
-    stateTransitionsCount.push(trCount)
-
-    for (const transition of stateTransitions) {
-      if (transition.targetState === null) continue
-
-      const { instructions, heap } = compileParsedConditions(transition.conditions, fields, stringInterner)
-      const instrFlat: number[] = [instructions.length]
-      for (const instr of instructions) {
-        instrFlat.push(instr.fieldType)
-        instrFlat.push(instr.fieldIndex)
-        instrFlat.push(instr.op)
-        instrFlat.push(instr.valEncoded)
-      }
-
-      condBlocksData.push({ instructions: instrFlat, heap })
+  return compileTransitionLayout(transitions, (transition) => {
+    const {instructions, heap} = compileParsedConditions(transition.conditions, fields, stringInterner)
+    return {
+      instructions: [
+        instructions.length,
+        ...instructions.flatMap((instruction) => [
+          instruction.fieldType,
+          instruction.fieldIndex,
+          instruction.op,
+          instruction.valEncoded,
+        ]),
+      ],
+      heap,
     }
-  }
-
-  const stateTableLength = numStates
-  const stateBlocksLength = transitions.reduce((sum, stateTransitions) => {
-    const trCount = stateTransitions.filter((transition) => transition.targetState !== null).length
-    const nullCount = stateTransitions.filter((transition) => transition.targetState === null).length
-    return sum + 1 + trCount * 2 + nullCount * 2
-  }, 0)
-  const condBlocksStart = stateTableLength + stateBlocksLength
-  const condBlockSizes = condBlocksData.map((block) => block.instructions.length + block.heap.length)
-
-  const statePtrs: number[] = []
-  const stateBlocks: number[] = []
-
-  let condBlockIdx = 0
-  let condBlockOffset = condBlocksStart
-
-  for (let stateIndex = 0; stateIndex < numStates; stateIndex++) {
-    const stateBlockStart = stateTableLength + stateBlocks.length
-    statePtrs.push(stateBlockStart)
-
-    const stateTransitions = transitions[stateIndex]!
-    const trCount = stateTransitionsCount[stateIndex]!
-    stateBlocks.push(trCount)
-
-    for (const transition of stateTransitions) {
-      if (transition.targetState === null) {
-        stateBlocks.push(0)
-        stateBlocks.push(0)
-        continue
-      }
-
-      stateBlocks.push(transition.targetState)
-      stateBlocks.push(condBlockOffset)
-      condBlockOffset += condBlockSizes[condBlockIdx]!
-      condBlockIdx++
-    }
-  }
-
-  const finalBytecode = [...statePtrs, ...stateBlocks]
-  for (const block of condBlocksData) {
-    finalBytecode.push(...block.instructions)
-    finalBytecode.push(...block.heap)
-  }
-
-  return {
-    bytecode: new Uint32Array(finalBytecode),
-    bytecodeOffset: 0,
-  }
+  })
 }
 
 function getArrayEncodingContext(ctx: MatrixEncodingContext, op: number, fieldType: number): MatrixEncodingContext {

@@ -28,8 +28,7 @@ import {applyMatrixProjectionParticle, recordMatrixProjectionState} from "./proj
 import {applyIncrementalMatrixProjection} from "./incremental.ts"
 
 let force: Force
-const writeGate: AsyncGate = {pending: null}
-const updateGate: AsyncGate = {pending: null}
+const matrixGate: AsyncGate = {pending: null}
 const pendingProcessExecutionsByAtomId = new Map<number, MatrixPendingProcessExecution>()
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -232,28 +231,30 @@ const publishPhotonChanges = (changes: [number, number][]): void => {
 const applyStructuralProjection = async (
   projection: ReturnType<typeof applyMatrixProjectionParticle>,
 ): Promise<void> => {
-  const incremental = await applyIncrementalMatrixProjection(projection)
-  for (const atomId of incremental.invalidatedAtomIds) pendingProcessExecutionsByAtomId.delete(atomId)
-  for (const preserved of incremental.preservedProcessStates) {
-    const pending = pendingProcessExecutionsByAtomId.get(preserved.atomId)
-    if (!pending || pending.braneIndex !== preserved.braneIndex) continue
-    pending.stateIndex = preserved.stateIndex
-  }
-  weakStructuralUpdate(incremental.weakUpdate)
-  const stateChanges = await weakRunStep(StepMode.UndefinedOnly)
-  const targets = new Map<string, [number, number]>()
-  for (const change of stateChanges) {
-    targets.set(`${change[0]}\0${change[1]}`, change)
-  }
-  for (const braneIndex of incremental.processCandidateBraneIndexes) {
-    const stateIndex = matrix$.states[braneIndex]
-    if (stateIndex !== undefined) targets.set(`${braneIndex}\0${stateIndex}`, [braneIndex, stateIndex])
-  }
-  const photonTargets = [...targets.values()]
-  if (photonTargets.length > 0) {
-    syncProcessLocksForChanges(photonTargets, stateChanges)
-    publishPhotonChanges(photonTargets)
-  }
+  await runExclusive(matrixGate, async () => {
+    const incremental = await applyIncrementalMatrixProjection(projection)
+    for (const atomId of incremental.invalidatedAtomIds) pendingProcessExecutionsByAtomId.delete(atomId)
+    for (const preserved of incremental.preservedProcessStates) {
+      const pending = pendingProcessExecutionsByAtomId.get(preserved.atomId)
+      if (!pending || pending.braneIndex !== preserved.braneIndex) continue
+      pending.stateIndex = preserved.stateIndex
+    }
+    weakStructuralUpdate(incremental.weakUpdate)
+    const stateChanges = await weakRunStep(StepMode.UndefinedOnly)
+    const targets = new Map<string, [number, number]>()
+    for (const change of stateChanges) {
+      targets.set(`${change[0]}\0${change[1]}`, change)
+    }
+    for (const braneIndex of incremental.processCandidateBraneIndexes) {
+      const stateIndex = matrix$.states[braneIndex]
+      if (stateIndex !== undefined) targets.set(`${braneIndex}\0${stateIndex}`, [braneIndex, stateIndex])
+    }
+    const photonTargets = [...targets.values()]
+    if (photonTargets.length > 0) {
+      syncProcessLocksForChanges(photonTargets, stateChanges)
+      publishPhotonChanges(photonTargets)
+    }
+  })
 }
 
 const collectProcessExecutionFields = (atomId: number, braneIndex: number): Record<string, unknown> => {
@@ -431,8 +432,8 @@ const collectProcessStateRetriggers = (
 }
 
 async function writePreparedData(prepared: MatrixData): Promise<[number, number][]> {
-  return await runExclusive(writeGate, async () => {
-    weak$.dispose()
+  return await runExclusive(matrixGate, async () => {
+    clearRuntime()
     applyPreparedData(prepared)
     if (!prepared.fields.length && !prepared.branes.length) return []
     await weakInit(matrix$)
@@ -442,7 +443,6 @@ async function writePreparedData(prepared: MatrixData): Promise<[number, number]
 
 export async function write(data: MatrixInputData): Promise<[number, number][]> {
   validateData(data)
-  clearRuntime()
   return await writePreparedData(prepareData(data))
 }
 
@@ -468,7 +468,7 @@ export async function update(
   updates: Array<[braneIndex: number, fieldUpdates: Array<[fieldIndex: number, value: unknown]>, lock?: boolean]>,
   options: MatrixUpdateOptions = {},
 ): Promise<[number, number][]> {
-  return await runExclusive(updateGate, async () => {
+  return await runExclusive(matrixGate, async () => {
     requireInitializedStore(matrix$)
     const stringInterner = createStoredStringInterner(matrix$.stringTable)
     const weakUpdates: Array<
@@ -532,19 +532,21 @@ export async function update(
   })
 }
 
-export function unlock(indexes: number[]): void {
-  requireInitializedStore(matrix$)
-  const weakUpdates: Array<{kind: "lock"; braneIndex: number; value: boolean}> = []
+export async function unlock(indexes: number[]): Promise<void> {
+  await runExclusive(matrixGate, async () => {
+    requireInitializedStore(matrix$)
+    const weakUpdates: Array<{kind: "lock"; braneIndex: number; value: boolean}> = []
 
-  for (const index of indexes) {
-    const brane = matrix$.branes[index]
-    if (!brane) throw new Error(`Brane at index ${index} not found in matrix`)
-    clearPendingProcessExecution(index)
-    brane.lock = false
-    weakUpdates.push({kind: "lock", braneIndex: index, value: false})
-  }
+    for (const index of indexes) {
+      const brane = matrix$.branes[index]
+      if (!brane) throw new Error(`Brane at index ${index} not found in matrix`)
+      clearPendingProcessExecution(index)
+      brane.lock = false
+      weakUpdates.push({kind: "lock", braneIndex: index, value: false})
+    }
 
-  weakHeapUpdate(weakUpdates)
+    weakHeapUpdate(weakUpdates)
+  })
 }
 
 const birthChanges = consumePreparedMatrixBirth()

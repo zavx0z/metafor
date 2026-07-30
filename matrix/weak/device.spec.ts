@@ -1,5 +1,5 @@
 import {describe, expect, test} from "bun:test"
-import {resolveWeakModeFor} from "./device.ts"
+import {resolveWeakModeFor, watchGpuDeviceLoss} from "./device.ts"
 
 const availableDevice = async (): Promise<GPUDevice> => ({} as GPUDevice)
 
@@ -32,5 +32,22 @@ describe("Weak backend policy", () => {
 
   test("unknown values use the safe auto policy", async () => {
     expect(await resolveWeakModeFor("unexpected", async () => null)).toBe("cpu")
+  })
+
+  test("потеря устройства передаётся наблюдателю", async () => {
+    let resolveLoss: ((info: GPUDeviceLostInfo) => void) | undefined
+    const lost = new Promise<GPUDeviceLostInfo>((resolve) => {
+      resolveLoss = resolve
+    })
+    let observed: GPUDeviceLostInfo | null = null
+
+    watchGpuDeviceLoss({lost}, (info) => {
+      observed = info
+    })
+    resolveLoss?.({reason: "destroyed", message: "контрольная потеря"} as GPUDeviceLostInfo)
+    await lost
+    await Promise.resolve()
+
+    expect(observed).toMatchObject({reason: "destroyed", message: "контрольная потеря"})
   })
 })

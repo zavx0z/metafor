@@ -44,13 +44,14 @@ export class MatrixMonad {
   }
 
   onHealthRequested(): Response {
+    const runtimeError = weak$.runtime?.fault() ?? null
     return Response.json({
-      ok: this.#state !== "error" && this.#state !== "stopped",
+      ok: this.#state !== "error" && this.#state !== "stopped" && runtimeError === null,
       domain: "matrix",
       backend: weak$.mode,
-      initialized: this.#state === "ready" && weak$.initialized,
+      initialized: this.#state === "ready" && weak$.initialized && runtimeError === null,
       rpc: this.#state,
-      error: this.#error,
+      error: this.#error ?? runtimeError,
     })
   }
 

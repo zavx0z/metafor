@@ -90,6 +90,44 @@ describe("GPU runtime — specific tests", () => {
 
     expect(() => runtime.clear()).not.toThrow()
   })
+
+  test("ошибка отложенной операции сохраняется и выходит на ожидаемой границе", async () => {
+    const device = await skipIfNoGpu()
+    if (!device) return
+
+    const fixture = createSimpleBraneFixture()
+    const { runtime } = await createGpuRuntimeForFixture(fixture)
+    trackRuntime(runtime)
+    const internals = runtime as unknown as {
+      schedule(task: () => Promise<void>): void
+    }
+
+    internals.schedule(async () => {
+      throw new Error("контрольный сбой операции")
+    })
+
+    await expect(runtime.readChanges()).rejects.toThrow("контрольный сбой операции")
+    expect(runtime.fault()).toContain("контрольный сбой операции")
+  })
+
+  test("ошибка проверки WebGPU не превращается в успешный пустой такт", async () => {
+    const device = await skipIfNoGpu()
+    if (!device) return
+
+    const fixture = createSimpleBraneFixture()
+    const { runtime } = await createGpuRuntimeForFixture(fixture)
+    trackRuntime(runtime)
+    const internals = runtime as unknown as {
+      schedule(task: () => void): void
+    }
+
+    internals.schedule(() => {
+      device.createBuffer({size: 4, usage: 0})
+    })
+
+    await expect(runtime.readChanges()).rejects.toThrow("Ошибка WebGPU (validation)")
+    expect(runtime.fault()).toContain("Ошибка WebGPU (validation)")
+  })
 })
 
 describe("GPU runtime — scenario tests", () => {

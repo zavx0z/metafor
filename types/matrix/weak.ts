@@ -31,6 +31,8 @@ export interface WeakRuntime {
   structuralUpdate(update: WeakStructuralUpdate): void
   clear(): void
   statesSnapshot(): number[]
+  /** Первая сохранённая причина отказа runtime; `null`, пока runtime исправен. */
+  fault(): string | null
 }
 
 export interface WeakRuntimeSelection {

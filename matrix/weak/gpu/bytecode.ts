@@ -9,6 +9,7 @@ import type { MatrixCompiledConditionsResult, MatrixConditionInstruction } from 
 import type { MatrixFieldRecord } from "@metafor/types/matrix/data"
 import type { MatrixValue } from "@metafor/types/matrix/store"
 import { OP, VALUE_TYPE } from "../constants"
+import {compileTransitionLayout} from "../transition-layout"
 import { encodeValue, fieldTypeToBytecodeType } from "./pack"
 
 /**
@@ -148,78 +149,21 @@ export function compileFlattenedSuperposition(
   fields: MatrixFieldRecord[],
   stringTable: string[],
 ): { bytecode: Uint32Array; bytecodeOffset: number } {
-  const numStates = transitions.length
-  const condBlocksData: { instructions: number[]; heap: number[] }[] = []
-  const stateTransitionsCount: number[] = []
-
-  for (const stateTransitions of transitions) {
-    const transitionCount = stateTransitions.filter((transition) => transition.targetState !== null).length
-    stateTransitionsCount.push(transitionCount)
-
-    for (const transition of stateTransitions) {
-      if (transition.targetState === null) {
-        continue
-      }
-
-      const { instructions, heap } = compileParsedConditions(transition.conditions, fields, stringTable)
-      const flattenedInstructions: number[] = [instructions.length]
-      for (const instruction of instructions) {
-        flattenedInstructions.push(instruction.fieldType)
-        flattenedInstructions.push(instruction.fieldIndex)
-        flattenedInstructions.push(instruction.op)
-        flattenedInstructions.push(instruction.valEncoded)
-      }
-
-      condBlocksData.push({ instructions: flattenedInstructions, heap })
+  return compileTransitionLayout(transitions, (transition) => {
+    const {instructions, heap} = compileParsedConditions(transition.conditions, fields, stringTable)
+    return {
+      instructions: [
+        instructions.length,
+        ...instructions.flatMap((instruction) => [
+          instruction.fieldType,
+          instruction.fieldIndex,
+          instruction.op,
+          instruction.valEncoded,
+        ]),
+      ],
+      heap,
     }
-  }
-
-  const stateTableLength = numStates
-  const stateBlocksLength = transitions.reduce((sum, stateTransitions) => {
-    const transitionCount = stateTransitions.filter((transition) => transition.targetState !== null).length
-    const terminalCount = stateTransitions.filter((transition) => transition.targetState === null).length
-    return sum + 1 + transitionCount * 2 + terminalCount * 2
-  }, 0)
-  const condBlocksStart = stateTableLength + stateBlocksLength
-  const condBlockSizes = condBlocksData.map((block) => block.instructions.length + block.heap.length)
-  const statePointers: number[] = []
-  const stateBlocks: number[] = []
-
-  let condBlockIndex = 0
-  let condBlockOffset = condBlocksStart
-
-  for (let stateIndex = 0; stateIndex < numStates; stateIndex++) {
-    const stateBlockStart = stateTableLength + stateBlocks.length
-    statePointers.push(stateBlockStart)
-
-    const stateTransitions = transitions[stateIndex]!
-    const transitionCount = stateTransitionsCount[stateIndex]!
-    stateBlocks.push(transitionCount)
-
-    for (const transition of stateTransitions) {
-      if (transition.targetState === null) {
-        stateBlocks.push(0)
-        stateBlocks.push(0)
-        continue
-      }
-
-      stateBlocks.push(transition.targetState)
-      stateBlocks.push(condBlockOffset)
-      condBlockOffset += condBlockSizes[condBlockIndex]!
-      condBlockIndex++
-    }
-  }
-
-  const finalBytecode = [...statePointers, ...stateBlocks]
-  for (const block of condBlocksData) {
-    finalBytecode.push(...block.instructions)
-    finalBytecode.push(...block.heap)
-  }
-
-  return {
-    bytecode: new Uint32Array(finalBytecode),
-    bytecodeOffset: 0,
-  }
+  })
 }
 
 /**
