@@ -23,6 +23,8 @@ const isExecutableTransition = <T extends TransitionWithTarget>(
  *
  * `null` удаляется до подсчёта переходов и адресов, поэтому не занимает место
  * в исполняемом блоке State.
+ *
+ * @see [Пустая запись перед настоящим Transition](https://github.com/zavx0z/metafor/blob/main/matrix/tests/superposition.spec.ts#L135-L161)
  */
 export function compileTransitionLayout<T extends TransitionWithTarget>(
   transitions: readonly (readonly T[])[],

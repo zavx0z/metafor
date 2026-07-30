@@ -1,151 +1,69 @@
-# Архитектура реализации
+# Архитектура системы
 
-Этот документ задаёт общую структуру текущего runtime. Карта источников истины
-и точные документы-владельцы находятся в [`docs/README.md`](README.md). Для
-работы с реализацией внешняя документация не требуется.
+Этот документ объясняет, как части MetaFor связаны в одну причинную систему.
+Карта источников истины и точные документы-владельцы находятся в
+[`docs/README.md`](README.md).
 
-## Canonical package graph
+## Домены
 
-Root workspace graph задан явным списком в `package.json`:
+Текущая Вселенная состоит из пяти изолированных проекций:
 
-- domain contracts: `types`;
-- shared wire protocols и server/web transports: `shared`;
-- domains: `dark`, `boundary`, `matrix`, `energy`, `bulk`;
-- Dark Monad/Force assembly, relay, `ForceLifecycle` и `MonadRouter`: `dark`;
-- domain packages: `dark/{gravity,strong}`,
-  `boundary/{atom,topology,wimp}`, `matrix/{gravity,strong,weak}`,
-  `bulk/{gravity,strong,weak}`;
-- reusable implementation: `pkg/engine`, `pkg/template`,
-  `pkg/ui/{elements,components,hud}`, `fixture`;
-- constructor and operational DSL: `create-metafor`.
+- Dark принимает внешнюю декларацию и ведёт причинную историю;
+- Boundary владеет каноническим текущим миром;
+- Matrix выбирает State и Transition;
+- Energy исполняет Process и Reaction;
+- Bulk проявляет мир для наблюдателя.
 
-Standalone Force workspace отсутствует. Общие Particle types и физические
-domain transports остаются в `shared`, но не образуют отдельный runtime-domain.
+Force переносит между ними отдельные изменения. Он связывает домены, но не
+становится шестым владельцем состояния.
 
-Игнорируемый каталог `cluster/` является физическим resolver root внешних Meta,
-но не workspace. Его непосредственные каталоги представляют Galaxy-владельцев,
-а каждый их непосредственный дочерний каталог — независимый peer
-Meta-репозиторий `cluster/<owner>/<repository>`. Вложенные Meta-репозитории
-запрещены; runtime composition не кодируется файловой вложенностью.
+Внешняя Meta остаётся декларацией. В мир входят созданные из неё сущности и
+отношения, а не её файлы или каталог.
 
-## Архитектурное чтение
+## Как читать архитектуру
 
-Package graph нельзя читать как полную онтологию. Каноническая проекция имеет
-вид `Domain × Force × Entity`: силы локально проявляются внутри доменов, а Dark
-Force реализует единый внешний ingress и междоменную причинную связь.
+Каждый домен отвечает только за собственную проекцию и не читает внутреннее
+хранилище соседа. Начальные согласованные снимки передаются до рождения, а
+последующие изменения идут отдельными причинными сообщениями.
 
-Dark имеет два равноправных слоя:
+Одно изменение одной сущности переносится одной Particle. Получатель применяет
+её к своей проекции и, если это создаёт следствие, выпускает следующее
+сообщение. Так сохраняется видимая причинная цепочка.
+
+## Рождение Вселенной
+
+Сначала рождаются Dark, Boundary, Energy и Bulk. Energy до подключения к
+причинному потоку получает полный текущий каталог от Boundary и готовит свои
+местные связи.
+
+Matrix рождается последней. Она ждёт готовности остальных доменов, получает
+последний согласованный снимок State и только после подготовки открывает общий
+поток изменений. Поэтому первое вычисление Matrix уже может безопасно начать
+Process в готовой Energy.
+
+До рождения Matrix общий поток не принимает обычные изменения. Между начальным
+снимком и открытием потока не требуется отдельное сообщение повтора.
+
+## Причинная цепочка
+
+Обычный предметный проход выглядит так:
 
 ```text
-Dark
-├── Monad — Meta/source/Store/service operations и structural planning
-└── Force — Particle ingress/history/relay/routing/lifecycle
+внешнее изменение
+→ Boundary записывает канонический результат
+→ Matrix проверяет State и Transition
+→ при необходимости Energy исполняет Process
+→ Boundary проверяет и записывает результат Process
+→ Matrix продолжает переходы
+→ Bulk показывает получившийся мир
 ```
 
-Server/runtime бывшего standalone Force находится в этих слоях Dark.
-`shared/protocol/force` остаётся общим wire language. Gluon/Higgs и Inflaton
-проходят один Dark Force; структурный Inflaton подготавливает Dark Monad.
+Matrix не ждёт завершения Process всей системой: она блокирует только State
+конкретного Atom. Остальные Atom и домены продолжают работу.
 
-Сохранившиеся domain packages `gravity`, `strong` и `weak` подтверждают это
-измерение, но их текущий неполный состав ещё не является завершённой таблицей
-сил. Возвращать обязанности старых реализаций только по имени каталога нельзя.
-
-## Runtime entries
-
-| Process  | Entry                | Default listener |
-| -------- | -------------------- | ---------------- |
-| Dark     | `dark/server.ts`     | 4000; compatibility health 4002 |
-| Boundary | `boundary/server.ts` | 4001 |
-| Matrix   | `matrix/server.ts`   | 4003 |
-| Bulk     | `bulk/server.ts`     | 4004 |
-| Energy   | `energy/server.ts`   | 4005 |
-
-Canonical launcher содержит пять domain processes. Dark process содержит Dark
-Monad и Dark Force; отдельного Force entry нет. Public `/force`, `/monad/*`,
-REST/WebSocket и Force health сохраняют адрес `4000`. Listener `4002` держит
-health compatibility в том же Dark process и не является шестым process.
-
-Ранее принятый live contour был шестипроцессным. Его исторические cold proofs
-не переписываются задним числом; новый source требует отдельного owner-approved
-cold cut с backup/rollback до объявления production acceptance.
-
-Root scripts запускают entries только как обычные Bun processes. После изменения
-кода весь contour останавливается и запускается заново: частичная горячая
-перезагрузка несовместима с Matrix-last causal cut. Запуск не загружает Meta
-автоматически.
-
-Полная Вселенная запускается через `bun run runtime:universe`. Launcher рождает
-все пять обязательных доменов и Matrix последней; сокращённого рабочего `world`
-contour нет. `runtime:universe:once` проверяет тот же birth gate и завершает
-запущенные процессы после рождения.
-
-Порядок рождения runtime задаётся не порядком запуска Bun processes. До своего
-ForceChannel Energy открывает MonadChannel, читает
-`boundary.initialProjection.read` и гидратит постоянный локальный catalog
-Atom/Topology/Field/Variant/Process/continuation. Только затем Energy создаёт
-ForceChannel.
-Matrix server ждёт, пока Dark Force увидит готовые remote `ForceChannel`
-Boundary, Energy и Bulk и локальный Dark adapter, затем получает final initial
-state Boundary, готовит Store/Weak и только после этого рождает Matrix runtime.
-Поэтому присутствие Energy в Matrix birth gate уже означает завершённую cold
-hydration. Созданный при импорте `Force("matrix")` становится последним remote
-channel и открывает общий realtime gate. Это необходимо, потому что первая Weak
-evaluation уже может испустить process work.
-
-## Реализованное соединение
-
-- `dark/server.ts` принимает REST, содержит локальный Dark adapter и создаёт
-  четыре remote domain WebSocket-канала.
-- Domain transports из `shared/transport/force` подключаются к
-  `ws://127.0.0.1:4000/ws`, если
-  `FORCE_ADDRESS` не задан; `domain/id` передаются в HTTP Upgrade query.
-- Remote domain Monads открывают отдельный локальный REST-канал к Dark; его identity
-  и method capabilities сохраняются сервером за непрозрачным токеном. Над
-  каналом `MonadRpcPeer` одинаково обслуживает исходящие и входящие RPC, а
-  закрытие удаляет канал из `MonadRouter`.
-- Потеря только `MonadChannel` делает RPC этой identity недоступным, но не
-  останавливает уже рождённый runtime. Fail-stop вызывается потерей одного из
-  четырёх обязательных remote `ForceChannel`; локальный Dark adapter готов до
-  открытия общего gate.
-- После Upgrade по WebSocket идут только Particle без register, readiness или
-  bootstrap messages; само подключение Particle не создаёт.
-- `dark/force/route.ts` перенаправляет Particle по готовым каналам Store только
-  после durable history append.
-- Domain handlers применяют входные particles к собственным runtime structures.
-- Dark читает внешний `cluster/<src>/meta.ts` в ширину и испускает отдельные
-  декларационные Particle по мере чтения; Meta не становится внутренней
-  сущностью. Canonical `src` имеет ровно два сегмента
-  `<owner>/<repository>`. Составные имена репозиториев используют дефисы, а
-  composition выражается Meta/Matter/Monad references.
-- `boundary/server.ts` открывает SQLite, материализует Particle в
-  нормализованные реляционные таблицы и публикует результаты через Force.
-- `energy/server.ts` читает полный текущий Boundary projection через Monad,
-  локально готовит `EnergyCatalogStore` и только после этого открывает
-  обязательный realtime ForceChannel. На каждый claim RPC не выполняется.
-- `bulk/server.ts` обслуживает web entry, шрифт, browser WebSocket и связывает
-  browser manifestation с Force. Current recursive projection snapshot,
-  переданный Bulk Monad, материализуется в geometry-free `BulkManifest`;
-  готовая `pkg/visual` strategy единолично строит immutable world geometry.
-  Bulk проверяет canonical identities и переводит готовые точки в local frame
-  renderer, не выполняя собственной раскладки либо ELK/graph-layout pass.
-- Matrix weak backend по умолчанию — `auto`: WebGPU при доступности, иначе CPU.
-  `gpu` является явным строгим режимом, `cpu` принудительно выбирает reference
-  backend.
-
-Source parity использует тот же wire и endpoints, но production acceptance
-требует отдельного полного cold restart. Hot reload запрещён.
-
-Единственный rollout этого owner-approved `MF-117` caller выполняется до
-preflight ровно одним обычным полным restart
-`metafor-inference-universe.service` без изменения config, environment или
-ports. После этого live structural transition не является reload: уже
-рождённый contour остаётся в тех же пяти processes, и дополнительный restart
-либо hot reload запрещён. Закрытый loopback owner command в Dark удерживает
-external admission и current applied-through frontier, а private Monad
-adapters Boundary, Energy и Bulk исполняют только exact `Inference → Lada`
-receipts. Общего write RPC нет. Boundary atomically меняет canonical active
-root; Dark Force проводит one-entity consequences;
-Mass/history/checkpoint/rollback/source evidence не удаляются.
+После изменения кода причинно связанная Вселенная запускается заново целиком.
+Частичная горячая перезагрузка могла бы смешать разные исходные снимки и потому
+не поддерживается.
 
 ## Публичное чтение MetaJSON
 
@@ -254,7 +172,7 @@ owning-parent relation переустанавливает binding только �
 ## Field binding и Matrix entanglement
 
 Полный действующий контракт этого механизма находится в
-[доменной документации Matrix](domains/MATRIX.md).
+[документации Matrix](../matrix/README.md).
 
 `fields=${...}` не является третьим Energy runtime binding. Точная top-level
 пара `childKey: parentField` для `string`/`number`/`boolean` материализуется в
@@ -263,38 +181,18 @@ Boundary как один shared `Value` identity и нормализованно
 record, а Boundary выпускает отдельные atom-addressed Gluon consequences с
 одним `ts`; внутри такого time step sequence нет.
 
-Initial Matrix projection содержит `valueId`. `matrix/birth.ts` группирует
-только явно общую identity, создаёт один runtime field record и strong mappings
-для каждого Atom/Field. Равенство payload без общей identity связь не создаёт.
-Computed expressions получают отдельные values; `enum` и `array` обслуживаются
-как topology Fields и в shared block не входят. Enum Atom values, defaults и
-Condition predicates несут canonical Variant ID; текст `itemValue` разрешается
-при сборке Matrix, поэтому rename/reorder Variant не теряет ссылку.
-Pending enum default не выходит в realtime до появления Variant. Referenced
-Variant нельзя удалить или перенести в другой Field.
+Matrix считает Fields общими только при общей канонической идентичности.
+Совпадение значений само по себе связь не создаёт. Изменение общего Field даёт
+каждому связанному Atom возможность проверить собственные переходы.
 
-Live in-place replacement `fieldsBinding` поддерживается структурным тактом.
-Boundary атомарно перестраивает source/value relation и испускает полный Atom
-Graviton. Matrix находит затронутый Atom и его текущую shared `valueId` family,
-а затем меняет только соответствующие Atom rows, shared blocks и графы. У
-остальных Atom сохраняются brane index, row и Process lifecycle. Удаление
-освобождает slot, добавление переиспользует свободный slot и не сдвигает
-соседние Atom.
+Структурное изменение не должно перезапускать незатронутый Process. Добавление
+дочернего Atom, например, сохраняет State, блокировку и текущее выполнение
+родителя. Изменение декларации WIMP, напротив, делает прежние выполнения его
+Atom устаревшими; их поздние результаты больше не принимаются.
 
-При постороннем structural Graviton lock, `processExecutionId`, frozen Fields и
-accepted Energy активного Process сохраняются: например, появление дочернего
-Screenshot не перезапускает Browser. Но declaration/Matter rebuild самого WIMP
-локально инвалидирует executions всех его Atom. Atom остаётся в том же brane,
-Matrix выдаёт новую Process identity, а Energy выполняет
-`detach → rebuild → cooperative abort` старого action без междоменного ack.
-
-CPU читает обновлённый canonical Store напрямую. WebGPU сохраняет runtime и
-compute pipeline, обновляет только изменившиеся blocks/pointers и геометрически
-увеличивает buffers при нехватке capacity; накопившиеся неиспользуемые derived
-данные периодически уплотняются. Семантика и последовательность Photon должны
-оставаться одинаковыми на CPU и WebGPU. Canonical packed ranges также
-переиспользуют capacity и растут геометрически. Дедуплицированный несколькими
-Atom graph перед локальным изменением отделяется copy-on-write.
+Независимо от доступного способа вычисления Matrix обязана выдавать одинаковые
+State, блокировки и последовательность Photon. Сбой во время такта переводит
+Matrix в нездоровое состояние, а не изображает успешный такт без изменений.
 
 ## Browser Atom Capsule
 

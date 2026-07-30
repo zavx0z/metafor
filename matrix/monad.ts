@@ -8,7 +8,16 @@ import {prepareMatrixBirth} from "./birth.ts"
 
 export type MatrixMonadState = "created" | "preparing" | "prepared" | "ready" | "error" | "stopped"
 
-/** Matrix server/service layer: obtains initial data and prepares the permanent Store. */
+/**
+ * Управляет рождением и наблюдаемым состоянием службы Matrix.
+ *
+ * До открытия причинного канала класс читает единственный начальный снимок
+ * Boundary и подготавливает Weak. После рождения проверка состояния объединяет
+ * состояние RPC и сохранённый отказ Weak; неисправный WebGPU не выдаётся за
+ * готовую Matrix.
+ *
+ * @see [Подготовка до рождения и публикация отказа Weak](https://github.com/zavx0z/metafor/blob/main/matrix/monad.spec.ts#L20-L54)
+ */
 export class MatrixMonad {
   #state: MatrixMonadState = "created"
   #error: string | null = null

@@ -92,10 +92,16 @@ function destroyContext(context: GpuRuntimeContext): void {
 }
 
 /**
- * GPU runtime для Weak.
+ * Параллельный WebGPU-исполнитель Weak.
  *
- * Каноническая истина остаётся в Matrix store, а этот runtime держит только
- * производные буферы и их CPU-side mirror для частичной синхронизации.
+ * Каноническая истина остаётся в Matrix Store. Экземпляр держит производные
+ * буферы, последовательно ставит операции в очередь и проверяет каждую из них
+ * через области ошибок WebGPU. Первая ошибка операции или потеря устройства
+ * сохраняется в {@link fault}; все последующие границы чтения завершаются этой
+ * ошибкой. Переход на CPU внутри уже начатой причинной трассы не выполняется.
+ *
+ * @see [Отложенная ошибка и ошибка проверки WebGPU](https://github.com/zavx0z/metafor/blob/main/matrix/weak/tests/weak.gpu.test.ts#L94-L130)
+ * @see [Потеря устройства передаётся наблюдателю](https://github.com/zavx0z/metafor/blob/main/matrix/weak/device.spec.ts#L37-L55)
  */
 export class GPUWeakRuntime implements WeakRuntime {
   private context: GpuRuntimeContext

@@ -8,8 +8,8 @@
 
 - [Boundary](../../boundary/DOMAIN.md) — canonical persistence, identity,
   materialization и commit.
-- [Matrix](MATRIX.md) — State/Transition, Process lifecycle и инкрементальные
-  структурные изменения.
+- [Matrix](../../matrix/README.md) — жизненный цикл State, Transition и Process,
+  включая рождение, блокировку и структурные изменения.
 - [Energy](ENERGY.md) — исполнение Process, живые runtime-сущности и их
   декларация в DSL.
 - [Bulk manifestation и Visual projection](../../bulk/VISUAL.md) —

@@ -68,43 +68,28 @@ stores ближайшего owning parent Atom. Прямые `mass=${mass}` и
 Mass bytes, Energy-сущности и runtime-ссылки не проходят через Force и не
 записываются в Boundary.
 
-При cold start Energy сначала через собственную Monad получает полную canonical
-проекцию Boundary и гидратирует локальный catalog
-Atom/Topology/Field/Variant/Process и оба binding descriptor. Только после
-этого она открывает обязательный ForceChannel; после рождения RPC на claim нет,
-а изменения приходят обычными Graviton. Такой Graviton немедленно rebind-ит уже
-проявленные aliases и отменяет pending claim старой связи.
-
-Initial cut не требует replay/control frame: пока Matrix не подключена
-последней, Force остаётся в `starting` и отклоняет Particle как от агента, так и
-от доменных channels.
+При запуске Energy сначала получает от Boundary полный текущий каталог и
+готовит местные связи. Matrix подключается последней и получает согласованный
+снимок State. Только после этого Вселенная начинает принимать обычные
+изменения.
 
 ```text
-external input
-→ Boundary canonical commit
-→ Matrix gravity → strong → weak
-→ Photon
-→ Energy Process
-→ Boundary Process commit
+внешнее изменение
+→ Boundary записывает мир
+→ Matrix выбирает State
+→ Energy исполняет Process
+→ Boundary проверяет и записывает его результат
 → Reaction
-→ Energy Reaction
-→ Boundary Reaction commit
-→ Matrix next State
-→ Bulk
+→ Matrix выбирает следующий State
+→ Bulk показывает результат
 ```
 
-Production Matrix имеет один вычислительный путь:
-
-```text
-gravity → strong → weak
-```
-
-`Weak` использует WebGPU как основной параллельный backend. CPU остаётся
-детерминированным fallback/reference. Отдельного TypeScript evaluator и второй
-Matrix-проекции нет.
-
-Matrix получает `boundary.initialState.read` и сама строит производный packed
-runtime. Boundary не хранит вторую Matrix-проекцию.
+Matrix рождается последней, получает от Boundary один согласованный снимок мира
+и затем обрабатывает причинные изменения по порядку. Atom без States не входит
+в состояние; Atom со States, но без выбранного State, на первом такте входит в
+первый объявленный State. Process блокирует переходы только этого Atom, а не
+всю Matrix. Полный жизненный цикл и все основные случаи описаны в
+[`matrix/README.md`](matrix/README.md).
 
 ## Запуск ядра
 
@@ -146,10 +131,6 @@ bun run runtime:universe:once
 останавливается и запускается заново; частичная горячая перезагрузка не
 поддерживается.
 
-Matrix по умолчанию использует `auto`: выбирает WebGPU при доступности и
-детерминированный CPU fallback в остальных средах. `gpu` остаётся явным строгим
-режимом, `cpu` — принудительным reference backend.
-
 ## Проверка
 
 ```bash
@@ -174,7 +155,7 @@ archive/pre-core-split-2026-07-11
 - [Агентные Вселенные](docs/AGENT_UNIVERSES.md)
 - [Архитектура](docs/ARCHITECTURE.md)
 - [Доменные контракты](docs/domains/README.md)
-- [Matrix](docs/domains/MATRIX.md)
+- [Matrix](matrix/README.md)
 - [Force](docs/FORCE.md)
 - [Meta-пакеты](docs/META_PACKAGES.md)
 - [Разработка](docs/DEVELOPMENT.md)

@@ -1,0 +1,28 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "name": "Matrix — техническое устройство",
+  "entryPoints": [
+    "matrix/index.ts",
+    "matrix/matrix.ts",
+    "matrix/birth.ts",
+    "matrix/monad.ts",
+    "matrix/projection.ts",
+    "matrix/incremental.ts",
+    "matrix/gravity/index.ts",
+    "matrix/strong/index.ts",
+    "matrix/weak/index.ts",
+    "matrix/weak/weak.ts",
+    "matrix/weak/device.ts",
+    "matrix/weak/cpu/index.ts",
+    "matrix/weak/gpu/index.ts",
+    "shared/protocol/force/execution.ts",
+    "types/matrix"
+  ],
+  "entryPointStrategy": "expand",
+  "out": "tmp/typedoc/matrix",
+  "tsconfig": "tsconfig.json",
+  "excludeExternals": true,
+  "excludePrivate": true,
+  "excludeProtected": true,
+  "categorizeByGroup": true
+}

@@ -138,7 +138,22 @@ const predicateValue = (condition: JsonRecord, variants: Map<number, unknown>): 
   throw new Error(`Unsupported Matrix condition predicate: ${JSON.stringify(raw)}`)
 }
 
-/** Matrix-owned conversion from canonical Boundary rows to a packed projection. */
+/**
+ * Преобразует канонический начальный снимок Boundary в производную проекцию
+ * Matrix.
+ *
+ * Atom без объявленных States получает {@link STATE_NONE}. Atom со States, но
+ * без выбранного либо с неизвестным Meta State получает
+ * {@link STATE_UNDEFINED}; режим первого шага позднее вводит его в State с
+ * индексом `0`. Уже известный Meta State восстанавливается по идентичности и не
+ * переигрывается при рождении.
+ *
+ * @param initial Один согласованный начальный снимок Boundary.
+ * @returns Полностью подготовленная производная проекция Matrix.
+ *
+ * @see [Преобразование Boundary в Matrix](https://github.com/zavx0z/metafor/blob/main/matrix/birth.spec.ts#L36-L104)
+ * @see [Различие undefined и отсутствующего графа States](https://github.com/zavx0z/metafor/blob/main/matrix/weak/tests/weak.parity.test.ts#L155-L237)
+ */
 export function buildMatrixRuntime(initial: BoundaryInitialState): MatrixRuntimeSnapshot {
   const declarationsByWimpSection = group(initial.declarations, (item) => `${item.src}\0${item.section}`)
   const valuesByAtomField = new Map(

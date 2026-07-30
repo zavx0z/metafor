@@ -1,7 +1,22 @@
 import type {MatrixInputData} from "./data.ts"
 import type {ProcessExecutionId} from "shared/protocol/force/execution"
 
+/**
+ * У Atom есть объявленные States, но текущий State ещё не выбран.
+ *
+ * Первый шаг в режиме рождения переводит такой Atom в State с индексом `0`.
+ *
+ * @see [Undefined входит в первый State](https://github.com/zavx0z/metafor/blob/main/matrix/weak/tests/weak.parity.test.ts#L155-L175)
+ */
 export const STATE_UNDEFINED = -1
+
+/**
+ * У Atom вообще нет объявленных States.
+ *
+ * Такой Atom остаётся адресуемым для Fields, но любой шаг Weak пропускает его.
+ *
+ * @see [Atom без States сохраняет Fields и не меняет State](https://github.com/zavx0z/metafor/blob/main/matrix/weak/tests/weak.parity.test.ts#L213-L237)
+ */
 export const STATE_NONE = -2
 
 export interface MatrixRuntimeAtom {
@@ -94,6 +109,14 @@ export interface MatrixRuntimeSnapshot {
   }
 }
 
+/**
+ * Matrix-owned identity одного незавершённого Process.
+ *
+ * Fields копируются в момент входа в Process State. `acceptedEnergy` появляется
+ * только после первого корректного claim и участвует в проверке Boundary
+ * подтверждения. Запись остаётся текущей до совпавшего Boundary commit либо до
+ * структурного аннулирования; автоматического срока ожидания сейчас нет.
+ */
 export type MatrixPendingProcessExecution = {
   braneIndex: number
   stateIndex: number
@@ -102,6 +125,7 @@ export type MatrixPendingProcessExecution = {
   acceptedEnergy?: string
 }
 
+/** Хвост общей последовательности операций, изменяющих Matrix Store. */
 export type AsyncGate = {
   pending: null | Promise<void>
 }

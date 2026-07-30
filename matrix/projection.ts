@@ -1,3 +1,14 @@
+/**
+ * Локальная причинная проекция канонических сущностей Boundary.
+ *
+ * Индексы позволяют определить только затронутые Atom, связанные значения и
+ * WIMP. Проекция не вычисляет State и не заменяет Boundary как владельца мира.
+ *
+ * @see [Локальное добавление и удаление Atom](https://github.com/zavx0z/metafor/blob/main/matrix/projection.spec.ts#L138-L188)
+ *
+ * @packageDocumentation
+ */
+
 import type {
   BoundaryInitialAtom,
   BoundaryInitialDeclaration,
@@ -483,7 +494,13 @@ export function recordMatrixProjectionState(atomId: number, metaState: number | 
   if (atom) atom.state = metaState
 }
 
-/** Applies one canonical realtime Particle to Matrix's local Boundary projection. */
+/**
+ * Применяет одну каноническую Particle и вычисляет границу структурного
+ * изменения.
+ *
+ * @param part Одна Particle, уже выпущенная Boundary.
+ * @returns Затронутые Atom и область аннулирования Process.
+ */
 export function applyMatrixProjectionParticle(part: Particle): MatrixProjectionChange {
   requireProjection()
   if (part.part === "gluon" || part.part === "higgs") {

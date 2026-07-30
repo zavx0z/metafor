@@ -2,9 +2,9 @@
 
 Weak связывает State, выбор Energy, выполнение Process и канонический commit
 результата. Доменные законы находятся в документации
-[Matrix](../domains/MATRIX.md), [Energy](../domains/ENERGY.md) и
-[Boundary](../../boundary/DOMAIN.md); точные payload — в
-`shared/protocol/force/execution.ts`.
+[Matrix](../../matrix/README.md), [Energy](../domains/ENERGY.md) и
+[Boundary](../../boundary/DOMAIN.md); точная форма сообщений опубликована в
+TypeDoc Matrix.
 
 ## Один проход
 

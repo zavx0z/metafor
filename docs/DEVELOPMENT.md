@@ -83,33 +83,27 @@ METAFOR_LOG_PARTS=inflaton,graviton,gluon,higgs,photon,z,w+,w-
 bun run typecheck
 bun run test
 bun run check
+bun run docs:matrix
 ```
 
 `bun run test` задаёт недоступный `FORCE_ADDRESS`, отключает reconnect и
 исключает `cluster/**` из test discovery, чтобы случайно запущенный development
 contour и тесты внешних Atom-репозиториев не влияли на suites MetaFor.
 
-Критические suites можно запускать отдельно:
+Домены можно проверять отдельно без перечисления внутренних файлов:
 
 ```bash
 bun test create-metafor
-bun test matter.spec.ts
-bun test boundary/input.spec.ts
-bun test boundary/state.spec.ts
-bun test boundary/execution.spec.ts
-bun test boundary/reaction.spec.ts
-bun test matrix/runtime.parity.spec.ts
-bun test energy/energy.spec.ts
-bun test energy/reaction.spec.ts
-bun test bulk/world.spec.ts
-bun test pkg/engine/src/renderer/shaders/line.webgpu.spec.ts
+bun test boundary
+bun test matrix
+bun test energy
+bun test bulk
 ```
 
-WebGPU suite запускается отдельно при доступном adapter. Недоступность adapter
-должна быть отмечена как `NOT EXECUTED`, а не как успешная проверка.
-Line shader suite через настоящий WebGPU device компилирует production WGSL
-vertex/fragment stages и создаёт production-shaped render pipeline; обычная
-проверка текста или browser bundle не заменяет этот gate.
+Проверка с настоящим WebGPU запускается только при доступном устройстве.
+Недоступность устройства должна быть отмечена как `NOT EXECUTED`, а не как
+успешная проверка. TypeDoc Matrix содержит ссылки на конкретные сценарии,
+подтверждающие каждый технический этап жизненного цикла.
 
 ## Временная Meta
 

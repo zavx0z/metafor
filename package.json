@@ -66,6 +66,7 @@
     "typecheck": "tsc --noEmit --pretty false",
     "typecheck:expect-errors": "bun ./tests/types/verify-expect-errors.ts",
     "check": "bun run typecheck && bun run typecheck:expect-errors && bun run test",
+    "docs:matrix": "typedoc --options typedoc.matrix.json",
     "build": "bun run build:prod && bun run build:dev",
     "build:watch": "bun run build:dev --watch",
     "build:prod": "bun build index.ts --outdir ./dist --minify --entry-naming [name].min.[ext]",

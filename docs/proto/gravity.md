@@ -42,8 +42,9 @@ Inflaton и Graviton не являются двумя именами одной 
 
 ### Matrix
 
-- инкрементальный atom/brane store с parent-child индексами,
-- локализация state transition без чтения Boundary.
+- применение структурного изменения только к связанной части своей проекции;
+- сохранение State и Process незатронутых Atom;
+- выбор State без прямого чтения Boundary.
 
 ### Bulk
 

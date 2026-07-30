@@ -1,9 +1,15 @@
 /**
- * Matrix — доменный оркестратор детерминированного перехода состояний.
+ * Причинный оркестратор Matrix.
  *
- * Монада рождает Matrix с уже подготовленным packed Store. После рождения все
- * runtime-изменения идут через один pipeline `gravity → strong → weak`.
- * WebGPU является основным параллельным backend, CPU — fallback/reference.
+ * Все операции, способные заменить Store либо изменить Field, lock или
+ * структурную проекцию, входят в один {@link AsyncGate}. Операция удерживает
+ * очередь до чтения результата Weak и публикации Photon, но не ждёт исполнения
+ * Process в Energy.
+ *
+ * @see [Порядок одновременно вызванных операций](https://github.com/zavx0z/metafor/blob/main/matrix/tests/index.spec.ts#L419-L481)
+ * @see [Process завершается только после Boundary commit](https://github.com/zavx0z/metafor/blob/main/matrix/matrix.spec.ts#L72-L233)
+ *
+ * @packageDocumentation
  */
 
 import {gravity$} from "@matrix/gravity/store.ts"
@@ -441,6 +447,18 @@ async function writePreparedData(prepared: MatrixData): Promise<[number, number]
   })
 }
 
+/**
+ * Полностью заменяет производную Matrix-проекцию.
+ *
+ * Предыдущий Weak уничтожается внутри общей очереди до установки нового Store,
+ * поэтому параллельный {@link update} не видит частично заменённые данные.
+ *
+ * @param data Проверенная входная форма Fields, Branes и States.
+ * @returns Изменения State; полная запись сама по себе их не вычисляет.
+ * @throws Если входная форма Matrix недопустима.
+ *
+ * @see [update ждёт предыдущий write](https://github.com/zavx0z/metafor/blob/main/matrix/tests/index.spec.ts#L447-L459)
+ */
 export async function write(data: MatrixInputData): Promise<[number, number][]> {
   validateData(data)
   return await writePreparedData(prepareData(data))
@@ -464,6 +482,23 @@ function findMutableFieldRecord(
   throw new Error(`Field ${fieldIndex} not found in brane ${braneIndex}`)
 }
 
+/**
+ * Применяет изменения Fields или lock и выполняет один полный шаг Weak.
+ *
+ * Один вызов может изменить State каждой затронутой незаблокированной Brane не
+ * более одного раза. Публикация вызванных Photon входит в ту же
+ * последовательную операцию. Активный Process не удерживает эту очередь:
+ * его Brane пропускается вычислением, а остальные Branes продолжают работу.
+ *
+ * @param updates Изменения, сгруппированные по адресу Brane.
+ * @param options Управление повторным сигналом Process при внутренних
+ * подтверждениях и структурной перестройке.
+ * @returns Пары адреса Brane и нового State для фактических переходов.
+ * @throws Если Store не рождён либо указан неизвестный Brane или Field.
+ *
+ * @see [Заблокированная Brane не меняет State](https://github.com/zavx0z/metafor/blob/main/matrix/tests/index.spec.ts#L550-L607)
+ * @see [Параллельные update сохраняют порядок](https://github.com/zavx0z/metafor/blob/main/matrix/tests/index.spec.ts#L419-L439)
+ */
 export async function update(
   updates: Array<[braneIndex: number, fieldUpdates: Array<[fieldIndex: number, value: unknown]>, lock?: boolean]>,
   options: MatrixUpdateOptions = {},
@@ -532,6 +567,16 @@ export async function update(
   })
 }
 
+/**
+ * Снимает внутреннюю блокировку перечисленных Branes без запуска нового шага.
+ *
+ * В причинном Process-протоколе обычный путь разблокировки проходит через
+ * подтверждённый Boundary результат и {@link update}; этот метод нужен
+ * низкоуровневому управлению и проверкам.
+ *
+ * @param indexes Адреса Branes, с которых нужно снять lock.
+ * @throws Если Store не рождён или Brane не существует.
+ */
 export async function unlock(indexes: number[]): Promise<void> {
   await runExclusive(matrixGate, async () => {
     requireInitializedStore(matrix$)

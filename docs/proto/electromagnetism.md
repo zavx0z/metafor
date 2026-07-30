@@ -27,9 +27,9 @@
 
 ### Matrix
 
-- вычисление runtime state transition;
-- `photon/replace` для обычного наблюдаемого state;
-- `photon/test` для process-bound state;
+- вычисление перехода State;
+- `photon/replace` для State без Process;
+- `photon/test` для State с Process;
 - публикация Photon через единый Force transport.
 
 ### Energy

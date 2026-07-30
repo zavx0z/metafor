@@ -32,12 +32,10 @@
 
 ### Matrix
 
-- накопление compact values в локальном Matrix store;
-- prepared entanglement только из canonical Boundary identity, не из равенства
-  payload;
-- применение atom-scoped `gluon` по `value.fields[fieldId]`;
-- вычисление переходов после изменения обычного field;
-- отсутствие прямого чтения Boundary.
+- принятие канонического изменения обычного Field;
+- связь Fields только по общей канонической идентичности, а не по равенству
+  значений;
+- проверка переходов затронутых Atom без прямого чтения Boundary.
 
 ### Bulk
 

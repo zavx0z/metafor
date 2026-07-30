@@ -1,3 +1,17 @@
+/**
+ * Частичное обновление производной Matrix-проекции.
+ *
+ * Неизменённые Branes, графы и общие блоки сохраняют адреса. Действующий
+ * Process сохраняется только когда идентичности Atom, State и Process
+ * совместимы с изменением; иначе результат явно перечисляет затронутые Atom
+ * для выдачи нового номера выполнения.
+ *
+ * @see [Изменение Process аннулирует только затронутые выполнения](https://github.com/zavx0z/metafor/blob/main/matrix/incremental.spec.ts#L492-L606)
+ * @see [CPU и WebGPU сохраняют одну структурную трассу](https://github.com/zavx0z/metafor/blob/main/matrix/incremental.spec.ts#L608-L642)
+ *
+ * @packageDocumentation
+ */
+
 import type {MatrixConditionRecord} from "@metafor/types/matrix/condition"
 import type {MatrixFieldRecord} from "@metafor/types/matrix/data"
 import {STATE_NONE} from "@metafor/types/matrix/runtime"
@@ -676,7 +690,13 @@ const writeSharedValue = (
   return location.reused
 }
 
-/** Applies one structural projection delta without resetting unrelated packed rows or Weak. */
+/**
+ * Перестраивает только затронутую часть Store и сообщает Weak точные области
+ * синхронизации.
+ *
+ * @param change Граница изменения, вычисленная локальной проекцией.
+ * @returns Адреса синхронизации Weak, сохранённые и аннулированные Process.
+ */
 export async function applyIncrementalMatrixProjection(
   change: MatrixProjectionChange,
 ): Promise<IncrementalMatrixResult> {

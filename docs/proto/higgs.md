@@ -46,10 +46,10 @@
 
 ### Matrix
 
-- накопление topology markers в локальном runtime store,
-- применение atom-scoped `higgs` по `value.fields[fieldId]`,
-- отправка непомеченного atom-scoped Higgs в Force; central routing доставляет
-  такую ещё не committed mutation только Boundary.
+- применение подтверждённого изменения поля структуры к затронутому Atom;
+- повторная проверка связанной структуры без перезапуска незатронутого Process;
+- отправка ещё не подтверждённого изменения сначала в Boundary, а не прямое
+  изменение мира.
 
 ### Bulk
 

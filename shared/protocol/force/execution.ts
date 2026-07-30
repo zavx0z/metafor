@@ -1,22 +1,49 @@
+/**
+ * Номер одного выполнения Process, созданный Matrix.
+ *
+ * Номер связывает Photon, запрос Energy, разрешение Matrix, предложение
+ * результата и подтверждение Boundary. После перестройки Process он не
+ * переиспользуется.
+ */
 export type ProcessExecutionId = string
 
+/** Запрос Energy на выполнение текущего заблокированного Process. */
 export interface ProcessExecutionClaim {
+  /** Местная идентичность претендующей Energy. */
   energy: string
+  /** Номер выполнения из `photon/test`. */
   processExecutionId: ProcessExecutionId
 }
 
+/** Разрешение Matrix первому подходящему исполнителю. */
 export interface ProcessExecutionGrant {
+  /** Номер всё ещё текущего выполнения. */
   processExecutionId: ProcessExecutionId
+  /** Снимок Fields, сделанный Matrix при входе в Process State. */
   fields: Record<string, unknown>
 }
 
+/**
+ * Предложение Energy записать результат Process.
+ *
+ * Это сообщение ещё не меняет мир и не снимает lock Matrix.
+ */
 export interface ProcessResultProposal {
   processExecutionId: ProcessExecutionId
   processId: number
+  /** Только Fields из разрешённого Process write-set. */
   fields: Record<string, unknown>
   error?: string
 }
 
+/**
+ * Подтверждение Boundary после канонической записи результата.
+ *
+ * Только сообщение с совпавшими execution, Process и Energy разрешает Matrix
+ * снять lock и выполнить следующий шаг.
+ *
+ * @see [Matrix ждёт Boundary commit](https://github.com/zavx0z/metafor/blob/main/matrix/matrix.spec.ts#L180-L233)
+ */
 export interface ProcessResultCommit {
   processExecutionId: ProcessExecutionId
   processId: number

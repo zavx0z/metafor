@@ -1,5 +1,12 @@
 /**
- * `@matrix/strong` удерживает каноническую и согласованную store-форму Matrix.
+ * Согласованная производная форма данных Matrix.
+ *
+ * Слой хранит адреса Fields, States, Transitions и общих значений, на которые
+ * опирается вычислительный слой. Каноническим владельцем мира он не является.
+ *
+ * @see [Локальное изменение общей проекции](https://github.com/zavx0z/metafor/blob/main/matrix/projection.spec.ts#L91-L188)
+ *
+ * @packageDocumentation
  */
 
 import { materializeEntanglement } from "./entangled"
