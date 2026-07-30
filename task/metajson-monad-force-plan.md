@@ -101,18 +101,18 @@ consequences также проходят Dark Force. Gluon/Higgs и Inflaton и�
 
 ## 3. Источники истины и наблюдаемость
 
-| Артефакт | Владелец смысла | Значение |
-| --- | --- | --- |
-| `meta.ts` | Meta package | каноническое human-authored описание |
-| Create MetaFor templates | Create MetaFor | законная исходная структура нового Meta package |
-| MetaJSON v1 read operation | Dark Monad | stateless assembly одного полного declaration/runtime document |
-| Declaration projection | Dark Monad | полная compact normalization загруженного MetaDSL graph |
-| Current projection | Boundary | текущие sparse Atom values в structural occurrences |
-| Boundary Store | Boundary | канонический текущий materialized мир |
-| Domain Stores | соответствующий домен | локальные projections и живые ресурсы |
-| Operation-service log, если утверждён | Dark Monad | фазы service operation, не выраженные Particle |
-| Particle history | Dark Force | полная filesystem history всех принятых Particles |
-| Mass bytes/results | Energy/Mass owner | данные и результаты, читаемые отдельным разрешённым API |
+| Артефакт                              | Владелец смысла       | Значение                                                       |
+| ------------------------------------- | --------------------- | -------------------------------------------------------------- |
+| `meta.ts`                             | Meta package          | каноническое human-authored описание                           |
+| Create MetaFor templates              | Create MetaFor        | законная исходная структура нового Meta package                |
+| MetaJSON v1 read operation            | Dark Monad            | stateless assembly одного полного declaration/runtime document |
+| Declaration projection                | Dark Monad            | полная compact normalization загруженного MetaDSL graph        |
+| Current projection                    | Boundary              | текущие sparse Atom values в structural occurrences            |
+| Boundary Store                        | Boundary              | канонический текущий materialized мир                          |
+| Domain Stores                         | соответствующий домен | локальные projections и живые ресурсы                          |
+| Operation-service log, если утверждён | Dark Monad            | фазы service operation, не выраженные Particle                 |
+| Particle history                      | Dark Force            | полная filesystem history всех принятых Particles              |
+| Mass bytes/results                    | Energy/Mass owner     | данные и результаты, читаемые отдельным разрешённым API        |
 
 `meta.ts` остаётся каноническим authored source. MetaJSON собирается из Dark
 declaration и текущей Boundary projection и не редактируется как второй source
@@ -232,14 +232,14 @@ Git config, cwd repository либо другого нестабильного о
 
 Целевое отображение:
 
-| Текущий address | Новый peer address |
-| --- | --- |
-| `zavx0z/inference` | `zavx0z/inference` |
-| `zavx0z/inference/lada` | `zavx0z/lada` |
-| `zavx0z/inference/auth` | `zavx0z/lada-auth` |
-| `zavx0z/inference/chat` | `zavx0z/lada-chat` |
+| Текущий address              | Новый peer address      |
+| ---------------------------- | ----------------------- |
+| `zavx0z/inference`           | `zavx0z/inference`      |
+| `zavx0z/inference/lada`      | `zavx0z/lada`           |
+| `zavx0z/inference/auth`      | `zavx0z/lada-auth`      |
+| `zavx0z/inference/chat`      | `zavx0z/lada-chat`      |
 | `zavx0z/inference/chat-send` | `zavx0z/lada-chat-send` |
-| `zavx0z/inference/model` | `zavx0z/lada-model` |
+| `zavx0z/inference/model`     | `zavx0z/lada-model`     |
 
 Целевая композиция:
 
@@ -593,21 +593,20 @@ templates остаются единственными.
 
 ## 9. Границы ответственности
 
-| Компонент | Ответственность |
-| --- | --- |
-| DSL / `meta.ts` | human-readable canonical declaration |
-| Create MetaFor | полный законный template нового flat peer Meta repository |
-| Dark Monad | projections, Meta/package/source/TS/Process service operations, validation, structural planning, atomic source write, execution/round-trip orchestration, retry/reconcile и Inflaton generation |
-| Dark Force | полный Particle ingress/history, causal order, relay/routing, lifecycle gate и domain channels |
-| Boundary | канонический materialized мир и runtime instance values |
-| Matrix | States, Transitions, Conditions и их runtime evaluation |
-| Energy | Processes, Mass handles/results и живые resources |
-| Bulk | manifestation и projection/layout, не source authority |
-| Operational journal | исход structural operations |
+План не повторяет действующие законы доменов. Их документы-владельцы
+перечислены в `docs/README.md`.
 
-Ни Monad, ни Codex не пишут напрямую в Boundary/Matrix/Energy/Bulk Stores.
-Dark не читает Boundary SQLite напрямую. Mass bytes не проходят через MetaJSON.
-После `MF-102` отдельного standalone Force runtime/domain/process нет.
+| Компонент           | Ответственность                                                                                                                                                                                 |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| DSL / `meta.ts`     | human-readable canonical declaration                                                                                                                                                            |
+| Create MetaFor      | полный законный template нового flat peer Meta repository                                                                                                                                       |
+| Dark Monad          | projections, Meta/package/source/TS/Process service operations, validation, structural planning, atomic source write, execution/round-trip orchestration, retry/reconcile и Inflaton generation |
+| Dark Force          | полный Particle ingress/history, causal order, relay/routing, lifecycle gate и domain channels                                                                                                  |
+| Operational journal | исход structural operations                                                                                                                                                                     |
+
+Ограничения записи в доменные хранилища также принадлежат соответствующим
+документам-владельцам. После `MF-102` отдельного standalone Force
+runtime/domain/process нет.
 
 ## 10. Лада
 
@@ -684,19 +683,19 @@ patch vertical slice.
 
 ## 13. User stories
 
-| ID | История |
-| --- | --- |
-| US-01 | Codex читает один полный MetaJSON declaration/runtime document |
-| US-02 | Codex выполняет partial retrieval над тем же MetaJSON contract |
-| US-03 | Codex сопоставляет projection, particle history и разрешённый Mass result |
-| US-04 | Codex валидирует и применяет разрешённый structural patch |
-| US-05 | Codex наблюдает materialized result и продолжает улучшение |
-| US-06 | Monad отклоняет invalid reference/cycle до filesystem write |
-| US-07 | Post-write materialization failure виден и reconcileable |
-| US-08 | Create использует Create MetaFor template, затем target patch |
-| US-09 | Flat peer Meta ссылаются друг на друга только двухсегментными addresses |
-| US-10 | Cold load Inference materialize тот же смысловой graph без nesting |
-| US-11 | Configured internal Process автономно обрабатывает runtime event |
+| ID    | История                                                                      |
+| ----- | ---------------------------------------------------------------------------- |
+| US-01 | Codex читает один полный MetaJSON declaration/runtime document               |
+| US-02 | Codex выполняет partial retrieval над тем же MetaJSON contract               |
+| US-03 | Codex сопоставляет projection, particle history и разрешённый Mass result    |
+| US-04 | Codex валидирует и применяет разрешённый structural patch                    |
+| US-05 | Codex наблюдает materialized result и продолжает улучшение                   |
+| US-06 | Monad отклоняет invalid reference/cycle до filesystem write                  |
+| US-07 | Post-write materialization failure виден и reconcileable                     |
+| US-08 | Create использует Create MetaFor template, затем target patch                |
+| US-09 | Flat peer Meta ссылаются друг на друга только двухсегментными addresses      |
+| US-10 | Cold load Inference materialize тот же смысловой graph без nesting           |
+| US-11 | Configured internal Process автономно обрабатывает runtime event             |
 | US-12 | Будущая Lada self-evolution остаётся возможной, но не входит в текущий slice |
 
 ## 14. Порядок реализации

@@ -196,8 +196,6 @@
     `.metafor/backups/mf014-flat-peers-20260725T230711Z` содержит integrity-ok
     SQLite, byte-identical Dark history/Mass и verified Git bundles core плюс
     шести Meta repositories;
-  - full cold birth прошёл: Force, Boundary, Dark, Energy, Bulk и Matrix
-    ответили `200`, Force вошёл в `running`, Matrix использовал GPU backend;
   - `zavx0z/inference` прочитал все пять flat peer references, но Boundary
     сохранил шесть legacy WIMP declarations и добавил пять flat declarations:
     получилось 11 WIMP вместо ожидаемых 6;
@@ -210,7 +208,7 @@
   - source repositories остались clean, cleanup, push и hot reload не
     выполнялись.
   - owner-approved clean retry сначала materialize 177 canonical Dark
-    declarations офлайн, до рождения Matrix/Energy Processes;
+    declarations офлайн, до рождения рабочих Processes;
   - semantic root Mass declarations были сопоставлены с пятью сохранёнными
     global key identities; все 18 memberships сохранили source relations, а
     четыре существующих Mass files снова стали доступны flat graph;
@@ -225,10 +223,8 @@
   - итоговый rollback contour снова отвечает `200` на всех health endpoints и
     находится в прежних состояниях `auth=авторизована`,
     `chat=ожидание события`, `lada=работа`.
-  - canonical `bun run runtime:universe` и owner architecture определяют
-    полный contour ровно как launcher плюс Force, Boundary, Dark, Energy,
-    Bulk и Matrix-last; отдельного DNS resolver, outbound proxy или WebSocket
-    gateway process в lifecycle нет;
+  - в полном contour нет отдельного DNS resolver, outbound proxy или WebSocket
+    gateway process;
   - повторный запуск flat candidate выполнен тем же canonical full launcher:
     все шесть child processes присутствовали, все health endpoints ответили
     `200`, topology/Matter/Mass/Auth снова прошли, а Chat получил тот же
@@ -372,7 +368,8 @@
   - canonical clean HEAD `f4a770a9`;
   - подтверждены current standalone endpoints `/health`, `/force`, `/ws`,
     `/monad/channels`, `/monad/rpc`, `/monad/channel`;
-  - зафиксированы current routing matrix, five-remote-channel lifecycle,
+  - зафиксированы текущая схема маршрутизации, жизненный цикл четырёх удалённых
+    каналов,
     Monad source binding, fail-stop и six-process launcher;
   - isolated baseline
     `bun test force/server.spec.ts force/force.spec.ts force/monad.spec.ts
@@ -384,11 +381,10 @@
     Store, fixtures, health и tests находятся в `dark/force`; `MonadRouter` и
     local Monad channel находятся в `dark/monad`; отдельный `force`
     workspace/entry удалён;
-  - Dark self-WebSocket заменён локальным process adapter, remote channels
-    ограничены Boundary, Matrix, Energy и Bulk;
+  - Dark self-WebSocket заменён локальным process adapter, сохранены четыре
+    удалённых доменных канала;
   - `dark/server.ts` содержит Dark Monad + Dark Force, сохраняет public ingress
     `4000` и предоставляет same-process compatibility health на `4002`;
-  - `runtime/universe.ts` рождает пять процессов и Matrix последней;
   - complete post-cut history содержит только accepted `SourcedParticle`;
     record ID — `<cutId>:<sequence>`, `acceptedAt` отделён от `particle.ts`,
     сегменты ограничены 4096 entries, catalog rebuildable, append+fsync
@@ -418,13 +414,12 @@
   - новый immutable manifest получил cut
     `mf102-20260726T150016Z-53b4bd78-0930-4ccf-b83e-c147f3cea66a`,
     `retroactiveComplete:false` и `legacyHistory:"removed-after-backup"`;
-  - canonical launcher родил ровно пять domain processes, Matrix последней;
-    standalone `force/server.ts` process отсутствует, health `4000..4005`
+  - standalone `force/server.ts` process отсутствует, health `4000..4005`
     отвечает `200`, а `4002` является same-process Dark compatibility health;
   - acceptance probe принят с sequence `1`, durably записан до routing в
     segment `00000000000000000001.ndjson` с SHA-256
     `76007c85cb297c879b9517fd028da5949434caf1fa24a9dd15668ea42484345d`
-    и доставлен Dark, Boundary, Matrix, Energy и Bulk;
+    и доставлен во все доменные каналы;
   - live `readMetaJSON` для `zavx0z/inference` вернул schema
     `metafor/meta-json/v1`, шесть template entries и один runtime root;
   - SQLite `PRAGMA quick_check` вернул `ok`; SQLite/WAL/SHM и четыре Mass files
@@ -627,9 +622,8 @@
     stopped capture опубликовал local checkpoint commit `757700c6714e0da8d3ac98f3b43b2caecbd22d72` для
     `(mf102-20260726T150016Z-53b4bd78-0930-4ccf-b83e-c147f3cea66a, 1)` и
     создал durable control baseline;
-  - full cold start на `2fc9de0a` прошёл: Dark, Boundary, Matrix (GPU), Energy
-    и Bulk healthy; Bulk projection подтверждает `zavx0z/inference`, 6 Atom,
-    54 Fields, 24 States и 13 Processes;
+  - full cold start на `2fc9de0a` прошёл; Bulk projection подтверждает
+    `zavx0z/inference`, 6 Atom, 54 Fields, 24 States и 13 Processes;
   - remote push, Node View и пользовательские auth/chat действия не выполнялись.
 - Acceptance:
   - Dark Force фиксирует `S` и доказывает applied-through causal fence;
@@ -1136,8 +1130,7 @@
     `2651e064f70a1e22592a48cda7cec6f23909672b`;
   - one owner-authorized standard cold restart restored that source without
     config/environment/port changes. All six health endpoints returned `ok`,
-    Force returned `running`, Matrix returned `gpu`/`initialized`, and the
-    post-restart journal recorded a new Bulk browser connection;
+    and the post-restart journal recorded a new Bulk browser connection;
   - the follow-up source slice is contract/test-only: the existing accepted
     five-Atom Lada projection is shared as one deterministic fixture, with
     Auth/Chat/Model directly under Lada and ChatSend under Chat. The explicit
@@ -1173,8 +1166,7 @@
     styling; scoped implementation: this commit;
   - exactly one authorized normal cold restart installed that commit without
     config/environment/port changes. All six health endpoints returned `ok`,
-    Force returned `running`, Matrix returned `gpu`/`initialized`, and a fresh
-    standard `/initial → /ws` browser-observer handshake logged
+    and a fresh standard `/initial → /ws` browser-observer handshake logged
     `browser connected` for the five-Atom `zavx0z/lada` manifest;
   - pre-restart browser tabs that retained consumed one-shot observer sessions
     continued to disconnect until a fresh page/session; no transport or
@@ -1238,7 +1230,7 @@
     config, environment or port changes as invocation
     `53f8d20c2e87434eacc7936754106405`, PID `2543671`. All six `/health`
     endpoints returned `ok`; Force was `running` with all five domains
-    connected, Matrix was `gpu`/`initialized`, and Bulk was initialized;
+    connected, and Bulk was initialized;
   - final Monad Capture from observer
     `bulk-web-bb3e1c4f-055c-46ea-a498-d101d1e5d77e` returned a non-black
     `1450×2178` PNG, `489804` bytes, SHA-256
@@ -1273,7 +1265,7 @@
     source without config, environment or port changes as invocation
     `78b43fcdc6c444d09ad8d1a6b64f564f`, PID `2622413`. All six `/health`
     endpoints returned `ok`; Force was `running` with all five domains
-    connected, Matrix was `gpu`/`initialized`, and Bulk was initialized;
+    connected, and Bulk was initialized;
   - fresh Monad Capture from observer
     `bulk-web-2b5c440d-309d-41a4-adba-c9c9e5d8dd45` returned a non-black
     `1676×2178` PNG, `729799` bytes, SHA-256
@@ -1297,7 +1289,7 @@
     material without config, environment or port changes as invocation
     `7a37bdd02f144fa984fa53c7a8d9fe71`, PID `2654327`. All six `/health`
     endpoints returned `ok`; Force was `running` with all five domains
-    connected, Matrix was `gpu`/`initialized`, and Bulk was initialized;
+    connected, and Bulk was initialized;
   - fresh Monad Capture from observer
     `bulk-web-54dcca24-5e94-41c6-8ddd-282e379a7c78` returned a non-black
     `1676×2178` PNG, `734560` bytes, SHA-256
@@ -1324,7 +1316,7 @@
     without config, environment or port changes as invocation
     `6dbca8b719a547a6aed50b5b2f8353ed`, PID `2691583`. All six `/health`
     endpoints returned `ok`; Force was `running` with all five domains
-    connected, Matrix was `gpu`/`initialized`, and Bulk was initialized;
+    connected, and Bulk was initialized;
   - fresh Monad Capture from observer
     `bulk-web-24711576-f700-45cb-8760-754f8b2ea213` returned a non-black
     `1676×2178` PNG, `980794` bytes, SHA-256
@@ -1718,8 +1710,7 @@
       full `bun run check`: typecheck pass, `42` expected diagnostics,
       `1744 pass`, `0 fail`, `5973 expect` in `209` test files;
     - exactly one ordinary full restart produced systemd invocation
-      `e2bca877c70c4a7b9c03745f3cde87e8`; all six health endpoints passed,
-      Force returned `running`, Matrix returned `gpu`/`initialized`, and
+      `e2bca877c70c4a7b9c03745f3cde87e8`; all six health endpoints passed, and
       fresh observer `bulk-web-280b3710-d94f-43a9-ab5b-72a78bbce6c9`
       connected;
     - live stack began empty; Pause created frame `1` at acceptance sequence
