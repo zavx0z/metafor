@@ -208,6 +208,72 @@ fn string_in_list(string_id: u32, abs_list_ptr: u32) -> bool {
   return false;
 }
 
+fn string_compare(id_a: u32, id_b: u32) -> i32 {
+  let len_a = get_string_length(id_a);
+  let len_b = get_string_length(id_b);
+  let shared_length = min(len_a, len_b);
+  let ptr_a = get_string_pointer(id_a);
+  let ptr_b = get_string_pointer(id_b);
+  for (var i = 0u; i < shared_length; i = i + 1u) {
+    let unit_a = string_heap_safe(ptr_a + i);
+    let unit_b = string_heap_safe(ptr_b + i);
+    if (unit_a < unit_b) { return -1; }
+    if (unit_a > unit_b) { return 1; }
+  }
+  if (len_a < len_b) { return -1; }
+  if (len_a > len_b) { return 1; }
+  return 0;
+}
+
+fn string_starts_with(value_id: u32, prefix_id: u32) -> bool {
+  let value_len = get_string_length(value_id);
+  let prefix_len = get_string_length(prefix_id);
+  if (prefix_len > value_len) { return false; }
+  let value_ptr = get_string_pointer(value_id);
+  let prefix_ptr = get_string_pointer(prefix_id);
+  var matched = true;
+  for (var i = 0u; i < prefix_len; i = i + 1u) {
+    if (string_heap_safe(value_ptr + i) != string_heap_safe(prefix_ptr + i)) {
+      matched = false;
+    }
+  }
+  return matched;
+}
+
+fn string_ends_with(value_id: u32, suffix_id: u32) -> bool {
+  let value_len = get_string_length(value_id);
+  let suffix_len = get_string_length(suffix_id);
+  if (suffix_len > value_len) { return false; }
+  let value_ptr = get_string_pointer(value_id) + value_len - suffix_len;
+  let suffix_ptr = get_string_pointer(suffix_id);
+  var matched = true;
+  for (var i = 0u; i < suffix_len; i = i + 1u) {
+    if (string_heap_safe(value_ptr + i) != string_heap_safe(suffix_ptr + i)) {
+      matched = false;
+    }
+  }
+  return matched;
+}
+
+fn string_contains(value_id: u32, part_id: u32) -> bool {
+  let value_len = get_string_length(value_id);
+  let part_len = get_string_length(part_id);
+  if (part_len == 0u) { return true; }
+  if (part_len > value_len) { return false; }
+  let value_ptr = get_string_pointer(value_id);
+  let part_ptr = get_string_pointer(part_id);
+  for (var start = 0u; start <= value_len - part_len; start = start + 1u) {
+    var matched = true;
+    for (var i = 0u; i < part_len; i = i + 1u) {
+      if (string_heap_safe(value_ptr + start + i) != string_heap_safe(part_ptr + i)) {
+        matched = false;
+      }
+    }
+    if (matched) { return true; }
+  }
+  return false;
+}
+
 fn get_field_block_ptr(brane_index: u32) -> u32 {
   return brane_block_ptrs_safe(brane_index);
 }
@@ -307,13 +373,13 @@ fn get_field_value_recursive(brane_index: u32, target_field_idx: u32) -> f32 {
  *
  * @see cpu/transition.ts:readFieldValueRaw() — TypeScript-эквивалент
  */
-fn get_field_value_raw(brane_index: u32, target_field_idx: u32) -> u32 {
+fn get_field_encoded(brane_index: u32, target_field_idx: u32) -> vec2<u32> {
   // Ищем в локальном блоке поля
   let block_ptr = get_field_block_ptr(brane_index);
   let result = find_field(block_ptr, target_field_idx);
 
   if (result.x == 1u) {
-    return heap_safe(result.w);
+    return vec2<u32>(heap_safe(result.w), heap_safe(result.w + 1u));
   }
 
   // Если не нашли, ищем в entangled блоках
@@ -337,13 +403,13 @@ fn get_field_value_raw(brane_index: u32, target_field_idx: u32) -> u32 {
 
     let entangled_result = find_field(entangled_ptr, target_field_idx);
     if (entangled_result.x == 1u) {
-      return heap_safe(entangled_result.w);
+      return vec2<u32>(heap_safe(entangled_result.w), heap_safe(entangled_result.w + 1u));
     }
 
     i = i + 1u;
   }
 
-  return 0u;
+  return vec2<u32>(0u, 0u);
 }
 
 // ============================================================================
@@ -362,165 +428,150 @@ fn get_field_value_raw(brane_index: u32, target_field_idx: u32) -> u32 {
  *
  * @see cpu/transition.ts:evaluateCondition() — TypeScript-эквивалент
  */
-fn check_cond(op: u32, field_type: u32, val_a_raw: u32, val_b_raw: u32, cond_values_base: u32) -> bool {
-  // Для ARRAY поддерживаем скалярные сравнения по длине.
-  // op: EQ/NEQ/GT/LT/GTE/LTE, val_b_raw: ожидаемая длина.
-  if (field_type == 4u && op <= 5u) {
-    let heap_ptr = val_a_raw;
-    let len = select(0u, heap_safe(heap_ptr), heap_ptr != 0u);
-
-    if (op == 0u) {
-      return len == val_b_raw;
-    }
-    if (op == 1u) {
-      return len != val_b_raw;
-    }
-    if (op == 2u) {
-      return len > val_b_raw;
-    }
-    if (op == 3u) {
-      return len < val_b_raw;
-    }
-    if (op == 4u) {
-      return len >= val_b_raw;
-    }
-    return len <= val_b_raw;
+fn scalar_check(op: u32, field_type: u32, actual_raw: u32, expected_raw: u32) -> bool {
+  if (field_type == 0u) {
+    let actual = bitcast<f32>(actual_raw);
+    let expected = bitcast<f32>(expected_raw);
+    if (op == 0u) { return actual == expected; }
+    if (op == 1u) { return actual != expected; }
+    if (op == 2u) { return actual > expected; }
+    if (op == 3u) { return actual < expected; }
+    if (op == 4u) { return actual >= expected; }
+    if (op == 5u) { return actual <= expected; }
+    return false;
   }
+  if (op == 0u) { return actual_raw == expected_raw; }
+  if (op == 1u) { return actual_raw != expected_raw; }
+  if (op == 2u) { return actual_raw > expected_raw; }
+  if (op == 3u) { return actual_raw < expected_raw; }
+  if (op == 4u) { return actual_raw >= expected_raw; }
+  if (op == 5u) { return actual_raw <= expected_raw; }
+  return false;
+}
 
-  // Строковые операции (TYPE.STRING = 3)
+fn length_check(op: u32, length: u32, expected: u32) -> bool {
+  if (op == 10u) { return length == expected; }
+  if (op == 20u) { return length > expected; }
+  if (op == 21u) { return length >= expected; }
+  if (op == 22u) { return length < expected; }
+  if (op == 23u) { return length <= expected; }
+  return false;
+}
+
+fn check_cond(
+  op: u32,
+  field_type: u32,
+  val_a_raw: u32,
+  present: u32,
+  val_b_raw: u32,
+  cond_values_base: u32,
+) -> bool {
+  if (op == 29u) { return val_b_raw == 1u; }
+  if (op == 12u) { return present == 0u; }
+  if (op == 13u) { return present != 0u; }
+  if (present == 0u) { return false; }
+
   if (field_type == 3u) {
-    // val_a_raw = string_id из heap
-    // val_b_raw = string_id из bytecode (для EQ/NEQ) или ptr на список (для IN/NOT_IN)
-
-    // EQ / NEQ для строк — используем полное сравнение строк
-    if (op == 0u) {
-      return string_equals(val_a_raw, val_b_raw);
+    let length = get_string_length(val_a_raw);
+    if (op == 10u || (op >= 20u && op <= 23u)) {
+      return length_check(op, length, val_b_raw);
     }
-    if (op == 1u) {
-      return !string_equals(val_a_raw, val_b_raw);
-    }
-
-    // IN / NOT_IN для строк
+    if (op == 0u) { return string_equals(val_a_raw, val_b_raw); }
+    if (op == 1u) { return !string_equals(val_a_raw, val_b_raw); }
     if (op == 6u || op == 7u) {
-      let abs_list_ptr = cond_values_base + val_b_raw;
-      let found = string_in_list(val_a_raw, abs_list_ptr);
-      if (op == 6u) {
-        return found;
-      }
-      return !found;
+      let found = string_in_list(val_a_raw, cond_values_base + val_b_raw);
+      return select(!found, found, op == 6u);
     }
-
-    // Строки не поддерживают >, <, >=, <=
+    if (op == 14u || op == 18u) {
+      let matched = string_starts_with(val_a_raw, val_b_raw);
+      return select(!matched, matched, op == 14u);
+    }
+    if (op == 15u || op == 19u) {
+      let matched = string_ends_with(val_a_raw, val_b_raw);
+      return select(!matched, matched, op == 15u);
+    }
+    if (op == 16u || op == 17u) {
+      let matched = string_contains(val_a_raw, val_b_raw);
+      return select(!matched, matched, op == 16u);
+    }
+    if (op == 27u) {
+      let list_ptr = cond_values_base + val_b_raw;
+      let lower = bytecode_safe(list_ptr + 1u);
+      let upper = bytecode_safe(list_ptr + 2u);
+      return string_compare(val_a_raw, lower) >= 0 && string_compare(val_a_raw, upper) <= 0;
+    }
     return false;
   }
 
-  // Базовые скалярные сравнения (FLOAT, UINT, BOOL)
-  if (op <= 5u) {
-    var val_a = f32(val_a_raw);
-    var val_b = f32(val_b_raw);
-    if (field_type == 0u) {
-      // Для операторов с плавающей точкой используем bitcast.
-      val_a = bitcast<f32>(val_a_raw);
-      val_b = bitcast<f32>(val_b_raw);
-    }
-    if (op == 0u) {
-      return val_a == val_b;
-    }
-    if (op == 1u) {
-      return val_a != val_b;
-    }
-    if (op == 2u) {
-      return val_a > val_b;
-    }
-    if (op == 3u) {
-      return val_a < val_b;
-    }
-    if (op == 4u) {
-      return val_a >= val_b;
-    }
-    if (op == 5u) {
-      return val_a <= val_b;
-    }
-  }
-
-  // Списки (IN / NOT_IN) для скаляров
-  // val_b_raw — указатель на список в байткоде: [count, item1, item2...]
-  if (op == 6u || op == 7u) {
-    let abs_list_ptr = cond_values_base + val_b_raw;
-    let count = bytecode_safe(abs_list_ptr);
-    var found = false;
-    for (var i = 0u; i < count; i = i + 1u) {
-      let item_raw = bytecode_safe(abs_list_ptr + 1u + i);
-      var item_val = f32(item_raw);
-      var val_a = f32(val_a_raw);
-      if (field_type == 0u) {
-        item_val = bitcast<f32>(item_raw);
-        val_a = bitcast<f32>(val_a_raw);
-      }
-      if (val_a == item_val) {
-        found = true;
-        break;
-      }
-    }
-    if (op == 6u) {
-      return found;
-      // IN
-    }
-    if (op == 7u) {
-      return !found;
-      // NOT_IN
-    }
-  }
-
-  // Операторы массивов (INCLUDE / LENGTH / IS_EMPTY)
-  // val_a_raw = указатель на массив в куче (heap). Формат: [длина, элемент1, элемент2...]
-  // val_b_raw = значение для поиска или сравнения (закодировано как u32).
-  if (op >= 8u && op <= 11u) {
-    let heap_ptr = val_a_raw;
-    if (heap_ptr == 0u) {
-      // Null указатель = пустой массив.
-      if (op == 11u) {
-        return val_b_raw == 1u;
-        // IS_EMPTY: true если ожидаем пустой.
-      }
-      if (op == 10u) {
-        return 0u == val_b_raw;
-        // LENGTH: 0 == ожидаемая длина.
-      }
-      return false;
-    }
-    let len = heap_safe(heap_ptr);
-    if (op == 10u) {
-      return len == val_b_raw;
-      // LENGTH.
+  if (field_type == 4u) {
+    let length = select(0u, heap_safe(val_a_raw), val_a_raw != 0u);
+    if (op == 10u || (op >= 20u && op <= 23u)) {
+      return length_check(op, length, val_b_raw);
     }
     if (op == 11u) {
-      let is_empty = (len == 0u);
-      let expected = (val_b_raw == 1u);
-      return is_empty == expected;
-      // IS_EMPTY.
+      return (length == 0u) == (val_b_raw == 1u);
     }
     if (op == 8u || op == 9u) {
-      // INCLUDE / NOT_INCLUDE: линейный поиск в куче.
       var found = false;
-      for (var i = 0u; i < len; i = i + 1u) {
-        let item_raw = heap_safe(heap_ptr + 1u + i);
-        if (item_raw == val_b_raw) {
+      for (var i = 0u; i < length; i = i + 1u) {
+        if (bitcast<f32>(heap_safe(val_a_raw + 1u + i)) == bitcast<f32>(val_b_raw)) {
           found = true;
-          break;
         }
       }
-      if (op == 8u) {
-        return found;
-        // INCLUDE.
-      }
-      if (op == 9u) {
-        return !found;
-        // NOT_INCLUDE.
-      }
+      return select(!found, found, op == 8u);
     }
+    if (op == 24u) {
+      let list_ptr = cond_values_base + val_b_raw;
+      let expected_length = bytecode_safe(list_ptr);
+      if (length != expected_length) { return false; }
+      var equal = true;
+      for (var i = 0u; i < length; i = i + 1u) {
+        if (
+          bitcast<f32>(heap_safe(val_a_raw + 1u + i)) !=
+          bitcast<f32>(bytecode_safe(list_ptr + 1u + i))
+        ) {
+          equal = false;
+        }
+      }
+      return equal;
+    }
+    if (op == 25u || op == 26u) {
+      let checks_ptr = cond_values_base + val_b_raw;
+      let checks_count = bytecode_safe(checks_ptr);
+      var any = false;
+      var all = true;
+      for (var i = 0u; i < length; i = i + 1u) {
+        var item_passed = true;
+        let item_raw = heap_safe(val_a_raw + 1u + i);
+        for (var k = 0u; k < checks_count; k = k + 1u) {
+          let item_op = bytecode_safe(checks_ptr + 1u + k * 2u);
+          let item_expected = bytecode_safe(checks_ptr + 2u + k * 2u);
+          if (!scalar_check(item_op, 0u, item_raw, item_expected)) {
+            item_passed = false;
+          }
+        }
+        any = any || item_passed;
+        all = all && item_passed;
+      }
+      return select(any, all, op == 25u);
+    }
+    return false;
   }
 
+  if (op <= 5u) {
+    return scalar_check(op, field_type, val_a_raw, val_b_raw);
+  }
+  if (op == 6u || op == 7u) {
+    let list_ptr = cond_values_base + val_b_raw;
+    let count = bytecode_safe(list_ptr);
+    var found = false;
+    for (var i = 0u; i < count; i = i + 1u) {
+      if (scalar_check(0u, field_type, val_a_raw, bytecode_safe(list_ptr + 1u + i))) {
+        found = true;
+      }
+    }
+    return select(!found, found, op == 6u);
+  }
   return false;
 }
 
@@ -597,10 +648,10 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
       let target_field_idx = bytecode[c_base + 1u];
       let op = bytecode[c_base + 2u];
       let val_encoded = bytecode[c_base + 3u];
-      let real_val_raw = get_field_value_raw(idx, target_field_idx);
+      let encoded_field = get_field_encoded(idx, target_field_idx);
 
       let cond_values_base = bytecode_base + cond_ptr + 1u;
-      if (!check_cond(op, field_type, real_val_raw, val_encoded, cond_values_base)) {
+      if (!check_cond(op, field_type, encoded_field.x, encoded_field.y, val_encoded, cond_values_base)) {
         passed = false;
         break;
       }

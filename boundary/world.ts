@@ -43,7 +43,7 @@ export async function readBoundaryValue(sql: Database, id: number): Promise<unkn
     SELECT variant.item_value AS value FROM value_enum JOIN field_enum_variant AS variant ON variant.id = value_enum.variant
      WHERE value_enum.value = ${id}
   `)[0]?.value ?? null
-  return (await sql<Array<{value: string}>>`SELECT item_value AS value FROM value_list_item WHERE value = ${id} ORDER BY position`).map((row) => row.value)
+  return (await sql<Array<{value: string}>>`SELECT item_value AS value FROM value_list_item WHERE value = ${id} ORDER BY position`).map((row) => Number(row.value))
 }
 
 export async function writeBoundaryAtomValue(

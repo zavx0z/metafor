@@ -7,6 +7,7 @@
 import type { GpuFlattenedTransition, GpuPackContext } from "@metafor/types/matrix/gpu"
 import type { MatrixCompiledConditionsResult, MatrixConditionInstruction } from "@metafor/types/matrix/condition"
 import type { MatrixFieldRecord } from "@metafor/types/matrix/data"
+import type { MatrixConditionOperand, MatrixParsedCheck, MatrixQuantifierValue } from "@metafor/types/matrix/condition"
 import type { MatrixValue } from "@metafor/types/matrix/store"
 import { OP, VALUE_TYPE } from "../constants"
 import {compileTransitionLayout} from "../transition-layout"
@@ -32,7 +33,10 @@ export function compileParsedConditions(
   for (const { fieldIndex, checks } of parsedChecks) {
     const field = fields[fieldIndex]
     if (!field) {
-      continue
+      throw new Error(`Matrix condition references undefined Field ${fieldIndex}`)
+    }
+    if (checks.length === 0) {
+      throw new Error(`Matrix condition for Field ${fieldIndex} has no checks`)
     }
 
     const fieldType = fieldTypeToBytecodeType(field.type)
@@ -70,7 +74,11 @@ export function compileParsedConditions(
 
     let valEncoded: number
 
-    if (Array.isArray(check.val) && (check.op === OP.IN || check.op === OP.NOT_IN)) {
+    if (
+      Array.isArray(check.val) &&
+      (check.op === OP.IN || check.op === OP.NOT_IN || check.op === OP.ARRAY_EQ ||
+        check.op === OP.STRING_BETWEEN)
+    ) {
       const ptr = heapOffset
       heap.push(check.val.length)
       for (const value of check.val) {
@@ -80,8 +88,14 @@ export function compileParsedConditions(
             throw new Error(`Value '${value}' not found in enum: [${context.enum}]`)
           }
           heap.push(encodeValue(enumIndex, context).value1)
-        } else if (check.fieldType === VALUE_TYPE.STRING && typeof value === "string") {
+        } else if (
+          (check.fieldType === VALUE_TYPE.STRING || check.op === OP.STRING_BETWEEN) &&
+          typeof value === "string"
+        ) {
           heap.push(encodeValue(value as unknown as MatrixValue, context).value1)
+        } else if (check.op === OP.ARRAY_EQ) {
+          const itemContext = getArrayItemEncodingContext(context)
+          heap.push(encodeValue(value as number | boolean, itemContext).value1)
         } else {
           heap.push(encodeValue(value as number | boolean, context).value1)
         }
@@ -96,7 +110,32 @@ export function compileParsedConditions(
       continue
     }
 
-    const encodeContext = getArrayEncodingContext(context, check.op, check.fieldType)
+    if (check.op === OP.EVERY || check.op === OP.SOME) {
+      const quantifier = check.val as MatrixQuantifierValue
+      const ptr = heapOffset
+      const itemContext = getArrayItemEncodingContext(context)
+      heap.push(quantifier.checks.length)
+      for (const itemCheck of quantifier.checks) {
+        heap.push(itemCheck.op)
+        heap.push(encodeValue(itemCheck.val as MatrixValue, itemContext).value1)
+      }
+      heapOffset += 1 + quantifier.checks.length * 2
+      instructions.push({
+        fieldType: check.fieldType,
+        fieldIndex: check.fieldIndex,
+        op: check.op,
+        valEncoded: ptr,
+      })
+      continue
+    }
+
+    if (check.op === OP.PATTERN) {
+      throw new Error("WebGPU pattern condition must be resolved before bytecode compilation")
+    }
+
+    const encodeContext = check.op === OP.RESOLVED
+      ? {type: VALUE_TYPE.BOOL, stringTable}
+      : getArrayEncodingContext(context, check.op, check.fieldType)
     let valueToEncode = check.val
     if (encodeContext.enum !== undefined && typeof check.val === "string") {
       const enumIndex = encodeContext.enum.indexOf(check.val)
@@ -116,6 +155,14 @@ export function compileParsedConditions(
   }
 
   return { instructions, heap }
+}
+
+function getArrayItemEncodingContext(ctx: GpuPackContext): GpuPackContext {
+  return {
+    type: ctx.subType ?? VALUE_TYPE.FLOAT,
+    stringTable: ctx.stringTable,
+    ...(ctx.enum !== undefined ? {enum: ctx.enum} : {}),
+  }
 }
 
 function getArrayEncodingContext(ctx: GpuPackContext, op: number, fieldType: number): GpuPackContext {

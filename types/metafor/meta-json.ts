@@ -550,6 +550,10 @@ class Validator {
   }
 
   conditionOperators(value: RecordValue, path: JsonPointer, allowed: readonly string[]): void {
+    if (Object.keys(value).length === 0) {
+      this.issue(path, "empty_condition", "Condition must contain at least one operator")
+      return
+    }
     const operators = new Set(allowed)
     for (const key of Object.keys(value)) {
       if (!operators.has(key)) {

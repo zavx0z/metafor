@@ -240,6 +240,86 @@ describe("sqlite ddl", () => {
       .toEqual(["particle", "src", "fields_binding", "mass_binding", "energy_binding"])
   })
 
+  test("расширяет старое хранилище условий без потери скалярных и списочных предикатов", async () => {
+    await db.unsafe(`
+      DROP INDEX condition_list_item_by_predicate;
+      DROP INDEX condition_predicate_by_condition;
+      DROP TABLE condition_list_item;
+      DROP TABLE condition_predicate;
+
+      CREATE TABLE condition_predicate (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        condition INTEGER NOT NULL,
+        predicate_order INTEGER NOT NULL,
+        subject_kind TEXT NOT NULL,
+        operator TEXT NOT NULL,
+        value_kind TEXT NOT NULL,
+        value_boolean INTEGER,
+        value_number REAL,
+        value_text TEXT,
+        value_variant INTEGER
+      );
+      CREATE TABLE condition_list_item (
+        predicate INTEGER NOT NULL,
+        item_order INTEGER NOT NULL,
+        value_kind TEXT NOT NULL,
+        value_boolean INTEGER,
+        value_number REAL,
+        value_text TEXT,
+        value_variant INTEGER,
+        PRIMARY KEY (predicate, item_order),
+        FOREIGN KEY (predicate) REFERENCES condition_predicate(id) ON DELETE CASCADE
+      );
+    `)
+    await db`INSERT INTO wimp(src) VALUES (${"legacy/meta"})`
+    await db`INSERT INTO field(id, wimp, key, type, required)
+             VALUES (${1}, ${"legacy/meta"}, ${"count"}, ${"number"}, ${1})`
+    await db`INSERT INTO state(id, wimp, name, position)
+             VALUES (${1}, ${"legacy/meta"}, ${"idle"}, ${0}),
+                    (${2}, ${"legacy/meta"}, ${"done"}, ${1})`
+    await db`INSERT INTO transition(id, from_state, to_state, position)
+             VALUES (${1}, ${1}, ${2}, ${0})`
+    await db`INSERT INTO condition(id, transition, field, position)
+             VALUES (${1}, ${1}, ${1}, ${0})`
+    await db`INSERT INTO condition_predicate
+             (id, condition, predicate_order, subject_kind, operator, value_kind)
+             VALUES (${1}, ${1}, ${0}, ${"value"}, ${"in"}, ${"list"})`
+    await db`INSERT INTO condition_list_item
+             (predicate, item_order, value_kind, value_number)
+             VALUES (${1}, ${0}, ${"number"}, ${1}),
+                    (${1}, ${1}, ${"number"}, ${2})`
+
+    wimps = await BoundaryWimpSqlite.open(db)
+
+    expect(((await db.unsafe(
+      "PRAGMA table_info(condition_predicate)",
+    )) as Array<{name: string}>).map((column) => column.name)).toContain("value_json")
+    expect(await db<Array<{operator: string; valueKind: string}>>`
+      SELECT operator, value_kind AS valueKind
+      FROM condition_predicate WHERE id = ${1}
+    `).toEqual([{operator: "in", valueKind: "list"}])
+    expect(await db<Array<{value: number}>>`
+      SELECT value_number AS value
+      FROM condition_list_item WHERE predicate = ${1} ORDER BY item_order
+    `).toEqual([{value: 1}, {value: 2}])
+
+    await wimps.create("current/meta", {
+      fields: [{key: "title", type: "string", required: true}],
+      superposition: [
+        {name: "idle", transitions: {done: {title: {pattern: /^ready$/i}}}},
+        {name: "done"},
+      ],
+    })
+    expect(await db<Array<{valueKind: string; valueJson: string}>>`
+      SELECT value_kind AS valueKind, value_json AS valueJson
+      FROM condition_predicate
+      WHERE value_kind = ${"json"}
+    `).toEqual([{
+      valueKind: "json",
+      valueJson: JSON.stringify({source: "^ready$", flags: "i"}),
+    }])
+  })
+
   test("держит entity-таблицы на id и child/subtype tables без parent-derived дублей", async () => {
     const wimpColumns = ((await db.unsafe(`PRAGMA table_info(wimp)`)) as Array<{ name: string }>).map((row) => row.name)
     const fieldColumns = ((await db.unsafe(`PRAGMA table_info(field)`)) as Array<{ name: string }>).map((row) => row.name)
@@ -327,6 +407,7 @@ describe("sqlite ddl", () => {
       "value_number",
       "value_text",
       "value_variant",
+      "value_json",
     ])
     expect(conditionListItemColumns).toEqual([
       "predicate",
@@ -448,7 +529,7 @@ describe("sqlite ddl", () => {
 
     await expect(async () => {
       await db`INSERT INTO condition_predicate(id, condition, predicate_order, subject_kind, operator, value_kind, value_number)
-               VALUES (${13}, ${10}, ${2}, ${"length"}, ${"length"}, ${"number"}, ${2})`
+               VALUES (${13}, ${10}, ${2}, ${"length"}, ${"unknown"}, ${"number"}, ${2})`
     }).toThrow()
 
     await db`INSERT INTO condition_predicate(id, condition, predicate_order, subject_kind, operator, value_kind, value_text)

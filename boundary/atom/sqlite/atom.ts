@@ -402,7 +402,7 @@ export class Atom {
         valueItems.push({
           value: Number(row.value),
           position: Number(row.position),
-          itemValue: String(row.item_value),
+          itemValue: Number(row.item_value),
         })
       }
     }

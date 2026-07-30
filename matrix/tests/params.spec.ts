@@ -58,8 +58,8 @@ describe("encodeValue — кодирование значений", () => {
     const result1 = encodeValue("hero", { type: VALUE_TYPE.STRING, stringInterner })
     const result2 = encodeValue("hero", { type: VALUE_TYPE.STRING, stringInterner })
     expect(result1.value1).toBe(result2.value1) // Одинаковый ID для одинаковой строки
-    expect(result1.value2).toBe(0)
-    expect(result2.value2).toBe(0)
+    expect(result1.value2).toBe(1)
+    expect(result2.value2).toBe(1)
     expect(stringInterner.table).toEqual(["", "hero"])
   })
 

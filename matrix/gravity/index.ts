@@ -27,7 +27,7 @@ export function flattenMatrixData(data: MatrixInputData): FlattenedMatrixInput {
                 targetState: collapse[0],
                 conditions: Object.entries(collapse[1]).map(([fieldIndex, condition]) => ({
                   fieldIndex: Number(fieldIndex),
-                  checks: parseCondition(condition),
+                  checks: parseCondition(condition, data.fields?.[Number(fieldIndex)]),
                 })),
               },
         ),

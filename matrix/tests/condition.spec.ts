@@ -53,14 +53,14 @@ describe("parseCondition — парсинг условий", () => {
     expect(result).toEqual([{ op: OP.EQ, val: 50 }])
   })
 
-  test("должен парсить условие null=true как EQ null", () => {
+  test("должен парсить null=true как отдельную проверку отсутствия", () => {
     const result = parseCondition({ null: true })
-    expect(result).toEqual([{ op: OP.EQ, val: null }])
+    expect(result).toEqual([{ op: OP.IS_NULL, val: 0 }])
   })
 
-  test("должен парсить условие null=false как NEQ null", () => {
+  test("должен парсить null=false как отдельную проверку присутствия", () => {
     const result = parseCondition({ null: false })
-    expect(result).toEqual([{ op: OP.NEQ, val: null }])
+    expect(result).toEqual([{ op: OP.IS_NOT_NULL, val: 0 }])
   })
 
   test("должен парсить условие neq", () => {
@@ -100,7 +100,7 @@ describe("parseCondition — парсинг условий", () => {
 
   test("должен парсить условие length (объект)", () => {
     const result = parseCondition({ length: { gt: 5 } })
-    expect(result).toEqual([{ op: OP.GT, val: 5 }])
+    expect(result).toEqual([{ op: OP.LENGTH_GT, val: 5 }])
   })
 
   test("должен парсить условие between", () => {
@@ -139,8 +139,14 @@ describe("parseCondition — парсинг условий", () => {
     ])
   })
 
-  test("должен парсить null как EQ", () => {
+  test("должен парсить null как проверку отсутствия", () => {
     const result = parseCondition(null)
-    expect(result).toEqual([{ op: OP.EQ, val: null }])
+    expect(result).toEqual([{ op: OP.IS_NULL, val: 0 }])
+  })
+
+  test("не принимает пустые условия", () => {
+    expect(() => parseCondition({})).toThrow("at least one operator")
+    expect(() => parseCondition({length: {}})).toThrow("at least one operator")
+    expect(() => parseCondition({every: {}})).toThrow("at least one item operator")
   })
 })

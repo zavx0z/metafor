@@ -1,4 +1,11 @@
+/**
+ * Производные типы исполнения Matrix на WebGPU.
+ *
+ * @packageDocumentation
+ */
+
 import type { MatrixFieldRecord } from "./data.ts"
+import type { MatrixConditionOperand } from "./condition.ts"
 import type { StringInterner } from "./strong.ts"
 import type { WeakChanges } from "./weak.ts"
 
@@ -18,7 +25,9 @@ export interface MatrixEncodingContext {
 }
 
 export interface MatrixEncodedValueResult {
+  /** Канонические биты значения либо указатель. */
   value1: number
+  /** Признак присутствия: `0` только для `null`, `1` для любого значения. */
   value2: number
 }
 
@@ -45,7 +54,7 @@ export interface GpuFlattenedTransition {
     fieldIndex: number
     checks: Array<{
       op: number
-      val: number | boolean | (number | boolean)[]
+      val: MatrixConditionOperand
     }>
   }>
 }
@@ -201,10 +210,12 @@ export interface GpuFieldMeta {
   offset: number
 }
 
+export type GpuEncodedField = [fieldIndex: number, value: number, present: number]
+
 export interface GpuHeapInput {
-  localFields: [number, number][][]
+  localFields: GpuEncodedField[][]
   braneEntangledMap: number[][]
-  entangledFields: Map<string, [number, number][]>
+  entangledFields: Map<string, GpuEncodedField[]>
   fieldMeta: Map<number, { fieldType: number; fieldSize: number }>
 }
 

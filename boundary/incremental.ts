@@ -1259,20 +1259,29 @@ export class BoundaryIncrementalStore {
     for (const row of await sql<Array<{
       id: number; operator: string; valueKind: string; valueBoolean: number | null;
       valueNumber: number | null; valueText: string | null; valueVariant: number | null;
+      valueJson: string | null;
     }>>`
       SELECT id, operator, value_kind AS valueKind, value_boolean AS valueBoolean,
-             value_number AS valueNumber, value_text AS valueText, value_variant AS valueVariant
+             value_number AS valueNumber, value_text AS valueText, value_variant AS valueVariant,
+             value_json AS valueJson
         FROM condition_predicate WHERE condition = ${condition} ORDER BY predicate_order
     `) {
-      const operator = row.operator === "neq" ? "notEq"
+      const operator = row.valueKind === "null" && (row.operator === "eq" || row.operator === "neq")
+        ? "null"
+        : row.operator === "neq" ? "notEq"
         : row.operator === "not_in" ? "notIn"
           : row.operator === "not_include" ? "notInclude"
             : row.operator === "is_empty" ? "isEmpty"
-              : row.operator
-      let value: unknown = null
+              : row.operator === "starts_with" ? "startsWith"
+                : row.operator === "ends_with" ? "endsWith"
+                  : row.operator === "not_starts_with" ? "notStartsWith"
+                    : row.operator === "not_ends_with" ? "notEndsWith"
+                      : row.operator
+      let value: unknown = row.valueKind === "null" ? row.operator === "eq" : null
       if (row.valueKind === "boolean") value = row.valueBoolean === 1
       else if (row.valueKind === "number") value = row.valueNumber
       else if (row.valueKind === "string") value = row.valueText
+      else if (row.valueKind === "json") value = JSON.parse(row.valueJson ?? "null")
       else if (row.valueKind === "enum") value = row.valueVariant === null
         ? null
         : {kind: "enum", variant: Number(row.valueVariant)}
@@ -1512,7 +1521,7 @@ export class BoundaryIncrementalStore {
     }
     return {ready: true, exists: true, value: (await sql<Array<{value: string}>>`
       SELECT item_value AS value FROM field_array_default_item WHERE field = ${field.id} ORDER BY position
-    `).map((row) => row.value)}
+    `).map((row) => Number(row.value))}
   }
 
   private async ensureRootAtom(sql: Database, src: string): Promise<Particle[]> {
@@ -2600,7 +2609,7 @@ export class BoundaryIncrementalStore {
       SELECT variant.item_value AS value FROM value_enum JOIN field_enum_variant AS variant ON variant.id = value_enum.variant
        WHERE value_enum.value = ${id}
     `)[0]?.value ?? null
-    const items = (await sql<Array<{value: string}>>`SELECT item_value AS value FROM value_list_item WHERE value = ${id} ORDER BY position`).map((row) => row.value)
+    const items = (await sql<Array<{value: string}>>`SELECT item_value AS value FROM value_list_item WHERE value = ${id} ORDER BY position`).map((row) => Number(row.value))
     if (type === "array") return items
     return items
   }
@@ -2761,7 +2770,7 @@ export class BoundaryIncrementalStore {
     if (!atom) return null
     const values: Array<{atom: number; field: number; value: number}> = []
     const valueRecords: JsonRecord[] = []
-    const valueItems: Array<{value: number; position: number; itemValue: string}> = []
+    const valueItems: Array<{value: number; position: number; itemValue: number}> = []
     for (const row of await sql<Array<{field: number; value: number; kind: string}>>`
       SELECT atom_value.field, atom_value.value, value.kind
         FROM atom_value JOIN value ON value.id = atom_value.value
@@ -2779,7 +2788,7 @@ export class BoundaryIncrementalStore {
       if (row.kind === "list") {
         for (const item of await sql<Array<{position: number; itemValue: string}>>`
           SELECT position, item_value AS itemValue FROM value_list_item WHERE value = ${row.value} ORDER BY position
-        `) valueItems.push({value: Number(row.value), position: Number(item.position), itemValue: item.itemValue})
+        `) valueItems.push({value: Number(row.value), position: Number(item.position), itemValue: Number(item.itemValue)})
       }
     }
     const selected = (await sql<Array<{metaState: number | null}>>`SELECT metaState FROM atom_state WHERE atom = ${id}`)[0]?.metaState ?? null

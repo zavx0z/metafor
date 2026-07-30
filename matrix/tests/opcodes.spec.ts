@@ -24,6 +24,8 @@ describe("OP (коды операций)", () => {
     expect(OP.NOT_INCLUDE).toBe(9)
     expect(OP.LENGTH).toBe(10)
     expect(OP.IS_EMPTY).toBe(11)
+    expect(OP.IS_NULL).toBe(12)
+    expect(OP.RESOLVED).toBe(29)
   })
 
   it("должен иметь последовательные значения", () => {

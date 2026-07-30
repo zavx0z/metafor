@@ -388,7 +388,31 @@ agent-сессии. Registry bootstrap должен повторно связа�
 })
 ```
 
-**Условия:** `eq`, `gt`, `gte`, `lt`, `lte`, `between`, `startsWith`, `include`, `pattern`, `length`, `includes`, `isEmpty`, `in`, `notIn`, `startsWithIn`, `null`
+**Условия по виду Field:**
+
+- `boolean`: `eq`, `notEq`, `logicalEq`, `null`;
+- `number`: `eq`, `notEq`, `gt`, `gte`, `lt`, `lte`, `notGt`, `notGte`,
+  `notLt`, `notLte`, `between`, `in`, `notIn`, `null`;
+- `string`: `eq`, `notEq`, `startsWith`, `endsWith`, `include`,
+  `notInclude`, `notStartsWith`, `notEndsWith`, `pattern`, `length`,
+  `between`, `in`, `notIn`, `null`;
+- `enum`: `eq`, `notEq`, `oneOf`, `notOneOf`, `null`;
+- `array`: `length`, `includes`, `notIncludes`, `every`, `some`, `isEmpty`,
+  `null`.
+
+Краткое значение означает `eq`. Краткий массив означает точное равенство
+массива. Все проверки одного перехода соединяются через «и». `between`,
+`length.min` и `length.max` включают границы. `every` для пустого массива
+истинно, `some` — ложно.
+
+`null` означает отсутствие значения optional Field и не совпадает с `0`,
+`false`, пустой строкой, первым вариантом enum или пустым массивом. Операции,
+кроме `null`, проверяют только существующее значение.
+
+Пустое условие, неизвестная операция, неподходящий вид Field и неверное
+значение являются ошибкой декларации. Они не пропускаются и не превращают
+переход в безусловный. Числовое условие имеет один результат независимо от
+того, каким способом Matrix выполняет такт.
 
 **Переход по значению:**
 

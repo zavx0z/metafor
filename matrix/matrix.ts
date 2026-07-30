@@ -79,14 +79,6 @@ const isTopologyCompatibleAtomField = (atomId: number, fieldId: number, runtimeF
   return field?.enum !== undefined || field?.type === FieldType.ARRAY_PTR
 }
 
-const defaultRuntimeFieldValue = (field: MatrixFieldRecord): unknown => {
-  if (field.enum !== undefined) return null
-  if (field.type === FieldType.ARRAY_PTR) return []
-  if (field.type === FieldType.STRING_PTR) return null
-  if (field.type === FieldType.BOOL) return false
-  return 0
-}
-
 const collectAtomFieldUpdates = (
   parts: Particle[],
   kind: "gluon" | "higgs",
@@ -114,7 +106,7 @@ const collectAtomFieldUpdates = (
       if (kind === "higgs" && !isTopology) continue
 
       const fieldUpdates = groupedUpdates.get(braneIndex)
-      const nextValue = part.op === "remove" ? defaultRuntimeFieldValue(field) : value
+      const nextValue = part.op === "remove" ? null : value
       if (fieldUpdates) fieldUpdates.push([runtimeFieldIndex, nextValue])
       else groupedUpdates.set(braneIndex, [[runtimeFieldIndex, nextValue]])
     }

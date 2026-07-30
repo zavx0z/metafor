@@ -1,12 +1,17 @@
 import type { MatrixBraneRecord, MatrixData, MatrixFieldValueRecord, MatrixScalarValue, MatrixSharedBlockRecord, MatrixStateRecord, MatrixTransitionRecord } from "@metafor/types/matrix/store"
-import type { MatrixConditionRecord } from "@metafor/types/matrix/condition"
+import type {
+  MatrixConditionOperand,
+  MatrixConditionRecord,
+  MatrixParsedCheck,
+  MatrixQuantifierValue,
+} from "@metafor/types/matrix/condition"
 import type { MatrixFieldRecord, FlattenedMatrixInput } from "@metafor/types/matrix/data"
 import type { MatrixStateGraph } from "@metafor/types/matrix/strong"
 import { FieldType } from "../gravity/schema"
 import { OP } from "../weak"
 import { materializeEntanglement } from "./entangled"
 import { createStoredStringInterner } from "./string-table"
-import { normalizeFieldValue } from "./normalize"
+import { normalizeFieldValue, normalizeF32, normalizeU32 } from "./normalize"
 
 function normalizeFieldRecord(field: MatrixFieldRecord): MatrixFieldRecord {
   return {
@@ -16,43 +21,121 @@ function normalizeFieldRecord(field: MatrixFieldRecord): MatrixFieldRecord {
   }
 }
 
+function elementField(field: MatrixFieldRecord): MatrixFieldRecord {
+  return {
+    type:
+      field.elementType === "string"
+        ? FieldType.STRING_PTR
+        : field.elementType === "boolean"
+          ? FieldType.BOOL
+          : FieldType.F32,
+  }
+}
+
+function normalizeLength(value: unknown): number {
+  return normalizeU32(value)
+}
+
 function normalizeConditionScalar(
   value: unknown,
   field: MatrixFieldRecord,
-  op: number,
   stringInterner: { intern(value: string): number },
 ): MatrixScalarValue {
-  if (field.enum) {
-    return normalizeFieldValue(value, field, stringInterner) as number
+  const normalized = normalizeFieldValue(value, field, stringInterner)
+  if (normalized === null || Array.isArray(normalized)) {
+    throw new Error("Matrix scalar condition requires a present scalar operand")
+  }
+  return normalized
+}
+
+function normalizeItemCheck(
+  check: MatrixParsedCheck,
+): MatrixParsedCheck {
+  return {
+    op: check.op,
+    val: normalizeF32(check.val),
+  }
+}
+
+function normalizeConditionOperand(
+  value: MatrixConditionOperand,
+  field: MatrixFieldRecord,
+  op: number,
+  stringInterner: { intern(value: string): number },
+): MatrixConditionOperand {
+  if (op === OP.IS_NULL || op === OP.IS_NOT_NULL || op === OP.RESOLVED) {
+    return normalizeU32(value)
   }
 
-  switch (field.type) {
-    case FieldType.F32:
-    case FieldType.U32:
-      return Number(value)
-    case FieldType.BOOL:
-      return Boolean(value)
-    case FieldType.STRING_PTR:
-      return normalizeFieldValue(value, field, stringInterner) as number
-    case FieldType.ARRAY_PTR:
-      if (op === OP.INCLUDE || op === OP.NOT_INCLUDE) {
-        const elementField: MatrixFieldRecord = {
-          type:
-            field.elementType === "string"
-              ? FieldType.STRING_PTR
-              : field.elementType === "boolean"
-                ? FieldType.BOOL
-                : FieldType.F32,
-        }
-        return normalizeFieldValue(value, elementField, stringInterner) as MatrixScalarValue
-      }
-      if (op === OP.IS_EMPTY) {
-        return Boolean(value)
-      }
-      return Number(value)
-    default:
-      return Number(value)
+  if (op === OP.PATTERN) {
+    if (
+      typeof value !== "object" ||
+      value === null ||
+      Array.isArray(value) ||
+      !("source" in value) ||
+      !("flags" in value)
+    ) {
+      throw new Error("Matrix pattern condition requires a RegExp descriptor")
+    }
+    const source = String(value.source)
+    const flags = String(value.flags)
+    new RegExp(source, flags)
+    return {source, flags}
   }
+
+  if (op === OP.EVERY || op === OP.SOME) {
+    if (
+      typeof value !== "object" ||
+      value === null ||
+      Array.isArray(value) ||
+      !("checks" in value) ||
+      !Array.isArray(value.checks)
+    ) {
+      throw new Error("Matrix array quantifier requires item checks")
+    }
+    return {
+      checks: value.checks.map(normalizeItemCheck),
+    } satisfies MatrixQuantifierValue
+  }
+
+  if (
+    op === OP.LENGTH ||
+    op === OP.LENGTH_GT ||
+    op === OP.LENGTH_GTE ||
+    op === OP.LENGTH_LT ||
+    op === OP.LENGTH_LTE
+  ) {
+    return normalizeLength(value)
+  }
+
+  if (op === OP.IS_EMPTY) {
+    if (typeof value !== "boolean") throw new Error("Matrix isEmpty condition requires a boolean")
+    return value
+  }
+
+  if (op === OP.ARRAY_EQ) {
+    if (!Array.isArray(value)) throw new Error("Matrix array equality requires an array")
+    const itemField = elementField(field)
+    return value.map((item) => normalizeConditionScalar(item, itemField, stringInterner))
+  }
+
+  if (op === OP.INCLUDE || op === OP.NOT_INCLUDE) {
+    return normalizeConditionScalar(value, elementField(field), stringInterner)
+  }
+
+  if (op === OP.STRING_BETWEEN) {
+    if (!Array.isArray(value) || value.length !== 2) {
+      throw new Error("Matrix string between requires two bounds")
+    }
+    return value.map((item) =>
+      normalizeConditionScalar(item, {type: FieldType.STRING_PTR}, stringInterner))
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) => normalizeConditionScalar(item, field, stringInterner))
+  }
+
+  return normalizeConditionScalar(value, field, stringInterner)
 }
 
 function normalizeTransitionConditions(
@@ -69,13 +152,18 @@ function normalizeTransitionConditions(
     }
 
     for (const check of fieldChecks.checks) {
-      normalized.push({
-        fieldIndex: fieldChecks.fieldIndex,
-        op: check.op,
-        value: Array.isArray(check.val)
-          ? check.val.map((item) => normalizeConditionScalar(item, field, check.op, stringInterner))
-          : normalizeConditionScalar(check.val, field, check.op, stringInterner),
-      })
+      try {
+        normalized.push({
+          fieldIndex: fieldChecks.fieldIndex,
+          op: check.op,
+          value: normalizeConditionOperand(check.val, field, check.op, stringInterner),
+        })
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        throw new Error(
+          `Matrix Field ${fieldChecks.fieldIndex} condition op ${check.op} is invalid: ${message}`,
+        )
+      }
     }
   }
 

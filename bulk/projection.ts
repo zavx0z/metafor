@@ -467,7 +467,7 @@ export class BulkProjectionStore {
         else this.values.set(valueId, next)
         if (!binding) this.atomValues.set(key, {atom: part.path, field, value: valueId})
         for (const itemKey of [...this.valueItems.keys()]) if (itemKey.startsWith(`${valueId}\0`)) this.valueItems.delete(itemKey)
-        if (Array.isArray(rawValue)) rawValue.forEach((item, position) => this.valueItems.set(`${valueId}\0${position}`, {value: valueId, position, itemValue: String(item)}))
+        if (Array.isArray(rawValue)) rawValue.forEach((item, position) => this.valueItems.set(`${valueId}\0${position}`, {value: valueId, position, itemValue: Number(item)}))
         for (const alias of this.atomValues.values()) if (alias.value === valueId) affectedAtomIds.add(alias.atom)
         changed = true
       } else if (part.op === "test" && !same(currentRawValue(binding && this.values.get(binding.value), this.valueItems), rawValue)) {

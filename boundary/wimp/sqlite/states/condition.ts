@@ -1,5 +1,6 @@
 import type { Transition } from "./transition.ts"
 import { Predicate } from "./predicate.ts"
+import {insertConditionPredicate} from "../create.ts"
 
 /**
  * Резолвит `field.id` по ключу поля внутри текущей wimp.
@@ -71,40 +72,14 @@ export class Predicates {
     )[0]
     const order = posRow?.next ?? 0
 
-    let operator = op
-    let valueKind: "null" | "boolean" | "number" | "string" | "enum" | "list" = "null"
-    let valueBoolean: number | null = null
-    let valueNumber: number | null = null
-    let valueText: string | null = null
-    const valueVariant: string | null = null
-
-    if (op === "notEq") operator = "neq"
-
-    if (op === "null") {
-      operator = val === false ? "neq" : "eq"
-      valueKind = "null"
-    } else if (typeof val === "boolean") {
-      valueKind = "boolean"
-      valueBoolean = val ? 1 : 0
-    } else if (typeof val === "number") {
-      valueKind = "number"
-      valueNumber = val
-    } else if (typeof val === "string") {
-      valueKind = "string"
-      valueText = val
-    }
-
-    const row = (await sql<Array<{id: number}>>`
-      INSERT INTO condition_predicate (condition, predicate_order, subject_kind, operator,
-                                       value_kind, value_boolean, value_number, value_text,
-                                       value_variant)
-      VALUES (${conditionId}, ${order}, ${"value"}, ${operator},
-              ${valueKind}, ${valueBoolean}, ${valueNumber}, ${valueText},
-              ${valueVariant})
-      RETURNING id
-    `)[0]
-    if (!row) throw new Error("Predicates.add: insert did not return id")
-    return new Predicate(this.condition, row.id)
+    const fieldId = await resolveFieldId(
+      sql,
+      this.condition.transition.state.states.wimp.src,
+      this.condition.fieldKey,
+    )
+    if (!fieldId) throw new Error(`Unknown Boundary Field '${this.condition.fieldKey}'`)
+    const id = await insertConditionPredicate(sql, conditionId, order, op, val, fieldId)
+    return new Predicate(this.condition, id)
   }
 
   async all(): Promise<Predicate[]> {
@@ -146,13 +121,13 @@ export class Conditions {
 
   /**
    * INSERT в `condition`. `fieldKey` резолвится в `field.id` через wimp+key.
-   * Если поле не существует — возвращает `null` (caller skip-ает).
+   * Неизвестный Field отклоняется: условие не может молча исчезнуть.
    */
-  async add(fieldKey: string): Promise<Condition | null> {
+  async add(fieldKey: string): Promise<Condition> {
     const sql = this.transition.state.states.wimp.sql
     const src = this.transition.state.states.wimp.src
     const fieldId = await resolveFieldId(sql, src, fieldKey)
-    if (!fieldId) return null
+    if (!fieldId) throw new Error(`Unknown Boundary Field '${fieldKey}'`)
 
     const transitionId = await this.transition.id()
 

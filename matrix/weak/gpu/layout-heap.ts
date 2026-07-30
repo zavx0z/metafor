@@ -4,7 +4,7 @@
  * Это execution-форма для GPU, а не каноническая truth-модель.
  */
 
-import type { GpuFieldMeta, GpuHeapInput, GpuHeapLayout } from "@metafor/types/matrix/gpu"
+import type { GpuEncodedField, GpuFieldMeta, GpuHeapInput, GpuHeapLayout } from "@metafor/types/matrix/gpu"
 
 const META_TYPE_SHIFT = 24
 const META_TYPE_MASK = 0xff
@@ -93,7 +93,7 @@ export function findFieldValueOffset(heap: Uint32Array, blockPtr: number, fieldI
 }
 
 function calculateBlockSizeEncoded(
-  fields: [number, number][],
+  fields: GpuEncodedField[],
   fieldMeta: Map<number, { fieldType: number; fieldSize: number }>,
   entangledCount: number,
 ): number {
@@ -116,7 +116,7 @@ function calculateBlockSizeEncoded(
 function writeBlock(
   heap: Uint32Array,
   blockPtr: number,
-  fields: [number, number][],
+  fields: GpuEncodedField[],
   entangledPtrs: number[],
   fieldMeta: Map<number, { fieldType: number; fieldSize: number }>,
 ): void {
@@ -127,7 +127,7 @@ function writeBlock(
   let headerIndex = blockPtr + 3
   let bodyOffset = blockPtr + 3 + fields.length * 2 + entangledPtrs.length
 
-  for (const [fieldId, value] of fields) {
+  for (const [fieldId, value, present] of fields) {
     const meta = fieldMeta.get(fieldId)
     if (!meta) {
       continue
@@ -137,7 +137,7 @@ function writeBlock(
     heap[headerIndex++] = packMeta(meta.fieldType, meta.fieldSize, bodyOffset - blockPtr)
     heap[bodyOffset++] = value
     if (meta.fieldSize > 1) {
-      heap[bodyOffset++] = 0
+      heap[bodyOffset++] = present
     }
   }
 

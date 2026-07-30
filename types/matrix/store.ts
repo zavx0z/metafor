@@ -1,8 +1,20 @@
+/**
+ * Каноническое хранилище Matrix.
+ *
+ * @packageDocumentation
+ */
+
 import type { MatrixConditionRecord } from "./condition.ts"
 import type { MatrixFieldRecord } from "./data.ts"
 
 export type MatrixScalarValue = number | boolean
-export type MatrixValue = MatrixScalarValue | MatrixScalarValue[]
+/**
+ * Нормализованное значение Field.
+ *
+ * `null` — единственное отсутствие значения. Нулевое число, `false`, индекс
+ * первого Variant и пустой массив остаются присутствующими значениями.
+ */
+export type MatrixValue = MatrixScalarValue | MatrixScalarValue[] | null
 
 export interface MatrixFieldValueRecord {
   fieldIndex: number

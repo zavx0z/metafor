@@ -28,6 +28,8 @@ const cases: ConditionCase[] = [
   {name: "number lte", field: {type: 0}, value: 50, condition: {lte: 50}, changes: [[0, 1]]},
   {name: "number in", field: {type: 0}, value: 3, condition: {in: [1, 3, 5]}, changes: [[0, 1]]},
   {name: "number not in", field: {type: 0}, value: 4, condition: {notIn: [1, 3, 5]}, changes: [[0, 1]]},
+  {name: "F32 rounds value and operand identically", field: {type: 0}, value: 16_777_217, condition: {eq: 16_777_216}, changes: [[0, 1]]},
+  {name: "U32 keeps precision above F32 range", field: {type: 1}, value: 4_000_000_001, condition: {gt: 4_000_000_000}, changes: [[0, 1]]},
   {name: "combined number range", field: {type: 0}, value: 36.8, condition: {gte: 36.6, lte: 37}, changes: [[0, 1]]},
   {name: "failed number condition", field: {type: 0}, value: 1, condition: {gt: 5}, changes: []},
   {name: "boolean true", field: {type: 2}, value: true, condition: true, changes: [[0, 1]]},
@@ -38,18 +40,19 @@ const cases: ConditionCase[] = [
   {name: "unicode string in", field: {type: 3}, value: "привет", condition: {in: ["мир", "привет"]}, changes: [[0, 1]]},
   {name: "emoji string in", field: {type: 3}, value: "🚀", condition: {in: ["🧪", "🚀"]}, changes: [[0, 1]]},
   {name: "string not in", field: {type: 3}, value: "rogue", condition: {notIn: ["hero", "mage"]}, changes: [[0, 1]]},
+  {name: "string starts with", field: {type: 3}, value: "привет", condition: {startsWith: "при"}, changes: [[0, 1]]},
+  {name: "string ends with", field: {type: 3}, value: "привет", condition: {endsWith: "вет"}, changes: [[0, 1]]},
+  {name: "string include", field: {type: 3}, value: "alpha-beta", condition: {include: "ha-b"}, changes: [[0, 1]]},
+  {name: "string negative operators", field: {type: 3}, value: "alpha", condition: {notStartsWith: "beta", notEndsWith: "beta", notInclude: "beta"}, changes: [[0, 1]]},
+  {name: "string length uses JavaScript UTF-16", field: {type: 3}, value: "🚀", condition: {length: 2}, changes: [[0, 1]]},
+  {name: "string length range", field: {type: 3}, value: "hero", condition: {length: {min: 4, max: 4}}, changes: [[0, 1]]},
+  {name: "string inclusive between", field: {type: 3}, value: "middle", condition: {between: ["alpha", "zulu"]}, changes: [[0, 1]]},
+  {name: "string regular expression", field: {type: 3}, value: "Ready", condition: {pattern: {source: "^r", flags: "i"}}, changes: [[0, 1]]},
   {
     name: "enum eq",
     field: {type: 1, enum: ["WARRIOR", "MAGE", "ROGUE"]},
     value: "MAGE",
     condition: {eq: "MAGE"},
-    changes: [[0, 1]],
-  },
-  {
-    name: "enum ordering",
-    field: {type: 1, enum: ["WARRIOR", "MAGE", "ROGUE"]},
-    value: "MAGE",
-    condition: {gt: "WARRIOR"},
     changes: [[0, 1]],
   },
   {
@@ -61,6 +64,12 @@ const cases: ConditionCase[] = [
   },
   {name: "array include", field: {type: 4, elementType: "number"}, value: [1, 5, 10], condition: {include: 5}, changes: [[0, 1]]},
   {name: "array not include", field: {type: 4, elementType: "number"}, value: [1, 5, 10], condition: {notInclude: 3}, changes: [[0, 1]]},
+  {name: "empty array notIncludes", field: {type: 4, elementType: "number"}, value: [], condition: {notIncludes: 3}, changes: [[0, 1]]},
+  {name: "array exact equality", field: {type: 4, elementType: "number"}, value: [1, 2], condition: [1, 2], changes: [[0, 1]]},
+  {name: "array every", field: {type: 4, elementType: "number"}, value: [1, 2, 3], condition: {every: {gte: 1}}, changes: [[0, 1]]},
+  {name: "array some", field: {type: 4, elementType: "number"}, value: [1, 2, 3], condition: {some: {gt: 2}}, changes: [[0, 1]]},
+  {name: "empty array every is true", field: {type: 4, elementType: "number"}, value: [], condition: {every: {gt: 2}}, changes: [[0, 1]]},
+  {name: "empty array some is false", field: {type: 4, elementType: "number"}, value: [], condition: {some: {gt: 2}}, changes: []},
   {name: "array length", field: {type: 4, elementType: "number"}, value: [1, 2, 3], condition: {length: 3}, changes: [[0, 1]]},
   {name: "array length range", field: {type: 4, elementType: "number"}, value: [1, 2, 3], condition: {length: {gt: 2, lte: 3}}, changes: [[0, 1]]},
   {name: "empty array", field: {type: 4, elementType: "number"}, value: [], condition: {isEmpty: true}, changes: [[0, 1]]},
@@ -72,6 +81,13 @@ const cases: ConditionCase[] = [
     condition: {include: "hero", length: 2},
     changes: [[0, 1]],
   },
+  {name: "null is absent", field: {type: 0}, value: null, condition: {null: true}, changes: [[0, 1]]},
+  {name: "zero is present", field: {type: 0}, value: 0, condition: {null: false, eq: 0}, changes: [[0, 1]]},
+  {name: "false is present", field: {type: 2}, value: false, condition: {null: false, eq: false}, changes: [[0, 1]]},
+  {name: "empty string is present", field: {type: 3}, value: "", condition: {null: false, eq: ""}, changes: [[0, 1]]},
+  {name: "first enum value is present", field: {type: 1, enum: ["FIRST", "SECOND"]}, value: "FIRST", condition: {null: false, eq: "FIRST"}, changes: [[0, 1]]},
+  {name: "empty array is present", field: {type: 4, elementType: "number"}, value: [], condition: {null: false, isEmpty: true}, changes: [[0, 1]]},
+  {name: "absent array is not an empty array", field: {type: 4, elementType: "number"}, value: null, condition: {notIncludes: 3}, changes: []},
 ]
 
 describe("CPU/WebGPU parity — all condition kinds", () => {
@@ -106,6 +122,27 @@ describe("CPU/WebGPU parity — all condition kinds", () => {
     )).toThrow("not in enum")
   })
 
+  test("enum ordering is rejected because public enum conditions are set-based", () => {
+    expect(() => createConditionFixture(
+      {type: 1, enum: ["WARRIOR", "MAGE"]},
+      "MAGE",
+      {gt: "WARRIOR"},
+    )).toThrow("not valid for Field type")
+  })
+
+  test("invalid F32 and U32 values are rejected before execution", () => {
+    expect(() => createConditionFixture({type: 0}, Number.NaN, {eq: 0}))
+      .toThrow("finite F32")
+    expect(() => createConditionFixture({type: 0}, Number.POSITIVE_INFINITY, {eq: 0}))
+      .toThrow("finite F32")
+    expect(() => createConditionFixture({type: 1}, -1, {eq: 0}))
+      .toThrow("U32 range")
+    expect(() => createConditionFixture({type: 1}, 1.5, {eq: 1}))
+      .toThrow("U32 range")
+    expect(() => createConditionFixture({type: 1}, 0x1_0000_0000, {eq: 0}))
+      .toThrow("U32 range")
+  })
+
   test("unknown enum update is rejected", () => {
     const fixture = createConditionFixture(
       {type: 1, enum: ["WARRIOR", "MAGE"]},
@@ -113,5 +150,33 @@ describe("CPU/WebGPU parity — all condition kinds", () => {
       {eq: "MAGE"},
     )
     expect(() => setBraneFieldValue(fixture.store, 0, 0, "UNKNOWN")).toThrow("not found in enum")
+  })
+
+  test("WebGPU recomputes a regular expression after a Field update", async () => {
+    const fixture = createConditionFixture(
+      {type: 3},
+      "not-ready",
+      {pattern: {source: "^ready$", flags: "i"}},
+    )
+    const cpuStore = createIsolatedStore(fixture)
+    const gpuStore = createIsolatedStore(fixture)
+    const cpu = new CPUWeakRuntime(cpuStore)
+    const gpu = await GPUWeakRuntime.create(await createExecutableDevice(), gpuStore)
+
+    try {
+      setBraneFieldValue(cpuStore, 0, 0, "READY")
+      setBraneFieldValue(gpuStore, 0, 0, "READY")
+      cpu.heapUpdate([{kind: "field", braneIndex: 0, fieldIndex: 0}])
+      gpu.heapUpdate([{kind: "field", braneIndex: 0, fieldIndex: 0}])
+      cpu.step()
+      gpu.step()
+      expect(normalizeChanges(await gpu.readChanges()))
+        .toEqual(normalizeChanges(await cpu.readChanges()))
+      expect(cpu.statesSnapshot()).toEqual([1])
+    } finally {
+      cpu.clear()
+      gpu.clear()
+      await flushRuntime(gpu as unknown as {pending?: Promise<unknown>})
+    }
   })
 })

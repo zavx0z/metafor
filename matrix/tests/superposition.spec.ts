@@ -78,9 +78,14 @@ describe("compileConditions — компиляция условий", () => {
     expect(result.instructions[0]).toMatchObject({
       fieldType: 3,
       fieldIndex: 0,
-      op: OP.NEQ,
+      op: OP.IS_NOT_NULL,
       valEncoded: 0,
     })
+  })
+
+  test("не отбрасывает условие с отсутствующим Field", () => {
+    expect(() => compileConditions({0: {eq: 1}}, []))
+      .toThrow("undefined Field 0")
   })
 })
 
@@ -161,6 +166,12 @@ describe("compileSuperposition — компиляция суперпозиции
       0,
       0,
     ])
+  })
+
+  test("внутренний составитель WebGPU не отбрасывает отсутствующий Field", () => {
+    expect(() => compileGpuSuperposition([
+      [{targetState: 0, conditions: [{fieldIndex: 0, checks: [{op: OP.EQ, val: 1}]}]}],
+    ], [], [""])).toThrow("undefined Field 0")
   })
 })
 

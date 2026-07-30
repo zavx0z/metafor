@@ -5,29 +5,39 @@
  * и не мутирует внешний store.
  */
 
-import type { DerivedWeakData, GpuFlattenedTransition } from "@metafor/types/matrix/gpu"
+import type { DerivedWeakData, GpuEncodedField, GpuFlattenedTransition } from "@metafor/types/matrix/gpu"
 import type { MatrixConditionRecord } from "@metafor/types/matrix/condition"
-import type { MatrixData, MatrixFieldValueRecord } from "@metafor/types/matrix/store"
+import type { MatrixFieldValueRecord, MatrixStore } from "@metafor/types/matrix/store"
 import type { MatrixFieldRecord } from "@metafor/types/matrix/data"
-import { FIELD_TYPE, VALUE_TYPE } from "../constants"
+import { FIELD_TYPE, OP, VALUE_TYPE } from "../constants"
 import { buildHeap } from "./layout-heap"
 import { compileFlattenedEnsemble, compileFlattenedSuperposition } from "./bytecode"
 import { createPackContext, encodeValue, fieldTypeToBytecodeType } from "./pack"
+import { evaluateCondition } from "../cpu/transition"
 
 /** Собирает метаданные полей для производного кодирования. */
 function createFieldMetaMap(fields: MatrixFieldRecord[]): Map<number, { fieldType: number; fieldSize: number }> {
   const meta = new Map<number, { fieldType: number; fieldSize: number }>()
   fields.forEach((field, fieldIndex) => {
     const fieldType = fieldTypeToBytecodeType(field.type)
-    const fieldSize = fieldType === VALUE_TYPE.STRING || fieldType === VALUE_TYPE.ARRAY ? 2 : 1
-    meta.set(fieldIndex, { fieldType, fieldSize })
+    meta.set(fieldIndex, { fieldType, fieldSize: 2 })
   })
   return meta
 }
 
-/** Группирует условия перехода по индексу поля. */
+/**
+ * Группирует условия перехода по индексу поля.
+ *
+ * WGSL не реализует синтаксис регулярных выражений JavaScript. Поэтому
+ * `pattern` вычисляется эталонным исполнителем над текущим Store и записывается
+ * в bytecode как `RESOLVED`. При изменении такого Field GPU runtime заменяет
+ * bytecode соответствующей Brane до следующего шага.
+ *
+ * @see [Повторное вычисление pattern после изменения Field](https://github.com/zavx0z/metafor/blob/main/matrix/weak/tests/weak.conditions.test.ts)
+ */
 function groupTransitionConditions(
-  store: MatrixData,
+  store: MatrixStore,
+  braneIndex: number,
   conditionOffset: number,
   conditionCount: number,
 ): GpuFlattenedTransition["conditions"] {
@@ -37,7 +47,7 @@ function groupTransitionConditions(
   for (let conditionIndex = conditionOffset; conditionIndex < conditionEnd; conditionIndex++) {
     const condition = store.conditions[conditionIndex]
     if (!condition) {
-      continue
+      throw new Error(`Matrix condition ${conditionIndex} is missing from the canonical Store`)
     }
 
     const list = grouped.get(condition.fieldIndex)
@@ -51,15 +61,17 @@ function groupTransitionConditions(
   return Array.from(grouped.entries()).map(([fieldIndex, fieldConditions]) => ({
     fieldIndex,
     checks: fieldConditions.map((condition) => ({
-      op: condition.op,
-      val: condition.value,
+      op: condition.op === OP.PATTERN ? OP.RESOLVED : condition.op,
+      val: condition.op === OP.PATTERN
+        ? evaluateCondition(store, braneIndex, condition)
+        : condition.value,
     })),
   }))
 }
 
 /** Преобразует канонические переходы в уплощённую форму для компиляции bytecode. */
 function flattenedBraneTransitions(
-  store: MatrixData,
+  store: MatrixStore,
   braneIndex: number,
 ): {transitions: GpuFlattenedTransition[][]} {
   const brane = store.branes[braneIndex]
@@ -81,7 +93,7 @@ function flattenedBraneTransitions(
 
         stateTransitions.push({
           targetState: transition.targetState,
-          conditions: groupTransitionConditions(store, transition.conditionOffset, transition.conditionCount),
+          conditions: groupTransitionConditions(store, braneIndex, transition.conditionOffset, transition.conditionCount),
         })
       }
 
@@ -90,12 +102,12 @@ function flattenedBraneTransitions(
   }
 }
 
-function toFlattenedTransitions(store: MatrixData): Array<{ transitions: GpuFlattenedTransition[][] }> {
+function toFlattenedTransitions(store: MatrixStore): Array<{ transitions: GpuFlattenedTransition[][] }> {
   return store.branes.map((_, braneIndex) => flattenedBraneTransitions(store, braneIndex))
 }
 
 /** Compiles only one structurally changed brane graph. */
-export function deriveWeakBraneBytecode(store: MatrixData, braneIndex: number): Uint32Array {
+export function deriveWeakBraneBytecode(store: MatrixStore, braneIndex: number): Uint32Array {
   return compileFlattenedSuperposition(
     flattenedBraneTransitions(store, braneIndex).transitions,
     store.fields,
@@ -103,8 +115,43 @@ export function deriveWeakBraneBytecode(store: MatrixData, braneIndex: number): 
   ).bytecode
 }
 
+/** Возвращает true, если граф браны содержит регулярное выражение для Field. */
+export function braneHasPatternCondition(
+  store: MatrixStore,
+  braneIndex: number,
+  fieldIndex?: number,
+): boolean {
+  const brane = store.branes[braneIndex]
+  if (!brane) return false
+
+  for (let stateIndex = 0; stateIndex < brane.stateCount; stateIndex++) {
+    const state = store.stateTable[brane.stateOffset + stateIndex]
+    if (!state) continue
+    for (
+      let transitionIndex = state.transitionOffset;
+      transitionIndex < state.transitionOffset + state.transitionCount;
+      transitionIndex++
+    ) {
+      const transition = store.transitions[transitionIndex]
+      if (!transition) continue
+      for (
+        let conditionIndex = transition.conditionOffset;
+        conditionIndex < transition.conditionOffset + transition.conditionCount;
+        conditionIndex++
+      ) {
+        const condition = store.conditions[conditionIndex]
+        if (
+          condition?.op === OP.PATTERN &&
+          (fieldIndex === undefined || condition.fieldIndex === fieldIndex)
+        ) return true
+      }
+    }
+  }
+  return false
+}
+
 /** Собирает значения полей shared-блоков из канонического store. */
-function collectSharedBlockFields(store: MatrixData): MatrixFieldValueRecord[][] {
+function collectSharedBlockFields(store: MatrixStore): MatrixFieldValueRecord[][] {
   return store.sharedBlocks.map((block) => {
     const fields: MatrixFieldValueRecord[] = []
     const valueEnd = block.valueOffset + block.valueCount
@@ -119,7 +166,7 @@ function collectSharedBlockFields(store: MatrixData): MatrixFieldValueRecord[][]
 }
 
 /** Собирает локальные поля бран из канонического store. */
-function collectBraneLocalFields(store: MatrixData): MatrixFieldValueRecord[][] {
+function collectBraneLocalFields(store: MatrixStore): MatrixFieldValueRecord[][] {
   return store.branes.map((brane) => {
     const fields: MatrixFieldValueRecord[] = []
     const valueEnd = brane.localValueOffset + brane.localValueCount
@@ -134,7 +181,7 @@ function collectBraneLocalFields(store: MatrixData): MatrixFieldValueRecord[][] 
 }
 
 /** Собирает ссылки `brane -> shared block` из канонического store. */
-function collectBraneSharedBlockRefs(store: MatrixData): number[][] {
+function collectBraneSharedBlockRefs(store: MatrixStore): number[][] {
   return store.branes.map((brane) => {
     const refs: number[] = []
     const refEnd = brane.sharedBlockRefOffset + brane.sharedBlockRefCount
@@ -156,8 +203,9 @@ function countArrayWords(fields: MatrixFieldRecord[], values: MatrixFieldValueRe
     if (field?.type !== FIELD_TYPE.ARRAY_PTR) {
       continue
     }
-    const items = entry.value as Array<number | boolean>
-    words += 1 + items.length
+    if (Array.isArray(entry.value) && entry.value.length > 0) {
+      words += 1 + entry.value.length
+    }
   }
   return words
 }
@@ -170,8 +218,8 @@ function createBlockMap(
   fieldMetaMap: Map<number, { fieldType: number; fieldSize: number }>,
   allocateHeap?: (size: number) => number,
   heap?: Uint32Array,
-): Map<string, [number, number][]> {
-  const map = new Map<string, [number, number][]>()
+): Map<string, GpuEncodedField[]> {
+  const map = new Map<string, GpuEncodedField[]>()
 
   blocks.forEach((blockFields, blockIndex) => {
     const encodedFields = blockFields.map(({ fieldIndex, value }) => {
@@ -180,7 +228,8 @@ function createBlockMap(
         throw new Error(`Field ${fieldIndex} not defined in canonical store`)
       }
       const ctx = createPackContext(fields[fieldIndex]!, stringTable, allocateHeap, heap)
-      return [fieldIndex, encodeValue(value, ctx).value1] as [number, number]
+      const encoded = encodeValue(value, ctx)
+      return [fieldIndex, encoded.value1, encoded.value2] as GpuEncodedField
     })
     map.set(`shared-${blockIndex}`, encodedFields)
   })
@@ -196,7 +245,7 @@ function createLocalFields(
   fieldMetaMap: Map<number, { fieldType: number; fieldSize: number }>,
   allocateHeap?: (size: number) => number,
   heap?: Uint32Array,
-): [number, number][][] {
+): GpuEncodedField[][] {
   return braneFields.map((entries) =>
     entries.map(({ fieldIndex, value }) => {
       const meta = fieldMetaMap.get(fieldIndex)
@@ -204,7 +253,8 @@ function createLocalFields(
         throw new Error(`Field ${fieldIndex} not defined in canonical store`)
       }
       const ctx = createPackContext(fields[fieldIndex]!, stringTable, allocateHeap, heap)
-      return [fieldIndex, encodeValue(value, ctx).value1] as [number, number]
+      const encoded = encodeValue(value, ctx)
+      return [fieldIndex, encoded.value1, encoded.value2] as GpuEncodedField
     }),
   )
 }
@@ -218,7 +268,7 @@ function createLocalFields(
  * @param store - Канонический store, из которого выводятся производные буферы.
  * @returns Производные данные, достаточные для GPU runtime.
  */
-export function deriveWeakData(store: MatrixData): DerivedWeakData {
+export function deriveWeakData(store: MatrixStore): DerivedWeakData {
   const fieldMetaMap = createFieldMetaMap(store.fields)
   const sharedBlockFields = collectSharedBlockFields(store)
   const braneEntangledMap = collectBraneSharedBlockRefs(store)

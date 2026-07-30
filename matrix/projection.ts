@@ -254,7 +254,7 @@ const decodeAtomEntity = (value: JsonRecord, expectedId: number): BoundaryInitia
   if (!Array.isArray(value.values) || !Array.isArray(value.valueRecords)) return null
   const entity = value as unknown as MatrixRuntimeAtomEntity
   const records = new Map(entity.valueRecords.map((record) => [record.id, record]))
-  const items = new Map<number, Array<{position: number; itemValue: string}>>()
+  const items = new Map<number, Array<{position: number; itemValue: number}>>()
   for (const item of entity.valueItems ?? []) {
     const bucket = items.get(item.value)
     if (bucket) bucket.push({position: item.position, itemValue: item.itemValue})

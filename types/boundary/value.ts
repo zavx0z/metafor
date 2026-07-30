@@ -38,5 +38,5 @@ export type ValueRecord =
 export interface ValueItemRecord {
   value: number
   position: number
-  itemValue: string
+  itemValue: number
 }

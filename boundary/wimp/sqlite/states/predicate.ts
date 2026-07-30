@@ -11,6 +11,14 @@ const decodeOperatorKey = (operator: string): string => {
       return "notInclude"
     case "is_empty":
       return "isEmpty"
+    case "starts_with":
+      return "startsWith"
+    case "ends_with":
+      return "endsWith"
+    case "not_starts_with":
+      return "notStartsWith"
+    case "not_ends_with":
+      return "notEndsWith"
     default:
       return operator
   }
@@ -75,7 +83,7 @@ export class Predicate {
     const row = (
       await sql<Array<PredicateRow>>`
         SELECT id, condition, predicate_order, operator, value_kind,
-               value_boolean, value_number, value_text, value_variant
+               value_boolean, value_number, value_text, value_variant, value_json
         FROM condition_predicate WHERE id = ${this.id} LIMIT 1
       `
     )[0]
@@ -86,9 +94,28 @@ export class Predicate {
     }
 
     if (row.value_kind === "list") {
-      // Не поддерживается на уровне Predicates.add — оставляем для read-back.
-      return []
+      const items = await sql<Array<{
+        value_kind: PredicateRow["value_kind"]
+        value_boolean: number | null
+        value_number: number | null
+        value_text: string | null
+        value_variant: number | null
+        variant_text: string | null
+      }>>`
+        SELECT item.value_kind, item.value_boolean, item.value_number,
+               item.value_text, item.value_variant,
+               variant.item_value AS variant_text
+        FROM condition_list_item AS item
+        LEFT JOIN field_enum_variant AS variant ON variant.id = item.value_variant
+        WHERE item.predicate = ${this.id}
+        ORDER BY item.item_order
+      `
+      return items.map((item) => {
+        if (item.value_kind === "enum") return item.variant_text ?? ""
+        return decodeStoredScalar(item.value_kind, item, new Map())
+      })
     }
+    if (row.value_kind === "json") return JSON.parse(row.value_json ?? "null")
 
     // enum-вариант → его item_value.
     const enumVariants = new Map<number, string>()

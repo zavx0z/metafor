@@ -6,6 +6,12 @@ import type { MatterBindingValue, MatterEdgeSlot, MatterParticle } from "@metafo
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)
 
+const isRegExpDescriptor = (value: unknown): value is {source: string; flags: string} =>
+  isRecord(value) &&
+  Object.keys(value).length === 2 &&
+  typeof value.source === "string" &&
+  typeof value.flags === "string"
+
 const EXECUTABLE_BINDING_RE = /=>|\bfunction\b|\bnew\s+|(?:\b[$A-Z_a-z][$\w]*|\]|\))\s*(?:\?\.)?\s*\(/
 
 export const validateRuntimeMatterBinding = (
@@ -158,18 +164,34 @@ const insertFields = async (
 
 const normalizePredicate = (predicate: unknown): Record<string, unknown> | undefined => {
   if (predicate === null) return {null: true}
+  if (predicate instanceof RegExp) {
+    return {pattern: {source: predicate.source, flags: predicate.flags}}
+  }
+  if (isRegExpDescriptor(predicate)) return {pattern: predicate}
   if (typeof predicate === "boolean" || typeof predicate === "number" || typeof predicate === "string") {
     return {eq: predicate}
   }
+  if (Array.isArray(predicate)) return {eq: predicate}
   if (isRecord(predicate)) return predicate
   return undefined
 }
 
 const normalizeOperator = (operator: string): string => {
+  if (operator === "logicalEq") return "eq"
   if (operator === "notEq") return "neq"
-  if (operator === "notIn") return "not_in"
-  if (operator === "notInclude") return "not_include"
+  if (operator === "notGt") return "lte"
+  if (operator === "notGte") return "lt"
+  if (operator === "notLt") return "gte"
+  if (operator === "notLte") return "gt"
+  if (operator === "oneOf") return "in"
+  if (operator === "notIn" || operator === "notOneOf") return "not_in"
+  if (operator === "includes") return "include"
+  if (operator === "notInclude" || operator === "notIncludes") return "not_include"
   if (operator === "isEmpty") return "is_empty"
+  if (operator === "startsWith") return "starts_with"
+  if (operator === "endsWith") return "ends_with"
+  if (operator === "notStartsWith") return "not_starts_with"
+  if (operator === "notEndsWith") return "not_ends_with"
   return operator
 }
 
@@ -194,24 +216,25 @@ const normalizeListItem = async (sql: SQL | ReservedSQL, fieldId: number | undef
   return {kind: "string", booleanValue: null, numberValue: null, textValue: String(value), variantValue: null}
 }
 
-const insertPredicate = async (
+export const insertConditionPredicate = async (
   sql: SQL | ReservedSQL,
   conditionId: number,
   predicateOrder: number,
   op: string,
   value: unknown,
   fieldId?: number,
-): Promise<void> => {
+): Promise<number> => {
   let operator = normalizeOperator(op)
-  let valueKind: "null" | "boolean" | "number" | "string" | "enum" | "list" = "null"
+  let valueKind: "null" | "boolean" | "number" | "string" | "enum" | "list" | "json" = "null"
   let valueBoolean: number | null = null
   let valueNumber: number | null = null
   let valueText: string | null = null
   let valueVariant: number | null = null
+  let valueJson: string | null = null
 
   if (op === "null") {
     operator = value === false ? "neq" : "eq"
-  } else if (Array.isArray(value) && (operator === "in" || operator === "not_in")) {
+  } else if (Array.isArray(value)) {
     valueKind = "list"
   } else if (typeof value === "boolean") {
     valueKind = "boolean"
@@ -230,26 +253,36 @@ const insertPredicate = async (
       valueKind = "string"
       valueText = value
     }
+  } else if (value instanceof RegExp) {
+    valueKind = "json"
+    valueJson = JSON.stringify({source: value.source, flags: value.flags})
+  } else if (isRecord(value)) {
+    valueKind = "json"
+    valueJson = JSON.stringify(value)
+  } else {
+    throw new Error(`Unsupported Boundary condition operand for '${op}'`)
   }
 
   const predicateId = await insertId(sql<Array<{id: number}>>`
     INSERT INTO condition_predicate (condition, predicate_order, subject_kind, operator,
                                      value_kind, value_boolean, value_number, value_text,
-                                     value_variant)
+                                     value_variant, value_json)
     VALUES (${conditionId}, ${predicateOrder}, ${"value"}, ${operator},
-            ${valueKind}, ${valueBoolean}, ${valueNumber}, ${valueText}, ${valueVariant})
+            ${valueKind}, ${valueBoolean}, ${valueNumber}, ${valueText}, ${valueVariant}, ${valueJson})
     RETURNING id
   `, "insertPredicate")
 
-  if (valueKind !== "list" || !Array.isArray(value)) return
-  for (let itemOrder = 0; itemOrder < value.length; itemOrder++) {
-    const item = await normalizeListItem(sql, fieldId, value[itemOrder])
-    await sql`
-      INSERT INTO condition_list_item
-        (predicate, item_order, value_kind, value_boolean, value_number, value_text, value_variant)
-      VALUES (${predicateId}, ${itemOrder}, ${item.kind}, ${item.booleanValue}, ${item.numberValue}, ${item.textValue}, ${item.variantValue})
-    `
+  if (valueKind === "list" && Array.isArray(value)) {
+    for (let itemOrder = 0; itemOrder < value.length; itemOrder++) {
+      const item = await normalizeListItem(sql, fieldId, value[itemOrder])
+      await sql`
+        INSERT INTO condition_list_item
+          (predicate, item_order, value_kind, value_boolean, value_number, value_text, value_variant)
+        VALUES (${predicateId}, ${itemOrder}, ${item.kind}, ${item.booleanValue}, ${item.numberValue}, ${item.textValue}, ${item.variantValue})
+      `
+    }
   }
+  return predicateId
 }
 
 export const insertPredicateGroup = async (
@@ -259,11 +292,16 @@ export const insertPredicateGroup = async (
   fieldId?: number,
 ): Promise<void> => {
   const normalized = normalizePredicate(predicateDsl)
-  if (!normalized) return
+  if (!normalized) {
+    throw new Error("Boundary condition must be a scalar, array, RegExp or operator object")
+  }
+  if (Object.keys(normalized).length === 0) {
+    throw new Error("Boundary condition must contain at least one operator")
+  }
 
   let predicateOrder = 0
   for (const [op, value] of Object.entries(normalized)) {
-    await insertPredicate(sql, conditionId, predicateOrder, op, value, fieldId)
+    await insertConditionPredicate(sql, conditionId, predicateOrder, op, value, fieldId)
     predicateOrder++
   }
 }
@@ -274,12 +312,16 @@ const insertConditions = async (
   transitionId: number,
   conditions: unknown,
 ): Promise<void> => {
-  if (!isRecord(conditions)) return
+  if (!isRecord(conditions)) {
+    throw new Error("Boundary Transition conditions must be an object")
+  }
 
   let position = 0
   for (const [fieldKey, predicate] of Object.entries(conditions)) {
     const fieldId = fieldIds.get(fieldKey)
-    if (!fieldId) continue
+    if (!fieldId) {
+      throw new Error(`Boundary condition references unknown Field '${fieldKey}'`)
+    }
 
     const conditionId = await insertId(sql<Array<{id: number}>>`
       INSERT INTO condition (transition, field, position)

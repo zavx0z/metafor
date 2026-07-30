@@ -45,35 +45,33 @@ export function createFieldEncodingContext(
 }
 
 export function encodeValue(value: unknown, context: MatrixEncodingContext): MatrixEncodedValueResult {
+  if (value === null) {
+    return { value1: 0, value2: 0 }
+  }
+
   if (context.enum) {
-    if (value === null) {
-      return { value1: 0, value2: 0 }
-    }
     if (typeof value === "number") {
-      return { value1: value, value2: 0 }
+      return { value1: value, value2: 1 }
     }
     const index = context.enum.indexOf(value)
     if (index === -1) {
       throw new Error(`Value '${value}' not found in enum: [${context.enum}]`)
     }
-    return { value1: index, value2: 0 }
+    return { value1: index, value2: 1 }
   }
 
   if (context.type === VALUE_TYPE.FLOAT) {
     const buffer = new Float32Array([Number(value)])
-    return { value1: new Uint32Array(buffer.buffer)[0]!, value2: 0 }
+    return { value1: new Uint32Array(buffer.buffer)[0]!, value2: 1 }
   }
 
   if (context.type === VALUE_TYPE.BOOL) {
-    return { value1: value ? 1 : 0, value2: 0 }
+    return { value1: value ? 1 : 0, value2: 1 }
   }
 
   if (context.type === VALUE_TYPE.STRING) {
-    if (value === null) {
-      return { value1: 0, value2: 0 }
-    }
     if (typeof value === "number") {
-      return { value1: value, value2: 0 }
+      return { value1: value, value2: 1 }
     }
     if (typeof value !== "string") {
       throw new Error(`Expected string for VALUE_TYPE.STRING, got ${typeof value}`)
@@ -83,7 +81,7 @@ export function encodeValue(value: unknown, context: MatrixEncodingContext): Mat
     }
     return {
       value1: context.stringInterner.intern(value),
-      value2: 0,
+      value2: 1,
     }
   }
 
@@ -94,7 +92,7 @@ export function encodeValue(value: unknown, context: MatrixEncodingContext): Mat
     const items = value as unknown[]
 
     if (items.length === 0) {
-      return { value1: 0, value2: 0 }
+      return { value1: 0, value2: 1 }
     }
 
     if (context.allocateHeap && context.heap) {
@@ -116,13 +114,13 @@ export function encodeValue(value: unknown, context: MatrixEncodingContext): Mat
         }
         context.heap[pointer + 1 + index] = encodeValue(items[index], itemContext).value1
       }
-      return { value1: pointer, value2: 0 }
+      return { value1: pointer, value2: 1 }
     }
 
-    return { value1: 0, value2: 0 }
+    return { value1: 0, value2: 1 }
   }
 
-  return { value1: Number(value), value2: 0 }
+  return { value1: Number(value), value2: 1 }
 }
 
 export function encodeFieldValue(value: unknown, context: MatrixEncodingContext): number {

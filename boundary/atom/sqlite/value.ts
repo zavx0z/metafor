@@ -97,7 +97,7 @@ export class ListValue extends Value {
     return rows.map((row) => ({
       value: Number(row.value),
       position: Number(row.position),
-      itemValue: String(row.item_value),
+      itemValue: Number(row.item_value),
     }))
   }
 }

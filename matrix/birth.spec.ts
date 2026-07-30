@@ -80,7 +80,7 @@ describe("Matrix Monad birth", () => {
     }
 
     await expect(prepareMatrixBirthFixture(optional)).resolves.toEqual({atoms: 1, fields: 5, backend: "cpu"})
-    expect(matrix$.braneValues.map((record) => record.value)).toEqual([0, 0, false, 0, 0])
+    expect(matrix$.braneValues.map((record) => record.value)).toEqual([null, null, null, null, null])
     expect(consumePreparedMatrixBirth()).toBe(true)
   })
 

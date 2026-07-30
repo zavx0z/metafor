@@ -50,7 +50,6 @@ const activeBuilderConditions = () =>
             notEq: 5,
           },
           enabled: {eq: true, logicalEq: true},
-          note: {},
         },
       },
       ready: null,
@@ -103,7 +102,6 @@ const completeDocument = (): MetaJSONV1 => ({
                 notIn: [3],
               },
               enabled: {eq: true, logicalEq: true},
-              note: {},
             },
           },
         },
@@ -349,7 +347,6 @@ describe("MetaJSON v1 public contract", () => {
         notLte: -2,
       },
       enabled: {eq: true, logicalEq: true},
-      note: {},
     })
     expect(validateMetaJSONV1(input).ok).toBe(true)
   })
@@ -365,6 +362,20 @@ describe("MetaJSON v1 public contract", () => {
     ["enum operand", "mode", {eq: "missing"}, "/eq", "invalid_condition_operand"],
     ["enum operator", "mode", {startsWith: "r"}, "/startsWith", "invalid_condition_operator"],
   ])("rejects Condition %s mismatch", (_name, field, condition, suffix, code) => {
+    const input = clone()
+    input.template["example/root"].superposition[0].transitions.ready[field] = condition
+    expectIssue(
+      input,
+      `/template/example~1root/superposition/0/transitions/ready/${field}${suffix}`,
+      code,
+    )
+  })
+
+  test.each([
+    ["empty condition", "note", {}, "", "empty_condition"],
+    ["empty length", "title", {length: {}}, "/length", "empty_condition"],
+    ["empty every", "items", {every: {}}, "/every", "empty_condition"],
+  ])("rejects %s", (_name, field, condition, suffix, code) => {
     const input = clone()
     input.template["example/root"].superposition[0].transitions.ready[field] = condition
     expectIssue(

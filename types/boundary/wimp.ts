@@ -41,11 +41,12 @@ export type PredicateRow = {
   condition: number
   predicate_order: number
   operator: string
-  value_kind: "null" | "boolean" | "number" | "string" | "enum" | "list"
+  value_kind: "null" | "boolean" | "number" | "string" | "enum" | "list" | "json"
   value_boolean: number | null
   value_number: number | null
   value_text: string | null
   value_variant: number | null
+  value_json: string | null
 }
 
 export type ProcessTypeValue = `${ProcessType}`

@@ -77,55 +77,55 @@ export function createPackContext(
  *
  * Это чистая функция: она не меняет канонический store и пишет только в
  * переданные derived-буферы, если они явно указаны в контексте.
+ * `value2` хранит присутствие отдельно от битов `value1`: поэтому ноль,
+ * `false`, пустая строка, первый Variant и пустой массив не совпадают с
+ * `null`.
+ *
+ * @see [Отсутствующий и пустой массив](https://github.com/zavx0z/metafor/blob/main/matrix/weak/gpu/pack.spec.ts)
  */
 export function encodeValue(value: MatrixValue, ctx: GpuPackContext): MatrixEncodedValueResult {
+  if (value === null) {
+    return { value1: 0, value2: 0 }
+  }
+
   if (ctx.enum) {
-    if (value === null || value === 0) {
-      return { value1: 0, value2: 0 }
-    }
     if (typeof value === "number") {
-      return { value1: value, value2: 0 }
+      return { value1: value, value2: 1 }
     }
     const idx = ctx.enum.indexOf(value)
     if (idx === -1) {
       throw new Error(`Value '${value}' not found in enum: [${ctx.enum}]`)
     }
-    return { value1: idx, value2: 0 }
+    return { value1: idx, value2: 1 }
   }
 
   if (ctx.type === VALUE_TYPE.FLOAT) {
     const buf = new Float32Array([Number(value)])
-    return { value1: new Uint32Array(buf.buffer)[0]!, value2: 0 }
+    return { value1: new Uint32Array(buf.buffer)[0]!, value2: 1 }
   }
 
   if (ctx.type === VALUE_TYPE.BOOL) {
-    return { value1: value ? 1 : 0, value2: 0 }
+    return { value1: value ? 1 : 0, value2: 1 }
   }
 
   if (ctx.type === VALUE_TYPE.STRING) {
-    if (value === null || value === 0) {
-      return { value1: 0, value2: 0 }
-    }
     if (typeof value === "number") {
-      return { value1: value, value2: 0 }
+      return { value1: value, value2: 1 }
     }
     if (typeof value !== "string") {
       throw new Error(`Expected string for VALUE_TYPE.STRING, got ${typeof value}`)
     }
-    return { value1: value as number, value2: 0 }
+    return { value1: value as number, value2: 1 }
   }
 
   if (ctx.type === VALUE_TYPE.ARRAY) {
-    if (value === 0) {
-      return { value1: 0, value2: 0 }
-    }
     if (!Array.isArray(value)) {
       throw new Error(`Expected array for VALUE_TYPE.ARRAY, got ${typeof value}`)
     }
     const arr = value as unknown[]
 
     if (arr.length === 0) {
-      return { value1: 0, value2: 0 }
+      return { value1: 0, value2: 1 }
     }
 
     if (ctx.allocateHeap && ctx.heap) {
@@ -144,11 +144,11 @@ export function encodeValue(value: MatrixValue, ctx: GpuPackContext): MatrixEnco
         const itemContext: GpuPackContext = { type: elementType, stringTable: ctx.stringTable }
         ctx.heap[ptr + 1 + index] = encodeValue(arr[index] as MatrixValue, itemContext).value1
       }
-      return { value1: ptr, value2: 0 }
+      return { value1: ptr, value2: 1 }
     }
 
-    return { value1: 0, value2: 0 }
+    return { value1: 0, value2: 1 }
   }
 
-  return { value1: Number(value), value2: 0 }
+  return { value1: Number(value), value2: 1 }
 }

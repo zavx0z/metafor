@@ -45,7 +45,7 @@ export interface MatrixRuntimeValueRecord {
 export interface MatrixRuntimeValueItem {
   value: number
   position: number
-  itemValue: string
+  itemValue: number
 }
 
 export interface MatrixRuntimeFieldSource {

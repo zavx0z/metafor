@@ -13,6 +13,11 @@
  * - IN = 6u, NOT_IN = 7u
  * - INCLUDE = 8u, NOT_INCLUDE = 9u
  * - LENGTH = 10u, IS_EMPTY = 11u
+ * - IS_NULL = 12u, IS_NOT_NULL = 13u
+ * - строковые операции = 14u..19u
+ * - проверки длины = 20u..23u
+ * - ARRAY_EQ = 24u, EVERY = 25u, SOME = 26u
+ * - STRING_BETWEEN = 27u, PATTERN = 28u, RESOLVED = 29u
  *
  * **VALUE_TYPE (типы данных):**
  * - FLOAT = 0u, UINT = 1u, BOOL = 2u, STRING = 3u, ARRAY = 4u
@@ -73,6 +78,48 @@ describe("Синхронизация констант OP/VALUE_TYPE", () => {
     test("IS_EMPTY должен быть 11 (wgsl: op == 11u)", () => {
       expect(OP.IS_EMPTY).toBe(11)
     })
+
+    test("расширенный язык должен занимать коды 12-29", () => {
+      expect({
+        IS_NULL: OP.IS_NULL,
+        IS_NOT_NULL: OP.IS_NOT_NULL,
+        STARTS_WITH: OP.STARTS_WITH,
+        ENDS_WITH: OP.ENDS_WITH,
+        CONTAINS: OP.CONTAINS,
+        NOT_CONTAINS: OP.NOT_CONTAINS,
+        NOT_STARTS_WITH: OP.NOT_STARTS_WITH,
+        NOT_ENDS_WITH: OP.NOT_ENDS_WITH,
+        LENGTH_GT: OP.LENGTH_GT,
+        LENGTH_GTE: OP.LENGTH_GTE,
+        LENGTH_LT: OP.LENGTH_LT,
+        LENGTH_LTE: OP.LENGTH_LTE,
+        ARRAY_EQ: OP.ARRAY_EQ,
+        EVERY: OP.EVERY,
+        SOME: OP.SOME,
+        STRING_BETWEEN: OP.STRING_BETWEEN,
+        PATTERN: OP.PATTERN,
+        RESOLVED: OP.RESOLVED,
+      }).toEqual({
+        IS_NULL: 12,
+        IS_NOT_NULL: 13,
+        STARTS_WITH: 14,
+        ENDS_WITH: 15,
+        CONTAINS: 16,
+        NOT_CONTAINS: 17,
+        NOT_STARTS_WITH: 18,
+        NOT_ENDS_WITH: 19,
+        LENGTH_GT: 20,
+        LENGTH_GTE: 21,
+        LENGTH_LT: 22,
+        LENGTH_LTE: 23,
+        ARRAY_EQ: 24,
+        EVERY: 25,
+        SOME: 26,
+        STRING_BETWEEN: 27,
+        PATTERN: 28,
+        RESOLVED: 29,
+      })
+    })
   })
 
   describe("VALUE_TYPE (типы данных)", () => {
@@ -98,7 +145,7 @@ describe("Синхронизация констант OP/VALUE_TYPE", () => {
   })
 
   describe("Порядок констант", () => {
-    test("OP должен быть последовательным (0-11)", () => {
+    test("OP должен быть последовательным (0-29)", () => {
       const values = Object.values(OP) as number[]
       for (let i = 0; i < values.length; i++) {
         expect(values[i]).toBe(i)

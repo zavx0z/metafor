@@ -97,10 +97,7 @@ const matrixBraneValue = (value: unknown): MatrixBraneValue => {
 const inferArrayElementType = (field: JsonRecord): "number" | "string" | "boolean" => {
   const declared = field.elementType
   if (declared === "number" || declared === "string" || declared === "boolean") return declared
-  const sample = Array.isArray(field.default) ? field.default[0] : undefined
-  if (typeof sample === "number") return "number"
-  if (typeof sample === "boolean") return "boolean"
-  return "string"
+  return "number"
 }
 
 const fallbackFieldValue = (
@@ -111,11 +108,7 @@ const fallbackFieldValue = (
   if (Object.prototype.hasOwnProperty.call(field, "default")) {
     return matrixBraneValue(resolveVariantReferences(field.default, variants))
   }
-  if (field.type === "number") return 0
-  if (field.type === "boolean") return false
-  if (field.type === "array") return []
-  if (field.type === "enum") return matrixBraneValue(enumValues[0] ?? null)
-  return ""
+  return null
 }
 
 const matrixField = (field: JsonRecord, enumValues: readonly unknown[]): MatrixFieldRecord => {

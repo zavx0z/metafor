@@ -465,12 +465,21 @@ const normalizeConditionValue = (
   sourceStrings: string[],
   interner: ReturnType<typeof createStoredStringInterner>,
 ): MatrixConditionRecord["value"] => {
+  if (op === OP.PATTERN || op === OP.EVERY || op === OP.SOME) {
+    return clone(value)
+  }
+  if (op === OP.IS_NULL || op === OP.IS_NOT_NULL || op === OP.RESOLVED) {
+    return Number(value)
+  }
+
+  const stringArrayOperand = op === OP.ARRAY_EQ
+  const stringElementOperand = op === OP.INCLUDE || op === OP.NOT_INCLUDE
   const decodeScalar = (item: unknown): unknown => {
     if (sourceField.enum !== undefined) return item
     if (sourceField.type === FieldType.STRING_PTR) return sourceStrings[Number(item)] ?? ""
     if (
       sourceField.type === FieldType.ARRAY_PTR && sourceField.elementType === "string" &&
-      (op === OP.INCLUDE || op === OP.NOT_INCLUDE)
+      (stringElementOperand || stringArrayOperand)
     ) return sourceStrings[Number(item)] ?? ""
     return item
   }
@@ -479,7 +488,7 @@ const normalizeConditionValue = (
     if (targetField.type === FieldType.STRING_PTR) return interner.intern(String(item))
     if (
       targetField.type === FieldType.ARRAY_PTR && targetField.elementType === "string" &&
-      (op === OP.INCLUDE || op === OP.NOT_INCLUDE)
+      (stringElementOperand || stringArrayOperand)
     ) return interner.intern(String(item))
     if (targetField.type === FieldType.BOOL) return Boolean(item)
     return Number(item)

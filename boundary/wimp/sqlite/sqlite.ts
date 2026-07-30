@@ -19,6 +19,66 @@ import {writeWimpCreate} from "./create.ts"
 import {Wimp} from "./wimp.ts"
 import type { WimpCreateInput } from "@metafor/types/boundary/wimp"
 
+/**
+ * Rebuilds the two predicate tables created by versions that predated JSON
+ * operands and the complete public condition language.
+ *
+ * SQLite cannot widen a CHECK constraint with `ALTER COLUMN`, therefore the
+ * migration copies the old rows into the current schema in one transaction.
+ * Existing scalar and list predicates keep their identifiers and ordering.
+ */
+async function migrateConditionPredicates(sql: SQL): Promise<void> {
+  const columns = await sql.unsafe<Array<{name: string}>>(
+    "PRAGMA table_info(condition_predicate)",
+  )
+  const legacyTables = await sql.unsafe<Array<{name: string}>>(
+    "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('condition_predicate_legacy', 'condition_list_item_legacy')",
+  )
+  const legacyTableNames = new Set(legacyTables.map(({name}) => name))
+  const hasLegacyPredicate = legacyTableNames.has("condition_predicate_legacy")
+  const hasLegacyList = legacyTableNames.has("condition_list_item_legacy")
+  if (hasLegacyPredicate !== hasLegacyList) {
+    throw new Error("Boundary predicate migration is incomplete: both legacy tables are required")
+  }
+  const hasCurrentSchema = columns.some((column) => column.name === "value_json")
+  if (columns.length === 0 || (hasCurrentSchema && !hasLegacyPredicate)) {
+    return
+  }
+
+  await sql.begin(async (tx) => {
+    if (!hasCurrentSchema) {
+      await tx.unsafe("DROP INDEX IF EXISTS condition_list_item_by_predicate")
+      await tx.unsafe("DROP INDEX IF EXISTS condition_predicate_by_condition")
+      await tx.unsafe("ALTER TABLE condition_list_item RENAME TO condition_list_item_legacy")
+      await tx.unsafe("ALTER TABLE condition_predicate RENAME TO condition_predicate_legacy")
+      await tx.unsafe(predicateSchemaSql)
+    }
+
+    await tx.unsafe(`
+      INSERT OR IGNORE INTO condition_predicate (
+        id, condition, predicate_order, subject_kind, operator, value_kind,
+        value_boolean, value_number, value_text, value_variant, value_json
+      )
+      SELECT
+        id, condition, predicate_order, subject_kind, operator, value_kind,
+        value_boolean, value_number, value_text, value_variant, NULL
+      FROM condition_predicate_legacy
+    `)
+    await tx.unsafe(`
+      INSERT OR IGNORE INTO condition_list_item (
+        predicate, item_order, value_kind, value_boolean,
+        value_number, value_text, value_variant
+      )
+      SELECT
+        predicate, item_order, value_kind, value_boolean,
+        value_number, value_text, value_variant
+      FROM condition_list_item_legacy
+    `)
+    await tx.unsafe("DROP TABLE condition_list_item_legacy")
+    await tx.unsafe("DROP TABLE condition_predicate_legacy")
+  })
+}
+
 export class BoundaryWimpSqlite {
   private constructor(private readonly sql: SQL) {}
 
@@ -47,6 +107,7 @@ export class BoundaryWimpSqlite {
         .join("\n\n")
         .trim(),
     )
+    await migrateConditionPredicates(sql)
     const matterWimpColumns = await sql.unsafe<Array<{name: string}>>(
       "PRAGMA table_info(matter_particle_wimp)",
     )

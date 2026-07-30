@@ -3,7 +3,7 @@ import type { ArrayHeapSlot, GpuRuntimeContext } from "@metafor/types/matrix/gpu
 import type { MatrixFieldValueRecord, MatrixStore, MatrixValue } from "@metafor/types/matrix/store"
 import type { WeakChanges, WeakHeapUpdate, WeakRuntime, WeakStepMode, WeakStructuralUpdate } from "@metafor/types/matrix/weak"
 import { FIELD_TYPE, VALUE_TYPE } from "../constants"
-import { deriveWeakBraneBytecode, deriveWeakData } from "./derived"
+import { braneHasPatternCondition, deriveWeakBraneBytecode, deriveWeakData } from "./derived"
 import { findFieldValueOffset, packMeta } from "./layout-heap"
 import { createPackContext, encodeValue, fieldTypeToBytecodeType } from "./pack"
 import { createStorageBufferWithCapacity, destroyBuffers, nextCapacityWords } from "./buffer"
@@ -102,6 +102,7 @@ function destroyContext(context: GpuRuntimeContext): void {
  *
  * @see [Отложенная ошибка и ошибка проверки WebGPU](https://github.com/zavx0z/metafor/blob/main/matrix/weak/tests/weak.gpu.test.ts#L94-L130)
  * @see [Потеря устройства передаётся наблюдателю](https://github.com/zavx0z/metafor/blob/main/matrix/weak/device.spec.ts#L37-L55)
+ * @see [F32, U32, BOOL, null, строки и массивы совпадают с CPU](https://github.com/zavx0z/metafor/blob/main/matrix/weak/tests/weak.conditions.test.ts)
  */
 export class GPUWeakRuntime implements WeakRuntime {
   private context: GpuRuntimeContext
@@ -192,6 +193,16 @@ export class GPUWeakRuntime implements WeakRuntime {
       if (!this.tryApplyHeapUpdates(updates)) {
         this.refreshHeapBuffers()
       }
+      const patternBranes = new Set<number>()
+      for (const update of updates) {
+        if (
+          update.kind === "field" &&
+          braneHasPatternCondition(this.store$, update.braneIndex, update.fieldIndex)
+        ) {
+          patternBranes.add(update.braneIndex)
+        }
+      }
+      for (const braneIndex of patternBranes) this.replaceBraneBytecode(braneIndex)
     })
   }
 
@@ -241,26 +252,17 @@ export class GPUWeakRuntime implements WeakRuntime {
         )
       }
 
-      for (const braneIndex of new Set(update.graphBraneIndexes)) {
-        this.context.deadBytecodeWords += this.context.bytecodeWordsByBrane[braneIndex] ?? 0
-        const bytecode = deriveWeakBraneBytecode(this.store$, braneIndex)
-        const words = bytecode.length > 0 ? bytecode : new Uint32Array(1)
-        const offset = this.context.bytecodeWords
-        this.ensureBytecodeCapacity(offset + words.length)
-        this.context.bytecodeMirror.set(words, offset)
-        this.context.device.queue.writeBuffer(
-          this.context.buffers.bytecode,
-          offset * 4,
-          words,
-        )
-        this.context.bytecodeWords += words.length
-        this.context.bytecodeOffsets[braneIndex] = offset
-        this.context.bytecodeWordsByBrane[braneIndex] = words.length
-        this.context.device.queue.writeBuffer(
-          this.context.buffers.bytecodeOffsets,
-          braneIndex * 4,
-          new Uint32Array([offset]),
-        )
+      const bytecodeBranes = new Set(update.graphBraneIndexes)
+      for (const braneIndex of update.braneIndexes) {
+        if (braneHasPatternCondition(this.store$, braneIndex)) bytecodeBranes.add(braneIndex)
+      }
+      if (update.sharedBlockIndexes.length > 0) {
+        for (let braneIndex = 0; braneIndex < this.store$.branes.length; braneIndex++) {
+          if (braneHasPatternCondition(this.store$, braneIndex)) bytecodeBranes.add(braneIndex)
+        }
+      }
+      for (const braneIndex of bytecodeBranes) {
+        this.replaceBraneBytecode(braneIndex)
       }
 
       this.context.braneCount = this.store$.branes.length
@@ -359,8 +361,7 @@ export class GPUWeakRuntime implements WeakRuntime {
     lock: boolean,
   ): number {
     const blockWords = 3 + fields.length * 2 + sharedPtrs.length + fields.reduce((total, record) => {
-      const field = this.store$.fields[record.fieldIndex]
-      return total + (field?.type === FIELD_TYPE.STRING_PTR || field?.type === FIELD_TYPE.ARRAY_PTR ? 2 : 1)
+      return total + (this.store$.fields[record.fieldIndex] ? 2 : 0)
     }, 0)
     const arrayWords = fields.reduce((total, record) => {
       const field = this.store$.fields[record.fieldIndex]
@@ -388,7 +389,7 @@ export class GPUWeakRuntime implements WeakRuntime {
       const field = this.store$.fields[record.fieldIndex]
       if (!field) continue
       const fieldType = fieldTypeToBytecodeType(field.type)
-      const fieldSize = field.type === FIELD_TYPE.STRING_PTR || field.type === FIELD_TYPE.ARRAY_PTR ? 2 : 1
+      const fieldSize = 2
       const encoded = encodeValue(record.value, createPackContext(field, this.store$.stringTable, allocateHeap, heap))
       heap[descriptorOffset++] = record.fieldIndex
       heap[descriptorOffset++] = packMeta(fieldType, fieldSize, valueOffset - blockPtr)
@@ -447,6 +448,28 @@ export class GPUWeakRuntime implements WeakRuntime {
     this.context.bytecodeCapacityWords = capacity
     this.context.bindGroup = createBindGroup(this.context.device, this.context.pipeline, this.context.buffers)
     destroyBuffers([previous])
+  }
+
+  private replaceBraneBytecode(braneIndex: number): void {
+    this.context.deadBytecodeWords += this.context.bytecodeWordsByBrane[braneIndex] ?? 0
+    const bytecode = deriveWeakBraneBytecode(this.store$, braneIndex)
+    const words = bytecode.length > 0 ? bytecode : new Uint32Array(1)
+    const offset = this.context.bytecodeWords
+    this.ensureBytecodeCapacity(offset + words.length)
+    this.context.bytecodeMirror.set(words, offset)
+    this.context.device.queue.writeBuffer(
+      this.context.buffers.bytecode,
+      offset * 4,
+      words,
+    )
+    this.context.bytecodeWords += words.length
+    this.context.bytecodeOffsets[braneIndex] = offset
+    this.context.bytecodeWordsByBrane[braneIndex] = words.length
+    this.context.device.queue.writeBuffer(
+      this.context.buffers.bytecodeOffsets,
+      braneIndex * 4,
+      new Uint32Array([offset]),
+    )
   }
 
   private ensureBraneCapacity(requiredBranes: number): void {
@@ -819,12 +842,8 @@ export class GPUWeakRuntime implements WeakRuntime {
     const encoded = encodeValue(location.record.value, createPackContext(field, this.store$.stringTable))
     heapMirror[valueOffset] = encoded.value1
 
-    if (field.type === FIELD_TYPE.STRING_PTR) {
-      heapMirror[valueOffset + 1] = encoded.value2
-      return { writes: [{ offset: valueOffset, value1: encoded.value1, value2: encoded.value2 }] }
-    }
-
-    return { writes: [{ offset: valueOffset, value1: encoded.value1 }] }
+    heapMirror[valueOffset + 1] = encoded.value2
+    return { writes: [{ offset: valueOffset, value1: encoded.value1, value2: encoded.value2 }] }
   }
 
   private resolveArrayWrites(
@@ -833,13 +852,13 @@ export class GPUWeakRuntime implements WeakRuntime {
     fieldIndex: number,
     value: MatrixValue,
   ): { writes: Array<{ offset: number; value1: number; value2?: number }>; heapMirror?: Uint32Array } | null {
-    if (!Array.isArray(value)) {
+    if (value !== null && !Array.isArray(value)) {
       return null
     }
 
     const currentPtr = heapMirror[valueOffset] ?? 0
     const currentSlot = this.context.arraySlots.get(valueOffset)
-    if (value.length === 0) {
+    if (value === null) {
       if (currentSlot) {
         this.releaseArraySlot(currentSlot)
         this.context.arraySlots.delete(valueOffset)
@@ -847,6 +866,16 @@ export class GPUWeakRuntime implements WeakRuntime {
       heapMirror[valueOffset] = 0
       heapMirror[valueOffset + 1] = 0
       return { writes: [{ offset: valueOffset, value1: 0, value2: 0 }] }
+    }
+
+    if (value.length === 0) {
+      if (currentSlot) {
+        this.releaseArraySlot(currentSlot)
+        this.context.arraySlots.delete(valueOffset)
+      }
+      heapMirror[valueOffset] = 0
+      heapMirror[valueOffset + 1] = 1
+      return { writes: [{ offset: valueOffset, value1: 0, value2: 1 }] }
     }
 
     const currentLength = currentPtr === 0 ? 0 : (heapMirror[currentPtr] ?? 0)
@@ -892,12 +921,12 @@ export class GPUWeakRuntime implements WeakRuntime {
       })
 
       nextHeapMirror[valueOffset] = targetSlot.ptr
-      nextHeapMirror[valueOffset + 1] = 0
+      nextHeapMirror[valueOffset + 1] = 1
       this.context.arraySlots.set(valueOffset, { ptr: targetSlot.ptr, size: requiredSize })
       return {
         heapMirror: nextHeapMirror,
         writes: [
-          { offset: valueOffset, value1: targetSlot.ptr, value2: 0 },
+          { offset: valueOffset, value1: targetSlot.ptr, value2: 1 },
           ...Array.from({ length: requiredSize }, (_, index) => ({
             offset: targetSlot!.ptr + index,
             value1: nextHeapMirror[targetSlot!.ptr + index]!,
@@ -931,12 +960,12 @@ export class GPUWeakRuntime implements WeakRuntime {
 
     heapMirror[currentPtr] = value.length
     heapMirror[valueOffset] = currentPtr
-    heapMirror[valueOffset + 1] = 0
+    heapMirror[valueOffset + 1] = 1
     this.context.arraySlots.set(valueOffset, { ptr: currentPtr, size: 1 + value.length })
 
     return {
       writes: [
-        { offset: valueOffset, value1: currentPtr, value2: 0 },
+        { offset: valueOffset, value1: currentPtr, value2: 1 },
         ...Array.from(arrayWords).map((word, index) => ({
           offset: currentPtr + index,
           value1: word,

@@ -45,7 +45,7 @@ const readValue = async (sql: SQL, id: number): Promise<unknown> => {
   }
   return (await sql<Array<{value: string}>>`
     SELECT item_value AS value FROM value_list_item WHERE value = ${id} ORDER BY position
-  `).map((row) => row.value)
+  `).map((row) => Number(row.value))
 }
 
 const fieldDefaultValue = async (sql: SQL, field: {id: number; type: string}): Promise<{exists: boolean; value?: unknown}> => {
@@ -68,28 +68,37 @@ const fieldDefaultValue = async (sql: SQL, field: {id: number; type: string}): P
   }
   return {exists: true, value: (await sql<Array<{value: string}>>`
     SELECT item_value AS value FROM field_array_default_item WHERE field = ${field.id} ORDER BY position
-  `).map((row) => row.value)}
+  `).map((row) => Number(row.value))}
 }
 
 const conditionPredicate = async (sql: SQL, condition: number): Promise<JsonRecord> => {
   const result: JsonRecord = {}
   for (const row of await sql<Array<{
     id: number; operator: string; valueKind: string; valueBoolean: number | null;
-    valueNumber: number | null; valueText: string | null; valueVariant: number | null
+    valueNumber: number | null; valueText: string | null; valueVariant: number | null;
+    valueJson: string | null
   }>>`
     SELECT id, operator, value_kind AS valueKind, value_boolean AS valueBoolean,
-           value_number AS valueNumber, value_text AS valueText, value_variant AS valueVariant
+           value_number AS valueNumber, value_text AS valueText, value_variant AS valueVariant,
+           value_json AS valueJson
       FROM condition_predicate WHERE condition = ${condition} ORDER BY predicate_order
   `) {
-    const operator = row.operator === "neq" ? "notEq"
+    const operator = row.valueKind === "null" && (row.operator === "eq" || row.operator === "neq")
+      ? "null"
+      : row.operator === "neq" ? "notEq"
       : row.operator === "not_in" ? "notIn"
         : row.operator === "not_include" ? "notInclude"
           : row.operator === "is_empty" ? "isEmpty"
-            : row.operator
-    let value: unknown = null
+            : row.operator === "starts_with" ? "startsWith"
+              : row.operator === "ends_with" ? "endsWith"
+                : row.operator === "not_starts_with" ? "notStartsWith"
+                  : row.operator === "not_ends_with" ? "notEndsWith"
+                    : row.operator
+    let value: unknown = row.valueKind === "null" ? row.operator === "eq" : null
     if (row.valueKind === "boolean") value = row.valueBoolean === 1
     else if (row.valueKind === "number") value = row.valueNumber
     else if (row.valueKind === "string") value = row.valueText
+    else if (row.valueKind === "json") value = JSON.parse(row.valueJson ?? "null")
     else if (row.valueKind === "enum") value = row.valueVariant === null ? null : variantRef(Number(row.valueVariant))
     else if (row.valueKind === "list") value = (await sql<Array<{
       valueKind: string; valueBoolean: number | null; valueNumber: number | null;

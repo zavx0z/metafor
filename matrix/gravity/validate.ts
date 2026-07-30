@@ -7,6 +7,17 @@
 import type { MatrixInputData } from "@metafor/types/matrix/data"
 import { FieldType } from "./schema"
 
+const invalidValue = (
+  braneIndex: number,
+  fieldIndex: number,
+  expected: string,
+  value: unknown,
+): never => {
+  throw new Error(
+    `Brane ${braneIndex}, field ${fieldIndex}: expected ${expected}, got ${String(value)}`,
+  )
+}
+
 /**
  * Валидирует входные данные перед обработкой.
  *
@@ -57,18 +68,29 @@ export function validateData(data: MatrixInputData): void {
 
       const field = data.fields![fieldIndex]!
 
-      // Optional Boundary Fields use null until a value exists. Pointer fields
-      // encode it as zero and scalar fields keep their existing zero-value law.
+      // null is the only representation of an absent Field. Zero, false,
+      // an empty string, the first enum value and an empty array are present.
       if (value === null) return
 
-      // Проверка enum значений (строка допустима для enum полей)
-      if (field.enum && typeof value === "string") {
-        if (!field.enum.includes(value)) {
+      if (field.enum) {
+        if (typeof value === "string") {
+          if (!field.enum.includes(value)) {
+            throw new Error(
+              `Brane ${braneIndex}, field ${fieldIndex}: value '${value}' not in enum [${field.enum}]`,
+            )
+          }
+          return
+        }
+        if (
+          typeof value !== "number" ||
+          !Number.isInteger(value) ||
+          value < 0 ||
+          value >= field.enum.length
+        ) {
           throw new Error(
-            `Brane ${braneIndex}, field ${fieldIndex}: value '${value}' not in enum [${field.enum}]`,
+            `Brane ${braneIndex}, field ${fieldIndex}: enum index ${String(value)} is outside [0, ${field.enum.length})`,
           )
         }
-        // Строковое значение enum допустимо — дальше не проверяем тип
         return
       }
 
@@ -84,16 +106,33 @@ export function validateData(data: MatrixInputData): void {
           `Brane ${braneIndex}, field ${fieldIndex}: expected array, got ${typeof value}`,
         )
       }
-
-      if (
-        field.type === FieldType.F32 ||
-        field.type === FieldType.U32
-      ) {
-        if (typeof value !== "number") {
-          throw new Error(
-            `Brane ${braneIndex}, field ${fieldIndex}: expected number, got ${typeof value}`,
-          )
+      if (field.type === FieldType.ARRAY_PTR && Array.isArray(value)) {
+        for (const item of value) {
+          if (field.elementType === "number" && (
+            typeof item !== "number" || !Number.isFinite(item)
+          )) invalidValue(braneIndex, fieldIndex, "an array of finite numbers", item)
+          if (field.elementType === "string" && typeof item !== "string") {
+            invalidValue(braneIndex, fieldIndex, "an array of strings", item)
+          }
+          if (field.elementType === "boolean" && typeof item !== "boolean") {
+            invalidValue(braneIndex, fieldIndex, "an array of booleans", item)
+          }
         }
+      }
+
+      if (field.type === FieldType.F32 && (
+        typeof value !== "number" || !Number.isFinite(value)
+      )) {
+        invalidValue(braneIndex, fieldIndex, "a finite F32 number", value)
+      }
+
+      if (field.type === FieldType.U32 && (
+        typeof value !== "number" ||
+        !Number.isInteger(value) ||
+        value < 0 ||
+        value > 0xffff_ffff
+      )) {
+        invalidValue(braneIndex, fieldIndex, "an integer in U32 range", value)
       }
 
       if (field.type === FieldType.BOOL && typeof value !== "boolean") {
