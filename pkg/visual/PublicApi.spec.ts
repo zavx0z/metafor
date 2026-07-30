@@ -8,6 +8,8 @@ describe("@metafor/visual production surface", () => {
   test("keeps layout strategies executable and development catalogs private", () => {
     expect(layoutApi.CenteredNested.status).toBe("ready")
     expect(centeredNestedApi.CenteredNested).toBe(layoutApi.CenteredNested)
+    expect(centeredNestedApi.TORUS_LAYOUT_BASELINE)
+      .toBe(layoutApi.TORUS_LAYOUT_BASELINE)
     expect(centeredNestedApi).not.toHaveProperty("OutsideIn")
     expect(typeof layoutApi.CenteredNested.buildScene).toBe("function")
     expect(typeof layoutApi.OutsideIn.buildScene).toBe("function")

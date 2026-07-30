@@ -243,13 +243,12 @@ export type LabelRenderRecord = {
   initialCoverPositions: Float32Array
   initialStencilPositions: Float32Array
   key: string
-  kind: "darkParticle"
+  layer: BulkVisualLayer
   material: TextMaterial
   offset: number
   torusRadius: number
   torusTube: number
   signature: string
-  sphereRadius: number
   stencilCenterX: number
   textNode: Text
 }
@@ -258,12 +257,12 @@ export type LabelSpec = {
   anchorObject: Object3D
   color: Color
   depth: number
+  fontSize: number
   key: string
-  kind: "darkParticle"
+  layer: BulkVisualLayer
   offset: number
   torusRadius: number
   torusTube: number
-  sphereRadius: number
   text: string
 }
 

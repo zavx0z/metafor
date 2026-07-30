@@ -3,14 +3,13 @@ import {
   DEFAULT_BULK_SETTINGS,
   bulkViewportConfig,
   normalizeBulkRenderSettings,
+  resolveBulkTorusLabelMetrics,
 } from "./settings.ts"
 
 describe("Bulk viewport settings", () => {
   test("contain no layout geometry or mesh-detail laws", () => {
     expect(DEFAULT_BULK_SETTINGS).toEqual({
       render: {
-        labelVisibleLevels: 1,
-        baseDepth: 0,
         labelFontSizeMm: 0.8,
         labelSurfaceOffsetMm: 1,
       },
@@ -21,12 +20,27 @@ describe("Bulk viewport settings", () => {
 
   test("normalizes only viewport-owned label settings", () => {
     expect(normalizeBulkRenderSettings({
-      labelVisibleLevels: 3.6,
       labelFontSizeMm: Number.NaN,
       labelSurfaceOffsetMm: -1,
-    })).toEqual({
-      ...DEFAULT_BULK_SETTINGS.render,
-      labelVisibleLevels: 4,
+    })).toEqual(DEFAULT_BULK_SETTINGS.render)
+  })
+
+  test("keeps labels readable when exact Visual Torus grows beyond its baseline", () => {
+    expect(resolveBulkTorusLabelMetrics(
+      DEFAULT_BULK_SETTINGS.render,
+      400,
+      100,
+    )).toEqual({
+      fontSizeMm: 8,
+      surfaceOffsetMm: 10,
+    })
+    expect(resolveBulkTorusLabelMetrics(
+      DEFAULT_BULK_SETTINGS.render,
+      27.78,
+      22.22,
+    )).toEqual({
+      fontSizeMm: 0.8,
+      surfaceOffsetMm: 1,
     })
   })
 })

@@ -83,6 +83,12 @@ Bulk проявляет один полный runtime projection в два по�
 - Picking, fit, labels и HUD читают точную Visual render projection. Direct
   Higgs/Gluon mutation не изменяет geometry: новая geometry появляется только
   после следующей полной semantic manifestation и Visual projection.
+- Каждый Dark, State и toroidal Field proxy Torus получает подпись из своей
+  точной render identity без depth-window. Подпись использует viewport-owned
+  baseline шрифта и отступа и увеличивает их пропорционально точному внешнему
+  радиусу формы относительно package-owned baseline пустого корневого Torus.
+  Поэтому выросший от содержимого Torus сохраняет читаемый масштаб подписи, а
+  малый Torus не уменьшает её ниже viewport baseline.
 - Меню, HUD, Node View, navigation/picking, camera pose, viewport fit,
   fullscreen, Force impulses, causal timeline с отдельным control dock и
   capture остаются Bulk-owned поведением и не заменяются вместе с

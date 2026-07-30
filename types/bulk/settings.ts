@@ -1,6 +1,4 @@
 export interface BulkRenderSettings {
-  labelVisibleLevels: number
-  baseDepth: number
   labelFontSizeMm: number
   labelSurfaceOffsetMm: number
 }

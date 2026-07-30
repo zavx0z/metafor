@@ -42,6 +42,7 @@ export {
 export {
   DARK_TORUS_MESH_DETAIL,
   EMBEDDED_TORUS_MESH_DETAIL,
+  TORUS_LAYOUT_BASELINE,
 } from "./Torus.ts"
 export {
   visualOwnerDarkParticleIdFromAtomId,

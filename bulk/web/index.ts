@@ -45,6 +45,7 @@ import {
 	DEFAULT_BULK_SETTINGS,
 	bulkViewportConfig,
 	normalizeBulkRenderSettings,
+	resolveBulkTorusLabelMetrics,
 } from "bulk/settings"
 import {shouldContinueBulkRenderLoop} from "./render-loop.ts"
 import {
@@ -115,7 +116,6 @@ import {
 } from "../web-navigation"
 import type { BulkHoverPriorityCandidate, BulkPickTarget } from "@metafor/types/bulk/viewport"
 import {BulkSceneStore} from "../scene"
-import {isDarkParticleLabelVisible} from "../label-visibility"
 import {
 	bendTextAroundEquator,
 	createSurfaceLabel,
@@ -325,19 +325,6 @@ const exitBulkFullscreen = async (): Promise<void> => {
 const getViewportConfig = () => bulkViewportConfig.viewport
 const getWorkspaceBaseZ = (): number => getViewportConfig().levelsMm.elbow
 const getFloorZ = (): number => getViewportConfig().levelsMm.floor
-
-const resolveSurfaceOffsetMm = (): number =>
-	Math.max(0, activeRenderSettings.labelSurfaceOffsetMm)
-
-let activeDarkParticleId: number | null = null
-
-const isDarkParticleLabelDepthVisible = (darkParticleId: number, depth: number): boolean =>
-	isDarkParticleLabelVisible({
-		baseDepth: activeRenderSettings.baseDepth,
-		depth,
-		isActiveDarkParticle: activeDarkParticleId === darkParticleId,
-		labelVisibleLevels: activeRenderSettings.labelVisibleLevels,
-	})
 
 const particleColor = (particle: { colorR: number; colorG: number; colorB: number }): Color =>
 	new Color(particle.colorR, particle.colorG, particle.colorB)
@@ -588,24 +575,15 @@ const readObjectScenePosition = (object: Object3D, target: Vector3): Vector3 => 
 	return target.set(elements[12] ?? 0, elements[13] ?? 0, elements[14] ?? 0)
 }
 
-/**
- * Характеристический радиус параллели surface для canonical выбора font-size.
- *
- * Для тора — большой экваториальный радиус: `torusRadius + torusTube + offset`.
- * Для сферы — полный радиус + offset.
- */
-const resolveCanonicalCurveRadius = (spec: LabelSpec): number => {
-	if (spec.kind === "darkParticle") {
-		return Math.max(spec.torusRadius + spec.torusTube + spec.offset, 1e-6)
-	}
-	return Math.max(spec.sphereRadius + spec.offset, 1e-6)
-}
+/** Большой экваториальный радиус Torus вместе с surface-offset подписи. */
+const resolveCanonicalCurveRadius = (spec: LabelSpec): number =>
+	Math.max(spec.torusRadius + spec.torusTube + spec.offset, 1e-6)
 
 const createSurfaceLabelNode = (spec: LabelSpec, font: TrueTypeFont): SurfaceLabelVisual => {
 	const label = createSurfaceLabel({
 		text: spec.text,
 		font,
-		baseFontSize: activeRenderSettings.labelFontSizeMm,
+		baseFontSize: spec.fontSize,
 		material: new TextMaterial({ color: LABEL_TEXT_COLOR, opacity: 1, depthWrite: true }),
 		curveRadiusMm: resolveCanonicalCurveRadius(spec),
 		limits: SURFACE_ARC_LIMITS,
@@ -1469,17 +1447,11 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			record.node.visible = visualLayerVisible("field-proxy")
 		}
 		for (const record of relationBatchRecords.values()) {
-				record.line.visible = visualLayerVisible("relation")
+			record.line.visible = visualLayerVisible("relation")
 		}
 		for (const record of labelRecords.values()) {
-			const particle = darkParticleRecords.get(
-				Number(record.key.slice("darkParticle:".length)),
-			)
-			const layer: BulkVisualLayer =
-				particle?.snapshot.parentDarkParticleId === null ? "atom" : "matter"
-			const entityVisible =
-				particle !== undefined && visualLayerVisible(layer)
-			record.container.visible = visualLayerVisible("label") && entityVisible
+			record.container.visible =
+				visualLayerVisible("label") && visualLayerVisible(record.layer)
 		}
 	}
 
@@ -2131,38 +2103,115 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		return [
 			spec.text,
 			spec.depth,
+			spec.layer,
 			spec.torusRadius.toFixed(4),
 			spec.torusTube.toFixed(4),
-			spec.sphereRadius.toFixed(4),
 			spec.offset.toFixed(4),
 			spec.color.r.toFixed(4),
 			spec.color.g.toFixed(4),
 			spec.color.b.toFixed(4),
-			activeRenderSettings.labelFontSizeMm.toFixed(6),
-			activeRenderSettings.labelSurfaceOffsetMm.toFixed(6),
+			spec.fontSize.toFixed(6),
 		].join(":")
 	}
 
-	const createDarkParticleLabelSpec = (record: DarkParticleRenderRecord): LabelSpec | null => {
+	const createTorusLabelSpec = (
+		spec: Omit<LabelSpec, "fontSize" | "offset" | "text"> &
+			Readonly<{text: string | null | undefined}>,
+	): LabelSpec | null => {
 		if (!labelFont) return null
-		if (!isDarkParticleLabelDepthVisible(record.snapshot.darkParticleId, record.snapshot.depth)) return null
-		const text = normalizeLabelText(record.snapshot.label)
+		const text = normalizeLabelText(spec.text)
 		if (!text) return null
-
-		const offset = resolveSurfaceOffsetMm()
-
+		const metrics = resolveBulkTorusLabelMetrics(
+			activeRenderSettings,
+			spec.torusRadius,
+			spec.torusTube,
+		)
 		return {
+			...spec,
+			fontSize: metrics.fontSizeMm,
+			offset: metrics.surfaceOffsetMm,
+			text,
+		}
+	}
+
+	const createDarkParticleLabelSpec = (
+		record: DarkParticleRenderRecord,
+	): LabelSpec | null =>
+		createTorusLabelSpec({
 			anchorObject: record.container,
 			color: particleColor(record.snapshot),
 			depth: record.snapshot.depth,
 			key: `darkParticle:${record.snapshot.darkParticleId}`,
-			kind: "darkParticle",
-			offset,
+			layer:
+				record.snapshot.parentDarkParticleId === null ? "atom" : "matter",
 			torusRadius: record.snapshot.torusRadius,
 			torusTube: record.snapshot.torusTube,
-			sphereRadius: 0,
-			text,
+			text: record.snapshot.label,
+		})
+
+	const createOrbitalTorusLabelSpec = (
+		record: OrbitalParticleRenderRecord,
+	): LabelSpec | null => {
+		if (record.snapshot.orbitalParticleKind !== "state") return null
+		const torus = orbitalTorusById.get(record.snapshot.orbitalParticleId)
+		if (!torus) {
+			throw new Error(
+				`Bulk Visual State ${record.snapshot.orbitalParticleId} has no Torus label form`,
+			)
+		}
+		const parent = darkParticleRecords.get(
+			record.snapshot.parentDarkParticleId,
+		)
+		if (!parent) {
+			throw new Error(
+				`Bulk Visual State ${record.snapshot.orbitalParticleId} has no label parent`,
+			)
+		}
+		return createTorusLabelSpec({
+			anchorObject: record.node,
+			color: particleColor(record.snapshot),
+			depth: parent.snapshot.depth + 1,
+			key: `orbitalTorus:${record.snapshot.orbitalParticleId}`,
+			layer: "state",
+			torusRadius: torus.radius,
+			torusTube: torus.tube,
+			text: record.snapshot.label,
+		})
 	}
+
+	const createFieldProxyTorusLabelSpec = (
+		record: FieldProxyRenderRecord,
+	): LabelSpec | null => {
+		const torus = fieldProxyTorusById.get(record.snapshot.fieldProxyId)
+		if (!torus) return null
+		const source = fieldParticleRecords.get(
+			record.snapshot.fieldParticleId,
+		)
+		if (!source) {
+			throw new Error(
+				`Bulk Visual Field proxy ${record.snapshot.fieldProxyId} has no label source ${record.snapshot.fieldParticleId}`,
+			)
+		}
+		const parent = darkParticleRecords.get(
+			record.snapshot.parentDarkParticleId,
+		)
+		if (!parent) {
+			throw new Error(
+				`Bulk Visual Field proxy ${record.snapshot.fieldProxyId} has no label parent`,
+			)
+		}
+		return createTorusLabelSpec({
+			anchorObject: record.node,
+			color: particleColor(record.snapshot),
+			depth: parent.snapshot.depth + 2,
+			key: `fieldProxyTorus:${record.snapshot.fieldProxyId}`,
+			layer: "field-proxy",
+			torusRadius: torus.radius,
+			torusTube: torus.tube,
+			text:
+				normalizeLabelText(source.snapshot.fieldLabel) ??
+				source.snapshot.fieldKey,
+		})
 	}
 
 	const removeLabelRecord = (key: string): void => {
@@ -2204,13 +2253,12 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 				initialCoverPositions: visual.initialCoverPositions,
 				initialStencilPositions: visual.initialStencilPositions,
 				key: spec.key,
-				kind: spec.kind,
+				layer: spec.layer,
 				material: visual.material,
 				offset: spec.offset,
 				torusRadius: spec.torusRadius,
 				torusTube: spec.torusTube,
 				signature,
-				sphereRadius: spec.sphereRadius,
 				stencilCenterX: visual.stencilCenterX,
 				textNode: visual.textNode,
 			})
@@ -2219,11 +2267,10 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	}
 
 		existing.anchorObject = spec.anchorObject
-		existing.kind = spec.kind
+		existing.layer = spec.layer
 		existing.offset = spec.offset
 		existing.torusRadius = spec.torusRadius
 		existing.torusTube = spec.torusTube
-		existing.sphereRadius = spec.sphereRadius
 
 		if (existing.signature === signature) return
 
@@ -2262,11 +2309,41 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			if (!spec) continue
 			nextLabelKeys.add(spec.key)
 			upsertLabelRecord(spec)
-	}
+		}
+
+		for (const record of [...orbitalParticleRecords.values()].sort(
+			(left, right) =>
+				left.snapshot.parentDarkParticleId -
+					right.snapshot.parentDarkParticleId ||
+				left.snapshot.sourceId - right.snapshot.sourceId ||
+				left.snapshot.orbitalParticleId.localeCompare(
+					right.snapshot.orbitalParticleId,
+				),
+		)) {
+			const spec = createOrbitalTorusLabelSpec(record)
+			if (!spec) continue
+			nextLabelKeys.add(spec.key)
+			upsertLabelRecord(spec)
+		}
+
+		for (const record of [...fieldProxyRecords.values()].sort(
+			(left, right) =>
+				left.snapshot.parentDarkParticleId -
+					right.snapshot.parentDarkParticleId ||
+				left.snapshot.fieldId - right.snapshot.fieldId ||
+				left.snapshot.fieldProxyId.localeCompare(
+					right.snapshot.fieldProxyId,
+				),
+		)) {
+			const spec = createFieldProxyTorusLabelSpec(record)
+			if (!spec) continue
+			nextLabelKeys.add(spec.key)
+			upsertLabelRecord(spec)
+		}
 
 		for (const key of [...labelRecords.keys()]) {
 			if (!nextLabelKeys.has(key)) removeLabelRecord(key)
-	}
+		}
 	}
 
 	const applyRenderManifestToScene = (
@@ -3318,12 +3395,10 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			const inheritedScale = renderLocalLength(1, reusableInheritedScale.x)
 			const torusRadius = tracker.torusRadius
 			const torusTube = tracker.torusTube
-			const sphereRadius = tracker.sphereRadius
 			const offset = tracker.offset
 			const normal = reusableLabelNormal
 			const right = reusableLabelRight
 			const labelPos = reusableLabelPos
-			let curveRadiusMm: number
 
 			// Горизонтальное направление от центра объекта к XY-проекции камеры.
 			// Метка следует за камерой по экватору (вращается азимутально), но не поднимается
@@ -3331,7 +3406,6 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			const toCameraXy = reusableLabelToCamera
 				.copy(cameraPos)
 				.sub(reusableScenePosition)
-			const cameraDistanceMm = toCameraXy.length()
 			const majorDir = reusableMajorDir.set(toCameraXy.x, toCameraXy.y, 0)
 			if (majorDir.length() < 1e-6) majorDir.set(1, 0, 0)
 			else majorDir.normalize()
@@ -3341,21 +3415,12 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			// Касательная вдоль параллели = поворот majorDir на 90° в XY.
 			right.set(-majorDir.y, majorDir.x, 0).normalize()
 
-			if (tracker.kind === "darkParticle") {
-				// Метка на внешнем экваторе тубы, `outerRing = torusRadius + torusTube + offset`.
-				const outerRing = torusRadius + torusTube + offset
-				labelPos
-					.copy(reusableScenePosition)
-					.add(reusableScaledOffset.copy(majorDir).multiplyScalar(renderLocalLength(outerRing, inheritedScale)))
-				curveRadiusMm = Math.max(outerRing, 1e-6)
-			} else {
-				// Метка на горизонтальном поясе сферы, `radius = sphereRadius + offset`.
-				const beltRadius = sphereRadius + offset
-				labelPos
-					.copy(reusableScenePosition)
-					.add(reusableScaledOffset.copy(majorDir).multiplyScalar(renderLocalLength(beltRadius, inheritedScale)))
-				curveRadiusMm = Math.max(beltRadius, 1e-6)
-			}
+			// Метка на внешнем экваторе тубы, `outerRing = torusRadius + torusTube + offset`.
+			const outerRing = torusRadius + torusTube + offset
+			labelPos
+				.copy(reusableScenePosition)
+				.add(reusableScaledOffset.copy(majorDir).multiplyScalar(renderLocalLength(outerRing, inheritedScale)))
+			const curveRadiusMm = Math.max(outerRing, 1e-6)
 
 			// Вектор "вверх" — вертикаль сцены; метка не наклоняется с камерой.
 			const up = reusableLabelUp.set(0, 0, 1)
@@ -3689,37 +3754,6 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	window.addEventListener("touchcancel", handleCanvasTouchEndForRadialMenu, true)
 	document.addEventListener("mousemove", wakeRenderFromDocumentMouseMove)
 	document.addEventListener("mouseup", wakeRenderFromDocumentMouseUp)
-	const calculateActiveDarkParticleRecord = (): DarkParticleRenderRecord | null => {
-		const cameraPos = viewPoint.position
-		let bestRecord: DarkParticleRenderRecord | null = null
-		let bestNormalizedDistance = Number.POSITIVE_INFINITY
-
-		for (const record of darkParticleRecords.values()) {
-			const dist = cameraPos.distanceTo(record.pickTarget.center)
-			if (dist < record.pickTarget.outerRadius * 1.3) {
-				const normalizedDistance = dist / Math.max(record.pickTarget.outerRadius, 1e-6)
-				if (
-					!bestRecord ||
-					record.snapshot.depth > bestRecord.snapshot.depth ||
-					(
-						record.snapshot.depth === bestRecord.snapshot.depth &&
-						(
-							normalizedDistance < bestNormalizedDistance - 1e-6 ||
-							(
-								Math.abs(normalizedDistance - bestNormalizedDistance) <= 1e-6 &&
-								record.snapshot.darkParticleId < bestRecord.snapshot.darkParticleId
-							)
-						)
-					)
-				) {
-					bestRecord = record
-					bestNormalizedDistance = normalizedDistance
-				}
-			}
-		}
-
-		return bestRecord
-	}
 
 	const animate = (timestamp: number): void => {
 		if (disposed) return
@@ -3731,18 +3765,6 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		updateManifestationSceneState()
 		applyNavigationFrame(timestamp)
 		syncRadialMenuAnchor()
-
-		const activeDarkParticleRecord = calculateActiveDarkParticleRecord()
-		const nextBaseDepth = activeDarkParticleRecord?.snapshot.depth ?? -1
-		const nextActiveDarkParticleId = activeDarkParticleRecord?.snapshot.darkParticleId ?? null
-		if (
-			nextBaseDepth !== activeRenderSettings.baseDepth ||
-			nextActiveDarkParticleId !== activeDarkParticleId
-		) {
-			activeRenderSettings.baseDepth = nextBaseDepth
-			activeDarkParticleId = nextActiveDarkParticleId
-			syncLabelRecords()
-		}
 
 		updateLabelTrackers()
 		hudRuntime.flushPendingRender()

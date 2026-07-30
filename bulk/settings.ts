@@ -3,14 +3,13 @@ import type {
   BulkSettingsConfig,
   BulkViewportConfig,
 } from "@metafor/types/bulk/settings"
+import {TORUS_LAYOUT_BASELINE} from "@metafor/visual/layout/centered-nested"
 
 export const DEFAULT_BULK_SCENE_SRC = ""
 
 /** Viewport-only settings. Geometry and mesh detail come from pkg/visual. */
 export const DEFAULT_BULK_SETTINGS: BulkSettingsConfig = {
   render: {
-    labelVisibleLevels: 1,
-    baseDepth: 0,
     labelFontSizeMm: 0.8,
     labelSurfaceOffsetMm: 1,
   },
@@ -41,14 +40,6 @@ export const bulkViewportConfig: BulkViewportConfig = {
 export const normalizeBulkRenderSettings = (
   settings: Partial<BulkRenderSettings> = {},
 ): BulkRenderSettings => ({
-  labelVisibleLevels:
-    Number.isFinite(settings.labelVisibleLevels) && (settings.labelVisibleLevels ?? 0) > 0
-      ? Math.max(1, Math.round(settings.labelVisibleLevels!))
-      : DEFAULT_BULK_SETTINGS.render.labelVisibleLevels,
-  baseDepth:
-    Number.isFinite(settings.baseDepth) && (settings.baseDepth ?? -1) >= -1
-      ? Math.floor(settings.baseDepth!)
-      : DEFAULT_BULK_SETTINGS.render.baseDepth,
   labelFontSizeMm:
     Number.isFinite(settings.labelFontSizeMm) && (settings.labelFontSizeMm ?? 0) > 0
       ? settings.labelFontSizeMm!
@@ -58,3 +49,21 @@ export const normalizeBulkRenderSettings = (
       ? settings.labelSurfaceOffsetMm!
       : DEFAULT_BULK_SETTINGS.render.labelSurfaceOffsetMm,
 })
+
+export const resolveBulkTorusLabelMetrics = (
+  settings: Pick<
+    BulkRenderSettings,
+    "labelFontSizeMm" | "labelSurfaceOffsetMm"
+  >,
+  torusRadius: number,
+  torusTube: number,
+): Readonly<{fontSizeMm: number; surfaceOffsetMm: number}> => {
+  const outerRadius = torusRadius + torusTube
+  const scale = Number.isFinite(outerRadius) && outerRadius > 0
+    ? Math.max(1, outerRadius / TORUS_LAYOUT_BASELINE.rootOuterRadius)
+    : 1
+  return {
+    fontSizeMm: settings.labelFontSizeMm * scale,
+    surfaceOffsetMm: settings.labelSurfaceOffsetMm * scale,
+  }
+}
