@@ -11,6 +11,7 @@
       "default": "./transport/force/web.ts"
     },
     "./transport/force/log": "./transport/force/log.ts",
+    "./transport/force/checkpoint": "./transport/force/checkpoint.ts",
     "./transport/monad": {
       "browser": "./transport/monad/web.ts",
       "bun": "./transport/monad/server.ts",

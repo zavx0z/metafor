@@ -19,6 +19,7 @@
     "@bulk/strong": "workspace:*",
     "@bulk/weak": "workspace:*",
     "@metafor/engine": "workspace:*",
+    "@metafor/visual": "workspace:*",
     "@ui/components": "workspace:*",
     "@ui/hud": "workspace:*",
     "@ui/elements": "workspace:*"

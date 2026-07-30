@@ -1,41 +1,36 @@
 import type {
   BulkDarkParticleActivity,
-  BulkDarkParticleInput,
   BulkDarkParticleKind,
-  BulkFieldParticleInput,
+  BulkFieldParticle,
   BulkFieldParticleKind,
   BulkFieldProxy,
   BulkManifest,
   BulkOrbitalParticle,
+  BulkOrbitalParticleKind,
   BulkRelationChannel,
+  BulkRootPromotionReceipt,
   BulkTransitionChannel,
 } from "@metafor/types/bulk/manifest"
-import {
-  createBulkManifestFromDarkParticleInputs,
-  scaleBulkManifestToRootOuterDiameter,
-} from "@bulk/gravity/layout"
 import type { BulkRuntimeField, BulkRuntimeMatterBindingPath, BulkRuntimeMatterChildBindingPath, BulkRuntimeMatterParticle, BulkRuntimeProjection, BulkRuntimeValue } from "@metafor/types/bulk/runtime"
-import type { BulkLayoutSettings } from "@metafor/types/bulk/settings"
 import type { AtomRecord } from "@metafor/types/boundary/atom"
 import type { FieldEnumVariantRecord, ValueItemRecord } from "@metafor/types/boundary/value"
 import type { TopologyRecord } from "@metafor/types/boundary/topology"
 
-const atomDarkParticleColor = {colorR: 0.4, colorG: 0.45, colorB: 0.98}
-const connectivityDarkParticleColors: Record<BulkDarkParticleKind, {colorR: number; colorG: number; colorB: number}> = {
-  atom: atomDarkParticleColor,
-  fuzzy: {colorR: 0.52, colorG: 0.88, colorB: 1},
-  axion: {colorR: 1, colorG: 0.66, colorB: 0.36},
-  macho: {colorR: 1, colorG: 0.38, colorB: 0.48},
-}
+type StructuralFieldInput = Omit<
+  BulkFieldParticle,
+  "parentDarkParticleId"
+>
 
-const fieldParticleColor = (kind: BulkFieldParticleKind): {colorR: number; colorG: number; colorB: number} => {
-  if (kind === "string") return {colorR: 1, colorG: 0.08, colorB: 0.58}
-  if (kind === "number") return {colorR: 1, colorG: 0.88, colorB: 0}
-  if (kind === "boolean") return {colorR: 0, colorG: 0.9, colorB: 1}
-  if (kind === "enum") return {colorR: 0.58, colorG: 0.32, colorB: 1}
-  if (kind === "array") return {colorR: 1, colorG: 0.42, colorB: 0}
-  return {colorR: 1, colorG: 0.16, colorB: 0.16}
-}
+type StructuralDarkInput = Readonly<{
+  activity: BulkDarkParticleActivity
+  children: StructuralDarkInput[]
+  darkParticleId: number
+  darkParticleKind: BulkDarkParticleKind
+  fieldParticles: StructuralFieldInput[]
+  label: string
+  metaSrc: string | null
+  src: string | null
+}>
 
 const fieldParticleKind = (type: BulkRuntimeField["type"]): BulkFieldParticleKind => {
   if (type === "string") return "string"
@@ -67,15 +62,6 @@ const processFieldDependencies = (descriptor: Record<string, unknown>): {read: n
   }
   visit(descriptor)
   return {read: [...read], write: [...write]}
-}
-
-const stableAngle = (value: string): number => {
-  let hash = 2166136261
-  for (let index = 0; index < value.length; index += 1) {
-    hash ^= value.charCodeAt(index)
-    hash = Math.imul(hash, 16777619)
-  }
-  return ((hash >>> 0) / 0xffffffff) * Math.PI * 2
 }
 
 const group = <T, K extends string | number>(entries: T[], key: (entry: T) => K | null): Map<K, T[]> => {
@@ -149,10 +135,45 @@ const fieldKeyFromMatterPath = (path: string): string | null => {
   return path
 }
 
+const verifiedRootPromotion = (
+  projection: BulkRuntimeProjection,
+  requestedRootSrc: string,
+  receipt: BulkRootPromotionReceipt | null,
+): BulkRootPromotionReceipt | null => {
+  if (receipt === null || receipt.verified !== true || receipt.kind !== "root-promotion" || receipt.version !== 1) {
+    return null
+  }
+  if (
+    receipt.removedRootSrc !== requestedRootSrc ||
+    receipt.removedRootAtomId === receipt.promotedAtomId ||
+    !Number.isSafeInteger(receipt.removedRootAtomId) ||
+    !Number.isSafeInteger(receipt.promotedAtomId) ||
+    receipt.removedRootAtomId <= 0 ||
+    receipt.promotedAtomId <= 0
+  ) return null
+  const frame = receipt.formerRootFrame
+  if (
+    !Number.isFinite(frame.localX) ||
+    !Number.isFinite(frame.localY) ||
+    !Number.isFinite(frame.localZ) ||
+    !Number.isFinite(frame.outerDiameterMm) ||
+    frame.outerDiameterMm <= 0
+  ) return null
+  if (projection.atoms.some((atom) => atom.id === receipt.removedRootAtomId)) return null
+  const promoted = projection.atoms.find((atom) => atom.id === receipt.promotedAtomId)
+  if (
+    !promoted ||
+    promoted.wimp !== receipt.promotedRootSrc ||
+    promoted.parentAtom !== null ||
+    promoted.parentTopology !== null
+  ) return null
+  return receipt
+}
+
 export function buildBulkManifestation(
   projection: BulkRuntimeProjection,
   rootSrc: string,
-  settings: Partial<BulkLayoutSettings> = {},
+  promotionReceipt: BulkRootPromotionReceipt | null = null,
 ): BulkManifest {
   const {
     atoms,
@@ -302,16 +323,20 @@ export function buildBulkManifestation(
     })
   }
 
-  const fieldParticleInputFromBoundaryField = (atom: AtomRecord, field: BulkRuntimeField): BulkFieldParticleInput => {
+  const fieldParticleInputFromBoundaryField = (
+    atom: AtomRecord,
+    field: BulkRuntimeField,
+  ): StructuralFieldInput => {
     const kind = fieldParticleKind(field.type)
+    const valueId = atomValueByAtomField.get(`${atom.id}\0${field.id}`) ?? null
     return {
       fieldParticleId: fieldParticleIdFromAtomField(atom.id, field.id),
       fieldId: field.id,
+      valueId,
       fieldKey: field.key,
       fieldLabel: field.label ?? field.key,
       fieldParticleKind: kind,
-      valueText: valueText(atomValueByAtomField.get(`${atom.id}\0${field.id}`), valuesById, valueItemsById),
-      ...fieldParticleColor(kind),
+      valueText: valueText(valueId ?? undefined, valuesById, valueItemsById),
     }
   }
 
@@ -319,7 +344,7 @@ export function buildBulkManifestation(
     parent: {kind: "atom"; id: number} | {kind: "topology"; id: number},
     visited: Set<string>,
     inheritedActivity: BulkDarkParticleActivity,
-  ): BulkDarkParticleInput[] => {
+  ): StructuralDarkInput[] => {
     const childAtoms = parent.kind === "atom" ? atomsByParentAtom.get(parent.id) ?? [] : atomsByParentTopology.get(parent.id) ?? []
     const childTopologies = parent.kind === "atom"
       ? topologiesByParentAtom.get(parent.id) ?? []
@@ -331,7 +356,11 @@ export function buildBulkManifestation(
     ]
   }
 
-  const atomDarkParticleInputFromAtom = (atom: AtomRecord, visited: Set<string>, inheritedActivity: BulkDarkParticleActivity = "neutral"): BulkDarkParticleInput => {
+  const atomDarkParticleInputFromAtom = (
+    atom: AtomRecord,
+    visited: Set<string>,
+    inheritedActivity: BulkDarkParticleActivity = "neutral",
+  ): StructuralDarkInput => {
     const key = `atom:${atom.id}`
     const darkParticleId = atomDarkParticleIdFromAtomId(atom.id)
     const activity = activityByDarkParticleId.get(darkParticleId) ?? inheritedActivity
@@ -342,7 +371,6 @@ export function buildBulkManifestation(
         src: atom.wimp,
         metaSrc: atom.wimp,
         label: wimpBySrc.get(atom.wimp)?.name ?? atom.wimp,
-        ...atomDarkParticleColor,
         activity,
         fieldParticles: [],
         children: [],
@@ -356,7 +384,6 @@ export function buildBulkManifestation(
       src: atom.wimp,
       metaSrc: atom.wimp,
       label: wimpBySrc.get(atom.wimp)?.name ?? atom.wimp,
-      ...atomDarkParticleColor,
       activity,
       fieldParticles: (fieldsByWimp.get(atom.wimp) ?? [])
         .map((field) => fieldParticleInputFromBoundaryField(atom, field)),
@@ -364,7 +391,11 @@ export function buildBulkManifestation(
     }
   }
 
-  const connectivityDarkParticleInputFromTopology = (topology: TopologyRecord, visited: Set<string>, inheritedActivity: BulkDarkParticleActivity = "neutral"): BulkDarkParticleInput => {
+  const connectivityDarkParticleInputFromTopology = (
+    topology: TopologyRecord,
+    visited: Set<string>,
+    inheritedActivity: BulkDarkParticleActivity = "neutral",
+  ): StructuralDarkInput => {
     const key = `topology:${topology.id}`
     const label = topologyLabelById.get(topology.id) ?? ""
     const darkParticleId = connectivityDarkParticleIdFromTopologyId(topology.id)
@@ -376,7 +407,6 @@ export function buildBulkManifestation(
         src: null,
         metaSrc: null,
         label,
-        ...connectivityDarkParticleColors[topology.kind],
         activity,
         fieldParticles: [],
         children: [],
@@ -390,84 +420,79 @@ export function buildBulkManifestation(
       src: null,
       metaSrc: null,
       label,
-      ...connectivityDarkParticleColors[topology.kind],
       activity,
       fieldParticles: [],
       children: childDarkParticleInputs({kind: "topology", id: topology.id}, visited, activity),
     }
   }
 
+  const promotion = verifiedRootPromotion(projection, rootSrc, promotionReceipt)
+  const manifestedRootSrc = promotion?.promotedRootSrc ?? rootSrc
   const rootAtoms = atoms.filter((atom) => atom.parentAtom === null && atom.parentTopology === null)
-  const inputs = sortByPosition(rootAtoms.filter((atom) => atom.wimp === rootSrc))
+  const selectedRoots = promotion
+    ? rootAtoms.filter((atom) => atom.id === promotion.promotedAtomId)
+    : rootAtoms.filter((atom) => atom.wimp === rootSrc)
+  const inputs = sortByPosition(selectedRoots)
     .filter((atom) => atomById.has(atom.id))
     .map((atom) => atomDarkParticleInputFromAtom(atom, new Set()))
 
-  const manifest = scaleBulkManifestToRootOuterDiameter(
-    createBulkManifestFromDarkParticleInputs(rootSrc, inputs, settings),
-    undefined,
-    settings,
-  )
+  const darkParticles: BulkManifest["darkParticles"] = []
+  const fieldParticles: BulkManifest["fieldParticles"] = []
+  const appendDarkInput = (
+    input: StructuralDarkInput,
+    parentDarkParticleId: number | null,
+    depth: number,
+    darkParticleOrder: number,
+  ): void => {
+    darkParticles.push({
+      darkParticleId: input.darkParticleId,
+      parentDarkParticleId,
+      darkParticleKind: input.darkParticleKind,
+      src: input.src,
+      metaSrc: input.metaSrc,
+      label: input.label,
+      depth,
+      darkParticleOrder,
+      activity: input.activity,
+    })
+    for (const field of input.fieldParticles) {
+      fieldParticles.push({
+        ...field,
+        parentDarkParticleId: input.darkParticleId,
+      })
+    }
+    input.children.forEach((child, childOrder) => {
+      appendDarkInput(child, input.darkParticleId, depth + 1, childOrder)
+    })
+  }
+  inputs.forEach((input, order) => appendDarkInput(input, null, 0, order))
 
-  const darkParticleById = new Map(manifest.darkParticles.map((particle) => [particle.darkParticleId, particle] as const))
+  const manifest: BulkManifest = {
+    rootSrc: manifestedRootSrc,
+    darkParticles,
+    fieldParticles,
+  }
+  const darkParticleById = new Map(
+    manifest.darkParticles.map((particle) =>
+      [particle.darkParticleId, particle] as const
+    ),
+  )
   const atomStateByAtom = new Map(atomStates.map((state) => [state.atom, state.state] as const))
   const orbitalParticles: BulkOrbitalParticle[] = []
   const transitionChannels: BulkTransitionChannel[] = []
   const fieldProxies: BulkFieldProxy[] = []
   const relationChannels: BulkRelationChannel[] = []
 
-  for (const boundaryAtom of atoms) {
+  const materializeAtomSemantics = (boundaryAtom: AtomRecord): void => {
     const parentDarkParticleId = atomDarkParticleIdFromAtomId(boundaryAtom.id)
-    const manifestedAtom = darkParticleById.get(parentDarkParticleId)
-    if (!manifestedAtom) continue
+    if (!darkParticleById.has(parentDarkParticleId)) return
     const atomStates = sortByPosition(statesByWimp.get(boundaryAtom.wimp) ?? [])
     const atomTransitions = sortByPosition(transitionsByWimp.get(boundaryAtom.wimp) ?? [])
     const outgoing = group(atomTransitions, (transition) => transition.fromState)
     const stateById = new Map(atomStates.map((state) => [state.id, state] as const))
     const currentStateId = atomStateByAtom.get(boundaryAtom.id) ?? null
-    const maxSleeveDepth = (stateId: number, path: Set<number>): number => {
-      if (path.has(stateId)) return 0
-      const nextPath = new Set(path).add(stateId)
-      return (outgoing.get(stateId) ?? []).reduce(
-        (maxDepth, transition) => Math.max(maxDepth, 1 + maxSleeveDepth(transition.toState, nextPath)),
-        0,
-      )
-    }
-    const countSleeveDepths = (stateId: number, path: Set<number>, depth: number, counts: Map<number, number>): void => {
-      if (path.has(stateId)) return
-      counts.set(depth, (counts.get(depth) ?? 0) + 1)
-      const nextPath = new Set(path).add(stateId)
-      for (const transition of outgoing.get(stateId) ?? []) countSleeveDepths(transition.toState, nextPath, depth + 1, counts)
-    }
-    const atomInnerRadius = Math.max(0, manifestedAtom.torusRadius - manifestedAtom.torusTube)
-    const atomOuterRadius = manifestedAtom.torusRadius + manifestedAtom.torusTube
-    const fieldRadius = manifest.fieldParticles.find((field) => field.parentDarkParticleId === parentDarkParticleId)?.sphereRadius
-      ?? manifest.fieldParticles[0]?.sphereRadius
-      ?? Math.max(1, Math.min(manifestedAtom.torusTube * 0.115, manifestedAtom.torusRadius * 0.06))
-    const radiusCap = fieldRadius
-    const layoutMargin = radiusCap * 1.45
-    const sleeveStats = atomStates.map((state) => {
-      const depthCounts = new Map<number, number>()
-      countSleeveDepths(state.id, new Set(), 0, depthCounts)
-      return {
-        depthCounts,
-        maxDepth: Math.max(1, maxSleeveDepth(state.id, new Set())),
-      }
-    })
-    let densityRadius = radiusCap
-    sleeveStats.forEach((stats) => {
-      const sleeveAngleSpan = Math.min((Math.PI * 2 / Math.max(1, atomStates.length)) * 0.78, 1.15)
-      const radialSpan = Math.max(1, atomOuterRadius - atomInnerRadius - layoutMargin * 2)
-      const bandWidth = radialSpan / (stats.maxDepth + 1)
-      for (const [depth, count] of stats.depthCounts) {
-        const midRadius = atomInnerRadius + layoutMargin + (depth + 0.5) * bandWidth
-        const arcWidth = Math.max(1, midRadius * sleeveAngleSpan)
-        const columns = Math.max(1, Math.ceil(Math.sqrt(count * arcWidth / Math.max(1, bandWidth))))
-        const rows = Math.max(1, Math.ceil(count / columns))
-        densityRadius = Math.min(densityRadius, arcWidth / columns / 2.8, bandWidth / rows / 2.8)
-      }
-    })
-    const radius = Math.max(0.8, Math.min(radiusCap, densityRadius))
     const stateOccurrencesByStateId = new Map<number, BulkOrbitalParticle[]>()
+    const stateOccurrenceById = new Map<string, BulkOrbitalParticle>()
     const fieldProxyByOccurrenceField = new Map<string, BulkFieldProxy>()
     const ensureFieldProxy = (stateParticle: BulkOrbitalParticle, fieldId: number): BulkFieldProxy | null => {
       const field = fields.find((candidate) => candidate.id === fieldId && candidate.wimp === boundaryAtom.wimp)
@@ -475,21 +500,12 @@ export function buildBulkManifestation(
       const key = `${stateParticle.orbitalParticleId}/field/${fieldId}`
       const existing = fieldProxyByOccurrenceField.get(key)
       if (existing) return existing
-      const angle = stableAngle(key)
-      const elevation = Math.sin(stableAngle(`${key}/elevation`)) * 0.58
-      const radial = Math.sqrt(Math.max(0, 1 - elevation * elevation))
-      const color = fieldParticleColor(fieldParticleKind(field.type))
       const proxy: BulkFieldProxy = {
         fieldProxyId: key,
         fieldParticleId: fieldParticleIdFromAtomField(boundaryAtom.id, field.id),
         fieldId,
         parentDarkParticleId,
         stateOrbitalParticleId: stateParticle.orbitalParticleId,
-        localX: stateParticle.localX + Math.cos(angle) * radial * stateParticle.sphereRadius * 0.93,
-        localY: stateParticle.localY + Math.sin(angle) * radial * stateParticle.sphereRadius * 0.93,
-        localZ: stateParticle.localZ + elevation * stateParticle.sphereRadius * 0.93,
-        ringRadius: Math.max(1.5, stateParticle.sphereRadius * 0.2),
-        ...color,
       }
       fieldProxies.push(proxy)
       fieldProxyByOccurrenceField.set(key, proxy)
@@ -502,42 +518,21 @@ export function buildBulkManifestation(
         toKind: "field-proxy",
         toId: proxy.fieldProxyId,
         active: stateParticle.active,
-        ...color,
       })
       return proxy
     }
 
-    atomStates.forEach((rootState, rootIndex) => {
-      const rootAngle = (Math.PI * 2 * rootIndex) / Math.max(1, atomStates.length)
-      const sleeveAngleSpan = Math.min((Math.PI * 2 / Math.max(1, atomStates.length)) * 0.78, 1.15)
-      const stats = sleeveStats[rootIndex]!
-      const sleeveRadialSpan = Math.max(1, atomOuterRadius - atomInnerRadius - layoutMargin * 2)
-      const sleeveBandWidth = sleeveRadialSpan / (stats.maxDepth + 1)
-      const depthIndexes = new Map<number, number>()
+    atomStates.forEach((rootState) => {
       const occurrenceByPathState = new Map<number, string>()
 
       const visit = (
         stateId: number,
-        pathStates: number[],
         pathTransitions: number[],
       ): string => {
         const state = stateById.get(stateId)
         if (!state) return ""
         const occurrenceId = `atom/${boundaryAtom.id}/sleeve/${rootState.id}/state/${state.id}/path/${pathTransitions.join("-") || "root"}`
         const depth = pathTransitions.length
-        const depthCount = stats.depthCounts.get(depth) ?? 1
-        const depthIndex = depthIndexes.get(depth) ?? 0
-        depthIndexes.set(depth, depthIndex + 1)
-        const midRadius = atomInnerRadius + layoutMargin + (depth + 0.5) * sleeveBandWidth
-        const arcWidth = Math.max(1, midRadius * sleeveAngleSpan)
-        const columns = Math.max(1, Math.ceil(Math.sqrt(depthCount * arcWidth / Math.max(1, sleeveBandWidth))))
-        const rows = Math.max(1, Math.ceil(depthCount / columns))
-        const column = depthIndex % columns
-        const row = Math.floor(depthIndex / columns)
-        const angle = rootAngle + ((column + 0.5) / columns - 0.5) * sleeveAngleSpan
-        const distance = atomInnerRadius + layoutMargin + depth * sleeveBandWidth + (row + 0.5) / rows * sleeveBandWidth
-        const stateOutgoing = outgoing.get(state.id) ?? []
-        const terminal = stateOutgoing.length === 0
         const activeSleeve = rootState.id === currentStateId
         const stateParticle: BulkOrbitalParticle = {
           orbitalParticleId: occurrenceId,
@@ -547,27 +542,21 @@ export function buildBulkManifestation(
           label: state.name,
           current: activeSleeve && depth === 0,
           active: activeSleeve,
+          anchorStateOrbitalParticleId: null,
           sleeveRootStateId: rootState.id,
           relatedStateIds: [state.id],
-          localX: Math.cos(angle) * distance,
-          localY: Math.sin(angle) * distance,
-          localZ: terminal ? 0 : (rootIndex % 2 === 0 ? 1 : -1) * Math.min(manifestedAtom.torusTube * 0.58, radius * (2.1 + depth * 0.25)),
-          sphereRadius: radius,
-          colorR: activeSleeve ? 0.62 : 0.2,
-          colorG: activeSleeve ? 0.96 : 0.68,
-          colorB: 1,
         }
         orbitalParticles.push(stateParticle)
+        stateOccurrenceById.set(stateParticle.orbitalParticleId, stateParticle)
         const stateOccurrences = stateOccurrencesByStateId.get(state.id)
         if (stateOccurrences) stateOccurrences.push(stateParticle)
         else stateOccurrencesByStateId.set(state.id, [stateParticle])
         occurrenceByPathState.set(state.id, occurrenceId)
 
-        stateOutgoing.forEach((transition) => {
+        ;(outgoing.get(state.id) ?? []).forEach((transition) => {
           const cycleTarget = occurrenceByPathState.get(transition.toState)
           const nextOccurrenceId = cycleTarget ?? visit(
             transition.toState,
-            [...pathStates, transition.toState],
             [...pathTransitions, transition.id],
           )
           if (!nextOccurrenceId) return
@@ -582,46 +571,69 @@ export function buildBulkManifestation(
             conditionIds: transitionConditions.map((condition) => condition.id),
             conditionFieldIds: transitionConditions.map((condition) => condition.field),
             active: activeSleeve,
-            colorR: activeSleeve ? 0.48 : 0.2,
-            colorG: activeSleeve ? 0.9 : 0.48,
-            colorB: 1,
           })
         })
         occurrenceByPathState.delete(state.id)
         return occurrenceId
       }
 
-      visit(rootState.id, [rootState.id], [])
+      visit(rootState.id, [])
     })
 
     const stateIdByName = new Map(atomStates.map((state) => [state.name, state.id] as const))
+    const appendCausalOccurrence = (input: {
+      baseId: string
+      sourceId: number
+      orbitalParticleKind: Exclude<BulkOrbitalParticleKind, "state">
+      label: string
+      active: boolean
+      relatedStateIds: number[]
+    }): BulkOrbitalParticle[] => {
+      const relatedStateIds = [...new Set(input.relatedStateIds)]
+      const orderedStateIds = currentStateId !== null && relatedStateIds.includes(currentStateId)
+        ? [currentStateId, ...relatedStateIds.filter((stateId) => stateId !== currentStateId)]
+        : relatedStateIds
+      let stateOccurrence: BulkOrbitalParticle | undefined
+      for (const relatedStateId of orderedStateIds) {
+        const occurrences = stateOccurrencesByStateId.get(relatedStateId) ?? []
+        stateOccurrence = occurrences.find((occurrence) =>
+          occurrence.sleeveRootStateId === relatedStateId &&
+          occurrence.orbitalParticleId.endsWith("/root"))
+          ?? occurrences[0]
+        if (stateOccurrence) break
+      }
+      if (!stateOccurrence) return []
+
+      const particle: BulkOrbitalParticle = {
+        orbitalParticleId: input.baseId,
+        sourceId: input.sourceId,
+        parentDarkParticleId,
+        orbitalParticleKind: input.orbitalParticleKind,
+        label: input.label,
+        current: false,
+        active: input.active,
+        anchorStateOrbitalParticleId: stateOccurrence.orbitalParticleId,
+        sleeveRootStateId: stateOccurrence.sleeveRootStateId,
+        relatedStateIds,
+      }
+      orbitalParticles.push(particle)
+      return [particle]
+    }
+
     const atomAxions = sortByPosition((topologiesByParentAtom.get(boundaryAtom.id) ?? []).filter((topology) => topology.kind === "axion"))
     atomAxions.forEach((topology) => {
-      const anchor = darkParticleById.get(connectivityDarkParticleIdFromTopologyId(topology.id))
-      if (!anchor) return
       const label = topologyLabelById.get(topology.id) ?? "Axion · State"
       const stateName = label.startsWith("Axion · ") ? label.slice("Axion · ".length) : null
       const relatedState = stateName === null ? undefined : stateIdByName.get(stateName)
-      const axionParticle: BulkOrbitalParticle = {
-        orbitalParticleId: `atom/${boundaryAtom.id}/axion/${topology.id}`,
+      if (relatedState === undefined) return
+      const axionParticles = appendCausalOccurrence({
+        baseId: `atom/${boundaryAtom.id}/axion/${topology.id}`,
         sourceId: topology.id,
-        parentDarkParticleId,
         orbitalParticleKind: "axion",
         label,
-        current: false,
         active: (atomsByParentTopology.get(topology.id)?.length ?? 0) > 0,
-        sleeveRootStateId: null,
-        relatedStateIds: relatedState === undefined ? [] : [relatedState],
-        localX: anchor.localX,
-        localY: anchor.localY,
-        localZ: anchor.localZ,
-        sphereRadius: radius * 1.18,
-        colorR: 1,
-        colorG: 0.66,
-        colorB: 0.36,
-      }
-      orbitalParticles.push(axionParticle)
-      if (relatedState === undefined) return
+        relatedStateIds: [relatedState],
+      })
       const plan = topologyPlanById.get(topology.id)
       if (!plan) return
       const fieldIds = new Set<number>()
@@ -635,12 +647,16 @@ export function buildBulkManifestation(
           if (field) fieldIds.add(field.id)
         }
       }
-      for (const occurrence of stateOccurrencesByStateId.get(relatedState) ?? []) {
+      for (const axionParticle of axionParticles) {
+        const occurrence = axionParticle.anchorStateOrbitalParticleId === null
+          ? undefined
+          : stateOccurrenceById.get(axionParticle.anchorStateOrbitalParticleId)
+        if (!occurrence) continue
         for (const fieldId of fieldIds) {
           const proxy = ensureFieldProxy(occurrence, fieldId)
           if (!proxy) continue
           relationChannels.push({
-            relationChannelId: `${proxy.fieldProxyId}/axion/${topology.id}/read`,
+            relationChannelId: `${proxy.fieldProxyId}/${axionParticle.orbitalParticleId}/read`,
             parentDarkParticleId,
             relationKind: "axion-read",
             fromKind: "field-proxy",
@@ -648,140 +664,125 @@ export function buildBulkManifestation(
             toKind: "orbital",
             toId: axionParticle.orbitalParticleId,
             active: axionParticle.active,
-            colorR: 1,
-            colorG: 0.66,
-            colorB: 0.36,
           })
         }
       }
     })
-    sortByPosition((processesByWimp.get(boundaryAtom.wimp) ?? []).map((process, position) => ({...process, position}))).forEach((process, index) => {
+    sortByPosition((processesByWimp.get(boundaryAtom.wimp) ?? []).map((process, position) => ({...process, position}))).forEach((process) => {
       const relatedState = stateIdByName.get(process.state)
-      const processRadius = radius * 1.12
-      const angle = (Math.PI * 2 * index) / Math.max(1, (processesByWimp.get(boundaryAtom.wimp) ?? []).length) + Math.PI / 4
-      const processParticle: BulkOrbitalParticle = {
-        orbitalParticleId: `atom/${boundaryAtom.id}/${process.descriptor.type}/${process.id}`,
+      if (relatedState === undefined) return
+      const processParticles = appendCausalOccurrence({
+        baseId: `atom/${boundaryAtom.id}/${process.descriptor.type}/${process.id}`,
         sourceId: process.id,
-        parentDarkParticleId,
         orbitalParticleKind: process.descriptor.type === "finally" ? "finally" : "process",
         label: String(process.descriptor.label ?? process.descriptor.key ?? process.state),
-        current: false,
         active: relatedState === currentStateId,
-        sleeveRootStateId: null,
-        relatedStateIds: relatedState === undefined ? [] : [relatedState],
-        localX: Math.cos(angle) * Math.max(processRadius * 2.8, manifestedAtom.torusRadius * 0.18),
-        localY: Math.sin(angle) * Math.max(processRadius * 2.8, manifestedAtom.torusRadius * 0.18),
-        localZ: -manifestedAtom.torusTube * 0.28,
-        sphereRadius: processRadius,
-        colorR: process.descriptor.type === "finally" ? 1 : 0.72,
-        colorG: process.descriptor.type === "finally" ? 0.22 : 0.46,
-        colorB: process.descriptor.type === "finally" ? 0.2 : 1,
-      }
-      orbitalParticles.push(processParticle)
-      if (relatedState !== undefined) {
-        const dependencies = processFieldDependencies(process.descriptor)
-        for (const occurrence of stateOccurrencesByStateId.get(relatedState) ?? []) {
-          for (const fieldId of dependencies.read) {
-            const proxy = ensureFieldProxy(occurrence, fieldId)
-            if (!proxy) continue
-            relationChannels.push({
-              relationChannelId: `${proxy.fieldProxyId}/process/${process.id}/read`,
-              parentDarkParticleId,
-              relationKind: "process-read",
-              fromKind: "field-proxy",
-              fromId: proxy.fieldProxyId,
-              toKind: "orbital",
-              toId: processParticle.orbitalParticleId,
-              active: processParticle.active,
-              colorR: 0.36,
-              colorG: 0.88,
-              colorB: 1,
-            })
-          }
-          for (const fieldId of dependencies.write) {
-            const proxy = ensureFieldProxy(occurrence, fieldId)
-            if (!proxy) continue
-            relationChannels.push({
-              relationChannelId: `process/${process.id}/${proxy.fieldProxyId}/write`,
-              parentDarkParticleId,
-              relationKind: "process-write",
-              fromKind: "orbital",
-              fromId: processParticle.orbitalParticleId,
-              toKind: "field-proxy",
-              toId: proxy.fieldProxyId,
-              active: processParticle.active,
-              colorR: 1,
-              colorG: 0.58,
-              colorB: 0.18,
-            })
-          }
+        relatedStateIds: [relatedState],
+      })
+      const dependencies = processFieldDependencies(process.descriptor)
+      for (const processParticle of processParticles) {
+        const occurrence = processParticle.anchorStateOrbitalParticleId === null
+          ? undefined
+          : stateOccurrenceById.get(processParticle.anchorStateOrbitalParticleId)
+        if (!occurrence) continue
+        for (const fieldId of dependencies.read) {
+          const proxy = ensureFieldProxy(occurrence, fieldId)
+          if (!proxy) continue
+          relationChannels.push({
+            relationChannelId: `${proxy.fieldProxyId}/${processParticle.orbitalParticleId}/read`,
+            parentDarkParticleId,
+            relationKind: "process-read",
+            fromKind: "field-proxy",
+            fromId: proxy.fieldProxyId,
+            toKind: "orbital",
+            toId: processParticle.orbitalParticleId,
+            active: processParticle.active,
+          })
+        }
+        for (const fieldId of dependencies.write) {
+          const proxy = ensureFieldProxy(occurrence, fieldId)
+          if (!proxy) continue
+          relationChannels.push({
+            relationChannelId: `${processParticle.orbitalParticleId}/${proxy.fieldProxyId}/write`,
+            parentDarkParticleId,
+            relationKind: "process-write",
+            fromKind: "orbital",
+            fromId: processParticle.orbitalParticleId,
+            toKind: "field-proxy",
+            toId: proxy.fieldProxyId,
+            active: processParticle.active,
+          })
         }
       }
     })
 
     const atomReactions = reactionsByWimp.get(boundaryAtom.wimp) ?? []
-    atomReactions.forEach((reaction, index) => {
-      const reactionRadius = radius * 1.18
-      const angle = (Math.PI * 2 * index) / Math.max(1, atomReactions.length) - Math.PI / 3
-      const reactionParticle: BulkOrbitalParticle = {
-        orbitalParticleId: `atom/${boundaryAtom.id}/reaction/${reaction.id}`,
+    atomReactions.forEach((reaction) => {
+      const relatedStates = reaction.states.length > 0 ? reaction.states : atomStates.map((state) => state.id)
+      const reactionParticles = appendCausalOccurrence({
+        baseId: `atom/${boundaryAtom.id}/reaction/${reaction.id}`,
         sourceId: reaction.id,
-        parentDarkParticleId,
         orbitalParticleKind: "reaction",
         label: reaction.label?.trim() || reaction.key,
-        current: false,
         active: reaction.states.length === 0 || (currentStateId !== null && reaction.states.includes(currentStateId)),
-        sleeveRootStateId: null,
-        relatedStateIds: [...reaction.states],
-        localX: Math.cos(angle) * (manifestedAtom.torusRadius + manifestedAtom.torusTube + reactionRadius * 2.4),
-        localY: Math.sin(angle) * (manifestedAtom.torusRadius + manifestedAtom.torusTube + reactionRadius * 2.4),
-        localZ: (index % 2 === 0 ? 1 : -1) * manifestedAtom.torusTube * 0.35,
-        sphereRadius: reactionRadius,
-        colorR: 1,
-        colorG: 0.3,
-        colorB: 0.68,
-      }
-      orbitalParticles.push(reactionParticle)
-      const relatedStates = reaction.states.length > 0 ? reaction.states : atomStates.map((state) => state.id)
-      for (const stateId of relatedStates) {
-        for (const occurrence of stateOccurrencesByStateId.get(stateId) ?? []) {
-          for (const fieldId of reaction.read) {
-            const proxy = ensureFieldProxy(occurrence, fieldId)
-            if (!proxy) continue
-            relationChannels.push({
-              relationChannelId: `${proxy.fieldProxyId}/reaction/${reaction.id}/read`,
-              parentDarkParticleId,
-              relationKind: "reaction-read",
-              fromKind: "field-proxy",
-              fromId: proxy.fieldProxyId,
-              toKind: "orbital",
-              toId: reactionParticle.orbitalParticleId,
-              active: reactionParticle.active,
-              colorR: 0.38,
-              colorG: 0.9,
-              colorB: 1,
-            })
-          }
-          for (const fieldId of reaction.write) {
-            const proxy = ensureFieldProxy(occurrence, fieldId)
-            if (!proxy) continue
-            relationChannels.push({
-              relationChannelId: `reaction/${reaction.id}/${proxy.fieldProxyId}/write`,
-              parentDarkParticleId,
-              relationKind: "reaction-write",
-              fromKind: "orbital",
-              fromId: reactionParticle.orbitalParticleId,
-              toKind: "field-proxy",
-              toId: proxy.fieldProxyId,
-              active: reactionParticle.active,
-              colorR: 1,
-              colorG: 0.5,
-              colorB: 0.16,
-            })
-          }
+        relatedStateIds: relatedStates,
+      })
+      for (const reactionParticle of reactionParticles) {
+        const occurrence = reactionParticle.anchorStateOrbitalParticleId === null
+          ? undefined
+          : stateOccurrenceById.get(reactionParticle.anchorStateOrbitalParticleId)
+        if (!occurrence) continue
+        for (const fieldId of reaction.read) {
+          const proxy = ensureFieldProxy(occurrence, fieldId)
+          if (!proxy) continue
+          relationChannels.push({
+            relationChannelId: `${proxy.fieldProxyId}/${reactionParticle.orbitalParticleId}/read`,
+            parentDarkParticleId,
+            relationKind: "reaction-read",
+            fromKind: "field-proxy",
+            fromId: proxy.fieldProxyId,
+            toKind: "orbital",
+            toId: reactionParticle.orbitalParticleId,
+            active: reactionParticle.active,
+          })
+        }
+        for (const fieldId of reaction.write) {
+          const proxy = ensureFieldProxy(occurrence, fieldId)
+          if (!proxy) continue
+          relationChannels.push({
+            relationChannelId: `${reactionParticle.orbitalParticleId}/${proxy.fieldProxyId}/write`,
+            parentDarkParticleId,
+            relationKind: "reaction-write",
+            fromKind: "orbital",
+            fromId: reactionParticle.orbitalParticleId,
+            toKind: "field-proxy",
+            toId: proxy.fieldProxyId,
+            active: reactionParticle.active,
+          })
         }
       }
     })
+  }
+
+  const atomByDarkParticleId = new Map(
+    atoms.map((atom) => [atomDarkParticleIdFromAtomId(atom.id), atom] as const),
+  )
+  const darkChildrenByParent = new Map<number, typeof manifest.darkParticles>()
+  for (const particle of manifest.darkParticles) {
+    if (particle.parentDarkParticleId === null) continue
+    const children = darkChildrenByParent.get(particle.parentDarkParticleId)
+    if (children) children.push(particle)
+    else darkChildrenByParent.set(particle.parentDarkParticleId, [particle])
+  }
+  const materializeDarkSubtree = (particle: (typeof manifest.darkParticles)[number]): void => {
+    const boundaryAtom = atomByDarkParticleId.get(particle.darkParticleId)
+    if (boundaryAtom) materializeAtomSemantics(boundaryAtom)
+    for (const child of darkChildrenByParent.get(particle.darkParticleId) ?? []) {
+      materializeDarkSubtree(child)
+    }
+  }
+  for (const root of manifest.darkParticles.filter((particle) => particle.parentDarkParticleId === null)) {
+    materializeDarkSubtree(root)
   }
 
   return {...manifest, orbitalParticles, transitionChannels, fieldProxies, relationChannels}

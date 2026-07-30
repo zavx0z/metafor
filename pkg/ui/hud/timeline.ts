@@ -1,7 +1,12 @@
 import {Color} from "@metafor/engine"
 import {Z, palette, type UiSurface} from "@ui/elements"
 
-export type HudTimelineResolution = "exact" | "coarse" | "unknown"
+export type HudTimelineResolution =
+  | "exact"
+  | "degraded"
+  | "overloaded"
+  | "coarse"
+  | "unknown"
 
 export type HudTimelineMarker = {
   tick: number
@@ -24,12 +29,13 @@ export type HudTimelineTrack = {
   intervals?: readonly HudTimelineInterval[]
 }
 
-/** Closed observer projection. It carries no commands or runtime handles. */
+/** Closed read-only timeline projection. It carries no commands or runtime handles. */
 export type HudTimelineDocument = {
   title: string
   minTick: number
   maxTick: number
   playheadTick: number
+  playheadLabel?: string
   tracks: readonly HudTimelineTrack[]
 }
 
@@ -48,23 +54,45 @@ export type HudTimelinePlan = {
   tracks: readonly HudTimelineTrackLayout[]
 }
 
+export type HudTimelinePanelOptions = {
+  showHeader?: boolean
+  labelWidth?: number
+  panelPadding?: number
+  trackMinHeight?: number
+  trackFontPx?: number
+  /** Mirrors the label gutter on the right so the time plot stays geometrically centered. */
+  balanceLabelGutter?: boolean
+  z?: number
+}
+
 const HEADER_H = 34
 const LABEL_W = 96
 const PANEL_PAD = 12
 const TRACK_MIN_H = 26
 
-export function planHudTimeline(document: HudTimelineDocument, bounds: HudTimelineRect): HudTimelinePlan {
+export function planHudTimeline(
+  document: HudTimelineDocument,
+  bounds: HudTimelineRect,
+  options: HudTimelinePanelOptions = {},
+): HudTimelinePlan {
   if (!Number.isFinite(document.minTick) || !Number.isFinite(document.maxTick) || document.maxTick <= document.minTick) {
     throw new Error("HUD timeline requires maxTick greater than minTick")
   }
   if (document.tracks.length === 0) throw new Error("HUD timeline requires at least one track")
+  const showHeader = options.showHeader ?? true
+  const panelPadding = options.panelPadding ?? PANEL_PAD
+  const labelWidth = options.labelWidth ??
+    Math.min(LABEL_W, Math.max(54, bounds.w * 0.18))
+  const rightGutter = options.balanceLabelGutter === true
+    ? labelWidth
+    : panelPadding
   const plot = {
-    x: bounds.x + Math.min(LABEL_W, Math.max(54, bounds.w * 0.18)),
-    y: bounds.y + HEADER_H,
-    w: Math.max(1, bounds.w - Math.min(LABEL_W, Math.max(54, bounds.w * 0.18)) - PANEL_PAD),
-    h: Math.max(1, bounds.h - HEADER_H - PANEL_PAD),
+    x: bounds.x + labelWidth,
+    y: bounds.y + (showHeader ? HEADER_H : 0),
+    w: Math.max(1, bounds.w - labelWidth - rightGutter),
+    h: Math.max(1, bounds.h - (showHeader ? HEADER_H + panelPadding : 0)),
   }
-  const trackH = Math.max(TRACK_MIN_H, plot.h / document.tracks.length)
+  const trackH = Math.max(options.trackMinHeight ?? TRACK_MIN_H, plot.h / document.tracks.length)
   const xForTick = (tick: number): number => {
     const progress = (clamp(tick, document.minTick, document.maxTick) - document.minTick)
       / (document.maxTick - document.minTick)
@@ -99,27 +127,33 @@ export function HudTimelinePanel(
   host: UiSurface,
   document: HudTimelineDocument,
   bounds: HudTimelineRect,
-  z = Z.ELEMENT,
+  options: HudTimelinePanelOptions = {},
 ): HudTimelinePlan {
-  const plan = planHudTimeline(document, bounds)
-  host.drawText(document.title, bounds.x + PANEL_PAD, bounds.y + 12, {
-    fontPx: 12,
-    material: host.materials.text,
-    maxWidthPx: Math.max(1, bounds.w - 150),
-    z: z + 0.08,
-  })
-  host.drawText(`такт ${document.playheadTick}`, bounds.x + bounds.w - 78, bounds.y + 12, {
-    fontPx: 10,
-    material: host.materials.red,
-    maxWidthPx: 68,
-    z: z + 0.08,
-  })
+  const z = options.z ?? Z.ELEMENT
+  const showHeader = options.showHeader ?? true
+  const panelPadding = options.panelPadding ?? PANEL_PAD
+  const trackFontPx = options.trackFontPx ?? 10
+  const plan = planHudTimeline(document, bounds, options)
+  if (showHeader) {
+    host.drawText(document.title, bounds.x + panelPadding, bounds.y + 12, {
+      fontPx: 12,
+      material: host.materials.text,
+      maxWidthPx: Math.max(1, bounds.w - 150),
+      z: z + 0.08,
+    })
+    host.drawText(document.playheadLabel ?? `такт ${document.playheadTick}`, bounds.x + bounds.w - 78, bounds.y + 12, {
+      fontPx: 10,
+      material: host.materials.red,
+      maxWidthPx: 68,
+      z: z + 0.08,
+    })
+  }
 
   for (const layout of plan.tracks) {
-    host.drawText(layout.track.label, bounds.x + PANEL_PAD, layout.y - 5, {
-      fontPx: 10,
+    host.drawText(layout.track.label, bounds.x + panelPadding, layout.y - trackFontPx / 2, {
+      fontPx: trackFontPx,
       material: host.materials.muted,
-      maxWidthPx: Math.max(1, plan.plot.x - bounds.x - PANEL_PAD * 2),
+      maxWidthPx: Math.max(1, plan.plot.x - bounds.x - panelPadding * 2),
       z: z + 0.08,
     })
     host.drawLine(plan.plot.x, layout.y, plan.plot.x + plan.plot.w, layout.y, palette.borderDim, 1, z)
@@ -161,6 +195,8 @@ function drawMarker(host: UiSurface, x: number, y: number, color: Color, selecte
 function markerColor(marker: HudTimelineMarker): Color {
   if (marker.selected === true) return palette.red
   if (marker.resolution === "exact") return palette.green
+  if (marker.resolution === "degraded") return palette.orange
+  if (marker.resolution === "overloaded") return palette.red
   return palette.muted
 }
 

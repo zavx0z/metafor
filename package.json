@@ -13,7 +13,6 @@
   "workspaces": [
     "types",
     "shared",
-    "force",
     "dark",
     "boundary",
     "boundary/atom",
@@ -35,6 +34,7 @@
     "pkg/ui/elements",
     "pkg/ui/components",
     "pkg/ui/hud",
+    "pkg/visual",
     "fixture",
     "create-metafor"
   ],
@@ -59,6 +59,9 @@
     "runtime:universe": "bun runtime/universe.ts",
     "runtime:universe:once": "bun runtime/universe.ts --once",
     "runtime:universe:logs": "METAFOR_LOG_IMPULSES=full bun runtime/universe.ts",
+    "visual:playground": "bun pkg/visual/playground/server.ts",
+    "checkpoint:capture": "bun runtime/checkpoint.ts",
+    "dissolve:mf117": "bun runtime/mf117.ts",
     "test": "FORCE_ADDRESS=ws://127.0.0.1:1 FORCE_RECONNECT=0 bun test --path-ignore-patterns='cluster/**'",
     "typecheck": "tsc --noEmit --pretty false",
     "typecheck:expect-errors": "bun ./tests/types/verify-expect-errors.ts",

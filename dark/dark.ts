@@ -1,13 +1,14 @@
 import ".."
 import type {DeclarationPath} from "shared/protocol/force/declaration"
-import type {Particle, SourcedParticle} from "shared/protocol/force/particle"
+import type {ForceMessage, ForceMessageInput} from "shared/protocol/force/message"
+import type {Particle} from "shared/protocol/force/particle"
 import type {MatterEdgeSlot, MatterParticle} from "@metafor/types/metafor/matter"
 import type {MetaDSL} from "@metafor/types/metafor/schema"
-import {Force} from "shared/transport/force"
-import type {DarkHistory} from "./history.ts"
 import {canonicalMetaSource, loadMeta} from "./load.ts"
-
-type MetaLoader = (src: string) => Promise<MetaDSL>
+import {
+  loadMetaDeclarationGraph,
+  type MetaLoader,
+} from "./meta-json.ts"
 
 type DeclarationEntity = {
   key: string
@@ -22,7 +23,13 @@ type WimpProjection = {
 
 const projection = new Map<string, WimpProjection>()
 const roots = new Set<string>()
-let runtime: {force: Force; history: DarkHistory} | null = null
+
+export type DarkForcePort = {
+  impulse(message: ForceMessageInput): void
+  onImpulse: (impulse: ForceMessage) => void | Promise<void>
+}
+
+let runtime: {force: DarkForcePort} | null = null
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)
@@ -62,13 +69,16 @@ const localEntity = (
   value: jsonRecord({wimp, id, ...value}),
 })
 
-const declaration = (src: string, dsl: MetaDSL): WimpProjection => {
+const declaration = (
+  src: string,
+  dsl: MetaDSL,
+  children: string[],
+): WimpProjection => {
   const entities: DeclarationEntity[] = [wimpEntity(src, {
     name: dsl.name,
     desc: dsl.desc ?? null,
     ...(Array.isArray(dsl.mass) ? {mass: dsl.mass} : {}),
   })]
-  const children: string[] = []
   const fieldIds = new Map<string, number>()
   const stateIds = new Map<string, number>()
 
@@ -204,7 +214,6 @@ const declaration = (src: string, dsl: MetaDSL): WimpProjection => {
         position: item.position,
         ...definition,
       }))
-      if (item.particle.kind === "wimp") children.push(item.particle.src)
       for (let position = 0; position < (nested?.length ?? 0); position++) {
         const child = nested![position]!
         next.push({particle: child.particle, edgeSlot: child.edgeSlot, position, parent: id})
@@ -220,7 +229,6 @@ const declaration = (src: string, dsl: MetaDSL): WimpProjection => {
 const emit = (particle: Particle): void => {
   if (!runtime) throw new Error("Dark runtime has not been born")
   const {by: _by, ...input} = particle
-  runtime.history.record("outgoing", {...input, by: "dark"} as SourcedParticle)
   runtime.force.impulse({parts: [input]})
 }
 
@@ -273,32 +281,20 @@ export async function* matterParticles(
 ): AsyncGenerator<Particle, void, void> {
   roots.add(src)
   const next = new Map<string, WimpProjection>()
-  const seen = new Set<string>()
-  let frontier = [src]
+  for await (const {address, dsl, references} of loadMetaDeclarationGraph(src, readMeta)) {
+    const current = declaration(address, dsl, references)
+    next.set(address, current)
+    const previous = projection.get(address)
+    const previousByKey = new Map(previous?.entities.map((item) => [item.key, item]))
+    const nextKeys = new Set(current.entities.map((item) => item.key))
 
-  while (frontier.length > 0) {
-    const nextFrontier: string[] = []
-    for (const address of frontier) {
-      if (seen.has(address)) continue
-      seen.add(address)
-      const current = declaration(address, await readMeta(address))
-      next.set(address, current)
-      const previous = projection.get(address)
-      const previousByKey = new Map(previous?.entities.map((item) => [item.key, item]))
-      const nextKeys = new Set(current.entities.map((item) => item.key))
-
-      for (const item of previous?.entities.toReversed() ?? []) {
-        if (!nextKeys.has(item.key)) yield remove(item)
-      }
-      for (const item of current.entities) {
-        const particle = change(previousByKey, item)
-        if (particle) yield particle
-      }
-      for (const child of current.children) {
-        if (!seen.has(child) && !nextFrontier.includes(child)) nextFrontier.push(child)
-      }
+    for (const item of previous?.entities.toReversed() ?? []) {
+      if (!nextKeys.has(item.key)) yield remove(item)
     }
-    frontier = nextFrontier
+    for (const item of current.entities) {
+      const particle = change(previousByKey, item)
+      if (particle) yield particle
+    }
   }
 
   const target = new Map(projection)
@@ -366,17 +362,15 @@ export const applyAgentInflaton = (part: Particle): boolean => {
   return true
 }
 
-/** Creates Dark's Force channel only after its Monad and history are ready. */
-export const startDarkRuntime = (history: DarkHistory): Force => {
+/** Connects Dark Monad runtime to the in-process Dark Force adapter. */
+export const startDarkRuntime = (force: DarkForcePort): DarkForcePort => {
   if (runtime) return runtime.force
-  const force = new Force("dark")
-  runtime = {force, history}
+  runtime = {force}
   force.onImpulse = async (impulse) => {
     for (const part of impulse.parts) {
       if (typeof part.by !== "string" || part.by.length === 0) {
         throw new Error("Dark received an unsourced Particle")
       }
-      history.record("incoming", {...part, by: part.by})
       if (applyAgentInflaton(part)) continue
       if (part.part === "inflaton" && part.op === "test" && typeof part.path === "string") {
         await matter(part.path)
@@ -385,4 +379,9 @@ export const startDarkRuntime = (history: DarkHistory): Force => {
     }
   }
   return force
+}
+
+/** Releases only the matching in-process adapter during full server shutdown. */
+export const stopDarkRuntime = (force: DarkForcePort): void => {
+  if (runtime?.force === force) runtime = null
 }

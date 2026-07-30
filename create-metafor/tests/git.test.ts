@@ -28,7 +28,7 @@ describe("Git support", () => {
     expect(getGitUserEmail() === null || typeof getGitUserEmail() === "string").toBe(true)
   })
 
-  test("initializes and commits only the requested root repository", () => {
+  test("initializes and commits one requested peer repository", () => {
     if (!isGitInstalled()) return
 
     expect(initGitRepo(testDir)).toBe(true)

@@ -1,28 +1,57 @@
-import type { BulkViewportWithHud } from "@metafor/types/bulk/hud"
-import type {BulkInitialPackage} from "@metafor/types/bulk/initial"
+import type {BulkManifest} from "@metafor/types/bulk/manifest"
+import {
+	BULK_VIEWPORT_CAPTURE_VERSION,
+	isBulkViewportCaptureControlRequest,
+	type BulkViewportCaptureControlResponse,
+} from "@metafor/types/bulk/capture"
+import type {BulkInitialPackage, BulkObserverSnapshot} from "@metafor/types/bulk/initial"
 import { Force } from "shared/transport/force"
-import { createBulkViewport } from "bulk/web"
-import { DEFAULT_BULK_SCENE_SRC, DEFAULT_BULK_SETTINGS } from "bulk/settings"
+import {
+	createBulkViewport,
+	type BulkVisualViewportWithHud,
+} from "bulk/web"
+import { DEFAULT_BULK_SCENE_SRC } from "bulk/settings"
 import { installBulkHud } from "./hud.ts"
 import { BulkProjectionStore } from "./projection.ts"
 import { observedRootSrc } from "./web/force-protocol.ts"
 import { buildBulkManifestation } from "./manifestation.ts"
+import {captureBulkViewportCanvas} from "./web/viewport-capture.ts"
+import {BulkPresentedSnapshot} from "./web/observer-snapshot.ts"
 import {
-	adaptBulkTimelineProjection,
-	createBulkTimelineFixtureProjection,
-} from "./timeline.ts"
+	applyCenteredNestedBulkViewportManifest,
+} from "./visual-viewport.ts"
 
 const bulkCanvas = document.getElementById("bulk-canvas") as HTMLCanvasElement | null
 if (bulkCanvas === null) throw new Error("bulk-canvas not found")
 
-let bulkViewport: BulkViewportWithHud | null = null
+let bulkViewport: BulkVisualViewportWithHud | null = null
 const projection = new BulkProjectionStore()
 let activeSrc = DEFAULT_BULK_SCENE_SRC
+let throughTs: number | null = null
+const presentedSnapshot = new BulkPresentedSnapshot()
+
+const observerSnapshot = (): BulkObserverSnapshot => ({
+	version: 1,
+	throughTs,
+	rootSrc: activeSrc,
+	projection: projection.snapshot(),
+})
+
+const applyViewportManifest = (manifest: BulkManifest): void => {
+	if (!bulkViewport) return
+	applyCenteredNestedBulkViewportManifest(
+		bulkViewport,
+		manifest,
+		projection.view(),
+	)
+}
 
 const applyProjectionManifestation = (src: string): void => {
-	if (!bulkViewport) return
-	bulkViewport.applyManifestPatch(
-		buildBulkManifestation(projection.view(), src, DEFAULT_BULK_SETTINGS.layout),
+	applyViewportManifest(
+		buildBulkManifestation(
+			projection.view(),
+			src,
+		),
 	)
 }
 
@@ -45,10 +74,6 @@ const initBulkViewport = async (): Promise<void> => {
 		canvas: bulkCanvas,
 		width: Math.max(1, Math.floor(rect.width)),
 		height: Math.max(1, Math.floor(rect.height)),
-	})
-	installBulkHud({
-		viewport: bulkViewport,
-		timeline: adaptBulkTimelineProjection(createBulkTimelineFixtureProjection()),
 	})
 	const resizeBulkViewport = (): void => {
 		if (!bulkViewport) return
@@ -76,7 +101,9 @@ const receiveImpulse = (forceMessage: Parameters<Force["onImpulse"]>[0]): void =
 	const nextRootSrc = observedRootSrc(part, rootSrcs)
 	if (nextRootSrc !== null) activeSrc = nextRootSrc
 	if (change.changed) applyProjectionManifestation(activeSrc)
+	throughTs = part.ts
 	bulkViewport?.handleForce(part.part, part)
+	presentedSnapshot.stage(observerSnapshot)
 }
 
 const readInitialPackage = async (): Promise<BulkInitialPackage> => {
@@ -90,12 +117,37 @@ const start = async (): Promise<void> => {
 	const initial = await readInitialPackage()
 	projection.hydrate(initial.projection)
 	activeSrc = initial.rootSrc
-	bulkViewport?.applyManifestPatch(initial.manifest)
+	throughTs = initial.throughTs
+	if (!bulkViewport) throw new Error("Bulk viewport is not initialized")
+	installBulkHud({viewport: bulkViewport})
+	applyViewportManifest(initial.manifest)
+	presentedSnapshot.stage(observerSnapshot)
 
+	const observerId = `bulk-web-${crypto.randomUUID()}`
 	const force = new Force("bulk", {
-		id: `bulk-web-${crypto.randomUUID()}`,
+		id: observerId,
 		parameters: {session: initial.session},
 	})
+	force.onControl = async (message) => {
+		if (!isBulkViewportCaptureControlRequest(message)) return
+		const snapshot = await presentedSnapshot.read()
+		const viewport = bulkViewport
+		const result = await captureBulkViewportCanvas(
+			bulkCanvas,
+			message,
+			{observerId, snapshot},
+			viewport === null
+				? {}
+				: {readPng: () => viewport.hud.renderer.captureLastPresentedFramePng()},
+		)
+		const response: BulkViewportCaptureControlResponse = {
+			control: "bulk.viewport.capture.response",
+			version: BULK_VIEWPORT_CAPTURE_VERSION,
+			id: message.id,
+			result,
+		}
+		force.sendControl(response)
+	}
 	force.onImpulse = receiveImpulse
 }
 

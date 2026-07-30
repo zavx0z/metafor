@@ -1,0 +1,115 @@
+# Договор Bulk manifestation и Visual projection
+
+Bulk проявляет один полный runtime projection в два последовательных, но
+архитектурно разных представления.
+
+## Semantic manifestation
+
+- `buildBulkManifestation` строит только identity, ownership, порядок и
+  причинные связи `Dark`, `Field`, `State`, `Transition`, `Process`,
+  `Reaction`, `Finally`, `Axion` и Field proxy.
+- Semantic `BulkManifest` не содержит координат, размеров, scale, цвета,
+  mesh-detail или renderer material state. Эти значения нельзя использовать
+  для восстановления topology.
+- Одна canonical occurrence сохраняет одну identity. Совпавшие Values не
+  объединяют Field occurrences в semantic manifest.
+- Verified root promotion меняет выбранный semantic root только по receipt.
+  Захваченный `formerRootFrame` остаётся operational evidence и не запускает
+  скрытый reflow либо старую раскладку.
+- Axion identity и связи сохраняются. Его Visual surface пока не
+  активируется: это отдельный будущий этап.
+
+## Production Visual projection
+
+- Единственная production-стратегия Bulk — готовая `centered-nested` из
+  `@metafor/visual/layout/centered-nested`. В Bulk нет собственной запасной
+  раскладки, runtime-переключателя layout или canonical viewport fallback.
+- Initial package и каждое изменённое projection проходят один путь:
+  `BulkManifest + projection → Axion defer policy → CenteredNested.buildScene →
+  BulkVisualRenderManifest → applyVisualManifestPatch`.
+- `pkg/visual` является единственным владельцем координат, абсолютных размеров,
+  цветов форм и детерминированного размещения Torus, Field, State, причинных
+  particles и Field proxies. Он строит immutable `VisualComponentForest`,
+  один раз компилирует его в render indexes и line batches. Bulk проверяет
+  identity и переводит готовые world coordinates в local frame владельца; он
+  не адаптирует форму, не вычисляет вторую раскладку и не наследует geometry из
+  semantic manifest.
+- Вложенные Torus одного materialized root имеют общий мировой центр.
+  Renderer manifest хранит root center локально, а для каждого потомка —
+  разность мировых центров ребёнка и непосредственного родителя.
+- Один Visual Field marker может представлять несколько canonical Field
+  occurrences только при одном materialized Value. Alias хранит каждую
+  исходную `(parentDarkParticleId, fieldId, fieldParticleId)` и никогда не
+  становится Boundary identity.
+- State layout node связывается с manifested occurrence только точной парой
+  `nodeId ↔ orbitalParticleId`. Transition обязан совпасть ровно с одним
+  canonical channel по owner, source id, endpoints и condition Field ids.
+  Вместе с ним renderer получает готовый sampled path из того же
+  `pkg/visual` State-рукава; Bulk не строит собственную кривую между State.
+- Relation material и замкнутый 64-сегментный эллиптический sampled path также
+  приходят из `pkg/visual`; Bulk не вычисляет relation endpoints или кривую.
+- Process, Reaction и Finally получают готовую Visual placement рядом со своим
+  exact State anchor. Axion и принадлежащая только ему geometry отсекаются до
+  вызова Visual strategy, поэтому не занимают placement slot и не меняют
+  положение видимых particles. Condition Field proxy получает
+  готовую spherical placement из State layout; прочие proxies получают
+  готовую self-similar placement той же стратегии. Bulk не масштабирует
+  прежние State offsets.
+- Orbital и Field proxy получают форму только через исчерпывающие и
+  непересекающиеся exact sidecars. Render record не дублирует Torus outer radius
+  в `sphereRadius` и Sphere radius в `ringRadius`.
+- До изменения scene state renderer boundary отклоняет non-finite coordinates
+  и colors, неположительные radii/tubes, color вне `[0, 1]`, отрицательные
+  canonical counts и любой mesh detail кроме package-owned `64 × 192` для
+  крупных Dark Torus, `32 × 192` для вложенных State/Field-proxy Torus и
+  `32 × 24` для Sphere. Он также проверяет точное identity coverage
+  materials/paths, exact `torus/highlight=0` и `sphere/highlight=1`, 65 sampled
+  points на edge, единое forward/return направление batch и не более двух
+  Transition batches на владельца.
+- Relation endpoints после Field aliasing обязаны существовать и принадлежать
+  тому же materialized root component, что и channel parent.
+- Production Dark Torus используют фиксированный mesh detail `64 × 192`,
+  вложенные State/Field-proxy Torus — `32 × 192`, Sphere — фиксированный
+  package-owned detail. Depth LOD, wireframe carrier, fallback Torus geometry
+  и cosmos-reflow запрещены.
+- Torus, Field, State/causal forms, Field proxies и краткоживущий Force
+  impulse являются first-class `Mesh`. `LineSegments` разрешены только для
+  Transition и Relation: это связи, а не скрытый старый renderer. Готовые
+  package batch ids дают не более двух Transition draw-batches на владельца;
+  заранее вычисленный fingerprint не сериализует все точки при повторном
+  patch. Заменённая/удалённая line geometry освобождается; viewport-local
+  surface caches удерживают только используемые Mesh geometry и полностью
+  очищаются при dispose.
+- Picking, fit, labels и HUD читают точную Visual render projection. Direct
+  Higgs/Gluon mutation не изменяет geometry: новая geometry появляется только
+  после следующей полной semantic manifestation и Visual projection.
+- Меню, HUD, Node View, navigation/picking, camera pose, viewport fit,
+  fullscreen, Force impulses, causal timeline с отдельным control dock и
+  capture остаются Bulk-owned поведением и не заменяются вместе с
+  layout/visual law.
+- Renderer получает geometry-bearing manifest и компактные canonical counts,
+  но не полный semantic manifest. Отсутствующий parent является ошибкой; child
+  не переносится в workspace и entity не пропускается молча.
+
+## Проверяемая граница
+
+Production Bulk bundle не должен содержать прежние layout и renderer symbols:
+
+```text
+bulk/gravity/layout/snapshot
+bulk/gravity/layout/stream
+bulk/gravity/level/detail
+bulk/gravity/level/geometry
+bulk/gravity/level/memo
+latticePoints
+placeOrbitItemsByBands
+createQuadTorusWireframeGeometry
+getTorusWireframeGeometry
+getSphereWireframeGeometry
+applyCanonicalManifestPatchToScene
+```
+
+`BulkVisualRenderManifest.manifest` является отдельным geometry-bearing render
+contract и не сохраняется как canonical manifestation. `sourceStats` переносит
+только canonical counts для HUD; полный semantic `BulkManifest` не пересекает
+renderer boundary.

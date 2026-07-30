@@ -1,4 +1,12 @@
-import type { DarkParticleLabelVisibilityOptions, DepthLabelVisibilityOptions } from "@metafor/types/bulk/layout"
+type DepthLabelVisibilityOptions = {
+  baseDepth: number
+  depth: number
+  labelVisibleLevels: number
+}
+
+type DarkParticleLabelVisibilityOptions = DepthLabelVisibilityOptions & {
+  isActiveDarkParticle: boolean
+}
 
 export const isDepthLabelVisible = ({
   baseDepth,

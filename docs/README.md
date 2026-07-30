@@ -23,14 +23,19 @@
 - [Агентные Вселенные](AGENT_UNIVERSES.md) — Agent Atom, окружающие Tool,
   Device и Service Atoms, предметное изменение Fields и будущий интерфейс Bulk.
 - [Архитектура runtime](ARCHITECTURE.md) — состав contour и связи доменов.
-- [Force](FORCE.md) — центральный relay, transport и fail-stop.
+- [Force](FORCE.md) — Dark Force: единый Particle channel, complete post-cut
+  history, relay и fail-stop внутри Dark process.
+- [Immutable checkpoints](CHECKPOINTS.md) — coherent Boundary+Mass capture,
+  отдельный Git provenance и forward-only replay.
 - [Boundary](../boundary/DOMAIN.md) — каноническое состояние, identity,
   materialization и commit.
 - [Matrix](domains/MATRIX.md) — State/Transition и инкрементальная проекция.
 - [Energy](domains/ENERGY.md) — Process, Mass, Energy и lifecycle живых
   ресурсов.
-- [Bulk layout](../bulk/gravity/layout/CONTRACT.md) — проверяемая геометрия
-  проявления.
+- [Bulk manifestation и Visual projection](../bulk/VISUAL.md) —
+  граница semantic identity и принадлежащей `pkg/visual` геометрии.
+- [Visual layouts](../pkg/visual/CONTRACT.md) — именованные способы показать
+  один полный Monad snapshot.
 - [Протоколы сил](proto/) — справочное чтение wire-потоков; при конфликте
   приоритет имеет контракт домена и public type.
 - [Работа с Meta-пакетами](META_PACKAGES.md) — граница внешних репозиториев в

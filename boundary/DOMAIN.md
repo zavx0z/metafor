@@ -203,6 +203,163 @@ Energy освобождает активный runtime сразу, а destroy в
 остальные hooks продолжаются, поэтому физическое закрытие внешнего ресурса
 остаётся cooperative best-effort до отдельного lifecycle health.
 
+## Recursive remove и dissolve — разные операции
+
+Действующий `inflaton remove wimp` является рекурсивным удалением repository
+contour: корневой Atom и все его runtime-потомки удаляются снизу вверх.
+Внешние WIMP declarations потомков и посторонний Boundary state сохраняются,
+но identity удалённых Atom не переносится.
+
+`dissolve` не является alias или режимом `remove`. Его первый разрешённый срез
+существует только как offline proof над изолированной SQLite:
+
+1. план называет один удаляемый root Atom и один его сохраняемый дочерний Atom;
+2. дочерний Atom становится root, сохраняет ID, порядок и потомков, а их
+   `scope Atom` переносится на него;
+3. ровно пять явно сопоставленных Mass declarations сначала получают fence;
+4. target memberships принимают те же global key IDs при одинаковом codec;
+   Mass bytes не копируются и не удаляются;
+5. source relations этих keys переводятся на target declarations, а target
+   становится владельцем вместо alias на удаляемый parent;
+   прежние independent target key IDs остаются unreferenced metadata и не
+   удаляются этим proof, потому что byte GC требует отдельного решения;
+6. aggregate pre-state и каждая membership меняются только по CAS;
+7. любой mismatch, включая поздний mismatch после частичных SQL updates,
+   откатывает всю transaction;
+8. полный `readMetaJSON` валиден до изменения и для planned результата до
+   commit; private manifest подтверждает равенство mapped source/target
+   `authored key + codec + global key ID + Mass evidence`.
+
+Mass evidence в private manifest является закрытым deterministic union:
+
+- существующий regular Mass file представлен
+  `{kind: "present", digestSha256: <lowercase SHA-256>}`;
+- только заранее явно разрешённое отсутствие конкретной пары
+  `global key ID + codec` представлено
+  `{kind: "absent", marker: "metafor/mass-absent/v1"}`.
+
+Absent marker является только manifest metadata: он сохраняет существующий
+global key ID, не создаёт Mass file и не изобретает даже пустой payload.
+Отсутствие неразрешённого key file, symlink, directory или нечитаемый path
+являются ошибкой, а не valid absence. Planned target обязан получить ту же
+identity и тот же evidence variant; поэтому valid absence отличается от
+corruption и участвует в обычной private manifest equality/CAS проверке.
+
+Этот proof не является live capability: он не exposed через Monad/Force,
+не разрешает удаление Inference и не определяет activation lifecycle.
+Рекурсивное удаление и dissolve доказываются соседними, но раздельными тестами.
+
+Следующий non-live prerequisite — приватный staging adapter. Он принимает
+закрытый proposal только с operation `dissolve`; recursive `remove` через него
+выразить нельзя. Adapter работает с отдельной in-memory SQLite, строит
+проверенный dissolve plan, валидирует текущий полный MetaJSON и повторно
+сверяет весь plan до атомарной записи immutable receipt. Receipt фиксирует
+proposal, plan и MetaJSON digests, source/target Atom identities и требование
+ровно пяти fence, но не является разрешением на execution.
+
+Staging не вызывает `materialize`, dissolve execution, fence/release, Force или
+runtime lifecycle и не меняет Boundary/Mass. Повтор того же `proposalId`
+идемпотентен только при canonical-equivalent proposal; конфликт полностью
+откатывает staging transaction. Этот adapter не экспортируется из Boundary
+package и не снимает отдельный live preflight/owner gate.
+
+Следующий разрешённый non-live срез делает stage durable только внутри
+detached candidate Boundary SQLite. Candidate сначала копируется из уже
+остановленного private checkpoint/rollback capture и никогда не открывает
+исходный Boundary path in place. В отдельной transaction candidate создаёт
+закрытую stage table и immutable receipt, связанный с точными
+`(cutId, acceptance sequence)`, checkpoint commit, rollback manifest и
+pre-state digests.
+
+Stage table является Boundary-owned служебным состоянием candidate, но не
+каноническим миром: world tables, Mass bytes, Force history и authored source
+при staging не меняются. Receipt по-прежнему имеет `effects: "none"` и содержит
+полный serialized plan, пять Mass mappings/evidence и explicit retention
+`retain-until-explicit-gc`. Reopen обязан проверить closed schema, hashes,
+SQLite integrity и checkpoint binding; collision, corruption или changed
+pre-state закрывают candidate.
+
+Candidate stage не экспортируется через Boundary/Monad/Force runtime. Он не
+разрешает activation, dissolve transaction, materialization, deletion,
+Energy fence/retarget, process lifecycle или source/root transition. Успешный
+и failed candidate не удаляются автоматически; retention/GC остаётся отдельным
+owner gate.
+
+Следующий owner-approved non-live gate разрешает выполнить только exact
+`plan_json` из такого stage и только внутри того же detached candidate. Перед
+transaction private executor повторно проверяет bundle/checkpoint/stage
+binding, receipt и plan digests, текущие structural/Mass CAS и pre-MetaJSON.
+Локальные fence/release являются лишь записываемым proof порядка пяти identity
+и не вызывают Energy.
+
+Успех обязан вернуть `BoundaryDissolveProof` и валидный post-MetaJSON с Lada
+как root; исходный Inference Atom в candidate отсутствует, а сохранённые Lada
+Atom и всё её поддерево сохраняют identity и порядок. Это разрешение не
+распространяется на rollback copy, live Boundary, Monad/Force, Energy,
+authored source или process lifecycle. Detached execution не является
+materialization либо activation live Universe.
+
+Следующий owner-approved causal prerequisite остаётся non-live и не добавляет
+RPC либо caller. Boundary владеет durable admission/quiescence record, который
+связывает один `admissionId` с exact candidate bundle, stage receipt,
+checkpoint, detached proof, Bulk promotion receipt и ordered causal plan.
+Admission закрывается fail-closed: duplicate разрешён только для тех же
+canonical bytes, stale checkpoint/frontier либо подменённый receipt не меняют
+record.
+
+До Boundary commit допустимы только control-plane admission/quiescence и
+Energy fence. Ни structural world row, ни Mass binding, ни Bulk projection, ни
+post-commit consequence до commit не меняются. Quiescence принимается только
+для held applied-through frontier того же `(cutId, sequence)` и complete
+five-handle fence receipt. После commit последствия отмечаются строго в
+сохранённом порядке; каждая runtime entity имеет отдельный causal entry,
+пригодный ровно для одного `ForceMessage` с одной Particle.
+
+`dissolve` снимает только structural parent role. Он не имеет права физически
+удалять Mass bytes или key identities, Dark Force history, checkpoint/rollback
+artifacts, receipts либо superseded binding metadata. Active membership может
+быть переведён на Lada только при сохранении прежней source/target binding
+identity в immutable admission/Energy receipts. Все эти records, включая
+прежние target key IDs, имеют policy `retain-until-explicit-gc`; автоматический
+GC запрещён до отдельного owner decision.
+
+## Live causal dissolve
+
+Единственный owner-approved live command снимает только structural parent role
+`zavx0z/inference` и делает уже существующий `zavx0z/lada` тем же корневым
+runtime Atom. Command закрыт точными source/target и принимается только от
+аутентифицированного internal Dark coordinator; общего Boundary write RPC он
+не создаёт.
+
+До world transaction coordinator обязан удерживать fresh current
+`(cutId, acceptance sequence)` frontier, а Boundary — построить новую private
+candidate copy из своего serialized cut, повторно доказать весь plan и
+проверить rollback capture. Ошибка любого preflight-инварианта не создаёт stage,
+admission либо world mutation. Durable stage/admission пишутся только после
+полностью успешного read-only preflight.
+
+В одной Boundary SQLite transaction:
+
+1. повторно проверяются current structural/Mass CAS;
+2. Lada и всё её поддерево сохраняют identity, values, State, order и work;
+3. пять membership переводятся на сохранённые global key identities;
+4. canonical active root меняется `Inference → Lada`;
+5. удаляются только runtime Atom и WIMP declaration бывшего structural parent.
+
+Transaction не удаляет Mass key rows/bytes, history, checkpoints, rollback,
+candidate, receipts, retired execution fences или superseded binding metadata.
+После commit Boundary возвращает exact proof и ordered snapshot каждой реально
+изменённой runtime entity. Каждая snapshot затем может стать только одним
+`ForceMessage` с одной Particle. До complete ordered consequence receipt
+external admission остаётся закрытым; crash/retry продолжает тот же durable
+admission, а не строит новую mutation.
+
+Canonical authored packages сохраняются неизменными как retained source
+evidence. Записанный в той же transaction active-root transition является
+единственным разрешённым load root; после release новый read/materialize root
+`zavx0z/inference` обязан fail closed и не может снова создать structural
+parent.
+
 ## Проверка
 
 Регрессии доказывают in-place identity Matter, live-reparent и rebind, смену
@@ -211,3 +368,23 @@ WIMP `src`, Atom↔Topology, Axion↔Macho, вложенные Macho repetitions
 `detach → rebuild → abort` без результата от старого execution. Удаление ветки
 дополнительно доказывает `release → abort → destroy`, child-before-parent,
 изоляцию новой generation и подавление поздних Process/Reaction результатов.
+Отдельная пара offline-регрессий доказывает, что recursive `remove` удаляет
+parent вместе с descendants, а `dissolve` удаляет только parent, сохраняет и
+reparent/reorder-ит descendants, явно переносит пять Mass identities и
+полностью откатывается при CAS mismatch.
+Staging-регрессии отдельно доказывают immutable/idempotent receipt, отклонение
+recursive-remove shape и отсутствие Boundary/Mass/deletion effects.
+Отдельная offline-регрессия доказывает deterministic absent marker для одной
+явно разрешённой Mass identity, отсутствие materialization bytes и отклонение
+directory/symlink либо неразрешённого missing path как corruption.
+Durable candidate-регрессии дополнительно используют только temporary stopped
+copies, повторно открывают stage из candidate SQLite, доказывают неизменность
+world rows/Mass bytes, точную checkpoint/rollback binding и отсутствие
+автоматического cleanup.
+Detached acceptance-регрессия дополнительно выполняет сохранённый plan только
+в candidate, сверяет proof/post-projection с immutable stage и доказывает
+побайтное восстановление отдельной rollback copy без записи в исходный cut.
+Causal-admission регрессии отдельно доказывают exact candidate/receipt binding,
+stale/duplicate rejection, отсутствие world/Bulk/consequence effects до commit,
+ordered one-entity consequence plan и retention superseded Mass bindings без
+GC.

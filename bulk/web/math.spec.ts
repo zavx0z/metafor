@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { computeLerpFactor, easeOutCubic, getDistanceToSegmentPx, manifestLocalLength, mixScalar } from "./math"
+import { computeLerpFactor, easeOutCubic, mixScalar, renderLocalLength } from "./math"
 
 describe("bulk/web/math", () => {
   test("mixScalar линейно интерполирует", () => {
@@ -24,24 +24,12 @@ describe("bulk/web/math", () => {
     expect(computeLerpFactor(50, 100)).toBeLessThan(1)
   })
 
-  test("тор, подпись и содержимое получают один унаследованный scale Atom", () => {
+  test("готовая Visual projection получает мировой scale Atom", () => {
     const inheritedAtomScale = 0.1
 
-    expect(manifestLocalLength(50, inheritedAtomScale)).toBeCloseTo(5, 6)
-    expect(manifestLocalLength(2, inheritedAtomScale)).toBeCloseTo(0.2, 6)
-    expect(manifestLocalLength(5, inheritedAtomScale)).toBeCloseTo(0.5, 6)
+    expect(renderLocalLength(50, inheritedAtomScale)).toBeCloseTo(5, 6)
+    expect(renderLocalLength(2, inheritedAtomScale)).toBeCloseTo(0.2, 6)
+    expect(renderLocalLength(5, inheritedAtomScale)).toBeCloseTo(0.5, 6)
   })
 
-  test("getDistanceToSegmentPx — расстояние до точки, отрезка-вырожденного, до отрезка", () => {
-    // вырожденный отрезок (start == end) — обычное евклидово расстояние
-    expect(getDistanceToSegmentPx(3, 4, 0, 0, 0, 0)).toBeCloseTo(5)
-    // точка на отрезке
-    expect(getDistanceToSegmentPx(5, 0, 0, 0, 10, 0)).toBe(0)
-    // точка перпендикулярно середине
-    expect(getDistanceToSegmentPx(5, 3, 0, 0, 10, 0)).toBeCloseTo(3)
-    // точка вне-отрезка слева — кратчайший — до start
-    expect(getDistanceToSegmentPx(-3, 0, 0, 0, 10, 0)).toBeCloseTo(3)
-    // точка вне-отрезка справа — кратчайший — до end
-    expect(getDistanceToSegmentPx(13, 0, 0, 0, 10, 0)).toBeCloseTo(3)
-  })
 })

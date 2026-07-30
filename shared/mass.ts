@@ -17,7 +17,9 @@ export const massFileName = (id: string, format: MassFileFormat): string => {
 
 /** Runtime-only flat key-to-bytes catalog. It deliberately knows no Atom or Boundary relation. */
 export class MassCatalog {
-  constructor(readonly root = resolve(import.meta.dir, "..", "mass")) {}
+  constructor(readonly root = resolve(
+    process.env.METAFOR_MASS_PATH?.trim() || resolve(import.meta.dir, "..", "mass"),
+  )) {}
 
   private file(id: string, format: MassFileFormat): string {
     return join(this.root, massFileName(id, format))

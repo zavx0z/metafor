@@ -120,21 +120,21 @@ export interface MatterFields {
  * ```ts
  * // Иерархия Atom на основе состояния
  * matter: ({ state, html }) => html`
- *   ${state === "коммит" && html`<meta-for src="demo/app/status" fields=${{ message: "В процессе..." }} />`}
- *   ${state === "завершено" && html`<meta-for src="demo/app/success" fields=${{ message: "Готово!" }} />`}
- *   ${state === "ошибка" && html`<meta-for src="demo/app/error" fields=${{ message: "Ошибка" }} />`}
+ *   ${state === "коммит" && html`<meta-for src="demo/app-status" fields=${{ message: "В процессе..." }} />`}
+ *   ${state === "завершено" && html`<meta-for src="demo/app-success" fields=${{ message: "Готово!" }} />`}
+ *   ${state === "ошибка" && html`<meta-for src="demo/app-error" fields=${{ message: "Ошибка" }} />`}
  * `
  *
  * // Передача данных дочернему Atom
  * matter: ({ value, html }) => html`
- *   <meta-for src="demo/app/child" fields=${{ data: value.data }} />
+ *   <meta-for src="demo/app-child" fields=${{ data: value.data }} />
  * `
  *
  * // Несколько Atom в topology
  * matter: ({ html }) => html`
- *   <meta-for src="demo/app/header" />
- *   <meta-for src="demo/app/content" />
- *   <meta-for src="demo/app/footer" />
+ *   <meta-for src="demo/app-header" />
+ *   <meta-for src="demo/app-content" />
+ *   <meta-for src="demo/app-footer" />
  * `
  * ```
  */
@@ -156,7 +156,7 @@ export type MatterDefinitionParams<
    * @example
    * ```ts
    * matter: ({ value, html }) => html`
-   *   <meta-for src="demo/app/child" fields=${{ value: value.data }} />
+   *   <meta-for src="demo/app-child" fields=${{ value: value.data }} />
    * `
    */
   value: Values<ɸ>
@@ -176,7 +176,7 @@ export type MatterDefinitionParams<
    * @example
    * ```ts
    * matter: ({ state, html }) => html`
-   *   ${state === "loading" && html`<meta-for src="demo/app/spinner" />`}
+   *   ${state === "loading" && html`<meta-for src="demo/app-spinner" />`}
    * `
    */
   state: 𝛴
@@ -187,15 +187,17 @@ export type MatterDefinitionParams<
    * @example
    * ```ts
    * matter: ({ html }) => html`
-   *   <meta-for src="demo/app/header" />
-   *   <meta-for src="demo/app/content" />
+   *   <meta-for src="demo/app-header" />
+   *   <meta-for src="demo/app-content" />
    * `
    * ```
    *
    * @remarks
-   * Атрибут `src` задаёт адрес `owner/repository[/meta-package]` — канонический
-   * идентификатор Meta/WIMP declaration, который loader резолвит в meta-модуль
-   * по этому адресу. Каждый occurrence materializes отдельный Atom.
+   * Атрибут `src` задаёт ровно двухсегментный адрес `owner/repository` —
+   * канонический идентификатор независимого peer Meta-репозитория, который
+   * loader резолвит в meta-модуль. Вложенность runtime topology выражается
+   * occurrence и Meta/Matter/Monad references, а не третьим сегментом адреса или
+   * вложением репозитория. Каждый occurrence materializes отдельный Atom.
    */
   html: (strings: TemplateStringsArray, ...values: any[]) => void
 }

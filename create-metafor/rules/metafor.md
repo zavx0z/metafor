@@ -671,12 +671,13 @@ canonical `ts`, а Matrix разрешает все подходящие пер�
 добавлять искусственный `sequence` между Screenshot и Control или ждать
 завершения одного Process перед запуском другого.
 
-Корневой `meta.ts`, `browser/meta.ts`, `screenshot/meta.ts` и
-`control/meta.ts` являются отдельными Meta-пакетами Atom. Их каталоги лежат
-рядом в одном репозитории; Matter topology не повторяется в файловом пути.
+`owner/capsule`, `owner/capsule-browser`, `owner/capsule-screenshot` и
+`owner/capsule-control` являются отдельными peer Meta-репозиториями. `meta.ts`
+каждого лежит в корне собственного репозитория; Matter topology не повторяется
+в файловом пути.
 
 ```typescript
-// browser/meta.ts
+// cluster/owner/capsule-browser/meta.ts
 .superposition({
   "ожидание профиля": {"подготовка WebRTC": {profileAddress: {null: false}}},
   "подготовка WebRTC": {"запуск браузера": {rtcEndpoint: {null: false}}},
@@ -689,14 +690,14 @@ canonical `ts`, а Matrix разрешает все подходящие пер�
 .matter(({state, value, mass, energy, html}) => html`
   ${state === "браузер готов" && html`
     <meta-for
-      src="owner/capsule/screenshot"
+      src="owner/capsule-screenshot"
       fields=${{path: value.screenshotPath, lastPath: value.lastScreenshotPath}}
       mass=${mass}
       energy=${energy} />
   `}
   ${state === "браузер готов" && html`
     <meta-for
-      src="owner/capsule/control"
+      src="owner/capsule-control"
       fields=${{command: value.controlCommand, result: value.controlResult}}
       mass=${mass}
       energy=${energy} />
@@ -921,13 +922,13 @@ return { group: group as "start" }
 ```typescript
 .matter(({ state, value, mass, energy, html }) => html`
   <meta-for
-    src="owner/project/${value.operation}"
+    src="owner/project-${value.operation}"
     fields=${{ command: value.command, args: value.args }}
     mass=${{ cache: mass.cache }}
     energy=${{ socket: energy.socket }} />
   ${state === "ошибка" && html`
     <meta-for
-      src="owner/project/error"
+      src="owner/project-error"
       fields=${{ message: value.error }} />
   `}
 `)
@@ -983,7 +984,7 @@ return { group: group as "start" }
 // Родитель
 .matter(({ value, html }) => html`
   <meta-for
-    src="zavx0z/capsule/screenshot"
+    src="zavx0z/capsule-screenshot"
     fields=${{ path: value.screenshotPath }} />
 `)
 
@@ -1000,29 +1001,29 @@ return { group: group as "start" }
 
 ```typescript
 .matter(({ state, value, html }) => html`
-  ${state === "готово" && html`<meta-for src="zavx0z/project/panel" />`}
+  ${state === "готово" && html`<meta-for src="zavx0z/project-panel" />`}
   ${state === "загрузка"
-    ? html`<meta-for src="zavx0z/project/spinner" />`
-    : html`<meta-for src="zavx0z/project/content" />`}
-  <meta-for src="owner/project/${value.mode}" />
+    ? html`<meta-for src="zavx0z/project-spinner" />`
+    : html`<meta-for src="zavx0z/project-content" />`}
+  <meta-for src="owner/project-${value.mode}" />
   ${value.mode === "card"
-    ? html`<meta-for src="zavx0z/project/card" />`
-    : html`<meta-for src="zavx0z/project/table" />`}
+    ? html`<meta-for src="zavx0z/project-card" />`
+    : html`<meta-for src="zavx0z/project-table" />`}
 `)
 
 // ❌ Нельзя: boolean не является topology basis
 .matter(({ value, html }) => html`
-  ${value.enabled ? html`<meta-for src="owner/project/x" />` : html`<meta-for src="owner/project/y" />`}
+  ${value.enabled ? html`<meta-for src="owner/project-x" />` : html`<meta-for src="owner/project-y" />`}
 `)
 
 // ❌ Нельзя: mass не является topology basis
 .matter(({ mass, html }) => html`
-  ${mass.cache ? html`<meta-for src="owner/project/x" />` : html`<meta-for src="owner/project/y" />`}
+  ${mass.cache ? html`<meta-for src="owner/project-x" />` : html`<meta-for src="owner/project-y" />`}
 `)
 
 // ❌ Нельзя: optional enum не нужно проверять через truthy/null guard
 .matter(({ value, html }) => html`
-  ${value.mode && html`<meta-for src="owner/project/${value.mode}" />`}
+  ${value.mode && html`<meta-for src="owner/project-${value.mode}" />`}
 `)
 
 // ❌ Нельзя: HTML belongs to Bulk, not matter
@@ -1077,9 +1078,9 @@ export default MetaFor("git")
   ])
   .reactions(() => [])
   .matter(({ state, value, html }) => html`
-    <meta-for src="owner/project/${value.operation}" fields=${{ command: value.command }} />
+    <meta-for src="owner/project-${value.operation}" fields=${{ command: value.command }} />
     ${state === "ошибка" && html`
-      <meta-for src="owner/project/error" fields=${{ message: value.error }} />
+      <meta-for src="owner/project-error" fields=${{ message: value.error }} />
     `}
   `)
   .bulk()
@@ -1209,59 +1210,58 @@ action-модулях. Inline callback процесса является тон�
 ## Cluster, Galaxy и Atom-репозитории
 
 Физический корень внешних Meta называется `cluster/`. Он содержит Galaxy —
-каталоги GitHub-владельцев. Репозиторий владельца является корневым Atom и
-корневым Meta-пакетом; его `meta.ts` находится непосредственно в корне.
-Внутренние Meta-пакеты Atom лежат рядом друг с другом внутри того же
-репозитория. Дополнительных каталогов `galaxy/`, `atom/`, `metas/` и вложенных
-Git-репозиториев нет.
+каталоги GitHub-владельцев. Каждый непосредственный дочерний каталог владельца
+является независимым peer Meta-репозиторием; его `meta.ts` находится
+непосредственно в корне. Дополнительных каталогов `galaxy/`, `atom/`, `metas/`,
+вложенных Meta-репозиториев и третьего address segment нет.
 
 **Локальная структура:**
 
 ```text
 cluster/
-└── owner/                 # Galaxy: GitHub-владелец
-    └── project/           # корневой Atom и Git-репозиторий
-        ├── meta.ts        # src: owner/project
-        ├── start/
-        │   └── meta.ts    # src: owner/project/start
-        └── work/
-            └── meta.ts    # src: owner/project/work
+└── owner/                     # Galaxy: GitHub-владелец
+    ├── project/               # независимый peer Git-репозиторий
+    │   └── meta.ts            # src: owner/project
+    ├── project-start/         # независимый peer Git-репозиторий
+    │   └── meta.ts            # src: owner/project-start
+    └── project-work/          # независимый peer Git-репозиторий
+        └── meta.ts            # src: owner/project-work
 ```
 
-Корневой Atom создаётся командой `create-metafor <repository> --dir
-cluster/<owner>` и получает собственный Git. Внутренний Atom создаётся командой
-`create-metafor <meta-package> --dir cluster/<owner>/<repository>` без
-вложенного `git init`, commit и отдельного install.
+Каждая Meta создаётся командой `create-metafor <repository> --dir
+cluster/<owner>` и получает полный актуальный template, lockfile после
+`bun install`, собственный Git и один `Initial commit`. Составные роли получают
+уникальные hyphenated repository names, например `project-start` и
+`project-work`. Создание внутри уже существующего Meta-репозитория отклоняется.
 
 **Пути в `src`:**
 
-- корневой Atom: `<owner>/<repository>`;
-- внутренний Atom: `<owner>/<repository>/<meta-package>`.
+- любая Meta: `<owner>/<repository>` — ровно два сегмента.
 
-Префикс `cluster/` в `src` не входит. Source-путь идентифицирует Meta-пакет, но
-не кодирует runtime parent chain: один внутренний Meta-пакет можно materialize
-у разных родителей и на любой глубине без копирования каталога.
+Префикс `cluster/` в `src` не входит. Source-путь идентифицирует peer
+Meta-репозиторий, но не кодирует runtime parent chain: одна Meta может
+materialize occurrences у разных родителей и на любой глубине. Композиция
+выражается Meta/Matter/Monad references, а не файловой вложенностью.
 
-WIMP `src` не равен npm-имени. Корневой пакет может называться
-`@owner/project`, а внутренний `owner/project/start` — `@owner/project-start`.
-Имя `@owner/project/start` невалидно как `package.json.name`, потому что npm
-допускает только форму `@scope/package`.
+WIMP `src` не равен npm-имени. Например, source `owner/project-start`
+соответствует npm-имени `@owner/project-start`; оба выводятся только из owner и
+repository.
 
 Если выбор репозитория зависит от topology, basis должен быть только `state` или `enum`.
 
 ```typescript
 .matter(({ value, html }) => html`
   ${value.operation === "start" && html`
-    <meta-for src="owner/project/start" fields=${{ command: value.command, args: value.args }} />
+    <meta-for src="owner/project-start" fields=${{ command: value.command, args: value.args }} />
   `}
   ${value.operation === "work" && html`
-    <meta-for src="owner/project/work" fields=${{ command: value.command, args: value.args }} />
+    <meta-for src="owner/project-work" fields=${{ command: value.command, args: value.args }} />
   `}
 `)
 .bulk()
 ```
 
-**Корневой Meta-пакет использует внутренние пакеты:**
+**Одна Meta ссылается на peer Meta-репозитории:**
 
 ```typescript
 // owner/project/meta.ts
@@ -1306,10 +1306,10 @@ export default MetaFor("git")
   .reactions(() => [])
   .matter(({ value, html }) => html`
     ${value.operation === "start" && html`
-      <meta-for src="owner/project/start" fields=${{ command: value.command, args: value.args }} />
+      <meta-for src="owner/project-start" fields=${{ command: value.command, args: value.args }} />
     `}
     ${value.operation === "work" && html`
-      <meta-for src="owner/project/work" fields=${{ command: value.command, args: value.args }} />
+      <meta-for src="owner/project-work" fields=${{ command: value.command, args: value.args }} />
     `}
   `)
   .bulk()

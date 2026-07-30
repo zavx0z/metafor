@@ -17,6 +17,7 @@ import {
 import {writeBoundaryAtomValue} from "./world.ts"
 import {BoundaryMassStore, type BoundaryMassDetachPlan} from "./mass.ts"
 import {MassCatalog} from "../shared/mass.ts"
+import {MF117_SOURCE, MF117_TARGET} from "../shared/mf117.ts"
 
 type Database = SQL | ReservedSQL
 type JsonRecord = Record<string, unknown>
@@ -395,6 +396,19 @@ export class BoundaryIncrementalStore {
     await this.loadIndexes()
   }
 
+  /**
+   * Rebuilds disposable runtime indexes after an isolated SQL transaction.
+   * This is not a materialization or live mutation surface.
+   */
+  async refreshRuntimeIndexesForOfflineProof(): Promise<void> {
+    this.childrenByParent.clear()
+    this.atomIdsByDeclaration.clear()
+    this.instanceIdsByTopology.clear()
+    this.originByInstance.clear()
+    this.parentByInstance.clear()
+    await this.loadIndexes()
+  }
+
   async apply(message: ForceMessage): Promise<BoundaryIncrementalCommit | null> {
     const part = message.parts[0]
     if (part.part === "higgs") return await this.applyHiggs(part)
@@ -404,6 +418,27 @@ export class BoundaryIncrementalStore {
     }
     const address = parseInflatonAddress(part.path, part.value)
     if (!address) throw new Error(`Invalid categorical Inflaton identity: ${String(part.path)}`)
+    const activeRootTable = (await this.sql<Array<{count: number}>>`
+      SELECT COUNT(*) AS count
+        FROM sqlite_master
+       WHERE type = ${"table"} AND name = ${"boundary_active_root"}
+    `).at(0)?.count ?? 0
+    const activeRoot = Number(activeRootTable) === 1
+      ? (await this.sql<Array<{activeSrc: string}>>`
+          SELECT active_src AS activeSrc
+            FROM boundary_active_root
+           WHERE singleton = 1
+        `).at(0)?.activeSrc
+      : undefined
+    if (
+      activeRoot === MF117_TARGET &&
+      address.src === MF117_SOURCE &&
+      part.op !== "remove"
+    ) {
+      throw new Error(
+        "Inference structural role is retired by the active MF-117 Lada root",
+      )
+    }
     const input = record(part.value, `${address.path} value`)
     let detachPlans: BoundaryMassDetachPlan[] = []
     try { detachPlans = await this.preflightMassDetach(address, part.op, input) }

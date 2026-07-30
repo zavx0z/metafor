@@ -1,24 +1,77 @@
-import {
-  DARK_HISTORY_CLEAR_METHOD,
-  DARK_HISTORY_READ_METHOD,
-} from "@metafor/types/dark/history"
 import type {MonadRpcPeer} from "shared/transport/monad"
-import type {DarkHistory} from "./history.ts"
+import type {ForceMessageInput} from "shared/protocol/force/message"
+import {
+  DARK_DECLARATION_PROJECTION_METHOD,
+  readDarkDeclarationProjection,
+  type DarkDeclarationProjectionV1,
+} from "./meta-json.ts"
+import {MetaJSONMonad} from "./monad/meta-json.ts"
+import type {DarkForceTimeControl} from "./time-control.ts"
 
 export type DarkMonadState = "created" | "registering" | "ready" | "error" | "stopped"
+
+type DeclarationProjectionReader = (params: unknown) => Promise<DarkDeclarationProjectionV1>
+
+export const DARK_FORCE_PAUSE_METHOD = "dark.force.pause" as const
+export const DARK_FORCE_STEP_METHOD = "dark.force.step" as const
+export const DARK_FORCE_RESUME_METHOD = "dark.force.resume" as const
+export const DARK_FORCE_STACK_METHOD = "dark.force.stack" as const
+
+const forceMessageInput = (value: unknown): ForceMessageInput => {
+  if (
+    !value ||
+    typeof value !== "object" ||
+    !Array.isArray((value as {parts?: unknown}).parts) ||
+    (value as {parts: unknown[]}).parts.length !== 1 ||
+    !(value as {parts: unknown[]}).parts[0] ||
+    typeof (value as {parts: unknown[]}).parts[0] !== "object"
+  ) {
+    throw new Error("dark.force.step requires exactly one Force Particle input")
+  }
+  return structuredClone(value) as ForceMessageInput
+}
 
 /** Dark service-plane lifecycle and history RPC surface. */
 export class DarkMonad {
   #state: DarkMonadState = "created"
   #error: string | null = null
+  readonly #metaJSON = new MetaJSONMonad()
+  #timeControl: DarkForceTimeControl | null = null
 
-  constructor(private readonly history: DarkHistory) {}
+  constructor(
+    private readonly readDeclarationProjection: DeclarationProjectionReader = readDarkDeclarationProjection,
+  ) {}
+
+  /** Installed by the local runtime after Force exists; Monad never mutates it directly. */
+  setTimeControl(control: DarkForceTimeControl): void {
+    if (this.#timeControl) throw new Error("Dark Monad time control is already installed")
+    this.#timeControl = control
+  }
 
   onServerStarted(peer: MonadRpcPeer): void {
     if (this.#state !== "created") return
     this.#state = "registering"
-    peer.expose(DARK_HISTORY_READ_METHOD, async (params) => this.history.read(params))
-    peer.expose(DARK_HISTORY_CLEAR_METHOD, async (params) => this.history.clear(params))
+    peer.expose(
+      DARK_DECLARATION_PROJECTION_METHOD,
+      async (params) => await this.readDeclarationProjection(params),
+    )
+    peer.expose(
+      DARK_FORCE_PAUSE_METHOD,
+      async () => await this.#timeControlOrThrow().pauseExternalAdmission(),
+    )
+    peer.expose(DARK_FORCE_STEP_METHOD, async (params) => {
+      const result = await this.#timeControlOrThrow().stepAgentParticle(forceMessageInput(params))
+      return structuredClone(result)
+    })
+    peer.expose(DARK_FORCE_RESUME_METHOD, async () => {
+      this.#timeControlOrThrow().resumeExternalAdmission()
+      return {ok: true}
+    })
+    peer.expose(
+      DARK_FORCE_STACK_METHOD,
+      async () => this.#timeControlOrThrow().pauseStack(),
+    )
+    this.#metaJSON.onServerStarted(peer)
   }
 
   onChannelOpened(): void {
@@ -33,19 +86,29 @@ export class DarkMonad {
   }
 
   onHealthRequested(): Response {
-    return Response.json({
+    return Response.json(this.health())
+  }
+
+  health(): {
+    ok: boolean
+    domain: "dark"
+    rpc: DarkMonadState
+    error: string | null
+  } {
+    return {
       ok: this.#state !== "error" && this.#state !== "stopped",
       domain: "dark",
       rpc: this.#state,
-      history: {
-        path: this.history.filename,
-        latestTs: this.history.latestTs,
-      },
       error: this.#error,
-    })
+    }
   }
 
   onServerStopping(): void {
     this.#state = "stopped"
+  }
+
+  #timeControlOrThrow(): DarkForceTimeControl {
+    if (!this.#timeControl) throw new Error("Dark Force time control is unavailable")
+    return this.#timeControl
   }
 }

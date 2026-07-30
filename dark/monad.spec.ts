@@ -1,11 +1,5 @@
-import {afterEach, describe, expect, test} from "bun:test"
-import {mkdtempSync, rmSync} from "node:fs"
-import {tmpdir} from "node:os"
-import {join} from "node:path"
-import {
-  DARK_HISTORY_CLEAR_METHOD,
-  DARK_HISTORY_READ_METHOD,
-} from "@metafor/types/dark/history"
+import {describe, expect, test} from "bun:test"
+import {parseMetaAddress} from "@metafor/types/metafor/meta-json"
 import {
   MonadRpcPeer,
   type MonadChannel,
@@ -15,8 +9,14 @@ import {
   MONAD_RPC_VERSION,
   type MonadRpcMessage,
 } from "shared/protocol/monad/rpc"
-import {DarkHistory} from "./history.ts"
-import {DarkMonad} from "./monad.ts"
+import {DARK_DECLARATION_PROJECTION_METHOD} from "./meta-json.ts"
+import {
+  DARK_FORCE_PAUSE_METHOD,
+  DARK_FORCE_RESUME_METHOD,
+  DARK_FORCE_STACK_METHOD,
+  DARK_FORCE_STEP_METHOD,
+  DarkMonad,
+} from "./monad.ts"
 
 class TestChannel implements MonadChannel {
   readonly identity = "dark"
@@ -40,57 +40,82 @@ class TestChannel implements MonadChannel {
   }
 }
 
-const temporaryDirectories: string[] = []
-afterEach(() => {
-  for (const directory of temporaryDirectories.splice(0)) rmSync(directory, {recursive: true, force: true})
-})
-
 describe("Dark Monad", () => {
-  test("exposes time-step history read and guarded clear through transport-neutral RPC", async () => {
-    const directory = mkdtempSync(join(tmpdir(), "metafor-dark-monad-"))
-    temporaryDirectories.push(directory)
-    const history = new DarkHistory(join(directory, "particles.jsonl"))
-    history.record("incoming", {
-      part: "photon",
-      op: "add",
-      path: 1,
-      by: "matrix",
-      ts: 9,
+  test("exposes only active Dark service methods and no legacy history RPC", async () => {
+    const root = parseMetaAddress("example/dark-monad")!
+    const monad = new DarkMonad(async (params) => {
+      expect(params).toEqual({root})
+      return {
+        root,
+        template: {
+          [root]: {
+            name: "Dark Monad",
+            fields: [],
+            superposition: [],
+            mass: [],
+            processes: [],
+          },
+        },
+      }
     })
-    const monad = new DarkMonad(history)
+    monad.setTimeControl({
+      async pauseExternalAdmission() {
+        return {
+          id: 1,
+          frontier: {
+            cutId: "cut-monad",
+            phase: "held",
+            acceptanceSequence: 4,
+            domains: [],
+          },
+        }
+      },
+      async stepAgentParticle() {
+        throw new Error("not used")
+      },
+      resumeExternalAdmission() {},
+      pauseStack() {
+        return []
+      },
+    })
     const channel = new TestChannel()
     const peer = new MonadRpcPeer(channel)
 
     monad.onServerStarted(peer)
-    expect(peer.methods()).toEqual([DARK_HISTORY_CLEAR_METHOD, DARK_HISTORY_READ_METHOD])
+    expect(peer.methods()).toEqual([
+      DARK_DECLARATION_PROJECTION_METHOD,
+      DARK_FORCE_PAUSE_METHOD,
+      DARK_FORCE_RESUME_METHOD,
+      DARK_FORCE_STACK_METHOD,
+      DARK_FORCE_STEP_METHOD,
+      "readMetaJSON",
+    ])
     monad.onChannelOpened()
 
     await channel.receive({
       version: MONAD_RPC_VERSION,
-      id: "history-read",
-      source: "agent-tool",
+      id: "declaration-read",
+      source: "force",
       target: "dark",
-      method: DARK_HISTORY_READ_METHOD,
-      params: {fromTs: 0},
+      method: DARK_DECLARATION_PROJECTION_METHOD,
+      params: {root},
     })
-    expect(channel.sent[0]).toMatchObject({
-      id: "history-read",
-      ok: true,
-      result: {steps: [{ts: 9, patches: [{particle: {by: "matrix", ts: 9}}]}]},
-    })
-
-    await channel.receive({
+    expect(channel.sent[0]).toEqual({
       version: MONAD_RPC_VERSION,
-      id: "history-clear",
-      source: "agent-tool",
-      target: "dark",
-      method: DARK_HISTORY_CLEAR_METHOD,
-      params: {confirm: "clear-dark-history"},
-    })
-    expect(channel.sent[1]).toMatchObject({
-      id: "history-clear",
+      id: "declaration-read",
       ok: true,
-      result: {removed: 1, latestTs: null},
+      result: {
+        root,
+        template: {
+          [root]: {
+            name: "Dark Monad",
+            fields: [],
+            superposition: [],
+            mass: [],
+            processes: [],
+          },
+        },
+      },
     })
   })
 })

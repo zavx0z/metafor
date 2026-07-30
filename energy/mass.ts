@@ -21,6 +21,11 @@ export class EnergyMassGate {
   #generation = new Map<string, number>()
   #live = new Set<string>()
   #fenced = new Set<string>()
+  #retargeted = new Map<string, {
+    entryId: string
+    generation: number
+    pendingAuthorization: boolean
+  }>()
 
   private identity(atom: number, declaration: number, key: string): string {
     return `${atom}\0${declaration}\0${key}`
@@ -28,6 +33,11 @@ export class EnergyMassGate {
 
   authorize(atom: number, declaration: number, key: string): number {
     const identity = this.identity(atom, declaration, key)
+    const retargeted = this.#retargeted.get(identity)
+    if (retargeted?.pendingAuthorization === true) {
+      retargeted.pendingAuthorization = false
+      return retargeted.generation
+    }
     const previous = this.#generation.get(identity)
     if (previous !== undefined) this.#live.delete(`${identity}\0${previous}`)
     const generation = (previous ?? 0) + 1
@@ -44,6 +54,50 @@ export class EnergyMassGate {
   release(atom: number, declaration: number, key: string): void {
     this.#fenced.delete(this.identity(atom, declaration, key))
   }
+  generation(atom: number, declaration: number, key: string): number {
+    const identity = this.identity(atom, declaration, key)
+    const generation = this.#generation.get(identity)
+    if (generation === undefined || !this.#live.has(`${identity}\0${generation}`)) {
+      throw new Error("Energy Mass handle generation is not live")
+    }
+    return generation
+  }
+  fenced(atom: number, declaration: number, key: string): boolean {
+    return this.#fenced.has(this.identity(atom, declaration, key))
+  }
+  /**
+   * Creates the target identity for an exact fenced source without copying
+   * bytes or releasing the source fence.
+   */
+  retarget(
+    source: {atom: number; declaration: number; key: string; generation: number},
+    target: {atom: number; declaration: number; key: string},
+    entryId: string,
+  ): number {
+    const sourceIdentity = this.identity(source.atom, source.declaration, source.key)
+    if (
+      !this.#fenced.has(sourceIdentity) ||
+      this.generation(source.atom, source.declaration, source.key) !== source.generation ||
+      source.key !== target.key
+    ) {
+      throw new Error("Energy Mass retarget source is not the exact fenced generation")
+    }
+    const targetIdentity = this.identity(target.atom, target.declaration, target.key)
+    const previous = this.#retargeted.get(targetIdentity)
+    if (previous) {
+      if (previous.entryId !== entryId) {
+        throw new Error("Energy Mass target is already bound to a different retarget")
+      }
+      return previous.generation
+    }
+    const generation = this.authorize(target.atom, target.declaration, target.key)
+    this.#retargeted.set(targetIdentity, {
+      entryId,
+      generation,
+      pendingAuthorization: true,
+    })
+    return generation
+  }
   assert(atom: number, declaration: number, key: string, generation: number): void {
     const identity = this.identity(atom, declaration, key)
     if (this.#fenced.has(identity) || !this.#live.has(`${identity}\0${generation}`)) {
@@ -54,7 +108,11 @@ export class EnergyMassGate {
 
 /** Flat worktree-local file catalog. No caller-provided filesystem path exists. */
 export class EnergyMassCatalog {
-  readonly root = resolve(import.meta.dir, "..", "mass")
+  readonly root: string
+
+  constructor(root = process.env.METAFOR_MASS_PATH?.trim() || resolve(import.meta.dir, "..", "mass")) {
+    this.root = resolve(root)
+  }
 
   private path(keyId: string, format: MassFileFormat): string {
     if (!keyPattern.test(keyId)) throw new Error("Energy Mass key is not a Boundary-issued key ID")

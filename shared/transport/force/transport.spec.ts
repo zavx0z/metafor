@@ -236,5 +236,45 @@ describe("Force runtime transports", () => {
     expect(address.searchParams.get("session")).toBe("handoff-1")
     expect(socket.sent).toEqual([])
   })
+
+  test("browser consumes discriminated control frames before Force without producing an impulse", async () => {
+    const ForceWithControl = BrowserForce as unknown as new (
+      domain: string,
+    ) => InstanceType<ForceConstructor> & {
+      onControl: (message: {control: string; [key: string]: unknown}) => void | Promise<void>
+      sendControl(message: {control: string; [key: string]: unknown}): boolean
+    }
+    const force = new ForceWithControl("bulk")
+    const socket = sockets.at(-1)!
+    const impulses: ForceMessage[] = []
+    const controls: unknown[] = []
+    force.onImpulse = (message) => {
+      impulses.push(message)
+    }
+
+    const request = {control: "bulk.viewport.capture.request", version: 1, id: "capture-1"}
+    socket.receive(request)
+    await Bun.sleep(0)
+    expect(impulses).toEqual([])
+
+    force.onControl = (message) => {
+      controls.push(message)
+    }
+    await waitFor(() => controls.length === 1)
+    expect(controls).toEqual([request])
+    expect(impulses).toEqual([])
+
+    expect(force.sendControl({
+      control: "bulk.viewport.capture.response",
+      version: 1,
+      id: "capture-1",
+    })).toBe(true)
+    expect(socket.sent).toEqual([{
+      control: "bulk.viewport.capture.response",
+      version: 1,
+      id: "capture-1",
+    }])
+    expect(impulses).toEqual([])
+  })
 })
 })

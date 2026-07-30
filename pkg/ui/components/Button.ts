@@ -25,6 +25,8 @@ export type ButtonProps = {
   iconPosition?: "start" | "end"
   iconOnly?: boolean
   iconSizePx?: number
+  /** Persistent selected mode. A selected disabled button stays visually active without accepting input. */
+  selected?: boolean
   tooltip?: string
   tooltipDelayMs?: number
   fill?: Color
@@ -93,6 +95,7 @@ function buttonStyleForState(
   radius: number,
   props: ButtonProps,
 ): StyleProps {
+  const visualState = props.selected === true && state === "disabled" ? "idle" : state
   const style: StyleProps = {
     ...props.sx,
     fontSize: fontPx,
@@ -100,23 +103,23 @@ function buttonStyleForState(
   }
 
   if (variant === "text") {
-    style.background = props.fill ?? textFill(state)
+    style.background = props.fill ?? textFill(visualState)
     style.borderColor = props.border ?? null
     style.color = textColor
   } else if (variant === "outlined") {
     const border = props.border ?? toneBorder(tone)
-    style.background = props.fill ?? outlinedFill(border, state)
-    style.borderColor = props.border ?? stateBorder(border, state)
+    style.background = props.fill ?? outlinedFill(border, visualState)
+    style.borderColor = props.border ?? stateBorder(border, visualState)
     style.color = textColor
   } else if (variant === "contained") {
     const fill = props.fill ?? toneFill(tone)
     const border = props.border ?? toneBorder(tone)
-    style.background = props.fill ?? stateFill(fill, border, state)
-    style.borderColor = props.border ?? stateBorder(border, state)
+    style.background = props.fill ?? stateFill(fill, border, visualState)
+    style.borderColor = props.border ?? stateBorder(border, visualState)
     style.color = textColor
   } else {
-    if (props.fill !== undefined) style.background = stateFill(props.fill, props.border ?? toneBorder(tone), state)
-    if (props.border !== undefined) style.borderColor = stateBorder(props.border, state)
+    if (props.fill !== undefined) style.background = stateFill(props.fill, props.border ?? toneBorder(tone), visualState)
+    if (props.border !== undefined) style.borderColor = stateBorder(props.border, visualState)
     style.color = textColor
   }
 
@@ -213,7 +216,7 @@ function drawButtonContent(
 ): void {
   const fontPx = props.fontPx ?? (props.size === "small" ? 10 : props.size === "large" ? 14 : 12)
   const pressOffsetY = state === "active" ? 1 : 0
-  const disabled = state === "disabled"
+  const disabled = state === "disabled" && props.selected !== true
   const material = disabled ? host.materials.muted : props.textMaterial ?? buttonTextMaterial(textColor)
 
   if (iconSrc === undefined || iconSrc.length === 0) {

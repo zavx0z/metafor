@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import {spawnSync} from "node:child_process"
 import {existsSync, mkdirSync, statSync, writeFileSync} from "node:fs"
 import {basename, dirname, resolve} from "node:path"
 import {detectLanguage, getI18n, type Lang} from "./i18n.ts"
@@ -11,16 +12,12 @@ import {
   generatePackageJsonFile,
   generateTodoFile,
   generateTsconfigFile,
-  type MetaPackageIdentity,
+  type MetaIdentity,
 } from "./generators.ts"
 import {getGitUserName, gitAddAll, gitCommit, initGitRepo, isGitInstalled} from "./git.ts"
 
 const PACKAGE_SEGMENT = /^[a-z0-9][a-z0-9._-]*$/
 const OPTIONS_WITH_VALUE = new Set(["--name", "-n", "--desc", "-d", "--dir", "--lang", "-l"])
-
-type CreationContext =
-  | {kind: "root"; galaxyRoot: string; owner: string}
-  | {kind: "internal"; repositoryRoot: string; owner: string; repository: string}
 
 const fail = (message: string): never => {
   console.error(`\n❌ ${message}\n`)
@@ -46,33 +43,35 @@ const positional = (args: string[]): string | undefined => {
 const directoryExists = (path: string): boolean =>
   existsSync(path) && statSync(path).isDirectory()
 
-const creationContext = (baseDir: string): CreationContext | undefined => {
-  if (!directoryExists(baseDir)) return
-
-  const parent = dirname(baseDir)
-  if (basename(parent) === "cluster" && PACKAGE_SEGMENT.test(basename(baseDir))) {
-    return {kind: "root", galaxyRoot: baseDir, owner: basename(baseDir)}
-  }
-
-  const galaxyRoot = parent
-  if (
-    basename(dirname(galaxyRoot)) === "cluster" &&
-    PACKAGE_SEGMENT.test(basename(galaxyRoot)) &&
-    PACKAGE_SEGMENT.test(basename(baseDir)) &&
-    existsSync(resolve(baseDir, ".git"))
-  ) {
-    return {
-      kind: "internal",
-      repositoryRoot: baseDir,
-      owner: basename(galaxyRoot),
-      repository: basename(baseDir),
+const containingMetaRepository = (path: string): string | undefined => {
+  let current = resolve(path)
+  while (true) {
+    if (
+      existsSync(resolve(current, ".git")) &&
+      existsSync(resolve(current, "meta.ts"))
+    ) {
+      return current
     }
+    const parent = dirname(current)
+    if (parent === current) return
+    current = parent
+  }
+}
+
+const runBunInstall = (cwd: string, errorMessage: string): void => {
+  const result = spawnSync("bun", ["install"], {
+    cwd,
+    encoding: "utf8",
+  })
+  if (result.status !== 0) {
+    const detail = result.error?.message ?? result.stderr.trim()
+    fail(detail ? `${errorMessage}: ${detail}` : errorMessage)
   }
 }
 
 const writePackage = (
   packagePath: string,
-  identity: MetaPackageIdentity,
+  identity: MetaIdentity,
   source: string,
   name: string,
   description: string,
@@ -111,8 +110,8 @@ ${t.helpOptions}
 
 ${t.helpExamples}
   ${runner} create metafor capsule --dir cluster/zavx0z
-  ${runner} create metafor profile --dir cluster/zavx0z/capsule
-  ${runner} create metafor container -d "${t.exampleWithDesc}" --dir cluster/zavx0z/capsule
+  ${runner} create metafor capsule-profile --dir cluster/zavx0z
+  ${runner} create metafor capsule-container -d "${t.exampleWithDesc}" --dir cluster/zavx0z
 
 ${t.helpNoteName}
 ${t.helpNoteOptions}
@@ -131,41 +130,42 @@ ${t.helpNoteOptions}
   if (!PACKAGE_SEGMENT.test(name)) fail(t.errorPackageName)
 
   const description = option(args, "--desc", "-d") ?? `${t.defaultDesc} ${name.replace(/-/g, " ")}`
-  const baseDir = resolve(option(args, "--dir") ?? ".")
-  const context = creationContext(baseDir) ?? fail(t.errorCreationRoot)
-  const isRoot = context.kind === "root"
-  const owner = context.owner
-  const repository = context.kind === "root" ? name : context.repository
-  const packagePath = context.kind === "root"
-    ? resolve(context.galaxyRoot, name)
-    : resolve(context.repositoryRoot, name)
-  const identity: MetaPackageIdentity = context.kind === "root"
-    ? {owner, repository}
-    : {owner, repository, metaPackage: name}
-  const source = isRoot ? `${owner}/${repository}` : `${owner}/${repository}/${name}`
+  const parentDirectory = resolve(option(args, "--dir") ?? ".")
+  if (!directoryExists(parentDirectory)) fail(t.errorParent)
+
+  const owner = basename(parentDirectory)
+  if (!PACKAGE_SEGMENT.test(owner)) fail(t.errorOwner)
+
+  const nestedIn = containingMetaRepository(parentDirectory)
+  if (nestedIn) fail(`${t.errorNested}: ${nestedIn}`)
+
+  const repository = name
+  const packagePath = resolve(parentDirectory, repository)
+  const identity: MetaIdentity = {owner, repository}
+  const source = `${owner}/${repository}`
 
   if (existsSync(packagePath)) fail(`${t.errorExists}: ${packagePath}`)
-  if (isRoot && !isGitInstalled()) fail(t.errorGitRequired)
+  if (!isGitInstalled()) fail(t.errorGitRequired)
 
   console.log(`\n${t.creating} ${name}`)
-  console.log(`   ${t.kind} ${isRoot ? t.rootAtom : t.internalAtom}`)
   console.log(`   ${t.description} ${description}`)
   console.log(`   ${t.source} ${source}`)
   console.log(`   ${t.path} ${packagePath}\n`)
 
-  const author = getGitUserName(context.kind === "internal" ? context.repositoryRoot : undefined) ?? owner
+  const author = getGitUserName() ?? owner
   writePackage(packagePath, identity, source, name, description, author, t.errorLabel, t.htmlLang)
 
-  if (isRoot) {
-    if (!initGitRepo(packagePath) || !gitAddAll(packagePath) || !gitCommit(packagePath, "Initial commit")) {
-      fail(t.errorGitInit)
-    }
+  console.log(`${t.installing} bun install`)
+  runBunInstall(packagePath, t.errorInstall)
+
+  if (!initGitRepo(packagePath) || !gitAddAll(packagePath) || !gitCommit(packagePath, "Initial commit")) {
+    fail(t.errorGitInit)
   }
 
   console.log(`${t.created} ${name}`)
   console.log(`   📄 ${packagePath}/meta.ts`)
   console.log(`   📦 ${source}`)
-  if (isRoot) console.log(`   📂 ${packagePath}/.git/`)
+  console.log(`   📂 ${packagePath}/.git/`)
   console.log(`\n${t.toBuild} cd ${packagePath} && bun run build\n`)
 }
 

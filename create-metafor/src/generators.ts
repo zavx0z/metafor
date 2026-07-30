@@ -114,27 +114,22 @@ export function generateTodoFile(name: string, description: string): string {
   })
 }
 
-export interface MetaPackageIdentity {
+export interface MetaIdentity {
   owner: string
   repository: string
-  metaPackage?: string
 }
 
-export function npmPackageName(identity: MetaPackageIdentity): string {
+export function npmPackageName(identity: MetaIdentity): string {
   const scope = identity.owner.toLowerCase()
-  const repository = identity.repository.toLowerCase()
-  const name = identity.metaPackage
-    ? `${repository}-${identity.metaPackage.toLowerCase()}`
-    : repository
-  return `@${scope}/${name}`
+  return `@${scope}/${identity.repository.toLowerCase()}`
 }
 
 /**
- * Сгенерировать package.json. WIMP src и npm name намеренно имеют разные
- * грамматики: npm не допускает второй slash после @scope/package.
+ * Сгенерировать package.json независимого peer Meta-репозитория.
+ * Canonical src owner/repository соответствует npm identity @owner/repository.
  */
 export function generatePackageJsonFile(
-  identity: MetaPackageIdentity,
+  identity: MetaIdentity,
   description: string,
   author: string,
 ): string {
@@ -143,7 +138,6 @@ export function generatePackageJsonFile(
     packageNameJson: jsString(npmPackageName(identity)),
     descriptionJson: jsString(description),
     authorJson: jsString(author),
-    workspacesEntry: identity.metaPackage ? "" : '"workspaces": ["*"],',
     buildScriptJson: jsString("bun build meta.ts --outdir dist --target browser --format=esm"),
   })
 }

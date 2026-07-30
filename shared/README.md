@@ -20,7 +20,7 @@ environment-specific transports.
 
 `MonadChannel` не является RPC client или provider: он только доставляет
 сообщения одной identity. `MonadRpcPeer` коррелирует исходящие вызовы и вызывает
-локальные handlers; `MonadRouter` остаётся внутри Force.
+локальные handlers; `MonadRouter` принадлежит Dark Monad.
 
 Protocol никогда не ветвится по среде. Server и web обязаны кодировать один и
 тот же контракт. `shared` не владеет relay laws, lifecycle Монад, domain Store

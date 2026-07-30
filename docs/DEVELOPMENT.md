@@ -51,6 +51,13 @@ Development database по умолчанию:
 BOUNDARY_PATH=/absolute/path/boundary.sqlite bun run runtime:universe
 ```
 
+Изолированный test run может перенаправить flat Mass catalog, не касаясь
+canonical live `mass/`:
+
+```bash
+METAFOR_MASS_PATH=/absolute/temporary/mass bun run test
+```
+
 Первый позиционный аргумент `boundary/server.ts` имеет приоритет над
 `BOUNDARY_PATH`. Parent directory создаётся автоматически. Boundary tests
 используют отдельные `:memory:` databases и всегда закрывают их; development
@@ -95,10 +102,14 @@ bun test matrix/runtime.parity.spec.ts
 bun test energy/energy.spec.ts
 bun test energy/reaction.spec.ts
 bun test bulk/world.spec.ts
+bun test pkg/engine/src/renderer/shaders/line.webgpu.spec.ts
 ```
 
 WebGPU suite запускается отдельно при доступном adapter. Недоступность adapter
 должна быть отмечена как `NOT EXECUTED`, а не как успешная проверка.
+Line shader suite через настоящий WebGPU device компилирует production WGSL
+vertex/fragment stages и создаёт production-shaped render pipeline; обычная
+проверка текста или browser bundle не заменяет этот gate.
 
 ## Временная Meta
 
@@ -110,12 +121,15 @@ tmpdir="$(mktemp -d)"
 mkdir -p "$tmpdir/cluster/zavx0z"
 bun run --filter create-metafor build
 bun create-metafor/dist/cli.js capsule --dir "$tmpdir/cluster/zavx0z" --lang en
-bun create-metafor/dist/cli.js profile --dir "$tmpdir/cluster/zavx0z/capsule" --lang en
+bun create-metafor/dist/cli.js capsule-profile --dir "$tmpdir/cluster/zavx0z" --lang en
 bun build "$tmpdir/cluster/zavx0z/capsule/meta.ts" --outdir "$tmpdir/dist" --target browser --format esm
+bun build "$tmpdir/cluster/zavx0z/capsule-profile/meta.ts" --outdir "$tmpdir/dist-profile" --target browser --format esm
 rm -rf "$tmpdir"
 ```
 
 Каталог `cluster/` является локальным resolver root, не входит в WIMP `src`, не
-является workspace и игнорируется внешним репозиторием MetaFor. Git существует
-только на уровне каждого Atom-репозитория `cluster/<owner>/<repository>`;
-внутренние Meta-пакеты не являются submodule или nested repository.
+является workspace и игнорируется внешним репозиторием MetaFor. Каждый
+`cluster/<owner>/<repository>` является независимым peer Git-репозиторием.
+Третьего сегмента и nested Meta repository нет; composition выполняется через
+Meta/Matter/Monad references. Оба вызова создают полный template, lockfile,
+собственный Git и один `Initial commit`.

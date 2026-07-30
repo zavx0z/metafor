@@ -5,12 +5,13 @@ import {InstancedMesh} from "../core/InstancedMesh"
 import {SkinnedMesh} from "../core/SkinnedMesh"
 import {BufferGeometry} from "../core/BufferGeometry"
 import {WireframeInstancedMesh} from "../core/WireframeInstancedMesh"
-import {ImageMaterial, LineBasicMaterial, LineGlowMaterial, MeshBasicMaterial, MeshLambertMaterial, RadialBackdropMaterial, RoundedRectMaterial, TextMaterial} from "../materials"
+import {ImageMaterial, LineBasicMaterial, LineGlowMaterial, MeshBasicMaterial, MeshLambertMaterial, RadialBackdropMaterial, RoundedRectMaterial, TextMaterial, ThinFilmMaterial} from "../materials"
 import {Matrix4, Vector3, Frustum} from "../math"
 import {LineSegments} from "../objects/LineSegments"
 import {Text} from "../objects/Text"
 import {Object3D} from "../core/Object3D"
 import meshBasicWGSL from "./shaders/mesh_basic.wgsl"
+import thinFilmWGSL from "./shaders/thin_film.wgsl"
 import meshStaticWGSL from "./shaders/mesh_static.wgsl"
 import meshSkinnedWGSL from "./shaders/mesh_skinned.wgsl"
 import meshInstancedWGSL from "./shaders/mesh_instanced.wgsl"
@@ -22,13 +23,27 @@ import imageExternalShaderCode from "./shaders/image_external.wgsl"
 import roundedShaderCode from "./shaders/rounded.wgsl"
 import radialBackdropShaderCode from "./shaders/radial_backdrop.ts"
 import {TEXT_COVER_FACE_STATE, TEXT_STENCIL_BACK_FACE_STATE, TEXT_STENCIL_FACE_STATE} from "./text-stencil"
+import {
+  LINE_OVERLAY_BLEND_STATE,
+  LINE_SCENE_BLEND_STATE,
+  LINE_SCENE_DEPTH_STATE,
+  LINE_SILHOUETTE_DEPTH_STATE,
+} from "./line-pipeline"
 import {collectSpaceObjects, type LightItem, type RenderItem} from "./utils/RenderList"
 import {GlassMaterial} from "../materials/GlassMaterial"
 import {TextureLoader} from "../loaders/TextureLoader"
+import {
+  alignedGpuFrameBytesPerRow,
+  encodeRgbaFramePng,
+  isCapturableGpuFrameFormat,
+  unpackGpuFrameRgba,
+} from "./frame-readback"
+import {createSceneUniformLayout} from "./scene-uniform-layout"
 
 if (import.meta.hot) {
   (import.meta.hot.accept as unknown as (dependencies: string[], callback: () => void) => void)([
     "./shaders/mesh_basic.wgsl",
+    "./shaders/thin_film.wgsl",
     "./shaders/mesh_static.wgsl",
     "./shaders/mesh_skinned.wgsl",
     "./shaders/mesh_instanced.wgsl",
@@ -54,9 +69,9 @@ const MAX_BONES = 128
 const BONE_MATRICES_SIZE = MAX_BONES * 16 * 4 // 128 * mat4x4<f32>
 const PER_OBJECT_DATA_SIZE = PER_OBJECT_UNIFORM_SIZE + BONE_MATRICES_SIZE
 
-// --- Размеры и смещения для данных сцены ---
-const SCENE_UNIFORMS_SIZE = 272 + 16 // + vec3<f32> cameraPosition + f32 padding
 const LIGHT_STRUCT_SIZE = 32
+const SCENE_UNIFORM_LAYOUT = createSceneUniformLayout(MAX_LIGHTS, LIGHT_STRUCT_SIZE)
+const SCENE_UNIFORMS_SIZE = SCENE_UNIFORM_LAYOUT.byteSize
 
 // --- Вспомогательные интерфейсы ---
 interface GeometryBuffers {
@@ -75,6 +90,7 @@ interface PreparedRenderLayer {
   background: GPUColor | undefined
   glassObjects: RenderItem[]
   regularObjects: RenderItem[]
+  overlayLines: RenderItem[]
   uiObjects: RenderItem[]
 }
 
@@ -95,10 +111,13 @@ export class Renderer {
   private context: GPUCanvasContext | null = null
   private presentationFormat: GPUTextureFormat | null = null
   private basicMeshPipeline: GPURenderPipeline | null = null
+  private thinFilmMeshPipeline: GPURenderPipeline | null = null
   private staticMeshPipeline: GPURenderPipeline | null = null
   private instancedMeshPipeline: GPURenderPipeline | null = null
   private skinnedMeshPipeline: GPURenderPipeline | null = null
   private linePipeline: GPURenderPipeline | null = null
+  private lineOverlayPipeline: GPURenderPipeline | null = null
+  private lineSilhouettePipeline: GPURenderPipeline | null = null
   private instancedLinePipeline: GPURenderPipeline | null = null
   private textStencilPipeline: GPURenderPipeline | null = null
   private textCoverPipeline: GPURenderPipeline | null = null
@@ -132,6 +151,8 @@ export class Renderer {
   geometryCache: Map<BufferGeometry, GeometryBuffers> = new Map()
   private depthTexture: GPUTexture | null = null
   private multisampleTexture: GPUTexture | null = null
+  private presentedFrameTexture: GPUTexture | null = null
+  private hasPresentedFrame = false
   private sampleCount = 4 // MSAA
   public pixelRatio = 1
   private frustum: Frustum = new Frustum()
@@ -173,7 +194,10 @@ export class Renderer {
 
   private configureCanvasContext(): void {
     if (!this.device || !this.context || !this.presentationFormat) return
-    const usage = GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING
+    const usage =
+      GPUTextureUsage.RENDER_ATTACHMENT |
+      GPUTextureUsage.TEXTURE_BINDING |
+      GPUTextureUsage.COPY_SRC
     this.context.configure({
       device: this.device,
       format: this.presentationFormat,
@@ -298,6 +322,9 @@ export class Renderer {
     const basicShaderModule = this.device.createShaderModule({
       code: meshBasicWGSL,
     })
+    const thinFilmShaderModule = this.device.createShaderModule({
+      code: thinFilmWGSL,
+    })
     const staticShaderModule = this.device.createShaderModule({
       code: meshStaticWGSL,
     })
@@ -359,6 +386,45 @@ export class Renderer {
       },
       primitive: {topology: "triangle-list", cullMode: "none"},
       depthStencil,
+      multisample: {count: this.sampleCount},
+    })
+
+    this.thinFilmMeshPipeline = await this.device.createRenderPipelineAsync({
+      label: "ThinFilmMaterial",
+      layout: pipelineLayout,
+      vertex: {
+        module: thinFilmShaderModule,
+        entryPoint: "vs_main",
+        buffers: [
+          {arrayStride: 12, attributes: [{shaderLocation: 0, offset: 0, format: "float32x3"}]},
+          {arrayStride: 12, attributes: [{shaderLocation: 1, offset: 0, format: "float32x3"}]},
+        ],
+      },
+      fragment: {
+        module: thinFilmShaderModule,
+        entryPoint: "fs_main",
+        targets: [{
+          format: this.presentationFormat,
+          blend: {
+            color: {
+              srcFactor: "src-alpha",
+              dstFactor: "one-minus-src-alpha",
+              operation: "add",
+            },
+            alpha: {
+              srcFactor: "one",
+              dstFactor: "one-minus-src-alpha",
+              operation: "add",
+            },
+          },
+        }],
+      },
+      primitive: {topology: "triangle-list", cullMode: "none"},
+      depthStencil: {
+        depthWriteEnabled: false,
+        depthCompare: "less",
+        format: "depth24plus-stencil8",
+      },
       multisample: {count: this.sampleCount},
     })
 
@@ -773,46 +839,58 @@ export class Renderer {
       multisample: {count: this.sampleCount},
     })
 
-    // --- Pipeline для Lines ---
-    this.linePipeline = await this.device.createRenderPipelineAsync({
-      layout: pipelineLayout,
-      vertex: {
-        module: lineShaderModule,
-        entryPoint: "vs_main",
-        buffers: [
-          {arrayStride: 12, attributes: [{shaderLocation: 0, offset: 0, format: "float32x3"}]},
-          {arrayStride: 12, attributes: [{shaderLocation: 1, offset: 0, format: "float32x3"}]},
-        ],
-      },
-      fragment: {
-        module: lineShaderModule,
-        entryPoint: "fs_main",
-        targets: [
-          {
-            format: this.presentationFormat,
-            blend: {
-              color: {
-                srcFactor: "src-alpha",
-                dstFactor: "one-minus-src-alpha",
-                operation: "add",
-              },
-              alpha: {
-                srcFactor: "one",
-                dstFactor: "one-minus-src-alpha",
-                operation: "add",
-              },
+    // --- Pipelines для Lines ---
+    const linePresentationFormat = this.presentationFormat
+    const createLinePipeline = (
+      label: string,
+      blend: GPUBlendState,
+      sampleCount: number,
+      depthStencil?: GPUDepthStencilState,
+    ): Promise<GPURenderPipeline> => {
+      const descriptor: GPURenderPipelineDescriptor = {
+        label,
+        layout: pipelineLayout,
+        vertex: {
+          module: lineShaderModule,
+          entryPoint: "vs_main",
+          buffers: [
+            {arrayStride: 12, attributes: [{shaderLocation: 0, offset: 0, format: "float32x3"}]},
+            {arrayStride: 12, attributes: [{shaderLocation: 1, offset: 0, format: "float32x3"}]},
+          ],
+        },
+        fragment: {
+          module: lineShaderModule,
+          entryPoint: "fs_main",
+          targets: [
+            {
+              format: linePresentationFormat,
+              blend,
             },
-          },
-        ],
-      },
-      primitive: {topology: "line-list"},
-      depthStencil: {
-        depthWriteEnabled: true, // Включаем запись глубины для придания объема
-        depthCompare: "less",
-        format: "depth24plus-stencil8",
-      },
-      multisample: {count: this.sampleCount},
-    })
+          ],
+        },
+        primitive: {topology: "line-list"},
+        multisample: {count: sampleCount},
+      }
+      if (depthStencil) descriptor.depthStencil = depthStencil
+      return this.device!.createRenderPipelineAsync(descriptor)
+    }
+    this.linePipeline = await createLinePipeline(
+      "scene line pipeline",
+      LINE_SCENE_BLEND_STATE,
+      this.sampleCount,
+      LINE_SCENE_DEPTH_STATE,
+    )
+    this.lineOverlayPipeline = await createLinePipeline(
+      "overlay line pipeline",
+      LINE_OVERLAY_BLEND_STATE,
+      1,
+    )
+    this.lineSilhouettePipeline = await createLinePipeline(
+      "silhouette line pipeline",
+      LINE_SCENE_BLEND_STATE,
+      this.sampleCount,
+      LINE_SILHOUETTE_DEPTH_STATE,
+    )
 
     // --- Pipeline для Instanced Lines ---
     const lineInstancedWGSL = `
@@ -1043,6 +1121,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
   ): {
     glassObjects: RenderItem[],
     regularObjects: RenderItem[],
+    overlayLines: RenderItem[],
     uiObjects: RenderItem[]
   } {
     const isUiLayerObject = (obj: Object3D): boolean => {
@@ -1055,11 +1134,33 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
       return false
     }
 
+    const isOverlayLine = (item: RenderItem): boolean =>
+      item.type === "line" &&
+      (item.object as LineSegments).material instanceof LineGlowMaterial &&
+      ((item.object as LineSegments).material as LineGlowMaterial).visibilityMode === "overlay"
+
+    const isSilhouetteLine = (item: RenderItem): boolean =>
+      item.type === "line" &&
+      (item.object as LineSegments).material instanceof LineGlowMaterial &&
+      ((item.object as LineSegments).material as LineGlowMaterial).visibilityMode === "silhouette"
+
+    const regularObjects = renderList.filter(item =>
+      !(item.object.material as any)?.isGlassMaterial &&
+      !isUiLayerObject(item.object) &&
+      !isOverlayLine(item)
+    )
+
     return {
       glassObjects: renderList.filter(item => (item.object.material as any)?.isGlassMaterial === true),
-      regularObjects: renderList.filter(item =>
-        !(item.object.material as any)?.isGlassMaterial &&
-        !isUiLayerObject(item.object)
+      // Non-depth-writing silhouettes go first so later relation lines retain
+      // visual priority even where their projected paths cross the Torus.
+      regularObjects: [
+        ...regularObjects.filter(isSilhouetteLine),
+        ...regularObjects.filter(item => !isSilhouetteLine(item)),
+      ],
+      overlayLines: renderList.filter(item =>
+        !isUiLayerObject(item.object) &&
+        isOverlayLine(item)
       ),
       uiObjects: renderList.filter(item => isUiLayerObject(item.object))
     }
@@ -1070,11 +1171,14 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
       this.device &&
       this.context &&
       this.basicMeshPipeline &&
+      this.thinFilmMeshPipeline &&
       this.staticMeshPipeline &&
       this.uiBasicMeshPipeline &&
       this.instancedMeshPipeline &&
       this.skinnedMeshPipeline &&
       this.linePipeline &&
+      this.lineOverlayPipeline &&
+      this.lineSilhouettePipeline &&
       this.instancedLinePipeline &&
       this.textStencilPipeline &&
       this.textCoverPipeline &&
@@ -1104,6 +1208,58 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     this.renderFrame(space, viewPoint)
   }
 
+  /**
+   * Reads the last frame copied by the normal render path. This submits only a
+   * bounded texture-to-buffer copy and never requests or renders another frame.
+   */
+  public async captureLastPresentedFramePng(): Promise<Blob | null> {
+    const device = this.device
+    const texture = this.presentedFrameTexture
+    const format = this.presentationFormat
+    if (
+      !device ||
+      !texture ||
+      !this.hasPresentedFrame ||
+      !format ||
+      !isCapturableGpuFrameFormat(format)
+    ) return null
+
+    const width = texture.width
+    const height = texture.height
+    const bytesPerRow = alignedGpuFrameBytesPerRow(width)
+    const buffer = device.createBuffer({
+      size: bytesPerRow * height,
+      usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
+    })
+    let mapped = false
+    try {
+      const encoder = device.createCommandEncoder()
+      encoder.copyTextureToBuffer(
+        {texture},
+        {buffer, bytesPerRow, rowsPerImage: height},
+        {width, height, depthOrArrayLayers: 1},
+      )
+      device.queue.submit([encoder.finish()])
+      await buffer.mapAsync(GPUMapMode.READ)
+      mapped = true
+      const rgba = unpackGpuFrameRgba({
+        bytes: new Uint8Array(buffer.getMappedRange()),
+        bytesPerRow,
+        format,
+        width,
+        height,
+      })
+      buffer.unmap()
+      mapped = false
+      return await encodeRgbaFramePng(rgba, width, height)
+    } catch {
+      return null
+    } finally {
+      if (mapped) buffer.unmap()
+      buffer.destroy()
+    }
+  }
+
   public renderFrame(space: Space, viewPoint: ViewPoint): void
   public renderFrame(space: Space, overlay: RenderOverlay | readonly RenderOverlay[] | null | undefined, viewPoint: ViewPoint): void
   public renderFrame(
@@ -1126,7 +1282,8 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     this.updateTextures()
 
     const commandEncoder = this.device!.createCommandEncoder()
-    const textureView = this.context!.getCurrentTexture().createView()
+    const canvasTexture = this.context!.getCurrentTexture()
+    const textureView = canvasTexture.createView()
     this.viewProjectionMatrix.multiplyMatrices(viewPoint.projectionMatrix, viewPoint.viewMatrix)
     this.device!.queue.writeBuffer(this.globalUniformBuffer!, 0, this.viewProjectionMatrix.elements)
     this.frustum.setFromProjectionMatrix(this.viewProjectionMatrix)
@@ -1168,8 +1325,26 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     preparedLayers.forEach((layer, index) => {
       this.renderPreparedLayer(commandEncoder, textureView, layer, renderIndexByItem, index === 0)
     })
+    this.renderOverlayLines(
+      commandEncoder,
+      textureView,
+      preparedLayers.flatMap((layer) => layer.overlayLines),
+      renderIndexByItem,
+    )
+    if (this.presentedFrameTexture) {
+      commandEncoder.copyTextureToTexture(
+        {texture: canvasTexture},
+        {texture: this.presentedFrameTexture},
+        {
+          width: this.canvas!.width,
+          height: this.canvas!.height,
+          depthOrArrayLayers: 1,
+        },
+      )
+    }
 
     this.device!.queue.submit([commandEncoder.finish()])
+    this.hasPresentedFrame = this.presentedFrameTexture !== null
   }
 
   private prepareRenderLayer(
@@ -1181,7 +1356,8 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     const allRenderItems: RenderItem[] = []
     const lights: LightItem[] = []
     collectSpaceObjects(root, allRenderItems, lights, this.frustum)
-    const {glassObjects, regularObjects, uiObjects} = this.collectSpaceObjectsByType(allRenderItems)
+    const {glassObjects, regularObjects, overlayLines, uiObjects} =
+      this.collectSpaceObjectsByType(allRenderItems)
 
     frameRenderItems.push(...allRenderItems)
     frameLights.push(...lights)
@@ -1190,6 +1366,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
       background,
       glassObjects,
       regularObjects,
+      overlayLines,
       uiObjects,
     }
   }
@@ -1233,6 +1410,25 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     this.renderObjectList(passEncoder, layer.uiObjects, renderIndexByItem, true)
 
     passEncoder.end()
+  }
+
+  private renderOverlayLines(
+    commandEncoder: GPUCommandEncoder,
+    textureView: GPUTextureView,
+    overlayLines: RenderItem[],
+    renderIndexByItem: ReadonlyMap<RenderItem, number>,
+  ): void {
+    if (overlayLines.length === 0) return
+    const overlayPass = commandEncoder.beginRenderPass({
+      colorAttachments: [{
+        view: textureView,
+        loadOp: "load",
+        storeOp: "store",
+      }],
+    })
+    overlayPass.setBindGroup(0, this.globalBindGroup!)
+    this.renderObjectList(overlayPass, overlayLines, renderIndexByItem)
+    overlayPass.end()
   }
 
 
@@ -1364,6 +1560,23 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     if (material instanceof MeshBasicMaterial || material instanceof MeshLambertMaterial) {
       this.writePerObjectRgba(offsetFloats + 32, material.color)
+    } else if (material instanceof ThinFilmMaterial) {
+      this.writePerObjectRgba(offsetFloats + 32, material.color)
+      this.writePerObjectRgba(offsetFloats + 36, material.rimColor)
+      this.writePerObjectVec4(
+        offsetFloats + 40,
+        material.opacity,
+        material.rimStrength,
+        material.iridescence,
+        material.filmThickness,
+      )
+      this.writePerObjectVec4(
+        offsetFloats + 44,
+        material.highlightSize,
+        0,
+        0,
+        0,
+      )
     } else if (isRadialBackdropMaterial(material)) {
       this.writePerObjectRgba(offsetFloats + 32, material.base)
       this.writePerObjectRgba(offsetFloats + 36, material.glowA)
@@ -1446,6 +1659,11 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     this.writePerObjectRgba(offsetFloats + 16, material.color, material.color.a * material.opacity)
 
     let glowIntensity = 1.0
+    let luminanceBoost = 1.0
+    let shimmerPhase = 0
+    let shimmerAmount = 0
+    let visualScale = 1
+    let silhouetteAmount = 0
     let glowR = 0
     let glowG = 0
     let glowB = 0
@@ -1453,6 +1671,11 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     if (isLineGlow) {
       glowIntensity = (material as LineGlowMaterial).glowIntensity
+      luminanceBoost = (material as LineGlowMaterial).luminanceBoost
+      shimmerPhase = (material as LineGlowMaterial).shimmerPhase
+      shimmerAmount = (material as LineGlowMaterial).shimmerAmount
+      visualScale = (material as LineGlowMaterial).visualScale
+      silhouetteAmount = (material as LineGlowMaterial).silhouetteAmount
       const glowColorObj = (material as LineGlowMaterial).glowColor
       if (glowColorObj) {
         glowR = glowColorObj.r
@@ -1462,8 +1685,15 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
       }
     }
 
-    this.writePerObjectVec4(offsetFloats + 20, glowIntensity, 0, 0, 0)
+    this.writePerObjectVec4(
+      offsetFloats + 20,
+      glowIntensity,
+      luminanceBoost,
+      shimmerPhase,
+      shimmerAmount,
+    )
     this.writePerObjectVec4(offsetFloats + 24, glowR, glowG, glowB, glowA)
+    this.writePerObjectVec4(offsetFloats + 28, visualScale, silhouetteAmount, 0, 0)
   }
 
   private updateTextData(text: Text, worldMatrix: Matrix4, offsetFloats: number, isStencil: boolean): void {
@@ -1504,13 +1734,15 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
                 ? this.usesExternalImageTexture(material)
                   ? (isUiLayer ? this.uiExternalImagePipeline : this.externalImagePipeline)
                   : (isUiLayer ? this.uiImagePipeline : this.imagePipeline)
-                : isRadialBackdropMaterial(material)
-                  ? (isUiLayer ? this.uiRadialBackdropPipeline : this.radialBackdropPipeline)
-                  : material instanceof RoundedRectMaterial
-                    ? (isUiLayer ? this.uiRoundedPipeline : this.roundedPipeline)
-                    : material instanceof MeshBasicMaterial
-                      ? (isUiLayer ? this.uiBasicMeshPipeline : this.basicMeshPipeline)
-                      : this.staticMeshPipeline
+                : material instanceof ThinFilmMaterial
+                  ? this.thinFilmMeshPipeline
+                  : isRadialBackdropMaterial(material)
+                    ? (isUiLayer ? this.uiRadialBackdropPipeline : this.radialBackdropPipeline)
+                    : material instanceof RoundedRectMaterial
+                      ? (isUiLayer ? this.uiRoundedPipeline : this.roundedPipeline)
+                      : material instanceof MeshBasicMaterial
+                        ? (isUiLayer ? this.uiBasicMeshPipeline : this.basicMeshPipeline)
+                        : this.staticMeshPipeline
           }
           break
         case "skinned-mesh":
@@ -1523,7 +1755,17 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
           pipeline = this.instancedLinePipeline
           break
         case "line":
-          pipeline = this.linePipeline
+          if ((item.object as LineSegments).material instanceof LineGlowMaterial) {
+            const visibilityMode =
+              ((item.object as LineSegments).material as LineGlowMaterial).visibilityMode
+            pipeline = visibilityMode === "overlay"
+              ? this.lineOverlayPipeline
+              : visibilityMode === "silhouette"
+                ? this.lineSilhouettePipeline
+                : this.linePipeline
+          } else {
+            pipeline = this.linePipeline
+          }
           break
         case "text-stencil":
           pipeline = this.textStencilPipeline
@@ -1632,13 +1874,12 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
       -(te[4]! * tx + te[5]! * ty + te[6]! * tz),
       -(te[8]! * tx + te[9]! * ty + te[10]! * tz),
     )
-    // Записываем cameraPosition после lights (36 + 4*32 = 164)
-    // 36 + 4*32 = 164 байта, что соответствует 41 элементу float32 (164/4 = 41)
-    float32View[41] = cameraPosition.x
-    float32View[42] = cameraPosition.y
-    float32View[43] = cameraPosition.z
+    const cameraOffset = SCENE_UNIFORM_LAYOUT.cameraFloatOffset
+    float32View[cameraOffset] = cameraPosition.x
+    float32View[cameraOffset + 1] = cameraPosition.y
+    float32View[cameraOffset + 2] = cameraPosition.z
 
-    const lightsArrayOffset = 36
+    const lightsArrayOffset = SCENE_UNIFORM_LAYOUT.lightsFloatOffset
     for (let i = 0; i < uint32View[32]!; i++) {
       const lightItem = lights[i]!
       const light = lightItem.light
@@ -2026,6 +2267,8 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     if (needsResize) {
       if (this.depthTexture) this.depthTexture.destroy()
       if (this.multisampleTexture) this.multisampleTexture.destroy()
+      if (this.presentedFrameTexture) this.presentedFrameTexture.destroy()
+      this.hasPresentedFrame = false
 
       const size = {width: this.canvas.width, height: this.canvas.height}
 
@@ -2041,6 +2284,12 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         format: this.presentationFormat,
         usage: GPUTextureUsage.RENDER_ATTACHMENT,
         sampleCount: this.sampleCount,
+      })
+
+      this.presentedFrameTexture = this.device.createTexture({
+        size,
+        format: this.presentationFormat,
+        usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.COPY_SRC,
       })
     }
   }

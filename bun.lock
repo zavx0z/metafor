@@ -59,6 +59,7 @@
         "@bulk/weak": "workspace:*",
         "@metafor/engine": "workspace:*",
         "@metafor/types": "workspace:*",
+        "@metafor/visual": "workspace:*",
         "@ui/components": "workspace:*",
         "@ui/elements": "workspace:*",
         "@ui/hud": "workspace:*",
@@ -117,13 +118,6 @@
       "name": "fixture",
       "peerDependencies": {
         "typescript": "^5",
-      },
-    },
-    "force": {
-      "name": "force",
-      "version": "0.0.1",
-      "dependencies": {
-        "shared": "workspace:*",
       },
     },
     "matrix": {
@@ -193,6 +187,14 @@
         "@ui/elements": "workspace:*",
       },
     },
+    "pkg/visual": {
+      "name": "@metafor/visual",
+      "version": "0.0.1",
+      "dependencies": {
+        "@metafor/engine": "workspace:*",
+        "@metafor/types": "workspace:*",
+      },
+    },
     "shared": {
       "name": "shared",
       "version": "0.0.1",
@@ -234,6 +236,8 @@
     "@metafor/template": ["@metafor/template@workspace:pkg/template"],
 
     "@metafor/types": ["@metafor/types@workspace:types"],
+
+    "@metafor/visual": ["@metafor/visual@workspace:pkg/visual"],
 
     "@shikijs/engine-oniguruma": ["@shikijs/engine-oniguruma@3.23.0", "", { "dependencies": { "@shikijs/types": "3.23.0", "@shikijs/vscode-textmate": "^10.0.2" } }, "sha512-1nWINwKXxKKLqPibT5f4pAFLej9oZzQTsby8942OTlsJzOBZ0MWKiwzMsd+jhzu8YPCHAswGnnN1YtQfirL35g=="],
 
@@ -308,8 +312,6 @@
     "escalade": ["escalade@3.2.0", "https://registry.yarnpkg.com/escalade/-/escalade-3.2.0.tgz", {}, "sha512-WUj2qlxaQtO4g6Pq5c29GTcWGDyd8itL8zTlipgECz3JesAiiOKotd8JU6otB3PACgG6xkJUyVhboMS+bje/jA=="],
 
     "fixture": ["fixture@workspace:fixture"],
-
-    "force": ["force@workspace:force"],
 
     "get-caller-file": ["get-caller-file@2.0.5", "https://registry.yarnpkg.com/get-caller-file/-/get-caller-file-2.0.5.tgz", {}, "sha512-DyFP3BM/3YHTQOCUL/w0OZHR0lpKeGrxotcHWcqNEdnltqFwXVfhEBQ94eIo34AfQpo0rGki4cyIiftY06h2Fg=="],
 

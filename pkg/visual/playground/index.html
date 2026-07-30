@@ -1,0 +1,2890 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MetaFor Visual</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: "JetBrains Mono", ui-monospace, monospace;
+        background: #050b12;
+        color: #e8edf7;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body,
+      main {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+      }
+
+      main {
+        display: grid;
+        grid-template-columns: 250px minmax(0, 1fr) 280px;
+        background: #050b12;
+      }
+
+      main.state-graph-mode {
+        grid-template-columns: 220px minmax(520px, 1fr) 360px;
+      }
+
+      main.form-skin-mode {
+        grid-template-columns: 220px minmax(520px, 1fr) 360px;
+      }
+
+      main.edges-mode {
+        grid-template-columns: 220px minmax(0, 1fr);
+      }
+
+      main.torus-analysis-mode {
+        grid-template-columns: 220px minmax(0, 1fr);
+      }
+
+      main.layout-mode #visual-visibility-controls {
+        display: none;
+      }
+
+      main.fields-analysis-mode {
+        grid-template-columns: 220px minmax(0, 1fr);
+      }
+
+      aside {
+        z-index: 2;
+        padding: 18px;
+        overflow: auto;
+        background: rgba(8, 15, 25, 0.94);
+        border-color: rgba(145, 171, 214, 0.18);
+      }
+
+      #stories {
+        border-right: 1px solid rgba(145, 171, 214, 0.18);
+      }
+
+      #controls {
+        border-left: 1px solid rgba(145, 171, 214, 0.18);
+      }
+
+      h1 {
+        margin: 0 0 4px;
+        font-size: 17px;
+      }
+
+      .eyebrow,
+      .meta,
+      output {
+        color: #8190a7;
+        font-size: 11px;
+      }
+
+      nav {
+        display: grid;
+        gap: 6px;
+        margin-top: 22px;
+      }
+
+      nav a {
+        display: block;
+        padding: 9px 11px;
+        border: 1px solid transparent;
+        border-radius: 8px;
+        color: #aebbd0;
+        text-decoration: none;
+      }
+
+      nav a:hover,
+      nav a.active {
+        color: white;
+        border-color: rgba(75, 205, 255, 0.42);
+        background: rgba(38, 137, 192, 0.14);
+      }
+
+      nav a[data-status="in-progress"]::after {
+        display: block;
+        margin-top: 3px;
+        color: #6f819a;
+        font-size: 7px;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        content: "в работе";
+      }
+
+      .nav-section {
+        margin: 14px 10px 2px;
+        padding-top: 14px;
+        border-top: 1px solid rgba(145, 171, 214, 0.14);
+        color: #6f7f96;
+        font-size: 10px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      #stage {
+        position: relative;
+        min-width: 0;
+        min-height: 0;
+        overflow: hidden;
+      }
+
+      #section-tabs {
+        position: absolute;
+        top: 0;
+        right: 0;
+        left: 0;
+        z-index: 20;
+        display: flex;
+        align-items: stretch;
+        height: 46px;
+        padding: 0 18px;
+        border-bottom: 1px solid rgba(145, 171, 214, 0.2);
+        background: rgba(5, 11, 18, 0.94);
+        backdrop-filter: blur(14px);
+      }
+
+      #section-tabs strong {
+        display: flex;
+        align-items: center;
+        margin-right: 16px;
+        color: #6f819a;
+        font-size: 9px;
+        font-weight: 400;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      #section-tabs a {
+        display: flex;
+        align-items: center;
+        padding: 0 15px;
+        border-right: 1px solid transparent;
+        border-left: 1px solid transparent;
+        color: #91a2b9;
+        font-size: 11px;
+        text-decoration: none;
+      }
+
+      #section-tabs a:hover {
+        color: #dbe8f8;
+        background: rgba(38, 137, 192, 0.08);
+      }
+
+      #section-tabs a.active {
+        border-right-color: rgba(75, 205, 255, 0.22);
+        border-bottom: 2px solid #4bcfff;
+        border-left-color: rgba(75, 205, 255, 0.22);
+        background: rgba(38, 137, 192, 0.14);
+        color: white;
+      }
+
+      main.section-tabs-mode #state-graph-stage,
+      main.section-tabs-mode #edges-stage,
+      main.section-tabs-mode #torus-analysis-stage,
+      main.section-tabs-mode #fields-analysis-stage {
+        top: 46px;
+      }
+
+      canvas {
+        display: block;
+        width: 100%;
+        height: 100%;
+        touch-action: none;
+      }
+
+      [hidden] {
+        display: none !important;
+      }
+
+      #title {
+        position: absolute;
+        top: 18px;
+        left: 20px;
+        z-index: 1;
+        max-width: min(560px, calc(100% - 40px));
+        padding: 12px 14px;
+        border: 1px solid rgba(145, 171, 214, 0.18);
+        border-radius: 10px;
+        background: rgba(5, 11, 18, 0.78);
+        backdrop-filter: blur(12px);
+        pointer-events: none;
+      }
+
+      #title h2 {
+        margin: 0 0 5px;
+        font-size: 16px;
+      }
+
+      #description {
+        margin: 0;
+        color: #a7b4c9;
+        font-size: 12px;
+        line-height: 1.45;
+      }
+
+      #state-graph-stage {
+        position: absolute;
+        inset: 0;
+        min-height: 0;
+        padding: 24px;
+        overflow: auto;
+        background:
+          radial-gradient(circle at 22% 0%, rgba(39, 128, 178, 0.12), transparent 38%),
+          #050b12;
+      }
+
+      #form-skin-stage {
+        position: absolute;
+        inset: 0;
+        display: grid;
+        grid-template-rows: auto auto minmax(420px, 1fr) auto auto;
+        gap: 14px;
+        min-height: 0;
+        padding: 24px;
+        overflow: auto;
+        background:
+          radial-gradient(circle at 48% 38%, rgba(39, 128, 178, 0.12), transparent 44%),
+          #050b12;
+      }
+
+      .form-skin-overview,
+      .form-skin-method {
+        width: min(100%, 1080px);
+        margin: 0 auto;
+        padding: 16px 18px;
+        border: 1px solid rgba(145, 171, 214, 0.2);
+        border-radius: 12px;
+        background: rgba(8, 17, 29, 0.88);
+      }
+
+      .form-skin-overview h2 {
+        margin: 0 0 7px;
+        font-size: 17px;
+      }
+
+      .form-skin-overview p,
+      .form-skin-method {
+        color: #91a2b9;
+        font-size: 10px;
+        line-height: 1.55;
+      }
+
+      #form-skin-variants {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 7px;
+        width: min(100%, 1080px);
+        margin: 0 auto;
+      }
+
+      #form-skin-variants button {
+        padding: 7px 11px;
+        border: 1px solid rgba(145, 171, 214, 0.2);
+        border-radius: 999px;
+        background: rgba(8, 17, 29, 0.82);
+        color: #8fa2ba;
+        font: 10px/1 "JetBrains Mono", ui-monospace, monospace;
+        cursor: pointer;
+      }
+
+      #form-skin-variants button:hover,
+      #form-skin-variants button.active {
+        border-color: rgba(84, 216, 255, 0.58);
+        background: rgba(35, 134, 178, 0.24);
+        color: #dff8ff;
+      }
+
+      .form-skin-viewport {
+        position: relative;
+        width: min(100%, 1080px);
+        min-height: 420px;
+        margin: 0 auto;
+        overflow: hidden;
+        border: 1px solid rgba(145, 171, 214, 0.22);
+        border-radius: 14px;
+        background:
+          radial-gradient(circle at 50% 46%, rgba(26, 112, 156, 0.13), transparent 52%),
+          #030810;
+        box-shadow: 0 18px 55px rgba(0, 0, 0, 0.2);
+      }
+
+      #form-skin-canvas {
+        position: absolute;
+        inset: 0;
+      }
+
+      .form-skin-viewport-hint {
+        position: absolute;
+        right: 12px;
+        bottom: 11px;
+        padding: 5px 7px;
+        border: 1px solid rgba(145, 171, 214, 0.14);
+        border-radius: 6px;
+        background: rgba(3, 8, 15, 0.76);
+        color: #697b94;
+        font-size: 8px;
+        pointer-events: none;
+      }
+
+      .form-skin-badge {
+        position: absolute;
+        top: 12px;
+        left: 12px;
+        padding: 5px 7px;
+        border: 1px solid rgba(84, 216, 255, 0.24);
+        border-radius: 6px;
+        background: rgba(3, 8, 15, 0.76);
+        color: #77d9f8;
+        font-size: 8px;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        pointer-events: none;
+      }
+
+      .form-skin-comparison {
+        width: min(100%, 1080px);
+        margin: 0 auto;
+        overflow: auto;
+        border: 1px solid rgba(145, 171, 214, 0.18);
+        border-radius: 12px;
+        background: rgba(8, 17, 29, 0.84);
+      }
+
+      .form-skin-comparison h3 {
+        margin: 0;
+        padding: 13px 15px 10px;
+        color: #d7e1ef;
+        font-size: 11px;
+        font-weight: 400;
+      }
+
+      .form-skin-comparison table {
+        width: 100%;
+        border-collapse: collapse;
+        color: #93a5bd;
+        font-size: 8px;
+        white-space: nowrap;
+      }
+
+      .form-skin-comparison th,
+      .form-skin-comparison td {
+        padding: 7px 10px;
+        border-top: 1px solid rgba(145, 171, 214, 0.1);
+        text-align: right;
+      }
+
+      .form-skin-comparison th:first-child,
+      .form-skin-comparison td:first-child {
+        text-align: left;
+      }
+
+      .form-skin-comparison th {
+        color: #677b96;
+        font-weight: 400;
+      }
+
+      .form-skin-comparison tr.active td {
+        background: rgba(39, 145, 190, 0.1);
+        color: #dff7ff;
+      }
+
+      .state-graph-overview {
+        max-width: 1040px;
+        margin: 0 auto 22px;
+        padding: 17px 19px;
+        border: 1px solid rgba(145, 171, 214, 0.2);
+        border-radius: 12px;
+        background: rgba(8, 17, 29, 0.88);
+      }
+
+      .state-graph-overview h2 {
+        margin: 0 0 8px;
+        font-size: 17px;
+      }
+
+      .state-graph-overview p {
+        margin: 0;
+        color: #a7b4c9;
+        font-size: 11px;
+        line-height: 1.6;
+      }
+
+      #state-graph-cards {
+        display: grid;
+        gap: 18px;
+        max-width: 1040px;
+        margin: 0 auto;
+      }
+
+      .state-branch-card {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        min-height: 360px;
+        overflow: hidden;
+        border: 1px solid rgba(145, 171, 214, 0.2);
+        border-radius: 13px;
+        background: rgba(7, 14, 24, 0.9);
+        box-shadow: 0 14px 50px rgba(0, 0, 0, 0.18);
+      }
+
+      .state-branch-viewer {
+        position: relative;
+        min-height: 360px;
+        border-right: 1px solid rgba(145, 171, 214, 0.16);
+        background:
+          radial-gradient(circle at 50% 48%, rgba(31, 113, 154, 0.12), transparent 56%),
+          #030810;
+      }
+
+      .state-branch-canvas {
+        position: absolute;
+        inset: 0;
+      }
+
+      .state-branch-hint {
+        position: absolute;
+        right: 10px;
+        bottom: 9px;
+        z-index: 1;
+        padding: 5px 7px;
+        border: 1px solid rgba(145, 171, 214, 0.14);
+        border-radius: 6px;
+        background: rgba(3, 8, 15, 0.72);
+        color: #697b94;
+        font-size: 8px;
+        pointer-events: none;
+      }
+
+      .state-view-cube {
+        position: absolute;
+        top: 20px;
+        right: 24px;
+        z-index: 3;
+        width: 70px;
+        height: 70px;
+        perspective: 190px;
+      }
+
+      .state-view-cube-body {
+        position: absolute;
+        top: 9px;
+        left: 9px;
+        width: 52px;
+        height: 52px;
+        transform: rotateX(-24deg) rotateY(36deg);
+        transform-style: preserve-3d;
+      }
+
+      .state-view-cube-face {
+        position: absolute;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        padding: 0;
+        border: 1px solid rgba(133, 218, 255, 0.72);
+        border-radius: 3px;
+        background: rgba(20, 52, 72, 0.82);
+        color: #c6efff;
+        font: 700 7px/1 "JetBrains Mono", ui-monospace, monospace;
+        letter-spacing: 0.02em;
+        cursor: pointer;
+        backface-visibility: visible;
+        transition:
+          background 120ms ease,
+          color 120ms ease,
+          box-shadow 120ms ease;
+      }
+
+      .state-view-cube-face:hover,
+      .state-view-cube-face.active {
+        background: rgba(52, 174, 226, 0.92);
+        color: white;
+        box-shadow: inset 0 0 16px rgba(150, 234, 255, 0.38);
+      }
+
+      .state-view-cube-face.front {
+        transform: translateZ(26px);
+      }
+
+      .state-view-cube-face.back {
+        transform: rotateY(180deg) translateZ(26px);
+      }
+
+      .state-view-cube-face.right {
+        transform: rotateY(90deg) translateZ(26px);
+      }
+
+      .state-view-cube-face.left {
+        transform: rotateY(-90deg) translateZ(26px);
+      }
+
+      .state-view-cube-face.top {
+        transform: rotateX(90deg) translateZ(26px);
+      }
+
+      .state-view-cube-face.bottom {
+        transform: rotateX(-90deg) translateZ(26px);
+      }
+
+      .state-annotation-canvas {
+        position: absolute;
+        inset: 0;
+        z-index: 2;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+        touch-action: none;
+      }
+
+      .state-annotation-canvas.active {
+        pointer-events: auto;
+        cursor: crosshair;
+      }
+
+      .state-annotation-controls {
+        position: absolute;
+        left: 12px;
+        bottom: 10px;
+        z-index: 6;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .state-annotation-button {
+        display: grid;
+        width: 30px;
+        height: 30px;
+        place-items: center;
+        padding: 0;
+        border: 1px solid rgba(145, 171, 214, 0.25);
+        border-radius: 7px;
+        background: rgba(4, 11, 19, 0.88);
+        color: #8fa5c1;
+        cursor: pointer;
+      }
+
+      .state-annotation-button svg {
+        width: 16px;
+        height: 16px;
+        fill: currentColor;
+      }
+
+      .state-annotation-button:hover {
+        color: #d8f4ff;
+        border-color: rgba(99, 211, 255, 0.52);
+      }
+
+      .state-annotation-button.pencil.active {
+        color: #ffd16f;
+        border-color: rgba(255, 191, 63, 0.72);
+        background: rgba(104, 67, 13, 0.72);
+        box-shadow: 0 0 16px rgba(255, 174, 31, 0.22);
+      }
+
+      .state-annotation-status {
+        max-width: 210px;
+        overflow: hidden;
+        color: #7f92ac;
+        font-size: 8px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .state-annotation-status.saved {
+        color: #72d6a0;
+      }
+
+      .state-annotation-status.error {
+        color: #ef8190;
+      }
+
+      .state-branch-detail {
+        min-width: 0;
+        padding: 18px;
+        overflow: auto;
+      }
+
+      .state-branch-heading {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 16px;
+      }
+
+      .state-branch-heading h3 {
+        margin: 0;
+        font-size: 14px;
+      }
+
+      .state-branch-outcome {
+        padding: 4px 7px;
+        border: 1px solid rgba(98, 218, 255, 0.28);
+        border-radius: 999px;
+        color: #7ddcfb;
+        font-size: 8px;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+      }
+
+      .state-branch-outcome.cycle {
+        border-color: rgba(255, 174, 76, 0.32);
+        color: #e7ae67;
+      }
+
+      .state-branch-outcome.missing-state {
+        border-color: rgba(255, 86, 108, 0.34);
+        color: #ef8190;
+      }
+
+      .state-branch-section-label {
+        margin: 15px 0 6px;
+        color: #6f819b;
+        font-size: 8px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .state-branch-path,
+      .state-branch-outcome-text {
+        margin: 0;
+        color: #dbe5f3;
+        font-size: 10px;
+        line-height: 1.55;
+        overflow-wrap: anywhere;
+      }
+
+      .state-branch-outcome-text {
+        margin-top: 7px;
+        color: #91a2b9;
+      }
+
+      .state-branch-counts {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 6px 12px;
+        margin: 14px 0 0;
+        padding: 11px 0;
+        border-top: 1px solid rgba(145, 171, 214, 0.12);
+        border-bottom: 1px solid rgba(145, 171, 214, 0.12);
+        color: #91a2b9;
+        font-size: 9px;
+      }
+
+      .state-branch-counts dt,
+      .state-branch-counts dd {
+        margin: 0;
+      }
+
+      .state-branch-counts dd {
+        color: white;
+      }
+
+      .state-branch-transitions {
+        display: grid;
+        gap: 6px;
+        margin: 0;
+        padding-left: 18px;
+        color: #9fb0c7;
+        font-size: 9px;
+        line-height: 1.5;
+      }
+
+      .state-graph-empty {
+        margin: 0;
+        padding: 24px;
+        border: 1px dashed rgba(145, 171, 214, 0.2);
+        border-radius: 12px;
+        color: #8190a7;
+        font-size: 11px;
+      }
+
+      fieldset {
+        display: grid;
+        gap: 10px;
+        margin: 0 0 18px;
+        padding: 0;
+        border: 0;
+      }
+
+      legend {
+        margin-bottom: 11px;
+        color: #d4dcea;
+        font-size: 12px;
+      }
+
+      label {
+        display: grid;
+        gap: 5px;
+        color: #aebbd0;
+        font-size: 11px;
+      }
+
+      label.inline {
+        grid-template-columns: 18px 1fr;
+        align-items: center;
+      }
+
+      input[type="range"] {
+        width: 100%;
+      }
+
+      #counts,
+      #state-graph-counts {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 7px 12px;
+        margin: 0;
+        color: #aebbd0;
+        font-size: 11px;
+      }
+
+      #counts dt,
+      #counts dd,
+      #state-graph-counts dt,
+      #state-graph-counts dd {
+        margin: 0;
+      }
+
+      #counts dd,
+      #state-graph-counts dd {
+        color: white;
+      }
+
+      #state-graph-controls label {
+        margin-bottom: 18px;
+      }
+
+      #state-graph-controls select {
+        width: 100%;
+        padding: 7px 8px;
+        border: 1px solid rgba(145, 171, 214, 0.22);
+        border-radius: 7px;
+        background: #08111d;
+        color: #dce5f3;
+      }
+
+      #form-skin-controls select,
+      #form-skin-controls input[type="color"] {
+        width: 100%;
+        min-height: 32px;
+        padding: 6px 8px;
+        border: 1px solid rgba(145, 171, 214, 0.22);
+        border-radius: 7px;
+        background: #08111d;
+        color: #dce5f3;
+      }
+
+      #form-skin-controls input[type="color"] {
+        padding: 3px;
+        cursor: pointer;
+      }
+
+      #form-skin-description {
+        margin: -7px 0 18px;
+        color: #8190a7;
+        font-size: 9px;
+        line-height: 1.5;
+      }
+
+      #form-skin-metrics {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 7px 12px;
+        margin: 0;
+        color: #aebbd0;
+        font-size: 10px;
+      }
+
+      #form-skin-metrics dt,
+      #form-skin-metrics dd {
+        margin: 0;
+      }
+
+      #form-skin-metrics dd {
+        color: white;
+        text-align: right;
+      }
+
+      #form-skin-run-current,
+      #form-skin-run-all,
+      #form-skin-reset {
+        width: 100%;
+        margin: 2px 0 12px;
+        padding: 8px 10px;
+        border: 1px solid rgba(84, 216, 255, 0.3);
+        border-radius: 8px;
+        background: rgba(31, 121, 160, 0.14);
+        color: #bcefff;
+        font: 10px/1 "JetBrains Mono", ui-monospace, monospace;
+        cursor: pointer;
+      }
+
+      #form-skin-run-current:hover,
+      #form-skin-run-all:hover,
+      #form-skin-reset:hover {
+        border-color: rgba(84, 216, 255, 0.58);
+        background: rgba(31, 121, 160, 0.25);
+      }
+
+      #form-skin-run-current:disabled,
+      #form-skin-run-all:disabled {
+        cursor: wait;
+        opacity: 0.5;
+      }
+
+      #form-skin-benchmark-status {
+        min-height: 28px;
+        margin: -5px 0 8px;
+        color: #76cce8;
+        font-size: 8px;
+        line-height: 1.4;
+      }
+
+      .form-skin-metric-note {
+        margin: 0;
+        color: #6f819a;
+        font-size: 8px;
+        line-height: 1.5;
+      }
+
+      #edges-stage {
+        position: absolute;
+        inset: 0;
+        overflow-x: hidden;
+        overflow-y: auto;
+        background:
+          radial-gradient(circle at 50% 46%, rgba(31, 118, 162, 0.12), transparent 48%),
+          #030810;
+      }
+
+      #edges-viewport {
+        position: relative;
+        height: 100%;
+        min-height: 720px;
+        overflow: hidden;
+      }
+
+      #edges-canvas {
+        position: absolute;
+        inset: 0;
+      }
+
+      .edges-example-save-control {
+        position: absolute;
+        right: 18px;
+        bottom: 112px;
+        z-index: 7;
+        display: grid;
+        justify-items: end;
+        gap: 5px;
+      }
+
+      #edges-add-example {
+        padding: 8px 12px;
+        border: 1px solid rgba(75, 207, 255, 0.55);
+        border-radius: 7px;
+        background: rgba(20, 91, 126, 0.78);
+        color: #effaff;
+        cursor: pointer;
+        font: inherit;
+        font-size: 10px;
+      }
+
+      #edges-add-example:hover,
+      #edges-add-example:focus-visible {
+        border-color: #72d7ff;
+        background: rgba(28, 118, 160, 0.9);
+      }
+
+      #edges-add-example:disabled {
+        cursor: wait;
+        opacity: 0.6;
+      }
+
+      #edges-add-example-status {
+        min-height: 14px;
+        color: #72d7ff;
+        font-size: 8px;
+      }
+
+      #edges-examples {
+        min-height: 320px;
+        padding: 26px 24px 42px;
+        border-top: 1px solid rgba(145, 171, 214, 0.2);
+        background: #050b12;
+      }
+
+      #edges-viewport[hidden] + #edges-examples {
+        min-height: 100%;
+        border-top: 0;
+      }
+
+      #edges-examples > header {
+        margin-bottom: 17px;
+      }
+
+      #edges-examples h2 {
+        margin: 0 0 5px;
+        color: #eaf4ff;
+        font-size: 16px;
+      }
+
+      #edges-examples header p,
+      #edges-examples-empty {
+        margin: 0;
+        color: #8192a9;
+        font-size: 10px;
+        line-height: 1.55;
+      }
+
+      .edges-examples-table-wrap {
+        max-width: 1600px;
+        overflow-x: auto;
+        border: 1px solid rgba(145, 171, 214, 0.18);
+        border-radius: 9px;
+      }
+
+      #edges-examples table {
+        width: 100%;
+        min-width: 980px;
+        border-collapse: collapse;
+        color: #b8c6d8;
+        font-size: 9px;
+      }
+
+      #edges-examples th,
+      #edges-examples td {
+        padding: 10px 11px;
+        border-bottom: 1px solid rgba(145, 171, 214, 0.13);
+        text-align: left;
+        vertical-align: top;
+      }
+
+      #edges-examples th {
+        background: rgba(12, 24, 37, 0.94);
+        color: #8498b2;
+        font-size: 8px;
+        font-weight: 500;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+      }
+
+      #edges-examples tbody tr:last-child td {
+        border-bottom: 0;
+      }
+
+      .edges-example-preview {
+        display: block;
+        width: 260px;
+        height: 140px;
+        border-radius: 6px;
+        background: #02070d;
+      }
+
+      .edges-example-algorithm {
+        display: grid;
+        gap: 7px;
+        min-width: 260px;
+      }
+
+      .edges-example-algorithm > a {
+        color: #79dafa;
+        font-size: 10px;
+        text-decoration: none;
+      }
+
+      .edges-example-algorithm > small,
+      .edges-example-parameters {
+        color: #8597ad;
+        line-height: 1.55;
+      }
+
+      .edges-example-parameters strong {
+        color: #d8e5f3;
+        font-weight: 500;
+      }
+
+      #edges-examples-empty {
+        padding: 34px 0;
+      }
+
+      .edges-formula {
+        position: absolute;
+        top: 16px;
+        left: 50%;
+        z-index: 4;
+        width: min(940px, max(430px, calc(100% - 590px)));
+        padding: 11px 16px;
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        border-radius: 9px;
+        background: rgba(3, 9, 16, 0.9);
+        color: #f4f8ff;
+        font-size: 10px;
+        font-weight: 700;
+        line-height: 1.65;
+        text-align: center;
+        transform: translateX(-50%);
+        backdrop-filter: blur(14px);
+      }
+
+      .edges-formula-line {
+        white-space: nowrap;
+      }
+
+      .edges-formula-description {
+        position: absolute;
+        top: 8px;
+        right: 9px;
+        z-index: 3;
+        text-align: left;
+      }
+
+      .edges-formula-description summary {
+        display: grid;
+        width: 20px;
+        height: 20px;
+        border: 1px solid rgba(75, 207, 255, 0.58);
+        border-radius: 50%;
+        color: #72d7ff;
+        cursor: pointer;
+        font-size: 11px;
+        line-height: 1;
+        list-style: none;
+        place-items: center;
+      }
+
+      .edges-formula-description summary::-webkit-details-marker {
+        display: none;
+      }
+
+      .edges-formula-description > div {
+        position: absolute;
+        top: 27px;
+        right: 0;
+        width: min(480px, calc(100vw - 620px));
+        min-width: 360px;
+        padding: 11px 13px;
+        border: 1px solid rgba(75, 207, 255, 0.48);
+        border-radius: 8px;
+        background: rgba(3, 9, 16, 0.98);
+        color: #d5dfec;
+        font-size: 9px;
+        font-weight: 400;
+        line-height: 1.5;
+        box-shadow: 0 0 16px rgba(75, 207, 255, 0.14);
+      }
+
+      .edges-formula-description strong {
+        display: block;
+        margin-bottom: 5px;
+        color: #f4f8ff;
+        font-size: 10px;
+      }
+
+      .edges-formula-description p {
+        margin: 0 0 6px;
+      }
+
+      .edges-formula-description p:last-child {
+        margin-bottom: 0;
+      }
+
+      .edges-formula-description a {
+        color: #72d7ff;
+      }
+
+      .edges-formula-variable {
+        display: inline-block;
+        padding: 0 1px;
+        color: white;
+        font-size: 1.12em;
+        cursor: crosshair;
+        opacity: 0.42;
+        text-shadow: 0 0 7px currentColor;
+        transition:
+          opacity 120ms ease,
+          text-shadow 120ms ease;
+      }
+
+      .edges-formula-variable.is-highlighted {
+        opacity: 1;
+        text-shadow:
+          0 0 5px currentColor,
+          0 0 13px currentColor;
+      }
+
+      .edges-formula-values {
+        margin-top: 5px;
+        padding-top: 5px;
+        border-top: 1px solid rgba(255, 255, 255, 0.14);
+        color: #a8bad0;
+        font-size: 7px;
+        font-weight: 400;
+        white-space: normal;
+      }
+
+      #edges-formula-links {
+        position: absolute;
+        inset: 0;
+        z-index: 5;
+        width: 100%;
+        height: 100%;
+        overflow: visible;
+        pointer-events: none;
+      }
+
+      #edges-formula-links path {
+        fill: none;
+        opacity: 0.28;
+        pointer-events: stroke;
+        stroke-width: 1.5;
+        stroke-linecap: round;
+        transition:
+          filter 120ms ease,
+          opacity 120ms ease,
+          stroke-width 120ms ease;
+        vector-effect: non-scaling-stroke;
+      }
+
+      #edges-formula-links path.is-highlighted {
+        filter: drop-shadow(0 0 5px currentColor);
+        opacity: 1;
+        stroke-width: 2.5;
+      }
+
+      #edges-formula-target {
+        position: absolute;
+        z-index: 4;
+        width: 18px;
+        height: 18px;
+        border: 2px solid currentColor;
+        border-radius: 50%;
+        opacity: 0;
+        pointer-events: none;
+        transform: translate(-50%, -50%);
+        transition: opacity 100ms ease;
+      }
+
+      #edges-formula-target.is-highlighted {
+        opacity: 1;
+        box-shadow:
+          0 0 8px currentColor,
+          inset 0 0 8px currentColor;
+      }
+
+      #edges-formula-help {
+        position: absolute;
+        top: 194px;
+        left: 50%;
+        z-index: 6;
+        width: min(430px, calc(100% - 620px));
+        min-width: 310px;
+        padding: 9px 12px;
+        border: 1px solid currentColor;
+        border-radius: 8px;
+        background: rgba(3, 9, 16, 0.94);
+        color: white;
+        font-size: 9px;
+        line-height: 1.45;
+        pointer-events: none;
+        transform: translateX(-50%);
+        box-shadow: 0 0 10px color-mix(in srgb, currentColor 30%, transparent);
+      }
+
+      #edges-formula-help strong {
+        display: block;
+        margin-bottom: 3px;
+        color: currentColor;
+        font-size: 10px;
+      }
+
+      #edges-formula-help p {
+        margin: 0;
+        color: #d5dfec;
+      }
+
+      .edges-scene-controls {
+        position: absolute;
+        top: 18px;
+        left: 18px;
+        z-index: 2;
+        width: min(250px, calc(100% - 36px));
+        padding: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.22);
+        border-radius: 11px;
+        background: rgba(3, 9, 16, 0.82);
+        backdrop-filter: blur(14px);
+      }
+
+      .edges-scene-controls h2 {
+        margin: 0 0 5px;
+        font-size: 14px;
+      }
+
+      .edges-scene-controls > p {
+        margin: 0 0 9px;
+        color: #8597ae;
+        font-size: 8px;
+        line-height: 1.5;
+      }
+
+      .edges-scene-controls fieldset {
+        gap: 8px;
+        margin-bottom: 13px;
+      }
+
+      .edges-scene-controls legend {
+        margin-bottom: 8px;
+        font-size: 10px;
+      }
+
+      .edges-scene-controls label {
+        font-size: 9px;
+      }
+
+      .edges-scene-controls output {
+        float: right;
+        color: white;
+      }
+
+      .edges-scene-controls > .inline {
+        display: flex;
+        gap: 7px;
+        align-items: center;
+        margin-top: 9px;
+        color: #b5c7da;
+        font-size: 8px;
+      }
+
+      .edges-scene-controls > .edges-parameter-help {
+        position: absolute;
+        right: 10px;
+        bottom: 9px;
+      }
+
+      .edges-scene-measure {
+        position: absolute;
+        z-index: 3;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto auto;
+        gap: 5px 8px;
+        width: 190px;
+        padding: 7px 8px;
+        border: 1px solid rgba(255, 255, 255, 0.26);
+        border-radius: 7px;
+        background: rgba(3, 9, 16, 0.88);
+        color: #cbd8e8;
+        font-size: 8px;
+        line-height: 1.25;
+        transform: translate(-50%, -50%);
+        backdrop-filter: blur(10px);
+      }
+
+      .edges-scene-measure output {
+        color: white;
+        text-align: right;
+      }
+
+      .edges-scene-measure input[type="range"] {
+        grid-column: 1 / -1;
+        width: 100%;
+      }
+
+      .edges-scene-measure > .edges-parameter-help {
+        grid-column: 3;
+        grid-row: 1;
+      }
+
+      .edges-scene-measure.derived {
+        grid-template-columns: minmax(0, 1fr) auto;
+        pointer-events: none;
+      }
+
+      .edges-scene-measure.derived small {
+        grid-column: 1 / -1;
+        color: #71849c;
+        font-size: 7px;
+      }
+
+      .edges-scene-measure.safe {
+        border-color: rgba(115, 255, 190, 0.5);
+      }
+
+      .edges-scene-measure.unsafe {
+        border-color: rgba(255, 92, 92, 0.72);
+      }
+
+      .edges-scene-measure.is-formula-highlighted {
+        border-color: currentColor !important;
+        box-shadow:
+          0 0 8px currentColor,
+          inset 0 0 7px color-mix(in srgb, currentColor 24%, transparent);
+      }
+
+      .edges-analysis-control output {
+        float: none;
+        font-size: 8px;
+        text-align: right;
+      }
+
+      .edges-torus-source {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 5px 10px;
+        padding: 8px 9px;
+        border: 1px solid rgba(126, 220, 251, 0.18);
+        border-radius: 7px;
+        background: rgba(18, 67, 87, 0.1);
+        font-size: 8px;
+      }
+
+      .edges-torus-source span {
+        color: #8aa0b8;
+      }
+
+      .edges-torus-source output {
+        float: none;
+        color: #dff8ff;
+        text-align: right;
+      }
+
+      .edges-torus-source small {
+        grid-column: 1 / -1;
+        color: #687d96;
+        font-size: 7px;
+        line-height: 1.45;
+      }
+
+      .edges-view-controls {
+        position: absolute;
+        top: 18px;
+        right: 18px;
+        z-index: 2;
+        display: flex;
+        gap: 6px;
+        padding: 6px;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        border-radius: 9px;
+        background: rgba(3, 9, 16, 0.78);
+        backdrop-filter: blur(12px);
+      }
+
+      .edges-view-controls button {
+        padding: 6px 8px;
+        border: 1px solid transparent;
+        border-radius: 6px;
+        background: transparent;
+        color: #879bb4;
+        font: 8px/1 "JetBrains Mono", ui-monospace, monospace;
+        cursor: pointer;
+      }
+
+      .edges-view-controls button:hover,
+      .edges-view-controls button.active {
+        border-color: rgba(255, 255, 255, 0.34);
+        background: rgba(255, 255, 255, 0.09);
+        color: white;
+      }
+
+      #edges-readout {
+        position: absolute;
+        right: 18px;
+        bottom: 18px;
+        left: 18px;
+        z-index: 2;
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 1px;
+        overflow: hidden;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        border-radius: 10px;
+        background: rgba(3, 9, 16, 0.8);
+        backdrop-filter: blur(12px);
+      }
+
+      #edges-readout div {
+        display: grid;
+        gap: 3px;
+        min-width: 0;
+        padding: 9px 11px;
+        border-right: 1px solid rgba(255, 255, 255, 0.08);
+      }
+
+      #edges-readout span {
+        color: #72869f;
+        font-size: 7px;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+      }
+
+      #edges-readout strong {
+        overflow: hidden;
+        color: white;
+        font-size: 9px;
+        font-weight: 400;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      #torus-analysis-stage {
+        position: absolute;
+        inset: 0;
+        overflow: hidden;
+        background:
+          radial-gradient(circle at 50% 46%, rgba(31, 118, 162, 0.12), transparent 48%),
+          #030810;
+      }
+
+      #torus-analysis-canvas {
+        position: absolute;
+        inset: 0;
+      }
+
+      #fields-analysis-stage {
+        position: absolute;
+        inset: 0;
+        overflow: hidden;
+        background:
+          radial-gradient(circle at 50% 46%, rgba(31, 118, 162, 0.12), transparent 48%),
+          #030810;
+      }
+
+      #fields-analysis-canvas {
+        position: absolute;
+        inset: 0;
+      }
+
+      .fields-analysis-card {
+        position: absolute;
+        top: 18px;
+        left: 18px;
+        z-index: 2;
+        width: min(330px, calc(100% - 36px));
+        padding: 14px;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 11px;
+        background: rgba(3, 9, 16, 0.82);
+        backdrop-filter: blur(14px);
+      }
+
+      .fields-analysis-card h2 {
+        margin: 0 0 5px;
+        font-size: 14px;
+      }
+
+      .fields-analysis-card p {
+        margin: 0 0 13px;
+        color: #8597ae;
+        font-size: 8px;
+        line-height: 1.5;
+      }
+
+      .fields-analysis-control {
+        display: grid;
+        gap: 7px;
+      }
+
+      .fields-analysis-control span {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        font-size: 9px;
+      }
+
+      .fields-analysis-control output {
+        color: white;
+      }
+
+      .fields-analysis-hint {
+        position: absolute;
+        right: 14px;
+        bottom: 84px;
+        z-index: 2;
+        padding: 5px 7px;
+        border: 1px solid rgba(145, 171, 214, 0.14);
+        border-radius: 6px;
+        background: rgba(3, 8, 15, 0.76);
+        color: #697b94;
+        font-size: 8px;
+        pointer-events: none;
+      }
+
+      #fields-analysis-readout {
+        position: absolute;
+        right: 18px;
+        bottom: 18px;
+        left: 18px;
+        z-index: 2;
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        overflow: hidden;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        border-radius: 10px;
+        background: rgba(3, 9, 16, 0.8);
+        backdrop-filter: blur(12px);
+      }
+
+      #fields-analysis-readout div {
+        display: grid;
+        gap: 3px;
+        min-width: 0;
+        padding: 9px 11px;
+        border-right: 1px solid rgba(255, 255, 255, 0.08);
+      }
+
+      #fields-analysis-readout span {
+        color: #72869f;
+        font-size: 7px;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+      }
+
+      #fields-analysis-readout output,
+      #fields-analysis-readout strong {
+        color: white;
+        font-size: 9px;
+        font-weight: 400;
+      }
+
+      .torus-analysis-card {
+        position: absolute;
+        top: 18px;
+        z-index: 2;
+        width: min(330px, calc(50% - 28px));
+        max-height: calc(100% - 145px);
+        padding: 14px;
+        overflow: auto;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 11px;
+        background: rgba(3, 9, 16, 0.82);
+        backdrop-filter: blur(14px);
+      }
+
+      .torus-analysis-card.standard {
+        left: 18px;
+      }
+
+      .torus-analysis-card.metafor {
+        right: 18px;
+      }
+
+      .torus-analysis-card h2,
+      .torus-analysis-card h3 {
+        margin: 0 0 5px;
+        font-size: 14px;
+      }
+
+      .torus-analysis-card h3 {
+        font-size: 12px;
+      }
+
+      .torus-analysis-card > p {
+        margin: 0 0 13px;
+        color: #8597ae;
+        font-size: 8px;
+        line-height: 1.5;
+      }
+
+      .torus-analysis-card a {
+        color: #7edcfb;
+      }
+
+      .torus-analysis-card fieldset {
+        gap: 8px;
+        margin-bottom: 10px;
+      }
+
+      .torus-analysis-control,
+      .edges-analysis-control {
+        position: relative;
+        display: grid;
+        gap: 4px;
+      }
+
+      .torus-analysis-control-header,
+      .edges-analysis-control-header {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto auto;
+        gap: 6px;
+        align-items: center;
+      }
+
+      .edges-analysis-control-header.no-output {
+        grid-template-columns: minmax(0, 1fr) auto;
+      }
+
+      .torus-analysis-control label,
+      .edges-analysis-control label {
+        font-size: 9px;
+      }
+
+      .torus-analysis-card output {
+        color: white;
+        font-size: 8px;
+        text-align: right;
+      }
+
+      .torus-default-values {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: 5px;
+      }
+
+      .torus-three-default,
+      .torus-our-default {
+        min-width: 0;
+        padding: 5px 6px;
+        overflow: hidden;
+        border: 1px solid rgba(145, 171, 214, 0.18);
+        border-radius: 6px;
+        background: rgba(5, 12, 21, 0.72);
+        color: #74879f;
+        font: 7px/1.25 "JetBrains Mono", ui-monospace, monospace;
+        text-align: left;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .torus-our-default {
+        border-color: rgba(126, 220, 251, 0.34);
+        color: #9ee7ff;
+        cursor: pointer;
+      }
+
+      .torus-our-default:hover,
+      .torus-our-default:focus-visible {
+        border-color: rgba(126, 220, 251, 0.7);
+        background: rgba(36, 126, 163, 0.2);
+        color: white;
+      }
+
+      #torus-analysis-default-status {
+        min-height: 12px;
+        margin: -4px 0 5px;
+        color: #7edcfb;
+        font-size: 7px;
+      }
+
+      .torus-parameter-help,
+      .edges-parameter-help {
+        position: relative;
+      }
+
+      .torus-parameter-help summary,
+      .edges-parameter-help summary {
+        display: grid;
+        width: 17px;
+        height: 17px;
+        place-items: center;
+        border: 1px solid rgba(126, 220, 251, 0.42);
+        border-radius: 50%;
+        color: #7edcfb;
+        cursor: pointer;
+        font-size: 9px;
+        line-height: 1;
+        list-style: none;
+        user-select: none;
+      }
+
+      .torus-parameter-help summary::-webkit-details-marker,
+      .edges-parameter-help summary::-webkit-details-marker {
+        display: none;
+      }
+
+      .torus-parameter-help[open] summary,
+      .edges-parameter-help[open] summary {
+        border-color: #7edcfb;
+        background: rgba(126, 220, 251, 0.14);
+        color: white;
+      }
+
+      .torus-parameter-help-text,
+      .edges-parameter-help-text {
+        position: absolute;
+        top: 23px;
+        right: 0;
+        z-index: 8;
+        width: 276px;
+        padding: 10px 11px;
+        border: 1px solid rgba(126, 220, 251, 0.38);
+        border-radius: 8px;
+        background: rgba(4, 11, 20, 0.98);
+        box-shadow: 0 12px 32px rgba(0, 0, 0, 0.48);
+        color: #c7d4e4;
+        font-size: 8px;
+        line-height: 1.55;
+      }
+
+      .torus-parameter-help-text strong,
+      .edges-parameter-help-text strong {
+        color: white;
+      }
+
+      #torus-analysis-validation {
+        margin: 7px 0 0;
+        padding: 7px 8px;
+        border: 1px solid rgba(111, 223, 159, 0.24);
+        border-radius: 7px;
+        color: #78d9a1;
+        font-size: 8px;
+      }
+
+      #torus-analysis-validation.error {
+        border-color: rgba(255, 101, 119, 0.32);
+        color: #f08391;
+      }
+
+      .torus-dependency-law {
+        display: grid;
+        gap: 4px;
+        margin-top: 12px;
+        padding: 9px 10px;
+        border: 1px solid rgba(126, 220, 251, 0.2);
+        border-radius: 9px;
+        background: rgba(18, 67, 87, 0.12);
+        color: #8ea5bd;
+        font-size: 8px;
+        line-height: 1.45;
+      }
+
+      .torus-dependency-law strong {
+        color: #d9f6ff;
+        font-weight: 500;
+      }
+
+      .torus-derived-dimensions {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 7px 12px;
+        margin: 12px 0 0;
+        padding: 9px 10px;
+        border: 1px solid rgba(145, 171, 214, 0.16);
+        border-radius: 9px;
+        background: rgba(5, 12, 21, 0.58);
+        font-size: 8px;
+      }
+
+      .torus-derived-dimensions dt,
+      .torus-derived-dimensions dd {
+        margin: 0;
+      }
+
+      .torus-derived-dimensions dt {
+        color: #8195ad;
+      }
+
+      .torus-derived-dimensions output {
+        color: #e6f8ff;
+        font-size: 8px;
+      }
+
+      .torus-analysis-view-controls {
+        position: absolute;
+        top: 18px;
+        left: 50%;
+        z-index: 3;
+        display: flex;
+        gap: 6px;
+        padding: 6px;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        border-radius: 9px;
+        background: rgba(3, 9, 16, 0.78);
+        transform: translateX(-50%);
+        backdrop-filter: blur(12px);
+      }
+
+      .torus-analysis-view-controls button {
+        padding: 6px 8px;
+        border: 1px solid transparent;
+        border-radius: 6px;
+        background: transparent;
+        color: #879bb4;
+        font: 8px/1 "JetBrains Mono", ui-monospace, monospace;
+        cursor: pointer;
+      }
+
+      .torus-analysis-view-controls button:hover,
+      .torus-analysis-view-controls button.active {
+        border-color: rgba(255, 255, 255, 0.34);
+        background: rgba(255, 255, 255, 0.09);
+        color: white;
+      }
+
+      #torus-analysis-readout {
+        position: absolute;
+        right: 18px;
+        bottom: 18px;
+        left: 18px;
+        z-index: 2;
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        overflow: hidden;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        border-radius: 10px;
+        background: rgba(3, 9, 16, 0.8);
+        backdrop-filter: blur(12px);
+      }
+
+      #torus-analysis-readout div {
+        display: grid;
+        gap: 3px;
+        min-width: 0;
+        padding: 9px 11px;
+        border-right: 1px solid rgba(255, 255, 255, 0.08);
+      }
+
+      #torus-analysis-readout span {
+        color: #72869f;
+        font-size: 7px;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+      }
+
+      #torus-analysis-readout strong {
+        color: white;
+        font-size: 9px;
+        font-weight: 400;
+      }
+
+      #state-graph-summary {
+        margin: -5px 0 18px;
+        color: #8190a7;
+        font-size: 10px;
+        line-height: 1.5;
+      }
+
+      .code-panel {
+        margin: 0 0 18px;
+      }
+
+      .code-panel h3 {
+        margin: 0 0 8px;
+        color: #d4dcea;
+        font-size: 12px;
+        font-weight: 400;
+      }
+
+      .code-source {
+        display: block;
+        margin: -3px 0 8px;
+        color: #71839d;
+        font-size: 8px;
+        line-height: 1.4;
+        overflow-wrap: anywhere;
+      }
+
+      .code-panel pre {
+        max-height: 285px;
+        margin: 0;
+        padding: 11px;
+        overflow: auto;
+        border: 1px solid rgba(145, 171, 214, 0.16);
+        border-radius: 8px;
+        background: rgba(3, 8, 14, 0.72);
+        color: #9fb1c9;
+        font: 10px/1.45 "JetBrains Mono", ui-monospace, monospace;
+        white-space: pre;
+      }
+
+      @media (max-width: 900px) {
+        main,
+        main.state-graph-mode,
+        main.form-skin-mode,
+        main.edges-mode,
+        main.torus-analysis-mode,
+        main.fields-analysis-mode {
+          grid-template-columns: 180px minmax(0, 1fr);
+        }
+
+        #controls {
+          display: none;
+        }
+
+        .state-branch-card {
+          grid-template-columns: 1fr;
+        }
+
+        .state-branch-viewer {
+          border-right: 0;
+          border-bottom: 1px solid rgba(145, 171, 214, 0.16);
+        }
+
+        #edges-readout {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .torus-analysis-card {
+          width: min(300px, calc(100% - 36px));
+        }
+
+        .torus-analysis-card.metafor {
+          top: auto;
+          bottom: 126px;
+        }
+
+        #torus-analysis-readout {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        #fields-analysis-readout {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+      }
+
+      @media (max-width: 600px) {
+        main,
+        main.state-graph-mode,
+        main.form-skin-mode,
+        main.edges-mode,
+        main.torus-analysis-mode,
+        main.fields-analysis-mode {
+          grid-template-rows: auto minmax(0, 1fr);
+          grid-template-columns: minmax(0, 1fr);
+        }
+
+        #stories {
+          display: grid;
+          grid-template-rows: auto auto;
+          grid-template-columns: auto minmax(0, 1fr);
+          grid-row: 1;
+          gap: 2px 14px;
+          min-width: 0;
+          padding: 10px 12px;
+          overflow: hidden;
+          border-right: 0;
+          border-bottom: 1px solid rgba(145, 171, 214, 0.18);
+        }
+
+        #stories .eyebrow {
+          grid-row: 1;
+          grid-column: 1;
+        }
+
+        #stories h1 {
+          grid-row: 2;
+          grid-column: 1;
+          margin: 0;
+          white-space: nowrap;
+        }
+
+        #stories .meta {
+          display: none;
+        }
+
+        #stories nav {
+          display: flex;
+          grid-row: 1 / 3;
+          grid-column: 2;
+          gap: 5px;
+          min-width: 0;
+          margin: 0;
+          padding-bottom: 1px;
+          overflow-x: auto;
+          align-items: center;
+        }
+
+        #stories nav .nav-section {
+          display: none;
+        }
+
+        #stories nav a {
+          flex: 0 0 auto;
+          padding: 7px 9px;
+          font-size: 10px;
+        }
+
+        #stage {
+          grid-row: 2;
+          grid-column: 1;
+        }
+
+        #title {
+          top: 10px;
+          left: 10px;
+          max-width: calc(100% - 20px);
+          padding: 9px 10px;
+        }
+
+        #title h2 {
+          font-size: 13px;
+        }
+
+        #description {
+          font-size: 10px;
+        }
+
+        #state-graph-stage,
+        #form-skin-stage {
+          padding: 12px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <aside id="stories">
+        <div class="eyebrow">pkg/visual</div>
+        <h1>Visual layouts</h1>
+        <div class="meta">Monad snapshot</div>
+        <nav id="navigation"></nav>
+      </aside>
+      <section id="stage">
+        <div
+          id="section-tabs"
+          role="navigation"
+          aria-label="Вложенные страницы раздела"
+          hidden
+        ></div>
+        <div id="title">
+          <h2 id="entity"></h2>
+          <p id="description"></p>
+        </div>
+        <canvas id="visual-canvas"></canvas>
+        <canvas id="layout-canvas" hidden></canvas>
+        <section id="state-graph-stage" hidden>
+          <header class="state-graph-overview">
+            <h2 id="state-graph-overview-title"></h2>
+            <p id="state-graph-overview"></p>
+          </header>
+          <div id="state-graph-cards"></div>
+        </section>
+        <section id="form-skin-stage" hidden>
+          <header class="form-skin-overview">
+            <h2 id="form-skin-title">Sphere · скины формы</h2>
+            <p>
+              Изолированное сравнение материалов на одной фиксированной форме.
+              По умолчанию — прозрачная квантовая плёнка с Френель-краем и
+              спектральной интерференцией. Геометрия задаётся отдельно в Analysis.
+            </p>
+          </header>
+          <div id="form-skin-variants" aria-label="Варианты скина"></div>
+          <section class="form-skin-viewport">
+            <canvas id="form-skin-canvas"></canvas>
+            <span class="form-skin-badge">WebGPU · one-pass thin film</span>
+            <span class="form-skin-viewport-hint">
+              drag — вращение · wheel — панорама · ctrl+wheel — масштаб
+            </span>
+          </section>
+          <section class="form-skin-comparison">
+            <h3>Сравнение скинов при одинаковой конфигурации</h3>
+            <table>
+              <thead>
+                <tr>
+                  <th>Скин</th>
+                  <th>FPS</th>
+                  <th>1% low</th>
+                  <th>CPU avg</th>
+                  <th>CPU p95</th>
+                  <th>Jank</th>
+                  <th>Vertex refs</th>
+                  <th>Geometry</th>
+                </tr>
+              </thead>
+              <tbody id="form-skin-comparison-body"></tbody>
+            </table>
+          </section>
+          <p class="form-skin-method">
+            FPS и CPU submit измеряются в живом RAF-цикле. Draw calls,
+            вершины, треугольники, линии и минимальный размер geometry buffers
+            вычисляются из фактически созданной геометрии. GPU timestamp пока
+            не показывается: Renderer не публикует timestamp query.
+          </p>
+        </section>
+        <section id="edges-stage" hidden>
+          <section id="edges-viewport">
+          <canvas id="edges-canvas"></canvas>
+          <section id="edges-formula" class="edges-formula" aria-label="Формула расчёта Edge">
+            <div id="edges-formula-composite">
+              <details class="edges-formula-description">
+                <summary aria-label="Описание составной экспериментальной формулы">?</summary>
+                <div>
+                  <strong>Составная экспериментальная формула MetaFor</strong>
+                  <p>
+                    Это не единый физический закон. Стенд соединяет кубическую
+                    Bézier-кривую, локальный профиль зазора до Torus и численный
+                    поиск минимальной безопасной высоты. Формула считает
+                    управляемый маршрут между центрами Sphere и нужна как
+                    исходный эксперимент для сравнения с физическими моделями.
+                  </p>
+                </div>
+              </details>
+            <div class="edges-formula-line">
+              <span id="edges-formula-p" class="edges-formula-variable">P</span>(<span id="edges-formula-t" class="edges-formula-variable">t</span>)
+              = (1−t)³ <span id="edges-formula-sl" class="edges-formula-variable">Sₗ</span>
+              + 3(1−t)²t <span id="edges-formula-cl" class="edges-formula-variable">Cₗ</span>
+              + 3(1−t)t² <span id="edges-formula-cr" class="edges-formula-variable">Cᵣ</span>
+              + t³ <span id="edges-formula-sr" class="edges-formula-variable">Sᵣ</span>
+            </div>
+            <div class="edges-formula-line">
+              λsafe = min { λ ≥ 0 | <span id="edges-formula-dt" class="edges-formula-variable">dₜ</span>(Pλ(t), Tₗ∪Tᵣ) ≥
+              cᵣₑq(Pλ(t)) },
+              <span id="edges-formula-span" class="edges-formula-variable">ℓ</span> = ‖Sᵣ−Sₗ‖
+            </div>
+            <div class="edges-formula-line">
+              aᵢ = κᵢ(R₀+r₀),
+              Hshape,ᵢ = (2ℓ/3)·2√aᵢ/(√aₗ+√aᵣ)
+            </div>
+            <div class="edges-formula-line">
+              Cᵢ = Sᵢ + (0,0,<span id="edges-formula-h" class="edges-formula-variable">Hᵢ</span>),
+              Hᵢ = max(1,λsafe)Hshape,ᵢ +
+              <span id="edges-formula-dh" class="edges-formula-variable">Δh</span>
+            </div>
+            <div class="edges-formula-line">
+              q = max(0, min(‖P−Sₗ‖, ‖P−Sᵣ‖)−ρ),
+              cᵣₑq(P) = min(<span id="edges-formula-c" class="edges-formula-variable">c</span>,
+              √((r*+ρ)²+q²)−(r*+ρ)), r* = max(rₗ,rᵣ)
+            </div>
+            <div class="edges-formula-line">
+              dₜ(P,<span id="edges-formula-tl" class="edges-formula-variable">Tₗ</span>/<span id="edges-formula-tr" class="edges-formula-variable">Tᵣ</span>)
+              = √((√((Pₓ−Tₓ)²+(Pᵧ−Tᵧ)²)−<span id="edges-formula-r-major" class="edges-formula-variable">R</span>)²+(P𝓏−T𝓏)²)−<span id="edges-formula-r-tube" class="edges-formula-variable">r</span>
+            </div>
+            <div class="edges-formula-line">
+              ‖Sᵢ−Tᵢ‖ ≤ R−r−<span id="edges-formula-rho" class="edges-formula-variable">ρ</span>,
+              <span id="edges-formula-distance" class="edges-formula-variable">D</span> = ‖Tᵣ−Tₗ‖,
+              0 ≤ t ≤ 1
+            </div>
+            <div class="edges-formula-line">
+              Rᵢ = κᵢR₀, rᵢ = κᵢr₀:
+              <span id="edges-formula-scale-left" class="edges-formula-variable">κₗ</span>,
+              <span id="edges-formula-scale-right" class="edges-formula-variable">κᵣ</span>
+            </div>
+            </div>
+            <div id="edges-formula-source-sink" hidden>
+              <details class="edges-formula-description">
+                <summary aria-label="Описание формулы источник — сток">?</summary>
+                <div>
+                  <strong>Силовая линия «источник → сток»</strong>
+                  <p>
+                    Формула взята из двумерной теории потенциала: такая же
+                    комплексная функция описывает электростатическое поле
+                    линейных зарядов и потенциальное течение жидкости.
+                    Постоянная мнимая часть Ψ задаёт силовую линию. Здесь она
+                    аналитически считает все точки Edge без интегрирования, а
+                    стенд выбирает самый низкий контур, безопасный для Torus.
+                  </p>
+                  <p>
+                    Источники:
+                    <a href="https://ocw.mit.edu/courses/22-105-electromagnetic-interactions-fall-2005/00792e7e1aa2eae67ddae270022c044f_chap1.pdf" target="_blank" rel="noreferrer">MIT · complex potential</a>,
+                    <a href="https://www.feynmanlectures.caltech.edu/II_04.html" target="_blank" rel="noreferrer">Feynman · field lines</a>.
+                  </p>
+                </div>
+              </details>
+              <div class="edges-formula-line">
+                W(z) =
+                <span id="edges-source-formula-g-left" class="edges-formula-variable">gₗ</span>
+                ln(z−<span id="edges-source-formula-sl" class="edges-formula-variable">Sₗ</span>)
+                − <span id="edges-source-formula-g-right" class="edges-formula-variable">gᵣ</span>
+                ln(z−<span id="edges-source-formula-sr" class="edges-formula-variable">Sᵣ</span>)
+              </div>
+              <div class="edges-formula-line">
+                <span id="edges-source-formula-psi" class="edges-formula-variable">Ψ</span>(P)
+                = Im W =
+                gₗθₗ−gᵣθᵣ = Ψ₀,
+                θᵣ = (gₗ<span id="edges-source-formula-theta" class="edges-formula-variable">θₗ</span>−Ψ₀)/gᵣ
+              </div>
+              <div class="edges-formula-line">
+                dₗ =
+                <span id="edges-source-formula-span" class="edges-formula-variable">ℓ</span>
+                sin θᵣ / sin(θᵣ−θₗ),
+                <span id="edges-source-formula-p" class="edges-formula-variable">P</span>(θₗ)
+                = Sₗ+dₗ(cos θₗ·û+sin θₗ·ẑ)
+              </div>
+              <div class="edges-formula-line">
+                Psafe = (Pₓ,Pᵧ,<span id="edges-source-formula-lambda-field" class="edges-formula-variable">λ𝓏</span>P𝓏),
+                λ𝓏 = 1; резерв применяется только когда аналитическое семейство не даёт безопасный контур
+              </div>
+              <div class="edges-formula-line">
+                gᵢ = √(<span id="edges-source-formula-scale-left" class="edges-formula-variable">κₗ</span>(<span id="edges-source-formula-r-major" class="edges-formula-variable">R₀</span>+<span id="edges-source-formula-r-tube" class="edges-formula-variable">r₀</span>)),
+                Ψ₀ = lowest {
+                <span id="edges-source-formula-dt" class="edges-formula-variable">dₜ</span>(P,Tₗ∪Tᵣ)
+                ≥ <span id="edges-source-formula-c" class="edges-formula-variable">c</span>ᵣₑq(P) }
+              </div>
+              <div class="edges-formula-line">
+                <span id="edges-source-formula-tl" class="edges-formula-variable">Tₗ</span>,
+                <span id="edges-source-formula-tr" class="edges-formula-variable">Tᵣ</span>;
+                ρ=<span id="edges-source-formula-rho" class="edges-formula-variable">ρ</span>,
+                D=<span id="edges-source-formula-distance" class="edges-formula-variable">‖Tᵣ−Tₗ‖</span>,
+                κᵣ=<span id="edges-source-formula-scale-right" class="edges-formula-variable">κᵣ</span>,
+                подъём=<span id="edges-source-formula-dh" class="edges-formula-variable">Δh</span>
+              </div>
+            </div>
+            <div id="edges-formula-hermite" hidden>
+              <details class="edges-formula-description">
+                <summary aria-label="Описание формулы Hermite">?</summary>
+                <div>
+                  <strong>Кубическая Hermite-кривая · модель упругой балки</strong>
+                  <p>
+                    Это минимальный кубический полином, который одновременно
+                    фиксирует две конечные точки и два граничных вектора.
+                    Такая же Hermite-база используется в конечных элементах
+                    балки Euler–Bernoulli. Формула строит Edge напрямую и не
+                    подбирает безопасную высоту: пересечение с Torus
+                    измеряется отдельно и не изменяет кривую. Дефолтные длины
+                    двух векторов наследуют разные плечи составного
+                    эксперимента, поэтому большая и малая формы не дают
+                    равноплечую дугу.
+                  </p>
+                  <p>
+                    Источники:
+                    <a href="https://www.cs.utexas.edu/~fussell/courses/cs384g-fall2011/lectures/parametric_curves.pdf" target="_blank" rel="noreferrer">UT Austin · Hermite curves</a>,
+                    <a href="https://docs.software.vt.edu/abaqusv2024/English/SIMACAETHERefMap/simathe-c-eulerbernbeams.htm" target="_blank" rel="noreferrer">Euler–Bernoulli beam elements</a>.
+                  </p>
+                </div>
+              </details>
+              <div class="edges-formula-line">
+                <span id="edges-hermite-formula-p" class="edges-formula-variable">P</span>(<span id="edges-hermite-formula-t" class="edges-formula-variable">t</span>)
+                = h₀₀(t)<span id="edges-hermite-formula-sl" class="edges-formula-variable">Sₗ</span>
+                + h₁₀(t)<span id="edges-hermite-formula-v-left" class="edges-formula-variable">Vₗ</span>
+                + h₀₁(t)<span id="edges-hermite-formula-sr" class="edges-formula-variable">Sᵣ</span>
+                + h₁₁(t)<span id="edges-hermite-formula-v-right" class="edges-formula-variable">Vᵣ</span>
+              </div>
+              <div class="edges-formula-line">
+                h₀₀=2t³−3t²+1,
+                h₁₀=t³−2t²+t,
+                h₀₁=−2t³+3t²,
+                h₁₁=t³−t²
+              </div>
+              <div class="edges-formula-line">
+                Vₗ=<span id="edges-hermite-formula-l-left" class="edges-formula-variable">Lₗ</span><span id="edges-hermite-formula-d-left" class="edges-formula-variable">dₗ</span>,
+                Vᵣ=−<span id="edges-hermite-formula-l-right" class="edges-formula-variable">Lᵣ</span><span id="edges-hermite-formula-d-right" class="edges-formula-variable">dᵣ</span>,
+                0 ≤ t ≤ 1
+              </div>
+            </div>
+            <div id="edges-formula-values" class="edges-formula-values"></div>
+          </section>
+          <svg id="edges-formula-links" aria-hidden="true">
+            <path data-edges-formula-link="p"></path>
+            <path data-edges-formula-link="t"></path>
+            <path data-edges-formula-link="sl"></path>
+            <path data-edges-formula-link="sr"></path>
+            <path data-edges-formula-link="cl"></path>
+            <path data-edges-formula-link="cr"></path>
+            <path data-edges-formula-link="h"></path>
+            <path data-edges-formula-link="dt"></path>
+            <path data-edges-formula-link="c"></path>
+            <path data-edges-formula-link="dh"></path>
+            <path data-edges-formula-link="tl"></path>
+            <path data-edges-formula-link="tr"></path>
+            <path data-edges-formula-link="r-major"></path>
+            <path data-edges-formula-link="r-tube"></path>
+            <path data-edges-formula-link="rho"></path>
+            <path data-edges-formula-link="distance"></path>
+            <path data-edges-formula-link="scale-left"></path>
+            <path data-edges-formula-link="scale-right"></path>
+            <path data-edges-formula-link="span"></path>
+            <path data-edges-formula-link="theta"></path>
+            <path data-edges-formula-link="g-left"></path>
+            <path data-edges-formula-link="g-right"></path>
+            <path data-edges-formula-link="psi"></path>
+            <path data-edges-formula-link="lambda-field"></path>
+            <path data-edges-formula-link="d-left"></path>
+            <path data-edges-formula-link="d-right"></path>
+            <path data-edges-formula-link="l-left"></path>
+            <path data-edges-formula-link="l-right"></path>
+            <path data-edges-formula-link="v-left"></path>
+            <path data-edges-formula-link="v-right"></path>
+          </svg>
+          <div id="edges-formula-target" aria-hidden="true"></div>
+          <section id="edges-formula-help" hidden>
+            <strong id="edges-formula-help-title"></strong>
+            <p id="edges-formula-help-text"></p>
+          </section>
+          <section class="edges-scene-controls">
+            <h2 id="edges-scene-title">Edge · составная экспериментальная формула</h2>
+            <p id="edges-scene-description">
+              Белые элементы — входные и производные данные расчёта.
+              Оранжевый Edge выходит через отверстия и не пересекает Torus.
+              Sphere перемещается перетаскиванием левой кнопкой мыши.
+            </p>
+            <div class="edges-torus-source">
+              <span>Два Torus · «Наш default»</span>
+              <output id="edges-torus-radius-output"></output>
+              <small>Источник формы: Analysis → Torus.</small>
+            </div>
+            <label class="inline" for="edges-helpers">
+              <input id="edges-helpers" type="checkbox" checked />
+              <span>Размеры и вычислительная геометрия</span>
+            </label>
+            <details class="edges-parameter-help">
+              <summary aria-label="Описание вспомогательных элементов">?</summary>
+              <div class="edges-parameter-help-text">
+                Белые control-векторы задают вертикальные касательные, а
+                размерные линии показывают расстояние центров, радиус Sphere,
+                высоту и базовый зазор. Полного Torus-отступа в сцене нет:
+                требуемый зазор плавно растёт после выхода Edge из Sphere.
+              </div>
+            </details>
+          </section>
+          <label id="edges-measure-distance" class="edges-scene-measure">
+            <span>Расстояние центров</span>
+            <output id="edges-center-distance-output"></output>
+            <input id="edges-center-distance" type="range" min="26" max="200" step="any" value="44" />
+            <details class="edges-parameter-help">
+              <summary aria-label="Описание параметра Расстояние центров">?</summary>
+              <div class="edges-parameter-help-text">
+                Длина белой двусторонней стрелки между центрами Torus.
+              </div>
+            </details>
+          </label>
+          <label id="edges-measure-left-scale" class="edges-scene-measure">
+            <span>Масштаб Torus L</span>
+            <output id="edges-left-torus-scale-output"></output>
+            <input id="edges-left-torus-scale" type="range" min="0.5" max="2" step="0.05" value="1" />
+            <details class="edges-parameter-help">
+              <summary aria-label="Описание параметра Масштаб левого Torus">?</summary>
+              <div class="edges-parameter-help-text">
+                Независимо увеличивает или уменьшает левый Torus. Базовые
+                пропорции берутся из сохранённого «Наш default».
+              </div>
+            </details>
+          </label>
+          <label id="edges-measure-right-scale" class="edges-scene-measure">
+            <span>Масштаб Torus R</span>
+            <output id="edges-right-torus-scale-output"></output>
+            <input id="edges-right-torus-scale" type="range" min="0.5" max="2" step="0.05" value="1" />
+            <details class="edges-parameter-help">
+              <summary aria-label="Описание параметра Масштаб правого Torus">?</summary>
+              <div class="edges-parameter-help-text">
+                Независимо увеличивает или уменьшает правый Torus. Edge
+                пересчитывает безопасный маршрут по новому размеру.
+              </div>
+            </details>
+          </label>
+          <label id="edges-measure-sphere" class="edges-scene-measure">
+            <span>Радиус Sphere</span>
+            <output id="edges-sphere-radius-output"></output>
+            <input id="edges-sphere-radius" type="range" min="0.01" max="50" step="any" value="2.5" />
+            <details class="edges-parameter-help">
+              <summary aria-label="Описание параметра Радиус сферы">?</summary>
+              <div class="edges-parameter-help-text">
+                Размерная стрелка идёт от центра до поверхности Sphere.
+              </div>
+            </details>
+          </label>
+          <label id="edges-measure-clearance" class="edges-scene-measure">
+            <span>Зазор над Torus</span>
+            <output id="edges-clearance-output"></output>
+            <input id="edges-clearance" type="range" min="0.01" max="30" step="any" value="3" />
+            <details class="edges-parameter-help">
+              <summary aria-label="Описание параметра Безопасный зазор">?</summary>
+              <div class="edges-parameter-help-text">
+                Минимальное расстояние от верхней поверхности Torus до начала
+                поворота Edge.
+              </div>
+            </details>
+          </label>
+          <label id="edges-measure-lift" class="edges-scene-measure">
+            <span>Дополнительный подъём</span>
+            <output id="edges-extra-lift-output"></output>
+            <input id="edges-extra-lift" type="range" min="0" max="100" step="0.5" value="0" />
+            <details class="edges-parameter-help">
+              <summary aria-label="Описание параметра Дополнительный подъём">?</summary>
+              <div class="edges-parameter-help-text">
+                Добавляется к минимальной автоматически найденной высоте
+                control-точек и делает полевую линию выше, не меняя её входы.
+              </div>
+            </details>
+          </label>
+          <label id="edges-measure-left-direction" class="edges-scene-measure" hidden>
+            <span>Направление выхода L</span>
+            <output id="edges-left-direction-output"></output>
+            <input id="edges-left-direction" type="range" min="0" max="180" step="0.5" value="90" />
+            <details class="edges-parameter-help">
+              <summary aria-label="Описание параметра Направление выхода L">?</summary>
+              <div class="edges-parameter-help-text">
+                Угол вектора dₗ относительно плоскости Torus. 90° направляет
+                Edge строго по нормали вверх; меньший угол наклоняет его к
+                правой Sphere.
+              </div>
+            </details>
+          </label>
+          <label id="edges-measure-left-tangent" class="edges-scene-measure" hidden>
+            <span>Длина вектора L</span>
+            <output id="edges-left-tangent-length-output"></output>
+            <input id="edges-left-tangent-length" type="range" min="0.1" max="400" step="0.5" value="100" />
+            <details class="edges-parameter-help">
+              <summary aria-label="Описание параметра Длина левого вектора">?</summary>
+              <div class="edges-parameter-help-text">
+                Длина Vₗ. Меняет мягкость левого плеча, сохраняя выбранное
+                направление выхода. До ручного изменения следует размеру
+                левого Torus так же, как плечо первого эксперимента.
+              </div>
+            </details>
+          </label>
+          <label id="edges-measure-right-direction" class="edges-scene-measure" hidden>
+            <span>Направление входа R</span>
+            <output id="edges-right-direction-output"></output>
+            <input id="edges-right-direction" type="range" min="0" max="180" step="0.5" value="90" />
+            <details class="edges-parameter-help">
+              <summary aria-label="Описание параметра Направление входа R">?</summary>
+              <div class="edges-parameter-help-text">
+                Угол внешнего вектора dᵣ относительно плоскости правого
+                Torus. Сам Edge входит в Sphere в противоположном направлении.
+              </div>
+            </details>
+          </label>
+          <label id="edges-measure-right-tangent" class="edges-scene-measure" hidden>
+            <span>Длина вектора R</span>
+            <output id="edges-right-tangent-length-output"></output>
+            <input id="edges-right-tangent-length" type="range" min="0.1" max="400" step="0.5" value="100" />
+            <details class="edges-parameter-help">
+              <summary aria-label="Описание параметра Длина правого вектора">?</summary>
+              <div class="edges-parameter-help-text">
+                Длина Vᵣ. Управляет правым плечом независимо от левого и не
+                запускает автоподбор маршрута. До ручного изменения следует
+                размеру правого Torus.
+              </div>
+            </details>
+          </label>
+          <div id="edges-measure-route" class="edges-scene-measure derived">
+            <span>Высота маршрута</span>
+            <output></output>
+            <small id="edges-route-measure-description">автоподбор по плавному профилю зазора</small>
+          </div>
+          <div class="edges-view-controls" aria-label="Вид Edges Lab">
+            <button type="button" data-edges-view="perspective">Перспектива</button>
+            <button type="button" data-edges-view="front">Спереди</button>
+            <button type="button" data-edges-view="top">Сверху</button>
+          </div>
+          <div class="edges-example-save-control">
+            <button id="edges-add-example" type="button">Добавить в примеры</button>
+            <output id="edges-add-example-status" aria-live="polite"></output>
+          </div>
+          <section id="edges-readout" aria-label="Значения геометрии связи"></section>
+          </section>
+          <section id="edges-examples" aria-labelledby="edges-examples-title">
+            <header>
+              <h2 id="edges-examples-title">Сохранённые примеры Edges</h2>
+              <p id="edges-examples-description">
+                Один набор параметров автоматически рассчитывается всеми
+                алгоритмами раздела.
+              </p>
+            </header>
+            <div class="edges-examples-table-wrap">
+              <table>
+                <thead id="edges-examples-head"></thead>
+                <tbody id="edges-examples-body"></tbody>
+              </table>
+            </div>
+            <p id="edges-examples-empty">
+              Примеров пока нет. Настройте любой эксперимент и нажмите
+              «Добавить в примеры».
+            </p>
+          </section>
+        </section>
+        <section id="torus-analysis-stage" hidden>
+          <canvas id="torus-analysis-canvas"></canvas>
+          <section class="torus-analysis-card standard">
+            <h2>THREE.TorusGeometry</h2>
+            <p>
+              Официальные параметры и defaults из
+              <a href="https://threejs.org/docs/pages/TorusGeometry.html" target="_blank" rel="noreferrer">
+                Three.js docs
+              </a>.
+            </p>
+            <fieldset>
+              <div class="torus-analysis-control">
+                <div class="torus-analysis-control-header">
+                  <label for="torus-analysis-radius">radius</label>
+                  <output id="torus-analysis-radius-output"></output>
+                  <details class="torus-parameter-help">
+                    <summary aria-label="Описание параметра radius">?</summary>
+                    <div class="torus-parameter-help-text">
+                      <strong>radius — радиус центральной окружности тора.</strong>
+                      Это расстояние от центра всей формы до центра поперечного
+                      сечения трубки. Параметр задаётся в единицах сцены и
+                      определяет общий размер и размер отверстия тора.
+                      Стандартное значение Three.js: <strong>1</strong>.
+                    </div>
+                  </details>
+                </div>
+                <input id="torus-analysis-radius" type="range" min="0.2" max="49.95" step="any" value="1" />
+                <div class="torus-default-values">
+                  <span class="torus-three-default">THREE default · 1.00</span>
+                  <button class="torus-our-default" type="button" data-torus-our-default="radius">
+                    Наш default · 1.10
+                  </button>
+                </div>
+              </div>
+              <div class="torus-analysis-control">
+                <div class="torus-analysis-control-header">
+                  <label for="torus-analysis-tube">tube</label>
+                  <output id="torus-analysis-tube-output"></output>
+                  <details class="torus-parameter-help">
+                    <summary aria-label="Описание параметра tube">?</summary>
+                    <div class="torus-parameter-help-text">
+                      <strong>tube — радиус трубки тора.</strong>
+                      Это радиус круглого поперечного сечения, которое движется
+                      по центральной окружности. Чем больше значение, тем толще
+                      тор и тем меньше его внутреннее отверстие. Стандартное
+                      значение Three.js: <strong>0.4</strong>.
+                    </div>
+                  </details>
+                </div>
+                <input id="torus-analysis-tube" type="range" min="0.05" max="49.8" step="any" value="0.4" />
+                <div class="torus-default-values">
+                  <span class="torus-three-default">THREE default · 0.40</span>
+                  <button class="torus-our-default" type="button" data-torus-our-default="tube">
+                    Наш default · 0.70
+                  </button>
+                </div>
+              </div>
+              <div class="torus-analysis-control">
+                <div class="torus-analysis-control-header">
+                  <label for="torus-analysis-radial-segments">radialSegments</label>
+                  <output id="torus-analysis-radial-segments-output"></output>
+                  <details class="torus-parameter-help">
+                    <summary aria-label="Описание параметра radialSegments">?</summary>
+                    <div class="torus-parameter-help-text">
+                      <strong>radialSegments — сегменты поперечного сечения.</strong>
+                      Определяет, на сколько частей разбита окружность самой
+                      трубки. Большее значение делает сечение визуально круглее,
+                      но увеличивает число вершин и треугольников. Минимально
+                      допустимо 3, стандарт Three.js: <strong>12</strong>.
+                    </div>
+                  </details>
+                </div>
+                <input id="torus-analysis-radial-segments" type="range" min="3" max="64" step="1" value="12" />
+                <div class="torus-default-values">
+                  <span class="torus-three-default">THREE default · 12</span>
+                  <button class="torus-our-default" type="button" data-torus-our-default="radialSegments">
+                    Наш default · 32
+                  </button>
+                </div>
+              </div>
+              <div class="torus-analysis-control">
+                <div class="torus-analysis-control-header">
+                  <label for="torus-analysis-tubular-segments">tubularSegments</label>
+                  <output id="torus-analysis-tubular-segments-output"></output>
+                  <details class="torus-parameter-help">
+                    <summary aria-label="Описание параметра tubularSegments">?</summary>
+                    <div class="torus-parameter-help-text">
+                      <strong>tubularSegments — сегменты вдоль кольца.</strong>
+                      Определяет, на сколько частей разбит путь трубки вокруг
+                      центра тора. Большее значение делает изгиб кольца плавнее,
+                      одновременно повышая стоимость геометрии. Минимально
+                      допустимо 3, стандарт Three.js: <strong>48</strong>.
+                    </div>
+                  </details>
+                </div>
+                <input id="torus-analysis-tubular-segments" type="range" min="3" max="256" step="1" value="48" />
+                <div class="torus-default-values">
+                  <span class="torus-three-default">THREE default · 48</span>
+                  <button class="torus-our-default" type="button" data-torus-our-default="tubularSegments">
+                    Наш default · 192
+                  </button>
+                </div>
+              </div>
+              <div class="torus-analysis-control">
+                <div class="torus-analysis-control-header">
+                  <label for="torus-analysis-arc">arc</label>
+                  <output id="torus-analysis-arc-output"></output>
+                  <details class="torus-parameter-help">
+                    <summary aria-label="Описание параметра arc">?</summary>
+                    <div class="torus-parameter-help-text">
+                      <strong>arc — длина дуги центрального кольца.</strong>
+                      Угол задаётся в радианах: 2π создаёт замкнутый тор, π —
+                      половину кольца. Значение меняет длину пути, по которому
+                      строится трубка, но не её толщину. Стандарт Three.js:
+                      <strong>2π</strong>.
+                    </div>
+                  </details>
+                </div>
+                <input id="torus-analysis-arc" type="range" min="0.1" max="6.283185307179586" step="any" value="6.283185307179586" />
+                <div class="torus-default-values">
+                  <span class="torus-three-default">THREE default · 6.283 rad · 2.00π</span>
+                  <button class="torus-our-default" type="button" data-torus-our-default="arc">
+                    Наш default · 6.280 rad · 2.00π
+                  </button>
+                </div>
+              </div>
+              <div class="torus-analysis-control">
+                <div class="torus-analysis-control-header">
+                  <label for="torus-analysis-theta-start">thetaStart</label>
+                  <output id="torus-analysis-theta-start-output"></output>
+                  <details class="torus-parameter-help">
+                    <summary aria-label="Описание параметра thetaStart">?</summary>
+                    <div class="torus-parameter-help-text">
+                      <strong>thetaStart — начальный угол сечения трубки.</strong>
+                      Задаётся в радианах и поворачивает начало используемой
+                      части поперечной окружности. Для полного сечения эффект
+                      заметен только по сетке; при неполном thetaLength он
+                      определяет положение разреза. Стандарт Three.js:
+                      <strong>0</strong>.
+                    </div>
+                  </details>
+                </div>
+                <input id="torus-analysis-theta-start" type="range" min="-6.283185307179586" max="6.283185307179586" step="any" value="0" />
+                <div class="torus-default-values">
+                  <span class="torus-three-default">THREE default · 0.000 rad · 0.00π</span>
+                  <button class="torus-our-default" type="button" data-torus-our-default="thetaStart">
+                    Наш default · −0.003 rad · −0.00π
+                  </button>
+                </div>
+              </div>
+              <div class="torus-analysis-control">
+                <div class="torus-analysis-control-header">
+                  <label for="torus-analysis-theta-length">thetaLength</label>
+                  <output id="torus-analysis-theta-length-output"></output>
+                  <details class="torus-parameter-help">
+                    <summary aria-label="Описание параметра thetaLength">?</summary>
+                    <div class="torus-parameter-help-text">
+                      <strong>thetaLength — угловая длина сечения трубки.</strong>
+                      Задаётся в радианах: 2π создаёт полное круглое сечение,
+                      меньшие значения оставляют трубку раскрытой вдоль всего
+                      кольца. Это независимый разрез поперёк трубки, не длина
+                      самого кольца. Стандарт Three.js: <strong>2π</strong>.
+                    </div>
+                  </details>
+                </div>
+                <input id="torus-analysis-theta-length" type="range" min="0.1" max="6.283185307179586" step="any" value="6.283185307179586" />
+                <div class="torus-default-values">
+                  <span class="torus-three-default">THREE default · 6.283 rad · 2.00π</span>
+                  <button class="torus-our-default" type="button" data-torus-our-default="thetaLength">
+                    Наш default · 6.280 rad · 2.00π
+                  </button>
+                </div>
+              </div>
+            </fieldset>
+            <p id="torus-analysis-default-status" aria-live="polite"></p>
+            <p id="torus-analysis-validation"></p>
+          </section>
+          <section class="torus-analysis-card metafor">
+            <h3>MetaFor · параметры и зависимости</h3>
+            <p>
+              Размеры нашей формы в миллиметрах. В этом стенде одна единица
+              сцены Three.js соответствует одному миллиметру. Удерживайте
+              Shift при перетаскивании для движения в 10 раз медленнее.
+            </p>
+            <fieldset>
+              <div class="torus-analysis-control">
+                <div class="torus-analysis-control-header">
+                  <label for="torus-analysis-inner-diameter">Внутренний диаметр</label>
+                  <output id="torus-analysis-inner-diameter-output"></output>
+                  <details class="torus-parameter-help">
+                    <summary aria-label="Описание параметра внутренний диаметр">?</summary>
+                    <div class="torus-parameter-help-text">
+                      <strong>Внутренний диаметр — диаметр свободного отверстия тора, мм.</strong>
+                      Он равен удвоенной разнице между Three.js
+                      <code>radius</code> и <code>tube</code>. При изменении
+                      здесь внешний диаметр сохраняется: одновременно
+                      пересчитываются <code>radius</code>, <code>tube</code>
+                      и зависимый диаметр трубки.
+                    </div>
+                  </details>
+                </div>
+                <input
+                  id="torus-analysis-inner-diameter"
+                  type="range"
+                  min="0.1"
+                  max="100"
+                  step="any"
+                  value="0.8"
+                />
+              </div>
+              <div class="torus-analysis-control">
+                <div class="torus-analysis-control-header">
+                  <label for="torus-analysis-tube-diameter">Диаметр трубки</label>
+                  <output id="torus-analysis-tube-diameter-output"></output>
+                  <details class="torus-parameter-help">
+                    <summary aria-label="Описание параметра диаметр трубки">?</summary>
+                    <div class="torus-parameter-help-text">
+                      <strong>Диаметр трубки — толщина круглого сечения тора, мм.</strong>
+                      Он равен удвоенному Three.js <code>tube</code>. При
+                      изменении здесь внутренний диаметр остаётся неизменным:
+                      одновременно пересчитываются <code>tube</code> и
+                      <code>radius</code>.
+                    </div>
+                  </details>
+                </div>
+                <input
+                  id="torus-analysis-tube-diameter"
+                  type="range"
+                  min="0.1"
+                  max="100"
+                  step="any"
+                  value="1.4"
+                />
+              </div>
+            </fieldset>
+            <div class="torus-dependency-law">
+              <strong>Связь с THREE.TorusGeometry</strong>
+              <span>внутренний диаметр = 2 × (radius − tube)</span>
+              <span>диаметр трубки = 2 × tube</span>
+              <span>внешний диаметр = 2 × (radius + tube)</span>
+              <span>ширина формы ≤ 100 мм</span>
+              <span>при изменении внутреннего диаметра внешний фиксирован</span>
+              <span>при изменении диаметра трубки внутренний фиксирован</span>
+            </div>
+            <dl class="torus-derived-dimensions" aria-label="Габариты тора">
+              <dt>Ширина формы</dt>
+              <dd><output id="torus-analysis-form-width-output"></output></dd>
+              <dt>Высота формы</dt>
+              <dd><output id="torus-analysis-form-height-output"></output></dd>
+            </dl>
+          </section>
+          <div class="torus-analysis-view-controls" aria-label="Вид Torus Analysis">
+            <button type="button" data-torus-analysis-view="perspective">Перспектива</button>
+            <button type="button" data-torus-analysis-view="front">Спереди</button>
+            <button type="button" data-torus-analysis-view="top">Сверху</button>
+          </div>
+          <section id="torus-analysis-readout" aria-label="Производные параметры тора"></section>
+        </section>
+        <section id="fields-analysis-stage" hidden>
+          <canvas id="fields-analysis-canvas"></canvas>
+          <section class="fields-analysis-card">
+            <h2 id="fields-analysis-title">Fields · псевдосфера</h2>
+            <p id="fields-analysis-description">
+              Центры Field равномерно распределены по поверхности
+              Фибоначчиевой псевдосферы. Для каждого количества выбирается
+              минимальный радиус без пересечений: ближайшие Fields касаются,
+              поэтому поверхность заполнена максимально плотно.
+            </p>
+            <label class="fields-analysis-control" for="fields-analysis-count-control">
+              <span>
+                Количество Fields
+                <output id="fields-analysis-count-control-output"></output>
+              </span>
+              <input
+                id="fields-analysis-count-control"
+                type="range"
+                min="1"
+                max="128"
+                step="1"
+                value="54"
+              />
+            </label>
+          </section>
+          <span class="fields-analysis-hint">
+            drag — вращение · wheel — панорама · ctrl+wheel — масштаб
+          </span>
+          <section id="fields-analysis-readout" aria-label="Параметры раскладки Fields">
+            <div>
+              <span>Fields</span>
+              <output id="fields-analysis-count"></output>
+            </div>
+            <div>
+              <span>Типов</span>
+              <output id="fields-analysis-types"></output>
+            </div>
+            <div>
+              <span id="fields-analysis-distribution-label">Радиус псевдосферы</span>
+              <output id="fields-analysis-distribution-radius"></output>
+            </div>
+            <div>
+              <span>Радиус Field</span>
+              <output id="fields-analysis-marker-radius"></output>
+            </div>
+          </section>
+        </section>
+      </section>
+      <aside id="controls">
+        <div id="visual-controls">
+          <fieldset id="visual-visibility-controls">
+            <legend>Visual</legend>
+            <label class="inline">
+              <input id="context" type="checkbox" />
+              <span>Torus context</span>
+            </label>
+            <label class="inline">
+              <input id="labels" type="checkbox" checked />
+              <span>Labels</span>
+            </label>
+            <label class="inline">
+              <input id="grid" type="checkbox" checked />
+              <span>Grid</span>
+            </label>
+            <label class="inline">
+              <input id="animation" type="checkbox" />
+              <span>Animation</span>
+            </label>
+          </fieldset>
+          <fieldset>
+            <legend>Manifest</legend>
+            <dl id="counts"></dl>
+          </fieldset>
+        </div>
+        <div id="state-graph-controls" hidden>
+          <label>
+            <span>Atom</span>
+            <select id="state-graph-atom"></select>
+          </label>
+          <fieldset>
+            <legend>Граф будущих путей</legend>
+            <dl id="state-graph-counts"></dl>
+          </fieldset>
+          <p id="state-graph-summary"></p>
+          <section class="code-panel">
+            <h3>MetaFor DSL · superposition</h3>
+            <span id="state-graph-dsl-path" class="code-source"></span>
+            <pre id="state-graph-dsl"></pre>
+          </section>
+          <section class="code-panel">
+            <h3>JSON граф</h3>
+            <pre id="state-graph-json"></pre>
+          </section>
+        </div>
+        <div id="form-skin-controls" hidden>
+          <fieldset>
+            <legend>Скин формы</legend>
+            <label>
+              <span>Вариант</span>
+              <select id="form-skin-select"></select>
+            </label>
+            <p id="form-skin-description"></p>
+            <label>
+              <span>Цвет</span>
+              <input id="form-skin-color" type="color" value="#52d7ff" />
+            </label>
+            <label>
+              <span>Свечение края <output id="form-skin-glow-output"></output></span>
+              <input id="form-skin-glow" type="range" min="0.1" max="6" step="0.1" value="2.4" />
+            </label>
+            <label>
+              <span>Размер бликов · 0 = выкл. <output id="form-skin-highlight-size-output"></output></span>
+              <input id="form-skin-highlight-size" type="range" min="0" max="1" step="0.05" value="1" />
+            </label>
+            <label>
+              <span>Плотность плёнки <output id="form-skin-opacity-output"></output></span>
+              <input id="form-skin-opacity" type="range" min="0.05" max="1" step="0.05" value="0.55" />
+            </label>
+          </fieldset>
+          <fieldset>
+            <legend>Нагрузка</legend>
+            <label>
+              <span>Копии <output id="form-skin-copies-output"></output></span>
+              <input id="form-skin-copies" type="range" min="1" max="64" step="1" value="1" />
+            </label>
+            <label>
+              <span>Pixel ratio <output id="form-skin-pixel-ratio-output"></output></span>
+              <input id="form-skin-pixel-ratio" type="range" min="0.5" max="2" step="0.25" value="1" />
+            </label>
+          </fieldset>
+          <fieldset>
+            <legend>Последнее измерение</legend>
+            <dl id="form-skin-metrics"></dl>
+          </fieldset>
+          <button id="form-skin-run-current" type="button">
+            Тестировать текущий скин · 2 сек
+          </button>
+          <button id="form-skin-run-all" type="button">
+            Сравнить все скины · ~12 сек
+          </button>
+          <p id="form-skin-benchmark-status"></p>
+          <button id="form-skin-reset" type="button">Сбросить замер</button>
+          <p class="form-skin-metric-note">
+            CPU submit включает обход сцены, подготовку команд WebGPU и submit,
+            но не выдаётся за полное GPU-время исполнения.
+          </p>
+        </div>
+      </aside>
+    </main>
+    <script type="module" src="./client.ts"></script>
+  </body>
+</html>

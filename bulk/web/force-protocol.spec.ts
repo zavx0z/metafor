@@ -70,6 +70,14 @@ describe("bulk/web Force protocol adapter", () => {
 			ts: 1,
 			value: {atom: {id: 8, wimp: "child", parentAtom: 7, parentTopology: null}},
 		})).toBeNull()
+		expect(materializedRootSrc({
+			part: "graviton",
+			op: "replace",
+			path: "atom/2",
+			by: "boundary",
+			ts: 2,
+			value: {atom: {id: 2, wimp: "zavx0z/lada", parentAtom: null, parentTopology: null}},
+		})).toBe("zavx0z/lada")
 		expect(observedRootSrc({
 			part: "graviton",
 			op: "add",

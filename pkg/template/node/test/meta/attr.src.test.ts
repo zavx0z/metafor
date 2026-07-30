@@ -3,7 +3,7 @@ import { parse } from "../../../index.ts"
 
 describe("meta > src атрибут", () => {
   describe("валидные WIMP-адреса", () => {
-    test("корневой Atom-репозиторий", () => {
+    test("независимый peer Meta-репозиторий", () => {
       const result = parse(({ html }) => {
         html`<meta-for src="owner/project"></meta-for>`
       })
@@ -15,15 +15,15 @@ describe("meta > src атрибут", () => {
       })
     })
 
-    test("внутренний Atom Meta-пакет", () => {
+    test("peer Meta-репозиторий с составным именем", () => {
       const result = parse(({ html }) => {
-        html`<meta-for src="owner/project/profile"></meta-for>`
+        html`<meta-for src="owner/project-profile"></meta-for>`
       })
       expect(result).toHaveLength(1)
       expect(result[0]).toMatchObject({
         type: "meta",
         tag: "meta-for",
-        src: "owner/project/profile",
+        src: "owner/project-profile",
       })
     })
 
@@ -81,6 +81,14 @@ describe("meta > src атрибут", () => {
       expect(() => {
         parse(({ html }) => {
           html`<meta-for src="repo"></meta-for>`
+        })
+      }).toThrow(/Невалидный src/)
+    })
+
+    test("src с запрещённым третьим сегментом", () => {
+      expect(() => {
+        parse(({ html }) => {
+          html`<meta-for src="owner/project/profile"></meta-for>`
         })
       }).toThrow(/Невалидный src/)
     })

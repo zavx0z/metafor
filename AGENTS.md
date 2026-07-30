@@ -48,6 +48,10 @@
   повторной привязки к точному scope.
 - Не возвращать старый `qTp` как смысловую замену текущей архитектуре.
 - `cluster/` содержит внешние Meta-репозитории и не является workspace MetaFor.
+- Каждая Meta в canonical Cluster является независимым peer Git-репозиторием
+  `cluster/<owner>/<repository>`. Canonical `src` имеет ровно два сегмента
+  `<owner>/<repository>`; nested Meta repositories и третий address segment
+  запрещены. Композиция выполняется через Meta/Matter/Monad references.
 - При задаче внутри `cluster/` по умолчанию работать только с Meta-пакетом по
   границе `docs/META_PACKAGES.md`. Продуктовый runtime внешнего репозитория и
   ядро MetaFor требуют отдельного явного запроса.
@@ -71,3 +75,44 @@
 - Для документации перечитать diff и выполнить `git diff --check`.
 - Не утверждать прохождение runtime или визуального сценария без фактической
   проверки соответствующего пользовательского пути.
+
+## Инициатива MetaJSON, Monad и Force
+
+- При работе над этой инициативой сначала полностью прочитать
+  `task/metajson-monad-force-plan.md`, затем
+  `task/metajson-monad-force-todo.md`.
+- План является живой архитектурной картой, а TODO — порядком исполнения. Они
+  не заменяют документы-владельцы из `docs/README.md`; при расхождении сначала
+  зафиксировать и разрешить его, а не молча выбрать план или код.
+- Брать highest-priority item со статусом `READY`, все dependencies которого
+  завершены. Не перескакивать к более позднему этапу ради удобной реализации.
+- До завершения `MF-000` implementation не начинать. После `MF-000` первым
+  implementation priority является цепочка flat topology
+  `MF-010 → MF-011 → MF-012 → MF-013 → MF-014`; Monad patch slice начинается
+  только после её cold proof.
+- `WAITING` означает только незавершённые dependencies; `BLOCKED` — фактическое
+  препятствие с evidence. После завершения item перевести ставшие доступными
+  зависимые `WAITING` items в `READY`.
+- Item со статусом `GATE` требует явного owner approval конкретного решения.
+  `GATE` не добавляется перед каждым structural patch: внутри уже утверждённых
+  capability и policy Codex выполняет итеративный цикл
+  `read → plan → validate → patch → materialize → observe`.
+- Перед изменениями пометить выбранный item `IN_PROGRESS` и указать текущую
+  задачу/исполнителя. Параллельно выполнять только независимые items.
+- После работы обновить item: `DONE` только с фактическими checks и evidence;
+  `BLOCKED` — с точной причиной и уже выполненными безопасными проверками.
+- Новое обязательное понятие или изменённый закон сначала внести в
+  соответствующий domain owner document. Plan/TODO обновить следом, чтобы они
+  не расходились с утверждённым контрактом.
+- Create интегрирует только существующий Create MetaFor template path:
+  `template → validate → target patch → validate → materialize`. Не создавать
+  параллельный Monad generator и не заменять полный package на
+  `directory + meta.ts`.
+- В первом Monad patch slice не добавлять `pending/active` Meta heads,
+  transactional outbox, Force v2, branches/merge/rollback/push, Process
+  generator, restart или hot reload. Source write не считать доказательством
+  materialization; точный outcome записывать в operational journal.
+- Лада не является fixture или центром текущего authoring/topology work. Это не
+  вечный запрет: constrained self-evolution остаётся отдельным будущим item.
+- При новом существенном evidence допускается править план и приоритеты TODO,
+  но нельзя удалять acceptance criterion без объяснения и owner decision.

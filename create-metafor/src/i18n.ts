@@ -16,11 +16,9 @@ export interface I18nStrings {
   exampleWithDir: string
   creating: string
   description: string
-  kind: string
-  rootAtom: string
-  internalAtom: string
   path: string
   source: string
+  installing: string
   created: string
   toBuild: string
   defaultDesc: string
@@ -29,9 +27,12 @@ export interface I18nStrings {
   helpNoteName: string
   helpNoteOptions: string
   errorPackageName: string
-  errorCreationRoot: string
+  errorParent: string
+  errorOwner: string
+  errorNested: string
   errorExists: string
   errorGitRequired: string
+  errorInstall: string
   errorGitInit: string
 }
 
@@ -42,18 +43,16 @@ const ru: I18nStrings = {
   helpExamples: "Примеры:",
   optionName: "Имя Мета",
   optionDesc: "Описание Мета",
-  optionDir: "Galaxy-владелец или существующий Atom-репозиторий",
+  optionDir: "Родительский каталог peer Meta-репозиториев",
   optionLang: "Язык вывода (ru|en)",
   exampleCreate: "Создать Мета",
   exampleWithDesc: "Создать с описанием",
   exampleWithDir: "Создать в другой директории",
   creating: "Создание Мета:",
   description: "Описание:",
-  kind: "Роль:",
-  rootAtom: "корневой Atom-репозиторий",
-  internalAtom: "внутренний Atom Meta-пакет",
   path: "Путь:",
   source: "WIMP src:",
+  installing: "Установка зависимостей:",
   created: "✅ Создана",
   toBuild: "📦 Для сборки:",
   defaultDesc: "MetaFor",
@@ -61,11 +60,14 @@ const ru: I18nStrings = {
   htmlLang: "ru",
   helpNoteName: "<name> — имя Мета (обязательно)",
   helpNoteOptions: "[options] — необязательные опции",
-  errorPackageName: "Имя Meta-пакета должно быть одним нижнерегистровым сегментом без slash",
-  errorCreationRoot: "--dir должен указывать на cluster/<owner> либо существующий Git-репозиторий cluster/<owner>/<repository>",
-  errorExists: "Meta-пакет уже существует",
-  errorGitRequired: "Для создания корневого Atom-репозитория требуется Git",
-  errorGitInit: "Не удалось инициализировать и зафиксировать корневой Git-репозиторий",
+  errorPackageName: "Имя Meta-репозитория должно быть одним нижнерегистровым сегментом без slash",
+  errorParent: "Родительский каталог --dir должен существовать",
+  errorOwner: "Имя родительского каталога должно быть валидным owner segment",
+  errorNested: "Нельзя создавать Meta внутри существующего Meta-репозитория",
+  errorExists: "Meta-репозиторий уже существует",
+  errorGitRequired: "Для создания peer Meta-репозитория требуется Git",
+  errorInstall: "Не удалось установить зависимости Meta-репозитория",
+  errorGitInit: "Не удалось инициализировать и зафиксировать peer Git-репозиторий",
 }
 
 const en: I18nStrings = {
@@ -75,18 +77,16 @@ const en: I18nStrings = {
   helpExamples: "Examples:",
   optionName: "Meta name",
   optionDesc: "Meta description",
-  optionDir: "Galaxy owner or existing Atom repository",
+  optionDir: "Parent directory for peer Meta repositories",
   optionLang: "Output language (ru|en)",
   exampleCreate: "Create Meta",
   exampleWithDesc: "Create with description",
   exampleWithDir: "Create in custom directory",
   creating: "Creating Meta:",
   description: "Description:",
-  kind: "Role:",
-  rootAtom: "root Atom repository",
-  internalAtom: "internal Atom Meta-package",
   path: "Path:",
   source: "WIMP src:",
+  installing: "Installing dependencies:",
   created: "✅ Created",
   toBuild: "📦 To build:",
   defaultDesc: "MetaFor",
@@ -94,11 +94,14 @@ const en: I18nStrings = {
   htmlLang: "en",
   helpNoteName: "<name> — Meta name (required)",
   helpNoteOptions: "[options] — optional options",
-  errorPackageName: "Meta-package name must be one lowercase segment without slashes",
-  errorCreationRoot: "--dir must point to cluster/<owner> or an existing Git repository at cluster/<owner>/<repository>",
-  errorExists: "Meta-package already exists",
-  errorGitRequired: "Git is required to create a root Atom repository",
-  errorGitInit: "Could not initialize and commit the root Git repository",
+  errorPackageName: "Meta repository name must be one lowercase segment without slashes",
+  errorParent: "The --dir parent directory must exist",
+  errorOwner: "The parent directory name must be a valid owner segment",
+  errorNested: "A Meta cannot be created inside an existing Meta repository",
+  errorExists: "Meta repository already exists",
+  errorGitRequired: "Git is required to create a peer Meta repository",
+  errorInstall: "Could not install Meta repository dependencies",
+  errorGitInit: "Could not initialize and commit the peer Git repository",
 }
 
 export const translations: Record<Lang, I18nStrings> = {

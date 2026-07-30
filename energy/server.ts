@@ -1,5 +1,6 @@
 import {MonadRpcPeer, MonadTransport} from "shared/transport/monad"
 import {Force} from "shared/transport/force"
+import {installForceCheckpointSideband} from "shared/transport/force/checkpoint"
 import {birthEnergyRuntime, type EnergyRuntimeBirth} from "./birth.ts"
 import {EnergyMonad} from "./monad.ts"
 
@@ -7,6 +8,7 @@ const monad = new EnergyMonad()
 const transport = new MonadTransport("energy")
 const rpc = new MonadRpcPeer(transport.channel)
 monad.onServerStarting(rpc)
+const checkpoint = installForceCheckpointSideband("energy", rpc)
 let runtime: EnergyRuntimeBirth | null = null
 
 const server = Bun.serve({
@@ -48,11 +50,15 @@ try {
   runtime = await birthEnergyRuntime({
     monad,
     peer: rpc,
-    openMonad: async () => await transport.open({
-      methods: rpc.methods(),
-      endpoint: new URL("/monad/channel", server.url),
-      waitMs: 30_000,
-    }),
+    openMonad: async () => {
+      const opened = await transport.open({
+        methods: rpc.methods(),
+        endpoint: new URL("/monad/channel", server.url),
+        waitMs: 30_000,
+      })
+      await checkpoint.open()
+      return opened
+    },
     createForce: () => new Force("energy"),
     protocol: {massStore: monad.massStore},
     onBorn(summary) {
@@ -63,6 +69,7 @@ try {
       )
     },
   })
+  checkpoint.bindQuiescence(async () => await runtime?.protocol.quiesce())
   runtime.force.onDestroy = close
 } catch (error) {
   monad.onRuntimeBirthFailed(error)

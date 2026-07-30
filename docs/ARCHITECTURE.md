@@ -4,14 +4,14 @@
 и точные документы-владельцы находятся в [`docs/README.md`](README.md). Для
 работы с реализацией внешняя документация не требуется.
 
-## Активный package graph
+## Canonical package graph
 
 Root workspace graph задан явным списком в `package.json`:
 
 - domain contracts: `types`;
 - shared wire protocols и server/web transports: `shared`;
-- central relay, `ForceLifecycle` и `MonadRouter`: `force`;
 - domains: `dark`, `boundary`, `matrix`, `energy`, `bulk`;
+- Dark Monad/Force assembly, relay, `ForceLifecycle` и `MonadRouter`: `dark`;
 - domain packages: `dark/{gravity,strong}`,
   `boundary/{atom,topology,wimp}`, `matrix/{gravity,strong,weak}`,
   `bulk/{gravity,strong,weak}`;
@@ -19,16 +19,32 @@ Root workspace graph задан явным списком в `package.json`:
   `pkg/ui/{elements,components,hud}`, `fixture`;
 - constructor and operational DSL: `create-metafor`.
 
+Standalone Force workspace отсутствует. Общие Particle types и физические
+domain transports остаются в `shared`, но не образуют отдельный runtime-domain.
+
 Игнорируемый каталог `cluster/` является физическим resolver root внешних Meta,
 но не workspace. Его непосредственные каталоги представляют Galaxy-владельцев,
-а их Git-репозитории — корневые Atom и монорепозитории внутренних Meta-пакетов.
+а каждый их непосредственный дочерний каталог — независимый peer
+Meta-репозиторий `cluster/<owner>/<repository>`. Вложенные Meta-репозитории
+запрещены; runtime composition не кодируется файловой вложенностью.
 
 ## Архитектурное чтение
 
 Package graph нельзя читать как полную онтологию. Каноническая проекция имеет
-вид `Domain × Force × Entity`: силы локально проявляются внутри доменов, а
-корневой `force` реализует только текущий внешний ingress и междоменную связь.
-Он не является всей Force.
+вид `Domain × Force × Entity`: силы локально проявляются внутри доменов, а Dark
+Force реализует единый внешний ingress и междоменную причинную связь.
+
+Dark имеет два равноправных слоя:
+
+```text
+Dark
+├── Monad — Meta/source/Store/service operations и structural planning
+└── Force — Particle ingress/history/relay/routing/lifecycle
+```
+
+Server/runtime бывшего standalone Force находится в этих слоях Dark.
+`shared/protocol/force` остаётся общим wire language. Gluon/Higgs и Inflaton
+проходят один Dark Force; структурный Inflaton подготавливает Dark Monad.
 
 Сохранившиеся domain packages `gravity`, `strong` и `weak` подтверждают это
 измерение, но их текущий неполный состав ещё не является завершённой таблицей
@@ -36,14 +52,22 @@ Package graph нельзя читать как полную онтологию. 
 
 ## Runtime entries
 
-| Process  | Entry                | Default port |
-| -------- | -------------------- | ------------ |
-| Force    | `force/server.ts`    | 4000         |
-| Boundary | `boundary/server.ts` | 4001         |
-| Dark     | `dark/server.ts`     | 4002         |
-| Matrix   | `matrix/server.ts`   | 4003         |
-| Bulk     | `bulk/server.ts`     | 4004         |
-| Energy   | `energy/server.ts`   | 4005         |
+| Process  | Entry                | Default listener |
+| -------- | -------------------- | ---------------- |
+| Dark     | `dark/server.ts`     | 4000; compatibility health 4002 |
+| Boundary | `boundary/server.ts` | 4001 |
+| Matrix   | `matrix/server.ts`   | 4003 |
+| Bulk     | `bulk/server.ts`     | 4004 |
+| Energy   | `energy/server.ts`   | 4005 |
+
+Canonical launcher содержит пять domain processes. Dark process содержит Dark
+Monad и Dark Force; отдельного Force entry нет. Public `/force`, `/monad/*`,
+REST/WebSocket и Force health сохраняют адрес `4000`. Listener `4002` держит
+health compatibility в том же Dark process и не является шестым process.
+
+Ранее принятый live contour был шестипроцессным. Его исторические cold proofs
+не переписываются задним числом; новый source требует отдельного owner-approved
+cold cut с backup/rollback до объявления production acceptance.
 
 Root scripts запускают entries только как обычные Bun processes. После изменения
 кода весь contour останавливается и запускается заново: частичная горячая
@@ -60,46 +84,122 @@ ForceChannel Energy открывает MonadChannel, читает
 `boundary.initialProjection.read` и гидратит постоянный локальный catalog
 Atom/Topology/Field/Variant/Process/continuation. Только затем Energy создаёт
 ForceChannel.
-Matrix server ждёт, пока Force увидит готовые `ForceChannel` Dark, Boundary,
-Energy и Bulk, затем получает final initial state Boundary, готовит Store/Weak
-и только после этого рождает Matrix runtime. Поэтому присутствие Energy в
-Matrix birth gate уже означает завершённую cold hydration. Созданный при
-импорте `Force("matrix")` становится пятым каналом и открывает общий realtime
-gate. Это необходимо, потому что первая Weak evaluation уже может испустить
-process work.
+Matrix server ждёт, пока Dark Force увидит готовые remote `ForceChannel`
+Boundary, Energy и Bulk и локальный Dark adapter, затем получает final initial
+state Boundary, готовит Store/Weak и только после этого рождает Matrix runtime.
+Поэтому присутствие Energy в Matrix birth gate уже означает завершённую cold
+hydration. Созданный при импорте `Force("matrix")` становится последним remote
+channel и открывает общий realtime gate. Это необходимо, потому что первая Weak
+evaluation уже может испустить process work.
 
 ## Реализованное соединение
 
-- `force/server.ts` принимает REST и создаёт пять доменных WebSocket-каналов.
+- `dark/server.ts` принимает REST, содержит локальный Dark adapter и создаёт
+  четыре remote domain WebSocket-канала.
 - Domain transports из `shared/transport/force` подключаются к
   `ws://127.0.0.1:4000/ws`, если
   `FORCE_ADDRESS` не задан; `domain/id` передаются в HTTP Upgrade query.
-- Domain Monads открывают отдельный локальный REST-канал к Force; его identity
+- Remote domain Monads открывают отдельный локальный REST-канал к Dark; его identity
   и method capabilities сохраняются сервером за непрозрачным токеном. Над
   каналом `MonadRpcPeer` одинаково обслуживает исходящие и входящие RPC, а
   закрытие удаляет канал из `MonadRouter`.
 - Потеря только `MonadChannel` делает RPC этой identity недоступным, но не
   останавливает уже рождённый runtime. Fail-stop вызывается потерей одного из
-  пяти обязательных realtime `ForceChannel`.
+  четырёх обязательных remote `ForceChannel`; локальный Dark adapter готов до
+  открытия общего gate.
 - После Upgrade по WebSocket идут только Particle без register, readiness или
   bootstrap messages; само подключение Particle не создаёт.
-- `force/force.ts` является только relay и перенаправляет Particle по готовым
-  каналам Store.
+- `dark/force/route.ts` перенаправляет Particle по готовым каналам Store только
+  после durable history append.
 - Domain handlers применяют входные particles к собственным runtime structures.
 - Dark читает внешний `cluster/<src>/meta.ts` в ширину и испускает отдельные
   декларационные Particle по мере чтения; Meta не становится внутренней
-  сущностью. Canonical `src` имеет форму `<owner>/<repository>` либо
-  `<owner>/<repository>/<meta-package>`.
+  сущностью. Canonical `src` имеет ровно два сегмента
+  `<owner>/<repository>`. Составные имена репозиториев используют дефисы, а
+  composition выражается Meta/Matter/Monad references.
 - `boundary/server.ts` открывает SQLite, материализует Particle в
   нормализованные реляционные таблицы и публикует результаты через Force.
 - `energy/server.ts` читает полный текущий Boundary projection через Monad,
   локально готовит `EnergyCatalogStore` и только после этого открывает
   обязательный realtime ForceChannel. На каждый claim RPC не выполняется.
 - `bulk/server.ts` обслуживает web entry, шрифт, browser WebSocket и связывает
-  browser manifestation с Force.
+  browser manifestation с Force. Current recursive projection snapshot,
+  переданный Bulk Monad, материализуется в geometry-free `BulkManifest`;
+  готовая `pkg/visual` strategy единолично строит immutable world geometry.
+  Bulk проверяет canonical identities и переводит готовые точки в local frame
+  renderer, не выполняя собственной раскладки либо ELK/graph-layout pass.
 - Matrix weak backend по умолчанию — `auto`: WebGPU при доступности, иначе CPU.
   `gpu` является явным строгим режимом, `cpu` принудительно выбирает reference
   backend.
+
+Source parity использует тот же wire и endpoints, но production acceptance
+требует отдельного полного cold restart. Hot reload запрещён.
+
+Единственный rollout этого owner-approved `MF-117` caller выполняется до
+preflight ровно одним обычным полным restart
+`metafor-inference-universe.service` без изменения config, environment или
+ports. После этого live structural transition не является reload: уже
+рождённый contour остаётся в тех же пяти processes, и дополнительный restart
+либо hot reload запрещён. Закрытый loopback owner command в Dark удерживает
+external admission и current applied-through frontier, а private Monad
+adapters Boundary, Energy и Bulk исполняют только exact `Inference → Lada`
+receipts. Общего write RPC нет. Boundary atomically меняет canonical active
+root; Dark Force проводит one-entity consequences;
+Mass/history/checkpoint/rollback/source evidence не удаляются.
+
+## Публичное чтение MetaJSON
+
+MetaJSON v1 имеет ровно один публичный JSON-документ и одну schema. Отдельных
+`authoring`, `planner`, `diagnostic`, compact либо иных public views нет.
+Частичный selector может быть только операцией чтения над этим же документом:
+он не создаёт второй payload или контракт.
+
+Документ содержит две явно разделённые части:
+
+- `template` — компактную, но полную сериализуемую нормализацию действующего
+  `MetaDSL`, включая все declarations, defaults, Process/Reaction descriptors,
+  Matter bindings и объявленный Bulk;
+- `runtime` — вложенные текущие Atom occurrences с реально присутствующими
+  State и Field values.
+
+Runtime не объясняет происхождение значения. Если текущий Field value
+присутствует у Atom, он находится в runtime occurrence; если отсутствует, ключа
+нет. Default остаётся declaration в `template`. Статусы `materialized`,
+`inherited-default`, `missing`, `not-projected`, отдельный `values/missing`
+envelope и provenance default-vs-write запрещены.
+
+Публичная identity задаётся logical Meta address, вложенной структурой
+документа и JSON paths/references. Boundary `Atom.id`, `Field.id`, `valueId`,
+локальные SQLite handles и другие внутренние числовые identity за публичную
+границу не выходят. MetaJSON не вводит направленные ports, boundary stubs или
+отдельный global edges graph: relations остаются в нормализованной Matter
+structure и её публичных structural references.
+
+Последовательность сохраняется только там, где она уже влияет на смысл или
+materialization:
+
+- первый State является initial State;
+- первый подошедший Transition одного State имеет приоритет;
+- порядок enum variants задаёт ordinal mapping;
+- declaration sequence Fields, Processes и Reactions сохраняет действующие
+  local identities, а порядок `finally` Processes — runtime causality;
+- Matter сохраняет parent/edge slot/sibling и repeated-occurrence order.
+
+Conditions одного Transition являются чистой конъюнкцией и отдельного
+priority-order не получают. Mass declaration и display order также не
+становятся новым законом. Универсального `order` vector в MetaJSON нет.
+
+Операцию чтения предоставляет Dark Monad. Stateless assembler получает полную
+declaration projection от Dark Monad, текущую runtime projection через
+Boundary, собирает и валидирует один документ, но не хранит его и не читает
+Store другого домена напрямую. Dark Monad и Boundary остаются владельцами
+своих projections; Dark Force только переносит Monad RPC.
+
+MetaJSON v1 не содержит revision, digest или CAS fields. Particle/operation
+history, patches, Git history, Mass bytes и живые Energy objects не являются
+частями этого snapshot и читаются через их собственные разрешённые интерфейсы.
+`meta.ts` и Git остаются canonical human-authored source; MetaJSON всегда
+является derived read representation.
 
 ## Energy и Mass в DSL/runtime
 
@@ -235,15 +335,47 @@ Boundary отсутствует. Производные runtime-проекции
 ## Bulk и renderer
 
 Сохранены source-backed world projection, generic viewport, navigation,
-fullscreen и WebGPU renderer. HUD ограничен кнопкой полноэкранного режима:
-пользовательских настроек изображения, ручного выбора Root SRC, статуса и
-пересчёта сцены в нём нет. Удалённые bot, phone, Android и WebRTC application
-paths были отключёнными product-specific ветками и не входили в причинный
-runtime contour.
+fullscreen и WebGPU renderer. Нижний существующий `HudTimelinePanel`, прежде
+показывавший Atom observer cut, теперь занят открытым по умолчанию causal
+time-документом: компактные Blender-подобные дорожки Force, Mass и Boundary,
+playhead и ромбовидные keyframe-маркеры кадров pause-stack, фактически
+прочитанных из Dark через локальный Monad Bulk. Заголовок и отдельная боковая
+вкладка времени отсутствуют; timeline прижат к нижнему dock. Отдельная
+самодельная карточка времени поверх сцены запрещена. Нижний control dock
+использует общие `@ui/components`: icon-only Pause, Resume и Step, а рядом
+read-only счётчики количества keyframes и acceptance sequence. Отдельного
+LIVE/PAUSE status chip нет. Dock не импортирует runtime Interpreter. Pause
+закрывает external admission и
+создаёт causal frame на удержанном frontier; Resume освобождает admission и
+очищает disposable stack.
+Цветные иконка и border управляющей кнопки обозначают текущий режим, а не
+доступную противоположную команду: Play выбран только в live, Pause — только на
+удержанном frontier. Управляющие кнопки не показывают tooltip.
+Счётчики подписаны пользовательскими словами `КАДРЫ` и `ТАКТ`, без внутренних
+сокращений KF/SEQ. Три управляющие кнопки образуют центрированную группу;
+`КАДРЫ` находится у её левого края, `ТАКТ` — у правого. В live при пустом
+pause-stack счётчики не рисуются; они появляются только вместе с causal frame и
+исчезают после Resume. Разделителей вокруг группы кнопок нет.
+Левый gutter подписей Force/Mass/Boundary зеркально резервируется справа:
+playhead и keyframe plot геометрически центрированы по viewport, а не по
+оставшейся после подписей ширине.
+Step не испускает Particle из UI и остаётся неактивным без отдельного явного
+следующего input. Выбранный кадр красный, измеренный exact — зелёный,
+degraded — янтарный, overloaded — красный, кадр без capture-метрики — серый.
+На время одного stack/pause/resume RPC управляющие кнопки недоступны, а ответ
+предыдущей отменённой UI-операции не может заменить более новое causal
+состояние.
+Перемещение playhead само по себе не меняет live-мир, 3D, checkpoint или
+Particle history. Недоступность либо malformed ответ time-control RPC
+показывается в панели, а не подменяется вымышленным состоянием.
 
-Legacy manifestation evidence, State occurrences, Conditions, relations,
-projections и visual implementation остаются доступными для последующего
-MF-000 D-5 audit. Cleanup не устанавливает новых visual laws.
+Semantic manifestation сохраняет State occurrences, Conditions, relations и
+projections как geometry-free identity/ownership contract. Единственный
+production visual law находится в `pkg/visual` и приходит в Bulk через
+`@metafor/visual/layout/centered-nested`; прежние Bulk layout/level,
+wireframe/LOD, fallback и Atom observer-timeline реализации удалены.
+Axion остаётся материализованной semantic identity, но его Visual activation
+отложена и отсекается до вызова production strategy.
 
 Визуальные законы задаются только в коде и не сохраняются в browser storage.
 Постоянная декоративная анимация программно выключена. Renderer останавливается,
@@ -252,13 +384,61 @@ Impulse, изменения `ViewPoint` или незавершённого ко
 корневая Particle детерминированно переключает наблюдение на материализованный
 Atom без ручной команды из интерфейса.
 
+Causal timeline заменяет прежнее Atom observer-cut представление: Bulk не
+строит и не показывает отдельные дорожки материализованных Atom на общем
+`throughTs`. Узкий live adapter предоставляет только pause/stack/resume; он не
+заявляет backward reconstruction, isolated execution branch, promotion в live
+contour или завершение `MF-109`.
+
 Текущий `ViewPoint` привязан к DOM element. Смысловой контракт должен стать
 platform-neutral, чтобы одна точка наблюдения могла представлять обычный экран,
 телефон, WebXR, AR или VR без изменения законов Bulk.
 
+### Observer viewport capture
+
+Read-only Monad method `bulk.observer.captureViewport` получает PNG именно
+последнего уже представленного canvas подключённого browser observer: сцену,
+его текущие camera/zoom/root и HUD. Обычный render path копирует готовую
+WebGPU canvas texture в ограниченную browser-side texture. Capture читает
+последнюю такую texture через `copyTextureToBuffer`, кодирует PNG во временном
+2D canvas и не запускает новый render loop. Это обходит недоступный для
+`HTMLCanvasElement.toBlob()` WebGPU swapchain, не меняет projection или
+состояние и не является server/headless/desktop screenshot.
+
+Observer выбирается по `id`; без `id` capture допустим только при ровно одном
+подключённом observer. Capture eligible только пока жив WebSocket, который
+успешно поглотил одноразовую browser session при Upgrade; Bulk хранит только
+digest session на время этого соединения. Monad request не переносит session
+или ручной grant. Первый валидный capture связывает выбранный observer с
+аутентифицированным `source` Monad channel, и до disconnect другой caller не
+получает право чтения. Ручная deployment-конфигурация для basic capture не
+требуется.
+
+Capture request/response идут по browser WebSocket-соединению, уже
+аутентифицированному одноразовой session, как явно дискриминированные control
+messages. Они разбираются до Force и никогда не создают Impulse. На одного
+observer разрешён один capture одновременно; действуют rate, timeout, viewport
+structural snapshot и PNG payload limits, а disconnect отменяет ожидание.
+
+Ответ фиксирует observer id, `throughTs`/`rootSrc` browser projection cut,
+CSS/pixel dimensions, DPR, capture sequence, wall-clock time, PNG byte count и
+base64. В том же результате находится существующий `BulkObserverSnapshot`:
+тот же `version`, `throughTs`, `rootSrc` и неизменённый
+`BulkProjectionSnapshot`, из которого observer рекурсивно строит manifestation.
+Отдельный structural graph capture не создаёт. Поля `capture.projection`
+сохраняются как совместимый короткий cut и обязаны точно совпадать со snapshot.
+
+Browser публикует snapshot для capture только после уже запрошенного обычного
+кадра renderer. Если structural update ещё ожидает этот кадр, capture ждёт его;
+сам capture не запрашивает render и не запускает постоянный loop. Capture time
+не является и не подменяет simulation tick.
+
 ## Create MetaFor
 
-`create-metafor` остаётся активным workspace и CLI. В Galaxy-каталоге он создаёт
-корневой Atom с собственным Git; в существующем Atom-репозитории — внутренний
-Meta-пакет без nested Git. Его templates, generator tests и
-`rules/metafor.md` проверяются локально вместе с остальным runtime.
+`create-metafor` остаётся активным workspace и CLI. Его утверждённый контракт:
+под переданным parent с owner basename создавать новый независимый peer
+`<repository>` с полным актуальным template, lockfile после `bun install`,
+собственным Git и одним `Initial commit`. Режима создания Meta внутри
+существующего Meta-репозитория нет; root/internal branching и workspace child
+template отсутствуют. Templates, generator tests и `rules/metafor.md`
+проверяются локально вместе с остальным runtime.

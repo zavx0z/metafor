@@ -6,7 +6,6 @@ describe("Bulk render loop gate", () => {
     expect(shouldContinueBulkRenderLoop({
       navigationActive: false,
       pendingMotion: false,
-      cosmosMotion: false,
       timestamp: 100,
       wakeUntilMs: 100,
     })).toBe(false)
@@ -16,14 +15,12 @@ describe("Bulk render loop gate", () => {
     expect(shouldContinueBulkRenderLoop({
       navigationActive: false,
       pendingMotion: false,
-      cosmosMotion: false,
       timestamp: 99,
       wakeUntilMs: 100,
     })).toBe(true)
     expect(shouldContinueBulkRenderLoop({
       navigationActive: true,
       pendingMotion: false,
-      cosmosMotion: false,
       timestamp: 100,
       wakeUntilMs: 100,
     })).toBe(true)

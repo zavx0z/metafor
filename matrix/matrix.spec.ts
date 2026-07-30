@@ -3,7 +3,11 @@ import {join} from "node:path"
 import type {ProcessResultCommit, ProcessResultProposal} from "shared/protocol/force/execution"
 import type {Particle, SourcedParticle} from "shared/protocol/force/particle"
 import type {BoundaryInitialState} from "@metafor/types/boundary/initial"
-import {createForceTestFixture, type ForceTestClient, type ForceTestFixture} from "force/fixture"
+import {
+  createForceTestFixture,
+  type ForceTestClient,
+  type ForceTestFixture,
+} from "../dark/force/fixture.ts"
 import {prepareMatrixBirth} from "./birth.ts"
 import {weak$} from "./weak"
 

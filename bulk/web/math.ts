@@ -23,29 +23,6 @@ export const computeLerpFactor = (deltaMs: number, smoothingMs: number): number 
   return 1 - Math.exp(-deltaMs / Math.max(1, smoothingMs))
 }
 
-/** Применяет единый унаследованный scale Atom к любой его локальной длине. */
-export const manifestLocalLength = (localLength: number, inheritedAtomScale: number): number =>
+/** Переводит локальную длину готовой Visual projection в мировой scale. */
+export const renderLocalLength = (localLength: number, inheritedAtomScale: number): number =>
   localLength * Math.max(Math.abs(inheritedAtomScale), 1e-6)
-
-/**
- * Расстояние в пикселях от точки до отрезка `[start, end]` в 2D-проекции.
- *
- * Используется в hover-picking-е для измерения близости курсора к wireframe-ребру.
- */
-export const getDistanceToSegmentPx = (
-  pointX: number,
-  pointY: number,
-  startX: number,
-  startY: number,
-  endX: number,
-  endY: number,
-): number => {
-  const dx = endX - startX
-  const dy = endY - startY
-  const lengthSq = dx * dx + dy * dy
-  if (lengthSq <= 1e-6) return Math.hypot(pointX - startX, pointY - startY)
-  const projection = Math.max(0, Math.min(1, ((pointX - startX) * dx + (pointY - startY) * dy) / lengthSq))
-  const closestX = startX + dx * projection
-  const closestY = startY + dy * projection
-  return Math.hypot(pointX - closestX, pointY - closestY)
-}

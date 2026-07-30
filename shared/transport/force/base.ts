@@ -1,9 +1,24 @@
 import type {ForceMessage, ForceMessageInput} from "../../protocol/force/message.ts"
+import {forceCheckpointSideband} from "./checkpoint.ts"
 
 export type ForceTransportOptions = {
   id?: string
+  /** Browser-only service-plane frames, consumed before Force decoding. */
+  onControl?: (message: ForceControlMessage) => void | Promise<void>
   parameters?: Readonly<Record<string, string>>
 }
+
+export type ForceControlMessage = {
+  control: string
+  [key: string]: unknown
+}
+
+export const isForceControlMessage = (value: unknown): value is ForceControlMessage =>
+  typeof value === "object" &&
+  value !== null &&
+  !Array.isArray(value) &&
+  typeof (value as Record<string, unknown>).control === "string" &&
+  ((value as Record<string, unknown>).control as string).length > 0
 
 /**
  * Общий публичный контракт транспортного клиента Force.
@@ -15,8 +30,10 @@ export type ForceTransportOptions = {
  * использует.
  *
  * Identity `domain/id` передаётся серверу во время HTTP Upgrade. После открытия
- * WebSocket по каналу идут только `{parts: [particle]}`: register, readiness и
- * другие служебные payload отсутствуют.
+ * Обычные сообщения WebSocket имеют форму `{parts: [particle]}`. Browser
+ * adapter также может перехватить явно дискриминированный `{control: string}`
+ * service-plane payload до Force decoding; такой payload никогда не становится
+ * Particle.
  */
 export abstract class ForceBase {
   #connected = false
@@ -91,6 +108,16 @@ export abstract class ForceBase {
     if (handler) this.#notifyConnection(handler, connected)
   }
 
+  /** Records one domain-originated Particle in the sideband ordinal only. */
+  protected checkpointOutgoing(): void {
+    forceCheckpointSideband(this.domain)?.trackOutgoing()
+  }
+
+  /** Binds the domain control-plane drain to this transport's sequential input queue. */
+  protected bindCheckpointDrain(): void {
+    forceCheckpointSideband(this.domain)?.bindDrain(async () => await this.#receiving)
+  }
+
   #notifyConnection(handler: (connected: boolean) => void, connected: boolean): void {
     try {
       handler(connected)
@@ -103,7 +130,14 @@ export abstract class ForceBase {
     handler: (impulse: ForceMessage) => void | Promise<void>,
     impulse: ForceMessage,
   ): void {
-    this.#receiving = this.#receiving.then(() => handler(impulse)).catch((error) => {
+    const checkpoint = forceCheckpointSideband(this.domain)
+    this.#receiving = this.#receiving.then(async () => {
+      if (checkpoint) {
+        await checkpoint.processIncoming(impulse, handler)
+      } else {
+        await handler(impulse)
+      }
+    }).catch((error) => {
       console.error(`[${this.domain}] Force onImpulse failed`, error)
     })
   }

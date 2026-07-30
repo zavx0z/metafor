@@ -26,12 +26,19 @@ export type BulkProjectionSnapshot = {
   declarations: BulkProjectionDeclaration[]
 }
 
-/** Service-plane response for one observer before its realtime channel opens. */
-export type BulkInitialPackage = {
+/**
+ * Existing observer-readable structural cut. Recursive manifestation is
+ * derived from this projection; capture must not introduce another graph.
+ */
+export type BulkObserverSnapshot = {
   version: 1
-  session: string
   throughTs: number | null
   rootSrc: string
   projection: BulkProjectionSnapshot
+}
+
+/** Service-plane response for one observer before its realtime channel opens. */
+export type BulkInitialPackage = BulkObserverSnapshot & {
+  session: string
   manifest: BulkManifest
 }
