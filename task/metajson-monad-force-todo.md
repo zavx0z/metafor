@@ -1931,32 +1931,31 @@
   - journal, ACK/NACK/resume;
   - authoritative consumer cursors.
 
-### MF-401 — Multi-entity Boundary staging
+### MF-401 — Обобщить растворение структурного родителя
 
 - Status: `GATE`
 - Dependencies: `MF-206`
-- Read-only evidence boundary:
-  - detached branch commit
-    `963f52b386a9d33ab0731c632628aa3add833f51` proves only a local pure
-    `dissolve(parent, massDisposition)` planner and its synthetic tests;
-  - that commit is not integrated into the canonical Inference branch and has
-    no Boundary write, Force Particle, RPC write endpoint or runtime proof, so
-    it does not make dissolve implementation complete or ready.
-- Next gate `MF-401A` — offline multi-entity Boundary dissolve proof:
-  - Status: `GATE`, explicitly not `READY`;
-  - run only on detached synthetic input and an isolated Boundary fixture; no
-    live Boundary/Mass/history/process may be read or changed;
-  - deterministically promote direct children into the removed parent's
-    lexical interval and require one explicit promoted-child disposition for
-    every parent Mass key;
-  - validate the complete staged batch before apply, preserve untouched
-    identities/order, reject missing references or partial apply, and emit the
-    expected one-entity-per-`ForceMessage` Particle plan;
-  - verify pre/post MetaJSON projection, Boundary integrity and zero mutation
-    on validation failure.
-- Live dissolve/delete, Energy destroy/cleanup, runtime rollout and any
-  deletion from the current Inference contour remain separate owner-gated
-  work; none is complete or ready.
+- Execution task:
+  [`task/generic-parent-dissolve.md`](generic-parent-dissolve.md)
+- Current boundary:
+  - `MF-111 → MF-117` доказал и выполнил только точный
+    `zavx0z/inference → zavx0z/lada` переход с одним прямым целевым ребёнком;
+  - общий случай с несколькими прямыми детьми в действующем коде отсутствует;
+  - старые изменения `963f52b3` и `0a55845a` сохраняют полезный замысел, но не
+    имеют настоящей Boundary/Energy/Force реализации и не применяются
+    выборочно поверх `main`.
+- Next gate:
+  - owner утверждает необходимость общего случая, его область и право на
+    живое выполнение;
+  - реализация строится на действующих Boundary, Energy, Mass, Force и
+    MetaJSON контрактах, не заменяя специальный принятый путь `MF-117`;
+  - до этого задача не `READY`.
+- Acceptance:
+  - все прямые дети детерминированно поднимаются в прежний интервал родителя;
+  - судьба каждого Mass-ключа указана ровно один раз;
+  - полный набор изменений проходит проверку до одной транзакции Boundary;
+  - после commit каждая изменённая сущность идёт отдельной Particle;
+  - ошибка либо несовпадение не оставляют частичного результата.
 
 ### MF-402 — Full VCS model
 
