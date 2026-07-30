@@ -11,7 +11,8 @@ import { StepMode } from "../constants"
  * сравнивается WebGPU: особые начальные States, lock, первый подходящий
  * Transition и список изменившихся Branes.
  *
- * @see [Полный набор сценариев равенства CPU и WebGPU](https://github.com/zavx0z/metafor/blob/main/matrix/weak/tests/weak.parity.test.ts)
+ * @see [Основные сценарии равенства CPU и WebGPU](https://github.com/zavx0z/metafor/blob/main/matrix/weak/tests/weak.parity.test.ts)
+ * @see [Все виды Conditions на CPU и WebGPU](https://github.com/zavx0z/metafor/blob/main/matrix/weak/tests/weak.conditions.test.ts)
  */
 export class CPUWeakRuntime implements WeakRuntime {
   private readonly context: CpuRuntimeContext

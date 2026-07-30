@@ -6,8 +6,8 @@ export type WeakMode = "cpu" | "gpu"
 /**
  * Режим одного шага Weak.
  *
- * `1` проверяет обычные Transitions. `2` обрабатывает только
- * `STATE_UNDEFINED` и используется при рождении либо добавлении Atom.
+ * `1` обрабатывает только `STATE_UNDEFINED` и используется при рождении либо
+ * добавлении Atom. `2` проверяет обычные Transitions.
  */
 export type WeakStepMode = 1 | 2
 

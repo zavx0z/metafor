@@ -484,33 +484,6 @@ export async function update(
   })
 }
 
-/**
- * Снимает внутреннюю блокировку перечисленных Branes без запуска нового шага.
- *
- * В причинном Process-протоколе обычный путь разблокировки проходит через
- * подтверждённый Boundary результат и {@link update}; этот метод нужен
- * низкоуровневому управлению и проверкам.
- *
- * @param indexes Адреса Branes, с которых нужно снять lock.
- * @throws Если Store не рождён или Brane не существует.
- */
-export async function unlock(indexes: number[]): Promise<void> {
-  await runExclusive(matrixGate, async () => {
-    requireInitializedStore(matrix$)
-    const weakUpdates: Array<{kind: "lock"; braneIndex: number; value: boolean}> = []
-
-    for (const index of indexes) {
-      const brane = matrix$.branes[index]
-      if (!brane) throw new Error(`Brane at index ${index} not found in matrix`)
-      clearPendingProcessExecution(index)
-      brane.lock = false
-      weakUpdates.push({kind: "lock", braneIndex: index, value: false})
-    }
-
-    weakHeapUpdate(weakUpdates)
-  })
-}
-
 const preparedBirth = consumePreparedMatrixBirth()
 if (preparedBirth) initializeIncrementalMatrixIndexes()
 const birthChanges = preparedBirth ? await weakRunStep(StepMode.UndefinedOnly) : []

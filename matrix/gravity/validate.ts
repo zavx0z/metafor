@@ -116,7 +116,7 @@ export function validateData(data: MatrixInputData): void {
       }
 
       stateTransitions.forEach((transition, transitionIndex) => {
-        if (transition === null) return // Терминальное состояние
+        if (transition === null) return // Пустое место не является Transition
 
         const [targetState, conditions] = transition
 
