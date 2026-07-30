@@ -1,21 +1,23 @@
 /**
  * Причинный оркестратор Matrix.
  *
- * Все операции, способные заменить Store либо изменить Field, lock или
- * структурную проекцию, входят в один {@link AsyncGate}. Операция удерживает
- * очередь до чтения результата Weak и публикации Photon, но не ждёт исполнения
- * Process в Energy.
+ * Все операции, способные изменить Field, lock или структурную проекцию,
+ * входят в один {@link AsyncGate}. Операция удерживает очередь до чтения
+ * результата Weak и публикации Photon, но не ждёт исполнения Process в Energy.
+ * Ошибка обработки входящей Particle возвращается в Force, после чего Matrix
+ * завершает процесс с ненулевым кодом.
  *
- * @see [Порядок одновременно вызванных операций](https://github.com/zavx0z/metafor/blob/main/matrix/tests/index.spec.ts#L419-L481)
+ * @see [Порядок изменений Fields и структуры](https://github.com/zavx0z/metafor/blob/main/matrix/matrix.spec.ts)
  * @see [Process завершается только после Boundary commit](https://github.com/zavx0z/metafor/blob/main/matrix/matrix.spec.ts#L72-L233)
+ * @see [Критическая ошибка завершает процесс Matrix](https://github.com/zavx0z/metafor/blob/main/matrix/runtime-failure.spec.ts)
  *
  * @packageDocumentation
  */
 
 import {gravity$} from "@matrix/gravity/store.ts"
 import {matrix$} from "./store"
-import type {MatrixData, MatrixFieldValueRecord, MatrixStore, MatrixValue} from "@metafor/types/matrix/store"
-import type {MatrixFieldRecord, MatrixInputData} from "@metafor/types/matrix/data"
+import type {MatrixFieldValueRecord, MatrixStore, MatrixValue} from "@metafor/types/matrix/store"
+import type {MatrixFieldRecord} from "@metafor/types/matrix/data"
 import type {AsyncGate, MatrixPendingProcessExecution, MatrixUpdateOptions} from "@metafor/types/matrix/runtime"
 import type {
   ProcessExecutionClaim,
@@ -23,15 +25,18 @@ import type {
   ProcessResultCommit,
 } from "shared/protocol/force/execution"
 import {isProcessExecutionId} from "shared/protocol/force/execution"
-import {FieldType, flattenMatrixData, validateData} from "@matrix/gravity"
-import {createStoredStringInterner, normalizeFieldValue, assembleStoredMatrixData, strong$} from "@matrix/strong"
-import {StepMode, weakHeapUpdate, weakInit, weakRunStep, weakStructuralUpdate, weak$} from "@matrix/weak"
+import {FieldType} from "@matrix/gravity"
+import {createStoredStringInterner, normalizeFieldValue, strong$} from "@matrix/strong"
+import {StepMode, weakHeapUpdate, weakRunStep, weakStructuralUpdate, weak$} from "@matrix/weak"
 import {resolveForceFieldId, resolveForceFieldsPayload} from "shared/protocol/force/fields"
 import type {Particle} from "shared/protocol/force/particle"
 import {Force} from "shared/transport/force"
 import {consumePreparedMatrixBirth} from "./birth.ts"
 import {applyMatrixProjectionParticle, recordMatrixProjectionState} from "./projection.ts"
-import {applyIncrementalMatrixProjection} from "./incremental.ts"
+import {
+  applyIncrementalMatrixProjection,
+  initializeIncrementalMatrixIndexes,
+} from "./incremental.ts"
 
 let force: Force
 const matrixGate: AsyncGate = {pending: null}
@@ -63,63 +68,6 @@ const runExclusive = async <T>(gate: AsyncGate, task: () => Promise<T>): Promise
   } finally {
     release?.()
   }
-}
-
-const emptyPreparedData = (): MatrixData => ({
-  fields: [],
-  stringTable: [""],
-  sharedBlocks: [],
-  sharedValues: [],
-  branes: [],
-  braneValues: [],
-  braneSharedBlockRefs: [],
-  stateTable: [],
-  transitions: [],
-  conditions: [],
-  states: [],
-  stateNames: [],
-})
-
-export const applyPreparedData = (prepared: MatrixData): void => {
-  matrix$.fields = prepared.fields
-  matrix$.stringTable = prepared.stringTable
-  matrix$.sharedBlocks = prepared.sharedBlocks
-  matrix$.sharedValues = prepared.sharedValues
-  matrix$.branes = prepared.branes
-  matrix$.braneValues = prepared.braneValues
-  matrix$.braneSharedBlockRefs = prepared.braneSharedBlockRefs
-  matrix$.stateTable = prepared.stateTable
-  matrix$.transitions = prepared.transitions
-  matrix$.conditions = prepared.conditions
-  matrix$.states = prepared.states
-  matrix$.stateNames = prepared.stateNames
-}
-
-const clearGravityRuntime = (): void => {
-  gravity$.activeAtomIds = []
-  gravity$.atomIdToBraneIndex.clear()
-  gravity$.braneIndexToAtomId = []
-  gravity$.wimpSrcByAtomId.clear()
-  gravity$.atomIdsByWimpSrc.clear()
-  gravity$.structuralDirty = false
-}
-
-const clearStrongRuntime = (): void => {
-  strong$.runtimeFieldIndexByWimpFieldId.clear()
-  strong$.wimpFieldIdsByRuntimeFieldIndex = []
-  strong$.braneIndexByWimpFieldId.clear()
-  strong$.topologyWimpFieldIds.clear()
-  strong$.runtimeFieldIndexByAtomFieldId.clear()
-  strong$.atomFieldIdsByRuntimeFieldIndex = []
-  strong$.topologyAtomFieldIds.clear()
-}
-
-const clearRuntime = (): void => {
-  pendingProcessExecutionsByAtomId.clear()
-  weak$.dispose()
-  applyPreparedData(emptyPreparedData())
-  clearGravityRuntime()
-  clearStrongRuntime()
 }
 
 const parseAtomIdPath = (path: Particle["path"]): number | null =>
@@ -409,10 +357,6 @@ const applyCommittedWeakResult = async (part: Particle): Promise<boolean> => {
   return true
 }
 
-export function prepareData(data: MatrixInputData): MatrixData {
-  return assembleStoredMatrixData(flattenMatrixData(data))
-}
-
 export function listMatrixRuntimeAtomIds(): number[] {
   return [...gravity$.activeAtomIds]
 }
@@ -437,36 +381,9 @@ const collectProcessStateRetriggers = (
   return retriggers
 }
 
-async function writePreparedData(prepared: MatrixData): Promise<[number, number][]> {
-  return await runExclusive(matrixGate, async () => {
-    clearRuntime()
-    applyPreparedData(prepared)
-    if (!prepared.fields.length && !prepared.branes.length) return []
-    await weakInit(matrix$)
-    return []
-  })
-}
-
-/**
- * Полностью заменяет производную Matrix-проекцию.
- *
- * Предыдущий Weak уничтожается внутри общей очереди до установки нового Store,
- * поэтому параллельный {@link update} не видит частично заменённые данные.
- *
- * @param data Проверенная входная форма Fields, Branes и States.
- * @returns Изменения State; полная запись сама по себе их не вычисляет.
- * @throws Если входная форма Matrix недопустима.
- *
- * @see [update ждёт предыдущий write](https://github.com/zavx0z/metafor/blob/main/matrix/tests/index.spec.ts#L447-L459)
- */
-export async function write(data: MatrixInputData): Promise<[number, number][]> {
-  validateData(data)
-  return await writePreparedData(prepareData(data))
-}
-
 function requireInitializedStore(store$: MatrixStore): void {
   if (!store$.fields.length && !store$.branes.length) {
-    throw new Error("Store not initialized. Matrix must be born or write() must be called first.")
+    throw new Error("Store not initialized. Matrix must be born first.")
   }
   if (!weak$.initialized) throw new Error("Weak runtime not initialized")
 }
@@ -496,8 +413,8 @@ function findMutableFieldRecord(
  * @returns Пары адреса Brane и нового State для фактических переходов.
  * @throws Если Store не рождён либо указан неизвестный Brane или Field.
  *
- * @see [Заблокированная Brane не меняет State](https://github.com/zavx0z/metafor/blob/main/matrix/tests/index.spec.ts#L550-L607)
- * @see [Параллельные update сохраняют порядок](https://github.com/zavx0z/metafor/blob/main/matrix/tests/index.spec.ts#L419-L439)
+ * @see [Заблокированная Brane сохраняет Field и не меняет State](https://github.com/zavx0z/metafor/blob/main/matrix/update.spec.ts)
+ * @see [Параллельные update сохраняют порядок](https://github.com/zavx0z/metafor/blob/main/matrix/update.spec.ts)
  */
 export async function update(
   updates: Array<[braneIndex: number, fieldUpdates: Array<[fieldIndex: number, value: unknown]>, lock?: boolean]>,
@@ -594,12 +511,15 @@ export async function unlock(indexes: number[]): Promise<void> {
   })
 }
 
-const birthChanges = consumePreparedMatrixBirth()
-  ? await weakRunStep(StepMode.UndefinedOnly)
-  : []
+const preparedBirth = consumePreparedMatrixBirth()
+if (preparedBirth) initializeIncrementalMatrixIndexes()
+const birthChanges = preparedBirth ? await weakRunStep(StepMode.UndefinedOnly) : []
 if (birthChanges.length > 0) syncProcessLocksForChanges(birthChanges, birthChanges)
 
 force = new Force("matrix")
+force.onImpulseError = () => {
+  process.exit(1)
+}
 force.onImpulse = async (impulse) => {
   const part = impulse.parts[0]
   const projection = applyMatrixProjectionParticle(part)
@@ -628,4 +548,3 @@ export {FieldType} from "./gravity"
 export {gravity$}
 export {matrix$}
 export {strong$}
-export {flattenMatrixData} from "./gravity"

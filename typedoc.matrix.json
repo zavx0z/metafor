@@ -5,6 +5,7 @@
     "matrix/index.ts",
     "matrix/matrix.ts",
     "matrix/birth.ts",
+    "matrix/prepare.ts",
     "matrix/monad.ts",
     "matrix/projection.ts",
     "matrix/incremental.ts",

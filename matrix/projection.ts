@@ -32,7 +32,6 @@ const declarationSection = {
 
 let projection: BoundaryInitialState | null = null
 let nextSyntheticValueId = -1
-let projectionGeneration = 0
 const atomById = new Map<number, BoundaryInitialAtom>()
 const atomArrayIndexById = new Map<number, number>()
 const atomIdsByWimp = new Map<string, Set<number>>()
@@ -170,13 +169,8 @@ const normalizeProjectionVariantRefs = (): void => {
 export function hydrateMatrixProjection(initial: BoundaryInitialState): void {
   projection = clone(initial)
   nextSyntheticValueId = -1
-  projectionGeneration++
   rebuildIndexes()
   normalizeProjectionVariantRefs()
-}
-
-export function getMatrixProjectionGeneration(): number {
-  return projectionGeneration
 }
 
 export function readMatrixProjectionFragment(atomIds: Iterable<number>): BoundaryInitialState {

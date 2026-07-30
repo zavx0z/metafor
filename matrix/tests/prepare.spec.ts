@@ -1,8 +1,9 @@
 /**
- * Тесты для prepareData.
+ * Проверки чистой подготовки рабочего Store.
  */
 import { test, expect, describe } from "bun:test"
-import { flattenMatrixData, prepareData } from "../matrix"
+import {flattenMatrixData} from "../gravity"
+import {prepareMatrixData} from "../prepare.ts"
 import type { MatrixData, MatrixTransitionRecord } from "@metafor/types/matrix/store"
 import { FieldType } from "../gravity"
 import type { MatrixInputData } from "@metafor/types/matrix/data"
@@ -54,7 +55,7 @@ function getBraneStateTransitions(store: MatrixData, braneIndex: number, stateIn
     }))
 }
 
-describe("prepareData — подготовка canonical JS store", () => {
+describe("prepareMatrixData — подготовка canonical JS store", () => {
   test("Matrix flattening должен переводить nested conditions в parsed checks", () => {
     const data: MatrixInputData = {
       fields: [{ type: FieldType.F32 }],
@@ -83,7 +84,7 @@ describe("prepareData — подготовка canonical JS store", () => {
   })
 
   test("должен подготовить flat indexed JS store для 1 браны с 1 полем", () => {
-    const result = prepareData({
+    const result = prepareMatrixData({
       fields: [{ type: FieldType.F32 }],
       branes: [{
         values: [[0, 100]],
@@ -107,7 +108,7 @@ describe("prepareData — подготовка canonical JS store", () => {
   })
 
   test("должен подготовить entanglement как shared blocks + refs", () => {
-    const result = prepareData({
+    const result = prepareMatrixData({
       fields: [{ type: FieldType.F32 }],
       branes: [
         { values: [[0, 100]], state: 0, collapses: [[null]] },
@@ -140,7 +141,7 @@ describe("prepareData — подготовка canonical JS store", () => {
   })
 
   test("Strong должен дедуплицировать строки и state graph в canonical store", () => {
-    const result = prepareData({
+    const result = prepareMatrixData({
       fields: [{ type: FieldType.STRING_PTR }],
       branes: [
         {
@@ -167,7 +168,7 @@ describe("prepareData — подготовка canonical JS store", () => {
   })
 
   test("должен хранить ARRAY поля в canonical JS store без heap reserve", () => {
-    const result = prepareData({
+    const result = prepareMatrixData({
       fields: [{ type: FieldType.ARRAY_PTR, elementType: "number" }],
       branes: [
         {

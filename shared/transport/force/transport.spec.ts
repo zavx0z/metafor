@@ -7,6 +7,7 @@ type ForceConstructor = new (domain: string) => {
   readonly connected: boolean
   onConnectionChange: (connected: boolean) => void
   onImpulse: (message: ForceMessage) => void | Promise<void>
+  onImpulseError?: (error: unknown) => void | Promise<void>
   impulse: (message: ForceMessageInput) => void
 }
 
@@ -175,6 +176,25 @@ const verifyEarlyParticleBuffer = async (Force: ForceConstructor, domain: string
   expect(received).toEqual([particle])
 }
 
+const verifyImpulseErrorDelivery = async (Force: ForceConstructor, domain: string): Promise<void> => {
+  const force = new Force(domain)
+  const socket = sockets.at(-1)!
+  let receivedError: unknown
+
+  force.onImpulseError = (error) => {
+    receivedError = error
+  }
+  force.onImpulse = () => {
+    throw new Error("controlled domain failure")
+  }
+
+  socket.receive({parts: [{part: "photon", op: "test", path: 1, by: "matrix", ts: 1}]})
+  await waitFor(() => receivedError !== undefined)
+
+  expect(receivedError).toBeInstanceOf(Error)
+  expect((receivedError as Error).message).toBe("controlled domain failure")
+}
+
 const verifyOutgoingSource = async (Force: ForceConstructor, domain: string): Promise<void> => {
   const force = new Force(domain)
   const socket = sockets.at(-1)!
@@ -211,6 +231,14 @@ describe("Force runtime transports", () => {
 
   test("browser buffers a Particle received before runtime installs its handler", async () => {
     await verifyEarlyParticleBuffer(BrowserForce, "browser-early-particle")
+  })
+
+  test("Bun reports a domain handler failure after Force processing rejects", async () => {
+    await verifyImpulseErrorDelivery(BunForce, "bun-impulse-error")
+  })
+
+  test("browser reports a domain handler failure after Force processing rejects", async () => {
+    await verifyImpulseErrorDelivery(BrowserForce, "browser-impulse-error")
   })
 
   test("Bun assigns its domain while preserving the outgoing timestamp", async () => {

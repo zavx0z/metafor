@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { prepareData } from "../matrix"
+import {prepareMatrixData} from "../prepare.ts"
 import type { MatrixData } from "@metafor/types/matrix/store"
 import { FieldType } from "../gravity"
 import type { MatrixInputData } from "@metafor/types/matrix/data"
@@ -38,7 +38,7 @@ describe("prepared entanglement projection", () => {
       ],
     }
 
-    const prepared = prepareData(data)
+    const prepared = prepareMatrixData(data)
 
     expect(prepared.sharedBlocks).toEqual([])
     expect(getBraneLocalValues(prepared, 0)).toEqual([{ fieldIndex: 0, value: 100 }])
@@ -76,7 +76,7 @@ describe("prepared entanglement projection", () => {
       },
     }
 
-    const prepared = prepareData(data)
+    const prepared = prepareMatrixData(data)
 
     expect(getSharedBlockValues(prepared, 0)).toEqual([{ fieldIndex: 0, value: 100 }])
     expect(getBraneLocalValues(prepared, 0)).toEqual([{ fieldIndex: 1, value: 10 }])
@@ -110,7 +110,7 @@ describe("prepared entanglement projection", () => {
       },
     }
 
-    expect(() => prepareData(data)).toThrow("values diverge across branes")
+    expect(() => prepareMatrixData(data)).toThrow("values diverge across branes")
   })
 
   test("legacy fieldIndices-only shorthand is rejected", () => {
@@ -132,6 +132,6 @@ describe("prepared entanglement projection", () => {
       },
     }
 
-    expect(() => prepareData(data)).toThrow("requires at least 1 field")
+    expect(() => prepareMatrixData(data)).toThrow("requires at least 1 field")
   })
 })

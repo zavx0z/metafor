@@ -25,7 +25,6 @@ import {weak$} from "@matrix/weak"
 import {buildMatrixRuntime} from "./birth.ts"
 import {matrix$} from "./store.ts"
 import {
-  getMatrixProjectionGeneration,
   type MatrixProjectionChange,
   readMatrixProjectionFragment,
 } from "./projection.ts"
@@ -58,7 +57,7 @@ export type IncrementalMatrixResult = {
 const atomFieldKey = (atomId: number, fieldId: number): string => `${atomId}\0${fieldId}`
 const clone = <T>(value: T): T => structuredClone(value)
 
-let initializedGeneration = -1
+let incrementalIndexesInitialized = false
 let nextSyntheticWimpFieldId = 1
 const syntheticWimpFieldIdByAtomField = new Map<string, number>()
 const atomFieldKeysByAtomId = new Map<number, Set<string>>()
@@ -164,10 +163,14 @@ const installLegacyFieldAddress = (
   if (strong$.topologyAtomFieldIds.has(key)) strong$.topologyWimpFieldIds.add(syntheticId)
 }
 
-const ensureIncrementalIndexes = (): void => {
-  const generation = getMatrixProjectionGeneration()
-  if (generation === initializedGeneration) return
-  initializedGeneration = generation
+/**
+ * Строит служебные индексы частичных изменений после холодного рождения.
+ *
+ * Рабочая Matrix вызывает эту функцию один раз до открытия Force. Проверки
+ * могут вызвать её для следующей изолированной фикстуры в том же процессе.
+ */
+export const initializeIncrementalMatrixIndexes = (): void => {
+  incrementalIndexesInitialized = false
   nextSyntheticWimpFieldId = 1
   syntheticWimpFieldIdByAtomField.clear()
   atomFieldKeysByAtomId.clear()
@@ -258,6 +261,7 @@ const ensureIncrementalIndexes = (): void => {
     }
     if ((sharedBlockRefCounts[blockIndex] ?? 0) === 0) addFreeIndex(freeSharedBlockIndexes, blockIndex)
   }
+  incrementalIndexesInitialized = true
 }
 
 const clearAtomFieldMappings = (atomId: number): void => {
@@ -700,7 +704,9 @@ const writeSharedValue = (
 export async function applyIncrementalMatrixProjection(
   change: MatrixProjectionChange,
 ): Promise<IncrementalMatrixResult> {
-  ensureIncrementalIndexes()
+  if (!incrementalIndexesInitialized) {
+    throw new Error("Matrix incremental indexes are not initialized")
+  }
   const affectedAtomIds = expandAffectedAtoms(change.affectedAtomIds)
   const fragment = readMatrixProjectionFragment(affectedAtomIds)
   const snapshot = buildMatrixRuntime(fragment)

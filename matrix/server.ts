@@ -70,12 +70,9 @@ try {
   console.log(`[matrix] born atoms=${summary.atoms} fields=${summary.fields} backend=${summary.backend}`)
 } catch (error) {
   monad.onRuntimeBirthFailed(error)
-  try {
-    await transport.close()
-  } catch (closeError) {
-    console.error("[matrix] Monad channel close failed", closeError)
-  }
   console.error("[matrix] Monad birth failed", error)
+  await close()
+  throw error
 }
 
 process.once("SIGINT", close)

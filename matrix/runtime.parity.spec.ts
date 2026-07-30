@@ -91,6 +91,7 @@ const runScenario = async (backend: "cpu" | "gpu"): Promise<RuntimeTrace> => {
   const fixture = createForceTestFixture()
 
   try {
+    weak$.dispose()
     await prepareMatrixBirth(runtimeInitialState())
     let from = fixture.messages.length
     const waiting = fixture.nextClient("matrix", 10_000)

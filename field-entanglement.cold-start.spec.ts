@@ -7,11 +7,11 @@ import {open, type BoundaryDatabase} from "./boundary/sqlite.ts"
 import {
   buildMatrixRuntime,
   consumePreparedMatrixBirth,
-  prepareMatrixBirth,
 } from "./matrix/birth.ts"
 import {applyIncrementalMatrixProjection} from "./matrix/incremental.ts"
 import {applyMatrixProjectionParticle} from "./matrix/projection.ts"
 import {matrix$} from "./matrix/store.ts"
+import {prepareIncrementalMatrixFixture} from "./matrix/tests/shared/fixtures.ts"
 import {weak$} from "./matrix/weak/index.ts"
 
 const PARENT = "zavx0z/capsule"
@@ -75,7 +75,7 @@ describe("Field entanglement cold start", () => {
     ])
     expect(runtime.runtime.runtimeFieldIndexByAtomFieldId.map((entry) => entry[2])).toEqual([0, 0])
 
-    await prepareMatrixBirth(initial)
+    await prepareIncrementalMatrixFixture(initial)
     expect(matrix$.sharedBlocks).toHaveLength(1)
 
     const computed = await boundary.materialize({parts: [{

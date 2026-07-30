@@ -23,12 +23,7 @@ const runWeakOperation = async <T>(task: () => Promise<T>): Promise<T> => {
 /** Initializes the one live Matrix Weak backend over the packed Matrix store. */
 export async function weakInit(store$: MatrixStore): Promise<void> {
   await runWeakOperation(async () => {
-    // Preserve the newly prepared Matrix states while disposing the previous
-    // WebGPU/CPU backend. Both the live Force runtime and standalone tests enter
-    // Weak through this function.
-    const nextStates = [...store$.states]
-    weak$.dispose()
-    store$.states = nextStates
+    if (weak$.initialized) throw new Error("Weak runtime is already initialized")
     const selected = await createWeakRuntime(store$)
     weak$.initialized = true
     weak$.mode = selected.mode

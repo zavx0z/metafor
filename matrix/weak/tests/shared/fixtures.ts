@@ -1,10 +1,11 @@
 /**
  * Общие фикстуры для тестов CPU/GPU матрицы.
  */
-import { prepareData } from "../../../matrix"
-import { createStoredStringInterner, normalizeFieldValue } from "../../../strong"
-import { FieldType } from "../../../gravity"
-import type { MatrixCollapse, MatrixFieldRecord, MatrixInputData } from "@metafor/types/matrix/data"
+import {createStoredStringInterner, normalizeFieldValue} from "../../../strong"
+import {FieldType} from "../../../gravity"
+import {prepareMatrixData} from "../../../prepare.ts"
+import type {MatrixConditionValue} from "@metafor/types/matrix/condition"
+import type {MatrixBraneValue, MatrixCollapse, MatrixFieldRecord, MatrixInputData} from "@metafor/types/matrix/data"
 import type { MatrixData, MatrixStore } from "@metafor/types/matrix/store"
 import { STATE_NONE, STATE_UNDEFINED } from "../../constants"
 
@@ -86,7 +87,7 @@ function clonePreparedStore(data: MatrixData): MatrixStore {
 }
 
 function createBaseStore(data: MatrixInputData): MatrixStore {
-  return clonePreparedStore(prepareData(data))
+  return clonePreparedStore(prepareMatrixData(data))
 }
 
 export function createEmptyFixture() {
@@ -129,6 +130,23 @@ export function createSimpleBraneFixture() {
   })
 
   return { fields, store }
+}
+
+export function createConditionFixture(
+  field: MatrixFieldRecord,
+  value: MatrixBraneValue,
+  condition: MatrixConditionValue,
+) {
+  const fields = [field]
+  const store = createBaseStore({
+    fields,
+    branes: [{
+      values: [[0, value]],
+      state: 0,
+      collapses: [[[1, {0: condition}]], [null]],
+    }],
+  })
+  return {fields, store}
 }
 
 export function createMultipleBranesFixture() {

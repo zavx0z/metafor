@@ -6,9 +6,10 @@ import {strong$} from "@matrix/strong"
 import {gravity$} from "@matrix/gravity/store.ts"
 import {matrix$} from "./store.ts"
 import {installTestGpuDevice} from "./weak/tests/shared/gpu.ts"
-import {consumePreparedMatrixBirth, prepareMatrixBirth} from "./birth.ts"
+import {consumePreparedMatrixBirth} from "./birth.ts"
 import {applyIncrementalMatrixProjection} from "./incremental.ts"
 import {applyMatrixProjectionParticle} from "./projection.ts"
+import {prepareIncrementalMatrixFixture} from "./tests/shared/fixtures.ts"
 
 const previousBackend = Bun.env.METAFOR_WEAK_BACKEND
 
@@ -89,7 +90,7 @@ const addChild = (atomId: number, valueId: number, value: string): Particle => (
 
 describe("Matrix live structural Field projection", () => {
   test("patches packed shared layout direct to computed and back", async () => {
-    await prepareMatrixBirth(initialState())
+    await prepareIncrementalMatrixFixture(initialState())
     const parentBrane = matrix$.branes[0]
     const runtime = weak$.runtime
     expect(matrix$.sharedBlocks).toHaveLength(1)
@@ -118,7 +119,7 @@ describe("Matrix live structural Field projection", () => {
   })
 
   test("moves the child from one parent Field shared block to another", async () => {
-    await prepareMatrixBirth(initialState())
+    await prepareIncrementalMatrixFixture(initialState())
 
     const moved = applyMatrixProjectionParticle(childGraviton(9002, "second.png", 102))
     expect(moved).toMatchObject({structural: true})
@@ -136,7 +137,7 @@ describe("Matrix live structural Field projection", () => {
   })
 
   test("removes and adds Atom through a free slot without shifting an unaffected brane", async () => {
-    await prepareMatrixBirth(initialState())
+    await prepareIncrementalMatrixFixture(initialState())
     const childBrane = matrix$.branes[1]
     const runtime = weak$.runtime
 
@@ -171,7 +172,7 @@ describe("Matrix live structural Field projection", () => {
     await installTestGpuDevice()
     Bun.env.METAFOR_WEAK_BACKEND = "gpu"
     try {
-      await prepareMatrixBirth(initialState())
+      await prepareIncrementalMatrixFixture(initialState())
       expect(weak$.mode).toBe("gpu")
       expect(matrix$.sharedBlocks).toHaveLength(1)
 

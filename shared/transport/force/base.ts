@@ -87,6 +87,14 @@ export abstract class ForceBase {
   /** Handler завершения transport lifecycle для cleanup ресурсов домена. */
   abstract onDestroy?: () => void | Promise<void>
 
+  /**
+   * Handler критической ошибки доменной обработки входящей Particle.
+   *
+   * Transport вызывает его после того, как ошибка уже передана служебному
+   * подтверждению Force. Домен сам решает, является ли такой отказ фатальным.
+   */
+  onImpulseError?: (error: unknown) => void | Promise<void>
+
   /** Отправляет одну Particle в transport. */
   abstract impulse(message: ForceMessageInput): void
 
@@ -137,8 +145,13 @@ export abstract class ForceBase {
       } else {
         await handler(impulse)
       }
-    }).catch((error) => {
+    }).catch(async (error) => {
       console.error(`[${this.domain}] Force onImpulse failed`, error)
+      try {
+        await this.onImpulseError?.(error)
+      } catch (handlerError) {
+        console.error(`[${this.domain}] Force onImpulseError failed`, handlerError)
+      }
     })
   }
 }

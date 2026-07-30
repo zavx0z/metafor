@@ -11,12 +11,12 @@ import {
   STATE_UNDEFINED,
   type MatrixRuntimeSnapshot,
 } from "@metafor/types/matrix/runtime"
-import {flattenMatrixData, validateData} from "@matrix/gravity"
 import {gravity$} from "@matrix/gravity/store.ts"
-import {assembleStoredMatrixData, strong$} from "@matrix/strong"
+import {strong$} from "@matrix/strong"
 import {weak$, weakInit} from "@matrix/weak"
 import {matrix$} from "./store.ts"
 import {hydrateMatrixProjection} from "./projection.ts"
+import {prepareMatrixData} from "./prepare.ts"
 
 type JsonRecord = Record<string, unknown>
 
@@ -396,44 +396,11 @@ export function buildMatrixRuntime(initial: BoundaryInitialState): MatrixRuntime
   }
 }
 
-const emptyPreparedData = (): MatrixData => ({
-  fields: [],
-  stringTable: [""],
-  sharedBlocks: [],
-  sharedValues: [],
-  branes: [],
-  braneValues: [],
-  braneSharedBlockRefs: [],
-  stateTable: [],
-  transitions: [],
-  conditions: [],
-  states: [],
-  stateNames: [],
-})
-
 const applyPreparedData = (prepared: MatrixData): void => {
   Object.assign(matrix$, prepared)
 }
 
 const atomFieldKey = (atomId: number, fieldId: number): string => `${atomId}\0${fieldId}`
-
-const resetStores = (): void => {
-  weak$.dispose()
-  applyPreparedData(emptyPreparedData())
-  gravity$.activeAtomIds = []
-  gravity$.atomIdToBraneIndex.clear()
-  gravity$.braneIndexToAtomId = []
-  gravity$.wimpSrcByAtomId.clear()
-  gravity$.atomIdsByWimpSrc.clear()
-  gravity$.structuralDirty = false
-  strong$.runtimeFieldIndexByWimpFieldId.clear()
-  strong$.wimpFieldIdsByRuntimeFieldIndex = []
-  strong$.braneIndexByWimpFieldId.clear()
-  strong$.topologyWimpFieldIds.clear()
-  strong$.runtimeFieldIndexByAtomFieldId.clear()
-  strong$.atomFieldIdsByRuntimeFieldIndex = []
-  strong$.topologyAtomFieldIds.clear()
-}
 
 let preparedBirth = false
 
@@ -443,9 +410,7 @@ const prepareMatrixProjection = async (
 ): Promise<{atoms: number; fields: number; backend: string}> => {
   if (!isBoundaryInitialState(value)) throw new Error("Boundary returned invalid initial state")
   const snapshot = buildMatrixRuntime(value)
-  validateData(snapshot.data)
-  resetStores()
-  applyPreparedData(assembleStoredMatrixData(flattenMatrixData(snapshot.data)))
+  applyPreparedData(prepareMatrixData(snapshot.data))
   await weakInit(matrix$)
 
   gravity$.activeAtomIds = [...snapshot.runtime.atomIdByBraneIndex]
@@ -485,7 +450,13 @@ const prepareMatrixProjection = async (
   }
 }
 
-/** Matrix Monad prepares the permanent Store and Weak resources before runtime birth. */
+/**
+ * Один раз подготавливает Matrix из согласованного начального снимка Boundary.
+ *
+ * Рабочий процесс вызывает это рождение только до открытия причинного потока.
+ * Повторное рождение и восстановление внутри того же процесса не входят в
+ * контракт Matrix.
+ */
 export async function prepareMatrixBirth(value: unknown): Promise<{atoms: number; fields: number; backend: string}> {
   if (!isBoundaryInitialState(value)) throw new Error("Boundary returned invalid initial state")
   hydrateMatrixProjection(value)

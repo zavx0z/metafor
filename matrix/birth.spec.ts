@@ -4,8 +4,9 @@ import {STATE_UNDEFINED} from "@metafor/types/matrix/runtime"
 import {gravity$} from "@matrix/gravity/store.ts"
 import {strong$} from "@matrix/strong"
 import {weak$} from "@matrix/weak"
-import {buildMatrixRuntime, consumePreparedMatrixBirth, prepareMatrixBirth} from "./birth.ts"
+import {buildMatrixRuntime, consumePreparedMatrixBirth} from "./birth.ts"
 import {matrix$} from "./store.ts"
+import {prepareMatrixBirthFixture} from "./tests/shared/fixtures.ts"
 
 const previousBackend = Bun.env.METAFOR_WEAK_BACKEND
 
@@ -49,7 +50,7 @@ describe("Matrix Monad birth", () => {
   })
 
   test("prepares the permanent Store and Weak before runtime birth", async () => {
-    await expect(prepareMatrixBirth(initialState())).resolves.toEqual({atoms: 1, fields: 1, backend: "cpu"})
+    await expect(prepareMatrixBirthFixture(initialState())).resolves.toEqual({atoms: 1, fields: 1, backend: "cpu"})
 
     expect(weak$.initialized).toBe(true)
     expect(matrix$.fields).toEqual([{type: 0}])
@@ -78,7 +79,7 @@ describe("Matrix Monad birth", () => {
       ],
     }
 
-    await expect(prepareMatrixBirth(optional)).resolves.toEqual({atoms: 1, fields: 5, backend: "cpu"})
+    await expect(prepareMatrixBirthFixture(optional)).resolves.toEqual({atoms: 1, fields: 5, backend: "cpu"})
     expect(matrix$.braneValues.map((record) => record.value)).toEqual([0, 0, false, 0, 0])
     expect(consumePreparedMatrixBirth()).toBe(true)
   })
@@ -113,7 +114,7 @@ describe("Matrix Monad birth", () => {
       }],
     })
 
-    await prepareMatrixBirth(entangled)
+    await prepareMatrixBirthFixture(entangled)
     expect(matrix$.sharedBlocks).toHaveLength(1)
     expect(matrix$.braneValues).toEqual([])
     expect(matrix$.getFieldLocation(0, 0)?.record).toBe(matrix$.getFieldLocation(1, 0)?.record)

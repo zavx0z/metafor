@@ -5,10 +5,10 @@ import {gravity$} from "@matrix/gravity/store.ts"
 import {strong$} from "@matrix/strong"
 import {StepMode, weak$, weakHeapUpdate, weakRunStep, weakStructuralUpdate} from "@matrix/weak"
 import {installTestGpuDevice} from "./weak/tests/shared/gpu.ts"
-import {prepareMatrixBirth} from "./birth.ts"
 import {applyIncrementalMatrixProjection} from "./incremental.ts"
 import {applyMatrixProjectionParticle, recordMatrixProjectionState} from "./projection.ts"
 import {matrix$} from "./store.ts"
+import {prepareIncrementalMatrixFixture} from "./tests/shared/fixtures.ts"
 
 const previousBackend = Bun.env.METAFOR_WEAK_BACKEND
 
@@ -193,7 +193,7 @@ const variantParticle = (
 
 describe("Matrix incremental structural runtime", () => {
   test("touches one brane in a 1000-Atom projection and keeps the backend", async () => {
-    await prepareMatrixBirth(largeProjection(1000))
+    await prepareIncrementalMatrixFixture(largeProjection(1000))
     const untouched = matrix$.branes[0]
     const targetIndex = gravity$.getBraneIndexByAtomId(1000)
     const target = targetIndex === undefined ? undefined : matrix$.branes[targetIndex]
@@ -217,7 +217,7 @@ describe("Matrix incremental structural runtime", () => {
   })
 
   test("reuses packed storage across repeated same-shape structural updates", async () => {
-    await prepareMatrixBirth(largeProjection(1000))
+    await prepareIncrementalMatrixFixture(largeProjection(1000))
     const sizes = () => ({
       fields: matrix$.fields.length,
       braneValues: matrix$.braneValues.length,
@@ -243,7 +243,7 @@ describe("Matrix incremental structural runtime", () => {
     const run = async (backend: "cpu" | "gpu") => {
       if (backend === "gpu") await installTestGpuDevice()
       Bun.env.METAFOR_WEAK_BACKEND = backend
-      await prepareMatrixBirth(sharedSplitProjection())
+      await prepareIncrementalMatrixFixture(sharedSplitProjection())
       const runtime = weak$.runtime
       for (const atomId of [3, 4]) {
         const result = await applyIncrementalMatrixProjection(
@@ -285,7 +285,7 @@ describe("Matrix incremental structural runtime", () => {
     const run = async (backend: "cpu" | "gpu") => {
       if (backend === "gpu") await installTestGpuDevice()
       Bun.env.METAFOR_WEAK_BACKEND = backend
-      await prepareMatrixBirth(sharedGraphProjection())
+      await prepareIncrementalMatrixFixture(sharedGraphProjection())
       expect(matrix$.branes[0]?.stateOffset).toBe(matrix$.branes[1]?.stateOffset)
       await weakRunStep(StepMode.UndefinedOnly)
       recordMatrixProjectionState(1, 201)
@@ -325,7 +325,7 @@ describe("Matrix incremental structural runtime", () => {
   })
 
   test("bounds graph copy-on-write storage across repeated split-join churn", async () => {
-    await prepareMatrixBirth(sharedGraphProjection())
+    await prepareIncrementalMatrixFixture(sharedGraphProjection())
     await applyIncrementalMatrixProjection(applyMatrixProjectionParticle(sharedGraphField(20, 20)))
     const sizes = () => [matrix$.stateTable.length, matrix$.transitions.length, matrix$.conditions.length]
     const warmed = sizes()
@@ -343,7 +343,7 @@ describe("Matrix incremental structural runtime", () => {
     const run = async (backend: "cpu" | "gpu") => {
       if (backend === "gpu") await installTestGpuDevice()
       Bun.env.METAFOR_WEAK_BACKEND = backend
-      await prepareMatrixBirth(enumProjection())
+      await prepareIncrementalMatrixFixture(enumProjection())
       const runtime = weak$.runtime
       const trace: Array<{variants: unknown[]; value: unknown; condition: unknown}> = []
       const capture = () => {
@@ -386,7 +386,7 @@ describe("Matrix incremental structural runtime", () => {
   })
 
   test("bounds canonical packed storage while the shape grows", async () => {
-    await prepareMatrixBirth(largeProjection(1))
+    await prepareIncrementalMatrixFixture(largeProjection(1))
 
     for (let localId = 2; localId <= 100; localId++) {
       await applyIncrementalMatrixProjection(applyMatrixProjectionParticle({
@@ -414,7 +414,7 @@ describe("Matrix incremental structural runtime", () => {
   test("reuses shared payload storage across shared-local churn", async () => {
     const initial = sharedSplitProjection()
     initial.atoms = initial.atoms.slice(0, 2)
-    await prepareMatrixBirth(initial)
+    await prepareIncrementalMatrixFixture(initial)
     const warmedSharedValues = matrix$.sharedValues.length
 
     for (let cycle = 0; cycle < 100; cycle++) {
@@ -430,7 +430,7 @@ describe("Matrix incremental structural runtime", () => {
   })
 
   test("reuses Field, brane value and graph storage across repeated add/remove churn", async () => {
-    await prepareMatrixBirth(statefulProjection())
+    await prepareIncrementalMatrixFixture(statefulProjection())
     await applyIncrementalMatrixProjection(applyMatrixProjectionParticle(addStatefulAtom()))
     const runtime = weak$.runtime
     const brane = matrix$.branes[1]
@@ -456,7 +456,7 @@ describe("Matrix incremental structural runtime", () => {
   })
 
   test("reuses canonical graph ranges when a Condition changes", async () => {
-    await prepareMatrixBirth(statefulProjection())
+    await prepareIncrementalMatrixFixture(statefulProjection())
     const before = {
       states: matrix$.stateTable.length,
       transitions: matrix$.transitions.length,
@@ -499,7 +499,7 @@ describe("Matrix incremental structural runtime", () => {
         {src: "owner/process", section: "processes", localId: "1", value: {id: 501, key: "ready", state: "ready"}},
       ],
     }
-    await prepareMatrixBirth(initial)
+    await prepareIncrementalMatrixFixture(initial)
     const brane = matrix$.branes[0]!
     brane.lock = true
 
@@ -531,7 +531,7 @@ describe("Matrix incremental structural runtime", () => {
         {src: "owner/new", section: "processes", localId: "1", value: {id: 601, key: "ready", state: "ready"}},
       ],
     }
-    await prepareMatrixBirth(initial)
+    await prepareIncrementalMatrixFixture(initial)
     const brane = matrix$.branes[0]!
     brane.lock = true
 
@@ -572,7 +572,7 @@ describe("Matrix incremental structural runtime", () => {
         {src: "owner/peer", section: "processes", localId: "1", value: {id: 601, key: "ready", state: "ready"}},
       ],
     }
-    await prepareMatrixBirth(initial)
+    await prepareIncrementalMatrixFixture(initial)
     const firstIndex = gravity$.getBraneIndexByAtomId(17)!
     const secondIndex = gravity$.getBraneIndexByAtomId(18)!
     const peerIndex = gravity$.getBraneIndexByAtomId(19)!
@@ -609,7 +609,7 @@ describe("Matrix incremental structural runtime", () => {
     const run = async (backend: "cpu" | "gpu"): Promise<{birth: number[][]; added: number[][]; evolved: number[][]}> => {
       if (backend === "gpu") await installTestGpuDevice()
       Bun.env.METAFOR_WEAK_BACKEND = backend
-      await prepareMatrixBirth(statefulProjection())
+      await prepareIncrementalMatrixFixture(statefulProjection())
       const runtime = weak$.runtime
       const birth = await weakRunStep(StepMode.UndefinedOnly)
       const result = await applyIncrementalMatrixProjection(applyMatrixProjectionParticle(addStatefulAtom()))
@@ -643,7 +643,7 @@ describe("Matrix incremental structural runtime", () => {
   test("compacts WebGPU structural heap churn without replacing runtime or pipeline", async () => {
     await installTestGpuDevice()
     Bun.env.METAFOR_WEAK_BACKEND = "gpu"
-    await prepareMatrixBirth(largeProjection(1))
+    await prepareIncrementalMatrixFixture(largeProjection(1))
     const runtime = weak$.runtime
     const internal = runtime as unknown as {
       context: {deadHeapWords: number; heapWords: number; pipeline: GPUComputePipeline}
