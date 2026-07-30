@@ -10,6 +10,8 @@ export type QuantumSphereOptions = Omit<QuantumFilmOptions, "highlightSize">
 
 export const SPHERE_QUANTUM_HIGHLIGHT_SIZE = 1
 
+export {SPHERE_MESH_DETAIL} from "./MeshDetail.ts"
+
 export const deriveQuantumFilmPalette = (
   color: Color,
   opacity: number,

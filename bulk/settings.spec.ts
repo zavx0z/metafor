@@ -1,51 +1,32 @@
-import { describe, expect, test } from "bun:test"
+import {describe, expect, test} from "bun:test"
 import {
-  DEFAULT_BULK_LAYOUT_SETTINGS,
-  DEFAULT_BULK_LAYOUT_SNAPSHOT_CONFIG,
-} from "@bulk/gravity/layout"
-import { DEFAULT_BULK_SETTINGS, normalizeBulkRenderSettings } from "./settings.ts"
+  DEFAULT_BULK_SETTINGS,
+  bulkViewportConfig,
+  normalizeBulkRenderSettings,
+} from "./settings.ts"
 
-describe("bulk visual laws", () => {
-  test("uses the gravity layout law as the single layout source", () => {
-    expect(DEFAULT_BULK_SETTINGS.layout).toEqual(DEFAULT_BULK_LAYOUT_SETTINGS)
-    expect(Object.isFrozen(DEFAULT_BULK_SETTINGS.layout)).toBe(true)
-    expect(DEFAULT_BULK_LAYOUT_SETTINGS.rootInnerDiameterMm).toBeCloseTo(
-      DEFAULT_BULK_LAYOUT_SNAPSHOT_CONFIG.rootOuterDiameterMm / 3,
-      6,
-    )
-    expect(DEFAULT_BULK_LAYOUT_SETTINGS.rootSphereRadiusMm).toBeCloseTo(
-      DEFAULT_BULK_LAYOUT_SNAPSHOT_CONFIG.rootOuterDiameterMm *
-        DEFAULT_BULK_LAYOUT_SNAPSHOT_CONFIG.nestingCoefficient / 2,
-      6,
-    )
+describe("Bulk viewport settings", () => {
+  test("contain no layout geometry or mesh-detail laws", () => {
+    expect(DEFAULT_BULK_SETTINGS).toEqual({
+      render: {
+        labelVisibleLevels: 1,
+        baseDepth: 0,
+        labelFontSizeMm: 0.8,
+        labelSurfaceOffsetMm: 1,
+      },
+    })
+    expect(DEFAULT_BULK_SETTINGS).not.toHaveProperty("layout")
+    expect(bulkViewportConfig.viewport).not.toHaveProperty("torusFallbackMm")
   })
 
-  test("keeps perpetual animation disabled", () => {
-    expect(DEFAULT_BULK_SETTINGS.render.animationEnabled).toBe(false)
-  })
-
-  test("keeps the root label inside the canonical Atom scale", () => {
-    expect(DEFAULT_BULK_SETTINGS.render.labelFontSizeMm).toBeCloseTo(
-      DEFAULT_BULK_LAYOUT_SNAPSHOT_CONFIG.rootOuterDiameterMm * 0.008,
-      6,
-    )
-    expect(DEFAULT_BULK_SETTINGS.render.labelSurfaceOffsetMm).toBeCloseTo(
-      DEFAULT_BULK_LAYOUT_SNAPSHOT_CONFIG.rootOuterDiameterMm * 0.01,
-      6,
-    )
-  })
-
-  test("normalizes internal render values against the canonical law", () => {
+  test("normalizes only viewport-owned label settings", () => {
     expect(normalizeBulkRenderSettings({
-      detailDensityFactor: Number.NaN,
       labelVisibleLevels: 3.6,
-      torusRadialSegments: 2,
-      wireframeOpacity: 2,
+      labelFontSizeMm: Number.NaN,
+      labelSurfaceOffsetMm: -1,
     })).toEqual({
       ...DEFAULT_BULK_SETTINGS.render,
       labelVisibleLevels: 4,
-      torusRadialSegments: 3,
-      wireframeOpacity: 1,
     })
   })
 })

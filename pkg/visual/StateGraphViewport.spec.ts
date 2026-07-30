@@ -5,11 +5,13 @@ import type {
   StateGraphLayoutNode,
 } from "./StateGraphLayout.ts"
 import {
+  stateGraphFieldSphereLayout,
+  stateGraphNodeFormDimensions,
+} from "./StateGraphLayout.ts"
+import {
   buildStateGraphEdgeCurve,
   groupStateGraphEdges,
   stateGraphFieldColor,
-  stateGraphFieldSphereLayout,
-  stateGraphNodeFormDimensions,
 } from "./StateGraphViewport.ts"
 import {
   createQuantumFilmMaterial,
@@ -115,7 +117,7 @@ describe("State Graph viewport edge geometry", () => {
     expect(minimumDistance).toBeCloseTo(0.8)
   })
 
-  test("draws a returning edge as a front arc and a top-view straight line", () => {
+  test("draws the production returning Hermite below the graph plane", () => {
     const points = buildStateGraphEdgeCurve(
       edge(true),
       node("5", 44, 0),
@@ -124,7 +126,9 @@ describe("State Graph viewport edge geometry", () => {
 
     expect(points[0]).toMatchObject({x: 44, y: 0, z: 0})
     expect(points.at(-1)).toMatchObject({x: 22, y: 7.5, z: 0})
-    expect(Math.max(...points.map((point) => point.z))).toBe(10.5)
+    expect(points).toHaveLength(65)
+    expect(Math.max(...points.map((point) => point.z))).toBeCloseTo(0)
+    expect(Math.min(...points.map((point) => point.z))).toBeLessThan(0)
 
     const from = points[0]!
     const to = points.at(-1)!
@@ -137,14 +141,16 @@ describe("State Graph viewport edge geometry", () => {
     }
   })
 
-  test("keeps an ordinary edge close to the graph plane", () => {
+  test("draws the production forward Hermite above the graph plane", () => {
     const points = buildStateGraphEdgeCurve(
       edge(false),
       node("5", 0, 0),
       node("4", 22, 0),
     )
 
-    expect(Math.max(...points.map((point) => point.z))).toBeCloseTo(0.7)
+    expect(points).toHaveLength(65)
+    expect(Math.max(...points.map((point) => point.z))).toBeGreaterThan(0)
+    expect(Math.min(...points.map((point) => point.z))).toBeCloseTo(0)
   })
 
   test("compiles all Transition into at most two render batches", () => {

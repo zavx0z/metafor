@@ -32,8 +32,8 @@
 - [Matrix](domains/MATRIX.md) — State/Transition и инкрементальная проекция.
 - [Energy](domains/ENERGY.md) — Process, Mass, Energy и lifecycle живых
   ресурсов.
-- [Bulk layout](../bulk/gravity/layout/CONTRACT.md) — проверяемая геометрия
-  проявления.
+- [Bulk manifestation и Visual projection](../bulk/VISUAL.md) —
+  граница semantic identity и принадлежащей `pkg/visual` геометрии.
 - [Visual layouts](../pkg/visual/CONTRACT.md) — именованные способы показать
   один полный Monad snapshot.
 - [Протоколы сил](proto/) — справочное чтение wire-потоков; при конфликте

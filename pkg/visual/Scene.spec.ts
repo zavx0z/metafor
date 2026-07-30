@@ -1,11 +1,11 @@
 import {describe, expect, test} from "bun:test"
 import type {BulkManifest} from "@metafor/types/bulk/manifest"
+import {Field} from "./Field.ts"
+import {States} from "./States.ts"
+import {Transition} from "./Transition.ts"
 import {
-  Field,
-  States,
-  Transition,
   projectVisualScene,
-} from "./index.ts"
+} from "./Scene.ts"
 
 const manifest = (): BulkManifest => ({
   rootSrc: "owner/root",
@@ -18,15 +18,6 @@ const manifest = (): BulkManifest => ({
     label: "Root",
     depth: 0,
     darkParticleOrder: 0,
-    localX: 0,
-    localY: 0,
-    localZ: 0,
-    torusScale: 1,
-    torusRadius: 40,
-    torusTube: 10,
-    colorR: 1,
-    colorG: 1,
-    colorB: 1,
   }],
   fieldParticles: [
     {
@@ -38,13 +29,6 @@ const manifest = (): BulkManifest => ({
       fieldLabel: "One",
       fieldParticleKind: "string",
       valueText: null,
-      localX: 1,
-      localY: 2,
-      localZ: 3,
-      sphereRadius: 2,
-      colorR: 1,
-      colorG: 0,
-      colorB: 0,
     },
     {
       fieldParticleId: "field:2",
@@ -55,13 +39,6 @@ const manifest = (): BulkManifest => ({
       fieldLabel: "Two",
       fieldParticleKind: "number",
       valueText: null,
-      localX: 4,
-      localY: 5,
-      localZ: 6,
-      sphereRadius: 2,
-      colorR: 1,
-      colorG: 1,
-      colorB: 0,
     },
   ],
   orbitalParticles: [
@@ -76,13 +53,6 @@ const manifest = (): BulkManifest => ({
       anchorStateOrbitalParticleId: null,
       sleeveRootStateId: 1,
       relatedStateIds: [],
-      localX: 20,
-      localY: 0,
-      localZ: 0,
-      sphereRadius: 2,
-      colorR: 0,
-      colorG: 1,
-      colorB: 0,
     },
     {
       orbitalParticleId: "state:2",
@@ -95,13 +65,6 @@ const manifest = (): BulkManifest => ({
       anchorStateOrbitalParticleId: null,
       sleeveRootStateId: 1,
       relatedStateIds: [],
-      localX: 24,
-      localY: 0,
-      localZ: 0,
-      sphereRadius: 2,
-      colorR: 0,
-      colorG: 0,
-      colorB: 1,
     },
   ],
   transitionChannels: [{
@@ -113,9 +76,6 @@ const manifest = (): BulkManifest => ({
     conditionIds: [],
     conditionFieldIds: [],
     active: true,
-    colorR: 1,
-    colorG: 1,
-    colorB: 1,
   }],
   fieldProxies: [],
   relationChannels: [],

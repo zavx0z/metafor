@@ -23,7 +23,10 @@ import type {
   CheckpointForwardPatchDocumentV1,
   CheckpointManifestV1,
 } from "@metafor/types/dark/checkpoint"
-import type {BulkManifest} from "@metafor/types/bulk/manifest"
+import type {
+  BulkManifest,
+  BulkRootPromotionReceipt,
+} from "@metafor/types/bulk/manifest"
 import type {BulkRuntimeProjection} from "@metafor/types/bulk/runtime"
 import type {Particle} from "shared/protocol/force/particle"
 import {MassCatalog, massFileName} from "../shared/mass.ts"
@@ -77,6 +80,21 @@ const TARGET_KEYS = [
   "chatOutbox",
   "greetingDraft",
 ] as const
+
+/**
+ * Owner-approved MF-115 evidence captured before the detached dissolve.
+ *
+ * The frame belongs to the operation receipt, not to semantic manifestation.
+ * Keeping it explicit prevents the acceptance bridge from reconstructing
+ * operational evidence from viewport geometry.
+ */
+const ACCEPTED_FORMER_ROOT_FRAME =
+  Object.freeze<BulkRootPromotionReceipt["formerRootFrame"]>({
+    localX: 0,
+    localY: 0,
+    localZ: 0,
+    outerDiameterMm: 100,
+  })
 
 const sha256 = (value: Uint8Array | string): string =>
   createHash("sha256").update(value).digest("hex")
@@ -369,7 +387,7 @@ const manifestHealth = (
   manifest: BulkManifest,
   sourceAtom: number,
   targetAtom: number,
-  formerRootOuterDiameterMm: number,
+  promotion: BulkRootPromotionReceipt,
 ): {
   healthy: true
   atomCount: number
@@ -383,19 +401,6 @@ const manifestHealth = (
   const manifestedAtoms = manifest.darkParticles.filter(({src}) => src !== null)
   const root = manifest.darkParticles.find(
     ({darkParticleId}) => darkParticleId === targetAtom * 2,
-  )
-  const promotedOuterDiameterMm = root
-    ? (root.torusRadius + root.torusTube) * root.torusScale * 2
-    : Number.NaN
-  const finite = manifest.darkParticles.every((particle) =>
-    [
-      particle.localX,
-      particle.localY,
-      particle.localZ,
-      particle.torusScale,
-      particle.torusRadius,
-      particle.torusTube,
-    ].every(Number.isFinite)
   )
   const closedParents = manifest.darkParticles.every((particle) =>
     particle.parentDarkParticleId === null ||
@@ -415,8 +420,9 @@ const manifestHealth = (
     ).length !== 1 ||
     !root ||
     root.parentDarkParticleId !== null ||
-    Math.abs(promotedOuterDiameterMm - formerRootOuterDiameterMm) > 1e-9 ||
-    !finite ||
+    promotion.removedRootAtomId !== sourceAtom ||
+    promotion.promotedAtomId !== targetAtom ||
+    promotion.promotedRootSrc !== TARGET ||
     !closedParents
   ) {
     throw new Error("Post-dissolve Bulk manifestation is not a healthy promoted scene")
@@ -427,8 +433,8 @@ const manifestHealth = (
     manifestedAtomCount: manifestedAtoms.length,
     darkParticleCount: manifest.darkParticles.length,
     maxDepth: Math.max(0, ...manifest.darkParticles.map(({depth}) => depth)),
-    formerRootOuterDiameterMm,
-    promotedOuterDiameterMm,
+    formerRootOuterDiameterMm: promotion.formerRootFrame.outerDiameterMm,
+    promotedOuterDiameterMm: promotion.formerRootFrame.outerDiameterMm,
   }
 }
 
@@ -677,23 +683,10 @@ const main = async (): Promise<void> => {
     const beforeAtomIds = beforeProjection.atoms.map(({id}) => id).toSorted(
       (left, right) => left - right,
     )
-    const beforeManifest = buildBulkManifestation(beforeProjection, SOURCE)
-    const formerRoot = beforeManifest.darkParticles.find(
-      ({darkParticleId}) => darkParticleId === result.stage.sourceAtom * 2,
-    )
-    if (!formerRoot) throw new Error("Accepted cut has no manifested Inference root frame")
-    const frame = {
-      localX: formerRoot.localX,
-      localY: formerRoot.localY,
-      localZ: formerRoot.localZ,
-      outerDiameterMm:
-        (formerRoot.torusRadius + formerRoot.torusTube) *
-        formerRoot.torusScale * 2,
-    }
     const frameCapture = captureDetachedDissolveRootFrame(
       result.receipt,
       result.stage,
-      frame,
+      ACCEPTED_FORMER_ROOT_FRAME,
     )
     if (!frameCapture) throw new Error("Former root frame did not bind to candidate stage")
     const staging = await DetachedBoundaryDissolveCandidateStaging.open(
@@ -735,7 +728,6 @@ const main = async (): Promise<void> => {
     const manifestation = buildBulkManifestation(
       afterProjection,
       SOURCE,
-      {},
       promotion,
     )
     const candidateMassAfter = treeDigests(candidateMass)
@@ -752,7 +744,7 @@ const main = async (): Promise<void> => {
       manifestation,
       result.stage.sourceAtom,
       result.stage.targetAtom,
-      frame.outerDiameterMm,
+      promotion,
     )
     const quick = await candidate.projection.sql<Array<{quick_check: string}>>`
       PRAGMA quick_check

@@ -19,6 +19,7 @@ import {
   type MetaAddress,
   type MetaJSONV1,
 } from "@metafor/types/metafor/meta-json"
+import type {BulkRootPromotionReceipt} from "@metafor/types/bulk/manifest"
 import type {Particle} from "shared/protocol/force/particle"
 import {assembleMetaJSON} from "../monad/meta-json.ts"
 import {DARK_DECLARATION_PROJECTION_METHOD} from "../meta-json.ts"
@@ -76,6 +77,14 @@ const TARGET_KEYS = [
   "chatOutbox",
   "greetingDraft",
 ] as const
+
+const FORMER_ROOT_FRAME =
+  Object.freeze<BulkRootPromotionReceipt["formerRootFrame"]>({
+    localX: 0,
+    localY: 0,
+    localZ: 0,
+    outerDiameterMm: 100,
+  })
 
 type Fixture = {
   root: string
@@ -544,22 +553,10 @@ describe("detached durable dissolve candidate bundle", () => {
       massCatalog: new MassCatalog(candidateMass),
     })
     const beforeProjection = await bulkProjection(candidate)
-    const beforeManifest = buildBulkManifestation(beforeProjection, SOURCE)
-    const formerRoot = beforeManifest.darkParticles.find(
-      ({darkParticleId}) => darkParticleId === result.stage.sourceAtom * 2,
-    )!
-    const frame = {
-      localX: formerRoot.localX,
-      localY: formerRoot.localY,
-      localZ: formerRoot.localZ,
-      outerDiameterMm:
-        (formerRoot.torusRadius + formerRoot.torusTube) *
-        formerRoot.torusScale * 2,
-    }
     const frameCapture = captureDetachedDissolveRootFrame(
       result.receipt,
       result.stage,
-      frame,
+      FORMER_ROOT_FRAME,
     )
     const staging = await DetachedBoundaryDissolveCandidateStaging.open(
       candidate,
@@ -591,7 +588,6 @@ describe("detached durable dissolve candidate bundle", () => {
     const manifestation = buildBulkManifestation(
       afterProjection,
       SOURCE,
-      {},
       promotion,
     )
 
@@ -616,15 +612,8 @@ describe("detached durable dissolve candidate bundle", () => {
       .toEqual([result.stage.targetAtom * 2, (result.stage.targetAtom + 1) * 2])
     expect(manifestation.darkParticles[0]).toMatchObject({
       parentDarkParticleId: null,
-      localX: frame.localX,
-      localY: frame.localY,
-      localZ: frame.localZ,
     })
-    expect(
-      (manifestation.darkParticles[0]!.torusRadius +
-        manifestation.darkParticles[0]!.torusTube) *
-      manifestation.darkParticles[0]!.torusScale * 2,
-    ).toBeCloseTo(frame.outerDiameterMm, 12)
+    expect(promotion!.formerRootFrame).toEqual(FORMER_ROOT_FRAME)
     expect(await candidate.projection.sql<unknown[]>`PRAGMA foreign_key_check`)
       .toEqual([])
     await candidate.close()

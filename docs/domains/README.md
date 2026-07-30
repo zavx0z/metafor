@@ -12,8 +12,8 @@
   структурные изменения.
 - [Energy](ENERGY.md) — исполнение Process, живые runtime-сущности и их
   декларация в DSL.
-- [Bulk layout](../../bulk/gravity/layout/CONTRACT.md) — геометрия рекурсивного
-  проявления.
+- [Bulk manifestation и Visual projection](../../bulk/VISUAL.md) —
+  semantic manifestation и граница геометрии `pkg/visual`.
 
 Для Dark и Bulk целиком полного доменного контракта пока нет. До его появления
 наблюдаемая общая схема описана в [ARCHITECTURE.md](../ARCHITECTURE.md), а

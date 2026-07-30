@@ -1,8 +1,22 @@
 const shortestUnitChordCache = new Map<number, number>()
-const normalizeCount = (count: number, minimum: number): number =>
-  Number.isFinite(count)
-    ? Math.max(minimum, Math.floor(count))
-    : minimum
+const MAX_LAYOUT_CACHE_ENTRIES = 128
+
+/** Upper bound for deterministic in-process layout work. */
+export const MAX_FIELD_LAYOUT_COUNT = 4_096
+
+const normalizeCount = (count: number, minimum: number): number => {
+  if (Number.isNaN(count)) return minimum
+  if (!Number.isFinite(count)) {
+    throw new RangeError("Field layout count must be finite")
+  }
+  const normalized = Math.max(minimum, Math.floor(count))
+  if (normalized > MAX_FIELD_LAYOUT_COUNT) {
+    throw new RangeError(
+      `Field layout count ${normalized} exceeds ${MAX_FIELD_LAYOUT_COUNT}`,
+    )
+  }
+  return normalized
+}
 
 export type PseudoSpherePoint = Readonly<{
   x: number
@@ -16,6 +30,35 @@ export type PseudoCircleLayout = Readonly<{
 }>
 
 const pseudoCircleLayoutCache = new Map<string, PseudoCircleLayout>()
+const EMPTY_PSEUDO_SPHERE = Object.freeze(
+  [],
+) as readonly PseudoSpherePoint[]
+const EMPTY_PSEUDO_CIRCLE = Object.freeze({
+  points: Object.freeze([]),
+  radius: 0,
+}) satisfies PseudoCircleLayout
+
+const retainRecent = <Key, Value>(
+  cache: Map<Key, Value>,
+  key: Key,
+  value: Value,
+): void => {
+  cache.set(key, value)
+  if (cache.size <= MAX_LAYOUT_CACHE_ENTRIES) return
+  const oldestKey = cache.keys().next().value
+  if (oldestKey !== undefined) cache.delete(oldestKey)
+}
+
+const readRecent = <Key, Value>(
+  cache: Map<Key, Value>,
+  key: Key,
+): Value | undefined => {
+  const value = cache.get(key)
+  if (value === undefined) return undefined
+  cache.delete(key)
+  cache.set(key, value)
+  return value
+}
 
 export const layoutFieldsInPseudoCircle = (
   count: number,
@@ -25,9 +68,9 @@ export const layoutFieldsInPseudoCircle = (
   const safeMarkerRadius = Number.isFinite(markerRadius)
     ? Math.max(0, markerRadius)
     : 0
-  if (safeCount === 0) return {points: [], radius: 0}
-  const cacheKey = `${safeCount}:${safeMarkerRadius.toPrecision(15)}`
-  const cached = pseudoCircleLayoutCache.get(cacheKey)
+  if (safeCount === 0) return EMPTY_PSEUDO_CIRCLE
+  const cacheKey = `${safeCount}:${String(safeMarkerRadius)}`
+  const cached = readRecent(pseudoCircleLayoutCache, cacheKey)
   if (cached) return cached
 
   const spacing = safeMarkerRadius * 2
@@ -57,7 +100,7 @@ export const layoutFieldsInPseudoCircle = (
   const selected = candidates.slice(0, safeCount)
   const centerX = selected.reduce((sum, point) => sum + point.x, 0) / safeCount
   const centerY = selected.reduce((sum, point) => sum + point.y, 0) / safeCount
-  const points = Object.freeze(selected.map((point) => ({
+  const points = Object.freeze(selected.map((point) => Object.freeze({
     x: point.x - centerX,
     y: point.y - centerY,
     z: 0,
@@ -66,8 +109,8 @@ export const layoutFieldsInPseudoCircle = (
     (maximum, point) => Math.max(maximum, Math.hypot(point.x, point.y)),
     0,
   ) + safeMarkerRadius
-  const layout = Object.freeze({points, radius})
-  pseudoCircleLayoutCache.set(cacheKey, layout)
+  const layout: PseudoCircleLayout = Object.freeze({points, radius})
+  retainRecent(pseudoCircleLayoutCache, cacheKey, layout)
   return layout
 }
 
@@ -77,24 +120,24 @@ export const distributeOnPseudoSphere = (
 ): readonly PseudoSpherePoint[] => {
   const safeCount = normalizeCount(count, 0)
   const safeRadius = Number.isFinite(radius) ? Math.max(0, radius) : 0
-  if (safeCount === 0) return []
+  if (safeCount === 0) return EMPTY_PSEUDO_SPHERE
   const goldenAngle = Math.PI * (3 - Math.sqrt(5))
-  return Array.from({length: safeCount}, (_, index) => {
+  return Object.freeze(Array.from({length: safeCount}, (_, index) => {
     const z = 1 - 2 * (index + 0.5) / safeCount
     const planarRadius = Math.sqrt(Math.max(0, 1 - z * z))
     const angle = index * goldenAngle
-    return {
+    return Object.freeze({
       x: Math.cos(angle) * planarRadius * safeRadius,
       y: Math.sin(angle) * planarRadius * safeRadius,
       z: z * safeRadius,
-    }
-  })
+    })
+  }))
 }
 
 const shortestUnitChord = (count: number): number => {
   const safeCount = normalizeCount(count, 1)
   if (safeCount === 1) return Number.POSITIVE_INFINITY
-  const cached = shortestUnitChordCache.get(safeCount)
+  const cached = readRecent(shortestUnitChordCache, safeCount)
   if (cached !== undefined) return cached
   const points = distributeOnPseudoSphere(safeCount, 1)
   let minimum = Number.POSITIVE_INFINITY
@@ -108,7 +151,7 @@ const shortestUnitChord = (count: number): number => {
       )
     }
   }
-  shortestUnitChordCache.set(safeCount, minimum)
+  retainRecent(shortestUnitChordCache, safeCount, minimum)
   return minimum
 }
 

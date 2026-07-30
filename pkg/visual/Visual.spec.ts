@@ -4,7 +4,7 @@ import {
   OutsideIn,
   Visual,
   visualLayoutForSlug,
-} from "./index.ts"
+} from "./layout.ts"
 
 describe("Visual layout catalog", () => {
   test("exposes complete-snapshot layouts instead of entity pages", () => {
@@ -17,22 +17,30 @@ describe("Visual layout catalog", () => {
   })
 
   test("keeps outside-in explicit and marked as unfinished", () => {
-    expect(visualLayoutForSlug("outside-in")).toEqual({
+    expect(visualLayoutForSlug("outside-in")).toMatchObject({
       slug: "outside-in",
       label: "Снаружи → внутрь",
       status: "in-progress",
       description:
         "Раскладка в работе: полный Monad snapshot от корневого Atom внутрь каждого рекурсивного Atom.",
     })
+    expect(typeof visualLayoutForSlug("outside-in")?.buildScene)
+      .toBe("function")
   })
 
-  test("adds centered nesting as an independent snapshot layout", () => {
-    expect(visualLayoutForSlug("centered-nested")).toEqual({
+  test("exposes centered nesting as a ready executable layout", () => {
+    expect(visualLayoutForSlug("centered-nested")).toMatchObject({
       slug: "centered-nested",
       label: "Центрированно-вложенная",
-      status: "in-progress",
+      status: "ready",
       description:
-        "Общий центр вложенных Torus: частные Fields остаются в ядре, а общие canonical Values занимают последовательные Matter-орбиты.",
+        "Общий центр вложенных Torus: private Fields остаются в ядре владельца, а общие canonical Values — у верхнего общего предка.",
     })
+    expect(typeof visualLayoutForSlug("centered-nested")?.buildScene)
+      .toBe("function")
+  })
+
+  test("does not silently select an unfinished layout for an unknown slug", () => {
+    expect(visualLayoutForSlug("missing-layout")).toBeUndefined()
   })
 })

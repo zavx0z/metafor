@@ -19,7 +19,7 @@ import {
   deriveQuantumFilmPalette,
   SPHERE_QUANTUM_HIGHLIGHT_SIZE,
 } from "../QuantumFilm.ts"
-import {TORUS_MESH_DETAIL} from "../Torus.ts"
+import {DARK_TORUS_MESH_DETAIL} from "../Torus.ts"
 import {createPageAnnotationLayer} from "./AnnotationLayer.ts"
 
 export type FormSkinLabForm = "sphere" | "torus"
@@ -35,8 +35,8 @@ export type FormSkinId =
 export const FORM_SKIN_GEOMETRY = Object.freeze({
   detail: 48,
   size: 8,
-  torusRadialSegments: TORUS_MESH_DETAIL.radialSegments,
-  torusTubularSegments: TORUS_MESH_DETAIL.tubularSegments,
+  torusRadialSegments: DARK_TORUS_MESH_DETAIL.radialSegments,
+  torusTubularSegments: DARK_TORUS_MESH_DETAIL.tubularSegments,
   tubeRatio: 0.28,
 })
 

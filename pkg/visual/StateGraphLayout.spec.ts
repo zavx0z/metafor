@@ -3,8 +3,10 @@ import type {StateGraph} from "./StateGraph.ts"
 import {
   STATE_GRAPH_PRODUCTION_SIZING,
   buildStateGraphBranchLayout,
+  buildStateGraphBranchLayoutFromIndex,
   buildStateGraphRootLayout,
   describeStateGraphRoot,
+  indexStateGraphLayout,
 } from "./StateGraphLayout.ts"
 
 const graph = (): StateGraph => ({
@@ -96,6 +98,26 @@ describe("State Graph layered layout", () => {
     expect(new Set(colorsByState.values()).size).toBe(3)
   })
 
+  test("does not recolor existing States when graph membership changes", () => {
+    const source = graph()
+    const baseline = buildStateGraphRootLayout(source, 1)
+    const extended = buildStateGraphRootLayout({
+      ...source,
+      states: [
+        {id: 99, name: "earlier", position: -1, current: false},
+        ...source.states,
+      ],
+    }, 1)
+
+    for (const node of baseline.nodes) {
+      expect(
+        extended.nodes.find((candidate) =>
+          candidate.stateId === node.stateId
+        )?.color,
+      ).toEqual(node.color)
+    }
+  })
+
   test("puts condition Fields inside the State that uses them", () => {
     const layout = buildStateGraphRootLayout(graph(), 1)
     const start = layout.nodes.find((node) => node.stateId === 1)
@@ -130,6 +152,7 @@ describe("State Graph layered layout", () => {
   })
 
   test("reuses branch topology without copying lab metrics into production", () => {
+    expect(Object.isFrozen(STATE_GRAPH_PRODUCTION_SIZING)).toBe(true)
     const source = graph()
     const lab = buildStateGraphBranchLayout(source, 1)
     const production = buildStateGraphBranchLayout(
@@ -154,5 +177,48 @@ describe("State Graph layered layout", () => {
     expect(secondLevel[0]!.x - root.x -
       root.radius - Math.max(...secondLevel.map((node) => node.radius)))
       .toBeCloseTo(STATE_GRAPH_PRODUCTION_SIZING.surfaceGap)
+  })
+
+  test("reuses one graph-wide index across independent State roots", () => {
+    const stateCount = 256
+    const states = Array.from({length: stateCount}, (_, index) => ({
+      current: index === 0,
+      id: index + 1,
+      name: `state-${index + 1}`,
+      position: index,
+    }))
+    const source: StateGraph = {
+      atomId: 1,
+      atomLabel: "Independent",
+      currentStateId: 1,
+      fields: [],
+      reachableStateIds: [1],
+      sleeves: states.map((state) => ({
+        end: {kind: "terminal" as const},
+        id: `terminal:${state.id}`,
+        rootStateId: state.id,
+        stateIds: [state.id],
+        transitionIds: [],
+      })),
+      src: "owner/independent",
+      states,
+      transitions: [],
+    }
+    const index = indexStateGraphLayout(source)
+    const layouts = states.map((state) =>
+      buildStateGraphBranchLayoutFromIndex(
+        index,
+        state.id,
+        STATE_GRAPH_PRODUCTION_SIZING,
+      )
+    )
+
+    expect(index.states.size).toBe(stateCount)
+    expect(index.sleevesByRoot.size).toBe(stateCount)
+    expect(layouts.flatMap((layout) => layout.nodes)).toHaveLength(stateCount)
+    expect(layouts.every((layout) =>
+      layout.nodes.length === 1 &&
+      layout.nodes[0]!.stateId === layout.rootStateId
+    )).toBe(true)
   })
 })

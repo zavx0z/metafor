@@ -1,17 +1,33 @@
 import {describe, expect, test} from "bun:test"
 import type {BulkManifest} from "@metafor/types/bulk/manifest"
+import type {StateGraph} from "./StateGraph.ts"
 import type {StateGraphRootLayout} from "./StateGraphLayout.ts"
 import {
   buildOutsideInVisualScene,
-  packStateSleeves,
-  type StateSleevePackingEnvelope,
 } from "./OutsideIn.ts"
+import {
+  MAX_VISUAL_TOPOLOGY_DEPTH,
+} from "./internal/dark-tree.ts"
+import {
+  packStateSleeves,
+  placeStateLayout,
+  prepareStateLayout,
+  type StateSleevePackingEnvelope,
+} from "./internal/state-sleeves.ts"
+
+const deepFreeze = <T>(value: T): T => {
+  if (value !== null && typeof value === "object" && !Object.isFrozen(value)) {
+    for (const nested of Object.values(value)) deepFreeze(nested)
+    Object.freeze(value)
+  }
+  return value
+}
 
 const manifest = (): BulkManifest => ({
   rootSrc: "owner/root",
   darkParticles: [
     {
-      darkParticleId: 1,
+      darkParticleId: 2,
       parentDarkParticleId: null,
       darkParticleKind: "atom",
       src: "owner/root",
@@ -19,58 +35,33 @@ const manifest = (): BulkManifest => ({
       label: "Root",
       depth: 0,
       darkParticleOrder: 0,
-      localX: 0,
-      localY: 0,
-      localZ: 0,
-      torusScale: 1,
-      torusRadius: 30,
-      torusTube: 12,
-      colorR: 0.2,
-      colorG: 0.8,
-      colorB: 1,
     },
     {
-      darkParticleId: 2,
-      parentDarkParticleId: 1,
+      darkParticleId: 4,
+      parentDarkParticleId: 2,
       darkParticleKind: "atom",
       src: "owner/child",
       metaSrc: "owner/child",
       label: "Child",
       depth: 1,
       darkParticleOrder: 0,
-      localX: 10,
-      localY: 0,
-      localZ: 0,
-      torusScale: 0.5,
-      torusRadius: 8,
-      torusTube: 3,
-      colorR: 0.8,
-      colorG: 0.3,
-      colorB: 1,
     },
   ],
   fieldParticles: [{
     fieldParticleId: "field/7",
     fieldId: 7,
     valueId: 7,
-    parentDarkParticleId: 2,
+    parentDarkParticleId: 4,
     fieldKey: "ready",
     fieldLabel: "Ready",
     fieldParticleKind: "boolean",
     valueText: "true",
-    localX: 2,
-    localY: 1,
-    localZ: 0,
-    sphereRadius: 1,
-    colorR: 0,
-    colorG: 0.9,
-    colorB: 1,
   }],
   orbitalParticles: [
     {
       orbitalParticleId: "atom/1/sleeve/11/state/11/path/root",
       sourceId: 11,
-      parentDarkParticleId: 1,
+      parentDarkParticleId: 2,
       orbitalParticleKind: "state",
       label: "Start",
       current: true,
@@ -78,18 +69,23 @@ const manifest = (): BulkManifest => ({
       anchorStateOrbitalParticleId: null,
       sleeveRootStateId: 11,
       relatedStateIds: [11],
-      localX: 34,
-      localY: 0,
-      localZ: 1,
-      sphereRadius: 0.8,
-      colorR: 0.2,
-      colorG: 0.9,
-      colorB: 1,
+    },
+    {
+      orbitalParticleId: "atom/1/sleeve/11/state/12/path/1",
+      sourceId: 12,
+      parentDarkParticleId: 2,
+      orbitalParticleKind: "state",
+      label: "Done",
+      current: false,
+      active: true,
+      anchorStateOrbitalParticleId: null,
+      sleeveRootStateId: 11,
+      relatedStateIds: [12],
     },
     {
       orbitalParticleId: "atom/1/sleeve/12/state/12/path/root",
       sourceId: 12,
-      parentDarkParticleId: 1,
+      parentDarkParticleId: 2,
       orbitalParticleKind: "state",
       label: "Done",
       current: false,
@@ -97,18 +93,11 @@ const manifest = (): BulkManifest => ({
       anchorStateOrbitalParticleId: null,
       sleeveRootStateId: 12,
       relatedStateIds: [12],
-      localX: 0,
-      localY: 34,
-      localZ: -1,
-      sphereRadius: 0.8,
-      colorR: 1,
-      colorG: 0.4,
-      colorB: 0,
     },
     {
       orbitalParticleId: "atom/2/sleeve/13/state/13/path/root",
       sourceId: 13,
-      parentDarkParticleId: 2,
+      parentDarkParticleId: 4,
       orbitalParticleKind: "state",
       label: "Child state",
       current: true,
@@ -116,13 +105,6 @@ const manifest = (): BulkManifest => ({
       anchorStateOrbitalParticleId: null,
       sleeveRootStateId: 13,
       relatedStateIds: [13],
-      localX: 9.5,
-      localY: 0,
-      localZ: 0,
-      sphereRadius: 0.5,
-      colorR: 0.4,
-      colorG: 1,
-      colorB: 0.3,
     },
   ],
 })
@@ -183,49 +165,73 @@ const layout = (): StateGraphRootLayout => ({
   }],
 })
 
-const secondLayout = (): StateGraphRootLayout => ({
-  rootStateId: 12,
-  levels: [{step: 0, x: 0, nodeIds: ["root/12/state/12"]}],
-  nodes: [{
-    id: "root/12/state/12",
-    stateId: 12,
-    label: "Done",
-    step: 0,
-    x: 0,
-    y: 0,
-    z: 0,
-    radius: 3.2,
-    color: [1, 0.4, 0],
-    current: false,
-    end: "terminal",
-    fieldRadius: 0.32,
-    fields: [],
-    innerRadius: 0.35584,
+const rootGraph = (): StateGraph => ({
+  atomId: 1,
+  atomLabel: "Root",
+  currentStateId: 11,
+  fields: [{
+    id: 7,
+    key: "ready",
+    label: "Ready",
+    type: "boolean",
   }],
-  edges: [],
+  reachableStateIds: [11, 12],
+  sleeves: [
+    {
+      end: {kind: "terminal"},
+      id: "atom/1/root/11/path/1",
+      rootStateId: 11,
+      stateIds: [11, 12],
+      transitionIds: [1],
+    },
+    {
+      end: {kind: "terminal"},
+      id: "atom/1/root/12/state/12",
+      rootStateId: 12,
+      stateIds: [12],
+      transitionIds: [],
+    },
+  ],
+  src: "owner/root",
+  states: [
+    {current: true, id: 11, name: "Start", position: 0},
+    {current: false, id: 12, name: "Done", position: 1},
+  ],
+  transitions: [{
+    conditions: [{fieldId: 7, id: 1, predicate: true}],
+    fromStateId: 11,
+    id: 1,
+    position: 0,
+    toStateId: 12,
+  }],
 })
 
-const childLayout = (): StateGraphRootLayout => ({
-  rootStateId: 13,
-  levels: [{step: 0, x: 0, nodeIds: ["child/state/13"]}],
-  nodes: [{
-    id: "child/state/13",
-    stateId: 13,
-    label: "Child state",
-    step: 0,
-    x: 0,
-    y: 0,
-    z: 0,
-    radius: 3.2,
-    color: [0.4, 1, 0.3],
-    current: true,
-    end: null,
-    fieldRadius: 0.32,
-    fields: [],
-    innerRadius: 0.35584,
+const childGraph = (): StateGraph => ({
+  atomId: 2,
+  atomLabel: "Child",
+  currentStateId: 13,
+  fields: [],
+  reachableStateIds: [13],
+  sleeves: [{
+    end: {kind: "terminal"},
+    id: "atom/2/root/13/state/13",
+    rootStateId: 13,
+    stateIds: [13],
+    transitionIds: [],
   }],
-  edges: [],
+  src: "owner/child",
+  states: [{current: true, id: 13, name: "Child state", position: 0}],
+  transitions: [],
 })
+
+const owners = () => [
+  {graph: rootGraph(), ownerDarkParticleId: 2},
+  {graph: childGraph(), ownerDarkParticleId: 4},
+]
+
+const allStateNodes = (
+  scene: ReturnType<typeof buildOutsideInVisualScene>,
+) => scene.stateSleeves.flatMap((sleeve) => sleeve.layout.nodes)
 
 describe("outside-in Visual layout", () => {
   test("packs unequal State sleeves with a direct linear sector formula", () => {
@@ -300,17 +306,15 @@ describe("outside-in Visual layout", () => {
   })
 
   test("packs Field, Matter and State into consecutive static Atom layers", () => {
-    const scene = buildOutsideInVisualScene(
-      manifest(),
-      [
-        {atomSrc: "owner/root", layouts: [layout(), secondLayout()]},
-        {atomSrc: "owner/child", layouts: [childLayout()]},
-      ],
-    )
+    const scene = buildOutsideInVisualScene({
+      manifest: manifest(),
+      owners: owners(),
+    })
+    const nodes = allStateNodes(scene)
 
-    expect(scene.context.tori).toHaveLength(2)
-    const rootTorus = scene.context.tori[0]!
-    const childTorus = scene.context.tori[1]!
+    expect(scene.tori).toHaveLength(2)
+    const rootTorus = scene.tori[0]!
+    const childTorus = scene.tori[1]!
     const rootInnerRadius = rootTorus.radius - rootTorus.tube
     const rootOuterRadius = rootTorus.radius + rootTorus.tube
     const childOuterRadius = childTorus.radius + childTorus.tube
@@ -320,36 +324,44 @@ describe("outside-in Visual layout", () => {
     expect(rootOuterRadius).toBeGreaterThanOrEqual(50)
     expect(childDistance - childOuterRadius)
       .toBeGreaterThanOrEqual(rootInnerRadius)
-    expect(scene.context.fields[0]).toMatchObject({
+    expect(scene.fields[0]).toMatchObject({
+      fieldParticleIds: ["field/7"],
+      ownerDarkParticleId: 4,
       x: childTorus.x,
       y: childTorus.y,
       radius: 5.5,
     })
-    expect(scene.layout.nodes.slice(0, 3).map((node) => node.fieldRadius))
-      .toEqual([0.32, 0.32, 0.32])
-    expect(scene.layout.nodes.slice(0, 3).map((node) => node.radius))
-      .toEqual([3.2, 3.2, 3.2])
-    expect(scene.layout.nodes[0]!.fields[0]?.id).toBe(7)
-    expect(new Set(scene.layout.nodes.map((node) =>
+    expect(nodes.slice(0, 3).map((node) => node.fieldRadius))
+      .toEqual([5.5, 5.5, 5.5])
+    expect(nodes[0]!.fields[0]?.id).toBe(7)
+    expect(new Set(nodes.map((node) =>
       node.stateId
     ))).toEqual(new Set([11, 12, 13]))
+    expect(new Set(scene.stateSleeves.map((sleeve) =>
+      sleeve.ownerAtomId
+    ))).toEqual(new Set([1, 2]))
+    const rootNodes = scene.stateSleeves
+      .filter((sleeve) => sleeve.ownerDarkParticleId === 2)
+      .flatMap((sleeve) => sleeve.layout.nodes)
     const rootStateInnerEdge = Math.min(
-      ...scene.layout.nodes.slice(0, 3).map((node) =>
+      ...rootNodes.map((node) =>
         Math.hypot(node.x, node.y) - node.radius
       ),
     )
     expect(rootStateInnerEdge)
       .toBeGreaterThan(childDistance + childOuterRadius)
     expect(Math.hypot(
-      scene.layout.nodes[0]!.x,
-      scene.layout.nodes[0]!.y,
+      rootNodes[0]!.x,
+      rootNodes[0]!.y,
     )).toBeCloseTo(Math.hypot(
-      scene.layout.nodes[2]!.x,
-      scene.layout.nodes[2]!.y,
+      rootNodes[2]!.x,
+      rootNodes[2]!.y,
     ))
-    const childState = scene.layout.nodes[3]!
-    expect(childState.radius).toBeCloseTo(1.6)
-    expect(childState.fieldRadius).toBeCloseTo(0.16)
+    const childState = scene.stateSleeves.find(
+      (sleeve) => sleeve.ownerDarkParticleId === 4,
+    )!.layout.nodes[0]!
+    expect(childState.radius).toBeCloseTo(12.5)
+    expect(childState.fieldRadius).toBeCloseTo(2.75)
     expect(Math.hypot(
       childState.x - childTorus.x,
       childState.y - childTorus.y,
@@ -359,10 +371,6 @@ describe("outside-in Visual layout", () => {
 
   test("moves each complete State sleeve without repacking it", () => {
     const source = layout()
-    const baseline = buildOutsideInVisualScene(
-      manifest(),
-      [{atomSrc: "owner/root", layouts: [source]}],
-    )
     const stretched: StateGraphRootLayout = {
       ...source,
       levels: source.levels.map((level) =>
@@ -372,65 +380,57 @@ describe("outside-in Visual layout", () => {
         node.step === 1 ? {...node, x: 220} : node
       ),
     }
-    const scene = buildOutsideInVisualScene(
-      manifest(),
-      [{atomSrc: "owner/root", layouts: [stretched]}],
-    )
+    const prepared = prepareStateLayout(stretched)!
+    const placed = placeStateLayout({
+      angle: 0.37,
+      orbitRadius: 100,
+      prepared,
+    }, {
+      scale: 1,
+      x: 0,
+      y: 0,
+      z: 0,
+    })
 
-    expect(scene.layout.nodes[0]!.radius).toBeCloseTo(
+    expect(placed.nodes[0]!.radius).toBeCloseTo(
       stretched.nodes[0]!.radius,
     )
-    expect(scene.layout.nodes[1]!.radius).toBeCloseTo(
+    expect(placed.nodes[1]!.radius).toBeCloseTo(
       stretched.nodes[1]!.radius,
     )
     expect(Math.hypot(
-      scene.layout.nodes[1]!.x - scene.layout.nodes[0]!.x,
-      scene.layout.nodes[1]!.y - scene.layout.nodes[0]!.y,
+      placed.nodes[1]!.x - placed.nodes[0]!.x,
+      placed.nodes[1]!.y - placed.nodes[0]!.y,
     )).toBeCloseTo(220)
-    expect(Math.hypot(
-      scene.layout.nodes[1]!.x - scene.layout.nodes[0]!.x,
-      scene.layout.nodes[1]!.y - scene.layout.nodes[0]!.y,
-    )).not.toBeCloseTo(Math.hypot(
-      baseline.layout.nodes[1]!.x - baseline.layout.nodes[0]!.x,
-      baseline.layout.nodes[1]!.y - baseline.layout.nodes[0]!.y,
-    ))
-    const rootTorus = scene.context.tori[0]!
-    const innerRadius = rootTorus.radius - rootTorus.tube
-    const outerRadius = rootTorus.radius + rootTorus.tube
-    for (const node of scene.layout.nodes) {
-      const planarRadius = Math.hypot(node.x, node.y)
-      expect(planarRadius - node.radius).toBeGreaterThanOrEqual(innerRadius)
-      expect(planarRadius + node.radius).toBeLessThanOrEqual(outerRadius)
-    }
   })
 
   test("does not reserve a Matter band when the Atom has no child Torus", () => {
     const source = manifest()
     const field = {
       ...source.fieldParticles[0]!,
-      parentDarkParticleId: 1,
+      parentDarkParticleId: 2,
     }
     const leafManifest: BulkManifest = {
       ...source,
       darkParticles: [source.darkParticles[0]!],
       fieldParticles: [field],
       orbitalParticles: (source.orbitalParticles ?? []).filter((particle) =>
-        particle.parentDarkParticleId === 1
+        particle.parentDarkParticleId === 2
       ),
     }
-    const scene = buildOutsideInVisualScene(
-      leafManifest,
-      [{atomSrc: "owner/root", layouts: [layout()]}],
-    )
-    const torus = scene.context.tori[0]!
+    const scene = buildOutsideInVisualScene({
+      manifest: leafManifest,
+      owners: [{graph: rootGraph(), ownerDarkParticleId: 2}],
+    })
+    const torus = scene.tori[0]!
     const innerRadius = torus.radius - torus.tube
     const outerRadius = torus.radius + torus.tube
     const fieldExtent = 11
-    const stateInnerEdge = Math.min(...scene.layout.nodes.map((node) =>
+    const stateInnerEdge = Math.min(...allStateNodes(scene).map((node) =>
       Math.hypot(node.x, node.y) - node.radius
     ))
 
-    expect(scene.context.fields[0]!.radius).toBe(fieldExtent)
+    expect(scene.fields[0]!.radius).toBe(fieldExtent)
     expect(innerRadius).toBeCloseTo(fieldExtent + 8.25)
     expect(stateInnerEdge - innerRadius).toBeCloseTo(8.25)
     expect(outerRadius).toBeGreaterThanOrEqual(50)
@@ -438,11 +438,12 @@ describe("outside-in Visual layout", () => {
 
   test("uses the same Torus composition for Atom, Fuzzy, MACHO and Axion", () => {
     const source = manifest()
+    source.orbitalParticles = []
     const child = source.darkParticles[1]!
     source.darkParticles.push(
       {
         ...child,
-        darkParticleId: 3,
+        darkParticleId: 6,
         darkParticleKind: "fuzzy",
         src: null,
         metaSrc: null,
@@ -451,7 +452,7 @@ describe("outside-in Visual layout", () => {
       },
       {
         ...child,
-        darkParticleId: 4,
+        darkParticleId: 8,
         darkParticleKind: "macho",
         src: null,
         metaSrc: null,
@@ -460,7 +461,7 @@ describe("outside-in Visual layout", () => {
       },
       {
         ...child,
-        darkParticleId: 5,
+        darkParticleId: 10,
         darkParticleKind: "axion",
         src: null,
         metaSrc: null,
@@ -469,9 +470,12 @@ describe("outside-in Visual layout", () => {
       },
     )
 
-    const scene = buildOutsideInVisualScene(source, [])
+    const scene = buildOutsideInVisualScene({
+      manifest: source,
+      owners: [],
+    })
 
-    expect(scene.context.tori).toHaveLength(5)
+    expect(scene.tori).toHaveLength(5)
   })
 
   test("reuses the Fields analysis pseudo-circle inside the owning Torus", () => {
@@ -488,11 +492,15 @@ describe("outside-in Visual layout", () => {
       localZ: 300 + index,
     }))
     const scene = buildOutsideInVisualScene({
-      ...source,
-      darkParticles: [root],
-      fieldParticles: fields,
-    }, [])
-    const centers = scene.context.fields
+      manifest: {
+        ...source,
+        darkParticles: [root],
+        fieldParticles: fields,
+        orbitalParticles: [],
+      },
+      owners: [],
+    })
+    const centers = scene.fields
 
     expect(centers).toHaveLength(4)
     for (const center of centers) {
@@ -517,16 +525,159 @@ describe("outside-in Visual layout", () => {
     const source = manifest()
     const root = source.darkParticles[0]!
     const scene = buildOutsideInVisualScene({
-      ...source,
-      darkParticles: [root],
-      fieldParticles: [],
-      orbitalParticles: [],
-    }, [])
-    const torus = scene.context.tori[0]!
+      manifest: {
+        ...source,
+        darkParticles: [root],
+        fieldParticles: [],
+        orbitalParticles: [],
+      },
+      owners: [],
+    })
+    const torus = scene.tori[0]!
 
     expect(torus.radius).toBeCloseTo(27.78)
     expect(torus.tube).toBeCloseTo(22.22)
     expect(torus.radius - torus.tube).toBeCloseTo(5.56)
     expect(torus.radius + torus.tube).toBeCloseTo(50)
+  })
+
+  test("binds each State graph to one exact manifest owner", () => {
+    const source = manifest()
+    const valid = {graph: rootGraph(), ownerDarkParticleId: 2}
+
+    expect(() => buildOutsideInVisualScene({
+      manifest: source,
+      owners: [valid, valid],
+    })).toThrow("Visual owner 2 is duplicated")
+    expect(() => buildOutsideInVisualScene({
+      manifest: source,
+      owners: [{graph: rootGraph(), ownerDarkParticleId: 99}],
+    })).toThrow("Visual owner 99 is absent from manifest")
+    expect(() => buildOutsideInVisualScene({
+      manifest: source,
+      owners: [{
+        graph: {...rootGraph(), src: "another/owner"},
+        ownerDarkParticleId: 2,
+      }],
+    })).toThrow("Visual owner 2 source does not match graph")
+    expect(() => buildOutsideInVisualScene({
+      manifest: source,
+      owners: [valid],
+    })).toThrow("Visual State owner 4 is missing a graph binding")
+
+    const repeatedSrc: BulkManifest = {
+      ...source,
+      darkParticles: source.darkParticles.map((particle) => ({
+        ...particle,
+        src: "owner/root",
+      })),
+    }
+    expect(() => buildOutsideInVisualScene({
+      manifest: repeatedSrc,
+      owners: [
+        {
+          graph: {...rootGraph(), atomId: 2},
+          ownerDarkParticleId: 2,
+        },
+        {
+          graph: rootGraph(),
+          ownerDarkParticleId: 4,
+        },
+      ],
+    })).toThrow("Visual owner 2 does not match Atom 2")
+
+    expect(() => buildOutsideInVisualScene({
+      manifest: {...source, orbitalParticles: []},
+      owners: [valid],
+    })).toThrow("Visual owner 2 State identities do not match graph")
+
+    expect(() => buildOutsideInVisualScene({
+      manifest: {
+        ...source,
+        orbitalParticles: (source.orbitalParticles ?? []).map((particle) =>
+          particle.parentDarkParticleId === 2
+            ? {...particle, current: true}
+            : particle
+        ),
+      },
+      owners: [valid],
+    })).toThrow("Visual owner 2 has multiple current manifested States")
+
+    expect(() => buildOutsideInVisualScene({
+      manifest: source,
+      owners: [{
+        graph: {...rootGraph(), currentStateId: null},
+        ownerDarkParticleId: 2,
+      }],
+    })).toThrow("Visual owner 2 has inconsistent graph current State")
+  })
+
+  test("rejects unbounded or cyclic topology before recursive composition", () => {
+    const source = manifest()
+    const prototype = source.darkParticles[0]!
+    const chain = Array.from(
+      {length: MAX_VISUAL_TOPOLOGY_DEPTH + 1},
+      (_, index) => ({
+        ...prototype,
+        darkParticleId: index + 1,
+        parentDarkParticleId: index === 0 ? null : index,
+        depth: index,
+      }),
+    )
+
+    expect(() => buildOutsideInVisualScene({
+      manifest: {
+        ...source,
+        darkParticles: chain,
+        fieldParticles: [],
+        orbitalParticles: [],
+      },
+      owners: [],
+    })).toThrow(RangeError)
+    expect(() => buildOutsideInVisualScene({
+      manifest: {
+        ...source,
+        darkParticles: [
+          {...prototype, darkParticleId: 1, parentDarkParticleId: 2},
+          {...prototype, darkParticleId: 2, parentDarkParticleId: 1},
+        ],
+        fieldParticles: [],
+        orbitalParticles: [],
+      },
+      owners: [],
+    })).toThrow("Visual topology contains a cycle")
+    expect(() => buildOutsideInVisualScene({
+      manifest: {
+        ...source,
+        darkParticles: [{
+          ...prototype,
+          darkParticleId: 1,
+          parentDarkParticleId: 99,
+        }],
+        fieldParticles: [],
+        orbitalParticles: [],
+      },
+      owners: [],
+    })).toThrow("Visual topology parent 99 is absent for 1")
+  })
+
+  test("does not mutate the source and returns a deeply frozen scene", () => {
+    const source = manifest()
+    source.darkParticles.reverse()
+    const before = structuredClone(source)
+    deepFreeze(source)
+    const frozenOwners = deepFreeze(owners())
+
+    const scene = buildOutsideInVisualScene({
+      manifest: source,
+      owners: frozenOwners,
+    })
+
+    expect(source).toEqual(before)
+    expect(Object.isFrozen(scene)).toBe(true)
+    expect(Object.isFrozen(scene.tori)).toBe(true)
+    expect(Object.isFrozen(scene.fields[0])).toBe(true)
+    expect(Object.isFrozen(scene.stateSleeves[0]?.layout.nodes)).toBe(true)
+    expect(scene.tori.map((torus) => torus.darkParticleId)).toEqual([2, 4])
   })
 })

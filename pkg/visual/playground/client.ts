@@ -3,25 +3,37 @@ import type {BulkVisualLayer} from "@metafor/types/bulk/viewport"
 import {
   CenteredNested,
   OutsideIn,
-  STATE_GRAPH_PRODUCTION_SIZING,
   Visual,
-  buildCenteredNestedVisualScene,
   buildStateGraph,
-  buildStateGraphBranchLayout,
-  buildOutsideInVisualScene,
-  countVisualScene,
-  createStateGraphViewport,
-  describeStateGraphRoot,
-  projectVisualScene,
-  type StateGraphView,
-  type StateGraphViewport,
   type VisualLayout,
-  visualComponentForSlug,
-} from "@metafor/visual"
+  visualOwnerDarkParticleIdFromAtomId,
+} from "@metafor/visual/layout"
+import {
+  createVisualSceneViewport,
+  type VisualSceneViewport,
+} from "@metafor/visual/viewport"
 import {buildBulkManifestation} from "../../../bulk/manifestation.ts"
 import {BulkProjectionStore} from "../../../bulk/projection.ts"
-import {DEFAULT_BULK_SETTINGS} from "../../../bulk/settings.ts"
 import {createBulkViewport} from "../../../bulk/web/index.ts"
+import {
+  buildCenteredNestedBulkVisualManifest,
+} from "../../../bulk/visual-layout.ts"
+import {
+  visualComponentForSlug,
+} from "../Components.ts"
+import {
+  countVisualScene,
+  projectVisualScene,
+} from "../Scene.ts"
+import {
+  buildStateGraphBranchLayout,
+  describeStateGraphRoot,
+} from "../StateGraphLayout.ts"
+import {
+  createStateGraphViewport,
+  type StateGraphView,
+  type StateGraphViewport,
+} from "../StateGraphViewport.ts"
 import {
   createPageAnnotationLayer,
   createStateGraphAnnotationLayer,
@@ -331,7 +343,7 @@ type BranchViewport = {
 let branchViewports: BranchViewport[] = []
 let stateGraphRenderVersion = 0
 let layoutRenderVersion = 0
-let layoutViewport: StateGraphViewport | null = null
+let layoutViewport: VisualSceneViewport | null = null
 let layoutAnnotation: ReturnType<typeof createPageAnnotationLayer> | null = null
 let formSkinLabPromise: Promise<FormSkinLab> | null = null
 let edgesLabPromise: Promise<EdgesLab> | null = null
@@ -378,7 +390,6 @@ const fieldsAnalysisLab = (): Promise<FieldsAnalysisLab> => {
     const manifest = buildBulkManifestation(
       projection.view(),
       snapshot.rootSrc,
-      DEFAULT_BULK_SETTINGS.layout,
     )
     fieldsAnalysisLabPromise = createFieldsAnalysisLab(manifest.fieldParticles)
   }
@@ -423,49 +434,57 @@ const renderSnapshotLayout = async (
     (total, {graph}) => total + graph.states.length,
     0,
   )
-  const owners = atomGraphs.map(({atom, graph}) => ({
-    atomSrc: atom.wimp,
-    layouts: graph.states.map((state) =>
-      buildStateGraphBranchLayout(
-        graph,
-        state.id,
-        STATE_GRAPH_PRODUCTION_SIZING,
+  const owners = atomGraphs.map(({graph}) => {
+    const ownerDarkParticleId =
+      visualOwnerDarkParticleIdFromAtomId(graph.atomId)
+    if (!fullManifest.darkParticles.some((particle) =>
+      particle.darkParticleId === ownerDarkParticleId
+    )) {
+      throw new Error(
+        `Visual owner ${ownerDarkParticleId} is absent from the manifest`,
       )
-    ),
-  }))
-  const scene = selectedLayout.slug === CenteredNested.slug
-    ? buildCenteredNestedVisualScene(fullManifest, owners)
-    : buildOutsideInVisualScene(fullManifest, owners)
+    }
+    return {
+      graph,
+      ownerDarkParticleId,
+    }
+  })
+  const scene = selectedLayout.buildScene({
+    manifest: fullManifest,
+    owners,
+  })
   const rect = layoutCanvas.getBoundingClientRect()
-  const graphViewport = await createStateGraphViewport({
+  const sceneViewport = await createVisualSceneViewport({
     canvas: layoutCanvas,
-    context: scene.context,
-    edgeCurveBuilder: createStateGraphHermiteEdgeCurveBuilder(),
     height: Math.max(1, Math.floor(rect.height)),
-    layout: scene.layout,
-    showGuides: false,
-    showLabels: false,
+    scene,
     width: Math.max(1, Math.floor(rect.width)),
   })
   if (
     renderVersion !== layoutRenderVersion ||
     readSlug() !== selectedLayout.slug
   ) {
-    graphViewport.dispose()
+    sceneViewport.dispose()
     return
   }
-  layoutViewport = graphViewport
+  layoutViewport = sceneViewport
   replaceDefinitionList(counts, [
-    ["Torus контекста", scene.context.tori.length],
-    ["Ядерных Fields", scene.context.fields.length],
+    ["Torus контекста", scene.tori.length],
+    ["Ядерных Fields", scene.fields.length],
     ["Atom со State", atomGraphs.length],
     ["State-рукавов", stateSleeveCount],
-    ["State-Torus", scene.layout.nodes.length],
-    ["Fields условий", scene.layout.nodes.reduce(
-      (total, node) => total + node.fields.length,
+    ["State-Torus", scene.orbitals.filter((orbital) =>
+      orbital.form.kind === "torus"
+    ).length],
+    ["Causal particles", scene.orbitals.filter((orbital) =>
+      orbital.form.kind === "sphere"
+    ).length],
+    ["Field proxies", scene.fieldProxies.length],
+    ["Transition", scene.stateSleeves.reduce(
+      (total, sleeve) => total + sleeve.edges.length,
       0,
     )],
-    ["Transition", scene.layout.edges.length],
+    ["Relations", scene.relationEdges.length],
   ])
   layoutAnnotation = createPageAnnotationLayer({
     sourceCanvas: layoutCanvas,
@@ -473,7 +492,7 @@ const renderSnapshotLayout = async (
       (() => {
         throw new Error("Snapshot layout canvas parent is missing")
       })(),
-    capturePng: () => graphViewport.capturePng(),
+    capturePng: () => sceneViewport.capturePng(),
     surface: () => ({
       canvasId: layoutCanvas.id,
       kind: "playground-page",
@@ -707,7 +726,6 @@ const applyStateGraphPage = (): void => {
   hideEdgesLab()
   hideTorusAnalysisLab()
   hideFieldsAnalysisLab()
-  viewport.setAnimationEnabled(false)
   showSectionTabs("state-graph")
   void renderStateGraph()
   for (const link of navigation.querySelectorAll("a")) {
@@ -740,7 +758,6 @@ const applyFormSkinPage = (form: FormSkinLabForm): void => {
   hideEdgesLab()
   hideTorusAnalysisLab()
   hideFieldsAnalysisLab()
-  viewport.setAnimationEnabled(false)
   hideSectionTabs()
   for (const link of navigation.querySelectorAll("a")) {
     link.classList.toggle("active", link.dataset.slug === slug)
@@ -783,7 +800,6 @@ const applyEdgesPage = (variant: EdgeRouteVariant | null): void => {
   hideFormSkinLab()
   hideTorusAnalysisLab()
   hideFieldsAnalysisLab()
-  viewport.setAnimationEnabled(false)
   showSectionTabs(slug)
   for (const link of navigation.querySelectorAll("a")) {
     link.classList.toggle("active", link.dataset.slug === "edges")
@@ -823,7 +839,6 @@ const applyTorusAnalysisPage = (): void => {
   hideFormSkinLab()
   hideEdgesLab()
   hideFieldsAnalysisLab()
-  viewport.setAnimationEnabled(false)
   showSectionTabs(slug)
   for (const link of navigation.querySelectorAll("a")) {
     link.classList.toggle("active", link.dataset.slug === slug)
@@ -859,7 +874,6 @@ const applyFieldsAnalysisPage = (mode: FieldsAnalysisMode): void => {
   hideFormSkinLab()
   hideEdgesLab()
   hideTorusAnalysisLab()
-  viewport.setAnimationEnabled(false)
   showSectionTabs(slug)
   for (const link of navigation.querySelectorAll("a")) {
     link.classList.toggle("active", link.dataset.slug === "analysis-fields")
@@ -942,17 +956,19 @@ const applyStory = (): void => {
   const fullManifest = buildBulkManifestation(
     projection.view(),
     snapshot.rootSrc,
-    DEFAULT_BULK_SETTINGS.layout,
   )
   const manifest = projectVisualScene(fullManifest, component)
   if (selectedLayout) {
-    viewport.setAnimationEnabled(false)
     void renderSnapshotLayout(fullManifest, selectedLayout)
   } else {
     hideSnapshotLayout()
     viewport.setVisualLayers(storyLayers())
-    viewport.setAnimationEnabled(animation.checked)
-    viewport.applyManifestPatch(manifest)
+    viewport.applyVisualManifestPatch(
+      buildCenteredNestedBulkVisualManifest(
+        fullManifest,
+        projection.view(),
+      ),
+    )
   }
   entity.textContent = selectedLayout?.label ?? component.entity
   description.textContent = selectedLayout?.slug === OutsideIn.slug

@@ -28,7 +28,7 @@ describe("Form Skin Lab", () => {
     expect(FORM_SKIN_GEOMETRY).toEqual({
       detail: 48,
       size: 8,
-      torusRadialSegments: 32,
+      torusRadialSegments: 64,
       torusTubularSegments: 192,
       tubeRatio: 0.28,
     })
@@ -58,7 +58,11 @@ describe("Form Skin Lab", () => {
       radial: FORM_SKIN_GEOMETRY.torusRadialSegments,
       tubular: FORM_SKIN_GEOMETRY.torusTubularSegments,
     })
-    expect(torus.mesh.index?.count).toBe(32 * 192 * 6)
+    expect(torus.mesh.index?.count).toBe(
+      FORM_SKIN_GEOMETRY.torusRadialSegments *
+      FORM_SKIN_GEOMETRY.torusTubularSegments *
+      6,
+    )
   })
 
   test("derives film and glow tones from one selected color", () => {

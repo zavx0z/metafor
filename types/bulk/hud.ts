@@ -1,4 +1,4 @@
-import type { Object3D, Renderer } from "@metafor/engine"
+import type { Renderer } from "@metafor/engine"
 import type {
   UiSurface,
   UiSurfaceLayoutFn,
@@ -7,7 +7,6 @@ import type {
   UiSurfaceRect,
   VirtualInput,
 } from "@ui/elements"
-import type { BulkFieldParticle } from "./manifest.ts"
 import type {
   BulkViewportController,
 } from "./viewport.ts"
@@ -29,24 +28,6 @@ export type BulkViewportWithHud = BulkViewportController & {
   readonly hud: BulkViewportHudController
 }
 
-export type FieldParticleBillboardMode = "summary" | "surface"
-
-export type FieldParticleBillboardSurfaceControl = UiSurface & {
-  setField(field: BulkFieldParticle): void
-  setMode(mode: FieldParticleBillboardMode): void
-}
-
-export type FieldParticleBillboardRecord = {
-  anchorObject: Object3D
-  container: Object3D
-  fieldParticleId: string
-  heightMm: number
-  pixelScale: number
-  signature: string
-  surface: FieldParticleBillboardSurfaceControl
-  widthMm: number
-}
-
 export type BulkHudSurfaceSlot = {
   surface: UiSurfaceNode
   layout: UiSurfaceLayoutFn
@@ -66,8 +47,6 @@ export type BulkHudOptions = {
 
 export type BulkTimeFrameResolution = "exact" | "degraded" | "overloaded"
 
-export type BulkTimeFrameTone = BulkTimeFrameResolution | "selected" | "unknown"
-
 export type BulkTimeFrame = {
   id: number
   frontier: {
@@ -81,7 +60,4 @@ export type BulkHudController = {
 	nodeViewActive(): boolean
   relayout(): void
   setNodeView(document: import("@ui/hud").HudNodeViewDocument): void
-  /** Lightweight causal timeline; intentionally independent from Node View. */
-  toggleTime(): void
-  timeActive(): boolean
 }

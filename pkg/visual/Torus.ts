@@ -2,7 +2,7 @@ const MIN_RADIUS = 0.001
 
 /**
  * One code-owned Torus cross-section used by fixed-proportion forms such as
- * State. Content-bounded Dark particle forms use the same component with derived
+ * State. Content-bounded Dark particle forms use the same form with derived
  * inner/outer bounds rather than a second implementation.
  */
 export const TORUS_FORM_RATIOS = Object.freeze({
@@ -21,8 +21,25 @@ export const TORUS_LAYOUT_BASELINE = Object.freeze({
   contentGapToFieldRadius: 0.75,
 })
 
-/** Shared immutable mesh detail for every Torus role in named layouts. */
-export const TORUS_MESH_DETAIL = Object.freeze({
+export type TorusMeshDetail = Readonly<{
+  radialSegments: number
+  tubularSegments: number
+}>
+
+/**
+ * Large structural Dark shells need a denser cross-section at full-screen
+ * scale. This is a fixed component-role law, not camera-dependent LOD.
+ */
+export const DARK_TORUS_MESH_DETAIL: TorusMeshDetail = Object.freeze({
+  radialSegments: 64,
+  tubularSegments: 192,
+})
+
+/**
+ * State and Field-proxy Tori remain compact. Keeping their fixed cross-section
+ * avoids multiplying geometry cost across hundreds of embedded forms.
+ */
+export const EMBEDDED_TORUS_MESH_DETAIL: TorusMeshDetail = Object.freeze({
   radialSegments: 32,
   tubularSegments: 192,
 })
@@ -36,18 +53,18 @@ export type TorusForm = Readonly<{
 
 export type TorusPlacement<TPayload, TCore> = Readonly<{
   scale: number
-  torus: TorusComponent<TPayload, TCore>
+  torus: TorusComposition<TPayload, TCore>
   x: number
   y: number
   z: number
 }>
 
 /**
- * Semantic data is payload; self-similarity belongs to this recursive visual
- * component. Atom, State, Fuzzy, Axion and MACHO may own it without becoming
- * form classes.
+ * Internal recursive construction record used while a named layout resolves
+ * form bounds. The public production component is VisualTorusComponent; this
+ * record does not model the renderer boundary.
  */
-export type TorusComponent<TPayload, TCore> = Readonly<{
+export type TorusComposition<TPayload, TCore> = Readonly<{
   children: readonly TorusPlacement<TPayload, TCore>[]
   core: readonly TCore[]
   form: TorusForm
@@ -139,7 +156,7 @@ export const resolveContentTorusForm = (
   return resolveTorusForm(innerRadius, outerRadius)
 }
 
-export const defineTorusComponent = <TPayload, TCore>(
+export const defineTorusComposition = <TPayload, TCore>(
   input: Readonly<{
     children?: readonly TorusPlacement<TPayload, TCore>[]
     core?: readonly TCore[]
@@ -149,7 +166,7 @@ export const defineTorusComponent = <TPayload, TCore>(
     payload: TPayload
     role: string
   }>,
-): TorusComponent<TPayload, TCore> => Object.freeze({
+): TorusComposition<TPayload, TCore> => Object.freeze({
   children: Object.freeze([...(input.children ?? [])]),
   core: Object.freeze([...(input.core ?? [])]),
   form: resolveTorusForm(input.innerRadius, input.outerRadius),

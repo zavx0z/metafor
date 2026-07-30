@@ -1,5 +1,5 @@
-import type { Color, LineGlowMaterial, LineSegments, Object3D, Text, TextMaterial, Vector3 } from "@metafor/engine"
-import type { BulkDarkParticle, BulkFieldParticle, BulkManifest } from "./manifest.ts"
+import type { Color, Mesh, Object3D, Text, TextMaterial, ThinFilmMaterial, Vector3 } from "@metafor/engine"
+import type { BulkRenderDarkParticle, BulkRenderFieldParticle } from "./manifest.ts"
 import type { TextExtents } from "./text.ts"
 
 export interface BulkDarkParticlePickTarget {
@@ -127,12 +127,8 @@ export type BulkVisualLayer =
 export interface BulkViewportController {
   dispose(): void
   handleForce(_channel: string, _message: unknown): void
-  setAnimationEnabled(enabled: boolean): void
-  setAnimationSuspended(suspended: boolean): void
   setSize(width: number, height: number): void
   setVisualLayers(layers: readonly BulkVisualLayer[] | null): void
-  /** Applies a manifest diff while retaining all unchanged render records. */
-  applyManifestPatch(manifest: BulkManifest): void
 }
 
 export type BulkViewportOptions = {
@@ -145,10 +141,10 @@ export type BulkViewportOptions = {
 
 export type HoverablePickTarget = BulkPickTarget & {
   baseColor: Color
-  baseGlowColor: Color | null
-  baseGlowIntensity: number
+  baseRimColor: Color
+  baseRimStrength: number
   baseOpacity: number
-  material: LineGlowMaterial
+  material: ThinFilmMaterial
 }
 
 export type BulkViewPose = {
@@ -197,26 +193,23 @@ export type ViewNavigationState = {
 }
 
 export type DarkParticleRenderRecord = {
-  baseTorusScale: number
   container: Object3D
-  cosmosOrbitAngle: number
   currentTransitionScale: number
-  material: LineGlowMaterial
+  material: ThinFilmMaterial
   pickTarget: HoverablePickTarget
-  snapshot: BulkDarkParticle
+  snapshot: BulkRenderDarkParticle
   targetLocalPosition: Vector3
-  torus: LineSegments
+  torus: Mesh
 }
 
 export type FieldParticleRenderRecord = {
-  cosmosOrbitAngle: number
   currentTransitionScale: number
   depth: number
-  material: LineGlowMaterial
-  node: LineSegments
+  material: ThinFilmMaterial
+  node: Mesh
   parentDarkParticleId: number
   pickTarget: HoverablePickTarget
-  snapshot: BulkFieldParticle
+  snapshot: BulkRenderFieldParticle
   targetLocalPosition: Vector3
 }
 
@@ -224,7 +217,7 @@ export type FadingRemovalRecord = {
   baseOpacity: number
   durationMs: number
   initialScale: Vector3
-  material: LineGlowMaterial
+  material: {opacity: number}
   object: Object3D
   startedAtMs: number
 }
@@ -250,7 +243,7 @@ export type LabelRenderRecord = {
   initialCoverPositions: Float32Array
   initialStencilPositions: Float32Array
   key: string
-  kind: "darkParticle" | "fieldParticle" | "orbitalParticle"
+  kind: "darkParticle"
   material: TextMaterial
   offset: number
   torusRadius: number
@@ -266,9 +259,7 @@ export type LabelSpec = {
   color: Color
   depth: number
   key: string
-  kind: "darkParticle" | "fieldParticle" | "orbitalParticle"
-  metricDepth: number
-  metricRadius: number
+  kind: "darkParticle"
   offset: number
   torusRadius: number
   torusTube: number

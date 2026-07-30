@@ -1,9 +1,10 @@
 import {describe, expect, test} from "bun:test"
 import {
+  DARK_TORUS_MESH_DETAIL,
+  EMBEDDED_TORUS_MESH_DETAIL,
   TORUS_FORM_RATIOS,
   TORUS_LAYOUT_BASELINE,
-  TORUS_MESH_DETAIL,
-  defineTorusComponent,
+  defineTorusComposition,
   resolveContentTorusForm,
   resolveEmptyTorusForm,
   resolveSelfSimilarTorusForm,
@@ -12,8 +13,12 @@ import {
 } from "./Torus.ts"
 
 describe("shared Torus visual component", () => {
-  test("uses one high-detail mesh for every Torus role", () => {
-    expect(TORUS_MESH_DETAIL).toEqual({
+  test("smooths large Dark shells without multiplying embedded geometry", () => {
+    expect(DARK_TORUS_MESH_DETAIL).toEqual({
+      radialSegments: 64,
+      tubularSegments: 192,
+    })
+    expect(EMBEDDED_TORUS_MESH_DETAIL).toEqual({
       radialSegments: 32,
       tubularSegments: 192,
     })
@@ -75,7 +80,7 @@ describe("shared Torus visual component", () => {
   })
 
   test("recurses independently of the semantic owner", () => {
-    const state = defineTorusComponent({
+    const state = defineTorusComposition({
       id: "state:7",
       role: "state",
       payload: {stateId: 7},
@@ -83,14 +88,14 @@ describe("shared Torus visual component", () => {
       innerRadius: 1,
       outerRadius: 4,
     })
-    const atom = defineTorusComponent({
+    const atom = defineTorusComposition({
       id: "atom:2",
       role: "atom",
       payload: {atomId: 2},
       innerRadius: 5,
       outerRadius: 12,
       children: [{
-        torus: defineTorusComponent({
+        torus: defineTorusComposition({
           id: "atom:3",
           role: "atom",
           payload: {atomId: 3},

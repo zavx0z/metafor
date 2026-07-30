@@ -1,5 +1,6 @@
 import {describe, expect, test} from "bun:test"
 import {
+  MAX_FIELD_LAYOUT_COUNT,
   distributeOnPseudoSphere,
   layoutFieldsInPseudoCircle,
   pseudoSphereRadiusForFieldCount,
@@ -58,6 +59,45 @@ describe("shared Fields layouts", () => {
       }
       expect(minimumDistance).toBeCloseTo(markerRadius * 2)
       expect(layoutFieldsInPseudoCircle(17, markerRadius)).toBe(layout)
+      expect(Object.isFrozen(layout)).toBe(true)
+      expect(Object.isFrozen(layout.points)).toBe(true)
+      expect(Object.isFrozen(layout.points[0])).toBe(true)
     }
+  })
+
+  test("returns immutable sphere points and rejects unbounded work", () => {
+    const points = distributeOnPseudoSphere(3, 12)
+
+    expect(Object.isFrozen(points)).toBe(true)
+    expect(Object.isFrozen(points[0])).toBe(true)
+    expect(() =>
+      layoutFieldsInPseudoCircle(MAX_FIELD_LAYOUT_COUNT + 1, 1)
+    ).toThrow(RangeError)
+    expect(() =>
+      pseudoSphereRadiusForFieldCount(Number.POSITIVE_INFINITY, 1)
+    ).toThrow(RangeError)
+  })
+
+  test("does not alias distinct representable marker radii in cache", () => {
+    const firstRadius = 1e14
+    const secondRadius = firstRadius + 0.09375
+    const first = layoutFieldsInPseudoCircle(31, firstRadius)
+    const second = layoutFieldsInPseudoCircle(31, secondRadius)
+
+    expect(second).not.toBe(first)
+    let minimumDistance = Number.POSITIVE_INFINITY
+    for (let left = 0; left < second.points.length; left += 1) {
+      for (let right = left + 1; right < second.points.length; right += 1) {
+        const from = second.points[left]!
+        const to = second.points[right]!
+        minimumDistance = Math.min(
+          minimumDistance,
+          Math.hypot(from.x - to.x, from.y - to.y),
+        )
+      }
+    }
+    expect(Math.abs(minimumDistance - secondRadius * 2)).toBeLessThan(
+      Math.abs(minimumDistance - firstRadius * 2),
+    )
   })
 })

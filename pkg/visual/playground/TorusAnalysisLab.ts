@@ -10,7 +10,7 @@ import {
   ViewPoint,
 } from "@metafor/engine"
 import {
-  TORUS_MESH_DETAIL,
+  DARK_TORUS_MESH_DETAIL,
   resolveSelfSimilarTorusForm,
 } from "../Torus.ts"
 import {createPageAnnotationLayer} from "./AnnotationLayer.ts"
@@ -40,8 +40,8 @@ const METAFOR_TORUS_REFERENCE_FORM = resolveSelfSimilarTorusForm(50)
 export const METAFOR_TORUS_DEFAULTS: ThreeTorusParameters = Object.freeze({
   radius: METAFOR_TORUS_REFERENCE_FORM.radius,
   tube: METAFOR_TORUS_REFERENCE_FORM.tube,
-  radialSegments: TORUS_MESH_DETAIL.radialSegments,
-  tubularSegments: TORUS_MESH_DETAIL.tubularSegments,
+  radialSegments: DARK_TORUS_MESH_DETAIL.radialSegments,
+  tubularSegments: DARK_TORUS_MESH_DETAIL.tubularSegments,
   arc: 6.28,
   thetaStart: -0.003,
   thetaLength: 6.28,

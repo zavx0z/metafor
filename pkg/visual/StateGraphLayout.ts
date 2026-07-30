@@ -8,7 +8,13 @@ import {layoutFieldsInPseudoCircle} from "./FieldsLayout.ts"
 import {
   TORUS_LAYOUT_BASELINE,
   resolveContentTorusForm,
+  resolveTorusForm,
 } from "./Torus.ts"
+import {
+  buildHermiteEdgePath,
+  type HermiteEdgePoint,
+} from "./HermiteEdge.ts"
+import {resolveSemanticStateColor} from "./internal/semantic-state-color.ts"
 
 const NODE_EMPTY_OUTER_RADIUS = 3.2
 const NODE_FIELD_RADIUS =
@@ -24,7 +30,20 @@ export type StateGraphLayoutSizing = Readonly<{
   surfaceGap: number
 }>
 
-export const STATE_GRAPH_PRODUCTION_SIZING: StateGraphLayoutSizing = {
+export type StateGraphNodeFormDimensions = Readonly<{
+  holeRadius: number
+  torusRadius: number
+  torusTube: number
+}>
+
+export type StateGraphFieldPlacement = Readonly<StateGraphField & {
+  radius: number
+  x: number
+  y: number
+  z: number
+}>
+
+export const STATE_GRAPH_PRODUCTION_SIZING: StateGraphLayoutSizing = Object.freeze({
   emptyOuterRadius:
     TORUS_LAYOUT_BASELINE.rootOuterRadius *
     TORUS_LAYOUT_BASELINE.levelScale,
@@ -32,7 +51,7 @@ export const STATE_GRAPH_PRODUCTION_SIZING: StateGraphLayoutSizing = {
     TORUS_LAYOUT_BASELINE.rootFieldRadius *
     TORUS_LAYOUT_BASELINE.levelScale,
   surfaceGap: TORUS_LAYOUT_BASELINE.rootFieldRadius * 2,
-}
+})
 
 export type StateGraphLayoutNodeEnd =
   | "missing-state"
@@ -79,6 +98,26 @@ export type StateGraphRootLayout = Readonly<{
   rootStateId: number
 }>
 
+export type StateGraphEdgePathPoint = HermiteEdgePoint
+
+export const buildStateGraphHermiteEdgePath = (
+  edge: StateGraphLayoutEdge,
+  fromNode: StateGraphLayoutNode,
+  toNode: StateGraphLayoutNode,
+): readonly StateGraphEdgePathPoint[] => {
+  const outerRadius = Math.max(fromNode.radius, toNode.radius)
+  return buildHermiteEdgePath({
+    from: fromNode,
+    leftOuterRadius: outerRadius,
+    rightOuterRadius: outerRadius,
+    side: edge.returning ? -1 : 1,
+    to: toNode,
+  })
+}
+
+/** The sole State-edge sampling law, kept under the historical API name. */
+export const buildStateGraphEdgePath = buildStateGraphHermiteEdgePath
+
 export type StateGraphRootDescription = Readonly<{
   conditionCount: number
   levelCount: number
@@ -106,41 +145,12 @@ type MutableLayoutNode = {
   z: number
 }
 
-const hueChannel = (p: number, q: number, input: number): number => {
-  let hue = input
-  if (hue < 0) hue += 1
-  if (hue > 1) hue -= 1
-  if (hue < 1 / 6) return p + (q - p) * 6 * hue
-  if (hue < 1 / 2) return q
-  if (hue < 2 / 3) return p + (q - p) * (2 / 3 - hue) * 6
-  return p
-}
-
-const stateGraphColor = (
-  index: number,
-  count: number,
-): readonly [number, number, number] => {
-  const hue = (0.52 + index / Math.max(1, count)) % 1
-  const saturation = 0.82
-  const lightness = 0.58
-  const q = lightness + saturation - lightness * saturation
-  const p = 2 * lightness - q
-  return [
-    hueChannel(p, q, hue + 1 / 3),
-    hueChannel(p, q, hue),
-    hueChannel(p, q, hue - 1 / 3),
-  ]
-}
-
 const stateGraphColors = (
   graph: StateGraph,
 ): ReadonlyMap<number, readonly [number, number, number]> => {
-  const orderedStates = [...graph.states].sort(
-    (left, right) => left.position - right.position || left.id - right.id,
-  )
-  return new Map(orderedStates.map((state, index) => [
+  return new Map(graph.states.map((state) => [
     state.id,
-    stateGraphColor(index, orderedStates.length),
+    resolveSemanticStateColor(state.id),
   ]))
 }
 
@@ -153,6 +163,47 @@ const transitionOrder = (
   left: StateGraphTransition,
   right: StateGraphTransition,
 ): number => left.position - right.position || left.id - right.id
+
+export type StateGraphLayoutIndex = Readonly<{
+  colors: ReadonlyMap<number, readonly [number, number, number]>
+  fieldById: ReadonlyMap<number, StateGraphField>
+  graph: StateGraph
+  outgoing: ReadonlyMap<number, readonly StateGraphTransition[]>
+  sleevesByRoot: ReadonlyMap<number, readonly StateGraphSleeve[]>
+  states: ReadonlyMap<number, StateGraph["states"][number]>
+  transitionById: ReadonlyMap<number, StateGraphTransition>
+}>
+
+/** Builds all graph-wide lookup tables once for every owner snapshot. */
+export const indexStateGraphLayout = (
+  graph: StateGraph,
+): StateGraphLayoutIndex => {
+  const outgoing = new Map<number, StateGraphTransition[]>()
+  for (const transition of graph.transitions) {
+    const bucket = outgoing.get(transition.fromStateId)
+    if (bucket) bucket.push(transition)
+    else outgoing.set(transition.fromStateId, [transition])
+  }
+  for (const bucket of outgoing.values()) bucket.sort(transitionOrder)
+  return Object.freeze({
+    colors: stateGraphColors(graph),
+    fieldById: new Map(graph.fields.map((field) =>
+      [field.id, field] as const
+    )),
+    graph,
+    outgoing,
+    sleevesByRoot: Map.groupBy(
+      graph.sleeves,
+      (sleeve) => sleeve.rootStateId,
+    ),
+    states: new Map(graph.states.map((state) =>
+      [state.id, state] as const
+    )),
+    transitionById: new Map(graph.transitions.map((transition) =>
+      [transition.id, transition] as const
+    )),
+  })
+}
 
 export const resolveStateGraphNodeGeometry = (
   fields: readonly StateGraphField[],
@@ -182,6 +233,31 @@ export const resolveStateGraphNodeGeometry = (
   }
 }
 
+export const stateGraphNodeFormDimensions = (
+  outerRadius: number,
+  innerRadius: number,
+): StateGraphNodeFormDimensions => {
+  const form = resolveTorusForm(innerRadius, outerRadius)
+  return {
+    torusRadius: form.radius,
+    torusTube: form.tube,
+    holeRadius: form.innerRadius,
+  }
+}
+
+export const stateGraphFieldSphereLayout = (
+  fields: readonly StateGraphField[],
+  markerRadius: number,
+): readonly StateGraphFieldPlacement[] => {
+  if (fields.length === 0) return []
+  const layout = layoutFieldsInPseudoCircle(fields.length, markerRadius)
+  return fields.map((field, index) => ({
+    ...field,
+    radius: markerRadius,
+    ...(layout.points[index] ?? {x: 0, y: 0, z: 0}),
+  }))
+}
+
 const pathText = (
   graph: StateGraph,
   sleeve: StateGraphSleeve,
@@ -205,21 +281,24 @@ export const buildStateGraphRootLayout = (
   graph: StateGraph,
   rootStateId: number,
   sizing?: StateGraphLayoutSizing,
+): StateGraphRootLayout =>
+  buildStateGraphRootLayoutFromIndex(
+    indexStateGraphLayout(graph),
+    rootStateId,
+    sizing,
+  )
+
+export const buildStateGraphRootLayoutFromIndex = (
+  index: StateGraphLayoutIndex,
+  rootStateId: number,
+  sizing?: StateGraphLayoutSizing,
 ): StateGraphRootLayout => {
-  const states = new Map(graph.states.map((state) => [state.id, state] as const))
-  const colors = stateGraphColors(graph)
-  const fieldById = new Map(graph.fields.map((field) => [field.id, field]))
-  const outgoing = new Map<number, StateGraphTransition[]>()
-  for (const transition of graph.transitions) {
-    const bucket = outgoing.get(transition.fromStateId)
-    if (bucket) bucket.push(transition)
-    else outgoing.set(transition.fromStateId, [transition])
-  }
-  for (const bucket of outgoing.values()) bucket.sort(transitionOrder)
+  const {colors, fieldById, graph, outgoing, states} = index
 
   let edgeSequence = 0
   const nodes: MutableLayoutNode[] = []
   const edges: StateGraphLayoutEdge[] = []
+  const nodesByStep = new Map<number, MutableLayoutNode[]>()
   const makeNode = (
     stateId: number,
     step: number,
@@ -249,7 +328,9 @@ export const buildStateGraphRootLayout = (
     const node: MutableLayoutNode = {
       id,
       stateId,
-      label: missing ? `Отсутствует State ${stateId}` : stateName(graph, stateId),
+      label: missing
+        ? `Отсутствует State ${stateId}`
+        : states.get(stateId)?.name ?? `State ${stateId}`,
       step,
       x: step * LEVEL_STEP,
       y: 0,
@@ -265,6 +346,9 @@ export const buildStateGraphRootLayout = (
       fields,
     }
     nodes.push(node)
+    const levelNodes = nodesByStep.get(step)
+    if (levelNodes) levelNodes.push(node)
+    else nodesByStep.set(step, [node])
     return node
   }
 
@@ -324,12 +408,6 @@ export const buildStateGraphRootLayout = (
     }
   }
 
-  const nodesByStep = new Map<number, MutableLayoutNode[]>()
-  for (const node of nodes) {
-    const bucket = nodesByStep.get(node.step)
-    if (bucket) bucket.push(node)
-    else nodesByStep.set(node.step, [node])
-  }
   for (const levelNodes of nodesByStep.values()) {
     levelNodes.sort(
       (left, right) =>
@@ -368,9 +446,7 @@ export const buildStateGraphRootLayout = (
   for (const [index, step] of orderedSteps.entries()) {
     const levelRadius = Math.max(
       0,
-      ...nodes
-        .filter((node) => node.step === step)
-        .map((node) => node.radius),
+      ...(nodesByStep.get(step) ?? []).map((node) => node.radius),
     )
     const x = sizing && index > 0
       ? previousX + previousRadius + sizing.surfaceGap + levelRadius
@@ -385,7 +461,7 @@ export const buildStateGraphRootLayout = (
   const levels = orderedSteps.map((step) => ({
     step,
     x: levelXByStep.get(step) ?? step * LEVEL_STEP,
-    nodeIds: nodes.filter((node) => node.step === step).map((node) => node.id),
+    nodeIds: (nodesByStep.get(step) ?? []).map((node) => node.id),
   }))
 
   return {
@@ -410,9 +486,21 @@ export const buildStateGraphBranchLayout = (
   graph: StateGraph,
   rootStateId: number,
   sizing?: StateGraphLayoutSizing,
+): StateGraphRootLayout =>
+  buildStateGraphBranchLayoutFromIndex(
+    indexStateGraphLayout(graph),
+    rootStateId,
+    sizing,
+  )
+
+export const buildStateGraphBranchLayoutFromIndex = (
+  index: StateGraphLayoutIndex,
+  rootStateId: number,
+  sizing?: StateGraphLayoutSizing,
 ): StateGraphRootLayout => {
-  const templateLayout = buildStateGraphRootLayout(
-    graph,
+  const {graph} = index
+  const templateLayout = buildStateGraphRootLayoutFromIndex(
+    index,
     rootStateId,
     sizing,
   )
@@ -421,16 +509,10 @@ export const buildStateGraphBranchLayout = (
       node.stateId === rootStateId &&
       node.end !== "missing-state",
   )
-  const sleeves = graph.sleeves.filter(
-    (sleeve) => sleeve.rootStateId === rootStateId,
-  )
+  const sleeves = index.sleevesByRoot.get(rootStateId) ?? []
   if (!rootTemplate || sleeves.length === 0) return templateLayout
 
-  const transitionById = new Map(
-    graph.transitions.map((transition) =>
-      [transition.id, transition] as const
-    ),
-  )
+  const transitionById = index.transitionById
   const stateTemplateById = new Map<number, StateGraphLayoutNode>()
   const missingTemplateById = new Map<number, StateGraphLayoutNode>()
   for (const node of templateLayout.nodes) {
@@ -447,6 +529,7 @@ export const buildStateGraphBranchLayout = (
     ? levelStep.x / levelStep.step
     : LEVEL_STEP
   const nodes: MutableLayoutNode[] = []
+  const nodesByStep = new Map<number, MutableLayoutNode[]>()
   const nodeByPrefix = new Map<string, MutableLayoutNode>()
   const childrenByNodeId = new Map<string, Set<string>>()
   const edges: StateGraphLayoutEdge[] = []
@@ -469,6 +552,9 @@ export const buildStateGraphBranchLayout = (
       z: 0,
     }
     nodes.push(node)
+    const levelNodes = nodesByStep.get(step)
+    if (levelNodes) levelNodes.push(node)
+    else nodesByStep.set(step, [node])
     nodeByPrefix.set(prefixKey, node)
     return node
   }
@@ -594,10 +680,6 @@ export const buildStateGraphBranchLayout = (
 
   const orderedSteps = [...new Set(nodes.map((node) => node.step))]
     .sort((left, right) => left - right)
-  const nodesByStep = new Map(orderedSteps.map((step) => [
-    step,
-    nodes.filter((node) => node.step === step),
-  ] as const))
   let laneStep = ROW_STEP
   if (sizing) {
     laneStep = 0

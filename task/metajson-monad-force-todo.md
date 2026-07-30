@@ -1007,9 +1007,10 @@
 - Dependencies: `MF-116`
 - Current executor: canonical Inference integration checkout,
   current Codex desktop task.
-- Current slice: replace the playground entity enumeration with the public
-  `pkg/visual` layout catalog, complete the current `outside-in` composition
-  boundary and keep `inside-out` as a future independent layout.
+- Current slice: `pkg/visual` production hardening and the
+  `centered-nested` Bulk render integration are complete in the canonical
+  working tree. MF-117 remains `IN_PROGRESS` because this slice does not close
+  the wider causal dissolve/activation item.
 - Owner approval:
   - owner explicitly approved one canonical no-stop live
     `zavx0z/inference → zavx0z/lada` causal transition;
@@ -1216,7 +1217,7 @@
     Auth screenshot as Process declarations, rejected their former placement
     in the Field nucleus and rejected the depth-specific red/scaled nested
     Field material. The clarified law is now owned by
-    `bulk/gravity/layout/CONTRACT.md`: one Atom-local component pipeline at
+    current `bulk/VISUAL.md` owner document: one Atom-local component pipeline at
     every depth, semantic Fields only in the nucleus, immediate Matter on the
     inner band, then State sleeves and their causal elements in the outer
     band;
@@ -1549,6 +1550,100 @@
     `2226403`, and serves `chunk-315m6gjk.js`; host-namespace proof contains
     `rootFieldRadius: 11` but not `/_bun/client`. No domain contour was
     restarted and no GPU pixel acceptance is claimed.
+  - the `pkg/visual` production-hardening slice now exposes executable
+    immutable layout strategies through `@metafor/visual/layout`, keeps
+    production materials at the package root and the identity-dropping
+    renderer adapter at `@metafor/visual/viewport`. Shared Dark-tree,
+    self-similar Torus and State-sleeve composition are strategy-neutral;
+    `centered-nested` is `ready`, while `outside-in` remains explicitly
+    `in-progress` and is never an unknown-slug fallback;
+  - complete scenes reject missing, duplicate, mismatched or swapped
+    State-owner bindings and preserve both Atom and Dark occurrence identity.
+    Inputs and outputs are deeply immutable; cached Field layouts have exact
+    keys and bounded retention; topology count/depth/cycle guards fail before
+    recursive composition, and absent parents are rejected. Manifest and graph
+    current State identities are required to be unambiguous and consistent.
+    Those package invariants now feed the Bulk-owned projection described
+    below; the subsequent full-contour cold restart is recorded with the
+    runtime evidence below;
+  - the completed Bulk slice introduces a pure fail-closed
+    `bulk/visual-layout.ts` projection over the immutable canonical
+    `BulkManifest`. `BulkVisualRenderManifest` keeps only compact canonical
+    source counts, renderer-compatible geometry, all Field aliases, exact
+    State-Torus and condition-Sphere sidecars and fixed package-owned Torus
+    and Sphere detail as separate data; `bulk/web` imports only its
+    lightweight type contract;
+  - initial manifestation and every changed browser projection use the same
+    `applyViewportManifest` path. The full Monad fixture proves `5` centered
+    Dark Torus, `54` canonical Field occurrences represented by `28` render
+    markers and `54` aliases, plus unchanged exact sets of `142` orbital,
+    `165` Transition, `315` proxy and `511` relation identities. All `129`
+    State occurrences receive exact Torus forms and `185` condition proxies
+    receive exact Sphere forms;
+  - State mapping comes only from explicit `nodeId ↔ orbitalParticleId`;
+    condition proxies resolve by exact `(stateOrbitalParticleId, fieldId)`.
+    Every Visual edge matches exactly one canonical Transition, every relation
+    endpoint stays in its channel's centered root component, causal particles
+    use explicit package-owned placements beside their exact State anchor, and
+    missing identities fail closed;
+  - the viewport consumes fixed `64 × 192` detail for large Dark Torus,
+    `32 × 192` for embedded State/Field-proxy Torus and `32 × 24` for Sphere,
+    together with production quantum surfaces. Synthetic grouped Field ids
+    remain render-only: Force targeting resolves through canonical
+    `(parentDarkParticleId, fieldId)` aliases. Direct Higgs/Gluon geometry
+    mutations and the canonical renderer fallback were removed;
+  - owner explicitly deferred Bulk Axion activation to a later slice.
+    `pkg/visual` retains the reusable Axion-capable Torus form, while the
+    Bulk adapter removes Axion and its exclusive geometry before layout, so it
+    cannot consume a causal slot or change visible placement. The renderer
+    rejects any Axion-bearing render manifest;
+  - the renderer boundary carries geometry plus compact canonical counts, not
+    the full semantic manifest. Orbital and proxy forms are exhaustive,
+    disjoint sidecars without duplicated `sphereRadius`/`ringRadius`, missing
+    parents fail closed, and production State sizing is runtime-frozen;
+  - the previous `bulk/gravity/layout` snapshot/stream implementation,
+    `bulk/gravity/level`, layout settings/types, wireframe/LOD/fallback/cosmos
+    render paths and billboard/card residue were physically removed. Only
+    Transition and Relation retain `LineSegments` as first-class connections;
+  - the production layout import uses only
+    `@metafor/visual/layout/centered-nested`. The minified browser proof
+    contains `centered-nested` and contains neither `outside-in`,
+    `projectVisualSceneToViewport` nor playground. Its engine-neutral narrow
+    entrypoint is `43760` minified bytes and contains no
+    `ThinFilmMaterial`, `outside-in` or playground. Independent focused proofs
+    pass: `pkg/visual` — `121/121` in `23` files, `2271` expectations; `bulk`
+    — `181/181` in `31` files, `5440` expectations;
+  - package and root typechecks pass; `npm pack --dry-run` contains `26`
+    entries, `59290` packed bytes, `232374` unpacked bytes and no
+    playground/spec/annotation artifacts;
+  - full `bun run check`: typecheck and `42` expected diagnostics pass,
+    `1830 pass`, `0 fail`, `11616 expect` in `227` test files;
+    `git diff --check`: clean;
+  - the complete-scene playground viewport no longer projects the named layout
+    back through `StateGraphViewport`: the current fixture sends all `490`
+    Mesh placements and `31` package-owned line batches directly to
+    `createVisualSceneViewport`, preserving `165` Transition and `511`
+    Relation sampled paths. A clean GPU browser capture of the live
+    `#/centered-nested` route at `816 × 957` produced a non-black `191210`
+    byte PNG and the live manifest reported `5` Dark Torus, `28` rendered
+    Fields, `129` State Torus, `13` causal particles and `315` Field proxies;
+  - production indexes scan Fields and State occurrences once per snapshot,
+    index each State graph once per owner and resolve exact ordered-condition
+    Transitions without repeated source scans. Independent audit benchmark for
+    terminal State roots grows linearly at `12.1/24.7/48.1/92.3 ms` for
+    `800/1600/3200/6400` States; the remaining `stateName` source lookup is
+    confined to the development description path;
+  - after the integrated code changes the canonical five-domain contour was
+    cold-restarted as
+    `metafor-inference-universe-codex.service`: it is `active/running`, and
+    host-context HTTP probes return `200` from both Bulk `:4004` and the
+    independently running Visual playground `:4014`. The browser observer
+    reconnected after restart. A fresh authenticated Monad capture of live
+    Bulk root `zavx0z/lada` returned a non-black `3840 × 2176` PNG of
+    `2580683` bytes: its former Atom slot contains
+    `ВРЕМЯ · causal stack` with Force/Mass/Boundary, and the separate bottom
+    dock contains `Пауза`/`Продолжить`/`Шаг` while the scene keeps the
+    package-owned centered layout.
 - Activation constraints:
   - visual commit `faa6a33d` received one authorized standard cold restart;
     the service returned active/running, all six ports listened and startup

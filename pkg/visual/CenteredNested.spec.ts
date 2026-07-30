@@ -3,62 +3,78 @@ import type {
   BulkDarkParticle,
   BulkFieldParticle,
   BulkManifest,
+  BulkOrbitalParticle,
 } from "@metafor/types/bulk/manifest"
 import {
   buildCenteredNestedVisualScene,
   layoutCenteredNestedFields,
 } from "./CenteredNested.ts"
-import type {StateGraphRootLayout} from "./StateGraphLayout.ts"
+import type {StateGraph} from "./StateGraph.ts"
+
+const deepFreeze = <T>(value: T): T => {
+  if (value !== null && typeof value === "object" && !Object.isFrozen(value)) {
+    for (const nested of Object.values(value)) deepFreeze(nested)
+    Object.freeze(value)
+  }
+  return value
+}
 
 const darkParticle = (
-  darkParticleId: number,
-  parentDarkParticleId: number | null,
+  ownerAtomId: number,
+  parentOwnerAtomId: number | null,
   depth: number,
 ): BulkDarkParticle => ({
-  darkParticleId,
-  parentDarkParticleId,
+  darkParticleId: ownerAtomId * 2,
+  parentDarkParticleId: parentOwnerAtomId === null
+    ? null
+    : parentOwnerAtomId * 2,
   darkParticleKind: "atom",
-  src: `owner/${darkParticleId}`,
-  metaSrc: `owner/${darkParticleId}`,
-  label: `Atom ${darkParticleId}`,
+  src: `owner/${ownerAtomId}`,
+  metaSrc: `owner/${ownerAtomId}`,
+  label: `Atom ${ownerAtomId}`,
   depth,
   darkParticleOrder: 0,
-  localX: depth === 0 ? 17 : 100 + depth,
-  localY: depth === 0 ? -9 : 200 + depth,
-  localZ: depth === 0 ? 3 : 300 + depth,
-  torusScale: 0.5 ** depth,
-  torusRadius: 20,
-  torusTube: 5,
-  colorR: 0.4,
-  colorG: 0.45,
-  colorB: 0.98,
 })
 
 const field = (
   fieldParticleId: string,
   fieldId: number,
   valueId: number,
-  parentDarkParticleId: number,
+  parentOwnerAtomId: number,
   valueText: string,
 ): BulkFieldParticle => ({
   fieldParticleId,
   fieldId,
   valueId,
-  parentDarkParticleId,
+  parentDarkParticleId: parentOwnerAtomId * 2,
   fieldKey: fieldParticleId,
   fieldLabel: fieldParticleId,
   fieldParticleKind: "string",
   valueText,
-  localX: 999,
-  localY: 999,
-  localZ: 999,
-  sphereRadius: 0.1,
-  colorR: 1,
-  colorG: 0.08,
-  colorB: 0.58,
 })
 
-const manifest = (): BulkManifest => ({
+const stateParticle = (
+  sourceId: number,
+  current: boolean,
+  sleeveRootStateId: number = sourceId,
+  transitionPath: string = "root",
+  active: boolean = current,
+): BulkOrbitalParticle => ({
+  active,
+  anchorStateOrbitalParticleId: null,
+  current,
+  label: `State ${sourceId}`,
+  orbitalParticleId:
+    `atom/1/sleeve/${sleeveRootStateId}/state/${sourceId}` +
+    `/path/${transitionPath}`,
+  orbitalParticleKind: "state",
+  parentDarkParticleId: 2,
+  relatedStateIds: [sourceId],
+  sleeveRootStateId,
+  sourceId,
+})
+
+const manifest = (branching = false): BulkManifest => ({
   rootSrc: "owner/1",
   darkParticles: [
     darkParticle(1, null, 0),
@@ -74,6 +90,75 @@ const manifest = (): BulkManifest => ({
     field("grandchild-shared", 6, 104, 3, "grandchild value"),
     field("grandchild-private", 7, 105, 3, "private"),
   ],
+  orbitalParticles: branching
+    ? [
+      stateParticle(100, true),
+      stateParticle(101, false, 100, "1", true),
+      stateParticle(101, false),
+      stateParticle(200, false),
+    ]
+    : [stateParticle(100, true)],
+})
+
+const stateGraph = (branching = false): StateGraph => ({
+  atomId: 1,
+  atomLabel: "Atom 1",
+  currentStateId: 100,
+  fields: [],
+  reachableStateIds: branching ? [100, 101] : [100],
+  sleeves: branching
+    ? [
+      {
+        end: {kind: "terminal"},
+        id: "atom/1/root/100/path/1",
+        rootStateId: 100,
+        stateIds: [100, 101],
+        transitionIds: [1],
+      },
+      {
+        end: {kind: "terminal"},
+        id: "atom/1/root/101/state/101",
+        rootStateId: 101,
+        stateIds: [101],
+        transitionIds: [],
+      },
+      {
+        end: {kind: "terminal"},
+        id: "atom/1/root/200/state/200",
+        rootStateId: 200,
+        stateIds: [200],
+        transitionIds: [],
+      },
+    ]
+    : [{
+      end: {kind: "terminal"},
+      id: "atom/1/root/100/state/100",
+      rootStateId: 100,
+      stateIds: [100],
+      transitionIds: [],
+    }],
+  src: "owner/1",
+  states: branching
+    ? [
+      {current: true, id: 100, name: "First root", position: 0},
+      {current: false, id: 101, name: "First next", position: 1},
+      {current: false, id: 200, name: "Second root", position: 2},
+    ]
+    : [{current: true, id: 100, name: "Root state", position: 0}],
+  transitions: branching
+    ? [{
+      conditions: [],
+      fromStateId: 100,
+      id: 1,
+      position: 0,
+      toStateId: 101,
+    }]
+    : [],
+})
+
+const owner = (branching = false) => ({
+  graph: stateGraph(branching),
+  ownerDarkParticleId: 2,
 })
 
 describe("centered-nested Visual layout", () => {
@@ -88,41 +173,43 @@ describe("centered-nested Visual layout", () => {
 
     expect(placements).toHaveLength(5)
     expect(byId.get("root-private")).toMatchObject({
-      affinityOwnerDarkParticleId: 1,
+      affinityOwnerDarkParticleId: 2,
       band: 0,
       bandKind: "root-private",
       deepestOwnerDepth: 0,
       fieldParticleIds: ["root-private"],
       orbitIndex: 0,
-      ownerDarkParticleIds: [1],
-      ownerDarkParticleId: 1,
+      ownerDarkParticleIds: [2],
+      ownerDarkParticleId: 2,
       radius: 11,
     })
     expect(byId.get("root-shared")).toMatchObject({
-      affinityOwnerDarkParticleId: 2,
+      affinityOwnerDarkParticleId: 4,
       band: 1,
       bandKind: "shared",
       deepestOwnerDepth: 1,
+      fieldIds: [2, 3],
+      fieldKeys: ["root-shared", "child-shared-up"],
       fieldParticleIds: ["root-shared", "child-shared-up"],
       orbitIndex: 0,
-      ownerDarkParticleIds: [1, 2],
-      ownerDarkParticleId: 1,
+      ownerDarkParticleIds: [2, 4],
+      ownerDarkParticleId: 2,
       radius: 11,
     })
     expect(byId.get("child-shared-up")).toBe(byId.get("root-shared"))
     expect(byId.get("child-private")).toMatchObject({
-      affinityOwnerDarkParticleId: 2,
+      affinityOwnerDarkParticleId: 4,
       band: 2,
       bandKind: "inner-private",
       deepestOwnerDepth: 1,
       fieldParticleIds: ["child-private"],
       orbitIndex: 1,
-      ownerDarkParticleIds: [2],
-      ownerDarkParticleId: 2,
+      ownerDarkParticleIds: [4],
+      ownerDarkParticleId: 4,
       radius: 5.5,
     })
     expect(byId.get("child-shared-down")).toMatchObject({
-      affinityOwnerDarkParticleId: 3,
+      affinityOwnerDarkParticleId: 6,
       band: 3,
       bandKind: "shared",
       deepestOwnerDepth: 2,
@@ -131,26 +218,26 @@ describe("centered-nested Visual layout", () => {
         "grandchild-shared",
       ],
       orbitIndex: 2,
-      ownerDarkParticleIds: [2, 3],
-      ownerDarkParticleId: 2,
+      ownerDarkParticleIds: [4, 6],
+      ownerDarkParticleId: 4,
       radius: 5.5,
     })
     expect(byId.get("grandchild-shared"))
       .toBe(byId.get("child-shared-down"))
     expect(byId.get("grandchild-private")).toMatchObject({
-      affinityOwnerDarkParticleId: 3,
+      affinityOwnerDarkParticleId: 6,
       band: 4,
       bandKind: "inner-private",
       deepestOwnerDepth: 2,
       fieldParticleIds: ["grandchild-private"],
       orbitIndex: 3,
-      ownerDarkParticleIds: [3],
-      ownerDarkParticleId: 3,
+      ownerDarkParticleIds: [6],
+      ownerDarkParticleId: 6,
       radius: 2.75,
     })
 
-    expect(byId.get("root-private")?.field.valueText)
-      .toBe(byId.get("child-private")?.field.valueText)
+    expect(byId.get("root-private")?.valueText)
+      .toBe(byId.get("child-private")?.valueText)
     expect(byId.get("root-private")?.band)
       .not.toBe(byId.get("child-private")?.band)
   })
@@ -174,7 +261,7 @@ describe("centered-nested Visual layout", () => {
     )
 
     expect(shared).toMatchObject({
-      affinityOwnerDarkParticleId: 3,
+      affinityOwnerDarkParticleId: 6,
       band: 1,
       bandKind: "shared",
       deepestOwnerDepth: 2,
@@ -183,8 +270,8 @@ describe("centered-nested Visual layout", () => {
         "right-branch-shared",
       ],
       orbitIndex: 0,
-      ownerDarkParticleIds: [4, 3],
-      ownerDarkParticleId: 1,
+      ownerDarkParticleIds: [8, 6],
+      ownerDarkParticleId: 2,
       radius: 11,
     })
     expect(placements.filter((placement) =>
@@ -201,29 +288,29 @@ describe("centered-nested Visual layout", () => {
     )
     const rootShared = placements.filter((placement) =>
       placement.bandKind === "shared" &&
-      placement.ownerDarkParticleId === 1
-    )
-    const childOwned = placements.filter((placement) =>
       placement.ownerDarkParticleId === 2
     )
+    const childOwned = placements.filter((placement) =>
+      placement.ownerDarkParticleId === 4
+    )
     const grandchildPrivate = placements.filter((placement) =>
-      placement.ownerDarkParticleId === 3
+      placement.ownerDarkParticleId === 6
     )
     const radialInner = (
       placement: (typeof placements)[number],
     ): number =>
       Math.hypot(
-        placement.x - 17,
-        placement.y + 9,
-        placement.z - 3,
+        placement.x,
+        placement.y,
+        placement.z,
       ) - placement.radius
     const radialOuter = (
       placement: (typeof placements)[number],
     ): number =>
       Math.hypot(
-        placement.x - 17,
-        placement.y + 9,
-        placement.z - 3,
+        placement.x,
+        placement.y,
+        placement.z,
       ) + placement.radius
 
     expect(Math.min(...rootShared.map(radialInner)) -
@@ -236,7 +323,7 @@ describe("centered-nested Visual layout", () => {
       .toEqual(["inner-private", "shared"])
     expect(childOwned.map((placement) =>
       placement.ownerDarkParticleId
-    )).toEqual([2, 2])
+    )).toEqual([4, 4])
 
     for (let left = 0; left < placements.length; left += 1) {
       for (let right = left + 1; right < placements.length; right += 1) {
@@ -254,42 +341,23 @@ describe("centered-nested Visual layout", () => {
   })
 
   test("gives the complete recursive Torus chain one world center", () => {
-    const rootStateLayout = {
-      edges: [],
-      levels: [{nodeIds: ["root-state"], step: 0, x: 0}],
-      nodes: [{
-        color: [0.2, 0.7, 0.9],
-        current: true,
-        end: "terminal",
-        fieldRadius: 1,
-        fields: [],
-        id: "root-state",
-        innerRadius: 1,
-        label: "Root state",
-        radius: 3,
-        stateId: 100,
-        step: 0,
-        x: 0,
-        y: 0,
-        z: 0,
-      }],
-      rootStateId: 100,
-    } satisfies StateGraphRootLayout
-    const scene = buildCenteredNestedVisualScene(manifest(), [{
-      atomSrc: "owner/1",
-      layouts: [rootStateLayout],
-    }])
+    const scene = buildCenteredNestedVisualScene({
+      manifest: manifest(),
+      owners: [owner()],
+    })
 
-    expect(scene.context.tori).toHaveLength(3)
-    expect(scene.context.tori.map(({x, y, z}) => [x, y, z])).toEqual([
-      [17, -9, 3],
-      [17, -9, 3],
-      [17, -9, 3],
+    expect(scene.tori).toHaveLength(3)
+    expect(scene.tori.map(({x, y, z}) => [x, y, z])).toEqual([
+      [0, 0, 0],
+      [0, 0, 0],
+      [0, 0, 0],
     ])
-    const outerRadii = scene.context.tori.map((torus) =>
+    expect(scene.tori.map((torus) => torus.darkParticleId))
+      .toEqual([2, 4, 6])
+    const outerRadii = scene.tori.map((torus) =>
       torus.radius + torus.tube
     )
-    const innerRadii = scene.context.tori.map((torus) =>
+    const innerRadii = scene.tori.map((torus) =>
       torus.radius - torus.tube
     )
     expect(outerRadii[0]).toBeGreaterThan(outerRadii[1]!)
@@ -306,123 +374,60 @@ describe("centered-nested Visual layout", () => {
           )
           .map((placement) =>
             Math.hypot(
-              placement.x - 17,
-              placement.y + 9,
-              placement.z - 3,
+              placement.x,
+              placement.y,
+              placement.z,
             ) + placement.radius
           ),
       )
     const rootOwnedOuterExtent = Math.max(
       ...fieldPlacements
-        .filter((placement) => placement.ownerDarkParticleId === 1)
+        .filter((placement) => placement.ownerDarkParticleId === 2)
         .map((placement) =>
           Math.hypot(
-            placement.x - 17,
-            placement.y + 9,
-            placement.z - 3,
+            placement.x,
+            placement.y,
+            placement.z,
           ) + placement.radius
         ),
     )
     expect(innerRadii[0]! - rootOwnedOuterExtent).toBeCloseTo(8.25)
-    expect(innerRadii[1]! - ownedOuterExtent(2)).toBeCloseTo(4.125)
-    expect(innerRadii[2]! - ownedOuterExtent(3)).toBeCloseTo(2.0625)
-    const rootStateInnerExtent = Math.min(...scene.layout.nodes.map((node) =>
-      Math.hypot(node.x - 17, node.y + 9, node.z - 3) - node.radius
+    expect(innerRadii[1]! - ownedOuterExtent(4)).toBeCloseTo(4.125)
+    expect(innerRadii[2]! - ownedOuterExtent(6)).toBeCloseTo(2.0625)
+    const rootStateNodes = scene.stateSleeves[0]!.layout.nodes
+    const rootStateInnerExtent = Math.min(...rootStateNodes.map((node) =>
+      Math.hypot(node.x, node.y, node.z) - node.radius
     ))
-    const rootStateOuterExtent = Math.max(...scene.layout.nodes.map((node) =>
-      Math.hypot(node.x - 17, node.y + 9, node.z - 3) + node.radius
+    const rootStateOuterExtent = Math.max(...rootStateNodes.map((node) =>
+      Math.hypot(node.x, node.y, node.z) + node.radius
     ))
     expect(rootStateInnerExtent - outerRadii[1]!).toBeCloseTo(8.25)
     expect(outerRadii[0]! - rootStateOuterExtent).toBeCloseTo(8.25)
-    expect(scene.context.fields).toHaveLength(5)
+    expect(scene.fields).toHaveLength(5)
   })
 
   test("places complete State sleeves on one owner orbit without repacking", () => {
-    const firstSleeve = {
-      edges: [{
-        conditionCount: 0,
-        conditionFieldIds: [],
-        fromNodeId: "first/root",
-        id: "first/edge",
-        returning: false,
-        toNodeId: "first/next",
-        transitionId: 1,
-      }],
-      levels: [
-        {nodeIds: ["first/root"], step: 0, x: 4},
-        {nodeIds: ["first/next"], step: 1, x: 31},
-      ],
-      nodes: [
-        {
-          color: [0.2, 0.7, 0.9],
-          current: true,
-          end: null,
-          fieldRadius: 0.7,
-          fields: [],
-          id: "first/root",
-          innerRadius: 1,
-          label: "First root",
-          radius: 3.2,
-          stateId: 100,
-          step: 0,
-          x: 4,
-          y: -2,
-          z: 1,
-        },
-        {
-          color: [0.8, 0.3, 0.7],
-          current: false,
-          end: "terminal",
-          fieldRadius: 0.7,
-          fields: [],
-          id: "first/next",
-          innerRadius: 1,
-          label: "First next",
-          radius: 4.1,
-          stateId: 101,
-          step: 1,
-          x: 31,
-          y: 6,
-          z: 4,
-        },
-      ],
-      rootStateId: 100,
-    } satisfies StateGraphRootLayout
-    const secondSleeve = {
-      edges: [],
-      levels: [{nodeIds: ["second/root"], step: 0, x: 0}],
-      nodes: [{
-        color: [0.4, 0.9, 0.3],
-        current: false,
-        end: "terminal",
-        fieldRadius: 0.7,
-        fields: [],
-        id: "second/root",
-        innerRadius: 1,
-        label: "Second root",
-        radius: 2.7,
-        stateId: 200,
-        step: 0,
-        x: 0,
-        y: 0,
-        z: 0,
-      }],
-      rootStateId: 200,
-    } satisfies StateGraphRootLayout
-    const scene = buildCenteredNestedVisualScene(manifest(), [{
-      atomSrc: "owner/1",
-      layouts: [firstSleeve, secondSleeve],
-    }])
-    const center = {x: 17, y: -9, z: 3}
-    const [firstRoot, firstNext, secondRoot] = scene.layout.nodes
+    const scene = buildCenteredNestedVisualScene({
+      manifest: manifest(true),
+      owners: [owner(true)],
+    })
+    const center = {x: 0, y: 0, z: 0}
+    const firstSleeve = scene.stateSleeves.find(
+      (sleeve) => sleeve.rootStateId === 100,
+    )!
+    const secondSleeve = scene.stateSleeves.find(
+      (sleeve) => sleeve.rootStateId === 200,
+    )!
+    const [firstRoot, firstNext] = firstSleeve.layout.nodes
+    const [secondRoot] = secondSleeve.layout.nodes
 
     expect(Math.hypot(
       firstNext!.x - firstRoot!.x,
       firstNext!.y - firstRoot!.y,
       firstNext!.z - firstRoot!.z,
-    )).toBeCloseTo(Math.hypot(27, 8, 3))
+    )).toBeCloseTo(72)
     expect([firstRoot!.radius, firstNext!.radius, secondRoot!.radius])
-      .toEqual([3.2, 4.1, 2.7])
+      .toEqual([25, 25, 25])
     expect(Math.hypot(
       firstRoot!.x - center.x,
       firstRoot!.y - center.y,
@@ -431,10 +436,66 @@ describe("centered-nested Visual layout", () => {
       secondRoot!.y - center.y,
     ))
     const childOuterRadius =
-      scene.context.tori[1]!.radius + scene.context.tori[1]!.tube
+      scene.tori[1]!.radius + scene.tori[1]!.tube
     expect(Math.hypot(
       firstRoot!.x - center.x,
       firstRoot!.y - center.y,
     ) - firstRoot!.radius).toBeGreaterThan(childOuterRadius)
+  })
+
+  test("returns immutable identity-rich geometry detached from the source", () => {
+    const source = manifest()
+    const sourceField = source.fieldParticles[0]!
+    const frozenOwner = deepFreeze(owner())
+    deepFreeze(source)
+    const scene = buildCenteredNestedVisualScene({
+      manifest: source,
+      owners: [frozenOwner],
+    })
+    const shared = scene.fields.find((field) =>
+      field.fieldParticleIds.includes("root-shared")
+    )
+
+    expect(scene.layoutSlug).toBe("centered-nested")
+    expect(scene.fields[0]).toMatchObject({
+      fieldParticleIds: ["root-private"],
+      ownerDarkParticleId: 2,
+      sourceOwnerDarkParticleIds: [2],
+      valueId: 101,
+    })
+    expect(scene.fields[0]).not.toHaveProperty("field")
+    expect(scene.stateSleeves[0]?.ownerAtomId).toBe(1)
+    expect(shared).toMatchObject({
+      fieldIds: [2, 3],
+      fieldKeys: ["root-shared", "child-shared-up"],
+      sourceOwnerDarkParticleIds: [2, 4],
+    })
+    expect(Object.isFrozen(scene)).toBe(true)
+    expect(Object.isFrozen(scene.fields[0]?.fieldParticleIds)).toBe(true)
+    expect(Object.isFrozen(scene.stateSleeves[0]?.layout.nodes[0])).toBe(true)
+    expect(sourceField.fieldParticleId).toBe("root-private")
+  })
+
+  test("rejects a complete scene when a manifested State owner is unbound", () => {
+    const source: BulkManifest = {
+      ...manifest(),
+      orbitalParticles: [{
+        active: true,
+        anchorStateOrbitalParticleId: null,
+        current: true,
+        label: "Root state",
+        orbitalParticleId: "atom/1/sleeve/100/state/100/path/root",
+        orbitalParticleKind: "state",
+        parentDarkParticleId: 2,
+        relatedStateIds: [100],
+        sleeveRootStateId: 100,
+        sourceId: 100,
+      }],
+    }
+
+    expect(() => buildCenteredNestedVisualScene({
+      manifest: source,
+      owners: [],
+    })).toThrow("Visual State owner 2 is missing a graph binding")
   })
 })

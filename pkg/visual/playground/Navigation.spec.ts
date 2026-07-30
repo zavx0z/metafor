@@ -15,7 +15,7 @@ describe("Visual playground nested navigation", () => {
     expect(client).not.toContain("for (const component of Visual)")
     expect(client).toContain("link.dataset.status = layout.status")
     expect(client).toContain("`#/${OutsideIn.slug}`")
-    expect(client).toContain("buildCenteredNestedVisualScene")
+    expect(client).toContain("selectedLayout.buildScene")
     expect(client).not.toContain("minimumReadableDiameterPx")
     expect(page).not.toContain('id="inner"')
     expect(page).not.toContain('id="radius"')

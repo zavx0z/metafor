@@ -12,7 +12,7 @@ import type {BulkRootPromotionReceipt} from "@metafor/types/bulk/manifest"
 import type {BulkRuntimeProjection} from "@metafor/types/bulk/runtime"
 import type {ForceMessage} from "shared/protocol/force/message"
 import type {MonadRpcPeer} from "shared/transport/monad"
-import {DEFAULT_BULK_SCENE_SRC, DEFAULT_BULK_SETTINGS} from "./settings.ts"
+import {DEFAULT_BULK_SCENE_SRC} from "./settings.ts"
 import {BulkProjectionStore} from "./projection.ts"
 import {observedRootSrc} from "./web/force-protocol.ts"
 import {buildBulkManifestation} from "./manifestation.ts"
@@ -317,7 +317,6 @@ export class BulkMonad {
       manifest: buildBulkManifestation(
         projection.runtime,
         this.#promotionReceipt?.removedRootSrc ?? this.#activeSrc,
-        DEFAULT_BULK_SETTINGS.layout,
         this.#promotionReceipt,
       ),
     }
@@ -342,7 +341,6 @@ export class BulkMonad {
     const manifest = buildBulkManifestation(
       projection,
       MF117_SOURCE,
-      DEFAULT_BULK_SETTINGS.layout,
     )
     const sourceId = input.promotion.removedRootAtomId * 2
     const targetId = input.promotion.promotedAtomId * 2
@@ -350,21 +348,15 @@ export class BulkMonad {
       darkParticleId === sourceId)
     const target = manifest.darkParticles.filter(({darkParticleId}) =>
       darkParticleId === targetId)
-    const outerDiameterMm = source[0]
-      ? (source[0].torusRadius + source[0].torusTube) *
-        source[0].torusScale * 2
-      : Number.NaN
+    const outerDiameterMm =
+      input.promotion.formerRootFrame.outerDiameterMm
     if (
       source.length !== 1 ||
       source[0]?.parentDarkParticleId !== null ||
       source[0].src !== MF117_SOURCE ||
       target.length !== 1 ||
       target[0]?.parentDarkParticleId !== sourceId ||
-      target[0].src !== MF117_TARGET ||
-      Math.abs(
-        outerDiameterMm -
-          input.promotion.formerRootFrame.outerDiameterMm,
-      ) > 1e-9
+      target[0].src !== MF117_TARGET
     ) throw new Error("Bulk MF-117 current Inference/Lada torus frame changed")
     return {
       schema: mf117Schema,
@@ -462,7 +454,6 @@ export class BulkMonad {
     const manifest = buildBulkManifestation(
       projection,
       promotion.removedRootSrc,
-      DEFAULT_BULK_SETTINGS.layout,
       promotion,
     )
     const sourceId = promotion.removedRootAtomId * 2
@@ -479,9 +470,6 @@ export class BulkMonad {
       .map(({darkParticleId}) => darkParticleId)
       .toSorted((left, right) => left - right)
     const root = target[0]
-    const rootOuterDiameterMm = root
-      ? (root.torusRadius + root.torusTube) * root.torusScale * 2
-      : Number.NaN
     if (
       projection.atoms.some(({id, wimp}) =>
         id === promotion.removedRootAtomId || wimp === MF117_SOURCE) ||
@@ -494,13 +482,6 @@ export class BulkMonad {
       target.length !== 1 ||
       root?.parentDarkParticleId !== null ||
       root.src !== MF117_TARGET ||
-      root.localX !== promotion.formerRootFrame.localX ||
-      root.localY !== promotion.formerRootFrame.localY ||
-      root.localZ !== promotion.formerRootFrame.localZ ||
-      Math.abs(
-        rootOuterDiameterMm -
-          promotion.formerRootFrame.outerDiameterMm,
-      ) > 1e-9 ||
       manifest.darkParticles.some(({parentDarkParticleId}) =>
         parentDarkParticleId !== null &&
         !manifest.darkParticles.some(({darkParticleId}) =>

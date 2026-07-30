@@ -1,8 +1,8 @@
 import {describe, expect, test} from "bun:test"
-import type {BulkManifest} from "@metafor/types/bulk/manifest"
+import type {BulkRenderManifest} from "@metafor/types/bulk/manifest"
 import {BulkSceneStore} from "./scene.ts"
 
-const manifest = (secondLabel = "two", childScale = 0.25): BulkManifest => ({
+const manifest = (secondLabel = "two", childLocalX = 0.25): BulkRenderManifest => ({
   rootSrc: "owner/root",
   darkParticles: [1, 2].map((id) => ({
     darkParticleId: id,
@@ -13,10 +13,9 @@ const manifest = (secondLabel = "two", childScale = 0.25): BulkManifest => ({
     label: id === 2 ? secondLabel : "one",
     depth: 0,
     darkParticleOrder: id,
-    localX: id,
+    localX: id === 1 ? 1 : childLocalX,
     localY: 0,
     localZ: 0,
-    torusScale: id === 1 ? 1 : childScale,
     torusRadius: 10,
     torusTube: 1,
     colorR: 1,
@@ -24,6 +23,10 @@ const manifest = (secondLabel = "two", childScale = 0.25): BulkManifest => ({
     colorB: 1,
   })),
   fieldParticles: [],
+  orbitalParticles: [],
+  transitionChannels: [],
+  fieldProxies: [],
+  relationChannels: [],
 })
 
 describe("Bulk live Atom scene patch gate", () => {
@@ -62,6 +65,6 @@ describe("Bulk live Atom scene patch gate", () => {
 
     expect(patch.darkParticleIds).toEqual([2])
     expect(store.darkParticles.get(1)).toBe(parent)
-    expect(store.darkParticles.get(2)?.torusScale).toBe(0.125)
+    expect(store.darkParticles.get(2)?.localX).toBe(0.125)
   })
 })

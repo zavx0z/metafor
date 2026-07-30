@@ -4,13 +4,97 @@
 раскладку. Верхний уровень пакета — это каталог раскладок, а не перечень
 `Atom`, `Matter`, `Field`, `State` и других видов entity.
 
+## Публичная граница пакета
+
+- Каждая запись `Visual` является исполняемой стратегией с единым
+  `buildScene({manifest, owners})`. Каталог не требует от consumer ручного
+  `switch` по slug. `centered-nested` готова и используется production Bulk;
+  `outside-in` остаётся явно помеченной `in-progress`.
+- Production consumer, которому нужна только готовая стратегия, использует
+  side-effect-free `@metafor/visual/layout/centered-nested`. Этот subpath
+  экспортирует `centered-nested` и необходимые ей neutral graph/form helpers,
+  но не включает `outside-in`, viewport adapter или playground.
+- `manifest` передаёт полную materialized структуру, а каждый элемент
+  `owners` связывает один `StateGraph` с точным `ownerDarkParticleId`.
+  Владелец обязан существовать в manifest, быть уникальным во входе и иметь
+  тот же canonical `src` и тот же набор/current State, что и manifested
+  occurrence. Для Atom действует текущий canonical Bulk namespace
+  `ownerDarkParticleId = graph.atomId × 2`; другой pair отклоняется, даже если
+  два Atom имеют одинаковые `src` и State. Manifest и graph могут иметь не
+  более одного current State и обязаны совпадать по его nullable identity.
+  Каждый manifest owner со State particles обязан иметь binding, а graph не
+  вправе добавлять отсутствующие в manifest State; неполный snapshot
+  отклоняется. Готовые State-layouts с внешними размерами во вход не
+  принимаются: стратегия сама строит их по production sizing law.
+- Результат `VisualScene` сохраняет identities и ownership Torus, Fields и
+  каждого State-рукава, включая одновременно `ownerAtomId` графа и
+  `ownerDarkParticleId` manifest. Каждый production State node несёт явную
+  пару `nodeId ↔ orbitalParticleId`; внешний consumer не восстанавливает
+  occurrence identity разбором opaque layout id. Массивы, placements и
+  вложенная State geometry immutable и не ссылаются на изменяемые части
+  входного manifest. Компоновщик не сортирует и не изменяет входные массивы.
+- Чистая граница геометрии экспортируется как `@metafor/visual/layout` и не
+  включает playground, GPU viewport либо entity-lab catalogs. Корневой
+  `@metafor/visual` содержит только production material resolvers, а явный
+  complete-scene GPU viewport экспортируется отдельно как
+  `@metafor/visual/viewport`.
+  Dev-компоненты и labs доступны только через собственные source modules
+  внутри workspace.
+- Named-layout playground передаёт полный immutable `VisualScene` в
+  `createVisualSceneViewport` без промежуточного State-layout projection.
+  Viewport создаёт ровно одну Mesh на каждую готовую Torus/Sphere placement и
+  ровно один `LineSegments` на каждый package-owned edge batch. Он использует
+  только готовые form, material и sampled path; повторное построение State,
+  condition Field, causal particle, proxy, Hermite либо Relation geometry
+  запрещено. `StateGraphViewport` остаётся renderer только изолированного
+  algorithm lab и не обслуживает именованные раскладки.
+- Bulk и named-layout playground потребляют одну complete component scene.
+  Разница их renderer-boundary механики ограничена frame-представлением:
+  playground использует готовые world coordinates напрямую, а Bulk переводит
+  их в local frame exact owner. Обе границы сохраняют identity coverage и
+  package batch/material laws до создания GPU objects.
+- Детерминированные Field layouts принимают не более `4096` markers за один
+  вызов и используют ограниченный recent-cache. Превышение ресурсной границы
+  отклоняется синхронно; cached geometry глубоко immutable.
+- Одна Visual topology принимает не более `10000` Dark particles и глубину
+  parent-child chain не более `256`. Превышение отклоняется контролируемым
+  `RangeError`; duplicate identity и structural cycle отклоняются до
+  рекурсивной композиции.
+
+## Компонентная production-модель
+
+- `outside-in` показывает повторяемую рекурсивную структуру, но не является
+  владельцем готовой компонентной модели. Общая production-модель определена
+  отдельно и применяется к результату любой именованной раскладки.
+- `Torus` — переиспользуемая форма, но не вся компонентная модель.
+  Самовоспроизводимая единица `VisualTorusComponent` содержит форму Torus,
+  собственное Field-ядро, цельные State-рукава и вложенные
+  `VisualTorusComponent`. `Atom`, `State`, `Fuzzy`, `Axion` и `MACHO` остаются
+  semantic payload/role и не создают параллельные реализации формы.
+- State-рукав является отдельным неделимым компонентом: occurrence identities,
+  State-Torus, привязанные к State причинные particles, condition/projection
+  Fields и готовые sampled Transition edges проходят один и тот же rigid
+  transform. Причинная particle без exact State occurrence в production-сцене
+  запрещена. Relation является отдельным edge-компонентом с готовыми material
+  и sampled path.
+- Именованная раскладка наполняет `VisualComponentComposer` непосредственно во
+  время построения и один раз закрывает его в immutable
+  `VisualComponentForest`; post-hoc обёртка готовых flat arrays не является
+  production-моделью. `compileVisualComponents` один раз разворачивает лес в
+  стабильные renderer indexes и кэширует результат по identity леса.
+  Повторная компиляция той же сцены возвращает тот же объект.
+- State edges компилируются в однородные батчи по владельцу, направлению
+  forward/return и package-owned material; Relation edges — по владельцу и
+  material. Для одного владельца State Transitions требуют не более двух
+  батчей. Renderer не группирует линии по собственному визуальному закону.
+- Material specs принадлежат engine-neutral layout entrypoint. Создание
+  конкретных GPU material objects из готовых specs находится в renderer
+  entrypoint и не втягивает engine в геометрический пакет.
+
 ## Закон раскладки
 
-- Самоподобная визуальная единица — `Torus`, а не `Atom`. `Torus` не является
-  новой доменной entity: один и тот же компонент формы проявляет Atom, State,
-  Fuzzy, Axion и MACHO и может рекурсивно содержать другие Torus. Семантический
-  владелец определяет содержимое и связи, но не создаёт отдельную реализацию
-  формы.
+- Семантический владелец определяет payload, содержимое и связи компонента, но
+  не создаёт отдельную реализацию формы или рекурсивной композиции.
 - Пустой корневой Torus задаёт только минимальный self-similar baseline:
   внешний диаметр `100 мм`, `radius = 27.78 мм`, `tube = 22.22 мм`,
   внутренний радиус `5.56 мм`. На каждом следующем уровне вложения и пустой
@@ -38,17 +122,21 @@
   Уровень вложения, количество Fields, камера, viewport и browser controls
   значение не меняют. Это правило не распространяется на Torus и line-only
   wireframe-маркеры.
-- Все Torus-роли используют одну фиксированную детализацию mesh:
-  `tubularSegments = 192` вдоль большого кольца и `radialSegments = 32` по
-  поперечному сечению. Корневой размер, глубина вложения, камера и viewport
-  не включают LOD и не меняют эти значения.
+- Детализация Torus фиксирована по роли компонента, а не выбирается камерой:
+  крупная Dark-оболочка использует `radialSegments = 64` по поперечному
+  сечению, вложенные State и Field-proxy Torus — `radialSegments = 32`;
+  вдоль большого кольца обе роли используют `tubularSegments = 192`.
+  Корневой размер, глубина вложения, камера и viewport не включают LOD и не
+  меняют эти значения. Поэтому крупный горизонтальный профиль остаётся
+  гладким, а компактные формы не получают бесполезное удвоение geometry.
 - Раскладка получает один и тот же полный snapshot и сохраняет его topology,
   ownership и identity. Она один раз выводит собственную статическую
   геометрию из фактического состава snapshot; камера и размер viewport не
   меняют размеры либо взаимное расположение форм.
-- `outside-in` является текущей основной раскладкой. Она начинает с внешнего
-  корневого Atom и рекурсивно раскрывает полный состав каждого Atom внутрь:
-  собственные Fields, immediate Matter, State-рукава и их причинные элементы.
+- `outside-in` является отдельной незавершённой обзорной стратегией. Она
+  начинает с внешнего корневого Atom и рекурсивно раскрывает полный состав
+  каждого Atom внутрь: собственные Fields, immediate Matter, State-рукава и
+  их причинные элементы. Неизвестный slug не выбирает её как неявный fallback.
 - `centered-nested` является отдельной раскладкой над тем же полным snapshot.
   Все Matter-Torus одного корневого дерева сохраняют ownership и identity, но
   имеют один мировой центр. Torus разрешаются от листьев к корню: внутренний
@@ -160,10 +248,26 @@
   упаковщик отвечает только за непересечение разных цельных State-рукавов:
   их envelopes расширяются на половину локального зазора с каждой стороны,
   после чего owning Torus охватывает получившуюся общую орбиту.
+- Узлы, condition Fields и sampled paths всех Transition являются одной
+  неделимой geometry State-рукава. `VisualScene` возвращает готовый путь
+  каждого edge после того же rotation/translation, что применён к его узлам.
+  Production consumer может только перенести эти точки в локальный frame
+  renderer; заново строить Bézier/Hermite, менять branch lanes или соединять
+  центры State собственной кривой запрещено.
+- Замкнутые 64-сегментные эллиптические sampled paths Relation также целиком
+  строятся `pkg/visual` по точным component endpoints. Consumer вправе только
+  перевести готовые мировые точки в local frame их владельца; выбор другой
+  кривой, стороны или material запрещён.
 - При структурном изменении snapshot чистый компоновщик один раз строит новую
-  immutable-сцену за время, пропорциональное фактически проявленным
-  occurrences. Раскладка не пересчитывается в render loop: готовая сцена
-  остаётся неизменной между структурными обновлениями.
+  immutable-сцену. Dark owner → root, Field owner → root, State occurrences,
+  exact Transition keys и graph-wide State indexes строятся по одному проходу
+  и переиспользуются всеми рекурсивными компонентами; повторный полный scan
+  Fields либо State occurrences для каждого root/State запрещён.
+  Детерминированные semantic orderings сохраняют честную верхнюю границу
+  `O(N log N + E)`, где `N` — размер canonical snapshot, а `E` — число
+  фактически испущенных State/path occurrences. Pairwise geometry search и
+  layout work в render loop отсутствуют: готовая сцена остаётся неизменной
+  между структурными обновлениями.
 - Entity-компоненты остаются переиспользуемыми визуальными примитивами и
   изолированными линзами для разработки. Они не являются самостоятельными
   верхнеуровневыми раскладками и не образуют основную навигацию playground.
@@ -178,6 +282,11 @@
   Algorithm labs вправе локально варьировать параметры эксперимента, однако
   их controls и `localStorage` не передаются в именованные раскладки.
 
-`bulk/gravity/layout` остаётся владельцем production manifestation geometry.
-`pkg/visual` использует её как вход и владеет только именованными способами
-представления полного snapshot.
+Bulk manifestation владеет semantic identity, ownership и причинными связями,
+но не geometry. `pkg/visual` получает immutable `BulkManifest` и единолично
+строит geometry-bearing `VisualScene` и `VisualComponentForest`. Bulk выполняет
+только проверку canonical identities и перевод готовых world points в local
+frame владельца; он не адаптирует геометрию, не копирует алгоритм, не наследует
+прежние coordinates и не держит запасную раскладку. Переиспользуемая
+компонентная модель не активирует Axion сама по себе: текущая Bulk policy
+отсекает отложенный Axion до вызова production strategy.

@@ -13,11 +13,10 @@ import {
   MF117_BULK_PROMOTE_METHOD,
   MF117_BULK_VERIFY_METHOD,
 } from "../shared/mf117.ts"
-import {DEFAULT_BULK_SETTINGS} from "./settings.ts"
 import {BulkMonad} from "./monad.ts"
 import {BulkProjectionStore} from "./projection.ts"
 import {buildBulkManifestation} from "./manifestation.ts"
-import {LADA_TOPOLOGY_WIMPS, ladaTopologyAtoms} from "./gravity/layout/lada-topology.fixture.ts"
+import {LADA_TOPOLOGY_WIMPS, ladaTopologyAtoms} from "./fixture/lada-topology.ts"
 
 const temporaryDirectories: string[] = []
 afterEach(() => {
@@ -110,7 +109,6 @@ const legacyPromotionReceipt = (): Record<string, unknown> => {
   const manifest = buildBulkManifestation(
     store.view(),
     promotion.removedRootSrc,
-    DEFAULT_BULK_SETTINGS.layout,
     promotion,
   )
   const body = {
@@ -236,7 +234,7 @@ describe("Bulk Monad", () => {
     })
   })
 
-  test("initial package and the same ordinary Particle sequence produce identical geometry", async () => {
+  test("initial package and the same ordinary Particle sequence produce identical semantic manifestations", async () => {
     const entries: BoundaryInitialProjectionEntry[] = [
       {part: "graviton", op: "add", path: "wimp", value: {src: "owner/root", name: "Root"}},
       {part: "graviton", op: "add", path: "wimp", value: {src: "owner/child", name: "Child"}},
@@ -265,13 +263,12 @@ describe("Bulk Monad", () => {
     const realtimeManifest = buildBulkManifestation(
       realtime.view(),
       initial.rootSrc,
-      DEFAULT_BULK_SETTINGS.layout,
     )
 
     expect(realtimeManifest).toEqual(initial.manifest)
   })
 
-  test("removes the Inference torus and persists one promoted Lada root torus", async () => {
+  test("removes the Inference semantic root and persists one promoted Lada root", async () => {
     const directory = mkdtempSync(join(tmpdir(), "metafor-mf117-bulk-"))
     temporaryDirectories.push(directory)
     const promotionPath = join(directory, "bulk-promotion.json")
@@ -337,16 +334,6 @@ describe("Bulk Monad", () => {
       darkParticleId === 2)).toHaveLength(0)
     expect(observer.manifest.darkParticles.filter(({darkParticleId, parentDarkParticleId}) =>
       darkParticleId === 4 && parentDarkParticleId === null)).toHaveLength(1)
-    const rootTorus = observer.manifest.darkParticles.find(({darkParticleId}) =>
-      darkParticleId === 4)!
-    expect({
-      localX: rootTorus.localX,
-      localY: rootTorus.localY,
-      localZ: rootTorus.localZ,
-      outerDiameterMm:
-        (rootTorus.torusRadius + rootTorus.torusTube) *
-        rootTorus.torusScale * 2,
-    }).toEqual(promotion.formerRootFrame)
     expect(observer.manifest.darkParticles.map((particle) => ({
       id: particle.darkParticleId,
       parent: particle.parentDarkParticleId,

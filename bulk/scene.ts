@@ -1,4 +1,4 @@
-import type {BulkDarkParticle, BulkFieldParticle, BulkFieldProxy, BulkManifest, BulkOrbitalParticle, BulkRelationChannel, BulkTransitionChannel} from "@metafor/types/bulk/manifest"
+import type {BulkRenderDarkParticle, BulkRenderFieldParticle, BulkRenderFieldProxy, BulkRenderManifest, BulkRenderOrbitalParticle, BulkRenderRelationChannel, BulkRenderTransitionChannel} from "@metafor/types/bulk/manifest"
 
 export type BulkScenePatch = {
   darkParticleIds: number[]
@@ -24,14 +24,14 @@ const sameFlatRecord = (left: object, right: object): boolean => {
 
 /** Diff gate used by the live viewport; unchanged render entities are not touched. */
 export class BulkSceneStore {
-  readonly darkParticles = new Map<number, BulkDarkParticle>()
-  readonly fieldParticles = new Map<string, BulkFieldParticle>()
-  readonly orbitalParticles = new Map<string, BulkOrbitalParticle>()
-  readonly transitionChannels = new Map<string, BulkTransitionChannel>()
-  readonly fieldProxies = new Map<string, BulkFieldProxy>()
-  readonly relationChannels = new Map<string, BulkRelationChannel>()
+  readonly darkParticles = new Map<number, BulkRenderDarkParticle>()
+  readonly fieldParticles = new Map<string, BulkRenderFieldParticle>()
+  readonly orbitalParticles = new Map<string, BulkRenderOrbitalParticle>()
+  readonly transitionChannels = new Map<string, BulkRenderTransitionChannel>()
+  readonly fieldProxies = new Map<string, BulkRenderFieldProxy>()
+  readonly relationChannels = new Map<string, BulkRenderRelationChannel>()
 
-  apply(manifest: BulkManifest): BulkScenePatch {
+  apply(manifest: BulkRenderManifest): BulkScenePatch {
     const darkParticleIds: number[] = []
     const fieldParticleIds: string[] = []
     const nextDarkIds = new Set<number>()

@@ -1,13 +1,55 @@
 {
   "name": "@metafor/visual",
   "version": "0.0.1",
-  "description": "Shared Atom visualization components and their static-snapshot playground.",
+  "description": "Immutable complete-snapshot layout strategies and production visual materials.",
   "type": "module",
   "private": true,
   "main": "index.ts",
   "types": "index.ts",
+  "files": [
+    "CenteredNested.ts",
+    "centered-nested.ts",
+    "CONTRACT.md",
+    "FieldsLayout.ts",
+    "HermiteEdge.ts",
+    "MeshDetail.ts",
+    "OutsideIn.ts",
+    "QuantumFilm.ts",
+    "SemanticVisual.ts",
+    "README.md",
+    "StateGraph.ts",
+    "StateGraphLayout.ts",
+    "Torus.ts",
+    "VisualSceneViewport.ts",
+    "Visual.ts",
+    "VisualComponents.ts",
+    "VisualMaterial.ts",
+    "VisualMaterialSpec.ts",
+    "VisualRelations.ts",
+    "index.ts",
+    "layout.ts",
+    "internal/dark-tree.ts",
+    "internal/layout.ts",
+    "internal/semantic-state-color.ts",
+    "internal/state-sleeves.ts"
+  ],
   "exports": {
-    ".": "./index.ts"
+    ".": {
+      "types": "./index.ts",
+      "default": "./index.ts"
+    },
+    "./layout": {
+      "types": "./layout.ts",
+      "default": "./layout.ts"
+    },
+    "./layout/centered-nested": {
+      "types": "./centered-nested.ts",
+      "default": "./centered-nested.ts"
+    },
+    "./viewport": {
+      "types": "./VisualSceneViewport.ts",
+      "default": "./VisualSceneViewport.ts"
+    }
   },
   "scripts": {
     "typecheck": "tsc --noEmit --pretty false",

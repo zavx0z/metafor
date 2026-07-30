@@ -123,9 +123,11 @@ evaluation уже может испустить process work.
   локально готовит `EnergyCatalogStore` и только после этого открывает
   обязательный realtime ForceChannel. На каждый claim RPC не выполняется.
 - `bulk/server.ts` обслуживает web entry, шрифт, browser WebSocket и связывает
-  browser manifestation с Force. Structural source layout-а — current
-  recursive projection snapshot, переданный Bulk Monad; manifestation строит
-  parent-local transforms напрямую и не использует ELK/graph-layout adapter.
+  browser manifestation с Force. Current recursive projection snapshot,
+  переданный Bulk Monad, материализуется в geometry-free `BulkManifest`;
+  готовая `pkg/visual` strategy единолично строит immutable world geometry.
+  Bulk проверяет canonical identities и переводит готовые точки в local frame
+  renderer, не выполняя собственной раскладки либо ELK/graph-layout pass.
 - Matrix weak backend по умолчанию — `auto`: WebGPU при доступности, иначе CPU.
   `gpu` является явным строгим режимом, `cpu` принудительно выбирает reference
   backend.
@@ -333,21 +335,47 @@ Boundary отсутствует. Производные runtime-проекции
 ## Bulk и renderer
 
 Сохранены source-backed world projection, generic viewport, navigation,
-fullscreen и WebGPU renderer. HUD содержит кнопку полноэкранного режима и
-открытую по умолчанию causal time-панель: дорожки Force, Mass и Boundary,
-playhead и keyframe-маркеры кадров pause-stack, фактически прочитанных из Dark
-через локальный Monad Bulk. Pause закрывает external admission и создаёт
-causal frame на удержанном frontier; Resume освобождает admission и очищает
-disposable stack. Step не испускает Particle из UI и остаётся неактивным без
-отдельного явного следующего input. Выбранный кадр красный, измеренный exact —
-зелёный, degraded — янтарный, overloaded — красный, кадр без capture-метрики —
-серый. Перемещение playhead само по себе не меняет live-мир, 3D, checkpoint
-или Particle history. Недоступность либо malformed ответ time-control RPC
+fullscreen и WebGPU renderer. Нижний существующий `HudTimelinePanel`, прежде
+показывавший Atom observer cut, теперь занят открытым по умолчанию causal
+time-документом: компактные Blender-подобные дорожки Force, Mass и Boundary,
+playhead и ромбовидные keyframe-маркеры кадров pause-stack, фактически
+прочитанных из Dark через локальный Monad Bulk. Заголовок и отдельная боковая
+вкладка времени отсутствуют; timeline прижат к нижнему dock. Отдельная
+самодельная карточка времени поверх сцены запрещена. Нижний control dock
+использует общие `@ui/components`: icon-only Pause, Resume и Step, а рядом
+read-only счётчики количества keyframes и acceptance sequence. Отдельного
+LIVE/PAUSE status chip нет. Dock не импортирует runtime Interpreter. Pause
+закрывает external admission и
+создаёт causal frame на удержанном frontier; Resume освобождает admission и
+очищает disposable stack.
+Цветные иконка и border управляющей кнопки обозначают текущий режим, а не
+доступную противоположную команду: Play выбран только в live, Pause — только на
+удержанном frontier. Управляющие кнопки не показывают tooltip.
+Счётчики подписаны пользовательскими словами `КАДРЫ` и `ТАКТ`, без внутренних
+сокращений KF/SEQ. Три управляющие кнопки образуют центрированную группу;
+`КАДРЫ` находится у её левого края, `ТАКТ` — у правого. В live при пустом
+pause-stack счётчики не рисуются; они появляются только вместе с causal frame и
+исчезают после Resume. Разделителей вокруг группы кнопок нет.
+Левый gutter подписей Force/Mass/Boundary зеркально резервируется справа:
+playhead и keyframe plot геометрически центрированы по viewport, а не по
+оставшейся после подписей ширине.
+Step не испускает Particle из UI и остаётся неактивным без отдельного явного
+следующего input. Выбранный кадр красный, измеренный exact — зелёный,
+degraded — янтарный, overloaded — красный, кадр без capture-метрики — серый.
+На время одного stack/pause/resume RPC управляющие кнопки недоступны, а ответ
+предыдущей отменённой UI-операции не может заменить более новое causal
+состояние.
+Перемещение playhead само по себе не меняет live-мир, 3D, checkpoint или
+Particle history. Недоступность либо malformed ответ time-control RPC
 показывается в панели, а не подменяется вымышленным состоянием.
 
-Legacy manifestation evidence, State occurrences, Conditions, relations,
-projections и visual implementation остаются доступными для последующего
-MF-000 D-5 audit. Cleanup не устанавливает новых visual laws.
+Semantic manifestation сохраняет State occurrences, Conditions, relations и
+projections как geometry-free identity/ownership contract. Единственный
+production visual law находится в `pkg/visual` и приходит в Bulk через
+`@metafor/visual/layout/centered-nested`; прежние Bulk layout/level,
+wireframe/LOD, fallback и Atom observer-timeline реализации удалены.
+Axion остаётся материализованной semantic identity, но его Visual activation
+отложена и отсекается до вызова production strategy.
 
 Визуальные законы задаются только в коде и не сохраняются в browser storage.
 Постоянная декоративная анимация программно выключена. Renderer останавливается,
@@ -356,16 +384,11 @@ Impulse, изменения `ViewPoint` или незавершённого ко
 корневая Particle детерминированно переключает наблюдение на материализованный
 Atom без ручной команды из интерфейса.
 
-Read-only timeline показывает только текущий observer cut Bulk: каждый
-материализованный Atom выбранного корня получает одну дорожку и один маркер на
-общем `throughTs`. Cold projection без realtime Particle явно имеет неизвестное
-время. Timeline не создаёт историю, не читает Mass и не предоставляет команд
-изменения Boundary или runtime.
-
-Causal time-панель является отдельным service-control surface и не подменяет
-observer-cut timeline. Этот узкий live adapter предоставляет только
-pause/stack/resume; он не заявляет backward reconstruction, isolated execution
-branch, promotion в live contour или завершение `MF-109`.
+Causal timeline заменяет прежнее Atom observer-cut представление: Bulk не
+строит и не показывает отдельные дорожки материализованных Atom на общем
+`throughTs`. Узкий live adapter предоставляет только pause/stack/resume; он не
+заявляет backward reconstruction, isolated execution branch, promotion в live
+contour или завершение `MF-109`.
 
 Текущий `ViewPoint` привязан к DOM element. Смысловой контракт должен стать
 platform-neutral, чтобы одна точка наблюдения могла представлять обычный экран,

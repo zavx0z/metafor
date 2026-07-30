@@ -1,50 +1,71 @@
 import type {
-  BulkDarkParticle,
   BulkFieldParticle,
   BulkManifest,
+  BulkOrbitalParticle,
 } from "@metafor/types/bulk/manifest"
 import {layoutFieldsInPseudoCircle} from "./FieldsLayout.ts"
 import {
-  mergeStateSleeves,
+  stateGraphFieldSphereLayout,
+  stateGraphNodeFormDimensions,
+} from "./StateGraphLayout.ts"
+import {
+  buildStateSleeveEdges,
+  indexOwnerStateLayouts,
+  indexStateSleeveOccurrences,
+  indexStateSleeveTransitions,
+  identifyStateLayoutOccurrences,
   packStateSleeves,
   placeStateLayout,
   prepareStateLayout,
-  sourceStatePhase,
+  stateSleevePhase,
   stateInnerOrbitRadius,
   stateNodeSurfaceGap,
-  type OutsideInOwnerLayouts,
   type PreparedStateLayout,
+  type OwnerStateLayouts,
   type StatePlacement,
-} from "./OutsideIn.ts"
-import type {StateGraphRootLayout} from "./StateGraphLayout.ts"
-import type {
-  StateGraphContextField,
-  StateGraphContextTorus,
-  StateGraphViewportContext,
-} from "./StateGraphViewport.ts"
+} from "./internal/state-sleeves.ts"
 import {
   TORUS_LAYOUT_BASELINE,
+  defineTorusComposition,
   resolveContentTorusForm,
   torusFieldRadiusAtLevel,
   torusLevelScale,
-  type TorusForm,
+  type TorusComposition,
 } from "./Torus.ts"
-import {defineVisualLayout} from "./internal/layout.ts"
+import {
+  visualDarkParticleColor,
+  visualFieldParticleColor,
+  visualOrbitalParticleColor,
+} from "./SemanticVisual.ts"
+import {
+  visualCausalMaterial,
+  visualConditionFieldMaterial,
+  visualContextTorusMaterial,
+  visualCoreFieldMaterial,
+  visualFieldProxyMaterial,
+  visualStateTorusMaterial,
+} from "./VisualMaterialSpec.ts"
+import {buildVisualRelationEdges} from "./VisualRelations.ts"
+import {createVisualComponentComposer} from "./VisualComponents.ts"
+import {
+  buildDarkParticleForest,
+  compareDarkParticles,
+  type DarkTreeNode,
+} from "./internal/dark-tree.ts"
+import {
+  defineVisualScene,
+  defineVisualLayout,
+  type VisualFieldPlacement,
+  type VisualFieldProxyPlacement,
+  type VisualLayoutInput,
+  type VisualOrbitalPlacement,
+  type VisualOwnerGraph,
+  type VisualScene,
+  type VisualStateSleevePlacement,
+  type VisualTorusPlacement,
+} from "./internal/layout.ts"
 
-export const CenteredNested = defineVisualLayout({
-  slug: "centered-nested",
-  label: "Центрированно-вложенная",
-  status: "in-progress",
-  description:
-    "Общий центр вложенных Torus: private Fields остаются в ядре владельца, а общие canonical Values — у верхнего общего предка.",
-})
-
-export type CenteredNestedOwnerLayouts = OutsideInOwnerLayouts
-
-export type CenteredNestedVisualScene = Readonly<{
-  context: StateGraphViewportContext
-  layout: StateGraphRootLayout
-}>
+export type CenteredNestedVisualScene = VisualScene
 
 export type CenteredNestedFieldBandKind =
   | "inner-private"
@@ -55,112 +76,62 @@ export type CenteredNestedFieldPlacement = Readonly<{
   affinityOwnerDarkParticleId: number
   band: number
   bandKind: CenteredNestedFieldBandKind
+  color: readonly [number, number, number]
   deepestOwnerDepth: number
-  field: BulkFieldParticle
+  fieldIds: readonly number[]
+  fieldKeys: readonly string[]
+  fieldParticleKind: BulkFieldParticle["fieldParticleKind"]
   fieldParticleIds: readonly string[]
   orbitIndex: number
   ownerDarkParticleIds: readonly number[]
   ownerDarkParticleId: number
   radius: number
+  valueId: number | null
+  valueText: string | null
   x: number
   y: number
   z: number
 }>
-
-type DarkNode = {
-  children: DarkNode[]
-  particle: BulkDarkParticle
-}
 
 type ComponentFieldLayout = Readonly<{
   entriesByOwner: ReadonlyMap<
     number,
     readonly ComponentFieldEntry[]
   >
-  root: DarkNode
+  root: DarkTreeNode
 }>
 
 type ComponentFieldEntry = Readonly<{
-  affinityOwner: DarkNode
+  affinityOwner: DarkTreeNode
   band: number
   bandKind: CenteredNestedFieldBandKind
   deepestOwnerDepth: number
   field: BulkFieldParticle
+  fieldIds: readonly number[]
+  fieldKeys: readonly string[]
   fieldParticleIds: readonly string[]
-  owner: DarkNode
-  owners: readonly DarkNode[]
+  owner: DarkTreeNode
+  owners: readonly DarkTreeNode[]
 }>
 
-type ResolvedDarkTorus = Readonly<{
-  children: readonly ResolvedDarkTorus[]
-  form: TorusForm
-  node: DarkNode
+type CenteredTorusPayload = Readonly<{
+  node: DarkTreeNode
+  ownerAtomId: number | null
   states: readonly StatePlacement[]
 }>
 
+type CenteredDarkTorus = TorusComposition<
+  CenteredTorusPayload,
+  CenteredNestedFieldPlacement
+>
+
 type ResolvedComponentTori = Readonly<{
-  placements: readonly CenteredNestedFieldPlacement[]
-  root: ResolvedDarkTorus
+  center: Readonly<{x: number; y: number; z: number}>
+  root: CenteredDarkTorus
 }>
 
-const particleOrder = (
-  left: BulkDarkParticle,
-  right: BulkDarkParticle,
-): number =>
-  left.depth - right.depth ||
-  left.darkParticleOrder - right.darkParticleOrder ||
-  left.darkParticleId - right.darkParticleId
-
-const buildDarkTrees = (
-  manifest: BulkManifest,
-): readonly DarkNode[] => {
-  const particles = [...manifest.darkParticles].sort(particleOrder)
-  const nodeById = new Map<number, DarkNode>()
-  for (const particle of particles) {
-    const node: DarkNode = {
-      children: [],
-      particle,
-    }
-    nodeById.set(particle.darkParticleId, node)
-  }
-
-  const roots: DarkNode[] = []
-  for (const particle of particles) {
-    const node = nodeById.get(particle.darkParticleId)!
-    const parent = particle.parentDarkParticleId === null
-      ? undefined
-      : nodeById.get(particle.parentDarkParticleId)
-    if (!parent) {
-      roots.push(node)
-      continue
-    }
-    parent.children.push(node)
-  }
-
-  const sortTree = (node: DarkNode): void => {
-    node.children.sort((left, right) =>
-      particleOrder(left.particle, right.particle)
-    )
-    for (const child of node.children) sortTree(child)
-  }
-  for (const root of roots) sortTree(root)
-  return roots
-}
-
-const collectParticleIds = (
-  root: DarkNode,
-): ReadonlySet<number> => {
-  const ids = new Set<number>()
-  const visit = (node: DarkNode): void => {
-    ids.add(node.particle.darkParticleId)
-    node.children.forEach(visit)
-  }
-  visit(root)
-  return ids
-}
-
 const indexMaximumSubtreeDepth = (
-  node: DarkNode,
+  node: DarkTreeNode,
   index: Map<number, number>,
 ): number => {
   const depth = Math.max(
@@ -182,12 +153,6 @@ const stablePhase = (value: string): number => {
   return ((hash >>> 0) / 0xffffffff) * Math.PI * 2
 }
 
-const fieldValueGroupKey = (
-  field: BulkFieldParticle,
-): string => field.valueId === null
-  ? `field:${field.fieldParticleId}`
-  : `value:${field.valueId}`
-
 const fieldOrder = (
   left: BulkFieldParticle,
   right: BulkFieldParticle,
@@ -198,19 +163,25 @@ const fieldOrder = (
   left.fieldId - right.fieldId ||
   left.fieldParticleId.localeCompare(right.fieldParticleId)
 
+const fieldValueGroupKey = (
+  field: BulkFieldParticle,
+): string => field.valueId === null
+  ? `field:${field.fieldParticleId}`
+  : `value:${field.valueId}`
+
 const highestCommonOwner = (
   fields: readonly BulkFieldParticle[],
-  root: DarkNode,
-  nodeById: ReadonlyMap<number, DarkNode>,
-): DarkNode => {
+  root: DarkTreeNode,
+  nodeById: ReadonlyMap<number, DarkTreeNode>,
+): DarkTreeNode => {
   const ownerIds = [...new Set(fields.map((field) =>
     field.parentDarkParticleId
   ))]
   const paths = ownerIds.flatMap((ownerId) => {
     const owner = nodeById.get(ownerId)
     if (!owner) return []
-    const path: DarkNode[] = []
-    let cursor: DarkNode | undefined = owner
+    const path: DarkTreeNode[] = []
+    let cursor: DarkTreeNode | undefined = owner
     while (cursor) {
       path.push(cursor)
       const parentId: number | null =
@@ -298,14 +269,10 @@ const proportionalOrbitCounts = (
 }
 
 const placeComponentFields = (
-  manifest: BulkManifest,
-  root: DarkNode,
-  nodeById: ReadonlyMap<number, DarkNode>,
+  fields: readonly BulkFieldParticle[],
+  root: DarkTreeNode,
+  nodeById: ReadonlyMap<number, DarkTreeNode>,
 ): ComponentFieldLayout => {
-  const particleIds = collectParticleIds(root)
-  const fields = manifest.fieldParticles.filter((field) =>
-    particleIds.has(field.parentDarkParticleId)
-  )
   const groups = new Map<string, BulkFieldParticle[]>()
   for (const field of fields) {
     const key = fieldValueGroupKey(field)
@@ -326,7 +293,7 @@ const placeComponentFields = (
         return owner ? [owner] : []
       })
       .sort((left, right) =>
-        particleOrder(left.particle, right.particle)
+        compareDarkParticles(left.particle, right.particle)
       )
     const deepestOwnerDepth = Math.max(
       rootDepth,
@@ -350,6 +317,8 @@ const placeComponentFields = (
         field: group.find((field) =>
           field.parentDarkParticleId === owner.particle.darkParticleId
         ) ?? group[0]!,
+        fieldIds: group.map((field) => field.fieldId),
+        fieldKeys: group.map((field) => field.fieldKey),
         fieldParticleIds: group.map((field) => field.fieldParticleId),
         owner,
         owners,
@@ -370,6 +339,8 @@ const placeComponentFields = (
           : "inner-private",
         deepestOwnerDepth: owner.particle.depth,
         field,
+        fieldIds: [field.fieldId],
+        fieldKeys: [field.fieldKey],
         fieldParticleIds: [field.fieldParticleId],
         owner,
         owners: [owner],
@@ -396,7 +367,7 @@ const placeComponentFields = (
           ? -1
           : 1) ||
       right.deepestOwnerDepth - left.deepestOwnerDepth ||
-      particleOrder(
+      compareDarkParticles(
         left.affinityOwner.particle,
         right.affinityOwner.particle,
       ) ||
@@ -429,8 +400,11 @@ const fieldPlacement = (
     entry.affinityOwner.particle.darkParticleId,
   band: entry.band,
   bandKind: entry.bandKind,
+  color: visualFieldParticleColor(entry.field),
   deepestOwnerDepth: entry.deepestOwnerDepth,
-  field: entry.field,
+  fieldIds: entry.fieldIds,
+  fieldKeys: entry.fieldKeys,
+  fieldParticleKind: entry.field.fieldParticleKind,
   fieldParticleIds: entry.fieldParticleIds,
   orbitIndex,
   ownerDarkParticleIds: entry.owners.map((owner) =>
@@ -438,6 +412,8 @@ const fieldPlacement = (
   ),
   ownerDarkParticleId: entry.owner.particle.darkParticleId,
   radius,
+  valueId: entry.field.valueId,
+  valueText: entry.field.valueText,
   x: point.x,
   y: point.y,
   z: point.z,
@@ -518,7 +494,7 @@ const placeFieldOrbitGroup = (
 
 const placeOwnerFields = (
   component: ComponentFieldLayout,
-  node: DarkNode,
+  node: DarkTreeNode,
   minimumCoreExtent: number,
   orbitCursor: FieldOrbitCursor,
 ): OwnerFieldLayout => {
@@ -609,16 +585,36 @@ const placeOwnerFields = (
 
 const buildComponentFieldLayouts = (
   manifest: BulkManifest,
-  roots: readonly DarkNode[],
+  roots: readonly DarkTreeNode[],
 ): readonly ComponentFieldLayout[] => {
-  const nodeById = new Map<number, DarkNode>()
-  const index = (node: DarkNode): void => {
+  const nodeById = new Map<number, DarkTreeNode>()
+  const rootIdByNodeId = new Map<number, number>()
+  const index = (node: DarkTreeNode, rootId: number): void => {
     nodeById.set(node.particle.darkParticleId, node)
-    node.children.forEach(index)
+    rootIdByNodeId.set(node.particle.darkParticleId, rootId)
+    node.children.forEach((child) => index(child, rootId))
   }
-  roots.forEach(index)
+  roots.forEach((root) =>
+    index(root, root.particle.darkParticleId)
+  )
+  const fieldsByRootId = new Map<number, BulkFieldParticle[]>()
+  for (const field of manifest.fieldParticles) {
+    const rootId = rootIdByNodeId.get(field.parentDarkParticleId)
+    if (rootId === undefined) {
+      throw new Error(
+        `Visual Field owner ${field.parentDarkParticleId} is absent`,
+      )
+    }
+    const fields = fieldsByRootId.get(rootId)
+    if (fields) fields.push(field)
+    else fieldsByRootId.set(rootId, [field])
+  }
   return roots.map((root) =>
-    placeComponentFields(manifest, root, nodeById)
+    placeComponentFields(
+      fieldsByRootId.get(root.particle.darkParticleId) ?? [],
+      root,
+      nodeById,
+    )
   )
 }
 
@@ -638,13 +634,12 @@ const stateOuterExtent = (
 )
 
 const resolveComponentTori = (
-  manifest: BulkManifest,
   component: ComponentFieldLayout,
-  owners: readonly CenteredNestedOwnerLayouts[],
+  layoutsByOwner: ReadonlyMap<
+    number,
+    OwnerStateLayouts
+  >,
 ): ResolvedComponentTori => {
-  const layoutsBySrc = new Map(
-    owners.map(({atomSrc, layouts}) => [atomSrc, layouts] as const),
-  )
   const markerRadius = TORUS_LAYOUT_BASELINE.rootFieldRadius
   const localGap =
     markerRadius * TORUS_LAYOUT_BASELINE.contentGapToFieldRadius
@@ -656,9 +651,9 @@ const resolveComponentTori = (
   )
 
   const resolve = (
-    node: DarkNode,
+    node: DarkTreeNode,
     minimumCoreExtent: number,
-  ): ResolvedComponentTori => {
+  ): CenteredDarkTorus => {
     const particle = node.particle
     const scale = torusLevelScale(particle.depth)
     const fieldLayout = placeOwnerFields(
@@ -688,20 +683,19 @@ const resolveComponentTori = (
             left.particle.darkParticleId,
           ) ?? left.particle.depth
         ) ||
-      particleOrder(left.particle, right.particle)
+      compareDarkParticles(left.particle, right.particle)
     )
-    const childLayouts = orderedChildren.map((child) => {
-      const resolved = resolve(child, childOuterExtent)
-      childOuterExtent = resolved.root.form.outerRadius
-      return resolved
+    const childTori = orderedChildren.map((child) => {
+      const childTorus = resolve(child, childOuterExtent)
+      childOuterExtent = childTorus.form.outerRadius
+      return childTorus
     })
-    const preparedStates = (
-      particle.src === null ? [] : layoutsBySrc.get(particle.src) ?? []
-    )
+    const ownerStateLayouts = layoutsByOwner.get(particle.darkParticleId)
+    const preparedStates =
+      (ownerStateLayouts?.layouts ?? [])
       .map(prepareStateLayout)
       .filter((layout): layout is PreparedStateLayout => layout !== null)
-    const statePhase = sourceStatePhase(
-      manifest,
+    const statePhase = stateSleevePhase(
       particle,
       preparedStates,
     )
@@ -732,105 +726,396 @@ const resolveComponentTori = (
         ownStateOuterExtent,
       ),
     })
-    return {
-      placements: [
-        ...fieldLayout.placements,
-        ...childLayouts.flatMap((child) => child.placements),
-      ],
-      root: {
-        children: childLayouts.map((child) => child.root),
-        form,
+    return defineTorusComposition({
+      id: `${particle.darkParticleKind}:${particle.darkParticleId}`,
+      role: particle.darkParticleKind,
+      payload: {
         node,
+        ownerAtomId: ownerStateLayouts?.ownerAtomId ?? null,
         states,
       },
-    }
+      core: fieldLayout.placements,
+      innerRadius: form.innerRadius,
+      outerRadius: form.outerRadius,
+      children: childTori.map((torus) => ({
+        scale: 1,
+        torus,
+        x: 0,
+        y: 0,
+        z: 0,
+      })),
+    })
   }
 
-  const resolved = resolve(component.root, 0)
-  const center = component.root.particle
   return {
-    placements: resolved.placements.map((placement) => ({
-      ...placement,
-      x: center.localX + placement.x,
-      y: center.localY + placement.y,
-      z: center.localZ + placement.z,
-    })),
-    root: resolved.root,
+    center: {x: 0, y: 0, z: 0},
+    root: resolve(component.root, 0),
   }
+}
+
+const collectCenteredFields = (
+  component: ResolvedComponentTori,
+): readonly CenteredNestedFieldPlacement[] => {
+  const placements: CenteredNestedFieldPlacement[] = []
+  const visit = (torus: CenteredDarkTorus): void => {
+    for (const placement of torus.core) {
+      placements.push(Object.freeze({
+        ...placement,
+        color: Object.freeze([...placement.color]) as
+          readonly [number, number, number],
+        fieldIds: Object.freeze([...placement.fieldIds]),
+        fieldKeys: Object.freeze([...placement.fieldKeys]),
+        fieldParticleIds: Object.freeze([...placement.fieldParticleIds]),
+        ownerDarkParticleIds:
+          Object.freeze([...placement.ownerDarkParticleIds]),
+        x: component.center.x + placement.x,
+        y: component.center.y + placement.y,
+        z: component.center.z + placement.z,
+      }))
+    }
+    torus.children.forEach((child) => visit(child.torus))
+  }
+  visit(component.root)
+  return Object.freeze(placements)
 }
 
 export const layoutCenteredNestedFields = (
   manifest: BulkManifest,
-  owners: readonly CenteredNestedOwnerLayouts[] = [],
+  owners: readonly VisualOwnerGraph[] = [],
 ): readonly CenteredNestedFieldPlacement[] => {
-  const roots = buildDarkTrees(manifest)
-  return buildComponentFieldLayouts(manifest, roots)
-    .flatMap((component) =>
-      resolveComponentTori(manifest, component, owners).placements
-    )
+  const roots = buildDarkParticleForest(manifest)
+  const layoutsByOwner = indexOwnerStateLayouts(manifest, owners, false)
+  return Object.freeze(
+    buildComponentFieldLayouts(manifest, roots).flatMap((component) =>
+      collectCenteredFields(
+        resolveComponentTori(component, layoutsByOwner),
+      )
+    ),
+  )
 }
 
 export const buildCenteredNestedVisualScene = (
-  manifest: BulkManifest,
-  owners: readonly CenteredNestedOwnerLayouts[],
+  {manifest, owners}: VisualLayoutInput,
 ): CenteredNestedVisualScene => {
-  const roots = buildDarkTrees(manifest)
+  const componentComposer = createVisualComponentComposer()
+  const occurrenceIndex = indexStateSleeveOccurrences(manifest)
+  const transitions = indexStateSleeveTransitions(manifest)
+  const roots = buildDarkParticleForest(manifest)
+  const layoutsByOwner = indexOwnerStateLayouts(manifest, owners, true)
   const components = buildComponentFieldLayouts(manifest, roots)
-  const resolvedComponents = components.map((component) =>
-    resolveComponentTori(manifest, component, owners)
+  const centeredComponents = components.map((component) =>
+    resolveComponentTori(component, layoutsByOwner)
   )
-  const tori: StateGraphContextTorus[] = []
-  const stateLayouts: StateGraphRootLayout[] = []
+  let componentRightBoundary = 0
+  const resolvedComponents = centeredComponents.map((component, index) => {
+    if (index === 0) {
+      componentRightBoundary = component.root.form.outerRadius
+      return component
+    }
+    const gap =
+      TORUS_LAYOUT_BASELINE.rootFieldRadius *
+      TORUS_LAYOUT_BASELINE.contentGapToFieldRadius
+    const x =
+      componentRightBoundary + gap + component.root.form.outerRadius
+    componentRightBoundary = x + component.root.form.outerRadius
+    return {...component, center: {x, y: 0, z: 0}}
+  })
+  const tori: VisualTorusPlacement[] = []
+  const fields: VisualFieldPlacement[] = []
+  const stateSleeves: VisualStateSleevePlacement[] = []
   const visit = (
-    torus: ResolvedDarkTorus,
+    torus: CenteredDarkTorus,
     center: Readonly<{x: number; y: number; z: number}>,
   ): void => {
-    const particle = torus.node.particle
+    const particle = torus.payload.node.particle
+    const color = visualDarkParticleColor(particle)
     tori.push({
+      darkParticleId: particle.darkParticleId,
+      darkParticleKind: particle.darkParticleKind,
+      depth: particle.depth,
+      parentDarkParticleId: particle.parentDarkParticleId,
+      src: particle.src,
       x: center.x,
       y: center.y,
       z: center.z,
       radius: torus.form.radius,
       tube: torus.form.tube,
-      color: [
-        particle.colorR,
-        particle.colorG,
-        particle.colorB,
-      ],
+      color,
+      material: visualContextTorusMaterial(color),
     })
-    for (const placement of torus.states) {
-      stateLayouts.push(placeStateLayout(placement, {
-        ...center,
-        scale: torusLevelScale(particle.depth),
-      }))
+    componentComposer.addTorus(tori[tori.length - 1]!)
+    for (const placement of torus.core) {
+      fields.push({
+        color: placement.color,
+        material: visualCoreFieldMaterial(placement.color),
+        fieldIds: placement.fieldIds,
+        fieldKeys: placement.fieldKeys,
+        fieldParticleIds: placement.fieldParticleIds,
+        fieldParticleKind: placement.fieldParticleKind,
+        ownerDarkParticleId: placement.ownerDarkParticleId,
+        sourceOwnerDarkParticleIds: placement.ownerDarkParticleIds,
+        valueId: placement.valueId,
+        valueText: placement.valueText,
+        radius: placement.radius,
+        x: center.x + placement.x,
+        y: center.y + placement.y,
+        z: center.z + placement.z,
+      })
+      componentComposer.addField(fields[fields.length - 1]!)
     }
-    for (const child of torus.children) visit(child, center)
+    for (const placement of torus.payload.states) {
+      const ownerAtomId = torus.payload.ownerAtomId
+      if (particle.src === null || ownerAtomId === null) continue
+      const layout = placeStateLayout(placement, {
+          ...center,
+          scale: torusLevelScale(particle.depth),
+      })
+      const occurrences = identifyStateLayoutOccurrences(
+        occurrenceIndex,
+        ownerAtomId,
+        particle.darkParticleId,
+        layout,
+      )
+      stateSleeves.push({
+        edges: buildStateSleeveEdges(
+          transitions,
+          particle.darkParticleId,
+          layout,
+          occurrences,
+        ),
+        layout,
+        occurrences,
+        ownerAtomId,
+        ownerDarkParticleId: particle.darkParticleId,
+        ownerSrc: particle.src,
+        rootStateId: placement.prepared.layout.rootStateId,
+      })
+      componentComposer.addStateSleeve(
+        stateSleeves[stateSleeves.length - 1]!,
+      )
+    }
+    for (const child of torus.children) visit(child.torus, center)
   }
   resolvedComponents.forEach((component) => {
-    const particle = component.root.node.particle
-    visit(
-      component.root,
-      {x: particle.localX, y: particle.localY, z: particle.localZ},
-    )
+    visit(component.root, component.center)
   })
 
-  const fields: StateGraphContextField[] = resolvedComponents.flatMap(
-    (component) =>
-    component.placements.map((placement) => ({
-      x: placement.x,
-      y: placement.y,
-      z: placement.z,
-      radius: placement.radius,
-      color: [
-        placement.field.colorR,
-        placement.field.colorG,
-        placement.field.colorB,
-      ] as const,
-    }))
+  const orbitalById = new Map(
+    (manifest.orbitalParticles ?? []).map((particle) =>
+      [particle.orbitalParticleId, particle] as const
+    ),
   )
-
-  return {
-    context: {fields, tori},
-    layout: mergeStateSleeves(stateLayouts),
+  const statePlacementById = new Map<string, VisualOrbitalPlacement>()
+  for (const sleeve of stateSleeves) {
+    const nodeById = new Map(sleeve.layout.nodes.map((node) =>
+      [node.id, node] as const
+    ))
+    for (const occurrence of sleeve.occurrences) {
+      const node = nodeById.get(occurrence.nodeId)
+      const particle = orbitalById.get(occurrence.orbitalParticleId)
+      if (!node || !particle || particle.orbitalParticleKind !== "state") {
+        throw new Error(
+          `Visual State occurrence ${occurrence.orbitalParticleId} has no layout form`,
+        )
+      }
+      const form = stateGraphNodeFormDimensions(
+        node.radius,
+        node.innerRadius,
+      )
+      const statePlacement: VisualOrbitalPlacement = {
+        anchorStateOrbitalParticleId: null,
+        color: node.color,
+        form: {
+          kind: "torus",
+          radius: form.torusRadius,
+          tube: form.torusTube,
+        },
+        orbitalParticleId: occurrence.orbitalParticleId,
+        material: visualStateTorusMaterial(node.color, node.current),
+        ownerDarkParticleId: sleeve.ownerDarkParticleId,
+        x: node.x,
+        y: node.y,
+        z: node.z,
+      }
+      statePlacementById.set(occurrence.orbitalParticleId, statePlacement)
+      componentComposer.addOrbital(statePlacement)
+    }
   }
+
+  const orbitals: VisualOrbitalPlacement[] = [
+    ...statePlacementById.values(),
+  ]
+  const causalSlotByAnchor = new Map<string, number>()
+  const torusDepthById = new Map(tori.map((torus) =>
+    [torus.darkParticleId, torus.depth] as const
+  ))
+  for (const particle of (manifest.orbitalParticles ?? [])
+    .filter((candidate) => candidate.orbitalParticleKind !== "state")
+    .sort((left, right) =>
+      left.orbitalParticleId.localeCompare(right.orbitalParticleId)
+    )) {
+    const anchorId = particle.anchorStateOrbitalParticleId
+    const anchor = anchorId === null
+      ? undefined
+      : statePlacementById.get(anchorId)
+    if (!anchor || anchor.form.kind !== "torus") {
+      throw new Error(
+        `Visual causal occurrence ${particle.orbitalParticleId} has no State anchor`,
+      )
+    }
+    const slot = causalSlotByAnchor.get(anchorId!) ?? 0
+    causalSlotByAnchor.set(anchorId!, slot + 1)
+    const ownerDepth = torusDepthById.get(particle.parentDarkParticleId) ?? 0
+    const radius = torusFieldRadiusAtLevel(ownerDepth) * 0.72
+    const angle =
+      stablePhase(anchorId!) +
+      slot * Math.PI * (3 - Math.sqrt(5))
+    const anchorOuterRadius = anchor.form.radius + anchor.form.tube
+    const orbitRadius = anchorOuterRadius + radius * 1.8
+    const color = visualOrbitalParticleColor(particle)
+    orbitals.push({
+      anchorStateOrbitalParticleId: anchorId,
+      color,
+      form: {kind: "sphere", radius},
+      material: visualCausalMaterial(
+        color,
+        particle.current,
+        particle.active,
+      ),
+      orbitalParticleId: particle.orbitalParticleId,
+      ownerDarkParticleId: particle.parentDarkParticleId,
+      x: anchor.x + Math.cos(angle) * orbitRadius,
+      y: anchor.y + Math.sin(angle) * orbitRadius,
+      z: anchor.z +
+        Math.sin(stablePhase(`${particle.orbitalParticleId}:z`)) *
+          radius * 0.8,
+    })
+    componentComposer.addOrbital(orbitals[orbitals.length - 1]!)
+  }
+
+  const proxyByStateAndField = new Map<string, Map<number, string>>()
+  for (const proxy of manifest.fieldProxies ?? []) {
+    const byField = proxyByStateAndField.get(proxy.stateOrbitalParticleId) ??
+      new Map<number, string>()
+    if (byField.has(proxy.fieldId)) {
+      throw new Error(
+        `Visual Field proxy ${proxy.stateOrbitalParticleId}/${proxy.fieldId} is duplicated`,
+      )
+    }
+    byField.set(proxy.fieldId, proxy.fieldProxyId)
+    proxyByStateAndField.set(proxy.stateOrbitalParticleId, byField)
+  }
+  const fieldByOwnerAndId = new Map(
+    manifest.fieldParticles.map((field) =>
+      [`${field.parentDarkParticleId}:${field.fieldId}`, field] as const
+    ),
+  )
+  const proxyById = new Map((manifest.fieldProxies ?? []).map((proxy) =>
+    [proxy.fieldProxyId, proxy] as const
+  ))
+  const fieldProxies: VisualFieldProxyPlacement[] = []
+  const consumedProxyIds = new Set<string>()
+  for (const sleeve of stateSleeves) {
+    const occurrenceByNode = new Map(sleeve.occurrences.map((occurrence) =>
+      [occurrence.nodeId, occurrence] as const
+    ))
+    for (const node of sleeve.layout.nodes) {
+      const occurrence = occurrenceByNode.get(node.id)
+      if (!occurrence) continue
+      for (const fieldPlacement of stateGraphFieldSphereLayout(
+        node.fields,
+        node.fieldRadius,
+      )) {
+        const proxyId = proxyByStateAndField
+          .get(occurrence.orbitalParticleId)
+          ?.get(fieldPlacement.id)
+        const sourceField = fieldByOwnerAndId.get(
+          `${sleeve.ownerDarkParticleId}:${fieldPlacement.id}`,
+        )
+        if (!proxyId || !sourceField || consumedProxyIds.has(proxyId)) {
+          throw new Error(
+            `Visual condition Field proxy ${occurrence.orbitalParticleId}/${fieldPlacement.id} is unresolved`,
+          )
+        }
+        consumedProxyIds.add(proxyId)
+        const color = visualFieldParticleColor(sourceField)
+        fieldProxies.push({
+          color,
+          fieldProxyId: proxyId,
+          form: {kind: "sphere", radius: fieldPlacement.radius},
+          material: visualConditionFieldMaterial(color, node.current),
+          ownerDarkParticleId: sleeve.ownerDarkParticleId,
+          stateOrbitalParticleId: occurrence.orbitalParticleId,
+          x: node.x + fieldPlacement.x,
+          y: node.y + fieldPlacement.y,
+          z: node.z + fieldPlacement.z,
+        })
+        componentComposer.addFieldProxy(
+          fieldProxies[fieldProxies.length - 1]!,
+        )
+      }
+    }
+  }
+  for (const [proxyId, proxy] of proxyById) {
+    if (consumedProxyIds.has(proxyId)) continue
+    const state = statePlacementById.get(proxy.stateOrbitalParticleId)
+    const sourceField = fieldByOwnerAndId.get(
+      `${proxy.parentDarkParticleId}:${proxy.fieldId}`,
+    )
+    if (!state || state.form.kind !== "torus" || !sourceField) {
+      throw new Error(`Visual Field proxy ${proxyId} has no State form`)
+    }
+    const angle = stablePhase(proxyId)
+    const elevation = Math.sin(stablePhase(`${proxyId}:z`)) * 0.55
+    const radial = Math.sqrt(Math.max(0, 1 - elevation * elevation))
+    const stateOuterRadius = state.form.radius + state.form.tube
+    const radius = Math.max(
+      torusFieldRadiusAtLevel(
+        torusDepthById.get(proxy.parentDarkParticleId) ?? 0,
+      ) * 0.42,
+      stateOuterRadius * 0.1,
+    )
+    const color = visualFieldParticleColor(sourceField)
+    const stateParticle = orbitalById.get(proxy.stateOrbitalParticleId)
+    fieldProxies.push({
+      color,
+      fieldProxyId: proxyId,
+      form: {kind: "torus", radius, tube: radius * 0.16},
+      material: visualFieldProxyMaterial(
+        color,
+        "torus",
+        stateParticle?.active ?? false,
+      ),
+      ownerDarkParticleId: proxy.parentDarkParticleId,
+      stateOrbitalParticleId: proxy.stateOrbitalParticleId,
+      x: state.x + Math.cos(angle) * radial * stateOuterRadius * 0.78,
+      y: state.y + Math.sin(angle) * radial * stateOuterRadius * 0.78,
+      z: state.z + elevation * stateOuterRadius * 0.78,
+    })
+    componentComposer.addFieldProxy(
+      fieldProxies[fieldProxies.length - 1]!,
+    )
+  }
+
+  const relationEdges = buildVisualRelationEdges(manifest, {
+    fieldProxies,
+    fields,
+    orbitals,
+  })
+  relationEdges.forEach(componentComposer.addRelation)
+  return defineVisualScene({
+    components: componentComposer.finish({
+      requireCompleteStateForms: true,
+    }),
+    layoutSlug: "centered-nested",
+  })
 }
+
+export const CenteredNested = defineVisualLayout({
+  slug: "centered-nested",
+  label: "Центрированно-вложенная",
+  status: "ready",
+  description:
+    "Общий центр вложенных Torus: private Fields остаются в ядре владельца, а общие canonical Values — у верхнего общего предка.",
+  buildScene: buildCenteredNestedVisualScene,
+})

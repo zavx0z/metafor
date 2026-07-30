@@ -10,4 +10,5 @@ export const Visual = Object.freeze([
 
 export const visualLayoutForSlug = (
   slug: string,
-): VisualLayout => Visual.find((layout) => layout.slug === slug) ?? OutsideIn
+): VisualLayout | undefined =>
+  Visual.find((layout) => layout.slug === slug)

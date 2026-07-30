@@ -19,6 +19,7 @@ import {
   type PseudoSpherePoint,
 } from "../FieldsLayout.ts"
 import {createQuantumSphereMaterial} from "../QuantumFilm.ts"
+import {visualFieldParticleColor} from "../SemanticVisual.ts"
 import {createPageAnnotationLayer} from "./AnnotationLayer.ts"
 
 export const FIELDS_PSEUDO_SPHERE_MARKER_RADIUS = 1.35
@@ -86,7 +87,7 @@ const labElements = (): LabElements => ({
 })
 
 const colorKey = (field: BulkFieldParticle): string =>
-  `${field.colorR.toFixed(6)}:${field.colorG.toFixed(6)}:${field.colorB.toFixed(6)}`
+  visualFieldParticleColor(field).map((value) => value.toFixed(6)).join(":")
 
 const circleGuideGeometry = (
   radius: number,
@@ -155,7 +156,7 @@ export const createFieldsAnalysisLab = async (
     if (existing) return existing
     const material = createQuantumSphereMaterial(
       field
-        ? new Color(field.colorR, field.colorG, field.colorB)
+        ? new Color(...visualFieldParticleColor(field))
         : new Color(0.2, 0.82, 1),
       {
         glowIntensity: 3.1,

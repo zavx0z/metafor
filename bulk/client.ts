@@ -1,4 +1,4 @@
-import type { BulkViewportWithHud } from "@metafor/types/bulk/hud"
+import type {BulkManifest} from "@metafor/types/bulk/manifest"
 import {
 	BULK_VIEWPORT_CAPTURE_VERSION,
 	isBulkViewportCaptureControlRequest,
@@ -6,21 +6,25 @@ import {
 } from "@metafor/types/bulk/capture"
 import type {BulkInitialPackage, BulkObserverSnapshot} from "@metafor/types/bulk/initial"
 import { Force } from "shared/transport/force"
-import { createBulkViewport } from "bulk/web"
-import { DEFAULT_BULK_SCENE_SRC, DEFAULT_BULK_SETTINGS } from "bulk/settings"
+import {
+	createBulkViewport,
+	type BulkVisualViewportWithHud,
+} from "bulk/web"
+import { DEFAULT_BULK_SCENE_SRC } from "bulk/settings"
 import { installBulkHud } from "./hud.ts"
 import { BulkProjectionStore } from "./projection.ts"
 import { observedRootSrc } from "./web/force-protocol.ts"
 import { buildBulkManifestation } from "./manifestation.ts"
-import {buildBulkTimeline} from "./timeline.ts"
 import {captureBulkViewportCanvas} from "./web/viewport-capture.ts"
 import {BulkPresentedSnapshot} from "./web/observer-snapshot.ts"
+import {
+	applyCenteredNestedBulkViewportManifest,
+} from "./visual-viewport.ts"
 
 const bulkCanvas = document.getElementById("bulk-canvas") as HTMLCanvasElement | null
 if (bulkCanvas === null) throw new Error("bulk-canvas not found")
 
-let bulkViewport: BulkViewportWithHud | null = null
-let bulkHud: ReturnType<typeof installBulkHud> | null = null
+let bulkViewport: BulkVisualViewportWithHud | null = null
 const projection = new BulkProjectionStore()
 let activeSrc = DEFAULT_BULK_SCENE_SRC
 let throughTs: number | null = null
@@ -33,10 +37,21 @@ const observerSnapshot = (): BulkObserverSnapshot => ({
 	projection: projection.snapshot(),
 })
 
-const applyProjectionManifestation = (src: string): void => {
+const applyViewportManifest = (manifest: BulkManifest): void => {
 	if (!bulkViewport) return
-	bulkViewport.applyManifestPatch(
-		buildBulkManifestation(projection.view(), src, DEFAULT_BULK_SETTINGS.layout),
+	applyCenteredNestedBulkViewportManifest(
+		bulkViewport,
+		manifest,
+		projection.view(),
+	)
+}
+
+const applyProjectionManifestation = (src: string): void => {
+	applyViewportManifest(
+		buildBulkManifestation(
+			projection.view(),
+			src,
+		),
 	)
 }
 
@@ -87,7 +102,6 @@ const receiveImpulse = (forceMessage: Parameters<Force["onImpulse"]>[0]): void =
 	if (nextRootSrc !== null) activeSrc = nextRootSrc
 	if (change.changed) applyProjectionManifestation(activeSrc)
 	throughTs = part.ts
-	bulkHud?.setTimelineDocument(buildBulkTimeline(projection.view(), activeSrc, throughTs))
 	bulkViewport?.handleForce(part.part, part)
 	presentedSnapshot.stage(observerSnapshot)
 }
@@ -105,11 +119,8 @@ const start = async (): Promise<void> => {
 	activeSrc = initial.rootSrc
 	throughTs = initial.throughTs
 	if (!bulkViewport) throw new Error("Bulk viewport is not initialized")
-	bulkHud = installBulkHud({
-		viewport: bulkViewport,
-		timeline: buildBulkTimeline(projection.view(), activeSrc, throughTs),
-	})
-	bulkViewport?.applyManifestPatch(initial.manifest)
+	installBulkHud({viewport: bulkViewport})
+	applyViewportManifest(initial.manifest)
 	presentedSnapshot.stage(observerSnapshot)
 
 	const observerId = `bulk-web-${crypto.randomUUID()}`

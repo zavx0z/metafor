@@ -1,12 +1,36 @@
 # Visual
 
-`@metafor/visual` exposes named complete-snapshot layouts. The playground
-navigation lists these layouts rather than enumerating semantic entities.
-`outside-in` and `centered-nested` are independent in-progress strategies over
-the same snapshot; a future `inside-out` will be another independent strategy.
-Semantic components remain at the package root as reusable primitives, shared
-low-level code lives in `internal/`, and `index.ts` is the only production
-barrel.
+`@metafor/visual` exposes executable named complete-snapshot layouts. Every
+catalog entry builds one immutable, identity-rich scene from a `BulkManifest`
+and exact owner-bound `StateGraph` inputs, so consumers do not switch on layout
+slugs themselves. `centered-nested` is the ready production strategy used by
+the Bulk renderer binding; `outside-in` remains explicitly in progress.
+The package itself stays runtime-neutral: Bulk owns the canonical-to-render
+projection and viewport lifecycle.
+
+`outside-in` is evidence of the repeated recursive structure, not a finished
+component architecture. The production model is the separate immutable
+`VisualComponentForest`: each recursive Torus component owns its form, Field
+core, complete State sleeves and nested Torus components. Each sleeve directly
+owns its State forms, anchored causal particles, Field projections and sampled
+edges. A named layout fills the composer while it builds instead of wrapping
+flat arrays afterwards. A cached one-time compiler emits stable form indexes
+plus homogeneous Transition/Relation line batches; render frames never
+traverse or rebuild the layout.
+
+Use `@metafor/visual/layout` for the pure geometry/catalog boundary. The root
+entry contains only production material resolvers; the explicit renderer
+boundary is `@metafor/visual/viewport`. Its complete-scene viewport consumes
+the exact Torus, Field, State/causal, proxy, Transition and Relation forms,
+materials and sampled paths emitted by a named layout. It does not reconstruct
+State geometry from a reduced graph projection. Playground catalogs, entity
+lenses and isolated algorithm-lab viewport constructors are development source
+modules, not package-root API. Shared strategy-neutral tree, Torus and
+State-sleeve composition lives in `internal/`.
+
+Production consumers that need only the ready strategy import
+`@metafor/visual/layout/centered-nested`. This narrow entrypoint excludes the
+in-progress strategy and playground from the browser bundle.
 
 The playground is a separate Bun browser entry:
 
@@ -20,8 +44,8 @@ normal browser reload instead of an in-place module replacement.
 
 It renders `playground/fixture/monad-snapshot.json`, a single static full-tree
 `BulkObserverSnapshot` captured through Monad. The main layout reads the
-production Bulk manifestation; isolated entity lenses remain development
-tools and are not top-level layouts.
+production Bulk manifestation as immutable structural input; isolated entity
+lenses remain development tools and are not top-level layouts.
 
 Explicit algorithm-lab pages are isolated experiments, not alternate
 production Atom layouts. `State Graph` reads the real `.superposition(...)`
@@ -68,10 +92,13 @@ passes and one weighted angular prefix pass. Each sleeve receives a sector
 proportional to its actual angular demand at the first available orbit; the
 direct sector constraint yields a safe radius and one fixed midpoint check may
 tighten it. There is no maximum-sized common slot, pairwise collision search,
-convergence loop or binary radius fitting. A structural
-snapshot change builds one new immutable scene in work proportional to its
-emitted occurrences, while the render loop consumes that scene without layout
-work. All sleeves owned by one Atom start on one common next outer orbit after
+convergence loop or binary radius fitting. A structural snapshot change builds
+one new immutable scene after one-shot owner/root, Field, State-occurrence,
+exact-Transition and graph-wide indexes. Canonical deterministic ordering may
+sort, so the honest upper bound is `O(N log N + E)` for snapshot size `N` and
+emitted path occurrences `E`; no root or State repeats a full source scan.
+The render loop consumes that scene without layout work. All sleeves owned by
+one Atom start on one common next outer orbit after
 that Atom's immediate Matter-Tori. Production reuses only the prefix and
 branch-lane algorithm demonstrated by `#/state-graph`, never that lab's numeric
 sizes or coordinates. It builds a self-contained `StateGraphRootLayout`
@@ -123,7 +150,16 @@ highest common ancestor of all occurrence owners and uses the Field size of
 that ancestor's level. The represented declaration identities remain listed
 on the placement even though their geometry is collapsed.
 
-This page uses the same code-owned Torus component and Hermite forward/return
+Named layout pages render this complete immutable scene directly through
+`createVisualSceneViewport`: every package placement becomes one Mesh and
+every compiled Transition/Relation batch becomes one `LineSegments` from its
+ready sampled points. `StateGraphViewport` is reserved for the isolated
+State Graph lab; it is not a second renderer law for `outside-in` or
+`centered-nested`. Bulk consumes the same complete scene, changing only world
+coordinates into the exact owner's local frame.
+
+This page uses the same code-owned Torus form, recursive component compiler and
+Hermite forward/return
 convention as the isolated State Graph lab. Atom/Matter Tori, nucleus Fields,
 State-Tori and their condition Fields all reuse the shared one-pass `quantum`
 ThinFilm skin. State labels are omitted only in the composed Atom view; the
@@ -133,19 +169,25 @@ condition Fields. This value is fixed by the shared Sphere material and does
 not adapt to containment level, projected form size, camera or viewport.
 Torus forms retain their independent `highlightSize = 0` default.
 
-`Torus` is the self-similar visual component; `Atom` is one semantic owner of
-that form, not the form implementation itself. The same Torus component also
-renders State, Fuzzy, Axion, MACHO and recursively placed Matter Tori. Named
-layouts derive Torus geometry from snapshot content and package constants
-only. The three former playground sliders for inner diameter, marker radius
-and orbit gap were not part of that law and are removed.
+`Torus` is the repeated form, while `VisualTorusComponent` is the
+self-reproducing production unit: form, local Field core, whole State sleeves
+and nested components. `Atom` is one semantic owner of that unit, not its
+implementation. State, Fuzzy, Axion, MACHO and recursively placed Matter use
+the same form and composition laws. Named layouts derive geometry from
+snapshot content and package constants only. The three former playground
+sliders for inner diameter, marker radius and orbit gap were not part of that
+law and are removed.
+
+The reusable Torus form does not itself activate deferred Bulk Axion; the Bulk
+visibility policy excludes Axion before invoking the production strategy.
 
 `Sphere` and `Torus` beneath `Form skins` are an isolated Form Skin Lab. Both
 pages run the same skin catalog (`quantum`, `wire`, `glow`, `silhouette`,
-`solid`, `hybrid`) against one fixed geometry per form. The fixed Torus uses
-the agreed MetaFor resolution `radialSegments = 32` and
-`tubularSegments = 192`; State Graph and Atom State-Tori use the same segment
-counts instead of their former lower-resolution local constants. `quantum` is the
+`solid`, `hybrid`) against one fixed geometry per form. The fixed large Torus
+uses the agreed Dark-shell resolution `radialSegments = 64` and
+`tubularSegments = 192`; compact State and Field-proxy Torus use the fixed
+`32 × 192` embedded resolution. Both are package-owned role laws rather than
+camera-dependent LOD. `quantum` is the
 default one-pass `ThinFilmMaterial`: camera/normal Fresnel, bounded spectral
 interference and alpha blending produce a translucent soap-film surface without
 textures, framebuffer reads, post-processing or an idle animation clock. Film
@@ -315,7 +357,7 @@ immutable Three.js default is shown separately from the editable MetaFor
 default. Clicking a parameter's `Наш default` stores its current slider value
 as the new browser-local MetaFor default and restores it on later playground
 loads. The code default is `radius = 27.78 mm`, `tube = 22.22 mm`,
-`radialSegments = 32`, `tubularSegments = 192`, `arc = 6.28`,
+`radialSegments = 64`, `tubularSegments = 192`, `arc = 6.28`,
 `thetaStart = -0.003` and `thetaLength = 6.28`. The scene shows the resulting
 wire geometry, construction guides and derived primitive counts. The
 `MetaFor` card exposes the agreed millimetre

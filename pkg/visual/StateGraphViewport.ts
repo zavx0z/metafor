@@ -22,16 +22,19 @@ import {
   createQuantumFilmMaterial,
   createQuantumSphereMaterial,
 } from "./QuantumFilm.ts"
-import {layoutFieldsInPseudoCircle} from "./FieldsLayout.ts"
 import {
-  TORUS_MESH_DETAIL,
-  defineTorusComponent,
-  resolveTorusForm,
+  DARK_TORUS_MESH_DETAIL,
+  EMBEDDED_TORUS_MESH_DETAIL,
+  defineTorusComposition,
+  type TorusMeshDetail,
 } from "./Torus.ts"
-import type {
-  StateGraphLayoutEdge,
-  StateGraphLayoutNode,
-  StateGraphRootLayout,
+import {
+  stateGraphFieldSphereLayout,
+  stateGraphNodeFormDimensions,
+  buildStateGraphHermiteEdgePath,
+  type StateGraphLayoutEdge,
+  type StateGraphLayoutNode,
+  type StateGraphRootLayout,
 } from "./StateGraphLayout.ts"
 import type {StateGraphField} from "./StateGraph.ts"
 
@@ -44,9 +47,6 @@ const LEVEL_COLOR = new Color(0.34, 0.46, 0.62, 0.2)
 const LEVEL_LABEL_COLOR = new Color(0.48, 0.59, 0.74)
 const NODE_LABEL_SIZE = 1.2
 const LEVEL_LABEL_SIZE = 0.9
-const EDGE_SEGMENTS = 24
-const NORMAL_EDGE_HEIGHT = 0.7
-const RETURN_EDGE_CONTROL_HEIGHT = 14
 const FRAME_PADDING = 1.3
 export type StateGraphViewport = Readonly<{
   capturePng(): Promise<Blob | null>
@@ -119,12 +119,6 @@ export type StateGraphViewportContext = Readonly<{
   tori: readonly StateGraphContextTorus[]
 }>
 
-export type StateGraphNodeFormDimensions = Readonly<{
-  holeRadius: number
-  torusRadius: number
-  torusTube: number
-}>
-
 type LabelTracker = {
   anchor: Vector3
   container: Object3D
@@ -159,20 +153,21 @@ const cachedTorusGeometry = (
   cache: FormGeometryCache,
   radius: number,
   tube: number,
+  detail: TorusMeshDetail,
 ): TorusGeometry => {
   const key = geometryKey(
     radius,
     tube,
-    TORUS_MESH_DETAIL.radialSegments,
-    TORUS_MESH_DETAIL.tubularSegments,
+    detail.radialSegments,
+    detail.tubularSegments,
   )
   const cached = cache.tori.get(key)
   if (cached) return cached
   const geometry = new TorusGeometry({
     radius,
     tube,
-    radialSegments: TORUS_MESH_DETAIL.radialSegments,
-    tubularSegments: TORUS_MESH_DETAIL.tubularSegments,
+    radialSegments: detail.radialSegments,
+    tubularSegments: detail.tubularSegments,
   })
   cache.tori.set(key, geometry)
   return geometry
@@ -217,19 +212,6 @@ const geometryFromSegments = (
 const nodePosition = (node: StateGraphLayoutNode): Vector3 =>
   new Vector3(node.x, node.y, node.z)
 
-export const stateGraphNodeFormDimensions = (
-  outerRadius: number,
-  innerRadius: number,
-): StateGraphNodeFormDimensions => {
-  const form = resolveTorusForm(innerRadius, outerRadius)
-
-  return {
-    torusRadius: form.radius,
-    torusTube: form.tube,
-    holeRadius: form.innerRadius,
-  }
-}
-
 export const stateGraphFieldColor = (
   type: StateGraphField["type"],
 ): readonly [number, number, number] => {
@@ -240,85 +222,14 @@ export const stateGraphFieldColor = (
   return [1, 0.42, 0]
 }
 
-export const stateGraphFieldSphereLayout = (
-  fields: readonly StateGraphField[],
-  markerRadius: number,
-): readonly Readonly<StateGraphField & {
-  radius: number
-  x: number
-  y: number
-  z: number
-}>[] => {
-  if (fields.length === 0) return []
-  const layout = layoutFieldsInPseudoCircle(
-    fields.length,
-    markerRadius,
-  )
-  return fields.map((field, index) => {
-    const point = layout.points[index] ?? {x: 0, y: 0, z: 0}
-    return {
-      ...field,
-      radius: markerRadius,
-      ...point,
-    }
-  })
-}
-
 export const buildStateGraphEdgeCurve = (
   edge: StateGraphLayoutEdge,
   fromNode: StateGraphLayoutNode,
   toNode: StateGraphLayoutNode,
-): readonly Vector3[] => {
-  const fromCenter = nodePosition(fromNode)
-  const toCenter = nodePosition(toNode)
-  const direction = toCenter.clone().sub(fromCenter)
-  const length = Math.max(direction.length(), 1e-6)
-  const unit = direction.clone().multiplyScalar(1 / length)
-  const from = edge.returning
-    ? fromCenter
-    : fromCenter.clone().add(unit.clone().multiplyScalar(fromNode.radius))
-  const to = edge.returning
-    ? toCenter
-    : toCenter.clone().sub(unit.clone().multiplyScalar(toNode.radius))
-  const middleX = (from.x + to.x) / 2
-  const points = [from]
-  for (let index = 1; index <= EDGE_SEGMENTS; index += 1) {
-    const t = index / EDGE_SEGMENTS
-    const inverse = 1 - t
-    if (edge.returning) {
-      points.push(new Vector3(
-        inverse ** 3 * from.x +
-          3 * inverse ** 2 * t * from.x +
-          3 * inverse * t ** 2 * to.x +
-          t ** 3 * to.x,
-        inverse ** 3 * from.y +
-          3 * inverse ** 2 * t * from.y +
-          3 * inverse * t ** 2 * to.y +
-          t ** 3 * to.y,
-        inverse ** 3 * from.z +
-          3 * inverse ** 2 * t * (from.z + RETURN_EDGE_CONTROL_HEIGHT) +
-          3 * inverse * t ** 2 * (to.z + RETURN_EDGE_CONTROL_HEIGHT) +
-          t ** 3 * to.z,
-      ))
-      continue
-    }
-    const point = new Vector3(
-      inverse ** 3 * from.x +
-        3 * inverse ** 2 * t * middleX +
-        3 * inverse * t ** 2 * middleX +
-        t ** 3 * to.x,
-      inverse ** 3 * from.y +
-        3 * inverse ** 2 * t * from.y +
-        3 * inverse * t ** 2 * to.y +
-        t ** 3 * to.y,
-      inverse * from.z +
-        t * to.z +
-        Math.sin(Math.PI * t) * NORMAL_EDGE_HEIGHT,
-    )
-    points.push(point)
-  }
-  return points
-}
+): readonly Vector3[] =>
+  buildStateGraphHermiteEdgePath(edge, fromNode, toNode).map((point) =>
+    new Vector3(point.x, point.y, point.z)
+  )
 
 const edgeSegments = (
   edge: StateGraphLayoutEdge,
@@ -413,7 +324,12 @@ const addTorusContext = (
 ): void => {
   for (const torus of context.tori) {
     const node = new Mesh(
-      cachedTorusGeometry(geometryCache, torus.radius, torus.tube),
+      cachedTorusGeometry(
+        geometryCache,
+        torus.radius,
+        torus.tube,
+        DARK_TORUS_MESH_DETAIL,
+      ),
       createQuantumFilmMaterial(new Color(...torus.color), {
         glowIntensity: 1.2,
         highlightSize: 0,
@@ -529,7 +445,7 @@ export const createStateGraphViewport = async ({
       node.radius,
       node.innerRadius,
     )
-    const torus = defineTorusComponent({
+    const torus = defineTorusComposition({
       id: node.id,
       role: "state",
       payload: node,
@@ -547,6 +463,7 @@ export const createStateGraphViewport = async ({
         geometryCache,
         torus.form.radius,
         torus.form.tube,
+        EMBEDDED_TORUS_MESH_DETAIL,
       ),
       createQuantumFilmMaterial(color, {
         glowIntensity: node.current ? 4.6 : 3,
