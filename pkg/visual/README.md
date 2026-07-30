@@ -70,6 +70,31 @@ ViewCube for orthogonal camera selection. This viewer owns its geometry,
 camera, guides and screen-facing labels entirely inside `pkg/visual`; its
 experimental coordinates and presentation options are not consumed by Bulk.
 
+The sibling `#/state-graph/fields` page is a root-only diagnostic stand for the
+current Field/State interaction zone. It derives the exact `zavx0z/lada`
+`StateGraph` from the saved Monad JSON, retains only that root Atom's semantic
+manifest records and excludes every nested Matter owner. The reduced input is
+then passed through the unchanged production
+`buildCenteredNestedBulkVisualManifest → createBulkViewport` path. The lab does
+not copy or modify geometry, materials, State sleeves, Field proxies,
+Transitions or Relations; its side panel shows the exact root graph JSON used
+by the stand. In that production geometry a Process or Finally is a Torus whose
+center lies on the major orbit inside the tube volume of its exact State-Torus,
+not in the State's central hole. Its read/write Field proxies are typed Spheres
+in the centered pseudo-circle core of the Process-Torus; the State-Torus tube
+grows around the complete Process content instead of leaving a causal Sphere
+outside.
+
+The adjacent `#/state-graph/activity` page compares the same compact,
+self-contained State branch in two cards. Both cards use the unchanged
+`buildBulkManifestation → buildCenteredNestedBulkVisualManifest →
+createBulkViewport` path and contain one State-Torus, one Process-Torus in its
+tube volume, centered Process Field proxies, one Transition and their Relation
+channels. The active and inactive projections differ only in the Atom's current
+State. Geometry and identity therefore remain equal, while the inactive State
+sleeve assigns the package-owned `0.18` branch opacity to every State/causal
+form, Field proxy, Transition and Relation in the card.
+
 The playground `#/outside-in` page composes every declared State sleeve of the
 root and every nested Atom into one static recursive scene. It reads the
 production manifestation as structural input but computes its own compact
@@ -161,13 +186,13 @@ coordinates into the exact owner's local frame.
 This page uses the same code-owned Torus form, recursive component compiler and
 Hermite forward/return
 convention as the isolated State Graph lab. Atom/Matter Tori, nucleus Fields,
-State-Tori and their condition Fields all reuse the shared one-pass `quantum`
-ThinFilm skin. State labels are omitted only in the composed Atom view; the
-isolated State Graph cards retain them. The shared quantum skin starts with
-`highlightSize = 1` for every solid Sphere, including nucleus Fields and
-condition Fields. This value is fixed by the shared Sphere material and does
-not adapt to containment level, projected form size, camera or viewport.
-Torus forms retain their independent `highlightSize = 0` default.
+State-Tori, Process/Finally-Tori and their Field proxies all reuse the shared
+one-pass `quantum` ThinFilm skin. The shared quantum skin starts with
+`highlightSize = 1` for every solid Sphere, including nucleus Fields,
+condition Fields and Process read/write Fields. This value is fixed by the
+shared Sphere material and does not adapt to containment level, projected form
+size, camera or viewport. Torus forms retain their independent
+`highlightSize = 0` default.
 
 `Torus` is the repeated form, while `VisualTorusComponent` is the
 self-reproducing production unit: form, local Field core, whole State sleeves

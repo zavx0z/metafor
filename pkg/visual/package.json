@@ -30,6 +30,7 @@
     "layout.ts",
     "internal/dark-tree.ts",
     "internal/layout.ts",
+    "internal/process-layout.ts",
     "internal/semantic-state-color.ts",
     "internal/state-sleeves.ts"
   ],

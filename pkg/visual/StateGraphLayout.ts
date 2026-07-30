@@ -27,7 +27,16 @@ const ROW_STEP = 15
 export type StateGraphLayoutSizing = Readonly<{
   emptyOuterRadius: number
   fieldRadius: number
+  orbitalContentByStateId?: ReadonlyMap<
+    number,
+    StateGraphOrbitalContentSizing
+  >
   surfaceGap: number
+}>
+
+export type StateGraphOrbitalContentSizing = Readonly<{
+  minimumMajorRadius: number
+  minimumTubeRadius: number
 }>
 
 export type StateGraphNodeFormDimensions = Readonly<{
@@ -209,6 +218,7 @@ export const resolveStateGraphNodeGeometry = (
   fields: readonly StateGraphField[],
   emptyOuterRadius: number,
   fieldRadius: number,
+  orbitalContent?: StateGraphOrbitalContentSizing,
 ): Readonly<{
   fieldRadius: number
   innerRadius: number
@@ -221,11 +231,27 @@ export const resolveStateGraphNodeGeometry = (
     fields.length,
     safeFieldRadius,
   ).radius
-  const form = resolveContentTorusForm({
+  const coreForm = resolveContentTorusForm({
     emptyOuterRadius,
     coreExtent,
     gap: safeFieldRadius * TORUS_LAYOUT_BASELINE.contentGapToFieldRadius,
   })
+  const minimumTubeRadius = Number.isFinite(
+    orbitalContent?.minimumTubeRadius,
+  )
+    ? Math.max(0, orbitalContent?.minimumTubeRadius ?? 0)
+    : 0
+  const minimumMajorRadius = Number.isFinite(
+    orbitalContent?.minimumMajorRadius,
+  )
+    ? Math.max(0, orbitalContent?.minimumMajorRadius ?? 0)
+    : 0
+  const tube = Math.max(coreForm.tube, minimumTubeRadius)
+  const radius = Math.max(
+    coreForm.innerRadius + tube,
+    minimumMajorRadius,
+  )
+  const form = resolveTorusForm(radius - tube, radius + tube)
   return {
     fieldRadius: safeFieldRadius,
     innerRadius: form.innerRadius,
@@ -324,6 +350,7 @@ export const buildStateGraphRootLayoutFromIndex = (
       fields,
       sizing?.emptyOuterRadius ?? NODE_EMPTY_OUTER_RADIUS,
       sizing?.fieldRadius ?? NODE_FIELD_RADIUS,
+      sizing?.orbitalContentByStateId?.get(stateId),
     )
     const node: MutableLayoutNode = {
       id,

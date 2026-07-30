@@ -8,6 +8,7 @@ import {
   visualConditionFieldMaterial,
   visualCoreFieldMaterial,
   visualCausalMaterial,
+  visualProcessTorusMaterial,
   visualRelationMaterial,
   visualStateTorusMaterial,
   visualTransitionMaterial,
@@ -102,8 +103,8 @@ describe("production Visual component model", () => {
         {
           anchorStateOrbitalParticleId: "orbital:state:1",
           color: fieldColor,
-          form: {kind: "sphere", radius: 0.3},
-          material: visualCausalMaterial(fieldColor, true, true),
+          form: {kind: "torus", radius: 0.3, tube: 0.1},
+          material: visualProcessTorusMaterial(fieldColor, true, true),
           orbitalParticleId: "orbital:process:1",
           ownerDarkParticleId: 4,
           x: 3,

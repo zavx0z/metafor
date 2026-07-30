@@ -113,19 +113,24 @@ describe("centered-nested Bulk Visual projection", () => {
     })
     expect(manifest.darkParticles).toHaveLength(5)
     expect(manifest.fieldParticles).toHaveLength(54)
-    expect(manifest.orbitalParticles).toHaveLength(142)
+    expect(manifest.orbitalParticles).toHaveLength(193)
     expect(manifest.transitionChannels).toHaveLength(165)
-    expect(manifest.fieldProxies).toHaveLength(315)
-    expect(manifest.relationChannels).toHaveLength(511)
+    expect(manifest.fieldProxies).toHaveLength(864)
+    expect(manifest.relationChannels).toHaveLength(1902)
     expect(visual.manifest.darkParticles).toHaveLength(5)
     expect(visual.manifest.fieldParticles).toHaveLength(28)
-    expect(visual.manifest.orbitalParticles).toHaveLength(142)
+    expect(visual.manifest.orbitalParticles).toHaveLength(193)
     expect(visual.manifest.transitionChannels).toHaveLength(165)
-    expect(visual.manifest.fieldProxies).toHaveLength(315)
-    expect(visual.manifest.relationChannels).toHaveLength(511)
+    expect(visual.manifest.fieldProxies).toHaveLength(864)
+    expect(visual.manifest.relationChannels).toHaveLength(1902)
     expect(visual.fieldAliases).toHaveLength(54)
-    expect(visual.orbitalTori).toHaveLength(129)
-    expect(visual.fieldProxySpheres).toHaveLength(185)
+    expect(visual.orbitalTori).toHaveLength(
+      (manifest.orbitalParticles ?? []).filter((particle) =>
+        particle.orbitalParticleKind === "state" ||
+        particle.orbitalParticleKind === "process" ||
+        particle.orbitalParticleKind === "finally"
+      ).length,
+    )
     for (const paths of [visual.transitionPaths, visual.relationPaths]) {
       const fingerprintByBatchId = new Map<string, string>()
       for (const path of paths) {
@@ -148,7 +153,11 @@ describe("centered-nested Bulk Visual projection", () => {
       torus.orbitalParticleId
     ))).toEqual(new Set(
       manifest.orbitalParticles
-        ?.filter((particle) => particle.orbitalParticleKind === "state")
+        ?.filter((particle) =>
+          particle.orbitalParticleKind === "state" ||
+          particle.orbitalParticleKind === "process" ||
+          particle.orbitalParticleKind === "finally"
+        )
         .map((particle) => particle.orbitalParticleId),
     ))
     expect(new Set(visual.manifest.transitionChannels?.map((channel) =>
@@ -362,7 +371,11 @@ describe("centered-nested Bulk Visual projection", () => {
         Number(torusIds.has(source.orbitalParticleId)) +
         Number(sphereById.has(source.orbitalParticleId)),
       ).toBe(1)
-      if (source.orbitalParticleKind === "state") {
+      const toroidal =
+        source.orbitalParticleKind === "state" ||
+        source.orbitalParticleKind === "process" ||
+        source.orbitalParticleKind === "finally"
+      if (toroidal) {
         expect(torusIds.has(source.orbitalParticleId)).toBe(true)
       } else {
         expect(torusIds.has(source.orbitalParticleId)).toBe(false)
@@ -501,8 +514,8 @@ describe("centered-nested Bulk Visual projection", () => {
       ["zero Field Sphere", (candidate) => {
         candidate.manifest.fieldParticles[0]!.sphereRadius = 0
       }],
-      ["negative orbital Sphere", (candidate) => {
-        Object.assign(candidate.orbitalSpheres[0]!, {radius: -1})
+      ["negative orbital Torus", (candidate) => {
+        Object.assign(candidate.orbitalTori[0]!, {radius: -1})
       }],
       ["non-finite proxy Sphere", (candidate) => {
         Object.assign(candidate.fieldProxySpheres[0]!, {radius: Number.NaN})
@@ -553,7 +566,8 @@ describe("centered-nested Bulk Visual projection", () => {
         )!
         const second = candidate.transitionPaths.find((path) =>
           !path.returning &&
-          path.ownerDarkParticleId === first.ownerDarkParticleId &&
+            path.ownerDarkParticleId === first.ownerDarkParticleId &&
+          path.batchId === first.batchId &&
           path.transitionChannelId !== first.transitionChannelId
         )!
         Object.assign(second, {
@@ -697,7 +711,30 @@ describe("centered-nested Bulk Visual projection", () => {
       manifest,
       projection,
     )
-    const missingProxyId = valid.fieldProxySpheres[0]!.fieldProxyId
+    const processProxyIds = new Set(
+      (manifest.relationChannels ?? []).flatMap((channel) =>
+        channel.relationKind === "process-read" ||
+          channel.relationKind === "process-write"
+          ? [
+              channel.fromKind === "field-proxy"
+                ? channel.fromId
+                : channel.toId,
+            ]
+          : []
+      ),
+    )
+    const missingProxyId = manifest.transitionChannels?.flatMap((channel) =>
+      channel.conditionFieldIds.map((fieldId) =>
+        manifest.fieldProxies?.find((proxy) =>
+          proxy.stateOrbitalParticleId === channel.fromOrbitalParticleId &&
+          proxy.fieldId === fieldId &&
+          !processProxyIds.has(proxy.fieldProxyId)
+        )?.fieldProxyId
+      )
+    ).find((proxyId): proxyId is string => proxyId !== undefined)!
+    expect(valid.fieldProxySpheres.some((proxy) =>
+      proxy.fieldProxyId === missingProxyId
+    )).toBe(true)
     const incomplete = structuredClone(manifest)
     incomplete.fieldProxies = (incomplete.fieldProxies ?? []).filter(
       (proxy) => proxy.fieldProxyId !== missingProxyId,

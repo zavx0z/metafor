@@ -23,7 +23,40 @@ export interface BulkFieldParticlePickTarget {
   sphereRadius: number
 }
 
-export type BulkPickTarget = BulkDarkParticlePickTarget | BulkFieldParticlePickTarget
+export type BulkEmbeddedPickShape =
+  | {
+    form: "sphere"
+    sphereRadius: number
+  }
+  | {
+    form: "torus"
+    torusRadius: number
+    torusTube: number
+  }
+
+export type BulkOrbitalParticlePickTarget = {
+  center: Vector3
+  depth: number
+  kind: "orbitalParticle"
+  orbitalParticleId: string
+  outerRadius: number
+  parentDarkParticleId: number
+} & BulkEmbeddedPickShape
+
+export type BulkFieldProxyPickTarget = {
+  center: Vector3
+  depth: number
+  fieldProxyId: string
+  kind: "fieldProxy"
+  outerRadius: number
+  parentDarkParticleId: number
+} & BulkEmbeddedPickShape
+
+export type BulkPickTarget =
+  | BulkDarkParticlePickTarget
+  | BulkFieldParticlePickTarget
+  | BulkOrbitalParticlePickTarget
+  | BulkFieldProxyPickTarget
 
 export interface ResolveBulkPickTargetOptions {
   hitPaddingMm?: number

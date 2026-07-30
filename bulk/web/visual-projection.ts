@@ -190,9 +190,13 @@ const assertMaterialCoverage = (
       `orbital ${entry.orbitalParticleId} material`,
     )
     const particle = orbitalById.get(entry.orbitalParticleId)
+    const toroidal =
+      particle?.orbitalParticleKind === "state" ||
+      particle?.orbitalParticleKind === "process" ||
+      particle?.orbitalParticleKind === "finally"
     assertQuantumForm(
       entry.material,
-      particle?.orbitalParticleKind === "state" ? "torus" : "sphere",
+      toroidal ? "torus" : "sphere",
       `orbital ${entry.orbitalParticleId} material`,
     )
   })
@@ -231,6 +235,7 @@ const assertSampledPaths = (
     expectedIds: readonly string[],
     id: (path: typeof paths[number]) => string,
     label: string,
+    pointCount: number,
   ): void => {
     const ids = uniqueIds(paths.map(id), `${label} sampled path`)
     if (
@@ -244,7 +249,7 @@ const assertSampledPaths = (
         path.batchId.length === 0 ||
         !/^[0-9a-f]{16}$/.test(path.batchFingerprint) ||
         !darkIds.has(path.ownerDarkParticleId) ||
-        path.path.length !== 65
+        path.path.length !== pointCount
       ) {
         throw new Error(
           `Bulk Visual ${label} ${id(path)} has invalid component batch geometry`,
@@ -284,8 +289,10 @@ const assertSampledPaths = (
       ? path.transitionChannelId
       : path.relationChannelId,
     "Transition",
+    65,
   )
-  const transitionBatchByOwnerAndDirection = new Map<string, string>()
+  const transitionBatchByOwnerDirectionAndOpacity =
+    new Map<string, string>()
   const transitionDirectionByBatch = new Map<string, boolean>()
   const transitionBatchesByOwner = new Map<number, Set<string>>()
   for (const path of projection.transitionPaths) {
@@ -296,16 +303,24 @@ const assertSampledPaths = (
       )
     }
     transitionDirectionByBatch.set(path.batchId, path.returning)
-    const ownerDirection =
-      `${path.ownerDarkParticleId}:${path.returning ? "return" : "forward"}`
+    const ownerDirectionAndOpacity = [
+      path.ownerDarkParticleId,
+      path.returning ? "return" : "forward",
+      path.material.opacity,
+    ].join(":")
     const directionBatch =
-      transitionBatchByOwnerAndDirection.get(ownerDirection)
+      transitionBatchByOwnerDirectionAndOpacity.get(
+        ownerDirectionAndOpacity,
+      )
     if (directionBatch !== undefined && directionBatch !== path.batchId) {
       throw new Error(
-        `Bulk Visual Transition owner ${path.ownerDarkParticleId} has more than one ${path.returning ? "return" : "forward"} batch`,
+        `Bulk Visual Transition owner ${path.ownerDarkParticleId} has more than one ${path.returning ? "return" : "forward"} batch at opacity ${path.material.opacity}`,
       )
     }
-    transitionBatchByOwnerAndDirection.set(ownerDirection, path.batchId)
+    transitionBatchByOwnerDirectionAndOpacity.set(
+      ownerDirectionAndOpacity,
+      path.batchId,
+    )
     const ownerBatches = transitionBatchesByOwner.get(
       path.ownerDarkParticleId,
     ) ?? new Set<string>()
@@ -313,9 +328,9 @@ const assertSampledPaths = (
     transitionBatchesByOwner.set(path.ownerDarkParticleId, ownerBatches)
   }
   for (const [ownerDarkParticleId, batches] of transitionBatchesByOwner) {
-    if (batches.size > 2) {
+    if (batches.size > 4) {
       throw new Error(
-        `Bulk Visual Transition owner ${ownerDarkParticleId} exceeds two component batches`,
+        `Bulk Visual Transition owner ${ownerDarkParticleId} exceeds four component batches`,
       )
     }
   }
@@ -328,6 +343,7 @@ const assertSampledPaths = (
       ? path.relationChannelId
       : path.transitionChannelId,
     "relation",
+    129,
   )
 }
 
@@ -511,9 +527,6 @@ export const assertBulkVisualProjectionBoundary = (
   projection: BulkVisualRenderManifest,
 ): void => {
   const manifest = projection.manifest
-  assertRenderGeometry(projection)
-  assertMaterialCoverage(projection)
-  assertSampledPaths(projection)
   if (
     manifest.darkParticles.some((particle) =>
       particle.darkParticleKind === "axion"
@@ -527,6 +540,9 @@ export const assertBulkVisualProjectionBoundary = (
   ) {
     throw new Error("Bulk Visual renderer received deferred Axion geometry")
   }
+  assertRenderGeometry(projection)
+  assertMaterialCoverage(projection)
+  assertSampledPaths(projection)
   assertRenderParents(manifest)
 
   const orbitalIds = uniqueIds(
@@ -544,9 +560,13 @@ export const assertBulkVisualProjectionBoundary = (
   for (const particle of manifest.orbitalParticles) {
     const sphere = orbitalSphereIds.has(particle.orbitalParticleId)
     const torus = orbitalTorusIds.has(particle.orbitalParticleId)
+    const toroidal =
+      particle.orbitalParticleKind === "state" ||
+      particle.orbitalParticleKind === "process" ||
+      particle.orbitalParticleKind === "finally"
     if (
       Number(sphere) + Number(torus) !== 1 ||
-      (particle.orbitalParticleKind === "state") !== torus
+      toroidal !== torus
     ) {
       throw new Error(
         `Bulk Visual orbital ${particle.orbitalParticleId} must have exactly one semantic form`,

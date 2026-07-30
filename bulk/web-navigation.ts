@@ -2,10 +2,12 @@ import { Ray, Vector3 } from "@metafor/engine"
 import type {
   BulkClientPoint,
   BulkDarkParticlePickTarget,
+  BulkFieldProxyPickTarget,
   BulkFieldParticlePickTarget,
   BulkHoverDirection,
   BulkHoverPriorityCandidate,
   BulkHoverTransitionResult,
+  BulkOrbitalParticlePickTarget,
   BulkPickHit,
   BulkPickTarget,
   BulkViewportFitAxis,
@@ -53,7 +55,10 @@ const resolveRaySphereDistanceRange = (
 
 const resolveFieldParticleHitDistance = (
   ray: Ray,
-  target: BulkFieldParticlePickTarget,
+  target:
+    | BulkFieldParticlePickTarget
+    | Extract<BulkOrbitalParticlePickTarget, {form: "sphere"}>
+    | Extract<BulkFieldProxyPickTarget, {form: "sphere"}>,
   hitPaddingMm: number,
 ): number | null => {
   const range = resolveRaySphereDistanceRange(ray, target.center, target.sphereRadius + hitPaddingMm)
@@ -62,7 +67,10 @@ const resolveFieldParticleHitDistance = (
 
 const getDarkParticleTorusSignedDistance = (
   point: Vector3,
-  target: BulkDarkParticlePickTarget,
+  target:
+    | BulkDarkParticlePickTarget
+    | Extract<BulkOrbitalParticlePickTarget, {form: "torus"}>
+    | Extract<BulkFieldProxyPickTarget, {form: "torus"}>,
   expandedTorusTube: number,
 ): number => {
   const localX = point.x - target.center.x
@@ -74,7 +82,10 @@ const getDarkParticleTorusSignedDistance = (
 
 const resolveDarkParticleHitDistance = (
   ray: Ray,
-  target: BulkDarkParticlePickTarget,
+  target:
+    | BulkDarkParticlePickTarget
+    | Extract<BulkOrbitalParticlePickTarget, {form: "torus"}>
+    | Extract<BulkFieldProxyPickTarget, {form: "torus"}>,
   hitPaddingMm: number,
 ): number | null => {
   const expandedTorusTube = target.torusTube + hitPaddingMm
@@ -99,12 +110,29 @@ const compareBulkPickHits = (left: BulkPickHit, right: BulkPickHit): number => {
   return left.distance - right.distance
 }
 
-const getPickTargetKey = (target: BulkPickTarget): string => {
-  return target.kind === "fieldParticle" ? `fieldParticle:${target.fieldParticleId}` : `darkParticle:${target.darkParticleId}`
+export const getBulkPickTargetKey = (target: BulkPickTarget): string => {
+  if (target.kind === "darkParticle") return `darkParticle:${target.darkParticleId}`
+  if (target.kind === "fieldParticle") return `fieldParticle:${target.fieldParticleId}`
+  if (target.kind === "orbitalParticle") return `orbitalParticle:${target.orbitalParticleId}`
+  return `fieldProxy:${target.fieldProxyId}`
 }
 
+export const isBulkSpherePickTarget = (
+  target: BulkPickTarget,
+): target is
+  | BulkFieldParticlePickTarget
+  | Extract<BulkOrbitalParticlePickTarget, {form: "sphere"}>
+  | Extract<BulkFieldProxyPickTarget, {form: "sphere"}> =>
+  target.kind === "fieldParticle" ||
+  (
+    (target.kind === "orbitalParticle" || target.kind === "fieldProxy") &&
+    target.form === "sphere"
+  )
+
 const getPickParentDarkParticleId = (target: BulkPickTarget): number =>
-  target.kind === "fieldParticle" ? target.parentDarkParticleId : target.darkParticleId
+  target.kind === "darkParticle"
+    ? target.darkParticleId
+    : target.parentDarkParticleId
 
 const resolveDarkParticleDistanceToAncestor = (
   parentByDarkParticleId: ReadonlyMap<number, number | null>,
@@ -129,7 +157,7 @@ export const resolveBulkPickHit = (
   options: ResolveBulkPickTargetOptions = {},
 ): BulkPickHit | null => {
   const hitPaddingMm = options.hitPaddingMm ?? DEFAULT_HIT_PADDING_MM
-  const distance = target.kind === "fieldParticle"
+  const distance = isBulkSpherePickTarget(target)
     ? resolveFieldParticleHitDistance(ray, target, hitPaddingMm)
     : resolveDarkParticleHitDistance(ray, target, hitPaddingMm)
 
@@ -175,9 +203,9 @@ export const resolveBulkHoverTransition = ({
   pendingStartedAtMs,
   pendingTarget,
 }: ResolveBulkHoverTransitionOptions): BulkHoverTransitionResult => {
-  const currentTargetKey = currentTarget ? getPickTargetKey(currentTarget) : null
-  const nextTargetKey = nextTarget ? getPickTargetKey(nextTarget) : null
-  const pendingTargetKey = pendingTarget ? getPickTargetKey(pendingTarget) : null
+  const currentTargetKey = currentTarget ? getBulkPickTargetKey(currentTarget) : null
+  const nextTargetKey = nextTarget ? getBulkPickTargetKey(nextTarget) : null
+  const pendingTargetKey = pendingTarget ? getBulkPickTargetKey(pendingTarget) : null
 
   if (nextTargetKey === currentTargetKey) {
     return {
@@ -233,9 +261,11 @@ export const resolveBulkHoverPriorityTarget = ({
   const bestCandidate = sortedCandidates[0]!
   if (!currentTarget) return bestCandidate.target
 
-  const currentCandidate = sortedCandidates.find((candidate) => getPickTargetKey(candidate.target) === getPickTargetKey(currentTarget))
+  const currentCandidate = sortedCandidates.find((candidate) =>
+    getBulkPickTargetKey(candidate.target) === getBulkPickTargetKey(currentTarget)
+  )
   if (!currentCandidate) return bestCandidate.target
-  if (getPickTargetKey(bestCandidate.target) === getPickTargetKey(currentTarget)) return currentCandidate.target
+  if (getBulkPickTargetKey(bestCandidate.target) === getBulkPickTargetKey(currentTarget)) return currentCandidate.target
 
   if (parentByDarkParticleId) {
     const currentDarkParticleId = getPickParentDarkParticleId(currentTarget)
@@ -267,9 +297,11 @@ export const resolveBulkDirectionalHoverTarget = (
 ): BulkPickTarget | null => {
   if (!currentTarget) return hits[0]?.target ?? null
 
-  const currentTargetKey = getPickTargetKey(currentTarget)
+  const currentTargetKey = getBulkPickTargetKey(currentTarget)
   const currentDarkParticleId = getPickParentDarkParticleId(currentTarget)
-  const selfHit = hits.find((hit) => getPickTargetKey(hit.target) === currentTargetKey)
+  const selfHit = hits.find((hit) =>
+    getBulkPickTargetKey(hit.target) === currentTargetKey
+  )
 
   if (hoverDirection > 0) {
     if (selfHit) return selfHit.target

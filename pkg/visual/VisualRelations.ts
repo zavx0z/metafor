@@ -2,6 +2,7 @@ import type {
   BulkManifest,
   BulkRelationChannel,
 } from "@metafor/types/bulk/manifest"
+import {buildHermiteEdgePath} from "./HermiteEdge.ts"
 import {visualRelationColor} from "./SemanticVisual.ts"
 import type {
   VisualFieldPlacement,
@@ -26,58 +27,25 @@ export type VisualRelationEdgePlacement = Readonly<{
   relationChannelId: string
 }>
 
-const RELATION_HALF_SEGMENTS = 32
-
-const ellipticRelationPath = (
+const hermiteRelationPath = (
   from: Point,
   to: Point,
 ): readonly Point[] => {
-  const dx = to.x - from.x
-  const dy = to.y - from.y
-  const dz = to.z - from.z
-  const distance = Math.hypot(dx, dy, dz)
-  const length = Math.max(1, distance)
-  const axis = distance > 1e-6
-    ? {x: dx / distance, y: dy / distance, z: dz / distance}
-    : {x: 0, y: 0, z: 0}
-  let side = {
-    x: -axis.x * axis.z,
-    y: -axis.y * axis.z,
-    z: 1 - axis.z * axis.z,
-  }
-  const sideLength = Math.hypot(side.x, side.y, side.z)
-  side = sideLength <= 1e-6
-    ? {x: 1, y: 0, z: 0}
-    : {
-        x: side.x / sideLength,
-        y: side.y / sideLength,
-        z: side.z / sideLength,
-      }
-  const center = {
-    x: (from.x + to.x) / 2,
-    y: (from.y + to.y) / 2,
-    z: (from.z + to.z) / 2,
-  }
-  const major = {x: dx / 2, y: dy / 2, z: dz / 2}
-  const minorScale = Math.min(length * 0.23, 180)
-  const pointAt = (index: number, half: 1 | -1): Point => {
-    const angle = Math.PI * index / RELATION_HALF_SEGMENTS
-    const majorScale = -Math.cos(angle)
-    const minorFactor = Math.sin(angle) * half * minorScale
-    return Object.freeze({
-      x: center.x + major.x * majorScale + side.x * minorFactor,
-      y: center.y + major.y * majorScale + side.y * minorFactor,
-      z: center.z + major.z * majorScale + side.z * minorFactor,
-    })
-  }
-  const points: Point[] = []
-  for (let index = 0; index <= RELATION_HALF_SEGMENTS; index += 1) {
-    points.push(pointAt(index, 1))
-  }
-  for (let index = RELATION_HALF_SEGMENTS - 1; index >= 0; index -= 1) {
-    points.push(pointAt(index, -1))
-  }
-  return Object.freeze(points)
+  const upper = buildHermiteEdgePath({
+    from,
+    leftOuterRadius: 1,
+    rightOuterRadius: 1,
+    side: 1,
+    to,
+  })
+  const lower = buildHermiteEdgePath({
+    from: to,
+    leftOuterRadius: 1,
+    rightOuterRadius: 1,
+    side: -1,
+    to: from,
+  })
+  return Object.freeze([...upper, ...lower.slice(1)])
 }
 
 const uniqueIndex = <Value>(
@@ -161,6 +129,18 @@ export const buildVisualRelationEdges = (
     (proxy) => proxy.fieldProxyId,
     "Field proxy",
   )
+  const manifestedOrbitalById = new Map(
+    (manifest.orbitalParticles ?? []).map((particle) =>
+      [particle.orbitalParticleId, particle] as const
+    ),
+  )
+  const stateBranchActiveById = new Map(
+    (manifest.orbitalParticles ?? []).flatMap((particle) =>
+      particle.orbitalParticleKind === "state"
+        ? [[particle.orbitalParticleId, particle.active] as const]
+        : []
+    ),
+  )
   const rootByOwner = rootIndex(manifest)
   const endpoint = (
     kind: BulkRelationChannel["fromKind"],
@@ -198,6 +178,22 @@ export const buildVisualRelationEdges = (
         }
       : null
   }
+  const stateBranchId = (
+    kind: BulkRelationChannel["fromKind"],
+    id: string,
+  ): string | null => {
+    if (kind === "field") return null
+    if (kind === "field-proxy") {
+      return proxyById.get(id)?.stateOrbitalParticleId ?? null
+    }
+    const orbital = orbitalById.get(id)
+    if (orbital?.anchorStateOrbitalParticleId) {
+      return orbital.anchorStateOrbitalParticleId
+    }
+    return manifestedOrbitalById.get(id)?.orbitalParticleKind === "state"
+      ? id
+      : null
+  }
 
   return Object.freeze((manifest.relationChannels ?? []).map((channel) => {
     const from = endpoint(channel.fromKind, channel.fromId)
@@ -214,11 +210,41 @@ export const buildVisualRelationEdges = (
         `Visual relation ${channel.relationChannelId} has unresolved component endpoints`,
       )
     }
+    const fromStateBranchId = stateBranchId(
+      channel.fromKind,
+      channel.fromId,
+    )
+    const toStateBranchId = stateBranchId(
+      channel.toKind,
+      channel.toId,
+    )
+    if (
+      fromStateBranchId !== null &&
+      toStateBranchId !== null &&
+      fromStateBranchId !== toStateBranchId
+    ) {
+      throw new Error(
+        `Visual relation ${channel.relationChannelId} crosses State branches`,
+      )
+    }
+    const branchId = fromStateBranchId ?? toStateBranchId
+    const branchActive = branchId === null
+      ? channel.active
+      : stateBranchActiveById.get(branchId)
+    if (branchActive === undefined) {
+      throw new Error(
+        `Visual relation ${channel.relationChannelId} has unresolved State branch ${branchId}`,
+      )
+    }
     const color = visualRelationColor(channel)
     return Object.freeze({
-      material: visualRelationMaterial(color, channel.active),
+      material: visualRelationMaterial(
+        color,
+        channel.active,
+        branchActive,
+      ),
       ownerDarkParticleId: channel.parentDarkParticleId,
-      path: ellipticRelationPath(
+      path: hermiteRelationPath(
         from.endpoint.point,
         to.endpoint.point,
       ),

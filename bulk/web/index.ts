@@ -109,12 +109,18 @@ import {
 	type UiSurfaceRect,
 } from "@ui/elements"
 import {
+	getBulkPickTargetKey,
+	isBulkSpherePickTarget,
 	resolveBulkHoverPriorityTarget,
 	resolveBulkPickHit,
 	resolveBulkPickHits,
 	resolveBulkViewportFitPose,
 } from "../web-navigation"
-import type { BulkHoverPriorityCandidate, BulkPickTarget } from "@metafor/types/bulk/viewport"
+import type {
+	BulkEmbeddedPickShape,
+	BulkHoverPriorityCandidate,
+	BulkPickTarget,
+} from "@metafor/types/bulk/viewport"
 import {BulkSceneStore} from "../scene"
 import {
 	bendTextAroundEquator,
@@ -160,15 +166,19 @@ export type BulkVisualViewportWithHud = BulkViewportWithHud & Readonly<{
 const LABEL_TEXT_COLOR = new Color(1, 1, 1)
 
 type OrbitalParticleRenderRecord = {
+	depth: number
 	node: Mesh
 	material: ReturnType<typeof createVisualQuantumMaterial>
+	pickTarget: HoverablePickTarget
 	snapshot: BulkOrbitalParticle
 	targetLocalPosition: Vector3
 }
 
 type FieldProxyRenderRecord = {
+	depth: number
 	node: Mesh
 	material: ReturnType<typeof createVisualQuantumMaterial>
+	pickTarget: HoverablePickTarget
 	snapshot: BulkFieldProxy
 }
 
@@ -1520,8 +1530,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	}
 
 	const getPickTargetKey = (target: BulkPickTarget | null): string | null => {
-		if (!target) return null
-		return target.kind === "fieldParticle" ? `fieldParticle:${target.fieldParticleId}` : `darkParticle:${target.darkParticleId}`
+		return target ? getBulkPickTargetKey(target) : null
 	}
 
 	const syncPickTargetMaterialState = (target: HoverablePickTarget): void => {
@@ -1602,6 +1611,30 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 						left.depth - right.depth ||
 						left.snapshot.fieldId - right.snapshot.fieldId ||
 						left.snapshot.fieldParticleId.localeCompare(right.snapshot.fieldParticleId),
+				)
+				.map((record) => record.pickTarget),
+			...[...orbitalParticleRecords.values()]
+				.filter((record) =>
+					visualLayerVisible(orbitalVisualLayer(record.snapshot)),
+				)
+				.sort(
+					(left, right) =>
+						left.depth - right.depth ||
+						left.snapshot.sourceId - right.snapshot.sourceId ||
+						left.snapshot.orbitalParticleId.localeCompare(
+							right.snapshot.orbitalParticleId,
+						),
+				)
+				.map((record) => record.pickTarget),
+			...[...fieldProxyRecords.values()]
+				.filter(() => visualLayerVisible("field-proxy"))
+				.sort(
+					(left, right) =>
+						left.depth - right.depth ||
+						left.snapshot.fieldId - right.snapshot.fieldId ||
+						left.snapshot.fieldProxyId.localeCompare(
+							right.snapshot.fieldProxyId,
+						),
 				)
 				.map((record) => record.pickTarget),
 		]
@@ -1840,42 +1873,108 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		return existing
 	}
 
-	const orbitalParticleGeometry = (particle: BulkOrbitalParticle): BufferGeometry => {
-		const sphereRadius = orbitalSphereRadiusById.get(
-			particle.orbitalParticleId,
-		)
-		const torus = orbitalTorusById.get(particle.orbitalParticleId)
+	const requiredEmbeddedPickShape = (
+		sphereRadius: number | undefined,
+		torus: Readonly<{radius: number; tube: number}> | undefined,
+		label: string,
+	): BulkEmbeddedPickShape => {
 		if ((sphereRadius === undefined) === (torus === undefined)) {
-			throw new Error(
-				`Bulk Visual orbital ${particle.orbitalParticleId} must have exactly one form`,
-			)
+			throw new Error(`Bulk Visual ${label} must have exactly one form`)
 		}
-		if (particle.orbitalParticleKind === "state") {
+		return sphereRadius !== undefined
+			? {form: "sphere", sphereRadius}
+			: {
+				form: "torus",
+				torusRadius: torus!.radius,
+				torusTube: torus!.tube,
+			}
+	}
+
+	const pickTargetMaterialState = (
+		material: ReturnType<typeof createVisualQuantumMaterial>,
+	) => ({
+		baseColor: material.color.clone(),
+		baseOpacity: material.opacity,
+		baseRimColor: material.rimColor.clone(),
+		baseRimStrength: material.rimStrength,
+		material,
+	})
+
+	const createOrbitalParticlePickTarget = (
+		particle: BulkOrbitalParticle,
+		depth: number,
+		material: ReturnType<typeof createVisualQuantumMaterial>,
+	): HoverablePickTarget => {
+		const shape = requiredEmbeddedPickShape(
+			orbitalSphereRadiusById.get(particle.orbitalParticleId),
+			orbitalTorusById.get(particle.orbitalParticleId),
+			`orbital ${particle.orbitalParticleId}`,
+		)
+		const common = {
+			center: new Vector3(
+				workspace.position.x + particle.localX,
+				workspace.position.y + particle.localY,
+				workspace.position.z + particle.localZ,
+			),
+			depth,
+			kind: "orbitalParticle" as const,
+			orbitalParticleId: particle.orbitalParticleId,
+			outerRadius: shape.form === "sphere"
+				? shape.sphereRadius
+				: shape.torusRadius + shape.torusTube,
+			parentDarkParticleId: particle.parentDarkParticleId,
+			...pickTargetMaterialState(material),
+		}
+		return shape.form === "sphere"
+			? {...common, form: shape.form, sphereRadius: shape.sphereRadius}
+			: {
+				...common,
+				form: shape.form,
+				torusRadius: shape.torusRadius,
+				torusTube: shape.torusTube,
+			}
+	}
+
+	const orbitalParticleGeometry = (particle: BulkOrbitalParticle): BufferGeometry => {
+		const shape = requiredEmbeddedPickShape(
+			orbitalSphereRadiusById.get(particle.orbitalParticleId),
+			orbitalTorusById.get(particle.orbitalParticleId),
+			`orbital ${particle.orbitalParticleId}`,
+		)
+		const toroidal =
+			particle.orbitalParticleKind === "state" ||
+			particle.orbitalParticleKind === "process" ||
+			particle.orbitalParticleKind === "finally"
+		if (toroidal) {
 			const detail = activeVisualEmbeddedTorusMeshDetail
-			if (sphereRadius !== undefined || !torus || detail === null) {
+			if (shape.form !== "torus" || detail === null) {
 				throw new Error(
-					`Bulk Visual State ${particle.orbitalParticleId} has no Torus form`,
+					`Bulk Visual ${particle.orbitalParticleKind} ${particle.orbitalParticleId} has no Torus form`,
 				)
 			}
-			return getTorusSurfaceGeometry(torus.radius, torus.tube, detail)
+			return getTorusSurfaceGeometry(
+				shape.torusRadius,
+				shape.torusTube,
+				detail,
+			)
 		}
-		if (torus || sphereRadius === undefined) {
+		if (shape.form !== "sphere") {
 			throw new Error(
 				`Bulk Visual ${particle.orbitalParticleKind} ${particle.orbitalParticleId} has no Sphere form`,
 			)
 		}
-		return getSphereSurfaceGeometry(sphereRadius)
+		return getSphereSurfaceGeometry(shape.sphereRadius)
 	}
 
 	const orbitalParticleOuterRadius = (orbitalParticleId: string): number => {
-		const sphereRadius = orbitalSphereRadiusById.get(orbitalParticleId)
-		const torus = orbitalTorusById.get(orbitalParticleId)
-		if ((sphereRadius === undefined) === (torus === undefined)) {
-			throw new Error(
-				`Bulk Visual orbital ${orbitalParticleId} must have exactly one form`,
-			)
-		}
-		return sphereRadius ?? (torus!.radius + torus!.tube)
+		const shape = requiredEmbeddedPickShape(
+			orbitalSphereRadiusById.get(orbitalParticleId),
+			orbitalTorusById.get(orbitalParticleId),
+			`orbital ${orbitalParticleId}`,
+		)
+		return shape.form === "sphere"
+			? shape.sphereRadius
+			: shape.torusRadius + shape.torusTube
 	}
 
 	const orbitalParticleMaterial = (particle: BulkOrbitalParticle) =>
@@ -1885,7 +1984,10 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			"orbital material",
 		))
 
-	const upsertOrbitalParticleRecord = (particle: BulkOrbitalParticle): OrbitalParticleRenderRecord => {
+	const upsertOrbitalParticleRecord = (
+		particle: BulkOrbitalParticle,
+		depth: number,
+	): OrbitalParticleRenderRecord => {
 		const existing = orbitalParticleRecords.get(particle.orbitalParticleId)
 		if (!existing) {
 			const material = orbitalParticleMaterial(particle)
@@ -1894,8 +1996,14 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			node.visible = visualLayerVisible(orbitalVisualLayer(particle))
 			node.updateMatrix()
 			const record = {
+				depth,
 				node,
 				material,
+				pickTarget: createOrbitalParticlePickTarget(
+					particle,
+					depth,
+					material,
+				),
 				snapshot: {...particle, relatedStateIds: [...particle.relatedStateIds]},
 				targetLocalPosition: new Vector3(
 					particle.localX,
@@ -1906,6 +2014,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			orbitalParticleRecords.set(particle.orbitalParticleId, record)
 			return record
 		}
+		existing.depth = depth
 		existing.snapshot = {...particle, relatedStateIds: [...particle.relatedStateIds]}
 		existing.targetLocalPosition.set(
 			particle.localX,
@@ -1914,6 +2023,11 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		)
 		existing.node.geometry = orbitalParticleGeometry(particle)
 		copyQuantumMaterial(existing.material, orbitalParticleMaterial(particle))
+		Object.assign(
+			existing.pickTarget,
+			createOrbitalParticlePickTarget(particle, depth, existing.material),
+		)
+		syncPickTargetMaterialState(existing.pickTarget)
 		existing.node.visible = visualLayerVisible(orbitalVisualLayer(particle))
 		return existing
 	}
@@ -2015,19 +2129,23 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		}
 
 	const fieldProxyGeometry = (proxy: BulkFieldProxy): BufferGeometry => {
-		const sphereRadius = fieldProxySphereRadiusById.get(proxy.fieldProxyId)
-		const torus = fieldProxyTorusById.get(proxy.fieldProxyId)
-		if ((sphereRadius === undefined) === (torus === undefined)) {
-			throw new Error(
-				`Bulk Visual Field proxy ${proxy.fieldProxyId} must have exactly one form`,
-			)
+		const shape = requiredEmbeddedPickShape(
+			fieldProxySphereRadiusById.get(proxy.fieldProxyId),
+			fieldProxyTorusById.get(proxy.fieldProxyId),
+			`Field proxy ${proxy.fieldProxyId}`,
+		)
+		if (shape.form === "sphere") {
+			return getSphereSurfaceGeometry(shape.sphereRadius)
 		}
-		if (sphereRadius !== undefined) return getSphereSurfaceGeometry(sphereRadius)
 		const detail = activeVisualEmbeddedTorusMeshDetail
 		if (detail === null) {
 			throw new Error("Bulk Visual embedded Torus mesh detail is absent")
 		}
-		return getTorusSurfaceGeometry(torus!.radius, torus!.tube, detail)
+		return getTorusSurfaceGeometry(
+			shape.torusRadius,
+			shape.torusTube,
+			detail,
+		)
 	}
 
 	const fieldProxyMaterial = (proxy: BulkFieldProxy) =>
@@ -2037,20 +2155,73 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			"Field proxy material",
 		))
 
-	const upsertFieldProxyRecord = (proxy: BulkFieldProxy): FieldProxyRenderRecord => {
+	const createFieldProxyPickTarget = (
+		proxy: BulkFieldProxy,
+		depth: number,
+		material: ReturnType<typeof createVisualQuantumMaterial>,
+	): HoverablePickTarget => {
+		const shape = requiredEmbeddedPickShape(
+			fieldProxySphereRadiusById.get(proxy.fieldProxyId),
+			fieldProxyTorusById.get(proxy.fieldProxyId),
+			`Field proxy ${proxy.fieldProxyId}`,
+		)
+		const common = {
+			center: new Vector3(
+				workspace.position.x + proxy.localX,
+				workspace.position.y + proxy.localY,
+				workspace.position.z + proxy.localZ,
+			),
+			depth,
+			fieldProxyId: proxy.fieldProxyId,
+			kind: "fieldProxy" as const,
+			outerRadius: shape.form === "sphere"
+				? shape.sphereRadius
+				: shape.torusRadius + shape.torusTube,
+			parentDarkParticleId: proxy.parentDarkParticleId,
+			...pickTargetMaterialState(material),
+		}
+		return shape.form === "sphere"
+			? {...common, form: shape.form, sphereRadius: shape.sphereRadius}
+			: {
+				...common,
+				form: shape.form,
+				torusRadius: shape.torusRadius,
+				torusTube: shape.torusTube,
+			}
+	}
+
+	const upsertFieldProxyRecord = (
+		proxy: BulkFieldProxy,
+		depth: number,
+	): FieldProxyRenderRecord => {
 		const existing = fieldProxyRecords.get(proxy.fieldProxyId)
 		if (!existing) {
 			const material = fieldProxyMaterial(proxy)
 			const node = new Mesh(fieldProxyGeometry(proxy), material)
 			node.position.set(proxy.localX, proxy.localY, proxy.localZ)
-			const record = {node, material, snapshot: {...proxy}}
+			node.visible = visualLayerVisible("field-proxy")
+			node.updateMatrix()
+			const record = {
+				depth,
+				node,
+				material,
+				pickTarget: createFieldProxyPickTarget(proxy, depth, material),
+				snapshot: {...proxy},
+			}
 			fieldProxyRecords.set(proxy.fieldProxyId, record)
 			return record
 		}
+		existing.depth = depth
 		existing.snapshot = {...proxy}
 		copyQuantumMaterial(existing.material, fieldProxyMaterial(proxy))
 		existing.node.geometry = fieldProxyGeometry(proxy)
 		existing.node.position.set(proxy.localX, proxy.localY, proxy.localZ)
+		Object.assign(
+			existing.pickTarget,
+			createFieldProxyPickTarget(proxy, depth, existing.material),
+		)
+		syncPickTargetMaterialState(existing.pickTarget)
+		existing.node.visible = visualLayerVisible("field-proxy")
 		existing.node.updateMatrix()
 		return existing
 	}
@@ -2152,11 +2323,15 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	const createOrbitalTorusLabelSpec = (
 		record: OrbitalParticleRenderRecord,
 	): LabelSpec | null => {
-		if (record.snapshot.orbitalParticleKind !== "state") return null
+		const toroidal =
+			record.snapshot.orbitalParticleKind === "state" ||
+			record.snapshot.orbitalParticleKind === "process" ||
+			record.snapshot.orbitalParticleKind === "finally"
+		if (!toroidal) return null
 		const torus = orbitalTorusById.get(record.snapshot.orbitalParticleId)
 		if (!torus) {
 			throw new Error(
-				`Bulk Visual State ${record.snapshot.orbitalParticleId} has no Torus label form`,
+				`Bulk Visual ${record.snapshot.orbitalParticleKind} ${record.snapshot.orbitalParticleId} has no Torus label form`,
 			)
 		}
 		const parent = darkParticleRecords.get(
@@ -2164,15 +2339,19 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		)
 		if (!parent) {
 			throw new Error(
-				`Bulk Visual State ${record.snapshot.orbitalParticleId} has no label parent`,
+				`Bulk Visual ${record.snapshot.orbitalParticleKind} ${record.snapshot.orbitalParticleId} has no label parent`,
 			)
 		}
 		return createTorusLabelSpec({
 			anchorObject: record.node,
 			color: particleColor(record.snapshot),
-			depth: parent.snapshot.depth + 1,
+			depth: parent.snapshot.depth +
+				(record.snapshot.orbitalParticleKind === "state" ? 1 : 2),
 			key: `orbitalTorus:${record.snapshot.orbitalParticleId}`,
-			layer: "state",
+			layer:
+				record.snapshot.orbitalParticleKind === "state"
+					? "state"
+					: "causal",
 			torusRadius: torus.radius,
 			torusTube: torus.tube,
 			text: record.snapshot.label,
@@ -2415,7 +2594,10 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 					`Bulk Visual orbital ${particle.orbitalParticleId} has no render parent ${particle.parentDarkParticleId}`,
 				)
 			}
-			const record = upsertOrbitalParticleRecord(particle)
+			const record = upsertOrbitalParticleRecord(
+				particle,
+				parent.snapshot.depth + 1,
+			)
 			if (record.node.parent !== parent.container) parent.container.add(record.node)
 		}
 
@@ -2427,7 +2609,10 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 					`Bulk Visual Field proxy ${proxy.fieldProxyId} has no render parent ${proxy.parentDarkParticleId}`,
 				)
 			}
-			const record = upsertFieldProxyRecord(proxy)
+			const record = upsertFieldProxyRecord(
+				proxy,
+				parent.snapshot.depth + 1,
+			)
 			if (record.node.parent !== parent.container) parent.container.add(record.node)
 		}
 
@@ -2445,12 +2630,38 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		)
 		for (const fieldProxyId of patch.removedFieldProxyIds) {
 			const record = fieldProxyRecords.get(fieldProxyId)
-			if (record) detachObject(record.node)
+			if (record) {
+				if (
+					getPickTargetKey(hoveredPickTarget) ===
+					getPickTargetKey(record.pickTarget)
+				) setHoveredPickTarget(null)
+				if (
+					getPickTargetKey(radialMenuPickTarget) ===
+					getPickTargetKey(record.pickTarget)
+				) {
+					radialMenuPane.close()
+					setRadialMenuPickTarget(null)
+				}
+				detachObject(record.node)
+			}
 			fieldProxyRecords.delete(fieldProxyId)
 		}
 		for (const orbitalParticleId of patch.removedOrbitalParticleIds) {
 			const record = orbitalParticleRecords.get(orbitalParticleId)
-			if (record) detachObject(record.node)
+			if (record) {
+				if (
+					getPickTargetKey(hoveredPickTarget) ===
+					getPickTargetKey(record.pickTarget)
+				) setHoveredPickTarget(null)
+				if (
+					getPickTargetKey(radialMenuPickTarget) ===
+					getPickTargetKey(record.pickTarget)
+				) {
+					radialMenuPane.close()
+					setRadialMenuPickTarget(null)
+				}
+				detachObject(record.node)
+			}
 			orbitalParticleRecords.delete(orbitalParticleId)
 		}
 
@@ -2672,6 +2883,88 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 				record.pickTarget.outerRadius = record.pickTarget.sphereRadius
 			}
 	}
+
+		for (const record of orbitalParticleRecords.values()) {
+			record.node.matrixWorld.decompose(
+				reusableScenePosition,
+				reusableSceneQuaternion,
+				reusableInheritedScale,
+			)
+			record.pickTarget.center.copy(reusableScenePosition)
+			if (record.pickTarget.kind === "orbitalParticle") {
+				if (record.pickTarget.form === "sphere") {
+					const radius = orbitalSphereRadiusById.get(
+						record.snapshot.orbitalParticleId,
+					)
+					if (radius === undefined) {
+						throw new Error(
+							`Bulk Visual orbital ${record.snapshot.orbitalParticleId} has no Sphere pick form`,
+						)
+					}
+					record.pickTarget.sphereRadius =
+						radius * reusableInheritedScale.x
+					record.pickTarget.outerRadius =
+						record.pickTarget.sphereRadius
+				} else {
+					const torus = orbitalTorusById.get(
+						record.snapshot.orbitalParticleId,
+					)
+					if (!torus) {
+						throw new Error(
+							`Bulk Visual orbital ${record.snapshot.orbitalParticleId} has no Torus pick form`,
+						)
+					}
+					record.pickTarget.torusRadius =
+						torus.radius * reusableInheritedScale.x
+					record.pickTarget.torusTube =
+						torus.tube * reusableInheritedScale.x
+					record.pickTarget.outerRadius =
+						record.pickTarget.torusRadius +
+						record.pickTarget.torusTube
+				}
+			}
+		}
+
+		for (const record of fieldProxyRecords.values()) {
+			record.node.matrixWorld.decompose(
+				reusableScenePosition,
+				reusableSceneQuaternion,
+				reusableInheritedScale,
+			)
+			record.pickTarget.center.copy(reusableScenePosition)
+			if (record.pickTarget.kind === "fieldProxy") {
+				if (record.pickTarget.form === "sphere") {
+					const radius = fieldProxySphereRadiusById.get(
+						record.snapshot.fieldProxyId,
+					)
+					if (radius === undefined) {
+						throw new Error(
+							`Bulk Visual Field proxy ${record.snapshot.fieldProxyId} has no Sphere pick form`,
+						)
+					}
+					record.pickTarget.sphereRadius =
+						radius * reusableInheritedScale.x
+					record.pickTarget.outerRadius =
+						record.pickTarget.sphereRadius
+				} else {
+					const torus = fieldProxyTorusById.get(
+						record.snapshot.fieldProxyId,
+					)
+					if (!torus) {
+						throw new Error(
+							`Bulk Visual Field proxy ${record.snapshot.fieldProxyId} has no Torus pick form`,
+						)
+					}
+					record.pickTarget.torusRadius =
+						torus.radius * reusableInheritedScale.x
+					record.pickTarget.torusTube =
+						torus.tube * reusableInheritedScale.x
+					record.pickTarget.outerRadius =
+						record.pickTarget.torusRadius +
+						record.pickTarget.torusTube
+				}
+			}
+		}
 	}
 
 	const cancelNavigation = (): void => {
@@ -2700,11 +2993,15 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			}
 		}
 
-		const record = fieldParticleRecords.get(target.fieldParticleId)
-		const points = record ? fieldParticleRecordViewportFitPoints(record) : []
+		const node = target.kind === "fieldParticle"
+			? fieldParticleRecords.get(target.fieldParticleId)?.node
+			: target.kind === "orbitalParticle"
+				? orbitalParticleRecords.get(target.orbitalParticleId)?.node
+				: fieldProxyRecords.get(target.fieldProxyId)?.node
+		const points = node ? meshViewportFitPoints(node) : []
 		const pointRadius = points.reduce(
 			(maxRadius, point) => Math.max(maxRadius, point.distanceTo(target.center)),
-			target.sphereRadius,
+			target.outerRadius,
 		)
 
 		return {
@@ -2743,7 +3040,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		clientX: number,
 		clientY: number,
 	): number | null => {
-		if (target.kind === "fieldParticle") {
+		if (isBulkSpherePickTarget(target)) {
 			return resolveProjectedSphereDistancePx(target.center, target.sphereRadius, clientX, clientY)
 		}
 
@@ -2898,18 +3195,16 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		],
 	)
 
-	const fieldParticleRecordViewportFitPoints = (
-		record: FieldParticleRenderRecord,
-	): Vector3[] => {
+	const meshViewportFitPoints = (node: Mesh): Vector3[] => {
 		const points: Vector3[] = []
-		const positions = getGeometryPositionArray(record.node.geometry)
+		const positions = getGeometryPositionArray(node.geometry)
 		if (positions) {
 			for (let index = 0; index < positions.length; index += 3) {
 				points.push(new Vector3(
 					positions[index] ?? 0,
 					positions[index + 1] ?? 0,
 					positions[index + 2] ?? 0,
-				).applyMatrix4(record.node.matrixWorld))
+				).applyMatrix4(node.matrixWorld))
 			}
 		}
 
@@ -2995,7 +3290,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		let bestScore = Number.POSITIVE_INFINITY
 
 		for (const target of pickTargets) {
-			const score = target.kind === "fieldParticle"
+			const score = isBulkSpherePickTarget(target)
 				? resolveProjectedSphereDistancePx(target.center, target.sphereRadius, clientX, clientY)
 				: resolveProjectedTorusDistancePx(target.center, target.torusRadius, target.torusTube, clientX, clientY)
 			if (score === null || score > BULK_RADIAL_MENU_PROJECTED_HIT_PAD_PX || score >= bestScore) continue

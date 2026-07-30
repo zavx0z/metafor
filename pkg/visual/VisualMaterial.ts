@@ -13,11 +13,13 @@ import type {
 } from "./VisualMaterialSpec.ts"
 
 export {
+  VISUAL_INACTIVE_STATE_BRANCH_OPACITY,
   visualCausalMaterial,
   visualConditionFieldMaterial,
   visualContextTorusMaterial,
   visualCoreFieldMaterial,
   visualFieldProxyMaterial,
+  visualProcessTorusMaterial,
   visualRelationMaterial,
   visualStateTorusMaterial,
   visualTransitionMaterial,

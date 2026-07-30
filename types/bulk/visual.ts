@@ -8,20 +8,20 @@ export type BulkVisualFieldAlias = Readonly<{
   visualFieldParticleId: string
 }>
 
-/** Exact Torus form for one canonical State occurrence. */
+/** Exact Torus form for one canonical State, Process or Finally occurrence. */
 export type BulkVisualOrbitalTorus = Readonly<{
   orbitalParticleId: string
   radius: number
   tube: number
 }>
 
-/** Exact Sphere form for one visible causal occurrence. */
+/** Exact Sphere form for one visible non-toroidal causal occurrence. */
 export type BulkVisualOrbitalSphere = Readonly<{
   orbitalParticleId: string
   radius: number
 }>
 
-/** Exact spherical form for one canonical condition Field proxy. */
+/** Exact spherical form for one canonical condition or Process Field proxy. */
 export type BulkVisualFieldProxySphere = Readonly<{
   fieldProxyId: string
   radius: number

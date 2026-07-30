@@ -43,6 +43,7 @@ import {
   visualContextTorusMaterial,
   visualCoreFieldMaterial,
   visualFieldProxyMaterial,
+  visualProcessTorusMaterial,
   visualStateTorusMaterial,
 } from "./VisualMaterialSpec.ts"
 import {buildVisualRelationEdges} from "./VisualRelations.ts"
@@ -52,6 +53,7 @@ import {
   compareDarkParticles,
   type DarkTreeNode,
 } from "./internal/dark-tree.ts"
+import {buildProcessTorusLayoutIndex} from "./internal/process-layout.ts"
 import {
   defineVisualScene,
   defineVisualLayout,
@@ -784,7 +786,13 @@ export const layoutCenteredNestedFields = (
   owners: readonly VisualOwnerGraph[] = [],
 ): readonly CenteredNestedFieldPlacement[] => {
   const roots = buildDarkParticleForest(manifest)
-  const layoutsByOwner = indexOwnerStateLayouts(manifest, owners, false)
+  const processLayouts = buildProcessTorusLayoutIndex(manifest)
+  const layoutsByOwner = indexOwnerStateLayouts(
+    manifest,
+    owners,
+    false,
+    processLayouts.stateOrbitalContentByOwner,
+  )
   return Object.freeze(
     buildComponentFieldLayouts(manifest, roots).flatMap((component) =>
       collectCenteredFields(
@@ -801,7 +809,13 @@ export const buildCenteredNestedVisualScene = (
   const occurrenceIndex = indexStateSleeveOccurrences(manifest)
   const transitions = indexStateSleeveTransitions(manifest)
   const roots = buildDarkParticleForest(manifest)
-  const layoutsByOwner = indexOwnerStateLayouts(manifest, owners, true)
+  const processLayouts = buildProcessTorusLayoutIndex(manifest)
+  const layoutsByOwner = indexOwnerStateLayouts(
+    manifest,
+    owners,
+    true,
+    processLayouts.stateOrbitalContentByOwner,
+  )
   const components = buildComponentFieldLayouts(manifest, roots)
   const centeredComponents = components.map((component) =>
     resolveComponentTori(component, layoutsByOwner)
@@ -931,7 +945,11 @@ export const buildCenteredNestedVisualScene = (
           tube: form.torusTube,
         },
         orbitalParticleId: occurrence.orbitalParticleId,
-        material: visualStateTorusMaterial(node.color, node.current),
+        material: visualStateTorusMaterial(
+          node.color,
+          node.current,
+          particle.active,
+        ),
         ownerDarkParticleId: sleeve.ownerDarkParticleId,
         x: node.x,
         y: node.y,
@@ -946,6 +964,7 @@ export const buildCenteredNestedVisualScene = (
     ...statePlacementById.values(),
   ]
   const causalSlotByAnchor = new Map<string, number>()
+  const processPlacementById = new Map<string, VisualOrbitalPlacement>()
   const torusDepthById = new Map(tori.map((torus) =>
     [torus.darkParticleId, torus.depth] as const
   ))
@@ -958,9 +977,86 @@ export const buildCenteredNestedVisualScene = (
     const anchor = anchorId === null
       ? undefined
       : statePlacementById.get(anchorId)
-    if (!anchor || anchor.form.kind !== "torus") {
+    const anchorParticle = anchorId === null
+      ? undefined
+      : orbitalById.get(anchorId)
+    if (
+      !anchor ||
+      anchor.form.kind !== "torus" ||
+      !anchorParticle ||
+      anchorParticle.orbitalParticleKind !== "state"
+    ) {
       throw new Error(
         `Visual causal occurrence ${particle.orbitalParticleId} has no State anchor`,
+      )
+    }
+    const processLayout = processLayouts.byOrbitalParticleId.get(
+      particle.orbitalParticleId,
+    )
+    if (
+      particle.orbitalParticleKind === "process" ||
+      particle.orbitalParticleKind === "finally"
+    ) {
+      if (!processLayout) {
+        throw new Error(
+          `Visual Process occurrence ${particle.orbitalParticleId} has no Torus layout`,
+        )
+      }
+      const ownerDepth =
+        torusDepthById.get(particle.parentDarkParticleId) ?? 0
+      const scale = torusLevelScale(ownerDepth)
+      const processOuterRadius = processLayout.form.outerRadius * scale
+      const orbitRadius = anchor.form.radius
+      const processX =
+        anchor.x + Math.cos(processLayout.orbitAngle) * orbitRadius
+      const processY =
+        anchor.y + Math.sin(processLayout.orbitAngle) * orbitRadius
+      const processZ = anchor.z
+      const radialDistance = Math.hypot(
+        processX - anchor.x,
+        processY - anchor.y,
+      )
+      const distanceToStateOrbit = Math.hypot(
+        radialDistance - anchor.form.radius,
+        processZ - anchor.z,
+      )
+      if (
+        distanceToStateOrbit + processOuterRadius >
+          anchor.form.tube + 1e-9
+      ) {
+        throw new Error(
+          `Visual Process ${particle.orbitalParticleId} does not fit in State ${anchorId} Torus volume`,
+        )
+      }
+      const color = visualOrbitalParticleColor(particle)
+      const placement: VisualOrbitalPlacement = {
+        anchorStateOrbitalParticleId: anchorId,
+        color,
+        form: {
+          kind: "torus",
+          radius: processLayout.form.radius * scale,
+          tube: processLayout.form.tube * scale,
+        },
+        material: visualProcessTorusMaterial(
+          color,
+          particle.current,
+          particle.active,
+          anchorParticle.active,
+        ),
+        orbitalParticleId: particle.orbitalParticleId,
+        ownerDarkParticleId: particle.parentDarkParticleId,
+        x: processX,
+        y: processY,
+        z: processZ,
+      }
+      orbitals.push(placement)
+      processPlacementById.set(particle.orbitalParticleId, placement)
+      componentComposer.addOrbital(placement)
+      continue
+    }
+    if (processLayout) {
+      throw new Error(
+        `Visual causal occurrence ${particle.orbitalParticleId} has an invalid Process layout`,
       )
     }
     const slot = causalSlotByAnchor.get(anchorId!) ?? 0
@@ -981,6 +1077,7 @@ export const buildCenteredNestedVisualScene = (
         color,
         particle.current,
         particle.active,
+        anchorParticle.active,
       ),
       orbitalParticleId: particle.orbitalParticleId,
       ownerDarkParticleId: particle.parentDarkParticleId,
@@ -1015,6 +1112,70 @@ export const buildCenteredNestedVisualScene = (
   ))
   const fieldProxies: VisualFieldProxyPlacement[] = []
   const consumedProxyIds = new Set<string>()
+  for (const processLayout of [...processLayouts.byOrbitalParticleId.values()]
+    .sort((left, right) =>
+      left.orbitalParticleId.localeCompare(right.orbitalParticleId)
+    )) {
+    const processParticle = orbitalById.get(processLayout.orbitalParticleId)
+    const processPlacement = processPlacementById.get(
+      processLayout.orbitalParticleId,
+    )
+    if (
+      !processParticle ||
+      !processPlacement ||
+      processPlacement.form.kind !== "torus"
+    ) {
+      throw new Error(
+        `Visual Process ${processLayout.orbitalParticleId} has no Torus placement`,
+      )
+    }
+    const scale = torusLevelScale(
+      torusDepthById.get(processLayout.ownerDarkParticleId) ?? 0,
+    )
+    for (const fieldPlacement of processLayout.fieldProxies) {
+      const proxy = proxyById.get(fieldPlacement.fieldProxyId)
+      const sourceField = proxy
+        ? fieldByOwnerAndId.get(
+            `${proxy.parentDarkParticleId}:${proxy.fieldId}`,
+          )
+        : undefined
+      const stateParticle = proxy
+        ? orbitalById.get(proxy.stateOrbitalParticleId)
+        : undefined
+      if (
+        !proxy ||
+        !sourceField ||
+        !stateParticle ||
+        stateParticle.orbitalParticleKind !== "state" ||
+        consumedProxyIds.has(fieldPlacement.fieldProxyId)
+      ) {
+        throw new Error(
+          `Visual Process Field proxy ${fieldPlacement.fieldProxyId} is unresolved`,
+        )
+      }
+      consumedProxyIds.add(fieldPlacement.fieldProxyId)
+      const color = visualFieldParticleColor(sourceField)
+      fieldProxies.push({
+        color,
+        fieldProxyId: fieldPlacement.fieldProxyId,
+        form: {kind: "sphere", radius: fieldPlacement.radius * scale},
+        material: visualFieldProxyMaterial(
+          color,
+          "sphere",
+          processParticle.active,
+          stateParticle.active,
+        ),
+        ownerDarkParticleId: processLayout.ownerDarkParticleId,
+        stateOrbitalParticleId: proxy.stateOrbitalParticleId,
+        x: processPlacement.x + fieldPlacement.x * scale,
+        y: processPlacement.y + fieldPlacement.y * scale,
+        z: processPlacement.z + fieldPlacement.z * scale,
+      })
+      componentComposer.addFieldProxy(
+        fieldProxies[fieldProxies.length - 1]!,
+      )
+    }
+  }
   for (const sleeve of stateSleeves) {
     const occurrenceByNode = new Map(sleeve.occurrences.map((occurrence) =>
       [occurrence.nodeId, occurrence] as const
@@ -1022,6 +1183,15 @@ export const buildCenteredNestedVisualScene = (
     for (const node of sleeve.layout.nodes) {
       const occurrence = occurrenceByNode.get(node.id)
       if (!occurrence) continue
+      const stateParticle = orbitalById.get(occurrence.orbitalParticleId)
+      if (
+        !stateParticle ||
+        stateParticle.orbitalParticleKind !== "state"
+      ) {
+        throw new Error(
+          `Visual condition State ${occurrence.orbitalParticleId} is unresolved`,
+        )
+      }
       for (const fieldPlacement of stateGraphFieldSphereLayout(
         node.fields,
         node.fieldRadius,
@@ -1032,7 +1202,8 @@ export const buildCenteredNestedVisualScene = (
         const sourceField = fieldByOwnerAndId.get(
           `${sleeve.ownerDarkParticleId}:${fieldPlacement.id}`,
         )
-        if (!proxyId || !sourceField || consumedProxyIds.has(proxyId)) {
+        if (proxyId && consumedProxyIds.has(proxyId)) continue
+        if (!proxyId || !sourceField) {
           throw new Error(
             `Visual condition Field proxy ${occurrence.orbitalParticleId}/${fieldPlacement.id} is unresolved`,
           )
@@ -1043,7 +1214,11 @@ export const buildCenteredNestedVisualScene = (
           color,
           fieldProxyId: proxyId,
           form: {kind: "sphere", radius: fieldPlacement.radius},
-          material: visualConditionFieldMaterial(color, node.current),
+          material: visualConditionFieldMaterial(
+            color,
+            node.current,
+            stateParticle.active,
+          ),
           ownerDarkParticleId: sleeve.ownerDarkParticleId,
           stateOrbitalParticleId: occurrence.orbitalParticleId,
           x: node.x + fieldPlacement.x,
@@ -1084,6 +1259,7 @@ export const buildCenteredNestedVisualScene = (
       material: visualFieldProxyMaterial(
         color,
         "torus",
+        stateParticle?.active ?? false,
         stateParticle?.active ?? false,
       ),
       ownerDarkParticleId: proxy.parentDarkParticleId,

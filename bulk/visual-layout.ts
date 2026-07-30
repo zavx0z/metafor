@@ -516,10 +516,14 @@ const projectOrbitals = (
         `Bulk Visual orbital ${particle.orbitalParticleId} has an invalid owner`,
       )
     }
+    const toroidal =
+      particle.orbitalParticleKind === "state" ||
+      particle.orbitalParticleKind === "process" ||
+      particle.orbitalParticleKind === "finally"
     if (
-      (particle.orbitalParticleKind === "state" &&
+      (toroidal &&
         placement.form.kind !== "torus") ||
-      (particle.orbitalParticleKind !== "state" &&
+      (!toroidal &&
         placement.form.kind !== "sphere")
     ) {
       throw new Error(

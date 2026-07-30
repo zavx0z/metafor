@@ -48,6 +48,9 @@ describe("Visual playground nested navigation", () => {
       "main.section-tabs-mode #state-graph-stage",
     )
     expect(page).toContain(
+      "main.section-tabs-mode #state-graph-activity-stage",
+    )
+    expect(page).toContain(
       "main.section-tabs-mode #fields-analysis-stage",
     )
     expect(client).toContain('parent: "Torus"')
@@ -70,7 +73,34 @@ describe("Visual playground nested navigation", () => {
     expect(client).toContain("lab.showOverview()")
     expect(client).toContain('parent: "State Graph"')
     expect(client).toContain(
-      'tabs: [{href: "#/state-graph", label: "Ветки"}]',
+      '{href: "#/state-graph", label: "Ветки"}',
+    )
+    expect(client).toContain(
+      '{href: `#/${STATE_GRAPH_FIELDS_SLUG}`, label: "Поля"}',
+    )
+    expect(client).toContain(
+      '{href: `#/${STATE_GRAPH_ACTIVITY_SLUG}`, label: "Активность"}',
+    )
+    expect(client).toContain(
+      "viewport.applyVisualManifestPatch(stand.visual)",
+    )
+    expect(page).toContain(
+      '<div id="state-graph-fields-controls" hidden>',
+    )
+    expect(page).toContain(
+      '<pre id="state-graph-fields-json"></pre>',
+    )
+    expect(page).toContain(
+      '<section id="state-graph-activity-stage" hidden>',
+    )
+    expect(page).toContain(
+      '<h2>Активная</h2>',
+    )
+    expect(page).toContain(
+      '<h2>Неактивная</h2>',
+    )
+    expect(client).toContain(
+      "createStateGraphActivityLab()",
     )
     expect(client).toContain('parent: "Fields"')
     expect(client).toContain(

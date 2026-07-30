@@ -35,6 +35,14 @@
         grid-template-columns: 220px minmax(520px, 1fr) 360px;
       }
 
+      main.state-graph-fields-mode {
+        grid-template-columns: 220px minmax(520px, 1fr) 360px;
+      }
+
+      main.state-graph-activity-mode {
+        grid-template-columns: 220px minmax(0, 1fr);
+      }
+
       main.form-skin-mode {
         grid-template-columns: 220px minmax(520px, 1fr) 360px;
       }
@@ -183,6 +191,7 @@
       }
 
       main.section-tabs-mode #state-graph-stage,
+      main.section-tabs-mode #state-graph-activity-stage,
       main.section-tabs-mode #edges-stage,
       main.section-tabs-mode #torus-analysis-stage,
       main.section-tabs-mode #fields-analysis-stage {
@@ -226,6 +235,10 @@
         line-height: 1.45;
       }
 
+      main.state-graph-fields-mode #title {
+        top: 64px;
+      }
+
       #state-graph-stage {
         position: absolute;
         inset: 0;
@@ -235,6 +248,99 @@
         background:
           radial-gradient(circle at 22% 0%, rgba(39, 128, 178, 0.12), transparent 38%),
           #050b12;
+      }
+
+      #state-graph-activity-stage {
+        position: absolute;
+        inset: 0;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 18px;
+        min-width: 0;
+        min-height: 0;
+        padding: 20px;
+        overflow: auto;
+        background:
+          radial-gradient(circle at 25% 10%, rgba(39, 128, 178, 0.1), transparent 34%),
+          radial-gradient(circle at 76% 90%, rgba(170, 80, 198, 0.08), transparent 38%),
+          #050b12;
+      }
+
+      .state-activity-card {
+        display: grid;
+        grid-template-rows: auto minmax(0, 1fr);
+        min-width: 0;
+        min-height: 460px;
+        overflow: hidden;
+        border: 1px solid rgba(145, 171, 214, 0.2);
+        border-radius: 14px;
+        background: rgba(6, 13, 22, 0.88);
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.22);
+      }
+
+      .state-activity-card.active {
+        border-color: rgba(75, 207, 255, 0.34);
+      }
+
+      .state-activity-card.inactive {
+        border-color: rgba(145, 171, 214, 0.14);
+      }
+
+      .state-activity-card header {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 5px 14px;
+        padding: 15px 17px 14px;
+        border-bottom: 1px solid rgba(145, 171, 214, 0.14);
+        background: rgba(9, 18, 30, 0.88);
+      }
+
+      .state-activity-card h2 {
+        margin: 0;
+        color: #f2f6fc;
+        font-size: 15px;
+        font-weight: 500;
+      }
+
+      .state-activity-card p {
+        grid-column: 1 / -1;
+        margin: 0;
+        color: #8190a7;
+        font-size: 9px;
+        line-height: 1.45;
+      }
+
+      .state-activity-opacity {
+        align-self: center;
+        padding: 4px 7px;
+        border: 1px solid rgba(145, 171, 214, 0.18);
+        border-radius: 999px;
+        color: #91a2b9;
+        font-size: 8px;
+        letter-spacing: 0.04em;
+        white-space: nowrap;
+      }
+
+      .state-activity-card.active .state-activity-opacity {
+        border-color: rgba(75, 207, 255, 0.3);
+        color: #72ddff;
+      }
+
+      .state-activity-viewer {
+        position: relative;
+        min-width: 0;
+        min-height: 0;
+        overflow: hidden;
+      }
+
+      .state-activity-hint {
+        position: absolute;
+        right: 12px;
+        bottom: 10px;
+        z-index: 1;
+        color: rgba(145, 162, 185, 0.68);
+        font-size: 8px;
+        pointer-events: none;
       }
 
       #form-skin-stage {
@@ -735,7 +841,8 @@
       }
 
       #counts,
-      #state-graph-counts {
+      #state-graph-counts,
+      #state-graph-fields-counts {
         display: grid;
         grid-template-columns: 1fr auto;
         gap: 7px 12px;
@@ -747,12 +854,15 @@
       #counts dt,
       #counts dd,
       #state-graph-counts dt,
-      #state-graph-counts dd {
+      #state-graph-counts dd,
+      #state-graph-fields-counts dt,
+      #state-graph-fields-counts dd {
         margin: 0;
       }
 
       #counts dd,
-      #state-graph-counts dd {
+      #state-graph-counts dd,
+      #state-graph-fields-counts dd {
         color: white;
       }
 
@@ -1859,6 +1969,13 @@
         line-height: 1.5;
       }
 
+      #state-graph-fields-summary {
+        margin: 0 0 18px;
+        color: #8190a7;
+        font-size: 10px;
+        line-height: 1.55;
+      }
+
       .code-panel {
         margin: 0 0 18px;
       }
@@ -1895,6 +2012,8 @@
       @media (max-width: 900px) {
         main,
         main.state-graph-mode,
+        main.state-graph-fields-mode,
+        main.state-graph-activity-mode,
         main.form-skin-mode,
         main.edges-mode,
         main.torus-analysis-mode,
@@ -1940,6 +2059,8 @@
       @media (max-width: 600px) {
         main,
         main.state-graph-mode,
+        main.state-graph-fields-mode,
+        main.state-graph-activity-mode,
         main.form-skin-mode,
         main.edges-mode,
         main.torus-analysis-mode,
@@ -2020,8 +2141,14 @@
         }
 
         #state-graph-stage,
+        #state-graph-activity-stage,
         #form-skin-stage {
           padding: 12px;
+        }
+
+        #state-graph-activity-stage {
+          grid-template-columns: minmax(0, 1fr);
+          grid-auto-rows: minmax(440px, 1fr);
         }
       }
     </style>
@@ -2053,6 +2180,40 @@
             <p id="state-graph-overview"></p>
           </header>
           <div id="state-graph-cards"></div>
+        </section>
+        <section id="state-graph-activity-stage" hidden>
+          <article class="state-activity-card active">
+            <header>
+              <h2>Активная</h2>
+              <span class="state-activity-opacity">branch · normal</span>
+              <p>
+                State, Process, внутренние Fields, Transition и Relation
+                отображаются своими обычными production-материалами.
+              </p>
+            </header>
+            <section class="state-activity-viewer">
+              <canvas id="state-graph-activity-active-canvas"></canvas>
+              <span class="state-activity-hint">
+                drag — вращение · wheel — масштаб
+              </span>
+            </section>
+          </article>
+          <article class="state-activity-card inactive">
+            <header>
+              <h2>Неактивная</h2>
+              <span class="state-activity-opacity">branch · 0.18</span>
+              <p>
+                Та же геометрия и тот же состав ветки. Вся ветка получает
+                единую прозрачность 0.18, равную неактивным дугам.
+              </p>
+            </header>
+            <section class="state-activity-viewer">
+              <canvas id="state-graph-activity-inactive-canvas"></canvas>
+              <span class="state-activity-hint">
+                drag — вращение · wheel — масштаб
+              </span>
+            </section>
+          </article>
         </section>
         <section id="form-skin-stage" hidden>
           <header class="form-skin-overview">
@@ -2828,6 +2989,25 @@
           <section class="code-panel">
             <h3>JSON граф</h3>
             <pre id="state-graph-json"></pre>
+          </section>
+        </div>
+        <div id="state-graph-fields-controls" hidden>
+          <fieldset>
+            <legend>Поля · lada без Matter</legend>
+            <dl id="state-graph-fields-counts"></dl>
+          </fieldset>
+          <p id="state-graph-fields-summary">
+            Один корневой Atom из сохранённого Monad JSON. Геометрия,
+            материалы, State-рукава, Field proxies и связи не пересобираются
+            лабораторией: стенд вызывает тот же production centered-nested
+            projection и Bulk viewport.
+          </p>
+          <section class="code-panel">
+            <h3>JSON граф · lada</h3>
+            <span class="code-source">
+              fixture/monad-snapshot.json → buildStateGraph(root Atom)
+            </span>
+            <pre id="state-graph-fields-json"></pre>
           </section>
         </div>
         <div id="form-skin-controls" hidden>

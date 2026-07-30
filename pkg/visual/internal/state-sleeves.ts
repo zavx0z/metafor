@@ -6,6 +6,7 @@ import type {
 } from "@metafor/types/bulk/manifest"
 import type {StateGraph} from "../StateGraph.ts"
 import type {
+  StateGraphLayoutSizing,
   StateGraphLayoutNode,
   StateGraphRootLayout,
 } from "../StateGraphLayout.ts"
@@ -191,7 +192,10 @@ export const buildStateSleeveEdges = (
     return Object.freeze({
       edgeId: edge.id,
       fromNodeId: edge.fromNodeId,
-      material: visualTransitionMaterial(edge.returning),
+      material: visualTransitionMaterial(
+        edge.returning,
+        channel?.active ?? true,
+      ),
       path: buildStateGraphHermiteEdgePath(edge, fromNode, toNode),
       returning: edge.returning,
       toNodeId: edge.toNodeId,
@@ -307,6 +311,10 @@ export const indexOwnerStateLayouts = (
   manifest: BulkManifest,
   owners: readonly VisualOwnerGraph[],
   requireComplete: boolean,
+  orbitalContentByOwner: ReadonlyMap<
+    number,
+    NonNullable<StateGraphLayoutSizing["orbitalContentByStateId"]>
+  > = new Map(),
 ): ReadonlyMap<number, OwnerStateLayouts> => {
   const particlesById = new Map(
     manifest.darkParticles.map((particle) =>
@@ -397,6 +405,14 @@ export const indexOwnerStateLayouts = (
       )
     }
     const graphIndex = indexStateGraphLayout(owner.graph)
+    const orbitalContentByStateId =
+      orbitalContentByOwner.get(owner.ownerDarkParticleId)
+    const sizing = orbitalContentByStateId
+      ? {
+          ...STATE_GRAPH_PRODUCTION_SIZING,
+          orbitalContentByStateId,
+        }
+      : STATE_GRAPH_PRODUCTION_SIZING
     layoutsByOwner.set(
       owner.ownerDarkParticleId,
       {
@@ -405,7 +421,7 @@ export const indexOwnerStateLayouts = (
           buildStateGraphBranchLayoutFromIndex(
             graphIndex,
             state.id,
-            STATE_GRAPH_PRODUCTION_SIZING,
+            sizing,
           )
         ),
       },

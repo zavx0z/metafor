@@ -58,10 +58,20 @@ import {
   type FieldsAnalysisMode,
   type FieldsAnalysisLab,
 } from "./FieldsAnalysisLab.ts"
+import {
+  buildStateGraphFieldsStand,
+  type StateGraphFieldsStand,
+} from "./StateGraphFieldsLab.ts"
+import {
+  createStateGraphActivityLab,
+  type StateGraphActivityLab,
+} from "./StateGraphActivityLab.ts"
 import {createStateGraphHermiteEdgeCurveBuilder} from "./StateGraphLab.ts"
 import {metaStateDslSource} from "./MetaSource.ts"
 import snapshotJson from "./fixture/monad-snapshot.json"
 
+const STATE_GRAPH_FIELDS_SLUG = "state-graph/fields"
+const STATE_GRAPH_ACTIVITY_SLUG = "state-graph/activity"
 const snapshot = snapshotJson as BulkObserverSnapshot
 const app = document.querySelector("main")
 const canvas = document.getElementById("visual-canvas") as HTMLCanvasElement | null
@@ -91,6 +101,16 @@ const stateGraphSummary = document.getElementById("state-graph-summary")
 const stateGraphDslPath = document.getElementById("state-graph-dsl-path")
 const stateGraphDsl = document.getElementById("state-graph-dsl")
 const stateGraphJson = document.getElementById("state-graph-json")
+const stateGraphFieldsControls = document.getElementById(
+  "state-graph-fields-controls",
+)
+const stateGraphFieldsCounts = document.getElementById(
+  "state-graph-fields-counts",
+)
+const stateGraphFieldsJson = document.getElementById("state-graph-fields-json")
+const stateGraphActivityStage = document.getElementById(
+  "state-graph-activity-stage",
+)
 const formSkinStage = document.getElementById("form-skin-stage")
 const formSkinControls = document.getElementById("form-skin-controls")
 const edgesStage = document.getElementById("edges-stage")
@@ -124,6 +144,10 @@ if (
   !stateGraphDslPath ||
   !stateGraphDsl ||
   !stateGraphJson ||
+  !stateGraphFieldsControls ||
+  !stateGraphFieldsCounts ||
+  !stateGraphFieldsJson ||
+  !stateGraphActivityStage ||
   !formSkinStage ||
   !formSkinControls ||
   !edgesStage ||
@@ -140,6 +164,12 @@ type NestedPageGroup = Readonly<{
   parent: string
   tabs: readonly SectionTab[]
 }>
+
+const stateGraphTabs: readonly SectionTab[] = [
+  {href: "#/state-graph", label: "Ветки"},
+  {href: `#/${STATE_GRAPH_FIELDS_SLUG}`, label: "Поля"},
+  {href: `#/${STATE_GRAPH_ACTIVITY_SLUG}`, label: "Активность"},
+]
 
 const nestedPageGroups: Readonly<Record<string, NestedPageGroup>> = {
   "analysis-torus": {
@@ -198,7 +228,15 @@ const nestedPageGroups: Readonly<Record<string, NestedPageGroup>> = {
   },
   "state-graph": {
     parent: "State Graph",
-    tabs: [{href: "#/state-graph", label: "Ветки"}],
+    tabs: stateGraphTabs,
+  },
+  [STATE_GRAPH_FIELDS_SLUG]: {
+    parent: "State Graph",
+    tabs: stateGraphTabs,
+  },
+  [STATE_GRAPH_ACTIVITY_SLUG]: {
+    parent: "State Graph",
+    tabs: stateGraphTabs,
   },
 }
 
@@ -280,13 +318,16 @@ const mainAnnotation = createPageAnnotationLayer({
     })(),
   capturePng: () => viewport.hud.renderer.captureLastPresentedFramePng(),
   surface: () => {
-    const component = visualComponentForSlug(readSlug())
+    const slug = readSlug()
+    const component = visualComponentForSlug(slug)
     return {
       canvasId: canvas.id,
       kind: "playground-page",
       route: window.location.hash,
-      slug: component.slug,
-      title: component.entity,
+      slug,
+      title: slug === STATE_GRAPH_FIELDS_SLUG
+        ? "State Graph · Поля · lada"
+        : component.entity,
     }
   },
 })
@@ -349,6 +390,8 @@ let formSkinLabPromise: Promise<FormSkinLab> | null = null
 let edgesLabPromise: Promise<EdgesLab> | null = null
 let torusAnalysisLabPromise: Promise<TorusAnalysisLab> | null = null
 let fieldsAnalysisLabPromise: Promise<FieldsAnalysisLab> | null = null
+let stateGraphActivityLabPromise: Promise<StateGraphActivityLab> | null = null
+let stateGraphFieldsStand: StateGraphFieldsStand | null = null
 
 const formSkinForSlug = (slug: string): FormSkinLabForm | null => {
   if (slug === "skin-sphere") return "sphere"
@@ -399,6 +442,25 @@ const fieldsAnalysisLab = (): Promise<FieldsAnalysisLab> => {
 const hideFieldsAnalysisLab = (): void => {
   if (fieldsAnalysisLabPromise) {
     void fieldsAnalysisLabPromise.then((lab) => lab.hide())
+  }
+}
+
+const rootStateGraphFieldsStand = (): StateGraphFieldsStand => {
+  stateGraphFieldsStand ??= buildStateGraphFieldsStand(
+    projection.view(),
+    snapshot.rootSrc,
+  )
+  return stateGraphFieldsStand
+}
+
+const stateGraphActivityLab = (): Promise<StateGraphActivityLab> => {
+  stateGraphActivityLabPromise ??= createStateGraphActivityLab()
+  return stateGraphActivityLabPromise
+}
+
+const hideStateGraphActivityLab = (): void => {
+  if (stateGraphActivityLabPromise) {
+    void stateGraphActivityLabPromise.then((lab) => lab.hide())
   }
 }
 
@@ -707,6 +769,7 @@ const applyStateGraphPage = (): void => {
   hideSnapshotLayout()
   mainAnnotation.hide()
   app.classList.add("state-graph-mode")
+  app.classList.remove("state-graph-fields-mode")
   app.classList.remove("form-skin-mode")
   app.classList.remove("edges-mode")
   app.classList.remove("torus-analysis-mode")
@@ -717,6 +780,7 @@ const applyStateGraphPage = (): void => {
   visualControls.hidden = true
   stateGraphStage.hidden = false
   stateGraphControls.hidden = false
+  stateGraphFieldsControls.hidden = true
   formSkinStage.hidden = true
   formSkinControls.hidden = true
   edgesStage.hidden = true
@@ -733,6 +797,97 @@ const applyStateGraphPage = (): void => {
   }
 }
 
+const applyStateGraphFieldsPage = (): void => {
+  hideSnapshotLayout()
+  mainAnnotation.show()
+  stateGraphRenderVersion += 1
+  disposeBranchViewports()
+  app.classList.remove("state-graph-mode")
+  app.classList.add("state-graph-fields-mode")
+  app.classList.remove("form-skin-mode")
+  app.classList.remove("edges-mode")
+  app.classList.remove("torus-analysis-mode")
+  app.classList.remove("fields-analysis-mode")
+  controlsAside.hidden = false
+  canvas.hidden = false
+  visualTitle.hidden = false
+  visualControls.hidden = true
+  stateGraphStage.hidden = true
+  stateGraphControls.hidden = true
+  stateGraphFieldsControls.hidden = false
+  formSkinStage.hidden = true
+  formSkinControls.hidden = true
+  edgesStage.hidden = true
+  torusAnalysisStage.hidden = true
+  fieldsAnalysisStage.hidden = true
+  hideFormSkinLab()
+  hideEdgesLab()
+  hideTorusAnalysisLab()
+  hideFieldsAnalysisLab()
+  showSectionTabs(STATE_GRAPH_FIELDS_SLUG)
+
+  const stand = rootStateGraphFieldsStand()
+  viewport.setVisualLayers(null)
+  viewport.applyVisualManifestPatch(stand.visual)
+  entity.textContent = `Поля · ${stand.graph.atomLabel}`
+  description.textContent =
+    "Диагностический root-only стенд: из Monad JSON оставлен только Atom lada без вложенных Matter. Его Fields, State-рукава, causal particles, proxies, Transition и Relation проходят неизменённый production centered-nested → Bulk renderer."
+  replaceDefinitionList(stateGraphFieldsCounts, [
+    ["Dark / Matter", `${stand.manifest.darkParticles.length} / 0`],
+    ["Canonical Fields", stand.manifest.fieldParticles.length],
+    ["Объявлено State", stand.graph.states.length],
+    ["State-рукавов", stand.graph.states.length],
+    ["State occurrences", stand.visual.orbitalTori.length],
+    ["Causal particles", stand.visual.orbitalSpheres.length],
+    ["Field proxies", stand.visual.manifest.fieldProxies.length],
+    ["Transition", stand.visual.transitionPaths.length],
+    ["Relations", stand.visual.relationPaths.length],
+  ])
+  stateGraphFieldsJson.textContent = JSON.stringify(stand.graph, null, 2)
+  for (const link of navigation.querySelectorAll("a")) {
+    link.classList.toggle("active", link.dataset.slug === "state-graph")
+  }
+}
+
+const applyStateGraphActivityPage = (): void => {
+  hideSnapshotLayout()
+  mainAnnotation.hide()
+  stateGraphRenderVersion += 1
+  disposeBranchViewports()
+  app.classList.remove("state-graph-mode")
+  app.classList.remove("state-graph-fields-mode")
+  app.classList.add("state-graph-activity-mode")
+  app.classList.remove("form-skin-mode")
+  app.classList.remove("edges-mode")
+  app.classList.remove("torus-analysis-mode")
+  app.classList.remove("fields-analysis-mode")
+  controlsAside.hidden = true
+  canvas.hidden = true
+  visualTitle.hidden = true
+  visualControls.hidden = true
+  stateGraphStage.hidden = true
+  stateGraphControls.hidden = true
+  stateGraphFieldsControls.hidden = true
+  stateGraphActivityStage.hidden = false
+  formSkinStage.hidden = true
+  formSkinControls.hidden = true
+  edgesStage.hidden = true
+  torusAnalysisStage.hidden = true
+  fieldsAnalysisStage.hidden = true
+  hideFormSkinLab()
+  hideEdgesLab()
+  hideTorusAnalysisLab()
+  hideFieldsAnalysisLab()
+  showSectionTabs(STATE_GRAPH_ACTIVITY_SLUG)
+  for (const link of navigation.querySelectorAll("a")) {
+    link.classList.toggle("active", link.dataset.slug === "state-graph")
+  }
+  void stateGraphActivityLab().then((lab) => {
+    if (readSlug() === STATE_GRAPH_ACTIVITY_SLUG) lab.show()
+    else lab.hide()
+  })
+}
+
 const applyFormSkinPage = (form: FormSkinLabForm): void => {
   hideSnapshotLayout()
   mainAnnotation.hide()
@@ -740,6 +895,7 @@ const applyFormSkinPage = (form: FormSkinLabForm): void => {
   stateGraphRenderVersion += 1
   disposeBranchViewports()
   app.classList.remove("state-graph-mode")
+  app.classList.remove("state-graph-fields-mode")
   app.classList.add("form-skin-mode")
   app.classList.remove("edges-mode")
   app.classList.remove("torus-analysis-mode")
@@ -750,6 +906,7 @@ const applyFormSkinPage = (form: FormSkinLabForm): void => {
   visualControls.hidden = true
   stateGraphStage.hidden = true
   stateGraphControls.hidden = true
+  stateGraphFieldsControls.hidden = true
   formSkinStage.hidden = false
   formSkinControls.hidden = false
   edgesStage.hidden = true
@@ -782,6 +939,7 @@ const applyEdgesPage = (variant: EdgeRouteVariant | null): void => {
   stateGraphRenderVersion += 1
   disposeBranchViewports()
   app.classList.remove("state-graph-mode")
+  app.classList.remove("state-graph-fields-mode")
   app.classList.remove("form-skin-mode")
   app.classList.add("edges-mode")
   app.classList.remove("torus-analysis-mode")
@@ -792,6 +950,7 @@ const applyEdgesPage = (variant: EdgeRouteVariant | null): void => {
   visualControls.hidden = true
   stateGraphStage.hidden = true
   stateGraphControls.hidden = true
+  stateGraphFieldsControls.hidden = true
   formSkinStage.hidden = true
   formSkinControls.hidden = true
   edgesStage.hidden = false
@@ -821,6 +980,7 @@ const applyTorusAnalysisPage = (): void => {
   stateGraphRenderVersion += 1
   disposeBranchViewports()
   app.classList.remove("state-graph-mode")
+  app.classList.remove("state-graph-fields-mode")
   app.classList.remove("form-skin-mode")
   app.classList.remove("edges-mode")
   app.classList.add("torus-analysis-mode")
@@ -831,6 +991,7 @@ const applyTorusAnalysisPage = (): void => {
   visualControls.hidden = true
   stateGraphStage.hidden = true
   stateGraphControls.hidden = true
+  stateGraphFieldsControls.hidden = true
   formSkinStage.hidden = true
   formSkinControls.hidden = true
   edgesStage.hidden = true
@@ -856,6 +1017,7 @@ const applyFieldsAnalysisPage = (mode: FieldsAnalysisMode): void => {
   stateGraphRenderVersion += 1
   disposeBranchViewports()
   app.classList.remove("state-graph-mode")
+  app.classList.remove("state-graph-fields-mode")
   app.classList.remove("form-skin-mode")
   app.classList.remove("edges-mode")
   app.classList.remove("torus-analysis-mode")
@@ -866,6 +1028,7 @@ const applyFieldsAnalysisPage = (mode: FieldsAnalysisMode): void => {
   visualControls.hidden = true
   stateGraphStage.hidden = true
   stateGraphControls.hidden = true
+  stateGraphFieldsControls.hidden = true
   formSkinStage.hidden = true
   formSkinControls.hidden = true
   edgesStage.hidden = true
@@ -887,8 +1050,21 @@ const applyFieldsAnalysisPage = (mode: FieldsAnalysisMode): void => {
 const applyStory = (): void => {
   const slug = readSlug()
   app.classList.remove("layout-mode")
+  if (slug !== STATE_GRAPH_ACTIVITY_SLUG) {
+    app.classList.remove("state-graph-activity-mode")
+    stateGraphActivityStage.hidden = true
+    hideStateGraphActivityLab()
+  }
   if (slug === "state-graph") {
     applyStateGraphPage()
+    return
+  }
+  if (slug === STATE_GRAPH_FIELDS_SLUG) {
+    applyStateGraphFieldsPage()
+    return
+  }
+  if (slug === STATE_GRAPH_ACTIVITY_SLUG) {
+    applyStateGraphActivityPage()
     return
   }
   if (slug === "edges") {
@@ -932,6 +1108,7 @@ const applyStory = (): void => {
   if (isSnapshotLayout) mainAnnotation.hide()
   else mainAnnotation.show()
   app.classList.remove("state-graph-mode")
+  app.classList.remove("state-graph-fields-mode")
   app.classList.remove("form-skin-mode")
   app.classList.remove("edges-mode")
   app.classList.remove("torus-analysis-mode")
@@ -943,6 +1120,7 @@ const applyStory = (): void => {
   visualControls.hidden = false
   stateGraphStage.hidden = true
   stateGraphControls.hidden = true
+  stateGraphFieldsControls.hidden = true
   formSkinStage.hidden = true
   formSkinControls.hidden = true
   edgesStage.hidden = true
@@ -1057,6 +1235,9 @@ window.addEventListener("beforeunload", () => {
   }
   if (fieldsAnalysisLabPromise) {
     void fieldsAnalysisLabPromise.then((lab) => lab.dispose())
+  }
+  if (stateGraphActivityLabPromise) {
+    void stateGraphActivityLabPromise.then((lab) => lab.dispose())
   }
   mainAnnotation.dispose()
   viewport.dispose()

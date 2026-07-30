@@ -72,11 +72,11 @@
   `VisualTorusComponent`. `Atom`, `State`, `Fuzzy`, `Axion` и `MACHO` остаются
   semantic payload/role и не создают параллельные реализации формы.
 - State-рукав является отдельным неделимым компонентом: occurrence identities,
-  State-Torus, привязанные к State причинные particles, condition/projection
-  Fields и готовые sampled Transition edges проходят один и тот же rigid
-  transform. Причинная particle без exact State occurrence в production-сцене
-  запрещена. Relation является отдельным edge-компонентом с готовыми material
-  и sampled path.
+  State-Torus, вложенные Process/Finally-Torus, привязанные к State остальные
+  причинные particles, condition/projection Fields и готовые sampled Transition
+  edges проходят один и тот же rigid transform. Причинная particle без exact
+  State occurrence в production-сцене запрещена. Relation является отдельным
+  edge-компонентом с готовыми material и sampled path.
 - Именованная раскладка наполняет `VisualComponentComposer` непосредственно во
   время построения и один раз закрывает его в immutable
   `VisualComponentForest`; post-hoc обёртка готовых flat arrays не является
@@ -100,7 +100,8 @@
   внутренний радиус `5.56 мм`. На каждом следующем уровне вложения и пустой
   Torus, и Field-маркер уменьшаются ровно вдвое. Корневой Field имеет
   фиксированный радиус `11 мм` (`22 мм` в диаметре). State-Torus является
-  следующим уровнем вложения наравне с другим Torus.
+  следующим уровнем вложения, а Process/Finally-Torus — следующим уровнем
+  внутри своего exact State.
 - Baseline не является фиксированным envelope. Фактическое содержимое никогда
   не уменьшается для вмещения: Field-ядро расширяет внутреннюю границу, а
   Matter, State и их причинная геометрия расширяют внешнюю границу Torus.
@@ -113,18 +114,32 @@
   упаковку без пересечений. Радиус Field задаётся только уровнем вложения и не
   зависит от их количества, размера отверстия, камеры либо viewport.
   Необходимый размер ядра и Torus выводится из внешнего габарита полных Fields.
-  Тот же общий закон действует для condition Fields внутри State-Torus;
-  обратной подгонки Field под готовое отверстие и отдельной State-реализации
+  Тот же общий закон действует для condition Fields внутри State-Torus и для
+  read/write Field proxies в центральном ядре Process/Finally-Torus. Process
+  сначала строится вокруг полного габарита своих Field-Sphere. Центр готового
+  Process/Finally-Torus лежит на большой окружности своего exact State-Torus,
+  внутри объёма его трубки, а не в центральном отверстии State. Толщина трубки
+  State заранее растёт до полного внешнего габарита Process с зазором; при
+  нескольких Process их угловые слоты также расширяют большую окружность.
+  Обратной подгонки Field под готовое отверстие и отдельной реализации
   Field-раскладки нет.
 - Все сплошные Sphere-формы используют один общий quantum-материал с
   фиксированным `highlightSize = 1`: это относится к Fields ядра, condition
-  Fields внутри State-Torus и Sphere в изолированной Form Skin Lab.
+  Fields внутри State-Torus, read/write Fields внутри Process/Finally-Torus и
+  Sphere в изолированной Form Skin Lab.
   Уровень вложения, количество Fields, камера, viewport и browser controls
   значение не меняют. Это правило не распространяется на Torus и line-only
   wireframe-маркеры.
+- State-sleeve владеет прозрачностью всей своей ветки. Для неактивной ветки
+  State-Torus, входящие и внутренние Transition, Process/Finally, остальные
+  causal forms, их Field proxies и Relation получают одно значение opacity
+  `0.18`. Компонент не вычисляет собственную неактивную прозрачность поверх
+  ветки; runtime activity внутри активной ветки может менять glow, но не
+  branch opacity.
 - Детализация Torus фиксирована по роли компонента, а не выбирается камерой:
   крупная Dark-оболочка использует `radialSegments = 64` по поперечному
-  сечению, вложенные State и Field-proxy Torus — `radialSegments = 32`;
+  сечению, вложенные State, Process/Finally и Field-proxy Torus —
+  `radialSegments = 32`;
   вдоль большого кольца обе роли используют `tubularSegments = 192`.
   Корневой размер, глубина вложения, камера и viewport не включают LOD и не
   меняют эти значения. Поэтому крупный горизонтальный профиль остаётся
@@ -210,8 +225,9 @@
   production manifestation не переносятся в эту обзорную раскладку.
 - Все State-рукава одного владельца располагаются на одной следующей внешней
   орбите этого владельца после его непосредственных Matter-Torus. Каждый
-  production-рукав строится сразу с радиусами State-Torus, condition Fields и
-  поверхностными зазорами уровня владельца. Из лаборатории `State Graph`
+  production-рукав строится сразу с радиусами State-Torus, вложенных
+  Process/Finally-Torus, их центральных read/write Field-Sphere, condition
+  Fields и поверхностными зазорами уровня владельца. Из лаборатории `State Graph`
   переиспользуется только prefix/branch-lane алгоритм, но не её численные
   размеры или координаты. Готовый самодостаточный `StateGraphRootLayout`
   является неделимой геометрией: раскладка выбирает для его корня угловой слот
@@ -235,8 +251,9 @@
   прямой безопасной границей и принимает её только при `Σαᵢ ≤ π`. Поэтому
   расчёт требует не более трёх линейных проходов по узлам и одного
   prefix-прохода по рукавам; цикла сходимости, попарного поиска пересечений,
-  бинарного поиска и одинаковых угловых слотов нет. State и condition Fields
-  не сжимаются, а owning Torus расширяется вокруг всего готового State-рукава.
+  бинарного поиска и одинаковых угловых слотов нет. State, Process/Finally и
+  их Fields не сжимаются, а owning Torus расширяется вокруг всего готового
+  State-рукава.
 - Внутренняя геометрия рукава строится единожды общим
   `buildStateGraphBranchLayout`: пути делят prefix до первого различающегося
   Transition, затем каждый путь сохраняет собственный поперечный коридор.
@@ -254,10 +271,12 @@
   Production consumer может только перенести эти точки в локальный frame
   renderer; заново строить Bézier/Hermite, менять branch lanes или соединять
   центры State собственной кривой запрещено.
-- Замкнутые 64-сегментные эллиптические sampled paths Relation также целиком
-  строятся `pkg/visual` по точным component endpoints. Consumer вправе только
-  перевести готовые мировые точки в local frame их владельца; выбор другой
-  кривой, стороны или material запрещён.
+- Каждая Relation строится по точным component endpoints как замкнутый
+  двухсторонний channel из двух открытых cubic Hermite-дуг. Верхняя и нижняя
+  дуги используют тот же geometry law, ту же высоту и по `64` сегмента, что и
+  Transition; общий sampled path содержит `129` точек и `128` сегментов.
+  Consumer вправе только перевести готовые мировые точки в local frame их
+  владельца; выбор другой кривой, стороны или material запрещён.
 - При структурном изменении snapshot чистый компоновщик один раз строит новую
   immutable-сцену. Dark owner → root, Field owner → root, State occurrences,
   exact Transition keys и graph-wide State indexes строятся по одному проходу

@@ -587,37 +587,60 @@ export function buildBulkManifestation(
       orbitalParticleKind: Exclude<BulkOrbitalParticleKind, "state">
       label: string
       active: boolean
+      occurrenceScope: "preferred" | "every-related-state-occurrence"
       relatedStateIds: number[]
     }): BulkOrbitalParticle[] => {
       const relatedStateIds = [...new Set(input.relatedStateIds)]
       const orderedStateIds = currentStateId !== null && relatedStateIds.includes(currentStateId)
         ? [currentStateId, ...relatedStateIds.filter((stateId) => stateId !== currentStateId)]
         : relatedStateIds
-      let stateOccurrence: BulkOrbitalParticle | undefined
+      const allOccurrences = orderedStateIds.flatMap((relatedStateId) =>
+        stateOccurrencesByStateId.get(relatedStateId) ?? []
+      )
+      let preferredOccurrence: BulkOrbitalParticle | undefined
       for (const relatedStateId of orderedStateIds) {
         const occurrences = stateOccurrencesByStateId.get(relatedStateId) ?? []
-        stateOccurrence = occurrences.find((occurrence) =>
+        preferredOccurrence = occurrences.find((occurrence) =>
           occurrence.sleeveRootStateId === relatedStateId &&
           occurrence.orbitalParticleId.endsWith("/root"))
           ?? occurrences[0]
-        if (stateOccurrence) break
+        if (preferredOccurrence) break
       }
-      if (!stateOccurrence) return []
-
-      const particle: BulkOrbitalParticle = {
-        orbitalParticleId: input.baseId,
-        sourceId: input.sourceId,
-        parentDarkParticleId,
-        orbitalParticleKind: input.orbitalParticleKind,
-        label: input.label,
-        current: false,
-        active: input.active,
-        anchorStateOrbitalParticleId: stateOccurrence.orbitalParticleId,
-        sleeveRootStateId: stateOccurrence.sleeveRootStateId,
-        relatedStateIds,
-      }
-      orbitalParticles.push(particle)
-      return [particle]
+      if (!preferredOccurrence) return []
+      const selectedOccurrences =
+        input.occurrenceScope === "every-related-state-occurrence"
+          ? [
+              preferredOccurrence,
+              ...allOccurrences.filter((occurrence) =>
+                occurrence.orbitalParticleId !==
+                  preferredOccurrence.orbitalParticleId
+              ),
+            ]
+          : [preferredOccurrence]
+      return selectedOccurrences.map((stateOccurrence) => {
+        const preferred =
+          stateOccurrence.orbitalParticleId ===
+            preferredOccurrence.orbitalParticleId
+        const particle: BulkOrbitalParticle = {
+          orbitalParticleId: preferred
+            ? input.baseId
+            : `${input.baseId}/occurrence/${stateOccurrence.orbitalParticleId}`,
+          sourceId: input.sourceId,
+          parentDarkParticleId,
+          orbitalParticleKind: input.orbitalParticleKind,
+          label: input.label,
+          current: false,
+          active:
+            input.occurrenceScope === "every-related-state-occurrence"
+              ? input.active && stateOccurrence.active
+              : input.active,
+          anchorStateOrbitalParticleId: stateOccurrence.orbitalParticleId,
+          sleeveRootStateId: stateOccurrence.sleeveRootStateId,
+          relatedStateIds,
+        }
+        orbitalParticles.push(particle)
+        return particle
+      })
     }
 
     const atomAxions = sortByPosition((topologiesByParentAtom.get(boundaryAtom.id) ?? []).filter((topology) => topology.kind === "axion"))
@@ -632,6 +655,7 @@ export function buildBulkManifestation(
         orbitalParticleKind: "axion",
         label,
         active: (atomsByParentTopology.get(topology.id)?.length ?? 0) > 0,
+        occurrenceScope: "preferred",
         relatedStateIds: [relatedState],
       })
       const plan = topologyPlanById.get(topology.id)
@@ -677,6 +701,7 @@ export function buildBulkManifestation(
         orbitalParticleKind: process.descriptor.type === "finally" ? "finally" : "process",
         label: String(process.descriptor.label ?? process.descriptor.key ?? process.state),
         active: relatedState === currentStateId,
+        occurrenceScope: "every-related-state-occurrence",
         relatedStateIds: [relatedState],
       })
       const dependencies = processFieldDependencies(process.descriptor)
@@ -725,6 +750,7 @@ export function buildBulkManifestation(
         orbitalParticleKind: "reaction",
         label: reaction.label?.trim() || reaction.key,
         active: reaction.states.length === 0 || (currentStateId !== null && reaction.states.includes(currentStateId)),
+        occurrenceScope: "preferred",
         relatedStateIds: relatedStates,
       })
       for (const reactionParticle of reactionParticles) {

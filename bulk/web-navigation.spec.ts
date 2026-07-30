@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import { Ray, Vector3 } from "@metafor/engine"
 import {
+  getBulkPickTargetKey,
   resolveBulkDirectionalHoverTarget,
   resolveBulkHoverDirection,
   resolveBulkHoverPriorityTarget,
@@ -108,6 +109,66 @@ describe("bulk web navigation", () => {
 
     expect(hit?.kind).toBe("fieldParticle")
     expect(hit && "fieldParticleId" in hit ? hit.fieldParticleId : null).toBe("field:101")
+  })
+
+  test("каждый orbital и Field proxy Mesh участвует в навигации со своей точной формой", () => {
+    const targets: BulkPickTarget[] = [
+      {
+        center: new Vector3(300, 0, 0),
+        depth: 2,
+        form: "torus",
+        kind: "orbitalParticle",
+        orbitalParticleId: "orbital:state",
+        outerRadius: 120,
+        parentDarkParticleId: 1,
+        torusRadius: 100,
+        torusTube: 20,
+      },
+      {
+        center: new Vector3(700, 0, 0),
+        depth: 2,
+        form: "sphere",
+        kind: "orbitalParticle",
+        orbitalParticleId: "orbital:process",
+        outerRadius: 45,
+        parentDarkParticleId: 1,
+        sphereRadius: 45,
+      },
+      {
+        center: new Vector3(1100, 0, 0),
+        depth: 2,
+        fieldProxyId: "proxy:torus",
+        form: "torus",
+        kind: "fieldProxy",
+        outerRadius: 75,
+        parentDarkParticleId: 1,
+        torusRadius: 60,
+        torusTube: 15,
+      },
+      {
+        center: new Vector3(1400, 0, 0),
+        depth: 2,
+        fieldProxyId: "proxy:sphere",
+        form: "sphere",
+        kind: "fieldProxy",
+        outerRadius: 35,
+        parentDarkParticleId: 1,
+        sphereRadius: 35,
+      },
+    ]
+
+    const targetKeyAt = (x: number): string | null => {
+      const target = resolveBulkPickTarget(
+        new Ray(new Vector3(x, 0, -500), new Vector3(0, 0, 1)),
+        targets,
+      )
+      return target ? getBulkPickTargetKey(target) : null
+    }
+
+    expect(targetKeyAt(400)).toBe("orbitalParticle:orbital:state")
+    expect(targetKeyAt(700)).toBe("orbitalParticle:orbital:process")
+    expect(targetKeyAt(1160)).toBe("fieldProxy:proxy:torus")
+    expect(targetKeyAt(1400)).toBe("fieldProxy:proxy:sphere")
   })
 
   test("hover retention не удерживает родителя, если найден более глубокий target", () => {

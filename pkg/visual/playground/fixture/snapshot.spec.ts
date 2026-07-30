@@ -231,7 +231,7 @@ describe("Visual playground Monad fixture", () => {
     )).toHaveLength(129)
     expect(scene.stateSleeves.flatMap((sleeve) => sleeve.edges))
       .toHaveLength(165)
-    expect(scene.fieldProxies).toHaveLength(315)
+    expect(scene.fieldProxies).toHaveLength(864)
     expect(scene.tori.every((torus) =>
       torus.material.glowIntensity === 1.2 &&
       torus.material.opacity === 0.3
@@ -246,24 +246,49 @@ describe("Visual playground Monad fixture", () => {
         .map((orbital) =>
           `${orbital.material.glowIntensity}:${orbital.material.opacity}`
         ),
-    )).toEqual(new Set(["4.6:0.82", "3:0.64"]))
+    )).toEqual(new Set([
+      "3:0.18",
+      "4.6:0.18",
+      "4.6:0.82",
+      "3:0.64",
+      "2.4:0.58",
+      "0.7:0.18",
+      "0.7:0.24",
+    ]))
     expect(new Set(
       scene.fieldProxies
         .filter((proxy) => proxy.form.kind === "sphere")
         .map((proxy) =>
           `${proxy.material.glowIntensity}:${proxy.material.opacity}`
         ),
-    )).toEqual(new Set(["5.2:0.78", "3.4:0.66"]))
+    )).toEqual(new Set([
+      "5.2:0.18",
+      "5.2:0.78",
+      "3.4:0.18",
+      "3.4:0.66",
+      "1.4:0.5",
+      "0.4:0.18",
+      "0.4:0.14",
+    ]))
     expect(scene.stateSleeves.every((sleeve) =>
       sleeve.edges.every((edge) =>
         edge.transitionChannelId !== null &&
         edge.path.length === 65 &&
-        edge.material.glowIntensity === 1.65
+        (
+          (
+            edge.material.opacity === 1 &&
+            edge.material.glowIntensity === 1.65
+          ) ||
+          (
+            edge.material.opacity === 0.18 &&
+            edge.material.glowIntensity === 0.45
+          )
+        )
       )
     )).toBe(true)
-    expect(scene.relationEdges.every((edge) => edge.path.length === 65))
+    expect(scene.relationEdges.every((edge) => edge.path.length === 129))
       .toBe(true)
-    expect(renderPlan.meshes).toHaveLength(490)
+    expect(renderPlan.meshes).toHaveLength(1090)
     expect(Object.isFrozen(renderPlan.meshes[0]!.form)).toBe(true)
     expect(renderPlan.meshes.filter((mesh) => mesh.role === "dark"))
       .toHaveLength(scene.tori.length)
@@ -305,11 +330,13 @@ describe("Visual playground Monad fixture", () => {
     expect(renderPlan.lineBatches.filter((batch) =>
       batch.kind === "relation"
     )).toHaveLength(scene.relationEdgeBatches.length)
-    expect(renderPlan.lineBatches).toHaveLength(31)
+    expect(renderPlan.lineBatches).toHaveLength(47)
     expect(renderPlan.lineBatches.flatMap((batch) => batch.paths))
-      .toHaveLength(676)
+      .toHaveLength(2067)
     expect(renderPlan.lineBatches.every((batch) =>
-      batch.paths.every((path) => path.points.length === 65)
+      batch.paths.every((path) =>
+        path.points.length === (batch.kind === "transition" ? 65 : 129)
+      )
     )).toBe(true)
     expect(renderPlan.lineBatches[0]!.material)
       .toBe(scene.stateEdgeBatches[0]!.material)
@@ -323,7 +350,7 @@ describe("Visual playground Monad fixture", () => {
           (batch) => batch.ownerDarkParticleId,
         ).values().map((batches) => batches.length),
       ),
-    ).toBeLessThanOrEqual(2)
+    ).toBeLessThanOrEqual(4)
     expect(fields.filter((field) => field.bandKind === "root-private"))
       .toHaveLength(1)
     const sharedFields = fields.filter((field) =>

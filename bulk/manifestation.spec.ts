@@ -93,6 +93,50 @@ describe("Boundary projection -> semantic Bulk manifestation", () => {
     }))
   })
 
+  test("materializes Process in every exact occurrence of its State", () => {
+    const projection = createProjection()
+    projection.states.push(
+      {id: 21, wimp: SRC, name: "idle", position: 0},
+      {id: 22, wimp: SRC, name: "ready", position: 1},
+    )
+    projection.transitions.push(
+      {id: 31, wimp: SRC, fromState: 21, toState: 22, position: 0},
+    )
+    projection.processes.push({
+      id: 51,
+      wimp: SRC,
+      state: "ready",
+      descriptor: {
+        type: "action",
+        key: "prepare",
+        action: {readFields: [[2, "title"]]},
+      },
+    })
+    projection.atomStates.push({atom: 17, state: 22})
+
+    const manifest = buildBulkManifestation(projection, SRC)
+    const readyOccurrences = manifest.orbitalParticles?.filter(
+      (particle) =>
+        particle.orbitalParticleKind === "state" &&
+        particle.sourceId === 22,
+    ) ?? []
+    const processes = manifest.orbitalParticles?.filter(
+      (particle) => particle.orbitalParticleKind === "process",
+    ) ?? []
+
+    expect(readyOccurrences).toHaveLength(2)
+    expect(processes).toHaveLength(readyOccurrences.length)
+    expect(new Set(processes.map((process) =>
+      process.anchorStateOrbitalParticleId
+    ))).toEqual(new Set(readyOccurrences.map((state) =>
+      state.orbitalParticleId
+    )))
+    expect(processes.filter((process) => process.active)).toHaveLength(1)
+    expect(manifest.relationChannels?.filter((channel) =>
+      channel.relationKind === "process-read"
+    )).toHaveLength(readyOccurrences.length)
+  })
+
   test("selects only the requested root and its descendants", () => {
     const projection = createProjection()
     projection.wimps.push(

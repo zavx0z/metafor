@@ -40,7 +40,11 @@ export interface BulkFieldParticle {
 
 export type BulkOrbitalParticleKind = "state" | "process" | "reaction" | "axion" | "finally"
 
-/** A persistent declaration occurrence in an Atom's visible State sleeve. */
+/**
+ * A persistent declaration occurrence in an Atom's visible State sleeve.
+ * Process/Finally declarations have one occurrence per exact related State
+ * occurrence; `active` never controls their presence.
+ */
 export interface BulkOrbitalParticle {
   orbitalParticleId: string
   sourceId: number
@@ -78,7 +82,7 @@ export interface BulkFieldProxy {
 
 export type BulkRelationEndpointKind = "field" | "field-proxy" | "orbital"
 
-/** A real dependency rendered as one directed elliptic channel. */
+/** A real dependency rendered as one directed Hermite channel. */
 export interface BulkRelationChannel {
   relationChannelId: string
   parentDarkParticleId: number
