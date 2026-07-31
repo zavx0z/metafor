@@ -99,7 +99,67 @@ describe("production Visual relation geometry", () => {
       color: [1, 0.54, 0.17, 1],
       glowColor: [1, 0.54, 0.17, 2 / 9],
       glowIntensity: 0.45,
-      opacity: 0.18,
+      opacity: 0.24,
     })
+  })
+
+  test("does not draw an entanglement already collapsed into one shared marker", () => {
+    const manifest: BulkManifest = {
+      rootSrc: "owner/root",
+      darkParticles: [
+        {
+          darkParticleId: 2,
+          parentDarkParticleId: null,
+          darkParticleKind: "atom",
+          src: "owner/root",
+          metaSrc: "owner/root",
+          label: "root",
+          depth: 0,
+          darkParticleOrder: 0,
+        },
+        {
+          darkParticleId: 4,
+          parentDarkParticleId: 2,
+          darkParticleKind: "atom",
+          src: "owner/child",
+          metaSrc: "owner/child",
+          label: "child",
+          depth: 1,
+          darkParticleOrder: 0,
+        },
+      ],
+      fieldParticles: [],
+      relationChannels: [{
+        relationChannelId: "entanglement/root/to/child",
+        parentDarkParticleId: 2,
+        relationKind: "field-entanglement",
+        fromKind: "field",
+        fromId: "field:root",
+        toKind: "field",
+        toId: "field:child",
+        active: true,
+      }],
+    }
+    const material = visualCausalMaterial(color, false, true)
+    expect(buildVisualRelationEdges(manifest, {
+      fields: [{
+        color,
+        fieldIds: [1, 2],
+        fieldKeys: ["root", "child"],
+        fieldParticleIds: ["field:root", "field:child"],
+        fieldParticleKind: "string",
+        material,
+        ownerDarkParticleId: 2,
+        sourceOwnerDarkParticleIds: [2, 4],
+        valueId: 7,
+        valueText: "shared",
+        radius: 1,
+        x: 0,
+        y: 0,
+        z: 0,
+      }],
+      fieldProxies: [],
+      orbitals: [],
+    })).toEqual([])
   })
 })

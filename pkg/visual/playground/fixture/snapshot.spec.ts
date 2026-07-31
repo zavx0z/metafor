@@ -75,6 +75,33 @@ describe("Visual playground Monad fixture", () => {
         fields.some((field) => field.fieldKey === "error")
       ),
     ).toBe(true)
+    const fieldByParticleId = new Map(manifest.fieldParticles.map((field) =>
+      [field.fieldParticleId, field] as const
+    ))
+    expect((manifest.relationChannels ?? []).filter((channel) =>
+      channel.relationKind === "field-entanglement"
+    )).toHaveLength(26)
+    const model = manifest.darkParticles.find((particle) =>
+      particle.src === "zavx0z/lada-model"
+    )
+    expect(model).toBeDefined()
+    expect(
+      (manifest.relationChannels ?? [])
+        .filter((channel) =>
+          channel.relationKind === "field-entanglement" &&
+          fieldByParticleId.get(channel.toId)?.parentDarkParticleId ===
+            model!.darkParticleId
+        )
+        .map((channel) => ({
+          from: fieldByParticleId.get(channel.fromId)?.fieldKey,
+          to: fieldByParticleId.get(channel.toId)?.fieldKey,
+          valueId: fieldByParticleId.get(channel.toId)?.valueId,
+        })),
+    ).toEqual([
+      {from: "modelPrompt", to: "prompt", valueId: 15},
+      {from: "replyDraft", to: "response", valueId: 16},
+      {from: "modelError", to: "error", valueId: 17},
+    ])
   })
 
   test("produces four State graph cards containing five possible paths", () => {
@@ -132,6 +159,56 @@ describe("Visual playground Monad fixture", () => {
     expect(scene.tori).toHaveLength(5)
     expect(layoutNodes).toHaveLength(129)
     expect(layoutEdges).toHaveLength(165)
+    expect(scene.orbitals).toHaveLength(
+      manifest.orbitalParticles?.length ?? 0,
+    )
+    expect(scene.fieldProxies).toHaveLength(
+      manifest.fieldProxies?.length ?? 0,
+    )
+    expect(scene.relationEdges).toHaveLength(
+      manifest.relationChannels?.length ?? 0,
+    )
+    const fieldByOccurrence = new Map(scene.fields.flatMap((field) =>
+      field.fieldParticleIds.map((id) => [id, field] as const)
+    ))
+    const relationById = new Map(scene.relationEdges.map((edge) =>
+      [edge.relationChannelId, edge] as const
+    ))
+    const modelOwner = manifest.darkParticles.find((particle) =>
+      particle.src === "zavx0z/lada-model"
+    )
+    const modelEntanglements = (manifest.relationChannels ?? []).filter(
+      (channel) =>
+        channel.relationKind === "field-entanglement" &&
+        fieldByOccurrence.get(channel.toId)?.ownerDarkParticleId ===
+          modelOwner?.darkParticleId,
+    )
+    expect(modelEntanglements).toHaveLength(3)
+    for (const channel of modelEntanglements) {
+      const from = fieldByOccurrence.get(channel.fromId)
+      const to = fieldByOccurrence.get(channel.toId)
+      const edge = relationById.get(channel.relationChannelId)
+      expect(from).toBeDefined()
+      expect(to).toBeDefined()
+      expect(edge).toBeDefined()
+      expect(edge?.path[0]).toEqual({
+        x: from!.x,
+        y: from!.y,
+        z: from!.z,
+      })
+      expect(edge?.path[64]).toEqual({
+        x: to!.x,
+        y: to!.y,
+        z: to!.z,
+      })
+    }
+    expect(scene.components.roots.every((root) =>
+      root.sleeves.every((sleeve) =>
+        sleeve.occurrences.every((occurrence) =>
+          occurrence.state !== null
+        )
+      )
+    )).toBe(true)
     expect(new Set(
       layoutNodes.map((node) => node.stateId),
     ).size)
@@ -247,12 +324,11 @@ describe("Visual playground Monad fixture", () => {
           `${orbital.material.glowIntensity}:${orbital.material.opacity}`
         ),
     )).toEqual(new Set([
-      "3:0.18",
-      "4.6:0.18",
+      "3:0.24",
+      "4.6:0.24",
       "4.6:0.82",
       "3:0.64",
       "2.4:0.58",
-      "0.7:0.18",
       "0.7:0.24",
     ]))
     expect(new Set(
@@ -262,12 +338,12 @@ describe("Visual playground Monad fixture", () => {
           `${proxy.material.glowIntensity}:${proxy.material.opacity}`
         ),
     )).toEqual(new Set([
-      "5.2:0.18",
+      "5.2:0.24",
       "5.2:0.78",
-      "3.4:0.18",
+      "3.4:0.24",
       "3.4:0.66",
       "1.4:0.5",
-      "0.4:0.18",
+      "0.4:0.24",
       "0.4:0.14",
     ]))
     expect(scene.stateSleeves.every((sleeve) =>
@@ -280,7 +356,7 @@ describe("Visual playground Monad fixture", () => {
             edge.material.glowIntensity === 1.65
           ) ||
           (
-            edge.material.opacity === 0.18 &&
+            edge.material.opacity === 0.24 &&
             edge.material.glowIntensity === 0.45
           )
         )
@@ -298,6 +374,16 @@ describe("Visual playground Monad fixture", () => {
       .toHaveLength(scene.orbitals.length)
     expect(renderPlan.meshes.filter((mesh) => mesh.role === "field-proxy"))
       .toHaveLength(scene.fieldProxies.length)
+    expect(renderPlan.labels.map((label) => label.text)).toEqual([
+      "zavx0z/lada",
+      "zavx0z/lada-chat",
+      "zavx0z/lada-chat-send",
+      "zavx0z/lada-auth",
+      "zavx0z/lada-model",
+    ])
+    expect(renderPlan.labels.every((label) =>
+      label.outerRadius > 0 && Object.isFrozen(label.color)
+    )).toBe(true)
     expect(renderPlan.meshes.find((mesh) =>
       mesh.id === `dark:${scene.tori[0]!.darkParticleId}`
     )).toMatchObject({

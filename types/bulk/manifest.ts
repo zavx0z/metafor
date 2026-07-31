@@ -86,7 +86,14 @@ export type BulkRelationEndpointKind = "field" | "field-proxy" | "orbital"
 export interface BulkRelationChannel {
   relationChannelId: string
   parentDarkParticleId: number
-  relationKind: "field-projection" | "process-read" | "process-write" | "reaction-read" | "reaction-write" | "axion-read"
+  relationKind:
+    | "field-entanglement"
+    | "field-projection"
+    | "process-read"
+    | "process-write"
+    | "reaction-read"
+    | "reaction-write"
+    | "axion-read"
   fromKind: BulkRelationEndpointKind
   fromId: string
   toKind: BulkRelationEndpointKind

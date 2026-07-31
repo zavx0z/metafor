@@ -85,15 +85,16 @@ in the centered pseudo-circle core of the Process-Torus; the State-Torus tube
 grows around the complete Process content instead of leaving a causal Sphere
 outside.
 
-The adjacent `#/state-graph/activity` page compares the same compact,
-self-contained State branch in two cards. Both cards use the unchanged
+The adjacent `#/state-graph/activity` page compares two manifestations of the
+real root `lada` State graph from the saved Monad snapshot. Both cards isolate
+that root Atom from nested Matter and use the unchanged
 `buildBulkManifestation → buildCenteredNestedBulkVisualManifest →
-createBulkViewport` path and contain one State-Torus, one Process-Torus in its
-tube volume, centered Process Field proxies, one Transition and their Relation
-channels. The active and inactive projections differ only in the Atom's current
-State. Geometry and identity therefore remain equal, while the inactive State
-sleeve assigns the package-owned `0.18` branch opacity to every State/causal
-form, Field proxy, Transition and Relation in the card.
+createBulkViewport` path. The first card retains the materialized current State:
+exactly its complete sleeve is active and every sibling sleeve is inactive. The
+second card clears only the root Atom's current-State pointer, so every sleeve
+is inactive. Geometry and identity remain equal between cards; every inactive
+sleeve assigns the package-owned `0.24` branch opacity to its State/causal
+forms, Field proxies, Transitions and Relations.
 
 The playground `#/outside-in` page composes every declared State sleeve of the
 root and every nested Atom into one static recursive scene. It reads the

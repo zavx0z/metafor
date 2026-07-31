@@ -21,11 +21,16 @@ import {
   type DarkTreeNode,
 } from "./internal/dark-tree.ts"
 import {
+  addCompleteVisualStateComponents,
+} from "./internal/complete-state-components.ts"
+import {
+  buildProcessTorusLayoutIndex,
+} from "./internal/process-layout.ts"
+import {
   defineVisualScene,
   defineVisualLayout,
   type VisualFieldPlacement,
   type VisualLayoutInput,
-  type VisualOwnerGraph,
   type VisualScene,
   type VisualStateSleevePlacement,
   type VisualTorusPlacement,
@@ -43,6 +48,7 @@ import {
   stateInnerOrbitRadius,
   stateNodeSurfaceGap,
   worldPoint,
+  type OwnerStateLayouts,
   type PreparedStateLayout,
   type StatePlacement,
   type WorldTransform,
@@ -119,7 +125,7 @@ const siblingOrbitRadius = (
 
 const buildDarkParticleTori = (
   manifest: BulkManifest,
-  owners: readonly VisualOwnerGraph[],
+  layoutsByOwner: ReadonlyMap<number, OwnerStateLayouts>,
 ): readonly DarkTorus[] => {
   const roots = buildDarkParticleForest(manifest)
   const fieldsByParent = new Map<number, FieldParticle[]>()
@@ -128,8 +134,6 @@ const buildDarkParticleTori = (
     if (fields) fields.push(field)
     else fieldsByParent.set(field.parentDarkParticleId, [field])
   }
-  const layoutsByOwner = indexOwnerStateLayouts(manifest, owners, true)
-
   const resolve = (node: DarkTreeNode): DarkTorus => {
     const particle = node.particle
     const sourceFields = fieldsByParent.get(particle.darkParticleId) ?? []
@@ -244,6 +248,13 @@ export const buildOutsideInVisualScene = (
   const componentComposer = createVisualComponentComposer()
   const occurrenceIndex = indexStateSleeveOccurrences(manifest)
   const transitions = indexStateSleeveTransitions(manifest)
+  const processLayouts = buildProcessTorusLayoutIndex(manifest)
+  const layoutsByOwner = indexOwnerStateLayouts(
+    manifest,
+    owners,
+    true,
+    processLayouts.stateOrbitalContentByOwner,
+  )
   const tori: VisualTorusPlacement[] = []
   const fields: VisualFieldPlacement[] = []
   const stateSleeves: VisualStateSleevePlacement[] = []
@@ -330,7 +341,7 @@ export const buildOutsideInVisualScene = (
     }
   }
 
-  for (const root of buildDarkParticleTori(manifest, owners)) {
+  for (const root of buildDarkParticleTori(manifest, layoutsByOwner)) {
     const particle = root.payload.particle
     visit(root, {
       x: 0,
@@ -340,9 +351,17 @@ export const buildOutsideInVisualScene = (
     })
   }
 
+  addCompleteVisualStateComponents({
+    componentComposer,
+    fields,
+    manifest,
+    processLayouts,
+    stateSleeves,
+    tori,
+  })
   return defineVisualScene({
     components: componentComposer.finish({
-      requireCompleteStateForms: false,
+      requireCompleteStateForms: true,
     }),
     layoutSlug: "outside-in",
   })

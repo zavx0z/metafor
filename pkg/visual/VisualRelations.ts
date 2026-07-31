@@ -195,7 +195,16 @@ export const buildVisualRelationEdges = (
       : null
   }
 
-  return Object.freeze((manifest.relationChannels ?? []).map((channel) => {
+  return Object.freeze((manifest.relationChannels ?? []).flatMap((channel) => {
+    if (
+      channel.relationKind === "field-entanglement" &&
+      channel.fromKind === "field" &&
+      channel.toKind === "field" &&
+      fieldByOccurrenceId.get(channel.fromId) ===
+        fieldByOccurrenceId.get(channel.toId)
+    ) {
+      return []
+    }
     const from = endpoint(channel.fromKind, channel.fromId)
     const to = endpoint(channel.toKind, channel.toId)
     const ownerRoot = rootByOwner.get(channel.parentDarkParticleId)
@@ -237,7 +246,7 @@ export const buildVisualRelationEdges = (
       )
     }
     const color = visualRelationColor(channel)
-    return Object.freeze({
+    return [Object.freeze({
       material: visualRelationMaterial(
         color,
         channel.active,
@@ -249,6 +258,6 @@ export const buildVisualRelationEdges = (
         to.endpoint.point,
       ),
       relationChannelId: channel.relationChannelId,
-    })
+    })]
   }))
 }

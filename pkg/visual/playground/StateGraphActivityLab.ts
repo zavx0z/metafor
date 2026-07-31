@@ -2,14 +2,12 @@ import type {BulkManifest} from "@metafor/types/bulk/manifest"
 import type {BulkRuntimeProjection} from "@metafor/types/bulk/runtime"
 import type {BulkVisualLayer} from "@metafor/types/bulk/viewport"
 import type {BulkVisualRenderManifest} from "@metafor/types/bulk/visual"
-import {buildBulkManifestation} from "../../../bulk/manifestation.ts"
-import {
-  buildCenteredNestedBulkVisualManifest,
-} from "../../../bulk/visual-layout.ts"
 import {createBulkViewport} from "../../../bulk/web/index.ts"
 import {createPageAnnotationLayer} from "./AnnotationLayer.ts"
-
-const ACTIVITY_SRC = "visual/state-branch-activity"
+import {
+  buildStateGraphFieldsStand,
+  type StateGraphFieldsStand,
+} from "./StateGraphFieldsLab.ts"
 
 export const STATE_GRAPH_ACTIVITY_LAYERS = [
   "state",
@@ -21,7 +19,7 @@ export const STATE_GRAPH_ACTIVITY_LAYERS = [
 
 export type StateGraphActivityScenario = Readonly<{
   active: boolean
-  label: "Активная" | "Неактивная"
+  label: "Текущее состояние" | "Без текущего состояния"
   manifest: BulkManifest
   projection: BulkRuntimeProjection
   visual: BulkVisualRenderManifest
@@ -32,107 +30,56 @@ export type StateGraphActivityStand = Readonly<{
   inactive: StateGraphActivityScenario
 }>
 
-const activityProjection = (active: boolean): BulkRuntimeProjection => ({
-  atoms: [{
-    id: 1,
-    parentAtom: null,
-    parentTopology: null,
-    position: 0,
-    wimp: ACTIVITY_SRC,
-  }],
-  topologies: [],
-  wimps: [{src: ACTIVITY_SRC, name: "Ветка State"}],
-  fields: [
-    {
-      id: 11,
-      wimp: ACTIVITY_SRC,
-      key: "ready",
-      type: "boolean",
-      label: "Условие",
-    },
-    {
-      id: 12,
-      wimp: ACTIVITY_SRC,
-      key: "payload",
-      type: "string",
-      label: "Вход",
-    },
-    {
-      id: 13,
-      wimp: ACTIVITY_SRC,
-      key: "result",
-      type: "string",
-      label: "Результат",
-    },
-  ],
-  states: [{
-    id: 21,
-    wimp: ACTIVITY_SRC,
-    name: "состояние",
-    position: 0,
-  }],
-  transitions: [{
-    id: 31,
-    wimp: ACTIVITY_SRC,
-    fromState: 21,
-    toState: 21,
-    position: 0,
-  }],
-  conditions: [{
-    id: 41,
-    wimp: ACTIVITY_SRC,
-    transition: 31,
-    field: 11,
-    position: 0,
-    predicate: {eq: true},
-  }],
-  processes: [{
-    id: 51,
-    wimp: ACTIVITY_SRC,
-    state: "состояние",
-    descriptor: {
-      type: "action",
-      key: "процесс",
-      label: "Процесс",
-      action: {
-        readFields: [[12, "payload"]],
-        writeFields: [[13, "result"]],
-      },
-    },
-  }],
-  reactions: [],
-  atomStates: [{atom: 1, state: active ? 21 : null}],
-  fieldEnumVariants: [],
-  atomValues: [],
-  values: [],
-  valueItems: [],
-  matterParticles: [],
-  matterTopologyBindingPaths: [],
-  matterChildWimpBindingPaths: [],
-})
-
-const activityScenario = (
+const activityScenarioFromStand = (
   active: boolean,
+  projection: BulkRuntimeProjection,
+  stand: StateGraphFieldsStand,
 ): StateGraphActivityScenario => {
-  const projection = activityProjection(active)
-  const manifest = buildBulkManifestation(projection, ACTIVITY_SRC)
   return {
     active,
-    label: active ? "Активная" : "Неактивная",
-    manifest,
+    label: active ? "Текущее состояние" : "Без текущего состояния",
+    manifest: stand.manifest,
     projection,
-    visual: buildCenteredNestedBulkVisualManifest(manifest, projection),
+    visual: stand.visual,
   }
 }
 
 /**
- * Two production manifestations of one exact branch. Activity is the only
- * semantic input that differs between the cards.
+ * Two production manifestations of one real root Atom graph. The first keeps
+ * its materialized current State, so exactly one complete sleeve is active.
+ * The second clears only that current-State pointer, leaving the same graph
+ * and geometry with every sleeve inactive.
  */
-export const buildStateGraphActivityStand = (): StateGraphActivityStand => ({
-  active: activityScenario(true),
-  inactive: activityScenario(false),
-})
+export const buildStateGraphActivityStand = (
+  projection: BulkRuntimeProjection,
+  rootSrc: string,
+): StateGraphActivityStand => {
+  const activeStand = buildStateGraphFieldsStand(projection, rootSrc)
+  if (activeStand.graph.currentStateId === null) {
+    throw new Error(
+      `State Graph Activity stand expected current State for ${rootSrc}`,
+    )
+  }
+  const atomId = activeStand.graph.atomId
+  const inactiveProjection: BulkRuntimeProjection = {
+    ...projection,
+    atomStates: projection.atomStates.map((entry) =>
+      entry.atom === atomId ? {...entry, state: null} : entry
+    ),
+  }
+  const inactiveStand = buildStateGraphFieldsStand(
+    inactiveProjection,
+    rootSrc,
+  )
+  return {
+    active: activityScenarioFromStand(true, projection, activeStand),
+    inactive: activityScenarioFromStand(
+      false,
+      inactiveProjection,
+      inactiveStand,
+    ),
+  }
+}
 
 export type StateGraphActivityLab = Readonly<{
   dispose(): void
@@ -166,8 +113,11 @@ const canvasSize = (
 }
 
 export const createStateGraphActivityLab =
-  async (): Promise<StateGraphActivityLab> => {
-    const stand = buildStateGraphActivityStand()
+  async (
+    projection: BulkRuntimeProjection,
+    rootSrc: string,
+  ): Promise<StateGraphActivityLab> => {
+    const stand = buildStateGraphActivityStand(projection, rootSrc)
     const cards = [
       {
         canvas: requireCanvas("state-graph-activity-active-canvas"),

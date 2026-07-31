@@ -214,7 +214,8 @@ const renderableManifest = (source: BulkManifest): BulkManifest => {
   const nonAxionRelations = (source.relationChannels ?? []).filter(
     (channel) =>
       retainedOwner(channel.parentDarkParticleId) &&
-      channel.relationKind !== "axion-read",
+      channel.relationKind !== "axion-read" &&
+      channel.relationKind !== "field-entanglement",
   )
   for (const channel of nonAxionRelations) {
     if (channel.relationKind === "field-projection") continue

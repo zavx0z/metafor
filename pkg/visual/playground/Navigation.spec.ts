@@ -94,13 +94,13 @@ describe("Visual playground nested navigation", () => {
       '<section id="state-graph-activity-stage" hidden>',
     )
     expect(page).toContain(
-      '<h2>Активная</h2>',
+      '<h2>Текущее состояние</h2>',
     )
     expect(page).toContain(
-      '<h2>Неактивная</h2>',
+      '<h2>Без текущего состояния</h2>',
     )
     expect(client).toContain(
-      "createStateGraphActivityLab()",
+      "createStateGraphActivityLab(",
     )
     expect(client).toContain('parent: "Fields"')
     expect(client).toContain(

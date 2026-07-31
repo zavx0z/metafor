@@ -133,12 +133,16 @@ fn fs_main(
         mix(glowColor, highlightTint, 0.42) *
             fillHighlight * 0.32 * highlightEnergy +
         filmTint * reflectionBand * (0.18 + fresnel * 0.28);
+    // Material opacity controls the complete optical response. Highlights and
+    // the reflection band must not keep an inactive surface visually active.
     let alpha = clamp(
-        opacity * (0.045 + fresnel * 0.955) +
-        keyHighlight * 0.4 * highlightVisibility +
-        keySheen * 0.035 * highlightVisibility +
-        fillHighlight * 0.065 * highlightVisibility +
-        reflectionBand * 0.035,
+        opacity * (
+            0.045 + fresnel * 0.955 +
+            keyHighlight * 0.4 * highlightVisibility +
+            keySheen * 0.035 * highlightVisibility +
+            fillHighlight * 0.065 * highlightVisibility +
+            reflectionBand * 0.035
+        ),
         0.0,
         0.92
     );

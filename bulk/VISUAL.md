@@ -68,7 +68,7 @@ Bulk проявляет один полный runtime projection в два по�
   self-similar placement той же стратегии. Bulk не масштабирует прежние State
   offsets.
 - Активность State-sleeve задаёт opacity всей ветки. Неактивная ветка получает
-  единое package-owned значение `0.18`: его используют State-Torus, входящие и
+  единое package-owned значение `0.24`: его используют State-Torus, входящие и
   внутренние Transition-дуги, Process/Finally и прочие causal forms, а также
   все Field proxies и Relation-дуги этой ветки. Runtime-активность отдельного
   Process или Relation может менять glow внутри активной ветки, но не отменяет

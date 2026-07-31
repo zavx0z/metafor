@@ -47,16 +47,28 @@ const manifest = (): BulkManifest => ({
       darkParticleOrder: 0,
     },
   ],
-  fieldParticles: [{
-    fieldParticleId: "field/7",
-    fieldId: 7,
-    valueId: 7,
-    parentDarkParticleId: 4,
-    fieldKey: "ready",
-    fieldLabel: "Ready",
-    fieldParticleKind: "boolean",
-    valueText: "true",
-  }],
+  fieldParticles: [
+    {
+      fieldParticleId: "field/root/7",
+      fieldId: 7,
+      valueId: 7,
+      parentDarkParticleId: 2,
+      fieldKey: "ready",
+      fieldLabel: "Ready",
+      fieldParticleKind: "boolean",
+      valueText: "true",
+    },
+    {
+      fieldParticleId: "field/7",
+      fieldId: 7,
+      valueId: 7,
+      parentDarkParticleId: 4,
+      fieldKey: "ready",
+      fieldLabel: "Ready",
+      fieldParticleKind: "boolean",
+      valueText: "true",
+    },
+  ],
   orbitalParticles: [
     {
       orbitalParticleId: "atom/1/sleeve/11/state/11/path/root",
@@ -107,6 +119,14 @@ const manifest = (): BulkManifest => ({
       relatedStateIds: [13],
     },
   ],
+  fieldProxies: [{
+    fieldProxyId: "field-proxy/root/11/7",
+    fieldParticleId: "field/root/7",
+    fieldId: 7,
+    parentDarkParticleId: 2,
+    stateOrbitalParticleId:
+      "atom/1/sleeve/11/state/11/path/root",
+  }],
 })
 
 const layout = (): StateGraphRootLayout => ({
@@ -320,11 +340,13 @@ describe("outside-in Visual layout", () => {
     const childOuterRadius = childTorus.radius + childTorus.tube
     const childDistance = Math.hypot(childTorus.x, childTorus.y)
 
-    expect(rootInnerRadius).toBeCloseTo(5.56)
+    expect(rootInnerRadius).toBeCloseTo(19.25)
     expect(rootOuterRadius).toBeGreaterThanOrEqual(50)
     expect(childDistance - childOuterRadius)
       .toBeGreaterThanOrEqual(rootInnerRadius)
-    expect(scene.fields[0]).toMatchObject({
+    expect(scene.fields.find((field) =>
+      field.ownerDarkParticleId === 4
+    )).toMatchObject({
       fieldParticleIds: ["field/7"],
       ownerDarkParticleId: 4,
       x: childTorus.x,
@@ -340,6 +362,15 @@ describe("outside-in Visual layout", () => {
     expect(new Set(scene.stateSleeves.map((sleeve) =>
       sleeve.ownerAtomId
     ))).toEqual(new Set([1, 2]))
+    expect(scene.orbitals).toHaveLength(4)
+    expect(scene.fieldProxies).toHaveLength(1)
+    expect(scene.components.roots.every((root) =>
+      root.sleeves.every((sleeve) =>
+        sleeve.occurrences.every((occurrence) =>
+          occurrence.state !== null
+        )
+      )
+    )).toBe(true)
     const rootNodes = scene.stateSleeves
       .filter((sleeve) => sleeve.ownerDarkParticleId === 2)
       .flatMap((sleeve) => sleeve.layout.nodes)
@@ -439,6 +470,7 @@ describe("outside-in Visual layout", () => {
   test("uses the same Torus composition for Atom, Fuzzy, MACHO and Axion", () => {
     const source = manifest()
     source.orbitalParticles = []
+    source.fieldProxies = []
     const child = source.darkParticles[1]!
     source.darkParticles.push(
       {
@@ -497,6 +529,7 @@ describe("outside-in Visual layout", () => {
         darkParticles: [root],
         fieldParticles: fields,
         orbitalParticles: [],
+        fieldProxies: [],
       },
       owners: [],
     })
@@ -530,6 +563,7 @@ describe("outside-in Visual layout", () => {
         darkParticles: [root],
         fieldParticles: [],
         orbitalParticles: [],
+        fieldProxies: [],
       },
       owners: [],
     })

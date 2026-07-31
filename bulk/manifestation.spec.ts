@@ -137,6 +137,87 @@ describe("Boundary projection -> semantic Bulk manifestation", () => {
     )).toHaveLength(readyOccurrences.length)
   })
 
+  test("links each shared ordinary Field to its nearest ancestor occurrence", () => {
+    const projection = createProjection()
+    projection.wimps.push(
+      {src: "owner/child", name: "Child"},
+      {src: "owner/grandchild", name: "Grandchild"},
+    )
+    projection.fields.push(
+      {
+        id: 3,
+        wimp: "owner/child",
+        key: "childTitle",
+        type: "string",
+        label: "Child title",
+      },
+      {
+        id: 4,
+        wimp: "owner/grandchild",
+        key: "grandchildTitle",
+        type: "string",
+        label: "Grandchild title",
+      },
+    )
+    projection.atoms.push(
+      {
+        id: 18,
+        parentAtom: 17,
+        parentTopology: null,
+        wimp: "owner/child",
+        position: 0,
+      },
+      {
+        id: 19,
+        parentAtom: 18,
+        parentTopology: null,
+        wimp: "owner/grandchild",
+        position: 0,
+      },
+    )
+    projection.atomValues.push(
+      {atom: 17, field: 2, value: 7},
+      {atom: 18, field: 3, value: 7},
+      {atom: 19, field: 4, value: 7},
+    )
+    projection.values.push({
+      id: 7,
+      kind: "string",
+      booleanValue: null,
+      numberValue: null,
+      textValue: "shared",
+      enumValue: null,
+    })
+
+    const manifest = buildBulkManifestation(projection, SRC)
+    expect(manifest.relationChannels?.filter((channel) =>
+      channel.relationKind === "field-entanglement"
+    )).toEqual([
+      {
+        relationChannelId:
+          "entanglement/atom:17:field:2/to/atom:18:field:3",
+        parentDarkParticleId: 34,
+        relationKind: "field-entanglement",
+        fromKind: "field",
+        fromId: "atom:17:field:2",
+        toKind: "field",
+        toId: "atom:18:field:3",
+        active: true,
+      },
+      {
+        relationChannelId:
+          "entanglement/atom:18:field:3/to/atom:19:field:4",
+        parentDarkParticleId: 36,
+        relationKind: "field-entanglement",
+        fromKind: "field",
+        fromId: "atom:18:field:3",
+        toKind: "field",
+        toId: "atom:19:field:4",
+        active: true,
+      },
+    ])
+  })
+
   test("selects only the requested root and its descendants", () => {
     const projection = createProjection()
     projection.wimps.push(

@@ -482,6 +482,52 @@ export function buildBulkManifestation(
   const transitionChannels: BulkTransitionChannel[] = []
   const fieldProxies: BulkFieldProxy[] = []
   const relationChannels: BulkRelationChannel[] = []
+  const entangledFieldByOwnerValue = new Map<string, BulkFieldParticle>()
+  const ordinaryField = (field: BulkFieldParticle): boolean =>
+    field.valueId !== null &&
+    (
+      field.fieldParticleKind === "string" ||
+      field.fieldParticleKind === "number" ||
+      field.fieldParticleKind === "boolean"
+    )
+  const ownerValueKey = (owner: number, valueId: number): string =>
+    `${owner}\0${valueId}`
+  for (const field of manifest.fieldParticles) {
+    if (!ordinaryField(field) || field.valueId === null) continue
+    const key = ownerValueKey(field.parentDarkParticleId, field.valueId)
+    if (!entangledFieldByOwnerValue.has(key)) {
+      entangledFieldByOwnerValue.set(key, field)
+    }
+  }
+  for (const field of manifest.fieldParticles) {
+    if (!ordinaryField(field) || field.valueId === null) continue
+    let ancestorId =
+      darkParticleById.get(field.parentDarkParticleId)
+        ?.parentDarkParticleId ?? null
+    while (ancestorId !== null) {
+      const source = entangledFieldByOwnerValue.get(
+        ownerValueKey(ancestorId, field.valueId),
+      )
+      if (source) {
+        relationChannels.push({
+          relationChannelId:
+            `entanglement/${source.fieldParticleId}/to/${field.fieldParticleId}`,
+          parentDarkParticleId: source.parentDarkParticleId,
+          relationKind: "field-entanglement",
+          fromKind: "field",
+          fromId: source.fieldParticleId,
+          toKind: "field",
+          toId: field.fieldParticleId,
+          active:
+            darkParticleById.get(field.parentDarkParticleId)?.activity !==
+              "inactive",
+        })
+        break
+      }
+      ancestorId =
+        darkParticleById.get(ancestorId)?.parentDarkParticleId ?? null
+    }
+  }
 
   const materializeAtomSemantics = (boundaryAtom: AtomRecord): void => {
     const parentDarkParticleId = atomDarkParticleIdFromAtomId(boundaryAtom.id)

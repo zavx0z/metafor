@@ -1,42 +1,87 @@
 import {describe, expect, test} from "bun:test"
+import type {BulkObserverSnapshot} from "@metafor/types/bulk/initial"
+import {BulkProjectionStore} from "../../../bulk/projection.ts"
 import {VISUAL_INACTIVE_STATE_BRANCH_OPACITY} from "../VisualMaterialSpec.ts"
+import snapshotJson from "./fixture/monad-snapshot.json"
 import {buildStateGraphActivityStand} from "./StateGraphActivityLab.ts"
 
-describe("State Graph Activity playground stand", () => {
-  test("compares one exact production branch with activity as the only input", () => {
-    const stand = buildStateGraphActivityStand()
+const activityStand = () => {
+  const snapshot = snapshotJson as BulkObserverSnapshot
+  const store = new BulkProjectionStore()
+  store.hydrate(structuredClone(snapshot.projection))
+  const projection = store.view()
+  return {
+    projection,
+    rootSrc: snapshot.rootSrc,
+    stand: buildStateGraphActivityStand(projection, snapshot.rootSrc),
+  }
+}
 
-    expect(stand.active.projection).toEqual({
-      ...stand.inactive.projection,
-      atomStates: [{atom: 1, state: 21}],
+describe("State Graph Activity playground stand", () => {
+  test("compares one real multi-sleeve graph with and without its current State", () => {
+    const {projection, stand} = activityStand()
+    const rootAtom = projection.atoms.find((atom) =>
+      atom.wimp === stand.active.manifest.rootSrc &&
+      atom.parentAtom === null &&
+      atom.parentTopology === null
+    )
+    expect(rootAtom).toBeDefined()
+    const rootState = projection.atomStates.find((entry) =>
+      entry.atom === rootAtom!.id
+    )
+    expect(rootState?.state).not.toBeNull()
+
+    expect(stand.active.projection).toEqual(projection)
+    expect(stand.inactive.projection).toEqual({
+      ...projection,
+      atomStates: projection.atomStates.map((entry) =>
+        entry.atom === rootAtom!.id ? {...entry, state: null} : entry
+      ),
     })
-    expect(stand.active.manifest.orbitalParticles).toContainEqual(
+    const activeStates = (stand.active.manifest.orbitalParticles ?? []).filter(
+      (particle) => particle.orbitalParticleKind === "state",
+    )
+    const inactiveStates = (
+      stand.inactive.manifest.orbitalParticles ?? []
+    ).filter(
+      (particle) => particle.orbitalParticleKind === "state",
+    )
+    expect(activeStates).toHaveLength(13)
+    expect(inactiveStates).toHaveLength(13)
+    expect(
+      new Set(activeStates.map((state) => state.sleeveRootStateId)).size,
+    ).toBeGreaterThan(1)
+    expect(
+      [...new Set(
+        activeStates
+          .filter((state) => state.active)
+          .map((state) => state.sleeveRootStateId),
+      )],
+    ).toEqual([rootState!.state])
+    expect(
+      activeStates.filter((state) => state.current),
+    ).toEqual([
       expect.objectContaining({
         active: true,
-        current: true,
-        orbitalParticleKind: "state",
+        sourceId: rootState!.state,
+        sleeveRootStateId: rootState!.state,
       }),
-    )
-    expect(stand.inactive.manifest.orbitalParticles).toContainEqual(
-      expect.objectContaining({
-        active: false,
-        current: false,
-        orbitalParticleKind: "state",
-      }),
-    )
+    ])
+    expect(inactiveStates.every((state) =>
+      !state.active && !state.current
+    )).toBe(true)
+
     for (const scenario of [stand.active, stand.inactive]) {
       expect(scenario.manifest.darkParticles).toHaveLength(1)
-      expect(scenario.manifest.orbitalParticles?.filter((particle) =>
-        particle.orbitalParticleKind === "state"
-      )).toHaveLength(1)
-      expect(scenario.manifest.orbitalParticles?.filter((particle) =>
+      expect(scenario.manifest.fieldParticles).toHaveLength(21)
+      expect((scenario.manifest.orbitalParticles ?? []).filter((particle) =>
         particle.orbitalParticleKind === "process"
-      )).toHaveLength(1)
-      expect(scenario.manifest.transitionChannels).toHaveLength(1)
-      expect(scenario.manifest.fieldProxies).toHaveLength(3)
-      expect(scenario.visual.orbitalTori).toHaveLength(2)
-      expect(scenario.visual.transitionPaths).toHaveLength(1)
-      expect(scenario.visual.relationPaths).toHaveLength(5)
+      )).toHaveLength(7)
+      expect(scenario.manifest.transitionChannels).toHaveLength(14)
+      expect(scenario.manifest.fieldProxies).toHaveLength(160)
+      expect(scenario.visual.orbitalTori).toHaveLength(20)
+      expect(scenario.visual.transitionPaths).toHaveLength(14)
+      expect(scenario.visual.relationPaths).toHaveLength(331)
     }
 
     const geometry = (scenario: typeof stand.active) => ({
@@ -60,22 +105,22 @@ describe("State Graph Activity playground stand", () => {
     expect(geometry(stand.active)).toEqual(geometry(stand.inactive))
   })
 
-  test("assigns one opacity to every component of the inactive branch", () => {
-    const {active, inactive} = buildStateGraphActivityStand()
+  test("dims sibling sleeves and every component when current State is absent", () => {
+    const {stand: {active, inactive}} = activityStand()
     const inactiveOpacity = VISUAL_INACTIVE_STATE_BRANCH_OPACITY
 
-    expect(active.visual.orbitalMaterials.every((entry) =>
-      entry.material.opacity > inactiveOpacity
-    )).toBe(true)
-    expect(active.visual.fieldProxyMaterials.every((entry) =>
-      entry.material.opacity > inactiveOpacity
-    )).toBe(true)
-    expect(active.visual.transitionPaths.every((path) =>
-      path.material.opacity === 1
-    )).toBe(true)
-    expect(active.visual.relationPaths.every((path) =>
-      path.material.opacity === 1
-    )).toBe(true)
+    for (const materials of [
+      active.visual.orbitalMaterials.map((entry) => entry.material.opacity),
+      active.visual.fieldProxyMaterials.map((entry) =>
+        entry.material.opacity
+      ),
+      active.visual.transitionPaths.map((path) => path.material.opacity),
+      active.visual.relationPaths.map((path) => path.material.opacity),
+    ]) {
+      expect(materials.some((opacity) => opacity > inactiveOpacity)).toBe(true)
+      expect(materials.some((opacity) => opacity === inactiveOpacity))
+        .toBe(true)
+    }
 
     for (const opacity of [
       ...inactive.visual.orbitalMaterials.map((entry) =>

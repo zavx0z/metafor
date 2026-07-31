@@ -116,7 +116,7 @@ describe("centered-nested Bulk Visual projection", () => {
     expect(manifest.orbitalParticles).toHaveLength(193)
     expect(manifest.transitionChannels).toHaveLength(165)
     expect(manifest.fieldProxies).toHaveLength(864)
-    expect(manifest.relationChannels).toHaveLength(1902)
+    expect(manifest.relationChannels).toHaveLength(1928)
     expect(visual.manifest.darkParticles).toHaveLength(5)
     expect(visual.manifest.fieldParticles).toHaveLength(28)
     expect(visual.manifest.orbitalParticles).toHaveLength(193)
@@ -165,9 +165,12 @@ describe("centered-nested Bulk Visual projection", () => {
     ))).toEqual(new Set(manifest.transitionChannels?.map((channel) =>
       channel.transitionChannelId
     )))
+    const renderedSourceRelations = (manifest.relationChannels ?? []).filter(
+      (channel) => channel.relationKind !== "field-entanglement",
+    )
     expect(new Set(visual.manifest.relationChannels?.map((channel) =>
       channel.relationChannelId
-    ))).toEqual(new Set(manifest.relationChannels?.map((channel) =>
+    ))).toEqual(new Set(renderedSourceRelations.map((channel) =>
       channel.relationChannelId
     )))
     expect(visual.manifest.transitionChannels.map((channel) =>
@@ -198,7 +201,7 @@ describe("centered-nested Bulk Visual projection", () => {
     expect(visual.manifest.relationChannels.map((channel) =>
       withoutKeys(channel, new Set(["colorR", "colorG", "colorB"]))
     )).toEqual(
-      (manifest.relationChannels ?? []).map((channel) => ({
+      renderedSourceRelations.map((channel) => ({
         ...channel,
         fromId: channel.fromKind === "field"
           ? visualFieldId(channel.fromId)
@@ -210,11 +213,11 @@ describe("centered-nested Bulk Visual projection", () => {
     )
     for (
       let index = 0;
-      index < (manifest.relationChannels?.length ?? 0);
+      index < renderedSourceRelations.length;
       index++
     ) {
       expect(visual.manifest.relationChannels![index])
-        .not.toBe(manifest.relationChannels![index])
+        .not.toBe(renderedSourceRelations[index])
     }
     const sourceDarkById = new Map(manifest.darkParticles.map((particle) =>
       [particle.darkParticleId, particle] as const

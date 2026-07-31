@@ -454,7 +454,10 @@ const rootStateGraphFieldsStand = (): StateGraphFieldsStand => {
 }
 
 const stateGraphActivityLab = (): Promise<StateGraphActivityLab> => {
-  stateGraphActivityLabPromise ??= createStateGraphActivityLab()
+  stateGraphActivityLabPromise ??= createStateGraphActivityLab(
+    projection.view(),
+    snapshot.rootSrc,
+  )
   return stateGraphActivityLabPromise
 }
 
@@ -520,6 +523,7 @@ const renderSnapshotLayout = async (
     canvas: layoutCanvas,
     height: Math.max(1, Math.floor(rect.height)),
     scene,
+    showLabels: labels.checked,
     width: Math.max(1, Math.floor(rect.width)),
   })
   if (

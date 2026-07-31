@@ -9,6 +9,18 @@ describe("thin-film shader WebGPU pipeline", () => {
     device = await setupDevice()
   })
 
+  test("applies material opacity to highlights and reflection", () => {
+    expect(thinFilmShaderCode).toContain(
+      `opacity * (
+            0.045 + fresnel * 0.955 +
+            keyHighlight * 0.4 * highlightVisibility +
+            keySheen * 0.035 * highlightVisibility +
+            fillHighlight * 0.065 * highlightVisibility +
+            reflectionBand * 0.035
+        )`,
+    )
+  })
+
   test("compiles the one-pass transparent mesh pipeline", async () => {
     const globalBindGroupLayout = device.createBindGroupLayout({
       entries: [

@@ -55,8 +55,12 @@
         grid-template-columns: 220px minmax(0, 1fr);
       }
 
-      main.layout-mode #visual-visibility-controls {
+      main.layout-mode #visual-visibility-controls label {
         display: none;
+      }
+
+      main.layout-mode #visual-visibility-controls label:has(#labels) {
+        display: flex;
       }
 
       main.fields-analysis-mode {
@@ -2184,11 +2188,11 @@
         <section id="state-graph-activity-stage" hidden>
           <article class="state-activity-card active">
             <header>
-              <h2>Активная</h2>
-              <span class="state-activity-opacity">branch · normal</span>
+              <h2>Текущее состояние</h2>
+              <span class="state-activity-opacity">1 active sleeve</span>
               <p>
-                State, Process, внутренние Fields, Transition и Relation
-                отображаются своими обычными production-материалами.
+                Реальный корневой граф lada: активен только рукав текущего
+                State, остальные рукава сохраняют геометрию и затухают.
               </p>
             </header>
             <section class="state-activity-viewer">
@@ -2200,11 +2204,11 @@
           </article>
           <article class="state-activity-card inactive">
             <header>
-              <h2>Неактивная</h2>
-              <span class="state-activity-opacity">branch · 0.18</span>
+              <h2>Без текущего состояния</h2>
+              <span class="state-activity-opacity">all sleeves · 0.24</span>
               <p>
-                Та же геометрия и тот же состав ветки. Вся ветка получает
-                единую прозрачность 0.18, равную неактивным дугам.
+                Тот же граф без current State: все рукава, их Process,
+                Field proxies, Transition и Relation имеют opacity 0.24.
               </p>
             </header>
             <section class="state-activity-viewer">

@@ -25,7 +25,7 @@ const freezeRgb = (color: VisualRgb): VisualRgb =>
 const freezeRgba = (color: VisualRgba): VisualRgba =>
   Object.freeze([...color]) as VisualRgba
 
-export const VISUAL_INACTIVE_STATE_BRANCH_OPACITY = 0.18
+export const VISUAL_INACTIVE_STATE_BRANCH_OPACITY = 0.24
 
 const stateBranchOpacity = (
   active: boolean,

@@ -3,11 +3,16 @@ import {
   BufferGeometry,
   Color,
   LineSegments,
+  Matrix4,
   Mesh,
+  Object3D,
   Renderer,
   Space,
   SphereGeometry,
+  Text,
+  TextMaterial,
   TorusGeometry,
+  TrueTypeFont,
   Vector3,
   ViewPoint,
 } from "@metafor/engine"
@@ -31,6 +36,7 @@ import type {
 
 const BACKGROUND = new Color(0.012, 0.03, 0.05)
 const FRAME_PADDING = 1.3
+const LABEL_FONT_SIZE_TO_SCENE_RADIUS = 0.03
 
 export type VisualSceneView =
   | "back"
@@ -62,6 +68,7 @@ export type CreateVisualSceneViewportOptions = Readonly<{
   canvas: HTMLCanvasElement
   height: number
   scene: VisualScene
+  showLabels?: boolean
   width: number
 }>
 
@@ -99,7 +106,18 @@ export type VisualSceneRenderLineBatch = Readonly<{
   paths: readonly VisualSceneRenderPath[]
 }>
 
+export type VisualSceneRenderLabel = Readonly<{
+  color: readonly [number, number, number]
+  id: string
+  outerRadius: number
+  text: string
+  x: number
+  y: number
+  z: number
+}>
+
 export type VisualSceneRenderPlan = Readonly<{
+  labels: readonly VisualSceneRenderLabel[]
   lineBatches: readonly VisualSceneRenderLineBatch[]
   meshes: readonly VisualSceneRenderMesh[]
 }>
@@ -163,6 +181,20 @@ const renderPath = (
 export const buildVisualSceneRenderPlan = (
   scene: VisualScene,
 ): VisualSceneRenderPlan => {
+  const labels = scene.tori.flatMap((torus) =>
+    torus.src === null
+      ? []
+      : [Object.freeze({
+          color: Object.freeze([...torus.color]) as
+            readonly [number, number, number],
+          id: `dark-label:${torus.darkParticleId}`,
+          outerRadius: torus.radius + torus.tube,
+          text: torus.src,
+          x: torus.x,
+          y: torus.y,
+          z: torus.z,
+        })]
+  )
   const meshes = [
     ...scene.tori.map((torus) => renderMesh({
       form: {
@@ -229,6 +261,7 @@ export const buildVisualSceneRenderPlan = (
     })),
   ]
   return Object.freeze({
+    labels: Object.freeze(labels),
     lineBatches: Object.freeze(lineBatches),
     meshes: Object.freeze(meshes),
   })
@@ -383,10 +416,79 @@ const fitPlan = (
   }
 }
 
+type LabelTracker = Readonly<{
+  anchor: Vector3
+  container: Object3D
+  offset: number
+}>
+
+const textCenter = (text: Text): Readonly<{x: number; y: number}> => {
+  const positions = text.coverGeometry.attributes.position?.array
+  if (!positions || positions.length < 3) return {x: 0, y: 0}
+  let minX = Number.POSITIVE_INFINITY
+  let maxX = Number.NEGATIVE_INFINITY
+  let minY = Number.POSITIVE_INFINITY
+  let maxY = Number.NEGATIVE_INFINITY
+  for (let index = 0; index < positions.length; index += 3) {
+    const x = Number(positions[index])
+    const y = Number(positions[index + 1])
+    if (!Number.isFinite(x) || !Number.isFinite(y)) continue
+    minX = Math.min(minX, x)
+    maxX = Math.max(maxX, x)
+    minY = Math.min(minY, y)
+    maxY = Math.max(maxY, y)
+  }
+  if (![minX, maxX, minY, maxY].every(Number.isFinite)) {
+    return {x: 0, y: 0}
+  }
+  return {x: (minX + maxX) / 2, y: (minY + maxY) / 2}
+}
+
+const labelColor = (
+  color: readonly [number, number, number],
+): Color => new Color(
+  0.55 + color[0] * 0.45,
+  0.55 + color[1] * 0.45,
+  0.55 + color[2] * 0.45,
+)
+
+const addLabel = (
+  space: Space,
+  font: TrueTypeFont,
+  record: VisualSceneRenderLabel,
+  fontSize: number,
+): LabelTracker => {
+  const text = new Text(
+    record.text,
+    font,
+    fontSize,
+    new TextMaterial({
+      color: labelColor(record.color),
+      opacity: 1,
+      depthWrite: false,
+    }),
+  )
+  const center = textCenter(text)
+  text.position.set(-center.x, -center.y, 0)
+  text.frustumCulled = false
+  text.updateMatrix()
+  const container = new Object3D()
+  container.frustumCulled = false
+  container.add(text)
+  container.updateMatrix()
+  space.add(container)
+  return {
+    anchor: new Vector3(record.x, record.y, record.z),
+    container,
+    offset: record.outerRadius + fontSize * 0.75,
+  }
+}
+
 export const createVisualSceneViewport = async ({
   canvas,
   height,
   scene,
+  showLabels = true,
   width,
 }: CreateVisualSceneViewportOptions): Promise<VisualSceneViewport> => {
   const plan = buildVisualSceneRenderPlan(scene)
@@ -450,12 +552,67 @@ export const createVisualSceneViewport = async ({
   viewPoint.setAspectRatio(width / Math.max(1, height))
   viewPoint.update()
 
+  const labels: LabelTracker[] = []
+  const labelFontSize = fit.radius * LABEL_FONT_SIZE_TO_SCENE_RADIUS
+  if (showLabels && plan.labels.length > 0) {
+    const font = await TrueTypeFont.fromUrl(
+      "/engine-static/JetBrainsMono-Bold.ttf",
+    )
+    labels.push(...plan.labels.map((label) =>
+      addLabel(space, font, label, labelFontSize)
+    ))
+  }
+  const labelBasis = new Matrix4()
+  const labelNormal = new Vector3()
+  const labelRight = new Vector3()
+  const labelUp = new Vector3()
+  const labelOffset = new Vector3()
+  const updateLabels = (): void => {
+    for (const label of labels) {
+      labelNormal.copy(viewPoint.position).sub(label.anchor)
+      if (labelNormal.length() < 1e-6) labelNormal.set(0, 0, 1)
+      else labelNormal.normalize()
+      labelUp.copy(viewPoint.getUp()).normalize()
+      labelRight.crossVectors(labelUp, labelNormal)
+      if (labelRight.length() < 1e-6) {
+        labelUp.set(0, 1, 0)
+        labelRight.crossVectors(labelUp, labelNormal)
+      }
+      labelRight.normalize()
+      labelUp.crossVectors(labelNormal, labelRight).normalize()
+      label.container.position
+        .copy(label.anchor)
+        .add(labelOffset.copy(labelUp).multiplyScalar(label.offset))
+        .add(labelOffset.copy(labelNormal).multiplyScalar(labelFontSize * 0.2))
+      const elements = labelBasis.elements
+      elements[0] = labelRight.x
+      elements[1] = labelRight.y
+      elements[2] = labelRight.z
+      elements[3] = 0
+      elements[4] = labelUp.x
+      elements[5] = labelUp.y
+      elements[6] = labelUp.z
+      elements[7] = 0
+      elements[8] = labelNormal.x
+      elements[9] = labelNormal.y
+      elements[10] = labelNormal.z
+      elements[11] = 0
+      elements[12] = 0
+      elements[13] = 0
+      elements[14] = 0
+      elements[15] = 1
+      label.container.quaternion.setFromRotationMatrix(labelBasis)
+      label.container.updateMatrix()
+    }
+  }
+
   let disposed = false
   let frame = 0
   let dragging = false
   const render = (): void => {
     frame = 0
     if (disposed) return
+    updateLabels()
     space.updateWorldMatrix()
     renderer.render(space, viewPoint)
   }
