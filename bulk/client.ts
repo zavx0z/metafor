@@ -4,7 +4,7 @@ import {
 	isBulkViewportCaptureControlRequest,
 	type BulkViewportCaptureControlResponse,
 } from "@metafor/types/bulk/capture"
-import type {BulkInitialPackage, BulkObserverSnapshot} from "@metafor/types/bulk/initial"
+import type {BulkCausalFrontier, BulkObserverSnapshot} from "@metafor/types/bulk/initial"
 import { Force } from "shared/transport/force"
 import {
 	createBulkViewport,
@@ -20,6 +20,9 @@ import {BulkPresentedSnapshot} from "./web/observer-snapshot.ts"
 import {
 	BulkVisualScenePresenter,
 } from "./visual-viewport.ts"
+import {resolveBulkVisualLayout} from "./visual-layout.ts"
+import {isVisualPreparedScene} from "@metafor/visual/layout/centered-nested"
+import type {BulkInitialScene} from "./visual-initial.ts"
 
 const bulkCanvas = document.getElementById("bulk-canvas") as HTMLCanvasElement | null
 if (bulkCanvas === null) throw new Error("bulk-canvas not found")
@@ -29,6 +32,7 @@ const projection = new BulkProjectionStore()
 const presenter = new BulkVisualScenePresenter()
 let activeSrc = DEFAULT_BULK_SCENE_SRC
 let throughTs: number | null = null
+let frontier: BulkCausalFrontier | null = null
 const presentedSnapshot = new BulkPresentedSnapshot()
 
 const observerSnapshot = (): BulkObserverSnapshot => ({
@@ -108,10 +112,14 @@ const receiveImpulse = (forceMessage: Parameters<Force["onImpulse"]>[0]): void =
 	presentedSnapshot.stage(observerSnapshot)
 }
 
-const readInitialPackage = async (): Promise<BulkInitialPackage> => {
+const readInitialPackage = async (): Promise<BulkInitialScene> => {
 	const response = await fetch("/initial", {method: "POST"})
 	if (!response.ok) throw new Error(`Bulk initial package failed: ${response.status} ${await response.text()}`)
-	return await response.json() as BulkInitialPackage
+	const initial = await response.json() as BulkInitialScene
+	if (!isVisualPreparedScene(initial.visual)) {
+		throw new Error("Bulk initial package carries no prepared visual state")
+	}
+	return initial
 }
 
 const start = async (): Promise<void> => {
@@ -120,14 +128,14 @@ const start = async (): Promise<void> => {
 	projection.hydrate(initial.projection)
 	activeSrc = initial.rootSrc
 	throughTs = initial.throughTs
+	frontier = initial.frontier
 	if (!bulkViewport) throw new Error("Bulk viewport is not initialized")
 	installBulkHud({viewport: bulkViewport})
-	presenter.apply(
-		bulkViewport,
-		initial.manifest,
-		projection.view(),
-		{changed: true, structural: true},
-	)
+	// The server already ran the selected strategy. Hydration presents that
+	// geometry as-is; no layout strategy runs in this browser on the initial
+	// path, which `visualLayoutBuiltScenes()` proves in the spec.
+	presenter.selectLayout(resolveBulkVisualLayout(initial.visual.layoutSlug))
+	presenter.hydrate(bulkViewport, initial.manifest, initial.visual.payload)
 	presentedSnapshot.stage(observerSnapshot)
 
 	const observerId = `bulk-web-${crypto.randomUUID()}`

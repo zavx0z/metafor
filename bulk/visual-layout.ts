@@ -25,6 +25,8 @@ import {
   CenteredNested,
   buildStateGraph,
   buildVisualScenePayload,
+  visualLayoutForSlug,
+  visualRegisteredLayoutSlugs,
   visualOwnerDarkParticleIdFromAtomId,
   type VisualLayout,
   type VisualLayoutSlug,
@@ -58,18 +60,44 @@ const _slugParity: AssertSlugParity = true
 void _slugParity
 
 /**
- * Bulk's production strategy.
+ * Bulk's default strategy when an initial input names none.
  *
- * Bulk depends on the side-effect-free `centered-nested` entrypoint rather than
- * the catalog, so the in-progress `outside-in` implementation never reaches a
- * production browser bundle. Any other strategy is supplied explicitly by the
- * caller through the same `VisualLayout` contract — that is how the playground
- * drives both strategies without Bulk resolving slugs itself.
+ * `centered-nested` stays the default. Any other strategy is reached by slug
+ * through {@link resolveBulkVisualLayout}, never by a geometry switch here:
+ * Bulk selects a strategy, it does not know what one places.
  */
 export const DEFAULT_BULK_VISUAL_LAYOUT: VisualLayout = CenteredNested
 
 export const DEFAULT_BULK_VISUAL_LAYOUT_SLUG: BulkVisualLayoutSlug =
   CenteredNested.slug
+
+/**
+ * Resolves one declarative strategy reference.
+ *
+ * This is the single production selection point. A caller — the server building
+ * initial state, a browser hydrating it, the playground comparing strategies —
+ * passes the slug it was configured with and gets back the one contract every
+ * strategy implements. An unknown slug fails here rather than silently falling
+ * back to the default, because a scene laid out by the wrong strategy is not a
+ * degraded scene, it is a different one.
+ *
+ * Resolution answers from the strategies this bundle actually ships. Bulk never
+ * imports the catalog, so its browser build carries only the ready strategy and
+ * says so plainly when asked for one it does not have.
+ */
+export const resolveBulkVisualLayout = (
+  slug: BulkVisualLayoutSlug,
+): VisualLayout => {
+  const layout = visualLayoutForSlug(slug)
+  if (!layout) {
+    throw new Error(
+      `Bulk Visual layout ${slug} is not shipped by this build (has ${
+        visualRegisteredLayoutSlugs().join(", ") || "no strategy"
+      })`,
+    )
+  }
+  return layout
+}
 
 const exactIndex = <Key, Value>(
   entries: readonly Value[],

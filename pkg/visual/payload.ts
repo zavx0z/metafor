@@ -38,7 +38,21 @@ export {
 export {Visual, visualLayoutForSlug} from "./Visual.ts"
 export {CenteredNested} from "./CenteredNested.ts"
 export {OutsideIn} from "./OutsideIn.ts"
-export {visualOwnerDarkParticleIdFromAtomId} from "./internal/layout.ts"
+export {
+  describeVisualPreparedScene,
+  isLaterVisualFrontier,
+  isVisualPreparedScene,
+  prepareVisualScene,
+  visualDependencyKey,
+  visualPayloadKey,
+  type VisualCausalFrontier,
+  type VisualPreparationKeys,
+  type VisualPreparedScene,
+} from "./ScenePreparation.ts"
+export {
+  visualLayoutBuiltScenes,
+  visualOwnerDarkParticleIdFromAtomId,
+} from "./internal/layout.ts"
 export type {
   VisualLayout,
   VisualLayoutInput,

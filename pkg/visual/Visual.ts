@@ -8,7 +8,13 @@ export const Visual = Object.freeze([
   CenteredNested,
 ]) satisfies readonly VisualLayout[]
 
-export const visualLayoutForSlug = (
-  slug: string,
-): VisualLayout | undefined =>
-  Visual.find((layout) => layout.slug === slug)
+/**
+ * Slug resolution for a consumer that ships the whole catalog.
+ *
+ * The resolver lives with the strategy contract and answers from the strategies
+ * that have actually been defined, so importing this module is exactly what
+ * makes both of them resolvable. A consumer that ships only `centered-nested`
+ * reaches the same function through its own entrypoint and resolves only what
+ * it carries.
+ */
+export {visualLayoutForSlug} from "./internal/layout.ts"

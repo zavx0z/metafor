@@ -131,8 +131,28 @@ export class BulkProjectionStore {
   readonly childrenByParent = new Map<string, Set<string>>()
   readonly atomIdsByWimp = new Map<string, Set<number>>()
   private nextValueId = 1
+  #revision = 0
+
+  /**
+   * Monotonic count of applied changes.
+   *
+   * A cache key over prepared visual state needs to name the exact source cut
+   * it was derived from, and no upstream field does that: a Particle timestamp
+   * is authored wall-clock, and the projection maps carry no version. This
+   * counter advances once per change this store actually accepted, so two
+   * preparations sharing a revision were built from the same projection.
+   */
+  get revision(): number {
+    return this.#revision
+  }
 
   apply(part: Particle): BulkProjectionChange {
+    const change = this.applyPart(part)
+    if (change.changed) this.#revision += 1
+    return change
+  }
+
+  private applyPart(part: Particle): BulkProjectionChange {
     if (part.part === "gluon") return this.applyGluon(part)
     if (part.part === "photon") return this.applyPhoton(part)
     if (part.part !== "graviton") return {changed: false, affectedAtomIds: [], structural: false}
@@ -179,10 +199,11 @@ export class BulkProjectionStore {
         }
       }
     }
-    return {runtime: clone(this.view()), declarations}
+    return {runtime: clone(this.view()), declarations, revision: this.#revision}
   }
 
   hydrate(snapshot: BulkProjectionSnapshot): void {
+    this.#revision = snapshot.revision ?? 0
     this.atoms.clear()
     this.topologies.clear()
     this.wimps.clear()

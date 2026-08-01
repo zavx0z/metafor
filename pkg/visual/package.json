@@ -17,6 +17,7 @@
     "payload.ts",
     "QuantumFilm.ts",
     "ScenePayload.ts",
+    "ScenePreparation.ts",
     "SceneReconciler.ts",
     "SemanticVisual.ts",
     "README.md",

@@ -38,6 +38,10 @@ const EMPTY_PROJECTION: BulkProjectionSnapshot = {
     matterChildWimpBindingPaths: [],
   },
   declarations: [],
+  // A hand-built cut has applied nothing, so its revision line starts at zero.
+  // A store that hydrates this snapshot reports the same, which is what makes
+  // the round-trip below an equality rather than an approximation.
+  revision: 0,
 }
 
 class Client implements BulkViewportObserverClient {

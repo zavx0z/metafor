@@ -7,7 +7,7 @@ import {
   type BoundaryInitialProjectionEntry,
 } from "@metafor/types/boundary/initial"
 import {BULK_VIEWPORT_CAPTURE_METHOD} from "@metafor/types/bulk/capture"
-import type {BulkInitialPackage} from "@metafor/types/bulk/initial"
+import type {BulkCausalFrontier} from "@metafor/types/bulk/initial"
 import type {BulkRootPromotionReceipt} from "@metafor/types/bulk/manifest"
 import type {BulkRuntimeProjection} from "@metafor/types/bulk/runtime"
 import type {ForceMessage} from "shared/protocol/force/message"
@@ -16,6 +16,8 @@ import {DEFAULT_BULK_SCENE_SRC} from "./settings.ts"
 import {BulkProjectionStore} from "./projection.ts"
 import {observedRootSrc} from "./web/force-protocol.ts"
 import {buildBulkManifestation} from "./manifestation.ts"
+import {forceCheckpointSideband} from "shared/transport/force/checkpoint"
+import {type BulkInitialScene, prepareBulkInitialVisual} from "./visual-initial.ts"
 import {
   MF117_BULK_PREFLIGHT_METHOD,
   MF117_BULK_PROMOTE_METHOD,
@@ -305,20 +307,41 @@ export class BulkMonad {
     this.#throughTs = part.ts
   }
 
-  openObserver(session: string): BulkInitialPackage {
+  /**
+   * The causal cut this runtime has finished applying.
+   *
+   * Read from the checkpoint sideband rather than tracked here, because that is
+   * where a delivery is actually accepted. `null` before a checkpoint session
+   * opens, which is the only case where an observer cannot later reconnect by
+   * frontier.
+   */
+  frontier(): BulkCausalFrontier | null {
+    const applied = forceCheckpointSideband("bulk")?.frontier()
+    if (!applied) return null
+    return {acceptanceSequence: applied.acceptanceSequence, cutId: applied.cutId}
+  }
+
+  openObserver(session: string): BulkInitialScene {
     if (this.#state !== "ready") throw new Error(`Bulk observer cannot open: runtime is not ready (${this.#state})`)
     const projection = this.#projection.snapshot()
+    const manifest = buildBulkManifestation(
+      projection.runtime,
+      this.#promotionReceipt?.removedRootSrc ?? this.#activeSrc,
+      this.#promotionReceipt,
+    )
+    const frontier = this.frontier()
     return {
       version: 1,
       session,
       throughTs: this.#throughTs,
+      frontier,
       rootSrc: this.#activeSrc,
       projection,
-      manifest: buildBulkManifestation(
-        projection.runtime,
-        this.#promotionReceipt?.removedRootSrc ?? this.#activeSrc,
-        this.#promotionReceipt,
-      ),
+      manifest,
+      visual: prepareBulkInitialVisual(manifest, projection.runtime, {
+        frontier,
+        sourceRevision: `bulk:${this.#activeSrc}:${projection.revision}`,
+      }),
     }
   }
 

@@ -24,6 +24,21 @@ export type ForceCheckpointSession = {
   acceptedOutgoingOrdinal: number
 }
 
+/**
+ * The causal cut a domain has actually applied.
+ *
+ * `acceptanceSequence` is Dark's monotonic acceptance ordinal for the last
+ * delivery this domain finished handling — not an authored `Particle.ts`, which
+ * is a wall-clock stamp and orders nothing. A consumer that resumes from this
+ * pair asks for exactly the deliveries it has not seen.
+ */
+export type ForceCheckpointFrontier = {
+  acceptanceSequence: number
+  cutId: string
+  deliveredOrdinal: number
+  domain: CheckpointForceDomain
+}
+
 type PendingDelivery = {
   receipt: ForceCheckpointDeliveryReceipt
   applied: Promise<void>
@@ -85,6 +100,8 @@ export class ForceCheckpointDomainSideband {
   #preparedOrdinal = 0
   #deliveredOrdinal = 0
   #outgoingOrdinal = 0
+  #appliedOrdinal = 0
+  #appliedAcceptanceSequence = 0
   #prepared: PendingDelivery[] = []
   #deliveries = new Map<number, PendingDelivery>()
   #drain: () => Promise<void> = async () => {}
@@ -121,6 +138,7 @@ export class ForceCheckpointDomainSideband {
     this.#preparedOrdinal = input.deliveredOrdinal
     this.#deliveredOrdinal = input.deliveredOrdinal
     this.#outgoingOrdinal = input.acceptedOutgoingOrdinal
+    this.#appliedOrdinal = input.deliveredOrdinal
     return {
       cutId: input.cutId,
       domain: this.domain,
@@ -143,6 +161,21 @@ export class ForceCheckpointDomainSideband {
     return this.#outgoingOrdinal
   }
 
+  /**
+   * The causal cut this domain has finished applying, or `null` before the
+   * session opens. A resuming consumer compares its own pair against this one
+   * instead of against an authored timestamp.
+   */
+  frontier(): ForceCheckpointFrontier | null {
+    if (!this.#cutId) return null
+    return {
+      acceptanceSequence: this.#appliedAcceptanceSequence,
+      cutId: this.#cutId,
+      deliveredOrdinal: this.#appliedOrdinal,
+      domain: this.domain,
+    }
+  }
+
   async processIncoming(
     message: ForceMessage,
     handler: (message: ForceMessage) => void | Promise<void>,
@@ -152,6 +185,8 @@ export class ForceCheckpointDomainSideband {
     try {
       await handler(message)
       await this.waitOutgoingAccepted()
+      this.#appliedOrdinal = pending.receipt.sentOrdinal
+      this.#appliedAcceptanceSequence = pending.receipt.acceptanceSequence
       pending.resolve()
     } catch (error) {
       pending.reject(error)

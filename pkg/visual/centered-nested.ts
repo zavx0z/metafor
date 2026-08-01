@@ -43,6 +43,17 @@ export {
 } from "./CenteredNested.ts"
 export {buildStateGraph} from "./StateGraph.ts"
 export {
+  describeVisualPreparedScene,
+  isLaterVisualFrontier,
+  isVisualPreparedScene,
+  prepareVisualScene,
+  visualDependencyKey,
+  visualPayloadKey,
+  type VisualCausalFrontier,
+  type VisualPreparationKeys,
+  type VisualPreparedScene,
+} from "./ScenePreparation.ts"
+export {
   buildHermiteEdgePath,
   HERMITE_EDGE_SEGMENTS,
 } from "./HermiteEdge.ts"
@@ -78,7 +89,10 @@ export {
   TORUS_LAYOUT_BASELINE,
 } from "./Torus.ts"
 export {
+  visualLayoutBuiltScenes,
+  visualLayoutForSlug,
   visualOwnerDarkParticleIdFromAtomId,
+  visualRegisteredLayoutSlugs,
 } from "./internal/layout.ts"
 export type {
   VisualFieldPlacement,

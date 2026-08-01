@@ -83,6 +83,22 @@ export const visualBatchFingerprint = (
   return hash.digest()
 }
 
+/**
+ * Content digest of an ordered list of already-stringified parts.
+ *
+ * Used for cache and validity keys, where the inputs are identities and scalar
+ * values rather than coordinate buffers. Order is significant, and each part is
+ * length-prefixed, so no concatenation of different parts can collide.
+ */
+export const visualPreparationDigest = (
+  parts: readonly string[],
+): string => {
+  const hash = new Fingerprint()
+  hash.number(parts.length)
+  for (const part of parts) hash.text(part)
+  return hash.digest()
+}
+
 /** Value equality for one quantum material spec. */
 export const sameVisualQuantumMaterial = (
   left: VisualQuantumMaterial,

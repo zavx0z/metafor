@@ -159,9 +159,49 @@ export type VisualLayout = Readonly<{
   status: VisualLayoutStatus
 }>
 
+let builtScenes = 0
+
+/**
+ * How many times any named strategy has actually run its placement law.
+ *
+ * Every strategy reaches a consumer through `defineVisualLayout`, so this is the
+ * one honest answer to "did this path lay the scene out itself?". A consumer
+ * that only hydrates prepared geometry must leave the counter untouched, and a
+ * test can assert exactly that instead of trusting a comment.
+ */
+export const visualLayoutBuiltScenes = (): number => builtScenes
+
+const registry = new Map<string, VisualLayout>()
+
+/**
+ * Resolves one declarative strategy reference against what this bundle ships.
+ *
+ * A strategy registers itself by being defined, so the answer depends on the
+ * module graph a consumer actually imported, not on a catalog module that would
+ * pull every strategy in behind it. That is what lets a production consumer
+ * select a strategy by slug while still shipping only the ready one.
+ */
+export const visualLayoutForSlug = (
+  slug: string,
+): VisualLayout | undefined => registry.get(slug)
+
+/** Slugs this bundle can resolve, for a diagnostic that names the alternatives. */
+export const visualRegisteredLayoutSlugs = (): readonly string[] =>
+  [...registry.keys()].sort()
+
 export const defineVisualLayout = (
   layout: VisualLayout,
-): VisualLayout => Object.freeze({...layout})
+): VisualLayout => {
+  const defined: VisualLayout = Object.freeze({
+    ...layout,
+    buildScene: (input: VisualLayoutInput): VisualScene => {
+      builtScenes++
+      return layout.buildScene(input)
+    },
+  })
+  registry.set(defined.slug, defined)
+  return defined
+}
 
 const freezeTuple = (
   color: readonly [number, number, number],

@@ -90,6 +90,7 @@ export {
   type VisualQuantumMaterial,
 } from "./VisualMaterialSpec.ts"
 export {
+  visualLayoutBuiltScenes,
   visualOwnerDarkParticleIdFromAtomId,
 } from "./internal/layout.ts"
 export type {
