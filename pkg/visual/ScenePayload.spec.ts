@@ -328,13 +328,13 @@ describe("Visual scene payload contract", () => {
     expect(moved.length).toBeGreaterThan(0)
   })
 
-  test("namespaces synthetic Field identities per strategy and occurrence set", () => {
-    expect(visualPayloadFieldParticleId("centered-nested", ["a", "b"]))
-      .not.toBe(visualPayloadFieldParticleId("outside-in", ["a", "b"]))
-    expect(visualPayloadFieldParticleId("centered-nested", ["ab", "c"]))
-      .not.toBe(visualPayloadFieldParticleId("centered-nested", ["a", "bc"]))
-    expect(visualPayloadFieldParticleId("centered-nested", ["a"]))
-      .toBe(visualPayloadFieldParticleId("centered-nested", ["a"]))
+  test("namespaces synthetic Field identities per strategy and anchor", () => {
+    expect(visualPayloadFieldParticleId("centered-nested", "a"))
+      .not.toBe(visualPayloadFieldParticleId("outside-in", "a"))
+    expect(visualPayloadFieldParticleId("centered-nested", "a"))
+      .not.toBe(visualPayloadFieldParticleId("centered-nested", "b"))
+    expect(visualPayloadFieldParticleId("centered-nested", "a"))
+      .toBe(visualPayloadFieldParticleId("centered-nested", "a"))
   })
 
   test("rejects a scene whose owner is absent from the manifest", () => {

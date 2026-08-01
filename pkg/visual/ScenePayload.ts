@@ -228,18 +228,21 @@ const flattenLocalPath = (
 }
 
 /**
- * Stable synthetic identity for one visual Field marker. Length-prefixing keeps
- * distinct occurrence sets from colliding, so the id is safe as a render key.
+ * Stable synthetic identity for one visual Field marker.
+ *
+ * A strategy may merge several source occurrences into a single marker — that is
+ * what `centered-nested` does when Fields share a canonical Value. The identity
+ * names one canonical member of that group, never the membership itself: a group
+ * that loses a member is still the same marker on screen, and a renderer that
+ * keyed on the whole set would see it disappear and a stranger take its place.
+ *
+ * Distinct markers cannot collide, because every source occurrence is claimed by
+ * exactly one placement, so no two groups can nominate the same member.
  */
 export const visualPayloadFieldParticleId = (
   layoutSlug: VisualLayoutSlug,
-  fieldParticleIds: readonly string[],
-): string => {
-  const identity = fieldParticleIds
-    .map((id) => `${id.length}:${id}`)
-    .join("")
-  return `visual:${layoutSlug}:field:${identity}`
-}
+  anchorFieldParticleId: string,
+): string => `visual:${layoutSlug}:field:${anchorFieldParticleId}`
 
 const projectTori = (
   manifest: BulkManifest,
@@ -304,6 +307,27 @@ const projectFields = (
   )
   const consumed = new Set<string>()
   const aliases: VisualPayloadFieldAlias[] = []
+  const depthByOwner = new Map(
+    manifest.darkParticles.map((particle) =>
+      [particle.darkParticleId, particle.depth] as const
+    ),
+  )
+  /**
+   * The shallowest source occurrence names the marker. A merged group hangs at
+   * the highest common owner, so its shallowest member is the one whose fate the
+   * marker already shares: anything that removes it removes the whole subtree the
+   * group was drawn for. Deeper members can come and go without renaming it.
+   */
+  const anchorOf = (fieldParticleIds: readonly string[]): string =>
+    fieldParticleIds.toSorted((left, right) => {
+      const leftDepth = depthByOwner.get(
+        sourceById.get(left)?.parentDarkParticleId ?? -1,
+      ) ?? Number.MAX_SAFE_INTEGER
+      const rightDepth = depthByOwner.get(
+        sourceById.get(right)?.parentDarkParticleId ?? -1,
+      ) ?? Number.MAX_SAFE_INTEGER
+      return leftDepth - rightDepth || (left < right ? -1 : left > right ? 1 : 0)
+    })[0]!
   const fields = scene.fields.map((placement: VisualFieldPlacement) => {
     if (placement.fieldParticleIds.length === 0) {
       throw new Error("Visual payload Field placement has no source occurrence")
@@ -326,7 +350,7 @@ const projectFields = (
     }
     const visualFieldParticleId = visualPayloadFieldParticleId(
       layoutSlug,
-      placement.fieldParticleIds,
+      anchorOf(placement.fieldParticleIds),
     )
     for (const source of sources) {
       aliases.push(Object.freeze({

@@ -287,13 +287,37 @@ describe("Visual scene reconciliation", () => {
     expect(patch.kind).toBe("visual-delta-patch")
     if (patch.kind !== "visual-delta-patch") throw new Error("unreachable")
 
-    // Exactly the returning Atom is created; no Torus that already existed is
+    // Exactly the returning Atom is created; nothing that already existed is
     // released, which is what lets the renderer keep its Mesh and buffers.
     expect(patch.tori.added.length).toBe(
       whole.tori.length - withoutLeaf.tori.length,
     )
-    expect(patch.tori.removed.length).toBe(0)
     expect(visualDeltaPatchOperations(patch).added).toBeGreaterThan(0)
+    expect(visualDeltaPatchOperations(patch).removed).toBe(0)
+  })
+
+  test("keeps a merged Field marker's identity when it loses a member", () => {
+    // `centered-nested` merges Fields that share a canonical Value into one
+    // marker at their highest common owner. Removing a deep Atom shrinks such a
+    // group without removing the marker — it still hangs where it hung, drawn
+    // for the members that remain. If its identity named the membership, the
+    // renderer would see a marker vanish and a stranger appear in its place,
+    // and would destroy and recreate GPU resources for something that never
+    // left the screen.
+    const whole = payloadOf(CenteredNested)
+    const withoutLeaf = payloadOf(CenteredNested, withoutLeafAtom)
+
+    const before = new Set(whole.fields.map((field) => field.fieldParticleId))
+    const after = new Set(
+      withoutLeaf.fields.map((field) => field.fieldParticleId),
+    )
+    expect(after.size).toBe(before.size)
+    for (const id of after) expect(before.has(id)).toBe(true)
+
+    const patch = reconcileVisualScenePayload(whole, withoutLeaf)
+    if (patch.kind !== "visual-delta-patch") throw new Error("unreachable")
+    expect(patch.fields.added.length).toBe(0)
+    expect(patch.fields.removed.length).toBe(0)
   })
 
   test("removes an entity by identity instead of rebuilding the scene", () => {
@@ -305,8 +329,9 @@ describe("Visual scene reconciliation", () => {
     expect(patch.kind).toBe("visual-delta-patch")
     if (patch.kind !== "visual-delta-patch") throw new Error("unreachable")
 
-    // Only the departed Atom is named for release — that is how a renderer
-    // knows which GPU resources to free — and no surviving Torus is destroyed.
+    // Only what actually departed is named for release — that is how a renderer
+    // knows which GPU resources to free — and nothing that survived is created
+    // or destroyed. The two directions are exact mirrors of each other.
     const removedTori = new Set(patch.tori.removed)
     expect(removedTori.size).toBe(whole.tori.length - withoutLeaf.tori.length)
     expect(patch.tori.added.length).toBe(0)
@@ -314,21 +339,27 @@ describe("Visual scene reconciliation", () => {
       expect(removedTori.has(String(torus.darkParticleId))).toBe(false)
     }
 
+    const removal = visualDeltaPatchOperations(patch)
+    const restoration = visualDeltaPatchOperations(
+      reconcileVisualScenePayload(withoutLeaf, whole) as typeof patch,
+    )
+    expect(removal.added).toBe(0)
+    expect(restoration.removed).toBe(0)
+    expect(removal.removed).toBe(restoration.added)
+
     // Honest about the cost: `centered-nested` derives an owner's radius from
     // the subtree it contains, so a leaf's departure re-derives every ancestor
     // and most placements genuinely move. The delta does not make a structural
     // change cheap here — it makes it exact. What it buys over a replacement is
     // that the renderer updates shapes it already owns and destroys only the
     // handful it is told to, instead of tearing down all of them.
-    const operations = visualDeltaPatchOperations(patch)
     const surviving = withoutLeaf.tori.length +
       withoutLeaf.fields.length +
       withoutLeaf.orbitals.length +
       withoutLeaf.fieldProxies.length +
       withoutLeaf.transitionBatches.length +
       withoutLeaf.relationBatches.length
-    expect(operations.removed).toBeLessThan(surviving)
-    expect(operations.added).toBeLessThan(surviving)
+    expect(removal.removed).toBeLessThan(surviving)
   })
 
   test("replaces the scene when the layout strategy changes", () => {
