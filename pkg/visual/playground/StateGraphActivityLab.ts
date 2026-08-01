@@ -2,7 +2,8 @@ import type {BulkManifest} from "@metafor/types/bulk/manifest"
 import type {BulkRuntimeProjection} from "@metafor/types/bulk/runtime"
 import type {BulkVisualLayer} from "@metafor/types/bulk/viewport"
 import type {BulkVisualRenderManifest} from "@metafor/types/bulk/visual"
-import {createBulkViewport} from "../../../bulk/web/index.ts"
+import {BulkVisualSceneLifecycle} from "bulk/visual"
+import {createBulkViewport} from "bulk/web"
 import {createPageAnnotationLayer} from "./AnnotationLayer.ts"
 import {
   buildStateGraphFieldsStand,
@@ -51,31 +52,34 @@ const activityScenarioFromStand = (
  * and geometry with every sleeve inactive.
  */
 export const buildStateGraphActivityStand = (
-  projection: BulkRuntimeProjection,
-  rootSrc: string,
+  lifecycle: BulkVisualSceneLifecycle,
 ): StateGraphActivityStand => {
-  const activeStand = buildStateGraphFieldsStand(projection, rootSrc)
+  const activeState = lifecycle.state()
+  const activeStand = buildStateGraphFieldsStand(lifecycle)
   if (activeStand.graph.currentStateId === null) {
     throw new Error(
-      `State Graph Activity stand expected current State for ${rootSrc}`,
+      `State Graph Activity stand expected current State for ${activeState.rootSrc}`,
     )
   }
   const atomId = activeStand.graph.atomId
-  const inactiveProjection: BulkRuntimeProjection = {
-    ...projection,
-    atomStates: projection.atomStates.map((entry) =>
+  const inactiveSnapshot = lifecycle.snapshot()
+  inactiveSnapshot.projection.runtime.atomStates =
+    inactiveSnapshot.projection.runtime.atomStates.map((entry) =>
       entry.atom === atomId ? {...entry, state: null} : entry
-    ),
-  }
-  const inactiveStand = buildStateGraphFieldsStand(
-    inactiveProjection,
-    rootSrc,
-  )
+    )
+  const inactiveLifecycle = new BulkVisualSceneLifecycle()
+  inactiveLifecycle.prepare(inactiveSnapshot)
+  const inactiveState = inactiveLifecycle.state()
+  const inactiveStand = buildStateGraphFieldsStand(inactiveLifecycle)
   return {
-    active: activityScenarioFromStand(true, projection, activeStand),
+    active: activityScenarioFromStand(
+      true,
+      activeState.projection,
+      activeStand,
+    ),
     inactive: activityScenarioFromStand(
       false,
-      inactiveProjection,
+      inactiveState.projection,
       inactiveStand,
     ),
   }
@@ -114,10 +118,9 @@ const canvasSize = (
 
 export const createStateGraphActivityLab =
   async (
-    projection: BulkRuntimeProjection,
-    rootSrc: string,
+    lifecycle: BulkVisualSceneLifecycle,
   ): Promise<StateGraphActivityLab> => {
-    const stand = buildStateGraphActivityStand(projection, rootSrc)
+    const stand = buildStateGraphActivityStand(lifecycle)
     const cards = [
       {
         canvas: requireCanvas("state-graph-activity-active-canvas"),

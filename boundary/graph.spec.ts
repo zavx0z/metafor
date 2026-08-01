@@ -1,15 +1,15 @@
 import {afterEach, beforeEach, describe, expect, test} from "bun:test"
 import {
-  META_JSON_V1_SCHEMA,
+  GRAPH_SCHEMA,
   parseMetaAddress,
-  validateMetaJSONV1,
+  validateGraph,
   type MetaAddress,
-  type MetaJSONV1,
-} from "@metafor/types/metafor/meta-json"
+  type Graph,
+} from "@metafor/types/metafor/graph"
 import type {Particle} from "shared/protocol/force/particle"
 import {
-  readBoundaryMetaJSONProjection,
-} from "./meta-json.ts"
+  readBoundaryGraphProjection,
+} from "./graph.ts"
 import {open, type BoundaryDatabase} from "./sqlite.ts"
 
 const ROOT = parseMetaAddress("example/root")!
@@ -19,7 +19,7 @@ const SECOND = parseMetaAddress("example/second")!
 
 type ParticleInput = Omit<Particle, "ts"> & {ts?: number}
 
-const template = (): MetaJSONV1["template"] => ({
+const template = (): Graph["template"] => ({
   [ROOT]: {
     name: "Root",
     fields: [
@@ -63,7 +63,7 @@ const deferred = (): {promise: Promise<void>; resolve(): void} => {
   return {promise, resolve}
 }
 
-describe("Boundary MetaJSON current projection", () => {
+describe("Boundary Graph current projection", () => {
   let boundary: BoundaryDatabase
 
   beforeEach(async () => {
@@ -153,7 +153,7 @@ describe("Boundary MetaJSON current projection", () => {
       position: 0,
     })
 
-    const projection = await readBoundaryMetaJSONProjection(boundary, {root: ROOT})
+    const projection = await readBoundaryGraphProjection(boundary, {root: ROOT})
 
     expect(projection).toEqual({
       root: ROOT,
@@ -189,13 +189,13 @@ describe("Boundary MetaJSON current projection", () => {
       },
     })
 
-    const document: MetaJSONV1 = {
-      schema: META_JSON_V1_SCHEMA,
+    const document: Graph = {
+      schema: GRAPH_SCHEMA,
       root: projection.root,
       template: template(),
       runtime: projection.runtime,
     }
-    expect(validateMetaJSONV1(document)).toEqual({ok: true, value: document})
+    expect(validateGraph(document)).toEqual({ok: true, value: document})
     expect(objectKeys(projection)).not.toContainAnyValues([
       "id",
       "atomId",
@@ -214,7 +214,7 @@ describe("Boundary MetaJSON current projection", () => {
     await apply({part: "inflaton", op: "add", path: "wimp", value: {src: ROOT, name: "Root"}})
     await apply({part: "inflaton", op: "add", path: "wimp", value: {src: CHILD, name: "Child"}})
 
-    const projection = await readBoundaryMetaJSONProjection(boundary, {root: CHILD})
+    const projection = await readBoundaryGraphProjection(boundary, {root: CHILD})
 
     expect(projection.runtime.roots).toEqual([{
       kind: "atom",
@@ -246,7 +246,7 @@ describe("Boundary MetaJSON current projection", () => {
     await apply({part: "inflaton", op: "add", path: "wimp", value: {src: SECOND, name: "Second"}})
     await apply({part: "inflaton", op: "add", path: "wimp", value: {src: FIRST, name: "First"}})
 
-    const projection = await readBoundaryMetaJSONProjection(boundary, {root: ROOT})
+    const projection = await readBoundaryGraphProjection(boundary, {root: ROOT})
 
     expect(projection.runtime.roots[0]?.children).toEqual([
       {
@@ -285,7 +285,7 @@ describe("Boundary MetaJSON current projection", () => {
     const releaseProjection = deferred()
     const originalApply = boundary.projection.apply.bind(boundary.projection)
     const originalReplay = boundary.projection.replay.bind(boundary.projection)
-    const originalSnapshot = boundary.metaJSONSnapshot.bind(boundary)
+    const originalSnapshot = boundary.graphSnapshot.bind(boundary)
     let pauseNextApply = true
     let pauseNextReplay = true
     let prior: Promise<unknown> | undefined
@@ -310,7 +310,7 @@ describe("Boundary MetaJSON current projection", () => {
       }
       return result
     }
-    boundary.metaJSONSnapshot = async () => {
+    boundary.graphSnapshot = async () => {
       const snapshot = await originalSnapshot()
       snapshotCopied.resolve()
       await releaseProjection.promise
@@ -328,7 +328,7 @@ describe("Boundary MetaJSON current projection", () => {
       await priorApplied.promise
 
       let readSettled = false
-      reading = readBoundaryMetaJSONProjection(boundary, {root: ROOT})
+      reading = readBoundaryGraphProjection(boundary, {root: ROOT})
         .finally(() => {
           readSettled = true
         })
@@ -369,7 +369,7 @@ describe("Boundary MetaJSON current projection", () => {
         },
       })
 
-      const afterRemoval = await readBoundaryMetaJSONProjection(boundary, {root: ROOT})
+      const afterRemoval = await readBoundaryGraphProjection(boundary, {root: ROOT})
       expect(afterRemoval.runtime.roots[0]).not.toHaveProperty("children")
       await prior
     } finally {
@@ -379,14 +379,14 @@ describe("Boundary MetaJSON current projection", () => {
       await Promise.allSettled([prior, reading, subsequent].filter((item): item is Promise<unknown> => item !== undefined))
       boundary.projection.apply = originalApply
       boundary.projection.replay = originalReplay
-      boundary.metaJSONSnapshot = originalSnapshot
+      boundary.graphSnapshot = originalSnapshot
     }
   })
 
   test("rejects non-canonical or broadened read params before reading a projection", async () => {
-    await expect(readBoundaryMetaJSONProjection(boundary, {root: "example/root/extra"}))
+    await expect(readBoundaryGraphProjection(boundary, {root: "example/root/extra"}))
       .rejects.toThrow("canonical two-segment")
-    await expect(readBoundaryMetaJSONProjection(boundary, {root: ROOT, diagnostic: true}))
+    await expect(readBoundaryGraphProjection(boundary, {root: ROOT, diagnostic: true}))
       .rejects.toThrow("must contain only root")
   })
 })

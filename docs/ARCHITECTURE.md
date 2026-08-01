@@ -71,14 +71,16 @@ Matrix не ждёт завершения Process всей системой: о�
 восстановление должно происходить внешним управляющим контуром и только через
 новое полное рождение всех процессов.
 
-## Публичное чтение MetaJSON
+## Публичное чтение Graph
 
-MetaJSON v1 имеет ровно один публичный JSON-документ и одну schema. Отдельных
-`authoring`, `planner`, `diagnostic`, compact либо иных public views нет.
-Частичный selector может быть только операцией чтения над этим же документом:
+Graph — единственный публичный graph format мира и имеет одну schema. На wire
+он сериализуется в JSON; JSON здесь является только технической сериализацией
+Graph, а не именем доменной сущности, вторым форматом или отдельным контрактом.
+Отдельных `authoring`, `planner`, `diagnostic`, compact либо иных public views
+нет. Частичный selector может быть только операцией чтения над тем же Graph:
 он не создаёт второй payload или контракт.
 
-Документ содержит две явно разделённые части:
+Graph содержит две явно разделённые части:
 
 - `template` — компактную, но полную сериализуемую нормализацию действующего
   `MetaDSL`, включая все declarations, defaults, Process/Reaction descriptors,
@@ -92,10 +94,10 @@ Runtime не объясняет происхождение значения. Е�
 `inherited-default`, `missing`, `not-projected`, отдельный `values/missing`
 envelope и provenance default-vs-write запрещены.
 
-Публичная identity задаётся logical Meta address, вложенной структурой
-документа и JSON paths/references. Boundary `Atom.id`, `Field.id`, `valueId`,
+Публичная identity задаётся logical Meta address, вложенной структурой Graph и
+JSON paths/references его сериализации. Boundary `Atom.id`, `Field.id`, `valueId`,
 локальные SQLite handles и другие внутренние числовые identity за публичную
-границу не выходят. MetaJSON не вводит направленные ports, boundary stubs или
+границу не выходят. Graph не вводит направленные ports, boundary stubs или
 отдельный global edges graph: relations остаются в нормализованной Matter
 structure и её публичных structural references.
 
@@ -111,18 +113,35 @@ materialization:
 
 Conditions одного Transition являются чистой конъюнкцией и отдельного
 priority-order не получают. Mass declaration и display order также не
-становятся новым законом. Универсального `order` vector в MetaJSON нет.
+становятся новым законом. Универсального `order` vector в Graph нет.
 
-Операцию чтения предоставляет Dark Monad. Stateless assembler получает полную
-declaration projection от Dark Monad, текущую runtime projection через
-Boundary, собирает и валидирует один документ, но не хранит его и не читает
+Операцию `readGraph` предоставляет Dark Monad. Stateless assembler получает
+полную declaration projection от Dark Monad, текущую runtime projection через
+Boundary, собирает и валидирует один Graph, но не хранит его и не читает
 Store другого домена напрямую. Dark Monad и Boundary остаются владельцами
 своих projections; Dark Force только переносит Monad RPC.
 
-MetaJSON v1 не содержит revision, digest или CAS fields. Particle/operation
+Для Bulk этот RPC является единственным полным стартовым чтением мира. При
+рождении Bulk Monad сам вызывает `Dark.readGraph`, валидирует ответ и
+удерживает полный Graph в одном Bulk-owned Graph Store. Browser observer
+получает полный текущий Graph из этого же Store. Bulk не вызывает
+`Boundary.initialProjection.read` и не вводит Boundary как второго сборщика
+или источник стартового Graph.
+
+Force `Particle` не является Graph patch: его path может содержать
+внутреннюю Boundary identity, которой нет в публичном документе. До появления
+отдельно утверждённого public delta contract входящий runtime Particle является
+causal invalidation. Bulk дожидается применённого Boundary cut, снова читает
+полный Graph через Dark и атомарно заменяет cut того же Store; checkpoint
+JSON Patch для этого не используется. Единственный Bulk adapter затем выводит
+из актуального Graph существующую semantic projection и сцену. Изменение
+этой границы безопасно только одним согласованным срезом: domain law, public
+Graph validator/read RPC, Bulk adapter, initial/update transport и tests.
+
+Graph не содержит revision, digest или CAS fields. Particle/operation
 history, patches, Git history, Mass bytes и живые Energy objects не являются
-частями этого snapshot и читаются через их собственные разрешённые интерфейсы.
-`meta.ts` и Git остаются canonical human-authored source; MetaJSON всегда
+частями этой projection и читаются через их собственные разрешённые интерфейсы.
+`meta.ts` и Git остаются canonical human-authored source; Graph всегда
 является derived read representation.
 
 ## Energy и Mass в DSL/runtime
@@ -285,6 +304,11 @@ production visual law находится в `pkg/visual` и приходит в 
 wireframe/LOD, fallback и Atom observer-timeline реализации удалены.
 Axion остаётся материализованной semantic identity, но его Visual activation
 отложена и отсекается до вызова production strategy.
+
+Bulk владеет Graph Store, derived semantic projection, persistent scene,
+renderer и Engine lifecycle. `pkg/visual` остаётся stateless библиотекой
+геометрии: она получает immutable calculation input и не читает Graph,
+Boundary либо Bulk Store.
 
 Визуальные законы задаются только в коде и не сохраняются в browser storage.
 Постоянная декоративная анимация программно выключена. Renderer останавливается,

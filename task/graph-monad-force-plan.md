@@ -1,4 +1,4 @@
-# MetaJSON, Monad и Force: живой архитектурный план
+# Graph, Monad и Force: живой архитектурный план
 
 Статус: consolidated owner-направление и living plan утверждены owner в Codex
 task `019f9b10-44b2-7ab2-9ae8-e831d4f9ccea`; `MF-000` и контрактный срез
@@ -8,7 +8,7 @@ flat peer repositories. `MF-014` принят owner: единственный в
 flat contour materialize ровно шесть Meta, сохранил Matter/Mass relationships,
 восстановил Auth и открыл свежий Chat Realtime connection. Live contour
 остаётся без изменений. Owner завершил `MF-100` review и утвердил один полный
-MetaJSON v1 read-contract. `MF-101` implementation gate завершён и независимо
+Graph read-contract. `MF-101` implementation gate завершён и независимо
 принят: public contract, Dark/Boundary projections и stateless Monad assembly
 зафиксированы тремя локальными commits. `MF-102` также завершён: standalone
 Force runtime перенесён в Dark, legacy history surface удалён, а
@@ -23,7 +23,7 @@ contour остаётся запущенным без hot reload.
 domain document, затем в public types, код и тесты.
 
 Исполнимый backlog находится в
-[`task/metajson-monad-force-todo.md`](metajson-monad-force-todo.md).
+[`task/graph-monad-force-todo.md`](graph-monad-force-todo.md).
 
 ## 1. Фундаментальная рабочая модель
 
@@ -105,7 +105,7 @@ consequences также проходят Dark Force. Gluon/Higgs и Inflaton и�
 | ------------------------------------- | --------------------- | -------------------------------------------------------------- |
 | `meta.ts`                             | Meta package          | каноническое human-authored описание                           |
 | Create MetaFor templates              | Create MetaFor        | законная исходная структура нового Meta package                |
-| MetaJSON v1 read operation            | Dark Monad            | stateless assembly одного полного declaration/runtime document |
+| Graph read operation            | Dark Monad            | stateless assembly одного полного declaration/runtime document |
 | Declaration projection                | Dark Monad            | полная compact normalization загруженного MetaDSL graph        |
 | Current projection                    | Boundary              | текущие sparse Atom values в structural occurrences            |
 | Boundary Store                        | Boundary              | канонический текущий materialized мир                          |
@@ -114,11 +114,11 @@ consequences также проходят Dark Force. Gluon/Higgs и Inflaton и�
 | Particle history                      | Dark Force            | полная filesystem history всех принятых Particles              |
 | Mass bytes/results                    | Energy/Mass owner     | данные и результаты, читаемые отдельным разрешённым API        |
 
-`meta.ts` остаётся каноническим authored source. MetaJSON собирается из Dark
+`meta.ts` остаётся каноническим authored source. Graph собирается из Dark
 declaration и текущей Boundary projection и не редактируется как второй source
 of truth.
 
-MetaJSON snapshot не содержит:
+Graph не содержит:
 
 - historical data;
 - JSON Patch history;
@@ -328,15 +328,17 @@ verified legacy SQLite/Mass/history и healthy contour восстановлен�
 Финальный owner-run использовал подготовленный flat Store в единственном полном
 contour. Fresh execution evidence подтвердил Auth, Chat Realtime connect и
 переход Лады в рабочее состояние без failed executions. Owner принял
-`MF-014`; дальнейшая MetaJSON работа не изменяет этот live contour.
+`MF-014`; дальнейшая Graph работа не изменяет этот live contour.
 
-## 5. MetaJSON v1
+## 5. Graph
 
 Утверждённый read-contract `MF-100`, его аудит и точная implementation boundary
 находятся в
-[`task/metajson-v1-read-contract.md`](metajson-v1-read-contract.md).
+[`task/graph-read-contract.md`](graph-read-contract.md).
 
-MetaJSON v1 — один полный public JSON document с одной schema. Он содержит:
+Graph — единственный public graph format с одной schema. JSON является только
+его технической сериализацией, а не доменным именем, вторым форматом или
+отдельным контрактом. Graph содержит:
 
 - `template`: полный сериализуемый результат действующей compact normalized
   `MetaDSL`, включая Fields/defaults, Superposition, Mass, Processes,
@@ -344,10 +346,13 @@ MetaJSON v1 — один полный public JSON document с одной schema.
 - `runtime`: вложенные structural occurrences текущих Atom, их State и только
   реально присутствующие Field values.
 
-`meta.ts` и Git остаются canonical authored source. MetaJSON собирается при
-чтении и не хранится как второй Store. В нём нет альтернативных
+`meta.ts` и Git остаются canonical authored source. Dark Monad собирает
+Graph при чтении и не хранит canonical второй Store. Downstream-домен может
+удерживать полученный Graph только как свою derived read-модель: в частности,
+Bulk использует один такой Graph Store как единственную стартовую основу и
+атомарно заменяет его после causal invalidation. В нём нет альтернативных
 `authoring`/`planner`/`diagnostic` schemas или compact views. Partial
-selection/query является retrieval operation над тем же документом и не
+selection/query является retrieval operation над тем же Graph и не
 создаёт второй payload.
 
 Runtime не сообщает, появился value из default или из последующей write.
@@ -356,7 +361,7 @@ Runtime не сообщает, появился value из default или из �
 
 Public identity и relations задаются canonical Meta addresses, вложенной JSON
 structure и public paths/references. Raw Boundary/SQLite identities, включая
-Atom/Field IDs и `valueId`, не выходят в MetaJSON. Directed ports, boundary
+Atom/Field IDs и `valueId`, не выходят в Graph. Directed ports, boundary
 stubs и отдельный global edges graph отсутствуют; Matter relations остаются в
 нормализованной structure.
 
@@ -367,25 +372,33 @@ causality и Matter sibling/occurrence order. Conditions одного Transition
 остаются конъюнкцией; Mass/display order не становятся новым законом.
 Универсального `order` vector нет.
 
-MetaJSON v1 не содержит revisions, digests или CAS fields. History, patches,
+Graph не содержит revisions, digests или CAS fields. History, patches,
 Mass bytes и live Energy objects остаются отдельными разрешёнными read
 interfaces.
+
+Bulk Monad при рождении вызывает только `Dark.readGraph`; Boundary не
+предоставляет Bulk отдельный полный initial projection. Обычный Force Particle
+не трактуется как JSON Patch сериализации Graph, поскольку публичный Graph не содержит
+его внутренние identity. Пока отдельный typed delta contract не утверждён,
+Bulk ждёт applied Boundary cut, перечитывает полный документ через Dark и
+строит сцену через один Graph-to-Bulk adapter. Browser получает полный
+текущий Graph, затем такие же validated replacement cuts.
 
 ## 6. Итеративный read/observe contract
 
 Codex должен уметь через объявленные RPC:
 
-- запросить через Dark Monad весь MetaJSON для canonical root Meta;
+- запросить через Dark Monad весь Graph для canonical root Meta;
 - выполнить partial retrieval над тем же document contract без второй schema;
 - запросить полную Dark Force Particle history, включая Gluon/Higgs и
   структурные Inflaton;
-- запросить разрешённые Mass results без включения Mass bytes в MetaJSON;
+- запросить разрешённые Mass results без включения Mass bytes в Graph;
 - при отдельно утверждённом Dark Monad operation-service log запросить
   pre-Force service phases по operation/target/time;
 - сравнить projection до/после operation;
 - продолжить работу с новым наблюдением.
 
-MetaJSON RPC и history RPC read-only. Mass read проходит через Monad владельца
+Graph RPC и history RPC read-only. Mass read проходит через Monad владельца
 или объявленный Energy/Mass service; Codex не читает Boundary SQLite, domain
 Store или files другого domain напрямую.
 
@@ -548,7 +561,7 @@ interface MonadOperationJournalEntryV1 {
 - почему operation остановилась;
 - можно ли повторить или reconcile.
 
-Это не Dark Force Particle history, не MetaJSON snapshot и не VCS history.
+Это не Dark Force Particle history, не Graph read projection и не VCS history.
 Такой service log является отдельным будущим owner gate: если он будет
 утверждён, он описывает только validation/write/execute/round-trip и другие
 Dark Monad phases, которые ещё не выражены принятой Particle. Inflaton и
@@ -640,7 +653,7 @@ Scope:
 - atomic write;
 - немедленные execution, round-trip и materialization;
 - optional operation-service outcome только после `MF-203` owner approval;
-- reread MetaJSON, runtime Atom occurrence и history;
+- reread Graph, runtime Atom occurrence и history;
 - retry/reconcile для post-write materialization failure;
 - без Git branch/merge/push, pending/active Store, Force v2, hot reload и
   generic rollback.
@@ -685,8 +698,8 @@ patch vertical slice.
 
 | ID    | История                                                                      |
 | ----- | ---------------------------------------------------------------------------- |
-| US-01 | Codex читает один полный MetaJSON declaration/runtime document               |
-| US-02 | Codex выполняет partial retrieval над тем же MetaJSON contract               |
+| US-01 | Codex читает один полный Graph declaration/runtime document               |
+| US-02 | Codex выполняет partial retrieval над тем же Graph contract               |
 | US-03 | Codex сопоставляет projection, particle history и разрешённый Mass result    |
 | US-04 | Codex валидирует и применяет разрешённый structural patch                    |
 | US-05 | Codex наблюдает materialized result и продолжает улучшение                   |
@@ -706,8 +719,8 @@ patch vertical slice.
 4. Разрешить оставшиеся migration decisions для Inference.
 5. Создать независимые peer repositories и мигрировать references/source.
 6. Доказать strict two-segment resolver и cold materialization.
-7. Утвердить MetaJSON v1 read contracts.
-8. Реализовать один MetaJSON read через stateless Dark Monad assembly
+7. Утвердить Graph read contracts.
+8. Реализовать один Graph read через stateless Dark Monad assembly
    Dark + Boundary.
 9. Behavior-preserving перенести весь standalone Force runtime/domain в два
    слоя Dark, доказать endpoint/routing/history parity, переключить launcher на
@@ -724,17 +737,18 @@ patch vertical slice.
 
 ## 15. Owner decisions и последующие gates
 
-`MF-100` owner review и `MF-101` implementation gate завершены. Для MetaJSON
-v1 закрыты и реализованы следующие решения:
+`MF-100` owner review и `MF-101` implementation gate завершены. Для Graph
+закрыты и реализованы следующие решения:
 
-1. существует один полный public JSON document без alternate views/schemas;
+1. существует один public Graph без alternate views/schemas; JSON является
+   только его технической сериализацией;
 2. stateless Dark Monad собирает его из Dark declaration и Boundary current
    projections, не владея Store state;
 3. `template` является compact complete normalized MetaDSL, включая Bulk и
    executable declaration descriptors;
 4. `runtime` содержит только присутствующие current Atom values без provenance
    и status/missing envelope;
-5. revisions, digests, CAS и raw internal identities в MetaJSON отсутствуют;
+5. revisions, digests, CAS и raw internal identities в Graph отсутствуют;
 6. directed ports/stubs/global edges отсутствуют;
 7. сохраняется только порядок, доказанный runtime/materialization semantics.
 
@@ -783,7 +797,7 @@ ack не являются Particle, не меняют Force wire/history и не
 rows. Receipt sideband подключается без изменения Particle/wire/history; Dark
 персистит frontiers и fail-stop восстанавливает unresolved delivery. Первый
 non-zero baseline не выводится из пустого tracker: stopped pre-cut/current
-Boundary должны дать одинаковый canonical MetaJSON digest at sequence 0/1,
+Boundary должны дать одинаковый canonical Graph digest at sequence 0/1,
 после чего checkpoint `(cutId, 1)` и control baseline создаются до cold start.
 
 Live target для первого Lada checkpoint — тот же действующий contour, а не
@@ -795,7 +809,7 @@ acceptance либо точный rollback. Hot/partial restart и remote push з
 До будущего write slice отдельно потребуется локальная capability
 identity/policy первого Codex→Monad write endpoint за пределами trusted
 development contour. Structural-operation CAS/digests относятся к будущему
-`MF-200` contract, а не к MetaJSON v1.
+`MF-200` contract, а не к Graph.
 
 Checkpoint-specific applied-through coordinator не утверждает общий
 multi-domain delivery protocol: персистентный Dark Force v2, общий causal
@@ -1003,10 +1017,10 @@ Inference evidence и dependency, но не становится вторым в
 - `meta.ts` как canonical authored source;
 - Dark Monad как владелец Meta/package/source/TS/Process service operations;
 - Dark Force как единственный Particle ingress/history/relay внутри Dark;
-- MetaJSON как generated semantic projection;
+- Graph как generated semantic projection;
 - history и patches отдельно от snapshots;
 - JSON Patch/JSON Pointer laws;
-- Mass bytes и Energy objects вне MetaJSON;
+- Mass bytes и Energy objects вне Graph;
 - одна Particle на изменённую entity при runtime transport;
 - no hot reload;
 - прямые writes в чужие Stores запрещены.

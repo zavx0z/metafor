@@ -36,7 +36,7 @@ const isDeepBulkImport = (specifier: string): boolean =>
   specifier.startsWith(".") && /(^|\/)bulk\//.test(specifier)
 
 describe("Force Story private dependency boundary", () => {
-  test("allows deep Bulk wiring only in the single lab adapter", async () => {
+  test("routes Bulk wiring through the public visual lifecycle", async () => {
     const importsByModule = new Map(await Promise.all(modules.map(async (path) =>
       [path, await importsOf(path)] as const
     )))
@@ -45,15 +45,9 @@ describe("Force Story private dependency boundary", () => {
       path,
     })).filter((entry) => entry.imports.length > 0)
 
-    expect(deepBulkByModule).toEqual([{
-      path: "ForceStoryLabAdapter.ts",
-      imports: [
-        "../../../bulk/manifestation.ts",
-        "../../../bulk/projection.ts",
-        "../../../bulk/visual-layout.ts",
-        "../../../bulk/web/force-protocol.ts",
-      ],
-    }])
+    expect(deepBulkByModule).toEqual([])
+    expect(importsByModule.get("ForceStoryLabAdapter.ts"))
+      .toContain("bulk/visual")
   })
 
   test("keeps catalog, Photon scenario and UI behind the adapter", async () => {

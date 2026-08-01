@@ -11,10 +11,10 @@ import {
   type CheckpointManifestV1,
 } from "@metafor/types/dark/checkpoint"
 import {
-  META_JSON_V1_SCHEMA,
+  GRAPH_SCHEMA,
   parseMetaAddress,
-  type MetaJSONV1,
-} from "@metafor/types/metafor/meta-json"
+  type Graph,
+} from "@metafor/types/metafor/graph"
 import {
   CheckpointGitRepository,
   CheckpointRepositoryError,
@@ -47,8 +47,8 @@ const git = (repository: string, ...args: string[]): string => {
 
 const ROOT = parseMetaAddress("example/root")!
 
-const projection = (sequence: number): MetaJSONV1 => ({
-  schema: META_JSON_V1_SCHEMA,
+const projection = (sequence: number): Graph => ({
+  schema: GRAPH_SCHEMA,
   root: ROOT,
   template: {
     [ROOT]: {
@@ -149,7 +149,7 @@ describe("isolated checkpoint Git repository", () => {
       result: {sequence: 2},
     })
     expect(result.manifest.projection).toMatchObject({
-      schema: "metafor/meta-json/v1",
+      schema: "metafor/graph",
       root: ROOT,
       canonicalization: "rfc8785",
     })
@@ -192,7 +192,7 @@ describe("isolated checkpoint Git repository", () => {
       schema: "metafor/checkpoint-forward-patches/v1",
       cutId: "synthetic-cut",
       projection: {
-        schema: "metafor/meta-json/v1",
+        schema: "metafor/graph",
         root: ROOT,
         canonicalization: "rfc8785",
       },

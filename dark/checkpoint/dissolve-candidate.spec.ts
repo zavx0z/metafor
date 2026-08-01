@@ -17,16 +17,16 @@ import {spawnSync} from "node:child_process"
 import {
   parseMetaAddress,
   type MetaAddress,
-  type MetaJSONV1,
-} from "@metafor/types/metafor/meta-json"
+  type Graph,
+} from "@metafor/types/metafor/graph"
 import type {BulkRootPromotionReceipt} from "@metafor/types/bulk/manifest"
 import type {Particle} from "shared/protocol/force/particle"
-import {assembleMetaJSON} from "../monad/meta-json.ts"
-import {DARK_DECLARATION_PROJECTION_METHOD} from "../meta-json.ts"
+import {assembleGraph} from "../monad/graph.ts"
+import {DARK_DECLARATION_PROJECTION_METHOD} from "../graph.ts"
 import {
-  BOUNDARY_META_JSON_PROJECTION_METHOD,
-  readBoundaryMetaJSONProjection,
-} from "../../boundary/meta-json.ts"
+  BOUNDARY_GRAPH_PROJECTION_METHOD,
+  readBoundaryGraphProjection,
+} from "../../boundary/graph.ts"
 import {
   DetachedBoundaryDissolveCandidateStaging,
 } from "../../boundary/dissolve-candidate-staging.ts"
@@ -94,12 +94,12 @@ type Fixture = {
   control: string
   proposal: BoundaryDissolveProposalV1
   absent: {keyId: string; format: MassFileFormat}
-  projection: MetaJSONV1
-  readMetaJSON(
+  projection: Graph
+  readGraph(
     boundary: BoundaryDatabase,
     root: MetaAddress,
     phase: "before" | "planned",
-  ): Promise<MetaJSONV1>
+  ): Promise<Graph>
 }
 
 const directories: string[] = []
@@ -132,8 +132,8 @@ const apply = async (
 const templateEntry = (
   name: string,
   mass: readonly string[],
-  matter?: MetaJSONV1["template"][MetaAddress]["matter"],
-): MetaJSONV1["template"][MetaAddress] => ({
+  matter?: Graph["template"][MetaAddress]["matter"],
+): Graph["template"][MetaAddress] => ({
   name,
   fields: [],
   superposition: [],
@@ -142,8 +142,8 @@ const templateEntry = (
   ...(matter ? {matter} : {}),
 })
 
-const template = (root: MetaAddress): MetaJSONV1["template"] => {
-  const value: MetaJSONV1["template"] = {
+const template = (root: MetaAddress): Graph["template"] => {
+  const value: Graph["template"] = {
     [SOURCE]: templateEntry("Inference", SOURCE_KEYS, [{
       kind: "wimp",
       src: TARGET,
@@ -159,11 +159,11 @@ const template = (root: MetaAddress): MetaJSONV1["template"] => {
   return value
 }
 
-const metaJSONReader = (
+const graphReader = (
   boundary: BoundaryDatabase,
   root: MetaAddress,
-): Promise<MetaJSONV1> =>
-  assembleMetaJSON({
+): Promise<Graph> =>
+  assembleGraph({
     async call<T>(target: string, method: string): Promise<T> {
       if (target === "dark" && method === DARK_DECLARATION_PROJECTION_METHOD) {
         const declaration = template(root)
@@ -171,11 +171,11 @@ const metaJSONReader = (
       }
       if (
         target === "boundary" &&
-        method === BOUNDARY_META_JSON_PROJECTION_METHOD
+        method === BOUNDARY_GRAPH_PROJECTION_METHOD
       ) {
-        return await readBoundaryMetaJSONProjection(boundary, {root}) as T
+        return await readBoundaryGraphProjection(boundary, {root}) as T
       }
-      throw new Error(`Unexpected MetaJSON provider: ${target}.${method}`)
+      throw new Error(`Unexpected Graph provider: ${target}.${method}`)
     },
   } as never, {root})
 
@@ -259,7 +259,7 @@ const createFixture = async (): Promise<Fixture> => {
   }
   const chatOutbox = sourceMass.find(({key}) => key === "chatOutbox")!
   unlinkSync(join(mass, massFileName(chatOutbox.keyId, chatOutbox.format)))
-  const projection = await metaJSONReader(boundary, SOURCE)
+  const projection = await graphReader(boundary, SOURCE)
   await boundary.close()
 
   const history = new DarkForceHistory(historyPath, {
@@ -312,8 +312,8 @@ const createFixture = async (): Promise<Fixture> => {
     proposal,
     absent: {keyId: chatOutbox.keyId, format: chatOutbox.format},
     projection,
-    readMetaJSON: async (candidate, requested) =>
-      await metaJSONReader(candidate, requested),
+    readGraph: async (candidate, requested) =>
+      await graphReader(candidate, requested),
   }
 }
 
@@ -383,7 +383,7 @@ describe("detached durable dissolve candidate bundle", () => {
       validAbsent: [fixture.absent],
       capturedAt: "2026-07-27T08:01:00.000Z",
       confirmStoppedPrivateCopies: true,
-      readMetaJSON: fixture.readMetaJSON,
+      readGraph: fixture.readGraph,
     })
 
     expect(result.receipt).toMatchObject({
@@ -511,7 +511,7 @@ describe("detached durable dissolve candidate bundle", () => {
       validAbsent: [fixture.absent],
       capturedAt: "2026-07-27T08:02:00.000Z",
       confirmStoppedPrivateCopies: true,
-      readMetaJSON: fixture.readMetaJSON,
+      readGraph: fixture.readGraph,
     })).rejects.toThrow("does not match")
 
     expect(existsSync(target)).toBe(true)
@@ -545,7 +545,7 @@ describe("detached durable dissolve candidate bundle", () => {
       validAbsent: [fixture.absent],
       capturedAt: "2026-07-27T08:03:00.000Z",
       confirmStoppedPrivateCopies: true,
-      readMetaJSON: fixture.readMetaJSON,
+      readGraph: fixture.readGraph,
     })
     const candidatePath = join(target, "candidate", "boundary.sqlite")
     const candidateMass = join(target, "candidate", "mass")
@@ -575,7 +575,7 @@ describe("detached durable dissolve candidate bundle", () => {
       fixture.proposal.proposalId,
       {
         massEvidence,
-        readMetaJSON: async (root) => await metaJSONReader(candidate, root),
+        readGraph: async (root) => await graphReader(candidate, root),
       },
     )
     const promotion = produceBulkRootPromotionReceipt({
@@ -597,8 +597,8 @@ describe("detached durable dissolve candidate bundle", () => {
     expect(acceptance.localFenceProof.fenced).toHaveLength(5)
     expect(acceptance.localFenceProof.released)
       .toEqual(acceptance.localFenceProof.fenced.toReversed())
-    expect(acceptance.postMetaJSON.root).toBe(TARGET)
-    expect(acceptance.postMetaJSON.template[SOURCE]).toBeUndefined()
+    expect(acceptance.postGraph.root).toBe(TARGET)
+    expect(acceptance.postGraph.template[SOURCE]).toBeUndefined()
     expect(afterProjection.atoms.some(({id}) => id === result.stage.sourceAtom))
       .toBe(false)
     expect(afterProjection.atoms.find(({id}) => id === result.stage.targetAtom))

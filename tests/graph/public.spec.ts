@@ -1,15 +1,15 @@
 import {describe, expect, test} from "bun:test"
 import {MetaFor} from "../../index.ts"
 import {
-  META_JSON_V1_SCHEMA,
-  READ_META_JSON_METHOD,
+  GRAPH_SCHEMA,
+  READ_GRAPH_METHOD,
   type MetaAddress,
-  type MetaFieldV1,
-  type MetaJSONV1,
-  type MetaStateV1,
+  type MetaField,
+  type Graph,
+  type MetaState,
   parseMetaAddress,
-  validateMetaJSONV1,
-} from "@metafor/types/metafor/meta-json"
+  validateGraph,
+} from "@metafor/types/metafor/graph"
 
 const ROOT = parseMetaAddress("example/root")!
 const CHILD = parseMetaAddress("example/child")!
@@ -61,8 +61,8 @@ const activeBuilderConditions = () =>
     .matter()
     .bulk()
 
-const completeDocument = (): MetaJSONV1 => ({
-  schema: META_JSON_V1_SCHEMA,
+const completeDocument = (): Graph => ({
+  schema: GRAPH_SCHEMA,
   root: ROOT,
   template: {
     [ROOT]: {
@@ -288,7 +288,7 @@ const createdWimpCompositionDocument = (): Record<string, any> => {
 }
 
 const expectIssue = (input: unknown, path: string, code: string): void => {
-  const result = validateMetaJSONV1(input)
+  const result = validateGraph(input)
   expect(result.ok).toBe(false)
   if (result.ok) return
   expect(result.issues).toContainEqual(expect.objectContaining({path, code}))
@@ -299,13 +299,13 @@ const expectIssue = (input: unknown, path: string, code: string): void => {
   )).toBe(true)
 }
 
-describe("MetaJSON v1 public contract", () => {
+describe("Graph public contract", () => {
   test("accepts one complete document and preserves semantic sequences", () => {
     const input = completeDocument()
-    const result = validateMetaJSONV1(input)
+    const result = validateGraph(input)
     const root = input.template[ROOT]!
 
-    expect(READ_META_JSON_METHOD).toBe("readMetaJSON")
+    expect(READ_GRAPH_METHOD).toBe("readGraph")
     expect(result).toEqual({ok: true, value: input})
     expect(root.superposition.map(({name}) => name)).toEqual(["idle", "ready"])
     expect(Object.keys(root.superposition[0]!.transitions!)).toEqual(["ready"])
@@ -321,15 +321,15 @@ describe("MetaJSON v1 public contract", () => {
 
     expect(values).toEqual({mode: "ready", title: null, items: [2, 4], count: 2, enabled: true})
     expect(values).not.toHaveProperty("missing")
-    expect(validateMetaJSONV1(input).ok).toBe(true)
+    expect(validateGraph(input).ok).toBe(true)
   })
 
   test("accepts active builder-derived Conditions for every Field type", () => {
     const built = activeBuilderConditions()
     const input = completeDocument()
-    input.template[ROOT]!.fields = structuredClone(built.fields) as MetaFieldV1[]
+    input.template[ROOT]!.fields = structuredClone(built.fields) as MetaField[]
     input.template[ROOT]!.superposition =
-      structuredClone(built.superposition) as MetaStateV1[]
+      structuredClone(built.superposition) as MetaState[]
     const transition = input.template[ROOT]!.superposition[0]!.transitions!.ready!
 
     expect(transition).toMatchObject({
@@ -348,7 +348,7 @@ describe("MetaJSON v1 public contract", () => {
       },
       enabled: {eq: true, logicalEq: true},
     })
-    expect(validateMetaJSONV1(input).ok).toBe(true)
+    expect(validateGraph(input).ok).toBe(true)
   })
 
   test.each([
@@ -470,7 +470,7 @@ describe("MetaJSON v1 public contract", () => {
 
   test("composes a created WIMP Atom from target roots before producing-WIMP children", () => {
     const input = createdWimpCompositionDocument()
-    expect(validateMetaJSONV1(input).ok).toBe(true)
+    expect(validateGraph(input).ok).toBe(true)
 
     const reversed = createdWimpCompositionDocument()
     reversed.runtime.roots[0].children[0].children.reverse()
@@ -547,7 +547,7 @@ describe("MetaJSON v1 public contract", () => {
         "Then",
       ),
     ])
-    expect(validateMetaJSONV1(thenBranch).ok).toBe(true)
+    expect(validateGraph(thenBranch).ok).toBe(true)
 
     const elseBranch = topologyDocument("axion", matter, [
       runtimeAtom(
@@ -556,7 +556,7 @@ describe("MetaJSON v1 public contract", () => {
         "Else",
       ),
     ])
-    expect(validateMetaJSONV1(elseBranch).ok).toBe(true)
+    expect(validateGraph(elseBranch).ok).toBe(true)
 
     const logicalChildMatter = {
       kind: "axion",
@@ -578,7 +578,7 @@ describe("MetaJSON v1 public contract", () => {
         "Logical child",
       ),
     ])
-    expect(validateMetaJSONV1(logicalChildBranch).ok).toBe(true)
+    expect(validateGraph(logicalChildBranch).ok).toBe(true)
 
     const thenOnlyMatter = {
       kind: "axion",
@@ -589,7 +589,7 @@ describe("MetaJSON v1 public contract", () => {
     }
     const inactiveWithoutElse = topologyDocument("axion", thenOnlyMatter, [])
     delete inactiveWithoutElse.template["example/peer"]
-    expect(validateMetaJSONV1(inactiveWithoutElse).ok).toBe(true)
+    expect(validateGraph(inactiveWithoutElse).ok).toBe(true)
 
     const crossBranch = topologyDocument("axion", matter, [
       runtimeAtom("#/template/example~1root/matter/0/children/0/particle", CHILD, "Then"),
@@ -625,10 +625,10 @@ describe("MetaJSON v1 public contract", () => {
       runtimeAtom("#/template/example~1root/matter/0/children/0/particle", CHILD, "First"),
       runtimeAtom("#/template/example~1root/matter/0/children/0/particle", CHILD, "Second"),
     ])
-    expect(validateMetaJSONV1(repeated).ok).toBe(true)
+    expect(validateGraph(repeated).ok).toBe(true)
 
     const empty = topologyDocument("macho", matter, [])
-    expect(validateMetaJSONV1(empty).ok).toBe(true)
+    expect(validateGraph(empty).ok).toBe(true)
 
     const reversed = topologyDocument("macho", matter, [
       runtimeAtom("#/template/example~1root/matter/0/children/1/particle", PEER, "Peer"),
@@ -663,10 +663,10 @@ describe("MetaJSON v1 public contract", () => {
     const selected = topologyDocument("fuzzy", matter, [
       runtimeAtom("#/template/example~1root/matter/0/children/1/particle", PEER, "Selected"),
     ])
-    expect(validateMetaJSONV1(selected).ok).toBe(true)
+    expect(validateGraph(selected).ok).toBe(true)
 
     const empty = topologyDocument("fuzzy", matter, [])
-    expect(validateMetaJSONV1(empty).ok).toBe(true)
+    expect(validateGraph(empty).ok).toBe(true)
 
     const multiple = topologyDocument("fuzzy", matter, [
       runtimeAtom("#/template/example~1root/matter/0/children/0/particle", CHILD, "First"),
@@ -681,7 +681,7 @@ describe("MetaJSON v1 public contract", () => {
 
   test("compiles RegExp descriptors with their validated flags", () => {
     const valid = completeDocument()
-    expect(validateMetaJSONV1(valid).ok).toBe(true)
+    expect(validateGraph(valid).ok).toBe(true)
 
     const invalid = clone()
     invalid.template["example/root"].superposition[0].transitions.ready.title.pattern = {

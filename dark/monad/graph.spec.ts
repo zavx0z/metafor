@@ -1,21 +1,21 @@
 import {describe, expect, test} from "bun:test"
 import {
-  META_JSON_V1_SCHEMA,
-  READ_META_JSON_METHOD,
+  GRAPH_SCHEMA,
+  READ_GRAPH_METHOD,
   parseMetaAddress,
-  validateMetaJSONV1,
-  type MetaJSONV1,
-} from "@metafor/types/metafor/meta-json"
+  validateGraph,
+  type Graph,
+} from "@metafor/types/metafor/graph"
 import type {
   MonadRpcContext,
   MonadRpcHandler,
 } from "shared/transport/monad"
-import {BOUNDARY_META_JSON_PROJECTION_METHOD} from "../../boundary/meta-json.ts"
-import {DARK_DECLARATION_PROJECTION_METHOD} from "../meta-json.ts"
+import {BOUNDARY_GRAPH_PROJECTION_METHOD} from "../../boundary/graph.ts"
+import {DARK_DECLARATION_PROJECTION_METHOD} from "../graph.ts"
 import {
-  MetaJSONAssemblyError,
-  MetaJSONMonad,
-} from "./meta-json.ts"
+  GraphAssemblyError,
+  GraphMonad,
+} from "./graph.ts"
 
 const ROOT = parseMetaAddress("example/root")!
 const CHILD = parseMetaAddress("example/child")!
@@ -41,14 +41,14 @@ class TestPeer {
   }
 
   async invoke(params: unknown): Promise<unknown> {
-    const handler = this.handlers.get(READ_META_JSON_METHOD)
-    if (!handler) throw new Error("MetaJSON read handler is not exposed")
+    const handler = this.handlers.get(READ_GRAPH_METHOD)
+    if (!handler) throw new Error("Graph read handler is not exposed")
     const context: MonadRpcContext = {source: "test/client"}
     return await handler(params, context)
   }
 }
 
-const template = (rootName = "Root"): MetaJSONV1["template"] => ({
+const template = (rootName = "Root"): Graph["template"] => ({
   [ROOT]: {
     name: rootName,
     fields: [{key: "label", type: "string"}],
@@ -66,7 +66,7 @@ const template = (rootName = "Root"): MetaJSONV1["template"] => ({
   },
 })
 
-const runtime = (label = "first"): MetaJSONV1["runtime"] => ({
+const runtime = (label = "first"): Graph["runtime"] => ({
   roots: [{
     kind: "atom",
     declaration: "#/template/example~1root",
@@ -88,11 +88,11 @@ const providers = (
   boundary: Provider = () => ({root: ROOT, runtime: runtime()}),
 ): Record<string, Provider> => ({
   [`dark:${DARK_DECLARATION_PROJECTION_METHOD}`]: dark,
-  [`boundary:${BOUNDARY_META_JSON_PROJECTION_METHOD}`]: boundary,
+  [`boundary:${BOUNDARY_GRAPH_PROJECTION_METHOD}`]: boundary,
 })
 
 const service = (peer: TestPeer): TestPeer => {
-  new MetaJSONMonad().onServerStarted(peer)
+  new GraphMonad().onServerStarted(peer)
   return peer
 }
 
@@ -105,14 +105,14 @@ const capture = async (promise: Promise<unknown>): Promise<unknown> => {
   throw new Error("Expected promise to reject")
 }
 
-describe("stateless MetaJSON Monad assembly", () => {
-  test("exposes readMetaJSON and joins one full validated document", async () => {
+describe("stateless Graph Monad assembly", () => {
+  test("exposes readGraph and joins one full validated document", async () => {
     const peer = service(new TestPeer(providers()))
     const result = await peer.invoke({root: ROOT})
 
-    expect(peer.handlers.has(READ_META_JSON_METHOD)).toBe(true)
+    expect(peer.handlers.has(READ_GRAPH_METHOD)).toBe(true)
     expect(result).toEqual({
-      schema: META_JSON_V1_SCHEMA,
+      schema: GRAPH_SCHEMA,
       root: ROOT,
       template: template(),
       runtime: runtime(),
@@ -131,26 +131,26 @@ describe("stateless MetaJSON Monad assembly", () => {
       },
       {
         target: "boundary",
-        method: BOUNDARY_META_JSON_PROJECTION_METHOD,
+        method: BOUNDARY_GRAPH_PROJECTION_METHOD,
         params: {root: ROOT},
       },
     ])
   })
 
   test.each([
-    ["extra property", {root: ROOT, view: "diagnostic"}, "MetaJSON read params must contain only root"],
-    ["missing root", {}, "MetaJSON read params must contain only root"],
-    ["non-object", ROOT, "MetaJSON read params must be a plain object containing only root"],
+    ["extra property", {root: ROOT, view: "diagnostic"}, "Graph read params must contain only root"],
+    ["missing root", {}, "Graph read params must contain only root"],
+    ["non-object", ROOT, "Graph read params must be a plain object containing only root"],
     [
       "non-canonical root",
       {root: "example/root/extra"},
-      "MetaJSON read root must be a canonical <owner>/<repository> address",
+      "Graph read root must be a canonical <owner>/<repository> address",
     ],
   ])("closes public params: %s", async (_label, params, message) => {
     const peer = service(new TestPeer(providers()))
     const error = await capture(peer.invoke(params))
 
-    expect(error).toBeInstanceOf(MetaJSONAssemblyError)
+    expect(error).toBeInstanceOf(GraphAssemblyError)
     expect(error).toMatchObject({code: "invalid_params", message})
     expect(peer.calls).toEqual([])
   })
@@ -165,10 +165,10 @@ describe("stateless MetaJSON Monad assembly", () => {
     )))
     const error = await capture(peer.invoke({root: ROOT}))
 
-    expect(error).toBeInstanceOf(MetaJSONAssemblyError)
+    expect(error).toBeInstanceOf(GraphAssemblyError)
     expect(error).toMatchObject({
       code: "provider_root_mismatch",
-      message: `${provider} MetaJSON projection root mismatch: expected "${ROOT}", received "${OTHER}"`,
+      message: `${provider} Graph projection root mismatch: expected "${ROOT}", received "${OTHER}"`,
     })
   })
 
@@ -188,7 +188,7 @@ describe("stateless MetaJSON Monad assembly", () => {
       },
     )))
 
-    const result = await peer.invoke({root: ROOT}) as MetaJSONV1
+    const result = await peer.invoke({root: ROOT}) as Graph
 
     expect(retainedDarkParams).toEqual([{root: OTHER}])
     expect(boundaryParams).toEqual([{root: ROOT}])
@@ -204,18 +204,18 @@ describe("stateless MetaJSON Monad assembly", () => {
       () => ({root: ROOT, runtime: invalidRuntime}),
     )))
     const error = await capture(peer.invoke({root: ROOT}))
-    const expected = validateMetaJSONV1({
-      schema: META_JSON_V1_SCHEMA,
+    const expected = validateGraph({
+      schema: GRAPH_SCHEMA,
       root: ROOT,
       template: template(),
       runtime: invalidRuntime,
     })
 
-    expect(error).toBeInstanceOf(MetaJSONAssemblyError)
+    expect(error).toBeInstanceOf(GraphAssemblyError)
     expect(error).toMatchObject({code: "validation_failed"})
     expect(expected.ok).toBe(false)
     if (expected.ok) return
-    expect((error as MetaJSONAssemblyError).issues).toEqual(expected.issues)
+    expect((error as GraphAssemblyError).issues).toEqual(expected.issues)
     expect((error as Error).message).toContain(
       "/runtime/roots/0/declaration [occurrence_pointer_mismatch]",
     )
@@ -294,10 +294,10 @@ describe("stateless MetaJSON Monad assembly", () => {
       const peer = service(new TestPeer(input))
       const error = await capture(peer.invoke({root: ROOT}))
 
-      expect(error).toBeInstanceOf(MetaJSONAssemblyError)
+      expect(error).toBeInstanceOf(GraphAssemblyError)
       expect(error).toMatchObject({
         code: "invalid_provider_projection",
-        message: `${provider === "dark" ? "Dark" : "Boundary"} MetaJSON projection must be cloneable JSON data`,
+        message: `${provider === "dark" ? "Dark" : "Boundary"} Graph projection must be cloneable JSON data`,
       })
     },
   )
@@ -315,10 +315,10 @@ describe("stateless MetaJSON Monad assembly", () => {
     const peer = service(new TestPeer(providers(() => projection)))
     const error = await capture(peer.invoke({root: ROOT}))
 
-    expect(error).toBeInstanceOf(MetaJSONAssemblyError)
+    expect(error).toBeInstanceOf(GraphAssemblyError)
     expect(error).toMatchObject({
       code: "invalid_provider_projection",
-      message: "Dark MetaJSON projection must be cloneable JSON data",
+      message: "Dark Graph projection must be cloneable JSON data",
     })
     expect(getterCalls).toBe(0)
   })
@@ -347,9 +347,9 @@ describe("stateless MetaJSON Monad assembly", () => {
       () => ({root: ROOT, runtime: runtime(`value ${generation}`)}),
     )))
 
-    const first = await peer.invoke({root: ROOT}) as MetaJSONV1
+    const first = await peer.invoke({root: ROOT}) as Graph
     generation = 2
-    const second = await peer.invoke({root: ROOT}) as MetaJSONV1
+    const second = await peer.invoke({root: ROOT}) as Graph
 
     expect(first.template[ROOT]!.name).toBe("Root 1")
     expect(first.runtime.roots[0]).toMatchObject({values: {label: "value 1"}})
@@ -380,7 +380,7 @@ describe("stateless MetaJSON Monad assembly", () => {
       () => boundaryProjection,
     )))
 
-    const first = await peer.invoke({root: ROOT}) as MetaJSONV1
+    const first = await peer.invoke({root: ROOT}) as Graph
     darkProjection.template[ROOT]!.name = "mutated between reads"
     const providerRoot = boundaryProjection.runtime.roots[0]!
     if (providerRoot.kind === "atom") providerRoot.values.label = "mutated between reads"
@@ -388,7 +388,7 @@ describe("stateless MetaJSON Monad assembly", () => {
     expect(first.template[ROOT]!.name).toBe("Root 1")
     expect(first.runtime.roots[0]).toMatchObject({values: {label: "value 1"}})
 
-    const second = await peer.invoke({root: ROOT}) as MetaJSONV1
+    const second = await peer.invoke({root: ROOT}) as Graph
     darkProjection.template[ROOT]!.name = "mutated after reads"
     if (providerRoot.kind === "atom") providerRoot.values.label = "mutated after reads"
 

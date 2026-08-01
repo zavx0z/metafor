@@ -3,10 +3,10 @@ import {existsSync, mkdtempSync, readFileSync, rmSync} from "node:fs"
 import {tmpdir} from "node:os"
 import {join} from "node:path"
 import {
-  META_JSON_V1_SCHEMA,
+  GRAPH_SCHEMA,
   parseMetaAddress,
-  type MetaJSONV1,
-} from "@metafor/types/metafor/meta-json"
+  type Graph,
+} from "@metafor/types/metafor/graph"
 import {
   LOCAL_CHECKPOINT_LIMITS_V1,
   publishCurrentOfflineCheckpoint,
@@ -24,8 +24,8 @@ const directory = (): string => {
   return value
 }
 
-const projection = (name = "Root"): MetaJSONV1 => ({
-  schema: META_JSON_V1_SCHEMA,
+const projection = (name = "Root"): Graph => ({
+  schema: GRAPH_SCHEMA,
   root: ROOT,
   template: {
     [ROOT]: {

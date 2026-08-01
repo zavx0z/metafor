@@ -42,7 +42,7 @@ export interface CheckpointMassV1 {
 }
 
 export interface CheckpointProjectionV1 {
-  schema: "metafor/meta-json/v1"
+  schema: "metafor/graph"
   root: string
   canonicalization: "rfc8785"
   blob: CheckpointBlobV1
@@ -74,7 +74,7 @@ export interface CheckpointForwardPatchDocumentV1 {
   schema: "metafor/checkpoint-forward-patches/v1"
   cutId: string
   projection: {
-    schema: "metafor/meta-json/v1"
+    schema: "metafor/graph"
     root: string
     canonicalization: "rfc8785"
   }
@@ -370,12 +370,12 @@ class Validator {
     if (
       !record(input.projection) ||
       !exact(input.projection, ["blob", "canonicalization", "root", "schema"]) ||
-      input.projection.schema !== "metafor/meta-json/v1" ||
+      input.projection.schema !== "metafor/graph" ||
       input.projection.canonicalization !== "rfc8785" ||
       typeof input.projection.root !== "string" ||
       !/^[^/]+\/[^/]+$/.test(input.projection.root)
     ) {
-      this.issue("/projection", "invalid_projection", "Checkpoint projection must be one canonical MetaJSON v1 root")
+      this.issue("/projection", "invalid_projection", "Checkpoint projection must be one canonical Graph root")
     } else {
       this.blob(input.projection.blob, "/projection/blob")
     }
@@ -491,7 +491,7 @@ export const validateCheckpointForwardPatchDocumentV1 = (
   if (
     !record(input.projection) ||
     !exact(input.projection, ["canonicalization", "root", "schema"]) ||
-    input.projection.schema !== "metafor/meta-json/v1" ||
+    input.projection.schema !== "metafor/graph" ||
     input.projection.canonicalization !== "rfc8785" ||
     typeof input.projection.root !== "string" ||
     !/^[^/]+\/[^/]+$/.test(input.projection.root)

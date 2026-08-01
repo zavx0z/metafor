@@ -17,7 +17,7 @@ The integrated private proof has six parts:
 1. `boundary/dissolve.ts` plans and executes one atomic transaction only on a
    caller-provided isolated Boundary database. It preserves the Lada Atom and
    descendants, transfers exactly five Mass identities, validates pre/planned
-   MetaJSON, and rolls back on a late CAS mismatch.
+   Graph, and rolls back on a late CAS mismatch.
 2. `boundary/dissolve-staging.ts` stores an immutable/idempotent receipt only in
    `sqlite::memory:`. The receipt has `effects: "none"`, has no cut/checkpoint
    identity, and is deliberately absent from Boundary exports/runtime.
@@ -37,7 +37,7 @@ The integrated private proof has six parts:
    both successful and failed bundles.
 6. `boundary/dissolve-candidate-execution.ts` reopens the exact stored plan,
    proves byte-identical current planning and all CAS, executes only inside the
-   detached candidate and returns `BoundaryDissolveProof` plus post-MetaJSON.
+   detached candidate and returns `BoundaryDissolveProof` plus post-Graph.
    The matching bridge receipt is passed into Bulk manifestation, while
    `runtime/dissolve-candidate-acceptance.ts` verifies a second private
    rollback restoration and produces browser/static evidence.
@@ -89,7 +89,7 @@ The remaining reusable primitives have narrower behavior:
 ## Implemented durable stage boundary
 
 The implemented stage is Boundary-owned private service state, not a Particle,
-MetaJSON field, source commit, checkpoint-history row, or public Mass
+Graph field, source commit, checkpoint-history row, or public Mass
 observation. It can be created only from private copies whose caller explicitly
 certifies a stopped contour.
 
@@ -98,13 +98,13 @@ The stage must contain closed, recoverably validated data:
 - stage schema/version, `stageId`, `proposalId`, and `operation: "dissolve"`;
 - immutable checkpoint binding:
   `cutId`, `acceptanceSequence`, checkpoint commit, Boundary blob SHA-256,
-  canonical pre-MetaJSON SHA-256, and complete Mass-capture manifest SHA-256;
+  canonical pre-Graph SHA-256, and complete Mass-capture manifest SHA-256;
 - exact backup-package manifest SHA-256, without treating a mutable path as
   identity;
 - canonical source `zavx0z/inference`, target `zavx0z/lada`, source/target Atom
   identities, target position, preserved runtime identities and order;
 - complete serialized plan plus `proposalSha256`, `planSha256`,
-  `structuralSha256`, pre-MetaJSON SHA-256, and private-manifest SHA-256;
+  `structuralSha256`, pre-Graph SHA-256, and private-manifest SHA-256;
 - exactly five source/target authored-key mappings with source/target
   declaration IDs, source global key ID, previous target global key ID, codec,
   dependent memberships, and closed Mass evidence;
@@ -147,7 +147,7 @@ manifest must record:
    verification, checkpoint-control state digest, and absence of unresolved
    sent/applied frontiers.
 4. Boundary state: SQLite/WAL/SHM hashes, `quick_check`, `foreign_key_check`,
-   canonical pre-MetaJSON digest, exact source/target Atom and runtime-origin
+   canonical pre-Graph digest, exact source/target Atom and runtime-origin
    rows, sibling position, preserved descendants and retired-execution fence.
 5. Mass state: all five source and target declarations/memberships, source
    relations and dependent memberships, global key IDs/codecs, the four
@@ -172,7 +172,7 @@ No step below is authorized by this document.
 1. Record the scoped process/listener ownership and health without mutation.
 2. Record the redacted source/target/five-mapping evidence and current
    history/control status through owner interfaces.
-3. Freeze the exact source revisions used to build planned MetaJSON evidence.
+3. Freeze the exact source revisions used to build planned Graph evidence.
 4. Prepare explicit backup and rollback paths; do not stop anything until the
    owner accepts the evidence manifest and rollback target.
 
@@ -204,7 +204,7 @@ No step below is authorized by this document.
 
 12. Completed by MF-115: apply the exact staged transaction only to a detached
     candidate Boundary copy.
-13. Completed by MF-115: verify planned MetaJSON, SQLite integrity, exact
+13. Completed by MF-115: verify planned Graph, SQLite integrity, exact
     runtime order, five Mass ownership transfers, four unchanged present
     files, absent `chatOutbox`, retained superseded target keys, Bulk reframe,
     browser/static scene and a second private rollback restoration.
@@ -225,7 +225,7 @@ No step below is authorized by this document.
     backup as one rollback package.
 19. Re-hash restored bytes, rerun SQLite/history/control checks, and cold-start
     the prior contour once.
-20. Accept rollback only when the prior MetaJSON digest, topology, Mass
+20. Accept rollback only when the prior Graph digest, topology, Mass
     evidence, history/control identity, health and required functional state
     match the pre-cut evidence. Preserve failed candidate/stage evidence
     privately without Mass payload disclosure.
@@ -266,7 +266,7 @@ No step below is authorized by this document.
 
 - The proof mutates only Boundary SQLite. It does not update canonical
   `meta.ts`.
-- Its planned MetaJSON validator is supplied by tests and does not derive the
+- Its planned Graph validator is supplied by tests and does not derive the
   post-dissolve declaration graph from current Inference/Lada source.
 - A later read/materialization rooted at `zavx0z/inference` can therefore
   reintroduce the source unless activation also defines the canonical authored

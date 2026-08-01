@@ -36,7 +36,7 @@
 - [Bulk manifestation и Visual projection](../bulk/VISUAL.md) —
   граница semantic identity и принадлежащей `pkg/visual` геометрии.
 - [Visual layouts](../pkg/visual/CONTRACT.md) — именованные способы показать
-  один полный Monad snapshot.
+  один полный Bulk scene snapshot.
 - [Протоколы сил](proto/) — справочное чтение wire-потоков; при конфликте
   приоритет имеет контракт домена и public type.
 - [Работа с Meta-пакетами](META_PACKAGES.md) — граница внешних репозиториев в

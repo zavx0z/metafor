@@ -101,13 +101,13 @@ function assertFieldSupports(field: MatrixFieldRecord | undefined, operator: str
  * Преобразует одно условие Field в последовательность проверок, соединённых
  * через «и».
  *
- * @param condition Условие из MetaJSON/Boundary либо прямой вход Matrix.
+ * @param condition Условие из Graph/Boundary либо прямой вход Matrix.
  * @param field Объявление Field; если передано, несовместимые операции
  * отклоняются до сборки Store.
  * @returns Канонические проверки в порядке объявления операций.
  * @throws При неизвестной операции, неверном операнде или несовместимом Field.
  *
- * @see [Полный путь условий MetaJSON → Boundary → Matrix](https://github.com/zavx0z/metafor/blob/main/matrix/conditions.integration.spec.ts)
+ * @see [Полный путь условий Graph → Boundary → Matrix](https://github.com/zavx0z/metafor/blob/main/matrix/conditions.integration.spec.ts)
  * @see [Одинаковое выполнение CPU и WebGPU](https://github.com/zavx0z/metafor/blob/main/matrix/weak/tests/weak.conditions.test.ts)
  */
 export function parseCondition(

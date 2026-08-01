@@ -2,14 +2,14 @@ import {SQL} from "bun"
 import {createHash} from "node:crypto"
 import {
   parseMetaAddress,
-  validateMetaJSONV1,
+  validateGraph,
   type MetaAddress,
-} from "@metafor/types/metafor/meta-json"
+} from "@metafor/types/metafor/graph"
 import {
   planBoundaryDissolve,
   type BoundaryDissolveFiveMassMappings,
   type BoundaryDissolveMassEvidenceReader,
-  type BoundaryDissolveMetaJSONReader,
+  type BoundaryDissolveGraphReader,
   type BoundaryDissolvePlan,
   type BoundaryDissolveRequest,
 } from "./dissolve.ts"
@@ -42,20 +42,20 @@ export type BoundaryDissolveStageReceiptV1 = Readonly<{
   planSha256: string
   structuralSha256: string
   privateManifestSha256: string
-  metaJSONSha256: string
+  graphSha256: string
   effects: "none"
 }>
 
 export type BoundaryDissolveStagingHooks = Readonly<{
   massEvidence: BoundaryDissolveMassEvidenceReader
-  readMetaJSON: BoundaryDissolveMetaJSONReader
+  readGraph: BoundaryDissolveGraphReader
 }>
 
 export type BoundaryDissolveStagingErrorCode =
   | "invalid_proposal"
   | "proposal_conflict"
   | "pre_state_conflict"
-  | "meta_json_invalid"
+  | "graph_invalid"
   | "receipt_corrupt"
 
 export class BoundaryDissolveStagingError extends Error {
@@ -187,7 +187,7 @@ const receiptFromJson = (
       "planSha256",
       "structuralSha256",
       "privateManifestSha256",
-      "metaJSONSha256",
+      "graphSha256",
       "effects",
     ]) ||
     parsed.schema !== BOUNDARY_DISSOLVE_STAGE_RECEIPT_V1 ||
@@ -278,11 +278,11 @@ export class IsolatedBoundaryDissolveStaging {
 
         const plan = await planBoundaryDissolve(boundary, proposal.request, hooks.massEvidence)
         const firstPlanDigest = planSha256(plan)
-        const metaJSON = await hooks.readMetaJSON(proposal.request.source, "before")
-        if (!validateMetaJSONV1(metaJSON) || metaJSON.root !== proposal.request.source) {
+        const graph = await hooks.readGraph(proposal.request.source, "before")
+        if (!validateGraph(graph) || graph.root !== proposal.request.source) {
           throw new BoundaryDissolveStagingError(
-            "meta_json_invalid",
-            `Dissolve staging requires a valid ${proposal.request.source} MetaJSON document`,
+            "graph_invalid",
+            `Dissolve staging requires a valid ${proposal.request.source} Graph document`,
           )
         }
 
@@ -309,7 +309,7 @@ export class IsolatedBoundaryDissolveStaging {
           planSha256: firstPlanDigest,
           structuralSha256: plan.structuralSha256,
           privateManifestSha256: sha256(JSON.stringify(plan.privateManifest)),
-          metaJSONSha256: sha256(JSON.stringify(metaJSON)),
+          graphSha256: sha256(JSON.stringify(graph)),
           effects: "none",
         } as const
         const receipt = Object.freeze({

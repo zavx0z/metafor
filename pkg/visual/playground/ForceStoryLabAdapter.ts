@@ -1,9 +1,9 @@
 import type {BulkManifest} from "@metafor/types/bulk/manifest"
+import type {BulkProjectionSnapshot} from "@metafor/types/bulk/initial"
 import type {BulkVisualRenderManifest} from "@metafor/types/bulk/visual"
 import {
   CenteredNested,
   OutsideIn,
-  buildStateGraph,
   visualOwnerDarkParticleIdFromAtomId,
   type StateGraph,
   type VisualLayout,
@@ -11,15 +11,10 @@ import {
   type VisualScene,
 } from "@metafor/visual/layout"
 import {
-  BulkProjectionStore,
+  BulkVisualSceneLifecycle,
   type BulkProjectionChange,
-} from "../../../bulk/projection.ts"
-import {buildBulkManifestation} from "../../../bulk/manifestation.ts"
-import {
-  buildBulkVisualRenderManifest,
-  renderableManifest,
-} from "../../../bulk/visual-layout.ts"
-import {resolveForceImpulseVisual} from "../../../bulk/web/force-protocol.ts"
+  resolveForceImpulseVisual,
+} from "bulk/visual"
 import type {
   ForceStoryDefinition,
   ForceStoryLayout,
@@ -66,7 +61,7 @@ export type ForceStorySessionSnapshot = Readonly<{
   change: BulkProjectionChange | null
   currentState: string
   phase: "applied" | "prepared"
-  projection: ReturnType<BulkProjectionStore["snapshot"]>
+  projection: BulkProjectionSnapshot
   representation: ForceStoryVisualSnapshot
 }>
 
@@ -92,10 +87,15 @@ const forceStoryLayoutById = Object.freeze({
 
 const prepareProjection = (
   scene: ForceStoryPreparedScene,
-): BulkProjectionStore => {
-  const store = new BulkProjectionStore()
-  store.hydrate(structuredClone(scene.sourceSnapshot))
-  return store
+): BulkVisualSceneLifecycle => {
+  const lifecycle = new BulkVisualSceneLifecycle()
+  lifecycle.prepare({
+    version: 1,
+    throughTs: null,
+    rootSrc: scene.rootSrc,
+    projection: structuredClone(scene.sourceSnapshot),
+  })
+  return lifecycle
 }
 
 const verifiedRepresentation = (
@@ -113,66 +113,54 @@ const verifiedRepresentation = (
 }
 
 const currentStateName = (
-  store: BulkProjectionStore,
+  lifecycle: BulkVisualSceneLifecycle,
   scene: ForceStoryPreparedScene,
 ): string => {
-  const stateId = store.atomStates.get(scene.atomId)?.state
+  const projection = lifecycle.state().projection
+  const stateId = projection.atomStates.find((entry) =>
+    entry.atom === scene.atomId
+  )?.state
   if (stateId === null || stateId === undefined) return "none"
-  return store.states.get(stateId)?.name ?? `State ${stateId}`
+  return projection.states.find((state) => state.id === stateId)?.name ??
+    `State ${stateId}`
 }
 
 const visualSnapshot = (
-  store: BulkProjectionStore,
+  lifecycle: BulkVisualSceneLifecycle,
   representation: ForceStoryVerifiedRepresentation,
 ): ForceStoryVisualSnapshot => {
-  const projection = store.view()
   const preparedScene = representation.preparedScene
-  const manifest = buildBulkManifestation(projection, preparedScene.rootSrc)
-  const graph = buildStateGraph(projection, preparedScene.atomId)
+  const state = lifecycle.state()
+  const manifest = state.manifest
   const rootDarkParticleId = visualOwnerDarkParticleIdFromAtomId(
     preparedScene.atomId,
   )
+  const input = lifecycle.layoutInput(manifest)
+  const graph = input.owners.find((owner) =>
+    owner.ownerDarkParticleId === rootDarkParticleId
+  )?.graph
+  if (!graph) {
+    throw new Error(
+      `Force Story ${representation.id} owner ${rootDarkParticleId} is absent`,
+    )
+  }
   const stateById = new Map(
     graph.states.map((state) => [state.id, state] as const),
   )
   const rootStateIds = [...new Set(
     graph.sleeves.map((sleeve) => sleeve.rootStateId),
   )]
-  const atomByOwnerId = new Map(
-    projection.atoms.map((atom) => [
-      visualOwnerDarkParticleIdFromAtomId(atom.id),
-      atom,
-    ] as const),
-  )
-  const renderable = renderableManifest(manifest)
-  const owners = renderable.darkParticles
-    .filter((particle) => particle.darkParticleKind === "atom")
-    .map((particle) => {
-      const atom = atomByOwnerId.get(particle.darkParticleId)
-      if (!atom) {
-        throw new Error(
-          `Force Story ${representation.id} owner ${particle.darkParticleId} is absent`,
-        )
-      }
-      return {
-        graph: buildStateGraph(projection, atom.id),
-        ownerDarkParticleId: particle.darkParticleId,
-      }
-    })
   return {
     graph,
     layouts: representation.layouts.map((layout) => ({
       id: layout.id,
       label: layout.label,
-      scene: forceStoryLayoutById[layout.id].buildScene({
-        manifest: renderable,
-        owners,
-      }),
+      scene: forceStoryLayoutById[layout.id].buildScene(input),
     })),
     manifest,
     representationId: representation.id,
     rootDarkParticleId,
-    visual: buildBulkVisualRenderManifest(manifest, projection),
+    visual: lifecycle.compose({manifest}).renderManifest,
     sleeves: rootStateIds.map((rootStateId) => ({
       active: rootStateId === graph.currentStateId,
       current: rootStateId === graph.currentStateId,
@@ -202,17 +190,19 @@ export class ForceStorySession {
   readonly representation: ForceStoryVerifiedRepresentation
   #change: BulkProjectionChange | null = null
   #phase: "applied" | "prepared" = "prepared"
-  #store: BulkProjectionStore
+  #lifecycle: BulkVisualSceneLifecycle
 
   constructor(definition: ForceStoryDefinition) {
     this.definition = definition
     this.representation = verifiedRepresentation(definition)
-    this.#store = prepareProjection(this.representation.preparedScene)
+    this.#lifecycle = prepareProjection(this.representation.preparedScene)
   }
 
   apply(): ForceStorySessionSnapshot {
     if (this.#phase === "prepared") {
-      this.#change = this.#store.apply(structuredClone(this.definition.patch))
+      this.#change = this.#lifecycle.apply(
+        structuredClone(this.definition.patch),
+      ).change
       if (!this.#change.changed) {
         throw new Error(
           `Force Story ${this.definition.part} patch did not change projection`,
@@ -224,23 +214,27 @@ export class ForceStorySession {
   }
 
   restart(): ForceStorySessionSnapshot {
-    this.#store = prepareProjection(this.representation.preparedScene)
+    this.#lifecycle.dispose()
+    this.#lifecycle = prepareProjection(this.representation.preparedScene)
     this.#change = null
     this.#phase = "prepared"
     return this.snapshot()
   }
 
   snapshot(): ForceStorySessionSnapshot {
-    const representation = visualSnapshot(this.#store, this.representation)
+    const representation = visualSnapshot(
+      this.#lifecycle,
+      this.representation,
+    )
     return {
       activity: activitySnapshot(representation),
       change: this.#change === null ? null : structuredClone(this.#change),
       currentState: currentStateName(
-        this.#store,
+        this.#lifecycle,
         this.representation.preparedScene,
       ),
       phase: this.#phase,
-      projection: this.#store.snapshot(),
+      projection: this.#lifecycle.snapshot().projection,
       representation,
     }
   }

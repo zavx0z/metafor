@@ -17,7 +17,7 @@ import type {
 } from "@metafor/types/boundary/initial"
 import {MassCatalog} from "../shared/mass.ts"
 
-export type BoundaryMetaJSONSnapshot = {
+export type BoundaryGraphSnapshot = {
   initialState: BoundaryInitialState
   initialProjection: BoundaryInitialProjection
   originByInstance: Map<string, string>
@@ -148,7 +148,7 @@ export const open = async (filename?: string, options: BoundaryOpenOptions = {})
     }),
   })
 
-  const readMetaJSONSnapshot = (): Promise<BoundaryMetaJSONSnapshot> => serialize(async () => {
+  const readGraphSnapshot = (): Promise<BoundaryGraphSnapshot> => serialize(async () => {
     const [initialState, initialProjection] = await Promise.all([
       readBoundaryInitialState(sql),
       readInitialProjection(),
@@ -173,7 +173,7 @@ export const open = async (filename?: string, options: BoundaryOpenOptions = {})
     materialize,
     initialState: () => readBoundaryInitialState(sql),
     initialProjection: readInitialProjection,
-    metaJSONSnapshot: readMetaJSONSnapshot,
+    graphSnapshot: readGraphSnapshot,
     async close() {
       try {
         if (fileBacked) await sql.unsafe("PRAGMA wal_checkpoint(TRUNCATE);")

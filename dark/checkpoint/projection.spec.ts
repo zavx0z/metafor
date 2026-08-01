@@ -1,21 +1,21 @@
 import {describe, expect, test} from "bun:test"
 import {
-  META_JSON_V1_SCHEMA,
+  GRAPH_SCHEMA,
   parseMetaAddress,
-  type MetaJSONV1,
-} from "@metafor/types/metafor/meta-json"
+  type Graph,
+} from "@metafor/types/metafor/graph"
 import type {CheckpointJsonValue} from "@metafor/types/dark/checkpoint"
 import {
-  applyMetaJSONPatchV1,
-  canonicalizeMetaJSONV1,
+  applyGraphPatch,
+  canonicalizeGraph,
   CheckpointProjectionError,
-  diffMetaJSONV1,
+  diffGraph,
 } from "./projection.ts"
 
 const ROOT = parseMetaAddress("example/root")!
 
-const projection = (name = "Root", values: number[] = [1, 2]): MetaJSONV1 => ({
-  schema: META_JSON_V1_SCHEMA,
+const projection = (name = "Root", values: number[] = [1, 2]): Graph => ({
+  schema: GRAPH_SCHEMA,
   root: ROOT,
   template: {
     [ROOT]: {
@@ -38,11 +38,11 @@ const projection = (name = "Root", values: number[] = [1, 2]): MetaJSONV1 => ({
   },
 })
 
-describe("checkpoint canonical MetaJSON projection", () => {
+describe("checkpoint canonical Graph projection", () => {
   test("uses deterministic RFC 8785-style bytes without locale order or trailing newline", () => {
     const input = projection()
-    const first = canonicalizeMetaJSONV1(input)
-    const second = canonicalizeMetaJSONV1(JSON.parse(JSON.stringify(input)))
+    const first = canonicalizeGraph(input)
+    const second = canonicalizeGraph(JSON.parse(JSON.stringify(input)))
 
     expect(first.sha256).toBe(second.sha256)
     expect(first.bytes.at(-1)).not.toBe(10)
@@ -52,7 +52,7 @@ describe("checkpoint canonical MetaJSON projection", () => {
   test("derives only deterministic forward add/remove/replace and round-trips", () => {
     const base = projection("Root", [1, 2])
     const result = projection("Renamed", [2, 3])
-    const operations = diffMetaJSONV1(base, result)
+    const operations = diffGraph(base, result)
 
     expect(operations).toEqual([
       {
@@ -62,12 +62,12 @@ describe("checkpoint canonical MetaJSON projection", () => {
       },
       {op: "replace", path: "/template/example~1root/name", value: "Renamed"},
     ])
-    expect(applyMetaJSONPatchV1(base, operations)).toEqual(result)
+    expect(applyGraphPatch(base, operations)).toEqual(result)
   })
 
   test("rejects non-I-JSON strings before hashing", () => {
     const input = projection()
     input.template[ROOT]!.name = "\ud800"
-    expect(() => canonicalizeMetaJSONV1(input)).toThrow(CheckpointProjectionError)
+    expect(() => canonicalizeGraph(input)).toThrow(CheckpointProjectionError)
   })
 })

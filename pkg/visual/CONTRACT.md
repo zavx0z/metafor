@@ -7,15 +7,12 @@
 
 ## Публичная граница пакета
 
-- Bulk владеет Monad JSON, общим semantic/persistent state и доменной
-  согласованностью данных. Visual не принимает Monad JSON либо snapshot мира
+- Bulk владеет общим semantic/persistent state и доменной
+  согласованностью данных. Visual не принимает Graph либо snapshot мира
   как собственный вход и не хранит их.
-- Текущая единая схема Monad JSON утверждена и не меняется произвольно. Любое
-  изменение принимается только с доказательством совместимости либо явной
-  migration и синхронным обновлением schema/validators, Bulk composition и
-  adapters, совместимости Visual, статичных playground snapshots и проверок.
-- Playground использует статичный полный Monad JSON snapshot Лады и не читает
-  live Bulk; fixture не передаёт Visual владение Monad JSON.
+- Graph — отдельная on-demand read projection, которую собирает Dark Monad.
+  Playground использует статичный полный `BulkObserverSnapshot` Лады и не
+  читает live Bulk; эта fixture не является Graph.
 - Bulk выбирает, что показывать, какие product/UI elements составляют
   representation, какой Visual pattern вызвать и когда применить либо заменить
   его результат.

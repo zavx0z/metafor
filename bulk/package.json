@@ -6,6 +6,7 @@
   "exports": {
     ".": "./index.ts",
     "./settings": "./settings.ts",
+    "./visual": "./visual.ts",
     "./web": "./web/index.ts"
   },
   "private": true,

@@ -1,5 +1,6 @@
 import {describe, expect, test} from "bun:test"
 import type {BulkManifest} from "@metafor/types/bulk/manifest"
+import type {BulkRuntimeProjection} from "@metafor/types/bulk/runtime"
 import {
   CenteredNested,
   OutsideIn,
@@ -12,7 +13,6 @@ import {
   type VisualUpstreamChange,
 } from "@metafor/visual/payload"
 import {ladaLayoutInput} from "../pkg/visual/testing/lada-fixture.ts"
-import type {BulkProjectionStore} from "./projection.ts"
 import {
   BulkVisualStore,
   hydrateBulkVisualStore,
@@ -38,7 +38,7 @@ const upstream = (
 const hydrated = (
   layout: VisualLayout = CenteredNested,
   mutate?: (manifest: BulkManifest) => BulkManifest,
-  mutateProjection?: (projection: BulkProjectionStore) => void,
+  mutateProjection?: (projection: BulkRuntimeProjection) => void,
 ): Readonly<{manifest: BulkManifest; store: BulkVisualStore}> => {
   const input = ladaLayoutInput(mutate, mutateProjection)
   const prepared = prepareVisualScene(layout, input)
@@ -300,12 +300,14 @@ describe("Bulk Visual Store local repaint", () => {
     // The next State is chosen from the projection so the manifest and the
     // owner graph agree on the identity, which is what a strategy requires.
     const {manifest} = hydrated(layout, undefined, (projection) => {
-      const current = projection.atomStates.get(atomId)
-      const alternatives = [...projection.states.values()].filter((state) =>
+      const current = projection.atomStates.find((entry) =>
+        entry.atom === atomId
+      )
+      const alternatives = projection.states.filter((state) =>
         state.id !== current?.state
       )
       const next = alternatives[0]
-      if (next) projection.atomStates.set(atomId, {atom: atomId, state: next.id})
+      if (next && current) current.state = next.id
     })
     return {atomId, manifest, store}
   }
@@ -368,12 +370,14 @@ describe("Bulk Visual Store local repaint", () => {
     const rebuilt = buildVisualScenePayload(
       CenteredNested,
       ladaLayoutInput(undefined, (projection) => {
-        const current = projection.atomStates.get(atomId)
-        const alternatives = [...projection.states.values()].filter((state) =>
+        const current = projection.atomStates.find((entry) =>
+          entry.atom === atomId
+        )
+        const alternatives = projection.states.filter((state) =>
           state.id !== current?.state
         )
         const next = alternatives[0]
-        if (next) projection.atomStates.set(atomId, {atom: atomId, state: next.id})
+        if (next && current) current.state = next.id
       }),
     )
     const oracle = store.oracleAgainst(rebuilt)

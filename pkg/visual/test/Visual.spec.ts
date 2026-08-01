@@ -22,7 +22,7 @@ describe("Visual layout catalog", () => {
       label: "Снаружи → внутрь",
       status: "in-progress",
       description:
-        "Раскладка в работе: полный Monad snapshot от корневого Atom внутрь каждого рекурсивного Atom.",
+        "Раскладка в работе: полный Bulk scene snapshot от корневого Atom внутрь каждого рекурсивного Atom.",
     })
     expect(typeof visualLayoutForSlug("outside-in")?.buildScene)
       .toBe("function")

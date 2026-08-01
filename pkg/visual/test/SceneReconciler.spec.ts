@@ -243,7 +243,9 @@ describe("Visual scene reconciliation", () => {
           (entry) => entry.state !== null,
         )
         if (!atomState) throw new Error("fixture has no current State")
-        const atom = projection.atoms.get(atomState.atom)
+        const atom = projection.atoms.find((entry) =>
+          entry.id === atomState.atom
+        )
         if (!atom) throw new Error("fixture has no owning Atom")
         const sibling = [...projection.states.values()].find((state) =>
           state.wimp === atom.wimp && state.id !== atomState.state

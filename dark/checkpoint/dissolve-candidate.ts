@@ -18,7 +18,7 @@ import {createHash} from "node:crypto"
 import {tmpdir} from "node:os"
 import {basename, dirname, extname, join, relative, resolve, sep} from "node:path"
 import {
-  canonicalizeMetaJSONV1,
+  canonicalizeGraph,
 } from "./projection.ts"
 import {
   publishCurrentOfflineCheckpoint,
@@ -48,7 +48,7 @@ import {
   massFileName,
   type MassFileFormat,
 } from "../../shared/mass.ts"
-import type {MetaAddress, MetaJSONV1} from "@metafor/types/metafor/meta-json"
+import type {MetaAddress, Graph} from "@metafor/types/metafor/graph"
 import type {
   CheckpointMassCapture,
   CheckpointPatchCaptureEntry,
@@ -100,17 +100,17 @@ export type DissolveCandidateBundleOptions = Readonly<{
   stoppedControlState: string
   previousCheckpointRepository?: string
   previousSnapshotSequence: number | null
-  baseProjection: MetaJSONV1
+  baseProjection: Graph
   patches: readonly CheckpointPatchCaptureEntry[]
   proposal: BoundaryDissolveProposalV1
   validAbsent: readonly BoundaryDissolveValidAbsence[]
   capturedAt: string
   confirmStoppedPrivateCopies: true
-  readMetaJSON(
+  readGraph(
     boundary: BoundaryDatabase,
     root: MetaAddress,
     phase: "before" | "planned",
-  ): Promise<MetaJSONV1>
+  ): Promise<Graph>
   limits?: CheckpointRepositoryLimits
 }>
 
@@ -472,7 +472,7 @@ export const createDetachedDissolveCandidateBundle = async (
       candidateBoundary,
       candidateMass,
     )
-    const preMetaJSON = await options.readMetaJSON(
+    const preGraph = await options.readGraph(
       candidateDatabase,
       options.proposal.request.source,
       "before",
@@ -539,7 +539,7 @@ export const createDetachedDissolveCandidateBundle = async (
       previousSnapshotSequence: options.previousSnapshotSequence,
       acceptedSequences,
       base: options.baseProjection,
-      result: preMetaJSON,
+      result: preGraph,
       boundary: preStageBoundaryBytes,
       mass: massCapture(rollbackMass),
       patches: [...options.patches],
@@ -584,17 +584,17 @@ export const createDetachedDissolveCandidateBundle = async (
         candidateMass,
         options.validAbsent,
       ),
-      readMetaJSON: async (root, phase) =>
-        await options.readMetaJSON(candidateDatabase, root, phase),
+      readGraph: async (root, phase) =>
+        await options.readGraph(candidateDatabase, root, phase),
     })
-    const stagedProjection = await options.readMetaJSON(
+    const stagedProjection = await options.readGraph(
       candidateDatabase,
       options.proposal.request.source,
       "before",
     )
     if (
-      canonicalizeMetaJSONV1(stagedProjection).sha256 !==
-        canonicalizeMetaJSONV1(preMetaJSON).sha256
+      canonicalizeGraph(stagedProjection).sha256 !==
+        canonicalizeGraph(preGraph).sha256
     ) {
       throw new Error("Detached candidate stage changed the Boundary world projection")
     }
@@ -610,8 +610,8 @@ export const createDetachedDissolveCandidateBundle = async (
         candidateMass,
         options.validAbsent,
       ),
-      readMetaJSON: async (root, phase) =>
-        await options.readMetaJSON(candidateDatabase, root, phase),
+      readGraph: async (root, phase) =>
+        await options.readGraph(candidateDatabase, root, phase),
     })
     if (
       !reopenedReceipt ||

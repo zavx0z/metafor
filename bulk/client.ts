@@ -4,64 +4,27 @@ import {
 	isBulkViewportCaptureControlRequest,
 	type BulkViewportCaptureControlResponse,
 } from "@metafor/types/bulk/capture"
-import type {BulkObserverSnapshot} from "@metafor/types/bulk/initial"
 import { Force } from "shared/transport/force"
 import {
 	createBulkViewport,
 	type BulkVisualViewportWithHud,
 } from "bulk/web"
-import { DEFAULT_BULK_SCENE_SRC } from "bulk/settings"
+import {BulkVisualSceneLifecycle} from "bulk/visual"
 import { installBulkHud } from "./hud.ts"
-import { BulkProjectionStore, type BulkProjectionChange } from "./projection.ts"
-import { observedRootSrc } from "./web/force-protocol.ts"
-import { buildBulkManifestation } from "./manifestation.ts"
 import {captureBulkViewportCanvas} from "./web/viewport-capture.ts"
 import {BulkPresentedSnapshot} from "./web/observer-snapshot.ts"
 import {
-	BulkVisualScenePresenter,
-} from "./visual-viewport.ts"
-import {resolveBulkVisualLayout} from "./visual-layout.ts"
-import {isVisualPreparedScene} from "@metafor/visual/layout/centered-nested"
-import type {BulkInitialScene} from "./visual-initial.ts"
+	isBulkGraphUpdateControl,
+	isBulkInitialScene,
+	type BulkInitialScene,
+} from "./visual-initial.ts"
 
 const bulkCanvas = document.getElementById("bulk-canvas") as HTMLCanvasElement | null
 if (bulkCanvas === null) throw new Error("bulk-canvas not found")
 
 let bulkViewport: BulkVisualViewportWithHud | null = null
-const projection = new BulkProjectionStore()
-const presenter = new BulkVisualScenePresenter()
-let activeSrc = DEFAULT_BULK_SCENE_SRC
-let throughTs: number | null = null
+let visualLifecycle: BulkVisualSceneLifecycle | null = null
 const presentedSnapshot = new BulkPresentedSnapshot()
-
-const observerSnapshot = (): BulkObserverSnapshot => ({
-	version: 1,
-	throughTs,
-	rootSrc: activeSrc,
-	projection: projection.snapshot(),
-})
-
-/**
- * Applies one changed manifestation.
- *
- * The whole change is forwarded, not a boolean digest of it: `facet` names the
- * upstream fact that moved and `affectedAtomIds` is the closure it reached.
- * Narrowing this to `{changed, structural}` here is what used to make every
- * accepted change a full rebuild, because the visual side then had nothing to
- * localize against.
- */
-const applyProjectionManifestation = (
-	src: string,
-	change: BulkProjectionChange,
-): void => {
-	if (!bulkViewport) return
-	presenter.apply(
-		bulkViewport,
-		buildBulkManifestation(projection.view(), src),
-		projection.view(),
-		change,
-	)
-}
 
 const waitForVisibleDocument = async (): Promise<void> => {
 	if (document.visibilityState === "visible") return
@@ -98,30 +61,12 @@ const initBulkViewport = async (): Promise<void> => {
 	window.visualViewport?.addEventListener("resize", resizeBulkViewport)
 }
 
-const receiveImpulse = (forceMessage: Parameters<Force["onImpulse"]>[0]): void => {
-	const part = forceMessage.parts[0]
-	const change = projection.apply(part)
-	const rootSrcs = new Set(
-		[...projection.atoms.values()]
-			.filter((atom) => atom.parentAtom === null && atom.parentTopology === null)
-			.map((atom) => atom.wimp),
-	)
-	const nextRootSrc = observedRootSrc(part, rootSrcs)
-	if (nextRootSrc !== null) activeSrc = nextRootSrc
-	if (change.changed) {
-		applyProjectionManifestation(activeSrc, change)
-	}
-	throughTs = part.ts
-	bulkViewport?.handleForce(part.part, part)
-	presentedSnapshot.stage(observerSnapshot)
-}
-
 const readInitialPackage = async (): Promise<BulkInitialScene> => {
 	const response = await fetch("/initial", {method: "POST"})
 	if (!response.ok) throw new Error(`Bulk initial package failed: ${response.status} ${await response.text()}`)
-	const initial = await response.json() as BulkInitialScene
-	if (!isVisualPreparedScene(initial.visual)) {
-		throw new Error("Bulk initial package carries no prepared visual state")
+	const initial = await response.json() as unknown
+	if (!isBulkInitialScene(initial)) {
+		throw new Error("Bulk initial package is not one complete validated Graph scene")
 	}
 	return initial
 }
@@ -129,17 +74,14 @@ const readInitialPackage = async (): Promise<BulkInitialScene> => {
 const start = async (): Promise<void> => {
 	await initBulkViewport()
 	const initial = await readInitialPackage()
-	projection.hydrate(initial.projection)
-	activeSrc = initial.rootSrc
-	throughTs = initial.throughTs
 	if (!bulkViewport) throw new Error("Bulk viewport is not initialized")
 	installBulkHud({viewport: bulkViewport})
 	// The server already ran the selected strategy. Hydration presents that
 	// geometry as-is; no layout strategy runs in this browser on the initial
 	// path, which `visualLayoutBuiltScenes()` proves in the spec.
-	presenter.selectLayout(resolveBulkVisualLayout(initial.visual.layoutSlug))
-	presenter.hydrate(bulkViewport, initial.manifest, initial.visual.payload)
-	presentedSnapshot.stage(observerSnapshot)
+	visualLifecycle = new BulkVisualSceneLifecycle({target: bulkViewport})
+	visualLifecycle.hydrate(initial)
+	presentedSnapshot.stage(() => visualLifecycle!.snapshot())
 
 	const observerId = `bulk-web-${crypto.randomUUID()}`
 	const force = new Force("bulk", {
@@ -147,6 +89,13 @@ const start = async (): Promise<void> => {
 		parameters: {session: initial.session},
 	})
 	force.onControl = async (message) => {
+		if (isBulkGraphUpdateControl(message)) {
+			visualLifecycle!.hydrate(message.scene)
+			const part = message.message.parts[0]
+			bulkViewport?.handleForce(part.part, part)
+			presentedSnapshot.stage(() => visualLifecycle!.snapshot())
+			return
+		}
 		if (!isBulkViewportCaptureControlRequest(message)) return
 		const snapshot = await presentedSnapshot.read()
 		const viewport = bulkViewport
@@ -166,7 +115,9 @@ const start = async (): Promise<void> => {
 		}
 		force.sendControl(response)
 	}
-	force.onImpulse = receiveImpulse
+	force.onImpulse = () => {
+		throw new Error("Bulk browser rejects direct Particle updates without a Graph replacement")
+	}
 }
 
 void start().catch((error) => console.error("[bulk] initialization failed", error))

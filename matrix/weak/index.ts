@@ -10,7 +10,7 @@
  * @see [Рождение неопределённого State](https://github.com/zavx0z/metafor/blob/main/matrix/weak/tests/weak.parity.test.ts#L155-L175)
  * @see [Atom без графа States](https://github.com/zavx0z/metafor/blob/main/matrix/weak/tests/weak.parity.test.ts#L213-L237)
  * @see [Первый подходящий Transition](https://github.com/zavx0z/metafor/blob/main/matrix/weak/tests/weak.parity.test.ts#L265-L281)
- * @see [Полный язык условий от MetaJSON до шага Weak](https://github.com/zavx0z/metafor/blob/main/matrix/conditions.integration.spec.ts)
+ * @see [Полный язык условий от Graph до шага Weak](https://github.com/zavx0z/metafor/blob/main/matrix/conditions.integration.spec.ts)
  * @see [Равенство всех условий CPU и WebGPU](https://github.com/zavx0z/metafor/blob/main/matrix/weak/tests/weak.conditions.test.ts)
  *
  * @packageDocumentation

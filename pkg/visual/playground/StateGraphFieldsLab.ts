@@ -1,11 +1,7 @@
 import type {BulkManifest} from "@metafor/types/bulk/manifest"
-import type {BulkRuntimeProjection} from "@metafor/types/bulk/runtime"
 import type {BulkVisualRenderManifest} from "@metafor/types/bulk/visual"
-import {buildBulkManifestation} from "../../../bulk/manifestation.ts"
-import {
-  buildBulkVisualRenderManifest,
-} from "../../../bulk/visual-layout.ts"
-import {buildStateGraph, type StateGraph} from "../src/StateGraph.ts"
+import {BulkVisualSceneLifecycle} from "bulk/visual"
+import type {StateGraph} from "../src/StateGraph.ts"
 
 export type StateGraphFieldsStand = Readonly<{
   graph: StateGraph
@@ -48,9 +44,10 @@ export const isolateRootAtomManifest = (
 }
 
 export const buildStateGraphFieldsStand = (
-  projection: BulkRuntimeProjection,
-  rootSrc: string,
+  lifecycle: BulkVisualSceneLifecycle,
 ): StateGraphFieldsStand => {
+  const state = lifecycle.state()
+  const {projection, rootSrc} = state
   const rootAtoms = projection.atoms.filter((atom) =>
     atom.wimp === rootSrc &&
     atom.parentAtom === null &&
@@ -63,14 +60,23 @@ export const buildStateGraphFieldsStand = (
   }
 
   const manifest = isolateRootAtomManifest(
-    buildBulkManifestation(projection, rootSrc),
+    state.manifest,
     rootSrc,
   )
   const rootDarkParticleId = manifest.darkParticles[0]!.darkParticleId
+  const input = lifecycle.layoutInput(manifest)
+  const owner = input.owners.find((candidate) =>
+    candidate.ownerDarkParticleId === rootDarkParticleId
+  )
+  if (!owner) {
+    throw new Error(
+      `State Graph Fields stand expected Visual owner ${rootDarkParticleId}`,
+    )
+  }
   return {
-    graph: buildStateGraph(projection, rootAtoms[0]!.id),
+    graph: owner.graph,
     manifest,
     rootDarkParticleId,
-    visual: buildBulkVisualRenderManifest(manifest, projection),
+    visual: lifecycle.compose({manifest}).renderManifest,
   }
 }

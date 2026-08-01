@@ -1,4 +1,4 @@
-# MetaJSON v1: утверждённый read-contract
+# Graph: утверждённый read-contract
 
 Статус: **owner-approved contract baseline (`MF-100`)**.
 
@@ -6,17 +6,19 @@
 implementation и сам по себе не разрешает менять runtime, Store, Mass, Lada
 или активный contour.
 
-## 1. Один публичный документ
+## 1. Один публичный Graph
 
-MetaJSON v1 имеет ровно один public JSON document и одну schema:
+Graph — единственный public graph format и имеет одну schema. JSON является
+только его технической сериализацией для transport/storage; это не имя
+доменной сущности, не второй формат и не отдельный контракт:
 
 ```ts
-type MetaJSONV1 = {
-  schema: "metafor/meta-json/v1"
+type Graph = {
+  schema: "metafor/graph"
   root: MetaAddress
-  template: Record<MetaAddress, MetaTemplateV1>
+  template: Record<MetaAddress, MetaTemplate>
   runtime: {
-    roots: RuntimeNodeV1[]
+    roots: RuntimeNode[]
   }
 }
 ```
@@ -26,11 +28,11 @@ type MetaJSONV1 = {
 
 Отдельных `MetaDocument`/`MetaProjection`, `authoring`, `planner`,
 `diagnostic`, compact или иных public formats/views нет. Partial
-selection/query может быть отдельной retrieval operation над этим документом,
-но не меняет schema и не создаёт второй MetaJSON payload. `MF-101` обязан
+selection/query может быть отдельной retrieval operation над этим Graph,
+но не меняет schema и не создаёт второй Graph payload. `MF-101` обязан
 сначала реализовать полный read.
 
-`meta.ts` и Git остаются canonical human-authored source. MetaJSON всегда
+`meta.ts` и Git остаются canonical human-authored source. Graph всегда
 собирается заново и не хранится как authored document или второй Store.
 
 ## 2. Complete compact template
@@ -40,7 +42,7 @@ Map key является canonical Meta address, значение — полна
 compact normalization текущего `MetaDSL`:
 
 ```ts
-type MetaTemplateV1 = JsonProjection<MetaDSL>
+type MetaTemplate = JsonProjection<MetaDSL>
 ```
 
 `JsonProjection<MetaDSL>` означает не новый декларационный язык, а точный
@@ -78,23 +80,23 @@ public occurrence identity.
 ```ts
 type DocumentPointer = `#${JsonPointer}`
 
-type RuntimeAtomV1 = {
+type RuntimeAtom = {
   kind: "atom"
   declaration: DocumentPointer
   meta: MetaAddress
   state: string | null
   values: Record<string, JsonValue>
-  children?: RuntimeNodeV1[]
+  children?: RuntimeNode[]
 }
 
-type RuntimeTopologyV1 = {
+type RuntimeTopology = {
   kind: "topology"
   declaration: DocumentPointer
   topology: "fuzzy" | "axion" | "macho"
-  children?: RuntimeNodeV1[]
+  children?: RuntimeNode[]
 }
 
-type RuntimeNodeV1 = RuntimeAtomV1 | RuntimeTopologyV1
+type RuntimeNode = RuntimeAtom | RuntimeTopology
 ```
 
 `declaration` всегда разрешается внутри `template` этого же документа:
@@ -120,7 +122,7 @@ Atom в Boundary:
 Boundary projection разрешает internal Field ID в declaration key, State ID в
 State name, а enum Variant ID в объявленное JSON value до public boundary.
 
-В v1 отсутствуют:
+В Graph отсутствуют:
 
 - `materialized`, `inherited-default`, `missing` и `not-projected` cells;
 - `values/missing` envelope;
@@ -137,10 +139,10 @@ State name, а enum Variant ID в объявленное JSON value до public 
 
 Boundary `Atom.id`, declaration/Field/State/Value IDs, `valueId`, SQLite row
 handles, synthetic IDs и другие internal storage identities не пересекают
-public MetaJSON boundary.
+public Graph boundary.
 
 Matter и shared Field/Mass/Energy relations остаются в complete normalized
-Matter declaration и public structural references. MetaJSON не добавляет:
+Matter declaration и public structural references. Graph не добавляет:
 
 - направленные occurrence ports;
 - boundary stubs;
@@ -152,10 +154,10 @@ Boundary может использовать internal IDs при построе�
 
 ## 4. Семантический порядок
 
-MetaJSON не вводит universal `order` vector и не объявляет любой порядок
+Graph не вводит universal `order` vector и не объявляет любой порядок
 отображения новым законом.
 
-| Конструкция | Закон v1 |
+| Конструкция | Закон Graph |
 | --- | --- |
 | States | declaration sequence сохраняется; первый State является initial |
 | Transitions одного State | sequence сохраняется; первый matching Transition имеет приоритет |
@@ -166,7 +168,7 @@ MetaJSON не вводит universal `order` vector и не объявляет �
 | Reactions | sequence сохраняет current declaration identity/deterministic emission, но не создаёт first-match law |
 | Matter | сохраняются parent, edge slot, sibling и repeated-occurrence order |
 | Mass declarations | order не получает отдельной domain semantics |
-| Display order | не является MetaJSON law |
+| Display order | не является Graph law |
 
 Template serializer сохраняет действующую normalized MetaDSL representation,
 но consumer не приписывает semantic priority sections, для которых она не
@@ -177,7 +179,7 @@ Template serializer сохраняет действующую normalized MetaDSL
 Public operation предоставляется через Dark Monad, например:
 
 ```ts
-readMetaJSON({root: MetaAddress}): Promise<MetaJSONV1>
+readGraph({root: MetaAddress}): Promise<Graph>
 ```
 
 Точный method name фиксируется public type `MF-101`; отдельный transport
@@ -190,8 +192,8 @@ validated canonical root
 → Dark declaration projection
 → Boundary current projection
 → stateless structural join
-→ MetaJSON v1 runtime validation
-→ one public document
+→ Graph runtime validation
+→ one public Graph
 ```
 
 Владение:
@@ -201,12 +203,12 @@ validated canonical root
 | Dark Monad | complete normalized MetaDSL graph выбранного root |
 | Boundary | current Atom/topology structure, State и present Field values |
 | Dark Monad | stateless orchestration, structural join и final validation |
-| Dark Force | transport Monad RPC, без интерпретации MetaJSON payload |
+| Dark Force | transport Monad RPC, без интерпретации Graph payload |
 
 Dark Monad не хранит assembled document и не читает Boundary storage напрямую.
 Её declaration provider не читает Boundary/SQLite, Boundary не загружает
 `meta.ts`. После `MF-102` provider и assembler находятся в Dark Monad, а
-принятый public MetaJSON contract и stateless behavior не меняются.
+принятый public Graph contract и stateless behavior не меняются.
 
 Если Dark и Boundary projections нельзя согласовать по canonical Meta address
 и public structural declaration references, read завершается точной validation
@@ -217,8 +219,8 @@ error. Assembler не выдаёт partial stub и не угадывает relat
 `MF-101` предоставляет один public validator:
 
 ```ts
-interface MetaJSONValidatorsV1 {
-  metaJSON(input: unknown): ValidationResult<MetaJSONV1>
+interface GraphValidators {
+  graph(input: unknown): ValidationResult<Graph>
 }
 
 type ValidationResult<T> =
@@ -235,7 +237,7 @@ type ValidationResult<T> =
 
 Validator эквивалентен closed JSON Schema плюс semantic checks:
 
-1. `schema` имеет единственное значение `metafor/meta-json/v1`.
+1. `schema` имеет единственное значение `metafor/graph`.
 2. `root`, template keys и Matter Meta refs — canonical two-segment addresses.
 3. `template` содержит root и все reachable Matter targets без stubs.
 4. Каждый template является complete normalized MetaDSL JSON.
@@ -251,9 +253,9 @@ Validator эквивалентен closed JSON Schema плюс semantic checks:
 
 Public consumer повторно валидирует полученный RPC result.
 
-## 7. Что не входит в snapshot
+## 7. Что не входит в Graph
 
-MetaJSON v1 не содержит:
+Graph не содержит:
 
 - template/source/instance revisions;
 - content digests или CAS fields;
@@ -266,16 +268,16 @@ MetaJSON v1 не содержит:
 - source maps или дополнительную diagnostic schema.
 
 History, patches и разрешённые Mass results имеют отдельные owner APIs. Это не
-альтернативные MetaJSON views.
+альтернативные Graph views.
 
 ## 8. Проверяемая implementation boundary `MF-101`
 
 `MF-101` должен:
 
 1. Зафиксировать explicit public types и closed runtime validator одного
-   документа.
+   Graph.
 2. Получить complete declaration projection от Dark Monad без создания
-   authored MetaJSON Store.
+   authored Graph Store.
 3. Получить current structural projection от Boundary без public raw IDs.
 4. Statelessly собрать projection через Dark Monad.
 5. Доказать full document на небольшой изолированной fixture Meta, не на Ладе.
@@ -291,7 +293,7 @@ History, patches и разрешённые Mass results имеют отдель�
 - Store/Mass migrations или writes;
 - изменения Лады и flat topology;
 - public revisions/digests/CAS;
-- alternate MetaJSON schemas/views;
+- alternate Graph schemas/views;
 - source authoring/patch implementation.
 
 ## 9. Закрытые решения

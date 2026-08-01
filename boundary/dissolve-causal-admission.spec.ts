@@ -4,7 +4,7 @@ import {mkdtempSync, rmSync} from "node:fs"
 import {tmpdir} from "node:os"
 import {join} from "node:path"
 import type {BulkRootPromotionReceipt} from "@metafor/types/bulk/manifest"
-import type {MetaAddress} from "@metafor/types/metafor/meta-json"
+import type {MetaAddress} from "@metafor/types/metafor/graph"
 import {forceDomains} from "../dark/force/store.ts"
 import type {DissolveCandidateBundleReceiptV1} from "../dark/checkpoint/dissolve-candidate.ts"
 import {
@@ -199,7 +199,7 @@ const evidence = (): BoundaryDissolveCausalAdmissionInputV1 => {
     planSha256,
     structuralSha256: plan.structuralSha256,
     privateManifestSha256: digest(JSON.stringify(plan.privateManifest)),
-    metaJSONSha256: digest("meta-before"),
+    graphSha256: digest("meta-before"),
     checkpoint,
     rollbackManifestSha256: digest("rollback"),
     retention: BOUNDARY_DISSOLVE_CANDIDATE_RETENTION,
@@ -235,7 +235,7 @@ const evidence = (): BoundaryDissolveCausalAdmissionInputV1 => {
     transferredGlobalKeys: [...keys],
     retainedUnreferencedKeys: [...previousKeys],
     privateManifestSha256: stage.privateManifestSha256,
-    metaJSON: {before: SOURCE, planned: TARGET},
+    graph: {before: SOURCE, planned: TARGET},
   } satisfies BoundaryDissolveProof
   const promotionReceipt = {
     version: 1,

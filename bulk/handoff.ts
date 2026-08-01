@@ -1,20 +1,18 @@
-import type {ForceMessage} from "shared/protocol/force/message"
-
 export type BulkObserverHandoffOptions = {
   ttlMs?: number
   maxPending?: number
   now?: () => number
 }
 
-type PendingHandoff = {
+type PendingHandoff<Message> = {
   expiresAt: number
-  messages: ForceMessage[]
+  messages: Message[]
   timer: ReturnType<typeof setTimeout>
 }
 
-/** Bounded Particle buffer spanning only initial package -> WebSocket attachment. */
-export class BulkObserverHandoffs {
-  readonly #sessions = new Map<string, PendingHandoff>()
+/** Bounded server-message buffer spanning only initial package -> WebSocket attachment. */
+export class BulkObserverHandoffs<Message = unknown> {
+  readonly #sessions = new Map<string, PendingHandoff<Message>>()
   readonly #ttlMs: number
   readonly #maxPending: number
   readonly #now: () => number
@@ -44,7 +42,7 @@ export class BulkObserverHandoffs {
     this.#delete(session)
   }
 
-  buffer(message: ForceMessage): void {
+  buffer(message: Message): void {
     this.#prune()
     for (const [session, pending] of this.#sessions) {
       if (pending.messages.length >= this.#maxPending) {
@@ -55,7 +53,7 @@ export class BulkObserverHandoffs {
     }
   }
 
-  take(session: string): ForceMessage[] | null {
+  take(session: string): Message[] | null {
     this.#prune()
     const pending = this.#sessions.get(session)
     if (!pending) return null

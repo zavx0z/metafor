@@ -1,7 +1,7 @@
 # Immutable checkpoints
 
 Checkpoint — отдельная immutable replay-опора живой Вселенной. Он не является
-Particle, строкой Dark Force history, MetaJSON snapshot или source commit.
+Particle, строкой Dark Force history, Graph projection или source commit.
 
 ## Идентичность и причина создания
 
@@ -31,7 +31,7 @@ Commit содержит один closed manifest и content-addressed bytes по
 
 - standalone canonical Boundary SQLite checkpoint;
 - все Mass files, выбранные Boundary membership данного capture;
-- canonical MetaJSON v1 projection результата;
+- canonical Graph projection результата;
 - canonical forward JSON Patch span от предыдущего snapshot до `S`;
 - точные byte length, whole-file SHA-256 и ordered SHA-256 chunks;
 - `(cutId, acceptanceSequence)`, canonical capture time и trigger kind.
@@ -44,13 +44,13 @@ projection имеет пустой operations array. Artifact имеет соб�
 не добавляет control rows в Particle history. Он не становится второй
 canonical change history и не определяет новых mutation semantics.
 
-Canonical patch target — ровно один validated complete MetaJSON v1 document.
+Canonical patch target — ровно один validated complete Graph document.
 Его bytes являются UTF-8 без BOM, пробелов и завершающего LF с RFC 8785/JCS
 object-key order и lowercase SHA-256. `base` указывает digest projection
 предыдущего checkpoint, `result` — digest projection этого commit. Diff
 детерминирован: object members используют только `add/remove/replace`, а
 изменённый массив заменяется целиком. Bulk manifestation, его direct recursive
-layout из Monad snapshot и другие UI-проекции не входят в digest law.
+layout из Bulk observer snapshot и другие UI-проекции не входят в digest law.
 
 Boundary остаётся владельцем declaration, membership, source relations и
 `keyId`. Energy/Mass остаётся владельцем bytes и materialization локальных
@@ -109,7 +109,7 @@ frontiers; unresolved delivery после crash вызывает fail-stop, а �
 Пустой tracker с sequence `0` не доказывает applied-through состояние уже
 существующих Boundary/Mass. Первый live baseline строится только остановленным
 cold capture: pre-cut Boundary copy для sequence `0` и остановленный current
-Boundary at sequence `1` должны дать один и тот же canonical MetaJSON digest и
+Boundary at sequence `1` должны дать один и тот же canonical Graph digest и
 пустой deterministic patch. Любое отличие отклоняет capture. После verified
 checkpoint `(cutId, 1)` создаётся durable control baseline `1`; отсутствие или
 расхождение baseline с history закрывает следующий cold start.
@@ -208,6 +208,6 @@ state.
 Rollback acceptance не перезаписывает active paths. Она восстанавливает ещё
 одну private copy только из `rollback/`, сверяет каждый ordered
 `path + length + SHA-256`, SQLite integrity, history/control identity и
-pre-MetaJSON digest. Даже успешные detached execution, browser proof и
+pre-Graph digest. Даже успешные detached execution, browser proof и
 restoration proof не разрешают live publication, source/root transition,
 Force/Monad admission, Energy retarget, restart или hot reload.

@@ -3,7 +3,7 @@ import {lstatSync, readFileSync} from "node:fs"
 import {join, resolve} from "node:path"
 import {Database} from "bun:sqlite"
 import type {BulkRootPromotionReceipt} from "@metafor/types/bulk/manifest"
-import type {MetaAddress, MetaJSONV1} from "@metafor/types/metafor/meta-json"
+import type {MetaAddress, Graph} from "@metafor/types/metafor/graph"
 import type {ForcePartInput} from "shared/protocol/force/particle"
 import type {MonadRpcPeer} from "shared/transport/monad"
 import {
@@ -19,9 +19,9 @@ import {
   MF117_SOURCE,
   MF117_TARGET,
 } from "../shared/mf117.ts"
-import {assembleMetaJSON} from "../dark/monad/meta-json.ts"
-import {canonicalizeMetaJSONV1} from "../dark/checkpoint/projection.ts"
-import {DARK_DECLARATION_PROJECTION_METHOD} from "../dark/meta-json.ts"
+import {assembleGraph} from "../dark/monad/graph.ts"
+import {canonicalizeGraph} from "../dark/checkpoint/projection.ts"
+import {DARK_DECLARATION_PROJECTION_METHOD} from "../dark/graph.ts"
 import type {CheckpointBarrierFrontier} from "../dark/checkpoint/barrier.ts"
 import type {
   EnergyMF117MassEvidence,
@@ -48,9 +48,9 @@ import {
   type BoundaryDissolveProof,
 } from "./dissolve.ts"
 import {
-  BOUNDARY_META_JSON_PROJECTION_METHOD,
-  readBoundaryMetaJSONProjection,
-} from "./meta-json.ts"
+  BOUNDARY_GRAPH_PROJECTION_METHOD,
+  readBoundaryGraphProjection,
+} from "./graph.ts"
 import type {BoundaryDatabase} from "./sqlite.ts"
 import type {DissolveCandidateBundleReceiptV1} from "../dark/checkpoint/dissolve-candidate.ts"
 import type {BoundaryEnergyDissolveRetargetBindingV1} from "./dissolve-causal-admission.ts"
@@ -249,10 +249,10 @@ export class BoundaryMF117LiveAdapter {
     if (JSON.stringify(freshPlan) !== JSON.stringify(evidence.plan)) {
       throw new Error("Boundary MF-117 current structural/Mass plan changed")
     }
-    const before = await this.#metaJSON(MF117_SOURCE)
-    const beforeProjectionSha256 = canonicalizeMetaJSONV1(before).sha256
+    const before = await this.#graph(MF117_SOURCE)
+    const beforeProjectionSha256 = canonicalizeGraph(before).sha256
     if (beforeProjectionSha256 !== evidence.stage.checkpoint.projectionSha256) {
-      throw new Error("Boundary MF-117 current MetaJSON is not the admitted cut")
+      throw new Error("Boundary MF-117 current Graph is not the admitted cut")
     }
 
     const admissionInput = Object.freeze({
@@ -343,13 +343,13 @@ export class BoundaryMF117LiveAdapter {
         release: async () => {},
         massEvidence: async ({keyId, format}) =>
           await this.#massEvidence(admissionInput.plan, keyId, format),
-        readMetaJSON: async (root) => await this.#metaJSON(root),
-        beforeCommit: async (liveProof, plannedMetaJSON) => {
+        readGraph: async (root) => await this.#graph(root),
+        beforeCommit: async (liveProof, plannedGraph) => {
           if (JSON.stringify(liveProof) !== JSON.stringify(admissionInput.proof)) {
             throw new Error("Boundary MF-117 live proof differs from detached admission")
           }
           const postProjectionSha256 =
-            canonicalizeMetaJSONV1(plannedMetaJSON).sha256
+            canonicalizeGraph(plannedGraph).sha256
           if (postProjectionSha256 !== admissionInput.postProjectionSha256) {
             throw new Error("Boundary MF-117 live post-projection changed")
           }
@@ -465,11 +465,11 @@ export class BoundaryMF117LiveAdapter {
       JSON.stringify(keys.map(({key}) => key).toSorted()) !==
         JSON.stringify(expectedKeys)
     ) throw new Error("Boundary MF-117 target Mass key ownership changed")
-    const meta = await this.#metaJSON(MF117_TARGET)
+    const meta = await this.#graph(MF117_TARGET)
     if (
-      canonicalizeMetaJSONV1(meta).sha256 !==
+      canonicalizeGraph(meta).sha256 !==
         admissionInput.postProjectionSha256
-    ) throw new Error("Boundary MF-117 target MetaJSON digest changed")
+    ) throw new Error("Boundary MF-117 target Graph digest changed")
     const rollback = this.#verifyRollbackBoundary()
     return {
       schema,
@@ -485,18 +485,18 @@ export class BoundaryMF117LiveAdapter {
     }
   }
 
-  async #metaJSON(root: MetaAddress): Promise<MetaJSONV1> {
+  async #graph(root: MetaAddress): Promise<Graph> {
     const peer = this.#peer
     if (!peer) throw new Error("Boundary MF-117 Monad peer is unavailable")
-    return await assembleMetaJSON({
+    return await assembleGraph({
       call: async <T>(target: string, method: string, params: unknown): Promise<T> => {
         if (target === "dark" && method === DARK_DECLARATION_PROJECTION_METHOD) {
           return await peer.call<T>("dark", method, params, {waitMs: 30_000})
         }
-        if (target === "boundary" && method === BOUNDARY_META_JSON_PROJECTION_METHOD) {
-          return await readBoundaryMetaJSONProjection(this.boundary, params) as T
+        if (target === "boundary" && method === BOUNDARY_GRAPH_PROJECTION_METHOD) {
+          return await readBoundaryGraphProjection(this.boundary, params) as T
         }
-        throw new Error(`Boundary MF-117 unexpected MetaJSON provider: ${target}.${method}`)
+        throw new Error(`Boundary MF-117 unexpected Graph provider: ${target}.${method}`)
       },
     } as Pick<MonadRpcPeer, "call">, {root})
   }

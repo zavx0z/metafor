@@ -6,18 +6,13 @@ import {
   Visual,
   buildStateGraph,
   type VisualLayout,
-  visualOwnerDarkParticleIdFromAtomId,
 } from "@metafor/visual/layout"
+import {BulkVisualSceneLifecycle} from "bulk/visual"
+import {createBulkViewport} from "bulk/web"
 import {
   createVisualSceneViewport,
   type VisualSceneViewport,
 } from "./VisualSceneViewport.ts"
-import {buildBulkManifestation} from "../../../bulk/manifestation.ts"
-import {BulkProjectionStore} from "../../../bulk/projection.ts"
-import {createBulkViewport} from "../../../bulk/web/index.ts"
-import {
-  buildBulkVisualRenderManifest,
-} from "../../../bulk/visual-layout.ts"
 import {
   visualComponentForSlug,
 } from "../src/Components.ts"
@@ -300,10 +295,10 @@ const hideSectionTabs = (): void => {
   app.classList.remove("section-tabs-mode")
 }
 
-const projection = new BulkProjectionStore()
-projection.hydrate(structuredClone(snapshot.projection))
+const visualLifecycle = new BulkVisualSceneLifecycle()
+visualLifecycle.prepare(structuredClone(snapshot))
 
-const runtime = projection.view()
+const runtime = visualLifecycle.state().projection
 const wimpName = new Map(runtime.wimps.map((wimp) => [wimp.src, wimp.name ?? wimp.src] as const))
 const graphAtoms = [...runtime.atoms].sort((left, right) =>
   Number(left.parentAtom !== null || left.parentTopology !== null) -
@@ -469,10 +464,7 @@ const hideTorusAnalysisLab = (): void => {
 
 const fieldsAnalysisLab = (): Promise<FieldsAnalysisLab> => {
   if (!fieldsAnalysisLabPromise) {
-    const manifest = buildBulkManifestation(
-      projection.view(),
-      snapshot.rootSrc,
-    )
+    const manifest = visualLifecycle.state().manifest
     fieldsAnalysisLabPromise = createFieldsAnalysisLab(manifest.fieldParticles)
   }
   return fieldsAnalysisLabPromise
@@ -485,18 +477,12 @@ const hideFieldsAnalysisLab = (): void => {
 }
 
 const rootStateGraphFieldsStand = (): StateGraphFieldsStand => {
-  stateGraphFieldsStand ??= buildStateGraphFieldsStand(
-    projection.view(),
-    snapshot.rootSrc,
-  )
+  stateGraphFieldsStand ??= buildStateGraphFieldsStand(visualLifecycle)
   return stateGraphFieldsStand
 }
 
 const stateGraphActivityLab = (): Promise<StateGraphActivityLab> => {
-  stateGraphActivityLabPromise ??= createStateGraphActivityLab(
-    projection.view(),
-    snapshot.rootSrc,
-  )
+  stateGraphActivityLabPromise ??= createStateGraphActivityLab(visualLifecycle)
   return stateGraphActivityLabPromise
 }
 
@@ -532,7 +518,6 @@ const hideSnapshotLayout = (): void => {
 }
 
 const renderSnapshotLayout = async (
-  fullManifest: ReturnType<typeof buildBulkManifestation>,
   selectedLayout: VisualLayout,
 ): Promise<void> => {
   const renderVersion = ++layoutRenderVersion
@@ -540,34 +525,13 @@ const renderSnapshotLayout = async (
   layoutAnnotation = null
   layoutViewport?.dispose()
   layoutViewport = null
-  const view = projection.view()
-  const atomGraphs = view.atoms.flatMap((atom) => {
-    const graph = buildStateGraph(view, atom.id)
-    return graph.states.length === 0 ? [] : [{atom, graph}]
-  })
+  const input = visualLifecycle.layoutInput()
+  const atomGraphs = input.owners.filter(({graph}) => graph.states.length > 0)
   const stateSleeveCount = atomGraphs.reduce(
     (total, {graph}) => total + graph.states.length,
     0,
   )
-  const owners = atomGraphs.map(({graph}) => {
-    const ownerDarkParticleId =
-      visualOwnerDarkParticleIdFromAtomId(graph.atomId)
-    if (!fullManifest.darkParticles.some((particle) =>
-      particle.darkParticleId === ownerDarkParticleId
-    )) {
-      throw new Error(
-        `Visual owner ${ownerDarkParticleId} is absent from the manifest`,
-      )
-    }
-    return {
-      graph,
-      ownerDarkParticleId,
-    }
-  })
-  const scene = selectedLayout.buildScene({
-    manifest: fullManifest,
-    owners,
-  })
+  const scene = selectedLayout.buildScene(input)
   const rect = layoutCanvas.getBoundingClientRect()
   const sceneViewport = await createVisualSceneViewport({
     canvas: layoutCanvas,
@@ -625,7 +589,7 @@ const renderStateGraph = async (): Promise<void> => {
   const renderVersion = ++stateGraphRenderVersion
   disposeBranchViewports()
   const atomId = Number(stateGraphAtom.value)
-  const graph = buildStateGraph(projection.view(), atomId)
+  const graph = buildStateGraph(runtime, atomId)
   const stateById = new Map(graph.states.map((state) => [state.id, state] as const))
   const current = graph.currentStateId === null
     ? null
@@ -885,7 +849,7 @@ const applyStateGraphFieldsPage = (): void => {
   viewport.applyVisualManifestPatch(stand.visual)
   entity.textContent = `Поля · ${stand.graph.atomLabel}`
   description.textContent =
-    "Диагностический root-only стенд: из Monad JSON оставлен только Atom lada без вложенных Matter. Его Fields, State-рукава, causal particles, proxies, Transition и Relation проходят неизменённый production centered-nested → Bulk renderer."
+    "Диагностический root-only стенд: из статичного BulkObserverSnapshot оставлен только Atom lada без вложенных Matter. Его Fields, State-рукава, causal particles, proxies, Transition и Relation проходят неизменённый production centered-nested → Bulk renderer."
   replaceDefinitionList(stateGraphFieldsCounts, [
     ["Dark / Matter", `${stand.manifest.darkParticles.length} / 0`],
     ["Canonical Fields", stand.manifest.fieldParticles.length],
@@ -1240,21 +1204,15 @@ const applyStory = (): void => {
   hideTorusAnalysisLab()
   hideFieldsAnalysisLab()
   hideSectionTabs()
-  const fullManifest = buildBulkManifestation(
-    projection.view(),
-    snapshot.rootSrc,
-  )
+  const fullManifest = visualLifecycle.state().manifest
   const manifest = projectVisualScene(fullManifest, component)
   if (selectedLayout) {
-    void renderSnapshotLayout(fullManifest, selectedLayout)
+    void renderSnapshotLayout(selectedLayout)
   } else {
     hideSnapshotLayout()
     viewport.setVisualLayers(storyLayers())
     viewport.applyVisualManifestPatch(
-      buildBulkVisualRenderManifest(
-        fullManifest,
-        projection.view(),
-      ),
+      visualLifecycle.compose().renderManifest,
     )
   }
   entity.textContent = selectedLayout?.label ?? component.entity

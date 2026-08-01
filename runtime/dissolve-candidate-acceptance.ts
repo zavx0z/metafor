@@ -17,8 +17,8 @@ import {spawnSync} from "node:child_process"
 import {
   parseMetaAddress,
   type MetaAddress,
-  type MetaJSONV1,
-} from "@metafor/types/metafor/meta-json"
+  type Graph,
+} from "@metafor/types/metafor/graph"
 import type {
   CheckpointForwardPatchDocumentV1,
   CheckpointManifestV1,
@@ -31,12 +31,12 @@ import type {BulkRuntimeProjection} from "@metafor/types/bulk/runtime"
 import type {Particle} from "shared/protocol/force/particle"
 import {MassCatalog, massFileName} from "../shared/mass.ts"
 import {open as openBoundary, type BoundaryDatabase} from "../boundary/sqlite.ts"
-import {assembleMetaJSON} from "../dark/monad/meta-json.ts"
-import {DARK_DECLARATION_PROJECTION_METHOD} from "../dark/meta-json.ts"
+import {assembleGraph} from "../dark/monad/graph.ts"
+import {DARK_DECLARATION_PROJECTION_METHOD} from "../dark/graph.ts"
 import {
-  BOUNDARY_META_JSON_PROJECTION_METHOD,
-  readBoundaryMetaJSONProjection,
-} from "../boundary/meta-json.ts"
+  BOUNDARY_GRAPH_PROJECTION_METHOD,
+  readBoundaryGraphProjection,
+} from "../boundary/graph.ts"
 import {
   BOUNDARY_DISSOLVE_PROPOSAL_V1,
   type BoundaryDissolveProposalV1,
@@ -58,7 +58,7 @@ import {
   captureDetachedDissolveRootFrame,
   produceBulkRootPromotionReceipt,
 } from "../dark/checkpoint/dissolve-promotion.ts"
-import {canonicalizeMetaJSONV1} from "../dark/checkpoint/projection.ts"
+import {canonicalizeGraph} from "../dark/checkpoint/projection.ts"
 import {readCheckpointControlState} from "../dark/checkpoint/control.ts"
 import {DarkForceHistory} from "../dark/force/history.ts"
 import {BulkProjectionStore} from "../bulk/projection.ts"
@@ -163,7 +163,7 @@ const checkpointInputs = (
   commit: string,
 ): {
   manifest: CheckpointManifestV1
-  projection: MetaJSONV1
+  projection: Graph
   patches: CheckpointForwardPatchDocumentV1
   boundary: Uint8Array
 } => {
@@ -182,7 +182,7 @@ const checkpointInputs = (
     new TextDecoder("utf8", {fatal: true}).decode(
       readCheckpointBlob(repository, commit, manifest.projection.blob),
     ),
-  ) as MetaJSONV1
+  ) as Graph
   const patches = JSON.parse(
     new TextDecoder("utf8", {fatal: true}).decode(
       readCheckpointBlob(repository, commit, manifest.patches.blob),
@@ -193,7 +193,7 @@ const checkpointInputs = (
     commit,
     manifest.boundary.blob,
   )
-  const projectionDigest = canonicalizeMetaJSONV1(projection).sha256
+  const projectionDigest = canonicalizeGraph(projection).sha256
   if (
     projectionDigest !== manifest.projection.blob.sha256 ||
     patches.base.sha256 !== projectionDigest ||
@@ -208,9 +208,9 @@ const checkpointInputs = (
 }
 
 const plannedTemplate = (
-  projection: MetaJSONV1,
+  projection: Graph,
   root: MetaAddress,
-): MetaJSONV1["template"] => {
+): Graph["template"] => {
   if (root === SOURCE) return structuredClone(projection.template)
   const template = structuredClone(projection.template)
   delete template[SOURCE]
@@ -220,24 +220,24 @@ const plannedTemplate = (
   return template
 }
 
-const metaJSONReader = (
+const graphReader = (
   boundary: BoundaryDatabase,
-  accepted: MetaJSONV1,
+  accepted: Graph,
 ) => async (
   root: MetaAddress,
-): Promise<MetaJSONV1> =>
-  await assembleMetaJSON({
+): Promise<Graph> =>
+  await assembleGraph({
     async call<T>(target: string, method: string): Promise<T> {
       if (target === "dark" && method === DARK_DECLARATION_PROJECTION_METHOD) {
         return {root, template: plannedTemplate(accepted, root)} as T
       }
       if (
         target === "boundary" &&
-        method === BOUNDARY_META_JSON_PROJECTION_METHOD
+        method === BOUNDARY_GRAPH_PROJECTION_METHOD
       ) {
-        return await readBoundaryMetaJSONProjection(boundary, {root}) as T
+        return await readBoundaryGraphProjection(boundary, {root}) as T
       }
-      throw new Error(`Unexpected detached MetaJSON provider: ${target}.${method}`)
+      throw new Error(`Unexpected detached Graph provider: ${target}.${method}`)
     },
   } as never, {root})
 
@@ -318,7 +318,7 @@ const verifyRollbackFiles = (
 const verifyRestoration = async (
   bundleDirectory: string,
   expected: readonly CandidateFileDigestV1[],
-  accepted: MetaJSONV1,
+  accepted: Graph,
   cutId: string,
   sequence: number,
 ): Promise<{
@@ -350,17 +350,17 @@ const verifyRestoration = async (
     PRAGMA quick_check
   `
   const foreign = await boundary.projection.sql<unknown[]>`PRAGMA foreign_key_check`
-  const projection = await metaJSONReader(boundary, accepted)(SOURCE)
+  const projection = await graphReader(boundary, accepted)(SOURCE)
   await boundary.close()
   const historyStatus = new DarkForceHistory(join(restored, "history")).status()
   const control = readCheckpointControlState(
     join(restored, "checkpoint-control.json"),
   )
-  const projectionSha256 = canonicalizeMetaJSONV1(projection).sha256
+  const projectionSha256 = canonicalizeGraph(projection).sha256
   if (
     quick[0]?.quick_check !== "ok" ||
     foreign.length !== 0 ||
-    projectionSha256 !== canonicalizeMetaJSONV1(accepted).sha256 ||
+    projectionSha256 !== canonicalizeGraph(accepted).sha256 ||
     historyStatus.cutId !== cutId ||
     historyStatus.sequence !== sequence ||
     control.barrier.cutId !== cutId ||
@@ -669,8 +669,8 @@ const main = async (): Promise<void> => {
       validAbsent: [{keyId: absent.keyId, format: absent.format}],
       capturedAt: new Date().toISOString(),
       confirmStoppedPrivateCopies: true,
-      readMetaJSON: async (candidate, root) =>
-        await metaJSONReader(candidate, accepted.projection)(root),
+      readGraph: async (candidate, root) =>
+        await graphReader(candidate, accepted.projection)(root),
     })
 
     const candidatePath = join(output, "candidate", "boundary.sqlite")
@@ -705,7 +705,7 @@ const main = async (): Promise<void> => {
           candidateMass,
           [{keyId: absent.keyId, format: absent.format}],
         ),
-        readMetaJSON: metaJSONReader(candidate, accepted.projection),
+        readGraph: graphReader(candidate, accepted.projection),
       },
     )
     const promotion = produceBulkRootPromotionReceipt({
@@ -809,7 +809,7 @@ const main = async (): Promise<void> => {
       proof: acceptance.proof,
       boundaryProofSha256: sha256(JSON.stringify(acceptance.proof)),
       postProjectionSha256:
-        canonicalizeMetaJSONV1(acceptance.postMetaJSON).sha256,
+        canonicalizeGraph(acceptance.postGraph).sha256,
       removedInferenceAbsent:
         !afterProjection.atoms.some(({wimp}) => wimp === SOURCE),
       promotedRoot: TARGET,

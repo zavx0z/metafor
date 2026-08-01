@@ -1,7 +1,7 @@
 import {
-  validateMetaJSONV1,
-  type MetaJSONV1,
-} from "@metafor/types/metafor/meta-json"
+  validateGraph,
+  type Graph,
+} from "@metafor/types/metafor/graph"
 import {
   executeBoundaryDissolveProof,
   type BoundaryDissolveMassEvidenceReader,
@@ -13,14 +13,14 @@ import {
   type BoundaryDissolveCandidateStageReceiptV1,
 } from "./dissolve-candidate-staging.ts"
 import type {
-  BoundaryDissolveMetaJSONReader,
+  BoundaryDissolveGraphReader,
 } from "./dissolve.ts"
 import type {BoundaryDatabase} from "./sqlite.ts"
 
 export type DetachedBoundaryDissolveAcceptanceV1 = Readonly<{
   stage: BoundaryDissolveCandidateStageReceiptV1
   proof: BoundaryDissolveProof
-  postMetaJSON: MetaJSONV1
+  postGraph: Graph
   localFenceProof: Readonly<{
     fenced: readonly BoundaryMassFenceIdentity[]
     released: readonly BoundaryMassFenceIdentity[]
@@ -30,7 +30,7 @@ export type DetachedBoundaryDissolveAcceptanceV1 = Readonly<{
 
 export type DetachedBoundaryDissolveAcceptanceHooks = Readonly<{
   massEvidence: BoundaryDissolveMassEvidenceReader
-  readMetaJSON: BoundaryDissolveMetaJSONReader
+  readGraph: BoundaryDissolveGraphReader
 }>
 
 const sameIdentity = (
@@ -67,7 +67,7 @@ export const executeDetachedBoundaryDissolveCandidate = async (
     exact.plan,
     {
       massEvidence: hooks.massEvidence,
-      readMetaJSON: hooks.readMetaJSON,
+      readGraph: hooks.readGraph,
       async fence(identity) {
         fenced.push(Object.freeze({...identity}))
       },
@@ -94,20 +94,20 @@ export const executeDetachedBoundaryDissolveCandidate = async (
     )
   }
 
-  const postMetaJSON = await hooks.readMetaJSON(
+  const postGraph = await hooks.readGraph(
     exact.proposal.request.target,
     "planned",
   )
   if (
-    !validateMetaJSONV1(postMetaJSON) ||
-    postMetaJSON.root !== exact.receipt.target ||
-    postMetaJSON.template[exact.receipt.source] !== undefined ||
-    postMetaJSON.runtime.roots.length !== 1 ||
-    postMetaJSON.runtime.roots[0]?.kind !== "atom" ||
-    postMetaJSON.runtime.roots[0].meta !== exact.receipt.target
+    !validateGraph(postGraph) ||
+    postGraph.root !== exact.receipt.target ||
+    postGraph.template[exact.receipt.source] !== undefined ||
+    postGraph.runtime.roots.length !== 1 ||
+    postGraph.runtime.roots[0]?.kind !== "atom" ||
+    postGraph.runtime.roots[0].meta !== exact.receipt.target
   ) {
     throw new Error(
-      "Detached dissolve post-MetaJSON does not prove the promoted target root",
+      "Detached dissolve post-Graph does not prove the promoted target root",
     )
   }
   const sourceAtoms = await boundary.projection.sql<unknown[]>`
@@ -138,7 +138,7 @@ export const executeDetachedBoundaryDissolveCandidate = async (
   return Object.freeze({
     stage: exact.receipt,
     proof,
-    postMetaJSON,
+    postGraph,
     localFenceProof: Object.freeze({
       fenced: Object.freeze(fenced),
       released: Object.freeze(released),

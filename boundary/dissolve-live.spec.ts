@@ -11,13 +11,13 @@ import {
 import {
   DARK_DECLARATION_PROJECTION_METHOD,
   readDarkDeclarationProjection,
-} from "../dark/meta-json.ts"
-import {assembleMetaJSON} from "../dark/monad/meta-json.ts"
-import {canonicalizeMetaJSONV1} from "../dark/checkpoint/projection.ts"
+} from "../dark/graph.ts"
+import {assembleGraph} from "../dark/monad/graph.ts"
+import {canonicalizeGraph} from "../dark/checkpoint/projection.ts"
 import {
-  BOUNDARY_META_JSON_PROJECTION_METHOD,
-  readBoundaryMetaJSONProjection,
-} from "./meta-json.ts"
+  BOUNDARY_GRAPH_PROJECTION_METHOD,
+  readBoundaryGraphProjection,
+} from "./graph.ts"
 import {BoundaryMF117LiveAdapter} from "./dissolve-live.ts"
 import {open} from "./sqlite.ts"
 import {forceDomains} from "../dark/force/store.ts"
@@ -86,18 +86,18 @@ describe("Boundary MF-117 live preflight adapter", () => {
       }
       const adapter = new BoundaryMF117LiveAdapter(boundary)
       adapter.register(peer as never)
-      const current = await assembleMetaJSON({
+      const current = await assembleGraph({
         async call<T>(target: string, method: string, params: unknown): Promise<T> {
           if (target === "dark") {
             return await readDarkDeclarationProjection(params) as T
           }
-          if (target === "boundary" && method === BOUNDARY_META_JSON_PROJECTION_METHOD) {
-            return await readBoundaryMetaJSONProjection(boundary, params) as T
+          if (target === "boundary" && method === BOUNDARY_GRAPH_PROJECTION_METHOD) {
+            return await readBoundaryGraphProjection(boundary, params) as T
           }
           throw new Error(`${target}.${method}`)
         },
       } as never, {root: "zavx0z/inference"})
-      expect(canonicalizeMetaJSONV1(current).sha256).toBe(
+      expect(canonicalizeGraph(current).sha256).toBe(
         "ea0511057c063d0aaa40f34888ce8d70102e8733581ddc0f719f7dd5b8484cd1",
       )
 

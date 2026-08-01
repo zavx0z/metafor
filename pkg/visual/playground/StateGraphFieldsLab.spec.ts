@@ -1,7 +1,6 @@
 import {describe, expect, test} from "bun:test"
 import type {BulkObserverSnapshot} from "@metafor/types/bulk/initial"
-import {BulkProjectionStore} from "../../../bulk/projection.ts"
-import {assertBulkVisualProjectionBoundary} from "../../../bulk/web/visual-projection.ts"
+import {BulkVisualSceneLifecycle} from "bulk/visual"
 import {VISUAL_INACTIVE_STATE_BRANCH_OPACITY} from "../src/VisualMaterialSpec.ts"
 import snapshotJson from "./fixture/monad-snapshot.json"
 import {buildStateGraphFieldsStand} from "./StateGraphFieldsLab.ts"
@@ -9,12 +8,12 @@ import {buildStateGraphFieldsStand} from "./StateGraphFieldsLab.ts"
 describe("State Graph Fields playground stand", () => {
   test("runs root lada without nested Matter through the production Bulk projection", () => {
     const snapshot = snapshotJson as BulkObserverSnapshot
-    const store = new BulkProjectionStore()
-    store.hydrate(structuredClone(snapshot.projection))
-    const projection = store.view()
+    const lifecycle = new BulkVisualSceneLifecycle()
+    lifecycle.prepare(structuredClone(snapshot))
+    const projection = lifecycle.state().projection
     const projectionBefore = structuredClone(projection)
 
-    const stand = buildStateGraphFieldsStand(projection, snapshot.rootSrc)
+    const stand = buildStateGraphFieldsStand(lifecycle)
 
     expect(projection).toEqual(projectionBefore)
     expect(stand.graph).toMatchObject({
@@ -291,7 +290,5 @@ describe("State Graph Fields playground stand", () => {
         ).toBe(VISUAL_INACTIVE_STATE_BRANCH_OPACITY)
       }
     }
-    expect(() => assertBulkVisualProjectionBoundary(stand.visual))
-      .not.toThrow()
   })
 })

@@ -1,17 +1,17 @@
 import {describe, expect, test} from "bun:test"
 import {
-  META_JSON_V1_SCHEMA,
+  GRAPH_SCHEMA,
   parseMetaAddress,
-  validateMetaJSONV1,
+  validateGraph,
   type MetaAddress,
-  type MetaJSONV1,
-} from "@metafor/types/metafor/meta-json"
+  type Graph,
+} from "@metafor/types/metafor/graph"
 import type {MetaDSL} from "@metafor/types/metafor/schema"
 import {
-  normalizeMetaTemplateV1,
+  normalizeMetaTemplate,
   readDarkDeclarationProjection,
   type MetaLoader,
-} from "./meta-json.ts"
+} from "./graph.ts"
 
 const ROOT = parseMetaAddress("example/dark-root")!
 const CHILD = parseMetaAddress("example/dark-child")!
@@ -123,7 +123,7 @@ const completeDeclarations = (): Map<string, MetaDSL> => new Map([
   })],
 ])
 
-describe("Dark MetaJSON declaration provider", () => {
+describe("Dark Graph declaration provider", () => {
   test("returns one complete public template graph as transport-safe JSON", async () => {
     const reads: string[] = []
     const projection = await readDarkDeclarationProjection(
@@ -157,8 +157,8 @@ describe("Dark MetaJSON declaration provider", () => {
       {name: "visible", transitions: null},
     ])
 
-    const document: MetaJSONV1 = {
-      schema: META_JSON_V1_SCHEMA,
+    const document: Graph = {
+      schema: GRAPH_SCHEMA,
       ...projection,
       runtime: {
         roots: [{
@@ -177,7 +177,7 @@ describe("Dark MetaJSON declaration provider", () => {
         }],
       },
     }
-    expect(validateMetaJSONV1(document)).toEqual({ok: true, value: document})
+    expect(validateGraph(document)).toEqual({ok: true, value: document})
   })
 
   test("loads reachable references breadth-first once while preserving Matter sequence", async () => {
@@ -266,7 +266,7 @@ describe("Dark MetaJSON declaration provider", () => {
       }],
     })
 
-    expect(() => normalizeMetaTemplateV1(declaration, ROOT)).toThrow(
+    expect(() => normalizeMetaTemplate(declaration, ROOT)).toThrow(
       "non-serializable function",
     )
   })

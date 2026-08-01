@@ -4,9 +4,9 @@ import {
 } from "@metafor/types/boundary/initial"
 import type {MonadRpcPeer} from "shared/transport/monad"
 import {
-  BOUNDARY_META_JSON_PROJECTION_METHOD,
-  readBoundaryMetaJSONProjection,
-} from "./meta-json.ts"
+  BOUNDARY_GRAPH_PROJECTION_METHOD,
+  readBoundaryGraphProjection,
+} from "./graph.ts"
 import {BoundaryMF117LiveAdapter} from "./dissolve-live.ts"
 import type {BoundaryDatabase} from "./sqlite.ts"
 
@@ -29,8 +29,8 @@ export class BoundaryMonad {
     peer.expose(BOUNDARY_INITIAL_STATE_METHOD, async () => await this.boundary.initialState())
     peer.expose(BOUNDARY_INITIAL_PROJECTION_METHOD, async () => await this.boundary.initialProjection())
     peer.expose(
-      BOUNDARY_META_JSON_PROJECTION_METHOD,
-      async (params) => await readBoundaryMetaJSONProjection(this.boundary, params),
+      BOUNDARY_GRAPH_PROJECTION_METHOD,
+      async (params) => await readBoundaryGraphProjection(this.boundary, params),
     )
     this.mf117.register(peer)
     this.#peer = peer

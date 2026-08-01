@@ -2,20 +2,26 @@ import {closeSync, existsSync, fsyncSync, mkdirSync, openSync, readFileSync, ren
 import {createHash} from "node:crypto"
 import {dirname, join} from "node:path"
 import {
-  BOUNDARY_INITIAL_PROJECTION_METHOD,
-  type BoundaryInitialProjection,
-  type BoundaryInitialProjectionEntry,
-} from "@metafor/types/boundary/initial"
+  READ_GRAPH_METHOD,
+  parseMetaAddress,
+  type MetaAddress,
+  type Graph,
+} from "@metafor/types/metafor/graph"
 import {BULK_VIEWPORT_CAPTURE_METHOD} from "@metafor/types/bulk/capture"
 import type {BulkRootPromotionReceipt} from "@metafor/types/bulk/manifest"
 import type {BulkRuntimeProjection} from "@metafor/types/bulk/runtime"
 import type {ForceMessage} from "shared/protocol/force/message"
 import type {MonadRpcPeer} from "shared/transport/monad"
-import {DEFAULT_BULK_SCENE_SRC} from "./settings.ts"
+import {FORCE_CHECKPOINT_QUIESCE_METHOD} from "shared/transport/force/checkpoint"
 import {BulkProjectionStore} from "./projection.ts"
-import {observedRootSrc} from "./web/force-protocol.ts"
+import {materializedRootSrc} from "./web/force-protocol.ts"
 import {buildBulkManifestation} from "./manifestation.ts"
-import {type BulkInitialScene, prepareBulkInitialVisual} from "./visual-initial.ts"
+import {
+  type BulkInitialScene,
+  type BulkGraphScene,
+  prepareBulkInitialVisual,
+} from "./visual-initial.ts"
+import {BulkGraphStore} from "./graph.ts"
 import {
   MF117_BULK_PREFLIGHT_METHOD,
   MF117_BULK_PROMOTE_METHOD,
@@ -32,10 +38,6 @@ export type BulkMonadState = "created" | "loading" | "prepared" | "ready" | "err
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)
 
-const isInitialProjection = (value: unknown): value is BoundaryInitialProjection =>
-  isRecord(value) && value.version === 1 && Array.isArray(value.entries)
-
-const particle = (entry: BoundaryInitialProjectionEntry) => ({...structuredClone(entry), ts: 0})
 const mf117Schema = "metafor/bulk-mf117-live/v1" as const
 const mf117DurableSchema = "metafor/bulk-mf117-promotion/v2" as const
 const hexSha256 = /^[0-9a-f]{64}$/
@@ -52,6 +54,25 @@ const canonicalValue = (value: unknown): unknown => {
 }
 const sha256 = (value: unknown): string =>
   createHash("sha256").update(JSON.stringify(canonicalValue(value))).digest("hex")
+
+const projectionPromotionReceipt = (
+  projection: BulkRuntimeProjection,
+  receipt: BulkRootPromotionReceipt | null,
+): BulkRootPromotionReceipt | null => {
+  if (receipt === null) return null
+  const target = projection.atoms.find(({wimp}) => wimp === receipt.promotedRootSrc)
+  if (!target) return receipt
+  let removedRootAtomId = receipt.removedRootAtomId
+  const used = new Set(projection.atoms.map(({id}) => id))
+  while (used.has(removedRootAtomId) || removedRootAtomId === target.id) {
+    removedRootAtomId += 1
+  }
+  return {
+    ...receipt,
+    removedRootAtomId,
+    promotedAtomId: target.id,
+  }
+}
 
 type MF117StructuralEntity =
   | Readonly<{
@@ -74,12 +95,12 @@ type MF117StructuralEntity =
 type MF117StructuralProof = Readonly<{
   version: 1
   removedRoot: Readonly<{
-    id: 1
+    id: number
     src: typeof MF117_SOURCE
     absent: true
   }>
   promotedRoot: Readonly<{
-    id: 2
+    id: number
     src: typeof MF117_TARGET
     formerRootFrame: BulkRootPromotionReceipt["formerRootFrame"]
   }>
@@ -94,7 +115,7 @@ type MF117DurablePromotion = Readonly<{
   legacyManifestSha256: string | null
 }>
 
-const expectedMF117Subtree = (promoted: boolean): readonly MF117StructuralEntity[] => [
+const legacyMF117Subtree = (promoted: boolean): readonly MF117StructuralEntity[] => [
   {
     kind: "atom",
     id: 2,
@@ -142,11 +163,12 @@ const exactKeys = (value: Record<string, unknown>, keys: readonly string[]): boo
 
 const structuralSubtree = (
   projection: BulkRuntimeProjection,
+  rootId: number,
 ): readonly MF117StructuralEntity[] => {
   const entities: MF117StructuralEntity[] = []
   const visited = new Set<string>()
   const pending: Array<{kind: "atom" | "topology"; id: number}> = [
-    {kind: "atom", id: 2},
+    {kind: "atom", id: rootId},
   ]
   while (pending.length > 0) {
     const current = pending.shift()!
@@ -188,6 +210,82 @@ const structuralSubtree = (
     left.kind.localeCompare(right.kind) || left.id - right.id)
 }
 
+const semanticStructuralSubtree = (
+  subtree: readonly MF117StructuralEntity[],
+): unknown => {
+  const atomById = new Map(
+    subtree
+      .filter((entity): entity is Extract<MF117StructuralEntity, {kind: "atom"}> =>
+        entity.kind === "atom")
+      .map((atom) => [atom.id, atom] as const),
+  )
+  const topologyById = new Map(
+    subtree
+      .filter((entity): entity is Extract<MF117StructuralEntity, {kind: "topology"}> =>
+        entity.kind === "topology")
+      .map((topology) => [topology.id, topology] as const),
+  )
+  return subtree.map((entity) => ({
+    kind: entity.kind,
+    ...(entity.kind === "atom"
+      ? {wimp: entity.wimp}
+      : {topologyKind: entity.topologyKind}),
+    parent: entity.parentAtom === null
+      ? entity.parentTopology === null
+        ? null
+        : `topology:${topologyById.get(entity.parentTopology)?.topologyKind ?? "missing"}`
+      : `atom:${atomById.get(entity.parentAtom)?.wimp ?? "missing"}`,
+    position: entity.position,
+  })).toSorted((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)))
+}
+
+const mf117Subtree = (
+  projection: BulkRuntimeProjection,
+  promoted: boolean,
+): readonly MF117StructuralEntity[] => {
+  const source = projection.atoms.filter(({wimp}) => wimp === MF117_SOURCE)
+  const target = projection.atoms.filter(({wimp}) => wimp === MF117_TARGET)
+  if (target.length !== 1 || (promoted ? source.length !== 0 : source.length !== 1)) {
+    throw new Error(promoted
+      ? "Bulk MF-117 projection retained a ghost torus or lost the Lada root frame"
+      : "Bulk MF-117 current Lada subtree changed before promotion")
+  }
+  const subtree = structuralSubtree(projection, target[0]!.id)
+  const atoms = subtree.filter(
+    (entity): entity is Extract<MF117StructuralEntity, {kind: "atom"}> =>
+      entity.kind === "atom",
+  )
+  const byWimp = new Map(atoms.map((atom) => [atom.wimp, atom] as const))
+  const expected = [
+    [MF117_TARGET, promoted ? null : MF117_SOURCE, 0],
+    ["zavx0z/lada-auth", MF117_TARGET, 0],
+    ["zavx0z/lada-chat", MF117_TARGET, 1],
+    ["zavx0z/lada-model", MF117_TARGET, 2],
+    ["zavx0z/lada-chat-send", "zavx0z/lada-chat", 0],
+  ] as const
+  const exact = atoms.length === expected.length &&
+    subtree.every(({kind}) => kind === "atom") &&
+    expected.every(([wimp, parentWimp, position]) => {
+      const atom = byWimp.get(wimp)
+      const parent = parentWimp === null
+        ? null
+        : byWimp.get(parentWimp) ?? projection.atoms.find(({wimp: candidate}) =>
+          candidate === parentWimp)
+      return atom !== undefined &&
+        atom.position === position &&
+        atom.parentTopology === null &&
+        (parent === null ? atom.parentAtom === null : atom.parentAtom === parent?.id)
+    })
+  const targetParent = target[0]!.parentAtom
+  const expectedTargetParent = promoted ? null : source[0]!.id
+  if (!exact || targetParent !== expectedTargetParent) {
+    throw new Error(promoted
+      ? "Bulk MF-117 promoted Lada subtree is missing or reparented"
+      : "Bulk MF-117 current Lada subtree changed before promotion")
+  }
+  return subtree
+}
+
 const durableJSON = (filename: string, value: unknown): void => {
   const directory = dirname(filename)
   mkdirSync(directory, {recursive: true, mode: 0o700})
@@ -208,19 +306,23 @@ const durableJSON = (filename: string, value: unknown): void => {
   }
 }
 
-/** Bulk service layer: prepares one permanent Store before its Force runtime is born. */
+/** Bulk service layer: prepares its sole full Graph Store before Force is born. */
 export class BulkMonad {
+  readonly #graph = new BulkGraphStore()
   readonly #projection = new BulkProjectionStore()
   #state: BulkMonadState = "created"
   #error: string | null = null
-  #activeSrc = DEFAULT_BULK_SCENE_SRC
+  #activeSrc: MetaAddress
   #throughTs: number | null = null
   #promotionReceipt: BulkRootPromotionReceipt | null = null
   readonly #promotionPath: string
 
-  constructor(options: {promotionPath?: string} = {}) {
+  constructor(options: {promotionPath?: string; root?: MetaAddress} = {}) {
     this.#promotionPath =
       options.promotionPath ?? join(MF117_STATE_DIRECTORY, "bulk-promotion.json")
+    const defaultRoot = parseMetaAddress(MF117_SOURCE)
+    if (defaultRoot === null) throw new Error("Bulk default Graph root is invalid")
+    this.#activeSrc = options.root ?? defaultRoot
   }
 
   /** Register closed promotion and read-only observer methods before advertising them. */
@@ -246,29 +348,25 @@ export class BulkMonad {
     if (this.#state !== "created") throw new Error(`Bulk Monad cannot start from state: ${this.#state}`)
     this.#state = "loading"
     try {
-      const initial = await peer.call<BoundaryInitialProjection>(
-        "boundary",
-        BOUNDARY_INITIAL_PROJECTION_METHOD,
-        {},
+      const durable = existsSync(this.#promotionPath)
+        ? this.#readDurablePromotion()
+        : null
+      if (durable !== null) this.#activeSrc = MF117_TARGET as MetaAddress
+      const initial = await peer.call<Graph>(
+        "dark",
+        READ_GRAPH_METHOD,
+        {root: this.#activeSrc},
         {waitMs: 30_000},
       )
-      if (!isInitialProjection(initial)) throw new Error("Boundary returned an invalid initial Bulk projection")
-      for (const entry of initial.entries) this.#projection.apply(particle(entry))
-      this.#activeSrc = [...this.#projection.atoms.values()]
-        .filter((atom) => atom.parentAtom === null && atom.parentTopology === null)
-        .at(-1)?.wimp ?? DEFAULT_BULK_SCENE_SRC
-      const hasMF117Projection = [...this.#projection.atoms.values()].some(({id, wimp}) =>
-        (id === 1 && wimp === MF117_SOURCE) ||
-        (id === 2 && wimp === MF117_TARGET))
-      if (hasMF117Projection && existsSync(this.#promotionPath)) {
-        const durable = this.#readDurablePromotion()
+      this.#replaceGraph(initial, this.#activeSrc)
+      const hasMF117Projection = [...this.#projection.atoms.values()].some(({wimp}) =>
+        wimp === MF117_SOURCE || wimp === MF117_TARGET)
+      if (hasMF117Projection && durable !== null) {
         const proof = this.#verifyPromotedProjection(durable.promotion)
         if (
           durable.legacyManifestSha256 === null &&
-          (
-            durable.structuralSha256 !== sha256(proof) ||
-            sha256(durable.structuralProof) !== sha256(proof)
-          )
+          sha256(semanticStructuralSubtree(durable.structuralProof.subtree)) !==
+            sha256(semanticStructuralSubtree(proof.subtree))
         ) throw new Error("Bulk MF-117 durable structural proof conflicts")
         this.#promotionReceipt = structuredClone(durable.promotion)
         this.#activeSrc = MF117_TARGET
@@ -292,36 +390,73 @@ export class BulkMonad {
     this.#state = "error"
   }
 
-  onImpulse(message: ForceMessage): void {
+  async onImpulse(
+    peer: Pick<MonadRpcPeer, "call">,
+    message: ForceMessage,
+  ): Promise<BulkGraphScene> {
+    if (this.#state !== "ready") {
+      throw new Error(`Bulk Monad cannot apply an invalidation from state: ${this.#state}`)
+    }
     const part = message.parts[0]
-    this.#projection.apply(part)
-    const roots = new Set(
-      [...this.#projection.atoms.values()]
-        .filter((atom) => atom.parentAtom === null && atom.parentTopology === null)
-        .map((atom) => atom.wimp),
-    )
-    const nextRoot = observedRootSrc(part, roots)
-    if (nextRoot !== null) this.#activeSrc = nextRoot
-    this.#throughTs = part.ts
+    try {
+      const materializedRoot = materializedRootSrc(part)
+      const nextRoot = materializedRoot === null
+        ? this.#activeSrc
+        : parseMetaAddress(materializedRoot)
+      if (nextRoot === null) {
+        throw new Error(`Bulk received a non-canonical materialized root: ${materializedRoot}`)
+      }
+      await peer.call(
+        "boundary",
+        FORCE_CHECKPOINT_QUIESCE_METHOD,
+        {},
+        {waitMs: 30_000},
+      )
+      const current = await peer.call<Graph>(
+        "dark",
+        READ_GRAPH_METHOD,
+        {root: nextRoot},
+        {waitMs: 30_000},
+      )
+      this.#replaceGraph(current, nextRoot)
+      this.#throughTs = part.ts
+      return this.#scene()
+    } catch (error) {
+      this.onRuntimeBirthFailed(error)
+      throw error
+    }
   }
 
   openObserver(session: string): BulkInitialScene {
     if (this.#state !== "ready") throw new Error(`Bulk observer cannot open: runtime is not ready (${this.#state})`)
+    return {...this.#scene(), session}
+  }
+
+  #scene(): BulkGraphScene {
     const projection = this.#projection.snapshot()
+    const promotion = projectionPromotionReceipt(
+      projection.runtime,
+      this.#promotionReceipt,
+    )
     const manifest = buildBulkManifestation(
       projection.runtime,
-      this.#promotionReceipt?.removedRootSrc ?? this.#activeSrc,
-      this.#promotionReceipt,
+      promotion?.removedRootSrc ?? this.#activeSrc,
+      promotion,
     )
     return {
       version: 1,
-      session,
       throughTs: this.#throughTs,
       rootSrc: this.#activeSrc,
-      projection,
+      graph: this.#graph.read(),
       manifest,
       visual: prepareBulkInitialVisual(manifest, projection.runtime),
     }
+  }
+
+  #replaceGraph(value: unknown, root: MetaAddress): void {
+    const cut = this.#graph.replace(value, root)
+    this.#projection.hydrate(cut.projection)
+    this.#activeSrc = root
   }
 
   mf117Preflight(value: unknown): {
@@ -336,16 +471,15 @@ export class BulkMonad {
       throw new Error("Bulk MF-117 promotion already exists")
     }
     const projection = this.#projection.view()
-    if (
-      sha256(structuralSubtree(projection)) !==
-        sha256(expectedMF117Subtree(false))
-    ) throw new Error("Bulk MF-117 current Lada subtree changed before promotion")
+    mf117Subtree(projection, false)
     const manifest = buildBulkManifestation(
       projection,
       MF117_SOURCE,
     )
-    const sourceId = input.promotion.removedRootAtomId * 2
-    const targetId = input.promotion.promotedAtomId * 2
+    const sourceAtom = projection.atoms.find(({wimp}) => wimp === MF117_SOURCE)!
+    const targetAtom = projection.atoms.find(({wimp}) => wimp === MF117_TARGET)!
+    const sourceId = sourceAtom.id * 2
+    const targetId = targetAtom.id * 2
     const source = manifest.darkParticles.filter(({darkParticleId}) =>
       darkParticleId === sourceId)
     const target = manifest.darkParticles.filter(({darkParticleId}) =>
@@ -382,7 +516,7 @@ export class BulkMonad {
   } {
     const input = this.#mf117Input(value)
     const proof = this.#verifyPromotedProjection(input.promotion)
-    const targetId = input.promotion.promotedAtomId * 2
+    const targetId = proof.promotedRoot.id * 2
     const structuralSha256 = sha256(proof)
     let durable: MF117DurablePromotion
     if (existsSync(this.#promotionPath)) {
@@ -391,10 +525,8 @@ export class BulkMonad {
         sha256(durable.promotion) !== sha256(input.promotion) ||
         (
           durable.legacyManifestSha256 === null &&
-          (
-            durable.structuralSha256 !== structuralSha256 ||
-            sha256(durable.structuralProof) !== structuralSha256
-          )
+          sha256(semanticStructuralSubtree(durable.structuralProof.subtree)) !==
+            sha256(semanticStructuralSubtree(proof.subtree))
         )
       ) {
         throw new Error("Bulk MF-117 durable promotion receipt conflicts")
@@ -448,23 +580,18 @@ export class BulkMonad {
     promotion: BulkRootPromotionReceipt,
   ): MF117StructuralProof {
     const projection = this.#projection.view()
-    const subtree = structuralSubtree(projection)
-    if (
-      sha256(subtree) !==
-        sha256(expectedMF117Subtree(true))
-    ) throw new Error("Bulk MF-117 promoted Lada subtree is missing or reparented")
+    const subtree = mf117Subtree(projection, true)
+    const projectedPromotion = projectionPromotionReceipt(projection, promotion)!
     const manifest = buildBulkManifestation(
       projection,
       promotion.removedRootSrc,
-      promotion,
+      projectedPromotion,
     )
-    const sourceId = promotion.removedRootAtomId * 2
-    const targetId = promotion.promotedAtomId * 2
-    const target = manifest.darkParticles.filter(({darkParticleId}) =>
-      darkParticleId === targetId)
-    const expectedAtomToruses = expectedMF117Subtree(true)
-      .filter((entity): entity is Extract<MF117StructuralEntity, {kind: "atom"}> =>
-        entity.kind === "atom")
+    const promotedAtom = projection.atoms.find(({wimp}) => wimp === MF117_TARGET)!
+    const targetId = promotedAtom.id * 2
+    const target = manifest.darkParticles.filter(({darkParticleId}) => darkParticleId === targetId)
+    const expectedAtomToruses = subtree
+      .filter((entity): entity is Extract<MF117StructuralEntity, {kind: "atom"}> => entity.kind === "atom")
       .map(({id}) => id * 2)
       .toSorted((left, right) => left - right)
     const actualAtomToruses = manifest.darkParticles
@@ -473,13 +600,10 @@ export class BulkMonad {
       .toSorted((left, right) => left - right)
     const root = target[0]
     if (
-      projection.atoms.some(({id, wimp}) =>
-        id === promotion.removedRootAtomId || wimp === MF117_SOURCE) ||
-      projection.atoms.filter(({id, wimp}) =>
-        id === promotion.promotedAtomId && wimp === MF117_TARGET).length !== 1 ||
+      projection.atoms.some(({wimp}) => wimp === MF117_SOURCE) ||
+      projection.atoms.filter(({wimp}) => wimp === MF117_TARGET).length !== 1 ||
       manifest.rootSrc !== MF117_TARGET ||
-      manifest.darkParticles.some(({darkParticleId, src}) =>
-        darkParticleId === sourceId || src === MF117_SOURCE) ||
+      manifest.darkParticles.some(({src}) => src === MF117_SOURCE) ||
       JSON.stringify(actualAtomToruses) !== JSON.stringify(expectedAtomToruses) ||
       target.length !== 1 ||
       root?.parentDarkParticleId !== null ||
@@ -492,12 +616,12 @@ export class BulkMonad {
     return {
       version: 1,
       removedRoot: {
-        id: 1,
+        id: promotion.removedRootAtomId,
         src: MF117_SOURCE,
         absent: true,
       },
       promotedRoot: {
-        id: 2,
+        id: promotedAtom.id,
         src: MF117_TARGET,
         formerRootFrame: structuredClone(promotion.formerRootFrame),
       },
@@ -594,7 +718,7 @@ export class BulkMonad {
           src: MF117_TARGET,
           formerRootFrame: structuredClone(promotion.formerRootFrame),
         },
-        subtree: expectedMF117Subtree(true),
+        subtree: legacyMF117Subtree(true),
       }
       return {
         receiptId: value.receiptId,

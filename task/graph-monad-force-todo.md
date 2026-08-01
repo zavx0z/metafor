@@ -1,7 +1,7 @@
-# MetaJSON, Monad и Force: приоритетный исполнимый TODO
+# Graph, Monad и Force: приоритетный исполнимый TODO
 
 Этот backlog исполняется по
-[`task/metajson-monad-force-plan.md`](metajson-monad-force-plan.md).
+[`task/graph-monad-force-plan.md`](graph-monad-force-plan.md).
 
 ## Правила
 
@@ -257,24 +257,23 @@
   - полный cold lifecycle пройден без hot reload;
   - backup/migration evidence записано до Store cut.
 
-## P1 — MetaJSON read/observe loop
+## P1 — Graph read/observe loop
 
-### MF-100 — Утвердить MetaJSON v1 read contracts
+### MF-100 — Утвердить Graph read contracts
 
 - Status: `DONE`
 - Dependencies: `MF-014`
 - Current task: Codex task `019f9c3a-a2ec-7460-bd80-34ec2a630697`
 - Contract baseline:
-  [`task/metajson-v1-read-contract.md`](metajson-v1-read-contract.md)
+  [`task/graph-read-contract.md`](graph-read-contract.md)
 - Evidence:
   - current `MetaDSL → Dark` normalization и declaration flattening audited;
-  - historical `MonadJson → ActorAST → MetaAST` line audited without restoring
-    old AST literally;
+  - historical AST projection line audited without restoring old AST literally;
   - Boundary current Atom/topology/origin data и Monad RPC envelope/router
     audited;
   - focused order review separated semantic/materialization order from
     incidental declaration/display order;
-  - owner completed real-time review and locked every public v1 decision;
+  - owner completed real-time review and locked every public contract decision;
   - `docs/ARCHITECTURE.md`, living plan, TODO and contract baseline reconciled;
   - independent mechanical verification: one public schema, no stale positive
     shapes, valid local links, balanced fences and `git diff --check` pass;
@@ -284,7 +283,8 @@
     checkpoint commit;
   - code and child implementation work begin only after G1 report.
 - Acceptance:
-  - один полный public MetaJSON document и одна schema;
+  - один public Graph и одна schema; JSON является только его технической
+    сериализацией, а не вторым форматом;
   - stateless Dark Monad assembly Dark declaration + Boundary current
     projection;
   - compact complete normalized MetaDSL template;
@@ -294,24 +294,22 @@
   - revisions/digests/CAS и directed ports/stubs/global edges отсутствуют;
   - Mass bytes, live Energy, history и patches отсутствуют в snapshot.
 
-### MF-101 — Реализовать единый MetaJSON v1 read
+### MF-101 — Реализовать единый Graph read
 
 - Status: `DONE`
 - Dependencies: `MF-100`
 - Current task: Codex task `019f9c3a-a2ec-7460-bd80-34ec2a630697`
 - Evidence:
-  - public MetaJSON v1 document/types/closed validator:
-    commit `b8e061e3 feat(metajson): define public v1 contract`;
+  - public Graph types/closed validator: commit `b8e061e3`;
   - Dark complete declaration projection и Boundary coherent current
-    projection: commit
-    `f9779aba feat(metajson): add Dark and Boundary projections`;
+    projection: commit `f9779aba`;
   - stateless Monad assembly, provider isolation и final public validation:
-    commit `9a0a8739 feat(metajson): assemble reads through Monad`;
+    commit `9a0a8739`;
   - независимые verifier gates приняли Public, Dark, Boundary temporal
     coherence и Monad assembly после adversarial corrections;
   - final targeted integration:
-    `bun test monad/meta-json.spec.ts dark/meta-json.spec.ts
-    boundary/meta-json.spec.ts tests/metajson/public.spec.ts` —
+    `bun test dark/monad/graph.spec.ts dark/graph.spec.ts
+    boundary/graph.spec.ts tests/graph/public.spec.ts` —
     70 pass, 0 fail, 282 expect;
   - `bun run typecheck`: pass;
   - `git diff --check`: pass;
@@ -328,7 +326,7 @@
   - semantic/materialization order сохранён без universal order vector;
   - Dark Monad предоставляет declaration projection, Boundary — current
     projection, Dark Monad statelessly собирает и валидирует результат;
-  - no authored MetaJSON Store.
+  - no authored Graph Store.
 
 ### MF-102 — Перенести standalone Force runtime в Dark
 
@@ -420,8 +418,8 @@
     segment `00000000000000000001.ndjson` с SHA-256
     `76007c85cb297c879b9517fd028da5949434caf1fa24a9dd15668ea42484345d`
     и доставлен во все доменные каналы;
-  - live `readMetaJSON` для `zavx0z/inference` вернул schema
-    `metafor/meta-json/v1`, шесть template entries и один runtime root;
+  - live `readGraph` для `zavx0z/inference` вернул schema
+    `metafor/graph`, шесть template entries и один runtime root;
   - SQLite `PRAGMA quick_check` вернул `ok`; SQLite/WAL/SHM и четыре Mass files
     остались byte-identical pre-cut backup;
   - candidate остаётся запущенным; hot reload, rollback и push не выполнялись.
@@ -490,7 +488,7 @@
     owner read contract;
   - разрешённые Mass results через owner API.
 - Acceptance:
-  - MetaJSON snapshot не смешивается с history/Mass;
+  - Graph read projection не смешивается с history/Mass;
   - direct Store/SQLite/filesystem reads со стороны Codex отсутствуют;
   - Particle selector/time/type/direction/identity filters закрыты и
     валидируются;
@@ -504,7 +502,7 @@
 - Status: `WAITING`
 - Dependencies: `MF-103`
 - Acceptance:
-  - Codex читает полный MetaJSON либо partial retrieval над тем же contract;
+  - Codex читает полный Graph либо partial retrieval над тем же contract;
   - связывает его с history и Mass result;
   - формулирует проверяемое improvement intent;
   - никаких writes на этом item.
@@ -603,7 +601,7 @@
     подтверждает применение только после Dark acceptance всех причинных
     outputs;
   - `dark/checkpoint/capture.ts` копирует stopped history/SQLite в private
-    staging, требует одинаковый MetaJSON digest at sequence 0/1 и публикует
+    staging, требует одинаковый Graph digest at sequence 0/1 и публикует
     local bare Git checkpoint до durable control baseline;
   - один accepted sequence атомарно назначает per-domain `sentOrdinal`;
   - closed applied acknowledgement продвигает монотонный per-domain frontier;
@@ -671,7 +669,7 @@
     выполняется и остаётся отдельным activation decision;
   - атомарный synthetic dissolve/reparent;
   - rollback всей SQLite transaction при позднем mismatch;
-  - validated `readMetaJSON` до и внутри transaction после planned state;
+  - validated `readGraph` до и внутри transaction после planned state;
   - private source/target equality manifest по authored key mapping, codec,
     global key и SHA-256 metadata.
 - Acceptance:
@@ -689,7 +687,7 @@
     не экспортирован через public Boundary API;
   - `bun test boundary/dissolve.spec.ts`: `3 pass`, `0 fail`, `26 expect()`;
   - `bun test boundary/dissolve.spec.ts boundary/incremental.spec.ts
-    boundary/meta-json.spec.ts boundary/mass.spec.ts`: `49 pass`, `0 fail`,
+    boundary/graph.spec.ts boundary/mass.spec.ts`: `49 pass`, `0 fail`,
     `212 expect()`;
   - `bun run check`: typecheck, `42` expected type diagnostics и `1645 pass`,
     `0 fail` в `184` файлах;
@@ -720,9 +718,9 @@
   - private adapter принимает только closed `dissolve` proposal и не смешивает
     его с recursive `inflaton remove wimp`;
   - validation повторно использует proven plan, exact five mappings, current
-    full MetaJSON и whole-plan CAS до staging write;
+    full Graph и whole-plan CAS до staging write;
   - отдельная in-memory SQLite атомарно сохраняет immutable receipt с proposal,
-    plan/pre-state и MetaJSON digests;
+    plan/pre-state и Graph digests;
   - одинаковый `proposalId` идемпотентен только для того же proposal, collision
     или mismatch не оставляет partial receipt;
   - staging не вызывает execution/materialize/fence/Force, не меняет Boundary
@@ -736,7 +734,7 @@
   - staging storage всегда `sqlite::memory:` и receipt имеет `effects: none`;
   - `bun test boundary/dissolve.spec.ts`: `6 pass`, `0 fail`;
   - `bun test boundary/dissolve.spec.ts boundary/incremental.spec.ts
-    boundary/meta-json.spec.ts boundary/mass.spec.ts`: `52 pass`, `0 fail`,
+    boundary/graph.spec.ts boundary/mass.spec.ts`: `52 pass`, `0 fail`,
     `241 expect()`;
   - `bun run check`: typecheck, `42` expected type diagnostics и `1648 pass`,
     `0 fail` в `184` файлах;
@@ -747,7 +745,7 @@
   - in-memory receipt ещё не является durable Boundary-owned serialized stage
     и не связан с stopped checkpoint/cut;
   - нужны проверенные реальные source/target mappings и declarations, exact
-    MetaJSON/Mass evidence, backup и cold rollback package;
+    Graph/Mass evidence, backup и cold rollback package;
   - нужны actual Energy five-handle fence/retarget, authenticated Monad/Force
     admission и post-commit consequences;
   - GC policy для superseded target keys/bytes остаётся неразрешённым;
@@ -790,7 +788,7 @@
   - `bun test boundary/dissolve.spec.ts`: `8 pass`, `0 fail`,
     `73 expect()`;
   - `bun test boundary/dissolve.spec.ts boundary/incremental.spec.ts
-    boundary/meta-json.spec.ts boundary/mass.spec.ts`: `54 pass`, `0 fail`,
+    boundary/graph.spec.ts boundary/mass.spec.ts`: `54 pass`, `0 fail`,
     `259 expect()`;
   - `bun run check`: typecheck, `42` expected type diagnostics и `1650 pass`,
     `0 fail` в `184` файлах;
@@ -905,7 +903,7 @@
   - live activation остаётся отдельным owner gate.
 - Evidence:
   - private executor повторно читает exact stored proposal/plan, требует
-    byte-identical fresh plan, stage MetaJSON digest и все structural/Mass CAS,
+    byte-identical fresh plan, stage Graph digest и все structural/Mass CAS,
     затем вызывает transaction только на caller-owned detached Boundary;
   - exact accepted checkpoint
     `757700c6714e0da8d3ac98f3b43b2caecbd22d72` /
@@ -994,6 +992,33 @@
   - live data/listeners/processes и runtime lifecycle не читались и не
     изменялись; endpoint/caller не добавлен; scoped implementation: этот
     commit.
+
+### MF-118 — Сделать Graph единственной стартовой основой Bulk
+
+- Status: `DONE`
+- Dependencies: `MF-101`
+- Current executor: Cloud checkout, delegated Codex task.
+- Owner approval:
+  - Bulk Monad при старте сам вызывает `Dark.readGraph`;
+  - тот же Bulk-owned Graph Store владеет initial и всеми последующими
+    актуальными read cuts;
+  - Boundary initial projection не является стартовым источником Bulk;
+  - browser получает полный текущий Graph, Visual остаётся stateless.
+- Evidence:
+  - `bulk/graph.ts` содержит typed full-document Store и единственный
+    Graph-to-Bulk adapter с Bulk-local identity;
+  - startup вызывает `Dark.readGraph`; production source guard запрещает
+    возврат `Boundary.initialProjection.read`;
+  - обычный Particle используется только как causal invalidation: после
+    Boundary quiescence Bulk повторно читает Dark и атомарно заменяет validated
+    cut, а browser получает full initial/current Graph control payload;
+  - invalid Graph/root mismatch не заменяют предыдущий Store и переводят
+    runtime в fail-closed error;
+  - прежние `BulkObserverSnapshot`, fixture lifecycle и retained MF-117 v1/v2
+    receipts остаются совместимыми без выдачи Boundary IDs за public identity;
+  - focused Bulk suite: `29 pass`, `0 fail`; `bun run typecheck` и
+    `git diff --check`: pass;
+  - runtime/browser не запускались, live state не изменялся.
 
 ### MF-117 — Активировать causal Inference→Lada dissolve
 
@@ -1566,7 +1591,7 @@
     and Sphere detail as separate data; `bulk/web` imports only its
     lightweight type contract;
   - initial manifestation and every changed browser projection use the same
-    `applyViewportManifest` path. The full Monad fixture proves `5` centered
+    `applyViewportManifest` path. The full Bulk observer fixture proves `5` centered
     Dark Torus, `54` canonical Field occurrences represented by `28` render
     markers and `54` aliases, plus unchanged exact sets of `142` orbital,
     `165` Transition, `315` proxy and `511` relation identities. All `129`
@@ -1830,7 +1855,7 @@
   - exact outcome/error;
   - read-only service-phase observation валидирует operation/target/time
     filters;
-  - journal не дублирует Dark Force Particles и не является MetaJSON, Particle
+  - journal не дублирует Dark Force Particles и не является Graph, Particle
     history или VCS.
 
 ### MF-204 — Немедленно materialize через текущий runtime path
@@ -1863,13 +1888,13 @@
 - Dependencies: `MF-101`, `MF-103`, `MF-205`
 - Fixture: существующая изолированная Meta, не Лада.
 - Path:
-  - MetaJSON read;
+  - Graph read;
   - patch optional scalar Field без default;
   - fast validation;
   - atomic write;
   - immediate materialization;
   - operation/particle history read;
-  - MetaJSON reread;
+  - Graph reread;
   - next Codex iteration.
 - Acceptance:
   - invalid/stale/no-op/idempotent cases;
@@ -1918,7 +1943,7 @@
 - Acceptance:
   - общий operation schema/journal;
   - различаются только template start и target existence precondition;
-  - результат читается тем же MetaJSON RPC.
+  - результат читается тем же Graph RPC.
 
 ## P4 — отложенные расширения
 
@@ -1948,7 +1973,7 @@
   - owner утверждает необходимость общего случая, его область и право на
     живое выполнение;
   - реализация строится на действующих Boundary, Energy, Mass, Force и
-    MetaJSON контрактах, не заменяя специальный принятый путь `MF-117`;
+    Graph контрактах, не заменяя специальный принятый путь `MF-117`;
   - до этого задача не `READY`.
 - Acceptance:
   - все прямые дети детерминированно поднимаются в прежний интервал родителя;
@@ -1986,7 +2011,7 @@
 - Status: `GATE`
 - Dependencies: `MF-405`
 - Scope:
-  - только собственная structural scope через тот же MetaJSON contract;
+  - только собственная structural scope через тот же Graph contract;
   - resource limits;
   - Dark Monad validation;
   - operational observability;

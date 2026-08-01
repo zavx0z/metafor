@@ -14,14 +14,14 @@ import {
 import {tmpdir} from "node:os"
 import {basename, extname, join, resolve} from "node:path"
 import {
-  META_JSON_V1_SCHEMA,
+  GRAPH_SCHEMA,
   parseMetaAddress,
-  validateMetaJSONV1,
-  type MetaJSONV1,
-} from "@metafor/types/metafor/meta-json"
-import {readBoundaryMetaJSONProjection} from "../../boundary/meta-json.ts"
+  validateGraph,
+  type Graph,
+} from "@metafor/types/metafor/graph"
+import {readBoundaryGraphProjection} from "../../boundary/graph.ts"
 import {open as openBoundary} from "../../boundary/sqlite.ts"
-import {readDarkDeclarationProjection} from "../meta-json.ts"
+import {readDarkDeclarationProjection} from "../graph.ts"
 import {DarkForceHistory} from "../force/history.ts"
 import {
   CheckpointGitRepository,
@@ -32,8 +32,8 @@ import {
   type CheckpointWriteResult,
 } from "./repository.ts"
 import {
-  canonicalizeMetaJSONV1,
-  diffMetaJSONV1,
+  canonicalizeGraph,
+  diffGraph,
 } from "./projection.ts"
 import {initializeCheckpointControlBaseline} from "./control.ts"
 
@@ -71,8 +71,8 @@ export type FirstOfflineCheckpointPublication = {
   cutId: string
   sequence: number
   acceptedSequences: number[]
-  base: MetaJSONV1
-  result: MetaJSONV1
+  base: Graph
+  result: Graph
   boundary: Uint8Array
   mass: CheckpointMassCapture[]
   repository: string
@@ -87,8 +87,8 @@ export type CurrentOfflineCheckpointPublication = {
   sequence: number
   previousSnapshotSequence: number | null
   acceptedSequences: number[]
-  base: MetaJSONV1
-  result: MetaJSONV1
+  base: Graph
+  result: Graph
   boundary: Uint8Array
   mass: CheckpointMassCapture[]
   patches: CheckpointPatchCaptureEntry[]
@@ -135,7 +135,7 @@ const copySQLiteSet = (source: string, targetDirectory: string): string => {
 const offlineProjection = async (
   root: string,
   sourceDatabase: string,
-): Promise<{projection: MetaJSONV1; boundary: Uint8Array}> => {
+): Promise<{projection: Graph; boundary: Uint8Array}> => {
   const directory = mkdtempSync(join(tmpdir(), "metafor-checkpoint-boundary-"))
   try {
     const filename = copySQLiteSet(sourceDatabase, directory)
@@ -143,18 +143,18 @@ const offlineProjection = async (
     try {
       const [dark, current] = await Promise.all([
         readDarkDeclarationProjection({root}),
-        readBoundaryMetaJSONProjection(boundary, {root}),
+        readBoundaryGraphProjection(boundary, {root}),
       ])
       const candidate = {
-        schema: META_JSON_V1_SCHEMA,
+        schema: GRAPH_SCHEMA,
         root: dark.root,
         template: dark.template,
         runtime: current.runtime,
       }
-      const validation = validateMetaJSONV1(candidate)
+      const validation = validateGraph(candidate)
       if (!validation.ok) {
         throw new Error(
-          `Offline checkpoint MetaJSON is invalid: ${validation.issues.map(({path, code}) => `${path}:${code}`).join(", ")}`,
+          `Offline checkpoint Graph is invalid: ${validation.issues.map(({path, code}) => `${path}:${code}`).join(", ")}`,
         )
       }
       return {
@@ -172,26 +172,26 @@ const offlineProjection = async (
 const offlineCurrentProjection = async (
   root: string,
   sourceDatabase: string,
-): Promise<{projection: MetaJSONV1; boundary: Uint8Array}> => {
+): Promise<{projection: Graph; boundary: Uint8Array}> => {
   const directory = mkdtempSync(join(tmpdir(), "metafor-checkpoint-boundary-"))
   try {
     const filename = copySQLiteSet(sourceDatabase, directory)
     const boundary = await openBoundary(filename)
-    let projection: MetaJSONV1
+    let projection: Graph
     try {
       const [dark, current] = await Promise.all([
         readDarkDeclarationProjection({root}),
-        readBoundaryMetaJSONProjection(boundary, {root}),
+        readBoundaryGraphProjection(boundary, {root}),
       ])
-      const validation = validateMetaJSONV1({
-        schema: META_JSON_V1_SCHEMA,
+      const validation = validateGraph({
+        schema: GRAPH_SCHEMA,
         root: dark.root,
         template: dark.template,
         runtime: current.runtime,
       })
       if (!validation.ok) {
         throw new Error(
-          `Offline checkpoint MetaJSON is invalid: ${validation.issues.map(({path, code}) => `${path}:${code}`).join(", ")}`,
+          `Offline checkpoint Graph is invalid: ${validation.issues.map(({path, code}) => `${path}:${code}`).join(", ")}`,
         )
       }
       projection = validation.value
@@ -254,7 +254,7 @@ const samePublishedCapture = (
     manifest.trigger.kind === publication.trigger &&
     manifest.boundary.blob.sha256 === sha256(publication.boundary) &&
     manifest.boundary.blob.bytes === publication.boundary.byteLength &&
-    manifest.projection.blob.sha256 === canonicalizeMetaJSONV1(publication.result).sha256 &&
+    manifest.projection.blob.sha256 === canonicalizeGraph(publication.result).sha256 &&
     manifest.patches.previousSnapshotSequence === null &&
     manifest.patches.fromSequence === 1 &&
     manifest.patches.throughSequence === publication.sequence &&
@@ -273,13 +273,13 @@ const samePublishedCapture = (
 const expectedPatchSha256 = (
   publication: CurrentOfflineCheckpointPublication,
 ): string => {
-  const base = canonicalizeMetaJSONV1(publication.base)
-  const result = canonicalizeMetaJSONV1(publication.result)
+  const base = canonicalizeGraph(publication.base)
+  const result = canonicalizeGraph(publication.result)
   return sha256(canonicalBytes({
     schema: "metafor/checkpoint-forward-patches/v1",
     cutId: publication.cutId,
     projection: {
-      schema: "metafor/meta-json/v1",
+      schema: "metafor/graph",
       root: result.value.root,
       canonicalization: "rfc8785",
     },
@@ -303,7 +303,7 @@ const samePublishedCurrentCapture = (
   publication: CurrentOfflineCheckpointPublication,
 ): boolean => {
   const manifest = checkpoint.manifest
-  const result = canonicalizeMetaJSONV1(publication.result)
+  const result = canonicalizeGraph(publication.result)
   const expectedMass = publication.mass
     .map((entry) => ({
       keyId: entry.keyId,
@@ -409,11 +409,11 @@ export const publishFirstOfflineCheckpoint = (
     publication.acceptedSequences.length !== publication.sequence ||
     publication.acceptedSequences.some((sequence, index) => sequence !== index + 1)
   ) throw new Error("First checkpoint accepted sequence coverage is incomplete")
-  const base = canonicalizeMetaJSONV1(publication.base)
-  const result = canonicalizeMetaJSONV1(publication.result)
-  const operations = diffMetaJSONV1(publication.base, publication.result)
+  const base = canonicalizeGraph(publication.base)
+  const result = canonicalizeGraph(publication.result)
+  const operations = diffGraph(publication.base, publication.result)
   if (base.sha256 !== result.sha256 || operations.length !== 0) {
-    throw new Error("First non-zero checkpoint cannot prove an unchanged sequence-zero MetaJSON baseline")
+    throw new Error("First non-zero checkpoint cannot prove an unchanged sequence-zero Graph baseline")
   }
 
   const repositoryPath = resolve(publication.repository)
@@ -484,7 +484,7 @@ export const captureOfflineCheckpoint = async (
     offlineProjection(root, resolve(options.baseBoundary)),
     offlineCurrentProjection(root, resolve(options.currentBoundary)),
   ])
-  const resultCanonical = canonicalizeMetaJSONV1(current.projection)
+  const resultCanonical = canonicalizeGraph(current.projection)
   const repositoryPath = resolve(options.repository)
   const checkpoint = publishFirstOfflineCheckpoint({
     cutId: status.cutId,

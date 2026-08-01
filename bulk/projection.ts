@@ -15,6 +15,7 @@ import type {
   BulkRuntimeTransition,
   BulkRuntimeValue,
   BulkRuntimeWimp,
+  BulkProjectionChange,
 } from "@metafor/types/bulk/runtime"
 import type {
   BulkProjectionDeclaration,
@@ -40,13 +41,10 @@ type Address =
  * the other as paint. Only this store knows which upstream fact moved, so it
  * says so and lets each consumer decide what that costs it.
  */
-export type BulkProjectionFacet =
-  | "current-state"
-  | "field-value"
-  | "none"
-  | "structure"
-
-export type BulkProjectionChange = {changed: boolean; affectedAtomIds: number[]; facet: BulkProjectionFacet; structural: boolean}
+export type {
+  BulkProjectionChange,
+  BulkProjectionFacet,
+} from "@metafor/types/bulk/runtime"
 
 /** A change that moved nothing. Fresh each call — callers own the array. */
 const unchanged = (): BulkProjectionChange =>
@@ -128,7 +126,11 @@ const runtimeValue = (id: number, value: unknown): BulkRuntimeValue => {
   }
 }
 
-/** Canonical local scene source. No method clears or replaces the projection. */
+/**
+ * Mutable adapter Store for an already derived Bulk projection. Production
+ * replaces it only from the current validated Graph cut; direct Particle
+ * application remains for recorded fixtures and compatibility lifecycles.
+ */
 export class BulkProjectionStore {
   readonly atoms = new Map<number, AtomRecord>()
   readonly topologies = new Map<number, TopologyRecord>()

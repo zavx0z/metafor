@@ -3,14 +3,14 @@ import type {ForceMessageInput} from "shared/protocol/force/message"
 import {
   DARK_DECLARATION_PROJECTION_METHOD,
   readDarkDeclarationProjection,
-  type DarkDeclarationProjectionV1,
-} from "./meta-json.ts"
-import {MetaJSONMonad} from "./monad/meta-json.ts"
+  type DarkGraphTemplate,
+} from "./graph.ts"
+import {GraphMonad} from "./monad/graph.ts"
 import type {DarkForceTimeControl} from "./time-control.ts"
 
 export type DarkMonadState = "created" | "registering" | "ready" | "error" | "stopped"
 
-type DeclarationProjectionReader = (params: unknown) => Promise<DarkDeclarationProjectionV1>
+type DeclarationProjectionReader = (params: unknown) => Promise<DarkGraphTemplate>
 
 export const DARK_FORCE_PAUSE_METHOD = "dark.force.pause" as const
 export const DARK_FORCE_STEP_METHOD = "dark.force.step" as const
@@ -35,7 +35,7 @@ const forceMessageInput = (value: unknown): ForceMessageInput => {
 export class DarkMonad {
   #state: DarkMonadState = "created"
   #error: string | null = null
-  readonly #metaJSON = new MetaJSONMonad()
+  readonly #graph = new GraphMonad()
   #timeControl: DarkForceTimeControl | null = null
 
   constructor(
@@ -71,7 +71,7 @@ export class DarkMonad {
       DARK_FORCE_STACK_METHOD,
       async () => this.#timeControlOrThrow().pauseStack(),
     )
-    this.#metaJSON.onServerStarted(peer)
+    this.#graph.onServerStarted(peer)
   }
 
   onChannelOpened(): void {

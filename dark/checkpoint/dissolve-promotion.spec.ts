@@ -1,5 +1,5 @@
 import {describe, expect, test} from "bun:test"
-import {parseMetaAddress} from "@metafor/types/metafor/meta-json"
+import {parseMetaAddress} from "@metafor/types/metafor/graph"
 import {createHash} from "node:crypto"
 import {
   BOUNDARY_DISSOLVE_CANDIDATE_RETENTION,
@@ -59,7 +59,7 @@ const stageBody = {
   planSha256: digest("2"),
   structuralSha256: digest("3"),
   privateManifestSha256: digest("4"),
-  metaJSONSha256: digest("5"),
+  graphSha256: digest("5"),
   checkpoint,
   rollbackManifestSha256: digest("6"),
   retention: BOUNDARY_DISSOLVE_CANDIDATE_RETENTION,
@@ -97,7 +97,7 @@ const proof: BoundaryDissolveProof = Object.freeze({
   transferredGlobalKeys: ["mass-1", "mass-2", "mass-3", "mass-4", "mass-5"],
   retainedUnreferencedKeys: [],
   privateManifestSha256: stage.privateManifestSha256,
-  metaJSON: {before: SOURCE, planned: TARGET},
+  graph: {before: SOURCE, planned: TARGET},
 })
 
 const frame = Object.freeze({

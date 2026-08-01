@@ -12,7 +12,7 @@ import {
   MONAD_RPC_VERSION,
   type MonadRpcMessage,
 } from "shared/protocol/monad/rpc"
-import {BOUNDARY_META_JSON_PROJECTION_METHOD} from "./meta-json.ts"
+import {BOUNDARY_GRAPH_PROJECTION_METHOD} from "./graph.ts"
 import {BoundaryMonad} from "./monad.ts"
 import {open, type BoundaryDatabase} from "./sqlite.ts"
 
@@ -55,6 +55,7 @@ describe("Boundary Monad", () => {
 
     monad.onServerStarted(peer)
     expect(peer.methods()).toEqual([
+      BOUNDARY_GRAPH_PROJECTION_METHOD,
       BOUNDARY_INITIAL_PROJECTION_METHOD,
       BOUNDARY_INITIAL_STATE_METHOD,
       "boundary.internal.mf117.admit",
@@ -64,7 +65,6 @@ describe("Boundary Monad", () => {
       "boundary.internal.mf117.quiescent",
       "boundary.internal.mf117.receipt",
       "boundary.internal.mf117.verify",
-      BOUNDARY_META_JSON_PROJECTION_METHOD,
     ])
     expect(await monad.onHealthRequested(":memory:").json()).toMatchObject({rpc: "registering"})
 
@@ -105,16 +105,16 @@ describe("Boundary Monad", () => {
 
     await channel.receive({
       version: MONAD_RPC_VERSION,
-      id: "metajson-read",
+      id: "graph-read",
       source: "monad",
       target: "boundary",
-      method: BOUNDARY_META_JSON_PROJECTION_METHOD,
+      method: BOUNDARY_GRAPH_PROJECTION_METHOD,
       params: {root: "owner/runtime"},
     })
 
     expect(channel.sent[2]).toEqual({
       version: MONAD_RPC_VERSION,
-      id: "metajson-read",
+      id: "graph-read",
       ok: true,
       result: {
         root: "owner/runtime",

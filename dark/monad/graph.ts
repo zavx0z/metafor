@@ -1,36 +1,37 @@
 import {
-  META_JSON_V1_SCHEMA,
-  READ_META_JSON_METHOD,
+  GRAPH_SCHEMA,
+  READ_GRAPH_METHOD,
   parseMetaAddress,
-  validateMetaJSONV1,
+  validateGraph,
   type MetaAddress,
-  type MetaJSONV1,
+  type Graph,
+  type ReadGraphParams,
   type ValidationIssue,
-} from "@metafor/types/metafor/meta-json"
+} from "@metafor/types/metafor/graph"
 import type {MonadRpcPeer} from "shared/transport/monad"
 import {
   DARK_DECLARATION_PROJECTION_METHOD,
-  type DarkDeclarationProjectionV1,
-} from "../meta-json.ts"
+  type DarkGraphTemplate,
+} from "../graph.ts"
 import {
-  BOUNDARY_META_JSON_PROJECTION_METHOD,
-  type BoundaryMetaJSONProjectionV1,
-} from "../../boundary/meta-json.ts"
+  BOUNDARY_GRAPH_PROJECTION_METHOD,
+  type BoundaryGraphProjection,
+} from "../../boundary/graph.ts"
 
-export type MetaJSONMonadPeer = Pick<MonadRpcPeer, "call" | "expose">
+export type GraphMonadPeer = Pick<MonadRpcPeer, "call" | "expose">
 
-export type MetaJSONAssemblyErrorCode =
+export type GraphAssemblyErrorCode =
   | "invalid_params"
   | "invalid_provider_projection"
   | "provider_root_mismatch"
   | "validation_failed"
 
 /** Deterministic local assembly failure. Provider call failures pass through unchanged. */
-export class MetaJSONAssemblyError extends Error {
-  override readonly name = "MetaJSONAssemblyError"
+export class GraphAssemblyError extends Error {
+  override readonly name = "GraphAssemblyError"
 
   constructor(
-    readonly code: MetaJSONAssemblyErrorCode,
+    readonly code: GraphAssemblyErrorCode,
     message: string,
     readonly issues: readonly ValidationIssue[] = [],
   ) {
@@ -44,28 +45,28 @@ const isPlainRecord = (value: unknown): value is Record<string, unknown> => {
   return prototype === Object.prototype || prototype === null
 }
 
-const readRoot = (params: unknown): MetaAddress => {
+const readParams = (params: unknown): ReadGraphParams => {
   if (!isPlainRecord(params)) {
-    throw new MetaJSONAssemblyError(
+    throw new GraphAssemblyError(
       "invalid_params",
-      "MetaJSON read params must be a plain object containing only root",
+      "Graph read params must be a plain object containing only root",
     )
   }
   const keys = Object.keys(params)
   if (keys.length !== 1 || keys[0] !== "root") {
-    throw new MetaJSONAssemblyError(
+    throw new GraphAssemblyError(
       "invalid_params",
-      "MetaJSON read params must contain only root",
+      "Graph read params must contain only root",
     )
   }
   const root = typeof params.root === "string" ? parseMetaAddress(params.root) : null
   if (!root) {
-    throw new MetaJSONAssemblyError(
+    throw new GraphAssemblyError(
       "invalid_params",
-      "MetaJSON read root must be a canonical <owner>/<repository> address",
+      "Graph read root must be a canonical <owner>/<repository> address",
     )
   }
-  return root
+  return {root}
 }
 
 const isStrictJSONData = (
@@ -132,10 +133,10 @@ const isStrictJSONData = (
 
 const invalidProviderProjection = (
   provider: "Dark" | "Boundary",
-): MetaJSONAssemblyError =>
-  new MetaJSONAssemblyError(
+): GraphAssemblyError =>
+  new GraphAssemblyError(
     "invalid_provider_projection",
-    `${provider} MetaJSON projection must be cloneable JSON data`,
+    `${provider} Graph projection must be cloneable JSON data`,
   )
 
 const detachedProviderProjection = (
@@ -145,7 +146,7 @@ const detachedProviderProjection = (
   try {
     if (!isStrictJSONData(value)) throw invalidProviderProjection(provider)
   } catch (error) {
-    if (error instanceof MetaJSONAssemblyError) throw error
+    if (error instanceof GraphAssemblyError) throw error
     throw invalidProviderProjection(provider)
   }
   let detached: unknown
@@ -171,9 +172,9 @@ const requireProviderRoot = (
   const actual = typeof projection.root === "string"
     ? `"${projection.root}"`
     : String(projection.root)
-  throw new MetaJSONAssemblyError(
+  throw new GraphAssemblyError(
     "provider_root_mismatch",
-    `${provider} MetaJSON projection root mismatch: expected "${root}", received ${actual}`,
+    `${provider} Graph projection root mismatch: expected "${root}", received ${actual}`,
   )
 }
 
@@ -183,12 +184,12 @@ const validationMessage = (issues: readonly ValidationIssue[]): string =>
     .join("; ")
 
 /** Stateless Monad-owned structural join. It reads both providers on every call. */
-export const assembleMetaJSON = async (
+export const assembleGraph = async (
   peer: Pick<MonadRpcPeer, "call">,
   params: unknown,
-): Promise<MetaJSONV1> => {
-  const root = readRoot(params)
-  const darkValue = await peer.call<DarkDeclarationProjectionV1>(
+): Promise<Graph> => {
+  const {root} = readParams(params)
+  const darkValue = await peer.call<DarkGraphTemplate>(
     "dark",
     DARK_DECLARATION_PROJECTION_METHOD,
     {root},
@@ -196,25 +197,25 @@ export const assembleMetaJSON = async (
   const dark = detachedProviderProjection(darkValue, "Dark")
   requireProviderRoot(dark, "Dark", root)
 
-  const boundaryValue = await peer.call<BoundaryMetaJSONProjectionV1>(
+  const boundaryValue = await peer.call<BoundaryGraphProjection>(
     "boundary",
-    BOUNDARY_META_JSON_PROJECTION_METHOD,
+    BOUNDARY_GRAPH_PROJECTION_METHOD,
     {root},
   )
   const boundary = detachedProviderProjection(boundaryValue, "Boundary")
   requireProviderRoot(boundary, "Boundary", root)
 
   const candidate = {
-    schema: META_JSON_V1_SCHEMA,
+    schema: GRAPH_SCHEMA,
     root,
     template: dark.template,
     runtime: boundary.runtime,
   }
-  const validation = validateMetaJSONV1(candidate)
+  const validation = validateGraph(candidate)
   if (!validation.ok) {
-    throw new MetaJSONAssemblyError(
+    throw new GraphAssemblyError(
       "validation_failed",
-      `MetaJSON assembly validation failed: ${validationMessage(validation.issues)}`,
+      `Graph assembly validation failed: ${validationMessage(validation.issues)}`,
       validation.issues,
     )
   }
@@ -222,11 +223,11 @@ export const assembleMetaJSON = async (
 }
 
 /** Dark Monad service surface; it retains no assembled document or provider result. */
-export class MetaJSONMonad {
-  onServerStarted(peer: MetaJSONMonadPeer): void {
+export class GraphMonad {
+  onServerStarted(peer: GraphMonadPeer): void {
     peer.expose(
-      READ_META_JSON_METHOD,
-      async (params) => await assembleMetaJSON(peer, params),
+      READ_GRAPH_METHOD,
+      async (params) => await assembleGraph(peer, params),
     )
   }
 }

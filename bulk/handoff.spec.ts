@@ -1,14 +1,14 @@
 import {describe, expect, test} from "bun:test"
-import type {SourcedForceMessage} from "shared/protocol/force/message"
 import {BulkObserverHandoffs} from "./handoff.ts"
 
-const message = (ts: number): SourcedForceMessage => ({
-  parts: [{part: "graviton", op: "add", path: `atom/${ts}`, by: "boundary", ts}],
+const message = (sequence: number) => ({
+  control: "bulk.graph.update" as const,
+  sequence,
 })
 
 describe("Bulk observer handoff", () => {
-  test("delivers only Particle received after the initial cut and consumes the session once", () => {
-    const handoffs = new BulkObserverHandoffs()
+  test("delivers only Graph replacements received after the initial cut and consumes the session once", () => {
+    const handoffs = new BulkObserverHandoffs<ReturnType<typeof message>>()
     handoffs.buffer(message(1))
 
     const session = handoffs.open()

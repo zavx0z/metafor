@@ -1,9 +1,9 @@
 import {createHash} from "node:crypto"
 import {
   parseMetaAddress,
-  validateMetaJSONV1,
+  validateGraph,
   type MetaAddress,
-} from "@metafor/types/metafor/meta-json"
+} from "@metafor/types/metafor/graph"
 import {
   planBoundaryDissolve,
   type BoundaryDissolvePlan,
@@ -51,7 +51,7 @@ export type BoundaryDissolveCandidateStageReceiptV1 = Readonly<{
   planSha256: string
   structuralSha256: string
   privateManifestSha256: string
-  metaJSONSha256: string
+  graphSha256: string
   checkpoint: BoundaryDissolveCheckpointBindingV1
   rollbackManifestSha256: string
   retention: typeof BOUNDARY_DISSOLVE_CANDIDATE_RETENTION
@@ -68,7 +68,7 @@ export type BoundaryDissolveCandidateStageErrorCode =
   | "invalid_binding"
   | "proposal_conflict"
   | "pre_state_conflict"
-  | "meta_json_invalid"
+  | "graph_invalid"
   | "stage_corrupt"
 
 export class BoundaryDissolveCandidateStageError extends Error {
@@ -224,7 +224,7 @@ const parseReceipt = (
       "planSha256",
       "structuralSha256",
       "privateManifestSha256",
-      "metaJSONSha256",
+      "graphSha256",
       "checkpoint",
       "rollbackManifestSha256",
       "retention",
@@ -242,7 +242,7 @@ const parseReceipt = (
     !validDigest(parsed.planSha256) ||
     !validDigest(parsed.structuralSha256) ||
     !validDigest(parsed.privateManifestSha256) ||
-    !validDigest(parsed.metaJSONSha256) ||
+    !validDigest(parsed.graphSha256) ||
     !validDigest(parsed.rollbackManifestSha256) ||
     typeof parsed.proposalId !== "string" ||
     parsed.proposalId.length === 0 ||
@@ -457,18 +457,18 @@ export class DetachedBoundaryDissolveCandidateStaging {
               "Detached dissolve candidate pre-state changed after staging",
             )
           }
-          const metaJSON = await hooks.readMetaJSON(
+          const graph = await hooks.readGraph(
             proposal.request.source,
             "before",
           )
           if (
-            !validateMetaJSONV1(metaJSON) ||
-            metaJSON.root !== proposal.request.source ||
-            sha256(JSON.stringify(metaJSON)) !== receipt.metaJSONSha256
+            !validateGraph(graph) ||
+            graph.root !== proposal.request.source ||
+            sha256(JSON.stringify(graph)) !== receipt.graphSha256
           ) {
             throw new BoundaryDissolveCandidateStageError(
               "pre_state_conflict",
-              "Detached dissolve candidate MetaJSON changed after staging",
+              "Detached dissolve candidate Graph changed after staging",
             )
           }
           await this.#boundary.projection.sql.unsafe("COMMIT")
@@ -483,17 +483,17 @@ export class DetachedBoundaryDissolveCandidateStaging {
         )
         validateCandidateMassEvidence(plan)
         const firstPlanDigest = planSha256(plan)
-        const metaJSON = await hooks.readMetaJSON(
+        const graph = await hooks.readGraph(
           proposal.request.source,
           "before",
         )
         if (
-          !validateMetaJSONV1(metaJSON) ||
-          metaJSON.root !== proposal.request.source
+          !validateGraph(graph) ||
+          graph.root !== proposal.request.source
         ) {
           throw new BoundaryDissolveCandidateStageError(
-            "meta_json_invalid",
-            `Detached dissolve stage requires valid ${proposal.request.source} MetaJSON`,
+            "graph_invalid",
+            `Detached dissolve stage requires valid ${proposal.request.source} Graph`,
           )
         }
         const currentPlan = await planBoundaryDissolve(
@@ -529,7 +529,7 @@ export class DetachedBoundaryDissolveCandidateStaging {
           privateManifestSha256: sha256(
             JSON.stringify(plan.privateManifest),
           ),
-          metaJSONSha256: sha256(JSON.stringify(metaJSON)),
+          graphSha256: sha256(JSON.stringify(graph)),
           checkpoint: this.#binding.checkpoint,
           rollbackManifestSha256: this.#binding.rollbackManifestSha256,
           retention: BOUNDARY_DISSOLVE_CANDIDATE_RETENTION,
@@ -608,18 +608,18 @@ export class DetachedBoundaryDissolveCandidateStaging {
           "Detached dissolve candidate no longer matches its exact staged plan",
         )
       }
-      const metaJSON = await hooks.readMetaJSON(
+      const graph = await hooks.readGraph(
         proposal.request.source,
         "before",
       )
       if (
-        !validateMetaJSONV1(metaJSON) ||
-        metaJSON.root !== proposal.request.source ||
-        sha256(JSON.stringify(metaJSON)) !== receipt.metaJSONSha256
+        !validateGraph(graph) ||
+        graph.root !== proposal.request.source ||
+        sha256(JSON.stringify(graph)) !== receipt.graphSha256
       ) {
         throw new BoundaryDissolveCandidateStageError(
           "pre_state_conflict",
-          "Detached dissolve candidate MetaJSON no longer matches its stage",
+          "Detached dissolve candidate Graph no longer matches its stage",
         )
       }
       return Object.freeze({

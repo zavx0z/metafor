@@ -2,7 +2,7 @@ import {CenteredNested} from "./CenteredNested.ts"
 import {OutsideIn} from "./OutsideIn.ts"
 import type {VisualLayout} from "./internal/layout.ts"
 
-/** Public catalog of complete Monad snapshot layouts. */
+/** Public catalog of complete Bulk scene snapshot layouts. */
 export const Visual = Object.freeze([
   OutsideIn,
   CenteredNested,

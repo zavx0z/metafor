@@ -15,15 +15,15 @@ import {join} from "node:path"
 import {
   parseMetaAddress,
   type MetaAddress,
-  type MetaJSONV1,
-} from "@metafor/types/metafor/meta-json"
+  type Graph,
+} from "@metafor/types/metafor/graph"
 import type {Particle} from "shared/protocol/force/particle"
-import {assembleMetaJSON} from "../dark/monad/meta-json.ts"
-import {DARK_DECLARATION_PROJECTION_METHOD} from "../dark/meta-json.ts"
+import {assembleGraph} from "../dark/monad/graph.ts"
+import {DARK_DECLARATION_PROJECTION_METHOD} from "../dark/graph.ts"
 import {
-  BOUNDARY_META_JSON_PROJECTION_METHOD,
-  readBoundaryMetaJSONProjection,
-} from "./meta-json.ts"
+  BOUNDARY_GRAPH_PROJECTION_METHOD,
+  readBoundaryGraphProjection,
+} from "./graph.ts"
 import {MassCatalog, massFileName, type MassFileFormat} from "../shared/mass.ts"
 import {
   BOUNDARY_DISSOLVE_ABSENT_MARKER,
@@ -55,8 +55,8 @@ const MASS_KEYS = ["session", "draft", "messages", "chatOutbox", "model"] as con
 
 const templateEntry = (
   name: string,
-  matter?: MetaJSONV1["template"][MetaAddress]["matter"],
-): MetaJSONV1["template"][MetaAddress] => ({
+  matter?: Graph["template"][MetaAddress]["matter"],
+): Graph["template"][MetaAddress] => ({
   name,
   fields: [],
   superposition: [],
@@ -65,7 +65,7 @@ const templateEntry = (
   ...(matter ? {matter} : {}),
 })
 
-const beforeTemplate = (): MetaJSONV1["template"] => ({
+const beforeTemplate = (): Graph["template"] => ({
   [SOURCE]: templateEntry("Inference", [{kind: "wimp", src: TARGET}]),
   [TARGET]: templateEntry("Lada", [{
     kind: "wimp",
@@ -75,7 +75,7 @@ const beforeTemplate = (): MetaJSONV1["template"] => ({
   [LEAF]: templateEntry("Lada child"),
 })
 
-const plannedTemplate = (): MetaJSONV1["template"] => ({
+const plannedTemplate = (): Graph["template"] => ({
   [TARGET]: templateEntry("Lada", [{
     kind: "wimp",
     src: LEAF,
@@ -238,12 +238,12 @@ const openStaging = async (): Promise<IsolatedBoundaryDissolveStaging> => {
   return staging
 }
 
-const metaJSONReader = (
+const graphReader = (
   fixture: Fixture,
   phases: Array<{phase: "before" | "planned"; root: MetaAddress}>,
-) => async (root: MetaAddress, phase: "before" | "planned"): Promise<MetaJSONV1> => {
+) => async (root: MetaAddress, phase: "before" | "planned"): Promise<Graph> => {
   phases.push({phase, root})
-  return await assembleMetaJSON({
+  return await assembleGraph({
     async call<T>(target: string, method: string): Promise<T> {
       if (target === "dark" && method === DARK_DECLARATION_PROJECTION_METHOD) {
         return {
@@ -251,10 +251,10 @@ const metaJSONReader = (
           template: phase === "before" ? beforeTemplate() : plannedTemplate(),
         } as T
       }
-      if (target === "boundary" && method === BOUNDARY_META_JSON_PROJECTION_METHOD) {
-        return await readBoundaryMetaJSONProjection(fixture.boundary, {root}) as T
+      if (target === "boundary" && method === BOUNDARY_GRAPH_PROJECTION_METHOD) {
+        return await readBoundaryGraphProjection(fixture.boundary, {root}) as T
       }
-      throw new Error(`Unexpected MetaJSON provider: ${target}.${method}`)
+      throw new Error(`Unexpected Graph provider: ${target}.${method}`)
     },
   } as never, {root})
 }
@@ -273,7 +273,7 @@ const hooks = (
     releases.push(structuredClone(identity))
   },
   massEvidence,
-  readMetaJSON: metaJSONReader(fixture, phases),
+  readGraph: graphReader(fixture, phases),
 })
 
 const worldFingerprint = async (fixture: Fixture): Promise<unknown> => ({
@@ -406,7 +406,7 @@ describe("Boundary recursive remove and offline dissolve", () => {
       preservedRuntimeIds: [`atom/${fixture.targetAtom}`, `atom/${fixture.leafAtom}`],
       transferredGlobalKeys: sourceBefore.map((mass) => mass.keyId),
       retainedUnreferencedKeys: targetBefore.slice(1).map((mass) => mass.keyId),
-      metaJSON: {before: SOURCE, planned: TARGET},
+      graph: {before: SOURCE, planned: TARGET},
     })
     expect(proof.privateManifestSha256).toMatch(/^[0-9a-f]{64}$/)
 
@@ -539,7 +539,7 @@ describe("Boundary recursive remove and offline dissolve", () => {
       proposal("synthetic-dissolve-absent"),
       {
         massEvidence,
-        readMetaJSON: metaJSONReader(fixture, phases),
+        readGraph: graphReader(fixture, phases),
       },
     )
     expect(receipt.privateManifestSha256).toBe(
@@ -595,7 +595,7 @@ describe("Boundary recursive remove and offline dissolve", () => {
       proposal("synthetic-dissolve-corrupt-mass"),
       {
         massEvidence,
-        readMetaJSON: metaJSONReader(fixture, []),
+        readGraph: graphReader(fixture, []),
       },
     )).rejects.toMatchObject({
       name: BoundaryDissolveMassEvidenceError.name,
@@ -739,12 +739,12 @@ describe("Boundary recursive remove and offline dissolve", () => {
     const fifth = initialPlan.transfers[4]!
     const replacement = crypto.randomUUID()
     const phases: Array<{phase: "before" | "planned"; root: MetaAddress}> = []
-    const readMetaJSON = metaJSONReader(fixture, phases)
+    const readGraph = graphReader(fixture, phases)
 
     await expect(staging.stage(fixture.boundary, proposal("synthetic-dissolve-race"), {
       massEvidence: massEvidenceReader(fixture),
-      async readMetaJSON(root, phase) {
-        const document = await readMetaJSON(root, phase)
+      async readGraph(root, phase) {
+        const document = await readGraph(root, phase)
         await fixture.boundary.projection.sql`INSERT INTO mass_key (id) VALUES (${replacement})`
         await fixture.boundary.projection.sql`
           UPDATE mass_membership SET key = ${replacement}

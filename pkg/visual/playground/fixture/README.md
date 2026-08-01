@@ -1,7 +1,7 @@
-# Monad snapshot fixture
+# Bulk observer snapshot fixture
 
 `monad-snapshot.json` is the complete `BulkObserverSnapshot` extracted once
-from the Monad Capture made at `2026-07-28T15:35:51.483Z` for
+from the Bulk observer capture made at `2026-07-28T15:35:51.483Z` for
 `zavx0z/lada`. Viewport, observer and PNG metadata were deliberately removed.
 
 Snapshot contents:

@@ -81,7 +81,7 @@ const withoutKeys = (
 )
 
 describe("centered-nested Bulk Visual projection", () => {
-  test("projects the full Monad without mutating canonical identity", () => {
+  test("projects the full Bulk scene without mutating canonical identity", () => {
     const {manifest, projection} = fullFixture()
     const manifestBefore = structuredClone(manifest)
     const projectionBefore = structuredClone(projection)
@@ -780,7 +780,7 @@ describe("centered-nested Bulk Visual projection", () => {
     )).toThrow("has unresolved identity")
   })
 
-  test("keeps the browser bundle on the ready production subpath", async () => {
+  test("ships both selectable full-scene strategies in the browser bundle", async () => {
     const result = await Bun.build({
       entrypoints: [new URL("./client.ts", import.meta.url).pathname],
       minify: true,
@@ -796,7 +796,7 @@ describe("centered-nested Bulk Visual projection", () => {
     ).join("\n")
 
     expect(javascript).toContain("centered-nested")
-    expect(javascript).not.toContain("outside-in")
+    expect(javascript).toContain("outside-in")
     expect(javascript).not.toContain("playground")
     expect(javascript).not.toContain("projectVisualSceneToViewport")
     for (const legacySymbol of [

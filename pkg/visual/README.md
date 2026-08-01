@@ -6,7 +6,8 @@ and exact owner-bound `StateGraph` inputs, so consumers do not switch on layout
 slugs themselves. `centered-nested` is the ready production strategy used by
 the Bulk renderer binding; `outside-in` remains explicitly in progress.
 Production source lives only in `src/`. The package itself stays runtime-neutral:
-Bulk owns Monad JSON, persistent semantic/scene state, product composition,
+Bulk owns persistent semantic/scene state and product composition. Dark Monad
+assembles Graph only for on-demand reads. Bulk owns the visual
 update policy, Canvas, `Renderer`, `Space`, `ViewPoint`, Engine adapter and
 viewport lifecycle.
 
@@ -74,18 +75,19 @@ explicit unavailable representation until a concrete visual outcome is
 verified; they render no synthetic scene. The page does not expand to the
 full-world scene and adds no player/timeline controls.
 
-The private implementation has one explicit integration boundary.
+The private implementation has one explicit fixture boundary.
 `ForceStories.ts` owns only the eight-part catalog, metadata and routes;
 `PhotonForceStory.ts` and `fixture/PhotonStoryFixture.ts` own the recorded
-Photon case, closure and provenance. `ForceStoryLabAdapter.ts` is the sole
-Force Story module allowed to deep-import Bulk implementation: it hydrates and
-updates the projection, builds manifestation and both layout scenes, exposes
-the shared activity/session snapshot, and owns the private viewport bridge.
+Photon case, closure and provenance. `ForceStoryLabAdapter.ts` uses the public
+`bulk/visual` lifecycle to hydrate and update the projection, compose both
+layout scenes and expose the shared activity/session snapshot. It remains
+private only because it binds that recorded fixture to a dedicated
+`VisualSceneViewport`; it does not import Bulk implementation files.
 `ForceStoriesLab.ts` renders that adapter and never wires Bulk projection,
 manifestation or Force protocol internals itself.
 
 It renders `playground/fixture/monad-snapshot.json`, a single static full-tree
-`BulkObserverSnapshot` captured through Monad. The main layout reads the
+`BulkObserverSnapshot` captured from the Bulk observer contour. The main layout reads the
 production Bulk manifestation as immutable structural input; isolated entity
 lenses remain development tools and are not top-level layouts.
 
@@ -114,10 +116,10 @@ experimental coordinates and presentation options are not consumed by Bulk.
 
 The sibling `#/state-graph/fields` page is a root-only diagnostic stand for the
 current Field/State interaction zone. It derives the exact `zavx0z/lada`
-`StateGraph` from the saved Monad JSON, retains only that root Atom's semantic
+`StateGraph` from the saved `BulkObserverSnapshot`, retains only that root Atom's semantic
 manifest records and excludes every nested Matter owner. The reduced input is
-then passed through the unchanged production
-`buildBulkVisualRenderManifest → createBulkViewport` path. The lab does
+then passed through the public
+`BulkVisualSceneLifecycle.compose → createBulkViewport` path. The lab does
 not copy or modify geometry, materials, State sleeves, Field proxies,
 Transitions or Relations; its side panel shows the exact root graph JSON used
 by the stand. In that production geometry a Process or Finally is a Torus whose
@@ -128,10 +130,10 @@ grows around the complete Process content instead of leaving a causal Sphere
 outside.
 
 The adjacent `#/state-graph/activity` page compares two manifestations of the
-real root `lada` State graph from the saved Monad snapshot. Both cards isolate
-that root Atom from nested Matter and use the unchanged
-`buildBulkManifestation → buildBulkVisualRenderManifest →
-createBulkViewport` path. The first card retains the materialized current State:
+real root `lada` State graph from the saved `BulkObserverSnapshot`. Both cards isolate
+that root Atom from nested Matter and use the public
+`BulkVisualSceneLifecycle.prepare/compose → createBulkViewport` path. The
+first card retains the materialized current State:
 exactly its complete sleeve is active and every sibling sleeve is inactive. The
 second card clears only the root Atom's current-State pointer, so every sleeve
 is inactive. Geometry and identity remain equal between cards; every inactive
@@ -387,7 +389,7 @@ All experimental controls and values stay inside the scene. The scene renders
 only after a parameter, view or camera change.
 
 `Fields` beneath `Analysis` keeps the spherical comparison over the static
-Monad snapshot. It distributes Field centers with a deterministic Fibonacci
+`BulkObserverSnapshot`. It distributes Field centers with a deterministic Fibonacci
 sequence on the surface of one pseudo-sphere. Every Field uses the
 shared `quantum` ThinFilm skin and its semantic type color from the
 manifestation; a subtle white wire sphere exposes the surface used by the

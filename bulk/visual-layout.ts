@@ -31,6 +31,7 @@ import {
   visualOwnerDarkParticleIdFromAtomId,
   type VisualDeltaPatch,
   type VisualLayout,
+  type VisualLayoutInput,
   type VisualLayoutSlug,
   type VisualScenePayload,
 } from "@metafor/visual/layout/centered-nested"
@@ -246,6 +247,24 @@ const buildVisualOwners = (
         ownerDarkParticleId: particle.darkParticleId,
       }
     })
+}
+
+/**
+ * Bulk-owned adaptation from semantic state to one pure Visual calculation.
+ *
+ * The layout receives only the renderable manifestation and owner-local
+ * State graphs required for this calculation. It neither receives nor keeps
+ * the persistent Bulk projection.
+ */
+export const buildBulkVisualLayoutInput = (
+  semanticManifest: BulkManifest,
+  projection: BulkRuntimeProjection,
+): VisualLayoutInput => {
+  const manifest = renderableManifest(semanticManifest)
+  return {
+    manifest,
+    owners: buildVisualOwners(manifest, projection),
+  }
 }
 
 const rewriteRelationEndpoint = (
@@ -570,11 +589,10 @@ export const buildBulkVisualScenePayload = (
   projection: BulkRuntimeProjection,
   layout: VisualLayout = DEFAULT_BULK_VISUAL_LAYOUT,
 ): VisualScenePayload => {
-  const visualSource = renderableManifest(semanticManifest)
-  return buildVisualScenePayload(layout, {
-    manifest: visualSource,
-    owners: buildVisualOwners(visualSource, projection),
-  })
+  return buildVisualScenePayload(
+    layout,
+    buildBulkVisualLayoutInput(semanticManifest, projection),
+  )
 }
 
 /**
@@ -840,10 +858,8 @@ export const buildBulkVisualRenderManifest = (
   projection: BulkRuntimeProjection,
   layout: VisualLayout = DEFAULT_BULK_VISUAL_LAYOUT,
 ): BulkVisualRenderManifest => {
-  const visualSource = renderableManifest(semanticManifest)
-  const payload = buildVisualScenePayload(layout, {
-    manifest: visualSource,
-    owners: buildVisualOwners(visualSource, projection),
-  })
+  const input = buildBulkVisualLayoutInput(semanticManifest, projection)
+  const payload = buildVisualScenePayload(layout, input)
+  const visualSource = input.manifest
   return adaptRenderManifest(semanticManifest, visualSource, payload)
 }

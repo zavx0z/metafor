@@ -1,5 +1,5 @@
 import {resolve} from "node:path"
-import type {MetaAddress} from "@metafor/types/metafor/meta-json"
+import type {MetaAddress} from "@metafor/types/metafor/graph"
 
 export const MF117_SOURCE = "zavx0z/inference" as MetaAddress
 export const MF117_TARGET = "zavx0z/lada" as MetaAddress

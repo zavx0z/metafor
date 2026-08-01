@@ -1,9 +1,6 @@
 import {describe, expect, test} from "bun:test"
 import type {BulkObserverSnapshot} from "@metafor/types/bulk/initial"
-import type {BulkManifest} from "@metafor/types/bulk/manifest"
-import type {BulkRuntimeProjection} from "@metafor/types/bulk/runtime"
-import {buildBulkManifestation} from "../../../../bulk/manifestation.ts"
-import {BulkProjectionStore} from "../../../../bulk/projection.ts"
+import {BulkVisualSceneLifecycle} from "bulk/visual"
 import {buildStateGraph} from "../../src/StateGraph.ts"
 import {buildStateGraphBranchLayout} from "../../src/StateGraphLayout.ts"
 import {
@@ -11,34 +8,20 @@ import {
   layoutCenteredNestedFields,
 } from "../../src/CenteredNested.ts"
 import {buildOutsideInVisualScene} from "../../src/OutsideIn.ts"
-import {visualOwnerDarkParticleIdFromAtomId} from "../../src/layout.ts"
 import {visualDarkParticleColor} from "../../src/SemanticVisual.ts"
 import {buildVisualSceneRenderPlan} from "../VisualSceneViewport.ts"
 import snapshotJson from "./monad-snapshot.json"
 
-const visualOwners = (
-  projection: BulkRuntimeProjection,
-  manifest: BulkManifest,
-) => projection.atoms.map((atom) => {
-  const graph = buildStateGraph(projection, atom.id)
-  const ownerDarkParticleId =
-    visualOwnerDarkParticleIdFromAtomId(graph.atomId)
-  if (!manifest.darkParticles.some((particle) =>
-    particle.darkParticleId === ownerDarkParticleId
-  )) {
-    throw new Error(
-      `Expected Dark particle ${ownerDarkParticleId} for Atom ${atom.id}`,
-    )
-  }
-  return {graph, ownerDarkParticleId}
-})
+const fixtureLifecycle = (): BulkVisualSceneLifecycle => {
+  const lifecycle = new BulkVisualSceneLifecycle()
+  lifecycle.prepare(structuredClone(snapshotJson) as BulkObserverSnapshot)
+  return lifecycle
+}
 
-describe("Visual playground Monad fixture", () => {
+describe("Visual playground Bulk observer fixture", () => {
   test("hydrates the complete static tree and builds the production manifestation", () => {
     const snapshot = snapshotJson as BulkObserverSnapshot
-    const projection = new BulkProjectionStore()
-    projection.hydrate(structuredClone(snapshot.projection))
-    const manifest = buildBulkManifestation(projection.view(), snapshot.rootSrc)
+    const manifest = fixtureLifecycle().state().manifest
 
     expect(snapshot).toMatchObject({
       version: 1,
@@ -106,9 +89,7 @@ describe("Visual playground Monad fixture", () => {
 
   test("produces four State graph cards containing five possible paths", () => {
     const snapshot = snapshotJson as BulkObserverSnapshot
-    const projection = new BulkProjectionStore()
-    projection.hydrate(structuredClone(snapshot.projection))
-    const view = projection.view()
+    const view = fixtureLifecycle().state().projection
     const lada = view.atoms.find((atom) => atom.wimp === snapshot.rootSrc)
     expect(lada).toBeDefined()
 
@@ -138,12 +119,9 @@ describe("Visual playground Monad fixture", () => {
   })
 
   test("composes State sleeves for the root and every nested Atom", () => {
-    const snapshot = snapshotJson as BulkObserverSnapshot
-    const projection = new BulkProjectionStore()
-    projection.hydrate(structuredClone(snapshot.projection))
-    const view = projection.view()
-    const manifest = buildBulkManifestation(view, snapshot.rootSrc)
-    const owners = visualOwners(view, manifest)
+    const lifecycle = fixtureLifecycle()
+    const {manifest} = lifecycle.state()
+    const {owners} = lifecycle.layoutInput(manifest)
     const scene = buildOutsideInVisualScene({manifest, owners})
     const layoutNodes = scene.stateSleeves.flatMap((sleeve) =>
       sleeve.layout.nodes
@@ -287,13 +265,10 @@ describe("Visual playground Monad fixture", () => {
     expect(minimumCrossSleeveGap).toBeGreaterThanOrEqual(11 - 1e-9)
   })
 
-  test("composes the saved Monad as concentric Value-derived Field bands", () => {
-    const snapshot = snapshotJson as BulkObserverSnapshot
-    const projection = new BulkProjectionStore()
-    projection.hydrate(structuredClone(snapshot.projection))
-    const view = projection.view()
-    const manifest = buildBulkManifestation(view, snapshot.rootSrc)
-    const owners = visualOwners(view, manifest)
+  test("composes the saved Bulk observer snapshot as concentric Value-derived Field bands", () => {
+    const lifecycle = fixtureLifecycle()
+    const {manifest} = lifecycle.state()
+    const {owners} = lifecycle.layoutInput(manifest)
     const fields = layoutCenteredNestedFields(manifest, owners)
     const scene = buildCenteredNestedVisualScene({manifest, owners})
     const renderPlan = buildVisualSceneRenderPlan(scene)

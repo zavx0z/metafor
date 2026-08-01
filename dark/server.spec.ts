@@ -4,7 +4,7 @@ import {tmpdir} from "node:os"
 import {join} from "node:path"
 import type {ForceMessage} from "shared/protocol/force/message"
 import {MONAD_RPC_VERSION, type RoutedMonadRpcCall} from "shared/protocol/monad/rpc"
-import {READ_META_JSON_METHOD} from "@metafor/types/metafor/meta-json"
+import {READ_GRAPH_METHOD} from "@metafor/types/metafor/graph"
 import type {RemoteForceDomain} from "./force/store.ts"
 
 type ConnectedClient = {
@@ -167,19 +167,19 @@ describe("Force server transport and relay", () => {
     )
     const interpreterChannel = await openMonadChannel("interpreter")
 
-    const liveMetaJSON = await monadRequest("/monad/rpc", interpreterChannel, "POST", {
+    const liveGraph = await monadRequest("/monad/rpc", interpreterChannel, "POST", {
       version: MONAD_RPC_VERSION,
-      id: "live-metajson",
+      id: "live-graph",
       target: "dark",
-      method: READ_META_JSON_METHOD,
+      method: READ_GRAPH_METHOD,
       params: {root: "not-canonical"},
     })
-    expect(liveMetaJSON.status).toBe(502)
-    expect(await liveMetaJSON.json()).toMatchObject({
+    expect(liveGraph.status).toBe(502)
+    expect(await liveGraph.json()).toMatchObject({
       ok: false,
       error: {
         code: "method_error",
-        message: "MetaJSON read root must be a canonical <owner>/<repository> address",
+        message: "Graph read root must be a canonical <owner>/<repository> address",
       },
     })
 

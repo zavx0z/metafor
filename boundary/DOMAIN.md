@@ -226,7 +226,7 @@ contour: корневой Atom и все его runtime-потомки удал�
 6. aggregate pre-state и каждая membership меняются только по CAS;
 7. любой mismatch, включая поздний mismatch после частичных SQL updates,
    откатывает всю transaction;
-8. полный `readMetaJSON` валиден до изменения и для planned результата до
+8. полный `readGraph` валиден до изменения и для planned результата до
    commit; private manifest подтверждает равенство mapped source/target
    `authored key + codec + global key ID + Mass evidence`.
 
@@ -252,9 +252,9 @@ corruption и участвует в обычной private manifest equality/CAS
 Следующий non-live prerequisite — приватный staging adapter. Он принимает
 закрытый proposal только с operation `dissolve`; recursive `remove` через него
 выразить нельзя. Adapter работает с отдельной in-memory SQLite, строит
-проверенный dissolve plan, валидирует текущий полный MetaJSON и повторно
+проверенный dissolve plan, валидирует текущий полный Graph и повторно
 сверяет весь plan до атомарной записи immutable receipt. Receipt фиксирует
-proposal, plan и MetaJSON digests, source/target Atom identities и требование
+proposal, plan и Graph digests, source/target Atom identities и требование
 ровно пяти fence, но не является разрешением на execution.
 
 Staging не вызывает `materialize`, dissolve execution, fence/release, Force или
@@ -288,11 +288,11 @@ owner gate.
 Следующий owner-approved non-live gate разрешает выполнить только exact
 `plan_json` из такого stage и только внутри того же detached candidate. Перед
 transaction private executor повторно проверяет bundle/checkpoint/stage
-binding, receipt и plan digests, текущие structural/Mass CAS и pre-MetaJSON.
+binding, receipt и plan digests, текущие structural/Mass CAS и pre-Graph.
 Локальные fence/release являются лишь записываемым proof порядка пяти identity
 и не вызывают Energy.
 
-Успех обязан вернуть `BoundaryDissolveProof` и валидный post-MetaJSON с Lada
+Успех обязан вернуть `BoundaryDissolveProof` и валидный post-Graph с Lada
 как root; исходный Inference Atom в candidate отсутствует, а сохранённые Lada
 Atom и всё её поддерево сохраняют identity и порядок. Это разрешение не
 распространяется на rollback copy, live Boundary, Monad/Force, Energy,

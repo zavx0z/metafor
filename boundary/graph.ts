@@ -3,11 +3,11 @@ import {
   type DocumentPointer,
   type JsonValue,
   type MetaAddress,
-  type MetaJSONV1,
-  type RuntimeAtomV1,
-  type RuntimeNodeV1,
-  type RuntimeTopologyV1,
-} from "@metafor/types/metafor/meta-json"
+  type Graph,
+  type RuntimeAtom,
+  type RuntimeNode,
+  type RuntimeTopology,
+} from "@metafor/types/metafor/graph"
 import type {
   BoundaryInitialAtom,
   BoundaryInitialDeclaration,
@@ -15,12 +15,12 @@ import type {
 } from "@metafor/types/boundary/initial"
 import type {BoundaryDatabase} from "./sqlite.ts"
 
-export const BOUNDARY_META_JSON_PROJECTION_METHOD = "boundary.metaJSON.current.read" as const
+export const BOUNDARY_GRAPH_PROJECTION_METHOD = "boundary.graph.current.read" as const
 
 /** Boundary-owned current projection consumed by the stateless Monad assembler. */
-export interface BoundaryMetaJSONProjectionV1 {
+export interface BoundaryGraphProjection {
   root: MetaAddress
-  runtime: MetaJSONV1["runtime"]
+  runtime: Graph["runtime"]
 }
 
 type RecordValue = Record<string, unknown>
@@ -60,7 +60,7 @@ type RuntimeRecord = {
   parent: RuntimeKey | "root"
   position: number
   sequence: number
-  node: Omit<RuntimeAtomV1, "children"> | Omit<RuntimeTopologyV1, "children">
+  node: Omit<RuntimeAtom, "children"> | Omit<RuntimeTopology, "children">
 }
 
 const MATTER_KINDS = new Set<MatterKind>(["wimp", "fuzzy", "axion", "macho"])
@@ -132,12 +132,12 @@ const runtimePath = (
 }
 
 const parseParams = (input: unknown): MetaAddress => {
-  const params = record(input, "Boundary MetaJSON params")
+  const params = record(input, "Boundary Graph params")
   const keys = Object.keys(params)
   if (keys.length !== 1 || keys[0] !== "root") {
-    throw new Error("Boundary MetaJSON params must contain only root")
+    throw new Error("Boundary Graph params must contain only root")
   }
-  return address(params.root, "Boundary MetaJSON root")
+  return address(params.root, "Boundary Graph root")
 }
 
 const declarations = <T>(
@@ -330,7 +330,7 @@ const atomNode = (
   fields: Map<number, FieldDeclaration>,
   variants: Map<number, VariantDeclaration>,
   states: Map<number, StateDeclaration>,
-): Omit<RuntimeAtomV1, "children"> => {
+): Omit<RuntimeAtom, "children"> => {
   const meta = address(atom.wimp, `Boundary Atom ${atom.id} Meta`)
   const values: {[field: string]: JsonValue} = {}
   for (const current of atom.values) {
@@ -356,7 +356,7 @@ const atomNode = (
 const originPointer = (
   origin: string,
   kind: "atom" | "topology",
-  metaOrTopology: MetaAddress | RuntimeTopologyV1["topology"],
+  metaOrTopology: MetaAddress | RuntimeTopology["topology"],
   parent: RuntimeKey | "root",
   matters: ReturnType<typeof matterDeclarations>,
 ): DocumentPointer => {
@@ -467,7 +467,7 @@ const runtimeRecords = (
   return result
 }
 
-const nestedRuntime = (root: MetaAddress, records: Map<RuntimeKey, RuntimeRecord>): RuntimeNodeV1[] => {
+const nestedRuntime = (root: MetaAddress, records: Map<RuntimeKey, RuntimeRecord>): RuntimeNode[] => {
   const children = new Map<RuntimeKey | "root", RuntimeRecord[]>()
   for (const item of records.values()) {
     if (item.parent !== "root" && !records.has(item.parent)) {
@@ -480,7 +480,7 @@ const nestedRuntime = (root: MetaAddress, records: Map<RuntimeKey, RuntimeRecord
   const sort = (items: RuntimeRecord[]): RuntimeRecord[] =>
     items.sort((left, right) => left.position - right.position || left.sequence - right.sequence)
   const visiting = new Set<RuntimeKey>()
-  const visit = (item: RuntimeRecord): RuntimeNodeV1 => {
+  const visit = (item: RuntimeRecord): RuntimeNode => {
     if (visiting.has(item.key)) throw new Error(`Boundary runtime cycle at ${item.key}`)
     visiting.add(item.key)
     const descendants = sort(children.get(item.key) ?? []).map(visit)
@@ -488,21 +488,21 @@ const nestedRuntime = (root: MetaAddress, records: Map<RuntimeKey, RuntimeRecord
     return descendants.length === 0 ? item.node : {...item.node, children: descendants}
   }
   return sort(children.get("root") ?? [])
-    .filter((item): item is RuntimeRecord & {node: Omit<RuntimeAtomV1, "children">} =>
+    .filter((item): item is RuntimeRecord & {node: Omit<RuntimeAtom, "children">} =>
       item.node.kind === "atom" && item.node.meta === root)
     .map(visit)
 }
 
 /**
- * Reads the current Boundary world without storing or mutating a MetaJSON mirror.
+ * Reads the current Boundary world without storing or mutating a Graph mirror.
  * Internal storage identities are used only while resolving public names and paths.
  */
-export async function readBoundaryMetaJSONProjection(
+export async function readBoundaryGraphProjection(
   boundary: BoundaryDatabase,
   input: unknown,
-): Promise<BoundaryMetaJSONProjectionV1> {
+): Promise<BoundaryGraphProjection> {
   const root = parseParams(input)
-  const snapshot = await boundary.metaJSONSnapshot()
+  const snapshot = await boundary.graphSnapshot()
   const matters = matterDeclarations(snapshot.initialProjection.entries)
   const records = runtimeRecords(
     snapshot.originByInstance,

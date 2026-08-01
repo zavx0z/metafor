@@ -1,5 +1,5 @@
 import {describe, expect, test} from "bun:test"
-import {parseMetaAddress} from "@metafor/types/metafor/meta-json"
+import {parseMetaAddress} from "@metafor/types/metafor/graph"
 import {
   MonadRpcPeer,
   type MonadChannel,
@@ -9,7 +9,7 @@ import {
   MONAD_RPC_VERSION,
   type MonadRpcMessage,
 } from "shared/protocol/monad/rpc"
-import {DARK_DECLARATION_PROJECTION_METHOD} from "./meta-json.ts"
+import {DARK_DECLARATION_PROJECTION_METHOD} from "./graph.ts"
 import {
   DARK_FORCE_PAUSE_METHOD,
   DARK_FORCE_RESUME_METHOD,
@@ -88,7 +88,7 @@ describe("Dark Monad", () => {
       DARK_FORCE_RESUME_METHOD,
       DARK_FORCE_STACK_METHOD,
       DARK_FORCE_STEP_METHOD,
-      "readMetaJSON",
+      "readGraph",
     ])
     monad.onChannelOpened()
 

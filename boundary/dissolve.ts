@@ -1,10 +1,10 @@
 import type {SQL} from "bun"
 import {createHash} from "node:crypto"
 import {
-  validateMetaJSONV1,
+  validateGraph,
   type MetaAddress,
-  type MetaJSONV1,
-} from "@metafor/types/metafor/meta-json"
+  type Graph,
+} from "@metafor/types/metafor/graph"
 import type {MassFileFormat} from "../shared/mass.ts"
 import type {BoundaryDatabase} from "./sqlite.ts"
 
@@ -50,23 +50,23 @@ export type BoundaryDissolveMassEvidenceReader = (
   input: Readonly<{keyId: string; format: MassFileFormat}>,
 ) => Promise<BoundaryDissolveMassEvidence>
 
-export type BoundaryDissolveMetaJSONReader = (
+export type BoundaryDissolveGraphReader = (
   root: MetaAddress,
   phase: "before" | "planned",
-) => Promise<MetaJSONV1>
+) => Promise<Graph>
 
 export type BoundaryDissolveHooks = Readonly<{
   fence(identity: BoundaryMassFenceIdentity): Promise<void>
   release(identity: BoundaryMassFenceIdentity): Promise<void>
   massEvidence: BoundaryDissolveMassEvidenceReader
-  readMetaJSON: BoundaryDissolveMetaJSONReader
+  readGraph: BoundaryDissolveGraphReader
   /**
    * Optional live-only control receipt written through the same SQLite
    * transaction after every structural proof check and before COMMIT.
    */
   beforeCommit?(
     proof: BoundaryDissolveProof,
-    plannedMetaJSON: MetaJSONV1,
+    plannedGraph: Graph,
   ): Promise<void>
 }>
 
@@ -78,7 +78,7 @@ export type BoundaryDissolveErrorCode =
   | "pre_state_conflict"
   | "mass_membership_conflict"
   | "post_state_mismatch"
-  | "meta_json_invalid"
+  | "graph_invalid"
 
 export class BoundaryDissolveError extends Error {
   override readonly name = "BoundaryDissolveError"
@@ -167,7 +167,7 @@ export type BoundaryDissolveProof = Readonly<{
   /** Superseded target identities remain metadata-only; this proof performs no byte GC. */
   retainedUnreferencedKeys: readonly string[]
   privateManifestSha256: string
-  metaJSON: Readonly<{before: MetaAddress; planned: MetaAddress}>
+  graph: Readonly<{before: MetaAddress; planned: MetaAddress}>
 }>
 
 const runtimeKey = (kind: RuntimeRow["kind"], id: number): string => `${kind}/${id}`
@@ -456,17 +456,17 @@ const manifest = async (
 const sameManifest = (left: PrivateManifest, right: PrivateManifest): boolean =>
   JSON.stringify(left) === JSON.stringify(right)
 
-const validatedMetaJSON = async (
-  read: BoundaryDissolveMetaJSONReader,
+const validatedGraph = async (
+  read: BoundaryDissolveGraphReader,
   root: MetaAddress,
   phase: "before" | "planned",
-): Promise<MetaJSONV1> => {
+): Promise<Graph> => {
   const document = await read(root, phase)
-  const validation = validateMetaJSONV1(document)
+  const validation = validateGraph(document)
   if (!validation.ok || document.root !== root) {
     throw new BoundaryDissolveError(
-      "meta_json_invalid",
-      `Dissolve ${phase} readMetaJSON did not return a valid ${root} document`,
+      "graph_invalid",
+      `Dissolve ${phase} readGraph did not return a valid ${root} document`,
     )
   }
   return validation.value
@@ -896,7 +896,7 @@ export async function executeBoundaryDissolveProof(
   plan: BoundaryDissolvePlan,
   hooks: BoundaryDissolveHooks,
 ): Promise<BoundaryDissolveProof> {
-  await validatedMetaJSON(hooks.readMetaJSON, request.source, "before")
+  await validatedGraph(hooks.readGraph, request.source, "before")
   const fenced: BoundaryMassFenceIdentity[] = []
   let transaction = false
   try {
@@ -933,8 +933,8 @@ export async function executeBoundaryDissolveProof(
     await removeSourceRoot(boundary.projection.sql, plan)
     await boundary.projection.refreshRuntimeIndexesForOfflineProof()
     await verifyPlannedState(boundary, plan, hooks)
-    const plannedMetaJSON = await validatedMetaJSON(
-      hooks.readMetaJSON,
+    const plannedGraph = await validatedGraph(
+      hooks.readGraph,
       request.target,
       "planned",
     )
@@ -949,9 +949,9 @@ export async function executeBoundaryDissolveProof(
         .filter((transfer) => transfer.targetPreviousGlobalKey !== transfer.sourceGlobalKey)
         .map((transfer) => transfer.targetPreviousGlobalKey))],
       privateManifestSha256: sha256(JSON.stringify(plan.privateManifest)),
-      metaJSON: {before: request.source, planned: request.target},
+      graph: {before: request.source, planned: request.target},
     }
-    await hooks.beforeCommit?.(proof, plannedMetaJSON)
+    await hooks.beforeCommit?.(proof, plannedGraph)
     await boundary.projection.sql.unsafe("COMMIT")
     transaction = false
     return proof

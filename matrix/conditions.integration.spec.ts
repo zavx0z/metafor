@@ -1,7 +1,7 @@
 import {afterEach, describe, expect, test} from "bun:test"
 import type {MetaDSL} from "@metafor/types/metafor/schema"
 import type {Particle} from "shared/protocol/force/particle"
-import {normalizeMetaTemplateV1} from "../dark/meta-json.ts"
+import {normalizeMetaTemplate} from "../dark/graph.ts"
 import {createForceTestFixture} from "../dark/force/fixture.ts"
 import {open, type BoundaryDatabase} from "../boundary/sqlite.ts"
 import {matrix$} from "./store.ts"
@@ -54,7 +54,7 @@ const declaration: MetaDSL = {
   processes: [],
 }
 
-describe("MetaJSON → Boundary → Matrix Conditions", () => {
+describe("Graph → Boundary → Matrix Conditions", () => {
   let boundary: BoundaryDatabase | null = null
 
   afterEach(async () => {
@@ -64,7 +64,7 @@ describe("MetaJSON → Boundary → Matrix Conditions", () => {
   })
 
   test("сохраняет весь публичный язык и выполняет один и тот же Transition", async () => {
-    const template = normalizeMetaTemplateV1(declaration, ROOT)
+    const template = normalizeMetaTemplate(declaration, ROOT)
     boundary = await open(":memory:")
 
     const apply = async (part: ParticleInput): Promise<void> => {

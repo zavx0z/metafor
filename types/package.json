@@ -11,7 +11,7 @@
     "./metafor/reactions": "./metafor/reactions.ts",
     "./metafor/matter": "./metafor/matter.ts",
     "./metafor/schema": "./metafor/schema.ts",
-    "./metafor/meta-json": "./metafor/meta-json.ts",
+    "./metafor/graph": "./metafor/graph.ts",
     "./boundary/atom": "./boundary/atom.ts",
     "./boundary/value": "./boundary/value.ts",
     "./boundary/topology": "./boundary/topology.ts",

@@ -1,19 +1,19 @@
 import {describe, expect, test} from "bun:test"
 import type {BulkObserverSnapshot} from "@metafor/types/bulk/initial"
-import {BulkProjectionStore} from "../../../bulk/projection.ts"
+import {BulkVisualSceneLifecycle} from "bulk/visual"
 import {VISUAL_INACTIVE_STATE_BRANCH_OPACITY} from "../src/VisualMaterialSpec.ts"
 import snapshotJson from "./fixture/monad-snapshot.json"
 import {buildStateGraphActivityStand} from "./StateGraphActivityLab.ts"
 
 const activityStand = () => {
   const snapshot = snapshotJson as BulkObserverSnapshot
-  const store = new BulkProjectionStore()
-  store.hydrate(structuredClone(snapshot.projection))
-  const projection = store.view()
+  const lifecycle = new BulkVisualSceneLifecycle()
+  lifecycle.prepare(structuredClone(snapshot))
+  const projection = lifecycle.state().projection
   return {
     projection,
     rootSrc: snapshot.rootSrc,
-    stand: buildStateGraphActivityStand(projection, snapshot.rootSrc),
+    stand: buildStateGraphActivityStand(lifecycle),
   }
 }
 

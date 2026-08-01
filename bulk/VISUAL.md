@@ -3,6 +3,35 @@
 Bulk проявляет один полный runtime projection в два последовательных, но
 архитектурно разных представления.
 
+## Единственная стартовая основа
+
+- Единственный полный документ мира, который Bulk получает при рождении, —
+  публичный `Graph`. Bulk Monad сам вызывает `Dark.readGraph`, валидирует
+  ответ и сохраняет его в своём серверном Graph Store. Вызов
+  `Boundary.initialProjection.read` и другая сборка полного стартового мира на
+  стороне Boundary для Bulk запрещены.
+- JSON является только технической сериализацией Graph на transport/storage
+  границах; Bulk не вводит из неё второй world format или отдельный контракт.
+- Этот Store является локальной актуальной read-моделью Bulk, а не вторым
+  canonical source: единственным сборщиком полного Graph остаётся Dark
+  Monad. При подключении browser observer получает полный текущий Graph из
+  того же Store, а не отдельный Boundary projection document.
+- Обычный `Particle` не является Graph patch: его paths содержат внутренние
+  runtime identity, которых публичный Graph намеренно не содержит. Сейчас
+  входящий `Particle` служит causal invalidation: Bulk дожидается применённого
+  Boundary cut, повторно читает полный Graph только через Dark и атомарно
+  заменяет состояние того же Store. Checkpoint JSON Patch не переносится в
+  live-протокол.
+- Единственный адаптер `Graph → BulkProjectionSnapshot` создаёт
+  Bulk-local identity и готовит существующую semantic projection/scene. Он не
+  читает Boundary, не хранит второй canonical world и не добавляет значения,
+  которых нет в Graph. При изменении public Graph контракта сначала
+  меняются его domain law, validator и `readGraph`; затем одним срезом
+  меняются этот адаптер, initial/update transport и их совместные тесты.
+- Visual остаётся stateless библиотекой вычисления геометрии. Graph Store,
+  адаптированная semantic projection, scene Store, renderer и Engine lifecycle
+  принадлежат Bulk.
+
 ## Semantic manifestation
 
 - `buildBulkManifestation` строит только identity, ownership, порядок и
@@ -33,18 +62,27 @@ Bulk проявляет один полный runtime projection в два по�
   стратегия передаётся вызывающей стороной явно как `VisualLayout` — того же
   публичного контракта; собственной запасной раскладки и canonical viewport
   fallback в Bulk нет.
-- Initial package и каждое изменённое projection проходят один путь:
+- Initial package и каждое изменённое состояние Graph проходят один путь:
   `BulkManifest + projection → Axion defer policy → buildVisualScenePayload →
   VisualScenePayload → классификация инвалидации и reconcile →
   adaptBulkVisualRenderManifest → applyVisualManifestPatch`.
   `VisualScenePayload` — сериализуемый layout-agnostic результат стратегии: он
   не содержит Canvas, GPU handles, `Renderer`, `Space` или `ViewPoint`, поэтому
   может быть подготовлен на сервере.
+- Публичный `bulk/visual` предоставляет один Bulk-owned lifecycle для
+  production browser, будущего UI и playground: `prepare` принимает полный
+  snapshot, `hydrate` — server-prepared initial scene, `apply` проводит один
+  Particle через projection/composition/presenter, `state`, `snapshot`,
+  `layoutInput` и `compose` возвращают detached declarative cuts, а `dispose`
+  освобождает подключённый renderer target. Внутренние projection,
+  manifestation, Store и renderer adapters не являются public integration
+  points.
 - Сервер готовит initial `VisualScenePayload`, браузер гидратирует его в
   Bulk-owned persistent `BulkVisualStore`. Этот initial contract не содержит
   causal frontier, reconnect, replay или recovery policy.
-- `BulkVisualScenePresenter` и `bulk/visual-store.ts` владеют persistent scene
-  state, update policy и связью Store с payload, находящимся на экране.
+- `BulkVisualSceneLifecycle`, `BulkVisualScenePresenter` и
+  `bulk/visual-store.ts` владеют persistent scene state, update policy и связью
+  Store с payload, находящимся на экране.
   `selectLayout` меняет выбранную стратегию и сбрасывает удержанный payload,
   так как другая стратегия вправе разместить каждую форму иначе. `hydrate`
   принимает payload, подготовленный вне этого процесса, и отклоняет payload,

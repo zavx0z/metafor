@@ -142,7 +142,7 @@ const verifiedCandidateBinding = (
     validDigest(stage.planSha256) &&
     validDigest(stage.structuralSha256) &&
     validDigest(stage.privateManifestSha256) &&
-    validDigest(stage.metaJSONSha256) &&
+    validDigest(stage.graphSha256) &&
     validDigest(stage.rollbackManifestSha256) &&
     validCheckpoint(stage.checkpoint) &&
     Number.isSafeInteger(stage.sourceAtom) &&
@@ -212,8 +212,8 @@ export const produceBulkRootPromotionReceipt = (
     proof.planSha256 !== stage.planSha256 ||
     proof.structuralSha256 !== stage.structuralSha256 ||
     proof.privateManifestSha256 !== stage.privateManifestSha256 ||
-    proof.metaJSON.before !== stage.source ||
-    proof.metaJSON.planned !== stage.target ||
+    proof.graph.before !== stage.source ||
+    proof.graph.planned !== stage.target ||
     !proof.preservedRuntimeIds.includes(`atom/${stage.targetAtom}`) ||
     proof.transferredGlobalKeys.length !== 5
   ) {

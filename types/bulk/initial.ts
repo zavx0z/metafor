@@ -49,7 +49,11 @@ export type BulkObserverSnapshot = {
   projection: BulkProjectionSnapshot
 }
 
-/** Service-plane response for one observer before its realtime channel opens. */
+/**
+ * Projection-based recorded/fixture package retained for observer snapshots.
+ * Production Bulk startup uses its Graph-bearing `BulkInitialScene`; this
+ * type must not become a second full world source beside Graph.
+ */
 export type BulkInitialPackage = BulkObserverSnapshot & {
   session: string
   manifest: BulkManifest

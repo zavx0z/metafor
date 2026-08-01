@@ -1,15 +1,15 @@
 import {createHash} from "node:crypto"
 import {
-  validateMetaJSONV1,
-  type MetaJSONV1,
-} from "@metafor/types/metafor/meta-json"
+  validateGraph,
+  type Graph,
+} from "@metafor/types/metafor/graph"
 import type {
   CheckpointJsonPatchOperationV1,
   CheckpointJsonValue,
 } from "@metafor/types/dark/checkpoint"
 
-export type CanonicalMetaJSONProjection = {
-  value: MetaJSONV1
+export type CanonicalGraphProjection = {
+  value: Graph
   bytes: Uint8Array
   sha256: string
 }
@@ -204,15 +204,15 @@ const containerAt = (
   return {parent: current, key: tokens.at(-1)!}
 }
 
-export const canonicalizeMetaJSONV1 = (input: unknown): CanonicalMetaJSONProjection => {
-  const validation = validateMetaJSONV1(input)
+export const canonicalizeGraph = (input: unknown): CanonicalGraphProjection => {
+  const validation = validateGraph(input)
   if (!validation.ok) {
     throw new CheckpointProjectionError(
       "invalid_projection",
-      `Checkpoint projection is not MetaJSON v1: ${validation.issues.map((issue) => `${issue.path}:${issue.code}`).join(", ")}`,
+      `Checkpoint projection is not Graph: ${validation.issues.map((issue) => `${issue.path}:${issue.code}`).join(", ")}`,
     )
   }
-  const value = closedJSON(validation.value, "") as unknown as MetaJSONV1
+  const value = closedJSON(validation.value, "") as unknown as Graph
   const bytes = new TextEncoder().encode(canonicalString(value as unknown as CheckpointJsonValue))
   return {
     value,
@@ -221,27 +221,27 @@ export const canonicalizeMetaJSONV1 = (input: unknown): CanonicalMetaJSONProject
   }
 }
 
-export const diffMetaJSONV1 = (
+export const diffGraph = (
   base: unknown,
   result: unknown,
 ): CheckpointJsonPatchOperationV1[] => {
-  const left = canonicalizeMetaJSONV1(base).value as unknown as CheckpointJsonValue
-  const right = canonicalizeMetaJSONV1(result).value as unknown as CheckpointJsonValue
+  const left = canonicalizeGraph(base).value as unknown as CheckpointJsonValue
+  const right = canonicalizeGraph(result).value as unknown as CheckpointJsonValue
   const operations: CheckpointJsonPatchOperationV1[] = []
   diffValue(left, right, "", operations)
   return operations
 }
 
-export const applyMetaJSONPatchV1 = (
+export const applyGraphPatch = (
   base: unknown,
   operations: readonly CheckpointJsonPatchOperationV1[],
-): MetaJSONV1 => {
-  let current = structuredClone(canonicalizeMetaJSONV1(base).value) as unknown as CheckpointJsonValue
+): Graph => {
+  let current = structuredClone(canonicalizeGraph(base).value) as unknown as CheckpointJsonValue
   for (const operation of operations) {
     const tokens = decodePointer(operation.path)
     if (tokens.length === 0) {
       if (operation.op === "remove") {
-        throw new CheckpointProjectionError("invalid_patch_path", "MetaJSON root cannot be removed")
+        throw new CheckpointProjectionError("invalid_patch_path", "Graph root cannot be removed")
       }
       current = structuredClone(operation.value)
       continue
@@ -274,5 +274,5 @@ export const applyMetaJSONPatchV1 = (
       parent[key] = structuredClone(operation.value)
     }
   }
-  return canonicalizeMetaJSONV1(current).value
+  return canonicalizeGraph(current).value
 }

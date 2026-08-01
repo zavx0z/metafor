@@ -17,10 +17,10 @@ import {
   validateCheckpointForwardPatchDocumentV1,
   validateCheckpointManifestV1,
 } from "@metafor/types/dark/checkpoint"
-import type {MetaJSONV1} from "@metafor/types/metafor/meta-json"
+import type {Graph} from "@metafor/types/metafor/graph"
 import {
-  applyMetaJSONPatchV1,
-  canonicalizeMetaJSONV1,
+  applyGraphPatch,
+  canonicalizeGraph,
 } from "./projection.ts"
 
 export interface CheckpointRepositoryLimits {
@@ -47,8 +47,8 @@ export interface CheckpointCapture {
   boundary: Uint8Array
   mass: CheckpointMassCapture[]
   projection: {
-    base: MetaJSONV1
-    result: MetaJSONV1
+    base: Graph
+    result: Graph
   }
   patches: {
     previousSnapshotSequence: number | null
@@ -209,8 +209,8 @@ const blob = (
 
 const patchDocument = (
   capture: CheckpointCapture,
-  base: ReturnType<typeof canonicalizeMetaJSONV1>,
-  result: ReturnType<typeof canonicalizeMetaJSONV1>,
+  base: ReturnType<typeof canonicalizeGraph>,
+  result: ReturnType<typeof canonicalizeGraph>,
 ): CheckpointForwardPatchDocumentV1 => {
   const fromSequence = capture.patches.previousSnapshotSequence === null
     ? 1
@@ -219,7 +219,7 @@ const patchDocument = (
     schema: "metafor/checkpoint-forward-patches/v1",
     cutId: capture.identity.cutId,
     projection: {
-      schema: "metafor/meta-json/v1",
+      schema: "metafor/graph",
       root: result.value.root,
       canonicalization: "rfc8785",
     },
@@ -349,12 +349,12 @@ export class CheckpointGitRepository {
     this.verifyBlob(commit, manifest.boundary.blob, expectedPaths)
     for (const entry of manifest.mass) this.verifyBlob(commit, entry.blob, expectedPaths)
     const projection = this.verifyBlob(commit, manifest.projection.blob, expectedPaths)
-    const canonicalProjection = canonicalizeMetaJSONV1(parseJSON(Buffer.from(projection), "Checkpoint MetaJSON projection"))
+    const canonicalProjection = canonicalizeGraph(parseJSON(Buffer.from(projection), "Checkpoint Graph projection"))
     if (
       canonicalProjection.sha256 !== manifest.projection.blob.sha256 ||
       canonicalProjection.value.root !== manifest.projection.root
     ) {
-      throw new CheckpointRepositoryError("invalid_projection", "Checkpoint MetaJSON projection does not match its manifest")
+      throw new CheckpointRepositoryError("invalid_projection", "Checkpoint Graph projection does not match its manifest")
     }
     const patches = parseJSON(
       Buffer.from(this.verifyBlob(commit, manifest.patches.blob, expectedPaths)),
@@ -413,8 +413,8 @@ export class CheckpointGitRepository {
 
     const chunks = new Map<string, Uint8Array>()
     const boundaryBytes = bytes(capture.boundary, "Boundary checkpoint")
-    const baseProjection = canonicalizeMetaJSONV1(capture.projection.base)
-    const resultProjection = canonicalizeMetaJSONV1(capture.projection.result)
+    const baseProjection = canonicalizeGraph(capture.projection.base)
+    const resultProjection = canonicalizeGraph(capture.projection.result)
     if (baseProjection.value.root !== resultProjection.value.root) {
       throw new CheckpointRepositoryError("projection_root_mismatch", "Checkpoint base and result roots differ")
     }
@@ -440,9 +440,9 @@ export class CheckpointGitRepository {
     const patches = patchDocument(capture, baseProjection, resultProjection)
     let replayed = baseProjection.value
     for (const entry of patches.entries) {
-      replayed = applyMetaJSONPatchV1(replayed, entry.operations)
+      replayed = applyGraphPatch(replayed, entry.operations)
     }
-    if (canonicalizeMetaJSONV1(replayed).sha256 !== resultProjection.sha256) {
+    if (canonicalizeGraph(replayed).sha256 !== resultProjection.sha256) {
       throw new CheckpointRepositoryError("invalid_patch_result", "Checkpoint patch span does not produce its result projection")
     }
     const patchBytes = canonicalJSON(patches)
@@ -467,10 +467,10 @@ export class CheckpointGitRepository {
       boundary: {format: "sqlite", blob: blob(boundaryBytes, chunks, this.limits, "Boundary checkpoint")},
       mass: massManifest,
       projection: {
-        schema: "metafor/meta-json/v1",
+        schema: "metafor/graph",
         root: resultProjection.value.root,
         canonicalization: "rfc8785",
-        blob: blob(resultProjection.bytes, chunks, this.limits, "MetaJSON projection"),
+        blob: blob(resultProjection.bytes, chunks, this.limits, "Graph projection"),
       },
       patches: {
         format: "json-patch",

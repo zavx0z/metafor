@@ -1,5 +1,9 @@
-export const META_JSON_V1_SCHEMA = "metafor/meta-json/v1" as const
-export const READ_META_JSON_METHOD = "readMetaJSON" as const
+/**
+ * Schema marker of the single public Graph contract. JSON is only its wire
+ * serialization and does not name a second domain format.
+ */
+export const GRAPH_SCHEMA = "metafor/graph" as const
+export const READ_GRAPH_METHOD = "readGraph" as const
 
 export type JsonPrimitive = null | boolean | number | string
 export type JsonValue = JsonPrimitive | JsonValue[] | {[key: string]: JsonValue}
@@ -11,45 +15,46 @@ declare const MetaAddressBrand: unique symbol
 /** Canonical safe two-segment `<owner>/<repository>` address. */
 export type MetaAddress = string & {readonly [MetaAddressBrand]: "MetaAddress"}
 
-export interface ReadMetaJSONParamsV1 {
+/** Parameters accepted by the Dark Monad `readGraph` RPC. */
+export interface ReadGraphParams {
   root: MetaAddress
 }
 
-interface MetaFieldBaseV1 {
+interface MetaFieldBase {
   key: string
   label?: string
 }
 
-type MetaOptionalFieldV1<Kind extends string, Default> =
-  MetaFieldBaseV1 & {
+type MetaOptionalField<Kind extends string, Default> =
+  MetaFieldBase & {
     type: Kind
     required?: never
     default?: Default
     id?: never
   }
 
-type MetaRequiredIdentifiedFieldV1<Kind extends string, Default> =
-  MetaFieldBaseV1 & {
+type MetaRequiredIdentifiedField<Kind extends string, Default> =
+  MetaFieldBase & {
     type: Kind
     required: true
     default: Default
     id?: true
   }
 
-export type MetaStringFieldV1 =
-  | MetaOptionalFieldV1<"string", string>
-  | MetaRequiredIdentifiedFieldV1<"string", string>
+export type MetaStringField =
+  | MetaOptionalField<"string", string>
+  | MetaRequiredIdentifiedField<"string", string>
 
-export type MetaNumberFieldV1 =
-  | MetaOptionalFieldV1<"number", number>
-  | MetaRequiredIdentifiedFieldV1<"number", number>
+export type MetaNumberField =
+  | MetaOptionalField<"number", number>
+  | MetaRequiredIdentifiedField<"number", number>
 
-export type MetaBooleanFieldV1 =
-  | MetaOptionalFieldV1<"boolean", boolean>
-  | MetaRequiredIdentifiedFieldV1<"boolean", boolean>
+export type MetaBooleanField =
+  | MetaOptionalField<"boolean", boolean>
+  | MetaRequiredIdentifiedField<"boolean", boolean>
 
-export type MetaArrayFieldV1 =
-  MetaFieldBaseV1 & {
+export type MetaArrayField =
+  MetaFieldBase & {
     type: "array"
     data?: string
     id?: never
@@ -58,8 +63,8 @@ export type MetaArrayFieldV1 =
     | {required: true; default: number[]}
   )
 
-export type MetaEnumFieldV1 =
-  MetaFieldBaseV1 & {
+export type MetaEnumField =
+  MetaFieldBase & {
     type: "enum"
     values: string[]
   } & (
@@ -67,33 +72,33 @@ export type MetaEnumFieldV1 =
     | {required: true; default: string; id?: true}
   )
 
-export type MetaFieldV1 =
-  | MetaStringFieldV1
-  | MetaNumberFieldV1
-  | MetaBooleanFieldV1
-  | MetaArrayFieldV1
-  | MetaEnumFieldV1
+export type MetaField =
+  | MetaStringField
+  | MetaNumberField
+  | MetaBooleanField
+  | MetaArrayField
+  | MetaEnumField
 
-export interface MetaRegExpV1 {
+export interface MetaRegExp {
   source: string
   flags: string
 }
 
-export type MetaBooleanConditionV1 =
+export type MetaBooleanCondition =
   | boolean
   | null
   | {null?: boolean; eq?: boolean; notEq?: boolean; logicalEq?: boolean}
 
-export type MetaStringConditionV1 =
+export type MetaStringCondition =
   | string
   | null
-  | MetaRegExpV1
+  | MetaRegExp
   | {
       null?: boolean
       startsWith?: string
       endsWith?: string
       include?: string
-      pattern?: MetaRegExpV1
+      pattern?: MetaRegExp
       eq?: string
       notEq?: string
       notInclude?: string
@@ -105,7 +110,7 @@ export type MetaStringConditionV1 =
       notIn?: string[]
     }
 
-export type MetaNumberConditionV1 =
+export type MetaNumberCondition =
   | number
   | null
   | {
@@ -125,7 +130,7 @@ export type MetaNumberConditionV1 =
       notIn?: number[]
     }
 
-export interface MetaArrayItemConditionV1 {
+export interface MetaArrayItemCondition {
   gt?: number
   gte?: number
   lt?: number
@@ -133,7 +138,7 @@ export interface MetaArrayItemConditionV1 {
   eq?: number
 }
 
-export type MetaArrayConditionV1 =
+export type MetaArrayCondition =
   | number[]
   | null
   | {
@@ -141,12 +146,12 @@ export type MetaArrayConditionV1 =
       length?: number | {min?: number; max?: number}
       includes?: number
       notIncludes?: number
-      every?: MetaArrayItemConditionV1
-      some?: MetaArrayItemConditionV1
+      every?: MetaArrayItemCondition
+      some?: MetaArrayItemCondition
       isEmpty?: boolean
     }
 
-export type MetaEnumConditionV1 =
+export type MetaEnumCondition =
   | string
   | null
   | {
@@ -157,72 +162,72 @@ export type MetaEnumConditionV1 =
       notOneOf?: string[]
     }
 
-export type MetaConditionV1 =
-  | MetaBooleanConditionV1
-  | MetaStringConditionV1
-  | MetaNumberConditionV1
-  | MetaArrayConditionV1
-  | MetaEnumConditionV1
+export type MetaCondition =
+  | MetaBooleanCondition
+  | MetaStringCondition
+  | MetaNumberCondition
+  | MetaArrayCondition
+  | MetaEnumCondition
 
-export type MetaConditionWaveV1 = {[field: string]: MetaConditionV1}
-export type MetaTransitionsV1 = {[targetState: string]: MetaConditionWaveV1}
+export type MetaConditionWave = {[field: string]: MetaCondition}
+export type MetaTransitions = {[targetState: string]: MetaConditionWave}
 
-export interface MetaStateV1 {
+export interface MetaState {
   name: string
-  transitions: MetaTransitionsV1 | null
+  transitions: MetaTransitions | null
 }
 
-export interface MetaMassV1 {
+export interface MetaMass {
   key: string
   format: "json" | "binary"
   label?: string
   description?: string
 }
 
-export type MetaExecutionEnvV1 =
+export type MetaExecutionEnv =
   | "browser"
   | "node"
   | "worker"
   | "server"
   | "any"
 
-export interface MetaActionDescriptorV1 {
+export interface MetaActionDescriptor {
   src: string
   importSpecifier?: string
   wrapperSrc?: string
   read?: string[]
 }
 
-export interface MetaHandlerDescriptorV1 {
+export interface MetaHandlerDescriptor {
   src: string
   read?: string[]
   write?: string[]
 }
 
-export interface MetaActionProcessDescriptorV1 {
+export interface MetaActionProcessDescriptor {
   type: "action"
   label?: string
   desc?: string
-  env?: MetaExecutionEnvV1[]
-  action: MetaActionDescriptorV1
-  success?: MetaHandlerDescriptorV1
-  error?: MetaHandlerDescriptorV1
+  env?: MetaExecutionEnv[]
+  action: MetaActionDescriptor
+  success?: MetaHandlerDescriptor
+  error?: MetaHandlerDescriptor
 }
 
-export interface MetaFinallyProcessDescriptorV1 {
+export interface MetaFinallyProcessDescriptor {
   type: "finally"
   label?: string
   desc?: string
-  env?: MetaExecutionEnvV1[]
-  before: MetaActionDescriptorV1
+  env?: MetaExecutionEnv[]
+  before: MetaActionDescriptor
 }
 
-export interface MetaProcessV1 {
+export interface MetaProcess {
   key: string
-  declaration: MetaActionProcessDescriptorV1 | MetaFinallyProcessDescriptorV1
+  declaration: MetaActionProcessDescriptor | MetaFinallyProcessDescriptor
 }
 
-export interface MetaReactionV1 {
+export interface MetaReaction {
   key: string
   label: string
   desc: string | null
@@ -233,111 +238,120 @@ export interface MetaReactionV1 {
   states: string[]
 }
 
-export type MetaMatterDirectMassV1 =
+export type MetaMatterDirectMass =
   | {kind: "whole"}
   | {
       kind: "keys"
       entries: Array<{target: string; source: string}>
     }
 
-export type MetaMatterBindingV1 =
+export type MetaMatterBinding =
   | string
   | {
       data?: string | string[]
       expr?: string
-      directMass?: MetaMatterDirectMassV1
+      directMass?: MetaMatterDirectMass
     }
 
-export interface MetaMatterWimpChildV1 {
+export interface MetaMatterWimpChild {
   edgeSlot: "child"
-  particle: MetaMatterParticleV1
+  particle: MetaMatterParticle
 }
 
-export interface MetaMatterFuzzyChildV1 {
+export interface MetaMatterFuzzyChild {
   edgeSlot: "branch"
-  particle: MetaMatterWimpV1
+  particle: MetaMatterWimp
 }
 
-export interface MetaMatterAxionChildV1 {
+export interface MetaMatterAxionChild {
   edgeSlot: "then" | "else" | "child"
-  particle: MetaMatterParticleV1
+  particle: MetaMatterParticle
 }
 
-export interface MetaMatterMachoChildV1 {
+export interface MetaMatterMachoChild {
   edgeSlot: "child"
-  particle: MetaMatterParticleV1
+  particle: MetaMatterParticle
 }
 
-export interface MetaMatterWimpV1 {
+export interface MetaMatterWimp {
   kind: "wimp"
   src: MetaAddress
-  fieldsBinding?: MetaMatterBindingV1
-  massBinding?: MetaMatterBindingV1
-  energyBinding?: MetaMatterBindingV1
-  children?: MetaMatterWimpChildV1[]
+  fieldsBinding?: MetaMatterBinding
+  massBinding?: MetaMatterBinding
+  energyBinding?: MetaMatterBinding
+  children?: MetaMatterWimpChild[]
 }
 
-export interface MetaMatterFuzzyV1 {
+export interface MetaMatterFuzzy {
   kind: "fuzzy"
   fuzzyKind: "dynamic-meta"
-  predicateBinding: MetaMatterBindingV1
-  children?: MetaMatterFuzzyChildV1[]
+  predicateBinding: MetaMatterBinding
+  children?: MetaMatterFuzzyChild[]
 }
 
-export interface MetaMatterAxionV1 {
+export interface MetaMatterAxion {
   kind: "axion"
-  predicateBinding: MetaMatterBindingV1
-  children?: MetaMatterAxionChildV1[]
+  predicateBinding: MetaMatterBinding
+  children?: MetaMatterAxionChild[]
 }
 
-export interface MetaMatterMachoV1 {
+export interface MetaMatterMacho {
   kind: "macho"
-  collectionBinding: MetaMatterBindingV1
-  children?: MetaMatterMachoChildV1[]
+  collectionBinding: MetaMatterBinding
+  children?: MetaMatterMachoChild[]
 }
 
-export type MetaMatterParticleV1 =
-  | MetaMatterWimpV1
-  | MetaMatterFuzzyV1
-  | MetaMatterAxionV1
-  | MetaMatterMachoV1
+export type MetaMatterParticle =
+  | MetaMatterWimp
+  | MetaMatterFuzzy
+  | MetaMatterAxion
+  | MetaMatterMacho
 
-export interface MetaTemplateV1 {
+export interface MetaTemplate {
   name: string
   desc?: string
-  fields: MetaFieldV1[]
-  superposition: MetaStateV1[]
-  mass: MetaMassV1[]
-  processes: MetaProcessV1[]
-  reactions?: MetaReactionV1[]
-  matter?: MetaMatterParticleV1[]
+  fields: MetaField[]
+  superposition: MetaState[]
+  mass: MetaMass[]
+  processes: MetaProcess[]
+  reactions?: MetaReaction[]
+  matter?: MetaMatterParticle[]
   bulk?: {view: string}
 }
 
-export interface RuntimeAtomV1 {
+export interface RuntimeAtom {
   kind: "atom"
   declaration: DocumentPointer
   meta: MetaAddress
   state: string | null
   values: {[field: string]: JsonValue}
-  children?: RuntimeNodeV1[]
+  children?: RuntimeNode[]
 }
 
-export interface RuntimeTopologyV1 {
+export interface RuntimeTopology {
   kind: "topology"
   declaration: DocumentPointer
   topology: "fuzzy" | "axion" | "macho"
-  children?: RuntimeNodeV1[]
+  children?: RuntimeNode[]
 }
 
-export type RuntimeNodeV1 = RuntimeAtomV1 | RuntimeTopologyV1
+export type RuntimeNode = RuntimeAtom | RuntimeTopology
 
-export interface MetaJSONV1 {
-  schema: typeof META_JSON_V1_SCHEMA
+/**
+ * The single public Graph assembled on demand by Dark Monad from the Dark
+ * declaration projection and the current Boundary projection. JSON is only
+ * the transport serialization of this Graph, not its domain name or a second
+ * public format. Graph is never authored or canonical storage. A downstream
+ * domain such as Bulk may retain a validated Graph as its local current read
+ * model, but must refresh it through `readGraph`, not assemble a competing
+ * Graph.
+ */
+export interface Graph {
+  schema: typeof GRAPH_SCHEMA
   root: MetaAddress
-  template: {[address: MetaAddress]: MetaTemplateV1}
+  template: {[address: MetaAddress]: MetaTemplate}
   runtime: {
-    roots: RuntimeNodeV1[]
+    roots: RuntimeNode[]
   }
 }
 
@@ -351,8 +365,9 @@ export type ValidationResult<T> =
   | {ok: true; value: T}
   | {ok: false; issues: ValidationIssue[]}
 
-export interface MetaJSONValidatorsV1 {
-  metaJSON(input: unknown): ValidationResult<MetaJSONV1>
+/** Closed validation surface for the single Graph contract. */
+export interface GraphValidators {
+  graph(input: unknown): ValidationResult<Graph>
 }
 
 type RecordValue = Record<string, unknown>
@@ -366,7 +381,7 @@ type OccurrencePlan =
   | {mode: "fuzzy"; items: OccurrenceExpectation[]}
 
 const ADDRESS_SEGMENT = /^[A-Za-z0-9][A-Za-z0-9._-]*$/
-const EXECUTION_ENVS = new Set<MetaExecutionEnvV1>([
+const EXECUTION_ENVS = new Set<MetaExecutionEnv>([
   "browser",
   "node",
   "worker",
@@ -879,7 +894,7 @@ class Validator {
       if (declaration.desc !== undefined) this.string(declaration.desc, childPath(declarationPath, "desc"), "Process description")
       if (declaration.env !== undefined && this.stringArray(declaration.env, childPath(declarationPath, "env"), "Process environments")) {
         declaration.env.forEach((env, envIndex) => {
-          if (!EXECUTION_ENVS.has(env as MetaExecutionEnvV1)) {
+          if (!EXECUTION_ENVS.has(env as MetaExecutionEnv)) {
             this.issue(childPath(childPath(declarationPath, "env"), envIndex), "invalid_environment", `Unknown environment "${env}"`)
           }
         })
@@ -1429,13 +1444,13 @@ class Validator {
     }
   }
 
-  validate(input: unknown): ValidationResult<MetaJSONV1> {
-    if (!this.record(input, "", "MetaJSON")) return {ok: false, issues: this.issues}
+  validate(input: unknown): ValidationResult<Graph> {
+    if (!this.record(input, "", "Graph")) return {ok: false, issues: this.issues}
     this.json(input, "")
     this.closed(input, "", ["schema", "root", "template", "runtime"])
     this.required(input, "", ["schema", "root", "template", "runtime"])
-    if (input.schema !== META_JSON_V1_SCHEMA) {
-      this.issue("/schema", "invalid_schema", `schema must be "${META_JSON_V1_SCHEMA}"`)
+    if (input.schema !== GRAPH_SCHEMA) {
+      this.issue("/schema", "invalid_schema", `schema must be "${GRAPH_SCHEMA}"`)
     }
     const root = input.root
     const rootOk = this.address(root, "/root")
@@ -1495,14 +1510,14 @@ class Validator {
       }
     }
     return this.issues.length === 0
-      ? {ok: true, value: input as unknown as MetaJSONV1}
+      ? {ok: true, value: input as unknown as Graph}
       : {ok: false, issues: this.issues}
   }
 }
 
-export const validateMetaJSONV1 = (input: unknown): ValidationResult<MetaJSONV1> =>
+export const validateGraph = (input: unknown): ValidationResult<Graph> =>
   new Validator().validate(input)
 
-export const metaJSONValidatorsV1: MetaJSONValidatorsV1 = {
-  metaJSON: validateMetaJSONV1,
+export const graphValidators: GraphValidators = {
+  graph: validateGraph,
 }

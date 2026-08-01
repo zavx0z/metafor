@@ -3,11 +3,15 @@ import {mkdtempSync, readFileSync, rmSync, writeFileSync} from "node:fs"
 import {createHash} from "node:crypto"
 import {tmpdir} from "node:os"
 import {join} from "node:path"
-import {BOUNDARY_INITIAL_PROJECTION_METHOD} from "@metafor/types/boundary/initial"
-import type {BoundaryInitialProjectionEntry} from "@metafor/types/boundary/initial"
 import {BULK_VIEWPORT_CAPTURE_METHOD} from "@metafor/types/bulk/capture"
-import type {BulkObserverSnapshot} from "@metafor/types/bulk/initial"
-import type {Particle} from "shared/protocol/force/particle"
+import {
+  GRAPH_SCHEMA,
+  READ_GRAPH_METHOD,
+  parseMetaAddress,
+  type DocumentPointer,
+  type Graph,
+} from "@metafor/types/metafor/graph"
+import {FORCE_CHECKPOINT_QUIESCE_METHOD} from "shared/transport/force/checkpoint"
 import {
   MF117_BULK_PREFLIGHT_METHOD,
   MF117_BULK_PROMOTE_METHOD,
@@ -15,8 +19,8 @@ import {
 } from "../shared/mf117.ts"
 import {BulkMonad} from "./monad.ts"
 import {BulkProjectionStore} from "./projection.ts"
+import {projectBulkGraph} from "./graph.ts"
 import {buildBulkManifestation} from "./manifestation.ts"
-import {LADA_TOPOLOGY_WIMPS, ladaTopologyAtoms} from "./fixture/lada-topology.ts"
 
 const temporaryDirectories: string[] = []
 afterEach(() => {
@@ -41,49 +45,97 @@ const promotion = {
   },
 }
 
-const mf117Entries = (
+const INFERENCE = parseMetaAddress("zavx0z/inference")!
+const LADA = parseMetaAddress("zavx0z/lada")!
+const AUTH = parseMetaAddress("zavx0z/lada-auth")!
+const CHAT = parseMetaAddress("zavx0z/lada-chat")!
+const MODEL = parseMetaAddress("zavx0z/lada-model")!
+const SEND = parseMetaAddress("zavx0z/lada-chat-send")!
+
+const runtimeAtom = (
+  declaration: DocumentPointer,
+  meta: typeof LADA,
+  children?: Graph["runtime"]["roots"],
+): Graph["runtime"]["roots"][number] => ({
+  kind: "atom",
+  declaration,
+  meta,
+  state: meta === LADA ? "ready" : null,
+  values: {},
+  ...(children === undefined ? {} : {children}),
+})
+
+const mf117Document = (
   promoted = false,
-): BoundaryInitialProjectionEntry[] => {
-  const atoms = [
-    {id: 1, parentAtom: null, parentTopology: null, wimp: "zavx0z/inference", position: 0},
-    ...ladaTopologyAtoms(promoted ? null : 1),
-  ].filter(({id}) => !(promoted && id === 1))
-  return [
-    ...[
-      ["zavx0z/inference", "Inference"],
-      ...LADA_TOPOLOGY_WIMPS.map(({src, name}) => [src, name]),
-    ].map(([src, name]) => ({
-      part: "graviton" as const,
-      op: "add" as const,
-      path: "wimp",
-      value: {src, name},
-    })),
-    {
-      part: "graviton",
-      op: "add",
-      path: "state",
-      value: {
-        id: 21,
-        localId: 1,
-        wimp: "zavx0z/lada",
-        name: "working",
-        position: 0,
-      },
-    },
-    ...atoms.map((atom) => ({
-      part: "graviton" as const,
-      op: "add" as const,
-      path: `atom/${atom.id}`,
-      value: {
-        atom,
-        values: [],
-        valueRecords: [],
-        valueItems: [],
-        state: null,
-        mass: [],
-      },
-    })),
+  ladaState: "ready" | "working" = "ready",
+): Graph => {
+  const ladaChildren: Graph["runtime"]["roots"] = [
+    runtimeAtom("#/template/zavx0z~1lada/matter/0", AUTH),
+    runtimeAtom("#/template/zavx0z~1lada/matter/1", CHAT, [
+      runtimeAtom("#/template/zavx0z~1lada-chat/matter/0", SEND),
+    ]),
+    runtimeAtom("#/template/zavx0z~1lada/matter/2", MODEL),
   ]
+  const lada = runtimeAtom(
+    promoted ? "#/template/zavx0z~1lada" : "#/template/zavx0z~1inference/matter/0",
+    LADA,
+    ladaChildren,
+  )
+  if (lada.kind === "atom") lada.state = ladaState
+  return {
+    schema: GRAPH_SCHEMA,
+    root: promoted ? LADA : INFERENCE,
+    template: {
+      ...(promoted ? {} : {
+        [INFERENCE]: {
+          name: "Inference", fields: [], superposition: [], mass: [], processes: [],
+          matter: [{kind: "wimp", src: LADA}],
+        },
+      }),
+      [LADA]: {
+        name: "Lada", fields: [],
+        superposition: [
+          {name: "ready", transitions: null},
+          {name: "working", transitions: null},
+        ],
+        mass: [], processes: [],
+        matter: [AUTH, CHAT, MODEL].map((src) => ({kind: "wimp" as const, src})),
+      },
+      [AUTH]: {name: "Auth", fields: [], superposition: [], mass: [], processes: []},
+      [CHAT]: {
+        name: "Chat", fields: [], superposition: [], mass: [], processes: [],
+        matter: [{kind: "wimp", src: SEND}],
+      },
+      [MODEL]: {name: "Model", fields: [], superposition: [], mass: [], processes: []},
+      [SEND]: {name: "Send", fields: [], superposition: [], mass: [], processes: []},
+    },
+    runtime: {
+      roots: promoted
+        ? [lada]
+        : [runtimeAtom("#/template/zavx0z~1inference", INFERENCE, [lada])],
+    },
+  }
+}
+
+const metaPeer = (initial: Graph) => {
+  let current = structuredClone(initial)
+  const calls: Array<{target: string; method: string; params: unknown; options: unknown}> = []
+  return {
+    calls,
+    set(value: Graph) {
+      current = structuredClone(value)
+    },
+    async call(target: string, method: string, params: unknown, options: unknown) {
+      calls.push({target, method, params, options})
+      if (target === "boundary" && method === FORCE_CHECKPOINT_QUIESCE_METHOD) {
+        return {ok: true, outgoingOrdinal: 0}
+      }
+      if (target === "dark" && method === READ_GRAPH_METHOD) {
+        return structuredClone(current)
+      }
+      throw new Error(`Unexpected RPC ${target}.${method}`)
+    },
+  }
 }
 
 const canonicalValue = (value: unknown): unknown => {
@@ -103,9 +155,7 @@ const sha256 = (value: unknown): string =>
 
 const legacyPromotionReceipt = (): Record<string, unknown> => {
   const store = new BulkProjectionStore()
-  mf117Entries(true).forEach((entry, index) => {
-    store.apply({...structuredClone(entry), ts: index + 1} as Particle)
-  })
+  store.hydrate(projectBulkGraph(mf117Document(true)))
   const manifest = buildBulkManifestation(
     store.view(),
     promotion.removedRootSrc,
@@ -116,6 +166,35 @@ const legacyPromotionReceipt = (): Record<string, unknown> => {
     promotion,
     rootSrc: "zavx0z/lada",
     manifestSha256: sha256(manifest),
+    removedInferenceTorusAbsent: true,
+    retention: "retain-until-explicit-gc",
+  }
+  return {receiptId: sha256(body), ...body}
+}
+
+const legacyV2PromotionReceipt = (): Record<string, unknown> => {
+  const structuralProof = {
+    version: 1,
+    removedRoot: {id: 1, src: INFERENCE, absent: true},
+    promotedRoot: {
+      id: 2,
+      src: LADA,
+      formerRootFrame: promotion.formerRootFrame,
+    },
+    subtree: [
+      {kind: "atom", id: 2, wimp: LADA, parentAtom: null, parentTopology: null, position: 0},
+      {kind: "atom", id: 3, wimp: AUTH, parentAtom: 2, parentTopology: null, position: 0},
+      {kind: "atom", id: 4, wimp: CHAT, parentAtom: 2, parentTopology: null, position: 1},
+      {kind: "atom", id: 5, wimp: MODEL, parentAtom: 2, parentTopology: null, position: 2},
+      {kind: "atom", id: 6, wimp: SEND, parentAtom: 4, parentTopology: null, position: 0},
+    ],
+  }
+  const body = {
+    schema: "metafor/bulk-mf117-promotion/v2",
+    promotion,
+    rootSrc: LADA,
+    structuralProof,
+    structuralSha256: sha256(structuralProof),
     removedInferenceTorusAbsent: true,
     retention: "retain-until-explicit-gc",
   }
@@ -160,112 +239,94 @@ describe("Bulk Monad", () => {
     expect(captureCalls).toEqual([{params, context: {source: "codex"}}])
   })
 
-  test("loads the complete Boundary projection before preparing an observer package", async () => {
-    const calls: unknown[] = []
-    const peer = {
-      async call(target: string, method: string, params: unknown, options: unknown) {
-        calls.push({target, method, params, options})
-        return {
-          version: 1,
-          entries: [
-            {part: "graviton", op: "add", path: "wimp", value: {src: "owner/root", name: "Root"}},
-            {
-              part: "graviton", op: "add", path: "atom/7",
-              value: {
-                atom: {id: 7, parentAtom: null, parentTopology: null, wimp: "owner/root", position: 0},
-                values: [], valueRecords: [], valueItems: [], state: null,
-              },
-            },
-          ],
-        }
-      },
-    }
+  test("loads the full Graph from Dark before preparing an observer package", async () => {
+    const peer = metaPeer(mf117Document())
     const monad = new BulkMonad()
 
     await monad.onServerStarted(peer as never)
-    expect(calls).toEqual([{
-      target: "boundary",
-      method: BOUNDARY_INITIAL_PROJECTION_METHOD,
-      params: {},
+    expect(peer.calls).toEqual([{
+      target: "dark",
+      method: READ_GRAPH_METHOD,
+      params: {root: INFERENCE},
       options: {waitMs: 30_000},
     }])
     expect(() => monad.openObserver("before-force")).toThrow("not ready")
 
     monad.onRuntimeBorn()
     const initial = monad.openObserver("observer-1")
-    const compatibleSnapshot: BulkObserverSnapshot = initial
 
     expect(initial).toMatchObject({
       version: 1,
       session: "observer-1",
       throughTs: null,
-      rootSrc: "owner/root",
-      projection: {runtime: {atoms: [{id: 7, wimp: "owner/root"}]}},
-      manifest: {rootSrc: "owner/root"},
+      rootSrc: INFERENCE,
+      graph: {schema: GRAPH_SCHEMA, root: INFERENCE},
+      manifest: {rootSrc: INFERENCE},
     })
-    expect(initial.manifest.darkParticles).toHaveLength(1)
-    expect(compatibleSnapshot.projection).toBe(initial.projection)
+    expect(initial).not.toHaveProperty("projection")
+    expect(initial.manifest.darkParticles).toHaveLength(6)
   })
 
-  test("advances the prepared Store with the unchanged realtime Particle", async () => {
-    const peer = {
-      async call() {
-        return {version: 1, entries: []}
-      },
-    }
+  test("guards the startup source against Boundary initial projection regression", () => {
+    const source = readFileSync(new URL("./monad.ts", import.meta.url), "utf8")
+
+    expect(source).toContain("READ_GRAPH_METHOD")
+    expect(source).not.toContain("BOUNDARY_INITIAL_PROJECTION_METHOD")
+    expect(source).not.toContain("boundary.initialProjection.read")
+  })
+
+  test("uses a Particle as invalidation and replaces the same Graph Store after Boundary quiescence", async () => {
+    const peer = metaPeer(mf117Document())
     const monad = new BulkMonad()
     await monad.onServerStarted(peer as never)
     monad.onRuntimeBorn()
+    peer.set(mf117Document(true))
 
-    monad.onImpulse({
+    const scene = await monad.onImpulse(peer as never, {
       parts: [{
-        part: "graviton", op: "add", path: "atom/9", by: "boundary", ts: 42,
+        part: "graviton", op: "replace", path: "atom/2", by: "boundary", ts: 42,
         value: {
-          atom: {id: 9, parentAtom: null, parentTopology: null, wimp: "owner/live", position: 0},
-          values: [], valueRecords: [], valueItems: [], state: null,
+          atom: {id: 2, parentAtom: null, parentTopology: null, wimp: LADA, position: 0},
         },
       }],
     })
 
-    expect(monad.openObserver("observer-2")).toMatchObject({
+    expect(scene).toMatchObject({
       throughTs: 42,
-      rootSrc: "owner/live",
-      projection: {runtime: {atoms: [{id: 9, wimp: "owner/live"}]}},
+      rootSrc: LADA,
+      graph: {root: LADA},
     })
+    expect(peer.calls.slice(1)).toEqual([
+      {
+        target: "boundary",
+        method: FORCE_CHECKPOINT_QUIESCE_METHOD,
+        params: {},
+        options: {waitMs: 30_000},
+      },
+      {
+        target: "dark",
+        method: READ_GRAPH_METHOD,
+        params: {root: LADA},
+        options: {waitMs: 30_000},
+      },
+    ])
+    expect(monad.openObserver("observer-2").graph).toEqual(scene.graph)
   })
 
-  test("initial package and the same ordinary Particle sequence produce identical semantic manifestations", async () => {
-    const entries: BoundaryInitialProjectionEntry[] = [
-      {part: "graviton", op: "add", path: "wimp", value: {src: "owner/root", name: "Root"}},
-      {part: "graviton", op: "add", path: "wimp", value: {src: "owner/child", name: "Child"}},
-      {
-        part: "graviton", op: "add", path: "atom/1",
-        value: {
-          atom: {id: 1, parentAtom: null, parentTopology: null, wimp: "owner/root", position: 0},
-          values: [], valueRecords: [], valueItems: [], state: null,
-        },
-      },
-      {
-        part: "graviton", op: "add", path: "atom/2",
-        value: {
-          atom: {id: 2, parentAtom: 1, parentTopology: null, wimp: "owner/child", position: 0},
-          values: [], valueRecords: [], valueItems: [], state: null,
-        },
-      },
-    ]
+  test("keeps the previous cut and fails closed when Dark returns invalid Graph", async () => {
+    const peer = metaPeer(mf117Document())
     const monad = new BulkMonad()
-    await monad.onServerStarted({async call() { return {version: 1, entries} }} as never)
+    await monad.onServerStarted(peer as never)
     monad.onRuntimeBorn()
-    const initial = monad.openObserver("observer-equivalence")
+    const before = monad.openObserver("before-invalid").graph
+    peer.set({...mf117Document(), schema: "invalid"} as unknown as Graph)
 
-    const realtime = new BulkProjectionStore()
-    entries.forEach((entry, index) => realtime.apply({...structuredClone(entry), ts: index + 1} as Particle))
-    const realtimeManifest = buildBulkManifestation(
-      realtime.view(),
-      initial.rootSrc,
-    )
-
-    expect(realtimeManifest).toEqual(initial.manifest)
+    await expect(monad.onImpulse(peer as never, {
+      parts: [{part: "photon", op: "replace", path: 2, by: "matrix", ts: 8, value: "working"}],
+    })).rejects.toThrow("Bulk rejected Graph")
+    expect(monad.onHealthRequested().status).toBe(200)
+    expect(await monad.onHealthRequested().json()).toMatchObject({ok: false, rpc: "error"})
+    expect(before.root).toBe(INFERENCE)
   })
 
   test("removes the Inference semantic root and persists one promoted Lada root", async () => {
@@ -275,9 +336,8 @@ describe("Bulk Monad", () => {
     const monad = new BulkMonad({
       promotionPath,
     })
-    await monad.onServerStarted({
-      async call() { return {version: 1, entries: mf117Entries()} },
-    } as never)
+    const peer = metaPeer(mf117Document())
+    await monad.onServerStarted(peer as never)
     monad.onRuntimeBorn()
     const before = monad.openObserver("mf117-before")
     expect(before.rootSrc).toBe("zavx0z/inference")
@@ -292,16 +352,22 @@ describe("Bulk Monad", () => {
         formerRootFrame: {...promotion.formerRootFrame, outerDiameterMm: 99},
       },
     })).toThrow("promotion receipt is not exact")
+    const sourceBefore = before.manifest.darkParticles.find(({src}) => src === INFERENCE)!
+    const targetBefore = before.manifest.darkParticles.find(({src}) => src === LADA)!
     expect(monad.mf117Preflight({
       schema: "metafor/bulk-mf117-live/v1",
       promotion,
     })).toMatchObject({
-      sourceRootTorus: {darkParticleId: 2},
-      targetChildTorus: {darkParticleId: 4, parentDarkParticleId: 2},
+      sourceRootTorus: {darkParticleId: sourceBefore.darkParticleId},
+      targetChildTorus: {
+        darkParticleId: targetBefore.darkParticleId,
+        parentDarkParticleId: sourceBefore.darkParticleId,
+      },
       noGhostTorus: true,
     })
 
-    monad.onImpulse({
+    peer.set(mf117Document(true))
+    await monad.onImpulse(peer as never, {
       parts: [{
         part: "graviton", op: "replace", path: "atom/2", by: "boundary", ts: 2,
         value: {
@@ -312,7 +378,7 @@ describe("Bulk Monad", () => {
     })
     expect(monad.openObserver("mf117-after-root-replace").rootSrc)
       .toBe("zavx0z/lada")
-    monad.onImpulse({
+    await monad.onImpulse(peer as never, {
       parts: [{
         part: "graviton", op: "remove", path: "atom/1", by: "boundary", ts: 3,
       }],
@@ -324,27 +390,22 @@ describe("Bulk Monad", () => {
     expect(promoted).toMatchObject({
       rootSrc: "zavx0z/lada",
       removedInferenceTorusAbsent: true,
-      promotedRootTorus: {darkParticleId: 4, parentDarkParticleId: null},
+      promotedRootTorus: {parentDarkParticleId: null},
     })
     const observer = monad.openObserver("mf117-observer")
     expect(observer.rootSrc).toBe("zavx0z/lada")
     expect(observer.manifest.darkParticles.filter(({src}) =>
       src === "zavx0z/inference")).toHaveLength(0)
-    expect(observer.manifest.darkParticles.filter(({darkParticleId}) =>
-      darkParticleId === 2)).toHaveLength(0)
-    expect(observer.manifest.darkParticles.filter(({darkParticleId, parentDarkParticleId}) =>
-      darkParticleId === 4 && parentDarkParticleId === null)).toHaveLength(1)
-    expect(observer.manifest.darkParticles.map((particle) => ({
-      id: particle.darkParticleId,
-      parent: particle.parentDarkParticleId,
-      src: particle.src,
-    }))).toEqual([
-      {id: 4, parent: null, src: "zavx0z/lada"},
-      {id: 6, parent: 4, src: "zavx0z/lada-auth"},
-      {id: 8, parent: 4, src: "zavx0z/lada-chat"},
-      {id: 12, parent: 8, src: "zavx0z/lada-chat-send"},
-      {id: 10, parent: 4, src: "zavx0z/lada-model"},
-    ])
+    expect(observer.manifest.darkParticles.some(({src}) => src === INFERENCE)).toBe(false)
+    const ladaRoot = observer.manifest.darkParticles.find(({src}) => src === LADA)!
+    const auth = observer.manifest.darkParticles.find(({src}) => src === AUTH)!
+    const chat = observer.manifest.darkParticles.find(({src}) => src === CHAT)!
+    const model = observer.manifest.darkParticles.find(({src}) => src === MODEL)!
+    const send = observer.manifest.darkParticles.find(({src}) => src === SEND)!
+    expect(ladaRoot.parentDarkParticleId).toBeNull()
+    expect([auth.parentDarkParticleId, chat.parentDarkParticleId, model.parentDarkParticleId])
+      .toEqual([ladaRoot.darkParticleId, ladaRoot.darkParticleId, ladaRoot.darkParticleId])
+    expect(send.parentDarkParticleId).toBe(chat.darkParticleId)
     const durable = JSON.parse(readFileSync(promotionPath, "utf8")) as Record<string, unknown>
     expect(durable).toMatchObject({
       schema: "metafor/bulk-mf117-promotion/v2",
@@ -352,7 +413,8 @@ describe("Bulk Monad", () => {
       structuralSha256: promoted.structuralSha256,
     })
 
-    monad.onImpulse({
+    peer.set(mf117Document(true, "working"))
+    await monad.onImpulse(peer as never, {
       parts: [{
         part: "photon", op: "replace", path: 2, by: "boundary", ts: 4,
         value: "working",
@@ -364,13 +426,11 @@ describe("Bulk Monad", () => {
       receiptId: promoted.receiptId,
       structuralSha256: promoted.structuralSha256,
       removedInferenceTorusAbsent: true,
-      promotedRootTorus: {darkParticleId: 4, parentDarkParticleId: null},
+      promotedRootTorus: {parentDarkParticleId: null},
     })
 
     const recovered = new BulkMonad({promotionPath})
-    await recovered.onServerStarted({
-      async call() { return {version: 1, entries: mf117Entries(true)} },
-    } as never)
+    await recovered.onServerStarted(metaPeer(mf117Document(true)) as never)
     recovered.onRuntimeBorn()
     expect(recovered.mf117Verify()).toMatchObject({
       receiptId: promoted.receiptId,
@@ -387,11 +447,11 @@ describe("Bulk Monad", () => {
     writeFileSync(promotionPath, `${JSON.stringify(legacy, null, 2)}\n`)
     const monad = new BulkMonad({promotionPath})
 
-    await monad.onServerStarted({
-      async call() { return {version: 1, entries: mf117Entries(true)} },
-    } as never)
+    const peer = metaPeer(mf117Document(true))
+    await monad.onServerStarted(peer as never)
     monad.onRuntimeBorn()
-    monad.onImpulse({
+    peer.set(mf117Document(true, "working"))
+    await monad.onImpulse(peer as never, {
       parts: [{
         part: "photon", op: "replace", path: 2, by: "boundary", ts: 40,
         value: "working",
@@ -403,6 +463,25 @@ describe("Bulk Monad", () => {
     expect(monad.mf117Verify()).toMatchObject({
       receiptId: legacy.receiptId,
       rootSrc: "zavx0z/lada",
+      removedInferenceTorusAbsent: true,
+    })
+    expect(JSON.parse(readFileSync(promotionPath, "utf8"))).toEqual(legacy)
+  })
+
+  test("recovers a v2 receipt whose retained proof uses former Boundary identities", async () => {
+    const directory = mkdtempSync(join(tmpdir(), "metafor-mf117-bulk-v2-"))
+    temporaryDirectories.push(directory)
+    const promotionPath = join(directory, "bulk-promotion.json")
+    const legacy = legacyV2PromotionReceipt()
+    writeFileSync(promotionPath, `${JSON.stringify(legacy, null, 2)}\n`)
+    const monad = new BulkMonad({promotionPath})
+
+    await monad.onServerStarted(metaPeer(mf117Document(true)) as never)
+    monad.onRuntimeBorn()
+
+    expect(monad.mf117Verify()).toMatchObject({
+      receiptId: legacy.receiptId,
+      rootSrc: LADA,
       removedInferenceTorusAbsent: true,
     })
     expect(JSON.parse(readFileSync(promotionPath, "utf8"))).toEqual(legacy)
@@ -424,40 +503,57 @@ describe("Bulk Monad", () => {
       writeFileSync(promotionPath, `${JSON.stringify(legacy, null, 2)}\n`)
       const monad = new BulkMonad({promotionPath})
 
-      await expect(monad.onServerStarted({
-        async call() { return {version: 1, entries: mf117Entries(true)} },
-      } as never)).rejects.toThrow("durable promotion receipt conflicts")
+      await expect(monad.onServerStarted(metaPeer(mf117Document(true)) as never))
+        .rejects.toThrow("durable promotion receipt conflicts")
     }
   })
 
   test("fails closed on a missing, reparented or ghost MF-117 subtree", async () => {
+    const missing = mf117Document(true)
+    missing.template[LADA]!.matter = missing.template[LADA]!.matter!.slice(0, 2)
+    delete missing.template[MODEL]
+    const missingRoot = missing.runtime.roots[0]!
+    if (missingRoot.kind === "atom") missingRoot.children = missingRoot.children!.slice(0, 2)
+
+    const reparented = mf117Document(true)
+    delete reparented.template[CHAT]!.matter
+    reparented.template[MODEL]!.matter = [{kind: "wimp", src: SEND}]
+    const reparentedRoot = reparented.runtime.roots[0]!
+    if (reparentedRoot.kind === "atom") {
+      const chat = reparentedRoot.children![1]!
+      const model = reparentedRoot.children![2]!
+      if (chat.kind === "atom" && model.kind === "atom") {
+        const send = chat.children![0]!
+        send.declaration = "#/template/zavx0z~1lada-model/matter/0"
+        delete chat.children
+        model.children = [send]
+      }
+    }
+
+    const ghost = mf117Document(true)
+    ghost.template[LADA]!.matter!.push({kind: "wimp", src: INFERENCE})
+    ghost.template[INFERENCE] = {
+      name: "Inference", fields: [], superposition: [], mass: [], processes: [],
+    }
+    const ghostRoot = ghost.runtime.roots[0]!
+    if (ghostRoot.kind === "atom") {
+      ghostRoot.children!.push(runtimeAtom("#/template/zavx0z~1lada/matter/3", INFERENCE))
+    }
+
     const cases = [
       {
         name: "missing",
-        entries: mf117Entries(true).filter(({path}) => path !== "atom/6"),
+        document: missing,
         error: "missing or reparented",
       },
       {
         name: "reparented",
-        entries: mf117Entries(true).map((entry) => entry.path === "atom/6"
-          ? {
-              ...entry,
-              value: {
-                ...(entry.value as Record<string, unknown>),
-                atom: {
-                  ...((entry.value as {atom: Record<string, unknown>}).atom),
-                  parentAtom: 5,
-                },
-              },
-            }
-          : entry),
+        document: reparented,
         error: "missing or reparented",
       },
       {
         name: "ghost",
-        entries: mf117Entries(true).concat(
-          mf117Entries().filter(({path}) => path === "atom/1"),
-        ),
+        document: ghost,
         error: "ghost torus",
       },
     ]
@@ -468,9 +564,8 @@ describe("Bulk Monad", () => {
       writeFileSync(promotionPath, `${JSON.stringify(legacyPromotionReceipt(), null, 2)}\n`)
       const monad = new BulkMonad({promotionPath})
 
-      await expect(monad.onServerStarted({
-        async call() { return {version: 1, entries: scenario.entries} },
-      } as never)).rejects.toThrow(scenario.error)
+      await expect(monad.onServerStarted(metaPeer(scenario.document) as never))
+        .rejects.toThrow(scenario.error)
     }
   })
 })

@@ -2,16 +2,16 @@ import {
   parseMetaAddress,
   type JsonValue,
   type MetaAddress,
-  type MetaFieldV1,
-  type MetaJSONV1,
-  type MetaMassV1,
-  type MetaMatterBindingV1,
-  type MetaMatterParticleV1,
-  type MetaProcessV1,
-  type MetaReactionV1,
-  type MetaStateV1,
-  type MetaTemplateV1,
-} from "@metafor/types/metafor/meta-json"
+  type MetaField,
+  type Graph,
+  type MetaMass,
+  type MetaMatterBinding,
+  type MetaMatterParticle,
+  type MetaProcess,
+  type MetaReaction,
+  type MetaState,
+  type MetaTemplate,
+} from "@metafor/types/metafor/graph"
 import type {MatterParticle} from "@metafor/types/metafor/matter"
 import type {MetaDSL} from "@metafor/types/metafor/schema"
 import {loadMeta} from "./load.ts"
@@ -20,10 +20,10 @@ export const DARK_DECLARATION_PROJECTION_METHOD = "dark.declarationProjection.re
 
 export type MetaLoader = (src: string) => Promise<MetaDSL>
 
-/** Dark-owned half of MetaJSON assembly. It is derived for each read and is never stored. */
-export type DarkDeclarationProjectionV1 = {
+/** Dark-owned root and Graph.template; it contains no runtime and is never stored. */
+export type DarkGraphTemplate = {
   root: MetaAddress
-  template: MetaJSONV1["template"]
+  template: Graph["template"]
 }
 
 export type LoadedMetaDeclaration = {
@@ -123,7 +123,7 @@ const array = <T>(
   return value.map((item, index) => project(item, `${path}[${index}]`))
 }
 
-const field = (value: unknown, path: string): MetaFieldV1 => {
+const field = (value: unknown, path: string): MetaField => {
   const input = record(value, path)
   required(input, "key", path)
   required(input, "type", path)
@@ -131,23 +131,23 @@ const field = (value: unknown, path: string): MetaFieldV1 => {
     input,
     ["key", "type", "required", "default", "label", "values", "id", "data"],
     path,
-  ) as unknown as MetaFieldV1
+  ) as unknown as MetaField
 }
 
-const state = (value: unknown, path: string): MetaStateV1 => {
+const state = (value: unknown, path: string): MetaState => {
   const input = record(value, path)
   const name = requiredString(input, "name", path)
   const transitions = input.transitions === undefined || input.transitions === null
     ? null
     : jsonValue(record(input.transitions, `${path}.transitions`), `${path}.transitions`)
-  return {name, transitions} as MetaStateV1
+  return {name, transitions} as MetaState
 }
 
-const mass = (value: unknown, path: string): MetaMassV1 => {
+const mass = (value: unknown, path: string): MetaMass => {
   const input = record(value, path)
   required(input, "key", path)
   required(input, "format", path)
-  return pick(input, ["key", "format", "label", "description"], path) as unknown as MetaMassV1
+  return pick(input, ["key", "format", "label", "description"], path) as unknown as MetaMass
 }
 
 const action = (
@@ -168,7 +168,7 @@ const handler = (
   return pick(input, ["src", "read", "write"], path)
 }
 
-const process = (value: unknown, path: string): MetaProcessV1 => {
+const process = (value: unknown, path: string): MetaProcess => {
   const input = record(value, path)
   const key = requiredString(input, "key", path)
   const source = record(required(input, "declaration", path), `${path}.declaration`)
@@ -193,10 +193,10 @@ const process = (value: unknown, path: string): MetaProcessV1 => {
   } else {
     throw new Error(`${path}.declaration.type must be action or finally`)
   }
-  return {key, declaration} as unknown as MetaProcessV1
+  return {key, declaration} as unknown as MetaProcess
 }
 
-const reaction = (value: unknown, path: string): MetaReactionV1 => {
+const reaction = (value: unknown, path: string): MetaReaction => {
   const input = record(value, path)
   return {
     key: requiredString(input, "key", path),
@@ -210,7 +210,7 @@ const reaction = (value: unknown, path: string): MetaReactionV1 => {
   }
 }
 
-const binding = (value: unknown, path: string): MetaMatterBindingV1 => {
+const binding = (value: unknown, path: string): MetaMatterBinding => {
   if (typeof value === "string") return value
   const input = record(value, path)
   const result = pick(input, ["data", "expr"], path)
@@ -238,10 +238,10 @@ const binding = (value: unknown, path: string): MetaMatterBindingV1 => {
       throw new Error(`${path}.directMass.kind must be whole or keys`)
     }
   }
-  return result as MetaMatterBindingV1
+  return result as MetaMatterBinding
 }
 
-const matter = (value: unknown, path: string): MetaMatterParticleV1 => {
+const matter = (value: unknown, path: string): MetaMatterParticle => {
   const input = record(value, path)
   const kind = requiredString(input, "kind", path)
   let result: Record<string, unknown>
@@ -281,16 +281,16 @@ const matter = (value: unknown, path: string): MetaMatterParticleV1 => {
       }
     })
   }
-  return result as unknown as MetaMatterParticleV1
+  return result as unknown as MetaMatterParticle
 }
 
-/** Projects the current compact MetaDSL into the one public MetaTemplateV1 shape. */
-export const normalizeMetaTemplateV1 = (
+/** Projects the current compact MetaDSL into the one public MetaTemplate shape. */
+export const normalizeMetaTemplate = (
   value: MetaDSL,
   address: string,
-): MetaTemplateV1 => {
+): MetaTemplate => {
   const input = record(value, `MetaDSL(${address})`)
-  const result: MetaTemplateV1 = {
+  const result: MetaTemplate = {
     name: requiredString(input, "name", `MetaDSL(${address})`),
     fields: array(
       required(input, "fields", `MetaDSL(${address})`),
@@ -400,11 +400,11 @@ const rootParam = (params: unknown): MetaAddress => {
 export const readDarkDeclarationProjection = async (
   params: unknown,
   readMeta: MetaLoader = loadMeta,
-): Promise<DarkDeclarationProjectionV1> => {
+): Promise<DarkGraphTemplate> => {
   const root = rootParam(params)
-  const template = {} as MetaJSONV1["template"]
+  const template = {} as Graph["template"]
   for await (const {address, dsl} of loadMetaDeclarationGraph(root, readMeta)) {
-    template[address] = normalizeMetaTemplateV1(dsl, address)
+    template[address] = normalizeMetaTemplate(dsl, address)
   }
   return {root, template}
 }

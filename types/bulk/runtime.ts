@@ -12,12 +12,13 @@ export interface BulkRuntimeMatterParticle {
   particleOrder: number
   predicateBinding?: {
     data: string | string[]
-    expr: string
+    expr?: string
   }
   fieldsBinding?: {
     data: string | string[]
-    expr: string
+    expr?: string
   }
+  targetSrc?: string
   massBinding?: MatterBindingValue
   energyBinding?: MatterBindingValue
 }
@@ -88,6 +89,21 @@ export interface BulkRuntimeAtomState {
   state: number | null
 }
 
+/** The exact semantic facet touched by one accepted Bulk projection update. */
+export type BulkProjectionFacet =
+  | "current-state"
+  | "field-value"
+  | "none"
+  | "structure"
+
+/** Addressable result of applying one Particle to the persistent projection. */
+export type BulkProjectionChange = Readonly<{
+  changed: boolean
+  affectedAtomIds: number[]
+  facet: BulkProjectionFacet
+  structural: boolean
+}>
+
 export interface BulkRuntimeValue {
   id: number
   kind: "null" | "boolean" | "number" | "string" | "enum" | "list"
@@ -108,7 +124,12 @@ export interface BulkRuntimeMatterChildBindingPath extends BulkRuntimeMatterBind
   childOrder: number
 }
 
-/** Local Bulk projection assembled incrementally from ordinary particles. */
+/**
+ * Bulk-local semantic projection derived from a validated Graph cut.
+ * Numeric keys belong only to this adapter/render model and are never public
+ * Boundary identities. Legacy fixture lifecycles may still apply Particles to
+ * an already recorded projection without changing this production source law.
+ */
 export interface BulkRuntimeProjection {
   atoms: AtomRecord[]
   topologies: TopologyRecord[]

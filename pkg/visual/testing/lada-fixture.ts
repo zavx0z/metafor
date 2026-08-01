@@ -1,8 +1,7 @@
 import type {BulkObserverSnapshot} from "@metafor/types/bulk/initial"
 import type {BulkManifest} from "@metafor/types/bulk/manifest"
-import {buildBulkManifestation} from "../../../bulk/manifestation.ts"
-import {BulkProjectionStore} from "../../../bulk/projection.ts"
-import {buildStateGraph} from "../src/StateGraph.ts"
+import type {BulkRuntimeProjection} from "@metafor/types/bulk/runtime"
+import {BulkVisualSceneLifecycle} from "bulk/visual"
 import type {VisualLayoutInput} from "../src/internal/layout.ts"
 import snapshotJson from "../playground/fixture/monad-snapshot.json"
 
@@ -90,11 +89,9 @@ export const renderableLadaManifest = (source: BulkManifest): BulkManifest => {
 /** The complete Lada snapshot as canonical semantic manifestation. */
 export const ladaManifest = (): BulkManifest => {
   const snapshot = snapshotJson as BulkObserverSnapshot
-  const projection = new BulkProjectionStore()
-  projection.hydrate(structuredClone(snapshot.projection))
-  return renderableLadaManifest(
-    buildBulkManifestation(projection.view(), snapshot.rootSrc),
-  )
+  const lifecycle = new BulkVisualSceneLifecycle()
+  lifecycle.prepare(structuredClone(snapshot))
+  return renderableLadaManifest(lifecycle.state().manifest)
 }
 
 /**
@@ -108,26 +105,15 @@ export const ladaManifest = (): BulkManifest => {
 export const ladaLayoutInput = (
   mutate: (manifest: BulkManifest) => BulkManifest = (value) => value,
   mutateProjection: (
-    projection: BulkProjectionStore,
+    projection: BulkRuntimeProjection,
   ) => void = () => {},
 ): VisualLayoutInput => {
-  const snapshot = snapshotJson as BulkObserverSnapshot
-  const projection = new BulkProjectionStore()
-  projection.hydrate(structuredClone(snapshot.projection))
-  mutateProjection(projection)
-  const runtime = projection.view()
+  const snapshot = structuredClone(snapshotJson) as BulkObserverSnapshot
+  mutateProjection(snapshot.projection.runtime)
+  const lifecycle = new BulkVisualSceneLifecycle()
+  lifecycle.prepare(snapshot)
   const manifest = mutate(
-    renderableLadaManifest(
-      buildBulkManifestation(runtime, snapshot.rootSrc),
-    ),
+    renderableLadaManifest(lifecycle.state().manifest),
   )
-  return {
-    manifest,
-    owners: manifest.darkParticles
-      .filter((particle) => particle.darkParticleKind === "atom")
-      .map((particle) => ({
-        graph: buildStateGraph(runtime, particle.darkParticleId / 2),
-        ownerDarkParticleId: particle.darkParticleId,
-      })),
-  }
+  return lifecycle.layoutInput(manifest)
 }
