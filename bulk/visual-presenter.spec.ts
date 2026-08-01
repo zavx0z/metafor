@@ -79,7 +79,9 @@ describe("Bulk Visual scene presenter", () => {
     presenter.apply(viewport, manifest, projection)
 
     const result = presenter.apply(viewport, manifest, projection, {
+      affectedAtomIds: [],
       changed: false,
+      facet: "none",
       structural: false,
     })
 
@@ -100,8 +102,13 @@ describe("Bulk Visual scene presenter", () => {
         index === 0 ? {...field, valueText: "presenter-probe"} : field
       ),
     }
+    // `centered-nested` groups by canonical Value identity, so re-rendering the
+    // same Value's text moves no placement even though the facet is one this
+    // strategy does read for placement.
     const result = presenter.apply(viewport, changed, projection, {
+      affectedAtomIds: [],
       changed: true,
+      facet: "field-value",
       structural: false,
     })
 
@@ -122,7 +129,9 @@ describe("Bulk Visual scene presenter", () => {
     presenter.apply(viewport, manifest, projection)
 
     const result = presenter.apply(viewport, manifest, projection, {
+      affectedAtomIds: [],
       changed: true,
+      facet: "structure",
       structural: true,
     })
 
@@ -168,8 +177,12 @@ describe("Bulk Visual scene presenter", () => {
     presenter.selectLayout(OutsideIn)
     expect(presenter.payload).toBeNull()
 
+    // Non-structural upstream, yet the strategy itself changed: there is no
+    // prior payload under the new law to narrow against.
     const result = presenter.apply(viewport, manifest, projection, {
+      affectedAtomIds: [],
       changed: true,
+      facet: "current-state",
       structural: false,
     })
 

@@ -151,10 +151,29 @@ export const visualOwnerDarkParticleIdFromAtomId = (
   return ownerDarkParticleId
 }
 
+/**
+ * Which non-structural upstream facts this strategy's placement law reads.
+ *
+ * A strategy declares this because the answer is genuinely strategy-specific
+ * and cannot be inferred from the change alone. `centered-nested` groups Fields
+ * by canonical Value and lifts a shared group to the highest common owner, so
+ * rebinding a Value physically relocates markers; `outside-in` places every
+ * Field in its own owner's core and only carries `valueId` as data, so the same
+ * rebinding moves nothing. Reading a change as appearance-only without asking
+ * the strategy is how a Field Value edit silently leaves stale geometry.
+ */
+export type VisualPlacementSensitivity = Readonly<{
+  /** Whether the current-State marker participates in placement. */
+  currentState: boolean
+  /** Whether a Field Value or binding participates in placement. */
+  fieldValue: boolean
+}>
+
 export type VisualLayout = Readonly<{
   buildScene(input: VisualLayoutInput): VisualScene
   description: string
   label: string
+  placement: VisualPlacementSensitivity
   slug: VisualLayoutSlug
   status: VisualLayoutStatus
 }>
@@ -194,6 +213,7 @@ export const defineVisualLayout = (
 ): VisualLayout => {
   const defined: VisualLayout = Object.freeze({
     ...layout,
+    placement: Object.freeze({...layout.placement}),
     buildScene: (input: VisualLayoutInput): VisualScene => {
       builtScenes++
       return layout.buildScene(input)

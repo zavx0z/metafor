@@ -87,17 +87,36 @@ const ownerWithSiblingStates = (
 /** The declarative scenario catalog the page offers. */
 export const visualStoryScenarios: readonly VisualStoryScenario[] = [
   {
+    id: "labels",
+    label: "Подписи",
+    description:
+      "Меняет только подписи и пропускает время. Ни одна стратегия не " +
+      "читает подпись при размещении, поэтому геометрия не пересобирается.",
+    build: (manifest, owners) => ({
+      name: "labels",
+      events: [
+        visualStoryRelabelTorus(rootTorusId(manifest), "Story root"),
+        visualStoryWait(16),
+        visualStoryRelabelTorus(deepestLeafAtomId(manifest), "Story leaf"),
+        visualStoryRelabelTorus(rootTorusId(manifest), "Story root снова"),
+      ],
+      initial: () => ({manifest, owners}),
+    }),
+  },
+  {
     id: "field-values",
     label: "Значения Fields",
     description:
-      "Меняет отображаемые значения и подпись. Каждый шаг остаётся " +
-      "appearance-only: геометрия не пересобирается.",
+      "Перепривязывает Value одного Field. Стоимость решает стратегия: " +
+      "centered-nested группирует Fields по Value и поднимает общую группу " +
+      "к общему владельцу, поэтому это вход размещения (geometry); " +
+      "outside-in сажает Field у ядра своего владельца и несёт Value как " +
+      "данные, поэтому там тот же шаг — перекраска (appearance).",
     build: (manifest, owners) => ({
       name: "field-values",
       events: [
         visualStorySetFieldValue(firstField(manifest), "story: шаг 1"),
         visualStoryWait(16),
-        visualStoryRelabelTorus(rootTorusId(manifest), "Story root"),
         visualStorySetFieldValue(firstField(manifest), "story: шаг 2"),
       ],
       initial: () => ({manifest, owners}),
@@ -141,7 +160,7 @@ export const visualStoryScenarios: readonly VisualStoryScenario[] = [
     build: (manifest, owners) => ({
       name: "topology",
       events: [
-        visualStorySetFieldValue(firstField(manifest), "до удаления"),
+        visualStoryRelabelTorus(rootTorusId(manifest), "до удаления"),
         visualStoryRemoveAtom(deepestLeafAtomId(manifest)),
       ],
       initial: () => ({manifest, owners}),

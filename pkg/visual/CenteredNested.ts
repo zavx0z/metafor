@@ -925,5 +925,12 @@ export const CenteredNested = defineVisualLayout({
   status: "ready",
   description:
     "Общий центр вложенных Torus: private Fields остаются в ядре владельца, а общие canonical Values — у верхнего общего предка.",
+  /**
+   * `fieldValueGroupKey` keys every Field group by canonical Value, and a group
+   * owned by more than one Atom is relocated to the highest common owner in a
+   * `shared` band. Rebinding a Value therefore regroups and moves markers, so a
+   * Value change is a geometry change here, never appearance-only.
+   */
+  placement: {currentState: false, fieldValue: true},
   buildScene: buildCenteredNestedVisualScene,
 })

@@ -373,5 +373,10 @@ export const OutsideIn = defineVisualLayout({
   status: "in-progress",
   description:
     "Раскладка в работе: полный Monad snapshot от корневого Atom внутрь каждого рекурсивного Atom.",
+  /**
+   * Every Field sits in its own owner's core and `valueId` travels as data, so
+   * rebinding a Value repaints a marker without moving it.
+   */
+  placement: {currentState: false, fieldValue: false},
   buildScene: buildOutsideInVisualScene,
 })

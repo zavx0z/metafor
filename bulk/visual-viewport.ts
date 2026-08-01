@@ -8,6 +8,7 @@ import {
   type VisualLayout,
   type VisualPatchSummary,
   type VisualScenePayload,
+  type VisualUpstreamChange,
 } from "@metafor/visual/layout/centered-nested"
 import {
   DEFAULT_BULK_VISUAL_LAYOUT,
@@ -19,6 +20,18 @@ export type BulkVisualViewportProjectionSink = Readonly<{
   applyVisualManifestPatch(projection: BulkVisualRenderManifest): void
 }>
 
+/**
+ * What a caller means when it does not say what changed: everything might have.
+ *
+ * A caller that knows better passes the real change; one that does not gets the
+ * only safe reading, which is a full rebuild rather than a silent narrowing.
+ */
+const FULL_UPSTREAM_CHANGE: VisualUpstreamChange = Object.freeze({
+  affectedAtomIds: Object.freeze([]),
+  changed: true,
+  facet: "structure",
+  structural: true,
+})
 /** What one applied change actually required of the visual scene. */
 export type BulkVisualApplyResult = Readonly<{
   payload: VisualScenePayload
@@ -88,20 +101,19 @@ export class BulkVisualScenePresenter {
   /**
    * Applies one changed manifestation.
    *
-   * `structural` is what the upstream projection reported for the change it
-   * applied. When the recomputed payload is identical the viewport is not
-   * touched at all and `projection` is `null`.
+   * The change is what the upstream projection reported, facet and affected
+   * closure included — it is classified against the selected strategy, because
+   * only the strategy knows whether the fact that moved is placement input. When
+   * the recomputed payload is identical the viewport is not touched at all and
+   * `projection` is `null`.
    */
   apply(
     viewport: BulkVisualViewportProjectionSink,
     semanticManifest: BulkManifest,
     projection: BulkRuntimeProjection,
-    change: Readonly<{changed: boolean; structural: boolean}> = {
-      changed: true,
-      structural: true,
-    },
+    change: VisualUpstreamChange = FULL_UPSTREAM_CHANGE,
   ): BulkVisualApplyResult {
-    const scope = classifyVisualInvalidation(change)
+    const scope = classifyVisualInvalidation(change, this.#layout)
     if (scope === "none" && this.#payload !== null) {
       return Object.freeze({
         payload: this.#payload,

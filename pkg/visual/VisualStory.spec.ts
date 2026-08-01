@@ -54,24 +54,37 @@ const leafAtomId = (): number => {
   return leaf.darkParticleId
 }
 
+const rootAtomId = (): number =>
+  ladaConditions().manifest.darkParticles[0]!.darkParticleId
+
+/**
+ * A story made only of facts no strategy reads for placement: labels, and one
+ * pause. What each frame must cost is stated once, next to the story, because
+ * that is the whole claim the story exists to make.
+ */
 const appearanceStory = (): VisualStoryDefinition => ({
-  description: "Displayed Values and labels change without moving geometry.",
+  description: "Labels change and time passes; nothing moves.",
   events: [
-    visualStorySetFieldValue(firstFieldParticleId(), "story-value-1"),
+    visualStoryRelabelTorus(rootAtomId(), "Story root"),
     visualStoryWait(16),
-    visualStoryRelabelTorus(
-      ladaConditions().manifest.darkParticles[0]!.darkParticleId,
-      "Story root",
-    ),
-    visualStorySetFieldValue(firstFieldParticleId(), "story-value-2"),
+    visualStoryRelabelTorus(leafAtomId(), "Story leaf"),
+    visualStoryRelabelTorus(rootAtomId(), "Story root again"),
   ],
   initial: ladaConditions,
   name: "lada-appearance",
 })
 
+const APPEARANCE_SCOPES = [
+  "structure", // the initial frame is always the whole scene
+  "appearance",
+  "none", // a pause moves virtual time and nothing else
+  "appearance",
+  "appearance",
+] as const
+
 const structuralStory = (): VisualStoryDefinition => ({
   events: [
-    visualStorySetFieldValue(firstFieldParticleId(), "before-removal"),
+    visualStoryRelabelTorus(rootAtomId(), "before-removal"),
     visualStoryRemoveAtom(leafAtomId()),
   ],
   initial: ladaConditions,
@@ -107,7 +120,7 @@ describe("Visual story engine", () => {
     const first = player.step()
     expect(first.index).toBe(1)
     expect(first.remaining).toBe(3)
-    expect(first.frame.label).toContain("story-value-1")
+    expect(first.frame.label).toContain("Story root")
 
     const second = player.step()
     expect(second.index).toBe(2)
@@ -143,7 +156,7 @@ describe("Visual story engine", () => {
     expect(run.layoutSlug).toBe("centered-nested")
     expect(run.frames.length).toBe(5)
     expect(run.trace.length).toBe(5)
-    expect(run.frames.at(-1)?.label).toContain("story-value-2")
+    expect(run.frames.at(-1)?.label).toContain("Story root again")
   })
 
   test("returns to the initial condition on reset", () => {
@@ -212,25 +225,47 @@ describe("Visual story engine", () => {
       layout: CenteredNested,
       story: appearanceStory(),
     })
-    const afterInitial = run.frames.slice(1)
 
-    for (const frame of afterInitial) {
-      expect(frame.invalidation).toBe("appearance")
+    expect(run.frames.map((frame) => frame.invalidation))
+      .toEqual([...APPEARANCE_SCOPES])
+    for (const frame of run.frames.slice(1)) {
       expect(frame.patch.kind).not.toBe("visual-replace-patch")
     }
-    const fieldFrame = afterInitial.find((frame) =>
-      frame.label.includes("story-value-1")
-    )!
-    expect(fieldFrame.summary.fields).toBe(1)
-    expect(fieldFrame.summary.tori).toBe(0)
-    expect(fieldFrame.summary.transitionBatches).toBe(0)
 
-    const relabelFrame = afterInitial.find((frame) =>
-      frame.label.startsWith("relabel")
+    const relabelFrame = run.frames.find((frame) =>
+      frame.label.endsWith("Story leaf")
     )!
     expect(relabelFrame.summary.tori).toBe(1)
     expect(relabelFrame.summary.fields).toBe(0)
+    expect(relabelFrame.summary.transitionBatches).toBe(0)
   })
+
+  test("lets the strategy decide what a Field Value rebinding costs", () => {
+    // `centered-nested` groups Fields by their canonical Value and lifts a
+    // shared group to the highest common owner, so rebinding one Field is
+    // placement input there. `outside-in` seats every Field against its own
+    // owner's core and carries the Value as data, so the same edit repaints.
+    // A story asserts what each strategy answers, never a single global answer.
+    const story = (): VisualStoryDefinition => ({
+      events: [
+        visualStorySetFieldValue(firstFieldParticleId(), "story-value-1"),
+      ],
+      initial: ladaConditions,
+      name: "lada-field-value",
+    })
+
+    expect(
+      runVisualStory({layout: CenteredNested, story: story()})
+        .frames.at(-1)?.invalidation,
+    ).toBe("geometry")
+
+    const repainted = runVisualStory({layout: OutsideIn, story: story()})
+      .frames.at(-1)!
+    expect(repainted.invalidation).toBe("appearance")
+    expect(repainted.patch.kind).toBe("visual-appearance-patch")
+    expect(repainted.summary.fields).toBe(1)
+    expect(repainted.summary.tori).toBe(0)
+  }, REAL_SCENE_TIMEOUT_MS)
 
   test("rebuilds the whole scene for a structural event", () => {
     const run = runVisualStory({
@@ -288,7 +323,7 @@ describe("Visual story engine", () => {
       .toBe(target.orbitalParticleId)
   })
 
-  test("changes causal activity as an appearance-only event", () => {
+  test("changes causal activity on the effects path", () => {
     const conditions = ladaConditions()
     const causal = (conditions.manifest.orbitalParticles ?? []).find(
       (particle) => particle.orbitalParticleKind === "process",
@@ -310,7 +345,10 @@ describe("Visual story engine", () => {
     })
     const frame = run.frames.at(-1)!
 
-    expect(frame.invalidation).toBe("appearance")
+    // Activity is animated overlay state on a placement nobody moved, so it
+    // owns its own scope — narrower than paint, and nowhere near geometry.
+    expect(frame.invalidation).toBe("effects")
+    expect(frame.patch.kind).toBe("visual-appearance-patch")
     expect(frame.summary.orbitals).toBeGreaterThan(0)
     expect(
       frame.payload.orbitals.find((orbital) =>
@@ -380,9 +418,8 @@ describe("Visual story engine", () => {
 
       expect(run.layoutSlug).toBe(layout.slug)
       expect(run.frames.length).toBe(5)
-      for (const frame of run.frames.slice(1)) {
-        expect(frame.invalidation).toBe("appearance")
-      }
+      expect(run.frames.map((frame) => frame.invalidation))
+        .toEqual([...APPEARANCE_SCOPES])
       expect(run.frames[0]?.payload.tori.length).toBeGreaterThanOrEqual(5)
     }
   }, REAL_SCENE_TIMEOUT_MS)

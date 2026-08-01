@@ -12,7 +12,7 @@ import {
 } from "bulk/web"
 import { DEFAULT_BULK_SCENE_SRC } from "bulk/settings"
 import { installBulkHud } from "./hud.ts"
-import { BulkProjectionStore } from "./projection.ts"
+import { BulkProjectionStore, type BulkProjectionChange } from "./projection.ts"
 import { observedRootSrc } from "./web/force-protocol.ts"
 import { buildBulkManifestation } from "./manifestation.ts"
 import {captureBulkViewportCanvas} from "./web/viewport-capture.ts"
@@ -43,12 +43,17 @@ const observerSnapshot = (): BulkObserverSnapshot => ({
 })
 
 /**
- * Applies one changed manifestation. `change` carries what the projection
- * reported, so a change that cannot move geometry avoids a full rebuild.
+ * Applies one changed manifestation.
+ *
+ * The whole change is forwarded, not a boolean digest of it: `facet` names the
+ * upstream fact that moved and `affectedAtomIds` is the closure it reached.
+ * Narrowing this to `{changed, structural}` here is what used to make every
+ * accepted change a full rebuild, because the visual side then had nothing to
+ * localize against.
  */
 const applyProjectionManifestation = (
 	src: string,
-	change: Readonly<{changed: boolean; structural: boolean}>,
+	change: BulkProjectionChange,
 ): void => {
 	if (!bulkViewport) return
 	presenter.apply(

@@ -5,22 +5,47 @@ import type {
   VisualPayloadFieldProxy,
   VisualPayloadOrbital,
   VisualPayloadTorus,
+  VisualPayloadTransitionBatch,
   VisualScenePayload,
 } from "./ScenePayload.ts"
+import type {VisualPlacementSensitivity} from "./internal/layout.ts"
 
 /**
  * How much visual work one upstream change actually requires.
  *
- * The order is meaningful: `none` < `appearance` < `structure`. Correctness
- * always wins over locality — a scope is only narrowed when the narrower scope
- * is provably sufficient, and any unrecognized change escalates to `structure`.
+ * The order is meaningful and monotone in the work each class implies:
+ * `none` < `story-control` < `camera` < `effects` < `appearance` < `relations`
+ * < `geometry` < `structure`. Correctness always wins over locality — a scope
+ * is only narrowed when the narrower scope is provably sufficient, and any
+ * unrecognized change escalates to `structure`.
+ *
+ * - `story-control` moves playback state only; nothing in the scene changes.
+ * - `camera` moves the `ViewPoint`; no scene entity changes.
+ * - `effects` changes animated or derived overlay state on existing entities.
+ * - `appearance` changes color, material or label on existing placements.
+ * - `relations` changes relation edges between unchanged placements.
+ * - `geometry` moves placements while every identity survives.
+ * - `structure` changes the identity set itself.
  */
-export type VisualInvalidationScope = "none" | "appearance" | "structure"
+export type VisualInvalidationScope =
+  | "none"
+  | "story-control"
+  | "camera"
+  | "effects"
+  | "appearance"
+  | "relations"
+  | "geometry"
+  | "structure"
 
 const SCOPE_RANK: Readonly<Record<VisualInvalidationScope, number>> = {
   none: 0,
-  appearance: 1,
-  structure: 2,
+  "story-control": 1,
+  camera: 2,
+  effects: 3,
+  appearance: 4,
+  relations: 5,
+  geometry: 6,
+  structure: 7,
 }
 
 /** The wider of two scopes. */
@@ -31,33 +56,91 @@ export const widenVisualInvalidation = (
   SCOPE_RANK[left] >= SCOPE_RANK[right] ? left : right
 
 /**
+ * What an upstream change actually touched.
+ *
+ * A boolean `structural` flag is not enough to decide visual work, because two
+ * changes that are equally non-structural upstream can require different visual
+ * work depending on the strategy in use. The facet names the fact that moved so
+ * a strategy can answer for itself whether its placement law reads it.
+ */
+export type VisualUpstreamFacet =
+  | "appearance"
+  | "camera"
+  | "current-state"
+  | "effect"
+  | "field-value"
+  | "none"
+  | "relation"
+  | "story-control"
+  | "structure"
+
+/**
  * One upstream change already classified by the projection that applied it.
  *
- * `structural` means the change touched identity, ownership or declaration —
- * anything a layout strategy reads to place a shape. A non-structural change
- * that only rebinds an existing Field Value or moves the current State marker
- * cannot move geometry, because a layout's placement law never reads either.
+ * `structural` means the change touched identity, ownership or declaration.
+ * `affectedAtomIds` is the upstream closure of Atoms the change reached; it is
+ * carried through to the visual Store, which maps it onto visual identities —
+ * dropping it is what forces a full rebuild for a one-Atom edit.
  */
 export type VisualUpstreamChange = Readonly<{
+  affectedAtomIds: readonly number[]
   changed: boolean
+  facet: VisualUpstreamFacet
   structural: boolean
 }>
 
+/** What a strategy needs to know to classify a non-structural change. */
+type VisualPlacementReader = Readonly<{
+  placement: VisualPlacementSensitivity
+}>
+
 /**
- * Classifies one applied upstream change.
+ * Classifies one applied upstream change against the strategy in use.
  *
- * A Field Value edit (`gluon`) and a current-State move (`photon`) keep every
- * identity, ownership link and declaration intact, so the existing geometry
- * stays exact and only labels, colors and branch opacity can differ. Every
- * structural change — a new or removed Atom, a re-parent, a changed
- * declaration — can move shapes and therefore requires a full rebuild.
+ * The strategy is required because placement sensitivity is strategy-specific.
+ * Under `centered-nested` a Field Value rebinding regroups Fields by canonical
+ * Value and relocates a shared group to the highest common owner, so it is a
+ * geometry change; under `outside-in` the same rebinding only repaints. A
+ * classification that ignored the strategy would leave `centered-nested`
+ * rendering markers at coordinates the current Values no longer justify.
  */
 export const classifyVisualInvalidation = (
   change: VisualUpstreamChange,
+  layout: VisualPlacementReader,
 ): VisualInvalidationScope => {
   if (!change.changed) return "none"
-  return change.structural ? "structure" : "appearance"
+  if (change.structural) return "structure"
+  switch (change.facet) {
+    // Nothing semantic moved. Only a caller that already knows this — story
+    // playback advancing virtual time, for instance — reports it, and it is
+    // exactly the statement "the scene is still current".
+    case "none":
+      return "none"
+    case "story-control":
+      return "story-control"
+    case "camera":
+      return "camera"
+    case "effect":
+      return "effects"
+    case "relation":
+      return "relations"
+    // Paint on placements nobody moved: a label, a colour, a material.
+    case "appearance":
+      return "appearance"
+    case "field-value":
+      return layout.placement.fieldValue ? "geometry" : "appearance"
+    case "current-state":
+      return layout.placement.currentState ? "geometry" : "appearance"
+    // A change nobody named cannot be proven local, so it rebuilds.
+    default:
+      return "structure"
+  }
 }
+
+/** Whether a scope can be served without running a strategy's placement law. */
+export const visualScopeKeepsPlacements = (
+  scope: VisualInvalidationScope,
+): boolean => SCOPE_RANK[scope] < SCOPE_RANK.geometry
 
 export type VisualAppearancePatch = Readonly<{
   fieldProxies: readonly VisualPayloadFieldProxy[]
@@ -69,9 +152,42 @@ export type VisualAppearancePatch = Readonly<{
   transitionBatches: readonly VisualPayloadEdgeBatch[]
 }>
 
+/**
+ * One entity class as explicit renderer operations.
+ *
+ * `removed` carries identities rather than values, because that is all a
+ * renderer needs to release the GPU resources it holds for them, and the values
+ * themselves are already gone from the payload.
+ */
+export type VisualEntityDelta<Value> = Readonly<{
+  added: readonly Value[]
+  removed: readonly string[]
+  updated: readonly Value[]
+}>
+
+/**
+ * An exact structural patch.
+ *
+ * Emitted when the identity sets differ but both payloads came from the same
+ * strategy, so every difference is expressible as an add, an update or a
+ * remove. This is what lets a renderer keep the Mesh, geometry buffers,
+ * materials and line buffers of every entity the change did not name, instead
+ * of tearing the scene down because one Atom appeared.
+ */
+export type VisualDeltaPatch = Readonly<{
+  fieldProxies: VisualEntityDelta<VisualPayloadFieldProxy>
+  fields: VisualEntityDelta<VisualPayloadField>
+  kind: "visual-delta-patch"
+  orbitals: VisualEntityDelta<VisualPayloadOrbital>
+  relationBatches: VisualEntityDelta<VisualPayloadEdgeBatch>
+  tori: VisualEntityDelta<VisualPayloadTorus>
+  transitionBatches: VisualEntityDelta<VisualPayloadTransitionBatch>
+}>
+
 export type VisualScenePatch =
   | Readonly<{kind: "visual-none-patch"}>
   | VisualAppearancePatch
+  | VisualDeltaPatch
   | Readonly<{kind: "visual-replace-patch"; payload: VisualScenePayload}>
 
 /** Counts of what a patch actually asks a renderer to touch. */
@@ -201,6 +317,117 @@ const fieldProxyId = (proxy: VisualPayloadFieldProxy): string =>
   proxy.fieldProxyId
 const batchId = (batch: VisualPayloadEdgeBatch): string => batch.batchId
 
+/** Explicit add / update / remove for one entity class. */
+const entityDelta = <Value>(
+  current: readonly Value[],
+  next: readonly Value[],
+  identity: (value: Value) => string,
+  same: (left: Value, right: Value) => boolean,
+): VisualEntityDelta<Value> => {
+  const currentById = new Map(current.map((value) => [identity(value), value]))
+  const added: Value[] = []
+  const updated: Value[] = []
+  const nextIds = new Set<string>()
+  for (const value of next) {
+    const id = identity(value)
+    nextIds.add(id)
+    const previous = currentById.get(id)
+    if (previous === undefined) added.push(value)
+    else if (!same(previous, value)) updated.push(value)
+  }
+  const removed = [...currentById.keys()].filter((id) => !nextIds.has(id))
+  return Object.freeze({
+    added: Object.freeze(added),
+    removed: Object.freeze(removed),
+    updated: Object.freeze(updated),
+  })
+}
+
+/**
+ * A batch changes exactly when its fingerprint changes, so batch deltas compare
+ * the digest instead of several hundred thousand sampled coordinates.
+ */
+const sameBatch = (
+  left: VisualPayloadEdgeBatch,
+  right: VisualPayloadEdgeBatch,
+): boolean => left.fingerprint === right.fingerprint
+
+/** Facts a delta cannot express, because they re-specify every mesh at once. */
+const sameGlobalPayloadShape = (
+  current: VisualScenePayload,
+  next: VisualScenePayload,
+): boolean =>
+  current.layoutSlug === next.layoutSlug &&
+  current.stats.rootSrc === next.stats.rootSrc &&
+  current.darkTorusMeshDetail.radialSegments ===
+    next.darkTorusMeshDetail.radialSegments &&
+  current.darkTorusMeshDetail.tubularSegments ===
+    next.darkTorusMeshDetail.tubularSegments &&
+  current.embeddedTorusMeshDetail.radialSegments ===
+    next.embeddedTorusMeshDetail.radialSegments &&
+  current.embeddedTorusMeshDetail.tubularSegments ===
+    next.embeddedTorusMeshDetail.tubularSegments &&
+  current.sphereMeshDetail.widthSegments ===
+    next.sphereMeshDetail.widthSegments &&
+  current.sphereMeshDetail.heightSegments ===
+    next.sphereMeshDetail.heightSegments
+
+/**
+ * Reconciles two payloads of the same strategy into explicit operations.
+ *
+ * Identity membership decides the operation, not the patch kind: an entity the
+ * next payload does not carry is removed by identity, a new identity is added
+ * with its full value, and a surviving identity whose rendered values moved is
+ * updated. Everything else is absent from the patch, which is exactly the
+ * statement "keep what you already have on the GPU".
+ */
+export const diffVisualScenePayload = (
+  current: VisualScenePayload,
+  next: VisualScenePayload,
+): VisualDeltaPatch => Object.freeze({
+  fieldProxies: entityDelta(
+    current.fieldProxies,
+    next.fieldProxies,
+    fieldProxyId,
+    sameFieldProxy,
+  ),
+  fields: entityDelta(current.fields, next.fields, fieldId, sameField),
+  kind: "visual-delta-patch",
+  orbitals: entityDelta(current.orbitals, next.orbitals, orbitalId, sameOrbital),
+  relationBatches: entityDelta(
+    current.relationBatches,
+    next.relationBatches,
+    batchId,
+    sameBatch,
+  ),
+  tori: entityDelta(current.tori, next.tori, torusId, sameTorus),
+  transitionBatches: entityDelta(
+    current.transitionBatches,
+    next.transitionBatches,
+    batchId,
+    sameBatch,
+  ),
+})
+
+/** How many operations one delta patch actually asks for. */
+export const visualDeltaPatchOperations = (
+  patch: VisualDeltaPatch,
+): Readonly<{added: number; removed: number; updated: number}> => {
+  const classes = [
+    patch.tori,
+    patch.fields,
+    patch.orbitals,
+    patch.fieldProxies,
+    patch.transitionBatches,
+    patch.relationBatches,
+  ] as const
+  return Object.freeze({
+    added: classes.reduce((total, entry) => total + entry.added.length, 0),
+    removed: classes.reduce((total, entry) => total + entry.removed.length, 0),
+    updated: classes.reduce((total, entry) => total + entry.updated.length, 0),
+  })
+}
+
 /**
  * Whether two payloads describe the same set of visual entities. Identity
  * membership — not position — decides whether a narrow patch is even legal: a
@@ -226,18 +453,24 @@ export const sameVisualPayloadIdentities = (
 /**
  * Reconciles two payloads into the narrowest correct patch.
  *
- * When the identity sets match, only entities whose rendered values actually
- * moved are emitted, so an unchanged scene produces an empty patch and a
- * localized change produces a handful of entries. When identities differ the
- * result is an explicit full replacement — narrowing there would leave the
- * scene stale.
+ * Three outcomes, in order of locality. Matching identity sets give an
+ * appearance patch carrying only entities whose rendered values moved.
+ * Differing identity sets under one strategy and one mesh specification give an
+ * explicit delta — add, update and remove by identity — because that is enough
+ * to bring the scene up to date without touching anything else. Only a change
+ * that re-specifies the whole scene (another strategy, another Monad root,
+ * another mesh detail law) falls back to a replacement, since there every shape
+ * genuinely has to be rebuilt.
  */
 export const reconcileVisualScenePayload = (
   current: VisualScenePayload | null,
   next: VisualScenePayload,
 ): VisualScenePatch => {
-  if (current === null || !sameVisualPayloadIdentities(current, next)) {
+  if (current === null || !sameGlobalPayloadShape(current, next)) {
     return Object.freeze({kind: "visual-replace-patch", payload: next})
+  }
+  if (!sameVisualPayloadIdentities(current, next)) {
+    return diffVisualScenePayload(current, next)
   }
   const patch = Object.freeze({
     fieldProxies: changedEntries(
@@ -302,6 +535,28 @@ export const summarizeVisualScenePatch = (
       tori: payload.tori.length,
       total,
       transitionBatches: payload.transitionBatches.length,
+    })
+  }
+  if (patch.kind === "visual-delta-patch") {
+    // A delta counts operations, not entities: one removal is one thing the
+    // renderer must do, exactly like one add or one update.
+    const size = <Value>(delta: VisualEntityDelta<Value>): number =>
+      delta.added.length + delta.updated.length + delta.removed.length
+    const total = size(patch.tori) +
+      size(patch.fields) +
+      size(patch.orbitals) +
+      size(patch.fieldProxies) +
+      size(patch.transitionBatches) +
+      size(patch.relationBatches)
+    return Object.freeze({
+      fieldProxies: size(patch.fieldProxies),
+      fields: size(patch.fields),
+      kind: patch.kind,
+      orbitals: size(patch.orbitals),
+      relationBatches: size(patch.relationBatches),
+      tori: size(patch.tori),
+      total,
+      transitionBatches: size(patch.transitionBatches),
     })
   }
   const total = patch.tori.length +

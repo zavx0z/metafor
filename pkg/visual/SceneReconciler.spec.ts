@@ -11,10 +11,27 @@ import {
   reconcileVisualScenePayload,
   sameVisualPayloadIdentities,
   summarizeVisualScenePatch,
+  visualDeltaPatchOperations,
   widenVisualInvalidation,
+  type VisualUpstreamChange,
 } from "./SceneReconciler.ts"
 import type {VisualLayout} from "./internal/layout.ts"
 import {ladaLayoutInput} from "./testing/lada-fixture.ts"
+
+/**
+ * One applied upstream change. Defaults to the ordinary case — something did
+ * change and it was not structural — so each test states only the fact it is
+ * about.
+ */
+const upstream = (
+  change: Partial<VisualUpstreamChange>,
+): VisualUpstreamChange => ({
+  affectedAtomIds: [],
+  changed: true,
+  facet: "none",
+  structural: false,
+  ...change,
+})
 
 const payloadOf = (
   layout: VisualLayout,
@@ -92,20 +109,78 @@ const withoutLeafAtom = (manifest: BulkManifest): BulkManifest => {
 
 describe("Visual invalidation scope", () => {
   test("classifies an unchanged upstream particle as no work", () => {
-    expect(classifyVisualInvalidation({changed: false, structural: false}))
+    expect(classifyVisualInvalidation(upstream({changed: false}), CenteredNested))
       .toBe("none")
-    expect(classifyVisualInvalidation({changed: false, structural: true}))
-      .toBe("none")
+    expect(
+      classifyVisualInvalidation(
+        upstream({changed: false, facet: "structure", structural: true}),
+        CenteredNested,
+      ),
+    ).toBe("none")
   })
 
-  test("classifies a Value or current-State change as appearance-only", () => {
-    expect(classifyVisualInvalidation({changed: true, structural: false}))
-      .toBe("appearance")
+  test("reads a Field Value change through the selected strategy", () => {
+    // `centered-nested` groups Fields by canonical Value and lifts a shared
+    // group to the highest common owner, so a rebinding is placement input.
+    expect(
+      classifyVisualInvalidation(upstream({facet: "field-value"}), CenteredNested),
+    ).toBe("geometry")
+    // `outside-in` places Fields against their own owner core and only carries
+    // the Value as data, so the same fact repaints and nothing moves.
+    expect(
+      classifyVisualInvalidation(upstream({facet: "field-value"}), OutsideIn),
+    ).toBe("appearance")
+  })
+
+  test("reads a current-State change through the selected strategy", () => {
+    // Neither strategy places by current State today — both mark the active
+    // Orbital in place — so both answer paint. The classifier still asks,
+    // because the question belongs to the strategy and not to this switch.
+    for (const layout of [CenteredNested, OutsideIn]) {
+      expect(classifyVisualInvalidation(upstream({facet: "current-state"}), layout))
+        .toBe("appearance")
+    }
+  })
+
+  test("keeps a paint-only fact layout-agnostic", () => {
+    for (const layout of [CenteredNested, OutsideIn]) {
+      expect(classifyVisualInvalidation(upstream({facet: "appearance"}), layout))
+        .toBe("appearance")
+    }
+  })
+
+  test("maps every remaining named facet to its own scope", () => {
+    expect(classifyVisualInvalidation(upstream({facet: "none"}), CenteredNested))
+      .toBe("none")
+    expect(
+      classifyVisualInvalidation(
+        upstream({facet: "story-control"}),
+        CenteredNested,
+      ),
+    ).toBe("story-control")
+    expect(classifyVisualInvalidation(upstream({facet: "camera"}), CenteredNested))
+      .toBe("camera")
+    expect(classifyVisualInvalidation(upstream({facet: "effect"}), CenteredNested))
+      .toBe("effects")
+    expect(
+      classifyVisualInvalidation(upstream({facet: "relation"}), CenteredNested),
+    ).toBe("relations")
   })
 
   test("escalates any structural change to a full rebuild", () => {
-    expect(classifyVisualInvalidation({changed: true, structural: true}))
-      .toBe("structure")
+    expect(
+      classifyVisualInvalidation(
+        upstream({facet: "structure", structural: true}),
+        CenteredNested,
+      ),
+    ).toBe("structure")
+    // Structural wins even when the named facet would have been cheap.
+    expect(
+      classifyVisualInvalidation(
+        upstream({facet: "appearance", structural: true}),
+        CenteredNested,
+      ),
+    ).toBe("structure")
   })
 
   test("widens to the stricter of two scopes", () => {
@@ -114,6 +189,9 @@ describe("Visual invalidation scope", () => {
     expect(widenVisualInvalidation("appearance", "structure")).toBe("structure")
     expect(widenVisualInvalidation("structure", "appearance")).toBe("structure")
     expect(widenVisualInvalidation("none", "none")).toBe("none")
+    expect(widenVisualInvalidation("camera", "geometry")).toBe("geometry")
+    expect(widenVisualInvalidation("relations", "story-control"))
+      .toBe("relations")
   })
 })
 
@@ -199,23 +277,58 @@ describe("Visual scene reconciliation", () => {
     ).toBeGreaterThan(0)
   })
 
-  test("replaces the scene when an entity is added", () => {
+  test("adds an entity as an explicit delta rather than a replacement", () => {
     const whole = payloadOf(CenteredNested)
     const withoutLeaf = payloadOf(CenteredNested, withoutLeafAtom)
     const patch = reconcileVisualScenePayload(withoutLeaf, whole)
 
     expect(whole.tori.length).toBeGreaterThan(withoutLeaf.tori.length)
-    expect(patch.kind).toBe("visual-replace-patch")
     expect(sameVisualPayloadIdentities(withoutLeaf, whole)).toBe(false)
+    expect(patch.kind).toBe("visual-delta-patch")
+    if (patch.kind !== "visual-delta-patch") throw new Error("unreachable")
+
+    // Exactly the returning Atom is created; no Torus that already existed is
+    // released, which is what lets the renderer keep its Mesh and buffers.
+    expect(patch.tori.added.length).toBe(
+      whole.tori.length - withoutLeaf.tori.length,
+    )
+    expect(patch.tori.removed.length).toBe(0)
+    expect(visualDeltaPatchOperations(patch).added).toBeGreaterThan(0)
   })
 
-  test("replaces the scene when an entity is removed", () => {
+  test("removes an entity by identity instead of rebuilding the scene", () => {
     const whole = payloadOf(CenteredNested)
     const withoutLeaf = payloadOf(CenteredNested, withoutLeafAtom)
     const patch = reconcileVisualScenePayload(whole, withoutLeaf)
 
-    expect(patch.kind).toBe("visual-replace-patch")
     expect(sameVisualPayloadIdentities(whole, withoutLeaf)).toBe(false)
+    expect(patch.kind).toBe("visual-delta-patch")
+    if (patch.kind !== "visual-delta-patch") throw new Error("unreachable")
+
+    // Only the departed Atom is named for release — that is how a renderer
+    // knows which GPU resources to free — and no surviving Torus is destroyed.
+    const removedTori = new Set(patch.tori.removed)
+    expect(removedTori.size).toBe(whole.tori.length - withoutLeaf.tori.length)
+    expect(patch.tori.added.length).toBe(0)
+    for (const torus of withoutLeaf.tori) {
+      expect(removedTori.has(String(torus.darkParticleId))).toBe(false)
+    }
+
+    // Honest about the cost: `centered-nested` derives an owner's radius from
+    // the subtree it contains, so a leaf's departure re-derives every ancestor
+    // and most placements genuinely move. The delta does not make a structural
+    // change cheap here — it makes it exact. What it buys over a replacement is
+    // that the renderer updates shapes it already owns and destroys only the
+    // handful it is told to, instead of tearing down all of them.
+    const operations = visualDeltaPatchOperations(patch)
+    const surviving = withoutLeaf.tori.length +
+      withoutLeaf.fields.length +
+      withoutLeaf.orbitals.length +
+      withoutLeaf.fieldProxies.length +
+      withoutLeaf.transitionBatches.length +
+      withoutLeaf.relationBatches.length
+    expect(operations.removed).toBeLessThan(surviving)
+    expect(operations.added).toBeLessThan(surviving)
   })
 
   test("replaces the scene when the layout strategy changes", () => {

@@ -10,6 +10,7 @@ import {
   type VisualInvalidationScope,
   type VisualPatchSummary,
   type VisualScenePatch,
+  type VisualUpstreamFacet,
 } from "./SceneReconciler.ts"
 import type {
   VisualLayout,
@@ -37,13 +38,18 @@ export type VisualStoryConditions = Readonly<{
 /**
  * A standard visual event.
  *
- * `structural` mirrors what an upstream projection reports for the change it
- * just applied, so a story exercises the same invalidation decision production
- * makes rather than a story-only shortcut.
+ * `facet` and `structural` mirror what an upstream projection reports for the
+ * change it just applied, so a story exercises the same invalidation decision
+ * production makes rather than a story-only shortcut. An event says which
+ * upstream fact it moved and lets the selected strategy decide what that costs:
+ * the same Field Value edit is placement input under one layout and paint under
+ * another, and a story that hardcoded either answer would prove nothing.
  */
 export type VisualStoryEvent = Readonly<{
   advanceMs?: number
+  affectedAtomIds?: readonly number[]
   apply: (conditions: VisualStoryConditions) => VisualStoryConditions
+  facet: VisualUpstreamFacet
   label: string
   structural: boolean
 }>
@@ -214,7 +220,12 @@ export const createVisualStoryPlayer = ({
     frames.push(buildFrame(
       frames.length,
       event.label,
-      classifyVisualInvalidation({changed: true, structural: event.structural}),
+      classifyVisualInvalidation({
+        affectedAtomIds: event.affectedAtomIds ?? [],
+        changed: true,
+        facet: event.facet,
+        structural: event.structural,
+      }, layout),
       currentFrame().payload,
     ))
     if (frames.length - 1 >= story.events.length) status = "finished"

@@ -5,9 +5,12 @@ import type {VisualStoryConditions, VisualStoryEvent} from "./VisualStory.ts"
  * Standard visual events.
  *
  * These are the reusable building blocks a story is written from. Each one
- * declares whether it is structural, which is what decides between a narrow
- * appearance update and a full rebuild. They keep the manifest coherent: an
- * event that removes an entity also removes everything that referenced it.
+ * declares the upstream fact it moved — its facet — and whether that fact is
+ * structural, exactly as an upstream projection would report it. The event does
+ * not decide what the change costs: the selected strategy does, because the same
+ * Field Value edit is placement input under one layout and paint under another.
+ * They keep the manifest coherent: an event that removes an entity also removes
+ * everything that referenced it.
  */
 
 const mapManifest = (
@@ -23,11 +26,19 @@ export const visualStoryWait = (advanceMs: number): VisualStoryEvent =>
   Object.freeze({
     advanceMs,
     apply: (conditions) => conditions,
+    facet: "none",
     label: `wait ${advanceMs}ms`,
     structural: false,
   })
 
-/** Changes one displayed Field Value. Appearance-only by construction. */
+/**
+ * Changes one displayed Field Value.
+ *
+ * Not appearance-only in general. `centered-nested` groups Fields by canonical
+ * Value and lifts a shared group to the highest common owner, so a rebinding
+ * moves geometry there; `outside-in` places Fields per owner core and only
+ * repaints. The event states the fact and each strategy answers for its own law.
+ */
 export const visualStorySetFieldValue = (
   fieldParticleId: string,
   valueText: string | null,
@@ -49,6 +60,7 @@ export const visualStorySetFieldValue = (
       ),
     }
   }),
+  facet: "field-value",
   label: `field ${fieldParticleId} = ${valueText ?? "null"}`,
   structural: false,
 })
@@ -111,6 +123,7 @@ export const visualStoryMoveCurrentState = (
       ),
     }
   },
+  facet: "current-state",
   label: `current state -> ${toOrbitalParticleId}`,
   structural: false,
 })
@@ -138,6 +151,7 @@ export const visualStorySetOrbitalActivity = (
       ),
     }
   }),
+  facet: "effect",
   label: `${orbitalParticleId} active=${active}`,
   structural: false,
 })
@@ -164,6 +178,7 @@ export const visualStoryRelabelTorus = (
       ),
     }
   }),
+  facet: "appearance",
   label: `relabel ${darkParticleId} -> ${label}`,
   structural: false,
 })
@@ -255,6 +270,7 @@ export const visualStoryRemoveAtom = (
       ),
     }
   },
+  facet: "structure",
   label: `remove atom ${darkParticleId}`,
   structural: true,
 })
@@ -317,6 +333,7 @@ export const visualStoryMoveAtom = (
       }),
     }
   }),
+  facet: "structure",
   label: `move atom ${darkParticleId} -> parent ${toParentDarkParticleId}`,
   structural: true,
 })

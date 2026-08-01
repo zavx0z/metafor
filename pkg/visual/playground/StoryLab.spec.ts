@@ -51,10 +51,10 @@ describe("Visual story stand", () => {
     }, REAL_SCENE_TIMEOUT_MS)
   }
 
-  test("keeps the appearance scenario off the geometry path", () => {
+  test("keeps the label scenario off the geometry path", () => {
     const {manifest, owners} = standInput()
     const scenario = visualStoryScenarios.find((entry) =>
-      entry.id === "field-values"
+      entry.id === "labels"
     )!
     const stand = createVisualStoryStand(
       scenario,
@@ -64,10 +64,41 @@ describe("Visual story stand", () => {
     )
     stand.player.finish()
 
+    // A pause moves virtual time and nothing else; every other step is a label.
+    expect(stand.player.frames().map((frame) => frame.invalidation))
+      .toEqual(["structure", "appearance", "none", "appearance", "appearance"])
     for (const frame of stand.player.frames().slice(1)) {
-      expect(frame.invalidation).toBe("appearance")
       expect(frame.patch.kind).not.toBe("visual-replace-patch")
       expect(frame.summary.total).toBeLessThan(20)
+    }
+  }, REAL_SCENE_TIMEOUT_MS)
+
+  test("lets the strategy price the Field Value scenario", () => {
+    const {manifest, owners} = standInput()
+    const scenario = visualStoryScenarios.find((entry) =>
+      entry.id === "field-values"
+    )!
+
+    // The same declared scenario, priced by each strategy's own placement law:
+    // `centered-nested` reads a Value rebinding as placement input, while
+    // `outside-in` carries the Value as data and only repaints.
+    const centered = createVisualStoryStand(
+      scenario,
+      CenteredNested,
+      manifest,
+      owners,
+    )
+    centered.player.finish()
+    expect(centered.player.frames().map((frame) => frame.invalidation))
+      .toEqual(["structure", "geometry", "none", "geometry"])
+
+    const outside = createVisualStoryStand(scenario, OutsideIn, manifest, owners)
+    outside.player.finish()
+    expect(outside.player.frames().map((frame) => frame.invalidation))
+      .toEqual(["structure", "appearance", "none", "appearance"])
+    for (const frame of outside.player.frames().slice(1)) {
+      expect(frame.patch.kind).not.toBe("visual-replace-patch")
+      expect(frame.summary.tori).toBe(0)
     }
   }, REAL_SCENE_TIMEOUT_MS)
 

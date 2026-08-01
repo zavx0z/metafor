@@ -63,7 +63,7 @@ describe("Bulk incremental projection", () => {
     store.apply(part("add", "atom/1", atom(1, "owner/root")))
     const change = store.apply({part: "gluon", op: "replace", path: 1, ts: 1, value: {fields: {"101": "new"}}})
 
-    expect(change).toEqual({changed: true, affectedAtomIds: [1], structural: false})
+    expect(change).toEqual({changed: true, affectedAtomIds: [1], facet: "field-value", structural: false})
     const binding = store.atomValues.get(["1", "101"].join("\0"))
     expect(binding).toBeDefined()
     expect(store.values.get(binding!.value)?.textValue).toBe("new")
@@ -79,6 +79,7 @@ describe("Bulk incremental projection", () => {
     expect(store.apply({part: "photon", op: "replace", path: 1, ts: 1, value: "ready"})).toEqual({
       changed: true,
       affectedAtomIds: [1],
+      facet: "current-state",
       structural: false,
     })
     expect(store.atomStates.get(1)?.state).toBe(202)

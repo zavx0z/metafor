@@ -30,7 +30,27 @@ type Address =
   | {kind: "topology"; id: number}
   | {kind: "declaration"; src: string; section: DeclarationSection; localId: string}
 
-export type BulkProjectionChange = {changed: boolean; affectedAtomIds: number[]; structural: boolean}
+/**
+ * What an accepted change actually touched, named by the dispatch that applied
+ * it rather than inferred downstream.
+ *
+ * A boolean `structural` flag cannot decide visual work on its own: a gluon
+ * rebinding a Field Value and a photon moving the current State are both
+ * non-structural here, yet a layout strategy may read one as placement input and
+ * the other as paint. Only this store knows which upstream fact moved, so it
+ * says so and lets each consumer decide what that costs it.
+ */
+export type BulkProjectionFacet =
+  | "current-state"
+  | "field-value"
+  | "none"
+  | "structure"
+
+export type BulkProjectionChange = {changed: boolean; affectedAtomIds: number[]; facet: BulkProjectionFacet; structural: boolean}
+
+/** A change that moved nothing. Fresh each call — callers own the array. */
+const unchanged = (): BulkProjectionChange =>
+  ({changed: false, affectedAtomIds: [], facet: "none", structural: false})
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)
@@ -155,16 +175,16 @@ export class BulkProjectionStore {
   private applyPart(part: Particle): BulkProjectionChange {
     if (part.part === "gluon") return this.applyGluon(part)
     if (part.part === "photon") return this.applyPhoton(part)
-    if (part.part !== "graviton") return {changed: false, affectedAtomIds: [], structural: false}
+    if (part.part !== "graviton") return unchanged()
     const target = address(part.path, part.value)
-    if (!target) return {changed: false, affectedAtomIds: [], structural: false}
+    if (!target) return unchanged()
     if (part.op === "test") {
       if (part.value !== undefined && !same(this.read(target), part.value)) throw new Error(`Bulk projection test failed at ${String(part.path)}`)
-      return {changed: false, affectedAtomIds: [], structural: false}
+      return unchanged()
     }
     if (part.op === "move" || part.op === "copy") return this.transfer(part, target)
     if (part.op === "remove") return this.remove(target)
-    if (part.op !== "add" && part.op !== "replace") return {changed: false, affectedAtomIds: [], structural: false}
+    if (part.op !== "add" && part.op !== "replace") return unchanged()
     return this.upsert(target, part.value)
   }
 
@@ -274,7 +294,7 @@ export class BulkProjectionStore {
   private upsert(target: Address, value: unknown): BulkProjectionChange {
     if (target.kind === "atom") return this.upsertAtom(target.id, value)
     if (target.kind === "topology") return this.upsertTopology(target.id, value)
-    if (!isRecord(value)) return {changed: false, affectedAtomIds: [], structural: false}
+    if (!isRecord(value)) return unchanged()
     let sections = this.declarations.get(target.src)
     if (!sections) {
       sections = new Map()
@@ -287,20 +307,20 @@ export class BulkProjectionStore {
     }
     const current = records.get(target.localId)
     if (current) {
-      if (same(current, value)) return {changed: false, affectedAtomIds: [], structural: false}
+      if (same(current, value)) return unchanged()
       patch(current, value)
     } else records.set(target.localId, clone(value))
     this.projectDeclaration(target, current ?? records.get(target.localId)!)
-    return {changed: true, affectedAtomIds: [...(this.atomIdsByWimp.get(target.src) ?? [])], structural: true}
+    return {changed: true, affectedAtomIds: [...(this.atomIdsByWimp.get(target.src) ?? [])], facet: "structure", structural: true}
   }
 
   private upsertAtom(id: number, value: unknown): BulkProjectionChange {
-    if (!isRecord(value)) return {changed: false, affectedAtomIds: [], structural: false}
+    if (!isRecord(value)) return unchanged()
     const rawAtom = isRecord(value.atom) ? value.atom : value
     const current = this.atoms.get(id)
     let changed = false
     if (current) {
-      if (!isRecord(rawAtom)) return {changed: false, affectedAtomIds: [], structural: false}
+      if (!isRecord(rawAtom)) return unchanged()
       if (!same(current, rawAtom)) {
         this.unlink("atom", id, current)
         patch(current as unknown as Record<string, unknown>, rawAtom)
@@ -308,7 +328,7 @@ export class BulkProjectionStore {
         changed = true
       }
     } else {
-      if (!isRecord(rawAtom) || rawAtom.id !== id || typeof rawAtom.wimp !== "string") return {changed: false, affectedAtomIds: [], structural: false}
+      if (!isRecord(rawAtom) || rawAtom.id !== id || typeof rawAtom.wimp !== "string") return unchanged()
       const atom = clone(rawAtom as unknown as AtomRecord)
       this.atoms.set(id, atom)
       this.link("atom", id, atom)
@@ -329,24 +349,24 @@ export class BulkProjectionStore {
         }
       }
     }
-    return {changed, affectedAtomIds: changed ? [id] : [], structural: changed}
+    return {changed, affectedAtomIds: changed ? [id] : [], facet: changed ? "structure" : "none", structural: changed}
   }
 
   private upsertTopology(id: number, value: unknown): BulkProjectionChange {
-    if (!isRecord(value)) return {changed: false, affectedAtomIds: [], structural: false}
+    if (!isRecord(value)) return unchanged()
     const current = this.topologies.get(id)
     if (current) {
-      if (same(current, value)) return {changed: false, affectedAtomIds: [], structural: false}
+      if (same(current, value)) return unchanged()
       this.unlink("topology", id, current)
       patch(current as unknown as Record<string, unknown>, value)
       this.link("topology", id, current)
     } else {
-      if (value.id !== id) return {changed: false, affectedAtomIds: [], structural: false}
+      if (value.id !== id) return unchanged()
       const topology = clone(value as unknown as TopologyRecord)
       this.topologies.set(id, topology)
       this.link("topology", id, topology)
     }
-    return {changed: true, affectedAtomIds: this.descendantAtoms(`topology:${id}`), structural: true}
+    return {changed: true, affectedAtomIds: this.descendantAtoms(`topology:${id}`), facet: "structure", structural: true}
   }
 
   private projectAtomValues(atomId: number, payload: Record<string, unknown>): boolean {
@@ -462,9 +482,9 @@ export class BulkProjectionStore {
   }
 
   private applyGluon(part: Particle): BulkProjectionChange {
-    if (typeof part.path !== "number" || !this.atoms.has(part.path)) return {changed: false, affectedAtomIds: [], structural: false}
+    if (typeof part.path !== "number" || !this.atoms.has(part.path)) return unchanged()
     const fields = resolveForceFieldsPayload(part.value)
-    if (!fields) return {changed: false, affectedAtomIds: [], structural: false}
+    if (!fields) return unchanged()
     let changed = false
     const affectedAtomIds = new Set<number>()
     for (const [rawField, rawValue] of Object.entries(fields)) {
@@ -477,6 +497,10 @@ export class BulkProjectionStore {
           this.atomValues.delete(key)
           this.values.delete(binding.value)
           for (const itemKey of [...this.valueItems.keys()]) if (itemKey.startsWith(`${binding.value}\0`)) this.valueItems.delete(itemKey)
+          // Unbinding reaches the Atom that held the binding; omitting it here
+          // reports a change with an empty closure, which downstream reads as
+          // "nothing to invalidate" and leaves the marker rendered.
+          affectedAtomIds.add(part.path)
           changed = true
         }
       } else if (part.op === "add" || part.op === "replace") {
@@ -495,36 +519,36 @@ export class BulkProjectionStore {
         throw new Error(`Bulk value test failed for atom ${part.path}, field ${field}`)
       }
     }
-    return {changed, affectedAtomIds: changed ? [...affectedAtomIds] : [], structural: false}
+    return {changed, affectedAtomIds: changed ? [...affectedAtomIds] : [], facet: changed ? "field-value" : "none", structural: false}
   }
 
   private applyPhoton(part: Particle): BulkProjectionChange {
     if (typeof part.path !== "number" || typeof part.value !== "string") {
-      return {changed: false, affectedAtomIds: [], structural: false}
+      return unchanged()
     }
     const atom = this.atoms.get(part.path)
-    if (!atom) return {changed: false, affectedAtomIds: [], structural: false}
+    if (!atom) return unchanged()
     const state = [...this.states.values()].find((entry) => entry.wimp === atom.wimp && entry.name === part.value)
-    if (!state) return {changed: false, affectedAtomIds: [], structural: false}
+    if (!state) return unchanged()
     const current = this.atomStates.get(part.path)
-    if (current?.state === state.id) return {changed: false, affectedAtomIds: [], structural: false}
+    if (current?.state === state.id) return unchanged()
     if (current) current.state = state.id
     else this.atomStates.set(part.path, {atom: part.path, state: state.id})
-    return {changed: true, affectedAtomIds: [part.path], structural: false}
+    return {changed: true, affectedAtomIds: [part.path], facet: "current-state", structural: false}
   }
 
   private remove(target: Address): BulkProjectionChange {
     if (target.kind === "atom" || target.kind === "topology") {
       const key = `${target.kind}:${target.id}`
       const exists = target.kind === "atom" ? this.atoms.has(target.id) : this.topologies.has(target.id)
-      if (!exists) return {changed: false, affectedAtomIds: [], structural: false}
+      if (!exists) return unchanged()
       const affected = this.descendantAtoms(key)
       this.removeBranch(key)
-      return {changed: true, affectedAtomIds: affected, structural: true}
+      return {changed: true, affectedAtomIds: affected, facet: "structure", structural: true}
     }
     const records = this.declarations.get(target.src)?.get(target.section)
     const record = records?.get(target.localId)
-    if (!record || !records?.delete(target.localId)) return {changed: false, affectedAtomIds: [], structural: false}
+    if (!record || !records?.delete(target.localId)) return unchanged()
     const id = Number(record.id)
     if (target.section === "fields") this.fields.delete(id)
     if (target.section === "variants") this.variants.delete(id)
@@ -535,14 +559,14 @@ export class BulkProjectionStore {
     if (target.section === "reactions") this.reactions.delete(id)
     if (target.section === "matter") this.matterParticles.delete(id)
     if (target.section === "meta") this.wimps.delete(target.src)
-    return {changed: true, affectedAtomIds: [...(this.atomIdsByWimp.get(target.src) ?? [])], structural: true}
+    return {changed: true, affectedAtomIds: [...(this.atomIdsByWimp.get(target.src) ?? [])], facet: "structure", structural: true}
   }
 
   private transfer(part: Particle, target: Address): BulkProjectionChange {
     const source = address(part.from)
-    if (!source || source.kind !== target.kind) return {changed: false, affectedAtomIds: [], structural: false}
+    if (!source || source.kind !== target.kind) return unchanged()
     const value = this.read(source)
-    if (value === undefined) return {changed: false, affectedAtomIds: [], structural: false}
+    if (value === undefined) return unchanged()
     if (part.op === "copy") {
       const copied = clone(value)
       if ((target.kind === "atom" || target.kind === "topology") && isRecord(copied)) copied.id = target.id
@@ -569,7 +593,7 @@ export class BulkProjectionStore {
         this.atomValues.set(`${target.id}\0${binding.field}`, binding)
       }
       this.rekeyChildren("atom", source.id, target.id)
-      return {changed: true, affectedAtomIds: [...new Set([source.id, target.id, ...affected.filter((id) => id !== source.id)])], structural: true}
+      return {changed: true, affectedAtomIds: [...new Set([source.id, target.id, ...affected.filter((id) => id !== source.id)])], facet: "structure", structural: true}
     }
     if (source.kind === "topology" && target.kind === "topology") {
       const topology = value as TopologyRecord
@@ -579,14 +603,14 @@ export class BulkProjectionStore {
       this.topologies.set(target.id, topology)
       this.link("topology", target.id, topology)
       this.rekeyChildren("topology", source.id, target.id)
-      return {changed: true, affectedAtomIds: this.descendantAtoms(`topology:${target.id}`), structural: true}
+      return {changed: true, affectedAtomIds: this.descendantAtoms(`topology:${target.id}`), facet: "structure", structural: true}
     }
     if (source.kind === "declaration" && target.kind === "declaration") {
       const sourceRecords = this.declarations.get(source.src)?.get(source.section)
       sourceRecords?.delete(source.localId)
       return this.upsert(target, value)
     }
-    return {changed: false, affectedAtomIds: [], structural: false}
+    return unchanged()
   }
 
   private link(kind: "atom" | "topology", id: number, entity: AtomRecord | TopologyRecord): void {
