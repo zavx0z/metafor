@@ -14,11 +14,15 @@
     "HermiteEdge.ts",
     "MeshDetail.ts",
     "OutsideIn.ts",
+    "payload.ts",
     "QuantumFilm.ts",
+    "ScenePayload.ts",
+    "SceneReconciler.ts",
     "SemanticVisual.ts",
     "README.md",
     "StateGraph.ts",
     "StateGraphLayout.ts",
+    "stories.ts",
     "Torus.ts",
     "VisualSceneViewport.ts",
     "Visual.ts",
@@ -26,9 +30,12 @@
     "VisualMaterial.ts",
     "VisualMaterialSpec.ts",
     "VisualRelations.ts",
+    "VisualStory.ts",
+    "VisualStoryEvents.ts",
     "index.ts",
     "layout.ts",
     "internal/dark-tree.ts",
+    "internal/fingerprint.ts",
     "internal/layout.ts",
     "internal/process-layout.ts",
     "internal/semantic-state-color.ts",
@@ -46,6 +53,14 @@
     "./layout/centered-nested": {
       "types": "./centered-nested.ts",
       "default": "./centered-nested.ts"
+    },
+    "./payload": {
+      "types": "./payload.ts",
+      "default": "./payload.ts"
+    },
+    "./stories": {
+      "types": "./stories.ts",
+      "default": "./stories.ts"
     },
     "./viewport": {
       "types": "./VisualSceneViewport.ts",

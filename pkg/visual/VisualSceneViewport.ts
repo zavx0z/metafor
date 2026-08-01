@@ -20,6 +20,10 @@ import type {
   VisualParticleForm,
   VisualScene,
 } from "./internal/layout.ts"
+import type {
+  VisualPayloadEdgeBatch,
+  VisualScenePayload,
+} from "./ScenePayload.ts"
 import {SPHERE_MESH_DETAIL} from "./MeshDetail.ts"
 import {
   DARK_TORUS_MESH_DETAIL,
@@ -64,10 +68,15 @@ export type VisualSceneViewport = Readonly<{
   setView(view: VisualSceneView): void
 }>
 
+/**
+ * Either source of a complete frame. `scene` is the in-process component scene;
+ * `payload` is the serializable form a server can prepare. Exactly one is given.
+ */
 export type CreateVisualSceneViewportOptions = Readonly<{
   canvas: HTMLCanvasElement
   height: number
-  scene: VisualScene
+  payload?: VisualScenePayload
+  scene?: VisualScene
   showLabels?: boolean
   width: number
 }>
@@ -171,6 +180,176 @@ const renderPath = (
     throw new Error(`Visual viewport path ${id} has fewer than two points`)
   }
   return Object.freeze({id, points})
+}
+
+/**
+ * Resolves a payload's local-frame positions into world positions.
+ *
+ * A payload stores each entity relative to its owner Torus, and each Torus
+ * relative to its parent, so world placement is one walk down the parent chain.
+ */
+const resolveWorldTorusCenters = (
+  payload: VisualScenePayload,
+): ReadonlyMap<number, Readonly<{x: number; y: number; z: number}>> => {
+  const byId = new Map(
+    payload.tori.map((torus) => [torus.darkParticleId, torus] as const),
+  )
+  const centers = new Map<
+    number,
+    Readonly<{x: number; y: number; z: number}>
+  >()
+  const resolve = (
+    id: number,
+    seen: ReadonlySet<number>,
+  ): Readonly<{x: number; y: number; z: number}> => {
+    const known = centers.get(id)
+    if (known) return known
+    const torus = byId.get(id)
+    if (!torus) throw new Error(`Visual payload Torus ${id} is absent`)
+    if (seen.has(id)) {
+      throw new Error(`Visual payload Torus ${id} is part of a cycle`)
+    }
+    const parentId = torus.parentDarkParticleId
+    const origin = parentId === null
+      ? {x: 0, y: 0, z: 0}
+      : resolve(parentId, new Set([...seen, id]))
+    const center = Object.freeze({
+      x: origin.x + torus.localX,
+      y: origin.y + torus.localY,
+      z: origin.z + torus.localZ,
+    })
+    centers.set(id, center)
+    return center
+  }
+  for (const torus of payload.tori) resolve(torus.darkParticleId, new Set())
+  return centers
+}
+
+/**
+ * Pure one-shot conversion from the serializable payload to GPU records.
+ *
+ * This is the thin-renderer entry: the payload already carries every form,
+ * material and sampled path, so the only work here is resolving owner-local
+ * coordinates into world space. No layout, curve building or batching occurs.
+ */
+export const buildVisualPayloadRenderPlan = (
+  payload: VisualScenePayload,
+): VisualSceneRenderPlan => {
+  const centers = resolveWorldTorusCenters(payload)
+  const ownerCenter = (
+    ownerDarkParticleId: number,
+  ): Readonly<{x: number; y: number; z: number}> => {
+    const center = centers.get(ownerDarkParticleId)
+    if (!center) {
+      throw new Error(
+        `Visual payload owner ${ownerDarkParticleId} has no resolved center`,
+      )
+    }
+    return center
+  }
+
+  const labels = payload.tori.flatMap((torus) => {
+    if (torus.src === null) return []
+    const center = ownerCenter(torus.darkParticleId)
+    return [Object.freeze({
+      color: Object.freeze([...torus.color]) as
+        readonly [number, number, number],
+      id: `dark-label:${torus.darkParticleId}`,
+      outerRadius: torus.radius + torus.tube,
+      text: torus.src,
+      x: center.x,
+      y: center.y,
+      z: center.z,
+    })]
+  })
+
+  const meshes = [
+    ...payload.tori.map((torus) => {
+      const center = ownerCenter(torus.darkParticleId)
+      return renderMesh({
+        form: {kind: "torus", radius: torus.radius, tube: torus.tube},
+        id: `dark:${torus.darkParticleId}`,
+        material: torus.material,
+        role: "dark",
+        x: center.x,
+        y: center.y,
+        z: center.z,
+      })
+    }),
+    ...payload.fields.map((field) => {
+      const owner = ownerCenter(field.ownerDarkParticleId)
+      return renderMesh({
+        form: {kind: "sphere", radius: field.radius},
+        id: `field:${field.fieldParticleId}`,
+        material: field.material,
+        role: "field",
+        x: owner.x + field.localX,
+        y: owner.y + field.localY,
+        z: owner.z + field.localZ,
+      })
+    }),
+    ...payload.orbitals.map((orbital) => {
+      const owner = ownerCenter(orbital.ownerDarkParticleId)
+      return renderMesh({
+        form: orbital.form,
+        id: `orbital:${orbital.orbitalParticleId}`,
+        material: orbital.material,
+        role: "orbital",
+        x: owner.x + orbital.localX,
+        y: owner.y + orbital.localY,
+        z: owner.z + orbital.localZ,
+      })
+    }),
+    ...payload.fieldProxies.map((proxy) => {
+      const owner = ownerCenter(proxy.ownerDarkParticleId)
+      return renderMesh({
+        form: proxy.form,
+        id: `field-proxy:${proxy.fieldProxyId}`,
+        material: proxy.material,
+        role: "field-proxy",
+        x: owner.x + proxy.localX,
+        y: owner.y + proxy.localY,
+        z: owner.z + proxy.localZ,
+      })
+    }),
+  ]
+
+  const payloadBatch = (
+    batch: VisualPayloadEdgeBatch,
+    kind: "relation" | "transition",
+  ): VisualSceneRenderLineBatch => {
+    const owner = ownerCenter(batch.ownerDarkParticleId)
+    return Object.freeze({
+      batchId: batch.batchId,
+      kind,
+      material: batch.material,
+      ownerDarkParticleId: batch.ownerDarkParticleId,
+      paths: Object.freeze(batch.paths.map((entry) => {
+        const points: Array<Readonly<{x: number; y: number; z: number}>> = []
+        for (let index = 0; index < entry.points.length; index += 3) {
+          points.push(Object.freeze({
+            x: owner.x + entry.points[index]!,
+            y: owner.y + entry.points[index + 1]!,
+            z: owner.z + entry.points[index + 2]!,
+          }))
+        }
+        return renderPath(entry.channelId, Object.freeze(points))
+      })),
+    })
+  }
+
+  return Object.freeze({
+    labels: Object.freeze(labels),
+    lineBatches: Object.freeze([
+      ...payload.transitionBatches.map((batch) =>
+        payloadBatch(batch, "transition")
+      ),
+      ...payload.relationBatches.map((batch) =>
+        payloadBatch(batch, "relation")
+      ),
+    ]),
+    meshes: Object.freeze(meshes),
+  })
 }
 
 /**
@@ -487,11 +666,19 @@ const addLabel = (
 export const createVisualSceneViewport = async ({
   canvas,
   height,
+  payload,
   scene,
   showLabels = true,
   width,
 }: CreateVisualSceneViewportOptions): Promise<VisualSceneViewport> => {
-  const plan = buildVisualSceneRenderPlan(scene)
+  if ((scene === undefined) === (payload === undefined)) {
+    throw new Error(
+      "Visual viewport requires exactly one of scene or payload",
+    )
+  }
+  const plan = scene !== undefined
+    ? buildVisualSceneRenderPlan(scene)
+    : buildVisualPayloadRenderPlan(payload!)
   const renderer = new Renderer()
   await renderer.init(canvas)
   renderer.setPixelRatio(window.devicePixelRatio || 1)

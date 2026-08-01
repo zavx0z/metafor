@@ -249,16 +249,17 @@ const assertSampledPaths = (
         path.batchId.length === 0 ||
         !/^[0-9a-f]{16}$/.test(path.batchFingerprint) ||
         !darkIds.has(path.ownerDarkParticleId) ||
-        path.path.length !== pointCount
+        path.points.length !== pointCount * 3
       ) {
         throw new Error(
           `Bulk Visual ${label} ${id(path)} has invalid component batch geometry`,
         )
       }
-      path.path.forEach((point, index) => {
-        assertFiniteNumber(point.x, `${label} ${id(path)} point ${index} x`)
-        assertFiniteNumber(point.y, `${label} ${id(path)} point ${index} y`)
-        assertFiniteNumber(point.z, `${label} ${id(path)} point ${index} z`)
+      path.points.forEach((coordinate, index) => {
+        assertFiniteNumber(
+          coordinate,
+          `${label} ${id(path)} coordinate ${index}`,
+        )
       })
       assertLineMaterial(path.material, `${label} ${id(path)} material`)
     }

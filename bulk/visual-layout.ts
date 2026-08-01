@@ -9,12 +9,11 @@ import type {
 import type {BulkRuntimeProjection} from "@metafor/types/bulk/runtime"
 import type {
   BulkVisualDarkMaterial,
-  BulkVisualFieldAlias,
   BulkVisualFieldMaterial,
   BulkVisualFieldProxyMaterial,
   BulkVisualFieldProxySphere,
   BulkVisualFieldProxyTorus,
-  BulkVisualLineMaterial,
+  BulkVisualLayoutSlug,
   BulkVisualOrbitalMaterial,
   BulkVisualOrbitalSphere,
   BulkVisualOrbitalTorus,
@@ -24,15 +23,12 @@ import type {
 } from "@metafor/types/bulk/visual"
 import {
   CenteredNested,
-  DARK_TORUS_MESH_DETAIL,
-  EMBEDDED_TORUS_MESH_DETAIL,
-  SPHERE_MESH_DETAIL,
   buildStateGraph,
-  compileVisualComponents,
+  buildVisualScenePayload,
   visualOwnerDarkParticleIdFromAtomId,
-  type VisualCompiledComponents,
-  type VisualFieldPlacement,
-  type VisualTorusPlacement,
+  type VisualLayout,
+  type VisualLayoutSlug,
+  type VisualScenePayload,
 } from "@metafor/visual/layout/centered-nested"
 
 export type {
@@ -44,23 +40,36 @@ export type {
   BulkVisualRenderManifest,
 } from "@metafor/types/bulk/visual"
 
-type Point = Readonly<{x: number; y: number; z: number}>
-type TransitionPathWithoutFingerprint =
-  Omit<BulkVisualTransitionPath, "batchFingerprint">
-type RelationPathWithoutFingerprint =
-  Omit<BulkVisualRelationPath, "batchFingerprint">
-type FingerprintablePath = Readonly<{
-  batchId: string
-  material: BulkVisualLineMaterial
-  ownerDarkParticleId: number
-  path: readonly Point[]
-}>
+/**
+ * Bulk's visual boundary.
+ *
+ * `pkg/visual` owns every coordinate, form, material and sampled path. Bulk
+ * contributes exactly two things: the deferred-Axion policy that decides what
+ * may reach a strategy, and the binding of each manifested Atom to its owner
+ * graph. Everything after that is the platform's serializable payload, adapted
+ * into the render shape the viewport already consumes.
+ */
 
-const subtract = (value: Point, origin: Point): Point => ({
-  x: value.x - origin.x,
-  y: value.y - origin.y,
-  z: value.z - origin.z,
-})
+/** The renderer slug union and the visual catalog must not drift apart. */
+type AssertSlugParity = BulkVisualLayoutSlug extends VisualLayoutSlug
+  ? VisualLayoutSlug extends BulkVisualLayoutSlug ? true : never
+  : never
+const _slugParity: AssertSlugParity = true
+void _slugParity
+
+/**
+ * Bulk's production strategy.
+ *
+ * Bulk depends on the side-effect-free `centered-nested` entrypoint rather than
+ * the catalog, so the in-progress `outside-in` implementation never reaches a
+ * production browser bundle. Any other strategy is supplied explicitly by the
+ * caller through the same `VisualLayout` contract — that is how the playground
+ * drives both strategies without Bulk resolving slugs itself.
+ */
+export const DEFAULT_BULK_VISUAL_LAYOUT: VisualLayout = CenteredNested
+
+export const DEFAULT_BULK_VISUAL_LAYOUT_SLUG: BulkVisualLayoutSlug =
+  CenteredNested.slug
 
 const exactIndex = <Key, Value>(
   entries: readonly Value[],
@@ -78,82 +87,16 @@ const exactIndex = <Key, Value>(
   return index
 }
 
-const FNV32_OFFSET = 0x811c9dc5
-const FNV32_PRIME = 0x01000193
-const SECOND_HASH_OFFSET = 0x9e3779b9
-const SECOND_HASH_PRIME = 0x5bd1e995
-const fingerprintNumberBuffer = new ArrayBuffer(8)
-const fingerprintNumberView = new DataView(fingerprintNumberBuffer)
-const fingerprintTextEncoder = new TextEncoder()
-
-const visualBatchFingerprint = (
-  batchId: string,
-  paths: readonly FingerprintablePath[],
-): string => {
-  let leftHash = FNV32_OFFSET
-  let rightHash = SECOND_HASH_OFFSET
-  const mixByte = (value: number): void => {
-    leftHash = Math.imul(leftHash ^ value, FNV32_PRIME)
-    rightHash = Math.imul(rightHash ^ value, SECOND_HASH_PRIME)
-  }
-  const mixNumber = (value: number): void => {
-    fingerprintNumberView.setFloat64(0, value, false)
-    for (let index = 0; index < 8; index++) {
-      mixByte(fingerprintNumberView.getUint8(index))
-    }
-  }
-  const mixString = (value: string): void => {
-    const bytes = fingerprintTextEncoder.encode(value)
-    mixNumber(bytes.length)
-    bytes.forEach(mixByte)
-  }
-
-  mixString(batchId)
-  mixNumber(paths.length)
-  for (const entry of paths) {
-    mixNumber(entry.ownerDarkParticleId)
-    mixString(entry.material.kind)
-    mixString(entry.material.visibilityMode)
-    entry.material.color.forEach(mixNumber)
-    entry.material.glowColor.forEach(mixNumber)
-    mixNumber(entry.material.glowIntensity)
-    mixNumber(entry.material.opacity)
-    mixNumber(entry.path.length)
-    for (const point of entry.path) {
-      mixNumber(point.x)
-      mixNumber(point.y)
-      mixNumber(point.z)
-    }
-  }
-  return (
-    (leftHash >>> 0).toString(16).padStart(8, "0") +
-    (rightHash >>> 0).toString(16).padStart(8, "0")
-  )
-}
-
-const attachBatchFingerprints = <
-  Path extends FingerprintablePath,
->(
-  paths: readonly Path[],
-): readonly Readonly<Path & {batchFingerprint: string}>[] => {
-  const pathsByBatchId = Map.groupBy(paths, (path) => path.batchId)
-  const fingerprintByBatchId = new Map(
-    [...pathsByBatchId].map(([batchId, batch]) =>
-      [batchId, visualBatchFingerprint(batchId, batch)] as const
-    ),
-  )
-  return Object.freeze(paths.map((path) => Object.freeze({
-    ...path,
-    batchFingerprint: fingerprintByBatchId.get(path.batchId)!,
-  })))
-}
-
 /**
  * Bulk policy for the deferred Axion slice. Semantic Axion occurrences remain
  * in the canonical manifestation, but neither they nor geometry used only by
  * them are passed to a Visual strategy.
+ *
+ * Exported because every consumer that calls a named strategy directly — Bulk
+ * itself, and the playground's story stand — must apply the same policy first;
+ * a strategy rejects a manifest that still carries deferred geometry.
  */
-const renderableManifest = (source: BulkManifest): BulkManifest => {
+export const renderableManifest = (source: BulkManifest): BulkManifest => {
   const excludedDarkParticleIds = new Set(
     source.darkParticles
       .filter((particle) => particle.darkParticleKind === "axion")
@@ -274,537 +217,225 @@ const buildVisualOwners = (
     })
 }
 
-const visualFieldParticleId = (
-  placement: VisualFieldPlacement,
-): string => {
-  const identity = placement.fieldParticleIds
-    .map((id) => `${id.length}:${id}`)
-    .join("")
-  return `visual:${CenteredNested.slug}:field:${identity}`
-}
-
-const projectTori = (
-  source: BulkManifest,
-  scene: VisualCompiledComponents,
-): readonly BulkRenderDarkParticle[] => {
-  const visualById = exactIndex(
-    scene.tori,
-    (torus) => torus.darkParticleId,
-    "Torus",
-  )
-  const sourceById = exactIndex(
-    source.darkParticles,
-    (particle) => particle.darkParticleId,
-    "source Dark particle",
-  )
-  if (
-    visualById.size !== sourceById.size ||
-    [...sourceById.keys()].some((id) => !visualById.has(id))
-  ) {
-    throw new Error("Bulk Visual Torus identities do not match manifestation")
-  }
-  return source.darkParticles.map((particle) => {
-    const visual = visualById.get(particle.darkParticleId)!
-    const parent = particle.parentDarkParticleId === null
-      ? null
-      : visualById.get(particle.parentDarkParticleId)
-    if (particle.parentDarkParticleId !== null && !parent) {
-      throw new Error(
-        `Bulk Visual Torus parent ${particle.parentDarkParticleId} is absent`,
-      )
-    }
-    const local = parent
-      ? subtract(visual, parent)
-      : {x: visual.x, y: visual.y, z: visual.z}
-    return {
-      ...particle,
-      localX: local.x,
-      localY: local.y,
-      localZ: local.z,
-      torusRadius: visual.radius,
-      torusTube: visual.tube,
-      colorR: visual.color[0],
-      colorG: visual.color[1],
-      colorB: visual.color[2],
-    }
-  })
-}
-
-const projectFields = (
-  source: BulkManifest,
-  scene: VisualCompiledComponents,
-  torusById: ReadonlyMap<number, VisualTorusPlacement>,
-): Readonly<{
-  aliases: readonly BulkVisualFieldAlias[]
-  fields: readonly BulkRenderFieldParticle[]
-}> => {
-  const sourceById = exactIndex(
-    source.fieldParticles,
-    (field) => field.fieldParticleId,
-    "Field occurrence",
-  )
-  const consumed = new Set<string>()
-  const aliases: BulkVisualFieldAlias[] = []
-  const fields = scene.fields.map((placement) => {
-    if (placement.fieldParticleIds.length === 0) {
-      throw new Error("Bulk Visual Field placement has no source occurrence")
-    }
-    const sources = placement.fieldParticleIds.map((id) => {
-      const field = sourceById.get(id)
-      if (!field || consumed.has(id)) {
-        throw new Error(
-          `Bulk Visual Field occurrence ${id} is absent or repeated`,
-        )
-      }
-      consumed.add(id)
-      return field
-    })
-    const owner = torusById.get(placement.ownerDarkParticleId)
-    if (!owner) {
-      throw new Error(
-        `Bulk Visual Field owner ${placement.ownerDarkParticleId} is absent`,
-      )
-    }
-    const id = visualFieldParticleId(placement)
-    for (const sourceField of sources) {
-      aliases.push({
-        sourceFieldId: sourceField.fieldId,
-        sourceFieldParticleId: sourceField.fieldParticleId,
-        sourceParentDarkParticleId: sourceField.parentDarkParticleId,
-        visualFieldParticleId: id,
-      })
-    }
-    const local = subtract(placement, owner)
-    const labels = [...new Set(sources.map((field) => field.fieldLabel))]
-    return {
-      fieldParticleId: id,
-      fieldId: Math.min(...placement.fieldIds),
-      valueId: placement.valueId,
-      parentDarkParticleId: placement.ownerDarkParticleId,
-      fieldKey: placement.fieldKeys.join(" ∩ "),
-      fieldLabel: labels.join(" · "),
-      fieldParticleKind: placement.fieldParticleKind,
-      valueText: placement.valueText,
-      localX: local.x,
-      localY: local.y,
-      localZ: local.z,
-      sphereRadius: placement.radius,
-      colorR: placement.color[0],
-      colorG: placement.color[1],
-      colorB: placement.color[2],
-    }
-  })
-  if (consumed.size !== sourceById.size) {
-    const missing = [...sourceById.keys()].find((id) => !consumed.has(id))
-    throw new Error(`Bulk Visual Field occurrence ${missing} has no placement`)
-  }
-  return {aliases, fields}
-}
-
-const validateTransitionProjection = (
-  source: BulkManifest,
-  scene: VisualCompiledComponents,
-  torusById: ReadonlyMap<number, VisualTorusPlacement>,
-): readonly TransitionPathWithoutFingerprint[] => {
-  const sourceChannels = source.transitionChannels ?? []
-  const sourceById = exactIndex(
-    sourceChannels,
-    (channel) => channel.transitionChannelId,
-    "Transition channel",
-  )
-  const matched = new Set<string>()
-  const paths: TransitionPathWithoutFingerprint[] = []
-  const batchByTransitionChannelId = new Map(
-    scene.stateEdgeBatches.flatMap((batch) =>
-      batch.edges.map((edge) =>
-        [edge.transitionChannelId, batch] as const
-      )
-    ),
-  )
-  for (const sleeve of scene.stateSleeves) {
-    const owner = torusById.get(sleeve.ownerDarkParticleId)
-    if (!owner) {
-      throw new Error(
-        `Bulk Visual State owner ${sleeve.ownerDarkParticleId} is absent`,
-      )
-    }
-    for (const edge of sleeve.edges) {
-      const sourceChannel = edge.transitionChannelId === null
-        ? undefined
-        : sourceById.get(edge.transitionChannelId)
-      if (
-        edge.transitionChannelId === null ||
-        sourceChannel === undefined ||
-        matched.has(edge.transitionChannelId)
-      ) {
-        throw new Error(
-          `Bulk Visual State edge ${edge.edgeId} does not match one canonical Transition`,
-        )
-      }
-      matched.add(edge.transitionChannelId)
-      if (edge.path.length !== 65) {
-        throw new Error(
-          `Bulk Visual State edge ${edge.edgeId} has no production Hermite path`,
-        )
-      }
-      const batch = batchByTransitionChannelId.get(
-        edge.transitionChannelId,
-      )
-      if (!batch || batch.ownerDarkParticleId !== sleeve.ownerDarkParticleId) {
-        throw new Error(
-          `Bulk Visual State edge ${edge.edgeId} has no component batch`,
-        )
-      }
-      paths.push({
-        batchId: batch.batchId,
-        material: edge.material,
-        ownerDarkParticleId: sleeve.ownerDarkParticleId,
-        path: edge.path.map((point) => subtract(point, owner)),
-        returning: edge.returning,
-        transitionChannelId: edge.transitionChannelId,
-      })
-    }
-  }
-  if (
-    matched.size !== sourceChannels.length ||
-    sourceChannels.some((channel) => !matched.has(channel.transitionChannelId))
-  ) {
-    throw new Error(
-      "Bulk Visual State edges do not match source Transition channels",
-    )
-  }
-  return Object.freeze(paths)
-}
-
-const projectOrbitals = (
-  source: BulkManifest,
-  scene: VisualCompiledComponents,
-  torusById: ReadonlyMap<number, VisualTorusPlacement>,
-): Readonly<{
-  orbitalParticles: readonly BulkRenderOrbitalParticle[]
-  orbitalSpheres: readonly BulkVisualOrbitalSphere[]
-  orbitalTori: readonly BulkVisualOrbitalTorus[]
-}> => {
-  const sourceOrbitals = source.orbitalParticles ?? []
-  const sourceById = exactIndex(
-    sourceOrbitals,
-    (particle) => particle.orbitalParticleId,
-    "orbital occurrence",
-  )
-  const placementById = exactIndex(
-    scene.orbitals,
-    (placement) => placement.orbitalParticleId,
-    "orbital placement",
-  )
-  if (
-    sourceById.size !== placementById.size ||
-    [...sourceById.keys()].some((id) => !placementById.has(id))
-  ) {
-    throw new Error(
-      "Bulk Visual orbital placements do not match source manifestation",
-    )
-  }
-  const orbitalSpheres: BulkVisualOrbitalSphere[] = []
-  const orbitalTori: BulkVisualOrbitalTorus[] = []
-  const orbitalParticles = sourceOrbitals.map((particle) => {
-    const placement = placementById.get(particle.orbitalParticleId)!
-    const owner = torusById.get(particle.parentDarkParticleId)
-    if (
-      !owner ||
-      placement.ownerDarkParticleId !== particle.parentDarkParticleId
-    ) {
-      throw new Error(
-        `Bulk Visual orbital ${particle.orbitalParticleId} has an invalid owner`,
-      )
-    }
-    const toroidal =
-      particle.orbitalParticleKind === "state" ||
-      particle.orbitalParticleKind === "process" ||
-      particle.orbitalParticleKind === "finally"
-    if (
-      (toroidal &&
-        placement.form.kind !== "torus") ||
-      (!toroidal &&
-        placement.form.kind !== "sphere")
-    ) {
-      throw new Error(
-        `Bulk Visual orbital ${particle.orbitalParticleId} has an invalid form`,
-      )
-    }
-    if (placement.form.kind === "torus") {
-      orbitalTori.push({
-        orbitalParticleId: particle.orbitalParticleId,
-        radius: placement.form.radius,
-        tube: placement.form.tube,
-      })
-    } else {
-      orbitalSpheres.push({
-        orbitalParticleId: particle.orbitalParticleId,
-        radius: placement.form.radius,
-      })
-    }
-    const local = subtract(placement, owner)
-    return {
-      ...particle,
-      relatedStateIds: [...particle.relatedStateIds],
-      localX: local.x,
-      localY: local.y,
-      localZ: local.z,
-      colorR: placement.color[0],
-      colorG: placement.color[1],
-      colorB: placement.color[2],
-    }
-  })
-  return {orbitalParticles, orbitalSpheres, orbitalTori}
-}
-
-const projectFieldProxies = (
-  source: BulkManifest,
-  scene: VisualCompiledComponents,
-  torusById: ReadonlyMap<number, VisualTorusPlacement>,
-  fieldAliasById: ReadonlyMap<string, BulkVisualFieldAlias>,
-): Readonly<{
-  fieldProxies: readonly BulkRenderFieldProxy[]
-  fieldProxySpheres: readonly BulkVisualFieldProxySphere[]
-  fieldProxyTori: readonly BulkVisualFieldProxyTorus[]
-}> => {
-  const sourceProxies = source.fieldProxies ?? []
-  const sourceById = exactIndex(
-    sourceProxies,
-    (proxy) => proxy.fieldProxyId,
-    "Field proxy",
-  )
-  const placementById = exactIndex(
-    scene.fieldProxies,
-    (placement) => placement.fieldProxyId,
-    "Field proxy placement",
-  )
-  if (
-    sourceById.size !== placementById.size ||
-    [...sourceById.keys()].some((id) => !placementById.has(id))
-  ) {
-    throw new Error(
-      "Bulk Visual Field proxy placements do not match source manifestation",
-    )
-  }
-  const stateById = exactIndex(
-    (source.orbitalParticles ?? []).filter((particle) =>
-      particle.orbitalParticleKind === "state"
-    ),
-    (particle) => particle.orbitalParticleId,
-    "State occurrence",
-  )
-  const fieldProxySpheres: BulkVisualFieldProxySphere[] = []
-  const fieldProxyTori: BulkVisualFieldProxyTorus[] = []
-  const fieldProxies = sourceProxies.map((proxy) => {
-    const placement = placementById.get(proxy.fieldProxyId)!
-    const state = stateById.get(proxy.stateOrbitalParticleId)
-    const owner = torusById.get(proxy.parentDarkParticleId)
-    const alias = fieldAliasById.get(proxy.fieldParticleId)
-    if (
-      !state ||
-      state.parentDarkParticleId !== proxy.parentDarkParticleId ||
-      !owner ||
-      placement.ownerDarkParticleId !== proxy.parentDarkParticleId ||
-      !alias ||
-      alias.sourceFieldId !== proxy.fieldId ||
-      alias.sourceParentDarkParticleId !== proxy.parentDarkParticleId
-    ) {
-      throw new Error(
-        `Bulk Visual Field proxy ${proxy.fieldProxyId} has unresolved identity`,
-      )
-    }
-    if (placement.form.kind === "sphere") {
-      fieldProxySpheres.push({
-        fieldProxyId: proxy.fieldProxyId,
-        radius: placement.form.radius,
-      })
-    } else {
-      fieldProxyTori.push({
-        fieldProxyId: proxy.fieldProxyId,
-        radius: placement.form.radius,
-        tube: placement.form.tube,
-      })
-    }
-    const local = subtract(placement, owner)
-    return {
-      ...proxy,
-      fieldParticleId: alias.visualFieldParticleId,
-      localX: local.x,
-      localY: local.y,
-      localZ: local.z,
-      colorR: placement.color[0],
-      colorG: placement.color[1],
-      colorB: placement.color[2],
-    }
-  })
-  return {fieldProxies, fieldProxySpheres, fieldProxyTori}
-}
-
 const rewriteRelationEndpoint = (
   kind: BulkRelationChannel["fromKind"],
   id: string,
   fieldAliasById: ReadonlyMap<string, string>,
-): string => kind === "field"
-  ? fieldAliasById.get(id) ?? id
-  : id
+): string => kind === "field" ? fieldAliasById.get(id) ?? id : id
 
-const projectRelationPaths = (
-  source: BulkManifest,
-  scene: VisualCompiledComponents,
-  torusById: ReadonlyMap<number, VisualTorusPlacement>,
-): readonly RelationPathWithoutFingerprint[] => {
-  const sourceChannels = source.relationChannels ?? []
-  const sourceById = exactIndex(
-    sourceChannels,
-    (channel) => channel.relationChannelId,
-    "relation channel",
-  )
-  const edgeById = exactIndex(
-    scene.relationEdges,
-    (edge) => edge.relationChannelId,
-    "relation sampled edge",
-  )
-  const batchByRelationChannelId = new Map(
-    scene.relationEdgeBatches.flatMap((batch) =>
-      batch.edges.map((edge) =>
-        [edge.relationChannelId, batch] as const
-      )
-    ),
-  )
-  if (
-    sourceById.size !== edgeById.size ||
-    [...sourceById.keys()].some((id) => !edgeById.has(id))
-  ) {
-    throw new Error(
-      "Bulk Visual relation edges do not match source relation channels",
-    )
-  }
-  return Object.freeze(sourceChannels.map((channel) => {
-    const edge = edgeById.get(channel.relationChannelId)!
-    const owner = torusById.get(edge.ownerDarkParticleId)
-    const batch = batchByRelationChannelId.get(edge.relationChannelId)
-    if (
-      !owner ||
-      !batch ||
-      batch.ownerDarkParticleId !== edge.ownerDarkParticleId
-    ) {
-      throw new Error(
-        `Bulk Visual relation ${channel.relationChannelId} has no Torus owner`,
-      )
-    }
-    return Object.freeze({
-      batchId: batch.batchId,
-      material: edge.material,
-      ownerDarkParticleId: edge.ownerDarkParticleId,
-      path: edge.path.map((point) => subtract(point, owner)),
-      relationChannelId: edge.relationChannelId,
-    })
-  }))
-}
-
-const visualRelationChannel = (
-  channel: BulkRelationChannel,
-  fieldAliasById: ReadonlyMap<string, string>,
-  path: BulkVisualRelationPath,
-) => {
-  const color = path.material.color
-  return {
-    ...channel,
-    fromId: rewriteRelationEndpoint(
-      channel.fromKind,
-      channel.fromId,
-      fieldAliasById,
-    ),
-    toId: rewriteRelationEndpoint(
-      channel.toKind,
-      channel.toId,
-      fieldAliasById,
-    ),
-    colorR: color[0],
-    colorG: color[1],
-    colorB: color[2],
-  }
-}
-
-export const buildCenteredNestedBulkVisualManifest = (
+/**
+ * Adapts one platform payload into the render shape.
+ *
+ * Semantic attributes the payload does not carry — `metaSrc`, ordering,
+ * activity, related State ids — are read back from the canonical manifest by
+ * identity, so the renderer keeps the picking and navigation surface it already
+ * relies on without the payload duplicating semantics.
+ */
+const adaptRenderManifest = (
   semanticManifest: BulkManifest,
-  projection: BulkRuntimeProjection,
+  visualSource: BulkManifest,
+  payload: VisualScenePayload,
 ): BulkVisualRenderManifest => {
-  const visualSource = renderableManifest(semanticManifest)
-  const scene = CenteredNested.buildScene({
-    manifest: visualSource,
-    owners: buildVisualOwners(visualSource, projection),
-  })
-  const components = compileVisualComponents(scene.components)
-  const torusById = exactIndex(
-    components.tori,
+  const payloadTorusById = exactIndex(
+    payload.tori,
     (torus) => torus.darkParticleId,
-    "scene Torus",
+    "payload Torus",
   )
-  const darkParticles = projectTori(visualSource, components)
-  const projectedFields = projectFields(
-    visualSource,
-    components,
-    torusById,
+  const payloadOrbitalById = exactIndex(
+    payload.orbitals,
+    (orbital) => orbital.orbitalParticleId,
+    "payload orbital",
   )
-  const fieldAliasById = exactIndex(
-    projectedFields.aliases,
-    (alias) => alias.sourceFieldParticleId,
-    "Field alias",
+  const payloadProxyById = exactIndex(
+    payload.fieldProxies,
+    (proxy) => proxy.fieldProxyId,
+    "payload Field proxy",
   )
-  const aliasTargetBySourceId = new Map(
-    [...fieldAliasById].map(([sourceId, alias]) =>
-      [sourceId, alias.visualFieldParticleId] as const
+
+  const darkParticles: BulkRenderDarkParticle[] = visualSource.darkParticles
+    .map((particle) => {
+      const visual = payloadTorusById.get(particle.darkParticleId)
+      if (!visual) {
+        throw new Error(
+          `Bulk Visual Torus ${particle.darkParticleId} has no placement`,
+        )
+      }
+      return {
+        ...particle,
+        localX: visual.localX,
+        localY: visual.localY,
+        localZ: visual.localZ,
+        torusRadius: visual.radius,
+        torusTube: visual.tube,
+        colorR: visual.color[0],
+        colorG: visual.color[1],
+        colorB: visual.color[2],
+      }
+    })
+
+  const fieldParticles: BulkRenderFieldParticle[] = payload.fields.map(
+    (field) => ({
+      fieldParticleId: field.fieldParticleId,
+      fieldId: field.fieldId,
+      valueId: field.valueId,
+      parentDarkParticleId: field.ownerDarkParticleId,
+      fieldKey: field.fieldKey,
+      fieldLabel: field.fieldLabel,
+      fieldParticleKind: field.fieldParticleKind,
+      valueText: field.valueText,
+      localX: field.localX,
+      localY: field.localY,
+      localZ: field.localZ,
+      sphereRadius: field.radius,
+      colorR: field.color[0],
+      colorG: field.color[1],
+      colorB: field.color[2],
+    }),
+  )
+
+  const orbitalSpheres: BulkVisualOrbitalSphere[] = []
+  const orbitalTori: BulkVisualOrbitalTorus[] = []
+  const orbitalParticles: BulkRenderOrbitalParticle[] =
+    (visualSource.orbitalParticles ?? []).map((particle) => {
+      const visual = payloadOrbitalById.get(particle.orbitalParticleId)
+      if (!visual) {
+        throw new Error(
+          `Bulk Visual orbital ${particle.orbitalParticleId} has no placement`,
+        )
+      }
+      if (visual.form.kind === "torus") {
+        orbitalTori.push({
+          orbitalParticleId: particle.orbitalParticleId,
+          radius: visual.form.radius,
+          tube: visual.form.tube,
+        })
+      } else {
+        orbitalSpheres.push({
+          orbitalParticleId: particle.orbitalParticleId,
+          radius: visual.form.radius,
+        })
+      }
+      return {
+        ...particle,
+        relatedStateIds: [...particle.relatedStateIds],
+        localX: visual.localX,
+        localY: visual.localY,
+        localZ: visual.localZ,
+        colorR: visual.color[0],
+        colorG: visual.color[1],
+        colorB: visual.color[2],
+      }
+    })
+
+  const fieldProxySpheres: BulkVisualFieldProxySphere[] = []
+  const fieldProxyTori: BulkVisualFieldProxyTorus[] = []
+  const fieldProxies: BulkRenderFieldProxy[] =
+    (visualSource.fieldProxies ?? []).map((proxy) => {
+      const visual = payloadProxyById.get(proxy.fieldProxyId)
+      if (!visual) {
+        throw new Error(
+          `Bulk Visual Field proxy ${proxy.fieldProxyId} has no placement`,
+        )
+      }
+      if (visual.form.kind === "sphere") {
+        fieldProxySpheres.push({
+          fieldProxyId: proxy.fieldProxyId,
+          radius: visual.form.radius,
+        })
+      } else {
+        fieldProxyTori.push({
+          fieldProxyId: proxy.fieldProxyId,
+          radius: visual.form.radius,
+          tube: visual.form.tube,
+        })
+      }
+      return {
+        ...proxy,
+        fieldParticleId: visual.visualFieldParticleId,
+        localX: visual.localX,
+        localY: visual.localY,
+        localZ: visual.localZ,
+        colorR: visual.color[0],
+        colorG: visual.color[1],
+        colorB: visual.color[2],
+      }
+    })
+
+    // Paths are emitted in canonical source-channel order, not batch order:
+  // batches group by material, and material depends on branch activity, so
+  // batch order would make the render sequence shift when only activity moves.
+  const transitionBatchByChannelId = new Map(
+    payload.transitionBatches.flatMap((batch) =>
+      batch.paths.map((entry) => [entry.channelId, {batch, entry}] as const)
     ),
   )
-  const transitionPaths = attachBatchFingerprints(
-    validateTransitionProjection(
-      visualSource,
-      components,
-      torusById,
+  const transitionPaths: BulkVisualTransitionPath[] =
+    (visualSource.transitionChannels ?? []).map((channel) => {
+      const found = transitionBatchByChannelId.get(channel.transitionChannelId)
+      if (!found) {
+        throw new Error(
+          `Bulk Visual Transition ${channel.transitionChannelId} has no sampled path`,
+        )
+      }
+      return {
+        batchId: found.batch.batchId,
+        batchFingerprint: found.batch.fingerprint,
+        material: found.batch.material,
+        ownerDarkParticleId: found.batch.ownerDarkParticleId,
+        points: found.entry.points,
+        returning: found.batch.returning,
+        transitionChannelId: channel.transitionChannelId,
+      }
+    })
+
+  const relationBatchByChannelId = new Map(
+    payload.relationBatches.flatMap((batch) =>
+      batch.paths.map((entry) => [entry.channelId, {batch, entry}] as const)
     ),
   )
-  const projectedOrbitals = projectOrbitals(
-    visualSource,
-    components,
-    torusById,
-  )
-  const projectedProxies = projectFieldProxies(
-    visualSource,
-    components,
-    torusById,
-    fieldAliasById,
-  )
-  const relationPaths = attachBatchFingerprints(
-    projectRelationPaths(
-      visualSource,
-      components,
-      torusById,
-    ),
+  const relationPaths: BulkVisualRelationPath[] =
+    (visualSource.relationChannels ?? []).map((channel) => {
+      const found = relationBatchByChannelId.get(channel.relationChannelId)
+      if (!found) {
+        throw new Error(
+          `Bulk Visual relation ${channel.relationChannelId} has no sampled path`,
+        )
+      }
+      return {
+        batchId: found.batch.batchId,
+        batchFingerprint: found.batch.fingerprint,
+        material: found.batch.material,
+        ownerDarkParticleId: found.batch.ownerDarkParticleId,
+        points: found.entry.points,
+        relationChannelId: channel.relationChannelId,
+      }
+    })
+
+  const transitionPathById = exactIndex(
+    transitionPaths,
+    (path) => path.transitionChannelId,
+    "Transition package path",
   )
   const relationPathById = exactIndex(
     relationPaths,
     (path) => path.relationChannelId,
     "relation package path",
   )
-  const relationChannels = (visualSource.relationChannels ?? []).map(
-    (channel) => visualRelationChannel(
-      channel,
-      aliasTargetBySourceId,
-      relationPathById.get(channel.relationChannelId)!,
+  const aliasTargetBySourceId = new Map(
+    payload.fieldAliases.map((alias) =>
+      [alias.sourceFieldParticleId, alias.visualFieldParticleId] as const
     ),
   )
-  const transitionPathById = exactIndex(
-    transitionPaths,
-    (path) => path.transitionChannelId,
-    "Transition package path",
-  )
+
   const transitionChannels = (visualSource.transitionChannels ?? []).map(
     (channel) => {
-      const color = transitionPathById.get(
-        channel.transitionChannelId,
-      )!.material.color
+      const path = transitionPathById.get(channel.transitionChannelId)
+      if (!path) {
+        throw new Error(
+          `Bulk Visual Transition ${channel.transitionChannelId} has no sampled path`,
+        )
+      }
+      const color = path.material.color
       return {
         ...channel,
         conditionIds: [...channel.conditionIds],
@@ -815,62 +446,130 @@ export const buildCenteredNestedBulkVisualManifest = (
       }
     },
   )
-  const darkMaterials: BulkVisualDarkMaterial[] =
-    components.tori.map((torus) => ({
+
+  const relationChannels = (visualSource.relationChannels ?? []).map(
+    (channel) => {
+      const path = relationPathById.get(channel.relationChannelId)
+      if (!path) {
+        throw new Error(
+          `Bulk Visual relation ${channel.relationChannelId} has no sampled path`,
+        )
+      }
+      const color = path.material.color
+      return {
+        ...channel,
+        fromId: rewriteRelationEndpoint(
+          channel.fromKind,
+          channel.fromId,
+          aliasTargetBySourceId,
+        ),
+        toId: rewriteRelationEndpoint(
+          channel.toKind,
+          channel.toId,
+          aliasTargetBySourceId,
+        ),
+        colorR: color[0],
+        colorG: color[1],
+        colorB: color[2],
+      }
+    },
+  )
+
+  const darkMaterials: BulkVisualDarkMaterial[] = payload.tori.map((torus) => ({
     darkParticleId: torus.darkParticleId,
     material: torus.material,
   }))
-  const fieldMaterials: BulkVisualFieldMaterial[] = components.fields.map(
+  const fieldMaterials: BulkVisualFieldMaterial[] = payload.fields.map(
     (field) => ({
-      fieldParticleId: visualFieldParticleId(field),
+      fieldParticleId: field.fieldParticleId,
       material: field.material,
     }),
   )
-  const orbitalMaterials: BulkVisualOrbitalMaterial[] =
-    components.orbitals.map(
+  const orbitalMaterials: BulkVisualOrbitalMaterial[] = payload.orbitals.map(
     (orbital) => ({
       orbitalParticleId: orbital.orbitalParticleId,
       material: orbital.material,
     }),
   )
-  const fieldProxyMaterials: BulkVisualFieldProxyMaterial[] =
-    components.fieldProxies.map((proxy) => ({
+  const fieldProxyMaterials: BulkVisualFieldProxyMaterial[] = payload
+    .fieldProxies
+    .map((proxy) => ({
       fieldProxyId: proxy.fieldProxyId,
       material: proxy.material,
     }))
 
   return {
-    layoutSlug: "centered-nested",
-    darkTorusMeshDetail: DARK_TORUS_MESH_DETAIL,
-    embeddedTorusMeshDetail: EMBEDDED_TORUS_MESH_DETAIL,
+    layoutSlug: payload.layoutSlug,
+    darkTorusMeshDetail: payload.darkTorusMeshDetail,
+    embeddedTorusMeshDetail: payload.embeddedTorusMeshDetail,
     sourceStats: {
       rootSrc: semanticManifest.rootSrc,
       darkParticleCount: semanticManifest.darkParticles.length,
       fieldParticleCount: semanticManifest.fieldParticles.length,
       orbitalParticleCount: semanticManifest.orbitalParticles?.length ?? 0,
-      transitionChannelCount:
-        semanticManifest.transitionChannels?.length ?? 0,
+      transitionChannelCount: semanticManifest.transitionChannels?.length ?? 0,
     },
     darkMaterials,
-    fieldAliases: projectedFields.aliases,
+    fieldAliases: payload.fieldAliases,
     fieldMaterials,
     fieldProxyMaterials,
-    fieldProxySpheres: projectedProxies.fieldProxySpheres,
-    fieldProxyTori: projectedProxies.fieldProxyTori,
+    fieldProxySpheres,
+    fieldProxyTori,
     orbitalMaterials,
-    orbitalSpheres: projectedOrbitals.orbitalSpheres,
-    orbitalTori: projectedOrbitals.orbitalTori,
+    orbitalSpheres,
+    orbitalTori,
     relationPaths,
-    sphereMeshDetail: SPHERE_MESH_DETAIL,
+    sphereMeshDetail: payload.sphereMeshDetail,
     transitionPaths,
     manifest: {
       rootSrc: visualSource.rootSrc,
-      darkParticles: [...darkParticles],
-      fieldParticles: [...projectedFields.fields],
-      orbitalParticles: [...projectedOrbitals.orbitalParticles],
+      darkParticles,
+      fieldParticles,
+      orbitalParticles,
       transitionChannels,
-      fieldProxies: [...projectedProxies.fieldProxies],
+      fieldProxies,
       relationChannels,
     },
   }
+}
+
+/** The serializable payload for one canonical manifestation under one strategy. */
+export const buildBulkVisualScenePayload = (
+  semanticManifest: BulkManifest,
+  projection: BulkRuntimeProjection,
+  layout: VisualLayout = DEFAULT_BULK_VISUAL_LAYOUT,
+): VisualScenePayload => {
+  const visualSource = renderableManifest(semanticManifest)
+  return buildVisualScenePayload(layout, {
+    manifest: visualSource,
+    owners: buildVisualOwners(visualSource, projection),
+  })
+}
+
+/**
+ * Adapts a payload prepared elsewhere — including on a server — into the render
+ * shape, without re-running any layout work.
+ */
+export const adaptBulkVisualRenderManifest = (
+  semanticManifest: BulkManifest,
+  payload: VisualScenePayload,
+): BulkVisualRenderManifest =>
+  adaptRenderManifest(
+    semanticManifest,
+    renderableManifest(semanticManifest),
+    payload,
+  )
+
+/** Runs one named strategy and returns the render projection for a viewport. */
+export const buildBulkVisualRenderManifest = (
+  semanticManifest: BulkManifest,
+  projection: BulkRuntimeProjection,
+  layout: VisualLayout = DEFAULT_BULK_VISUAL_LAYOUT,
+): BulkVisualRenderManifest => {
+  const visualSource = renderableManifest(semanticManifest)
+  const payload = buildVisualScenePayload(layout, {
+    manifest: visualSource,
+    owners: buildVisualOwners(visualSource, projection),
+  })
+  return adaptRenderManifest(semanticManifest, visualSource, payload)
 }

@@ -5,7 +5,7 @@ import snapshotJson from "../pkg/visual/playground/fixture/monad-snapshot.json"
 import {buildBulkManifestation} from "./manifestation.ts"
 import {BulkProjectionStore} from "./projection.ts"
 import {
-  applyCenteredNestedBulkViewportManifest,
+  applyBulkViewportManifest,
 } from "./visual-viewport.ts"
 
 describe("Bulk Visual viewport seam", () => {
@@ -29,12 +29,12 @@ describe("Bulk Visual viewport seam", () => {
       },
     }
 
-    const initialVisual = applyCenteredNestedBulkViewportManifest(
+    const initialVisual = applyBulkViewportManifest(
       viewport,
       initial,
       projection,
     )
-    const changedVisual = applyCenteredNestedBulkViewportManifest(
+    const changedVisual = applyBulkViewportManifest(
       viewport,
       changed,
       projection,

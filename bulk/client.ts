@@ -18,7 +18,7 @@ import { buildBulkManifestation } from "./manifestation.ts"
 import {captureBulkViewportCanvas} from "./web/viewport-capture.ts"
 import {BulkPresentedSnapshot} from "./web/observer-snapshot.ts"
 import {
-	applyCenteredNestedBulkViewportManifest,
+	BulkVisualScenePresenter,
 } from "./visual-viewport.ts"
 
 const bulkCanvas = document.getElementById("bulk-canvas") as HTMLCanvasElement | null
@@ -26,6 +26,7 @@ if (bulkCanvas === null) throw new Error("bulk-canvas not found")
 
 let bulkViewport: BulkVisualViewportWithHud | null = null
 const projection = new BulkProjectionStore()
+const presenter = new BulkVisualScenePresenter()
 let activeSrc = DEFAULT_BULK_SCENE_SRC
 let throughTs: number | null = null
 const presentedSnapshot = new BulkPresentedSnapshot()
@@ -37,21 +38,20 @@ const observerSnapshot = (): BulkObserverSnapshot => ({
 	projection: projection.snapshot(),
 })
 
-const applyViewportManifest = (manifest: BulkManifest): void => {
+/**
+ * Applies one changed manifestation. `change` carries what the projection
+ * reported, so a change that cannot move geometry avoids a full rebuild.
+ */
+const applyProjectionManifestation = (
+	src: string,
+	change: Readonly<{changed: boolean; structural: boolean}>,
+): void => {
 	if (!bulkViewport) return
-	applyCenteredNestedBulkViewportManifest(
+	presenter.apply(
 		bulkViewport,
-		manifest,
+		buildBulkManifestation(projection.view(), src),
 		projection.view(),
-	)
-}
-
-const applyProjectionManifestation = (src: string): void => {
-	applyViewportManifest(
-		buildBulkManifestation(
-			projection.view(),
-			src,
-		),
+		change,
 	)
 }
 
@@ -100,7 +100,9 @@ const receiveImpulse = (forceMessage: Parameters<Force["onImpulse"]>[0]): void =
 	)
 	const nextRootSrc = observedRootSrc(part, rootSrcs)
 	if (nextRootSrc !== null) activeSrc = nextRootSrc
-	if (change.changed) applyProjectionManifestation(activeSrc)
+	if (change.changed) {
+		applyProjectionManifestation(activeSrc, change)
+	}
 	throughTs = part.ts
 	bulkViewport?.handleForce(part.part, part)
 	presentedSnapshot.stage(observerSnapshot)
@@ -120,7 +122,12 @@ const start = async (): Promise<void> => {
 	throughTs = initial.throughTs
 	if (!bulkViewport) throw new Error("Bulk viewport is not initialized")
 	installBulkHud({viewport: bulkViewport})
-	applyViewportManifest(initial.manifest)
+	presenter.apply(
+		bulkViewport,
+		initial.manifest,
+		projection.view(),
+		{changed: true, structural: true},
+	)
 	presentedSnapshot.stage(observerSnapshot)
 
 	const observerId = `bulk-web-${crypto.randomUUID()}`

@@ -2032,25 +2032,35 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		return existing
 	}
 
+	// Package paths arrive as flat local-frame `x, y, z` triples, so segments are
+	// expanded straight into the GPU buffer without per-point objects.
 	const sampledPathsGeometry = (
-		paths: readonly Readonly<{
-			path: readonly Readonly<{x: number; y: number; z: number}>[]
-		}>[],
+		paths: readonly Readonly<{points: readonly number[]}>[],
 		label: string,
 	): BufferGeometry => {
 		const geometry = new BufferGeometry()
-		const positions: number[] = []
+		let segmentCount = 0
 		for (const path of paths) {
-			if (path.path.length < 2) {
+			if (path.points.length < 6 || path.points.length % 3 !== 0) {
 				throw new Error(`Bulk Visual ${label} sampled path is empty`)
 			}
-			for (let index = 1; index < path.path.length; index += 1) {
-				const from = path.path[index - 1]!
-				const to = path.path[index]!
-				positions.push(from.x, from.y, from.z, to.x, to.y, to.z)
+			segmentCount += path.points.length / 3 - 1
+		}
+		const positions = new Float32Array(segmentCount * 6)
+		let offset = 0
+		for (const path of paths) {
+			const points = path.points
+			for (let index = 3; index < points.length; index += 3) {
+				positions[offset] = points[index - 3]!
+				positions[offset + 1] = points[index - 2]!
+				positions[offset + 2] = points[index - 1]!
+				positions[offset + 3] = points[index]!
+				positions[offset + 4] = points[index + 1]!
+				positions[offset + 5] = points[index + 2]!
+				offset += 6
 			}
 		}
-		geometry.setAttribute("position", new BufferAttribute(new Float32Array(positions), 3))
+		geometry.setAttribute("position", new BufferAttribute(positions, 3))
 		return geometry
 	}
 

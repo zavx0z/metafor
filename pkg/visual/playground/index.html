@@ -43,6 +43,148 @@
         grid-template-columns: 220px minmax(0, 1fr);
       }
 
+      main.story-mode {
+        grid-template-columns: 250px minmax(520px, 1fr) 320px;
+      }
+
+      /*
+       * Several stages share the middle column and are toggled by `hidden`.
+       * Each participant is placed explicitly so an earlier hidden sibling
+       * cannot consume the story stage's implicit grid slot.
+       */
+      main.story-mode > #stories {
+        grid-column: 1;
+        grid-row: 1;
+      }
+
+      main.story-mode > #story-stage {
+        grid-column: 2;
+        grid-row: 1;
+      }
+
+      main.story-mode > #controls {
+        grid-column: 3;
+        grid-row: 1;
+      }
+
+      #story-stage {
+        display: grid;
+        grid-template-rows: auto minmax(320px, 1fr) auto;
+        gap: 14px;
+        padding: 14px;
+        min-width: 0;
+        min-height: 0;
+        overflow: hidden;
+      }
+
+      .story-header h2 {
+        margin: 0 0 6px;
+        font-size: 15px;
+      }
+
+      .story-header p {
+        margin: 0;
+        max-width: 70ch;
+        color: rgba(145, 162, 185, 0.86);
+        line-height: 1.5;
+      }
+
+      .story-viewer {
+        position: relative;
+        min-width: 0;
+        min-height: 0;
+        overflow: hidden;
+        border: 1px solid rgba(84, 104, 130, 0.34);
+        border-radius: 8px;
+      }
+
+      .story-viewer canvas {
+        display: block;
+        width: 100%;
+        height: 100%;
+      }
+
+      .story-hint {
+        position: absolute;
+        right: 12px;
+        bottom: 10px;
+        z-index: 1;
+        color: rgba(145, 162, 185, 0.68);
+        font-size: 11px;
+        pointer-events: none;
+      }
+
+      .story-panels {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 12px;
+        min-width: 0;
+      }
+
+      .story-panels h3 {
+        margin: 0 0 6px;
+        font-size: 12px;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: rgba(145, 162, 185, 0.78);
+      }
+
+      .story-panels pre {
+        margin: 0;
+        padding: 10px 12px;
+        max-height: 200px;
+        overflow: auto;
+        border: 1px solid rgba(84, 104, 130, 0.28);
+        border-radius: 6px;
+        background: rgba(12, 18, 28, 0.66);
+        font-size: 11px;
+        line-height: 1.55;
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+      }
+
+      .story-buttons {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 6px;
+      }
+
+      .story-buttons button {
+        padding: 6px 8px;
+        border: 1px solid rgba(84, 104, 130, 0.42);
+        border-radius: 5px;
+        background: rgba(18, 26, 38, 0.9);
+        color: inherit;
+        font: inherit;
+        font-size: 11px;
+        cursor: pointer;
+      }
+
+      #story-compare {
+        grid-column: 1 / -1;
+      }
+
+      .story-buttons button:hover {
+        border-color: rgba(126, 168, 224, 0.7);
+      }
+
+      .story-buttons button:disabled {
+        opacity: 0.42;
+        cursor: default;
+      }
+
+      #story-controls select {
+        width: 100%;
+        padding: 5px 6px;
+        border: 1px solid rgba(84, 104, 130, 0.42);
+        border-radius: 5px;
+        background: rgba(18, 26, 38, 0.9);
+        color: inherit;
+        font: inherit;
+        font-size: 11px;
+      }
+
       main.form-skin-mode {
         grid-template-columns: 220px minmax(520px, 1fr) 360px;
       }
@@ -2949,7 +3091,60 @@
           </section>
         </section>
       </section>
+      <section id="story-stage" hidden>
+        <header class="story-header">
+          <h2 id="story-title">Истории</h2>
+          <p id="story-description"></p>
+        </header>
+        <section class="story-viewer">
+          <canvas id="story-canvas"></canvas>
+          <span class="story-hint">drag — вращение · wheel — масштаб</span>
+        </section>
+        <section class="story-panels">
+          <article>
+            <h3>Состояние</h3>
+            <pre id="story-state"></pre>
+          </article>
+          <article>
+            <h3>Трасса</h3>
+            <pre id="story-trace"></pre>
+          </article>
+          <article>
+            <h3>Сравнение конфигураций</h3>
+            <pre id="story-compare-output"></pre>
+          </article>
+        </section>
+      </section>
       <aside id="controls">
+        <div id="story-controls" hidden>
+          <fieldset>
+            <legend>Сценарий</legend>
+            <select id="story-scenario"></select>
+          </fieldset>
+          <fieldset>
+            <legend>Конфигурация</legend>
+            <select id="story-layout"></select>
+          </fieldset>
+          <fieldset>
+            <legend>Проигрывание</legend>
+            <div class="story-buttons">
+              <button id="story-start" type="button">Старт</button>
+              <button id="story-step" type="button">Шаг</button>
+              <button id="story-pause" type="button">Пауза</button>
+              <button id="story-resume" type="button">Продолжить</button>
+              <button id="story-replay" type="button">Заново</button>
+              <button id="story-reset" type="button">Сброс</button>
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend>Сравнение</legend>
+            <div class="story-buttons">
+              <button id="story-compare" type="button">
+                Сравнить конфигурации
+              </button>
+            </div>
+          </fieldset>
+        </div>
         <div id="visual-controls">
           <fieldset id="visual-visibility-controls">
             <legend>Visual</legend>

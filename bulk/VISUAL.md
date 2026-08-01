@@ -26,12 +26,32 @@ Bulk проявляет один полный runtime projection в два по�
 
 ## Production Visual projection
 
-- Единственная production-стратегия Bulk — готовая `centered-nested` из
-  `@metafor/visual/layout/centered-nested`. В Bulk нет собственной запасной
-  раскладки, runtime-переключателя layout или canonical viewport fallback.
+- Раскладка по умолчанию — готовая `centered-nested` из
+  `@metafor/visual/layout/centered-nested`. Bulk зависит именно от этого
+  single-strategy subpath, а не от каталога стратегий, поэтому находящаяся в
+  разработке `outside-in` не попадает в production bundle. Любая другая
+  стратегия передаётся вызывающей стороной явно как `VisualLayout` — того же
+  публичного контракта; собственной запасной раскладки и canonical viewport
+  fallback в Bulk нет.
 - Initial package и каждое изменённое projection проходят один путь:
-  `BulkManifest + projection → Axion defer policy → CenteredNested.buildScene →
-  BulkVisualRenderManifest → applyVisualManifestPatch`.
+  `BulkManifest + projection → Axion defer policy → buildVisualScenePayload →
+  VisualScenePayload → классификация инвалидации и reconcile →
+  adaptBulkVisualRenderManifest → applyVisualManifestPatch`.
+  `VisualScenePayload` — сериализуемый layout-agnostic результат стратегии: он
+  не содержит Canvas, GPU handles, `Renderer`, `Space` или `ViewPoint`, поэтому
+  может быть подготовлен на сервере.
+- `BulkVisualScenePresenter` владеет payload, находящимся на экране.
+  `selectLayout` меняет выбранную стратегию и сбрасывает удержанный payload,
+  так как другая стратегия вправе разместить каждую форму иначе. `hydrate`
+  принимает payload, подготовленный вне этого процесса, и отклоняет payload,
+  чей `layoutSlug` не совпадает с выбранной стратегией; layout при этом не
+  пересчитывается. `apply` классифицирует пришедшее изменение: изменение, не
+  способное сдвинуть geometry, при идентичном payload вообще не доходит до
+  viewport, а structural change перестраивает scene целиком, потому что
+  сужение там оставило бы её устаревшей.
+- Локализованное изменение больше не перестраивает всю scene: reconcile
+  сравнивает предыдущий и новый payload и передаёт в viewport только то, что
+  действительно отличается.
 - `pkg/visual` является единственным владельцем координат, абсолютных размеров,
   цветов форм и детерминированного размещения Torus, Field, State, причинных
   particles и Field proxies. Он строит immutable `VisualComponentForest`,

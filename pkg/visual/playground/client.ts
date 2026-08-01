@@ -16,11 +16,19 @@ import {buildBulkManifestation} from "../../../bulk/manifestation.ts"
 import {BulkProjectionStore} from "../../../bulk/projection.ts"
 import {createBulkViewport} from "../../../bulk/web/index.ts"
 import {
-  buildCenteredNestedBulkVisualManifest,
+  buildBulkVisualRenderManifest,
+  renderableManifest,
 } from "../../../bulk/visual-layout.ts"
 import {
   visualComponentForSlug,
 } from "../Components.ts"
+import {
+  STORY_SLUG,
+  createVisualStoryStand,
+  visualStoryScenarios,
+  type VisualStoryScenario,
+  type VisualStoryStand,
+} from "./StoryLab.ts"
 import {
   countVisualScene,
   projectVisualScene,
@@ -116,6 +124,22 @@ const formSkinControls = document.getElementById("form-skin-controls")
 const edgesStage = document.getElementById("edges-stage")
 const torusAnalysisStage = document.getElementById("torus-analysis-stage")
 const fieldsAnalysisStage = document.getElementById("fields-analysis-stage")
+const storyStage = document.getElementById("story-stage")
+const storyControls = document.getElementById("story-controls")
+const storyCanvas = document.getElementById(
+  "story-canvas",
+) as HTMLCanvasElement | null
+const storyTitle = document.getElementById("story-title")
+const storyDescription = document.getElementById("story-description")
+const storyStateOutput = document.getElementById("story-state")
+const storyTraceOutput = document.getElementById("story-trace")
+const storyCompareOutput = document.getElementById("story-compare-output")
+const storyScenarioSelect = document.getElementById(
+  "story-scenario",
+) as HTMLSelectElement | null
+const storyLayoutSelect = document.getElementById(
+  "story-layout",
+) as HTMLSelectElement | null
 
 if (
   !app ||
@@ -152,7 +176,17 @@ if (
   !formSkinControls ||
   !edgesStage ||
   !torusAnalysisStage ||
-  !fieldsAnalysisStage
+  !fieldsAnalysisStage ||
+  !storyStage ||
+  !storyControls ||
+  !storyCanvas ||
+  !storyTitle ||
+  !storyDescription ||
+  !storyStateOutput ||
+  !storyTraceOutput ||
+  !storyCompareOutput ||
+  !storyScenarioSelect ||
+  !storyLayoutSelect
 ) throw new Error("Visual playground composition is incomplete")
 
 type SectionTab = Readonly<{
@@ -443,6 +477,133 @@ const hideFieldsAnalysisLab = (): void => {
   if (fieldsAnalysisLabPromise) {
     void fieldsAnalysisLabPromise.then((lab) => lab.hide())
   }
+}
+
+let storyStand: VisualStoryStand | null = null
+let storyViewport: VisualSceneViewport | null = null
+let storyRenderVersion = 0
+let storyScenarioId = visualStoryScenarios[0]!.id
+let storyLayoutSlug: string = CenteredNested.slug
+
+const storyLayout = (): VisualLayout =>
+  Visual.find((layout) => layout.slug === storyLayoutSlug) ?? CenteredNested
+
+const storyScenario = (): VisualStoryScenario =>
+  visualStoryScenarios.find((scenario) => scenario.id === storyScenarioId) ??
+    visualStoryScenarios[0]!
+
+const disposeStoryViewport = (): void => {
+  storyViewport?.dispose()
+  storyViewport = null
+}
+
+const hideStoryLab = (): void => {
+  storyRenderVersion += 1
+  disposeStoryViewport()
+}
+
+/**
+ * Renders the payload of the story's current frame. The story player owns the
+ * payload; this only puts the frame on a canvas.
+ */
+const renderStoryFrame = async (): Promise<void> => {
+  const stand = storyStand
+  if (!stand) return
+  const version = ++storyRenderVersion
+  const scene = stand.state.frame.payload
+  storyStateOutput.textContent = stand.summary
+  storyTraceOutput.textContent = stand.trace
+
+  disposeStoryViewport()
+  const rect = storyCanvas.getBoundingClientRect()
+  const created = await createVisualSceneViewport({
+    canvas: storyCanvas,
+    height: Math.max(1, Math.floor(rect.height)),
+    payload: scene,
+    showLabels: labels.checked,
+    width: Math.max(1, Math.floor(rect.width)),
+  })
+  if (version !== storyRenderVersion || readSlug() !== STORY_SLUG) {
+    created.dispose()
+    return
+  }
+  storyViewport = created
+}
+
+const refreshStory = (): void => {
+  const stand = storyStand
+  if (!stand) return
+  storyStateOutput.textContent = stand.summary
+  storyTraceOutput.textContent = stand.trace
+  void renderStoryFrame()
+}
+
+const buildStoryStand = (): void => {
+  // A named strategy only accepts a renderable manifest: the deferred Axion
+  // slice and unreferenced Field proxies are filtered out first, exactly as a
+  // production consumer does before calling one.
+  const fullManifest = renderableManifest(
+    buildBulkManifestation(projection.view(), snapshot.rootSrc),
+  )
+  const view = projection.view()
+  const owners = view.atoms.flatMap((atom) => {
+    const graph = buildStateGraph(view, atom.id)
+    if (graph.states.length === 0) return []
+    return [{
+      graph,
+      ownerDarkParticleId: visualOwnerDarkParticleIdFromAtomId(graph.atomId),
+    }]
+  })
+  const scenario = storyScenario()
+  storyStand = createVisualStoryStand(
+    scenario,
+    storyLayout(),
+    fullManifest,
+    owners,
+  )
+  storyTitle.textContent = scenario.label
+  storyDescription.textContent = scenario.description
+  storyCompareOutput.textContent = ""
+  refreshStory()
+}
+
+const applyStoryPage = (): void => {
+  hideSnapshotLayout()
+  mainAnnotation.hide()
+  stateGraphRenderVersion += 1
+  disposeBranchViewports()
+  app.classList.remove("layout-mode")
+  app.classList.remove("state-graph-mode")
+  app.classList.remove("state-graph-fields-mode")
+  app.classList.remove("form-skin-mode")
+  app.classList.remove("edges-mode")
+  app.classList.remove("torus-analysis-mode")
+  app.classList.remove("fields-analysis-mode")
+  app.classList.add("story-mode")
+  controlsAside.hidden = false
+  canvas.hidden = true
+  layoutCanvas.hidden = true
+  visualTitle.hidden = true
+  visualControls.hidden = true
+  storyControls.hidden = false
+  storyStage.hidden = false
+  stateGraphStage.hidden = true
+  stateGraphControls.hidden = true
+  stateGraphFieldsControls.hidden = true
+  formSkinStage.hidden = true
+  formSkinControls.hidden = true
+  edgesStage.hidden = true
+  torusAnalysisStage.hidden = true
+  fieldsAnalysisStage.hidden = true
+  hideFormSkinLab()
+  hideEdgesLab()
+  hideTorusAnalysisLab()
+  hideFieldsAnalysisLab()
+  hideSectionTabs()
+  for (const link of navigation.querySelectorAll("a")) {
+    link.classList.toggle("active", link.dataset.slug === STORY_SLUG)
+  }
+  buildStoryStand()
 }
 
 const rootStateGraphFieldsStand = (): StateGraphFieldsStand => {
@@ -1054,6 +1215,16 @@ const applyFieldsAnalysisPage = (mode: FieldsAnalysisMode): void => {
 const applyStory = (): void => {
   const slug = readSlug()
   app.classList.remove("layout-mode")
+  if (slug !== STORY_SLUG) {
+    app.classList.remove("story-mode")
+    storyStage.hidden = true
+    storyControls.hidden = true
+    hideStoryLab()
+  }
+  if (slug === STORY_SLUG) {
+    applyStoryPage()
+    return
+  }
   if (slug !== STATE_GRAPH_ACTIVITY_SLUG) {
     app.classList.remove("state-graph-activity-mode")
     stateGraphActivityStage.hidden = true
@@ -1146,7 +1317,7 @@ const applyStory = (): void => {
     hideSnapshotLayout()
     viewport.setVisualLayers(storyLayers())
     viewport.applyVisualManifestPatch(
-      buildCenteredNestedBulkVisualManifest(
+      buildBulkVisualRenderManifest(
         fullManifest,
         projection.view(),
       ),
@@ -1220,6 +1391,89 @@ navigation.append(
   graphLink,
   fieldsAnalysisLink,
 )
+const storySection = document.createElement("span")
+storySection.className = "nav-section"
+storySection.textContent = "Stories"
+const storyLink = document.createElement("a")
+storyLink.href = `#/${STORY_SLUG}`
+storyLink.dataset.slug = STORY_SLUG
+storyLink.textContent = "Сценарии"
+navigation.append(storySection, storyLink)
+
+for (const scenario of visualStoryScenarios) {
+  const option = document.createElement("option")
+  option.value = scenario.id
+  option.textContent = scenario.label
+  storyScenarioSelect.append(option)
+}
+storyScenarioSelect.value = storyScenarioId
+for (const layout of Visual) {
+  const option = document.createElement("option")
+  option.value = layout.slug
+  option.textContent = layout.label
+  storyLayoutSelect.append(option)
+}
+storyLayoutSelect.value = storyLayoutSlug
+
+storyScenarioSelect.addEventListener("change", () => {
+  storyScenarioId = storyScenarioSelect.value
+  if (readSlug() === STORY_SLUG) buildStoryStand()
+})
+storyLayoutSelect.addEventListener("change", () => {
+  storyLayoutSlug = storyLayoutSelect.value
+  if (readSlug() === STORY_SLUG) buildStoryStand()
+})
+
+const storyButton = (id: string): HTMLButtonElement => {
+  const button = document.getElementById(id)
+  if (!(button instanceof HTMLButtonElement)) {
+    throw new Error(`Story control ${id} is absent`)
+  }
+  return button
+}
+storyButton("story-start").addEventListener("click", () => {
+  storyStand?.player.start()
+  refreshStory()
+})
+storyButton("story-step").addEventListener("click", () => {
+  storyStand?.player.step()
+  refreshStory()
+})
+storyButton("story-pause").addEventListener("click", () => {
+  storyStand?.player.pause()
+  refreshStory()
+})
+storyButton("story-resume").addEventListener("click", () => {
+  storyStand?.player.resume()
+  refreshStory()
+})
+storyButton("story-replay").addEventListener("click", () => {
+  storyStand?.player.replay()
+  refreshStory()
+})
+storyButton("story-reset").addEventListener("click", () => {
+  buildStoryStand()
+})
+
+/**
+ * Runs the same scenario under the other strategy and reports whether the two
+ * configurations put the same picture on screen.
+ */
+storyButton("story-compare").addEventListener("click", () => {
+  const stand = storyStand
+  if (!stand) return
+  const other = Visual.find((layout) => layout.slug !== storyLayoutSlug)
+  if (!other) {
+    storyCompareOutput.textContent = "Нет второй конфигурации для сравнения"
+    return
+  }
+  storyCompareOutput.textContent = "Сравнение…"
+  // Two complete runs are heavy on a real scene; yield a frame so the
+  // "running" state paints before the comparison blocks the main thread.
+  requestAnimationFrame(() => {
+    storyCompareOutput.textContent = stand.compare(other)
+  })
+})
 
 window.addEventListener("hashchange", applyStory)
 window.addEventListener("beforeunload", () => {
@@ -1243,6 +1497,7 @@ window.addEventListener("beforeunload", () => {
   if (stateGraphActivityLabPromise) {
     void stateGraphActivityLabPromise.then((lab) => lab.dispose())
   }
+  hideStoryLab()
   mainAnnotation.dispose()
   viewport.dispose()
 }, {once: true})
@@ -1266,9 +1521,17 @@ const resizeObserver = new ResizeObserver(() => {
     )
     layoutAnnotation?.resize()
   }
+  if (storyViewport) {
+    const rect = storyCanvas.getBoundingClientRect()
+    storyViewport.setSize(
+      Math.max(1, Math.floor(rect.width)),
+      Math.max(1, Math.floor(rect.height)),
+    )
+  }
 })
 resizeObserver.observe(canvas)
 resizeObserver.observe(layoutCanvas)
+resizeObserver.observe(storyCanvas)
 
 if (!location.hash) history.replaceState(null, "", `#/${OutsideIn.slug}`)
 applyStory()

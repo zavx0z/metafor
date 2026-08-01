@@ -99,8 +99,8 @@ describe("State Graph Activity playground stand", () => {
         z: proxy.localZ,
       })),
       proxySpheres: scenario.visual.fieldProxySpheres,
-      relations: scenario.visual.relationPaths.map((path) => path.path),
-      transitions: scenario.visual.transitionPaths.map((path) => path.path),
+      relations: scenario.visual.relationPaths.map((path) => path.points),
+      transitions: scenario.visual.transitionPaths.map((path) => path.points),
     })
     expect(geometry(stand.active)).toEqual(geometry(stand.inactive))
   })

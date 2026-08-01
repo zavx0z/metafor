@@ -3,7 +3,7 @@ import type {BulkRuntimeProjection} from "@metafor/types/bulk/runtime"
 import type {BulkVisualRenderManifest} from "@metafor/types/bulk/visual"
 import {buildBulkManifestation} from "../../../bulk/manifestation.ts"
 import {
-  buildCenteredNestedBulkVisualManifest,
+  buildBulkVisualRenderManifest,
 } from "../../../bulk/visual-layout.ts"
 import {buildStateGraph, type StateGraph} from "../StateGraph.ts"
 
@@ -71,6 +71,6 @@ export const buildStateGraphFieldsStand = (
     graph: buildStateGraph(projection, rootAtoms[0]!.id),
     manifest,
     rootDarkParticleId,
-    visual: buildCenteredNestedBulkVisualManifest(manifest, projection),
+    visual: buildBulkVisualRenderManifest(manifest, projection),
   }
 }

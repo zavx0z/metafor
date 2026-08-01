@@ -1,0 +1,49 @@
+/**
+ * Engine-neutral production entrypoint for the serializable rendering payload.
+ *
+ * A server prepares a payload here and a browser applies it; nothing in this
+ * module touches Canvas, GPU resources, `Renderer`, `Space` or `ViewPoint`.
+ * Both named layout strategies reach a renderer through this one contract.
+ */
+export {
+  buildVisualScenePayload,
+  projectVisualScenePayload,
+  visualPayloadFieldParticleId,
+  type VisualPayloadEdgeBatch,
+  type VisualPayloadEdgePath,
+  type VisualPayloadField,
+  type VisualPayloadFieldAlias,
+  type VisualPayloadFieldProxy,
+  type VisualPayloadOrbital,
+  type VisualPayloadPoint,
+  type VisualPayloadSphereMeshDetail,
+  type VisualPayloadStats,
+  type VisualPayloadTorus,
+  type VisualPayloadTorusMeshDetail,
+  type VisualPayloadTransitionBatch,
+  type VisualScenePayload,
+} from "./ScenePayload.ts"
+export {
+  classifyVisualInvalidation,
+  reconcileVisualScenePayload,
+  sameVisualPayloadIdentities,
+  summarizeVisualScenePatch,
+  widenVisualInvalidation,
+  type VisualAppearancePatch,
+  type VisualInvalidationScope,
+  type VisualPatchSummary,
+  type VisualScenePatch,
+  type VisualUpstreamChange,
+} from "./SceneReconciler.ts"
+export {Visual, visualLayoutForSlug} from "./Visual.ts"
+export {CenteredNested} from "./CenteredNested.ts"
+export {OutsideIn} from "./OutsideIn.ts"
+export {visualOwnerDarkParticleIdFromAtomId} from "./internal/layout.ts"
+export type {
+  VisualLayout,
+  VisualLayoutInput,
+  VisualLayoutSlug,
+  VisualLayoutStatus,
+  VisualOwnerGraph,
+} from "./internal/layout.ts"
+export {buildStateGraph, type StateGraph} from "./StateGraph.ts"

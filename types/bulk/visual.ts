@@ -1,5 +1,13 @@
 import type {BulkRenderManifest} from "./manifest.ts"
 
+/**
+ * Named layout strategy that produced a render projection.
+ *
+ * `pkg/visual` owns the catalog; this mirrors its slugs so the renderer can
+ * carry the selection without `types` depending on the visual package.
+ */
+export type BulkVisualLayoutSlug = "centered-nested" | "outside-in"
+
 /** Canonical Field occurrence represented by one synthetic render marker. */
 export type BulkVisualFieldAlias = Readonly<{
   sourceFieldId: number
@@ -70,7 +78,6 @@ export type BulkVisualPathPoint = Readonly<{
   y: number
   z: number
 }>
-
 export type BulkVisualDarkMaterial = Readonly<{
   darkParticleId: number
   material: BulkVisualQuantumMaterial
@@ -91,12 +98,18 @@ export type BulkVisualFieldProxyMaterial = Readonly<{
   material: BulkVisualQuantumMaterial
 }>
 
+/**
+ * One sampled channel path in its owner's local frame.
+ *
+ * `points` is the flat `[x0, y0, z0, x1, y1, z1, …]` sequence the renderer
+ * uploads directly, so no per-point object is allocated on the render path.
+ */
 export type BulkVisualTransitionPath = Readonly<{
   batchId: string
   batchFingerprint: string
   material: BulkVisualLineMaterial
   ownerDarkParticleId: number
-  path: readonly BulkVisualPathPoint[]
+  points: readonly number[]
   returning: boolean
   transitionChannelId: string
 }>
@@ -106,7 +119,7 @@ export type BulkVisualRelationPath = Readonly<{
   batchFingerprint: string
   material: BulkVisualLineMaterial
   ownerDarkParticleId: number
-  path: readonly BulkVisualPathPoint[]
+  points: readonly number[]
   relationChannelId: string
 }>
 
@@ -135,7 +148,7 @@ export type BulkVisualRenderManifest = Readonly<{
   fieldProxyMaterials: readonly BulkVisualFieldProxyMaterial[]
   fieldProxySpheres: readonly BulkVisualFieldProxySphere[]
   fieldProxyTori: readonly BulkVisualFieldProxyTorus[]
-  layoutSlug: "centered-nested"
+  layoutSlug: BulkVisualLayoutSlug
   manifest: BulkRenderManifest
   orbitalMaterials: readonly BulkVisualOrbitalMaterial[]
   orbitalSpheres: readonly BulkVisualOrbitalSphere[]

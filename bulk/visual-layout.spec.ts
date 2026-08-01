@@ -10,7 +10,7 @@ import snapshotJson from "../pkg/visual/playground/fixture/monad-snapshot.json"
 import {buildBulkManifestation} from "./manifestation.ts"
 import {BulkProjectionStore} from "./projection.ts"
 import {BulkSceneStore} from "./scene.ts"
-import {buildCenteredNestedBulkVisualManifest} from "./visual-layout.ts"
+import {buildBulkVisualRenderManifest} from "./visual-layout.ts"
 import {assertBulkVisualProjectionBoundary} from "./web/visual-projection.ts"
 
 const fullFixture = (): Readonly<{
@@ -86,7 +86,7 @@ describe("centered-nested Bulk Visual projection", () => {
     const manifestBefore = structuredClone(manifest)
     const projectionBefore = structuredClone(projection)
 
-    const visual = buildCenteredNestedBulkVisualManifest(
+    const visual = buildBulkVisualRenderManifest(
       manifest,
       projection,
     )
@@ -343,7 +343,7 @@ describe("centered-nested Bulk Visual projection", () => {
 
   test("projects every orbital and proxy through one exact disjoint form", () => {
     const {manifest, projection} = fullFixture()
-    const visual = buildCenteredNestedBulkVisualManifest(
+    const visual = buildBulkVisualRenderManifest(
       manifest,
       projection,
     )
@@ -405,7 +405,7 @@ describe("centered-nested Bulk Visual projection", () => {
 
   test("keeps deferred Axion semantics outside every render form", () => {
     const {manifest, projection} = fullFixture()
-    const baseline = buildCenteredNestedBulkVisualManifest(
+    const baseline = buildBulkVisualRenderManifest(
       manifest,
       projection,
     )
@@ -461,7 +461,7 @@ describe("centered-nested Bulk Visual projection", () => {
       toId: axionOrbitalId,
       active: false,
     })
-    const projected = buildCenteredNestedBulkVisualManifest(
+    const projected = buildBulkVisualRenderManifest(
       withAxion,
       projection,
     )
@@ -489,7 +489,7 @@ describe("centered-nested Bulk Visual projection", () => {
 
   test("rejects Axion and orphan geometry at the renderer boundary", () => {
     const {manifest, projection} = fullFixture()
-    const valid = buildCenteredNestedBulkVisualManifest(manifest, projection)
+    const valid = buildBulkVisualRenderManifest(manifest, projection)
     const axion = structuredClone(valid)
     const causal = axion.manifest.orbitalParticles.find((particle) =>
       particle.orbitalParticleKind !== "state"
@@ -506,7 +506,7 @@ describe("centered-nested Bulk Visual projection", () => {
 
   test("rejects invalid numeric geometry before renderer state changes", () => {
     const {manifest, projection} = fullFixture()
-    const valid = buildCenteredNestedBulkVisualManifest(manifest, projection)
+    const valid = buildBulkVisualRenderManifest(manifest, projection)
     const cases: readonly [
       string,
       (candidate: BulkVisualRenderManifest) => void,
@@ -592,11 +592,11 @@ describe("centered-nested Bulk Visual projection", () => {
 
   test("is deterministic and produces a no-op second viewport patch", () => {
     const {manifest, projection} = fullFixture()
-    const first = buildCenteredNestedBulkVisualManifest(
+    const first = buildBulkVisualRenderManifest(
       manifest,
       projection,
     )
-    const second = buildCenteredNestedBulkVisualManifest(
+    const second = buildBulkVisualRenderManifest(
       manifest,
       projection,
     )
@@ -620,12 +620,12 @@ describe("centered-nested Bulk Visual projection", () => {
     })
 
     expect(
-      buildCenteredNestedBulkVisualManifest(
+      buildBulkVisualRenderManifest(
         manifest,
         extraProjection,
       ),
     ).toEqual(
-      buildCenteredNestedBulkVisualManifest(manifest, projection),
+      buildBulkVisualRenderManifest(manifest, projection),
     )
   })
 
@@ -691,7 +691,7 @@ describe("centered-nested Bulk Visual projection", () => {
     }
     const manifest = buildBulkManifestation(projection, src)
 
-    const visual = buildCenteredNestedBulkVisualManifest(
+    const visual = buildBulkVisualRenderManifest(
       manifest,
       projection,
     )
@@ -710,7 +710,7 @@ describe("centered-nested Bulk Visual projection", () => {
 
   test("fails closed when an exact condition proxy is absent", () => {
     const {manifest, projection} = fullFixture()
-    const valid = buildCenteredNestedBulkVisualManifest(
+    const valid = buildBulkVisualRenderManifest(
       manifest,
       projection,
     )
@@ -743,7 +743,7 @@ describe("centered-nested Bulk Visual projection", () => {
       (proxy) => proxy.fieldProxyId !== missingProxyId,
     )
 
-    expect(() => buildCenteredNestedBulkVisualManifest(
+    expect(() => buildBulkVisualRenderManifest(
       incomplete,
       projection,
     )).toThrow("condition Field proxy")
@@ -756,12 +756,12 @@ describe("centered-nested Bulk Visual projection", () => {
       (candidate) => candidate.conditionFieldIds.length > 0,
     )!
     channel.conditionFieldIds = [999_999]
-    expect(() => buildCenteredNestedBulkVisualManifest(
+    expect(() => buildBulkVisualRenderManifest(
       mismatchedTransition,
       projection,
     )).toThrow("condition Field proxy")
 
-    const valid = buildCenteredNestedBulkVisualManifest(
+    const valid = buildBulkVisualRenderManifest(
       manifest,
       projection,
     )
@@ -774,7 +774,7 @@ describe("centered-nested Bulk Visual projection", () => {
       field.fieldId !== proxy.fieldId
     )!
     proxy.fieldParticleId = wrongField.fieldParticleId
-    expect(() => buildCenteredNestedBulkVisualManifest(
+    expect(() => buildBulkVisualRenderManifest(
       mismatchedProxy,
       projection,
     )).toThrow("has unresolved identity")

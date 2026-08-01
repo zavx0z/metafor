@@ -2,7 +2,40 @@
  * Side-effect-free production entrypoint for the only ready layout strategy.
  * It intentionally excludes the in-progress `outside-in` implementation and
  * every playground/viewport adapter.
+ *
+ * The payload and reconciliation contracts are layout-agnostic, so they are
+ * re-exported here: a consumer that only ships `centered-nested` still reaches
+ * a renderer through the same public surface, without pulling the catalog — and
+ * therefore `outside-in` — into its bundle.
  */
+export {
+  buildVisualScenePayload,
+  projectVisualScenePayload,
+  visualPayloadFieldParticleId,
+  type VisualPayloadEdgeBatch,
+  type VisualPayloadEdgePath,
+  type VisualPayloadField,
+  type VisualPayloadFieldAlias,
+  type VisualPayloadFieldProxy,
+  type VisualPayloadOrbital,
+  type VisualPayloadPoint,
+  type VisualPayloadStats,
+  type VisualPayloadTorus,
+  type VisualPayloadTransitionBatch,
+  type VisualScenePayload,
+} from "./ScenePayload.ts"
+export {
+  classifyVisualInvalidation,
+  reconcileVisualScenePayload,
+  sameVisualPayloadIdentities,
+  summarizeVisualScenePatch,
+  widenVisualInvalidation,
+  type VisualAppearancePatch,
+  type VisualInvalidationScope,
+  type VisualPatchSummary,
+  type VisualScenePatch,
+  type VisualUpstreamChange,
+} from "./SceneReconciler.ts"
 export {
   CenteredNested,
   buildCenteredNestedVisualScene,
@@ -50,7 +83,11 @@ export {
 export type {
   VisualFieldPlacement,
   VisualFieldProxyPlacement,
+  VisualLayout,
+  VisualLayoutInput,
+  VisualLayoutSlug,
   VisualOrbitalPlacement,
+  VisualOwnerGraph,
   VisualScene,
   VisualStateEdgePlacement,
   VisualTorusPlacement,

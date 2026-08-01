@@ -10,10 +10,30 @@
   `buildScene({manifest, owners})`. Каталог не требует от consumer ручного
   `switch` по slug. `centered-nested` готова и используется production Bulk;
   `outside-in` остаётся явно помеченной `in-progress`.
-- Production consumer, которому нужна только готовая стратегия, использует
+- Готовая сцена доводится до renderer одним layout-agnostic контрактом
+  `@metafor/visual/payload`. `buildVisualScenePayload(layout, input)` исполняет
+  любую именованную стратегию и возвращает `VisualScenePayload`: сериализуемую
+  детерминированную проекцию, в которой каждая позиция уже выражена в local
+  frame своего владельца, а sampled path хранится плоской последовательностью
+  координат. Payload не содержит Canvas, GPU handle, `Renderer`, `Space` либо
+  `ViewPoint`, поэтому его готовит и сервер, и браузер, а `JSON.stringify` не
+  меняет его смысл. `layoutSlug` в payload является полным union каталога, а не
+  фиксированным именем одной стратегии.
+- Consumer, которому нужна только готовая стратегия, использует
   side-effect-free `@metafor/visual/layout/centered-nested`. Этот subpath
-  экспортирует `centered-nested` и необходимые ей neutral graph/form helpers,
-  но не включает `outside-in`, viewport adapter или playground.
+  экспортирует `centered-nested`, layout-agnostic payload/reconciler контракты и
+  необходимые ей neutral graph/form helpers, но не включает `outside-in`,
+  каталог, viewport adapter или playground. Поэтому production bundle одной
+  стратегии не втягивает незавершённую. Другая стратегия передаётся consumer'ом
+  явно как `VisualLayout`; пакет не резолвит slug за него.
+- Повторное изменение проходит через `reconcileVisualScenePayload(current,
+  next)`. Он возвращает узкий патч только когда набор identities совпал:
+  изменение, которое не может сдвинуть геометрию, отдаёт renderer'у ровно
+  изменившиеся записи, совпавший payload не отдаёт ничего, а иной набор
+  identities обязывает к полной замене. Line batches сравниваются по
+  fingerprint, поэтому нетронутая линия сохраняет свой GPU buffer.
+  `classifyVisualInvalidation` переводит уже применённое upstream-изменение в
+  `none | appearance | structure`; структурное изменение никогда не сужается.
 - `manifest` передаёт полную materialized структуру, а каждый элемент
   `owners` связывает один `StateGraph` с точным `ownerDarkParticleId`.
   Владелец обязан существовать в manifest, быть уникальным во входе и иметь
@@ -42,6 +62,9 @@
   внутри workspace.
 - Named-layout playground передаёт полный immutable `VisualScene` в
   `createVisualSceneViewport` без промежуточного State-layout projection.
+  Тот же viewport принимает вместо сцены готовый `VisualScenePayload`: ровно
+  один из двух источников кадра. Так тонкий renderer рисует именно то, что
+  подготовил сервер, не повторяя раскладку.
   Viewport создаёт ровно одну Mesh на каждую готовую Torus/Sphere placement и
   ровно один `LineSegments` на каждый package-owned edge batch. Он использует
   только готовые form, material и sampled path; повторное построение State,
@@ -60,6 +83,43 @@
   parent-child chain не более `256`. Превышение отклоняется контролируемым
   `RangeError`; duplicate identity и structural cycle отклоняются до
   рекурсивной композиции.
+
+## Детерминированные visual stories
+
+- `@metafor/visual/stories` предоставляет один story-движок для проверяемых
+  визуальных сценариев. Story описывается декларативно: `initial()` строит
+  полное начальное визуальное условие (`manifest` + `owners`), а `events`
+  перечисляет стандартные визуальные события. Событие несёт собственный
+  `structural` флаг, повторяющий то, что upstream projection сообщает о уже
+  применённом изменении, поэтому сценарий проходит то же решение об
+  инвалидации, что и production, а не story-only упрощение.
+- Время story виртуальное и детерминированное: шаг сдвигает его ровно на
+  `advanceMs` события. Ни `Date.now`, ни `performance.now`, ни requestAnimationFrame
+  на путь story не влияют, поэтому один и тот же сценарий даёт побайтово
+  одинаковые кадры и trace при каждом прогоне.
+- `createVisualStoryPlayer({layout, story})` — единственное место, где живёт
+  управление воспроизведением: `start`, `step`, `pause`, `resume`, `replay`,
+  `reset` и `finish`. Player строит каждый кадр через `buildVisualScenePayload`
+  и сужает его через `reconcileVisualScenePayload`, поэтому story не может
+  разойтись с тем, что рисует Bulk. Story с объявленным `layoutSlug`
+  отклоняется под другой стратегией.
+- Кадр сохраняет полный `VisualScenePayload`, применённый `VisualScenePatch`,
+  область инвалидации и сводку затронутых записей. Кадры удерживаются в
+  порядке, поэтому текущее визуальное состояние доступно для инспекции, а
+  прогон — для повторного воспроизведения и сравнения. `formatVisualStoryTrace`
+  превращает trace в построчную диагностику.
+- `compareVisualStoryRuns(left, right)` сравнивает два прогона по кадрам. Так
+  один сценарий проверяется под разными стратегиями: одинаковый набор событий
+  под `centered-nested` и `outside-in` расходится в геометрии, но остаётся
+  сопоставимым по шагам и областям инвалидации.
+- `VisualStoryConditions` — то же самое `{manifest, owners}`, что принимает
+  любая стратегия, поэтому подготовленное в story чистое визуальное условие
+  напрямую пригодно для production consumer. Playground-каталог сценариев
+  является downstream-потребителем этого движка и не содержит собственной
+  реализации воспроизведения, инвалидации или сравнения.
+- Story-путь остаётся headless: он не создаёт Canvas, GPU objects, `Renderer`,
+  `Space` либо `ViewPoint`, поэтому один и тот же сценарий исполняется в `bun
+  test` и в браузере.
 
 ## Компонентная production-модель
 
