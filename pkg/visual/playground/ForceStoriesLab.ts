@@ -1,20 +1,20 @@
 import type {Part} from "shared/protocol/force/particle"
-import {resolveForceImpulseVisual} from "../../../bulk/web/force-protocol.ts"
 import {
   ForceStories,
-  createForceStorySession,
   forceStoryForPart,
   forceStoryModalText,
   formatForceStoryPatch,
   type ForceStoryDefinition,
   type ForceStoryLayout,
-  type ForceStorySessionSnapshot,
   type ForceStoryView,
 } from "./ForceStories.ts"
 import {
-  createVisualSceneViewport,
-  type VisualSceneViewport,
-} from "./VisualSceneViewport.ts"
+  createForceStoryDisplayAdapter,
+  createForceStorySession,
+  forceStoryAccent,
+  type ForceStoryDisplayAdapter,
+  type ForceStorySessionSnapshot,
+} from "./ForceStoryLabAdapter.ts"
 
 export type ForceStoriesLab = Readonly<{
   dispose(): void
@@ -28,7 +28,7 @@ type ForceStoryViewRuntime = Readonly<{
   layout: ForceStoryLayout
   observer: ResizeObserver
   view: ForceStoryView
-  viewport: VisualSceneViewport
+  viewport: ForceStoryDisplayAdapter
 }>
 
 const createText = <Tag extends keyof HTMLElementTagNameMap>(
@@ -205,21 +205,13 @@ export const createForceStoriesLab = async (
 
   const runtimes: ForceStoryViewRuntime[] = await Promise.all(
     viewElements.map(async (elements) => {
-      const layoutSnapshot = initial.representation.layouts.find((layout) =>
-        layout.id === elements.layout.id
-      )
-      if (!layoutSnapshot) {
-        throw new Error(
-          `Force Story layout ${elements.layout.id} is absent`,
-        )
-      }
-      const viewport = await createVisualSceneViewport({
+      const viewport = await createForceStoryDisplayAdapter({
         canvas: elements.canvas,
         ...canvasSize(elements.canvas),
-        scene: layoutSnapshot.scene,
-        showLabels: true,
+        initial,
+        layoutId: elements.layout.id,
+        view: elements.view,
       })
-      viewport.setView(elements.view.camera)
       const observer = new ResizeObserver(() => {
         const next = canvasSize(elements.canvas)
         viewport.setSize(next.width, next.height)
@@ -238,19 +230,17 @@ export const createForceStoriesLab = async (
 
   const renderPhoton = (): void => {
     const snapshot = photonSession.snapshot()
-    const activeProcessCount = snapshot.representation.manifest
-      .orbitalParticles?.filter((particle) =>
-        particle.orbitalParticleKind === "process" && particle.active
-      ).length ?? 0
-    const activeTransitionCount = snapshot.representation.manifest
-      .transitionChannels?.filter((channel) => channel.active).length ?? 0
-    const activeRelationCount = snapshot.representation.manifest
-      .relationChannels?.filter((channel) => channel.active).length ?? 0
     shell.dataset.phase = snapshot.phase
     shell.dataset.currentState = snapshot.currentState
-    shell.dataset.activeProcessCount = String(activeProcessCount)
-    shell.dataset.activeTransitionCount = String(activeTransitionCount)
-    shell.dataset.activeRelationCount = String(activeRelationCount)
+    shell.dataset.activeProcessCount = String(
+      snapshot.activity.activeProcessCount,
+    )
+    shell.dataset.activeTransitionCount = String(
+      snapshot.activity.activeTransitionCount,
+    )
+    shell.dataset.activeRelationCount = String(
+      snapshot.activity.activeRelationCount,
+    )
     shell.dataset.layoutCount = String(snapshot.representation.layouts.length)
     shell.dataset.displayCount = String(runtimes.length)
     header.dataset.currentState = snapshot.currentState
@@ -273,27 +263,14 @@ export const createForceStoriesLab = async (
     unavailable.hidden = true
     renderSleeves(sharedSleeveLegend, snapshot)
     for (const runtime of runtimes) {
-      const layoutSnapshot = snapshot.representation.layouts.find((layout) =>
-        layout.id === runtime.layout.id
-      )
-      if (!layoutSnapshot) {
-        throw new Error(
-          `Force Story layout ${runtime.layout.id} is absent`,
-        )
-      }
       runtime.figure.dataset.currentState = snapshot.currentState
-      runtime.viewport.applyScene(layoutSnapshot.scene)
+      runtime.viewport.apply(snapshot)
       resize(runtime)
     }
   }
 
   const renderSelected = (): void => {
-    const visual = resolveForceImpulseVisual(selected.patch)
-    const accent = visual.color
-      .slice(0, 3)
-      .map((value) => Math.round(value * 255))
-      .join(", ")
-    shell.style.setProperty("--force-accent", accent)
+    shell.style.setProperty("--force-accent", forceStoryAccent(selected))
     shell.dataset.part = selected.part
     shell.dataset.status = selected.status
     shell.dataset.representationCount = String(selected.representations.length)

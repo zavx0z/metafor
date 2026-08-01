@@ -2,36 +2,14 @@ import type {
   Part,
   Particle,
 } from "shared/protocol/force/particle"
-import type {BulkProjectionSnapshot} from "@metafor/types/bulk/initial"
-import type {BulkManifest} from "@metafor/types/bulk/manifest"
-import type {BulkVisualRenderManifest} from "@metafor/types/bulk/visual"
-import type {StateGraph} from "@metafor/visual/payload"
+import type {VisualLayoutSlug} from "@metafor/visual/layout"
 import {
-  BulkProjectionStore,
-  type BulkProjectionChange,
-} from "../../../bulk/projection.ts"
-import {
-  buildBulkManifestation,
-} from "../../../bulk/manifestation.ts"
-import {
-  buildBulkVisualRenderManifest,
-  renderableManifest,
-} from "../../../bulk/visual-layout.ts"
-import {
-  CenteredNested,
-  OutsideIn,
-  buildStateGraph,
-  visualOwnerDarkParticleIdFromAtomId,
-  type VisualLayout,
-  type VisualLayoutSlug,
-  type VisualScene,
-} from "@metafor/visual/layout"
-import {
-  PHOTON_STORY_CLOSURE,
+  PHOTON_STORY_EXPECTED_VISUAL_OUTCOME,
+  PHOTON_STORY_HELP,
   PHOTON_STORY_PATCH,
-  PHOTON_STORY_PREPARED_PROJECTION,
-  PHOTON_STORY_PROVENANCE,
-} from "./fixture/PhotonStoryFixture.ts"
+  PHOTON_STORY_PREPARED_SCENE,
+  PHOTON_STORY_SCENARIO,
+} from "./PhotonForceStory.ts"
 
 export const FORCE_STORIES_SLUG = "force-stories"
 
@@ -59,23 +37,7 @@ const routeSegmentByPart = {
 
 export type ForceStoryStatus = "complete" | "template"
 
-export type ForceStoryPreparedScene = Readonly<{
-  atomId: number
-  atomLabel: string
-  closure: typeof PHOTON_STORY_CLOSURE
-  id: string
-  initialStateId: number
-  initialStateName: string
-  ownerSrc: string
-  parentAtomId: number
-  processId: number
-  provenance: typeof PHOTON_STORY_PROVENANCE
-  rootSrc: string
-  sourceSnapshot: BulkProjectionSnapshot
-  targetStateId: number
-  targetStateName: string
-  transitionId: number
-}>
+export type ForceStoryPreparedScene = typeof PHOTON_STORY_PREPARED_SCENE
 
 export type ForceStoryVerifiedRepresentation = Readonly<{
   id: string
@@ -126,55 +88,6 @@ export type ForceStoryDefinition = Readonly<{
   status: ForceStoryStatus
 }>
 
-export type ForceStorySleeveSnapshot = Readonly<{
-  active: boolean
-  current: boolean
-  name: string
-  rootStateId: number
-}>
-
-export type ForceStoryVisualSnapshot = Readonly<{
-  graph: StateGraph
-  layouts: readonly ForceStoryVisualLayoutSnapshot[]
-  manifest: BulkManifest
-  representationId: string
-  rootDarkParticleId: number
-  sleeves: readonly ForceStorySleeveSnapshot[]
-  visual: BulkVisualRenderManifest
-}>
-
-export type ForceStoryVisualLayoutSnapshot = Readonly<{
-  id: VisualLayoutSlug
-  label: ForceStoryLayout["label"]
-  scene: VisualScene
-}>
-
-export type ForceStorySessionSnapshot = Readonly<{
-  change: BulkProjectionChange | null
-  currentState: string
-  phase: "applied" | "prepared"
-  projection: ReturnType<BulkProjectionStore["snapshot"]>
-  representation: ForceStoryVisualSnapshot
-}>
-
-const photonScene: ForceStoryPreparedScene = Object.freeze({
-  atomId: 4,
-  atomLabel: "lada-model",
-  closure: PHOTON_STORY_CLOSURE,
-  id: "force-story/photon/prepared",
-  initialStateId: 19,
-  initialStateName: "обращение к модели",
-  ownerSrc: "zavx0z/lada-model",
-  parentAtomId: 1,
-  processId: 12,
-  provenance: PHOTON_STORY_PROVENANCE,
-  rootSrc: "zavx0z/lada",
-  sourceSnapshot: PHOTON_STORY_PREPARED_PROJECTION,
-  targetStateId: 20,
-  targetStateName: "ошибка",
-  transitionId: 26,
-})
-
 export const FORCE_STORY_VIEWS = Object.freeze([
   Object.freeze({
     camera: "top",
@@ -216,7 +129,7 @@ const photonRepresentation: ForceStoryVerifiedRepresentation = Object.freeze({
   kind: "focused-visual-graph",
   label: "Полный State-sleeve lada-model",
   layouts: FORCE_STORY_LAYOUTS,
-  preparedScene: photonScene,
+  preparedScene: PHOTON_STORY_PREPARED_SCENE,
   status: "verified",
   views: FORCE_STORY_VIEWS,
 })
@@ -270,10 +183,8 @@ const storiesByPart = {
     status: "complete",
     representations: [photonRepresentation],
     patch: PHOTON_STORY_PATCH,
-    scenario:
-      "Из Cloud Force history восстановлен полный причинный срез lada-model непосредственно перед sequence 412. Входит записанный Photon replace по Atom 4 со State «ошибка».",
-    expectedVisualOutcome:
-      "Активность переключается с полного рукава «обращение к модели» на рукав «ошибка»: прежний рукав, Process 12 и его связи затухают, новый State, его Transition и Condition-связи подсвечиваются. Геометрия остаётся неизменной; Restart возвращает записанное состояние перед Photon.",
+    scenario: PHOTON_STORY_SCENARIO,
+    expectedVisualOutcome: PHOTON_STORY_EXPECTED_VISUAL_OUTCOME,
   },
   gluon: {
     part: "gluon",
@@ -414,157 +325,6 @@ export const forceStoryPartForSlug = (slug: string): Part | null => {
   return match ?? null
 }
 
-const prepareProjection = (
-  scene: ForceStoryPreparedScene,
-): BulkProjectionStore => {
-  const store = new BulkProjectionStore()
-  store.hydrate(structuredClone(scene.sourceSnapshot))
-  return store
-}
-
-const verifiedRepresentation = (
-  definition: ForceStoryDefinition,
-): ForceStoryVerifiedRepresentation => {
-  const verified = definition.representations.filter((representation) =>
-    representation.status === "verified"
-  )
-  if (verified.length !== 1) {
-    throw new Error(
-      `Force Story ${definition.part} expected one verified representation`,
-    )
-  }
-  return verified[0]!
-}
-
-const currentStateName = (
-  store: BulkProjectionStore,
-  scene: ForceStoryPreparedScene,
-): string => {
-  const stateId = store.atomStates.get(scene.atomId)?.state
-  if (stateId === null || stateId === undefined) return "none"
-  return store.states.get(stateId)?.name ?? `State ${stateId}`
-}
-
-const forceStoryLayoutById = Object.freeze({
-  "centered-nested": CenteredNested,
-  "outside-in": OutsideIn,
-} satisfies Record<VisualLayoutSlug, VisualLayout>)
-
-const visualSnapshot = (
-  store: BulkProjectionStore,
-  representation: ForceStoryVerifiedRepresentation,
-): ForceStoryVisualSnapshot => {
-  const projection = store.view()
-  const preparedScene = representation.preparedScene
-  const manifest = buildBulkManifestation(
-    projection,
-    preparedScene.rootSrc,
-  )
-  const graph = buildStateGraph(projection, preparedScene.atomId)
-  const rootDarkParticleId = visualOwnerDarkParticleIdFromAtomId(
-    preparedScene.atomId,
-  )
-  const stateById = new Map(
-    graph.states.map((state) => [state.id, state] as const),
-  )
-  const rootStateIds = [...new Set(
-    graph.sleeves.map((sleeve) => sleeve.rootStateId),
-  )]
-  const atomByOwnerId = new Map(
-    projection.atoms.map((atom) => [
-      visualOwnerDarkParticleIdFromAtomId(atom.id),
-      atom,
-    ] as const),
-  )
-  const renderable = renderableManifest(manifest)
-  const owners = renderable.darkParticles
-    .filter((particle) => particle.darkParticleKind === "atom")
-    .map((particle) => {
-      const atom = atomByOwnerId.get(particle.darkParticleId)
-      if (!atom) {
-        throw new Error(
-          `Force Story ${representation.id} owner ${particle.darkParticleId} is absent`,
-        )
-      }
-      return {
-        graph: buildStateGraph(projection, atom.id),
-        ownerDarkParticleId: particle.darkParticleId,
-      }
-    })
-  return {
-    graph,
-    layouts: representation.layouts.map((layout) => ({
-      id: layout.id,
-      label: layout.label,
-      scene: forceStoryLayoutById[layout.id].buildScene({
-        manifest: renderable,
-        owners,
-      }),
-    })),
-    manifest,
-    representationId: representation.id,
-    rootDarkParticleId,
-    visual: buildBulkVisualRenderManifest(manifest, projection),
-    sleeves: rootStateIds.map((rootStateId) => ({
-      active: rootStateId === graph.currentStateId,
-      current: rootStateId === graph.currentStateId,
-      name: stateById.get(rootStateId)?.name ?? `State ${rootStateId}`,
-      rootStateId,
-    })),
-  }
-}
-
-export class ForceStorySession {
-  readonly definition: ForceStoryDefinition
-  readonly representation: ForceStoryVerifiedRepresentation
-  #change: BulkProjectionChange | null = null
-  #phase: "applied" | "prepared" = "prepared"
-  #store: BulkProjectionStore
-
-  constructor(definition: ForceStoryDefinition) {
-    this.definition = definition
-    this.representation = verifiedRepresentation(definition)
-    this.#store = prepareProjection(this.representation.preparedScene)
-  }
-
-  apply(): ForceStorySessionSnapshot {
-    if (this.#phase === "prepared") {
-      this.#change = this.#store.apply(structuredClone(this.definition.patch))
-      if (!this.#change.changed) {
-        throw new Error(
-          `Force Story ${this.definition.part} patch did not change projection`,
-        )
-      }
-      this.#phase = "applied"
-    }
-    return this.snapshot()
-  }
-
-  restart(): ForceStorySessionSnapshot {
-    this.#store = prepareProjection(this.representation.preparedScene)
-    this.#change = null
-    this.#phase = "prepared"
-    return this.snapshot()
-  }
-
-  snapshot(): ForceStorySessionSnapshot {
-    return {
-      change: this.#change === null ? null : structuredClone(this.#change),
-      currentState: currentStateName(
-        this.#store,
-        this.representation.preparedScene,
-      ),
-      phase: this.#phase,
-      projection: this.#store.snapshot(),
-      representation: visualSnapshot(this.#store, this.representation),
-    }
-  }
-}
-
-export const createForceStorySession = (
-  definition: ForceStoryDefinition,
-): ForceStorySession => new ForceStorySession(definition)
-
 export const formatForceStoryPatch = (
   definition: ForceStoryDefinition,
 ): string => JSON.stringify(definition.patch, null, 2)
@@ -573,11 +333,7 @@ export const forceStoryModalText = (
   definition: ForceStoryDefinition,
 ): string => {
   if (definition.part === "photon") {
-    return [
-      "В записанном состоянии lada-model находится в State «обращение к модели». Process попытался подготовить ответ, завершился ошибкой, и Field «Ошибка модели» уже содержит значение «Inference prompt is empty.». Это выполняет реальное Condition перехода в State «ошибка».",
-      "Затем приходит записанная частица Photon от Matrix. Она меняет текущий State целевого Atom на «ошибка». Во всех четырёх отображениях обеих раскладок активный рукав «обращение к модели» и Process затухают, а полный рукав «ошибка» с его Transition и Condition-связями подсвечивается. Формы и их расположение внутри каждой раскладки не меняются.",
-      "Restart возвращает точный подготовленный срез перед Photon: снова активен State «обращение к модели», Process и его причинные связи.",
-    ].join("\n\n")
+    return PHOTON_STORY_HELP
   }
   return [
     `Входящий Force patch (${definition.part}): ${formatForceStoryPatch(definition)}`,

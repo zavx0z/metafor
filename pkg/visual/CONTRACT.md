@@ -50,6 +50,17 @@
   геометрию внутри каждой раскладки; Restart точно восстанавливает
   подготовленный срез перед Photon. Полная сцена, synthetic diagram, player,
   timeline, replay и virtual-time semantics в этот каталог не входят.
+  Внутри private playground эти обязанности разделены явно:
+  `ForceStories.ts` содержит только каталог, metadata и маршруты восьми Force;
+  `PhotonForceStory.ts` вместе с `fixture/PhotonStoryFixture.ts` владеет
+  записанным Photon-сценарием, closure и provenance;
+  `ForceStoryLabAdapter.ts` является единственным private bridge к deep Bulk
+  implementation. Только этот adapter гидратирует projection, применяет и
+  сбрасывает Particle, строит manifestation/обе `VisualScene`, вычисляет
+  activity summary и связывает их с private viewport lifecycle.
+  `ForceStoriesLab.ts` является UI над каталогом и этим adapter и не импортирует
+  Bulk implementation напрямую. Параллельного session/projection механизма у
+  каталога либо UI нет.
 - Каждая запись `Visual` является исполняемой стратегией с единым
   `buildScene({manifest, owners})`. Каталог не требует от consumer ручного
   `switch` по slug. `centered-nested` готова и используется production Bulk;
@@ -111,7 +122,9 @@
   State-layout projection. Adapter использует только готовые form, material и
   sampled path; повторное построение State, condition Field, causal particle,
   proxy, Hermite либо Relation geometry запрещено. Изолированный State Graph
-  lab также остаётся приватным playground adapter.
+  lab также остаётся приватным playground adapter. Force Stories использует
+  тот же renderer adapter только через `ForceStoryLabAdapter.ts`; каталог,
+  fixture/scenario и UI не становятся ещё одной Bulk integration boundary.
 - Bulk и named-layout playground потребляют одну complete component scene.
   Bulk владеет canvas, viewport, `Space`, `Renderer`, `ViewPoint` и production
   Engine adapter; visual не владеет общим `Space` или Engine lifecycle. Bulk

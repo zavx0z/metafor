@@ -10,11 +10,11 @@ import {
   FORCE_STORY_PARTS,
   FORCE_STORY_VIEWS,
   ForceStories,
-  createForceStorySession,
   forceStoryModalText,
   forceStoryRouteSlug,
   formatForceStoryPatch,
 } from "./ForceStories.ts"
+import {createForceStorySession} from "./ForceStoryLabAdapter.ts"
 
 const actualForceParts: readonly Part[] = [
   "inflaton",
@@ -490,7 +490,8 @@ describe("Force Stories catalog", () => {
   })
 
   test("contains neither synthetic diagrams nor timeline controls", async () => {
-    const [lab, page] = await Promise.all([
+    const [adapter, lab, page] = await Promise.all([
+      Bun.file(new URL("./ForceStoryLabAdapter.ts", import.meta.url)).text(),
       Bun.file(new URL("./ForceStoriesLab.ts", import.meta.url)).text(),
       Bun.file(new URL("./index.html", import.meta.url)).text(),
     ])
@@ -516,9 +517,10 @@ describe("Force Stories catalog", () => {
       'canvas.id = `force-story-${layout.id}-${view.id}-canvas`',
     )
     expect(lab).toContain("photonRepresentation.layouts.flatMap((layout)")
-    expect(lab).toContain("scene: layoutSnapshot.scene")
+    expect(lab).toContain("createForceStoryDisplayAdapter({")
+    expect(adapter).toContain("scene: layoutSnapshot(initial, layoutId).scene")
     expect(lab).toContain(
-      "runtime.viewport.applyScene(layoutSnapshot.scene)",
+      "runtime.viewport.apply(snapshot)",
     )
     expect(lab.match(/className = "force-story-sleeves"/g)).toHaveLength(1)
     expect(lab).toContain("renderSleeves(sharedSleeveLegend, snapshot)")

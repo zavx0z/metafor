@@ -72,6 +72,16 @@ explicit unavailable representation until a concrete visual outcome is
 verified; they render no synthetic scene. The page does not expand to the
 full-world scene and adds no player/timeline controls.
 
+The private implementation has one explicit integration boundary.
+`ForceStories.ts` owns only the eight-part catalog, metadata and routes;
+`PhotonForceStory.ts` and `fixture/PhotonStoryFixture.ts` own the recorded
+Photon case, closure and provenance. `ForceStoryLabAdapter.ts` is the sole
+Force Story module allowed to deep-import Bulk implementation: it hydrates and
+updates the projection, builds manifestation and both layout scenes, exposes
+the shared activity/session snapshot, and owns the private viewport bridge.
+`ForceStoriesLab.ts` renders that adapter and never wires Bulk projection,
+manifestation or Force protocol internals itself.
+
 It renders `playground/fixture/monad-snapshot.json`, a single static full-tree
 `BulkObserverSnapshot` captured through Monad. The main layout reads the
 production Bulk manifestation as immutable structural input; isolated entity
