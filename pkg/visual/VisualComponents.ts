@@ -521,6 +521,33 @@ const materialKey = (material: VisualLineMaterial): string =>
   JSON.stringify(material)
 
 /**
+ * Identity of one Transition line batch.
+ *
+ * A batch is exactly the set of edges a renderer can draw with a single line
+ * material, so the material belongs in the identity: two batches of the same
+ * owner and direction that paint differently are two different GPU buffers.
+ * Exported because a Store that repaints a branch has to name the batches it
+ * produces under the same law the strategy used, or the renderer would see an
+ * unrelated identity and rebuild geometry that never moved.
+ */
+export const visualStateEdgeBatchId = (
+  ownerDarkParticleId: number,
+  returning: boolean,
+  material: VisualLineMaterial,
+): string =>
+  [
+    ownerDarkParticleId,
+    returning ? "return" : "forward",
+    materialKey(material),
+  ].join(":")
+
+/** Identity of one relation line batch, under the same law. */
+export const visualRelationEdgeBatchId = (
+  ownerDarkParticleId: number,
+  material: VisualLineMaterial,
+): string => [ownerDarkParticleId, materialKey(material)].join(":")
+
+/**
  * Flattens the recursive model once into stable renderer indexes. The cached
  * result is reused by all consumers of the same immutable scene; no renderer
  * frame traverses or reconstructs component geometry.
@@ -560,11 +587,11 @@ export const compileVisualComponents = (
         fieldProxies.push(...occurrence.fieldProxies)
       }
       for (const edge of sleeve.sleeve.value.edges) {
-        const key = [
+        const key = visualStateEdgeBatchId(
           sleeve.sleeve.value.ownerDarkParticleId,
-          edge.returning ? "return" : "forward",
-          materialKey(edge.material),
-        ].join(":")
+          edge.returning,
+          edge.material,
+        )
         const batch = edgeBatches.get(key)
         if (batch) {
           batch.edges.push(edge)
@@ -585,10 +612,10 @@ export const compileVisualComponents = (
 
   for (const relation of relationEdges) {
     const edge = relation.value
-    const key = [
+    const key = visualRelationEdgeBatchId(
       edge.ownerDarkParticleId,
-      materialKey(edge.material),
-    ].join(":")
+      edge.material,
+    )
     const batch = relationBatches.get(key)
     if (batch) {
       batch.edges.push(edge)
@@ -599,6 +626,30 @@ export const compileVisualComponents = (
         ownerDarkParticleId: edge.ownerDarkParticleId,
       })
     }
+  }
+
+  /**
+   * Order inside a batch follows the canonical channel identity rather than the
+   * order the traversal happened to reach each edge.
+   *
+   * Membership decides content: a batch that gains an edge because a branch
+   * changed colour must lay out identically whether it was assembled by walking
+   * the forest or by a Store regrouping the paths it already holds. Leaving the
+   * order to the traversal would make those two routes produce different
+   * fingerprints for the same picture.
+   */
+  for (const batch of edgeBatches.values()) {
+    batch.edges.sort((left, right) =>
+      (left.transitionChannelId ?? left.edgeId) <
+          (right.transitionChannelId ?? right.edgeId)
+        ? -1
+        : 1
+    )
+  }
+  for (const batch of relationBatches.values()) {
+    batch.edges.sort((left, right) =>
+      left.relationChannelId < right.relationChannelId ? -1 : 1
+    )
   }
 
   const ordered = <T>(
