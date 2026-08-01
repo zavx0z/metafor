@@ -116,6 +116,13 @@ export type VisualPayloadFieldProxy = Readonly<{
   localZ: number
   material: VisualQuantumMaterial
   ownerDarkParticleId: number
+  /**
+   * Orbital whose activity drives this proxy's paint, or `null` when its anchor
+   * State alone does. Together with `form` this names which of the three proxy
+   * paint laws produced the material, so a Store can repaint the proxy from the
+   * current semantics without re-running a placement law.
+   */
+  paintOrbitalParticleId: string | null
   stateOrbitalParticleId: string
   visualFieldParticleId: string
 }>
@@ -522,6 +529,7 @@ const projectFieldProxies = (
       localZ: local.z,
       material: placement.material,
       ownerDarkParticleId: placement.ownerDarkParticleId,
+      paintOrbitalParticleId: placement.paintOrbitalParticleId,
       stateOrbitalParticleId: proxy.stateOrbitalParticleId,
       visualFieldParticleId: alias.visualFieldParticleId,
     })

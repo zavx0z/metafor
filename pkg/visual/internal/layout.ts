@@ -114,6 +114,17 @@ export type VisualFieldProxyPlacement = Readonly<{
   form: VisualParticleForm
   material: VisualQuantumMaterial
   ownerDarkParticleId: number
+  /**
+   * Orbital whose own activity — not the anchor State's — drives this proxy's
+   * paint, or `null` when the State alone does.
+   *
+   * A proxy's colour is fixed by the source Field's kind, but its opacity and
+   * glow follow whatever is running. Three laws produce proxies and two of them
+   * are spheres, so the form cannot tell them apart. Naming the driving Orbital
+   * here lets a Store repaint a proxy from semantics alone, without asking a
+   * strategy to place it again.
+   */
+  paintOrbitalParticleId: string | null
   stateOrbitalParticleId: string
   x: number
   y: number
