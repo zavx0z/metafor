@@ -5,7 +5,7 @@ import {buildBulkManifestation} from "../../../bulk/manifestation.ts"
 import {
   buildBulkVisualRenderManifest,
 } from "../../../bulk/visual-layout.ts"
-import {buildStateGraph, type StateGraph} from "../StateGraph.ts"
+import {buildStateGraph, type StateGraph} from "../src/StateGraph.ts"
 
 export type StateGraphFieldsStand = Readonly<{
   graph: StateGraph

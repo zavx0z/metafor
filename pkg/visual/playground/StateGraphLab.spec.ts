@@ -2,8 +2,8 @@ import {describe, expect, test} from "bun:test"
 import type {
   StateGraphLayoutEdge,
   StateGraphLayoutNode,
-} from "../StateGraphLayout.ts"
-import type {StateGraph} from "../StateGraph.ts"
+} from "../src/StateGraphLayout.ts"
+import type {StateGraph} from "../src/StateGraph.ts"
 import {
   buildStateGraphBranchLayout,
   createStateGraphHermiteEdgeCurveBuilder,

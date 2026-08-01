@@ -4,16 +4,16 @@ import type {BulkManifest} from "@metafor/types/bulk/manifest"
 import type {BulkRuntimeProjection} from "@metafor/types/bulk/runtime"
 import {buildBulkManifestation} from "../../../../bulk/manifestation.ts"
 import {BulkProjectionStore} from "../../../../bulk/projection.ts"
-import {buildStateGraph} from "../../StateGraph.ts"
-import {buildStateGraphBranchLayout} from "../../StateGraphLayout.ts"
+import {buildStateGraph} from "../../src/StateGraph.ts"
+import {buildStateGraphBranchLayout} from "../../src/StateGraphLayout.ts"
 import {
   buildCenteredNestedVisualScene,
   layoutCenteredNestedFields,
-} from "../../CenteredNested.ts"
-import {buildOutsideInVisualScene} from "../../OutsideIn.ts"
-import {visualOwnerDarkParticleIdFromAtomId} from "../../layout.ts"
-import {visualDarkParticleColor} from "../../SemanticVisual.ts"
-import {buildVisualSceneRenderPlan} from "../../VisualSceneViewport.ts"
+} from "../../src/CenteredNested.ts"
+import {buildOutsideInVisualScene} from "../../src/OutsideIn.ts"
+import {visualOwnerDarkParticleIdFromAtomId} from "../../src/layout.ts"
+import {visualDarkParticleColor} from "../../src/SemanticVisual.ts"
+import {buildVisualSceneRenderPlan} from "../VisualSceneViewport.ts"
 import snapshotJson from "./monad-snapshot.json"
 
 const visualOwners = (

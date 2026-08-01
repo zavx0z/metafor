@@ -66,7 +66,7 @@ import {
 	applyVisualLineMaterial,
 	createVisualLineMaterial,
 	createVisualQuantumMaterial,
-} from "@metafor/visual"
+} from "./visual-material-adapter.ts"
 import {resolveOwnedAtomVisualFitBounds} from "./atom-visual-fit.ts"
 import {
 	BufferAttribute,

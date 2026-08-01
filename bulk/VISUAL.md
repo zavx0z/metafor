@@ -40,7 +40,11 @@ Bulk проявляет один полный runtime projection в два по�
   `VisualScenePayload` — сериализуемый layout-agnostic результат стратегии: он
   не содержит Canvas, GPU handles, `Renderer`, `Space` или `ViewPoint`, поэтому
   может быть подготовлен на сервере.
-- `BulkVisualScenePresenter` владеет payload, находящимся на экране.
+- Сервер готовит initial `VisualScenePayload`, браузер гидратирует его в
+  persistent Visual Store. Этот initial contract не содержит causal frontier,
+  reconnect, replay или recovery policy.
+- `BulkVisualScenePresenter` владеет связью Store с payload, находящимся на
+  экране.
   `selectLayout` меняет выбранную стратегию и сбрасывает удержанный payload,
   так как другая стратегия вправе разместить каждую форму иначе. `hydrate`
   принимает payload, подготовленный вне этого процесса, и отклоняет payload,
@@ -49,9 +53,11 @@ Bulk проявляет один полный runtime projection в два по�
   способное сдвинуть geometry, при идентичном payload вообще не доходит до
   viewport, а structural change перестраивает scene целиком, потому что
   сужение там оставило бы её устаревшей.
-- Локализованное изменение больше не перестраивает всю scene: reconcile
-  сравнивает предыдущий и новый payload и передаёт в viewport только то, что
-  действительно отличается.
+- Visual явно различает `appearance`, `effects`, `relations`, `geometry` и
+  `structure`. Первые три не запускают layout и отдают точные declarative
+  операции; geometry и structure вправе перестроить layout ради correctness.
+  Reconcile после такого перестроения всё равно передаёт Engine adapter только
+  фактически добавленные, изменённые и удалённые identities.
 - `pkg/visual` является единственным владельцем координат, абсолютных размеров,
   цветов форм и детерминированного размещения Torus, Field, State, причинных
   particles и Field proxies. Он строит immutable `VisualComponentForest`,
@@ -137,6 +143,10 @@ Bulk проявляет один полный runtime projection в два по�
   fullscreen, Force impulses, causal timeline с отдельным control dock и
   capture остаются Bulk-owned поведением и не заменяются вместе с
   layout/visual law.
+- Canvas, viewport, `Space`, `Renderer`, `ViewPoint`, GPU resources и их
+  lifecycle принадлежат Bulk. Shared `Space` может содержать невизуальные
+  слои, поэтому `pkg/visual` не создаёт и не владеет ни всем `Space`, ни Engine
+  lifecycle; он заканчивается на declarative scene и update operations.
 - Renderer получает geometry-bearing manifest и компактные canonical counts,
   но не полный semantic manifest. Отсутствующий parent является ошибкой; child
   не переносится в workspace и entity не пропускается молча.

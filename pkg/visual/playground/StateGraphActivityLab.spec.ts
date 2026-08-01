@@ -1,7 +1,7 @@
 import {describe, expect, test} from "bun:test"
 import type {BulkObserverSnapshot} from "@metafor/types/bulk/initial"
 import {BulkProjectionStore} from "../../../bulk/projection.ts"
-import {VISUAL_INACTIVE_STATE_BRANCH_OPACITY} from "../VisualMaterialSpec.ts"
+import {VISUAL_INACTIVE_STATE_BRANCH_OPACITY} from "../src/VisualMaterialSpec.ts"
 import snapshotJson from "./fixture/monad-snapshot.json"
 import {buildStateGraphActivityStand} from "./StateGraphActivityLab.ts"
 

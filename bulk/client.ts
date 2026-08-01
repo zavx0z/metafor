@@ -4,7 +4,7 @@ import {
 	isBulkViewportCaptureControlRequest,
 	type BulkViewportCaptureControlResponse,
 } from "@metafor/types/bulk/capture"
-import type {BulkCausalFrontier, BulkObserverSnapshot} from "@metafor/types/bulk/initial"
+import type {BulkObserverSnapshot} from "@metafor/types/bulk/initial"
 import { Force } from "shared/transport/force"
 import {
 	createBulkViewport,
@@ -32,7 +32,6 @@ const projection = new BulkProjectionStore()
 const presenter = new BulkVisualScenePresenter()
 let activeSrc = DEFAULT_BULK_SCENE_SRC
 let throughTs: number | null = null
-let frontier: BulkCausalFrontier | null = null
 const presentedSnapshot = new BulkPresentedSnapshot()
 
 const observerSnapshot = (): BulkObserverSnapshot => ({
@@ -133,7 +132,6 @@ const start = async (): Promise<void> => {
 	projection.hydrate(initial.projection)
 	activeSrc = initial.rootSrc
 	throughTs = initial.throughTs
-	frontier = initial.frontier
 	if (!bulkViewport) throw new Error("Bulk viewport is not initialized")
 	installBulkHud({viewport: bulkViewport})
 	// The server already ran the selected strategy. Hydration presents that

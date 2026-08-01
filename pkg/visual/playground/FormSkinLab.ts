@@ -18,8 +18,8 @@ import {
   createQuantumSphereMaterial,
   deriveQuantumFilmPalette,
   SPHERE_QUANTUM_HIGHLIGHT_SIZE,
-} from "../QuantumFilm.ts"
-import {DARK_TORUS_MESH_DETAIL} from "../Torus.ts"
+} from "./QuantumFilm.ts"
+import {DARK_TORUS_MESH_DETAIL} from "../src/Torus.ts"
 import {createPageAnnotationLayer} from "./AnnotationLayer.ts"
 
 export type FormSkinLabForm = "sphere" | "torus"

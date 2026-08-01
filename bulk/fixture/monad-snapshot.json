@@ -1,0 +1,7187 @@
+{
+  "version": 1,
+  "throughTs": null,
+  "rootSrc": "zavx0z/lada",
+  "projection": {
+    "runtime": {
+      "atoms": [
+        {
+          "id": 2,
+          "parentAtom": null,
+          "parentTopology": null,
+          "wimp": "zavx0z/lada",
+          "position": 0
+        },
+        {
+          "id": 3,
+          "parentAtom": 2,
+          "parentTopology": null,
+          "wimp": "zavx0z/lada-auth",
+          "position": 0
+        },
+        {
+          "id": 4,
+          "parentAtom": 2,
+          "parentTopology": null,
+          "wimp": "zavx0z/lada-chat",
+          "position": 1
+        },
+        {
+          "id": 5,
+          "parentAtom": 2,
+          "parentTopology": null,
+          "wimp": "zavx0z/lada-model",
+          "position": 2
+        },
+        {
+          "id": 6,
+          "parentAtom": 4,
+          "parentTopology": null,
+          "wimp": "zavx0z/lada-chat-send",
+          "position": 0
+        }
+      ],
+      "topologies": [],
+      "wimps": [
+        {
+          "src": "zavx0z/lada",
+          "name": "lada"
+        },
+        {
+          "src": "zavx0z/lada-auth",
+          "name": "lada-auth"
+        },
+        {
+          "src": "zavx0z/lada-chat",
+          "name": "lada-chat"
+        },
+        {
+          "src": "zavx0z/lada-model",
+          "name": "lada-model"
+        },
+        {
+          "src": "zavx0z/lada-chat-send",
+          "name": "lada-chat-send"
+        }
+      ],
+      "fields": [
+        {
+          "id": 1,
+          "wimp": "zavx0z/lada",
+          "localId": 1,
+          "key": "phone",
+          "type": "string",
+          "required": false,
+          "label": "Телефон Лады"
+        },
+        {
+          "id": 2,
+          "wimp": "zavx0z/lada",
+          "localId": 2,
+          "key": "smsCode",
+          "type": "string",
+          "required": false,
+          "label": "Код из SMS"
+        },
+        {
+          "id": 3,
+          "wimp": "zavx0z/lada",
+          "localId": 3,
+          "key": "authenticated",
+          "type": "boolean",
+          "required": true,
+          "label": "Авторизована",
+          "default": false
+        },
+        {
+          "id": 4,
+          "wimp": "zavx0z/lada",
+          "localId": 4,
+          "key": "userId",
+          "type": "string",
+          "required": false,
+          "label": "SSO user ID"
+        },
+        {
+          "id": 5,
+          "wimp": "zavx0z/lada",
+          "localId": 5,
+          "key": "login",
+          "type": "string",
+          "required": false,
+          "label": "SSO login"
+        },
+        {
+          "id": 6,
+          "wimp": "zavx0z/lada",
+          "localId": 6,
+          "key": "authError",
+          "type": "string",
+          "required": false,
+          "label": "Ошибка авторизации"
+        },
+        {
+          "id": 7,
+          "wimp": "zavx0z/lada",
+          "localId": 7,
+          "key": "chatConnected",
+          "type": "boolean",
+          "required": true,
+          "label": "Общая комната подключена",
+          "default": false
+        },
+        {
+          "id": 8,
+          "wimp": "zavx0z/lada",
+          "localId": 8,
+          "key": "chatHistoryReady",
+          "type": "boolean",
+          "required": true,
+          "label": "История общей комнаты получена",
+          "default": false
+        },
+        {
+          "id": 9,
+          "wimp": "zavx0z/lada",
+          "localId": 9,
+          "key": "ownMessageExists",
+          "type": "boolean",
+          "required": true,
+          "label": "У Лады уже есть сообщение",
+          "default": false
+        },
+        {
+          "id": 10,
+          "wimp": "zavx0z/lada",
+          "localId": 10,
+          "key": "roomKey",
+          "type": "string",
+          "required": false,
+          "label": "Ключ общей комнаты"
+        },
+        {
+          "id": 11,
+          "wimp": "zavx0z/lada",
+          "localId": 11,
+          "key": "roomTitle",
+          "type": "string",
+          "required": false,
+          "label": "Общая комната"
+        },
+        {
+          "id": 12,
+          "wimp": "zavx0z/lada",
+          "localId": 12,
+          "key": "incomingMessageKey",
+          "type": "string",
+          "required": false,
+          "label": "Ключ входящего сообщения"
+        },
+        {
+          "id": 13,
+          "wimp": "zavx0z/lada",
+          "localId": 13,
+          "key": "incomingMessage",
+          "type": "string",
+          "required": false,
+          "label": "Входящее сообщение"
+        },
+        {
+          "id": 14,
+          "wimp": "zavx0z/lada",
+          "localId": 14,
+          "key": "chatError",
+          "type": "string",
+          "required": false,
+          "label": "Ошибка чата"
+        },
+        {
+          "id": 15,
+          "wimp": "zavx0z/lada",
+          "localId": 15,
+          "key": "modelPrompt",
+          "type": "string",
+          "required": false,
+          "label": "Намерение обратиться к модели"
+        },
+        {
+          "id": 16,
+          "wimp": "zavx0z/lada",
+          "localId": 16,
+          "key": "replyDraft",
+          "type": "string",
+          "required": false,
+          "label": "Черновик ответа"
+        },
+        {
+          "id": 17,
+          "wimp": "zavx0z/lada",
+          "localId": 17,
+          "key": "modelError",
+          "type": "string",
+          "required": false,
+          "label": "Ошибка модели"
+        },
+        {
+          "id": 18,
+          "wimp": "zavx0z/lada",
+          "localId": 18,
+          "key": "outgoingMessage",
+          "type": "string",
+          "required": false,
+          "label": "Разрешённое исходящее сообщение"
+        },
+        {
+          "id": 19,
+          "wimp": "zavx0z/lada",
+          "localId": 19,
+          "key": "lastSentMessageKey",
+          "type": "string",
+          "required": false,
+          "label": "Последнее отправленное сообщение"
+        },
+        {
+          "id": 20,
+          "wimp": "zavx0z/lada",
+          "localId": 20,
+          "key": "sendError",
+          "type": "string",
+          "required": false,
+          "label": "Ошибка отправки"
+        },
+        {
+          "id": 21,
+          "wimp": "zavx0z/lada",
+          "localId": 21,
+          "key": "greetingPrepared",
+          "type": "boolean",
+          "required": true,
+          "label": "Приветствие подготовлено",
+          "default": false
+        },
+        {
+          "id": 22,
+          "wimp": "zavx0z/lada-auth",
+          "localId": 1,
+          "key": "phone",
+          "type": "string",
+          "required": false,
+          "label": "Телефон"
+        },
+        {
+          "id": 23,
+          "wimp": "zavx0z/lada-auth",
+          "localId": 2,
+          "key": "smsCode",
+          "type": "string",
+          "required": false,
+          "label": "Код из SMS"
+        },
+        {
+          "id": 24,
+          "wimp": "zavx0z/lada-auth",
+          "localId": 3,
+          "key": "sessionChecked",
+          "type": "boolean",
+          "required": true,
+          "label": "Сессия проверена",
+          "default": false
+        },
+        {
+          "id": 25,
+          "wimp": "zavx0z/lada-auth",
+          "localId": 4,
+          "key": "codeRequested",
+          "type": "boolean",
+          "required": true,
+          "label": "Код запрошен",
+          "default": false
+        },
+        {
+          "id": 26,
+          "wimp": "zavx0z/lada-auth",
+          "localId": 5,
+          "key": "authenticated",
+          "type": "boolean",
+          "required": true,
+          "label": "Авторизована",
+          "default": false
+        },
+        {
+          "id": 27,
+          "wimp": "zavx0z/lada-auth",
+          "localId": 6,
+          "key": "userId",
+          "type": "string",
+          "required": false,
+          "label": "SSO user ID"
+        },
+        {
+          "id": 28,
+          "wimp": "zavx0z/lada-auth",
+          "localId": 7,
+          "key": "login",
+          "type": "string",
+          "required": false,
+          "label": "SSO login"
+        },
+        {
+          "id": 29,
+          "wimp": "zavx0z/lada-auth",
+          "localId": 8,
+          "key": "error",
+          "type": "string",
+          "required": false,
+          "label": "Ошибка авторизации"
+        },
+        {
+          "id": 30,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 1,
+          "key": "authenticated",
+          "type": "boolean",
+          "required": true,
+          "label": "SSO доступен",
+          "default": false
+        },
+        {
+          "id": 31,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 2,
+          "key": "connected",
+          "type": "boolean",
+          "required": true,
+          "label": "Realtime подключён",
+          "default": false
+        },
+        {
+          "id": 32,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 3,
+          "key": "historyReady",
+          "type": "boolean",
+          "required": true,
+          "label": "История получена",
+          "default": false
+        },
+        {
+          "id": 33,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 4,
+          "key": "ownMessageExists",
+          "type": "boolean",
+          "required": true,
+          "label": "Есть сообщение Лады",
+          "default": false
+        },
+        {
+          "id": 34,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 5,
+          "key": "roomKey",
+          "type": "string",
+          "required": false,
+          "label": "Ключ общей комнаты"
+        },
+        {
+          "id": 35,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 6,
+          "key": "roomTitle",
+          "type": "string",
+          "required": false,
+          "label": "Комната"
+        },
+        {
+          "id": 36,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 7,
+          "key": "historyCount",
+          "type": "number",
+          "required": true,
+          "label": "Сообщений в истории",
+          "default": 0
+        },
+        {
+          "id": 37,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 8,
+          "key": "eventReady",
+          "type": "boolean",
+          "required": true,
+          "label": "Realtime-событие получено",
+          "default": false
+        },
+        {
+          "id": 38,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 9,
+          "key": "retryReady",
+          "type": "boolean",
+          "required": true,
+          "label": "Можно переподключаться",
+          "default": false
+        },
+        {
+          "id": 39,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 10,
+          "key": "incomingMessageKey",
+          "type": "string",
+          "required": false,
+          "label": "Ключ входящего сообщения"
+        },
+        {
+          "id": 40,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 11,
+          "key": "incomingMessage",
+          "type": "string",
+          "required": false,
+          "label": "Входящее сообщение"
+        },
+        {
+          "id": 41,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 12,
+          "key": "error",
+          "type": "string",
+          "required": false,
+          "label": "Ошибка чата"
+        },
+        {
+          "id": 42,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 13,
+          "key": "outgoingMessage",
+          "type": "string",
+          "required": false,
+          "label": "Исходящее сообщение"
+        },
+        {
+          "id": 43,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 14,
+          "key": "lastSentMessageKey",
+          "type": "string",
+          "required": false,
+          "label": "Последнее отправленное сообщение"
+        },
+        {
+          "id": 44,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 15,
+          "key": "sendError",
+          "type": "string",
+          "required": false,
+          "label": "Ошибка отправки"
+        },
+        {
+          "id": 50,
+          "wimp": "zavx0z/lada-chat-send",
+          "localId": 1,
+          "key": "connected",
+          "type": "boolean",
+          "required": true,
+          "label": "Realtime подключён",
+          "default": false
+        },
+        {
+          "id": 51,
+          "wimp": "zavx0z/lada-chat-send",
+          "localId": 2,
+          "key": "roomKey",
+          "type": "string",
+          "required": false,
+          "label": "Ключ общей комнаты"
+        },
+        {
+          "id": 52,
+          "wimp": "zavx0z/lada-chat-send",
+          "localId": 3,
+          "key": "body",
+          "type": "string",
+          "required": false,
+          "label": "Разрешённое сообщение"
+        },
+        {
+          "id": 53,
+          "wimp": "zavx0z/lada-chat-send",
+          "localId": 4,
+          "key": "lastSentMessageKey",
+          "type": "string",
+          "required": false,
+          "label": "Последнее отправленное сообщение"
+        },
+        {
+          "id": 54,
+          "wimp": "zavx0z/lada-chat-send",
+          "localId": 5,
+          "key": "error",
+          "type": "string",
+          "required": false,
+          "label": "Ошибка отправки"
+        },
+        {
+          "id": 45,
+          "wimp": "zavx0z/lada-model",
+          "localId": 1,
+          "key": "prompt",
+          "type": "string",
+          "required": false,
+          "label": "Намерение Лады"
+        },
+        {
+          "id": 46,
+          "wimp": "zavx0z/lada-model",
+          "localId": 2,
+          "key": "model",
+          "type": "string",
+          "required": true,
+          "label": "Ollama model",
+          "default": "qwen3.5:9b"
+        },
+        {
+          "id": 47,
+          "wimp": "zavx0z/lada-model",
+          "localId": 3,
+          "key": "response",
+          "type": "string",
+          "required": false,
+          "label": "Черновик модели"
+        },
+        {
+          "id": 48,
+          "wimp": "zavx0z/lada-model",
+          "localId": 4,
+          "key": "lastMessageId",
+          "type": "string",
+          "required": false,
+          "label": "Последнее сообщение модели"
+        },
+        {
+          "id": 49,
+          "wimp": "zavx0z/lada-model",
+          "localId": 5,
+          "key": "error",
+          "type": "string",
+          "required": false,
+          "label": "Ошибка модели"
+        }
+      ],
+      "states": [
+        {
+          "id": 2,
+          "wimp": "zavx0z/lada",
+          "localId": 1,
+          "name": "ожидание мира",
+          "position": 0
+        },
+        {
+          "id": 3,
+          "wimp": "zavx0z/lada",
+          "localId": 2,
+          "name": "подготовка приветствия",
+          "position": 1
+        },
+        {
+          "id": 4,
+          "wimp": "zavx0z/lada",
+          "localId": 3,
+          "name": "работа",
+          "position": 2
+        },
+        {
+          "id": 5,
+          "wimp": "zavx0z/lada",
+          "localId": 4,
+          "name": "осмысление сообщения",
+          "position": 3
+        },
+        {
+          "id": 6,
+          "wimp": "zavx0z/lada-auth",
+          "localId": 1,
+          "name": "проверка сессии",
+          "position": 0
+        },
+        {
+          "id": 7,
+          "wimp": "zavx0z/lada-auth",
+          "localId": 2,
+          "name": "ожидание телефона",
+          "position": 1
+        },
+        {
+          "id": 8,
+          "wimp": "zavx0z/lada-auth",
+          "localId": 3,
+          "name": "запрос SMS",
+          "position": 2
+        },
+        {
+          "id": 9,
+          "wimp": "zavx0z/lada-auth",
+          "localId": 4,
+          "name": "ожидание кода",
+          "position": 3
+        },
+        {
+          "id": 10,
+          "wimp": "zavx0z/lada-auth",
+          "localId": 5,
+          "name": "вход",
+          "position": 4
+        },
+        {
+          "id": 11,
+          "wimp": "zavx0z/lada-auth",
+          "localId": 6,
+          "name": "ошибка",
+          "position": 5
+        },
+        {
+          "id": 12,
+          "wimp": "zavx0z/lada-auth",
+          "localId": 7,
+          "name": "авторизована",
+          "position": 6
+        },
+        {
+          "id": 13,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 1,
+          "name": "ожидание авторизации",
+          "position": 0
+        },
+        {
+          "id": 14,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 2,
+          "name": "подключение",
+          "position": 1
+        },
+        {
+          "id": 15,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 3,
+          "name": "ожидание события",
+          "position": 2
+        },
+        {
+          "id": 16,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 4,
+          "name": "событие принято",
+          "position": 3
+        },
+        {
+          "id": 17,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 5,
+          "name": "переподключение",
+          "position": 4
+        },
+        {
+          "id": 18,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 6,
+          "name": "ошибка подключения",
+          "position": 5
+        },
+        {
+          "id": 22,
+          "wimp": "zavx0z/lada-chat-send",
+          "localId": 1,
+          "name": "ожидание намерения",
+          "position": 0
+        },
+        {
+          "id": 23,
+          "wimp": "zavx0z/lada-chat-send",
+          "localId": 2,
+          "name": "отправка",
+          "position": 1
+        },
+        {
+          "id": 24,
+          "wimp": "zavx0z/lada-chat-send",
+          "localId": 3,
+          "name": "ошибка",
+          "position": 2
+        },
+        {
+          "id": 19,
+          "wimp": "zavx0z/lada-model",
+          "localId": 1,
+          "name": "ожидание",
+          "position": 0
+        },
+        {
+          "id": 20,
+          "wimp": "zavx0z/lada-model",
+          "localId": 2,
+          "name": "обращение к модели",
+          "position": 1
+        },
+        {
+          "id": 21,
+          "wimp": "zavx0z/lada-model",
+          "localId": 3,
+          "name": "ошибка",
+          "position": 2
+        }
+      ],
+      "transitions": [
+        {
+          "id": 1,
+          "wimp": "zavx0z/lada",
+          "localId": 1,
+          "fromState": 2,
+          "toState": 3,
+          "position": 0
+        },
+        {
+          "id": 2,
+          "wimp": "zavx0z/lada",
+          "localId": 2,
+          "fromState": 2,
+          "toState": 4,
+          "position": 1
+        },
+        {
+          "id": 3,
+          "wimp": "zavx0z/lada",
+          "localId": 3,
+          "fromState": 3,
+          "toState": 4,
+          "position": 0
+        },
+        {
+          "id": 4,
+          "wimp": "zavx0z/lada",
+          "localId": 4,
+          "fromState": 4,
+          "toState": 5,
+          "position": 0
+        },
+        {
+          "id": 5,
+          "wimp": "zavx0z/lada",
+          "localId": 5,
+          "fromState": 5,
+          "toState": 4,
+          "position": 0
+        },
+        {
+          "id": 6,
+          "wimp": "zavx0z/lada-auth",
+          "localId": 1,
+          "fromState": 6,
+          "toState": 12,
+          "position": 0
+        },
+        {
+          "id": 7,
+          "wimp": "zavx0z/lada-auth",
+          "localId": 2,
+          "fromState": 6,
+          "toState": 7,
+          "position": 1
+        },
+        {
+          "id": 8,
+          "wimp": "zavx0z/lada-auth",
+          "localId": 3,
+          "fromState": 6,
+          "toState": 11,
+          "position": 2
+        },
+        {
+          "id": 9,
+          "wimp": "zavx0z/lada-auth",
+          "localId": 4,
+          "fromState": 7,
+          "toState": 8,
+          "position": 0
+        },
+        {
+          "id": 10,
+          "wimp": "zavx0z/lada-auth",
+          "localId": 5,
+          "fromState": 8,
+          "toState": 11,
+          "position": 0
+        },
+        {
+          "id": 11,
+          "wimp": "zavx0z/lada-auth",
+          "localId": 6,
+          "fromState": 8,
+          "toState": 9,
+          "position": 1
+        },
+        {
+          "id": 12,
+          "wimp": "zavx0z/lada-auth",
+          "localId": 7,
+          "fromState": 9,
+          "toState": 10,
+          "position": 0
+        },
+        {
+          "id": 13,
+          "wimp": "zavx0z/lada-auth",
+          "localId": 8,
+          "fromState": 10,
+          "toState": 11,
+          "position": 0
+        },
+        {
+          "id": 14,
+          "wimp": "zavx0z/lada-auth",
+          "localId": 9,
+          "fromState": 10,
+          "toState": 12,
+          "position": 1
+        },
+        {
+          "id": 15,
+          "wimp": "zavx0z/lada-auth",
+          "localId": 10,
+          "fromState": 11,
+          "toState": 9,
+          "position": 0
+        },
+        {
+          "id": 16,
+          "wimp": "zavx0z/lada-auth",
+          "localId": 11,
+          "fromState": 11,
+          "toState": 7,
+          "position": 1
+        },
+        {
+          "id": 17,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 1,
+          "fromState": 13,
+          "toState": 14,
+          "position": 0
+        },
+        {
+          "id": 18,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 2,
+          "fromState": 14,
+          "toState": 18,
+          "position": 0
+        },
+        {
+          "id": 19,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 3,
+          "fromState": 14,
+          "toState": 15,
+          "position": 1
+        },
+        {
+          "id": 20,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 4,
+          "fromState": 15,
+          "toState": 17,
+          "position": 0
+        },
+        {
+          "id": 21,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 5,
+          "fromState": 15,
+          "toState": 16,
+          "position": 1
+        },
+        {
+          "id": 22,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 6,
+          "fromState": 16,
+          "toState": 15,
+          "position": 0
+        },
+        {
+          "id": 23,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 7,
+          "fromState": 17,
+          "toState": 14,
+          "position": 0
+        },
+        {
+          "id": 24,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 8,
+          "fromState": 18,
+          "toState": 14,
+          "position": 0
+        },
+        {
+          "id": 29,
+          "wimp": "zavx0z/lada-chat-send",
+          "localId": 1,
+          "fromState": 22,
+          "toState": 23,
+          "position": 0
+        },
+        {
+          "id": 30,
+          "wimp": "zavx0z/lada-chat-send",
+          "localId": 2,
+          "fromState": 23,
+          "toState": 24,
+          "position": 0
+        },
+        {
+          "id": 31,
+          "wimp": "zavx0z/lada-chat-send",
+          "localId": 3,
+          "fromState": 23,
+          "toState": 22,
+          "position": 1
+        },
+        {
+          "id": 32,
+          "wimp": "zavx0z/lada-chat-send",
+          "localId": 4,
+          "fromState": 24,
+          "toState": 22,
+          "position": 0
+        },
+        {
+          "id": 25,
+          "wimp": "zavx0z/lada-model",
+          "localId": 1,
+          "fromState": 19,
+          "toState": 20,
+          "position": 0
+        },
+        {
+          "id": 26,
+          "wimp": "zavx0z/lada-model",
+          "localId": 2,
+          "fromState": 20,
+          "toState": 21,
+          "position": 0
+        },
+        {
+          "id": 27,
+          "wimp": "zavx0z/lada-model",
+          "localId": 3,
+          "fromState": 20,
+          "toState": 19,
+          "position": 1
+        },
+        {
+          "id": 28,
+          "wimp": "zavx0z/lada-model",
+          "localId": 4,
+          "fromState": 21,
+          "toState": 19,
+          "position": 0
+        }
+      ],
+      "conditions": [
+        {
+          "id": 1,
+          "wimp": "zavx0z/lada",
+          "localId": 1,
+          "transition": 1,
+          "field": 8,
+          "position": 0,
+          "predicate": {
+            "eq": true
+          }
+        },
+        {
+          "id": 2,
+          "wimp": "zavx0z/lada",
+          "localId": 2,
+          "transition": 1,
+          "field": 9,
+          "position": 1,
+          "predicate": {
+            "eq": false
+          }
+        },
+        {
+          "id": 3,
+          "wimp": "zavx0z/lada",
+          "localId": 3,
+          "transition": 1,
+          "field": 21,
+          "position": 2,
+          "predicate": {
+            "eq": false
+          }
+        },
+        {
+          "id": 4,
+          "wimp": "zavx0z/lada",
+          "localId": 4,
+          "transition": 2,
+          "field": 8,
+          "position": 0,
+          "predicate": {
+            "eq": true
+          }
+        },
+        {
+          "id": 5,
+          "wimp": "zavx0z/lada",
+          "localId": 5,
+          "transition": 2,
+          "field": 9,
+          "position": 1,
+          "predicate": {
+            "eq": true
+          }
+        },
+        {
+          "id": 6,
+          "wimp": "zavx0z/lada",
+          "localId": 6,
+          "transition": 3,
+          "field": 21,
+          "position": 0,
+          "predicate": {
+            "eq": true
+          }
+        },
+        {
+          "id": 7,
+          "wimp": "zavx0z/lada",
+          "localId": 7,
+          "transition": 4,
+          "field": 12,
+          "position": 0,
+          "predicate": {
+            "notEq": null
+          }
+        },
+        {
+          "id": 8,
+          "wimp": "zavx0z/lada",
+          "localId": 8,
+          "transition": 4,
+          "field": 15,
+          "position": 1,
+          "predicate": {
+            "eq": null
+          }
+        },
+        {
+          "id": 9,
+          "wimp": "zavx0z/lada",
+          "localId": 9,
+          "transition": 5,
+          "field": 12,
+          "position": 0,
+          "predicate": {
+            "eq": null
+          }
+        },
+        {
+          "id": 10,
+          "wimp": "zavx0z/lada-auth",
+          "localId": 1,
+          "transition": 6,
+          "field": 26,
+          "position": 0,
+          "predicate": {
+            "eq": true
+          }
+        },
+        {
+          "id": 11,
+          "wimp": "zavx0z/lada-auth",
+          "localId": 2,
+          "transition": 7,
+          "field": 24,
+          "position": 0,
+          "predicate": {
+            "eq": true
+          }
+        },
+        {
+          "id": 12,
+          "wimp": "zavx0z/lada-auth",
+          "localId": 3,
+          "transition": 7,
+          "field": 26,
+          "position": 1,
+          "predicate": {
+            "eq": false
+          }
+        },
+        {
+          "id": 13,
+          "wimp": "zavx0z/lada-auth",
+          "localId": 4,
+          "transition": 8,
+          "field": 29,
+          "position": 0,
+          "predicate": {
+            "notEq": null
+          }
+        },
+        {
+          "id": 14,
+          "wimp": "zavx0z/lada-auth",
+          "localId": 5,
+          "transition": 9,
+          "field": 22,
+          "position": 0,
+          "predicate": {
+            "notEq": null
+          }
+        },
+        {
+          "id": 15,
+          "wimp": "zavx0z/lada-auth",
+          "localId": 6,
+          "transition": 10,
+          "field": 29,
+          "position": 0,
+          "predicate": {
+            "notEq": null
+          }
+        },
+        {
+          "id": 16,
+          "wimp": "zavx0z/lada-auth",
+          "localId": 7,
+          "transition": 11,
+          "field": 25,
+          "position": 0,
+          "predicate": {
+            "eq": true
+          }
+        },
+        {
+          "id": 17,
+          "wimp": "zavx0z/lada-auth",
+          "localId": 8,
+          "transition": 12,
+          "field": 23,
+          "position": 0,
+          "predicate": {
+            "notEq": null
+          }
+        },
+        {
+          "id": 18,
+          "wimp": "zavx0z/lada-auth",
+          "localId": 9,
+          "transition": 13,
+          "field": 29,
+          "position": 0,
+          "predicate": {
+            "notEq": null
+          }
+        },
+        {
+          "id": 19,
+          "wimp": "zavx0z/lada-auth",
+          "localId": 10,
+          "transition": 14,
+          "field": 26,
+          "position": 0,
+          "predicate": {
+            "eq": true
+          }
+        },
+        {
+          "id": 20,
+          "wimp": "zavx0z/lada-auth",
+          "localId": 11,
+          "transition": 15,
+          "field": 29,
+          "position": 0,
+          "predicate": {
+            "eq": null
+          }
+        },
+        {
+          "id": 21,
+          "wimp": "zavx0z/lada-auth",
+          "localId": 12,
+          "transition": 15,
+          "field": 25,
+          "position": 1,
+          "predicate": {
+            "eq": true
+          }
+        },
+        {
+          "id": 22,
+          "wimp": "zavx0z/lada-auth",
+          "localId": 13,
+          "transition": 16,
+          "field": 29,
+          "position": 0,
+          "predicate": {
+            "eq": null
+          }
+        },
+        {
+          "id": 23,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 1,
+          "transition": 17,
+          "field": 30,
+          "position": 0,
+          "predicate": {
+            "eq": true
+          }
+        },
+        {
+          "id": 24,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 2,
+          "transition": 18,
+          "field": 41,
+          "position": 0,
+          "predicate": {
+            "notEq": null
+          }
+        },
+        {
+          "id": 25,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 3,
+          "transition": 19,
+          "field": 31,
+          "position": 0,
+          "predicate": {
+            "eq": true
+          }
+        },
+        {
+          "id": 26,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 4,
+          "transition": 20,
+          "field": 31,
+          "position": 0,
+          "predicate": {
+            "eq": false
+          }
+        },
+        {
+          "id": 27,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 5,
+          "transition": 21,
+          "field": 31,
+          "position": 0,
+          "predicate": {
+            "eq": true
+          }
+        },
+        {
+          "id": 28,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 6,
+          "transition": 21,
+          "field": 37,
+          "position": 1,
+          "predicate": {
+            "eq": true
+          }
+        },
+        {
+          "id": 29,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 7,
+          "transition": 22,
+          "field": 37,
+          "position": 0,
+          "predicate": {
+            "eq": false
+          }
+        },
+        {
+          "id": 30,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 8,
+          "transition": 22,
+          "field": 39,
+          "position": 1,
+          "predicate": {
+            "eq": null
+          }
+        },
+        {
+          "id": 31,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 9,
+          "transition": 23,
+          "field": 38,
+          "position": 0,
+          "predicate": {
+            "eq": true
+          }
+        },
+        {
+          "id": 32,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 10,
+          "transition": 24,
+          "field": 38,
+          "position": 0,
+          "predicate": {
+            "eq": true
+          }
+        },
+        {
+          "id": 37,
+          "wimp": "zavx0z/lada-chat-send",
+          "localId": 1,
+          "transition": 29,
+          "field": 50,
+          "position": 0,
+          "predicate": {
+            "eq": true
+          }
+        },
+        {
+          "id": 38,
+          "wimp": "zavx0z/lada-chat-send",
+          "localId": 2,
+          "transition": 29,
+          "field": 51,
+          "position": 1,
+          "predicate": {
+            "notEq": null
+          }
+        },
+        {
+          "id": 39,
+          "wimp": "zavx0z/lada-chat-send",
+          "localId": 3,
+          "transition": 29,
+          "field": 52,
+          "position": 2,
+          "predicate": {
+            "notEq": null
+          }
+        },
+        {
+          "id": 40,
+          "wimp": "zavx0z/lada-chat-send",
+          "localId": 4,
+          "transition": 30,
+          "field": 54,
+          "position": 0,
+          "predicate": {
+            "notEq": null
+          }
+        },
+        {
+          "id": 41,
+          "wimp": "zavx0z/lada-chat-send",
+          "localId": 5,
+          "transition": 31,
+          "field": 52,
+          "position": 0,
+          "predicate": {
+            "eq": null
+          }
+        },
+        {
+          "id": 42,
+          "wimp": "zavx0z/lada-chat-send",
+          "localId": 6,
+          "transition": 31,
+          "field": 54,
+          "position": 1,
+          "predicate": {
+            "eq": null
+          }
+        },
+        {
+          "id": 43,
+          "wimp": "zavx0z/lada-chat-send",
+          "localId": 7,
+          "transition": 32,
+          "field": 54,
+          "position": 0,
+          "predicate": {
+            "eq": null
+          }
+        },
+        {
+          "id": 33,
+          "wimp": "zavx0z/lada-model",
+          "localId": 1,
+          "transition": 25,
+          "field": 45,
+          "position": 0,
+          "predicate": {
+            "notEq": null
+          }
+        },
+        {
+          "id": 34,
+          "wimp": "zavx0z/lada-model",
+          "localId": 2,
+          "transition": 26,
+          "field": 49,
+          "position": 0,
+          "predicate": {
+            "notEq": null
+          }
+        },
+        {
+          "id": 35,
+          "wimp": "zavx0z/lada-model",
+          "localId": 3,
+          "transition": 27,
+          "field": 45,
+          "position": 0,
+          "predicate": {
+            "eq": null
+          }
+        },
+        {
+          "id": 36,
+          "wimp": "zavx0z/lada-model",
+          "localId": 4,
+          "transition": 28,
+          "field": 49,
+          "position": 0,
+          "predicate": {
+            "eq": null
+          }
+        }
+      ],
+      "processes": [
+        {
+          "id": 1,
+          "wimp": "zavx0z/lada",
+          "localId": 1,
+          "state": "подготовка приветствия",
+          "descriptor": {
+            "type": "action",
+            "key": "подготовка приветствия",
+            "label": "Подготовить приветствие, не отправляя его",
+            "desc": null,
+            "env": [
+              "server"
+            ],
+            "action": {
+              "src": "./actions/prepare-greeting.ts",
+              "importSpecifier": "default",
+              "wrapperSrc": "async ({ mass, signal }) => {\n    return (await import(\"./actions/prepare-greeting.ts\")).default({ mass, signal });\n  }",
+              "readFields": [
+                [
+                  1,
+                  "phone"
+                ],
+                [
+                  2,
+                  "smsCode"
+                ],
+                [
+                  3,
+                  "authenticated"
+                ],
+                [
+                  4,
+                  "userId"
+                ],
+                [
+                  5,
+                  "login"
+                ],
+                [
+                  6,
+                  "authError"
+                ],
+                [
+                  7,
+                  "chatConnected"
+                ],
+                [
+                  8,
+                  "chatHistoryReady"
+                ],
+                [
+                  9,
+                  "ownMessageExists"
+                ],
+                [
+                  10,
+                  "roomKey"
+                ],
+                [
+                  11,
+                  "roomTitle"
+                ],
+                [
+                  12,
+                  "incomingMessageKey"
+                ],
+                [
+                  13,
+                  "incomingMessage"
+                ],
+                [
+                  14,
+                  "chatError"
+                ],
+                [
+                  15,
+                  "modelPrompt"
+                ],
+                [
+                  16,
+                  "replyDraft"
+                ],
+                [
+                  17,
+                  "modelError"
+                ],
+                [
+                  18,
+                  "outgoingMessage"
+                ],
+                [
+                  19,
+                  "lastSentMessageKey"
+                ],
+                [
+                  20,
+                  "sendError"
+                ],
+                [
+                  21,
+                  "greetingPrepared"
+                ]
+              ]
+            },
+            "success": {
+              "src": "({ update }) => update({\n    greetingPrepared: true,\n    chatError: null\n  }, \"s\")",
+              "readFields": [],
+              "writeFields": [
+                [
+                  14,
+                  "chatError"
+                ],
+                [
+                  21,
+                  "greetingPrepared"
+                ]
+              ]
+            },
+            "error": {
+              "src": "({ error, update }) => update({\n    greetingPrepared: false,\n    chatError: error.message\n  }, \"e\")",
+              "readFields": [],
+              "writeFields": [
+                [
+                  14,
+                  "chatError"
+                ],
+                [
+                  21,
+                  "greetingPrepared"
+                ]
+              ]
+            }
+          }
+        },
+        {
+          "id": 2,
+          "wimp": "zavx0z/lada",
+          "localId": 2,
+          "state": "осмысление сообщения",
+          "descriptor": {
+            "type": "action",
+            "key": "осмысление сообщения",
+            "label": "Сформулировать намерение подготовить ответ",
+            "desc": null,
+            "env": [
+              "server"
+            ],
+            "action": {
+              "src": "./actions/consider-message.ts",
+              "importSpecifier": "default",
+              "wrapperSrc": "async ({ signal, value }) => {\n    return (await import(\"./actions/consider-message.ts\")).default({ signal, value });\n  }",
+              "readFields": [
+                [
+                  1,
+                  "phone"
+                ],
+                [
+                  2,
+                  "smsCode"
+                ],
+                [
+                  3,
+                  "authenticated"
+                ],
+                [
+                  4,
+                  "userId"
+                ],
+                [
+                  5,
+                  "login"
+                ],
+                [
+                  6,
+                  "authError"
+                ],
+                [
+                  7,
+                  "chatConnected"
+                ],
+                [
+                  8,
+                  "chatHistoryReady"
+                ],
+                [
+                  9,
+                  "ownMessageExists"
+                ],
+                [
+                  10,
+                  "roomKey"
+                ],
+                [
+                  11,
+                  "roomTitle"
+                ],
+                [
+                  12,
+                  "incomingMessageKey"
+                ],
+                [
+                  13,
+                  "incomingMessage"
+                ],
+                [
+                  14,
+                  "chatError"
+                ],
+                [
+                  15,
+                  "modelPrompt"
+                ],
+                [
+                  16,
+                  "replyDraft"
+                ],
+                [
+                  17,
+                  "modelError"
+                ],
+                [
+                  18,
+                  "outgoingMessage"
+                ],
+                [
+                  19,
+                  "lastSentMessageKey"
+                ],
+                [
+                  20,
+                  "sendError"
+                ],
+                [
+                  21,
+                  "greetingPrepared"
+                ]
+              ]
+            },
+            "success": {
+              "src": "({ data, update }) => update({\n    incomingMessageKey: null,\n    incomingMessage: null,\n    modelPrompt: data.prompt,\n    modelError: null\n  }, \"s\")",
+              "readFields": [],
+              "writeFields": [
+                [
+                  12,
+                  "incomingMessageKey"
+                ],
+                [
+                  13,
+                  "incomingMessage"
+                ],
+                [
+                  15,
+                  "modelPrompt"
+                ],
+                [
+                  17,
+                  "modelError"
+                ]
+              ]
+            },
+            "error": {
+              "src": "({ error, update }) => update({\n    incomingMessageKey: null,\n    incomingMessage: null,\n    modelError: error.message\n  }, \"e\")",
+              "readFields": [],
+              "writeFields": [
+                [
+                  12,
+                  "incomingMessageKey"
+                ],
+                [
+                  13,
+                  "incomingMessage"
+                ],
+                [
+                  17,
+                  "modelError"
+                ]
+              ]
+            }
+          }
+        },
+        {
+          "id": 3,
+          "wimp": "zavx0z/lada-auth",
+          "localId": 1,
+          "state": "проверка сессии",
+          "descriptor": {
+            "type": "action",
+            "key": "проверка сессии",
+            "label": "Однократно восстановить сохранённую SSO-сессию",
+            "desc": null,
+            "env": [
+              "server"
+            ],
+            "action": {
+              "src": "./actions/sso.ts",
+              "importSpecifier": "restoreSsoSession",
+              "wrapperSrc": "async ({ mass, signal }) => {\n    return (await import(\"./actions/sso.ts\")).restoreSsoSession({ mass, signal });\n  }",
+              "readFields": [
+                [
+                  22,
+                  "phone"
+                ],
+                [
+                  23,
+                  "smsCode"
+                ],
+                [
+                  24,
+                  "sessionChecked"
+                ],
+                [
+                  25,
+                  "codeRequested"
+                ],
+                [
+                  26,
+                  "authenticated"
+                ],
+                [
+                  27,
+                  "userId"
+                ],
+                [
+                  28,
+                  "login"
+                ],
+                [
+                  29,
+                  "error"
+                ]
+              ]
+            },
+            "success": {
+              "src": "({ data, update }) => update({\n    sessionChecked: true,\n    authenticated: data.authenticated,\n    userId: data.userId,\n    login: data.login,\n    error: null\n  }, \"s\")",
+              "readFields": [],
+              "writeFields": [
+                [
+                  24,
+                  "sessionChecked"
+                ],
+                [
+                  26,
+                  "authenticated"
+                ],
+                [
+                  27,
+                  "userId"
+                ],
+                [
+                  28,
+                  "login"
+                ],
+                [
+                  29,
+                  "error"
+                ]
+              ]
+            },
+            "error": {
+              "src": "({ error, update }) => update({\n    sessionChecked: true,\n    authenticated: false,\n    error: error.message\n  }, \"e\")",
+              "readFields": [],
+              "writeFields": [
+                [
+                  24,
+                  "sessionChecked"
+                ],
+                [
+                  26,
+                  "authenticated"
+                ],
+                [
+                  29,
+                  "error"
+                ]
+              ]
+            }
+          }
+        },
+        {
+          "id": 4,
+          "wimp": "zavx0z/lada-auth",
+          "localId": 2,
+          "state": "запрос SMS",
+          "descriptor": {
+            "type": "action",
+            "key": "запрос SMS",
+            "label": "Запрос четырёхзначного SMS-кода",
+            "desc": null,
+            "env": [
+              "server"
+            ],
+            "action": {
+              "src": "./actions/sso.ts",
+              "importSpecifier": "requestSmsCode",
+              "wrapperSrc": "async ({ signal, value }) => {\n    return (await import(\"./actions/sso.ts\")).requestSmsCode({ signal, value });\n  }",
+              "readFields": [
+                [
+                  22,
+                  "phone"
+                ],
+                [
+                  23,
+                  "smsCode"
+                ],
+                [
+                  24,
+                  "sessionChecked"
+                ],
+                [
+                  25,
+                  "codeRequested"
+                ],
+                [
+                  26,
+                  "authenticated"
+                ],
+                [
+                  27,
+                  "userId"
+                ],
+                [
+                  28,
+                  "login"
+                ],
+                [
+                  29,
+                  "error"
+                ]
+              ]
+            },
+            "success": {
+              "src": "({ update }) => update({\n    codeRequested: true,\n    error: null\n  }, \"s\")",
+              "readFields": [],
+              "writeFields": [
+                [
+                  25,
+                  "codeRequested"
+                ],
+                [
+                  29,
+                  "error"
+                ]
+              ]
+            },
+            "error": {
+              "src": "({ error, update }) => update({\n    phone: null,\n    codeRequested: false,\n    error: error.message\n  }, \"e\")",
+              "readFields": [],
+              "writeFields": [
+                [
+                  22,
+                  "phone"
+                ],
+                [
+                  25,
+                  "codeRequested"
+                ],
+                [
+                  29,
+                  "error"
+                ]
+              ]
+            }
+          }
+        },
+        {
+          "id": 5,
+          "wimp": "zavx0z/lada-auth",
+          "localId": 3,
+          "state": "вход",
+          "descriptor": {
+            "type": "action",
+            "key": "вход",
+            "label": "Вход в SSO по телефону и коду",
+            "desc": null,
+            "env": [
+              "server"
+            ],
+            "action": {
+              "src": "./actions/sso.ts",
+              "importSpecifier": "completeSsoLogin",
+              "wrapperSrc": "async ({ mass, signal, value }) => {\n    return (await import(\"./actions/sso.ts\")).completeSsoLogin({ mass, signal, value });\n  }",
+              "readFields": [
+                [
+                  22,
+                  "phone"
+                ],
+                [
+                  23,
+                  "smsCode"
+                ],
+                [
+                  24,
+                  "sessionChecked"
+                ],
+                [
+                  25,
+                  "codeRequested"
+                ],
+                [
+                  26,
+                  "authenticated"
+                ],
+                [
+                  27,
+                  "userId"
+                ],
+                [
+                  28,
+                  "login"
+                ],
+                [
+                  29,
+                  "error"
+                ]
+              ]
+            },
+            "success": {
+              "src": "({ data, update }) => update({\n    smsCode: null,\n    sessionChecked: true,\n    authenticated: true,\n    userId: data.userId,\n    login: data.login,\n    error: null\n  }, \"s\")",
+              "readFields": [],
+              "writeFields": [
+                [
+                  23,
+                  "smsCode"
+                ],
+                [
+                  24,
+                  "sessionChecked"
+                ],
+                [
+                  26,
+                  "authenticated"
+                ],
+                [
+                  27,
+                  "userId"
+                ],
+                [
+                  28,
+                  "login"
+                ],
+                [
+                  29,
+                  "error"
+                ]
+              ]
+            },
+            "error": {
+              "src": "({ error, update }) => update({\n    smsCode: null,\n    authenticated: false,\n    error: error.message\n  }, \"e\")",
+              "readFields": [],
+              "writeFields": [
+                [
+                  23,
+                  "smsCode"
+                ],
+                [
+                  26,
+                  "authenticated"
+                ],
+                [
+                  29,
+                  "error"
+                ]
+              ]
+            }
+          }
+        },
+        {
+          "id": 6,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 1,
+          "state": "подключение",
+          "descriptor": {
+            "type": "action",
+            "key": "подключение",
+            "label": "Подключить общую комнату",
+            "desc": null,
+            "env": [
+              "server"
+            ],
+            "action": {
+              "src": "./actions/realtime.ts",
+              "importSpecifier": "connectCommonChat",
+              "wrapperSrc": "async ({ energy, mass, signal }) => {\n    return (await import(\"./actions/realtime.ts\")).connectCommonChat({ energy, mass, signal });\n  }",
+              "readFields": [
+                [
+                  30,
+                  "authenticated"
+                ],
+                [
+                  31,
+                  "connected"
+                ],
+                [
+                  32,
+                  "historyReady"
+                ],
+                [
+                  33,
+                  "ownMessageExists"
+                ],
+                [
+                  34,
+                  "roomKey"
+                ],
+                [
+                  35,
+                  "roomTitle"
+                ],
+                [
+                  36,
+                  "historyCount"
+                ],
+                [
+                  37,
+                  "eventReady"
+                ],
+                [
+                  38,
+                  "retryReady"
+                ],
+                [
+                  39,
+                  "incomingMessageKey"
+                ],
+                [
+                  40,
+                  "incomingMessage"
+                ],
+                [
+                  41,
+                  "error"
+                ],
+                [
+                  42,
+                  "outgoingMessage"
+                ],
+                [
+                  43,
+                  "lastSentMessageKey"
+                ],
+                [
+                  44,
+                  "sendError"
+                ]
+              ]
+            },
+            "success": {
+              "src": "({ data, update }) => update({\n    roomKey: data.roomKey,\n    roomTitle: data.roomTitle,\n    connected: true,\n    historyReady: true,\n    historyCount: data.historyCount,\n    ownMessageExists: data.ownMessageExists,\n    eventReady: false,\n    retryReady: false,\n    error: null\n  }, \"s\")",
+              "readFields": [],
+              "writeFields": [
+                [
+                  31,
+                  "connected"
+                ],
+                [
+                  32,
+                  "historyReady"
+                ],
+                [
+                  33,
+                  "ownMessageExists"
+                ],
+                [
+                  34,
+                  "roomKey"
+                ],
+                [
+                  35,
+                  "roomTitle"
+                ],
+                [
+                  36,
+                  "historyCount"
+                ],
+                [
+                  37,
+                  "eventReady"
+                ],
+                [
+                  38,
+                  "retryReady"
+                ],
+                [
+                  41,
+                  "error"
+                ]
+              ]
+            },
+            "error": {
+              "src": "({ error, update }) => update({\n    connected: false,\n    retryReady: false,\n    error: error.message\n  }, \"e\")",
+              "readFields": [],
+              "writeFields": [
+                [
+                  31,
+                  "connected"
+                ],
+                [
+                  38,
+                  "retryReady"
+                ],
+                [
+                  41,
+                  "error"
+                ]
+              ]
+            }
+          }
+        },
+        {
+          "id": 7,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 2,
+          "state": "ожидание события",
+          "descriptor": {
+            "type": "action",
+            "key": "ожидание события",
+            "label": "Ожидать следующее realtime-событие",
+            "desc": null,
+            "env": [
+              "server"
+            ],
+            "action": {
+              "src": "./actions/realtime.ts",
+              "importSpecifier": "receiveCommonChatEvent",
+              "wrapperSrc": "async ({ energy, mass, signal }) => {\n    return (await import(\"./actions/realtime.ts\")).receiveCommonChatEvent({ energy, mass, signal });\n  }",
+              "readFields": [
+                [
+                  30,
+                  "authenticated"
+                ],
+                [
+                  31,
+                  "connected"
+                ],
+                [
+                  32,
+                  "historyReady"
+                ],
+                [
+                  33,
+                  "ownMessageExists"
+                ],
+                [
+                  34,
+                  "roomKey"
+                ],
+                [
+                  35,
+                  "roomTitle"
+                ],
+                [
+                  36,
+                  "historyCount"
+                ],
+                [
+                  37,
+                  "eventReady"
+                ],
+                [
+                  38,
+                  "retryReady"
+                ],
+                [
+                  39,
+                  "incomingMessageKey"
+                ],
+                [
+                  40,
+                  "incomingMessage"
+                ],
+                [
+                  41,
+                  "error"
+                ],
+                [
+                  42,
+                  "outgoingMessage"
+                ],
+                [
+                  43,
+                  "lastSentMessageKey"
+                ],
+                [
+                  44,
+                  "sendError"
+                ]
+              ]
+            },
+            "success": {
+              "src": "({ data, update }) => {\n    if (data.kind === \"disconnected\") {\n      update({\n        connected: false,\n        eventReady: false,\n        retryReady: false,\n        error: `Realtime \\u043E\\u0442\\u043A\\u043B\\u044E\\u0447\\u0451\\u043D: ${data.reason}.`\n      }, \"s\");\n      return;\n    }\n    update({\n      eventReady: true,\n      ...data.authorSelf || data.body === null ? {} : {\n        incomingMessageKey: data.messageKey,\n        incomingMessage: data.body\n      },\n      error: null\n    }, \"s\");\n  }",
+              "readFields": [],
+              "writeFields": []
+            },
+            "error": {
+              "src": "({ error, update }) => update({\n    connected: false,\n    eventReady: false,\n    retryReady: false,\n    error: error.message\n  }, \"e\")",
+              "readFields": [],
+              "writeFields": [
+                [
+                  31,
+                  "connected"
+                ],
+                [
+                  37,
+                  "eventReady"
+                ],
+                [
+                  38,
+                  "retryReady"
+                ],
+                [
+                  41,
+                  "error"
+                ]
+              ]
+            }
+          }
+        },
+        {
+          "id": 8,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 3,
+          "state": "событие принято",
+          "descriptor": {
+            "type": "action",
+            "key": "событие принято",
+            "label": "Подтвердить доставку события в Fields",
+            "desc": null,
+            "env": [
+              "server"
+            ],
+            "action": {
+              "src": "./actions/realtime.ts",
+              "importSpecifier": "acknowledgeChatEvent",
+              "wrapperSrc": "async ({ signal }) => {\n    return (await import(\"./actions/realtime.ts\")).acknowledgeChatEvent({ signal });\n  }",
+              "readFields": [
+                [
+                  30,
+                  "authenticated"
+                ],
+                [
+                  31,
+                  "connected"
+                ],
+                [
+                  32,
+                  "historyReady"
+                ],
+                [
+                  33,
+                  "ownMessageExists"
+                ],
+                [
+                  34,
+                  "roomKey"
+                ],
+                [
+                  35,
+                  "roomTitle"
+                ],
+                [
+                  36,
+                  "historyCount"
+                ],
+                [
+                  37,
+                  "eventReady"
+                ],
+                [
+                  38,
+                  "retryReady"
+                ],
+                [
+                  39,
+                  "incomingMessageKey"
+                ],
+                [
+                  40,
+                  "incomingMessage"
+                ],
+                [
+                  41,
+                  "error"
+                ],
+                [
+                  42,
+                  "outgoingMessage"
+                ],
+                [
+                  43,
+                  "lastSentMessageKey"
+                ],
+                [
+                  44,
+                  "sendError"
+                ]
+              ]
+            },
+            "success": {
+              "src": "({ update }) => update({ eventReady: false }, \"s\")",
+              "readFields": [],
+              "writeFields": [
+                [
+                  37,
+                  "eventReady"
+                ]
+              ]
+            }
+          }
+        },
+        {
+          "id": 9,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 4,
+          "state": "переподключение",
+          "descriptor": {
+            "type": "action",
+            "key": "переподключение",
+            "label": "Однократная задержка перед переподключением",
+            "desc": null,
+            "env": [
+              "server"
+            ],
+            "action": {
+              "src": "./actions/realtime.ts",
+              "importSpecifier": "waitBeforeReconnect",
+              "wrapperSrc": "async ({ signal }) => {\n    return (await import(\"./actions/realtime.ts\")).waitBeforeReconnect({ signal });\n  }",
+              "readFields": [
+                [
+                  30,
+                  "authenticated"
+                ],
+                [
+                  31,
+                  "connected"
+                ],
+                [
+                  32,
+                  "historyReady"
+                ],
+                [
+                  33,
+                  "ownMessageExists"
+                ],
+                [
+                  34,
+                  "roomKey"
+                ],
+                [
+                  35,
+                  "roomTitle"
+                ],
+                [
+                  36,
+                  "historyCount"
+                ],
+                [
+                  37,
+                  "eventReady"
+                ],
+                [
+                  38,
+                  "retryReady"
+                ],
+                [
+                  39,
+                  "incomingMessageKey"
+                ],
+                [
+                  40,
+                  "incomingMessage"
+                ],
+                [
+                  41,
+                  "error"
+                ],
+                [
+                  42,
+                  "outgoingMessage"
+                ],
+                [
+                  43,
+                  "lastSentMessageKey"
+                ],
+                [
+                  44,
+                  "sendError"
+                ]
+              ]
+            },
+            "success": {
+              "src": "({ update }) => update({\n    retryReady: true,\n    error: null\n  }, \"s\")",
+              "readFields": [],
+              "writeFields": [
+                [
+                  38,
+                  "retryReady"
+                ],
+                [
+                  41,
+                  "error"
+                ]
+              ]
+            }
+          }
+        },
+        {
+          "id": 10,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 5,
+          "state": "ошибка подключения",
+          "descriptor": {
+            "type": "action",
+            "key": "ошибка подключения",
+            "label": "Однократная задержка после ошибки подключения",
+            "desc": null,
+            "env": [
+              "server"
+            ],
+            "action": {
+              "src": "./actions/realtime.ts",
+              "importSpecifier": "waitBeforeReconnect",
+              "wrapperSrc": "async ({ signal }) => {\n    return (await import(\"./actions/realtime.ts\")).waitBeforeReconnect({ signal });\n  }",
+              "readFields": [
+                [
+                  30,
+                  "authenticated"
+                ],
+                [
+                  31,
+                  "connected"
+                ],
+                [
+                  32,
+                  "historyReady"
+                ],
+                [
+                  33,
+                  "ownMessageExists"
+                ],
+                [
+                  34,
+                  "roomKey"
+                ],
+                [
+                  35,
+                  "roomTitle"
+                ],
+                [
+                  36,
+                  "historyCount"
+                ],
+                [
+                  37,
+                  "eventReady"
+                ],
+                [
+                  38,
+                  "retryReady"
+                ],
+                [
+                  39,
+                  "incomingMessageKey"
+                ],
+                [
+                  40,
+                  "incomingMessage"
+                ],
+                [
+                  41,
+                  "error"
+                ],
+                [
+                  42,
+                  "outgoingMessage"
+                ],
+                [
+                  43,
+                  "lastSentMessageKey"
+                ],
+                [
+                  44,
+                  "sendError"
+                ]
+              ]
+            },
+            "success": {
+              "src": "({ update }) => update({\n    retryReady: true,\n    error: null\n  }, \"s\")",
+              "readFields": [],
+              "writeFields": [
+                [
+                  38,
+                  "retryReady"
+                ],
+                [
+                  41,
+                  "error"
+                ]
+              ]
+            }
+          }
+        },
+        {
+          "id": 11,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 6,
+          "state": "ожидание авторизации",
+          "descriptor": {
+            "type": "finally",
+            "key": "ожидание авторизации",
+            "label": "Освободить realtime-соединение",
+            "desc": null,
+            "env": [
+              "server"
+            ],
+            "before": {
+              "src": "async ({ energy }) => {\n    return (await import(\"./actions/realtime.ts\")).stopCommonChat({ energy });\n  }",
+              "readFields": []
+            }
+          }
+        },
+        {
+          "id": 13,
+          "wimp": "zavx0z/lada-chat-send",
+          "localId": 1,
+          "state": "отправка",
+          "descriptor": {
+            "type": "action",
+            "key": "отправка",
+            "label": "Отправить разрешённое сообщение через realtime",
+            "desc": null,
+            "env": [
+              "server"
+            ],
+            "action": {
+              "src": "./actions/send.ts",
+              "importSpecifier": "default",
+              "wrapperSrc": "async ({ energy, mass, signal, value }) => {\n    return (await import(\"./actions/send.ts\")).default({\n      energy,\n      mass,\n      signal,\n      roomKey: value.roomKey,\n      body: value.body\n    });\n  }",
+              "readFields": [
+                [
+                  50,
+                  "connected"
+                ],
+                [
+                  51,
+                  "roomKey"
+                ],
+                [
+                  52,
+                  "body"
+                ],
+                [
+                  53,
+                  "lastSentMessageKey"
+                ],
+                [
+                  54,
+                  "error"
+                ]
+              ]
+            },
+            "success": {
+              "src": "({ data, update }) => update({\n    body: null,\n    lastSentMessageKey: data.messageKey,\n    error: null\n  }, \"s\")",
+              "readFields": [],
+              "writeFields": [
+                [
+                  52,
+                  "body"
+                ],
+                [
+                  53,
+                  "lastSentMessageKey"
+                ],
+                [
+                  54,
+                  "error"
+                ]
+              ]
+            },
+            "error": {
+              "src": "({ error, update }) => update({\n    body: null,\n    error: error.message\n  }, \"e\")",
+              "readFields": [],
+              "writeFields": [
+                [
+                  52,
+                  "body"
+                ],
+                [
+                  54,
+                  "error"
+                ]
+              ]
+            }
+          }
+        },
+        {
+          "id": 12,
+          "wimp": "zavx0z/lada-model",
+          "localId": 1,
+          "state": "обращение к модели",
+          "descriptor": {
+            "type": "action",
+            "key": "обращение к модели",
+            "label": "Подготовить черновик локальной Ollama-моделью",
+            "desc": null,
+            "env": [
+              "server"
+            ],
+            "action": {
+              "src": "./actions/chat.ts",
+              "importSpecifier": "default",
+              "wrapperSrc": "async ({ mass, signal, value }) => {\n    return (await import(\"./actions/chat.ts\")).default({ mass, signal, value });\n  }",
+              "readFields": [
+                [
+                  45,
+                  "prompt"
+                ],
+                [
+                  46,
+                  "model"
+                ],
+                [
+                  47,
+                  "response"
+                ],
+                [
+                  48,
+                  "lastMessageId"
+                ],
+                [
+                  49,
+                  "error"
+                ]
+              ]
+            },
+            "success": {
+              "src": "({ data, update }) => update({\n    prompt: null,\n    response: data.assistantContent,\n    lastMessageId: data.assistantMessageId,\n    error: null\n  }, \"s\")",
+              "readFields": [],
+              "writeFields": [
+                [
+                  45,
+                  "prompt"
+                ],
+                [
+                  47,
+                  "response"
+                ],
+                [
+                  48,
+                  "lastMessageId"
+                ],
+                [
+                  49,
+                  "error"
+                ]
+              ]
+            },
+            "error": {
+              "src": "({ error, update }) => update({\n    prompt: null,\n    error: error.message\n  }, \"e\")",
+              "readFields": [],
+              "writeFields": [
+                [
+                  45,
+                  "prompt"
+                ],
+                [
+                  49,
+                  "error"
+                ]
+              ]
+            }
+          }
+        }
+      ],
+      "reactions": [],
+      "atomStates": [
+        {
+          "atom": 2,
+          "state": 4
+        },
+        {
+          "atom": 3,
+          "state": 12
+        },
+        {
+          "atom": 4,
+          "state": 15
+        },
+        {
+          "atom": 5,
+          "state": 19
+        },
+        {
+          "atom": 6,
+          "state": 22
+        }
+      ],
+      "fieldEnumVariants": [],
+      "atomValues": [
+        {
+          "atom": 2,
+          "field": 1,
+          "value": 1
+        },
+        {
+          "atom": 2,
+          "field": 2,
+          "value": 2
+        },
+        {
+          "atom": 2,
+          "field": 3,
+          "value": 3
+        },
+        {
+          "atom": 2,
+          "field": 4,
+          "value": 4
+        },
+        {
+          "atom": 2,
+          "field": 5,
+          "value": 5
+        },
+        {
+          "atom": 2,
+          "field": 6,
+          "value": 6
+        },
+        {
+          "atom": 2,
+          "field": 7,
+          "value": 7
+        },
+        {
+          "atom": 2,
+          "field": 8,
+          "value": 8
+        },
+        {
+          "atom": 2,
+          "field": 9,
+          "value": 9
+        },
+        {
+          "atom": 2,
+          "field": 10,
+          "value": 10
+        },
+        {
+          "atom": 2,
+          "field": 11,
+          "value": 11
+        },
+        {
+          "atom": 2,
+          "field": 12,
+          "value": 12
+        },
+        {
+          "atom": 2,
+          "field": 13,
+          "value": 13
+        },
+        {
+          "atom": 2,
+          "field": 14,
+          "value": 14
+        },
+        {
+          "atom": 2,
+          "field": 15,
+          "value": 15
+        },
+        {
+          "atom": 2,
+          "field": 16,
+          "value": 16
+        },
+        {
+          "atom": 2,
+          "field": 17,
+          "value": 17
+        },
+        {
+          "atom": 2,
+          "field": 18,
+          "value": 18
+        },
+        {
+          "atom": 2,
+          "field": 19,
+          "value": 19
+        },
+        {
+          "atom": 2,
+          "field": 20,
+          "value": 20
+        },
+        {
+          "atom": 2,
+          "field": 21,
+          "value": 21
+        },
+        {
+          "atom": 3,
+          "field": 22,
+          "value": 1
+        },
+        {
+          "atom": 3,
+          "field": 23,
+          "value": 2
+        },
+        {
+          "atom": 3,
+          "field": 24,
+          "value": 22
+        },
+        {
+          "atom": 3,
+          "field": 25,
+          "value": 23
+        },
+        {
+          "atom": 3,
+          "field": 26,
+          "value": 3
+        },
+        {
+          "atom": 3,
+          "field": 27,
+          "value": 4
+        },
+        {
+          "atom": 3,
+          "field": 28,
+          "value": 5
+        },
+        {
+          "atom": 3,
+          "field": 29,
+          "value": 6
+        },
+        {
+          "atom": 4,
+          "field": 30,
+          "value": 3
+        },
+        {
+          "atom": 4,
+          "field": 31,
+          "value": 7
+        },
+        {
+          "atom": 4,
+          "field": 32,
+          "value": 8
+        },
+        {
+          "atom": 4,
+          "field": 33,
+          "value": 9
+        },
+        {
+          "atom": 4,
+          "field": 34,
+          "value": 10
+        },
+        {
+          "atom": 4,
+          "field": 35,
+          "value": 11
+        },
+        {
+          "atom": 4,
+          "field": 36,
+          "value": 24
+        },
+        {
+          "atom": 4,
+          "field": 37,
+          "value": 25
+        },
+        {
+          "atom": 4,
+          "field": 38,
+          "value": 26
+        },
+        {
+          "atom": 4,
+          "field": 39,
+          "value": 12
+        },
+        {
+          "atom": 4,
+          "field": 40,
+          "value": 13
+        },
+        {
+          "atom": 4,
+          "field": 41,
+          "value": 14
+        },
+        {
+          "atom": 4,
+          "field": 42,
+          "value": 18
+        },
+        {
+          "atom": 4,
+          "field": 43,
+          "value": 19
+        },
+        {
+          "atom": 4,
+          "field": 44,
+          "value": 20
+        },
+        {
+          "atom": 5,
+          "field": 45,
+          "value": 15
+        },
+        {
+          "atom": 5,
+          "field": 46,
+          "value": 27
+        },
+        {
+          "atom": 5,
+          "field": 47,
+          "value": 16
+        },
+        {
+          "atom": 5,
+          "field": 48,
+          "value": 28
+        },
+        {
+          "atom": 5,
+          "field": 49,
+          "value": 17
+        },
+        {
+          "atom": 6,
+          "field": 50,
+          "value": 7
+        },
+        {
+          "atom": 6,
+          "field": 51,
+          "value": 10
+        },
+        {
+          "atom": 6,
+          "field": 52,
+          "value": 18
+        },
+        {
+          "atom": 6,
+          "field": 53,
+          "value": 19
+        },
+        {
+          "atom": 6,
+          "field": 54,
+          "value": 20
+        }
+      ],
+      "values": [
+        {
+          "id": 1,
+          "kind": "null",
+          "booleanValue": null,
+          "numberValue": null,
+          "textValue": null,
+          "enumValue": null
+        },
+        {
+          "id": 2,
+          "kind": "null",
+          "booleanValue": null,
+          "numberValue": null,
+          "textValue": null,
+          "enumValue": null
+        },
+        {
+          "id": 3,
+          "kind": "boolean",
+          "booleanValue": 1,
+          "numberValue": null,
+          "textValue": null,
+          "enumValue": null
+        },
+        {
+          "id": 4,
+          "kind": "string",
+          "booleanValue": null,
+          "numberValue": null,
+          "textValue": "d808690b-0cb0-40b6-b541-0eaeb4f26b21",
+          "enumValue": null
+        },
+        {
+          "id": 5,
+          "kind": "string",
+          "booleanValue": null,
+          "numberValue": null,
+          "textValue": "lada",
+          "enumValue": null
+        },
+        {
+          "id": 6,
+          "kind": "null",
+          "booleanValue": null,
+          "numberValue": null,
+          "textValue": null,
+          "enumValue": null
+        },
+        {
+          "id": 7,
+          "kind": "boolean",
+          "booleanValue": 1,
+          "numberValue": null,
+          "textValue": null,
+          "enumValue": null
+        },
+        {
+          "id": 8,
+          "kind": "boolean",
+          "booleanValue": 1,
+          "numberValue": null,
+          "textValue": null,
+          "enumValue": null
+        },
+        {
+          "id": 9,
+          "kind": "boolean",
+          "booleanValue": 1,
+          "numberValue": null,
+          "textValue": null,
+          "enumValue": null
+        },
+        {
+          "id": 10,
+          "kind": "string",
+          "booleanValue": null,
+          "numberValue": null,
+          "textValue": "856be359-fb22-4c4b-97ca-45c3bf7f56d5",
+          "enumValue": null
+        },
+        {
+          "id": 11,
+          "kind": "string",
+          "booleanValue": null,
+          "numberValue": null,
+          "textValue": "Общая",
+          "enumValue": null
+        },
+        {
+          "id": 12,
+          "kind": "null",
+          "booleanValue": null,
+          "numberValue": null,
+          "textValue": null,
+          "enumValue": null
+        },
+        {
+          "id": 13,
+          "kind": "null",
+          "booleanValue": null,
+          "numberValue": null,
+          "textValue": null,
+          "enumValue": null
+        },
+        {
+          "id": 14,
+          "kind": "null",
+          "booleanValue": null,
+          "numberValue": null,
+          "textValue": null,
+          "enumValue": null
+        },
+        {
+          "id": 15,
+          "kind": "null",
+          "booleanValue": null,
+          "numberValue": null,
+          "textValue": null,
+          "enumValue": null
+        },
+        {
+          "id": 16,
+          "kind": "null",
+          "booleanValue": null,
+          "numberValue": null,
+          "textValue": null,
+          "enumValue": null
+        },
+        {
+          "id": 17,
+          "kind": "null",
+          "booleanValue": null,
+          "numberValue": null,
+          "textValue": null,
+          "enumValue": null
+        },
+        {
+          "id": 18,
+          "kind": "null",
+          "booleanValue": null,
+          "numberValue": null,
+          "textValue": null,
+          "enumValue": null
+        },
+        {
+          "id": 19,
+          "kind": "null",
+          "booleanValue": null,
+          "numberValue": null,
+          "textValue": null,
+          "enumValue": null
+        },
+        {
+          "id": 20,
+          "kind": "null",
+          "booleanValue": null,
+          "numberValue": null,
+          "textValue": null,
+          "enumValue": null
+        },
+        {
+          "id": 21,
+          "kind": "boolean",
+          "booleanValue": 0,
+          "numberValue": null,
+          "textValue": null,
+          "enumValue": null
+        },
+        {
+          "id": 22,
+          "kind": "boolean",
+          "booleanValue": 1,
+          "numberValue": null,
+          "textValue": null,
+          "enumValue": null
+        },
+        {
+          "id": 23,
+          "kind": "boolean",
+          "booleanValue": 0,
+          "numberValue": null,
+          "textValue": null,
+          "enumValue": null
+        },
+        {
+          "id": 24,
+          "kind": "number",
+          "booleanValue": null,
+          "numberValue": 2,
+          "textValue": null,
+          "enumValue": null
+        },
+        {
+          "id": 25,
+          "kind": "boolean",
+          "booleanValue": 0,
+          "numberValue": null,
+          "textValue": null,
+          "enumValue": null
+        },
+        {
+          "id": 26,
+          "kind": "boolean",
+          "booleanValue": 0,
+          "numberValue": null,
+          "textValue": null,
+          "enumValue": null
+        },
+        {
+          "id": 27,
+          "kind": "string",
+          "booleanValue": null,
+          "numberValue": null,
+          "textValue": "qwen3.5:9b",
+          "enumValue": null
+        },
+        {
+          "id": 28,
+          "kind": "null",
+          "booleanValue": null,
+          "numberValue": null,
+          "textValue": null,
+          "enumValue": null
+        }
+      ],
+      "valueItems": [],
+      "matterParticles": [
+        {
+          "id": 2,
+          "wimp": "zavx0z/lada",
+          "localId": 1,
+          "parentParticle": null,
+          "particleKind": "wimp",
+          "edgeSlot": "root",
+          "particleOrder": 0,
+          "kind": "wimp",
+          "parent": null,
+          "position": 0,
+          "src": "zavx0z/lada-auth",
+          "fieldsBinding": {
+            "data": [
+              "phone",
+              "smsCode",
+              "authenticated",
+              "userId",
+              "login",
+              "authError"
+            ],
+            "expr": "{ phone: _[0], smsCode: _[1], authenticated: _[2], userId: _[3], login: _[4], error: _[5] }"
+          },
+          "massBinding": {
+            "data": "/mass/ssoSession",
+            "expr": "{ ssoSession: _[0] }",
+            "directMass": {
+              "kind": "keys",
+              "entries": [
+                {
+                  "target": "ssoSession",
+                  "source": "ssoSession"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "id": 3,
+          "wimp": "zavx0z/lada",
+          "localId": 2,
+          "parentParticle": null,
+          "particleKind": "wimp",
+          "edgeSlot": "root",
+          "particleOrder": 1,
+          "kind": "wimp",
+          "parent": null,
+          "position": 1,
+          "src": "zavx0z/lada-chat",
+          "fieldsBinding": {
+            "data": [
+              "authenticated",
+              "chatConnected",
+              "chatHistoryReady",
+              "ownMessageExists",
+              "roomKey",
+              "roomTitle",
+              "incomingMessageKey",
+              "incomingMessage",
+              "chatError",
+              "outgoingMessage",
+              "lastSentMessageKey",
+              "sendError"
+            ],
+            "expr": "{ authenticated: _[0], connected: _[1], historyReady: _[2], ownMessageExists: _[3], roomKey: _[4], roomTitle: _[5], incomingMessageKey: _[6], incomingMessage: _[7], error: _[8], outgoingMessage: _[9], lastSentMessageKey: _[10], sendError: _[11] }"
+          },
+          "massBinding": {
+            "data": [
+              "/mass/ssoSession",
+              "/mass/chatMessages",
+              "/mass/chatOutbox"
+            ],
+            "expr": "{ ssoSession: _[0], chatMessages: _[1], chatOutbox: _[2] }",
+            "directMass": {
+              "kind": "keys",
+              "entries": [
+                {
+                  "target": "ssoSession",
+                  "source": "ssoSession"
+                },
+                {
+                  "target": "chatMessages",
+                  "source": "chatMessages"
+                },
+                {
+                  "target": "chatOutbox",
+                  "source": "chatOutbox"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "id": 4,
+          "wimp": "zavx0z/lada",
+          "localId": 3,
+          "parentParticle": null,
+          "particleKind": "wimp",
+          "edgeSlot": "root",
+          "particleOrder": 2,
+          "kind": "wimp",
+          "parent": null,
+          "position": 2,
+          "src": "zavx0z/lada-model",
+          "fieldsBinding": {
+            "data": [
+              "modelPrompt",
+              "replyDraft",
+              "modelError"
+            ],
+            "expr": "{ prompt: _[0], response: _[1], error: _[2] }"
+          },
+          "massBinding": {
+            "data": "/mass/modelMessages",
+            "expr": "{ messages: _[0] }",
+            "directMass": {
+              "kind": "keys",
+              "entries": [
+                {
+                  "target": "messages",
+                  "source": "modelMessages"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "id": 5,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 1,
+          "parentParticle": null,
+          "particleKind": "wimp",
+          "edgeSlot": "root",
+          "particleOrder": 0,
+          "kind": "wimp",
+          "parent": null,
+          "position": 0,
+          "src": "zavx0z/lada-chat-send",
+          "fieldsBinding": {
+            "data": [
+              "connected",
+              "roomKey",
+              "outgoingMessage",
+              "lastSentMessageKey",
+              "sendError"
+            ],
+            "expr": "{ connected: _[0], roomKey: _[1], body: _[2], lastSentMessageKey: _[3], error: _[4] }"
+          },
+          "massBinding": {
+            "data": [
+              "/mass/ssoSession",
+              "/mass/chatMessages",
+              "/mass/chatOutbox"
+            ],
+            "expr": "{ ssoSession: _[0], chatMessages: _[1], chatOutbox: _[2] }",
+            "directMass": {
+              "kind": "keys",
+              "entries": [
+                {
+                  "target": "ssoSession",
+                  "source": "ssoSession"
+                },
+                {
+                  "target": "chatMessages",
+                  "source": "chatMessages"
+                },
+                {
+                  "target": "chatOutbox",
+                  "source": "chatOutbox"
+                }
+              ]
+            }
+          },
+          "energyBinding": {
+            "data": "/energy"
+          }
+        }
+      ],
+      "matterTopologyBindingPaths": [],
+      "matterChildWimpBindingPaths": []
+    },
+    "declarations": [
+      {
+        "src": "zavx0z/lada",
+        "section": "meta",
+        "localId": "0",
+        "value": {
+          "src": "zavx0z/lada",
+          "name": "lada",
+          "desc": "Лада — Agent Atom, который воспринимает факты мира и формулирует намерения."
+        }
+      },
+      {
+        "src": "zavx0z/lada",
+        "section": "fields",
+        "localId": "1",
+        "value": {
+          "id": 1,
+          "wimp": "zavx0z/lada",
+          "localId": 1,
+          "key": "phone",
+          "type": "string",
+          "required": false,
+          "label": "Телефон Лады"
+        }
+      },
+      {
+        "src": "zavx0z/lada",
+        "section": "fields",
+        "localId": "2",
+        "value": {
+          "id": 2,
+          "wimp": "zavx0z/lada",
+          "localId": 2,
+          "key": "smsCode",
+          "type": "string",
+          "required": false,
+          "label": "Код из SMS"
+        }
+      },
+      {
+        "src": "zavx0z/lada",
+        "section": "fields",
+        "localId": "3",
+        "value": {
+          "id": 3,
+          "wimp": "zavx0z/lada",
+          "localId": 3,
+          "key": "authenticated",
+          "type": "boolean",
+          "required": true,
+          "label": "Авторизована",
+          "default": false
+        }
+      },
+      {
+        "src": "zavx0z/lada",
+        "section": "fields",
+        "localId": "4",
+        "value": {
+          "id": 4,
+          "wimp": "zavx0z/lada",
+          "localId": 4,
+          "key": "userId",
+          "type": "string",
+          "required": false,
+          "label": "SSO user ID"
+        }
+      },
+      {
+        "src": "zavx0z/lada",
+        "section": "fields",
+        "localId": "5",
+        "value": {
+          "id": 5,
+          "wimp": "zavx0z/lada",
+          "localId": 5,
+          "key": "login",
+          "type": "string",
+          "required": false,
+          "label": "SSO login"
+        }
+      },
+      {
+        "src": "zavx0z/lada",
+        "section": "fields",
+        "localId": "6",
+        "value": {
+          "id": 6,
+          "wimp": "zavx0z/lada",
+          "localId": 6,
+          "key": "authError",
+          "type": "string",
+          "required": false,
+          "label": "Ошибка авторизации"
+        }
+      },
+      {
+        "src": "zavx0z/lada",
+        "section": "fields",
+        "localId": "7",
+        "value": {
+          "id": 7,
+          "wimp": "zavx0z/lada",
+          "localId": 7,
+          "key": "chatConnected",
+          "type": "boolean",
+          "required": true,
+          "label": "Общая комната подключена",
+          "default": false
+        }
+      },
+      {
+        "src": "zavx0z/lada",
+        "section": "fields",
+        "localId": "8",
+        "value": {
+          "id": 8,
+          "wimp": "zavx0z/lada",
+          "localId": 8,
+          "key": "chatHistoryReady",
+          "type": "boolean",
+          "required": true,
+          "label": "История общей комнаты получена",
+          "default": false
+        }
+      },
+      {
+        "src": "zavx0z/lada",
+        "section": "fields",
+        "localId": "9",
+        "value": {
+          "id": 9,
+          "wimp": "zavx0z/lada",
+          "localId": 9,
+          "key": "ownMessageExists",
+          "type": "boolean",
+          "required": true,
+          "label": "У Лады уже есть сообщение",
+          "default": false
+        }
+      },
+      {
+        "src": "zavx0z/lada",
+        "section": "fields",
+        "localId": "10",
+        "value": {
+          "id": 10,
+          "wimp": "zavx0z/lada",
+          "localId": 10,
+          "key": "roomKey",
+          "type": "string",
+          "required": false,
+          "label": "Ключ общей комнаты"
+        }
+      },
+      {
+        "src": "zavx0z/lada",
+        "section": "fields",
+        "localId": "11",
+        "value": {
+          "id": 11,
+          "wimp": "zavx0z/lada",
+          "localId": 11,
+          "key": "roomTitle",
+          "type": "string",
+          "required": false,
+          "label": "Общая комната"
+        }
+      },
+      {
+        "src": "zavx0z/lada",
+        "section": "fields",
+        "localId": "12",
+        "value": {
+          "id": 12,
+          "wimp": "zavx0z/lada",
+          "localId": 12,
+          "key": "incomingMessageKey",
+          "type": "string",
+          "required": false,
+          "label": "Ключ входящего сообщения"
+        }
+      },
+      {
+        "src": "zavx0z/lada",
+        "section": "fields",
+        "localId": "13",
+        "value": {
+          "id": 13,
+          "wimp": "zavx0z/lada",
+          "localId": 13,
+          "key": "incomingMessage",
+          "type": "string",
+          "required": false,
+          "label": "Входящее сообщение"
+        }
+      },
+      {
+        "src": "zavx0z/lada",
+        "section": "fields",
+        "localId": "14",
+        "value": {
+          "id": 14,
+          "wimp": "zavx0z/lada",
+          "localId": 14,
+          "key": "chatError",
+          "type": "string",
+          "required": false,
+          "label": "Ошибка чата"
+        }
+      },
+      {
+        "src": "zavx0z/lada",
+        "section": "fields",
+        "localId": "15",
+        "value": {
+          "id": 15,
+          "wimp": "zavx0z/lada",
+          "localId": 15,
+          "key": "modelPrompt",
+          "type": "string",
+          "required": false,
+          "label": "Намерение обратиться к модели"
+        }
+      },
+      {
+        "src": "zavx0z/lada",
+        "section": "fields",
+        "localId": "16",
+        "value": {
+          "id": 16,
+          "wimp": "zavx0z/lada",
+          "localId": 16,
+          "key": "replyDraft",
+          "type": "string",
+          "required": false,
+          "label": "Черновик ответа"
+        }
+      },
+      {
+        "src": "zavx0z/lada",
+        "section": "fields",
+        "localId": "17",
+        "value": {
+          "id": 17,
+          "wimp": "zavx0z/lada",
+          "localId": 17,
+          "key": "modelError",
+          "type": "string",
+          "required": false,
+          "label": "Ошибка модели"
+        }
+      },
+      {
+        "src": "zavx0z/lada",
+        "section": "fields",
+        "localId": "18",
+        "value": {
+          "id": 18,
+          "wimp": "zavx0z/lada",
+          "localId": 18,
+          "key": "outgoingMessage",
+          "type": "string",
+          "required": false,
+          "label": "Разрешённое исходящее сообщение"
+        }
+      },
+      {
+        "src": "zavx0z/lada",
+        "section": "fields",
+        "localId": "19",
+        "value": {
+          "id": 19,
+          "wimp": "zavx0z/lada",
+          "localId": 19,
+          "key": "lastSentMessageKey",
+          "type": "string",
+          "required": false,
+          "label": "Последнее отправленное сообщение"
+        }
+      },
+      {
+        "src": "zavx0z/lada",
+        "section": "fields",
+        "localId": "20",
+        "value": {
+          "id": 20,
+          "wimp": "zavx0z/lada",
+          "localId": 20,
+          "key": "sendError",
+          "type": "string",
+          "required": false,
+          "label": "Ошибка отправки"
+        }
+      },
+      {
+        "src": "zavx0z/lada",
+        "section": "fields",
+        "localId": "21",
+        "value": {
+          "id": 21,
+          "wimp": "zavx0z/lada",
+          "localId": 21,
+          "key": "greetingPrepared",
+          "type": "boolean",
+          "required": true,
+          "label": "Приветствие подготовлено",
+          "default": false
+        }
+      },
+      {
+        "src": "zavx0z/lada",
+        "section": "states",
+        "localId": "1",
+        "value": {
+          "id": 2,
+          "wimp": "zavx0z/lada",
+          "localId": 1,
+          "name": "ожидание мира",
+          "position": 0
+        }
+      },
+      {
+        "src": "zavx0z/lada",
+        "section": "states",
+        "localId": "2",
+        "value": {
+          "id": 3,
+          "wimp": "zavx0z/lada",
+          "localId": 2,
+          "name": "подготовка приветствия",
+          "position": 1
+        }
+      },
+      {
+        "src": "zavx0z/lada",
+        "section": "states",
+        "localId": "3",
+        "value": {
+          "id": 4,
+          "wimp": "zavx0z/lada",
+          "localId": 3,
+          "name": "работа",
+          "position": 2
+        }
+      },
+      {
+        "src": "zavx0z/lada",
+        "section": "states",
+        "localId": "4",
+        "value": {
+          "id": 5,
+          "wimp": "zavx0z/lada",
+          "localId": 4,
+          "name": "осмысление сообщения",
+          "position": 3
+        }
+      },
+      {
+        "src": "zavx0z/lada",
+        "section": "transitions",
+        "localId": "1",
+        "value": {
+          "id": 1,
+          "wimp": "zavx0z/lada",
+          "localId": 1,
+          "fromState": 2,
+          "toState": 3,
+          "position": 0
+        }
+      },
+      {
+        "src": "zavx0z/lada",
+        "section": "transitions",
+        "localId": "2",
+        "value": {
+          "id": 2,
+          "wimp": "zavx0z/lada",
+          "localId": 2,
+          "fromState": 2,
+          "toState": 4,
+          "position": 1
+        }
+      },
+      {
+        "src": "zavx0z/lada",
+        "section": "transitions",
+        "localId": "3",
+        "value": {
+          "id": 3,
+          "wimp": "zavx0z/lada",
+          "localId": 3,
+          "fromState": 3,
+          "toState": 4,
+          "position": 0
+        }
+      },
+      {
+        "src": "zavx0z/lada",
+        "section": "transitions",
+        "localId": "4",
+        "value": {
+          "id": 4,
+          "wimp": "zavx0z/lada",
+          "localId": 4,
+          "fromState": 4,
+          "toState": 5,
+          "position": 0
+        }
+      },
+      {
+        "src": "zavx0z/lada",
+        "section": "transitions",
+        "localId": "5",
+        "value": {
+          "id": 5,
+          "wimp": "zavx0z/lada",
+          "localId": 5,
+          "fromState": 5,
+          "toState": 4,
+          "position": 0
+        }
+      },
+      {
+        "src": "zavx0z/lada",
+        "section": "conditions",
+        "localId": "1",
+        "value": {
+          "id": 1,
+          "wimp": "zavx0z/lada",
+          "localId": 1,
+          "transition": 1,
+          "field": 8,
+          "position": 0,
+          "predicate": {
+            "eq": true
+          }
+        }
+      },
+      {
+        "src": "zavx0z/lada",
+        "section": "conditions",
+        "localId": "2",
+        "value": {
+          "id": 2,
+          "wimp": "zavx0z/lada",
+          "localId": 2,
+          "transition": 1,
+          "field": 9,
+          "position": 1,
+          "predicate": {
+            "eq": false
+          }
+        }
+      },
+      {
+        "src": "zavx0z/lada",
+        "section": "conditions",
+        "localId": "3",
+        "value": {
+          "id": 3,
+          "wimp": "zavx0z/lada",
+          "localId": 3,
+          "transition": 1,
+          "field": 21,
+          "position": 2,
+          "predicate": {
+            "eq": false
+          }
+        }
+      },
+      {
+        "src": "zavx0z/lada",
+        "section": "conditions",
+        "localId": "4",
+        "value": {
+          "id": 4,
+          "wimp": "zavx0z/lada",
+          "localId": 4,
+          "transition": 2,
+          "field": 8,
+          "position": 0,
+          "predicate": {
+            "eq": true
+          }
+        }
+      },
+      {
+        "src": "zavx0z/lada",
+        "section": "conditions",
+        "localId": "5",
+        "value": {
+          "id": 5,
+          "wimp": "zavx0z/lada",
+          "localId": 5,
+          "transition": 2,
+          "field": 9,
+          "position": 1,
+          "predicate": {
+            "eq": true
+          }
+        }
+      },
+      {
+        "src": "zavx0z/lada",
+        "section": "conditions",
+        "localId": "6",
+        "value": {
+          "id": 6,
+          "wimp": "zavx0z/lada",
+          "localId": 6,
+          "transition": 3,
+          "field": 21,
+          "position": 0,
+          "predicate": {
+            "eq": true
+          }
+        }
+      },
+      {
+        "src": "zavx0z/lada",
+        "section": "conditions",
+        "localId": "7",
+        "value": {
+          "id": 7,
+          "wimp": "zavx0z/lada",
+          "localId": 7,
+          "transition": 4,
+          "field": 12,
+          "position": 0,
+          "predicate": {
+            "notEq": null
+          }
+        }
+      },
+      {
+        "src": "zavx0z/lada",
+        "section": "conditions",
+        "localId": "8",
+        "value": {
+          "id": 8,
+          "wimp": "zavx0z/lada",
+          "localId": 8,
+          "transition": 4,
+          "field": 15,
+          "position": 1,
+          "predicate": {
+            "eq": null
+          }
+        }
+      },
+      {
+        "src": "zavx0z/lada",
+        "section": "conditions",
+        "localId": "9",
+        "value": {
+          "id": 9,
+          "wimp": "zavx0z/lada",
+          "localId": 9,
+          "transition": 5,
+          "field": 12,
+          "position": 0,
+          "predicate": {
+            "eq": null
+          }
+        }
+      },
+      {
+        "src": "zavx0z/lada",
+        "section": "processes",
+        "localId": "1",
+        "value": {
+          "id": 1,
+          "wimp": "zavx0z/lada",
+          "localId": 1,
+          "state": "подготовка приветствия",
+          "descriptor": {
+            "type": "action",
+            "key": "подготовка приветствия",
+            "label": "Подготовить приветствие, не отправляя его",
+            "desc": null,
+            "env": [
+              "server"
+            ],
+            "action": {
+              "src": "./actions/prepare-greeting.ts",
+              "importSpecifier": "default",
+              "wrapperSrc": "async ({ mass, signal }) => {\n    return (await import(\"./actions/prepare-greeting.ts\")).default({ mass, signal });\n  }",
+              "readFields": [
+                [
+                  1,
+                  "phone"
+                ],
+                [
+                  2,
+                  "smsCode"
+                ],
+                [
+                  3,
+                  "authenticated"
+                ],
+                [
+                  4,
+                  "userId"
+                ],
+                [
+                  5,
+                  "login"
+                ],
+                [
+                  6,
+                  "authError"
+                ],
+                [
+                  7,
+                  "chatConnected"
+                ],
+                [
+                  8,
+                  "chatHistoryReady"
+                ],
+                [
+                  9,
+                  "ownMessageExists"
+                ],
+                [
+                  10,
+                  "roomKey"
+                ],
+                [
+                  11,
+                  "roomTitle"
+                ],
+                [
+                  12,
+                  "incomingMessageKey"
+                ],
+                [
+                  13,
+                  "incomingMessage"
+                ],
+                [
+                  14,
+                  "chatError"
+                ],
+                [
+                  15,
+                  "modelPrompt"
+                ],
+                [
+                  16,
+                  "replyDraft"
+                ],
+                [
+                  17,
+                  "modelError"
+                ],
+                [
+                  18,
+                  "outgoingMessage"
+                ],
+                [
+                  19,
+                  "lastSentMessageKey"
+                ],
+                [
+                  20,
+                  "sendError"
+                ],
+                [
+                  21,
+                  "greetingPrepared"
+                ]
+              ]
+            },
+            "success": {
+              "src": "({ update }) => update({\n    greetingPrepared: true,\n    chatError: null\n  }, \"s\")",
+              "readFields": [],
+              "writeFields": [
+                [
+                  14,
+                  "chatError"
+                ],
+                [
+                  21,
+                  "greetingPrepared"
+                ]
+              ]
+            },
+            "error": {
+              "src": "({ error, update }) => update({\n    greetingPrepared: false,\n    chatError: error.message\n  }, \"e\")",
+              "readFields": [],
+              "writeFields": [
+                [
+                  14,
+                  "chatError"
+                ],
+                [
+                  21,
+                  "greetingPrepared"
+                ]
+              ]
+            }
+          }
+        }
+      },
+      {
+        "src": "zavx0z/lada",
+        "section": "processes",
+        "localId": "2",
+        "value": {
+          "id": 2,
+          "wimp": "zavx0z/lada",
+          "localId": 2,
+          "state": "осмысление сообщения",
+          "descriptor": {
+            "type": "action",
+            "key": "осмысление сообщения",
+            "label": "Сформулировать намерение подготовить ответ",
+            "desc": null,
+            "env": [
+              "server"
+            ],
+            "action": {
+              "src": "./actions/consider-message.ts",
+              "importSpecifier": "default",
+              "wrapperSrc": "async ({ signal, value }) => {\n    return (await import(\"./actions/consider-message.ts\")).default({ signal, value });\n  }",
+              "readFields": [
+                [
+                  1,
+                  "phone"
+                ],
+                [
+                  2,
+                  "smsCode"
+                ],
+                [
+                  3,
+                  "authenticated"
+                ],
+                [
+                  4,
+                  "userId"
+                ],
+                [
+                  5,
+                  "login"
+                ],
+                [
+                  6,
+                  "authError"
+                ],
+                [
+                  7,
+                  "chatConnected"
+                ],
+                [
+                  8,
+                  "chatHistoryReady"
+                ],
+                [
+                  9,
+                  "ownMessageExists"
+                ],
+                [
+                  10,
+                  "roomKey"
+                ],
+                [
+                  11,
+                  "roomTitle"
+                ],
+                [
+                  12,
+                  "incomingMessageKey"
+                ],
+                [
+                  13,
+                  "incomingMessage"
+                ],
+                [
+                  14,
+                  "chatError"
+                ],
+                [
+                  15,
+                  "modelPrompt"
+                ],
+                [
+                  16,
+                  "replyDraft"
+                ],
+                [
+                  17,
+                  "modelError"
+                ],
+                [
+                  18,
+                  "outgoingMessage"
+                ],
+                [
+                  19,
+                  "lastSentMessageKey"
+                ],
+                [
+                  20,
+                  "sendError"
+                ],
+                [
+                  21,
+                  "greetingPrepared"
+                ]
+              ]
+            },
+            "success": {
+              "src": "({ data, update }) => update({\n    incomingMessageKey: null,\n    incomingMessage: null,\n    modelPrompt: data.prompt,\n    modelError: null\n  }, \"s\")",
+              "readFields": [],
+              "writeFields": [
+                [
+                  12,
+                  "incomingMessageKey"
+                ],
+                [
+                  13,
+                  "incomingMessage"
+                ],
+                [
+                  15,
+                  "modelPrompt"
+                ],
+                [
+                  17,
+                  "modelError"
+                ]
+              ]
+            },
+            "error": {
+              "src": "({ error, update }) => update({\n    incomingMessageKey: null,\n    incomingMessage: null,\n    modelError: error.message\n  }, \"e\")",
+              "readFields": [],
+              "writeFields": [
+                [
+                  12,
+                  "incomingMessageKey"
+                ],
+                [
+                  13,
+                  "incomingMessage"
+                ],
+                [
+                  17,
+                  "modelError"
+                ]
+              ]
+            }
+          }
+        }
+      },
+      {
+        "src": "zavx0z/lada",
+        "section": "matter",
+        "localId": "1",
+        "value": {
+          "id": 2,
+          "wimp": "zavx0z/lada",
+          "localId": 1,
+          "parentParticle": null,
+          "particleKind": "wimp",
+          "edgeSlot": "root",
+          "particleOrder": 0,
+          "kind": "wimp",
+          "parent": null,
+          "position": 0,
+          "src": "zavx0z/lada-auth",
+          "fieldsBinding": {
+            "data": [
+              "phone",
+              "smsCode",
+              "authenticated",
+              "userId",
+              "login",
+              "authError"
+            ],
+            "expr": "{ phone: _[0], smsCode: _[1], authenticated: _[2], userId: _[3], login: _[4], error: _[5] }"
+          },
+          "massBinding": {
+            "data": "/mass/ssoSession",
+            "expr": "{ ssoSession: _[0] }",
+            "directMass": {
+              "kind": "keys",
+              "entries": [
+                {
+                  "target": "ssoSession",
+                  "source": "ssoSession"
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "src": "zavx0z/lada",
+        "section": "matter",
+        "localId": "2",
+        "value": {
+          "id": 3,
+          "wimp": "zavx0z/lada",
+          "localId": 2,
+          "parentParticle": null,
+          "particleKind": "wimp",
+          "edgeSlot": "root",
+          "particleOrder": 1,
+          "kind": "wimp",
+          "parent": null,
+          "position": 1,
+          "src": "zavx0z/lada-chat",
+          "fieldsBinding": {
+            "data": [
+              "authenticated",
+              "chatConnected",
+              "chatHistoryReady",
+              "ownMessageExists",
+              "roomKey",
+              "roomTitle",
+              "incomingMessageKey",
+              "incomingMessage",
+              "chatError",
+              "outgoingMessage",
+              "lastSentMessageKey",
+              "sendError"
+            ],
+            "expr": "{ authenticated: _[0], connected: _[1], historyReady: _[2], ownMessageExists: _[3], roomKey: _[4], roomTitle: _[5], incomingMessageKey: _[6], incomingMessage: _[7], error: _[8], outgoingMessage: _[9], lastSentMessageKey: _[10], sendError: _[11] }"
+          },
+          "massBinding": {
+            "data": [
+              "/mass/ssoSession",
+              "/mass/chatMessages",
+              "/mass/chatOutbox"
+            ],
+            "expr": "{ ssoSession: _[0], chatMessages: _[1], chatOutbox: _[2] }",
+            "directMass": {
+              "kind": "keys",
+              "entries": [
+                {
+                  "target": "ssoSession",
+                  "source": "ssoSession"
+                },
+                {
+                  "target": "chatMessages",
+                  "source": "chatMessages"
+                },
+                {
+                  "target": "chatOutbox",
+                  "source": "chatOutbox"
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "src": "zavx0z/lada",
+        "section": "matter",
+        "localId": "3",
+        "value": {
+          "id": 4,
+          "wimp": "zavx0z/lada",
+          "localId": 3,
+          "parentParticle": null,
+          "particleKind": "wimp",
+          "edgeSlot": "root",
+          "particleOrder": 2,
+          "kind": "wimp",
+          "parent": null,
+          "position": 2,
+          "src": "zavx0z/lada-model",
+          "fieldsBinding": {
+            "data": [
+              "modelPrompt",
+              "replyDraft",
+              "modelError"
+            ],
+            "expr": "{ prompt: _[0], response: _[1], error: _[2] }"
+          },
+          "massBinding": {
+            "data": "/mass/modelMessages",
+            "expr": "{ messages: _[0] }",
+            "directMass": {
+              "kind": "keys",
+              "entries": [
+                {
+                  "target": "messages",
+                  "source": "modelMessages"
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "src": "zavx0z/lada-auth",
+        "section": "meta",
+        "localId": "0",
+        "value": {
+          "src": "zavx0z/lada-auth",
+          "name": "lada-auth",
+          "desc": "Телефонная SSO-авторизация Лады в Production."
+        }
+      },
+      {
+        "src": "zavx0z/lada-auth",
+        "section": "fields",
+        "localId": "1",
+        "value": {
+          "id": 22,
+          "wimp": "zavx0z/lada-auth",
+          "localId": 1,
+          "key": "phone",
+          "type": "string",
+          "required": false,
+          "label": "Телефон"
+        }
+      },
+      {
+        "src": "zavx0z/lada-auth",
+        "section": "fields",
+        "localId": "2",
+        "value": {
+          "id": 23,
+          "wimp": "zavx0z/lada-auth",
+          "localId": 2,
+          "key": "smsCode",
+          "type": "string",
+          "required": false,
+          "label": "Код из SMS"
+        }
+      },
+      {
+        "src": "zavx0z/lada-auth",
+        "section": "fields",
+        "localId": "3",
+        "value": {
+          "id": 24,
+          "wimp": "zavx0z/lada-auth",
+          "localId": 3,
+          "key": "sessionChecked",
+          "type": "boolean",
+          "required": true,
+          "label": "Сессия проверена",
+          "default": false
+        }
+      },
+      {
+        "src": "zavx0z/lada-auth",
+        "section": "fields",
+        "localId": "4",
+        "value": {
+          "id": 25,
+          "wimp": "zavx0z/lada-auth",
+          "localId": 4,
+          "key": "codeRequested",
+          "type": "boolean",
+          "required": true,
+          "label": "Код запрошен",
+          "default": false
+        }
+      },
+      {
+        "src": "zavx0z/lada-auth",
+        "section": "fields",
+        "localId": "5",
+        "value": {
+          "id": 26,
+          "wimp": "zavx0z/lada-auth",
+          "localId": 5,
+          "key": "authenticated",
+          "type": "boolean",
+          "required": true,
+          "label": "Авторизована",
+          "default": false
+        }
+      },
+      {
+        "src": "zavx0z/lada-auth",
+        "section": "fields",
+        "localId": "6",
+        "value": {
+          "id": 27,
+          "wimp": "zavx0z/lada-auth",
+          "localId": 6,
+          "key": "userId",
+          "type": "string",
+          "required": false,
+          "label": "SSO user ID"
+        }
+      },
+      {
+        "src": "zavx0z/lada-auth",
+        "section": "fields",
+        "localId": "7",
+        "value": {
+          "id": 28,
+          "wimp": "zavx0z/lada-auth",
+          "localId": 7,
+          "key": "login",
+          "type": "string",
+          "required": false,
+          "label": "SSO login"
+        }
+      },
+      {
+        "src": "zavx0z/lada-auth",
+        "section": "fields",
+        "localId": "8",
+        "value": {
+          "id": 29,
+          "wimp": "zavx0z/lada-auth",
+          "localId": 8,
+          "key": "error",
+          "type": "string",
+          "required": false,
+          "label": "Ошибка авторизации"
+        }
+      },
+      {
+        "src": "zavx0z/lada-auth",
+        "section": "states",
+        "localId": "1",
+        "value": {
+          "id": 6,
+          "wimp": "zavx0z/lada-auth",
+          "localId": 1,
+          "name": "проверка сессии",
+          "position": 0
+        }
+      },
+      {
+        "src": "zavx0z/lada-auth",
+        "section": "states",
+        "localId": "2",
+        "value": {
+          "id": 7,
+          "wimp": "zavx0z/lada-auth",
+          "localId": 2,
+          "name": "ожидание телефона",
+          "position": 1
+        }
+      },
+      {
+        "src": "zavx0z/lada-auth",
+        "section": "states",
+        "localId": "3",
+        "value": {
+          "id": 8,
+          "wimp": "zavx0z/lada-auth",
+          "localId": 3,
+          "name": "запрос SMS",
+          "position": 2
+        }
+      },
+      {
+        "src": "zavx0z/lada-auth",
+        "section": "states",
+        "localId": "4",
+        "value": {
+          "id": 9,
+          "wimp": "zavx0z/lada-auth",
+          "localId": 4,
+          "name": "ожидание кода",
+          "position": 3
+        }
+      },
+      {
+        "src": "zavx0z/lada-auth",
+        "section": "states",
+        "localId": "5",
+        "value": {
+          "id": 10,
+          "wimp": "zavx0z/lada-auth",
+          "localId": 5,
+          "name": "вход",
+          "position": 4
+        }
+      },
+      {
+        "src": "zavx0z/lada-auth",
+        "section": "states",
+        "localId": "6",
+        "value": {
+          "id": 11,
+          "wimp": "zavx0z/lada-auth",
+          "localId": 6,
+          "name": "ошибка",
+          "position": 5
+        }
+      },
+      {
+        "src": "zavx0z/lada-auth",
+        "section": "states",
+        "localId": "7",
+        "value": {
+          "id": 12,
+          "wimp": "zavx0z/lada-auth",
+          "localId": 7,
+          "name": "авторизована",
+          "position": 6
+        }
+      },
+      {
+        "src": "zavx0z/lada-auth",
+        "section": "transitions",
+        "localId": "1",
+        "value": {
+          "id": 6,
+          "wimp": "zavx0z/lada-auth",
+          "localId": 1,
+          "fromState": 6,
+          "toState": 12,
+          "position": 0
+        }
+      },
+      {
+        "src": "zavx0z/lada-auth",
+        "section": "transitions",
+        "localId": "2",
+        "value": {
+          "id": 7,
+          "wimp": "zavx0z/lada-auth",
+          "localId": 2,
+          "fromState": 6,
+          "toState": 7,
+          "position": 1
+        }
+      },
+      {
+        "src": "zavx0z/lada-auth",
+        "section": "transitions",
+        "localId": "3",
+        "value": {
+          "id": 8,
+          "wimp": "zavx0z/lada-auth",
+          "localId": 3,
+          "fromState": 6,
+          "toState": 11,
+          "position": 2
+        }
+      },
+      {
+        "src": "zavx0z/lada-auth",
+        "section": "transitions",
+        "localId": "4",
+        "value": {
+          "id": 9,
+          "wimp": "zavx0z/lada-auth",
+          "localId": 4,
+          "fromState": 7,
+          "toState": 8,
+          "position": 0
+        }
+      },
+      {
+        "src": "zavx0z/lada-auth",
+        "section": "transitions",
+        "localId": "5",
+        "value": {
+          "id": 10,
+          "wimp": "zavx0z/lada-auth",
+          "localId": 5,
+          "fromState": 8,
+          "toState": 11,
+          "position": 0
+        }
+      },
+      {
+        "src": "zavx0z/lada-auth",
+        "section": "transitions",
+        "localId": "6",
+        "value": {
+          "id": 11,
+          "wimp": "zavx0z/lada-auth",
+          "localId": 6,
+          "fromState": 8,
+          "toState": 9,
+          "position": 1
+        }
+      },
+      {
+        "src": "zavx0z/lada-auth",
+        "section": "transitions",
+        "localId": "7",
+        "value": {
+          "id": 12,
+          "wimp": "zavx0z/lada-auth",
+          "localId": 7,
+          "fromState": 9,
+          "toState": 10,
+          "position": 0
+        }
+      },
+      {
+        "src": "zavx0z/lada-auth",
+        "section": "transitions",
+        "localId": "8",
+        "value": {
+          "id": 13,
+          "wimp": "zavx0z/lada-auth",
+          "localId": 8,
+          "fromState": 10,
+          "toState": 11,
+          "position": 0
+        }
+      },
+      {
+        "src": "zavx0z/lada-auth",
+        "section": "transitions",
+        "localId": "9",
+        "value": {
+          "id": 14,
+          "wimp": "zavx0z/lada-auth",
+          "localId": 9,
+          "fromState": 10,
+          "toState": 12,
+          "position": 1
+        }
+      },
+      {
+        "src": "zavx0z/lada-auth",
+        "section": "transitions",
+        "localId": "10",
+        "value": {
+          "id": 15,
+          "wimp": "zavx0z/lada-auth",
+          "localId": 10,
+          "fromState": 11,
+          "toState": 9,
+          "position": 0
+        }
+      },
+      {
+        "src": "zavx0z/lada-auth",
+        "section": "transitions",
+        "localId": "11",
+        "value": {
+          "id": 16,
+          "wimp": "zavx0z/lada-auth",
+          "localId": 11,
+          "fromState": 11,
+          "toState": 7,
+          "position": 1
+        }
+      },
+      {
+        "src": "zavx0z/lada-auth",
+        "section": "conditions",
+        "localId": "1",
+        "value": {
+          "id": 10,
+          "wimp": "zavx0z/lada-auth",
+          "localId": 1,
+          "transition": 6,
+          "field": 26,
+          "position": 0,
+          "predicate": {
+            "eq": true
+          }
+        }
+      },
+      {
+        "src": "zavx0z/lada-auth",
+        "section": "conditions",
+        "localId": "2",
+        "value": {
+          "id": 11,
+          "wimp": "zavx0z/lada-auth",
+          "localId": 2,
+          "transition": 7,
+          "field": 24,
+          "position": 0,
+          "predicate": {
+            "eq": true
+          }
+        }
+      },
+      {
+        "src": "zavx0z/lada-auth",
+        "section": "conditions",
+        "localId": "3",
+        "value": {
+          "id": 12,
+          "wimp": "zavx0z/lada-auth",
+          "localId": 3,
+          "transition": 7,
+          "field": 26,
+          "position": 1,
+          "predicate": {
+            "eq": false
+          }
+        }
+      },
+      {
+        "src": "zavx0z/lada-auth",
+        "section": "conditions",
+        "localId": "4",
+        "value": {
+          "id": 13,
+          "wimp": "zavx0z/lada-auth",
+          "localId": 4,
+          "transition": 8,
+          "field": 29,
+          "position": 0,
+          "predicate": {
+            "notEq": null
+          }
+        }
+      },
+      {
+        "src": "zavx0z/lada-auth",
+        "section": "conditions",
+        "localId": "5",
+        "value": {
+          "id": 14,
+          "wimp": "zavx0z/lada-auth",
+          "localId": 5,
+          "transition": 9,
+          "field": 22,
+          "position": 0,
+          "predicate": {
+            "notEq": null
+          }
+        }
+      },
+      {
+        "src": "zavx0z/lada-auth",
+        "section": "conditions",
+        "localId": "6",
+        "value": {
+          "id": 15,
+          "wimp": "zavx0z/lada-auth",
+          "localId": 6,
+          "transition": 10,
+          "field": 29,
+          "position": 0,
+          "predicate": {
+            "notEq": null
+          }
+        }
+      },
+      {
+        "src": "zavx0z/lada-auth",
+        "section": "conditions",
+        "localId": "7",
+        "value": {
+          "id": 16,
+          "wimp": "zavx0z/lada-auth",
+          "localId": 7,
+          "transition": 11,
+          "field": 25,
+          "position": 0,
+          "predicate": {
+            "eq": true
+          }
+        }
+      },
+      {
+        "src": "zavx0z/lada-auth",
+        "section": "conditions",
+        "localId": "8",
+        "value": {
+          "id": 17,
+          "wimp": "zavx0z/lada-auth",
+          "localId": 8,
+          "transition": 12,
+          "field": 23,
+          "position": 0,
+          "predicate": {
+            "notEq": null
+          }
+        }
+      },
+      {
+        "src": "zavx0z/lada-auth",
+        "section": "conditions",
+        "localId": "9",
+        "value": {
+          "id": 18,
+          "wimp": "zavx0z/lada-auth",
+          "localId": 9,
+          "transition": 13,
+          "field": 29,
+          "position": 0,
+          "predicate": {
+            "notEq": null
+          }
+        }
+      },
+      {
+        "src": "zavx0z/lada-auth",
+        "section": "conditions",
+        "localId": "10",
+        "value": {
+          "id": 19,
+          "wimp": "zavx0z/lada-auth",
+          "localId": 10,
+          "transition": 14,
+          "field": 26,
+          "position": 0,
+          "predicate": {
+            "eq": true
+          }
+        }
+      },
+      {
+        "src": "zavx0z/lada-auth",
+        "section": "conditions",
+        "localId": "11",
+        "value": {
+          "id": 20,
+          "wimp": "zavx0z/lada-auth",
+          "localId": 11,
+          "transition": 15,
+          "field": 29,
+          "position": 0,
+          "predicate": {
+            "eq": null
+          }
+        }
+      },
+      {
+        "src": "zavx0z/lada-auth",
+        "section": "conditions",
+        "localId": "12",
+        "value": {
+          "id": 21,
+          "wimp": "zavx0z/lada-auth",
+          "localId": 12,
+          "transition": 15,
+          "field": 25,
+          "position": 1,
+          "predicate": {
+            "eq": true
+          }
+        }
+      },
+      {
+        "src": "zavx0z/lada-auth",
+        "section": "conditions",
+        "localId": "13",
+        "value": {
+          "id": 22,
+          "wimp": "zavx0z/lada-auth",
+          "localId": 13,
+          "transition": 16,
+          "field": 29,
+          "position": 0,
+          "predicate": {
+            "eq": null
+          }
+        }
+      },
+      {
+        "src": "zavx0z/lada-auth",
+        "section": "processes",
+        "localId": "1",
+        "value": {
+          "id": 3,
+          "wimp": "zavx0z/lada-auth",
+          "localId": 1,
+          "state": "проверка сессии",
+          "descriptor": {
+            "type": "action",
+            "key": "проверка сессии",
+            "label": "Однократно восстановить сохранённую SSO-сессию",
+            "desc": null,
+            "env": [
+              "server"
+            ],
+            "action": {
+              "src": "./actions/sso.ts",
+              "importSpecifier": "restoreSsoSession",
+              "wrapperSrc": "async ({ mass, signal }) => {\n    return (await import(\"./actions/sso.ts\")).restoreSsoSession({ mass, signal });\n  }",
+              "readFields": [
+                [
+                  22,
+                  "phone"
+                ],
+                [
+                  23,
+                  "smsCode"
+                ],
+                [
+                  24,
+                  "sessionChecked"
+                ],
+                [
+                  25,
+                  "codeRequested"
+                ],
+                [
+                  26,
+                  "authenticated"
+                ],
+                [
+                  27,
+                  "userId"
+                ],
+                [
+                  28,
+                  "login"
+                ],
+                [
+                  29,
+                  "error"
+                ]
+              ]
+            },
+            "success": {
+              "src": "({ data, update }) => update({\n    sessionChecked: true,\n    authenticated: data.authenticated,\n    userId: data.userId,\n    login: data.login,\n    error: null\n  }, \"s\")",
+              "readFields": [],
+              "writeFields": [
+                [
+                  24,
+                  "sessionChecked"
+                ],
+                [
+                  26,
+                  "authenticated"
+                ],
+                [
+                  27,
+                  "userId"
+                ],
+                [
+                  28,
+                  "login"
+                ],
+                [
+                  29,
+                  "error"
+                ]
+              ]
+            },
+            "error": {
+              "src": "({ error, update }) => update({\n    sessionChecked: true,\n    authenticated: false,\n    error: error.message\n  }, \"e\")",
+              "readFields": [],
+              "writeFields": [
+                [
+                  24,
+                  "sessionChecked"
+                ],
+                [
+                  26,
+                  "authenticated"
+                ],
+                [
+                  29,
+                  "error"
+                ]
+              ]
+            }
+          }
+        }
+      },
+      {
+        "src": "zavx0z/lada-auth",
+        "section": "processes",
+        "localId": "2",
+        "value": {
+          "id": 4,
+          "wimp": "zavx0z/lada-auth",
+          "localId": 2,
+          "state": "запрос SMS",
+          "descriptor": {
+            "type": "action",
+            "key": "запрос SMS",
+            "label": "Запрос четырёхзначного SMS-кода",
+            "desc": null,
+            "env": [
+              "server"
+            ],
+            "action": {
+              "src": "./actions/sso.ts",
+              "importSpecifier": "requestSmsCode",
+              "wrapperSrc": "async ({ signal, value }) => {\n    return (await import(\"./actions/sso.ts\")).requestSmsCode({ signal, value });\n  }",
+              "readFields": [
+                [
+                  22,
+                  "phone"
+                ],
+                [
+                  23,
+                  "smsCode"
+                ],
+                [
+                  24,
+                  "sessionChecked"
+                ],
+                [
+                  25,
+                  "codeRequested"
+                ],
+                [
+                  26,
+                  "authenticated"
+                ],
+                [
+                  27,
+                  "userId"
+                ],
+                [
+                  28,
+                  "login"
+                ],
+                [
+                  29,
+                  "error"
+                ]
+              ]
+            },
+            "success": {
+              "src": "({ update }) => update({\n    codeRequested: true,\n    error: null\n  }, \"s\")",
+              "readFields": [],
+              "writeFields": [
+                [
+                  25,
+                  "codeRequested"
+                ],
+                [
+                  29,
+                  "error"
+                ]
+              ]
+            },
+            "error": {
+              "src": "({ error, update }) => update({\n    phone: null,\n    codeRequested: false,\n    error: error.message\n  }, \"e\")",
+              "readFields": [],
+              "writeFields": [
+                [
+                  22,
+                  "phone"
+                ],
+                [
+                  25,
+                  "codeRequested"
+                ],
+                [
+                  29,
+                  "error"
+                ]
+              ]
+            }
+          }
+        }
+      },
+      {
+        "src": "zavx0z/lada-auth",
+        "section": "processes",
+        "localId": "3",
+        "value": {
+          "id": 5,
+          "wimp": "zavx0z/lada-auth",
+          "localId": 3,
+          "state": "вход",
+          "descriptor": {
+            "type": "action",
+            "key": "вход",
+            "label": "Вход в SSO по телефону и коду",
+            "desc": null,
+            "env": [
+              "server"
+            ],
+            "action": {
+              "src": "./actions/sso.ts",
+              "importSpecifier": "completeSsoLogin",
+              "wrapperSrc": "async ({ mass, signal, value }) => {\n    return (await import(\"./actions/sso.ts\")).completeSsoLogin({ mass, signal, value });\n  }",
+              "readFields": [
+                [
+                  22,
+                  "phone"
+                ],
+                [
+                  23,
+                  "smsCode"
+                ],
+                [
+                  24,
+                  "sessionChecked"
+                ],
+                [
+                  25,
+                  "codeRequested"
+                ],
+                [
+                  26,
+                  "authenticated"
+                ],
+                [
+                  27,
+                  "userId"
+                ],
+                [
+                  28,
+                  "login"
+                ],
+                [
+                  29,
+                  "error"
+                ]
+              ]
+            },
+            "success": {
+              "src": "({ data, update }) => update({\n    smsCode: null,\n    sessionChecked: true,\n    authenticated: true,\n    userId: data.userId,\n    login: data.login,\n    error: null\n  }, \"s\")",
+              "readFields": [],
+              "writeFields": [
+                [
+                  23,
+                  "smsCode"
+                ],
+                [
+                  24,
+                  "sessionChecked"
+                ],
+                [
+                  26,
+                  "authenticated"
+                ],
+                [
+                  27,
+                  "userId"
+                ],
+                [
+                  28,
+                  "login"
+                ],
+                [
+                  29,
+                  "error"
+                ]
+              ]
+            },
+            "error": {
+              "src": "({ error, update }) => update({\n    smsCode: null,\n    authenticated: false,\n    error: error.message\n  }, \"e\")",
+              "readFields": [],
+              "writeFields": [
+                [
+                  23,
+                  "smsCode"
+                ],
+                [
+                  26,
+                  "authenticated"
+                ],
+                [
+                  29,
+                  "error"
+                ]
+              ]
+            }
+          }
+        }
+      },
+      {
+        "src": "zavx0z/lada-chat",
+        "section": "meta",
+        "localId": "0",
+        "value": {
+          "src": "zavx0z/lada-chat",
+          "name": "lada-chat",
+          "desc": "Chat Service Atom: история и событийный realtime общей комнаты Production."
+        }
+      },
+      {
+        "src": "zavx0z/lada-chat",
+        "section": "fields",
+        "localId": "1",
+        "value": {
+          "id": 30,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 1,
+          "key": "authenticated",
+          "type": "boolean",
+          "required": true,
+          "label": "SSO доступен",
+          "default": false
+        }
+      },
+      {
+        "src": "zavx0z/lada-chat",
+        "section": "fields",
+        "localId": "2",
+        "value": {
+          "id": 31,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 2,
+          "key": "connected",
+          "type": "boolean",
+          "required": true,
+          "label": "Realtime подключён",
+          "default": false
+        }
+      },
+      {
+        "src": "zavx0z/lada-chat",
+        "section": "fields",
+        "localId": "3",
+        "value": {
+          "id": 32,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 3,
+          "key": "historyReady",
+          "type": "boolean",
+          "required": true,
+          "label": "История получена",
+          "default": false
+        }
+      },
+      {
+        "src": "zavx0z/lada-chat",
+        "section": "fields",
+        "localId": "4",
+        "value": {
+          "id": 33,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 4,
+          "key": "ownMessageExists",
+          "type": "boolean",
+          "required": true,
+          "label": "Есть сообщение Лады",
+          "default": false
+        }
+      },
+      {
+        "src": "zavx0z/lada-chat",
+        "section": "fields",
+        "localId": "5",
+        "value": {
+          "id": 34,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 5,
+          "key": "roomKey",
+          "type": "string",
+          "required": false,
+          "label": "Ключ общей комнаты"
+        }
+      },
+      {
+        "src": "zavx0z/lada-chat",
+        "section": "fields",
+        "localId": "6",
+        "value": {
+          "id": 35,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 6,
+          "key": "roomTitle",
+          "type": "string",
+          "required": false,
+          "label": "Комната"
+        }
+      },
+      {
+        "src": "zavx0z/lada-chat",
+        "section": "fields",
+        "localId": "7",
+        "value": {
+          "id": 36,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 7,
+          "key": "historyCount",
+          "type": "number",
+          "required": true,
+          "label": "Сообщений в истории",
+          "default": 0
+        }
+      },
+      {
+        "src": "zavx0z/lada-chat",
+        "section": "fields",
+        "localId": "8",
+        "value": {
+          "id": 37,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 8,
+          "key": "eventReady",
+          "type": "boolean",
+          "required": true,
+          "label": "Realtime-событие получено",
+          "default": false
+        }
+      },
+      {
+        "src": "zavx0z/lada-chat",
+        "section": "fields",
+        "localId": "9",
+        "value": {
+          "id": 38,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 9,
+          "key": "retryReady",
+          "type": "boolean",
+          "required": true,
+          "label": "Можно переподключаться",
+          "default": false
+        }
+      },
+      {
+        "src": "zavx0z/lada-chat",
+        "section": "fields",
+        "localId": "10",
+        "value": {
+          "id": 39,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 10,
+          "key": "incomingMessageKey",
+          "type": "string",
+          "required": false,
+          "label": "Ключ входящего сообщения"
+        }
+      },
+      {
+        "src": "zavx0z/lada-chat",
+        "section": "fields",
+        "localId": "11",
+        "value": {
+          "id": 40,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 11,
+          "key": "incomingMessage",
+          "type": "string",
+          "required": false,
+          "label": "Входящее сообщение"
+        }
+      },
+      {
+        "src": "zavx0z/lada-chat",
+        "section": "fields",
+        "localId": "12",
+        "value": {
+          "id": 41,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 12,
+          "key": "error",
+          "type": "string",
+          "required": false,
+          "label": "Ошибка чата"
+        }
+      },
+      {
+        "src": "zavx0z/lada-chat",
+        "section": "fields",
+        "localId": "13",
+        "value": {
+          "id": 42,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 13,
+          "key": "outgoingMessage",
+          "type": "string",
+          "required": false,
+          "label": "Исходящее сообщение"
+        }
+      },
+      {
+        "src": "zavx0z/lada-chat",
+        "section": "fields",
+        "localId": "14",
+        "value": {
+          "id": 43,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 14,
+          "key": "lastSentMessageKey",
+          "type": "string",
+          "required": false,
+          "label": "Последнее отправленное сообщение"
+        }
+      },
+      {
+        "src": "zavx0z/lada-chat",
+        "section": "fields",
+        "localId": "15",
+        "value": {
+          "id": 44,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 15,
+          "key": "sendError",
+          "type": "string",
+          "required": false,
+          "label": "Ошибка отправки"
+        }
+      },
+      {
+        "src": "zavx0z/lada-chat",
+        "section": "states",
+        "localId": "1",
+        "value": {
+          "id": 13,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 1,
+          "name": "ожидание авторизации",
+          "position": 0
+        }
+      },
+      {
+        "src": "zavx0z/lada-chat",
+        "section": "states",
+        "localId": "2",
+        "value": {
+          "id": 14,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 2,
+          "name": "подключение",
+          "position": 1
+        }
+      },
+      {
+        "src": "zavx0z/lada-chat",
+        "section": "states",
+        "localId": "3",
+        "value": {
+          "id": 15,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 3,
+          "name": "ожидание события",
+          "position": 2
+        }
+      },
+      {
+        "src": "zavx0z/lada-chat",
+        "section": "states",
+        "localId": "4",
+        "value": {
+          "id": 16,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 4,
+          "name": "событие принято",
+          "position": 3
+        }
+      },
+      {
+        "src": "zavx0z/lada-chat",
+        "section": "states",
+        "localId": "5",
+        "value": {
+          "id": 17,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 5,
+          "name": "переподключение",
+          "position": 4
+        }
+      },
+      {
+        "src": "zavx0z/lada-chat",
+        "section": "states",
+        "localId": "6",
+        "value": {
+          "id": 18,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 6,
+          "name": "ошибка подключения",
+          "position": 5
+        }
+      },
+      {
+        "src": "zavx0z/lada-chat",
+        "section": "transitions",
+        "localId": "1",
+        "value": {
+          "id": 17,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 1,
+          "fromState": 13,
+          "toState": 14,
+          "position": 0
+        }
+      },
+      {
+        "src": "zavx0z/lada-chat",
+        "section": "transitions",
+        "localId": "2",
+        "value": {
+          "id": 18,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 2,
+          "fromState": 14,
+          "toState": 18,
+          "position": 0
+        }
+      },
+      {
+        "src": "zavx0z/lada-chat",
+        "section": "transitions",
+        "localId": "3",
+        "value": {
+          "id": 19,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 3,
+          "fromState": 14,
+          "toState": 15,
+          "position": 1
+        }
+      },
+      {
+        "src": "zavx0z/lada-chat",
+        "section": "transitions",
+        "localId": "4",
+        "value": {
+          "id": 20,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 4,
+          "fromState": 15,
+          "toState": 17,
+          "position": 0
+        }
+      },
+      {
+        "src": "zavx0z/lada-chat",
+        "section": "transitions",
+        "localId": "5",
+        "value": {
+          "id": 21,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 5,
+          "fromState": 15,
+          "toState": 16,
+          "position": 1
+        }
+      },
+      {
+        "src": "zavx0z/lada-chat",
+        "section": "transitions",
+        "localId": "6",
+        "value": {
+          "id": 22,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 6,
+          "fromState": 16,
+          "toState": 15,
+          "position": 0
+        }
+      },
+      {
+        "src": "zavx0z/lada-chat",
+        "section": "transitions",
+        "localId": "7",
+        "value": {
+          "id": 23,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 7,
+          "fromState": 17,
+          "toState": 14,
+          "position": 0
+        }
+      },
+      {
+        "src": "zavx0z/lada-chat",
+        "section": "transitions",
+        "localId": "8",
+        "value": {
+          "id": 24,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 8,
+          "fromState": 18,
+          "toState": 14,
+          "position": 0
+        }
+      },
+      {
+        "src": "zavx0z/lada-chat",
+        "section": "conditions",
+        "localId": "1",
+        "value": {
+          "id": 23,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 1,
+          "transition": 17,
+          "field": 30,
+          "position": 0,
+          "predicate": {
+            "eq": true
+          }
+        }
+      },
+      {
+        "src": "zavx0z/lada-chat",
+        "section": "conditions",
+        "localId": "2",
+        "value": {
+          "id": 24,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 2,
+          "transition": 18,
+          "field": 41,
+          "position": 0,
+          "predicate": {
+            "notEq": null
+          }
+        }
+      },
+      {
+        "src": "zavx0z/lada-chat",
+        "section": "conditions",
+        "localId": "3",
+        "value": {
+          "id": 25,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 3,
+          "transition": 19,
+          "field": 31,
+          "position": 0,
+          "predicate": {
+            "eq": true
+          }
+        }
+      },
+      {
+        "src": "zavx0z/lada-chat",
+        "section": "conditions",
+        "localId": "4",
+        "value": {
+          "id": 26,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 4,
+          "transition": 20,
+          "field": 31,
+          "position": 0,
+          "predicate": {
+            "eq": false
+          }
+        }
+      },
+      {
+        "src": "zavx0z/lada-chat",
+        "section": "conditions",
+        "localId": "5",
+        "value": {
+          "id": 27,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 5,
+          "transition": 21,
+          "field": 31,
+          "position": 0,
+          "predicate": {
+            "eq": true
+          }
+        }
+      },
+      {
+        "src": "zavx0z/lada-chat",
+        "section": "conditions",
+        "localId": "6",
+        "value": {
+          "id": 28,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 6,
+          "transition": 21,
+          "field": 37,
+          "position": 1,
+          "predicate": {
+            "eq": true
+          }
+        }
+      },
+      {
+        "src": "zavx0z/lada-chat",
+        "section": "conditions",
+        "localId": "7",
+        "value": {
+          "id": 29,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 7,
+          "transition": 22,
+          "field": 37,
+          "position": 0,
+          "predicate": {
+            "eq": false
+          }
+        }
+      },
+      {
+        "src": "zavx0z/lada-chat",
+        "section": "conditions",
+        "localId": "8",
+        "value": {
+          "id": 30,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 8,
+          "transition": 22,
+          "field": 39,
+          "position": 1,
+          "predicate": {
+            "eq": null
+          }
+        }
+      },
+      {
+        "src": "zavx0z/lada-chat",
+        "section": "conditions",
+        "localId": "9",
+        "value": {
+          "id": 31,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 9,
+          "transition": 23,
+          "field": 38,
+          "position": 0,
+          "predicate": {
+            "eq": true
+          }
+        }
+      },
+      {
+        "src": "zavx0z/lada-chat",
+        "section": "conditions",
+        "localId": "10",
+        "value": {
+          "id": 32,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 10,
+          "transition": 24,
+          "field": 38,
+          "position": 0,
+          "predicate": {
+            "eq": true
+          }
+        }
+      },
+      {
+        "src": "zavx0z/lada-chat",
+        "section": "processes",
+        "localId": "1",
+        "value": {
+          "id": 6,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 1,
+          "state": "подключение",
+          "descriptor": {
+            "type": "action",
+            "key": "подключение",
+            "label": "Подключить общую комнату",
+            "desc": null,
+            "env": [
+              "server"
+            ],
+            "action": {
+              "src": "./actions/realtime.ts",
+              "importSpecifier": "connectCommonChat",
+              "wrapperSrc": "async ({ energy, mass, signal }) => {\n    return (await import(\"./actions/realtime.ts\")).connectCommonChat({ energy, mass, signal });\n  }",
+              "readFields": [
+                [
+                  30,
+                  "authenticated"
+                ],
+                [
+                  31,
+                  "connected"
+                ],
+                [
+                  32,
+                  "historyReady"
+                ],
+                [
+                  33,
+                  "ownMessageExists"
+                ],
+                [
+                  34,
+                  "roomKey"
+                ],
+                [
+                  35,
+                  "roomTitle"
+                ],
+                [
+                  36,
+                  "historyCount"
+                ],
+                [
+                  37,
+                  "eventReady"
+                ],
+                [
+                  38,
+                  "retryReady"
+                ],
+                [
+                  39,
+                  "incomingMessageKey"
+                ],
+                [
+                  40,
+                  "incomingMessage"
+                ],
+                [
+                  41,
+                  "error"
+                ],
+                [
+                  42,
+                  "outgoingMessage"
+                ],
+                [
+                  43,
+                  "lastSentMessageKey"
+                ],
+                [
+                  44,
+                  "sendError"
+                ]
+              ]
+            },
+            "success": {
+              "src": "({ data, update }) => update({\n    roomKey: data.roomKey,\n    roomTitle: data.roomTitle,\n    connected: true,\n    historyReady: true,\n    historyCount: data.historyCount,\n    ownMessageExists: data.ownMessageExists,\n    eventReady: false,\n    retryReady: false,\n    error: null\n  }, \"s\")",
+              "readFields": [],
+              "writeFields": [
+                [
+                  31,
+                  "connected"
+                ],
+                [
+                  32,
+                  "historyReady"
+                ],
+                [
+                  33,
+                  "ownMessageExists"
+                ],
+                [
+                  34,
+                  "roomKey"
+                ],
+                [
+                  35,
+                  "roomTitle"
+                ],
+                [
+                  36,
+                  "historyCount"
+                ],
+                [
+                  37,
+                  "eventReady"
+                ],
+                [
+                  38,
+                  "retryReady"
+                ],
+                [
+                  41,
+                  "error"
+                ]
+              ]
+            },
+            "error": {
+              "src": "({ error, update }) => update({\n    connected: false,\n    retryReady: false,\n    error: error.message\n  }, \"e\")",
+              "readFields": [],
+              "writeFields": [
+                [
+                  31,
+                  "connected"
+                ],
+                [
+                  38,
+                  "retryReady"
+                ],
+                [
+                  41,
+                  "error"
+                ]
+              ]
+            }
+          }
+        }
+      },
+      {
+        "src": "zavx0z/lada-chat",
+        "section": "processes",
+        "localId": "2",
+        "value": {
+          "id": 7,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 2,
+          "state": "ожидание события",
+          "descriptor": {
+            "type": "action",
+            "key": "ожидание события",
+            "label": "Ожидать следующее realtime-событие",
+            "desc": null,
+            "env": [
+              "server"
+            ],
+            "action": {
+              "src": "./actions/realtime.ts",
+              "importSpecifier": "receiveCommonChatEvent",
+              "wrapperSrc": "async ({ energy, mass, signal }) => {\n    return (await import(\"./actions/realtime.ts\")).receiveCommonChatEvent({ energy, mass, signal });\n  }",
+              "readFields": [
+                [
+                  30,
+                  "authenticated"
+                ],
+                [
+                  31,
+                  "connected"
+                ],
+                [
+                  32,
+                  "historyReady"
+                ],
+                [
+                  33,
+                  "ownMessageExists"
+                ],
+                [
+                  34,
+                  "roomKey"
+                ],
+                [
+                  35,
+                  "roomTitle"
+                ],
+                [
+                  36,
+                  "historyCount"
+                ],
+                [
+                  37,
+                  "eventReady"
+                ],
+                [
+                  38,
+                  "retryReady"
+                ],
+                [
+                  39,
+                  "incomingMessageKey"
+                ],
+                [
+                  40,
+                  "incomingMessage"
+                ],
+                [
+                  41,
+                  "error"
+                ],
+                [
+                  42,
+                  "outgoingMessage"
+                ],
+                [
+                  43,
+                  "lastSentMessageKey"
+                ],
+                [
+                  44,
+                  "sendError"
+                ]
+              ]
+            },
+            "success": {
+              "src": "({ data, update }) => {\n    if (data.kind === \"disconnected\") {\n      update({\n        connected: false,\n        eventReady: false,\n        retryReady: false,\n        error: `Realtime \\u043E\\u0442\\u043A\\u043B\\u044E\\u0447\\u0451\\u043D: ${data.reason}.`\n      }, \"s\");\n      return;\n    }\n    update({\n      eventReady: true,\n      ...data.authorSelf || data.body === null ? {} : {\n        incomingMessageKey: data.messageKey,\n        incomingMessage: data.body\n      },\n      error: null\n    }, \"s\");\n  }",
+              "readFields": [],
+              "writeFields": []
+            },
+            "error": {
+              "src": "({ error, update }) => update({\n    connected: false,\n    eventReady: false,\n    retryReady: false,\n    error: error.message\n  }, \"e\")",
+              "readFields": [],
+              "writeFields": [
+                [
+                  31,
+                  "connected"
+                ],
+                [
+                  37,
+                  "eventReady"
+                ],
+                [
+                  38,
+                  "retryReady"
+                ],
+                [
+                  41,
+                  "error"
+                ]
+              ]
+            }
+          }
+        }
+      },
+      {
+        "src": "zavx0z/lada-chat",
+        "section": "processes",
+        "localId": "3",
+        "value": {
+          "id": 8,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 3,
+          "state": "событие принято",
+          "descriptor": {
+            "type": "action",
+            "key": "событие принято",
+            "label": "Подтвердить доставку события в Fields",
+            "desc": null,
+            "env": [
+              "server"
+            ],
+            "action": {
+              "src": "./actions/realtime.ts",
+              "importSpecifier": "acknowledgeChatEvent",
+              "wrapperSrc": "async ({ signal }) => {\n    return (await import(\"./actions/realtime.ts\")).acknowledgeChatEvent({ signal });\n  }",
+              "readFields": [
+                [
+                  30,
+                  "authenticated"
+                ],
+                [
+                  31,
+                  "connected"
+                ],
+                [
+                  32,
+                  "historyReady"
+                ],
+                [
+                  33,
+                  "ownMessageExists"
+                ],
+                [
+                  34,
+                  "roomKey"
+                ],
+                [
+                  35,
+                  "roomTitle"
+                ],
+                [
+                  36,
+                  "historyCount"
+                ],
+                [
+                  37,
+                  "eventReady"
+                ],
+                [
+                  38,
+                  "retryReady"
+                ],
+                [
+                  39,
+                  "incomingMessageKey"
+                ],
+                [
+                  40,
+                  "incomingMessage"
+                ],
+                [
+                  41,
+                  "error"
+                ],
+                [
+                  42,
+                  "outgoingMessage"
+                ],
+                [
+                  43,
+                  "lastSentMessageKey"
+                ],
+                [
+                  44,
+                  "sendError"
+                ]
+              ]
+            },
+            "success": {
+              "src": "({ update }) => update({ eventReady: false }, \"s\")",
+              "readFields": [],
+              "writeFields": [
+                [
+                  37,
+                  "eventReady"
+                ]
+              ]
+            }
+          }
+        }
+      },
+      {
+        "src": "zavx0z/lada-chat",
+        "section": "processes",
+        "localId": "4",
+        "value": {
+          "id": 9,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 4,
+          "state": "переподключение",
+          "descriptor": {
+            "type": "action",
+            "key": "переподключение",
+            "label": "Однократная задержка перед переподключением",
+            "desc": null,
+            "env": [
+              "server"
+            ],
+            "action": {
+              "src": "./actions/realtime.ts",
+              "importSpecifier": "waitBeforeReconnect",
+              "wrapperSrc": "async ({ signal }) => {\n    return (await import(\"./actions/realtime.ts\")).waitBeforeReconnect({ signal });\n  }",
+              "readFields": [
+                [
+                  30,
+                  "authenticated"
+                ],
+                [
+                  31,
+                  "connected"
+                ],
+                [
+                  32,
+                  "historyReady"
+                ],
+                [
+                  33,
+                  "ownMessageExists"
+                ],
+                [
+                  34,
+                  "roomKey"
+                ],
+                [
+                  35,
+                  "roomTitle"
+                ],
+                [
+                  36,
+                  "historyCount"
+                ],
+                [
+                  37,
+                  "eventReady"
+                ],
+                [
+                  38,
+                  "retryReady"
+                ],
+                [
+                  39,
+                  "incomingMessageKey"
+                ],
+                [
+                  40,
+                  "incomingMessage"
+                ],
+                [
+                  41,
+                  "error"
+                ],
+                [
+                  42,
+                  "outgoingMessage"
+                ],
+                [
+                  43,
+                  "lastSentMessageKey"
+                ],
+                [
+                  44,
+                  "sendError"
+                ]
+              ]
+            },
+            "success": {
+              "src": "({ update }) => update({\n    retryReady: true,\n    error: null\n  }, \"s\")",
+              "readFields": [],
+              "writeFields": [
+                [
+                  38,
+                  "retryReady"
+                ],
+                [
+                  41,
+                  "error"
+                ]
+              ]
+            }
+          }
+        }
+      },
+      {
+        "src": "zavx0z/lada-chat",
+        "section": "processes",
+        "localId": "5",
+        "value": {
+          "id": 10,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 5,
+          "state": "ошибка подключения",
+          "descriptor": {
+            "type": "action",
+            "key": "ошибка подключения",
+            "label": "Однократная задержка после ошибки подключения",
+            "desc": null,
+            "env": [
+              "server"
+            ],
+            "action": {
+              "src": "./actions/realtime.ts",
+              "importSpecifier": "waitBeforeReconnect",
+              "wrapperSrc": "async ({ signal }) => {\n    return (await import(\"./actions/realtime.ts\")).waitBeforeReconnect({ signal });\n  }",
+              "readFields": [
+                [
+                  30,
+                  "authenticated"
+                ],
+                [
+                  31,
+                  "connected"
+                ],
+                [
+                  32,
+                  "historyReady"
+                ],
+                [
+                  33,
+                  "ownMessageExists"
+                ],
+                [
+                  34,
+                  "roomKey"
+                ],
+                [
+                  35,
+                  "roomTitle"
+                ],
+                [
+                  36,
+                  "historyCount"
+                ],
+                [
+                  37,
+                  "eventReady"
+                ],
+                [
+                  38,
+                  "retryReady"
+                ],
+                [
+                  39,
+                  "incomingMessageKey"
+                ],
+                [
+                  40,
+                  "incomingMessage"
+                ],
+                [
+                  41,
+                  "error"
+                ],
+                [
+                  42,
+                  "outgoingMessage"
+                ],
+                [
+                  43,
+                  "lastSentMessageKey"
+                ],
+                [
+                  44,
+                  "sendError"
+                ]
+              ]
+            },
+            "success": {
+              "src": "({ update }) => update({\n    retryReady: true,\n    error: null\n  }, \"s\")",
+              "readFields": [],
+              "writeFields": [
+                [
+                  38,
+                  "retryReady"
+                ],
+                [
+                  41,
+                  "error"
+                ]
+              ]
+            }
+          }
+        }
+      },
+      {
+        "src": "zavx0z/lada-chat",
+        "section": "processes",
+        "localId": "6",
+        "value": {
+          "id": 11,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 6,
+          "state": "ожидание авторизации",
+          "descriptor": {
+            "type": "finally",
+            "key": "ожидание авторизации",
+            "label": "Освободить realtime-соединение",
+            "desc": null,
+            "env": [
+              "server"
+            ],
+            "before": {
+              "src": "async ({ energy }) => {\n    return (await import(\"./actions/realtime.ts\")).stopCommonChat({ energy });\n  }",
+              "readFields": []
+            }
+          }
+        }
+      },
+      {
+        "src": "zavx0z/lada-chat",
+        "section": "matter",
+        "localId": "1",
+        "value": {
+          "id": 5,
+          "wimp": "zavx0z/lada-chat",
+          "localId": 1,
+          "parentParticle": null,
+          "particleKind": "wimp",
+          "edgeSlot": "root",
+          "particleOrder": 0,
+          "kind": "wimp",
+          "parent": null,
+          "position": 0,
+          "src": "zavx0z/lada-chat-send",
+          "fieldsBinding": {
+            "data": [
+              "connected",
+              "roomKey",
+              "outgoingMessage",
+              "lastSentMessageKey",
+              "sendError"
+            ],
+            "expr": "{ connected: _[0], roomKey: _[1], body: _[2], lastSentMessageKey: _[3], error: _[4] }"
+          },
+          "massBinding": {
+            "data": [
+              "/mass/ssoSession",
+              "/mass/chatMessages",
+              "/mass/chatOutbox"
+            ],
+            "expr": "{ ssoSession: _[0], chatMessages: _[1], chatOutbox: _[2] }",
+            "directMass": {
+              "kind": "keys",
+              "entries": [
+                {
+                  "target": "ssoSession",
+                  "source": "ssoSession"
+                },
+                {
+                  "target": "chatMessages",
+                  "source": "chatMessages"
+                },
+                {
+                  "target": "chatOutbox",
+                  "source": "chatOutbox"
+                }
+              ]
+            }
+          },
+          "energyBinding": {
+            "data": "/energy"
+          }
+        }
+      },
+      {
+        "src": "zavx0z/lada-model",
+        "section": "meta",
+        "localId": "0",
+        "value": {
+          "src": "zavx0z/lada-model",
+          "name": "lada-model",
+          "desc": "Model Service Atom: превращает намерение Лады в черновик ответа."
+        }
+      },
+      {
+        "src": "zavx0z/lada-model",
+        "section": "fields",
+        "localId": "1",
+        "value": {
+          "id": 45,
+          "wimp": "zavx0z/lada-model",
+          "localId": 1,
+          "key": "prompt",
+          "type": "string",
+          "required": false,
+          "label": "Намерение Лады"
+        }
+      },
+      {
+        "src": "zavx0z/lada-model",
+        "section": "fields",
+        "localId": "2",
+        "value": {
+          "id": 46,
+          "wimp": "zavx0z/lada-model",
+          "localId": 2,
+          "key": "model",
+          "type": "string",
+          "required": true,
+          "label": "Ollama model",
+          "default": "qwen3.5:9b"
+        }
+      },
+      {
+        "src": "zavx0z/lada-model",
+        "section": "fields",
+        "localId": "3",
+        "value": {
+          "id": 47,
+          "wimp": "zavx0z/lada-model",
+          "localId": 3,
+          "key": "response",
+          "type": "string",
+          "required": false,
+          "label": "Черновик модели"
+        }
+      },
+      {
+        "src": "zavx0z/lada-model",
+        "section": "fields",
+        "localId": "4",
+        "value": {
+          "id": 48,
+          "wimp": "zavx0z/lada-model",
+          "localId": 4,
+          "key": "lastMessageId",
+          "type": "string",
+          "required": false,
+          "label": "Последнее сообщение модели"
+        }
+      },
+      {
+        "src": "zavx0z/lada-model",
+        "section": "fields",
+        "localId": "5",
+        "value": {
+          "id": 49,
+          "wimp": "zavx0z/lada-model",
+          "localId": 5,
+          "key": "error",
+          "type": "string",
+          "required": false,
+          "label": "Ошибка модели"
+        }
+      },
+      {
+        "src": "zavx0z/lada-model",
+        "section": "states",
+        "localId": "1",
+        "value": {
+          "id": 19,
+          "wimp": "zavx0z/lada-model",
+          "localId": 1,
+          "name": "ожидание",
+          "position": 0
+        }
+      },
+      {
+        "src": "zavx0z/lada-model",
+        "section": "states",
+        "localId": "2",
+        "value": {
+          "id": 20,
+          "wimp": "zavx0z/lada-model",
+          "localId": 2,
+          "name": "обращение к модели",
+          "position": 1
+        }
+      },
+      {
+        "src": "zavx0z/lada-model",
+        "section": "states",
+        "localId": "3",
+        "value": {
+          "id": 21,
+          "wimp": "zavx0z/lada-model",
+          "localId": 3,
+          "name": "ошибка",
+          "position": 2
+        }
+      },
+      {
+        "src": "zavx0z/lada-model",
+        "section": "transitions",
+        "localId": "1",
+        "value": {
+          "id": 25,
+          "wimp": "zavx0z/lada-model",
+          "localId": 1,
+          "fromState": 19,
+          "toState": 20,
+          "position": 0
+        }
+      },
+      {
+        "src": "zavx0z/lada-model",
+        "section": "transitions",
+        "localId": "2",
+        "value": {
+          "id": 26,
+          "wimp": "zavx0z/lada-model",
+          "localId": 2,
+          "fromState": 20,
+          "toState": 21,
+          "position": 0
+        }
+      },
+      {
+        "src": "zavx0z/lada-model",
+        "section": "transitions",
+        "localId": "3",
+        "value": {
+          "id": 27,
+          "wimp": "zavx0z/lada-model",
+          "localId": 3,
+          "fromState": 20,
+          "toState": 19,
+          "position": 1
+        }
+      },
+      {
+        "src": "zavx0z/lada-model",
+        "section": "transitions",
+        "localId": "4",
+        "value": {
+          "id": 28,
+          "wimp": "zavx0z/lada-model",
+          "localId": 4,
+          "fromState": 21,
+          "toState": 19,
+          "position": 0
+        }
+      },
+      {
+        "src": "zavx0z/lada-model",
+        "section": "conditions",
+        "localId": "1",
+        "value": {
+          "id": 33,
+          "wimp": "zavx0z/lada-model",
+          "localId": 1,
+          "transition": 25,
+          "field": 45,
+          "position": 0,
+          "predicate": {
+            "notEq": null
+          }
+        }
+      },
+      {
+        "src": "zavx0z/lada-model",
+        "section": "conditions",
+        "localId": "2",
+        "value": {
+          "id": 34,
+          "wimp": "zavx0z/lada-model",
+          "localId": 2,
+          "transition": 26,
+          "field": 49,
+          "position": 0,
+          "predicate": {
+            "notEq": null
+          }
+        }
+      },
+      {
+        "src": "zavx0z/lada-model",
+        "section": "conditions",
+        "localId": "3",
+        "value": {
+          "id": 35,
+          "wimp": "zavx0z/lada-model",
+          "localId": 3,
+          "transition": 27,
+          "field": 45,
+          "position": 0,
+          "predicate": {
+            "eq": null
+          }
+        }
+      },
+      {
+        "src": "zavx0z/lada-model",
+        "section": "conditions",
+        "localId": "4",
+        "value": {
+          "id": 36,
+          "wimp": "zavx0z/lada-model",
+          "localId": 4,
+          "transition": 28,
+          "field": 49,
+          "position": 0,
+          "predicate": {
+            "eq": null
+          }
+        }
+      },
+      {
+        "src": "zavx0z/lada-model",
+        "section": "processes",
+        "localId": "1",
+        "value": {
+          "id": 12,
+          "wimp": "zavx0z/lada-model",
+          "localId": 1,
+          "state": "обращение к модели",
+          "descriptor": {
+            "type": "action",
+            "key": "обращение к модели",
+            "label": "Подготовить черновик локальной Ollama-моделью",
+            "desc": null,
+            "env": [
+              "server"
+            ],
+            "action": {
+              "src": "./actions/chat.ts",
+              "importSpecifier": "default",
+              "wrapperSrc": "async ({ mass, signal, value }) => {\n    return (await import(\"./actions/chat.ts\")).default({ mass, signal, value });\n  }",
+              "readFields": [
+                [
+                  45,
+                  "prompt"
+                ],
+                [
+                  46,
+                  "model"
+                ],
+                [
+                  47,
+                  "response"
+                ],
+                [
+                  48,
+                  "lastMessageId"
+                ],
+                [
+                  49,
+                  "error"
+                ]
+              ]
+            },
+            "success": {
+              "src": "({ data, update }) => update({\n    prompt: null,\n    response: data.assistantContent,\n    lastMessageId: data.assistantMessageId,\n    error: null\n  }, \"s\")",
+              "readFields": [],
+              "writeFields": [
+                [
+                  45,
+                  "prompt"
+                ],
+                [
+                  47,
+                  "response"
+                ],
+                [
+                  48,
+                  "lastMessageId"
+                ],
+                [
+                  49,
+                  "error"
+                ]
+              ]
+            },
+            "error": {
+              "src": "({ error, update }) => update({\n    prompt: null,\n    error: error.message\n  }, \"e\")",
+              "readFields": [],
+              "writeFields": [
+                [
+                  45,
+                  "prompt"
+                ],
+                [
+                  49,
+                  "error"
+                ]
+              ]
+            }
+          }
+        }
+      },
+      {
+        "src": "zavx0z/lada-chat-send",
+        "section": "meta",
+        "localId": "0",
+        "value": {
+          "src": "zavx0z/lada-chat-send",
+          "name": "lada-chat-send",
+          "desc": "Send Message Tool Atom: единственная возможность отправить сообщение Лады."
+        }
+      },
+      {
+        "src": "zavx0z/lada-chat-send",
+        "section": "fields",
+        "localId": "1",
+        "value": {
+          "id": 50,
+          "wimp": "zavx0z/lada-chat-send",
+          "localId": 1,
+          "key": "connected",
+          "type": "boolean",
+          "required": true,
+          "label": "Realtime подключён",
+          "default": false
+        }
+      },
+      {
+        "src": "zavx0z/lada-chat-send",
+        "section": "fields",
+        "localId": "2",
+        "value": {
+          "id": 51,
+          "wimp": "zavx0z/lada-chat-send",
+          "localId": 2,
+          "key": "roomKey",
+          "type": "string",
+          "required": false,
+          "label": "Ключ общей комнаты"
+        }
+      },
+      {
+        "src": "zavx0z/lada-chat-send",
+        "section": "fields",
+        "localId": "3",
+        "value": {
+          "id": 52,
+          "wimp": "zavx0z/lada-chat-send",
+          "localId": 3,
+          "key": "body",
+          "type": "string",
+          "required": false,
+          "label": "Разрешённое сообщение"
+        }
+      },
+      {
+        "src": "zavx0z/lada-chat-send",
+        "section": "fields",
+        "localId": "4",
+        "value": {
+          "id": 53,
+          "wimp": "zavx0z/lada-chat-send",
+          "localId": 4,
+          "key": "lastSentMessageKey",
+          "type": "string",
+          "required": false,
+          "label": "Последнее отправленное сообщение"
+        }
+      },
+      {
+        "src": "zavx0z/lada-chat-send",
+        "section": "fields",
+        "localId": "5",
+        "value": {
+          "id": 54,
+          "wimp": "zavx0z/lada-chat-send",
+          "localId": 5,
+          "key": "error",
+          "type": "string",
+          "required": false,
+          "label": "Ошибка отправки"
+        }
+      },
+      {
+        "src": "zavx0z/lada-chat-send",
+        "section": "states",
+        "localId": "1",
+        "value": {
+          "id": 22,
+          "wimp": "zavx0z/lada-chat-send",
+          "localId": 1,
+          "name": "ожидание намерения",
+          "position": 0
+        }
+      },
+      {
+        "src": "zavx0z/lada-chat-send",
+        "section": "states",
+        "localId": "2",
+        "value": {
+          "id": 23,
+          "wimp": "zavx0z/lada-chat-send",
+          "localId": 2,
+          "name": "отправка",
+          "position": 1
+        }
+      },
+      {
+        "src": "zavx0z/lada-chat-send",
+        "section": "states",
+        "localId": "3",
+        "value": {
+          "id": 24,
+          "wimp": "zavx0z/lada-chat-send",
+          "localId": 3,
+          "name": "ошибка",
+          "position": 2
+        }
+      },
+      {
+        "src": "zavx0z/lada-chat-send",
+        "section": "transitions",
+        "localId": "1",
+        "value": {
+          "id": 29,
+          "wimp": "zavx0z/lada-chat-send",
+          "localId": 1,
+          "fromState": 22,
+          "toState": 23,
+          "position": 0
+        }
+      },
+      {
+        "src": "zavx0z/lada-chat-send",
+        "section": "transitions",
+        "localId": "2",
+        "value": {
+          "id": 30,
+          "wimp": "zavx0z/lada-chat-send",
+          "localId": 2,
+          "fromState": 23,
+          "toState": 24,
+          "position": 0
+        }
+      },
+      {
+        "src": "zavx0z/lada-chat-send",
+        "section": "transitions",
+        "localId": "3",
+        "value": {
+          "id": 31,
+          "wimp": "zavx0z/lada-chat-send",
+          "localId": 3,
+          "fromState": 23,
+          "toState": 22,
+          "position": 1
+        }
+      },
+      {
+        "src": "zavx0z/lada-chat-send",
+        "section": "transitions",
+        "localId": "4",
+        "value": {
+          "id": 32,
+          "wimp": "zavx0z/lada-chat-send",
+          "localId": 4,
+          "fromState": 24,
+          "toState": 22,
+          "position": 0
+        }
+      },
+      {
+        "src": "zavx0z/lada-chat-send",
+        "section": "conditions",
+        "localId": "1",
+        "value": {
+          "id": 37,
+          "wimp": "zavx0z/lada-chat-send",
+          "localId": 1,
+          "transition": 29,
+          "field": 50,
+          "position": 0,
+          "predicate": {
+            "eq": true
+          }
+        }
+      },
+      {
+        "src": "zavx0z/lada-chat-send",
+        "section": "conditions",
+        "localId": "2",
+        "value": {
+          "id": 38,
+          "wimp": "zavx0z/lada-chat-send",
+          "localId": 2,
+          "transition": 29,
+          "field": 51,
+          "position": 1,
+          "predicate": {
+            "notEq": null
+          }
+        }
+      },
+      {
+        "src": "zavx0z/lada-chat-send",
+        "section": "conditions",
+        "localId": "3",
+        "value": {
+          "id": 39,
+          "wimp": "zavx0z/lada-chat-send",
+          "localId": 3,
+          "transition": 29,
+          "field": 52,
+          "position": 2,
+          "predicate": {
+            "notEq": null
+          }
+        }
+      },
+      {
+        "src": "zavx0z/lada-chat-send",
+        "section": "conditions",
+        "localId": "4",
+        "value": {
+          "id": 40,
+          "wimp": "zavx0z/lada-chat-send",
+          "localId": 4,
+          "transition": 30,
+          "field": 54,
+          "position": 0,
+          "predicate": {
+            "notEq": null
+          }
+        }
+      },
+      {
+        "src": "zavx0z/lada-chat-send",
+        "section": "conditions",
+        "localId": "5",
+        "value": {
+          "id": 41,
+          "wimp": "zavx0z/lada-chat-send",
+          "localId": 5,
+          "transition": 31,
+          "field": 52,
+          "position": 0,
+          "predicate": {
+            "eq": null
+          }
+        }
+      },
+      {
+        "src": "zavx0z/lada-chat-send",
+        "section": "conditions",
+        "localId": "6",
+        "value": {
+          "id": 42,
+          "wimp": "zavx0z/lada-chat-send",
+          "localId": 6,
+          "transition": 31,
+          "field": 54,
+          "position": 1,
+          "predicate": {
+            "eq": null
+          }
+        }
+      },
+      {
+        "src": "zavx0z/lada-chat-send",
+        "section": "conditions",
+        "localId": "7",
+        "value": {
+          "id": 43,
+          "wimp": "zavx0z/lada-chat-send",
+          "localId": 7,
+          "transition": 32,
+          "field": 54,
+          "position": 0,
+          "predicate": {
+            "eq": null
+          }
+        }
+      },
+      {
+        "src": "zavx0z/lada-chat-send",
+        "section": "processes",
+        "localId": "1",
+        "value": {
+          "id": 13,
+          "wimp": "zavx0z/lada-chat-send",
+          "localId": 1,
+          "state": "отправка",
+          "descriptor": {
+            "type": "action",
+            "key": "отправка",
+            "label": "Отправить разрешённое сообщение через realtime",
+            "desc": null,
+            "env": [
+              "server"
+            ],
+            "action": {
+              "src": "./actions/send.ts",
+              "importSpecifier": "default",
+              "wrapperSrc": "async ({ energy, mass, signal, value }) => {\n    return (await import(\"./actions/send.ts\")).default({\n      energy,\n      mass,\n      signal,\n      roomKey: value.roomKey,\n      body: value.body\n    });\n  }",
+              "readFields": [
+                [
+                  50,
+                  "connected"
+                ],
+                [
+                  51,
+                  "roomKey"
+                ],
+                [
+                  52,
+                  "body"
+                ],
+                [
+                  53,
+                  "lastSentMessageKey"
+                ],
+                [
+                  54,
+                  "error"
+                ]
+              ]
+            },
+            "success": {
+              "src": "({ data, update }) => update({\n    body: null,\n    lastSentMessageKey: data.messageKey,\n    error: null\n  }, \"s\")",
+              "readFields": [],
+              "writeFields": [
+                [
+                  52,
+                  "body"
+                ],
+                [
+                  53,
+                  "lastSentMessageKey"
+                ],
+                [
+                  54,
+                  "error"
+                ]
+              ]
+            },
+            "error": {
+              "src": "({ error, update }) => update({\n    body: null,\n    error: error.message\n  }, \"e\")",
+              "readFields": [],
+              "writeFields": [
+                [
+                  52,
+                  "body"
+                ],
+                [
+                  54,
+                  "error"
+                ]
+              ]
+            }
+          }
+        }
+      }
+    ]
+  }
+}

@@ -6,7 +6,7 @@ import type {
 } from "@metafor/types/bulk/manifest"
 import type {BulkRuntimeProjection} from "@metafor/types/bulk/runtime"
 import type {BulkVisualRenderManifest} from "@metafor/types/bulk/visual"
-import snapshotJson from "../pkg/visual/playground/fixture/monad-snapshot.json"
+import snapshotJson from "./fixture/monad-snapshot.json"
 import {buildBulkManifestation} from "./manifestation.ts"
 import {BulkProjectionStore} from "./projection.ts"
 import {BulkSceneStore} from "./scene.ts"

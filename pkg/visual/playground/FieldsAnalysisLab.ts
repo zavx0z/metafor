@@ -17,9 +17,9 @@ import {
   pseudoSphereRadiusForFieldCount as resolvePseudoSphereRadius,
   type PseudoCircleLayout,
   type PseudoSpherePoint,
-} from "../FieldsLayout.ts"
-import {createQuantumSphereMaterial} from "../QuantumFilm.ts"
-import {visualFieldParticleColor} from "../SemanticVisual.ts"
+} from "../src/FieldsLayout.ts"
+import {createQuantumSphereMaterial} from "./QuantumFilm.ts"
+import {visualFieldParticleColor} from "../src/SemanticVisual.ts"
 import {createPageAnnotationLayer} from "./AnnotationLayer.ts"
 
 export const FIELDS_PSEUDO_SPHERE_MARKER_RADIUS = 1.35

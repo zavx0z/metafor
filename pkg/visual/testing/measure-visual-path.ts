@@ -1,13 +1,13 @@
-import {CenteredNested} from "../CenteredNested.ts"
-import {OutsideIn} from "../OutsideIn.ts"
-import {buildVisualScenePayload} from "../ScenePayload.ts"
+import {CenteredNested} from "../src/CenteredNested.ts"
+import {OutsideIn} from "../src/OutsideIn.ts"
+import {buildVisualScenePayload} from "../src/ScenePayload.ts"
 import {
   reconcileVisualScenePayload,
   summarizeVisualScenePatch,
-} from "../SceneReconciler.ts"
-import {compileVisualComponents} from "../VisualComponents.ts"
-import type {VisualLayout} from "../internal/layout.ts"
-import {ladaLayoutInput} from "../testing/lada-fixture.ts"
+} from "../src/SceneReconciler.ts"
+import {compileVisualComponents} from "../src/VisualComponents.ts"
+import type {VisualLayout} from "../src/internal/layout.ts"
+import {ladaLayoutInput} from "./lada-fixture.ts"
 
 /**
  * Runtime measurement of the complete visual path on the real Lada scene.

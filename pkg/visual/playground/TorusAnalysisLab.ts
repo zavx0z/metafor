@@ -12,7 +12,7 @@ import {
 import {
   DARK_TORUS_MESH_DETAIL,
   resolveSelfSimilarTorusForm,
-} from "../Torus.ts"
+} from "../src/Torus.ts"
 import {createPageAnnotationLayer} from "./AnnotationLayer.ts"
 
 export type ThreeTorusParameters = Readonly<{

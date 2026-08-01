@@ -5,8 +5,9 @@ catalog entry builds one immutable, identity-rich scene from a `BulkManifest`
 and exact owner-bound `StateGraph` inputs, so consumers do not switch on layout
 slugs themselves. `centered-nested` is the ready production strategy used by
 the Bulk renderer binding; `outside-in` remains explicitly in progress.
-The package itself stays runtime-neutral: Bulk owns the canonical-to-render
-projection and viewport lifecycle.
+Production source lives only in `src/`. The package itself stays runtime-neutral:
+Bulk owns the canonical-to-render projection, Canvas, `Renderer`, `Space`,
+`ViewPoint`, Engine adapter and viewport lifecycle.
 
 `outside-in` is evidence of the repeated recursive structure, not a finished
 component architecture. The production model is the separate immutable
@@ -18,15 +19,15 @@ flat arrays afterwards. A cached one-time compiler emits stable form indexes
 plus homogeneous Transition/Relation line batches; render frames never
 traverse or rebuild the layout.
 
-Use `@metafor/visual/layout` for the pure geometry/catalog boundary. The root
-entry contains only production material resolvers; the explicit renderer
-boundary is `@metafor/visual/viewport`. Its complete-scene viewport consumes
-the exact Torus, Field, State/causal, proxy, Transition and Relation forms,
-materials and sampled paths emitted by a named layout. It does not reconstruct
-State geometry from a reduced graph projection. Playground catalogs, entity
-lenses and isolated algorithm-lab viewport constructors are development source
-modules, not package-root API. Shared strategy-neutral tree, Torus and
-State-sleeve composition lives in `internal/`.
+Use `@metafor/visual/layout` for the pure geometry/catalog boundary,
+`@metafor/visual/payload` for declarative render data and
+`@metafor/visual/store` for persistent state and exact update decisions. Every
+public export targets `src/`; no public subpath exposes a renderer or the
+playground. Material policies are declarative values. Bulk adapts them to
+Engine materials in its own adapter. Playground catalogs, entity lenses and
+isolated algorithm-lab viewport constructors remain private development source.
+Shared strategy-neutral tree, Torus and State-sleeve composition lives in
+`src/internal/`.
 
 Production consumers that need only the ready strategy import
 `@metafor/visual/layout/centered-nested`. This narrow entrypoint excludes the
@@ -75,7 +76,7 @@ current Field/State interaction zone. It derives the exact `zavx0z/lada`
 `StateGraph` from the saved Monad JSON, retains only that root Atom's semantic
 manifest records and excludes every nested Matter owner. The reduced input is
 then passed through the unchanged production
-`buildCenteredNestedBulkVisualManifest → createBulkViewport` path. The lab does
+`buildBulkVisualRenderManifest → createBulkViewport` path. The lab does
 not copy or modify geometry, materials, State sleeves, Field proxies,
 Transitions or Relations; its side panel shows the exact root graph JSON used
 by the stand. In that production geometry a Process or Finally is a Torus whose
@@ -88,7 +89,7 @@ outside.
 The adjacent `#/state-graph/activity` page compares two manifestations of the
 real root `lada` State graph from the saved Monad snapshot. Both cards isolate
 that root Atom from nested Matter and use the unchanged
-`buildBulkManifestation → buildCenteredNestedBulkVisualManifest →
+`buildBulkManifestation → buildBulkVisualRenderManifest →
 createBulkViewport` path. The first card retains the materialized current State:
 exactly its complete sleeve is active and every sibling sleeve is inactive. The
 second card clears only the root Atom's current-State pointer, so every sleeve
@@ -176,8 +177,8 @@ highest common ancestor of all occurrence owners and uses the Field size of
 that ancestor's level. The represented declaration identities remain listed
 on the placement even though their geometry is collapsed.
 
-Named layout pages render this complete immutable scene directly through
-`createVisualSceneViewport`: every package placement becomes one Mesh and
+Named layout pages render this complete immutable scene through their private
+playground adapter: every package placement becomes one Mesh and
 every compiled Transition/Relation batch becomes one `LineSegments` from its
 ready sampled points. `StateGraphViewport` is reserved for the isolated
 State Graph lab; it is not a second renderer law for `outside-in` or
@@ -401,8 +402,8 @@ after a parameter, view or camera change. Holding `Shift` while dragging any
 continuous Torus parameter reduces its movement to one tenth of the native
 slider delta; discrete segment counts retain their integer step.
 
-Every playground viewport provides the same local annotation layer. Main Visual
-stories, Form Skin, Edges and Torus Analysis store their route, slug, title,
+Every playground viewport provides the same local annotation layer. Main Visual,
+Form Skin, Edges and Torus Analysis store their route, slug, title,
 canvas identity and normalized/screen points; State Graph cards additionally
 store Atom, State, Transition, layout and camera identity. Turning the pencil
 off uploads one composed viewport PNG plus its surface-specific metadata to the

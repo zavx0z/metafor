@@ -6,7 +6,7 @@ import type {
   BulkVisualRenderPatch,
 } from "@metafor/types/bulk/visual"
 import {CenteredNested, OutsideIn} from "@metafor/visual/layout"
-import snapshotJson from "../pkg/visual/playground/fixture/monad-snapshot.json"
+import snapshotJson from "./fixture/monad-snapshot.json"
 import {buildBulkManifestation} from "./manifestation.ts"
 import {BulkProjectionStore} from "./projection.ts"
 import {

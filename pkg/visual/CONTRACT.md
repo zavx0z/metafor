@@ -6,10 +6,20 @@
 
 ## Публичная граница пакета
 
+- `pkg/visual/src` — единственный production source и единственная публичная
+  граница пакета. Только модули из `src` могут быть целями `exports` в
+  `package.json`; production consumer импортирует их по объявленным package
+  entrypoints и не обращается к исходным файлам по относительным путям.
+- `pkg/visual/playground` — приватная лаборатория того же пакета. Она вправе
+  компоновать production-модули из `src`, UI, fixtures, debug-инструменты и
+  временные эксперименты, но не экспортируется наружу. Production-модуль не
+  импортирует playground. После принятия эксперимента в `src` переносится
+  только его очищенная переиспользуемая часть.
 - Каждая запись `Visual` является исполняемой стратегией с единым
   `buildScene({manifest, owners})`. Каталог не требует от consumer ручного
   `switch` по slug. `centered-nested` готова и используется production Bulk;
-  `outside-in` остаётся явно помеченной `in-progress`.
+  `outside-in` остаётся явно помеченной `in-progress`. Это две и только две
+  production layout strategies.
 - Готовая сцена доводится до renderer одним layout-agnostic контрактом
   `@metafor/visual/payload`. `buildVisualScenePayload(layout, input)` исполняет
   любую именованную стратегию и возвращает `VisualScenePayload`: сериализуемую
@@ -26,14 +36,18 @@
   каталог, viewport adapter или playground. Поэтому production bundle одной
   стратегии не втягивает незавершённую. Другая стратегия передаётся consumer'ом
   явно как `VisualLayout`; пакет не резолвит slug за него.
+- Persistent Visual Store гидратируется готовой серверной сценой, сохраняет
+  stable identities и принимает уже применённые upstream-изменения. Решение о
+  визуальной работе выражается явно как `none | appearance | effects |
+  relations | geometry | structure`. Appearance, effects и relations не
+  запускают layout и возвращают точные declarative операции. Geometry и
+  structure вправе потребовать повторного исполнения выбранной стратегии;
+  correctness важнее локальности.
 - Повторное изменение проходит через `reconcileVisualScenePayload(current,
-  next)`. Он возвращает узкий патч только когда набор identities совпал:
-  изменение, которое не может сдвинуть геометрию, отдаёт renderer'у ровно
-  изменившиеся записи, совпавший payload не отдаёт ничего, а иной набор
-  identities обязывает к полной замене. Line batches сравниваются по
-  fingerprint, поэтому нетронутая линия сохраняет свой GPU buffer.
-  `classifyVisualInvalidation` переводит уже применённое upstream-изменение в
-  `none | appearance | structure`; структурное изменение никогда не сужается.
+  next)`. Он возвращает точный add/update/remove patch и не требует полной
+  замены только из-за изменения набора identities. Совпавший payload не отдаёт
+  renderer adapter ничего. Visual Store и patch не содержат causal frontier,
+  reconnect, replay или recovery policy: это не visual contract данного этапа.
 - `manifest` передаёт полную materialized структуру, а каждый элемент
   `owners` связывает один `StateGraph` с точным `ownerDarkParticleId`.
   Владелец обязан существовать в manifest, быть уникальным во входе и иметь
@@ -53,29 +67,23 @@
   occurrence identity разбором opaque layout id. Массивы, placements и
   вложенная State geometry immutable и не ссылаются на изменяемые части
   входного manifest. Компоновщик не сортирует и не изменяет входные массивы.
-- Чистая граница геометрии экспортируется как `@metafor/visual/layout` и не
-  включает playground, GPU viewport либо entity-lab catalogs. Корневой
-  `@metafor/visual` содержит только production material resolvers, а явный
-  complete-scene GPU viewport экспортируется отдельно как
-  `@metafor/visual/viewport`.
-  Dev-компоненты и labs доступны только через собственные source modules
-  внутри workspace.
-- Named-layout playground передаёт полный immutable `VisualScene` в
-  `createVisualSceneViewport` без промежуточного State-layout projection.
-  Тот же viewport принимает вместо сцены готовый `VisualScenePayload`: ровно
-  один из двух источников кадра. Так тонкий renderer рисует именно то, что
-  подготовил сервер, не повторяя раскладку.
-  Viewport создаёт ровно одну Mesh на каждую готовую Torus/Sphere placement и
-  ровно один `LineSegments` на каждый package-owned edge batch. Он использует
-  только готовые form, material и sampled path; повторное построение State,
-  condition Field, causal particle, proxy, Hermite либо Relation geometry
-  запрещено. `StateGraphViewport` остаётся renderer только изолированного
-  algorithm lab и не обслуживает именованные раскладки.
+- Чистые production entrypoints экспортируют layout catalog, single-layout
+  entrypoint, payload, persistent Store, material policies и visual update
+  decisions. Они не экспортируют playground, Canvas, GPU viewport, Engine
+  adapter либо entity-lab catalog.
+- Named-layout playground передаёт полный immutable `VisualScene` или готовый
+  `VisualScenePayload` своему приватному Engine adapter без промежуточного
+  State-layout projection. Adapter использует только готовые form, material и
+  sampled path; повторное построение State, condition Field, causal particle,
+  proxy, Hermite либо Relation geometry запрещено. Изолированный State Graph
+  lab также остаётся приватным playground adapter.
 - Bulk и named-layout playground потребляют одну complete component scene.
-  Разница их renderer-boundary механики ограничена frame-представлением:
-  playground использует готовые world coordinates напрямую, а Bulk переводит
-  их в local frame exact owner. Обе границы сохраняют identity coverage и
-  package batch/material laws до создания GPU objects.
+  Bulk владеет canvas, viewport, `Space`, `Renderer`, `ViewPoint` и production
+  Engine adapter; visual не владеет общим `Space` или Engine lifecycle. Bulk
+  предоставляет Monad/Particle boundary, выбирает visual configuration и
+  применяет готовые declarative render data либо update operations. Playground
+  владеет только своими приватными lab adapters. Обе границы сохраняют identity
+  coverage и package material laws до создания GPU objects.
 - Детерминированные Field layouts принимают не более `4096` markers за один
   вызов и используют ограниченный recent-cache. Превышение ресурсной границы
   отклоняется синхронно; cached geometry глубоко immutable.
@@ -83,43 +91,6 @@
   parent-child chain не более `256`. Превышение отклоняется контролируемым
   `RangeError`; duplicate identity и structural cycle отклоняются до
   рекурсивной композиции.
-
-## Детерминированные visual stories
-
-- `@metafor/visual/stories` предоставляет один story-движок для проверяемых
-  визуальных сценариев. Story описывается декларативно: `initial()` строит
-  полное начальное визуальное условие (`manifest` + `owners`), а `events`
-  перечисляет стандартные визуальные события. Событие несёт собственный
-  `structural` флаг, повторяющий то, что upstream projection сообщает о уже
-  применённом изменении, поэтому сценарий проходит то же решение об
-  инвалидации, что и production, а не story-only упрощение.
-- Время story виртуальное и детерминированное: шаг сдвигает его ровно на
-  `advanceMs` события. Ни `Date.now`, ни `performance.now`, ни requestAnimationFrame
-  на путь story не влияют, поэтому один и тот же сценарий даёт побайтово
-  одинаковые кадры и trace при каждом прогоне.
-- `createVisualStoryPlayer({layout, story})` — единственное место, где живёт
-  управление воспроизведением: `start`, `step`, `pause`, `resume`, `replay`,
-  `reset` и `finish`. Player строит каждый кадр через `buildVisualScenePayload`
-  и сужает его через `reconcileVisualScenePayload`, поэтому story не может
-  разойтись с тем, что рисует Bulk. Story с объявленным `layoutSlug`
-  отклоняется под другой стратегией.
-- Кадр сохраняет полный `VisualScenePayload`, применённый `VisualScenePatch`,
-  область инвалидации и сводку затронутых записей. Кадры удерживаются в
-  порядке, поэтому текущее визуальное состояние доступно для инспекции, а
-  прогон — для повторного воспроизведения и сравнения. `formatVisualStoryTrace`
-  превращает trace в построчную диагностику.
-- `compareVisualStoryRuns(left, right)` сравнивает два прогона по кадрам. Так
-  один сценарий проверяется под разными стратегиями: одинаковый набор событий
-  под `centered-nested` и `outside-in` расходится в геометрии, но остаётся
-  сопоставимым по шагам и областям инвалидации.
-- `VisualStoryConditions` — то же самое `{manifest, owners}`, что принимает
-  любая стратегия, поэтому подготовленное в story чистое визуальное условие
-  напрямую пригодно для production consumer. Playground-каталог сценариев
-  является downstream-потребителем этого движка и не содержит собственной
-  реализации воспроизведения, инвалидации или сравнения.
-- Story-путь остаётся headless: он не создаёт Canvas, GPU objects, `Renderer`,
-  `Space` либо `ViewPoint`, поэтому один и тот же сценарий исполняется в `bun
-  test` и в браузере.
 
 ## Компонентная production-модель
 
@@ -350,9 +321,8 @@
 - Entity-компоненты остаются переиспользуемыми визуальными примитивами и
   изолированными линзами для разработки. Они не являются самостоятельными
   верхнеуровневыми раскладками и не образуют основную навигацию playground.
-- Каталог допускает несколько независимых раскладок над тем же snapshot.
-  Будущая `inside-out` добавляется отдельной стратегией, а не переименованием,
-  инверсией массива либо скрытым режимом `outside-in`.
+- Каталог содержит ровно `centered-nested` и `outside-in` как независимые
+  раскладки над тем же snapshot.
 - Выбор раскладки меняет только визуальную композицию. Он не меняет данные,
   topology, parent ownership, State computation, Force history или
   materialization.
@@ -369,3 +339,8 @@ frame владельца; он не адаптирует геометрию, н�
 прежние coordinates и не держит запасную раскладку. Переиспользуемая
 компонентная модель не активирует Axion сама по себе: текущая Bulk policy
 отсекает отложенный Axion до вызова production strategy.
+
+Visual заканчивается на declarative scene и visual update decision. Canvas,
+viewport, `Space`, `Renderer`, `ViewPoint`, создание GPU resources, применение
+patch к Engine objects и lifecycle contour принадлежат Bulk либо приватному
+playground adapter, но не production Visual.

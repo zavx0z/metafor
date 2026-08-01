@@ -1,5 +1,5 @@
-import type {StateGraphRootLayout} from "../StateGraphLayout.ts"
-import type {StateGraphViewportPose} from "../StateGraphViewport.ts"
+import type {StateGraphRootLayout} from "../src/StateGraphLayout.ts"
+import type {StateGraphViewportPose} from "./StateGraphViewport.ts"
 
 export const VISUAL_ANNOTATION_SCHEMA = "metafor/visual-annotation@1" as const
 

@@ -17,7 +17,6 @@ import {
   describeVisualPreparedScene,
   hydrateVisualStore,
   visualDeltaPatchOperations,
-  type VisualCausalFrontier,
   type VisualInvalidationScope,
   type VisualPreparedScene,
   type VisualStore,
@@ -110,11 +109,6 @@ export class BulkVisualScenePresenter {
     return this.#store?.payload ?? null
   }
 
-  /** The causal frontier the presented scene stands at, if it carries one. */
-  get frontier(): VisualCausalFrontier | null {
-    return this.#store?.frontier ?? null
-  }
-
   /** The persistent Store, or `null` before the first apply. */
   get store(): VisualStore | null {
     return this.#store
@@ -151,10 +145,7 @@ export class BulkVisualScenePresenter {
     this.#store = hydrateVisualStore(
       "payload" in prepared
         ? prepared
-        : describeVisualPreparedScene(prepared, {
-          frontier: null,
-          sourceRevision: "",
-        }),
+        : describeVisualPreparedScene(prepared),
       {placement: this.#layout.placement, slug: this.#layout.slug},
     )
     const projection = adaptBulkVisualRenderManifest(semanticManifest, payload)
@@ -187,14 +178,12 @@ export class BulkVisualScenePresenter {
     semanticManifest: BulkManifest,
     projection: BulkRuntimeProjection,
     change: VisualUpstreamChange = FULL_UPSTREAM_CHANGE,
-    options: Readonly<{frontier?: VisualCausalFrontier}> = {},
   ): BulkVisualApplyResult {
     const store = this.#store
     if (store !== null) {
       const applied = store.apply(
         change,
         semanticManifest,
-        options.frontier === undefined ? {} : {frontier: options.frontier},
       )
       if (applied.kind === "visual-store-applied") {
         const summary = summarizeVisualScenePatch(applied.patch)
@@ -259,10 +248,7 @@ export class BulkVisualScenePresenter {
     )
     if (store === null) {
       this.#store = hydrateVisualStore(
-        describeVisualPreparedScene(payload, {
-          frontier: options.frontier ?? null,
-          sourceRevision: "",
-        }),
+        describeVisualPreparedScene(payload),
         {placement: this.#layout.placement, slug: this.#layout.slug},
       )
       const renderManifest = adaptBulkVisualRenderManifest(
@@ -286,10 +272,7 @@ export class BulkVisualScenePresenter {
     // The strategy re-placed the scene. The Store adopts the result rather than
     // being thrown away: its identities, indexes and renderer records survive,
     // and the delta it computes is what actually differs on the GPU.
-    const adopted = store.adopt(
-      payload,
-      options.frontier === undefined ? {} : {frontier: options.frontier},
-    )
+    const adopted = store.adopt(payload)
     const summary = summarizeVisualScenePatch(adopted)
     const operations = visualDeltaPatchOperations(adopted)
     if (operations.added + operations.removed + operations.updated === 0) {

@@ -4,7 +4,6 @@ import type {BulkManifest} from "@metafor/types/bulk/manifest"
 import type {BulkVisualLayoutSlug} from "@metafor/types/bulk/visual"
 import {
   describeVisualPreparedScene,
-  type VisualCausalFrontier,
   type VisualPreparedScene,
 } from "@metafor/visual/layout/centered-nested"
 import {
@@ -45,16 +44,10 @@ export const DEFAULT_BULK_VISUAL_CONFIGURATION: BulkVisualConfiguration =
 export const prepareBulkInitialVisual = (
   manifest: BulkManifest,
   projection: BulkRuntimeProjection,
-  input: Readonly<{
-    configuration?: BulkVisualConfiguration
-    frontier: VisualCausalFrontier | null
-    sourceRevision: string
-  }>,
+  configuration: BulkVisualConfiguration = DEFAULT_BULK_VISUAL_CONFIGURATION,
 ): VisualPreparedScene => {
-  const configuration = input.configuration ?? DEFAULT_BULK_VISUAL_CONFIGURATION
   const layout = resolveBulkVisualLayout(configuration.layoutSlug)
   return describeVisualPreparedScene(
     buildBulkVisualScenePayload(manifest, projection, layout),
-    {frontier: input.frontier, sourceRevision: input.sourceRevision},
   )
 }

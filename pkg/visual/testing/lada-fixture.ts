@@ -2,8 +2,8 @@ import type {BulkObserverSnapshot} from "@metafor/types/bulk/initial"
 import type {BulkManifest} from "@metafor/types/bulk/manifest"
 import {buildBulkManifestation} from "../../../bulk/manifestation.ts"
 import {BulkProjectionStore} from "../../../bulk/projection.ts"
-import {buildStateGraph} from "../StateGraph.ts"
-import type {VisualLayoutInput} from "../internal/layout.ts"
+import {buildStateGraph} from "../src/StateGraph.ts"
+import type {VisualLayoutInput} from "../src/internal/layout.ts"
 import snapshotJson from "../playground/fixture/monad-snapshot.json"
 
 /**

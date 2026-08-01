@@ -27,6 +27,10 @@ describe("Visual playground nested navigation", () => {
     expect(client).not.toContain("layout.rootSphereRadiusMm =")
     expect(client).not.toContain("layout.orbitEdgeGapMm =")
     expect(client).not.toContain("readStoredTorusDefaults(localStorage)")
+    expect(client).not.toContain("VisualStory")
+    expect(client).not.toContain("STORY_SLUG")
+    expect(page).not.toContain('id="story-stage"')
+    expect(page).not.toContain('id="story-controls"')
     expect(page).toContain("main.layout-mode #visual-visibility-controls")
     expect(client).toContain(
       'app.classList.toggle("layout-mode", selectedLayout !== undefined)',

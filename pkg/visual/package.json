@@ -4,76 +4,33 @@
   "description": "Immutable complete-snapshot layout strategies and production visual materials.",
   "type": "module",
   "private": true,
-  "main": "index.ts",
-  "types": "index.ts",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
   "files": [
-    "CenteredNested.ts",
-    "centered-nested.ts",
     "CONTRACT.md",
-    "FieldsLayout.ts",
-    "HermiteEdge.ts",
-    "MeshDetail.ts",
-    "OutsideIn.ts",
-    "payload.ts",
-    "QuantumFilm.ts",
-    "ScenePayload.ts",
-    "ScenePreparation.ts",
-    "SceneReconciler.ts",
-    "SemanticVisual.ts",
     "README.md",
-    "StateGraph.ts",
-    "StateGraphLayout.ts",
-    "stories.ts",
-    "store.ts",
-    "Torus.ts",
-    "VisualSceneViewport.ts",
-    "Visual.ts",
-    "VisualComponents.ts",
-    "VisualMaterial.ts",
-    "VisualMaterialSpec.ts",
-    "VisualRelations.ts",
-    "VisualStore.ts",
-    "VisualStory.ts",
-    "VisualStoryEvents.ts",
-    "index.ts",
-    "layout.ts",
-    "internal/complete-state-components.ts",
-    "internal/component.ts",
-    "internal/dark-tree.ts",
-    "internal/fingerprint.ts",
-    "internal/layout.ts",
-    "internal/process-layout.ts",
-    "internal/semantic-state-color.ts",
-    "internal/state-sleeves.ts"
+    "src"
   ],
   "exports": {
     ".": {
-      "types": "./index.ts",
-      "default": "./index.ts"
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
     },
     "./layout": {
-      "types": "./layout.ts",
-      "default": "./layout.ts"
+      "types": "./src/layout.ts",
+      "default": "./src/layout.ts"
     },
     "./layout/centered-nested": {
-      "types": "./centered-nested.ts",
-      "default": "./centered-nested.ts"
+      "types": "./src/centered-nested.ts",
+      "default": "./src/centered-nested.ts"
     },
     "./payload": {
-      "types": "./payload.ts",
-      "default": "./payload.ts"
-    },
-    "./stories": {
-      "types": "./stories.ts",
-      "default": "./stories.ts"
+      "types": "./src/payload.ts",
+      "default": "./src/payload.ts"
     },
     "./store": {
-      "types": "./store.ts",
-      "default": "./store.ts"
-    },
-    "./viewport": {
-      "types": "./VisualSceneViewport.ts",
-      "default": "./VisualSceneViewport.ts"
+      "types": "./src/store.ts",
+      "default": "./src/store.ts"
     }
   },
   "scripts": {
@@ -81,7 +38,9 @@
     "playground": "bun playground/server.ts"
   },
   "dependencies": {
-    "@metafor/engine": "workspace:*",
     "@metafor/types": "workspace:*"
+  },
+  "devDependencies": {
+    "@metafor/engine": "workspace:*"
   }
 }

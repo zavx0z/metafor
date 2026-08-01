@@ -1,4 +1,4 @@
-import type {StateGraphViewport} from "../StateGraphViewport.ts"
+import type {StateGraphViewport} from "./StateGraphViewport.ts"
 import {
   VISUAL_ANNOTATION_SCHEMA,
   type VisualAnnotationAtom,
