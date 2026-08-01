@@ -70,7 +70,13 @@ import {
   createForceStoriesLab,
   type ForceStoriesLab,
 } from "./ForceStoriesLab.ts"
-import {FORCE_STORIES_SLUG} from "./ForceStories.ts"
+import {
+  FORCE_STORIES_SLUG,
+  FORCE_STORY_PARTS,
+  ForceStories,
+  forceStoryPartForSlug,
+  forceStoryRouteSlug,
+} from "./ForceStories.ts"
 import {createStateGraphHermiteEdgeCurveBuilder} from "./StateGraphLab.ts"
 import {metaStateDslSource} from "./MetaSource.ts"
 import snapshotJson from "./fixture/monad-snapshot.json"
@@ -178,7 +184,24 @@ const stateGraphTabs: readonly SectionTab[] = [
   {href: `#/${STATE_GRAPH_ACTIVITY_SLUG}`, label: "Активность"},
 ]
 
+const forceStoryTabs: readonly SectionTab[] = ForceStories.map((story) => ({
+  href: `#/${forceStoryRouteSlug(story.part)}`,
+  label: story.label,
+}))
+
+const forceStoryPageGroups = Object.fromEntries([
+  [FORCE_STORIES_SLUG, {
+    parent: "Force Stories",
+    tabs: forceStoryTabs,
+  }],
+  ...FORCE_STORY_PARTS.map((part) => [forceStoryRouteSlug(part), {
+    parent: "Force Stories",
+    tabs: forceStoryTabs,
+  }] as const),
+]) as Readonly<Record<string, NestedPageGroup>>
+
 const nestedPageGroups: Readonly<Record<string, NestedPageGroup>> = {
+  ...forceStoryPageGroups,
   "analysis-torus": {
     parent: "Torus",
     tabs: [{href: "#/analysis-torus", label: "Геометрия"}],
@@ -250,6 +273,9 @@ const nestedPageGroups: Readonly<Record<string, NestedPageGroup>> = {
 const showSectionTabs = (slug: string): void => {
   const group = nestedPageGroups[slug]
   if (!group) throw new Error(`Unknown nested page parent: ${slug}`)
+  const activeSlug = slug === FORCE_STORIES_SLUG
+    ? forceStoryRouteSlug("photon")
+    : slug
   const label = document.createElement("strong")
   label.textContent = group.parent
   sectionTabs.replaceChildren(
@@ -258,7 +284,7 @@ const showSectionTabs = (slug: string): void => {
       const link = document.createElement("a")
       link.href = tab.href
       link.textContent = tab.label
-      const active = tab.href === `#/${slug}`
+      const active = tab.href === `#/${activeSlug}`
       link.classList.toggle("active", active)
       if (active) link.setAttribute("aria-current", "page")
       return link
@@ -309,7 +335,7 @@ const initialSlug = readSlug()
 const initialLayout = Visual.find((layout) => layout.slug === initialSlug)
 const initialComponent = visualComponentForSlug(
   initialLayout ||
-    initialSlug === FORCE_STORIES_SLUG ||
+    forceStoryPartForSlug(initialSlug) !== null ||
     initialSlug === "edges" ||
     initialSlug.startsWith("edges/")
     ? "atom"
@@ -330,7 +356,7 @@ const mainAnnotation = createPageAnnotationLayer({
   surface: () => {
     const slug = readSlug()
     const component = visualComponentForSlug(
-      slug === FORCE_STORIES_SLUG ? "atom" : slug,
+      forceStoryPartForSlug(slug) !== null ? "atom" : slug,
     )
     return {
       canvasId: canvas.id,
@@ -404,7 +430,7 @@ let torusAnalysisLabPromise: Promise<TorusAnalysisLab> | null = null
 let fieldsAnalysisLabPromise: Promise<FieldsAnalysisLab> | null = null
 let stateGraphActivityLabPromise: Promise<StateGraphActivityLab> | null = null
 let stateGraphFieldsStand: StateGraphFieldsStand | null = null
-let forceStoriesLabInstance: ForceStoriesLab | null = null
+let forceStoriesLabPromise: Promise<ForceStoriesLab> | null = null
 
 const formSkinForSlug = (slug: string): FormSkinLabForm | null => {
   if (slug === "skin-sphere") return "sphere"
@@ -480,13 +506,15 @@ const hideStateGraphActivityLab = (): void => {
   }
 }
 
-const forceStoriesLab = (): ForceStoriesLab => {
-  forceStoriesLabInstance ??= createForceStoriesLab(forceStoriesStage)
-  return forceStoriesLabInstance
+const forceStoriesLab = (): Promise<ForceStoriesLab> => {
+  forceStoriesLabPromise ??= createForceStoriesLab(forceStoriesStage)
+  return forceStoriesLabPromise
 }
 
 const hideForceStoriesLab = (): void => {
-  forceStoriesLabInstance?.hide()
+  if (forceStoriesLabPromise) {
+    void forceStoriesLabPromise.then((lab) => lab.hide())
+  }
 }
 
 const disposeBranchViewports = (): void => {
@@ -915,6 +943,9 @@ const applyStateGraphActivityPage = (): void => {
 }
 
 const applyForceStoriesPage = (): void => {
+  const slug = readSlug()
+  const part = forceStoryPartForSlug(slug)
+  if (part === null) throw new Error(`Unknown Force Story route: ${slug}`)
   hideSnapshotLayout()
   mainAnnotation.hide()
   stateGraphRenderVersion += 1
@@ -946,8 +977,11 @@ const applyForceStoriesPage = (): void => {
   hideTorusAnalysisLab()
   hideFieldsAnalysisLab()
   hideStateGraphActivityLab()
-  hideSectionTabs()
-  forceStoriesLab().show()
+  showSectionTabs(slug)
+  void forceStoriesLab().then((lab) => {
+    if (forceStoryPartForSlug(readSlug()) === part) lab.show(part)
+    else lab.hide()
+  })
   for (const link of navigation.querySelectorAll("a")) {
     link.classList.toggle("active", link.dataset.slug === FORCE_STORIES_SLUG)
   }
@@ -1114,9 +1148,10 @@ const applyFieldsAnalysisPage = (mode: FieldsAnalysisMode): void => {
 
 const applyStory = (): void => {
   const slug = readSlug()
+  const forceStoryPart = forceStoryPartForSlug(slug)
   app.classList.remove("layout-mode")
   app.classList.remove("force-stories-mode")
-  if (slug !== FORCE_STORIES_SLUG) {
+  if (forceStoryPart === null) {
     forceStoriesStage.hidden = true
     hideForceStoriesLab()
   }
@@ -1125,7 +1160,7 @@ const applyStory = (): void => {
     stateGraphActivityStage.hidden = true
     hideStateGraphActivityLab()
   }
-  if (slug === FORCE_STORIES_SLUG) {
+  if (forceStoryPart !== null) {
     applyForceStoriesPage()
     return
   }
@@ -1241,7 +1276,7 @@ const forceSection = document.createElement("span")
 forceSection.className = "nav-section"
 forceSection.textContent = "Force"
 const forceStoriesLink = document.createElement("a")
-forceStoriesLink.href = `#/${FORCE_STORIES_SLUG}`
+forceStoriesLink.href = `#/${forceStoryRouteSlug("photon")}`
 forceStoriesLink.dataset.slug = FORCE_STORIES_SLUG
 forceStoriesLink.textContent = "Force Stories"
 navigation.append(forceSection, forceStoriesLink)
@@ -1322,7 +1357,9 @@ window.addEventListener("beforeunload", () => {
   if (stateGraphActivityLabPromise) {
     void stateGraphActivityLabPromise.then((lab) => lab.dispose())
   }
-  forceStoriesLabInstance?.dispose()
+  if (forceStoriesLabPromise) {
+    void forceStoriesLabPromise.then((lab) => lab.dispose())
+  }
   mainAnnotation.dispose()
   viewport.dispose()
 }, {once: true})

@@ -45,6 +45,20 @@ export const createVisualQuantumMaterial = (
       })
 }
 
+export const applyVisualQuantumMaterial = (
+  target: ThinFilmMaterial,
+  spec: VisualQuantumMaterial,
+): void => {
+  const source = createVisualQuantumMaterial(spec)
+  target.color.copy(source.color)
+  target.rimColor.copy(source.rimColor)
+  target.opacity = source.opacity
+  target.rimStrength = source.rimStrength
+  target.iridescence = source.iridescence
+  target.filmThickness = source.filmThickness
+  target.highlightSize = source.highlightSize
+}
+
 export const createVisualLineMaterial = (
   spec: VisualLineMaterial,
 ): LineGlowMaterial => new LineGlowMaterial({

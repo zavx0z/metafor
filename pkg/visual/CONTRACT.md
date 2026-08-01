@@ -15,16 +15,41 @@
   временные эксперименты, но не экспортируется наружу. Production-модуль не
   импортирует playground. После принятия эксперимента в `src` переносится
   только его очищенная переиспользуемая часть.
-- Приватный каталог `Force Stories` содержит по одной самостоятельной карточке
-  для каждого действующего `Part` из общего Force-протокола. Верхний уровень
-  каталога не перечисляет Matter, Atom, Field, State либо семейства visual
-  entities. Каждая карточка владеет отдельной подготовленной сценой, одной
-  входящей Particle и только действиями применения этого patch и повторной
-  подготовки исходной сцены. Неподтверждённая visual-реакция остаётся явно
-  обозначенным шаблоном; каталог не додумывает эффект. Photon `replace`,
-  переводящий один Atom из `idle` в `ready`, является первым проверенным
-  полным сценарием. Player, timeline, replay и virtual-time semantics в этот
-  каталог не входят.
+- Приватный каталог `Force Stories` содержит горизонтальную вкладку для каждого
+  действующего `Part` из общего Force-протокола. Верхний уровень каталога не
+  перечисляет Matter, Atom, Field, State либо семейства visual entities.
+  Выбранная Story владеет одной входящей Particle и одним focused
+  representation затронутого production graph slice. Photon representation
+  содержит упорядоченные наборы layout strategies и camera views, расширяемые
+  без изменения модели каталога; сейчас это две раскладки
+  `centered-nested`/`outside-in` и две камеры `top`/`side`, то есть четыре
+  одновременных отображения. Все они строятся из одного prepared projection и
+  получают один Photon/Restart lifecycle. Внутри каждой раскладки обе камеры
+  получают один и тот же immutable `VisualScene`, а не независимо
+  подготовленные сцены. Side меняет только camera orientation: камера
+  становится перпендикулярно неизменной оси State occurrences, чтобы их
+  исходные позиции проецировались в один читаемый ряд без occlusion; layout для
+  второго ракурса не выполняется повторно. Верхняя панель содержит только общие
+  индикаторы State-рукавов,
+  Apply/Restart и help в одной компактной горизонтальной строке. Название и
+  status Story остаются в выбранной Force-вкладке и не повторяются над сценой;
+  отдельного описательного яруса либо блока под областью просмотра нет.
+  Справа от матрицы отображений постоянно видны ровно два
+  JSON-инспектора: входящая Force Particle и подготовленный source snapshot, из
+  которого построено representation; они не сворачиваются в нижний footer.
+  Неподтверждённая visual-реакция остаётся явно
+  обозначенным шаблоном и не рендерит придуманную сцену. Первым проверенным
+  сценарием является записанный Photon sequence 412 для `zavx0z/lada-model`:
+  подготовленный через sequence 411 projection-срез содержит полное
+  causal-and-visual closure его State-рукавов, включая родительский Torus и
+  общие Fields, Process, States, Transitions, Conditions и production
+  relations/proxies. Одно focused representation проходит через обе production
+  стратегии и четыре приватных Engine viewport. Photon переводит текущий State
+  из `обращение к модели` в `ошибка` и меняет только activity/current materials
+  State, Process, Transition и relation occurrences, сохраняя их identities и
+  геометрию внутри каждой раскладки; Restart точно восстанавливает
+  подготовленный срез перед Photon. Полная сцена, synthetic diagram, player,
+  timeline, replay и virtual-time semantics в этот каталог не входят.
 - Каждая запись `Visual` является исполняемой стратегией с единым
   `buildScene({manifest, owners})`. Каталог не требует от consumer ручного
   `switch` по slug. `centered-nested` готова и используется production Bulk;

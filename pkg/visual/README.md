@@ -43,13 +43,34 @@ The playground disables Bun HMR. Its client owns GPU devices, canvases and
 document listeners for the lifetime of the page, so source changes require a
 normal browser reload instead of an in-place module replacement.
 
-The private `#/force-stories` page is a card catalog keyed only by the eight
-current Force `Part` values. Every card has an isolated prepared projection and
-one incoming Particle. Photon is the first complete scenario: its real
-`replace` patch changes the card Atom from `idle` to `ready`, and restart builds
-the exact `idle` projection again. Other particles remain separate explicit
-templates until their concrete visual outcomes are verified; the page does not
-invent effects or add player/timeline controls.
+The private `#/force-stories/*` page is a horizontal tab catalog keyed only by
+the eight current Force `Part` values. A Story owns one incoming Particle and
+one focused representation of its affected production graph slice. The Photon
+representation owns ordered, extensible layout and camera-view collections; the
+current slice presents `centered-nested` and `outside-in`, each through exactly
+`top` and `side`, as a simultaneous 2×2 matrix. All four displays derive from
+one prepared projection and share one Photon/Restart lifecycle. The two private
+Engine viewports within each layout consume the same immutable `VisualScene`,
+not independent prepared scenes. One compact horizontal toolbar contains only the shared
+State-sleeve indicators, Apply/Restart and help; Story identity remains in the
+selected Force tab instead of being repeated above the scene. No descriptive
+row or control block is repeated below the review workspace or inside a canvas.
+A persistent right-hand sidebar stacks exactly two
+non-collapsible JSON inspectors: the incoming Force Particle and the prepared
+source snapshot used to build the scene. Photon is the first complete scenario:
+the projection replayed from real Cloud history through sequence 411 contains
+the full causal-and-visual State-sleeve closure for `zavx0z/lada-model` — its
+parent/source context, shared and target Fields, Process 12, States 18–20,
+Transitions 25–28, Conditions 33–36 and production relations/proxies. The
+focused representation runs that slice through both production strategies and
+four Bulk viewports. Applying the recorded sequence 412 Photon
+changes State `обращение к модели` to `ошибка` and updates only State, Process,
+Transition and relation activity/current materials without geometry movement
+inside either layout;
+restart rebuilds the exact sequence-411 projection. Other Force tabs expose an
+explicit unavailable representation until a concrete visual outcome is
+verified; they render no synthetic scene. The page does not expand to the
+full-world scene and adds no player/timeline controls.
 
 It renders `playground/fixture/monad-snapshot.json`, a single static full-tree
 `BulkObserverSnapshot` captured through Monad. The main layout reads the

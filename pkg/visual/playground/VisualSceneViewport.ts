@@ -32,6 +32,8 @@ import {
 import {
   createVisualLineMaterial,
   createVisualQuantumMaterial,
+  applyVisualLineMaterial,
+  applyVisualQuantumMaterial,
 } from "./VisualMaterial.ts"
 import type {
   VisualLineMaterial,
@@ -48,6 +50,7 @@ export type VisualSceneView =
   | "front"
   | "left"
   | "right"
+  | "side-profile"
   | "top"
 
 export type VisualSceneViewportPose = Readonly<{
@@ -61,6 +64,7 @@ export type VisualSceneViewportPose = Readonly<{
 }>
 
 export type VisualSceneViewport = Readonly<{
+  applyScene(scene: VisualScene): void
   capturePng(): Promise<Blob | null>
   dispose(): void
   getPose(): VisualSceneViewportPose
@@ -130,6 +134,81 @@ export type VisualSceneRenderPlan = Readonly<{
   lineBatches: readonly VisualSceneRenderLineBatch[]
   meshes: readonly VisualSceneRenderMesh[]
 }>
+
+export type VisualSceneProfileAxes = Readonly<{
+  cameraDirection: Readonly<{x: number; y: number; z: 0}>
+  rowDirection: Readonly<{x: number; y: number; z: 0}>
+}>
+
+/**
+ * Finds the longest unchanged orbital-Torus axis in the scene plane and puts
+ * the profile camera exactly perpendicular to it. The camera changes no scene
+ * coordinate: it only maximizes the sleeves' horizontal screen separation.
+ */
+export const visualSceneProfileAxes = (
+  plan: VisualSceneRenderPlan,
+): VisualSceneProfileAxes => {
+  const orbitals = plan.meshes.filter((mesh) =>
+    mesh.role === "orbital" && mesh.form.kind === "torus"
+  )
+  let deltaX = 1
+  let deltaY = 0
+  let maximumDistanceSquared = 0
+  for (let left = 0; left < orbitals.length; left++) {
+    for (let right = left + 1; right < orbitals.length; right++) {
+      const x = orbitals[right]!.x - orbitals[left]!.x
+      const y = orbitals[right]!.y - orbitals[left]!.y
+      const distanceSquared = x * x + y * y
+      if (distanceSquared <= maximumDistanceSquared) continue
+      maximumDistanceSquared = distanceSquared
+      deltaX = x
+      deltaY = y
+    }
+  }
+  const length = Math.hypot(deltaX, deltaY)
+  const rowDirection = Object.freeze({
+    x: deltaX / length,
+    y: deltaY / length,
+    z: 0 as const,
+  })
+  return Object.freeze({
+    cameraDirection: Object.freeze({
+      x: rowDirection.y,
+      y: -rowDirection.x,
+      z: 0 as const,
+    }),
+    rowDirection,
+  })
+}
+
+const linePathAppearanceKey = (
+  batch: VisualSceneRenderLineBatch,
+  path: VisualSceneRenderPath,
+): string => JSON.stringify({
+  kind: batch.kind,
+  ownerDarkParticleId: batch.ownerDarkParticleId,
+  pathId: path.id,
+})
+
+const appearanceOnlyGeometry = (plan: VisualSceneRenderPlan): string =>
+  JSON.stringify({
+    labels: plan.labels,
+    linePaths: plan.lineBatches.flatMap((batch) => batch.paths.map((path) => ({
+      id: path.id,
+      kind: batch.kind,
+      ownerDarkParticleId: batch.ownerDarkParticleId,
+      points: path.points,
+    }))).sort((left, right) => left.id.localeCompare(right.id)),
+    meshes: plan.meshes.map((mesh) => ({
+      form: mesh.form,
+      id: mesh.id,
+      meshDetail: mesh.meshDetail,
+      role: mesh.role,
+      x: mesh.x,
+      y: mesh.y,
+      z: mesh.z,
+    })),
+  })
 
 const sphereDetail = Object.freeze({
   heightSegments: SPHERE_MESH_DETAIL.heightSegments,
@@ -499,15 +578,15 @@ const meshGeometry = (
 }
 
 const lineGeometry = (
-  batch: VisualSceneRenderLineBatch,
+  paths: readonly VisualSceneRenderPath[],
 ): BufferGeometry => {
-  const segmentCount = batch.paths.reduce(
+  const segmentCount = paths.reduce(
     (total, path) => total + path.points.length - 1,
     0,
   )
   const positions = new Float32Array(segmentCount * 6)
   let offset = 0
-  for (const path of batch.paths) {
+  for (const path of paths) {
     for (let index = 1; index < path.points.length; index++) {
       const from = path.points[index - 1]!
       const to = path.points[index]!
@@ -676,7 +755,7 @@ export const createVisualSceneViewport = async ({
       "Visual viewport requires exactly one of scene or payload",
     )
   }
-  const plan = scene !== undefined
+  let plan = scene !== undefined
     ? buildVisualSceneRenderPlan(scene)
     : buildVisualPayloadRenderPlan(payload!)
   const renderer = new Renderer()
@@ -690,18 +769,18 @@ export const createVisualSceneViewport = async ({
     tori: new Map(),
   }
   const lineGeometries: BufferGeometry[] = []
-  const materialCache = new Map<
+  const meshMaterials = new Map<
     string,
     ReturnType<typeof createVisualQuantumMaterial>
   >()
+  const lineMaterials = new Map<
+    string,
+    ReturnType<typeof createVisualLineMaterial>
+  >()
 
   for (const record of plan.meshes) {
-    const materialKey = JSON.stringify(record.material)
-    let material = materialCache.get(materialKey)
-    if (!material) {
-      material = createVisualQuantumMaterial(record.material)
-      materialCache.set(materialKey, material)
-    }
+    const material = createVisualQuantumMaterial(record.material)
+    meshMaterials.set(record.id, material)
     const node = new Mesh(
       meshGeometry(geometryCache, record),
       material,
@@ -711,14 +790,15 @@ export const createVisualSceneViewport = async ({
     space.add(node)
   }
   for (const batch of plan.lineBatches) {
-    const geometry = lineGeometry(batch)
-    lineGeometries.push(geometry)
-    const line = new LineSegments(
-      geometry,
-      createVisualLineMaterial(batch.material),
-    )
-    line.updateMatrix()
-    space.add(line)
+    for (const path of batch.paths) {
+      const geometry = lineGeometry([path])
+      lineGeometries.push(geometry)
+      const material = createVisualLineMaterial(batch.material)
+      lineMaterials.set(linePathAppearanceKey(batch, path), material)
+      const line = new LineSegments(geometry, material)
+      line.updateMatrix()
+      space.add(line)
+    }
   }
 
   const fov = Math.PI / 3.2
@@ -829,6 +909,36 @@ export const createVisualSceneViewport = async ({
   requestRender()
 
   return Object.freeze({
+    applyScene(nextScene: VisualScene) {
+      if (disposed) return
+      const nextPlan = buildVisualSceneRenderPlan(nextScene)
+      if (appearanceOnlyGeometry(nextPlan) !== appearanceOnlyGeometry(plan)) {
+        throw new Error(
+          "Visual viewport appearance update attempted to change geometry",
+        )
+      }
+      for (const record of nextPlan.meshes) {
+        const material = meshMaterials.get(record.id)
+        if (!material) {
+          throw new Error(`Visual viewport mesh ${record.id} is absent`)
+        }
+        applyVisualQuantumMaterial(material, record.material)
+      }
+      for (const batch of nextPlan.lineBatches) {
+        for (const path of batch.paths) {
+          const appearanceKey = linePathAppearanceKey(batch, path)
+          const material = lineMaterials.get(appearanceKey)
+          if (!material) {
+            throw new Error(
+              `Visual viewport line path ${appearanceKey} is absent`,
+            )
+          }
+          applyVisualLineMaterial(material, batch.material)
+        }
+      }
+      plan = nextPlan
+      requestRender()
+    },
     async capturePng() {
       if (disposed) return null
       return await renderer.captureLastPresentedFramePng()
@@ -855,6 +965,8 @@ export const createVisualSceneViewport = async ({
       }
       geometryCache.spheres.clear()
       geometryCache.tori.clear()
+      meshMaterials.clear()
+      lineMaterials.clear()
       lineGeometries.length = 0
     },
     getPose() {
@@ -917,6 +1029,16 @@ export const createVisualSceneViewport = async ({
           direction.set(-1, 0, 0)
           up.set(0, 0, 1)
           break
+        case "side-profile": {
+          const profile = visualSceneProfileAxes(plan)
+          direction.set(
+            profile.cameraDirection.x,
+            profile.cameraDirection.y,
+            0,
+          )
+          up.set(0, 0, 1)
+          break
+        }
       }
       viewPoint.position.copy(target).add(
         direction.multiplyScalar(distance),

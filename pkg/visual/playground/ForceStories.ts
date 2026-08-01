@@ -2,31 +2,151 @@ import type {
   Part,
   Particle,
 } from "shared/protocol/force/particle"
+import type {BulkProjectionSnapshot} from "@metafor/types/bulk/initial"
+import type {BulkManifest} from "@metafor/types/bulk/manifest"
+import type {BulkVisualRenderManifest} from "@metafor/types/bulk/visual"
+import type {StateGraph} from "@metafor/visual/payload"
 import {
   BulkProjectionStore,
   type BulkProjectionChange,
 } from "../../../bulk/projection.ts"
+import {
+  buildBulkManifestation,
+} from "../../../bulk/manifestation.ts"
+import {
+  buildBulkVisualRenderManifest,
+  renderableManifest,
+} from "../../../bulk/visual-layout.ts"
+import {
+  CenteredNested,
+  OutsideIn,
+  buildStateGraph,
+  visualOwnerDarkParticleIdFromAtomId,
+  type VisualLayout,
+  type VisualLayoutSlug,
+  type VisualScene,
+} from "@metafor/visual/layout"
+import {
+  PHOTON_STORY_CLOSURE,
+  PHOTON_STORY_PATCH,
+  PHOTON_STORY_PREPARED_PROJECTION,
+  PHOTON_STORY_PROVENANCE,
+} from "./fixture/PhotonStoryFixture.ts"
 
 export const FORCE_STORIES_SLUG = "force-stories"
+
+export const FORCE_STORY_PARTS = Object.freeze([
+  "inflaton",
+  "graviton",
+  "photon",
+  "gluon",
+  "higgs",
+  "w+",
+  "w-",
+  "z",
+] as const satisfies readonly Part[])
+
+const routeSegmentByPart = {
+  inflaton: "inflaton",
+  graviton: "graviton",
+  photon: "photon",
+  gluon: "gluon",
+  higgs: "higgs",
+  "w+": "w-plus",
+  "w-": "w-minus",
+  z: "z",
+} as const satisfies Record<Part, string>
 
 export type ForceStoryStatus = "complete" | "template"
 
 export type ForceStoryPreparedScene = Readonly<{
   atomId: number
   atomLabel: string
+  closure: typeof PHOTON_STORY_CLOSURE
   id: string
-  initialState: "idle"
+  initialStateId: number
+  initialStateName: string
   ownerSrc: string
+  parentAtomId: number
+  processId: number
+  provenance: typeof PHOTON_STORY_PROVENANCE
+  rootSrc: string
+  sourceSnapshot: BulkProjectionSnapshot
+  targetStateId: number
+  targetStateName: string
+  transitionId: number
 }>
+
+export type ForceStoryVerifiedRepresentation = Readonly<{
+  id: string
+  kind: "focused-visual-graph"
+  label: string
+  layouts: readonly ForceStoryLayout[]
+  preparedScene: ForceStoryPreparedScene
+  status: "verified"
+  views: readonly ForceStoryView[]
+}>
+
+export type ForceStoryUnavailableRepresentation = Readonly<{
+  id: string
+  kind: "focused-visual-graph"
+  label: string
+  reason: string
+  status: "unavailable"
+  views: readonly ForceStoryView[]
+}>
+
+export type ForceStoryView = Readonly<{
+  camera: "side-profile" | "top"
+  id: "side" | "top"
+  label: "Вид сбоку" | "Вид сверху"
+}>
+
+export type ForceStoryLayout = Readonly<{
+  id: VisualLayoutSlug
+  label: "Снаружи-внутрь" | "Центрированно-вложенная"
+}>
+
+/**
+ * A Story owns an ordered representation collection. Each representation owns
+ * its own ordered camera-view collection, so later focused slices and camera
+ * angles can be added without changing the Force catalog or route.
+ */
+export type ForceStoryRepresentation =
+  | ForceStoryVerifiedRepresentation
+  | ForceStoryUnavailableRepresentation
 
 export type ForceStoryDefinition = Readonly<{
   expectedVisualOutcome: string
   label: string
   part: Part
   patch: Readonly<Particle>
-  preparedScene: ForceStoryPreparedScene
+  representations: readonly ForceStoryRepresentation[]
   scenario: string
   status: ForceStoryStatus
+}>
+
+export type ForceStorySleeveSnapshot = Readonly<{
+  active: boolean
+  current: boolean
+  name: string
+  rootStateId: number
+}>
+
+export type ForceStoryVisualSnapshot = Readonly<{
+  graph: StateGraph
+  layouts: readonly ForceStoryVisualLayoutSnapshot[]
+  manifest: BulkManifest
+  representationId: string
+  rootDarkParticleId: number
+  sleeves: readonly ForceStorySleeveSnapshot[]
+  visual: BulkVisualRenderManifest
+}>
+
+export type ForceStoryVisualLayoutSnapshot = Readonly<{
+  id: VisualLayoutSlug
+  label: ForceStoryLayout["label"]
+  scene: VisualScene
 }>
 
 export type ForceStorySessionSnapshot = Readonly<{
@@ -34,37 +154,82 @@ export type ForceStorySessionSnapshot = Readonly<{
   currentState: string
   phase: "applied" | "prepared"
   projection: ReturnType<BulkProjectionStore["snapshot"]>
+  representation: ForceStoryVisualSnapshot
 }>
 
-const preparedScene = (
-  part: Part,
-  atomId: number,
-  atomLabel: string,
-): ForceStoryPreparedScene => ({
-  atomId,
-  atomLabel,
-  id: `force-story/${part}/prepared`,
-  initialState: "idle",
-  ownerSrc: `playground/force-${part}`,
+const photonScene: ForceStoryPreparedScene = Object.freeze({
+  atomId: 4,
+  atomLabel: "lada-model",
+  closure: PHOTON_STORY_CLOSURE,
+  id: "force-story/photon/prepared",
+  initialStateId: 19,
+  initialStateName: "обращение к модели",
+  ownerSrc: "zavx0z/lada-model",
+  parentAtomId: 1,
+  processId: 12,
+  provenance: PHOTON_STORY_PROVENANCE,
+  rootSrc: "zavx0z/lada",
+  sourceSnapshot: PHOTON_STORY_PREPARED_PROJECTION,
+  targetStateId: 20,
+  targetStateName: "ошибка",
+  transitionId: 26,
 })
 
-const scenes = {
-  inflaton: preparedScene("inflaton", 1001, "Meta draft"),
-  graviton: preparedScene("graviton", 1002, "Materialized Atom"),
-  photon: preparedScene("photon", 1003, "Stateful Atom"),
-  gluon: preparedScene("gluon", 1004, "Field-bearing Atom"),
-  higgs: preparedScene("higgs", 1005, "Topology owner"),
-  "w+": preparedScene("w+", 1006, "Successful Process owner"),
-  "w-": preparedScene("w-", 1007, "Failed Process owner"),
-  z: preparedScene("z", 1008, "Claimed Process owner"),
-} satisfies Record<Part, ForceStoryPreparedScene>
+export const FORCE_STORY_VIEWS = Object.freeze([
+  Object.freeze({
+    camera: "top",
+    id: "top",
+    label: "Вид сверху",
+  }),
+  Object.freeze({
+    camera: "side-profile",
+    id: "side",
+    label: "Вид сбоку",
+  }),
+] as const satisfies readonly ForceStoryView[])
+
+export const FORCE_STORY_LAYOUTS = Object.freeze([
+  Object.freeze({
+    id: "centered-nested",
+    label: "Центрированно-вложенная",
+  }),
+  Object.freeze({
+    id: "outside-in",
+    label: "Снаружи-внутрь",
+  }),
+] as const satisfies readonly ForceStoryLayout[])
+
+const unavailableRepresentation = (
+  part: Part,
+  reason: string,
+): ForceStoryUnavailableRepresentation => Object.freeze({
+  id: `force-story/${part}/focused-graph`,
+  kind: "focused-visual-graph",
+  label: "Затронутые части visual-графа",
+  reason,
+  status: "unavailable",
+  views: FORCE_STORY_VIEWS,
+})
+
+const photonRepresentation: ForceStoryVerifiedRepresentation = Object.freeze({
+  id: "force-story/photon/focused-state-graph",
+  kind: "focused-visual-graph",
+  label: "Полный State-sleeve lada-model",
+  layouts: FORCE_STORY_LAYOUTS,
+  preparedScene: photonScene,
+  status: "verified",
+  views: FORCE_STORY_VIEWS,
+})
 
 const storiesByPart = {
   inflaton: {
     part: "inflaton",
     label: "Inflaton",
     status: "template",
-    preparedScene: scenes.inflaton,
+    representations: [unavailableRepresentation(
+      "inflaton",
+      "Проверенное focused visual-представление для Inflaton ещё не определено.",
+    )],
     patch: {
       part: "inflaton",
       op: "add",
@@ -74,91 +239,96 @@ const storiesByPart = {
       value: {src: "playground/incoming-meta", name: "Incoming Meta"},
     },
     scenario:
-      "Подготовлен отдельный Atom 1001 в State idle. В него входит Inflaton add с декларацией incoming Meta по path wimp.",
+      "Входит Inflaton add с декларацией incoming Meta по path wimp. Подготовленный visual-срез для этого случая ещё не подтверждён.",
     expectedVisualOutcome:
-      "Конкретная visual-реакция Inflaton для этого входа текущими projection-тестами не подтверждена. Карточка остаётся отдельным шаблоном и не изображает придуманное изменение сцены.",
+      "Конкретная visual-реакция Inflaton текущими projection-тестами не подтверждена, поэтому представление не рендерится.",
   },
   graviton: {
     part: "graviton",
     label: "Graviton",
     status: "template",
-    preparedScene: scenes.graviton,
+    representations: [unavailableRepresentation(
+      "graviton",
+      "Проверенное focused visual-представление для Graviton ещё не определено.",
+    )],
     patch: {
       part: "graviton",
       op: "replace",
-      path: `atom/${scenes.graviton.atomId}`,
+      path: "atom/1002",
       by: "boundary",
       ts: 1,
       value: {atom: {position: 2}},
     },
     scenario:
-      "Подготовлен отдельный Atom 1002 в State idle. В него входит Graviton replace с patch atom.position = 2.",
+      "Входит Graviton replace для Atom 1002 с patch atom.position = 2. Подготовленный visual-срез ещё не утверждён.",
     expectedVisualOutcome:
-      "Структурная projection-реакция Graviton известна, но конкретный visual outcome этой карточки ещё не проверен. Шаблон не обещает перемещение или перестройку формы.",
+      "Структурная projection-реакция Graviton известна, но конкретный visual outcome этой Story ещё не проверен; перемещение или перестройка не изображаются.",
   },
   photon: {
     part: "photon",
     label: "Photon",
     status: "complete",
-    preparedScene: scenes.photon,
-    patch: {
-      part: "photon",
-      op: "replace",
-      path: scenes.photon.atomId,
-      by: "matrix",
-      ts: 1,
-      value: "ready",
-    },
+    representations: [photonRepresentation],
+    patch: PHOTON_STORY_PATCH,
     scenario:
-      "Подготовлен Atom 1003, у которого текущий State равен idle. В него входит Photon replace по path 1003 со значением ready.",
+      "Из Cloud Force history восстановлен полный причинный срез lada-model непосредственно перед sequence 412. Входит записанный Photon replace по Atom 4 со State «ошибка».",
     expectedVisualOutcome:
-      "После применения Photon текущий State этого Atom видимо меняется с idle на ready. Повторная подготовка возвращает точно исходный State idle.",
+      "Активность переключается с полного рукава «обращение к модели» на рукав «ошибка»: прежний рукав, Process 12 и его связи затухают, новый State, его Transition и Condition-связи подсвечиваются. Геометрия остаётся неизменной; Restart возвращает записанное состояние перед Photon.",
   },
   gluon: {
     part: "gluon",
     label: "Gluon",
     status: "template",
-    preparedScene: scenes.gluon,
+    representations: [unavailableRepresentation(
+      "gluon",
+      "Проверенное focused visual-представление для Gluon ещё не определено.",
+    )],
     patch: {
       part: "gluon",
       op: "replace",
-      path: scenes.gluon.atomId,
+      path: 1004,
       by: "matrix",
       ts: 1,
       value: {fields: {"1": "prepared"}},
     },
     scenario:
-      "Подготовлен отдельный Atom 1004 в State idle. В него входит Gluon replace с Field patch {1: prepared}.",
+      "Входит Gluon replace для Atom 1004 с Field patch {1: prepared}. Подготовленный visual-срез ещё не подтверждён.",
     expectedVisualOutcome:
-      "Изменение Field projection принимается, но конкретная visual-реакция этого Field patch ещё не подтверждена. State и форма не меняются выдуманным образом.",
+      "Изменение Field projection принимается, но конкретная visual-реакция этого Field patch ещё не подтверждена; форма и State не меняются выдуманным образом.",
   },
   higgs: {
     part: "higgs",
     label: "Higgs",
     status: "template",
-    preparedScene: scenes.higgs,
+    representations: [unavailableRepresentation(
+      "higgs",
+      "Проверенное focused visual-представление для Higgs ещё не определено.",
+    )],
     patch: {
       part: "higgs",
       op: "replace",
-      path: scenes.higgs.atomId,
+      path: 1005,
       by: "matrix",
       ts: 1,
       value: {fields: {"1": ["one"]}},
     },
     scenario:
-      "Подготовлен отдельный topology-owner Atom 1005 в State idle. В него входит Higgs replace с collection Field patch {1: [one]}.",
+      "Входит Higgs replace для topology-owner Atom 1005 с collection Field patch {1: [one]}. Подготовленный visual-срез ещё не подтверждён.",
     expectedVisualOutcome:
-      "Конкретная topology и visual-реакция Higgs требует отдельной подтверждённой fixture. До неё карточка показывает только подготовленную сцену и точный входящий patch.",
+      "Конкретная topology и visual-реакция Higgs требует отдельной подтверждённой fixture, поэтому представление не рендерится.",
   },
   "w+": {
     part: "w+",
     label: "W+",
     status: "template",
-    preparedScene: scenes["w+"],
+    representations: [unavailableRepresentation(
+      "w+",
+      "Проверенное focused visual-представление для W+ ещё не определено.",
+    )],
     patch: {
       part: "w+",
       op: "replace",
-      path: scenes["w+"].atomId,
+      path: 1006,
       by: "energy",
       ts: 1,
       from: "energy/force-stories",
@@ -169,19 +339,22 @@ const storiesByPart = {
       },
     },
     scenario:
-      "Подготовлен отдельный Atom 1006 в State idle. В него входит W+ replace с успешным Process result proposal и Field {1: done}.",
+      "Входит W+ replace для Atom 1006 с успешным Process result proposal и Field {1: done}. Подготовленный visual-срез ещё не подтверждён.",
     expectedVisualOutcome:
-      "Visual-реакция успешного Process result для этой fixture ещё не подтверждена. Карточка не изображает успех как смену State, glow или новую форму.",
+      "Visual-реакция успешного Process result для этой fixture ещё не подтверждена; успех не изображается как смена State, glow или новая форма.",
   },
   "w-": {
     part: "w-",
-    label: "W−",
+    label: "W-",
     status: "template",
-    preparedScene: scenes["w-"],
+    representations: [unavailableRepresentation(
+      "w-",
+      "Проверенное focused visual-представление для W− ещё не определено.",
+    )],
     patch: {
       part: "w-",
       op: "replace",
-      path: scenes["w-"].atomId,
+      path: 1007,
       by: "energy",
       ts: 1,
       from: "energy/force-stories",
@@ -193,19 +366,22 @@ const storiesByPart = {
       },
     },
     scenario:
-      "Подготовлен отдельный Atom 1007 в State idle. В него входит W− replace с неуспешным Process result proposal и error prepared failure.",
+      "Входит W− replace для Atom 1007 с неуспешным Process result proposal и error prepared failure. Подготовленный visual-срез ещё не подтверждён.",
     expectedVisualOutcome:
-      "Visual-реакция неуспешного Process result для этой fixture ещё не подтверждена. Карточка не придумывает error-свечение, смену State или удаление формы.",
+      "Visual-реакция неуспешного Process result для этой fixture ещё не подтверждена; error-свечение, смена State или удаление формы не изображаются.",
   },
   z: {
     part: "z",
     label: "Z",
     status: "template",
-    preparedScene: scenes.z,
+    representations: [unavailableRepresentation(
+      "z",
+      "Проверенное focused visual-представление для Z ещё не определено.",
+    )],
     patch: {
       part: "z",
       op: "test",
-      path: scenes.z.atomId,
+      path: 1008,
       by: "energy",
       ts: 1,
       value: {
@@ -214,89 +390,50 @@ const storiesByPart = {
       },
     },
     scenario:
-      "Подготовлен отдельный Atom 1008 в State idle. В него входит Z test с Process execution claim от energy/force-stories.",
+      "Входит Z test для Atom 1008 с Process execution claim от energy/force-stories. Подготовленный visual-срез ещё не подтверждён.",
     expectedVisualOutcome:
-      "Конкретная visual-реакция Z claim текущими projection-тестами не подтверждена. Карточка остаётся отдельным шаблоном без придуманного эффекта.",
+      "Конкретная visual-реакция Z claim текущими projection-тестами не подтверждена, поэтому представление не рендерится.",
   },
 } satisfies Record<Part, ForceStoryDefinition>
 
-export const ForceStories: readonly ForceStoryDefinition[] = Object.freeze([
-  storiesByPart.inflaton,
-  storiesByPart.graviton,
-  storiesByPart.photon,
-  storiesByPart.gluon,
-  storiesByPart.higgs,
-  storiesByPart["w+"],
-  storiesByPart["w-"],
-  storiesByPart.z,
-])
+export const ForceStories: readonly ForceStoryDefinition[] = Object.freeze(
+  FORCE_STORY_PARTS.map((part) => storiesByPart[part]),
+)
+
+export const forceStoryForPart = (part: Part): ForceStoryDefinition =>
+  storiesByPart[part]
+
+export const forceStoryRouteSlug = (part: Part): string =>
+  `${FORCE_STORIES_SLUG}/${routeSegmentByPart[part]}`
+
+export const forceStoryPartForSlug = (slug: string): Part | null => {
+  if (slug === FORCE_STORIES_SLUG) return "photon"
+  const match = FORCE_STORY_PARTS.find((part) =>
+    forceStoryRouteSlug(part) === slug
+  )
+  return match ?? null
+}
 
 const prepareProjection = (
   scene: ForceStoryPreparedScene,
 ): BulkProjectionStore => {
   const store = new BulkProjectionStore()
-  const idleStateId = scene.atomId * 10 + 1
-  const readyStateId = scene.atomId * 10 + 2
-  const prepare = (patch: Particle): void => {
-    const change = store.apply(patch)
-    if (!change.changed) {
-      throw new Error(`Force Story ${scene.id} preparation rejected ${String(patch.path)}`)
-    }
-  }
-
-  prepare({
-    part: "graviton",
-    op: "add",
-    path: "wimp",
-    ts: 0,
-    value: {src: scene.ownerSrc, name: scene.atomLabel},
-  })
-  prepare({
-    part: "graviton",
-    op: "add",
-    path: "state",
-    ts: 0,
-    value: {
-      id: idleStateId,
-      localId: 1,
-      wimp: scene.ownerSrc,
-      name: "idle",
-      position: 0,
-    },
-  })
-  prepare({
-    part: "graviton",
-    op: "add",
-    path: "state",
-    ts: 0,
-    value: {
-      id: readyStateId,
-      localId: 2,
-      wimp: scene.ownerSrc,
-      name: "ready",
-      position: 1,
-    },
-  })
-  prepare({
-    part: "graviton",
-    op: "add",
-    path: `atom/${scene.atomId}`,
-    ts: 0,
-    value: {
-      atom: {
-        id: scene.atomId,
-        parentAtom: null,
-        parentTopology: null,
-        wimp: scene.ownerSrc,
-        position: 0,
-      },
-      values: [],
-      valueRecords: [],
-      valueItems: [],
-      state: {atom: scene.atomId, metaState: idleStateId},
-    },
-  })
+  store.hydrate(structuredClone(scene.sourceSnapshot))
   return store
+}
+
+const verifiedRepresentation = (
+  definition: ForceStoryDefinition,
+): ForceStoryVerifiedRepresentation => {
+  const verified = definition.representations.filter((representation) =>
+    representation.status === "verified"
+  )
+  if (verified.length !== 1) {
+    throw new Error(
+      `Force Story ${definition.part} expected one verified representation`,
+    )
+  }
+  return verified[0]!
 }
 
 const currentStateName = (
@@ -308,27 +445,103 @@ const currentStateName = (
   return store.states.get(stateId)?.name ?? `State ${stateId}`
 }
 
+const forceStoryLayoutById = Object.freeze({
+  "centered-nested": CenteredNested,
+  "outside-in": OutsideIn,
+} satisfies Record<VisualLayoutSlug, VisualLayout>)
+
+const visualSnapshot = (
+  store: BulkProjectionStore,
+  representation: ForceStoryVerifiedRepresentation,
+): ForceStoryVisualSnapshot => {
+  const projection = store.view()
+  const preparedScene = representation.preparedScene
+  const manifest = buildBulkManifestation(
+    projection,
+    preparedScene.rootSrc,
+  )
+  const graph = buildStateGraph(projection, preparedScene.atomId)
+  const rootDarkParticleId = visualOwnerDarkParticleIdFromAtomId(
+    preparedScene.atomId,
+  )
+  const stateById = new Map(
+    graph.states.map((state) => [state.id, state] as const),
+  )
+  const rootStateIds = [...new Set(
+    graph.sleeves.map((sleeve) => sleeve.rootStateId),
+  )]
+  const atomByOwnerId = new Map(
+    projection.atoms.map((atom) => [
+      visualOwnerDarkParticleIdFromAtomId(atom.id),
+      atom,
+    ] as const),
+  )
+  const renderable = renderableManifest(manifest)
+  const owners = renderable.darkParticles
+    .filter((particle) => particle.darkParticleKind === "atom")
+    .map((particle) => {
+      const atom = atomByOwnerId.get(particle.darkParticleId)
+      if (!atom) {
+        throw new Error(
+          `Force Story ${representation.id} owner ${particle.darkParticleId} is absent`,
+        )
+      }
+      return {
+        graph: buildStateGraph(projection, atom.id),
+        ownerDarkParticleId: particle.darkParticleId,
+      }
+    })
+  return {
+    graph,
+    layouts: representation.layouts.map((layout) => ({
+      id: layout.id,
+      label: layout.label,
+      scene: forceStoryLayoutById[layout.id].buildScene({
+        manifest: renderable,
+        owners,
+      }),
+    })),
+    manifest,
+    representationId: representation.id,
+    rootDarkParticleId,
+    visual: buildBulkVisualRenderManifest(manifest, projection),
+    sleeves: rootStateIds.map((rootStateId) => ({
+      active: rootStateId === graph.currentStateId,
+      current: rootStateId === graph.currentStateId,
+      name: stateById.get(rootStateId)?.name ?? `State ${rootStateId}`,
+      rootStateId,
+    })),
+  }
+}
+
 export class ForceStorySession {
   readonly definition: ForceStoryDefinition
+  readonly representation: ForceStoryVerifiedRepresentation
   #change: BulkProjectionChange | null = null
   #phase: "applied" | "prepared" = "prepared"
   #store: BulkProjectionStore
 
   constructor(definition: ForceStoryDefinition) {
     this.definition = definition
-    this.#store = prepareProjection(definition.preparedScene)
+    this.representation = verifiedRepresentation(definition)
+    this.#store = prepareProjection(this.representation.preparedScene)
   }
 
   apply(): ForceStorySessionSnapshot {
     if (this.#phase === "prepared") {
       this.#change = this.#store.apply(structuredClone(this.definition.patch))
+      if (!this.#change.changed) {
+        throw new Error(
+          `Force Story ${this.definition.part} patch did not change projection`,
+        )
+      }
       this.#phase = "applied"
     }
     return this.snapshot()
   }
 
   restart(): ForceStorySessionSnapshot {
-    this.#store = prepareProjection(this.definition.preparedScene)
+    this.#store = prepareProjection(this.representation.preparedScene)
     this.#change = null
     this.#phase = "prepared"
     return this.snapshot()
@@ -339,10 +552,11 @@ export class ForceStorySession {
       change: this.#change === null ? null : structuredClone(this.#change),
       currentState: currentStateName(
         this.#store,
-        this.definition.preparedScene,
+        this.representation.preparedScene,
       ),
       phase: this.#phase,
       projection: this.#store.snapshot(),
+      representation: visualSnapshot(this.#store, this.representation),
     }
   }
 }
@@ -357,8 +571,17 @@ export const formatForceStoryPatch = (
 
 export const forceStoryModalText = (
   definition: ForceStoryDefinition,
-): string => [
-  `Входящий Force patch (${definition.part}): ${formatForceStoryPatch(definition)}`,
-  `Подготовленная сцена: ${definition.scenario}`,
-  `Ожидаемый visual outcome: ${definition.expectedVisualOutcome}`,
-].join("\n\n")
+): string => {
+  if (definition.part === "photon") {
+    return [
+      "В записанном состоянии lada-model находится в State «обращение к модели». Process попытался подготовить ответ, завершился ошибкой, и Field «Ошибка модели» уже содержит значение «Inference prompt is empty.». Это выполняет реальное Condition перехода в State «ошибка».",
+      "Затем приходит записанная частица Photon от Matrix. Она меняет текущий State целевого Atom на «ошибка». Во всех четырёх отображениях обеих раскладок активный рукав «обращение к модели» и Process затухают, а полный рукав «ошибка» с его Transition и Condition-связями подсвечивается. Формы и их расположение внутри каждой раскладки не меняются.",
+      "Restart возвращает точный подготовленный срез перед Photon: снова активен State «обращение к модели», Process и его причинные связи.",
+    ].join("\n\n")
+  }
+  return [
+    `Входящий Force patch (${definition.part}): ${formatForceStoryPatch(definition)}`,
+    `Конкретный сценарий: ${definition.scenario}`,
+    `Ожидаемый visual outcome: ${definition.expectedVisualOutcome}`,
+  ].join("\n\n")
+}
