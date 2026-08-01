@@ -25,16 +25,31 @@ export {
 } from "./ScenePayload.ts"
 export {
   classifyVisualInvalidation,
+  diffVisualScenePayload,
   reconcileVisualScenePayload,
   sameVisualPayloadIdentities,
   summarizeVisualScenePatch,
+  visualDeltaPatchOperations,
+  visualScopeKeepsPlacements,
   widenVisualInvalidation,
   type VisualAppearancePatch,
+  type VisualDeltaPatch,
+  type VisualEntityDelta,
   type VisualInvalidationScope,
   type VisualPatchSummary,
   type VisualScenePatch,
   type VisualUpstreamChange,
+  type VisualUpstreamFacet,
 } from "./SceneReconciler.ts"
+export {
+  hydrateVisualStore,
+  VisualStore,
+  type VisualStoreApplication,
+  type VisualStoreClosure,
+  type VisualStoreEntityClass,
+  type VisualStoreLayoutReference,
+  type VisualStoreRendererRecord,
+} from "./VisualStore.ts"
 export {Visual, visualLayoutForSlug} from "./Visual.ts"
 export {CenteredNested} from "./CenteredNested.ts"
 export {OutsideIn} from "./OutsideIn.ts"
@@ -59,5 +74,6 @@ export type {
   VisualLayoutSlug,
   VisualLayoutStatus,
   VisualOwnerGraph,
+  VisualPlacementSensitivity,
 } from "./internal/layout.ts"
 export {buildStateGraph, type StateGraph} from "./StateGraph.ts"

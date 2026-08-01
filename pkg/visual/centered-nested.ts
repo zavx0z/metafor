@@ -26,15 +26,21 @@ export {
 } from "./ScenePayload.ts"
 export {
   classifyVisualInvalidation,
+  diffVisualScenePayload,
   reconcileVisualScenePayload,
   sameVisualPayloadIdentities,
   summarizeVisualScenePatch,
+  visualDeltaPatchOperations,
+  visualScopeKeepsPlacements,
   widenVisualInvalidation,
   type VisualAppearancePatch,
+  type VisualDeltaPatch,
+  type VisualEntityDelta,
   type VisualInvalidationScope,
   type VisualPatchSummary,
   type VisualScenePatch,
   type VisualUpstreamChange,
+  type VisualUpstreamFacet,
 } from "./SceneReconciler.ts"
 export {
   CenteredNested,
@@ -102,6 +108,7 @@ export type {
   VisualLayoutSlug,
   VisualOrbitalPlacement,
   VisualOwnerGraph,
+  VisualPlacementSensitivity,
   VisualScene,
   VisualStateEdgePlacement,
   VisualTorusPlacement,

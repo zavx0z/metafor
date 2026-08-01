@@ -24,6 +24,7 @@
     "StateGraph.ts",
     "StateGraphLayout.ts",
     "stories.ts",
+    "store.ts",
     "Torus.ts",
     "VisualSceneViewport.ts",
     "Visual.ts",
@@ -31,10 +32,13 @@
     "VisualMaterial.ts",
     "VisualMaterialSpec.ts",
     "VisualRelations.ts",
+    "VisualStore.ts",
     "VisualStory.ts",
     "VisualStoryEvents.ts",
     "index.ts",
     "layout.ts",
+    "internal/complete-state-components.ts",
+    "internal/component.ts",
     "internal/dark-tree.ts",
     "internal/fingerprint.ts",
     "internal/layout.ts",
@@ -62,6 +66,10 @@
     "./stories": {
       "types": "./stories.ts",
       "default": "./stories.ts"
+    },
+    "./store": {
+      "types": "./store.ts",
+      "default": "./store.ts"
     },
     "./viewport": {
       "types": "./VisualSceneViewport.ts",
