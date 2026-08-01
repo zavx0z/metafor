@@ -1,7 +1,10 @@
 import {describe, expect, test} from "bun:test"
 import type {BulkObserverSnapshot} from "@metafor/types/bulk/initial"
 import type {BulkManifest} from "@metafor/types/bulk/manifest"
-import type {BulkVisualRenderManifest} from "@metafor/types/bulk/visual"
+import type {
+  BulkVisualRenderManifest,
+  BulkVisualRenderPatch,
+} from "@metafor/types/bulk/visual"
 import {CenteredNested, OutsideIn} from "@metafor/visual/layout"
 import snapshotJson from "../pkg/visual/playground/fixture/monad-snapshot.json"
 import {buildBulkManifestation} from "./manifestation.ts"
@@ -32,6 +35,27 @@ const recordingViewport = () => {
     applyVisualManifestPatch(value: BulkVisualRenderManifest) {
       assertBulkVisualProjectionBoundary(value)
       received.push(value)
+    },
+  }
+}
+
+/**
+ * A sink that accepts operations. The production browser sink does; a sink that
+ * does not forces the presenter to widen, which is what `recordingViewport`
+ * exercises.
+ */
+const patchingViewport = () => {
+  const received: BulkVisualRenderManifest[] = []
+  const patches: BulkVisualRenderPatch[] = []
+  return {
+    patches,
+    received,
+    applyVisualManifestPatch(value: BulkVisualRenderManifest) {
+      assertBulkVisualProjectionBoundary(value)
+      received.push(value)
+    },
+    applyVisualRenderPatch(value: BulkVisualRenderPatch) {
+      patches.push(value)
     },
   }
 }
@@ -102,9 +126,9 @@ describe("Bulk Visual scene presenter", () => {
         index === 0 ? {...field, valueText: "presenter-probe"} : field
       ),
     }
-    // `centered-nested` groups by canonical Value identity, so re-rendering the
-    // same Value's text moves no placement even though the facet is one this
-    // strategy does read for placement.
+    // `centered-nested` reads Field Value for placement, so the strategy runs
+    // again — this facet is never automatically appearance-only here. What the
+    // renderer receives is still only what actually differs: one Field.
     const result = presenter.apply(viewport, changed, projection, {
       affectedAtomIds: [],
       changed: true,
@@ -112,19 +136,59 @@ describe("Bulk Visual scene presenter", () => {
       structural: false,
     })
 
-    expect(result.summary.kind).toBe("visual-appearance-patch")
+    expect(result.scope).toBe("geometry")
     expect(result.summary.fields).toBe(1)
     expect(result.summary.tori).toBe(0)
+    expect(result.summary.total).toBe(1)
     expect(result.summary.total).toBeLessThan(initial.summary.total)
-    // The renderer still receives a complete, boundary-valid projection.
+    // The renderer still receives a complete, boundary-valid projection,
+    // because this sink cannot apply operations.
     expect(viewport.received.length).toBe(2)
     expect(viewport.received[1]?.manifest.fieldParticles.length)
       .toBe(viewport.received[0]?.manifest.fieldParticles.length)
   })
 
-  test("rebuilds when the change is structural", () => {
+  test("sends a sink that accepts operations the exact patch, not a scene", () => {
     const {manifest, projection} = fixture()
-    const viewport = recordingViewport()
+    const viewport = patchingViewport()
+    const presenter = new BulkVisualScenePresenter()
+    presenter.apply(viewport, manifest, projection)
+
+    const changed: BulkManifest = {
+      ...manifest,
+      fieldParticles: manifest.fieldParticles.map((field, index) =>
+        index === 0 ? {...field, valueText: "presenter-probe"} : field
+      ),
+    }
+    const result = presenter.apply(viewport, changed, projection, {
+      affectedAtomIds: [],
+      changed: true,
+      facet: "field-value",
+      structural: false,
+    })
+
+    // One full projection at hydration, none after: the change arrived as
+    // operations.
+    expect(viewport.received.length).toBe(1)
+    expect(viewport.patches.length).toBe(1)
+    expect(result.projection).toBeNull()
+    expect(result.patch).not.toBeNull()
+
+    const patch = viewport.patches[0]!
+    expect(patch.kind).toBe("bulk-visual-render-patch")
+    expect(patch.layoutSlug).toBe("centered-nested")
+    expect(patch.fieldParticles.length).toBe(1)
+    expect(patch.darkParticles.length).toBe(0)
+    expect(patch.orbitalParticles.length).toBe(0)
+    expect(patch.removedFieldParticleIds.length).toBe(0)
+    expect(patch.removedDarkParticleIds.length).toBe(0)
+    // The one changed Field carries the new text through to the renderer.
+    expect(patch.fieldParticles[0]?.valueText).toBe("presenter-probe")
+  })
+
+  test("costs nothing when a structural facet changed no entity", () => {
+    const {manifest, projection} = fixture()
+    const viewport = patchingViewport()
     const presenter = new BulkVisualScenePresenter()
     presenter.apply(viewport, manifest, projection)
 
@@ -135,8 +199,14 @@ describe("Bulk Visual scene presenter", () => {
       structural: true,
     })
 
-    expect(result.summary.kind).toBe("visual-replace-patch")
-    expect(viewport.received.length).toBe(2)
+    // A structural facet always re-places the scene — the Store refuses to
+    // narrow it. But re-placing the same manifestation differs nowhere, so
+    // nothing reaches the renderer at all.
+    expect(result.scope).toBe("structure")
+    expect(result.route).toBe("none")
+    expect(result.summary.total).toBe(0)
+    expect(viewport.received.length).toBe(1)
+    expect(viewport.patches.length).toBe(0)
   })
 
   test("accepts an injected strategy through the same contract", () => {

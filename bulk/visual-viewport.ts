@@ -1,6 +1,9 @@
 import type {BulkManifest} from "@metafor/types/bulk/manifest"
 import type {BulkRuntimeProjection} from "@metafor/types/bulk/runtime"
-import type {BulkVisualRenderManifest} from "@metafor/types/bulk/visual"
+import type {
+  BulkVisualRenderManifest,
+  BulkVisualRenderPatch,
+} from "@metafor/types/bulk/visual"
 import {
   classifyVisualInvalidation,
   reconcileVisualScenePayload,
@@ -11,13 +14,33 @@ import {
   type VisualUpstreamChange,
 } from "@metafor/visual/layout/centered-nested"
 import {
+  describeVisualPreparedScene,
+  hydrateVisualStore,
+  visualDeltaPatchOperations,
+  type VisualCausalFrontier,
+  type VisualInvalidationScope,
+  type VisualPreparedScene,
+  type VisualStore,
+  type VisualStoreClosure,
+} from "@metafor/visual/store"
+import {
   DEFAULT_BULK_VISUAL_LAYOUT,
   adaptBulkVisualRenderManifest,
+  adaptBulkVisualRenderPatch,
   buildBulkVisualScenePayload,
 } from "./visual-layout.ts"
 
 export type BulkVisualViewportProjectionSink = Readonly<{
   applyVisualManifestPatch(projection: BulkVisualRenderManifest): void
+  /**
+   * Applies the narrowest correct update.
+   *
+   * Optional so a sink that only knows how to replace a scene still works —
+   * such a sink receives a full projection instead and the presenter reports
+   * that it had to widen. A sink that implements it keeps every GPU resource
+   * the patch does not name.
+   */
+  applyVisualRenderPatch?(patch: BulkVisualRenderPatch): void
 }>
 
 /**
@@ -32,25 +55,47 @@ const FULL_UPSTREAM_CHANGE: VisualUpstreamChange = Object.freeze({
   facet: "structure",
   structural: true,
 })
+
+/** Why one applied change did or did not reach the renderer incrementally. */
+export type BulkVisualApplyRoute =
+  /** The Store answered from held state; no strategy ran. */
+  | "incremental"
+  /** Nothing reached the renderer. */
+  | "none"
+  /** A placement law had to run, so the payload was rebuilt. */
+  | "rebuilt"
+
 /** What one applied change actually required of the visual scene. */
 export type BulkVisualApplyResult = Readonly<{
+  /** What the change reached, when the Store was consulted. */
+  closure: VisualStoreClosure | null
+  /** Explicit renderer operations, when the update was incremental. */
+  patch: BulkVisualRenderPatch | null
   payload: VisualScenePayload
+  /** A full projection, when the scene had to be re-specified. */
   projection: BulkVisualRenderManifest | null
+  route: BulkVisualApplyRoute
+  scope: VisualInvalidationScope
   summary: VisualPatchSummary
 }>
 
 /**
  * The canonical manifestation → Visual payload → viewport seam.
  *
- * One `BulkVisualScenePresenter` owns the payload currently on screen. An
- * upstream change is first classified: a change that cannot move geometry skips
- * layout work entirely when the resulting payload is identical, and reaches the
- * viewport only with what actually differs. A structural change rebuilds, since
- * narrowing there would leave the scene stale.
+ * One `BulkVisualScenePresenter` owns a persistent {@link VisualStore}: the
+ * hydrated scene, its indexes and its renderer records survive from one change
+ * to the next. An upstream change is offered to the Store first, and the Store
+ * either answers with an exact patch — no strategy runs, no scene is rebuilt,
+ * no shape the change did not reach is touched — or reports that the change
+ * moves placements, which only the selected strategy can decide. Only then is
+ * the payload rebuilt.
+ *
+ * Bulk does not diff scenes here and does not know what a strategy places. It
+ * selects a strategy, holds the Store and forwards what the Store produced.
  */
 export class BulkVisualScenePresenter {
   #layout: VisualLayout
-  #payload: VisualScenePayload | null = null
+  #store: VisualStore | null = null
 
   constructor(layout: VisualLayout = DEFAULT_BULK_VISUAL_LAYOUT) {
     this.#layout = layout
@@ -62,7 +107,17 @@ export class BulkVisualScenePresenter {
 
   /** The payload currently presented, or `null` before the first apply. */
   get payload(): VisualScenePayload | null {
-    return this.#payload
+    return this.#store?.payload ?? null
+  }
+
+  /** The causal frontier the presented scene stands at, if it carries one. */
+  get frontier(): VisualCausalFrontier | null {
+    return this.#store?.frontier ?? null
+  }
+
+  /** The persistent Store, or `null` before the first apply. */
+  get store(): VisualStore | null {
+    return this.#store
   }
 
   /**
@@ -72,26 +127,45 @@ export class BulkVisualScenePresenter {
   selectLayout(layout: VisualLayout): void {
     if (layout.slug === this.#layout.slug) return
     this.#layout = layout
-    this.#payload = null
+    this.#store = null
   }
 
-  /** Presents a payload prepared elsewhere, such as on a server. */
+  /**
+   * Presents a scene prepared elsewhere, such as on a server, and keeps it.
+   *
+   * No strategy runs: the placements, forms, materials and sampled paths are
+   * read from the prepared scene as they arrived. What the presenter builds is
+   * the persistent Store that every later change is served from.
+   */
   hydrate(
     viewport: BulkVisualViewportProjectionSink,
     semanticManifest: BulkManifest,
-    payload: VisualScenePayload,
+    prepared: VisualPreparedScene | VisualScenePayload,
   ): BulkVisualApplyResult {
+    const payload = "payload" in prepared ? prepared.payload : prepared
     if (payload.layoutSlug !== this.#layout.slug) {
       throw new Error(
         `Bulk Visual payload layout ${payload.layoutSlug} does not match the selected ${this.#layout.slug}`,
       )
     }
+    this.#store = hydrateVisualStore(
+      "payload" in prepared
+        ? prepared
+        : describeVisualPreparedScene(prepared, {
+          frontier: null,
+          sourceRevision: "",
+        }),
+      {placement: this.#layout.placement, slug: this.#layout.slug},
+    )
     const projection = adaptBulkVisualRenderManifest(semanticManifest, payload)
     viewport.applyVisualManifestPatch(projection)
-    this.#payload = payload
     return Object.freeze({
+      closure: null,
+      patch: null,
       payload,
       projection,
+      route: "rebuilt" as const,
+      scope: "structure" as const,
       summary: summarizeVisualScenePatch(
         reconcileVisualScenePayload(null, payload),
       ),
@@ -102,45 +176,160 @@ export class BulkVisualScenePresenter {
    * Applies one changed manifestation.
    *
    * The change is what the upstream projection reported, facet and affected
-   * closure included — it is classified against the selected strategy, because
-   * only the strategy knows whether the fact that moved is placement input. When
-   * the recomputed payload is identical the viewport is not touched at all and
-   * `projection` is `null`.
+   * closure included. It goes to the Store first: a change that cannot move a
+   * placement is served from held state, and the renderer receives exactly the
+   * entities it reached. A change that moves placements — or one that arrives
+   * before anything was hydrated — runs the strategy and re-specifies the
+   * scene, because narrowing there would leave geometry stale.
    */
   apply(
     viewport: BulkVisualViewportProjectionSink,
     semanticManifest: BulkManifest,
     projection: BulkRuntimeProjection,
     change: VisualUpstreamChange = FULL_UPSTREAM_CHANGE,
+    options: Readonly<{frontier?: VisualCausalFrontier}> = {},
   ): BulkVisualApplyResult {
-    const scope = classifyVisualInvalidation(change, this.#layout)
-    if (scope === "none" && this.#payload !== null) {
-      return Object.freeze({
-        payload: this.#payload,
-        projection: null,
-        summary: summarizeVisualScenePatch({kind: "visual-none-patch"}),
-      })
+    const store = this.#store
+    if (store !== null) {
+      const applied = store.apply(
+        change,
+        semanticManifest,
+        options.frontier === undefined ? {} : {frontier: options.frontier},
+      )
+      if (applied.kind === "visual-store-applied") {
+        const summary = summarizeVisualScenePatch(applied.patch)
+        if (
+          applied.patch.kind === "visual-none-patch" ||
+          visualDeltaPatchOperations(applied.patch).added +
+                visualDeltaPatchOperations(applied.patch).removed +
+                visualDeltaPatchOperations(applied.patch).updated === 0
+        ) {
+          return Object.freeze({
+            closure: applied.closure,
+            patch: null,
+            payload: store.payload,
+            projection: null,
+            route: "none" as const,
+            scope: applied.scope,
+            summary,
+          })
+        }
+        const patch = adaptBulkVisualRenderPatch(
+          semanticManifest,
+          store.payload,
+          applied.patch,
+        )
+        if (viewport.applyVisualRenderPatch) {
+          viewport.applyVisualRenderPatch(patch)
+          return Object.freeze({
+            closure: applied.closure,
+            patch,
+            payload: store.payload,
+            projection: null,
+            route: "incremental" as const,
+            scope: applied.scope,
+            summary,
+          })
+        }
+        // The sink cannot apply operations, so it gets the whole projection.
+        // The Store still served the change — nothing was rebuilt — but the
+        // route is reported honestly as a widening.
+        const widened = adaptBulkVisualRenderManifest(
+          semanticManifest,
+          store.payload,
+        )
+        viewport.applyVisualManifestPatch(widened)
+        return Object.freeze({
+          closure: applied.closure,
+          patch,
+          payload: store.payload,
+          projection: widened,
+          route: "rebuilt" as const,
+          scope: applied.scope,
+          summary,
+        })
+      }
     }
+
+    const scope = classifyVisualInvalidation(change, this.#layout)
     const payload = buildBulkVisualScenePayload(
       semanticManifest,
       projection,
       this.#layout,
     )
-    const patch = reconcileVisualScenePayload(
-      scope === "structure" ? null : this.#payload,
+    if (store === null) {
+      this.#store = hydrateVisualStore(
+        describeVisualPreparedScene(payload, {
+          frontier: options.frontier ?? null,
+          sourceRevision: "",
+        }),
+        {placement: this.#layout.placement, slug: this.#layout.slug},
+      )
+      const renderManifest = adaptBulkVisualRenderManifest(
+        semanticManifest,
+        payload,
+      )
+      viewport.applyVisualManifestPatch(renderManifest)
+      return Object.freeze({
+        closure: null,
+        patch: null,
+        payload,
+        projection: renderManifest,
+        route: "rebuilt" as const,
+        scope,
+        summary: summarizeVisualScenePatch(
+          reconcileVisualScenePayload(null, payload),
+        ),
+      })
+    }
+
+    // The strategy re-placed the scene. The Store adopts the result rather than
+    // being thrown away: its identities, indexes and renderer records survive,
+    // and the delta it computes is what actually differs on the GPU.
+    const adopted = store.adopt(
       payload,
+      options.frontier === undefined ? {} : {frontier: options.frontier},
     )
-    const summary = summarizeVisualScenePatch(patch)
-    this.#payload = payload
-    if (patch.kind === "visual-none-patch") {
-      return Object.freeze({payload, projection: null, summary})
+    const summary = summarizeVisualScenePatch(adopted)
+    const operations = visualDeltaPatchOperations(adopted)
+    if (operations.added + operations.removed + operations.updated === 0) {
+      return Object.freeze({
+        closure: null,
+        patch: null,
+        payload,
+        projection: null,
+        route: "none" as const,
+        scope,
+        summary,
+      })
+    }
+    const patch = adaptBulkVisualRenderPatch(semanticManifest, payload, adopted)
+    if (viewport.applyVisualRenderPatch) {
+      viewport.applyVisualRenderPatch(patch)
+      return Object.freeze({
+        closure: null,
+        patch,
+        payload,
+        projection: null,
+        route: "rebuilt" as const,
+        scope,
+        summary,
+      })
     }
     const renderManifest = adaptBulkVisualRenderManifest(
       semanticManifest,
       payload,
     )
     viewport.applyVisualManifestPatch(renderManifest)
-    return Object.freeze({payload, projection: renderManifest, summary})
+    return Object.freeze({
+      closure: null,
+      patch,
+      payload,
+      projection: renderManifest,
+      route: "rebuilt" as const,
+      scope,
+      summary,
+    })
   }
 }
 

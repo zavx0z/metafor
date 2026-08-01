@@ -1,4 +1,10 @@
-import type {BulkRenderManifest} from "./manifest.ts"
+import type {
+  BulkRenderDarkParticle,
+  BulkRenderFieldParticle,
+  BulkRenderFieldProxy,
+  BulkRenderManifest,
+  BulkRenderOrbitalParticle,
+} from "./manifest.ts"
 
 /**
  * Named layout strategy that produced a render projection.
@@ -158,3 +164,51 @@ export type BulkVisualRenderManifest = Readonly<{
   sphereMeshDetail: BulkVisualSphereMeshDetail
   transitionPaths: readonly BulkVisualTransitionPath[]
 }>
+
+/**
+ * What one visual change actually asks the renderer to touch.
+ *
+ * A render patch names entities by their visual identity and says nothing about
+ * the ones it omits, which is the whole point: an entity absent from the patch
+ * keeps the Mesh, geometry buffer, material and line buffer it already holds on
+ * the GPU. `removed` carries identities rather than values, because releasing a
+ * resource needs the name and nothing else.
+ *
+ * The mesh-detail laws are carried because a renderer builds geometry from them
+ * and a patch has to be self-sufficient; they are the same values the last full
+ * manifest declared unless the specification itself changed, in which case the
+ * scene is replaced rather than patched.
+ */
+export type BulkVisualRenderPatch = Readonly<{
+  darkMaterials: readonly BulkVisualDarkMaterial[]
+  darkParticles: readonly BulkRenderDarkParticle[]
+  darkTorusMeshDetail: BulkVisualTorusMeshDetail
+  embeddedTorusMeshDetail: BulkVisualTorusMeshDetail
+  fieldAliases: readonly BulkVisualFieldAlias[]
+  fieldMaterials: readonly BulkVisualFieldMaterial[]
+  fieldParticles: readonly BulkRenderFieldParticle[]
+  fieldProxies: readonly BulkRenderFieldProxy[]
+  fieldProxyMaterials: readonly BulkVisualFieldProxyMaterial[]
+  fieldProxySpheres: readonly BulkVisualFieldProxySphere[]
+  fieldProxyTori: readonly BulkVisualFieldProxyTorus[]
+  kind: "bulk-visual-render-patch"
+  layoutSlug: BulkVisualLayoutSlug
+  orbitalMaterials: readonly BulkVisualOrbitalMaterial[]
+  orbitalParticles: readonly BulkRenderOrbitalParticle[]
+  orbitalSpheres: readonly BulkVisualOrbitalSphere[]
+  orbitalTori: readonly BulkVisualOrbitalTorus[]
+  relationPaths: readonly BulkVisualRelationPath[]
+  removedDarkParticleIds: readonly number[]
+  removedFieldParticleIds: readonly string[]
+  removedFieldProxyIds: readonly string[]
+  removedOrbitalParticleIds: readonly string[]
+  removedRelationBatchIds: readonly string[]
+  removedTransitionBatchIds: readonly string[]
+  sphereMeshDetail: BulkVisualSphereMeshDetail
+  transitionPaths: readonly BulkVisualTransitionPath[]
+}>
+
+/** Either a full projection or the narrowest correct patch over one. */
+export type BulkVisualRenderUpdate =
+  | BulkVisualRenderManifest
+  | BulkVisualRenderPatch

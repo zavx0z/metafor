@@ -19,6 +19,7 @@ import type {
   BulkVisualOrbitalTorus,
   BulkVisualRelationPath,
   BulkVisualRenderManifest,
+  BulkVisualRenderPatch,
   BulkVisualTransitionPath,
 } from "@metafor/types/bulk/visual"
 import {
@@ -28,6 +29,7 @@ import {
   visualLayoutForSlug,
   visualRegisteredLayoutSlugs,
   visualOwnerDarkParticleIdFromAtomId,
+  type VisualDeltaPatch,
   type VisualLayout,
   type VisualLayoutSlug,
   type VisualScenePayload,
@@ -40,6 +42,7 @@ export type {
   BulkVisualOrbitalSphere,
   BulkVisualOrbitalTorus,
   BulkVisualRenderManifest,
+  BulkVisualRenderPatch,
 } from "@metafor/types/bulk/visual"
 
 /**
@@ -587,6 +590,242 @@ export const adaptBulkVisualRenderManifest = (
     renderableManifest(semanticManifest),
     payload,
   )
+
+/**
+ * Narrows a visual delta into the render operations a viewport can apply.
+ *
+ * Every decision was already taken: `pkg/visual` named the entities the change
+ * reached and the strategy priced the change. This only translates — it never
+ * compares two scenes, and it never consults a placement law. An entity absent
+ * from `patch` is absent here too, which is the statement the renderer needs in
+ * order to keep the GPU resources it already holds.
+ *
+ * The semantic source is read for the fields a render record carries but a
+ * visual payload does not — kind, key, parentage, labels — for the named
+ * entities only.
+ */
+export const adaptBulkVisualRenderPatch = (
+  semanticManifest: BulkManifest,
+  payload: VisualScenePayload,
+  patch: VisualDeltaPatch,
+): BulkVisualRenderPatch => {
+  const visualSource = renderableManifest(semanticManifest)
+  const sourceDarkById = new Map(
+    visualSource.darkParticles.map((particle) =>
+      [particle.darkParticleId, particle] as const
+    ),
+  )
+  const sourceOrbitalById = new Map(
+    (visualSource.orbitalParticles ?? []).map((particle) =>
+      [particle.orbitalParticleId, particle] as const
+    ),
+  )
+  const sourceProxyById = new Map(
+    (visualSource.fieldProxies ?? []).map((proxy) =>
+      [proxy.fieldProxyId, proxy] as const
+    ),
+  )
+
+  const darkParticles: BulkRenderDarkParticle[] = []
+  const darkMaterials: BulkVisualDarkMaterial[] = []
+  for (const torus of [...patch.tori.added, ...patch.tori.updated]) {
+    const particle = sourceDarkById.get(torus.darkParticleId)
+    if (!particle) {
+      throw new Error(
+        `Bulk Visual Torus ${torus.darkParticleId} has no manifested Dark particle`,
+      )
+    }
+    darkParticles.push({
+      ...particle,
+      localX: torus.localX,
+      localY: torus.localY,
+      localZ: torus.localZ,
+      torusRadius: torus.radius,
+      torusTube: torus.tube,
+      colorR: torus.color[0],
+      colorG: torus.color[1],
+      colorB: torus.color[2],
+    })
+    darkMaterials.push({
+      darkParticleId: torus.darkParticleId,
+      material: torus.material,
+    })
+  }
+
+  const fieldParticles: BulkRenderFieldParticle[] = []
+  const fieldMaterials: BulkVisualFieldMaterial[] = []
+  for (const field of [...patch.fields.added, ...patch.fields.updated]) {
+    fieldParticles.push({
+      fieldParticleId: field.fieldParticleId,
+      fieldId: field.fieldId,
+      valueId: field.valueId,
+      parentDarkParticleId: field.ownerDarkParticleId,
+      fieldKey: field.fieldKey,
+      fieldLabel: field.fieldLabel,
+      fieldParticleKind: field.fieldParticleKind,
+      valueText: field.valueText,
+      localX: field.localX,
+      localY: field.localY,
+      localZ: field.localZ,
+      sphereRadius: field.radius,
+      colorR: field.color[0],
+      colorG: field.color[1],
+      colorB: field.color[2],
+    })
+    fieldMaterials.push({
+      fieldParticleId: field.fieldParticleId,
+      material: field.material,
+    })
+  }
+
+  const orbitalParticles: BulkRenderOrbitalParticle[] = []
+  const orbitalMaterials: BulkVisualOrbitalMaterial[] = []
+  const orbitalSpheres: BulkVisualOrbitalSphere[] = []
+  const orbitalTori: BulkVisualOrbitalTorus[] = []
+  for (const orbital of [...patch.orbitals.added, ...patch.orbitals.updated]) {
+    const particle = sourceOrbitalById.get(orbital.orbitalParticleId)
+    if (!particle) {
+      throw new Error(
+        `Bulk Visual orbital ${orbital.orbitalParticleId} has no manifested particle`,
+      )
+    }
+    if (orbital.form.kind === "torus") {
+      orbitalTori.push({
+        orbitalParticleId: orbital.orbitalParticleId,
+        radius: orbital.form.radius,
+        tube: orbital.form.tube,
+      })
+    } else {
+      orbitalSpheres.push({
+        orbitalParticleId: orbital.orbitalParticleId,
+        radius: orbital.form.radius,
+      })
+    }
+    orbitalParticles.push({
+      ...particle,
+      relatedStateIds: [...particle.relatedStateIds],
+      localX: orbital.localX,
+      localY: orbital.localY,
+      localZ: orbital.localZ,
+      colorR: orbital.color[0],
+      colorG: orbital.color[1],
+      colorB: orbital.color[2],
+    })
+    orbitalMaterials.push({
+      orbitalParticleId: orbital.orbitalParticleId,
+      material: orbital.material,
+    })
+  }
+
+  const fieldProxies: BulkRenderFieldProxy[] = []
+  const fieldProxyMaterials: BulkVisualFieldProxyMaterial[] = []
+  const fieldProxySpheres: BulkVisualFieldProxySphere[] = []
+  const fieldProxyTori: BulkVisualFieldProxyTorus[] = []
+  for (
+    const proxy of [...patch.fieldProxies.added, ...patch.fieldProxies.updated]
+  ) {
+    const source = sourceProxyById.get(proxy.fieldProxyId)
+    if (!source) {
+      throw new Error(
+        `Bulk Visual Field proxy ${proxy.fieldProxyId} has no manifested proxy`,
+      )
+    }
+    if (proxy.form.kind === "sphere") {
+      fieldProxySpheres.push({
+        fieldProxyId: proxy.fieldProxyId,
+        radius: proxy.form.radius,
+      })
+    } else {
+      fieldProxyTori.push({
+        fieldProxyId: proxy.fieldProxyId,
+        radius: proxy.form.radius,
+        tube: proxy.form.tube,
+      })
+    }
+    fieldProxies.push({
+      ...source,
+      fieldParticleId: proxy.visualFieldParticleId,
+      localX: proxy.localX,
+      localY: proxy.localY,
+      localZ: proxy.localZ,
+      colorR: proxy.color[0],
+      colorG: proxy.color[1],
+      colorB: proxy.color[2],
+    })
+    fieldProxyMaterials.push({
+      fieldProxyId: proxy.fieldProxyId,
+      material: proxy.material,
+    })
+  }
+
+  const transitionPaths: BulkVisualTransitionPath[] = []
+  for (
+    const batch of [
+      ...patch.transitionBatches.added,
+      ...patch.transitionBatches.updated,
+    ]
+  ) {
+    for (const entry of batch.paths) {
+      transitionPaths.push({
+        batchId: batch.batchId,
+        batchFingerprint: batch.fingerprint,
+        material: batch.material,
+        ownerDarkParticleId: batch.ownerDarkParticleId,
+        points: entry.points,
+        returning: batch.returning,
+        transitionChannelId: entry.channelId,
+      })
+    }
+  }
+
+  const relationPaths: BulkVisualRelationPath[] = []
+  for (
+    const batch of [
+      ...patch.relationBatches.added,
+      ...patch.relationBatches.updated,
+    ]
+  ) {
+    for (const entry of batch.paths) {
+      relationPaths.push({
+        batchId: batch.batchId,
+        batchFingerprint: batch.fingerprint,
+        material: batch.material,
+        ownerDarkParticleId: batch.ownerDarkParticleId,
+        points: entry.points,
+        relationChannelId: entry.channelId,
+      })
+    }
+  }
+
+  return {
+    darkMaterials,
+    darkParticles,
+    darkTorusMeshDetail: payload.darkTorusMeshDetail,
+    embeddedTorusMeshDetail: payload.embeddedTorusMeshDetail,
+    fieldAliases: payload.fieldAliases,
+    fieldMaterials,
+    fieldParticles,
+    fieldProxies,
+    fieldProxyMaterials,
+    fieldProxySpheres,
+    fieldProxyTori,
+    kind: "bulk-visual-render-patch",
+    layoutSlug: payload.layoutSlug,
+    orbitalMaterials,
+    orbitalParticles,
+    orbitalSpheres,
+    orbitalTori,
+    relationPaths,
+    removedDarkParticleIds: patch.tori.removed.map((id) => Number(id)),
+    removedFieldParticleIds: patch.fields.removed,
+    removedFieldProxyIds: patch.fieldProxies.removed,
+    removedOrbitalParticleIds: patch.orbitals.removed,
+    removedRelationBatchIds: patch.relationBatches.removed,
+    removedTransitionBatchIds: patch.transitionBatches.removed,
+    sphereMeshDetail: payload.sphereMeshDetail,
+    transitionPaths,
+  }
+}
 
 /** Runs one named strategy and returns the render projection for a viewport. */
 export const buildBulkVisualRenderManifest = (
