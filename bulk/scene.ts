@@ -15,6 +15,18 @@ export type BulkScenePatch = {
   removedRelationChannelIds: string[]
 }
 
+/** What one incremental patch changed, by entity class. */
+export type BulkSceneAbsorption = {
+  darkParticles?: readonly BulkRenderDarkParticle[]
+  fieldParticles?: readonly BulkRenderFieldParticle[]
+  fieldProxies?: readonly BulkRenderFieldProxy[]
+  orbitalParticles?: readonly BulkRenderOrbitalParticle[]
+  removedDarkParticleIds?: readonly number[]
+  removedFieldParticleIds?: readonly string[]
+  removedFieldProxyIds?: readonly string[]
+  removedOrbitalParticleIds?: readonly string[]
+}
+
 const sameFlatRecord = (left: object, right: object): boolean => {
   const leftRecord = left as Record<string, unknown>
   const rightRecord = right as Record<string, unknown>
@@ -139,6 +151,46 @@ export class BulkSceneStore {
       relationChannelIds,
       removedFieldProxyIds,
       removedRelationChannelIds,
+    }
+  }
+
+  /**
+   * Records what an incremental patch already applied to the scene.
+   *
+   * A patch names only what it touched, so absence must not read as removal —
+   * which is exactly why `apply` cannot be used for it. Without this the held
+   * state goes stale, and a stale diff can *narrow*: if a patch sets an entity
+   * to a new value and a later full projection carries the value this store
+   * still holds, `apply` would report "unchanged" and the scene would keep the
+   * patched value forever.
+   */
+  absorb(absorption: BulkSceneAbsorption): void {
+    for (const particle of absorption.darkParticles ?? []) {
+      this.darkParticles.set(particle.darkParticleId, {...particle})
+    }
+    for (const particle of absorption.fieldParticles ?? []) {
+      this.fieldParticles.set(particle.fieldParticleId, {...particle})
+    }
+    for (const particle of absorption.orbitalParticles ?? []) {
+      this.orbitalParticles.set(particle.orbitalParticleId, {
+        ...particle,
+        relatedStateIds: [...particle.relatedStateIds],
+      })
+    }
+    for (const proxy of absorption.fieldProxies ?? []) {
+      this.fieldProxies.set(proxy.fieldProxyId, {...proxy})
+    }
+    for (const id of absorption.removedDarkParticleIds ?? []) {
+      this.darkParticles.delete(id)
+    }
+    for (const id of absorption.removedFieldParticleIds ?? []) {
+      this.fieldParticles.delete(id)
+    }
+    for (const id of absorption.removedOrbitalParticleIds ?? []) {
+      this.orbitalParticles.delete(id)
+    }
+    for (const id of absorption.removedFieldProxyIds ?? []) {
+      this.fieldProxies.delete(id)
     }
   }
 }

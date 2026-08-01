@@ -204,6 +204,12 @@ export type BulkVisualRenderPatch = Readonly<{
   removedOrbitalParticleIds: readonly string[]
   removedRelationBatchIds: readonly string[]
   removedTransitionBatchIds: readonly string[]
+  /**
+   * Canonical source counts after the change. A patch names only what moved,
+   * but the counts it does not move are still reported, so a consumer that
+   * shows them stays truthful without re-reading the manifestation.
+   */
+  sourceStats: BulkVisualSourceStats
   sphereMeshDetail: BulkVisualSphereMeshDetail
   transitionPaths: readonly BulkVisualTransitionPath[]
 }>

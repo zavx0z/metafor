@@ -822,6 +822,13 @@ export const adaptBulkVisualRenderPatch = (
     removedOrbitalParticleIds: patch.orbitals.removed,
     removedRelationBatchIds: patch.relationBatches.removed,
     removedTransitionBatchIds: patch.transitionBatches.removed,
+    sourceStats: {
+      rootSrc: semanticManifest.rootSrc,
+      darkParticleCount: semanticManifest.darkParticles.length,
+      fieldParticleCount: semanticManifest.fieldParticles.length,
+      orbitalParticleCount: semanticManifest.orbitalParticles?.length ?? 0,
+      transitionChannelCount: semanticManifest.transitionChannels?.length ?? 0,
+    },
     sphereMeshDetail: payload.sphereMeshDetail,
     transitionPaths,
   }

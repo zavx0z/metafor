@@ -68,3 +68,55 @@ describe("Bulk live Atom scene patch gate", () => {
     expect(store.darkParticles.get(2)?.localX).toBe(0.125)
   })
 })
+
+describe("Bulk live Atom scene absorption", () => {
+  test("an absorbed change is not reported again", () => {
+    const store = new BulkSceneStore()
+    store.apply(manifest())
+
+    const patched = manifest("patched")
+    store.absorb({darkParticles: patched.darkParticles})
+
+    expect(store.darkParticles.get(2)?.label).toBe("patched")
+    expect(store.apply(patched).darkParticleIds).toEqual([])
+  })
+
+  test("a full projection that reverts an absorbed change still reports it", () => {
+    const store = new BulkSceneStore()
+    store.apply(manifest())
+    // The patch path moved the record without going through `apply`.
+    store.absorb({darkParticles: manifest("patched").darkParticles})
+
+    // The full projection carries the value the store held before the patch.
+    // A store that had not absorbed the patch would call this unchanged and
+    // leave the scene showing "patched" forever.
+    const patch = store.apply(manifest())
+
+    expect(patch.darkParticleIds).toEqual([2])
+    expect(store.darkParticles.get(2)?.label).toBe("two")
+  })
+
+  test("absorbing names no removals of its own", () => {
+    const store = new BulkSceneStore()
+    const initial = manifest()
+    store.apply(initial)
+
+    // A patch that touched one particle says nothing about the other. Absence
+    // is not removal.
+    store.absorb({darkParticles: [initial.darkParticles[1]!]})
+
+    expect([...store.darkParticles.keys()]).toEqual([1, 2])
+    expect(store.apply(initial).darkParticleIds).toEqual([])
+  })
+
+  test("an absorbed removal drops the record", () => {
+    const store = new BulkSceneStore()
+    store.apply(manifest())
+
+    store.absorb({removedDarkParticleIds: [2]})
+
+    expect([...store.darkParticles.keys()]).toEqual([1])
+    // The entity comes back as an addition, because the scene no longer has it.
+    expect(store.apply(manifest()).darkParticleIds).toEqual([2])
+  })
+})

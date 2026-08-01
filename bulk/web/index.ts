@@ -38,6 +38,7 @@ import type {
 	BulkVisualQuantumMaterial,
 	BulkVisualRelationPath,
 	BulkVisualRenderManifest,
+	BulkVisualRenderPatch,
 	BulkVisualTransitionPath,
 } from "@metafor/types/bulk/visual"
 import type {Particle} from "shared/protocol/force/particle"
@@ -122,6 +123,7 @@ import type {
 	BulkPickTarget,
 } from "@metafor/types/bulk/viewport"
 import {BulkSceneStore} from "../scene"
+import {mergeVisualBatchPaths} from "./visual-patch-application"
 import {
 	bendTextAroundEquator,
 	createSurfaceLabel,
@@ -161,6 +163,7 @@ import {
 
 export type BulkVisualViewportWithHud = BulkViewportWithHud & Readonly<{
 	applyVisualManifestPatch(projection: BulkVisualRenderManifest): void
+	applyVisualRenderPatch(patch: BulkVisualRenderPatch): void
 }>
 
 const LABEL_TEXT_COLOR = new Color(1, 1, 1)
@@ -2535,23 +2538,36 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		}
 	}
 
+	/**
+	 * Which entities this application must touch, and which disappeared.
+	 *
+	 * The full-projection path derives this by diffing the incoming
+	 * manifestation against the held one. The patch path does not diff at all:
+	 * `pkg/visual` already named the entities the change reached, and the
+	 * decision arrives with the patch.
+	 */
+	type SceneApplicationScope = {
+		readonly changedDarkParticleIds: ReadonlySet<number>
+		readonly changedFieldParticleIds: ReadonlySet<string>
+		readonly changedFieldProxyIds: ReadonlySet<string>
+		readonly changedOrbitalParticleIds: ReadonlySet<string>
+		readonly removedDarkParticleIds: readonly number[]
+		readonly removedFieldParticleIds: readonly string[]
+		readonly removedFieldProxyIds: readonly string[]
+		readonly removedOrbitalParticleIds: readonly string[]
+	}
+
 	const applyRenderManifestToScene = (
 		nextManifest: BulkManifest,
 		sourceStats: BulkVisualRenderManifest["sourceStats"],
-		forcedOrbitalParticleIds: ReadonlySet<string> = new Set(),
-		forcedFieldProxyIds: ReadonlySet<string> = new Set(),
+		scope: SceneApplicationScope,
 	): void => {
-		const patch = sceneProjection.apply(nextManifest)
-		const changedDarkParticleIds = new Set(patch.darkParticleIds)
-		const changedFieldParticleIds = new Set(patch.fieldParticleIds)
-		const changedOrbitalParticleIds = new Set([
-			...patch.orbitalParticleIds,
-			...forcedOrbitalParticleIds,
-		])
-		const changedFieldProxyIds = new Set([
-			...patch.fieldProxyIds,
-			...forcedFieldProxyIds,
-		])
+		const {
+			changedDarkParticleIds,
+			changedFieldParticleIds,
+			changedFieldProxyIds,
+			changedOrbitalParticleIds,
+		} = scope
 
 		for (const darkParticle of nextManifest.darkParticles) {
 			if (!changedDarkParticleIds.has(darkParticle.darkParticleId)) continue
@@ -2589,9 +2605,9 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			if (record.node.parent !== parentDarkParticle.container) parentDarkParticle.container.add(record.node)
 		}
 
-		for (const removedFieldParticleId of patch.removedFieldParticleIds) removeFieldParticleRecord(removedFieldParticleId)
+		for (const removedFieldParticleId of scope.removedFieldParticleIds) removeFieldParticleRecord(removedFieldParticleId)
 
-		for (const removedDarkParticleId of patch.removedDarkParticleIds
+		for (const removedDarkParticleId of [...scope.removedDarkParticleIds]
 			.sort((left, right) => (darkParticleRecords.get(right)?.snapshot.depth ?? 0) - (darkParticleRecords.get(left)?.snapshot.depth ?? 0))) {
 			removeDarkParticleRecord(removedDarkParticleId)
 		}
@@ -2638,7 +2654,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			"relation",
 			"relation",
 		)
-		for (const fieldProxyId of patch.removedFieldProxyIds) {
+		for (const fieldProxyId of scope.removedFieldProxyIds) {
 			const record = fieldProxyRecords.get(fieldProxyId)
 			if (record) {
 				if (
@@ -2656,7 +2672,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			}
 			fieldProxyRecords.delete(fieldProxyId)
 		}
-		for (const orbitalParticleId of patch.removedOrbitalParticleIds) {
+		for (const orbitalParticleId of scope.removedOrbitalParticleIds) {
 			const record = orbitalParticleRecords.get(orbitalParticleId)
 			if (record) {
 				if (
@@ -2790,11 +2806,165 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		activeRelationPaths = projection.relationPaths
 		visualFieldParticleIdBySourceAddress =
 			nextVisualFieldParticleIdBySourceAddress
+		const scenePatch = sceneProjection.apply(projection.manifest)
 		applyRenderManifestToScene(
 			projection.manifest,
 			projection.sourceStats,
-			forcedOrbitalIds,
-			forcedFieldProxyIds,
+			{
+				changedDarkParticleIds: new Set(scenePatch.darkParticleIds),
+				changedFieldParticleIds: new Set(scenePatch.fieldParticleIds),
+				changedFieldProxyIds: new Set([
+					...scenePatch.fieldProxyIds,
+					...forcedFieldProxyIds,
+				]),
+				changedOrbitalParticleIds: new Set([
+					...scenePatch.orbitalParticleIds,
+					...forcedOrbitalIds,
+				]),
+				removedDarkParticleIds: scenePatch.removedDarkParticleIds,
+				removedFieldParticleIds: scenePatch.removedFieldParticleIds,
+				removedFieldProxyIds: scenePatch.removedFieldProxyIds,
+				removedOrbitalParticleIds: scenePatch.removedOrbitalParticleIds,
+			},
+		)
+	}
+
+	/**
+	 * Applies exactly what one change reached.
+	 *
+	 * Nothing is diffed here: `pkg/visual` decided which entities the change
+	 * touched, so an entity the patch does not name keeps the Mesh, geometry
+	 * buffer, material and line buffer it already holds. The manifestation
+	 * handed to the scene application carries only the patched entities, and
+	 * every loop in it is gated on the same named ids.
+	 */
+	const applyVisualRenderPatchToScene = (
+		patch: BulkVisualRenderPatch,
+	): void => {
+		for (const entry of patch.orbitalSpheres) {
+			orbitalSphereRadiusById.set(entry.orbitalParticleId, entry.radius)
+			orbitalTorusById.delete(entry.orbitalParticleId)
+		}
+		for (const entry of patch.orbitalTori) {
+			orbitalTorusById.set(entry.orbitalParticleId, {
+				radius: entry.radius,
+				tube: entry.tube,
+			})
+			orbitalSphereRadiusById.delete(entry.orbitalParticleId)
+		}
+		for (const entry of patch.fieldProxySpheres) {
+			fieldProxySphereRadiusById.set(entry.fieldProxyId, entry.radius)
+			fieldProxyTorusById.delete(entry.fieldProxyId)
+		}
+		for (const entry of patch.fieldProxyTori) {
+			fieldProxyTorusById.set(entry.fieldProxyId, {
+				radius: entry.radius,
+				tube: entry.tube,
+			})
+			fieldProxySphereRadiusById.delete(entry.fieldProxyId)
+		}
+		for (const entry of patch.darkMaterials) {
+			darkMaterialById.set(entry.darkParticleId, entry.material)
+		}
+		for (const entry of patch.fieldMaterials) {
+			fieldMaterialById.set(entry.fieldParticleId, entry.material)
+		}
+		for (const entry of patch.orbitalMaterials) {
+			orbitalMaterialById.set(entry.orbitalParticleId, entry.material)
+		}
+		for (const entry of patch.fieldProxyMaterials) {
+			fieldProxyMaterialById.set(entry.fieldProxyId, entry.material)
+		}
+		for (const id of patch.removedOrbitalParticleIds) {
+			orbitalSphereRadiusById.delete(id)
+			orbitalTorusById.delete(id)
+			orbitalMaterialById.delete(id)
+		}
+		for (const id of patch.removedFieldProxyIds) {
+			fieldProxySphereRadiusById.delete(id)
+			fieldProxyTorusById.delete(id)
+			fieldProxyMaterialById.delete(id)
+		}
+		for (const id of patch.removedDarkParticleIds) {
+			darkMaterialById.delete(id)
+		}
+		for (const id of patch.removedFieldParticleIds) {
+			fieldMaterialById.delete(id)
+		}
+
+		activeVisualDarkTorusMeshDetail = patch.darkTorusMeshDetail
+		activeVisualEmbeddedTorusMeshDetail = patch.embeddedTorusMeshDetail
+		activeVisualSphereMeshDetail = patch.sphereMeshDetail
+		activeTransitionPaths = mergeVisualBatchPaths(
+			activeTransitionPaths,
+			patch.transitionPaths,
+			patch.removedTransitionBatchIds,
+		)
+		activeRelationPaths = mergeVisualBatchPaths(
+			activeRelationPaths,
+			patch.relationPaths,
+			patch.removedRelationBatchIds,
+		)
+		// Aliases arrive whole rather than as a delta, because an alias is a
+		// property of the scene's Field projection and not of one entity.
+		visualFieldParticleIdBySourceAddress = indexBulkVisualFieldAliases(
+			patch.fieldAliases,
+		)
+
+		/*
+		 * The patched entities are the whole manifestation this application
+		 * reads: every loop is gated on the changed ids below, and an entity
+		 * the patch omits is neither read nor touched. Channels are carried by
+		 * the already-merged line batches, not re-derived here.
+		 */
+		const patchedManifest = {
+			rootSrc: patch.sourceStats.rootSrc,
+			darkParticles: [...patch.darkParticles],
+			fieldParticles: [...patch.fieldParticles],
+			orbitalParticles: [...patch.orbitalParticles],
+			fieldProxies: [...patch.fieldProxies],
+			// Channels reach the scene as already-merged line batches, which
+			// this application reads from `activeTransitionPaths` and
+			// `activeRelationPaths` rather than from the manifestation.
+			transitionChannels: [],
+			relationChannels: [],
+		}
+		/*
+		 * The diff store never saw this change. Telling it what the patch did
+		 * keeps a later full projection honest — a stale store would report an
+		 * entity as unchanged precisely when the patch had already moved it.
+		 */
+		sceneProjection.absorb({
+			darkParticles: patch.darkParticles,
+			fieldParticles: patch.fieldParticles,
+			fieldProxies: patch.fieldProxies,
+			orbitalParticles: patch.orbitalParticles,
+			removedDarkParticleIds: patch.removedDarkParticleIds,
+			removedFieldParticleIds: patch.removedFieldParticleIds,
+			removedFieldProxyIds: patch.removedFieldProxyIds,
+			removedOrbitalParticleIds: patch.removedOrbitalParticleIds,
+		})
+		applyRenderManifestToScene(
+			patchedManifest,
+			patch.sourceStats,
+			{
+				changedDarkParticleIds: new Set(
+					patch.darkParticles.map((particle) => particle.darkParticleId),
+				),
+				changedFieldParticleIds: new Set(
+					patch.fieldParticles.map((particle) => particle.fieldParticleId),
+				),
+				changedFieldProxyIds: new Set(
+					patch.fieldProxies.map((proxy) => proxy.fieldProxyId),
+				),
+				changedOrbitalParticleIds: new Set(
+					patch.orbitalParticles.map((particle) => particle.orbitalParticleId),
+				),
+				removedDarkParticleIds: patch.removedDarkParticleIds,
+				removedFieldParticleIds: patch.removedFieldParticleIds,
+				removedFieldProxyIds: patch.removedFieldProxyIds,
+				removedOrbitalParticleIds: patch.removedOrbitalParticleIds,
+			},
 		)
 	}
 
@@ -4175,6 +4345,9 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		},
 		applyVisualManifestPatch(projection: BulkVisualRenderManifest) {
 			applyVisualManifestPatchToScene(projection)
+		},
+		applyVisualRenderPatch(patch: BulkVisualRenderPatch) {
+			applyVisualRenderPatchToScene(patch)
 		},
 		hud: hudRuntime,
 	}
