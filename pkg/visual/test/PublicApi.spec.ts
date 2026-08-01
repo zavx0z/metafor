@@ -1,8 +1,8 @@
 import {describe, expect, test} from "bun:test"
 import * as centeredNestedApi from "../src/centered-nested.ts"
 import * as layoutApi from "../src/layout.ts"
+import * as payloadApi from "../src/payload.ts"
 import * as publicApi from "../src/index.ts"
-import * as storeApi from "../src/store.ts"
 
 type VisualPackageJson = Readonly<{
   dependencies?: Readonly<Record<string, string>>
@@ -36,16 +36,12 @@ describe("@metafor/visual production surface", () => {
     expect(publicApi).not.toHaveProperty("createVisualStoryPlayer")
   })
 
-  test("exposes persistent visual state without recovery policy", () => {
-    expect(typeof storeApi.hydrateVisualStore).toBe("function")
-    expect(typeof storeApi.VisualStore).toBe("function")
-    expect(typeof storeApi.classifyVisualInvalidation).toBe("function")
-    expect(typeof storeApi.diffVisualScenePayload).toBe("function")
-    expect(storeApi).not.toHaveProperty("VisualCausalFrontier")
-    expect(storeApi).not.toHaveProperty("isLaterVisualFrontier")
-    expect(storeApi).not.toHaveProperty("replay")
-    expect(storeApi).not.toHaveProperty("CenteredNested")
-    expect(storeApi).not.toHaveProperty("OutsideIn")
+  test("exposes stateless payload and reconciliation helpers", () => {
+    expect(typeof payloadApi.buildVisualScenePayload).toBe("function")
+    expect(typeof payloadApi.classifyVisualInvalidation).toBe("function")
+    expect(typeof payloadApi.diffVisualScenePayload).toBe("function")
+    expect(payloadApi).not.toHaveProperty("hydrateVisualStore")
+    expect(payloadApi).not.toHaveProperty("VisualStore")
   })
 
   test("targets every public export at src and exposes no private subpath", async () => {
@@ -55,7 +51,7 @@ describe("@metafor/visual production surface", () => {
       "./layout",
       "./layout/centered-nested",
       "./payload",
-      "./store",
+      "./payload/reconcile",
     ])
     for (const entry of Object.values(manifest.exports)) {
       expect(entry.default.startsWith("./src/")).toBe(true)
@@ -102,28 +98,6 @@ describe("@metafor/visual production surface", () => {
       expect(source).not.toMatch(/from\s+["'][^"']*playground/)
       expect(source).not.toMatch(/from\s+["']@metafor\/engine["']/)
     }
-  })
-
-  test("keeps the Store entrypoint free of layout geometry and Engine", async () => {
-    const result = await Bun.build({
-      entrypoints: [new URL("../src/store.ts", import.meta.url).pathname],
-      minify: true,
-      target: "browser",
-    })
-    expect(result.success).toBe(true)
-    const javascript = (
-      await Promise.all(
-        result.outputs
-          .filter((output) => output.path.endsWith(".js"))
-          .map((output) => output.text()),
-      )
-    ).join("\n")
-
-    expect(javascript).not.toContain("outside-in")
-    expect(javascript).not.toContain("centered-nested")
-    expect(javascript).not.toContain("defineVisualLayout")
-    expect(javascript).not.toContain("ThinFilmMaterial")
-    expect(javascript).not.toContain("Renderer")
   })
 
   test("keeps the centered-nested entrypoint Engine-neutral", async () => {

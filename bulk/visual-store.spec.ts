@@ -1,14 +1,22 @@
 import {describe, expect, test} from "bun:test"
 import type {BulkManifest} from "@metafor/types/bulk/manifest"
-import type {BulkProjectionStore} from "../../../bulk/projection.ts"
-import {CenteredNested} from "../src/CenteredNested.ts"
-import {OutsideIn} from "../src/OutsideIn.ts"
-import {buildVisualScenePayload} from "../src/ScenePayload.ts"
-import {prepareVisualScene} from "../src/ScenePreparation.ts"
-import type {VisualUpstreamChange} from "../src/SceneReconciler.ts"
-import {hydrateVisualStore, VisualStore} from "../src/VisualStore.ts"
-import {visualLayoutBuiltScenes, type VisualLayout} from "../src/internal/layout.ts"
-import {ladaLayoutInput} from "../testing/lada-fixture.ts"
+import {
+  CenteredNested,
+  OutsideIn,
+  type VisualLayout,
+} from "@metafor/visual/layout"
+import {
+  buildVisualScenePayload,
+  prepareVisualScene,
+  visualLayoutBuiltScenes,
+  type VisualUpstreamChange,
+} from "@metafor/visual/payload"
+import {ladaLayoutInput} from "../pkg/visual/testing/lada-fixture.ts"
+import type {BulkProjectionStore} from "./projection.ts"
+import {
+  BulkVisualStore,
+  hydrateBulkVisualStore,
+} from "./visual-store.ts"
 
 const upstream = (
   change: Partial<VisualUpstreamChange>,
@@ -31,12 +39,12 @@ const hydrated = (
   layout: VisualLayout = CenteredNested,
   mutate?: (manifest: BulkManifest) => BulkManifest,
   mutateProjection?: (projection: BulkProjectionStore) => void,
-): Readonly<{manifest: BulkManifest; store: VisualStore}> => {
+): Readonly<{manifest: BulkManifest; store: BulkVisualStore}> => {
   const input = ladaLayoutInput(mutate, mutateProjection)
   const prepared = prepareVisualScene(layout, input)
   return {
     manifest: input.manifest,
-    store: hydrateVisualStore(prepared, {
+    store: hydrateBulkVisualStore(prepared, {
       placement: layout.placement,
       slug: layout.slug,
     }),
@@ -52,13 +60,13 @@ const ownerAtomId = (manifest: BulkManifest): number => {
   return owner.parentDarkParticleId / 2
 }
 
-describe("Visual Store hydration", () => {
+describe("Bulk Visual Store hydration", () => {
   test("hydrates from prepared state without running a layout", () => {
     const input = ladaLayoutInput()
     const prepared = prepareVisualScene(CenteredNested, input)
 
     const before = visualLayoutBuiltScenes()
-    const store = hydrateVisualStore(prepared, {
+    const store = hydrateBulkVisualStore(prepared, {
       placement: CenteredNested.placement,
       slug: CenteredNested.slug,
     })
@@ -132,7 +140,7 @@ describe("Visual Store hydration", () => {
   test("refuses state prepared for another strategy", () => {
     const prepared = prepareVisualScene(OutsideIn, ladaLayoutInput())
     expect(() =>
-      hydrateVisualStore(prepared, {
+      hydrateBulkVisualStore(prepared, {
         placement: CenteredNested.placement,
         slug: CenteredNested.slug,
       })
@@ -141,14 +149,14 @@ describe("Visual Store hydration", () => {
 
   test("refuses anything that is not server-prepared state", () => {
     expect(() =>
-      hydrateVisualStore({kind: "nope"} as never, {
+      hydrateBulkVisualStore({kind: "nope"} as never, {
         placement: CenteredNested.placement,
       })
     ).toThrow(/server-prepared visual state/)
   })
 })
 
-describe("Visual Store affected closure", () => {
+describe("Bulk Visual Store affected closure", () => {
   test("keeps the Atom identities upstream named", () => {
     const {manifest, store} = hydrated()
     const atomId = ownerAtomId(manifest)
@@ -224,7 +232,7 @@ describe("Visual Store affected closure", () => {
   })
 })
 
-describe("Visual Store scope gating", () => {
+describe("Bulk Visual Store scope gating", () => {
   test("a geometry change is refused rather than guessed at", () => {
     const {manifest, store} = hydrated()
     const applied = store.apply(
@@ -273,7 +281,7 @@ describe("Visual Store scope gating", () => {
   })
 })
 
-describe("Visual Store local repaint", () => {
+describe("Bulk Visual Store local repaint", () => {
   /**
    * The scenario production cares about most: an Atom entered a different
    * State. Under both strategies that moves no geometry, but it moves the paint
@@ -284,7 +292,7 @@ describe("Visual Store local repaint", () => {
   ): Readonly<{
     atomId: number
     manifest: BulkManifest
-    store: VisualStore
+    store: BulkVisualStore
   }> => {
     const {manifest: before, store} = hydrated(layout)
     const atomId = ownerAtomId(before)
@@ -417,7 +425,7 @@ describe("Visual Store local repaint", () => {
   })
 })
 
-describe("Visual Store adoption", () => {
+describe("Bulk Visual Store adoption", () => {
   test("reduces a rebuilt payload to exact operations", () => {
     const {store} = hydrated()
     const rebuilt = buildVisualScenePayload(

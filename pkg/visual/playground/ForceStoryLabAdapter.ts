@@ -1,11 +1,11 @@
 import type {BulkManifest} from "@metafor/types/bulk/manifest"
 import type {BulkVisualRenderManifest} from "@metafor/types/bulk/visual"
-import type {StateGraph} from "@metafor/visual/payload"
 import {
   CenteredNested,
   OutsideIn,
   buildStateGraph,
   visualOwnerDarkParticleIdFromAtomId,
+  type StateGraph,
   type VisualLayout,
   type VisualLayoutSlug,
   type VisualScene,

@@ -6,8 +6,9 @@ and exact owner-bound `StateGraph` inputs, so consumers do not switch on layout
 slugs themselves. `centered-nested` is the ready production strategy used by
 the Bulk renderer binding; `outside-in` remains explicitly in progress.
 Production source lives only in `src/`. The package itself stays runtime-neutral:
-Bulk owns the canonical-to-render projection, Canvas, `Renderer`, `Space`,
-`ViewPoint`, Engine adapter and viewport lifecycle.
+Bulk owns Monad JSON, persistent semantic/scene state, product composition,
+update policy, Canvas, `Renderer`, `Space`, `ViewPoint`, Engine adapter and
+viewport lifecycle.
 
 `outside-in` is evidence of the repeated recursive structure, not a finished
 component architecture. The production model is the separate immutable
@@ -21,9 +22,10 @@ traverse or rebuild the layout.
 
 Use `@metafor/visual/layout` for the pure geometry/catalog boundary,
 `@metafor/visual/payload` for declarative render data and
-`@metafor/visual/store` for persistent state and exact update decisions. Every
-public export targets `src/`; no public subpath exposes a renderer or the
-playground. Material policies are declarative values. Bulk adapts them to
+`@metafor/visual/payload/reconcile` for the narrow stateless reconciliation
+boundary. Persistent state and exact update decisions live in Bulk. Every
+public export targets `src/`; no public subpath exposes a store, renderer or
+the playground. Material policies are declarative values. Bulk adapts them to
 Engine materials in its own adapter. Playground catalogs, entity lenses and
 isolated algorithm-lab viewport constructors remain private development source.
 Shared strategy-neutral tree, Torus and State-sleeve composition lives in

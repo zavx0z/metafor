@@ -4,61 +4,51 @@ import type {
   BulkOrbitalParticle,
   BulkRelationChannel,
 } from "@metafor/types/bulk/manifest"
-import {visualBatchFingerprint} from "./internal/fingerprint.ts"
-import {
-  visualOwnerDarkParticleIdFromAtomId,
-  type VisualLayoutSlug,
-  type VisualPlacementSensitivity,
-} from "./internal/layout.ts"
-import {
-  visualRelationEdgeBatchId,
-  visualStateEdgeBatchId,
-} from "./VisualComponents.ts"
-import {
-  visualDarkParticleColor,
-  visualFieldParticleColor,
-  visualRelationColor,
-} from "./SemanticVisual.ts"
 import {
   visualCausalMaterial,
   visualConditionFieldMaterial,
   visualContextTorusMaterial,
+  visualDarkParticleColor,
+  visualFieldParticleColor,
   visualFieldProxyMaterial,
   visualProcessTorusMaterial,
+  visualRelationColor,
   visualRelationMaterial,
   visualStateTorusMaterial,
   visualTransitionMaterial,
   type VisualLineMaterial,
   type VisualQuantumMaterial,
-} from "./VisualMaterialSpec.ts"
-import type {
-  VisualPayloadEdgeBatch,
-  VisualPayloadEdgePath,
-  VisualPayloadField,
-  VisualPayloadFieldAlias,
-  VisualPayloadFieldProxy,
-  VisualPayloadOrbital,
-  VisualPayloadTorus,
-  VisualPayloadTransitionBatch,
-  VisualScenePayload,
-} from "./ScenePayload.ts"
+} from "@metafor/visual"
 import {
   classifyVisualInvalidation,
+  describeVisualPreparedScene,
   diffVisualScenePayload,
+  isVisualPreparedScene,
+  visualBatchFingerprint,
+  visualOwnerDarkParticleIdFromAtomId,
+  visualRelationEdgeBatchId,
   visualScopeKeepsPlacements,
+  visualStateEdgeBatchId,
   type VisualDeltaPatch,
   type VisualEntityDelta,
   type VisualInvalidationScope,
-  type VisualUpstreamChange,
-} from "./SceneReconciler.ts"
-import {
-  describeVisualPreparedScene,
-  isVisualPreparedScene,
+  type VisualLayoutSlug,
+  type VisualPayloadEdgeBatch,
+  type VisualPayloadEdgePath,
+  type VisualPayloadField,
+  type VisualPayloadFieldAlias,
+  type VisualPayloadFieldProxy,
+  type VisualPayloadOrbital,
+  type VisualPayloadTorus,
+  type VisualPayloadTransitionBatch,
+  type VisualPlacementSensitivity,
   type VisualPreparedScene,
-} from "./ScenePreparation.ts"
+  type VisualScenePayload,
+  type VisualUpstreamChange,
+} from "@metafor/visual/payload/reconcile"
 
 /**
- * The persistent browser-side visual state.
+ * Bulk-owned persistent browser-side visual state.
  *
  * A Store is hydrated once from server-prepared state and then lives for as
  * long as the canvas does. It holds the current payload together with the
@@ -70,11 +60,12 @@ import {
  * incremental answer is the same answer.
  *
  * Nothing here touches Canvas, GPU handles, `Renderer`, `Space` or `ViewPoint`.
- * The Store decides *what* changed; a renderer adapter decides how to spend it.
+ * Bulk owns the update policy and renderer adaptation. Visual contributes only
+ * pure payload, reconciliation, material and identity helpers.
  */
 
 /** Which entity class one renderer record belongs to. */
-export type VisualStoreEntityClass =
+export type BulkVisualStoreEntityClass =
   | "field"
   | "field-proxy"
   | "orbital"
@@ -89,8 +80,8 @@ export type VisualStoreEntityClass =
  * that identity, so a renderer adapter can assert it never re-uploaded a buffer
  * for an entity the Store left alone.
  */
-export type VisualStoreRendererRecord = Readonly<{
-  entityClass: VisualStoreEntityClass
+export type BulkVisualStoreRendererRecord = Readonly<{
+  entityClass: BulkVisualStoreEntityClass
   generation: number
   identity: string
 }>
@@ -108,7 +99,7 @@ export type VisualStoreRendererRecord = Readonly<{
  * owner and the closure stops at the Atom itself. The difference falls out of
  * the alias index rather than out of a branch on the slug.
  */
-export type VisualStoreClosure = Readonly<{
+export type BulkVisualStoreClosure = Readonly<{
   atomIds: readonly number[]
   fieldParticleIds: readonly string[]
   fieldProxyIds: readonly string[]
@@ -120,15 +111,15 @@ export type VisualStoreClosure = Readonly<{
   whole: boolean
 }>
 
-export type VisualStoreApplication =
+export type BulkVisualStoreApplication =
   | Readonly<{
-    closure: VisualStoreClosure
+    closure: BulkVisualStoreClosure
     kind: "visual-store-applied"
     patch: VisualDeltaPatch | Readonly<{kind: "visual-none-patch"}>
     scope: VisualInvalidationScope
   }>
   | Readonly<{
-    closure: VisualStoreClosure
+    closure: BulkVisualStoreClosure
     kind: "visual-store-rebuild-required"
     /** Why the Store refused to answer locally, in one sentence. */
     reason: string
@@ -136,7 +127,7 @@ export type VisualStoreApplication =
   }>
 
 /** What a Store needs to know about the strategy that produced its payload. */
-export type VisualStoreLayoutReference = Readonly<{
+export type BulkVisualStoreLayoutReference = Readonly<{
   placement: VisualPlacementSensitivity
   slug?: VisualLayoutSlug
 }>
@@ -307,9 +298,9 @@ const batchFingerprint = (batch: RegroupedBatch): string =>
     })),
   )
 
-export class VisualStore {
+export class BulkVisualStore {
   #payload: VisualScenePayload
-  readonly #layout: VisualStoreLayoutReference
+  readonly #layout: BulkVisualStoreLayoutReference
 
   #tori = new Map<number, VisualPayloadTorus>()
   #fields = new Map<string, VisualPayloadField>()
@@ -327,9 +318,12 @@ export class VisualStore {
   #transitionBatchesByOwner = new Map<number, string[]>()
   #relationBatchesByOwner = new Map<number, string[]>()
   #sleeveOccurrences = new Map<string, string[]>()
-  #records = new Map<string, VisualStoreRendererRecord>()
+  #records = new Map<string, BulkVisualStoreRendererRecord>()
 
-  constructor(prepared: VisualPreparedScene, layout: VisualStoreLayoutReference) {
+  constructor(
+    prepared: VisualPreparedScene,
+    layout: BulkVisualStoreLayoutReference,
+  ) {
     if (!isVisualPreparedScene(prepared)) {
       throw new TypeError("Visual Store needs server-prepared visual state")
     }
@@ -401,9 +395,9 @@ export class VisualStore {
   }
 
   rendererRecord(
-    entityClass: VisualStoreEntityClass,
+    entityClass: BulkVisualStoreEntityClass,
     identity: string,
-  ): VisualStoreRendererRecord | undefined {
+  ): BulkVisualStoreRendererRecord | undefined {
     return this.#records.get(`${entityClass}:${identity}`)
   }
 
@@ -417,7 +411,7 @@ export class VisualStore {
    * A change that named no Atom cannot be proven local, so it reaches the whole
    * scene. That is deliberately the honest answer rather than a cheap one.
    */
-  closureOf(change: VisualUpstreamChange): VisualStoreClosure {
+  closureOf(change: VisualUpstreamChange): BulkVisualStoreClosure {
     if (change.affectedAtomIds.length === 0) return this.#wholeClosure()
     const named = new Set<number>()
     for (const atomId of change.affectedAtomIds) {
@@ -497,7 +491,7 @@ export class VisualStore {
   apply(
     change: VisualUpstreamChange,
     manifest: BulkManifest,
-  ): VisualStoreApplication {
+  ): BulkVisualStoreApplication {
     const scope = classifyVisualInvalidation(change, this.#layout)
     const closure = this.closureOf(change)
 
@@ -584,7 +578,7 @@ export class VisualStore {
     })
   }
 
-  #wholeClosure(): VisualStoreClosure {
+  #wholeClosure(): BulkVisualStoreClosure {
     return Object.freeze({
       atomIds: Object.freeze([]),
       fieldParticleIds: Object.freeze([...this.#fields.keys()]),
@@ -599,7 +593,7 @@ export class VisualStore {
 
   /** Re-derives paint for the closure and expresses it as renderer operations. */
   #repaint(
-    closure: VisualStoreClosure,
+    closure: BulkVisualStoreClosure,
     index: ManifestIndex,
   ): VisualDeltaPatch {
     const tori: VisualPayloadTorus[] = []
@@ -749,7 +743,7 @@ export class VisualStore {
   }
 
   #repaintTransitionBatches(
-    closure: VisualStoreClosure,
+    closure: BulkVisualStoreClosure,
     index: ManifestIndex,
   ): VisualEntityDelta<VisualPayloadTransitionBatch> {
     const touched = closure.transitionBatchIds
@@ -791,7 +785,7 @@ export class VisualStore {
   }
 
   #repaintRelationBatches(
-    closure: VisualStoreClosure,
+    closure: BulkVisualStoreClosure,
     index: ManifestIndex,
   ): VisualEntityDelta<VisualPayloadEdgeBatch> {
     const touched = closure.relationBatchIds
@@ -952,7 +946,7 @@ export class VisualStore {
 
   #bumpRecords(patch: VisualDeltaPatch): void {
     const bump = (
-      entityClass: VisualStoreEntityClass,
+      entityClass: BulkVisualStoreEntityClass,
       delta: VisualEntityDelta<unknown>,
       identity: (value: never) => string,
     ): void => {
@@ -1086,7 +1080,7 @@ export class VisualStore {
     if (!seedRecords) return
     this.#records = new Map()
     const seed = (
-      entityClass: VisualStoreEntityClass,
+      entityClass: BulkVisualStoreEntityClass,
       identities: readonly string[],
     ): void => {
       for (const identity of identities) {
@@ -1113,7 +1107,7 @@ export class VisualStore {
  * leaves `visualLayoutBuiltScenes()` exactly where it found it, which is the
  * one honest way to prove the initial path did not lay the scene out again.
  */
-export const hydrateVisualStore = (
+export const hydrateBulkVisualStore = (
   prepared: VisualPreparedScene,
-  layout: VisualStoreLayoutReference,
-): VisualStore => new VisualStore(prepared, layout)
+  layout: BulkVisualStoreLayoutReference,
+): BulkVisualStore => new BulkVisualStore(prepared, layout)

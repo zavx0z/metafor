@@ -41,15 +41,6 @@ export {
   type VisualUpstreamChange,
   type VisualUpstreamFacet,
 } from "./SceneReconciler.ts"
-export {
-  hydrateVisualStore,
-  VisualStore,
-  type VisualStoreApplication,
-  type VisualStoreClosure,
-  type VisualStoreEntityClass,
-  type VisualStoreLayoutReference,
-  type VisualStoreRendererRecord,
-} from "./VisualStore.ts"
 export {Visual, visualLayoutForSlug} from "./Visual.ts"
 export {CenteredNested} from "./CenteredNested.ts"
 export {OutsideIn} from "./OutsideIn.ts"

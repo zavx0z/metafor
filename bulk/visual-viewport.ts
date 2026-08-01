@@ -15,13 +15,15 @@ import {
 } from "@metafor/visual/layout/centered-nested"
 import {
   describeVisualPreparedScene,
-  hydrateVisualStore,
   visualDeltaPatchOperations,
   type VisualInvalidationScope,
   type VisualPreparedScene,
-  type VisualStore,
-  type VisualStoreClosure,
-} from "@metafor/visual/store"
+} from "@metafor/visual/payload"
+import {
+  hydrateBulkVisualStore,
+  type BulkVisualStore,
+  type BulkVisualStoreClosure,
+} from "./visual-store.ts"
 import {
   DEFAULT_BULK_VISUAL_LAYOUT,
   adaptBulkVisualRenderManifest,
@@ -67,7 +69,7 @@ export type BulkVisualApplyRoute =
 /** What one applied change actually required of the visual scene. */
 export type BulkVisualApplyResult = Readonly<{
   /** What the change reached, when the Store was consulted. */
-  closure: VisualStoreClosure | null
+  closure: BulkVisualStoreClosure | null
   /** Explicit renderer operations, when the update was incremental. */
   patch: BulkVisualRenderPatch | null
   payload: VisualScenePayload
@@ -81,7 +83,7 @@ export type BulkVisualApplyResult = Readonly<{
 /**
  * The canonical manifestation → Visual payload → viewport seam.
  *
- * One `BulkVisualScenePresenter` owns a persistent {@link VisualStore}: the
+ * One `BulkVisualScenePresenter` owns a persistent {@link BulkVisualStore}: the
  * hydrated scene, its indexes and its renderer records survive from one change
  * to the next. An upstream change is offered to the Store first, and the Store
  * either answers with an exact patch — no strategy runs, no scene is rebuilt,
@@ -94,7 +96,7 @@ export type BulkVisualApplyResult = Readonly<{
  */
 export class BulkVisualScenePresenter {
   #layout: VisualLayout
-  #store: VisualStore | null = null
+  #store: BulkVisualStore | null = null
 
   constructor(layout: VisualLayout = DEFAULT_BULK_VISUAL_LAYOUT) {
     this.#layout = layout
@@ -110,7 +112,7 @@ export class BulkVisualScenePresenter {
   }
 
   /** The persistent Store, or `null` before the first apply. */
-  get store(): VisualStore | null {
+  get store(): BulkVisualStore | null {
     return this.#store
   }
 
@@ -142,7 +144,7 @@ export class BulkVisualScenePresenter {
         `Bulk Visual payload layout ${payload.layoutSlug} does not match the selected ${this.#layout.slug}`,
       )
     }
-    this.#store = hydrateVisualStore(
+    this.#store = hydrateBulkVisualStore(
       "payload" in prepared
         ? prepared
         : describeVisualPreparedScene(prepared),
@@ -247,7 +249,7 @@ export class BulkVisualScenePresenter {
       this.#layout,
     )
     if (store === null) {
-      this.#store = hydrateVisualStore(
+      this.#store = hydrateBulkVisualStore(
         describeVisualPreparedScene(payload),
         {placement: this.#layout.placement, slug: this.#layout.slug},
       )

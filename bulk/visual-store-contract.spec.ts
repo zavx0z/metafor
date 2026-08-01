@@ -1,9 +1,11 @@
 import {describe, expect, test} from "bun:test"
 import type {BulkManifest} from "@metafor/types/bulk/manifest"
-import {describeVisualPreparedScene} from "../src/ScenePreparation.ts"
-import type {VisualScenePayload} from "../src/ScenePayload.ts"
-import {hydrateVisualStore} from "../src/VisualStore.ts"
-import {visualContextTorusMaterial} from "../src/VisualMaterialSpec.ts"
+import {visualContextTorusMaterial} from "@metafor/visual"
+import {
+  describeVisualPreparedScene,
+  type VisualScenePayload,
+} from "@metafor/visual/payload"
+import {hydrateBulkVisualStore} from "./visual-store.ts"
 
 const manifest = (label = "root"): BulkManifest => ({
   rootSrc: "owner/root",
@@ -58,7 +60,7 @@ const payload = (localX = 0): VisualScenePayload => ({
   transitionBatches: [],
 })
 
-const store = () => hydrateVisualStore(
+const store = () => hydrateBulkVisualStore(
   describeVisualPreparedScene(payload()),
   {
     placement: {currentState: false, fieldValue: true},
@@ -66,7 +68,29 @@ const store = () => hydrateVisualStore(
   },
 )
 
-describe("persistent production Visual Store", () => {
+describe("persistent production Bulk Visual Store", () => {
+  test("depends only on stateless Visual helpers, not layout or Engine", async () => {
+    const result = await Bun.build({
+      entrypoints: [new URL("./visual-store.ts", import.meta.url).pathname],
+      minify: true,
+      target: "browser",
+    })
+    expect(result.success).toBe(true)
+    const javascript = (
+      await Promise.all(
+        result.outputs
+          .filter((output) => output.path.endsWith(".js"))
+          .map((output) => output.text()),
+      )
+    ).join("\n")
+
+    expect(javascript).not.toContain("outside-in")
+    expect(javascript).not.toContain("centered-nested")
+    expect(javascript).not.toContain("defineVisualLayout")
+    expect(javascript).not.toContain("ThinFilmMaterial")
+    expect(javascript).not.toContain("Renderer")
+  })
+
   test("hydrates the exact prepared payload", () => {
     const hydrated = store()
     expect(hydrated.layoutSlug).toBe("centered-nested")

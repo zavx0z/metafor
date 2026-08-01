@@ -28,9 +28,9 @@
       "types": "./src/payload.ts",
       "default": "./src/payload.ts"
     },
-    "./store": {
-      "types": "./src/store.ts",
-      "default": "./src/store.ts"
+    "./payload/reconcile": {
+      "types": "./src/payload-reconcile.ts",
+      "default": "./src/payload-reconcile.ts"
     }
   },
   "scripts": {

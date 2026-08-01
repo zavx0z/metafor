@@ -41,10 +41,10 @@ Bulk проявляет один полный runtime projection в два по�
   не содержит Canvas, GPU handles, `Renderer`, `Space` или `ViewPoint`, поэтому
   может быть подготовлен на сервере.
 - Сервер готовит initial `VisualScenePayload`, браузер гидратирует его в
-  persistent Visual Store. Этот initial contract не содержит causal frontier,
-  reconnect, replay или recovery policy.
-- `BulkVisualScenePresenter` владеет связью Store с payload, находящимся на
-  экране.
+  Bulk-owned persistent `BulkVisualStore`. Этот initial contract не содержит
+  causal frontier, reconnect, replay или recovery policy.
+- `BulkVisualScenePresenter` и `bulk/visual-store.ts` владеют persistent scene
+  state, update policy и связью Store с payload, находящимся на экране.
   `selectLayout` меняет выбранную стратегию и сбрасывает удержанный payload,
   так как другая стратегия вправе разместить каждую форму иначе. `hydrate`
   принимает payload, подготовленный вне этого процесса, и отклоняет payload,
@@ -58,13 +58,13 @@ Bulk проявляет один полный runtime projection в два по�
   операции; geometry и structure вправе перестроить layout ради correctness.
   Reconcile после такого перестроения всё равно передаёт Engine adapter только
   фактически добавленные, изменённые и удалённые identities.
-- `pkg/visual` является единственным владельцем координат, абсолютных размеров,
-  цветов форм и детерминированного размещения Torus, Field, State, причинных
-  particles и Field proxies. Он строит immutable `VisualComponentForest`,
-  один раз компилирует его в render indexes и line batches. Bulk проверяет
-  identity и переводит готовые world coordinates в local frame владельца; он
-  не адаптирует форму, не вычисляет вторую раскладку и не наследует geometry из
-  semantic manifest.
+- Вызванный Bulk stateless pattern из `pkg/visual` вычисляет координаты,
+  абсолютные размеры, цвета форм и детерминированное размещение Torus, Field,
+  State, причинных particles и Field proxies. Он возвращает immutable
+  `VisualComponentForest`, render indexes и line batches; Bulk выбирает pattern
+  и композирует его derived artifacts в общую сцену. Bulk проверяет identity и
+  переводит готовые world coordinates в local frame владельца; он не вычисляет
+  вторую раскладку и не наследует geometry из semantic manifest.
 - Вложенные Torus одного materialized root имеют общий мировой центр.
   Renderer manifest хранит root center локально, а для каждого потомка —
   разность мировых центров ребёнка и непосредственного родителя.
