@@ -66,6 +66,11 @@ import {
   createStateGraphActivityLab,
   type StateGraphActivityLab,
 } from "./StateGraphActivityLab.ts"
+import {
+  createForceStoriesLab,
+  type ForceStoriesLab,
+} from "./ForceStoriesLab.ts"
+import {FORCE_STORIES_SLUG} from "./ForceStories.ts"
 import {createStateGraphHermiteEdgeCurveBuilder} from "./StateGraphLab.ts"
 import {metaStateDslSource} from "./MetaSource.ts"
 import snapshotJson from "./fixture/monad-snapshot.json"
@@ -111,6 +116,7 @@ const stateGraphFieldsJson = document.getElementById("state-graph-fields-json")
 const stateGraphActivityStage = document.getElementById(
   "state-graph-activity-stage",
 )
+const forceStoriesStage = document.getElementById("force-stories-stage")
 const formSkinStage = document.getElementById("form-skin-stage")
 const formSkinControls = document.getElementById("form-skin-controls")
 const edgesStage = document.getElementById("edges-stage")
@@ -148,6 +154,7 @@ if (
   !stateGraphFieldsCounts ||
   !stateGraphFieldsJson ||
   !stateGraphActivityStage ||
+  !forceStoriesStage ||
   !formSkinStage ||
   !formSkinControls ||
   !edgesStage ||
@@ -301,7 +308,10 @@ const size = (): {width: number; height: number} => {
 const initialSlug = readSlug()
 const initialLayout = Visual.find((layout) => layout.slug === initialSlug)
 const initialComponent = visualComponentForSlug(
-  initialLayout || initialSlug === "edges" || initialSlug.startsWith("edges/")
+  initialLayout ||
+    initialSlug === FORCE_STORIES_SLUG ||
+    initialSlug === "edges" ||
+    initialSlug.startsWith("edges/")
     ? "atom"
     : initialSlug,
 )
@@ -319,7 +329,9 @@ const mainAnnotation = createPageAnnotationLayer({
   capturePng: () => viewport.hud.renderer.captureLastPresentedFramePng(),
   surface: () => {
     const slug = readSlug()
-    const component = visualComponentForSlug(slug)
+    const component = visualComponentForSlug(
+      slug === FORCE_STORIES_SLUG ? "atom" : slug,
+    )
     return {
       canvasId: canvas.id,
       kind: "playground-page",
@@ -392,6 +404,7 @@ let torusAnalysisLabPromise: Promise<TorusAnalysisLab> | null = null
 let fieldsAnalysisLabPromise: Promise<FieldsAnalysisLab> | null = null
 let stateGraphActivityLabPromise: Promise<StateGraphActivityLab> | null = null
 let stateGraphFieldsStand: StateGraphFieldsStand | null = null
+let forceStoriesLabInstance: ForceStoriesLab | null = null
 
 const formSkinForSlug = (slug: string): FormSkinLabForm | null => {
   if (slug === "skin-sphere") return "sphere"
@@ -465,6 +478,15 @@ const hideStateGraphActivityLab = (): void => {
   if (stateGraphActivityLabPromise) {
     void stateGraphActivityLabPromise.then((lab) => lab.hide())
   }
+}
+
+const forceStoriesLab = (): ForceStoriesLab => {
+  forceStoriesLabInstance ??= createForceStoriesLab(forceStoriesStage)
+  return forceStoriesLabInstance
+}
+
+const hideForceStoriesLab = (): void => {
+  forceStoriesLabInstance?.hide()
 }
 
 const disposeBranchViewports = (): void => {
@@ -892,6 +914,45 @@ const applyStateGraphActivityPage = (): void => {
   })
 }
 
+const applyForceStoriesPage = (): void => {
+  hideSnapshotLayout()
+  mainAnnotation.hide()
+  stateGraphRenderVersion += 1
+  disposeBranchViewports()
+  app.classList.remove("state-graph-mode")
+  app.classList.remove("state-graph-fields-mode")
+  app.classList.remove("state-graph-activity-mode")
+  app.classList.add("force-stories-mode")
+  app.classList.remove("form-skin-mode")
+  app.classList.remove("edges-mode")
+  app.classList.remove("torus-analysis-mode")
+  app.classList.remove("fields-analysis-mode")
+  controlsAside.hidden = true
+  canvas.hidden = true
+  visualTitle.hidden = true
+  visualControls.hidden = true
+  stateGraphStage.hidden = true
+  stateGraphControls.hidden = true
+  stateGraphFieldsControls.hidden = true
+  stateGraphActivityStage.hidden = true
+  forceStoriesStage.hidden = false
+  formSkinStage.hidden = true
+  formSkinControls.hidden = true
+  edgesStage.hidden = true
+  torusAnalysisStage.hidden = true
+  fieldsAnalysisStage.hidden = true
+  hideFormSkinLab()
+  hideEdgesLab()
+  hideTorusAnalysisLab()
+  hideFieldsAnalysisLab()
+  hideStateGraphActivityLab()
+  hideSectionTabs()
+  forceStoriesLab().show()
+  for (const link of navigation.querySelectorAll("a")) {
+    link.classList.toggle("active", link.dataset.slug === FORCE_STORIES_SLUG)
+  }
+}
+
 const applyFormSkinPage = (form: FormSkinLabForm): void => {
   hideSnapshotLayout()
   mainAnnotation.hide()
@@ -1054,10 +1115,19 @@ const applyFieldsAnalysisPage = (mode: FieldsAnalysisMode): void => {
 const applyStory = (): void => {
   const slug = readSlug()
   app.classList.remove("layout-mode")
+  app.classList.remove("force-stories-mode")
+  if (slug !== FORCE_STORIES_SLUG) {
+    forceStoriesStage.hidden = true
+    hideForceStoriesLab()
+  }
   if (slug !== STATE_GRAPH_ACTIVITY_SLUG) {
     app.classList.remove("state-graph-activity-mode")
     stateGraphActivityStage.hidden = true
     hideStateGraphActivityLab()
+  }
+  if (slug === FORCE_STORIES_SLUG) {
+    applyForceStoriesPage()
+    return
   }
   if (slug === "state-graph") {
     applyStateGraphPage()
@@ -1167,6 +1237,15 @@ const applyStory = (): void => {
   }
 }
 
+const forceSection = document.createElement("span")
+forceSection.className = "nav-section"
+forceSection.textContent = "Force"
+const forceStoriesLink = document.createElement("a")
+forceStoriesLink.href = `#/${FORCE_STORIES_SLUG}`
+forceStoriesLink.dataset.slug = FORCE_STORIES_SLUG
+forceStoriesLink.textContent = "Force Stories"
+navigation.append(forceSection, forceStoriesLink)
+
 const layoutSection = document.createElement("span")
 layoutSection.className = "nav-section"
 layoutSection.textContent = "Layouts"
@@ -1243,6 +1322,7 @@ window.addEventListener("beforeunload", () => {
   if (stateGraphActivityLabPromise) {
     void stateGraphActivityLabPromise.then((lab) => lab.dispose())
   }
+  forceStoriesLabInstance?.dispose()
   mainAnnotation.dispose()
   viewport.dispose()
 }, {once: true})

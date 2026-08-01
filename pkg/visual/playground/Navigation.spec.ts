@@ -118,4 +118,22 @@ describe("Visual playground nested navigation", () => {
     expect(client).toContain("showSectionTabs(slug)")
     expect(client).toContain("hideSectionTabs()")
   })
+
+  test("routes the private Force Stories catalog without exporting entity navigation", async () => {
+    const [page, client, stories, packageJson] = await Promise.all([
+      Bun.file(new URL("./index.html", import.meta.url)).text(),
+      Bun.file(new URL("./client.ts", import.meta.url)).text(),
+      Bun.file(new URL("./ForceStories.ts", import.meta.url)).text(),
+      Bun.file(new URL("../package.json", import.meta.url)).text(),
+    ])
+
+    expect(page).toContain('id="force-stories-stage"')
+    expect(stories).toContain('FORCE_STORIES_SLUG = "force-stories"')
+    expect(client).toContain('forceSection.textContent = "Force"')
+    expect(client).toContain('forceStoriesLink.textContent = "Force Stories"')
+    expect(client).toContain("applyForceStoriesPage()")
+    expect(client).toContain("forceStoriesLab().show()")
+    expect(packageJson).not.toContain("playground/ForceStories")
+    expect(packageJson).not.toContain("force-stories")
+  })
 })

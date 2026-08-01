@@ -43,6 +43,14 @@ The playground disables Bun HMR. Its client owns GPU devices, canvases and
 document listeners for the lifetime of the page, so source changes require a
 normal browser reload instead of an in-place module replacement.
 
+The private `#/force-stories` page is a card catalog keyed only by the eight
+current Force `Part` values. Every card has an isolated prepared projection and
+one incoming Particle. Photon is the first complete scenario: its real
+`replace` patch changes the card Atom from `idle` to `ready`, and restart builds
+the exact `idle` projection again. Other particles remain separate explicit
+templates until their concrete visual outcomes are verified; the page does not
+invent effects or add player/timeline controls.
+
 It renders `playground/fixture/monad-snapshot.json`, a single static full-tree
 `BulkObserverSnapshot` captured through Monad. The main layout reads the
 production Bulk manifestation as immutable structural input; isolated entity

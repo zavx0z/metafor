@@ -43,6 +43,10 @@
         grid-template-columns: 220px minmax(0, 1fr);
       }
 
+      main.force-stories-mode {
+        grid-template-columns: 220px minmax(0, 1fr);
+      }
+
       main.form-skin-mode {
         grid-template-columns: 220px minmax(520px, 1fr) 360px;
       }
@@ -268,6 +272,360 @@
           radial-gradient(circle at 25% 10%, rgba(39, 128, 178, 0.1), transparent 34%),
           radial-gradient(circle at 76% 90%, rgba(170, 80, 198, 0.08), transparent 38%),
           #050b12;
+      }
+
+      #force-stories-stage {
+        position: absolute;
+        inset: 0;
+        min-width: 0;
+        min-height: 0;
+        padding: 26px;
+        overflow: auto;
+        background:
+          radial-gradient(circle at 16% 4%, rgba(75, 207, 255, 0.13), transparent 30%),
+          radial-gradient(circle at 84% 18%, rgba(255, 209, 86, 0.09), transparent 34%),
+          #050b12;
+      }
+
+      .force-stories-heading {
+        max-width: 850px;
+        margin: 0 auto 22px;
+      }
+
+      .force-stories-eyebrow {
+        display: block;
+        margin-bottom: 8px;
+        color: #4bcfff;
+        font-size: 10px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+      }
+
+      .force-stories-heading h2 {
+        margin: 0 0 8px;
+        color: #f4f8ff;
+        font-size: clamp(22px, 3vw, 34px);
+        font-weight: 520;
+        letter-spacing: -0.04em;
+      }
+
+      .force-stories-heading p {
+        max-width: 760px;
+        margin: 0;
+        color: #8fa1ba;
+        font-size: 11px;
+        line-height: 1.6;
+      }
+
+      .force-stories-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 15px;
+        max-width: 1460px;
+        margin: 0 auto;
+        padding-bottom: 30px;
+      }
+
+      .force-story-card {
+        --force-accent: 75, 207, 255;
+        display: grid;
+        grid-template-rows: auto 190px auto auto auto;
+        min-width: 0;
+        overflow: hidden;
+        border: 1px solid rgba(var(--force-accent), 0.22);
+        border-radius: 16px;
+        background: linear-gradient(
+          145deg,
+          rgba(var(--force-accent), 0.08),
+          rgba(7, 14, 24, 0.94) 38%
+        );
+        box-shadow: 0 22px 70px rgba(0, 0, 0, 0.24);
+        transition: border-color 180ms ease, transform 180ms ease;
+      }
+
+      .force-story-card:hover {
+        border-color: rgba(var(--force-accent), 0.5);
+        transform: translateY(-2px);
+      }
+
+      .force-story-card > header {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto auto;
+        align-items: center;
+        gap: 9px;
+        padding: 14px 15px 12px;
+        border-bottom: 1px solid rgba(var(--force-accent), 0.14);
+      }
+
+      .force-story-part {
+        color: rgb(var(--force-accent));
+        font-size: 9px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+
+      .force-story-card h3 {
+        margin: 2px 0 0;
+        color: #f4f8ff;
+        font-size: 17px;
+        font-weight: 520;
+      }
+
+      .force-story-status {
+        padding: 4px 7px;
+        border: 1px solid rgba(145, 171, 214, 0.18);
+        border-radius: 999px;
+        color: #73859d;
+        font-size: 7px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .force-story-status.complete {
+        border-color: rgba(96, 231, 168, 0.34);
+        color: #78edb6;
+      }
+
+      .force-story-help,
+      .force-story-modal-close {
+        display: grid;
+        place-items: center;
+        width: 28px;
+        height: 28px;
+        padding: 0;
+        border: 1px solid rgba(var(--force-accent), 0.34);
+        border-radius: 50%;
+        background: rgba(var(--force-accent), 0.08);
+        color: rgb(var(--force-accent));
+        cursor: pointer;
+      }
+
+      .force-story-scene {
+        position: relative;
+        display: grid;
+        place-items: center;
+        min-width: 0;
+        overflow: hidden;
+        background:
+          linear-gradient(rgba(var(--force-accent), 0.04) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(var(--force-accent), 0.04) 1px, transparent 1px);
+        background-size: 24px 24px;
+      }
+
+      .force-story-scene::after {
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(circle, transparent 20%, rgba(5, 11, 18, 0.7) 85%);
+        content: "";
+        pointer-events: none;
+      }
+
+      .force-story-atom {
+        position: relative;
+        z-index: 2;
+        display: grid;
+        place-items: center;
+        width: 126px;
+        height: 126px;
+        border: 2px solid rgba(var(--force-accent), 0.56);
+        border-radius: 50%;
+        background: radial-gradient(
+          circle,
+          rgba(var(--force-accent), 0.14),
+          rgba(5, 11, 18, 0.82) 68%
+        );
+        box-shadow:
+          inset 0 0 30px rgba(var(--force-accent), 0.1),
+          0 0 32px rgba(var(--force-accent), 0.08);
+        text-align: center;
+      }
+
+      .force-story-atom::before {
+        position: absolute;
+        inset: 12px;
+        border: 1px dashed rgba(var(--force-accent), 0.24);
+        border-radius: 50%;
+        content: "";
+      }
+
+      .force-story-atom-name,
+      .force-story-atom-id,
+      .force-story-state {
+        position: relative;
+        z-index: 1;
+        display: block;
+      }
+
+      .force-story-atom-name {
+        max-width: 92px;
+        color: #dce8f8;
+        font-size: 9px;
+        font-weight: 500;
+      }
+
+      .force-story-atom-id {
+        margin-top: -17px;
+        color: #697d98;
+        font-size: 7px;
+      }
+
+      .force-story-state {
+        margin-top: -20px;
+        color: #91a2b9;
+        font-size: 9px;
+      }
+
+      .force-story-current-state {
+        color: rgb(var(--force-accent));
+        font-weight: 600;
+      }
+
+      .force-story-carrier {
+        position: absolute;
+        top: calc(50% - 16px);
+        left: 13px;
+        z-index: 4;
+        display: grid;
+        place-items: center;
+        width: 32px;
+        height: 32px;
+        border: 1px solid rgba(var(--force-accent), 0.8);
+        border-radius: 50%;
+        background: rgb(var(--force-accent));
+        box-shadow: 0 0 22px rgba(var(--force-accent), 0.62);
+        color: #061018;
+        font-size: 7px;
+        font-weight: 700;
+        transition: left 480ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 220ms ease;
+      }
+
+      .force-story-carrier.arrived {
+        left: calc(50% - 16px);
+        opacity: 0.35;
+      }
+
+      .force-story-trajectory {
+        position: absolute;
+        top: 50%;
+        left: 44px;
+        z-index: 1;
+        width: calc(50% - 60px);
+        border-top: 1px dashed rgba(var(--force-accent), 0.38);
+      }
+
+      .force-story-patch {
+        margin: 0;
+        padding: 11px 14px;
+        border-top: 1px solid rgba(145, 171, 214, 0.11);
+        border-bottom: 1px solid rgba(145, 171, 214, 0.11);
+        background: rgba(2, 7, 13, 0.46);
+      }
+
+      .force-story-patch summary {
+        color: #8294ae;
+        font-size: 8px;
+        cursor: pointer;
+      }
+
+      .force-story-patch code {
+        display: block;
+        max-height: 100px;
+        margin-top: 8px;
+        overflow: auto;
+        color: #a9bdd5;
+        font-size: 8px;
+        line-height: 1.45;
+        white-space: pre;
+      }
+
+      .force-story-result {
+        min-height: 40px;
+        margin: 0;
+        padding: 11px 14px 7px;
+        color: #8496af;
+        font-size: 9px;
+        line-height: 1.45;
+      }
+
+      .force-story-card.applied .force-story-result {
+        color: rgb(var(--force-accent));
+      }
+
+      .force-story-actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        padding: 8px 14px 14px;
+      }
+
+      .force-story-actions button {
+        min-height: 34px;
+        padding: 7px 9px;
+        border: 1px solid rgba(var(--force-accent), 0.28);
+        border-radius: 8px;
+        background: rgba(var(--force-accent), 0.08);
+        color: #b9c9dc;
+        font: 9px/1.2 "JetBrains Mono", ui-monospace, monospace;
+        cursor: pointer;
+      }
+
+      .force-story-actions button:disabled {
+        border-color: rgba(145, 171, 214, 0.1);
+        color: #4d5b6d;
+        cursor: default;
+      }
+
+      .force-story-modal {
+        width: min(680px, calc(100vw - 32px));
+        max-height: min(760px, calc(100vh - 32px));
+        padding: 0;
+        overflow: hidden;
+        border: 1px solid rgba(75, 207, 255, 0.34);
+        border-radius: 16px;
+        background: #07101b;
+        color: #e8edf7;
+        box-shadow: 0 30px 100px rgba(0, 0, 0, 0.65);
+      }
+
+      .force-story-modal::backdrop {
+        background: rgba(0, 4, 8, 0.78);
+        backdrop-filter: blur(7px);
+      }
+
+      .force-story-modal > article {
+        display: grid;
+        grid-template-rows: auto minmax(0, 1fr);
+        max-height: inherit;
+      }
+
+      .force-story-modal header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 16px 18px;
+        border-bottom: 1px solid rgba(145, 171, 214, 0.16);
+      }
+
+      .force-story-modal h2 {
+        margin: 0;
+        font-size: 16px;
+        font-weight: 520;
+      }
+
+      .force-story-modal-close {
+        --force-accent: 75, 207, 255;
+        flex: 0 0 auto;
+        font-size: 17px;
+      }
+
+      .force-story-modal-body {
+        margin: 0;
+        padding: 18px;
+        overflow: auto;
+        color: #aec0d6;
+        font: 10px/1.65 "JetBrains Mono", ui-monospace, monospace;
+        white-space: pre-wrap;
       }
 
       .state-activity-card {
@@ -2018,6 +2376,7 @@
         main.state-graph-mode,
         main.state-graph-fields-mode,
         main.state-graph-activity-mode,
+        main.force-stories-mode,
         main.form-skin-mode,
         main.edges-mode,
         main.torus-analysis-mode,
@@ -2065,6 +2424,7 @@
         main.state-graph-mode,
         main.state-graph-fields-mode,
         main.state-graph-activity-mode,
+        main.force-stories-mode,
         main.form-skin-mode,
         main.edges-mode,
         main.torus-analysis-mode,
@@ -2146,6 +2506,7 @@
 
         #state-graph-stage,
         #state-graph-activity-stage,
+        #force-stories-stage,
         #form-skin-stage {
           padding: 12px;
         }
@@ -2153,6 +2514,10 @@
         #state-graph-activity-stage {
           grid-template-columns: minmax(0, 1fr);
           grid-auto-rows: minmax(440px, 1fr);
+        }
+
+        .force-stories-grid {
+          grid-template-columns: minmax(0, 1fr);
         }
       }
     </style>
@@ -2178,6 +2543,7 @@
         </div>
         <canvas id="visual-canvas"></canvas>
         <canvas id="layout-canvas" hidden></canvas>
+        <section id="force-stories-stage" hidden></section>
         <section id="state-graph-stage" hidden>
           <header class="state-graph-overview">
             <h2 id="state-graph-overview-title"></h2>
