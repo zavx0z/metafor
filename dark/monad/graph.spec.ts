@@ -108,7 +108,7 @@ const capture = async (promise: Promise<unknown>): Promise<unknown> => {
 describe("stateless Graph Monad assembly", () => {
   test("exposes readGraph and joins one full validated document", async () => {
     const peer = service(new TestPeer(providers()))
-    const result = await peer.invoke({root: ROOT})
+    const result = await peer.invoke({})
 
     expect(peer.handlers.has(READ_GRAPH_METHOD)).toBe(true)
     expect(result).toEqual({
@@ -125,27 +125,22 @@ describe("stateless Graph Monad assembly", () => {
     ])
     expect(peer.calls).toEqual([
       {
-        target: "dark",
-        method: DARK_DECLARATION_PROJECTION_METHOD,
-        params: {root: ROOT},
-      },
-      {
         target: "boundary",
         method: BOUNDARY_GRAPH_PROJECTION_METHOD,
+        params: {},
+      },
+      {
+        target: "dark",
+        method: DARK_DECLARATION_PROJECTION_METHOD,
         params: {root: ROOT},
       },
     ])
   })
 
   test.each([
-    ["extra property", {root: ROOT, view: "diagnostic"}, "Graph read params must contain only root"],
-    ["missing root", {}, "Graph read params must contain only root"],
-    ["non-object", ROOT, "Graph read params must be a plain object containing only root"],
-    [
-      "non-canonical root",
-      {root: "example/root/extra"},
-      "Graph read root must be a canonical <owner>/<repository> address",
-    ],
+    ["root selection", {root: ROOT}, "Graph read params must be empty"],
+    ["extra property", {view: "diagnostic"}, "Graph read params must be empty"],
+    ["non-object", ROOT, "Graph read params must be a plain empty object"],
   ])("closes public params: %s", async (_label, params, message) => {
     const peer = service(new TestPeer(providers()))
     const error = await capture(peer.invoke(params))
@@ -155,24 +150,36 @@ describe("stateless Graph Monad assembly", () => {
     expect(peer.calls).toEqual([])
   })
 
-  test.each([
-    ["Dark", () => ({root: OTHER, template: template()})],
-    ["Boundary", () => ({root: OTHER, runtime: runtime()})],
-  ])("rejects a %s provider root mismatch", async (provider, mismatch) => {
+  test("rejects a Dark provider root mismatch with the Boundary-owned current root", async () => {
     const peer = service(new TestPeer(providers(
-      provider === "Dark" ? mismatch : undefined,
-      provider === "Boundary" ? mismatch : undefined,
+      () => ({root: OTHER, template: template()}),
     )))
-    const error = await capture(peer.invoke({root: ROOT}))
+    const error = await capture(peer.invoke({}))
 
     expect(error).toBeInstanceOf(GraphAssemblyError)
     expect(error).toMatchObject({
       code: "provider_root_mismatch",
-      message: `${provider} Graph projection root mismatch: expected "${ROOT}", received "${OTHER}"`,
+      message: `Dark Graph projection root mismatch: expected "${ROOT}", received "${OTHER}"`,
     })
   })
 
-  test("isolates Boundary params from a Dark provider that retains and mutates its params", async () => {
+  test("rejects a non-canonical Boundary-owned current root", async () => {
+    const peer = service(new TestPeer(providers(
+      undefined,
+      () => ({root: "example/root/extra", runtime: runtime()}),
+    )))
+
+    const error = await capture(peer.invoke({}))
+
+    expect(error).toBeInstanceOf(GraphAssemblyError)
+    expect(error).toMatchObject({
+      code: "invalid_provider_projection",
+      message: "Boundary Graph projection root must be a canonical <owner>/<repository> address",
+    })
+    expect(peer.calls.map(({target}) => target)).toEqual(["boundary"])
+  })
+
+  test("isolates empty Boundary params from Dark's internal root projection params", async () => {
     const retainedDarkParams: Array<Record<string, unknown>> = []
     const boundaryParams: Array<Record<string, unknown>> = []
     const peer = service(new TestPeer(providers(
@@ -188,10 +195,10 @@ describe("stateless Graph Monad assembly", () => {
       },
     )))
 
-    const result = await peer.invoke({root: ROOT}) as Graph
+    const result = await peer.invoke({}) as Graph
 
     expect(retainedDarkParams).toEqual([{root: OTHER}])
-    expect(boundaryParams).toEqual([{root: ROOT}])
+    expect(boundaryParams).toEqual([{}])
     expect(boundaryParams[0]).not.toBe(retainedDarkParams[0])
     expect(result.root).toBe(ROOT)
   })
@@ -203,7 +210,7 @@ describe("stateless Graph Monad assembly", () => {
       undefined,
       () => ({root: ROOT, runtime: invalidRuntime}),
     )))
-    const error = await capture(peer.invoke({root: ROOT}))
+    const error = await capture(peer.invoke({}))
     const expected = validateGraph({
       schema: GRAPH_SCHEMA,
       root: ROOT,
@@ -292,7 +299,7 @@ describe("stateless Graph Monad assembly", () => {
         provider === "boundary" ? response : undefined,
       )
       const peer = service(new TestPeer(input))
-      const error = await capture(peer.invoke({root: ROOT}))
+      const error = await capture(peer.invoke({}))
 
       expect(error).toBeInstanceOf(GraphAssemblyError)
       expect(error).toMatchObject({
@@ -313,7 +320,7 @@ describe("stateless Graph Monad assembly", () => {
       },
     })
     const peer = service(new TestPeer(providers(() => projection)))
-    const error = await capture(peer.invoke({root: ROOT}))
+    const error = await capture(peer.invoke({}))
 
     expect(error).toBeInstanceOf(GraphAssemblyError)
     expect(error).toMatchObject({
@@ -331,11 +338,11 @@ describe("stateless Graph Monad assembly", () => {
         failing === "dark" ? () => { throw failure } : undefined,
         failing === "boundary" ? () => { throw failure } : undefined,
       )))
-      const error = await capture(peer.invoke({root: ROOT}))
+      const error = await capture(peer.invoke({}))
 
       expect(error).toBe(failure)
       expect(peer.calls.map(({target}) => target)).toEqual(
-        failing === "dark" ? ["dark"] : ["dark", "boundary"],
+        failing === "boundary" ? ["boundary"] : ["boundary", "dark"],
       )
     },
   )
@@ -347,19 +354,19 @@ describe("stateless Graph Monad assembly", () => {
       () => ({root: ROOT, runtime: runtime(`value ${generation}`)}),
     )))
 
-    const first = await peer.invoke({root: ROOT}) as Graph
+    const first = await peer.invoke({}) as Graph
     generation = 2
-    const second = await peer.invoke({root: ROOT}) as Graph
+    const second = await peer.invoke({}) as Graph
 
     expect(first.template[ROOT]!.name).toBe("Root 1")
     expect(first.runtime.roots[0]).toMatchObject({values: {label: "value 1"}})
     expect(second.template[ROOT]!.name).toBe("Root 2")
     expect(second.runtime.roots[0]).toMatchObject({values: {label: "value 2"}})
     expect(peer.calls.map(({target}) => target)).toEqual([
-      "dark",
       "boundary",
       "dark",
       "boundary",
+      "dark",
     ])
   })
 
@@ -367,20 +374,26 @@ describe("stateless Graph Monad assembly", () => {
     const darkProjection = {root: ROOT, template: template("Root 1")}
     const boundaryProjection = {root: ROOT, runtime: runtime("value 1")}
     let darkReads = 0
+    let boundaryReads = 0
     const peer = service(new TestPeer(providers(
       () => {
         darkReads++
         if (darkReads === 2) {
           darkProjection.template[ROOT]!.name = "Root 2"
-          const root = boundaryProjection.runtime.roots[0]!
-          if (root.kind === "atom") root.values.label = "value 2"
         }
         return darkProjection
       },
-      () => boundaryProjection,
+      () => {
+        boundaryReads++
+        if (boundaryReads === 2) {
+          const root = boundaryProjection.runtime.roots[0]!
+          if (root.kind === "atom") root.values.label = "value 2"
+        }
+        return boundaryProjection
+      },
     )))
 
-    const first = await peer.invoke({root: ROOT}) as Graph
+    const first = await peer.invoke({}) as Graph
     darkProjection.template[ROOT]!.name = "mutated between reads"
     const providerRoot = boundaryProjection.runtime.roots[0]!
     if (providerRoot.kind === "atom") providerRoot.values.label = "mutated between reads"
@@ -388,7 +401,7 @@ describe("stateless Graph Monad assembly", () => {
     expect(first.template[ROOT]!.name).toBe("Root 1")
     expect(first.runtime.roots[0]).toMatchObject({values: {label: "value 1"}})
 
-    const second = await peer.invoke({root: ROOT}) as Graph
+    const second = await peer.invoke({}) as Graph
     darkProjection.template[ROOT]!.name = "mutated after reads"
     if (providerRoot.kind === "atom") providerRoot.values.label = "mutated after reads"
 

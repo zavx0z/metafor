@@ -103,13 +103,21 @@ describe("Boundary Monad", () => {
       result: {version: 1, entries: []},
     })
 
+    await boundary.materialize({parts: [{
+      part: "inflaton",
+      op: "add",
+      path: "wimp",
+      value: {src: "owner/runtime", name: "Runtime"},
+      ts: 1,
+    }]})
+
     await channel.receive({
       version: MONAD_RPC_VERSION,
       id: "graph-read",
       source: "monad",
       target: "boundary",
       method: BOUNDARY_GRAPH_PROJECTION_METHOD,
-      params: {root: "owner/runtime"},
+      params: {},
     })
 
     expect(channel.sent[2]).toEqual({
@@ -118,7 +126,13 @@ describe("Boundary Monad", () => {
       ok: true,
       result: {
         root: "owner/runtime",
-        runtime: {roots: []},
+        runtime: {roots: [{
+          kind: "atom",
+          declaration: "#/template/owner~1runtime",
+          meta: "owner/runtime",
+          state: null,
+          values: {},
+        }]},
       },
     })
   })

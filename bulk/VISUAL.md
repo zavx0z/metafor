@@ -7,15 +7,18 @@ Bulk проявляет один полный runtime projection в два по�
 
 - Единственный полный документ мира, который Bulk получает при рождении, —
   публичный `Graph`. Bulk Monad сам вызывает `Dark.readGraph`, валидирует
-  ответ и сохраняет его в своём серверном Graph Store. Вызов
+  ответ и сохраняет его в своём серверном Graph Store. Request не содержит
+  root: Dark возвращает актуальный полный Graph, а root остаётся данными этого
+  ответа. Вызов
   `Boundary.initialProjection.read` и другая сборка полного стартового мира на
   стороне Boundary для Bulk запрещены.
 - JSON является только технической сериализацией Graph на transport/storage
   границах; Bulk не вводит из неё второй world format или отдельный контракт.
 - Этот Store является локальной актуальной read-моделью Bulk, а не вторым
   canonical source: единственным сборщиком полного Graph остаётся Dark
-  Monad. При подключении browser observer получает полный текущий Graph из
-  того же Store, а не отдельный Boundary projection document.
+  Monad. Он временно сохраняется для действующего startup/update path, но
+  browser `GET /` не читает его: каждый page request получает отдельный свежий
+  Graph у Dark.
 - Обычный `Particle` не является Graph patch: его paths содержат внутренние
   runtime identity, которых публичный Graph намеренно не содержит. Сейчас
   входящий `Particle` служит causal invalidation: Bulk дожидается применённого
@@ -77,9 +80,13 @@ Bulk проявляет один полный runtime projection в два по�
   освобождает подключённый renderer target. Внутренние projection,
   manifestation, Store и renderer adapters не являются public integration
   points.
-- Сервер готовит initial `VisualScenePayload`, браузер гидратирует его в
-  Bulk-owned persistent `BulkVisualStore`. Этот initial contract не содержит
-  causal frontier, reconnect, replay или recovery policy.
+- Для каждого `GET /` сервер готовит initial `VisualScenePayload` из свежего
+  request-local no-root Graph read и вкладывает полный validated initial package в HTML
+  как inert JSON. Браузер читает embedded package и гидратирует его в
+  Bulk-owned persistent `BulkVisualStore` без отдельного `/initial` request и
+  без повторного layout. Bulk не выбирает root из local Store, MF-117 receipt
+  или default source; он использует `Graph.root` ответа Dark. Этот initial contract не содержит causal frontier,
+  reconnect, replay или recovery policy.
 - `BulkVisualSceneLifecycle`, `BulkVisualScenePresenter` и
   `bulk/visual-store.ts` владеют persistent scene state, update policy и связью
   Store с payload, находящимся на экране.

@@ -1009,10 +1009,13 @@
     Graph-to-Bulk adapter с Bulk-local identity;
   - startup вызывает `Dark.readGraph`; production source guard запрещает
     возврат `Boundary.initialProjection.read`;
+  - owner correction: public `readGraph` request пуст, текущий root определяет
+    Boundary/Dark assembly и возвращает в `Graph.root`; Bulk не передаёт и не
+    проверяет ожидаемый root ни для startup Store, ни для browser GET;
   - обычный Particle используется только как causal invalidation: после
     Boundary quiescence Bulk повторно читает Dark и атомарно заменяет validated
     cut, а browser получает full initial/current Graph control payload;
-  - invalid Graph/root mismatch не заменяют предыдущий Store и переводят
+  - invalid Graph не заменяет предыдущий Store и переводит
     runtime в fail-closed error;
   - прежние `BulkObserverSnapshot`, fixture lifecycle и retained MF-117 v1/v2
     receipts остаются совместимыми без выдачи Boundary IDs за public identity;

@@ -432,12 +432,9 @@ export class BulkGraphStore {
   }
 
   /** Validates and atomically installs one complete Dark-owned read result. */
-  replace(input: unknown, expectedRoot: MetaAddress): BulkGraphCut {
+  replace(input: unknown): BulkGraphCut {
     const validation = validateGraph(input)
     if (!validation.ok) throw new BulkGraphValidationError(validation.issues)
-    if (validation.value.root !== expectedRoot) {
-      throw new Error(`Bulk Graph root mismatch: expected "${expectedRoot}", received "${validation.value.root}"`)
-    }
     const next = clone(validation.value)
     const nextRevision = this.#revision + 1
     const projection = projectBulkGraph(next, nextRevision)

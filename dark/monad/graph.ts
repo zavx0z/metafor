@@ -5,7 +5,6 @@ import {
   validateGraph,
   type MetaAddress,
   type Graph,
-  type ReadGraphParams,
   type ValidationIssue,
 } from "@metafor/types/metafor/graph"
 import type {MonadRpcPeer} from "shared/transport/monad"
@@ -45,28 +44,20 @@ const isPlainRecord = (value: unknown): value is Record<string, unknown> => {
   return prototype === Object.prototype || prototype === null
 }
 
-const readParams = (params: unknown): ReadGraphParams => {
+const readParams = (params: unknown): void => {
   if (!isPlainRecord(params)) {
     throw new GraphAssemblyError(
       "invalid_params",
-      "Graph read params must be a plain object containing only root",
+      "Graph read params must be a plain empty object",
     )
   }
   const keys = Object.keys(params)
-  if (keys.length !== 1 || keys[0] !== "root") {
+  if (keys.length !== 0) {
     throw new GraphAssemblyError(
       "invalid_params",
-      "Graph read params must contain only root",
+      "Graph read params must be empty",
     )
   }
-  const root = typeof params.root === "string" ? parseMetaAddress(params.root) : null
-  if (!root) {
-    throw new GraphAssemblyError(
-      "invalid_params",
-      "Graph read root must be a canonical <owner>/<repository> address",
-    )
-  }
-  return {root}
 }
 
 const isStrictJSONData = (
@@ -178,33 +169,33 @@ const requireProviderRoot = (
   )
 }
 
+const currentBoundaryRoot = (
+  projection: Record<string, unknown>,
+): MetaAddress => {
+  const root = typeof projection.root === "string"
+    ? parseMetaAddress(projection.root)
+    : null
+  if (root !== null) return root
+  throw new GraphAssemblyError(
+    "invalid_provider_projection",
+    "Boundary Graph projection root must be a canonical <owner>/<repository> address",
+  )
+}
+
 const validationMessage = (issues: readonly ValidationIssue[]): string =>
   issues
     .map(({path, code, message}) => `${path || "/"} [${code}] ${message}`)
     .join("; ")
 
-/** Stateless Monad-owned structural join. It reads both providers on every call. */
-export const assembleGraph = async (
-  peer: Pick<MonadRpcPeer, "call">,
-  params: unknown,
-): Promise<Graph> => {
-  const {root} = readParams(params)
-  const darkValue = await peer.call<DarkGraphTemplate>(
-    "dark",
-    DARK_DECLARATION_PROJECTION_METHOD,
-    {root},
-  )
+const validatedJoin = (
+  root: MetaAddress,
+  darkValue: unknown,
+  boundaryValue: unknown,
+): Graph => {
   const dark = detachedProviderProjection(darkValue, "Dark")
   requireProviderRoot(dark, "Dark", root)
-
-  const boundaryValue = await peer.call<BoundaryGraphProjection>(
-    "boundary",
-    BOUNDARY_GRAPH_PROJECTION_METHOD,
-    {root},
-  )
   const boundary = detachedProviderProjection(boundaryValue, "Boundary")
   requireProviderRoot(boundary, "Boundary", root)
-
   const candidate = {
     schema: GRAPH_SCHEMA,
     root,
@@ -220,6 +211,47 @@ export const assembleGraph = async (
     )
   }
   return validation.value
+}
+
+/** Explicit-root assembly retained only for detached checkpoint/dissolve proof code. */
+export const assembleGraphForRoot = async (
+  peer: Pick<MonadRpcPeer, "call">,
+  root: MetaAddress,
+): Promise<Graph> => {
+  const darkValue = await peer.call<DarkGraphTemplate>(
+    "dark",
+    DARK_DECLARATION_PROJECTION_METHOD,
+    {root},
+  )
+  const boundaryValue = await peer.call<BoundaryGraphProjection>(
+    "boundary",
+    BOUNDARY_GRAPH_PROJECTION_METHOD,
+    {root},
+  )
+  return validatedJoin(root, darkValue, boundaryValue)
+}
+
+/** Stateless Monad-owned structural join. It reads both providers on every call. */
+export const assembleGraph = async (
+  peer: Pick<MonadRpcPeer, "call">,
+  params: unknown,
+): Promise<Graph> => {
+  readParams(params)
+
+  const boundaryValue = await peer.call<BoundaryGraphProjection>(
+    "boundary",
+    BOUNDARY_GRAPH_PROJECTION_METHOD,
+    {},
+  )
+  const boundary = detachedProviderProjection(boundaryValue, "Boundary")
+  const root = currentBoundaryRoot(boundary)
+
+  const darkValue = await peer.call<DarkGraphTemplate>(
+    "dark",
+    DARK_DECLARATION_PROJECTION_METHOD,
+    {root},
+  )
+  return validatedJoin(root, darkValue, boundary)
 }
 
 /** Dark Monad service surface; it retains no assembled document or provider result. */

@@ -14,9 +14,11 @@ import { installBulkHud } from "./hud.ts"
 import {captureBulkViewportCanvas} from "./web/viewport-capture.ts"
 import {BulkPresentedSnapshot} from "./web/observer-snapshot.ts"
 import {
+	BULK_INITIAL_ELEMENT_ID,
+	parseBulkInitialJson,
+} from "./page-bootstrap.ts"
+import {
 	isBulkGraphUpdateControl,
-	isBulkInitialScene,
-	type BulkInitialScene,
 } from "./visual-initial.ts"
 
 const bulkCanvas = document.getElementById("bulk-canvas") as HTMLCanvasElement | null
@@ -61,19 +63,15 @@ const initBulkViewport = async (): Promise<void> => {
 	window.visualViewport?.addEventListener("resize", resizeBulkViewport)
 }
 
-const readInitialPackage = async (): Promise<BulkInitialScene> => {
-	const response = await fetch("/initial", {method: "POST"})
-	if (!response.ok) throw new Error(`Bulk initial package failed: ${response.status} ${await response.text()}`)
-	const initial = await response.json() as unknown
-	if (!isBulkInitialScene(initial)) {
-		throw new Error("Bulk initial package is not one complete validated Graph scene")
-	}
-	return initial
+const readInitialPackage = () => {
+	const element = document.getElementById(BULK_INITIAL_ELEMENT_ID)
+	if (element === null) throw new Error("Bulk page initial element is missing")
+	return parseBulkInitialJson(element.textContent)
 }
 
 const start = async (): Promise<void> => {
+	const initial = readInitialPackage()
 	await initBulkViewport()
-	const initial = await readInitialPackage()
 	if (!bulkViewport) throw new Error("Bulk viewport is not initialized")
 	installBulkHud({viewport: bulkViewport})
 	// The server already ran the selected strategy. Hydration presents that

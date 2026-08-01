@@ -7,16 +7,17 @@ import {massFileName, MassCatalog} from "../shared/mass.ts"
 import {
   MF117_CANDIDATE_DIRECTORY,
   MF117_ENERGY_EVIDENCE_METHOD,
+  MF117_SOURCE,
 } from "../shared/mf117.ts"
 import {
   DARK_DECLARATION_PROJECTION_METHOD,
   readDarkDeclarationProjection,
 } from "../dark/graph.ts"
-import {assembleGraph} from "../dark/monad/graph.ts"
+import {assembleGraphForRoot} from "../dark/monad/graph.ts"
 import {canonicalizeGraph} from "../dark/checkpoint/projection.ts"
 import {
   BOUNDARY_GRAPH_PROJECTION_METHOD,
-  readBoundaryGraphProjection,
+  readBoundaryGraphProjectionForRoot,
 } from "./graph.ts"
 import {BoundaryMF117LiveAdapter} from "./dissolve-live.ts"
 import {open} from "./sqlite.ts"
@@ -86,17 +87,17 @@ describe("Boundary MF-117 live preflight adapter", () => {
       }
       const adapter = new BoundaryMF117LiveAdapter(boundary)
       adapter.register(peer as never)
-      const current = await assembleGraph({
+      const current = await assembleGraphForRoot({
         async call<T>(target: string, method: string, params: unknown): Promise<T> {
           if (target === "dark") {
             return await readDarkDeclarationProjection(params) as T
           }
           if (target === "boundary" && method === BOUNDARY_GRAPH_PROJECTION_METHOD) {
-            return await readBoundaryGraphProjection(boundary, params) as T
+            return await readBoundaryGraphProjectionForRoot(boundary, MF117_SOURCE) as T
           }
           throw new Error(`${target}.${method}`)
         },
-      } as never, {root: "zavx0z/inference"})
+      } as never, MF117_SOURCE)
       expect(canonicalizeGraph(current).sha256).toBe(
         "ea0511057c063d0aaa40f34888ce8d70102e8733581ddc0f719f7dd5b8484cd1",
       )

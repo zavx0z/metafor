@@ -15,10 +15,11 @@ declare const MetaAddressBrand: unique symbol
 /** Canonical safe two-segment `<owner>/<repository>` address. */
 export type MetaAddress = string & {readonly [MetaAddressBrand]: "MetaAddress"}
 
-/** Parameters accepted by the Dark Monad `readGraph` RPC. */
-export interface ReadGraphParams {
-  root: MetaAddress
-}
+/**
+ * Dark Monad `readGraph` accepts no client-selected root. The current root is
+ * owned by the world projection and is returned as `Graph.root`.
+ */
+export type ReadGraphParams = Record<string, never>
 
 interface MetaFieldBase {
   key: string

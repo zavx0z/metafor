@@ -19,7 +19,7 @@ import {
   MF117_SOURCE,
   MF117_TARGET,
 } from "../shared/mf117.ts"
-import {assembleGraph} from "../dark/monad/graph.ts"
+import {assembleGraphForRoot} from "../dark/monad/graph.ts"
 import {canonicalizeGraph} from "../dark/checkpoint/projection.ts"
 import {DARK_DECLARATION_PROJECTION_METHOD} from "../dark/graph.ts"
 import type {CheckpointBarrierFrontier} from "../dark/checkpoint/barrier.ts"
@@ -49,7 +49,7 @@ import {
 } from "./dissolve.ts"
 import {
   BOUNDARY_GRAPH_PROJECTION_METHOD,
-  readBoundaryGraphProjection,
+  readBoundaryGraphProjectionForRoot,
 } from "./graph.ts"
 import type {BoundaryDatabase} from "./sqlite.ts"
 import type {DissolveCandidateBundleReceiptV1} from "../dark/checkpoint/dissolve-candidate.ts"
@@ -488,17 +488,17 @@ export class BoundaryMF117LiveAdapter {
   async #graph(root: MetaAddress): Promise<Graph> {
     const peer = this.#peer
     if (!peer) throw new Error("Boundary MF-117 Monad peer is unavailable")
-    return await assembleGraph({
+    return await assembleGraphForRoot({
       call: async <T>(target: string, method: string, params: unknown): Promise<T> => {
         if (target === "dark" && method === DARK_DECLARATION_PROJECTION_METHOD) {
           return await peer.call<T>("dark", method, params, {waitMs: 30_000})
         }
         if (target === "boundary" && method === BOUNDARY_GRAPH_PROJECTION_METHOD) {
-          return await readBoundaryGraphProjection(this.boundary, params) as T
+          return await readBoundaryGraphProjectionForRoot(this.boundary, root) as T
         }
         throw new Error(`Boundary MF-117 unexpected Graph provider: ${target}.${method}`)
       },
-    } as Pick<MonadRpcPeer, "call">, {root})
+    } as Pick<MonadRpcPeer, "call">, root)
   }
 
   async #massEvidence(

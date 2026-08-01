@@ -3,7 +3,6 @@ import {createHash} from "node:crypto"
 import {dirname, join} from "node:path"
 import {
   READ_GRAPH_METHOD,
-  parseMetaAddress,
   type MetaAddress,
   type Graph,
 } from "@metafor/types/metafor/graph"
@@ -14,7 +13,6 @@ import type {ForceMessage} from "shared/protocol/force/message"
 import type {MonadRpcPeer} from "shared/transport/monad"
 import {FORCE_CHECKPOINT_QUIESCE_METHOD} from "shared/transport/force/checkpoint"
 import {BulkProjectionStore} from "./projection.ts"
-import {materializedRootSrc} from "./web/force-protocol.ts"
 import {buildBulkManifestation} from "./manifestation.ts"
 import {
   type BulkInitialScene,
@@ -312,17 +310,14 @@ export class BulkMonad {
   readonly #projection = new BulkProjectionStore()
   #state: BulkMonadState = "created"
   #error: string | null = null
-  #activeSrc: MetaAddress
+  #activeSrc: MetaAddress | null = null
   #throughTs: number | null = null
   #promotionReceipt: BulkRootPromotionReceipt | null = null
   readonly #promotionPath: string
 
-  constructor(options: {promotionPath?: string; root?: MetaAddress} = {}) {
+  constructor(options: {promotionPath?: string} = {}) {
     this.#promotionPath =
       options.promotionPath ?? join(MF117_STATE_DIRECTORY, "bulk-promotion.json")
-    const defaultRoot = parseMetaAddress(MF117_SOURCE)
-    if (defaultRoot === null) throw new Error("Bulk default Graph root is invalid")
-    this.#activeSrc = options.root ?? defaultRoot
   }
 
   /** Register closed promotion and read-only observer methods before advertising them. */
@@ -351,14 +346,13 @@ export class BulkMonad {
       const durable = existsSync(this.#promotionPath)
         ? this.#readDurablePromotion()
         : null
-      if (durable !== null) this.#activeSrc = MF117_TARGET as MetaAddress
       const initial = await peer.call<Graph>(
         "dark",
         READ_GRAPH_METHOD,
-        {root: this.#activeSrc},
+        {},
         {waitMs: 30_000},
       )
-      this.#replaceGraph(initial, this.#activeSrc)
+      this.#replaceGraph(initial)
       const hasMF117Projection = [...this.#projection.atoms.values()].some(({wimp}) =>
         wimp === MF117_SOURCE || wimp === MF117_TARGET)
       if (hasMF117Projection && durable !== null) {
@@ -372,7 +366,7 @@ export class BulkMonad {
         this.#activeSrc = MF117_TARGET
       }
       this.#state = "prepared"
-      return {atoms: this.#projection.atoms.size, rootSrc: this.#activeSrc}
+      return {atoms: this.#projection.atoms.size, rootSrc: this.#currentRoot()}
     } catch (error) {
       this.onRuntimeBirthFailed(error)
       throw error
@@ -399,13 +393,6 @@ export class BulkMonad {
     }
     const part = message.parts[0]
     try {
-      const materializedRoot = materializedRootSrc(part)
-      const nextRoot = materializedRoot === null
-        ? this.#activeSrc
-        : parseMetaAddress(materializedRoot)
-      if (nextRoot === null) {
-        throw new Error(`Bulk received a non-canonical materialized root: ${materializedRoot}`)
-      }
       await peer.call(
         "boundary",
         FORCE_CHECKPOINT_QUIESCE_METHOD,
@@ -415,10 +402,10 @@ export class BulkMonad {
       const current = await peer.call<Graph>(
         "dark",
         READ_GRAPH_METHOD,
-        {root: nextRoot},
+        {},
         {waitMs: 30_000},
       )
-      this.#replaceGraph(current, nextRoot)
+      this.#replaceGraph(current)
       this.#throughTs = part.ts
       return this.#scene()
     } catch (error) {
@@ -432,31 +419,78 @@ export class BulkMonad {
     return {...this.#scene(), session}
   }
 
+  /** Reads and prepares one request-local Graph cut without replacing the startup Store. */
+  async openFreshObserver(
+    peer: Pick<MonadRpcPeer, "call">,
+    session: string,
+  ): Promise<BulkInitialScene> {
+    if (this.#state !== "ready") throw new Error(`Bulk observer cannot open: runtime is not ready (${this.#state})`)
+    const throughTs = this.#throughTs
+    const value = await peer.call<Graph>(
+      "dark",
+      READ_GRAPH_METHOD,
+      {},
+      {waitMs: 30_000},
+    )
+    const cut = new BulkGraphStore().replace(value)
+    return {
+      ...this.#composeScene(
+        cut.document,
+        cut.projection.runtime,
+        cut.document.root,
+        throughTs,
+        null,
+      ),
+      session,
+    }
+  }
+
   #scene(): BulkGraphScene {
-    const projection = this.#projection.snapshot()
-    const promotion = projectionPromotionReceipt(
-      projection.runtime,
+    const graph = this.#graph.read()
+    return this.#composeScene(
+      graph,
+      this.#projection.snapshot().runtime,
+      graph.root,
+      this.#throughTs,
       this.#promotionReceipt,
     )
+  }
+
+  #composeScene(
+    graph: Graph,
+    projection: BulkRuntimeProjection,
+    rootSrc: MetaAddress,
+    throughTs: number | null,
+    promotionReceipt: BulkRootPromotionReceipt | null,
+  ): BulkGraphScene {
+    const promotion = projectionPromotionReceipt(
+      projection,
+      promotionReceipt,
+    )
     const manifest = buildBulkManifestation(
-      projection.runtime,
-      promotion?.removedRootSrc ?? this.#activeSrc,
+      projection,
+      promotion?.removedRootSrc ?? rootSrc,
       promotion,
     )
     return {
       version: 1,
-      throughTs: this.#throughTs,
-      rootSrc: this.#activeSrc,
-      graph: this.#graph.read(),
+      throughTs,
+      rootSrc,
+      graph,
       manifest,
-      visual: prepareBulkInitialVisual(manifest, projection.runtime),
+      visual: prepareBulkInitialVisual(manifest, projection),
     }
   }
 
-  #replaceGraph(value: unknown, root: MetaAddress): void {
-    const cut = this.#graph.replace(value, root)
+  #replaceGraph(value: unknown): void {
+    const cut = this.#graph.replace(value)
     this.#projection.hydrate(cut.projection)
-    this.#activeSrc = root
+    this.#activeSrc = cut.document.root
+  }
+
+  #currentRoot(): MetaAddress {
+    if (this.#activeSrc === null) throw new Error("Bulk Graph root is unavailable")
+    return this.#activeSrc
   }
 
   mf117Preflight(value: unknown): {

@@ -179,7 +179,7 @@ describe("Force server transport and relay", () => {
       ok: false,
       error: {
         code: "method_error",
-        message: "Graph read root must be a canonical <owner>/<repository> address",
+        message: "Graph read params must be empty",
       },
     })
 

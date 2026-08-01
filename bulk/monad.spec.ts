@@ -247,7 +247,7 @@ describe("Bulk Monad", () => {
     expect(peer.calls).toEqual([{
       target: "dark",
       method: READ_GRAPH_METHOD,
-      params: {root: INFERENCE},
+      params: {},
       options: {waitMs: 30_000},
     }])
     expect(() => monad.openObserver("before-force")).toThrow("not ready")
@@ -267,12 +267,61 @@ describe("Bulk Monad", () => {
     expect(initial.manifest.darkParticles).toHaveLength(6)
   })
 
+  test("prepares every page observer from a fresh Dark Graph without replacing the startup Store", async () => {
+    const startup = mf117Document()
+    const peer = metaPeer(startup)
+    const monad = new BulkMonad()
+    await monad.onServerStarted(peer as never)
+    monad.onRuntimeBorn()
+    const cached = monad.openObserver("cached-before-pages")
+
+    const working = mf117Document(true, "working")
+    peer.set(working)
+    const first = await monad.openFreshObserver(peer as never, "page-1")
+    peer.set(startup)
+    const second = await monad.openFreshObserver(peer as never, "page-2")
+
+    expect(first.session).toBe("page-1")
+    expect(first.graph).toEqual(working)
+    expect(first.rootSrc).toBe(LADA)
+    expect(first.visual.kind).toBe("visual-prepared-scene")
+    expect(second.session).toBe("page-2")
+    expect(second.graph).toEqual(startup)
+    expect(monad.openObserver("cached-after-pages").graph).toEqual(cached.graph)
+    expect(peer.calls.slice(1)).toEqual([
+      {
+        target: "dark",
+        method: READ_GRAPH_METHOD,
+        params: {},
+        options: {waitMs: 30_000},
+      },
+      {
+        target: "dark",
+        method: READ_GRAPH_METHOD,
+        params: {},
+        options: {waitMs: 30_000},
+      },
+    ])
+  })
+
   test("guards the startup source against Boundary initial projection regression", () => {
     const source = readFileSync(new URL("./monad.ts", import.meta.url), "utf8")
 
     expect(source).toContain("READ_GRAPH_METHOD")
+    expect(source).toContain("readonly #graph = new BulkGraphStore()")
     expect(source).not.toContain("BOUNDARY_INITIAL_PROJECTION_METHOD")
     expect(source).not.toContain("boundary.initialProjection.read")
+
+    const freshObserverStart = source.indexOf("async openFreshObserver")
+    const freshObserver = source.slice(
+      freshObserverStart,
+      source.indexOf("\n  #scene():", freshObserverStart),
+    )
+    expect(freshObserver).toContain("READ_GRAPH_METHOD")
+    expect(freshObserver).toContain("cut.document.root")
+    expect(freshObserver).not.toContain("#activeSrc")
+    expect(freshObserver).not.toContain("#promotionReceipt")
+    expect(freshObserver).not.toContain("MF117_")
   })
 
   test("uses a Particle as invalidation and replaces the same Graph Store after Boundary quiescence", async () => {
@@ -306,7 +355,7 @@ describe("Bulk Monad", () => {
       {
         target: "dark",
         method: READ_GRAPH_METHOD,
-        params: {root: LADA},
+        params: {},
         options: {waitMs: 30_000},
       },
     ])

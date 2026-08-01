@@ -20,6 +20,10 @@ import {
   BULK_TIME_STACK_METHOD,
   bulkTimeControlResponse,
 } from "./time-control.ts"
+import {
+  BULK_PAGE_SHELL_ROUTE,
+  serveBulkInitialPage,
+} from "./page-bootstrap.ts"
 
 type BrowserClient = {domain: string; id: string; session: string}
 
@@ -32,6 +36,7 @@ const rpc = new MonadRpcPeer(transport.channel)
 monad.onServerStarting(rpc, captures)
 const checkpoint = installForceCheckpointSideband("bulk", rpc)
 let force: Force | null = null
+let browserPageShell: Promise<string> | null = null
 const captureConnections = new WeakMap<
   ServerWebSocket<BrowserClient>,
   {client: BulkViewportObserverClient; disconnect: () => void}
@@ -43,11 +48,43 @@ const sendBrowser = (ws: ServerWebSocket<BrowserClient>, payload: unknown): bool
   return true
 }
 
+const readBrowserPageShell = (
+  server: Bun.Server<BrowserClient>,
+): Promise<string> => {
+  if (browserPageShell !== null) return browserPageShell
+  browserPageShell = fetch(new URL(BULK_PAGE_SHELL_ROUTE, server.url))
+    .then(async (response) => {
+      if (!response.ok) {
+        throw new Error(`Bulk page shell failed: ${response.status}`)
+      }
+      return await response.text()
+    })
+    .catch((error) => {
+      browserPageShell = null
+      throw error
+    })
+  return browserPageShell
+}
+
 const server = Bun.serve<BrowserClient>({
   port: Number(Bun.env.PORT ?? 4004),
   routes: {
     ...bulkMonadRoutes(transport),
-    "/": index,
+    [BULK_PAGE_SHELL_ROUTE]: index,
+    "/": {
+      GET(
+        _request: Bun.BunRequest<"/">,
+        routeServer: Bun.Server<BrowserClient>,
+      ) {
+        return serveBulkInitialPage({
+          openSession: () => handoffs.open(),
+          cancelSession: (session) => handoffs.cancel(session),
+          prepareInitial: async (session) =>
+            await monad.openFreshObserver(rpc, session),
+          readShell: async () => await readBrowserPageShell(routeServer),
+        })
+      },
+    },
     "/health": {
       GET() {
         return monad.onHealthRequested()
@@ -68,20 +105,6 @@ const server = Bun.serve<BrowserClient>({
     "/time/resume": {
       POST() {
         return bulkTimeControlResponse(rpc, BULK_TIME_RESUME_METHOD)
-      },
-    },
-    "/initial": {
-      POST() {
-        const session = handoffs.open()
-        try {
-          return Response.json(monad.openObserver(session))
-        } catch (error) {
-          handoffs.cancel(session)
-          return Response.json({
-            ok: false,
-            error: error instanceof Error ? error.message : String(error),
-          }, {status: 503})
-        }
       },
     },
     "/monad/channel": {

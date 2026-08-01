@@ -17,9 +17,10 @@ import {
   GRAPH_SCHEMA,
   parseMetaAddress,
   validateGraph,
+  type MetaAddress,
   type Graph,
 } from "@metafor/types/metafor/graph"
-import {readBoundaryGraphProjection} from "../../boundary/graph.ts"
+import {readBoundaryGraphProjectionForRoot} from "../../boundary/graph.ts"
 import {open as openBoundary} from "../../boundary/sqlite.ts"
 import {readDarkDeclarationProjection} from "../graph.ts"
 import {DarkForceHistory} from "../force/history.ts"
@@ -133,7 +134,7 @@ const copySQLiteSet = (source: string, targetDirectory: string): string => {
 }
 
 const offlineProjection = async (
-  root: string,
+  root: MetaAddress,
   sourceDatabase: string,
 ): Promise<{projection: Graph; boundary: Uint8Array}> => {
   const directory = mkdtempSync(join(tmpdir(), "metafor-checkpoint-boundary-"))
@@ -143,7 +144,7 @@ const offlineProjection = async (
     try {
       const [dark, current] = await Promise.all([
         readDarkDeclarationProjection({root}),
-        readBoundaryGraphProjection(boundary, {root}),
+        readBoundaryGraphProjectionForRoot(boundary, root),
       ])
       const candidate = {
         schema: GRAPH_SCHEMA,
@@ -170,7 +171,7 @@ const offlineProjection = async (
 }
 
 const offlineCurrentProjection = async (
-  root: string,
+  root: MetaAddress,
   sourceDatabase: string,
 ): Promise<{projection: Graph; boundary: Uint8Array}> => {
   const directory = mkdtempSync(join(tmpdir(), "metafor-checkpoint-boundary-"))
@@ -181,7 +182,7 @@ const offlineCurrentProjection = async (
     try {
       const [dark, current] = await Promise.all([
         readDarkDeclarationProjection({root}),
-        readBoundaryGraphProjection(boundary, {root}),
+        readBoundaryGraphProjectionForRoot(boundary, root),
       ])
       const validation = validateGraph({
         schema: GRAPH_SCHEMA,

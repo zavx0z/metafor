@@ -37,7 +37,8 @@ selection/query может быть отдельной retrieval operation на�
 
 ## 2. Complete compact template
 
-`template` содержит все Meta, загруженные Dark для выбранного `root`.
+`template` содержит все Meta, загруженные Dark для текущего `root`, который
+приходит из coherent Boundary projection и не выбирается RPC-клиентом.
 Map key является canonical Meta address, значение — полная сериализуемая
 compact normalization текущего `MetaDSL`:
 
@@ -73,7 +74,7 @@ canonical Meta address и structural declaration path.
 
 ## 3. Current runtime
 
-`runtime` содержит текущую materialized structure Boundary для выбранного
+`runtime` содержит текущую materialized structure Boundary для текущего
 `root`. Runtime nodes вложены, поэтому JSON path самого node является его
 public occurrence identity.
 
@@ -179,7 +180,7 @@ Template serializer сохраняет действующую normalized MetaDSL
 Public operation предоставляется через Dark Monad, например:
 
 ```ts
-readGraph({root: MetaAddress}): Promise<Graph>
+readGraph({}): Promise<Graph>
 ```
 
 Точный method name фиксируется public type `MF-101`; отдельный transport
@@ -188,9 +189,9 @@ protocol не требуется.
 Assembly flow:
 
 ```text
-validated canonical root
-→ Dark declaration projection
-→ Boundary current projection
+validated empty request
+→ Boundary coherent current projection и его единственный root
+→ Dark declaration projection для этого root
 → stateless structural join
 → Graph runtime validation
 → one public Graph
@@ -200,8 +201,8 @@ validated canonical root
 
 | Компонент | Ответственность |
 | --- | --- |
-| Dark Monad | complete normalized MetaDSL graph выбранного root |
-| Boundary | current Atom/topology structure, State и present Field values |
+| Dark Monad | complete normalized MetaDSL graph текущего Boundary root |
+| Boundary | current root, Atom/topology structure, State и present Field values |
 | Dark Monad | stateless orchestration, structural join и final validation |
 | Dark Force | transport Monad RPC, без интерпретации Graph payload |
 
@@ -210,9 +211,12 @@ Dark Monad не хранит assembled document и не читает Boundary st
 `meta.ts`. После `MF-102` provider и assembler находятся в Dark Monad, а
 принятый public Graph contract и stateless behavior не меняются.
 
-Если Dark и Boundary projections нельзя согласовать по canonical Meta address
-и public structural declaration references, read завершается точной validation
-error. Assembler не выдаёт partial stub и не угадывает relation.
+Bulk и любой другой RPC consumer не передают root и не выбирают его по
+локальному cache, receipt или default. Если Boundary не содержит ровно один
+текущий root либо Dark и Boundary projections нельзя согласовать по canonical
+Meta address и public structural declaration references, read завершается
+точной validation error. Assembler не выдаёт partial stub и не угадывает
+relation.
 
 ## 6. Runtime validation
 

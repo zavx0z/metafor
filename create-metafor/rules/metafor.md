@@ -77,7 +77,11 @@ transport и routing законами Monad RPC, но не формой клие
 - `boundary.initialState.read` возвращает полный нормализованный initial state,
   нужный Matrix при рождении.
 - `boundary.initialProjection.read` возвращает полный текущий canonical
-  projection, которым при рождении пользуются Energy и Bulk.
+  projection, которым при рождении пользуется Energy.
+- `readGraph` принимает пустой request без выбранного клиентом root. Dark
+  получает единственный текущий runtime root из coherent Boundary projection,
+  собирает весь reachable declaration/runtime Graph и возвращает root как
+  проверяемые данные самого ответа.
 - `dark.history.read` читает ограниченные параметрами временные шаги и
   неизменённые Particle из истории Dark. Он не строит структурное замыкание
   шаблонов и topology.
@@ -87,7 +91,8 @@ transport и routing законами Monad RPC, но не формой клие
   для безопасной работы Boundary с Mass identity, а не клиентским чтением.
 
 В текущем public contract нет проверенного RPC, который возвращает компактный
-фрагмент Dark templates/particles вместе с минимальной структурой мира.
+частичный фрагмент Dark templates/particles вместе с минимальной структурой
+мира. `readGraph` возвращает только полный текущий Graph.
 
 ### Требование к планируемой проекции
 

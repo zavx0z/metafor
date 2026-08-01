@@ -74,12 +74,35 @@ const document = (title = "current"): Graph => ({
   },
 })
 
+const childDocument = (): Graph => ({
+  schema: GRAPH_SCHEMA,
+  root: CHILD,
+  template: {
+    [CHILD]: {
+      name: "Child",
+      fields: [],
+      superposition: [],
+      mass: [],
+      processes: [],
+    },
+  },
+  runtime: {
+    roots: [{
+      kind: "atom",
+      declaration: "#/template/example~1child",
+      meta: CHILD,
+      state: null,
+      values: {},
+    }],
+  },
+})
+
 describe("Bulk Graph Store and adapter", () => {
   test("retains one detached full document and derives the complete Bulk scene projection", () => {
     const store = new BulkGraphStore()
     const input = document()
 
-    store.replace(input, ROOT)
+    store.replace(input)
     input.runtime.roots.splice(0)
     const retained = store.read()
     const projected = store.projection()
@@ -108,9 +131,9 @@ describe("Bulk Graph Store and adapter", () => {
 
   test("atomically replaces the same Store after an update and keeps deterministic local identities", () => {
     const store = new BulkGraphStore()
-    store.replace(document("first"), ROOT)
+    store.replace(document("first"))
     const first = store.projection()
-    store.replace(document("second"), ROOT)
+    store.replace(document("second"))
     const second = store.projection()
 
     expect(second.revision).toBe(2)
@@ -122,13 +145,21 @@ describe("Bulk Graph Store and adapter", () => {
       .toBe("second")
   })
 
-  test("rejects invalid data or a wrong RPC root without replacing the prior cut", () => {
+  test("accepts the validated Dark-owned root without a caller-selected expectation", () => {
     const store = new BulkGraphStore()
-    store.replace(document("safe"), ROOT)
+
+    store.replace(childDocument())
+
+    expect(store.read().root).toBe(CHILD)
+    expect(store.projection().runtime.atoms.map(({wimp}) => wimp)).toEqual([CHILD])
+  })
+
+  test("rejects invalid data without replacing the prior cut", () => {
+    const store = new BulkGraphStore()
+    store.replace(document("safe"))
     const invalid = {...document("unsafe"), schema: "wrong"}
 
-    expect(() => store.replace(invalid, ROOT)).toThrow(BulkGraphValidationError)
-    expect(() => store.replace(document("unsafe"), CHILD)).toThrow("root mismatch")
+    expect(() => store.replace(invalid)).toThrow(BulkGraphValidationError)
     expect(store.read().runtime.roots[0]).toMatchObject({values: {title: "safe"}})
     expect(store.revision).toBe(1)
   })

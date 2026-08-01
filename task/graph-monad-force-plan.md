@@ -384,11 +384,15 @@ Bulk ждёт applied Boundary cut, перечитывает полный док
 строит сцену через один Graph-to-Bulk adapter. Browser получает полный
 текущий Graph, затем такие же validated replacement cuts.
 
+`readGraph` принимает пустой request: Bulk и другие consumers не выбирают root.
+Boundary current projection сообщает единственный текущий root, Dark собирает
+для него полный Graph, а `Graph.root` остаётся данными ответа.
+
 ## 6. Итеративный read/observe contract
 
 Codex должен уметь через объявленные RPC:
 
-- запросить через Dark Monad весь Graph для canonical root Meta;
+- запросить через Dark Monad весь текущий Graph без client-selected root;
 - выполнить partial retrieval над тем же document contract без второй schema;
 - запросить полную Dark Force Particle history, включая Gluon/Higgs и
   структурные Inflaton;

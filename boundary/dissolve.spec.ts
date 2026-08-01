@@ -18,11 +18,11 @@ import {
   type Graph,
 } from "@metafor/types/metafor/graph"
 import type {Particle} from "shared/protocol/force/particle"
-import {assembleGraph} from "../dark/monad/graph.ts"
+import {assembleGraphForRoot} from "../dark/monad/graph.ts"
 import {DARK_DECLARATION_PROJECTION_METHOD} from "../dark/graph.ts"
 import {
   BOUNDARY_GRAPH_PROJECTION_METHOD,
-  readBoundaryGraphProjection,
+  readBoundaryGraphProjectionForRoot,
 } from "./graph.ts"
 import {MassCatalog, massFileName, type MassFileFormat} from "../shared/mass.ts"
 import {
@@ -243,7 +243,7 @@ const graphReader = (
   phases: Array<{phase: "before" | "planned"; root: MetaAddress}>,
 ) => async (root: MetaAddress, phase: "before" | "planned"): Promise<Graph> => {
   phases.push({phase, root})
-  return await assembleGraph({
+  return await assembleGraphForRoot({
     async call<T>(target: string, method: string): Promise<T> {
       if (target === "dark" && method === DARK_DECLARATION_PROJECTION_METHOD) {
         return {
@@ -252,11 +252,11 @@ const graphReader = (
         } as T
       }
       if (target === "boundary" && method === BOUNDARY_GRAPH_PROJECTION_METHOD) {
-        return await readBoundaryGraphProjection(fixture.boundary, {root}) as T
+        return await readBoundaryGraphProjectionForRoot(fixture.boundary, root) as T
       }
       throw new Error(`Unexpected Graph provider: ${target}.${method}`)
     },
-  } as never, {root})
+  } as never, root)
 }
 
 const hooks = (

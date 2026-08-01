@@ -115,18 +115,30 @@ Conditions одного Transition являются чистой конъюнк�
 priority-order не получают. Mass declaration и display order также не
 становятся новым законом. Универсального `order` vector в Graph нет.
 
-Операцию `readGraph` предоставляет Dark Monad. Stateless assembler получает
-полную declaration projection от Dark Monad, текущую runtime projection через
-Boundary, собирает и валидирует один Graph, но не хранит его и не читает
-Store другого домена напрямую. Dark Monad и Boundary остаются владельцами
-своих projections; Dark Force только переносит Monad RPC.
+Операцию `readGraph` предоставляет Dark Monad. Её request всегда пуст: клиент
+не выбирает и не передаёт root. Stateless assembler сначала получает через
+Boundary coherent current projection с единственным текущим root, затем
+загружает для него полную declaration projection, собирает и валидирует один
+Graph и возвращает root как данные ответа. Assembler не хранит Graph и не
+читает Store другого домена напрямую. Dark Monad и Boundary остаются
+владельцами своих projections; Dark Force только переносит Monad RPC.
 
 Для Bulk этот RPC является единственным полным стартовым чтением мира. При
-рождении Bulk Monad сам вызывает `Dark.readGraph`, валидирует ответ и
-удерживает полный Graph в одном Bulk-owned Graph Store. Browser observer
-получает полный текущий Graph из этого же Store. Bulk не вызывает
-`Boundary.initialProjection.read` и не вводит Boundary как второго сборщика
-или источник стартового Graph.
+рождении Bulk Monad пока сам вызывает `Dark.readGraph`, валидирует ответ и
+удерживает полный Graph в одном Bulk-owned Graph Store. Этот startup Store
+остаётся временной внутренней границей действующего runtime, но больше не
+является источником первого browser page.
+
+Каждый `GET /` browser page независимо вызывает `Dark.readGraph`, валидирует
+полученный request-local cut и на сервере готовит из него initial manifestation,
+выбранную Visual layout и сериализуемую сцену. Готовый initial package
+вкладывается в HTML как inert JSON; browser валидирует его и гидратирует
+существующий lifecycle без отдельного initial HTTP-запроса и без повторного
+layout. Dynamic HTML имеет private `no-store` policy и не может становиться
+shared cached страницей. Bulk не вызывает `Boundary.initialProjection.read` и
+не вводит Boundary как второго сборщика или источник стартового Graph. Bulk
+не передаёт в Dark `zavx0z/inference`, `zavx0z/lada` или любой другой root:
+browser initial использует только `Graph.root` возвращённого Dark ответа.
 
 Force `Particle` не является Graph patch: его path может содержать
 внутреннюю Boundary identity, которой нет в публичном документе. До появления

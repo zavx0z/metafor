@@ -7,6 +7,7 @@ import {
   type MetaField,
   type Graph,
   type MetaState,
+  type ReadGraphParams,
   parseMetaAddress,
   validateGraph,
 } from "@metafor/types/metafor/graph"
@@ -301,11 +302,13 @@ const expectIssue = (input: unknown, path: string, code: string): void => {
 
 describe("Graph public contract", () => {
   test("accepts one complete document and preserves semantic sequences", () => {
+    const params: ReadGraphParams = {}
     const input = completeDocument()
     const result = validateGraph(input)
     const root = input.template[ROOT]!
 
     expect(READ_GRAPH_METHOD).toBe("readGraph")
+    expect(params).toEqual({})
     expect(result).toEqual({ok: true, value: input})
     expect(root.superposition.map(({name}) => name)).toEqual(["idle", "ready"])
     expect(Object.keys(root.superposition[0]!.transitions!)).toEqual(["ready"])

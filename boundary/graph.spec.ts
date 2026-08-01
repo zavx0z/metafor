@@ -153,7 +153,7 @@ describe("Boundary Graph current projection", () => {
       position: 0,
     })
 
-    const projection = await readBoundaryGraphProjection(boundary, {root: ROOT})
+    const projection = await readBoundaryGraphProjection(boundary, {})
 
     expect(projection).toEqual({
       root: ROOT,
@@ -210,19 +210,12 @@ describe("Boundary Graph current projection", () => {
     ])
   })
 
-  test("selects only the requested materialized root", async () => {
+  test("rejects an ambiguous world instead of selecting a caller-provided root", async () => {
     await apply({part: "inflaton", op: "add", path: "wimp", value: {src: ROOT, name: "Root"}})
     await apply({part: "inflaton", op: "add", path: "wimp", value: {src: CHILD, name: "Child"}})
 
-    const projection = await readBoundaryGraphProjection(boundary, {root: CHILD})
-
-    expect(projection.runtime.roots).toEqual([{
-      kind: "atom",
-      declaration: "#/template/example~1child",
-      meta: CHILD,
-      state: null,
-      values: {},
-    }])
+    await expect(readBoundaryGraphProjection(boundary, {}))
+      .rejects.toThrow("requires exactly one current root Atom; received 2")
   })
 
   test("preserves current declaration sibling order instead of runtime creation order", async () => {
@@ -246,7 +239,7 @@ describe("Boundary Graph current projection", () => {
     await apply({part: "inflaton", op: "add", path: "wimp", value: {src: SECOND, name: "Second"}})
     await apply({part: "inflaton", op: "add", path: "wimp", value: {src: FIRST, name: "First"}})
 
-    const projection = await readBoundaryGraphProjection(boundary, {root: ROOT})
+    const projection = await readBoundaryGraphProjection(boundary, {})
 
     expect(projection.runtime.roots[0]?.children).toEqual([
       {
@@ -328,7 +321,7 @@ describe("Boundary Graph current projection", () => {
       await priorApplied.promise
 
       let readSettled = false
-      reading = readBoundaryGraphProjection(boundary, {root: ROOT})
+      reading = readBoundaryGraphProjection(boundary, {})
         .finally(() => {
           readSettled = true
         })
@@ -369,7 +362,7 @@ describe("Boundary Graph current projection", () => {
         },
       })
 
-      const afterRemoval = await readBoundaryGraphProjection(boundary, {root: ROOT})
+      const afterRemoval = await readBoundaryGraphProjection(boundary, {})
       expect(afterRemoval.runtime.roots[0]).not.toHaveProperty("children")
       await prior
     } finally {
@@ -383,10 +376,12 @@ describe("Boundary Graph current projection", () => {
     }
   })
 
-  test("rejects non-canonical or broadened read params before reading a projection", async () => {
-    await expect(readBoundaryGraphProjection(boundary, {root: "example/root/extra"}))
-      .rejects.toThrow("canonical two-segment")
-    await expect(readBoundaryGraphProjection(boundary, {root: ROOT, diagnostic: true}))
-      .rejects.toThrow("must contain only root")
+  test("rejects root selection or broadened read params before reading a projection", async () => {
+    await expect(readBoundaryGraphProjection(boundary, {root: ROOT}))
+      .rejects.toThrow("params must be empty")
+    await expect(readBoundaryGraphProjection(boundary, {diagnostic: true}))
+      .rejects.toThrow("params must be empty")
+    await expect(readBoundaryGraphProjection(boundary, ROOT))
+      .rejects.toThrow("params must be an object")
   })
 })

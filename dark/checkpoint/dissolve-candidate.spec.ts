@@ -21,11 +21,11 @@ import {
 } from "@metafor/types/metafor/graph"
 import type {BulkRootPromotionReceipt} from "@metafor/types/bulk/manifest"
 import type {Particle} from "shared/protocol/force/particle"
-import {assembleGraph} from "../monad/graph.ts"
+import {assembleGraphForRoot} from "../monad/graph.ts"
 import {DARK_DECLARATION_PROJECTION_METHOD} from "../graph.ts"
 import {
   BOUNDARY_GRAPH_PROJECTION_METHOD,
-  readBoundaryGraphProjection,
+  readBoundaryGraphProjectionForRoot,
 } from "../../boundary/graph.ts"
 import {
   DetachedBoundaryDissolveCandidateStaging,
@@ -163,7 +163,7 @@ const graphReader = (
   boundary: BoundaryDatabase,
   root: MetaAddress,
 ): Promise<Graph> =>
-  assembleGraph({
+  assembleGraphForRoot({
     async call<T>(target: string, method: string): Promise<T> {
       if (target === "dark" && method === DARK_DECLARATION_PROJECTION_METHOD) {
         const declaration = template(root)
@@ -173,11 +173,11 @@ const graphReader = (
         target === "boundary" &&
         method === BOUNDARY_GRAPH_PROJECTION_METHOD
       ) {
-        return await readBoundaryGraphProjection(boundary, {root}) as T
+        return await readBoundaryGraphProjectionForRoot(boundary, root) as T
       }
       throw new Error(`Unexpected Graph provider: ${target}.${method}`)
     },
-  } as never, {root})
+  } as never, root)
 
 const authorized = async (
   boundary: BoundaryDatabase,

@@ -131,13 +131,16 @@ const runtimePath = (
   return "root"
 }
 
-const parseParams = (input: unknown): MetaAddress => {
+const parseParams = (input: unknown): void => {
   const params = record(input, "Boundary Graph params")
-  const keys = Object.keys(params)
-  if (keys.length !== 1 || keys[0] !== "root") {
-    throw new Error("Boundary Graph params must contain only root")
+  const prototype = Object.getPrototypeOf(params)
+  if (prototype !== Object.prototype && prototype !== null) {
+    throw new Error("Boundary Graph params must be a plain empty object")
   }
-  return address(params.root, "Boundary Graph root")
+  const keys = Object.keys(params)
+  if (keys.length !== 0) {
+    throw new Error("Boundary Graph params must be empty")
+  }
 }
 
 const declarations = <T>(
@@ -493,6 +496,34 @@ const nestedRuntime = (root: MetaAddress, records: Map<RuntimeKey, RuntimeRecord
     .map(visit)
 }
 
+const currentRoot = (records: Map<RuntimeKey, RuntimeRecord>): MetaAddress => {
+  const roots = [...records.values()].filter(
+    (item): item is RuntimeRecord & {node: Omit<RuntimeAtom, "children">} =>
+      item.parent === "root" && item.node.kind === "atom",
+  )
+  if (roots.length !== 1) {
+    throw new Error(
+      `Boundary Graph requires exactly one current root Atom; received ${roots.length}`,
+    )
+  }
+  return roots[0]!.node.meta
+}
+
+const currentRecords = async (
+  boundary: BoundaryDatabase,
+): Promise<Map<RuntimeKey, RuntimeRecord>> => {
+  const snapshot = await boundary.graphSnapshot()
+  const matters = matterDeclarations(snapshot.initialProjection.entries)
+  return runtimeRecords(
+    snapshot.originByInstance,
+    snapshot.parentByInstance,
+    snapshot.initialProjection.entries,
+    snapshot.initialState.atoms,
+    snapshot.initialState.declarations,
+    matters,
+  )
+}
+
 /**
  * Reads the current Boundary world without storing or mutating a Graph mirror.
  * Internal storage identities are used only while resolving public names and paths.
@@ -501,17 +532,21 @@ export async function readBoundaryGraphProjection(
   boundary: BoundaryDatabase,
   input: unknown,
 ): Promise<BoundaryGraphProjection> {
-  const root = parseParams(input)
-  const snapshot = await boundary.graphSnapshot()
-  const matters = matterDeclarations(snapshot.initialProjection.entries)
-  const records = runtimeRecords(
-    snapshot.originByInstance,
-    snapshot.parentByInstance,
-    snapshot.initialProjection.entries,
-    snapshot.initialState.atoms,
-    snapshot.initialState.declarations,
-    matters,
-  )
+  parseParams(input)
+  const records = await currentRecords(boundary)
+  const root = currentRoot(records)
+  return {
+    root,
+    runtime: {roots: nestedRuntime(root, records)},
+  }
+}
+
+/** Exact-root projection used only by detached checkpoint/dissolve proofs. */
+export async function readBoundaryGraphProjectionForRoot(
+  boundary: BoundaryDatabase,
+  root: MetaAddress,
+): Promise<BoundaryGraphProjection> {
+  const records = await currentRecords(boundary)
   return {
     root,
     runtime: {roots: nestedRuntime(root, records)},
