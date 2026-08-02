@@ -33,8 +33,8 @@
   включая рождение, блокировку, перестройку и ошибки.
 - [Energy](domains/ENERGY.md) — Process, Mass, Energy и lifecycle живых
   ресурсов.
-- [Bulk manifestation и Visual projection](../bulk/VISUAL.md) —
-  граница semantic identity и принадлежащей `pkg/visual` геометрии.
+- [Bulk Store и Visual projection](../bulk/VISUAL.md) — единый browser Store,
+  локальные Force handlers и принадлежащая `pkg/visual` геометрия.
 - [Visual layouts](../pkg/visual/CONTRACT.md) — именованные способы показать
   один полный Bulk scene snapshot.
 - [Протоколы сил](proto/) — справочное чтение wire-потоков; при конфликте
@@ -46,10 +46,9 @@
   RPC-проекций.
 - [Разработка](DEVELOPMENT.md) и [вклад](CONTRIBUTING.md) — запуск и проверки.
 
-Для Dark и Bulk пока нет полного отдельного доменного контракта. Не следует
-додумывать его по имени каталога: действующая общая граница описана в
-[архитектуре](ARCHITECTURE.md), а новый закон сначала добавляется владельцу
-домена.
+Для Dark пока нет полного отдельного доменного контракта. Действующий контракт
+Bulk Store находится в [Bulk Store и Visual projection](../bulk/VISUAL.md), а
+общая граница contour — в [архитектуре](ARCHITECTURE.md).
 
 ## Как менять документацию
 

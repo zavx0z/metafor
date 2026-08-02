@@ -1,5 +1,9 @@
 import type {ReservedSQL, SQL} from "bun"
-import {resolveForceFieldId, resolveForceFieldsPayload} from "shared/protocol/force/fields"
+import {
+  resolveForceFieldId,
+  resolveForceFieldsPayload,
+  type CanonicalRuntimeFieldValue,
+} from "shared/protocol/force/fields"
 import type {ForceMessage} from "shared/protocol/force/message"
 import type {BoundaryIncrementalCommit} from "./incremental.ts"
 import {commitBoundaryAtomFields} from "./world.ts"
@@ -48,8 +52,8 @@ export class BoundaryInputStore {
       )
 
       if (part.op === "remove") {
-        const scalar: Record<string, unknown> = {}
-        for (const [address, value] of Object.entries(fields)) {
+        const scalar: Record<string, CanonicalRuntimeFieldValue> = {}
+        for (const address of Object.keys(fields)) {
           const fieldId = resolveForceFieldId(address)
           if (fieldId === null || !scalarFields.has(fieldId)) {
             throw new Error(`External Gluon cannot remove field ${address}`)
@@ -68,7 +72,12 @@ export class BoundaryInputStore {
             DELETE FROM value WHERE id = ${previous.value}
               AND NOT EXISTS (SELECT 1 FROM atom_value WHERE atom_value.value = ${previous.value})
           `
-          scalar[String(fieldId)] = value
+          if (previous) {
+            scalar[String(fieldId)] = {
+              valueId: Number(previous.value),
+              value: null,
+            }
+          }
         }
         return {atom, scalar, topology: {}, aliases: []}
       }

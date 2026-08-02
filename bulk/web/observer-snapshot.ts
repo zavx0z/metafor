@@ -1,18 +1,18 @@
-import type {BulkReadySceneSnapshot} from "@metafor/types/bulk/initial"
+import type {BulkStoreCaptureProof} from "@metafor/types/bulk/capture"
 
 export type BulkObserverFrameScheduler = (callback: FrameRequestCallback) => number
 
 /**
- * Keeps the compact ready-scene cut that reached the presented canvas.
+ * Keeps compact Bulk Store evidence for the cut that reached the canvas.
  *
  * Staging schedules no render. Its bounded callback is registered after the
- * existing on-demand renderer callback and only publishes the newest snapshot
+ * existing on-demand renderer callback and only publishes the newest proof
  * once that normal browser frame has completed.
  */
-export class BulkPresentedSnapshot {
+export class BulkPresentedStoreProof {
   readonly #scheduleFrame: BulkObserverFrameScheduler
-  #presented: BulkReadySceneSnapshot | null = null
-  #staged: (() => BulkReadySceneSnapshot) | null = null
+  #presented: BulkStoreCaptureProof | null = null
+  #staged: (() => BulkStoreCaptureProof) | null = null
   #presentation: Promise<void> | null = null
   #resolvePresentation: (() => void) | null = null
 
@@ -20,8 +20,8 @@ export class BulkPresentedSnapshot {
     this.#scheduleFrame = scheduleFrame
   }
 
-  stage(readSnapshot: () => BulkReadySceneSnapshot): void {
-    this.#staged = readSnapshot
+  stage(readProof: () => BulkStoreCaptureProof): void {
+    this.#staged = readProof
     if (this.#presentation !== null) return
     this.#presentation = new Promise<void>((resolve) => {
       this.#resolvePresentation = resolve
@@ -40,7 +40,7 @@ export class BulkPresentedSnapshot {
     })
   }
 
-  async read(): Promise<BulkReadySceneSnapshot | null> {
+  async read(): Promise<BulkStoreCaptureProof | null> {
     const presentation = this.#presentation
     if (presentation !== null) await presentation
     return this.#presented === null ? null : structuredClone(this.#presented)

@@ -25,6 +25,7 @@ import type {
 import {visualBatchFingerprint} from "./internal/fingerprint.ts"
 import {
   HERMITE_EDGE_SEGMENTS,
+  writeCompactHermiteEdgeSegments,
   type HermiteEdgeCurve,
 } from "./HermiteEdge.ts"
 
@@ -353,6 +354,13 @@ export const visualPayloadHermiteCurve = (
   fromTangent: Object.freeze({x: curve[6], y: curve[7], z: curve[8]}),
   toTangent: Object.freeze({x: curve[9], y: curve[10], z: curve[11]}),
 })
+
+/** Writes one compact wire curve without materializing point objects. */
+export const writeVisualPayloadHermiteSegments = (
+  curve: VisualPayloadHermiteCurve,
+  target: Float32Array,
+  offset = 0,
+): number => writeCompactHermiteEdgeSegments(curve, target, offset)
 
 /**
  * Stable synthetic identity for one visual Field marker.

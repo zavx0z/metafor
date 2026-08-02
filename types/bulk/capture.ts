@@ -1,7 +1,22 @@
-import type {BulkReadySceneSnapshot} from "./initial.ts"
-
 export const BULK_VIEWPORT_CAPTURE_METHOD = "bulk.observer.captureViewport" as const
 export const BULK_VIEWPORT_CAPTURE_VERSION = 2 as const
+
+/** Compact evidence for the Store cut whose pixels were captured. */
+export type BulkStoreCaptureProof = {
+  root: number
+  rows: {
+    dark: number
+    field: number
+    fieldAlias: number
+    orbital: number
+    proxy: number
+    transition: number
+    relation: number
+    batch: number
+  }
+  transitionBatchFingerprints: string[]
+  relationBatchFingerprints: string[]
+}
 
 export type BulkViewportCaptureRequest = {
   version: typeof BULK_VIEWPORT_CAPTURE_VERSION
@@ -42,10 +57,6 @@ export type BulkViewportCaptureImage = {
     domain: "bulk"
     id: string
   }
-  projection: {
-    throughTs: number | null
-    rootSrc: string
-  }
   viewport: {
     cssWidth: number
     cssHeight: number
@@ -57,10 +68,10 @@ export type BulkViewportCaptureImage = {
   /** Wall-clock capture time. This is deliberately not a simulation tick. */
   capturedAt: string
   /**
-   * Compact ready-scene identity latched at the same presented observer cut as
-   * the PNG. It contains no Graph, semantic manifestation or projection.
+   * Compact Bulk Store proof latched at the same presented observer cut as the
+   * PNG. It contains no Graph, address, client cursor or renderer scene.
    */
-  snapshot: BulkReadySceneSnapshot
+  store: BulkStoreCaptureProof
   mimeType: "image/png"
   pngBytes: number
   pngBase64: string
@@ -97,7 +108,7 @@ export type BulkViewportCaptureLimits = {
   maxPixelHeight: number
   maxPixels: number
   maxPngBytes: number
-  maxSnapshotBytes: number
+  maxStoreBytes: number
 }
 
 export type BulkViewportCaptureControlRequest = {
@@ -129,7 +140,7 @@ const isBulkViewportCaptureLimits = (value: unknown): value is BulkViewportCaptu
   isPositiveSafeInteger(value.maxPixelHeight) &&
   isPositiveSafeInteger(value.maxPixels) &&
   isPositiveSafeInteger(value.maxPngBytes) &&
-  isPositiveSafeInteger(value.maxSnapshotBytes)
+  isPositiveSafeInteger(value.maxStoreBytes)
 
 export const isBulkViewportCaptureControlRequest = (
   value: unknown,

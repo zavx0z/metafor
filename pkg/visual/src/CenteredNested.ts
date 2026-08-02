@@ -89,6 +89,9 @@ type ComponentFieldLayout = Readonly<{
     number,
     readonly ComponentFieldEntry[]
   >
+  componentRootDarkParticleId: number
+  componentRootDepth: number
+  rootIsComponentRoot: boolean
   root: DarkTreeNode
 }>
 
@@ -263,6 +266,11 @@ const placeComponentFields = (
   fields: readonly BulkFieldParticle[],
   root: DarkTreeNode,
   nodeById: ReadonlyMap<number, DarkTreeNode>,
+  context: Readonly<{
+    componentRootDarkParticleId?: number
+    componentRootDepth?: number
+    rootIsComponentRoot?: boolean
+  }> = {},
 ): ComponentFieldLayout => {
   const groups = new Map<string, BulkFieldParticle[]>()
   for (const field of fields) {
@@ -273,7 +281,7 @@ const placeComponentFields = (
   }
   for (const group of groups.values()) group.sort(fieldOrder)
 
-  const rootDepth = root.particle.depth
+  const rootDepth = context.componentRootDepth ?? root.particle.depth
   const visualEntries: ComponentFieldEntry[] = []
   for (const group of groups.values()) {
     const owners = [...new Set(group.map((field) =>
@@ -367,7 +375,11 @@ const placeComponentFields = (
   }
 
   return {
+    componentRootDarkParticleId:
+      context.componentRootDarkParticleId ?? root.particle.darkParticleId,
+    componentRootDepth: rootDepth,
     entriesByOwner,
+    rootIsComponentRoot: context.rootIsComponentRoot ?? true,
     root,
   }
 }
@@ -501,7 +513,7 @@ const placeOwnerFields = (
   const placements: CenteredNestedFieldPlacement[] = []
   let occupiedOuterBoundary = minimumCoreExtent
 
-  if (node === component.root) {
+  if (node === component.root && component.rootIsComponentRoot) {
     const centerRadii = privateEntries.map((entry) =>
       torusFieldRadiusAtLevel(entry.owner.particle.depth)
     )
@@ -529,7 +541,7 @@ const placeOwnerFields = (
       privateEntries,
       occupiedOuterBoundary,
       0,
-      `${component.root.particle.darkParticleId}:` +
+      `${component.componentRootDarkParticleId}:` +
         `${node.particle.darkParticleId}:private`,
       orbitCursor,
     )
@@ -559,7 +571,7 @@ const placeOwnerFields = (
       firstSharedDepth && privateEntries.length > 0
         ? maximumRadius * 2
         : 0,
-      `${component.root.particle.darkParticleId}:` +
+      `${component.componentRootDarkParticleId}:` +
         `${node.particle.darkParticleId}:shared:${depth}`,
       orbitCursor,
     )
@@ -630,11 +642,23 @@ const resolveComponentTori = (
     number,
     OwnerStateLayouts
   >,
+  minimumRootCoreExtent = 0,
+  ownStateOuterExtentById?: ReadonlyMap<number, number>,
+  initialOrbitIndex = 0,
+  ownStateOuterExtentResolver?: (
+    darkParticleId: number,
+    childOuterExtent: number,
+    scale: number,
+  ) => number,
+  darkFormSink?: (
+    darkParticleId: number,
+    form: Readonly<{radius: number; tube: number}>,
+  ) => void,
 ): ResolvedComponentTori => {
   const markerRadius = TORUS_LAYOUT_BASELINE.rootFieldRadius
   const localGap =
     markerRadius * TORUS_LAYOUT_BASELINE.contentGapToFieldRadius
-  const orbitCursor: FieldOrbitCursor = {value: 0}
+  const orbitCursor: FieldOrbitCursor = {value: initialOrbitIndex}
   const maximumSubtreeDepthById = new Map<number, number>()
   indexMaximumSubtreeDepth(
     component.root,
@@ -707,7 +731,13 @@ const resolveComponentTori = (
       orbitRadius: statePacking.orbitRadius,
       prepared,
     }))
-    const ownStateOuterExtent = stateOuterExtent(states) * scale
+    const ownStateOuterExtent = ownStateOuterExtentResolver?.(
+      particle.darkParticleId,
+      childOuterExtent,
+      scale,
+    ) ?? ownStateOuterExtentById?.get(
+      particle.darkParticleId,
+    ) ?? stateOuterExtent(states) * scale
     const form = resolveContentTorusForm({
       coreExtent,
       emptyOuterRadius,
@@ -717,6 +747,7 @@ const resolveComponentTori = (
         ownStateOuterExtent,
       ),
     })
+    darkFormSink?.(particle.darkParticleId, form)
     return defineTorusComposition({
       id: `${particle.darkParticleKind}:${particle.darkParticleId}`,
       role: particle.darkParticleKind,
@@ -740,7 +771,7 @@ const resolveComponentTori = (
 
   return {
     center: {x: 0, y: 0, z: 0},
-    root: resolve(component.root, 0),
+    root: resolve(component.root, minimumRootCoreExtent),
   }
 }
 
@@ -789,6 +820,63 @@ export const layoutCenteredNestedFields = (
       )
     ),
   )
+}
+
+/**
+ * Re-runs only one structurally bounded Field subtree. Callers supply the
+ * already-held non-Field State extents, so the centered-nested placement law
+ * preserves the complete layout without reading an unrelated component.
+ */
+export const layoutCenteredNestedFieldSubtree = (
+  manifest: BulkManifest,
+  minimumRootCoreExtent: number,
+  ownStateOuterExtentById: ReadonlyMap<number, number> = new Map(),
+  context: Readonly<{
+    componentRootDarkParticleId?: number
+    componentRootDepth?: number
+    darkFormSink?: (
+      darkParticleId: number,
+      form: Readonly<{radius: number; tube: number}>,
+    ) => void
+    initialOrbitIndex?: number
+    ownStateOuterExtentResolver?: (
+      darkParticleId: number,
+      childOuterExtent: number,
+      scale: number,
+    ) => number
+    rootIsComponentRoot?: boolean
+  }> = {},
+): readonly CenteredNestedFieldPlacement[] => {
+  const roots = buildDarkParticleForest(manifest)
+  if (roots.length !== 1) {
+    throw new Error(
+      `Centered-nested Field subtree requires one root; received ${roots.length}`,
+    )
+  }
+  const root = roots[0]
+  if (!root) return Object.freeze([])
+  const nodeById = new Map<number, DarkTreeNode>()
+  const pending = [root]
+  while (pending.length > 0) {
+    const node = pending.pop()!
+    nodeById.set(node.particle.darkParticleId, node)
+    pending.push(...node.children)
+  }
+  const component = placeComponentFields(
+    manifest.fieldParticles,
+    root,
+    nodeById,
+    context,
+  )
+  return Object.freeze(collectCenteredFields(resolveComponentTori(
+    component,
+    new Map(),
+    minimumRootCoreExtent,
+    ownStateOuterExtentById,
+    context.initialOrbitIndex ?? 0,
+    context.ownStateOuterExtentResolver,
+    context.darkFormSink,
+  )))
 }
 
 export const buildCenteredNestedVisualScene = (

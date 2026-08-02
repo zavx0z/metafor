@@ -156,13 +156,32 @@ export const parseInflatonAddress = (path: Particle["path"], value?: unknown): I
       ? {path, src: value.src, localId: 0}
       : null
   }
+  const localId = Number.isSafeInteger(value.localId)
+    ? Number(value.localId)
+    : Number.isSafeInteger(value.id) ? Number(value.id) : null
   return typeof value.wimp === "string" && value.wimp.trim().length > 0 &&
-      Number.isSafeInteger(value.id) && Number(value.id) > 0
-    ? {path, src: value.wimp, localId: Number(value.id)}
+      localId !== null && localId > 0
+    ? {path, src: value.wimp, localId}
     : null
 }
 
 export const gravitonDeclarationPath = (address: InflatonAddress): DeclarationPath => address.path
+
+const declarationTableByPath = Object.freeze({
+  field: "field",
+  variant: "field_enum_variant",
+  state: "state",
+  transition: "transition",
+  condition: "condition",
+  process: "process",
+  reaction: "reaction",
+  matter: "matter_particle",
+} as const)
+
+type NumericDeclarationPath = keyof typeof declarationTableByPath
+
+const isNumericDeclarationPath = (path: DeclarationPath): path is NumericDeclarationPath =>
+  path in declarationTableByPath
 
 const fieldId = async (sql: Database, src: string, localId: number): Promise<number> => {
   const row = (await sql<Array<{id: number}>>`
@@ -412,8 +431,12 @@ export class BoundaryIncrementalStore {
     const part = message.parts[0]
     if (part.part === "higgs") return await this.applyHiggs(part)
     if (part.part !== "inflaton" || part.op === "test") return null
-    if (part.op !== "add" && part.op !== "replace" && part.op !== "remove") {
+    if (part.op !== "add" && part.op !== "replace" && part.op !== "remove" &&
+        part.op !== "move" && part.op !== "copy") {
       throw new Error(`inflaton/${part.op} is not supported by Boundary`)
+    }
+    if (part.op === "move" || part.op === "copy") {
+      return await this.applyDeclarationTransfer(part)
     }
     const address = parseInflatonAddress(part.path, part.value)
     if (!address) throw new Error(`Invalid categorical Inflaton identity: ${String(part.path)}`)
@@ -829,6 +852,592 @@ export class BoundaryIncrementalStore {
 
   private identity(address: InflatonAddress): JsonRecord {
     return address.path === "wimp" ? {src: address.src} : {wimp: address.src, id: address.localId}
+  }
+
+  private async declarationAddressByRowId(
+    sql: Database,
+    path: NumericDeclarationPath,
+    id: number,
+  ): Promise<InflatonAddress> {
+    const table = declarationTableByPath[path]
+    const row = (await sql.unsafe<Array<{wimp: string; localId: number}>>(
+      `SELECT wimp, local_id AS localId FROM ${table} WHERE id = ? LIMIT 1`,
+      [id],
+    ))[0]
+    if (!row || !Number.isSafeInteger(Number(row.localId)) || Number(row.localId) <= 0) {
+      throw new Error(`Boundary ${path} source row ${id} is absent or has no canonical local_id`)
+    }
+    return {path, src: row.wimp, localId: Number(row.localId)}
+  }
+
+  private async fieldLocalIdByRowId(sql: Database, id: number): Promise<number> {
+    const row = (await sql<Array<{localId: number}>>`
+      SELECT local_id AS localId FROM field WHERE id = ${id} LIMIT 1
+    `)[0]
+    if (!row || !Number.isSafeInteger(Number(row.localId)) || Number(row.localId) <= 0) {
+      throw new Error(`Boundary Field row ${id} has no canonical local_id`)
+    }
+    return Number(row.localId)
+  }
+
+  private async cloneFieldDefault(sql: Database, source: number, target: number): Promise<void> {
+    const exists = (await sql<Array<{ok: number}>>`
+      SELECT 1 AS ok FROM field_default WHERE field = ${source} LIMIT 1
+    `)[0]
+    if (!exists) return
+    await sql`INSERT INTO field_default (field) VALUES (${target})`
+    await sql`
+      INSERT INTO field_string_default (field, default_value)
+      SELECT ${target}, default_value FROM field_string_default WHERE field = ${source}
+    `
+    await sql`
+      INSERT INTO field_number_default (field, default_value)
+      SELECT ${target}, default_value FROM field_number_default WHERE field = ${source}
+    `
+    await sql`
+      INSERT INTO field_boolean_default (field, default_value)
+      SELECT ${target}, default_value FROM field_boolean_default WHERE field = ${source}
+    `
+    await sql`
+      INSERT INTO field_array_default_item (field, position, item_value)
+      SELECT ${target}, position, item_value FROM field_array_default_item WHERE field = ${source}
+    `
+    await sql`
+      INSERT INTO field_enum_default (field, variant)
+      SELECT ${target}, variant FROM field_enum_default WHERE field = ${source}
+    `
+  }
+
+  private async writeCanonicalFieldDefault(
+    sql: Database,
+    field: number,
+    type: StoredField["type"],
+    value: unknown,
+  ): Promise<void> {
+    await sql`DELETE FROM field_default WHERE field = ${field}`
+    if (value === undefined) return
+    await sql`INSERT INTO field_default (field) VALUES (${field})`
+    if (type === "string") {
+      await sql`INSERT INTO field_string_default (field, default_value) VALUES (${field}, ${String(value)})`
+    } else if (type === "number") {
+      if (typeof value !== "number" || !Number.isFinite(value)) throw new Error("field.default must be a finite number")
+      await sql`INSERT INTO field_number_default (field, default_value) VALUES (${field}, ${value})`
+    } else if (type === "boolean") {
+      if (typeof value !== "boolean") throw new Error("field.default must be a boolean")
+      await sql`INSERT INTO field_boolean_default (field, default_value) VALUES (${field}, ${value ? 1 : 0})`
+    } else if (type === "array") {
+      if (!Array.isArray(value)) throw new Error("field.default must be an array")
+      for (let position = 0; position < value.length; position++) {
+        await sql`
+          INSERT INTO field_array_default_item (field, position, item_value)
+          VALUES (${field}, ${position}, ${String(value[position])})
+        `
+      }
+    } else {
+      const descriptor = record(value, "field.default")
+      const variant = positiveInteger(descriptor.variant, "field.default.variant")
+      await sql`INSERT INTO field_enum_default (field, variant) VALUES (${field}, ${variant})`
+    }
+  }
+
+  private async cloneConditionPredicates(sql: Database, source: number, target: number): Promise<void> {
+    for (const row of await sql<Array<{
+      id: number; predicateOrder: number; subjectKind: string; operator: string; valueKind: string;
+      valueBoolean: number | null; valueNumber: number | null; valueText: string | null;
+      valueVariant: number | null; valueJson: string | null;
+    }>>`
+      SELECT id, predicate_order AS predicateOrder, subject_kind AS subjectKind,
+             operator, value_kind AS valueKind, value_boolean AS valueBoolean,
+             value_number AS valueNumber, value_text AS valueText,
+             value_variant AS valueVariant, value_json AS valueJson
+        FROM condition_predicate WHERE condition = ${source} ORDER BY predicate_order
+    `) {
+      const predicate = await insertedId(sql<Array<{id: number}>>`
+        INSERT INTO condition_predicate (
+          condition, predicate_order, subject_kind, operator, value_kind,
+          value_boolean, value_number, value_text, value_variant, value_json
+        ) VALUES (
+          ${target}, ${row.predicateOrder}, ${row.subjectKind}, ${row.operator}, ${row.valueKind},
+          ${row.valueBoolean}, ${row.valueNumber}, ${row.valueText}, ${row.valueVariant}, ${row.valueJson}
+        ) RETURNING id
+      `, "Condition predicate")
+      await sql`
+        INSERT INTO condition_list_item (
+          predicate, item_order, value_kind, value_boolean, value_number, value_text, value_variant
+        )
+        SELECT ${predicate}, item_order, value_kind, value_boolean, value_number, value_text, value_variant
+          FROM condition_list_item WHERE predicate = ${row.id}
+      `
+    }
+  }
+
+  private processFieldIds(value: unknown, label: string): number[] {
+    if (value === undefined || value === null) return []
+    if (!Array.isArray(value)) throw new Error(`${label} must be an array`)
+    return value.map((entry, index) => positiveInteger(
+      Array.isArray(entry) ? entry[0] : entry,
+      `${label}[${index}]`,
+    ))
+  }
+
+  private async writeRelationalProcess(
+    sql: Database,
+    id: number,
+    descriptorValue: unknown,
+  ): Promise<void> {
+    const descriptor = record(descriptorValue, "process.descriptor")
+    const type = requiredString(descriptor.type, "process.type")
+    if (type !== "action" && type !== "finally") throw new Error(`Unsupported process type ${type}`)
+    await sql`DELETE FROM process_env WHERE process = ${id}`
+    await sql`DELETE FROM process_action WHERE process = ${id}`
+    await sql`DELETE FROM process_finally WHERE process = ${id}`
+    for (const env of Array.isArray(descriptor.env) ? descriptor.env : []) {
+      await sql`INSERT INTO process_env (process, env) VALUES (${id}, ${requiredString(env, "process.env")})`
+    }
+    if (type === "finally") {
+      const before = record(descriptor.before, "process.before")
+      await sql`INSERT INTO process_finally (process, before) VALUES (${id}, ${requiredString(before.src, "process.before.src")})`
+      for (const field of this.processFieldIds(before.readFields ?? before.read, "process.before.read")) {
+        await sql`INSERT INTO process_finally_read (process, field) VALUES (${id}, ${field})`
+      }
+      return
+    }
+    const action = record(descriptor.action, "process.action")
+    const success = isRecord(descriptor.success) ? descriptor.success : null
+    const error = isRecord(descriptor.error) ? descriptor.error : null
+    await sql`
+      INSERT INTO process_action (process, action, action_import_specifier, action_wrapper_src, success, error)
+      VALUES (
+        ${id}, ${requiredString(action.src, "process.action.src")},
+        ${typeof action.importSpecifier === "string" ? action.importSpecifier : null},
+        ${typeof action.wrapperSrc === "string" ? action.wrapperSrc : null},
+        ${success ? requiredString(success.src, "process.success.src") : null},
+        ${error ? requiredString(error.src, "process.error.src") : null}
+      )
+    `
+    for (const field of this.processFieldIds(action.readFields ?? action.read, "process.action.read")) {
+      await sql`INSERT INTO process_action_read (process, field, phase) VALUES (${id}, ${field}, ${"action"})`
+    }
+    for (const [phase, handler] of [["success", success], ["error", error]] as const) {
+      if (!handler) continue
+      for (const field of this.processFieldIds(handler.readFields ?? handler.read, `process.${phase}.read`)) {
+        await sql`INSERT INTO process_action_read (process, field, phase) VALUES (${id}, ${field}, ${phase})`
+      }
+      for (const field of this.processFieldIds(handler.writeFields ?? handler.write, `process.${phase}.write`)) {
+        await sql`INSERT INTO process_action_write (process, field, phase) VALUES (${id}, ${field}, ${phase})`
+      }
+    }
+  }
+
+  private async persistNumericDeclarationTransfer(
+    sql: Database,
+    op: "move" | "copy",
+    source: InflatonAddress,
+    sourceId: number,
+    sourceValue: JsonRecord,
+    target: InflatonAddress,
+    targetInput: JsonRecord,
+  ): Promise<number> {
+    if (!isNumericDeclarationPath(source.path) || source.path !== target.path) {
+      throw new Error("Boundary declaration transfer table is inconsistent")
+    }
+    const merged: JsonRecord = {...sourceValue, ...targetInput, wimp: target.src, localId: target.localId}
+    const copy = op === "copy"
+
+    if (source.path === "field") {
+      const type = requiredString(merged.type, "field.type") as StoredField["type"]
+      if (type !== "string" && type !== "number" && type !== "boolean" && type !== "array" && type !== "enum") {
+        throw new Error(`Unsupported field type ${type}`)
+      }
+      const id = copy
+        ? await insertedId(sql<Array<{id: number}>>`
+            INSERT INTO field (wimp, local_id, key, type, required, label)
+            VALUES (
+              ${target.src}, ${target.localId}, ${requiredString(merged.key, "field.key")}, ${type},
+              ${merged.required === true ? 1 : 0}, ${nullableString(merged.label, "field.label")}
+            ) RETURNING id
+          `, "Field copy")
+        : sourceId
+      if (!copy) await sql`
+        UPDATE field SET wimp = ${target.src}, local_id = ${target.localId},
+          key = ${requiredString(merged.key, "field.key")}, type = ${type},
+          required = ${merged.required === true ? 1 : 0}, label = ${nullableString(merged.label, "field.label")}
+        WHERE id = ${sourceId}
+      `
+      if (copy && !Object.hasOwn(targetInput, "default")) await this.cloneFieldDefault(sql, sourceId, id)
+      else if (Object.hasOwn(targetInput, "default")) {
+        await this.writeCanonicalFieldDefault(sql, id, type, targetInput.default)
+      }
+      return id
+    }
+
+    if (source.path === "variant") {
+      const field = positiveInteger(merged.field, "variant.field")
+      const position = nonNegativeInteger(merged.position, "variant.position")
+      const itemValue = requiredString(merged.itemValue ?? merged.value, "variant.itemValue")
+      if (copy) return await insertedId(sql<Array<{id: number}>>`
+        INSERT INTO field_enum_variant (wimp, local_id, field, position, item_value)
+        VALUES (${target.src}, ${target.localId}, ${field}, ${position}, ${itemValue}) RETURNING id
+      `, "Variant copy")
+      await sql`
+        UPDATE field_enum_variant SET wimp = ${target.src}, local_id = ${target.localId},
+          field = ${field}, position = ${position}, item_value = ${itemValue}
+        WHERE id = ${sourceId}
+      `
+      return sourceId
+    }
+
+    if (source.path === "state") {
+      const name = requiredString(merged.name, "state.name")
+      const position = nonNegativeInteger(merged.position, "state.position")
+      if (copy) return await insertedId(sql<Array<{id: number}>>`
+        INSERT INTO state (wimp, local_id, name, position)
+        VALUES (${target.src}, ${target.localId}, ${name}, ${position}) RETURNING id
+      `, "State copy")
+      await sql`
+        UPDATE state SET wimp = ${target.src}, local_id = ${target.localId},
+          name = ${name}, position = ${position} WHERE id = ${sourceId}
+      `
+      return sourceId
+    }
+
+    if (source.path === "transition") {
+      const from = positiveInteger(merged.fromState ?? merged.from, "transition.fromState")
+      const to = positiveInteger(merged.toState ?? merged.to, "transition.toState")
+      const position = nonNegativeInteger(merged.position, "transition.position")
+      if (copy) return await insertedId(sql<Array<{id: number}>>`
+        INSERT INTO transition (wimp, local_id, from_state, to_state, position)
+        VALUES (${target.src}, ${target.localId}, ${from}, ${to}, ${position}) RETURNING id
+      `, "Transition copy")
+      await sql`
+        UPDATE transition SET wimp = ${target.src}, local_id = ${target.localId},
+          from_state = ${from}, to_state = ${to}, position = ${position} WHERE id = ${sourceId}
+      `
+      return sourceId
+    }
+
+    if (source.path === "condition") {
+      const transition = positiveInteger(merged.transition, "condition.transition")
+      const field = positiveInteger(merged.field, "condition.field")
+      const position = nonNegativeInteger(merged.position, "condition.position")
+      const id = copy
+        ? await insertedId(sql<Array<{id: number}>>`
+            INSERT INTO condition (wimp, local_id, transition, field, position)
+            VALUES (${target.src}, ${target.localId}, ${transition}, ${field}, ${position}) RETURNING id
+          `, "Condition copy")
+        : sourceId
+      if (!copy) await sql`
+        UPDATE condition SET wimp = ${target.src}, local_id = ${target.localId},
+          transition = ${transition}, field = ${field}, position = ${position} WHERE id = ${sourceId}
+      `
+      if (copy && !Object.hasOwn(targetInput, "predicate")) await this.cloneConditionPredicates(sql, sourceId, id)
+      else if (Object.hasOwn(targetInput, "predicate")) {
+        await sql`DELETE FROM condition_predicate WHERE condition = ${id}`
+        await insertPredicateGroup(sql, id, targetInput.predicate, field)
+      }
+      return id
+    }
+
+    if (source.path === "process") {
+      const sourceDescriptor = record(sourceValue.descriptor, "process.descriptor")
+      const targetDescriptor = isRecord(targetInput.descriptor)
+        ? targetInput.descriptor
+        : Object.hasOwn(targetInput, "type") ? targetInput : {}
+      const descriptor = {...sourceDescriptor, ...targetDescriptor}
+      const type = requiredString(descriptor.type, "process.type")
+      if (type !== "action" && type !== "finally") throw new Error(`Unsupported process type ${type}`)
+      const key = requiredString(descriptor.key, "process.key")
+      const id = copy
+        ? await insertedId(sql<Array<{id: number}>>`
+            INSERT INTO process (wimp, local_id, key, type, label, desc)
+            VALUES (
+              ${target.src}, ${target.localId}, ${key}, ${type},
+              ${nullableString(descriptor.label, "process.label")},
+              ${nullableString(descriptor.desc, "process.desc")}
+            ) RETURNING id
+          `, "Process copy")
+        : sourceId
+      if (!copy) await sql`
+        UPDATE process SET wimp = ${target.src}, local_id = ${target.localId},
+          key = ${key}, type = ${type}, label = ${nullableString(descriptor.label, "process.label")},
+          desc = ${nullableString(descriptor.desc, "process.desc")} WHERE id = ${sourceId}
+      `
+      await this.writeRelationalProcess(sql, id, descriptor)
+      return id
+    }
+
+    if (source.path === "reaction") {
+      const key = requiredString(merged.key, "reaction.key")
+      const label = requiredString(merged.label, "reaction.label")
+      const desc = nullableString(merged.desc, "reaction.desc")
+      const cond = requiredString(merged.cond, "reaction.cond")
+      const update = requiredString(merged.src, "reaction.src")
+      const id = copy
+        ? await insertedId(sql<Array<{id: number}>>`
+            INSERT INTO reaction (wimp, local_id, key, label, desc, cond_source, update_source)
+            VALUES (${target.src}, ${target.localId}, ${key}, ${label}, ${desc}, ${cond}, ${update}) RETURNING id
+          `, "Reaction copy")
+        : sourceId
+      if (!copy) await sql`
+        UPDATE reaction SET wimp = ${target.src}, local_id = ${target.localId},
+          key = ${key}, label = ${label}, desc = ${desc}, cond_source = ${cond}, update_source = ${update}
+        WHERE id = ${sourceId}
+      `
+      await sql`DELETE FROM reaction_read WHERE reaction = ${id}`
+      await sql`DELETE FROM reaction_write WHERE reaction = ${id}`
+      await sql`DELETE FROM reaction_state WHERE reaction = ${id}`
+      for (const field of this.processFieldIds(merged.read, "reaction.read")) {
+        await sql`INSERT INTO reaction_read (reaction, field) VALUES (${id}, ${field})`
+      }
+      for (const field of this.processFieldIds(merged.write, "reaction.write")) {
+        await sql`INSERT INTO reaction_write (reaction, field) VALUES (${id}, ${field})`
+      }
+      for (const state of this.processFieldIds(merged.states, "reaction.states")) {
+        await sql`INSERT INTO reaction_state (reaction, state) VALUES (${id}, ${state})`
+      }
+      return id
+    }
+
+    const particleKind = requiredString(merged.particleKind ?? merged.kind, "matter.particleKind") as MatterParticleKind
+    if (particleKind !== "wimp" && particleKind !== "fuzzy" && particleKind !== "axion" && particleKind !== "macho") {
+      throw new Error(`Unsupported Matter kind ${particleKind}`)
+    }
+    const parent = Object.hasOwn(targetInput, "parentParticle")
+      ? targetInput.parentParticle === null ? null : positiveInteger(targetInput.parentParticle, "matter.parentParticle")
+      : Object.hasOwn(targetInput, "parent")
+        ? targetInput.parent === null ? null : await matterId(sql, target.src, positiveInteger(targetInput.parent, "matter.parent"))
+        : sourceValue.parentParticle === null ? null : positiveInteger(sourceValue.parentParticle, "matter.parentParticle")
+    const edgeSlot = requiredString(merged.edgeSlot, "matter.edgeSlot") as MatterEdgeSlot
+    const position = nonNegativeInteger(merged.particleOrder ?? merged.position, "matter.particleOrder")
+    const oldBindings = copy ? [] : await this.matterBindingIds(sql, sourceId)
+    const id = copy
+      ? await insertedId(sql<Array<{id: number}>>`
+          INSERT INTO matter_particle (wimp, local_id, parent_particle, particle_kind, edge_slot, particle_order)
+          VALUES (${target.src}, ${target.localId}, ${parent}, ${particleKind}, ${edgeSlot}, ${position}) RETURNING id
+        `, "Matter copy")
+      : sourceId
+    if (!copy) {
+      await this.assertMatterParentIsAcyclic(sql, target, id, parent)
+      await sql`DELETE FROM matter_particle_wimp WHERE particle = ${id}`
+      await sql`DELETE FROM matter_particle_fuzzy WHERE particle = ${id}`
+      await sql`DELETE FROM matter_particle_axion WHERE particle = ${id}`
+      await sql`DELETE FROM matter_particle_macho WHERE particle = ${id}`
+      await sql`
+        UPDATE matter_particle SET wimp = ${target.src}, local_id = ${target.localId},
+          parent_particle = ${parent}, particle_kind = ${particleKind}, edge_slot = ${edgeSlot},
+          particle_order = ${position} WHERE id = ${id}
+      `
+      for (const binding of oldBindings) await sql`DELETE FROM matter_binding WHERE id = ${binding}`
+    }
+    if (particleKind === "wimp") {
+      validateRuntimeMatterBinding(merged.massBinding, "mass", "matter.massBinding")
+      validateRuntimeMatterBinding(merged.energyBinding, "energy", "matter.energyBinding")
+      await sql`
+        INSERT INTO matter_particle_wimp (particle, src, fields_binding, mass_binding, energy_binding)
+        VALUES (
+          ${id}, ${requiredString(merged.src, "matter.src")},
+          ${await storeBinding(sql, target.src, merged.fieldsBinding)},
+          ${await storeBinding(sql, target.src, merged.massBinding)},
+          ${await storeBinding(sql, target.src, merged.energyBinding)}
+        )
+      `
+    } else if (particleKind === "fuzzy") {
+      const binding = await storeBinding(sql, target.src, merged.predicateBinding)
+      if (binding === null) throw new Error("Fuzzy predicateBinding is required")
+      await sql`
+        INSERT INTO matter_particle_fuzzy (particle, fuzzy_kind, predicate_binding)
+        VALUES (${id}, ${requiredString(merged.fuzzyKind, "matter.fuzzyKind")}, ${binding})
+      `
+    } else if (particleKind === "axion") {
+      const binding = await storeBinding(sql, target.src, merged.predicateBinding)
+      if (binding === null) throw new Error("Axion predicateBinding is required")
+      await sql`INSERT INTO matter_particle_axion (particle, predicate_binding) VALUES (${id}, ${binding})`
+    } else {
+      const binding = await storeBinding(sql, target.src, merged.collectionBinding)
+      if (binding === null) throw new Error("Macho collectionBinding is required")
+      await sql`INSERT INTO matter_particle_macho (particle, collection_binding) VALUES (${id}, ${binding})`
+    }
+    return id
+  }
+
+  private async applyWimpTransfer(
+    sql: Database,
+    op: "move" | "copy",
+    source: InflatonAddress,
+    target: InflatonAddress,
+    targetInput: JsonRecord,
+  ): Promise<Particle[]> {
+    const sourceRow = (await sql<Array<{
+      src: string; name: string | null; desc: string | null; viewCss: string | null
+    }>>`
+      SELECT src, name, desc, view_css AS viewCss FROM wimp WHERE src = ${source.src} LIMIT 1
+    `)[0]
+    if (!sourceRow) throw new Error(`Boundary WIMP source ${source.src} is absent`)
+    const occupied = (await sql<Array<{ok: number}>>`
+      SELECT 1 AS ok FROM wimp WHERE src = ${target.src} LIMIT 1
+    `)[0]
+    if (occupied) throw new Error(`Boundary WIMP target ${target.src} already exists`)
+    const name = Object.hasOwn(targetInput, "name")
+      ? nullableString(targetInput.name, "wimp.name")
+      : sourceRow.name
+    const desc = Object.hasOwn(targetInput, "desc")
+      ? nullableString(targetInput.desc, "wimp.desc")
+      : sourceRow.desc
+    await sql`
+      INSERT INTO wimp (src, name, desc, view_css)
+      VALUES (${target.src}, ${name}, ${desc}, ${sourceRow.viewCss})
+    `
+    const effects: Particle[] = []
+    if (op === "copy") {
+      const declarations = Array.isArray(targetInput.mass)
+        ? targetInput.mass
+        : await this.mass.declarations(source.src, sql)
+      await this.mass.synchronizeDeclarations(sql, target.src, declarations as MetaMassDSL[])
+      const canonical = await this.canonical(sql, target, targetInput)
+      effects.push({
+        part: "graviton", op, path: "wimp", from: source.src,
+        ts: Date.now(), value: canonical,
+      })
+      await this.addRuntimeConsequences(sql, target, targetInput, effects)
+      return effects
+    }
+
+    for (const table of [
+      "field", "field_enum_variant", "state", "transition", "condition",
+      "process", "reaction", "matter_binding", "matter_particle", "atom",
+    ] as const) {
+      await sql.unsafe(`UPDATE ${table} SET wimp = ? WHERE wimp = ?`, [target.src, source.src])
+    }
+    await sql`UPDATE mass_declaration SET wimp = ${target.src} WHERE wimp = ${source.src}`
+    await sql`
+      UPDATE boundary_runtime_origin SET declaration_wimp = ${target.src}
+       WHERE declaration_wimp = ${source.src}
+    `
+    await sql`UPDATE matter_particle_wimp SET src = ${target.src} WHERE src = ${source.src}`
+    const hasActiveRoot = Number((await sql<Array<{count: number}>>`
+      SELECT COUNT(*) AS count FROM sqlite_master
+       WHERE type = ${"table"} AND name = ${"boundary_active_root"}
+    `)[0]?.count ?? 0) > 0
+    if (hasActiveRoot) {
+      await sql`
+        UPDATE boundary_active_root
+           SET active_src = CASE WHEN active_src = ${source.src} THEN ${target.src} ELSE active_src END,
+               previous_src = CASE WHEN previous_src = ${source.src} THEN ${target.src} ELSE previous_src END
+         WHERE active_src = ${source.src} OR previous_src = ${source.src}
+      `
+    }
+    await sql`DELETE FROM wimp WHERE src = ${source.src}`
+    if (Array.isArray(targetInput.mass)) {
+      await this.mass.synchronizeDeclarations(sql, target.src, targetInput.mass as MetaMassDSL[])
+    }
+    const canonical = await this.canonical(sql, target, targetInput)
+    effects.push({
+      part: "graviton", op, path: "wimp", from: source.src,
+      ts: Date.now(), value: canonical,
+    })
+    for (const atom of await sql<Array<{id: number}>>`
+      SELECT id FROM atom WHERE wimp = ${target.src} ORDER BY id
+    `) {
+      const entity = await this.atomEntity(sql, Number(atom.id))
+      if (entity) effects.push({
+        part: "graviton", op: "replace", path: `atom/${Number(atom.id)}`,
+        ts: Date.now(), value: entity,
+      })
+    }
+    return effects
+  }
+
+  private async applyDeclarationTransfer(part: Particle): Promise<BoundaryIncrementalCommit> {
+    if ((part.op !== "move" && part.op !== "copy") || !isDeclarationPath(part.path)) {
+      throw new Error("Boundary declaration transfer requires categorical move/copy")
+    }
+    const op: "move" | "copy" = part.op
+    const path: DeclarationPath = part.path
+    if (path === "bulk") {
+      throw new Error("Boundary bulk/view_css is excluded from Bulk Store declaration transfer")
+    }
+    const input = record(part.value, `${path} transfer value`)
+    const target = parseInflatonAddress(path, input)
+    if (!target) throw new Error(`Invalid categorical Inflaton target identity: ${path}`)
+
+    let source: InflatonAddress
+    let sourceId: string | number
+    if (path === "wimp") {
+      sourceId = requiredString(part.from, "wimp transfer from")
+      source = {path: "wimp", src: sourceId, localId: 0}
+    } else {
+      if (!isNumericDeclarationPath(path)) {
+        throw new Error(`Boundary declaration transfer path ${path} has no persisted table`)
+      }
+      sourceId = positiveInteger(part.from, `${path} transfer from`)
+      source = await this.declarationAddressByRowId(this.sql, path, sourceId)
+    }
+    if (source.src === target.src && source.localId === target.localId) {
+      throw new Error(`Boundary ${path} transfer source and target are identical`)
+    }
+
+    const effects = await this.sql.begin(async (tx): Promise<Particle[]> => {
+      if (path === "wimp") return await this.applyWimpTransfer(tx, op, source, target, input)
+      if (!isNumericDeclarationPath(path)) {
+        throw new Error(`Boundary declaration transfer path ${path} has no persisted table`)
+      }
+      const sourceValue = await this.canonical(tx, source, {})
+      if (!sourceValue) throw new Error(`Boundary ${path} source row ${sourceId} is absent`)
+      const table = declarationTableByPath[path]
+      const targetRow = (await tx.unsafe<Array<{id: number}>>(
+        `SELECT id FROM ${table} WHERE wimp = ? AND local_id = ? LIMIT 1`,
+        [target.src, target.localId],
+      ))[0]
+      if (targetRow && Number(targetRow.id) !== sourceId) {
+        throw new Error(`Boundary ${path} target ${target.src}#${target.localId} already exists`)
+      }
+
+      const runtimeEffects: Particle[] = []
+      if (op === "move") {
+        await this.removeRuntimeConsequences(tx, source, runtimeEffects)
+        if (path === "field") {
+          const values = await tx<Array<{value: number}>>`
+            SELECT value FROM atom_value WHERE field = ${sourceId}
+          `
+          await tx`DELETE FROM atom_value WHERE field = ${sourceId}`
+          for (const value of values) await deleteUnreferencedValue(tx, Number(value.value))
+        }
+      }
+      const resultId = await this.persistNumericDeclarationTransfer(
+        tx, op, source, Number(sourceId), sourceValue, target, input,
+      )
+      if (path === "matter" && op === "move") {
+        await tx`
+          UPDATE boundary_runtime_origin
+             SET declaration_wimp = ${target.src}, declaration_local_id = ${target.localId}
+           WHERE declaration_kind = ${"matter"}
+             AND declaration_wimp = ${source.src}
+             AND declaration_local_id = ${source.localId}
+        `
+      }
+      const canonical = await this.canonical(tx, target, input)
+      if (!canonical || Number(canonical.id) !== resultId) {
+        throw new Error(`Boundary ${path} transfer did not materialize canonical target`)
+      }
+      const committed: Particle[] = [{
+        part: "graviton", op, path, from: sourceId,
+        ts: Date.now(), value: canonical,
+      }, ...runtimeEffects]
+      let consequenceInput: JsonRecord = canonical
+      if (path === "variant") {
+        consequenceInput = {
+          ...canonical,
+          field: await this.fieldLocalIdByRowId(tx, positiveInteger(canonical.field, "variant.field")),
+        }
+      }
+      await this.addRuntimeConsequences(tx, target, consequenceInput, committed)
+      await this.mass.ensureIndependentMemberships(tx)
+      await this.reconcileMassBindingSources(tx)
+      return committed
+    })
+
+    await this.updateIndexes(effects)
+    return {rootSrc: await this.rootSrc(), messages: effects.map(particleMessage)}
   }
 
   private async persist(sql: Database, address: InflatonAddress, value: JsonRecord): Promise<void> {
@@ -1462,8 +2071,16 @@ export class BoundaryIncrementalStore {
     if (address.path === "field") {
       const row = (await sql<Array<{id: number}>>`SELECT id FROM field WHERE wimp = ${address.src} AND local_id = ${address.localId}`)[0]
       if (!row) return
-      for (const atom of await sql<Array<{atom: number}>>`SELECT atom FROM atom_value WHERE field = ${row.id}`) {
-        effects.push({part: "gluon", op: "remove", path: Number(atom.atom), ts: Date.now(), value: {fields: {[String(row.id)]: null}}})
+      for (const atom of await sql<Array<{atom: number; valueId: number}>>`
+        SELECT atom, value AS valueId FROM atom_value WHERE field = ${row.id}
+      `) {
+        effects.push({
+          part: "gluon",
+          op: "remove",
+          path: Number(atom.atom),
+          ts: Date.now(),
+          value: {fields: {[String(row.id)]: {valueId: Number(atom.valueId), value: null}}},
+        })
       }
     }
   }
@@ -1659,8 +2276,14 @@ export class BoundaryIncrementalStore {
     for (const atom of await sql<Array<{id: number}>>`SELECT id FROM atom WHERE wimp = ${src}`) {
       const exists = (await sql<Array<{ok: number}>>`SELECT 1 AS ok FROM atom_value WHERE atom = ${atom.id} AND field = ${field.id}`)[0]
       if (exists) continue
-      await this.setAtomValue(sql, Number(atom.id), field, defaultValue.value)
-      effects.push({part: "gluon", op: "add", path: Number(atom.id), ts: Date.now(), value: {fields: {[String(field.id)]: clone(defaultValue.value)}}})
+      const valueId = await this.setAtomValue(sql, Number(atom.id), field, defaultValue.value)
+      effects.push({
+        part: "gluon",
+        op: "add",
+        path: Number(atom.id),
+        ts: Date.now(),
+        value: {fields: {[String(field.id)]: {valueId, value: clone(defaultValue.value)}}},
+      })
     }
     return effects
   }

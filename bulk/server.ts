@@ -6,7 +6,7 @@ import {Force} from "shared/transport/force"
 import {installForceCheckpointSideband} from "shared/transport/force/checkpoint"
 import {BulkObserverHandoffs} from "./handoff.ts"
 import {BulkMonad} from "./monad.ts"
-import type {BulkReadySceneUpdateControl} from "./visual-initial.ts"
+import type {BulkStoreApplyControl} from "@metafor/types/bulk/store"
 import {bulkMonadRoutes} from "./monad-route.ts"
 import {
   BULK_VIEWPORT_CAPTURE_MAX_CONTROL_BYTES,
@@ -22,13 +22,15 @@ import {
 } from "./time-control.ts"
 import {
   BULK_PAGE_SHELL_ROUTE,
-  serveBulkInitialPage,
+  serveBulkInitialStore,
+  serveBulkPageShell,
 } from "./page-bootstrap.ts"
+import {bulkStoreApplyControl} from "./store-initial.ts"
 
 type BrowserClient = {domain: string; id: string; session: string}
 
 const browserClients = new Set<ServerWebSocket<BrowserClient>>()
-const handoffs = new BulkObserverHandoffs<BulkReadySceneUpdateControl>()
+const handoffs = new BulkObserverHandoffs<BulkStoreApplyControl>()
 const monad = new BulkMonad()
 const captures = new BulkViewportCaptureRegistry()
 const transport = new MonadTransport("bulk")
@@ -77,12 +79,18 @@ const server = Bun.serve<BrowserClient>({
         _request: Bun.BunRequest<"/">,
         routeServer: Bun.Server<BrowserClient>,
       ) {
-        return serveBulkInitialPage({
+        return serveBulkPageShell({
+          readShell: async () => await readBrowserPageShell(routeServer),
+        })
+      },
+    },
+    "/initial": {
+      GET() {
+        return serveBulkInitialStore({
           openSession: () => handoffs.open(),
           cancelSession: (session) => handoffs.cancel(session),
           prepareInitial: async (session) =>
             await monad.openFreshObserver(rpc, session),
-          readShell: async () => await readBrowserPageShell(routeServer),
         })
       },
     },
@@ -189,6 +197,9 @@ const server = Bun.serve<BrowserClient>({
 })
 
 console.log(`[bulk] listening on ${server.url}`)
+void readBrowserPageShell(server).catch((error) => {
+  console.error("[bulk] browser page shell warmup failed", error)
+})
 
 let closing: Promise<void> | null = null
 const close = (): Promise<void> => {
@@ -215,14 +226,14 @@ try {
     waitMs: 30_000,
   })
   await checkpoint.open()
-  await monad.onServerStarted()
+  await monad.onServerStarted(rpc)
   force = new Force("bulk")
   force.onImpulse = async (impulse) => {
-    const scene = await monad.onImpulse(rpc, impulse)
-    const update: BulkReadySceneUpdateControl = {
-      control: "bulk.graph.update",
-      scene,
-      message: impulse,
+    monad.acceptImpulse(impulse)
+    const update = bulkStoreApplyControl(impulse)
+    if (update === null) {
+      console.log("[bulk] <- force excluded=bulk/view_css")
+      return
     }
     handoffs.buffer(update)
     console.log(`[bulk] <- force part=${impulse.parts[0].part}`)

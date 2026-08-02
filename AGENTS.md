@@ -106,6 +106,52 @@
 - Не утверждать прохождение runtime или визуального сценария без фактической
   проверки соответствующего пользовательского пути.
 
+## WebGPU Inspector для внешней диагностики
+
+- На этом Mac установлен внешний WebGPU Inspector из
+  `brendan-duncan/webgpu_inspector`. Его checkout находится в
+  `/Users/zavx0z/.codex/tools/webgpu-inspector`, MCP зарегистрирован в Codex
+  под именем `webgpu-inspector`, а skill анализа —
+  `/Users/zavx0z/.codex/skills/webgpu-capture-analysis/SKILL.md`.
+- WebGPU Inspector является только внешним диагностическим инструментом.
+  Запрещено добавлять его script, bridge client, package, dependency, loader,
+  debug flag, overlay или capture API в исходники, HTML, runtime, build и
+  browser bundle MetaFor. В production-коде не должно быть даже условного
+  пути его загрузки.
+- MCP является STDIO server и штатно запускается самим Codex при старте или
+  перезапуске клиента. Состояние конфигурации проверять командой
+  `codex mcp get webgpu-inspector`; bridge слушает только
+  `127.0.0.1:9690`, а captures сохраняет вне репозитория в
+  `/Users/zavx0z/.codex/tools/webgpu-inspector/captures`. Если MCP добавлен,
+  но его tools отсутствуют в текущей задаче, нужен перезапуск Codex, а не
+  изменение проекта или повторная установка зависимости.
+- Перед подключением к Chrome проверить `http://localhost:7880/health` и
+  точное окно/вкладку через `http://localhost:7880/windows`. Inspector
+  подключать командой MCP `attach_browser` к
+  `http://localhost:9222`. Не закрывать, не заменять и не перезапускать
+  пользовательский Chrome без разрешения. Для instrumentation использовать
+  отдельную диагностическую вкладку через `open_page`; исходную чистую вкладку
+  MetaFor не перезагружать и не превращать в постоянную inspector-вкладку.
+- Минимальный performance workflow: `browser_status` → `list_pages` →
+  `get_frame_stats` → `capture_frames` с `payloads: "none"` и
+  `profilePasses: true` → `analyze_performance` →
+  `get_validation_errors`. Для детального разбора начинать с
+  `get_capture_summary`, затем точечно использовать `get_commands`,
+  `get_object`, `get_shader`, `get_draw_state` и `decode_vertex_buffer`;
+  большие command lists целиком не читать.
+- `profilePasses: true` требует поддержки и исправной работы WebGPU timestamp
+  queries. Если timed capture один раз завершается таймаутом, не повторять его
+  вслепую и не выдавать heuristic за измеренное GPU time. Выполнить лёгкий
+  capture с `profilePasses: false`, зафиксировать отсутствие GPU timings и
+  отдельно продолжить CPU/command analysis. Event-driven renderer должен
+  фактически рисовать во время capture; не добавлять ради этого постоянный
+  render loop или диагностический код.
+- Capture с CDP-инъекцией влияет на timings и количество runtime objects,
+  поэтому он доказывает GPU command/object structure, validation и
+  относительные bottlenecks, но не заменяет чистые first-paint/CPU/heap
+  измерения production-вкладки. После диагностики закрыть отдельную
+  instrumented-вкладку; contour и чистую вкладку оставить работающими.
+
 ## Инициатива Graph, Monad и Force
 
 - При работе над этой инициативой сначала полностью прочитать

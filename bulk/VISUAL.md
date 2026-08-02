@@ -1,59 +1,107 @@
-# Договор Bulk manifestation и Visual projection
+# Договор Bulk Store и Visual projection
 
-Bulk проявляет один полный runtime projection в два последовательных, но
-архитектурно разных представления.
+Bulk хранит одну плоскую реляционную проекцию наблюдаемого мира — Bulk Store.
+Initial и последующие Force Particles изменяют этот же Store; промежуточных
+Graph Store, Manifest, ReadyScene и второго scene Store в browser path нет.
 
-## Единственная стартовая основа
+## Bulk Store
 
-- Рождение Bulk поднимает только RPC, Force, browser handoff и принадлежащее им
-  operational state. Оно не вызывает `Dark.readGraph`, не создаёт серверный
-  Graph Store и не удерживает derived projection.
-- Каждый browser `GET /` отдельно вызывает rootless `Dark.readGraph({})`.
-  Dark возвращает один актуальный полный `Graph`, а `Graph.root` остаётся
-  данными этого ответа. Bulk валидирует его, request-local строит semantic и
-  Visual projection, вкладывает готовую scene в HTML и после ответа не хранит
-  этот Graph или projection. `Boundary.initialProjection.read` и другая сборка
-  полного мира на стороне Boundary для Bulk запрещены.
-- JSON является только технической сериализацией Graph на transport/storage
-  границах; Bulk не вводит из неё второй world format или отдельный контракт.
-- Обычный `Particle` не является Graph patch: его paths содержат внутренние
-  runtime identity, которых публичный Graph намеренно не содержит. Сейчас
-  входящий `Particle` служит causal invalidation: Bulk дожидается применённого
-  Boundary cut, читает полный Graph только через Dark и готовит одну
-  event-local replacement scene для подключённых browsers. Серверного Graph
-  cache между invalidations нет. Checkpoint JSON Patch не переносится в
-  live-протокол.
-- Единственный адаптер `Graph → BulkProjectionSnapshot` создаёт
-  Bulk-local identity и готовит существующую semantic projection/scene. Он не
-  читает Boundary, не хранит world state и не добавляет значения, которых нет
-  в Graph. При изменении public Graph контракта сначала
-  меняются его domain law, validator и `readGraph`; затем одним срезом
-  меняются этот адаптер, initial/update transport и их совместные тесты.
-- Visual остаётся stateless библиотекой вычисления геометрии. Graph Store,
-  адаптированная semantic projection и scene Store возникают только внутри
-  browser-owned `BulkVisualSceneLifecycle`; renderer и Engine lifecycle также
-  принадлежат Bulk, но не серверному startup.
+- Рождение Bulk поднимает RPC, Force, browser handoff и принадлежащее им
+  operational state. Сервер получает согласованный initial cut только через
+  RPC и не читает Boundary или SQLite напрямую.
+- `GET /` немедленно отдаёт общий HTML shell с Canvas и loader, не ожидая
+  initial cut и не встраивая данные мира. Browser параллельно поднимает
+  client-only viewport и запрашивает `GET /initial`; этот отдельный запрос
+  получает собственный согласованный Bulk Store и одноразовую handoff session.
+  В HTML и initial Store нет Graph, JSON Pointer, semantic manifest,
+  renderer-ready scene, causal cursor и путей внутренних хранилищ. Loader
+  скрывается только после кадра с применённым Store.
+- Store плоский и columnar: identity, kind, flags, ownership, geometry,
+  material и compact Hermite controls хранятся числовыми колонками. Строковый
+  словарь содержит только реально показываемый интерфейсом текст.
+- Сервер формирует ту же основу Store, которую browser продолжает использовать.
+  Browser заменяет wire-массивы typed buffers в тех же полях и добавляет только
+  runtime-only `id → slot`, incident-relation/free-list indexes и renderer
+  handles. Он не перекладывает строки Store в новую объектную модель и не
+  удерживает вторую копию записей.
+- Source IDs с плотным фактическим диапазоном получают прямой растущий
+  `id → slot` typed lookup. Реляционные incidence indexes вычисляются один раз
+  из колонок и не сериализуются.
+- Направленные projection/read/write/transition relations хранят source и
+  target согласно числовому kind. Симметричный field entanglement хранит одну
+  канонически упорядоченную пару endpoints; фиктивное направление для него не
+  создаётся.
+- Порядок и повтор доставки принадлежат серверному Force transport. Bulk Store
+  не содержит `throughTs`, revision, version или иной клиентский cursor.
+- Каждый существующий Force Particle/operation имеет отдельный handler. Handler
+  меняет точные slots Store, пересчитывает только их локальное structural,
+  geometry, material или relation closure и сразу вызывает соответствующие
+  renderer operations. Универсального diff/patch/consequence формата нет.
+- Gluon несёт один canonical payload
+  `fields[fieldId] = {valueId, value}`. `add/replace` передают resulting
+  `valueId`, `remove` — previous `valueId`; тот же handler локально меняет
+  symmetric entanglement для shared-Value и multi-Field случаев.
+- Structural add/remove/move/copy не заменяют Store и не перестраивают сцену
+  целиком. Они изменяют адресуемые slots, затронутую incident structure и
+  минимальную цепочку layout owners.
+- Categorical declaration `path` выбирает Boundary table. Для non-WIMP
+  `move/copy` поле `from` является persisted numeric row `id`; resulting row
+  сохраняет фактические `id` и FK. WIMP является единственным исключением:
+  его source identity — canonical `src` string. Bulk-local declaration ID,
+  составного `{wimp,localId}` адреса и JSON Pointer нет.
+- Canvas, GPU, Renderer, Space и ViewPoint остаются client-only. Force Particle
+  остаётся transport обновлений и не превращается в Graph patch.
 
-## Semantic manifestation
+## Точная форма Store
 
-- `buildBulkManifestation` строит только identity, ownership, порядок и
-  причинные связи `Dark`, `Field`, `State`, `Transition`, `Process`,
-  `Reaction`, `Finally`, `Axion` и Field proxy.
-- Semantic `BulkManifest` не содержит координат, размеров, scale, цвета,
-  mesh-detail или renderer material state. Эти значения нельзя использовать
-  для восстановления topology.
-- Одна canonical occurrence сохраняет одну identity. Совпавшие Values не
-  объединяют Field occurrences в semantic manifest.
-- Одна декларация Process или Finally проявляется отдельной canonical
-  occurrence в каждом точном появлении связанного State во всех его
-  State-sleeves. Только occurrence в активном sleeve получает `active=true`;
-  неактивность меняет материал и причинный статус, но не скрывает Process и не
-  переносит его в другое появление State.
-- Verified root promotion меняет выбранный semantic root только по receipt.
-  Захваченный `formerRootFrame` остаётся operational evidence и не запускает
-  скрытый reflow либо старую раскладку.
-- Axion identity и связи сохраняются. Его Visual surface пока не
-  активируется: это отдельный будущий этап.
+- Передаются `root` и единый `text[]` только для реально видимых key, label и
+  value text. Таблица `wimp` хранит каждый canonical `WIMP.src` ровно один раз;
+  её числовой slot служит только сжатием ссылок, а не новым domain ID. Она
+  нужна, чтобы Atom и declaration rows ссылались на тот же WIMP без повторения
+  `src`, а Graviton с canonical `src` находил точные slots. JSON Pointer, owner
+  chains и operational strings не передаются. `wimp.view_css` полностью
+  исключён из initial Store, Store-схемы и structural handlers.
+- Boundary-compatible declaration source хранится отдельными числовыми
+  колонками с persisted table PK: `fieldSource(id,wimp,localId,kind,key,label)`,
+  `stateSource(id,wimp,position,name)`,
+  `transitionSource(id,wimp,fromState,toState,position)` и
+  `conditionSource(id,wimp,transition,field,position)`. `wimp` здесь — slot
+  таблицы canonical `src`; FK State/Transition/Field сохраняют фактические
+  persisted IDs. Невизуальный Condition predicate не передаётся.
+- `processSource` хранит persisted `id`, WIMP, State name slot, kind/label и
+  диапазоны числовых Field FK в `processField`. `reactionSource` хранит
+  persisted `id`, WIMP, label, `allStates` и диапазоны Field/State FK в
+  `reactionField`/`reactionState`. Готовые causal geometry и повторяющиеся
+  declaration strings из этих source rows не передаются.
+- `dark` передаёт numeric `id,parent,order,kind,flags,label` и рабочие
+  `position[3],form[2],material[6]`.
+- `field` передаёт marker `id`, canonical Field `field`, `owner,kind,flags`,
+  UI slots `key,label,valueText`, canonical `value` и рабочие
+  `position[3],form[2],material[6]`.
+- `fieldAlias` передаёт каждую runtime occurrence один раз: numeric
+  `id,atom,field,value,marker,order,orbit,valueText`. Kind/key/label берутся из
+  единственной `fieldSource` row и в alias не повторяются. `fieldSource.localId`
+  является стабильным Boundary placement fact; alias `order` фиксирует
+  фактический occurrence order, а `orbit` — минимальный centered-nested cursor,
+  необходимый для точной локальной parity после split/merge.
+- `orbital` и `proxy` передают numeric identity/owner/kind/flags, только
+  необходимые causal anchors и related-State ranges, UI label slot и рабочие
+  `position/form/material` columns.
+- `transition` передаёт направленные `from,to` и ровно `12` compact Hermite
+  controls. `relation` передаёт numeric endpoint kind/id пары; направление
+  projection/read/write следует из `kind`, а symmetric entanglement хранится
+  одной канонически упорядоченной парой. Rendered Relation имеет `24` controls.
+- `batch` передаёт numeric `id,owner,kind,flags` и `material[10]`. Batch
+  membership однозначно следует из entity `batch` columns.
+- Однозначно вычисляются depth, table-local `id → slot`, WIMP `src → slot`,
+  owner child lists, Value groups, endpoint → incident relation slots, batch
+  membership sets и free slots. Они runtime-only и не сериализуются. Canvas,
+  GPU handles, picking records, camera и HUD также runtime-only.
+- Одна canonical occurrence сохраняет одну identity. Совпавшие Values могут
+  разделять один marker, но occurrence rows не сливаются и не копируются.
+- Verified root promotion меняет выбранный root только по receipt. Axion
+  identity и связи сохраняются; его Visual surface остаётся отдельным будущим
+  этапом.
 
 ## Production Visual projection
 
@@ -64,76 +112,51 @@ Bulk проявляет один полный runtime projection в два по�
   стратегия передаётся вызывающей стороной явно как `VisualLayout` — того же
   публичного контракта; собственной запасной раскладки и canonical viewport
   fallback в Bulk нет.
-- Initial package и каждое изменённое состояние Graph проходят один server
-  path: `request-local Graph → projection + BulkManifest → Axion defer policy →
-  buildVisualScenePayload`. В browser wire входит только versioned ready scene
-  с `VisualPreparedScene`; Graph, projection и semantic `BulkManifest` там
-  отсутствуют. Browser раскрывает renderer records прямо из этого payload и
-  передаёт их в прежний `applyVisualManifestPatch`/CPU Hermite path.
-  `VisualScenePayload` — сериализуемый layout-agnostic результат стратегии: он
-  не содержит Canvas, GPU handles, `Renderer`, `Space` или `ViewPoint`, поэтому
-  может быть подготовлен на сервере.
-- Публичный `bulk/visual` разделяет два ownership режима. Semantic lifecycle
-  для server/fixtures сохраняет `prepare/apply/state/snapshot/compose`.
-  Production browser использует `BulkReadyVisualSceneLifecycle`: он хранит
-  только prepared Visual/renderer state и cursor, принимает полные ready-scene
-  replacement после существующего Force control и не имеет Graph/projection/
-  manifestation Store.
-- Для каждого `GET /` сервер готовит initial `VisualScenePayload` из свежего
-  request-local rootless Graph read и вкладывает `bulk-ready-scene@1` в HTML
-  как inert JSON. Его top-level поля ограничены `kind/version/throughTs/rootSrc/
-  visual/session`; `graph` и semantic `manifest` валидатор отклоняет. Браузер
-  читает embedded package и гидратирует его в
-  Bulk-owned persistent `BulkVisualStore` без отдельного `/initial` request и
-  без повторного layout. Bulk не выбирает root из local Store, MF-117 receipt
-  или default source; он использует `Graph.root` ответа Dark. Этот initial contract не содержит causal frontier,
-  reconnect, replay или recovery policy.
-- Envelope `visual-prepared-scene@1` и вложенный `cubic-hermite@1` являются
-  fail-closed wire contracts. Payload содержит ровно `12` finite чисел на дугу
-  и не содержит sampled `points`; unknown version, другая arity или legacy
-  representation отклоняются до hydration.
-- `BulkVisualSceneLifecycle`, `BulkVisualScenePresenter` и
-  `bulk/visual-store.ts` владеют persistent scene state, update policy и связью
-  Store с payload, находящимся на экране.
-  `selectLayout` меняет выбранную стратегию и сбрасывает удержанный payload,
-  так как другая стратегия вправе разместить каждую форму иначе. `hydrate`
-  принимает payload, подготовленный вне этого процесса, и отклоняет payload,
-  чей `layoutSlug` не совпадает с выбранной стратегией; layout при этом не
-  пересчитывается. `apply` классифицирует пришедшее изменение: изменение, не
-  способное сдвинуть geometry, при идентичном payload вообще не доходит до
-  viewport, а structural change перестраивает scene целиком, потому что
-  сужение там оставило бы её устаревшей.
-- Visual явно различает `appearance`, `effects`, `relations`, `geometry` и
-  `structure`. Первые три не запускают layout и отдают точные declarative
-  операции; geometry и structure вправе перестроить layout ради correctness.
-  Reconcile после такого перестроения всё равно передаёт Engine adapter только
-  фактически добавленные, изменённые и удалённые identities.
-- Вызванный Bulk stateless pattern из `pkg/visual` вычисляет координаты,
-  абсолютные размеры, цвета форм и детерминированное размещение Torus, Field,
-  State, причинных particles и Field proxies. Он возвращает immutable
-  `VisualComponentForest`, render indexes и line batches; Bulk выбирает pattern
-  и композирует его derived artifacts в общую сцену. Bulk проверяет identity и
-  переводит готовые world coordinates в local frame владельца; он не вычисляет
-  вторую раскладку и не наследует geometry из semantic manifest.
+- Initial cut проходит один server path: согласованные RPC rows → layout law →
+  columnar Bulk Store. В browser wire входит только `{session, store}`; Store не
+  содержит service objects, Canvas, GPU handles, `Renderer`, `Space` или
+  `ViewPoint`.
+- Production writer в два прохода читает уже согласованные Boundary rows,
+  выделяет конечные Store columns и заполняет их напрямую. Короткоживущие
+  группировки declaration/runtime rows являются только calculation inputs:
+  они не материализуют `BulkManifest`, `ReadyScene`, Graph Store или ещё одну
+  модель записей. Centered-nested writer пишет position/form/material и compact
+  Hermite controls сразу в конечные массивы Store.
+- Production browser применяет последующие Force Particles к тому же Store.
+  Server не читает полный Graph на Particle, не строит event-local scene и не
+  отправляет replacement. Browser не выполняет hydration/reconciliation между
+  двумя представлениями сцены.
+- Compact Hermite controls являются числовыми Store columns: `12` finite чисел
+  для Transition и `24` для двухсторонней Relation. Sampled points не
+  передаются. Browser CPU полностью реконструирует фиксированные `64` segments
+  сразу в рабочий renderer `Float32Array`.
+- Material/activity handlers меняют только затронутые material/flags slots и
+  вызывают точные material operations. Geometry handlers меняют только
+  затронутые position/form/control ranges и вызывают точные buffer operations.
+  Structural handlers дополнительно поддерживают локальные ownership и
+  incidence indexes, не вызывая full-scene layout или diff.
+- Stateless functions из `pkg/visual` вычисляют initial и локально затронутые
+  centered-nested values. Они возвращают calculation values непосредственно в
+  рабочие Store columns; сериализуемых render indexes, второй сцены или
+  долгоживущего calculation model нет.
 - Вложенные Torus одного materialized root имеют общий мировой центр.
-  Renderer manifest хранит root center локально, а для каждого потомка —
+  Renderer хранит root center локально, а для каждого потомка —
   разность мировых центров ребёнка и непосредственного родителя.
 - Один Visual Field marker может представлять несколько canonical Field
   occurrences только при одном materialized Value. Alias хранит каждую
   исходную `(parentDarkParticleId, fieldId, fieldParticleId)` и никогда не
   становится Boundary identity.
-- State layout node связывается с manifested occurrence только точной парой
+- State layout node связывается с canonical occurrence только точной парой
   `nodeId ↔ orbitalParticleId`. Transition обязан совпасть ровно с одним
   canonical channel по owner, source id, endpoints и condition Field ids.
   Wire несёт одну owner-local cubic Hermite-дугу, полностью описанную
   layout-owned endpoints и derivatives; Bulk не строит собственную кривую
   между State.
-- Relation material и замкнутый двухсторонний cubic Hermite channel также
-  приходят из `pkg/visual` как две упорядоченные compact-дуги. Browser CPU
+- Relation material и замкнутый двухсторонний cubic Hermite channel хранятся
+  как две упорядоченные compact-дуги. Browser CPU
   детерминированно восстанавливает по `64` сегмента на дугу перед существующим
   `LineSegments` и пишет их сразу в его `Float32Array`, не создавая
-  промежуточный массив point objects; Bulk не вычисляет relation endpoints,
-  форму или сторону.
+  промежуточный массив point objects.
 - Process и Finally получают готовый Torus на большой окружности внутри объёма
   трубки своего exact State, но не в центральном отверстии State. Их read/write
   Field proxies получают готовые Sphere placements в центральном ядре самого
@@ -165,9 +188,9 @@ Bulk проявляет один полный runtime projection в два по�
   отсутствие legacy `points`, единое forward/return
   направление batch и не более четырёх Transition batches на владельца
   (`active/inactive × forward/return`).
-- Relation endpoints и aliasing проверяются сервером при построении payload из
-  semantic manifestation. Browser renderer получает уже готовые path identity,
-  owner, controls и material и не реконструирует semantic endpoints.
+- Relation endpoints и aliasing проверяются при построении Store. Browser
+  получает numeric endpoints, owner, controls и material; renderer читает
+  только точные slots/ranges, названные handler.
 - Production Dark Torus используют фиксированный mesh detail `64 × 192`,
   вложенные State/Process/Finally/Field-proxy Torus — `32 × 192`, Sphere —
   фиксированный package-owned detail. Depth LOD, wireframe carrier, fallback
@@ -176,15 +199,15 @@ Bulk проявляет один полный runtime projection в два по�
   impulse являются first-class `Mesh`. `LineSegments` разрешены только для
   Transition и Relation: это связи, а не скрытый старый renderer. Готовые
   package batch ids дают не более четырёх Transition draw-batches на владельца:
-  active/inactive для forward/return;
-  заранее вычисленный fingerprint покрывает compact curves и material, поэтому
-  неизменённый patch не требует CPU sampling или замены GPU buffer.
+  active/inactive для forward/return. Fingerprint не сериализуется: изменённый
+  handler уже знает точный batch slot, а неизменённый Store slot не требует CPU
+  sampling или замены GPU buffer.
   Заменённая/удалённая line geometry освобождается; viewport-local
   surface caches удерживают только используемые Mesh geometry и полностью
   очищаются при dispose.
-- Picking, fit, labels и HUD читают точную Visual render projection. Direct
-  Higgs/Gluon mutation не изменяет geometry: новая geometry появляется только
-  после следующей полной semantic manifestation и Visual projection.
+- Picking, fit, labels и HUD читают тот же Bulk Store. Direct Higgs/Gluon
+  mutation меняет только фактически затронутые slots; geometry buffer меняется
+  лишь когда handler изменил соответствующие position/form/control columns.
 - Каждый видимый semantic Mesh является самостоятельной целью picking и
   navigation: Dark, Field, State, Process, Reaction, Finally и Field proxy.
   Выбор Mesh фокусирует камеру на его точной render geometry; выбор Dark
@@ -203,9 +226,9 @@ Bulk проявляет один полный runtime projection в два по�
   lifecycle принадлежат Bulk. Shared `Space` может содержать невизуальные
   слои, поэтому `pkg/visual` не создаёт и не владеет ни всем `Space`, ни Engine
   lifecycle; он заканчивается на declarative scene и update operations.
-- Renderer получает geometry-bearing ready projection и компактные canonical
-  counts, но не semantic `BulkManifest`. Отсутствующий parent является ошибкой; child
-  не переносится в workspace и entity не пропускается молча.
+- Renderer получает только точные Store values/ranges или add/remove/move/copy
+  operations. Отсутствующий parent является ошибкой; child не переносится в
+  workspace и entity не пропускается молча.
 
 ## Проверяемая граница
 
@@ -225,7 +248,33 @@ getSphereWireframeGeometry
 applyCanonicalManifestPatchToScene
 ```
 
-`BulkVisualRenderManifest.manifest` является отдельным geometry-bearing render
-contract и не сохраняется как canonical manifestation. `sourceStats` переносит
-только canonical counts для HUD; полный semantic `BulkManifest` не пересекает
-renderer boundary.
+Production boundary не содержит `BulkVisualRenderManifest`, universal render
+patch или второй scene Store. Counts для HUD выводятся из активных Store rows.
+
+## Измеренное доказательство direct initial
+
+На сохранённом Lada projection direct writer и прежний трёхступенчатый test
+oracle дают одинаковые numeric visual columns для `5` Dark, `28` Field markers,
+`54` Field occurrences, `193` Orbitals, `864` proxies, `165` Transitions,
+`1928` Relations и `47` batches. Direct Store дополнительно сохраняет
+Boundary-compatible source rows: `5` WIMP, `54` Field, `23` State, `32`
+Transition, `43` Condition и `13` Process (`0` Reaction в этом fixture).
+Сравнение включает все pixels, forms, materials и compact Hermite controls; UI
+text сравнивается по значению, а не по внутреннему номеру dictionary slot.
+
+Повторный замер после добавления всех source columns: в `15` чередующихся
+прогретых проходах на одном runtime projection median CPU составляет
+`26.949 ms` у direct writer против `453.738 ms` у oracle (`−94.06%`). JS heap
+capacity над forced-GC baseline составляет `15,604,736` против `103,626,752`
+байт (`−84.94%`); изолированный process peak RSS — `65,970,176` против
+`214,687,744` байт (`−69.27%`). UTF-8 initial payload `{session, store}`
+занимает `680,546` байт против `1,373,527` байт у прежнего ReadyScene
+(`−50.45%`). Direct Store foundation занимает `680,515` байт; oracle-derived
+Store — `678,391` байт, потому что test oracle закономерно не содержит новые
+canonical declaration source facts.
+
+На том же прогретом Lada Store с no-op renderer median handler CPU составляет
+`2.246 ms` для Photon material update, `7.206 ms` для чередующегося Gluon
+split/merge с локальной geometry и `9.964 ms` для Process structural replace;
+`p95` соответственно `3.765`, `8.640` и `13.050 ms`. Эти цифры измеряют
+server projection/Store handlers и не подменяют browser first-paint/live proof.

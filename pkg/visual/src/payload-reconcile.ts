@@ -6,6 +6,7 @@
  */
 export {
   visualPayloadHermiteCurve,
+  writeVisualPayloadHermiteSegments,
   type VisualPayloadEdgeBatch,
   type VisualPayloadEdgePath,
   type VisualPayloadField,

@@ -59,6 +59,18 @@ export type StateGraph = Readonly<{
   transitions: readonly StateGraphTransition[]
 }>
 
+/** Minimal calculation input; callers keep their own relational Store. */
+export type StateGraphFacts = Readonly<{
+  atomId: number
+  atomLabel: string
+  currentStateId: number | null
+  src: string
+  fields: readonly BulkRuntimeField[]
+  states: readonly BulkRuntimeState[]
+  transitions: readonly BulkRuntimeTransition[]
+  conditions: readonly BulkRuntimeCondition[]
+}>
+
 const byPositionThenId = <T extends {id: number; position: number}>(
   left: T,
   right: T,
@@ -102,20 +114,11 @@ const stateForGraph = (
  * Transition as an explicit reference to an existing State. Reachability from
  * the materialized current State is retained separately for inspection.
  */
-export const buildStateGraph = (
-  projection: BulkRuntimeProjection,
-  atomId: number,
-): StateGraph => {
-  const atom = projection.atoms.find((candidate) => candidate.id === atomId)
-  if (!atom) throw new Error(`State Graph Atom ${atomId} is absent`)
-  const currentStateId =
-    projection.atomStates.find((candidate) => candidate.atom === atomId)?.state ?? null
-  const states = projection.states
-    .filter((state) => state.wimp === atom.wimp)
+export const buildStateGraphFromFacts = (facts: StateGraphFacts): StateGraph => {
+  const states = [...facts.states]
     .sort(byPositionThenId)
-    .map((state) => stateForGraph(state, currentStateId))
-  const fields = projection.fields
-    .filter((field) => field.wimp === atom.wimp)
+    .map((state) => stateForGraph(state, facts.currentStateId))
+  const fields = [...facts.fields]
     .sort((left, right) => left.id - right.id)
     .map((field): StateGraphField => ({
       id: field.id,
@@ -124,10 +127,9 @@ export const buildStateGraph = (
       type: field.type,
     }))
   const stateById = new Map(states.map((state) => [state.id, state] as const))
-  const transitions = projection.transitions
-    .filter((transition) => transition.wimp === atom.wimp)
+  const transitions = [...facts.transitions]
     .sort(byPositionThenId)
-    .map((transition) => transitionForGraph(transition, projection.conditions))
+    .map((transition) => transitionForGraph(transition, facts.conditions))
   const outgoing = new Map<number, StateGraphTransition[]>()
   for (const transition of transitions) {
     const bucket = outgoing.get(transition.fromStateId)
@@ -145,8 +147,8 @@ export const buildStateGraph = (
   ): void => {
     sleeves.push({
       id: transitionIds.length === 0
-        ? `atom/${atomId}/root/${rootStateId}/state/${stateIds[0] ?? "none"}`
-        : `atom/${atomId}/root/${rootStateId}/path/${transitionIds.join("-")}`,
+        ? `atom/${facts.atomId}/root/${rootStateId}/state/${stateIds[0] ?? "none"}`
+        : `atom/${facts.atomId}/root/${rootStateId}/path/${transitionIds.join("-")}`,
       rootStateId,
       stateIds: [...stateIds],
       transitionIds: [...transitionIds],
@@ -160,7 +162,7 @@ export const buildStateGraph = (
     stateIds: readonly number[],
     transitionIds: readonly number[],
   ): void => {
-    if (rootStateId === currentStateId) reachableStateIds.add(stateId)
+    if (rootStateId === facts.currentStateId) reachableStateIds.add(stateId)
     const stateOutgoing = outgoing.get(stateId) ?? []
     if (stateOutgoing.length === 0) {
       emit(rootStateId, stateIds, transitionIds, {kind: "terminal"})
@@ -203,15 +205,33 @@ export const buildStateGraph = (
   }
 
   return {
-    atomId,
-    atomLabel:
-      projection.wimps.find((wimp) => wimp.src === atom.wimp)?.name ?? atom.wimp,
-    src: atom.wimp,
-    currentStateId,
+    atomId: facts.atomId,
+    atomLabel: facts.atomLabel,
+    src: facts.src,
+    currentStateId: facts.currentStateId,
     fields,
     states,
     transitions,
     reachableStateIds: [...reachableStateIds],
     sleeves,
   }
+}
+
+export const buildStateGraph = (
+  projection: BulkRuntimeProjection,
+  atomId: number,
+): StateGraph => {
+  const atom = projection.atoms.find((candidate) => candidate.id === atomId)
+  if (!atom) throw new Error(`State Graph Atom ${atomId} is absent`)
+  return buildStateGraphFromFacts({
+    atomId,
+    atomLabel: projection.wimps.find((wimp) => wimp.src === atom.wimp)?.name ?? atom.wimp,
+    currentStateId:
+      projection.atomStates.find((candidate) => candidate.atom === atomId)?.state ?? null,
+    src: atom.wimp,
+    fields: projection.fields.filter((field) => field.wimp === atom.wimp),
+    states: projection.states.filter((state) => state.wimp === atom.wimp),
+    transitions: projection.transitions.filter((transition) => transition.wimp === atom.wimp),
+    conditions: projection.conditions,
+  })
 }

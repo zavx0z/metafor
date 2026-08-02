@@ -16,7 +16,10 @@ import type {
   BoundaryInitialVariantRef,
 } from "@metafor/types/boundary/initial"
 import type {MatrixRuntimeAtomEntity} from "@metafor/types/matrix/runtime"
-import {resolveForceFieldsPayload} from "shared/protocol/force/fields"
+import {
+  resolveCanonicalForceFieldsPayload,
+  resolveForceFieldsPayload,
+} from "shared/protocol/force/fields"
 import type {Particle} from "shared/protocol/force/particle"
 
 type JsonRecord = Record<string, unknown>
@@ -464,6 +467,7 @@ const applyDeclarationGraviton = (part: Particle): MatrixProjectionChange => {
 const applyFieldParticle = (part: Particle): void => {
   if (typeof part.path !== "number") return
   const fields = resolveForceFieldsPayload(part.value)
+  const canonical = resolveCanonicalForceFieldsPayload(part.value)
   if (!fields) return
   const atom = atomById.get(part.path)
   if (!atom) return
@@ -472,13 +476,27 @@ const applyFieldParticle = (part: Particle): void => {
     if (!Number.isSafeInteger(field) || field <= 0) continue
     const index = atom.values.findIndex((item) => item.field === field)
     if (part.op === "remove") {
-      if (index >= 0) atom.values.splice(index, 1)
+      if (index >= 0) {
+        removeFromIndex(atomIdsByValueId, atom.values[index]!.valueId, atom.id)
+        atom.values.splice(index, 1)
+      }
       continue
     }
     if (part.op !== "add" && part.op !== "replace") continue
     const normalized = enumFieldIds.has(field) ? normalizeEnumValueRef(field, value) : clone(value)
-    if (index >= 0) atom.values[index]!.value = normalized
-    else atom.values.push({field, valueId: nextSyntheticValueId--, value: normalized})
+    const valueId = canonical?.[address]?.valueId ??
+      (index >= 0 ? atom.values[index]!.valueId : nextSyntheticValueId--)
+    if (index >= 0) {
+      const previousValueId = atom.values[index]!.valueId
+      if (previousValueId !== valueId) {
+        removeFromIndex(atomIdsByValueId, previousValueId, atom.id)
+        addToIndex(atomIdsByValueId, valueId, atom.id)
+      }
+      atom.values[index] = {field, valueId, value: normalized}
+    } else {
+      atom.values.push({field, valueId, value: normalized})
+      addToIndex(atomIdsByValueId, valueId, atom.id)
+    }
   }
 }
 

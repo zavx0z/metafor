@@ -215,6 +215,60 @@ export const writeHermiteEdgeSegments = (
   return writeOffset
 }
 
+/**
+ * Tessellates the compact positional control tuple directly into a renderer
+ * buffer. This is pixel-identical to `writeHermiteEdgeSegments`, but avoids
+ * allocating four point objects and one curve object for every wire arc.
+ */
+export const writeCompactHermiteEdgeSegments = (
+  controls: ArrayLike<number>,
+  target: Float32Array,
+  offset = 0,
+): number => {
+  if (controls.length !== 12) {
+    throw new RangeError("Visual compact Hermite Edge must have 12 controls")
+  }
+  for (let index = 0; index < controls.length; index++) {
+    if (!Number.isFinite(controls[index])) {
+      throw new RangeError("Visual compact Hermite Edge controls must be finite")
+    }
+  }
+  const scalarCount = HERMITE_EDGE_SEGMENTS * 6
+  if (
+    !Number.isSafeInteger(offset) ||
+    offset < 0 ||
+    offset + scalarCount > target.length
+  ) {
+    throw new RangeError("Visual Hermite Edge segment buffer is too small")
+  }
+  let writeOffset = offset
+  let previousX = controls[0]!
+  let previousY = controls[1]!
+  let previousZ = controls[2]!
+  for (let index = 1; index <= HERMITE_EDGE_SEGMENTS; index += 1) {
+    const nextX = hermiteCoordinate(
+      controls[0]!, controls[6]!, controls[3]!, controls[9]!, index,
+    )
+    const nextY = hermiteCoordinate(
+      controls[1]!, controls[7]!, controls[4]!, controls[10]!, index,
+    )
+    const nextZ = hermiteCoordinate(
+      controls[2]!, controls[8]!, controls[5]!, controls[11]!, index,
+    )
+    target[writeOffset] = previousX
+    target[writeOffset + 1] = previousY
+    target[writeOffset + 2] = previousZ
+    target[writeOffset + 3] = nextX
+    target[writeOffset + 4] = nextY
+    target[writeOffset + 5] = nextZ
+    writeOffset += 6
+    previousX = nextX
+    previousY = nextY
+    previousZ = nextZ
+  }
+  return writeOffset
+}
+
 /** Describes and samples the approved cubic Hermite beam. */
 export const buildHermiteEdgePath = (
   input: HermiteEdgePathInput,

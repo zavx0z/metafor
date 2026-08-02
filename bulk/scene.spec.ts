@@ -40,7 +40,8 @@ describe("Bulk live Atom scene patch gate", () => {
 
     expect(patch.darkParticleIds).toEqual([2])
     expect(store.darkParticles.get(1)).toBe(first)
-    expect(store.darkParticles.get(2)).toBe(second)
+    expect(store.darkParticles.get(2)).not.toBe(second)
+    expect(store.darkParticles.get(2)?.label).toBe("changed")
     expect(store.darkParticles.get(2)?.label).toBe("changed")
   })
 

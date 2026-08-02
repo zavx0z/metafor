@@ -34,6 +34,8 @@ import type {
 	BulkReadyRenderOrbitalParticle as BulkOrbitalParticle,
 	BulkReadyRenderScene as BulkManifest,
 	BulkReadyVisualRenderManifest,
+	BulkVisualFieldAlias,
+	BulkVisualFieldMaterial,
 	BulkVisualQuantumMaterial,
 	BulkVisualRelationPath,
 	BulkVisualRenderManifest,
@@ -41,8 +43,7 @@ import type {
 	BulkVisualTransitionPath,
 } from "@metafor/types/bulk/visual"
 import {
-	visualPayloadHermiteCurve,
-	writeHermiteEdgeSegments,
+	writeVisualPayloadHermiteSegments,
 } from "@metafor/visual/payload/reconcile"
 import type {Particle} from "shared/protocol/force/particle"
 import {
@@ -168,7 +169,39 @@ import {
 export type BulkVisualViewportWithHud = BulkViewportWithHud & Readonly<{
 	applyVisualManifestPatch(projection: BulkVisualRenderManifest): void
 	applyVisualReadyScene(projection: BulkReadyVisualRenderManifest): void
+	applyBulkStoreInitialScene(projection: BulkReadyVisualRenderManifest): void
 	applyVisualRenderPatch(patch: BulkVisualRenderPatch): void
+	applyBulkStoreOrbitalMaterial(entry: BulkVisualRenderManifest["orbitalMaterials"][number]): void
+	applyBulkStoreProxyMaterial(entry: BulkVisualRenderManifest["fieldProxyMaterials"][number]): void
+	applyBulkStoreDarkGeometry(entry: BulkDarkParticle): void
+	applyBulkStoreOrbitalGeometry(entry: BulkOrbitalParticle): void
+	applyBulkStoreProxyGeometry(entry: BulkFieldProxy): void
+	applyBulkStoreDarkUpsert(
+		entry: BulkDarkParticle,
+		material: BulkVisualRenderManifest["darkMaterials"][number],
+	): void
+	applyBulkStoreDarkRemove(id: number): void
+	applyBulkStoreOrbitalUpsert(
+		entry: BulkOrbitalParticle,
+		material: BulkVisualRenderManifest["orbitalMaterials"][number],
+		form: Readonly<{kind: "sphere"; radius: number} | {kind: "torus"; radius: number; tube: number}>,
+	): void
+	applyBulkStoreOrbitalRemove(id: string): void
+	applyBulkStoreProxyUpsert(
+		entry: BulkFieldProxy,
+		material: BulkVisualRenderManifest["fieldProxyMaterials"][number],
+		form: Readonly<{kind: "sphere"; radius: number} | {kind: "torus"; radius: number; tube: number}>,
+	): void
+	applyBulkStoreProxyRemove(id: string): void
+	applyBulkStoreFieldRegroup(change: Readonly<{
+		aliases: readonly BulkVisualFieldAlias[]
+		fields: readonly BulkFieldParticle[]
+		fieldMaterials: readonly BulkVisualFieldMaterial[]
+		proxyIds: readonly string[]
+		removedFieldParticleIds: readonly string[]
+	}>): void
+	rebuildBulkStoreTransitionBatch(batchId: string, paths: readonly BulkVisualTransitionPath[]): void
+	rebuildBulkStoreRelationBatch(batchId: string, paths: readonly BulkVisualRelationPath[]): void
 }>
 
 const LABEL_TEXT_COLOR = new Color(1, 1, 1)
@@ -1309,7 +1342,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	let activeRelationPaths: readonly BulkVisualRelationPath[] = []
 	let activeCurveLaw: BulkVisualRenderManifest["curveLaw"] | null = null
 	let visualFieldParticleIdBySourceAddress:
-		ReadonlyMap<string, string> = new Map()
+		Map<string, string> = new Map()
 	let parentByDarkParticleId = new Map<number, number | null>()
 	let clickNavigationSuppressed = false
 	let isPrimaryPointerDown = false
@@ -1751,7 +1784,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			currentTransitionScale: 1,
 			material,
 			pickTarget,
-			snapshot: { ...darkParticle },
+			snapshot: darkParticle,
 			targetLocalPosition: new Vector3(darkParticle.localX, darkParticle.localY, darkParticle.localZ),
 			torus,
 	}
@@ -1796,7 +1829,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			node,
 			parentDarkParticleId: field.parentDarkParticleId,
 			pickTarget,
-			snapshot: { ...field },
+			snapshot: field,
 			targetLocalPosition: new Vector3(field.localX, field.localY, field.localZ),
 		}
 		applyFieldParticleRecordScale(record)
@@ -1829,7 +1862,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			Math.abs(existing.snapshot.torusTube - darkParticle.torusTube) > 1e-6 ||
 			existing.snapshot.depth !== darkParticle.depth
 
-		existing.snapshot = { ...darkParticle }
+		existing.snapshot = darkParticle
 		existing.targetLocalPosition.set(darkParticle.localX, darkParticle.localY, darkParticle.localZ)
 		if (existing.pickTarget.kind === "darkParticle") {
 			existing.pickTarget.parentDarkParticleId = darkParticle.parentDarkParticleId
@@ -1866,7 +1899,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			existing.depth !== depth ||
 			existing.snapshot.fieldParticleKind !== field.fieldParticleKind
 
-		existing.snapshot = { ...field }
+		existing.snapshot = field
 		existing.depth = depth
 		existing.parentDarkParticleId = field.parentDarkParticleId
 		existing.targetLocalPosition.set(field.localX, field.localY, field.localZ)
@@ -2013,7 +2046,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 					depth,
 					material,
 				),
-				snapshot: {...particle},
+				snapshot: particle,
 				targetLocalPosition: new Vector3(
 					particle.localX,
 					particle.localY,
@@ -2024,7 +2057,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			return record
 		}
 		existing.depth = depth
-		existing.snapshot = {...particle}
+		existing.snapshot = particle
 		existing.targetLocalPosition.set(
 			particle.localX,
 			particle.localY,
@@ -2068,8 +2101,8 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		let offset = 0
 		for (const path of paths) {
 			for (const compactCurve of path.curves) {
-				offset = writeHermiteEdgeSegments(
-					visualPayloadHermiteCurve(compactCurve),
+				offset = writeVisualPayloadHermiteSegments(
+					compactCurve,
 					positions,
 					offset,
 				)
@@ -2084,6 +2117,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		records: Map<string, LineBatchRenderRecord>,
 		label: string,
 		layer: BulkVisualLayer,
+		removeMissing = true,
 	): void => {
 		const pathsByBatchId = new Map<
 			string,
@@ -2099,8 +2133,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			if (!first) continue
 				if (batch.some((path) =>
 					path.ownerDarkParticleId !== first.ownerDarkParticleId ||
-					path.batchFingerprint !== first.batchFingerprint ||
-					JSON.stringify(path.material) !== JSON.stringify(first.material)
+					path.batchFingerprint !== first.batchFingerprint
 				)) {
 				throw new Error(
 					`Bulk Visual ${label} batch ${batchId} is not homogeneous`,
@@ -2146,12 +2179,30 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 				parent.container.add(existing.line)
 			}
 		}
-			for (const [batchId, record] of records) {
+			if (removeMissing) for (const [batchId, record] of records) {
 				if (pathsByBatchId.has(batchId)) continue
 				releaseLineBatchRecord(record)
 				records.delete(batchId)
 			}
 		}
+
+	const rebuildOneLineBatch = (
+		batchId: string,
+		paths: readonly (BulkVisualTransitionPath | BulkVisualRelationPath)[],
+		records: Map<string, LineBatchRenderRecord>,
+		label: string,
+		layer: BulkVisualLayer,
+	): void => {
+		if (paths.length === 0) {
+			const record = records.get(batchId)
+			if (record) releaseLineBatchRecord(record)
+			records.delete(batchId)
+			requestRenderLoop(SCENE_TRANSITION_WAKE_MS)
+			return
+		}
+		syncLineBatchRecords(paths, records, label, layer, false)
+		requestRenderLoop(SCENE_TRANSITION_WAKE_MS)
+	}
 
 	const fieldProxyGeometry = (proxy: BulkFieldProxy): BufferGeometry => {
 		const shape = requiredEmbeddedPickShape(
@@ -2231,13 +2282,13 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 				node,
 				material,
 				pickTarget: createFieldProxyPickTarget(proxy, depth, material),
-				snapshot: {...proxy},
+				snapshot: proxy,
 			}
 			fieldProxyRecords.set(proxy.fieldProxyId, record)
 			return record
 		}
 		existing.depth = depth
-		existing.snapshot = {...proxy}
+		existing.snapshot = proxy
 		copyQuantumMaterial(existing.material, fieldProxyMaterial(proxy))
 		existing.node.geometry = fieldProxyGeometry(proxy)
 		existing.node.position.set(proxy.localX, proxy.localY, proxy.localZ)
@@ -2574,6 +2625,15 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		sourceStats: BulkVisualRenderManifest["sourceStats"],
 		scope: SceneApplicationScope,
 	): void => {
+		let phaseStartedAt = performance.now()
+		const finishPhase = (name: string): void => {
+			const endedAt = performance.now()
+			performance.measure(`bulk.renderer.${name}`, {
+				start: phaseStartedAt,
+				end: endedAt,
+			})
+			phaseStartedAt = endedAt
+		}
 		const {
 			changedDarkParticleIds,
 			changedFieldParticleIds,
@@ -2653,6 +2713,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			)
 			if (record.node.parent !== parent.container) parent.container.add(record.node)
 		}
+		finishPhase("entities")
 
 		syncLineBatchRecords(
 			activeTransitionPaths,
@@ -2666,6 +2727,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			"relation",
 			"relation",
 		)
+		finishPhase("lines")
 		for (const fieldProxyId of scope.removedFieldProxyIds) {
 			const record = fieldProxyRecords.get(fieldProxyId)
 			if (record) {
@@ -2702,14 +2764,18 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			}
 			orbitalParticleRecords.delete(orbitalParticleId)
 		}
+		finishPhase("removals")
 
 		refreshParentByDarkParticleId()
+		finishPhase("parent-index")
 		syncLabelRecords()
+		finishPhase("labels")
 		syncVisualLayerVisibility()
-			refreshPickTargets()
-			applyRootViewportFit()
-			pruneSurfaceGeometryCaches()
-			requestRenderLoop(SCENE_TRANSITION_WAKE_MS)
+		refreshPickTargets()
+		applyRootViewportFit()
+		pruneSurfaceGeometryCaches()
+		requestRenderLoop(SCENE_TRANSITION_WAKE_MS)
+		finishPhase("finalize")
 
 		options.onStats?.({
 			rootSrc: sourceStats.rootSrc,
@@ -2722,8 +2788,19 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 
 	const applyVisualManifestPatchToScene = (
 		projection: BulkVisualRenderManifest | BulkReadyVisualRenderManifest,
+		validate = true,
 	): void => {
-		assertBulkVisualProjectionBoundary(projection)
+		let phaseStartedAt = performance.now()
+		const finishPhase = (name: string): void => {
+			const endedAt = performance.now()
+			performance.measure(`bulk.renderer.${name}`, {
+				start: phaseStartedAt,
+				end: endedAt,
+			})
+			phaseStartedAt = endedAt
+		}
+		if (validate) assertBulkVisualProjectionBoundary(projection)
+		finishPhase("validate")
 		const nextOrbitalSphereRadiusById = new Map(
 			projection.orbitalSpheres.map((sphere) => [
 				sphere.orbitalParticleId,
@@ -2818,8 +2895,10 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		activeTransitionPaths = projection.transitionPaths
 		activeRelationPaths = projection.relationPaths
 		visualFieldParticleIdBySourceAddress =
-			nextVisualFieldParticleIdBySourceAddress
+			new Map(nextVisualFieldParticleIdBySourceAddress)
+		finishPhase("indexes")
 		const scenePatch = sceneProjection.apply(projection.manifest)
+		finishPhase("diff")
 		applyRenderManifestToScene(
 			projection.manifest,
 			projection.sourceStats,
@@ -2922,9 +3001,9 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		)
 		// Aliases arrive whole rather than as a delta, because an alias is a
 		// property of the scene's Field projection and not of one entity.
-		visualFieldParticleIdBySourceAddress = indexBulkVisualFieldAliases(
+		visualFieldParticleIdBySourceAddress = new Map(indexBulkVisualFieldAliases(
 			patch.fieldAliases,
-		)
+		))
 
 		/*
 		 * The patched entities are the whole manifestation this application
@@ -4364,8 +4443,207 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		applyVisualReadyScene(projection: BulkReadyVisualRenderManifest) {
 			applyVisualManifestPatchToScene(projection)
 		},
+		applyBulkStoreInitialScene(projection: BulkReadyVisualRenderManifest) {
+			// `/initial` was fail-closed validated as one Bulk Store. Its direct
+			// adapter reads only exact Store slots, so repeating the generic
+			// manifestation validator here would scan the same data again.
+			applyVisualManifestPatchToScene(projection, false)
+		},
 		applyVisualRenderPatch(patch: BulkVisualRenderPatch) {
 			applyVisualRenderPatchToScene(patch)
+		},
+		applyBulkStoreDarkUpsert(entry, material) {
+			darkMaterialById.set(entry.darkParticleId, material.material)
+			const existing = darkParticleRecords.get(entry.darkParticleId)
+			const record = upsertDarkParticleRecord(entry)
+			const parent = entry.parentDarkParticleId === null
+				? workspace
+				: darkParticleRecords.get(entry.parentDarkParticleId)?.container
+			if (!parent) throw new Error(
+				`Bulk Store Dark ${entry.darkParticleId} has no render parent ${entry.parentDarkParticleId}`,
+			)
+			if (record.container.parent !== parent) parent.add(record.container)
+			if (!existing) pickTargets.push(record.pickTarget)
+			sceneProjection.absorb({darkParticles: [entry]})
+			refreshParentByDarkParticleId()
+			syncLabelRecords()
+			refreshPickTargets()
+			requestRenderLoop(SCENE_TRANSITION_WAKE_MS)
+		},
+		applyBulkStoreDarkRemove(id) {
+			removeDarkParticleRecord(id)
+			darkMaterialById.delete(id)
+			sceneProjection.absorb({removedDarkParticleIds: [id]})
+			refreshParentByDarkParticleId()
+			syncLabelRecords()
+			refreshPickTargets()
+		},
+		applyBulkStoreOrbitalUpsert(entry, material, form) {
+			orbitalMaterialById.set(entry.orbitalParticleId, material.material)
+			if (form.kind === "torus") {
+				orbitalTorusById.set(entry.orbitalParticleId, {radius: form.radius, tube: form.tube})
+				orbitalSphereRadiusById.delete(entry.orbitalParticleId)
+			} else {
+				orbitalSphereRadiusById.set(entry.orbitalParticleId, form.radius)
+				orbitalTorusById.delete(entry.orbitalParticleId)
+			}
+			const parent = darkParticleRecords.get(entry.parentDarkParticleId)
+			if (!parent) throw new Error(
+				`Bulk Store orbital ${entry.orbitalParticleId} has no render parent ${entry.parentDarkParticleId}`,
+			)
+			const existing = orbitalParticleRecords.get(entry.orbitalParticleId)
+			const record = upsertOrbitalParticleRecord(entry, parent.snapshot.depth + 1)
+			if (record.node.parent !== parent.container) parent.container.add(record.node)
+			if (!existing) pickTargets.push(record.pickTarget)
+			sceneProjection.absorb({orbitalParticles: [entry]})
+			syncLabelRecords()
+			refreshPickTargets()
+			requestRenderLoop(SCENE_TRANSITION_WAKE_MS)
+		},
+		applyBulkStoreOrbitalRemove(id) {
+			const record = orbitalParticleRecords.get(id)
+			if (record) detachObject(record.node)
+			orbitalParticleRecords.delete(id)
+			orbitalMaterialById.delete(id)
+			orbitalSphereRadiusById.delete(id)
+			orbitalTorusById.delete(id)
+			sceneProjection.absorb({removedOrbitalParticleIds: [id]})
+			syncLabelRecords()
+			refreshPickTargets()
+			requestRenderLoop(SCENE_TRANSITION_WAKE_MS)
+		},
+		applyBulkStoreProxyUpsert(entry, material, form) {
+			fieldProxyMaterialById.set(entry.fieldProxyId, material.material)
+			if (form.kind === "torus") {
+				fieldProxyTorusById.set(entry.fieldProxyId, {radius: form.radius, tube: form.tube})
+				fieldProxySphereRadiusById.delete(entry.fieldProxyId)
+			} else {
+				fieldProxySphereRadiusById.set(entry.fieldProxyId, form.radius)
+				fieldProxyTorusById.delete(entry.fieldProxyId)
+			}
+			const parent = darkParticleRecords.get(entry.parentDarkParticleId)
+			if (!parent) throw new Error(
+				`Bulk Store Field proxy ${entry.fieldProxyId} has no render parent ${entry.parentDarkParticleId}`,
+			)
+			const existing = fieldProxyRecords.get(entry.fieldProxyId)
+			const record = upsertFieldProxyRecord(entry, parent.snapshot.depth + 1)
+			if (record.node.parent !== parent.container) parent.container.add(record.node)
+			if (!existing) pickTargets.push(record.pickTarget)
+			sceneProjection.absorb({fieldProxies: [entry]})
+			refreshPickTargets()
+			requestRenderLoop(SCENE_TRANSITION_WAKE_MS)
+		},
+		applyBulkStoreProxyRemove(id) {
+			const record = fieldProxyRecords.get(id)
+			if (record) detachObject(record.node)
+			fieldProxyRecords.delete(id)
+			fieldProxyMaterialById.delete(id)
+			fieldProxySphereRadiusById.delete(id)
+			fieldProxyTorusById.delete(id)
+			sceneProjection.absorb({removedFieldProxyIds: [id]})
+			refreshPickTargets()
+			requestRenderLoop(SCENE_TRANSITION_WAKE_MS)
+		},
+		applyBulkStoreDarkGeometry(entry) {
+			const record = darkParticleRecords.get(entry.darkParticleId)
+			if (!record) return
+			record.targetLocalPosition.set(entry.localX, entry.localY, entry.localZ)
+			refreshDarkParticleRecordGeometryAndMaterial(record)
+			if (record.pickTarget.kind === "darkParticle") {
+				record.pickTarget.torusRadius = entry.torusRadius
+				record.pickTarget.torusTube = entry.torusTube
+				record.pickTarget.outerRadius = entry.torusRadius + entry.torusTube
+			}
+			requestRenderLoop(SCENE_TRANSITION_WAKE_MS)
+		},
+		applyBulkStoreOrbitalGeometry(entry) {
+			const record = orbitalParticleRecords.get(entry.orbitalParticleId)
+			if (!record) return
+			record.targetLocalPosition.set(entry.localX, entry.localY, entry.localZ)
+			requestRenderLoop(SCENE_TRANSITION_WAKE_MS)
+		},
+		applyBulkStoreProxyGeometry(entry) {
+			const record = fieldProxyRecords.get(entry.fieldProxyId)
+			if (!record) return
+			record.node.position.set(entry.localX, entry.localY, entry.localZ)
+			record.node.updateMatrix()
+			requestRenderLoop(SCENE_TRANSITION_WAKE_MS)
+		},
+		applyBulkStoreFieldRegroup(change) {
+			for (const entry of change.fieldMaterials) {
+				fieldMaterialById.set(entry.fieldParticleId, entry.material)
+			}
+			for (const alias of change.aliases) {
+				visualFieldParticleIdBySourceAddress.set(
+					bulkVisualFieldSourceAddress(
+						alias.sourceParentDarkParticleId,
+						alias.sourceFieldId,
+					),
+					alias.visualFieldParticleId,
+				)
+			}
+			for (const field of change.fields) {
+				const parent = darkParticleRecords.get(field.parentDarkParticleId)
+				if (!parent) {
+					throw new Error(
+						`Bulk Store Field ${field.fieldParticleId} has no render parent ${field.parentDarkParticleId}`,
+					)
+				}
+				const existing = fieldParticleRecords.get(field.fieldParticleId)
+				const record = upsertFieldParticleRecord(field, parent.snapshot.depth + 1)
+				if (record.node.parent !== parent.container) parent.container.add(record.node)
+				if (!existing) pickTargets.push(record.pickTarget)
+			}
+			for (const id of change.removedFieldParticleIds) {
+				const record = fieldParticleRecords.get(id)
+				if (record) {
+					const index = pickTargets.indexOf(record.pickTarget)
+					if (index >= 0) pickTargets.splice(index, 1)
+				}
+				removeFieldParticleRecord(id)
+				fieldMaterialById.delete(id)
+			}
+			for (const id of change.proxyIds) {
+				const record = fieldProxyRecords.get(id)
+				if (!record) continue
+				const spec = createFieldProxyTorusLabelSpec(record)
+				if (spec) upsertLabelRecord(spec)
+			}
+			sceneProjection.absorb({
+				fieldParticles: change.fields,
+				removedFieldParticleIds: change.removedFieldParticleIds,
+			})
+			requestRenderLoop(SCENE_TRANSITION_WAKE_MS)
+		},
+		applyBulkStoreOrbitalMaterial(entry) {
+			orbitalMaterialById.set(entry.orbitalParticleId, entry.material)
+			const record = orbitalParticleRecords.get(entry.orbitalParticleId)
+			if (!record) return
+			copyQuantumMaterial(record.material, createVisualQuantumMaterial(entry.material))
+			Object.assign(
+				record.pickTarget,
+				pickTargetMaterialState(record.material),
+			)
+			syncPickTargetMaterialState(record.pickTarget)
+			requestRenderLoop(SCENE_TRANSITION_WAKE_MS)
+		},
+		applyBulkStoreProxyMaterial(entry) {
+			fieldProxyMaterialById.set(entry.fieldProxyId, entry.material)
+			const record = fieldProxyRecords.get(entry.fieldProxyId)
+			if (!record) return
+			copyQuantumMaterial(record.material, createVisualQuantumMaterial(entry.material))
+			Object.assign(
+				record.pickTarget,
+				pickTargetMaterialState(record.material),
+			)
+			syncPickTargetMaterialState(record.pickTarget)
+			requestRenderLoop(SCENE_TRANSITION_WAKE_MS)
+		},
+		rebuildBulkStoreTransitionBatch(batchId, paths) {
+			rebuildOneLineBatch(batchId, paths, transitionBatchRecords, "Transition", "transition")
+		},
+		rebuildBulkStoreRelationBatch(batchId, paths) {
+			rebuildOneLineBatch(batchId, paths, relationBatchRecords, "Relation", "relation")
 		},
 		hud: hudRuntime,
 	}

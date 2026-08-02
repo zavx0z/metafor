@@ -36,6 +36,7 @@
     "./bulk/visual": "./bulk/visual.ts",
     "./bulk/capture": "./bulk/capture.ts",
     "./bulk/initial": "./bulk/initial.ts",
+    "./bulk/store": "./bulk/store.ts",
     "./bulk/runtime": "./bulk/runtime.ts",
     "./bulk/protocol": "./bulk/protocol.ts",
     "./bulk/settings": "./bulk/settings.ts",

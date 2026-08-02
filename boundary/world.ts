@@ -1,5 +1,8 @@
 import type {ReservedSQL, SQL} from "bun"
-import {resolveForceFieldId} from "shared/protocol/force/fields"
+import {
+  resolveForceFieldId,
+  type CanonicalRuntimeFieldValue,
+} from "shared/protocol/force/fields"
 
 type Database = SQL | ReservedSQL
 
@@ -17,12 +20,12 @@ type FieldRow = {
 }
 
 export type BoundaryFieldCommit = {
-  scalar: Record<string, unknown>
+  scalar: Record<string, CanonicalRuntimeFieldValue>
   topology: Record<string, unknown>
   aliases: Array<{
     atom: number
     wimp: string
-    scalar: Record<string, unknown>
+    scalar: Record<string, CanonicalRuntimeFieldValue>
     topology: Record<string, unknown>
   }>
 }
@@ -128,7 +131,7 @@ export async function commitBoundaryAtomFields(
   const targets = new Map<number, {
     atom: number
     wimp: string
-    scalar: Record<string, unknown>
+    scalar: Record<string, CanonicalRuntimeFieldValue>
     topology: Record<string, unknown>
   }>()
   const target = (targetAtom: number, targetWimp: string) => {
@@ -137,7 +140,7 @@ export async function commitBoundaryAtomFields(
     const created: {
       atom: number
       wimp: string
-      scalar: Record<string, unknown>
+      scalar: Record<string, CanonicalRuntimeFieldValue>
       topology: Record<string, unknown>
     } = {atom: targetAtom, wimp: targetWimp, scalar: {}, topology: {}}
     targets.set(targetAtom, created)
@@ -158,7 +161,9 @@ export async function commitBoundaryAtomFields(
     `) {
       const committed = target(Number(owner.atom), owner.wimp)
       const domain = owner.type === "enum" || owner.type === "array" ? committed.topology : committed.scalar
-      domain[String(owner.field)] = value
+      domain[String(owner.field)] = owner.type === "enum" || owner.type === "array"
+        ? value
+        : {valueId, value}
     }
   }
 

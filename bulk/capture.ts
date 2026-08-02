@@ -2,6 +2,7 @@ import {createHash} from "node:crypto"
 import {
   BULK_VIEWPORT_CAPTURE_VERSION,
   isBulkViewportCaptureControlResponse,
+  type BulkStoreCaptureProof,
   type BulkViewportCaptureControlRequest,
   type BulkViewportCaptureFailure,
   type BulkViewportCaptureFailureCode,
@@ -10,7 +11,6 @@ import {
   type BulkViewportCaptureRequest,
   type BulkViewportCaptureResult,
 } from "@metafor/types/bulk/capture"
-import type {BulkReadySceneSnapshot} from "@metafor/types/bulk/initial"
 
 export const DEFAULT_BULK_VIEWPORT_CAPTURE_LIMITS: BulkViewportCaptureLimits = {
   maxCssWidth: 4_096,
@@ -19,12 +19,12 @@ export const DEFAULT_BULK_VIEWPORT_CAPTURE_LIMITS: BulkViewportCaptureLimits = {
   maxPixelHeight: 8_192,
   maxPixels: 33_554_432,
   maxPngBytes: 16 * 1_024 * 1_024,
-  maxSnapshotBytes: 8 * 1_024 * 1_024,
+  maxStoreBytes: 8 * 1_024 * 1_024,
 }
 
 export const BULK_VIEWPORT_CAPTURE_MAX_CONTROL_BYTES =
   Math.ceil(DEFAULT_BULK_VIEWPORT_CAPTURE_LIMITS.maxPngBytes / 3) * 4 +
-  DEFAULT_BULK_VIEWPORT_CAPTURE_LIMITS.maxSnapshotBytes +
+  DEFAULT_BULK_VIEWPORT_CAPTURE_LIMITS.maxStoreBytes +
   256 * 1_024
 
 export type BulkViewportObserverClient = {
@@ -73,6 +73,9 @@ const failure = (
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)
 
+const isPositiveSafeInteger = (value: unknown): value is number =>
+  Number.isSafeInteger(value) && Number(value) > 0
+
 const sessionDigest = (session: string): Uint8Array =>
   createHash("sha256").update(session).digest()
 
@@ -118,28 +121,21 @@ const jsonBytes = (value: unknown): number | null => {
   }
 }
 
-const isReadySceneSnapshot = (value: unknown): value is BulkReadySceneSnapshot =>
-  isRecord(value) &&
-  value.kind === "bulk-ready-scene-snapshot" &&
-  value.version === 1 &&
-  (
-    value.throughTs === null ||
-    Number.isSafeInteger(value.throughTs)
+const isBulkStoreCaptureProof = (value: unknown): value is BulkStoreCaptureProof => {
+  if (!isRecord(value) || !isPositiveSafeInteger(value.root) || !isRecord(value.rows)) return false
+  const rows = value.rows
+  return ["dark", "field", "fieldAlias", "orbital", "proxy", "transition", "relation", "batch"].every(
+    (key) => Number.isSafeInteger(rows[key]) && Number(rows[key]) >= 0,
   ) &&
-  typeof value.rootSrc === "string" &&
-  value.rootSrc.length > 0 &&
-  isRecord(value.visual) &&
-  typeof value.visual.layoutSlug === "string" &&
-  isRecord(value.visual.sourceStats) &&
-  value.visual.sourceStats.rootSrc === value.rootSrc &&
-  Array.isArray(value.visual.transitionBatchFingerprints) &&
-  value.visual.transitionBatchFingerprints.every((entry) =>
-    typeof entry === "string" && /^[0-9a-f]{16}$/.test(entry)
-  ) &&
-  Array.isArray(value.visual.relationBatchFingerprints) &&
-  value.visual.relationBatchFingerprints.every((entry) =>
-    typeof entry === "string" && /^[0-9a-f]{16}$/.test(entry)
-  )
+    Array.isArray(value.transitionBatchFingerprints) &&
+    value.transitionBatchFingerprints.every((entry) =>
+      typeof entry === "string" && /^[0-9a-f]{16}$/.test(entry)
+    ) &&
+    Array.isArray(value.relationBatchFingerprints) &&
+    value.relationBatchFingerprints.every((entry) =>
+      typeof entry === "string" && /^[0-9a-f]{16}$/.test(entry)
+    )
+}
 
 const validViewport = (
   capture: BulkViewportCaptureImage,
@@ -181,9 +177,9 @@ const validateCaptureResult = (
     return failure("invalid_response", "Bulk observer returned an invalid capture response")
   }
   const capture = value.capture as unknown as BulkViewportCaptureImage
-  const snapshotBytes = jsonBytes(capture.snapshot)
-  if (snapshotBytes !== null && snapshotBytes > limits.maxSnapshotBytes) {
-    return failure("payload_too_large", "Bulk observer ready-scene snapshot exceeds the capture payload limit")
+  const storeBytes = jsonBytes(capture.store)
+  if (storeBytes !== null && storeBytes > limits.maxStoreBytes) {
+    return failure("payload_too_large", "Bulk observer Store evidence exceeds the capture payload limit")
   }
   if (
     Number.isSafeInteger(capture.pngBytes) &&
@@ -215,20 +211,11 @@ const validateCaptureResult = (
     !isRecord(capture.observer) ||
     capture.observer.domain !== "bulk" ||
     capture.observer.id !== observer.client.id ||
-    !isRecord(capture.projection) ||
-    (
-      capture.projection.throughTs !== null &&
-      !Number.isSafeInteger(capture.projection.throughTs)
-    ) ||
-    typeof capture.projection.rootSrc !== "string" ||
-    capture.projection.rootSrc.length === 0 ||
     capture.sequence !== sequence ||
     typeof capture.capturedAt !== "string" ||
     !Number.isFinite(Date.parse(capture.capturedAt)) ||
-    snapshotBytes === null ||
-    !isReadySceneSnapshot(capture.snapshot) ||
-    capture.snapshot.throughTs !== capture.projection.throughTs ||
-    capture.snapshot.rootSrc !== capture.projection.rootSrc ||
+    storeBytes === null ||
+    !isBulkStoreCaptureProof(capture.store) ||
     capture.mimeType !== "image/png" ||
     !Number.isSafeInteger(capture.pngBytes) ||
     capture.pngBytes <= 0 ||

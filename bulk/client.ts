@@ -8,24 +8,76 @@ import {
 	createBulkViewport,
 	type BulkVisualViewportWithHud,
 } from "bulk/web"
-import {BulkReadyVisualSceneLifecycle} from "bulk/visual"
 import { installBulkHud } from "./hud.ts"
 import {captureBulkViewportCanvas} from "./web/viewport-capture.ts"
-import {BulkPresentedSnapshot} from "./web/observer-snapshot.ts"
+import {BulkPresentedStoreProof} from "./web/observer-snapshot.ts"
+import {readBulkInitialResponse} from "./page-bootstrap.ts"
 import {
-	BULK_INITIAL_ELEMENT_ID,
-	parseBulkInitialJson,
-} from "./page-bootstrap.ts"
+	activateBulkStore,
+	applyBulkStoreMessage,
+} from "./store-runtime.ts"
 import {
-	isBulkReadySceneUpdateControl,
-} from "./visual-initial.ts"
+	bulkStoreCaptureProof,
+	BulkStoreViewportRenderer,
+} from "./store-render.ts"
+import {isBulkStoreApplyControl} from "./store-initial.ts"
 
 const bulkCanvas = document.getElementById("bulk-canvas") as HTMLCanvasElement | null
 if (bulkCanvas === null) throw new Error("bulk-canvas not found")
+const bulkLoader = document.getElementById("bulk-loader") as HTMLDivElement | null
+const bulkLoaderStatus = document.getElementById("bulk-loader-status") as HTMLDivElement | null
+type BulkBootWindow = Window & {
+	__METAFOR_BULK_INITIAL_RESPONSE__?: Promise<Response>
+}
 
 let bulkViewport: BulkVisualViewportWithHud | null = null
-let visualLifecycle: BulkReadyVisualSceneLifecycle | null = null
-const presentedSnapshot = new BulkPresentedSnapshot()
+let storeRenderer: BulkStoreViewportRenderer | null = null
+const presentedStoreProof = new BulkPresentedStoreProof()
+
+const mark = (name: string): void => {
+	performance.mark(`bulk.${name}`)
+}
+
+const measure = (name: string, start: string, end: string): void => {
+	performance.measure(`bulk.${name}`, `bulk.${start}`, `bulk.${end}`)
+}
+
+const setLoaderStatus = (status: string): void => {
+	if (bulkLoaderStatus !== null) bulkLoaderStatus.textContent = status
+}
+
+const showLoaderError = (error: unknown): void => {
+	if (bulkLoader !== null) bulkLoader.dataset.error = "true"
+	setLoaderStatus("Bulk Store не загрузился")
+	console.error("[bulk] initialization failed", error)
+}
+
+const fetchInitialStore = async () => {
+	if (performance.getEntriesByName("bulk.initial-fetch-start", "mark").length === 0) {
+		mark("initial-fetch-start")
+	}
+	const bootWindow = window as BulkBootWindow
+	const pending = bootWindow.__METAFOR_BULK_INITIAL_RESPONSE__
+	delete bootWindow.__METAFOR_BULK_INITIAL_RESPONSE__
+	const response = await (pending ?? fetch("/initial", {
+		cache: "no-store",
+		headers: {accept: "application/json"},
+	}))
+	const initial = await readBulkInitialResponse(response)
+	mark("initial-fetch-end")
+	measure("initial-fetch", "initial-fetch-start", "initial-fetch-end")
+	return initial
+}
+
+const waitForPresentedFrame = async (): Promise<void> => {
+	await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+	mark("scene-frame-ready")
+	if (bulkLoader !== null) {
+		bulkLoader.hidden = true
+		bulkLoader.setAttribute("aria-hidden", "true")
+	}
+	mark("loader-hidden")
+}
 
 const waitForVisibleDocument = async (): Promise<void> => {
 	if (document.visibilityState === "visible") return
@@ -40,6 +92,7 @@ const waitForVisibleDocument = async (): Promise<void> => {
 }
 
 const initBulkViewport = async (): Promise<void> => {
+	mark("viewport-start")
 	await waitForVisibleDocument()
 	const rect = bulkCanvas.getBoundingClientRect()
 	bulkViewport = await createBulkViewport({
@@ -60,46 +113,55 @@ const initBulkViewport = async (): Promise<void> => {
 	resizeObserver.observe(bulkCanvas)
 	window.addEventListener("resize", resizeBulkViewport)
 	window.visualViewport?.addEventListener("resize", resizeBulkViewport)
-}
-
-const readInitialPackage = () => {
-	const element = document.getElementById(BULK_INITIAL_ELEMENT_ID)
-	if (element === null) throw new Error("Bulk page initial element is missing")
-	return parseBulkInitialJson(element.textContent)
+	mark("viewport-end")
+	measure("viewport", "viewport-start", "viewport-end")
 }
 
 const start = async (): Promise<void> => {
-	const initial = readInitialPackage()
-	await initBulkViewport()
-	if (!bulkViewport) throw new Error("Bulk viewport is not initialized")
-	installBulkHud({viewport: bulkViewport})
-	// The server already ran the selected strategy. Hydration presents that
-	// geometry as-is; no layout strategy runs in this browser on the initial
-	// path, which `visualLayoutBuiltScenes()` proves in the spec.
-	visualLifecycle = new BulkReadyVisualSceneLifecycle({target: bulkViewport})
-	visualLifecycle.hydrate(initial)
-	presentedSnapshot.stage(() => visualLifecycle!.snapshot())
+	mark("bootstrap-start")
+	setLoaderStatus("Получение Bulk Store…")
+	const initialPromise = fetchInitialStore()
+	const viewportPromise = initBulkViewport()
+	const initial = await initialPromise
 
 	const observerId = `bulk-web-${crypto.randomUUID()}`
 	const force = new Force("bulk", {
 		id: observerId,
 		parameters: {session: initial.session},
 	})
+
+	setLoaderStatus("Подготовка сцены…")
+	mark("store-activate-start")
+	const store = activateBulkStore(initial.store)
+	mark("store-activate-end")
+	measure("store-activate", "store-activate-start", "store-activate-end")
+
+	await viewportPromise
+	if (!bulkViewport) throw new Error("Bulk viewport is not initialized")
+	installBulkHud({viewport: bulkViewport})
+	mark("renderer-prepare-start")
+	storeRenderer = new BulkStoreViewportRenderer(store, bulkViewport)
+	mark("renderer-prepare-end")
+	measure("renderer-prepare", "renderer-prepare-start", "renderer-prepare-end")
+	mark("renderer-present-start")
+	storeRenderer.present()
+	mark("renderer-present-end")
+	measure("renderer-present", "renderer-present-start", "renderer-present-end")
+	presentedStoreProof.stage(() => bulkStoreCaptureProof(store))
+
 	force.onControl = async (message) => {
-		if (isBulkReadySceneUpdateControl(message)) {
-			visualLifecycle!.hydrate(message.scene)
-			const part = message.message.parts[0]
-			bulkViewport?.handleForce(part.part, part)
-			presentedSnapshot.stage(() => visualLifecycle!.snapshot())
+		if (isBulkStoreApplyControl(message)) {
+			applyBulkStoreMessage(store, storeRenderer!, message.message)
+			presentedStoreProof.stage(() => bulkStoreCaptureProof(store))
 			return
 		}
 		if (!isBulkViewportCaptureControlRequest(message)) return
-		const snapshot = await presentedSnapshot.read()
+		const storeProof = await presentedStoreProof.read()
 		const viewport = bulkViewport
 		const result = await captureBulkViewportCanvas(
 			bulkCanvas,
 			message,
-			{observerId, snapshot},
+			{observerId, store: storeProof},
 			viewport === null
 				? {}
 				: {readPng: () => viewport.hud.renderer.captureLastPresentedFramePng()},
@@ -112,9 +174,13 @@ const start = async (): Promise<void> => {
 		}
 		force.sendControl(response)
 	}
-	force.onImpulse = () => {
-		throw new Error("Bulk browser rejects direct Particle updates without a Graph replacement")
+	force.onImpulse = (message) => {
+		applyBulkStoreMessage(store, storeRenderer!, message)
+		presentedStoreProof.stage(() => bulkStoreCaptureProof(store))
 	}
+
+	await waitForPresentedFrame()
+	measure("bootstrap-to-scene", "bootstrap-start", "scene-frame-ready")
 }
 
-void start().catch((error) => console.error("[bulk] initialization failed", error))
+void start().catch(showLoaderError)

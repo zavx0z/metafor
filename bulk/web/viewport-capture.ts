@@ -1,14 +1,14 @@
 import {
   BULK_VIEWPORT_CAPTURE_VERSION,
+  type BulkStoreCaptureProof,
   type BulkViewportCaptureControlRequest,
   type BulkViewportCaptureBrowserFailure,
   type BulkViewportCaptureBrowserResult,
 } from "@metafor/types/bulk/capture"
-import type {BulkReadySceneSnapshot} from "@metafor/types/bulk/initial"
 
 export type BulkViewportCaptureSource = {
   observerId: string
-  snapshot: BulkReadySceneSnapshot | null
+  store: BulkStoreCaptureProof | null
 }
 
 type CapturableCanvas = Pick<
@@ -82,8 +82,8 @@ export const captureBulkViewportCanvas = async (
   if (options.readPng === undefined && typeof canvas.toBlob !== "function") {
     return failure("capture_unavailable", "Browser canvas PNG capture is unavailable")
   }
-  if (source.snapshot === null) {
-    return failure("capture_unavailable", "Bulk observer has not presented a ready-scene snapshot")
+  if (source.store === null) {
+    return failure("capture_unavailable", "Bulk observer has not presented Store evidence")
   }
 
   const rect = canvas.getBoundingClientRect()
@@ -93,17 +93,17 @@ export const captureBulkViewportCanvas = async (
   const pixelHeight = canvas.height
   const devicePixelRatio = options.devicePixelRatio ?? (window.devicePixelRatio || 1)
   const capturedAt = (options.now?.() ?? new Date()).toISOString()
-  let frozen: {observerId: string; snapshot: BulkReadySceneSnapshot}
+  let frozen: {observerId: string; store: BulkStoreCaptureProof}
   try {
     frozen = {
       observerId: source.observerId,
-      snapshot: structuredClone(source.snapshot),
+      store: structuredClone(source.store),
     }
   } catch {
-    return failure("capture_unavailable", "Bulk observer ready-scene snapshot is unavailable")
+    return failure("capture_unavailable", "Bulk observer Store evidence is unavailable")
   }
-  if (jsonBytes(frozen.snapshot) > request.limits.maxSnapshotBytes) {
-    return failure("payload_too_large", "Bulk observer ready-scene snapshot exceeds the capture payload limit")
+  if (jsonBytes(frozen.store) > request.limits.maxStoreBytes) {
+    return failure("payload_too_large", "Bulk observer Store evidence exceeds the capture payload limit")
   }
 
   if (
@@ -145,10 +145,6 @@ export const captureBulkViewportCanvas = async (
     capture: {
       version: BULK_VIEWPORT_CAPTURE_VERSION,
       observer: {domain: "bulk", id: frozen.observerId},
-      projection: {
-        throughTs: frozen.snapshot.throughTs,
-        rootSrc: frozen.snapshot.rootSrc,
-      },
       viewport: {
         cssWidth,
         cssHeight,
@@ -158,7 +154,7 @@ export const captureBulkViewportCanvas = async (
       },
       sequence: request.sequence,
       capturedAt,
-      snapshot: frozen.snapshot,
+      store: frozen.store,
       mimeType: "image/png",
       pngBytes: png.size,
       pngBase64,

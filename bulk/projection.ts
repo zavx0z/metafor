@@ -22,7 +22,11 @@ import type {
   BulkProjectionSnapshot,
 } from "@metafor/types/bulk/initial"
 import type {Particle} from "shared/protocol/force/particle"
-import {resolveForceFieldId, resolveForceFieldsPayload} from "shared/protocol/force/fields"
+import {
+  resolveCanonicalForceFieldsPayload,
+  resolveForceFieldId,
+  resolveForceFieldsPayload,
+} from "shared/protocol/force/fields"
 
 const declarationSections = ["meta", "fields", "variants", "states", "transitions", "conditions", "processes", "reactions", "matter", "bulk"] as const
 type DeclarationSection = typeof declarationSections[number]
@@ -486,6 +490,7 @@ export class BulkProjectionStore {
   private applyGluon(part: Particle): BulkProjectionChange {
     if (typeof part.path !== "number" || !this.atoms.has(part.path)) return unchanged()
     const fields = resolveForceFieldsPayload(part.value)
+    const canonical = resolveCanonicalForceFieldsPayload(part.value)
     if (!fields) return unchanged()
     let changed = false
     const affectedAtomIds = new Set<number>()
@@ -497,8 +502,10 @@ export class BulkProjectionStore {
       if (part.op === "remove") {
         if (binding) {
           this.atomValues.delete(key)
-          this.values.delete(binding.value)
-          for (const itemKey of [...this.valueItems.keys()]) if (itemKey.startsWith(`${binding.value}\0`)) this.valueItems.delete(itemKey)
+          if (![...this.atomValues.values()].some((alias) => alias.value === binding.value)) {
+            this.values.delete(binding.value)
+            for (const itemKey of [...this.valueItems.keys()]) if (itemKey.startsWith(`${binding.value}\0`)) this.valueItems.delete(itemKey)
+          }
           // Unbinding reaches the Atom that held the binding; omitting it here
           // reports a change with an empty closure, which downstream reads as
           // "nothing to invalidate" and leaves the marker rendered.
@@ -506,13 +513,21 @@ export class BulkProjectionStore {
           changed = true
         }
       } else if (part.op === "add" || part.op === "replace") {
-        const valueId = binding?.value ?? this.nextValueId++
+        const valueId = canonical?.[rawField]?.valueId ?? binding?.value ?? this.nextValueId++
         if (binding && same(currentRawValue(this.values.get(valueId), this.valueItems), rawValue)) continue
         const next = runtimeValue(valueId, rawValue)
         const current = this.values.get(valueId)
         if (current) patch(current as unknown as Record<string, unknown>, next as unknown as Record<string, unknown>)
         else this.values.set(valueId, next)
         if (!binding) this.atomValues.set(key, {atom: part.path, field, value: valueId})
+        else if (binding.value !== valueId) {
+          const previousValueId = binding.value
+          binding.value = valueId
+          if (![...this.atomValues.values()].some((alias) => alias.value === previousValueId)) {
+            this.values.delete(previousValueId)
+            for (const itemKey of [...this.valueItems.keys()]) if (itemKey.startsWith(`${previousValueId}\0`)) this.valueItems.delete(itemKey)
+          }
+        }
         for (const itemKey of [...this.valueItems.keys()]) if (itemKey.startsWith(`${valueId}\0`)) this.valueItems.delete(itemKey)
         if (Array.isArray(rawValue)) rawValue.forEach((item, position) => this.valueItems.set(`${valueId}\0${position}`, {value: valueId, position, itemValue: Number(item)}))
         for (const alias of this.atomValues.values()) if (alias.value === valueId) affectedAtomIds.add(alias.atom)

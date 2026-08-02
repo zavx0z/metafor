@@ -27,6 +27,13 @@ describe("Boundary incremental relational projection", () => {
   const apply = async (op: "add" | "replace" | "remove", path: DeclarationPath, value: Record<string, unknown>) =>
     await boundary.materialize({parts: [{part: "inflaton", op, path, value, by: "dark", ts: 1}]})
 
+  const transfer = async (
+    op: "move" | "copy",
+    path: DeclarationPath,
+    from: string | number,
+    value: Record<string, unknown>,
+  ) => await boundary.materialize({parts: [{part: "inflaton", op, path, from, value, by: "dark", ts: 1}]})
+
   const declareWimp = async (src: string, name = src) => await apply("add", "wimp", {src, name, desc: null})
 
   const declareRoot = async (): Promise<number> => {
@@ -259,6 +266,219 @@ describe("Boundary incremental relational projection", () => {
     `).toEqual([{id: databaseId, label: "After"}])
   })
 
+  test("copies every persisted declaration table from its canonical row id", async () => {
+    await declareRoot()
+    await apply("add", "field", {
+      wimp: ROOT, id: 1, key: "mode", type: "enum", required: false,
+    })
+    await apply("add", "field", {
+      wimp: ROOT, id: 2, key: "count", type: "number", required: false, default: 1,
+    })
+    await apply("add", "variant", {wimp: ROOT, id: 1, field: 1, position: 0, value: "idle"})
+    await apply("add", "state", {wimp: ROOT, id: 1, name: "idle", position: 0})
+    await apply("add", "state", {wimp: ROOT, id: 2, name: "ready", position: 1})
+    await apply("add", "transition", {wimp: ROOT, id: 1, from: 1, to: 2, position: 0})
+    await apply("add", "transition", {wimp: ROOT, id: 2, from: 2, to: 1, position: 0})
+    await apply("add", "condition", {
+      wimp: ROOT, id: 1, transition: 1, field: 2, position: 0, predicate: {gt: 0},
+    })
+    await apply("add", "process", {
+      wimp: ROOT, id: 1, key: "idle", type: "action", label: "Act", env: ["server"],
+      action: {src: "return 1", read: [2]},
+      success: {src: "return value", read: [2], write: [2]},
+    })
+    await apply("add", "reaction", {
+      wimp: ROOT, id: 1, key: "react", label: "React", cond: "true", src: "return {}",
+      read: [2], write: [2], states: [1],
+    })
+    await apply("add", "matter", {
+      wimp: ROOT, id: 1, parent: null, edgeSlot: "root", position: 0,
+      kind: "axion", predicateBinding: true,
+    })
+
+    const rows = Object.fromEntries(await Promise.all([
+      ["field", "field"],
+      ["variant", "field_enum_variant"],
+      ["state", "state"],
+      ["transition", "transition"],
+      ["condition", "condition"],
+      ["process", "process"],
+      ["reaction", "reaction"],
+      ["matter", "matter_particle"],
+    ].map(async ([path, table]) => {
+      const id = Number((await boundary.projection.sql.unsafe<Array<{id: number}>>(
+        `SELECT id FROM ${table} WHERE wimp = ? AND local_id = 1`, [ROOT],
+      ))[0]!.id)
+      return [path, id]
+    }))) as Record<string, number>
+    const field = rows.field!
+    const countField = Number((await boundary.projection.sql<Array<{id: number}>>`
+      SELECT id FROM field WHERE wimp = ${ROOT} AND local_id = ${2}
+    `)[0]!.id)
+    const idle = rows.state!
+    const ready = Number((await boundary.projection.sql<Array<{id: number}>>`
+      SELECT id FROM state WHERE wimp = ${ROOT} AND local_id = ${2}
+    `)[0]!.id)
+    const reverseTransition = Number((await boundary.projection.sql<Array<{id: number}>>`
+      SELECT id FROM transition WHERE wimp = ${ROOT} AND local_id = ${2}
+    `)[0]!.id)
+
+    const requests: Array<{
+      path: DeclarationPath; from: number; value: Record<string, unknown>;
+    }> = [
+      {path: "field", from: field, value: {wimp: ROOT, localId: 3, key: "modeCopy"}},
+      {path: "variant", from: rows.variant!, value: {
+        wimp: ROOT, localId: 2, field, position: 1, itemValue: "ready",
+      }},
+      {path: "state", from: idle, value: {
+        wimp: ROOT, localId: 3, name: "copied", position: 2,
+      }},
+      {path: "transition", from: rows.transition!, value: {
+        wimp: ROOT, localId: 3, fromState: idle, toState: ready, position: 1,
+      }},
+      {path: "condition", from: rows.condition!, value: {
+        wimp: ROOT, localId: 2, transition: reverseTransition, field: countField, position: 0,
+      }},
+      {path: "process", from: rows.process!, value: {
+        wimp: ROOT, localId: 2, descriptor: {key: "copied-process"},
+      }},
+      {path: "reaction", from: rows.reaction!, value: {
+        wimp: ROOT, localId: 2, key: "copied-reaction",
+      }},
+      {path: "matter", from: rows.matter!, value: {
+        wimp: ROOT, localId: 2, parentParticle: null, particleOrder: 1,
+      }},
+    ]
+
+    for (const request of requests) {
+      const commit = await transfer("copy", request.path, request.from, request.value)
+      const declaration = commit?.messages.map((message) => message.parts[0]).find((part) =>
+        part.part === "graviton" && part.op === "copy" && part.path === request.path)
+      expect(declaration).toMatchObject({from: request.from, value: {
+        wimp: ROOT,
+        localId: request.value.localId,
+        id: expect.any(Number),
+      }})
+      expect(Number((declaration!.value as Record<string, unknown>).id)).not.toBe(request.from)
+    }
+
+    const copiedTransition = (await boundary.projection.sql<Array<{
+      fromState: number; toState: number
+    }>>`
+      SELECT from_state AS fromState, to_state AS toState
+        FROM transition WHERE wimp = ${ROOT} AND local_id = ${3}
+    `)[0]!
+    expect(copiedTransition).toEqual({fromState: idle, toState: ready})
+    const copiedCondition = (await boundary.projection.sql<Array<{
+      transition: number; field: number
+    }>>`
+      SELECT transition, field FROM condition WHERE wimp = ${ROOT} AND local_id = ${2}
+    `)[0]!
+    expect(copiedCondition).toEqual({transition: reverseTransition, field: countField})
+  })
+
+  test("moves canonical rows in place and preserves numeric foreign-key relations", async () => {
+    await declareRoot()
+    await apply("add", "field", {wimp: ROOT, id: 1, key: "mode", type: "enum"})
+    await apply("add", "variant", {wimp: ROOT, id: 1, field: 1, position: 0, value: "idle"})
+    await apply("add", "state", {wimp: ROOT, id: 1, name: "idle", position: 0})
+    await apply("add", "state", {wimp: ROOT, id: 2, name: "ready", position: 1})
+    await apply("add", "transition", {wimp: ROOT, id: 1, from: 1, to: 2, position: 0})
+
+    const field = Number((await boundary.projection.sql<Array<{id: number}>>`
+      SELECT id FROM field WHERE wimp = ${ROOT} AND local_id = ${1}
+    `)[0]!.id)
+    const variant = Number((await boundary.projection.sql<Array<{id: number}>>`
+      SELECT id FROM field_enum_variant WHERE wimp = ${ROOT} AND local_id = ${1}
+    `)[0]!.id)
+    const state = Number((await boundary.projection.sql<Array<{id: number}>>`
+      SELECT id FROM state WHERE wimp = ${ROOT} AND local_id = ${1}
+    `)[0]!.id)
+    const transition = Number((await boundary.projection.sql<Array<{id: number}>>`
+      SELECT id FROM transition WHERE wimp = ${ROOT} AND local_id = ${1}
+    `)[0]!.id)
+
+    const fieldMove = await transfer("move", "field", field, {
+      wimp: ROOT, localId: 3, key: "mode", type: "enum",
+    })
+    expect(fieldMove?.messages[0]?.parts[0]).toMatchObject({
+      part: "graviton", op: "move", path: "field", from: field,
+      value: {id: field, wimp: ROOT, localId: 3},
+    })
+    expect(await boundary.projection.sql<Array<{field: number}>>`
+      SELECT field FROM field_enum_variant WHERE id = ${variant}
+    `).toEqual([{field}])
+
+    const stateMove = await transfer("move", "state", state, {
+      wimp: ROOT, localId: 3, name: "idle", position: 0,
+    })
+    expect(stateMove?.messages[0]?.parts[0]).toMatchObject({
+      part: "graviton", op: "move", path: "state", from: state,
+      value: {id: state, wimp: ROOT, localId: 3},
+    })
+    expect(await boundary.projection.sql<Array<{fromState: number}>>`
+      SELECT from_state AS fromState FROM transition WHERE id = ${transition}
+    `).toEqual([{fromState: state}])
+  })
+
+  test("keeps view_css outside Bulk Store declaration transfer", async () => {
+    await declareRoot()
+    await apply("add", "bulk", {wimp: ROOT, id: 1, view: ".root {}"})
+    await expect(transfer("copy", "bulk", 1, {
+      wimp: ROOT, localId: 2, view: ".copy {}",
+    })).rejects.toThrow("bulk/view_css is excluded")
+    expect(await boundary.projection.sql<Array<{view: string | null}>>`
+      SELECT view_css AS view FROM wimp WHERE src = ${ROOT}
+    `).toEqual([{view: ".root {}"}])
+  })
+
+  test("copies and moves WIMP by canonical src while preserving runtime Atom ids", async () => {
+    const rootAtom = await declareRoot()
+    const copied = await transfer("copy", "wimp", ROOT, {
+      src: PEER,
+      name: "Peer copy",
+      desc: null,
+    })
+    expect(copied?.messages[0]?.parts[0]).toMatchObject({
+      part: "graviton",
+      op: "copy",
+      path: "wimp",
+      from: ROOT,
+      value: {src: PEER, name: "Peer copy"},
+    })
+    const copiedAtom = Number((await boundary.projection.sql<Array<{id: number}>>`
+      SELECT id FROM atom WHERE wimp = ${PEER} ORDER BY id LIMIT 1
+    `)[0]!.id)
+    expect(copiedAtom).not.toBe(rootAtom)
+
+    const moved = await transfer("move", "wimp", PEER, {
+      src: CHILD,
+      name: "Child moved",
+      desc: null,
+    })
+    expect(moved?.messages[0]?.parts[0]).toMatchObject({
+      part: "graviton",
+      op: "move",
+      path: "wimp",
+      from: PEER,
+      value: {src: CHILD, name: "Child moved"},
+    })
+    expect(await boundary.projection.sql<Array<{src: string}>>`
+      SELECT src FROM wimp WHERE src IN (${PEER}, ${CHILD}) ORDER BY src
+    `).toEqual([{src: CHILD}])
+    expect(await boundary.projection.sql<Array<{id: number}>>`
+      SELECT id FROM atom WHERE wimp = ${CHILD}
+    `).toEqual([{id: copiedAtom}])
+    expect(moved?.messages.map((message) => message.parts[0])).toContainEqual(
+      expect.objectContaining({
+        part: "graviton",
+        op: "replace",
+        path: `atom/${copiedAtom}`,
+        value: expect.objectContaining({atom: expect.objectContaining({id: copiedAtom, wimp: CHILD})}),
+      }),
+    )
+  })
+
   test("publishes an enum default only after its Variant is committed", async () => {
     await declareRoot()
     const fieldCommit = await apply("add", "field", {
@@ -291,7 +511,10 @@ describe("Boundary incremental relational projection", () => {
     expect(particles).toContainEqual(expect.objectContaining({
       part: "gluon",
       op: "add",
-      value: {fields: {[String(fieldId)]: ref}},
+      value: {fields: {[String(fieldId)]: {
+        valueId: expect.any(Number),
+        value: ref,
+      }}},
     }))
     const initial = await boundary.initialState()
     expect(initial.declarations.find((item) => item.section === "fields")?.value.default).toEqual(ref)
@@ -1333,6 +1556,13 @@ describe("Boundary incremental relational projection", () => {
     )
     expect(new Set(gluons.map((message) => message.parts[0].ts)).size).toBe(1)
     expect(gluons.find((message) => message.parts[0].path === rootId)).toBeDefined()
+    for (const member of members) {
+      expect(gluons.find((message) => message.parts[0].path === member.atom)?.parts[0].value)
+        .toEqual({fields: {[String(member.field)]: {
+          valueId: child.valueId,
+          value: "awake",
+        }}})
+    }
     expect(await boundary.projection.sql<Array<{value: string}>>`
       SELECT value_string.text AS value
         FROM atom_value

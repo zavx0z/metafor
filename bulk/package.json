@@ -6,6 +6,7 @@
   "exports": {
     ".": "./index.ts",
     "./settings": "./settings.ts",
+    "./store": "./store.ts",
     "./visual": "./visual.ts",
     "./web": "./web/index.ts"
   },

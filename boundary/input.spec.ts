@@ -64,7 +64,10 @@ describe("Boundary canonical external Field input", () => {
       path: atomId,
       ts: expect.any(Number),
       from: expect.stringMatching(/^boundary:/),
-      value: {fields: {[String(INPUT)]: 4}},
+      value: {fields: {[String(INPUT)]: {
+        valueId: expect.any(Number),
+        value: 4,
+      }}},
     })
   })
 
@@ -100,6 +103,9 @@ describe("Boundary canonical external Field input", () => {
       path: atomId,
       value: {fields: {[String(INPUT)]: 5}},
     }))
+    const previousValueId = Number((await boundary.projection.sql<Array<{value: number}>>`
+      SELECT value FROM atom_value WHERE atom = ${atomId} AND field = ${INPUT}
+    `)[0]!.value)
     const commit = await boundary.materialize(message({
       part: "gluon",
       op: "remove",
@@ -113,6 +119,10 @@ describe("Boundary canonical external Field input", () => {
       op: "remove",
       path: atomId,
       from: expect.stringMatching(/^boundary:/),
+      value: {fields: {[String(INPUT)]: {
+        valueId: previousValueId,
+        value: null,
+      }}},
     })
   })
 })

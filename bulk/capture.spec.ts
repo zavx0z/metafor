@@ -1,11 +1,11 @@
 import {describe, expect, test} from "bun:test"
 import {
   BULK_VIEWPORT_CAPTURE_VERSION,
+  type BulkStoreCaptureProof,
   type BulkViewportCaptureControlRequest,
   type BulkViewportCaptureControlResponse,
   type BulkViewportCaptureImage,
 } from "@metafor/types/bulk/capture"
-import type {BulkReadySceneSnapshot} from "@metafor/types/bulk/initial"
 import {
   BulkViewportCaptureRegistry,
   type BulkViewportObserverClient,
@@ -16,26 +16,11 @@ const PNG_BASE64 =
 const PNG_BYTES = 68
 const OWNER_SESSION = "owner-observer-session"
 const OTHER_SESSION = "other-observer-session"
-const readySnapshot = (
-  rootSrc = "world/root",
-  throughTs: number | null = 1_700_000_000_001,
-): BulkReadySceneSnapshot => ({
-  kind: "bulk-ready-scene-snapshot",
-  version: 1,
-  throughTs,
-  rootSrc,
-  visual: {
-    layoutSlug: "centered-nested",
-    sourceStats: {
-      rootSrc,
-      darkParticleCount: 0,
-      fieldParticleCount: 0,
-      orbitalParticleCount: 0,
-      transitionChannelCount: 0,
-    },
-    transitionBatchFingerprints: [],
-    relationBatchFingerprints: [],
-  },
+const storeProof = (root = 2): BulkStoreCaptureProof => ({
+  root,
+  rows: {dark: 5, field: 54, fieldAlias: 54, orbital: 193, proxy: 864, transition: 165, relation: 1_928, batch: 12},
+  transitionBatchFingerprints: [],
+  relationBatchFingerprints: [],
 })
 
 class Client implements BulkViewportObserverClient {
@@ -66,7 +51,6 @@ const captureImage = (
 ): BulkViewportCaptureImage => ({
   version: BULK_VIEWPORT_CAPTURE_VERSION,
   observer: {domain: "bulk", id: observerId},
-  projection: {throughTs: 1_700_000_000_001, rootSrc: "world/root"},
   viewport: {
     cssWidth: 640,
     cssHeight: 360,
@@ -76,7 +60,7 @@ const captureImage = (
   },
   sequence,
   capturedAt: "2026-07-28T10:00:00.000Z",
-  snapshot: readySnapshot(),
+  store: storeProof(),
   mimeType: "image/png",
   pngBytes: PNG_BYTES,
   pngBase64: PNG_BASE64,
@@ -179,7 +163,7 @@ describe("Bulk observer viewport capture registry", () => {
     })
   })
 
-  test("returns the selected observer PNG with frozen ready-scene and viewport metadata", async () => {
+  test("returns the selected observer PNG with frozen Store and viewport metadata", async () => {
     const registry = allowedRegistry()
     const client = new Client("owner-viewport")
     registry.connect(client, OWNER_SESSION)
@@ -197,10 +181,10 @@ describe("Bulk observer viewport capture registry", () => {
     })
     expect(result.ok).toBe(true)
     if (result.ok) {
-      expect(result.capture.snapshot.kind).toBe("bulk-ready-scene-snapshot")
-      expect("projection" in result.capture.snapshot).toBe(false)
-      expect(result.capture.snapshot.throughTs).toBe(result.capture.projection.throughTs)
-      expect(result.capture.snapshot.rootSrc).toBe(result.capture.projection.rootSrc)
+      expect(result.capture.store.root).toBe(2)
+      expect("projection" in result.capture).toBe(false)
+      expect("throughTs" in result.capture.store).toBe(false)
+      expect("rootSrc" in result.capture.store).toBe(false)
     }
   })
 
@@ -293,7 +277,7 @@ describe("Bulk observer viewport capture registry", () => {
         maxPixelHeight: 2_000,
         maxPixels: 4_000_000,
         maxPngBytes: PNG_BYTES,
-        maxSnapshotBytes: 1_024,
+        maxStoreBytes: 1_024,
       },
     })
     const client = new Client("owner")
@@ -338,28 +322,22 @@ describe("Bulk observer viewport capture registry", () => {
     respond(registry, client, fourth, captureImage("other", fourth.sequence))
     expect(await malformed).toMatchObject({ok: false, error: {code: "invalid_response"}})
 
-    const mismatchedCut = registry.capture(request("owner"), {source: "codex"})
+    const malformedStore = registry.capture(request("owner"), {source: "codex"})
     await Bun.sleep(0)
     const fifth = client.sent[4]!
     respond(registry, client, fifth, captureImage("owner", fifth.sequence, {
-      snapshot: {
-        kind: "bulk-ready-scene-snapshot",
-        version: 1,
-        throughTs: 1_700_000_000_001,
-        rootSrc: "another/root",
-        visual: readySnapshot("another/root").visual,
-      },
+      store: {...storeProof(), root: 0},
     }))
-    expect(await mismatchedCut).toMatchObject({ok: false, error: {code: "invalid_response"}})
+    expect(await malformedStore).toMatchObject({ok: false, error: {code: "invalid_response"}})
 
-    const oversizedSnapshot = registry.capture(request("owner"), {source: "codex"})
+    const oversizedStore = registry.capture(request("owner"), {source: "codex"})
     await Bun.sleep(0)
     const sixth = client.sent[5]!
-    const largeSnapshot = readySnapshot()
-    largeSnapshot.visual.relationBatchFingerprints.push("x".repeat(2_000))
+    const largeStore = storeProof()
+    largeStore.relationBatchFingerprints.push("x".repeat(2_000))
     respond(registry, client, sixth, captureImage("owner", sixth.sequence, {
-      snapshot: largeSnapshot,
+      store: largeStore,
     }))
-    expect(await oversizedSnapshot).toMatchObject({ok: false, error: {code: "payload_too_large"}})
+    expect(await oversizedStore).toMatchObject({ok: false, error: {code: "payload_too_large"}})
   })
 })

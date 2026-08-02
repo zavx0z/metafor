@@ -159,7 +159,10 @@ describe("Boundary canonical Process result", () => {
       path: atomId,
       ts: expect.any(Number),
       from: processExecutionId,
-      value: {fields: {[String(OUTPUT)]: 2}},
+      value: {fields: {[String(OUTPUT)]: {
+        valueId: expect.any(Number),
+        value: 2,
+      }}},
     })
     const acknowledgement: ProcessResultCommit = {
       processExecutionId,

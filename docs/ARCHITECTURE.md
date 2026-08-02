@@ -94,10 +94,11 @@ Runtime не объясняет происхождение значения. Е�
 `inherited-default`, `missing`, `not-projected`, отдельный `values/missing`
 envelope и provenance default-vs-write запрещены.
 
-Публичная identity задаётся logical Meta address, вложенной структурой Graph и
-JSON paths/references его сериализации. Boundary `Atom.id`, `Field.id`, `valueId`,
-локальные SQLite handles и другие внутренние числовые identity за публичную
-границу не выходят. Graph не вводит направленные ports, boundary stubs или
+Публичная agent-facing identity задаётся logical Meta address, вложенной
+структурой Graph и JSON paths/references его сериализации. Внутри доменного
+Force/RPC контура Boundary `Atom.id`, persisted row IDs декларационных таблиц
+и `valueId` сохраняются как canonical relational identity для Matrix и Bulk,
+но не становятся Graph-адресами или JSON Pointer. Graph не вводит направленные ports, boundary stubs или
 отдельный global edges graph: relations остаются в нормализованной Matter
 structure и её публичных structural references.
 
@@ -123,32 +124,34 @@ Graph и возвращает root как данные ответа. Assembler �
 читает Store другого домена напрямую. Dark Monad и Boundary остаются
 владельцами своих projections; Dark Force только переносит Monad RPC.
 
-Для Bulk этот RPC является единственным полным чтением мира. Рождение Bulk
-Monad не вызывает `Dark.readGraph` и не создаёт долгоживущий Graph/projection
-cache: оно подготавливает только operational RPC/Force state.
+При рождении Bulk один раз получает через `Boundary.initialProjection.read`
+согласованный набор необходимых canonical rows и сразу формирует плоский Bulk
+Store. Bulk не читает Boundary persistence или SQLite напрямую и не вызывает
+`Dark.readGraph` для browser initial. Graph и JSON Pointer остаются публичной
+read-only проекцией для агентского чтения, но не входят в Bulk Store.
+Production writer сразу заполняет конечные semantic/geometry/material/control
+columns по фиксированному centered-nested закону; `BulkManifest`, `ReadyScene`
+и иная промежуточная scene model существуют только в parity-test oracle.
 
-Каждый `GET /` browser page независимо вызывает `Dark.readGraph`, валидирует
-полученный request-local cut и на сервере готовит из него initial manifestation,
-выбранную Visual layout и сериализуемую сцену. Graph, projection и semantic
-`BulkManifest` уничтожаются вместе с request-local подготовкой; в HTML как
-inert JSON входит только `bulk-ready-scene@1` с prepared Visual и одноразовой
-session. Browser валидирует его и гидратирует ready lifecycle без отдельного
-initial HTTP-запроса, semantic reconstruction и повторного layout. Dynamic HTML
-имеет private `no-store` policy и не может становиться
-shared cached страницей. Bulk не вызывает `Boundary.initialProjection.read` и
-не вводит Boundary как второго сборщика или источник стартового Graph. Bulk
-не передаёт в Dark `zavx0z/inference`, `zavx0z/lada` или любой другой root:
-browser initial использует только `Graph.root` возвращённого Dark ответа.
+`GET /` немедленно отдаёт не содержащий данных мира HTML shell с Canvas и
+loader. Отдельный `GET /initial` получает текущий согласованный Store и
+одноразовую session в форме `{session, store}`; handoff удерживает произошедшие
+после cut Particles до подключения browser Force. В initial JSON нет Graph,
+путей, semantic manifest, renderer-ready scene, revision или causal cursor.
+Browser параллельно готовит client-only viewport, активирует числовые колонки
+этого же объекта как typed buffers и вычисляет только локальные `id → slot` и
+incident indexes; второй набор записей не создаётся. Loader скрывается после
+первого кадра с применённым Store. Shell и initial имеют private `no-store`
+policy и не становятся shared cached состоянием мира.
 
-Force `Particle` не является Graph patch: его path может содержать
-внутреннюю Boundary identity, которой нет в публичном документе. До появления
-отдельно утверждённого public delta contract входящий runtime Particle является
-causal invalidation. Bulk дожидается применённого Boundary cut, снова читает
-полный Graph через Dark и атомарно заменяет cut того же Store; checkpoint
-JSON Patch для этого не используется. Единственный Bulk adapter затем выводит
-из актуального Graph существующую semantic projection и сцену. Изменение
-этой границы безопасно только одним согласованным срезом: domain law, public
-Graph validator/read RPC, Bulk adapter, initial/update transport и tests.
+Force `Particle` остаётся transport обновлений. `wimp.view_css` в Bulk Store не
+проецируется: initial writer игнорирует его row, а server не передаёт такой
+Graviton в browser Store. Сервер отвечает за порядок и
+повтор доставки, а browser вызывает отдельный handler конкретного Particle и
+operation. Handler меняет точные Store slots, локально пересчитывает только
+затронутую geometry/material/incidence closure и вызывает конкретные renderer
+операции. Bulk не перечитывает Graph на Particle, не отправляет replacement
+Store и не вводит универсальный diff/patch или consequence transport.
 
 Graph не содержит revision, digest или CAS fields. Particle/operation
 history, patches, Git history, Mass bytes и живые Energy objects не являются
@@ -222,9 +225,10 @@ Matrix считает Fields общими только при общей кан�
 Совпадение значений само по себе связь не создаёт. Изменение общего Field даёт
 каждому связанному Atom возможность проверить собственные переходы.
 
-Bulk manifestation проецирует такую direct shared identity отдельным
-`field-entanglement` relation от Field ближайшего предка к дочернему Field с
-тем же canonical `valueId`. Для цепочки из нескольких Atom создаётся связь на
+Bulk Store проецирует такую direct shared identity отдельной симметричной
+`field-entanglement` relation между Field ближайшего предка и occurrence с тем
+же canonical `valueId`. Endpoint pair хранится в каноническом порядке без
+фиктивного направления. Для цепочки из нескольких Atom создаётся связь на
 каждом соседнем участке, а не полный граф между всеми Field occurrences.
 
 Структурное изменение не должно перезапускать незатронутый Process. Добавление
@@ -253,8 +257,13 @@ lifecycle API.
 socket и DataChannel находятся только в Energy.
 
 Декларационный `path` является категорией (`wimp`, `field`, `state`, `matter` и
-так далее), а не slash-адресом дерева Meta. WIMP идентифицируется своим `src`;
-вложенные сущности — парой WIMP SRC и локального числового индекса.
+так далее), а не slash-адресом дерева Meta. WIMP идентифицируется canonical
+`src`, потому что это его SQLite primary key. Для остальных declaration tables
+categorical `path` задаёт таблицу, а `Particle.from` при `move/copy` несёт её
+persisted numeric row `id`; IDs разных таблиц могут пересекаться. Resulting
+Graviton несёт полную canonical row с тем же либо сгенерированным `id` и
+фактическими FK `wimp`, `field`, `state`, `transition` и другими columns.
+`localId` остаётся WIMP-local declaration key, но не подменяет table PK.
 
 ## Persistence
 
@@ -309,18 +318,21 @@ degraded — янтарный, overloaded — красный, кадр без ca
 Particle history. Недоступность либо malformed ответ time-control RPC
 показывается в панели, а не подменяется вымышленным состоянием.
 
-Semantic manifestation сохраняет State occurrences, Conditions, relations и
-projections как geometry-free identity/ownership contract. Единственный
-production visual law находится в `pkg/visual` и приходит в Bulk через
-`@metafor/visual/layout/centered-nested`; прежние Bulk layout/level,
-wireframe/LOD, fallback и Atom observer-timeline реализации удалены.
-Axion остаётся материализованной semantic identity, но его Visual activation
-отложена и отсекается до вызова production strategy.
+Bulk Store сохраняет persisted table PK и минимальные FK/placement columns для
+Field, State, Transition, Condition, Process и Reaction, а также runtime
+ownership/order, relations, compact Hermite controls, рабочую geometry и
+material state. Canonical `WIMP.src` хранится один раз в WIMP table; её slot —
+только сжатая ссылка, не domain identity. `wimp.view_css`, Condition predicate,
+Graph paths и однозначно derived indexes в Store не входят. Единственный
+production visual law находится в `pkg/visual` и вызывается точными initial или
+локальными calculation functions; прежние Graph Store, full-scene hydration,
+Bulk layout/level, wireframe/LOD, fallback и Atom observer-timeline реализации
+не участвуют в production path. Axion identity сохраняется, но его Visual
+activation остаётся отдельным будущим этапом.
 
-Bulk владеет Graph Store, derived semantic projection, persistent scene,
-renderer и Engine lifecycle. `pkg/visual` остаётся stateless библиотекой
-геометрии: она получает immutable calculation input и не читает Graph,
-Boundary либо Bulk Store.
+Bulk владеет Store, renderer и Engine lifecycle. `pkg/visual` остаётся stateless
+библиотекой геометрии: она получает только переданные calculation facts и не
+читает Graph, Boundary либо Bulk Store самостоятельно.
 
 Визуальные законы задаются только в коде и не сохраняются в browser storage.
 Постоянная декоративная анимация программно выключена. Renderer останавливается,
@@ -331,7 +343,7 @@ Atom без ручной команды из интерфейса.
 
 Causal timeline заменяет прежнее Atom observer-cut представление: Bulk не
 строит и не показывает отдельные дорожки материализованных Atom на общем
-`throughTs`. Узкий live adapter предоставляет только pause/stack/resume; он не
+client cursor. Узкий live adapter предоставляет только pause/stack/resume; он не
 заявляет backward reconstruction, isolated execution branch, promotion в live
 contour или завершение `MF-109`.
 
@@ -362,18 +374,16 @@ digest session на время этого соединения. Monad request н
 Capture request/response идут по browser WebSocket-соединению, уже
 аутентифицированному одноразовой session, как явно дискриминированные control
 messages. Они разбираются до Force и никогда не создают Impulse. На одного
-observer разрешён один capture одновременно; действуют rate, timeout, viewport
-ready-scene snapshot и PNG payload limits, а disconnect отменяет ожидание.
+observer разрешён один capture одновременно; действуют rate, timeout, viewport,
+Store-proof и PNG payload limits, а disconnect отменяет ожидание.
 
-Ответ фиксирует observer id, `throughTs`/`rootSrc` browser ready-scene cut,
-CSS/pixel dimensions, DPR, capture sequence, wall-clock time, PNG byte count и
-base64. В том же результате находится `BulkReadySceneSnapshot`: тот же
-`throughTs`/`rootSrc`, layout, canonical counts и fingerprints представленных
-line batches; Graph, semantic manifestation и projection snapshot отсутствуют.
-Поля `capture.projection` сохраняются как короткий совместимый cut и обязаны
-точно совпадать со snapshot.
+Ответ фиксирует observer id, CSS/pixel dimensions, DPR, capture sequence,
+wall-clock time, PNG byte count и base64. В том же результате находится
+компактное доказательство представленного Bulk Store: числовой root, row counts
+и fingerprints line batches. Graph, адресные строки, semantic manifestation,
+renderer scene и client cursor отсутствуют.
 
-Browser публикует snapshot для capture только после уже запрошенного обычного
+Browser публикует Store proof для capture только после уже запрошенного обычного
 кадра renderer. Если structural update ещё ожидает этот кадр, capture ждёт его;
 сам capture не запрашивает render и не запускает постоянный loop. Capture time
 не является и не подменяет simulation tick.

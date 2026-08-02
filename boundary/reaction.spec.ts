@@ -148,7 +148,10 @@ describe("Boundary Reaction lifecycle", () => {
       path: targetAtomId,
       ts: expect.any(Number),
       from: `reaction:${signal.reactionExecutionId}`,
-      value: {fields: {[String(TARGET_RESULT)]: 2}},
+      value: {fields: {[String(TARGET_RESULT)]: {
+        valueId: expect.any(Number),
+        value: 2,
+      }}},
     })
     expect(commit?.messages[1]?.parts[0]).toEqual({
       part: "w+",

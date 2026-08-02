@@ -77,10 +77,10 @@ export class BulkSceneStore {
       nextDarkIds.add(particle.darkParticleId)
       const current = this.darkParticles.get(particle.darkParticleId)
       if (!current) {
-        this.darkParticles.set(particle.darkParticleId, {...particle})
+        this.darkParticles.set(particle.darkParticleId, particle)
         darkParticleIds.push(particle.darkParticleId)
       } else if (!sameFlatRecord(current, particle)) {
-        Object.assign(current, particle)
+        this.darkParticles.set(particle.darkParticleId, particle)
         darkParticleIds.push(particle.darkParticleId)
       }
     }
@@ -88,10 +88,10 @@ export class BulkSceneStore {
       nextFieldIds.add(particle.fieldParticleId)
       const current = this.fieldParticles.get(particle.fieldParticleId)
       if (!current) {
-        this.fieldParticles.set(particle.fieldParticleId, {...particle})
+        this.fieldParticles.set(particle.fieldParticleId, particle)
         fieldParticleIds.push(particle.fieldParticleId)
       } else if (!sameFlatRecord(current, particle)) {
-        Object.assign(current, particle)
+        this.fieldParticles.set(particle.fieldParticleId, particle)
         fieldParticleIds.push(particle.fieldParticleId)
       }
     }
@@ -99,10 +99,10 @@ export class BulkSceneStore {
       nextOrbitalIds.add(particle.orbitalParticleId)
       const current = this.orbitalParticles.get(particle.orbitalParticleId)
       if (!current) {
-        this.orbitalParticles.set(particle.orbitalParticleId, {...particle})
+        this.orbitalParticles.set(particle.orbitalParticleId, particle)
         orbitalParticleIds.push(particle.orbitalParticleId)
       } else if (!sameFlatRecord(current, particle)) {
-        Object.assign(current, particle)
+        this.orbitalParticles.set(particle.orbitalParticleId, particle)
         orbitalParticleIds.push(particle.orbitalParticleId)
       }
     }
@@ -110,10 +110,10 @@ export class BulkSceneStore {
       nextTransitionIds.add(channel.transitionChannelId)
       const current = this.transitionChannels.get(channel.transitionChannelId)
       if (!current) {
-        this.transitionChannels.set(channel.transitionChannelId, {...channel})
+        this.transitionChannels.set(channel.transitionChannelId, channel)
         transitionChannelIds.push(channel.transitionChannelId)
       } else if (!sameFlatRecord(current, channel)) {
-        Object.assign(current, channel)
+        this.transitionChannels.set(channel.transitionChannelId, channel)
         transitionChannelIds.push(channel.transitionChannelId)
       }
     }
@@ -121,10 +121,10 @@ export class BulkSceneStore {
       nextFieldProxyIds.add(proxy.fieldProxyId)
       const current = this.fieldProxies.get(proxy.fieldProxyId)
       if (!current) {
-        this.fieldProxies.set(proxy.fieldProxyId, {...proxy})
+        this.fieldProxies.set(proxy.fieldProxyId, proxy)
         fieldProxyIds.push(proxy.fieldProxyId)
       } else if (!sameFlatRecord(current, proxy)) {
-        Object.assign(current, proxy)
+        this.fieldProxies.set(proxy.fieldProxyId, proxy)
         fieldProxyIds.push(proxy.fieldProxyId)
       }
     }
@@ -132,10 +132,10 @@ export class BulkSceneStore {
       nextRelationChannelIds.add(channel.relationChannelId)
       const current = this.relationChannels.get(channel.relationChannelId)
       if (!current) {
-        this.relationChannels.set(channel.relationChannelId, {...channel})
+        this.relationChannels.set(channel.relationChannelId, channel)
         relationChannelIds.push(channel.relationChannelId)
       } else if (!sameFlatRecord(current, channel)) {
-        Object.assign(current, channel)
+        this.relationChannels.set(channel.relationChannelId, channel)
         relationChannelIds.push(channel.relationChannelId)
       }
     }
@@ -181,16 +181,16 @@ export class BulkSceneStore {
    */
   absorb(absorption: BulkSceneAbsorption): void {
     for (const particle of absorption.darkParticles ?? []) {
-      this.darkParticles.set(particle.darkParticleId, {...particle})
+      this.darkParticles.set(particle.darkParticleId, particle)
     }
     for (const particle of absorption.fieldParticles ?? []) {
-      this.fieldParticles.set(particle.fieldParticleId, {...particle})
+      this.fieldParticles.set(particle.fieldParticleId, particle)
     }
     for (const particle of absorption.orbitalParticles ?? []) {
-      this.orbitalParticles.set(particle.orbitalParticleId, {...particle})
+      this.orbitalParticles.set(particle.orbitalParticleId, particle)
     }
     for (const proxy of absorption.fieldProxies ?? []) {
-      this.fieldProxies.set(proxy.fieldProxyId, {...proxy})
+      this.fieldProxies.set(proxy.fieldProxyId, proxy)
     }
     for (const id of absorption.removedDarkParticleIds ?? []) {
       this.darkParticles.delete(id)

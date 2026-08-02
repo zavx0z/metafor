@@ -2,12 +2,12 @@ import {describe, expect, test} from "bun:test"
 import {BulkObserverHandoffs} from "./handoff.ts"
 
 const message = (sequence: number) => ({
-  control: "bulk.graph.update" as const,
+  control: "bulk.store.apply" as const,
   sequence,
 })
 
 describe("Bulk observer handoff", () => {
-  test("delivers only Graph replacements received after the initial cut and consumes the session once", () => {
+  test("delivers only Store updates received after the initial cut and consumes the session once", () => {
     const handoffs = new BulkObserverHandoffs<ReturnType<typeof message>>()
     handoffs.buffer(message(1))
 

@@ -780,7 +780,7 @@ describe("centered-nested Bulk Visual projection", () => {
     )).toThrow("has unresolved identity")
   })
 
-  test("ships both selectable full-scene strategies in the browser bundle", async () => {
+  test("ships only the fixed centered-nested law in the production browser bundle", async () => {
     const result = await Bun.build({
       entrypoints: [new URL("./client.ts", import.meta.url).pathname],
       minify: true,
@@ -796,7 +796,11 @@ describe("centered-nested Bulk Visual projection", () => {
     ).join("\n")
 
     expect(javascript).toContain("centered-nested")
-    expect(javascript).toContain("outside-in")
+    expect(javascript).toContain("/initial")
+    expect(javascript).toContain("bulk-loader")
+    expect(javascript).not.toContain("bulk-initial")
+    expect(javascript).not.toContain("__METAFOR_BULK_INITIAL_JSON__")
+    expect(javascript).not.toContain("outside-in")
     expect(javascript).not.toContain("playground")
     expect(javascript).not.toContain("projectVisualSceneToViewport")
     for (const legacySymbol of [

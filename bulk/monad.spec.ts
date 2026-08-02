@@ -2,6 +2,10 @@ import {describe, expect, test} from "bun:test"
 import {readFileSync} from "node:fs"
 import {BULK_VIEWPORT_CAPTURE_METHOD} from "@metafor/types/bulk/capture"
 import {
+  BOUNDARY_INITIAL_PROJECTION_METHOD,
+  type BoundaryInitialProjection,
+} from "@metafor/types/boundary/initial"
+import {
   GRAPH_SCHEMA,
   READ_GRAPH_METHOD,
   parseMetaAddress,
@@ -9,7 +13,10 @@ import {
   type Graph,
 } from "@metafor/types/metafor/graph"
 import {FORCE_CHECKPOINT_QUIESCE_METHOD} from "shared/transport/force/checkpoint"
+import type {ForceMessage} from "shared/protocol/force/message"
 import {BulkMonad} from "./monad.ts"
+import {prepareBulkGraphCut} from "./graph.ts"
+import {composeBulkStoreTestOracleScene} from "./store-test-oracle.ts"
 
 const INFERENCE = parseMetaAddress("zavx0z/inference")!
 const LADA = parseMetaAddress("zavx0z/lada")!
@@ -85,14 +92,21 @@ const sampleDocument = (
 
 const metaPeer = (initial: Graph) => {
   let current = structuredClone(initial)
+  let boundary = boundaryInitial()
   const calls: Array<{target: string; method: string; params: unknown; options: unknown}> = []
   return {
     calls,
     set(value: Graph) {
       current = structuredClone(value)
     },
+    setBoundary(value: BoundaryInitialProjection) {
+      boundary = structuredClone(value)
+    },
     async call(target: string, method: string, params: unknown, options: unknown) {
       calls.push({target, method, params, options})
+      if (target === "boundary" && method === BOUNDARY_INITIAL_PROJECTION_METHOD) {
+        return structuredClone(boundary)
+      }
       if (target === "boundary" && method === FORCE_CHECKPOINT_QUIESCE_METHOD) {
         return {ok: true, outgoingOrdinal: 0}
       }
@@ -103,6 +117,97 @@ const metaPeer = (initial: Graph) => {
     },
   }
 }
+
+const oracleThroughTs = new WeakMap<BulkMonad, number | null>()
+
+const testOracleOpenFreshObserver = async (
+  monad: BulkMonad,
+  peer: ReturnType<typeof metaPeer>,
+  session: string,
+) => {
+  const health = await monad.onHealthRequested().json() as {rpc: string}
+  if (health.rpc !== "ready") {
+    throw new Error(`Bulk observer cannot open: runtime is not ready (${health.rpc})`)
+  }
+  const value = await peer.call(
+    "dark",
+    READ_GRAPH_METHOD,
+    {},
+    {waitMs: 30_000},
+  ) as Graph
+  const cut = prepareBulkGraphCut(value)
+  return {
+    ...composeBulkStoreTestOracleScene(
+      cut.projection.runtime,
+      cut.document.root,
+      oracleThroughTs.get(monad) ?? null,
+      null,
+    ),
+    session,
+  }
+}
+
+const testOracleOnImpulse = async (
+  monad: BulkMonad,
+  peer: ReturnType<typeof metaPeer>,
+  message: ForceMessage,
+) => {
+  const health = await monad.onHealthRequested().json() as {rpc: string}
+  if (health.rpc !== "ready") {
+    throw new Error(`Bulk Monad cannot apply an invalidation from state: ${health.rpc}`)
+  }
+  try {
+    await peer.call(
+      "boundary",
+      FORCE_CHECKPOINT_QUIESCE_METHOD,
+      {},
+      {waitMs: 30_000},
+    )
+    const current = await peer.call(
+      "dark",
+      READ_GRAPH_METHOD,
+      {},
+      {waitMs: 30_000},
+    ) as Graph
+    const cut = prepareBulkGraphCut(current)
+    const throughTs = message.parts[0]!.ts
+    const scene = composeBulkStoreTestOracleScene(
+      cut.projection.runtime,
+      cut.document.root,
+      throughTs,
+      null,
+    )
+    oracleThroughTs.set(monad, throughTs)
+    return scene
+  } catch (error) {
+    monad.onRuntimeBirthFailed(error)
+    throw error
+  }
+}
+
+const boundaryInitial = (): BoundaryInitialProjection => ({
+  version: 1,
+  entries: [
+    {
+      part: "graviton",
+      op: "add",
+      path: "wimp",
+      value: {src: "owner/root", name: "Root"},
+    },
+    {
+      part: "graviton",
+      op: "add",
+      path: "atom/1",
+      value: {
+        atom: {id: 1, parentAtom: null, parentTopology: null, wimp: "owner/root", position: 0},
+        values: [],
+        valueRecords: [],
+        valueItems: [],
+        state: null,
+      },
+    },
+  ],
+})
 
 describe("Bulk Monad", () => {
   test("registers the typed observer capture method before advertising it", async () => {
@@ -143,7 +248,7 @@ describe("Bulk Monad", () => {
 
     await monad.onServerStarted()
     expect(peer.calls).toEqual([])
-    await expect(monad.openFreshObserver(peer as never, "before-force"))
+    await expect(testOracleOpenFreshObserver(monad, peer, "before-force"))
       .rejects.toThrow("not ready")
 
     monad.onRuntimeBorn()
@@ -154,7 +259,107 @@ describe("Bulk Monad", () => {
     })
   })
 
-  test("prepares every page observer from its own fresh Dark Graph", async () => {
+  test("serves independent observers from one retained RPC-built Store without Graph reads", async () => {
+    const peer = metaPeer(sampleDocument())
+    const monad = new BulkMonad()
+    await monad.onServerStarted(peer as never)
+    monad.onRuntimeBorn()
+
+    const first = await monad.openFreshObserver(peer as never, "page-1")
+    const second = await monad.openFreshObserver(peer as never, "page-2")
+
+    expect(first.session).toBe("page-1")
+    expect(second.session).toBe("page-2")
+    expect(first.store.root).toBe(2)
+    expect(Object.keys(first).toSorted()).toEqual(["session", "store"])
+    expect(first.store).toEqual(second.store)
+    expect(first.store).not.toBe(second.store)
+    expect(peer.calls).toEqual([{
+      target: "boundary",
+      method: BOUNDARY_INITIAL_PROJECTION_METHOD,
+      params: {},
+      options: {waitMs: 30_000},
+    }])
+  })
+
+  test("serves late observers from the structurally updated retained Store", async () => {
+    const peer = metaPeer(sampleDocument())
+    const monad = new BulkMonad()
+    await monad.onServerStarted(peer as never)
+    monad.onRuntimeBorn()
+
+    monad.acceptImpulse({parts: [{
+      part: "graviton", op: "add", path: "wimp", ts: 1,
+      value: {src: "owner/child", name: "Child"},
+    }]})
+    monad.acceptImpulse({parts: [{
+      part: "graviton", op: "add", path: "field", ts: 2,
+      value: {
+        id: 101, wimp: "owner/child", localId: 1,
+        key: "value", type: "number", required: false, label: "Value",
+      },
+    }]})
+    monad.acceptImpulse({parts: [{
+      part: "graviton", op: "add", path: "atom/2", ts: 3,
+      value: {
+        atom: {
+          id: 2, parentAtom: 1, parentTopology: null,
+          wimp: "owner/child", position: 0,
+        },
+        state: {metaState: null},
+        values: [{atom: 2, field: 101, value: 701}],
+        valueRecords: [{id: 701, kind: "number", number: 7}],
+        valueItems: [],
+      },
+    }]})
+    monad.acceptImpulse({parts: [{
+      part: "graviton", op: "replace", path: "bulk", ts: 4,
+      value: {wimp: "owner/child", view: ".excluded {}"},
+    }]})
+
+    const observer = await monad.openFreshObserver(peer as never, "late-structural")
+    expect(observer.store.wimp.src).toContain("owner/child")
+    expect(Array.from(observer.store.fieldSource.id)).toContain(101)
+    expect(Array.from(observer.store.dark.id)).toContain(4)
+    expect(Array.from(observer.store.fieldAlias.atom)).toContain(2)
+    expect(JSON.stringify(observer.store)).not.toContain(".excluded {}")
+    expect(peer.calls).toHaveLength(1)
+  })
+
+  test("waits for the first rooted Boundary cut when Universe starts empty", async () => {
+    const peer = metaPeer(sampleDocument())
+    peer.setBoundary({version: 1, entries: []})
+    const monad = new BulkMonad()
+
+    await monad.onServerStarted(peer as never)
+    monad.onRuntimeBorn()
+    expect(await monad.onHealthRequested().json()).toMatchObject({
+      initialized: true,
+      rpc: "ready",
+    })
+
+    peer.setBoundary(boundaryInitial())
+    const observer = await monad.openFreshObserver(peer as never, "late-root")
+
+    expect(observer.session).toBe("late-root")
+    expect(observer.store.root).toBe(2)
+    expect(peer.calls).toEqual([
+      {
+        target: "boundary",
+        method: BOUNDARY_INITIAL_PROJECTION_METHOD,
+        params: {},
+        options: {waitMs: 30_000},
+      },
+      {
+        target: "boundary",
+        method: BOUNDARY_INITIAL_PROJECTION_METHOD,
+        params: {},
+        options: {waitMs: 30_000},
+      },
+    ])
+  })
+
+  test("keeps the former fresh-Graph observer path only as a parity oracle", async () => {
     const startup = sampleDocument()
     const peer = metaPeer(startup)
     const monad = new BulkMonad()
@@ -163,9 +368,9 @@ describe("Bulk Monad", () => {
 
     const working = sampleDocument(true, "working")
     peer.set(working)
-    const first = await monad.openFreshObserver(peer as never, "page-1")
+    const first = await testOracleOpenFreshObserver(monad, peer, "page-1")
     peer.set(startup)
-    const second = await monad.openFreshObserver(peer as never, "page-2")
+    const second = await testOracleOpenFreshObserver(monad, peer, "page-2")
 
     expect(first.session).toBe("page-1")
     expect(first.rootSrc).toBe(LADA)
@@ -190,16 +395,14 @@ describe("Bulk Monad", () => {
     ])
   })
 
-  test("guards the startup source against Boundary initial projection regression", () => {
+  test("guards the production startup and observer source against Graph reintroduction", () => {
     const source = readFileSync(new URL("./monad.ts", import.meta.url), "utf8")
 
-    expect(source).toContain("READ_GRAPH_METHOD")
+    expect(source).not.toContain("READ_GRAPH_METHOD")
     expect(source).not.toContain("BulkGraphStore")
     expect(source).not.toContain("readonly #graph")
-    expect(source).not.toContain("readonly #projection")
     expect(source).not.toContain("openObserver(")
-    expect(source).not.toContain("BOUNDARY_INITIAL_PROJECTION_METHOD")
-    expect(source).not.toContain("boundary.initialProjection.read")
+    expect(source).toContain("BOUNDARY_INITIAL_PROJECTION_METHOD")
 
     const birthStart = source.indexOf("async onServerStarted")
     const birth = source.slice(
@@ -207,16 +410,20 @@ describe("Bulk Monad", () => {
       source.indexOf("\n  onRuntimeBorn", birthStart),
     )
     expect(birth).not.toContain("READ_GRAPH_METHOD")
-    expect(birth).not.toContain("peer.call")
+    expect(birth).toContain("BOUNDARY_INITIAL_PROJECTION_METHOD")
+    expect(birth).toContain("prepareBulkStoreInitial")
 
     const freshObserverStart = source.indexOf("async openFreshObserver")
     const freshObserver = source.slice(
       freshObserverStart,
-      source.indexOf("\n  #composeScene(", freshObserverStart),
+      source.indexOf("\n  onHealthRequested", freshObserverStart),
     )
-    expect(freshObserver).toContain("READ_GRAPH_METHOD")
-    expect(freshObserver).toContain("cut.document.root")
-    expect(freshObserver).not.toContain("#promotionReceipt")
+    expect(freshObserver).not.toContain("READ_GRAPH_METHOD")
+    expect(freshObserver).toContain("BOUNDARY_INITIAL_PROJECTION_METHOD")
+    expect(freshObserver).toContain("prepareBulkStoreInitial")
+    expect(freshObserver).toContain("structuredClone(this.#store)")
+    expect(source).not.toContain("store-test-oracle")
+    expect(source).not.toContain("testOracle")
   })
 
   test("uses a Particle as invalidation and prepares one event-local ready scene", async () => {
@@ -226,7 +433,7 @@ describe("Bulk Monad", () => {
     monad.onRuntimeBorn()
     peer.set(sampleDocument(true))
 
-    const scene = await monad.onImpulse(peer as never, {
+    const scene = await testOracleOnImpulse(monad, peer, {
       parts: [{
         part: "graviton", op: "replace", path: "atom/2", by: "boundary", ts: 42,
         value: {
@@ -265,7 +472,7 @@ describe("Bulk Monad", () => {
     monad.onRuntimeBorn()
     peer.set({...sampleDocument(), schema: "invalid"} as unknown as Graph)
 
-    await expect(monad.onImpulse(peer as never, {
+    await expect(testOracleOnImpulse(monad, peer, {
       parts: [{part: "photon", op: "replace", path: 2, by: "matrix", ts: 8, value: "working"}],
     })).rejects.toThrow("Bulk rejected Graph")
     expect(monad.onHealthRequested().status).toBe(200)
