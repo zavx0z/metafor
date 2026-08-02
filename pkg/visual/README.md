@@ -223,7 +223,13 @@ on the placement even though their geometry is collapsed.
 Named layout pages render this complete immutable scene through their private
 playground adapter: every package placement becomes one Mesh and
 every compiled Transition/Relation batch becomes one `LineSegments` from its
-ready sampled points. `StateGraphViewport` is reserved for the isolated
+ready sampled points. The server/browser payload is deliberately smaller: its
+`visual-prepared-scene@1` envelope carries `cubic-hermite@1` owner-local
+endpoints/derivatives (one curve per Transition, two per Relation), and the
+browser CPU reconstructs the same 64 segments per curve before the unchanged
+`LineSegments` geometry builder, writing directly into its Float32 segment
+buffer without an intermediate point-object array. Legacy sampled `points` are rejected at the
+wire boundary. `StateGraphViewport` is reserved for the isolated
 State Graph lab; it is not a second renderer law for `outside-in` or
 `centered-nested`. Bulk consumes the same complete scene, changing only world
 coordinates into the exact owner's local frame.

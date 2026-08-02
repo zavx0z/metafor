@@ -23,6 +23,10 @@ import type {
   VisualTorusPlacement,
 } from "./internal/layout.ts"
 import {visualBatchFingerprint} from "./internal/fingerprint.ts"
+import {
+  HERMITE_EDGE_SEGMENTS,
+  type HermiteEdgeCurve,
+} from "./HermiteEdge.ts"
 
 /**
  * Serializable, deterministic rendering payload for one complete snapshot.
@@ -36,6 +40,41 @@ import {visualBatchFingerprint} from "./internal/fingerprint.ts"
  */
 
 export type VisualPayloadPoint = Readonly<{x: number; y: number; z: number}>
+
+/** Versioned reconstruction law understood by the browser CPU adapter. */
+export type VisualPayloadCurveLaw = Readonly<{
+  kind: "cubic-hermite"
+  segmentsPerCurve: 64
+  version: 1
+}>
+
+export const VISUAL_PAYLOAD_CURVE_LAW: VisualPayloadCurveLaw = Object.freeze({
+  kind: "cubic-hermite",
+  segmentsPerCurve: HERMITE_EDGE_SEGMENTS,
+  version: 1,
+})
+
+/**
+ * One owner-local cubic Hermite arc.
+ *
+ * The tuple is deliberately positional to keep the bootstrap compact:
+ * source point, target point, source derivative and target derivative. Layout
+ * owns all twelve values; the browser only evaluates the versioned polynomial.
+ */
+export type VisualPayloadHermiteCurve = readonly [
+  fromX: number,
+  fromY: number,
+  fromZ: number,
+  toX: number,
+  toY: number,
+  toZ: number,
+  fromTangentX: number,
+  fromTangentY: number,
+  fromTangentZ: number,
+  toTangentX: number,
+  toTangentY: number,
+  toTangentZ: number,
+]
 
 export type VisualPayloadTorusMeshDetail = Readonly<{
   radialSegments: number
@@ -127,18 +166,10 @@ export type VisualPayloadFieldProxy = Readonly<{
   visualFieldParticleId: string
 }>
 
-/**
- * One sampled channel path as a flat `x, y, z` triple sequence.
- *
- * A renderer uploads line geometry as a contiguous buffer, so the payload
- * carries the coordinates in exactly that shape: no per-point object survives
- * transport, parsing allocates one array instead of one object per point, and
- * the encoded form is roughly a third of the size.
- */
+/** One compact channel path; Transition has one arc and Relation has two. */
 export type VisualPayloadEdgePath = Readonly<{
   channelId: string
-  /** Flat `[x0, y0, z0, x1, y1, z1, …]`; length is always a multiple of 3. */
-  points: readonly number[]
+  curves: readonly VisualPayloadHermiteCurve[]
 }>
 
 /**
@@ -172,6 +203,7 @@ export type VisualPayloadStats = Readonly<{
 }>
 
 export type VisualScenePayload = Readonly<{
+  curveLaw: VisualPayloadCurveLaw
   darkTorusMeshDetail: VisualPayloadTorusMeshDetail
   embeddedTorusMeshDetail: VisualPayloadTorusMeshDetail
   fieldAliases: readonly VisualPayloadFieldAlias[]
@@ -186,6 +218,84 @@ export type VisualScenePayload = Readonly<{
   tori: readonly VisualPayloadTorus[]
   transitionBatches: readonly VisualPayloadTransitionBatch[]
 }>
+
+const isRecordValue = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value)
+
+const isFiniteTuple = (value: unknown, length: number): value is number[] =>
+  Array.isArray(value) &&
+  value.length === length &&
+  value.every((entry) => typeof entry === "number" && Number.isFinite(entry))
+
+const isCompactPath = (value: unknown, curveCount: number): boolean =>
+  isRecordValue(value) &&
+  typeof value.channelId === "string" &&
+  value.channelId.length > 0 &&
+  !("points" in value) &&
+  Array.isArray(value.curves) &&
+  value.curves.length === curveCount &&
+  value.curves.every((curve) => isFiniteTuple(curve, 12))
+
+const isLineMaterial = (value: unknown): boolean =>
+  isRecordValue(value) &&
+  value.kind === "line-glow" &&
+  ["scene", "overlay"].includes(String(value.visibilityMode)) &&
+  isFiniteTuple(value.color, 4) &&
+  isFiniteTuple(value.glowColor, 4) &&
+  typeof value.glowIntensity === "number" &&
+  Number.isFinite(value.glowIntensity) &&
+  typeof value.opacity === "number" &&
+  Number.isFinite(value.opacity)
+
+const isCompactBatch = (
+  value: unknown,
+  curveCount: number,
+  transition: boolean,
+): boolean =>
+  isRecordValue(value) &&
+  typeof value.batchId === "string" &&
+  value.batchId.length > 0 &&
+  typeof value.fingerprint === "string" &&
+  /^[0-9a-f]{16}$/.test(value.fingerprint) &&
+  Number.isSafeInteger(value.ownerDarkParticleId) &&
+  isLineMaterial(value.material) &&
+  Array.isArray(value.paths) &&
+  value.paths.length > 0 &&
+  value.paths.every((path) => isCompactPath(path, curveCount)) &&
+  (!transition || typeof value.returning === "boolean")
+
+/**
+ * Closes the compact visual wire law before a browser hydrates Store state.
+ * In particular it rejects legacy sampled `points` and any unknown curve
+ * version, arity or non-finite control value.
+ */
+export const isVisualScenePayload = (
+  value: unknown,
+): value is VisualScenePayload =>
+  isRecordValue(value) &&
+  value.kind === "visual-scene-payload" &&
+  typeof value.layoutSlug === "string" &&
+  /^[a-z][a-z0-9-]*$/.test(value.layoutSlug) &&
+  isRecordValue(value.curveLaw) &&
+  value.curveLaw.kind === VISUAL_PAYLOAD_CURVE_LAW.kind &&
+  value.curveLaw.version === VISUAL_PAYLOAD_CURVE_LAW.version &&
+  value.curveLaw.segmentsPerCurve ===
+    VISUAL_PAYLOAD_CURVE_LAW.segmentsPerCurve &&
+  [
+    value.fieldAliases,
+    value.fieldProxies,
+    value.fields,
+    value.orbitals,
+    value.tori,
+  ].every(Array.isArray) &&
+  Array.isArray(value.transitionBatches) &&
+  value.transitionBatches.every((batch) => isCompactBatch(batch, 1, true)) &&
+  Array.isArray(value.relationBatches) &&
+  value.relationBatches.every((batch) => isCompactBatch(batch, 2, false)) &&
+  isRecordValue(value.darkTorusMeshDetail) &&
+  isRecordValue(value.embeddedTorusMeshDetail) &&
+  isRecordValue(value.sphereMeshDetail) &&
+  isRecordValue(value.stats)
 
 const exactIndex = <Key, Value>(
   entries: readonly Value[],
@@ -213,26 +323,36 @@ const localPoint = (
 })
 
 /**
- * Sampled world path as a flat local-frame `x, y, z` triple sequence.
- *
- * The coordinate array is deliberately not frozen: it is a dense numeric buffer
- * held by an already-frozen path object, and freezing hundreds of thousands of
- * coordinates costs more than the protection is worth on this path.
+ * Converts one server-owned world curve to the compact owner-local wire tuple.
+ * Derivatives are vectors, so only endpoints are translated.
  */
-const flattenLocalPath = (
-  path: readonly VisualPayloadPoint[],
+const compactLocalCurve = (
+  curve: HermiteEdgeCurve,
   origin: VisualPayloadPoint,
-): readonly number[] => {
-  const points = new Array<number>(path.length * 3)
-  for (let index = 0; index < path.length; index++) {
-    const point = path[index]!
-    const offset = index * 3
-    points[offset] = point.x - origin.x
-    points[offset + 1] = point.y - origin.y
-    points[offset + 2] = point.z - origin.z
-  }
-  return points
-}
+): VisualPayloadHermiteCurve => Object.freeze([
+  curve.from.x - origin.x,
+  curve.from.y - origin.y,
+  curve.from.z - origin.z,
+  curve.to.x - origin.x,
+  curve.to.y - origin.y,
+  curve.to.z - origin.z,
+  curve.fromTangent.x,
+  curve.fromTangent.y,
+  curve.fromTangent.z,
+  curve.toTangent.x,
+  curve.toTangent.y,
+  curve.toTangent.z,
+])
+
+/** Restores the engine-neutral curve a browser CPU sampler evaluates. */
+export const visualPayloadHermiteCurve = (
+  curve: VisualPayloadHermiteCurve,
+): HermiteEdgeCurve => Object.freeze({
+  from: Object.freeze({x: curve[0], y: curve[1], z: curve[2]}),
+  to: Object.freeze({x: curve[3], y: curve[4], z: curve[5]}),
+  fromTangent: Object.freeze({x: curve[6], y: curve[7], z: curve[8]}),
+  toTangent: Object.freeze({x: curve[9], y: curve[10], z: curve[11]}),
+})
 
 /**
  * Stable synthetic identity for one visual Field marker.
@@ -555,8 +675,9 @@ const projectTransitionBatches = (
         `Visual payload State owner ${batch.ownerDarkParticleId} is absent`,
       )
     }
-    // Each path is flattened once and the fingerprint reads that same result.
-    const flattened = batch.edges.map((edge) => {
+    // Each compact curve is localized once and the fingerprint reads that same
+    // result; no sampled point array crosses the server/browser boundary.
+    const compact = batch.edges.map((edge) => {
       if (
         edge.transitionChannelId === null ||
         !sourceById.has(edge.transitionChannelId) ||
@@ -569,24 +690,24 @@ const projectTransitionBatches = (
       matched.add(edge.transitionChannelId)
       return {
         channelId: edge.transitionChannelId,
+        curves: Object.freeze([compactLocalCurve(edge.curve, owner)]),
         material: edge.material,
-        points: flattenLocalPath(edge.path, owner),
       }
     })
     return Object.freeze({
       batchId: batch.batchId,
       fingerprint: visualBatchFingerprint(
         batch.batchId,
-        flattened.map((entry) => ({
+        compact.map((entry) => ({
+          curves: entry.curves,
           material: entry.material,
           ownerDarkParticleId: batch.ownerDarkParticleId,
-          points: entry.points,
         })),
       ),
       material: batch.material,
       ownerDarkParticleId: batch.ownerDarkParticleId,
-      paths: Object.freeze(flattened.map((entry) =>
-        Object.freeze({channelId: entry.channelId, points: entry.points})
+      paths: Object.freeze(compact.map((entry) =>
+        Object.freeze({channelId: entry.channelId, curves: entry.curves})
       )),
       returning: batch.returning,
     })
@@ -621,7 +742,7 @@ const projectRelationBatches = (
         `Visual payload relation owner ${batch.ownerDarkParticleId} is absent`,
       )
     }
-    const flattened = batch.edges.map((edge) => {
+    const compact = batch.edges.map((edge) => {
       if (
         !sourceById.has(edge.relationChannelId) ||
         matched.has(edge.relationChannelId)
@@ -633,24 +754,26 @@ const projectRelationBatches = (
       matched.add(edge.relationChannelId)
       return {
         channelId: edge.relationChannelId,
+        curves: Object.freeze(edge.curves.map((curve) =>
+          compactLocalCurve(curve, owner)
+        )),
         material: edge.material,
-        points: flattenLocalPath(edge.path, owner),
       }
     })
     return Object.freeze({
       batchId: batch.batchId,
       fingerprint: visualBatchFingerprint(
         batch.batchId,
-        flattened.map((entry) => ({
+        compact.map((entry) => ({
+          curves: entry.curves,
           material: entry.material,
           ownerDarkParticleId: batch.ownerDarkParticleId,
-          points: entry.points,
         })),
       ),
       material: batch.material,
       ownerDarkParticleId: batch.ownerDarkParticleId,
-      paths: Object.freeze(flattened.map((entry) =>
-        Object.freeze({channelId: entry.channelId, points: entry.points})
+      paths: Object.freeze(compact.map((entry) =>
+        Object.freeze({channelId: entry.channelId, curves: entry.curves})
       )),
     })
   })
@@ -694,6 +817,7 @@ export const projectVisualScenePayload = (
     "Field alias",
   )
   return Object.freeze({
+    curveLaw: VISUAL_PAYLOAD_CURVE_LAW,
     darkTorusMeshDetail: DARK_TORUS_MESH_DETAIL,
     embeddedTorusMeshDetail: EMBEDDED_TORUS_MESH_DETAIL,
     fieldAliases: projectedFields.aliases,

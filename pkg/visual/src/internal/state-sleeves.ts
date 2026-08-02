@@ -14,6 +14,7 @@ import {
   STATE_GRAPH_PRODUCTION_SIZING,
   buildStateGraphBranchLayoutFromIndex,
   buildStateGraphHermiteEdgePath,
+  describeStateGraphHermiteEdgeCurve,
   indexStateGraphLayout,
 } from "../StateGraphLayout.ts"
 import {visualTransitionMaterial} from "../VisualMaterialSpec.ts"
@@ -190,6 +191,7 @@ export const buildStateSleeveEdges = (
     }
     if (channel) matchedChannelIds.add(channel.transitionChannelId)
     return Object.freeze({
+      curve: describeStateGraphHermiteEdgeCurve(edge, fromNode, toNode),
       edgeId: edge.id,
       fromNodeId: edge.fromNodeId,
       material: visualTransitionMaterial(

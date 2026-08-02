@@ -21,6 +21,13 @@ const pointPath = (y: number) => Object.freeze(
   ),
 )
 
+const curvePath = (y: number) => Object.freeze({
+  from: Object.freeze({x: 0, y, z: 0}),
+  fromTangent: Object.freeze({x: 64, y: 0, z: 0}),
+  to: Object.freeze({x: 64, y, z: 0}),
+  toTangent: Object.freeze({x: 64, y: 0, z: 0}),
+})
+
 describe("production Visual component model", () => {
   test("recursively owns content and compiles immutable batches once", () => {
     const darkColor = [0.2, 0.3, 0.8] as const
@@ -114,6 +121,7 @@ describe("production Visual component model", () => {
         },
       ],
       relationEdges: [{
+        curves: [curvePath(3), curvePath(3.5)],
         material: visualRelationMaterial(fieldColor, true),
         ownerDarkParticleId: 2,
         path: pointPath(3),
@@ -122,6 +130,7 @@ describe("production Visual component model", () => {
       stateSleeves: [{
         edges: [
           {
+            curve: curvePath(1),
             edgeId: "edge:forward",
             fromNodeId: "state:1",
             material: visualTransitionMaterial(false),
@@ -132,6 +141,7 @@ describe("production Visual component model", () => {
             transitionId: 1,
           },
           {
+            curve: curvePath(2),
             edgeId: "edge:return",
             fromNodeId: "state:2",
             material: visualTransitionMaterial(true),

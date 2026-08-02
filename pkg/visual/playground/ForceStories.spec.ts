@@ -68,11 +68,11 @@ const geometry = (
   ),
   relations: snapshot.representation.visual.relationPaths.map((path) => ({
     id: path.relationChannelId,
-    points: path.points,
+    curves: path.curves,
   })),
   transitions: snapshot.representation.visual.transitionPaths.map((path) => ({
     id: path.transitionChannelId,
-    points: path.points,
+    curves: path.curves,
   })),
 })
 

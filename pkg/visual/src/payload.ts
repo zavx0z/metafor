@@ -7,13 +7,18 @@
  */
 export {
   buildVisualScenePayload,
+  isVisualScenePayload,
   projectVisualScenePayload,
+  visualPayloadHermiteCurve,
   visualPayloadFieldParticleId,
+  VISUAL_PAYLOAD_CURVE_LAW,
+  type VisualPayloadCurveLaw,
   type VisualPayloadEdgeBatch,
   type VisualPayloadEdgePath,
   type VisualPayloadField,
   type VisualPayloadFieldAlias,
   type VisualPayloadFieldProxy,
+  type VisualPayloadHermiteCurve,
   type VisualPayloadOrbital,
   type VisualPayloadPoint,
   type VisualPayloadSphereMeshDetail,
@@ -23,6 +28,11 @@ export {
   type VisualPayloadTransitionBatch,
   type VisualScenePayload,
 } from "./ScenePayload.ts"
+export {
+  sampleHermiteEdgeCurve,
+  writeHermiteEdgeSegments,
+  type HermiteEdgeCurve,
+} from "./HermiteEdge.ts"
 export {
   classifyVisualInvalidation,
   diffVisualScenePayload,

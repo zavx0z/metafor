@@ -9,7 +9,10 @@ import {
 } from "../../src/CenteredNested.ts"
 import {buildOutsideInVisualScene} from "../../src/OutsideIn.ts"
 import {visualDarkParticleColor} from "../../src/SemanticVisual.ts"
-import {buildVisualSceneRenderPlan} from "../VisualSceneViewport.ts"
+import {
+  buildVisualPayloadRenderPlan,
+  buildVisualSceneRenderPlan,
+} from "../VisualSceneViewport.ts"
 import snapshotJson from "./monad-snapshot.json"
 
 const fixtureLifecycle = (): BulkVisualSceneLifecycle => {
@@ -272,6 +275,47 @@ describe("Visual playground Bulk observer fixture", () => {
     const fields = layoutCenteredNestedFields(manifest, owners)
     const scene = buildCenteredNestedVisualScene({manifest, owners})
     const renderPlan = buildVisualSceneRenderPlan(scene)
+    const hydratedRenderPlan = buildVisualPayloadRenderPlan(
+      lifecycle.compose().payload,
+    )
+    const referenceLines = new Map(renderPlan.lineBatches.flatMap((batch) =>
+      batch.paths.map((path) => [
+        `${batch.kind}:${path.id}`,
+        {batch, path},
+      ] as const)
+    ))
+    let lineMismatchCount = 0
+    let maximumLineCoordinateDelta = 0
+    for (const batch of hydratedRenderPlan.lineBatches) {
+      for (const path of batch.paths) {
+        const reference = referenceLines.get(`${batch.kind}:${path.id}`)
+        if (
+          !reference ||
+          reference.batch.ownerDarkParticleId !== batch.ownerDarkParticleId ||
+          reference.path.points.length !== path.points.length ||
+          JSON.stringify(reference.batch.material) !== JSON.stringify(
+            batch.material,
+          )
+        ) {
+          lineMismatchCount += 1
+          continue
+        }
+        for (let index = 0; index < path.points.length; index += 1) {
+          const point = path.points[index]!
+          const expected = reference.path.points[index]!
+          maximumLineCoordinateDelta = Math.max(
+            maximumLineCoordinateDelta,
+            Math.abs(point.x - expected.x),
+            Math.abs(point.y - expected.y),
+            Math.abs(point.z - expected.z),
+          )
+        }
+      }
+    }
+    expect(hydratedRenderPlan.lineBatches.flatMap((batch) => batch.paths))
+      .toHaveLength(referenceLines.size)
+    expect(lineMismatchCount).toBe(0)
+    expect(maximumLineCoordinateDelta).toBeLessThan(1e-9)
 
     expect(scene.tori).toHaveLength(5)
     expect(new Set(scene.tori.map(({x, y, z}) =>

@@ -5,15 +5,43 @@ import {OutsideIn} from "../src/OutsideIn.ts"
 import {Visual} from "../src/Visual.ts"
 import {
   buildVisualScenePayload,
+  visualPayloadHermiteCurve,
   visualPayloadFieldParticleId,
   type VisualScenePayload,
 } from "../src/ScenePayload.ts"
+import {
+  sampleHermiteEdgeCurve,
+  writeHermiteEdgeSegments,
+  type HermiteEdgeCurve,
+} from "../src/HermiteEdge.ts"
 import type {VisualLayout} from "../src/internal/layout.ts"
 import {ladaLayoutInput as ladaInput} from "../testing/lada-fixture.ts"
 
 const strategies: readonly VisualLayout[] = [CenteredNested, OutsideIn]
 
 describe("Visual scene payload contract", () => {
+  test("writes the reference Hermite samples straight into a Float32 segment buffer", () => {
+    const curve: HermiteEdgeCurve = {
+      from: {x: -3.25, y: 1.5, z: 0.75},
+      fromTangent: {x: 2.5, y: -0.5, z: 8},
+      to: {x: 11, y: -4.25, z: 2},
+      toTangent: {x: -1.25, y: 3, z: -6},
+    }
+    const points = sampleHermiteEdgeCurve(curve)
+    const expected = new Float32Array(64 * 6)
+    let offset = 0
+    for (let index = 1; index < points.length; index += 1) {
+      const from = points[index - 1]!
+      const to = points[index]!
+      expected.set([from.x, from.y, from.z, to.x, to.y, to.z], offset)
+      offset += 6
+    }
+    const actual = new Float32Array(expected.length)
+
+    expect(writeHermiteEdgeSegments(curve, actual)).toBe(actual.length)
+    expect(actual).toEqual(expected)
+  })
+
   test("exposes exactly the two named strategies through one contract", () => {
     expect(Visual.map((layout) => layout.slug).toSorted()).toEqual([
       "centered-nested",
@@ -180,7 +208,7 @@ describe("Visual scene payload contract", () => {
         }
       })
 
-      test("carries finite coordinates for every emitted shape and path", () => {
+      test("carries finite coordinates for every emitted shape and curve", () => {
         const payload = buildVisualScenePayload(layout, ladaInput())
         const finite = (value: number, label: string): void => {
           if (!Number.isFinite(value)) {
@@ -200,27 +228,37 @@ describe("Visual scene payload contract", () => {
         ]) {
           expect(batch.paths.length).toBeGreaterThan(0)
           for (const entry of batch.paths) {
-            expect(entry.points.length % 3).toBe(0)
-            for (const coordinate of entry.points) {
-              finite(coordinate, "path coordinate")
+            for (const curve of entry.curves) {
+              expect(curve).toHaveLength(12)
+              for (const coordinate of curve) {
+                finite(coordinate, "curve coordinate")
+              }
             }
           }
         }
       })
 
-      test("samples production Hermite paths and bounded owner batches", () => {
+      test("carries compact Hermite curves and reconstructs reference resolution", () => {
         const payload = buildVisualScenePayload(layout, ladaInput())
 
         for (const batch of payload.transitionBatches) {
           for (const entry of batch.paths) {
-            expect(entry.points.length).toBe(65 * 3)
+            expect(entry.curves).toHaveLength(1)
+            expect(sampleHermiteEdgeCurve(
+              visualPayloadHermiteCurve(entry.curves[0]!),
+            )).toHaveLength(65)
           }
         }
         for (const batch of payload.relationBatches) {
           for (const entry of batch.paths) {
-            expect(entry.points.length).toBe(129 * 3)
+            expect(entry.curves).toHaveLength(2)
+            expect(entry.curves.flatMap((curve, curveIndex) =>
+              sampleHermiteEdgeCurve(visualPayloadHermiteCurve(curve))
+                .slice(curveIndex === 0 ? 0 : 1)
+            )).toHaveLength(129)
           }
         }
+        expect(JSON.stringify(payload)).not.toContain('"points"')
         const transitionBatchesByOwner = Map.groupBy(
           payload.transitionBatches,
           (batch) => batch.ownerDarkParticleId,

@@ -41,6 +41,10 @@ import type {
 	BulkVisualRenderPatch,
 	BulkVisualTransitionPath,
 } from "@metafor/types/bulk/visual"
+import {
+	visualPayloadHermiteCurve,
+	writeHermiteEdgeSegments,
+} from "@metafor/visual/payload/reconcile"
 import type {Particle} from "shared/protocol/force/particle"
 import {
 	DEFAULT_BULK_SETTINGS,
@@ -50,6 +54,7 @@ import {
 } from "bulk/settings"
 import {shouldContinueBulkRenderLoop} from "./render-loop.ts"
 import {
+	assertBulkVisualCurveLaw,
 	assertBulkVisualProjectionBoundary,
 	bulkVisualFieldSourceAddress,
 	changedBulkVisualQuantumMaterialIds,
@@ -1302,6 +1307,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		new Map<string, BulkVisualQuantumMaterial>()
 	let activeTransitionPaths: readonly BulkVisualTransitionPath[] = []
 	let activeRelationPaths: readonly BulkVisualRelationPath[] = []
+	let activeCurveLaw: BulkVisualRenderManifest["curveLaw"] | null = null
 	let visualFieldParticleIdBySourceAddress:
 		ReadonlyMap<string, string> = new Map()
 	let parentByDarkParticleId = new Map<number, number | null>()
@@ -2035,32 +2041,38 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		return existing
 	}
 
-	// Package paths arrive as flat local-frame `x, y, z` triples, so segments are
-	// expanded straight into the GPU buffer without per-point objects.
-	const sampledPathsGeometry = (
-		paths: readonly Readonly<{points: readonly number[]}>[],
+	// Layout-owned compact Hermite arcs are reconstructed on the browser CPU at
+	// the package-owned resolution, then enter the unchanged LineSegments path.
+	const compactPathsGeometry = (
+		paths: readonly Readonly<{curves: BulkVisualRelationPath["curves"]}>[],
 		label: string,
 	): BufferGeometry => {
+		const curveLaw = activeCurveLaw
+		if (
+			curveLaw === null ||
+			curveLaw.kind !== "cubic-hermite" ||
+			curveLaw.version !== 1 ||
+			curveLaw.segmentsPerCurve !== 64
+		) {
+			throw new Error(`Bulk Visual ${label} has no supported curve law`)
+		}
 		const geometry = new BufferGeometry()
 		let segmentCount = 0
 		for (const path of paths) {
-			if (path.points.length < 6 || path.points.length % 3 !== 0) {
-				throw new Error(`Bulk Visual ${label} sampled path is empty`)
+			if (path.curves.length === 0) {
+				throw new Error(`Bulk Visual ${label} compact path is empty`)
 			}
-			segmentCount += path.points.length / 3 - 1
+			segmentCount += path.curves.length * curveLaw.segmentsPerCurve
 		}
 		const positions = new Float32Array(segmentCount * 6)
 		let offset = 0
 		for (const path of paths) {
-			const points = path.points
-			for (let index = 3; index < points.length; index += 3) {
-				positions[offset] = points[index - 3]!
-				positions[offset + 1] = points[index - 2]!
-				positions[offset + 2] = points[index - 1]!
-				positions[offset + 3] = points[index]!
-				positions[offset + 4] = points[index + 1]!
-				positions[offset + 5] = points[index + 2]!
-				offset += 6
+			for (const compactCurve of path.curves) {
+				offset = writeHermiteEdgeSegments(
+					visualPayloadHermiteCurve(compactCurve),
+					positions,
+					offset,
+				)
 			}
 		}
 		geometry.setAttribute("position", new BufferAttribute(positions, 3))
@@ -2105,7 +2117,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			if (!existing) {
 				const material = createVisualLineMaterial(first.material)
 				const line = new LineSegments(
-					sampledPathsGeometry(batch, `${label} batch ${batchId}`),
+					compactPathsGeometry(batch, `${label} batch ${batchId}`),
 					material,
 				)
 				line.visible = visualLayerVisible(layer)
@@ -2122,7 +2134,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 				if (existing.fingerprint !== fingerprint) {
 					existing.line.geometry = replaceUniqueRenderGeometry(
 						existing.line.geometry,
-						sampledPathsGeometry(batch, `${label} batch ${batchId}`),
+						compactPathsGeometry(batch, `${label} batch ${batchId}`),
 						invalidateGeometry,
 					)
 					applyVisualLineMaterial(existing.material, first.material)
@@ -2794,6 +2806,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		activeVisualEmbeddedTorusMeshDetail =
 			projection.embeddedTorusMeshDetail
 		activeVisualSphereMeshDetail = projection.sphereMeshDetail
+		activeCurveLaw = projection.curveLaw
 		orbitalSphereRadiusById = nextOrbitalSphereRadiusById
 		orbitalTorusById = nextOrbitalTorusById
 		fieldProxySphereRadiusById = nextFieldProxySphereRadiusById
@@ -2841,6 +2854,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	const applyVisualRenderPatchToScene = (
 		patch: BulkVisualRenderPatch,
 	): void => {
+		assertBulkVisualCurveLaw(patch.curveLaw)
 		for (const entry of patch.orbitalSpheres) {
 			orbitalSphereRadiusById.set(entry.orbitalParticleId, entry.radius)
 			orbitalTorusById.delete(entry.orbitalParticleId)
@@ -2895,6 +2909,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		activeVisualDarkTorusMeshDetail = patch.darkTorusMeshDetail
 		activeVisualEmbeddedTorusMeshDetail = patch.embeddedTorusMeshDetail
 		activeVisualSphereMeshDetail = patch.sphereMeshDetail
+		activeCurveLaw = patch.curveLaw
 		activeTransitionPaths = mergeVisualBatchPaths(
 			activeTransitionPaths,
 			patch.transitionPaths,

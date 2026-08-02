@@ -2,7 +2,11 @@ import type {
   BulkManifest,
   BulkRelationChannel,
 } from "@metafor/types/bulk/manifest"
-import {buildHermiteEdgePath} from "./HermiteEdge.ts"
+import {
+  describeHermiteEdgeCurve,
+  sampleHermiteEdgeCurve,
+  type HermiteEdgeCurve,
+} from "./HermiteEdge.ts"
 import {visualRelationColor} from "./SemanticVisual.ts"
 import type {
   VisualFieldPlacement,
@@ -21,30 +25,38 @@ type Endpoint = Readonly<{
 }>
 
 export type VisualRelationEdgePlacement = Readonly<{
+  curves: readonly [HermiteEdgeCurve, HermiteEdgeCurve]
   material: VisualLineMaterial
   ownerDarkParticleId: number
   path: readonly Point[]
   relationChannelId: string
 }>
 
-const hermiteRelationPath = (
+const hermiteRelationCurves = (
   from: Point,
   to: Point,
-): readonly Point[] => {
-  const upper = buildHermiteEdgePath({
+): readonly [HermiteEdgeCurve, HermiteEdgeCurve] => Object.freeze([
+  describeHermiteEdgeCurve({
     from,
     leftOuterRadius: 1,
     rightOuterRadius: 1,
     side: 1,
     to,
-  })
-  const lower = buildHermiteEdgePath({
+  }),
+  describeHermiteEdgeCurve({
     from: to,
     leftOuterRadius: 1,
     rightOuterRadius: 1,
     side: -1,
     to: from,
-  })
+  }),
+])
+
+const sampleHermiteRelationCurves = (
+  curves: readonly [HermiteEdgeCurve, HermiteEdgeCurve],
+): readonly Point[] => {
+  const upper = sampleHermiteEdgeCurve(curves[0])
+  const lower = sampleHermiteEdgeCurve(curves[1])
   return Object.freeze([...upper, ...lower.slice(1)])
 }
 
@@ -246,17 +258,19 @@ export const buildVisualRelationEdges = (
       )
     }
     const color = visualRelationColor(channel)
+    const curves = hermiteRelationCurves(
+      from.endpoint.point,
+      to.endpoint.point,
+    )
     return [Object.freeze({
+      curves,
       material: visualRelationMaterial(
         color,
         channel.active,
         branchActive,
       ),
       ownerDarkParticleId: channel.parentDarkParticleId,
-      path: hermiteRelationPath(
-        from.endpoint.point,
-        to.endpoint.point,
-      ),
+      path: sampleHermiteRelationCurves(curves),
       relationChannelId: channel.relationChannelId,
     })]
   }))

@@ -24,6 +24,8 @@ import type {
   VisualPayloadEdgeBatch,
   VisualScenePayload,
 } from "../src/ScenePayload.ts"
+import {visualPayloadHermiteCurve} from "../src/ScenePayload.ts"
+import {sampleHermiteEdgeCurve} from "../src/HermiteEdge.ts"
 import {SPHERE_MESH_DETAIL} from "../src/MeshDetail.ts"
 import {
   DARK_TORUS_MESH_DETAIL,
@@ -308,8 +310,8 @@ const resolveWorldTorusCenters = (
  * Pure one-shot conversion from the serializable payload to GPU records.
  *
  * This is the thin-renderer entry: the payload already carries every form,
- * material and sampled path, so the only work here is resolving owner-local
- * coordinates into world space. No layout, curve building or batching occurs.
+ * material and compact curve. It resolves owner-local coordinates and evaluates
+ * the versioned Hermite law on the browser CPU; no layout or batching occurs.
  */
 export const buildVisualPayloadRenderPlan = (
   payload: VisualScenePayload,
@@ -405,12 +407,17 @@ export const buildVisualPayloadRenderPlan = (
       ownerDarkParticleId: batch.ownerDarkParticleId,
       paths: Object.freeze(batch.paths.map((entry) => {
         const points: Array<Readonly<{x: number; y: number; z: number}>> = []
-        for (let index = 0; index < entry.points.length; index += 3) {
-          points.push(Object.freeze({
-            x: owner.x + entry.points[index]!,
-            y: owner.y + entry.points[index + 1]!,
-            z: owner.z + entry.points[index + 2]!,
-          }))
+        for (const [curveIndex, compactCurve] of entry.curves.entries()) {
+          const curvePoints = sampleHermiteEdgeCurve(
+            visualPayloadHermiteCurve(compactCurve),
+          )
+          for (const point of curvePoints.slice(curveIndex === 0 ? 0 : 1)) {
+            points.push(Object.freeze({
+              x: owner.x + point.x,
+              y: owner.y + point.y,
+              z: owner.z + point.z,
+            }))
+          }
         }
         return renderPath(entry.channelId, Object.freeze(points))
       })),

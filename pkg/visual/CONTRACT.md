@@ -46,9 +46,11 @@
 - Рекурсивный Torus, Field-ядро и цельный State-рукав являются составными
   patterns. Один rigid transform применяется ко всем переданным частям
   паттерна; Visual не решает, какие части должны присутствовать в общей сцене.
-- State и Relation edges возвращаются как готовые sampled paths. Их geometry и
-  material batches являются derived artifacts; создание GPU objects и их
-  lifecycle принадлежат Bulk renderer adaptation.
+- Внутренняя component scene сохраняет готовые sampled paths как reference
+  geometry. Transport payload вместо них несёт versioned cubic Hermite controls;
+  browser CPU только вычисляет утверждённые samples, не выбирая geometry или
+  material. Создание GPU objects и их lifecycle принадлежат Bulk renderer
+  adaptation.
 - Animation pattern получает явные начальные данные, время и параметры и
   возвращает очередной transform/material state. Visual не запускает timeline,
   не хранит playhead и не определяет продуктовый trigger анимации.
@@ -217,18 +219,19 @@
   отвечает только за непересечение разных цельных State-рукавов:
   их envelopes расширяются на половину локального зазора с каждой стороны,
   после чего owning Torus охватывает получившуюся общую орбиту.
-- Узлы, condition Fields и sampled paths всех Transition являются одной
+- Узлы, condition Fields и curve descriptions всех Transition являются одной
   неделимой geometry State-рукава. Derived result возвращает готовый путь
   каждого edge после того же rotation/translation, что применён к его узлам.
-  Bulk может перенести эти точки в локальный frame renderer, но не строит
-  Bézier/Hermite заново, не меняет branch lanes и не соединяет центры State
-  собственной кривой.
+  Wire переводит его Hermite endpoints и derivatives в локальный frame owner.
+  Browser применяет только закон `cubic-hermite@1` (`64` сегмента); он не меняет
+  branch lanes и не соединяет центры State собственной кривой.
 - Каждая Relation строится по точным component endpoints как замкнутый
   двухсторонний channel из двух открытых cubic Hermite-дуг. Верхняя и нижняя
   дуги используют тот же geometry law, ту же высоту и по `64` сегмента, что и
-  Transition; общий sampled path содержит `129` точек и `128` сегментов.
-  Bulk вправе только перевести готовые мировые точки в local frame их
-  владельца; выбор другой кривой, стороны или material запрещён.
+  Transition. Wire хранит две компактные дуги, а browser CPU восстанавливает
+  прежние `129` точек / `128` сегментов перед существующим renderer path.
+  Bulk вправе только перевести endpoints в local frame владельца; выбор другой
+  кривой, стороны, resolution или material запрещён.
 - При структурном изменении Bulk готовит новые параметры и снова вызывает
   чистый паттерн. Внутри одного вызова owner, occurrence, Transition и State
   indexes строятся по одному проходу и переиспользуются; повторный полный scan

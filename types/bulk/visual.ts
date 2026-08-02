@@ -79,11 +79,28 @@ export type BulkVisualLineMaterial = Readonly<{
   visibilityMode: "scene" | "overlay"
 }>
 
-export type BulkVisualPathPoint = Readonly<{
-  x: number
-  y: number
-  z: number
+/** Versioned compact curve law mirrored from the engine-neutral Visual payload. */
+export type BulkVisualCurveLaw = Readonly<{
+  kind: "cubic-hermite"
+  segmentsPerCurve: 64
+  version: 1
 }>
+
+/** Owner-local source/target points followed by their two derivatives. */
+export type BulkVisualHermiteCurve = readonly [
+  fromX: number,
+  fromY: number,
+  fromZ: number,
+  toX: number,
+  toY: number,
+  toZ: number,
+  fromTangentX: number,
+  fromTangentY: number,
+  fromTangentZ: number,
+  toTangentX: number,
+  toTangentY: number,
+  toTangentZ: number,
+]
 export type BulkVisualDarkMaterial = Readonly<{
   darkParticleId: number
   material: BulkVisualQuantumMaterial
@@ -105,17 +122,15 @@ export type BulkVisualFieldProxyMaterial = Readonly<{
 }>
 
 /**
- * One sampled channel path in its owner's local frame.
- *
- * `points` is the flat `[x0, y0, z0, x1, y1, z1, …]` sequence the renderer
- * uploads directly, so no per-point object is allocated on the render path.
+ * One compact channel path in its owner's local frame. The browser CPU
+ * reconstructs the fixed 64-segment arcs before entering the existing renderer.
  */
 export type BulkVisualTransitionPath = Readonly<{
   batchId: string
   batchFingerprint: string
   material: BulkVisualLineMaterial
   ownerDarkParticleId: number
-  points: readonly number[]
+  curves: readonly BulkVisualHermiteCurve[]
   returning: boolean
   transitionChannelId: string
 }>
@@ -125,7 +140,7 @@ export type BulkVisualRelationPath = Readonly<{
   batchFingerprint: string
   material: BulkVisualLineMaterial
   ownerDarkParticleId: number
-  points: readonly number[]
+  curves: readonly BulkVisualHermiteCurve[]
   relationChannelId: string
 }>
 
@@ -146,6 +161,7 @@ export type BulkVisualSourceStats = Readonly<{
  * and must not be persisted as canonical manifestation.
  */
 export type BulkVisualRenderManifest = Readonly<{
+  curveLaw: BulkVisualCurveLaw
   darkTorusMeshDetail: BulkVisualTorusMeshDetail
   darkMaterials: readonly BulkVisualDarkMaterial[]
   embeddedTorusMeshDetail: BulkVisualTorusMeshDetail
@@ -180,6 +196,7 @@ export type BulkVisualRenderManifest = Readonly<{
  * scene is replaced rather than patched.
  */
 export type BulkVisualRenderPatch = Readonly<{
+  curveLaw: BulkVisualCurveLaw
   darkMaterials: readonly BulkVisualDarkMaterial[]
   darkParticles: readonly BulkRenderDarkParticle[]
   darkTorusMeshDetail: BulkVisualTorusMeshDetail

@@ -49,7 +49,7 @@ export type {
 /**
  * Bulk's visual boundary.
  *
- * `pkg/visual` owns every coordinate, form, material and sampled path. Bulk
+ * `pkg/visual` owns every coordinate, form, material and compact curve. Bulk
  * contributes exactly two things: the deferred-Axion policy that decides what
  * may reach a strategy, and the binding of each manifested Atom to its owner
  * graph. Everything after that is the platform's serializable payload, adapted
@@ -424,7 +424,7 @@ const adaptRenderManifest = (
       const found = transitionBatchByChannelId.get(channel.transitionChannelId)
       if (!found) {
         throw new Error(
-          `Bulk Visual Transition ${channel.transitionChannelId} has no sampled path`,
+          `Bulk Visual Transition ${channel.transitionChannelId} has no compact path`,
         )
       }
       return {
@@ -432,7 +432,7 @@ const adaptRenderManifest = (
         batchFingerprint: found.batch.fingerprint,
         material: found.batch.material,
         ownerDarkParticleId: found.batch.ownerDarkParticleId,
-        points: found.entry.points,
+        curves: found.entry.curves,
         returning: found.batch.returning,
         transitionChannelId: channel.transitionChannelId,
       }
@@ -448,7 +448,7 @@ const adaptRenderManifest = (
       const found = relationBatchByChannelId.get(channel.relationChannelId)
       if (!found) {
         throw new Error(
-          `Bulk Visual relation ${channel.relationChannelId} has no sampled path`,
+          `Bulk Visual relation ${channel.relationChannelId} has no compact path`,
         )
       }
       return {
@@ -456,7 +456,7 @@ const adaptRenderManifest = (
         batchFingerprint: found.batch.fingerprint,
         material: found.batch.material,
         ownerDarkParticleId: found.batch.ownerDarkParticleId,
-        points: found.entry.points,
+        curves: found.entry.curves,
         relationChannelId: channel.relationChannelId,
       }
     })
@@ -482,7 +482,7 @@ const adaptRenderManifest = (
       const path = transitionPathById.get(channel.transitionChannelId)
       if (!path) {
         throw new Error(
-          `Bulk Visual Transition ${channel.transitionChannelId} has no sampled path`,
+          `Bulk Visual Transition ${channel.transitionChannelId} has no compact path`,
         )
       }
       const color = path.material.color
@@ -502,7 +502,7 @@ const adaptRenderManifest = (
       const path = relationPathById.get(channel.relationChannelId)
       if (!path) {
         throw new Error(
-          `Bulk Visual relation ${channel.relationChannelId} has no sampled path`,
+          `Bulk Visual relation ${channel.relationChannelId} has no compact path`,
         )
       }
       const color = path.material.color
@@ -549,6 +549,7 @@ const adaptRenderManifest = (
     }))
 
   return {
+    curveLaw: payload.curveLaw,
     layoutSlug: payload.layoutSlug,
     darkTorusMeshDetail: payload.darkTorusMeshDetail,
     embeddedTorusMeshDetail: payload.embeddedTorusMeshDetail,
@@ -789,7 +790,7 @@ export const adaptBulkVisualRenderPatch = (
         batchFingerprint: batch.fingerprint,
         material: batch.material,
         ownerDarkParticleId: batch.ownerDarkParticleId,
-        points: entry.points,
+        curves: entry.curves,
         returning: batch.returning,
         transitionChannelId: entry.channelId,
       })
@@ -809,13 +810,14 @@ export const adaptBulkVisualRenderPatch = (
         batchFingerprint: batch.fingerprint,
         material: batch.material,
         ownerDarkParticleId: batch.ownerDarkParticleId,
-        points: entry.points,
+        curves: entry.curves,
         relationChannelId: entry.channelId,
       })
     }
   }
 
   return {
+    curveLaw: payload.curveLaw,
     darkMaterials,
     darkParticles,
     darkTorusMeshDetail: payload.darkTorusMeshDetail,

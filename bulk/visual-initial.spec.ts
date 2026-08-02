@@ -204,5 +204,26 @@ describe("Bulk browser initial path", () => {
       layoutSlug: "centered-nested",
       payload: {kind: "visual-scene-payload", layoutSlug: "outside-in"},
     })).toBe(false)
+
+    const {manifest, projection} = fixture()
+    const prepared = prepareBulkInitialVisual(manifest, projection)
+    const wrongEnvelopeVersion = structuredClone(prepared) as unknown as {
+      version: number
+    }
+    wrongEnvelopeVersion.version = 2
+    expect(isVisualPreparedScene(wrongEnvelopeVersion)).toBe(false)
+
+    const wrongCurveLaw = structuredClone(prepared) as unknown as {
+      payload: {curveLaw: {version: number}}
+    }
+    wrongCurveLaw.payload.curveLaw.version = 2
+    expect(isVisualPreparedScene(wrongCurveLaw)).toBe(false)
+
+    const legacyPoints = structuredClone(prepared) as unknown as {
+      payload: {transitionBatches: Array<{paths: Array<Record<string, unknown>>}>}
+    }
+    const firstPath = legacyPoints.payload.transitionBatches[0]?.paths[0]
+    if (firstPath) firstPath.points = [0, 0, 0]
+    expect(isVisualPreparedScene(legacyPoints)).toBe(false)
   })
 })

@@ -11,7 +11,9 @@ import {
   resolveTorusForm,
 } from "./Torus.ts"
 import {
-  buildHermiteEdgePath,
+  describeHermiteEdgeCurve,
+  sampleHermiteEdgeCurve,
+  type HermiteEdgeCurve,
   type HermiteEdgePoint,
 } from "./HermiteEdge.ts"
 import {resolveSemanticStateColor} from "./internal/semantic-state-color.ts"
@@ -109,13 +111,13 @@ export type StateGraphRootLayout = Readonly<{
 
 export type StateGraphEdgePathPoint = HermiteEdgePoint
 
-export const buildStateGraphHermiteEdgePath = (
+export const describeStateGraphHermiteEdgeCurve = (
   edge: StateGraphLayoutEdge,
   fromNode: StateGraphLayoutNode,
   toNode: StateGraphLayoutNode,
-): readonly StateGraphEdgePathPoint[] => {
+): HermiteEdgeCurve => {
   const outerRadius = Math.max(fromNode.radius, toNode.radius)
-  return buildHermiteEdgePath({
+  return describeHermiteEdgeCurve({
     from: fromNode,
     leftOuterRadius: outerRadius,
     rightOuterRadius: outerRadius,
@@ -123,6 +125,15 @@ export const buildStateGraphHermiteEdgePath = (
     to: toNode,
   })
 }
+
+export const buildStateGraphHermiteEdgePath = (
+  edge: StateGraphLayoutEdge,
+  fromNode: StateGraphLayoutNode,
+  toNode: StateGraphLayoutNode,
+): readonly StateGraphEdgePathPoint[] =>
+  sampleHermiteEdgeCurve(
+    describeStateGraphHermiteEdgeCurve(edge, fromNode, toNode),
+  )
 
 /** The sole State-edge sampling law, kept under the historical API name. */
 export const buildStateGraphEdgePath = buildStateGraphHermiteEdgePath

@@ -87,6 +87,10 @@ Bulk проявляет один полный runtime projection в два по�
   без повторного layout. Bulk не выбирает root из local Store, MF-117 receipt
   или default source; он использует `Graph.root` ответа Dark. Этот initial contract не содержит causal frontier,
   reconnect, replay или recovery policy.
+- Envelope `visual-prepared-scene@1` и вложенный `cubic-hermite@1` являются
+  fail-closed wire contracts. Payload содержит ровно `12` finite чисел на дугу
+  и не содержит sampled `points`; unknown version, другая arity или legacy
+  representation отклоняются до hydration.
 - `BulkVisualSceneLifecycle`, `BulkVisualScenePresenter` и
   `bulk/visual-store.ts` владеют persistent scene state, update policy и связью
   Store с payload, находящимся на экране.
@@ -120,12 +124,15 @@ Bulk проявляет один полный runtime projection в два по�
 - State layout node связывается с manifested occurrence только точной парой
   `nodeId ↔ orbitalParticleId`. Transition обязан совпасть ровно с одним
   canonical channel по owner, source id, endpoints и condition Field ids.
-  Вместе с ним renderer получает готовый sampled path из того же
-  `pkg/visual` State-рукава; Bulk не строит собственную кривую между State.
-- Relation material и замкнутый двухсторонний cubic Hermite sampled path также
-  приходят из `pkg/visual`: верхняя и нижняя дуги используют по `64` сегмента
-  и ту же высоту, что и Transition. Bulk не вычисляет relation endpoints или
-  кривую.
+  Wire несёт одну owner-local cubic Hermite-дугу, полностью описанную
+  layout-owned endpoints и derivatives; Bulk не строит собственную кривую
+  между State.
+- Relation material и замкнутый двухсторонний cubic Hermite channel также
+  приходят из `pkg/visual` как две упорядоченные compact-дуги. Browser CPU
+  детерминированно восстанавливает по `64` сегмента на дугу перед существующим
+  `LineSegments` и пишет их сразу в его `Float32Array`, не создавая
+  промежуточный массив point objects; Bulk не вычисляет relation endpoints,
+  форму или сторону.
 - Process и Finally получают готовый Torus на большой окружности внутри объёма
   трубки своего exact State, но не в центральном отверстии State. Их read/write
   Field proxies получают готовые Sphere placements в центральном ядре самого
@@ -152,8 +159,9 @@ Bulk проявляет один полный runtime projection в два по�
   canonical counts и любой mesh detail кроме package-owned `64 × 192` для
   крупных Dark Torus, `32 × 192` для вложенных State/Process/Finally/Field-proxy
   Torus и `32 × 24` для Sphere. Он также проверяет точное identity coverage
-  materials/paths, exact `torus/highlight=0` и `sphere/highlight=1`, `65`
-  sampled points на Transition, `129` на Relation, единое forward/return
+  materials/paths, exact `torus/highlight=0` и `sphere/highlight=1`, wire law
+  `cubic-hermite@1` с `64` segments, одну curve на Transition и две на Relation,
+  отсутствие legacy `points`, единое forward/return
   направление batch и не более четырёх Transition batches на владельца
   (`active/inactive × forward/return`).
 - Relation endpoints после Field aliasing обязаны существовать и принадлежать
@@ -167,8 +175,9 @@ Bulk проявляет один полный runtime projection в два по�
   Transition и Relation: это связи, а не скрытый старый renderer. Готовые
   package batch ids дают не более четырёх Transition draw-batches на владельца:
   active/inactive для forward/return;
-  заранее вычисленный fingerprint не сериализует все точки при повторном
-  patch. Заменённая/удалённая line geometry освобождается; viewport-local
+  заранее вычисленный fingerprint покрывает compact curves и material, поэтому
+  неизменённый patch не требует CPU sampling или замены GPU buffer.
+  Заменённая/удалённая line geometry освобождается; viewport-local
   surface caches удерживают только используемые Mesh geometry и полностью
   очищаются при dispose.
 - Picking, fit, labels и HUD читают точную Visual render projection. Direct

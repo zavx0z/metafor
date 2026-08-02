@@ -129,9 +129,10 @@ export class BulkVisualScenePresenter {
   /**
    * Presents a scene prepared elsewhere, such as on a server, and keeps it.
    *
-   * No strategy runs: the placements, forms, materials and sampled paths are
-   * read from the prepared scene as they arrived. What the presenter builds is
-   * the persistent Store that every later change is served from.
+   * No strategy runs: placements, forms, materials and compact curve controls
+   * are read from the prepared scene as they arrived. The renderer adapter
+   * alone samples them before building its existing line buffers. What the
+   * presenter builds is the persistent Store every later change is served from.
    */
   hydrate(
     viewport: BulkVisualViewportProjectionSink,

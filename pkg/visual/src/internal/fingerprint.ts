@@ -13,16 +13,17 @@ const numberView = new DataView(numberBuffer)
 const textEncoder = new TextEncoder()
 
 type FingerprintablePath = Readonly<{
+  /** Compact cubic Hermite tuples, in deterministic arc order. */
+  curves: readonly (readonly number[])[]
   material: VisualLineMaterial
   ownerDarkParticleId: number
-  /** Flat `[x0, y0, z0, …]` local-frame coordinates. */
-  points: readonly number[]
 }>
 
 /**
  * Two independent 32-bit mixes over the exact bytes of every contributing
- * value. A batch whose fingerprint is unchanged has byte-identical geometry and
- * material, so a renderer can keep its existing GPU line buffer.
+ * value. A batch whose fingerprint is unchanged has byte-identical compact
+ * curve geometry and material, so a renderer can keep its existing GPU line
+ * buffer without sampling either side merely to compare them.
  */
 class Fingerprint {
   #left = FNV32_OFFSET
@@ -77,8 +78,11 @@ export const visualBatchFingerprint = (
   for (const entry of paths) {
     hash.number(entry.ownerDarkParticleId)
     mixLineMaterial(hash, entry.material)
-    hash.number(entry.points.length)
-    for (const coordinate of entry.points) hash.number(coordinate)
+    hash.number(entry.curves.length)
+    for (const curve of entry.curves) {
+      hash.number(curve.length)
+      for (const coordinate of curve) hash.number(coordinate)
+    }
   }
   return hash.digest()
 }

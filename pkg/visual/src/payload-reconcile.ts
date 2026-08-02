@@ -5,16 +5,22 @@
  * classifies and diffs declarative artifacts but stores no payload or policy.
  */
 export {
+  visualPayloadHermiteCurve,
   type VisualPayloadEdgeBatch,
   type VisualPayloadEdgePath,
   type VisualPayloadField,
   type VisualPayloadFieldAlias,
   type VisualPayloadFieldProxy,
+  type VisualPayloadHermiteCurve,
   type VisualPayloadOrbital,
   type VisualPayloadTorus,
   type VisualPayloadTransitionBatch,
   type VisualScenePayload,
 } from "./ScenePayload.ts"
+export {
+  sampleHermiteEdgeCurve,
+  writeHermiteEdgeSegments,
+} from "./HermiteEdge.ts"
 export {
   classifyVisualInvalidation,
   diffVisualScenePayload,

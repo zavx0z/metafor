@@ -292,9 +292,9 @@ const batchFingerprint = (batch: RegroupedBatch): string =>
   visualBatchFingerprint(
     batch.batchId,
     batch.paths.map((path) => ({
+      curves: path.curves,
       material: batch.material,
       ownerDarkParticleId: batch.ownerDarkParticleId,
-      points: path.points,
     })),
   )
 

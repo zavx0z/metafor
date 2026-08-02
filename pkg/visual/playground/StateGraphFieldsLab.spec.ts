@@ -53,10 +53,12 @@ describe("State Graph Fields playground stand", () => {
     expect(stand.visual.manifest.darkParticles[0]?.darkParticleKind)
       .toBe("atom")
     expect(stand.visual.transitionPaths.every((path) =>
-      path.points.length === 65 * 3
+      path.curves.length === 1 && path.curves[0]?.length === 12
     )).toBe(true)
     expect(stand.visual.relationPaths.every((path) =>
-      path.points.length === 129 * 3
+      path.curves.length === 2 && path.curves.every((curve) =>
+        curve.length === 12
+      )
     )).toBe(true)
     const renderedOrbitalById = new Map(
       stand.visual.manifest.orbitalParticles.map((particle) =>

@@ -1,4 +1,7 @@
-import type {VisualScenePayload} from "./ScenePayload.ts"
+import {
+  isVisualScenePayload,
+  type VisualScenePayload,
+} from "./ScenePayload.ts"
 import type {
   VisualLayout,
   VisualLayoutInput,
@@ -17,6 +20,7 @@ export type VisualPreparedScene = Readonly<{
   kind: "visual-prepared-scene"
   layoutSlug: VisualLayoutSlug
   payload: VisualScenePayload
+  version: 1
 }>
 
 /** Wraps an already-built payload without running a layout strategy again. */
@@ -26,6 +30,7 @@ export const describeVisualPreparedScene = (
   kind: "visual-prepared-scene",
   layoutSlug: payload.layoutSlug,
   payload,
+  version: 1,
 })
 
 /** Server-side initial preparation. A browser hydrates the returned payload. */
@@ -44,7 +49,7 @@ export const isVisualPreparedScene = (
 ): value is VisualPreparedScene =>
   isRecord(value) &&
   value.kind === "visual-prepared-scene" &&
+  value.version === 1 &&
   typeof value.layoutSlug === "string" &&
-  isRecord(value.payload) &&
-  value.payload.kind === "visual-scene-payload" &&
+  isVisualScenePayload(value.payload) &&
   value.payload.layoutSlug === value.layoutSlug

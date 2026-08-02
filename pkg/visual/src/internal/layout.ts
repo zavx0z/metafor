@@ -9,6 +9,7 @@ import type {
   VisualLineMaterial,
   VisualQuantumMaterial,
 } from "../VisualMaterialSpec.ts"
+import type {HermiteEdgeCurve} from "../HermiteEdge.ts"
 import {
   compileVisualComponents,
   type VisualComponentForest,
@@ -72,6 +73,7 @@ export type VisualEdgePathPoint = Readonly<{
 }>
 
 export type VisualStateEdgePlacement = Readonly<{
+  curve: HermiteEdgeCurve
   edgeId: string
   fromNodeId: string
   material: VisualLineMaterial

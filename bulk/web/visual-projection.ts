@@ -1,10 +1,24 @@
 import type {BulkRenderManifest} from "@metafor/types/bulk/manifest"
 import type {
+  BulkVisualCurveLaw,
   BulkVisualFieldAlias,
   BulkVisualLineMaterial,
   BulkVisualQuantumMaterial,
   BulkVisualRenderManifest,
 } from "@metafor/types/bulk/visual"
+
+/** Rejects an unknown compact-curve contract before any geometry is built. */
+export const assertBulkVisualCurveLaw = (
+  curveLaw: BulkVisualCurveLaw,
+): void => {
+  if (
+    curveLaw.kind !== "cubic-hermite" ||
+    curveLaw.version !== 1 ||
+    curveLaw.segmentsPerCurve !== 64
+  ) {
+    throw new Error("Bulk Visual renderer received an unsupported curve law")
+  }
+}
 
 const uniqueIds = (
   ids: readonly string[],
@@ -221,7 +235,7 @@ const assertMaterialCoverage = (
   })
 }
 
-const assertSampledPaths = (
+const assertCompactPaths = (
   projection: BulkVisualRenderManifest,
 ): void => {
   const darkIds = new Set(
@@ -235,31 +249,39 @@ const assertSampledPaths = (
     expectedIds: readonly string[],
     id: (path: typeof paths[number]) => string,
     label: string,
-    pointCount: number,
+    curveCount: number,
   ): void => {
-    const ids = uniqueIds(paths.map(id), `${label} sampled path`)
+    const ids = uniqueIds(paths.map(id), `${label} compact path`)
     if (
       ids.size !== expectedIds.length ||
       expectedIds.some((expectedId) => !ids.has(expectedId))
     ) {
-      throw new Error(`Bulk Visual ${label} sampled path coverage is not exact`)
+      throw new Error(`Bulk Visual ${label} compact path coverage is not exact`)
     }
     for (const path of paths) {
       if (
         path.batchId.length === 0 ||
         !/^[0-9a-f]{16}$/.test(path.batchFingerprint) ||
         !darkIds.has(path.ownerDarkParticleId) ||
-        path.points.length !== pointCount * 3
+        path.curves.length !== curveCount ||
+        "points" in path
       ) {
         throw new Error(
           `Bulk Visual ${label} ${id(path)} has invalid component batch geometry`,
         )
       }
-      path.points.forEach((coordinate, index) => {
-        assertFiniteNumber(
-          coordinate,
-          `${label} ${id(path)} coordinate ${index}`,
-        )
+      path.curves.forEach((curve, curveIndex) => {
+        if (curve.length !== 12) {
+          throw new Error(
+            `Bulk Visual ${label} ${id(path)} curve ${curveIndex} is not one cubic Hermite tuple`,
+          )
+        }
+        curve.forEach((coordinate, index) => {
+          assertFiniteNumber(
+            coordinate,
+            `${label} ${id(path)} curve ${curveIndex} coordinate ${index}`,
+          )
+        })
       })
       assertLineMaterial(path.material, `${label} ${id(path)} material`)
     }
@@ -290,7 +312,7 @@ const assertSampledPaths = (
       ? path.transitionChannelId
       : path.relationChannelId,
     "Transition",
-    65,
+    1,
   )
   const transitionBatchByOwnerDirectionAndOpacity =
     new Map<string, string>()
@@ -344,7 +366,7 @@ const assertSampledPaths = (
       ? path.relationChannelId
       : path.transitionChannelId,
     "relation",
-    129,
+    2,
   )
 }
 
@@ -528,6 +550,7 @@ export const assertBulkVisualProjectionBoundary = (
   projection: BulkVisualRenderManifest,
 ): void => {
   const manifest = projection.manifest
+  assertBulkVisualCurveLaw(projection.curveLaw)
   if (
     manifest.darkParticles.some((particle) =>
       particle.darkParticleKind === "axion"
@@ -543,7 +566,7 @@ export const assertBulkVisualProjectionBoundary = (
   }
   assertRenderGeometry(projection)
   assertMaterialCoverage(projection)
-  assertSampledPaths(projection)
+  assertCompactPaths(projection)
   assertRenderParents(manifest)
 
   const orbitalIds = uniqueIds(

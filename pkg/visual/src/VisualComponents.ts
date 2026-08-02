@@ -13,6 +13,7 @@ import type {
   VisualQuantumMaterial,
 } from "./VisualMaterialSpec.ts"
 import type {VisualRelationEdgePlacement} from "./VisualRelations.ts"
+import type {HermiteEdgeCurve} from "./HermiteEdge.ts"
 
 type Indexed<T> = Readonly<{
   renderIndex: number
@@ -199,10 +200,19 @@ const freezeFieldProxy = (
   material: freezeQuantumMaterial(value.material),
 })
 
+const freezeHermiteCurve = (curve: HermiteEdgeCurve): HermiteEdgeCurve =>
+  Object.freeze({
+    from: Object.freeze({...curve.from}),
+    fromTangent: Object.freeze({...curve.fromTangent}),
+    to: Object.freeze({...curve.to}),
+    toTangent: Object.freeze({...curve.toTangent}),
+  })
+
 const freezeStateEdge = (
   edge: VisualStateEdgePlacement,
 ): VisualStateEdgePlacement => Object.freeze({
   ...edge,
+  curve: freezeHermiteCurve(edge.curve),
   material: freezeLineMaterial(edge.material),
   path: Object.freeze(edge.path.map((point) => Object.freeze({...point}))),
 })
@@ -222,6 +232,10 @@ const freezeRelation = (
   value: VisualRelationEdgePlacement,
 ): VisualRelationEdgePlacement => Object.freeze({
   ...value,
+  curves: Object.freeze(value.curves.map(freezeHermiteCurve)) as readonly [
+    HermiteEdgeCurve,
+    HermiteEdgeCurve,
+  ],
   material: freezeLineMaterial(value.material),
   path: Object.freeze(value.path.map((point) => Object.freeze({...point}))),
 })

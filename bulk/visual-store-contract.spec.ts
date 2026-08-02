@@ -3,6 +3,7 @@ import type {BulkManifest} from "@metafor/types/bulk/manifest"
 import {visualContextTorusMaterial} from "@metafor/visual"
 import {
   describeVisualPreparedScene,
+  VISUAL_PAYLOAD_CURVE_LAW,
   type VisualScenePayload,
 } from "@metafor/visual/payload"
 import {hydrateBulkVisualStore} from "./visual-store.ts"
@@ -24,6 +25,7 @@ const manifest = (label = "root"): BulkManifest => ({
 })
 
 const payload = (localX = 0): VisualScenePayload => ({
+  curveLaw: VISUAL_PAYLOAD_CURVE_LAW,
   darkTorusMeshDetail: {radialSegments: 64, tubularSegments: 192},
   embeddedTorusMeshDetail: {radialSegments: 32, tubularSegments: 192},
   fieldAliases: [],
