@@ -50,6 +50,10 @@ export type BulkStoreFieldLayoutContext = Readonly<{
     darkParticleId: number,
     form: Readonly<{radius: number; tube: number}>,
   ) => void
+  darkPositionSink?: (
+    darkParticleId: number,
+    position: Readonly<{x: number; y: number; z: number}>,
+  ) => void
   ownStateOuterExtentResolver?: (
     darkParticleId: number,
     childOuterExtent: number,
@@ -433,5 +437,118 @@ export const layoutCenteredNestedStoreFields = (
     return form.outerRadius
   }
   resolve(tree.root, minimumRootCoreExtent)
+  return all
+}
+
+const outsideInChildPhase = (children: readonly StoreNode[]): number => {
+  const identity = children.map((child) => child.id).join(":")
+  return identity.length === 0 ? 0 : stablePhase(identity)
+}
+
+const outsideInSiblingOrbitRadius = (
+  count: number,
+  maximumExtent: number,
+  gap: number,
+): number => count <= 1
+  ? 0
+  : (maximumExtent + gap * 0.5) / Math.sin(Math.PI / count)
+
+/** Exact outside-in Field/Matter/State bands over the final Store columns. */
+export const layoutOutsideInStoreFields = (
+  store: BulkStore,
+  root: number,
+  darkIds: ReadonlySet<number>,
+  aliasSlots: ReadonlySet<number>,
+  context: BulkStoreFieldLayoutContext = {},
+): readonly BulkStoreFieldPlacement[] => {
+  const fieldSourceById = new Map(Array.from(
+    {length: store.fieldSource.id.length},
+    (_, slot) => [store.fieldSource.id[slot]!, slot] as const,
+  ))
+  const tree = buildTree(store, root, darkIds)
+  const aliasesByOwner = new Map<number, number[]>()
+  for (const slot of aliasSlots) {
+    if ((store.fieldAlias.flags[slot]! & BULK_STORE_FLAG_REMOVED) !== 0) continue
+    const owner = store.fieldAlias.atom[slot]! * 2
+    if (!tree.nodeById.has(owner)) continue
+    const held = aliasesByOwner.get(owner)
+    if (held) held.push(slot)
+    else aliasesByOwner.set(owner, [slot])
+  }
+  for (const aliases of aliasesByOwner.values()) aliases.sort((left, right) =>
+    store.fieldAlias.field[left]! - store.fieldAlias.field[right]! ||
+    store.fieldAlias.order[left]! - store.fieldAlias.order[right]! ||
+    store.fieldAlias.id[left]! - store.fieldAlias.id[right]!)
+
+  const all: BulkStoreFieldPlacement[] = []
+  const resolve = (node: StoreNode): number => {
+    const scale = torusLevelScale(node.depth)
+    const markerRadius = TORUS_LAYOUT_BASELINE.rootFieldRadius * scale
+    const gap = markerRadius * TORUS_LAYOUT_BASELINE.contentGapToFieldRadius
+    const aliases = aliasesByOwner.get(node.id) ?? []
+    const fieldLayout = layoutFieldsInPseudoCircle(aliases.length, markerRadius)
+    aliases.forEach((alias, index) => {
+      const entry: StoreFieldEntry = {
+        affinity: node,
+        aliases: [alias],
+        deepestDepth: node.depth,
+        owner: node,
+        owners: [node],
+        representative: alias,
+        shared: false,
+      }
+      all.push(placement(
+        store,
+        fieldSourceById,
+        entry,
+        0,
+        markerRadius,
+        fieldLayout.points[index] ?? {x: 0, y: 0, z: 0},
+      ))
+    })
+    const coreExtent = fieldLayout.radius
+    const coreForm = resolveContentTorusForm({
+      coreExtent,
+      emptyOuterRadius: TORUS_LAYOUT_BASELINE.rootOuterRadius * scale,
+      gap,
+    })
+    const children = [...node.children].sort(compareNode)
+    const childOuterRadius = new Map<number, number>()
+    for (const child of children) childOuterRadius.set(child.id, resolve(child))
+    const maximumChildExtent = Math.max(0, ...childOuterRadius.values())
+    const matterOrbitRadius = children.length === 0
+      ? 0
+      : Math.max(
+        coreForm.innerRadius + gap + maximumChildExtent,
+        outsideInSiblingOrbitRadius(children.length, maximumChildExtent, gap),
+      )
+    const childPhase = outsideInChildPhase(children)
+    children.forEach((child, index) => {
+      const angle = childPhase + index * Math.PI * 2 / children.length
+      context.darkPositionSink?.(child.id, {
+        x: Math.cos(angle) * matterOrbitRadius,
+        y: Math.sin(angle) * matterOrbitRadius,
+        z: 0,
+      })
+    })
+    const matterOuterRadius = children.length === 0
+      ? coreForm.innerRadius
+      : matterOrbitRadius + maximumChildExtent
+    const stateOuterRadius = context.ownStateOuterExtentResolver?.(
+      node.id,
+      matterOuterRadius,
+      scale,
+    ) ?? 0
+    const form = resolveContentTorusForm({
+      coreExtent,
+      emptyOuterRadius: TORUS_LAYOUT_BASELINE.rootOuterRadius * scale,
+      gap,
+      occupiedOuterExtent: Math.max(matterOuterRadius, stateOuterRadius),
+    })
+    context.darkFormSink?.(node.id, form)
+    return form.outerRadius
+  }
+  context.darkPositionSink?.(tree.root.id, {x: 0, y: 0, z: 0})
+  resolve(tree.root)
   return all
 }

@@ -5,6 +5,7 @@ import {
   BULK_STORE_FLAG_RETURNING,
   BULK_STORE_FLAG_TORUS,
   BULK_STORE_LINE_MATERIAL_STRIDE,
+  BULK_STORE_LAYOUT_OUTSIDE_IN,
   BULK_STORE_QUANTUM_MATERIAL_STRIDE,
   type BulkStore,
   type BulkStoreNumericArray,
@@ -1086,6 +1087,166 @@ type FieldRegroupResult = Readonly<{
   proxySlots: readonly number[]
 }>
 
+type FieldLayoutPlan = Readonly<{
+  aliasSlots: ReadonlySet<number>
+  darkIds: ReadonlySet<number>
+  darkForms: ReadonlyMap<number, Readonly<{radius: number; tube: number}>>
+  darkPositions: ReadonlyMap<number, StorePoint>
+  placements: readonly BulkStoreFieldPlacement[]
+  stateTargets: ReadonlyMap<number, StorePoint>
+}>
+
+const outsideInPhase = (ids: readonly number[]): number => {
+  const identity = ids.join(":")
+  if (identity.length === 0) return 0
+  let hash = 2166136261
+  for (let index = 0; index < identity.length; index++) {
+    hash ^= identity.charCodeAt(index)
+    hash = Math.imul(hash, 16777619)
+  }
+  return ((hash >>> 0) / 0xffffffff) * Math.PI * 2
+}
+
+const outsideInChildren = (store: BulkStore, owner: number): number[] => {
+  const state = indexes(store)
+  const result: number[] = []
+  for (let slot = state.darkChildHead[owner] ?? -1; slot >= 0; slot = state.darkChildNext[slot]!) {
+    if ((store.dark.flags[slot]! & BULK_STORE_FLAG_REMOVED) === 0) {
+      result.push(store.dark.id[slot]!)
+    }
+  }
+  return result.sort((left, right) => {
+    const leftSlot = state.darkSlotById[left]!
+    const rightSlot = state.darkSlotById[right]!
+    return store.dark.order[leftSlot]! - store.dark.order[rightSlot]! || left - right
+  })
+}
+
+const outsideInOwnerAliases = (store: BulkStore, owner: number): number[] => {
+  if (owner % 2 !== 0) return []
+  const state = indexes(store)
+  const result: number[] = []
+  for (let slot = state.aliasHeadByAtom[owner / 2] ?? -1; slot >= 0; slot = state.aliasNext[slot]!) {
+    if ((store.fieldAlias.flags[slot]! & BULK_STORE_FLAG_REMOVED) === 0) result.push(slot)
+  }
+  return result.sort((left, right) =>
+    store.fieldAlias.field[left]! - store.fieldAlias.field[right]! ||
+    store.fieldAlias.order[left]! - store.fieldAlias.order[right]! ||
+    store.fieldAlias.id[left]! - store.fieldAlias.id[right]!)
+}
+
+const outsideInOwnerFieldPlacements = (
+  store: BulkStore,
+  owner: number,
+  aliases: readonly number[],
+): Readonly<{coreExtent: number; placements: readonly BulkStoreFieldPlacement[]}> => {
+  const radius = torusFieldRadiusAtLevel(darkDepth(store, owner))
+  const layout = layoutFieldsInPseudoCircle(aliases.length, radius)
+  const placements = aliases.map((slot, index): BulkStoreFieldPlacement => {
+    const source = fieldSourceSlot(store, store.fieldAlias.field[slot]!)
+    const point = layout.points[index] ?? {x: 0, y: 0, z: 0}
+    return {
+      aliasSlots: [slot],
+      fieldIds: [store.fieldAlias.field[slot]!],
+      fieldKeys: [source < 0 ? "" : store.text[store.fieldSource.key[source]!]!],
+      fieldKind: source < 0 ? 0 : store.fieldSource.kind[source]!,
+      orbitIndex: 0,
+      ownerDarkParticleId: owner,
+      radius,
+      valueId: store.fieldAlias.value[slot]!,
+      valueText: store.text[store.fieldAlias.valueText[slot]!] || null,
+      x: point.x,
+      y: point.y,
+      z: point.z,
+    }
+  })
+  return {coreExtent: layout.radius, placements}
+}
+
+const outsideInFieldLayoutPlan = (
+  store: BulkStore,
+  seeds: ReadonlySet<number>,
+  forcedOwner: number,
+): FieldLayoutPlan => {
+  const fieldOwners = new Set<number>()
+  for (const slot of seeds) fieldOwners.add(store.fieldAlias.atom[slot]! * 2)
+  const aliasSlots = new Set<number>()
+  const coreExtentByOwner = new Map<number, number>()
+  const placements: BulkStoreFieldPlacement[] = []
+  for (const owner of fieldOwners) {
+    const aliases = outsideInOwnerAliases(store, owner)
+    aliases.forEach((slot) => aliasSlots.add(slot))
+    const layout = outsideInOwnerFieldPlacements(store, owner, aliases)
+    coreExtentByOwner.set(owner, layout.coreExtent)
+    placements.push(...layout.placements)
+  }
+
+  const darkIds = new Set<number>()
+  const includeAncestors = (source: number): void => {
+    let owner = source
+    while (owner > 0) {
+      darkIds.add(owner)
+      owner = darkParent(store, owner)
+    }
+  }
+  fieldOwners.forEach(includeAncestors)
+  if (forcedOwner > 0) includeAncestors(forcedOwner)
+
+  const darkForms = new Map<number, Readonly<{radius: number; tube: number}>>()
+  const darkPositions = new Map<number, StorePoint>()
+  const stateTargets = new Map<number, StorePoint>()
+  const stateExtent = compactStateOuterExtentResolver(store, stateTargets)
+  const state = indexes(store)
+  const orderedOwners = [...darkIds].sort((left, right) =>
+    darkDepth(store, right) - darkDepth(store, left) || right - left)
+  for (const owner of orderedOwners) {
+    const depth = darkDepth(store, owner)
+    const scale = torusLevelScale(depth)
+    const radius = TORUS_LAYOUT_BASELINE.rootFieldRadius * scale
+    const gap = radius * TORUS_LAYOUT_BASELINE.contentGapToFieldRadius
+    const coreExtent = coreExtentByOwner.get(owner) ?? currentOwnerFieldExtent(store, owner, 0)
+    const coreForm = resolveContentTorusForm({
+      coreExtent,
+      emptyOuterRadius: TORUS_LAYOUT_BASELINE.rootOuterRadius * scale,
+      gap,
+    })
+    const children = outsideInChildren(store, owner)
+    const maximumChildExtent = Math.max(0, ...children.map((child) => {
+      const prepared = darkForms.get(child)
+      if (prepared) return prepared.radius + prepared.tube
+      const slot = state.darkSlotById[child] ?? -1
+      return slot < 0 ? 0 : store.dark.form[slot * 2]! + store.dark.form[slot * 2 + 1]!
+    }))
+    const siblingOrbit = children.length <= 1
+      ? 0
+      : (maximumChildExtent + gap * 0.5) / Math.sin(Math.PI / children.length)
+    const matterOrbit = children.length === 0
+      ? 0
+      : Math.max(coreForm.innerRadius + gap + maximumChildExtent, siblingOrbit)
+    const phase = outsideInPhase(children)
+    children.forEach((child, index) => {
+      const angle = phase + index * Math.PI * 2 / children.length
+      darkPositions.set(child, {
+        x: Math.cos(angle) * matterOrbit,
+        y: Math.sin(angle) * matterOrbit,
+        z: 0,
+      })
+    })
+    const matterOuter = children.length === 0
+      ? coreForm.innerRadius
+      : matterOrbit + maximumChildExtent
+    const ownStateOuter = stateExtent(owner, matterOuter, scale)
+    const form = resolveContentTorusForm({
+      coreExtent,
+      emptyOuterRadius: TORUS_LAYOUT_BASELINE.rootOuterRadius * scale,
+      gap,
+      occupiedOuterExtent: Math.max(matterOuter, ownStateOuter),
+    })
+    darkForms.set(owner, form)
+  }
+  return {aliasSlots, darkIds, darkForms, darkPositions, placements, stateTargets}
+}
+
 const regroupFieldAliases = (
   store: BulkStore,
   seeds: ReadonlySet<number>,
@@ -1094,37 +1255,46 @@ const regroupFieldAliases = (
   if (seeds.size === 0 && forcedOwner === 0) return {
     aliasSlots: [], fieldSlots: [], removedFieldSlots: [], darkSlots: [], orbitalSlots: [], proxySlots: [],
   }
-  const affectedOwners = [...seeds].map((slot) => store.fieldAlias.atom[slot]! * 2)
-  if (forcedOwner > 0) affectedOwners.push(forcedOwner)
-  const root = widenFieldLayoutRoot(store, highestCommonDarkOwner(store, affectedOwners))
-  const darkIds = darkSubtree(store, root)
-  const aliasSlots = aliasesForFieldScope(store, darkIds, seeds)
-  let componentRoot = root
-  while (darkParent(store, componentRoot) !== 0) {
-    componentRoot = darkParent(store, componentRoot)
-  }
-  const stateTargets = new Map<number, StorePoint>()
-  const darkForms = new Map<number, Readonly<{radius: number; tube: number}>>()
-  const placements = layoutCenteredNestedStoreFields(
-    store,
-    root,
-    darkIds,
-    aliasSlots,
-    minimumCoreExtent(store, root),
-    {
-      componentRootDarkParticleId: componentRoot,
-      componentRootDepth: darkDepth(store, componentRoot),
-      initialOrbitIndex: aliasSlots.size === 0
-        ? 0
-        : Math.min(...[...aliasSlots].map((slot) => store.fieldAlias.orbit[slot]!)),
-      darkFormSink: (id, form) => darkForms.set(id, form),
-      ownStateOuterExtentResolver: compactStateOuterExtentResolver(
-        store,
-        stateTargets,
-      ),
-      rootIsComponentRoot: root === componentRoot,
-    },
-  )
+  const plan = (() => {
+    if (store.layout === BULK_STORE_LAYOUT_OUTSIDE_IN) {
+      return outsideInFieldLayoutPlan(store, seeds, forcedOwner)
+    }
+    const affectedOwners = [...seeds].map((slot) => store.fieldAlias.atom[slot]! * 2)
+    if (forcedOwner > 0) affectedOwners.push(forcedOwner)
+    const root = widenFieldLayoutRoot(store, highestCommonDarkOwner(store, affectedOwners))
+    const darkIds = darkSubtree(store, root)
+    const aliasSlots = aliasesForFieldScope(store, darkIds, seeds)
+    let componentRoot = root
+    while (darkParent(store, componentRoot) !== 0) componentRoot = darkParent(store, componentRoot)
+    const stateTargets = new Map<number, StorePoint>()
+    const darkForms = new Map<number, Readonly<{radius: number; tube: number}>>()
+    const placements = layoutCenteredNestedStoreFields(
+      store,
+      root,
+      darkIds,
+      aliasSlots,
+      minimumCoreExtent(store, root),
+      {
+        componentRootDarkParticleId: componentRoot,
+        componentRootDepth: darkDepth(store, componentRoot),
+        initialOrbitIndex: aliasSlots.size === 0
+          ? 0
+          : Math.min(...[...aliasSlots].map((slot) => store.fieldAlias.orbit[slot]!)),
+        darkFormSink: (id, form) => darkForms.set(id, form),
+        ownStateOuterExtentResolver: compactStateOuterExtentResolver(store, stateTargets),
+        rootIsComponentRoot: root === componentRoot,
+      },
+    )
+    return {
+      aliasSlots,
+      darkIds,
+      darkForms,
+      darkPositions: new Map<number, StorePoint>(),
+      placements,
+      stateTargets,
+    }
+  })()
+  const {aliasSlots, darkIds, darkForms, darkPositions, placements, stateTargets} = plan
   const oldMarkers = new Set([...aliasSlots].map((slot) => store.fieldAlias.marker[slot]!))
   const usedMarkers = new Set<number>()
   const changedFields = new Set<number>()
@@ -1133,6 +1303,21 @@ const regroupFieldAliases = (
   const changedOrbitals = new Set<number>()
   const changedProxies = new Set<number>()
   const state = indexes(store)
+
+  for (const [id, point] of darkPositions) {
+    const slot = state.darkSlotById[id] ?? -1
+    if (slot < 0) continue
+    const start = slot * 3
+    if (
+      Math.abs(store.dark.position[start]! - point.x) <= 1e-6 &&
+      Math.abs(store.dark.position[start + 1]! - point.y) <= 1e-6 &&
+      Math.abs(store.dark.position[start + 2]! - point.z) <= 1e-6
+    ) continue
+    store.dark.position[start] = point.x
+    store.dark.position[start + 1] = point.y
+    store.dark.position[start + 2] = point.z
+    changedDarks.add(slot)
+  }
 
   for (const [id, form] of darkForms) {
     const slot = state.darkSlotById[id] ?? -1
@@ -1441,7 +1626,7 @@ const rebuildFieldRelationGeometry = (
       store.relation.bKind[slot] === BULK_STORE_ENDPOINT_KIND.field &&
       store.fieldAlias.marker[store.relation.a[slot]! - 1] ===
         store.fieldAlias.marker[store.relation.b[slot]! - 1]
-    if (sameMarker) {
+    if (sameMarker || (store.layout === BULK_STORE_LAYOUT_OUTSIDE_IN && entanglement)) {
       if (oldBatch > 0) {
         state.relationSlotsByBatch.get(oldBatch)?.delete(slot)
         touchedBatches.add(oldBatch)
@@ -1610,6 +1795,23 @@ const applyCanonicalGluon = (
   const regrouped = rebuildLocalEntanglement(store, previousValues, layoutSeeds)
   if (affected.size > 0) {
     for (const slot of regrouped) layoutSeeds.add(slot)
+    if (store.layout === BULK_STORE_LAYOUT_OUTSIDE_IN) {
+      const fieldSlots = [...new Set([...affected].map((slot) =>
+        store.fieldAlias.marker[slot]! - 1))]
+      const relationBatches = rebuildFieldRelationGeometry(store, [...layoutSeeds])
+      renderer.fieldAliasesRegrouped(
+        [...affected],
+        fieldSlots,
+        [],
+        [],
+        [],
+        [],
+      )
+      for (const batch of relationBatches) {
+        if (batch > 0) renderer.relationBatchChanged(batch)
+      }
+      return
+    }
     const geometry = regroupFieldAliases(store, layoutSeeds)
     const transitionBatches = rebuildTransitionGeometry(
       store,
@@ -1977,6 +2179,23 @@ const linkDarkChild = (store: BulkStore, parent: number, slot: number): void => 
   state.darkChildHead = growInt32(state.darkChildHead, parent + 1)
   state.darkChildNext[slot] = state.darkChildHead[parent] ?? -1
   state.darkChildHead[parent] = slot
+}
+
+const normalizeDarkChildOrder = (store: BulkStore, parent: number): void => {
+  if (parent === 0) return
+  const state = indexes(store)
+  const children: number[] = []
+  for (let slot = state.darkChildHead[parent] ?? -1; slot >= 0; slot = state.darkChildNext[slot]!) {
+    if ((store.dark.flags[slot]! & BULK_STORE_FLAG_REMOVED) === 0) children.push(slot)
+  }
+  children.sort((left, right) => {
+    const leftAtom = store.dark.kind[left] === BULK_STORE_DARK_KIND.atom ? 1 : 0
+    const rightAtom = store.dark.kind[right] === BULK_STORE_DARK_KIND.atom ? 1 : 0
+    return leftAtom - rightAtom ||
+      store.dark.order[left]! - store.dark.order[right]! ||
+      store.dark.id[left]! - store.dark.id[right]!
+  })
+  children.forEach((slot, order) => { store.dark.order[slot] = order })
 }
 
 const updateDarkDepths = (store: BulkStore, root: number): void => {
@@ -2545,6 +2764,7 @@ export const applyBulkAtomAdd = (
     source + 1,
     store.wimp.name[source]!,
   )
+  normalizeDarkChildOrder(store, parent)
   renderer.darkAdded?.(slot)
   materializeAtomFromSources(
     store, renderer, address.id, source + 1, payload, new Set(), parent || darkId("atom", address.id),
@@ -2577,6 +2797,7 @@ export const applyBulkTopologyAdd = (
     0,
     0,
   )
+  normalizeDarkChildOrder(store, store.dark.parent[slot]!)
   renderer.darkAdded?.(slot)
   applyStructuralFieldGeometry(
     store, renderer, new Set(), store.dark.parent[slot]! || store.dark.id[slot]!,
@@ -2676,6 +2897,7 @@ const removeRuntimeDark = (
   const seeds = removeOwnedVisualRows(store, renderer, id)
   unlinkDarkChild(store, parent, slot)
   setFlag(store.dark.flags, slot, BULK_STORE_FLAG_REMOVED, true)
+  normalizeDarkChildOrder(store, parent)
   state.darkSlotById[id] = -1
   if (store.dark.wimp[slot]! > 0) state.atomDarkSlotsByWimp.get(store.dark.wimp[slot]!)?.delete(slot)
   if (parent !== 0) for (const alias of activeAliasesInDarkSubtree(store, parent)) seeds.add(alias)
@@ -2790,6 +3012,8 @@ const updateRuntimeDarkRow = (
   const order = Number(entity.position)
   if (!Number.isSafeInteger(order) || order < 0) throw new Error(`Bulk Store Dark ${id} position is invalid`)
   store.dark.order[slot] = order
+  normalizeDarkChildOrder(store, previousParent)
+  if (nextParent !== previousParent) normalizeDarkChildOrder(store, nextParent)
   let wimpChanged = false
   if (address.kind === "atom") {
     if (typeof entity.wimp !== "string") throw new Error(`Bulk Store Atom ${address.id} has no WIMP`)
@@ -3088,6 +3312,7 @@ export const applyBulkAtomCopy = (
     store, owner, store.dark.parent[sourceSlot]!, store.dark.order[sourceSlot]!,
     BULK_STORE_DARK_KIND.atom, store.dark.wimp[sourceSlot]!, store.dark.label[sourceSlot]!,
   )
+  normalizeDarkChildOrder(store, store.dark.parent[slot]!)
   renderer.darkAdded?.(slot)
   const cloned = cloneAtomRows(store, source.id, target.id, owner, {}, true)
   for (const orbital of cloned.orbitals) renderer.orbitalAdded?.(orbital)
@@ -3120,6 +3345,7 @@ export const applyBulkTopologyCopy = (
     store.dark.order[sourceSlot]!, store.dark.kind[sourceSlot]!, 0,
     store.dark.label[sourceSlot]!,
   )
+  normalizeDarkChildOrder(store, store.dark.parent[slot]!)
   renderer.darkAdded?.(slot)
   applyStructuralFieldGeometry(
     store, renderer, new Set(), store.dark.parent[slot]! || store.dark.id[slot]!,
@@ -3255,6 +3481,9 @@ const removeFieldDeclarationAliases = (
   for (const slot of [...(state.aliasSlotsByField.get(field) ?? [])]) {
     if ((store.fieldAlias.flags[slot]! & BULK_STORE_FLAG_REMOVED) !== 0 ||
         keepAtoms.has(store.fieldAlias.atom[slot]!)) continue
+    // The removed occurrence still names the exact owner whose local layout
+    // must close the gap after its marker disappears.
+    seeds.add(slot)
     const value = store.fieldAlias.value[slot]!
     for (const member of state.aliasSlotsByValue.get(value) ?? []) {
       if (member !== slot && (store.fieldAlias.flags[member]! & BULK_STORE_FLAG_REMOVED) === 0) seeds.add(member)

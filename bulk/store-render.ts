@@ -3,6 +3,7 @@ import {
   BULK_STORE_FLAG_REMOVED,
   BULK_STORE_FLAG_RETURNING,
   BULK_STORE_FLAG_TORUS,
+  BULK_STORE_LAYOUT_OUTSIDE_IN,
   BULK_STORE_LINE_MATERIAL_STRIDE,
   BULK_STORE_QUANTUM_MATERIAL_STRIDE,
   BULK_STORE_TRANSITION_CONTROL_STRIDE,
@@ -450,7 +451,9 @@ export const bulkStoreRenderManifest = (
         ? [{fieldProxyId: proxy.fieldProxyId, radius: store.proxy.form[slot * 2]!, tube: store.proxy.form[slot * 2 + 1]!}]
         : []
     }),
-    layoutSlug: "centered-nested",
+    layoutSlug: store.layout === BULK_STORE_LAYOUT_OUTSIDE_IN
+      ? "outside-in"
+      : "centered-nested",
     manifest: {
       rootSrc,
       darkParticles,

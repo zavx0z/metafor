@@ -6,6 +6,13 @@ export type BulkStoreNumericArray =
   | Int32Array
   | Float32Array
 
+export const BULK_STORE_LAYOUT_CENTERED_NESTED = 0
+export const BULK_STORE_LAYOUT_OUTSIDE_IN = 1
+
+export type BulkStoreLayout =
+  | typeof BULK_STORE_LAYOUT_CENTERED_NESTED
+  | typeof BULK_STORE_LAYOUT_OUTSIDE_IN
+
 export type BulkStoreShapeColumns = {
   id: BulkStoreNumericArray
   kind: BulkStoreNumericArray
@@ -179,6 +186,8 @@ export type BulkStoreBatchColumns = {
  */
 export type BulkStore = {
   root: number
+  /** Fixed numeric layout law; its display slug is derived and never serialized. */
+  layout: BulkStoreLayout
   text: string[]
   wimp: BulkStoreWimpColumns
   fieldSource: BulkStoreFieldSourceColumns

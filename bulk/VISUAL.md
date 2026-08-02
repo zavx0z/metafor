@@ -16,9 +16,12 @@ Graph Store, Manifest, ReadyScene и второго scene Store в browser path 
   В HTML и initial Store нет Graph, JSON Pointer, semantic manifest,
   renderer-ready scene, causal cursor и путей внутренних хранилищ. Loader
   скрывается только после кадра с применённым Store.
-- Store плоский и columnar: identity, kind, flags, ownership, geometry,
-  material и compact Hermite controls хранятся числовыми колонками. Строковый
-  словарь содержит только реально показываемый интерфейсом текст.
+- Store плоский и columnar: один numeric `layout` выбирает фиксированный
+  layout law (`0` — `centered-nested`, `1` — `outside-in`), а identity, kind,
+  flags, ownership, geometry, material и compact Hermite controls хранятся
+  числовыми колонками. Строковый словарь содержит только реально показываемый
+  интерфейсом текст. Строковое имя layout в Store не передаётся и однозначно
+  выводится из `layout`.
 - Сервер формирует ту же основу Store, которую browser продолжает использовать.
   Browser заменяет wire-массивы typed buffers в тех же полях и добавляет только
   runtime-only `id → slot`, incident-relation/free-list indexes и renderer
@@ -105,13 +108,12 @@ Graph Store, Manifest, ReadyScene и второго scene Store в browser path 
 
 ## Production Visual projection
 
-- Раскладка по умолчанию — готовая `centered-nested` из
-  `@metafor/visual/layout/centered-nested`. Bulk зависит именно от этого
-  single-strategy subpath, а не от каталога стратегий, поэтому находящаяся в
-  разработке `outside-in` не попадает в production bundle. Любая другая
-  стратегия передаётся вызывающей стороной явно как `VisualLayout` — того же
-  публичного контракта; собственной запасной раскладки и canonical viewport
-  fallback в Bulk нет.
+- Production-ready layout laws ровно два: `centered-nested` и `outside-in`.
+  Один Store содержит numeric selector выбранного закона и geometry именно
+  этого закона; параллельных сцен, строкового layout payload и runtime fallback
+  нет. Текущий contour по умолчанию строит `outside-in`; direct writer и local
+  handlers принимают selector явно, чтобы обе раскладки проходили одинаковые
+  parity и performance checks.
 - Initial cut проходит один server path: согласованные RPC rows → layout law →
   columnar Bulk Store. В browser wire входит только `{session, store}`; Store не
   содержит service objects, Canvas, GPU handles, `Renderer`, `Space` или
@@ -120,8 +122,8 @@ Graph Store, Manifest, ReadyScene и второго scene Store в browser path 
   выделяет конечные Store columns и заполняет их напрямую. Короткоживущие
   группировки declaration/runtime rows являются только calculation inputs:
   они не материализуют `BulkManifest`, `ReadyScene`, Graph Store или ещё одну
-  модель записей. Centered-nested writer пишет position/form/material и compact
-  Hermite controls сразу в конечные массивы Store.
+  модель записей. Выбранный fixed layout writer пишет position/form/material и
+  compact Hermite controls сразу в конечные массивы Store.
 - Production browser применяет последующие Force Particles к тому же Store.
   Server не читает полный Graph на Particle, не строит event-local scene и не
   отправляет replacement. Browser не выполняет hydration/reconciliation между
@@ -136,7 +138,7 @@ Graph Store, Manifest, ReadyScene и второго scene Store в browser path 
   Structural handlers дополнительно поддерживают локальные ownership и
   incidence indexes, не вызывая full-scene layout или diff.
 - Stateless functions из `pkg/visual` вычисляют initial и локально затронутые
-  centered-nested values. Они возвращают calculation values непосредственно в
+  values выбранного fixed layout law. Они возвращают calculation values непосредственно в
   рабочие Store columns; сериализуемых render indexes, второй сцены или
   долгоживущего calculation model нет.
 - Вложенные Torus одного materialized root имеют общий мировой центр.

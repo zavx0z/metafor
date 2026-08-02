@@ -6,7 +6,9 @@ import {
   BULK_STORE_FLAG_ACTIVE,
   BULK_STORE_FLAG_CURRENT,
   BULK_STORE_FLAG_TORUS,
+  BULK_STORE_LAYOUT_CENTERED_NESTED,
   type BulkStore,
+  type BulkStoreLayout,
 } from "@metafor/types/bulk/store"
 import {
   BULK_STORE_DARK_KIND,
@@ -118,8 +120,9 @@ const fieldKeyFromMatterPath = (path: string): string | null =>
     ? null
     : path
 
-const emptyStore = (root: number): MutableWireStore => ({
+const emptyStore = (root: number, layout: BulkStoreLayout): MutableWireStore => ({
   root,
+  layout,
   text: [""],
   wimp: {src: [], name: [], flags: []},
   fieldSource: {id: [], wimp: [], localId: [], kind: [], key: [], label: [], flags: []},
@@ -373,9 +376,10 @@ export const boundaryRowsRuntimeProjection = (
 export const buildDirectBulkStoreRows = (
   projection: BulkRuntimeProjection,
   rootAtomId: number,
+  layout: BulkStoreLayout = BULK_STORE_LAYOUT_CENTERED_NESTED,
 ): DirectStoreBuild => {
   const rootDarkId = darkIdForAtom(rootAtomId)
-  const store = emptyStore(rootDarkId)
+  const store = emptyStore(rootDarkId, layout)
   const textSlot = new Map<string, number>()
   const text = (value: string | null): number => {
     if (value === null || value.length === 0) return 0
@@ -1095,4 +1099,5 @@ export const buildDirectBulkStoreRows = (
 export const buildDirectBulkStore = (
   projection: BulkRuntimeProjection,
   rootAtomId: number,
-): BulkStore => buildDirectBulkStoreRows(projection, rootAtomId).store
+  layout: BulkStoreLayout = BULK_STORE_LAYOUT_CENTERED_NESTED,
+): BulkStore => buildDirectBulkStoreRows(projection, rootAtomId, layout).store

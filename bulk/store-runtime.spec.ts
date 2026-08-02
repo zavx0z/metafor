@@ -5,6 +5,7 @@ import {
   BULK_STORE_FLAG_ACTIVE,
   BULK_STORE_FLAG_CURRENT,
   BULK_STORE_FLAG_REMOVED,
+  BULK_STORE_LAYOUT_OUTSIDE_IN,
   BULK_STORE_LINE_MATERIAL_STRIDE,
   type BulkStore,
 } from "@metafor/types/bulk/store"
@@ -16,6 +17,7 @@ import {
   indexStateGraphLayout,
   STATE_GRAPH_PRODUCTION_SIZING,
 } from "@metafor/visual/layout/centered-nested"
+import {OutsideIn} from "@metafor/visual/layout"
 import type {BulkRuntimeProjection} from "@metafor/types/bulk/runtime"
 import type {Particle} from "shared/protocol/force/particle"
 import snapshotJson from "./fixture/monad-snapshot.json"
@@ -141,6 +143,20 @@ const storeFor = (manifest: BulkManifest): BulkStore => activateBulkStore(
   ),
 )
 
+const outsideStoreFor = (manifest: BulkManifest): BulkStore => activateBulkStore(
+  buildBulkStore(
+    manifest,
+    buildVisualScenePayload(OutsideIn, {manifest, owners: []}),
+  ),
+)
+
+const outsideProjectionStore = (
+  projection: BulkRuntimeProjection,
+  rootAtomId = 1,
+): BulkStore => activateBulkStore(
+  buildDirectBulkStore(projection, rootAtomId, BULK_STORE_LAYOUT_OUTSIDE_IN),
+)
+
 const groups = (store: BulkStore) => {
   const result = new Map<string, Readonly<{owner: number; position: number[]}>>()
   const members = new Map<number, string[]>()
@@ -229,6 +245,28 @@ const expectNumericParity = (
       throw new Error(`${label}[${index}]: ${actual[index]} != ${expected[index]}`)
     }
   }
+}
+
+const expectActiveDarkParity = (actual: BulkStore, expected: BulkStore): void => {
+  const rows = (store: BulkStore) => new Map(Array.from(
+    {length: store.dark.id.length},
+    (_, slot) => slot,
+  ).filter((slot) =>
+    (store.dark.flags[slot]! & BULK_STORE_FLAG_REMOVED) === 0
+  ).map((slot) => [store.dark.id[slot]!, [
+    store.dark.parent[slot]!,
+    store.dark.kind[slot]!,
+    store.dark.wimp[slot]!,
+    store.dark.order[slot]!,
+    ...store.dark.position.slice(slot * 3, slot * 3 + 3),
+    ...store.dark.form.slice(slot * 2, slot * 2 + 2),
+  ]] as const))
+  const left = rows(actual)
+  const right = rows(expected)
+  expect([...left.keys()].toSorted((a, b) => a - b)).toEqual(
+    [...right.keys()].toSorted((a, b) => a - b),
+  )
+  for (const [id, row] of right) expectNumericParity(left.get(id)!, row, `dark.${id}`)
 }
 
 const occurrenceKeys = (
@@ -1349,5 +1387,242 @@ describe("Bulk Store local centered-nested regroup", () => {
     expect(calls.proxy).toBeGreaterThan(0)
     expect(calls.transition).toBeGreaterThan(0)
     expect(calls.relation).toBeGreaterThan(0)
+  })
+})
+
+describe("Bulk Store local outside-in updates", () => {
+  test("rebinds Value and incident entanglement without moving outside-in geometry", () => {
+    const store = outsideStoreFor(baseManifest())
+    expect(store.layout).toBe(BULK_STORE_LAYOUT_OUTSIDE_IN)
+    const before = {
+      darkPosition: Array.from(store.dark.position),
+      darkForm: Array.from(store.dark.form),
+      fieldPosition: Array.from(store.field.position),
+      orbitalPosition: Array.from(store.orbital.position),
+    }
+    const {calls, renderer} = recorder()
+
+    applyBulkGluonReplace(store, renderer, gluon(2, 102, 11))
+
+    expect(Array.from(store.dark.position)).toEqual(before.darkPosition)
+    expect(Array.from(store.dark.form)).toEqual(before.darkForm)
+    expect(Array.from(store.field.position)).toEqual(before.fieldPosition)
+    expect(Array.from(store.orbital.position)).toEqual(before.orbitalPosition)
+    const alias = Array.from(store.fieldAlias.id).findIndex((_, slot) =>
+      store.fieldAlias.atom[slot] === 2 && store.fieldAlias.field[slot] === 102)
+    expect(store.fieldAlias.value[alias]).toBe(11)
+    expect(calls.fields.flat()).toContain(store.fieldAlias.marker[alias]! - 1)
+    for (let slot = 0; slot < store.relation.id.length; slot++) {
+      if (store.relation.kind[slot] === 0 &&
+          (store.relation.flags[slot]! & BULK_STORE_FLAG_REMOVED) === 0) {
+        expect(store.relation.batch[slot]).toBe(0)
+      }
+    }
+  })
+
+  test("adds and removes one declaration occurrence with rebuilt outside-in parity", () => {
+    const source = baseManifest()
+    const store = outsideStoreFor(source)
+    const {renderer} = recorder()
+    const added = {
+      ...field(1, 106, 0),
+      valueId: null,
+      valueText: null,
+    }
+    const row = {
+      id: 106,
+      wimp: "test/2",
+      localId: 106,
+      key: "field-106",
+      type: "number",
+      required: false,
+      label: "Field 106",
+    }
+
+    applyBulkStoreMessage(store, renderer, {parts: [{
+      part: "graviton",
+      op: "add",
+      path: "field",
+      ts: 1,
+      value: row,
+    }]})
+    const expected = outsideStoreFor({...source, fieldParticles: [...source.fieldParticles, added]})
+    const activeFields = (value: BulkStore): number[] => Array.from(
+      {length: value.field.id.length},
+      (_, slot) => slot,
+    ).filter((slot) => (value.field.flags[slot]! & BULK_STORE_FLAG_REMOVED) === 0)
+    const actualSlots = activeFields(store)
+    const expectedSlots = activeFields(expected)
+    const fieldPositions = (value: BulkStore, slots: readonly number[]) => new Map(
+      slots.map((slot) => [
+        `${value.field.owner[slot]}:${value.field.field[slot]}`,
+        Array.from(value.field.position.slice(slot * 3, slot * 3 + 3)),
+      ] as const),
+    )
+    const actualFields = fieldPositions(store, actualSlots)
+    const expectedFields = fieldPositions(expected, expectedSlots)
+    expect([...actualFields.keys()].toSorted()).toEqual([...expectedFields.keys()].toSorted())
+    for (const [key, position] of expectedFields) {
+      expectNumericParity(actualFields.get(key)!, position, `outside-in.add.field.${key}`)
+    }
+    expectNumericParity(store.dark.position, expected.dark.position, "outside-in.add.dark.position")
+    expectNumericParity(store.dark.form, expected.dark.form, "outside-in.add.dark.form")
+
+    applyBulkStoreMessage(store, renderer, {parts: [{
+      part: "graviton",
+      op: "remove",
+      path: "field",
+      from: 106,
+      ts: 2,
+      value: row,
+    }]})
+    expect(activeFields(store).map((slot) => store.field.field[slot])).not.toContain(106)
+    expectNumericParity(store.dark.position, outsideStoreFor(source).dark.position, "outside-in.remove.dark.position")
+    expectNumericParity(store.dark.form, outsideStoreFor(source).dark.form, "outside-in.remove.dark.form")
+  })
+
+  test("replaces an Atom WIMP and bindings with exact outside-in owner geometry", () => {
+    const projection = structuralProjection()
+    const store = outsideProjectionStore(projection)
+    const before = directStateIds(store, projection, 2)
+    const payload = {
+      atom: {
+        id: 2, parentAtom: null, parentTopology: 1,
+        wimp: "test/target", position: 0,
+      },
+      state: {metaState: 401},
+      values: [{atom: 2, field: 201, value: 801}],
+      valueRecords: [{id: 801, kind: "number", number: 8}],
+      valueItems: [],
+    }
+    const {renderer} = recorder()
+    applyBulkStoreMessage(store, renderer, {parts: [{
+      part: "graviton", op: "replace", path: "atom/2", ts: 1, value: payload,
+    }]})
+
+    const next = structuralProjection()
+    next.atoms[1] = payload.atom
+    next.atomStates[1] = {atom: 2, state: 401}
+    next.atomValues.splice(0, next.atomValues.length, {atom: 2, field: 201, value: 801})
+    next.values.splice(0, next.values.length, {
+      id: 801, kind: "number", booleanValue: null, numberValue: 8,
+      textValue: null, enumValue: null,
+    })
+    const expected = outsideProjectionStore(next)
+    expectActiveDarkParity(store, expected)
+    expectVisualParity(store, groups(expected))
+    expectSemanticGeometryParity(
+      ownerSemanticGeometry(store, 4, updatedStateIds(store, next, 2, before)),
+      ownerSemanticGeometry(expected, 4, directStateIds(expected, next, 2)),
+    )
+  })
+
+  test("replaces Topology owner, kind and position with exact outside-in parent geometry", () => {
+    const projection = structuralProjection()
+    const store = outsideProjectionStore(projection)
+    const row = {
+      id: 1,
+      parentAtom: null,
+      parentTopology: 2,
+      kind: "macho" as const,
+      position: 0,
+    }
+    const {renderer} = recorder()
+    applyBulkStoreMessage(store, renderer, {parts: [{
+      part: "graviton", op: "replace", path: "topology/1", ts: 1, value: row,
+    }]})
+
+    const next = structuralProjection()
+    next.topologies[0] = row
+    const expected = outsideProjectionStore(next)
+    expectActiveDarkParity(store, expected)
+    expectVisualParity(store, groups(expected))
+  })
+
+  test("moves and copies runtime Atoms through local outside-in updates", () => {
+    const projection = structuralProjection()
+    const store = outsideProjectionStore(projection)
+    const {renderer} = recorder()
+    const moved = {
+      atom: {
+        id: 3, parentAtom: null, parentTopology: 1,
+        wimp: "test/source", position: 0,
+      },
+      state: {metaState: 301},
+      values: [{atom: 3, field: 101, value: 701}],
+      valueRecords: [{id: 701, kind: "number", number: 7}],
+      valueItems: [],
+    }
+    applyBulkStoreMessage(store, renderer, {parts: [{
+      part: "graviton", op: "move", path: "atom/3", from: "atom/2", ts: 1,
+      value: moved,
+    }]})
+    const afterMove = structuralProjection()
+    afterMove.atoms[1] = moved.atom
+    afterMove.atomStates[1] = {atom: 3, state: 301}
+    afterMove.atomValues[0] = {atom: 3, field: 101, value: 701}
+    const expectedMove = outsideProjectionStore(afterMove)
+    expectActiveDarkParity(store, expectedMove)
+    expectVisualParity(store, groups(expectedMove))
+
+    const copied = {
+      atom: {
+        id: 4, parentAtom: null, parentTopology: 1,
+        wimp: "test/source", position: 1,
+      },
+      state: {metaState: 301},
+      values: [{atom: 4, field: 101, value: 702}],
+      valueRecords: [{id: 702, kind: "number", number: 9}],
+      valueItems: [],
+    }
+    applyBulkStoreMessage(store, renderer, {parts: [{
+      part: "graviton", op: "copy", path: "atom/4", from: "atom/3", ts: 2,
+      value: copied,
+    }]})
+    const afterCopy = structuredClone(afterMove)
+    afterCopy.atoms.push(copied.atom)
+    afterCopy.atomStates.push({atom: 4, state: 301})
+    afterCopy.atomValues.push({atom: 4, field: 101, value: 702})
+    afterCopy.values.push({
+      id: 702, kind: "number", booleanValue: null, numberValue: 9,
+      textValue: null, enumValue: null,
+    })
+    const expectedCopy = outsideProjectionStore(afterCopy)
+    expectActiveDarkParity(store, expectedCopy)
+    expectVisualParity(store, groups(expectedCopy))
+  })
+
+  test("moves and copies runtime Topology rows with exact outside-in relations", () => {
+    const projection = structuralProjection()
+    const store = outsideProjectionStore(projection)
+    const {renderer} = recorder()
+    const moved = {
+      id: 3, parentAtom: 1, parentTopology: null,
+      kind: "fuzzy" as const, position: 0,
+    }
+    applyBulkStoreMessage(store, renderer, {parts: [{
+      part: "graviton", op: "move", path: "topology/3", from: "topology/1", ts: 1,
+      value: moved,
+    }]})
+    const afterMove = structuralProjection()
+    afterMove.topologies[0] = moved
+    afterMove.atoms[1] = {...afterMove.atoms[1]!, parentTopology: 3}
+    const expectedMove = outsideProjectionStore(afterMove)
+    expectActiveDarkParity(store, expectedMove)
+    expectVisualParity(store, groups(expectedMove))
+
+    const copied = {
+      id: 4, parentAtom: 1, parentTopology: null,
+      kind: "macho" as const, position: 2,
+    }
+    applyBulkStoreMessage(store, renderer, {parts: [{
+      part: "graviton", op: "copy", path: "topology/4", from: "topology/2", ts: 2,
+      value: copied,
+    }]})
+    const afterCopy = structuredClone(afterMove)
+    afterCopy.topologies.push(copied)
+    const expectedCopy = outsideProjectionStore(afterCopy)
+    expectActiveDarkParity(store, expectedCopy)
+    expectVisualParity(store, groups(expectedCopy))
   })
 })

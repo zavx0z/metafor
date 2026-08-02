@@ -67,8 +67,13 @@ export class Force extends ForceBase {
       logImpulse(this.domain, "<-", impulse)
       this.emitImpulse(impulse)
     }
-    socket.onclose = () => {
+    socket.onclose = (event) => {
       this.emitConnection(false)
+      // A policy close means the server rejected this exact browser identity
+      // or one-use bootstrap session. Replaying the same Upgrade forever can
+      // never succeed; a fresh page load is the operation that obtains a new
+      // session.
+      if (event.code === 1008) return
       this.#reconnect()
     }
     socket.onerror = () => socket.close()

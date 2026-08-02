@@ -26,8 +26,8 @@
   result, layout, geometry, transformations, State-рукав, sampled Transition
   path либо animation frame. Bulk композирует эти результаты в общую сцену и
   владеет её persistent lifecycle.
-- `centered-nested` является готовым паттерном раскладки, а `outside-in`
-  остаётся `in-progress`. Это два и только два full-tree layout patterns, но
+- `centered-nested` и `outside-in` являются готовыми паттернами раскладки. Это
+  два и только два full-tree layout patterns, но
   их наличие не выбирает продуктовую раскладку автоматически.
 - Visual не владеет persistent Store, visual update policy, causal frontier,
   reconnect/replay/recovery, UI, Canvas, renderer, camera/viewport или Engine
@@ -109,7 +109,7 @@
   topology fragment и сохраняет переданные ownership и identity. Он выводит
   статическую геометрию только для этого вызова; камера и размер viewport не
   меняют размеры либо взаимное расположение форм.
-- `outside-in` является отдельным незавершённым обзорным паттерном. Bulk явно
+- `outside-in` является отдельным готовым обзорным паттерном. Bulk явно
   передаёт ему внешний корень и состав каждого уровня; неизвестный slug не
   выбирает паттерн как неявный fallback.
 - `centered-nested` является отдельным паттерном над переданным Bulk деревом.

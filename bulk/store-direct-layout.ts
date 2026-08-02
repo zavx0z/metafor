@@ -3,6 +3,7 @@ import {
   BULK_STORE_FLAG_OVERLAY,
   BULK_STORE_FLAG_RETURNING,
   BULK_STORE_FLAG_TORUS,
+  BULK_STORE_LAYOUT_OUTSIDE_IN,
   type BulkStore,
 } from "@metafor/types/bulk/store"
 import {
@@ -54,6 +55,7 @@ import {
 } from "./store.ts"
 import {
   layoutCenteredNestedStoreFields,
+  layoutOutsideInStoreFields,
   type BulkStoreFieldPlacement,
 } from "./store-field-layout.ts"
 import type {DirectStoreBuild} from "./store-direct.ts"
@@ -451,6 +453,9 @@ export const fillDirectBulkStoreGeometry = (input: DirectStoreBuild): BulkStore 
       const atom = atomById.get(id / 2)
       return atom ? [atom] : []
     })
+  const atomsInLayoutOrder = store.layout === BULK_STORE_LAYOUT_OUTSIDE_IN
+    ? atomsInDarkOrder
+    : atomsInVisualOrder
   const orbitalIdByKey = new Map(orbitalKey.map((key, slot) => [key, slot + 1] as const))
   const proxyByStateField = new Map<string, number>()
   for (let slot = 0; slot < store.proxy.id.length; slot++) {
@@ -458,7 +463,7 @@ export const fillDirectBulkStoreGeometry = (input: DirectStoreBuild): BulkStore 
   }
   const process = buildProcessLayouts(input)
   const statePreparedByOwner = new Map<number, PreparedStateLayout[]>()
-  for (const atom of atomsInVisualOrder) {
+  for (const atom of atomsInLayoutOrder) {
     const owner = atom.id * 2
     if (!darkSlotById.has(owner)) continue
     const graph = buildStateGraph(projection, atom.id)
@@ -479,50 +484,65 @@ export const fillDirectBulkStoreGeometry = (input: DirectStoreBuild): BulkStore 
   const statePlacementsByOwner = new Map<number, StatePlacement[]>()
   const allDarkIds = new Set(Array.from(store.dark.id))
   const allAliases = new Set(Array.from({length: store.fieldAlias.id.length}, (_, slot) => slot))
-  const placements = layoutCenteredNestedStoreFields(
-    store,
-    store.root,
-    allDarkIds,
-    allAliases,
-    0,
-    {
-      componentRootDarkParticleId: store.root,
-      componentRootDepth: 0,
-      darkFormSink: (id, form) => {
-        const slot = darkSlotById.get(id)!
-        store.dark.form[slot * 2] = form.radius
-        store.dark.form[slot * 2 + 1] = form.tube
-      },
-      ownStateOuterExtentResolver: (owner, childOuterExtent, scale) => {
-        const prepared = statePreparedByOwner.get(owner) ?? []
-        const firstRootState = prepared[0]?.layout.rootStateId
-        const phase = firstRootState === undefined
-          ? 0
-          : stablePhase(`${owner}:${firstRootState}:${prepared.length}`)
-        const localGap = TORUS_LAYOUT_BASELINE.rootFieldRadius *
-          TORUS_LAYOUT_BASELINE.contentGapToFieldRadius
-        const packing = packStateSleeves(
-          prepared,
-          prepared.length === 0 ? 0 : stateInnerOrbitRadius(
-            prepared,
-            childOuterExtent / scale,
-            localGap,
-          ),
-          stateNodeSurfaceGap(TORUS_LAYOUT_BASELINE.rootFieldRadius),
-          phase,
-        )
-        const statePlacements = prepared.map((entry, index) => ({
-          angle: packing.angles[index] ?? phase,
-          orbitRadius: packing.orbitRadius,
-          prepared: entry,
-        }))
-        statePlacementsByOwner.set(owner, statePlacements)
-        return Math.max(0, ...statePlacements.flatMap(({orbitRadius, prepared: entry}) =>
-          entry.offsets.map((offset) =>
-            Math.hypot(orbitRadius + offset.x, offset.y, offset.z) + offset.node.radius))) * scale
-      },
+  const layoutContext = {
+    componentRootDarkParticleId: store.root,
+    componentRootDepth: 0,
+    darkFormSink: (id: number, form: Readonly<{radius: number; tube: number}>) => {
+      const slot = darkSlotById.get(id)!
+      store.dark.form[slot * 2] = form.radius
+      store.dark.form[slot * 2 + 1] = form.tube
     },
-  )
+    darkPositionSink: (id: number, point: Point) => {
+      const slot = darkSlotById.get(id)!
+      store.dark.position[slot * 3] = point.x
+      store.dark.position[slot * 3 + 1] = point.y
+      store.dark.position[slot * 3 + 2] = point.z
+    },
+    ownStateOuterExtentResolver: (owner: number, childOuterExtent: number, scale: number) => {
+      const prepared = statePreparedByOwner.get(owner) ?? []
+      const firstRootState = prepared[0]?.layout.rootStateId
+      const phase = firstRootState === undefined
+        ? 0
+        : stablePhase(`${owner}:${firstRootState}:${prepared.length}`)
+      const localGap = TORUS_LAYOUT_BASELINE.rootFieldRadius *
+        TORUS_LAYOUT_BASELINE.contentGapToFieldRadius
+      const packing = packStateSleeves(
+        prepared,
+        prepared.length === 0 ? 0 : stateInnerOrbitRadius(
+          prepared,
+          childOuterExtent / scale,
+          localGap,
+        ),
+        stateNodeSurfaceGap(TORUS_LAYOUT_BASELINE.rootFieldRadius),
+        phase,
+      )
+      const statePlacements = prepared.map((entry, index) => ({
+        angle: packing.angles[index] ?? phase,
+        orbitRadius: packing.orbitRadius,
+        prepared: entry,
+      }))
+      statePlacementsByOwner.set(owner, statePlacements)
+      return Math.max(0, ...statePlacements.flatMap(({orbitRadius, prepared: entry}) =>
+        entry.offsets.map((offset) =>
+          Math.hypot(orbitRadius + offset.x, offset.y, offset.z) + offset.node.radius))) * scale
+    },
+  }
+  const placements = store.layout === BULK_STORE_LAYOUT_OUTSIDE_IN
+    ? layoutOutsideInStoreFields(
+      store,
+      store.root,
+      allDarkIds,
+      allAliases,
+      layoutContext,
+    )
+    : layoutCenteredNestedStoreFields(
+      store,
+      store.root,
+      allDarkIds,
+      allAliases,
+      0,
+      layoutContext,
+    )
   for (const placement of placements) fillField(store, fieldSourceById, placement, intern)
   reorderAliases(store, placements)
 
@@ -538,7 +558,7 @@ export const fillDirectBulkStoreGeometry = (input: DirectStoreBuild): BulkStore 
   const transitionBatches = new Map<string, number>()
   const matchedTransitions = new Set<number>()
   const stateLayoutWorldByOwnerRoot = new Map<string, StateGraphRootLayout>()
-  for (const atom of atomsInVisualOrder) {
+  for (const atom of atomsInLayoutOrder) {
     const owner = atom.id * 2
     if (!darkSlotById.has(owner)) continue
     const scale = torusLevelScale(depths.get(owner) ?? 0)
@@ -786,6 +806,7 @@ export const fillDirectBulkStoreGeometry = (input: DirectStoreBuild): BulkStore 
   const relationBatches = new Map<string, number>()
   for (let slot = 0; slot < store.relation.id.length; slot++) {
     const entanglement = store.relation.kind[slot] === BULK_STORE_RELATION_KIND["field-entanglement"]
+    if (store.layout === BULK_STORE_LAYOUT_OUTSIDE_IN && entanglement) continue
     if (
       entanglement &&
       store.relation.aKind[slot] === BULK_STORE_ENDPOINT_KIND.field &&

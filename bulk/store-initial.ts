@@ -6,6 +6,7 @@ import type {
   BulkStoreApplyControl,
   BulkStoreInitial,
 } from "@metafor/types/bulk/store"
+import {BULK_STORE_LAYOUT_OUTSIDE_IN} from "@metafor/types/bulk/store"
 import type {ForceMessage} from "shared/protocol/force/message"
 import {isBulkBrowserForceMessage} from "./browser-protocol.ts"
 import {isBulkStoreInitial} from "./store.ts"
@@ -45,7 +46,11 @@ export const prepareBulkStoreInitial = (
   }
   const result: BulkStoreInitial = {
     session,
-    store: buildDirectBulkStore(runtime, selected[0]!.id),
+    store: buildDirectBulkStore(
+      runtime,
+      selected[0]!.id,
+      BULK_STORE_LAYOUT_OUTSIDE_IN,
+    ),
   }
   if (!isBulkStoreInitial(result)) {
     throw new Error("Bulk initial RPC cut produced an invalid Store")

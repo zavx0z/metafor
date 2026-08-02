@@ -1,6 +1,32 @@
 import { BufferAttribute, BufferGeometry } from "../core/BufferGeometry"
 import { Vector3 } from "../math"
 
+type AngleTable = Readonly<{
+  cos: Float64Array
+  sin: Float64Array
+}>
+
+const angleTableCache = new Map<string, AngleTable>()
+
+const angleTable = (
+  segments: number,
+  length: number,
+): AngleTable => {
+  const key = `${segments}:${length}`
+  const held = angleTableCache.get(key)
+  if (held) return held
+  const cos = new Float64Array(segments + 1)
+  const sin = new Float64Array(segments + 1)
+  for (let index = 0; index <= segments; index += 1) {
+    const angle = index / segments * length
+    cos[index] = Math.cos(angle)
+    sin[index] = Math.sin(angle)
+  }
+  const created = {cos, sin}
+  angleTableCache.set(key, created)
+  return created
+}
+
 interface SphereGeometryParameters {
   radius?: number
   widthSegments?: number
@@ -30,64 +56,82 @@ export class SphereGeometry extends BufferGeometry {
     this.widthSegments = widthSegs
     this.heightSegments = heightSegs
 
-    const vertices: number[] = []
-    const normals: number[] = []
-    const uvs: number[] = []
-    const indices: number[] = []
+    const vertexCount = (widthSegs + 1) * (heightSegs + 1)
+    const vertices = new Float32Array(vertexCount * 3)
+    const normals = new Float32Array(vertexCount * 3)
+    const uvs = new Float32Array(vertexCount * 2)
+    const indices = new Uint16Array(widthSegs * (heightSegs - 1) * 6)
 
     const vertex = new Vector3()
     const normal = new Vector3()
+    const phi = angleTable(widthSegs, phiLength)
+    const theta = angleTable(heightSegs, thetaEnd)
 
-    let index = 0
-    const grid: number[][] = []
+    let vertexOffset = 0
+    let uvOffset = 0
 
     // Генерация вершин, нормалей и UV
     for (let iy = 0; iy <= heightSegs; iy++) {
       const v = iy / heightSegs
-      const row: number[] = []
+      const sinTheta = theta.sin[iy]!
+      const cosTheta = theta.cos[iy]!
       const uOffset = (iy === 0) ? 0.5 / widthSegs : (iy === heightSegs) ? -0.5 / widthSegs : 0
 
       for (let ix = 0; ix <= widthSegs; ix++) {
         const u = ix / widthSegs
-        vertex.x = -radius * Math.cos(phiStart + u * phiLength) * Math.sin(thetaStart + v * thetaEnd)
-        vertex.y = radius * Math.cos(thetaStart + v * thetaEnd)
-        vertex.z = radius * Math.sin(phiStart + u * phiLength) * Math.sin(thetaStart + v * thetaEnd)
-        vertices.push(vertex.x, vertex.y, vertex.z)
+        vertex.x = -radius * phi.cos[ix]! * sinTheta
+        vertex.y = radius * cosTheta
+        vertex.z = radius * phi.sin[ix]! * sinTheta
+        vertices[vertexOffset] = vertex.x
+        vertices[vertexOffset + 1] = vertex.y
+        vertices[vertexOffset + 2] = vertex.z
         normal.copy(vertex).normalize()
-        normals.push(normal.x, normal.y, normal.z)
-        uvs.push(u + uOffset, 1 - v)
-        row.push(index++)
+        normals[vertexOffset] = normal.x
+        normals[vertexOffset + 1] = normal.y
+        normals[vertexOffset + 2] = normal.z
+        uvs[uvOffset] = u + uOffset
+        uvs[uvOffset + 1] = 1 - v
+        vertexOffset += 3
+        uvOffset += 2
       }
-      grid.push(row)
     }
 
     // Генерация индексов
+    let indexOffset = 0
     for (let iy = 0; iy < heightSegs; iy++) {
       for (let ix = 0; ix < widthSegs; ix++) {
-        const a = grid[iy]![ix + 1]!
-        const b = grid[iy]![ix]!
-        const c = grid[iy + 1]![ix]!
-        const d = grid[iy + 1]![ix + 1]!
+        const a = iy * (widthSegs + 1) + ix + 1
+        const b = iy * (widthSegs + 1) + ix
+        const c = (iy + 1) * (widthSegs + 1) + ix
+        const d = (iy + 1) * (widthSegs + 1) + ix + 1
         if (iy !== 0) {
-          indices.push(a, b, d)
+          indices[indexOffset] = a
+          indices[indexOffset + 1] = b
+          indices[indexOffset + 2] = d
+          indexOffset += 3
         }
         if (iy !== heightSegs - 1) {
-          indices.push(b, c, d)
+          indices[indexOffset] = b
+          indices[indexOffset + 1] = c
+          indices[indexOffset + 2] = d
+          indexOffset += 3
         }
       }
     }
 
-    this.setIndex(new BufferAttribute(new Uint16Array(indices), 1))
-    this.setAttribute("position", new BufferAttribute(new Float32Array(vertices), 3))
-    this.setAttribute("normal", new BufferAttribute(new Float32Array(normals), 3))
-    this.setAttribute("uv", new BufferAttribute(new Float32Array(uvs), 2))
+    this.setIndex(new BufferAttribute(indices, 1))
+    this.setAttribute("position", new BufferAttribute(vertices, 3))
+    this.setAttribute("normal", new BufferAttribute(normals, 3))
+    this.setAttribute("uv", new BufferAttribute(uvs, 2))
   }
 
   public override toWireframe(): BufferGeometry {
     const positions = this.attributes.position!.array!
     const widthSegs = this.widthSegments
     const heightSegs = this.heightSegments
-    const lines: number[] = []
+    const segmentCount = (heightSegs + 1) * widthSegs + heightSegs * (widthSegs + 1)
+    const lines = new Float32Array(segmentCount * 6)
+    let offset = 0
 
     const getIndex = (iy: number, ix: number) => (iy * (widthSegs + 1) + ix) * 3
 
@@ -98,21 +142,31 @@ export class SphereGeometry extends BufferGeometry {
         // Horizontal line
         if (ix < widthSegs) {
           const b = getIndex(iy, ix + 1)
-          lines.push(positions[a]!, positions[a + 1]!, positions[a + 2]!)
-          lines.push(positions[b]!, positions[b + 1]!, positions[b + 2]!)
+          lines[offset] = positions[a]!
+          lines[offset + 1] = positions[a + 1]!
+          lines[offset + 2] = positions[a + 2]!
+          lines[offset + 3] = positions[b]!
+          lines[offset + 4] = positions[b + 1]!
+          lines[offset + 5] = positions[b + 2]!
+          offset += 6
         }
 
         // Vertical line
         if (iy < heightSegs) {
           const c = getIndex(iy + 1, ix)
-          lines.push(positions[a]!, positions[a + 1]!, positions[a + 2]!)
-          lines.push(positions[c]!, positions[c + 1]!, positions[c + 2]!)
+          lines[offset] = positions[a]!
+          lines[offset + 1] = positions[a + 1]!
+          lines[offset + 2] = positions[a + 2]!
+          lines[offset + 3] = positions[c]!
+          lines[offset + 4] = positions[c + 1]!
+          lines[offset + 5] = positions[c + 2]!
+          offset += 6
         }
       }
     }
 
     const wireframeGeometry = new BufferGeometry()
-    wireframeGeometry.setAttribute("position", new BufferAttribute(new Float32Array(lines), 3))
+    wireframeGeometry.setAttribute("position", new BufferAttribute(lines, 3))
     return wireframeGeometry
   }
 }

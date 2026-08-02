@@ -271,6 +271,8 @@ export type SurfaceLabelVisual = {
 
 export type LabelRenderRecord = {
   anchorObject: Object3D
+  bentCurveRadius: number
+  bentScale: number
   container: Object3D
   coverCenterX: number
   currentOpacity: number

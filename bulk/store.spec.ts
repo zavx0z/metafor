@@ -35,6 +35,7 @@ describe("Bulk Store initial foundation", () => {
       "field",
       "fieldAlias",
       "fieldSource",
+      "layout",
       "orbital",
       "orbitalRelatedState",
       "processField",

@@ -2500,6 +2500,8 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			spec.anchorObject.add(container)
 			labelRecords.set(spec.key, {
 				anchorObject: spec.anchorObject,
+				bentCurveRadius: Number.NaN,
+				bentScale: Number.NaN,
 				container,
 				coverCenterX: visual.coverCenterX,
 				currentOpacity: visual.material.opacity,
@@ -2541,6 +2543,8 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		existing.extents = visual.extents
 		existing.initialCoverPositions = visual.initialCoverPositions
 		existing.initialStencilPositions = visual.initialStencilPositions
+		existing.bentCurveRadius = Number.NaN
+		existing.bentScale = Number.NaN
 		existing.material = visual.material
 		existing.signature = signature
 		existing.container.add(visual.container)
@@ -4036,20 +4040,27 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 				tracker.container.scale,
 			)
 			tracker.material.opacity = tracker.currentOpacity
-			bendTextAroundEquator({
-				geometry: tracker.textNode.stencilGeometry,
-				initialPositions: tracker.initialStencilPositions,
-				centerX: tracker.stencilCenterX,
-				scale: fitScale,
-				curveRadius: curveRadiusMm,
-			})
-			bendTextAroundEquator({
-				geometry: tracker.textNode.coverGeometry,
-				initialPositions: tracker.initialCoverPositions,
-				centerX: tracker.coverCenterX,
-				scale: fitScale,
-				curveRadius: curveRadiusMm,
-			})
+			if (
+				tracker.bentCurveRadius !== curveRadiusMm ||
+				tracker.bentScale !== fitScale
+			) {
+				bendTextAroundEquator({
+					geometry: tracker.textNode.stencilGeometry,
+					initialPositions: tracker.initialStencilPositions,
+					centerX: tracker.stencilCenterX,
+					scale: fitScale,
+					curveRadius: curveRadiusMm,
+				})
+				bendTextAroundEquator({
+					geometry: tracker.textNode.coverGeometry,
+					initialPositions: tracker.initialCoverPositions,
+					centerX: tracker.coverCenterX,
+					scale: fitScale,
+					curveRadius: curveRadiusMm,
+				})
+				tracker.bentCurveRadius = curveRadiusMm
+				tracker.bentScale = fitScale
+			}
 			tracker.container.updateMatrix()
 		}
 	}

@@ -370,9 +370,9 @@ export const buildOutsideInVisualScene = (
 export const OutsideIn = defineVisualLayout({
   slug: "outside-in",
   label: "Снаружи → внутрь",
-  status: "in-progress",
+  status: "ready",
   description:
-    "Раскладка в работе: полный Bulk scene snapshot от корневого Atom внутрь каждого рекурсивного Atom.",
+    "Полный Bulk scene snapshot от корневого Atom внутрь каждого рекурсивного Atom.",
   /**
    * Every Field sits in its own owner's core and `valueId` travels as data, so
    * rebinding a Value repaints a marker without moving it.

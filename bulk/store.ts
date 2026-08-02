@@ -8,6 +8,8 @@ import {
   BULK_STORE_FLAG_RETURNING,
   BULK_STORE_FLAG_TORUS,
   BULK_STORE_LINE_MATERIAL_STRIDE,
+  BULK_STORE_LAYOUT_CENTERED_NESTED,
+  BULK_STORE_LAYOUT_OUTSIDE_IN,
   BULK_STORE_QUANTUM_MATERIAL_STRIDE,
   BULK_STORE_RELATION_CONTROL_STRIDE,
   BULK_STORE_TRANSITION_CONTROL_STRIDE,
@@ -483,6 +485,9 @@ export const buildBulkStore = (
 
   const store: BulkStore = {
     root: roots[0]!.darkParticleId,
+    layout: visual.layoutSlug === "outside-in"
+      ? BULK_STORE_LAYOUT_OUTSIDE_IN
+      : BULK_STORE_LAYOUT_CENTERED_NESTED,
     text,
     wimp,
     fieldSource,
@@ -541,12 +546,15 @@ const validateShape = (
 /** Validates the inert JSON form before browser Store activation. */
 export const isBulkStore = (value: unknown): value is BulkStore => {
   if (!isRecord(value) || !exactKeys(value, [
-    "root", "text", "wimp", "fieldSource", "stateSource", "transitionSource", "conditionSource",
+    "root", "layout", "text", "wimp", "fieldSource", "stateSource", "transitionSource", "conditionSource",
     "processSource", "processField", "reactionSource", "reactionField", "reactionState",
     "dark", "field", "fieldAlias", "orbital",
     "orbitalRelatedState", "proxy", "transition", "relation", "batch",
   ])) return false
-  if (!positive(Number(value.root)) || !Array.isArray(value.text) ||
+  if (!positive(Number(value.root)) ||
+      (value.layout !== BULK_STORE_LAYOUT_CENTERED_NESTED &&
+        value.layout !== BULK_STORE_LAYOUT_OUTSIDE_IN) ||
+      !Array.isArray(value.text) ||
       !value.text.every((entry) => typeof entry === "string") || value.text[0] !== "") return false
   const textCount = value.text.length
   if (!isRecord(value.wimp) || !exactKeys(value.wimp, ["src", "name", "flags"]) ||

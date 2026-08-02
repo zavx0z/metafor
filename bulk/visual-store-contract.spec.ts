@@ -1,4 +1,7 @@
 import {describe, expect, test} from "bun:test"
+import {mkdtempSync, readFileSync, rmSync} from "node:fs"
+import {tmpdir} from "node:os"
+import {join} from "node:path"
 import type {BulkManifest} from "@metafor/types/bulk/manifest"
 import {visualContextTorusMaterial} from "@metafor/visual"
 import {
@@ -70,21 +73,22 @@ const store = () => hydrateBulkVisualStore(
   },
 )
 
-describe("persistent production Bulk Visual Store", () => {
-  test("depends only on stateless Visual helpers, not layout or Engine", async () => {
-    const result = await Bun.build({
-      entrypoints: [new URL("./visual-store.ts", import.meta.url).pathname],
-      minify: true,
-      target: "browser",
-    })
-    expect(result.success).toBe(true)
-    const javascript = (
-      await Promise.all(
-        result.outputs
-          .filter((output) => output.path.endsWith(".js"))
-          .map((output) => output.text()),
-      )
-    ).join("\n")
+describe("legacy Bulk visual test oracle", () => {
+  test("depends only on stateless Visual helpers, not layout or Engine", () => {
+    const directory = mkdtempSync(join(tmpdir(), "metafor-bulk-visual-store-"))
+    const output = join(directory, "oracle.js")
+    const result = Bun.spawnSync([
+      process.execPath,
+      "build",
+      new URL("./visual-store.ts", import.meta.url).pathname,
+      "--target=browser",
+      "--minify",
+      "--outfile",
+      output,
+    ])
+    expect(result.exitCode).toBe(0)
+    const javascript = readFileSync(output, "utf8")
+    rmSync(directory, {force: true, recursive: true})
 
     expect(javascript).not.toContain("outside-in")
     expect(javascript).not.toContain("centered-nested")

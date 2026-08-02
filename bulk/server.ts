@@ -164,8 +164,9 @@ const server = Bun.serve<BrowserClient>({
     close(ws) {
       captureConnections.get(ws)?.disconnect()
       captureConnections.delete(ws)
-      browserClients.delete(ws)
-      console.log(`[bulk] browser disconnected ${ws.data.domain} ${ws.data.id}`)
+      if (browserClients.delete(ws)) {
+        console.log(`[bulk] browser disconnected ${ws.data.domain} ${ws.data.id}`)
+      }
     },
     message(ws, raw) {
       const text = String(raw)

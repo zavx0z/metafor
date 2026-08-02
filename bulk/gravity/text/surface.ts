@@ -5,11 +5,11 @@ import { resolveTextExtents } from "./extents"
 import { resolveSurfaceFitScale } from "./fit"
 
 /**
- * Готовый surface-label: узел Text и всё, что нужно для per-frame деформации.
+ * Готовый surface-label: узел Text и всё для локальной деформации при изменении формы.
  *
  * `initialStencilPositions` / `initialCoverPositions` — снимок координат на момент создания.
- * Per-frame деформация пишет новые координаты в буфер `geometry` через {@link bendTextAroundEquator}
- * без пересборки Text.
+ * Деформация пишет координаты в `geometry` через {@link bendTextAroundEquator}
+ * без пересборки Text; движение камеры меняет только transform контейнера.
  */
 const cloneInitialPositions = (text: Text): { stencil: Float32Array; cover: Float32Array } => {
   const stencil = text.stencilGeometry.attributes.position?.array ?? new Float32Array(0)

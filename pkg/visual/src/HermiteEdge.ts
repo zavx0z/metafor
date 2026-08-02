@@ -1,5 +1,20 @@
 export const HERMITE_EDGE_SEGMENTS = 64
 
+const HERMITE_BASIS = (() => {
+  const values = new Float64Array((HERMITE_EDGE_SEGMENTS + 1) * 4)
+  for (let index = 0; index <= HERMITE_EDGE_SEGMENTS; index += 1) {
+    const t = index / HERMITE_EDGE_SEGMENTS
+    const t2 = t * t
+    const t3 = t2 * t
+    const offset = index * 4
+    values[offset] = 2 * t3 - 3 * t2 + 1
+    values[offset + 1] = t3 - 2 * t2 + t
+    values[offset + 2] = -2 * t3 + 3 * t2
+    values[offset + 3] = t3 - t2
+  }
+  return values
+})()
+
 export type HermiteEdgePoint = Readonly<{
   x: number
   y: number
@@ -53,13 +68,11 @@ const hermiteCoordinate = (
   toTangent: number,
   index: number,
 ): number => {
-  const t = index / HERMITE_EDGE_SEGMENTS
-  const t2 = t * t
-  const t3 = t2 * t
-  const h00 = 2 * t3 - 3 * t2 + 1
-  const h10 = t3 - 2 * t2 + t
-  const h01 = -2 * t3 + 3 * t2
-  const h11 = t3 - t2
+  const offset = index * 4
+  const h00 = HERMITE_BASIS[offset]!
+  const h10 = HERMITE_BASIS[offset + 1]!
+  const h01 = HERMITE_BASIS[offset + 2]!
+  const h11 = HERMITE_BASIS[offset + 3]!
   return h00 * from + h10 * fromTangent + h01 * to + h11 * toTangent
 }
 

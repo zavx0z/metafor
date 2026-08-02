@@ -47,6 +47,11 @@ class FakeWebSocket {
   receive(payload: unknown): void {
     this.onmessage?.({data: JSON.stringify(payload)} as MessageEvent)
   }
+
+  serverClose(code: number): void {
+    this.readyState = FakeWebSocket.CLOSED
+    this.onclose?.({code} as CloseEvent)
+  }
 }
 
 let BrowserForce: ForceConstructor
@@ -263,6 +268,26 @@ describe("Force runtime transports", () => {
     expect(address.searchParams.get("id")).toBe("observer-1")
     expect(address.searchParams.get("session")).toBe("handoff-1")
     expect(socket.sent).toEqual([])
+  })
+
+  test("browser does not retry a rejected one-use observer session", async () => {
+    const ForceWithOptions = BrowserForce as unknown as new (
+      domain: string,
+      options: {id: string; parameters: Record<string, string>},
+    ) => InstanceType<ForceConstructor>
+    const force = new ForceWithOptions("bulk", {
+      id: "expired-observer",
+      parameters: {session: "expired-handoff"},
+    })
+    const socket = sockets.at(-1)!
+    await waitFor(() => force.connected)
+    const count = sockets.length
+
+    socket.serverClose(1008)
+    await Bun.sleep(550)
+
+    expect(force.connected).toBe(false)
+    expect(sockets.length).toBe(count)
   })
 
   test("browser consumes discriminated control frames before Force without producing an impulse", async () => {

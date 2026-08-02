@@ -1,9 +1,12 @@
 import type {BulkRootPromotionReceipt} from "@metafor/types/bulk/manifest"
 import type {BulkRuntimeProjection} from "@metafor/types/bulk/runtime"
 import type {BulkStore} from "@metafor/types/bulk/store"
+import type {BulkVisualLayoutSlug} from "@metafor/types/bulk/visual"
 import type {MetaAddress} from "@metafor/types/metafor/graph"
+import {OutsideIn} from "@metafor/visual/layout"
 import {buildBulkManifestation} from "./manifestation.ts"
 import {buildBulkStore} from "./store.ts"
+import {buildBulkVisualScenePayload} from "./visual-layout.ts"
 import {
   prepareBulkInitialVisual,
   type BulkReadyScene,
@@ -49,6 +52,7 @@ export const buildBulkStoreTestOracle = (
   projection: BulkRuntimeProjection,
   rootSrc: MetaAddress,
   promotionReceipt: BulkRootPromotionReceipt | null = null,
+  layoutSlug: BulkVisualLayoutSlug = "centered-nested",
 ): BulkStore => {
   const promotion = projectionPromotionReceipt(projection, promotionReceipt)
   const manifest = buildBulkManifestation(
@@ -56,6 +60,8 @@ export const buildBulkStoreTestOracle = (
     promotion?.removedRootSrc ?? rootSrc,
     promotion,
   )
-  const visual = prepareBulkInitialVisual(manifest, projection).payload
+  const visual = layoutSlug === "outside-in"
+    ? buildBulkVisualScenePayload(manifest, projection, OutsideIn)
+    : prepareBulkInitialVisual(manifest, projection, {layoutSlug}).payload
   return buildBulkStore(manifest, visual)
 }

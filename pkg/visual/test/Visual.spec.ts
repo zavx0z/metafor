@@ -16,13 +16,13 @@ describe("Visual layout catalog", () => {
     expect(Visual.some((layout) => "entity" in layout)).toBe(false)
   })
 
-  test("keeps outside-in explicit and marked as unfinished", () => {
+  test("keeps outside-in explicit and ready", () => {
     expect(visualLayoutForSlug("outside-in")).toMatchObject({
       slug: "outside-in",
       label: "Снаружи → внутрь",
-      status: "in-progress",
+      status: "ready",
       description:
-        "Раскладка в работе: полный Bulk scene snapshot от корневого Atom внутрь каждого рекурсивного Atom.",
+        "Полный Bulk scene snapshot от корневого Atom внутрь каждого рекурсивного Atom.",
     })
     expect(typeof visualLayoutForSlug("outside-in")?.buildScene)
       .toBe("function")

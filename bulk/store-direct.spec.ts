@@ -3,7 +3,10 @@ import {readFileSync} from "node:fs"
 import type {BoundaryInitialProjectionEntry} from "@metafor/types/boundary/initial"
 import type {BulkObserverSnapshot} from "@metafor/types/bulk/initial"
 import type {BulkRuntimeProjection} from "@metafor/types/bulk/runtime"
-import type {BulkStore} from "@metafor/types/bulk/store"
+import {
+  BULK_STORE_LAYOUT_OUTSIDE_IN,
+  type BulkStore,
+} from "@metafor/types/bulk/store"
 import {parseMetaAddress} from "@metafor/types/metafor/graph"
 import snapshotJson from "./fixture/monad-snapshot.json"
 import {buildDirectBulkStore} from "./store-direct.ts"
@@ -32,9 +35,20 @@ const textColumns = new Map<string, ReadonlySet<string>>([
   ["proxy", new Set(["label"])],
 ])
 
+const floatColumns = new Map<string, ReadonlySet<string>>([
+  ["dark", new Set(["position", "form", "material"])],
+  ["field", new Set(["position", "form", "material"])],
+  ["orbital", new Set(["position", "form", "material"])],
+  ["proxy", new Set(["position", "form", "material"])],
+  ["transition", new Set(["control"])],
+  ["relation", new Set(["control"])],
+  ["batch", new Set(["material"])],
+])
+
 const expectStoreParity = (actual: BulkStore, expected: BulkStore): void => {
   expect(isBulkStore(actual)).toBe(true)
   expect(actual.root).toBe(expected.root)
+  expect(actual.layout).toBe(expected.layout)
   expect(actual.orbitalRelatedState).toEqual(expected.orbitalRelatedState)
 
   for (const section of [
@@ -49,6 +63,7 @@ const expectStoreParity = (actual: BulkStore, expected: BulkStore): void => {
     "batch",
   ] as const) {
     const skipped = textColumns.get(section) ?? new Set<string>()
+    const floats = floatColumns.get(section) ?? new Set<string>()
     const actualSection = actual[section] as unknown as Record<string, readonly number[]>
     const expectedSection = expected[section] as unknown as Record<string, readonly number[]>
     expect(Object.keys(actualSection).toSorted()).toEqual(
@@ -57,8 +72,17 @@ const expectStoreParity = (actual: BulkStore, expected: BulkStore): void => {
     for (const column of Object.keys(actualSection)) {
       if (skipped.has(column) ||
           (section === "fieldSource" && column === "localId") ||
+          (actual.layout === BULK_STORE_LAYOUT_OUTSIDE_IN &&
+            section === "fieldAlias" && column === "orbit") ||
           ((section === "dark" || section === "fieldSource") && column === "wimp")) continue
-      expect(actualSection[column], `${section}.${column}`).toEqual(expectedSection[column])
+      if (floats.has(column)) {
+        expect(
+          new Float32Array(actualSection[column]!),
+          `${section}.${column} browser buffer`,
+        ).toEqual(new Float32Array(expectedSection[column]!))
+      } else {
+        expect(actualSection[column], `${section}.${column}`).toEqual(expectedSection[column])
+      }
     }
     for (const column of skipped) {
       const actualSlots = actualSection[column]!
@@ -80,6 +104,22 @@ const expectStoreParity = (actual: BulkStore, expected: BulkStore): void => {
 describe("direct Bulk Store production writer", () => {
   test("matches the legacy scene oracle for every numeric pixel/control column", () => {
     expectStoreParity(direct(), oracle())
+  })
+
+  test("writes outside-in directly with exact legacy pixel/control parity", () => {
+    expectStoreParity(
+      buildDirectBulkStore(
+        projection,
+        rootAtom.id,
+        BULK_STORE_LAYOUT_OUTSIDE_IN,
+      ),
+      buildBulkStoreTestOracle(
+        projection,
+        rootSrc,
+        null,
+        "outside-in",
+      ),
+    )
   })
 
   test("matches nested topology ownership without a semantic scene", () => {
