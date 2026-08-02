@@ -22,14 +22,23 @@ side in one macOS Space.
 4. Call `open_page` for `http://127.0.0.1:4004/` and retain its `pageId`.
 5. Use `screenshot_page` and require a nonempty scene plus the yellow Inspector
    HUD.
-6. Arm `capture_frames` with `payloads: "none"` and `profilePasses: true`.
-7. While capture is armed, perform one normal camera drag. An event-driven
-   renderer may otherwise produce an honest zero-command capture.
-8. Require render passes and draw calls. Call `analyze_performance` and
+6. Query `/cdp/targets` again and identify the page target created by
+   `open_page`. It is distinct from the clean target and from the MCP `pageId`.
+7. Start `scripts/arm-capture-drag.sh <instrumented-target-id>` through a
+   long-lived `exec_command` with a short initial yield (for example 250 ms).
+   Retain its session ID instead of waiting for completion. The target-bound
+   watcher waits for `webgpuInspector._localCaptureActive` and then sends one
+   real CDP camera drag.
+8. While that exec session is running, call `capture_frames` with
+   `payloads: "none"` and `profilePasses: true`. Afterwards poll the exec
+   session and require `capture-triggered`. This order avoids the orchestrator
+   serializing capture and input calls. A zero-command capture means no
+   rendered frame occurred and is not a performance result.
+9. Require render passes and draw calls. Call `analyze_performance` and
    `get_validation_errors`.
-9. If GPU timestamps are unavailable, report that explicitly. Do not infer
+10. If GPU timestamps are unavailable, report that explicitly. Do not infer
    measured GPU time from fill-workload heuristics.
-10. Close the temporary instrumented tab; keep the clean tab and contour in the
+11. Close the temporary instrumented tab; keep the clean tab and contour in the
     requested state.
 
 For detailed capture interpretation, use `$webgpu-capture-analysis`.

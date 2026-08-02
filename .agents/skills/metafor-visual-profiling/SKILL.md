@@ -66,10 +66,14 @@ login autostart, or automatic crash restart. Use `logs` for recent output and
   `attach_browser({ browserURL: "http://localhost:9222", reloadPages: false })`,
   then open a separate instrumented page with `open_page`. Do not reload the
   clean measurement tab.
-- For an event-driven renderer, arm `capture_frames` and make one real camera
-  drag or other normal render-producing interaction. A zero-command capture
-  means no rendered frame occurred in the capture window; it is not a
-  performance result.
+- For the event-driven renderer, resolve the temporary instrumented target ID,
+  start `scripts/arm-capture-drag.sh <target-id>` in a long-lived exec session
+  with a short initial yield, then call `capture_frames` while that session is
+  still running. The helper waits for the actual armed state and sends one
+  target-specific CDP camera drag. Poll the exec session afterwards and
+  require `capture-triggered`. Do not try to overlap nested tool calls in one
+  orchestrator cell; they can execute sequentially and yield an empty capture.
+  A zero-command capture is not a performance result.
 - Close the temporary instrumented tab after diagnostics. Leave the clean tab
   and requested contour running.
 
