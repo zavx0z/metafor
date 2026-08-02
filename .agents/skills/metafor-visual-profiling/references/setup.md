@@ -26,7 +26,7 @@ scripts/setup-inspector.sh
 
 The default source is
 `https://github.com/zavx0z/webgpu_inspector.git` at commit
-`356dd372d3867a568139bd253b332b340418487d`. To test another owner-approved
+`891473bb5a236be87f4421cd1f7e83f13471fc7f`. To test another owner-approved
 build, pass both its repository URL and full commit.
 
 The installer refuses a dirty or mismatched existing checkout, installs root

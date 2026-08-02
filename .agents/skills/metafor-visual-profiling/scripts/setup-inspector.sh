@@ -2,7 +2,7 @@
 set -euo pipefail
 
 default_repository_url=https://github.com/zavx0z/webgpu_inspector.git
-default_revision=356dd372d3867a568139bd253b332b340418487d
+default_revision=891473bb5a236be87f4421cd1f7e83f13471fc7f
 
 if (( $# != 0 && $# != 2 && $# != 3 )); then
   printf 'error: usage: %s [repository-url full-40-character-commit [checkout]]\n' "$0" >&2
