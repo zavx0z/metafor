@@ -129,6 +129,7 @@ const health = (): Record<string, unknown> => ({
 })
 
 export const server = Bun.serve<ForceSocketData>({
+  development: false,
   port: Number(Bun.env.PORT ?? 4000),
   routes: {
     "/health": {
@@ -253,6 +254,7 @@ const compatibilityPort = Number(Bun.env.DARK_COMPAT_PORT ?? 0)
 export const compatibilityServer = Number.isInteger(compatibilityPort) && compatibilityPort > 0 &&
     compatibilityPort !== server.port
   ? Bun.serve({
+      development: false,
       port: compatibilityPort,
       routes: {
         "/health": {

@@ -18,6 +18,7 @@ monad.onServerStarted(rpc)
 const checkpoint = installForceCheckpointSideband("boundary", rpc)
 
 const server = Bun.serve({
+  development: false,
   port: Number(Bun.env.PORT ?? 4001),
   routes: {
     "/health": {

@@ -12,14 +12,16 @@ import type {BulkRuntimeProjection} from "@metafor/types/bulk/runtime"
 import type {ForceMessage} from "shared/protocol/force/message"
 import type {MonadRpcPeer} from "shared/transport/monad"
 import {FORCE_CHECKPOINT_QUIESCE_METHOD} from "shared/transport/force/checkpoint"
-import {BulkProjectionStore} from "./projection.ts"
 import {buildBulkManifestation} from "./manifestation.ts"
 import {
   type BulkInitialScene,
   type BulkGraphScene,
   prepareBulkInitialVisual,
 } from "./visual-initial.ts"
-import {BulkGraphStore} from "./graph.ts"
+import {
+  prepareBulkGraphCut,
+  type BulkGraphCut,
+} from "./graph.ts"
 import {
   MF117_BULK_PREFLIGHT_METHOD,
   MF117_BULK_PROMOTE_METHOD,
@@ -111,6 +113,15 @@ type MF117DurablePromotion = Readonly<{
   structuralProof: MF117StructuralProof
   structuralSha256: string
   legacyManifestSha256: string | null
+}>
+
+type MF117PromotionResult = Readonly<{
+  schema: typeof mf117Schema
+  receiptId: string
+  rootSrc: typeof MF117_TARGET
+  removedInferenceTorusAbsent: true
+  promotedRootTorus: {darkParticleId: number; parentDarkParticleId: null}
+  structuralSha256: string
 }>
 
 const legacyMF117Subtree = (promoted: boolean): readonly MF117StructuralEntity[] => [
@@ -304,13 +315,17 @@ const durableJSON = (filename: string, value: unknown): void => {
   }
 }
 
-/** Bulk service layer: prepares its sole full Graph Store before Force is born. */
+/**
+ * Bulk service layer.
+ *
+ * Birth prepares only operational RPC/Force state. Full Graph documents and
+ * their projections are read from Dark and consumed within the page request,
+ * causal invalidation or MF-117 RPC that asked for them; this class never
+ * retains a Graph or projection snapshot.
+ */
 export class BulkMonad {
-  readonly #graph = new BulkGraphStore()
-  readonly #projection = new BulkProjectionStore()
   #state: BulkMonadState = "created"
   #error: string | null = null
-  #activeSrc: MetaAddress | null = null
   #throughTs: number | null = null
   #promotionReceipt: BulkRootPromotionReceipt | null = null
   readonly #promotionPath: string
@@ -322,51 +337,33 @@ export class BulkMonad {
 
   /** Register closed promotion and read-only observer methods before advertising them. */
   onServerStarting(
-    peer: Pick<MonadRpcPeer, "expose">,
+    peer: Pick<MonadRpcPeer, "call" | "expose">,
     captures: Pick<BulkViewportCaptureRegistry, "capture">,
   ): void {
     peer.expose(MF117_BULK_PREFLIGHT_METHOD, async (input) =>
-      this.mf117Preflight(input))
+      await this.mf117Preflight(peer, input))
     peer.expose(MF117_BULK_PROMOTE_METHOD, async (input) =>
-      this.mf117Promote(input))
+      await this.mf117Promote(peer, input))
     peer.expose(MF117_BULK_VERIFY_METHOD, async () =>
-      this.mf117Verify())
+      await this.mf117Verify(peer))
     peer.expose(
       BULK_VIEWPORT_CAPTURE_METHOD,
       async (params, context) => await captures.capture(params, context),
     )
   }
 
-  async onServerStarted(
-    peer: Pick<MonadRpcPeer, "call">,
-  ): Promise<{atoms: number; rootSrc: string}> {
+  /** Prepares durable operational state without reading or retaining Graph. */
+  async onServerStarted(): Promise<void> {
     if (this.#state !== "created") throw new Error(`Bulk Monad cannot start from state: ${this.#state}`)
     this.#state = "loading"
     try {
       const durable = existsSync(this.#promotionPath)
         ? this.#readDurablePromotion()
         : null
-      const initial = await peer.call<Graph>(
-        "dark",
-        READ_GRAPH_METHOD,
-        {},
-        {waitMs: 30_000},
-      )
-      this.#replaceGraph(initial)
-      const hasMF117Projection = [...this.#projection.atoms.values()].some(({wimp}) =>
-        wimp === MF117_SOURCE || wimp === MF117_TARGET)
-      if (hasMF117Projection && durable !== null) {
-        const proof = this.#verifyPromotedProjection(durable.promotion)
-        if (
-          durable.legacyManifestSha256 === null &&
-          sha256(semanticStructuralSubtree(durable.structuralProof.subtree)) !==
-            sha256(semanticStructuralSubtree(proof.subtree))
-        ) throw new Error("Bulk MF-117 durable structural proof conflicts")
+      if (durable !== null) {
         this.#promotionReceipt = structuredClone(durable.promotion)
-        this.#activeSrc = MF117_TARGET
       }
       this.#state = "prepared"
-      return {atoms: this.#projection.atoms.size, rootSrc: this.#currentRoot()}
     } catch (error) {
       this.onRuntimeBirthFailed(error)
       throw error
@@ -405,21 +402,23 @@ export class BulkMonad {
         {},
         {waitMs: 30_000},
       )
-      this.#replaceGraph(current)
+      const cut = prepareBulkGraphCut(current)
+      const scene = this.#composeScene(
+        cut.document,
+        cut.projection.runtime,
+        cut.document.root,
+        part.ts,
+        this.#promotionReceipt,
+      )
       this.#throughTs = part.ts
-      return this.#scene()
+      return scene
     } catch (error) {
       this.onRuntimeBirthFailed(error)
       throw error
     }
   }
 
-  openObserver(session: string): BulkInitialScene {
-    if (this.#state !== "ready") throw new Error(`Bulk observer cannot open: runtime is not ready (${this.#state})`)
-    return {...this.#scene(), session}
-  }
-
-  /** Reads and prepares one request-local Graph cut without replacing the startup Store. */
+  /** Reads and prepares one request-local Graph cut without retaining it. */
   async openFreshObserver(
     peer: Pick<MonadRpcPeer, "call">,
     session: string,
@@ -432,7 +431,7 @@ export class BulkMonad {
       {},
       {waitMs: 30_000},
     )
-    const cut = new BulkGraphStore().replace(value)
+    const cut = prepareBulkGraphCut(value)
     return {
       ...this.#composeScene(
         cut.document,
@@ -443,17 +442,6 @@ export class BulkMonad {
       ),
       session,
     }
-  }
-
-  #scene(): BulkGraphScene {
-    const graph = this.#graph.read()
-    return this.#composeScene(
-      graph,
-      this.#projection.snapshot().runtime,
-      graph.root,
-      this.#throughTs,
-      this.#promotionReceipt,
-    )
   }
 
   #composeScene(
@@ -482,29 +470,34 @@ export class BulkMonad {
     }
   }
 
-  #replaceGraph(value: unknown): void {
-    const cut = this.#graph.replace(value)
-    this.#projection.hydrate(cut.projection)
-    this.#activeSrc = cut.document.root
+  /** Reads one current projection for one operational RPC and retains nothing. */
+  async #readCurrentCut(
+    peer: Pick<MonadRpcPeer, "call">,
+  ): Promise<BulkGraphCut> {
+    const value = await peer.call<Graph>(
+      "dark",
+      READ_GRAPH_METHOD,
+      {},
+      {waitMs: 30_000},
+    )
+    return prepareBulkGraphCut(value)
   }
 
-  #currentRoot(): MetaAddress {
-    if (this.#activeSrc === null) throw new Error("Bulk Graph root is unavailable")
-    return this.#activeSrc
-  }
-
-  mf117Preflight(value: unknown): {
+  async mf117Preflight(
+    peer: Pick<MonadRpcPeer, "call">,
+    value: unknown,
+  ): Promise<{
     schema: typeof mf117Schema
     sourceRootTorus: {darkParticleId: number; outerDiameterMm: number}
     targetChildTorus: {darkParticleId: number; parentDarkParticleId: number}
     promotionReceiptSha256: string
     noGhostTorus: true
-  } {
+  }> {
     const input = this.#mf117Input(value)
     if (this.#promotionReceipt !== null || existsSync(this.#promotionPath)) {
       throw new Error("Bulk MF-117 promotion already exists")
     }
-    const projection = this.#projection.view()
+    const projection = (await this.#readCurrentCut(peer)).projection.runtime
     mf117Subtree(projection, false)
     const manifest = buildBulkManifestation(
       projection,
@@ -540,16 +533,13 @@ export class BulkMonad {
     }
   }
 
-  mf117Promote(value: unknown): {
-    schema: typeof mf117Schema
-    receiptId: string
-    rootSrc: typeof MF117_TARGET
-    removedInferenceTorusAbsent: true
-    promotedRootTorus: {darkParticleId: number; parentDarkParticleId: null}
-    structuralSha256: string
-  } {
+  async mf117Promote(
+    peer: Pick<MonadRpcPeer, "call">,
+    value: unknown,
+  ): Promise<MF117PromotionResult> {
     const input = this.#mf117Input(value)
-    const proof = this.#verifyPromotedProjection(input.promotion)
+    const projection = (await this.#readCurrentCut(peer)).projection.runtime
+    const proof = this.#verifyPromotedProjection(projection, input.promotion)
     const targetId = proof.promotedRoot.id * 2
     const structuralSha256 = sha256(proof)
     let durable: MF117DurablePromotion
@@ -586,7 +576,6 @@ export class BulkMonad {
       }
     }
     this.#promotionReceipt = structuredClone(input.promotion)
-    this.#activeSrc = MF117_TARGET
     return {
       schema: mf117Schema,
       receiptId: durable.receiptId,
@@ -600,20 +589,22 @@ export class BulkMonad {
     }
   }
 
-  mf117Verify(): ReturnType<BulkMonad["mf117Promote"]> {
+  async mf117Verify(
+    peer: Pick<MonadRpcPeer, "call">,
+  ): Promise<MF117PromotionResult> {
     if (this.#promotionReceipt === null || !existsSync(this.#promotionPath)) {
       throw new Error("Bulk MF-117 promotion receipt is unavailable")
     }
-    return this.mf117Promote({
+    return await this.mf117Promote(peer, {
       schema: mf117Schema,
       promotion: this.#promotionReceipt,
     })
   }
 
   #verifyPromotedProjection(
+    projection: BulkRuntimeProjection,
     promotion: BulkRootPromotionReceipt,
   ): MF117StructuralProof {
-    const projection = this.#projection.view()
     const subtree = mf117Subtree(projection, true)
     const projectedPromotion = projectionPromotionReceipt(projection, promotion)!
     const manifest = buildBulkManifestation(

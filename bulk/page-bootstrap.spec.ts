@@ -2,11 +2,13 @@ import {describe, expect, test} from "bun:test"
 import {readFileSync} from "node:fs"
 import {
   GRAPH_SCHEMA,
+  READ_GRAPH_METHOD,
   parseMetaAddress,
   type Graph,
 } from "@metafor/types/metafor/graph"
 import {buildBulkManifestation} from "./manifestation.ts"
 import {projectBulkGraph} from "./graph.ts"
+import {BulkMonad} from "./monad.ts"
 import {
   BULK_INITIAL_JSON_MARKER,
   bulkInitialPageErrorResponse,
@@ -23,12 +25,12 @@ import {
 
 const ROOT = parseMetaAddress("example/root")!
 
-const graph = (): Graph => ({
+const graph = (name = "Root"): Graph => ({
   schema: GRAPH_SCHEMA,
   root: ROOT,
   template: {
     [ROOT]: {
-      name: "Root",
+      name,
       fields: [],
       superposition: [],
       mass: [],
@@ -102,6 +104,66 @@ describe("Bulk dynamic GET bootstrap", () => {
     expect(first.headers.get("cache-control")).toBe("private, no-store, max-age=0")
     expect(first.headers.get("content-type")).toBe("text/html; charset=utf-8")
     expect(first.headers.get("x-content-type-options")).toBe("nosniff")
+  })
+
+  test("reads one fresh rootless Dark Graph for every dynamic GET", async () => {
+    const documents = [graph("First"), graph("Second")]
+    const calls: Array<{
+      target: string
+      method: string
+      params: unknown
+      options: unknown
+    }> = []
+    const peer = {
+      async call(
+        target: string,
+        method: string,
+        params: unknown,
+        options: unknown,
+      ): Promise<Graph> {
+        calls.push({target, method, params, options})
+        const document = documents.shift()
+        if (document === undefined) throw new Error("Unexpected Graph read")
+        return structuredClone(document)
+      },
+    }
+    const monad = new BulkMonad()
+    await monad.onServerStarted()
+    monad.onRuntimeBorn()
+    let session = 0
+    const dependencies = {
+      openSession: () => `fresh-${++session}`,
+      cancelSession() {},
+      prepareInitial: async (value: string) =>
+        await monad.openFreshObserver(peer as never, value),
+      async readShell() {
+        return shell()
+      },
+    }
+
+    const first = parseBulkInitialJson(embeddedText(
+      await (await serveBulkInitialPage(dependencies)).text(),
+    ))
+    const second = parseBulkInitialJson(embeddedText(
+      await (await serveBulkInitialPage(dependencies)).text(),
+    ))
+
+    expect(first.graph.template[ROOT]?.name).toBe("First")
+    expect(second.graph.template[ROOT]?.name).toBe("Second")
+    expect(calls).toEqual([
+      {
+        target: "dark",
+        method: READ_GRAPH_METHOD,
+        params: {},
+        options: {waitMs: 30_000},
+      },
+      {
+        target: "dark",
+        method: READ_GRAPH_METHOD,
+        params: {},
+        options: {waitMs: 30_000},
+      },
+    ])
   })
 
   test("escapes script termination and HTML parser hazards without changing data", () => {

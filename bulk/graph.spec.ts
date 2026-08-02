@@ -5,8 +5,8 @@ import {
   type Graph,
 } from "@metafor/types/metafor/graph"
 import {
-  BulkGraphStore,
   BulkGraphValidationError,
+  prepareBulkGraphCut,
   projectBulkGraph,
 } from "./graph.ts"
 
@@ -97,46 +97,41 @@ const childDocument = (): Graph => ({
   },
 })
 
-describe("Bulk Graph Store and adapter", () => {
-  test("retains one detached full document and derives the complete Bulk scene projection", () => {
-    const store = new BulkGraphStore()
+describe("Bulk request-local Graph adapter", () => {
+  test("detaches one full document and derives the complete Bulk scene projection", () => {
     const input = document()
 
-    store.replace(input)
+    const cut = prepareBulkGraphCut(input)
     input.runtime.roots.splice(0)
-    const retained = store.read()
-    const projected = store.projection()
 
-    expect(retained.runtime.roots).toHaveLength(1)
-    expect(projected.revision).toBe(1)
-    expect(projected.runtime.atoms.map(({wimp}) => wimp)).toEqual([ROOT, CHILD])
-    expect(projected.runtime.fields.map(({key}) => key)).toEqual(["title", "mode"])
-    expect(projected.runtime.transitions).toHaveLength(1)
-    expect(projected.runtime.conditions).toHaveLength(1)
-    expect(projected.runtime.processes[0]?.descriptor).toMatchObject({
+    expect(cut.document.runtime.roots).toHaveLength(1)
+    expect(cut.projection.revision).toBe(0)
+    expect(cut.projection.runtime.atoms.map(({wimp}) => wimp)).toEqual([ROOT, CHILD])
+    expect(cut.projection.runtime.fields.map(({key}) => key)).toEqual(["title", "mode"])
+    expect(cut.projection.runtime.transitions).toHaveLength(1)
+    expect(cut.projection.runtime.conditions).toHaveLength(1)
+    expect(cut.projection.runtime.processes[0]?.descriptor).toMatchObject({
       action: {readFields: [expect.any(Number)]},
       success: {writeFields: [expect.any(Number)]},
     })
-    expect(projected.runtime.reactions[0]).toMatchObject({
+    expect(cut.projection.runtime.reactions[0]).toMatchObject({
       read: [expect.any(Number)],
       write: [expect.any(Number)],
       states: [expect.any(Number)],
     })
-    expect(projected.runtime.matterParticles[0]).toMatchObject({
+    expect(cut.projection.runtime.matterParticles[0]).toMatchObject({
       particleKind: "wimp",
       targetSrc: CHILD,
       fieldsBinding: {data: "title"},
     })
   })
 
-  test("atomically replaces the same Store after an update and keeps deterministic local identities", () => {
-    const store = new BulkGraphStore()
-    store.replace(document("first"))
-    const first = store.projection()
-    store.replace(document("second"))
-    const second = store.projection()
+  test("prepares independent cuts with deterministic local identities", () => {
+    const first = prepareBulkGraphCut(document("first")).projection
+    const second = prepareBulkGraphCut(document("second")).projection
 
-    expect(second.revision).toBe(2)
+    expect(first.revision).toBe(0)
+    expect(second.revision).toBe(0)
     expect(second.runtime.atoms.map(({id}) => id))
       .toEqual(first.runtime.atoms.map(({id}) => id))
     expect(second.runtime.atomValues.map(({field}) => field))
@@ -146,22 +141,16 @@ describe("Bulk Graph Store and adapter", () => {
   })
 
   test("accepts the validated Dark-owned root without a caller-selected expectation", () => {
-    const store = new BulkGraphStore()
+    const cut = prepareBulkGraphCut(childDocument())
 
-    store.replace(childDocument())
-
-    expect(store.read().root).toBe(CHILD)
-    expect(store.projection().runtime.atoms.map(({wimp}) => wimp)).toEqual([CHILD])
+    expect(cut.document.root).toBe(CHILD)
+    expect(cut.projection.runtime.atoms.map(({wimp}) => wimp)).toEqual([CHILD])
   })
 
-  test("rejects invalid data without replacing the prior cut", () => {
-    const store = new BulkGraphStore()
-    store.replace(document("safe"))
+  test("rejects invalid data without creating a request-local cut", () => {
     const invalid = {...document("unsafe"), schema: "wrong"}
 
-    expect(() => store.replace(invalid)).toThrow(BulkGraphValidationError)
-    expect(store.read().runtime.roots[0]).toMatchObject({values: {title: "safe"}})
-    expect(store.revision).toBe(1)
+    expect(() => prepareBulkGraphCut(invalid)).toThrow(BulkGraphValidationError)
   })
 
   test("produces the same adapter result independently on server and browser", () => {

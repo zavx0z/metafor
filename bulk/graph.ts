@@ -402,7 +402,7 @@ export const projectBulkGraph = (
   return {runtime: projection, declarations, revision}
 }
 
-/** Validation failure raised before a Graph cut can enter Bulk's Store. */
+/** Validation failure raised before a Graph cut can enter Bulk preparation. */
 export class BulkGraphValidationError extends Error {
   constructor(readonly issues: readonly ValidationIssue[]) {
     super(`Bulk rejected Graph: ${issues.map(({path, code}) => `${path || "/"} [${code}]`).join("; ")}`)
@@ -416,41 +416,15 @@ export type BulkGraphCut = Readonly<{
 }>
 
 /**
- * Bulk's sole server-side world Store. It retains validated full Graph cuts
- * returned by Dark and atomically replaces the current cut after invalidation.
+ * Validates and detaches one Dark-owned Graph for one Bulk calculation.
+ *
+ * This function owns no Store and retains no world state. The Bulk server calls
+ * it separately for each page GET or causal invalidation; browser-owned visual
+ * lifecycle state begins only after that prepared scene crosses the wire.
  */
-export class BulkGraphStore {
-  #document: Graph | null = null
-  #revision = 0
-
-  get revision(): number {
-    return this.#revision
-  }
-
-  get ready(): boolean {
-    return this.#document !== null
-  }
-
-  /** Validates and atomically installs one complete Dark-owned read result. */
-  replace(input: unknown): BulkGraphCut {
-    const validation = validateGraph(input)
-    if (!validation.ok) throw new BulkGraphValidationError(validation.issues)
-    const next = clone(validation.value)
-    const nextRevision = this.#revision + 1
-    const projection = projectBulkGraph(next, nextRevision)
-    this.#document = next
-    this.#revision = nextRevision
-    return {document: clone(next), projection}
-  }
-
-  /** Returns a detached current full document; callers cannot mutate the Store. */
-  read(): Graph {
-    if (this.#document === null) throw new Error("Bulk Graph Store is not prepared")
-    return clone(this.#document)
-  }
-
-  /** Derives the existing Bulk projection from the current Graph cut. */
-  projection(): BulkProjectionSnapshot {
-    return projectBulkGraph(this.read(), this.#revision)
-  }
+export const prepareBulkGraphCut = (input: unknown): BulkGraphCut => {
+  const validation = validateGraph(input)
+  if (!validation.ok) throw new BulkGraphValidationError(validation.issues)
+  const document = clone(validation.value)
+  return {document, projection: projectBulkGraph(document)}
 }

@@ -67,6 +67,7 @@ const readBrowserPageShell = (
 }
 
 const server = Bun.serve<BrowserClient>({
+  development: false,
   port: Number(Bun.env.PORT ?? 4004),
   routes: {
     ...bulkMonadRoutes(transport),
@@ -214,7 +215,7 @@ try {
     waitMs: 30_000,
   })
   await checkpoint.open()
-  const summary = await monad.onServerStarted(rpc)
+  await monad.onServerStarted()
   force = new Force("bulk")
   force.onImpulse = async (impulse) => {
     const scene = await monad.onImpulse(rpc, impulse)
@@ -232,7 +233,7 @@ try {
     if (!connected || runtimeBorn) return
     runtimeBorn = true
     monad.onRuntimeBorn()
-    console.log(`[bulk] born atoms=${summary.atoms} root=${summary.rootSrc || "none"}`)
+    console.log("[bulk] born graph=request-local")
   }
   force.onDestroy = close
 } catch (error) {

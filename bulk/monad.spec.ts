@@ -239,41 +239,29 @@ describe("Bulk Monad", () => {
     expect(captureCalls).toEqual([{params, context: {source: "codex"}}])
   })
 
-  test("loads the full Graph from Dark before preparing an observer package", async () => {
+  test("becomes ready without reading or retaining a Graph", async () => {
     const peer = metaPeer(mf117Document())
     const monad = new BulkMonad()
 
-    await monad.onServerStarted(peer as never)
-    expect(peer.calls).toEqual([{
-      target: "dark",
-      method: READ_GRAPH_METHOD,
-      params: {},
-      options: {waitMs: 30_000},
-    }])
-    expect(() => monad.openObserver("before-force")).toThrow("not ready")
+    await monad.onServerStarted()
+    expect(peer.calls).toEqual([])
+    await expect(monad.openFreshObserver(peer as never, "before-force"))
+      .rejects.toThrow("not ready")
 
     monad.onRuntimeBorn()
-    const initial = monad.openObserver("observer-1")
-
-    expect(initial).toMatchObject({
-      version: 1,
-      session: "observer-1",
-      throughTs: null,
-      rootSrc: INFERENCE,
-      graph: {schema: GRAPH_SCHEMA, root: INFERENCE},
-      manifest: {rootSrc: INFERENCE},
+    expect(peer.calls).toEqual([])
+    expect(await monad.onHealthRequested().json()).toMatchObject({
+      initialized: true,
+      rpc: "ready",
     })
-    expect(initial).not.toHaveProperty("projection")
-    expect(initial.manifest.darkParticles).toHaveLength(6)
   })
 
-  test("prepares every page observer from a fresh Dark Graph without replacing the startup Store", async () => {
+  test("prepares every page observer from its own fresh Dark Graph", async () => {
     const startup = mf117Document()
     const peer = metaPeer(startup)
     const monad = new BulkMonad()
-    await monad.onServerStarted(peer as never)
+    await monad.onServerStarted()
     monad.onRuntimeBorn()
-    const cached = monad.openObserver("cached-before-pages")
 
     const working = mf117Document(true, "working")
     peer.set(working)
@@ -287,8 +275,7 @@ describe("Bulk Monad", () => {
     expect(first.visual.kind).toBe("visual-prepared-scene")
     expect(second.session).toBe("page-2")
     expect(second.graph).toEqual(startup)
-    expect(monad.openObserver("cached-after-pages").graph).toEqual(cached.graph)
-    expect(peer.calls.slice(1)).toEqual([
+    expect(peer.calls).toEqual([
       {
         target: "dark",
         method: READ_GRAPH_METHOD,
@@ -308,26 +295,36 @@ describe("Bulk Monad", () => {
     const source = readFileSync(new URL("./monad.ts", import.meta.url), "utf8")
 
     expect(source).toContain("READ_GRAPH_METHOD")
-    expect(source).toContain("readonly #graph = new BulkGraphStore()")
+    expect(source).not.toContain("BulkGraphStore")
+    expect(source).not.toContain("readonly #graph")
+    expect(source).not.toContain("readonly #projection")
+    expect(source).not.toContain("openObserver(")
     expect(source).not.toContain("BOUNDARY_INITIAL_PROJECTION_METHOD")
     expect(source).not.toContain("boundary.initialProjection.read")
+
+    const birthStart = source.indexOf("async onServerStarted")
+    const birth = source.slice(
+      birthStart,
+      source.indexOf("\n  onRuntimeBorn", birthStart),
+    )
+    expect(birth).not.toContain("READ_GRAPH_METHOD")
+    expect(birth).not.toContain("peer.call")
 
     const freshObserverStart = source.indexOf("async openFreshObserver")
     const freshObserver = source.slice(
       freshObserverStart,
-      source.indexOf("\n  #scene():", freshObserverStart),
+      source.indexOf("\n  #composeScene(", freshObserverStart),
     )
     expect(freshObserver).toContain("READ_GRAPH_METHOD")
     expect(freshObserver).toContain("cut.document.root")
-    expect(freshObserver).not.toContain("#activeSrc")
     expect(freshObserver).not.toContain("#promotionReceipt")
     expect(freshObserver).not.toContain("MF117_")
   })
 
-  test("uses a Particle as invalidation and replaces the same Graph Store after Boundary quiescence", async () => {
+  test("uses a Particle as invalidation and prepares one event-local Graph scene", async () => {
     const peer = metaPeer(mf117Document())
     const monad = new BulkMonad()
-    await monad.onServerStarted(peer as never)
+    await monad.onServerStarted()
     monad.onRuntimeBorn()
     peer.set(mf117Document(true))
 
@@ -345,7 +342,7 @@ describe("Bulk Monad", () => {
       rootSrc: LADA,
       graph: {root: LADA},
     })
-    expect(peer.calls.slice(1)).toEqual([
+    expect(peer.calls).toEqual([
       {
         target: "boundary",
         method: FORCE_CHECKPOINT_QUIESCE_METHOD,
@@ -359,15 +356,13 @@ describe("Bulk Monad", () => {
         options: {waitMs: 30_000},
       },
     ])
-    expect(monad.openObserver("observer-2").graph).toEqual(scene.graph)
   })
 
-  test("keeps the previous cut and fails closed when Dark returns invalid Graph", async () => {
+  test("fails closed without a retained fallback when Dark returns invalid Graph", async () => {
     const peer = metaPeer(mf117Document())
     const monad = new BulkMonad()
-    await monad.onServerStarted(peer as never)
+    await monad.onServerStarted()
     monad.onRuntimeBorn()
-    const before = monad.openObserver("before-invalid").graph
     peer.set({...mf117Document(), schema: "invalid"} as unknown as Graph)
 
     await expect(monad.onImpulse(peer as never, {
@@ -375,7 +370,6 @@ describe("Bulk Monad", () => {
     })).rejects.toThrow("Bulk rejected Graph")
     expect(monad.onHealthRequested().status).toBe(200)
     expect(await monad.onHealthRequested().json()).toMatchObject({ok: false, rpc: "error"})
-    expect(before.root).toBe(INFERENCE)
   })
 
   test("removes the Inference semantic root and persists one promoted Lada root", async () => {
@@ -386,24 +380,24 @@ describe("Bulk Monad", () => {
       promotionPath,
     })
     const peer = metaPeer(mf117Document())
-    await monad.onServerStarted(peer as never)
+    await monad.onServerStarted()
     monad.onRuntimeBorn()
-    const before = monad.openObserver("mf117-before")
+    const before = await monad.openFreshObserver(peer as never, "mf117-before")
     expect(before.rootSrc).toBe("zavx0z/inference")
     expect(before.manifest.darkParticles.filter(({src}) =>
       src === "zavx0z/inference")).toHaveLength(1)
     expect(before.manifest.darkParticles.filter(({src}) =>
       src?.startsWith("zavx0z/lada"))).toHaveLength(5)
-    expect(() => monad.mf117Preflight({
+    await expect(monad.mf117Preflight(peer as never, {
       schema: "metafor/bulk-mf117-live/v1",
       promotion: {
         ...promotion,
         formerRootFrame: {...promotion.formerRootFrame, outerDiameterMm: 99},
       },
-    })).toThrow("promotion receipt is not exact")
+    })).rejects.toThrow("promotion receipt is not exact")
     const sourceBefore = before.manifest.darkParticles.find(({src}) => src === INFERENCE)!
     const targetBefore = before.manifest.darkParticles.find(({src}) => src === LADA)!
-    expect(monad.mf117Preflight({
+    expect(await monad.mf117Preflight(peer as never, {
       schema: "metafor/bulk-mf117-live/v1",
       promotion,
     })).toMatchObject({
@@ -425,14 +419,17 @@ describe("Bulk Monad", () => {
         },
       }],
     })
-    expect(monad.openObserver("mf117-after-root-replace").rootSrc)
+    expect((await monad.openFreshObserver(
+      peer as never,
+      "mf117-after-root-replace",
+    )).rootSrc)
       .toBe("zavx0z/lada")
     await monad.onImpulse(peer as never, {
       parts: [{
         part: "graviton", op: "remove", path: "atom/1", by: "boundary", ts: 3,
       }],
     })
-    const promoted = monad.mf117Promote({
+    const promoted = await monad.mf117Promote(peer as never, {
       schema: "metafor/bulk-mf117-live/v1",
       promotion,
     })
@@ -441,7 +438,7 @@ describe("Bulk Monad", () => {
       removedInferenceTorusAbsent: true,
       promotedRootTorus: {parentDarkParticleId: null},
     })
-    const observer = monad.openObserver("mf117-observer")
+    const observer = await monad.openFreshObserver(peer as never, "mf117-observer")
     expect(observer.rootSrc).toBe("zavx0z/lada")
     expect(observer.manifest.darkParticles.filter(({src}) =>
       src === "zavx0z/inference")).toHaveLength(0)
@@ -469,9 +466,12 @@ describe("Bulk Monad", () => {
         value: "working",
       }],
     })
-    expect(sha256(monad.openObserver("mf117-dynamic").manifest))
+    expect(sha256((await monad.openFreshObserver(
+      peer as never,
+      "mf117-dynamic",
+    )).manifest))
       .not.toBe(sha256(observer.manifest))
-    expect(monad.mf117Verify()).toMatchObject({
+    expect(await monad.mf117Verify(peer as never)).toMatchObject({
       receiptId: promoted.receiptId,
       structuralSha256: promoted.structuralSha256,
       removedInferenceTorusAbsent: true,
@@ -479,9 +479,10 @@ describe("Bulk Monad", () => {
     })
 
     const recovered = new BulkMonad({promotionPath})
-    await recovered.onServerStarted(metaPeer(mf117Document(true)) as never)
+    const recoveredPeer = metaPeer(mf117Document(true))
+    await recovered.onServerStarted()
     recovered.onRuntimeBorn()
-    expect(recovered.mf117Verify()).toMatchObject({
+    expect(await recovered.mf117Verify(recoveredPeer as never)).toMatchObject({
       receiptId: promoted.receiptId,
       structuralSha256: promoted.structuralSha256,
       rootSrc: "zavx0z/lada",
@@ -497,7 +498,7 @@ describe("Bulk Monad", () => {
     const monad = new BulkMonad({promotionPath})
 
     const peer = metaPeer(mf117Document(true))
-    await monad.onServerStarted(peer as never)
+    await monad.onServerStarted()
     monad.onRuntimeBorn()
     peer.set(mf117Document(true, "working"))
     await monad.onImpulse(peer as never, {
@@ -507,9 +508,12 @@ describe("Bulk Monad", () => {
       }],
     })
 
-    expect(sha256(monad.openObserver("legacy-dynamic").manifest))
+    expect(sha256((await monad.openFreshObserver(
+      peer as never,
+      "legacy-dynamic",
+    )).manifest))
       .not.toBe(legacy.manifestSha256)
-    expect(monad.mf117Verify()).toMatchObject({
+    expect(await monad.mf117Verify(peer as never)).toMatchObject({
       receiptId: legacy.receiptId,
       rootSrc: "zavx0z/lada",
       removedInferenceTorusAbsent: true,
@@ -524,11 +528,12 @@ describe("Bulk Monad", () => {
     const legacy = legacyV2PromotionReceipt()
     writeFileSync(promotionPath, `${JSON.stringify(legacy, null, 2)}\n`)
     const monad = new BulkMonad({promotionPath})
+    const peer = metaPeer(mf117Document(true))
 
-    await monad.onServerStarted(metaPeer(mf117Document(true)) as never)
+    await monad.onServerStarted()
     monad.onRuntimeBorn()
 
-    expect(monad.mf117Verify()).toMatchObject({
+    expect(await monad.mf117Verify(peer as never)).toMatchObject({
       receiptId: legacy.receiptId,
       rootSrc: LADA,
       removedInferenceTorusAbsent: true,
@@ -552,7 +557,7 @@ describe("Bulk Monad", () => {
       writeFileSync(promotionPath, `${JSON.stringify(legacy, null, 2)}\n`)
       const monad = new BulkMonad({promotionPath})
 
-      await expect(monad.onServerStarted(metaPeer(mf117Document(true)) as never))
+      await expect(monad.onServerStarted())
         .rejects.toThrow("durable promotion receipt conflicts")
     }
   })
@@ -612,8 +617,11 @@ describe("Bulk Monad", () => {
       const promotionPath = join(directory, "bulk-promotion.json")
       writeFileSync(promotionPath, `${JSON.stringify(legacyPromotionReceipt(), null, 2)}\n`)
       const monad = new BulkMonad({promotionPath})
+      const peer = metaPeer(scenario.document)
 
-      await expect(monad.onServerStarted(metaPeer(scenario.document) as never))
+      await monad.onServerStarted()
+      monad.onRuntimeBorn()
+      await expect(monad.mf117Verify(peer as never))
         .rejects.toThrow(scenario.error)
     }
   })

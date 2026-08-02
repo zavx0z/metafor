@@ -5,35 +5,34 @@ Bulk проявляет один полный runtime projection в два по�
 
 ## Единственная стартовая основа
 
-- Единственный полный документ мира, который Bulk получает при рождении, —
-  публичный `Graph`. Bulk Monad сам вызывает `Dark.readGraph`, валидирует
-  ответ и сохраняет его в своём серверном Graph Store. Request не содержит
-  root: Dark возвращает актуальный полный Graph, а root остаётся данными этого
-  ответа. Вызов
-  `Boundary.initialProjection.read` и другая сборка полного стартового мира на
-  стороне Boundary для Bulk запрещены.
+- Рождение Bulk поднимает только RPC, Force, browser handoff и принадлежащее им
+  operational state. Оно не вызывает `Dark.readGraph`, не создаёт серверный
+  Graph Store и не удерживает derived projection.
+- Каждый browser `GET /` отдельно вызывает rootless `Dark.readGraph({})`.
+  Dark возвращает один актуальный полный `Graph`, а `Graph.root` остаётся
+  данными этого ответа. Bulk валидирует его, request-local строит semantic и
+  Visual projection, вкладывает готовую scene в HTML и после ответа не хранит
+  этот Graph или projection. `Boundary.initialProjection.read` и другая сборка
+  полного мира на стороне Boundary для Bulk запрещены.
 - JSON является только технической сериализацией Graph на transport/storage
   границах; Bulk не вводит из неё второй world format или отдельный контракт.
-- Этот Store является локальной актуальной read-моделью Bulk, а не вторым
-  canonical source: единственным сборщиком полного Graph остаётся Dark
-  Monad. Он временно сохраняется для действующего startup/update path, но
-  browser `GET /` не читает его: каждый page request получает отдельный свежий
-  Graph у Dark.
 - Обычный `Particle` не является Graph patch: его paths содержат внутренние
   runtime identity, которых публичный Graph намеренно не содержит. Сейчас
   входящий `Particle` служит causal invalidation: Bulk дожидается применённого
-  Boundary cut, повторно читает полный Graph только через Dark и атомарно
-  заменяет состояние того же Store. Checkpoint JSON Patch не переносится в
+  Boundary cut, читает полный Graph только через Dark и готовит одну
+  event-local replacement scene для подключённых browsers. Серверного Graph
+  cache между invalidations нет. Checkpoint JSON Patch не переносится в
   live-протокол.
 - Единственный адаптер `Graph → BulkProjectionSnapshot` создаёт
   Bulk-local identity и готовит существующую semantic projection/scene. Он не
-  читает Boundary, не хранит второй canonical world и не добавляет значения,
-  которых нет в Graph. При изменении public Graph контракта сначала
+  читает Boundary, не хранит world state и не добавляет значения, которых нет
+  в Graph. При изменении public Graph контракта сначала
   меняются его domain law, validator и `readGraph`; затем одним срезом
   меняются этот адаптер, initial/update transport и их совместные тесты.
 - Visual остаётся stateless библиотекой вычисления геометрии. Graph Store,
-  адаптированная semantic projection, scene Store, renderer и Engine lifecycle
-  принадлежат Bulk.
+  адаптированная semantic projection и scene Store возникают только внутри
+  browser-owned `BulkVisualSceneLifecycle`; renderer и Engine lifecycle также
+  принадлежат Bulk, но не серверному startup.
 
 ## Semantic manifestation
 

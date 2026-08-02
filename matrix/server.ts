@@ -25,6 +25,7 @@ const rpc = new MonadRpcPeer(transport.channel)
 const checkpoint = installForceCheckpointSideband("matrix", rpc)
 
 const server = Bun.serve({
+  development: false,
   port: Number(Bun.env.PORT ?? 4003),
   routes: {
     "/health": {

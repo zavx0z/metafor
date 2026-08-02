@@ -12,6 +12,7 @@ const checkpoint = installForceCheckpointSideband("energy", rpc)
 let runtime: EnergyRuntimeBirth | null = null
 
 const server = Bun.serve({
+  development: false,
   port: Number(Bun.env.PORT ?? 4005),
   routes: {
     "/health": {
