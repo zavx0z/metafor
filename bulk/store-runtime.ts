@@ -1447,7 +1447,11 @@ const collectAffectedEntanglementAliases = (
   }
 }
 
-const removeIncidentEntanglement = (store: BulkStore, aliasId: number): void => {
+const removeIncidentEntanglement = (
+  store: BulkStore,
+  aliasId: number,
+  touchedBatches?: Set<number>,
+): void => {
   const state = indexes(store)
   for (let relationSlot = state.relationHeadByAlias[aliasId] ?? -1; relationSlot >= 0;) {
     const onA = store.relation.aKind[relationSlot] === BULK_STORE_ENDPOINT_KIND.field &&
@@ -1455,6 +1459,8 @@ const removeIncidentEntanglement = (store: BulkStore, aliasId: number): void => 
     const next = onA ? state.relationNextA[relationSlot]! : state.relationNextB[relationSlot]!
     if (store.relation.kind[relationSlot] === BULK_STORE_RELATION_KIND["field-entanglement"]) {
       if (setFlag(store.relation.flags, relationSlot, BULK_STORE_FLAG_REMOVED, true)) {
+        const batch = store.relation.batch[relationSlot]!
+        if (batch > 0) touchedBatches?.add(batch)
         unindexRelation(store, relationSlot)
       }
     }
@@ -1529,25 +1535,55 @@ const relationEndpointPoint = (
   store: BulkStore,
   kind: number,
   id: number,
+  relativeToOwner = 0,
+  darkWorldCache = new Map<number, StorePoint>(),
 ): StorePoint | null => {
   let values: BulkStoreNumericArray
   let slot: number
+  let endpointOwner: number
   if (kind === BULK_STORE_ENDPOINT_KIND.field) {
     const aliasSlot = id - 1
     const marker = store.fieldAlias.marker[aliasSlot]
     if (marker === undefined) return null
     values = store.field.position
     slot = marker - 1
+    endpointOwner = store.field.owner[slot]!
   } else if (kind === BULK_STORE_ENDPOINT_KIND["field-proxy"]) {
     values = store.proxy.position
     slot = id - 1
+    endpointOwner = store.proxy.owner[slot]!
   } else {
     values = store.orbital.position
     slot = id - 1
+    endpointOwner = store.orbital.owner[slot]!
   }
   const start = slot * 3
   if (start < 0 || start + 2 >= values.length) return null
-  return {x: values[start]!, y: values[start + 1]!, z: values[start + 2]!}
+  const point = {x: values[start]!, y: values[start + 1]!, z: values[start + 2]!}
+  if (relativeToOwner === 0 || endpointOwner === relativeToOwner) return point
+  const darkWorld = (darkId: number): StorePoint => {
+    const held = darkWorldCache.get(darkId)
+    if (held) return held
+    const darkSlot = indexes(store).darkSlotById[darkId] ?? -1
+    if (darkSlot < 0) throw new Error(`Bulk Store Dark ${darkId} is absent`)
+    const position = darkSlot * 3
+    const parent = store.dark.parent[darkSlot]!
+    const parentPoint = parent === 0 ? {x: 0, y: 0, z: 0} : darkWorld(parent)
+    const world = {
+      x: parentPoint.x + store.dark.position[position]!,
+      y: parentPoint.y + store.dark.position[position + 1]!,
+      z: parentPoint.z + store.dark.position[position + 2]!,
+    }
+    darkWorldCache.set(darkId, world)
+    return world
+  }
+  const endpointOrigin = darkWorld(endpointOwner)
+  const relationOrigin = darkWorld(relativeToOwner)
+  return {
+    x: point.x + endpointOrigin.x - relationOrigin.x,
+    y: point.y + endpointOrigin.y - relationOrigin.y,
+    z: point.z + endpointOrigin.z - relationOrigin.z,
+  }
 }
 
 const compactCurve = (
@@ -1616,6 +1652,7 @@ const rebuildFieldRelationGeometry = (
     }
   }
   const touchedBatches = new Set<number>()
+  const darkWorldCache = new Map<number, StorePoint>()
   for (const slot of relationSlots) {
     if ((store.relation.flags[slot]! & BULK_STORE_FLAG_REMOVED) !== 0) continue
     const oldBatch = store.relation.batch[slot]!
@@ -1626,7 +1663,7 @@ const rebuildFieldRelationGeometry = (
       store.relation.bKind[slot] === BULK_STORE_ENDPOINT_KIND.field &&
       store.fieldAlias.marker[store.relation.a[slot]! - 1] ===
         store.fieldAlias.marker[store.relation.b[slot]! - 1]
-    if (sameMarker || (store.layout === BULK_STORE_LAYOUT_OUTSIDE_IN && entanglement)) {
+    if (sameMarker) {
       if (oldBatch > 0) {
         state.relationSlotsByBatch.get(oldBatch)?.delete(slot)
         touchedBatches.add(oldBatch)
@@ -1639,11 +1676,15 @@ const rebuildFieldRelationGeometry = (
       store,
       store.relation.aKind[slot]!,
       store.relation.a[slot]!,
+      store.relation.owner[slot]!,
+      darkWorldCache,
     )
     const to = relationEndpointPoint(
       store,
       store.relation.bKind[slot]!,
       store.relation.b[slot]!,
+      store.relation.owner[slot]!,
+      darkWorldCache,
     )
     if (!from || !to) continue
     const controls = [
@@ -1731,6 +1772,7 @@ const rebuildLocalEntanglement = (
   store: BulkStore,
   changed: ReadonlyMap<number, number>,
   candidates: ReadonlySet<number>,
+  touchedBatches?: Set<number>,
 ): number[] => {
   const affected = new Set<number>()
   for (const [slot, oldValue] of changed) {
@@ -1739,7 +1781,13 @@ const rebuildLocalEntanglement = (
     affected.add(slot)
   }
   for (const slot of candidates) affected.add(slot)
-  for (const slot of affected) removeIncidentEntanglement(store, store.fieldAlias.id[slot]!)
+  for (const slot of affected) {
+    removeIncidentEntanglement(
+      store,
+      store.fieldAlias.id[slot]!,
+      touchedBatches,
+    )
+  }
   for (const slot of affected) {
     const source = nearestAncestorAlias(store, slot)
     if (source >= 0) appendEntanglement(store, source, slot)
@@ -1761,6 +1809,7 @@ const applyCanonicalGluon = (
   const affected = new Set<number>()
   const previousValues = new Map<number, number>()
   const layoutSeeds = new Set<number>()
+  const removedRelationBatches = new Set<number>()
   const state = indexes(store)
   for (const [rawField, binding] of Object.entries(fields)) {
     const field = resolveForceFieldId(rawField)
@@ -1792,13 +1841,19 @@ const applyCanonicalGluon = (
       store.field.valueText[markerSlot] = textSlot(store, textValue(binding.value))
     }
   }
-  const regrouped = rebuildLocalEntanglement(store, previousValues, layoutSeeds)
+  const regrouped = rebuildLocalEntanglement(
+    store,
+    previousValues,
+    layoutSeeds,
+    removedRelationBatches,
+  )
   if (affected.size > 0) {
     for (const slot of regrouped) layoutSeeds.add(slot)
     if (store.layout === BULK_STORE_LAYOUT_OUTSIDE_IN) {
       const fieldSlots = [...new Set([...affected].map((slot) =>
         store.fieldAlias.marker[slot]! - 1))]
       const relationBatches = rebuildFieldRelationGeometry(store, [...layoutSeeds])
+      removedRelationBatches.forEach((batch) => relationBatches.add(batch))
       renderer.fieldAliasesRegrouped(
         [...affected],
         fieldSlots,
@@ -1823,6 +1878,7 @@ const applyCanonicalGluon = (
       geometry.orbitalSlots,
       geometry.proxySlots,
     )
+    removedRelationBatches.forEach((batch) => relationBatches.add(batch))
     for (const batch of transitionBatches) {
       if (batch > 0) renderer.transitionBatchChanged(batch)
     }

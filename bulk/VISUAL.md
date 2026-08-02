@@ -114,6 +114,12 @@ Graph Store, Manifest, ReadyScene и второго scene Store в browser path 
   нет. Текущий contour по умолчанию строит `outside-in`; direct writer и local
   handlers принимают selector явно, чтобы обе раскладки проходили одинаковые
   parity и performance checks.
+- Одна canonical shared-Value relation остаётся одной Store row в обеих
+  раскладках. В `centered-nested` её batch равен `0`, только если обе occurrence
+  уже указывают на один shared marker. В `outside-in` occurrence остаются в
+  собственных Torus, поэтому row получает обычный relation batch и `24`
+  compact Hermite controls. Initial writer и Gluon-handler обновляют эти
+  controls локально и передают Renderer только затронутые relation batches.
 - Initial cut проходит один server path: согласованные RPC rows → layout law →
   columnar Bulk Store. В browser wire входит только `{session, store}`; Store не
   содержит service objects, Canvas, GPU handles, `Renderer`, `Space` или

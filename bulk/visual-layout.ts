@@ -194,8 +194,7 @@ export const renderableManifest = (source: BulkManifest): BulkManifest => {
   const nonAxionRelations = (source.relationChannels ?? []).filter(
     (channel) =>
       retainedOwner(channel.parentDarkParticleId) &&
-      channel.relationKind !== "axion-read" &&
-      channel.relationKind !== "field-entanglement",
+      channel.relationKind !== "axion-read",
   )
   for (const channel of nonAxionRelations) {
     if (channel.relationKind === "field-projection") continue
@@ -448,14 +447,22 @@ const adaptRenderManifest = (
       batch.paths.map((entry) => [entry.channelId, {batch, entry}] as const)
     ),
   )
+  const renderedRelationChannels = (visualSource.relationChannels ?? []).filter(
+    (channel) => {
+      if (relationBatchByChannelId.has(channel.relationChannelId)) return true
+      if (
+        payload.layoutSlug === "centered-nested" &&
+        channel.relationKind === "field-entanglement"
+      ) return false
+      throw new Error(
+        `Bulk Visual relation ${channel.relationChannelId} has no compact path`,
+      )
+    },
+  )
   const relationPaths: BulkVisualRelationPath[] =
-    (visualSource.relationChannels ?? []).map((channel) => {
+    renderedRelationChannels.map((channel) => {
       const found = relationBatchByChannelId.get(channel.relationChannelId)
-      if (!found) {
-        throw new Error(
-          `Bulk Visual relation ${channel.relationChannelId} has no compact path`,
-        )
-      }
+      if (!found) throw new Error("Bulk Visual rendered relation is unresolved")
       return {
         batchId: found.batch.batchId,
         batchFingerprint: found.batch.fingerprint,
@@ -502,7 +509,7 @@ const adaptRenderManifest = (
     },
   )
 
-  const relationChannels = (visualSource.relationChannels ?? []).map(
+  const relationChannels = renderedRelationChannels.map(
     (channel) => {
       const path = relationPathById.get(channel.relationChannelId)
       if (!path) {

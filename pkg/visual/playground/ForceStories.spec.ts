@@ -360,6 +360,37 @@ describe("Force Stories catalog", () => {
     expect(prepared.representation.manifest.relationChannels).toContainEqual(
       expect.objectContaining({relationKind: "process-write"}),
     )
+    const entanglementIds = new Set(
+      prepared.representation.manifest.relationChannels
+        ?.filter((relation) => relation.relationKind === "field-entanglement")
+        .map((relation) => relation.relationChannelId),
+    )
+    const centered = prepared.representation.layouts.find((layout) =>
+      layout.id === "centered-nested"
+    )!.scene
+    const outside = prepared.representation.layouts.find((layout) =>
+      layout.id === "outside-in"
+    )!.scene
+    expect(centered.relationEdges.filter((edge) =>
+      entanglementIds.has(edge.relationChannelId)
+    )).toHaveLength(0)
+    const outsideEntanglements = outside.relationEdges.filter((edge) =>
+      entanglementIds.has(edge.relationChannelId)
+    )
+    expect(outsideEntanglements).toHaveLength(3)
+    const outsideFieldByOccurrence = new Map(outside.fields.flatMap((entry) =>
+      entry.fieldParticleIds.map((id) => [id, entry] as const)
+    ))
+    for (const channel of prepared.representation.manifest.relationChannels
+      ?.filter((relation) => relation.relationKind === "field-entanglement") ?? []) {
+      const edge = outsideEntanglements.find((candidate) =>
+        candidate.relationChannelId === channel.relationChannelId
+      )!
+      const from = outsideFieldByOccurrence.get(channel.fromId)!
+      const to = outsideFieldByOccurrence.get(channel.toId)!
+      expect(edge.path[0]).toEqual({x: from.x, y: from.y, z: from.z})
+      expect(edge.path[64]).toEqual({x: to.x, y: to.y, z: to.z})
+    }
     expect(new Set(runtime.atoms.map((atom) => atom.id))).toEqual(new Set([1, 4]))
     expect(runtime.atoms.some((atom) => [2, 3, 5].includes(atom.id))).toBe(false)
   })

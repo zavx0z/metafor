@@ -1240,6 +1240,12 @@ describe("Bulk Store local centered-nested regroup", () => {
     if (!nextTarget) throw new Error("Lada target Field disappeared")
     nextTarget.valueId = nextValue
     nextTarget.valueText = String(nextValue)
+    nextManifest.relationChannels = (nextManifest.relationChannels ?? []).filter(
+      (channel) =>
+        channel.relationKind !== "field-entanglement" ||
+        (channel.fromId !== target.fieldParticleId &&
+          channel.toId !== target.fieldParticleId),
+    )
     const nextVisual = prepareBulkInitialVisual(nextManifest, state.projection).payload
     const expected = visualGroups(nextVisual)
 
@@ -1249,15 +1255,40 @@ describe("Bulk Store local centered-nested regroup", () => {
     expectNumericParity(store.orbital.position, expectedStore.orbital.position, "orbital.position")
     expectNumericParity(store.proxy.position, expectedStore.proxy.position, "proxy.position")
     expectNumericParity(store.transition.control, expectedStore.transition.control, "transition.control")
-    for (let slot = 0; slot < expectedStore.relation.id.length; slot++) {
-      const expectedStart = expectedStore.relation.controlStart[slot]!
-      if (expectedStart < 0) continue
-      const actualStart = store.relation.controlStart[slot]!
-      if (actualStart < 0) throw new Error(`relation ${slot} lost its controls`)
+    const relationControls = (source: BulkStore): Map<string, number[]> => {
+      const endpointKey = (kind: number, id: number): string => {
+        if (kind !== BULK_STORE_ENDPOINT_KIND.field) return `${kind}:${id}`
+        const alias = id - 1
+        return `field:${source.fieldAlias.atom[alias]}:${source.fieldAlias.field[alias]}`
+      }
+      return new Map(Array.from(
+        {length: source.relation.id.length},
+        (_, slot) => slot,
+      ).filter((slot) =>
+        (source.relation.flags[slot]! & BULK_STORE_FLAG_REMOVED) === 0 &&
+        source.relation.controlStart[slot]! >= 0
+      ).map((slot) => {
+        const start = source.relation.controlStart[slot]!
+        return [
+          [
+            source.relation.owner[slot],
+            source.relation.kind[slot],
+            endpointKey(source.relation.aKind[slot]!, source.relation.a[slot]!),
+            endpointKey(source.relation.bKind[slot]!, source.relation.b[slot]!),
+          ].join(":"),
+          Array.from(source.relation.control.slice(start, start + 24)),
+        ] as const
+      }))
+    }
+    const actualRelations = relationControls(store)
+    const expectedRelations = relationControls(expectedStore)
+    expect([...actualRelations.keys()].toSorted())
+      .toEqual([...expectedRelations.keys()].toSorted())
+    for (const [key, expectedControls] of expectedRelations) {
       expectNumericParity(
-        store.relation.control.slice(actualStart, actualStart + 24),
-        expectedStore.relation.control.slice(expectedStart, expectedStart + 24),
-        `relation.control.${slot}`,
+        actualRelations.get(key)!,
+        expectedControls,
+        `relation.control.${key}`,
       )
     }
   })
@@ -1392,7 +1423,8 @@ describe("Bulk Store local centered-nested regroup", () => {
 
 describe("Bulk Store local outside-in updates", () => {
   test("rebinds Value and incident entanglement without moving outside-in geometry", () => {
-    const store = outsideStoreFor(baseManifest())
+    const source = baseManifest()
+    const store = outsideStoreFor(source)
     expect(store.layout).toBe(BULK_STORE_LAYOUT_OUTSIDE_IN)
     const before = {
       darkPosition: Array.from(store.dark.position),
@@ -1412,12 +1444,83 @@ describe("Bulk Store local outside-in updates", () => {
       store.fieldAlias.atom[slot] === 2 && store.fieldAlias.field[slot] === 102)
     expect(store.fieldAlias.value[alias]).toBe(11)
     expect(calls.fields.flat()).toContain(store.fieldAlias.marker[alias]! - 1)
-    for (let slot = 0; slot < store.relation.id.length; slot++) {
-      if (store.relation.kind[slot] === 0 &&
-          (store.relation.flags[slot]! & BULK_STORE_FLAG_REMOVED) === 0) {
-        expect(store.relation.batch[slot]).toBe(0)
-      }
-    }
+    const activeEntanglements = Array.from(
+      {length: store.relation.id.length},
+      (_, slot) => slot,
+    ).filter((slot) =>
+      store.relation.kind[slot] === 0 &&
+      (store.relation.flags[slot]! & BULK_STORE_FLAG_REMOVED) === 0
+    )
+    expect(activeEntanglements).toHaveLength(1)
+    const relationSlot = activeEntanglements[0]!
+    const batch = store.relation.batch[relationSlot]!
+    const start = store.relation.controlStart[relationSlot]!
+    expect(batch).toBeGreaterThan(0)
+    expect(start).toBeGreaterThanOrEqual(0)
+    expect(calls.relationBatches).toContain(batch)
+
+    const next = structuredClone(source)
+    next.fieldParticles.find((entry) =>
+      entry.parentDarkParticleId === 4 && entry.fieldId === 102
+    )!.valueId = 11
+    next.relationChannels = [{
+      relationChannelId: "entanglement/root/to/child",
+      parentDarkParticleId: 2,
+      relationKind: "field-entanglement",
+      fromKind: "field",
+      fromId: "atom/1/field/101",
+      toKind: "field",
+      toId: "atom/2/field/102",
+      active: true,
+    }]
+    const expected = outsideStoreFor(next)
+    const expectedSlot = Array.from(
+      {length: expected.relation.id.length},
+      (_, slot) => slot,
+    ).find((slot) => expected.relation.kind[slot] === 0)!
+    const expectedStart = expected.relation.controlStart[expectedSlot]!
+    expectNumericParity(
+      store.relation.control.slice(start, start + 24),
+      expected.relation.control.slice(expectedStart, expectedStart + 24),
+      "outside-in entanglement controls",
+    )
+  })
+
+  test("removes an outside-in entanglement from its exact renderer batch", () => {
+    const source = baseManifest()
+    source.fieldParticles.find((entry) =>
+      entry.parentDarkParticleId === 4 && entry.fieldId === 102
+    )!.valueId = 11
+    source.relationChannels = [{
+      relationChannelId: "entanglement/root/to/child",
+      parentDarkParticleId: 2,
+      relationKind: "field-entanglement",
+      fromKind: "field",
+      fromId: "atom/1/field/101",
+      toKind: "field",
+      toId: "atom/2/field/102",
+      active: true,
+    }]
+    const store = outsideStoreFor(source)
+    const relationSlot = Array.from(
+      {length: store.relation.id.length},
+      (_, slot) => slot,
+    ).find((slot) => store.relation.kind[slot] === 0)!
+    const previousBatch = store.relation.batch[relationSlot]!
+    const before = Array.from(store.field.position)
+    const {calls, renderer} = recorder()
+
+    applyBulkGluonReplace(store, renderer, gluon(2, 102, 999))
+
+    expect(Array.from(store.field.position)).toEqual(before)
+    expect(Array.from(
+      {length: store.relation.id.length},
+      (_, slot) => slot,
+    ).filter((slot) =>
+      store.relation.kind[slot] === 0 &&
+      (store.relation.flags[slot]! & BULK_STORE_FLAG_REMOVED) === 0
+    )).toHaveLength(0)
+    expect(calls.relationBatches).toContain(previousBatch)
   })
 
   test("adds and removes one declaration occurrence with rebuilt outside-in parity", () => {

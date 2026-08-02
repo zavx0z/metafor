@@ -737,6 +737,16 @@ const projectRelationBatches = (
   torusById: ReadonlyMap<number, VisualTorusPlacement>,
 ): readonly VisualPayloadEdgeBatch[] => {
   const sourceChannels = manifest.relationChannels ?? []
+  const fieldByOccurrenceId = new Map(scene.fields.flatMap((field) =>
+    field.fieldParticleIds.map((id) => [id, field] as const)
+  ))
+  const renderedSourceChannels = sourceChannels.filter((channel) => !(
+    channel.relationKind === "field-entanglement" &&
+    channel.fromKind === "field" &&
+    channel.toKind === "field" &&
+    fieldByOccurrenceId.get(channel.fromId) ===
+      fieldByOccurrenceId.get(channel.toId)
+  ))
   const sourceById = exactIndex(
     sourceChannels,
     (channel) => channel.relationChannelId,
@@ -786,8 +796,10 @@ const projectRelationBatches = (
     })
   })
   if (
-    matched.size !== sourceChannels.length ||
-    sourceChannels.some((channel) => !matched.has(channel.relationChannelId))
+    matched.size !== renderedSourceChannels.length ||
+    renderedSourceChannels.some((channel) =>
+      !matched.has(channel.relationChannelId)
+    )
   ) {
     throw new Error(
       "Visual payload relation edges do not match source relation channels",

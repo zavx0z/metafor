@@ -6,6 +6,7 @@ import type {
 } from "@metafor/types/bulk/manifest"
 import type {BulkRuntimeProjection} from "@metafor/types/bulk/runtime"
 import type {BulkVisualRenderManifest} from "@metafor/types/bulk/visual"
+import {OutsideIn} from "@metafor/visual/layout"
 import snapshotJson from "./fixture/monad-snapshot.json"
 import {buildBulkManifestation} from "./manifestation.ts"
 import {BulkProjectionStore} from "./projection.ts"
@@ -339,6 +340,27 @@ describe("centered-nested Bulk Visual projection", () => {
       Math.abs(center.y - first.y) <= 1e-9 &&
       Math.abs(center.z - first.z) <= 1e-9
     )).toBe(true)
+  })
+
+  test("keeps parent-child Field entanglement in outside-in only", () => {
+    const {manifest, projection} = fullFixture()
+    const visual = buildBulkVisualRenderManifest(manifest, projection, OutsideIn)
+    const sourceEntanglements = (manifest.relationChannels ?? []).filter(
+      (channel) => channel.relationKind === "field-entanglement",
+    )
+    const renderedEntanglements = visual.manifest.relationChannels.filter(
+      (channel) => channel.relationKind === "field-entanglement",
+    )
+    const paths = new Map(visual.relationPaths.map((path) =>
+      [path.relationChannelId, path] as const
+    ))
+
+    expect(sourceEntanglements).toHaveLength(26)
+    expect(renderedEntanglements.map((channel) => channel.relationChannelId))
+      .toEqual(sourceEntanglements.map((channel) => channel.relationChannelId))
+    for (const channel of renderedEntanglements) {
+      expect(paths.get(channel.relationChannelId)?.curves).toHaveLength(2)
+    }
   })
 
   test("projects every orbital and proxy through one exact disjoint form", () => {

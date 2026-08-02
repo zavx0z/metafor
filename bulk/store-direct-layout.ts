@@ -61,6 +61,7 @@ import {
 import type {DirectStoreBuild} from "./store-direct.ts"
 
 type Point = Readonly<{x: number; y: number; z: number}>
+type OwnedPoint = Point & Readonly<{owner: number}>
 type ProcessProxyLayout = Readonly<{
   proxy: number
   radius: number
@@ -786,15 +787,43 @@ export const fillDirectBulkStoreGeometry = (input: DirectStoreBuild): BulkStore 
     ))
   }
 
-  const endpoint = (kind: number, id: number): Point | null => {
+  const endpoint = (kind: number, id: number): OwnedPoint | null => {
+    let point: Point | null
+    let endpointOwner: number
     if (kind === BULK_STORE_ENDPOINT_KIND.field) {
       const marker = store.fieldAlias.marker[id - 1]!
-      return marker > 0 ? pointAt(store.field.position, marker - 1) : null
+      if (marker <= 0) return null
+      point = pointAt(store.field.position, marker - 1)
+      endpointOwner = store.field.owner[marker - 1]!
+    } else if (kind === BULK_STORE_ENDPOINT_KIND["field-proxy"]) {
+      if (id <= 0) return null
+      point = pointAt(store.proxy.position, id - 1)
+      endpointOwner = store.proxy.owner[id - 1]!
+    } else {
+      if (id <= 0) return null
+      point = pointAt(store.orbital.position, id - 1)
+      endpointOwner = store.orbital.owner[id - 1]!
     }
-    if (kind === BULK_STORE_ENDPOINT_KIND["field-proxy"]) {
-      return id > 0 ? pointAt(store.proxy.position, id - 1) : null
+    return {...point, owner: endpointOwner}
+  }
+  const darkWorld = (
+    id: number,
+    cache: Map<number, Point>,
+  ): Point => {
+    const held = cache.get(id)
+    if (held) return held
+    const slot = darkSlotById.get(id)
+    if (slot === undefined) throw new Error(`Bulk Store Dark ${id} is absent`)
+    const local = pointAt(store.dark.position, slot)
+    const parent = store.dark.parent[slot]!
+    const parentPoint = parent === 0 ? {x: 0, y: 0, z: 0} : darkWorld(parent, cache)
+    const world = {
+      x: parentPoint.x + local.x,
+      y: parentPoint.y + local.y,
+      z: parentPoint.z + local.z,
     }
-    return id > 0 ? pointAt(store.orbital.position, id - 1) : null
+    cache.set(id, world)
+    return world
   }
   const branch = (kind: number, id: number): number | null => {
     if (kind === BULK_STORE_ENDPOINT_KIND.field) return null
@@ -804,9 +833,9 @@ export const fillDirectBulkStoreGeometry = (input: DirectStoreBuild): BulkStore 
       (store.orbital.kind[slot] === BULK_STORE_ORBITAL_KIND.state ? id : null)
   }
   const relationBatches = new Map<string, number>()
+  const darkWorldCache = new Map<number, Point>()
   for (let slot = 0; slot < store.relation.id.length; slot++) {
     const entanglement = store.relation.kind[slot] === BULK_STORE_RELATION_KIND["field-entanglement"]
-    if (store.layout === BULK_STORE_LAYOUT_OUTSIDE_IN && entanglement) continue
     if (
       entanglement &&
       store.relation.aKind[slot] === BULK_STORE_ENDPOINT_KIND.field &&
@@ -814,9 +843,29 @@ export const fillDirectBulkStoreGeometry = (input: DirectStoreBuild): BulkStore 
       store.fieldAlias.marker[store.relation.a[slot]! - 1] ===
         store.fieldAlias.marker[store.relation.b[slot]! - 1]
     ) continue
-    const from = endpoint(store.relation.aKind[slot]!, store.relation.a[slot]!)
-    const to = endpoint(store.relation.bKind[slot]!, store.relation.b[slot]!)
-    if (!from || !to) throw new Error(`Bulk Store relation ${slot + 1} has no endpoint`)
+    const fromEndpoint = endpoint(
+      store.relation.aKind[slot]!,
+      store.relation.a[slot]!,
+    )
+    const toEndpoint = endpoint(
+      store.relation.bKind[slot]!,
+      store.relation.b[slot]!,
+    )
+    if (!fromEndpoint || !toEndpoint) {
+      throw new Error(`Bulk Store relation ${slot + 1} has no endpoint`)
+    }
+    const relationOwner = store.relation.owner[slot]!
+    const relationOrigin = darkWorld(relationOwner, darkWorldCache)
+    const relative = (entry: OwnedPoint): Point => {
+      const origin = darkWorld(entry.owner, darkWorldCache)
+      return {
+        x: entry.x + origin.x - relationOrigin.x,
+        y: entry.y + origin.y - relationOrigin.y,
+        z: entry.z + origin.z - relationOrigin.z,
+      }
+    }
+    const from = relative(fromEndpoint)
+    const to = relative(toEndpoint)
     const fromBranch = branch(store.relation.aKind[slot]!, store.relation.a[slot]!)
     const toBranch = branch(store.relation.bKind[slot]!, store.relation.b[slot]!)
     if (fromBranch !== null && toBranch !== null && fromBranch !== toBranch) {
