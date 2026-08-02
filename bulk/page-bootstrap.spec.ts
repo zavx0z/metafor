@@ -48,16 +48,18 @@ const graph = (name = "Root"): Graph => ({
   },
 })
 
-const initialScene = (session = "page-session"): BulkInitialScene => {
-  const document = graph()
+const initialScene = (
+  session = "page-session",
+  name = "Root",
+): BulkInitialScene => {
+  const document = graph(name)
   const projection = projectBulkGraph(document).runtime
   const manifest = buildBulkManifestation(projection, ROOT)
   return {
+    kind: "bulk-ready-scene",
     version: 1,
     throughTs: null,
     rootSrc: ROOT,
-    graph: document,
-    manifest,
     visual: prepareBulkInitialVisual(manifest, projection),
     session,
   }
@@ -101,6 +103,16 @@ describe("Bulk dynamic GET bootstrap", () => {
     expect(firstValue.session).toBe("page-1")
     expect(secondValue.session).toBe("page-2")
     expect(isBulkInitialScene(firstValue)).toBe(true)
+    expect(Object.keys(firstValue).sort()).toEqual([
+      "kind",
+      "rootSrc",
+      "session",
+      "throughTs",
+      "version",
+      "visual",
+    ])
+    expect(JSON.stringify(firstValue)).not.toContain('\"graph\":')
+    expect(JSON.stringify(firstValue)).not.toContain('\"manifest\":')
     expect(first.headers.get("cache-control")).toBe("private, no-store, max-age=0")
     expect(first.headers.get("content-type")).toBe("text/html; charset=utf-8")
     expect(first.headers.get("x-content-type-options")).toBe("nosniff")
@@ -148,8 +160,10 @@ describe("Bulk dynamic GET bootstrap", () => {
       await (await serveBulkInitialPage(dependencies)).text(),
     ))
 
-    expect(first.graph.template[ROOT]?.name).toBe("First")
-    expect(second.graph.template[ROOT]?.name).toBe("Second")
+    expect(first.visual.payload.tori[0]?.label).toBe("First")
+    expect(second.visual.payload.tori[0]?.label).toBe("Second")
+    expect("graph" in first).toBe(false)
+    expect("manifest" in first).toBe(false)
     expect(calls).toEqual([
       {
         target: "dark",
@@ -168,8 +182,7 @@ describe("Bulk dynamic GET bootstrap", () => {
 
   test("escapes script termination and HTML parser hazards without changing data", () => {
     const dangerous = "</script><script>globalThis.compromised=true</script><!--&>\u2028\u2029"
-    const initial = initialScene()
-    initial.graph.template[ROOT]!.name = dangerous
+    const initial = initialScene("page-session", dangerous)
 
     const serialized = serializeBulkInitialJson(initial)
     const html = embedBulkInitialScene(shell(), initial)

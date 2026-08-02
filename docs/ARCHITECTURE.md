@@ -123,18 +123,18 @@ Graph и возвращает root как данные ответа. Assembler �
 читает Store другого домена напрямую. Dark Monad и Boundary остаются
 владельцами своих projections; Dark Force только переносит Monad RPC.
 
-Для Bulk этот RPC является единственным полным стартовым чтением мира. При
-рождении Bulk Monad пока сам вызывает `Dark.readGraph`, валидирует ответ и
-удерживает полный Graph в одном Bulk-owned Graph Store. Этот startup Store
-остаётся временной внутренней границей действующего runtime, но больше не
-является источником первого browser page.
+Для Bulk этот RPC является единственным полным чтением мира. Рождение Bulk
+Monad не вызывает `Dark.readGraph` и не создаёт долгоживущий Graph/projection
+cache: оно подготавливает только operational RPC/Force state.
 
 Каждый `GET /` browser page независимо вызывает `Dark.readGraph`, валидирует
 полученный request-local cut и на сервере готовит из него initial manifestation,
-выбранную Visual layout и сериализуемую сцену. Готовый initial package
-вкладывается в HTML как inert JSON; browser валидирует его и гидратирует
-существующий lifecycle без отдельного initial HTTP-запроса и без повторного
-layout. Dynamic HTML имеет private `no-store` policy и не может становиться
+выбранную Visual layout и сериализуемую сцену. Graph, projection и semantic
+`BulkManifest` уничтожаются вместе с request-local подготовкой; в HTML как
+inert JSON входит только `bulk-ready-scene@1` с prepared Visual и одноразовой
+session. Browser валидирует его и гидратирует ready lifecycle без отдельного
+initial HTTP-запроса, semantic reconstruction и повторного layout. Dynamic HTML
+имеет private `no-store` policy и не может становиться
 shared cached страницей. Bulk не вызывает `Boundary.initialProjection.read` и
 не вводит Boundary как второго сборщика или источник стартового Graph. Bulk
 не передаёт в Dark `zavx0z/inference`, `zavx0z/lada` или любой другой root:
@@ -363,15 +363,15 @@ Capture request/response идут по browser WebSocket-соединению, �
 аутентифицированному одноразовой session, как явно дискриминированные control
 messages. Они разбираются до Force и никогда не создают Impulse. На одного
 observer разрешён один capture одновременно; действуют rate, timeout, viewport
-structural snapshot и PNG payload limits, а disconnect отменяет ожидание.
+ready-scene snapshot и PNG payload limits, а disconnect отменяет ожидание.
 
-Ответ фиксирует observer id, `throughTs`/`rootSrc` browser projection cut,
+Ответ фиксирует observer id, `throughTs`/`rootSrc` browser ready-scene cut,
 CSS/pixel dimensions, DPR, capture sequence, wall-clock time, PNG byte count и
-base64. В том же результате находится существующий `BulkObserverSnapshot`:
-тот же `version`, `throughTs`, `rootSrc` и неизменённый
-`BulkProjectionSnapshot`, из которого observer рекурсивно строит manifestation.
-Отдельный structural graph capture не создаёт. Поля `capture.projection`
-сохраняются как совместимый короткий cut и обязаны точно совпадать со snapshot.
+base64. В том же результате находится `BulkReadySceneSnapshot`: тот же
+`throughTs`/`rootSrc`, layout, canonical counts и fingerprints представленных
+line batches; Graph, semantic manifestation и projection snapshot отсутствуют.
+Поля `capture.projection` сохраняются как короткий совместимый cut и обязаны
+точно совпадать со snapshot.
 
 Browser публикует snapshot для capture только после уже запрошенного обычного
 кадра renderer. Если structural update ещё ожидает этот кадр, capture ждёт его;

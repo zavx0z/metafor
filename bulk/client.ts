@@ -1,4 +1,3 @@
-import type {BulkManifest} from "@metafor/types/bulk/manifest"
 import {
 	BULK_VIEWPORT_CAPTURE_VERSION,
 	isBulkViewportCaptureControlRequest,
@@ -9,7 +8,7 @@ import {
 	createBulkViewport,
 	type BulkVisualViewportWithHud,
 } from "bulk/web"
-import {BulkVisualSceneLifecycle} from "bulk/visual"
+import {BulkReadyVisualSceneLifecycle} from "bulk/visual"
 import { installBulkHud } from "./hud.ts"
 import {captureBulkViewportCanvas} from "./web/viewport-capture.ts"
 import {BulkPresentedSnapshot} from "./web/observer-snapshot.ts"
@@ -18,14 +17,14 @@ import {
 	parseBulkInitialJson,
 } from "./page-bootstrap.ts"
 import {
-	isBulkGraphUpdateControl,
+	isBulkReadySceneUpdateControl,
 } from "./visual-initial.ts"
 
 const bulkCanvas = document.getElementById("bulk-canvas") as HTMLCanvasElement | null
 if (bulkCanvas === null) throw new Error("bulk-canvas not found")
 
 let bulkViewport: BulkVisualViewportWithHud | null = null
-let visualLifecycle: BulkVisualSceneLifecycle | null = null
+let visualLifecycle: BulkReadyVisualSceneLifecycle | null = null
 const presentedSnapshot = new BulkPresentedSnapshot()
 
 const waitForVisibleDocument = async (): Promise<void> => {
@@ -77,7 +76,7 @@ const start = async (): Promise<void> => {
 	// The server already ran the selected strategy. Hydration presents that
 	// geometry as-is; no layout strategy runs in this browser on the initial
 	// path, which `visualLayoutBuiltScenes()` proves in the spec.
-	visualLifecycle = new BulkVisualSceneLifecycle({target: bulkViewport})
+	visualLifecycle = new BulkReadyVisualSceneLifecycle({target: bulkViewport})
 	visualLifecycle.hydrate(initial)
 	presentedSnapshot.stage(() => visualLifecycle!.snapshot())
 
@@ -87,7 +86,7 @@ const start = async (): Promise<void> => {
 		parameters: {session: initial.session},
 	})
 	force.onControl = async (message) => {
-		if (isBulkGraphUpdateControl(message)) {
+		if (isBulkReadySceneUpdateControl(message)) {
 			visualLifecycle!.hydrate(message.scene)
 			const part = message.message.parts[0]
 			bulkViewport?.handleForce(part.part, part)

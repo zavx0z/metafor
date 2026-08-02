@@ -64,24 +64,26 @@ Bulk проявляет один полный runtime projection в два по�
   стратегия передаётся вызывающей стороной явно как `VisualLayout` — того же
   публичного контракта; собственной запасной раскладки и canonical viewport
   fallback в Bulk нет.
-- Initial package и каждое изменённое состояние Graph проходят один путь:
-  `BulkManifest + projection → Axion defer policy → buildVisualScenePayload →
-  VisualScenePayload → классификация инвалидации и reconcile →
-  adaptBulkVisualRenderManifest → applyVisualManifestPatch`.
+- Initial package и каждое изменённое состояние Graph проходят один server
+  path: `request-local Graph → projection + BulkManifest → Axion defer policy →
+  buildVisualScenePayload`. В browser wire входит только versioned ready scene
+  с `VisualPreparedScene`; Graph, projection и semantic `BulkManifest` там
+  отсутствуют. Browser раскрывает renderer records прямо из этого payload и
+  передаёт их в прежний `applyVisualManifestPatch`/CPU Hermite path.
   `VisualScenePayload` — сериализуемый layout-agnostic результат стратегии: он
   не содержит Canvas, GPU handles, `Renderer`, `Space` или `ViewPoint`, поэтому
   может быть подготовлен на сервере.
-- Публичный `bulk/visual` предоставляет один Bulk-owned lifecycle для
-  production browser, будущего UI и playground: `prepare` принимает полный
-  snapshot, `hydrate` — server-prepared initial scene, `apply` проводит один
-  Particle через projection/composition/presenter, `state`, `snapshot`,
-  `layoutInput` и `compose` возвращают detached declarative cuts, а `dispose`
-  освобождает подключённый renderer target. Внутренние projection,
-  manifestation, Store и renderer adapters не являются public integration
-  points.
+- Публичный `bulk/visual` разделяет два ownership режима. Semantic lifecycle
+  для server/fixtures сохраняет `prepare/apply/state/snapshot/compose`.
+  Production browser использует `BulkReadyVisualSceneLifecycle`: он хранит
+  только prepared Visual/renderer state и cursor, принимает полные ready-scene
+  replacement после существующего Force control и не имеет Graph/projection/
+  manifestation Store.
 - Для каждого `GET /` сервер готовит initial `VisualScenePayload` из свежего
-  request-local no-root Graph read и вкладывает полный validated initial package в HTML
-  как inert JSON. Браузер читает embedded package и гидратирует его в
+  request-local rootless Graph read и вкладывает `bulk-ready-scene@1` в HTML
+  как inert JSON. Его top-level поля ограничены `kind/version/throughTs/rootSrc/
+  visual/session`; `graph` и semantic `manifest` валидатор отклоняет. Браузер
+  читает embedded package и гидратирует его в
   Bulk-owned persistent `BulkVisualStore` без отдельного `/initial` request и
   без повторного layout. Bulk не выбирает root из local Store, MF-117 receipt
   или default source; он использует `Graph.root` ответа Dark. Этот initial contract не содержит causal frontier,
@@ -163,8 +165,9 @@ Bulk проявляет один полный runtime projection в два по�
   отсутствие legacy `points`, единое forward/return
   направление batch и не более четырёх Transition batches на владельца
   (`active/inactive × forward/return`).
-- Relation endpoints после Field aliasing обязаны существовать и принадлежать
-  тому же materialized root component, что и channel parent.
+- Relation endpoints и aliasing проверяются сервером при построении payload из
+  semantic manifestation. Browser renderer получает уже готовые path identity,
+  owner, controls и material и не реконструирует semantic endpoints.
 - Production Dark Torus используют фиксированный mesh detail `64 × 192`,
   вложенные State/Process/Finally/Field-proxy Torus — `32 × 192`, Sphere —
   фиксированный package-owned detail. Depth LOD, wireframe carrier, fallback
@@ -200,8 +203,8 @@ Bulk проявляет один полный runtime projection в два по�
   lifecycle принадлежат Bulk. Shared `Space` может содержать невизуальные
   слои, поэтому `pkg/visual` не создаёт и не владеет ни всем `Space`, ни Engine
   lifecycle; он заканчивается на declarative scene и update operations.
-- Renderer получает geometry-bearing manifest и компактные canonical counts,
-  но не полный semantic manifest. Отсутствующий parent является ошибкой; child
+- Renderer получает geometry-bearing ready projection и компактные canonical
+  counts, но не semantic `BulkManifest`. Отсутствующий parent является ошибкой; child
   не переносится в workspace и entity не пропускается молча.
 
 ## Проверяемая граница

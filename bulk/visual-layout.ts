@@ -18,6 +18,11 @@ import type {
   BulkVisualOrbitalSphere,
   BulkVisualOrbitalTorus,
   BulkVisualRelationPath,
+  BulkReadyRenderDarkParticle,
+  BulkReadyRenderFieldParticle,
+  BulkReadyRenderFieldProxy,
+  BulkReadyRenderOrbitalParticle,
+  BulkReadyVisualRenderManifest,
   BulkVisualRenderManifest,
   BulkVisualRenderPatch,
   BulkVisualTransitionPath,
@@ -609,6 +614,194 @@ export const adaptBulkVisualRenderManifest = (
     renderableManifest(semanticManifest),
     payload,
   )
+
+/**
+ * Adapts one complete Visual payload directly into the browser renderer shape.
+ *
+ * Unlike {@link adaptBulkVisualRenderManifest}, this boundary reads no semantic
+ * manifestation. Every value it emits is already a renderer fact in the
+ * server-prepared payload; the expansion only restores the renderer's existing
+ * entity arrays and homogeneous path records before CPU Hermite sampling.
+ */
+export const adaptBulkReadyVisualRenderManifest = (
+  payload: VisualScenePayload,
+): BulkReadyVisualRenderManifest => {
+  const siblingOrder = new Map<number | null, number>()
+  const darkParticles: BulkReadyRenderDarkParticle[] = payload.tori.map((torus) => {
+    if (torus.darkParticleKind === "axion") {
+      throw new Error(`Bulk Visual ready Torus ${torus.darkParticleId} is deferred Axion geometry`)
+    }
+    const order = siblingOrder.get(torus.parentDarkParticleId) ?? 0
+    siblingOrder.set(torus.parentDarkParticleId, order + 1)
+    return {
+      darkParticleId: torus.darkParticleId,
+      parentDarkParticleId: torus.parentDarkParticleId,
+      darkParticleKind: torus.darkParticleKind,
+      label: torus.label,
+      depth: torus.depth,
+      darkParticleOrder: order,
+      localX: torus.localX,
+      localY: torus.localY,
+      localZ: torus.localZ,
+      torusRadius: torus.radius,
+      torusTube: torus.tube,
+      colorR: torus.color[0],
+      colorG: torus.color[1],
+      colorB: torus.color[2],
+    }
+  })
+  const fieldParticles: BulkReadyRenderFieldParticle[] = payload.fields.map(
+    (field) => ({
+      fieldParticleId: field.fieldParticleId,
+      fieldId: field.fieldId,
+      parentDarkParticleId: field.ownerDarkParticleId,
+      fieldKey: field.fieldKey,
+      fieldLabel: field.fieldLabel,
+      fieldParticleKind: field.fieldParticleKind,
+      localX: field.localX,
+      localY: field.localY,
+      localZ: field.localZ,
+      sphereRadius: field.radius,
+      colorR: field.color[0],
+      colorG: field.color[1],
+      colorB: field.color[2],
+    }),
+  )
+  const orbitalSpheres: BulkVisualOrbitalSphere[] = []
+  const orbitalTori: BulkVisualOrbitalTorus[] = []
+  const orbitalParticles: BulkReadyRenderOrbitalParticle[] = payload.orbitals.map(
+    (orbital) => {
+      if (orbital.form.kind === "torus") {
+        orbitalTori.push({
+          orbitalParticleId: orbital.orbitalParticleId,
+          radius: orbital.form.radius,
+          tube: orbital.form.tube,
+        })
+      } else {
+        orbitalSpheres.push({
+          orbitalParticleId: orbital.orbitalParticleId,
+          radius: orbital.form.radius,
+        })
+      }
+      return {
+        orbitalParticleId: orbital.orbitalParticleId,
+        sourceId: orbital.sourceId,
+        parentDarkParticleId: orbital.ownerDarkParticleId,
+        orbitalParticleKind: orbital.orbitalParticleKind,
+        label: orbital.label,
+        localX: orbital.localX,
+        localY: orbital.localY,
+        localZ: orbital.localZ,
+        colorR: orbital.color[0],
+        colorG: orbital.color[1],
+        colorB: orbital.color[2],
+      }
+    },
+  )
+  const fieldProxySpheres: BulkVisualFieldProxySphere[] = []
+  const fieldProxyTori: BulkVisualFieldProxyTorus[] = []
+  const fieldProxies: BulkReadyRenderFieldProxy[] = payload.fieldProxies.map(
+    (proxy) => {
+      if (proxy.form.kind === "torus") {
+        fieldProxyTori.push({
+          fieldProxyId: proxy.fieldProxyId,
+          radius: proxy.form.radius,
+          tube: proxy.form.tube,
+        })
+      } else {
+        fieldProxySpheres.push({
+          fieldProxyId: proxy.fieldProxyId,
+          radius: proxy.form.radius,
+        })
+      }
+      return {
+        fieldProxyId: proxy.fieldProxyId,
+        fieldParticleId: proxy.visualFieldParticleId,
+        fieldId: proxy.fieldId,
+        parentDarkParticleId: proxy.ownerDarkParticleId,
+        stateOrbitalParticleId: proxy.stateOrbitalParticleId,
+        localX: proxy.localX,
+        localY: proxy.localY,
+        localZ: proxy.localZ,
+        colorR: proxy.color[0],
+        colorG: proxy.color[1],
+        colorB: proxy.color[2],
+      }
+    },
+  )
+  const transitionPaths: BulkVisualTransitionPath[] = payload.transitionBatches
+    .flatMap((batch) => batch.paths.map((path) => ({
+      batchId: batch.batchId,
+      batchFingerprint: batch.fingerprint,
+      material: batch.material,
+      ownerDarkParticleId: batch.ownerDarkParticleId,
+      curves: path.curves,
+      returning: batch.returning,
+      transitionChannelId: path.channelId,
+    })))
+  const relationPaths: BulkVisualRelationPath[] = payload.relationBatches
+    .flatMap((batch) => batch.paths.map((path) => ({
+      batchId: batch.batchId,
+      batchFingerprint: batch.fingerprint,
+      material: batch.material,
+      ownerDarkParticleId: batch.ownerDarkParticleId,
+      curves: path.curves,
+      relationChannelId: path.channelId,
+    })))
+
+  return {
+    curveLaw: payload.curveLaw,
+    layoutSlug: payload.layoutSlug,
+    darkTorusMeshDetail: payload.darkTorusMeshDetail,
+    embeddedTorusMeshDetail: payload.embeddedTorusMeshDetail,
+    sourceStats: payload.stats,
+    darkMaterials: payload.tori.map((torus) => ({
+      darkParticleId: torus.darkParticleId,
+      material: torus.material,
+    })),
+    fieldAliases: payload.fieldAliases,
+    fieldMaterials: payload.fields.map((field) => ({
+      fieldParticleId: field.fieldParticleId,
+      material: field.material,
+    })),
+    fieldProxyMaterials: payload.fieldProxies.map((proxy) => ({
+      fieldProxyId: proxy.fieldProxyId,
+      material: proxy.material,
+    })),
+    fieldProxySpheres,
+    fieldProxyTori,
+    orbitalMaterials: payload.orbitals.map((orbital) => ({
+      orbitalParticleId: orbital.orbitalParticleId,
+      material: orbital.material,
+    })),
+    orbitalSpheres,
+    orbitalTori,
+    relationPaths,
+    sphereMeshDetail: payload.sphereMeshDetail,
+    transitionPaths,
+    manifest: {
+      rootSrc: payload.stats.rootSrc,
+      darkParticles,
+      fieldParticles,
+      orbitalParticles,
+      transitionChannels: transitionPaths.map((path) => ({
+        transitionChannelId: path.transitionChannelId,
+        parentDarkParticleId: path.ownerDarkParticleId,
+        colorR: path.material.color[0],
+        colorG: path.material.color[1],
+        colorB: path.material.color[2],
+      })),
+      fieldProxies,
+      relationChannels: relationPaths.map((path) => ({
+        relationChannelId: path.relationChannelId,
+        parentDarkParticleId: path.ownerDarkParticleId,
+        colorR: path.material.color[0],
+        colorG: path.material.color[1],
+        colorB: path.material.color[2],
+      })),
+    },
+  }
+}
 
 /**
  * Narrows a visual delta into the render operations a viewport can apply.

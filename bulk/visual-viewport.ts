@@ -1,6 +1,7 @@
 import type {BulkManifest} from "@metafor/types/bulk/manifest"
 import type {BulkRuntimeProjection} from "@metafor/types/bulk/runtime"
 import type {
+  BulkReadyVisualRenderManifest,
   BulkVisualRenderManifest,
   BulkVisualRenderPatch,
 } from "@metafor/types/bulk/visual"
@@ -26,6 +27,7 @@ import {
 } from "./visual-store.ts"
 import {
   DEFAULT_BULK_VISUAL_LAYOUT,
+  adaptBulkReadyVisualRenderManifest,
   adaptBulkVisualRenderManifest,
   adaptBulkVisualRenderPatch,
   buildBulkVisualScenePayload,
@@ -33,6 +35,7 @@ import {
 
 export type BulkVisualViewportProjectionSink = Readonly<{
   applyVisualManifestPatch(projection: BulkVisualRenderManifest): void
+  applyVisualReadyScene?(projection: BulkReadyVisualRenderManifest): void
   /**
    * Applies the narrowest correct update.
    *
@@ -74,7 +77,7 @@ export type BulkVisualApplyResult = Readonly<{
   patch: BulkVisualRenderPatch | null
   payload: VisualScenePayload
   /** A full projection, when the scene had to be re-specified. */
-  projection: BulkVisualRenderManifest | null
+  projection: BulkVisualRenderManifest | BulkReadyVisualRenderManifest | null
   route: BulkVisualApplyRoute
   scope: VisualInvalidationScope
   summary: VisualPatchSummary
@@ -153,6 +156,45 @@ export class BulkVisualScenePresenter {
     )
     const projection = adaptBulkVisualRenderManifest(semanticManifest, payload)
     viewport.applyVisualManifestPatch(projection)
+    return Object.freeze({
+      closure: null,
+      patch: null,
+      payload,
+      projection,
+      route: "rebuilt" as const,
+      scope: "structure" as const,
+      summary: summarizeVisualScenePatch(
+        reconcileVisualScenePayload(null, payload),
+      ),
+    })
+  }
+
+  /**
+   * Presents the self-sufficient production ready scene.
+   *
+   * This path owns no Graph, projection or semantic manifestation. It expands
+   * renderer records only from the prepared Visual payload, then enters the
+   * same viewport and CPU Hermite sampling path as every other full apply.
+   */
+  hydrateReady(
+    viewport: BulkVisualViewportProjectionSink,
+    prepared: VisualPreparedScene,
+  ): BulkVisualApplyResult {
+    const payload = prepared.payload
+    if (payload.layoutSlug !== this.#layout.slug) {
+      throw new Error(
+        `Bulk Visual payload layout ${payload.layoutSlug} does not match the selected ${this.#layout.slug}`,
+      )
+    }
+    this.#store = hydrateBulkVisualStore(
+      prepared,
+      {placement: this.#layout.placement, slug: this.#layout.slug},
+    )
+    const projection = adaptBulkReadyVisualRenderManifest(payload)
+    if (!viewport.applyVisualReadyScene) {
+      throw new Error("Bulk Visual target cannot present a ready scene")
+    }
+    viewport.applyVisualReadyScene(projection)
     return Object.freeze({
       closure: null,
       patch: null,

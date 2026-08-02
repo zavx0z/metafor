@@ -1,7 +1,7 @@
-import type {BulkObserverSnapshot} from "./initial.ts"
+import type {BulkReadySceneSnapshot} from "./initial.ts"
 
 export const BULK_VIEWPORT_CAPTURE_METHOD = "bulk.observer.captureViewport" as const
-export const BULK_VIEWPORT_CAPTURE_VERSION = 1 as const
+export const BULK_VIEWPORT_CAPTURE_VERSION = 2 as const
 
 export type BulkViewportCaptureRequest = {
   version: typeof BULK_VIEWPORT_CAPTURE_VERSION
@@ -57,11 +57,10 @@ export type BulkViewportCaptureImage = {
   /** Wall-clock capture time. This is deliberately not a simulation tick. */
   capturedAt: string
   /**
-   * The existing structural snapshot shape, latched at the same presented
-   * observer cut as the PNG. Existing projection consumers can hydrate it
-   * unchanged.
+   * Compact ready-scene identity latched at the same presented observer cut as
+   * the PNG. It contains no Graph, semantic manifestation or projection.
    */
-  snapshot: BulkObserverSnapshot
+  snapshot: BulkReadySceneSnapshot
   mimeType: "image/png"
   pngBytes: number
   pngBase64: string

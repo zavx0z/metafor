@@ -1,11 +1,16 @@
-import type {BulkRenderManifest} from "@metafor/types/bulk/manifest"
 import type {
+  BulkReadyRenderScene,
+  BulkReadyVisualRenderManifest,
   BulkVisualCurveLaw,
   BulkVisualFieldAlias,
   BulkVisualLineMaterial,
   BulkVisualQuantumMaterial,
   BulkVisualRenderManifest,
 } from "@metafor/types/bulk/visual"
+
+type BulkAnyVisualRenderManifest =
+  | BulkVisualRenderManifest
+  | BulkReadyVisualRenderManifest
 
 /** Rejects an unknown compact-curve contract before any geometry is built. */
 export const assertBulkVisualCurveLaw = (
@@ -133,7 +138,7 @@ const assertLineMaterial = (
 }
 
 const assertMaterialCoverage = (
-  projection: BulkVisualRenderManifest,
+  projection: BulkAnyVisualRenderManifest,
 ): void => {
   const exactCoverage = (
     actual: readonly string[],
@@ -236,7 +241,7 @@ const assertMaterialCoverage = (
 }
 
 const assertCompactPaths = (
-  projection: BulkVisualRenderManifest,
+  projection: BulkAnyVisualRenderManifest,
 ): void => {
   const darkIds = new Set(
     projection.manifest.darkParticles.map((particle) =>
@@ -371,7 +376,7 @@ const assertCompactPaths = (
 }
 
 const assertRenderGeometry = (
-  projection: BulkVisualRenderManifest,
+  projection: BulkAnyVisualRenderManifest,
 ): void => {
   if (
     projection.darkTorusMeshDetail.radialSegments !== 64 ||
@@ -474,7 +479,7 @@ const assertRenderGeometry = (
   }
 }
 
-const assertRenderParents = (manifest: BulkRenderManifest): void => {
+const assertRenderParents = (manifest: BulkReadyRenderScene): void => {
   const darkIds = new Set<number>()
   for (const particle of manifest.darkParticles) {
     if (darkIds.has(particle.darkParticleId)) {
@@ -547,7 +552,7 @@ const assertRenderParents = (manifest: BulkRenderManifest): void => {
 
 /** Fail-closed proof for the geometry-only renderer boundary. */
 export const assertBulkVisualProjectionBoundary = (
-  projection: BulkVisualRenderManifest,
+  projection: BulkAnyVisualRenderManifest,
 ): void => {
   const manifest = projection.manifest
   assertBulkVisualCurveLaw(projection.curveLaw)
@@ -557,9 +562,6 @@ export const assertBulkVisualProjectionBoundary = (
     ) ||
     manifest.orbitalParticles.some((particle) =>
       particle.orbitalParticleKind === "axion"
-    ) ||
-    manifest.relationChannels.some((channel) =>
-      channel.relationKind === "axion-read"
     )
   ) {
     throw new Error("Bulk Visual renderer received deferred Axion geometry")
@@ -604,7 +606,7 @@ export const assertBulkVisualProjectionBoundary = (
   ) {
     throw new Error("Bulk Visual orbital form has no render occurrence")
   }
-  const fieldIds = uniqueIds(
+  uniqueIds(
     manifest.fieldParticles.map((field) => field.fieldParticleId),
     "Field",
   )
@@ -614,17 +616,6 @@ export const assertBulkVisualProjectionBoundary = (
     ),
     "Transition",
   )
-  for (const channel of manifest.transitionChannels) {
-    if (
-      !orbitalIds.has(channel.fromOrbitalParticleId) ||
-      !orbitalIds.has(channel.toOrbitalParticleId)
-    ) {
-      throw new Error(
-        `Bulk Visual Transition ${channel.transitionChannelId} has unresolved endpoints`,
-      )
-    }
-  }
-
   const proxyIds = uniqueIds(
     manifest.fieldProxies.map((proxy) => proxy.fieldProxyId),
     "Field proxy",
@@ -655,22 +646,6 @@ export const assertBulkVisualProjectionBoundary = (
     manifest.relationChannels.map((channel) => channel.relationChannelId),
     "relation",
   )
-  const hasEndpoint = (kind: "field" | "field-proxy" | "orbital", id: string):
-    boolean => kind === "field"
-      ? fieldIds.has(id)
-      : kind === "field-proxy"
-        ? proxyIds.has(id)
-        : orbitalIds.has(id)
-  for (const channel of manifest.relationChannels) {
-    if (
-      !hasEndpoint(channel.fromKind, channel.fromId) ||
-      !hasEndpoint(channel.toKind, channel.toId)
-    ) {
-      throw new Error(
-        `Bulk Visual relation ${channel.relationChannelId} has unresolved endpoints`,
-      )
-    }
-  }
 }
 
 export const bulkVisualFieldSourceAddress = (

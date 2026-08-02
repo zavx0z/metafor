@@ -1,11 +1,4 @@
 import type {
-	BulkRenderDarkParticle as BulkDarkParticle,
-	BulkRenderFieldParticle as BulkFieldParticle,
-	BulkRenderFieldProxy as BulkFieldProxy,
-	BulkRenderManifest as BulkManifest,
-	BulkRenderOrbitalParticle as BulkOrbitalParticle,
-} from "@metafor/types/bulk/manifest"
-import type {
 	BulkViewportController,
 	BulkViewportFitAxis,
 	BulkViewportOptions,
@@ -35,6 +28,12 @@ import type {
 import type { BulkRenderSettings } from "@metafor/types/bulk/settings"
 import type { SurfaceArcLimits, TextExtents } from "@metafor/types/bulk/text"
 import type {
+	BulkReadyRenderDarkParticle as BulkDarkParticle,
+	BulkReadyRenderFieldParticle as BulkFieldParticle,
+	BulkReadyRenderFieldProxy as BulkFieldProxy,
+	BulkReadyRenderOrbitalParticle as BulkOrbitalParticle,
+	BulkReadyRenderScene as BulkManifest,
+	BulkReadyVisualRenderManifest,
 	BulkVisualQuantumMaterial,
 	BulkVisualRelationPath,
 	BulkVisualRenderManifest,
@@ -168,6 +167,7 @@ import {
 
 export type BulkVisualViewportWithHud = BulkViewportWithHud & Readonly<{
 	applyVisualManifestPatch(projection: BulkVisualRenderManifest): void
+	applyVisualReadyScene(projection: BulkReadyVisualRenderManifest): void
 	applyVisualRenderPatch(patch: BulkVisualRenderPatch): void
 }>
 
@@ -2013,7 +2013,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 					depth,
 					material,
 				),
-				snapshot: {...particle, relatedStateIds: [...particle.relatedStateIds]},
+				snapshot: {...particle},
 				targetLocalPosition: new Vector3(
 					particle.localX,
 					particle.localY,
@@ -2024,7 +2024,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			return record
 		}
 		existing.depth = depth
-		existing.snapshot = {...particle, relatedStateIds: [...particle.relatedStateIds]}
+		existing.snapshot = {...particle}
 		existing.targetLocalPosition.set(
 			particle.localX,
 			particle.localY,
@@ -2721,7 +2721,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	}
 
 	const applyVisualManifestPatchToScene = (
-		projection: BulkVisualRenderManifest,
+		projection: BulkVisualRenderManifest | BulkReadyVisualRenderManifest,
 	): void => {
 		assertBulkVisualProjectionBoundary(projection)
 		const nextOrbitalSphereRadiusById = new Map(
@@ -4359,6 +4359,9 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			requestRenderLoop(INPUT_RENDER_WAKE_MS)
 		},
 		applyVisualManifestPatch(projection: BulkVisualRenderManifest) {
+			applyVisualManifestPatchToScene(projection)
+		},
+		applyVisualReadyScene(projection: BulkReadyVisualRenderManifest) {
 			applyVisualManifestPatchToScene(projection)
 		},
 		applyVisualRenderPatch(patch: BulkVisualRenderPatch) {

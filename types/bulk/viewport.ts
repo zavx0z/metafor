@@ -1,5 +1,8 @@
 import type { Color, Mesh, Object3D, Text, TextMaterial, ThinFilmMaterial, Vector3 } from "@metafor/engine"
-import type { BulkRenderDarkParticle, BulkRenderFieldParticle } from "./manifest.ts"
+import type {
+  BulkReadyRenderDarkParticle,
+  BulkReadyRenderFieldParticle,
+} from "./visual.ts"
 import type { TextExtents } from "./text.ts"
 
 export interface BulkDarkParticlePickTarget {
@@ -230,7 +233,7 @@ export type DarkParticleRenderRecord = {
   currentTransitionScale: number
   material: ThinFilmMaterial
   pickTarget: HoverablePickTarget
-  snapshot: BulkRenderDarkParticle
+  snapshot: BulkReadyRenderDarkParticle
   targetLocalPosition: Vector3
   torus: Mesh
 }
@@ -242,7 +245,7 @@ export type FieldParticleRenderRecord = {
   node: Mesh
   parentDarkParticleId: number
   pickTarget: HoverablePickTarget
-  snapshot: BulkRenderFieldParticle
+  snapshot: BulkReadyRenderFieldParticle
   targetLocalPosition: Vector3
 }
 

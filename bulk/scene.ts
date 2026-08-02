@@ -1,4 +1,12 @@
-import type {BulkRenderDarkParticle, BulkRenderFieldParticle, BulkRenderFieldProxy, BulkRenderManifest, BulkRenderOrbitalParticle, BulkRenderRelationChannel, BulkRenderTransitionChannel} from "@metafor/types/bulk/manifest"
+import type {
+  BulkReadyRenderDarkParticle,
+  BulkReadyRenderFieldParticle,
+  BulkReadyRenderFieldProxy,
+  BulkReadyRenderOrbitalParticle,
+  BulkReadyRenderRelationChannel,
+  BulkReadyRenderScene,
+  BulkReadyRenderTransitionChannel,
+} from "@metafor/types/bulk/visual"
 
 export type BulkScenePatch = {
   darkParticleIds: number[]
@@ -17,10 +25,10 @@ export type BulkScenePatch = {
 
 /** What one incremental patch changed, by entity class. */
 export type BulkSceneAbsorption = {
-  darkParticles?: readonly BulkRenderDarkParticle[]
-  fieldParticles?: readonly BulkRenderFieldParticle[]
-  fieldProxies?: readonly BulkRenderFieldProxy[]
-  orbitalParticles?: readonly BulkRenderOrbitalParticle[]
+  darkParticles?: readonly BulkReadyRenderDarkParticle[]
+  fieldParticles?: readonly BulkReadyRenderFieldParticle[]
+  fieldProxies?: readonly BulkReadyRenderFieldProxy[]
+  orbitalParticles?: readonly BulkReadyRenderOrbitalParticle[]
   removedDarkParticleIds?: readonly number[]
   removedFieldParticleIds?: readonly string[]
   removedFieldProxyIds?: readonly string[]
@@ -31,19 +39,27 @@ const sameFlatRecord = (left: object, right: object): boolean => {
   const leftRecord = left as Record<string, unknown>
   const rightRecord = right as Record<string, unknown>
   const keys = Object.keys(leftRecord)
-  return keys.length === Object.keys(rightRecord).length && keys.every((key) => Object.is(leftRecord[key], rightRecord[key]))
+  const sameValue = (leftValue: unknown, rightValue: unknown): boolean =>
+    Object.is(leftValue, rightValue) || (
+      Array.isArray(leftValue) &&
+      Array.isArray(rightValue) &&
+      leftValue.length === rightValue.length &&
+      leftValue.every((entry, index) => Object.is(entry, rightValue[index]))
+    )
+  return keys.length === Object.keys(rightRecord).length &&
+    keys.every((key) => sameValue(leftRecord[key], rightRecord[key]))
 }
 
 /** Diff gate used by the live viewport; unchanged render entities are not touched. */
 export class BulkSceneStore {
-  readonly darkParticles = new Map<number, BulkRenderDarkParticle>()
-  readonly fieldParticles = new Map<string, BulkRenderFieldParticle>()
-  readonly orbitalParticles = new Map<string, BulkRenderOrbitalParticle>()
-  readonly transitionChannels = new Map<string, BulkRenderTransitionChannel>()
-  readonly fieldProxies = new Map<string, BulkRenderFieldProxy>()
-  readonly relationChannels = new Map<string, BulkRenderRelationChannel>()
+  readonly darkParticles = new Map<number, BulkReadyRenderDarkParticle>()
+  readonly fieldParticles = new Map<string, BulkReadyRenderFieldParticle>()
+  readonly orbitalParticles = new Map<string, BulkReadyRenderOrbitalParticle>()
+  readonly transitionChannels = new Map<string, BulkReadyRenderTransitionChannel>()
+  readonly fieldProxies = new Map<string, BulkReadyRenderFieldProxy>()
+  readonly relationChannels = new Map<string, BulkReadyRenderRelationChannel>()
 
-  apply(manifest: BulkRenderManifest): BulkScenePatch {
+  apply(manifest: BulkReadyRenderScene): BulkScenePatch {
     const darkParticleIds: number[] = []
     const fieldParticleIds: string[] = []
     const nextDarkIds = new Set<number>()
@@ -83,22 +99,21 @@ export class BulkSceneStore {
       nextOrbitalIds.add(particle.orbitalParticleId)
       const current = this.orbitalParticles.get(particle.orbitalParticleId)
       if (!current) {
-        this.orbitalParticles.set(particle.orbitalParticleId, {...particle, relatedStateIds: [...particle.relatedStateIds]})
+        this.orbitalParticles.set(particle.orbitalParticleId, {...particle})
         orbitalParticleIds.push(particle.orbitalParticleId)
-      } else if (!sameFlatRecord({...current, relatedStateIds: current.relatedStateIds.join(",")}, {...particle, relatedStateIds: particle.relatedStateIds.join(",")})) {
-        Object.assign(current, particle, {relatedStateIds: [...particle.relatedStateIds]})
+      } else if (!sameFlatRecord(current, particle)) {
+        Object.assign(current, particle)
         orbitalParticleIds.push(particle.orbitalParticleId)
       }
     }
     for (const channel of manifest.transitionChannels ?? []) {
       nextTransitionIds.add(channel.transitionChannelId)
       const current = this.transitionChannels.get(channel.transitionChannelId)
-      const normalized = {...channel, conditionIds: [...channel.conditionIds], conditionFieldIds: [...channel.conditionFieldIds]}
       if (!current) {
-        this.transitionChannels.set(channel.transitionChannelId, normalized)
+        this.transitionChannels.set(channel.transitionChannelId, {...channel})
         transitionChannelIds.push(channel.transitionChannelId)
-      } else if (JSON.stringify(current) !== JSON.stringify(normalized)) {
-        Object.assign(current, normalized)
+      } else if (!sameFlatRecord(current, channel)) {
+        Object.assign(current, channel)
         transitionChannelIds.push(channel.transitionChannelId)
       }
     }
@@ -172,10 +187,7 @@ export class BulkSceneStore {
       this.fieldParticles.set(particle.fieldParticleId, {...particle})
     }
     for (const particle of absorption.orbitalParticles ?? []) {
-      this.orbitalParticles.set(particle.orbitalParticleId, {
-        ...particle,
-        relatedStateIds: [...particle.relatedStateIds],
-      })
+      this.orbitalParticles.set(particle.orbitalParticleId, {...particle})
     }
     for (const proxy of absorption.fieldProxies ?? []) {
       this.fieldProxies.set(proxy.fieldProxyId, {...proxy})

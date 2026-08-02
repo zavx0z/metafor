@@ -15,7 +15,7 @@ import {FORCE_CHECKPOINT_QUIESCE_METHOD} from "shared/transport/force/checkpoint
 import {buildBulkManifestation} from "./manifestation.ts"
 import {
   type BulkInitialScene,
-  type BulkGraphScene,
+  type BulkReadyScene,
   prepareBulkInitialVisual,
 } from "./visual-initial.ts"
 import {
@@ -384,7 +384,7 @@ export class BulkMonad {
   async onImpulse(
     peer: Pick<MonadRpcPeer, "call">,
     message: ForceMessage,
-  ): Promise<BulkGraphScene> {
+  ): Promise<BulkReadyScene> {
     if (this.#state !== "ready") {
       throw new Error(`Bulk Monad cannot apply an invalidation from state: ${this.#state}`)
     }
@@ -404,7 +404,6 @@ export class BulkMonad {
       )
       const cut = prepareBulkGraphCut(current)
       const scene = this.#composeScene(
-        cut.document,
         cut.projection.runtime,
         cut.document.root,
         part.ts,
@@ -434,7 +433,6 @@ export class BulkMonad {
     const cut = prepareBulkGraphCut(value)
     return {
       ...this.#composeScene(
-        cut.document,
         cut.projection.runtime,
         cut.document.root,
         throughTs,
@@ -445,12 +443,11 @@ export class BulkMonad {
   }
 
   #composeScene(
-    graph: Graph,
     projection: BulkRuntimeProjection,
     rootSrc: MetaAddress,
     throughTs: number | null,
     promotionReceipt: BulkRootPromotionReceipt | null,
-  ): BulkGraphScene {
+  ): BulkReadyScene {
     const promotion = projectionPromotionReceipt(
       projection,
       promotionReceipt,
@@ -461,11 +458,10 @@ export class BulkMonad {
       promotion,
     )
     return {
+      kind: "bulk-ready-scene",
       version: 1,
       throughTs,
       rootSrc,
-      graph,
-      manifest,
       visual: prepareBulkInitialVisual(manifest, projection),
     }
   }

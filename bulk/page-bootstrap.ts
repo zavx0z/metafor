@@ -110,7 +110,7 @@ export const parseBulkInitialJson = (text: string | null): BulkInitialScene => {
     throw new Error("Bulk embedded initial package is not valid JSON")
   }
   if (!isBulkInitialScene(value)) {
-    throw new Error("Bulk embedded initial package is not one complete validated Graph scene")
+    throw new Error("Bulk embedded initial package is not one complete validated ready scene")
   }
   return value
 }

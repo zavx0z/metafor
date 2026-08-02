@@ -3,46 +3,36 @@ import {
   BULK_VIEWPORT_CAPTURE_VERSION,
   type BulkViewportCaptureControlRequest,
 } from "@metafor/types/bulk/capture"
-import type {BulkObserverSnapshot, BulkProjectionSnapshot} from "@metafor/types/bulk/initial"
+import type {BulkReadySceneSnapshot} from "@metafor/types/bulk/initial"
 import {captureBulkViewportCanvas} from "./viewport-capture.ts"
 
 const PNG_BASE64 =
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
 const PNG_BYTES = Uint8Array.from(atob(PNG_BASE64), (value) => value.charCodeAt(0))
-const EMPTY_PROJECTION: BulkProjectionSnapshot = {
-  runtime: {
-    atoms: [],
-    topologies: [],
-    wimps: [],
-    fields: [],
-    states: [],
-    transitions: [],
-    conditions: [],
-    processes: [],
-    reactions: [],
-    atomStates: [],
-    fieldEnumVariants: [],
-    atomValues: [],
-    values: [],
-    valueItems: [],
-    matterParticles: [],
-    matterTopologyBindingPaths: [],
-    matterChildWimpBindingPaths: [],
-  },
-  declarations: [],
-}
 const snapshot = (
   throughTs: number | null = null,
   rootSrc = "root",
-): BulkObserverSnapshot => ({
+): BulkReadySceneSnapshot => ({
+  kind: "bulk-ready-scene-snapshot",
   version: 1,
   throughTs,
   rootSrc,
-  projection: structuredClone(EMPTY_PROJECTION),
+  visual: {
+    layoutSlug: "centered-nested",
+    sourceStats: {
+      rootSrc,
+      darkParticleCount: 0,
+      fieldParticleCount: 0,
+      orbitalParticleCount: 0,
+      transitionChannelCount: 0,
+    },
+    transitionBatchFingerprints: [],
+    relationBatchFingerprints: [],
+  },
 })
 const source = (
   observerId = "owner",
-  observerSnapshot: BulkObserverSnapshot | null = snapshot(),
+  observerSnapshot: BulkReadySceneSnapshot | null = snapshot(),
 ) => ({observerId, snapshot: observerSnapshot})
 
 const request = (limits: Partial<BulkViewportCaptureControlRequest["limits"]> = {}): BulkViewportCaptureControlRequest => ({
@@ -92,7 +82,7 @@ describe("Bulk browser viewport PNG capture", () => {
     expect(await pending).toEqual({
       ok: true,
       capture: {
-        version: 1,
+        version: BULK_VIEWPORT_CAPTURE_VERSION,
         observer: {domain: "bulk", id: "owner-viewport"},
         projection: {throughTs: 1_700_000_000_123, rootSrc: "world/selected"},
         viewport: {
@@ -189,7 +179,7 @@ describe("Bulk browser viewport PNG capture", () => {
     )).toMatchObject({ok: false, error: {code: "capture_unavailable"}})
   })
 
-  test("requires a presented structural cut and bounds it before PNG export", async () => {
+  test("requires a presented ready-scene cut and bounds it before PNG export", async () => {
     let toBlobCalls = 0
     const canvas = {
       width: 2,
@@ -209,12 +199,7 @@ describe("Bulk browser viewport PNG capture", () => {
     )).toMatchObject({ok: false, error: {code: "capture_unavailable"}})
 
     const oversized = snapshot()
-    oversized.projection.declarations.push({
-      src: "owner/root",
-      section: "meta",
-      localId: "root",
-      value: {payload: "x".repeat(2_000)},
-    })
+    oversized.visual.relationBatchFingerprints.push("x".repeat(2_000))
     expect(await captureBulkViewportCanvas(
       canvas,
       request({maxSnapshotBytes: 256}),

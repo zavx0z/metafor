@@ -156,6 +156,102 @@ export type BulkVisualSourceStats = Readonly<{
   transitionChannelCount: number
 }>
 
+/** Minimal Dark facts the browser renderer actually owns. */
+export type BulkReadyRenderDarkParticle = Readonly<{
+  darkParticleId: number
+  parentDarkParticleId: number | null
+  darkParticleKind: "atom" | "fuzzy" | "macho" | "axion"
+  label: string
+  depth: number
+  darkParticleOrder: number
+  localX: number
+  localY: number
+  localZ: number
+  torusRadius: number
+  torusTube: number
+  colorR: number
+  colorG: number
+  colorB: number
+}>
+
+export type BulkReadyRenderFieldParticle = Readonly<{
+  fieldParticleId: string
+  fieldId: number
+  parentDarkParticleId: number
+  fieldKey: string
+  fieldLabel: string
+  fieldParticleKind: "string" | "number" | "boolean" | "enum" | "array" | "other"
+  localX: number
+  localY: number
+  localZ: number
+  sphereRadius: number
+  colorR: number
+  colorG: number
+  colorB: number
+}>
+
+export type BulkReadyRenderOrbitalParticle = Readonly<{
+  orbitalParticleId: string
+  sourceId: number
+  parentDarkParticleId: number
+  orbitalParticleKind: "state" | "process" | "reaction" | "finally" | "axion"
+  label: string
+  localX: number
+  localY: number
+  localZ: number
+  colorR: number
+  colorG: number
+  colorB: number
+}>
+
+export type BulkReadyRenderFieldProxy = Readonly<{
+  fieldProxyId: string
+  fieldParticleId: string
+  fieldId: number
+  parentDarkParticleId: number
+  stateOrbitalParticleId: string
+  localX: number
+  localY: number
+  localZ: number
+  colorR: number
+  colorG: number
+  colorB: number
+}>
+
+export type BulkReadyRenderTransitionChannel = Readonly<{
+  transitionChannelId: string
+  parentDarkParticleId: number
+  colorR: number
+  colorG: number
+  colorB: number
+}>
+
+export type BulkReadyRenderRelationChannel = Readonly<{
+  relationChannelId: string
+  parentDarkParticleId: number
+  colorR: number
+  colorG: number
+  colorB: number
+}>
+
+/** Geometry-bearing browser entity cut with no semantic manifestation. */
+export type BulkReadyRenderScene = Readonly<{
+  rootSrc: string
+  darkParticles: readonly BulkReadyRenderDarkParticle[]
+  fieldParticles: readonly BulkReadyRenderFieldParticle[]
+  orbitalParticles: readonly BulkReadyRenderOrbitalParticle[]
+  transitionChannels: readonly BulkReadyRenderTransitionChannel[]
+  fieldProxies: readonly BulkReadyRenderFieldProxy[]
+  relationChannels: readonly BulkReadyRenderRelationChannel[]
+}>
+
+/** Browser-only expansion of one self-sufficient prepared Visual payload. */
+export type BulkReadyVisualRenderManifest = Readonly<
+  Omit<BulkVisualRenderManifest, "manifest"> & {
+    manifest: BulkReadyRenderScene
+  }
+>
+
 /**
  * Bulk-owned render projection. `manifest` is an identity-aware render shape
  * and must not be persisted as canonical manifestation.

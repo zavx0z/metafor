@@ -270,11 +270,12 @@ describe("Bulk Monad", () => {
     const second = await monad.openFreshObserver(peer as never, "page-2")
 
     expect(first.session).toBe("page-1")
-    expect(first.graph).toEqual(working)
     expect(first.rootSrc).toBe(LADA)
     expect(first.visual.kind).toBe("visual-prepared-scene")
     expect(second.session).toBe("page-2")
-    expect(second.graph).toEqual(startup)
+    expect(first.visual).not.toEqual(second.visual)
+    expect("graph" in first).toBe(false)
+    expect("manifest" in first).toBe(false)
     expect(peer.calls).toEqual([
       {
         target: "dark",
@@ -321,7 +322,7 @@ describe("Bulk Monad", () => {
     expect(freshObserver).not.toContain("MF117_")
   })
 
-  test("uses a Particle as invalidation and prepares one event-local Graph scene", async () => {
+  test("uses a Particle as invalidation and prepares one event-local ready scene", async () => {
     const peer = metaPeer(mf117Document())
     const monad = new BulkMonad()
     await monad.onServerStarted()
@@ -338,10 +339,12 @@ describe("Bulk Monad", () => {
     })
 
     expect(scene).toMatchObject({
+      kind: "bulk-ready-scene",
       throughTs: 42,
       rootSrc: LADA,
-      graph: {root: LADA},
     })
+    expect("graph" in scene).toBe(false)
+    expect("manifest" in scene).toBe(false)
     expect(peer.calls).toEqual([
       {
         target: "boundary",
@@ -384,9 +387,9 @@ describe("Bulk Monad", () => {
     monad.onRuntimeBorn()
     const before = await monad.openFreshObserver(peer as never, "mf117-before")
     expect(before.rootSrc).toBe("zavx0z/inference")
-    expect(before.manifest.darkParticles.filter(({src}) =>
+    expect(before.visual.payload.tori.filter(({src}) =>
       src === "zavx0z/inference")).toHaveLength(1)
-    expect(before.manifest.darkParticles.filter(({src}) =>
+    expect(before.visual.payload.tori.filter(({src}) =>
       src?.startsWith("zavx0z/lada"))).toHaveLength(5)
     await expect(monad.mf117Preflight(peer as never, {
       schema: "metafor/bulk-mf117-live/v1",
@@ -395,8 +398,8 @@ describe("Bulk Monad", () => {
         formerRootFrame: {...promotion.formerRootFrame, outerDiameterMm: 99},
       },
     })).rejects.toThrow("promotion receipt is not exact")
-    const sourceBefore = before.manifest.darkParticles.find(({src}) => src === INFERENCE)!
-    const targetBefore = before.manifest.darkParticles.find(({src}) => src === LADA)!
+    const sourceBefore = before.visual.payload.tori.find(({src}) => src === INFERENCE)!
+    const targetBefore = before.visual.payload.tori.find(({src}) => src === LADA)!
     expect(await monad.mf117Preflight(peer as never, {
       schema: "metafor/bulk-mf117-live/v1",
       promotion,
@@ -440,14 +443,14 @@ describe("Bulk Monad", () => {
     })
     const observer = await monad.openFreshObserver(peer as never, "mf117-observer")
     expect(observer.rootSrc).toBe("zavx0z/lada")
-    expect(observer.manifest.darkParticles.filter(({src}) =>
+    expect(observer.visual.payload.tori.filter(({src}) =>
       src === "zavx0z/inference")).toHaveLength(0)
-    expect(observer.manifest.darkParticles.some(({src}) => src === INFERENCE)).toBe(false)
-    const ladaRoot = observer.manifest.darkParticles.find(({src}) => src === LADA)!
-    const auth = observer.manifest.darkParticles.find(({src}) => src === AUTH)!
-    const chat = observer.manifest.darkParticles.find(({src}) => src === CHAT)!
-    const model = observer.manifest.darkParticles.find(({src}) => src === MODEL)!
-    const send = observer.manifest.darkParticles.find(({src}) => src === SEND)!
+    expect(observer.visual.payload.tori.some(({src}) => src === INFERENCE)).toBe(false)
+    const ladaRoot = observer.visual.payload.tori.find(({src}) => src === LADA)!
+    const auth = observer.visual.payload.tori.find(({src}) => src === AUTH)!
+    const chat = observer.visual.payload.tori.find(({src}) => src === CHAT)!
+    const model = observer.visual.payload.tori.find(({src}) => src === MODEL)!
+    const send = observer.visual.payload.tori.find(({src}) => src === SEND)!
     expect(ladaRoot.parentDarkParticleId).toBeNull()
     expect([auth.parentDarkParticleId, chat.parentDarkParticleId, model.parentDarkParticleId])
       .toEqual([ladaRoot.darkParticleId, ladaRoot.darkParticleId, ladaRoot.darkParticleId])
@@ -469,8 +472,8 @@ describe("Bulk Monad", () => {
     expect(sha256((await monad.openFreshObserver(
       peer as never,
       "mf117-dynamic",
-    )).manifest))
-      .not.toBe(sha256(observer.manifest))
+    )).visual.payload))
+      .not.toBe(sha256(observer.visual.payload))
     expect(await monad.mf117Verify(peer as never)).toMatchObject({
       receiptId: promoted.receiptId,
       structuralSha256: promoted.structuralSha256,
@@ -511,7 +514,7 @@ describe("Bulk Monad", () => {
     expect(sha256((await monad.openFreshObserver(
       peer as never,
       "legacy-dynamic",
-    )).manifest))
+    )).visual.payload))
       .not.toBe(legacy.manifestSha256)
     expect(await monad.mf117Verify(peer as never)).toMatchObject({
       receiptId: legacy.receiptId,

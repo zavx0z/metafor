@@ -4,11 +4,11 @@ import {
   type BulkViewportCaptureBrowserFailure,
   type BulkViewportCaptureBrowserResult,
 } from "@metafor/types/bulk/capture"
-import type {BulkObserverSnapshot} from "@metafor/types/bulk/initial"
+import type {BulkReadySceneSnapshot} from "@metafor/types/bulk/initial"
 
 export type BulkViewportCaptureSource = {
   observerId: string
-  snapshot: BulkObserverSnapshot | null
+  snapshot: BulkReadySceneSnapshot | null
 }
 
 type CapturableCanvas = Pick<
@@ -83,7 +83,7 @@ export const captureBulkViewportCanvas = async (
     return failure("capture_unavailable", "Browser canvas PNG capture is unavailable")
   }
   if (source.snapshot === null) {
-    return failure("capture_unavailable", "Bulk observer has not presented a structural snapshot")
+    return failure("capture_unavailable", "Bulk observer has not presented a ready-scene snapshot")
   }
 
   const rect = canvas.getBoundingClientRect()
@@ -93,17 +93,17 @@ export const captureBulkViewportCanvas = async (
   const pixelHeight = canvas.height
   const devicePixelRatio = options.devicePixelRatio ?? (window.devicePixelRatio || 1)
   const capturedAt = (options.now?.() ?? new Date()).toISOString()
-  let frozen: {observerId: string; snapshot: BulkObserverSnapshot}
+  let frozen: {observerId: string; snapshot: BulkReadySceneSnapshot}
   try {
     frozen = {
       observerId: source.observerId,
       snapshot: structuredClone(source.snapshot),
     }
   } catch {
-    return failure("capture_unavailable", "Bulk observer structural snapshot is unavailable")
+    return failure("capture_unavailable", "Bulk observer ready-scene snapshot is unavailable")
   }
   if (jsonBytes(frozen.snapshot) > request.limits.maxSnapshotBytes) {
-    return failure("payload_too_large", "Bulk observer structural snapshot exceeds the capture payload limit")
+    return failure("payload_too_large", "Bulk observer ready-scene snapshot exceeds the capture payload limit")
   }
 
   if (

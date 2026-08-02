@@ -10,7 +10,7 @@ import {
   type BulkViewportCaptureRequest,
   type BulkViewportCaptureResult,
 } from "@metafor/types/bulk/capture"
-import type {BulkObserverSnapshot} from "@metafor/types/bulk/initial"
+import type {BulkReadySceneSnapshot} from "@metafor/types/bulk/initial"
 
 export const DEFAULT_BULK_VIEWPORT_CAPTURE_LIMITS: BulkViewportCaptureLimits = {
   maxCssWidth: 4_096,
@@ -118,8 +118,9 @@ const jsonBytes = (value: unknown): number | null => {
   }
 }
 
-const isObserverSnapshot = (value: unknown): value is BulkObserverSnapshot =>
+const isReadySceneSnapshot = (value: unknown): value is BulkReadySceneSnapshot =>
   isRecord(value) &&
+  value.kind === "bulk-ready-scene-snapshot" &&
   value.version === 1 &&
   (
     value.throughTs === null ||
@@ -127,9 +128,18 @@ const isObserverSnapshot = (value: unknown): value is BulkObserverSnapshot =>
   ) &&
   typeof value.rootSrc === "string" &&
   value.rootSrc.length > 0 &&
-  isRecord(value.projection) &&
-  isRecord(value.projection.runtime) &&
-  Array.isArray(value.projection.declarations)
+  isRecord(value.visual) &&
+  typeof value.visual.layoutSlug === "string" &&
+  isRecord(value.visual.sourceStats) &&
+  value.visual.sourceStats.rootSrc === value.rootSrc &&
+  Array.isArray(value.visual.transitionBatchFingerprints) &&
+  value.visual.transitionBatchFingerprints.every((entry) =>
+    typeof entry === "string" && /^[0-9a-f]{16}$/.test(entry)
+  ) &&
+  Array.isArray(value.visual.relationBatchFingerprints) &&
+  value.visual.relationBatchFingerprints.every((entry) =>
+    typeof entry === "string" && /^[0-9a-f]{16}$/.test(entry)
+  )
 
 const validViewport = (
   capture: BulkViewportCaptureImage,
@@ -173,7 +183,7 @@ const validateCaptureResult = (
   const capture = value.capture as unknown as BulkViewportCaptureImage
   const snapshotBytes = jsonBytes(capture.snapshot)
   if (snapshotBytes !== null && snapshotBytes > limits.maxSnapshotBytes) {
-    return failure("payload_too_large", "Bulk observer structural snapshot exceeds the capture payload limit")
+    return failure("payload_too_large", "Bulk observer ready-scene snapshot exceeds the capture payload limit")
   }
   if (
     Number.isSafeInteger(capture.pngBytes) &&
@@ -216,7 +226,7 @@ const validateCaptureResult = (
     typeof capture.capturedAt !== "string" ||
     !Number.isFinite(Date.parse(capture.capturedAt)) ||
     snapshotBytes === null ||
-    !isObserverSnapshot(capture.snapshot) ||
+    !isReadySceneSnapshot(capture.snapshot) ||
     capture.snapshot.throughTs !== capture.projection.throughTs ||
     capture.snapshot.rootSrc !== capture.projection.rootSrc ||
     capture.mimeType !== "image/png" ||

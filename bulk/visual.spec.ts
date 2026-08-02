@@ -6,6 +6,7 @@ import {
   type Graph,
 } from "@metafor/types/metafor/graph"
 import type {
+  BulkReadyVisualRenderManifest,
   BulkVisualRenderManifest,
   BulkVisualRenderPatch,
 } from "@metafor/types/bulk/visual"
@@ -16,6 +17,7 @@ import {prepareBulkInitialVisual, type BulkInitialScene} from "./visual-initial.
 import {projectBulkGraph} from "./graph.ts"
 import {
   BulkVisualSceneLifecycle,
+  BulkReadyVisualSceneLifecycle,
   type BulkVisualSceneTarget,
 } from "./visual.ts"
 
@@ -50,12 +52,16 @@ const hydrationDocument = (): Graph => {
 
 const recordingTarget = () => {
   const manifests: BulkVisualRenderManifest[] = []
+  const readyManifests: BulkReadyVisualRenderManifest[] = []
   const patches: BulkVisualRenderPatch[] = []
   const forces: Array<readonly [string, unknown]> = []
   let disposals = 0
   const target: BulkVisualSceneTarget = {
     applyVisualManifestPatch(manifest): void {
       manifests.push(manifest)
+    },
+    applyVisualReadyScene(manifest): void {
+      readyManifests.push(manifest)
     },
     applyVisualRenderPatch(patch): void {
       patches.push(patch)
@@ -67,7 +73,14 @@ const recordingTarget = () => {
       forces.push([channel, message])
     },
   }
-  return {forces, manifests, patches, target, disposals: () => disposals}
+  return {
+    forces,
+    manifests,
+    patches,
+    readyManifests,
+    target,
+    disposals: () => disposals,
+  }
 }
 
 const nextStatePhoton = (
@@ -123,25 +136,29 @@ describe("public Bulk visual scene lifecycle", () => {
     source.prepare(snapshot)
     const state = source.state()
     const initial: BulkInitialScene = {
+      kind: "bulk-ready-scene",
       version: snapshot.version,
       throughTs: snapshot.throughTs,
       rootSrc: snapshot.rootSrc,
       session: "visual-lifecycle-test",
-      graph,
-      manifest: state.manifest,
       visual: prepareBulkInitialVisual(state.manifest, state.projection),
     }
     const recording = recordingTarget()
-    const lifecycle = new BulkVisualSceneLifecycle({target: recording.target})
+    const lifecycle = new BulkReadyVisualSceneLifecycle({target: recording.target})
     const before = visualLayoutBuiltScenes()
 
     const update = lifecycle.hydrate(initial)
 
     expect(visualLayoutBuiltScenes()).toBe(before)
-    expect(update.application?.route).toBe("rebuilt")
-    expect(recording.manifests).toHaveLength(1)
-    expect(lifecycle.snapshot()).toMatchObject(snapshot)
-    expect(lifecycle.snapshot().projection.revision).toBe(0)
+    expect(update.application.route).toBe("rebuilt")
+    expect(recording.readyManifests).toHaveLength(1)
+    expect(lifecycle.snapshot()).toMatchObject({
+      kind: "bulk-ready-scene-snapshot",
+      version: 1,
+      throughTs: snapshot.throughTs,
+      rootSrc: snapshot.rootSrc,
+    })
+    expect("projection" in lifecycle.snapshot()).toBe(false)
   })
 
   test("applies one Particle through projection, presenter and target", () => {

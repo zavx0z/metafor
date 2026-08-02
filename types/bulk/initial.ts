@@ -1,5 +1,9 @@
 import type {BulkManifest} from "./manifest.ts"
 import type {BulkRuntimeProjection} from "./runtime.ts"
+import type {
+  BulkVisualLayoutSlug,
+  BulkVisualSourceStats,
+} from "./visual.ts"
 
 export type BulkProjectionDeclarationSection =
   | "meta"
@@ -50,9 +54,26 @@ export type BulkObserverSnapshot = {
 }
 
 /**
+ * Compact identity of the ready visual cut actually presented by a browser.
+ * It contains no Graph, semantic manifestation or projection snapshot.
+ */
+export type BulkReadySceneSnapshot = {
+  kind: "bulk-ready-scene-snapshot"
+  version: 1
+  throughTs: number | null
+  rootSrc: string
+  visual: {
+    layoutSlug: BulkVisualLayoutSlug
+    sourceStats: BulkVisualSourceStats
+    transitionBatchFingerprints: string[]
+    relationBatchFingerprints: string[]
+  }
+}
+
+/**
  * Projection-based recorded/fixture package retained for observer snapshots.
- * Production Bulk startup uses its Graph-bearing `BulkInitialScene`; this
- * type must not become a second full world source beside Graph.
+ * Production browser startup uses a ready visual scene instead. This type
+ * remains only for recorded semantic fixtures and non-browser observers.
  */
 export type BulkInitialPackage = BulkObserverSnapshot & {
   session: string

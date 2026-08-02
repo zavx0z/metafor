@@ -5,44 +5,38 @@ import {
   type BulkViewportCaptureControlResponse,
   type BulkViewportCaptureImage,
 } from "@metafor/types/bulk/capture"
-import type {BulkProjectionSnapshot} from "@metafor/types/bulk/initial"
+import type {BulkReadySceneSnapshot} from "@metafor/types/bulk/initial"
 import {
   BulkViewportCaptureRegistry,
   type BulkViewportObserverClient,
 } from "./capture.ts"
-import {BulkProjectionStore} from "./projection.ts"
 
 const PNG_BASE64 =
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
 const PNG_BYTES = 68
 const OWNER_SESSION = "owner-observer-session"
 const OTHER_SESSION = "other-observer-session"
-const EMPTY_PROJECTION: BulkProjectionSnapshot = {
-  runtime: {
-    atoms: [],
-    topologies: [],
-    wimps: [],
-    fields: [],
-    states: [],
-    transitions: [],
-    conditions: [],
-    processes: [],
-    reactions: [],
-    atomStates: [],
-    fieldEnumVariants: [],
-    atomValues: [],
-    values: [],
-    valueItems: [],
-    matterParticles: [],
-    matterTopologyBindingPaths: [],
-    matterChildWimpBindingPaths: [],
+const readySnapshot = (
+  rootSrc = "world/root",
+  throughTs: number | null = 1_700_000_000_001,
+): BulkReadySceneSnapshot => ({
+  kind: "bulk-ready-scene-snapshot",
+  version: 1,
+  throughTs,
+  rootSrc,
+  visual: {
+    layoutSlug: "centered-nested",
+    sourceStats: {
+      rootSrc,
+      darkParticleCount: 0,
+      fieldParticleCount: 0,
+      orbitalParticleCount: 0,
+      transitionChannelCount: 0,
+    },
+    transitionBatchFingerprints: [],
+    relationBatchFingerprints: [],
   },
-  declarations: [],
-  // A hand-built cut has applied nothing, so its revision line starts at zero.
-  // A store that hydrates this snapshot reports the same, which is what makes
-  // the round-trip below an equality rather than an approximation.
-  revision: 0,
-}
+})
 
 class Client implements BulkViewportObserverClient {
   readonly domain = "bulk"
@@ -82,12 +76,7 @@ const captureImage = (
   },
   sequence,
   capturedAt: "2026-07-28T10:00:00.000Z",
-  snapshot: {
-    version: 1,
-    throughTs: 1_700_000_000_001,
-    rootSrc: "world/root",
-    projection: structuredClone(EMPTY_PROJECTION),
-  },
+  snapshot: readySnapshot(),
   mimeType: "image/png",
   pngBytes: PNG_BYTES,
   pngBase64: PNG_BASE64,
@@ -190,7 +179,7 @@ describe("Bulk observer viewport capture registry", () => {
     })
   })
 
-  test("returns the selected observer PNG with frozen projection and viewport metadata", async () => {
+  test("returns the selected observer PNG with frozen ready-scene and viewport metadata", async () => {
     const registry = allowedRegistry()
     const client = new Client("owner-viewport")
     registry.connect(client, OWNER_SESSION)
@@ -208,9 +197,8 @@ describe("Bulk observer viewport capture registry", () => {
     })
     expect(result.ok).toBe(true)
     if (result.ok) {
-      const hydrated = new BulkProjectionStore()
-      hydrated.hydrate(result.capture.snapshot.projection)
-      expect(hydrated.snapshot()).toEqual(EMPTY_PROJECTION)
+      expect(result.capture.snapshot.kind).toBe("bulk-ready-scene-snapshot")
+      expect("projection" in result.capture.snapshot).toBe(false)
       expect(result.capture.snapshot.throughTs).toBe(result.capture.projection.throughTs)
       expect(result.capture.snapshot.rootSrc).toBe(result.capture.projection.rootSrc)
     }
@@ -316,7 +304,7 @@ describe("Bulk observer viewport capture registry", () => {
     const first = client.sent[0]!
     registry.receive(client, {
       control: "bulk.viewport.capture.response",
-      version: 1,
+      version: BULK_VIEWPORT_CAPTURE_VERSION,
       id: first.id,
       result: {ok: false, error: {code: "capture_unavailable", message: "no toBlob"}},
     })
@@ -355,10 +343,11 @@ describe("Bulk observer viewport capture registry", () => {
     const fifth = client.sent[4]!
     respond(registry, client, fifth, captureImage("owner", fifth.sequence, {
       snapshot: {
+        kind: "bulk-ready-scene-snapshot",
         version: 1,
         throughTs: 1_700_000_000_001,
         rootSrc: "another/root",
-        projection: structuredClone(EMPTY_PROJECTION),
+        visual: readySnapshot("another/root").visual,
       },
     }))
     expect(await mismatchedCut).toMatchObject({ok: false, error: {code: "invalid_response"}})
@@ -366,20 +355,10 @@ describe("Bulk observer viewport capture registry", () => {
     const oversizedSnapshot = registry.capture(request("owner"), {source: "codex"})
     await Bun.sleep(0)
     const sixth = client.sent[5]!
-    const largeProjection = structuredClone(EMPTY_PROJECTION)
-    largeProjection.declarations.push({
-      src: "owner/root",
-      section: "meta",
-      localId: "root",
-      value: {payload: "x".repeat(2_000)},
-    })
+    const largeSnapshot = readySnapshot()
+    largeSnapshot.visual.relationBatchFingerprints.push("x".repeat(2_000))
     respond(registry, client, sixth, captureImage("owner", sixth.sequence, {
-      snapshot: {
-        version: 1,
-        throughTs: 1_700_000_000_001,
-        rootSrc: "world/root",
-        projection: largeProjection,
-      },
+      snapshot: largeSnapshot,
     }))
     expect(await oversizedSnapshot).toMatchObject({ok: false, error: {code: "payload_too_large"}})
   })

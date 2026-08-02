@@ -1,36 +1,27 @@
 import {describe, expect, test} from "bun:test"
-import type {BulkObserverSnapshot} from "@metafor/types/bulk/initial"
+import type {BulkReadySceneSnapshot} from "@metafor/types/bulk/initial"
 import {BulkPresentedSnapshot} from "./observer-snapshot.ts"
 
-const snapshot = (throughTs: number, rootSrc: string): BulkObserverSnapshot => ({
+const snapshot = (throughTs: number, rootSrc: string): BulkReadySceneSnapshot => ({
+  kind: "bulk-ready-scene-snapshot",
   version: 1,
   throughTs,
   rootSrc,
-  projection: {
-    runtime: {
-      atoms: [],
-      topologies: [],
-      wimps: [],
-      fields: [],
-      states: [],
-      transitions: [],
-      conditions: [],
-      processes: [],
-      reactions: [],
-      atomStates: [],
-      fieldEnumVariants: [],
-      atomValues: [],
-      values: [],
-      valueItems: [],
-      matterParticles: [],
-      matterTopologyBindingPaths: [],
-      matterChildWimpBindingPaths: [],
+  visual: {
+    layoutSlug: "centered-nested",
+    sourceStats: {
+      rootSrc,
+      darkParticleCount: 0,
+      fieldParticleCount: 0,
+      orbitalParticleCount: 0,
+      transitionChannelCount: 0,
     },
-    declarations: [],
+    transitionBatchFingerprints: [],
+    relationBatchFingerprints: [],
   },
 })
 
-describe("Bulk presented structural snapshot", () => {
+describe("Bulk presented ready-scene snapshot", () => {
   test("publishes only after the normal frame boundary and coalesces to its newest cut", async () => {
     const frames: FrameRequestCallback[] = []
     const presented = new BulkPresentedSnapshot((callback) => {

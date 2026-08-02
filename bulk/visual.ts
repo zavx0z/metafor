@@ -1,4 +1,8 @@
-import type {BulkObserverSnapshot, BulkProjectionSnapshot} from "@metafor/types/bulk/initial"
+import type {
+  BulkObserverSnapshot,
+  BulkProjectionSnapshot,
+  BulkReadySceneSnapshot,
+} from "@metafor/types/bulk/initial"
 import type {BulkManifest} from "@metafor/types/bulk/manifest"
 import type {
   BulkProjectionChange,
@@ -12,9 +16,8 @@ import type {
 import type {VisualScenePayload} from "@metafor/visual/payload"
 import type {Particle} from "shared/protocol/force/particle"
 import {buildBulkManifestation} from "./manifestation.ts"
-import {projectBulkGraph} from "./graph.ts"
 import {BulkProjectionStore} from "./projection.ts"
-import type {BulkGraphScene} from "./visual-initial.ts"
+import type {BulkReadyScene} from "./visual-initial.ts"
 import {
   DEFAULT_BULK_VISUAL_LAYOUT,
   adaptBulkVisualRenderManifest,
@@ -87,8 +90,15 @@ export type BulkVisualSceneLifecycleOptions = Readonly<{
   target?: BulkVisualSceneTarget
 }>
 
+/** Result of presenting one visual-only service-plane cut. */
+export type BulkReadyVisualSceneUpdate = Readonly<{
+  application: BulkVisualApplyResult
+  snapshot: BulkReadySceneSnapshot
+}>
+
 const HEADLESS_TARGET: BulkVisualViewportProjectionSink = Object.freeze({
   applyVisualManifestPatch(): void {},
+  applyVisualReadyScene(): void {},
   applyVisualRenderPatch(): void {},
 })
 
@@ -128,26 +138,6 @@ export class BulkVisualSceneLifecycle {
       state.projection,
     )
     return Object.freeze({application, change: null, state})
-  }
-
-  /**
-   * Hydrates server-prepared visual state without running a layout strategy in
-   * this consumer.
-   */
-  hydrate(initial: BulkGraphScene): BulkVisualSceneUpdate {
-    this.#assertLive()
-    this.#projection.hydrate(projectBulkGraph(initial.graph))
-    this.#rootSrc = initial.rootSrc
-    this.#throughTs = initial.throughTs
-    this.#presenter.selectLayout(
-      resolveBulkVisualLayout(initial.visual.layoutSlug),
-    )
-    const application = this.#presenter.hydrate(
-      this.#sink(),
-      initial.manifest,
-      initial.visual,
-    )
-    return Object.freeze({application, change: null, state: this.#readState()})
   }
 
   /** Applies one ordinary Particle through projection, composition and target. */
@@ -263,5 +253,85 @@ export class BulkVisualSceneLifecycle {
 
   #sink(): BulkVisualViewportProjectionSink {
     return this.#target ?? HEADLESS_TARGET
+  }
+}
+
+/**
+ * Production browser lifecycle for server-prepared ready scenes.
+ *
+ * It owns only visual payload, renderer state and the diagnostic cursor. The
+ * semantic lifecycle above remains available to server-side and recorded-fixture
+ * consumers, but Graph/projection/manifest cannot enter this class.
+ */
+export class BulkReadyVisualSceneLifecycle {
+  readonly #presenter: BulkVisualScenePresenter
+  readonly #target: BulkVisualSceneTarget | undefined
+  #disposed = false
+  #rootSrc: string | null = null
+  #throughTs: number | null = null
+
+  constructor(options: BulkVisualSceneLifecycleOptions = {}) {
+    this.#presenter = new BulkVisualScenePresenter(
+      options.layout ?? DEFAULT_BULK_VISUAL_LAYOUT,
+    )
+    this.#target = options.target
+  }
+
+  /** Presents one complete replacement without semantic browser state. */
+  hydrate(scene: BulkReadyScene): BulkReadyVisualSceneUpdate {
+    this.#assertLive()
+    this.#presenter.selectLayout(
+      resolveBulkVisualLayout(scene.visual.layoutSlug),
+    )
+    const application = this.#presenter.hydrateReady(
+      this.#target ?? HEADLESS_TARGET,
+      scene.visual,
+    )
+    this.#rootSrc = scene.rootSrc
+    this.#throughTs = scene.throughTs
+    return Object.freeze({application, snapshot: this.snapshot()})
+  }
+
+  /** Compact capture identity for the scene currently held by the presenter. */
+  snapshot(): BulkReadySceneSnapshot {
+    this.#assertLive()
+    const payload = this.#presenter.payload
+    if (payload === null || this.#rootSrc === null) {
+      throw new Error("Bulk ready visual scene lifecycle is not prepared")
+    }
+    return {
+      kind: "bulk-ready-scene-snapshot",
+      version: 1,
+      throughTs: this.#throughTs,
+      rootSrc: this.#rootSrc,
+      visual: {
+        layoutSlug: payload.layoutSlug,
+        sourceStats: {
+          rootSrc: payload.stats.rootSrc,
+          darkParticleCount: payload.stats.darkParticleCount,
+          fieldParticleCount: payload.stats.fieldParticleCount,
+          orbitalParticleCount: payload.stats.orbitalParticleCount,
+          transitionChannelCount: payload.stats.transitionChannelCount,
+        },
+        transitionBatchFingerprints: payload.transitionBatches.map(
+          (batch) => batch.fingerprint,
+        ),
+        relationBatchFingerprints: payload.relationBatches.map(
+          (batch) => batch.fingerprint,
+        ),
+      },
+    }
+  }
+
+  dispose(): void {
+    if (this.#disposed) return
+    this.#disposed = true
+    this.#target?.dispose?.()
+  }
+
+  #assertLive(): void {
+    if (this.#disposed) {
+      throw new Error("Bulk ready visual scene lifecycle is disposed")
+    }
   }
 }

@@ -1,7 +1,6 @@
 import type {BulkRuntimeProjection} from "@metafor/types/bulk/runtime"
 import type {BulkManifest} from "@metafor/types/bulk/manifest"
 import type {BulkVisualLayoutSlug} from "@metafor/types/bulk/visual"
-import {validateGraph, type Graph} from "@metafor/types/metafor/graph"
 import type {ForceMessage} from "shared/protocol/force/message"
 import {isBulkBrowserForceMessage} from "./browser-protocol.ts"
 import {
@@ -11,69 +10,76 @@ import {
 } from "@metafor/visual/layout/centered-nested"
 import {
   DEFAULT_BULK_VISUAL_LAYOUT_SLUG,
+  adaptBulkReadyVisualRenderManifest,
   buildBulkVisualScenePayload,
   resolveBulkVisualLayout,
 } from "./visual-layout.ts"
+import {assertBulkVisualProjectionBoundary} from "./web/visual-projection.ts"
 
 /**
- * The service-plane response an observer actually receives.
- *
- * Graph is the only complete startup world document. Manifest and prepared
- * Visual state are derived Bulk artifacts, not a second source projection. A
- * browser reading this needs no layout strategy to put a complete scene on
- * screen.
+ * Complete renderer-ready browser cut. Graph, projection and semantic
+ * manifestation stay request-local on the server and never enter this wire.
  */
-export type BulkGraphScene = Readonly<{
+export type BulkReadyScene = Readonly<{
+  kind: "bulk-ready-scene"
   version: 1
   throughTs: number | null
   rootSrc: string
-  graph: Graph
-  manifest: BulkManifest
   visual: VisualPreparedScene
 }>
 
 /** One observer startup cut plus its one-use WebSocket handoff session. */
-export type BulkInitialScene = BulkGraphScene & Readonly<{session: string}>
+export type BulkInitialScene = BulkReadyScene & Readonly<{session: string}>
 
-/** Full validated replacement sent after one causal Graph invalidation. */
-export type BulkGraphUpdateControl = Readonly<{
+/** Full validated ready-scene replacement after one causal invalidation. */
+export type BulkReadySceneUpdateControl = Readonly<{
   control: "bulk.graph.update"
-  scene: BulkGraphScene
+  scene: BulkReadyScene
   message: ForceMessage
 }>
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)
 
-/** Closes the browser service-plane discriminator before scene hydration. */
-export const isBulkGraphScene = (value: unknown): value is BulkGraphScene => {
+/** Closes the visual-only browser boundary before scene hydration. */
+export const isBulkReadyScene = (value: unknown): value is BulkReadyScene => {
   if (!isRecord(value)) return false
-  const validation = validateGraph(value.graph)
-  return value.version === 1 &&
-    (value.throughTs === null || (
-      Number.isSafeInteger(value.throughTs) && Number(value.throughTs) >= 0
-    )) &&
-    typeof value.rootSrc === "string" &&
-    value.rootSrc.length > 0 &&
-    validation.ok &&
-    validation.value.root === value.rootSrc &&
-    isRecord(value.manifest) &&
-    value.manifest.rootSrc === value.rootSrc &&
-    isVisualPreparedScene(value.visual)
+  if (
+    value.kind !== "bulk-ready-scene" ||
+    value.version !== 1 ||
+    "graph" in value ||
+    "manifest" in value ||
+    !(
+      value.throughTs === null ||
+      (Number.isSafeInteger(value.throughTs) && Number(value.throughTs) >= 0)
+    ) ||
+    typeof value.rootSrc !== "string" ||
+    value.rootSrc.length === 0 ||
+    !isVisualPreparedScene(value.visual) ||
+    value.visual.payload.stats.rootSrc !== value.rootSrc
+  ) return false
+  try {
+    assertBulkVisualProjectionBoundary(
+      adaptBulkReadyVisualRenderManifest(value.visual.payload),
+    )
+    return true
+  } catch {
+    return false
+  }
 }
 
 /** Closes the one-use initial response before browser lifecycle hydration. */
 export const isBulkInitialScene = (value: unknown): value is BulkInitialScene =>
-  isBulkGraphScene(value) &&
+  isBulkReadyScene(value) &&
   typeof (value as Record<string, unknown>).session === "string" &&
   ((value as Record<string, unknown>).session as string).length > 0
 
 /** Closes the browser service-plane discriminator before scene hydration. */
-export const isBulkGraphUpdateControl = (
+export const isBulkReadySceneUpdateControl = (
   value: unknown,
-): value is BulkGraphUpdateControl => {
+): value is BulkReadySceneUpdateControl => {
   if (!isRecord(value) || value.control !== "bulk.graph.update") return false
-  return isBulkGraphScene(value.scene) &&
+  return isBulkReadyScene(value.scene) &&
     isBulkBrowserForceMessage(value.message) &&
     value.scene.throughTs === value.message.parts[0].ts
 }

@@ -6,7 +6,7 @@ import {Force} from "shared/transport/force"
 import {installForceCheckpointSideband} from "shared/transport/force/checkpoint"
 import {BulkObserverHandoffs} from "./handoff.ts"
 import {BulkMonad} from "./monad.ts"
-import type {BulkGraphUpdateControl} from "./visual-initial.ts"
+import type {BulkReadySceneUpdateControl} from "./visual-initial.ts"
 import {bulkMonadRoutes} from "./monad-route.ts"
 import {
   BULK_VIEWPORT_CAPTURE_MAX_CONTROL_BYTES,
@@ -28,7 +28,7 @@ import {
 type BrowserClient = {domain: string; id: string; session: string}
 
 const browserClients = new Set<ServerWebSocket<BrowserClient>>()
-const handoffs = new BulkObserverHandoffs<BulkGraphUpdateControl>()
+const handoffs = new BulkObserverHandoffs<BulkReadySceneUpdateControl>()
 const monad = new BulkMonad()
 const captures = new BulkViewportCaptureRegistry()
 const transport = new MonadTransport("bulk")
@@ -219,7 +219,7 @@ try {
   force = new Force("bulk")
   force.onImpulse = async (impulse) => {
     const scene = await monad.onImpulse(rpc, impulse)
-    const update: BulkGraphUpdateControl = {
+    const update: BulkReadySceneUpdateControl = {
       control: "bulk.graph.update",
       scene,
       message: impulse,
