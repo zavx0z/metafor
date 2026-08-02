@@ -884,6 +884,12 @@ backward validation. Принятый Lada root `replace` обновляет sel
 standard restart и browser reload; повторять activation/preflight, выполнять
 rollback/GC либо hot reload нельзя.
 
+После завершения перехода одноразовый caller, private live adapters и
+привязанные к старому candidate bundle тесты удалены. История ниже сохраняет
+проектное решение, но не описывает действующий runtime endpoint. Общие
+candidate, admission, rollback, Boundary dissolve и Energy retarget primitives
+остаются основой для отдельной обобщённой операции.
+
 State markers остаются существующими single-object Capsule markers. Их
 readability material может использовать только bounded per-object GPU
 luminance и пространственный shimmer с детерминированной state-change phase;

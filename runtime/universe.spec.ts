@@ -22,7 +22,6 @@ describe("Universe launcher", () => {
         BOUNDARY_PATH: join(directory, "boundary.sqlite"),
         DARK_FORCE_HISTORY_PATH: join(directory, "dark-force-history", "v1"),
         DARK_FORCE_HISTORY_CUT_ID: "universe-spec-cut",
-        MF117_STATE_DIRECTORY: join(directory, "mf117"),
         FORCE_RECONNECT: "0",
         METAFOR_LOG_IMPULSES: "0",
         METAFOR_UNIVERSE_PORT_BASE: String(basePort),
@@ -50,6 +49,5 @@ describe("Universe launcher", () => {
     expect(output).toContain(`\"darkCompatibility\":${basePort + 2}`)
     expect(output).toContain("\"backend\":\"cpu\"")
     expect(existsSync(join(directory, "dark-history.jsonl"))).toBe(false)
-    expect(existsSync(join(directory, "mf117", "owner-capability"))).toBe(true)
   }, 50_000)
 })

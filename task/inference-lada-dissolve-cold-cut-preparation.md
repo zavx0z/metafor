@@ -274,6 +274,10 @@ No step below is authorized by this document.
 
 ## Exact remaining owner decisions
 
+> Historical gate record. The transition was subsequently completed; its
+> one-off activation command and private live adapters were later retired.
+> The generic candidate, rollback, admission and retarget primitives remain.
+
 The owner selected causal no-stop preparation and MF-116 now proves its private
 durable state machines. None of these decisions authorizes live paths.
 

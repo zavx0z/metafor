@@ -108,11 +108,6 @@ describe("Energy Monad", () => {
     const child = monad.massStore.get({energyId: "energy", atomId: 2, wimp: "owner/child", state: ""}).profile as EnergyMassHandle
 
     expect([...handlers.keys()].sort()).toEqual([
-      "energy.internal.mf117.fence",
-      "energy.internal.mf117.massEvidence",
-      "energy.internal.mf117.preflight",
-      "energy.internal.mf117.retarget",
-      "energy.internal.mf117.verify",
       "energy.mass.fence",
       "energy.mass.release",
     ])

@@ -5,7 +5,6 @@ import {
 } from "@metafor/types/boundary/initial"
 import type {MonadRpcPeer} from "shared/transport/monad"
 import {EnergyCatalogStore} from "./catalog.ts"
-import {EnergyMF117LiveAdapter} from "./dissolve-live.ts"
 import {createFilesystemEnergyMassStore, EnergyMassGate} from "./mass.ts"
 
 export type EnergyMonadState = "created" | "loading" | "prepared" | "ready" | "error" | "stopped"
@@ -23,7 +22,6 @@ export class EnergyMonad {
   readonly catalog = new EnergyCatalogStore()
   readonly massGate = new EnergyMassGate()
   readonly massStore = createFilesystemEnergyMassStore(this.massGate)
-  readonly mf117 = new EnergyMF117LiveAdapter(this)
   #state: EnergyMonadState = "created"
   #error: string | null = null
 
@@ -43,7 +41,6 @@ export class EnergyMonad {
       this.massGate.release(identity.atom, identity.declaration, identity.key)
       return {ok: true}
     })
-    this.mf117.register(peer)
   }
 
   private massIdentity(request: unknown): {atom: number; declaration: number; key: string} {

@@ -27,11 +27,6 @@ import {
   checkpointControlStatePath,
   DarkCheckpointControl,
 } from "./checkpoint/control.ts"
-import {MF117LiveCoordinator} from "./dissolve-live.ts"
-import {
-  MF117OwnerCapability,
-  readMF117Command,
-} from "./dissolve-command.ts"
 
 const repositoryState = resolve(import.meta.dir, "..", ".metafor")
 const forceHistoryPath = resolve(
@@ -80,15 +75,6 @@ await darkCheckpoint?.open()
 
 export const lifecycle = new ForceLifecycle(forceHistory, checkpoint ?? undefined)
 monad.setTimeControl(new DarkForceTimeController(lifecycle, checkpoint))
-const mf117 = checkpoint === null
-  ? null
-  : new MF117LiveCoordinator(
-      lifecycle,
-      checkpoint,
-      forceHistory,
-      rpc,
-    )
-const mf117Capability = mf117 === null ? null : new MF117OwnerCapability()
 const localForce = new LocalDarkForce(async (message) => {
   const decision = await lifecycle.acceptParticle("dark", message)
   if (!decision.ok) throw new Error(decision.error)
@@ -156,34 +142,6 @@ export const server = Bun.serve<ForceSocketData>({
                 ? 423
                 : 500,
         })
-      },
-    },
-    "/internal/mf117/inference-to-lada": {
-      async POST(request: Request) {
-        if (
-          mf117 === null ||
-          mf117Capability === null ||
-          !isLoopbackAddress(server.requestIP(request)?.address)
-        ) {
-          return Response.json({ok: false, error: "MF-117 command is unavailable"}, {status: 404})
-        }
-        if (!mf117Capability.authorize(request.headers.get("authorization"))) {
-          return Response.json({ok: false, error: "MF-117 owner capability is required"}, {status: 401})
-        }
-        const payload = await readJson<unknown>(request)
-        if (!payload.ok) return Response.json({ok: false, error: payload.error}, {status: 400})
-        try {
-          const command = readMF117Command(payload.value)
-          const result = command.action === "preflight"
-            ? await mf117.preflight()
-            : await mf117.activate(command.preflightReceiptId)
-          return Response.json({ok: true, result})
-        } catch (error) {
-          return Response.json({
-            ok: false,
-            error: error instanceof Error ? error.message : String(error),
-          }, {status: 409})
-        }
       },
     },
     "/monad/channels": {

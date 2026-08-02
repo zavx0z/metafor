@@ -17,7 +17,6 @@ import {
 import {writeBoundaryAtomValue} from "./world.ts"
 import {BoundaryMassStore, type BoundaryMassDetachPlan} from "./mass.ts"
 import {MassCatalog} from "../shared/mass.ts"
-import {MF117_SOURCE, MF117_TARGET} from "../shared/mf117.ts"
 
 type Database = SQL | ReservedSQL
 type JsonRecord = Record<string, unknown>
@@ -423,20 +422,20 @@ export class BoundaryIncrementalStore {
         FROM sqlite_master
        WHERE type = ${"table"} AND name = ${"boundary_active_root"}
     `).at(0)?.count ?? 0
-    const activeRoot = Number(activeRootTable) === 1
-      ? (await this.sql<Array<{activeSrc: string}>>`
-          SELECT active_src AS activeSrc
+    const rootTransition = Number(activeRootTable) === 1
+      ? (await this.sql<Array<{activeSrc: string; previousSrc: string | null}>>`
+          SELECT active_src AS activeSrc, previous_src AS previousSrc
             FROM boundary_active_root
            WHERE singleton = 1
-        `).at(0)?.activeSrc
+        `).at(0)
       : undefined
     if (
-      activeRoot === MF117_TARGET &&
-      address.src === MF117_SOURCE &&
+      rootTransition !== undefined &&
+      address.src === rootTransition.previousSrc &&
       part.op !== "remove"
     ) {
       throw new Error(
-        "Inference structural role is retired by the active MF-117 Lada root",
+        `Previous root ${rootTransition.previousSrc} structural role is retired by active root ${rootTransition.activeSrc}`,
       )
     }
     const input = record(part.value, `${address.path} value`)

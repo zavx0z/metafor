@@ -1025,14 +1025,12 @@
 
 ### MF-117 — Активировать causal Inference→Lada dissolve
 
-- Status: `IN_PROGRESS`
+- Status: `DONE`
 - Dependencies: `MF-116`
-- Current executor: canonical Inference integration checkout,
-  current Codex desktop task.
-- Current slice: `pkg/visual` production hardening and the
-  `centered-nested` Bulk render integration are complete in the canonical
-  working tree. MF-117 remains `IN_PROGRESS` because this slice does not close
-  the wider causal dissolve/activation item.
+- Retirement: переход завершён; одноразовый owner caller, private
+  Boundary/Energy/Bulk adapters, Dark coordinator и зависимые от старого
+  candidate bundle live-tests удалены. История приёмки ниже сохранена как
+  evidence, а не как описание доступного runtime endpoint.
 - Owner approval:
   - owner explicitly approved one canonical no-stop live
     `zavx0z/inference → zavx0z/lada` causal transition;
@@ -1966,7 +1964,7 @@
 - Execution task:
   [`task/generic-parent-dissolve.md`](generic-parent-dissolve.md)
 - Current boundary:
-  - `MF-111 → MF-117` доказал и выполнил только точный
+  - `MF-111 → MF-117` исторически доказал и выполнил только точный
     `zavx0z/inference → zavx0z/lada` переход с одним прямым целевым ребёнком;
   - общий случай с несколькими прямыми детьми в действующем коде отсутствует;
   - старые изменения `963f52b3` и `0a55845a` сохраняют полезный замысел, но не
@@ -1976,7 +1974,7 @@
   - owner утверждает необходимость общего случая, его область и право на
     живое выполнение;
   - реализация строится на действующих Boundary, Energy, Mass, Force и
-    Graph контрактах, не заменяя специальный принятый путь `MF-117`;
+    Graph контрактах; удалённый одноразовый путь `MF-117` не восстанавливается;
   - до этого задача не `READY`.
 - Acceptance:
   - все прямые дети детерминированно поднимаются в прежний интервал родителя;
