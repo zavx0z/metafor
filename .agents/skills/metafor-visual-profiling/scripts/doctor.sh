@@ -81,8 +81,8 @@ else
   warn "MetaFor contour is not running"
 fi
 
-if launchctl print "gui/$(id -u)/dev.metafor.cloud-contour" >/dev/null 2>&1; then
-  ok "launchd job dev.metafor.cloud-contour is installed"
+if launchctl print "gui/$(id -u)/dev.metafor.contour" >/dev/null 2>&1; then
+  ok "launchd job dev.metafor.contour is installed"
 else
   warn "launchd contour job is not installed"
 fi

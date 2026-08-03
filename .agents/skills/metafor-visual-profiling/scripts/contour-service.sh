@@ -2,7 +2,7 @@
 set -euo pipefail
 
 action=${1:-status}
-label=dev.metafor.cloud-contour
+label=dev.metafor.contour
 uid_value=$(id -u)
 domain="gui/$uid_value"
 target="$domain/$label"
@@ -10,8 +10,8 @@ plist="$HOME/Library/LaunchAgents/$label.plist"
 command_dir="$HOME/.local/bin"
 command_path="$command_dir/metafor-contour"
 log_dir="$HOME/Library/Logs/MetaFor"
-stdout_log="$log_dir/cloud-contour.out.log"
-stderr_log="$log_dir/cloud-contour.err.log"
+stdout_log="$log_dir/contour.out.log"
+stderr_log="$log_dir/contour.err.log"
 repo=${2:-${METAFOR_REPO:-}}
 if [[ -z $repo && -f $plist ]]; then
   repo=$(plutil -extract WorkingDirectory raw -expect string "$plist" 2>/dev/null || true)
