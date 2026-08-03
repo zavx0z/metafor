@@ -73,42 +73,32 @@ export const layoutFieldsInPseudoCircle = (
   const cached = readRecent(pseudoCircleLayoutCache, cacheKey)
   if (cached) return cached
 
-  const spacing = safeMarkerRadius * 2
-  const limit = Math.ceil(Math.sqrt(safeCount)) * 2 + 1
-  const candidates: Array<Readonly<{
-    angle: number
-    shell: number
-    x: number
-    y: number
-  }>> = []
-  for (let row = -limit; row <= limit; row += 1) {
-    for (let column = -limit; column <= limit; column += 1) {
-      const x = spacing * (column + row / 2)
-      const y = spacing * Math.sqrt(3) / 2 * row
-      candidates.push({
-        angle: Math.atan2(y, x),
-        shell: column * column + column * row + row * row,
-        x,
-        y,
+  const outerCount = safeCount - 1
+  const ringRadius = outerCount === 0
+    ? 0
+    : Math.max(
+        safeMarkerRadius * 2,
+        outerCount === 1
+          ? 0
+          : safeMarkerRadius / Math.sin(Math.PI / outerCount),
+      )
+  const angleStep = outerCount === 0 ? 0 : Math.PI * 2 / outerCount
+  const zeroThreshold = ringRadius * Number.EPSILON * 4
+  const points = Object.freeze(Array.from(
+    {length: safeCount},
+    (_, index): PseudoSpherePoint => {
+      if (index === 0) return Object.freeze({x: 0, y: 0, z: 0})
+      const angle = -Math.PI / 2 + angleStep * (index - 1)
+      const x = Math.cos(angle) * ringRadius
+      const y = Math.sin(angle) * ringRadius
+      return Object.freeze({
+        x: Math.abs(x) <= zeroThreshold ? 0 : x,
+        y: Math.abs(y) <= zeroThreshold ? 0 : y,
+        z: 0,
       })
-    }
-  }
-  candidates.sort((left, right) =>
-    left.shell - right.shell ||
-    left.angle - right.angle
-  )
-  const selected = candidates.slice(0, safeCount)
-  const centerX = selected.reduce((sum, point) => sum + point.x, 0) / safeCount
-  const centerY = selected.reduce((sum, point) => sum + point.y, 0) / safeCount
-  const points = Object.freeze(selected.map((point) => Object.freeze({
-    x: point.x - centerX,
-    y: point.y - centerY,
-    z: 0,
-  })))
-  const radius = points.reduce(
-    (maximum, point) => Math.max(maximum, Math.hypot(point.x, point.y)),
-    0,
-  ) + safeMarkerRadius
+    },
+  ))
+  const radius = ringRadius + safeMarkerRadius
   const layout: PseudoCircleLayout = Object.freeze({points, radius})
   retainRecent(pseudoCircleLayoutCache, cacheKey, layout)
   return layout

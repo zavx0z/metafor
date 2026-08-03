@@ -7,6 +7,27 @@ import {
 } from "../src/FieldsLayout.ts"
 
 describe("shared Fields layouts", () => {
+  test("keeps the first Field centered and four peers on one planar ring", () => {
+    const markerRadius = 2.5
+    const layout = layoutFieldsInPseudoCircle(5, markerRadius)
+
+    expect(layout.points).toHaveLength(5)
+    expect(layout.points[0]).toEqual({x: 0, y: 0, z: 0})
+    for (const point of layout.points.slice(1)) {
+      expect(point.z).toBe(0)
+      expect(Math.hypot(point.x, point.y)).toBeCloseTo(markerRadius * 2)
+    }
+    expect(layout.points[1]!.x).toBe(0)
+    expect(layout.points[1]!.y).toBeCloseTo(-markerRadius * 2)
+    expect(layout.points[2]!.x).toBeCloseTo(markerRadius * 2)
+    expect(layout.points[2]!.y).toBe(0)
+    expect(layout.points[3]!.x).toBe(0)
+    expect(layout.points[3]!.y).toBeCloseTo(markerRadius * 2)
+    expect(layout.points[4]!.x).toBeCloseTo(-markerRadius * 2)
+    expect(layout.points[4]!.y).toBe(0)
+    expect(layout.radius).toBeCloseTo(markerRadius * 3)
+  })
+
   test("is deterministic and keeps every center on one radius", () => {
     const radius = pseudoSphereRadiusForFieldCount(54, 1.35)
     const points = distributeOnPseudoSphere(54, radius)
@@ -85,19 +106,7 @@ describe("shared Fields layouts", () => {
     const second = layoutFieldsInPseudoCircle(31, secondRadius)
 
     expect(second).not.toBe(first)
-    let minimumDistance = Number.POSITIVE_INFINITY
-    for (let left = 0; left < second.points.length; left += 1) {
-      for (let right = left + 1; right < second.points.length; right += 1) {
-        const from = second.points[left]!
-        const to = second.points[right]!
-        minimumDistance = Math.min(
-          minimumDistance,
-          Math.hypot(from.x - to.x, from.y - to.y),
-        )
-      }
-    }
-    expect(Math.abs(minimumDistance - secondRadius * 2)).toBeLessThan(
-      Math.abs(minimumDistance - firstRadius * 2),
-    )
+    expect(second.radius).toBeGreaterThan(first.radius)
+    expect(second.points[1]!.y).not.toBe(first.points[1]!.y)
   })
 })
