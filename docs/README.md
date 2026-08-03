@@ -20,48 +20,61 @@
 
 ## Карта документов
 
-- [Агентные Вселенные](AGENT_UNIVERSES.md) — Agent Atom, окружающие Tool,
+* [Агентные Вселенные](AGENT_UNIVERSES.md) — Agent Atom, окружающие Tool,
   Device и Service Atoms, предметное изменение Fields и будущий интерфейс Bulk.
-- [Архитектура runtime](ARCHITECTURE.md) — состав contour и связи доменов.
-- [Force](FORCE.md) — Dark Force: единый Particle channel, complete post-cut
+* [Архитектура runtime](ARCHITECTURE.md) — состав contour и связи доменов.
+* [Force](FORCE.md) — Dark Force: единый Particle channel, complete post-cut
   history, relay и fail-stop внутри Dark process.
-- [Immutable checkpoints](CHECKPOINTS.md) — coherent Boundary+Mass capture,
+* [Immutable checkpoints](CHECKPOINTS.md) — coherent Boundary+Mass capture,
   отдельный Git provenance и forward-only replay.
-- [Boundary](../boundary/DOMAIN.md) — каноническое состояние, identity,
+* [Boundary](../boundary/DOMAIN.md) — каноническое состояние, identity,
   materialization и commit.
-- [Matrix](../matrix/README.md) — жизненный цикл State, Transition и Process,
+* [Matrix](../matrix/README.md) — жизненный цикл State, Transition и Process,
   включая рождение, блокировку, перестройку и ошибки.
-- [Energy](domains/ENERGY.md) — Process, Mass, Energy и lifecycle живых
+* [Energy](domains/ENERGY.md) — Process, Mass, Energy и lifecycle живых
   ресурсов.
-- [Bulk Store и Visual projection](../bulk/VISUAL.md) — единый browser Store,
+* [Bulk Store и Visual projection](../bulk/VISUAL.md) — единый browser Store,
   локальные Force handlers и принадлежащая `pkg/visual` геометрия.
-- [Visual layouts](../pkg/visual/CONTRACT.md) — именованные способы показать
+* [Visual layouts](../pkg/visual/CONTRACT.md) — именованные способы показать
   один полный Bulk scene snapshot.
-- [Протоколы сил](proto/) — справочное чтение wire-потоков; при конфликте
+* [Протоколы сил](proto/) — справочное чтение wire-потоков; при конфликте
   приоритет имеет контракт домена и public type.
-- [Работа с Meta-пакетами](META_PACKAGES.md) — граница внешних репозиториев в
+* [Работа с Meta-пакетами](META_PACKAGES.md) — граница внешних репозиториев в
   `cluster/`.
-- [Все правила Create MetaFor](../create-metafor/rules/metafor.md) — законы
+* [Все правила Create MetaFor](../create-metafor/rules/metafor.md) — законы
   авторинга `meta.ts` и канонический смысловой контракт клиентских
   RPC-проекций.
-- [Разработка](DEVELOPMENT.md) и [вклад](CONTRIBUTING.md) — запуск и проверки.
+* [Разработка](DEVELOPMENT.md) и [вклад](CONTRIBUTING.md) — запуск и проверки.
 
 Для Dark пока нет полного отдельного доменного контракта. Действующий контракт
 Bulk Store находится в [Bulk Store и Visual projection](../bulk/VISUAL.md), а
 общая граница contour — в [архитектуре](ARCHITECTURE.md).
 
+## Карта незавершённой работы
+
+* [Общий план Graph, Monad и Force](../task/graph-monad-force-plan.md) задаёт
+  только ещё действующую архитектурную линию.
+* [Центральный TODO Graph, Monad и Force](../task/graph-monad-force-todo.md)
+  хранит подтверждённые расхождения повторного аудита и порядок их исправления.
+* [Boundary TODO](../boundary/TODO.md), [Matrix TODO](../matrix/TODO.md) и
+  [Bulk TODO](../bulk/TODO.md) хранят предметную работу своих доменов, которая
+  не дублирует центральные пункты.
+
+`create-metafor/templates/TODO.md` является содержимым создаваемого шаблона, а
+не списком задач самого MetaFor.
+
 ## Как менять документацию
 
-- Менять один документ-владелец, а не копировать один закон в несколько обзоров.
-- Писать коротко и проверяемо: событие → владелец решения → наблюдаемый результат.
-- Пример использовать только для пояснения закона, не вместо закона.
-- В обычной документации описывать устройство системы понятным языком:
+* Менять один документ-владелец, а не копировать один закон в несколько обзоров.
+* Писать коротко и проверяемо: событие → владелец решения → наблюдаемый результат.
+* Пример использовать только для пояснения закона, не вместо закона.
+* В обычной документации описывать устройство системы понятным языком:
   жизненный цикл, возможные случаи и границы ответственности.
-- Не перечислять в обычной документации внутренние файлы, модули, структуры
+* Не перечислять в обычной документации внутренние файлы, модули, структуры
   памяти, способы вычисления и расположение проверок.
-- Технические подробности хранить в TypeDoc рядом с типами и кодом. Там же
+* Технические подробности хранить в TypeDoc рядом с типами и кодом. Там же
   давать ссылки на конкретные проверки пользовательских случаев.
-- Документация для разработки может содержать команды запуска и проверки, но
+* Документация для разработки может содержать команды запуска и проверки, но
   не должна становиться вторым описанием внутренней архитектуры.
-- Не хранить здесь статус сессии, историю коммитов и неподтверждённые планы.
-- После изменения перечитать diff и выполнить `git diff --check`.
+* Не хранить здесь статус сессии, историю коммитов и неподтверждённые планы.
+* После изменения перечитать diff и выполнить `git diff --check`.

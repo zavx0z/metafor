@@ -72,8 +72,9 @@ export type BulkReadySceneSnapshot = {
 
 /**
  * Projection-based recorded/fixture package retained for observer snapshots.
- * Production browser startup uses a ready visual scene instead. This type
- * remains only for recorded semantic fixtures and non-browser observers.
+ * Production browser startup receives one flat Bulk Store as `{session, store}`
+ * and does not consume this package. The type remains only for recorded
+ * semantic fixtures and non-browser observers.
  */
 export type BulkInitialPackage = BulkObserverSnapshot & {
   session: string

@@ -31,7 +31,10 @@ const forceMessageInput = (value: unknown): ForceMessageInput => {
   return structuredClone(value) as ForceMessageInput
 }
 
-/** Dark service-plane lifecycle and history RPC surface. */
+/**
+ * Owns Dark service RPC and causal time control without exposing Particle
+ * history persistence or accepting world mutations directly.
+ */
 export class DarkMonad {
   #state: DarkMonadState = "created"
   #error: string | null = null

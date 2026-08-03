@@ -82,11 +82,14 @@ transport и routing законами Monad RPC, но не формой клие
   получает единственный текущий runtime root из coherent Boundary projection,
   собирает весь reachable declaration/runtime Graph и возвращает root как
   проверяемые данные самого ответа.
-- `dark.history.read` читает ограниченные параметрами временные шаги и
-  неизменённые Particle из истории Dark. Он не строит структурное замыкание
-  шаблонов и topology.
-- `dark.history.clear` является отдельным подтверждаемым административным
-  удалением истории. Это не read-only projection и не управление временем мира.
+- `dark.force.pause` закрывает только внешний вход Agent Particle и ждёт
+  согласованную причинную границу checkpoint.
+- `dark.force.step` после pause принимает ровно одну Agent Particle и снова
+  устанавливает причинную границу.
+- `dark.force.stack` возвращает временные границы текущей паузы, а
+  `dark.force.resume` открывает внешний вход и очищает этот временный список.
+- Действующих `dark.history.read/clear` нет. Полная Dark Force history хранится,
+  но клиентское чтение и тем более очистка через RPC не опубликованы.
 - `energy.mass.fence` и `energy.mass.release` являются внутренними lifecycle RPC
   для безопасной работы Boundary с Mass identity, а не клиентским чтением.
 
@@ -227,9 +230,9 @@ History fetch также остаётся отдельной capability. Каж�
 - `coarse` — агрегат или интервал неопределённости без выдуманных точных ticks;
 - `unknown` — история или frontier недостаточны для доказательства.
 
-Текущий `dark.history.read` умеет читать ограниченные временные шаги, но не
-выдаёт этот resolution contract и не является scoped template/topology
-projection. Поэтому он не подтверждает planned Gem history endpoint, pause,
+Действующего клиентского RPC чтения history пока нет. Старые типы
+`dark.history.read/clear` и отдельный старый класс history не являются рабочей
+поверхностью Dark Monad и не подтверждают planned Gem history endpoint, pause,
 step или rewind.
 
 Gem возвращает proposal и доказательства выполненных validations в формате,
@@ -1003,7 +1006,12 @@ return { group: group as "start" }
 - `&&` и тернарный `? :` допустимы только если их basis — `state` или `enum`
 - `map()` в matter допустим только по `array`-полю topology
 - Динамический `src` допустим только если он зависит от одного статического `enum`-поля
+- После вычисления каждый вариант `src` обязан по-прежнему содержать ровно
+  `owner/repository`; значение enum не может добавлять третий сегмент
 - Если dynamic `src` уже зависит от `enum`, не оборачивай его в `value.mode && ...`: direct `<meta-for src="...${value.mode}" />` достаточно, `null` не должен материализовать атом `...-null`
+- Тернарная ветвь сохраняет все свои `<meta-for>` в авторском порядке. Пустая
+  ветвь не создаёт Matter, а второй узел `then` не становится первым узлом
+  `else`
 - Не поднимай в topology branch-choice по `boolean`, `string`, `number` или `mass`
 - Не рендери в matter `div`, `span`, `button`, текст и прочие HTML-элементы — это не атомы
 
