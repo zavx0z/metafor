@@ -110,4 +110,19 @@ describe("схема реакций", () => {
     expect(reaction.read, "прочитаны поля контекста").toEqual(["value"])
     expect(reaction.write, "записаны поля контекста").toEqual(["value"])
   })
+
+  test("объявляет все поля многосоставного чтения и записи", () => {
+    const snapshot = reactionsSchema<typeof schema, State, {}>((reaction) => [[
+      ["idle"],
+      reaction({label: "update pair"})
+        .filter(() => ({meta: "test"}))
+        .equal(({update, value}) => {
+          const {name, isActive} = value
+          update({name: name.toUpperCase(), isActive: !isActive})
+        }),
+    ]])!
+
+    expect(snapshot.reactions[0]?.read).toEqual(["name", "isActive"])
+    expect(snapshot.reactions[0]?.write).toEqual(["name", "isActive"])
+  })
 })

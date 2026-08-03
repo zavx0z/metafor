@@ -52,7 +52,7 @@ describe("Reaction condition evaluator", () => {
   test("executes matched update with declared writes and persistent Mass", async () => {
     const mass: Record<string, unknown> = {}
     const result = await executeReaction(signal({
-      update: "({update, mass}) => { mass.runs = Number(mass.runs ?? 0) + 1; update({result: mass.runs, ignored: 9}) }",
+      update: "({update, mass}) => { mass.runs = Number(mass.runs ?? 0) + 1; update({result: mass.runs}) }",
     }), "energy-test", {get: () => mass, bind: () => {}})
     expect(result).toEqual({matched: true, fields: {"202": 1}})
     expect(mass).toEqual({runs: 1})
@@ -61,6 +61,13 @@ describe("Reaction condition evaluator", () => {
       cond: "() => ({meta: 'different/meta'})",
     }), "energy-test", {get: () => mass, bind: () => {}})
     expect(skipped).toEqual({matched: false, fields: {}})
+  })
+
+  test("rejects an update key outside the declared Reaction write set", async () => {
+    await expect(executeReaction(signal({
+      update: "({update}) => update({result: 1, ignored: 9})",
+    }), "energy-test", {get: () => ({}), bind: () => {}}))
+      .rejects.toThrow('Reaction 701 cannot update undeclared Field "ignored"')
   })
 })
 

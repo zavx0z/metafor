@@ -127,43 +127,10 @@ export function parseFunction(fn: Function, allowWrite: boolean = true): ActionF
 export function extractFields<ɸ extends Fields, 𝛴 extends string, m extends Mass>(
   reaction: ReactionAction<ɸ, 𝛴, m>
 ): ActionFieldUsage {
-  const updateStr = reaction.toString()
-  const read: string[] = []
-  const write: string[] = []
-
-  // Извлекаем поля, которые читаются из value
-  const fieldsMatches = updateStr.match(/value\.(\w+)/g)
-  if (fieldsMatches) {
-    for (const match of fieldsMatches) {
-      const field = match.replace("value.", "")
-      if (!read.includes(field)) {
-        read.push(field)
-      }
-    }
-  }
-
-  // Извлекаем поля, которые записываются через update
-  const updateMatches = updateStr.match(/update\(\s*\{\s*(\w+):/g)
-  if (updateMatches) {
-    for (const match of updateMatches) {
-      const fieldMatch = match.match(/update\(\s*\{\s*(\w+):/)
-      if (fieldMatch && fieldMatch[1]) {
-        const field = fieldMatch[1]
-        if (!write.includes(field)) {
-          write.push(field)
-        }
-      }
-    }
-  }
-
-  // Если поле записывается, то оно также читается
-  for (const writeField of write) {
-    if (!read.includes(writeField)) {
-      read.push(writeField)
-    }
-  }
-
-  return { read, write }
+  const {read: declaredRead, write} = parseFunction(reaction)
+  const read = [...declaredRead]
+  for (const writeField of write) if (!read.includes(writeField)) read.push(writeField)
+  return {read, write}
 }
 
 /**

@@ -542,9 +542,12 @@ export interface ReactionsSchema {
  */
 
 export type ReactionAction<ɸ extends Fields, 𝛴 extends string, m extends Mass> = (args: {
-  /** Функция для обновления полей */
+  /**
+   * Функция для обновления полей. Все ключи одного `update({a, b})` входят в
+   * разрешённый write-set; передача необъявленного ключа завершается ошибкой.
+   */
   update: Update<ɸ>
-  /** Текущие значения полей */
+  /** Все статически прочитанные поля, включая destructuring `{a, b} = value`. */
   value: Values<ɸ>
   /** Handles объявленных Mass key-files */
   mass: m

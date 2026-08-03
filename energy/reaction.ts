@@ -128,7 +128,10 @@ export async function executeReaction(
     if (!isRecord(values)) return fields
     for (const [key, value] of Object.entries(values)) {
       const fieldId = fieldIdByKey.get(key)
-      if (fieldId !== undefined) fields[fieldId] = value
+      if (fieldId === undefined) {
+        throw new Error(`Reaction ${signal.reactionId} cannot update undeclared Field "${key}"`)
+      }
+      fields[fieldId] = value
     }
     return fields
   }
