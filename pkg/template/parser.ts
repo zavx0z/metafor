@@ -177,9 +177,8 @@ export const extractHtmlElements = (input: string): PartsAttr => {
     lastIndex = tagEnd
   }
 
-  if (store.child.length) return store.child
-  // если нет тегов, то парсим текст и операторы
-  if (input.trim()) parseTextAndOperators(input.slice(lastIndex), store)
+  const tail = input.slice(lastIndex)
+  if (tail.trim()) parseTextAndOperators(tail, store)
   return store.child
 }
 
@@ -396,6 +395,8 @@ class Hierarchy {
     const curEl = this.cursor.element as unknown as PartAttrElement | PartAttrMeta
     !Object.hasOwn(curEl, "child") && (curEl.child = [])
     if (this.cursor.part === "if") {
+      const condition = curEl as unknown as PartAttrCondition
+      condition.elseIndex = condition.child.length
       this.cursor.parts.pop()
       this.cursor.parts.push("else")
     }

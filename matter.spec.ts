@@ -1,7 +1,75 @@
 import { describe, expect, test } from "bun:test"
 import { MetaFor } from "./metafor.ts"
+import {parseMatter} from "./matter.ts"
 
 describe("matter validation", () => {
+  test("parseMatter сохраняет пустые ветви условия", () => {
+    const emptyThen = parseMatter(
+      ({state, html}) => html`${state === "ready"
+        ? html``
+        : html`<meta-for src="demo/fallback" />`}`,
+      {},
+    )
+    expect(emptyThen).toEqual([{
+      kind: "axion",
+      predicateBinding: {data: "/state", expr: "_[0] === \"ready\""},
+      children: [{edgeSlot: "else", particle: {kind: "wimp", src: "demo/fallback"}}],
+    }])
+
+    const emptyElse = parseMatter(
+      ({state, html}) => html`${state === "ready"
+        ? html`<meta-for src="demo/primary" /><meta-for src="demo/secondary" />`
+        : html``}`,
+      {},
+    )
+    expect(emptyElse).toEqual([{
+      kind: "axion",
+      predicateBinding: {data: "/state", expr: "_[0] === \"ready\""},
+      children: [
+        {edgeSlot: "then", particle: {kind: "wimp", src: "demo/primary"}},
+        {edgeSlot: "then", particle: {kind: "wimp", src: "demo/secondary"}},
+      ],
+    }])
+  })
+
+  test("parseMatter сохраняет одиночные then и else", () => {
+    const matter = parseMatter(
+      ({state, html}) => html`${state === "ready"
+        ? html`<meta-for src="demo/primary" />`
+        : html`<meta-for src="demo/fallback" />`}`,
+      {},
+    )
+
+    expect(matter).toEqual([{
+      kind: "axion",
+      predicateBinding: {data: "/state", expr: "_[0] === \"ready\""},
+      children: [
+        {edgeSlot: "then", particle: {kind: "wimp", src: "demo/primary"}},
+        {edgeSlot: "else", particle: {kind: "wimp", src: "demo/fallback"}},
+      ],
+    }])
+  })
+
+  test("parseMatter сохраняет все узлы многосоставных then и else", () => {
+    const matter = parseMatter(
+      ({state, html}) => html`${state === "ready"
+        ? html`<meta-for src="demo/one" /><meta-for src="demo/two" />`
+        : html`<meta-for src="demo/three" /><meta-for src="demo/four" />`}`,
+      {},
+    )
+
+    expect(matter).toEqual([{
+      kind: "axion",
+      predicateBinding: {data: "/state", expr: "_[0] === \"ready\""},
+      children: [
+        {edgeSlot: "then", particle: {kind: "wimp", src: "demo/one"}},
+        {edgeSlot: "then", particle: {kind: "wimp", src: "demo/two"}},
+        {edgeSlot: "else", particle: {kind: "wimp", src: "demo/three"}},
+        {edgeSlot: "else", particle: {kind: "wimp", src: "demo/four"}},
+      ],
+    }])
+  })
+
   test("нормализует template field paths на границе DSL", () => {
     const schema = MetaFor("normalized-matter")
       .fields((field) => ({

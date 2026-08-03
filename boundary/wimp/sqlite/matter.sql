@@ -79,10 +79,6 @@ CREATE UNIQUE INDEX IF NOT EXISTS matter_particle_child_order
     ON matter_particle (parent_particle, edge_slot, particle_order)
     WHERE parent_particle IS NOT NULL;
 
-CREATE UNIQUE INDEX IF NOT EXISTS matter_particle_branch_slot
-    ON matter_particle (parent_particle, edge_slot)
-    WHERE edge_slot IN ('then', 'else');
-
 CREATE INDEX IF NOT EXISTS matter_particle_by_wimp
     ON matter_particle (wimp);
 

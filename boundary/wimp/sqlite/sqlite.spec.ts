@@ -58,7 +58,6 @@ const metaforDslIndexNames = [
   "matter_binding_dep_by_binding",
   "matter_root_particle_order",
   "matter_particle_child_order",
-  "matter_particle_branch_slot",
   "matter_particle_by_wimp",
   "matter_particle_by_parent",
 ] as const
@@ -238,6 +237,38 @@ describe("sqlite ddl", () => {
 
     expect(((await db.unsafe(`PRAGMA table_info(matter_particle_wimp)`)) as Array<{name: string}>).map((row) => row.name))
       .toEqual(["particle", "src", "fields_binding", "mass_binding", "energy_binding"])
+  })
+
+  test("снимает старое ограничение одного узла в ветке Axion", async () => {
+    await db.unsafe(`
+      CREATE UNIQUE INDEX matter_particle_branch_slot
+        ON matter_particle (parent_particle, edge_slot)
+        WHERE edge_slot IN ('then', 'else');
+    `)
+
+    wimps = await BoundaryWimpSqlite.open(db)
+
+    expect(await db<Array<{name: string}>>`
+      SELECT name FROM sqlite_master
+      WHERE type = ${"index"} AND name = ${"matter_particle_branch_slot"}
+    `).toEqual([])
+    const wimp = await wimps.create("branch/meta", {
+      matter: [{
+        kind: "axion",
+        predicateBinding: {data: "/state"},
+        children: [
+          {edgeSlot: "then", particle: {kind: "wimp", src: "branch/one"}},
+          {edgeSlot: "then", particle: {kind: "wimp", src: "branch/two"}},
+        ],
+      }],
+    })
+    expect((await wimp.matter.all())[0]?.children?.map(({edgeSlot, particle}) => ({
+      edgeSlot,
+      src: particle.kind === "wimp" ? particle.src : undefined,
+    }))).toEqual([
+      {edgeSlot: "then", src: "branch/one"},
+      {edgeSlot: "then", src: "branch/two"},
+    ])
   })
 
   test("расширяет старое хранилище условий без потери скалярных и списочных предикатов", async () => {
@@ -630,17 +661,15 @@ describe("sqlite ddl", () => {
     await db`INSERT INTO matter_particle(id, wimp, parent_particle, particle_kind, edge_slot, particle_order)
              VALUES (${5}, ${"alpha/meta"}, ${1}, ${"wimp"}, ${"then"}, ${0})`
 
-    await expect(async () => {
-      await db`INSERT INTO matter_particle(id, wimp, parent_particle, particle_kind, edge_slot, particle_order)
-               VALUES (${6}, ${"alpha/meta"}, ${1}, ${"wimp"}, ${"then"}, ${1})`
-    }).toThrow()
+    await db`INSERT INTO matter_particle(id, wimp, parent_particle, particle_kind, edge_slot, particle_order)
+             VALUES (${6}, ${"alpha/meta"}, ${1}, ${"wimp"}, ${"then"}, ${1})`
 
     const particleCount = ((await db`SELECT COUNT(*) as count FROM matter_particle`) as Array<{ count: number }>)[0]!
     const fuzzyCount = ((await db`SELECT COUNT(*) as count FROM matter_particle_fuzzy`) as Array<{ count: number }>)[0]!
     const axionCount = ((await db`SELECT COUNT(*) as count FROM matter_particle_axion`) as Array<{ count: number }>)[0]!
     const wimpCount = ((await db`SELECT COUNT(*) as count FROM matter_particle_wimp`) as Array<{ count: number }>)[0]!
 
-    expect(particleCount.count).toBe(4)
+    expect(particleCount.count).toBe(5)
     expect(fuzzyCount.count).toBe(1)
     expect(axionCount.count).toBe(1)
     expect(wimpCount.count).toBe(1)

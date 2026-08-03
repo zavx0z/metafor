@@ -79,6 +79,11 @@ async function migrateConditionPredicates(sql: SQL): Promise<void> {
   })
 }
 
+/** Removes the legacy one-particle limit from Axion branch sequences. */
+async function migrateMatterBranchSlots(sql: SQL): Promise<void> {
+  await sql.unsafe("DROP INDEX IF EXISTS matter_particle_branch_slot")
+}
+
 export class BoundaryWimpSqlite {
   private constructor(private readonly sql: SQL) {}
 
@@ -108,6 +113,7 @@ export class BoundaryWimpSqlite {
         .trim(),
     )
     await migrateConditionPredicates(sql)
+    await migrateMatterBranchSlots(sql)
     const matterWimpColumns = await sql.unsafe<Array<{name: string}>>(
       "PRAGMA table_info(matter_particle_wimp)",
     )

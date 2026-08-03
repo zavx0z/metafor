@@ -22,6 +22,8 @@ export const createNodeDataCondition = (
     condData.metadata?.expression && /[%+\-*/&&||===!===!=<>().]/.test(condData.metadata.expression)
 
   const needsExpression = !isSimpleCondition || hasOperatorsOrMethods
+  const children = node.child.map((child) => createNode(child, context))
+  const elseIndex = node.elseIndex ?? 1
 
   return {
     type: "cond",
@@ -31,7 +33,8 @@ export const createNodeDataCondition = (
         : processedData || ""
       : processedData || [],
     ...(needsExpression && condData.metadata?.expression ? { expr: condData.metadata.expression } : {}),
-    child: [createNode(node.child[0]!, context), createNode(node.child[1]!, context)],
+    ...(elseIndex !== 1 ? {elseIndex} : {}),
+    child: children,
   }
 }
 

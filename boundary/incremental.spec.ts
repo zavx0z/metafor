@@ -1744,6 +1744,46 @@ describe("Boundary incremental relational projection", () => {
     expect(commit).not.toBeUndefined()
   })
 
+  test("materializes every Atom in the selected multi-node Axion branch", async () => {
+    const thenOne = "owner/then-one"
+    const thenTwo = "owner/then-two"
+    const elseOne = "owner/else-one"
+    const elseTwo = "owner/else-two"
+    const rootId = await declareRoot()
+    await apply("add", "state", {wimp: ROOT, id: 1, name: "idle", position: 0})
+    await apply("add", "state", {wimp: ROOT, id: 2, name: "ready", position: 1})
+    await apply("add", "matter", {
+      wimp: ROOT, id: 1, parent: null, edgeSlot: "root", position: 0,
+      kind: "axion", predicateBinding: {data: "/state", expr: "_[0] === 'ready'"},
+    })
+    await apply("add", "matter", {wimp: ROOT, id: 2, parent: 1, edgeSlot: "then", position: 0, kind: "wimp", src: thenOne})
+    await apply("add", "matter", {wimp: ROOT, id: 3, parent: 1, edgeSlot: "then", position: 1, kind: "wimp", src: thenTwo})
+    await apply("add", "matter", {wimp: ROOT, id: 4, parent: 1, edgeSlot: "else", position: 2, kind: "wimp", src: elseOne})
+    await apply("add", "matter", {wimp: ROOT, id: 5, parent: 1, edgeSlot: "else", position: 3, kind: "wimp", src: elseTwo})
+    await declareWimp(thenOne, "Then one")
+    await declareWimp(thenTwo, "Then two")
+    await declareWimp(elseOne, "Else one")
+    await declareWimp(elseTwo, "Else two")
+
+    const topologyId = Number((await boundary.projection.sql<Array<{id: number}>>`
+      SELECT id FROM topology WHERE kind = ${"axion"}
+    `)[0]!.id)
+    const materialized = async () => await boundary.projection.sql<Array<{wimp: string; position: number}>>`
+      SELECT wimp, position FROM atom WHERE parent_topology = ${topologyId} ORDER BY position
+    `
+
+    expect(await materialized()).toEqual([
+      {wimp: elseOne, position: 0},
+      {wimp: elseTwo, position: 1},
+    ])
+
+    await boundary.materialize({parts: [{part: "photon", op: "replace", path: rootId, value: "ready", by: "matrix", ts: 2}]})
+    expect(await materialized()).toEqual([
+      {wimp: thenOne, position: 0},
+      {wimp: thenTwo, position: 1},
+    ])
+  })
+
   test("canonical Process resolves relational Field identities for Energy", async () => {
     await declareRoot()
     await apply("add", "field", {wimp: ROOT, id: 1, key: "command", type: "string"})

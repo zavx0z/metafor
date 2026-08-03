@@ -348,11 +348,13 @@ const projectMatterNode = (fields: MatterFields, node: NodeType): MatterParticle
 
   if (node.type === "cond") {
     const conditionNode = node as NodeCondition
-    const thenParticle = conditionNode.child?.[0] ? projectMatterNode(fields, conditionNode.child[0])[0] : undefined
-    const elseParticle = conditionNode.child?.[1] ? projectMatterNode(fields, conditionNode.child[1])[0] : undefined
-    const children: MatterChild[] = []
-    if (thenParticle) children.push({edgeSlot: "then", particle: thenParticle})
-    if (elseParticle) children.push({edgeSlot: "else", particle: elseParticle})
+    const elseIndex = conditionNode.elseIndex ?? 1
+    const thenParticles = conditionNode.child.slice(0, elseIndex).flatMap((child) => projectMatterNode(fields, child))
+    const elseParticles = conditionNode.child.slice(elseIndex).flatMap((child) => projectMatterNode(fields, child))
+    const children: MatterChild[] = [
+      ...thenParticles.map((particle): MatterChild => ({edgeSlot: "then", particle})),
+      ...elseParticles.map((particle): MatterChild => ({edgeSlot: "else", particle})),
+    ]
 
     return [
       {

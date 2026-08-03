@@ -9,9 +9,9 @@ import type { PartAttrMeta } from "./meta.ts"
  *
  * ## Структура child-массива
  *
- * Массив `child` всегда содержит 2 элемента:
- * - `child[0]` — ветка true (условие истинно)
- * - `child[1]` — ветка false (условие ложно)
+ * `child` последовательно содержит все узлы ветки true, затем все узлы ветки
+ * false. `elseIndex` указывает индекс первого узла false. Для совместимости
+ * простого случая `elseIndex` не записывается, если он равен `1`.
  *
  * @group Nodes
  * @example Простое условие
@@ -99,11 +99,10 @@ export interface NodeCondition {
    * Отсутствует для простых условий (например, `fields.isLoggedIn`).
    */
   expr?: string
+  /** Индекс первого узла false в плоской последовательности `child`; по умолчанию `1`. */
+  elseIndex?: number
   /**
-   * Дочерние узлы для веток true/false.
-   *
-   * - `child[0]` — ветка true (условие истинно)
-   * - `child[1]` — ветка false (условие ложно)
+   * Дочерние узлы обеих веток: сначала true, затем false.
    */
   child: NodeType[]
 }
@@ -115,11 +114,10 @@ export interface PartAttrCondition {
   type: "cond"
   /** Исходный текст условия (например, `"fields.isLoggedIn ? html`...` : html`...`"`) */
   text: string
+  /** Индекс первого элемента false в плоской последовательности `child`. */
+  elseIndex?: number
   /**
-   * Элементы для веток true/false.
-   *
-   * - `child[0]` — ветка true
-   * - `child[1]` — ветка false
+   * Элементы обеих веток: сначала true, затем false.
    */
   child: (PartAttrElement | PartAttrMeta | PartAttrCondition | PartAttrMap)[]
 }

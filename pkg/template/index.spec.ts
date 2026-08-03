@@ -112,6 +112,27 @@ describe("parse", () => {
     })
   })
 
+  it("сохраняет границу многосоставных ветвей условия", () => {
+    const result = parse<{}, {}, "idle" | "ready">(
+      ({html, state}) => html`${state === "ready"
+        ? html`<meta-for src="demo/one" /><meta-for src="demo/two" />`
+        : html`<meta-for src="demo/three" /><meta-for src="demo/four" />`}`,
+    )
+
+    expect(result).toEqual([{
+      type: "cond",
+      data: "/state",
+      expr: "_[0] === \"ready\"",
+      elseIndex: 2,
+      child: [
+        {tag: "meta-for", type: "meta", src: "demo/one"},
+        {tag: "meta-for", type: "meta", src: "demo/two"},
+        {tag: "meta-for", type: "meta", src: "demo/three"},
+        {tag: "meta-for", type: "meta", src: "demo/four"},
+      ],
+    }])
+  })
+
   it("парсит HTML с событиями и динамическими атрибутами", () => {
     const result = parse(
       ({ html, value }) => html`
