@@ -165,6 +165,13 @@ export const renderableManifest = (source: BulkManifest): BulkManifest => {
   const fieldParticles = source.fieldParticles.filter((field) =>
     retainedOwner(field.parentDarkParticleId)
   )
+  const retainedFieldParticleIds = new Set(fieldParticles.map((field) =>
+    field.fieldParticleId
+  ))
+  const retainedFieldEndpoint = (
+    kind: BulkRelationChannel["fromKind"],
+    id: string,
+  ): boolean => kind !== "field" || retainedFieldParticleIds.has(id)
   const orbitalParticles = (source.orbitalParticles ?? []).filter((particle) =>
     retainedOwner(particle.parentDarkParticleId) &&
     particle.orbitalParticleKind !== "axion"
@@ -194,7 +201,9 @@ export const renderableManifest = (source: BulkManifest): BulkManifest => {
   const nonAxionRelations = (source.relationChannels ?? []).filter(
     (channel) =>
       retainedOwner(channel.parentDarkParticleId) &&
-      channel.relationKind !== "axion-read",
+      channel.relationKind !== "axion-read" &&
+      retainedFieldEndpoint(channel.fromKind, channel.fromId) &&
+      retainedFieldEndpoint(channel.toKind, channel.toId),
   )
   for (const channel of nonAxionRelations) {
     if (channel.relationKind === "field-projection") continue

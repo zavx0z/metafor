@@ -1,6 +1,6 @@
 /**
- * Side-effect-free production entrypoint for the only ready layout strategy.
- * It intentionally excludes the in-progress `outside-in` implementation and
+ * Side-effect-free production entrypoint for the `centered-nested` strategy.
+ * It intentionally excludes the separate ready `outside-in` implementation and
  * every playground/viewport adapter.
  *
  * The payload and reconciliation contracts are layout-agnostic, so they are

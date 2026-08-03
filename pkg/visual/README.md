@@ -3,16 +3,16 @@
 `@metafor/visual` exposes executable named complete-snapshot layouts. Every
 catalog entry builds one immutable, identity-rich scene from a `BulkManifest`
 and exact owner-bound `StateGraph` inputs, so consumers do not switch on layout
-slugs themselves. `centered-nested` is the ready production strategy used by
-the Bulk renderer binding; `outside-in` remains explicitly in progress.
+slugs themselves. `centered-nested` and `outside-in` are both ready production
+strategies selected through the same Bulk renderer binding.
 Production source lives only in `src/`. The package itself stays runtime-neutral:
 Bulk owns persistent semantic/scene state and product composition. Dark Monad
 assembles Graph only for on-demand reads. Bulk owns the visual
 update policy, Canvas, `Renderer`, `Space`, `ViewPoint`, Engine adapter and
 viewport lifecycle.
 
-`outside-in` is evidence of the repeated recursive structure, not a finished
-component architecture. The production model is the separate immutable
+`outside-in` is the ready production expression of the repeated recursive
+structure. Like `centered-nested`, it composes the immutable
 `VisualComponentForest`: each recursive Torus component owns its form, Field
 core, complete State sleeves and nested Torus components. Each sleeve directly
 owns its State forms, anchored causal particles, Field projections and sampled
@@ -32,9 +32,9 @@ isolated algorithm-lab viewport constructors remain private development source.
 Shared strategy-neutral tree, Torus and State-sleeve composition lives in
 `src/internal/`.
 
-Production consumers that need only the ready strategy import
+Production consumers that need only `centered-nested` import
 `@metafor/visual/layout/centered-nested`. This narrow entrypoint excludes the
-in-progress strategy and playground from the browser bundle.
+other ready strategy and the playground from the browser bundle.
 
 The playground is a separate Bun browser entry:
 
