@@ -114,7 +114,16 @@ describe("Visual playground nested navigation", () => {
       '{href: "#/analysis-fields", label: "Псевдосфера"}',
     )
     expect(client).toContain(
-      '{href: "#/analysis-fields/circle", label: "Псевдокруг"}',
+      '{href: "#/analysis-fields/circle", label: "Одна окружность"}',
+    )
+    expect(client).toContain(
+      '{href: "#/analysis-fields/growth-rings", label: "Кольца роста"}',
+    )
+    expect(client).toContain(
+      '{href: "#/analysis-fields/sunflower", label: "Sunflower"}',
+    )
+    expect(client).toContain(
+      '{href: "#/analysis-fields/hex-spiral", label: "Hex spiral"}',
     )
     expect(client).toContain('fieldsAnalysisLink.textContent = "Fields"')
     expect(client).not.toContain('showSectionTabs("Form skins", slug)')

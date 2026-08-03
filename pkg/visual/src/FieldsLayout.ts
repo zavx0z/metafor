@@ -1,5 +1,6 @@
 const shortestUnitChordCache = new Map<number, number>()
 const MAX_LAYOUT_CACHE_ENTRIES = 128
+const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5))
 
 /** Upper bound for deterministic in-process layout work. */
 export const MAX_FIELD_LAYOUT_COUNT = 4_096
@@ -26,6 +27,11 @@ export type PseudoSpherePoint = Readonly<{
 
 export type PseudoCircleLayout = Readonly<{
   points: readonly PseudoSpherePoint[]
+  radius: number
+}>
+
+type FieldRing = Readonly<{
+  count: number
   radius: number
 }>
 
@@ -73,32 +79,66 @@ export const layoutFieldsInPseudoCircle = (
   const cached = readRecent(pseudoCircleLayoutCache, cacheKey)
   if (cached) return cached
 
-  const outerCount = safeCount - 1
-  const ringRadius = outerCount === 0
+  const remaining = safeCount - 1
+  const ringCount = remaining === 0
     ? 0
-    : Math.max(
-        safeMarkerRadius * 2,
-        outerCount === 1
-          ? 0
-          : safeMarkerRadius / Math.sin(Math.PI / outerCount),
+    : Math.max(1, Math.floor(
+        (-Math.PI + Math.sqrt(Math.PI ** 2 + 4 * Math.PI * remaining)) /
+          (2 * Math.PI),
+      ))
+  const totalWeight = ringCount * (ringCount + 1) / 2
+  const rings: FieldRing[] = []
+  let allocated = 0
+  let minimumDistance = 1
+  for (let ring = 1; ring <= ringCount; ring += 1) {
+    const cumulative = ring === ringCount
+      ? remaining
+      : Math.round(remaining * (ring * (ring + 1) / 2) / totalWeight)
+    const population = cumulative - allocated
+    allocated = cumulative
+    if (population === 0) continue
+    rings.push(Object.freeze({count: population, radius: ring}))
+    if (population > 1) {
+      minimumDistance = Math.min(
+        minimumDistance,
+        2 * ring * Math.sin(Math.PI / population),
       )
-  const angleStep = outerCount === 0 ? 0 : Math.PI * 2 / outerCount
-  const zeroThreshold = ringRadius * Number.EPSILON * 4
-  const points = Object.freeze(Array.from(
-    {length: safeCount},
-    (_, index): PseudoSpherePoint => {
-      if (index === 0) return Object.freeze({x: 0, y: 0, z: 0})
-      const angle = -Math.PI / 2 + angleStep * (index - 1)
-      const x = Math.cos(angle) * ringRadius
-      const y = Math.sin(angle) * ringRadius
+    }
+  }
+  const scale = safeMarkerRadius * 2 / minimumDistance
+  const rawPoints: Array<Readonly<{x: number; y: number}>> = [{x: 0, y: 0}]
+  for (let ringIndex = 0; ringIndex < rings.length; ringIndex += 1) {
+    const ring = rings[ringIndex]!
+    const offset = ringIndex * GOLDEN_ANGLE
+    for (let index = 0; index < ring.count; index += 1) {
+      const angle = offset + Math.PI * 2 * index / ring.count
+      rawPoints.push({
+        x: Math.cos(angle) * ring.radius * scale,
+        y: Math.sin(angle) * ring.radius * scale,
+      })
+    }
+  }
+  const centerX = rawPoints.reduce((sum, point) => sum + point.x, 0) /
+    rawPoints.length
+  const centerY = rawPoints.reduce((sum, point) => sum + point.y, 0) /
+    rawPoints.length
+  const zeroThreshold = (ringCount * scale + safeMarkerRadius) *
+    Number.EPSILON * 8
+  const points = Object.freeze(rawPoints.map((point): PseudoSpherePoint =>
+    {
+      const x = point.x - centerX
+      const y = point.y - centerY
       return Object.freeze({
         x: Math.abs(x) <= zeroThreshold ? 0 : x,
         y: Math.abs(y) <= zeroThreshold ? 0 : y,
         z: 0,
       })
-    },
+    }
   ))
-  const radius = ringRadius + safeMarkerRadius
+  const radius = points.reduce(
+    (maximum, point) => Math.max(maximum, Math.hypot(point.x, point.y)),
+    0,
+  ) + safeMarkerRadius
   const layout: PseudoCircleLayout = Object.freeze({points, radius})
   retainRecent(pseudoCircleLayoutCache, cacheKey, layout)
   return layout

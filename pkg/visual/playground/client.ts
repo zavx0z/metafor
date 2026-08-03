@@ -195,6 +195,14 @@ const forceStoryPageGroups = Object.fromEntries([
   }] as const),
 ]) as Readonly<Record<string, NestedPageGroup>>
 
+const fieldsAnalysisTabs: readonly SectionTab[] = [
+  {href: "#/analysis-fields", label: "Псевдосфера"},
+  {href: "#/analysis-fields/circle", label: "Одна окружность"},
+  {href: "#/analysis-fields/growth-rings", label: "Кольца роста"},
+  {href: "#/analysis-fields/sunflower", label: "Sunflower"},
+  {href: "#/analysis-fields/hex-spiral", label: "Hex spiral"},
+]
+
 const nestedPageGroups: Readonly<Record<string, NestedPageGroup>> = {
   ...forceStoryPageGroups,
   "analysis-torus": {
@@ -203,17 +211,23 @@ const nestedPageGroups: Readonly<Record<string, NestedPageGroup>> = {
   },
   "analysis-fields": {
     parent: "Fields",
-    tabs: [
-      {href: "#/analysis-fields", label: "Псевдосфера"},
-      {href: "#/analysis-fields/circle", label: "Псевдокруг"},
-    ],
+    tabs: fieldsAnalysisTabs,
   },
   "analysis-fields/circle": {
     parent: "Fields",
-    tabs: [
-      {href: "#/analysis-fields", label: "Псевдосфера"},
-      {href: "#/analysis-fields/circle", label: "Псевдокруг"},
-    ],
+    tabs: fieldsAnalysisTabs,
+  },
+  "analysis-fields/growth-rings": {
+    parent: "Fields",
+    tabs: fieldsAnalysisTabs,
+  },
+  "analysis-fields/sunflower": {
+    parent: "Fields",
+    tabs: fieldsAnalysisTabs,
+  },
+  "analysis-fields/hex-spiral": {
+    parent: "Fields",
+    tabs: fieldsAnalysisTabs,
   },
   edges: {
     parent: "Edges",
@@ -1159,6 +1173,18 @@ const applyStory = (): void => {
   }
   if (slug === "analysis-fields/circle") {
     applyFieldsAnalysisPage("circle")
+    return
+  }
+  if (slug === "analysis-fields/growth-rings") {
+    applyFieldsAnalysisPage("growth-rings")
+    return
+  }
+  if (slug === "analysis-fields/sunflower") {
+    applyFieldsAnalysisPage("sunflower")
+    return
+  }
+  if (slug === "analysis-fields/hex-spiral") {
+    applyFieldsAnalysisPage("hex-spiral")
     return
   }
   const formSkin = formSkinForSlug(slug)

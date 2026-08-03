@@ -7,7 +7,7 @@ import {
 } from "../src/FieldsLayout.ts"
 
 describe("shared Fields layouts", () => {
-  test("keeps the first Field centered and four peers on one planar ring", () => {
+  test("starts concentric growth rings with one center and four peers", () => {
     const markerRadius = 2.5
     const layout = layoutFieldsInPseudoCircle(5, markerRadius)
 
@@ -17,15 +17,26 @@ describe("shared Fields layouts", () => {
       expect(point.z).toBe(0)
       expect(Math.hypot(point.x, point.y)).toBeCloseTo(markerRadius * 2)
     }
-    expect(layout.points[1]!.x).toBe(0)
-    expect(layout.points[1]!.y).toBeCloseTo(-markerRadius * 2)
-    expect(layout.points[2]!.x).toBeCloseTo(markerRadius * 2)
-    expect(layout.points[2]!.y).toBe(0)
-    expect(layout.points[3]!.x).toBe(0)
-    expect(layout.points[3]!.y).toBeCloseTo(markerRadius * 2)
-    expect(layout.points[4]!.x).toBeCloseTo(-markerRadius * 2)
-    expect(layout.points[4]!.y).toBe(0)
+    expect(layout.points[1]!.x).toBeCloseTo(markerRadius * 2)
+    expect(layout.points[1]!.y).toBe(0)
+    expect(layout.points[2]!.x).toBeCloseTo(0)
+    expect(layout.points[2]!.y).toBeCloseTo(markerRadius * 2)
+    expect(layout.points[3]!.x).toBeCloseTo(-markerRadius * 2)
+    expect(layout.points[3]!.y).toBeCloseTo(0)
+    expect(layout.points[4]!.x).toBeCloseTo(0)
+    expect(layout.points[4]!.y).toBeCloseTo(-markerRadius * 2)
     expect(layout.radius).toBeCloseTo(markerRadius * 3)
+  })
+
+  test("centers a two-Field layout between both Fields", () => {
+    const markerRadius = 2.5
+    const layout = layoutFieldsInPseudoCircle(2, markerRadius)
+
+    expect(layout.points[0]!.x).toBeCloseTo(-markerRadius)
+    expect(layout.points[1]!.x).toBeCloseTo(markerRadius)
+    expect(layout.points[0]!.y).toBe(0)
+    expect(layout.points[1]!.y).toBe(0)
+    expect(layout.radius).toBeCloseTo(markerRadius * 2)
   })
 
   test("is deterministic and keeps every center on one radius", () => {
@@ -107,6 +118,6 @@ describe("shared Fields layouts", () => {
 
     expect(second).not.toBe(first)
     expect(second.radius).toBeGreaterThan(first.radius)
-    expect(second.points[1]!.y).not.toBe(first.points[1]!.y)
+    expect(second.points[1]!.x).not.toBe(first.points[1]!.x)
   })
 })

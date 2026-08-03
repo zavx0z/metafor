@@ -21,12 +21,23 @@ import {
 import {createQuantumSphereMaterial} from "./QuantumFilm.ts"
 import {visualFieldParticleColor} from "../src/SemanticVisual.ts"
 import {createPageAnnotationLayer} from "./AnnotationLayer.ts"
+import {
+  layoutFieldsInGrowthRings,
+  layoutFieldsInHexSpiral,
+  layoutFieldsOnSingleRing,
+  layoutFieldsInSunflower,
+} from "./FieldsPackingVariants.ts"
 
 export const FIELDS_PSEUDO_SPHERE_MARKER_RADIUS = 1.35
 
 export {distributeOnPseudoSphere, type PseudoSpherePoint}
 
-export type FieldsAnalysisMode = "circle" | "sphere"
+export type FieldsAnalysisMode =
+  | "circle"
+  | "growth-rings"
+  | "hex-spiral"
+  | "sphere"
+  | "sunflower"
 
 export const pseudoSphereRadiusForFieldCount = (count: number): number => {
   return resolvePseudoSphereRadius(
@@ -124,7 +135,24 @@ export const createFieldsAnalysisLab = async (
     pseudoSphereRadiusForFieldCount(maximumCount) +
     FIELDS_PSEUDO_SPHERE_MARKER_RADIUS
   const maximumCircleOuterRadius =
-    layoutFieldsInPseudoCircle(maximumCount).radius
+    Math.max(
+      layoutFieldsOnSingleRing(
+        maximumCount,
+        FIELDS_PSEUDO_SPHERE_MARKER_RADIUS,
+      ).radius,
+      layoutFieldsInGrowthRings(
+        maximumCount,
+        FIELDS_PSEUDO_SPHERE_MARKER_RADIUS,
+      ).radius,
+      layoutFieldsInHexSpiral(
+        maximumCount,
+        FIELDS_PSEUDO_SPHERE_MARKER_RADIUS,
+      ).radius,
+      layoutFieldsInSunflower(
+        maximumCount,
+        FIELDS_PSEUDO_SPHERE_MARKER_RADIUS,
+      ).radius,
+    )
   const viewPoint = new ViewPoint({
     element: elements.canvas,
     fov: Math.PI / 3.4,
@@ -174,7 +202,7 @@ export const createFieldsAnalysisLab = async (
   let mode: FieldsAnalysisMode = "sphere"
   const resetView = (): void => {
     viewPoint.getTarget().set(0, 0, 0)
-    if (mode === "circle") {
+    if (mode !== "sphere") {
       viewPoint.position.set(0, 0, maximumCircleOuterRadius * 2.25)
       viewPoint.getUp().set(0, 1, 0)
     } else {
@@ -188,14 +216,36 @@ export const createFieldsAnalysisLab = async (
     viewPoint.update()
   }
   const syncPresentation = (): void => {
-    const circle = mode === "circle"
-    elements.title.textContent = circle
-      ? "Fields · псевдокруг"
-      : "Fields · псевдосфера"
-    elements.description.textContent = circle
-      ? "Fields заполняют всю площадь плоского круга гексагональной плотной упаковкой. Ближайшие сферы касаются без пересечений."
-      : "Центры Field равномерно распределены по поверхности Фибоначчиевой псевдосферы. Выбирается минимальный радиус без пересечений."
-    elements.distributionLabel.textContent = circle
+    const presentations = {
+      circle: {
+        description:
+          "Прежний production-закон: один Field в центре, остальные на одной окружности.",
+        title: "Fields · одна окружность",
+      },
+      "growth-rings": {
+        description:
+          "Концентрические фронты роста O(N): население слоя пропорционально длине окружности, неполный слой равномерно занимает весь круг.",
+        title: "Fields · кольца роста",
+      },
+      "hex-spiral": {
+        description:
+          "Гексагональная O(N)-спираль: соседние Fields касаются на треугольной решётке; неполный внешний слой сохраняет порядок спирали.",
+        title: "Fields · hex spiral",
+      },
+      sphere: {
+        description:
+          "Центры Field равномерно распределены по поверхности Фибоначчиевой псевдосферы. Выбирается минимальный радиус без пересечений.",
+        title: "Fields · псевдосфера",
+      },
+      sunflower: {
+        description:
+          "Sunflower O(N): радиус растёт как √k, каждый Field повёрнут на золотой угол; один постоянный масштаб исключает пересечения.",
+        title: "Fields · sunflower spiral",
+      },
+    } as const
+    elements.title.textContent = presentations[mode].title
+    elements.description.textContent = presentations[mode].description
+    elements.distributionLabel.textContent = mode !== "sphere"
       ? "Радиус внешнего круга"
       : "Радиус псевдосферы"
   }
@@ -203,13 +253,18 @@ export const createFieldsAnalysisLab = async (
     for (const child of [...space.children]) space.remove(child)
     if (guideGeometry) renderer.invalidateGeometry(guideGeometry)
     const count = Math.max(1, Math.floor(Number(elements.countControl.value)))
-    const circleLayout = mode === "circle"
-      ? layoutFieldsInPseudoCircle(count)
+    const planarLayout = mode === "circle"
+      ? layoutFieldsOnSingleRing(count, FIELDS_PSEUDO_SPHERE_MARKER_RADIUS)
+      : mode === "growth-rings"
+      ? layoutFieldsInGrowthRings(count, FIELDS_PSEUDO_SPHERE_MARKER_RADIUS)
+      : mode === "hex-spiral"
+      ? layoutFieldsInHexSpiral(count, FIELDS_PSEUDO_SPHERE_MARKER_RADIUS)
+      : mode === "sunflower"
+      ? layoutFieldsInSunflower(count, FIELDS_PSEUDO_SPHERE_MARKER_RADIUS)
       : null
-    const distributionRadius = mode === "circle"
-      ? circleLayout!.radius
-      : pseudoSphereRadiusForFieldCount(count)
-    guideGeometry = mode === "circle"
+    const distributionRadius = planarLayout?.radius ??
+      pseudoSphereRadiusForFieldCount(count)
+    guideGeometry = mode !== "sphere"
       ? circleGuideGeometry(distributionRadius)
       : new SphereGeometry({
         radius: distributionRadius,
@@ -225,9 +280,8 @@ export const createFieldsAnalysisLab = async (
     )
     guide.frustumCulled = false
     space.add(guide)
-    const points = mode === "circle"
-      ? circleLayout!.points
-      : distributeOnPseudoSphere(count, distributionRadius)
+    const points = planarLayout?.points ??
+      distributeOnPseudoSphere(count, distributionRadius)
     for (let index = 0; index < count; index += 1) {
       const field = fields.length === 0
         ? undefined
@@ -262,10 +316,8 @@ export const createFieldsAnalysisLab = async (
       canvasId: elements.canvas.id,
       kind: "playground-page",
       route: window.location.hash,
-      slug: mode === "circle" ? "analysis-fields-circle" : "analysis-fields",
-      title: mode === "circle"
-        ? "Fields · площадь плоского псевдокруга"
-        : "Fields · поверхность псевдосферы",
+      slug: `analysis-fields-${mode}`,
+      title: `Fields · ${mode}`,
     }),
   })
 

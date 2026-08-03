@@ -47,12 +47,15 @@ describe("Fields Analysis Lab", () => {
       .toBeGreaterThan(pseudoSphereRadiusForFieldCount(54))
   })
 
-  test("keeps one centered Field and the rest on one planar ring", () => {
+  test("packs Fields into centered non-overlapping growth rings", () => {
     for (const count of [2, 3, 17, 54, 128]) {
       const {points, radius} = layoutFieldsInPseudoCircle(count)
       expect(points).toHaveLength(count)
-      expect(points[0]).toEqual({x: 0, y: 0, z: 0})
       expect(points.every((point) => point.z === 0)).toBe(true)
+      expect(points.reduce((sum, point) => sum + point.x, 0) / count)
+        .toBeCloseTo(0, 12)
+      expect(points.reduce((sum, point) => sum + point.y, 0) / count)
+        .toBeCloseTo(0, 12)
       let minimumDistance = Number.POSITIVE_INFINITY
       for (let left = 0; left < points.length; left += 1) {
         const point = points[left]!
@@ -72,9 +75,9 @@ describe("Fields Analysis Lab", () => {
         .toBeCloseTo(FIELDS_PSEUDO_SPHERE_MARKER_RADIUS * 2)
     }
     const disk = layoutFieldsInPseudoCircle(54)
-    expect(new Set(disk.points.slice(1).map((point) =>
+    expect(new Set(disk.points.map((point) =>
       Math.hypot(point.x, point.y).toFixed(3)
-    )).size).toBe(1)
+    )).size).toBeGreaterThan(2)
     expect(layoutFieldsInPseudoCircle(128).radius)
       .toBeGreaterThan(layoutFieldsInPseudoCircle(54).radius)
   })

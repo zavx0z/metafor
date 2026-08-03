@@ -145,8 +145,9 @@ root and every nested Atom into one static recursive scene. It reads the
 production manifestation as structural input but computes its own compact
 presentation geometry without changing the Bulk contract or source
 `BulkManifest`. Every owning Torus retains its real Field particles and
-re-packs them with the shared deterministic hexagonal pseudo-circle layout
-promoted from `Analysis → Fields → Псевдокруг`. The inner Torus edge is fitted
+re-packs them with the shared deterministic concentric growth-ring
+pseudo-circle layout promoted from `Analysis → Fields → Кольца роста`. The
+inner Torus edge is fitted
 directly around that actual flat nucleus. A Matter band is created only when
 immediate child Tori exist;
 otherwise State begins immediately after the Field core. The outer Torus edge
@@ -412,16 +413,22 @@ viewport change. This spherical experiment remains available for comparison;
 named Visual layouts use the sibling pseudo-circle law. Production Bulk
 manifestation coordinates remain unchanged.
 
-The sibling route `#/analysis-fields/circle` visualizes the shared
-`Псевдокруг` layout. It fills the area of one flat circle with the same
-fixed-size typed Field Spheres instead of placing them only on its
-circumference. Centers occupy a triangular lattice with spacing equal to one
-Field diameter—the hexagonal close packing of equal circles in a plane. The
-deterministic compact subset nearest the origin is recentered, and its outer
-circle encloses every complete Field. It shares the count control, Quantum Film
-skin and static snapshot samples with the pseudo-sphere page. The same pure
-function receives the actual marker radius in named layouts and places both
-Torus nucleus Fields and condition Fields inside State-Torus.
+The sibling `Fields` tabs compare four planar laws with the same count,
+fixed-size typed Field Spheres, camera and guide circle. The
+`#/analysis-fields/circle` tab preserves the former production law: one Field
+at the origin and every other Field on one circle. The playground-only
+`#/analysis-fields/sunflower` tab uses Vogel's Fermat spiral
+`r_k = sqrt(k / pi)`, `theta_k = 2 pi k phi`; one conservative constant scales
+its published unit-density minimum separation to one Field diameter. The
+production `#/analysis-fields/growth-rings` tab uses concentric growth fronts:
+ring populations are proportional to their circumference, cumulative rounding
+preserves the exact count and one analytic scale preserves the Field diameter.
+The
+playground-only `#/analysis-fields/hex-spiral` tab walks a triangular lattice
+one complete hexagonal ring at a time with exact one-diameter neighbours. Both
+spiral alternatives and the production growth-ring law are deterministic
+`O(N)` constructions without a solver, pairwise search or count-specific
+layouts. All remain available for comparison in the playground.
 
 `Torus` beneath `Analysis` is a separate geometry laboratory, distinct from
 the Torus page in `Form skins`. Its first card exposes the current official
