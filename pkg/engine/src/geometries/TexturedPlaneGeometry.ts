@@ -1,6 +1,6 @@
 import { PlaneGeometry } from "./PlaneGeometry"
 
-interface TexturedPlaneGeometryParameters {
+export interface TexturedPlaneGeometryParameters {
   width?: number
   height?: number
 }

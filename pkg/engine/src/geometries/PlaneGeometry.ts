@@ -1,6 +1,6 @@
 import { BufferAttribute, BufferGeometry } from "../core/BufferGeometry"
 
-interface PlaneGeometryParameters {
+export interface PlaneGeometryParameters {
   width?: number
   height?: number
   widthSegments?: number

@@ -1,7 +1,7 @@
 import { BufferAttribute, BufferGeometry } from "../core/BufferGeometry"
 import { Vector3 } from "../math"
 
-interface BoxGeometryParameters {
+export interface BoxGeometryParameters {
   width?: number
   height?: number
   depth?: number

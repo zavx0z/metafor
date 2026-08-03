@@ -1,6 +1,4 @@
-/**
- * @fileoverview Быстрый ридер TTF: один DataView, кэши, simple+compound глифы, cmap(4/12), метрики
- */
+/** Быстрый ридер TTF: один DataView, кэши, simple/compound глифы, cmap(4/12) и метрики. */
 
 export type TableInfo = { offset: number; length: number }
 

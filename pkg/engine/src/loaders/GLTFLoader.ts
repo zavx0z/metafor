@@ -111,11 +111,11 @@ interface GLTFAnimationSampler {
   output: number // accessor to keyframe values
 }
 
-interface GLTFLoaderOptions {
+export interface GLTFLoaderOptions {
   convertToZUp?: boolean
 }
 
-interface ParsedGLTF {
+export interface ParsedGLTF {
   space: Space
   animations: AnimationClip[]
 }

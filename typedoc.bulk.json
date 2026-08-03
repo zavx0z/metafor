@@ -1,0 +1,15 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "name": "Bulk Store — прямой writer",
+  "entryPoints": [
+    "bulk/store-direct.ts",
+    "types/bulk/store.ts"
+  ],
+  "entryPointStrategy": "expand",
+  "out": "tmp/typedoc/bulk",
+  "tsconfig": "tsconfig.json",
+  "excludeExternals": true,
+  "excludePrivate": true,
+  "excludeProtected": true,
+  "categorizeByGroup": true
+}

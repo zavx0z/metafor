@@ -42,19 +42,6 @@
     * ошибка topology projection не оставляет неописанный частичный мир;
     * комментарий, код и проверки описывают одну границу commit.
 
-### AUD-006 — Привести документы, типы и TypeDoc к рабочему API
-
-* Status: `READY`
-* Dependencies: none
-* Scope:
-    * удалить старые `dark.history.read/clear` из публичной поверхности либо
-      явно отделить их как нерабочий исторический слой;
-    * удалить несуществующий экспорт `@metafor/types/bulk/protocol` либо вернуть
-      ему действующий публичный контракт и файл;
-    * создать полный документ-владелец Dark и включить его в карту документов;
-    * добавить TypeDoc для Dark Force, Boundary и прямого Bulk Store;
-    * устранить предупреждения TypeDoc Engine.
-
 ### AUD-007 — Закрыть доверительную границу Force
 
 * Status: `GATE`
@@ -126,8 +113,8 @@
 
 ### AUD-013 — Автоматически проверять каждое изменение
 
-* Status: `WAITING`
-* Dependencies: `AUD-006`
+* Status: `READY`
+* Dependencies: none
 * Scope:
     * серверная проверка запускает `typecheck`, ожидаемые ошибки типов и тесты;
     * сборка TypeDoc Matrix, Engine, Dark, Boundary и Bulk обязательна и не
@@ -150,8 +137,8 @@
 
 ### MF-103 — Добавить read-only history и Mass observation
 
-* Status: `WAITING`
-* Dependencies: `AUD-006`
+* Status: `READY`
+* Dependencies: none
 * Scope:
     * закрытые фильтры над полной принятой Dark Force Particle-history;
     * точная resolution и причинная граница;

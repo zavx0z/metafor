@@ -18,7 +18,7 @@ const cache = new Map<string, TextureEntry>()
 const callbacks = new Map<string, Set<() => void>>()
 let fallbackTexture: GPUTexture | null = null
 
-type PendingExternalSource = {
+export type PendingExternalSource = {
   source: GPUImageCopyExternalImage["source"]
   width: number
   height: number
@@ -26,13 +26,13 @@ type PendingExternalSource = {
   closeSourceAfterCopy: boolean
 }
 
-type ReplaceExternalSourceOptions = {
+export type ReplaceExternalSourceOptions = {
   keepPending?: boolean
   bufferCount?: number
   closeSourceAfterCopy?: boolean
 }
 
-type ExternalTexturePool = {
+export type ExternalTexturePool = {
   width: number
   height: number
   textures: GPUTexture[]

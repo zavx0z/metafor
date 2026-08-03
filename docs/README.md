@@ -23,6 +23,8 @@
 * [Агентные Вселенные](AGENT_UNIVERSES.md) — Agent Atom, окружающие Tool,
   Device и Service Atoms, предметное изменение Fields и будущий интерфейс Bulk.
 * [Архитектура runtime](ARCHITECTURE.md) — состав contour и связи доменов.
+* [Dark](DARK.md) — Monad, Force, декларации, причинное время и границы
+  публичного наблюдения.
 * [Force](FORCE.md) — Dark Force: единый Particle channel, complete post-cut
   history, relay и fail-stop внутри Dark process.
 * [Immutable checkpoints](CHECKPOINTS.md) — coherent Boundary+Mass capture,
@@ -45,10 +47,6 @@
   авторинга `meta.ts` и канонический смысловой контракт клиентских
   RPC-проекций.
 * [Разработка](DEVELOPMENT.md) и [вклад](CONTRIBUTING.md) — запуск и проверки.
-
-Для Dark пока нет полного отдельного доменного контракта. Действующий контракт
-Bulk Store находится в [Bulk Store и Visual projection](../bulk/VISUAL.md), а
-общая граница contour — в [архитектуре](ARCHITECTURE.md).
 
 ## Карта незавершённой работы
 

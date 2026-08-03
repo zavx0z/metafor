@@ -1,0 +1,21 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "name": "Boundary — техническое устройство",
+  "entryPoints": [
+    "boundary/index.ts",
+    "boundary/sqlite.ts",
+    "boundary/initial.ts",
+    "boundary/incremental.ts",
+    "boundary/mass.ts",
+    "boundary/execution.ts",
+    "boundary/reaction.ts",
+    "boundary/input.ts"
+  ],
+  "entryPointStrategy": "expand",
+  "out": "tmp/typedoc/boundary",
+  "tsconfig": "tsconfig.json",
+  "excludeExternals": true,
+  "excludePrivate": true,
+  "excludeProtected": true,
+  "categorizeByGroup": true
+}

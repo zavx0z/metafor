@@ -20,15 +20,15 @@ export interface ViewPointParameters {
 
   /**
    * Ближняя плоскость отсечения. Объекты ближе этой distance не отображаются.
+   * Значение должно быть больше нуля.
    * @default 0.1
-   * @mustBe > 0
    */
   near?: number
 
   /**
    * Дальняя плоскость отсечения. Объекты дальше этой distance не отображаются.
+   * Значение должно быть больше `near`.
    * @default 1000
-   * @mustBe > near
    */
   far?: number
 

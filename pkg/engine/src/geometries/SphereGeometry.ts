@@ -27,7 +27,7 @@ const angleTable = (
   return created
 }
 
-interface SphereGeometryParameters {
+export interface SphereGeometryParameters {
   radius?: number
   widthSegments?: number
   heightSegments?: number

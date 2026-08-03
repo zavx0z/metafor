@@ -94,7 +94,7 @@ export type DarkForceHistoryQuery = {
   limit?: number
 }
 
-type DarkForceHistoryOptions = {
+export type DarkForceHistoryOptions = {
   now?: () => Date
 }
 

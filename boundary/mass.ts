@@ -2,7 +2,7 @@ import type {SQL, ReservedSQL} from "bun"
 import type {MetaMassDSL} from "@metafor/types/metafor/schema"
 import {MassCatalog, type MassFileFormat} from "../shared/mass.ts"
 
-type Database = SQL | ReservedSQL
+export type Database = SQL | ReservedSQL
 
 export type BoundaryMassDeclaration = MetaMassDSL & {id: number; wimp: string}
 export type BoundaryMassMembership = {atomId: number; declarationId: number; keyId: string; source?: {atomId: number; declarationId: number}}

@@ -25,7 +25,7 @@ const circularAngles = (segments: number): CircularAngles => {
 /**
  * Параметры для создания геометрии тора.
  */
-interface TorusGeometryParameters {
+export interface TorusGeometryParameters {
   radius?: number
   tube?: number
   radialSegments?: number

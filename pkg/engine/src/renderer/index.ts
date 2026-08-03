@@ -148,7 +148,7 @@ export class Renderer {
   private perObjectDataCPU: Float32Array | null = null
   private perObjectCapacity = INITIAL_RENDERABLE_CAPACITY
 
-  geometryCache: Map<BufferGeometry, GeometryBuffers> = new Map()
+  private geometryCache: Map<BufferGeometry, GeometryBuffers> = new Map()
   private depthTexture: GPUTexture | null = null
   private multisampleTexture: GPUTexture | null = null
   private presentedFrameTexture: GPUTexture | null = null

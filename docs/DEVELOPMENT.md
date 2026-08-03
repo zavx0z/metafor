@@ -84,6 +84,10 @@ bun run typecheck
 bun run test
 bun run check
 bun run docs:matrix
+bun run docs:engine
+bun run docs:dark
+bun run docs:boundary
+bun run docs:bulk
 ```
 
 `bun run test` задаёт недоступный `FORCE_ADDRESS`, отключает reconnect и
@@ -100,7 +104,8 @@ bun test energy
 bun test bulk
 ```
 
-Проверки Matrix с WebGPU требуют устройства, способного выполнить настоящий
+Каждая команда `docs:*` должна завершаться без предупреждений TypeDoc. Проверки
+Matrix с WebGPU требуют устройства, способного выполнить настоящий
 вычислительный проход. Его недоступность является невыполненной проверкой, а не
 успешным результатом. TypeDoc Matrix содержит ссылки на конкретные сценарии,
 подтверждающие технические этапы жизненного цикла.
