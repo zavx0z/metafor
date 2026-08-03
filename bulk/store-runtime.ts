@@ -21,6 +21,7 @@ import {
   visualProcessTorusMaterial,
   visualOrbitalParticleColor,
   visualRelationColor,
+  visualRelationHasSceneGeometry,
   visualRelationMaterial,
   visualStateTorusMaterial,
   visualTransitionMaterial,
@@ -1656,6 +1657,16 @@ const rebuildFieldRelationGeometry = (
   for (const slot of relationSlots) {
     if ((store.relation.flags[slot]! & BULK_STORE_FLAG_REMOVED) !== 0) continue
     const oldBatch = store.relation.batch[slot]!
+    const relationKind = relationKindName(store, slot)
+    if (!visualRelationHasSceneGeometry({relationKind})) {
+      if (oldBatch > 0) {
+        state.relationSlotsByBatch.get(oldBatch)?.delete(slot)
+        touchedBatches.add(oldBatch)
+      }
+      store.relation.batch[slot] = 0
+      store.relation.controlStart[slot] = -1
+      continue
+    }
     const entanglement = store.relation.kind[slot] ===
       BULK_STORE_RELATION_KIND["field-entanglement"]
     const sameMarker = entanglement &&
@@ -1700,7 +1711,7 @@ const rebuildFieldRelationGeometry = (
     if (nextBatch === 0) {
       const active = (store.relation.flags[slot]! & BULK_STORE_FLAG_ACTIVE) !== 0
       const material = visualRelationMaterial(
-        visualRelationColor({relationKind: relationKindName(store, slot)}),
+        visualRelationColor({relationKind}),
         active,
         active,
       )

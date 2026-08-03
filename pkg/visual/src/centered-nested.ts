@@ -103,6 +103,7 @@ export {
   visualFieldParticleColor,
   visualOrbitalParticleColor,
   visualRelationColor,
+  visualRelationHasSceneGeometry,
   visualTransitionColor,
 } from "./SemanticVisual.ts"
 export {

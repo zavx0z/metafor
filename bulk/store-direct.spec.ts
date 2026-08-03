@@ -11,7 +11,7 @@ import {parseMetaAddress} from "@metafor/types/metafor/graph"
 import snapshotJson from "./fixture/monad-snapshot.json"
 import {buildDirectBulkStore} from "./store-direct.ts"
 import {bulkStoreApplyControl, prepareBulkStoreInitial} from "./store-initial.ts"
-import {isBulkStore} from "./store.ts"
+import {BULK_STORE_RELATION_KIND, isBulkStore} from "./store.ts"
 import {buildBulkStoreTestOracle} from "./store-test-oracle.ts"
 
 const snapshot = structuredClone(snapshotJson) as BulkObserverSnapshot
@@ -195,6 +195,23 @@ describe("direct Bulk Store production writer", () => {
       expect(Array.from(store.processField.slice(
         writeStart, writeStart + store.processSource.writeCount[slot]!,
       )).every((id) => projection.fields.some((field) => field.id === id))).toBe(true)
+    }
+  })
+
+  test("keeps Process dependencies without persistent center-loop geometry", () => {
+    const store = direct()
+    const processRelations = Array.from(
+      {length: store.relation.id.length},
+      (_, slot) => slot,
+    ).filter((slot) =>
+      store.relation.kind[slot] === BULK_STORE_RELATION_KIND["process-read"] ||
+      store.relation.kind[slot] === BULK_STORE_RELATION_KIND["process-write"]
+    )
+
+    expect(processRelations.length).toBeGreaterThan(0)
+    for (const slot of processRelations) {
+      expect(store.relation.batch[slot]).toBe(0)
+      expect(store.relation.controlStart[slot]).toBe(-1)
     }
   })
 

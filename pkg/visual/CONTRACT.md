@@ -231,13 +231,17 @@
   Wire переводит его Hermite endpoints и derivatives в локальный frame owner.
   Browser применяет только закон `cubic-hermite@1` (`64` сегмента); он не меняет
   branch lanes и не соединяет центры State собственной кривой.
-- Каждая Relation строится по точным component endpoints как замкнутый
+- Каждая отображаемая Relation строится по точным component endpoints как замкнутый
   двухсторонний channel из двух открытых cubic Hermite-дуг. Верхняя и нижняя
   дуги используют тот же geometry law, ту же высоту и по `64` сегмента, что и
   Transition. Wire хранит две компактные дуги, а browser CPU восстанавливает
   прежние `129` точек / `128` сегментов перед существующим renderer path.
   Bulk вправе только перевести endpoints в local frame владельца; выбор другой
   кривой, стороны, resolution или material запрещён.
+- `process-read` и `process-write` остаются relational facts для размещения
+  Field proxies внутри Process/Finally Torus, но не получают постоянную line
+  geometry. Принадлежность уже показывает сам Torus; связь каждой сферы с его
+  пустым центром не является отдельным визуальным объектом.
 - При структурном изменении Bulk готовит новые параметры и снова вызывает
   чистый паттерн. Внутри одного вызова owner, occurrence, Transition и State
   indexes строятся по одному проходу и переиспользуются; повторный полный scan

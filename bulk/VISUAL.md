@@ -160,11 +160,15 @@ Graph Store, Manifest, ReadyScene и второго scene Store в browser path 
   Wire несёт одну owner-local cubic Hermite-дугу, полностью описанную
   layout-owned endpoints и derivatives; Bulk не строит собственную кривую
   между State.
-- Relation material и замкнутый двухсторонний cubic Hermite channel хранятся
+- Material и замкнутый двухсторонний cubic Hermite channel отображаемой Relation хранятся
   как две упорядоченные compact-дуги. Browser CPU
   детерминированно восстанавливает по `64` сегмента на дугу перед существующим
   `LineSegments` и пишет их сразу в его `Float32Array`, не создавая
   промежуточный массив point objects.
+- `process-read` и `process-write` остаются Store relations и участвуют в
+  локальном Process/Field-proxy layout, но имеют `batch = 0` и
+  `controlStart = -1`: постоянная линия к пустому центру Process-Torus не
+  создаётся и Renderer для неё не вызывается.
 - Process и Finally получают готовый Torus на большой окружности внутри объёма
   трубки своего exact State, но не в центральном отверстии State. Их read/write
   Field proxies получают готовые Sphere placements в центральном ядре самого

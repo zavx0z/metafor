@@ -66,3 +66,14 @@ export const visualRelationColor = (
   if (channel.relationKind === "field-projection") return [0.58, 0.72, 1]
   return [0.37, 0.89, 1]
 }
+
+/**
+ * Process dependencies remain relational layout facts, but the containing
+ * Process Torus already represents their common operation. Drawing every
+ * dependency to its empty Torus center creates a closed-loop visual artifact.
+ */
+export const visualRelationHasSceneGeometry = (
+  channel: Pick<BulkRelationChannel, "relationKind">,
+): boolean =>
+  channel.relationKind !== "process-read" &&
+  channel.relationKind !== "process-write"

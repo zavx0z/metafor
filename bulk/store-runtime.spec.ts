@@ -26,6 +26,7 @@ import {buildBulkStore} from "./store.ts"
 import {
   BULK_STORE_ENDPOINT_KIND,
   BULK_STORE_ORBITAL_KIND,
+  BULK_STORE_RELATION_KIND,
 } from "./store.ts"
 import {BulkVisualSceneLifecycle} from "./visual.ts"
 import {prepareBulkInitialVisual} from "./visual-initial.ts"
@@ -737,6 +738,19 @@ describe("Bulk Store local centered-nested regroup", () => {
       ownerSemanticGeometry(store, atom.id * 2, updatedStateIds(store, next, atom.id, before)),
       ownerSemanticGeometry(expected, atom.id * 2, directStateIds(expected, next, atom.id)),
     )
+    const processRelations = Array.from(
+      {length: store.relation.id.length},
+      (_, slot) => slot,
+    ).filter((slot) =>
+      (store.relation.flags[slot]! & BULK_STORE_FLAG_REMOVED) === 0 &&
+      (store.relation.kind[slot] === BULK_STORE_RELATION_KIND["process-read"] ||
+        store.relation.kind[slot] === BULK_STORE_RELATION_KIND["process-write"])
+    )
+    expect(processRelations.length).toBeGreaterThan(0)
+    for (const slot of processRelations) {
+      expect(store.relation.batch[slot]).toBe(0)
+      expect(store.relation.controlStart[slot]).toBe(-1)
+    }
     expect(store).toBe(storeIdentity)
   })
 

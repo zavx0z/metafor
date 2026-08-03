@@ -7,7 +7,10 @@ import {
   sampleHermiteEdgeCurve,
   type HermiteEdgeCurve,
 } from "./HermiteEdge.ts"
-import {visualRelationColor} from "./SemanticVisual.ts"
+import {
+  visualRelationColor,
+  visualRelationHasSceneGeometry,
+} from "./SemanticVisual.ts"
 import type {
   VisualFieldPlacement,
   VisualFieldProxyPlacement,
@@ -208,6 +211,7 @@ export const buildVisualRelationEdges = (
   }
 
   return Object.freeze((manifest.relationChannels ?? []).flatMap((channel) => {
+    if (!visualRelationHasSceneGeometry(channel)) return []
     if (
       channel.relationKind === "field-entanglement" &&
       channel.fromKind === "field" &&

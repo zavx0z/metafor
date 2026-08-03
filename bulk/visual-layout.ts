@@ -32,6 +32,7 @@ import {
   buildStateGraph,
   buildVisualScenePayload,
   visualLayoutForSlug,
+  visualRelationHasSceneGeometry,
   visualRegisteredLayoutSlugs,
   visualOwnerDarkParticleIdFromAtomId,
   type VisualDeltaPatch,
@@ -459,6 +460,7 @@ const adaptRenderManifest = (
   const renderedRelationChannels = (visualSource.relationChannels ?? []).filter(
     (channel) => {
       if (relationBatchByChannelId.has(channel.relationChannelId)) return true
+      if (!visualRelationHasSceneGeometry(channel)) return false
       if (
         payload.layoutSlug === "centered-nested" &&
         channel.relationKind === "field-entanglement"

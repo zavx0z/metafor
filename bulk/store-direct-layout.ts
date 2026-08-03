@@ -35,6 +35,7 @@ import {
   visualOrbitalParticleColor,
   visualProcessTorusMaterial,
   visualRelationColor,
+  visualRelationHasSceneGeometry,
   visualRelationMaterial,
   visualStateTorusMaterial,
   visualTransitionMaterial,
@@ -835,6 +836,8 @@ export const fillDirectBulkStoreGeometry = (input: DirectStoreBuild): BulkStore 
   const relationBatches = new Map<string, number>()
   const darkWorldCache = new Map<number, Point>()
   for (let slot = 0; slot < store.relation.id.length; slot++) {
+    const relationKind = relationKinds[store.relation.kind[slot]!]!
+    if (!visualRelationHasSceneGeometry({relationKind})) continue
     const entanglement = store.relation.kind[slot] === BULK_STORE_RELATION_KIND["field-entanglement"]
     if (
       entanglement &&
@@ -874,7 +877,6 @@ export const fillDirectBulkStoreGeometry = (input: DirectStoreBuild): BulkStore 
     const branchId = fromBranch ?? toBranch
     const active = (store.relation.flags[slot]! & BULK_STORE_FLAG_ACTIVE) !== 0
     const branchActive = branchId === null ? active : stateActive(branchId)
-    const relationKind = relationKinds[store.relation.kind[slot]!]!
     const material = visualRelationMaterial(
       visualRelationColor({relationKind}),
       active,

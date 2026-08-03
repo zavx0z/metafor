@@ -28,6 +28,7 @@ import {
   writeCompactHermiteEdgeSegments,
   type HermiteEdgeCurve,
 } from "./HermiteEdge.ts"
+import {visualRelationHasSceneGeometry} from "./SemanticVisual.ts"
 
 /**
  * Serializable, deterministic rendering payload for one complete snapshot.
@@ -740,13 +741,15 @@ const projectRelationBatches = (
   const fieldByOccurrenceId = new Map(scene.fields.flatMap((field) =>
     field.fieldParticleIds.map((id) => [id, field] as const)
   ))
-  const renderedSourceChannels = sourceChannels.filter((channel) => !(
-    channel.relationKind === "field-entanglement" &&
-    channel.fromKind === "field" &&
-    channel.toKind === "field" &&
-    fieldByOccurrenceId.get(channel.fromId) ===
-      fieldByOccurrenceId.get(channel.toId)
-  ))
+  const renderedSourceChannels = sourceChannels.filter((channel) =>
+    visualRelationHasSceneGeometry(channel) && !(
+      channel.relationKind === "field-entanglement" &&
+      channel.fromKind === "field" &&
+      channel.toKind === "field" &&
+      fieldByOccurrenceId.get(channel.fromId) ===
+        fieldByOccurrenceId.get(channel.toId)
+    )
+  )
   const sourceById = exactIndex(
     sourceChannels,
     (channel) => channel.relationChannelId,
