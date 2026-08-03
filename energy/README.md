@@ -4,9 +4,11 @@ Energy исполняет Process/Reaction и владеет локальным�
 сущностями. Проверяемые законы находятся в
 [`docs/domains/ENERGY.md`](../docs/domains/ENERGY.md), Process wire flow — в
 [`docs/proto/weak.md`](../docs/proto/weak.md), общая карта — в
-[`docs/README.md`](../docs/README.md). Общесистемные расхождения находятся в
-[`центральном TODO`](../task/graph-monad-force-todo.md), а совместные вопросы
-жизненного цикла Matrix и Energy — в [`Matrix TODO`](../matrix/TODO.md).
+[`docs/README.md`](../docs/README.md). Принятая работа находится в
+[`графе исполнения`](../project/TODO.md), а ещё не принятые вопросы — в
+[`накопителе`](../project/BACKLOG.md). Совместные риски Matrix и Energy раскрыты в
+карточках [`MTX-004`](../project/tasks/MTX-004.md) и
+[`ENG-001`](../project/tasks/ENG-001.md).
 
 Этот README описывает только точки реализации и не создаёт второй контракт.
 

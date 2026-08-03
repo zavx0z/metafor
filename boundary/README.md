@@ -2,7 +2,8 @@
 
 Boundary хранит канонический текущий мир в SQLite и выпускает consequences
 только после commit. Проверяемые законы находятся в [`DOMAIN.md`](DOMAIN.md),
-отложенная работа — в [`TODO.md`](TODO.md), общая карта — в
+принятая работа — в [`project/TODO.md`](../project/TODO.md), ещё не принятая — в
+[`project/BACKLOG.md`](../project/BACKLOG.md), общая карта — в
 [`docs/README.md`](../docs/README.md).
 
 Этот README описывает только точки реализации и не дублирует доменный контракт.

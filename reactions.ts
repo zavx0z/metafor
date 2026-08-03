@@ -18,7 +18,6 @@ export const reactionsSchema = <ɸ extends Fields, 𝛴 extends string, m extend
         const desc = config?.desc
         const id = reactionAutoId++
 
-        // const fnTrim = trimArrow(update.toString()) // FIXME: или не обрезать или проверять на rest
         const src = normalizeFunctionString(updateAppendArg(update.toString(), `"${Initiator.Reaction}:${id}"`))
 
         reactions[id] = {

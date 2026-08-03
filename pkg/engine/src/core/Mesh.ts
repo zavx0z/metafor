@@ -67,9 +67,7 @@ export class Mesh extends Object3D {
     const inverseMatrix = new Matrix4().copy(matrixWorld).invert()
     const localRay = new Ray(raycaster.ray.origin.clone(), raycaster.ray.direction.clone()).applyMatrix4(inverseMatrix)
 
-    // 3. Перебор треугольников (для простоты пока только сферы)
-    // TODO: Реализовать точное пересечение с треугольниками
-    // Пока что, если прошли сферу, считаем, что попали в объект, но точку берем на сфере
+    // 3. Рабочий договор Mesh считает попадание по BoundingSphere.
     const intersectionPoint = new Vector3()
     const localIntersection = localRay.intersectSphere(geometry.boundingSphere!, intersectionPoint)
 

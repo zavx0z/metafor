@@ -19,7 +19,6 @@ old
 .claude/
 .ai/
 **/Снимок экрана*.png
-task/*.png
 **/.metafor/**/*
 pkg/visual/playground/.annotations/
 pkg/visual/playground/.edge-examples/
