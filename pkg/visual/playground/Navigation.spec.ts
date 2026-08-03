@@ -138,6 +138,9 @@ describe("Visual playground nested navigation", () => {
       '{href: "#/analysis-fields/hex-spiral", label: "Hex spiral"}',
     )
     expect(client).toContain('fieldsAnalysisLink.textContent = "Fields"')
+    expect(client).toContain('fieldsV2Link.textContent = "Fields v2"')
+    expect(client).toContain("fieldsAnalysisLink,\n  fieldsV2Link,")
+    expect(page).toContain('<section id="fields-v2-stage" hidden></section>')
     expect(client).not.toContain('showSectionTabs("Form skins", slug)')
     expect(client).toContain("showSectionTabs(slug)")
     expect(client).toContain("hideSectionTabs()")

@@ -442,6 +442,18 @@ spiral alternatives and the production growth-ring law are deterministic
 `O(N)` constructions without a solver, pairwise search or count-specific
 layouts. All remain available for comparison in the playground.
 
+`Fields v2` is a separate top-level Analysis playground page. It reads the
+same static snapshot and graph, isolates only the root `lada` Atom and its own
+Fields, and removes nested Matter and all causal forms. The initial scene shows
+only the resulting root Torus from directly above. Its Torus envelope is still
+the standard empty root baseline with a `100 mm` outer diameter and `11.12 mm`
+inner diameter; its form does not depend on the Field count. The lada Fields
+are retained in snapshot order. Each Field is rendered as one thin, flat,
+concentric orbital band outside the root Torus, so the complete set forms a
+Saturn-like ring system without Sphere markers. Every band carries the real
+Field label and current value; the text geometry itself bends along that
+band's radius instead of remaining a straight screen-space label.
+
 `Torus` beneath `Analysis` is a separate geometry laboratory, distinct from
 the Torus page in `Form skins`. Its first card exposes the current official
 `THREE.TorusGeometry` parameters and defaults: `radius = 1`, `tube = 0.4`,
