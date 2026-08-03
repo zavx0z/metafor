@@ -55,6 +55,9 @@ describe("Visual playground nested navigation", () => {
       "main.section-tabs-mode #state-graph-activity-stage",
     )
     expect(page).toContain(
+      "main.section-tabs-mode #state-graph-process-stage",
+    )
+    expect(page).toContain(
       "main.section-tabs-mode #force-stories-stage",
     )
     expect(page).toContain(
@@ -89,6 +92,9 @@ describe("Visual playground nested navigation", () => {
       '{href: `#/${STATE_GRAPH_ACTIVITY_SLUG}`, label: "Активность"}',
     )
     expect(client).toContain(
+      '{href: `#/${STATE_GRAPH_PROCESS_SLUG}`, label: "Процесс"}',
+    )
+    expect(client).toContain(
       "viewport.applyVisualManifestPatch(stand.visual)",
     )
     expect(page).toContain(
@@ -108,6 +114,12 @@ describe("Visual playground nested navigation", () => {
     )
     expect(client).toContain(
       "createStateGraphActivityLab(",
+    )
+    expect(page).toContain(
+      '<section id="state-graph-process-stage" hidden></section>',
+    )
+    expect(client).toContain(
+      "createStateGraphProcessLab(stateGraphProcessStage)",
     )
     expect(client).toContain('parent: "Fields"')
     expect(client).toContain(

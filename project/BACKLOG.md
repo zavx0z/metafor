@@ -19,6 +19,7 @@
 | SYS-001 | DRAFT     | Contour        | Полный новый запуск после остановки             | [Открыть](tasks/SYS-001.md)      |
 | BLK-001 | DRAFT     | Bulk           | Поверхность выбранного объекта                  | [Открыть](tasks/BLK-001.md)      |
 | BLK-002 | DRAFT     | Bulk           | Детальный просмотр сущности                     | [Открыть](tasks/BLK-002.md)      |
+| BLK-003 | DRAFT     | Bulk / Visual  | Проекция Atom в State и внешний Process         | [Открыть](tasks/BLK-003.md)      |
 
 ## Зафиксировано без обсуждения
 

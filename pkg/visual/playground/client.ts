@@ -62,6 +62,11 @@ import {
   type StateGraphActivityLab,
 } from "./StateGraphActivityLab.ts"
 import {
+  createStateGraphProcessLab,
+  STATE_GRAPH_PROCESS_SLUG,
+  type StateGraphProcessLab,
+} from "./StateGraphProcessLab.ts"
+import {
   createForceStoriesLab,
   type ForceStoriesLab,
 } from "./ForceStoriesLab.ts"
@@ -117,6 +122,9 @@ const stateGraphFieldsJson = document.getElementById("state-graph-fields-json")
 const stateGraphActivityStage = document.getElementById(
   "state-graph-activity-stage",
 )
+const stateGraphProcessStage = document.getElementById(
+  "state-graph-process-stage",
+)
 const forceStoriesStage = document.getElementById("force-stories-stage")
 const formSkinStage = document.getElementById("form-skin-stage")
 const formSkinControls = document.getElementById("form-skin-controls")
@@ -155,6 +163,7 @@ if (
   !stateGraphFieldsCounts ||
   !stateGraphFieldsJson ||
   !stateGraphActivityStage ||
+  !stateGraphProcessStage ||
   !forceStoriesStage ||
   !formSkinStage ||
   !formSkinControls ||
@@ -177,6 +186,7 @@ const stateGraphTabs: readonly SectionTab[] = [
   {href: "#/state-graph", label: "Ветки"},
   {href: `#/${STATE_GRAPH_FIELDS_SLUG}`, label: "Поля"},
   {href: `#/${STATE_GRAPH_ACTIVITY_SLUG}`, label: "Активность"},
+  {href: `#/${STATE_GRAPH_PROCESS_SLUG}`, label: "Процесс"},
 ]
 
 const forceStoryTabs: readonly SectionTab[] = ForceStories.map((story) => ({
@@ -274,6 +284,10 @@ const nestedPageGroups: Readonly<Record<string, NestedPageGroup>> = {
     tabs: stateGraphTabs,
   },
   [STATE_GRAPH_ACTIVITY_SLUG]: {
+    parent: "State Graph",
+    tabs: stateGraphTabs,
+  },
+  [STATE_GRAPH_PROCESS_SLUG]: {
     parent: "State Graph",
     tabs: stateGraphTabs,
   },
@@ -438,6 +452,7 @@ let edgesLabPromise: Promise<EdgesLab> | null = null
 let torusAnalysisLabPromise: Promise<TorusAnalysisLab> | null = null
 let fieldsAnalysisLabPromise: Promise<FieldsAnalysisLab> | null = null
 let stateGraphActivityLabPromise: Promise<StateGraphActivityLab> | null = null
+let stateGraphProcessLabPromise: Promise<StateGraphProcessLab> | null = null
 let stateGraphFieldsStand: StateGraphFieldsStand | null = null
 let forceStoriesLabPromise: Promise<ForceStoriesLab> | null = null
 
@@ -503,6 +518,18 @@ const stateGraphActivityLab = (): Promise<StateGraphActivityLab> => {
 const hideStateGraphActivityLab = (): void => {
   if (stateGraphActivityLabPromise) {
     void stateGraphActivityLabPromise.then((lab) => lab.hide())
+  }
+}
+
+const stateGraphProcessLab = (): Promise<StateGraphProcessLab> => {
+  stateGraphProcessLabPromise ??=
+    createStateGraphProcessLab(stateGraphProcessStage)
+  return stateGraphProcessLabPromise
+}
+
+const hideStateGraphProcessLab = (): void => {
+  if (stateGraphProcessLabPromise) {
+    void stateGraphProcessLabPromise.then((lab) => lab.hide())
   }
 }
 
@@ -920,6 +947,48 @@ const applyStateGraphActivityPage = (): void => {
   })
 }
 
+const applyStateGraphProcessPage = (): void => {
+  hideSnapshotLayout()
+  mainAnnotation.hide()
+  stateGraphRenderVersion += 1
+  disposeBranchViewports()
+  app.classList.remove("state-graph-mode")
+  app.classList.remove("state-graph-fields-mode")
+  app.classList.remove("state-graph-activity-mode")
+  app.classList.add("state-graph-process-mode")
+  app.classList.remove("form-skin-mode")
+  app.classList.remove("edges-mode")
+  app.classList.remove("torus-analysis-mode")
+  app.classList.remove("fields-analysis-mode")
+  controlsAside.hidden = true
+  canvas.hidden = true
+  visualTitle.hidden = true
+  visualControls.hidden = true
+  stateGraphStage.hidden = true
+  stateGraphControls.hidden = true
+  stateGraphFieldsControls.hidden = true
+  stateGraphActivityStage.hidden = true
+  stateGraphProcessStage.hidden = false
+  formSkinStage.hidden = true
+  formSkinControls.hidden = true
+  edgesStage.hidden = true
+  torusAnalysisStage.hidden = true
+  fieldsAnalysisStage.hidden = true
+  hideFormSkinLab()
+  hideEdgesLab()
+  hideTorusAnalysisLab()
+  hideFieldsAnalysisLab()
+  hideStateGraphActivityLab()
+  showSectionTabs(STATE_GRAPH_PROCESS_SLUG)
+  for (const link of navigation.querySelectorAll("a")) {
+    link.classList.toggle("active", link.dataset.slug === "state-graph")
+  }
+  void stateGraphProcessLab().then((lab) => {
+    if (readSlug() === STATE_GRAPH_PROCESS_SLUG) lab.show()
+    else lab.hide()
+  })
+}
+
 const applyForceStoriesPage = (): void => {
   const slug = readSlug()
   const part = forceStoryPartForSlug(slug)
@@ -1138,6 +1207,11 @@ const applyStory = (): void => {
     stateGraphActivityStage.hidden = true
     hideStateGraphActivityLab()
   }
+  if (slug !== STATE_GRAPH_PROCESS_SLUG) {
+    app.classList.remove("state-graph-process-mode")
+    stateGraphProcessStage.hidden = true
+    hideStateGraphProcessLab()
+  }
   if (forceStoryPart !== null) {
     applyForceStoriesPage()
     return
@@ -1152,6 +1226,10 @@ const applyStory = (): void => {
   }
   if (slug === STATE_GRAPH_ACTIVITY_SLUG) {
     applyStateGraphActivityPage()
+    return
+  }
+  if (slug === STATE_GRAPH_PROCESS_SLUG) {
+    applyStateGraphProcessPage()
     return
   }
   if (slug === "edges") {
@@ -1340,6 +1418,9 @@ window.addEventListener("beforeunload", () => {
   }
   if (stateGraphActivityLabPromise) {
     void stateGraphActivityLabPromise.then((lab) => lab.dispose())
+  }
+  if (stateGraphProcessLabPromise) {
+    void stateGraphProcessLabPromise.then((lab) => lab.dispose())
   }
   if (forceStoriesLabPromise) {
     void forceStoriesLabPromise.then((lab) => lab.dispose())

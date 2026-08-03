@@ -140,6 +140,18 @@ is inactive. Geometry and identity remain equal between cards; every inactive
 sleeve assigns the package-owned `0.24` branch opacity to its State/causal
 forms, Field proxies, Transitions and Relations.
 
+The private `#/state-graph/process` page is an experimental placement lab and
+does not change the production law above. It uses the recorded `lada-model`
+Process 12 owned by State `обращение к модели`, including its real
+`action.readFields`, `success.writeFields` and `error.writeFields`. The Process
+keeps that exact State ownership but its complete Torus is placed outside the
+State-Torus surface with one fixed gap. A thin owner segment records
+State → Process; three colored handler groups connect directly to the real
+Field proxies in the Process core. `success` and `error` are deliberately not
+drawn as State transitions: they write Fields, whose Conditions can then enable
+Transitions. The stand exists to approve or reject this geometry before any
+production layout contract changes.
+
 The playground `#/outside-in` page composes every declared State sleeve of the
 root and every nested Atom into one static recursive scene. It reads the
 production manifestation as structural input but computes its own compact

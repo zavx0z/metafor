@@ -78,6 +78,7 @@ export type CreateStateGraphViewportOptions = Readonly<{
   canvas: HTMLCanvasElement
   context?: StateGraphViewportContext
   edgeCurveBuilder?: StateGraphEdgeCurveBuilder
+  fitScale?: number
   height: number
   layout: StateGraphRootLayout
   showGuides?: boolean
@@ -114,8 +115,27 @@ export type StateGraphContextField = Readonly<{
   z: number
 }>
 
+export type StateGraphContextSegment = Readonly<{
+  color: readonly [number, number, number]
+  from: StateGraphCurvePoint
+  opacity?: number
+  to: StateGraphCurvePoint
+}>
+
+export type StateGraphContextLabel = Readonly<{
+  color: readonly [number, number, number]
+  fontSize?: number
+  offset?: number
+  text: string
+  x: number
+  y: number
+  z: number
+}>
+
 export type StateGraphViewportContext = Readonly<{
   fields: readonly StateGraphContextField[]
+  labels?: readonly StateGraphContextLabel[]
+  segments?: readonly StateGraphContextSegment[]
   tori: readonly StateGraphContextTorus[]
 }>
 
@@ -321,6 +341,8 @@ const addTorusContext = (
   space: Space,
   context: StateGraphViewportContext,
   geometryCache: FormGeometryCache,
+  font: TrueTypeFont,
+  labels: LabelTracker[],
 ): void => {
   for (const torus of context.tori) {
     const node = new Mesh(
@@ -351,6 +373,34 @@ const addTorusContext = (
     node.position.set(field.x, field.y, field.z)
     node.updateMatrix()
     space.add(node)
+  }
+  for (const segment of context.segments ?? []) {
+    const line = new LineSegments(
+      geometryFromSegments([[
+        new Vector3(segment.from.x, segment.from.y, segment.from.z),
+        new Vector3(segment.to.x, segment.to.y, segment.to.z),
+      ]]),
+      new LineGlowMaterial({
+        color: new Color(...segment.color),
+        glowColor: new Color(...segment.color, 0.32),
+        glowIntensity: 1.4,
+        opacity: segment.opacity ?? 0.82,
+        visibilityMode: "scene",
+      }),
+    )
+    line.updateMatrix()
+    space.add(line)
+  }
+  for (const label of context.labels ?? []) {
+    labels.push(addLabel(
+      space,
+      font,
+      label.text,
+      label.fontSize ?? LEVEL_LABEL_SIZE,
+      new Color(...label.color),
+      new Vector3(label.x, label.y, label.z),
+      label.offset ?? 0,
+    ))
   }
 }
 
@@ -395,6 +445,7 @@ export const createStateGraphViewport = async ({
   canvas,
   context,
   edgeCurveBuilder,
+  fitScale = 1,
   height,
   layout,
   showGuides = true,
@@ -414,7 +465,10 @@ export const createStateGraphViewport = async ({
     tori: new Map(),
   }
 
-  if (context) addTorusContext(space, context, geometryCache)
+  const labels: LabelTracker[] = []
+  if (context) {
+    addTorusContext(space, context, geometryCache, font, labels)
+  }
   if (showGuides) addLevelGuides(space, layout)
   for (const batch of groupStateGraphEdges(layout.edges)) {
     const color = batch.returning ? RETURN_EDGE_COLOR : EDGE_COLOR
@@ -437,7 +491,6 @@ export const createStateGraphViewport = async ({
     space.add(line)
   }
 
-  const labels: LabelTracker[] = []
   for (const node of layout.nodes) {
     const nodeContainer = new Object3D()
     nodeContainer.position.set(node.x, node.y, node.z)
@@ -531,6 +584,9 @@ export const createStateGraphViewport = async ({
     fov,
     context,
   )
+  const safeFitScale = Number.isFinite(fitScale)
+    ? Math.max(0.2, fitScale)
+    : 1
   const viewPoint = new ViewPoint({
     element: canvas,
     fov,
@@ -539,7 +595,7 @@ export const createStateGraphViewport = async ({
     position: {
       x: initialFit.target.x,
       y: initialFit.target.y,
-      z: initialFit.distance,
+      z: initialFit.distance * safeFitScale,
     },
     target: initialFit.target,
   })
