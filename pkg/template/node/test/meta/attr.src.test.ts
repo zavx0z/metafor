@@ -176,6 +176,20 @@ describe("meta > src атрибут", () => {
       })
     })
 
+    test("не заменяет имя переменной внутри строкового литерала", () => {
+      const result = parse(({ html, value }) => {
+        html`<meta-for src="${value.mode === "value.mode" ? "demo/selected" : "demo/fallback"}"></meta-for>`
+      })
+      expect(result[0]).toMatchObject({
+        type: "meta",
+        tag: "meta-for",
+        src: {
+          data: "/value/mode",
+          expr: '${_[0] === "value.mode" ? "demo/selected" : "demo/fallback"}',
+        },
+      })
+    })
+
     test("src с конкатенацией", () => {
       const result = parse(({ html, mass }) => {
         html`<meta-for src="${mass.org}/${mass.repo}"></meta-for>`

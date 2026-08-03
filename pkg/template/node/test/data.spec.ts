@@ -88,6 +88,12 @@ describe("data-parser", () => {
       expect(result.path).toEqual(["/fields/flag", "/fields/cond2"])
       expect(result.metadata?.expression).toBe("_[0] === _[1]")
     })
+
+    it("сохраняет имя переменной внутри строкового литерала", () => {
+      const result = parseCondition('fields.mode === "fields.mode"')
+      expect(result.path).toBe("/fields/mode")
+      expect(result.metadata?.expression).toBe('_[0] === "fields.mode"')
+    })
   })
 
   describe("parseText", () => {

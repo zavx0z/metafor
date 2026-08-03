@@ -9,7 +9,7 @@ import type { NodeLogical } from "@metafor/types/template/node/logical"
 import type { NodeMap } from "@metafor/types/template/node/map"
 import type { NodeMeta } from "@metafor/types/template/node/meta"
 
-const HUB_ADDRESS_RE = /^[a-zA-Z0-9_-]+\/[a-zA-Z0-9_/-]+$/
+const HUB_ADDRESS_RE = /^[A-Za-z0-9][A-Za-z0-9._-]*\/[A-Za-z0-9][A-Za-z0-9._-]*$/
 const EXECUTABLE_BINDING_RE = /=>|\bfunction\b|\bnew\s+|(?:\b[$A-Z_a-z][$\w]*|\]|\))\s*(?:\?\.)?\s*\(/
 
 const FIELD_PATH_PREFIXES = ["/value/", "/fields/"] as const
@@ -189,6 +189,9 @@ const validateDynamicSrc = (src: Exclude<NodeMeta["src"], string>, fields: Matte
   }
 
   validateBasisList(paths[0]!, fields, location, ["enum"], "dynamic src")
+  resolveMetaBranchSrcs(fields, {src}).forEach((resolved, index) => {
+    validateStaticSrc(resolved, `${location}[${index}]`)
+  })
 }
 
 const validateMetaNode = (node: NodeMeta, fields: MatterFields, location: string): void => {

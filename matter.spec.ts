@@ -259,6 +259,51 @@ describe("matter validation", () => {
     ).not.toThrow()
   })
 
+  test("parseMatter сохраняет строковые литералы вычисляемого src", () => {
+    const matter = parseMatter(
+      ({value, html}) => html`<meta-for src="${value.mode === "value.mode" ? "demo/selected" : "demo/fallback"}" />`,
+      {mode: {type: "enum", values: ["value.mode", "other"]}},
+    )
+
+    expect(matter).toEqual([{
+      kind: "fuzzy",
+      fuzzyKind: "dynamic-meta",
+      predicateBinding: {
+        data: "mode",
+        expr: '${_[0] === "value.mode" ? "demo/selected" : "demo/fallback"}',
+      },
+      children: [
+        {edgeSlot: "branch", particle: {kind: "wimp", src: "demo/selected"}},
+        {edgeSlot: "branch", particle: {kind: "wimp", src: "demo/fallback"}},
+      ],
+    }])
+  })
+
+  test("parseMatter не считает имя внутри строки dependency вычисляемого fields", () => {
+    const matter = parseMatter(
+      ({value, html}) => html`<meta-for src="demo/child" fields=${{mode: value.mode, label: "value.mode"}} />`,
+      {mode: {type: "enum", values: ["one", "two"]}},
+    )
+
+    expect(matter).toEqual([{
+      kind: "wimp",
+      src: "demo/child",
+      fieldsBinding: {
+        data: "mode",
+        expr: '{ mode: _[0], label: "value.mode" }',
+      },
+    }])
+  })
+
+  test("parseMatter отклоняет третий сегмент каждого вычисленного src", () => {
+    expect(() => parseMatter(
+      ({value, html}) => html`<meta-for src="demo/${value.mode}" />`,
+      {mode: {type: "enum", values: ["one", "base/two"]}},
+    )).toThrow(
+      'Matter violation at "matter[0].src[1]": src "demo/base/two" is not a valid hub address.',
+    )
+  })
+
   test("запрещает HTML элементы в matter", () => {
     expect(() =>
       MetaFor("invalid-html")
