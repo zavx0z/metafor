@@ -278,7 +278,8 @@ patch или второй scene Store. Counts для HUD выводятся из
 На сохранённом Lada projection direct writer и прежний трёхступенчатый test
 oracle дают одинаковые numeric visual columns для `5` Dark, `28` Field markers,
 `54` Field occurrences, `193` Orbitals, `864` proxies, `165` Transitions,
-`1928` Relations и `47` batches. Direct Store дополнительно сохраняет
+`1928` Relation rows, из которых `864` имеют geometry, и `27` line batches.
+Direct Store дополнительно сохраняет
 Boundary-compatible source rows: `5` WIMP, `54` Field, `23` State, `32`
 Transition, `43` Condition и `13` Process (`0` Reaction в этом fixture).
 Сравнение включает все pixels, forms, materials и compact Hermite controls; UI

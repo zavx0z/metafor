@@ -47,16 +47,19 @@ describe("Fields Analysis Lab", () => {
       .toBeGreaterThan(pseudoSphereRadiusForFieldCount(54))
   })
 
-  test("packs equal Fields across a flat circle on a dense hexagonal lattice", () => {
+  test("keeps one centered Field and the rest on one planar ring", () => {
     for (const count of [2, 3, 17, 54, 128]) {
       const {points, radius} = layoutFieldsInPseudoCircle(count)
       expect(points).toHaveLength(count)
+      expect(points[0]).toEqual({x: 0, y: 0, z: 0})
       expect(points.every((point) => point.z === 0)).toBe(true)
       let minimumDistance = Number.POSITIVE_INFINITY
       for (let left = 0; left < points.length; left += 1) {
         const point = points[left]!
         expect(Math.hypot(point.x, point.y) +
-          FIELDS_PSEUDO_SPHERE_MARKER_RADIUS).toBeLessThanOrEqual(radius)
+          FIELDS_PSEUDO_SPHERE_MARKER_RADIUS).toBeLessThanOrEqual(
+            radius + radius * Number.EPSILON * 2,
+          )
         for (let right = left + 1; right < points.length; right += 1) {
           const peer = points[right]!
           minimumDistance = Math.min(
@@ -69,9 +72,9 @@ describe("Fields Analysis Lab", () => {
         .toBeCloseTo(FIELDS_PSEUDO_SPHERE_MARKER_RADIUS * 2)
     }
     const disk = layoutFieldsInPseudoCircle(54)
-    expect(new Set(disk.points.map((point) =>
+    expect(new Set(disk.points.slice(1).map((point) =>
       Math.hypot(point.x, point.y).toFixed(3)
-    )).size).toBeGreaterThan(3)
+    )).size).toBe(1)
     expect(layoutFieldsInPseudoCircle(128).radius)
       .toBeGreaterThan(layoutFieldsInPseudoCircle(54).radius)
   })

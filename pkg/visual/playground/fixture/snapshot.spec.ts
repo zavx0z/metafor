@@ -8,7 +8,10 @@ import {
   layoutCenteredNestedFields,
 } from "../../src/CenteredNested.ts"
 import {buildOutsideInVisualScene} from "../../src/OutsideIn.ts"
-import {visualDarkParticleColor} from "../../src/SemanticVisual.ts"
+import {
+  visualDarkParticleColor,
+  visualRelationHasSceneGeometry,
+} from "../../src/SemanticVisual.ts"
 import {
   buildVisualPayloadRenderPlan,
   buildVisualSceneRenderPlan,
@@ -146,9 +149,14 @@ describe("Visual playground Bulk observer fixture", () => {
     expect(scene.fieldProxies).toHaveLength(
       manifest.fieldProxies?.length ?? 0,
     )
-    expect(scene.relationEdges).toHaveLength(
-      manifest.relationChannels?.length ?? 0,
+    const renderedRelations = (manifest.relationChannels ?? []).filter(
+      visualRelationHasSceneGeometry,
     )
+    expect(renderedRelations).toHaveLength(890)
+    expect(new Set(scene.relationEdges.map((edge) => edge.relationChannelId)))
+      .toEqual(new Set(renderedRelations.map((channel) =>
+        channel.relationChannelId
+      )))
     const fieldByOccurrence = new Map(scene.fields.flatMap((field) =>
       field.fieldParticleIds.map((id) => [id, field] as const)
     ))
@@ -435,9 +443,22 @@ describe("Visual playground Bulk observer fixture", () => {
     expect(renderPlan.lineBatches.filter((batch) =>
       batch.kind === "relation"
     )).toHaveLength(scene.relationEdgeBatches.length)
-    expect(renderPlan.lineBatches).toHaveLength(47)
+    expect(renderPlan.lineBatches).toHaveLength(
+      scene.stateEdgeBatches.length + scene.relationEdgeBatches.length,
+    )
+    expect(renderPlan.lineBatches).toHaveLength(27)
     expect(renderPlan.lineBatches.flatMap((batch) => batch.paths))
-      .toHaveLength(2067)
+      .toHaveLength(
+        scene.stateEdgeBatches.reduce(
+          (sum, batch) => sum + batch.edges.length,
+          0,
+        ) + scene.relationEdgeBatches.reduce(
+          (sum, batch) => sum + batch.edges.length,
+          0,
+        ),
+      )
+    expect(renderPlan.lineBatches.flatMap((batch) => batch.paths))
+      .toHaveLength(1029)
     expect(renderPlan.lineBatches.every((batch) =>
       batch.paths.every((path) =>
         path.points.length === (batch.kind === "transition" ? 65 : 129)

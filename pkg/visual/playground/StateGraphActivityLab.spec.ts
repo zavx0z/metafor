@@ -81,7 +81,10 @@ describe("State Graph Activity playground stand", () => {
       expect(scenario.manifest.fieldProxies).toHaveLength(160)
       expect(scenario.visual.orbitalTori).toHaveLength(20)
       expect(scenario.visual.transitionPaths).toHaveLength(14)
-      expect(scenario.visual.relationPaths).toHaveLength(331)
+      expect(scenario.visual.relationPaths).toHaveLength(
+        scenario.visual.manifest.relationChannels.length,
+      )
+      expect(scenario.visual.relationPaths).toHaveLength(160)
     }
 
     const geometry = (scenario: typeof stand.active) => ({

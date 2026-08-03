@@ -6,6 +6,7 @@ import type {
 } from "@metafor/types/bulk/manifest"
 import type {BulkRuntimeProjection} from "@metafor/types/bulk/runtime"
 import type {BulkVisualRenderManifest} from "@metafor/types/bulk/visual"
+import {visualRelationHasSceneGeometry} from "@metafor/visual"
 import {OutsideIn} from "@metafor/visual/layout"
 import snapshotJson from "./fixture/monad-snapshot.json"
 import {buildBulkManifestation} from "./manifestation.ts"
@@ -123,7 +124,7 @@ describe("centered-nested Bulk Visual projection", () => {
     expect(visual.manifest.orbitalParticles).toHaveLength(193)
     expect(visual.manifest.transitionChannels).toHaveLength(165)
     expect(visual.manifest.fieldProxies).toHaveLength(864)
-    expect(visual.manifest.relationChannels).toHaveLength(1902)
+    expect(visual.manifest.relationChannels).toHaveLength(864)
     expect(visual.fieldAliases).toHaveLength(54)
     expect(visual.orbitalTori).toHaveLength(
       (manifest.orbitalParticles ?? []).filter((particle) =>
@@ -167,7 +168,9 @@ describe("centered-nested Bulk Visual projection", () => {
       channel.transitionChannelId
     )))
     const renderedSourceRelations = (manifest.relationChannels ?? []).filter(
-      (channel) => channel.relationKind !== "field-entanglement",
+      (channel) =>
+        visualRelationHasSceneGeometry(channel) &&
+        channel.relationKind !== "field-entanglement",
     )
     expect(new Set(visual.manifest.relationChannels?.map((channel) =>
       channel.relationChannelId
