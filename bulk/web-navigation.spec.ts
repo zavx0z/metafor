@@ -2,20 +2,27 @@ import { describe, expect, test } from "bun:test"
 import { Ray, Vector3 } from "@metafor/engine"
 import {
   getBulkPickTargetKey,
+  resolveBulkClickTarget,
   resolveBulkDirectionalHoverTarget,
+  resolveBulkFieldProxyPickDepth,
   resolveBulkHoverDirection,
   resolveBulkHoverPriorityTarget,
   resolveBulkHoverTarget,
   resolveBulkHoverTransition,
+  resolveBulkNavigationClickTarget,
+  resolveBulkNavigationSurfaceTarget,
+  resolveBulkOrbitalPickDepth,
   resolveBulkPickHit,
   resolveBulkPickTarget,
+  resolveBulkProjectedSphereHoverScore,
+  resolveBulkProjectedTorusHoverScore,
   resolveBulkViewportFitPose,
   resolveBulkViewportFocusPose,
 } from "./web-navigation"
 import type { BulkPickTarget } from "@metafor/types/bulk/viewport"
 
 describe("bulk web navigation", () => {
-  test("по клику выбирает самый глубокий Dark particle среди всех попавших под луч", () => {
+  test("hover выбирает самый глубокий Dark particle среди всех попавших под луч", () => {
     const targets: BulkPickTarget[] = [
       {
         kind: "darkParticle",
@@ -48,7 +55,7 @@ describe("bulk web navigation", () => {
     expect(hit && "darkParticleId" in hit ? hit.darkParticleId : null).toBe(2)
   })
 
-  test("у более глубокого Dark particle приоритет выше даже если родитель попадает точнее", () => {
+  test("hover отдаёт приоритет более глубокому Dark particle при близком попадании", () => {
     const targets: BulkPickTarget[] = [
       {
         kind: "darkParticle",
@@ -169,6 +176,340 @@ describe("bulk web navigation", () => {
     expect(targetKeyAt(700)).toBe("orbitalParticle:orbital:process")
     expect(targetKeyAt(1160)).toBe("fieldProxy:proxy:torus")
     expect(targetKeyAt(1400)).toBe("fieldProxy:proxy:sphere")
+  })
+
+  test("вложенная сфера и Process Torus имеют приоритет над окружающим State Torus", () => {
+    const stateDepth = resolveBulkOrbitalPickDepth(0, "state")
+    const processDepth = resolveBulkOrbitalPickDepth(0, "process")
+    const proxyDepth = resolveBulkFieldProxyPickDepth(0)
+    const state: BulkPickTarget = {
+      center: new Vector3(0, 0, 0),
+      depth: stateDepth,
+      form: "torus",
+      kind: "orbitalParticle",
+      orbitalParticleId: "orbital:state",
+      outerRadius: 140,
+      parentDarkParticleId: 1,
+      torusRadius: 100,
+      torusTube: 40,
+    }
+    const process: BulkPickTarget = {
+      center: new Vector3(0, 0, 0),
+      depth: processDepth,
+      form: "torus",
+      kind: "orbitalParticle",
+      orbitalParticleId: "orbital:process",
+      outerRadius: 80,
+      parentDarkParticleId: 1,
+      torusRadius: 60,
+      torusTube: 20,
+    }
+    const proxy: BulkPickTarget = {
+      center: new Vector3(60, 0, 0),
+      depth: proxyDepth,
+      fieldProxyId: "proxy:sphere",
+      form: "sphere",
+      kind: "fieldProxy",
+      outerRadius: 5,
+      parentDarkParticleId: 1,
+      sphereRadius: 5,
+    }
+    const ray = new Ray(
+      new Vector3(60, 0, -500),
+      new Vector3(0, 0, 1),
+    )
+
+    expect(stateDepth).toBe(1)
+    expect(processDepth).toBe(2)
+    expect(resolveBulkOrbitalPickDepth(0, "reaction")).toBe(2)
+    expect(resolveBulkOrbitalPickDepth(0, "axion")).toBe(2)
+    expect(resolveBulkOrbitalPickDepth(0, "finally")).toBe(2)
+    expect(proxyDepth).toBe(3)
+    expect(getBulkPickTargetKey(
+      resolveBulkPickTarget(ray, [state, process])!,
+    )).toBe("orbitalParticle:orbital:process")
+    expect(getBulkPickTargetKey(
+      resolveBulkPickTarget(ray, [state, process, proxy])!,
+    )).toBe("fieldProxy:proxy:sphere")
+  })
+
+  test("клик с вложенного Field по телу родительского State Torus выбирает родителя", () => {
+    const parent: BulkPickTarget = {
+      center: new Vector3(0, 0, 0),
+      depth: 1,
+      form: "torus",
+      kind: "orbitalParticle",
+      orbitalParticleId: "orbital:parent-state",
+      outerRadius: 120,
+      parentDarkParticleId: 1,
+      torusRadius: 100,
+      torusTube: 20,
+    }
+    const currentField: BulkPickTarget = {
+      center: new Vector3(100, 0, 100),
+      depth: 3,
+      fieldProxyId: "proxy:current-field",
+      form: "sphere",
+      kind: "fieldProxy",
+      outerRadius: 20,
+      parentDarkParticleId: 1,
+      sphereRadius: 20,
+    }
+    const ray = new Ray(
+      new Vector3(100, 0, -500),
+      new Vector3(0, 0, 1),
+    )
+
+    expect(getBulkPickTargetKey(
+      resolveBulkClickTarget(ray, [currentField, parent])!,
+    )).toBe("orbitalParticle:orbital:parent-state")
+  })
+
+  test("клик через отверстие родительского State Torus остаётся доступен вложенному Field", () => {
+    const parent: BulkPickTarget = {
+      center: new Vector3(0, 0, 0),
+      depth: 1,
+      form: "torus",
+      kind: "orbitalParticle",
+      orbitalParticleId: "orbital:parent-state",
+      outerRadius: 120,
+      parentDarkParticleId: 1,
+      torusRadius: 100,
+      torusTube: 20,
+    }
+    const field: BulkPickTarget = {
+      center: new Vector3(0, 0, 100),
+      depth: 3,
+      fieldProxyId: "proxy:field-through-hole",
+      form: "sphere",
+      kind: "fieldProxy",
+      outerRadius: 20,
+      parentDarkParticleId: 1,
+      sphereRadius: 20,
+    }
+    const ray = new Ray(
+      new Vector3(0, 0, -500),
+      new Vector3(0, 0, 1),
+    )
+
+    expect(getBulkPickTargetKey(
+      resolveBulkClickTarget(ray, [parent, field])!,
+    )).toBe("fieldProxy:proxy:field-through-hole")
+  })
+
+  test("клик с родительского Torus по вложенному Field приближает к Field", () => {
+    const parent: BulkPickTarget = {
+      center: new Vector3(0, 0, 0),
+      depth: 1,
+      form: "torus",
+      kind: "orbitalParticle",
+      orbitalParticleId: "orbital:parent-state",
+      outerRadius: 120,
+      parentDarkParticleId: 1,
+      torusRadius: 100,
+      torusTube: 20,
+    }
+    const field: BulkPickTarget = {
+      center: new Vector3(0, 0, 100),
+      depth: 3,
+      fieldProxyId: "proxy:target-field",
+      form: "sphere",
+      kind: "fieldProxy",
+      outerRadius: 20,
+      parentDarkParticleId: 1,
+      sphereRadius: 20,
+    }
+
+    expect(getBulkPickTargetKey(resolveBulkNavigationClickTarget(
+      parent,
+      field,
+      parent,
+    )!)).toBe("fieldProxy:proxy:target-field")
+  })
+
+  test("клик с вложенного Field по поверхности родителя отдаляет к родителю", () => {
+    const parent: BulkPickTarget = {
+      center: new Vector3(0, 0, 0),
+      depth: 1,
+      form: "torus",
+      kind: "orbitalParticle",
+      orbitalParticleId: "orbital:parent-state",
+      outerRadius: 120,
+      parentDarkParticleId: 1,
+      torusRadius: 100,
+      torusTube: 20,
+    }
+    const field: BulkPickTarget = {
+      center: new Vector3(100, 0, 100),
+      depth: 3,
+      fieldProxyId: "proxy:current-field",
+      form: "sphere",
+      kind: "fieldProxy",
+      outerRadius: 20,
+      parentDarkParticleId: 1,
+      sphereRadius: 20,
+    }
+
+    expect(getBulkPickTargetKey(resolveBulkNavigationClickTarget(
+      field,
+      field,
+      parent,
+    )!)).toBe("orbitalParticle:orbital:parent-state")
+  })
+
+  test("отдельный Field под указателем не заменяется внешним root Torus", () => {
+    const root: BulkPickTarget = {
+      center: new Vector3(0, 0, 0),
+      darkParticleId: 1,
+      depth: 0,
+      kind: "darkParticle",
+      outerRadius: 1200,
+      parentDarkParticleId: null,
+      torusRadius: 1000,
+      torusTube: 200,
+    }
+    const focusedAtom: BulkPickTarget = {
+      center: new Vector3(0, 0, 0),
+      darkParticleId: 2,
+      depth: 1,
+      kind: "darkParticle",
+      outerRadius: 300,
+      parentDarkParticleId: 1,
+      torusRadius: 250,
+      torusTube: 50,
+    }
+    const field: BulkPickTarget = {
+      center: new Vector3(100, 0, 0),
+      depth: 2,
+      fieldParticleId: "field:inside-focused-atom",
+      kind: "fieldParticle",
+      outerRadius: 20,
+      parentDarkParticleId: 2,
+      sphereRadius: 20,
+    }
+
+    expect(getBulkPickTargetKey(resolveBulkNavigationClickTarget(
+      focusedAtom,
+      field,
+      root,
+    )!)).toBe("fieldParticle:field:inside-focused-atom")
+  })
+
+  test("клик с Field по другому Field не отлетает к внешнему Torus", () => {
+    const root: BulkPickTarget = {
+      center: new Vector3(0, 0, 0),
+      darkParticleId: 1,
+      depth: 0,
+      kind: "darkParticle",
+      outerRadius: 1200,
+      parentDarkParticleId: null,
+      torusRadius: 1000,
+      torusTube: 200,
+    }
+    const currentField: BulkPickTarget = {
+      center: new Vector3(-100, 0, 0),
+      depth: 2,
+      fieldParticleId: "field:current",
+      kind: "fieldParticle",
+      outerRadius: 20,
+      parentDarkParticleId: 2,
+      sphereRadius: 20,
+    }
+    const nextField: BulkPickTarget = {
+      center: new Vector3(100, 0, 0),
+      depth: 2,
+      fieldParticleId: "field:next",
+      kind: "fieldParticle",
+      outerRadius: 20,
+      parentDarkParticleId: 2,
+      sphereRadius: 20,
+    }
+
+    expect(getBulkPickTargetKey(resolveBulkNavigationClickTarget(
+      currentField,
+      nextField,
+      root,
+    )!)).toBe("fieldParticle:field:next")
+  })
+
+  test("внутри нескольких Tori выход с Field выбирает ближайший visual parent, а не root", () => {
+    const root: BulkPickTarget = {
+      center: new Vector3(0, 0, 0),
+      darkParticleId: 1,
+      depth: 0,
+      kind: "darkParticle",
+      outerRadius: 1200,
+      parentDarkParticleId: null,
+      torusRadius: 1000,
+      torusTube: 200,
+    }
+    const atom: BulkPickTarget = {
+      center: new Vector3(0, 0, 0),
+      darkParticleId: 2,
+      depth: 1,
+      kind: "darkParticle",
+      outerRadius: 600,
+      parentDarkParticleId: 1,
+      torusRadius: 500,
+      torusTube: 100,
+    }
+    const state: BulkPickTarget = {
+      center: new Vector3(0, 0, 0),
+      depth: 2,
+      form: "torus",
+      kind: "orbitalParticle",
+      orbitalParticleId: "orbital:state-parent",
+      outerRadius: 300,
+      parentDarkParticleId: 2,
+      torusRadius: 250,
+      torusTube: 50,
+    }
+    const currentField: BulkPickTarget = {
+      center: new Vector3(0, 0, 0),
+      depth: 3,
+      fieldProxyId: "proxy:current",
+      form: "sphere",
+      kind: "fieldProxy",
+      outerRadius: 20,
+      parentDarkParticleId: 2,
+      sphereRadius: 20,
+    }
+
+    const surface = resolveBulkNavigationSurfaceTarget(currentField, [
+      {distance: 0, target: root},
+      {distance: 0, target: atom},
+      {distance: 0, target: state},
+      {distance: 10, target: currentField},
+    ])
+
+    expect(getBulkPickTargetKey(surface!)).toBe("orbitalParticle:orbital:state-parent")
+    expect(getBulkPickTargetKey(resolveBulkNavigationClickTarget(
+      currentField,
+      null,
+      surface,
+    )!)).toBe("orbitalParticle:orbital:state-parent")
+  })
+
+  test("выход со State внутри корневого Torus останавливается на Atom", () => {
+    const root: BulkPickTarget = {
+      center: new Vector3(), darkParticleId: 1, depth: 0, kind: "darkParticle",
+      outerRadius: 1200, parentDarkParticleId: null, torusRadius: 1000, torusTube: 200,
+    }
+    const atom: BulkPickTarget = {
+      center: new Vector3(), darkParticleId: 2, depth: 1, kind: "darkParticle",
+      outerRadius: 600, parentDarkParticleId: 1, torusRadius: 500, torusTube: 100,
+    }
+    const state: BulkPickTarget = {
+      center: new Vector3(), depth: 2, form: "torus", kind: "orbitalParticle",
+      orbitalParticleId: "orbital:state", outerRadius: 300,
+      parentDarkParticleId: 2, torusRadius: 250, torusTube: 50,
+    }
+
+    expect(getBulkPickTargetKey(resolveBulkNavigationSurfaceTarget(state, [
+      {distance: 0, target: root},
+      {distance: 0, target: atom},
+      {distance: 10, target: state},
+    ])!)).toBe("darkParticle:2")
   })
 
   test("hover retention не удерживает родителя, если найден более глубокий target", () => {
@@ -595,6 +936,67 @@ describe("bulk web navigation", () => {
 
     expect(target?.kind).toBe("darkParticle")
     expect(target && "darkParticleId" in target ? target.darkParticleId : null).toBe(2)
+  })
+
+  test("на одном visual depth выбирает сферу точно под курсором, а не ближайшую к камере соседнюю сферу", () => {
+    const selected: BulkPickTarget = {
+      center: new Vector3(0, 0, 0),
+      depth: 3,
+      fieldProxyId: "proxy:selected",
+      form: "sphere",
+      kind: "fieldProxy",
+      outerRadius: 5,
+      parentDarkParticleId: 1,
+      sphereRadius: 5,
+    }
+    const nearer: BulkPickTarget = {
+      center: new Vector3(10, 0, -20),
+      depth: 3,
+      fieldProxyId: "proxy:nearer",
+      form: "sphere",
+      kind: "fieldProxy",
+      outerRadius: 5,
+      parentDarkParticleId: 1,
+      sphereRadius: 5,
+    }
+
+    const target = resolveBulkHoverPriorityTarget({
+      currentTarget: nearer,
+      candidates: [
+        {target: selected, distance: 120, score: 0},
+        {target: nearer, distance: 80, score: 1},
+      ],
+    })
+
+    expect(target && getBulkPickTargetKey(target))
+      .toBe("fieldProxy:proxy:selected")
+  })
+
+  test("projected score измеряет центр Sphere и осевую окружность Torus", () => {
+    expect(resolveBulkProjectedSphereHoverScore(
+      {x: 100, y: 80},
+      100,
+      80,
+    )).toBe(0)
+    expect(resolveBulkProjectedSphereHoverScore(
+      {x: 100, y: 80},
+      106,
+      88,
+    )).toBe(10)
+    expect(resolveBulkProjectedTorusHoverScore(
+      {x: 100, y: 80},
+      20,
+      40,
+      130,
+      80,
+    )).toBe(0)
+    expect(resolveBulkProjectedTorusHoverScore(
+      {x: 100, y: 80},
+      20,
+      40,
+      100,
+      80,
+    )).toBe(30)
   })
 
   test("hover priority отпускает текущий target, когда другой стал существенно ближе", () => {

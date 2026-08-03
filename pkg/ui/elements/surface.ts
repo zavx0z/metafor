@@ -74,6 +74,7 @@ import {
 } from "@metafor/engine"
 import type {UiDisplayId, UiSurfaceRect, UiRuntime, UiSurfaceNode} from "./runtime.ts"
 import {MaterialPalette, palette} from "./theme.ts"
+import {createUiPolylineStrokeGeometry, type UiPolylinePoint} from "./polyline.ts"
 
 type UiFrameHandle = {kind: "raf"; id: number} | {kind: "timeout"; id: ReturnType<typeof setTimeout>}
 
@@ -821,6 +822,20 @@ export abstract class UiSurface implements UiSurfaceNode {
     mesh.position.y = -((y0 + y1) / 2) * this.pixelScale
     mesh.position.z = z
     mesh.rotation.z = -Math.atan2(dy, dx)
+    mesh.updateMatrix()
+    this.#currentLayer().add(mesh)
+  }
+
+  /**
+   * Draws one connected thick 2D curve as one indexed Mesh.
+   * Points are logical surface pixels; adjacent segments share miter joins.
+   */
+  drawPolyline(points: readonly UiPolylinePoint[], color: Color, thicknessPx = 2, z = Z.ELEMENT): void {
+    const geometry = createUiPolylineStrokeGeometry(points, thicknessPx)
+    if (geometry === null) return
+    const mesh = new Mesh(geometry, new MeshBasicMaterial({color}))
+    mesh.scale.set(this.pixelScale, -this.pixelScale, 1)
+    mesh.position.z = z
     mesh.updateMatrix()
     this.#currentLayer().add(mesh)
   }

@@ -5,6 +5,7 @@
 export * from "./runtime.ts"
 export * from "./targets/index.ts"
 export * from "./surface.ts"
+export * from "./polyline.ts"
 export * from "./elements.ts"
 export * from "./flex.ts"
 export * from "./flexCss.ts"

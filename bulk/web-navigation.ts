@@ -1,4 +1,5 @@
 import { Ray, Vector3 } from "@metafor/engine"
+import type {BulkOrbitalParticleKind} from "@metafor/types/bulk/manifest"
 import type {
   BulkClientPoint,
   BulkDarkParticlePickTarget,
@@ -28,6 +29,37 @@ const DEFAULT_HOVER_TRANSITION_DELAY_MS = 72
 const DEFAULT_HOVER_SCORE_HYSTERESIS_PX = 6
 const DEFAULT_DEEPER_TARGET_SCORE_TOLERANCE_PX = 4.0
 const FALLBACK_VIEW_DIRECTION = new Vector3(0.72, -0.54, 0.42).normalize()
+
+export const resolveBulkOrbitalPickDepth = (
+  parentDarkDepth: number,
+  kind: BulkOrbitalParticleKind,
+): number => parentDarkDepth + (kind === "state" ? 1 : 2)
+
+export const resolveBulkFieldProxyPickDepth = (
+  parentDarkDepth: number,
+): number => parentDarkDepth + 3
+
+export const resolveBulkProjectedSphereHoverScore = (
+  center: BulkClientPoint,
+  clientX: number,
+  clientY: number,
+): number => Math.hypot(clientX - center.x, clientY - center.y)
+
+export const resolveBulkProjectedTorusHoverScore = (
+  center: BulkClientPoint,
+  projectedInnerRadius: number,
+  projectedOuterRadius: number,
+  clientX: number,
+  clientY: number,
+): number => {
+  const distanceFromCenter = Math.hypot(
+    clientX - center.x,
+    clientY - center.y,
+  )
+  const projectedCenterlineRadius =
+    (projectedInnerRadius + projectedOuterRadius) / 2
+  return Math.abs(distanceFromCenter - projectedCenterlineRadius)
+}
 
 const resolveRaySphereDistanceRange = (
   ray: Ray,
@@ -181,6 +213,96 @@ export const resolveBulkPickHits = (
   return hits
 }
 
+export const resolveBulkClickTarget = (
+  ray: Ray,
+  targets: readonly BulkPickTarget[],
+): BulkPickTarget | null => {
+  let nearestHit: BulkPickHit | null = null
+
+  for (const target of targets) {
+    const hit = resolveBulkPickHit(ray, target, {hitPaddingMm: 0})
+    if (!hit) continue
+    if (
+      nearestHit === null ||
+      hit.distance < nearestHit.distance ||
+      (
+        hit.distance === nearestHit.distance &&
+        hit.target.depth < nearestHit.target.depth
+      )
+    ) {
+      nearestHit = hit
+    }
+  }
+
+  return nearestHit?.target ?? null
+}
+
+/**
+ * Chooses the exact surface used by click/tap navigation.
+ *
+ * A focused camera can be inside several nested transparent Tori at once. In
+ * that case every enclosing surface starts at distance zero, so distance alone
+ * cannot distinguish the immediate visual parent from the root. The closest
+ * shallower visual depth is the deterministic parent step; a distinct hovered
+ * Mesh is still resolved separately by resolveBulkNavigationClickTarget.
+ */
+export const resolveBulkNavigationSurfaceTarget = (
+  currentTarget: BulkPickTarget | null,
+  exactHits: readonly BulkPickHit[],
+): BulkPickTarget | null => {
+  let candidates = exactHits
+
+  if (currentTarget !== null) {
+    let parentDepth = Number.NEGATIVE_INFINITY
+    for (const hit of exactHits) {
+      if (hit.target.depth >= currentTarget.depth) continue
+      parentDepth = Math.max(parentDepth, hit.target.depth)
+    }
+    if (Number.isFinite(parentDepth)) {
+      candidates = exactHits.filter((hit) => hit.target.depth === parentDepth)
+    }
+  }
+
+  let nearestHit: BulkPickHit | null = null
+  for (const hit of candidates) {
+    if (
+      nearestHit === null ||
+      hit.distance < nearestHit.distance ||
+      (
+        hit.distance === nearestHit.distance &&
+        hit.target.depth < nearestHit.target.depth
+      )
+    ) {
+      nearestHit = hit
+    }
+  }
+  return nearestHit?.target ?? null
+}
+
+export const resolveBulkNavigationClickTarget = (
+  currentTarget: BulkPickTarget | null,
+  hoverTarget: BulkPickTarget | null,
+  surfaceTarget: BulkPickTarget | null,
+): BulkPickTarget | null => {
+  const currentTargetKey = currentTarget === null
+    ? null
+    : getBulkPickTargetKey(currentTarget)
+  const hoverTargetKey = hoverTarget === null
+    ? null
+    : getBulkPickTargetKey(hoverTarget)
+
+  if (
+    currentTarget !== null &&
+    surfaceTarget !== null &&
+    surfaceTarget.depth < currentTarget.depth &&
+    (hoverTarget === null || hoverTargetKey === currentTargetKey)
+  ) {
+    return surfaceTarget
+  }
+
+  return hoverTarget ?? surfaceTarget
+}
+
 export const resolveBulkHoverDirection = (
   previousPoint: BulkClientPoint,
   currentPoint: BulkClientPoint,
@@ -242,7 +364,11 @@ const compareBulkHoverPriorityCandidates = (
   left: BulkHoverPriorityCandidate,
   right: BulkHoverPriorityCandidate,
 ): number => {
-  if (Math.abs(left.score - right.score) <= DEFAULT_DEEPER_TARGET_SCORE_TOLERANCE_PX) {
+  if (
+    left.target.depth !== right.target.depth &&
+    Math.abs(left.score - right.score) <=
+      DEFAULT_DEEPER_TARGET_SCORE_TOLERANCE_PX
+  ) {
     return compareBulkPickHits(left, right)
   }
   if (left.score !== right.score) return left.score - right.score
@@ -266,6 +392,10 @@ export const resolveBulkHoverPriorityTarget = ({
   )
   if (!currentCandidate) return bestCandidate.target
   if (getBulkPickTargetKey(bestCandidate.target) === getBulkPickTargetKey(currentTarget)) return currentCandidate.target
+
+  if (bestCandidate.target.depth === currentCandidate.target.depth) {
+    return bestCandidate.target
+  }
 
   if (parentByDarkParticleId) {
     const currentDarkParticleId = getPickParentDarkParticleId(currentTarget)

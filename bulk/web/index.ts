@@ -117,9 +117,15 @@ import {
 import {
 	getBulkPickTargetKey,
 	isBulkSpherePickTarget,
+	resolveBulkFieldProxyPickDepth,
 	resolveBulkHoverPriorityTarget,
+	resolveBulkNavigationClickTarget,
+	resolveBulkNavigationSurfaceTarget,
+	resolveBulkOrbitalPickDepth,
 	resolveBulkPickHit,
 	resolveBulkPickHits,
+	resolveBulkProjectedSphereHoverScore,
+	resolveBulkProjectedTorusHoverScore,
 	resolveBulkViewportFitPose,
 } from "../web-navigation"
 import type {
@@ -494,10 +500,9 @@ class BulkRadialMenuPane extends UiSurface {
 			base,
 			outerRadius - innerRadius,
 			Z.CONTAINER + 0.2,
-			96,
 		)
-		this.#drawCircleStroke(center.x, center.y, outerRadius - 1, border, 1.6, Z.ELEMENT + 0.14, 96)
-		this.#drawCircleStroke(center.x, center.y, innerRadius + 1, new Color(0.48, 0.94, 1, 0.18), 1.2, Z.ELEMENT + 0.14, 72)
+		this.#drawCircleStroke(center.x, center.y, outerRadius - 1, border, 1.6, Z.ELEMENT + 0.14)
+		this.#drawCircleStroke(center.x, center.y, innerRadius + 1, new Color(0.48, 0.94, 1, 0.18), 1.2, Z.ELEMENT + 0.14)
 
 		for (let index = 0; index < BULK_RADIAL_MENU_SECTOR_COUNT; index += 1) {
 			const angle = -Math.PI / 2 + index * this.#sectorAngle()
@@ -569,20 +574,21 @@ class BulkRadialMenuPane extends UiSurface {
 		return Math.min(BULK_RADIAL_MENU_SECTOR_COUNT - 1, Math.floor(normalized / this.#sectorAngle()))
 	}
 
-	#drawCircleStroke(cx: number, cy: number, radius: number, color: Color, thickness: number, z: number, segments: number): void {
-		for (let index = 0; index < segments; index += 1) {
-			const a0 = (index / segments) * Math.PI * 2
-			const a1 = ((index + 1) / segments) * Math.PI * 2
-			this.drawRoundedLine(
-				cx + Math.cos(a0) * radius,
-				cy + Math.sin(a0) * radius,
-				cx + Math.cos(a1) * radius,
-				cy + Math.sin(a1) * radius,
-				color,
-				thickness,
+	#drawCircleStroke(cx: number, cy: number, radius: number, color: Color, thickness: number, z: number): void {
+		const outerRadius = radius + thickness / 2
+		this.drawRoundedRect(
+			cx - outerRadius,
+			cy - outerRadius,
+			outerRadius * 2,
+			outerRadius * 2,
+			{
+				radius: outerRadius,
+				fill: new Color(0, 0, 0, 0),
+				border: color,
+				borderWidth: thickness,
 				z,
-			)
-		}
+			},
+		)
 	}
 
 	#drawSectorStroke(index: number, color: Color, thickness: number, z: number): void {
@@ -602,21 +608,17 @@ class BulkRadialMenuPane extends UiSurface {
 				z,
 			)
 		}
-		const arcSegments = 5
-		for (let segment = 0; segment < arcSegments; segment += 1) {
-			const a0 = start + (segment / arcSegments) * this.#sectorAngle()
-			const a1 = start + ((segment + 1) / arcSegments) * this.#sectorAngle()
-			for (const radius of [innerRadius, outerRadius]) {
-				this.drawRoundedLine(
-					center.x + Math.cos(a0) * radius,
-					center.y + Math.sin(a0) * radius,
-					center.x + Math.cos(a1) * radius,
-					center.y + Math.sin(a1) * radius,
-					color,
-					thickness,
-					z,
-				)
+		const arcSegments = 8
+		for (const radius of [innerRadius, outerRadius]) {
+			const points: Array<{x: number; y: number}> = []
+			for (let segment = 0; segment <= arcSegments; segment += 1) {
+				const angle = start + (segment / arcSegments) * this.#sectorAngle()
+				points.push({
+					x: center.x + Math.cos(angle) * radius,
+					y: center.y + Math.sin(angle) * radius,
+				})
 			}
+			this.drawPolyline(points, color, thickness, z)
 		}
 	}
 }
@@ -2028,8 +2030,12 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 
 	const upsertOrbitalParticleRecord = (
 		particle: BulkOrbitalParticle,
-		depth: number,
+		parent: DarkParticleRenderRecord,
 	): OrbitalParticleRenderRecord => {
+		const depth = resolveBulkOrbitalPickDepth(
+			parent.snapshot.depth,
+			particle.orbitalParticleKind,
+		)
 		const existing = orbitalParticleRecords.get(particle.orbitalParticleId)
 		if (!existing) {
 			const material = orbitalParticleMaterial(particle)
@@ -2268,8 +2274,9 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 
 	const upsertFieldProxyRecord = (
 		proxy: BulkFieldProxy,
-		depth: number,
+		parent: DarkParticleRenderRecord,
 	): FieldProxyRenderRecord => {
+		const depth = resolveBulkFieldProxyPickDepth(parent.snapshot.depth)
 		const existing = fieldProxyRecords.get(proxy.fieldProxyId)
 		if (!existing) {
 			const material = fieldProxyMaterial(proxy)
@@ -2698,7 +2705,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			}
 			const record = upsertOrbitalParticleRecord(
 				particle,
-				parent.snapshot.depth + 1,
+				parent,
 			)
 			if (record.node.parent !== parent.container) parent.container.add(record.node)
 		}
@@ -2713,7 +2720,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			}
 			const record = upsertFieldProxyRecord(
 				proxy,
-				parent.snapshot.depth + 1,
+				parent,
 			)
 			if (record.node.parent !== parent.container) parent.container.add(record.node)
 		}
@@ -3088,25 +3095,14 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		clientX: number,
 		clientY: number,
 	): number | null => {
+		if (radius <= 1e-6) return null
 		const centerPoint = projectSceneToClientPoint(center)
 		if (!centerPoint) return null
-
-		const cameraForward = viewPoint.getTarget().clone().sub(viewPoint.position).normalize()
-		const cameraRight = cameraForward.clone().cross(viewPoint.getUp()).normalize()
-		const cameraUp = cameraRight.clone().cross(cameraForward).normalize()
-		if (cameraRight.length() <= 1e-6 || cameraUp.length() <= 1e-6) return null
-
-		const rightPoint = projectSceneToClientPoint(center.clone().add(cameraRight.multiplyScalar(radius)))
-		const upPoint = projectSceneToClientPoint(center.clone().add(cameraUp.multiplyScalar(radius)))
-		if (!rightPoint && !upPoint) return null
-
-		const projectedRadius = Math.max(
-			rightPoint ? Math.hypot(rightPoint.x - centerPoint.x, rightPoint.y - centerPoint.y) : 0,
-			upPoint ? Math.hypot(upPoint.x - centerPoint.x, upPoint.y - centerPoint.y) : 0,
+		return resolveBulkProjectedSphereHoverScore(
+			centerPoint,
+			clientX,
+			clientY,
 		)
-		if (projectedRadius <= 1e-6) return null
-
-		return Math.max(0, Math.hypot(clientX - centerPoint.x, clientY - centerPoint.y) - projectedRadius)
 	}
 
 	const resolveProjectedTorusDistancePx = (
@@ -3120,17 +3116,31 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		const innerRadius = Math.max(0, torusRadius - torusTube)
 		const centerPoint = projectSceneToClientPoint(center)
 		if (!centerPoint) return null
-		const outerEdgeDistance = resolveProjectedSphereDistancePx(center, outerRadius, clientX, clientY)
-		if (outerEdgeDistance === null) return null
 		const cameraForward = viewPoint.getTarget().clone().sub(viewPoint.position).normalize()
 		const cameraRight = cameraForward.clone().cross(viewPoint.getUp()).normalize()
-		if (cameraRight.length() <= 1e-6 || innerRadius <= 1e-6) return outerEdgeDistance
-		const innerPoint = projectSceneToClientPoint(center.clone().add(cameraRight.multiplyScalar(innerRadius)))
-		if (!innerPoint) return outerEdgeDistance
-		const distanceFromCenter = Math.hypot(clientX - centerPoint.x, clientY - centerPoint.y)
+		if (cameraRight.length() <= 1e-6) return null
+		const outerPoint = projectSceneToClientPoint(
+			center.clone().add(cameraRight.clone().multiplyScalar(outerRadius)),
+		)
+		if (!outerPoint) return null
+		const innerPoint = innerRadius <= 1e-6
+			? centerPoint
+			: projectSceneToClientPoint(
+				center.clone().add(cameraRight.multiplyScalar(innerRadius)),
+			)
+		if (!innerPoint) return null
+		const projectedOuterRadius = Math.hypot(
+			outerPoint.x - centerPoint.x,
+			outerPoint.y - centerPoint.y,
+		)
 		const projectedInnerRadius = Math.hypot(innerPoint.x - centerPoint.x, innerPoint.y - centerPoint.y)
-		if (distanceFromCenter >= projectedInnerRadius && outerEdgeDistance <= 1e-6) return 0
-		return Math.min(outerEdgeDistance, Math.abs(distanceFromCenter - projectedInnerRadius))
+		return resolveBulkProjectedTorusHoverScore(
+			centerPoint,
+			projectedInnerRadius,
+			projectedOuterRadius,
+			clientX,
+			clientY,
+		)
 	}
 
 	const syncPickTargetsFromScene = (): void => {
@@ -3512,17 +3522,14 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		).normalize(),
 	})
 
-	const pickTargetAtClientPoint = (
+	const preparePickRayAtClientPoint = (
 		clientX: number,
 		clientY: number,
-		preferCurrentHover: boolean = false,
-	): HoverablePickTarget | null => {
-		if (pickTargets.length === 0) return null
+	): boolean => {
 		const rect = options.canvas.getBoundingClientRect()
-		if (rect.width <= 0 || rect.height <= 0) return null
+		if (rect.width <= 0 || rect.height <= 0) return false
 
 		updateManifestationSceneState()
-
 		raycaster.setFromCamera(
 			{
 				x: ((clientX - rect.left) / rect.width) * 2 - 1,
@@ -3530,7 +3537,14 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			},
 			viewPoint,
 		)
+		return true
+	}
 
+	const pickTargetFromPreparedRay = (
+		clientX: number,
+		clientY: number,
+		preferCurrentHover: boolean = false,
+	): HoverablePickTarget | null => {
 		const hits = resolveBulkPickHits(raycaster.ray, pickTargets, { hitPaddingMm: HOVER_PICK_HIT_PADDING_MM })
 		const hoverPriorityCandidates: BulkHoverPriorityCandidate[] = []
 
@@ -3559,8 +3573,48 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		return null
 	}
 
+	const pickTargetAtClientPoint = (
+		clientX: number,
+		clientY: number,
+		preferCurrentHover: boolean = false,
+	): HoverablePickTarget | null => {
+		if (pickTargets.length === 0) return null
+		if (!preparePickRayAtClientPoint(clientX, clientY)) return null
+		return pickTargetFromPreparedRay(
+			clientX,
+			clientY,
+			preferCurrentHover,
+		)
+	}
+
+	const pickClickTargetAtClientPoint = (
+		clientX: number,
+		clientY: number,
+	): HoverablePickTarget | null => {
+		if (pickTargets.length === 0) return null
+		if (!preparePickRayAtClientPoint(clientX, clientY)) return null
+		const currentTarget = focusedViewportFitTargetKey === null
+			? null
+			: pickTargets.find((target) =>
+				getPickTargetKey(target) === focusedViewportFitTargetKey
+			) ?? null
+		const surfaceTarget = resolveBulkNavigationSurfaceTarget(
+			currentTarget,
+			resolveBulkPickHits(raycaster.ray, pickTargets, {hitPaddingMm: 0}),
+		) as HoverablePickTarget | null
+		const hoverTarget = pickTargetFromPreparedRay(
+			clientX,
+			clientY,
+		) as HoverablePickTarget | null
+		return resolveBulkNavigationClickTarget(
+			currentTarget,
+			hoverTarget,
+			surfaceTarget,
+		) as HoverablePickTarget | null
+	}
+
 	const pickRadialMenuTargetAtClientPoint = (clientX: number, clientY: number): HoverablePickTarget | null => {
-		const directTarget = pickTargetAtClientPoint(clientX, clientY, true)
+		const directTarget = pickClickTargetAtClientPoint(clientX, clientY)
 		if (directTarget) return directTarget
 
 		updateManifestationSceneState()
@@ -4197,7 +4251,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		}
 		if (Math.hypot(touch.clientX - state.startX, touch.clientY - state.startY) > BULK_TOUCH_TAP_MOVE_PX) return
 		cancelRadialMenuLongPress()
-		const hitTarget = pickTargetAtClientPoint(touch.clientX, touch.clientY, true)
+		const hitTarget = pickClickTargetAtClientPoint(touch.clientX, touch.clientY)
 		if (!hitTarget) {
 			focusedViewportFitTargetKey = null
 			return
@@ -4226,7 +4280,9 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			event.stopImmediatePropagation()
 			return
 		}
-		const hitTarget = hoveredPickTarget ?? pickTargetAtClientPoint(event.clientX, event.clientY, true)
+		const hitTarget =
+			pickClickTargetAtClientPoint(event.clientX, event.clientY) ??
+			hoveredPickTarget
 		if (!hitTarget) {
 			focusedViewportFitTargetKey = null
 			return
@@ -4503,7 +4559,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 				`Bulk Store orbital ${entry.orbitalParticleId} has no render parent ${entry.parentDarkParticleId}`,
 			)
 			const existing = orbitalParticleRecords.get(entry.orbitalParticleId)
-			const record = upsertOrbitalParticleRecord(entry, parent.snapshot.depth + 1)
+			const record = upsertOrbitalParticleRecord(entry, parent)
 			if (record.node.parent !== parent.container) parent.container.add(record.node)
 			if (!existing) pickTargets.push(record.pickTarget)
 			sceneProjection.absorb({orbitalParticles: [entry]})
@@ -4537,7 +4593,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 				`Bulk Store Field proxy ${entry.fieldProxyId} has no render parent ${entry.parentDarkParticleId}`,
 			)
 			const existing = fieldProxyRecords.get(entry.fieldProxyId)
-			const record = upsertFieldProxyRecord(entry, parent.snapshot.depth + 1)
+			const record = upsertFieldProxyRecord(entry, parent)
 			if (record.node.parent !== parent.container) parent.container.add(record.node)
 			if (!existing) pickTargets.push(record.pickTarget)
 			sceneProjection.absorb({fieldProxies: [entry]})
