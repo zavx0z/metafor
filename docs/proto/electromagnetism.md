@@ -40,6 +40,8 @@
 ### Bulk
 
 - приём отдельных наблюдаемых state/runtime particles;
+- `photon/test` проявляет Process-bound State так же, как `photon/replace`
+  проявляет State без Process; различие операций не скрывает новое состояние;
 - хранение собственной state-проекции и parent-child индексов;
 - проявление state без исполнения transition logic;
 - визуальная связь активных частей системы.

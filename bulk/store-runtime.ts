@@ -2159,8 +2159,13 @@ export const applyBulkPhotonReplace = (
   for (const batch of relationBatches) renderer.relationBatchChanged(batch)
 }
 
-export const applyBulkPhotonTest = (store: BulkStore, part: Particle): void => {
+export const applyBulkPhotonTest = (
+  store: BulkStore,
+  renderer: BulkStoreRenderer,
+  part: Particle,
+): void => {
   if (typeof part.path !== "number" || typeof part.value !== "string") return
+  applyBulkPhotonReplace(store, renderer, part)
   const owner = part.path * 2
   const selected = stateSlotForName(store, owner, part.value)
   if (selected < 0 || (store.orbital.flags[selected]! & BULK_STORE_FLAG_CURRENT) === 0) {
@@ -5828,7 +5833,7 @@ export const applyBulkStoreMessage = (
     else if (part.op === "test") applyBulkGluonTest(store, part)
   } else if (part.part === "photon") {
     if (part.op === "replace") applyBulkPhotonReplace(store, renderer, part)
-    else if (part.op === "test") applyBulkPhotonTest(store, part)
+    else if (part.op === "test") applyBulkPhotonTest(store, renderer, part)
   } else if (part.part === "graviton" && part.path === "wimp") {
     if (part.op === "add") applyBulkWimpAdd(store, renderer, part)
     else if (part.op === "replace") applyBulkWimpReplace(store, renderer, part)

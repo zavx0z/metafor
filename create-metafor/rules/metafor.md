@@ -263,6 +263,23 @@ frontier representation пока не реализованы и не входя�
 API. Текущий проверенный RPC surface остаётся перечисленным в разделе
 «Что реализовано и проверено сейчас».
 
+#### Проверенный первый локальный профиль
+
+Один доверенный локальный агент может выполнить полную рабочую сессию без
+нового bootstrap endpoint и без скрытого context. Внешний task envelope
+передаёт digest применимых документов-владельцев, Git revision, source
+revision, результат `meta.capabilities.read`, текущий `readGraph`, exact Force
+frontier, цель и root scope. На этом этапе используется полный Graph текущего
+root: будущая частичная проекция и новая access policy не считаются
+реализованными.
+
+Тот же RPC source применяет structural patch с автоматической source
+projection, меняет предметный Field, а затем проверяет State, Process outcome,
+Mass result и Bulk viewport evidence по публичным RPC. Следующий запрос history
+начинается с `throughSequence + 1` предыдущей exact frontier и не повторяет
+Graph snapshot. Истиной результата остаются эти первичные проекции и
+существующая Particle-history, а не память агента и не второй журнал.
+
 ### Gem на AI-server — планируемый bootstrap profile
 
 Gem на AI-server использует тот же RPC surface и contracts, что другие агенты.

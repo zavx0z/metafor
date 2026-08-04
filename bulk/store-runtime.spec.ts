@@ -35,6 +35,7 @@ import {
   applyBulkGluonReplace,
   applyBulkGluonRemove,
   applyBulkPhotonReplace,
+  applyBulkPhotonTest,
   applyBulkStoreMessage,
   type BulkStoreRenderer,
 } from "./store-runtime.ts"
@@ -1456,6 +1457,53 @@ describe("Bulk Store local centered-nested regroup", () => {
     expect(calls.proxy).toBeGreaterThan(0)
     expect(calls.transition).toBeGreaterThan(0)
     expect(calls.relation).toBeGreaterThan(0)
+  })
+
+  test("projects process-bound Photon test as the current observable State", () => {
+    const lifecycle = new BulkVisualSceneLifecycle()
+    lifecycle.prepare(structuredClone(snapshotJson) as BulkObserverSnapshot)
+    const initial = lifecycle.state()
+    const visual = prepareBulkInitialVisual(initial.manifest, initial.projection).payload
+    const store = activateBulkStore(buildBulkStore(initial.manifest, visual))
+    const target = (initial.manifest.orbitalParticles ?? []).find((entry) =>
+      entry.orbitalParticleKind === "state" && !entry.current &&
+      (initial.manifest.orbitalParticles ?? []).some((candidate) =>
+        candidate.orbitalParticleKind === "state" && candidate.current &&
+        candidate.parentDarkParticleId === entry.parentDarkParticleId
+      )
+    )
+    if (!target) throw new Error("Lada fixture has no alternate State")
+    const current = (initial.manifest.orbitalParticles ?? []).find((entry) =>
+      entry.orbitalParticleKind === "state" && entry.current &&
+      entry.parentDarkParticleId === target.parentDarkParticleId
+    )
+    const slotForState = (source: number): number => Array.from(store.orbital.source)
+      .findIndex((value, slot) => value === source &&
+        store.orbital.owner[slot] === target.parentDarkParticleId &&
+        store.orbital.kind[slot] === BULK_STORE_ORBITAL_KIND.state)
+    const selected = slotForState(target.sourceId)
+    const previous = current ? slotForState(current.sourceId) : -1
+    if (selected < 0 || previous < 0) throw new Error("Lada fixture State slots are unavailable")
+    const renderer: BulkStoreRenderer = {
+      fieldAliasesRegrouped() {},
+      orbitalMaterialChanged() {},
+      proxyMaterialChanged() {},
+      transitionBatchChanged() {},
+      relationBatchChanged() {},
+      force() {},
+    }
+
+    applyBulkPhotonTest(store, renderer, {
+      part: "photon",
+      op: "test",
+      path: target.parentDarkParticleId / 2,
+      ts: 1,
+      from: "test-execution",
+      value: target.label,
+    })
+
+    expect((store.orbital.flags[selected]! & BULK_STORE_FLAG_CURRENT) !== 0).toBe(true)
+    expect((store.orbital.flags[previous]! & BULK_STORE_FLAG_CURRENT) !== 0).toBe(false)
   })
 })
 
