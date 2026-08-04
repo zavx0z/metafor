@@ -20,7 +20,7 @@ RPC payload не объявляет source identity: её добавляет Mon
 Dark запускается без authoring grants по умолчанию. Локальный source identity и
 его точные scopes включаются только совместной настройкой
 `META_AUTHORING_RPC_SOURCE`, `META_AUTHORING_SCOPES` и более узкого
-`META_AUTHORING_CREATE_SCOPES`. Настроенный Matter authoring запрещён при
+`META_AUTHORING_CREATE_SCOPES`. Настроенный structural authoring запрещён при
 отключённом checkpoint applied-through plane.
 
 Каждая write operation использует закрытый envelope:
@@ -29,7 +29,7 @@ Dark запускается без authoring grants по умолчанию. Л�
 contractVersion + operationId + capability + exact operation payload
 ```
 
-Provider отклоняет неизвестные поля. Для live Matter пара
+Provider отклоняет неизвестные поля. Для live structural operation пара
 `(RPC source identity, operationId)` навсегда связывается в Force history с
 одним нормализованным request digest; повтор с другим payload запрещён. Для
 source-only Create durable idempotency identity является пара
@@ -116,6 +116,29 @@ canonical runtime Atom identity. Source Matter identity для `move` вычис
 из проверенного parent `meta.ts`, а не из Boundary или собранного live Graph.
 `remove` удаляет occurrence, но не peer repository.
 
+## Изменение Field declaration
+
+`meta.declaration.apply` с capability `meta.declaration.write` изменяет одну
+необязательную Field declaration существующей Meta. Действующий первый slice
+принимает закрытые операции `add`, `replace`, `remove` и `move` и точные
+ожидаемые revisions всех затрагиваемых `meta.ts`.
+
+Клиент адресует Field по canonical Meta address и semantic key. SQLite row ID,
+Variant row и filesystem path не являются частью RPC. Строковые, числовые,
+boolean, array и enum Fields передаются целиком; enum values являются составом
+одной Field declaration. Одна RPC operation принимает одну Field Inflaton.
+Boundary атомарно проецирует из неё canonical Field row, Variant rows и
+runtime consequences, а Bulk получает их обычные производные Gravitons.
+
+Чтобы существующие local identities других declarations не менялись после
+cold read, `add` добавляет последний Field, `remove` и `move` принимают только
+последний optional Field, а изменение состава enum допускается только у
+последнего Field. `replace`, не меняющий число enum variants, сохраняет слот
+любого optional Field. `move` переносит последний optional Field между двумя
+Meta, добавляя его последним в target, и сохраняет persisted Field identity.
+Required Field этим slice не изменяется. Удаление enum value, на которую ещё
+ссылается живое значение, default или condition, отклоняется атомарно.
+
 ## Live-first commit и source projection
 
 Операция проходит один порядок:
@@ -124,7 +147,7 @@ canonical runtime Atom identity. Source Matter identity для `move` вычис
 RPC request
 → capability, scope, source revisions и полный patch preflight
 → подготовка точных source candidates без публикации
-→ один принятый Matter patch
+→ один принятый structural patch
 → Dark Force history и Boundary commit
 → тот же неизменяемый patch публикует подготовленные meta.ts
 → receipt
@@ -134,8 +157,9 @@ Source projection не перечитывает живой мир, не срав
 не строит второй diff. Она применяет тот же accepted patch. Комментарии и
 форматирование `meta.ts` не входят в contract.
 
-Тот же accepted Matter Particle напрямую обновляет Dark declaration projection.
-После успешной публикации source обычный declaration loader читает только
+Тот же accepted Particle напрямую обновляет уже загруженную Dark declaration
+projection. Для Field после acceptance не выполняется повторное чтение live
+world, source или Graph. Для Matter после успешной публикации source обычный declaration loader читает только
 доступные Meta-пакеты от действующего root и материализует новые reachable либо
 удаляет ставшие unreachable declarations. Он не читает Boundary, не сравнивает
 source с живым Graph и не испускает Matter Particle повторно.
@@ -168,7 +192,7 @@ Provider возвращает предметный outcome одной из фа�
 `runtime_committed`, `source_pending` или `complete`. Неизвестный частичный
 успех запрещён.
 
-После успешного Boundary commit при ещё не опубликованных candidates Matter
+После успешного Boundary commit при ещё не опубликованных candidates live
 receipt имеет phase `source_pending`, acceptance identity той же Force history
 entry, точные before/after source revisions и наблюдаемую причину ошибки.
 Успешная или уже выполненная публикация возвращает phase `complete` и outcome
@@ -186,20 +210,18 @@ entry, точные before/after source revisions и наблюдаемую пр
 - source projector — публикация заранее подготовленных `meta.ts`;
 - Git provider — только отдельно разрешённые add/commit/push operations.
 
-## Планируемое функциональное расширение для одного агента
+## Оставшееся функциональное расширение для одного агента
 
 Следующие имена фиксируют утверждённую форму ближайшего расширения, но не
 считаются действующим API до появления public types, provider и обычных тестов.
 Новая access policy, новый graph scope и конкурентные writes в это расширение
 не входят.
 
-`meta.declaration.apply` изменяет ровно одну типизированную декларационную
-entity существующей Meta. Request использует тот же закрытый write envelope,
-точную source revision и live-first/source-projection порядок, что
-`meta.matter.apply`. Закрытый discriminated union охватывает:
+Действующий `meta.declaration.apply` расширяется тем же закрытым write envelope,
+точной source revision и live-first/source-projection порядком. Следующие slices
+добавляют:
 
 - metadata шаблона `name` и `desc`;
-- Field, включая enum variants внутри декларации Field;
 - State вместе с его transitions и condition waves;
 - Mass declaration;
 - Reaction;
@@ -207,7 +229,7 @@ entity существующей Meta. Request использует тот же �
 - Process вместе с ограниченным набором принадлежащих этой декларации action и
   handler source artifacts.
 
-Операции `add`, `replace`, `remove` и, где порядок является частью договора,
+Эти операции `add`, `replace`, `remove` и, где порядок является частью договора,
 `move` адресуют semantic entity по canonical Meta address и ключу либо имени,
 а не по SQLite row ID или filesystem path. Одна изменённая entity остаётся
 одной принятой Inflaton Particle. Process использует этот же provider и patch

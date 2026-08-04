@@ -266,6 +266,122 @@ describe("Boundary incremental relational projection", () => {
     `).toEqual([{id: databaseId, label: "After"}])
   })
 
+  test("projects enum variants from one accepted Field Inflaton", async () => {
+    await declareRoot()
+    const added = await apply("add", "field", {
+      wimp: ROOT,
+      id: 1,
+      key: "mode",
+      type: "enum",
+      required: false,
+      default: "idle",
+      variants: [
+        {id: 1, position: 0, value: "idle"},
+        {id: 2, position: 1, value: "ready"},
+      ],
+    })
+    const field = Number((await boundary.projection.sql<Array<{id: number}>>`
+      SELECT id FROM field WHERE wimp = ${ROOT} AND local_id = ${1}
+    `)[0]!.id)
+    const before = await boundary.projection.sql<Array<{
+      id: number; wimp: string; localId: number; position: number; itemValue: string
+    }>>`
+      SELECT id, wimp, local_id AS localId, position, item_value AS itemValue
+        FROM field_enum_variant WHERE field = ${field} ORDER BY position
+    `
+    expect(before).toEqual([
+      {id: expect.any(Number), wimp: ROOT, localId: 1, position: 0, itemValue: "idle"},
+      {id: expect.any(Number), wimp: ROOT, localId: 2, position: 1, itemValue: "ready"},
+    ])
+    const addedParts = added?.messages.map((message) => message.parts[0]) ?? []
+    expect(addedParts).toHaveLength(4)
+    expect(addedParts[2]).toMatchObject({
+      part: "graviton", op: "add", path: "field",
+      value: {id: field, default: {kind: "enum", variant: before[0]!.id}},
+    })
+    expect(addedParts[0]).toMatchObject({part: "graviton", op: "add", path: "variant", value: before[0]})
+    expect(addedParts[1]).toMatchObject({part: "graviton", op: "add", path: "variant", value: before[1]})
+    expect(addedParts[3]).toMatchObject({part: "gluon", op: "add"})
+
+    const replaced = await apply("replace", "field", {
+      wimp: ROOT,
+      id: 1,
+      key: "mode",
+      type: "enum",
+      required: false,
+      default: "paused",
+      variants: [
+        {id: 1, position: 0, value: "idle"},
+        {id: 2, position: 1, value: "ready"},
+        {id: 3, position: 2, value: "paused"},
+      ],
+    })
+    const after = await boundary.projection.sql<Array<{
+      id: number; wimp: string; localId: number; position: number; itemValue: string
+    }>>`
+      SELECT id, wimp, local_id AS localId, position, item_value AS itemValue
+        FROM field_enum_variant WHERE field = ${field} ORDER BY position
+    `
+    expect(after).toEqual([
+      {id: before[0]!.id, wimp: ROOT, localId: 1, position: 0, itemValue: "idle"},
+      {id: before[1]!.id, wimp: ROOT, localId: 2, position: 1, itemValue: "ready"},
+      {id: expect.any(Number), wimp: ROOT, localId: 3, position: 2, itemValue: "paused"},
+    ])
+    const replacedParts = replaced?.messages.map((message) => message.parts[0]) ?? []
+    expect(replacedParts).toHaveLength(2)
+    expect(replacedParts[0]).toMatchObject({part: "graviton", op: "add", path: "variant", value: after[2]})
+    expect(replacedParts[1]).toMatchObject({part: "graviton", op: "replace", path: "field", value: {id: field, wimp: ROOT, localId: 1, key: "mode", type: "enum", required: false, label: null, default: {kind: "enum", variant: after[2]!.id}}})
+  })
+
+  test("moves one Field with its enum variants between Meta addresses in place", async () => {
+    await declareRoot()
+    await declareWimp(CHILD, "Child")
+    await apply("add", "field", {
+      wimp: ROOT,
+      id: 1,
+      key: "mode",
+      type: "enum",
+      required: false,
+      variants: [
+        {id: 1, position: 0, value: "idle"},
+        {id: 2, position: 1, value: "ready"},
+      ],
+    })
+    const field = Number((await boundary.projection.sql<Array<{id: number}>>`
+      SELECT id FROM field WHERE wimp = ${ROOT} AND local_id = ${1}
+    `)[0]!.id)
+    const variants = await boundary.projection.sql<Array<{id: number; itemValue: string}>>`
+      SELECT id, item_value AS itemValue FROM field_enum_variant WHERE field = ${field} ORDER BY position
+    `
+
+    const moved = await transfer("move", "field", `${ROOT}#1`, {
+      wimp: CHILD,
+      id: 1,
+      key: "mode",
+      type: "enum",
+      required: false,
+      variants: [
+        {id: 1, position: 0, value: "idle"},
+        {id: 2, position: 1, value: "ready"},
+      ],
+    })
+    expect(await boundary.projection.sql<Array<{id: number; wimp: string; localId: number}>>`
+      SELECT id, wimp, local_id AS localId FROM field WHERE id = ${field}
+    `).toEqual([{id: field, wimp: CHILD, localId: 1}])
+    expect(await boundary.projection.sql<Array<{id: number; wimp: string; localId: number; itemValue: string}>>`
+      SELECT id, wimp, local_id AS localId, item_value AS itemValue
+        FROM field_enum_variant WHERE field = ${field} ORDER BY position
+    `).toEqual([
+      {id: variants[0]!.id, wimp: CHILD, localId: 1, itemValue: "idle"},
+      {id: variants[1]!.id, wimp: CHILD, localId: 2, itemValue: "ready"},
+    ])
+    const movedParts = moved?.messages.map((message) => message.parts[0]) ?? []
+    expect(movedParts.slice(0, 3)).toHaveLength(3)
+    expect(movedParts[0]).toMatchObject({part: "graviton", op: "move", path: "variant", from: variants[0]!.id})
+    expect(movedParts[1]).toMatchObject({part: "graviton", op: "move", path: "variant", from: variants[1]!.id})
+    expect(movedParts[2]).toMatchObject({part: "graviton", op: "move", path: "field", from: field, value: {id: field, wimp: CHILD, localId: 1}})
+  })
+
   test("copies every persisted declaration table from its canonical row id", async () => {
     await declareRoot()
     await apply("add", "field", {

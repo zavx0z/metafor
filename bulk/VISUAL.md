@@ -52,6 +52,11 @@ Graph Store, Manifest, ReadyScene и второго scene Store в browser path 
   сохраняет фактические `id` и FK. WIMP является единственным исключением:
   его source identity — canonical `src` string. Bulk-local declaration ID,
   составного `{wimp,localId}` адреса и JSON Pointer нет.
+- Authoring Field Inflaton может адресовать source move внутренней canonical
+  парой `Meta#localId`, но Boundary разрешает её до persisted row и Bulk
+  получает только обычный Field Graviton с numeric `from`. Enum variants не
+  являются отдельной RPC entity: Bulk видит только производные canonical
+  Variant Gravitons той же Field transaction.
 - Canvas, GPU, Renderer, Space и ViewPoint остаются client-only. Force Particle
   остаётся transport обновлений и не превращается в Graph patch.
 

@@ -10,10 +10,12 @@ import type {DarkForceTimeControl} from "./time-control.ts"
 import {
   META_CAPABILITIES_READ_METHOD,
   META_CREATE_METHOD,
+  META_DECLARATION_APPLY_METHOD,
   META_MATTER_APPLY_METHOD,
   META_SOURCE_REVISION_READ_METHOD,
 } from "@metafor/types/metafor/authoring"
 import type {MatterAuthoringService} from "./monad/matter.ts"
+import type {DeclarationAuthoringService} from "./monad/declaration.ts"
 import type {MetaCreateService} from "./monad/create.ts"
 import type {MetaAuthoringRegistry} from "./monad/registry.ts"
 import {DARK_FORCE_HISTORY_READ_METHOD} from "@metafor/types/metafor/observation"
@@ -27,6 +29,7 @@ export interface DarkMetaAuthoringRpc {
   registry: Pick<MetaAuthoringRegistry, "readCapabilities" | "readSourceRevisions">
   create: Pick<MetaCreateService, "create">
   matter: Pick<MatterAuthoringService, "apply">
+  declaration: Pick<DeclarationAuthoringService, "apply">
 }
 
 export const DARK_FORCE_PAUSE_METHOD = "dark.force.pause" as const
@@ -129,6 +132,10 @@ export class DarkMonad {
       peer.expose(
         META_MATTER_APPLY_METHOD,
         async (params, context) => await this.#authoring!.matter.apply(params, context.source),
+      )
+      peer.expose(
+        META_DECLARATION_APPLY_METHOD,
+        async (params, context) => await this.#authoring!.declaration.apply(params, context.source),
       )
     }
     this.#graph.onServerStarted(peer)

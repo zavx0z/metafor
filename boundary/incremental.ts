@@ -166,14 +166,17 @@ export const parseInflatonAddress = (path: Particle["path"], value?: unknown): I
     : null
 }
 
-const parseMatterTransferSource = (value: unknown): InflatonAddress | null => {
+const parseCanonicalTransferSource = (
+  path: "field" | "matter",
+  value: unknown,
+): InflatonAddress | null => {
   if (typeof value !== "string") return null
   const separator = value.lastIndexOf("#")
   if (separator <= 0) return null
   const src = value.slice(0, separator)
   const localId = Number(value.slice(separator + 1))
   return parseMetaAddress(src) !== null && Number.isSafeInteger(localId) && localId > 0
-    ? {path: "matter", src, localId}
+    ? {path, src, localId}
     : null
 }
 
@@ -558,11 +561,16 @@ export class BoundaryIncrementalStore {
         ))
         : false
       await this.persist(tx, address, input)
+      const declarationEffects = await this.synchronizeFieldVariants(tx, address, input)
+      if (address.path === "field" && Object.hasOwn(input, "variants")) {
+        await this.flushFieldDefault(tx, address.src, address.localId)
+      }
       for (const plan of detachPlans) await this.mass.commitDetachIn(tx, plan)
       await this.mass.ensureIndependentMemberships(tx)
       await this.reconcileMassBindingSources(tx)
       const canonical = await this.canonical(tx, address, input)
       const declarationChanged = !sameJson(previous, canonical)
+      committed.push(...declarationEffects)
       if (declarationChanged) {
         committed.push({
           part: "graviton",
@@ -964,10 +972,164 @@ export class BoundaryIncrementalStore {
         `
       }
     } else {
-      const descriptor = record(value, "field.default")
-      const variant = positiveInteger(descriptor.variant, "field.default.variant")
+      const variant = typeof value === "string"
+        ? Number((await sql<Array<{id: number}>>`
+            SELECT id FROM field_enum_variant WHERE field = ${field} AND item_value = ${value} LIMIT 1
+          `)[0]?.id)
+        : positiveInteger(record(value, "field.default").variant, "field.default.variant")
+      if (!Number.isSafeInteger(variant) || variant <= 0) {
+        throw new Error("field.default must name one declared enum variant")
+      }
       await sql`INSERT INTO field_enum_default (field, variant) VALUES (${field}, ${variant})`
     }
+  }
+
+  private async synchronizeFieldVariants(
+    sql: Database,
+    address: InflatonAddress,
+    input: JsonRecord,
+  ): Promise<Particle[]> {
+    if (address.path !== "field" || !Object.hasOwn(input, "variants")) return []
+    if (!Array.isArray(input.variants)) throw new Error("field.variants must be an array")
+    const field = (await sql<Array<{id: number; type: StoredField["type"]}>>`
+      SELECT id, type FROM field WHERE wimp = ${address.src} AND local_id = ${address.localId}
+    `)[0]
+    if (!field) throw new Error(`Field ${address.src}#${address.localId} is absent`)
+
+    const desired = input.variants.map((raw, index) => {
+      const value = record(raw, `field.variants[${index}]`)
+      const keys = Object.keys(value).toSorted()
+      if (keys.length !== 3 || keys[0] !== "id" || keys[1] !== "position" || keys[2] !== "value") {
+        throw new Error(`field.variants[${index}] must contain only id, position and value`)
+      }
+      return {
+        localId: positiveInteger(value.id, `field.variants[${index}].id`),
+        position: nonNegativeInteger(value.position, `field.variants[${index}].position`),
+        itemValue: requiredString(value.value, `field.variants[${index}].value`),
+      }
+    })
+    if (field.type !== "enum" && desired.length > 0) {
+      throw new Error("Only enum Field may declare variants")
+    }
+    if (field.type === "enum" && desired.length === 0) {
+      throw new Error("Enum Field must declare variants")
+    }
+    if (
+      new Set(desired.map(({localId}) => localId)).size !== desired.length ||
+      new Set(desired.map(({position}) => position)).size !== desired.length ||
+      new Set(desired.map(({itemValue}) => itemValue)).size !== desired.length ||
+      desired.some(({position}, index) => position !== index)
+    ) throw new Error("field.variants must have unique identities, values and contiguous positions")
+
+    const existing = await sql<Array<{
+      id: number
+      wimp: string | null
+      localId: number | null
+      position: number
+      itemValue: string
+    }>>`
+      SELECT id, wimp, local_id AS localId, position, item_value AS itemValue
+        FROM field_enum_variant WHERE field = ${field.id} ORDER BY position, id
+    `
+    if (new Set(existing.map(({itemValue}) => itemValue)).size !== existing.length) {
+      throw new Error(`Field ${address.src}#${address.localId} has duplicated enum values`)
+    }
+    const byValue = new Map(existing.map((variant) => [variant.itemValue, variant] as const))
+    const desiredValues = new Set(desired.map(({itemValue}) => itemValue))
+    const effects: Particle[] = []
+
+    for (const stale of existing.filter(({itemValue}) => !desiredValues.has(itemValue))) {
+      const references = Number((await sql<Array<{count: number}>>`
+        SELECT
+          (SELECT COUNT(*) FROM value_enum WHERE variant = ${stale.id}) +
+          (SELECT COUNT(*) FROM field_enum_default WHERE variant = ${stale.id}) +
+          (SELECT COUNT(*) FROM condition_predicate WHERE value_variant = ${stale.id}) +
+          (SELECT COUNT(*) FROM condition_list_item WHERE value_variant = ${stale.id}) AS count
+      `)[0]?.count ?? 0)
+      if (references > 0) throw new Error(`Cannot remove referenced Variant ${stale.id}`)
+      await sql`DELETE FROM field_enum_variant WHERE id = ${stale.id}`
+      effects.push({
+        part: "graviton",
+        op: "remove",
+        path: "variant",
+        ts: Date.now(),
+        value: {
+          id: Number(stale.id),
+          wimp: stale.wimp,
+          localId: stale.localId,
+          field: Number(field.id),
+          position: Number(stale.position),
+          itemValue: stale.itemValue,
+        },
+      })
+    }
+
+    const retained = desired.flatMap((item) => {
+      const held = byValue.get(item.itemValue)
+      return held ? [held] : []
+    })
+    const offset = Math.max(0, ...existing.map(({position}) => Number(position))) + desired.length + existing.length + 1
+    for (const held of retained) {
+      await sql`
+        UPDATE field_enum_variant
+           SET wimp = NULL, local_id = NULL, position = ${Number(held.position) + offset}
+         WHERE id = ${held.id}
+      `
+    }
+
+    for (const item of desired) {
+      const held = byValue.get(item.itemValue)
+      let id: number
+      if (held) {
+        id = Number(held.id)
+        await sql`
+          UPDATE field_enum_variant
+             SET wimp = ${address.src}, local_id = ${item.localId},
+                 position = ${item.position}, item_value = ${item.itemValue}
+           WHERE id = ${id}
+        `
+        if (
+          held.wimp !== address.src ||
+          Number(held.localId) !== item.localId ||
+          Number(held.position) !== item.position
+        ) effects.push({
+          part: "graviton",
+          op: held.wimp !== address.src || Number(held.localId) !== item.localId ? "move" : "replace",
+          path: "variant",
+          from: id,
+          ts: Date.now(),
+          value: {
+            id,
+            wimp: address.src,
+            localId: item.localId,
+            field: Number(field.id),
+            position: item.position,
+            itemValue: item.itemValue,
+          },
+        })
+      } else {
+        id = await insertedId(sql<Array<{id: number}>>`
+          INSERT INTO field_enum_variant (wimp, local_id, field, position, item_value)
+          VALUES (${address.src}, ${item.localId}, ${field.id}, ${item.position}, ${item.itemValue})
+          RETURNING id
+        `, "Field variant")
+        effects.push({
+          part: "graviton",
+          op: "add",
+          path: "variant",
+          ts: Date.now(),
+          value: {
+            id,
+            wimp: address.src,
+            localId: item.localId,
+            field: Number(field.id),
+            position: item.position,
+            itemValue: item.itemValue,
+          },
+        })
+      }
+    }
+    return effects
   }
 
   private async cloneConditionPredicates(sql: Database, source: number, target: number): Promise<void> {
@@ -1462,16 +1624,16 @@ export class BoundaryIncrementalStore {
 
     let source: InflatonAddress
     let sourceId: string | number
-    let canonicalMatterMove = false
+    let canonicalSourceMove = false
     if (path === "wimp") {
       sourceId = requiredString(part.from, "wimp transfer from")
       source = {path: "wimp", src: sourceId, localId: 0}
-    } else if (path === "matter" && part.op === "move" && typeof part.from === "string") {
-      const parsed = parseMatterTransferSource(part.from)
-      if (!parsed) throw new Error("Boundary Matter move source must be canonical <owner>/<repository>#<localId>")
+    } else if ((path === "matter" || path === "field") && part.op === "move" && typeof part.from === "string") {
+      const parsed = parseCanonicalTransferSource(path, part.from)
+      if (!parsed) throw new Error(`Boundary ${path} move source must be canonical <owner>/<repository>#<localId>`)
       sourceId = part.from
       source = parsed
-      canonicalMatterMove = true
+      canonicalSourceMove = true
     } else {
       if (!isNumericDeclarationPath(path)) {
         throw new Error(`Boundary declaration transfer path ${path} has no persisted table`)
@@ -1488,7 +1650,7 @@ export class BoundaryIncrementalStore {
       if (!isNumericDeclarationPath(path)) {
         throw new Error(`Boundary declaration transfer path ${path} has no persisted table`)
       }
-      const resolvedSourceId = canonicalMatterMove
+      const resolvedSourceId = canonicalSourceMove
         ? await this.declarationRowId(tx, source)
         : Number(sourceId)
       const sourceValue = await this.canonical(tx, source, {})
@@ -1503,6 +1665,7 @@ export class BoundaryIncrementalStore {
       }
 
       const runtimeEffects: Particle[] = []
+      const canonicalMatterMove = canonicalSourceMove && path === "matter"
       const matterMove = canonicalMatterMove
         ? await this.prepareCanonicalMatterMove(tx, source, target, sourceValue, input)
         : []
@@ -1519,6 +1682,7 @@ export class BoundaryIncrementalStore {
       const resultId = await this.persistNumericDeclarationTransfer(
         tx, op, source, resolvedSourceId, sourceValue, target, input,
       )
+      const declarationEffects = await this.synchronizeFieldVariants(tx, target, input)
       if (canonicalMatterMove) {
         for (const placement of matterMove) {
           await tx`
@@ -1541,7 +1705,7 @@ export class BoundaryIncrementalStore {
       if (!canonical || Number(canonical.id) !== resultId) {
         throw new Error(`Boundary ${path} transfer did not materialize canonical target`)
       }
-      const committed: Particle[] = [{
+      const committed: Particle[] = [...declarationEffects, {
         part: "graviton", op, path, from: resolvedSourceId,
         ts: Date.now(), value: canonical,
       }, ...runtimeEffects]

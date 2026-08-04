@@ -72,6 +72,7 @@ describe("Meta authoring capability and source registry", () => {
     expect(known.contractVersion).toBe(META_AUTHORING_CONTRACT_VERSION)
     expect(known.capabilities.map(({capability}) => capability)).toEqual([
       "meta.create",
+      "meta.declaration.write",
       "meta.matter.write",
       "meta.source.read",
     ])

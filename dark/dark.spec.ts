@@ -61,6 +61,7 @@ const matches = (
 describe("Dark incremental Inflaton projection", () => {
   let fixture: ForceTestFixture
   let applyAuthoredMatterProjection: typeof import("./dark.ts").applyAuthoredMatterProjection
+  let applyAuthoredDeclarationProjection: typeof import("./dark.ts").applyAuthoredDeclarationProjection
   let matterParticles: typeof import("./dark.ts").matterParticles
   let reconcileAuthoredMatterProjection: typeof import("./dark.ts").reconcileAuthoredMatterProjection
   let stopRuntime: typeof import("./dark.ts").stopDarkRuntime
@@ -70,6 +71,7 @@ describe("Dark incremental Inflaton projection", () => {
     fixture = createForceTestFixture()
     const dark = await import("./dark.ts")
     applyAuthoredMatterProjection = dark.applyAuthoredMatterProjection
+    applyAuthoredDeclarationProjection = dark.applyAuthoredDeclarationProjection
     matterParticles = dark.matterParticles
     reconcileAuthoredMatterProjection = dark.reconcileAuthoredMatterProjection
     stopRuntime = dark.stopDarkRuntime
@@ -299,6 +301,121 @@ describe("Dark incremental Inflaton projection", () => {
       repeatedRemovals.push(bare(input.parts[0]!))
     }, loader(before))
     expect(repeatedRemovals).toEqual([])
+  })
+
+  test("applies one accepted Field composition without reading the live world again", async () => {
+    const root = "test/dark-authored-field"
+    await read(root, loader(new Map([[root, dsl({name: "Root"})]])))
+
+    await applyAuthoredDeclarationProjection({
+      part: "inflaton",
+      op: "add",
+      path: "field",
+      by: "dark",
+      ts: 41,
+      value: {
+        wimp: root,
+        id: 1,
+        key: "mode",
+        type: "enum",
+        required: false,
+        default: "idle",
+        variants: [
+          {id: 1, position: 0, value: "idle"},
+          {id: 2, position: 1, value: "ready"},
+        ],
+      },
+    })
+    expect(await read(root, loader(new Map([[root, dsl({
+      name: "Root",
+      fields: [{key: "mode", type: "enum", default: "idle", values: ["idle", "ready"]}],
+    })]])))).toEqual([])
+
+    await applyAuthoredDeclarationProjection({
+      part: "inflaton",
+      op: "replace",
+      path: "field",
+      by: "dark",
+      ts: 42,
+      value: {
+        wimp: root,
+        id: 1,
+        key: "mode",
+        type: "enum",
+        required: false,
+        default: "idle",
+        variants: [
+          {id: 1, position: 0, value: "idle"},
+          {id: 2, position: 1, value: "ready"},
+          {id: 3, position: 2, value: "paused"},
+        ],
+      },
+    })
+    expect(await read(root, loader(new Map([[root, dsl({
+      name: "Root",
+      fields: [{key: "mode", type: "enum", default: "idle", values: ["idle", "ready", "paused"]}],
+    })]])))).toEqual([])
+
+    await applyAuthoredDeclarationProjection({
+      part: "inflaton",
+      op: "remove",
+      path: "field",
+      by: "dark",
+      ts: 43,
+      value: {wimp: root, id: 1},
+    })
+    expect(await read(root, loader(new Map([[root, dsl({name: "Root"})]])))).toEqual([])
+  })
+
+  test("hydrates a lost source projection once and applies accepted Field patches directly", async () => {
+    const root = "test/dark-authored-recovered-field"
+    const declarations = new Map<string, MetaDSL>([[root, dsl({name: "Recovered"})]])
+    const reads: string[] = []
+    const load = async (src: string): Promise<MetaDSL> => {
+      reads.push(src)
+      return await loader(declarations)(src)
+    }
+    await applyAuthoredDeclarationProjection({
+      part: "inflaton",
+      op: "add",
+      path: "field",
+      by: "dark",
+      ts: 44,
+      value: {
+        wimp: root,
+        id: 1,
+        key: "mode",
+        type: "enum",
+        required: false,
+        default: "idle",
+        variants: [{id: 1, position: 0, value: "idle"}],
+      },
+    }, load)
+    await applyAuthoredDeclarationProjection({
+      part: "inflaton",
+      op: "replace",
+      path: "field",
+      by: "dark",
+      ts: 45,
+      value: {
+        wimp: root,
+        id: 1,
+        key: "mode",
+        type: "enum",
+        required: false,
+        default: "idle",
+        variants: [
+          {id: 1, position: 0, value: "idle"},
+          {id: 2, position: 1, value: "ready"},
+        ],
+      },
+    }, load)
+
+    expect(reads).toEqual([root])
+    expect(await read(root, loader(new Map([[root, dsl({
+      name: "Recovered",
+      fields: [{key: "mode", type: "enum", default: "idle", values: ["idle", "ready"]}],
+    })]])))).toEqual([])
   })
 
   test("seeds an addressed source parent before applying an accepted Matter patch", async () => {

@@ -18,7 +18,9 @@ import {
 } from "./history.ts"
 import {
   META_AUTHORING_CONTRACT_VERSION,
+  META_DECLARATION_AUTHORING_CAUSE_SCHEMA_V1,
   META_MATTER_AUTHORING_CAUSE_SCHEMA_V1,
+  type MetaDeclarationAuthoringCauseV1,
   type MetaMatterAuthoringCauseV1,
 } from "@metafor/types/metafor/authoring"
 import {parseMetaAddress} from "@metafor/types/metafor/graph"
@@ -66,6 +68,12 @@ const authoring = (
     beforeRevision: digest("b"),
     afterRevision: digest("c"),
   }],
+})
+
+const declarationAuthoring = (): MetaDeclarationAuthoringCauseV1 => ({
+  ...authoring(digest("d")),
+  schema: META_DECLARATION_AUTHORING_CAUSE_SCHEMA_V1,
+  operationId: "field-add-1",
 })
 
 describe("Dark Force complete Particle history", () => {
@@ -190,6 +198,20 @@ describe("Dark Force complete Particle history", () => {
     const reopened = new DarkForceHistory(directory)
     expect(reopened.findAuthoring("authoring-agent", "matter-add-1")).toEqual(accepted)
     expect(reopened.findAuthoring("authoring-agent", "missing")).toBeNull()
+  })
+
+  test("reopens declaration causation from the same accepted Particle history", () => {
+    const directory = path()
+    const history = new DarkForceHistory(directory, {
+      cutId: "declaration-authoring",
+      startedAt: "2026-08-04T12:00:00.000Z",
+    })
+    const cause = declarationAuthoring()
+    const accepted = history.accept(particle("inflaton", 1, "dark"), cause)
+
+    const reopened = new DarkForceHistory(directory)
+    expect(reopened.findAuthoring("authoring-agent", "field-add-1")).toEqual(accepted)
+    expect(reopened.read()).toEqual([accepted])
   })
 
   test("rejects a repeated authoring key without appending the same or a conflicting request", () => {

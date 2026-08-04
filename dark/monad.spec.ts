@@ -3,6 +3,7 @@ import {parseMetaAddress} from "@metafor/types/metafor/graph"
 import {
   META_CAPABILITIES_READ_METHOD,
   META_CREATE_METHOD,
+  META_DECLARATION_APPLY_METHOD,
   META_MATTER_APPLY_METHOD,
   META_SOURCE_REVISION_READ_METHOD,
 } from "@metafor/types/metafor/authoring"
@@ -185,6 +186,12 @@ describe("Dark Monad", () => {
           return {method: META_MATTER_APPLY_METHOD} as never
         },
       },
+      declaration: {
+        async apply(input, source) {
+          calls.push({method: META_DECLARATION_APPLY_METHOD, input: structuredClone(input), source})
+          return {method: META_DECLARATION_APPLY_METHOD} as never
+        },
+      },
     })
     const channel = new TestChannel()
     const peer = new MonadRpcPeer(channel)
@@ -195,6 +202,7 @@ describe("Dark Monad", () => {
       META_SOURCE_REVISION_READ_METHOD,
       META_CREATE_METHOD,
       META_MATTER_APPLY_METHOD,
+      META_DECLARATION_APPLY_METHOD,
     ].entries()) {
       await channel.receive({
         version: MONAD_RPC_VERSION,
@@ -211,18 +219,21 @@ describe("Dark Monad", () => {
       META_SOURCE_REVISION_READ_METHOD,
       META_CREATE_METHOD,
       META_MATTER_APPLY_METHOD,
+      META_DECLARATION_APPLY_METHOD,
     ]))
     expect(calls).toEqual([
       META_CAPABILITIES_READ_METHOD,
       META_SOURCE_REVISION_READ_METHOD,
       META_CREATE_METHOD,
       META_MATTER_APPLY_METHOD,
+      META_DECLARATION_APPLY_METHOD,
     ].map((method) => ({method, input: {method}, source: "authoring/client"})))
     expect(channel.sent.map((message) => "result" in message ? message.result : null)).toEqual([
       {method: META_CAPABILITIES_READ_METHOD},
       {method: META_SOURCE_REVISION_READ_METHOD},
       {method: META_CREATE_METHOD},
       {method: META_MATTER_APPLY_METHOD},
+      {method: META_DECLARATION_APPLY_METHOD},
     ])
   })
 })

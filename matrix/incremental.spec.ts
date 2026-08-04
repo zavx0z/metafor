@@ -385,6 +385,67 @@ describe("Matrix incremental structural runtime", () => {
     ])
   })
 
+  test("accepts a Field before its enum Variants and resolves the default incrementally", async () => {
+    await prepareIncrementalMatrixFixture({
+      version: 1,
+      atoms: [{id: 1, wimp: "owner/streamed-enum", values: [], state: null}],
+      declarations: [],
+    })
+    const apply = async (particle: Particle) => {
+      const result = await applyIncrementalMatrixProjection(applyMatrixProjectionParticle(particle))
+      weakStructuralUpdate(result.weakUpdate)
+      const fieldIndex = strong$.runtimeFieldIndexByAtomFieldId.get(`${1}\0${101}`)
+      return fieldIndex === undefined ? undefined : matrix$.getFieldValue(0, fieldIndex)
+    }
+
+    expect(await apply({
+      part: "graviton",
+      op: "add",
+      path: "field",
+      by: "boundary",
+      ts: 2,
+      value: {
+        wimp: "owner/streamed-enum",
+        localId: 1,
+        id: 101,
+        key: "mode",
+        type: "enum",
+        default: {kind: "enum", variant: 202},
+        position: 0,
+      },
+    })).toBeNull()
+    expect(await apply({
+      part: "graviton",
+      op: "add",
+      path: "variant",
+      by: "boundary",
+      ts: 3,
+      value: {
+        wimp: "owner/streamed-enum",
+        localId: 1,
+        id: 201,
+        field: 101,
+        itemValue: "idle",
+        position: 0,
+      },
+    })).toBeNull()
+    expect(await apply({
+      part: "graviton",
+      op: "add",
+      path: "variant",
+      by: "boundary",
+      ts: 4,
+      value: {
+        wimp: "owner/streamed-enum",
+        localId: 2,
+        id: 202,
+        field: 101,
+        itemValue: "ready",
+        position: 1,
+      },
+    })).toBe(1)
+  })
+
   test("bounds canonical packed storage while the shape grows", async () => {
     await prepareIncrementalMatrixFixture(largeProjection(1))
 

@@ -13,6 +13,7 @@ import {
   readHttpMonadChannelOpening,
 } from "shared/transport/monad"
 import {
+  applyAuthoredDeclarationProjection,
   applyAuthoredMatterProjection,
   reconcileAuthoredMatterProjection,
   startDarkRuntime,
@@ -28,6 +29,7 @@ import {DarkMonad} from "./monad.ts"
 import {MetaCreateService} from "./monad/create.ts"
 import {createLocalMonadChannelPair} from "./monad/local.ts"
 import {MatterAuthoringService} from "./monad/matter.ts"
+import {DeclarationAuthoringService} from "./monad/declaration.ts"
 import {DarkForceHistoryReadService} from "./monad/history.ts"
 import {
   MetaAuthoringRegistry,
@@ -116,6 +118,14 @@ monad.setAuthoring({
         })
       },
     },
+  ),
+  declaration: new DeclarationAuthoringService(
+    forceHistory,
+    lifecycle,
+    (source) => authoringRegistry.grants(source),
+    undefined,
+    undefined,
+    {apply: applyAuthoredDeclarationProjection},
   ),
 })
 monad.onServerStarted(rpc)

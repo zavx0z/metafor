@@ -14,8 +14,9 @@ import {
 import {join} from "node:path"
 import {
   META_AUTHORING_CONTRACT_VERSION,
+  META_DECLARATION_AUTHORING_CAUSE_SCHEMA_V1,
   META_MATTER_AUTHORING_CAUSE_SCHEMA_V1,
-  type MetaMatterAuthoringCauseV1,
+  type MetaAuthoringCauseV1,
 } from "@metafor/types/metafor/authoring"
 import {parseMetaAddress} from "@metafor/types/metafor/graph"
 import {
@@ -51,7 +52,7 @@ export type DarkForceHistoryParticle = {
   sequence: number
   acceptedAt: string
   particle: SourcedParticle
-  authoring?: MetaMatterAuthoringCauseV1
+  authoring?: MetaAuthoringCauseV1
 }
 
 export type DarkForceHistorySegment = {
@@ -139,7 +140,7 @@ const digestPattern = /^sha256:[a-f0-9]{64}$/
 const parseAuthoringCause = (
   value: unknown,
   location: string,
-): MetaMatterAuthoringCauseV1 => {
+): MetaAuthoringCauseV1 => {
   if (
     !isJSONData(value) ||
     !isRecord(value) ||
@@ -151,7 +152,8 @@ const parseAuthoringCause = (
       "requestDigest",
       "sourceProjections",
     ]) ||
-    value.schema !== META_MATTER_AUTHORING_CAUSE_SCHEMA_V1 ||
+    (value.schema !== META_MATTER_AUTHORING_CAUSE_SCHEMA_V1 &&
+      value.schema !== META_DECLARATION_AUTHORING_CAUSE_SCHEMA_V1) ||
     value.contractVersion !== META_AUTHORING_CONTRACT_VERSION ||
     typeof value.rpcSource !== "string" ||
     value.rpcSource.length === 0 ||
@@ -194,17 +196,17 @@ const parseAuthoringCause = (
     }
   })
   return structuredClone({
-    schema: META_MATTER_AUTHORING_CAUSE_SCHEMA_V1,
+    schema: value.schema,
     contractVersion: META_AUTHORING_CONTRACT_VERSION,
     rpcSource: value.rpcSource,
     operationId: value.operationId,
     requestDigest: value.requestDigest,
     sourceProjections,
-  }) as MetaMatterAuthoringCauseV1
+  }) as MetaAuthoringCauseV1
 }
 
 const authoringKey = (
-  value: Pick<MetaMatterAuthoringCauseV1, "rpcSource" | "operationId">,
+  value: Pick<MetaAuthoringCauseV1, "rpcSource" | "operationId">,
 ): string => `${value.rpcSource}\u0000${value.operationId}`
 
 const isJSONData = (value: unknown, ancestors = new Set<object>()): boolean => {
@@ -521,7 +523,7 @@ export class DarkForceHistory {
 
   accept(
     particle: SourcedParticle,
-    authoring?: MetaMatterAuthoringCauseV1,
+    authoring?: MetaAuthoringCauseV1,
   ): DarkForceHistoryParticle {
     const normalized = parseParticle(particle, "accept")
     const normalizedAuthoring = authoring === undefined

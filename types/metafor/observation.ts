@@ -1,4 +1,4 @@
-import type {MetaMatterAuthoringCauseV1} from "./authoring.ts"
+import type {MetaAuthoringCauseV1} from "./authoring.ts"
 import {
   parseMetaAddress,
   type JsonPointer,
@@ -56,7 +56,7 @@ export type DarkForceHistoryPublicEntry = {
   sequence: number
   acceptedAt: string
   particle: SourcedParticle
-  authoring?: MetaMatterAuthoringCauseV1
+  authoring?: MetaAuthoringCauseV1
 }
 
 export type DarkForceHistoryReadReceipt = {

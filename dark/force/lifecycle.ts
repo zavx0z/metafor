@@ -9,7 +9,7 @@ import type {DarkForceHistory, DarkForceHistoryParticle} from "./history.ts"
 import type {CheckpointDeliveryReceipt} from "../checkpoint/barrier.ts"
 import type {
   MetaForceAcceptanceIdentity,
-  MetaMatterAuthoringCauseV1,
+  MetaAuthoringCauseV1,
 } from "@metafor/types/metafor/authoring"
 
 export type ForceLifecycleState = "created" | "starting" | "recovering" | "running" | "error" | "stopped"
@@ -174,7 +174,7 @@ export class ForceLifecycle {
   /** Accepts one Dark Monad-authored Particle with immutable RPC causation. */
   async acceptAuthoringParticle(
     input: ForceMessageInput,
-    authoring: MetaMatterAuthoringCauseV1,
+    authoring: MetaAuthoringCauseV1,
   ): Promise<ForceAuthoringDecision> {
     if (this.#state !== "running") {
       return {ok: false, reason: "not_running", error: this.#blockedReason()}
@@ -250,7 +250,7 @@ export class ForceLifecycle {
   async #transfer(
     message: SourcedForceMessage,
     origin: ForceOrigin,
-    authoring?: MetaMatterAuthoringCauseV1,
+    authoring?: MetaAuthoringCauseV1,
   ): Promise<{delivered: ForceDomain[]; accepted: DarkForceHistoryParticle}> {
     const accepted = this.history.accept(message.parts[0], authoring) as DarkForceHistoryParticle
     const destinations = particleDestinations(message, origin)

@@ -481,6 +481,145 @@ export const applyAuthoredMatterProjection = async (
   return {root, operation, child}
 }
 
+type AuthoredDeclarationTarget = {
+  wimp: string
+  id: number
+  field: DeclarationEntity
+  variants: DeclarationEntity[]
+}
+
+const authoredDeclarationTarget = (part: SourcedParticle): AuthoredDeclarationTarget => {
+  if (
+    part.by !== "dark" ||
+    part.part !== "inflaton" ||
+    part.path !== "field" ||
+    (part.op !== "add" && part.op !== "replace" && part.op !== "remove" && part.op !== "move") ||
+    !isRecord(part.value) ||
+    typeof part.value.wimp !== "string" ||
+    !canonicalMetaSource(part.value.wimp) ||
+    !Number.isSafeInteger(part.value.id) ||
+    Number(part.value.id) <= 0
+  ) throw new Error("Accepted declaration authoring Particle is invalid")
+  const wimp = part.value.wimp
+  const id = Number(part.value.id)
+  if (part.op !== "remove" && part.value.required !== false) {
+    throw new Error("Accepted Field declaration must be optional")
+  }
+  const {variants: rawVariants, required: _required, ...definition} = part.value
+  const variants = part.op === "remove"
+    ? []
+    : (() => {
+        if (!Array.isArray(rawVariants)) {
+          throw new Error("Accepted Field declaration has no closed variant composition")
+        }
+        return rawVariants.map((raw, index) => {
+          if (
+            !isRecord(raw) ||
+            !Number.isSafeInteger(raw.id) || Number(raw.id) <= 0 ||
+            raw.position !== index ||
+            typeof raw.value !== "string" || raw.value.length === 0
+          ) throw new Error("Accepted Field variant composition is invalid")
+          return localEntity("variant", wimp, Number(raw.id), {
+            field: id,
+            position: index,
+            value: raw.value,
+          })
+        })
+      })()
+  if (new Set(variants.map(({key}) => key)).size !== variants.length) {
+    throw new Error("Accepted Field variant identities are duplicated")
+  }
+  return {
+    wimp,
+    id,
+    field: localEntity("field", wimp, id, definition),
+    variants,
+  }
+}
+
+const authoredDeclarationSource = (part: SourcedParticle): {wimp: string; id: number} | null => {
+  if (part.op !== "move") return null
+  if (typeof part.from !== "string") throw new Error("Accepted Field move source is invalid")
+  const separator = part.from.lastIndexOf("#")
+  const wimp = part.from.slice(0, separator)
+  const id = Number(part.from.slice(separator + 1))
+  if (separator <= 0 || !canonicalMetaSource(wimp) || !Number.isSafeInteger(id) || id <= 0) {
+    throw new Error("Accepted Field move source is invalid")
+  }
+  return {wimp, id}
+}
+
+const fieldComposition = (current: WimpProjection, id: number): DeclarationEntity[] =>
+  current.entities.filter((entity) =>
+    (entity.path === "field" && entity.value.id === id) ||
+    (entity.path === "variant" && entity.value.field === id)
+  )
+
+const sameComposition = (
+  current: WimpProjection,
+  target: AuthoredDeclarationTarget,
+): boolean => {
+  const expected = [target.field, ...target.variants]
+  const actual = fieldComposition(current, target.id)
+  return actual.length === expected.length && actual.every((entity, index) =>
+    entity.key === expected[index]!.key && same(entity.value, expected[index]!.value)
+  )
+}
+
+const replaceFieldComposition = (
+  current: WimpProjection,
+  target: AuthoredDeclarationTarget,
+): void => {
+  const fieldKey = `field\u0000${target.wimp}\u0000${target.id}`
+  const fieldIndex = current.entities.findIndex((entity) => entity.key === fieldKey)
+  const filtered = current.entities.filter((entity) =>
+    entity.key !== fieldKey && !(entity.path === "variant" && entity.value.field === target.id)
+  )
+  const insertion = fieldIndex < 0
+    ? filtered.length
+    : Math.min(fieldIndex, filtered.length)
+  filtered.splice(insertion, 0, target.field, ...target.variants)
+  current.entities = filtered
+}
+
+export const applyAuthoredDeclarationProjection = async (
+  part: SourcedParticle,
+  readMeta: MetaLoader = loadMeta,
+): Promise<void> => {
+  const target = authoredDeclarationTarget(part)
+  const source = authoredDeclarationSource(part)
+  if (source) await ensureAuthoredMatterParent(source.wimp, readMeta)
+  await ensureAuthoredMatterParent(target.wimp, readMeta)
+  const targetProjection = projection.get(target.wimp)
+  if (!targetProjection) throw new Error(`Accepted Field target is outside the current Dark projection: ${target.wimp}`)
+
+  if (part.op === "remove") {
+    const composition = fieldComposition(targetProjection, target.id)
+    if (composition.length === 0) return
+    targetProjection.entities = targetProjection.entities.filter((entity) => !composition.includes(entity))
+    return
+  }
+
+  if (part.op === "move") {
+    const sourceProjection = projection.get(source!.wimp)
+    if (!sourceProjection) {
+      if (sameComposition(targetProjection, target)) return
+      throw new Error(`Accepted Field source is outside the current Dark projection: ${source!.wimp}`)
+    }
+    const sourceComposition = fieldComposition(sourceProjection, source!.id)
+    if (sourceComposition.length === 0) {
+      if (sameComposition(targetProjection, target)) return
+      throw new Error(`Accepted Field source is unavailable in Dark projection: ${source!.wimp}#${source!.id}`)
+    }
+    sourceProjection.entities = sourceProjection.entities.filter((entity) => !sourceComposition.includes(entity))
+  } else if (part.op === "add" && fieldComposition(targetProjection, target.id).length > 0) {
+    if (sameComposition(targetProjection, target)) return
+    throw new Error(`Accepted Field target conflicts in Dark projection: ${target.wimp}#${target.id}`)
+  }
+
+  replaceFieldComposition(targetProjection, target)
+}
+
 export const reconcileAuthoredMatterProjection = async (
   change: AuthoredMatterProjectionChange,
   accept: (input: ForceMessageInput) => Promise<void>,

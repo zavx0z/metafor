@@ -106,6 +106,7 @@ const fallbackFieldValue = (
   variants: Map<number, unknown>,
 ): MatrixBraneValue => {
   if (Object.prototype.hasOwnProperty.call(field, "default")) {
+    if (field.type === "enum" && isVariantRef(field.default) && !variants.has(field.default.variant)) return null
     return matrixBraneValue(resolveVariantReferences(field.default, variants))
   }
   return null

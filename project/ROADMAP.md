@@ -38,9 +38,12 @@
   пустую canonical Meta и применять первый Matter slice `add`, `move`, `remove`
   для inert root-level WIMP в последней позиции через RPC с live-first
   materialization и автоматической source projection.
+* Первый `meta.declaration.apply` slice проводит optional Field
+  `add/replace/remove/move`; enum variants остаются составом одной принятой
+  Field Inflaton, а source, Boundary и Bulk получают проекции того же patch.
 * Эта поверхность пока не является полной рабочей поверхностью агента: нет
-  законченного RPC-пути для изменения деклараций, полной композиции Matter,
-  предметного runtime Field input и наблюдения исполнения Process.
+  остальных declaration entities, полной композиции Matter, предметного
+  runtime Field input и наблюдения исполнения Process.
 
 ## Graph
 
@@ -95,6 +98,7 @@ digest и causal frontier без `MassHandle` и filesystem path. Второй �
 * `meta.capabilities.read` и `meta.source.revision.read`;
 * `meta.create`;
 * первый ограниченный slice `meta.matter.apply`;
+* первый optional Field slice `meta.declaration.apply`;
 * `dark.force.history.read` и `energy.mass.result.read`;
 * `dark.force.pause`, `dark.force.step`, `dark.force.stack`,
   `dark.force.resume`;
@@ -102,8 +106,8 @@ digest и causal frontier без `MassHandle` и filesystem path. Второй �
 
 До полной рабочей сессии должны быть реализованы:
 
-* `meta.declaration.apply` для всех canonical declaration entities, включая
-  Process и его ограниченные source artifacts;
+* остальные slices `meta.declaration.apply` для всех canonical declaration
+  entities, включая Process и его ограниченные source artifacts;
 * полный Matter tree contract через расширение существующего
   `meta.matter.apply`;
 * `meta.field.value.apply` с публичным Atom locator;

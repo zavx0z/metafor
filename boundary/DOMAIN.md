@@ -96,6 +96,13 @@ Atom. Перестройка означает локальный structural diff
 - один WIMP update не требует сканирования всего мира: используются индексы
   `WIMP src → Atom IDs` и `Matter declaration → runtime origins`.
 
+Authoring Field приходит одной Inflaton. Для enum её payload содержит закрытый
+состав variants, а не отдельные клиентские Variant operations. Boundary в одной
+SQL transaction сохраняет Field, синхронизирует Variant rows, разрешает default
+и выпускает отдельные canonical Gravitons для Bulk. Canonical `move` между Meta
+сохраняет persisted Field row ID; удаление variant с действующей ссылкой
+отклоняет всю transaction.
+
 Пример: добавление Screenshot в Browser WIMP должно добавить Screenshot каждому
 существующему Browser Atom.
 

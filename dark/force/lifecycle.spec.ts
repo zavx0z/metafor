@@ -6,6 +6,7 @@ import {forceDomains, type ForceDomain, type ForceStore} from "./store.ts"
 import {
   META_AUTHORING_CONTRACT_VERSION,
   META_MATTER_AUTHORING_CAUSE_SCHEMA_V1,
+  type MetaAuthoringCauseV1,
   type MetaMatterAuthoringCauseV1,
 } from "@metafor/types/metafor/authoring"
 import {parseMetaAddress} from "@metafor/types/metafor/graph"
@@ -243,7 +244,7 @@ describe("ForceLifecycle", () => {
 
   test("returns the exact acceptance identity for one Dark-authored RPC Particle", async () => {
     recording = createRecordingChannels()
-    let storedCause: MetaMatterAuthoringCauseV1 | undefined
+    let storedCause: MetaAuthoringCauseV1 | undefined
     lifecycle = new ForceLifecycle({
       accept(particle, cause) {
         if (!cause) throw new Error("authoring cause is required")

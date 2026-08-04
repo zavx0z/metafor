@@ -4,16 +4,21 @@ import {
   META_AUTHORING_CONTRACT_VERSION,
   META_CREATE_CAPABILITY,
   META_CREATE_METHOD,
+  META_DECLARATION_APPLY_METHOD,
+  META_DECLARATION_WRITE_CAPABILITY,
   META_MATTER_APPLY_METHOD,
   META_MATTER_WRITE_CAPABILITY,
   META_SOURCE_READ_CAPABILITY,
   META_SOURCE_REVISION_READ_METHOD,
   validateMetaCapabilitiesReadRequest,
   validateMetaCreateRequest,
+  validateMetaDeclarationRequest,
   validateMetaMatterRequest,
   validateMetaSourceRevisionReadRequest,
   type MetaAuthoringCapability,
   type MetaCreateRequest,
+  type MetaDeclarationRequest,
+  type MetaFieldDeclarationAddRequest,
   type MetaMatterRequest,
   type MetaSourceRevision,
 } from "./authoring.ts"
@@ -24,6 +29,7 @@ const TEST = parseMetaAddress("zavx0z/lada-test")!
 const OTHER = parseMetaAddress("zavx0z/other")!
 const LADA_REVISION = `sha256:${"1".repeat(64)}` as MetaSourceRevision
 const CHAT_REVISION = `sha256:${"2".repeat(64)}` as MetaSourceRevision
+const TEST_REVISION = `sha256:${"3".repeat(64)}` as MetaSourceRevision
 
 const createGrant = (scopes: readonly MetaAddress[] = [TEST]): MetaAuthoringCapability => ({
   capability: META_CREATE_CAPABILITY,
@@ -43,6 +49,15 @@ const matterGrant = (scopes: readonly MetaAddress[] = [LADA, CHAT, TEST]): MetaA
   gitCommit: false,
 })
 
+const declarationGrant = (scopes: readonly MetaAddress[] = [LADA, CHAT, TEST]): MetaAuthoringCapability => ({
+  capability: META_DECLARATION_WRITE_CAPABILITY,
+  method: META_DECLARATION_APPLY_METHOD,
+  scopes,
+  operationClass: "declaration",
+  liveState: true,
+  gitCommit: false,
+})
+
 const sourceGrant = (scopes: readonly MetaAddress[] = [LADA, CHAT, TEST]): MetaAuthoringCapability => ({
   capability: META_SOURCE_READ_CAPABILITY,
   method: META_SOURCE_REVISION_READ_METHOD,
@@ -55,6 +70,7 @@ const sourceGrant = (scopes: readonly MetaAddress[] = [LADA, CHAT, TEST]): MetaA
 const currentRevision = (address: MetaAddress): MetaSourceRevision | null => {
   if (address === LADA) return LADA_REVISION
   if (address === CHAT) return CHAT_REVISION
+  if (address === TEST) return TEST_REVISION
   return null
 }
 
@@ -378,5 +394,123 @@ describe("meta.matter.apply proposal validation", () => {
 
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.issues.map(({code}) => code)).toContain("non_json_value")
+  })
+})
+
+describe("meta.declaration.apply Field validation", () => {
+  const add = (): MetaFieldDeclarationAddRequest => ({
+    contractVersion: META_AUTHORING_CONTRACT_VERSION,
+    operationId: "field-add",
+    capability: META_DECLARATION_WRITE_CAPABILITY,
+    entity: "field",
+    operation: "add",
+    address: TEST,
+    field: {
+      key: "mode",
+      type: "enum",
+      required: false,
+      values: ["idle", "ready"],
+      default: "idle",
+      label: "Mode",
+    },
+    revisions: [{address: TEST, revision: TEST_REVISION}],
+  })
+
+  test("accepts and detaches closed optional Field operations", () => {
+    const requests: MetaDeclarationRequest[] = [
+      add(),
+      {
+        contractVersion: 1,
+        operationId: "field-replace",
+        capability: META_DECLARATION_WRITE_CAPABILITY,
+        entity: "field",
+        operation: "replace",
+        address: TEST,
+        key: "mode",
+        field: {key: "note", type: "string", required: false, default: ""},
+        revisions: [{address: TEST, revision: TEST_REVISION}],
+      },
+      {
+        contractVersion: 1,
+        operationId: "field-remove",
+        capability: META_DECLARATION_WRITE_CAPABILITY,
+        entity: "field",
+        operation: "remove",
+        address: TEST,
+        key: "mode",
+        revisions: [{address: TEST, revision: TEST_REVISION}],
+      },
+      {
+        contractVersion: 1,
+        operationId: "field-move",
+        capability: META_DECLARATION_WRITE_CAPABILITY,
+        entity: "field",
+        operation: "move",
+        fromAddress: LADA,
+        toAddress: CHAT,
+        key: "mode",
+        revisions: [
+          {address: LADA, revision: LADA_REVISION},
+          {address: CHAT, revision: CHAT_REVISION},
+        ],
+      },
+    ]
+
+    for (const input of requests) {
+      const result = validateMetaDeclarationRequest(input, {
+        capabilities: [declarationGrant()],
+        currentRevision,
+      })
+      expect(result.ok).toBe(true)
+      if (!result.ok) continue
+      expect(result.value).toEqual(input)
+      expect(result.value).not.toBe(input)
+      expect(result.value.revisions).not.toBe(input.revisions)
+    }
+  })
+
+  test.each([
+    ["unknown property", {...add(), comment: "no"}, "unknown_property"],
+    ["required Field", {...add(), field: {...add().field, required: true}}, "invalid_literal"],
+    ["empty enum", {...add(), field: {...add().field, values: []}}, "invalid_enum_values"],
+    ["duplicate enum", {...add(), field: {...add().field, values: ["idle", "idle"]}}, "duplicate_enum_value"],
+    ["foreign enum default", {...add(), field: {...add().field, default: "missing"}}, "invalid_field_default"],
+    ["stale revision", {...add(), revisions: [{address: TEST, revision: LADA_REVISION}]}, "revision_mismatch"],
+    ["missing capability", add(), "capability_denied"],
+  ])("rejects %s", (_label, input, code) => {
+    const result = validateMetaDeclarationRequest(input, {
+      capabilities: code === "capability_denied" ? [] : [declarationGrant()],
+      currentRevision,
+    })
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    expect(result.issues.map((issue) => issue.code)).toContain(code)
+  })
+
+  test("rejects same-Meta move and denied destination scope", () => {
+    const base = {
+      contractVersion: 1,
+      operationId: "field-move",
+      capability: META_DECLARATION_WRITE_CAPABILITY,
+      entity: "field",
+      operation: "move",
+      fromAddress: LADA,
+      toAddress: CHAT,
+      key: "mode",
+      revisions: [
+        {address: CHAT, revision: CHAT_REVISION},
+        {address: LADA, revision: LADA_REVISION},
+      ],
+    }
+    expect(validateMetaDeclarationRequest({...base, toAddress: LADA, revisions: [base.revisions[1]]}, {
+      capabilities: [declarationGrant()],
+      currentRevision,
+    })).toMatchObject({ok: false, issues: [{code: "forbidden_operation"}]})
+    const denied = validateMetaDeclarationRequest(base, {
+      capabilities: [declarationGrant([LADA])],
+      currentRevision,
+    })
+    expect(denied.ok).toBe(false)
+    if (!denied.ok) expect(denied.issues.map((issue) => issue.code)).toContain("scope_denied")
   })
 })
