@@ -30,7 +30,6 @@ flowchart LR
     MF104["MF-104 · сессия чтения"]
     MF109["MF-109 · ветвь исполнения"]
     MF110["MF-110 · ветвь Interpreter"]
-    RPC["RPC-GATE · клиентский договор"]
     MF200["MF-200 · договор изменения"]
     MF201["MF-201 · проверка предложения"]
     MF202["MF-202 · запись source"]
@@ -51,9 +50,6 @@ flowchart LR
     MF103 --> MF104
     MF103 --> MF109
     MF109 --> MF110
-    RPC --> MF110
-    MF104 --> MF200
-    RPC --> MF200
     MF200 --> MF201
     MF201 --> MF202
     MF200 --> MF203
@@ -98,8 +94,7 @@ flowchart LR
 | MF-103   | READY       | нет                   | [Открыть](tasks/MF-103.md)   |
 | MF-104   | WAITING     | MF-103                | [Открыть](tasks/MF-104.md)   |
 | MF-109   | WAITING     | MF-103                | [Открыть](tasks/MF-109.md)   |
-| MF-110   | WAITING     | MF-109, RPC-GATE      | [Открыть](tasks/MF-110.md)   |
-| RPC-GATE | REVIEW      | нет                   | [Открыть](tasks/RPC-GATE.md) |
+| MF-110   | WAITING     | MF-109                | [Открыть](tasks/MF-110.md)   |
 | MTX-002  | READY       | нет                   | [Открыть](tasks/MTX-002.md)  |
 | MTX-003  | READY       | нет                   | [Открыть](tasks/MTX-003.md)  |
 
@@ -107,7 +102,7 @@ flowchart LR
 
 | ID     | Состояние | Зависимости       | Карточка                   |
 | ------ | --------- | ----------------- | -------------------------- |
-| MF-200 | WAITING   | MF-104, RPC-GATE  | [Открыть](tasks/MF-200.md) |
+| MF-200 | READY     | нет               | [Открыть](tasks/MF-200.md) |
 | MF-201 | WAITING   | MF-200            | [Открыть](tasks/MF-201.md) |
 | MF-202 | WAITING   | MF-201            | [Открыть](tasks/MF-202.md) |
 | MF-203 | GATE      | MF-200            | [Открыть](tasks/MF-203.md) |
