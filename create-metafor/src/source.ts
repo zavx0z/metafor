@@ -21,6 +21,7 @@ export type SourceWriteErrorCode =
   | "source_publish_failed"
   | "source_verification_failed"
   | "source_rollback_failed"
+  | "source_recovery_failed"
 
 export class SourceWriteError extends Error {
   override readonly name = "SourceWriteError"
@@ -68,7 +69,14 @@ export interface SourceSnapshot {
   readonly revision: MetaSourceRevision
 }
 
+export interface SourceProjectionRecovery {
+  readonly targetPath: string
+  readonly beforeRevision: MetaSourceRevision
+  readonly afterRevision: MetaSourceRevision
+}
+
 const SAFE_OPERATION_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/
+const SOURCE_REVISION = /^sha256:[a-f0-9]{64}$/
 
 export const sourceRevision = (source: string | Uint8Array): MetaSourceRevision =>
   `sha256:${createHash("sha256").update(source).digest("hex")}` as MetaSourceRevision
@@ -254,6 +262,155 @@ const releaseLocks = async (locks: readonly HeldLock[]): Promise<void> => {
 
 const rollbackPath = (candidate: PreparedSourceCandidate): string =>
   resolve(dirname(candidate.targetPath), `.${basename(candidate.targetPath)}.${candidate.operationId}.rollback`)
+
+const optionalArtifact = async (path: string, label: string): Promise<Buffer | null> => {
+  let stat
+  try {
+    stat = await lstat(path)
+  } catch (error) {
+    const code = typeof error === "object" && error !== null && "code" in error
+      ? (error as {code?: unknown}).code
+      : null
+    if (code === "ENOENT") return null
+    throw error
+  }
+  if (!stat.isFile() || stat.isSymbolicLink()) {
+    throw new SourceWriteError("source_recovery_failed", `${label} must be a regular file: ${path}`)
+  }
+  return await readFile(path)
+}
+
+export const recoverAndPublishSourceCandidates = async (
+  operationId: string,
+  projections: readonly SourceProjectionRecovery[],
+): Promise<SourcePublishReceipt> => {
+  if (!SAFE_OPERATION_ID.test(operationId) || projections.length === 0) {
+    throw new SourceWriteError("source_recovery_failed", "Source recovery request is invalid")
+  }
+  const targets = projections.map((projection) => exactTarget(projection.targetPath))
+  if (new Set(targets).size !== targets.length) {
+    throw new SourceWriteError("duplicate_target", "Source recovery contains duplicate targets")
+  }
+  const states = await Promise.all(projections.map(async (projection, index) => {
+    if (
+      !SOURCE_REVISION.test(projection.beforeRevision) ||
+      !SOURCE_REVISION.test(projection.afterRevision) ||
+      projection.beforeRevision === projection.afterRevision
+    ) throw new SourceWriteError("source_recovery_failed", "Source recovery revisions are invalid")
+    const targetPath = targets[index]!
+    const current = await targetSource(targetPath)
+    const state = current.revision === projection.beforeRevision
+      ? "before" as const
+      : current.revision === projection.afterRevision
+        ? "after" as const
+        : null
+    if (!state) {
+      throw new SourceWriteError(
+        "source_revision_mismatch",
+        `Source recovery found an unrelated revision: ${targetPath}`,
+      )
+    }
+    const candidatePath = resolve(dirname(targetPath), `.${basename(targetPath)}.${operationId}.candidate`)
+    const rollback = resolve(dirname(targetPath), `.${basename(targetPath)}.${operationId}.rollback`)
+    const candidateSource = await optionalArtifact(candidatePath, "Source candidate")
+    const rollbackSource = await optionalArtifact(rollback, "Source rollback")
+    if (candidateSource && sourceRevision(candidateSource) !== projection.afterRevision) {
+      throw new SourceWriteError("source_verification_failed", `Recovered source candidate is invalid: ${targetPath}`)
+    }
+    if (rollbackSource && sourceRevision(rollbackSource) !== projection.beforeRevision) {
+      throw new SourceWriteError("source_verification_failed", `Recovered source rollback is invalid: ${targetPath}`)
+    }
+    if (state === "before" && !candidateSource) {
+      throw new SourceWriteError("source_recovery_failed", `Accepted source candidate is missing: ${targetPath}`)
+    }
+    return {
+      targetPath,
+      candidatePath,
+      rollbackPath: rollback,
+      beforeRevision: projection.beforeRevision,
+      afterRevision: projection.afterRevision,
+      current,
+      state,
+      candidateSource,
+      rollbackSource,
+    }
+  }))
+
+  if (states.every(({state}) => state === "after")) {
+    const locks = await acquireLocks(states.map((state) => ({
+      targetPath: state.targetPath,
+      candidatePath: state.candidatePath,
+      operationId,
+      beforeRevision: state.beforeRevision,
+      afterRevision: state.afterRevision,
+      beforeSource: state.rollbackSource?.toString("utf8") ?? state.current.source,
+      afterSource: state.current.source,
+      mode: state.current.mode,
+    })))
+    try {
+      for (const state of states) {
+        if ((await targetSource(state.targetPath)).revision !== state.afterRevision) {
+          throw new SourceWriteError("source_revision_mismatch", `Completed source changed during recovery: ${state.targetPath}`)
+        }
+      }
+      await Promise.all(states.flatMap((state) => [
+        unlink(state.candidatePath).catch(() => {}),
+        unlink(state.rollbackPath).catch(() => {}),
+      ]))
+      return {
+        operationId,
+        files: states.sort((left, right) => left.targetPath.localeCompare(right.targetPath)).map((state) => ({
+          targetPath: state.targetPath,
+          beforeRevision: state.beforeRevision,
+          afterRevision: state.afterRevision,
+          outcome: "already_published" as const,
+        })),
+      }
+    } finally {
+      await releaseLocks(locks)
+    }
+  }
+
+  const partial = states.some(({state}) => state === "after")
+  const prepared: PreparedSourceCandidate[] = []
+  for (const state of states) {
+    if (state.state === "after" && partial && !state.rollbackSource) {
+      throw new SourceWriteError(
+        "source_recovery_failed",
+        `Partially published source has no rollback evidence: ${state.targetPath}`,
+      )
+    }
+    const afterSource = state.state === "after"
+      ? state.current.source
+      : state.candidateSource!.toString("utf8")
+    if (state.state === "after") {
+      await prepareExclusiveFile(
+        state.candidatePath,
+        afterSource,
+        state.current.mode,
+        `Recovered source candidate conflicts with operation ${operationId}: ${state.targetPath}`,
+      )
+    }
+    prepared.push({
+      targetPath: state.targetPath,
+      candidatePath: state.candidatePath,
+      operationId,
+      beforeRevision: state.beforeRevision,
+      afterRevision: state.afterRevision,
+      beforeSource: state.state === "before"
+        ? state.current.source
+        : state.rollbackSource!.toString("utf8"),
+      afterSource,
+      mode: state.current.mode,
+    })
+  }
+  const result = await publishSourceCandidates(prepared)
+  await Promise.all(states.flatMap((state) => [
+    unlink(state.candidatePath).catch(() => {}),
+    unlink(state.rollbackPath).catch(() => {}),
+  ]))
+  return result
+}
 
 const rollbackPublished = async (
   published: readonly PreparedSourceCandidate[],

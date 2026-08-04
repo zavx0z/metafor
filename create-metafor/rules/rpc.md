@@ -130,13 +130,23 @@ revisions уже атомарно связаны в Force history. Повтор 
 identity, продолжает projection того же patch и не выполняет новую runtime
 mutation.
 
+Имена candidate, rollback и lock однозначно выводятся из target `meta.ts` и
+`operationId`. Projector принимает только три состояния target: точную
+before revision, точную after revision или конфликт. При before обязателен
+candidate с after revision. Частично опубликованный multi-file move дополнительно
+требует rollback bytes с before revision для уже заменённого target. Если все
+targets уже имеют after revisions, операция считается завершённой и оставшиеся
+технические artifacts удаляются под теми же source locks.
+
 Provider возвращает предметный outcome одной из фаз: `rejected`, `created`,
 `runtime_committed`, `source_pending` или `complete`. Неизвестный частичный
 успех запрещён.
 
 После успешного Boundary commit при ещё не опубликованных candidates Matter
 receipt имеет phase `source_pending`, acceptance identity той же Force history
-entry и точные before/after source revisions.
+entry, точные before/after source revisions и наблюдаемую причину ошибки.
+Успешная или уже выполненная публикация возвращает phase `complete` и outcome
+каждого source target.
 
 Владельцы фаз:
 

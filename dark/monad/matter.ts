@@ -19,6 +19,7 @@ import type {MatterParticle} from "@metafor/types/metafor/matter"
 import {
   discardSourceCandidates,
   prepareSourceCandidates,
+  recoverAndPublishSourceCandidates,
   readSourceSnapshot,
   type PreparedSourceCandidate,
 } from "../../create-metafor/src/source.ts"
@@ -52,6 +53,8 @@ export type MatterAuthoringCapabilityReader = (
 export type MatterAuthoringParentReader = (
   address: MetaAddress,
 ) => Promise<MatterAuthoringParent>
+
+export type MatterAuthoringSourcePath = (address: MetaAddress) => string
 
 export class MatterAuthoringError extends Error {
   override readonly name = "MatterAuthoringError"
@@ -94,19 +97,33 @@ const acceptanceIdentity = (entry: DarkForceHistoryParticle): MetaForceAcceptanc
   return {cutId: entry.id.slice(0, separator), sequence: entry.sequence, id: entry.id}
 }
 
-const receipt = (
+const receiptBase = (
   operationId: string,
   requestDigest: MetaAuthoringRequestDigest,
   acceptance: MetaForceAcceptanceIdentity,
   sourceProjections: MetaMatterSourceProjectionV1[],
-): MetaMatterApplyReceipt => ({
+): Omit<Extract<MetaMatterApplyReceipt, {phase: "complete"}>, "phase" | "source"> => ({
   contractVersion: META_AUTHORING_CONTRACT_VERSION,
   operationId,
   requestDigest,
-  phase: "source_pending",
   acceptance,
   sourceProjections: structuredClone(sourceProjections),
   boundary: "applied",
+})
+
+const pendingReceipt = (
+  operationId: string,
+  requestDigest: MetaAuthoringRequestDigest,
+  acceptance: MetaForceAcceptanceIdentity,
+  sourceProjections: MetaMatterSourceProjectionV1[],
+  error: unknown,
+): MetaMatterApplyReceipt => ({
+  ...receiptBase(operationId, requestDigest, acceptance, sourceProjections),
+  phase: "source_pending",
+  source: {
+    outcome: "pending",
+    error: error instanceof Error ? error.message : String(error),
+  },
 })
 
 export const readMatterAuthoringParent: MatterAuthoringParentReader = async (address) => {
@@ -132,6 +149,7 @@ export class MatterAuthoringService {
     private readonly force: MatterAuthoringForce,
     private readonly capabilities: MatterAuthoringCapabilityReader,
     private readonly readParent: MatterAuthoringParentReader = readMatterAuthoringParent,
+    private readonly sourcePath: MatterAuthoringSourcePath = resolveMetaPath,
   ) {}
 
   async apply(input: unknown, rpcSource: string): Promise<MetaMatterApplyReceipt> {
@@ -151,7 +169,7 @@ export class MatterAuthoringService {
           `Operation ${rpcSource}/${request.operationId} is already bound to a different request`,
         )
       }
-      return receipt(
+      return await this.#project(
         request.operationId,
         requestDigest,
         acceptanceIdentity(existing),
@@ -199,7 +217,7 @@ export class MatterAuthoringService {
       liveAttempted = true
       const decision = await this.force.acceptAuthoringParticle(plan.particle, cause)
       if (!decision.ok) throw new MatterAuthoringError(decision.error)
-      return receipt(
+      return await this.#project(
         request.operationId,
         requestDigest,
         decision.acceptance,
@@ -208,6 +226,46 @@ export class MatterAuthoringService {
     } catch (error) {
       if (!liveAttempted) await discardSourceCandidates(prepared)
       throw error
+    }
+  }
+
+  async #project(
+    operationId: string,
+    requestDigest: MetaAuthoringRequestDigest,
+    acceptance: MetaForceAcceptanceIdentity,
+    sourceProjections: MetaMatterSourceProjectionV1[],
+  ): Promise<MetaMatterApplyReceipt> {
+    try {
+      const addressByPath = new Map(sourceProjections.map((projection) => [
+        this.sourcePath(projection.address),
+        projection.address,
+      ] as const))
+      const published = await recoverAndPublishSourceCandidates(
+        operationId,
+        sourceProjections.map((projection) => ({
+          targetPath: this.sourcePath(projection.address),
+          beforeRevision: projection.beforeRevision,
+          afterRevision: projection.afterRevision,
+        })),
+      )
+      const files = published.files.map((file) => ({
+        address: addressByPath.get(file.targetPath)!,
+        beforeRevision: file.beforeRevision,
+        afterRevision: file.afterRevision,
+        outcome: file.outcome,
+      })).sort((left, right) => left.address.localeCompare(right.address))
+      return {
+        ...receiptBase(operationId, requestDigest, acceptance, sourceProjections),
+        phase: "complete",
+        source: {
+          outcome: files.some(({outcome}) => outcome === "published")
+            ? "published"
+            : "already_published",
+          files,
+        },
+      }
+    } catch (error) {
+      return pendingReceipt(operationId, requestDigest, acceptance, sourceProjections, error)
     }
   }
 }

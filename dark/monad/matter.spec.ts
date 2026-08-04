@@ -1,5 +1,5 @@
 import {afterEach, describe, expect, test} from "bun:test"
-import {mkdir, mkdtemp, readFile, readdir, rm, writeFile} from "node:fs/promises"
+import {mkdir, mkdtemp, readFile, readdir, rm, unlink, writeFile} from "node:fs/promises"
 import {tmpdir} from "node:os"
 import {dirname, join} from "node:path"
 import {
@@ -40,6 +40,10 @@ const metaSource = (children: readonly MetaAddress[]): string => `export default
 
 const fixture = async (
   matter: ReadonlyMap<MetaAddress, readonly MatterParticle[]>,
+  afterForce?: (
+    paths: ReadonlyMap<MetaAddress, string>,
+    operationId: string,
+  ) => Promise<void>,
 ): Promise<{
   root: string
   boundary: BoundaryDatabase
@@ -88,6 +92,7 @@ const fixture = async (
       const particle = sourceForceMessage(input, "dark").parts[0]
       const accepted = history.accept(particle, cause)
       await boundary.materialize({parts: [particle]})
+      await afterForce?.(paths, cause.operationId)
       return {
         ok: true as const,
         delivered: ["boundary", "bulk"] as Array<"boundary" | "bulk">,
@@ -105,7 +110,13 @@ const fixture = async (
     boundary,
     history,
     paths,
-    service: new MatterAuthoringService(history, force, () => [grant], readParent),
+    service: new MatterAuthoringService(
+      history,
+      force,
+      () => [grant],
+      readParent,
+      (address) => paths.get(address)!,
+    ),
   }
 }
 
@@ -121,12 +132,11 @@ const applyBoundary = async (
 const revision = async (path: string) => sourceRevision(await readFile(path))
 
 describe("Matter authoring service", () => {
-  test("accepts add once, keeps canonical source unchanged and returns the same receipt on repeat", async () => {
+  test("accepts add once, publishes source and repeats without a second runtime mutation", async () => {
     const current = new Map<MetaAddress, readonly MatterParticle[]>([[ROOT, []]])
     const test = await fixture(current)
     await applyBoundary(test.boundary, "add", "wimp", {src: ROOT, name: "Root", desc: null})
     const rootPath = test.paths.get(ROOT)!
-    const before = await readFile(rootPath, "utf8")
     const request: MetaMatterRequest = {
       contractVersion: META_AUTHORING_CONTRACT_VERSION,
       operationId: "add-child",
@@ -142,16 +152,21 @@ describe("Matter authoring service", () => {
     await expect(test.service.apply({...request, child: NESTED}, RPC_SOURCE))
       .rejects.toThrow("already bound to a different request")
 
-    expect(repeated).toEqual(first)
     expect(first).toMatchObject({
-      phase: "source_pending",
+      phase: "complete",
       boundary: "applied",
       acceptance: {cutId: "matter-authoring-test", sequence: 1, id: "matter-authoring-test:1"},
       sourceProjections: [{address: ROOT, beforeRevision: request.revisions[0]!.revision}],
+      source: {outcome: "published", files: [{address: ROOT, outcome: "published"}]},
+    })
+    expect(repeated).toMatchObject({
+      phase: "complete",
+      acceptance: first.acceptance,
+      source: {outcome: "already_published", files: [{address: ROOT, outcome: "already_published"}]},
     })
     expect(test.history.read()).toHaveLength(1)
-    expect(await readFile(rootPath, "utf8")).toBe(before)
-    expect((await readdir(dirname(rootPath))).some((file) => file.includes("add-child") && file.endsWith(".candidate"))).toBe(true)
+    expect(await readFile(rootPath, "utf8")).toContain(`src="${CHILD}"`)
+    expect((await readdir(dirname(rootPath))).some((file) => file.includes("add-child") && file.endsWith(".candidate"))).toBe(false)
     expect(await test.boundary.projection.sql<Array<{src: string}>>`
       SELECT edge.src FROM matter_particle_wimp AS edge
       JOIN matter_particle AS matter ON matter.id = edge.particle
@@ -182,9 +197,6 @@ describe("Matter authoring service", () => {
     `)[0]!.id)
     const rootPath = test.paths.get(ROOT)!
     const nestedPath = test.paths.get(NESTED)!
-    const rootBefore = await readFile(rootPath, "utf8")
-    const nestedBefore = await readFile(nestedPath, "utf8")
-
     const result = await test.service.apply({
       contractVersion: META_AUTHORING_CONTRACT_VERSION,
       operationId: "move-child",
@@ -199,9 +211,10 @@ describe("Matter authoring service", () => {
       ],
     }, RPC_SOURCE)
 
+    expect(result).toMatchObject({phase: "complete", source: {outcome: "published"}})
     expect(result.sourceProjections.map(({address}) => address)).toEqual([NESTED, ROOT])
-    expect(await readFile(rootPath, "utf8")).toBe(rootBefore)
-    expect(await readFile(nestedPath, "utf8")).toBe(nestedBefore)
+    expect(await readFile(rootPath, "utf8")).not.toContain(`src="${CHILD}"`)
+    expect(await readFile(nestedPath, "utf8")).toContain(`src="${CHILD}"`)
     expect(await test.boundary.projection.sql<Array<{id: number; parentAtom: number | null}>>`
       SELECT id, parent_atom AS parentAtom FROM atom WHERE wimp = ${CHILD}
     `).toEqual([{id: childBefore, parentAtom: nestedAtom}])
@@ -216,9 +229,7 @@ describe("Matter authoring service", () => {
     })
     await applyBoundary(test.boundary, "add", "wimp", {src: CHILD, name: "Child", desc: null})
     const rootPath = test.paths.get(ROOT)!
-    const before = await readFile(rootPath, "utf8")
-
-    await test.service.apply({
+    const result = await test.service.apply({
       contractVersion: META_AUTHORING_CONTRACT_VERSION,
       operationId: "remove-child",
       capability: META_MATTER_WRITE_CAPABILITY,
@@ -228,12 +239,45 @@ describe("Matter authoring service", () => {
       revisions: [{address: ROOT, revision: await revision(rootPath)}],
     }, RPC_SOURCE)
 
-    expect(await readFile(rootPath, "utf8")).toBe(before)
+    expect(result).toMatchObject({phase: "complete", source: {outcome: "published"}})
+    expect(await readFile(rootPath, "utf8")).not.toContain(`src="${CHILD}"`)
     expect(await test.boundary.projection.sql<Array<{count: number}>>`
       SELECT COUNT(*) AS count FROM matter_particle WHERE wimp = ${ROOT}
     `).toEqual([{count: 0}])
     expect(await test.boundary.projection.sql<Array<{count: number}>>`
       SELECT COUNT(*) AS count FROM atom WHERE wimp = ${CHILD}
     `).toEqual([{count: 0}])
+  })
+
+  test("returns source_pending and repeats only projection when an accepted candidate is lost", async () => {
+    const current = new Map<MetaAddress, readonly MatterParticle[]>([[ROOT, []]])
+    const test = await fixture(current, async (paths, operationId) => {
+      const rootPath = paths.get(ROOT)!
+      await unlink(join(dirname(rootPath), `.meta.ts.${operationId}.candidate`))
+    })
+    await applyBoundary(test.boundary, "add", "wimp", {src: ROOT, name: "Root", desc: null})
+    const rootPath = test.paths.get(ROOT)!
+    const before = await readFile(rootPath, "utf8")
+    const request: MetaMatterRequest = {
+      contractVersion: META_AUTHORING_CONTRACT_VERSION,
+      operationId: "add-lost-candidate",
+      capability: META_MATTER_WRITE_CAPABILITY,
+      operation: "add",
+      child: CHILD,
+      toParent: ROOT,
+      revisions: [{address: ROOT, revision: await revision(rootPath)}],
+    }
+
+    const first = await test.service.apply(request, RPC_SOURCE)
+    const repeated = await test.service.apply(request, RPC_SOURCE)
+
+    expect(first).toMatchObject({
+      phase: "source_pending",
+      acceptance: {id: "matter-authoring-test:1"},
+      source: {outcome: "pending", error: expect.stringContaining("candidate is missing")},
+    })
+    expect(repeated).toMatchObject({phase: "source_pending", acceptance: first.acceptance})
+    expect(test.history.read()).toHaveLength(1)
+    expect(await readFile(rootPath, "utf8")).toBe(before)
   })
 })

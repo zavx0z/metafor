@@ -68,15 +68,31 @@ export interface MetaForceAcceptanceIdentity {
   id: string
 }
 
-export interface MetaMatterApplyReceipt {
+interface MetaMatterApplyReceiptBase {
   contractVersion: typeof META_AUTHORING_CONTRACT_VERSION
   operationId: MetaAuthoringOperationId
   requestDigest: MetaAuthoringRequestDigest
-  phase: "source_pending"
   acceptance: MetaForceAcceptanceIdentity
   sourceProjections: MetaMatterSourceProjectionV1[]
   boundary: "applied"
 }
+
+export interface MetaMatterPublishedSourceV1 extends MetaMatterSourceProjectionV1 {
+  outcome: "published" | "already_published"
+}
+
+export type MetaMatterApplyReceipt =
+  | MetaMatterApplyReceiptBase & {
+      phase: "source_pending"
+      source: {outcome: "pending"; error: string}
+    }
+  | MetaMatterApplyReceiptBase & {
+      phase: "complete"
+      source: {
+        outcome: "published" | "already_published"
+        files: MetaMatterPublishedSourceV1[]
+      }
+    }
 
 interface MetaAuthoringWriteEnvelope {
   contractVersion: typeof META_AUTHORING_CONTRACT_VERSION
