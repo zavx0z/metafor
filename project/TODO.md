@@ -26,7 +26,6 @@ flowchart LR
     MTX002["MTX-002 · память"]
     MTX003["MTX-003 · структура и Process"]
     MTX004["MTX-004 · срок Energy"]
-    MF103["MF-103 · history и Mass"]
     MF104["MF-104 · сессия чтения"]
     MF109["MF-109 · ветвь исполнения"]
     MF110["MF-110 · ветвь Interpreter"]
@@ -41,14 +40,11 @@ flowchart LR
     MF409["MF-409 · полное Matter tree"]
     MF410["MF-410 · runtime Field и Process"]
 
-    MF103 --> MF206
     MF206 --> MF408
     MF206 --> MF404
     MF206 --> MF409
-    MF103 --> MF410
     MF206 --> MF410
     MF404 --> MF410
-    MF103 --> MF104
     MF206 --> MF104
     MF408 --> MF104
     MF404 --> MF104
@@ -67,13 +63,12 @@ flowchart LR
 
 | ID     | Состояние   | Зависимости                                                     | Карточка                   |
 | ------ | ----------- | --------------------------------------------------------------- | -------------------------- |
-| MF-103 | REVIEW      | нет                                                             | [Открыть](tasks/MF-103.md) |
-| MF-206 | WAITING     | MF-103                                                          | [Открыть](tasks/MF-206.md) |
+| MF-206 | READY       | нет                                                             | [Открыть](tasks/MF-206.md) |
 | MF-408 | WAITING     | MF-206                                                          | [Открыть](tasks/MF-408.md) |
 | MF-404 | WAITING     | MF-206                                                          | [Открыть](tasks/MF-404.md) |
 | MF-409 | WAITING     | MF-206                                                          | [Открыть](tasks/MF-409.md) |
-| MF-410 | WAITING     | MF-103, MF-206, MF-404                                          | [Открыть](tasks/MF-410.md) |
-| MF-104 | WAITING     | MF-103, MF-206, MF-408, MF-404, MF-409, MF-410                  | [Открыть](tasks/MF-104.md) |
+| MF-410 | WAITING     | MF-206, MF-404                                                  | [Открыть](tasks/MF-410.md) |
+| MF-104 | WAITING     | MF-206, MF-408, MF-404, MF-409, MF-410                          | [Открыть](tasks/MF-104.md) |
 
 Полная сессия `MF-104` не начинается, пока каждый отсутствующий метод из
 зафиксированного inventory не реализован и не проверен.
