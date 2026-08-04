@@ -121,10 +121,8 @@ canonical runtime Atom identity. Source Matter identity для `move` вычис
 `meta.declaration.apply` с capability `meta.declaration.write` изменяет одну
 декларационную entity существующей Meta. Действующий закрытый union содержит
 template metadata, optional Field, State вместе с transitions и conditions,
-Mass declaration, Reaction и Bulk view. Он принимает применимые к entity
-операции `add`, `replace`, `remove` и значимый `move`, а также точные ожидаемые
-revisions всех затрагиваемых `meta.ts`. Process остаётся следующим slice того
-же метода.
+Mass declaration, Reaction, Process и Bulk view. Он принимает применимые к
+entity операции и точные ожидаемые revisions всех затрагиваемых `meta.ts`.
 
 Клиент адресует Field по canonical Meta address и semantic key. SQLite row ID,
 Variant row и filesystem path не являются частью RPC. Строковые, числовые,
@@ -141,6 +139,23 @@ WIMP-local `localId` и после commit обновляет Mass projection к�
 существующего Atom этой Meta. Reaction адресуется обязательным semantic key,
 который также входит в её initiator. Bulk остаётся singleton declaration:
 `view_css` хранится в Boundary, но не входит в Bulk Store.
+
+Process адресуется именем State и в текущем slice поддерживает `add` и
+`replace`. `add` добавляет Process последним и требует новый принадлежащий ему
+`actions/<file>.ts` с precondition `absent`. `replace` сохраняет Process slot,
+имя State и тип `action` либо `finally`; action artifact можно не передавать,
+если меняются только descriptor или inline success/error handlers. Переданный
+при `replace` artifact обязан указывать тот же уже принадлежащий Process файл и
+его точную sha256 revision. Путь ограничен одним TypeScript-файлом внутри
+`actions/`, а export — закрытым набором имён; произвольный filesystem path и
+source writer отсутствуют.
+
+RPC принимает handler source как function expression, но не принимает готовый
+wrapper. Wrapper динамического import строится детерминированно из проверенного
+artifact path и export. До live commit проверяются синтаксис action artifact,
+наличие export, синтаксис handlers, State key и Field references. `meta.ts` и
+изменяемый action artifact являются source targets одного принятого patch.
+Отдельная Process operation или generator не создаётся.
 
 Чтобы существующие local identities других declarations не менялись после
 cold read, `add` добавляет последний Field, `remove` и `move` принимают только
@@ -161,7 +176,7 @@ RPC request
 → подготовка точных source candidates без публикации
 → один принятый structural patch
 → Dark Force history и Boundary commit
-→ тот же неизменяемый patch публикует подготовленные meta.ts
+→ тот же неизменяемый patch публикует подготовленные meta.ts и owned artifacts
 → receipt
 ```
 
@@ -193,13 +208,14 @@ revisions уже атомарно связаны в Force history. Повтор 
 identity, продолжает projection того же patch и не выполняет новую runtime
 mutation.
 
-Имена candidate, rollback и lock однозначно выводятся из target `meta.ts` и
-`operationId`. Projector принимает только три состояния target: точную
-before revision, точную after revision или конфликт. При before обязателен
-candidate с after revision. Частично опубликованный multi-file move дополнительно
-требует rollback bytes с before revision для уже заменённого target. Если все
-targets уже имеют after revisions, операция считается завершённой и оставшиеся
-технические artifacts удаляются под теми же source locks.
+Имена candidate, rollback и lock однозначно выводятся из source target и
+`operationId`. Projector принимает только точный `absent` либо before revision,
+точную after revision или конфликт. При before обязателен candidate с after
+revision. Частично опубликованный multi-file patch дополнительно требует
+rollback bytes с before revision для уже заменённого target; созданный из
+`absent` target откатывается удалением. Если все targets уже имеют after
+revisions, операция считается завершённой и оставшиеся технические artifacts
+удаляются под теми же source locks.
 
 Provider возвращает предметный outcome одной из фаз: `rejected`, `created`,
 `runtime_committed`, `source_pending` или `complete`. Неизвестный частичный
@@ -220,7 +236,7 @@ entry, точные before/after source revisions и наблюдаемую пр
 - Create template boundary — полный набор файлов нового Meta;
 - Dark Force — durable acceptance и причинный порядок Inflaton;
 - Boundary — canonical live commit;
-- source projector — публикация заранее подготовленных `meta.ts`;
+- source projector — публикация заранее подготовленных source targets;
 - Git provider — только отдельно разрешённые add/commit/push operations.
 
 ## Оставшееся функциональное расширение для одного агента
@@ -230,16 +246,14 @@ entry, точные before/after source revisions и наблюдаемую пр
 Новая access policy, новый graph scope и конкурентные writes в это расширение
 не входят.
 
-Действующий `meta.declaration.apply` уже использует один закрытый write envelope,
+Действующий `meta.declaration.apply` использует один закрытый write envelope,
 точную source revision и live-first/source-projection порядок для metadata,
-Field, State composition, Mass, Reaction и Bulk. Следующий slice добавляет
-Process вместе с ограниченным набором принадлежащих этой декларации action и
-handler source artifacts.
+Field, State composition, Mass, Reaction, Process и Bulk. Process включает
+ограниченный набор принадлежащих декларации action и handler source artifacts.
 
-Эти операции `add`, `replace`, `remove` и, где порядок является частью договора,
-`move` адресуют semantic entity по canonical Meta address и ключу либо имени,
+Операции адресуют semantic entity по canonical Meta address и ключу либо имени,
 а не по SQLite row ID или filesystem path. Одна изменённая entity остаётся
-одной принятой Inflaton Particle. Process использует этот же provider и patch
+одной принятой Inflaton Particle. Process использует тот же provider и patch
 path; отдельный Process generator и произвольный source writer не создаются.
 
 Действующий `meta.matter.apply` расширяется, а не дублируется вторым Matter

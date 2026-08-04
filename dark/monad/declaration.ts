@@ -1,4 +1,5 @@
 import "../.."
+import {dirname, resolve} from "node:path"
 import {
   META_AUTHORING_CONTRACT_VERSION,
   META_DECLARATION_AUTHORING_CAUSE_SCHEMA_V1,
@@ -168,7 +169,11 @@ export class DeclarationAuthoringService {
     const requestDigest = metaAuthoringRequestDigest(request)
     const existing = this.history.findAuthoring(rpcSource, request.operationId)
     if (existing) {
-      if (!existing.authoring || existing.authoring.requestDigest !== requestDigest) {
+      if (
+        !existing.authoring ||
+        existing.authoring.schema !== META_DECLARATION_AUTHORING_CAUSE_SCHEMA_V1 ||
+        existing.authoring.requestDigest !== requestDigest
+      ) {
         throw new DeclarationAuthoringError(
           `Operation ${rpcSource}/${request.operationId} is already bound to a different request`,
         )
@@ -200,15 +205,20 @@ export class DeclarationAuthoringService {
       prepared = await prepareSourceCandidates(plan.sourceEdits.map((edit) => ({
         targetPath: edit.targetPath,
         operationId: request.operationId,
-        expectedRevision: current.get(edit.address)!,
+        expectedRevision: edit.expectedRevision ?? current.get(edit.address)!,
         source: edit.afterSource,
       })))
-      const addressByPath = new Map(plan.sourceEdits.map((edit) => [edit.targetPath, edit.address] as const))
+      const editByPath = new Map(plan.sourceEdits.map((edit) => [edit.targetPath, edit] as const))
       const sourceProjections = prepared.map((candidate) => ({
-        address: addressByPath.get(candidate.targetPath)!,
+        address: editByPath.get(candidate.targetPath)!.address,
+        ...(editByPath.get(candidate.targetPath)!.relativePath === undefined
+          ? {}
+          : {path: editByPath.get(candidate.targetPath)!.relativePath}),
         beforeRevision: candidate.beforeRevision,
         afterRevision: candidate.afterRevision,
-      })).sort((left, right) => left.address.localeCompare(right.address))
+      })).sort((left, right) =>
+        `${left.address}\u0000${left.path ?? "meta.ts"}`.localeCompare(`${right.address}\u0000${right.path ?? "meta.ts"}`)
+      )
       const cause: MetaDeclarationAuthoringCauseV1 = {
         schema: META_DECLARATION_AUTHORING_CAUSE_SCHEMA_V1,
         contractVersion: META_AUTHORING_CONTRACT_VERSION,
@@ -242,24 +252,35 @@ export class DeclarationAuthoringService {
   ): Promise<MetaDeclarationApplyReceipt> {
     try {
       await this.projection.apply(particle)
-      const addressByPath = new Map(sourceProjections.map((projection) => [
-        this.sourcePath(projection.address),
-        projection.address,
+      const targetPath = (projection: MetaDeclarationSourceProjectionV1): string => {
+        const metaPath = this.sourcePath(projection.address)
+        return projection.path === undefined || projection.path === "meta.ts"
+          ? metaPath
+          : resolve(dirname(metaPath), projection.path)
+      }
+      const projectionByPath = new Map(sourceProjections.map((projection) => [
+        targetPath(projection),
+        projection,
       ] as const))
       const published = await recoverAndPublishSourceCandidates(
         operationId,
         sourceProjections.map((projection) => ({
-          targetPath: this.sourcePath(projection.address),
+          targetPath: targetPath(projection),
           beforeRevision: projection.beforeRevision,
           afterRevision: projection.afterRevision,
         })),
       )
       const files = published.files.map((file) => ({
-        address: addressByPath.get(file.targetPath)!,
+        address: projectionByPath.get(file.targetPath)!.address,
+        ...(projectionByPath.get(file.targetPath)!.path === undefined
+          ? {}
+          : {path: projectionByPath.get(file.targetPath)!.path}),
         beforeRevision: file.beforeRevision,
         afterRevision: file.afterRevision,
         outcome: file.outcome,
-      })).sort((left, right) => left.address.localeCompare(right.address))
+      })).sort((left, right) =>
+        `${left.address}\u0000${left.path ?? "meta.ts"}`.localeCompare(`${right.address}\u0000${right.path ?? "meta.ts"}`)
+      )
       return {
         ...receiptBase(operationId, requestDigest, acceptance, sourceProjections),
         phase: "complete",

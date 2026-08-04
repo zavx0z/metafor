@@ -516,7 +516,7 @@ describe("meta.declaration.apply Field validation", () => {
 })
 
 describe("meta.declaration.apply Meta entity validation", () => {
-  test("accepts the closed metadata, State, Mass, Reaction and Bulk declarations", () => {
+  test("accepts the closed metadata, State, Mass, Reaction, Process and Bulk declarations", () => {
     const common = {
       contractVersion: META_AUTHORING_CONTRACT_VERSION,
       capability: META_DECLARATION_WRITE_CAPABILITY,
@@ -545,6 +545,17 @@ describe("meta.declaration.apply Meta entity validation", () => {
         },
       },
       {
+        ...common, operationId: "process-add", entity: "process", operation: "add",
+        process: {
+          key: "ready", type: "action", label: "Run", env: ["server"],
+          artifact: {
+            path: "actions/run.ts", revision: "absent", exportName: "default",
+            source: "export default async () => ({ ok: true })\n",
+          },
+          successSource: "({ update }) => update({ status: 'done' })",
+        },
+      },
+      {
         ...common, operationId: "bulk-add", entity: "bulk", operation: "add",
         bulk: {view: ".ready { color: green; }"},
       },
@@ -556,6 +567,57 @@ describe("meta.declaration.apply Meta entity validation", () => {
       expect(result).toEqual({ok: true, value: input})
       if (result.ok) expect(result.value).not.toBe(input)
     }
+  })
+
+  test("accepts Process replace without rewriting its artifact", () => {
+    const input: MetaDeclarationRequest = {
+      contractVersion: META_AUTHORING_CONTRACT_VERSION,
+      operationId: "process-replace",
+      capability: META_DECLARATION_WRITE_CAPABILITY,
+      entity: "process",
+      operation: "replace",
+      address: TEST,
+      key: "ready",
+      process: {key: "ready", type: "action", label: "Updated"},
+      revisions: [{address: TEST, revision: TEST_REVISION}],
+    }
+    expect(validateMetaDeclarationRequest(input, {
+      capabilities: [declarationGrant()], currentRevision,
+    })).toEqual({ok: true, value: input})
+  })
+
+  test.each([
+    ["unsafe artifact", {
+      key: "ready", type: "action", artifact: {
+        path: "../run.ts", revision: "absent", exportName: "default",
+        source: "export default () => null",
+      },
+    }, "invalid_process_artifact_path"],
+    ["existing add artifact", {
+      key: "ready", type: "action", artifact: {
+        path: "actions/run.ts", revision: TEST_REVISION, exportName: "default",
+        source: "export default () => null",
+      },
+    }, "invalid_source_revision"],
+    ["unknown environment", {
+      key: "ready", type: "finally", env: ["edge"], artifact: {
+        path: "actions/cleanup.ts", revision: "absent", exportName: "run",
+        source: "export const run = () => null",
+      },
+    }, "invalid_process_environment"],
+  ])("rejects Process %s", (_label, process, code) => {
+    const result = validateMetaDeclarationRequest({
+      contractVersion: META_AUTHORING_CONTRACT_VERSION,
+      operationId: "process-invalid",
+      capability: META_DECLARATION_WRITE_CAPABILITY,
+      entity: "process",
+      operation: "add",
+      address: TEST,
+      process,
+      revisions: [{address: TEST, revision: TEST_REVISION}],
+    }, {capabilities: [declarationGrant()], currentRevision})
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.issues.map((issue) => issue.code)).toContain(code)
   })
 
   test("rejects executable-looking Bulk fields and empty Reaction source", () => {

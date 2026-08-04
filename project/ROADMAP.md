@@ -39,13 +39,15 @@
   для inert root-level WIMP в последней позиции через RPC с live-first
   materialization и автоматической source projection.
 * `meta.declaration.apply` проводит metadata, optional Field, State composition,
-  Mass, Reaction и Bulk `add/replace/remove` и значимый `move`; вложенные
+  Mass, Reaction, Process и Bulk. Process `add/replace` принимает закрытый
+  descriptor, inline handlers и один owned `actions/*.ts`; `meta.ts` и action
+  artifact публикуются как source targets того же принятого patch. Вложенные
   Variant и Transition/Condition остаются составом одной принятой entity
   Inflaton, а source, Boundary и нужные runtime domains получают проекции того
   же patch.
 * Эта поверхность пока не является полной рабочей поверхностью агента: нет
-  Process authoring, полной композиции Matter, предметного runtime Field input
-  и наблюдения исполнения Process.
+  полной композиции Matter, предметного runtime Field input и наблюдения
+  исполнения Process.
 
 ## Graph
 
@@ -101,7 +103,7 @@ digest и causal frontier без `MassHandle` и filesystem path. Второй �
 * `meta.create`;
 * первый ограниченный slice `meta.matter.apply`;
 * `meta.declaration.apply` для metadata, optional Field, State composition,
-  Mass, Reaction и Bulk;
+  Mass, Reaction, Process и Bulk;
 * `dark.force.history.read` и `energy.mass.result.read`;
 * `dark.force.pause`, `dark.force.step`, `dark.force.stack`,
   `dark.force.resume`;
@@ -109,7 +111,6 @@ digest и causal frontier без `MassHandle` и filesystem path. Второй �
 
 До полной рабочей сессии должны быть реализованы:
 
-* Process slice `meta.declaration.apply` с ограниченными source artifacts;
 * полный Matter tree contract через расширение существующего
   `meta.matter.apply`;
 * `meta.field.value.apply` с публичным Atom locator;
@@ -224,7 +225,6 @@ Bulk. Она должна уметь:
 
 ## Порядок оставшейся работы
 
-1. через тот же `meta.declaration.apply` реализовать создание и обновление Process;
 1. расширить `meta.matter.apply` до полного Matter tree;
 1. реализовать `meta.field.value.apply` и `meta.process.execution.read`;
 1. доказать одну полную рабочую сессию агента без скрытого контекста;

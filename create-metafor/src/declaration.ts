@@ -1,10 +1,13 @@
 import ts from "typescript"
+import {dirname, resolve} from "node:path"
 import type {
   MetaBulkDeclaration,
   MetaDeclarationRequest,
   MetaMassDeclaration,
   MetaOptionalFieldDeclaration,
+  MetaProcessDeclaration,
   MetaReactionDeclaration,
+  MetaSourcePrecondition,
   MetaStateDeclaration,
 } from "@metafor/types/metafor/authoring"
 import type {MetaAddress} from "@metafor/types/metafor/graph"
@@ -17,7 +20,7 @@ import type {
   MetaSuperpositionDSL,
 } from "@metafor/types/metafor/schema"
 import type {ForceMessageInput} from "shared/protocol/force/message"
-import {normalizeFunctionString, updateAppendArg} from "../../action.ts"
+import {normalizeFunctionString, parseFunction, updateAppendArg} from "../../action.ts"
 
 export type DeclarationPatchErrorCode =
   | "meta_missing"
@@ -58,6 +61,8 @@ export interface DeclarationMetaSnapshot {
 export interface DeclarationSourceEdit {
   address: MetaAddress
   targetPath: string
+  relativePath?: "meta.ts" | `actions/${string}.ts`
+  expectedRevision?: MetaSourcePrecondition
   beforeSource: string
   afterSource: string
 }
@@ -175,6 +180,9 @@ type ExpressionRange = {start: number; end: number; indent: string}
 
 const parsedSource = (source: string): ts.SourceFile =>
   ts.createSourceFile("meta.ts", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS)
+
+const parseDiagnostics = (file: ts.SourceFile): readonly ts.Diagnostic[] =>
+  (file as ts.SourceFile & {parseDiagnostics: readonly ts.Diagnostic[]}).parseDiagnostics
 
 const nodeIndent = (source: string, start: number): string => {
   const lineStart = source.lastIndexOf("\n", start) + 1
@@ -376,6 +384,92 @@ const reactionsSource = (snapshot: DeclarationMetaSnapshot, entries: readonly st
   return replaceRange(snapshot.source, range, array)
 }
 
+const processSourceEntries = (snapshot: DeclarationMetaSnapshot): string[] => {
+  const processes = snapshot.processes ?? []
+  const {file, calls} = chainCalls(snapshot.source, "processes")
+  const call = calls[0]
+  const callback = call?.arguments[0] ? unwrap(call.arguments[0]) : null
+  if (calls.length !== 1 || !call || call.arguments.length !== 1 || !callback || !ts.isArrowFunction(callback)) {
+    throw new DeclarationPatchError("unsupported_declaration_source", "meta.ts must contain one canonical .processes arrow callback")
+  }
+  const names = callback.parameters.map((parameter) => ts.isIdentifier(parameter.name) ? parameter.name.text : null)
+  if (
+    names.some((name) => name === null) || names.length > 2 ||
+    (names[0] !== undefined && names[0] !== "process") ||
+    (names[1] !== undefined && names[1] !== "destroy")
+  ) {
+    throw new DeclarationPatchError("unsupported_declaration_source", ".processes callback parameters must be process and destroy")
+  }
+  const expression = returnedExpression(callback)
+  if (!expression || !ts.isArrayLiteralExpression(expression) || expression.elements.some(ts.isSpreadElement)) {
+    throw new DeclarationPatchError("unsupported_declaration_source", ".processes callback must return one explicit array")
+  }
+  if (expression.elements.length !== processes.length) {
+    throw new DeclarationPatchError("unsupported_declaration_source", "Process source and normalized declaration differ")
+  }
+  return expression.elements.map((element) => snapshot.source.slice(element.getStart(file), element.getEnd()))
+}
+
+const processesSource = (snapshot: DeclarationMetaSnapshot, entries: readonly string[]): string => {
+  const {file, calls} = chainCalls(snapshot.source, "processes")
+  const call = calls[0]
+  const callback = call?.arguments[0] ? unwrap(call.arguments[0]) : null
+  const returned = callback ? returnedExpression(callback) : null
+  if (!call || !callback || !ts.isArrowFunction(callback) || !returned || !ts.isArrayLiteralExpression(returned)) {
+    throw new DeclarationPatchError("unsupported_declaration_source", "meta.ts must contain one canonical .processes arrow callback")
+  }
+  const range = {
+    start: returned.getStart(file),
+    end: returned.getEnd(),
+    indent: nodeIndent(snapshot.source, returned.getStart(file)),
+  }
+  const childIndent = `${range.indent}  `
+  const array = entries.length === 0
+    ? "[]"
+    : `[\n${entries.map((entry) => `${childIndent}${indentBlock(entry, childIndent)},`).join("\n")}\n${range.indent}]`
+  let source = replaceRange(snapshot.source, range, array)
+  const parametersStart = callback.getStart(file)
+  const parametersEnd = callback.equalsGreaterThanToken.getStart(file)
+  source = source.slice(0, parametersStart) + "(process, destroy) " + source.slice(parametersEnd)
+  return source
+}
+
+const processConfig = (process: MetaProcessDeclaration): string => {
+  const entries = [
+    ...(process.label === undefined ? [] : [`label: ${json(process.label)}`]),
+    ...(process.description === undefined ? [] : [`desc: ${json(process.description)}`]),
+    ...(process.env === undefined ? [] : [`env: ${json(process.env)}`]),
+  ]
+  return entries.length === 0 ? "" : `, { ${entries.join(", ")} }`
+}
+
+const processWrapper = (
+  type: MetaProcessDeclaration["type"],
+  artifact: NonNullable<MetaProcessDeclaration["artifact"]>,
+): string => {
+  const importPath = `./${artifact.path}`
+  const access = artifact.exportName === "default"
+    ? "action.default"
+    : `action.${artifact.exportName}`
+  const bindings = type === "finally"
+    ? ["energy", "mass", "signal"]
+    : ["energy", "field", "mass", "self", "signal", "value"]
+  return `async ({ ${bindings.join(", ")} }) => {\n  const action = await import(${json(importPath)});\n  return ${access}({ ${bindings.join(", ")} });\n}`
+}
+
+const renderProcess = (
+  process: MetaProcessDeclaration,
+  wrapper: string,
+): string => {
+  const head = process.type === "finally" ? "destroy" : "process"
+  let source = `${head}(${json(process.key)}${processConfig(process)})`
+  if (process.type === "finally") return `${source}.before(${wrapper})`
+  source += `.action(${wrapper})`
+  if (process.successSource !== undefined) source += `.success(${process.successSource})`
+  if (process.errorSource !== undefined) source += `.error(${process.errorSource})`
+  return source
+}
+
 const bulkSource = (snapshot: DeclarationMetaSnapshot, bulk?: BulkSchema): string => {
   const {file, calls} = chainCalls(snapshot.source, "bulk")
   const call = calls[0]
@@ -549,9 +643,184 @@ const functionExpression = (source: string, label: string): void => {
     ? statement.declarationList.declarations[0]
     : undefined
   const expression = declaration?.initializer ? unwrap(declaration.initializer) : undefined
-  if (!expression || (!ts.isArrowFunction(expression) && !ts.isFunctionExpression(expression))) {
+  if (
+    parseDiagnostics(file).length > 0 || file.statements.length !== 1 || !expression ||
+    (!ts.isArrowFunction(expression) && !ts.isFunctionExpression(expression))
+  ) {
     throw new DeclarationPatchError("invalid_declaration", `${label} must be one function expression`)
   }
+}
+
+const functionUsage = (source: string, label: string, allowWrite: boolean): {read: string[]; write: string[]} => {
+  functionExpression(source, label)
+  return parseFunction({toString: () => source} as unknown as Function, allowWrite)
+}
+
+const hasModifier = (node: ts.Node, kind: ts.SyntaxKind): boolean =>
+  ts.canHaveModifiers(node) && (ts.getModifiers(node)?.some((modifier) => modifier.kind === kind) ?? false)
+
+const validateProcessArtifactSource = (
+  path: string,
+  source: string,
+  exportName: string,
+): void => {
+  const file = ts.createSourceFile(path, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS)
+  if (parseDiagnostics(file).length > 0) {
+    throw new DeclarationPatchError("invalid_declaration", `Process artifact ${path} contains invalid TypeScript syntax`)
+  }
+  const exported = file.statements.some((statement) => {
+    if (exportName === "default") {
+      return (ts.isExportAssignment(statement) && !statement.isExportEquals) ||
+        hasModifier(statement, ts.SyntaxKind.DefaultKeyword)
+    }
+    if (!hasModifier(statement, ts.SyntaxKind.ExportKeyword)) return false
+    if (
+      (ts.isFunctionDeclaration(statement) || ts.isClassDeclaration(statement)) &&
+      statement.name?.text === exportName
+    ) return true
+    if (ts.isVariableStatement(statement)) {
+      return statement.declarationList.declarations.some((declaration) =>
+        ts.isIdentifier(declaration.name) && declaration.name.text === exportName
+      )
+    }
+    if (ts.isExportDeclaration(statement) && statement.exportClause && ts.isNamedExports(statement.exportClause)) {
+      return statement.exportClause.elements.some((element) => element.name.text === exportName)
+    }
+    return false
+  })
+  if (!exported) {
+    throw new DeclarationPatchError("invalid_declaration", `Process artifact ${path} does not export ${exportName}`)
+  }
+}
+
+const normalizedHandler = (
+  source: string | undefined,
+  initiator: "s" | "e",
+  label: string,
+): {src: string; read?: string[]; write?: string[]} | undefined => {
+  if (source === undefined) return undefined
+  const usage = functionUsage(source, label, true)
+  return {
+    src: normalizeFunctionString(updateAppendArg(source, json(initiator))),
+    ...(usage.read.length === 0 ? {} : {read: usage.read}),
+    ...(usage.write.length === 0 ? {} : {write: usage.write}),
+  }
+}
+
+const normalizedProcess = (
+  request: MetaProcessDeclaration,
+  fields: readonly MetaFieldDSL[],
+  wrapper: string,
+  previous?: MetaProcessDSL,
+): MetaProcessDSL => {
+  functionExpression(wrapper, "Process action wrapper")
+  const common = {
+    type: request.type,
+    ...(request.label === undefined ? {} : {label: request.label}),
+    ...(request.description === undefined ? {} : {desc: request.description}),
+    ...(request.env === undefined ? {} : {env: [...request.env]}),
+  }
+  if (request.type === "finally") {
+    return {
+      key: request.key,
+      declaration: {
+        ...common,
+        type: "finally",
+        before: {src: normalizeFunctionString(wrapper)},
+      },
+    }
+  }
+  const previousAction = previous?.declaration.type === "action"
+    ? previous.declaration.action
+    : undefined
+  const artifact = request.artifact
+  const action = artifact
+    ? {
+        src: `./${artifact.path}`,
+        importSpecifier: artifact.exportName,
+        wrapperSrc: normalizeFunctionString(wrapper),
+        read: fields.map((field) => field.key),
+      }
+    : previousAction
+      ? {
+          ...structuredClone(previousAction),
+          wrapperSrc: normalizeFunctionString(wrapper),
+          read: fields.map((field) => field.key),
+        }
+      : null
+  if (!action) throw new DeclarationPatchError("invalid_declaration", "New action Process requires one owned artifact")
+  const success = normalizedHandler(request.successSource, "s", "Process success handler")
+  const error = normalizedHandler(request.errorSource, "e", "Process error handler")
+  return {
+    key: request.key,
+    declaration: {
+      ...common,
+      type: "action",
+      action,
+      ...(success === undefined ? {} : {success}),
+      ...(error === undefined ? {} : {error}),
+    },
+  }
+}
+
+const processValue = (
+  address: MetaAddress,
+  fields: readonly MetaFieldDSL[],
+  processes: readonly MetaProcessDSL[],
+  index: number,
+): Record<string, unknown> => {
+  const fieldIds = new Map(fields.map((field, position) => [field.key, position + 1] as const))
+  const process = processes[index]!
+  const input = process.declaration
+  const ids = (keys: readonly string[] | undefined, label: string): number[] =>
+    (keys ?? []).map((key) => {
+      const id = fieldIds.get(key)
+      if (!id) throw new DeclarationPatchError("invalid_declaration", `Process ${address}/${process.key} ${label} references missing Field ${key}`)
+      return id
+    })
+  const value: Record<string, unknown> = {
+    wimp: address,
+    id: index + 1,
+    key: process.key,
+    type: input.type,
+    env: [...(input.env ?? [])],
+    label: input.label ?? null,
+    desc: input.desc ?? null,
+  }
+  if (input.type === "finally") {
+    const {read, ...before} = input.before
+    value.before = {...before, read: ids(read, "before handler")}
+  } else {
+    const {read, ...action} = input.action
+    value.action = {...action, read: ids(read, "action")}
+    value.success = null
+    value.error = null
+    if (input.success) {
+      const {read: handlerRead, write, ...handler} = input.success
+      value.success = {...handler, read: ids(handlerRead, "success handler"), write: ids(write, "success handler")}
+    }
+    if (input.error) {
+      const {read: handlerRead, write, ...handler} = input.error
+      value.error = {...handler, read: ids(handlerRead, "error handler"), write: ids(write, "error handler")}
+    }
+  }
+  return value
+}
+
+const processWrapperFrom = (process: MetaProcessDSL): string => {
+  const wrapper = process.declaration.type === "finally"
+    ? process.declaration.before.src
+    : process.declaration.action.wrapperSrc
+  if (!wrapper) throw new DeclarationPatchError("invalid_declaration", `Process ${process.key} has no recoverable wrapper source`)
+  return wrapper
+}
+
+const processArtifactPathFrom = (process: MetaProcessDSL): string => {
+  const source = process.declaration.type === "finally"
+    ? /import\s*\(\s*["']\.\/(actions\/[A-Za-z0-9][A-Za-z0-9._-]{0,126}\.ts)["']\s*\)/.exec(process.declaration.before.src)?.[1]
+    : /^\.\/(actions\/[A-Za-z0-9][A-Za-z0-9._-]{0,126}\.ts)$/.exec(process.declaration.action.src)?.[1]
+  if (!source) throw new DeclarationPatchError("invalid_declaration", `Process ${process.key} does not own one canonical action artifact`)
+  return source
 }
 
 const normalizedReaction = (reaction: MetaReactionDeclaration): MetaReactionDSL => {
@@ -728,6 +997,79 @@ const planOtherDeclarationPatch = (
       particle: {parts: [{part: "inflaton", op: "move", path: "mass", from: `${source.address}#${index + 1}`, ts: timestamp, value: massValue(target.address, targetMass, targetMass.length - 1)}]},
       sourceEdits: [genericEdit(source, massSource(source, sourceMass)), genericEdit(target, massSource(target, targetMass))]
         .sort((left, right) => left.address.localeCompare(right.address)),
+    }
+  }
+
+  if (request.entity === "process") {
+    const current = snapshot(snapshots, request.address)
+    const processes = (current.processes ?? []).map((item) => structuredClone(item))
+    const entries = processSourceEntries(current)
+    if (!(current.states ?? []).some((state) => state.name === request.process.key)) {
+      throw new DeclarationPatchError("invalid_declaration", `Process ${current.address}/${request.process.key} references missing State`)
+    }
+    let index: number
+    let wrapper: string
+    if (request.operation === "add") {
+      if (processes.some((item) => item.key === request.process.key)) {
+        throw new DeclarationPatchError("declaration_duplicated", `Process ${current.address}/${request.process.key} already exists`)
+      }
+      validateProcessArtifactSource(
+        request.process.artifact.path,
+        request.process.artifact.source,
+        request.process.artifact.exportName,
+      )
+      wrapper = processWrapper(request.process.type, request.process.artifact)
+      processes.push(normalizedProcess(request.process, current.fields, wrapper))
+      entries.push(renderProcess(request.process, wrapper))
+      index = processes.length - 1
+    } else {
+      index = listIndex(current.address, "Process", processes, request.key, (item) => item.key)
+      const previous = processes[index]!
+      if (request.process.key !== request.key) {
+        throw new DeclarationPatchError("invalid_declaration", "Process replace must preserve its State key")
+      }
+      if (request.process.type !== previous.declaration.type) {
+        throw new DeclarationPatchError("invalid_declaration", "Process replace must preserve action or finally type")
+      }
+      if (request.process.artifact) {
+        if (request.process.artifact.path !== processArtifactPathFrom(previous)) {
+          throw new DeclarationPatchError("invalid_declaration", "Process replace must preserve its owned artifact path")
+        }
+        validateProcessArtifactSource(
+          request.process.artifact.path,
+          request.process.artifact.source,
+          request.process.artifact.exportName,
+        )
+        wrapper = processWrapper(request.process.type, request.process.artifact)
+      } else {
+        wrapper = processWrapperFrom(previous)
+      }
+      processes[index] = normalizedProcess(request.process, current.fields, wrapper, previous)
+      entries[index] = renderProcess(request.process, wrapper)
+    }
+    const sourceEdits: DeclarationSourceEdit[] = [
+      genericEdit(current, processesSource(current, entries)),
+    ]
+    const artifact = request.process.artifact
+    if (artifact) {
+      sourceEdits.push({
+        address: current.address,
+        targetPath: resolve(dirname(current.targetPath), artifact.path),
+        relativePath: artifact.path,
+        expectedRevision: artifact.revision,
+        beforeSource: "",
+        afterSource: artifact.source,
+      })
+    }
+    return {
+      particle: {parts: [{
+        part: "inflaton",
+        op: request.operation,
+        path: "process",
+        ts: timestamp,
+        value: processValue(current.address, current.fields, processes, index),
+      }]},
+      sourceEdits: sourceEdits.sort((left, right) => left.targetPath.localeCompare(right.targetPath)),
     }
   }
 

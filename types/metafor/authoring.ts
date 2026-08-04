@@ -2,6 +2,7 @@ import {
   parseMetaAddress,
   type JsonPointer,
   type MetaAddress,
+  type MetaExecutionEnv,
   type ValidationIssue,
   type ValidationResult,
 } from "./graph.ts"
@@ -68,6 +69,7 @@ export interface MetaSourceRevisionReadReceipt {
 
 export type MetaAuthoringOperationId = string
 export type MetaSourceRevision = `sha256:${string}`
+export type MetaSourcePrecondition = MetaSourceRevision | "absent"
 export type MetaAuthoringRequestDigest = `sha256:${string}`
 
 export const META_MATTER_AUTHORING_CAUSE_SCHEMA_V1 =
@@ -82,7 +84,12 @@ export interface MetaAuthoringSourceProjectionV1 {
 }
 
 export type MetaMatterSourceProjectionV1 = MetaAuthoringSourceProjectionV1
-export type MetaDeclarationSourceProjectionV1 = MetaAuthoringSourceProjectionV1
+export interface MetaDeclarationSourceProjectionV1 {
+  address: MetaAddress
+  path?: "meta.ts" | `actions/${string}.ts`
+  beforeRevision: MetaSourcePrecondition
+  afterRevision: MetaSourceRevision
+}
 
 /** Immutable RPC causation stored in the same Dark Force history row. */
 export interface MetaMatterAuthoringCauseV1 {
@@ -148,7 +155,40 @@ export type MetaMatterApplyReceipt =
       materialization: {outcome: "applied"}
     }
 
-export type MetaDeclarationApplyReceipt = MetaMatterApplyReceipt
+interface MetaDeclarationApplyReceiptBase {
+  contractVersion: typeof META_AUTHORING_CONTRACT_VERSION
+  operationId: MetaAuthoringOperationId
+  requestDigest: MetaAuthoringRequestDigest
+  acceptance: MetaForceAcceptanceIdentity
+  sourceProjections: MetaDeclarationSourceProjectionV1[]
+  boundary: "applied"
+}
+
+export interface MetaDeclarationPublishedSourceV1 extends MetaDeclarationSourceProjectionV1 {
+  outcome: "published" | "already_published"
+}
+
+export type MetaDeclarationApplyReceipt =
+  | MetaDeclarationApplyReceiptBase & {
+      phase: "source_pending"
+      source: {outcome: "pending"; error: string}
+    }
+  | MetaDeclarationApplyReceiptBase & {
+      phase: "runtime_committed"
+      source: {
+        outcome: "published" | "already_published"
+        files: MetaDeclarationPublishedSourceV1[]
+      }
+      materialization: {outcome: "pending"; error: string}
+    }
+  | MetaDeclarationApplyReceiptBase & {
+      phase: "complete"
+      source: {
+        outcome: "published" | "already_published"
+        files: MetaDeclarationPublishedSourceV1[]
+      }
+      materialization: {outcome: "applied"}
+    }
 
 interface MetaAuthoringWriteEnvelope {
   contractVersion: typeof META_AUTHORING_CONTRACT_VERSION
@@ -226,7 +266,7 @@ export type MetaOptionalFieldDeclaration =
   | MetaOptionalFieldBase & {type: "array"; default?: number[]; data?: string}
   | MetaOptionalFieldBase & {type: "enum"; values: string[]; default?: string}
 
-export type MetaDeclarationEntity = "field" | "metadata" | "state" | "mass" | "reaction" | "bulk"
+export type MetaDeclarationEntity = "field" | "metadata" | "state" | "mass" | "reaction" | "process" | "bulk"
 
 interface MetaDeclarationRequestBase extends MetaAuthoringWriteEnvelope {
   capability: typeof META_DECLARATION_WRITE_CAPABILITY
@@ -391,6 +431,50 @@ export interface MetaReactionDeclarationMoveRequest extends MetaDeclarationReque
   key: string
 }
 
+export type MetaProcessArtifactExport = "default" | "action" | "process" | "load" | "run" | "execute"
+
+export interface MetaProcessSourceArtifact {
+  path: `actions/${string}.ts`
+  revision: MetaSourcePrecondition
+  source: string
+  exportName: MetaProcessArtifactExport
+}
+
+interface MetaProcessDeclarationBase {
+  key: string
+  label?: string
+  description?: string
+  env?: MetaExecutionEnv[]
+  artifact?: MetaProcessSourceArtifact
+}
+
+export interface MetaActionProcessDeclaration extends MetaProcessDeclarationBase {
+  type: "action"
+  successSource?: string
+  errorSource?: string
+}
+
+export interface MetaFinallyProcessDeclaration extends MetaProcessDeclarationBase {
+  type: "finally"
+}
+
+export type MetaProcessDeclaration = MetaActionProcessDeclaration | MetaFinallyProcessDeclaration
+
+export interface MetaProcessDeclarationAddRequest extends MetaDeclarationRequestBase {
+  entity: "process"
+  operation: "add"
+  address: MetaAddress
+  process: MetaProcessDeclaration & {artifact: MetaProcessSourceArtifact & {revision: "absent"}}
+}
+
+export interface MetaProcessDeclarationReplaceRequest extends MetaDeclarationRequestBase {
+  entity: "process"
+  operation: "replace"
+  address: MetaAddress
+  key: string
+  process: MetaProcessDeclaration
+}
+
 export interface MetaBulkDeclaration {
   view: string
 }
@@ -440,6 +524,8 @@ export type MetaDeclarationRequest =
   | MetaReactionDeclarationReplaceRequest
   | MetaReactionDeclarationRemoveRequest
   | MetaReactionDeclarationMoveRequest
+  | MetaProcessDeclarationAddRequest
+  | MetaProcessDeclarationReplaceRequest
   | MetaBulkDeclarationAddRequest
   | MetaBulkDeclarationReplaceRequest
   | MetaBulkDeclarationRemoveRequest
@@ -454,6 +540,13 @@ type RecordValue = Record<string, unknown>
 
 const OPERATION_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/
 const SOURCE_REVISION = /^sha256:[a-f0-9]{64}$/
+const PROCESS_ARTIFACT_PATH = /^actions\/[A-Za-z0-9][A-Za-z0-9._-]{0,126}\.ts$/
+const PROCESS_ARTIFACT_EXPORTS = new Set<MetaProcessArtifactExport>([
+  "default", "action", "process", "load", "run", "execute",
+])
+const PROCESS_ENVS = new Set<MetaExecutionEnv>([
+  "browser", "node", "worker", "server", "any",
+])
 
 const pointerToken = (value: string): string =>
   value.replaceAll("~", "~0").replaceAll("/", "~1")
@@ -1090,6 +1183,104 @@ const reactionDeclaration = (
   }
 }
 
+const processArtifact = (
+  validator: AuthoringValidator,
+  value: unknown,
+  path: JsonPointer,
+  operation: "add" | "replace",
+): MetaProcessSourceArtifact | null => {
+  if (!validator.record(value, path, "Process source artifact")) return null
+  validator.closed(value, path, ["path", "revision", "source", "exportName"])
+  validator.required(value, path, ["path", "revision", "source", "exportName"])
+  const artifactPath = validator.text(value.path, childPath(path, "path"), "Process artifact path")
+  if (artifactPath !== null && !PROCESS_ARTIFACT_PATH.test(artifactPath)) {
+    validator.issue(childPath(path, "path"), "invalid_process_artifact_path", "Process artifact must be one actions/<safe-file>.ts path")
+  }
+  const revision = operation === "add"
+    ? value.revision === "absent"
+      ? "absent" as const
+      : (validator.issue(childPath(path, "revision"), "invalid_source_revision", "New Process artifact revision must be absent"), null)
+    : validator.revision(value.revision, childPath(path, "revision"))
+  const source = validator.source(value.source, childPath(path, "source"), "Process artifact source")
+  const exportName = validator.text(value.exportName, childPath(path, "exportName"), "Process artifact export")
+  if (exportName !== null && !PROCESS_ARTIFACT_EXPORTS.has(exportName as MetaProcessArtifactExport)) {
+    validator.issue(childPath(path, "exportName"), "invalid_process_artifact_export", "Process artifact export is not allowed")
+  }
+  if (
+    artifactPath === null || !PROCESS_ARTIFACT_PATH.test(artifactPath) || revision === null ||
+    source === null || exportName === null || !PROCESS_ARTIFACT_EXPORTS.has(exportName as MetaProcessArtifactExport)
+  ) return null
+  return {
+    path: artifactPath as `actions/${string}.ts`,
+    revision,
+    source,
+    exportName: exportName as MetaProcessArtifactExport,
+  }
+}
+
+const processDeclaration = (
+  validator: AuthoringValidator,
+  value: unknown,
+  path: JsonPointer,
+  operation: "add" | "replace",
+): MetaProcessDeclaration | null => {
+  if (!validator.record(value, path, "Process declaration")) return null
+  const type = value.type
+  const actionFields = type === "action" ? ["successSource", "errorSource"] : []
+  validator.closed(value, path, ["key", "type", "label", "description", "env", "artifact", ...actionFields])
+  validator.required(value, path, ["key", "type", ...(operation === "add" ? ["artifact"] : [])])
+  const key = validator.text(value.key, childPath(path, "key"), "Process key")
+  if (key?.includes("\0")) validator.issue(childPath(path, "key"), "invalid_process_key", "Process key must not contain NUL")
+  if (type !== "action" && type !== "finally") {
+    validator.issue(childPath(path, "type"), "invalid_process_type", "Process type must be action or finally")
+  }
+  const label = value.label === undefined
+    ? undefined
+    : validator.text(value.label, childPath(path, "label"), "Process label", true)
+  const description = value.description === undefined
+    ? undefined
+    : validator.text(value.description, childPath(path, "description"), "Process description", true)
+  const env = value.env === undefined
+    ? undefined
+    : validator.stringList(value.env, childPath(path, "env"), "Process environments")
+  if (env) for (const [index, item] of env.entries()) {
+    if (!PROCESS_ENVS.has(item as MetaExecutionEnv)) {
+      validator.issue(childPath(childPath(path, "env"), index), "invalid_process_environment", `Process environment ${item} is not allowed`)
+    }
+  }
+  const artifact = value.artifact === undefined
+    ? undefined
+    : processArtifact(validator, value.artifact, childPath(path, "artifact"), operation)
+  const successSource = type === "action" && value.successSource !== undefined
+    ? validator.source(value.successSource, childPath(path, "successSource"), "Process success handler")
+    : undefined
+  const errorSource = type === "action" && value.errorSource !== undefined
+    ? validator.source(value.errorSource, childPath(path, "errorSource"), "Process error handler")
+    : undefined
+  if (
+    key === null || (type !== "action" && type !== "finally") || label === null || description === null ||
+    artifact === null || successSource === null || errorSource === null ||
+    (operation === "add" && artifact === undefined) ||
+    env?.some((item) => !PROCESS_ENVS.has(item as MetaExecutionEnv))
+  ) return null
+  const base = {
+    key,
+    type,
+    ...(label === undefined ? {} : {label}),
+    ...(description === undefined ? {} : {description}),
+    ...(env === undefined ? {} : {env: env as NonNullable<MetaProcessDeclaration["env"]>}),
+    ...(artifact === undefined ? {} : {artifact}),
+  }
+  return type === "action"
+    ? {
+        ...base,
+        type,
+        ...(successSource === undefined ? {} : {successSource}),
+        ...(errorSource === undefined ? {} : {errorSource}),
+      }
+    : {...base, type}
+}
+
 const bulkDeclaration = (
   validator: AuthoringValidator,
   value: unknown,
@@ -1201,10 +1392,11 @@ export const validateMetaDeclarationRequest = (
       : entity === "state" ? "state"
         : entity === "mass" ? "mass"
           : entity === "reaction" ? "reaction"
-            : entity === "bulk" ? "bulk"
+            : entity === "process" ? "process"
+              : entity === "bulk" ? "bulk"
               : null
   const locatorField = entity === "state" ? "name"
-    : entity === "field" || entity === "mass" || entity === "reaction" ? "key"
+    : entity === "field" || entity === "mass" || entity === "reaction" || entity === "process" ? "key"
       : null
   const operationFields = operation === "move"
     ? ["fromAddress", "toAddress", ...(locatorField ? [locatorField] : [])]
@@ -1236,13 +1428,16 @@ export const validateMetaDeclarationRequest = (
   const envelope = commonEnvelope(validator, input)
   validator.literal(input.capability, "/capability", META_DECLARATION_WRITE_CAPABILITY, "capability")
   if (declarationField === null) {
-    validator.issue("/entity", "invalid_declaration_entity", "entity must be field, metadata, state, mass, reaction or bulk")
+    validator.issue("/entity", "invalid_declaration_entity", "entity must be field, metadata, state, mass, reaction, process or bulk")
   }
   if (operation !== "add" && operation !== "replace" && operation !== "remove" && operation !== "move") {
     validator.issue("/operation", "forbidden_operation", "Declaration operation must be add, replace, remove or move")
   }
   if (entity === "metadata" && operation !== "replace") {
     validator.issue("/operation", "forbidden_operation", "Meta metadata supports replace only")
+  }
+  if (entity === "process" && operation !== "add" && operation !== "replace") {
+    validator.issue("/operation", "forbidden_operation", "Process supports add or replace")
   }
   const address = operation === "add" || operation === "replace" || operation === "remove"
     ? validator.address(input.address, "/address")
@@ -1265,7 +1460,9 @@ export const validateMetaDeclarationRequest = (
         : entity === "state" ? stateDeclaration(validator, input.state, "/state")
           : entity === "mass" ? massDeclaration(validator, input.mass, "/mass")
             : entity === "reaction" ? reactionDeclaration(validator, input.reaction, "/reaction")
-              : entity === "bulk" ? bulkDeclaration(validator, input.bulk, "/bulk")
+              : entity === "process" && (operation === "add" || operation === "replace")
+                ? processDeclaration(validator, input.process, "/process", operation)
+                : entity === "bulk" ? bulkDeclaration(validator, input.bulk, "/bulk")
                 : null
     : null
   const revisions = sourcePreconditions(validator, input.revisions)
@@ -1327,6 +1524,10 @@ export const validateMetaDeclarationRequest = (
     if (operation === "replace" && address !== null && locator !== null && declaration !== null) return {ok: true, value: {...base, entity, operation, address, key: locator, reaction: declaration as MetaReactionDeclaration}}
     if (operation === "remove" && address !== null && locator !== null) return {ok: true, value: {...base, entity, operation, address, key: locator}}
     if (operation === "move" && fromAddress !== null && toAddress !== null && locator !== null) return {ok: true, value: {...base, entity, operation, fromAddress, toAddress, key: locator}}
+  }
+  if (entity === "process") {
+    if (operation === "add" && address !== null && declaration !== null) return {ok: true, value: {...base, entity, operation, address, process: declaration as MetaProcessDeclarationAddRequest["process"]}}
+    if (operation === "replace" && address !== null && locator !== null && declaration !== null) return {ok: true, value: {...base, entity, operation, address, key: locator, process: declaration as MetaProcessDeclaration}}
   }
   return {ok: false, issues: validator.issues}
 }

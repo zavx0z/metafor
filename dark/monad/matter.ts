@@ -165,7 +165,11 @@ export class MatterAuthoringService {
     const requestDigest = metaAuthoringRequestDigest(request)
     const existing = this.history.findAuthoring(rpcSource, request.operationId)
     if (existing) {
-      if (!existing.authoring || existing.authoring.requestDigest !== requestDigest) {
+      if (
+        !existing.authoring ||
+        existing.authoring.schema !== META_MATTER_AUTHORING_CAUSE_SCHEMA_V1 ||
+        existing.authoring.requestDigest !== requestDigest
+      ) {
         throw new MatterAuthoringError(
           `Operation ${rpcSource}/${request.operationId} is already bound to a different request`,
         )
@@ -203,11 +207,16 @@ export class MatterAuthoringService {
         source: edit.afterSource,
       })))
       const addressByPath = new Map(plan.sourceEdits.map((edit) => [edit.targetPath, edit.address] as const))
-      const sourceProjections = prepared.map((candidate) => ({
-        address: addressByPath.get(candidate.targetPath)!,
-        beforeRevision: candidate.beforeRevision,
-        afterRevision: candidate.afterRevision,
-      })).sort((left, right) => left.address.localeCompare(right.address))
+      const sourceProjections = prepared.map((candidate): MetaMatterSourceProjectionV1 => {
+        if (candidate.beforeRevision === "absent") {
+          throw new MatterAuthoringError(`Matter source target is unexpectedly absent: ${candidate.targetPath}`)
+        }
+        return {
+          address: addressByPath.get(candidate.targetPath)!,
+          beforeRevision: candidate.beforeRevision,
+          afterRevision: candidate.afterRevision,
+        }
+      }).sort((left, right) => left.address.localeCompare(right.address))
       const cause: MetaMatterAuthoringCauseV1 = {
         schema: META_MATTER_AUTHORING_CAUSE_SCHEMA_V1,
         contractVersion: META_AUTHORING_CONTRACT_VERSION,
@@ -246,9 +255,9 @@ export class MatterAuthoringService {
       return pendingReceipt(operationId, requestDigest, acceptance, sourceProjections, error)
     }
     try {
-      const addressByPath = new Map(sourceProjections.map((projection) => [
+      const projectionByPath = new Map(sourceProjections.map((projection) => [
         this.sourcePath(projection.address),
-        projection.address,
+        projection,
       ] as const))
       const published = await recoverAndPublishSourceCandidates(
         operationId,
@@ -259,8 +268,8 @@ export class MatterAuthoringService {
         })),
       )
       const files = published.files.map((file) => ({
-        address: addressByPath.get(file.targetPath)!,
-        beforeRevision: file.beforeRevision,
+        address: projectionByPath.get(file.targetPath)!.address,
+        beforeRevision: projectionByPath.get(file.targetPath)!.beforeRevision,
         afterRevision: file.afterRevision,
         outcome: file.outcome,
       })).sort((left, right) => left.address.localeCompare(right.address))

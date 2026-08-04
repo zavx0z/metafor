@@ -124,8 +124,8 @@ Authoring RPC использует сохранённую в той же стр�
 Matter или declaration authoring не создаётся. Enum variants одной принятой
 Field Inflaton и Transition/Condition одной принятой State Inflaton остаются
 составом payload своих entity; производные Boundary Gravitons не становятся
-отдельными пользовательскими operations. Metadata, Mass, Reaction и Bulk также
-принимаются по одной entity в одном `ForceMessage`.
+отдельными пользовательскими operations. Metadata, Mass, Reaction, Process и
+Bulk также принимаются по одной entity в одном `ForceMessage`.
 
 Если contour завершился после durable acceptance, но до applied-ack одного из
 доменов, startup берёт незакрытые receipt из checkpoint control и доставляет

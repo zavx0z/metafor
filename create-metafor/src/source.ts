@@ -1,13 +1,14 @@
 import {createHash} from "node:crypto"
 import {
   lstat,
+  mkdir,
   open,
   readFile,
   rename,
   unlink,
 } from "node:fs/promises"
 import {basename, dirname, resolve} from "node:path"
-import type {MetaSourceRevision} from "@metafor/types/metafor/authoring"
+import type {MetaSourcePrecondition, MetaSourceRevision} from "@metafor/types/metafor/authoring"
 
 export type SourceWriteErrorCode =
   | "invalid_target"
@@ -38,7 +39,7 @@ export class SourceWriteError extends Error {
 export interface PrepareSourceCandidateOptions {
   targetPath: string
   operationId: string
-  expectedRevision: MetaSourceRevision
+  expectedRevision: MetaSourcePrecondition
   source: string
 }
 
@@ -46,9 +47,9 @@ export interface PreparedSourceCandidate {
   readonly targetPath: string
   readonly candidatePath: string
   readonly operationId: string
-  readonly beforeRevision: MetaSourceRevision
+  readonly beforeRevision: MetaSourcePrecondition
   readonly afterRevision: MetaSourceRevision
-  readonly beforeSource: string
+  readonly beforeSource: string | null
   readonly afterSource: string
   readonly mode: number
 }
@@ -57,7 +58,7 @@ export interface SourcePublishReceipt {
   readonly operationId: string
   readonly files: Array<{
     targetPath: string
-    beforeRevision: MetaSourceRevision
+    beforeRevision: MetaSourcePrecondition
     afterRevision: MetaSourceRevision
     outcome: "published" | "already_published"
   }>
@@ -71,20 +72,24 @@ export interface SourceSnapshot {
 
 export interface SourceProjectionRecovery {
   readonly targetPath: string
-  readonly beforeRevision: MetaSourceRevision
+  readonly beforeRevision: MetaSourcePrecondition
   readonly afterRevision: MetaSourceRevision
 }
 
 const SAFE_OPERATION_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/
 const SOURCE_REVISION = /^sha256:[a-f0-9]{64}$/
+const PROCESS_ARTIFACT = /^[A-Za-z0-9][A-Za-z0-9._-]{0,126}\.ts$/
 
 export const sourceRevision = (source: string | Uint8Array): MetaSourceRevision =>
   `sha256:${createHash("sha256").update(source).digest("hex")}` as MetaSourceRevision
 
 const exactTarget = (targetPath: string): string => {
   const target = resolve(targetPath)
-  if (basename(target) !== "meta.ts") {
-    throw new SourceWriteError("invalid_target", `Source target must be the exact meta.ts file: ${target}`)
+  if (
+    basename(target) !== "meta.ts" &&
+    (basename(dirname(target)) !== "actions" || !PROCESS_ARTIFACT.test(basename(target)))
+  ) {
+    throw new SourceWriteError("invalid_target", `Source target must be meta.ts or one actions/<safe-file>.ts: ${target}`)
   }
   return target
 }
@@ -106,6 +111,21 @@ const targetSource = async (
     source: bytes.toString("utf8"),
     revision: sourceRevision(bytes),
     mode: targetStat.mode & 0o777,
+  }
+}
+
+const optionalTargetSource = async (
+  targetPath: string,
+): Promise<{source: string; revision: MetaSourceRevision; mode: number} | null> => {
+  try {
+    return await targetSource(targetPath)
+  } catch (error) {
+    const cause = error instanceof SourceWriteError ? error.cause : null
+    const code = typeof cause === "object" && cause !== null && "code" in cause
+      ? (cause as {code?: unknown}).code
+      : null
+    if (error instanceof SourceWriteError && error.code === "target_missing" && code === "ENOENT") return null
+    throw error
   }
 }
 
@@ -159,22 +179,24 @@ export const prepareSourceCandidate = async (
   if (!SAFE_OPERATION_ID.test(options.operationId)) {
     throw new SourceWriteError("candidate_conflict", "Source candidate operationId is invalid")
   }
-  const before = await targetSource(targetPath)
-  if (before.revision !== options.expectedRevision) {
+  if (basename(targetPath) !== "meta.ts") await mkdir(dirname(targetPath), {recursive: true})
+  const before = await optionalTargetSource(targetPath)
+  const beforeRevision = before?.revision ?? "absent"
+  if (beforeRevision !== options.expectedRevision) {
     throw new SourceWriteError(
       "source_revision_mismatch",
-      `Source revision mismatch for ${targetPath}: expected ${options.expectedRevision}, received ${before.revision}`,
+      `Source revision mismatch for ${targetPath}: expected ${options.expectedRevision}, received ${beforeRevision}`,
     )
   }
   const afterRevision = sourceRevision(options.source)
-  if (afterRevision === before.revision) {
+  if (afterRevision === beforeRevision) {
     throw new SourceWriteError("unchanged_source", `Source candidate does not change ${targetPath}`)
   }
   const candidatePath = resolve(dirname(targetPath), `.${basename(targetPath)}.${options.operationId}.candidate`)
   await prepareExclusiveFile(
     candidatePath,
     options.source,
-    before.mode,
+    before?.mode ?? 0o644,
     `Prepared source candidate conflicts with operation ${options.operationId}: ${targetPath}`,
   )
   const prepared = await readFile(candidatePath)
@@ -186,11 +208,11 @@ export const prepareSourceCandidate = async (
     targetPath,
     candidatePath,
     operationId: options.operationId,
-    beforeRevision: before.revision,
+    beforeRevision,
     afterRevision,
-    beforeSource: before.source,
+    beforeSource: before?.source ?? null,
     afterSource: options.source,
-    mode: before.mode,
+    mode: before?.mode ?? 0o644,
   }
 }
 
@@ -293,15 +315,17 @@ export const recoverAndPublishSourceCandidates = async (
   }
   const states = await Promise.all(projections.map(async (projection, index) => {
     if (
-      !SOURCE_REVISION.test(projection.beforeRevision) ||
+      (projection.beforeRevision !== "absent" && !SOURCE_REVISION.test(projection.beforeRevision)) ||
       !SOURCE_REVISION.test(projection.afterRevision) ||
       projection.beforeRevision === projection.afterRevision
     ) throw new SourceWriteError("source_recovery_failed", "Source recovery revisions are invalid")
     const targetPath = targets[index]!
-    const current = await targetSource(targetPath)
-    const state = current.revision === projection.beforeRevision
+    const current = await optionalTargetSource(targetPath)
+    const state = projection.beforeRevision === "absent" && current === null
       ? "before" as const
-      : current.revision === projection.afterRevision
+      : current?.revision === projection.beforeRevision
+        ? "before" as const
+        : current?.revision === projection.afterRevision
         ? "after" as const
         : null
     if (!state) {
@@ -317,7 +341,9 @@ export const recoverAndPublishSourceCandidates = async (
     if (candidateSource && sourceRevision(candidateSource) !== projection.afterRevision) {
       throw new SourceWriteError("source_verification_failed", `Recovered source candidate is invalid: ${targetPath}`)
     }
-    if (rollbackSource && sourceRevision(rollbackSource) !== projection.beforeRevision) {
+    if (rollbackSource && (
+      projection.beforeRevision === "absent" || sourceRevision(rollbackSource) !== projection.beforeRevision
+    )) {
       throw new SourceWriteError("source_verification_failed", `Recovered source rollback is invalid: ${targetPath}`)
     }
     if (state === "before" && !candidateSource) {
@@ -343,9 +369,11 @@ export const recoverAndPublishSourceCandidates = async (
       operationId,
       beforeRevision: state.beforeRevision,
       afterRevision: state.afterRevision,
-      beforeSource: state.rollbackSource?.toString("utf8") ?? state.current.source,
-      afterSource: state.current.source,
-      mode: state.current.mode,
+      beforeSource: state.beforeRevision === "absent"
+        ? null
+        : state.rollbackSource?.toString("utf8") ?? state.current!.source,
+      afterSource: state.current!.source,
+      mode: state.current!.mode,
     })))
     try {
       for (const state of states) {
@@ -374,20 +402,23 @@ export const recoverAndPublishSourceCandidates = async (
   const partial = states.some(({state}) => state === "after")
   const prepared: PreparedSourceCandidate[] = []
   for (const state of states) {
-    if (state.state === "after" && partial && !state.rollbackSource) {
+    if (
+      state.state === "after" && partial && state.beforeRevision !== "absent" &&
+      !state.rollbackSource
+    ) {
       throw new SourceWriteError(
         "source_recovery_failed",
         `Partially published source has no rollback evidence: ${state.targetPath}`,
       )
     }
     const afterSource = state.state === "after"
-      ? state.current.source
+      ? state.current!.source
       : state.candidateSource!.toString("utf8")
     if (state.state === "after") {
       await prepareExclusiveFile(
         state.candidatePath,
         afterSource,
-        state.current.mode,
+        state.current?.mode ?? 0o644,
         `Recovered source candidate conflicts with operation ${operationId}: ${state.targetPath}`,
       )
     }
@@ -397,11 +428,13 @@ export const recoverAndPublishSourceCandidates = async (
       operationId,
       beforeRevision: state.beforeRevision,
       afterRevision: state.afterRevision,
-      beforeSource: state.state === "before"
-        ? state.current.source
-        : state.rollbackSource!.toString("utf8"),
+      beforeSource: state.beforeRevision === "absent"
+        ? null
+        : state.state === "before"
+          ? state.current!.source
+          : state.rollbackSource!.toString("utf8"),
       afterSource,
-      mode: state.current.mode,
+      mode: state.current?.mode ?? 0o644,
     })
   }
   const result = await publishSourceCandidates(prepared)
@@ -418,13 +451,21 @@ const rollbackPublished = async (
 ): Promise<void> => {
   try {
     for (const candidate of [...published].reverse()) {
+      if (candidate.beforeRevision === "absent") {
+        await unlink(candidate.targetPath)
+        continue
+      }
       const rollback = rollbackPaths.get(candidate.targetPath)
       if (!rollback) throw new Error(`Missing rollback source for ${candidate.targetPath}`)
       await rename(rollback, candidate.targetPath)
     }
     for (const candidate of published) {
-      const restored = await targetSource(candidate.targetPath)
-      if (restored.revision !== candidate.beforeRevision) {
+      const restored = await optionalTargetSource(candidate.targetPath)
+      if (
+        candidate.beforeRevision === "absent"
+          ? restored !== null
+          : restored?.revision !== candidate.beforeRevision
+      ) {
         throw new Error(`Rollback verification failed for ${candidate.targetPath}`)
       }
     }
@@ -472,12 +513,16 @@ export const publishSourceCandidates = async (
   const published: PreparedSourceCandidate[] = []
   try {
     for (const candidate of candidates) {
-      const current = await targetSource(candidate.targetPath)
-      if (current.revision === candidate.afterRevision) {
+      const current = await optionalTargetSource(candidate.targetPath)
+      if (current?.revision === candidate.afterRevision) {
         outcomes.set(candidate.targetPath, "already_published")
         continue
       }
-      if (current.revision !== candidate.beforeRevision) {
+      if (
+        candidate.beforeRevision === "absent"
+          ? current !== null
+          : current?.revision !== candidate.beforeRevision
+      ) {
         throw new SourceWriteError(
           "source_revision_mismatch",
           `Source changed after candidate preparation: ${candidate.targetPath}`,
@@ -491,10 +536,11 @@ export const publishSourceCandidates = async (
     }
 
     for (const candidate of toPublish) {
+      if (candidate.beforeRevision === "absent") continue
       const rollback = rollbackPath(candidate)
       await prepareExclusiveFile(
         rollback,
-        candidate.beforeSource,
+        candidate.beforeSource!,
         candidate.mode,
         `Rollback source conflicts with operation ${operationId}: ${candidate.targetPath}`,
       )

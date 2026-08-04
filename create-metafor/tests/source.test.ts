@@ -57,6 +57,42 @@ describe("atomic Meta source boundary", () => {
     })
   })
 
+  test("publishes and recovers one absent owned Process artifact with meta.ts", async () => {
+    const meta = await target("process", "before\n")
+    const action = join(dirname(meta), "actions", "run.ts")
+    const candidates = await prepareSourceCandidates([
+      {
+        targetPath: action,
+        operationId: "process-add-recover",
+        expectedRevision: "absent",
+        source: "export default () => null\n",
+      },
+      {
+        targetPath: meta,
+        operationId: "process-add-recover",
+        expectedRevision: sourceRevision("before\n"),
+        source: "after\n",
+      },
+    ])
+
+    await expect(readFile(action, "utf8")).rejects.toMatchObject({code: "ENOENT"})
+    const receipt = await recoverAndPublishSourceCandidates(
+      "process-add-recover",
+      candidates.map((candidate) => ({
+        targetPath: candidate.targetPath,
+        beforeRevision: candidate.beforeRevision,
+        afterRevision: candidate.afterRevision,
+      })),
+    )
+
+    expect(receipt.files).toEqual([
+      expect.objectContaining({targetPath: action, beforeRevision: "absent", outcome: "published"}),
+      expect.objectContaining({targetPath: meta, outcome: "published"}),
+    ])
+    expect(await readFile(action, "utf8")).toBe("export default () => null\n")
+    expect(await readFile(meta, "utf8")).toBe("after\n")
+  })
+
   test("rejects a stale prepare without creating or replacing anything", async () => {
     const path = await target("lada", "current\n")
     const result = prepareSourceCandidate({

@@ -167,18 +167,28 @@ const parseAuthoringCause = (
     value.sourceProjections.length === 0
   ) throw new Error(`Dark Force history authoring cause is invalid at ${location}`)
 
-  const addresses = new Set<string>()
+  const targets = new Set<string>()
   let previous = ""
   const sourceProjections = value.sourceProjections.map((projection, index) => {
+    const declaration = value.schema === META_DECLARATION_AUTHORING_CAUSE_SCHEMA_V1
+    const path = isRecord(projection) && typeof projection.path === "string"
+      ? projection.path
+      : "meta.ts"
+    const target = isRecord(projection) && typeof projection.address === "string"
+      ? `${projection.address}\u0000${path}`
+      : ""
     if (
       !isRecord(projection) ||
-      !exactKeys(projection, ["address", "beforeRevision", "afterRevision"]) ||
+      !exactKeys(projection, ["address", "beforeRevision", "afterRevision"], declaration ? ["path"] : []) ||
       typeof projection.address !== "string" ||
       parseMetaAddress(projection.address) === null ||
-      addresses.has(projection.address) ||
-      projection.address.localeCompare(previous) < 0 ||
+      (path !== "meta.ts" && !/^actions\/[A-Za-z0-9][A-Za-z0-9._-]{0,126}\.ts$/.test(path)) ||
+      targets.has(target) ||
+      target.localeCompare(previous) < 0 ||
       typeof projection.beforeRevision !== "string" ||
-      !digestPattern.test(projection.beforeRevision) ||
+      (!digestPattern.test(projection.beforeRevision) && !(
+        declaration && path !== "meta.ts" && projection.beforeRevision === "absent"
+      )) ||
       typeof projection.afterRevision !== "string" ||
       !digestPattern.test(projection.afterRevision) ||
       projection.beforeRevision === projection.afterRevision
@@ -187,10 +197,11 @@ const parseAuthoringCause = (
         `Dark Force history authoring source projection is invalid at ${location}.sourceProjections[${index}]`,
       )
     }
-    addresses.add(projection.address)
-    previous = projection.address
+    targets.add(target)
+    previous = target
     return {
       address: projection.address,
+      ...(Object.hasOwn(projection, "path") ? {path: path as "meta.ts" | `actions/${string}.ts`} : {}),
       beforeRevision: projection.beforeRevision,
       afterRevision: projection.afterRevision,
     }

@@ -328,6 +328,126 @@ describe("Meta declaration entity patch planner", () => {
     expect(current.bulk).toEqual({view: ".ready{color:green;}"})
   })
 
+  test("adds and updates Process through meta.ts plus one owned action artifact", async () => {
+    const initialSource = source(`{
+    status: field.string.optional(),
+  }`).replace(".superposition({})", ".superposition({ ready: null })")
+    const initial = await snapshot(ROOT, initialSource)
+    const added = planMetaDeclarationPatch({
+      ...requestBase,
+      operationId: "process-add",
+      entity: "process",
+      operation: "add",
+      address: ROOT,
+      process: {
+        key: "ready",
+        type: "action",
+        label: "Run",
+        env: ["server"],
+        artifact: {
+          path: "actions/run.ts",
+          revision: "absent",
+          exportName: "default",
+          source: "export default async ({ signal }: { signal: AbortSignal }) => ({ aborted: signal.aborted })\n",
+        },
+        successSource: "({ update }) => update({ status: 'done' })",
+      },
+      revisions: [{address: ROOT, revision: REVISION}],
+    }, [initial], 50)
+
+    expect(added.particle.parts).toEqual([expect.objectContaining({
+      op: "add",
+      path: "process",
+      value: expect.objectContaining({
+        wimp: ROOT,
+        id: 1,
+        key: "ready",
+        type: "action",
+        env: ["server"],
+        action: expect.objectContaining({src: "./actions/run.ts", importSpecifier: "default", read: [1]}),
+        success: expect.objectContaining({write: [1]}),
+      }),
+    })])
+    expect(added.sourceEdits).toHaveLength(2)
+    expect(added.sourceEdits.find((edit) => edit.relativePath === "actions/run.ts")).toMatchObject({
+      expectedRevision: "absent",
+      afterSource: expect.stringContaining("export default async"),
+    })
+    const metaEdit = added.sourceEdits.find((edit) => edit.relativePath === undefined)!
+    const current = await snapshot(ROOT, metaEdit.afterSource)
+    expect(current.processes?.[0]).toMatchObject({
+      key: "ready",
+      declaration: {type: "action", label: "Run", env: ["server"]},
+    })
+
+    const replaced = planMetaDeclarationPatch({
+      ...requestBase,
+      operationId: "process-replace",
+      entity: "process",
+      operation: "replace",
+      address: ROOT,
+      key: "ready",
+      process: {key: "ready", type: "action", label: "Run updated"},
+      revisions: [{address: ROOT, revision: REVISION}],
+    }, [current], 51)
+    expect(replaced.particle.parts[0]).toMatchObject({
+      op: "replace", path: "process", value: {wimp: ROOT, id: 1, key: "ready", label: "Run updated"},
+    })
+    expect(replaced.sourceEdits).toHaveLength(1)
+    const updated = await snapshot(ROOT, replaced.sourceEdits[0]!.afterSource)
+    expect(updated.processes?.[0]).toMatchObject({
+      key: "ready", declaration: {type: "action", label: "Run updated"},
+    })
+    expect(updated.processes?.[0]?.declaration.type === "action"
+      ? updated.processes[0].declaration.success
+      : null).toBeUndefined()
+  })
+
+  test("adds a finally Process with a deterministic cleanup wrapper", async () => {
+    const initial = await snapshot(
+      ROOT,
+      source("{}").replace(".superposition({})", ".superposition({ cleanup: null })"),
+    )
+    const planned = planMetaDeclarationPatch({
+      ...requestBase,
+      operationId: "process-finally-add",
+      entity: "process",
+      operation: "add",
+      address: ROOT,
+      process: {
+        key: "cleanup",
+        type: "finally",
+        env: ["server"],
+        artifact: {
+          path: "actions/cleanup.ts",
+          revision: "absent",
+          exportName: "run",
+          source: "export const run = async () => {}\n",
+        },
+      },
+      revisions: [{address: ROOT, revision: REVISION}],
+    }, [initial], 52)
+
+    expect(planned.particle.parts[0]).toMatchObject({
+      op: "add",
+      path: "process",
+      value: {
+        wimp: ROOT,
+        id: 1,
+        key: "cleanup",
+        type: "finally",
+        env: ["server"],
+        before: {src: expect.stringContaining('import("./actions/cleanup.ts")'), read: []},
+      },
+    })
+    const metaEdit = planned.sourceEdits.find((edit) => edit.relativePath === undefined)!
+    const current = await snapshot(ROOT, metaEdit.afterSource)
+    expect(current.processes?.[0]).toMatchObject({
+      key: "cleanup",
+      declaration: {type: "finally", env: ["server"], before: {src: expect.stringContaining("./actions/cleanup.ts")}},
+    })
+  })
+
   test("restores existing State source bytes after a tail add and remove", async () => {
     const before = source(`{
     status: field.string.optional(),

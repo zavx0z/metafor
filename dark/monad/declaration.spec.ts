@@ -47,7 +47,7 @@ const metaSource = (): string => `export default MetaFor("Declaration", {desc: "
 const revision = async (path: string) => sourceRevision(await readFile(path))
 
 describe("Declaration authoring service", () => {
-  test("accepts Field and State through one RPC, projects source and repeats from existing Force history", async () => {
+  test("accepts Field, State and Process through one RPC and repeats from existing Force history", async () => {
     const root = await mkdtemp(join(tmpdir(), "metafor-declaration-authoring-"))
     directories.push(root)
     const targetPath = join(root, "cluster", ROOT, "meta.ts")
@@ -117,7 +117,7 @@ describe("Declaration authoring service", () => {
       {
         apply(particle) {
           projections += 1
-          expect(particle).toMatchObject({part: "inflaton", op: "add", by: "dark"})
+          expect(particle).toMatchObject({part: "inflaton", by: "dark"})
         },
       },
     )
@@ -151,6 +151,42 @@ describe("Declaration authoring service", () => {
       revisions: [{address: ROOT, revision: await revision(targetPath)}],
     }
     const stateResult = await service.apply(stateRequest, RPC_SOURCE)
+    const processRequest: MetaDeclarationRequest = {
+      contractVersion: META_AUTHORING_CONTRACT_VERSION,
+      operationId: "add-ready-process",
+      capability: META_DECLARATION_WRITE_CAPABILITY,
+      operation: "add",
+      entity: "process",
+      address: ROOT,
+      process: {
+        key: "ready",
+        type: "action",
+        label: "Ready process",
+        env: ["server"],
+        artifact: {
+          path: "actions/ready.ts",
+          revision: "absent",
+          exportName: "default",
+          source: "export default async () => ({ mode: 'ready' })\n",
+        },
+        successSource: "({ update }) => update({ mode: 'ready' })",
+      },
+      revisions: [{address: ROOT, revision: await revision(targetPath)}],
+    }
+    const processResult = await service.apply(processRequest, RPC_SOURCE)
+    const repeatedProcess = await service.apply(processRequest, RPC_SOURCE)
+    const replaceProcessRequest: MetaDeclarationRequest = {
+      contractVersion: META_AUTHORING_CONTRACT_VERSION,
+      operationId: "replace-ready-process",
+      capability: META_DECLARATION_WRITE_CAPABILITY,
+      operation: "replace",
+      entity: "process",
+      address: ROOT,
+      key: "ready",
+      process: {key: "ready", type: "action", label: "Ready process updated", env: ["server"]},
+      revisions: [{address: ROOT, revision: await revision(targetPath)}],
+    }
+    const replacedProcess = await service.apply(replaceProcessRequest, RPC_SOURCE)
 
     expect(first).toMatchObject({
       phase: "complete",
@@ -170,10 +206,32 @@ describe("Declaration authoring service", () => {
       acceptance: {cutId: "declaration-authoring-test", sequence: 2},
       source: {outcome: "published"},
     })
-    expect(reads).toBe(2)
-    expect(projections).toBe(3)
+    expect(processResult).toMatchObject({
+      phase: "complete",
+      boundary: "applied",
+      acceptance: {cutId: "declaration-authoring-test", sequence: 3},
+      source: {
+        outcome: "published",
+        files: [
+          {address: ROOT, path: "actions/ready.ts", beforeRevision: "absent", outcome: "published"},
+          {address: ROOT, outcome: "published"},
+        ],
+      },
+    })
+    expect(repeatedProcess).toMatchObject({
+      phase: "complete",
+      acceptance: processResult.acceptance,
+      source: {outcome: "already_published"},
+    })
+    expect(replacedProcess).toMatchObject({
+      phase: "complete",
+      acceptance: {cutId: "declaration-authoring-test", sequence: 4},
+      source: {outcome: "published", files: [{address: ROOT, outcome: "published"}]},
+    })
+    expect(reads).toBe(4)
+    expect(projections).toBe(6)
     const entries = history.read()
-    expect(entries).toHaveLength(2)
+    expect(entries).toHaveLength(4)
     expect(entries[0]?.authoring?.schema).toBe(META_DECLARATION_AUTHORING_CAUSE_SCHEMA_V1)
     expect(await readFile(targetPath, "utf8")).toContain(
       `mode: field.enum("idle", "ready").optional("idle"),`,
@@ -192,5 +250,10 @@ describe("Declaration authoring service", () => {
     expect(await boundary.projection.sql<Array<{localId: number; name: string}>>`
       SELECT local_id AS localId, name FROM state WHERE wimp = ${ROOT}
     `).toEqual([{localId: 1, name: "ready"}])
+    expect(await readFile(join(dirname(targetPath), "actions", "ready.ts"), "utf8"))
+      .toBe("export default async () => ({ mode: 'ready' })\n")
+    expect(await boundary.projection.sql<Array<{localId: number; key: string; type: string; label: string}>>`
+      SELECT local_id AS localId, key, type, label FROM process WHERE wimp = ${ROOT}
+    `).toEqual([{localId: 1, key: "ready", type: "action", label: "Ready process updated"}])
   })
 })
