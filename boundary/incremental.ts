@@ -1,4 +1,5 @@
 import type {ReservedSQL, SQL} from "bun"
+import {isDeepStrictEqual} from "node:util"
 import {
   isDeclarationPath,
   type DeclarationPath,
@@ -32,6 +33,34 @@ type RuntimeRef = {
 type StateCompositionEffects = {
   removals: Particle[]
   additions: Particle[]
+}
+
+type AuthoredMatterTreeEntry = JsonRecord & {
+  wimp: string
+  id: number
+  parent: number | null
+  edgeSlot: MatterEdgeSlot
+  position: number
+  kind: MatterParticleKind
+  before?: {wimp: string; id: number}
+}
+
+type AuthoredMatterTreeVersion = {
+  wimp: string
+  entries: AuthoredMatterTreeEntry[]
+}
+
+type AuthoredMatterTreePatch = {
+  before: AuthoredMatterTreeVersion[]
+  after: AuthoredMatterTreeVersion[]
+}
+
+type AuthoredMatterRuntimeOrigin = {
+  sequence: number
+  kind: "atom" | "topology"
+  runtimeId: number
+  scopeAtom: number
+  targetScopeAtom: number
 }
 
 export type InflatonAddress = {
@@ -93,6 +122,101 @@ const processRestartPaths = new Set<DeclarationPath>([
 
 const identityKey = (path: DeclarationPath, src: string, localId: number): string =>
   `${path}\u0000${src}\u0000${localId}`
+
+const authoredMatterKey = (wimp: string, id: number): string => `${wimp}\u0000${id}`
+
+const authoredMatterEntry = (
+  value: unknown,
+  wimp: string,
+  label: string,
+): AuthoredMatterTreeEntry => {
+  const input = record(value, label)
+  if (requiredString(input.wimp, `${label}.wimp`) !== wimp) {
+    throw new Error(`${label}.wimp must match its tree version`)
+  }
+  const id = positiveInteger(input.id, `${label}.id`)
+  const parent = input.parent === null ? null : positiveInteger(input.parent, `${label}.parent`)
+  const edgeSlot = requiredString(input.edgeSlot, `${label}.edgeSlot`) as MatterEdgeSlot
+  if (edgeSlot !== "root" && edgeSlot !== "child" && edgeSlot !== "then" && edgeSlot !== "else" && edgeSlot !== "branch") {
+    throw new Error(`${label}.edgeSlot is unsupported`)
+  }
+  const kind = requiredString(input.kind, `${label}.kind`) as MatterParticleKind
+  if (kind !== "wimp" && kind !== "fuzzy" && kind !== "axion" && kind !== "macho") {
+    throw new Error(`${label}.kind is unsupported`)
+  }
+  const position = nonNegativeInteger(input.position, `${label}.position`)
+  if ((parent === null) !== (edgeSlot === "root")) {
+    throw new Error(`${label} root edge and parent disagree`)
+  }
+  let before: {wimp: string; id: number} | undefined
+  if (input.before !== undefined) {
+    const previous = record(input.before, `${label}.before`)
+    if (Object.keys(previous).some((key) => key !== "wimp" && key !== "id")) {
+      throw new Error(`${label}.before contains an unknown field`)
+    }
+    const previousWimp = requiredString(previous.wimp, `${label}.before.wimp`)
+    if (parseMetaAddress(previousWimp) === null) throw new Error(`${label}.before.wimp is not canonical`)
+    before = {wimp: previousWimp, id: positiveInteger(previous.id, `${label}.before.id`)}
+  }
+  return {...clone(input), wimp, id, parent, edgeSlot, position, kind, ...(before ? {before} : {})}
+}
+
+const authoredMatterTreeVersion = (value: unknown, label: string): AuthoredMatterTreeVersion => {
+  const input = record(value, label)
+  const wimp = requiredString(input.wimp, `${label}.wimp`)
+  if (parseMetaAddress(wimp) === null) throw new Error(`${label}.wimp is not canonical`)
+  if (!Array.isArray(input.entries)) throw new Error(`${label}.entries must be an array`)
+  if (input.entries.length > 4_096) throw new Error(`${label}.entries exceeds 4096 particles`)
+  const entries = input.entries.map((entry, index) => authoredMatterEntry(entry, wimp, `${label}.entries[${index}]`))
+  const byId = new Map<number, AuthoredMatterTreeEntry>()
+  const positions = new Map<string, Set<number>>()
+  for (const entry of entries) {
+    if (byId.has(entry.id)) throw new Error(`${label} contains duplicate Matter id ${entry.id}`)
+    byId.set(entry.id, entry)
+    if (entry.parent !== null && (!byId.has(entry.parent) || entry.parent >= entry.id)) {
+      throw new Error(`${label} Matter parent ${entry.parent} must precede child ${entry.id}`)
+    }
+    const slot = String(entry.parent ?? "root")
+    const occupied = positions.get(slot) ?? new Set<number>()
+    if (occupied.has(entry.position)) throw new Error(`${label} contains duplicate sibling position`)
+    occupied.add(entry.position)
+    positions.set(slot, occupied)
+  }
+  for (const occupied of positions.values()) {
+    const ordered = [...occupied].sort((left, right) => left - right)
+    if (ordered.some((position, index) => position !== index)) {
+      throw new Error(`${label} sibling positions must be contiguous`)
+    }
+  }
+  return {wimp, entries}
+}
+
+const authoredMatterTreePatch = (value: unknown): AuthoredMatterTreePatch => {
+  const input = record(value, "matter.treePatch")
+  if (!Array.isArray(input.before) || !Array.isArray(input.after)) {
+    throw new Error("matter.treePatch before and after must be arrays")
+  }
+  const before = input.before.map((version, index) => authoredMatterTreeVersion(version, `matter.treePatch.before[${index}]`))
+  const after = input.after.map((version, index) => authoredMatterTreeVersion(version, `matter.treePatch.after[${index}]`))
+  if (before.length === 0 || before.length !== after.length) {
+    throw new Error("matter.treePatch must contain the same non-empty Meta set before and after")
+  }
+  const beforeAddresses = before.map(({wimp}) => wimp)
+  const afterAddresses = after.map(({wimp}) => wimp)
+  if (new Set(beforeAddresses).size !== before.length || new Set(afterAddresses).size !== after.length ||
+      !isDeepStrictEqual([...beforeAddresses].sort(), [...afterAddresses].sort())) {
+    throw new Error("matter.treePatch before and after Meta sets differ")
+  }
+  return {
+    before: [...before].sort((left, right) => left.wimp.localeCompare(right.wimp)),
+    after: [...after].sort((left, right) => left.wimp.localeCompare(right.wimp)),
+  }
+}
+
+const authoredMatterDefinition = (entry: AuthoredMatterTreeEntry): JsonRecord => {
+  const {wimp: _wimp, id: _id, parent: _parent, edgeSlot: _edgeSlot, position: _position, before: _before, ...definition} = entry
+  return definition
+}
 
 const fieldBindingEntries = (expr: string): string[] => {
   const source = expr.trim()
@@ -456,6 +580,13 @@ export class BoundaryIncrementalStore {
     if (part.op !== "add" && part.op !== "replace" && part.op !== "remove" &&
         part.op !== "move" && part.op !== "copy") {
       throw new Error(`inflaton/${part.op} is not supported by Boundary`)
+    }
+    if (
+      part.path === "matter" &&
+      (part.op === "add" || part.op === "move" || part.op === "remove") &&
+      isRecord(part.value) && Object.hasOwn(part.value, "treePatch")
+    ) {
+      return await this.applyAuthoredMatterTreePatch(part)
     }
     if (part.op === "move" || part.op === "copy") {
       return await this.applyDeclarationTransfer(part)
@@ -1700,6 +1831,277 @@ export class BoundaryIncrementalStore {
     return effects
   }
 
+  private async authoredMatterCurrentEntry(
+    sql: Database,
+    wimp: string,
+    id: number,
+  ): Promise<{physicalId: number; entry: AuthoredMatterTreeEntry} | null> {
+    const value = await this.matterEntity(sql, wimp, id)
+    if (!value) return null
+    const kind = requiredString(value.kind, "matter.kind") as MatterParticleKind
+    const entry: AuthoredMatterTreeEntry = {
+      wimp,
+      id,
+      parent: value.parent === null ? null : positiveInteger(value.parent, "matter.parent"),
+      edgeSlot: requiredString(value.edgeSlot, "matter.edgeSlot") as MatterEdgeSlot,
+      position: nonNegativeInteger(value.position, "matter.position"),
+      kind,
+    }
+    if (kind === "wimp") {
+      entry.src = requiredString(value.src, "matter.src")
+      if (value.fieldsBinding !== undefined) entry.fieldsBinding = clone(value.fieldsBinding)
+      if (value.massBinding !== undefined) entry.massBinding = clone(value.massBinding)
+      if (value.energyBinding !== undefined) entry.energyBinding = clone(value.energyBinding)
+    } else if (kind === "fuzzy") {
+      entry.fuzzyKind = requiredString(value.fuzzyKind, "matter.fuzzyKind")
+      entry.predicateBinding = clone(value.predicateBinding)
+    } else if (kind === "axion") {
+      entry.predicateBinding = clone(value.predicateBinding)
+    } else if (kind === "macho") {
+      entry.collectionBinding = clone(value.collectionBinding)
+    } else {
+      throw new Error(`Unsupported Matter kind ${kind}`)
+    }
+    return {physicalId: positiveInteger(value.id, "matter physical id"), entry}
+  }
+
+  private async authoredMatterOrigins(
+    sql: Database,
+    source: AuthoredMatterTreeEntry,
+    target: AuthoredMatterTreeEntry,
+  ): Promise<AuthoredMatterRuntimeOrigin[]> {
+    const rows = await sql<Array<{
+      sequence: number; kind: "atom" | "topology"; runtimeId: number; scopeAtom: number
+    }>>`
+      SELECT sequence, kind, runtime_id AS runtimeId, scope_atom AS scopeAtom
+        FROM boundary_runtime_origin
+       WHERE declaration_kind = ${"matter"}
+         AND declaration_wimp = ${source.wimp}
+         AND declaration_local_id = ${source.id}
+       ORDER BY sequence
+    `
+    if (source.wimp === target.wimp) return rows.map((row) => ({
+      sequence: Number(row.sequence),
+      kind: row.kind,
+      runtimeId: Number(row.runtimeId),
+      scopeAtom: Number(row.scopeAtom),
+      targetScopeAtom: Number(row.scopeAtom),
+    }))
+    const targetByScope = new Map<number, number>()
+    for (const row of rows) {
+      const scopeAtom = Number(row.scopeAtom)
+      let targetScopeAtom = targetByScope.get(scopeAtom)
+      if (targetScopeAtom === undefined) {
+        const candidates = await sql<Array<{id: number}>>`
+          SELECT DISTINCT atom.id
+            FROM atom
+            LEFT JOIN boundary_runtime_origin AS origin
+              ON origin.kind = ${"atom"} AND origin.runtime_id = atom.id
+           WHERE atom.wimp = ${target.wimp}
+             AND (atom.id = ${scopeAtom} OR origin.scope_atom = ${scopeAtom})
+           ORDER BY atom.id
+        `
+        if (candidates.length !== 1) {
+          throw new Error(
+            `Boundary Matter tree move ${source.wimp}#${source.id} has no unique runtime scope in ${target.wimp}`,
+          )
+        }
+        targetScopeAtom = Number(candidates[0]!.id)
+        targetByScope.set(scopeAtom, targetScopeAtom)
+      }
+      if (await this.runtimeRefContains(sql, row.kind, Number(row.runtimeId), targetScopeAtom)) {
+        throw new Error(`Boundary Matter tree move ${source.wimp}#${source.id} creates a runtime cycle`)
+      }
+    }
+    return rows.map((row) => ({
+      sequence: Number(row.sequence),
+      kind: row.kind,
+      runtimeId: Number(row.runtimeId),
+      scopeAtom: Number(row.scopeAtom),
+      targetScopeAtom: targetByScope.get(Number(row.scopeAtom))!,
+    }))
+  }
+
+  private async applyAuthoredMatterTreePatch(part: Particle): Promise<BoundaryIncrementalCommit> {
+    if (part.part !== "inflaton" || (part.op !== "add" && part.op !== "move" && part.op !== "remove")) {
+      throw new Error("Boundary authored Matter tree requires add, move or remove Inflaton")
+    }
+    const input = record(part.value, "matter value")
+    const patch = authoredMatterTreePatch(input.treePatch)
+    const effects = await this.sql.begin(async (tx): Promise<Particle[]> => {
+      const current = new Map<string, {physicalId: number; entry: AuthoredMatterTreeEntry; entity: JsonRecord}>()
+      for (const version of patch.before) {
+        if (version.entries.some((entry) => entry.before !== undefined)) {
+          throw new Error("matter.treePatch.before entries cannot contain a before identity")
+        }
+        const rows = await tx<Array<{count: number}>>`
+          SELECT COUNT(*) AS count FROM matter_particle WHERE wimp = ${version.wimp}
+        `
+        if (Number(rows[0]?.count ?? 0) !== version.entries.length) {
+          throw new Error(`Matter tree precondition differs for ${version.wimp}`)
+        }
+        for (const expected of version.entries) {
+          const stored = await this.authoredMatterCurrentEntry(tx, version.wimp, expected.id)
+          if (!stored || !isDeepStrictEqual(stored.entry, expected)) {
+            throw new Error(`Matter tree precondition differs for ${version.wimp}#${expected.id}`)
+          }
+          current.set(authoredMatterKey(version.wimp, expected.id), {
+            ...stored,
+            entity: (await this.matterEntity(tx, version.wimp, expected.id))!,
+          })
+        }
+      }
+
+      const desired = patch.after.flatMap(({entries}) => entries)
+      const mapped = new Map<string, AuthoredMatterTreeEntry>()
+      const additions: AuthoredMatterTreeEntry[] = []
+      for (const entry of desired) {
+        if (!entry.before) {
+          additions.push(entry)
+          continue
+        }
+        const key = authoredMatterKey(entry.before.wimp, entry.before.id)
+        const previous = current.get(key)
+        if (!previous) throw new Error(`Matter tree mapping source is absent: ${entry.before.wimp}#${entry.before.id}`)
+        if (mapped.has(key)) throw new Error(`Matter tree mapping source is duplicated: ${entry.before.wimp}#${entry.before.id}`)
+        if (!isDeepStrictEqual(authoredMatterDefinition(previous.entry), authoredMatterDefinition(entry))) {
+          throw new Error(`Matter tree move changes particle definition: ${entry.before.wimp}#${entry.before.id}`)
+        }
+        mapped.set(key, entry)
+      }
+      const removals = [...current.entries()].filter(([key]) => !mapped.has(key))
+      if (part.op === "add" && (additions.length === 0 || removals.length !== 0)) {
+        throw new Error("Matter tree add must add one closed subtree without removing existing particles")
+      }
+      if (part.op === "remove" && (removals.length === 0 || additions.length !== 0)) {
+        throw new Error("Matter tree remove must remove one closed subtree without adding particles")
+      }
+      if (part.op === "move" && (additions.length !== 0 || removals.length !== 0)) {
+        throw new Error("Matter tree move must preserve the exact particle set")
+      }
+      const locationChanged = [...mapped.entries()].some(([key, entry]) => {
+        const previous = current.get(key)!.entry
+        return previous.wimp !== entry.wimp || previous.id !== entry.id || previous.parent !== entry.parent ||
+          previous.edgeSlot !== entry.edgeSlot || previous.position !== entry.position
+      })
+      if (!locationChanged && additions.length === 0 && removals.length === 0) {
+        throw new Error("Matter tree patch does not change the declaration")
+      }
+
+      const origins = new Map<string, AuthoredMatterRuntimeOrigin[]>()
+      for (const [key, target] of mapped) {
+        origins.set(key, await this.authoredMatterOrigins(tx, current.get(key)!.entry, target))
+      }
+      for (const [key, target] of mapped) {
+        const physicalId = current.get(key)!.physicalId
+        await tx`
+          UPDATE boundary_runtime_origin
+             SET declaration_wimp = ${`@matter-tree/${physicalId}`},
+                 declaration_local_id = ${physicalId}
+           WHERE declaration_kind = ${"matter"}
+             AND declaration_wimp = ${current.get(key)!.entry.wimp}
+             AND declaration_local_id = ${current.get(key)!.entry.id}
+        `
+        void target
+      }
+      for (const version of patch.before) {
+        await tx`
+          UPDATE matter_particle
+             SET local_id = NULL, particle_order = ${10_000_000} + id
+           WHERE wimp = ${version.wimp}
+        `
+      }
+      for (const key of mapped.keys()) {
+        const physicalId = current.get(key)!.physicalId
+        await tx`
+          UPDATE matter_particle
+             SET parent_particle = NULL, edge_slot = ${"root"}
+           WHERE id = ${physicalId}
+        `
+      }
+      for (const [, removed] of [...removals].sort((left, right) => right[1].physicalId - left[1].physicalId)) {
+        await tx`DELETE FROM matter_particle WHERE id = ${removed.physicalId}`
+      }
+      for (const [key, target] of mapped) {
+        await tx`
+          UPDATE matter_particle
+             SET wimp = ${target.wimp}, local_id = ${target.id}
+           WHERE id = ${current.get(key)!.physicalId}
+        `
+      }
+
+      const physicalByTarget = new Map<string, number>()
+      for (const [key, target] of mapped) {
+        physicalByTarget.set(authoredMatterKey(target.wimp, target.id), current.get(key)!.physicalId)
+      }
+      for (const version of patch.after) {
+        for (const entry of [...version.entries].sort((left, right) => left.id - right.id)) {
+          await this.persistMatter(tx, {path: "matter", src: entry.wimp, localId: entry.id}, entry)
+          const row = (await tx<Array<{id: number}>>`
+            SELECT id FROM matter_particle WHERE wimp = ${entry.wimp} AND local_id = ${entry.id}
+          `)[0]
+          if (!row) throw new Error(`Matter tree target failed to persist: ${entry.wimp}#${entry.id}`)
+          physicalByTarget.set(authoredMatterKey(entry.wimp, entry.id), Number(row.id))
+        }
+      }
+      for (const [key, target] of mapped) {
+        for (const origin of origins.get(key)!) {
+          await tx`
+            UPDATE boundary_runtime_origin
+               SET declaration_wimp = ${target.wimp}, declaration_local_id = ${target.id},
+                   scope_atom = ${origin.targetScopeAtom}
+             WHERE sequence = ${origin.sequence}
+          `
+        }
+      }
+
+      const committed: Particle[] = removals.map(([, removed]) => ({
+        part: "graviton",
+        op: "remove",
+        path: "matter",
+        ts: Date.now(),
+        value: removed.entity,
+      }))
+      for (const version of patch.after) {
+        for (const entry of version.entries) {
+          const physicalId = physicalByTarget.get(authoredMatterKey(entry.wimp, entry.id))!
+          const entity = await this.matterEntity(tx, entry.wimp, entry.id)
+          if (!entity) throw new Error(`Matter tree target is absent: ${entry.wimp}#${entry.id}`)
+          const source = entry.before ? current.get(authoredMatterKey(entry.before.wimp, entry.before.id)) : undefined
+          if (!source) {
+            committed.push({part: "graviton", op: "add", path: "matter", ts: Date.now(), value: entity})
+          } else if (!isDeepStrictEqual(source.entity, entity)) {
+            const moved = source.entry.wimp !== entry.wimp || source.entry.id !== entry.id ||
+              source.entry.parent !== entry.parent || source.entry.edgeSlot !== entry.edgeSlot ||
+              source.entry.position !== entry.position
+            committed.push({
+              part: "graviton",
+              op: moved ? "move" : "replace",
+              path: "matter",
+              ...(moved ? {from: physicalId} : {}),
+              ts: Date.now(),
+              value: entity,
+            })
+          }
+        }
+      }
+      for (const version of patch.before) await this.reconcileWimpMatter(tx, version.wimp, committed)
+      await this.mass.ensureIndependentMemberships(tx)
+      await this.reconcileMassBindingSources(tx)
+      for (const version of patch.before) {
+        await tx`
+          UPDATE boundary_process_execution
+             SET status = ${"superseded"}
+           WHERE status = ${"pending"}
+             AND atom IN (SELECT id FROM atom WHERE wimp = ${version.wimp})
+        `
+      }
+      return committed
+    })
+    await this.updateIndexes(effects)
+    return {rootSrc: await this.rootSrc(), messages: effects.map(particleMessage)}
+  }
+
   private async prepareCanonicalMatterMove(
     sql: Database,
     source: InflatonAddress,
@@ -1753,6 +2155,15 @@ export class BoundaryIncrementalStore {
   }
 
   private async runtimeAtomContains(sql: Database, ancestor: number, target: number): Promise<boolean> {
+    return await this.runtimeRefContains(sql, "atom", ancestor, target)
+  }
+
+  private async runtimeRefContains(
+    sql: Database,
+    ancestorKind: "atom" | "topology",
+    ancestor: number,
+    target: number,
+  ): Promise<boolean> {
     const found = (await sql<Array<{found: number}>>`
       WITH RECURSIVE ancestors(kind, runtime_id) AS (
         SELECT ${"atom"} AS kind, ${target} AS runtime_id
@@ -1764,7 +2175,7 @@ export class BoundaryIncrementalStore {
          WHERE origin.parent_kind <> ${"root"}
       )
       SELECT 1 AS found FROM ancestors
-       WHERE kind = ${"atom"} AND runtime_id = ${ancestor}
+       WHERE kind = ${ancestorKind} AND runtime_id = ${ancestor}
        LIMIT 1
     `)[0]
     return found !== undefined

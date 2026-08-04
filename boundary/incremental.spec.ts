@@ -5,7 +5,10 @@ import {tmpdir} from "node:os"
 import {join} from "node:path"
 import type {DeclarationPath} from "shared/protocol/force/declaration"
 import type {Particle} from "shared/protocol/force/particle"
+import {GRAPH_SCHEMA, parseMetaAddress, type Graph} from "@metafor/types/metafor/graph"
+import {prepareBulkGraphCut} from "../bulk/graph.ts"
 import {massFileName} from "../shared/mass.ts"
+import {readBoundaryGraphProjection} from "./graph.ts"
 import {gravitonDeclarationPath, parseInflatonAddress} from "./incremental.ts"
 import {open, type BoundaryDatabase} from "./sqlite.ts"
 
@@ -674,6 +677,120 @@ describe("Boundary incremental relational projection", () => {
       SELECT id, wimp, local_id AS localId FROM matter_particle WHERE id = ${declarationBefore}
     `).toEqual([{id: declarationBefore, wimp: PEER, localId: 1}])
     expect(rootAtom).not.toBe(peerAtom)
+  })
+
+  test("applies a full authored Matter tree and preserves nested identities across Meta", async () => {
+    const rootAtom = await declareRoot()
+    await apply("add", "matter", {
+      wimp: ROOT, id: 1, parent: null, edgeSlot: "root", position: 0, kind: "wimp", src: PEER,
+    })
+    await declareWimp(PEER)
+
+    const peer = {wimp: ROOT, id: 1, parent: null, edgeSlot: "root", position: 0, kind: "wimp", src: PEER}
+    const axion = {wimp: ROOT, id: 2, parent: null, edgeSlot: "root", position: 1, kind: "axion", predicateBinding: "true"}
+    const child = {wimp: ROOT, id: 3, parent: 2, edgeSlot: "then", position: 0, kind: "wimp", src: CHILD}
+    const added = await apply("add", "matter", {
+      ...axion,
+      treePatch: {
+        before: [{wimp: ROOT, entries: [peer]}],
+        after: [{wimp: ROOT, entries: [
+          {...peer, before: {wimp: ROOT, id: 1}},
+          axion,
+          child,
+        ]}],
+      },
+    })
+    expect(added?.messages.filter((message) => message.parts[0].path === "matter")
+      .map((message) => message.parts[0].op)).toEqual(["add", "add"])
+
+    await declareWimp(CHILD)
+    const declaration = Number((await boundary.projection.sql<Array<{id: number}>>`
+      SELECT id FROM matter_particle WHERE wimp = ${ROOT} AND local_id = ${3}
+    `)[0]!.id)
+    const runtime = Number((await boundary.projection.sql<Array<{id: number}>>`
+      SELECT id FROM atom WHERE wimp = ${CHILD}
+    `)[0]!.id)
+    const peerAtom = Number((await boundary.projection.sql<Array<{id: number}>>`
+      SELECT id FROM atom WHERE wimp = ${PEER}
+    `)[0]!.id)
+
+    const moved = await transfer("move", "matter", `${ROOT}#3`, {
+      wimp: PEER,
+      id: 1,
+      parent: null,
+      edgeSlot: "root",
+      position: 0,
+      kind: "wimp",
+      src: CHILD,
+      before: {wimp: ROOT, id: 3},
+      treePatch: {
+        before: [
+          {wimp: ROOT, entries: [peer, axion, child]},
+          {wimp: PEER, entries: []},
+        ],
+        after: [
+          {wimp: ROOT, entries: [
+            {...peer, before: {wimp: ROOT, id: 1}},
+            {...axion, before: {wimp: ROOT, id: 2}},
+          ]},
+          {wimp: PEER, entries: [{
+            wimp: PEER,
+            id: 1,
+            parent: null,
+            edgeSlot: "root",
+            position: 0,
+            kind: "wimp",
+            src: CHILD,
+            before: {wimp: ROOT, id: 3},
+          }]},
+        ],
+      },
+    })
+
+    expect(moved?.messages.some((message) => message.parts[0].op === "move" &&
+      message.parts[0].path === "matter")).toBe(true)
+    expect(await boundary.projection.sql<Array<{id: number; wimp: string; localId: number}>>`
+      SELECT id, wimp, local_id AS localId FROM matter_particle WHERE id = ${declaration}
+    `).toEqual([{id: declaration, wimp: PEER, localId: 1}])
+    expect(await boundary.projection.sql<Array<{id: number; parentAtom: number | null}>>`
+      SELECT id, parent_atom AS parentAtom FROM atom WHERE wimp = ${CHILD}
+    `).toEqual([{id: runtime, parentAtom: peerAtom}])
+    expect(rootAtom).not.toBe(peerAtom)
+    expect(await boundary.projection.sql<unknown[]>`PRAGMA foreign_key_check`).toEqual([])
+
+    const graph = await readBoundaryGraphProjection(boundary, {})
+    const rootAddress = parseMetaAddress(ROOT)!
+    const peerAddress = parseMetaAddress(PEER)!
+    const childAddress = parseMetaAddress(CHILD)!
+    const document: Graph = {
+      schema: GRAPH_SCHEMA,
+      root: rootAddress,
+      template: {
+        [rootAddress]: {
+          name: "Root", fields: [], superposition: [], mass: [], processes: [],
+          matter: [
+            {kind: "wimp", src: peerAddress},
+            {kind: "axion", predicateBinding: "true", children: []},
+          ],
+        },
+        [peerAddress]: {
+          name: PEER, fields: [], superposition: [], mass: [], processes: [],
+          matter: [{kind: "wimp", src: childAddress}],
+        },
+        [childAddress]: {name: CHILD, fields: [], superposition: [], mass: [], processes: []},
+      },
+      runtime: graph.runtime,
+    }
+    const rootNode = document.runtime.roots[0]
+    expect(rootNode?.kind).toBe("atom")
+    if (rootNode?.kind !== "atom") throw new Error("Graph root Atom is absent")
+    const peerNode = rootNode.children?.find((node) => node.kind === "atom" && node.meta === PEER)
+    expect(peerNode?.children?.some((node) => node.kind === "atom" && node.meta === CHILD)).toBe(true)
+
+    const bulk = prepareBulkGraphCut(document).projection.runtime.atoms
+    const bulkPeer = bulk.find(({wimp}) => wimp === PEER)!
+    const bulkChild = bulk.find(({wimp}) => wimp === CHILD)!
+    expect(bulkChild.parentAtom).toBe(bulkPeer.id)
   })
 
   test("moves the Bulk singleton between Meta declarations without putting view_css in Bulk Store", async () => {

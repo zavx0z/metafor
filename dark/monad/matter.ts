@@ -13,7 +13,7 @@ import {
 } from "@metafor/types/metafor/authoring"
 import {parseMetaAddress, type MetaAddress} from "@metafor/types/metafor/graph"
 import type {ForceMessageInput} from "shared/protocol/force/message"
-import type {MatterParticle} from "@metafor/types/metafor/matter"
+import type {MatterFields, MatterParticle} from "@metafor/types/metafor/matter"
 import type {SourcedParticle} from "shared/protocol/force/particle"
 import type {AuthoredMatterProjectionChange} from "../dark.ts"
 import {
@@ -137,6 +137,13 @@ export const readMatterAuthoringParent: MatterAuthoringParentReader = async (add
     source: after.source,
     revision: after.revision,
     matter: structuredClone((dsl.matter ?? []) as readonly MatterParticle[]),
+    fields: Object.fromEntries((dsl.fields ?? []).map((field) => [
+      field.key,
+      {
+        type: field.type,
+        ...(field.type === "enum" && field.values ? {values: [...field.values]} : {}),
+      },
+    ])) as MatterFields,
   }
 }
 
@@ -184,10 +191,10 @@ export class MatterAuthoringService {
     }
 
     const affected = request.operation === "add"
-      ? [request.toParent]
+      ? [request.to.address]
       : request.operation === "remove"
-        ? [request.fromParent]
-        : [request.fromParent, request.toParent]
+        ? [request.target.address]
+        : [...new Set([request.from.address, request.to.address])]
     const parents = await Promise.all(affected.map((address) => this.readParent(address)))
     const current = new Map(parents.map((parent) => [parent.address, parent.revision] as const))
     const verified = validateMetaMatterRequest(input, {

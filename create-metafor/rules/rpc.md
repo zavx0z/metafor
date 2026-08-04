@@ -100,21 +100,32 @@ Create не записывает фиктивную Particle в Force history и
 ## Изменение Matter
 
 `meta.matter.apply` принимает одну структурную operation `add`, `move` или
-`remove`. Первый contract slice ограничен одним root-level WIMP Matter без
-Fields, Mass и Energy bindings. Request содержит:
+`remove` одного rooted occurrence Matter. Request содержит:
 
 - `contractVersion`, уникальный `operationId` и capability `meta.matter.write`;
-- canonical child Meta address;
-- исходного и/или целевого parent Meta;
+- точный закрытый `particle` WIMP, fuzzy, axion или macho вместе с bindings и
+  принадлежащими rooted occurrence children;
+- исходный locator и/или целевое placement;
 - точные ожидаемые source revisions каждого затрагиваемого `meta.ts`.
 
-`add` и destination `move` добавляют только последнего sibling. В первом slice
-`move` и `remove` также принимают только последний inert root occurrence. Это
-сохраняет действующие Matter local identities при последующем cold read. `move`
-допустим только для единственного совпавшего occurrence и обязан сохранить
-canonical runtime Atom identity. Source Matter identity для `move` вычисляется
-из проверенного parent `meta.ts`, а не из Boundary или собранного live Graph.
-`remove` удаляет occurrence, но не peer repository.
+Locator содержит canonical Meta address и непустой путь шагов
+`{edgeSlot, position}` от root к точному occurrence. Placement содержит address,
+locator родителя либо `null`, target edge slot и значимую sibling position.
+Boundary row ID и локальная declaration identity в RPC не выдаются. Provider
+разрешает их из проверенного source snapshot до live commit.
+
+`add` вставляет exact rooted subtree в указанную позицию. `move` требует полного
+совпадения `particle` с найденным occurrence, не допускает перенос внутрь самого
+себя и сохраняет физические runtime Atom/Topology identities всего subtree.
+`remove` удаляет occurrence и его composition, но не peer repository. После
+каждой операции внутренние Matter local identities приводятся к тому же
+breadth-first порядку, который даст cold read нового `meta.ts`; это не создаёт
+дополнительных клиентских entities или Particles.
+
+Одна принятая operation остаётся одним `ForceMessage` с одной Inflaton Particle.
+Rooted children являются закрытым составом этой Matter entity, как Variant у
+Field и Transition/Condition у State. Boundary атомарно применяет состав, а
+Graph и Bulk получают обычные производные Gravitons.
 
 ## Изменение declaration entity
 
@@ -256,11 +267,8 @@ Field, State composition, Mass, Reaction, Process и Bulk. Process включа�
 одной принятой Inflaton Particle. Process использует тот же provider и patch
 path; отдельный Process generator и произвольный source writer не создаются.
 
-Действующий `meta.matter.apply` расширяется, а не дублируется вторым Matter
-методом. Следующий contract slice должен адресовать точное occurrence внутри
-Matter tree и поддержать WIMP, fuzzy, axion и macho, bindings, значимую позицию,
-а также `add`, `move` и `remove`. Текущий проверенный slice остаётся ограничен
-inert root-level WIMP и последней позицией.
+Действующий `meta.matter.apply` является единственным Matter write method и
+использует закрытый occurrence/placement contract из раздела выше.
 
 `meta.field.value.apply` является предметным runtime input. Request адресует
 Atom через публичный locator точного Graph snapshot, называет Field key,

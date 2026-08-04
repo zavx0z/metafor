@@ -250,6 +250,12 @@ describe("Dark incremental Inflaton projection", () => {
         position: 0,
         kind: "wimp",
         src: child,
+        treePatch: {
+          before: [{wimp: root, entries: []}],
+          after: [{wimp: root, entries: [{
+            wimp: root, id: 1, parent: null, edgeSlot: "root", position: 0, kind: "wimp", src: child,
+          }]}],
+        },
       },
     } as const
     const owningRoot = await applyAuthoredMatterProjection(acceptedAdd)
@@ -280,7 +286,21 @@ describe("Dark incremental Inflaton projection", () => {
       path: "matter",
       by: "dark",
       ts: 32,
-      value: {wimp: root, id: 1, src: child},
+      value: {
+        wimp: root,
+        id: 1,
+        parent: null,
+        edgeSlot: "root",
+        position: 0,
+        kind: "wimp",
+        src: child,
+        treePatch: {
+          before: [{wimp: root, entries: [{
+            wimp: root, id: 1, parent: null, edgeSlot: "root", position: 0, kind: "wimp", src: child,
+          }]}],
+          after: [{wimp: root, entries: []}],
+        },
+      },
     } as const
     const removalRoot = await applyAuthoredMatterProjection(acceptedRemove)
     const removals: BareParticle[] = []
@@ -443,12 +463,11 @@ describe("Dark incremental Inflaton projection", () => {
     })]])))).toEqual([])
   })
 
-  test("seeds an addressed source parent before applying an accepted Matter patch", async () => {
+  test("does not reread a missing Matter parent while applying an accepted patch", async () => {
     const root = "test/dark-authored-detached"
     const child = "test/dark-authored-detached-child"
-    const declarations = new Map<string, MetaDSL>([[root, dsl({name: "Detached"})]])
     const reads: string[] = []
-    const owningRoot = await applyAuthoredMatterProjection({
+    await expect(applyAuthoredMatterProjection({
       part: "inflaton",
       op: "add",
       path: "matter",
@@ -462,14 +481,19 @@ describe("Dark incremental Inflaton projection", () => {
         position: 0,
         kind: "wimp",
         src: child,
+        treePatch: {
+          before: [{wimp: root, entries: []}],
+          after: [{wimp: root, entries: [{
+            wimp: root, id: 1, parent: null, edgeSlot: "root", position: 0, kind: "wimp", src: child,
+          }]}],
+        },
       },
-    }, async (src) => {
+    }, async (src): Promise<MetaDSL> => {
       reads.push(src)
-      return await loader(declarations)(src)
-    })
+      return dsl({name: "Detached"})
+    })).rejects.toThrow("outside one current Dark projection")
 
-    expect(owningRoot.root).toBe(root)
-    expect(reads).toEqual([root])
+    expect(reads).toEqual([])
   })
 
   test("reapplies an accepted move after its final projection state already exists", async () => {
@@ -500,6 +524,26 @@ describe("Dark incremental Inflaton projection", () => {
         position: 0,
         kind: "wimp",
         src: child,
+        before: {wimp: root, id: 2},
+        treePatch: {
+          before: [
+            {wimp: root, entries: [
+              {wimp: root, id: 1, parent: null, edgeSlot: "root", position: 0, kind: "wimp", src: nested},
+              {wimp: root, id: 2, parent: null, edgeSlot: "root", position: 1, kind: "wimp", src: child},
+            ]},
+            {wimp: nested, entries: []},
+          ],
+          after: [
+            {wimp: root, entries: [{
+              wimp: root, id: 1, parent: null, edgeSlot: "root", position: 0, kind: "wimp", src: nested,
+              before: {wimp: root, id: 1},
+            }]},
+            {wimp: nested, entries: [{
+              wimp: nested, id: 1, parent: null, edgeSlot: "root", position: 0, kind: "wimp", src: child,
+              before: {wimp: root, id: 2},
+            }]},
+          ],
+        },
       },
     } as const
 

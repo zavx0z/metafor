@@ -35,9 +35,11 @@
 * Одна изменённая сущность передаётся одним `ForceMessage` с одной Particle.
 * Force связывает домены, но не заменяет их локальные силы и ответственность.
 * Доверенный локальный агент уже может читать Graph и source revisions, создавать
-  пустую canonical Meta и применять первый Matter slice `add`, `move`, `remove`
-  для inert root-level WIMP в последней позиции через RPC с live-first
-  materialization и автоматической source projection.
+  пустую canonical Meta и через `meta.matter.apply` добавлять, перемещать и
+  удалять точные rooted occurrences полного Matter tree. WIMP, fuzzy, axion,
+  macho, bindings, вложенность и значимая sibling position проходят один
+  live-first patch с автоматической source projection; move сохраняет
+  физические runtime identities.
 * `meta.declaration.apply` проводит metadata, optional Field, State composition,
   Mass, Reaction, Process и Bulk. Process `add/replace` принимает закрытый
   descriptor, inline handlers и один owned `actions/*.ts`; `meta.ts` и action
@@ -46,8 +48,7 @@
   Inflaton, а source, Boundary и нужные runtime domains получают проекции того
   же patch.
 * Эта поверхность пока не является полной рабочей поверхностью агента: нет
-  полной композиции Matter, предметного runtime Field input и наблюдения
-  исполнения Process.
+  предметного runtime Field input и наблюдения исполнения Process.
 
 ## Graph
 
@@ -101,7 +102,7 @@ digest и causal frontier без `MassHandle` и filesystem path. Второй �
 * `readGraph`;
 * `meta.capabilities.read` и `meta.source.revision.read`;
 * `meta.create`;
-* первый ограниченный slice `meta.matter.apply`;
+* полный `meta.matter.apply` для WIMP, fuzzy, axion и macho composition;
 * `meta.declaration.apply` для metadata, optional Field, State composition,
   Mass, Reaction, Process и Bulk;
 * `dark.force.history.read` и `energy.mass.result.read`;
@@ -111,8 +112,6 @@ digest и causal frontier без `MassHandle` и filesystem path. Второй �
 
 До полной рабочей сессии должны быть реализованы:
 
-* полный Matter tree contract через расширение существующего
-  `meta.matter.apply`;
 * `meta.field.value.apply` с публичным Atom locator;
 * `meta.process.execution.read` для status, result и error.
 
@@ -225,7 +224,6 @@ Bulk. Она должна уметь:
 
 ## Порядок оставшейся работы
 
-1. расширить `meta.matter.apply` до полного Matter tree;
 1. реализовать `meta.field.value.apply` и `meta.process.execution.read`;
 1. доказать одну полную рабочую сессию агента без скрытого контекста;
 1. только после этого возвращаться к конкурентным чтениям и writes,

@@ -10,6 +10,7 @@ import {
   type MetaMatterRequest,
 } from "@metafor/types/metafor/authoring"
 import {parseMetaAddress, type MetaAddress} from "@metafor/types/metafor/graph"
+import type {MetaMatterParticle} from "@metafor/types/metafor/graph"
 import type {MatterParticle} from "@metafor/types/metafor/matter"
 import {sourceForceMessage} from "shared/protocol/force/message"
 import {open, type BoundaryDatabase} from "../../boundary/sqlite.ts"
@@ -25,6 +26,18 @@ const ROOT = parseMetaAddress("example/root")!
 const NESTED = parseMetaAddress("example/nested")!
 const CHILD = parseMetaAddress("example/child")!
 const RPC_SOURCE = "test/authoring"
+
+const wimp = (src: MetaAddress): MetaMatterParticle => ({kind: "wimp", src})
+const rootLocator = (address: MetaAddress, position: number) => ({
+  address,
+  path: [{edgeSlot: "root" as const, position}] as [{edgeSlot: "root"; position: number}],
+})
+const rootPlacement = (address: MetaAddress, position: number) => ({
+  address,
+  parent: null,
+  edgeSlot: "root" as const,
+  position,
+})
 
 const directories: string[] = []
 const boundaries: BoundaryDatabase[] = []
@@ -145,14 +158,14 @@ describe("Matter authoring service", () => {
       operationId: "add-child",
       capability: META_MATTER_WRITE_CAPABILITY,
       operation: "add",
-      child: CHILD,
-      toParent: ROOT,
+      particle: wimp(CHILD),
+      to: rootPlacement(ROOT, 0),
       revisions: [{address: ROOT, revision: await revision(rootPath)}],
     }
 
     const first = await test.service.apply(request, RPC_SOURCE)
     const repeated = await test.service.apply(request, RPC_SOURCE)
-    await expect(test.service.apply({...request, child: NESTED}, RPC_SOURCE))
+    await expect(test.service.apply({...request, particle: wimp(NESTED)}, RPC_SOURCE))
       .rejects.toThrow("already bound to a different request")
 
     expect(first).toMatchObject({
@@ -205,9 +218,9 @@ describe("Matter authoring service", () => {
       operationId: "move-child",
       capability: META_MATTER_WRITE_CAPABILITY,
       operation: "move",
-      child: CHILD,
-      fromParent: ROOT,
-      toParent: NESTED,
+      particle: wimp(CHILD),
+      from: rootLocator(ROOT, 1),
+      to: rootPlacement(NESTED, 0),
       revisions: [
         {address: NESTED, revision: await revision(nestedPath)},
         {address: ROOT, revision: await revision(rootPath)},
@@ -237,8 +250,8 @@ describe("Matter authoring service", () => {
       operationId: "remove-child",
       capability: META_MATTER_WRITE_CAPABILITY,
       operation: "remove",
-      child: CHILD,
-      fromParent: ROOT,
+      particle: wimp(CHILD),
+      target: rootLocator(ROOT, 0),
       revisions: [{address: ROOT, revision: await revision(rootPath)}],
     }, RPC_SOURCE)
 
@@ -266,8 +279,8 @@ describe("Matter authoring service", () => {
       operationId: "add-lost-candidate",
       capability: META_MATTER_WRITE_CAPABILITY,
       operation: "add",
-      child: CHILD,
-      toParent: ROOT,
+      particle: wimp(CHILD),
+      to: rootPlacement(ROOT, 0),
       revisions: [{address: ROOT, revision: await revision(rootPath)}],
     }
 
@@ -288,7 +301,7 @@ describe("Matter authoring service", () => {
     const current = new Map<MetaAddress, readonly MatterParticle[]>([[ROOT, []]])
     let reconciliations = 0
     const test = await fixture(current, undefined, {
-      apply: () => ({root: ROOT, operation: "add", child: CHILD}),
+      apply: () => ({root: ROOT, added: [CHILD], removed: []}),
       async reconcile() {
         reconciliations += 1
         if (reconciliations === 1) throw new Error("declaration delivery interrupted")
@@ -301,8 +314,8 @@ describe("Matter authoring service", () => {
       operationId: "add-materialization-retry",
       capability: META_MATTER_WRITE_CAPABILITY,
       operation: "add",
-      child: CHILD,
-      toParent: ROOT,
+      particle: wimp(CHILD),
+      to: rootPlacement(ROOT, 0),
       revisions: [{address: ROOT, revision: await revision(rootPath)}],
     }
 

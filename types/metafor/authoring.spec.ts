@@ -178,6 +178,17 @@ describe("meta.create proposal validation", () => {
 })
 
 describe("meta.matter.apply proposal validation", () => {
+  const particle = {kind: "wimp" as const, src: TEST}
+  const root = (address: MetaAddress, position = 0) => ({
+    address,
+    path: [{edgeSlot: "root" as const, position}] as [{edgeSlot: "root"; position: number}],
+  })
+  const rootPlacement = (address: MetaAddress, position = 0) => ({
+    address,
+    parent: null,
+    edgeSlot: "root" as const,
+    position,
+  })
   const validCases: Array<[string, MetaMatterRequest]> = [
     [
       "add",
@@ -186,8 +197,8 @@ describe("meta.matter.apply proposal validation", () => {
         operationId: "matter-add",
         capability: META_MATTER_WRITE_CAPABILITY,
         operation: "add",
-        child: TEST,
-        toParent: LADA,
+        particle,
+        to: rootPlacement(LADA),
         revisions: [{address: LADA, revision: LADA_REVISION}],
       },
     ],
@@ -198,9 +209,9 @@ describe("meta.matter.apply proposal validation", () => {
         operationId: "matter-move",
         capability: META_MATTER_WRITE_CAPABILITY,
         operation: "move",
-        child: TEST,
-        fromParent: LADA,
-        toParent: CHAT,
+        particle,
+        from: root(LADA),
+        to: rootPlacement(CHAT),
         revisions: [
           {address: CHAT, revision: CHAT_REVISION},
           {address: LADA, revision: LADA_REVISION},
@@ -214,8 +225,8 @@ describe("meta.matter.apply proposal validation", () => {
         operationId: "matter-remove",
         capability: META_MATTER_WRITE_CAPABILITY,
         operation: "remove",
-        child: TEST,
-        fromParent: CHAT,
+        particle,
+        target: root(CHAT),
         revisions: [{address: CHAT, revision: CHAT_REVISION}],
       },
     ],
@@ -236,6 +247,48 @@ describe("meta.matter.apply proposal validation", () => {
     expect(result.value.revisions).not.toBe(input.revisions)
   })
 
+  test("accepts one closed Matter hierarchy with every particle kind", () => {
+    const result = validateMetaMatterRequest({
+      contractVersion: 1,
+      operationId: "matter-add-hierarchy",
+      capability: META_MATTER_WRITE_CAPABILITY,
+      operation: "add",
+      particle: {
+        kind: "macho",
+        collectionBinding: {data: "items"},
+        children: [
+          {
+            edgeSlot: "child",
+            particle: {
+              kind: "axion",
+              predicateBinding: {data: "/state"},
+              children: [{edgeSlot: "then", particle: {kind: "wimp", src: CHAT}}],
+            },
+          },
+          {
+            edgeSlot: "child",
+            particle: {
+              kind: "fuzzy",
+              fuzzyKind: "dynamic-meta",
+              predicateBinding: {data: "mode", expr: "zavx0z/${_[0]}"},
+              children: [
+                {edgeSlot: "branch", particle: {kind: "wimp", src: TEST}},
+                {edgeSlot: "branch", particle: {kind: "wimp", src: CHAT}},
+              ],
+            },
+          },
+        ],
+      },
+      to: rootPlacement(LADA),
+      revisions: [{address: LADA, revision: LADA_REVISION}],
+    }, {
+      capabilities: [matterGrant()],
+      currentRevision,
+    })
+
+    expect(result.ok).toBe(true)
+  })
+
   test("normalizes revision order without mutating the request", () => {
     const revisions = [
       {address: LADA, revision: LADA_REVISION},
@@ -246,9 +299,9 @@ describe("meta.matter.apply proposal validation", () => {
       operationId: "matter-move",
       capability: META_MATTER_WRITE_CAPABILITY,
       operation: "move",
-      child: TEST,
-      fromParent: LADA,
-      toParent: CHAT,
+      particle,
+      from: root(LADA),
+      to: rootPlacement(CHAT),
       revisions,
     }
     const result = validateMetaMatterRequest(input, {
@@ -270,8 +323,8 @@ describe("meta.matter.apply proposal validation", () => {
         operationId: "matter-add",
         capability: META_MATTER_WRITE_CAPABILITY,
         operation: "add",
-        child: TEST,
-        toParent: LADA,
+        particle,
+        to: rootPlacement(LADA),
         revisions: [{address: LADA, revision: LADA_REVISION}],
         fieldsBinding: {},
       },
@@ -284,21 +337,21 @@ describe("meta.matter.apply proposal validation", () => {
         operationId: "matter-replace",
         capability: META_MATTER_WRITE_CAPABILITY,
         operation: "replace",
-        child: TEST,
+        particle,
         revisions: [],
       },
       "forbidden_operation",
     ],
     [
-      "same-parent move",
+      "same-placement move",
       {
         contractVersion: 1,
         operationId: "matter-move",
         capability: META_MATTER_WRITE_CAPABILITY,
         operation: "move",
-        child: TEST,
-        fromParent: LADA,
-        toParent: LADA,
+        particle,
+        from: root(LADA),
+        to: rootPlacement(LADA),
         revisions: [{address: LADA, revision: LADA_REVISION}],
       },
       "forbidden_operation",
@@ -310,8 +363,8 @@ describe("meta.matter.apply proposal validation", () => {
         operationId: "matter-add",
         capability: META_MATTER_WRITE_CAPABILITY,
         operation: "add",
-        child: TEST,
-        toParent: LADA,
+        particle,
+        to: rootPlacement(LADA),
         revisions: [],
       },
       "missing_revision",
@@ -323,8 +376,8 @@ describe("meta.matter.apply proposal validation", () => {
         operationId: "matter-add",
         capability: META_MATTER_WRITE_CAPABILITY,
         operation: "add",
-        child: TEST,
-        toParent: LADA,
+        particle,
+        to: rootPlacement(LADA),
         revisions: [{address: LADA, revision: CHAT_REVISION}],
       },
       "revision_mismatch",
@@ -336,8 +389,8 @@ describe("meta.matter.apply proposal validation", () => {
         operationId: "matter-add",
         capability: META_MATTER_WRITE_CAPABILITY,
         operation: "add",
-        child: TEST,
-        toParent: LADA,
+        particle,
+        to: rootPlacement(LADA),
         revisions: [
           {address: LADA, revision: LADA_REVISION},
           {address: CHAT, revision: CHAT_REVISION},
@@ -361,8 +414,8 @@ describe("meta.matter.apply proposal validation", () => {
       operationId: "matter-add",
       capability: META_MATTER_WRITE_CAPABILITY,
       operation: "add",
-      child: TEST,
-      toParent: LADA,
+      particle,
+      to: rootPlacement(LADA),
       revisions: [{address: LADA, revision: LADA_REVISION}],
     }
     const noGrant = validateMetaMatterRequest(input, {capabilities: [], currentRevision})
@@ -383,8 +436,8 @@ describe("meta.matter.apply proposal validation", () => {
       operationId: "matter-add",
       capability: META_MATTER_WRITE_CAPABILITY,
       operation: "add",
-      child: TEST,
-      toParent: LADA,
+      particle,
+      to: rootPlacement(LADA),
       revisions: new Array(1),
     }
     const result = validateMetaMatterRequest(input, {

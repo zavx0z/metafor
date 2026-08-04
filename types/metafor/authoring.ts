@@ -3,6 +3,8 @@ import {
   type JsonPointer,
   type MetaAddress,
   type MetaExecutionEnv,
+  type MetaMatterBinding,
+  type MetaMatterParticle,
   type ValidationIssue,
   type ValidationResult,
 } from "./graph.ts"
@@ -228,24 +230,41 @@ export interface MetaMatterSourcePrecondition {
 
 interface MetaMatterRequestBase extends MetaAuthoringWriteEnvelope {
   capability: typeof META_MATTER_WRITE_CAPABILITY
-  child: MetaAddress
+  particle: MetaMatterParticle
   revisions: MetaMatterSourcePrecondition[]
+}
+
+export interface MetaMatterLocatorStep {
+  edgeSlot: "root" | "child" | "then" | "else" | "branch"
+  position: number
+}
+
+export interface MetaMatterOccurrenceLocator {
+  address: MetaAddress
+  path: [MetaMatterLocatorStep, ...MetaMatterLocatorStep[]]
+}
+
+export interface MetaMatterPlacement {
+  address: MetaAddress
+  parent: MetaMatterOccurrenceLocator | null
+  edgeSlot: MetaMatterLocatorStep["edgeSlot"]
+  position: number
 }
 
 export interface MetaMatterAddRequest extends MetaMatterRequestBase {
   operation: "add"
-  toParent: MetaAddress
+  to: MetaMatterPlacement
 }
 
 export interface MetaMatterMoveRequest extends MetaMatterRequestBase {
   operation: "move"
-  fromParent: MetaAddress
-  toParent: MetaAddress
+  from: MetaMatterOccurrenceLocator
+  to: MetaMatterPlacement
 }
 
 export interface MetaMatterRemoveRequest extends MetaMatterRequestBase {
   operation: "remove"
-  fromParent: MetaAddress
+  target: MetaMatterOccurrenceLocator
 }
 
 export type MetaMatterRequest =
@@ -1293,6 +1312,294 @@ const bulkDeclaration = (
   return view === null ? null : {view}
 }
 
+const MATTER_EDGE_SLOTS = new Set<MetaMatterLocatorStep["edgeSlot"]>([
+  "root", "child", "then", "else", "branch",
+])
+
+const matterPosition = (
+  validator: AuthoringValidator,
+  value: unknown,
+  path: JsonPointer,
+  name: string,
+): number | null => {
+  if (typeof value === "number" && Number.isSafeInteger(value) && value >= 0) return value
+  validator.issue(path, "invalid_matter_position", `${name} must be a non-negative safe integer`)
+  return null
+}
+
+const matterBinding = (
+  validator: AuthoringValidator,
+  value: unknown,
+  path: JsonPointer,
+): MetaMatterBinding | null => {
+  if (typeof value === "string") {
+    return validator.source(value, path, "Matter binding", true)
+  }
+  if (!validator.record(value, path, "Matter binding")) return null
+  const before = validator.issues.length
+  validator.closed(value, path, ["data", "expr", "directMass"])
+  if (value.data === undefined) {
+    validator.issue(childPath(path, "data"), "required", "Normalized Matter binding data is required")
+  } else if (typeof value.data === "string") {
+    validator.source(value.data, childPath(path, "data"), "Matter binding data")
+  } else if (validator.array(value.data, childPath(path, "data"), "Matter binding data")) {
+    if (value.data.length === 0) {
+      validator.issue(childPath(path, "data"), "invalid_matter_binding", "Matter binding data must not be empty")
+    }
+    value.data.forEach((item, index) => {
+      validator.source(item, childPath(childPath(path, "data"), index), "Matter binding data item")
+    })
+  }
+  if (value.expr !== undefined) {
+    validator.source(value.expr, childPath(path, "expr"), "Matter binding expression", true)
+  }
+  if (value.directMass !== undefined) {
+    const directPath = childPath(path, "directMass")
+    if (validator.record(value.directMass, directPath, "Matter direct Mass binding")) {
+      const kind = value.directMass.kind
+      const allowed = kind === "keys" ? ["kind", "entries"] : ["kind"]
+      validator.closed(value.directMass, directPath, allowed)
+      validator.required(value.directMass, directPath, allowed)
+      if (kind !== "whole" && kind !== "keys") {
+        validator.issue(childPath(directPath, "kind"), "invalid_matter_binding", "Direct Mass kind must be whole or keys")
+      }
+      if (kind === "keys" && validator.array(
+        value.directMass.entries,
+        childPath(directPath, "entries"),
+        "Matter direct Mass entries",
+      )) {
+        if (value.directMass.entries.length === 0) {
+          validator.issue(childPath(directPath, "entries"), "invalid_matter_binding", "Direct Mass entries must not be empty")
+        }
+        const targets = new Set<string>()
+        const sources = new Set<string>()
+        value.directMass.entries.forEach((entry, index) => {
+          const entryPath = childPath(childPath(directPath, "entries"), index)
+          if (!validator.record(entry, entryPath, "Matter direct Mass entry")) return
+          validator.closed(entry, entryPath, ["target", "source"])
+          validator.required(entry, entryPath, ["target", "source"])
+          const target = validator.text(entry.target, childPath(entryPath, "target"), "Matter direct Mass target")
+          const source = validator.text(entry.source, childPath(entryPath, "source"), "Matter direct Mass source")
+          if (target !== null && targets.has(target)) {
+            validator.issue(childPath(entryPath, "target"), "duplicate_value", `Matter target ${target} is duplicated`)
+          }
+          if (source !== null && sources.has(source)) {
+            validator.issue(childPath(entryPath, "source"), "duplicate_value", `Matter source ${source} is duplicated`)
+          }
+          if (target !== null) targets.add(target)
+          if (source !== null) sources.add(source)
+        })
+      }
+    }
+  }
+  return validator.issues.length === before ? structuredClone(value) as MetaMatterBinding : null
+}
+
+const matterParticle = (
+  validator: AuthoringValidator,
+  value: unknown,
+  path: JsonPointer,
+  depth = 0,
+): MetaMatterParticle | null => {
+  if (depth > 32) {
+    validator.issue(path, "invalid_matter_depth", "Matter subtree exceeds 32 nested levels")
+    return null
+  }
+  if (!validator.record(value, path, "Matter particle")) return null
+  const before = validator.issues.length
+  const kind = value.kind
+  const definition = kind === "wimp"
+    ? ["src", "fieldsBinding", "massBinding", "energyBinding"]
+    : kind === "fuzzy"
+      ? ["fuzzyKind", "predicateBinding"]
+      : kind === "axion"
+        ? ["predicateBinding"]
+        : kind === "macho"
+          ? ["collectionBinding"]
+          : []
+  validator.closed(value, path, ["kind", ...definition, "children"])
+  validator.required(value, path, ["kind", ...definition.filter((key) =>
+    key !== "fieldsBinding" && key !== "massBinding" && key !== "energyBinding"
+  )])
+  if (kind !== "wimp" && kind !== "fuzzy" && kind !== "axion" && kind !== "macho") {
+    validator.issue(childPath(path, "kind"), "invalid_matter_kind", "Matter kind must be wimp, fuzzy, axion or macho")
+    return null
+  }
+
+  let src: MetaAddress | null = null
+  if (kind === "wimp") src = validator.address(value.src, childPath(path, "src"))
+  if (kind === "fuzzy" && value.fuzzyKind !== "dynamic-meta") {
+    validator.issue(childPath(path, "fuzzyKind"), "invalid_matter_fuzzy_kind", "Fuzzy kind must be dynamic-meta")
+  }
+  const bindings = new Map<string, MetaMatterBinding | null>()
+  for (const key of definition) {
+    if (key === "src" || key === "fuzzyKind" || value[key] === undefined) continue
+    bindings.set(key, matterBinding(validator, value[key], childPath(path, key)))
+  }
+
+  const children: Array<{edgeSlot: "child" | "then" | "else" | "branch"; particle: MetaMatterParticle}> = []
+  if (value.children !== undefined && validator.array(value.children, childPath(path, "children"), "Matter children")) {
+    if (value.children.length > 512) {
+      validator.issue(childPath(path, "children"), "invalid_matter_width", "Matter particle has more than 512 children")
+    }
+    value.children.forEach((entry, index) => {
+      const entryPath = childPath(childPath(path, "children"), index)
+      if (!validator.record(entry, entryPath, "Matter child")) return
+      validator.closed(entry, entryPath, ["edgeSlot", "particle"])
+      validator.required(entry, entryPath, ["edgeSlot", "particle"])
+      const edgeSlot = entry.edgeSlot
+      const allowed = kind === "wimp" || kind === "macho"
+        ? edgeSlot === "child"
+        : kind === "fuzzy"
+          ? edgeSlot === "branch"
+          : edgeSlot === "child" || edgeSlot === "then" || edgeSlot === "else"
+      if (!allowed) {
+        validator.issue(childPath(entryPath, "edgeSlot"), "invalid_matter_edge", `Matter ${kind} child edge is invalid`)
+      }
+      const particle = matterParticle(validator, entry.particle, childPath(entryPath, "particle"), depth + 1)
+      if (kind === "fuzzy" && particle?.kind !== "wimp") {
+        validator.issue(childPath(entryPath, "particle"), "invalid_matter_edge", "Fuzzy branches must contain WIMP particles")
+      }
+      if (allowed && particle) children.push({edgeSlot, particle} as typeof children[number])
+    })
+  }
+  if (kind === "fuzzy" && children.length === 0) {
+    validator.issue(childPath(path, "children"), "invalid_matter_fuzzy", "Fuzzy must contain its resolved WIMP branches")
+  }
+  if (kind === "axion") {
+    const edgeSlots = new Set(children.map(({edgeSlot}) => edgeSlot))
+    if (edgeSlots.has("child") && (edgeSlots.has("then") || edgeSlots.has("else"))) {
+      validator.issue(childPath(path, "children"), "invalid_matter_edge", "Axion cannot mix logical and conditional child edges")
+    }
+  }
+
+  if (validator.issues.length !== before || (kind === "wimp" && src === null)) return null
+  if (kind === "wimp") return {
+    kind,
+    src: src!,
+    ...(bindings.has("fieldsBinding") ? {fieldsBinding: bindings.get("fieldsBinding")!} : {}),
+    ...(bindings.has("massBinding") ? {massBinding: bindings.get("massBinding")!} : {}),
+    ...(bindings.has("energyBinding") ? {energyBinding: bindings.get("energyBinding")!} : {}),
+    ...(children.length === 0 ? {} : {children: children as NonNullable<Extract<MetaMatterParticle, {kind: "wimp"}>["children"]>}),
+  }
+  if (kind === "fuzzy") return {
+    kind,
+    fuzzyKind: "dynamic-meta",
+    predicateBinding: bindings.get("predicateBinding")!,
+    children: children as NonNullable<Extract<MetaMatterParticle, {kind: "fuzzy"}>["children"]>,
+  }
+  if (kind === "axion") return {
+    kind,
+    predicateBinding: bindings.get("predicateBinding")!,
+    ...(children.length === 0 ? {} : {children: children as NonNullable<Extract<MetaMatterParticle, {kind: "axion"}>["children"]>}),
+  }
+  return {
+    kind,
+    collectionBinding: bindings.get("collectionBinding")!,
+    ...(children.length === 0 ? {} : {children: children as NonNullable<Extract<MetaMatterParticle, {kind: "macho"}>["children"]>}),
+  }
+}
+
+const matterLocator = (
+  validator: AuthoringValidator,
+  value: unknown,
+  path: JsonPointer,
+  allowEmpty = false,
+): MetaMatterOccurrenceLocator | null => {
+  if (!validator.record(value, path, "Matter occurrence locator")) return null
+  const before = validator.issues.length
+  validator.closed(value, path, ["address", "path"])
+  validator.required(value, path, ["address", "path"])
+  const address = validator.address(value.address, childPath(path, "address"))
+  const steps: MetaMatterLocatorStep[] = []
+  if (validator.array(value.path, childPath(path, "path"), "Matter locator path")) {
+    if (!allowEmpty && value.path.length === 0) {
+      validator.issue(childPath(path, "path"), "invalid_matter_locator", "Matter occurrence path must not be empty")
+    }
+    if (value.path.length > 32) {
+      validator.issue(childPath(path, "path"), "invalid_matter_depth", "Matter locator exceeds 32 steps")
+    }
+    value.path.forEach((entry, index) => {
+      const stepPath = childPath(childPath(path, "path"), index)
+      if (!validator.record(entry, stepPath, "Matter locator step")) return
+      validator.closed(entry, stepPath, ["edgeSlot", "position"])
+      validator.required(entry, stepPath, ["edgeSlot", "position"])
+      const edgeSlot = entry.edgeSlot
+      if (!MATTER_EDGE_SLOTS.has(edgeSlot as MetaMatterLocatorStep["edgeSlot"])) {
+        validator.issue(childPath(stepPath, "edgeSlot"), "invalid_matter_edge", "Matter locator edge slot is invalid")
+      }
+      if (index === 0 && edgeSlot !== "root") {
+        validator.issue(childPath(stepPath, "edgeSlot"), "invalid_matter_locator", "Matter locator must start at a root edge")
+      }
+      if (index > 0 && edgeSlot === "root") {
+        validator.issue(childPath(stepPath, "edgeSlot"), "invalid_matter_locator", "Nested Matter locator step cannot be root")
+      }
+      const position = matterPosition(validator, entry.position, childPath(stepPath, "position"), "Matter locator position")
+      if (MATTER_EDGE_SLOTS.has(edgeSlot as MetaMatterLocatorStep["edgeSlot"]) && position !== null) {
+        steps.push({edgeSlot: edgeSlot as MetaMatterLocatorStep["edgeSlot"], position})
+      }
+    })
+  }
+  return validator.issues.length === before && address !== null && (allowEmpty || steps.length > 0)
+    ? {address, path: steps as MetaMatterOccurrenceLocator["path"]}
+    : null
+}
+
+const matterPlacement = (
+  validator: AuthoringValidator,
+  value: unknown,
+  path: JsonPointer,
+): MetaMatterPlacement | null => {
+  if (!validator.record(value, path, "Matter placement")) return null
+  const before = validator.issues.length
+  validator.closed(value, path, ["address", "parent", "edgeSlot", "position"])
+  validator.required(value, path, ["address", "parent", "edgeSlot", "position"])
+  const address = validator.address(value.address, childPath(path, "address"))
+  const parent = value.parent === null ? null : matterLocator(validator, value.parent, childPath(path, "parent"))
+  const edgeSlot = value.edgeSlot
+  if (!MATTER_EDGE_SLOTS.has(edgeSlot as MetaMatterLocatorStep["edgeSlot"])) {
+    validator.issue(childPath(path, "edgeSlot"), "invalid_matter_edge", "Matter placement edge slot is invalid")
+  }
+  const position = matterPosition(validator, value.position, childPath(path, "position"), "Matter placement position")
+  if (parent === null && value.parent !== null) {
+    return null
+  }
+  if (parent === null && edgeSlot !== "root") {
+    validator.issue(childPath(path, "edgeSlot"), "invalid_matter_placement", "Root Matter placement must use root edge")
+  }
+  if (parent !== null) {
+    if (parent.address !== address) {
+      validator.issue(childPath(path, "parent"), "invalid_matter_placement", "Matter parent must belong to placement address")
+    }
+    if (edgeSlot === "root") {
+      validator.issue(childPath(path, "edgeSlot"), "invalid_matter_placement", "Nested Matter placement cannot use root edge")
+    }
+  }
+  return validator.issues.length === before && address !== null && position !== null &&
+    MATTER_EDGE_SLOTS.has(edgeSlot as MetaMatterLocatorStep["edgeSlot"])
+    ? {address, parent, edgeSlot: edgeSlot as MetaMatterLocatorStep["edgeSlot"], position}
+    : null
+}
+
+const matterWimpAddresses = (particle: MetaMatterParticle): MetaAddress[] => {
+  const result: MetaAddress[] = []
+  const pending = [particle]
+  while (pending.length > 0) {
+    const current = pending.shift()!
+    if (current.kind === "wimp") result.push(current.src)
+    for (const child of current.children ?? []) pending.push(child.particle)
+  }
+  return result
+}
+
+const locatorStartsWith = (
+  locator: MetaMatterOccurrenceLocator,
+  prefix: MetaMatterOccurrenceLocator,
+): boolean => locator.address === prefix.address && prefix.path.every((step, index) => {
+  const current = locator.path[index]
+  return current?.edgeSlot === step.edgeSlot && current.position === step.position
+})
+
 export const validateMetaMatterRequest = (
   input: unknown,
   context: MetaAuthoringValidationContext,
@@ -1301,18 +1608,18 @@ export const validateMetaMatterRequest = (
   if (!validator.record(input, "", "meta.matter.apply request")) return {ok: false, issues: validator.issues}
   const operation = input.operation
   const operationFields = operation === "add"
-    ? ["toParent"]
+    ? ["to"]
     : operation === "move"
-      ? ["fromParent", "toParent"]
+      ? ["from", "to"]
       : operation === "remove"
-        ? ["fromParent"]
+        ? ["target"]
         : []
   validator.closed(input, "", [
     "contractVersion",
     "operationId",
     "capability",
     "operation",
-    "child",
+    "particle",
     "revisions",
     ...operationFields,
   ])
@@ -1321,7 +1628,7 @@ export const validateMetaMatterRequest = (
     "operationId",
     "capability",
     "operation",
-    "child",
+    "particle",
     "revisions",
     ...operationFields,
   ])
@@ -1330,19 +1637,35 @@ export const validateMetaMatterRequest = (
   if (operation !== "add" && operation !== "move" && operation !== "remove") {
     validator.issue("/operation", "forbidden_operation", "Matter operation must be add, move or remove")
   }
-  const child = validator.address(input.child, "/child")
-  const fromParent = operation === "move" || operation === "remove"
-    ? validator.address(input.fromParent, "/fromParent")
-    : null
-  const toParent = operation === "add" || operation === "move"
-    ? validator.address(input.toParent, "/toParent")
-    : null
-  if (operation === "move" && fromParent !== null && fromParent === toParent) {
-    validator.issue("/toParent", "forbidden_operation", "move requires distinct source and destination parents")
+  const particle = matterParticle(validator, input.particle, "/particle")
+  const from = operation === "move" ? matterLocator(validator, input.from, "/from") : null
+  const target = operation === "remove" ? matterLocator(validator, input.target, "/target") : null
+  const to = operation === "add" || operation === "move" ? matterPlacement(validator, input.to, "/to") : null
+  if (operation === "move" && from !== null && to !== null) {
+    const parent = to.parent
+    if (parent && locatorStartsWith(parent, from)) {
+      validator.issue("/to/parent", "invalid_matter_cycle", "Matter occurrence cannot move into its own subtree")
+    }
+    const targetPath = [...(parent?.path ?? []), {edgeSlot: to.edgeSlot, position: to.position}]
+    if (
+      from.address === to.address && from.path.length === targetPath.length &&
+      from.path.every((step, index) =>
+        step.edgeSlot === targetPath[index]!.edgeSlot && step.position === targetPath[index]!.position
+      )
+    ) {
+      validator.issue("/to", "forbidden_operation", "Matter move must change placement")
+    }
   }
   const revisions = sourcePreconditions(validator, input.revisions)
-  const affected = [...new Set([fromParent, toParent].filter((address): address is MetaAddress => address !== null))]
-  const scope = [...new Set([child, ...affected].filter((address): address is MetaAddress => address !== null))]
+  const affected = [...new Set([
+    from?.address,
+    target?.address,
+    to?.address,
+  ].filter((address): address is MetaAddress => address !== undefined && address !== null))]
+  const scope = [...new Set([
+    ...affected,
+    ...(particle ? matterWimpAddresses(particle) : []),
+  ])]
   const grant = grantFor(
     validator,
     context.capabilities,
@@ -1356,7 +1679,7 @@ export const validateMetaMatterRequest = (
   if (
     validator.issues.length > 0 ||
     !envelope ||
-    child === null ||
+    particle === null ||
     (operation !== "add" && operation !== "move" && operation !== "remove")
   ) return {ok: false, issues: validator.issues}
 
@@ -1364,17 +1687,17 @@ export const validateMetaMatterRequest = (
     contractVersion: META_AUTHORING_CONTRACT_VERSION,
     operationId: envelope.operationId,
     capability: META_MATTER_WRITE_CAPABILITY,
-    child,
+    particle,
     revisions,
   }
-  if (operation === "add" && toParent !== null) {
-    return {ok: true, value: {...base, operation, toParent}}
+  if (operation === "add" && to !== null) {
+    return {ok: true, value: {...base, operation, to}}
   }
-  if (operation === "move" && fromParent !== null && toParent !== null) {
-    return {ok: true, value: {...base, operation, fromParent, toParent}}
+  if (operation === "move" && from !== null && to !== null) {
+    return {ok: true, value: {...base, operation, from, to}}
   }
-  if (operation === "remove" && fromParent !== null) {
-    return {ok: true, value: {...base, operation, fromParent}}
+  if (operation === "remove" && target !== null) {
+    return {ok: true, value: {...base, operation, target}}
   }
   return {ok: false, issues: validator.issues}
 }
