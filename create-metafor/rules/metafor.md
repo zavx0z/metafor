@@ -91,6 +91,8 @@ export default MetaFor("<name>")
 Этот раздел является каноническим смысловым контрактом RPC-проекций для
 клиентов Create MetaFor. [`docs/FORCE.md`](../../docs/FORCE.md) владеет
 transport и routing законами Monad RPC, но не формой клиентской проекции.
+Клиентские write operations создания Meta и изменения Matter принадлежат
+отдельному [RPC-контракту авторинга](rpc.md).
 
 ### Что реализовано и проверено сейчас
 

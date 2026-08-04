@@ -7,13 +7,19 @@ Transport и маршрутизация не определяют, как кли
 
 ## Решение владельца
 
-Нужно создать `create-metafor/rules/rpc.md` и определить:
+Владелец утвердил RPC-first создание нового Meta-пакета и live-first изменение
+Matter. Нужно создать `create-metafor/rules/rpc.md` и определить:
 
 * discovery;
 * scope;
 * ошибки;
 * версии;
 * capability binding.
+
+Первый сквозной сценарий создаёт через RPC инертный `zavx0z/lada-test`,
+подключает его к Ладе, перемещает внутрь `zavx0z/lada-chat` и удаляет. Все
+structural steps выполняются через RPC; прямой CLI или ручная запись source не
+являются пользовательским путём. Исполнитель: текущая задача Codex.
 
 Новый документ не дублирует transport law из `docs/FORCE.md` и сохраняет
 смысловой договор проекций из `create-metafor/rules/metafor.md`.

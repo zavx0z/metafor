@@ -93,15 +93,15 @@ flowchart LR
 
 ## P1 — наблюдение и доказательства
 
-| ID       | Состояние | Зависимости           | Карточка                     |
-| -------- | --------- | --------------------- | ---------------------------- |
-| MF-103   | READY     | нет                   | [Открыть](tasks/MF-103.md)   |
-| MF-104   | WAITING   | MF-103                | [Открыть](tasks/MF-104.md)   |
-| MF-109   | WAITING   | MF-103                | [Открыть](tasks/MF-109.md)   |
-| MF-110   | WAITING   | MF-109, RPC-GATE      | [Открыть](tasks/MF-110.md)   |
-| RPC-GATE | GATE      | нет                   | [Открыть](tasks/RPC-GATE.md) |
-| MTX-002  | READY     | нет                   | [Открыть](tasks/MTX-002.md)  |
-| MTX-003  | READY     | нет                   | [Открыть](tasks/MTX-003.md)  |
+| ID       | Состояние   | Зависимости           | Карточка                     |
+| -------- | ----------- | --------------------- | ---------------------------- |
+| MF-103   | READY       | нет                   | [Открыть](tasks/MF-103.md)   |
+| MF-104   | WAITING     | MF-103                | [Открыть](tasks/MF-104.md)   |
+| MF-109   | WAITING     | MF-103                | [Открыть](tasks/MF-109.md)   |
+| MF-110   | WAITING     | MF-109, RPC-GATE      | [Открыть](tasks/MF-110.md)   |
+| RPC-GATE | REVIEW      | нет                   | [Открыть](tasks/RPC-GATE.md) |
+| MTX-002  | READY       | нет                   | [Открыть](tasks/MTX-002.md)  |
+| MTX-003  | READY       | нет                   | [Открыть](tasks/MTX-003.md)  |
 
 ## P2 — структурное изменение
 
