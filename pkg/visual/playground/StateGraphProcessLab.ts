@@ -1,15 +1,25 @@
 import type {BulkRuntimeProjection} from "@metafor/types/bulk/runtime"
 import {buildStateGraph} from "../src/StateGraph.ts"
 import {layoutFieldsInPseudoCircle} from "../src/FieldsLayout.ts"
+import {
+  describeHermiteEdgeCurve,
+  type HermiteEdgeCurve,
+} from "../src/HermiteEdge.ts"
 import {buildStateGraphRootLayout} from "../src/StateGraphLayout.ts"
-import {resolveContentTorusForm, type TorusForm} from "../src/Torus.ts"
+import {
+  resolveContentTorusForm,
+  resolveEmptyTorusForm,
+  resolveTorusForm,
+  type TorusForm,
+} from "../src/Torus.ts"
 import {createPageAnnotationLayer} from "./AnnotationLayer.ts"
 import {
   createStateGraphViewport,
   stateGraphFieldColor,
   type StateGraphContextField,
+  type StateGraphContextCurveBatch,
   type StateGraphContextLabel,
-  type StateGraphContextSegment,
+  type StateGraphContextOrbit,
   type StateGraphViewport,
   type StateGraphViewportContext,
 } from "./StateGraphViewport.ts"
@@ -20,9 +30,10 @@ import {
 
 export const STATE_GRAPH_PROCESS_SLUG = "state-graph/process" as const
 
-const PROCESS_COLOR = [0.72, 0.28, 1] as const
-const OWNER_COLOR = [0.72, 0.58, 1] as const
-const PROCESS_SURFACE_GAP = 2.2
+const ATOM_COLOR = [0.18, 0.78, 1] as const
+const ORBIT_COLOR = [0.34, 0.52, 0.72] as const
+const RESULT_FLOW_COLOR = [1, 0.72, 0.16] as const
+const CONTENT_SURFACE_GAP = 2.2
 
 export type StateGraphProcessHandlerKind = "action" | "success" | "error"
 
@@ -43,10 +54,15 @@ const HANDLER_PRESENTATION = Object.freeze({
 
 export type StateGraphProcessHandler = Readonly<{
   color: readonly [number, number, number]
+  curves: readonly HermiteEdgeCurve[]
   fieldIds: readonly number[]
   fields: readonly StateGraphProcessField[]
+  form: TorusForm
   kind: StateGraphProcessHandlerKind
   label: string
+  x: number
+  y: number
+  z: number
 }>
 
 export type StateGraphProcessField = Readonly<{
@@ -61,22 +77,25 @@ export type StateGraphProcessField = Readonly<{
 }>
 
 export type StateGraphProcessStand = Readonly<{
+  atom: Readonly<{
+    form: TorusForm
+    x: number
+    y: number
+    z: number
+  }>
+  atomFields: readonly StateGraphProcessField[]
   context: StateGraphViewportContext
   graph: ReturnType<typeof buildStateGraph>
   handlers: readonly StateGraphProcessHandler[]
   layout: ReturnType<typeof buildStateGraphRootLayout>
   process: Readonly<{
-    form: TorusForm
     id: number
     label: string
     ownerNodeId: string
     ownerStateId: number
     ownerStateLabel: string
-    x: number
-    y: number
-    z: number
   }>
-  processFields: readonly StateGraphProcessField[]
+  resultCurves: readonly HermiteEdgeCurve[]
 }>
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -114,6 +133,60 @@ const pointOnCircle = (
   z: 0,
 })
 
+const describeResultFlowCurve = (
+  from: StateGraphProcessField,
+  to: StateGraphProcessField,
+  fromAngle: number,
+  toAngle: number,
+  orbitRadius: number,
+): HermiteEdgeCurve => {
+  const dx = to.x - from.x
+  const dy = to.y - from.y
+  const dz = to.z - from.z
+  const span = Math.hypot(dx, dy, dz)
+  if (span <= Number.EPSILON) {
+    throw new RangeError("State Graph Process result handlers must be distinct")
+  }
+  const curve = describeHermiteEdgeCurve({
+    from: {
+      x: from.x,
+      y: from.y,
+      z: from.z,
+    },
+    leftOuterRadius: from.radius,
+    rightOuterRadius: to.radius,
+    side: -1,
+    to: {
+      x: to.x,
+      y: to.y,
+      z: to.z,
+    },
+  })
+  const angularDelta = Math.atan2(
+    Math.sin(toAngle - fromAngle),
+    Math.cos(toAngle - fromAngle),
+  )
+  const orbitDirection = angularDelta < 0 ? -1 : 1
+  const orbitTangentLength = 4 * orbitRadius * Math.tan(
+    Math.abs(angularDelta) / 4,
+  )
+  const fromDepth = Math.abs(curve.fromTangent.z)
+  const toDepth = Math.abs(curve.toTangent.z)
+  return Object.freeze({
+    ...curve,
+    fromTangent: Object.freeze({
+      x: -Math.sin(fromAngle) * orbitDirection * orbitTangentLength,
+      y: Math.cos(fromAngle) * orbitDirection * orbitTangentLength,
+      z: -fromDepth,
+    }),
+    toTangent: Object.freeze({
+      x: -Math.sin(toAngle) * orbitDirection * orbitTangentLength,
+      y: Math.cos(toAngle) * orbitDirection * orbitTangentLength,
+      z: -toDepth,
+    }),
+  })
+}
+
 export const buildStateGraphProcessStand = (
   projection: BulkRuntimeProjection =
     PHOTON_STORY_PREPARED_PROJECTION.runtime,
@@ -139,9 +212,70 @@ export const buildStateGraphProcessStand = (
   if (!ownerNode) {
     throw new Error(`State Graph Process ${process.id} owner node is absent`)
   }
+  const descriptor = process.descriptor as Record<string, unknown>
+  const handlerFacts = (["action", "success", "error"] as const).map(
+    (kind) => ({kind, fieldIds: handlerFieldIds(descriptor, kind)}),
+  )
+  if (handlerFacts.some((handler) => handler.fieldIds.length === 0)) {
+    throw new Error(
+      `State Graph Process ${process.id} requires action, success and error Fields`,
+    )
+  }
+  const atomFieldRadius = ownerNode.fieldRadius
+  const atomFieldLayout = layoutFieldsInPseudoCircle(
+    graph.fields.length,
+    atomFieldRadius,
+  )
+  const atomForm = resolveContentTorusForm({
+    coreExtent: atomFieldLayout.radius,
+    emptyOuterRadius: resolveEmptyTorusForm(2).outerRadius,
+    gap: atomFieldRadius * 0.75,
+  })
+  const atomFields = graph.fields.map((field, index): StateGraphProcessField => {
+    const point = atomFieldLayout.points[index] ?? {x: 0, y: 0, z: 0}
+    return Object.freeze({
+      ...field,
+      radius: atomFieldRadius,
+      x: ownerNode.x + point.x,
+      y: ownerNode.y + point.y,
+      z: ownerNode.z + point.z,
+    })
+  })
+  const atomFieldById = new Map(atomFields.map((field) => [field.id, field] as const))
+  const emptyStateForm = resolveEmptyTorusForm(1)
+  const atomX = ownerNode.x
+  const atomY = ownerNode.y
+  const atomZ = ownerNode.z
+  const handlerFieldRadius = Math.max(0.32, ownerNode.fieldRadius * 0.5)
+  const handlerInputs = handlerFacts.map((handler) => ({
+    ...handler,
+    layout: layoutFieldsInPseudoCircle(
+      handler.fieldIds.length,
+      handlerFieldRadius,
+    ),
+  }))
+  const handlerForm = resolveContentTorusForm({
+    coreExtent: Math.max(...handlerInputs.map(({layout}) => layout.radius)),
+    emptyOuterRadius: resolveEmptyTorusForm(3).outerRadius,
+    gap: handlerFieldRadius * 0.75,
+  })
+  const handlerOrbitRadius =
+    atomForm.outerRadius + CONTENT_SURFACE_GAP + handlerForm.outerRadius
+  const stateContentForm = resolveContentTorusForm({
+    emptyOuterRadius: emptyStateForm.outerRadius,
+    gap: CONTENT_SURFACE_GAP,
+    occupiedOuterExtent: handlerOrbitRadius + handlerForm.outerRadius,
+  })
+  const stateForm = resolveTorusForm(
+    atomForm.innerRadius,
+    stateContentForm.outerRadius,
+  )
   const ownerLabNode = Object.freeze({
     ...ownerNode,
+    fields: Object.freeze([]),
+    innerRadius: stateForm.innerRadius,
     label: `State ${ownerState.id}`,
+    radius: stateForm.outerRadius,
   })
   const layout = Object.freeze({
     edges: Object.freeze([]),
@@ -153,136 +287,146 @@ export const buildStateGraphProcessStand = (
     nodes: Object.freeze([ownerLabNode]),
     rootStateId: ownerState.id,
   })
-  const descriptor = process.descriptor as Record<string, unknown>
-  const handlerFacts = (["action", "success", "error"] as const).map(
-    (kind) => ({kind, fieldIds: handlerFieldIds(descriptor, kind)}),
-  )
-  if (handlerFacts.some((handler) => handler.fieldIds.length === 0)) {
-    throw new Error(
-      `State Graph Process ${process.id} requires action, success and error Fields`,
-    )
+  const handlerAngles: Readonly<Record<StateGraphProcessHandlerKind, number>> = {
+    action: Math.PI / 2,
+    success: Math.PI * 7 / 6,
+    error: Math.PI * 11 / 6,
   }
-  const uniqueFieldIds = [...new Set(handlerFacts.flatMap((handler) =>
-    handler.fieldIds
-  ))].sort((left, right) => left - right)
-  const fieldById = new Map(graph.fields.map((field) => [field.id, field] as const))
-  const processFieldRadius = Math.max(0.55, ownerNode.fieldRadius * 0.92)
-  const fieldLayout = layoutFieldsInPseudoCircle(
-    uniqueFieldIds.length,
-    processFieldRadius,
-  )
-  const form = resolveContentTorusForm({
-    coreExtent: fieldLayout.radius,
-    emptyOuterRadius: ownerNode.radius * 0.92,
-    gap: processFieldRadius * 0.75,
-  })
-  const processX =
-    ownerNode.x - ownerNode.radius - PROCESS_SURFACE_GAP - form.outerRadius
-  const processY = ownerNode.y
-  const processZ = ownerNode.z
-  const processFields = uniqueFieldIds.map((id, index): StateGraphProcessField => {
-    const field = fieldById.get(id)
-    if (!field) {
-      throw new Error(`State Graph Process ${process.id} Field ${id} is absent`)
-    }
-    const point = fieldLayout.points[index] ?? {x: 0, y: 0, z: 0}
-    return Object.freeze({
-      ...field,
-      radius: processFieldRadius,
-      x: processX + point.x,
-      y: processY + point.y,
-      z: processZ + point.z,
-    })
-  })
-  const processFieldById = new Map(processFields.map((field) =>
-    [field.id, field] as const
-  ))
-  const handlers = handlerFacts.map(({kind, fieldIds}): StateGraphProcessHandler => {
+  const handlers = handlerInputs.map(
+    ({kind, fieldIds, layout}): StateGraphProcessHandler => {
     const presentation = HANDLER_PRESENTATION[kind]
+    const center = pointOnCircle(
+      atomX,
+      atomY,
+      handlerOrbitRadius,
+      handlerAngles[kind],
+    )
+    const fields = Object.freeze(fieldIds.map((id, index) => {
+      const field = atomFieldById.get(id)
+      if (!field) throw new Error(`State Graph Process handler Field ${id} is absent`)
+      const local = layout.points[index] ?? {x: 0, y: 0, z: 0}
+      return Object.freeze({
+        ...field,
+        radius: handlerFieldRadius,
+        x: center.x + local.x,
+        y: center.y + local.y,
+        z: atomZ + local.z,
+      })
+    }))
+    const curves = Object.freeze(fields.map((field) => {
+      const atomField = atomFieldById.get(field.id)!
+      const reads = kind === "action"
+      const from = reads ? atomField : field
+      const to = reads ? field : atomField
+      return describeHermiteEdgeCurve({
+        from,
+        leftOuterRadius: from.radius,
+        rightOuterRadius: to.radius,
+        side: reads ? 1 : -1,
+        to,
+      })
+    }))
     return Object.freeze({
       color: presentation.color,
+      curves,
       fieldIds,
-      fields: fieldIds.map((id) => {
-        const field = processFieldById.get(id)
-        if (!field) throw new Error(`State Graph Process handler Field ${id} is absent`)
-        return field
-      }),
+      fields,
+      form: handlerForm,
       kind,
       label: presentation.label,
+      x: center.x,
+      y: center.y,
+      z: atomZ,
     })
   })
-  const handlerAngles: Readonly<Record<StateGraphProcessHandlerKind, number>> = {
-    action: Math.PI,
-    success: Math.PI * 1.5,
-    error: 0,
-  }
-  const handlerAnchors = new Map(handlers.map((handler) => [
-    handler.kind,
-    pointOnCircle(
-      processX,
-      processY,
-      form.radius,
-      handlerAngles[handler.kind],
-    ),
-  ] as const))
   const contextFields: StateGraphContextField[] = [
-    ...processFields.map((field) => ({
+    ...atomFields.map((field) => ({
       color: stateGraphFieldColor(field.type),
       radius: field.radius,
       x: field.x,
       y: field.y,
       z: field.z,
     })),
-    ...handlers.map((handler) => {
-      const anchor = handlerAnchors.get(handler.kind)!
-      return {
-        color: handler.color,
-        radius: processFieldRadius * 0.42,
-        ...anchor,
-      }
-    }),
+    ...handlers.flatMap((handler) => handler.fields.map((field) => ({
+      color: stateGraphFieldColor(field.type),
+      radius: field.radius,
+      x: field.x,
+      y: field.y,
+      z: field.z,
+    }))),
   ]
-  const contextSegments: StateGraphContextSegment[] = [
-    {
-      color: OWNER_COLOR,
-      from: {
-        x: ownerNode.x - ownerNode.radius,
-        y: ownerNode.y,
-        z: ownerNode.z,
-      },
-      opacity: 0.62,
-      to: {
-        x: processX + form.outerRadius,
-        y: processY,
-        z: processZ,
-      },
+  const contextOrbits: StateGraphContextOrbit[] = [{
+    color: ORBIT_COLOR,
+    opacity: 0.5,
+    radius: handlerOrbitRadius,
+    segments: 160,
+    x: atomX,
+    y: atomY,
+    z: atomZ - 0.12,
+  }]
+  const contextCurves: StateGraphContextCurveBatch[] = handlers.map(
+    (handler) => ({
+      color: handler.color,
+      curves: handler.curves,
+      opacity: 0.78,
+    }),
+  )
+  const actionHandler = handlers.find(({kind}) => kind === "action")!
+  const actionFieldById = new Map(
+    actionHandler.fields.map((field) => [field.id, field] as const),
+  )
+  const resultHandlers = handlers.filter(({kind}) => kind !== "action")
+  const resultCurves = Object.freeze(
+    resultHandlers
+      .flatMap((handler) => handler.fields.map((field) => {
+        const actionField = actionFieldById.get(field.id)
+        if (!actionField) {
+          throw new Error(
+            `State Graph Process action has no result Field ${field.id}`,
+          )
+        }
+        return describeResultFlowCurve(
+          actionField,
+          field,
+          handlerAngles.action,
+          handlerAngles[handler.kind],
+          handlerOrbitRadius,
+        )
+      })),
+  )
+  contextCurves.push({
+    color: RESULT_FLOW_COLOR,
+    curves: resultCurves,
+    opacity: 0.92,
+    sphere: {
+      fromAngle: handlerAngles.action,
+      radius: handlerOrbitRadius,
+      toAngles: Object.freeze(resultHandlers.flatMap((handler) =>
+        handler.fields.map(() => handlerAngles[handler.kind])
+      )),
+      x: atomX,
+      y: atomY,
+      z: atomZ,
     },
-    ...handlers.flatMap((handler) => {
-      const anchor = handlerAnchors.get(handler.kind)!
-      return handler.fields.map((field) => ({
-        color: handler.color,
-        from: anchor,
-        opacity: 0.78,
-        to: {x: field.x, y: field.y, z: field.z},
-      }))
-    }),
-  ]
+  })
   const contextLabels: StateGraphContextLabel[] = [
     {
-      color: PROCESS_COLOR,
-      fontSize: 1.05,
-      offset: -form.outerRadius - 1.4,
-      text: `Process ${process.id}`,
-      x: processX,
-      y: processY,
-      z: processZ,
+      color: ATOM_COLOR,
+      fontSize: 1.25,
+      offset: -atomForm.outerRadius - 1.4,
+      text: `Atom projection · ${atomFields.length} Fields`,
+      x: atomX,
+      y: atomY,
+      z: atomZ,
     },
     ...handlers.map((handler) => ({
       color: handler.color,
       fontSize: 0.72,
-      offset: 0.75,
+      offset: -handler.form.outerRadius - 0.8,
       text: handler.kind,
-      ...handlerAnchors.get(handler.kind)!,
+      x: handler.x,
+      y: handler.y,
+      z: handler.z,
     })),
   ]
   const label = typeof process.descriptor.label === "string" &&
@@ -291,34 +435,49 @@ export const buildStateGraphProcessStand = (
     : process.descriptor.key
 
   return Object.freeze({
+    atom: Object.freeze({
+      form: atomForm,
+      x: atomX,
+      y: atomY,
+      z: atomZ,
+    }),
+    atomFields: Object.freeze(atomFields),
     context: Object.freeze({
+      curves: Object.freeze(contextCurves),
       fields: Object.freeze(contextFields),
       labels: Object.freeze(contextLabels),
-      segments: Object.freeze(contextSegments),
-      tori: Object.freeze([{
-        color: PROCESS_COLOR,
-        radius: form.radius,
-        tube: form.tube,
-        x: processX,
-        y: processY,
-        z: processZ,
-      }]),
+      orbits: Object.freeze(contextOrbits),
+      segments: Object.freeze([]),
+      tori: Object.freeze([
+        {
+          color: ATOM_COLOR,
+          radius: atomForm.radius,
+          tube: atomForm.tube,
+          x: atomX,
+          y: atomY,
+          z: atomZ,
+        },
+        ...handlers.map((handler) => ({
+          color: handler.color,
+          radius: handler.form.radius,
+          tube: handler.form.tube,
+          x: handler.x,
+          y: handler.y,
+          z: handler.z,
+        })),
+      ]),
     }),
     graph,
     handlers: Object.freeze(handlers),
     layout,
     process: Object.freeze({
-      form,
       id: process.id,
       label,
       ownerNodeId: ownerNode.id,
       ownerStateId: ownerState.id,
       ownerStateLabel: ownerState.name,
-      x: processX,
-      y: processY,
-      z: processZ,
     }),
-    processFields: Object.freeze(processFields),
+    resultCurves,
   })
 }
 
@@ -376,16 +535,21 @@ export const createStateGraphProcessLab = async (
   title.textContent = stand.process.label
   const summary = document.createElement("p")
   summary.textContent =
-    `Process ${stand.process.id} принадлежит State «${stand.process.ownerStateLabel}», ` +
-    "но его Torus расположен снаружи поверхности State. Тонкая фиолетовая связь " +
-    "показывает владение; цветные связи показывают точный доступ обработчиков к Fields."
+    `State «${stand.process.ownerStateLabel}» содержит центрированную проекцию ` +
+    `того же Atom со всеми ${stand.atomFields.length} Fields в его ядре. ` +
+    `Process ${stand.process.id} показан тремя самостоятельными Torus: action, ` +
+    "success и error. Они равномерно разнесены по внутренней орбите State, " +
+    "а ядро каждого содержит используемые им Fields. Action читает Fields " +
+    "Atom по верхним дугам; success и error записывают их по нижним дугам. " +
+    "Золотые S-дуги передают совпадающие Fields из action в success или error и одновременно огибают Atom по внутренней орбите State."
   const handlers = document.createElement("div")
   handlers.className = "state-process-handlers"
   handlers.append(...stand.handlers.map(handlerCard))
   const note = document.createElement("p")
   note.className = "state-process-note"
   note.textContent =
-    "success и error не являются переходами State: они записывают Fields, а уже Conditions этих Fields разрешают соответствующие Transition."
+    "Каждая золотая дуга соединяет Field action с одноимённым Field результата. " +
+    "Затем success или error записывает Fields, а их Conditions разрешают Transition."
   detail.append(eyebrow, title, summary, handlers, note)
   card.append(viewer, detail)
   stage.replaceChildren(card)
@@ -394,7 +558,7 @@ export const createStateGraphProcessLab = async (
     canvas,
     context: stand.context,
     ...canvasSize(canvas),
-    fitScale: 0.64,
+    fitScale: 0.82,
     layout: stand.layout,
     showGuides: false,
     showLabels: true,

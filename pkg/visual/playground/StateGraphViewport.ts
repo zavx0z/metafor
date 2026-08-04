@@ -37,6 +37,11 @@ import {
   type StateGraphRootLayout,
 } from "../src/StateGraphLayout.ts"
 import type {StateGraphField} from "../src/StateGraph.ts"
+import {
+  HERMITE_EDGE_SEGMENTS,
+  writeHermiteEdgeSegments,
+  type HermiteEdgeCurve,
+} from "../src/HermiteEdge.ts"
 
 const BACKGROUND = new Color(0.012, 0.03, 0.05)
 const EDGE_COLOR = new Color(0.28, 0.78, 1, 0.82)
@@ -122,6 +127,32 @@ export type StateGraphContextSegment = Readonly<{
   to: StateGraphCurvePoint
 }>
 
+export type StateGraphContextCurveBatch = Readonly<{
+  color: readonly [number, number, number]
+  curves: readonly HermiteEdgeCurve[]
+  opacity?: number
+  sphere?: StateGraphContextCurveSphere
+}>
+
+export type StateGraphContextCurveSphere = Readonly<{
+  fromAngle: number
+  radius: number
+  toAngles: readonly number[]
+  x: number
+  y: number
+  z: number
+}>
+
+export type StateGraphContextOrbit = Readonly<{
+  color: readonly [number, number, number]
+  opacity?: number
+  radius: number
+  segments?: number
+  x: number
+  y: number
+  z: number
+}>
+
 export type StateGraphContextLabel = Readonly<{
   color: readonly [number, number, number]
   fontSize?: number
@@ -133,8 +164,10 @@ export type StateGraphContextLabel = Readonly<{
 }>
 
 export type StateGraphViewportContext = Readonly<{
+  curves?: readonly StateGraphContextCurveBatch[]
   fields: readonly StateGraphContextField[]
   labels?: readonly StateGraphContextLabel[]
+  orbits?: readonly StateGraphContextOrbit[]
   segments?: readonly StateGraphContextSegment[]
   tori: readonly StateGraphContextTorus[]
 }>
@@ -223,6 +256,135 @@ const geometryFromSegments = (
     positions[offset++] = to.x
     positions[offset++] = to.y
     positions[offset++] = to.z
+  }
+  const geometry = new BufferGeometry()
+  geometry.setAttribute("position", new BufferAttribute(positions, 3))
+  return geometry
+}
+
+export const writeStateGraphSphericalCurveSegments = (
+  curve: HermiteEdgeCurve,
+  target: Float32Array,
+  offset: number,
+  sphere: StateGraphContextCurveSphere,
+  toAngle: number,
+): number => {
+  const scalarCount = HERMITE_EDGE_SEGMENTS * 6
+  if (
+    !Number.isSafeInteger(offset) ||
+    offset < 0 ||
+    offset + scalarCount > target.length ||
+    ![
+      curve.from.x,
+      curve.from.y,
+      curve.from.z,
+      curve.to.x,
+      curve.to.y,
+      curve.to.z,
+      curve.fromTangent.z,
+      curve.toTangent.z,
+      sphere.x,
+      sphere.y,
+      sphere.z,
+      sphere.radius,
+      sphere.fromAngle,
+      toAngle,
+    ].every(Number.isFinite) ||
+    sphere.radius <= 0
+  ) {
+    throw new RangeError("State Graph curve sphere constraint is invalid")
+  }
+
+  const power16 = (value: number): number => {
+    const squared = value * value
+    const fourth = squared * squared
+    const eighth = fourth * fourth
+    return eighth * eighth
+  }
+  const angularDelta = Math.atan2(
+    Math.sin(toAngle - sphere.fromAngle),
+    Math.cos(toAngle - sphere.fromAngle),
+  )
+  const depthTangent = (
+    Math.abs(curve.fromTangent.z) + Math.abs(curve.toTangent.z)
+  ) / 2
+  const latitudeAmplitude = Math.asin(Math.min(
+    0.95,
+    depthTangent * 3 / 32 / sphere.radius,
+  ))
+  const baseFromX = sphere.x + Math.cos(sphere.fromAngle) * sphere.radius
+  const baseFromY = sphere.y + Math.sin(sphere.fromAngle) * sphere.radius
+  const baseToX = sphere.x + Math.cos(toAngle) * sphere.radius
+  const baseToY = sphere.y + Math.sin(toAngle) * sphere.radius
+  const fromOffsetX = curve.from.x - baseFromX
+  const fromOffsetY = curve.from.y - baseFromY
+  const fromOffsetZ = curve.from.z - sphere.z
+  const toOffsetX = curve.to.x - baseToX
+  const toOffsetY = curve.to.y - baseToY
+  const toOffsetZ = curve.to.z - sphere.z
+  let previousX = curve.from.x
+  let previousY = curve.from.y
+  let previousZ = curve.from.z
+  for (let index = 1; index <= HERMITE_EDGE_SEGMENTS; index += 1) {
+    const segmentOffset = offset + (index - 1) * 6
+    const t = index / HERMITE_EDGE_SEGMENTS
+    let nextX: number
+    let nextY: number
+    let nextZ: number
+    if (index === HERMITE_EDGE_SEGMENTS) {
+      nextX = curve.to.x
+      nextY = curve.to.y
+      nextZ = curve.to.z
+    } else {
+      const longitude = sphere.fromAngle + angularDelta * t
+      const latitude = -latitudeAmplitude * Math.sin(Math.PI * 2 * t)
+      const latitudeRadius = Math.cos(latitude) * sphere.radius
+      const progress = t * t * (3 - 2 * t)
+      const fromWeight = power16(1 - progress)
+      const toWeight = power16(progress)
+      nextX = sphere.x + Math.cos(longitude) * latitudeRadius +
+        fromOffsetX * fromWeight + toOffsetX * toWeight
+      nextY = sphere.y + Math.sin(longitude) * latitudeRadius +
+        fromOffsetY * fromWeight + toOffsetY * toWeight
+      nextZ = sphere.z + Math.sin(latitude) * sphere.radius +
+        fromOffsetZ * fromWeight + toOffsetZ * toWeight
+    }
+    target[segmentOffset] = previousX
+    target[segmentOffset + 1] = previousY
+    target[segmentOffset + 2] = previousZ
+    target[segmentOffset + 3] = nextX
+    target[segmentOffset + 4] = nextY
+    target[segmentOffset + 5] = nextZ
+    previousX = nextX
+    previousY = nextY
+    previousZ = nextZ
+  }
+  return offset + scalarCount
+}
+
+const geometryFromHermiteCurves = (
+  curves: readonly HermiteEdgeCurve[],
+  sphere?: StateGraphContextCurveSphere,
+): BufferGeometry => {
+  const positions = new Float32Array(
+    curves.length * HERMITE_EDGE_SEGMENTS * 6,
+  )
+  if (sphere && sphere.toAngles.length !== curves.length) {
+    throw new RangeError("State Graph curve sphere routes do not match curves")
+  }
+  let offset = 0
+  for (const [index, curve] of curves.entries()) {
+    if (sphere) {
+      offset = writeStateGraphSphericalCurveSegments(
+        curve,
+        positions,
+        offset,
+        sphere,
+        sphere.toAngles[index]!,
+      )
+    } else {
+      offset = writeHermiteEdgeSegments(curve, positions, offset)
+    }
   }
   const geometry = new BufferGeometry()
   geometry.setAttribute("position", new BufferAttribute(positions, 3))
@@ -374,6 +536,34 @@ const addTorusContext = (
     node.updateMatrix()
     space.add(node)
   }
+  for (const orbit of context.orbits ?? []) {
+    const segmentCount = Math.max(24, Math.floor(orbit.segments ?? 128))
+    const segments = Array.from({length: segmentCount}, (_, index) => {
+      const fromAngle = index / segmentCount * Math.PI * 2
+      const toAngle = (index + 1) / segmentCount * Math.PI * 2
+      return [
+        new Vector3(
+          orbit.x + Math.cos(fromAngle) * orbit.radius,
+          orbit.y + Math.sin(fromAngle) * orbit.radius,
+          orbit.z,
+        ),
+        new Vector3(
+          orbit.x + Math.cos(toAngle) * orbit.radius,
+          orbit.y + Math.sin(toAngle) * orbit.radius,
+          orbit.z,
+        ),
+      ] as const
+    })
+    const line = new LineSegments(
+      geometryFromSegments(segments),
+      new LineBasicMaterial({
+        color: new Color(...orbit.color),
+        opacity: orbit.opacity ?? 0.42,
+      }),
+    )
+    line.updateMatrix()
+    space.add(line)
+  }
   for (const segment of context.segments ?? []) {
     const line = new LineSegments(
       geometryFromSegments([[
@@ -385,6 +575,21 @@ const addTorusContext = (
         glowColor: new Color(...segment.color, 0.32),
         glowIntensity: 1.4,
         opacity: segment.opacity ?? 0.82,
+        visibilityMode: "scene",
+      }),
+    )
+    line.updateMatrix()
+    space.add(line)
+  }
+  for (const batch of context.curves ?? []) {
+    if (batch.curves.length === 0) continue
+    const line = new LineSegments(
+      geometryFromHermiteCurves(batch.curves, batch.sphere),
+      new LineGlowMaterial({
+        color: new Color(...batch.color),
+        glowColor: new Color(...batch.color, 0.32),
+        glowIntensity: 1.4,
+        opacity: batch.opacity ?? 0.82,
         visibilityMode: "scene",
       }),
     )
@@ -411,14 +616,20 @@ const fitDistance = (
   context?: StateGraphViewportContext,
 ): {distance: number; target: Vector3} => {
   const xs = [
-    ...layout.nodes.map((node) => node.x),
+    ...layout.nodes.flatMap((node) => [
+      node.x - node.radius,
+      node.x + node.radius,
+    ]),
     ...(context?.tori.flatMap((torus) => [
       torus.x - torus.radius - torus.tube,
       torus.x + torus.radius + torus.tube,
     ]) ?? []),
   ]
   const ys = [
-    ...layout.nodes.map((node) => node.y),
+    ...layout.nodes.flatMap((node) => [
+      node.y - node.radius,
+      node.y + node.radius,
+    ]),
     ...(context?.tori.flatMap((torus) => [
       torus.y - torus.radius - torus.tube,
       torus.y + torus.radius + torus.tube,

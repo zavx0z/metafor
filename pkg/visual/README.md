@@ -143,14 +143,38 @@ forms, Field proxies, Transitions and Relations.
 The private `#/state-graph/process` page is an experimental placement lab and
 does not change the production law above. It uses the recorded `lada-model`
 Process 12 owned by State `обращение к модели`, including its real
-`action.readFields`, `success.writeFields` and `error.writeFields`. The Process
-keeps that exact State ownership but its complete Torus is placed outside the
-State-Torus surface with one fixed gap. A thin owner segment records
-State → Process; three colored handler groups connect directly to the real
-Field proxies in the Process core. `success` and `error` are deliberately not
-drawn as State transitions: they write Fields, whose Conditions can then enable
-Transitions. The stand exists to approve or reject this geometry before any
-production layout contract changes.
+`action.readFields`, `success.writeFields` and `error.writeFields`. The State
+contains one centered Torus representing a projection of the same Atom. Its
+inner diameter exactly matches the State inner diameter, and its core contains
+every Field declared by that Atom, not a State-condition subset.
+The Process keeps its exact State ownership, but has no combined Torus in this
+lab. Its `action`, `success` and `error` handlers are three independent colored
+Tori placed 120 degrees apart on one inner State orbit after the Atom
+projection. Each handler Torus contains exactly the Field projections used by
+that handler. Every handler Field connects to the matching canonical Field in
+the Atom projection core: `action.read` runs from Atom to handler above the
+common plane, while `success.write` and `error.write` run from handler to Atom
+below it. Result flow connects each Field projection in `success` or `error`
+to the Field with the same canonical ID inside `action`. Each connection is one
+compact endpoint/tangent curve whose endpoints are the exact centers of both
+Field spheres.
+With same-direction endpoint tangents it leaves the action Field below the
+common plane, crosses the plane once and arrives at the result Field from
+above. The result batch carries one Handler-orbit radius, one source angle and
+one target angle per curve. Thus all Fields in one result bundle follow the
+same Handler route instead of distorting it with their local offsets. During
+direct renderer-buffer reconstruction, longitude advances along that shortest
+Handler-orbit arc and a
+sine latitude creates the S depth directly on the sphere whose radius equals
+that orbit. Local Field offsets fade only next to the endpoints with one smooth
+global weight, so exact Field centers remain fixed while the central half stays
+within `0.05` layout units of the sphere. There is no planar curve followed by
+a second deformation stage. No Torus-to-Torus connection or sampled path model
+is introduced. The compact endpoint/tangent controls are compiled into one line
+batch per handler plus one result-flow batch. `success`
+and `error` are not State transitions: they write Fields, whose Conditions can
+then enable Transitions. The stand exists to approve or reject this geometry
+before any production layout contract changes.
 
 The playground `#/outside-in` page composes every declared State sleeve of the
 root and every nested Atom into one static recursive scene. It reads the
