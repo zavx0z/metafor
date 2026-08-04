@@ -156,8 +156,13 @@ Store и не вводит универсальный diff/patch или conseque
 Graph не содержит revision, digest или CAS fields. Particle/operation
 history, patches, Git history, Mass bytes и живые Energy objects не являются
 частями этой projection и читаются через их собственные разрешённые интерфейсы.
-`meta.ts` и Git остаются canonical human-authored source; Graph всегда
-является derived read representation.
+Boundary остаётся каноническим текущим миром. `meta.ts` является переносимой
+типизированной декларацией и автоматически поддерживаемой source projection
+принятых structural patches; Git фиксирует её только отдельной owner-gated
+операцией. Действующего пути, который принимает ручное изменение `meta.ts` и
+переносит его в живой мир, пока нет: он вынесен в будущую задачу
+[`MF-408`](../project/tasks/MF-408.md). Graph всегда является derived read
+representation.
 
 ## Energy и Mass в DSL/runtime
 

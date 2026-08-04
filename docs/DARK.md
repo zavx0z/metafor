@@ -49,11 +49,12 @@ Dark Force владеет полной append-only post-cut history принят
 Запись Particle предшествует маршрутизации; производный каталог не участвует в
 приёме и может быть восстановлен из сегментов.
 
-History сейчас является внутренним основанием Force и checkpoint. Публичных
-Monad operations `dark.history.read` и `dark.history.clear` нет. Удаление
-истории через service API также отсутствует. Будущий scoped read-only доступ
-должен получить отдельные public types, capability и проверяемую resolution;
-до этого внутренний метод чтения persistence не является публичным API.
+History является внутренним основанием Force и checkpoint. Dark Monad
+публикует read-only operation `dark.force.history.read`, которая возвращает
+exact current frontier либо bounded acceptance-sequence range этой же history
+через отдельные public types. Старых operations `dark.history.read` и
+`dark.history.clear`, произвольного persistence read, удаления, rewrite и
+автоматической очистки через service API нет.
 
 ## Рождение и отказ
 

@@ -358,40 +358,49 @@ tool доступным по имени агента, окружению, про
   approval. Само упоминание Production или vendor не даёт права читать их
   деревья, данные или runtime.
 
-Process-authoring агент получает минимальный набор tools/capabilities,
-необходимый для его Atom subtree. `propose/write Process` разрешает подготовить
-изолированное source-предложение в указанном scope, но не даёт права изменить
-canonical live world или самостоятельно опубликовать результат. Агент обязан
-вернуть предложение, доказательства `validate/test` и точный требуемый owner
-gate. Canonical commit выполняется только отдельной `commit` capability после
-решения владельца.
+Текущая доверенная локальная authoring identity может получить
+`meta.declaration.write` и через `meta.declaration.apply` выполнить Process
+`add/replace` в разрешённом scope. Операция проверяет descriptor, handlers и
+owned `actions/*.ts`, проводит одну принятую Process Inflaton через Dark Force и
+Boundary и только затем публикует source targets того же patch. Эта capability
+не выполняет Git commit и не выдаётся внутреннему Agent Atom автоматически.
 
-Фактическая интеграция inventory, проверка contract versions и привязка
-capabilities к конкретным tool implementations являются отдельным follow-up
-gate. До его прохождения этот раздел задаёт routing и safety contract, но не
-объявляет ни один дополнительный tool доступным.
+Будущий внутренний Process-authoring Agent получает только минимальный набор
+capabilities собственного Atom subtree. Proposal-only capability не изменяет
+canonical live world; live mutation и canonical commit остаются отдельными
+явно выданными возможностями. Фактическая привязка такого Agent Atom к
+structural authoring относится к [`MF-405`](../../project/tasks/MF-405.md) и не
+считается реализованной из-за наличия текущего trusted local RPC.
 
 ### Фактически подтверждённые tool surfaces
 
-Этот inventory фиксирует найденные entrypoints, но сам по себе не выдаёт их
-agent-сессии. Registry bootstrap должен повторно связать каждый tool с точной
-версией contract и graph scope.
+Этот inventory фиксирует действующие entrypoints, но сам по себе не выдаёт их
+agent-сессии. Фактическая capability всегда привязана к routed source identity,
+версии contract и разрешённому Meta scope.
 
 **MetaFor**
 
-- `create-metafor/src/cli.ts`, вызываемый как `bun create metafor`, создаёт новый
-  root или internal Atom Meta-пакет. Требует имя и canonical
-  `cluster/<owner>[/<repository>]` scope, записывает source-файлы, а для нового
-  root также выполняет `git init`, `git add` и initial commit. Это write/commit
-  entrypoint с высоким side-effect risk, а не default tool для авторинга
-  Process в существующем Atom.
+- `create-metafor/src/cli.ts`, вызываемый как `bun create metafor`, создаёт один
+  независимый peer Meta-репозиторий непосредственно под выбранным каталогом
+  владельца. Canonical `src` всегда имеет форму `<owner>/<repository>`; CLI
+  отклоняет создание внутри существующего Meta-репозитория. Он записывает
+  полный template, выполняет `bun install`, `git init`, `git add` и initial
+  commit, поэтому остаётся отдельным write/commit entrypoint с высоким
+  side-effect risk.
+- `meta.create` создаёт canonical peer Meta через тот же template path, но не
+  выполняет install, `git add`, commit, push или materialization нового root.
+- `meta.matter.apply` и `meta.declaration.apply` являются действующими
+  structural authoring RPC. Последний поддерживает metadata, Field, State,
+  Mass, Reaction, Process и Bulk; Process `add/replace` может публиковать один
+  проверенный owned `actions/*.ts` как source target того же принятого patch.
+- `meta.capabilities.read` и `meta.source.revision.read` возвращают фактически
+  выданные grants и revisions без раскрытия source path либо bytes.
 - Root scripts `bun run typecheck`, `bun run typecheck:expect-errors`,
   `bun run test` и `bun run check` являются validation entrypoints для
   разрешённого MetaFor checkout. `typecheck` использует `--noEmit`; test/check
   запускают код тестов и поэтому требуют отдельного resource/process scope.
-- В MetaFor нет подтверждённого RPC/tool registry для редактирования Process или
-  owner-gated commit. Текущие Monad RPC из раздела выше не являются средствами
-  авторинга.
+- Git add/commit/push RPC и автоматически выданной capability внутреннего Agent
+  Atom по-прежнему нет.
 
 **Interpreter**
 
