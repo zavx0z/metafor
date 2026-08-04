@@ -16,6 +16,7 @@ import {
   type MonadRpcMessage,
 } from "shared/protocol/monad/rpc"
 import {DARK_DECLARATION_PROJECTION_METHOD} from "./graph.ts"
+import {DARK_FORCE_HISTORY_READ_METHOD} from "@metafor/types/metafor/observation"
 import {
   DARK_FORCE_PAUSE_METHOD,
   DARK_FORCE_RESUME_METHOD,
@@ -84,12 +85,24 @@ describe("Dark Monad", () => {
         return []
       },
     })
+    monad.setHistory({
+      read() {
+        return {
+          contractVersion: 1,
+          resolution: "exact",
+          frontier: {cutId: "cut-monad", throughSequence: 4, retroactiveComplete: false},
+          range: null,
+          entries: [],
+        }
+      },
+    })
     const channel = new TestChannel()
     const peer = new MonadRpcPeer(channel)
 
     monad.onServerStarted(peer)
     expect(peer.methods()).toEqual([
       DARK_DECLARATION_PROJECTION_METHOD,
+      DARK_FORCE_HISTORY_READ_METHOD,
       DARK_FORCE_PAUSE_METHOD,
       DARK_FORCE_RESUME_METHOD,
       DARK_FORCE_STACK_METHOD,
@@ -121,6 +134,27 @@ describe("Dark Monad", () => {
             processes: [],
           },
         },
+      },
+    })
+
+    await channel.receive({
+      version: MONAD_RPC_VERSION,
+      id: "history-frontier",
+      source: "agent/local",
+      target: "dark",
+      method: DARK_FORCE_HISTORY_READ_METHOD,
+      params: {contractVersion: 1, query: {kind: "frontier"}},
+    })
+    expect(channel.sent[1]).toEqual({
+      version: MONAD_RPC_VERSION,
+      id: "history-frontier",
+      ok: true,
+      result: {
+        contractVersion: 1,
+        resolution: "exact",
+        frontier: {cutId: "cut-monad", throughSequence: 4, retroactiveComplete: false},
+        range: null,
+        entries: [],
       },
     })
   })

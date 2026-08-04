@@ -112,8 +112,12 @@ transport и routing законами Monad RPC, но не формой клие
   `dark.force.resume` открывает внешний вход и очищает этот временный список.
 - `bulk.observer.captureViewport` возвращает PNG и компактное доказательство
   Store cut уже подключённого observer-сеанса.
-- Действующих `dark.history.read/clear` нет. Полная Dark Force history хранится,
-  но клиентское чтение и тем более очистка через RPC не опубликованы.
+- `dark.force.history.read` возвращает exact current frontier либо ограниченный
+  acceptance-sequence range прямо из существующей Dark Force history. Старые
+  `dark.history.read/clear` и любой history clear не опубликованы.
+- `energy.mass.result.read` возвращает текущий bounded JSON либо base64 result
+  одного объявленного Mass key, его digest и causal frontier. Метод принимает
+  public Graph Atom locator и не раскрывает внутренний Atom ID.
 - `energy.mass.fence` и `energy.mass.release` являются внутренними lifecycle RPC
   для безопасной работы Boundary с Mass identity, а не клиентским чтением.
 
@@ -121,12 +125,9 @@ transport и routing законами Monad RPC, но не формой клие
 частичный фрагмент Dark templates/particles вместе с минимальной структурой
 мира. `readGraph` возвращает только полный текущий Graph.
 
-### Зафиксированные read contracts ближайшего этапа
+### Read contracts одного агента
 
-Следующие методы нужны полной функциональной поверхности одного доверенного
-агента. Их имена и смысл утверждены для реализации, но методы не являются
-действующим API до появления public types, providers и тестов. Новая access
-policy и конкурентные чтения в этот этап не входят.
+Новая access policy и конкурентные чтения в этот этап не входят.
 
 `dark.force.history.read` читает существующую append-only Particle-history, а
 не создаёт новый журнал. Закрытый request задаёт один cut и ограниченный
@@ -137,16 +138,18 @@ policy и конкурентные чтения в этот этап не вхо
 
 `energy.mass.result.read` читает только объявленный Mass key конкретного Atom,
 адресованного публичным locator точного Graph snapshot. Request задаёт key,
-ожидаемый digest и верхнюю границу bytes. Ответ возвращает format, digest,
-resolution и bounded JSON либо base64 bytes. `MassHandle`, key-file path,
-Energy handle и произвольный filesystem read не раскрываются.
+верхнюю границу bytes и при повторной проверке optional expected digest. Ответ
+возвращает digest, exact resolution, causal frontier и bounded JSON либо base64
+bytes. `MassHandle`, key-file path, Energy handle и произвольный filesystem
+read не раскрываются. Locator является snapshot-local Graph path, защищённым
+ожидаемыми root и Meta; provider разрешает его во внутренний Atom ID локально.
 
-`meta.process.execution.read` возвращает наблюдаемый исход Process для Atom и
-Process key: public execution identity, `pending`, `committed`, `failed` либо
-`superseded`, causal acceptance identity и доступные result/error data. Он не
-запускает Process, не меняет State и не раскрывает Boundary row ID. Текущие
-Field values и State по-прежнему читаются через `readGraph`; Process запускается
-причинно после предметного Field input, а не отдельным RPC.
+Планируемый `meta.process.execution.read` возвращает наблюдаемый исход Process
+для Atom и Process key: public execution identity, `pending`, `committed`,
+`failed` либо `superseded`, causal acceptance identity и доступные result/error
+data. Он не запускает Process, не меняет State и не раскрывает Boundary row ID.
+Текущие Field values и State по-прежнему читаются через `readGraph`; Process
+запускается причинно после предметного Field input, а не отдельным RPC.
 
 Raw `dark.force.step` остаётся проверенным причинным примитивом, но не заменяет
 предметный Field RPC: его `path` использует внутреннюю runtime identity,
@@ -271,12 +274,12 @@ identity. Пропущенный frontier или разрыв последова
 resync в пределах того же scope; клиент не достраивает пропуск из скрытого
 context и не объявляет его точным.
 
-Mass отсутствует в обычном topology snapshot и delta. Отложенный fetch
-допускается только отдельной Mass-read capability для объявленного key identity
-и ожидаемого digest в разрешённом Atom scope. Ответ возвращает запрошенное
-содержимое как отдельный bounded result, а не `MassHandle`, filesystem path или
-расширение world snapshot. Действующий runtime не имеет подтверждённого
-клиентского RPC такого fetch и digest contract; это proposed capability.
+Mass отсутствует в обычном topology snapshot и delta. Действующий
+`energy.mass.result.read` делает отдельный bounded fetch объявленного key по
+public Atom locator, возвращает digest и exact live resolution, а не
+`MassHandle`, filesystem path или расширение world snapshot. Текущая
+реализация подключена для доверенного локального контура; отдельная Mass-read
+capability и scope policy остаются отложенной работой.
 
 History fetch также остаётся отдельной capability. Каждый результат обязан
 сообщать resolution:
@@ -285,10 +288,10 @@ History fetch также остаётся отдельной capability. Каж�
 - `coarse` — агрегат или интервал неопределённости без выдуманных точных ticks;
 - `unknown` — история или frontier недостаточны для доказательства.
 
-Действующего клиентского RPC чтения history пока нет. Старые типы
+Действующий `dark.force.history.read` возвращает exact frontier и bounded
+acceptance-sequence range существующего cut. Старые типы
 `dark.history.read/clear` и отдельный старый класс history не являются рабочей
-поверхностью Dark Monad и не подтверждают planned Gem history endpoint, pause,
-step или rewind.
+поверхностью Dark Monad; rewind и history clear не опубликованы.
 
 Gem возвращает proposal и доказательства выполненных validations в формате,
 заданном task envelope. Даже при наличии source-write capability canonical

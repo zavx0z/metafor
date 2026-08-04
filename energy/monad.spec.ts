@@ -2,6 +2,10 @@ import {describe, expect, test} from "bun:test"
 import {BOUNDARY_INITIAL_PROJECTION_METHOD} from "@metafor/types/boundary/initial"
 import {EnergyMonad} from "./monad.ts"
 import type {EnergyMassHandle} from "./mass.ts"
+import {
+  DARK_FORCE_HISTORY_READ_METHOD,
+  ENERGY_MASS_RESULT_READ_METHOD,
+} from "@metafor/types/metafor/observation"
 
 describe("Energy Monad", () => {
   test("hydrates only the Energy-local catalog through Boundary RPC", async () => {
@@ -93,6 +97,16 @@ describe("Energy Monad", () => {
     const monad = new EnergyMonad()
     monad.onServerStarting({
       expose(method: string, handler: unknown) { handlers.set(method, handler as (request: unknown) => Promise<unknown>) },
+      async call(_target: string, method: string) {
+        expect(method).toBe(DARK_FORCE_HISTORY_READ_METHOD)
+        return {
+          contractVersion: 1,
+          resolution: "exact",
+          frontier: {cutId: "energy-test", throughSequence: 1, retroactiveComplete: false},
+          range: null,
+          entries: [],
+        }
+      },
     } as never)
     const key = "33333333-3333-4333-8333-333333333333"
     monad.catalog.apply({
@@ -110,6 +124,7 @@ describe("Energy Monad", () => {
     expect([...handlers.keys()].sort()).toEqual([
       "energy.mass.fence",
       "energy.mass.release",
+      ENERGY_MASS_RESULT_READ_METHOD,
     ])
     await handlers.get("energy.mass.fence")!({atom: 2, declaration: 7, key})
     await expect(child.readBytes()).rejects.toThrow("not live")

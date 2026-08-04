@@ -145,6 +145,38 @@ export class EnergyMassCatalog {
     }
   }
 
+  async readBounded(keyId: string, format: MassFileFormat, maxBytes: number): Promise<Uint8Array> {
+    if (!Number.isSafeInteger(maxBytes) || maxBytes <= 0) throw new Error("Mass read limit is invalid")
+    await this.ensureRoot()
+    const target = this.path(keyId, format)
+    await this.verifyTarget(target)
+    let handle: Awaited<ReturnType<typeof open>> | undefined
+    try {
+      handle = await open(target, "r")
+      const info = await handle.stat()
+      if (!info.isFile()) throw new Error("Energy Mass key target is not a regular file")
+      const current = await lstat(target)
+      if (current.isSymbolicLink() || current.dev !== info.dev || current.ino !== info.ino) {
+        throw new Error("Energy Mass key target changed during read")
+      }
+      if (info.size > maxBytes) throw new Error(`Energy Mass result exceeds ${maxBytes} bytes`)
+      const output = new Uint8Array(maxBytes + 1)
+      let length = 0
+      while (length < output.length) {
+        const {bytesRead} = await handle.read(output, length, output.length - length, length)
+        if (bytesRead === 0) break
+        length += bytesRead
+      }
+      if (length > maxBytes) throw new Error(`Energy Mass result exceeds ${maxBytes} bytes`)
+      return output.slice(0, length)
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return new Uint8Array()
+      throw error
+    } finally {
+      await handle?.close().catch(() => undefined)
+    }
+  }
+
   /** Same-directory temporary + fsync + rename leaves the prior target intact on failure. */
   async write(keyId: string, format: MassFileFormat, value: string | Uint8Array): Promise<void> {
     await this.ensureRoot()
@@ -195,8 +227,10 @@ export class EnergyMassCatalog {
 }
 
 /** Energy-local handle projection. It contains no membership or source registry. */
-export const createFilesystemEnergyMassStore = (gate = new EnergyMassGate()): EnergyMassStore => {
-  const catalog = new EnergyMassCatalog()
+export const createFilesystemEnergyMassStore = (
+  gate = new EnergyMassGate(),
+  catalog = new EnergyMassCatalog(),
+): EnergyMassStore => {
   const values = new Map<string, Record<string, unknown>>()
   const keyOf = (ctx: EnergyMassContext): string => `${ctx.wimp}\0${ctx.atomId}`
   return {

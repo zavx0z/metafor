@@ -5,7 +5,18 @@ import {
 } from "@metafor/types/boundary/initial"
 import type {MonadRpcPeer} from "shared/transport/monad"
 import {EnergyCatalogStore} from "./catalog.ts"
-import {createFilesystemEnergyMassStore, EnergyMassGate} from "./mass.ts"
+import {
+  createFilesystemEnergyMassStore,
+  EnergyMassCatalog,
+  EnergyMassGate,
+} from "./mass.ts"
+import {
+  DARK_FORCE_HISTORY_READ_METHOD,
+  ENERGY_MASS_RESULT_READ_METHOD,
+  META_OBSERVATION_CONTRACT_VERSION,
+  type DarkForceHistoryReadReceipt,
+} from "@metafor/types/metafor/observation"
+import {EnergyMassResultReadService} from "./monad/mass-result.ts"
 
 export type EnergyMonadState = "created" | "loading" | "prepared" | "ready" | "error" | "stopped"
 
@@ -21,12 +32,27 @@ const particle = (entry: BoundaryInitialProjectionEntry) => ({...structuredClone
 export class EnergyMonad {
   readonly catalog = new EnergyCatalogStore()
   readonly massGate = new EnergyMassGate()
-  readonly massStore = createFilesystemEnergyMassStore(this.massGate)
+  readonly massCatalog = new EnergyMassCatalog()
+  readonly massStore = createFilesystemEnergyMassStore(this.massGate, this.massCatalog)
   #state: EnergyMonadState = "created"
   #error: string | null = null
 
-  /** Register the existing generic RPC methods before the channel advertises them. */
-  onServerStarting(peer: Pick<MonadRpcPeer, "expose">): void {
+  /** Register public Mass result read and internal lifecycle methods before advertising them. */
+  onServerStarting(peer: Pick<MonadRpcPeer, "expose" | "call">): void {
+    const massResults = new EnergyMassResultReadService(
+      this.catalog,
+      this.massCatalog,
+      this.massGate,
+      async () => await peer.call<DarkForceHistoryReadReceipt>(
+        "dark",
+        DARK_FORCE_HISTORY_READ_METHOD,
+        {contractVersion: META_OBSERVATION_CONTRACT_VERSION, query: {kind: "frontier"}},
+      ),
+    )
+    peer.expose(
+      ENERGY_MASS_RESULT_READ_METHOD,
+      async (request: unknown) => await massResults.read(request),
+    )
     peer.expose("energy.mass.fence", async (request: unknown) => {
       const identity = this.massIdentity(request)
       const artifact = this.catalog.mass(identity.atom).find((entry) =>

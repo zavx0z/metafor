@@ -28,6 +28,7 @@ import {DarkMonad} from "./monad.ts"
 import {MetaCreateService} from "./monad/create.ts"
 import {createLocalMonadChannelPair} from "./monad/local.ts"
 import {MatterAuthoringService} from "./monad/matter.ts"
+import {DarkForceHistoryReadService} from "./monad/history.ts"
 import {
   MetaAuthoringRegistry,
   metaAuthoringCapabilitiesForScopes,
@@ -96,6 +97,7 @@ const authoringRegistry = new MetaAuthoringRegistry(authoringConfiguration
     ]]
   : [])
 monad.setTimeControl(new DarkForceTimeController(lifecycle, checkpoint))
+monad.setHistory(new DarkForceHistoryReadService(forceHistory))
 monad.setAuthoring({
   registry: authoringRegistry,
   create: new MetaCreateService((source) => authoringRegistry.grants(source)),

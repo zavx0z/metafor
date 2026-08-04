@@ -1,0 +1,72 @@
+import {describe, expect, test} from "bun:test"
+import {parseMetaAddress} from "./graph.ts"
+import {
+  ENERGY_MASS_RESULT_MAX_BYTES,
+  parseMetaRuntimeAtomPointer,
+  validateDarkForceHistoryReadRequest,
+  validateEnergyMassResultReadRequest,
+} from "./observation.ts"
+
+const ROOT = parseMetaAddress("zavx0z/lada")!
+const CHILD = parseMetaAddress("zavx0z/lada-test")!
+
+describe("agent observation public contracts", () => {
+  test("parses only Graph runtime root/children pointers", () => {
+    expect(parseMetaRuntimeAtomPointer("/runtime/roots/0")).toEqual([0])
+    expect(parseMetaRuntimeAtomPointer("/runtime/roots/0/children/2/children/1")).toEqual([0, 2, 1])
+    expect(parseMetaRuntimeAtomPointer("/template/zavx0z~1lada")).toBeNull()
+    expect(parseMetaRuntimeAtomPointer("/runtime/roots/-1")).toBeNull()
+    expect(parseMetaRuntimeAtomPointer("/runtime/roots/0/child/1")).toBeNull()
+  })
+
+  test("accepts closed frontier and bounded range history reads", () => {
+    expect(validateDarkForceHistoryReadRequest({contractVersion: 1, query: {kind: "frontier"}})).toEqual({
+      ok: true,
+      value: {contractVersion: 1, query: {kind: "frontier"}},
+    })
+    expect(validateDarkForceHistoryReadRequest({
+      contractVersion: 1,
+      query: {kind: "range", cutId: "cut-1", fromSequence: 2, toSequence: 9, limit: 4},
+    })).toMatchObject({ok: true})
+    expect(validateDarkForceHistoryReadRequest({
+      contractVersion: 1,
+      query: {kind: "range", cutId: "cut-1", fromSequence: 9, toSequence: 2, limit: 4},
+    })).toMatchObject({ok: false, issues: [{code: "invalid_range"}]})
+    expect(validateDarkForceHistoryReadRequest({
+      contractVersion: 1,
+      query: {kind: "frontier", clear: true},
+    })).toMatchObject({ok: false, issues: [{code: "unknown_property"}]})
+  })
+
+  test("accepts a bounded Mass result locator and rejects filesystem-shaped input", () => {
+    const request = {
+      contractVersion: 1 as const,
+      atom: {root: ROOT, pointer: "/runtime/roots/0/children/1" as const, meta: CHILD},
+      key: "profile",
+      maxBytes: 4096,
+      expectedDigest: `sha256:${"a".repeat(64)}` as const,
+    }
+    expect(validateEnergyMassResultReadRequest(request)).toEqual({ok: true, value: request})
+    expect(validateEnergyMassResultReadRequest({...request, key: "профиль состояния"})).toMatchObject({ok: true})
+    expect(validateEnergyMassResultReadRequest({...request, path: "/tmp/profile.json"}))
+      .toMatchObject({ok: false, issues: [{code: "invalid_request"}]})
+    expect(validateEnergyMassResultReadRequest({...request, maxBytes: ENERGY_MASS_RESULT_MAX_BYTES + 1}))
+      .toMatchObject({ok: false, issues: [{code: "invalid_limit"}]})
+    expect(validateEnergyMassResultReadRequest({...request, atom: {...request.atom, pointer: "/runtime/roots/0/value/1"}}))
+      .toMatchObject({ok: false, issues: [{code: "invalid_runtime_pointer"}]})
+  })
+
+  test("rejects accessors without invoking them", () => {
+    let invoked = false
+    const input: Record<string, unknown> = {contractVersion: 1, query: {kind: "frontier"}}
+    Object.defineProperty(input, "query", {
+      enumerable: true,
+      get() {
+        invoked = true
+        return {kind: "frontier"}
+      },
+    })
+    expect(validateDarkForceHistoryReadRequest(input).ok).toBe(false)
+    expect(invoked).toBe(false)
+  })
+})

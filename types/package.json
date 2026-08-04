@@ -13,6 +13,7 @@
     "./metafor/schema": "./metafor/schema.ts",
     "./metafor/graph": "./metafor/graph.ts",
     "./metafor/authoring": "./metafor/authoring.ts",
+    "./metafor/observation": "./metafor/observation.ts",
     "./boundary/atom": "./boundary/atom.ts",
     "./boundary/value": "./boundary/value.ts",
     "./boundary/topology": "./boundary/topology.ts",

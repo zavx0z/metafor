@@ -7,6 +7,10 @@ import type {
   EnergyVariantEntity,
 } from "@metafor/types/energy/catalog"
 import type {Particle} from "shared/protocol/force/particle"
+import {
+  parseMetaRuntimeAtomPointer,
+  type MetaRuntimeAtomLocator,
+} from "@metafor/types/metafor/observation"
 
 type Address =
   | {kind: "atom"; id: number}
@@ -241,6 +245,26 @@ export class EnergyCatalogStore {
     return this.massArtifacts.get(atomId) ?? []
   }
 
+  /** Resolves one snapshot-local public Graph path without exposing the Atom ID. */
+  resolveAtom(locator: MetaRuntimeAtomLocator): EnergyAtomEntity | null {
+    const indices = parseMetaRuntimeAtomPointer(locator.pointer)
+    if (!indices || indices.length === 0) return null
+    const roots = [...this.atoms.values()]
+      .filter((atom) => atom.parentAtom === null && atom.parentTopology === null && atom.wimp === locator.root)
+      .sort((left, right) => left.position - right.position)
+    const rootIndex = indices[0]!
+    let selected: {kind: "atom" | "topology"; id: number} | undefined = roots[rootIndex]
+      ? {kind: "atom", id: roots[rootIndex]!.id}
+      : undefined
+    for (const index of indices.slice(1)) {
+      if (!selected) return null
+      selected = this.orderedChildren(`${selected.kind}:${selected.id}`)[index]
+    }
+    if (!selected || selected.kind !== "atom") return null
+    const atom = this.atoms.get(selected.id)
+    return atom?.wimp === locator.meta ? clone(atom) : null
+  }
+
   process(wimp: string, state: string): EnergyProcessEntity | undefined {
     for (const key of this.processKeysByWimp.get(wimp) ?? []) {
       const process = this.processes.get(key)
@@ -288,6 +312,22 @@ export class EnergyCatalogStore {
     if (!isRecord(value)) return
     if (typeof value.wimp === "string") return value.wimp
     return typeof value.src === "string" ? value.src : undefined
+  }
+
+  private orderedChildren(parent: string): Array<{kind: "atom" | "topology"; id: number}> {
+    return [...(this.childrenByParent.get(parent) ?? [])]
+      .map((key) => {
+        const [kind, rawId] = key.split(":") as ["atom" | "topology", string]
+        const id = Number(rawId)
+        const entity = kind === "atom" ? this.atoms.get(id) : this.topologies.get(id)
+        const position = entity?.position
+        return entity && typeof position === "number" && Number.isSafeInteger(position)
+          ? {kind, id, position}
+          : null
+      })
+      .filter((value): value is {kind: "atom" | "topology"; id: number; position: number} => value !== null)
+      .sort((left, right) => left.position - right.position)
+      .map(({kind, id}) => ({kind, id}))
   }
 
   private read(target: Address): unknown {

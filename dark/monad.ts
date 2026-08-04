@@ -16,6 +16,8 @@ import {
 import type {MatterAuthoringService} from "./monad/matter.ts"
 import type {MetaCreateService} from "./monad/create.ts"
 import type {MetaAuthoringRegistry} from "./monad/registry.ts"
+import {DARK_FORCE_HISTORY_READ_METHOD} from "@metafor/types/metafor/observation"
+import type {DarkForceHistoryReadService} from "./monad/history.ts"
 
 export type DarkMonadState = "created" | "registering" | "ready" | "error" | "stopped"
 
@@ -56,6 +58,7 @@ export class DarkMonad {
   readonly #graph = new GraphMonad()
   #timeControl: DarkForceTimeControl | null = null
   #authoring: DarkMetaAuthoringRpc | null = null
+  #history: Pick<DarkForceHistoryReadService, "read"> | null = null
 
   constructor(
     private readonly readDeclarationProjection: DeclarationProjectionReader = readDarkDeclarationProjection,
@@ -72,6 +75,13 @@ export class DarkMonad {
       throw new Error("Dark Monad authoring RPC is already installed or RPC registration has started")
     }
     this.#authoring = services
+  }
+
+  setHistory(service: Pick<DarkForceHistoryReadService, "read">): void {
+    if (this.#state !== "created" || this.#history) {
+      throw new Error("Dark Monad history RPC is already installed or RPC registration has started")
+    }
+    this.#history = service
   }
 
   onServerStarted(peer: MonadRpcPeer): void {
@@ -97,6 +107,12 @@ export class DarkMonad {
       DARK_FORCE_STACK_METHOD,
       async () => this.#timeControlOrThrow().pauseStack(),
     )
+    if (this.#history) {
+      peer.expose(
+        DARK_FORCE_HISTORY_READ_METHOD,
+        async (params) => this.#history!.read(params),
+      )
+    }
     if (this.#authoring) {
       peer.expose(
         META_CAPABILITIES_READ_METHOD,

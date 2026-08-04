@@ -116,10 +116,12 @@ segment приводит к fail-stop без auto-truncate, cleanup или пе�
 Particle history. Формат использует только UTF-8 JSON/NDJSON и обычные filesystem
 операции; он не зависит от Bun storage API.
 
-Dark Monad может предоставлять read/query service над этой history, но не
-становится владельцем её persistence. Authoring RPC использует сохранённую в
-той же строке cause как единственную привязку request к принятому изменению;
-отдельный operation-service log для Matter не создаётся.
+Dark Monad публикует `dark.force.history.read`: exact current frontier либо
+bounded acceptance-sequence range над этой же history. Service не становится
+владельцем persistence, не копирует строки и не публикует clear/rewrite.
+Authoring RPC использует сохранённую в той же строке cause как единственную
+привязку request к принятому изменению; отдельный operation-service log для
+Matter не создаётся.
 
 Если contour завершился после durable acceptance, но до applied-ack одного из
 доменов, startup берёт незакрытые receipt из checkpoint control и доставляет

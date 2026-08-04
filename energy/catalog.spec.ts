@@ -1,6 +1,7 @@
 import {describe, expect, test} from "bun:test"
 import type {Particle} from "shared/protocol/force/particle"
 import {EnergyCatalogStore} from "./catalog.ts"
+import {parseMetaAddress} from "@metafor/types/metafor/graph"
 
 const part = (op: Particle["op"], path: string, value?: unknown, from?: string): Particle => ({
   part: "graviton", op, path, ts: 1,
@@ -142,6 +143,33 @@ describe("Energy incremental catalog", () => {
       continuation: {},
     }))
     expect(store.continuation(2)).toEqual({})
+  })
+
+  test("resolves the same public Graph child path through topology and sibling order", () => {
+    const store = new EnergyCatalogStore()
+    store.apply(part("add", "atom/1", {
+      atom: {id: 1, parentAtom: null, parentTopology: null, wimp: "owner/root", position: 0},
+    }))
+    store.apply(part("add", "atom/3", {
+      atom: {id: 3, parentAtom: 1, parentTopology: null, wimp: "owner/direct", position: 1},
+    }))
+    store.apply(part("add", "topology/7", {
+      id: 7, parentAtom: 1, parentTopology: null, kind: "axion", position: 0,
+    }))
+    store.apply(part("add", "atom/2", {
+      atom: {id: 2, parentAtom: null, parentTopology: 7, wimp: "owner/child", position: 0},
+    }))
+
+    expect(store.resolveAtom({
+      root: parseMetaAddress("owner/root")!,
+      pointer: "/runtime/roots/0/children/0/children/0",
+      meta: parseMetaAddress("owner/child")!,
+    })?.id).toBe(2)
+    expect(store.resolveAtom({
+      root: parseMetaAddress("owner/root")!,
+      pointer: "/runtime/roots/0/children/1",
+      meta: parseMetaAddress("owner/direct")!,
+    })?.id).toBe(3)
   })
 
   test("remove affects only process atoms of the same WIMP", () => {

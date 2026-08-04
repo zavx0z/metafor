@@ -39,9 +39,8 @@
   для inert root-level WIMP в последней позиции через RPC с live-first
   materialization и автоматической source projection.
 * Эта поверхность пока не является полной рабочей поверхностью агента: нет
-  законченного RPC-пути для чтения history и Mass, изменения деклараций,
-  полной композиции Matter, предметного runtime Field input и наблюдения
-  исполнения Process.
+  законченного RPC-пути для изменения деклараций, полной композиции Matter,
+  предметного runtime Field input и наблюдения исполнения Process.
 
 ## Graph
 
@@ -82,9 +81,11 @@ scope и новая access policy не разрабатываются до за�
 RPC-поверхности. Наличие команды, сценария пакета или исполняемого файла всё ещё
 не считается RPC агента.
 
-Текущий Dark Force хранит полную принятую Particle-history. Ближайший
-функциональный этап — дать доверенному агенту точное RPC-чтение history и Mass,
-не создавая второй журнал и не смешивая это с проектированием прав доступа.
+Текущий Dark Force хранит полную принятую Particle-history, а
+`dark.force.history.read` даёт exact frontier и bounded range прямо над ней.
+`energy.mass.result.read` возвращает bounded current result объявленного key,
+digest и causal frontier без `MassHandle` и filesystem path. Второй журнал и
+новая access policy для этого не созданы.
 
 ## Конечная функциональная RPC-поверхность одного агента
 
@@ -94,14 +95,13 @@ RPC-поверхности. Наличие команды, сценария па
 * `meta.capabilities.read` и `meta.source.revision.read`;
 * `meta.create`;
 * первый ограниченный slice `meta.matter.apply`;
+* `dark.force.history.read` и `energy.mass.result.read`;
 * `dark.force.pause`, `dark.force.step`, `dark.force.stack`,
   `dark.force.resume`;
 * `bulk.observer.captureViewport`.
 
 До полной рабочей сессии должны быть реализованы:
 
-* `dark.force.history.read` поверх существующей Force-history;
-* `energy.mass.result.read` поверх существующих Mass key-files;
 * `meta.declaration.apply` для всех canonical declaration entities, включая
   Process и его ограниченные source artifacts;
 * полный Matter tree contract через расширение существующего
@@ -218,8 +218,6 @@ Bulk. Она должна уметь:
 
 ## Порядок оставшейся работы
 
-1. реализовать `dark.force.history.read` и `energy.mass.result.read` поверх
-   существующих данных;
 1. реализовать `meta.declaration.apply` и доказать общий structural path на
    Field;
 1. завершить остальные декларационные entity тем же contract;
