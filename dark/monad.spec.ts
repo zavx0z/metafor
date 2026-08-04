@@ -1,5 +1,6 @@
 import {describe, expect, test} from "bun:test"
 import {parseMetaAddress} from "@metafor/types/metafor/graph"
+import {META_MATTER_APPLY_METHOD} from "@metafor/types/metafor/authoring"
 import {
   MonadRpcPeer,
   type MonadChannel,
@@ -116,6 +117,38 @@ describe("Dark Monad", () => {
           },
         },
       },
+    })
+  })
+
+  test("binds meta.matter.apply to the routed RPC source identity", async () => {
+    const monad = new DarkMonad()
+    const calls: Array<{input: unknown; source: string}> = []
+    monad.setMatterAuthoring({
+      async apply(input, source) {
+        calls.push({input: structuredClone(input), source})
+        return {ok: true} as never
+      },
+    })
+    const channel = new TestChannel()
+    const peer = new MonadRpcPeer(channel)
+    monad.onServerStarted(peer)
+
+    await channel.receive({
+      version: MONAD_RPC_VERSION,
+      id: "matter-apply",
+      source: "authoring/client",
+      target: "dark",
+      method: META_MATTER_APPLY_METHOD,
+      params: {operationId: "move-child"},
+    })
+
+    expect(peer.methods()).toContain(META_MATTER_APPLY_METHOD)
+    expect(calls).toEqual([{input: {operationId: "move-child"}, source: "authoring/client"}])
+    expect(channel.sent[0]).toEqual({
+      version: MONAD_RPC_VERSION,
+      id: "matter-apply",
+      ok: true,
+      result: {ok: true},
     })
   })
 })

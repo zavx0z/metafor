@@ -259,11 +259,16 @@ socket и DataChannel находятся только в Energy.
 Декларационный `path` является категорией (`wimp`, `field`, `state`, `matter` и
 так далее), а не slash-адресом дерева Meta. WIMP идентифицируется canonical
 `src`, потому что это его SQLite primary key. Для остальных declaration tables
-categorical `path` задаёт таблицу, а `Particle.from` при `move/copy` несёт её
-persisted numeric row `id`; IDs разных таблиц могут пересекаться. Resulting
+categorical `path` задаёт таблицу, а обычный `Particle.from` при `move/copy`
+несёт её persisted numeric row `id`; IDs разных таблиц могут пересекаться.
+Authoring `matter/move` до входа в Boundary не имеет права читать этот
+внутренний ID, поэтому на входе использует source identity
+`<wimp-src>#<localId>`. Boundary внутри своей транзакции разрешает её в
+persisted row и выпускает resulting Graviton уже с numeric `from`. Resulting
 Graviton несёт полную canonical row с тем же либо сгенерированным `id` и
 фактическими FK `wimp`, `field`, `state`, `transition` и другими columns.
-`localId` остаётся WIMP-local declaration key, но не подменяет table PK.
+`localId` остаётся WIMP-local declaration key и используется только как
+входная identity этого узкого authoring-переноса, но не подменяет table PK.
 
 ## Persistence
 

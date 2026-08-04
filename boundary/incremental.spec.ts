@@ -421,6 +421,53 @@ describe("Boundary incremental relational projection", () => {
     `).toEqual([{fromState: state}])
   })
 
+  test("moves inert root Matter by source identity and preserves the runtime Atom", async () => {
+    const rootAtom = await declareRoot()
+    await apply("add", "matter", {
+      wimp: ROOT, id: 1, parent: null, edgeSlot: "root", position: 0, kind: "wimp", src: PEER,
+    })
+    await apply("add", "matter", {
+      wimp: ROOT, id: 2, parent: null, edgeSlot: "root", position: 1, kind: "wimp", src: CHILD,
+    })
+    await declareWimp(PEER)
+    await declareWimp(CHILD)
+
+    const peerAtom = Number((await boundary.projection.sql<Array<{id: number}>>`
+      SELECT id FROM atom WHERE wimp = ${PEER}
+    `)[0]!.id)
+    const childBefore = Number((await boundary.projection.sql<Array<{id: number}>>`
+      SELECT id FROM atom WHERE wimp = ${CHILD}
+    `)[0]!.id)
+    const declarationBefore = Number((await boundary.projection.sql<Array<{id: number}>>`
+      SELECT id FROM matter_particle WHERE wimp = ${ROOT} AND local_id = ${2}
+    `)[0]!.id)
+
+    const moved = await transfer("move", "matter", `${ROOT}#2`, {
+      wimp: PEER,
+      localId: 1,
+      parent: null,
+      edgeSlot: "root",
+      position: 0,
+      kind: "wimp",
+      src: CHILD,
+    })
+
+    expect(moved?.messages[0]?.parts[0]).toMatchObject({
+      part: "graviton",
+      op: "move",
+      path: "matter",
+      from: declarationBefore,
+      value: {id: declarationBefore, wimp: PEER, localId: 1, src: CHILD},
+    })
+    expect(await boundary.projection.sql<Array<{id: number; parentAtom: number | null}>>`
+      SELECT id, parent_atom AS parentAtom FROM atom WHERE wimp = ${CHILD}
+    `).toEqual([{id: childBefore, parentAtom: peerAtom}])
+    expect(await boundary.projection.sql<Array<{id: number; wimp: string; localId: number}>>`
+      SELECT id, wimp, local_id AS localId FROM matter_particle WHERE id = ${declarationBefore}
+    `).toEqual([{id: declarationBefore, wimp: PEER, localId: 1}])
+    expect(rootAtom).not.toBe(peerAtom)
+  })
+
   test("keeps view_css outside Bulk Store declaration transfer", async () => {
     await declareRoot()
     await apply("add", "bulk", {wimp: ROOT, id: 1, view: ".root {}"})

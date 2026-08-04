@@ -16,9 +16,19 @@ export {
   prepareSourceCandidates,
   publishSourceCandidates,
   readSourceRevision,
+  readSourceSnapshot,
   sourceRevision,
   type PreparedSourceCandidate,
   type PrepareSourceCandidateOptions,
   type SourcePublishReceipt,
+  type SourceSnapshot,
   type SourceWriteErrorCode,
 } from "./src/source.ts"
+export {
+  MatterPatchError,
+  planMetaMatterPatch,
+  type MatterParentSnapshot,
+  type MatterPatchErrorCode,
+  type MatterSourceEdit,
+  type MetaMatterPatchPlan,
+} from "./src/matter.ts"

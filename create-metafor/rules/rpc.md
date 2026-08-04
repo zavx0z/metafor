@@ -92,7 +92,9 @@ Fields, Mass и Energy bindings. Request содержит:
 `add` и destination `move` добавляют только последнего sibling. Это сохраняет
 действующие Matter local identities при последующем cold read. `move` допустим
 только для единственного совпавшего occurrence и обязан сохранить canonical
-runtime Atom identity. `remove` удаляет occurrence, но не peer repository.
+runtime Atom identity. Source Matter identity для `move` вычисляется из
+проверенного parent `meta.ts`, а не из Boundary или собранного live Graph.
+`remove` удаляет occurrence, но не peer repository.
 
 ## Live-first commit и source projection
 
@@ -131,6 +133,10 @@ mutation.
 Provider возвращает предметный outcome одной из фаз: `rejected`, `created`,
 `runtime_committed`, `source_pending` или `complete`. Неизвестный частичный
 успех запрещён.
+
+После успешного Boundary commit при ещё не опубликованных candidates Matter
+receipt имеет phase `source_pending`, acceptance identity той же Force history
+entry и точные before/after source revisions.
 
 Владельцы фаз:
 

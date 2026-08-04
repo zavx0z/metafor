@@ -68,6 +68,16 @@ export interface MetaForceAcceptanceIdentity {
   id: string
 }
 
+export interface MetaMatterApplyReceipt {
+  contractVersion: typeof META_AUTHORING_CONTRACT_VERSION
+  operationId: MetaAuthoringOperationId
+  requestDigest: MetaAuthoringRequestDigest
+  phase: "source_pending"
+  acceptance: MetaForceAcceptanceIdentity
+  sourceProjections: MetaMatterSourceProjectionV1[]
+  boundary: "applied"
+}
+
 interface MetaAuthoringWriteEnvelope {
   contractVersion: typeof META_AUTHORING_CONTRACT_VERSION
   operationId: MetaAuthoringOperationId

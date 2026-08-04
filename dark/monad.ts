@@ -7,6 +7,8 @@ import {
 } from "./graph.ts"
 import {GraphMonad} from "./monad/graph.ts"
 import type {DarkForceTimeControl} from "./time-control.ts"
+import {META_MATTER_APPLY_METHOD} from "@metafor/types/metafor/authoring"
+import type {MatterAuthoringService} from "./monad/matter.ts"
 
 export type DarkMonadState = "created" | "registering" | "ready" | "error" | "stopped"
 
@@ -40,6 +42,7 @@ export class DarkMonad {
   #error: string | null = null
   readonly #graph = new GraphMonad()
   #timeControl: DarkForceTimeControl | null = null
+  #matterAuthoring: Pick<MatterAuthoringService, "apply"> | null = null
 
   constructor(
     private readonly readDeclarationProjection: DeclarationProjectionReader = readDarkDeclarationProjection,
@@ -49,6 +52,13 @@ export class DarkMonad {
   setTimeControl(control: DarkForceTimeControl): void {
     if (this.#timeControl) throw new Error("Dark Monad time control is already installed")
     this.#timeControl = control
+  }
+
+  setMatterAuthoring(service: Pick<MatterAuthoringService, "apply">): void {
+    if (this.#state !== "created" || this.#matterAuthoring) {
+      throw new Error("Dark Monad Matter authoring is already installed or RPC registration has started")
+    }
+    this.#matterAuthoring = service
   }
 
   onServerStarted(peer: MonadRpcPeer): void {
@@ -74,6 +84,12 @@ export class DarkMonad {
       DARK_FORCE_STACK_METHOD,
       async () => this.#timeControlOrThrow().pauseStack(),
     )
+    if (this.#matterAuthoring) {
+      peer.expose(
+        META_MATTER_APPLY_METHOD,
+        async (params, context) => await this.#matterAuthoring!.apply(params, context.source),
+      )
+    }
     this.#graph.onServerStarted(peer)
   }
 

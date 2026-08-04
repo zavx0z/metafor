@@ -62,6 +62,12 @@ export interface SourcePublishReceipt {
   }>
 }
 
+export interface SourceSnapshot {
+  readonly targetPath: string
+  readonly source: string
+  readonly revision: MetaSourceRevision
+}
+
 const SAFE_OPERATION_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/
 
 export const sourceRevision = (source: string | Uint8Array): MetaSourceRevision =>
@@ -97,6 +103,12 @@ const targetSource = async (
 
 export const readSourceRevision = async (targetPath: string): Promise<MetaSourceRevision> =>
   (await targetSource(exactTarget(targetPath))).revision
+
+export const readSourceSnapshot = async (targetPath: string): Promise<SourceSnapshot> => {
+  const target = exactTarget(targetPath)
+  const snapshot = await targetSource(target)
+  return {targetPath: target, source: snapshot.source, revision: snapshot.revision}
+}
 
 const writeExclusiveFile = async (
   path: string,

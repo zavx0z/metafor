@@ -7,6 +7,7 @@ import {resolveForceFieldsPayload} from "shared/protocol/force/fields"
 import type {ForceMessage} from "shared/protocol/force/message"
 import type {Particle} from "shared/protocol/force/particle"
 import type {FieldInit, MatterBindingValue, MatterEdgeSlot, MatterParticleKind} from "@metafor/types/metafor/matter"
+import {parseMetaAddress} from "@metafor/types/metafor/graph"
 import type {MetaFieldDSL, MetaMassDSL} from "@metafor/types/metafor/schema"
 import {
   insertFieldDefault,
@@ -162,6 +163,17 @@ export const parseInflatonAddress = (path: Particle["path"], value?: unknown): I
   return typeof value.wimp === "string" && value.wimp.trim().length > 0 &&
       localId !== null && localId > 0
     ? {path, src: value.wimp, localId}
+    : null
+}
+
+const parseMatterTransferSource = (value: unknown): InflatonAddress | null => {
+  if (typeof value !== "string") return null
+  const separator = value.lastIndexOf("#")
+  if (separator <= 0) return null
+  const src = value.slice(0, separator)
+  const localId = Number(value.slice(separator + 1))
+  return parseMetaAddress(src) !== null && Number.isSafeInteger(localId) && localId > 0
+    ? {path: "matter", src, localId}
     : null
 }
 
@@ -870,6 +882,24 @@ export class BoundaryIncrementalStore {
     return {path, src: row.wimp, localId: Number(row.localId)}
   }
 
+  private async declarationRowId(
+    sql: Database,
+    address: InflatonAddress,
+  ): Promise<number> {
+    if (!isNumericDeclarationPath(address.path)) {
+      throw new Error(`Boundary ${address.path} has no persisted numeric row`)
+    }
+    const table = declarationTableByPath[address.path]
+    const row = (await sql.unsafe<Array<{id: number}>>(
+      `SELECT id FROM ${table} WHERE wimp = ? AND local_id = ? LIMIT 1`,
+      [address.src, address.localId],
+    ))[0]
+    if (!row || !Number.isSafeInteger(Number(row.id)) || Number(row.id) <= 0) {
+      throw new Error(`Boundary ${address.path} source ${address.src}#${address.localId} is absent`)
+    }
+    return Number(row.id)
+  }
+
   private async fieldLocalIdByRowId(sql: Database, id: number): Promise<number> {
     const row = (await sql<Array<{localId: number}>>`
       SELECT local_id AS localId FROM field WHERE id = ${id} LIMIT 1
@@ -1347,6 +1377,76 @@ export class BoundaryIncrementalStore {
     return effects
   }
 
+  private async prepareCanonicalMatterMove(
+    sql: Database,
+    source: InflatonAddress,
+    target: InflatonAddress,
+    sourceValue: JsonRecord,
+    targetInput: JsonRecord,
+  ): Promise<Array<{runtimeAtom: number; targetAtom: number}>> {
+    if (
+      source.path !== "matter" || target.path !== "matter" ||
+      sourceValue.kind !== "wimp" || (targetInput.kind ?? targetInput.particleKind) !== "wimp" ||
+      sourceValue.parent !== null || targetInput.parent !== null ||
+      sourceValue.fieldsBinding !== undefined || sourceValue.massBinding !== undefined ||
+      sourceValue.energyBinding !== undefined || targetInput.fieldsBinding !== undefined ||
+      targetInput.massBinding !== undefined || targetInput.energyBinding !== undefined
+    ) {
+      throw new Error("Boundary canonical Matter move supports one inert root WIMP occurrence")
+    }
+    const origins = await sql<Array<{runtimeAtom: number; scopeAtom: number}>>`
+      SELECT runtime_id AS runtimeAtom, scope_atom AS scopeAtom
+        FROM boundary_runtime_origin
+       WHERE kind = ${"atom"} AND declaration_kind = ${"matter"}
+         AND declaration_wimp = ${source.src} AND declaration_local_id = ${source.localId}
+       ORDER BY sequence
+    `
+    const result: Array<{runtimeAtom: number; targetAtom: number}> = []
+    const usedTargets = new Set<number>()
+    for (const origin of origins) {
+      const candidates = await sql<Array<{targetAtom: number}>>`
+        SELECT target.id AS targetAtom
+          FROM atom AS target
+          JOIN boundary_runtime_origin AS target_origin
+            ON target_origin.kind = ${"atom"} AND target_origin.runtime_id = target.id
+         WHERE target.wimp = ${target.src}
+           AND target_origin.scope_atom = ${origin.scopeAtom}
+         ORDER BY target_origin.sequence
+      `
+      if (candidates.length !== 1) {
+        throw new Error(
+          `Boundary Matter move ${source.src}#${source.localId} has no unique runtime target in ${target.src}`,
+        )
+      }
+      const runtimeAtom = Number(origin.runtimeAtom)
+      const targetAtom = Number(candidates[0]!.targetAtom)
+      if (usedTargets.has(targetAtom) || await this.runtimeAtomContains(sql, runtimeAtom, targetAtom)) {
+        throw new Error(`Boundary Matter move ${source.src}#${source.localId} has an ambiguous or cyclic runtime target`)
+      }
+      usedTargets.add(targetAtom)
+      result.push({runtimeAtom, targetAtom})
+    }
+    return result
+  }
+
+  private async runtimeAtomContains(sql: Database, ancestor: number, target: number): Promise<boolean> {
+    const found = (await sql<Array<{found: number}>>`
+      WITH RECURSIVE ancestors(kind, runtime_id) AS (
+        SELECT ${"atom"} AS kind, ${target} AS runtime_id
+        UNION ALL
+        SELECT origin.parent_kind, origin.parent_runtime_id
+          FROM boundary_runtime_origin AS origin
+          JOIN ancestors
+            ON origin.kind = ancestors.kind AND origin.runtime_id = ancestors.runtime_id
+         WHERE origin.parent_kind <> ${"root"}
+      )
+      SELECT 1 AS found FROM ancestors
+       WHERE kind = ${"atom"} AND runtime_id = ${ancestor}
+       LIMIT 1
+    `)[0]
+    return found !== undefined
+  }
+
   private async applyDeclarationTransfer(part: Particle): Promise<BoundaryIncrementalCommit> {
     if ((part.op !== "move" && part.op !== "copy") || !isDeclarationPath(part.path)) {
       throw new Error("Boundary declaration transfer requires categorical move/copy")
@@ -1362,9 +1462,16 @@ export class BoundaryIncrementalStore {
 
     let source: InflatonAddress
     let sourceId: string | number
+    let canonicalMatterMove = false
     if (path === "wimp") {
       sourceId = requiredString(part.from, "wimp transfer from")
       source = {path: "wimp", src: sourceId, localId: 0}
+    } else if (path === "matter" && part.op === "move" && typeof part.from === "string") {
+      const parsed = parseMatterTransferSource(part.from)
+      if (!parsed) throw new Error("Boundary Matter move source must be canonical <owner>/<repository>#<localId>")
+      sourceId = part.from
+      source = parsed
+      canonicalMatterMove = true
     } else {
       if (!isNumericDeclarationPath(path)) {
         throw new Error(`Boundary declaration transfer path ${path} has no persisted table`)
@@ -1381,32 +1488,47 @@ export class BoundaryIncrementalStore {
       if (!isNumericDeclarationPath(path)) {
         throw new Error(`Boundary declaration transfer path ${path} has no persisted table`)
       }
+      const resolvedSourceId = canonicalMatterMove
+        ? await this.declarationRowId(tx, source)
+        : Number(sourceId)
       const sourceValue = await this.canonical(tx, source, {})
-      if (!sourceValue) throw new Error(`Boundary ${path} source row ${sourceId} is absent`)
+      if (!sourceValue) throw new Error(`Boundary ${path} source row ${resolvedSourceId} is absent`)
       const table = declarationTableByPath[path]
       const targetRow = (await tx.unsafe<Array<{id: number}>>(
         `SELECT id FROM ${table} WHERE wimp = ? AND local_id = ? LIMIT 1`,
         [target.src, target.localId],
       ))[0]
-      if (targetRow && Number(targetRow.id) !== sourceId) {
+      if (targetRow && Number(targetRow.id) !== resolvedSourceId) {
         throw new Error(`Boundary ${path} target ${target.src}#${target.localId} already exists`)
       }
 
       const runtimeEffects: Particle[] = []
+      const matterMove = canonicalMatterMove
+        ? await this.prepareCanonicalMatterMove(tx, source, target, sourceValue, input)
+        : []
       if (op === "move") {
-        await this.removeRuntimeConsequences(tx, source, runtimeEffects)
+        if (!canonicalMatterMove) await this.removeRuntimeConsequences(tx, source, runtimeEffects)
         if (path === "field") {
           const values = await tx<Array<{value: number}>>`
-            SELECT value FROM atom_value WHERE field = ${sourceId}
+            SELECT value FROM atom_value WHERE field = ${resolvedSourceId}
           `
-          await tx`DELETE FROM atom_value WHERE field = ${sourceId}`
+          await tx`DELETE FROM atom_value WHERE field = ${resolvedSourceId}`
           for (const value of values) await deleteUnreferencedValue(tx, Number(value.value))
         }
       }
       const resultId = await this.persistNumericDeclarationTransfer(
-        tx, op, source, Number(sourceId), sourceValue, target, input,
+        tx, op, source, resolvedSourceId, sourceValue, target, input,
       )
-      if (path === "matter" && op === "move") {
+      if (canonicalMatterMove) {
+        for (const placement of matterMove) {
+          await tx`
+            UPDATE boundary_runtime_origin
+               SET declaration_wimp = ${target.src}, declaration_local_id = ${target.localId},
+                   scope_atom = ${placement.targetAtom}, occurrence_key = ${""}, ordinal = ${0}
+             WHERE kind = ${"atom"} AND runtime_id = ${placement.runtimeAtom}
+          `
+        }
+      } else if (path === "matter" && op === "move") {
         await tx`
           UPDATE boundary_runtime_origin
              SET declaration_wimp = ${target.src}, declaration_local_id = ${target.localId}
@@ -1420,7 +1542,7 @@ export class BoundaryIncrementalStore {
         throw new Error(`Boundary ${path} transfer did not materialize canonical target`)
       }
       const committed: Particle[] = [{
-        part: "graviton", op, path, from: sourceId,
+        part: "graviton", op, path, from: resolvedSourceId,
         ts: Date.now(), value: canonical,
       }, ...runtimeEffects]
       let consequenceInput: JsonRecord = canonical
