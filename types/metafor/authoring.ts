@@ -41,6 +41,32 @@ export interface MetaAuthoringCapability {
 
 export type MetaAuthoringOperationId = string
 export type MetaSourceRevision = `sha256:${string}`
+export type MetaAuthoringRequestDigest = `sha256:${string}`
+
+export const META_MATTER_AUTHORING_CAUSE_SCHEMA_V1 =
+  "metafor/matter-authoring-cause/v1" as const
+
+export interface MetaMatterSourceProjectionV1 {
+  address: MetaAddress
+  beforeRevision: MetaSourceRevision
+  afterRevision: MetaSourceRevision
+}
+
+/** Immutable RPC causation stored in the same Dark Force history row. */
+export interface MetaMatterAuthoringCauseV1 {
+  schema: typeof META_MATTER_AUTHORING_CAUSE_SCHEMA_V1
+  contractVersion: typeof META_AUTHORING_CONTRACT_VERSION
+  rpcSource: string
+  operationId: MetaAuthoringOperationId
+  requestDigest: MetaAuthoringRequestDigest
+  sourceProjections: MetaMatterSourceProjectionV1[]
+}
+
+export interface MetaForceAcceptanceIdentity {
+  cutId: string
+  sequence: number
+  id: string
+}
 
 interface MetaAuthoringWriteEnvelope {
   contractVersion: typeof META_AUTHORING_CONTRACT_VERSION

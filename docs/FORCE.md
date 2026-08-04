@@ -89,9 +89,18 @@ pre-cut backup, затем удаляется из active contour. Dark боль
 `segments/<first-sequence-20-digits>.ndjson`. Каждая строка содержит ровно одну
 принятую `SourcedParticle` вместе с её стабильным record ID
 `<cutId>:<acceptance-sequence>`, монотонной acceptance sequence и
-`acceptedAt`. Сегменты ограничены 4096 Particles. Ни snapshot, ни Mass, ни
-Store, ни service/process log или другой event не может быть строкой этой
-history.
+`acceptedAt`. Принятая через типизированный authoring RPC Particle в той же
+атомарной строке дополнительно связывается с immutable cause: RPC source,
+`operationId`, digest нормализованного request и точные before/after source
+revisions. Cause не входит в Particle или Force wire и отсутствует у обычных и
+старых history rows.
+
+Одинаковая пара `(rpcSource, operationId)` не может появиться во второй строке.
+Повтор с тем же request digest находит существующую acceptance identity, а с
+другим digest отклоняется до новой mutation. Accepted Particle и patch не
+копируются в отдельный operation journal. Сегменты ограничены 4096 Particles.
+Ни snapshot, ни Mass, ни Store, ни service/process log или другой event не
+может быть строкой этой history.
 
 `catalog.json` содержит только производный rebuildable индекс сегментов:
 границы sequence, `acceptedAt`, authored `particle.ts` и число записей. Он не
@@ -108,9 +117,9 @@ Particle history. Формат использует только UTF-8 JSON/NDJS
 операции; он не зависит от Bun storage API.
 
 Dark Monad может предоставлять read/query service над этой history, но не
-становится владельцем её persistence. Отдельный operation-service log, если он
-будет утверждён, может описывать только фазы Monad до или вокруг Particle
-acceptance и не заменяет Force history.
+становится владельцем её persistence. Authoring RPC использует сохранённую в
+той же строке cause как единственную привязку request к принятому изменению;
+отдельный operation-service log для Matter не создаётся.
 
 ## Текущая пауза и один шаг
 

@@ -3,6 +3,12 @@ import type {Part} from "shared/protocol/force/particle"
 import type {ForceMessageInput, SourcedForceMessage} from "shared/protocol/force/message"
 import {ForceLifecycle} from "./lifecycle.ts"
 import {forceDomains, type ForceDomain, type ForceStore} from "./store.ts"
+import {
+  META_AUTHORING_CONTRACT_VERSION,
+  META_MATTER_AUTHORING_CAUSE_SCHEMA_V1,
+  type MetaMatterAuthoringCauseV1,
+} from "@metafor/types/metafor/authoring"
+import {parseMetaAddress} from "@metafor/types/metafor/graph"
 
 const agentInflaton = (ts: number): ForceMessageInput => ({
   parts: [{part: "inflaton", op: "add", path: "wimp", ts, value: {src: "capsule", name: "Capsule"}}],
@@ -10,6 +16,19 @@ const agentInflaton = (ts: number): ForceMessageInput => ({
 
 const agentRemove = (ts: number): ForceMessageInput => ({
   parts: [{part: "inflaton", op: "remove", path: "wimp", ts, value: {src: "zavx0z/capsule"}}],
+})
+
+const authoringCause = (): MetaMatterAuthoringCauseV1 => ({
+  schema: META_MATTER_AUTHORING_CAUSE_SCHEMA_V1,
+  contractVersion: META_AUTHORING_CONTRACT_VERSION,
+  rpcSource: "authoring-agent",
+  operationId: "matter-add-1",
+  requestDigest: `sha256:${"a".repeat(64)}`,
+  sourceProjections: [{
+    address: parseMetaAddress("zavx0z/lada")!,
+    beforeRevision: `sha256:${"b".repeat(64)}`,
+    afterRevision: `sha256:${"c".repeat(64)}`,
+  }],
 })
 
 let lifecycle: ForceLifecycle
@@ -169,6 +188,51 @@ describe("ForceLifecycle", () => {
         value: {src: "zavx0z/capsule"},
       },
     })
+  })
+
+  test("returns the exact acceptance identity for one Dark-authored RPC Particle", async () => {
+    recording = createRecordingChannels()
+    let storedCause: MetaMatterAuthoringCauseV1 | undefined
+    lifecycle = new ForceLifecycle({
+      accept(particle, cause) {
+        if (!cause) throw new Error("authoring cause is required")
+        accepted.push(structuredClone(particle))
+        storedCause = structuredClone(cause)
+        return {
+          schema: "metafor/dark-force-particle/v1",
+          id: "authoring-cut:7",
+          sequence: 7,
+          acceptedAt: "2026-08-04T12:00:00.000Z",
+          particle: structuredClone(particle),
+          authoring: structuredClone(cause),
+        }
+      },
+    })
+    start()
+
+    const decision = await lifecycle.acceptAuthoringParticle(
+      agentInflaton(10),
+      authoringCause(),
+    )
+
+    expect(decision).toEqual({
+      ok: true,
+      delivered: ["boundary", "bulk"],
+      particle: {
+        part: "inflaton",
+        op: "add",
+        path: "wimp",
+        by: "dark",
+        ts: 10,
+        value: {src: "capsule", name: "Capsule"},
+      },
+      acceptance: {
+        cutId: "authoring-cut",
+        sequence: 7,
+        id: "authoring-cut:7",
+      },
+    })
+    expect(storedCause).toEqual(authoringCause())
   })
 
   test("routes a numeric Energy z/test as an ordinary Particle", async () => {

@@ -16,6 +16,12 @@ import {
   DARK_FORCE_PARTICLE_SCHEMA,
   DarkForceHistory,
 } from "./history.ts"
+import {
+  META_AUTHORING_CONTRACT_VERSION,
+  META_MATTER_AUTHORING_CAUSE_SCHEMA_V1,
+  type MetaMatterAuthoringCauseV1,
+} from "@metafor/types/metafor/authoring"
+import {parseMetaAddress} from "@metafor/types/metafor/graph"
 
 const directories: string[] = []
 
@@ -42,6 +48,24 @@ const particle = (part: "gluon" | "inflaton", ts: number, by = "matrix") => ({
   by,
   ts,
   value: {at: ts},
+})
+
+const digest = (value: string): `sha256:${string}` =>
+  `sha256:${value.repeat(64)}`
+
+const authoring = (
+  requestDigest = digest("a"),
+): MetaMatterAuthoringCauseV1 => ({
+  schema: META_MATTER_AUTHORING_CAUSE_SCHEMA_V1,
+  contractVersion: META_AUTHORING_CONTRACT_VERSION,
+  rpcSource: "authoring-agent",
+  operationId: "matter-add-1",
+  requestDigest,
+  sourceProjections: [{
+    address: parseMetaAddress("zavx0z/lada")!,
+    beforeRevision: digest("b"),
+    afterRevision: digest("c"),
+  }],
 })
 
 describe("Dark Force complete Particle history", () => {
@@ -139,6 +163,53 @@ describe("Dark Force complete Particle history", () => {
     expect(catalog.schema).toBe(DARK_FORCE_HISTORY_CATALOG_SCHEMA)
     expect(catalog.segments.map((segment: {firstSequence: number; lastSequence: number}) =>
       [segment.firstSequence, segment.lastSequence])).toEqual([[1, 2], [3, 3]])
+  })
+
+  test("stores immutable RPC causation in the accepted Particle row and reopens its lookup", () => {
+    const directory = path()
+    const history = new DarkForceHistory(directory, {
+      cutId: "authoring",
+      startedAt: "2026-08-04T12:00:00.000Z",
+    }, {
+      now: clock("2026-08-04T12:00:01.000Z"),
+    })
+    const cause = authoring()
+
+    const accepted = history.accept(particle("inflaton", 1, "dark"), cause)
+
+    expect(accepted).toMatchObject({
+      id: "authoring:1",
+      sequence: 1,
+      authoring: cause,
+    })
+    expect(
+      readFileSync(join(directory, "segments", "00000000000000000001.ndjson"), "utf8")
+        .trim()
+        .split("\n"),
+    ).toHaveLength(1)
+    const reopened = new DarkForceHistory(directory)
+    expect(reopened.findAuthoring("authoring-agent", "matter-add-1")).toEqual(accepted)
+    expect(reopened.findAuthoring("authoring-agent", "missing")).toBeNull()
+  })
+
+  test("rejects a repeated authoring key without appending the same or a conflicting request", () => {
+    const directory = path()
+    const history = new DarkForceHistory(directory, {
+      cutId: "authoring-conflict",
+      startedAt: "2026-08-04T12:00:00.000Z",
+    })
+    history.accept(particle("inflaton", 1, "dark"), authoring())
+
+    expect(() => history.accept(
+      particle("inflaton", 2, "dark"),
+      authoring(),
+    )).toThrow("already has an accepted Particle")
+    expect(() => history.accept(
+      particle("inflaton", 3, "dark"),
+      authoring(digest("d")),
+    )).toThrow("different request digest")
+    expect(history.status().sequence).toBe(1)
+    expect(history.read()).toHaveLength(1)
   })
 
   test("rebuilds a missing or stale derived catalog without changing Particle truth", () => {

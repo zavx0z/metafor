@@ -26,8 +26,9 @@ contractVersion + operationId + capability + exact operation payload
 Provider отклоняет неизвестные поля. Один `operationId` навсегда связывается с
 одним нормализованным request digest; повтор с другим payload запрещён.
 Успешный receipt содержит `contractVersion`, `operationId`, нормализованный
-accepted patch, достигнутую phase и точные source revisions. Для live operation
-он также содержит causal Force acceptance identity и Boundary outcome, но не
+request digest, достигнутую phase и точные source revisions. Для live operation
+он ссылается на causal Force acceptance identity, где уже хранится единственный
+accepted patch, и содержит Boundary outcome, но не копирует patch и не
 раскрывает внутренние SQLite row IDs как клиентские адреса.
 
 ## Discovery
@@ -121,9 +122,11 @@ Particle. Service preflight, source candidates и receipt Particles не явл�
 ## Ошибки и повтор
 
 До live commit любая ошибка оставляет мир и canonical source неизменными.
-После live commit source failure сохраняет тот же `operationId`, accepted patch
-и подготовленные source candidates. Повтор продолжает projection того же patch
-и не выполняет новую runtime mutation.
+После live commit source failure сохраняет подготовленные source candidates.
+Тот же `operationId`, request digest, accepted patch и before/after source
+revisions уже атомарно связаны в Force history. Повтор находит эту acceptance
+identity, продолжает projection того же patch и не выполняет новую runtime
+mutation.
 
 Provider возвращает предметный outcome одной из фаз: `rejected`, `created`,
 `runtime_committed`, `source_pending` или `complete`. Неизвестный частичный

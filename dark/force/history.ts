@@ -13,6 +13,12 @@ import {
 } from "node:fs"
 import {join} from "node:path"
 import {
+  META_AUTHORING_CONTRACT_VERSION,
+  META_MATTER_AUTHORING_CAUSE_SCHEMA_V1,
+  type MetaMatterAuthoringCauseV1,
+} from "@metafor/types/metafor/authoring"
+import {parseMetaAddress} from "@metafor/types/metafor/graph"
+import {
   type Part,
   type ParticleOperation,
   type SourcedParticle,
@@ -45,6 +51,7 @@ export type DarkForceHistoryParticle = {
   sequence: number
   acceptedAt: string
   particle: SourcedParticle
+  authoring?: MetaMatterAuthoringCauseV1
 }
 
 export type DarkForceHistorySegment = {
@@ -125,6 +132,80 @@ const isCanonicalTime = (value: unknown): value is string => {
   const milliseconds = Date.parse(value)
   return !Number.isNaN(milliseconds) && new Date(milliseconds).toISOString() === value
 }
+
+const operationIdPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/
+const digestPattern = /^sha256:[a-f0-9]{64}$/
+
+const parseAuthoringCause = (
+  value: unknown,
+  location: string,
+): MetaMatterAuthoringCauseV1 => {
+  if (
+    !isJSONData(value) ||
+    !isRecord(value) ||
+    !exactKeys(value, [
+      "schema",
+      "contractVersion",
+      "rpcSource",
+      "operationId",
+      "requestDigest",
+      "sourceProjections",
+    ]) ||
+    value.schema !== META_MATTER_AUTHORING_CAUSE_SCHEMA_V1 ||
+    value.contractVersion !== META_AUTHORING_CONTRACT_VERSION ||
+    typeof value.rpcSource !== "string" ||
+    value.rpcSource.length === 0 ||
+    value.rpcSource.length > 256 ||
+    value.rpcSource.trim() !== value.rpcSource ||
+    typeof value.operationId !== "string" ||
+    !operationIdPattern.test(value.operationId) ||
+    typeof value.requestDigest !== "string" ||
+    !digestPattern.test(value.requestDigest) ||
+    !Array.isArray(value.sourceProjections) ||
+    value.sourceProjections.length === 0
+  ) throw new Error(`Dark Force history authoring cause is invalid at ${location}`)
+
+  const addresses = new Set<string>()
+  let previous = ""
+  const sourceProjections = value.sourceProjections.map((projection, index) => {
+    if (
+      !isRecord(projection) ||
+      !exactKeys(projection, ["address", "beforeRevision", "afterRevision"]) ||
+      typeof projection.address !== "string" ||
+      parseMetaAddress(projection.address) === null ||
+      addresses.has(projection.address) ||
+      projection.address.localeCompare(previous) < 0 ||
+      typeof projection.beforeRevision !== "string" ||
+      !digestPattern.test(projection.beforeRevision) ||
+      typeof projection.afterRevision !== "string" ||
+      !digestPattern.test(projection.afterRevision) ||
+      projection.beforeRevision === projection.afterRevision
+    ) {
+      throw new Error(
+        `Dark Force history authoring source projection is invalid at ${location}.sourceProjections[${index}]`,
+      )
+    }
+    addresses.add(projection.address)
+    previous = projection.address
+    return {
+      address: projection.address,
+      beforeRevision: projection.beforeRevision,
+      afterRevision: projection.afterRevision,
+    }
+  })
+  return structuredClone({
+    schema: META_MATTER_AUTHORING_CAUSE_SCHEMA_V1,
+    contractVersion: META_AUTHORING_CONTRACT_VERSION,
+    rpcSource: value.rpcSource,
+    operationId: value.operationId,
+    requestDigest: value.requestDigest,
+    sourceProjections,
+  }) as MetaMatterAuthoringCauseV1
+}
+
+const authoringKey = (
+  value: Pick<MetaMatterAuthoringCauseV1, "rpcSource" | "operationId">,
+): string => `${value.rpcSource}\u0000${value.operationId}`
 
 const isJSONData = (value: unknown, ancestors = new Set<object>()): boolean => {
   if (value === null || typeof value === "string" || typeof value === "boolean") return true
@@ -222,19 +303,23 @@ const parseEntry = (
 ): DarkForceHistoryParticle => {
   if (
     !isRecord(value) ||
-    !exactKeys(value, ["schema", "id", "sequence", "acceptedAt", "particle"]) ||
+    !exactKeys(value, ["schema", "id", "sequence", "acceptedAt", "particle"], ["authoring"]) ||
     value.schema !== DARK_FORCE_PARTICLE_SCHEMA ||
     value.id !== `${manifest.cutId}:${expectedSequence}` ||
     value.sequence !== expectedSequence ||
     !isCanonicalTime(value.acceptedAt)
   ) throw new Error(`Dark Force history entry is invalid at ${location}`)
-  return {
+  const entry: DarkForceHistoryParticle = {
     schema: DARK_FORCE_PARTICLE_SCHEMA,
     id: value.id,
     sequence: value.sequence,
     acceptedAt: value.acceptedAt,
     particle: parseParticle(value.particle, `${location}.particle`),
   }
+  if (Object.hasOwn(value, "authoring")) {
+    entry.authoring = parseAuthoringCause(value.authoring, `${location}.authoring`)
+  }
+  return entry
 }
 
 const readJSON = (filename: string): unknown => {
@@ -351,6 +436,7 @@ export class DarkForceHistory {
   #activeEntries: DarkForceHistoryParticle[] = []
   #catalog: DarkForceHistoryCatalog
   #sequence = 0
+  readonly #authoring = new Map<string, DarkForceHistoryParticle>()
 
   constructor(
     readonly directory: string,
@@ -404,6 +490,7 @@ export class DarkForceHistory {
         throw new Error(`Dark Force history segment sequence is invalid: ${file}`)
       }
       const entries = readSegment(directory, file, this.#manifest, expectedFirst)
+      for (const entry of entries) this.#registerAuthoring(entry)
       if (index < files.length - 1 && entries.length !== this.#manifest.segmentCapacity) {
         throw new Error(`Dark Force history closed segment is incomplete: ${file}`)
       }
@@ -432,8 +519,25 @@ export class DarkForceHistory {
     if (!sameCatalog(storedCatalog, this.#catalog)) persistCatalog(directory, this.#catalog)
   }
 
-  accept(particle: SourcedParticle): DarkForceHistoryParticle {
+  accept(
+    particle: SourcedParticle,
+    authoring?: MetaMatterAuthoringCauseV1,
+  ): DarkForceHistoryParticle {
     const normalized = parseParticle(particle, "accept")
+    const normalizedAuthoring = authoring === undefined
+      ? undefined
+      : parseAuthoringCause(authoring, "accept.authoring")
+    if (normalizedAuthoring) {
+      const existing = this.#authoring.get(authoringKey(normalizedAuthoring))
+      if (existing) {
+        const conflict = existing.authoring?.requestDigest === normalizedAuthoring.requestDigest
+          ? "already has an accepted Particle"
+          : "is already bound to a different request digest"
+        throw new Error(
+          `Dark Force authoring operation ${normalizedAuthoring.rpcSource}/${normalizedAuthoring.operationId} ${conflict}`,
+        )
+      }
+    }
     const sequence = this.#sequence + 1
     const acceptedAt = this.#now().toISOString()
     if (!isCanonicalTime(acceptedAt)) throw new Error("Dark Force history clock returned an invalid timestamp")
@@ -443,6 +547,7 @@ export class DarkForceHistory {
       sequence,
       acceptedAt,
       particle: normalized,
+      ...(normalizedAuthoring === undefined ? {} : {authoring: normalizedAuthoring}),
     }
 
     const current = this.#catalog.segments.at(-1)
@@ -457,6 +562,7 @@ export class DarkForceHistory {
       : [...this.#catalog.segments, summary]
     this.#catalog = {...this.#catalog, segments}
     this.#sequence = sequence
+    this.#registerAuthoring(entry)
     if (entries.length < this.#manifest.segmentCapacity) {
       this.#activeFile = file
       this.#activeEntries = entries
@@ -472,6 +578,20 @@ export class DarkForceHistory {
       // catalog is rebuilt from segments at the next open.
     }
     return structuredClone(entry)
+  }
+
+  findAuthoring(
+    rpcSource: string,
+    operationId: string,
+  ): DarkForceHistoryParticle | null {
+    if (
+      rpcSource.length === 0 ||
+      rpcSource.length > 256 ||
+      rpcSource.trim() !== rpcSource ||
+      !operationIdPattern.test(operationId)
+    ) throw new Error("Dark Force authoring lookup is invalid")
+    const entry = this.#authoring.get(authoringKey({rpcSource, operationId}))
+    return entry ? structuredClone(entry) : null
   }
 
   read(query: DarkForceHistoryQuery = {}): DarkForceHistoryParticle[] {
@@ -553,5 +673,16 @@ export class DarkForceHistory {
       segments: this.#catalog.segments.length,
       retroactiveComplete: false,
     }
+  }
+
+  #registerAuthoring(entry: DarkForceHistoryParticle): void {
+    if (!entry.authoring) return
+    const key = authoringKey(entry.authoring)
+    if (this.#authoring.has(key)) {
+      throw new Error(
+        `Dark Force history contains duplicate authoring operation: ${entry.authoring.rpcSource}/${entry.authoring.operationId}`,
+      )
+    }
+    this.#authoring.set(key, entry)
   }
 }

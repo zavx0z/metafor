@@ -7,6 +7,10 @@ import {particleDestinations, routeParticle, type ForceOrigin} from "./route.ts"
 import {force$, forceDomains, type ForceDomain, type ForceStore} from "./store.ts"
 import type {DarkForceHistory, DarkForceHistoryParticle} from "./history.ts"
 import type {CheckpointDeliveryReceipt} from "../checkpoint/barrier.ts"
+import type {
+  MetaForceAcceptanceIdentity,
+  MetaMatterAuthoringCauseV1,
+} from "@metafor/types/metafor/authoring"
 
 export type ForceLifecycleState = "created" | "starting" | "running" | "error" | "stopped"
 
@@ -26,6 +30,15 @@ export type ForceLifecycleDecision =
 
 export type ForceAgentDecision =
   | {ok: true; delivered: ForceDomain[]; particle: SourcedForceMessage["parts"][0]}
+  | {ok: false; reason: "not_running" | "admission_closed" | "runtime_error"; error: string}
+
+export type ForceAuthoringDecision =
+  | {
+      ok: true
+      delivered: ForceDomain[]
+      particle: SourcedForceMessage["parts"][0]
+      acceptance: MetaForceAcceptanceIdentity
+    }
   | {ok: false; reason: "not_running" | "admission_closed" | "runtime_error"; error: string}
 
 export interface ForceCheckpointTransfer {
@@ -133,10 +146,40 @@ export class ForceLifecycle {
   async #transferAgentParticle(input: ForceMessageInput): Promise<ForceAgentDecision> {
     const message = sourceForceMessage(input, "agent")
     try {
-      const delivered = await this.#transfer(message, "agent")
-      return {ok: true, delivered, particle: message.parts[0]}
+      const transfer = await this.#transfer(message, "agent")
+      return {ok: true, delivered: transfer.delivered, particle: message.parts[0]}
     } catch (error) {
       this.#failStop("force", `runtime could not transfer a Particle: ${this.#reason(error)}`)
+      return {ok: false, reason: "runtime_error", error: this.#blockedReason()}
+    }
+  }
+
+  /** Accepts one Dark Monad-authored Particle with immutable RPC causation. */
+  async acceptAuthoringParticle(
+    input: ForceMessageInput,
+    authoring: MetaMatterAuthoringCauseV1,
+  ): Promise<ForceAuthoringDecision> {
+    if (this.#state !== "running") {
+      return {ok: false, reason: "not_running", error: this.#blockedReason()}
+    }
+    if (this.#externalAdmissionClosed) {
+      return {
+        ok: false,
+        reason: "admission_closed",
+        error: "Force external admission is held by an internal causal operation",
+      }
+    }
+    const message = sourceForceMessage(input, "dark")
+    try {
+      const transfer = await this.#transfer(message, "dark", authoring)
+      return {
+        ok: true,
+        delivered: transfer.delivered,
+        particle: message.parts[0],
+        acceptance: this.#acceptanceIdentity(transfer.accepted),
+      }
+    } catch (error) {
+      this.#failStop("force", `runtime could not transfer an authored Particle: ${this.#reason(error)}`)
       return {ok: false, reason: "runtime_error", error: this.#blockedReason()}
     }
   }
@@ -153,7 +196,8 @@ export class ForceLifecycle {
       return {ok: false, reason: "not_running", error: this.#blockedReason()}
     }
     try {
-      return {ok: true, delivered: await this.#transfer(value, domain)}
+      const transfer = await this.#transfer(value, domain)
+      return {ok: true, delivered: transfer.delivered}
     } catch (error) {
       this.#failStop(domain, `could not transfer a Particle: ${this.#reason(error)}`)
       return {ok: false, reason: "runtime_error", error: this.#blockedReason()}
@@ -163,15 +207,28 @@ export class ForceLifecycle {
   async #transfer(
     message: SourcedForceMessage,
     origin: ForceOrigin,
-  ): Promise<ForceDomain[]> {
-    const accepted = this.history.accept(message.parts[0]) as DarkForceHistoryParticle
+    authoring?: MetaMatterAuthoringCauseV1,
+  ): Promise<{delivered: ForceDomain[]; accepted: DarkForceHistoryParticle}> {
+    const accepted = this.history.accept(message.parts[0], authoring) as DarkForceHistoryParticle
     const destinations = particleDestinations(message, origin)
     const receipts = this.checkpoint?.recordAccepted(accepted.sequence, destinations) ?? []
     if (this.checkpoint) await this.checkpoint.prepare(receipts)
     const delivered = routeParticle(message, origin)
     if (origin !== "agent" && this.checkpoint) this.checkpoint.acceptedFrom(origin)
     if (this.checkpoint) await this.checkpoint.waitApplied(receipts)
-    return delivered
+    return {delivered, accepted}
+  }
+
+  #acceptanceIdentity(entry: DarkForceHistoryParticle): MetaForceAcceptanceIdentity {
+    const separator = entry.id.lastIndexOf(":")
+    if (separator <= 0 || entry.id.slice(separator + 1) !== String(entry.sequence)) {
+      throw new Error("Dark Force history returned an invalid acceptance identity")
+    }
+    return {
+      cutId: entry.id.slice(0, separator),
+      sequence: entry.sequence,
+      id: entry.id,
+    }
   }
 
   /**
