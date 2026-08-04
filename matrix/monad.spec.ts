@@ -22,7 +22,7 @@ describe("Matrix Monad", () => {
     const peer = {
       async call(target: string, method: string, params: unknown, options: unknown) {
         calls.push({target, method, params, options})
-        return {version: 1, atoms: [], declarations: []}
+        return {version: 1, atoms: [], declarations: [], pendingProcessExecutions: []}
       },
     }
     const monad = new MatrixMonad()

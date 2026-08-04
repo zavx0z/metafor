@@ -185,7 +185,12 @@ export function readMatrixProjectionFragment(atomIds: Iterable<number>): Boundar
   const sources = new Set(atoms.map((atom) => atom.wimp))
   const declarations = [...sources]
     .flatMap((src) => declarationsBySrc.get(src) ?? [])
-  return {version: 1, atoms: clone(atoms), declarations: clone(declarations)}
+  return {
+    version: 1,
+    atoms: clone(atoms),
+    declarations: clone(declarations),
+    pendingProcessExecutions: [],
+  }
 }
 
 const addToIndex = <K>(index: Map<K, Set<number>>, key: K, atomId: number): void => {

@@ -48,6 +48,7 @@ const waitForPart = async (
 
 const runtimeInitialState = (): BoundaryInitialState => ({
   version: 1,
+  pendingProcessExecutions: [],
   atoms: [{
     id: 17,
     wimp: "owner/process",

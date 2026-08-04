@@ -23,6 +23,7 @@ type ParticleInput = Omit<SourcedParticle, "ts"> & {ts?: number}
 
 const runtimeInitialState = (): BoundaryInitialState => ({
   version: 1,
+  pendingProcessExecutions: [],
   atoms: [{
     id: 17,
     wimp: "owner/parity",

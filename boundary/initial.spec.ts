@@ -64,6 +64,7 @@ describe("Boundary canonical initial state", () => {
     `)[0]!.id)
 
     expect(initial.version).toBe(1)
+    expect(initial.pendingProcessExecutions).toEqual([])
     expect(initial.atoms).toEqual([{
       id: atomId,
       wimp: ROOT,
@@ -98,6 +99,36 @@ describe("Boundary canonical initial state", () => {
     `)[0]!.count
     expect(Number(atomCount)).toBe(1)
     expect(Number(declarationCount)).toBe(7)
+  })
+
+  test("projects only pending Process executions into the Matrix birth cut", async () => {
+    await apply({part: "inflaton", op: "add", path: "wimp", value: {src: ROOT, name: "Runtime"}})
+    await declaration("state", 1, {name: "ready", position: 0})
+    await declaration("process", 1, {
+      key: "ready",
+      type: "action",
+      env: ["server"],
+      action: {src: "./run.ts", read: []},
+    })
+    const atomId = (await boundary.initialState()).atoms[0]!.id
+    const processId = Number((await boundary.projection.sql<Array<{id: number}>>`
+      SELECT id FROM process WHERE wimp = ${ROOT} AND local_id = ${1}
+    `)[0]!.id)
+
+    await apply({
+      part: "photon",
+      op: "test",
+      path: atomId,
+      from: "execution-before-cold-birth",
+      value: "ready",
+    })
+
+    expect((await boundary.initialState()).pendingProcessExecutions).toEqual([{
+      executionId: "execution-before-cold-birth",
+      atom: atomId,
+      process: processId,
+      state: "ready",
+    }])
   })
 
   test("returns the complete current projection as timestamp-free service data", async () => {

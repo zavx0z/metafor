@@ -12,6 +12,7 @@ const previousBackend = Bun.env.METAFOR_WEAK_BACKEND
 
 const initialState = (): BoundaryInitialState => ({
   version: 1,
+  pendingProcessExecutions: [],
   atoms: [{id: 17, wimp: "owner/runtime", values: [{field: 101, valueId: 1001, value: 0}], state: null}],
   declarations: [
     {src: "owner/runtime", section: "fields", localId: "1", value: {id: 101, key: "input", type: "number", default: 0, position: 0}},
@@ -47,6 +48,22 @@ describe("Matrix Monad birth", () => {
     }])
     expect(runtime.data.stateNames).toEqual([["idle", "ready"]])
     expect(runtime.weak.stateHasProcessByBraneIndex).toEqual([[false, true]])
+    expect(runtime.runtime.restartProcessAtomIds).toEqual([])
+  })
+
+  test("marks only a matching prior pending Process for cold replacement", () => {
+    const pending = initialState()
+    pending.atoms[0]!.state = 202
+    pending.pendingProcessExecutions = [{
+      executionId: "execution-before-cold-birth",
+      atom: 17,
+      process: 501,
+      state: "ready",
+    }]
+    expect(buildMatrixRuntime(pending).runtime.restartProcessAtomIds).toEqual([17])
+
+    pending.pendingProcessExecutions = []
+    expect(buildMatrixRuntime(pending).runtime.restartProcessAtomIds).toEqual([])
   })
 
   test("prepares the permanent Store and Weak before runtime birth", async () => {
@@ -63,6 +80,7 @@ describe("Matrix Monad birth", () => {
   test("prepares persisted optional Boundary values before Matrix opens Force", async () => {
     const optional: BoundaryInitialState = {
       version: 1,
+      pendingProcessExecutions: [],
       atoms: [{
         id: 18,
         wimp: "owner/optional",
@@ -87,6 +105,7 @@ describe("Matrix Monad birth", () => {
   test("restores canonical Field entanglement from shared Boundary value identity", async () => {
     const entangled: BoundaryInitialState = {
       version: 1,
+      pendingProcessExecutions: [],
       atoms: [
         {id: 17, wimp: "owner/parent", values: [{field: 101, valueId: 9001, value: "shot.png"}], state: null},
         {id: 18, wimp: "owner/child", values: [{field: 201, valueId: 9001, value: "shot.png"}], state: null},

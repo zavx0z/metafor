@@ -41,6 +41,7 @@ Object.defineProperty(globalThis, "WebSocket", {
 
 const initial: BoundaryInitialState = {
   version: 1,
+  pendingProcessExecutions: [],
   atoms: [{
     id: 17,
     wimp: "owner/runtime-failure",

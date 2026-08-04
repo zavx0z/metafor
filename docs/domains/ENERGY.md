@@ -72,6 +72,12 @@ Energy сопоставляет каждый фактически передан
 
 ## Закон runtime-перестройки
 
+После полного холодного рождения Energy всегда начинает с пустых живых stores.
+Она не восстанавливает WebSocket, controller или action прежнего процесса.
+Если Boundary сообщил Matrix о незавершённом execution прежнего contour,
+Matrix выпускает новый `photon/test`; Energy принимает только эту новую
+identity обычным claim и создаёт ресурсы заново.
+
 Canonical `atom/:id replace` полностью заменяет локальную runtime projection
 этого Atom. Отсутствующий `continuation` очищает прежние Mass/Energy bindings,
 а не оставляет их в catalog. Перед применением такого replace Energy мгновенно

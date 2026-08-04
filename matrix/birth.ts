@@ -37,7 +37,8 @@ const isRecord = (value: unknown): value is JsonRecord =>
   typeof value === "object" && value !== null && !Array.isArray(value)
 
 const isBoundaryInitialState = (value: unknown): value is BoundaryInitialState =>
-  isRecord(value) && value.version === 1 && Array.isArray(value.atoms) && Array.isArray(value.declarations)
+  isRecord(value) && value.version === 1 && Array.isArray(value.atoms) &&
+  Array.isArray(value.declarations) && Array.isArray(value.pendingProcessExecutions)
 
 const integer = (value: unknown): number | null =>
   typeof value === "number" && Number.isSafeInteger(value) ? value : null
@@ -277,6 +278,14 @@ export function buildMatrixRuntime(initial: BoundaryInitialState): MatrixRuntime
   const topologyAtomFieldIds: Array<[number, number]> = []
   const stateMetaStateIdsByBraneIndex: number[][] = []
   const stateHasProcessByBraneIndex: boolean[][] = []
+  const restartProcessAtomIds: number[] = []
+  const pendingProcessByAtomId = new Map<number, BoundaryInitialState["pendingProcessExecutions"][number]>()
+  for (const execution of initial.pendingProcessExecutions) {
+    if (pendingProcessByAtomId.has(execution.atom)) {
+      throw new Error(`Boundary returned multiple pending Process executions for Atom ${execution.atom}`)
+    }
+    pendingProcessByAtomId.set(execution.atom, execution)
+  }
   const runtimeFieldIndexByAtomField = new Map<string, number>()
   for (let braneIndex = 0; braneIndex < initial.atoms.length; braneIndex++) {
     const atom = initial.atoms[braneIndex]!
@@ -360,6 +369,18 @@ export function buildMatrixRuntime(initial: BoundaryInitialState): MatrixRuntime
     stateNames[braneIndex] = stateNamesForAtom
     stateMetaStateIdsByBraneIndex[braneIndex] = stateIdsForAtom
     stateHasProcessByBraneIndex[braneIndex] = stateNamesForAtom.map((name) => processStateNames.has(name))
+    const pending = pendingProcessByAtomId.get(atom.id)
+    if (pending) {
+      const selectedName = selectedState >= 0 ? stateNamesForAtom[selectedState] : undefined
+      const process = processRecords.find((record) => integer(record.value.id) === pending.process)
+      const processState = process
+        ? text(process.value.state) ?? text(process.value.key) ?? process.localId
+        : null
+      if (selectedName !== pending.state || processState !== pending.state) {
+        throw new Error(`Boundary pending Process execution does not match Atom ${atom.id} current State`)
+      }
+      restartProcessAtomIds.push(atom.id)
+    }
     branes.push({values, state: selectedState, collapses})
   }
 
@@ -368,6 +389,7 @@ export function buildMatrixRuntime(initial: BoundaryInitialState): MatrixRuntime
     version: 1,
     runtime: {
       atomIdByBraneIndex,
+      restartProcessAtomIds,
       braneIndexByAtomId,
       wimpSrcByAtomId,
       atomIdsByWimpSrc: [...atomIdsByWimpSrc.entries()].map(([src, atomIds]) => [src, [...atomIds]]),
@@ -397,6 +419,7 @@ const applyPreparedData = (prepared: MatrixData): void => {
 const atomFieldKey = (atomId: number, fieldId: number): string => `${atomId}\0${fieldId}`
 
 let preparedBirth = false
+let preparedRestartProcessAtomIds: number[] = []
 
 const prepareMatrixProjection = async (
   value: unknown,
@@ -435,7 +458,10 @@ const prepareMatrixProjection = async (
   )
   weak$.stateMetaStateIdsByBraneIndex = snapshot.weak.stateMetaStateIdsByBraneIndex.map((ids) => [...ids])
   weak$.stateHasProcessByBraneIndex = snapshot.weak.stateHasProcessByBraneIndex.map((items) => [...items])
-  if (markBirth) preparedBirth = true
+  if (markBirth) {
+    preparedBirth = true
+    preparedRestartProcessAtomIds = [...snapshot.runtime.restartProcessAtomIds]
+  }
 
   return {
     atoms: snapshot.runtime.atomIdByBraneIndex.length,
@@ -461,5 +487,12 @@ export async function prepareMatrixBirth(value: unknown): Promise<{atoms: number
 export function consumePreparedMatrixBirth(): boolean {
   const prepared = preparedBirth
   preparedBirth = false
+  return prepared
+}
+
+/** Consumed by the same new runtime immediately after the prepared birth marker. */
+export function consumePreparedMatrixProcessRestarts(): number[] {
+  const prepared = preparedRestartProcessAtomIds
+  preparedRestartProcessAtomIds = []
   return prepared
 }

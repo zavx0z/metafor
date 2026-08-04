@@ -180,6 +180,17 @@ export async function readBoundaryInitialState(sql: SQL): Promise<BoundaryInitia
   const atomStates = await sql<AtomStateRow[]>`
     SELECT atom, metaState FROM atom_state ORDER BY atom
   `
+  const pendingProcessExecutions = await sql<Array<{
+    executionId: string
+    atom: number
+    process: number
+    state: string
+  }>>`
+    SELECT execution_id AS executionId, atom, process, state
+      FROM boundary_process_execution
+     WHERE status = ${"pending"}
+     ORDER BY atom, created_at, execution_id
+  `
 
   const valuesByAtom = new Map<number, Array<{field: number; valueId: number; value: unknown}>>()
   for (const row of atomFields) {
@@ -198,5 +209,11 @@ export async function readBoundaryInitialState(sql: SQL): Promise<BoundaryInitia
       state: stateByAtom.get(Number(atom.id)) ?? null,
     })),
     declarations: await relationalDeclarations(sql),
+    pendingProcessExecutions: pendingProcessExecutions.map((execution) => ({
+      executionId: execution.executionId,
+      atom: Number(execution.atom),
+      process: Number(execution.process),
+      state: execution.state,
+    })),
   }
 }

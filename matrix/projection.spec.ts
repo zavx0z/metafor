@@ -27,6 +27,7 @@ const atomKey = (atom: number, field: number): string => `${atom}\0${field}`
 
 const initialState = (): BoundaryInitialState => ({
   version: 1,
+  pendingProcessExecutions: [],
   atoms: [
     {
       id: 17,

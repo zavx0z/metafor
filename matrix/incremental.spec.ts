@@ -24,6 +24,7 @@ afterEach(() => {
 
 const largeProjection = (count: number): BoundaryInitialState => ({
   version: 1,
+  pendingProcessExecutions: [],
   atoms: Array.from({length: count}, (_, index) => ({
     id: index + 1,
     wimp: "owner/large",
@@ -55,6 +56,7 @@ const replaceAtom = (atomId: number, valueId: number, value: number): Particle =
 
 const statefulProjection = (): BoundaryInitialState => ({
   version: 1,
+  pendingProcessExecutions: [],
   atoms: [{id: 10, wimp: "owner/stateful", values: [{field: 101, valueId: 501, value: 0}], state: null}],
   declarations: [
     {src: "owner/stateful", section: "fields", localId: "1", value: {id: 101, key: "value", type: "number", default: 0, position: 0}},
@@ -90,6 +92,7 @@ const removeStatefulAtom = (): Particle => ({
 
 const sharedSplitProjection = (): BoundaryInitialState => ({
   version: 1,
+  pendingProcessExecutions: [],
   atoms: Array.from({length: 4}, (_, index) => ({
     id: index + 1,
     wimp: "owner/shared-split",
@@ -121,6 +124,7 @@ const replaceSharedSplitAtom = (atomId: number, valueId: number): Particle => ({
 
 const sharedGraphProjection = (): BoundaryInitialState => ({
   version: 1,
+  pendingProcessExecutions: [],
   atoms: [1, 2].map((id) => ({
     id,
     wimp: "owner/shared-graph",
@@ -153,6 +157,7 @@ const sharedGraphField = (valueId: number, value: number): Particle => ({
 
 const enumProjection = (): BoundaryInitialState => ({
   version: 1,
+  pendingProcessExecutions: [],
   atoms: [{
     id: 1,
     wimp: "owner/enum",
@@ -388,6 +393,7 @@ describe("Matrix incremental structural runtime", () => {
   test("accepts a Field before its enum Variants and resolves the default incrementally", async () => {
     await prepareIncrementalMatrixFixture({
       version: 1,
+      pendingProcessExecutions: [],
       atoms: [{id: 1, wimp: "owner/streamed-enum", values: [], state: null}],
       declarations: [],
     })
@@ -553,6 +559,7 @@ describe("Matrix incremental structural runtime", () => {
   test("invalidates a locked execution only when its Process declaration changes", async () => {
     const initial: BoundaryInitialState = {
       version: 1,
+      pendingProcessExecutions: [],
       atoms: [{id: 17, wimp: "owner/process", values: [], state: 202}],
       declarations: [
         {src: "owner/process", section: "states", localId: "1", value: {id: 201, name: "idle", position: 0}},
@@ -584,6 +591,7 @@ describe("Matrix incremental structural runtime", () => {
   test("invalidates a locked execution when the same Atom is retargeted to another WIMP", async () => {
     const initial: BoundaryInitialState = {
       version: 1,
+      pendingProcessExecutions: [],
       atoms: [{id: 17, wimp: "owner/old", values: [], state: 202}],
       declarations: [
         {src: "owner/old", section: "states", localId: "1", value: {id: 202, name: "ready", position: 0}},
@@ -621,6 +629,7 @@ describe("Matrix incremental structural runtime", () => {
   test("rebuilds every Atom of a changed WIMP and invalidates their old Processes only", async () => {
     const initial: BoundaryInitialState = {
       version: 1,
+      pendingProcessExecutions: [],
       atoms: [
         {id: 17, wimp: "owner/fanout", values: [], state: 202},
         {id: 18, wimp: "owner/fanout", values: [], state: 202},

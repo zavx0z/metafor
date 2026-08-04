@@ -68,6 +68,12 @@ Matrix создаёт `processExecutionId` и публикует `photon/test`. 
 фиксирует выбранную Energy. Proposal `w+`/`w-` принимается только если все эти
 identity по-прежнему совпадают и write-set ограничен объявленными Fields.
 
+Согласованный начальный снимок Matrix содержит только текущие pending Process
+executions. При холодном рождении новое `photon/test` того же Atom регистрирует
+новую execution identity и атомарно переводит прежнюю pending identity в
+`superseded`. Завершённое execution в начальный снимок не входит и само по себе
+не запускается повторно.
+
 Boundary атомарно записывает Fields, затем выпускает отдельные canonical
 `gluon`/`higgs` consequences и `w+/w- copy`. Matrix снимает lock только по этому
 подтверждению. Запоздалый proposal старого execution не меняет текущий мир.

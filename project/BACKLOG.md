@@ -16,7 +16,6 @@
 | BND-006 | DRAFT     | Contour        | Живая приёмка Browser Process                   | [Открыть](tasks/BND-006.md)      |
 | ENG-001 | DRAFT     | Energy         | Перепроверка зависимых рисков Energy            | [Открыть](tasks/ENG-001.md)      |
 | MTX-005 | DRAFT     | Matrix         | Проверочная подмена устройства                  | [Открыть](tasks/MTX-005.md)      |
-| SYS-001 | DRAFT     | Contour        | Полный новый запуск после остановки             | [Открыть](tasks/SYS-001.md)      |
 | BLK-001 | DRAFT     | Bulk           | Поверхность выбранного объекта                  | [Открыть](tasks/BLK-001.md)      |
 | BLK-002 | DRAFT     | Bulk           | Детальный просмотр сущности                     | [Открыть](tasks/BLK-002.md)      |
 | BLK-003 | DRAFT     | Bulk / Visual  | Проекция Atom и обработчики на орбите State     | [Открыть](tasks/BLK-003.md)      |

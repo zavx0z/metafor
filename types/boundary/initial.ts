@@ -1,4 +1,5 @@
 import type {Particle} from "shared/protocol/force/particle"
+import type {ProcessExecutionId} from "shared/protocol/force/execution"
 
 /** Stable canonical enum identity; itemValue is resolved from the current Variant declaration. */
 export type BoundaryInitialVariantRef = {kind: "enum"; variant: number}
@@ -25,11 +26,20 @@ export type BoundaryInitialAtom = {
   state: number | null
 }
 
+/** Unfinished execution from the previous full contour, never a live Energy handle. */
+export type BoundaryInitialPendingProcessExecution = {
+  executionId: ProcessExecutionId
+  atom: number
+  process: number
+  state: string
+}
+
 /** Canonical current Boundary data used by Matrix during server birth. */
 export type BoundaryInitialState = {
   version: 1
   atoms: BoundaryInitialAtom[]
   declarations: BoundaryInitialDeclaration[]
+  pendingProcessExecutions: BoundaryInitialPendingProcessExecution[]
 }
 
 export const BOUNDARY_INITIAL_STATE_METHOD = "boundary.initialState.read" as const

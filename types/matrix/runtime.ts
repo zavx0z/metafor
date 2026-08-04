@@ -84,6 +84,8 @@ export interface MatrixRuntimeSnapshot {
   version: 1
   runtime: {
     atomIdByBraneIndex: number[]
+    /** Atom whose matching prior pending Process must be replaced after cold birth. */
+    restartProcessAtomIds: number[]
     braneIndexByAtomId: Array<[atomId: number, braneIndex: number]>
     wimpSrcByAtomId: Array<[atomId: number, wimpSrc: string]>
     atomIdsByWimpSrc: Array<[wimpSrc: string, atomIds: number[]]>

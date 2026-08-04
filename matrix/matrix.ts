@@ -31,7 +31,7 @@ import {StepMode, weakHeapUpdate, weakRunStep, weakStructuralUpdate, weak$} from
 import {resolveForceFieldId, resolveForceFieldsPayload} from "shared/protocol/force/fields"
 import type {Particle} from "shared/protocol/force/particle"
 import {Force} from "shared/transport/force"
-import {consumePreparedMatrixBirth} from "./birth.ts"
+import {consumePreparedMatrixBirth, consumePreparedMatrixProcessRestarts} from "./birth.ts"
 import {applyMatrixProjectionParticle, recordMatrixProjectionState} from "./projection.ts"
 import {
   applyIncrementalMatrixProjection,
@@ -477,9 +477,21 @@ export async function update(
 }
 
 const preparedBirth = consumePreparedMatrixBirth()
+const restartProcessAtomIds = preparedBirth ? consumePreparedMatrixProcessRestarts() : []
 if (preparedBirth) initializeIncrementalMatrixIndexes()
 const birthChanges = preparedBirth ? await weakRunStep(StepMode.UndefinedOnly) : []
-if (birthChanges.length > 0) syncProcessLocksForChanges(birthChanges, birthChanges)
+const restartedProcessStates: [number, number][] = []
+for (const atomId of restartProcessAtomIds) {
+  const braneIndex = gravity$.getBraneIndexByAtomId(atomId)
+  const stateIndex = braneIndex === undefined ? undefined : matrix$.states[braneIndex]
+  if (
+    braneIndex === undefined || stateIndex === undefined ||
+    weak$.stateHasProcessByBraneIndex[braneIndex]?.[stateIndex] !== true
+  ) throw new Error(`Cold Process restart target is invalid for Atom ${atomId}`)
+  restartedProcessStates.push([braneIndex, stateIndex])
+}
+const birthPhotonTargets = [...birthChanges, ...restartedProcessStates]
+if (birthPhotonTargets.length > 0) syncProcessLocksForChanges(birthPhotonTargets, birthChanges)
 
 force = new Force("matrix")
 force.onImpulseError = () => {
@@ -507,7 +519,7 @@ force.onImpulse = async (impulse) => {
   }
 }
 
-if (birthChanges.length > 0) publishPhotonChanges(birthChanges)
+if (birthPhotonTargets.length > 0) publishPhotonChanges(birthPhotonTargets)
 
 export {FieldType} from "./gravity"
 export {gravity$}

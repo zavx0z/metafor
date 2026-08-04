@@ -7,6 +7,7 @@ const previousBackend = Bun.env.METAFOR_WEAK_BACKEND
 
 const initialState = (): BoundaryInitialState => ({
   version: 1,
+  pendingProcessExecutions: [],
   atoms: [{
     id: 17,
     wimp: "owner/update-order",
