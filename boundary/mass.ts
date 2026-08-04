@@ -4,7 +4,7 @@ import {MassCatalog, type MassFileFormat} from "../shared/mass.ts"
 
 export type Database = SQL | ReservedSQL
 
-export type BoundaryMassDeclaration = MetaMassDSL & {id: number; wimp: string}
+export type BoundaryMassDeclaration = MetaMassDSL & {id: number; localId: number; wimp: string}
 export type BoundaryMassMembership = {atomId: number; declarationId: number; keyId: string; source?: {atomId: number; declarationId: number}}
 export type BoundaryMassDetachPlan = Readonly<{
   childAtom: number
@@ -31,12 +31,14 @@ export class BoundaryMassStore {
       CREATE TABLE IF NOT EXISTS mass_declaration (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         wimp TEXT NOT NULL,
+        local_id INTEGER NOT NULL,
         local_key TEXT NOT NULL,
         format TEXT NOT NULL CHECK (format IN ('json', 'binary')),
         label TEXT,
         description TEXT,
         active INTEGER NOT NULL DEFAULT 1 CHECK (active IN (0, 1)),
-        UNIQUE (wimp, local_key)
+        UNIQUE (wimp, local_key),
+        UNIQUE (wimp, local_id)
       );
       CREATE TABLE IF NOT EXISTS mass_key (
         id TEXT PRIMARY KEY
@@ -59,6 +61,21 @@ export class BoundaryMassStore {
       CREATE INDEX IF NOT EXISTS mass_membership_by_key ON mass_membership(key);
     `)
     const columns = await this.sql.unsafe<Array<{name: string}>>("PRAGMA table_info(mass_declaration)")
+    if (!columns.some((column) => column.name === "local_id")) {
+      await this.sql`ALTER TABLE mass_declaration ADD COLUMN local_id INTEGER`
+      await this.sql.unsafe(`
+        WITH ranked AS (
+          SELECT id, ROW_NUMBER() OVER (PARTITION BY wimp ORDER BY id) AS local_id
+            FROM mass_declaration
+        )
+        UPDATE mass_declaration
+           SET local_id = (SELECT ranked.local_id FROM ranked WHERE ranked.id = mass_declaration.id)
+      `)
+    }
+    await this.sql.unsafe(`
+      CREATE UNIQUE INDEX IF NOT EXISTS mass_declaration_by_local_id
+        ON mass_declaration (wimp, local_id);
+    `)
     if (columns.some((column) => column.name === "mime")) {
       await this.sql.unsafe("ALTER TABLE mass_declaration DROP COLUMN mime")
     }
@@ -88,13 +105,12 @@ export class BoundaryMassStore {
       if (seen.has(declaration.key)) throw new Error(`Mass declaration key is duplicated: ${declaration.key}`)
       seen.add(declaration.key)
       await sql`
-        INSERT INTO mass_declaration (wimp, local_key, format, label, description, active)
-        VALUES (${wimp}, ${declaration.key}, ${declaration.format}, ${declaration.label ?? null}, ${declaration.description ?? null}, 1)
+        INSERT INTO mass_declaration (wimp, local_id, local_key, format, label, description, active)
+        VALUES (${wimp}, ${position + 1}, ${declaration.key}, ${declaration.format}, ${declaration.label ?? null}, ${declaration.description ?? null}, 1)
         ON CONFLICT (wimp, local_key) DO UPDATE SET
-          format = excluded.format, label = excluded.label,
+          local_id = excluded.local_id, format = excluded.format, label = excluded.label,
           description = excluded.description, active = 1
       `
-      void position
     }
     const keys = [...seen]
     if (keys.length === 0) await sql`UPDATE mass_declaration SET active = 0 WHERE wimp = ${wimp}`
@@ -140,14 +156,14 @@ export class BoundaryMassStore {
 
   async declarations(wimp: string, sql: Database = this.sql): Promise<BoundaryMassDeclaration[]> {
     return await sql<Array<BoundaryMassDeclaration>>`
-      SELECT id, wimp, local_key AS key, format, label, description
+      SELECT id, local_id AS localId, wimp, local_key AS key, format, label, description
         FROM mass_declaration WHERE wimp = ${wimp} AND active = 1 ORDER BY id
     `
   }
 
   async authorized(atomId: number, sql: Database = this.sql): Promise<Array<BoundaryMassDeclaration & {keyId: string}>> {
     return await sql<Array<BoundaryMassDeclaration & {keyId: string}>>`
-      SELECT declaration.id, declaration.wimp, declaration.local_key AS key,
+      SELECT declaration.id, declaration.local_id AS localId, declaration.wimp, declaration.local_key AS key,
              declaration.format, declaration.label, declaration.description,
              membership.key AS keyId
         FROM mass_membership AS membership

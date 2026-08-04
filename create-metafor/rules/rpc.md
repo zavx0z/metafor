@@ -116,12 +116,15 @@ canonical runtime Atom identity. Source Matter identity для `move` вычис
 из проверенного parent `meta.ts`, а не из Boundary или собранного live Graph.
 `remove` удаляет occurrence, но не peer repository.
 
-## Изменение Field declaration
+## Изменение declaration entity
 
 `meta.declaration.apply` с capability `meta.declaration.write` изменяет одну
-необязательную Field declaration существующей Meta. Действующий первый slice
-принимает закрытые операции `add`, `replace`, `remove` и `move` и точные
-ожидаемые revisions всех затрагиваемых `meta.ts`.
+декларационную entity существующей Meta. Действующий закрытый union содержит
+template metadata, optional Field, State вместе с transitions и conditions,
+Mass declaration, Reaction и Bulk view. Он принимает применимые к entity
+операции `add`, `replace`, `remove` и значимый `move`, а также точные ожидаемые
+revisions всех затрагиваемых `meta.ts`. Process остаётся следующим slice того
+же метода.
 
 Клиент адресует Field по canonical Meta address и semantic key. SQLite row ID,
 Variant row и filesystem path не являются частью RPC. Строковые, числовые,
@@ -129,6 +132,15 @@ boolean, array и enum Fields передаются целиком; enum values �
 одной Field declaration. Одна RPC operation принимает одну Field Inflaton.
 Boundary атомарно проецирует из неё canonical Field row, Variant rows и
 runtime consequences, а Bulk получает их обычные производные Gravitons.
+
+State адресуется по имени и передаёт закрытый состав своих transitions и
+condition waves одной Inflaton. Boundary одной transaction заменяет этот
+состав и выпускает State перед новыми Transition/Condition rows; при удалении
+дочерние rows выходят раньше State. Mass адресуется по key, хранит стабильный
+WIMP-local `localId` и после commit обновляет Mass projection каждого
+существующего Atom этой Meta. Reaction адресуется обязательным semantic key,
+который также входит в её initiator. Bulk остаётся singleton declaration:
+`view_css` хранится в Boundary, но не входит в Bulk Store.
 
 Чтобы существующие local identities других declarations не менялись после
 cold read, `add` добавляет последний Field, `remove` и `move` принимают только
@@ -158,8 +170,9 @@ Source projection не перечитывает живой мир, не срав
 форматирование `meta.ts` не входят в contract.
 
 Тот же accepted Particle напрямую обновляет уже загруженную Dark declaration
-projection. Для Field после acceptance не выполняется повторное чтение live
-world, source или Graph. Для Matter после успешной публикации source обычный declaration loader читает только
+projection. Для всех действующих declaration entity после acceptance не
+выполняется повторное чтение live world, source или Graph. Для Matter после
+успешной публикации source обычный declaration loader читает только
 доступные Meta-пакеты от действующего root и материализует новые reachable либо
 удаляет ставшие unreachable declarations. Он не читает Boundary, не сравнивает
 source с живым Graph и не испускает Matter Particle повторно.
@@ -217,17 +230,11 @@ entry, точные before/after source revisions и наблюдаемую пр
 Новая access policy, новый graph scope и конкурентные writes в это расширение
 не входят.
 
-Действующий `meta.declaration.apply` расширяется тем же закрытым write envelope,
-точной source revision и live-first/source-projection порядком. Следующие slices
-добавляют:
-
-- metadata шаблона `name` и `desc`;
-- State вместе с его transitions и condition waves;
-- Mass declaration;
-- Reaction;
-- Bulk view declaration;
-- Process вместе с ограниченным набором принадлежащих этой декларации action и
-  handler source artifacts.
+Действующий `meta.declaration.apply` уже использует один закрытый write envelope,
+точную source revision и live-first/source-projection порядок для metadata,
+Field, State composition, Mass, Reaction и Bulk. Следующий slice добавляет
+Process вместе с ограниченным набором принадлежащих этой декларации action и
+handler source artifacts.
 
 Эти операции `add`, `replace`, `remove` и, где порядок является частью договора,
 `move` адресуют semantic entity по canonical Meta address и ключу либо имени,

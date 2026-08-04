@@ -135,7 +135,14 @@ export const readDeclarationAuthoringMeta: DeclarationAuthoringMetaReader = asyn
     targetPath,
     source: after.source,
     revision: after.revision,
+    name: dsl.name,
+    ...(dsl.desc === undefined ? {} : {description: dsl.desc}),
     fields: structuredClone(dsl.fields as readonly MetaFieldDSL[]),
+    states: structuredClone(dsl.superposition),
+    mass: structuredClone(dsl.mass ?? []),
+    processes: structuredClone(dsl.processes ?? []),
+    reactions: structuredClone(dsl.reactions ?? []),
+    ...(dsl.bulk === undefined ? {} : {bulk: structuredClone(dsl.bulk)}),
   }
 }
 

@@ -20,7 +20,7 @@ const dsl = ({
   fields?: Record<string, unknown>[]
   states?: Record<string, unknown>[]
   matter?: MatterParticle[]
-  mass?: Record<string, unknown>
+  mass?: Array<{key: string; format: "json" | "binary"; label?: string; description?: string}>
   energy?: Record<string, unknown>
   bulk?: {view: string}
 }): MetaDSL => ({
@@ -187,7 +187,6 @@ describe("Dark incremental Inflaton projection", () => {
           },
           energyBinding: {data: "/energy/socket", expr: "{socket: _[0]}"},
         }],
-        mass: {ready: true},
         bulk: {view: ".root {}"},
       })],
       [child, dsl({name: "Child", fields: [{key: "label", type: "string"}]})],
@@ -365,6 +364,32 @@ describe("Dark incremental Inflaton projection", () => {
       value: {wimp: root, id: 1},
     })
     expect(await read(root, loader(new Map([[root, dsl({name: "Root"})]])))).toEqual([])
+  })
+
+  test("applies accepted State composition and Mass directly without rereading live state", async () => {
+    const root = "test/dark-authored-entities"
+    const source = dsl({name: "Root", fields: [{key: "status", type: "string"}]})
+    await read(root, loader(new Map([[root, source]])))
+    await applyAuthoredDeclarationProjection({
+      part: "inflaton", op: "add", path: "state", by: "dark", ts: 44,
+      value: {
+        wimp: root, id: 1, name: "ready", position: 0,
+        transitions: [{
+          id: 1, position: 0, to: 1,
+          conditions: [{id: 1, position: 0, field: 1, predicate: {eq: "ok"}}],
+        }],
+      },
+    })
+    await applyAuthoredDeclarationProjection({
+      part: "inflaton", op: "add", path: "mass", by: "dark", ts: 45,
+      value: {wimp: root, id: 1, key: "memory", format: "json"},
+    })
+    expect(await read(root, loader(new Map([[root, dsl({
+      name: "Root",
+      fields: [{key: "status", type: "string"}],
+      states: [{name: "ready", transitions: {ready: {status: {eq: "ok"}}}}],
+      mass: [{key: "memory", format: "json"}],
+    })]])))).toEqual([])
   })
 
   test("hydrates a lost source projection once and applies accepted Field patches directly", async () => {
@@ -620,23 +645,25 @@ describe("Dark incremental Inflaton projection", () => {
     }])
   })
 
-  test("keeps working Mass and Energy types out of WIMP declarations", async () => {
+  test("projects Mass declarations separately while keeping Energy types out of Dark", async () => {
     const root = "test/dark-singletons"
     const declarations = new Map<string, MetaDSL>([[root, dsl({name: "Singletons"})]])
     const load = loader(declarations)
     expect((await read(root, load)).some((part) => part.path === "mass" || part.path === "bulk")).toBe(false)
     declarations.set(root, dsl({
       name: "Singletons",
-      mass: {cache: true},
+      mass: [{key: "cache", format: "json"}],
       energy: {socket: "type-placeholder"},
       bulk: {view: ".single {}"},
     }))
     expect(await read(root, load)).toEqual([
+      {part: "inflaton", op: "add", path: "mass", value: {wimp: root, id: 1, key: "cache", format: "json"}},
       {part: "inflaton", op: "add", path: "bulk", value: {wimp: root, id: 1, view: ".single {}"}},
     ])
     declarations.set(root, dsl({name: "Singletons"}))
     expect(await read(root, load)).toEqual([
       {part: "inflaton", op: "remove", path: "bulk", value: {wimp: root, id: 1}},
+      {part: "inflaton", op: "remove", path: "mass", value: {wimp: root, id: 1}},
     ])
   })
 

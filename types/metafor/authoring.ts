@@ -226,19 +226,23 @@ export type MetaOptionalFieldDeclaration =
   | MetaOptionalFieldBase & {type: "array"; default?: number[]; data?: string}
   | MetaOptionalFieldBase & {type: "enum"; values: string[]; default?: string}
 
+export type MetaDeclarationEntity = "field" | "metadata" | "state" | "mass" | "reaction" | "bulk"
+
 interface MetaDeclarationRequestBase extends MetaAuthoringWriteEnvelope {
   capability: typeof META_DECLARATION_WRITE_CAPABILITY
-  entity: "field"
+  entity: MetaDeclarationEntity
   revisions: MetaMatterSourcePrecondition[]
 }
 
 export interface MetaFieldDeclarationAddRequest extends MetaDeclarationRequestBase {
+  entity: "field"
   operation: "add"
   address: MetaAddress
   field: MetaOptionalFieldDeclaration
 }
 
 export interface MetaFieldDeclarationReplaceRequest extends MetaDeclarationRequestBase {
+  entity: "field"
   operation: "replace"
   address: MetaAddress
   key: string
@@ -246,16 +250,176 @@ export interface MetaFieldDeclarationReplaceRequest extends MetaDeclarationReque
 }
 
 export interface MetaFieldDeclarationRemoveRequest extends MetaDeclarationRequestBase {
+  entity: "field"
   operation: "remove"
   address: MetaAddress
   key: string
 }
 
 export interface MetaFieldDeclarationMoveRequest extends MetaDeclarationRequestBase {
+  entity: "field"
   operation: "move"
   fromAddress: MetaAddress
   toAddress: MetaAddress
   key: string
+}
+
+export interface MetaMetadataDeclaration {
+  name: string
+  description?: string
+}
+
+export interface MetaMetadataDeclarationReplaceRequest extends MetaDeclarationRequestBase {
+  entity: "metadata"
+  operation: "replace"
+  address: MetaAddress
+  metadata: MetaMetadataDeclaration
+}
+
+export type MetaJsonValue = null | boolean | number | string | MetaJsonValue[] | {[key: string]: MetaJsonValue}
+
+export interface MetaStateDeclaration {
+  name: string
+  transitions: null | Record<string, Record<string, Record<string, MetaJsonValue>>>
+}
+
+export interface MetaStateDeclarationAddRequest extends MetaDeclarationRequestBase {
+  entity: "state"
+  operation: "add"
+  address: MetaAddress
+  state: MetaStateDeclaration
+}
+
+export interface MetaStateDeclarationReplaceRequest extends MetaDeclarationRequestBase {
+  entity: "state"
+  operation: "replace"
+  address: MetaAddress
+  name: string
+  state: MetaStateDeclaration
+}
+
+export interface MetaStateDeclarationRemoveRequest extends MetaDeclarationRequestBase {
+  entity: "state"
+  operation: "remove"
+  address: MetaAddress
+  name: string
+}
+
+export interface MetaStateDeclarationMoveRequest extends MetaDeclarationRequestBase {
+  entity: "state"
+  operation: "move"
+  fromAddress: MetaAddress
+  toAddress: MetaAddress
+  name: string
+}
+
+export interface MetaMassDeclaration {
+  key: string
+  format: "json" | "binary"
+  label?: string
+  description?: string
+}
+
+export interface MetaMassDeclarationAddRequest extends MetaDeclarationRequestBase {
+  entity: "mass"
+  operation: "add"
+  address: MetaAddress
+  mass: MetaMassDeclaration
+}
+
+export interface MetaMassDeclarationReplaceRequest extends MetaDeclarationRequestBase {
+  entity: "mass"
+  operation: "replace"
+  address: MetaAddress
+  key: string
+  mass: MetaMassDeclaration
+}
+
+export interface MetaMassDeclarationRemoveRequest extends MetaDeclarationRequestBase {
+  entity: "mass"
+  operation: "remove"
+  address: MetaAddress
+  key: string
+}
+
+export interface MetaMassDeclarationMoveRequest extends MetaDeclarationRequestBase {
+  entity: "mass"
+  operation: "move"
+  fromAddress: MetaAddress
+  toAddress: MetaAddress
+  key: string
+}
+
+export interface MetaReactionDeclaration {
+  key: string
+  label: string
+  description?: string
+  states: string[]
+  filterSource: string
+  updateSource: string
+  read: string[]
+  write: string[]
+}
+
+export interface MetaReactionDeclarationAddRequest extends MetaDeclarationRequestBase {
+  entity: "reaction"
+  operation: "add"
+  address: MetaAddress
+  reaction: MetaReactionDeclaration
+}
+
+export interface MetaReactionDeclarationReplaceRequest extends MetaDeclarationRequestBase {
+  entity: "reaction"
+  operation: "replace"
+  address: MetaAddress
+  key: string
+  reaction: MetaReactionDeclaration
+}
+
+export interface MetaReactionDeclarationRemoveRequest extends MetaDeclarationRequestBase {
+  entity: "reaction"
+  operation: "remove"
+  address: MetaAddress
+  key: string
+}
+
+export interface MetaReactionDeclarationMoveRequest extends MetaDeclarationRequestBase {
+  entity: "reaction"
+  operation: "move"
+  fromAddress: MetaAddress
+  toAddress: MetaAddress
+  key: string
+}
+
+export interface MetaBulkDeclaration {
+  view: string
+}
+
+export interface MetaBulkDeclarationAddRequest extends MetaDeclarationRequestBase {
+  entity: "bulk"
+  operation: "add"
+  address: MetaAddress
+  bulk: MetaBulkDeclaration
+}
+
+export interface MetaBulkDeclarationReplaceRequest extends MetaDeclarationRequestBase {
+  entity: "bulk"
+  operation: "replace"
+  address: MetaAddress
+  bulk: MetaBulkDeclaration
+}
+
+export interface MetaBulkDeclarationRemoveRequest extends MetaDeclarationRequestBase {
+  entity: "bulk"
+  operation: "remove"
+  address: MetaAddress
+}
+
+export interface MetaBulkDeclarationMoveRequest extends MetaDeclarationRequestBase {
+  entity: "bulk"
+  operation: "move"
+  fromAddress: MetaAddress
+  toAddress: MetaAddress
 }
 
 export type MetaDeclarationRequest =
@@ -263,6 +427,23 @@ export type MetaDeclarationRequest =
   | MetaFieldDeclarationReplaceRequest
   | MetaFieldDeclarationRemoveRequest
   | MetaFieldDeclarationMoveRequest
+  | MetaMetadataDeclarationReplaceRequest
+  | MetaStateDeclarationAddRequest
+  | MetaStateDeclarationReplaceRequest
+  | MetaStateDeclarationRemoveRequest
+  | MetaStateDeclarationMoveRequest
+  | MetaMassDeclarationAddRequest
+  | MetaMassDeclarationReplaceRequest
+  | MetaMassDeclarationRemoveRequest
+  | MetaMassDeclarationMoveRequest
+  | MetaReactionDeclarationAddRequest
+  | MetaReactionDeclarationReplaceRequest
+  | MetaReactionDeclarationRemoveRequest
+  | MetaReactionDeclarationMoveRequest
+  | MetaBulkDeclarationAddRequest
+  | MetaBulkDeclarationReplaceRequest
+  | MetaBulkDeclarationRemoveRequest
+  | MetaBulkDeclarationMoveRequest
 
 export interface MetaAuthoringValidationContext {
   capabilities: readonly MetaAuthoringCapability[]
@@ -380,6 +561,61 @@ class AuthoringValidator {
       return null
     }
     return value
+  }
+
+  source(value: unknown, path: JsonPointer, name: string, allowEmpty = false): string | null {
+    if (typeof value !== "string" || (!allowEmpty && value.trim().length === 0) || value.length > 65_536) {
+      this.issue(path, "invalid_source", `${name} must contain ${allowEmpty ? "0" : "1"}..65536 source characters`)
+      return null
+    }
+    return value
+  }
+
+  stringList(value: unknown, path: JsonPointer, name: string): string[] {
+    if (!this.array(value, path, name)) return []
+    const result: string[] = []
+    const seen = new Set<string>()
+    value.forEach((item, index) => {
+      const itemPath = childPath(path, index)
+      const text = this.text(item, itemPath, `${name} item`)
+      if (text === null) return
+      if (seen.has(text)) {
+        this.issue(itemPath, "duplicate_value", `${name} value ${text} is duplicated`)
+        return
+      }
+      seen.add(text)
+      result.push(text)
+    })
+    return result
+  }
+
+  json(value: unknown, path: JsonPointer, name: string, depth = 0): MetaJsonValue | null {
+    if (depth > 32) {
+      this.issue(path, "invalid_json_depth", `${name} exceeds 32 nested levels`)
+      return null
+    }
+    if (value === null || typeof value === "boolean" || typeof value === "string") return value
+    if (typeof value === "number") {
+      if (Number.isFinite(value)) return value
+      this.issue(path, "non_json_value", `${name} numbers must be finite`)
+      return null
+    }
+    if (Array.isArray(value)) {
+      if (!this.array(value, path, name)) return null
+      return value.map((item, index) =>
+        this.json(item, childPath(path, index), name, depth + 1),
+      ) as MetaJsonValue[]
+    }
+    if (this.record(value, path, name)) {
+      const result: Record<string, MetaJsonValue> = {}
+      for (const [key, item] of Object.entries(value)) {
+        const normalized = this.json(item, childPath(path, key), name, depth + 1)
+        if (normalized !== null || item === null) result[key] = normalized
+      }
+      return result
+    }
+    this.issue(path, "non_json_value", `${name} must contain JSON data only`)
+    return null
   }
 
   operationId(value: unknown, path: JsonPointer): string | null {
@@ -734,6 +970,138 @@ const optionalFieldDeclaration = (
   }
 }
 
+const metadataDeclaration = (
+  validator: AuthoringValidator,
+  value: unknown,
+  path: JsonPointer,
+): MetaMetadataDeclaration | null => {
+  if (!validator.record(value, path, "Meta metadata")) return null
+  validator.closed(value, path, ["name", "description"])
+  validator.required(value, path, ["name"])
+  const name = validator.text(value.name, childPath(path, "name"), "Meta name")
+  const description = value.description === undefined
+    ? undefined
+    : validator.text(value.description, childPath(path, "description"), "Meta description", true)
+  return name === null || description === null
+    ? null
+    : {name, ...(description === undefined ? {} : {description})}
+}
+
+const stateDeclaration = (
+  validator: AuthoringValidator,
+  value: unknown,
+  path: JsonPointer,
+): MetaStateDeclaration | null => {
+  if (!validator.record(value, path, "State declaration")) return null
+  validator.closed(value, path, ["name", "transitions"])
+  validator.required(value, path, ["name", "transitions"])
+  const name = validator.text(value.name, childPath(path, "name"), "State name")
+  if (value.transitions === null) return name === null ? null : {name, transitions: null}
+  const transitionsPath = childPath(path, "transitions")
+  if (!validator.record(value.transitions, transitionsPath, "State transitions")) return null
+  const transitions: Record<string, Record<string, Record<string, MetaJsonValue>>> = {}
+  for (const [target, rawWave] of Object.entries(value.transitions)) {
+    const targetPath = childPath(transitionsPath, target)
+    if (target.trim().length === 0 || target.includes("\0")) {
+      validator.issue(targetPath, "invalid_state_name", "Transition target must be a non-empty name without NUL")
+      continue
+    }
+    if (!validator.record(rawWave, targetPath, `Transition ${target}`)) continue
+    const wave: Record<string, Record<string, MetaJsonValue>> = {}
+    for (const [field, rawPredicate] of Object.entries(rawWave)) {
+      const predicatePath = childPath(targetPath, field)
+      if (field.trim().length === 0 || field.includes("\0")) {
+        validator.issue(predicatePath, "invalid_field_key", "Condition Field key must be non-empty without NUL")
+        continue
+      }
+      if (!validator.record(rawPredicate, predicatePath, `Condition ${field}`)) continue
+      const predicate = validator.json(rawPredicate, predicatePath, `Condition ${field}`)
+      if (predicate && !Array.isArray(predicate) && typeof predicate === "object") {
+        wave[field] = predicate as Record<string, MetaJsonValue>
+      }
+    }
+    transitions[target] = wave
+  }
+  return name === null ? null : {name, transitions}
+}
+
+const massDeclaration = (
+  validator: AuthoringValidator,
+  value: unknown,
+  path: JsonPointer,
+): MetaMassDeclaration | null => {
+  if (!validator.record(value, path, "Mass declaration")) return null
+  validator.closed(value, path, ["key", "format", "label", "description"])
+  validator.required(value, path, ["key", "format"])
+  const key = validator.text(value.key, childPath(path, "key"), "Mass key")
+  if (key?.includes("\0")) validator.issue(childPath(path, "key"), "invalid_mass_key", "Mass key must not contain NUL")
+  if (value.format !== "json" && value.format !== "binary") {
+    validator.issue(childPath(path, "format"), "invalid_mass_format", "Mass format must be json or binary")
+  }
+  const label = value.label === undefined
+    ? undefined
+    : validator.text(value.label, childPath(path, "label"), "Mass label", true)
+  const description = value.description === undefined
+    ? undefined
+    : validator.text(value.description, childPath(path, "description"), "Mass description", true)
+  if (key === null || (value.format !== "json" && value.format !== "binary") || label === null || description === null) return null
+  return {
+    key,
+    format: value.format,
+    ...(label === undefined ? {} : {label}),
+    ...(description === undefined ? {} : {description}),
+  }
+}
+
+const reactionDeclaration = (
+  validator: AuthoringValidator,
+  value: unknown,
+  path: JsonPointer,
+): MetaReactionDeclaration | null => {
+  if (!validator.record(value, path, "Reaction declaration")) return null
+  validator.closed(value, path, [
+    "key", "label", "description", "states", "filterSource", "updateSource", "read", "write",
+  ])
+  validator.required(value, path, ["key", "label", "states", "filterSource", "updateSource", "read", "write"])
+  const key = validator.text(value.key, childPath(path, "key"), "Reaction key")
+  if (key?.includes("\0")) validator.issue(childPath(path, "key"), "invalid_reaction_key", "Reaction key must not contain NUL")
+  const label = validator.text(value.label, childPath(path, "label"), "Reaction label")
+  const description = value.description === undefined
+    ? undefined
+    : validator.text(value.description, childPath(path, "description"), "Reaction description", true)
+  const states = validator.stringList(value.states, childPath(path, "states"), "Reaction states")
+  const read = validator.stringList(value.read, childPath(path, "read"), "Reaction read Fields")
+  const write = validator.stringList(value.write, childPath(path, "write"), "Reaction write Fields")
+  const filterSource = validator.source(value.filterSource, childPath(path, "filterSource"), "Reaction filterSource")
+  const updateSource = validator.source(value.updateSource, childPath(path, "updateSource"), "Reaction updateSource")
+  for (const field of write) if (!read.includes(field)) {
+    validator.issue(childPath(path, "read"), "missing_read_field", `Reaction write Field ${field} must also be declared in read`)
+  }
+  if (key === null || label === null || description === null || filterSource === null || updateSource === null) return null
+  return {
+    key,
+    label,
+    ...(description === undefined ? {} : {description}),
+    states,
+    filterSource,
+    updateSource,
+    read,
+    write,
+  }
+}
+
+const bulkDeclaration = (
+  validator: AuthoringValidator,
+  value: unknown,
+  path: JsonPointer,
+): MetaBulkDeclaration | null => {
+  if (!validator.record(value, path, "Bulk declaration")) return null
+  validator.closed(value, path, ["view"])
+  validator.required(value, path, ["view"])
+  const view = validator.source(value.view, childPath(path, "view"), "Bulk view", true)
+  return view === null ? null : {view}
+}
+
 export const validateMetaMatterRequest = (
   input: unknown,
   context: MetaAuthoringValidationContext,
@@ -826,15 +1194,26 @@ export const validateMetaDeclarationRequest = (
 ): ValidationResult<MetaDeclarationRequest> => {
   const validator = new AuthoringValidator()
   if (!validator.record(input, "", "meta.declaration.apply request")) return {ok: false, issues: validator.issues}
+  const entity = input.entity
   const operation = input.operation
-  const operationFields = operation === "add"
-    ? ["address", "field"]
-    : operation === "replace"
-      ? ["address", "key", "field"]
-      : operation === "remove"
-        ? ["address", "key"]
-        : operation === "move"
-          ? ["fromAddress", "toAddress", "key"]
+  const declarationField = entity === "field" ? "field"
+    : entity === "metadata" ? "metadata"
+      : entity === "state" ? "state"
+        : entity === "mass" ? "mass"
+          : entity === "reaction" ? "reaction"
+            : entity === "bulk" ? "bulk"
+              : null
+  const locatorField = entity === "state" ? "name"
+    : entity === "field" || entity === "mass" || entity === "reaction" ? "key"
+      : null
+  const operationFields = operation === "move"
+    ? ["fromAddress", "toAddress", ...(locatorField ? [locatorField] : [])]
+    : operation === "add"
+      ? ["address", ...(declarationField ? [declarationField] : [])]
+      : operation === "replace"
+        ? ["address", ...(locatorField ? [locatorField] : []), ...(declarationField ? [declarationField] : [])]
+        : operation === "remove"
+          ? ["address", ...(locatorField ? [locatorField] : [])]
           : []
   validator.closed(input, "", [
     "contractVersion",
@@ -856,9 +1235,14 @@ export const validateMetaDeclarationRequest = (
   ])
   const envelope = commonEnvelope(validator, input)
   validator.literal(input.capability, "/capability", META_DECLARATION_WRITE_CAPABILITY, "capability")
-  validator.literal(input.entity, "/entity", "field", "entity")
+  if (declarationField === null) {
+    validator.issue("/entity", "invalid_declaration_entity", "entity must be field, metadata, state, mass, reaction or bulk")
+  }
   if (operation !== "add" && operation !== "replace" && operation !== "remove" && operation !== "move") {
-    validator.issue("/operation", "forbidden_operation", "Field operation must be add, replace, remove or move")
+    validator.issue("/operation", "forbidden_operation", "Declaration operation must be add, replace, remove or move")
+  }
+  if (entity === "metadata" && operation !== "replace") {
+    validator.issue("/operation", "forbidden_operation", "Meta metadata supports replace only")
   }
   const address = operation === "add" || operation === "replace" || operation === "remove"
     ? validator.address(input.address, "/address")
@@ -870,13 +1254,19 @@ export const validateMetaDeclarationRequest = (
     ? validator.address(input.toAddress, "/toAddress")
     : null
   if (operation === "move" && fromAddress !== null && fromAddress === toAddress) {
-    validator.issue("/toAddress", "forbidden_operation", "Field move requires distinct source and destination Meta")
+    validator.issue("/toAddress", "forbidden_operation", "Declaration move requires distinct source and destination Meta")
   }
-  const key = operation === "replace" || operation === "remove" || operation === "move"
-    ? validator.text(input.key, "/key", "Field key")
+  const locator = locatorField !== null && (operation === "replace" || operation === "remove" || operation === "move")
+    ? validator.text(input[locatorField], `/${locatorField}` as JsonPointer, `${entity} ${locatorField}`)
     : null
-  const field = operation === "add" || operation === "replace"
-    ? optionalFieldDeclaration(validator, input.field, "/field")
+  const declaration = operation === "add" || operation === "replace"
+    ? entity === "field" ? optionalFieldDeclaration(validator, input.field, "/field")
+      : entity === "metadata" ? metadataDeclaration(validator, input.metadata, "/metadata")
+        : entity === "state" ? stateDeclaration(validator, input.state, "/state")
+          : entity === "mass" ? massDeclaration(validator, input.mass, "/mass")
+            : entity === "reaction" ? reactionDeclaration(validator, input.reaction, "/reaction")
+              : entity === "bulk" ? bulkDeclaration(validator, input.bulk, "/bulk")
+                : null
     : null
   const revisions = sourcePreconditions(validator, input.revisions)
   const affected = operation === "move"
@@ -895,6 +1285,7 @@ export const validateMetaDeclarationRequest = (
   if (
     validator.issues.length > 0 ||
     !envelope ||
+    declarationField === null ||
     (operation !== "add" && operation !== "replace" && operation !== "remove" && operation !== "move")
   ) return {ok: false, issues: validator.issues}
 
@@ -902,20 +1293,40 @@ export const validateMetaDeclarationRequest = (
     contractVersion: META_AUTHORING_CONTRACT_VERSION,
     operationId: envelope.operationId,
     capability: META_DECLARATION_WRITE_CAPABILITY,
-    entity: "field" as const,
     revisions,
   }
-  if (operation === "add" && address !== null && field !== null) {
-    return {ok: true, value: {...base, operation, address, field}}
+  if (entity === "metadata" && operation === "replace" && address !== null && declaration !== null) {
+    return {ok: true, value: {...base, entity, operation, address, metadata: declaration as MetaMetadataDeclaration}}
   }
-  if (operation === "replace" && address !== null && key !== null && field !== null) {
-    return {ok: true, value: {...base, operation, address, key, field}}
+  if (entity === "bulk") {
+    if (operation === "add" && address !== null && declaration !== null) return {ok: true, value: {...base, entity, operation, address, bulk: declaration as MetaBulkDeclaration}}
+    if (operation === "replace" && address !== null && declaration !== null) return {ok: true, value: {...base, entity, operation, address, bulk: declaration as MetaBulkDeclaration}}
+    if (operation === "remove" && address !== null) return {ok: true, value: {...base, entity, operation, address}}
+    if (operation === "move" && fromAddress !== null && toAddress !== null) return {ok: true, value: {...base, entity, operation, fromAddress, toAddress}}
   }
-  if (operation === "remove" && address !== null && key !== null) {
-    return {ok: true, value: {...base, operation, address, key}}
+  if (entity === "field") {
+    if (operation === "add" && address !== null && declaration !== null) return {ok: true, value: {...base, entity, operation, address, field: declaration as MetaOptionalFieldDeclaration}}
+    if (operation === "replace" && address !== null && locator !== null && declaration !== null) return {ok: true, value: {...base, entity, operation, address, key: locator, field: declaration as MetaOptionalFieldDeclaration}}
+    if (operation === "remove" && address !== null && locator !== null) return {ok: true, value: {...base, entity, operation, address, key: locator}}
+    if (operation === "move" && fromAddress !== null && toAddress !== null && locator !== null) return {ok: true, value: {...base, entity, operation, fromAddress, toAddress, key: locator}}
   }
-  if (operation === "move" && fromAddress !== null && toAddress !== null && key !== null) {
-    return {ok: true, value: {...base, operation, fromAddress, toAddress, key}}
+  if (entity === "state") {
+    if (operation === "add" && address !== null && declaration !== null) return {ok: true, value: {...base, entity, operation, address, state: declaration as MetaStateDeclaration}}
+    if (operation === "replace" && address !== null && locator !== null && declaration !== null) return {ok: true, value: {...base, entity, operation, address, name: locator, state: declaration as MetaStateDeclaration}}
+    if (operation === "remove" && address !== null && locator !== null) return {ok: true, value: {...base, entity, operation, address, name: locator}}
+    if (operation === "move" && fromAddress !== null && toAddress !== null && locator !== null) return {ok: true, value: {...base, entity, operation, fromAddress, toAddress, name: locator}}
+  }
+  if (entity === "mass") {
+    if (operation === "add" && address !== null && declaration !== null) return {ok: true, value: {...base, entity, operation, address, mass: declaration as MetaMassDeclaration}}
+    if (operation === "replace" && address !== null && locator !== null && declaration !== null) return {ok: true, value: {...base, entity, operation, address, key: locator, mass: declaration as MetaMassDeclaration}}
+    if (operation === "remove" && address !== null && locator !== null) return {ok: true, value: {...base, entity, operation, address, key: locator}}
+    if (operation === "move" && fromAddress !== null && toAddress !== null && locator !== null) return {ok: true, value: {...base, entity, operation, fromAddress, toAddress, key: locator}}
+  }
+  if (entity === "reaction") {
+    if (operation === "add" && address !== null && declaration !== null) return {ok: true, value: {...base, entity, operation, address, reaction: declaration as MetaReactionDeclaration}}
+    if (operation === "replace" && address !== null && locator !== null && declaration !== null) return {ok: true, value: {...base, entity, operation, address, key: locator, reaction: declaration as MetaReactionDeclaration}}
+    if (operation === "remove" && address !== null && locator !== null) return {ok: true, value: {...base, entity, operation, address, key: locator}}
+    if (operation === "move" && fromAddress !== null && toAddress !== null && locator !== null) return {ok: true, value: {...base, entity, operation, fromAddress, toAddress, key: locator}}
   }
   return {ok: false, issues: validator.issues}
 }

@@ -400,6 +400,7 @@ export interface Reaction<ɸ extends Fields, 𝛴 extends string, m extends Mass
 
 export type ReactionsDeclaration<ɸ extends Fields, 𝛴 extends string, m extends Mass> = (
   reaction: (config?: {
+    key?: string
     /** Название реакции */
     label?: string
     /** Описание реакции */

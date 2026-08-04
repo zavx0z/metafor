@@ -44,6 +44,11 @@ Mass и Energy хранятся раздельно. Default Mass store откр�
 Boundary key IDs как handles плоского filesystem-каталога; bytes не проходят
 через Force/Boundary. Версионирование не входит в текущий контракт.
 
+Изменение Mass declaration приходит через общий `meta.declaration.apply` и
+материализуется Boundary. Energy не читает declaration table: после commit она
+получает обычную полную Atom replacement с обновлённым разрешённым Mass
+составом. Сам Mass declaration Graviton не несёт bytes и не является handle.
+
 ## Проверка
 
 Основные suites:

@@ -5,6 +5,7 @@ export const declarationPaths = [
   "state",
   "transition",
   "condition",
+  "mass",
   "process",
   "reaction",
   "matter",

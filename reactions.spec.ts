@@ -125,4 +125,17 @@ describe("схема реакций", () => {
     expect(snapshot.reactions[0]?.read).toEqual(["name", "isActive"])
     expect(snapshot.reactions[0]?.write).toEqual(["name", "isActive"])
   })
+
+  test("использует authored semantic key как identity и initiator", () => {
+    const snapshot = reactionsSchema<typeof schema, State, {}>((reaction) => [[
+      ["active"],
+      reaction({key: "remember", label: "Remember"})
+        .filter(() => ({meta: "test"}))
+        .equal(({update}) => update({value: 1})),
+    ]])!
+
+    expect(Object.keys(snapshot.reactions)).toEqual(["remember"])
+    expect(snapshot.superposition.active).toEqual(["remember"])
+    expect(snapshot.reactions.remember?.src).toContain("r:remember")
+  })
 })

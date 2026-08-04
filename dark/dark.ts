@@ -77,7 +77,6 @@ const declaration = (
   const entities: DeclarationEntity[] = [wimpEntity(src, {
     name: dsl.name,
     desc: dsl.desc ?? null,
-    ...(Array.isArray(dsl.mass) ? {mass: dsl.mass} : {}),
   })]
   const fieldIds = new Map<string, number>()
   const stateIds = new Map<string, number>()
@@ -178,6 +177,10 @@ const declaration = (
       }
     }
     entities.push(localEntity("process", src, index + 1, value))
+  }
+
+  for (let index = 0; index < (dsl.mass?.length ?? 0); index++) {
+    entities.push(localEntity("mass", src, index + 1, {...dsl.mass![index]!}))
   }
 
   for (let index = 0; index < (dsl.reactions?.length ?? 0); index++) {
@@ -582,10 +585,135 @@ const replaceFieldComposition = (
   current.entities = filtered
 }
 
+type AuthoredSimpleDeclaration = {
+  path: "wimp" | "state" | "mass" | "reaction" | "bulk"
+  wimp: string
+  id: number
+  entities: DeclarationEntity[]
+}
+
+const authoredSimpleDeclaration = (part: SourcedParticle): AuthoredSimpleDeclaration => {
+  if (
+    part.by !== "dark" || part.part !== "inflaton" ||
+    (part.path !== "wimp" && part.path !== "state" && part.path !== "mass" && part.path !== "reaction" && part.path !== "bulk") ||
+    (part.op !== "add" && part.op !== "replace" && part.op !== "remove" && part.op !== "move") ||
+    !isRecord(part.value)
+  ) throw new Error("Accepted declaration authoring Particle is invalid")
+  const path = part.path
+  const wimp = path === "wimp" ? part.value.src : part.value.wimp
+  const id = path === "wimp" ? 0 : Number(part.value.id)
+  if (typeof wimp !== "string" || !canonicalMetaSource(wimp) ||
+      (path !== "wimp" && (!Number.isSafeInteger(id) || id <= 0))) {
+    throw new Error("Accepted declaration authoring identity is invalid")
+  }
+  if (part.op === "remove") return {path, wimp, id, entities: []}
+  if (path === "wimp") {
+    const {src: _src, ...metadata} = part.value
+    return {path, wimp, id, entities: [wimpEntity(wimp, metadata)]}
+  }
+  if (path !== "state") {
+    const {wimp: _wimp, id: _id, ...definition} = part.value
+    return {path, wimp, id, entities: [localEntity(path, wimp, id, definition)]}
+  }
+  if (!Array.isArray(part.value.transitions)) throw new Error("Accepted State has no closed transition composition")
+  const {wimp: _wimp, id: _id, transitions: rawTransitions, ...definition} = part.value
+  const entities: DeclarationEntity[] = [localEntity("state", wimp, id, definition)]
+  for (const [position, rawTransition] of rawTransitions.entries()) {
+    if (!isRecord(rawTransition) || !Number.isSafeInteger(rawTransition.id) || Number(rawTransition.id) <= 0 ||
+        rawTransition.position !== position || !Number.isSafeInteger(rawTransition.to) || Number(rawTransition.to) <= 0 ||
+        !Array.isArray(rawTransition.conditions)) {
+      throw new Error("Accepted State transition composition is invalid")
+    }
+    const transition = Number(rawTransition.id)
+    entities.push(localEntity("transition", wimp, transition, {from: id, to: rawTransition.to, position}))
+    for (const [conditionPosition, rawCondition] of rawTransition.conditions.entries()) {
+      if (!isRecord(rawCondition) || !Number.isSafeInteger(rawCondition.id) || Number(rawCondition.id) <= 0 ||
+          rawCondition.position !== conditionPosition || !Number.isSafeInteger(rawCondition.field) || Number(rawCondition.field) <= 0 ||
+          !isRecord(rawCondition.predicate)) {
+        throw new Error("Accepted State condition composition is invalid")
+      }
+      entities.push(localEntity("condition", wimp, Number(rawCondition.id), {
+        transition,
+        field: rawCondition.field,
+        position: conditionPosition,
+        predicate: rawCondition.predicate,
+      }))
+    }
+  }
+  return {path, wimp, id, entities}
+}
+
+const simpleComposition = (current: WimpProjection, target: AuthoredSimpleDeclaration): DeclarationEntity[] => {
+  if (target.path === "wimp") return current.entities.filter((entity) => entity.path === "wimp")
+  if (target.path !== "state") {
+    return current.entities.filter((entity) => entity.path === target.path && entity.value.id === target.id)
+  }
+  const transitions = new Set(current.entities.filter((entity) =>
+    entity.path === "transition" && entity.value.from === target.id
+  ).map((entity) => entity.value.id))
+  return current.entities.filter((entity) =>
+    (entity.path === "state" && entity.value.id === target.id) ||
+    (entity.path === "transition" && transitions.has(entity.value.id)) ||
+    (entity.path === "condition" && transitions.has(entity.value.transition))
+  )
+}
+
+const sameSimpleComposition = (current: WimpProjection, target: AuthoredSimpleDeclaration): boolean => {
+  const actual = simpleComposition(current, target)
+  return actual.length === target.entities.length && actual.every((entity, index) =>
+    entity.key === target.entities[index]!.key && same(entity.value, target.entities[index]!.value)
+  )
+}
+
+const replaceSimpleComposition = (current: WimpProjection, target: AuthoredSimpleDeclaration): void => {
+  const composition = simpleComposition(current, target)
+  const insertion = composition.length === 0
+    ? current.entities.length
+    : current.entities.indexOf(composition[0]!)
+  current.entities = current.entities.filter((entity) => !composition.includes(entity))
+  current.entities.splice(Math.max(0, insertion), 0, ...target.entities)
+}
+
+const applyAuthoredSimpleProjection = async (
+  part: SourcedParticle,
+  readMeta: MetaLoader,
+): Promise<void> => {
+  const target = authoredSimpleDeclaration(part)
+  const source = authoredDeclarationSource(part)
+  if (source) await ensureAuthoredMatterParent(source.wimp, readMeta)
+  await ensureAuthoredMatterParent(target.wimp, readMeta)
+  const targetProjection = projection.get(target.wimp)
+  if (!targetProjection) throw new Error(`Accepted ${target.path} target is outside the current Dark projection: ${target.wimp}`)
+  if (part.op === "remove") {
+    const composition = simpleComposition(targetProjection, target)
+    targetProjection.entities = targetProjection.entities.filter((entity) => !composition.includes(entity))
+    return
+  }
+  if (part.op === "move") {
+    const sourceProjection = projection.get(source!.wimp)
+    if (!sourceProjection) {
+      if (sameSimpleComposition(targetProjection, target)) return
+      throw new Error(`Accepted ${target.path} source is outside the current Dark projection: ${source!.wimp}`)
+    }
+    const sourceTarget = {...target, wimp: source!.wimp, id: source!.id, entities: []}
+    const composition = simpleComposition(sourceProjection, sourceTarget)
+    if (composition.length === 0) {
+      if (sameSimpleComposition(targetProjection, target)) return
+      throw new Error(`Accepted ${target.path} source is unavailable in Dark projection: ${source!.wimp}#${source!.id}`)
+    }
+    sourceProjection.entities = sourceProjection.entities.filter((entity) => !composition.includes(entity))
+  } else if (part.op === "add" && simpleComposition(targetProjection, target).length > 0) {
+    if (sameSimpleComposition(targetProjection, target)) return
+    throw new Error(`Accepted ${target.path} target conflicts in Dark projection: ${target.wimp}#${target.id}`)
+  }
+  replaceSimpleComposition(targetProjection, target)
+}
+
 export const applyAuthoredDeclarationProjection = async (
   part: SourcedParticle,
   readMeta: MetaLoader = loadMeta,
 ): Promise<void> => {
+  if (part.path !== "field") return await applyAuthoredSimpleProjection(part, readMeta)
   const target = authoredDeclarationTarget(part)
   const source = authoredDeclarationSource(part)
   if (source) await ensureAuthoredMatterParent(source.wimp, readMeta)

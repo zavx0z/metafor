@@ -21,20 +21,30 @@ const REVISION = `sha256:${"1".repeat(64)}` as MetaSourceRevision
 const source = (fields: string): string => `export default MetaFor("test", {desc: ""})
   .fields((field) => (${fields}))
   .superposition({})
-  .mass(() => ({}))
+  .mass((mass) => ({}))
   .energy()
   .processes(() => [])
-  .reactions(() => [])
+  .reactions((reaction) => [])
   .matter(({ html }) => html\`\`)
   .bulk()
 `
 
-const snapshot = async (address: MetaAddress, input: string): Promise<DeclarationMetaSnapshot> => ({
-  address,
-  targetPath: `/cluster/${address}/meta.ts`,
-  source: input,
-  fields: (await evaluateMetaSource(input)).fields,
-})
+const snapshot = async (address: MetaAddress, input: string): Promise<DeclarationMetaSnapshot> => {
+  const declaration = await evaluateMetaSource(input)
+  return {
+    address,
+    targetPath: `/cluster/${address}/meta.ts`,
+    source: input,
+    name: declaration.name,
+    ...(declaration.desc === undefined ? {} : {description: declaration.desc}),
+    fields: declaration.fields,
+    states: declaration.superposition,
+    ...(declaration.mass === undefined ? {} : {mass: declaration.mass}),
+    ...(declaration.processes === undefined ? {} : {processes: declaration.processes}),
+    ...(declaration.reactions === undefined ? {} : {reactions: declaration.reactions}),
+    ...(declaration.bulk === undefined ? {} : {bulk: declaration.bulk}),
+  }
+}
 
 const base = {
   contractVersion: META_AUTHORING_CONTRACT_VERSION,
@@ -214,5 +224,141 @@ describe("Field declaration patch planner", () => {
         expect(error).toMatchObject({code: "field_not_tail"})
       }
     }
+  })
+})
+
+describe("Meta declaration entity patch planner", () => {
+  const requestBase = {
+    contractVersion: META_AUTHORING_CONTRACT_VERSION,
+    capability: META_DECLARATION_WRITE_CAPABILITY,
+  }
+
+  test("projects metadata, State composition, Mass, Reaction and Bulk from one-entity patches", async () => {
+    let current = await snapshot(ROOT, source(`{
+    status: field.string.optional(),
+  }`).replace(".superposition({})", ".superposition({ idle: null })"))
+
+    const metadata = planMetaDeclarationPatch({
+      ...requestBase,
+      operationId: "metadata-replace",
+      entity: "metadata",
+      operation: "replace",
+      address: ROOT,
+      metadata: {name: "Changed", description: "Edited through RPC"},
+      revisions: [{address: ROOT, revision: REVISION}],
+    }, [current], 40)
+    expect(metadata.particle.parts[0]).toMatchObject({
+      op: "replace", path: "wimp", value: {src: ROOT, name: "Changed", desc: "Edited through RPC"},
+    })
+    current = await snapshot(ROOT, metadata.sourceEdits[0]!.afterSource)
+    expect(current).toMatchObject({name: "Changed", description: "Edited through RPC"})
+
+    const state = planMetaDeclarationPatch({
+      ...requestBase,
+      operationId: "state-add",
+      entity: "state",
+      operation: "add",
+      address: ROOT,
+      state: {name: "ready", transitions: {idle: {status: {eq: "ok"}}}},
+      revisions: [{address: ROOT, revision: REVISION}],
+    }, [current], 41)
+    expect(state.particle.parts).toEqual([expect.objectContaining({
+      op: "add", path: "state", value: expect.objectContaining({
+        wimp: ROOT, id: 2, name: "ready",
+        transitions: [{id: 1, position: 0, to: 1, conditions: [{id: 1, position: 0, field: 1, predicate: {eq: "ok"}}]}],
+      }),
+    })])
+    current = await snapshot(ROOT, state.sourceEdits[0]!.afterSource)
+    expect(current.states).toEqual([
+      {name: "idle", transitions: null},
+      {name: "ready", transitions: {idle: {status: {eq: "ok"}}}},
+    ])
+
+    const mass = planMetaDeclarationPatch({
+      ...requestBase,
+      operationId: "mass-add",
+      entity: "mass",
+      operation: "add",
+      address: ROOT,
+      mass: {key: "memory", format: "json", label: "Memory"},
+      revisions: [{address: ROOT, revision: REVISION}],
+    }, [current], 42)
+    expect(mass.particle.parts[0]).toMatchObject({
+      op: "add", path: "mass", value: {wimp: ROOT, id: 1, key: "memory", format: "json"},
+    })
+    current = await snapshot(ROOT, mass.sourceEdits[0]!.afterSource)
+    expect(current.mass).toEqual([{key: "memory", format: "json", label: "Memory"}])
+
+    const reaction = planMetaDeclarationPatch({
+      ...requestBase,
+      operationId: "reaction-add",
+      entity: "reaction",
+      operation: "add",
+      address: ROOT,
+      reaction: {
+        key: "remember",
+        label: "Remember",
+        states: ["ready"],
+        filterSource: "({ value }) => value.status === 'ok'",
+        updateSource: "({ self }) => self",
+        read: ["status"],
+        write: [],
+      },
+      revisions: [{address: ROOT, revision: REVISION}],
+    }, [current], 43)
+    expect(reaction.particle.parts[0]).toMatchObject({
+      op: "add", path: "reaction", value: {wimp: ROOT, id: 1, key: "remember", read: [1], states: [2]},
+    })
+    current = await snapshot(ROOT, reaction.sourceEdits[0]!.afterSource)
+    expect(current.reactions?.[0]).toMatchObject({key: "remember", label: "Remember", states: ["ready"]})
+
+    const bulk = planMetaDeclarationPatch({
+      ...requestBase,
+      operationId: "bulk-add",
+      entity: "bulk",
+      operation: "add",
+      address: ROOT,
+      bulk: {view: ".ready { color: green; }"},
+      revisions: [{address: ROOT, revision: REVISION}],
+    }, [current], 44)
+    expect(bulk.particle.parts[0]).toMatchObject({
+      op: "add", path: "bulk", value: {wimp: ROOT, id: 1, view: ".ready { color: green; }"},
+    })
+    current = await snapshot(ROOT, bulk.sourceEdits[0]!.afterSource)
+    expect(current.bulk).toEqual({view: ".ready{color:green;}"})
+  })
+
+  test("restores existing State source bytes after a tail add and remove", async () => {
+    const before = source(`{
+    status: field.string.optional(),
+  }`).replace(".superposition({})", `.superposition({
+    "idle": {
+      "ready": { status: { eq: "ready" } },
+    },
+    "ready": null,
+  })`)
+    const initial = await snapshot(ROOT, before)
+    const added = planMetaDeclarationPatch({
+      ...requestBase,
+      operationId: "state-round-trip-add",
+      entity: "state",
+      operation: "add",
+      address: ROOT,
+      state: {name: "terminal", transitions: null},
+      revisions: [{address: ROOT, revision: REVISION}],
+    }, [initial], 45)
+    const changed = await snapshot(ROOT, added.sourceEdits[0]!.afterSource)
+    expect(changed.states?.map((state) => state.name)).toEqual(["idle", "ready", "terminal"])
+
+    const removed = planMetaDeclarationPatch({
+      ...requestBase,
+      operationId: "state-round-trip-remove",
+      entity: "state",
+      operation: "remove",
+      address: ROOT,
+      name: "terminal",
+      revisions: [{address: ROOT, revision: REVISION}],
+    }, [changed], 46)
+    expect(removed.sourceEdits[0]!.afterSource).toBe(before)
   })
 })

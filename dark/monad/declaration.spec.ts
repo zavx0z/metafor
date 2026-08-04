@@ -15,6 +15,7 @@ import type {MetaFieldDSL} from "@metafor/types/metafor/schema"
 import {sourceForceMessage} from "shared/protocol/force/message"
 import {open, type BoundaryDatabase} from "../../boundary/sqlite.ts"
 import {sourceRevision} from "../../create-metafor/src/source.ts"
+import {evaluateMetaSource} from "../load.ts"
 import {DarkForceHistory} from "../force/history.ts"
 import {
   DeclarationAuthoringService,
@@ -33,7 +34,12 @@ afterEach(async () => {
 })
 
 const metaSource = (): string => `export default MetaFor("Declaration", {desc: ""})
-  .fields(({field}) => ({}))
+  .fields((field) => ({}))
+  .superposition({})
+  .mass((mass) => ({}))
+  .energy()
+  .processes(() => [])
+  .reactions((reaction) => [])
   .matter(({html}) => html\`\`)
   .bulk()
 `
@@ -41,7 +47,7 @@ const metaSource = (): string => `export default MetaFor("Declaration", {desc: "
 const revision = async (path: string) => sourceRevision(await readFile(path))
 
 describe("Declaration authoring service", () => {
-  test("accepts one Field composition, projects source and repeats from existing Force history", async () => {
+  test("accepts Field and State through one RPC, projects source and repeats from existing Force history", async () => {
     const root = await mkdtemp(join(tmpdir(), "metafor-declaration-authoring-"))
     directories.push(root)
     const targetPath = join(root, "cluster", ROOT, "meta.ts")
@@ -69,12 +75,20 @@ describe("Declaration authoring service", () => {
     const readMeta: DeclarationAuthoringMetaReader = async (address) => {
       reads += 1
       const source = await readFile(targetPath, "utf8")
+      const declaration = await evaluateMetaSource(source)
       return {
         address,
         targetPath,
         source,
         revision: sourceRevision(source),
-        fields: [] as MetaFieldDSL[],
+        name: declaration.name,
+        ...(declaration.desc === undefined ? {} : {description: declaration.desc}),
+        fields: declaration.fields as MetaFieldDSL[],
+        states: declaration.superposition,
+        ...(declaration.mass === undefined ? {} : {mass: declaration.mass}),
+        ...(declaration.processes === undefined ? {} : {processes: declaration.processes}),
+        ...(declaration.reactions === undefined ? {} : {reactions: declaration.reactions}),
+        ...(declaration.bulk === undefined ? {} : {bulk: declaration.bulk}),
       }
     }
     let projections = 0
@@ -103,21 +117,7 @@ describe("Declaration authoring service", () => {
       {
         apply(particle) {
           projections += 1
-          expect(particle).toMatchObject({
-            part: "inflaton", op: "add", path: "field", by: "dark",
-            value: {
-              wimp: ROOT,
-              id: 1,
-              key: "mode",
-              type: "enum",
-              required: false,
-              default: "idle",
-              variants: [
-                {id: 1, position: 0, value: "idle"},
-                {id: 2, position: 1, value: "ready"},
-              ],
-            },
-          })
+          expect(particle).toMatchObject({part: "inflaton", op: "add", by: "dark"})
         },
       },
     )
@@ -140,6 +140,17 @@ describe("Declaration authoring service", () => {
 
     const first = await service.apply(request, RPC_SOURCE)
     const repeated = await service.apply(request, RPC_SOURCE)
+    const stateRequest: MetaDeclarationRequest = {
+      contractVersion: META_AUTHORING_CONTRACT_VERSION,
+      operationId: "add-ready",
+      capability: META_DECLARATION_WRITE_CAPABILITY,
+      operation: "add",
+      entity: "state",
+      address: ROOT,
+      state: {name: "ready", transitions: null},
+      revisions: [{address: ROOT, revision: await revision(targetPath)}],
+    }
+    const stateResult = await service.apply(stateRequest, RPC_SOURCE)
 
     expect(first).toMatchObject({
       phase: "complete",
@@ -153,10 +164,16 @@ describe("Declaration authoring service", () => {
       acceptance: first.acceptance,
       source: {outcome: "already_published"},
     })
-    expect(reads).toBe(1)
-    expect(projections).toBe(2)
+    expect(stateResult).toMatchObject({
+      phase: "complete",
+      boundary: "applied",
+      acceptance: {cutId: "declaration-authoring-test", sequence: 2},
+      source: {outcome: "published"},
+    })
+    expect(reads).toBe(2)
+    expect(projections).toBe(3)
     const entries = history.read()
-    expect(entries).toHaveLength(1)
+    expect(entries).toHaveLength(2)
     expect(entries[0]?.authoring?.schema).toBe(META_DECLARATION_AUTHORING_CAUSE_SCHEMA_V1)
     expect(await readFile(targetPath, "utf8")).toContain(
       `mode: field.enum("idle", "ready").optional("idle"),`,
@@ -172,5 +189,8 @@ describe("Declaration authoring service", () => {
       {localId: 1, itemValue: "idle"},
       {localId: 2, itemValue: "ready"},
     ])
+    expect(await boundary.projection.sql<Array<{localId: number; name: string}>>`
+      SELECT local_id AS localId, name FROM state WHERE wimp = ${ROOT}
+    `).toEqual([{localId: 1, name: "ready"}])
   })
 })

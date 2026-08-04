@@ -29,6 +29,11 @@ type RuntimeRef = {
   occurrenceKey: string
 }
 
+type StateCompositionEffects = {
+  removals: Particle[]
+  additions: Particle[]
+}
+
 export type InflatonAddress = {
   path: DeclarationPath
   src: string
@@ -81,6 +86,7 @@ const processRestartPaths = new Set<DeclarationPath>([
   "state",
   "transition",
   "condition",
+  "mass",
   "process",
   "matter",
 ])
@@ -167,7 +173,7 @@ export const parseInflatonAddress = (path: Particle["path"], value?: unknown): I
 }
 
 const parseCanonicalTransferSource = (
-  path: "field" | "matter",
+  path: Exclude<DeclarationPath, "wimp" | "variant" | "transition" | "condition">,
   value: unknown,
 ): InflatonAddress | null => {
   if (typeof value !== "string") return null
@@ -188,6 +194,7 @@ const declarationTableByPath = Object.freeze({
   state: "state",
   transition: "transition",
   condition: "condition",
+  mass: "mass_declaration",
   process: "process",
   reaction: "reaction",
   matter: "matter_particle",
@@ -535,8 +542,10 @@ export class BoundaryIncrementalStore {
           return repositoryRemoval
         }
         const previous = await this.canonical(tx, address, input)
+        const stateRemovals = await this.stateCompositionRemovalEffects(tx, address)
         await this.removeRuntimeConsequences(tx, address, committed)
         await this.removeDeclaration(tx, address)
+        committed.push(...stateRemovals)
         if (previous) {
           committed.push({
             part: "graviton",
@@ -546,6 +555,7 @@ export class BoundaryIncrementalStore {
             value: previous,
           })
         }
+        if (address.path === "mass") await this.addRuntimeConsequences(tx, address, previous ?? input, committed)
         await supersedeCommittedWimps()
         return committed
       }
@@ -562,6 +572,7 @@ export class BoundaryIncrementalStore {
         : false
       await this.persist(tx, address, input)
       const declarationEffects = await this.synchronizeFieldVariants(tx, address, input)
+      const stateEffects = await this.synchronizeStateComposition(tx, address, input)
       if (address.path === "field" && Object.hasOwn(input, "variants")) {
         await this.flushFieldDefault(tx, address.src, address.localId)
       }
@@ -570,7 +581,7 @@ export class BoundaryIncrementalStore {
       await this.reconcileMassBindingSources(tx)
       const canonical = await this.canonical(tx, address, input)
       const declarationChanged = !sameJson(previous, canonical)
-      committed.push(...declarationEffects)
+      committed.push(...declarationEffects, ...stateEffects.removals)
       if (declarationChanged) {
         committed.push({
           part: "graviton",
@@ -580,6 +591,7 @@ export class BoundaryIncrementalStore {
           value: canonical,
         })
       }
+      committed.push(...stateEffects.additions)
       if (address.path === "variant" && restoredEnumDefault) {
         const localField = positiveInteger(input.field, "variant.field")
         const key = identityKey("field", address.src, localField)
@@ -705,6 +717,13 @@ export class BoundaryIncrementalStore {
     for (const row of await this.sql<Array<{id: number; wimp: string; localId: number; name: string; position: number}>>`
       SELECT id, wimp, local_id AS localId, name, position FROM state ORDER BY wimp, local_id
     `) append("state", row)
+    for (const row of await this.sql<Array<{
+      id: number; wimp: string; localId: number; key: string; format: string;
+      label: string | null; description: string | null
+    }>>`
+      SELECT id, wimp, local_id AS localId, local_key AS key, format, label, description
+        FROM mass_declaration WHERE active = 1 ORDER BY wimp, local_id
+    `) append("mass", row)
     for (const row of await this.sql<Array<{id: number; wimp: string; localId: number; fromState: number; toState: number; position: number}>>`
       SELECT id, wimp, local_id AS localId, from_state AS fromState, to_state AS toState, position
         FROM transition ORDER BY wimp, local_id
@@ -1132,6 +1151,113 @@ export class BoundaryIncrementalStore {
     return effects
   }
 
+  private async stateCompositionRemovalEffects(
+    sql: Database,
+    address: InflatonAddress,
+  ): Promise<Particle[]> {
+    if (address.path !== "state") return []
+    const state = (await sql<Array<{id: number}>>`
+      SELECT id FROM state WHERE wimp = ${address.src} AND local_id = ${address.localId}
+    `)[0]
+    if (!state) return []
+    const effects: Particle[] = []
+    for (const transition of await sql<Array<{
+      id: number; localId: number; fromState: number; toState: number; position: number
+    }>>`
+      SELECT id, local_id AS localId, from_state AS fromState, to_state AS toState, position
+        FROM transition WHERE from_state = ${state.id} ORDER BY position, id
+    `) {
+      for (const condition of await sql<Array<{
+        id: number; localId: number; field: number; position: number
+      }>>`
+        SELECT id, local_id AS localId, field, position
+          FROM condition WHERE transition = ${transition.id} ORDER BY position, id
+      `) {
+        effects.push({
+          part: "graviton", op: "remove", path: "condition", ts: Date.now(),
+          value: {
+            id: Number(condition.id), wimp: address.src, localId: Number(condition.localId),
+            transition: Number(transition.id), field: Number(condition.field),
+            position: Number(condition.position),
+            predicate: await this.conditionPredicate(sql, Number(condition.id)),
+          },
+        })
+      }
+      effects.push({
+        part: "graviton", op: "remove", path: "transition", ts: Date.now(),
+        value: {
+          id: Number(transition.id), wimp: address.src, localId: Number(transition.localId),
+          fromState: Number(transition.fromState), toState: Number(transition.toState),
+          position: Number(transition.position),
+        },
+      })
+    }
+    return effects
+  }
+
+  private async synchronizeStateComposition(
+    sql: Database,
+    address: InflatonAddress,
+    input: JsonRecord,
+  ): Promise<StateCompositionEffects> {
+    if (address.path !== "state" || !Object.hasOwn(input, "transitions")) {
+      return {removals: [], additions: []}
+    }
+    if (!Array.isArray(input.transitions)) throw new Error("state.transitions must be an array")
+    const from = await stateId(sql, address.src, address.localId)
+    const removals = await this.stateCompositionRemovalEffects(sql, address)
+    await sql`DELETE FROM transition WHERE from_state = ${from}`
+
+    const transitionIds = new Set<number>()
+    const conditionIds = new Set<number>()
+    const additions: Particle[] = []
+    for (let transitionPosition = 0; transitionPosition < input.transitions.length; transitionPosition++) {
+      const rawTransition = record(input.transitions[transitionPosition], `state.transitions[${transitionPosition}]`)
+      const localId = positiveInteger(rawTransition.id, `state.transitions[${transitionPosition}].id`)
+      const position = nonNegativeInteger(rawTransition.position, `state.transitions[${transitionPosition}].position`)
+      if (position !== transitionPosition || transitionIds.has(localId)) {
+        throw new Error("state.transitions must have unique identities and contiguous positions")
+      }
+      transitionIds.add(localId)
+      const to = await stateId(sql, address.src, positiveInteger(rawTransition.to, `state.transitions[${transitionPosition}].to`))
+      const transition = await insertedId(sql<Array<{id: number}>>`
+        INSERT INTO transition (wimp, local_id, from_state, to_state, position)
+        VALUES (${address.src}, ${localId}, ${from}, ${to}, ${position}) RETURNING id
+      `, "State transition")
+      additions.push({
+        part: "graviton", op: "add", path: "transition", ts: Date.now(),
+        value: {id: transition, wimp: address.src, localId, fromState: from, toState: to, position},
+      })
+      if (!Array.isArray(rawTransition.conditions)) throw new Error(`state.transitions[${transitionPosition}].conditions must be an array`)
+      const fields = new Set<number>()
+      for (let conditionPosition = 0; conditionPosition < rawTransition.conditions.length; conditionPosition++) {
+        const rawCondition = record(rawTransition.conditions[conditionPosition], `state.transitions[${transitionPosition}].conditions[${conditionPosition}]`)
+        const conditionLocalId = positiveInteger(rawCondition.id, `state.transitions[${transitionPosition}].conditions[${conditionPosition}].id`)
+        const position = nonNegativeInteger(rawCondition.position, `state.transitions[${transitionPosition}].conditions[${conditionPosition}].position`)
+        const field = await fieldId(sql, address.src, positiveInteger(rawCondition.field, `state.transitions[${transitionPosition}].conditions[${conditionPosition}].field`))
+        if (position !== conditionPosition || conditionIds.has(conditionLocalId) || fields.has(field)) {
+          throw new Error("state conditions must have unique identities, Fields and contiguous positions")
+        }
+        conditionIds.add(conditionLocalId)
+        fields.add(field)
+        const condition = await insertedId(sql<Array<{id: number}>>`
+          INSERT INTO condition (wimp, local_id, transition, field, position)
+          VALUES (${address.src}, ${conditionLocalId}, ${transition}, ${field}, ${position}) RETURNING id
+        `, "State condition")
+        await insertPredicateGroup(sql, condition, rawCondition.predicate, field)
+        additions.push({
+          part: "graviton", op: "add", path: "condition", ts: Date.now(),
+          value: {
+            id: condition, wimp: address.src, localId: conditionLocalId,
+            transition, field, position,
+            predicate: await this.conditionPredicate(sql, condition),
+          },
+        })
+      }
+    }
+    return {removals, additions}
+  }
+
   private async cloneConditionPredicates(sql: Database, source: number, target: number): Promise<void> {
     for (const row of await sql<Array<{
       id: number; predicateOrder: number; subjectKind: string; operator: string; valueKind: string;
@@ -1293,6 +1419,32 @@ export class BoundaryIncrementalStore {
       return sourceId
     }
 
+    if (source.path === "mass") {
+      const format = requiredString(merged.format, "mass.format")
+      if (format !== "json" && format !== "binary") throw new Error(`Unsupported Mass format ${format}`)
+      const id = copy
+        ? await insertedId(sql<Array<{id: number}>>`
+            INSERT INTO mass_declaration (wimp, local_id, local_key, format, label, description, active)
+            VALUES (
+              ${target.src}, ${target.localId}, ${requiredString(merged.key, "mass.key")}, ${format},
+              ${nullableString(merged.label, "mass.label")}, ${nullableString(merged.description, "mass.description")}, 1
+            ) RETURNING id
+          `, "Mass copy")
+        : sourceId
+      if (!copy) {
+        await sql`DELETE FROM mass_membership WHERE declaration = ${sourceId}`
+        await sql`
+          UPDATE mass_declaration
+             SET wimp = ${target.src}, local_id = ${target.localId},
+                 local_key = ${requiredString(merged.key, "mass.key")}, format = ${format},
+                 label = ${nullableString(merged.label, "mass.label")},
+                 description = ${nullableString(merged.description, "mass.description")}, active = 1
+           WHERE id = ${sourceId}
+        `
+      }
+      return id
+    }
+
     if (source.path === "transition") {
       const from = positiveInteger(merged.fromState ?? merged.from, "transition.fromState")
       const to = positiveInteger(merged.toState ?? merged.to, "transition.toState")
@@ -1378,13 +1530,22 @@ export class BoundaryIncrementalStore {
       await sql`DELETE FROM reaction_read WHERE reaction = ${id}`
       await sql`DELETE FROM reaction_write WHERE reaction = ${id}`
       await sql`DELETE FROM reaction_state WHERE reaction = ${id}`
-      for (const field of this.processFieldIds(merged.read, "reaction.read")) {
+      const relatedFields = async (key: "read" | "write"): Promise<number[]> =>
+        Object.hasOwn(targetInput, key)
+          ? await Promise.all(this.processFieldIds(targetInput[key], `reaction.${key}`).map(async (local) =>
+              await fieldId(sql, target.src, local)))
+          : this.processFieldIds(sourceValue[key], `reaction.${key}`)
+      const relatedStates = Object.hasOwn(targetInput, "states")
+        ? await Promise.all(this.processFieldIds(targetInput.states, "reaction.states").map(async (local) =>
+            await stateId(sql, target.src, local)))
+        : this.processFieldIds(sourceValue.states, "reaction.states")
+      for (const field of await relatedFields("read")) {
         await sql`INSERT INTO reaction_read (reaction, field) VALUES (${id}, ${field})`
       }
-      for (const field of this.processFieldIds(merged.write, "reaction.write")) {
+      for (const field of await relatedFields("write")) {
         await sql`INSERT INTO reaction_write (reaction, field) VALUES (${id}, ${field})`
       }
-      for (const state of this.processFieldIds(merged.states, "reaction.states")) {
+      for (const state of relatedStates) {
         await sql`INSERT INTO reaction_state (reaction, state) VALUES (${id}, ${state})`
       }
       return id
@@ -1616,7 +1777,7 @@ export class BoundaryIncrementalStore {
     const op: "move" | "copy" = part.op
     const path: DeclarationPath = part.path
     if (path === "bulk") {
-      throw new Error("Boundary bulk/view_css is excluded from Bulk Store declaration transfer")
+      return await this.applyBulkTransfer(part)
     }
     const input = record(part.value, `${path} transfer value`)
     const target = parseInflatonAddress(path, input)
@@ -1628,7 +1789,7 @@ export class BoundaryIncrementalStore {
     if (path === "wimp") {
       sourceId = requiredString(part.from, "wimp transfer from")
       source = {path: "wimp", src: sourceId, localId: 0}
-    } else if ((path === "matter" || path === "field") && part.op === "move" && typeof part.from === "string") {
+    } else if ((path === "matter" || path === "field" || path === "state" || path === "mass" || path === "reaction") && part.op === "move" && typeof part.from === "string") {
       const parsed = parseCanonicalTransferSource(path, part.from)
       if (!parsed) throw new Error(`Boundary ${path} move source must be canonical <owner>/<repository>#<localId>`)
       sourceId = part.from
@@ -1716,12 +1877,46 @@ export class BoundaryIncrementalStore {
           field: await this.fieldLocalIdByRowId(tx, positiveInteger(canonical.field, "variant.field")),
         }
       }
+      if (path === "mass") await this.mass.ensureIndependentMemberships(tx)
       await this.addRuntimeConsequences(tx, target, consequenceInput, committed)
+      if (path === "mass" && op === "move") {
+        await this.addRuntimeConsequences(tx, source, sourceValue, committed)
+      }
       await this.mass.ensureIndependentMemberships(tx)
       await this.reconcileMassBindingSources(tx)
       return committed
     })
 
+    await this.updateIndexes(effects)
+    return {rootSrc: await this.rootSrc(), messages: effects.map(particleMessage)}
+  }
+
+  private async applyBulkTransfer(part: Particle): Promise<BoundaryIncrementalCommit> {
+    if (part.op !== "move") throw new Error("Boundary Bulk declaration supports move, not copy")
+    const input = record(part.value, "bulk transfer value")
+    const target = parseInflatonAddress("bulk", input)
+    const source = parseCanonicalTransferSource("bulk", part.from)
+    if (!target || !source || source.localId !== 1 || target.localId !== 1) {
+      throw new Error("Boundary Bulk move requires canonical singleton identities")
+    }
+    const effects = await this.sql.begin(async (sql): Promise<Particle[]> => {
+      const sourceRow = (await sql<Array<{view: string | null}>>`
+        SELECT view_css AS view FROM wimp WHERE src = ${source.src}
+      `)[0]
+      const targetRow = (await sql<Array<{view: string | null}>>`
+        SELECT view_css AS view FROM wimp WHERE src = ${target.src}
+      `)[0]
+      if (!sourceRow || sourceRow.view === null) throw new Error(`Bulk ${source.src} is absent`)
+      if (!targetRow) throw new Error(`Target Meta ${target.src} is absent`)
+      if (targetRow.view !== null) throw new Error(`Bulk ${target.src} already exists`)
+      const view = requiredString(input.view ?? sourceRow.view, "bulk.view")
+      await sql`UPDATE wimp SET view_css = NULL WHERE src = ${source.src}`
+      await sql`UPDATE wimp SET view_css = ${view} WHERE src = ${target.src}`
+      return [{
+        part: "graviton", op: "move", path: "bulk", from: `${source.src}#1`,
+        ts: Date.now(), value: {wimp: target.src, localId: 1, view},
+      }]
+    })
     await this.updateIndexes(effects)
     return {rootSrc: await this.rootSrc(), messages: effects.map(particleMessage)}
   }
@@ -1736,8 +1931,10 @@ export class BoundaryIncrementalStore {
         )
         ON CONFLICT (src) DO UPDATE SET name = excluded.name, desc = excluded.desc
       `
-      const declarations = Array.isArray(value.mass) ? value.mass : []
-      await this.mass.synchronizeDeclarations(sql, address.src, declarations as MetaMassDSL[])
+      if (Object.hasOwn(value, "mass")) {
+        const declarations = Array.isArray(value.mass) ? value.mass : []
+        await this.mass.synchronizeDeclarations(sql, address.src, declarations as MetaMassDSL[])
+      }
       return
     }
     if (address.path === "field") {
@@ -1787,6 +1984,21 @@ export class BoundaryIncrementalStore {
         INSERT INTO state (wimp, local_id, name, position)
         VALUES (${address.src}, ${address.localId}, ${requiredString(value.name, "state.name")}, ${nonNegativeInteger(value.position, "state.position")})
         ON CONFLICT (wimp, local_id) DO UPDATE SET name = excluded.name, position = excluded.position
+      `
+      return
+    }
+    if (address.path === "mass") {
+      const format = requiredString(value.format, "mass.format")
+      if (format !== "json" && format !== "binary") throw new Error(`Unsupported Mass format ${format}`)
+      await sql`
+        INSERT INTO mass_declaration (wimp, local_id, local_key, format, label, description, active)
+        VALUES (
+          ${address.src}, ${address.localId}, ${requiredString(value.key, "mass.key")}, ${format},
+          ${nullableString(value.label, "mass.label")}, ${nullableString(value.description, "mass.description")}, 1
+        )
+        ON CONFLICT (wimp, local_id) DO UPDATE SET
+          local_key = excluded.local_key, format = excluded.format, label = excluded.label,
+          description = excluded.description, active = 1
       `
       return
     }
@@ -2076,6 +2288,7 @@ export class BoundaryIncrementalStore {
       }
       await sql`DELETE FROM field_enum_variant WHERE wimp = ${address.src} AND local_id = ${address.localId}`
     } else if (address.path === "state") await sql`DELETE FROM state WHERE wimp = ${address.src} AND local_id = ${address.localId}`
+    else if (address.path === "mass") await sql`UPDATE mass_declaration SET active = 0 WHERE wimp = ${address.src} AND local_id = ${address.localId}`
     else if (address.path === "transition") await sql`DELETE FROM transition WHERE wimp = ${address.src} AND local_id = ${address.localId}`
     else if (address.path === "condition") await sql`DELETE FROM condition WHERE wimp = ${address.src} AND local_id = ${address.localId}`
     else if (address.path === "process") await sql`DELETE FROM process WHERE wimp = ${address.src} AND local_id = ${address.localId}`
@@ -2128,6 +2341,16 @@ export class BoundaryIncrementalStore {
       `)[0]
       return row ? {...base, ...row} : null
     }
+    if (address.path === "mass") {
+      const row = (await sql<Array<{
+        id: number; key: string; format: string; label: string | null; description: string | null
+      }>>`
+        SELECT id, local_key AS key, format, label, description
+          FROM mass_declaration
+         WHERE wimp = ${address.src} AND local_id = ${address.localId} AND active = 1
+      `)[0]
+      return row ? {...base, ...row} : null
+    }
     if (address.path === "transition") {
       const row = (await sql<Array<{id: number; fromState: number; toState: number; position: number}>>`
         SELECT id, from_state AS fromState, to_state AS toState, position FROM transition
@@ -2145,7 +2368,10 @@ export class BoundaryIncrementalStore {
     if (address.path === "process") return await this.canonicalProcess(sql, address)
     if (address.path === "reaction") return await this.reactionEntity(sql, address.src, address.localId)
     if (address.path === "matter") return await this.matterEntity(sql, address.src, address.localId)
-    return {...base, ...input}
+    const row = (await sql<Array<{view: string | null}>>`
+      SELECT view_css AS view FROM wimp WHERE src = ${address.src}
+    `)[0]
+    return row?.view === null || row === undefined ? null : {...base, view: row.view}
   }
 
   private async conditionPredicate(sql: Database, condition: number): Promise<JsonRecord> {
@@ -2316,6 +2542,18 @@ export class BoundaryIncrementalStore {
       return
     }
     if (address.path === "state") {
+      return
+    }
+    if (address.path === "mass") {
+      for (const atom of await sql<Array<{id: number}>>`
+        SELECT id FROM atom WHERE wimp = ${address.src} ORDER BY id
+      `) {
+        const entity = await this.atomEntity(sql, Number(atom.id))
+        if (entity) effects.push({
+          part: "graviton", op: "replace", path: `atom/${Number(atom.id)}`,
+          ts: Date.now(), value: entity,
+        })
+      }
       return
     }
     if (address.path === "matter") {

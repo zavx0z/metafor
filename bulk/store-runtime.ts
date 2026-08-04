@@ -2183,7 +2183,7 @@ export const bulkStoreDarkDepth = (store: BulkStore, id: number): number =>
 
 const declarationPaths = new Set([
   "wimp", "field", "variant", "state", "transition", "condition",
-  "process", "reaction", "matter", "bulk",
+  "mass", "process", "reaction", "matter", "bulk",
 ])
 
 type RuntimeAddress = Readonly<{kind: "atom" | "topology"; id: number}>
@@ -5798,8 +5798,8 @@ export const applyBulkWimpRemove = (
 const assertRelationalDeclarationIdentity = (part: Particle): void => {
   if (part.part !== "graviton") return
   if (typeof part.path !== "string" || !declarationPaths.has(part.path)) return
-  if (part.path === "bulk") {
-    throw new Error("Bulk Store excludes bulk/view_css declarations")
+  if (part.path === "bulk" || part.path === "mass") {
+    throw new Error(`Bulk Store excludes ${part.path} declarations`)
   }
   if (part.path === "wimp") return
   if (!isRecord(part.value) || !Number.isSafeInteger(part.value.id) || Number(part.value.id) <= 0 ||

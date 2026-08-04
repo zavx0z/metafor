@@ -48,7 +48,57 @@ describe("Boundary incremental relational projection", () => {
     expect(field).toEqual({path: "field", src: "owner/project", localId: 17})
     expect(gravitonDeclarationPath(field!)).toBe("field")
     expect(parseInflatonAddress("owner/project/field/17", {wimp: "owner/project", id: 17})).toBeNull()
-    expect(parseInflatonAddress("mass", {wimp: "owner/project", id: 17})).toBeNull()
+    expect(parseInflatonAddress("mass", {wimp: "owner/project", id: 17}))
+      .toEqual({path: "mass", src: "owner/project", localId: 17})
+  })
+
+  test("materializes one State composition and one Mass declaration from accepted entity patches", async () => {
+    const rootAtom = await declareRoot()
+    await apply("add", "field", {
+      wimp: ROOT, id: 1, key: "status", type: "string", required: false, variants: [],
+    })
+    const state = await apply("add", "state", {
+      wimp: ROOT,
+      id: 1,
+      name: "ready",
+      position: 0,
+      transitions: [{
+        id: 1,
+        position: 0,
+        to: 1,
+        conditions: [{id: 1, position: 0, field: 1, predicate: {eq: "ok"}}],
+      }],
+    })
+    expect(state?.messages.map((message) => message.parts[0].path)).toEqual([
+      "state", "transition", "condition",
+    ])
+    expect(await boundary.projection.sql<Array<{fromLocal: number; toLocal: number; predicate: string}>>`
+      SELECT source.local_id AS fromLocal, target.local_id AS toLocal,
+             condition_predicate.value_text AS predicate
+        FROM transition
+        JOIN state AS source ON source.id = transition.from_state
+        JOIN state AS target ON target.id = transition.to_state
+        JOIN condition ON condition.transition = transition.id
+        JOIN condition_predicate ON condition_predicate.condition = condition.id
+    `).toEqual([{fromLocal: 1, toLocal: 1, predicate: "ok"}])
+
+    const replaced = await apply("replace", "state", {
+      wimp: ROOT, id: 1, name: "idle", position: 0, transitions: [],
+    })
+    expect(replaced?.messages.map((message) => [message.parts[0].op, message.parts[0].path]))
+      .toEqual([["remove", "condition"], ["remove", "transition"], ["replace", "state"]])
+    expect(await boundary.projection.sql<Array<{count: number}>>`SELECT COUNT(*) AS count FROM transition`)
+      .toEqual([{count: 0}])
+
+    const mass = await apply("add", "mass", {
+      wimp: ROOT, id: 1, key: "memory", format: "json", label: "Memory", description: null,
+    })
+    expect(mass?.messages.map((message) => message.parts[0].path)).toEqual(["mass", `atom/${rootAtom}`])
+    expect((mass?.messages[1]?.parts[0].value as {mass: Array<{localId: number; key: string}>}).mass)
+      .toEqual([expect.objectContaining({localId: 1, key: "memory"})])
+    const removed = await apply("remove", "mass", {wimp: ROOT, id: 1})
+    expect(removed?.messages.map((message) => message.parts[0].path)).toEqual(["mass", `atom/${rootAtom}`])
+    expect((removed?.messages[1]?.parts[0].value as {mass: unknown[]}).mass).toEqual([])
   })
 
   test("reconciles Mass only from persisted direct mappings and repoints selected keys", async () => {
@@ -155,6 +205,48 @@ describe("Boundary incremental relational projection", () => {
       expect(await boundary.projection.sql<Array<{name: string}>>`
         SELECT name FROM sqlite_master WHERE type = ${"table"} AND name = ${"wimp_mass_value"}
       `).toEqual([])
+    } finally {
+      await boundary.close()
+      await rm(directory, {recursive: true, force: true})
+      boundary = await open(":memory:")
+    }
+  })
+
+  test("adds stable local identities to existing Mass declarations", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "metafor-boundary-mass-identity-migration-"))
+    const filename = join(directory, "boundary.sqlite")
+    await boundary.close()
+
+    try {
+      boundary = await open(filename)
+      await declareRoot()
+      await apply("add", "mass", {wimp: ROOT, id: 1, key: "memory", format: "json"})
+      await boundary.close()
+
+      const legacy = new SQL(`sqlite://${filename}`)
+      await legacy.unsafe("PRAGMA foreign_keys = OFF")
+      await legacy.unsafe(`
+        CREATE TABLE mass_declaration_legacy (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          wimp TEXT NOT NULL,
+          local_key TEXT NOT NULL,
+          format TEXT NOT NULL,
+          label TEXT,
+          description TEXT,
+          active INTEGER NOT NULL DEFAULT 1,
+          UNIQUE (wimp, local_key)
+        );
+        INSERT INTO mass_declaration_legacy (id, wimp, local_key, format, label, description, active)
+          SELECT id, wimp, local_key, format, label, description, active FROM mass_declaration;
+        DROP TABLE mass_declaration;
+        ALTER TABLE mass_declaration_legacy RENAME TO mass_declaration;
+      `)
+      await legacy.close()
+
+      boundary = await open(filename)
+      expect(await boundary.projection.sql<Array<{localId: number; key: string}>>`
+        SELECT local_id AS localId, local_key AS key FROM mass_declaration WHERE wimp = ${ROOT}
+      `).toEqual([{localId: 1, key: "memory"}])
     } finally {
       await boundary.close()
       await rm(directory, {recursive: true, force: true})
@@ -584,15 +676,50 @@ describe("Boundary incremental relational projection", () => {
     expect(rootAtom).not.toBe(peerAtom)
   })
 
-  test("keeps view_css outside Bulk Store declaration transfer", async () => {
+  test("moves the Bulk singleton between Meta declarations without putting view_css in Bulk Store", async () => {
     await declareRoot()
+    await declareWimp(PEER)
     await apply("add", "bulk", {wimp: ROOT, id: 1, view: ".root {}"})
     await expect(transfer("copy", "bulk", 1, {
       wimp: ROOT, localId: 2, view: ".copy {}",
-    })).rejects.toThrow("bulk/view_css is excluded")
-    expect(await boundary.projection.sql<Array<{view: string | null}>>`
-      SELECT view_css AS view FROM wimp WHERE src = ${ROOT}
-    `).toEqual([{view: ".root {}"}])
+    })).rejects.toThrow("supports move, not copy")
+    const moved = await transfer("move", "bulk", `${ROOT}#1`, {
+      wimp: PEER, id: 1, view: ".root {}",
+    })
+    expect(moved?.messages[0]?.parts[0]).toMatchObject({
+      part: "graviton", op: "move", path: "bulk", from: `${ROOT}#1`,
+      value: {wimp: PEER, localId: 1, view: ".root {}"},
+    })
+    expect(await boundary.projection.sql<Array<{src: string; view: string | null}>>`
+      SELECT src, view_css AS view FROM wimp WHERE src IN (${ROOT}, ${PEER}) ORDER BY src
+    `).toEqual([{src: PEER, view: ".root {}"}, {src: ROOT, view: null}])
+  })
+
+  test("resolves Reaction dependencies inside the target Meta on authored move", async () => {
+    await declareRoot()
+    await declareWimp(PEER)
+    await apply("add", "field", {wimp: ROOT, id: 1, key: "root", type: "string", required: false, variants: []})
+    await apply("add", "state", {wimp: ROOT, id: 1, name: "root", position: 0, transitions: []})
+    await apply("add", "field", {wimp: PEER, id: 1, key: "peer", type: "string", required: false, variants: []})
+    await apply("add", "state", {wimp: PEER, id: 1, name: "peer", position: 0, transitions: []})
+    await apply("add", "reaction", {
+      wimp: ROOT, id: 1, key: "remember", label: "Remember", desc: null,
+      cond: "() => true", src: "() => undefined", read: [1], write: [1], states: [1],
+    })
+
+    await transfer("move", "reaction", `${ROOT}#1`, {
+      wimp: PEER, id: 1, key: "remember", label: "Remember", desc: null,
+      cond: "() => true", src: "() => undefined", read: [1], write: [1], states: [1],
+    })
+    expect(await boundary.projection.sql<Array<{wimp: string; fieldWimp: string; stateWimp: string}>>`
+      SELECT reaction.wimp, field.wimp AS fieldWimp, state.wimp AS stateWimp
+        FROM reaction
+        JOIN reaction_read ON reaction_read.reaction = reaction.id
+        JOIN field ON field.id = reaction_read.field
+        JOIN reaction_state ON reaction_state.reaction = reaction.id
+        JOIN state ON state.id = reaction_state.state
+       WHERE reaction.local_id = 1
+    `).toEqual([{wimp: PEER, fieldWimp: PEER, stateWimp: PEER}])
   })
 
   test("copies and moves WIMP by canonical src while preserving runtime Atom ids", async () => {

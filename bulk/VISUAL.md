@@ -57,6 +57,11 @@ Graph Store, Manifest, ReadyScene и второго scene Store в browser path 
   получает только обычный Field Graviton с numeric `from`. Enum variants не
   являются отдельной RPC entity: Bulk видит только производные canonical
   Variant Gravitons той же Field transaction.
+- Authoring State остаётся одной клиентской entity, а Bulk получает обычные
+  State, Transition и Condition Gravitons её Boundary transaction и локально
+  обновляет те же declaration slots. Mass declaration и `wimp.view_css`
+  невизуальны и полностью исключены из Bulk Store; изменение Mass наблюдается
+  другими доменами через resulting Atom replacement.
 - Canvas, GPU, Renderer, Space и ViewPoint остаются client-only. Force Particle
   остаётся transport обновлений и не превращается в Graph patch.
 

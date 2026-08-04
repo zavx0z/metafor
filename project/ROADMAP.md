@@ -38,12 +38,14 @@
   пустую canonical Meta и применять первый Matter slice `add`, `move`, `remove`
   для inert root-level WIMP в последней позиции через RPC с live-first
   materialization и автоматической source projection.
-* Первый `meta.declaration.apply` slice проводит optional Field
-  `add/replace/remove/move`; enum variants остаются составом одной принятой
-  Field Inflaton, а source, Boundary и Bulk получают проекции того же patch.
+* `meta.declaration.apply` проводит metadata, optional Field, State composition,
+  Mass, Reaction и Bulk `add/replace/remove` и значимый `move`; вложенные
+  Variant и Transition/Condition остаются составом одной принятой entity
+  Inflaton, а source, Boundary и нужные runtime domains получают проекции того
+  же patch.
 * Эта поверхность пока не является полной рабочей поверхностью агента: нет
-  остальных declaration entities, полной композиции Matter, предметного
-  runtime Field input и наблюдения исполнения Process.
+  Process authoring, полной композиции Matter, предметного runtime Field input
+  и наблюдения исполнения Process.
 
 ## Graph
 
@@ -98,7 +100,8 @@ digest и causal frontier без `MassHandle` и filesystem path. Второй �
 * `meta.capabilities.read` и `meta.source.revision.read`;
 * `meta.create`;
 * первый ограниченный slice `meta.matter.apply`;
-* первый optional Field slice `meta.declaration.apply`;
+* `meta.declaration.apply` для metadata, optional Field, State composition,
+  Mass, Reaction и Bulk;
 * `dark.force.history.read` и `energy.mass.result.read`;
 * `dark.force.pause`, `dark.force.step`, `dark.force.stack`,
   `dark.force.resume`;
@@ -106,8 +109,7 @@ digest и causal frontier без `MassHandle` и filesystem path. Второй �
 
 До полной рабочей сессии должны быть реализованы:
 
-* остальные slices `meta.declaration.apply` для всех canonical declaration
-  entities, включая Process и его ограниченные source artifacts;
+* Process slice `meta.declaration.apply` с ограниченными source artifacts;
 * полный Matter tree contract через расширение существующего
   `meta.matter.apply`;
 * `meta.field.value.apply` с публичным Atom locator;
@@ -222,8 +224,7 @@ Bulk. Она должна уметь:
 
 ## Порядок оставшейся работы
 
-1. завершить остальные декларационные entity тем же `meta.declaration.apply`;
-1. через тот же structural contract реализовать создание и обновление Process;
+1. через тот же `meta.declaration.apply` реализовать создание и обновление Process;
 1. расширить `meta.matter.apply` до полного Matter tree;
 1. реализовать `meta.field.value.apply` и `meta.process.execution.read`;
 1. доказать одну полную рабочую сессию агента без скрытого контекста;

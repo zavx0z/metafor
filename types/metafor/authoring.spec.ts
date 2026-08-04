@@ -514,3 +514,71 @@ describe("meta.declaration.apply Field validation", () => {
     if (!denied.ok) expect(denied.issues.map((issue) => issue.code)).toContain("scope_denied")
   })
 })
+
+describe("meta.declaration.apply Meta entity validation", () => {
+  test("accepts the closed metadata, State, Mass, Reaction and Bulk declarations", () => {
+    const common = {
+      contractVersion: META_AUTHORING_CONTRACT_VERSION,
+      capability: META_DECLARATION_WRITE_CAPABILITY,
+      address: TEST,
+      revisions: [{address: TEST, revision: TEST_REVISION}],
+    }
+    const requests: MetaDeclarationRequest[] = [
+      {
+        ...common, operationId: "metadata-replace", entity: "metadata", operation: "replace",
+        metadata: {name: "Lada Test", description: "Edited"},
+      },
+      {
+        ...common, operationId: "state-add", entity: "state", operation: "add",
+        state: {name: "ready", transitions: {ready: {status: {eq: "ok"}}}},
+      },
+      {
+        ...common, operationId: "mass-add", entity: "mass", operation: "add",
+        mass: {key: "memory", format: "json", label: "Memory"},
+      },
+      {
+        ...common, operationId: "reaction-add", entity: "reaction", operation: "add",
+        reaction: {
+          key: "remember", label: "Remember", states: ["ready"],
+          filterSource: "({ value }) => value.status === 'ok'",
+          updateSource: "({ self }) => self", read: ["status"], write: [],
+        },
+      },
+      {
+        ...common, operationId: "bulk-add", entity: "bulk", operation: "add",
+        bulk: {view: ".ready { color: green; }"},
+      },
+    ]
+    for (const input of requests) {
+      const result = validateMetaDeclarationRequest(input, {
+        capabilities: [declarationGrant()], currentRevision,
+      })
+      expect(result).toEqual({ok: true, value: input})
+      if (result.ok) expect(result.value).not.toBe(input)
+    }
+  })
+
+  test("rejects executable-looking Bulk fields and empty Reaction source", () => {
+    const common = {
+      contractVersion: META_AUTHORING_CONTRACT_VERSION,
+      capability: META_DECLARATION_WRITE_CAPABILITY,
+      operation: "add",
+      address: TEST,
+      revisions: [{address: TEST, revision: TEST_REVISION}],
+    }
+    for (const input of [
+      {...common, operationId: "bulk-invalid", entity: "bulk", bulk: {view: "x", process: "no"}},
+      {
+        ...common, operationId: "reaction-invalid", entity: "reaction",
+        reaction: {
+          key: "bad", label: "Bad", states: [], filterSource: "",
+          updateSource: "({ self }) => self", read: [], write: [],
+        },
+      },
+    ]) {
+      expect(validateMetaDeclarationRequest(input, {
+        capabilities: [declarationGrant()], currentRevision,
+      }).ok).toBe(false)
+    }
+  })
+})

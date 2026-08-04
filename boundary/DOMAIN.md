@@ -103,6 +103,14 @@ SQL transaction сохраняет Field, синхронизирует Variant r
 сохраняет persisted Field row ID; удаление variant с действующей ссылкой
 отклоняет всю transaction.
 
+Authoring State также приходит одной Inflaton и владеет закрытым составом своих
+Transition и Condition. Boundary одной SQL transaction сохраняет State,
+заменяет только принадлежащий ему состав и публикует дочерние canonical rows.
+Mass declaration является отдельной categorical entity с WIMP-local `local_id`;
+её add/replace/remove обновляет разрешённый Mass состав уже существующих Atom.
+Reaction хранит обязательный semantic key. Bulk singleton материализуется в
+`wimp.view_css`, оставаясь вне Bulk Store.
+
 Пример: добавление Screenshot в Browser WIMP должно добавить Screenshot каждому
 существующему Browser Atom.
 

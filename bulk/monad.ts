@@ -87,7 +87,7 @@ export class BulkMonad {
     }
     if (this.#store === null) return
     const part = message.parts[0]
-    if (part.part === "graviton" && part.path === "bulk") return
+    if (part.part === "graviton" && (part.path === "bulk" || part.path === "mass")) return
     applyBulkStoreMessage(this.#store, NOOP_BULK_STORE_RENDERER, message)
   }
 

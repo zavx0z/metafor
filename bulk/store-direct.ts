@@ -245,7 +245,7 @@ export const boundaryRowsRuntimeProjection = (
       wimps.push({src: value.src, name: typeof value.name === "string" ? value.name : null})
       continue
     }
-    if (entry.path === "bulk") continue
+    if (entry.path === "bulk" || entry.path === "mass") continue
     const id = Number(value.id)
     if (!Number.isSafeInteger(id) || id <= 0) {
       throw new Error(`Bulk Store initial ${entry.path} has no numeric id`)

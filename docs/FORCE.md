@@ -122,8 +122,10 @@ bounded acceptance-sequence range над этой же history. Service не с�
 Authoring RPC использует сохранённую в той же строке cause как единственную
 привязку request к принятому изменению; отдельный operation-service log для
 Matter или declaration authoring не создаётся. Enum variants одной принятой
-Field Inflaton остаются составом её payload; производные Boundary Gravitons не
-становятся отдельными пользовательскими operations.
+Field Inflaton и Transition/Condition одной принятой State Inflaton остаются
+составом payload своих entity; производные Boundary Gravitons не становятся
+отдельными пользовательскими operations. Metadata, Mass, Reaction и Bulk также
+принимаются по одной entity в одном `ForceMessage`.
 
 Если contour завершился после durable acceptance, но до applied-ack одного из
 доменов, startup берёт незакрытые receipt из checkpoint control и доставляет
