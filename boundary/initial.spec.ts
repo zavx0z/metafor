@@ -5,6 +5,19 @@ import {open, type BoundaryDatabase} from "./sqlite.ts"
 const ROOT = "owner/runtime"
 type ParticleInput = Omit<Particle, "ts"> & {ts?: number}
 
+const deferred = (): {promise: Promise<void>; resolve(): void} => {
+  let resolve!: () => void
+  const promise = new Promise<void>((done) => {
+    resolve = done
+  })
+  return {promise, resolve}
+}
+
+const keyOf = (value: unknown): string | undefined =>
+  typeof value === "object" && value !== null && "key" in value && typeof value.key === "string"
+    ? value.key
+    : undefined
+
 describe("Boundary canonical initial state", () => {
   let boundary: BoundaryDatabase
 
@@ -98,6 +111,97 @@ describe("Boundary canonical initial state", () => {
     expect(initial.entries.some((entry) => entry.path === "field")).toBe(true)
     expect(initial.entries.some((entry) => typeof entry.path === "string" && entry.path.startsWith("atom/"))).toBe(true)
     expect(initial.entries.every((entry) => !("ts" in entry) && !("by" in entry))).toBe(true)
+  })
+
+  test("serializes every initial read between adjacent materializations", async () => {
+    await apply({part: "inflaton", op: "add", path: "wimp", value: {src: ROOT, name: "Runtime"}})
+
+    const firstApplied = deferred()
+    const releaseFirst = deferred()
+    const secondApplied = deferred()
+    const releaseSecond = deferred()
+    const originalApply = boundary.projection.apply.bind(boundary.projection)
+    let applyCount = 0
+    let first: Promise<unknown> | undefined
+    let second: Promise<unknown> | undefined
+
+    boundary.projection.apply = async (message) => {
+      const result = await originalApply(message)
+      applyCount += 1
+      if (applyCount === 1) {
+        firstApplied.resolve()
+        await releaseFirst.promise
+      } else if (applyCount === 2) {
+        secondApplied.resolve()
+        await releaseSecond.promise
+      }
+      return result
+    }
+
+    try {
+      first = boundary.materialize({parts: [{
+        part: "inflaton",
+        op: "add",
+        path: "field",
+        value: {wimp: ROOT, id: 1, key: "phase", type: "string"},
+        ts: 2,
+      }]})
+      await firstApplied.promise
+
+      const settled = [false, false, false, false]
+      const track = <T>(index: number, promise: Promise<T>): Promise<T> => promise.finally(() => {
+        settled[index] = true
+      })
+      const reads = [
+        track(0, boundary.initialState()),
+        track(1, boundary.initialProjection()),
+        track(2, boundary.replay()),
+        track(3, boundary.graphSnapshot()),
+      ] as const
+      second = boundary.materialize({parts: [{
+        part: "inflaton",
+        op: "remove",
+        path: "field",
+        value: {wimp: ROOT, id: 1},
+        ts: 3,
+      }]})
+
+      await Bun.sleep(0)
+      expect(settled).toEqual([false, false, false, false])
+
+      releaseFirst.resolve()
+      const [initialState, initialProjection, replay, graphSnapshot] = await Promise.all(reads)
+      await secondApplied.promise
+
+      expect(initialState.declarations.some((entry) =>
+        entry.section === "fields" && keyOf(entry.value) === "phase"
+      )).toBe(true)
+      expect(initialProjection.entries.some((entry) =>
+        entry.path === "field" && keyOf(entry.value) === "phase"
+      )).toBe(true)
+      expect(replay.some((message) => {
+        const part = message.parts[0]
+        return part.path === "field" && keyOf(part.value) === "phase"
+      })).toBe(true)
+      expect(graphSnapshot.initialState.declarations.some((entry) =>
+        entry.section === "fields" && keyOf(entry.value) === "phase"
+      )).toBe(true)
+      expect(graphSnapshot.initialProjection.entries.some((entry) =>
+        entry.path === "field" && keyOf(entry.value) === "phase"
+      )).toBe(true)
+      expect(settled).toEqual([true, true, true, true])
+
+      releaseSecond.resolve()
+      await Promise.all([first, second])
+      expect((await boundary.initialState()).declarations.some((entry) =>
+        entry.section === "fields" && keyOf(entry.value) === "phase"
+      )).toBe(false)
+    } finally {
+      releaseFirst.resolve()
+      releaseSecond.resolve()
+      await Promise.allSettled([first, second].filter((item): item is Promise<unknown> => item !== undefined))
+      boundary.projection.apply = originalApply
+    }
   })
 
   test("keeps canonical Variant identity in Atom, default and Condition values", async () => {

@@ -56,6 +56,9 @@
   Mass и Bulk evidence проверяются одним вызывающим RPC source.
 * Process-bound `photon/test` теперь проявляет вычисленный State в Bulk Store;
   визуальная проекция не требует несуществующего предыдущего `photon/replace`.
+* Четыре начальных чтения Boundary сериализованы с `materialize`: Matrix, Energy,
+  Bulk и Graph получают целиком один committed срез, а не строки соседних
+  моментов.
 
 ## Graph
 

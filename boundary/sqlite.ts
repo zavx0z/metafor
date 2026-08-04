@@ -169,10 +169,10 @@ export const open = async (filename?: string, options: BoundaryOpenOptions = {})
     execution,
     reaction,
     input,
-    replay: () => projection.replay(),
+    replay: () => serialize(async () => await projection.replay()),
     materialize,
-    initialState: () => readBoundaryInitialState(sql),
-    initialProjection: readInitialProjection,
+    initialState: () => serialize(async () => await readBoundaryInitialState(sql)),
+    initialProjection: () => serialize(readInitialProjection),
     graphSnapshot: readGraphSnapshot,
     async close() {
       try {
