@@ -5,13 +5,14 @@ import {InstancedMesh} from "../core/InstancedMesh"
 import {SkinnedMesh} from "../core/SkinnedMesh"
 import {BufferGeometry} from "../core/BufferGeometry"
 import {WireframeInstancedMesh} from "../core/WireframeInstancedMesh"
-import {ImageMaterial, LineBasicMaterial, LineGlowMaterial, MeshBasicMaterial, MeshLambertMaterial, RadialBackdropMaterial, RoundedRectMaterial, TextMaterial, ThinFilmMaterial} from "../materials"
+import {HolographicMaterial, ImageMaterial, LineBasicMaterial, LineGlowMaterial, MeshBasicMaterial, MeshLambertMaterial, RadialBackdropMaterial, RoundedRectMaterial, TextMaterial, ThinFilmMaterial} from "../materials"
 import {Matrix4, Vector3, Frustum} from "../math"
 import {LineSegments} from "../objects/LineSegments"
 import {Text} from "../objects/Text"
 import {Object3D} from "../core/Object3D"
 import meshBasicWGSL from "./shaders/mesh_basic.wgsl"
 import thinFilmWGSL from "./shaders/thin_film.wgsl"
+import holographicWGSL from "./shaders/holographic.wgsl"
 import meshStaticWGSL from "./shaders/mesh_static.wgsl"
 import meshSkinnedWGSL from "./shaders/mesh_skinned.wgsl"
 import meshInstancedWGSL from "./shaders/mesh_instanced.wgsl"
@@ -44,6 +45,7 @@ if (import.meta.hot) {
   (import.meta.hot.accept as unknown as (dependencies: string[], callback: () => void) => void)([
     "./shaders/mesh_basic.wgsl",
     "./shaders/thin_film.wgsl",
+    "./shaders/holographic.wgsl",
     "./shaders/mesh_static.wgsl",
     "./shaders/mesh_skinned.wgsl",
     "./shaders/mesh_instanced.wgsl",
@@ -112,6 +114,7 @@ export class Renderer {
   private presentationFormat: GPUTextureFormat | null = null
   private basicMeshPipeline: GPURenderPipeline | null = null
   private thinFilmMeshPipeline: GPURenderPipeline | null = null
+  private holographicMeshPipeline: GPURenderPipeline | null = null
   private staticMeshPipeline: GPURenderPipeline | null = null
   private instancedMeshPipeline: GPURenderPipeline | null = null
   private skinnedMeshPipeline: GPURenderPipeline | null = null
@@ -325,6 +328,9 @@ export class Renderer {
     const thinFilmShaderModule = this.device.createShaderModule({
       code: thinFilmWGSL,
     })
+    const holographicShaderModule = this.device.createShaderModule({
+      code: holographicWGSL,
+    })
     const staticShaderModule = this.device.createShaderModule({
       code: meshStaticWGSL,
     })
@@ -409,6 +415,45 @@ export class Renderer {
             color: {
               srcFactor: "src-alpha",
               dstFactor: "one-minus-src-alpha",
+              operation: "add",
+            },
+            alpha: {
+              srcFactor: "one",
+              dstFactor: "one-minus-src-alpha",
+              operation: "add",
+            },
+          },
+        }],
+      },
+      primitive: {topology: "triangle-list", cullMode: "none"},
+      depthStencil: {
+        depthWriteEnabled: false,
+        depthCompare: "less",
+        format: "depth24plus-stencil8",
+      },
+      multisample: {count: this.sampleCount},
+    })
+
+    this.holographicMeshPipeline = await this.device.createRenderPipelineAsync({
+      label: "HolographicMaterial",
+      layout: pipelineLayout,
+      vertex: {
+        module: holographicShaderModule,
+        entryPoint: "vs_main",
+        buffers: [
+          {arrayStride: 12, attributes: [{shaderLocation: 0, offset: 0, format: "float32x3"}]},
+          {arrayStride: 12, attributes: [{shaderLocation: 1, offset: 0, format: "float32x3"}]},
+        ],
+      },
+      fragment: {
+        module: holographicShaderModule,
+        entryPoint: "fs_main",
+        targets: [{
+          format: this.presentationFormat,
+          blend: {
+            color: {
+              srcFactor: "src-alpha",
+              dstFactor: "one",
               operation: "add",
             },
             alpha: {
@@ -1172,6 +1217,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
       this.context &&
       this.basicMeshPipeline &&
       this.thinFilmMeshPipeline &&
+      this.holographicMeshPipeline &&
       this.staticMeshPipeline &&
       this.uiBasicMeshPipeline &&
       this.instancedMeshPipeline &&
@@ -1577,6 +1623,22 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         0,
         0,
       )
+    } else if (material instanceof HolographicMaterial) {
+      this.writePerObjectRgba(offsetFloats + 32, material.color)
+      this.writePerObjectVec4(
+        offsetFloats + 36,
+        material.opacity,
+        material.rimStrength,
+        material.scanDensity,
+        material.scanSharpness,
+      )
+      this.writePerObjectVec4(
+        offsetFloats + 40,
+        material.irregularity,
+        material.patternOffset,
+        material.bandRadius,
+        material.bandHalfWidth,
+      )
     } else if (isRadialBackdropMaterial(material)) {
       this.writePerObjectRgba(offsetFloats + 32, material.base)
       this.writePerObjectRgba(offsetFloats + 36, material.glowA)
@@ -1736,6 +1798,8 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
                   : (isUiLayer ? this.uiImagePipeline : this.imagePipeline)
                 : material instanceof ThinFilmMaterial
                   ? this.thinFilmMeshPipeline
+                  : material instanceof HolographicMaterial
+                    ? this.holographicMeshPipeline
                   : isRadialBackdropMaterial(material)
                     ? (isUiLayer ? this.uiRadialBackdropPipeline : this.radialBackdropPipeline)
                     : material instanceof RoundedRectMaterial
