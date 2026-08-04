@@ -222,9 +222,7 @@ Bulk. Она должна уметь:
 
 ## Порядок оставшейся работы
 
-1. реализовать `meta.declaration.apply` и доказать общий structural path на
-   Field;
-1. завершить остальные декларационные entity тем же contract;
+1. завершить остальные декларационные entity тем же `meta.declaration.apply`;
 1. через тот же structural contract реализовать создание и обновление Process;
 1. расширить `meta.matter.apply` до полного Matter tree;
 1. реализовать `meta.field.value.apply` и `meta.process.execution.read`;
