@@ -174,6 +174,11 @@ Routing решает, какие домены получают принятую 
 Dark Force history. Gluon/Higgs и Inflaton проходят один ingress независимо от
 набора конечных потребителей.
 
+Предметный RPC `meta.field.value.apply` планирует внутренний Field address в
+Boundary, затем условно принимает одну agent Gluon/Higgs только при совпадении
+ожидаемой history frontier. Acceptance возвращается из той же append-only
+history; отдельная запись runtime operation рядом с Particle не создаётся.
+
 ### Wire и channel compatibility
 
 Доменные transports из `shared/transport/force` сохраняют один порядок

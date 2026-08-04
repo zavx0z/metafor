@@ -13,6 +13,10 @@ import type {
   BoundaryInitialDeclaration,
   BoundaryInitialProjectionEntry,
 } from "@metafor/types/boundary/initial"
+import {
+  parseMetaRuntimeAtomPointer,
+  type MetaRuntimeAtomLocator,
+} from "@metafor/types/metafor/observation"
 import type {BoundaryDatabase} from "./sqlite.ts"
 
 export const BOUNDARY_GRAPH_PROJECTION_METHOD = "boundary.graph.current.read" as const
@@ -539,6 +543,26 @@ export async function readBoundaryGraphProjection(
     root,
     runtime: {roots: nestedRuntime(root, records)},
   }
+}
+
+export async function resolveBoundaryRuntimeAtom(
+  boundary: BoundaryDatabase,
+  locator: MetaRuntimeAtomLocator,
+): Promise<number | null> {
+  const indices = parseMetaRuntimeAtomPointer(locator.pointer)
+  if (!indices || indices.length === 0) return null
+  const records = await currentRecords(boundary)
+  if (currentRoot(records) !== locator.root) return null
+  const ordered = (parent: RuntimeKey | "root"): RuntimeRecord[] => [...records.values()]
+    .filter((entry) => entry.parent === parent)
+    .sort((left, right) => left.position - right.position || left.sequence - right.sequence)
+  let selected = ordered("root").filter((entry) => entry.node.kind === "atom" && entry.node.meta === locator.root)[indices[0]!]
+  for (const index of indices.slice(1)) {
+    if (!selected) return null
+    selected = ordered(selected.key)[index]
+  }
+  if (!selected || selected.node.kind !== "atom" || selected.node.meta !== locator.meta) return null
+  return Number(selected.key.slice("atom/".length))
 }
 
 /** Exact-root projection used only by detached checkpoint/dissolve proofs. */

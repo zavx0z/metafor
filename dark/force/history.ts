@@ -98,6 +98,7 @@ export type DarkForceHistoryQuery = {
   part?: Part
   op?: ParticleOperation
   by?: string
+  from?: string
   path?: string | number
   limit?: number
 }
@@ -619,6 +620,7 @@ export class DarkForceHistory {
       "part",
       "op",
       "by",
+      "from",
       "path",
       "limit",
     ])
@@ -637,6 +639,9 @@ export class DarkForceHistory {
     if (query.op !== undefined && !operations.has(query.op)) throw new Error("Dark Force history op is invalid")
     if (query.by !== undefined && (typeof query.by !== "string" || query.by.length === 0)) {
       throw new Error("Dark Force history by is invalid")
+    }
+    if (query.from !== undefined && (typeof query.from !== "string" || query.from.length === 0)) {
+      throw new Error("Dark Force history from is invalid")
     }
     if (query.path !== undefined && !isFinitePath(query.path)) throw new Error("Dark Force history path is invalid")
 
@@ -669,6 +674,7 @@ export class DarkForceHistory {
         if (query.part !== undefined && entry.particle.part !== query.part) continue
         if (query.op !== undefined && entry.particle.op !== query.op) continue
         if (query.by !== undefined && entry.particle.by !== query.by) continue
+        if (query.from !== undefined && entry.particle.from !== query.from) continue
         if (query.path !== undefined && entry.particle.path !== query.path) continue
         result.push(structuredClone(entry))
         if (result.length === limit) return result

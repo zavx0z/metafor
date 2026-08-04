@@ -1,4 +1,4 @@
-import type {MetaAuthoringCauseV1} from "./authoring.ts"
+import type {MetaAuthoringCauseV1, MetaForceAcceptanceIdentity} from "./authoring.ts"
 import {
   parseMetaAddress,
   type JsonPointer,
@@ -8,10 +8,13 @@ import {
   type ValidationResult,
 } from "./graph.ts"
 import type {SourcedParticle} from "shared/protocol/force/particle"
+import {isProcessExecutionId, type ProcessExecutionId} from "shared/protocol/force/execution"
 
 export const META_OBSERVATION_CONTRACT_VERSION = 1 as const
 export const DARK_FORCE_HISTORY_READ_METHOD = "dark.force.history.read" as const
 export const ENERGY_MASS_RESULT_READ_METHOD = "energy.mass.result.read" as const
+export const META_FIELD_VALUE_APPLY_METHOD = "meta.field.value.apply" as const
+export const META_PROCESS_EXECUTION_READ_METHOD = "meta.process.execution.read" as const
 export const ENERGY_MASS_RESULT_MAX_BYTES = 4 * 1024 * 1024
 
 export type MetaObservationDigest = `sha256:${string}`
@@ -98,6 +101,52 @@ export type EnergyMassResultReadReceipt = {
   content: EnergyMassResultContent
 }
 
+export type MetaRuntimeFieldValue = null | string | number | boolean | number[]
+
+export type MetaFieldValueApplyRequest = {
+  contractVersion: typeof META_OBSERVATION_CONTRACT_VERSION
+  atom: MetaRuntimeAtomLocator
+  field: string
+  value: MetaRuntimeFieldValue
+  expectedFrontier: MetaCausalFrontier
+}
+
+export type MetaFieldValueApplyReceipt = {
+  contractVersion: typeof META_OBSERVATION_CONTRACT_VERSION
+  resolution: "exact"
+  atom: MetaRuntimeAtomLocator
+  field: string
+  acceptance: MetaForceAcceptanceIdentity
+  frontier: MetaCausalFrontier
+}
+
+export type MetaProcessExecutionStatus = "pending" | "committed" | "failed" | "superseded"
+
+export type MetaProcessExecutionOutcome = {
+  fields: {[key: string]: JsonValue}
+  error?: string
+}
+
+export type MetaProcessExecutionReadRequest = {
+  contractVersion: typeof META_OBSERVATION_CONTRACT_VERSION
+  atom: MetaRuntimeAtomLocator
+  process: string
+  execution: ProcessExecutionId
+}
+
+export type MetaProcessExecutionReadReceipt = {
+  contractVersion: typeof META_OBSERVATION_CONTRACT_VERSION
+  resolution: "exact"
+  atom: MetaRuntimeAtomLocator
+  process: string
+  execution: ProcessExecutionId
+  status: MetaProcessExecutionStatus
+  acceptance: MetaForceAcceptanceIdentity
+  settlement: MetaForceAcceptanceIdentity | null
+  outcome: MetaProcessExecutionOutcome | null
+  frontier: MetaCausalFrontier
+}
+
 type RecordValue = Record<string, unknown>
 
 const DIGEST = /^sha256:[a-f0-9]{64}$/
@@ -157,7 +206,7 @@ const runtimePointerIndices = (value: unknown): number[] | null => {
 export const parseMetaRuntimeAtomPointer = (value: unknown): number[] | null =>
   runtimePointerIndices(value)
 
-const validateLocator = (
+export const validateMetaRuntimeAtomLocator = (
   value: unknown,
   path: JsonPointer,
 ): ValidationResult<MetaRuntimeAtomLocator> => {
@@ -173,6 +222,42 @@ const validateLocator = (
   if (!pointer) issues.push(issue(childPath(path, "pointer"), "invalid_runtime_pointer", "Locator pointer must select a Graph runtime path"))
   if (issues.length > 0 || !root || !meta) return {ok: false, issues}
   return {ok: true, value: {root, pointer: value.pointer as MetaRuntimeAtomPointer, meta}}
+}
+
+const validateFrontier = (
+  value: unknown,
+  path: JsonPointer,
+): ValidationResult<MetaCausalFrontier> => {
+  if (!isRecord(value) || !exactKeys(value, ["cutId", "throughSequence", "retroactiveComplete"])) {
+    return {ok: false, issues: [issue(path, "invalid_frontier", "Causal frontier must be a closed plain object")]}
+  }
+  const issues: ValidationIssue[] = []
+  if (typeof value.cutId !== "string" || !CUT_ID.test(value.cutId)) {
+    issues.push(issue(childPath(path, "cutId"), "invalid_cut", "Causal frontier cutId is invalid"))
+  }
+  if (typeof value.throughSequence !== "number" || !Number.isSafeInteger(value.throughSequence) || value.throughSequence < 0) {
+    issues.push(issue(childPath(path, "throughSequence"), "invalid_sequence", "Causal frontier sequence must be a non-negative safe integer"))
+  }
+  if (value.retroactiveComplete !== false) {
+    issues.push(issue(childPath(path, "retroactiveComplete"), "invalid_literal", "Causal frontier must use the post-cut completeness marker"))
+  }
+  if (issues.length > 0) return {ok: false, issues}
+  return {ok: true, value: structuredClone(value) as MetaCausalFrontier}
+}
+
+const validateSemanticKey = (
+  value: unknown,
+  path: JsonPointer,
+  label: string,
+): ValidationIssue[] => typeof value === "string" && value.length > 0 && value.length <= 4_096 && !value.includes("\0")
+  ? []
+  : [issue(path, "invalid_semantic_key", `${label} must be a non-empty string without NUL`)]
+
+const validateRuntimeFieldValue = (value: unknown, path: JsonPointer): ValidationIssue[] => {
+  if (value === null || typeof value === "string" || typeof value === "boolean") return []
+  if (typeof value === "number" && Number.isFinite(value)) return []
+  if (Array.isArray(value) && value.every((item) => typeof item === "number" && Number.isFinite(item))) return []
+  return [issue(path, "invalid_field_value", "Runtime Field value must be null, a scalar, or finite number[]")]
 }
 
 export const validateDarkForceHistoryReadRequest = (
@@ -226,7 +311,7 @@ export const validateEnergyMassResultReadRequest = (
   if (input.contractVersion !== META_OBSERVATION_CONTRACT_VERSION) {
     issues.push(issue("/contractVersion", "invalid_literal", "Unsupported observation contract version"))
   }
-  const locator = validateLocator(input.atom, "/atom")
+  const locator = validateMetaRuntimeAtomLocator(input.atom, "/atom")
   if (!locator.ok) issues.push(...locator.issues)
   if (typeof input.key !== "string" || input.key.length === 0 || input.key.length > 256 || input.key.includes("\0")) {
     issues.push(issue("/key", "invalid_mass_key", "Mass key is invalid"))
@@ -246,6 +331,63 @@ export const validateEnergyMassResultReadRequest = (
       key: input.key as string,
       maxBytes: input.maxBytes as number,
       ...(input.expectedDigest === undefined ? {} : {expectedDigest: input.expectedDigest as MetaObservationDigest}),
+    },
+  }
+}
+
+export const validateMetaFieldValueApplyRequest = (
+  input: unknown,
+): ValidationResult<MetaFieldValueApplyRequest> => {
+  if (!isRecord(input) || !exactKeys(input, ["contractVersion", "atom", "field", "value", "expectedFrontier"])) {
+    return {ok: false, issues: [issue("", "invalid_request", "Field value request must be a closed plain object")]}
+  }
+  const issues: ValidationIssue[] = []
+  if (input.contractVersion !== META_OBSERVATION_CONTRACT_VERSION) {
+    issues.push(issue("/contractVersion", "invalid_literal", "Unsupported observation contract version"))
+  }
+  const locator = validateMetaRuntimeAtomLocator(input.atom, "/atom")
+  if (!locator.ok) issues.push(...locator.issues)
+  issues.push(...validateSemanticKey(input.field, "/field", "Field key"))
+  issues.push(...validateRuntimeFieldValue(input.value, "/value"))
+  const frontier = validateFrontier(input.expectedFrontier, "/expectedFrontier")
+  if (!frontier.ok) issues.push(...frontier.issues)
+  if (issues.length > 0 || !locator.ok || !frontier.ok) return {ok: false, issues}
+  return {
+    ok: true,
+    value: {
+      contractVersion: META_OBSERVATION_CONTRACT_VERSION,
+      atom: locator.value,
+      field: input.field as string,
+      value: structuredClone(input.value) as MetaRuntimeFieldValue,
+      expectedFrontier: frontier.value,
+    },
+  }
+}
+
+export const validateMetaProcessExecutionReadRequest = (
+  input: unknown,
+): ValidationResult<MetaProcessExecutionReadRequest> => {
+  if (!isRecord(input) || !exactKeys(input, ["contractVersion", "atom", "process", "execution"])) {
+    return {ok: false, issues: [issue("", "invalid_request", "Process execution request must be a closed plain object")]}
+  }
+  const issues: ValidationIssue[] = []
+  if (input.contractVersion !== META_OBSERVATION_CONTRACT_VERSION) {
+    issues.push(issue("/contractVersion", "invalid_literal", "Unsupported observation contract version"))
+  }
+  const locator = validateMetaRuntimeAtomLocator(input.atom, "/atom")
+  if (!locator.ok) issues.push(...locator.issues)
+  issues.push(...validateSemanticKey(input.process, "/process", "Process key"))
+  if (!isProcessExecutionId(input.execution)) {
+    issues.push(issue("/execution", "invalid_execution", "Process execution identity is invalid"))
+  }
+  if (issues.length > 0 || !locator.ok || !isProcessExecutionId(input.execution)) return {ok: false, issues}
+  return {
+    ok: true,
+    value: {
+      contractVersion: META_OBSERVATION_CONTRACT_VERSION,
+      atom: locator.value,
+      process: input.process as string,
+      execution: input.execution,
     },
   }
 }

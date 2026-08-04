@@ -149,7 +149,7 @@ describe("Dark Force complete Particle history", () => {
       ),
     })
 
-    history.accept(particle("gluon", 30))
+    history.accept({...particle("gluon", 30), from: "execution-1"})
     history.accept(particle("inflaton", 10, "dark"))
     history.accept(particle("gluon", 20, "boundary"))
 
@@ -165,6 +165,7 @@ describe("Dark Force complete Particle history", () => {
     }).map((entry) => entry.sequence)).toEqual([1, 3])
     expect(history.read({fromParticleTs: 15, toParticleTs: 25}).map((entry) => entry.sequence)).toEqual([3])
     expect(history.read({part: "gluon", by: "matrix", path: "gluon"}).map((entry) => entry.sequence)).toEqual([1])
+    expect(history.read({from: "execution-1"}).map((entry) => entry.sequence)).toEqual([1])
     expect(history.read({fromSequence: 1, limit: 2}).map((entry) => entry.sequence)).toEqual([1, 2])
 
     const catalog = JSON.parse(readFileSync(join(directory, "catalog.json"), "utf8"))

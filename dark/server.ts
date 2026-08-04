@@ -31,6 +31,7 @@ import {createLocalMonadChannelPair} from "./monad/local.ts"
 import {MatterAuthoringService} from "./monad/matter.ts"
 import {DeclarationAuthoringService} from "./monad/declaration.ts"
 import {DarkForceHistoryReadService} from "./monad/history.ts"
+import {MetaRuntimeRpcService} from "./monad/runtime.ts"
 import {
   MetaAuthoringRegistry,
   metaAuthoringCapabilitiesForScopes,
@@ -100,6 +101,7 @@ const authoringRegistry = new MetaAuthoringRegistry(authoringConfiguration
   : [])
 monad.setTimeControl(new DarkForceTimeController(lifecycle, checkpoint))
 monad.setHistory(new DarkForceHistoryReadService(forceHistory))
+monad.setRuntime(new MetaRuntimeRpcService(forceHistory, lifecycle, rpc))
 monad.setAuthoring({
   registry: authoringRegistry,
   create: new MetaCreateService((source) => authoringRegistry.grants(source)),

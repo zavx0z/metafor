@@ -11,6 +11,7 @@ import type {
   MetaForceAcceptanceIdentity,
   MetaAuthoringCauseV1,
 } from "@metafor/types/metafor/authoring"
+import type {MetaCausalFrontier} from "@metafor/types/metafor/observation"
 
 export type ForceLifecycleState = "created" | "starting" | "recovering" | "running" | "error" | "stopped"
 
@@ -30,6 +31,24 @@ export type ForceLifecycleDecision =
 
 export type ForceAgentDecision =
   | {ok: true; delivered: ForceDomain[]; particle: SourcedForceMessage["parts"][0]}
+  | {ok: false; reason: "not_running" | "admission_closed" | "runtime_error"; error: string}
+
+export type ForceAgentAcceptanceDecision =
+  | {
+      ok: true
+      delivered: ForceDomain[]
+      particle: SourcedForceMessage["parts"][0]
+      acceptance: MetaForceAcceptanceIdentity
+    }
+  | {ok: false; reason: "not_running" | "admission_closed" | "frontier_mismatch" | "runtime_error"; error: string}
+
+type ForceAgentTransferDecision =
+  | {
+      ok: true
+      delivered: ForceDomain[]
+      particle: SourcedForceMessage["parts"][0]
+      accepted: DarkForceHistoryParticle
+    }
   | {ok: false; reason: "not_running" | "admission_closed" | "runtime_error"; error: string}
 
 export type ForceAuthoringDecision =
@@ -66,7 +85,7 @@ export class ForceLifecycle {
   #startup: Promise<void> = Promise.resolve()
 
   constructor(
-    private readonly history: Pick<DarkForceHistory, "accept"> & Partial<Pick<DarkForceHistory, "read">>,
+    private readonly history: Pick<DarkForceHistory, "accept"> & Partial<Pick<DarkForceHistory, "read" | "status">>,
     private readonly checkpoint?: ForceCheckpointTransfer,
   ) {}
 
@@ -138,7 +157,41 @@ export class ForceLifecycle {
         error: "Force external admission is held by an internal causal operation",
       }
     }
-    return await this.#transferAgentParticle(input)
+    const decision = await this.#transferAgentParticle(input)
+    if (!decision.ok) return decision
+    const {accepted: _accepted, ...publicDecision} = decision
+    return publicDecision
+  }
+
+  async acceptAgentParticleAtFrontier(
+    input: ForceMessageInput,
+    expected: MetaCausalFrontier,
+  ): Promise<ForceAgentAcceptanceDecision> {
+    if (this.#state !== "running") {
+      return {ok: false, reason: "not_running", error: this.#blockedReason()}
+    }
+    if (this.#externalAdmissionClosed) {
+      return {
+        ok: false,
+        reason: "admission_closed",
+        error: "Force external admission is held by an internal causal operation",
+      }
+    }
+    const current = this.history.status?.()
+    if (!current) {
+      return {ok: false, reason: "runtime_error", error: "Force history frontier is unavailable"}
+    }
+    if (current.cutId !== expected.cutId || current.sequence !== expected.throughSequence) {
+      return {
+        ok: false,
+        reason: "frontier_mismatch",
+        error: `Force causal frontier differs: expected ${expected.cutId}:${expected.throughSequence}, received ${current.cutId}:${current.sequence}`,
+      }
+    }
+    const decision = await this.#transferAgentParticle(input)
+    if (!decision.ok) return decision
+    const {accepted, ...result} = decision
+    return {...result, acceptance: this.#acceptanceIdentity(accepted)}
   }
 
   /**
@@ -157,14 +210,17 @@ export class ForceLifecycle {
         error: "Force internal step requires closed external admission",
       }
     }
-    return await this.#transferAgentParticle(input)
+    const decision = await this.#transferAgentParticle(input)
+    if (!decision.ok) return decision
+    const {accepted: _accepted, ...publicDecision} = decision
+    return publicDecision
   }
 
-  async #transferAgentParticle(input: ForceMessageInput): Promise<ForceAgentDecision> {
+  async #transferAgentParticle(input: ForceMessageInput): Promise<ForceAgentTransferDecision> {
     const message = sourceForceMessage(input, "agent")
     try {
       const transfer = await this.#transfer(message, "agent")
-      return {ok: true, delivered: transfer.delivered, particle: message.parts[0]}
+      return {ok: true, delivered: transfer.delivered, particle: message.parts[0], accepted: transfer.accepted}
     } catch (error) {
       this.#failStop("force", `runtime could not transfer a Particle: ${this.#reason(error)}`)
       return {ok: false, reason: "runtime_error", error: this.#blockedReason()}

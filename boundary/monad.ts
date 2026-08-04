@@ -8,6 +8,11 @@ import {
   readBoundaryGraphProjection,
 } from "./graph.ts"
 import type {BoundaryDatabase} from "./sqlite.ts"
+import {
+  BOUNDARY_FIELD_VALUE_PLAN_METHOD,
+  BOUNDARY_PROCESS_EXECUTION_PROJECT_METHOD,
+  BoundaryRuntimeRpcService,
+} from "./runtime-rpc.ts"
 
 export type BoundaryMonadState = "created" | "registering" | "ready" | "error" | "stopped"
 
@@ -16,7 +21,10 @@ export class BoundaryMonad {
   #state: BoundaryMonadState = "created"
   #error: string | null = null
   #peer: MonadRpcPeer | null = null
-  constructor(private readonly boundary: BoundaryDatabase) {}
+  readonly #runtime: BoundaryRuntimeRpcService
+  constructor(private readonly boundary: BoundaryDatabase) {
+    this.#runtime = new BoundaryRuntimeRpcService(boundary)
+  }
 
   onServerStarted(peer: MonadRpcPeer): void {
     if (this.#state !== "created") return
@@ -26,6 +34,14 @@ export class BoundaryMonad {
     peer.expose(
       BOUNDARY_GRAPH_PROJECTION_METHOD,
       async (params) => await readBoundaryGraphProjection(this.boundary, params),
+    )
+    peer.expose(
+      BOUNDARY_FIELD_VALUE_PLAN_METHOD,
+      async (params) => await this.#runtime.planFieldValue(params),
+    )
+    peer.expose(
+      BOUNDARY_PROCESS_EXECUTION_PROJECT_METHOD,
+      async (params) => await this.#runtime.projectProcessExecution(params),
     )
     this.#peer = peer
   }

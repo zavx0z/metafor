@@ -13,6 +13,10 @@ import {
   type MonadRpcMessage,
 } from "shared/protocol/monad/rpc"
 import {BOUNDARY_GRAPH_PROJECTION_METHOD} from "./graph.ts"
+import {
+  BOUNDARY_FIELD_VALUE_PLAN_METHOD,
+  BOUNDARY_PROCESS_EXECUTION_PROJECT_METHOD,
+} from "./runtime-rpc.ts"
 import {BoundaryMonad} from "./monad.ts"
 import {open, type BoundaryDatabase} from "./sqlite.ts"
 
@@ -58,6 +62,8 @@ describe("Boundary Monad", () => {
       BOUNDARY_GRAPH_PROJECTION_METHOD,
       BOUNDARY_INITIAL_PROJECTION_METHOD,
       BOUNDARY_INITIAL_STATE_METHOD,
+      BOUNDARY_FIELD_VALUE_PLAN_METHOD,
+      BOUNDARY_PROCESS_EXECUTION_PROJECT_METHOD,
     ])
     expect(await monad.onHealthRequested(":memory:").json()).toMatchObject({rpc: "registering"})
 

@@ -19,6 +19,10 @@ import {
 import {DARK_DECLARATION_PROJECTION_METHOD} from "./graph.ts"
 import {DARK_FORCE_HISTORY_READ_METHOD} from "@metafor/types/metafor/observation"
 import {
+  META_FIELD_VALUE_APPLY_METHOD,
+  META_PROCESS_EXECUTION_READ_METHOD,
+} from "@metafor/types/metafor/observation"
+import {
   DARK_FORCE_PAUSE_METHOD,
   DARK_FORCE_RESUME_METHOD,
   DARK_FORCE_STACK_METHOD,
@@ -234,6 +238,44 @@ describe("Dark Monad", () => {
       {method: META_CREATE_METHOD},
       {method: META_MATTER_APPLY_METHOD},
       {method: META_DECLARATION_APPLY_METHOD},
+    ])
+  })
+
+  test("exposes the subject Field input and Process execution projection", async () => {
+    const calls: Array<{method: string; input: unknown}> = []
+    const monad = new DarkMonad()
+    monad.setRuntime({
+      async applyFieldValue(input) {
+        calls.push({method: META_FIELD_VALUE_APPLY_METHOD, input: structuredClone(input)})
+        return {method: META_FIELD_VALUE_APPLY_METHOD} as never
+      },
+      async readProcessExecution(input) {
+        calls.push({method: META_PROCESS_EXECUTION_READ_METHOD, input: structuredClone(input)})
+        return {method: META_PROCESS_EXECUTION_READ_METHOD} as never
+      },
+    })
+    const channel = new TestChannel()
+    const peer = new MonadRpcPeer(channel)
+    monad.onServerStarted(peer)
+
+    for (const [index, method] of [META_FIELD_VALUE_APPLY_METHOD, META_PROCESS_EXECUTION_READ_METHOD].entries()) {
+      await channel.receive({
+        version: MONAD_RPC_VERSION,
+        id: `runtime-${index}`,
+        source: "agent/local",
+        target: "dark",
+        method,
+        params: {method},
+      })
+    }
+
+    expect(peer.methods()).toEqual(expect.arrayContaining([
+      META_FIELD_VALUE_APPLY_METHOD,
+      META_PROCESS_EXECUTION_READ_METHOD,
+    ]))
+    expect(calls).toEqual([
+      {method: META_FIELD_VALUE_APPLY_METHOD, input: {method: META_FIELD_VALUE_APPLY_METHOD}},
+      {method: META_PROCESS_EXECUTION_READ_METHOD, input: {method: META_PROCESS_EXECUTION_READ_METHOD}},
     ])
   })
 })

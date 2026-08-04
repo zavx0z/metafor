@@ -47,8 +47,11 @@
   Variant и Transition/Condition остаются составом одной принятой entity
   Inflaton, а source, Boundary и нужные runtime domains получают проекции того
   же patch.
-* Эта поверхность пока не является полной рабочей поверхностью агента: нет
-  предметного runtime Field input и наблюдения исполнения Process.
+* Предметная RPC-поверхность одного доверенного агента функционально полна:
+  `meta.field.value.apply` принимает точный Field input, а
+  `meta.process.execution.read` наблюдает причинно связанный исход Process.
+  Следующий этап должен доказать не отдельные методы, а одну полную рабочую
+  сессию без скрытого контекста.
 
 ## Graph
 
@@ -105,15 +108,18 @@ digest и causal frontier без `MassHandle` и filesystem path. Второй �
 * полный `meta.matter.apply` для WIMP, fuzzy, axion и macho composition;
 * `meta.declaration.apply` для metadata, optional Field, State composition,
   Mass, Reaction, Process и Bulk;
+* `meta.field.value.apply` с публичным Atom locator, типизированным значением и
+  точной ожидаемой causal frontier;
+* `meta.process.execution.read` для status, result/error, acceptance и
+  settlement существующей Process execution;
 * `dark.force.history.read` и `energy.mass.result.read`;
 * `dark.force.pause`, `dark.force.step`, `dark.force.stack`,
   `dark.force.resume`;
 * `bulk.observer.captureViewport`.
 
-До полной рабочей сессии должны быть реализованы:
-
-* `meta.field.value.apply` с публичным Atom locator;
-* `meta.process.execution.read` для status, result и error.
+Все RPC, признанные необходимыми для первой рабочей сессии одного агента,
+реализованы и проверены отдельно. Теперь должна быть доказана их совместная
+работа в одном воспроизводимом пользовательском сценарии.
 
 Отдельные `state.set` и `process.run` не входят в поверхность. Агент задаёт
 предметный Field, Matrix вычисляет State, Energy исполняет Process. Graph
@@ -224,7 +230,6 @@ Bulk. Она должна уметь:
 
 ## Порядок оставшейся работы
 
-1. реализовать `meta.field.value.apply` и `meta.process.execution.read`;
 1. доказать одну полную рабочую сессию агента без скрытого контекста;
 1. только после этого возвращаться к конкурентным чтениям и writes,
    access policy, graph scope, ветвлению и самоизменению Лады;
@@ -233,7 +238,7 @@ Bulk. Она должна уметь:
 
 ## Явные ограничения
 
-До завершения функциональной RPC-поверхности не являются текущей работой:
+До завершения первой полной рабочей сессии не являются текущей работой:
 
 * новые права доступа, capability policy и graph scope;
 * конкурентные чтения, конкурентные writes и многопользовательский режим;

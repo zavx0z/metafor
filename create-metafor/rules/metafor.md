@@ -118,6 +118,14 @@ transport и routing законами Monad RPC, но не формой клие
 - `energy.mass.result.read` возвращает текущий bounded JSON либо base64 result
   одного объявленного Mass key, его digest и causal frontier. Метод принимает
   public Graph Atom locator и не раскрывает внутренний Atom ID.
+- `meta.field.value.apply` принимает public Graph Atom locator, semantic Field
+  key, типизированное значение и точную ожидаемую causal frontier. Внутренний
+  Boundary provider разрешает locator и Field, а Dark Force принимает одну
+  Gluon либо Higgs Particle в существующую history.
+- `meta.process.execution.read` возвращает для public Graph Atom locator,
+  Process key и public execution identity текущий `pending`, `committed`,
+  `failed` либо `superseded`, acceptance регистрации, optional settlement,
+  доступные Fields/error и exact causal frontier.
 - `energy.mass.fence` и `energy.mass.release` являются внутренними lifecycle RPC
   для безопасной работы Boundary с Mass identity, а не клиентским чтением.
 
@@ -144,10 +152,13 @@ bytes. `MassHandle`, key-file path, Energy handle и произвольный fi
 read не раскрываются. Locator является snapshot-local Graph path, защищённым
 ожидаемыми root и Meta; provider разрешает его во внутренний Atom ID локально.
 
-Планируемый `meta.process.execution.read` возвращает наблюдаемый исход Process
+`meta.process.execution.read` возвращает наблюдаемый исход Process
 для Atom и Process key: public execution identity, `pending`, `committed`,
-`failed` либо `superseded`, causal acceptance identity и доступные result/error
-data. Он не запускает Process, не меняет State и не раскрывает Boundary row ID.
+`failed` либо `superseded`, causal acceptance identity, optional settlement и
+доступные result/error data. Acceptance указывает существующую принятую
+`photon/test`, settlement — существующую `w+/w- copy`; второй журнал или
+execution event Store не создаются. Метод не запускает Process, не меняет State
+и не раскрывает Boundary row ID.
 Текущие Field values и State по-прежнему читаются через `readGraph`; Process
 запускается причинно после предметного Field input, а не отдельным RPC.
 

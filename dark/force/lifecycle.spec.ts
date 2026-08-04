@@ -225,6 +225,34 @@ describe("ForceLifecycle", () => {
     })
   })
 
+  test("conditionally accepts one runtime input at the exact history frontier", async () => {
+    recording = createRecordingChannels()
+    let sequence = 4
+    lifecycle = new ForceLifecycle({
+      status() {
+        return {path: "history", cutId: "runtime-cut", startedAt: "2026-08-04T12:00:00.000Z", sequence, segments: 1, retroactiveComplete: false}
+      },
+      accept(particle) {
+        sequence++
+        return {
+          schema: "metafor/dark-force-particle/v1",
+          id: `runtime-cut:${sequence}`,
+          sequence,
+          acceptedAt: "2026-08-04T12:00:05.000Z",
+          particle,
+        }
+      },
+    })
+    start()
+    const expected = {cutId: "runtime-cut", throughSequence: 4, retroactiveComplete: false as const}
+    await expect(lifecycle.acceptAgentParticleAtFrontier(agentInflaton(5), {...expected, throughSequence: 3}))
+      .resolves.toMatchObject({ok: false, reason: "frontier_mismatch"})
+    await expect(lifecycle.acceptAgentParticleAtFrontier(agentInflaton(5), expected)).resolves.toMatchObject({
+      ok: true,
+      acceptance: {cutId: "runtime-cut", sequence: 5, id: "runtime-cut:5"},
+    })
+  })
+
   test("accepts and sources the agent WIMP remove through the same Force Monad ingress", async () => {
     start()
 

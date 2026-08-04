@@ -250,10 +250,8 @@ entry, точные before/after source revisions и наблюдаемую пр
 - source projector — публикация заранее подготовленных source targets;
 - Git provider — только отдельно разрешённые add/commit/push operations.
 
-## Оставшееся функциональное расширение для одного агента
+## Runtime input и наблюдение для одного агента
 
-Следующие имена фиксируют утверждённую форму ближайшего расширения, но не
-считаются действующим API до появления public types, provider и обычных тестов.
 Новая access policy, новый graph scope и конкурентные writes в это расширение
 не входят.
 
@@ -277,6 +275,18 @@ Atom через публичный locator точного Graph snapshot, наз
 и проводит одну Gluon либо Higgs Particle через существующую Force-history.
 Boundary ID не становится частью публичного Graph, а runtime value не
 проецируется в `meta.ts` как декларация.
+
+Receipt возвращает acceptance identity именно этой Particle и exact causal
+frontier после её проведения. Повтор со старой ожидаемой frontier отклоняется
+до новой Particle. Это runtime input, поэтому authoring operation journal,
+source projection и Git revision к нему не добавляются.
+
+`meta.process.execution.read` принимает тот же public Atom locator, semantic
+Process key и созданный Matrix public execution identity. Ответ возвращает
+канонический Boundary status, acceptance исходной `photon/test`, optional
+settlement канонической `w+/w- copy`, доступный committed Field result либо
+error и exact current Force frontier. Метод читает существующие Boundary
+relations и Force-history, не создавая второй execution journal.
 
 Отдельных `state.set` и `process.run` не будет. Агент меняет предметный Field;
 Matrix вычисляет State, Energy исполняет объявленный Process, а результат

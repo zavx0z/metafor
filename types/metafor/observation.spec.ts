@@ -5,6 +5,8 @@ import {
   parseMetaRuntimeAtomPointer,
   validateDarkForceHistoryReadRequest,
   validateEnergyMassResultReadRequest,
+  validateMetaFieldValueApplyRequest,
+  validateMetaProcessExecutionReadRequest,
 } from "./observation.ts"
 
 const ROOT = parseMetaAddress("zavx0z/lada")!
@@ -54,6 +56,37 @@ describe("agent observation public contracts", () => {
       .toMatchObject({ok: false, issues: [{code: "invalid_limit"}]})
     expect(validateEnergyMassResultReadRequest({...request, atom: {...request.atom, pointer: "/runtime/roots/0/value/1"}}))
       .toMatchObject({ok: false, issues: [{code: "invalid_runtime_pointer"}]})
+  })
+
+  test("accepts one typed Field input at an exact causal frontier", () => {
+    const request = {
+      contractVersion: 1 as const,
+      atom: {root: ROOT, pointer: "/runtime/roots/0/children/1" as const, meta: CHILD},
+      field: "mode",
+      value: "ready",
+      expectedFrontier: {cutId: "cut-1", throughSequence: 17, retroactiveComplete: false as const},
+    }
+    expect(validateMetaFieldValueApplyRequest(request)).toEqual({ok: true, value: request})
+    expect(validateMetaFieldValueApplyRequest({...request, value: [1, Number.NaN]}))
+      .toMatchObject({ok: false, issues: [{code: "invalid_field_value"}]})
+    expect(validateMetaFieldValueApplyRequest({...request, expectedFrontier: {...request.expectedFrontier, throughSequence: -1}}))
+      .toMatchObject({ok: false, issues: [{code: "invalid_sequence"}]})
+    expect(validateMetaFieldValueApplyRequest({...request, atomId: 41}))
+      .toMatchObject({ok: false, issues: [{code: "invalid_request"}]})
+  })
+
+  test("accepts Process observation only by locator, semantic key and public execution", () => {
+    const request = {
+      contractVersion: 1 as const,
+      atom: {root: ROOT, pointer: "/runtime/roots/0" as const, meta: ROOT},
+      process: "ready",
+      execution: "execution-17",
+    }
+    expect(validateMetaProcessExecutionReadRequest(request)).toEqual({ok: true, value: request})
+    expect(validateMetaProcessExecutionReadRequest({...request, execution: "boundary:17"}))
+      .toMatchObject({ok: false, issues: [{code: "invalid_execution"}]})
+    expect(validateMetaProcessExecutionReadRequest({...request, processId: 9}))
+      .toMatchObject({ok: false, issues: [{code: "invalid_request"}]})
   })
 
   test("rejects accessors without invoking them", () => {
