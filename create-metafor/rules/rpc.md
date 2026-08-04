@@ -186,6 +186,50 @@ entry, точные before/after source revisions и наблюдаемую пр
 - source projector — публикация заранее подготовленных `meta.ts`;
 - Git provider — только отдельно разрешённые add/commit/push operations.
 
-Расширение этого slice на Fields, States, Processes, bindings, произвольную
-позицию Matter или canonical commit требует новых public types и проверок, но
-не отдельного обходного RPC.
+## Планируемое функциональное расширение для одного агента
+
+Следующие имена фиксируют утверждённую форму ближайшего расширения, но не
+считаются действующим API до появления public types, provider и обычных тестов.
+Новая access policy, новый graph scope и конкурентные writes в это расширение
+не входят.
+
+`meta.declaration.apply` изменяет ровно одну типизированную декларационную
+entity существующей Meta. Request использует тот же закрытый write envelope,
+точную source revision и live-first/source-projection порядок, что
+`meta.matter.apply`. Закрытый discriminated union охватывает:
+
+- metadata шаблона `name` и `desc`;
+- Field, включая enum variants внутри декларации Field;
+- State вместе с его transitions и condition waves;
+- Mass declaration;
+- Reaction;
+- Bulk view declaration;
+- Process вместе с ограниченным набором принадлежащих этой декларации action и
+  handler source artifacts.
+
+Операции `add`, `replace`, `remove` и, где порядок является частью договора,
+`move` адресуют semantic entity по canonical Meta address и ключу либо имени,
+а не по SQLite row ID или filesystem path. Одна изменённая entity остаётся
+одной принятой Inflaton Particle. Process использует этот же provider и patch
+path; отдельный Process generator и произвольный source writer не создаются.
+
+Действующий `meta.matter.apply` расширяется, а не дублируется вторым Matter
+методом. Следующий contract slice должен адресовать точное occurrence внутри
+Matter tree и поддержать WIMP, fuzzy, axion и macho, bindings, значимую позицию,
+а также `add`, `move` и `remove`. Текущий проверенный slice остаётся ограничен
+inert root-level WIMP и последней позицией.
+
+`meta.field.value.apply` является предметным runtime input. Request адресует
+Atom через публичный locator точного Graph snapshot, называет Field key,
+передаёт типизированное значение и ожидаемую causal frontier. Provider
+разрешает locator во внутреннюю Boundary identity, проверяет Field declaration
+и проводит одну Gluon либо Higgs Particle через существующую Force-history.
+Boundary ID не становится частью публичного Graph, а runtime value не
+проецируется в `meta.ts` как декларация.
+
+Отдельных `state.set` и `process.run` не будет. Агент меняет предметный Field;
+Matrix вычисляет State, Energy исполняет объявленный Process, а результат
+наблюдается через Graph, history, Mass result и Process execution projection.
+
+Canonical commit, push, access policy, произвольный файловый write и
+самоизменение Лады остаются отдельной последующей работой.

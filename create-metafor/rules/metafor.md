@@ -110,6 +110,8 @@ transport и routing законами Monad RPC, но не формой клие
   устанавливает причинную границу.
 - `dark.force.stack` возвращает временные границы текущей паузы, а
   `dark.force.resume` открывает внешний вход и очищает этот временный список.
+- `bulk.observer.captureViewport` возвращает PNG и компактное доказательство
+  Store cut уже подключённого observer-сеанса.
 - Действующих `dark.history.read/clear` нет. Полная Dark Force history хранится,
   но клиентское чтение и тем более очистка через RPC не опубликованы.
 - `energy.mass.fence` и `energy.mass.release` являются внутренними lifecycle RPC
@@ -118,6 +120,37 @@ transport и routing законами Monad RPC, но не формой клие
 В текущем public contract нет проверенного RPC, который возвращает компактный
 частичный фрагмент Dark templates/particles вместе с минимальной структурой
 мира. `readGraph` возвращает только полный текущий Graph.
+
+### Зафиксированные read contracts ближайшего этапа
+
+Следующие методы нужны полной функциональной поверхности одного доверенного
+агента. Их имена и смысл утверждены для реализации, но методы не являются
+действующим API до появления public types, providers и тестов. Новая access
+policy и конкурентные чтения в этот этап не входят.
+
+`dark.force.history.read` читает существующую append-only Particle-history, а
+не создаёт новый журнал. Закрытый request задаёт один cut и ограниченный
+диапазон acceptance sequence либо продолжение от causal frontier. Ответ
+возвращает `cutId`, фактические границы sequence, `resolution`, признак
+усечения, следующий cursor и принятые Particle envelopes. `clear`, rewrite и
+автоматическое удаление не публикуются.
+
+`energy.mass.result.read` читает только объявленный Mass key конкретного Atom,
+адресованного публичным locator точного Graph snapshot. Request задаёт key,
+ожидаемый digest и верхнюю границу bytes. Ответ возвращает format, digest,
+resolution и bounded JSON либо base64 bytes. `MassHandle`, key-file path,
+Energy handle и произвольный filesystem read не раскрываются.
+
+`meta.process.execution.read` возвращает наблюдаемый исход Process для Atom и
+Process key: public execution identity, `pending`, `committed`, `failed` либо
+`superseded`, causal acceptance identity и доступные result/error data. Он не
+запускает Process, не меняет State и не раскрывает Boundary row ID. Текущие
+Field values и State по-прежнему читаются через `readGraph`; Process запускается
+причинно после предметного Field input, а не отдельным RPC.
+
+Raw `dark.force.step` остаётся проверенным причинным примитивом, но не заменяет
+предметный Field RPC: его `path` использует внутреннюю runtime identity,
+которой нет в публичном Graph.
 
 ### Требование к планируемой проекции
 
