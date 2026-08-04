@@ -100,15 +100,15 @@ flowchart LR
 
 ## P2 — структурное изменение
 
-| ID     | Состояние | Зависимости       | Карточка                   |
-| ------ | --------- | ----------------- | -------------------------- |
-| MF-200 | READY     | нет               | [Открыть](tasks/MF-200.md) |
-| MF-201 | WAITING   | MF-200            | [Открыть](tasks/MF-201.md) |
-| MF-202 | WAITING   | MF-201            | [Открыть](tasks/MF-202.md) |
-| MF-203 | GATE      | MF-200            | [Открыть](tasks/MF-203.md) |
-| MF-204 | WAITING   | MF-202, MF-203    | [Открыть](tasks/MF-204.md) |
-| MF-205 | WAITING   | MF-204            | [Открыть](tasks/MF-205.md) |
-| MF-206 | WAITING   | MF-205, MF-103    | [Открыть](tasks/MF-206.md) |
+| ID     | Состояние   | Зависимости       | Карточка                   |
+| ------ | ----------- | ----------------- | -------------------------- |
+| MF-200 | IN_PROGRESS | нет               | [Открыть](tasks/MF-200.md) |
+| MF-201 | WAITING     | MF-200            | [Открыть](tasks/MF-201.md) |
+| MF-202 | WAITING     | MF-201            | [Открыть](tasks/MF-202.md) |
+| MF-203 | GATE        | MF-200            | [Открыть](tasks/MF-203.md) |
+| MF-204 | WAITING     | MF-202, MF-203    | [Открыть](tasks/MF-204.md) |
+| MF-205 | WAITING     | MF-204            | [Открыть](tasks/MF-205.md) |
+| MF-206 | WAITING     | MF-205, MF-103    | [Открыть](tasks/MF-206.md) |
 
 ## P3 — Create MetaFor
 
