@@ -4,17 +4,9 @@ import {spawnSync} from "node:child_process"
 import {existsSync, mkdirSync, statSync, writeFileSync} from "node:fs"
 import {basename, dirname, resolve} from "node:path"
 import {detectLanguage, getI18n, type Lang} from "./i18n.ts"
-import {
-  generateGitignoreFile,
-  generateIndexHtmlFile,
-  generateMetaFile,
-  generateMetaforTypesFile,
-  generatePackageJsonFile,
-  generateTodoFile,
-  generateTsconfigFile,
-  type MetaIdentity,
-} from "./generators.ts"
+import type {MetaIdentity} from "./generators.ts"
 import {getGitUserName, gitAddAll, gitCommit, initGitRepo, isGitInstalled} from "./git.ts"
+import {buildMetaPackageTemplate} from "./template.ts"
 
 const PACKAGE_SEGMENT = /^[a-z0-9][a-z0-9._-]*$/
 const OPTIONS_WITH_VALUE = new Set(["--name", "-n", "--desc", "-d", "--dir", "--lang", "-l"])
@@ -72,21 +64,26 @@ const runBunInstall = (cwd: string, errorMessage: string): void => {
 const writePackage = (
   packagePath: string,
   identity: MetaIdentity,
-  source: string,
   name: string,
   description: string,
   author: string,
   errorLabel: string,
   htmlLang: string,
 ): void => {
-  mkdirSync(resolve(packagePath, "src"), {recursive: true})
-  writeFileSync(resolve(packagePath, "meta.ts"), generateMetaFile(name, description, errorLabel))
-  writeFileSync(resolve(packagePath, "src/metafor.d.ts"), generateMetaforTypesFile())
-  writeFileSync(resolve(packagePath, "package.json"), generatePackageJsonFile(identity, description, author))
-  writeFileSync(resolve(packagePath, "tsconfig.json"), generateTsconfigFile())
-  writeFileSync(resolve(packagePath, "TODO.md"), generateTodoFile(name, description))
-  writeFileSync(resolve(packagePath, ".gitignore"), generateGitignoreFile())
-  writeFileSync(resolve(packagePath, "index.html"), generateIndexHtmlFile(name, description, htmlLang, source))
+  const template = buildMetaPackageTemplate({
+    identity,
+    name,
+    description,
+    author,
+    errorLabel,
+    htmlLang,
+    profile: "standard",
+  })
+  for (const file of template.files) {
+    const target = resolve(packagePath, file.path)
+    mkdirSync(dirname(target), {recursive: true})
+    writeFileSync(target, file.source)
+  }
 }
 
 async function main(): Promise<void> {
@@ -153,7 +150,7 @@ ${t.helpNoteOptions}
   console.log(`   ${t.path} ${packagePath}\n`)
 
   const author = getGitUserName() ?? owner
-  writePackage(packagePath, identity, source, name, description, author, t.errorLabel, t.htmlLang)
+  writePackage(packagePath, identity, name, description, author, t.errorLabel, t.htmlLang)
 
   console.log(`${t.installing} bun install`)
   runBunInstall(packagePath, t.errorInstall)

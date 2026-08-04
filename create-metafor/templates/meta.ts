@@ -1,7 +1,5 @@
 export default MetaFor(/* @template nameJson */ "", { desc: /* @template descriptionJson */ "" })
-  .fields((field) => ({
-    error: field.string.optional({ label: /* @template errorLabelJson */ "" }),
-  }))
+  .fields((field) => (/* @template fieldsBody */ {}))
   .superposition({})
   .mass(() => ({}))
   .energy()

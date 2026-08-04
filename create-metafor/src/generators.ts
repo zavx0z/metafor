@@ -24,6 +24,8 @@ function loadTemplate(name: string): string {
 function render(template: string, data: Record<string, string>): string {
   return template
     .replace(/\/\*\s*@template\s+(\w+)\s*\*\/\s*""/g, (_, key) => data[key] || "")
+    .replace(/\/\*\s*@template\s+(\w+)\s*\*\/\s*\{\}/g, (_, key) => data[key] || "{}")
+    .replace(/\/\*\s*@template\s+(\w+)\s*\*\//g, (_, key) => data[key] || "")
     .replace(/{{(\w+)}}/g, (_, key) => data[key] || "")
 }
 
@@ -34,12 +36,23 @@ function jsString(value: string): string {
 /**
  * Сгенерировать meta.ts
  */
-export function generateMetaFile(name: string, description: string, errorLabel: string): string {
+export type MetaTemplateProfile = "standard" | "empty"
+
+export function generateMetaFile(
+  name: string,
+  description: string,
+  errorLabel: string,
+  profile: MetaTemplateProfile = "standard",
+): string {
   const template = loadTemplate("meta.ts")
   return render(template, {
     nameJson: jsString(name),
     descriptionJson: jsString(description),
-    errorLabelJson: jsString(errorLabel),
+    fieldsBody: profile === "empty"
+      ? "{}"
+      : `{
+    error: field.string.optional({ label: ${jsString(errorLabel)} }),
+  }`,
   })
 }
 
