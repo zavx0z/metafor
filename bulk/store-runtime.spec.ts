@@ -475,6 +475,30 @@ const gluon = (atom: number, fieldId: number, valueId: number): Particle => ({
 })
 
 describe("Bulk Store local centered-nested regroup", () => {
+  test("waits for the resulting Graviton before applying a structural Inflaton", () => {
+    const store = storeFor(baseManifest())
+    const before = structuredClone(store)
+    const {renderer} = recorder()
+
+    applyBulkStoreMessage(store, renderer, {parts: [{
+      part: "inflaton",
+      op: "add",
+      path: "matter",
+      ts: 1,
+      value: {
+        wimp: "test/root",
+        id: 4,
+        parent: null,
+        edgeSlot: "root",
+        position: 3,
+        kind: "wimp",
+        src: "test/new-child",
+      },
+    }]})
+
+    expect(store).toEqual(before)
+  })
+
   test("applies canonical Field copy/remove to exact Store slots and hides tombstones", () => {
     const store = storeFor(baseManifest())
     const {renderer} = recorder()

@@ -266,7 +266,7 @@ export const planMetaMatterPatch = (
         op: "remove",
         path: "matter",
         ts: timestamp,
-        value: {wimp: source.address, id: sourceIndex + 1},
+        value: {wimp: source.address, id: sourceIndex + 1, src: request.child},
       }]},
       sourceEdits: edits,
     }

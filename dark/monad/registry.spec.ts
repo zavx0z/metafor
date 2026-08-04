@@ -48,14 +48,21 @@ describe("Meta authoring capability and source registry", () => {
     expect(readMetaAuthoringLocalConfiguration({
       META_AUTHORING_RPC_SOURCE: SOURCE,
       META_AUTHORING_SCOPES: `${LADA}, ${CHAT}`,
-    })).toEqual({source: SOURCE, scopes: [LADA, CHAT]})
+      META_AUTHORING_CREATE_SCOPES: CHAT,
+    })).toEqual({source: SOURCE, scopes: [LADA, CHAT], createScopes: [CHAT]})
     expect(() => readMetaAuthoringLocalConfiguration({
       META_AUTHORING_RPC_SOURCE: SOURCE,
     })).toThrow("must be configured together")
     expect(() => readMetaAuthoringLocalConfiguration({
       META_AUTHORING_RPC_SOURCE: SOURCE,
       META_AUTHORING_SCOPES: `${LADA},${LADA}`,
+      META_AUTHORING_CREATE_SCOPES: LADA,
     })).toThrow("unique Meta addresses")
+    expect(() => readMetaAuthoringLocalConfiguration({
+      META_AUTHORING_RPC_SOURCE: SOURCE,
+      META_AUTHORING_SCOPES: LADA,
+      META_AUTHORING_CREATE_SCOPES: CHAT,
+    })).toThrow("must be a subset")
   })
 
   test("discovers only grants bound to the routed source identity", () => {

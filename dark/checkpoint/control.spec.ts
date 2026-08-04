@@ -67,6 +67,26 @@ describe("Dark checkpoint receipt persistence", () => {
     })
   })
 
+  test("reconstructs unresolved receipts for exact Force history recovery", () => {
+    const filename = join(root(), "control", "state.json")
+    const control = new DarkCheckpointControl(
+      filename,
+      {cutId: "cut-control", sequence: 0},
+      new Peer() as never,
+    )
+    control.recordAccepted(1, ["boundary", "bulk"])
+
+    const restored = new DarkCheckpointControl(
+      filename,
+      {cutId: "cut-control", sequence: 1},
+      new Peer() as never,
+    )
+    expect(restored.pendingDeliveries()).toEqual([
+      {cutId: "cut-control", domain: "boundary", sentOrdinal: 1, acceptanceSequence: 1},
+      {cutId: "cut-control", domain: "bulk", sentOrdinal: 1, acceptanceSequence: 1},
+    ])
+  })
+
   test("refuses a missing baseline for non-empty Particle history", () => {
     const filename = join(root(), "control", "state.json")
     expect(() => new DarkCheckpointControl(

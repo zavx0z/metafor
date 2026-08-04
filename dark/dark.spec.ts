@@ -251,17 +251,22 @@ describe("Dark incremental Inflaton projection", () => {
         src: child,
       },
     } as const
-    const owningRoot = applyAuthoredMatterProjection(acceptedAdd)
+    const owningRoot = await applyAuthoredMatterProjection(acceptedAdd)
     const afterAdd = new Map<string, MetaDSL>([
       [root, dsl({name: "Root", matter: [{kind: "wimp", src: child}], bulk: {view: ".root {}"}})],
       [child, dsl({name: "Child", bulk: {view: ".child {}"}})],
     ])
     const additions: BareParticle[] = []
+    const reconciliationReads: string[] = []
     await reconcileAuthoredMatterProjection(owningRoot, async (input) => {
       additions.push(bare(input.parts[0]!))
-    }, loader(afterAdd))
+    }, async (src) => {
+      reconciliationReads.push(src)
+      return await loader(afterAdd)(src)
+    })
 
-    expect(owningRoot).toBe(root)
+    expect(owningRoot.root).toBe(root)
+    expect(reconciliationReads).toEqual([child])
     expect(additions.some((part) => matches(part, "matter", root, 1))).toBe(false)
     expect(additions.map((part) => [part.op, part.path])).toEqual([
       ["add", "wimp"],
@@ -274,9 +279,9 @@ describe("Dark incremental Inflaton projection", () => {
       path: "matter",
       by: "dark",
       ts: 32,
-      value: {wimp: root, id: 1},
+      value: {wimp: root, id: 1, src: child},
     } as const
-    const removalRoot = applyAuthoredMatterProjection(acceptedRemove)
+    const removalRoot = await applyAuthoredMatterProjection(acceptedRemove)
     const removals: BareParticle[] = []
     await reconcileAuthoredMatterProjection(removalRoot, async (input) => {
       removals.push(bare(input.parts[0]!))
@@ -287,6 +292,85 @@ describe("Dark incremental Inflaton projection", () => {
       ["remove", "bulk"],
       ["remove", "wimp"],
     ])
+
+    const repeatedRemoval = await applyAuthoredMatterProjection(acceptedRemove)
+    const repeatedRemovals: BareParticle[] = []
+    await reconcileAuthoredMatterProjection(repeatedRemoval, async (input) => {
+      repeatedRemovals.push(bare(input.parts[0]!))
+    }, loader(before))
+    expect(repeatedRemovals).toEqual([])
+  })
+
+  test("seeds an addressed source parent before applying an accepted Matter patch", async () => {
+    const root = "test/dark-authored-detached"
+    const child = "test/dark-authored-detached-child"
+    const declarations = new Map<string, MetaDSL>([[root, dsl({name: "Detached"})]])
+    const reads: string[] = []
+    const owningRoot = await applyAuthoredMatterProjection({
+      part: "inflaton",
+      op: "add",
+      path: "matter",
+      by: "dark",
+      ts: 33,
+      value: {
+        wimp: root,
+        id: 1,
+        parent: null,
+        edgeSlot: "root",
+        position: 0,
+        kind: "wimp",
+        src: child,
+      },
+    }, async (src) => {
+      reads.push(src)
+      return await loader(declarations)(src)
+    })
+
+    expect(owningRoot.root).toBe(root)
+    expect(reads).toEqual([root])
+  })
+
+  test("reapplies an accepted move after its final projection state already exists", async () => {
+    const root = "test/dark-authored-move-root"
+    const nested = "test/dark-authored-move-nested"
+    const child = "test/dark-authored-move-child"
+    const declarations = new Map<string, MetaDSL>([
+      [root, dsl({
+        name: "Root",
+        matter: [{kind: "wimp", src: nested}, {kind: "wimp", src: child}],
+      })],
+      [nested, dsl({name: "Nested"})],
+      [child, dsl({name: "Child"})],
+    ])
+    await read(root, loader(declarations))
+    const acceptedMove = {
+      part: "inflaton",
+      op: "move",
+      path: "matter",
+      by: "dark",
+      ts: 34,
+      from: `${root}#2`,
+      value: {
+        wimp: nested,
+        id: 1,
+        parent: null,
+        edgeSlot: "root",
+        position: 0,
+        kind: "wimp",
+        src: child,
+      },
+    } as const
+
+    const first = await applyAuthoredMatterProjection(acceptedMove)
+    await reconcileAuthoredMatterProjection(first, async () => {})
+    const repeated = await applyAuthoredMatterProjection(acceptedMove)
+    const repeatedParticles: Particle[] = []
+    await reconcileAuthoredMatterProjection(repeated, async (input) => {
+      repeatedParticles.push(input.parts[0]!)
+    })
+
+    expect(repeated).toEqual(first)
+    expect(repeatedParticles).toEqual([])
   })
 
   test("yields the parent WIMP edge before the next WIMP layer starts loading", async () => {

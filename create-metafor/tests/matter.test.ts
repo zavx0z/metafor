@@ -131,7 +131,7 @@ describe("Matter source patch", () => {
       op: "remove",
       path: "matter",
       ts: 29,
-      value: {wimp: ROOT, id: 1},
+      value: {wimp: ROOT, id: 1, src: CHILD},
     })
     expect(plan.sourceEdits[0]!.afterSource).not.toContain(`src="${CHILD}"`)
   })

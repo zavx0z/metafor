@@ -372,29 +372,99 @@ const projectionRoot = (address: string): string | null => {
   return null
 }
 
-export const applyAuthoredMatterProjection = (part: SourcedParticle): string => {
+const ensureAuthoredMatterParent = async (
+  address: string,
+  readMeta: MetaLoader,
+): Promise<void> => {
+  if (projection.has(address)) return
+  const owner = projectionRoot(address)
+  const stream = loadMetaDeclarationGraph(address, readMeta)
+  const first = await stream.next()
+  if (first.done || first.value.address !== address) {
+    throw new Error(`Accepted Matter parent source is unavailable: ${address}`)
+  }
+  projection.set(address, declaration(address, first.value.dsl, first.value.references))
+  if (!owner) roots.add(address)
+  await stream.return(undefined)
+}
+
+export type AuthoredMatterProjectionChange = {
+  root: string
+  operation: "add" | "move" | "remove"
+  child: string
+}
+
+const authoredWimpChild = (entity: DeclarationEntity | undefined, location: string): string => {
+  if (
+    !entity ||
+    entity.path !== "matter" ||
+    entity.value.kind !== "wimp" ||
+    typeof entity.value.src !== "string" ||
+    !canonicalMetaSource(entity.value.src)
+  ) throw new Error(`Accepted Matter child is unavailable in Dark projection: ${location}`)
+  return entity.value.src
+}
+
+export const applyAuthoredMatterProjection = async (
+  part: SourcedParticle,
+  readMeta: MetaLoader = loadMeta,
+): Promise<AuthoredMatterProjectionChange> => {
   const target = authoredMatterTarget(part)
   const source = authoredMatterSource(part)
+  const operation: AuthoredMatterProjectionChange["operation"] = part.op === "add"
+    ? "add"
+    : part.op === "move"
+      ? "move"
+      : "remove"
+  if (source) await ensureAuthoredMatterParent(source.wimp, readMeta)
+  await ensureAuthoredMatterParent(target.wimp, readMeta)
   const root = projectionRoot(source?.wimp ?? target.wimp) ?? projectionRoot(target.wimp)
   if (!root) throw new Error(`Accepted Matter parent is outside the current Dark projection: ${target.wimp}`)
+  let child = typeof target.value.src === "string" && canonicalMetaSource(target.value.src)
+    ? target.value.src
+    : null
 
   if (part.op === "move") {
-    const current = projection.get(source!.wimp)
-    if (!current) throw new Error(`Accepted Matter source is unavailable in Dark projection: ${source!.wimp}`)
-    current.entities = current.entities.filter((entity) =>
-      entity.key !== `matter\u0000${source!.wimp}\u0000${source!.id}`
+    if (!child) throw new Error("Accepted Matter target has no canonical child source")
+    const sourceProjection = projection.get(source!.wimp)
+    const targetProjection = projection.get(target.wimp)
+    if (!sourceProjection) throw new Error(`Accepted Matter source is unavailable in Dark projection: ${source!.wimp}`)
+    if (!targetProjection) throw new Error(`Accepted Matter target is unavailable in Dark projection: ${target.wimp}`)
+    const sourceKey = `matter\u0000${source!.wimp}\u0000${source!.id}`
+    const targetKey = `matter\u0000${target.wimp}\u0000${target.id}`
+    const sourceEntity = sourceProjection.entities.find((entity) => entity.key === sourceKey)
+    if (!sourceEntity) {
+      const targetEntity = targetProjection.entities.find((entity) => entity.key === targetKey)
+      if (targetEntity && same(targetEntity.value, target.value)) {
+        return {root, operation, child}
+      }
+    }
+    const sourceChild = authoredWimpChild(
+      sourceEntity,
+      `${source!.wimp}#${source!.id}`,
     )
-    refreshProjectionChildren(current)
+    if (child !== sourceChild) throw new Error("Accepted Matter move changes its child source")
+    child = sourceChild
+    sourceProjection.entities = sourceProjection.entities.filter((entity) =>
+      entity.key !== sourceKey
+    )
+    refreshProjectionChildren(sourceProjection)
   } else if (part.op === "remove") {
     const current = projection.get(target.wimp)
     if (!current) throw new Error(`Accepted Matter source is unavailable in Dark projection: ${target.wimp}`)
+    const key = `matter\u0000${target.wimp}\u0000${target.id}`
+    child = child ?? authoredWimpChild(
+      current.entities.find((entity) => entity.key === key),
+      `${target.wimp}#${target.id}`,
+    )
     current.entities = current.entities.filter((entity) =>
-      entity.key !== `matter\u0000${target.wimp}\u0000${target.id}`
+      entity.key !== key
     )
     refreshProjectionChildren(current)
-    return root
+    return {root, operation, child}
   }
 
+  if (!child) throw new Error("Accepted Matter target has no canonical child source")
   const current = projection.get(target.wimp)
   if (!current) throw new Error(`Accepted Matter target is unavailable in Dark projection: ${target.wimp}`)
   const entity: DeclarationEntity = {
@@ -408,17 +478,93 @@ export const applyAuthoredMatterProjection = (part: SourcedParticle): string => 
   }
   if (!existing) current.entities.push(entity)
   refreshProjectionChildren(current)
-  return root
+  return {root, operation, child}
 }
 
 export const reconcileAuthoredMatterProjection = async (
-  root: string,
+  change: AuthoredMatterProjectionChange,
   accept: (input: ForceMessageInput) => Promise<void>,
   readMeta: MetaLoader = loadMeta,
 ): Promise<void> => {
-  for await (const particle of matterParticles(root, readMeta)) {
+  const send = async (particle: Particle): Promise<void> => {
     const {by: _by, ...input} = particle
     await accept({parts: [input]})
+  }
+  const load = async (address: string): Promise<WimpProjection> => {
+    const stream = loadMetaDeclarationGraph(address, readMeta)
+    const first = await stream.next()
+    if (first.done || first.value.address !== address) {
+      throw new Error(`Accepted Matter child source is unavailable: ${address}`)
+    }
+    await stream.return(undefined)
+    return declaration(address, first.value.dsl, first.value.references)
+  }
+  const seedSubtree = async (emit: boolean): Promise<void> => {
+    const pending = [change.child]
+    const queued = new Set(pending)
+    for (let index = 0; index < pending.length; index++) {
+      const address = pending[index]!
+      let current = projection.get(address)
+      if (!current) {
+        const loaded = await load(address)
+        if (emit) {
+          current = {entities: [], children: []}
+          projection.set(address, current)
+          for (const entity of loaded.entities) {
+            await send(add(entity))
+            current.entities.push(entity)
+          }
+          refreshProjectionChildren(current)
+        } else {
+          current = loaded
+          projection.set(address, current)
+        }
+      }
+      for (const child of current.children) {
+        if (queued.has(child)) continue
+        queued.add(child)
+        pending.push(child)
+      }
+    }
+  }
+
+  if (change.operation === "add") {
+    await seedSubtree(true)
+    return
+  }
+  if (change.operation === "move") {
+    await seedSubtree(false)
+    return
+  }
+
+  if (!projection.has(change.child)) return
+  if (projectionRoot(change.child)) return
+  const order: string[] = []
+  const visit = (address: string): void => {
+    if (order.includes(address)) return
+    order.push(address)
+    for (const child of projection.get(address)?.children ?? []) visit(child)
+  }
+  visit(change.child)
+  const retained = new Set(projectionOrder(projection, false))
+  const dropping = order.filter((address) => !retained.has(address))
+  for (const address of dropping) {
+    const current = projection.get(address)
+    if (!current) continue
+    for (const entity of current.entities.toReversed()) {
+      if (entity.path !== "matter") continue
+      await send(remove(entity))
+      current.entities = current.entities.filter((candidate) => candidate.key !== entity.key)
+    }
+  }
+  for (const address of dropping.toReversed()) {
+    const current = projection.get(address)
+    if (!current) continue
+    for (const entity of current.entities.toReversed()) {
+      await send(remove(entity))
+      current.entities = current.entities.filter((candidate) => candidate.key !== entity.key)
+    }
+    projection.delete(address)
   }
 }
 

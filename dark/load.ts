@@ -1,5 +1,5 @@
+import {readFile} from "node:fs/promises"
 import {resolve} from "node:path"
-import {pathToFileURL} from "node:url"
 import type {MetaDSL} from "@metafor/types/metafor/schema"
 import settings from "./settings.yml"
 
@@ -25,24 +25,26 @@ export const resolveMetaPath = (address: string): string => {
   return resolve(import.meta.dir, "..", CLUSTER, address, MODULE)
 }
 
-const importMeta = async (sourcePath: string): Promise<MetaDSL> => {
-  const module = await import(sourcePath)
-  return (module.default ?? module) as MetaDSL
+const transpiler = new Bun.Transpiler({loader: "ts", target: "bun"})
+
+export const evaluateMetaSource = async (source: string): Promise<MetaDSL> => {
+  const javascript = transpiler.transformSync(source)
+  const moduleUrl = URL.createObjectURL(new Blob([javascript], {type: "text/javascript"}))
+  try {
+    const module = await import(moduleUrl)
+    return (module.default ?? module) as MetaDSL
+  } finally {
+    URL.revokeObjectURL(moduleUrl)
+  }
 }
 
 const errorMessage = (error: unknown): string =>
   error instanceof Error ? error.message : String(error)
 
-export const metaImportSpecifier = (address: string, readId = `${Date.now()}-${crypto.randomUUID()}`): string => {
-  const sourceUrl = pathToFileURL(resolveMetaPath(address))
-  sourceUrl.searchParams.set("metafor-read", readId)
-  return sourceUrl.href
-}
-
 export const loadMeta = async (address: string): Promise<MetaDSL> => {
-  const sourcePath = metaImportSpecifier(address)
+  const sourcePath = resolveMetaPath(address)
   try {
-    return await importMeta(sourcePath)
+    return await evaluateMetaSource(await readFile(sourcePath, "utf8"))
   } catch (error) {
     throw new Error(`Не удалось загрузить DSL: ${sourcePath} — ${errorMessage(error)}`)
   }

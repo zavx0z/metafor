@@ -89,7 +89,10 @@ export const lifecycle = new ForceLifecycle(forceHistory, checkpoint ?? undefine
 const authoringRegistry = new MetaAuthoringRegistry(authoringConfiguration
   ? [[
       authoringConfiguration.source,
-      metaAuthoringCapabilitiesForScopes(authoringConfiguration.scopes),
+      metaAuthoringCapabilitiesForScopes(
+        authoringConfiguration.scopes,
+        authoringConfiguration.createScopes,
+      ),
     ]]
   : [])
 monad.setTimeControl(new DarkForceTimeController(lifecycle, checkpoint))

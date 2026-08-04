@@ -5796,6 +5796,7 @@ export const applyBulkWimpRemove = (
 }
 
 const assertRelationalDeclarationIdentity = (part: Particle): void => {
+  if (part.part !== "graviton") return
   if (typeof part.path !== "string" || !declarationPaths.has(part.path)) return
   if (part.path === "bulk") {
     throw new Error("Bulk Store excludes bulk/view_css declarations")

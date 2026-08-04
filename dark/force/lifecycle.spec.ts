@@ -92,6 +92,57 @@ describe("ForceLifecycle", () => {
     })
   })
 
+  test("replays one accepted history entry only to unresolved checkpoint domains", async () => {
+    recording = createRecordingChannels()
+    const receipt = (domain: "boundary" | "bulk") => ({
+      cutId: "recovery-cut",
+      domain,
+      sentOrdinal: 1,
+      acceptanceSequence: 1,
+    })
+    const prepared: unknown[] = []
+    const applied: unknown[] = []
+    lifecycle = new ForceLifecycle({
+      accept() {
+        throw new Error("recovery must not append a new history entry")
+      },
+      read() {
+        return [{
+          schema: "metafor/dark-force-particle/v1",
+          id: "recovery-cut:1",
+          sequence: 1,
+          acceptedAt: "2026-08-04T12:00:00.000Z",
+          particle: {
+            part: "inflaton",
+            op: "add",
+            path: "matter",
+            by: "dark",
+            ts: 1,
+            value: {wimp: "zavx0z/lada", id: 4, kind: "wimp", src: "zavx0z/lada-test"},
+          },
+        }]
+      },
+    }, {
+      pendingDeliveries: () => [receipt("boundary"), receipt("bulk")],
+      recordAccepted() { throw new Error("recovery must not record acceptance") },
+      async prepare(receipts) { prepared.push(structuredClone(receipts)) },
+      async waitApplied(receipts) { applied.push(structuredClone(receipts)) },
+      acceptedFrom() { throw new Error("recovery must not advance an origin") },
+    })
+
+    lifecycle.start(recording.channels)
+    for (const domain of forceDomains) lifecycle.channelReady(domain)
+    expect(lifecycle.status().state).toBe("recovering")
+    expect(await lifecycle.waitUntilStarted()).toMatchObject({ok: true, state: "running"})
+    expect(recording.deliveries("boundary")).toHaveLength(1)
+    expect(recording.deliveries("bulk")).toHaveLength(1)
+    expect(recording.deliveries("dark")).toEqual([])
+    expect(recording.deliveries("matrix")).toEqual([])
+    expect(recording.deliveries("energy")).toEqual([])
+    expect(prepared).toHaveLength(1)
+    expect(applied).toEqual(prepared)
+  })
+
   test("accepts an agent Particle only in running state", async () => {
     expect(await lifecycle.acceptAgentParticle(agentInflaton(1))).toMatchObject({
       ok: false,

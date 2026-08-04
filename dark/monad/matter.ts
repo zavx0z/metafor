@@ -15,6 +15,7 @@ import {parseMetaAddress, type MetaAddress} from "@metafor/types/metafor/graph"
 import type {ForceMessageInput} from "shared/protocol/force/message"
 import type {MatterParticle} from "@metafor/types/metafor/matter"
 import type {SourcedParticle} from "shared/protocol/force/particle"
+import type {AuthoredMatterProjectionChange} from "../dark.ts"
 import {
   discardSourceCandidates,
   prepareSourceCandidates,
@@ -59,8 +60,8 @@ export type MatterAuthoringParentReader = (
 export type MatterAuthoringSourcePath = (address: MetaAddress) => string
 
 export interface MatterAuthoringProjection {
-  apply(particle: SourcedParticle): string | null
-  reconcile(root: string): Promise<void>
+  apply(particle: SourcedParticle): AuthoredMatterProjectionChange | null | Promise<AuthoredMatterProjectionChange | null>
+  reconcile(change: AuthoredMatterProjectionChange): Promise<void>
 }
 
 export class MatterAuthoringError extends Error {
@@ -238,9 +239,9 @@ export class MatterAuthoringService {
     sourceProjections: MetaMatterSourceProjectionV1[],
     particle: SourcedParticle,
   ): Promise<MetaMatterApplyReceipt> {
-    let root: string | null
+    let change: AuthoredMatterProjectionChange | null
     try {
-      root = this.projection.apply(particle)
+      change = await this.projection.apply(particle)
     } catch (error) {
       return pendingReceipt(operationId, requestDigest, acceptance, sourceProjections, error)
     }
@@ -269,9 +270,9 @@ export class MatterAuthoringService {
           : "already_published" as const,
         files,
       }
-      if (root !== null) {
+      if (change !== null) {
         try {
-          await this.projection.reconcile(root)
+          await this.projection.reconcile(change)
         } catch (error) {
           return {
             ...receiptBase(operationId, requestDigest, acceptance, sourceProjections),

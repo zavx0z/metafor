@@ -178,7 +178,8 @@ export const initializeCheckpointControlBaseline = (
  *
  * Its file is control-plane recovery state only. It contains no Particle or
  * snapshot data. History acceptance and this state are both durable before
- * routing; any crash with an unacknowledged delivery fails closed on restart.
+ * routing. Unacknowledged deliveries remain exact receipts that startup can
+ * replay from the matching immutable Force history entry.
  */
 export class DarkCheckpointControl {
   readonly filename: string
@@ -208,11 +209,6 @@ export class DarkCheckpointControl {
     ) throw new Error("Checkpoint control state does not match Dark Force history")
     this.cutId = history.cutId
     this.barrier = new CheckpointAppliedThroughBarrier(this.cutId, state.barrier)
-    for (const frontier of this.barrier.frontier().domains) {
-      if (frontier.appliedOrdinal !== frontier.sentOrdinal) {
-        throw new Error(`Checkpoint control has an unresolved ${frontier.domain} delivery after restart`)
-      }
-    }
     for (const entry of state.acceptedOutgoing) this.#acceptedOutgoing.set(entry.domain, entry.ordinal)
 
     peer.expose(FORCE_CHECKPOINT_SESSION_METHOD, async (input) => this.session(input))
@@ -226,6 +222,15 @@ export class DarkCheckpointControl {
     const receipts = this.barrier.recordAccepted(acceptanceSequence, destinations)
     this.persist()
     return receipts
+  }
+
+  pendingDeliveries(): CheckpointDeliveryReceipt[] {
+    return this.barrier.state().domains.flatMap((domain) =>
+      domain.receipts.slice(domain.appliedOrdinal).map((receipt) => structuredClone(receipt))
+    ).toSorted((left, right) =>
+      left.acceptanceSequence - right.acceptanceSequence ||
+      forceDomains.indexOf(left.domain) - forceDomains.indexOf(right.domain)
+    )
   }
 
   async prepare(receipts: readonly CheckpointDeliveryReceipt[]): Promise<void> {

@@ -12,7 +12,7 @@ import type {
   MetaMatterAuthoringCauseV1,
 } from "@metafor/types/metafor/authoring"
 
-export type ForceLifecycleState = "created" | "starting" | "running" | "error" | "stopped"
+export type ForceLifecycleState = "created" | "starting" | "recovering" | "running" | "error" | "stopped"
 
 export type ForceLifecycleStatus = {
   ok: boolean
@@ -42,6 +42,7 @@ export type ForceAuthoringDecision =
   | {ok: false; reason: "not_running" | "admission_closed" | "runtime_error"; error: string}
 
 export interface ForceCheckpointTransfer {
+  pendingDeliveries(): CheckpointDeliveryReceipt[]
   recordAccepted(
     acceptanceSequence: number,
     destinations: readonly ForceDomain[],
@@ -62,9 +63,10 @@ export class ForceLifecycle {
   #error: string | null = null
   #connectedDomains = new Set<ForceDomain>()
   #externalAdmissionClosed = false
+  #startup: Promise<void> = Promise.resolve()
 
   constructor(
-    private readonly history: Pick<DarkForceHistory, "accept">,
+    private readonly history: Pick<DarkForceHistory, "accept"> & Partial<Pick<DarkForceHistory, "read">>,
     private readonly checkpoint?: ForceCheckpointTransfer,
   ) {}
 
@@ -95,11 +97,26 @@ export class ForceLifecycle {
    * состояние. В `error` и `stopped` подключение не восстанавливает Вселенную.
    */
   channelReady(domain: ForceDomain): ForceLifecycleStatus {
-    if (this.#state !== "starting" && this.#state !== "running") return this.status()
+    if (this.#state !== "starting" && this.#state !== "recovering" && this.#state !== "running") return this.status()
     this.#connectedDomains.add(domain)
     if (this.#state === "starting" && forceDomains.every((required) => this.#connectedDomains.has(required))) {
-      this.#state = "running"
+      const pending = this.checkpoint?.pendingDeliveries() ?? []
+      if (pending.length === 0) {
+        this.#state = "running"
+      } else {
+        this.#state = "recovering"
+        this.#startup = this.#recover(pending).then(() => {
+          if (this.#state === "recovering") this.#state = "running"
+        }).catch((error) => {
+          this.#failStop("force", `could not recover accepted deliveries: ${this.#reason(error)}`)
+        })
+      }
     }
+    return this.status()
+  }
+
+  async waitUntilStarted(): Promise<ForceLifecycleStatus> {
+    await this.#startup
     return this.status()
   }
 
@@ -192,7 +209,7 @@ export class ForceLifecycle {
    * выполняет fail-stop. В остальных состояниях Particle не проходит дальше.
    */
   async acceptParticle(domain: ForceDomain, value: SourcedForceMessage): Promise<ForceLifecycleDecision> {
-    if (this.#state !== "running") {
+    if (this.#state !== "running" && this.#state !== "recovering") {
       return {ok: false, reason: "not_running", error: this.#blockedReason()}
     }
     try {
@@ -201,6 +218,32 @@ export class ForceLifecycle {
     } catch (error) {
       this.#failStop(domain, `could not transfer a Particle: ${this.#reason(error)}`)
       return {ok: false, reason: "runtime_error", error: this.#blockedReason()}
+    }
+  }
+
+  async #recover(pending: readonly CheckpointDeliveryReceipt[]): Promise<void> {
+    if (!this.checkpoint || !this.history.read) {
+      throw new Error("Force recovery requires checkpoint receipts and readable history")
+    }
+    const sequences = [...new Set(pending.map(({acceptanceSequence}) => acceptanceSequence))].toSorted((a, b) => a - b)
+    for (const sequence of sequences) {
+      const [entry] = this.history.read({fromSequence: sequence, toSequence: sequence, limit: 1})
+      if (!entry || entry.sequence !== sequence) {
+        throw new Error(`Force history entry ${sequence} is unavailable for recovery`)
+      }
+      const origin: ForceOrigin = entry.particle.by === "agent"
+        ? "agent"
+        : forceDomains.includes(entry.particle.by as ForceDomain)
+          ? entry.particle.by as ForceDomain
+          : (() => { throw new Error(`Force history entry ${sequence} has an invalid source`) })()
+      const expected = new Set(particleDestinations({parts: [entry.particle]}, origin))
+      const receipts = pending.filter((receipt) => receipt.acceptanceSequence === sequence)
+      if (receipts.some(({domain}) => !expected.has(domain))) {
+        throw new Error(`Checkpoint recovery destinations do not match Force history entry ${sequence}`)
+      }
+      await this.checkpoint.prepare(receipts)
+      for (const receipt of receipts) force$[receipt.domain].send({parts: [entry.particle]})
+      await this.checkpoint.waitApplied(receipts)
     }
   }
 

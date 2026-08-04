@@ -121,6 +121,13 @@ Dark Monad может предоставлять read/query service над эт�
 той же строке cause как единственную привязку request к принятому изменению;
 отдельный operation-service log для Matter не создаётся.
 
+Если contour завершился после durable acceptance, но до applied-ack одного из
+доменов, startup берёт незакрытые receipt из checkpoint control и доставляет
+именно сохранённую Particle из Force history только этим доменам. Новая
+acceptance и новый пользовательский patch не создаются; уже подтверждённые
+домены повторной доставки не получают. Обычный ingress остаётся закрыт до
+завершения recovery, а несоответствие receipt и history приводит к fail-stop.
+
 ## Текущая пауза и один шаг
 
 Dark Monad уже публикует `dark.force.pause`, `dark.force.step`,

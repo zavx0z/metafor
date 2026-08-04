@@ -21,6 +21,7 @@ export type MetaAuthoringSourcePath = (address: MetaAddress) => string
 export interface MetaAuthoringLocalConfiguration {
   readonly source: string
   readonly scopes: MetaAddress[]
+  readonly createScopes: MetaAddress[]
 }
 
 export class MetaAuthoringRegistryError extends Error {
@@ -41,11 +42,12 @@ const sortCapabilities = (
 
 export const metaAuthoringCapabilitiesForScopes = (
   scopes: readonly MetaAddress[],
+  createScopes: readonly MetaAddress[] = scopes,
 ): MetaAuthoringCapability[] => [
   {
     capability: META_CREATE_CAPABILITY,
     method: META_CREATE_METHOD,
-    scopes: [...scopes],
+    scopes: [...createScopes],
     operationClass: "create",
     liveState: false,
     gitCommit: false,
@@ -73,21 +75,30 @@ export const readMetaAuthoringLocalConfiguration = (
 ): MetaAuthoringLocalConfiguration | null => {
   const source = environment.META_AUTHORING_RPC_SOURCE?.trim() ?? ""
   const rawScopes = environment.META_AUTHORING_SCOPES?.trim() ?? ""
-  if (!source && !rawScopes) return null
-  if (!source || !rawScopes || source !== environment.META_AUTHORING_RPC_SOURCE) {
+  const rawCreateScopes = environment.META_AUTHORING_CREATE_SCOPES?.trim() ?? ""
+  if (!source && !rawScopes && !rawCreateScopes) return null
+  if (!source || !rawScopes || !rawCreateScopes || source !== environment.META_AUTHORING_RPC_SOURCE) {
     throw new MetaAuthoringRegistryError(
-      "META_AUTHORING_RPC_SOURCE and META_AUTHORING_SCOPES must be configured together",
+      "META_AUTHORING_RPC_SOURCE, META_AUTHORING_SCOPES and META_AUTHORING_CREATE_SCOPES must be configured together",
     )
   }
-  const scopes = rawScopes.split(",").map((value) => parseMetaAddress(value.trim()))
-  if (scopes.some((value) => value === null)) {
-    throw new MetaAuthoringRegistryError("META_AUTHORING_SCOPES contains an invalid Meta address")
+  const addresses = (raw: string, name: string): MetaAddress[] => {
+    const parsed = raw.split(",").map((value) => parseMetaAddress(value.trim()))
+    if (parsed.some((value) => value === null)) {
+      throw new MetaAuthoringRegistryError(`${name} contains an invalid Meta address`)
+    }
+    const normalized = parsed as MetaAddress[]
+    if (normalized.length === 0 || new Set(normalized).size !== normalized.length) {
+      throw new MetaAuthoringRegistryError(`${name} must contain unique Meta addresses`)
+    }
+    return normalized.sort((left, right) => left.localeCompare(right))
   }
-  const normalized = scopes as MetaAddress[]
-  if (normalized.length === 0 || new Set(normalized).size !== normalized.length) {
-    throw new MetaAuthoringRegistryError("META_AUTHORING_SCOPES must contain unique Meta addresses")
+  const scopes = addresses(rawScopes, "META_AUTHORING_SCOPES")
+  const createScopes = addresses(rawCreateScopes, "META_AUTHORING_CREATE_SCOPES")
+  if (createScopes.some((address) => !scopes.includes(address))) {
+    throw new MetaAuthoringRegistryError("META_AUTHORING_CREATE_SCOPES must be a subset of META_AUTHORING_SCOPES")
   }
-  return {source, scopes: normalized.sort((left, right) => left.localeCompare(right))}
+  return {source, scopes, createScopes}
 }
 
 export class MetaAuthoringRegistry {

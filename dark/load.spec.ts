@@ -1,7 +1,7 @@
 import {describe, expect, test} from "bun:test"
 import {resolve} from "node:path"
 
-import {canonicalMetaSource, metaImportSpecifier, resolveMetaPath} from "./load.ts"
+import {canonicalMetaSource, evaluateMetaSource, resolveMetaPath} from "./load.ts"
 
 describe("Dark Meta source addressing", () => {
   test("accepts exactly one owner and one peer repository segment", () => {
@@ -35,12 +35,18 @@ describe("Dark Meta source addressing", () => {
     )
   })
 
-  test("gives every test read a fresh ESM module identity", () => {
-    const first = metaImportSpecifier("zavx0z/capsule", "read-1")
-    const second = metaImportSpecifier("zavx0z/capsule", "read-2")
-
-    expect(first).not.toBe(second)
-    expect(first).toContain("/cluster/zavx0z/capsule/meta.ts?metafor-read=read-1")
-    expect(second).toContain("/cluster/zavx0z/capsule/meta.ts?metafor-read=read-2")
+  test("evaluates identical source bytes as a fresh module on every read", async () => {
+    const key = "__metaforFreshDeclarationRead"
+    const global = globalThis as typeof globalThis & {[key: string]: number | undefined}
+    const source = `
+      globalThis.${key} = (globalThis.${key} ?? 0) + 1
+      export default {name: String(globalThis.${key})}
+    `
+    try {
+      expect((await evaluateMetaSource(source)).name).toBe("1")
+      expect((await evaluateMetaSource(source)).name).toBe("2")
+    } finally {
+      delete global[key]
+    }
   })
 })

@@ -19,8 +19,9 @@ RPC payload не объявляет source identity: её добавляет Mon
 
 Dark запускается без authoring grants по умолчанию. Локальный source identity и
 его точные scopes включаются только совместной настройкой
-`META_AUTHORING_RPC_SOURCE` и `META_AUTHORING_SCOPES`. Настроенный Matter
-authoring запрещён при отключённом checkpoint applied-through plane.
+`META_AUTHORING_RPC_SOURCE`, `META_AUTHORING_SCOPES` и более узкого
+`META_AUTHORING_CREATE_SCOPES`. Настроенный Matter authoring запрещён при
+отключённом checkpoint applied-through plane.
 
 Каждая write operation использует закрытый envelope:
 

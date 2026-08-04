@@ -288,7 +288,7 @@ describe("Matter authoring service", () => {
     const current = new Map<MetaAddress, readonly MatterParticle[]>([[ROOT, []]])
     let reconciliations = 0
     const test = await fixture(current, undefined, {
-      apply: () => ROOT,
+      apply: () => ({root: ROOT, operation: "add", child: CHILD}),
       async reconcile() {
         reconciliations += 1
         if (reconciliations === 1) throw new Error("declaration delivery interrupted")
