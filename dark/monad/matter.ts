@@ -1,4 +1,3 @@
-import {createHash} from "node:crypto"
 import "../.."
 import {
   META_AUTHORING_CONTRACT_VERSION,
@@ -9,7 +8,6 @@ import {
   type MetaForceAcceptanceIdentity,
   type MetaMatterApplyReceipt,
   type MetaMatterAuthoringCauseV1,
-  type MetaMatterRequest,
   type MetaMatterSourceProjectionV1,
   type MetaSourceRevision,
 } from "@metafor/types/metafor/authoring"
@@ -30,6 +28,9 @@ import {
 import {loadMeta, resolveMetaPath} from "../load.ts"
 import type {DarkForceHistoryParticle} from "../force/history.ts"
 import type {ForceAuthoringDecision} from "../force/lifecycle.ts"
+import {metaAuthoringRequestDigest} from "./authoring.ts"
+
+export {metaAuthoringRequestDigest} from "./authoring.ts"
 
 export interface MatterAuthoringHistory {
   findAuthoring(rpcSource: string, operationId: string): DarkForceHistoryParticle | null
@@ -59,17 +60,6 @@ export type MatterAuthoringSourcePath = (address: MetaAddress) => string
 export class MatterAuthoringError extends Error {
   override readonly name = "MatterAuthoringError"
 }
-
-const canonicalJson = (value: unknown): string => {
-  if (value === null || typeof value !== "object") return JSON.stringify(value)
-  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`
-  return `{${Object.keys(value as Record<string, unknown>).sort().map((key) =>
-    `${JSON.stringify(key)}:${canonicalJson((value as Record<string, unknown>)[key])}`
-  ).join(",")}}`
-}
-
-export const metaAuthoringRequestDigest = (request: MetaMatterRequest): MetaAuthoringRequestDigest =>
-  `sha256:${createHash("sha256").update(canonicalJson(request)).digest("hex")}` as MetaAuthoringRequestDigest
 
 const requestedRevisions = (input: unknown): Map<MetaAddress, MetaSourceRevision> => {
   const result = new Map<MetaAddress, MetaSourceRevision>()

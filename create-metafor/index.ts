@@ -2,6 +2,14 @@ export {MetaFor} from "../metafor.ts"
 export {validateMatter} from "../matter.ts"
 export {createMetaforSqliteFixture} from "./fixture/index.ts"
 export {
+  MetaCreatePatchError,
+  materializeMetaCreatePatch,
+  type MaterializeMetaCreatePatchOptions,
+  type MetaCreatedRepositoryState,
+  type MetaCreatePatchErrorCode,
+  type MetaCreatePatchReceipt,
+} from "./src/create.ts"
+export {
   MetaPackageTemplateError,
   buildMetaPackageTemplate,
   validateMetaPackageTemplate,

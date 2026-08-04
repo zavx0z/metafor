@@ -108,6 +108,23 @@ export interface MetaCreateRequest extends MetaAuthoringWriteEnvelope {
   target: "absent"
 }
 
+export interface MetaCreateReceipt {
+  contractVersion: typeof META_AUTHORING_CONTRACT_VERSION
+  operationId: MetaAuthoringOperationId
+  requestDigest: MetaAuthoringRequestDigest
+  phase: "created"
+  outcome: "created" | "already_created"
+  address: MetaAddress
+  sourceRevision: MetaSourceRevision
+  files: string[]
+  repository: {
+    initialized: true
+    branch: "main"
+    head: null
+    staged: false
+  }
+}
+
 export interface MetaMatterSourcePrecondition {
   address: MetaAddress
   revision: MetaSourceRevision

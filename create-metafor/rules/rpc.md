@@ -23,8 +23,12 @@ RPC payload не объявляет source identity: её добавляет Mon
 contractVersion + operationId + capability + exact operation payload
 ```
 
-Provider отклоняет неизвестные поля. Один `operationId` навсегда связывается с
-одним нормализованным request digest; повтор с другим payload запрещён.
+Provider отклоняет неизвестные поля. Для live Matter пара
+`(RPC source identity, operationId)` навсегда связывается в Force history с
+одним нормализованным request digest; повтор с другим payload запрещён. Для
+source-only Create durable idempotency identity является пара
+`(target address, normalized target patch)`: глобальный Create operation
+journal ради привязки одного `operationId` не создаётся.
 Успешный receipt содержит `contractVersion`, `operationId`, нормализованный
 request digest, достигнутую phase и точные source revisions. Для live operation
 он ссылается на causal Force acceptance identity, где уже хранится единственный
@@ -67,16 +71,22 @@ template path. Request обязан содержать:
 - precondition `target: absent`.
 
 Provider сначала строит и проверяет полный набор template files без изменения
-целевого пути, затем атомарно публикует один новый peer repository. RPC не
-запускает второй генератор, не создаёт вложенную Meta и не материализует новый
-пакет как самостоятельный runtime root.
+целевого пути, затем заполняет deterministic sibling candidate, повторно
+проверяет его и атомарно переименовывает в один новый peer repository. Уже
+существующие bytes candidate можно продолжить только при их точном совпадении с
+target patch. RPC не запускает второй генератор, не создаёт вложенную Meta и не
+материализует новый пакет как самостоятельный runtime root.
 
-Создание Git repository входит в создание canonical peer. `git add`, commit,
-push и публикация не выполняются: для них нужна отдельная capability.
+Создание пустого Git repository входит в target patch canonical peer. Install,
+`git add`, commit, push и публикация не выполняются: для них нужна отдельная
+capability.
 
 Receipt возвращает address, source revision, созданные относительные files и
-фактическое состояние Git repository. Повтор того же `operationId` возвращает
-тот же outcome; другой запрос к существующему target отклоняется.
+фактическое состояние Git repository. Точный завершённый target является
+durable evidence результата и повтор того же target patch возвращает
+`already_created`. Другой target patch к существующему address отклоняется.
+Create не записывает фиктивную Particle в Force history и не создаёт рядом
+отдельный operation journal.
 
 ## Изменение Matter
 
