@@ -17,6 +17,19 @@ RPC payload не объявляет source identity: её добавляет Mon
 только явно настроенные source identities и не считается публичной сетевой
 границей доверия.
 
+Каждая write operation использует закрытый envelope:
+
+```text
+contractVersion + operationId + capability + exact operation payload
+```
+
+Provider отклоняет неизвестные поля. Один `operationId` навсегда связывается с
+одним нормализованным request digest; повтор с другим payload запрещён.
+Успешный receipt содержит `contractVersion`, `operationId`, нормализованный
+accepted patch, достигнутую phase и точные source revisions. Для live operation
+он также содержит causal Force acceptance identity и Boundary outcome, но не
+раскрывает внутренние SQLite row IDs как клиентские адреса.
+
 ## Discovery
 
 `meta.capabilities.read` возвращает только capabilities, действительно
@@ -115,6 +128,16 @@ Particle. Service preflight, source candidates и receipt Particles не явл�
 Provider возвращает предметный outcome одной из фаз: `rejected`, `created`,
 `runtime_committed`, `source_pending` или `complete`. Неизвестный частичный
 успех запрещён.
+
+Владельцы фаз:
+
+- Dark Monad — RPC admission, capability, scope, normalization и operation
+  outcome;
+- Create template boundary — полный набор файлов нового Meta;
+- Dark Force — durable acceptance и причинный порядок Inflaton;
+- Boundary — canonical live commit;
+- source projector — публикация заранее подготовленных `meta.ts`;
+- Git provider — только отдельно разрешённые add/commit/push operations.
 
 Расширение этого slice на Fields, States, Processes, bindings, произвольную
 позицию Matter или canonical commit требует новых public types и проверок, но
