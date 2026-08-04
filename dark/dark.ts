@@ -1,7 +1,7 @@
 import ".."
 import type {DeclarationPath} from "shared/protocol/force/declaration"
 import type {ForceMessage, ForceMessageInput} from "shared/protocol/force/message"
-import type {Particle} from "shared/protocol/force/particle"
+import type {Particle, SourcedParticle} from "shared/protocol/force/particle"
 import type {MatterEdgeSlot, MatterParticle} from "@metafor/types/metafor/matter"
 import type {MetaDSL} from "@metafor/types/metafor/schema"
 import {canonicalMetaSource, loadMeta} from "./load.ts"
@@ -323,6 +323,103 @@ export async function* matterParticles(
 /** Reads one root external Meta package and emits each ready Particle immediately. */
 export async function matter(src: string, readMeta: MetaLoader = loadMeta): Promise<void> {
   for await (const particle of matterParticles(src, readMeta)) emit(particle)
+}
+
+const authoredMatterTarget = (part: SourcedParticle): {wimp: string; id: number; value: Record<string, unknown>} => {
+  if (
+    part.by !== "dark" ||
+    part.part !== "inflaton" ||
+    part.path !== "matter" ||
+    (part.op !== "add" && part.op !== "move" && part.op !== "remove") ||
+    !isRecord(part.value) ||
+    typeof part.value.wimp !== "string" ||
+    !canonicalMetaSource(part.value.wimp) ||
+    typeof part.value.id !== "number" ||
+    !Number.isSafeInteger(part.value.id) ||
+    part.value.id <= 0
+  ) throw new Error("Accepted Matter authoring Particle is invalid")
+  return {wimp: part.value.wimp, id: part.value.id, value: part.value}
+}
+
+const authoredMatterSource = (part: SourcedParticle): {wimp: string; id: number} | null => {
+  if (part.op !== "move") return null
+  if (typeof part.from !== "string") throw new Error("Accepted Matter move source is invalid")
+  const separator = part.from.lastIndexOf("#")
+  const wimp = part.from.slice(0, separator)
+  const id = Number(part.from.slice(separator + 1))
+  if (separator <= 0 || !canonicalMetaSource(wimp) || !Number.isSafeInteger(id) || id <= 0) {
+    throw new Error("Accepted Matter move source is invalid")
+  }
+  return {wimp, id}
+}
+
+const refreshProjectionChildren = (current: WimpProjection): void => {
+  current.children = [...new Set(current.entities.flatMap((entity) =>
+    entity.path === "matter" && entity.value.kind === "wimp" && typeof entity.value.src === "string"
+      ? [entity.value.src]
+      : [],
+  ))]
+}
+
+const projectionRoot = (address: string): string | null => {
+  const contains = (current: string, seen: Set<string>): boolean => {
+    if (current === address) return true
+    if (seen.has(current)) return false
+    seen.add(current)
+    return projection.get(current)?.children.some((child) => contains(child, seen)) ?? false
+  }
+  for (const root of roots) if (contains(root, new Set())) return root
+  return null
+}
+
+export const applyAuthoredMatterProjection = (part: SourcedParticle): string => {
+  const target = authoredMatterTarget(part)
+  const source = authoredMatterSource(part)
+  const root = projectionRoot(source?.wimp ?? target.wimp) ?? projectionRoot(target.wimp)
+  if (!root) throw new Error(`Accepted Matter parent is outside the current Dark projection: ${target.wimp}`)
+
+  if (part.op === "move") {
+    const current = projection.get(source!.wimp)
+    if (!current) throw new Error(`Accepted Matter source is unavailable in Dark projection: ${source!.wimp}`)
+    current.entities = current.entities.filter((entity) =>
+      entity.key !== `matter\u0000${source!.wimp}\u0000${source!.id}`
+    )
+    refreshProjectionChildren(current)
+  } else if (part.op === "remove") {
+    const current = projection.get(target.wimp)
+    if (!current) throw new Error(`Accepted Matter source is unavailable in Dark projection: ${target.wimp}`)
+    current.entities = current.entities.filter((entity) =>
+      entity.key !== `matter\u0000${target.wimp}\u0000${target.id}`
+    )
+    refreshProjectionChildren(current)
+    return root
+  }
+
+  const current = projection.get(target.wimp)
+  if (!current) throw new Error(`Accepted Matter target is unavailable in Dark projection: ${target.wimp}`)
+  const entity: DeclarationEntity = {
+    key: `matter\u0000${target.wimp}\u0000${target.id}`,
+    path: "matter",
+    value: jsonRecord(target.value),
+  }
+  const existing = current.entities.find((candidate) => candidate.key === entity.key)
+  if (existing && !same(existing.value, entity.value)) {
+    throw new Error(`Accepted Matter target conflicts in Dark projection: ${target.wimp}#${target.id}`)
+  }
+  if (!existing) current.entities.push(entity)
+  refreshProjectionChildren(current)
+  return root
+}
+
+export const reconcileAuthoredMatterProjection = async (
+  root: string,
+  accept: (input: ForceMessageInput) => Promise<void>,
+  readMeta: MetaLoader = loadMeta,
+): Promise<void> => {
+  for await (const particle of matterParticles(root, readMeta)) {
+    const {by: _by, ...input} = particle
+    await accept({parts: [input]})
+  }
 }
 
 /** Applies the first trusted agent WIMP declaration and preserves its timestamp. */

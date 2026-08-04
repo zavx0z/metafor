@@ -142,4 +142,15 @@ describe("Matter source patch", () => {
       [snapshot(ROOT, emptySource, [{kind: "wimp", src: CHILD, massBinding: {data: "/mass"}}])],
     )).toThrow(MatterPatchError)
   })
+
+  test("rejects removal before a later sibling whose cold-read identity would shift", () => {
+    const source = emptySource.replace(
+      "html``",
+      `html\`\n    <meta-for src="${CHILD}" />\n    <meta-for src="${EXISTING}" />\n  \``,
+    )
+    expect(() => planMetaMatterPatch(
+      request({operation: "remove", child: CHILD, fromParent: ROOT}),
+      [snapshot(ROOT, source, [{kind: "wimp", src: CHILD}, {kind: "wimp", src: EXISTING}])],
+    )).toThrow("must be the last root Matter child")
+  })
 })

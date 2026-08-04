@@ -1,6 +1,11 @@
 import {describe, expect, test} from "bun:test"
 import {parseMetaAddress} from "@metafor/types/metafor/graph"
-import {META_MATTER_APPLY_METHOD} from "@metafor/types/metafor/authoring"
+import {
+  META_CAPABILITIES_READ_METHOD,
+  META_CREATE_METHOD,
+  META_MATTER_APPLY_METHOD,
+  META_SOURCE_REVISION_READ_METHOD,
+} from "@metafor/types/metafor/authoring"
 import {
   MonadRpcPeer,
   type MonadChannel,
@@ -120,35 +125,70 @@ describe("Dark Monad", () => {
     })
   })
 
-  test("binds meta.matter.apply to the routed RPC source identity", async () => {
+  test("binds all authoring methods to the routed RPC source identity", async () => {
     const monad = new DarkMonad()
-    const calls: Array<{input: unknown; source: string}> = []
-    monad.setMatterAuthoring({
-      async apply(input, source) {
-        calls.push({input: structuredClone(input), source})
-        return {ok: true} as never
+    const calls: Array<{method: string; input: unknown; source: string}> = []
+    monad.setAuthoring({
+      registry: {
+        readCapabilities(input, source) {
+          calls.push({method: META_CAPABILITIES_READ_METHOD, input: structuredClone(input), source})
+          return {method: META_CAPABILITIES_READ_METHOD} as never
+        },
+        async readSourceRevisions(input, source) {
+          calls.push({method: META_SOURCE_REVISION_READ_METHOD, input: structuredClone(input), source})
+          return {method: META_SOURCE_REVISION_READ_METHOD} as never
+        },
+      },
+      create: {
+        async create(input, source) {
+          calls.push({method: META_CREATE_METHOD, input: structuredClone(input), source})
+          return {method: META_CREATE_METHOD} as never
+        },
+      },
+      matter: {
+        async apply(input, source) {
+          calls.push({method: META_MATTER_APPLY_METHOD, input: structuredClone(input), source})
+          return {method: META_MATTER_APPLY_METHOD} as never
+        },
       },
     })
     const channel = new TestChannel()
     const peer = new MonadRpcPeer(channel)
     monad.onServerStarted(peer)
 
-    await channel.receive({
-      version: MONAD_RPC_VERSION,
-      id: "matter-apply",
-      source: "authoring/client",
-      target: "dark",
-      method: META_MATTER_APPLY_METHOD,
-      params: {operationId: "move-child"},
-    })
+    for (const [index, method] of [
+      META_CAPABILITIES_READ_METHOD,
+      META_SOURCE_REVISION_READ_METHOD,
+      META_CREATE_METHOD,
+      META_MATTER_APPLY_METHOD,
+    ].entries()) {
+      await channel.receive({
+        version: MONAD_RPC_VERSION,
+        id: `authoring-${index}`,
+        source: "authoring/client",
+        target: "dark",
+        method,
+        params: {method},
+      })
+    }
 
-    expect(peer.methods()).toContain(META_MATTER_APPLY_METHOD)
-    expect(calls).toEqual([{input: {operationId: "move-child"}, source: "authoring/client"}])
-    expect(channel.sent[0]).toEqual({
-      version: MONAD_RPC_VERSION,
-      id: "matter-apply",
-      ok: true,
-      result: {ok: true},
-    })
+    expect(peer.methods()).toEqual(expect.arrayContaining([
+      META_CAPABILITIES_READ_METHOD,
+      META_SOURCE_REVISION_READ_METHOD,
+      META_CREATE_METHOD,
+      META_MATTER_APPLY_METHOD,
+    ]))
+    expect(calls).toEqual([
+      META_CAPABILITIES_READ_METHOD,
+      META_SOURCE_REVISION_READ_METHOD,
+      META_CREATE_METHOD,
+      META_MATTER_APPLY_METHOD,
+    ].map((method) => ({method, input: {method}, source: "authoring/client"})))
+    expect(channel.sent.map((message) => "result" in message ? message.result : null)).toEqual([
+      {method: META_CAPABILITIES_READ_METHOD},
+      {method: META_SOURCE_REVISION_READ_METHOD},
+      {method: META_CREATE_METHOD},
+      {method: META_MATTER_APPLY_METHOD},
+    ])
   })
 })

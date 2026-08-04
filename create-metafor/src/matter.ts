@@ -247,6 +247,12 @@ export const planMetaMatterPatch = (
 
   const source = parent(parents, request.fromParent)
   const sourceIndex = inertRootOccurrence(source, request.child)
+  if (sourceIndex !== source.matter.length - 1) {
+    throw new MatterPatchError(
+      "child_occurrence_bound",
+      `${request.child} must be the last root Matter child of ${request.fromParent}`,
+    )
+  }
   edits.push({
     address: source.address,
     targetPath: source.targetPath,

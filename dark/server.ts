@@ -1,5 +1,5 @@
 import {dirname, join, resolve} from "node:path"
-import type {ForceMessageInput} from "shared/protocol/force/message"
+import {sourceForceMessage, type ForceMessageInput} from "shared/protocol/force/message"
 import {MONAD_RPC_VERSION, type MonadRpcResponse} from "shared/protocol/monad/rpc"
 import {logImpulse} from "shared/transport/force/log"
 import {
@@ -12,7 +12,12 @@ import {
   MonadRpcPeer,
   readHttpMonadChannelOpening,
 } from "shared/transport/monad"
-import {startDarkRuntime, stopDarkRuntime} from "./dark.ts"
+import {
+  applyAuthoredMatterProjection,
+  reconcileAuthoredMatterProjection,
+  startDarkRuntime,
+  stopDarkRuntime,
+} from "./dark.ts"
 import {DarkForceHistory} from "./force/history.ts"
 import {readJson} from "./force/http.ts"
 import {ForceLifecycle} from "./force/lifecycle.ts"
@@ -20,7 +25,14 @@ import {LocalDarkForce} from "./force/local.ts"
 import type {ForceStore} from "./force/store.ts"
 import {createForceWebSocketChannels, type ForceSocketData} from "./force/websocket.ts"
 import {DarkMonad} from "./monad.ts"
+import {MetaCreateService} from "./monad/create.ts"
 import {createLocalMonadChannelPair} from "./monad/local.ts"
+import {MatterAuthoringService} from "./monad/matter.ts"
+import {
+  MetaAuthoringRegistry,
+  metaAuthoringCapabilitiesForScopes,
+  readMetaAuthoringLocalConfiguration,
+} from "./monad/registry.ts"
 import {MonadRouter} from "./monad/router.ts"
 import {DarkForceTimeController} from "./time-control.ts"
 import {
@@ -35,6 +47,10 @@ const forceHistoryPath = resolve(
 const forceHistoryCutId = Bun.env.DARK_FORCE_HISTORY_CUT_ID?.trim() || undefined
 const forceHistoryStartedAt = Bun.env.DARK_FORCE_HISTORY_STARTED_AT?.trim() || undefined
 const checkpointEnabled = Bun.env.DARK_CHECKPOINT_SIDEBAND !== "0"
+const authoringConfiguration = readMetaAuthoringLocalConfiguration(Bun.env)
+if (authoringConfiguration && !checkpointEnabled) {
+  throw new Error("Configured Meta authoring requires the checkpoint applied-through plane")
+}
 const checkpointStatePath = resolve(
   Bun.env.DARK_CHECKPOINT_CONTROL_PATH?.trim() ||
     (Bun.env.DARK_FORCE_HISTORY_PATH?.trim()
@@ -58,7 +74,6 @@ const monad = new DarkMonad()
 let rpc!: MonadRpcPeer
 const localMonad = createLocalMonadChannelPair("dark", () => rpc.methods())
 rpc = new MonadRpcPeer(localMonad.peer)
-monad.onServerStarted(rpc)
 const checkpoint = checkpointEnabled
   ? new DarkCheckpointControl(
       checkpointStatePath,
@@ -69,12 +84,40 @@ const checkpoint = checkpointEnabled
 const darkCheckpoint = checkpointEnabled
   ? installForceCheckpointSideband("dark", rpc)
   : null
+
+export const lifecycle = new ForceLifecycle(forceHistory, checkpoint ?? undefined)
+const authoringRegistry = new MetaAuthoringRegistry(authoringConfiguration
+  ? [[
+      authoringConfiguration.source,
+      metaAuthoringCapabilitiesForScopes(authoringConfiguration.scopes),
+    ]]
+  : [])
+monad.setTimeControl(new DarkForceTimeController(lifecycle, checkpoint))
+monad.setAuthoring({
+  registry: authoringRegistry,
+  create: new MetaCreateService((source) => authoringRegistry.grants(source)),
+  matter: new MatterAuthoringService(
+    forceHistory,
+    lifecycle,
+    (source) => authoringRegistry.grants(source),
+    undefined,
+    undefined,
+    {
+      apply: applyAuthoredMatterProjection,
+      async reconcile(root) {
+        await reconcileAuthoredMatterProjection(root, async (input) => {
+          const decision = await lifecycle.acceptParticle("dark", sourceForceMessage(input, "dark"))
+          if (!decision.ok) throw new Error(decision.error)
+        })
+      },
+    },
+  ),
+})
+monad.onServerStarted(rpc)
 router.attach(localMonad.router)
 monad.onChannelOpened()
 await darkCheckpoint?.open()
 
-export const lifecycle = new ForceLifecycle(forceHistory, checkpoint ?? undefined)
-monad.setTimeControl(new DarkForceTimeController(lifecycle, checkpoint))
 const localForce = new LocalDarkForce(async (message) => {
   const decision = await lifecycle.acceptParticle("dark", message)
   if (!decision.ok) throw new Error(decision.error)

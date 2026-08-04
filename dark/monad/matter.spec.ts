@@ -18,6 +18,7 @@ import {DarkForceHistory} from "../force/history.ts"
 import {
   MatterAuthoringService,
   type MatterAuthoringParentReader,
+  type MatterAuthoringProjection,
 } from "./matter.ts"
 
 const ROOT = parseMetaAddress("example/root")!
@@ -44,6 +45,7 @@ const fixture = async (
     paths: ReadonlyMap<MetaAddress, string>,
     operationId: string,
   ) => Promise<void>,
+  projection?: MatterAuthoringProjection,
 ): Promise<{
   root: string
   boundary: BoundaryDatabase
@@ -116,6 +118,7 @@ const fixture = async (
       () => [grant],
       readParent,
       (address) => paths.get(address)!,
+      projection,
     ),
   }
 }
@@ -279,5 +282,45 @@ describe("Matter authoring service", () => {
     expect(repeated).toMatchObject({phase: "source_pending", acceptance: first.acceptance})
     expect(test.history.read()).toHaveLength(1)
     expect(await readFile(rootPath, "utf8")).toBe(before)
+  })
+
+  test("repeats pending declaration materialization without a second accepted Matter patch", async () => {
+    const current = new Map<MetaAddress, readonly MatterParticle[]>([[ROOT, []]])
+    let reconciliations = 0
+    const test = await fixture(current, undefined, {
+      apply: () => ROOT,
+      async reconcile() {
+        reconciliations += 1
+        if (reconciliations === 1) throw new Error("declaration delivery interrupted")
+      },
+    })
+    await applyBoundary(test.boundary, "add", "wimp", {src: ROOT, name: "Root", desc: null})
+    const rootPath = test.paths.get(ROOT)!
+    const request: MetaMatterRequest = {
+      contractVersion: META_AUTHORING_CONTRACT_VERSION,
+      operationId: "add-materialization-retry",
+      capability: META_MATTER_WRITE_CAPABILITY,
+      operation: "add",
+      child: CHILD,
+      toParent: ROOT,
+      revisions: [{address: ROOT, revision: await revision(rootPath)}],
+    }
+
+    const first = await test.service.apply(request, RPC_SOURCE)
+    const repeated = await test.service.apply(request, RPC_SOURCE)
+
+    expect(first).toMatchObject({
+      phase: "runtime_committed",
+      source: {outcome: "published"},
+      materialization: {outcome: "pending", error: "declaration delivery interrupted"},
+    })
+    expect(repeated).toMatchObject({
+      phase: "complete",
+      acceptance: first.acceptance,
+      source: {outcome: "already_published"},
+      materialization: {outcome: "applied"},
+    })
+    expect(reconciliations).toBe(2)
+    expect(test.history.read()).toHaveLength(1)
   })
 })

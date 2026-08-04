@@ -39,6 +39,29 @@ export interface MetaAuthoringCapability {
   gitCommit: boolean
 }
 
+export interface MetaCapabilitiesReadRequest {
+  contractVersion: typeof META_AUTHORING_CONTRACT_VERSION
+}
+
+export interface MetaCapabilitiesReadReceipt {
+  contractVersion: typeof META_AUTHORING_CONTRACT_VERSION
+  capabilities: MetaAuthoringCapability[]
+}
+
+export interface MetaSourceRevisionReadRequest {
+  contractVersion: typeof META_AUTHORING_CONTRACT_VERSION
+  capability: typeof META_SOURCE_READ_CAPABILITY
+  addresses: MetaAddress[]
+}
+
+export interface MetaSourceRevisionReadReceipt {
+  contractVersion: typeof META_AUTHORING_CONTRACT_VERSION
+  sources: Array<{
+    address: MetaAddress
+    revision: MetaSourceRevision
+  }>
+}
+
 export type MetaAuthoringOperationId = string
 export type MetaSourceRevision = `sha256:${string}`
 export type MetaAuthoringRequestDigest = `sha256:${string}`
@@ -87,11 +110,20 @@ export type MetaMatterApplyReceipt =
       source: {outcome: "pending"; error: string}
     }
   | MetaMatterApplyReceiptBase & {
+      phase: "runtime_committed"
+      source: {
+        outcome: "published" | "already_published"
+        files: MetaMatterPublishedSourceV1[]
+      }
+      materialization: {outcome: "pending"; error: string}
+    }
+  | MetaMatterApplyReceiptBase & {
       phase: "complete"
       source: {
         outcome: "published" | "already_published"
         files: MetaMatterPublishedSourceV1[]
       }
+      materialization: {outcome: "applied"}
     }
 
 interface MetaAuthoringWriteEnvelope {
@@ -335,6 +367,73 @@ const commonEnvelope = (
   )
   const operationId = validator.operationId(value.operationId, "/operationId")
   return operationId === null ? null : {operationId}
+}
+
+export const validateMetaCapabilitiesReadRequest = (
+  input: unknown,
+): ValidationResult<MetaCapabilitiesReadRequest> => {
+  const validator = new AuthoringValidator()
+  if (!validator.record(input, "", "meta.capabilities.read request")) return {ok: false, issues: validator.issues}
+  validator.closed(input, "", ["contractVersion"])
+  validator.required(input, "", ["contractVersion"])
+  validator.literal(
+    input.contractVersion,
+    "/contractVersion",
+    META_AUTHORING_CONTRACT_VERSION,
+    "contractVersion",
+  )
+  if (validator.issues.length > 0) return {ok: false, issues: validator.issues}
+  return {ok: true, value: {contractVersion: META_AUTHORING_CONTRACT_VERSION}}
+}
+
+export const validateMetaSourceRevisionReadRequest = (
+  input: unknown,
+  context: Pick<MetaAuthoringValidationContext, "capabilities">,
+): ValidationResult<MetaSourceRevisionReadRequest> => {
+  const validator = new AuthoringValidator()
+  if (!validator.record(input, "", "meta.source.revision.read request")) return {ok: false, issues: validator.issues}
+  validator.closed(input, "", ["contractVersion", "capability", "addresses"])
+  validator.required(input, "", ["contractVersion", "capability", "addresses"])
+  validator.literal(
+    input.contractVersion,
+    "/contractVersion",
+    META_AUTHORING_CONTRACT_VERSION,
+    "contractVersion",
+  )
+  validator.literal(input.capability, "/capability", META_SOURCE_READ_CAPABILITY, "capability")
+  const addresses: MetaAddress[] = []
+  const seen = new Set<MetaAddress>()
+  if (validator.array(input.addresses, "/addresses", "addresses")) {
+    if (input.addresses.length === 0) validator.issue("/addresses", "invalid_scope", "addresses must not be empty")
+    input.addresses.forEach((value, index) => {
+      const address = validator.address(value, childPath("/addresses", index))
+      if (address === null) return
+      if (seen.has(address)) {
+        validator.issue(childPath("/addresses", index), "duplicate_address", `Address ${address} is duplicated`)
+        return
+      }
+      seen.add(address)
+      addresses.push(address)
+    })
+  }
+  const grant = grantFor(
+    validator,
+    context.capabilities,
+    META_SOURCE_READ_CAPABILITY,
+    META_SOURCE_REVISION_READ_METHOD,
+    "source_read",
+    false,
+  )
+  requireScope(validator, grant, addresses)
+  if (validator.issues.length > 0) return {ok: false, issues: validator.issues}
+  return {
+    ok: true,
+    value: {
+      contractVersion: META_AUTHORING_CONTRACT_VERSION,
+      capability: META_SOURCE_READ_CAPABILITY,
+      addresses: addresses.sort((left, right) => left.localeCompare(right)),
+    },
+  }
 }
 
 export const validateMetaCreateRequest = (

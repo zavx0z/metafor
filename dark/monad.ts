@@ -7,12 +7,25 @@ import {
 } from "./graph.ts"
 import {GraphMonad} from "./monad/graph.ts"
 import type {DarkForceTimeControl} from "./time-control.ts"
-import {META_MATTER_APPLY_METHOD} from "@metafor/types/metafor/authoring"
+import {
+  META_CAPABILITIES_READ_METHOD,
+  META_CREATE_METHOD,
+  META_MATTER_APPLY_METHOD,
+  META_SOURCE_REVISION_READ_METHOD,
+} from "@metafor/types/metafor/authoring"
 import type {MatterAuthoringService} from "./monad/matter.ts"
+import type {MetaCreateService} from "./monad/create.ts"
+import type {MetaAuthoringRegistry} from "./monad/registry.ts"
 
 export type DarkMonadState = "created" | "registering" | "ready" | "error" | "stopped"
 
 type DeclarationProjectionReader = (params: unknown) => Promise<DarkGraphTemplate>
+
+export interface DarkMetaAuthoringRpc {
+  registry: Pick<MetaAuthoringRegistry, "readCapabilities" | "readSourceRevisions">
+  create: Pick<MetaCreateService, "create">
+  matter: Pick<MatterAuthoringService, "apply">
+}
 
 export const DARK_FORCE_PAUSE_METHOD = "dark.force.pause" as const
 export const DARK_FORCE_STEP_METHOD = "dark.force.step" as const
@@ -42,7 +55,7 @@ export class DarkMonad {
   #error: string | null = null
   readonly #graph = new GraphMonad()
   #timeControl: DarkForceTimeControl | null = null
-  #matterAuthoring: Pick<MatterAuthoringService, "apply"> | null = null
+  #authoring: DarkMetaAuthoringRpc | null = null
 
   constructor(
     private readonly readDeclarationProjection: DeclarationProjectionReader = readDarkDeclarationProjection,
@@ -54,11 +67,11 @@ export class DarkMonad {
     this.#timeControl = control
   }
 
-  setMatterAuthoring(service: Pick<MatterAuthoringService, "apply">): void {
-    if (this.#state !== "created" || this.#matterAuthoring) {
-      throw new Error("Dark Monad Matter authoring is already installed or RPC registration has started")
+  setAuthoring(services: DarkMetaAuthoringRpc): void {
+    if (this.#state !== "created" || this.#authoring) {
+      throw new Error("Dark Monad authoring RPC is already installed or RPC registration has started")
     }
-    this.#matterAuthoring = service
+    this.#authoring = services
   }
 
   onServerStarted(peer: MonadRpcPeer): void {
@@ -84,10 +97,22 @@ export class DarkMonad {
       DARK_FORCE_STACK_METHOD,
       async () => this.#timeControlOrThrow().pauseStack(),
     )
-    if (this.#matterAuthoring) {
+    if (this.#authoring) {
+      peer.expose(
+        META_CAPABILITIES_READ_METHOD,
+        async (params, context) => this.#authoring!.registry.readCapabilities(params, context.source),
+      )
+      peer.expose(
+        META_SOURCE_REVISION_READ_METHOD,
+        async (params, context) => await this.#authoring!.registry.readSourceRevisions(params, context.source),
+      )
+      peer.expose(
+        META_CREATE_METHOD,
+        async (params, context) => await this.#authoring!.create.create(params, context.source),
+      )
       peer.expose(
         META_MATTER_APPLY_METHOD,
-        async (params, context) => await this.#matterAuthoring!.apply(params, context.source),
+        async (params, context) => await this.#authoring!.matter.apply(params, context.source),
       )
     }
     this.#graph.onServerStarted(peer)

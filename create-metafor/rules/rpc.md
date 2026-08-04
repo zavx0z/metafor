@@ -17,6 +17,11 @@ RPC payload не объявляет source identity: её добавляет Mon
 только явно настроенные source identities и не считается публичной сетевой
 границей доверия.
 
+Dark запускается без authoring grants по умолчанию. Локальный source identity и
+его точные scopes включаются только совместной настройкой
+`META_AUTHORING_RPC_SOURCE` и `META_AUTHORING_SCOPES`. Настроенный Matter
+authoring запрещён при отключённом checkpoint applied-through plane.
+
 Каждая write operation использует закрытый envelope:
 
 ```text
@@ -37,8 +42,9 @@ accepted patch, и содержит Boundary outcome, но не копирует
 
 ## Discovery
 
-`meta.capabilities.read` возвращает только capabilities, действительно
-выданные вызывающему RPC source. Ответ содержит:
+`meta.capabilities.read` принимает закрытый request только с `contractVersion`
+и возвращает capabilities, действительно выданные вызывающему RPC source.
+Ответ содержит:
 
 - `contractVersion`;
 - identity capability и разрешённый method;
@@ -52,9 +58,11 @@ accepted patch, и содержит Boundary outcome, но не копирует
 
 ## Чтение source revision
 
-`meta.source.revision.read` принимает canonical Meta addresses в разрешённом
-scope и возвращает digest точных `meta.ts`. Digest является precondition
-следующей операции и не подменяет Git commit identity.
+`meta.source.revision.read` принимает закрытый request из `contractVersion`,
+capability `meta.source.read` и непустого уникального списка canonical Meta
+addresses в разрешённом scope. Ответ возвращает только address и digest точных
+`meta.ts`. Digest является precondition следующей операции и не подменяет Git
+commit identity.
 
 Source bytes, filesystem path, `.git` и содержимое соседнего репозитория этим
 методом не раскрываются.
@@ -99,11 +107,12 @@ Fields, Mass и Energy bindings. Request содержит:
 - исходного и/или целевого parent Meta;
 - точные ожидаемые source revisions каждого затрагиваемого `meta.ts`.
 
-`add` и destination `move` добавляют только последнего sibling. Это сохраняет
-действующие Matter local identities при последующем cold read. `move` допустим
-только для единственного совпавшего occurrence и обязан сохранить canonical
-runtime Atom identity. Source Matter identity для `move` вычисляется из
-проверенного parent `meta.ts`, а не из Boundary или собранного live Graph.
+`add` и destination `move` добавляют только последнего sibling. В первом slice
+`move` и `remove` также принимают только последний inert root occurrence. Это
+сохраняет действующие Matter local identities при последующем cold read. `move`
+допустим только для единственного совпавшего occurrence и обязан сохранить
+canonical runtime Atom identity. Source Matter identity для `move` вычисляется
+из проверенного parent `meta.ts`, а не из Boundary или собранного live Graph.
 `remove` удаляет occurrence, но не peer repository.
 
 ## Live-first commit и source projection
@@ -123,6 +132,12 @@ RPC request
 Source projection не перечитывает живой мир, не сравнивает его с декларацией и
 не строит второй diff. Она применяет тот же accepted patch. Комментарии и
 форматирование `meta.ts` не входят в contract.
+
+Тот же accepted Matter Particle напрямую обновляет Dark declaration projection.
+После успешной публикации source обычный declaration loader читает только
+доступные Meta-пакеты от действующего root и материализует новые reachable либо
+удаляет ставшие unreachable declarations. Он не читает Boundary, не сравнивает
+source с живым Graph и не испускает Matter Particle повторно.
 
 Для нового child Meta parent Matter edge принимается до деклараций child, чтобы
 пакет не возникал временным вторым root. Затем Dark причинно публикует отдельные
@@ -156,7 +171,9 @@ Provider возвращает предметный outcome одной из фа�
 receipt имеет phase `source_pending`, acceptance identity той же Force history
 entry, точные before/after source revisions и наблюдаемую причину ошибки.
 Успешная или уже выполненная публикация возвращает phase `complete` и outcome
-каждого source target.
+каждого source target после applied declaration materialization. Если source
+уже опубликован, но materialization ещё не завершён, receipt имеет phase
+`runtime_committed` и наблюдаемую причину pending materialization.
 
 Владельцы фаз:
 

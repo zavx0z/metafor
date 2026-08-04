@@ -6,8 +6,12 @@ import {
   META_CREATE_METHOD,
   META_MATTER_APPLY_METHOD,
   META_MATTER_WRITE_CAPABILITY,
+  META_SOURCE_READ_CAPABILITY,
+  META_SOURCE_REVISION_READ_METHOD,
+  validateMetaCapabilitiesReadRequest,
   validateMetaCreateRequest,
   validateMetaMatterRequest,
+  validateMetaSourceRevisionReadRequest,
   type MetaAuthoringCapability,
   type MetaCreateRequest,
   type MetaMatterRequest,
@@ -39,6 +43,15 @@ const matterGrant = (scopes: readonly MetaAddress[] = [LADA, CHAT, TEST]): MetaA
   gitCommit: false,
 })
 
+const sourceGrant = (scopes: readonly MetaAddress[] = [LADA, CHAT, TEST]): MetaAuthoringCapability => ({
+  capability: META_SOURCE_READ_CAPABILITY,
+  method: META_SOURCE_REVISION_READ_METHOD,
+  scopes,
+  operationClass: "source_read",
+  liveState: false,
+  gitCommit: false,
+})
+
 const currentRevision = (address: MetaAddress): MetaSourceRevision | null => {
   if (address === LADA) return LADA_REVISION
   if (address === CHAT) return CHAT_REVISION
@@ -54,6 +67,49 @@ const createRequest = (): MetaCreateRequest => ({
   description: "Inert authoring package",
   profile: "empty",
   target: "absent",
+})
+
+describe("meta authoring discovery and source revision validation", () => {
+  test("accepts only the closed versioned capability request", () => {
+    expect(validateMetaCapabilitiesReadRequest({contractVersion: 1})).toEqual({
+      ok: true,
+      value: {contractVersion: 1},
+    })
+    expect(validateMetaCapabilitiesReadRequest({contractVersion: 1, scope: LADA}))
+      .toMatchObject({ok: false, issues: [{code: "unknown_property"}]})
+  })
+
+  test("normalizes exact source addresses inside the granted scope", () => {
+    const result = validateMetaSourceRevisionReadRequest({
+      contractVersion: 1,
+      capability: META_SOURCE_READ_CAPABILITY,
+      addresses: [LADA, CHAT],
+    }, {capabilities: [sourceGrant()]})
+
+    expect(result).toEqual({
+      ok: true,
+      value: {
+        contractVersion: 1,
+        capability: META_SOURCE_READ_CAPABILITY,
+        addresses: [LADA, CHAT],
+      },
+    })
+  })
+
+  test("rejects duplicate, empty, denied and out-of-scope source reads", () => {
+    const base = {
+      contractVersion: 1,
+      capability: META_SOURCE_READ_CAPABILITY,
+    }
+    expect(validateMetaSourceRevisionReadRequest({...base, addresses: []}, {capabilities: [sourceGrant()]}))
+      .toMatchObject({ok: false, issues: [{code: "invalid_scope"}]})
+    expect(validateMetaSourceRevisionReadRequest({...base, addresses: [LADA, LADA]}, {capabilities: [sourceGrant()]}))
+      .toMatchObject({ok: false, issues: [{code: "duplicate_address"}]})
+    expect(validateMetaSourceRevisionReadRequest({...base, addresses: [LADA]}, {capabilities: []}))
+      .toMatchObject({ok: false, issues: [{code: "capability_denied"}]})
+    expect(validateMetaSourceRevisionReadRequest({...base, addresses: [OTHER]}, {capabilities: [sourceGrant()]}))
+      .toMatchObject({ok: false, issues: [{code: "scope_denied"}]})
+  })
 })
 
 describe("meta.create proposal validation", () => {

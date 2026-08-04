@@ -14,6 +14,7 @@ import {
 import {parseMetaAddress, type MetaAddress} from "@metafor/types/metafor/graph"
 import type {ForceMessageInput} from "shared/protocol/force/message"
 import type {MatterParticle} from "@metafor/types/metafor/matter"
+import type {SourcedParticle} from "shared/protocol/force/particle"
 import {
   discardSourceCandidates,
   prepareSourceCandidates,
@@ -57,6 +58,11 @@ export type MatterAuthoringParentReader = (
 
 export type MatterAuthoringSourcePath = (address: MetaAddress) => string
 
+export interface MatterAuthoringProjection {
+  apply(particle: SourcedParticle): string | null
+  reconcile(root: string): Promise<void>
+}
+
 export class MatterAuthoringError extends Error {
   override readonly name = "MatterAuthoringError"
 }
@@ -92,7 +98,7 @@ const receiptBase = (
   requestDigest: MetaAuthoringRequestDigest,
   acceptance: MetaForceAcceptanceIdentity,
   sourceProjections: MetaMatterSourceProjectionV1[],
-): Omit<Extract<MetaMatterApplyReceipt, {phase: "complete"}>, "phase" | "source"> => ({
+): Omit<Extract<MetaMatterApplyReceipt, {phase: "complete"}>, "phase" | "source" | "materialization"> => ({
   contractVersion: META_AUTHORING_CONTRACT_VERSION,
   operationId,
   requestDigest,
@@ -140,6 +146,10 @@ export class MatterAuthoringService {
     private readonly capabilities: MatterAuthoringCapabilityReader,
     private readonly readParent: MatterAuthoringParentReader = readMatterAuthoringParent,
     private readonly sourcePath: MatterAuthoringSourcePath = resolveMetaPath,
+    private readonly projection: MatterAuthoringProjection = {
+      apply: () => null,
+      async reconcile() {},
+    },
   ) {}
 
   async apply(input: unknown, rpcSource: string): Promise<MetaMatterApplyReceipt> {
@@ -164,6 +174,7 @@ export class MatterAuthoringService {
         requestDigest,
         acceptanceIdentity(existing),
         existing.authoring.sourceProjections,
+        existing.particle,
       )
     }
 
@@ -212,6 +223,7 @@ export class MatterAuthoringService {
         requestDigest,
         decision.acceptance,
         sourceProjections,
+        decision.particle,
       )
     } catch (error) {
       if (!liveAttempted) await discardSourceCandidates(prepared)
@@ -224,7 +236,14 @@ export class MatterAuthoringService {
     requestDigest: MetaAuthoringRequestDigest,
     acceptance: MetaForceAcceptanceIdentity,
     sourceProjections: MetaMatterSourceProjectionV1[],
+    particle: SourcedParticle,
   ): Promise<MetaMatterApplyReceipt> {
+    let root: string | null
+    try {
+      root = this.projection.apply(particle)
+    } catch (error) {
+      return pendingReceipt(operationId, requestDigest, acceptance, sourceProjections, error)
+    }
     try {
       const addressByPath = new Map(sourceProjections.map((projection) => [
         this.sourcePath(projection.address),
@@ -244,15 +263,32 @@ export class MatterAuthoringService {
         afterRevision: file.afterRevision,
         outcome: file.outcome,
       })).sort((left, right) => left.address.localeCompare(right.address))
+      const source = {
+        outcome: files.some(({outcome}) => outcome === "published")
+          ? "published" as const
+          : "already_published" as const,
+        files,
+      }
+      if (root !== null) {
+        try {
+          await this.projection.reconcile(root)
+        } catch (error) {
+          return {
+            ...receiptBase(operationId, requestDigest, acceptance, sourceProjections),
+            phase: "runtime_committed",
+            source,
+            materialization: {
+              outcome: "pending",
+              error: error instanceof Error ? error.message : String(error),
+            },
+          }
+        }
+      }
       return {
         ...receiptBase(operationId, requestDigest, acceptance, sourceProjections),
         phase: "complete",
-        source: {
-          outcome: files.some(({outcome}) => outcome === "published")
-            ? "published"
-            : "already_published",
-          files,
-        },
+        source,
+        materialization: {outcome: "applied"},
       }
     } catch (error) {
       return pendingReceipt(operationId, requestDigest, acceptance, sourceProjections, error)

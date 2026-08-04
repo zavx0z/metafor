@@ -60,14 +60,18 @@ const matches = (
 
 describe("Dark incremental Inflaton projection", () => {
   let fixture: ForceTestFixture
+  let applyAuthoredMatterProjection: typeof import("./dark.ts").applyAuthoredMatterProjection
   let matterParticles: typeof import("./dark.ts").matterParticles
+  let reconcileAuthoredMatterProjection: typeof import("./dark.ts").reconcileAuthoredMatterProjection
   let stopRuntime: typeof import("./dark.ts").stopDarkRuntime
   let force: Force
 
   beforeAll(async () => {
     fixture = createForceTestFixture()
     const dark = await import("./dark.ts")
+    applyAuthoredMatterProjection = dark.applyAuthoredMatterProjection
     matterParticles = dark.matterParticles
+    reconcileAuthoredMatterProjection = dark.reconcileAuthoredMatterProjection
     stopRuntime = dark.stopDarkRuntime
     force = new Force("dark")
     dark.startDarkRuntime(force)
@@ -223,6 +227,66 @@ describe("Dark incremental Inflaton projection", () => {
     expect(childWimp).toBeLessThan(childField)
     expect(additions.some((part) => part.op === "test")).toBe(false)
     expect(additions.some((part) => isSectionSnapshot(part.value))).toBe(false)
+  })
+
+  test("applies the accepted Matter patch directly and reconciles only reachable declarations", async () => {
+    const root = "test/dark-authored-root"
+    const child = "test/dark-authored-child"
+    const before = new Map<string, MetaDSL>([[root, dsl({name: "Root", bulk: {view: ".root {}"}})]])
+    await read(root, loader(before))
+
+    const acceptedAdd = {
+      part: "inflaton",
+      op: "add",
+      path: "matter",
+      by: "dark",
+      ts: 31,
+      value: {
+        wimp: root,
+        id: 1,
+        parent: null,
+        edgeSlot: "root",
+        position: 0,
+        kind: "wimp",
+        src: child,
+      },
+    } as const
+    const owningRoot = applyAuthoredMatterProjection(acceptedAdd)
+    const afterAdd = new Map<string, MetaDSL>([
+      [root, dsl({name: "Root", matter: [{kind: "wimp", src: child}], bulk: {view: ".root {}"}})],
+      [child, dsl({name: "Child", bulk: {view: ".child {}"}})],
+    ])
+    const additions: BareParticle[] = []
+    await reconcileAuthoredMatterProjection(owningRoot, async (input) => {
+      additions.push(bare(input.parts[0]!))
+    }, loader(afterAdd))
+
+    expect(owningRoot).toBe(root)
+    expect(additions.some((part) => matches(part, "matter", root, 1))).toBe(false)
+    expect(additions.map((part) => [part.op, part.path])).toEqual([
+      ["add", "wimp"],
+      ["add", "bulk"],
+    ])
+
+    const acceptedRemove = {
+      part: "inflaton",
+      op: "remove",
+      path: "matter",
+      by: "dark",
+      ts: 32,
+      value: {wimp: root, id: 1},
+    } as const
+    const removalRoot = applyAuthoredMatterProjection(acceptedRemove)
+    const removals: BareParticle[] = []
+    await reconcileAuthoredMatterProjection(removalRoot, async (input) => {
+      removals.push(bare(input.parts[0]!))
+    }, loader(before))
+
+    expect(removals.some((part) => matches(part, "matter", root, 1))).toBe(false)
+    expect(removals.map((part) => [part.op, part.path])).toEqual([
+      ["remove", "bulk"],
+      ["remove", "wimp"],
+    ])
   })
 
   test("yields the parent WIMP edge before the next WIMP layer starts loading", async () => {
