@@ -1,5 +1,6 @@
 import type {
   BulkFieldParticle,
+  BulkFieldParticleKind,
   BulkManifest,
   BulkRenderDarkParticle,
 } from "@metafor/types/bulk/manifest"
@@ -35,12 +36,33 @@ import {
 import {createPageAnnotationLayer} from "./AnnotationLayer.ts"
 import {createQuantumFilmMaterial} from "./QuantumFilm.ts"
 import {buildStateGraphFieldsStand} from "./StateGraphFieldsLab.ts"
+import {
+  createFlatFieldBandGeometry,
+  deriveFieldsMattePastel,
+  FIELDS_MATTE_DEFAULT_OPACITY,
+  FIELDS_MATTE_TEXT_COLOR,
+  FIELDS_MATTE_TEXT_OPACITY,
+  updateFlatFieldBandGeometry,
+} from "./FieldsMatte.ts"
 
 export const FIELDS_V2_SLUG = "analysis-fields-v2"
 export const FIELDS_V2_RING_WIDTH = 2.6
+export const FIELDS_V2_RING_WIDTH_MIN = 1.2
+export const FIELDS_V2_RING_WIDTH_MAX = 10
+export const FIELDS_V2_RING_WIDTH_STEP = 0.1
 export const FIELDS_V2_RING_GAP = 0.5
 export const FIELDS_V2_RING_START_GAP = FIELDS_V2_RING_GAP
 export const FIELDS_V2_TEXT_SIZE = 1.65
+export const FIELDS_V2_FLOW_RADIAL_AMPLITUDE = 0.15
+export const FIELDS_V2_FLOW_HEIGHT = 0.18
+export const FIELDS_V2_FIELD_KIND_ORDER: readonly BulkFieldParticleKind[] =
+  Object.freeze(["number", "array", "string", "enum", "boolean", "other"])
+export const FIELDS_V2_EMPTY_FIELD_ENERGY = 0.84
+export const FIELDS_V2_MATERIALIZED_FIELD_ENERGY = 1
+export const FIELDS_V2_EMPTY_FIELD_OPACITY = 0.34
+export const FIELDS_V2_MATERIALIZED_FIELD_OPACITY = 0.5
+export const FIELDS_V2_EMPTY_FIELD_HIGHLIGHT_SIZE = 0.56
+export const FIELDS_V2_MATERIALIZED_FIELD_HIGHLIGHT_SIZE = 0.74
 
 export type FieldsV2RingPlacement = Readonly<{
   field: BulkFieldParticle
@@ -67,43 +89,108 @@ export type FieldsV2Lab = Readonly<{
 export const layoutFieldsV2Rings = (
   fields: readonly BulkFieldParticle[],
   torusOuterRadius: number,
-): readonly FieldsV2RingPlacement[] => Object.freeze(fields.map(
-  (field, index) => {
+  ringWidth = FIELDS_V2_RING_WIDTH,
+): readonly FieldsV2RingPlacement[] => {
+  const kindOrder = new Map(FIELDS_V2_FIELD_KIND_ORDER.map(
+    (kind, index) => [kind, index] as const,
+  ))
+  const orderedFields = fields.map((field, sourceIndex) => ({field, sourceIndex}))
+    .sort((left, right) =>
+      (kindOrder.get(left.field.fieldParticleKind) ?? Number.MAX_SAFE_INTEGER) -
+        (kindOrder.get(right.field.fieldParticleKind) ?? Number.MAX_SAFE_INTEGER) ||
+      left.sourceIndex - right.sourceIndex
+    )
+  return Object.freeze(orderedFields.map(({field}, index) => {
     const innerRadius = torusOuterRadius + FIELDS_V2_RING_START_GAP +
-      index * (FIELDS_V2_RING_WIDTH + FIELDS_V2_RING_GAP)
+      index * (ringWidth + FIELDS_V2_RING_GAP)
     return Object.freeze({
       field,
       innerRadius,
-      outerRadius: innerRadius + FIELDS_V2_RING_WIDTH,
-      radius: innerRadius + FIELDS_V2_RING_WIDTH / 2,
+      outerRadius: innerRadius + ringWidth,
+      radius: innerRadius + ringWidth / 2,
     })
-  },
-))
+  }))
+}
+
+export const fieldsV2TextSize = (ringWidth: number): number =>
+  FIELDS_V2_TEXT_SIZE * ringWidth / FIELDS_V2_RING_WIDTH
 
 export const fieldsV2FieldText = (field: BulkFieldParticle): string =>
   `${field.fieldLabel} · ${field.valueText ?? "∅"}`
 
-const createAnnulusGeometry = (
+type FieldsV2Color = readonly [number, number, number]
+
+export const fieldsV2AccretionColor = (
+  field: BulkFieldParticle,
+): FieldsV2Color => {
+  const semantic = visualFieldParticleColor(field)
+  const energy = field.valueText === null
+    ? FIELDS_V2_EMPTY_FIELD_ENERGY
+    : FIELDS_V2_MATERIALIZED_FIELD_ENERGY
+  return semantic.map(
+    (channel) => channel * energy,
+  ) as unknown as FieldsV2Color
+}
+
+export const createFieldsV2QuantumMaterial = (
+  field: BulkFieldParticle,
+  color: Color,
+) => createQuantumFilmMaterial(color, {
+  glowIntensity: field.valueText === null ? 1.15 : 1.8,
+  highlightSize: field.valueText === null
+    ? FIELDS_V2_EMPTY_FIELD_HIGHLIGHT_SIZE
+    : FIELDS_V2_MATERIALIZED_FIELD_HIGHLIGHT_SIZE,
+  opacity: field.valueText === null
+    ? FIELDS_V2_EMPTY_FIELD_OPACITY
+    : FIELDS_V2_MATERIALIZED_FIELD_OPACITY,
+})
+
+export const createAccretionBandGeometry = (
   innerRadius: number,
   outerRadius: number,
+  phase: number,
   segments = 192,
 ): BufferGeometry => {
   const positions = new Float32Array(segments * 2 * 3)
   const normals = new Float32Array(segments * 2 * 3)
   const indices = new Uint16Array(segments * 6)
+  writeAccretionBandPositions(
+    positions,
+    innerRadius,
+    outerRadius,
+    phase,
+    segments,
+  )
   for (let index = 0; index < segments; index += 1) {
     const angle = index / segments * Math.PI * 2
     const cosine = Math.cos(angle)
     const sine = Math.sin(angle)
     const innerOffset = index * 6
-    positions[innerOffset] = cosine * innerRadius
-    positions[innerOffset + 1] = sine * innerRadius
-    positions[innerOffset + 2] = 0
-    positions[innerOffset + 3] = cosine * outerRadius
-    positions[innerOffset + 4] = sine * outerRadius
-    positions[innerOffset + 5] = 0
-    normals[innerOffset + 2] = 1
-    normals[innerOffset + 5] = 1
+    const tangentialTilt = Math.sin(angle * 2 - 0.35 + phase) * 0.7
+    const normalHeight = 0.62 +
+      (Math.sin(angle * 5 + 0.2 - phase) + 1) * 0.13
+    const innerRadialTilt = -0.88 + Math.sin(angle * 3 + phase) * 0.16
+    const innerNormalLength = Math.hypot(
+      cosine * innerRadialTilt - sine * tangentialTilt,
+      sine * innerRadialTilt + cosine * tangentialTilt,
+      normalHeight,
+    )
+    normals[innerOffset] = (cosine * innerRadialTilt - sine * tangentialTilt) /
+      innerNormalLength
+    normals[innerOffset + 1] = (sine * innerRadialTilt + cosine * tangentialTilt) /
+      innerNormalLength
+    normals[innerOffset + 2] = normalHeight / innerNormalLength
+    const outerRadialTilt = 0.46 + Math.sin(angle * 3 - phase) * 0.12
+    const outerNormalLength = Math.hypot(
+      cosine * outerRadialTilt - sine * tangentialTilt,
+      sine * outerRadialTilt + cosine * tangentialTilt,
+      normalHeight,
+    )
+    normals[innerOffset + 3] = (cosine * outerRadialTilt - sine * tangentialTilt) /
+      outerNormalLength
+    normals[innerOffset + 4] = (sine * outerRadialTilt + cosine * tangentialTilt) /
+      outerNormalLength
+    normals[innerOffset + 5] = normalHeight / outerNormalLength
 
     const next = (index + 1) % segments
     const indexOffset = index * 6
@@ -121,7 +208,55 @@ const createAnnulusGeometry = (
   return geometry
 }
 
-const textBounds = (
+const writeAccretionBandPositions = (
+  positions: Float32Array,
+  innerRadius: number,
+  outerRadius: number,
+  phase: number,
+  segments = 192,
+): void => {
+  for (let index = 0; index < segments; index += 1) {
+    const angle = index / segments * Math.PI * 2
+    const cosine = Math.cos(angle)
+    const sine = Math.sin(angle)
+    const radialFlow =
+      Math.sin(angle * 2 - 0.62 + phase) *
+        FIELDS_V2_FLOW_RADIAL_AMPLITUDE * 0.72 +
+      Math.sin(angle * 5 + 0.38 - phase * 0.7) *
+        FIELDS_V2_FLOW_RADIAL_AMPLITUDE * 0.28
+    const flowHeight =
+      Math.sin(angle - 0.74 + phase) * FIELDS_V2_FLOW_HEIGHT * 0.76 +
+      Math.sin(angle * 3 + 0.46 - phase) * FIELDS_V2_FLOW_HEIGHT * 0.24
+    const offset = index * 6
+    positions[offset] = cosine * (innerRadius + radialFlow)
+    positions[offset + 1] = sine * (innerRadius + radialFlow)
+    positions[offset + 2] = flowHeight + 0.04
+    positions[offset + 3] = cosine * (outerRadius + radialFlow)
+    positions[offset + 4] = sine * (outerRadius + radialFlow)
+    positions[offset + 5] = flowHeight - 0.04
+  }
+}
+
+const updateAccretionBandGeometry = (
+  geometry: BufferGeometry,
+  innerRadius: number,
+  outerRadius: number,
+  phase: number,
+): void => {
+  const position = geometry.attributes.position
+  if (!position || !(position.array instanceof Float32Array)) return
+  writeAccretionBandPositions(
+    position.array,
+    innerRadius,
+    outerRadius,
+    phase,
+    position.count / 2,
+  )
+  position.needsUpdate = true
+  geometry.boundingSphere = null
+}
+
+export const fieldsV2TextBounds = (
   geometry: BufferGeometry,
 ): Readonly<{centerX: number; centerY: number}> => {
   const positions = geometry.attributes.position?.array
@@ -142,28 +277,31 @@ const textBounds = (
   }
 }
 
-const bendTextGeometryToRing = (
+export const bendFieldsV2TextGeometryToRing = (
   geometry: BufferGeometry,
+  sourcePositions: Float32Array,
   radius: number,
   center: Readonly<{centerX: number; centerY: number}>,
+  scale = 1,
 ): void => {
   const position = geometry.attributes.position
   if (!position) return
   const values = position.array
   for (let index = 0; index < values.length; index += 3) {
-    const along = Number(values[index]) - center.centerX
-    const radialOffset = Number(values[index + 1]) - center.centerY
+    const along = (Number(sourcePositions[index]) - center.centerX) * scale
+    const radialOffset =
+      (Number(sourcePositions[index + 1]) - center.centerY) * scale
     const angle = Math.PI / 2 - along / radius
     const vertexRadius = radius + radialOffset
     values[index] = Math.cos(angle) * vertexRadius
     values[index + 1] = Math.sin(angle) * vertexRadius
-    values[index + 2] = 0.3 + Number(values[index + 2])
+    values[index + 2] = 0.3 + Number(sourcePositions[index + 2]) * scale
   }
   position.needsUpdate = true
   geometry.boundingSphere = null
 }
 
-const labelColor = (
+export const fieldsV2LabelColor = (
   color: readonly [number, number, number],
 ): Color => new Color(
   0.58 + color[0] * 0.42,
@@ -249,8 +387,23 @@ export const createFieldsV2Lab = async (
   title.textContent = "Fields v2 · lada"
   const description = document.createElement("p")
   description.textContent =
-    `Корневой Torus из snapshot · вид сверху · ${source.fields.length} Fields, одно орбитальное кольцо на Field.`
-  card.append(title, description)
+    `Корневой Torus из snapshot · вид сверху · ${source.fields.length} матовых пастельных Fields, одно ровное орбитальное кольцо на Field.`
+  const widthControl = document.createElement("label")
+  widthControl.className = "fields-v2-width-control"
+  widthControl.htmlFor = "fields-v2-ring-width"
+  const widthHeader = document.createElement("span")
+  widthHeader.textContent = "Ширина полосы"
+  const widthOutput = document.createElement("output")
+  widthOutput.setAttribute("for", "fields-v2-ring-width")
+  const widthInput = document.createElement("input")
+  widthInput.id = "fields-v2-ring-width"
+  widthInput.type = "range"
+  widthInput.min = String(FIELDS_V2_RING_WIDTH_MIN)
+  widthInput.max = String(FIELDS_V2_RING_WIDTH_MAX)
+  widthInput.step = String(FIELDS_V2_RING_WIDTH_STEP)
+  widthInput.value = String(FIELDS_V2_RING_WIDTH)
+  widthControl.append(widthHeader, widthOutput, widthInput)
+  card.append(title, description, widthControl)
   stage.replaceChildren(canvas, card)
 
   const renderer = new Renderer()
@@ -283,15 +436,25 @@ export const createFieldsV2Lab = async (
   space.add(torus)
 
   const rootOuterRadius = source.root.torusRadius + source.root.torusTube
-  const ringPlacements = layoutFieldsV2Rings(source.fields, rootOuterRadius)
   const fieldGeometries: BufferGeometry[] = []
   const textGeometries: BufferGeometry[] = []
+  const textGeometrySources: Array<Readonly<{
+    center: Readonly<{centerX: number; centerY: number}>
+    cover: Float32Array
+    stencil: Float32Array
+  }>> = []
   const font = await TrueTypeFont.fromUrl(
     "/engine-static/JetBrainsMono-Bold.ttf",
   )
-  for (const placement of ringPlacements) {
-    const color = visualFieldParticleColor(placement.field)
-    const fieldGeometry = createAnnulusGeometry(
+  let ringWidth = FIELDS_V2_RING_WIDTH
+  const initialPlacements = layoutFieldsV2Rings(
+    source.fields,
+    rootOuterRadius,
+    ringWidth,
+  )
+  for (const placement of initialPlacements) {
+    const color = fieldsV2AccretionColor(placement.field)
+    const fieldGeometry = createFlatFieldBandGeometry(
       placement.innerRadius,
       placement.outerRadius,
     )
@@ -299,10 +462,9 @@ export const createFieldsV2Lab = async (
     const fieldRing = new Mesh(
       fieldGeometry,
       new MeshBasicMaterial({
-        color: new Color(
-          color[0] * 0.24,
-          color[1] * 0.24,
-          color[2] * 0.24,
+        color: deriveFieldsMattePastel(
+          new Color(...color),
+          FIELDS_MATTE_DEFAULT_OPACITY,
         ),
       }),
     )
@@ -315,21 +477,71 @@ export const createFieldsV2Lab = async (
       font,
       FIELDS_V2_TEXT_SIZE,
       new TextMaterial({
-        color: labelColor(color),
+        color: new Color(FIELDS_MATTE_TEXT_COLOR),
         depthWrite: false,
-        opacity: 1,
+        opacity: FIELDS_MATTE_TEXT_OPACITY,
       }),
     )
     fieldText.frustumCulled = false
-    const center = textBounds(fieldText.coverGeometry)
-    bendTextGeometryToRing(fieldText.coverGeometry, placement.radius, center)
-    bendTextGeometryToRing(fieldText.stencilGeometry, placement.radius, center)
+    const center = fieldsV2TextBounds(fieldText.coverGeometry)
+    const cover = Float32Array.from(
+      fieldText.coverGeometry.attributes.position!.array,
+    )
+    const stencil = Float32Array.from(
+      fieldText.stencilGeometry.attributes.position!.array,
+    )
+    bendFieldsV2TextGeometryToRing(
+      fieldText.coverGeometry,
+      cover,
+      placement.radius,
+      center,
+    )
+    bendFieldsV2TextGeometryToRing(
+      fieldText.stencilGeometry,
+      stencil,
+      placement.radius,
+      center,
+    )
+    textGeometrySources.push({center, cover, stencil})
     textGeometries.push(fieldText.coverGeometry, fieldText.stencilGeometry)
     fieldText.updateMatrix()
     textOverlay.add(fieldText)
   }
 
-  const sceneOuterRadius = ringPlacements.at(-1)?.outerRadius ?? rootOuterRadius
+  const updateFields = (nextRingWidth: number): number => {
+    const ringPlacements = layoutFieldsV2Rings(
+      source.fields,
+      rootOuterRadius,
+      nextRingWidth,
+    )
+    const textScale = fieldsV2TextSize(nextRingWidth) / FIELDS_V2_TEXT_SIZE
+    for (const [index, placement] of ringPlacements.entries()) {
+      const fieldGeometry = fieldGeometries[index]!
+      const textGeometry = textGeometrySources[index]!
+      updateFlatFieldBandGeometry(
+        fieldGeometry,
+        placement.innerRadius,
+        placement.outerRadius,
+      )
+      bendFieldsV2TextGeometryToRing(
+        textGeometries[index * 2]!,
+        textGeometry.cover,
+        placement.radius,
+        textGeometry.center,
+        textScale,
+      )
+      bendFieldsV2TextGeometryToRing(
+        textGeometries[index * 2 + 1]!,
+        textGeometry.stencil,
+        placement.radius,
+        textGeometry.center,
+        textScale,
+      )
+    }
+    return ringPlacements.at(-1)?.outerRadius ?? rootOuterRadius
+  }
+
+  let sceneOuterRadius = initialPlacements.at(-1)?.outerRadius ?? rootOuterRadius
   const viewPoint = new ViewPoint({
     element: canvas,
     fov: Math.PI / 3.4,
@@ -349,6 +561,7 @@ export const createFieldsV2Lab = async (
   let active = false
   let disposed = false
   let frame = 0
+  let controlFrame = 0
   let warmupFrames = 0
   const annotation = createPageAnnotationLayer({
     sourceCanvas: canvas,
@@ -385,6 +598,25 @@ export const createFieldsV2Lab = async (
     if (!active || disposed || frame !== 0) return
     frame = requestAnimationFrame(renderOnce)
   }
+  const updateWidthOutput = (): void => {
+    widthOutput.value =
+      `${ringWidth.toFixed(1)} mm · текст ${fieldsV2TextSize(ringWidth).toFixed(2)} mm`
+  }
+  const updateFromWidthControl = (): void => {
+    controlFrame = 0
+    if (disposed) return
+    ringWidth = Number(widthInput.value)
+    updateWidthOutput()
+    sceneOuterRadius = updateFields(ringWidth)
+    warmupFrames = 1
+    requestRender()
+  }
+  const onWidthInput = (): void => {
+    if (controlFrame !== 0) return
+    controlFrame = requestAnimationFrame(updateFromWidthControl)
+  }
+  updateWidthOutput()
+  widthInput.addEventListener("input", onWidthInput)
   const observer = new ResizeObserver(() => {
     resize()
     annotation.resize()
@@ -405,8 +637,10 @@ export const createFieldsV2Lab = async (
       disposed = true
       active = false
       if (frame !== 0) cancelAnimationFrame(frame)
+      if (controlFrame !== 0) cancelAnimationFrame(controlFrame)
       observer.disconnect()
       annotation.dispose()
+      widthInput.removeEventListener("input", onWidthInput)
       canvas.removeEventListener("mousemove", requestRenderFromDrag)
       canvas.removeEventListener("wheel", requestRenderFromCamera)
       canvas.removeEventListener("touchmove", requestRenderFromCamera)

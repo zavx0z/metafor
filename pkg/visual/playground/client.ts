@@ -60,6 +60,11 @@ import {
   type FieldsV2Lab,
 } from "./FieldsV2Lab.ts"
 import {
+  createFieldsV3Lab,
+  FIELDS_V3_SLUG,
+  type FieldsV3Lab,
+} from "./FieldsV3Lab.ts"
+import {
   buildStateGraphFieldsStand,
   type StateGraphFieldsStand,
 } from "./StateGraphFieldsLab.ts"
@@ -138,6 +143,7 @@ const edgesStage = document.getElementById("edges-stage")
 const torusAnalysisStage = document.getElementById("torus-analysis-stage")
 const fieldsAnalysisStage = document.getElementById("fields-analysis-stage")
 const fieldsV2Stage = document.getElementById("fields-v2-stage")
+const fieldsV3Stage = document.getElementById("fields-v3-stage")
 
 if (
   !app ||
@@ -177,7 +183,8 @@ if (
   !edgesStage ||
   !torusAnalysisStage ||
   !fieldsAnalysisStage ||
-  !fieldsV2Stage
+  !fieldsV2Stage ||
+  !fieldsV3Stage
 ) throw new Error("Visual playground composition is incomplete")
 
 type SectionTab = Readonly<{
@@ -460,6 +467,7 @@ let edgesLabPromise: Promise<EdgesLab> | null = null
 let torusAnalysisLabPromise: Promise<TorusAnalysisLab> | null = null
 let fieldsAnalysisLabPromise: Promise<FieldsAnalysisLab> | null = null
 let fieldsV2LabPromise: Promise<FieldsV2Lab> | null = null
+let fieldsV3LabPromise: Promise<FieldsV3Lab> | null = null
 let stateGraphActivityLabPromise: Promise<StateGraphActivityLab> | null = null
 let stateGraphProcessLabPromise: Promise<StateGraphProcessLab> | null = null
 let stateGraphFieldsStand: StateGraphFieldsStand | null = null
@@ -468,11 +476,12 @@ let forceStoriesLabPromise: Promise<ForceStoriesLab> | null = null
 const formSkinForSlug = (slug: string): FormSkinLabForm | null => {
   if (slug === "skin-sphere") return "sphere"
   if (slug === "skin-torus") return "torus"
+  if (slug === "skin-fields") return "fields"
   return null
 }
 
 const formSkinLab = (): Promise<FormSkinLab> => {
-  formSkinLabPromise ??= createFormSkinLab()
+  formSkinLabPromise ??= createFormSkinLab(buildFieldsV2Source(visualLifecycle))
   return formSkinLabPromise
 }
 
@@ -525,6 +534,20 @@ const fieldsV2Lab = (): Promise<FieldsV2Lab> => {
 const hideFieldsV2Lab = (): void => {
   if (fieldsV2LabPromise) {
     void fieldsV2LabPromise.then((lab) => lab.hide())
+  }
+}
+
+const fieldsV3Lab = (): Promise<FieldsV3Lab> => {
+  fieldsV3LabPromise ??= createFieldsV3Lab(
+    fieldsV3Stage,
+    buildFieldsV2Source(visualLifecycle),
+  )
+  return fieldsV3LabPromise
+}
+
+const hideFieldsV3Lab = (): void => {
+  if (fieldsV3LabPromise) {
+    void fieldsV3LabPromise.then((lab) => lab.hide())
   }
 }
 
@@ -1255,6 +1278,45 @@ const applyFieldsV2Page = (): void => {
   })
 }
 
+const applyFieldsV3Page = (): void => {
+  hideSnapshotLayout()
+  mainAnnotation.hide()
+  stateGraphRenderVersion += 1
+  disposeBranchViewports()
+  app.classList.remove("state-graph-mode")
+  app.classList.remove("state-graph-fields-mode")
+  app.classList.remove("form-skin-mode")
+  app.classList.remove("edges-mode")
+  app.classList.remove("torus-analysis-mode")
+  app.classList.remove("fields-analysis-mode")
+  app.classList.add("fields-v3-mode")
+  controlsAside.hidden = true
+  canvas.hidden = true
+  visualTitle.hidden = true
+  visualControls.hidden = true
+  stateGraphStage.hidden = true
+  stateGraphControls.hidden = true
+  stateGraphFieldsControls.hidden = true
+  formSkinStage.hidden = true
+  formSkinControls.hidden = true
+  edgesStage.hidden = true
+  torusAnalysisStage.hidden = true
+  fieldsAnalysisStage.hidden = true
+  fieldsV3Stage.hidden = false
+  hideFormSkinLab()
+  hideEdgesLab()
+  hideTorusAnalysisLab()
+  hideFieldsAnalysisLab()
+  hideSectionTabs()
+  for (const link of navigation.querySelectorAll("a")) {
+    link.classList.toggle("active", link.dataset.slug === FIELDS_V3_SLUG)
+  }
+  void fieldsV3Lab().then((lab) => {
+    if (readSlug() === FIELDS_V3_SLUG) lab.show()
+    else lab.hide()
+  })
+}
+
 const applyStory = (): void => {
   const slug = readSlug()
   const forceStoryPart = forceStoryPartForSlug(slug)
@@ -1278,6 +1340,11 @@ const applyStory = (): void => {
     app.classList.remove("fields-v2-mode")
     fieldsV2Stage.hidden = true
     hideFieldsV2Lab()
+  }
+  if (slug !== FIELDS_V3_SLUG) {
+    app.classList.remove("fields-v3-mode")
+    fieldsV3Stage.hidden = true
+    hideFieldsV3Lab()
   }
   if (forceStoryPart !== null) {
     applyForceStoriesPage()
@@ -1334,6 +1401,10 @@ const applyStory = (): void => {
   }
   if (slug === FIELDS_V2_SLUG) {
     applyFieldsV2Page()
+    return
+  }
+  if (slug === FIELDS_V3_SLUG) {
+    applyFieldsV3Page()
     return
   }
   const formSkin = formSkinForSlug(slug)
@@ -1440,7 +1511,16 @@ const torusSkinLink = document.createElement("a")
 torusSkinLink.href = "#/skin-torus"
 torusSkinLink.dataset.slug = "skin-torus"
 torusSkinLink.textContent = "Torus"
-navigation.append(skinSection, sphereSkinLink, torusSkinLink)
+const fieldsSkinLink = document.createElement("a")
+fieldsSkinLink.href = "#/skin-fields"
+fieldsSkinLink.dataset.slug = "skin-fields"
+fieldsSkinLink.textContent = "Fields"
+navigation.append(
+  skinSection,
+  sphereSkinLink,
+  torusSkinLink,
+  fieldsSkinLink,
+)
 const graphSection = document.createElement("span")
 graphSection.className = "nav-section"
 graphSection.textContent = "Analysis"
@@ -1464,6 +1544,10 @@ const fieldsV2Link = document.createElement("a")
 fieldsV2Link.href = `#/${FIELDS_V2_SLUG}`
 fieldsV2Link.dataset.slug = FIELDS_V2_SLUG
 fieldsV2Link.textContent = "Fields v2"
+const fieldsV3Link = document.createElement("a")
+fieldsV3Link.href = `#/${FIELDS_V3_SLUG}`
+fieldsV3Link.dataset.slug = FIELDS_V3_SLUG
+fieldsV3Link.textContent = "Fields v3"
 navigation.append(
   graphSection,
   torusAnalysisLink,
@@ -1471,6 +1555,7 @@ navigation.append(
   graphLink,
   fieldsAnalysisLink,
   fieldsV2Link,
+  fieldsV3Link,
 )
 
 window.addEventListener("hashchange", applyStory)
@@ -1494,6 +1579,9 @@ window.addEventListener("beforeunload", () => {
   }
   if (fieldsV2LabPromise) {
     void fieldsV2LabPromise.then((lab) => lab.dispose())
+  }
+  if (fieldsV3LabPromise) {
+    void fieldsV3LabPromise.then((lab) => lab.dispose())
   }
   if (stateGraphActivityLabPromise) {
     void stateGraphActivityLabPromise.then((lab) => lab.dispose())

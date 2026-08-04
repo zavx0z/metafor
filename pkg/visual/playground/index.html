@@ -79,6 +79,10 @@
         grid-template-columns: 220px minmax(0, 1fr);
       }
 
+      main.fields-v3-mode {
+        grid-template-columns: 220px minmax(0, 1fr);
+      }
+
       aside {
         z-index: 2;
         padding: 18px;
@@ -2085,6 +2089,20 @@
         inset: 0;
       }
 
+      #fields-v3-stage {
+        position: absolute;
+        inset: 0;
+        overflow: hidden;
+        background:
+          radial-gradient(circle at 50% 50%, rgba(31, 118, 162, 0.12), transparent 50%),
+          #030810;
+      }
+
+      #fields-v3-canvas {
+        position: absolute;
+        inset: 0;
+      }
+
       .fields-v2-card {
         position: absolute;
         top: 18px;
@@ -2096,7 +2114,6 @@
         border-radius: 11px;
         background: rgba(3, 9, 16, 0.78);
         backdrop-filter: blur(14px);
-        pointer-events: none;
       }
 
       .fields-v2-card h2 {
@@ -2105,10 +2122,54 @@
       }
 
       .fields-v2-card p {
+        margin: 0 0 12px;
+        color: #8597ae;
+        font-size: 8px;
+        line-height: 1.5;
+      }
+
+      .fields-v3-card {
+        position: absolute;
+        top: 18px;
+        left: 18px;
+        z-index: 2;
+        width: min(350px, calc(100% - 36px));
+        padding: 14px;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        border-radius: 11px;
+        background: rgba(3, 9, 16, 0.78);
+        backdrop-filter: blur(14px);
+      }
+
+      .fields-v3-card h2 {
+        margin: 0 0 5px;
+        font-size: 14px;
+      }
+
+      .fields-v3-card p {
         margin: 0;
         color: #8597ae;
         font-size: 8px;
         line-height: 1.5;
+      }
+
+      .fields-v2-width-control {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 6px 10px;
+        align-items: center;
+        color: #b5c2d6;
+        font-size: 9px;
+      }
+
+      .fields-v2-width-control output {
+        color: #e7eefc;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .fields-v2-width-control input {
+        grid-column: 1 / -1;
+        width: 100%;
       }
 
       .fields-analysis-card {
@@ -2561,7 +2622,8 @@
         main.edges-mode,
         main.torus-analysis-mode,
         main.fields-analysis-mode,
-        main.fields-v2-mode {
+        main.fields-v2-mode,
+        main.fields-v3-mode {
           grid-template-columns: 180px minmax(0, 1fr);
         }
 
@@ -2620,7 +2682,8 @@
         main.edges-mode,
         main.torus-analysis-mode,
         main.fields-analysis-mode,
-        main.fields-v2-mode {
+        main.fields-v2-mode,
+        main.fields-v3-mode {
           grid-template-rows: auto minmax(0, 1fr);
           grid-template-columns: minmax(0, 1fr);
         }
@@ -2793,7 +2856,7 @@
           <div id="form-skin-variants" aria-label="Варианты скина"></div>
           <section class="form-skin-viewport">
             <canvas id="form-skin-canvas"></canvas>
-            <span class="form-skin-badge">WebGPU · one-pass thin film</span>
+            <span id="form-skin-badge" class="form-skin-badge"></span>
             <span class="form-skin-viewport-hint">
               drag — вращение · wheel — панорама · ctrl+wheel — масштаб
             </span>
@@ -3511,6 +3574,7 @@
           </section>
         </section>
         <section id="fields-v2-stage" hidden></section>
+        <section id="fields-v3-stage" hidden></section>
       </section>
       <aside id="controls">
         <div id="visual-controls">

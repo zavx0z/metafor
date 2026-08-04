@@ -7,11 +7,17 @@ import {
   deriveFormSkinPalette,
   measureFormSkinLoad,
 } from "./FormSkinLab.ts"
+import {
+  createFlatFieldBandGeometry,
+  deriveFieldsMattePastel,
+  FIELDS_MATTE_TEXT_COLOR,
+} from "./FieldsMatte.ts"
 
 describe("Form Skin Lab", () => {
   test("offers the same skin catalog to Sphere and Torus geometry", () => {
     expect(FORM_SKINS.map((skin) => skin.id)).toEqual([
       "quantum",
+      "holographic",
       "wire",
       "glow",
       "silhouette",
@@ -22,6 +28,28 @@ describe("Form Skin Lab", () => {
       .toBeGreaterThan(0)
     expect(buildFormGeometry("torus", 24, 8, 0.28).mesh.index?.count)
       .toBeGreaterThan(0)
+    expect(buildFormGeometry("fields", 24, 8, 0.28).mesh.index?.count)
+      .toBeGreaterThan(0)
+  })
+
+  test("routes Fields through the same Form Skin interface", async () => {
+    const [client, page, source] = await Promise.all([
+      Bun.file(new URL("./client.ts", import.meta.url)).text(),
+      Bun.file(new URL("./index.html", import.meta.url)).text(),
+      Bun.file(new URL("./FormSkinLab.ts", import.meta.url)).text(),
+    ])
+
+    expect(client).toContain('if (slug === "skin-fields") return "fields"')
+    expect(client).toContain('fieldsSkinLink.textContent = "Fields"')
+    expect(source).toContain('export type FormSkinLabForm = "sphere" | "torus" | "fields"')
+    expect(source).toContain('"Fields · скины формы"')
+    expect(source).toContain('"WebGPU · one-pass holographic"')
+    expect(source).toContain("activeGeometries = placements.map")
+    expect(source).toContain("fieldsV2AccretionColor(placement.field)")
+    expect(source).toContain('if (form === "fields") elements.select.value = "solid"')
+    expect(source).toContain('const mesh = skinId === "solid"')
+    expect(source).toContain("createFieldsV2QuantumMaterial(field, color)")
+    expect(page).not.toContain("holographic-skin-stage")
   })
 
   test("keeps form geometry fixed outside the skin controls", async () => {
@@ -78,9 +106,28 @@ describe("Form Skin Lab", () => {
     expect(palette.glow.b).toBeGreaterThan(selected.b)
   })
 
+  test("makes solid Fields flat, pastel and actually transparent", () => {
+    const geometry = createFlatFieldBandGeometry(4, 6, 24)
+    const positions = geometry.attributes.position!.array
+    for (let index = 2; index < positions.length; index += 3) {
+      expect(positions[index]).toBe(0)
+    }
+    expect(Math.hypot(positions[0]!, positions[1]!)).toBeCloseTo(4)
+    expect(Math.hypot(positions[3]!, positions[4]!)).toBeCloseTo(6)
+
+    const source = new Color(1, 0.08, 0.58)
+    const pastel = deriveFieldsMattePastel(source, 0.55)
+    expect(pastel.r).toBe(source.r)
+    expect(pastel.g).toBeGreaterThan(source.g)
+    expect(pastel.b).toBeGreaterThan(source.b)
+    expect(pastel.a).toBeCloseTo(0.3025)
+    expect(FIELDS_MATTE_TEXT_COLOR).toBe(0x000000)
+  })
+
   test("reports exact pass multiplication and shared geometry cost", () => {
     const geometry = buildFormGeometry("sphere", 24, 8, 0.28)
     const quantum = measureFormSkinLoad(geometry, "quantum", 3)
+    const holographic = measureFormSkinLoad(geometry, "holographic", 3)
     const glow = measureFormSkinLoad(geometry, "glow", 3)
     const hybrid = measureFormSkinLoad(geometry, "hybrid", 3)
 
@@ -89,6 +136,11 @@ describe("Form Skin Lab", () => {
     expect(quantum.renderObjects).toBe(3)
     expect(quantum.triangles).toBeGreaterThan(0)
     expect(quantum.lineSegments).toBe(0)
+    expect(holographic.drawCalls).toBe(3)
+    expect(holographic.passesPerForm).toBe(1)
+    expect(holographic.renderObjects).toBe(3)
+    expect(holographic.triangles).toBeGreaterThan(0)
+    expect(holographic.lineSegments).toBe(0)
     expect(glow.drawCalls).toBe(3)
     expect(glow.passesPerForm).toBe(1)
     expect(glow.renderObjects).toBe(3)

@@ -270,9 +270,18 @@ law and are removed.
 The reusable Torus form does not itself activate deferred Bulk Axion; the Bulk
 visibility policy excludes Axion before invoking the production strategy.
 
-`Sphere` and `Torus` beneath `Form skins` are an isolated Form Skin Lab. Both
-pages run the same skin catalog (`quantum`, `wire`, `glow`, `silhouette`,
-`solid`, `hybrid`) against one fixed geometry per form. The fixed large Torus
+`Sphere`, `Torus` and `Fields` beneath `Form skins` are one isolated Form Skin
+Lab with the same interface, controls, camera and benchmark table. All three
+pages run the same skin catalog (`quantum`, `holographic`, `wire`, `glow`,
+`silhouette`, `solid`, `hybrid`). `Fields` reuses the real root lada Torus and
+all of its snapshot-owned orbital Field bands with their semantic type colors.
+Its `solid` skin alone uses flat circular bands with matte pastel alpha fill
+and black text. The `quantum` skin deliberately retains the warped accretion
+geometry and the original empty/materialized Fields-v2 film parameters; the
+other experimental skins also keep the accretion geometry. The
+`holographic` variant uses continuous emission, soft
+world-space energy waves and a Fresnel contour without textures,
+post-processing or an idle animation clock. The fixed large Torus
 uses the agreed Dark-shell resolution `radialSegments = 64` and
 `tubularSegments = 192`; compact State and Field-proxy Torus use the fixed
 `32 × 192` embedded resolution. Both are package-owned role laws rather than
@@ -448,11 +457,27 @@ Fields, and removes nested Matter and all causal forms. The initial scene shows
 only the resulting root Torus from directly above. Its Torus envelope is still
 the standard empty root baseline with a `100 mm` outer diameter and `11.12 mm`
 inner diameter; its form does not depend on the Field count. The lada Fields
-are retained in snapshot order. Each Field is rendered as one thin, flat,
-concentric orbital band outside the root Torus, so the complete set forms a
-Saturn-like ring system without Sphere markers. Every band carries the real
-Field label and current value; the text geometry itself bends along that
-band's radius instead of remaining a straight screen-space label.
+are stably grouped by their canonical Bulk kind; snapshot order is retained
+inside each group. The five public Field types keep the shared semantic palette,
+while `other` remains an isolated fallback for an unrecognized runtime type.
+Each Field is rendered as one flat circular orbital band outside the root
+Torus, so the complete set forms a calm Saturn-like disk without Sphere
+markers, textures, animation or post-processing. The band uses one unlit
+`MeshBasicMaterial` draw with a transparent pastel derivation of its semantic
+Field-type color; black text is printed into the band. The root Torus keeps its
+standard quantum-film material. Every band
+carries the real Field label and current value; the text geometry itself bends
+along that band's radius instead of remaining a straight screen-space label.
+The page exposes one band-width control from `1.2 mm` to `10 mm`; inter-band
+gaps stay fixed, while text size changes in direct proportion to band width.
+The control updates the existing band and text position buffers once per
+animation frame. It does not recreate the scene or reset the current
+`ViewPoint` position, target or perspective.
+
+`Fields v3` is a separate Analysis staging page. Its initial state deliberately
+contains only the same standard root `lada` Torus from the snapshot, viewed from
+above with the shared quantum-film material. It does not yet render Fields or
+introduce a new layout law.
 
 `Torus` beneath `Analysis` is a separate geometry laboratory, distinct from
 the Torus page in `Form skins`. Its first card exposes the current official

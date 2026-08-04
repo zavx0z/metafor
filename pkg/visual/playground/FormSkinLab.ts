@@ -1,6 +1,7 @@
 import {
   BufferGeometry,
   Color,
+  HolographicMaterial,
   LineBasicMaterial,
   LineGlowMaterial,
   LineSegments,
@@ -10,7 +11,10 @@ import {
   Renderer,
   Space,
   SphereGeometry,
+  Text,
+  TextMaterial,
   TorusGeometry,
+  TrueTypeFont,
   ViewPoint,
 } from "@metafor/engine"
 import {
@@ -21,11 +25,31 @@ import {
 } from "./QuantumFilm.ts"
 import {DARK_TORUS_MESH_DETAIL} from "../src/Torus.ts"
 import {createPageAnnotationLayer} from "./AnnotationLayer.ts"
+import {
+  createAccretionBandGeometry,
+  createFieldsV2QuantumMaterial,
+  bendFieldsV2TextGeometryToRing,
+  fieldsV2AccretionColor,
+  fieldsV2FieldText,
+  fieldsV2LabelColor,
+  fieldsV2TextBounds,
+  FIELDS_V2_TEXT_SIZE,
+  layoutFieldsV2Rings,
+  type FieldsV2RingPlacement,
+  type FieldsV2Source,
+} from "./FieldsV2Lab.ts"
+import {
+  createFlatFieldBandGeometry,
+  deriveFieldsMattePastel,
+  FIELDS_MATTE_TEXT_COLOR,
+  FIELDS_MATTE_TEXT_OPACITY,
+} from "./FieldsMatte.ts"
 
-export type FormSkinLabForm = "sphere" | "torus"
+export type FormSkinLabForm = "sphere" | "torus" | "fields"
 
 export type FormSkinId =
   | "quantum"
+  | "holographic"
   | "wire"
   | "glow"
   | "silhouette"
@@ -58,6 +82,14 @@ export const FORM_SKINS: readonly FormSkinDefinition[] = [
     wire: false,
   },
   {
+    id: "holographic",
+    label: "Голограмма",
+    description:
+      "Однопроходная прозрачная поверхность: непрерывное свечение, мягкие волны энергии и Френель-контур.",
+    mesh: true,
+    wire: false,
+  },
+  {
     id: "wire",
     label: "Каркас",
     description: "Обычные depth-tested линии без свечения.",
@@ -81,7 +113,7 @@ export const FORM_SKINS: readonly FormSkinDefinition[] = [
   {
     id: "solid",
     label: "Сплошной",
-    description: "Один непрозрачный mesh без каркасного прохода.",
+    description: "Один матовый mesh без освещения и каркасного прохода.",
     mesh: true,
     wire: false,
   },
@@ -98,6 +130,11 @@ type FormGeometry = Readonly<{
   mesh: BufferGeometry
   wire: BufferGeometry
 }>
+
+const buildFieldBandGeometry = (
+  size: number,
+  segments: number,
+): BufferGeometry => createFlatFieldBandGeometry(size * 0.58, size, segments)
 
 export type FormSkinLoadMetrics = Readonly<{
   drawCalls: number
@@ -145,12 +182,14 @@ export const buildFormGeometry = (
         widthSegments: safeDetail,
         heightSegments: Math.max(6, Math.floor(safeDetail / 2)),
       })
-    : new TorusGeometry({
-        radius: size * 0.68,
-        tube: size * tubeRatio,
-        radialSegments: Math.max(3, Math.floor(torusSegments.radial)),
-        tubularSegments: Math.max(3, Math.floor(torusSegments.tubular)),
-      })
+    : form === "torus"
+      ? new TorusGeometry({
+          radius: size * 0.68,
+          tube: size * tubeRatio,
+          radialSegments: Math.max(3, Math.floor(torusSegments.radial)),
+          tubularSegments: Math.max(3, Math.floor(torusSegments.tubular)),
+        })
+      : buildFieldBandGeometry(size, safeDetail * 4)
   return {mesh, wire: mesh.toWireframe()}
 }
 
@@ -189,6 +228,7 @@ export type FormSkinLab = Readonly<{
 }>
 
 type LabElements = Readonly<{
+  badge: HTMLElement
   benchmarkStatus: HTMLElement
   canvas: HTMLCanvasElement
   color: HTMLInputElement
@@ -220,6 +260,7 @@ const requireElement = <T extends HTMLElement>(id: string): T => {
 }
 
 const labElements = (): LabElements => ({
+  badge: requireElement("form-skin-badge"),
   benchmarkStatus: requireElement("form-skin-benchmark-status"),
   canvas: requireElement<HTMLCanvasElement>("form-skin-canvas"),
   color: requireElement<HTMLInputElement>("form-skin-color"),
@@ -314,6 +355,10 @@ const materialObjects = (
   glowIntensity: number,
   highlightSize: number,
   opacity: number,
+  patternOffset = 0,
+  bandRadius = 0,
+  bandHalfWidth = 0,
+  field?: FieldsV2RingPlacement["field"],
 ): readonly (LineSegments | Mesh)[] => {
   const palette = deriveFormSkinPalette(color, opacity)
   switch (skinId) {
@@ -321,16 +366,35 @@ const materialObjects = (
       return [
         new Mesh(
           geometry.mesh,
-          form === "sphere"
-            ? createQuantumSphereMaterial(color, {
-              glowIntensity,
-              opacity,
-            })
-            : createQuantumFilmMaterial(color, {
-              glowIntensity,
-              highlightSize,
-              opacity,
-            }),
+          form === "fields" && field
+            ? createFieldsV2QuantumMaterial(field, color)
+            : form === "sphere"
+              ? createQuantumSphereMaterial(color, {
+                glowIntensity,
+                opacity,
+              })
+              : createQuantumFilmMaterial(color, {
+                glowIntensity,
+                highlightSize,
+                opacity,
+              }),
+        ),
+      ]
+    case "holographic":
+      return [
+        new Mesh(
+          geometry.mesh,
+          new HolographicMaterial({
+            color,
+            opacity,
+            irregularity: 0.82,
+            rimStrength: 0.8 + glowIntensity * 0.55,
+            scanDensity: 0.38,
+            scanSharpness: 0.55,
+            patternOffset,
+            bandRadius,
+            bandHalfWidth,
+          }),
         ),
       ]
     case "wire":
@@ -372,7 +436,14 @@ const materialObjects = (
       ]
     case "solid":
       return [
-        new Mesh(geometry.mesh, new MeshBasicMaterial({color})),
+        new Mesh(
+          geometry.mesh,
+          new MeshBasicMaterial({
+            color: form === "fields"
+              ? deriveFieldsMattePastel(color, opacity)
+              : color,
+          }),
+        ),
       ]
     case "hybrid":
       return [
@@ -397,7 +468,9 @@ const materialObjects = (
   }
 }
 
-export const createFormSkinLab = async (): Promise<FormSkinLab> => {
+export const createFormSkinLab = async (
+  fieldsSource: FieldsV2Source,
+): Promise<FormSkinLab> => {
   const elements = labElements()
   for (const skin of FORM_SKINS) {
     const option = document.createElement("option")
@@ -420,6 +493,10 @@ export const createFormSkinLab = async (): Promise<FormSkinLab> => {
   const renderer = new Renderer()
   await renderer.init(elements.canvas)
   const space = new Space()
+  const textOverlay = new Space()
+  const fieldsFont = await TrueTypeFont.fromUrl(
+    "/engine-static/JetBrainsMono-Bold.ttf",
+  )
   space.background = new Color(0.008, 0.019, 0.032)
   const viewPoint = new ViewPoint({
     element: elements.canvas,
@@ -434,7 +511,7 @@ export const createFormSkinLab = async (): Promise<FormSkinLab> => {
   let active = false
   let disposed = false
   let form: FormSkinLabForm = "sphere"
-  let torusHighlightSize = 0
+  let nonSphereHighlightSize = 0
   elements.highlightSize.value = String(SPHERE_QUANTUM_HIGHLIGHT_SIZE)
   const annotation = createPageAnnotationLayer({
     sourceCanvas: elements.canvas,
@@ -447,13 +524,24 @@ export const createFormSkinLab = async (): Promise<FormSkinLab> => {
       canvasId: elements.canvas.id,
       kind: "playground-page",
       route: window.location.hash,
-      slug: form === "sphere" ? "skin-sphere" : "skin-torus",
+      slug: form === "sphere"
+        ? "skin-sphere"
+        : form === "torus"
+          ? "skin-torus"
+          : "skin-fields",
       title: form === "sphere"
         ? "Sphere · скины формы"
-        : "Torus · скины формы",
+        : form === "torus"
+          ? "Torus · скины формы"
+          : "Fields · скины формы",
     }),
   })
   let geometry: FormGeometry | null = null
+  let activeGeometries: FormGeometry[] = []
+  let activeFieldColors: Color[] = []
+  let activeTextGeometries: BufferGeometry[] = []
+  let fieldsContextGeometry: BufferGeometry | null = null
+  let fieldsOuterRadius = 0
   let loadMetrics: FormSkinLoadMetrics | null = null
   let geometryBuildMs = 0
   let sceneBuildMs = 0
@@ -520,7 +608,17 @@ export const createFormSkinLab = async (): Promise<FormSkinLab> => {
 
   const updateOutputs = (): void => {
     const skin = skinDefinition(selectedSkin())
-    elements.description.textContent = skin.description
+    const fixedFieldsQuantum = form === "fields" && selectedSkin() === "quantum"
+    elements.badge.textContent = selectedSkin() === "quantum"
+      ? "WebGPU · one-pass thin film"
+      : selectedSkin() === "holographic"
+        ? "WebGPU · one-pass holographic"
+        : `WebGPU · ${skin.label}`
+    elements.description.textContent = form === "fields" && selectedSkin() === "solid"
+      ? "Ровные круговые Fields без деформации: матовая пастельная заливка с регулируемой прозрачностью."
+      : fixedFieldsQuantum
+        ? "Волнистая accretion-геометрия и исходные параметры quantum-film из Fields v2."
+        : skin.description
     elements.copiesOutput.value = elements.copies.value
     elements.pixelRatioOutput.value = `${Number(elements.pixelRatio.value).toFixed(2)}×`
     elements.glowOutput.value = Number(elements.glow.value).toFixed(1)
@@ -531,10 +629,13 @@ export const createFormSkinLab = async (): Promise<FormSkinLab> => {
           : Number(elements.highlightSize.value)
       ).toFixed(2)
     elements.opacityOutput.value = Number(elements.opacity.value).toFixed(2)
-    elements.glow.disabled = selectedSkin() === "wire" || selectedSkin() === "solid"
+    elements.glow.disabled = selectedSkin() === "wire" ||
+      selectedSkin() === "solid" || fixedFieldsQuantum
     elements.highlightSize.disabled =
-      form === "sphere" || selectedSkin() !== "quantum"
-    elements.opacity.disabled = selectedSkin() === "solid"
+      form === "sphere" || selectedSkin() !== "quantum" || fixedFieldsQuantum
+    elements.opacity.disabled =
+      (selectedSkin() === "solid" && form !== "fields") || fixedFieldsQuantum
+    elements.color.disabled = form === "fields"
     for (const button of elements.variants.querySelectorAll<HTMLButtonElement>("button")) {
       button.classList.toggle("active", button.dataset.skin === selectedSkin())
     }
@@ -554,25 +655,41 @@ export const createFormSkinLab = async (): Promise<FormSkinLab> => {
     const copies = Math.max(1, Number(elements.copies.value))
     const columns = Math.ceil(Math.sqrt(copies))
     const rows = Math.ceil(copies / columns)
-    const spacing = FORM_SKIN_GEOMETRY.size * 2.35
+    const spacing = form === "fields"
+      ? Math.max(FORM_SKIN_GEOMETRY.size * 2.35, fieldsOuterRadius * 2.25)
+      : FORM_SKIN_GEOMETRY.size * 2.35
     const width = Math.max(spacing, columns * spacing)
     const height = Math.max(spacing, rows * spacing)
     const visibleHeight = Math.max(height, width / Math.max(0.25, viewPoint.aspect))
     const distance = visibleHeight / 2 / Math.tan(viewPoint.fov / 2) * 1.18
     viewPoint.getTarget().set(0, 0, 0)
-    viewPoint.position.set(0, -Math.max(22, distance), 0)
-    viewPoint.getUp().set(0, 0, 1)
+    if (form === "fields") {
+      viewPoint.position.set(0, 0, Math.max(22, distance))
+      viewPoint.getUp().set(0, 1, 0)
+    } else {
+      viewPoint.position.set(0, -Math.max(22, distance), 0)
+      viewPoint.getUp().set(0, 0, 1)
+    }
     viewPoint.update()
   }
 
   function rebuild(refit: boolean): void {
     if (disposed) return
     const sceneBuildStartedAt = performance.now()
-    if (geometry) {
-      renderer.invalidateGeometry(geometry.mesh)
-      renderer.invalidateGeometry(geometry.wire)
+    for (const activeGeometry of activeGeometries) {
+      renderer.invalidateGeometry(activeGeometry.mesh)
+      renderer.invalidateGeometry(activeGeometry.wire)
     }
+    activeGeometries = []
+    activeFieldColors = []
+    for (const textGeometry of activeTextGeometries) {
+      renderer.invalidateGeometry(textGeometry)
+    }
+    activeTextGeometries = []
+    if (fieldsContextGeometry) renderer.invalidateGeometry(fieldsContextGeometry)
+    fieldsContextGeometry = null
     for (const child of [...space.children]) space.remove(child)
+    for (const child of [...textOverlay.children]) textOverlay.remove(child)
     const {
       detail,
       size,
@@ -584,36 +701,157 @@ export const createFormSkinLab = async (): Promise<FormSkinLab> => {
     const skinId = selectedSkin()
     const color = parseHexColor(elements.color.value)
     const geometryBuildStartedAt = performance.now()
-    geometry = buildFormGeometry(form, detail, size, tubeRatio, {
-      radial: torusRadialSegments,
-      tubular: torusTubularSegments,
-    })
+    if (form === "fields") {
+      const rootOuterRadius = fieldsSource.root.torusRadius +
+        fieldsSource.root.torusTube
+      const placements = layoutFieldsV2Rings(
+        fieldsSource.fields,
+        rootOuterRadius,
+      )
+      activeGeometries = placements.map((placement, index) => {
+        activeFieldColors.push(new Color(
+          ...fieldsV2AccretionColor(placement.field),
+        ))
+        const mesh = skinId === "solid"
+          ? createFlatFieldBandGeometry(
+              placement.innerRadius,
+              placement.outerRadius,
+            )
+          : createAccretionBandGeometry(
+              placement.innerRadius,
+              placement.outerRadius,
+              index * 0.67,
+            )
+        return {mesh, wire: mesh.toWireframe()}
+      })
+      geometry = activeGeometries[0] ?? null
+      fieldsOuterRadius = placements.at(-1)?.outerRadius ?? rootOuterRadius
+      fieldsContextGeometry = new TorusGeometry({
+        radius: fieldsSource.root.torusRadius,
+        tube: fieldsSource.root.torusTube,
+        radialSegments: fieldsSource.meshDetail.radialSegments,
+        tubularSegments: fieldsSource.meshDetail.tubularSegments,
+      })
+    } else {
+      geometry = buildFormGeometry(form, detail, size, tubeRatio, {
+        radial: torusRadialSegments,
+        tubular: torusTubularSegments,
+      })
+      activeGeometries = [geometry]
+      fieldsOuterRadius = 0
+    }
     geometryBuildMs = performance.now() - geometryBuildStartedAt
-    loadMetrics = measureFormSkinLoad(geometry, skinId, copies)
+    if (!geometry) throw new Error("Form Skin Fields source has no Fields")
+    loadMetrics = measureFormSkinLoad(
+      geometry,
+      skinId,
+      form === "fields" ? copies * activeGeometries.length : copies,
+    )
 
     const columns = Math.ceil(Math.sqrt(copies))
     const rows = Math.ceil(copies / columns)
-    const spacing = size * 2.35
+    const spacing = form === "fields" ? fieldsOuterRadius * 2.25 : size * 2.35
     for (let index = 0; index < copies; index += 1) {
       const column = index % columns
       const row = Math.floor(index / columns)
       const root = new Object3D()
-      root.position.set(
-        (column - (columns - 1) / 2) * spacing,
-        0,
-        ((rows - 1) / 2 - row) * spacing,
-      )
-      if (form === "torus") root.rotation.x = Math.PI / 2
-      for (const object of materialObjects(
-        form,
-        geometry,
-        skinId,
-        color,
-        Number(elements.glow.value),
-        Number(elements.highlightSize.value),
-        Number(elements.opacity.value),
-      )) {
-        root.add(object)
+      if (form === "fields") {
+        root.position.set(
+          (column - (columns - 1) / 2) * spacing,
+          ((rows - 1) / 2 - row) * spacing,
+          0,
+        )
+        root.add(new Mesh(
+          fieldsContextGeometry!,
+          createQuantumFilmMaterial(
+            new Color(...fieldsSource.material.color),
+            {
+              glowIntensity: fieldsSource.material.glowIntensity,
+              highlightSize: fieldsSource.material.highlightSize,
+              opacity: fieldsSource.material.opacity,
+            },
+          ),
+        ))
+        const placements = layoutFieldsV2Rings(
+          fieldsSource.fields,
+          fieldsSource.root.torusRadius + fieldsSource.root.torusTube,
+        )
+        for (const [fieldIndex, fieldGeometry] of activeGeometries.entries()) {
+          const fieldColor = activeFieldColors[fieldIndex]!
+          const placement = placements[fieldIndex]!
+          for (const object of materialObjects(
+            form,
+            fieldGeometry,
+            skinId,
+            fieldColor,
+            Number(elements.glow.value),
+            Number(elements.highlightSize.value),
+            Number(elements.opacity.value),
+            -placement.radius * 0.38 * Math.PI * 2 + fieldIndex * 0.19,
+            placement.radius,
+            (placement.outerRadius - placement.innerRadius) / 2,
+            placement.field,
+          )) root.add(object)
+        }
+        const textRoot = new Object3D()
+        textRoot.position.copy(root.position)
+        for (const placement of placements) {
+          const fieldColor = fieldsV2AccretionColor(placement.field)
+          const textColor = skinId === "solid"
+            ? new Color(FIELDS_MATTE_TEXT_COLOR)
+            : fieldsV2LabelColor(fieldColor)
+          const fieldText = new Text(
+            fieldsV2FieldText(placement.field),
+            fieldsFont,
+            FIELDS_V2_TEXT_SIZE,
+            new TextMaterial({
+              color: textColor,
+              depthWrite: false,
+              opacity: skinId === "solid" ? FIELDS_MATTE_TEXT_OPACITY : 1,
+            }),
+          )
+          fieldText.frustumCulled = false
+          const center = fieldsV2TextBounds(fieldText.coverGeometry)
+          bendFieldsV2TextGeometryToRing(
+            fieldText.coverGeometry,
+            Float32Array.from(
+              fieldText.coverGeometry.attributes.position!.array,
+            ),
+            placement.radius,
+            center,
+          )
+          bendFieldsV2TextGeometryToRing(
+            fieldText.stencilGeometry,
+            Float32Array.from(
+              fieldText.stencilGeometry.attributes.position!.array,
+            ),
+            placement.radius,
+            center,
+          )
+          activeTextGeometries.push(
+            fieldText.coverGeometry,
+            fieldText.stencilGeometry,
+          )
+          fieldText.updateMatrix()
+          textRoot.add(fieldText)
+        }
+        textOverlay.add(textRoot)
+      } else {
+        root.position.set(
+          (column - (columns - 1) / 2) * spacing,
+          0,
+          ((rows - 1) / 2 - row) * spacing,
+        )
+        if (form === "torus") root.rotation.x = Math.PI / 2
+        for (const object of materialObjects(
+          form,
+          geometry,
+          skinId,
+          color,
+          Number(elements.glow.value),
+          Number(elements.highlightSize.value),
+          Number(elements.opacity.value),
+        )) root.add(object)
       }
       space.add(root)
     }
@@ -719,8 +957,9 @@ export const createFormSkinLab = async (): Promise<FormSkinLab> => {
     }
     lastFrameAt = collectFrameSample ? timestamp : 0
     space.updateWorldMatrix()
+    textOverlay.updateWorldMatrix()
     const startedAt = performance.now()
-    renderer.render(space, viewPoint)
+    renderer.renderFrame(space, textOverlay, viewPoint)
     cpuSamples.push(performance.now() - startedAt)
     if (cpuSamples.length > 120) cpuSamples.shift()
     if (lastMetricsAt === 0 || timestamp - lastMetricsAt >= 250) {
@@ -856,8 +1095,8 @@ export const createFormSkinLab = async (): Promise<FormSkinLab> => {
     rebuild(false)
   })
   elements.highlightSize.addEventListener("input", () => {
-    if (form === "torus") {
-      torusHighlightSize = Number(elements.highlightSize.value)
+    if (form !== "sphere") {
+      nonSphereHighlightSize = Number(elements.highlightSize.value)
     }
     cancelBenchmark()
     comparisons.delete(selectedSkin())
@@ -905,10 +1144,14 @@ export const createFormSkinLab = async (): Promise<FormSkinLab> => {
       elements.canvas.removeEventListener("wheel", requestRenderFromCamera)
       elements.canvas.removeEventListener("touchmove", requestRenderFromCamera)
       viewPoint.dispose()
-      if (geometry) {
-        renderer.invalidateGeometry(geometry.mesh)
-        renderer.invalidateGeometry(geometry.wire)
+      for (const activeGeometry of activeGeometries) {
+        renderer.invalidateGeometry(activeGeometry.mesh)
+        renderer.invalidateGeometry(activeGeometry.wire)
       }
+      for (const textGeometry of activeTextGeometries) {
+        renderer.invalidateGeometry(textGeometry)
+      }
+      if (fieldsContextGeometry) renderer.invalidateGeometry(fieldsContextGeometry)
     },
     hide() {
       active = false
@@ -922,19 +1165,22 @@ export const createFormSkinLab = async (): Promise<FormSkinLab> => {
       active = true
       if (form !== nextForm) {
         annotation.hide()
-        if (form === "torus") {
-          torusHighlightSize = Number(elements.highlightSize.value)
+        if (form !== "sphere") {
+          nonSphereHighlightSize = Number(elements.highlightSize.value)
         }
         form = nextForm
+        if (form === "fields") elements.select.value = "solid"
         elements.highlightSize.value = String(
           form === "sphere"
             ? SPHERE_QUANTUM_HIGHLIGHT_SIZE
-            : torusHighlightSize,
+            : nonSphereHighlightSize,
         )
         clearComparisons()
         elements.title.textContent = form === "sphere"
           ? "Sphere · скины формы"
-          : "Torus · скины формы"
+          : form === "torus"
+            ? "Torus · скины формы"
+            : "Fields · скины формы"
         rebuild(true)
       } else {
         resize()
