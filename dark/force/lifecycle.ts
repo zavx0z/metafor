@@ -281,6 +281,7 @@ export class ForceLifecycle {
     if (!this.checkpoint || !this.history.read) {
       throw new Error("Force recovery requires checkpoint receipts and readable history")
     }
+    await this.checkpoint.prepare(pending)
     const sequences = [...new Set(pending.map(({acceptanceSequence}) => acceptanceSequence))].toSorted((a, b) => a - b)
     for (const sequence of sequences) {
       const [entry] = this.history.read({fromSequence: sequence, toSequence: sequence, limit: 1})
@@ -297,7 +298,6 @@ export class ForceLifecycle {
       if (receipts.some(({domain}) => !expected.has(domain))) {
         throw new Error(`Checkpoint recovery destinations do not match Force history entry ${sequence}`)
       }
-      await this.checkpoint.prepare(receipts)
       for (const receipt of receipts) force$[receipt.domain].send({parts: [entry.particle]})
       await this.checkpoint.waitApplied(receipts)
     }

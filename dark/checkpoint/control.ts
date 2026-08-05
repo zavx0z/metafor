@@ -234,13 +234,18 @@ export class DarkCheckpointControl {
   }
 
   async prepare(receipts: readonly CheckpointDeliveryReceipt[]): Promise<void> {
-    await Promise.all(receipts.map(async (receipt) => {
-      await this.peer.call(
-        receipt.domain,
-        FORCE_CHECKPOINT_PREPARE_METHOD,
-        receipt,
-        {waitMs: 30_000},
-      )
+    await Promise.all(forceDomains.map(async (domain) => {
+      const ordered = receipts
+        .filter((receipt) => receipt.domain === domain)
+        .toSorted((left, right) => left.sentOrdinal - right.sentOrdinal)
+      for (const receipt of ordered) {
+        await this.peer.call(
+          receipt.domain,
+          FORCE_CHECKPOINT_PREPARE_METHOD,
+          receipt,
+          {waitMs: 30_000},
+        )
+      }
     }))
   }
 

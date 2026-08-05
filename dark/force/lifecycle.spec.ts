@@ -144,6 +144,54 @@ describe("ForceLifecycle", () => {
     expect(applied).toEqual(prepared)
   })
 
+  test("prepares the complete recovery frontier before delivering its first entry", async () => {
+    recording = createRecordingChannels()
+    const pending = [1, 2].map((sequence) => ({
+      cutId: "recovery-cut",
+      domain: "boundary" as const,
+      sentOrdinal: sequence,
+      acceptanceSequence: sequence,
+    }))
+    const prepared: unknown[] = []
+    const applied: unknown[] = []
+    lifecycle = new ForceLifecycle({
+      accept() {
+        throw new Error("recovery must not append a new history entry")
+      },
+      read(query) {
+        const fromSequence = query?.fromSequence
+        if (fromSequence === undefined) throw new Error("recovery sequence is required")
+        return [{
+          schema: "metafor/dark-force-particle/v1",
+          id: `recovery-cut:${fromSequence}`,
+          sequence: fromSequence,
+          acceptedAt: "2026-08-04T12:00:00.000Z",
+          particle: {
+            part: "gluon",
+            op: "replace",
+            path: 1,
+            by: "matrix",
+            ts: fromSequence,
+            value: {fields: {1: fromSequence}},
+          },
+        }]
+      },
+    }, {
+      pendingDeliveries: () => structuredClone(pending),
+      recordAccepted() { throw new Error("recovery must not record acceptance") },
+      async prepare(receipts) { prepared.push(structuredClone(receipts)) },
+      async waitApplied(receipts) { applied.push(structuredClone(receipts)) },
+      acceptedFrom() { throw new Error("recovery must not advance an origin") },
+    })
+
+    lifecycle.start(recording.channels)
+    for (const domain of forceDomains) lifecycle.channelReady(domain)
+    expect(await lifecycle.waitUntilStarted()).toMatchObject({ok: true, state: "running"})
+    expect(prepared).toEqual([pending])
+    expect(applied).toEqual([[pending[0]], [pending[1]]])
+    expect(recording.deliveries("boundary")).toHaveLength(2)
+  })
+
   test("accepts an agent Particle only in running state", async () => {
     expect(await lifecycle.acceptAgentParticle(agentInflaton(1))).toMatchObject({
       ok: false,

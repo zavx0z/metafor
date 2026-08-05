@@ -87,6 +87,41 @@ describe("Dark checkpoint receipt persistence", () => {
     ])
   })
 
+  test("prepares each domain's recovered receipts in contiguous ordinal order", async () => {
+    const filename = join(root(), "control", "state.json")
+    const peer = new Peer()
+    let releaseFirst!: () => void
+    const firstPending = new Promise<void>((resolve) => {
+      releaseFirst = resolve
+    })
+    const calls: number[] = []
+    peer.call = async (_target, method, params) => {
+      if (method !== FORCE_CHECKPOINT_PREPARE_METHOD) {
+        throw new Error(`Unexpected method: ${method}`)
+      }
+      const ordinal = (params as {sentOrdinal: number}).sentOrdinal
+      calls.push(ordinal)
+      if (ordinal === 1) await firstPending
+      return {ok: true}
+    }
+    const control = new DarkCheckpointControl(
+      filename,
+      {cutId: "cut-control", sequence: 0},
+      peer as never,
+    )
+    const receipts = [
+      ...control.recordAccepted(1, ["dark"]),
+      ...control.recordAccepted(2, ["dark"]),
+    ]
+
+    const preparation = control.prepare(receipts)
+    await Promise.resolve()
+    expect(calls).toEqual([1])
+    releaseFirst()
+    await preparation
+    expect(calls).toEqual([1, 2])
+  })
+
   test("refuses a missing baseline for non-empty Particle history", () => {
     const filename = join(root(), "control", "state.json")
     expect(() => new DarkCheckpointControl(
