@@ -80,21 +80,18 @@ try {
   }
 
   graph = await readGraph();
-  const work = graph.template[ROOT]?.superposition.find(({ name }) => name === "работа");
-  const routePresent = work?.transitions !== null
-    && work?.transitions !== undefined
-    && Object.hasOwn(work.transitions, "подготовка отправки");
-  if (!routePresent) {
-    const routeReceipt = await peer.call("dark", "meta.declaration.apply", {
+  let superposition = graph.template[ROOT]?.superposition ?? [];
+  let routerPresent = superposition.some(({ name }) => name === "маршрутизация работы");
+  if (!routerPresent) {
+    const routerReceipt = await peer.call("dark", "meta.declaration.apply", {
       contractVersion: 1,
-      operationId: "lada-reply-send-routing-v1",
+      operationId: "lada-reply-work-router-state-v1",
       capability: "meta.declaration.write",
       entity: "state",
-      operation: "replace",
+      operation: "add",
       address: ROOT,
-      name: "работа",
       state: {
-        name: "работа",
+        name: "маршрутизация работы",
         transitions: {
           "осмысление сообщения": {
             incomingMessageKey: { null: false },
@@ -104,6 +101,36 @@ try {
             replyDraft: { null: false },
             replyToMessageKey: { null: false },
             outgoingMessage: { null: true },
+          },
+        },
+      },
+      revisions: [{ address: ROOT, revision: await readSourceRevision() }],
+    }, { waitMs: 30_000 });
+    console.log(JSON.stringify({ routerReceipt }, null, 2));
+    routerPresent = true;
+  }
+
+  graph = await readGraph();
+  superposition = graph.template[ROOT]?.superposition ?? [];
+  const work = superposition.find(({ name }) => name === "работа");
+  const routePresent = work?.transitions !== null
+    && work?.transitions !== undefined
+    && Object.hasOwn(work.transitions, "маршрутизация работы");
+  if (routerPresent && !routePresent) {
+    const routeReceipt = await peer.call("dark", "meta.declaration.apply", {
+      contractVersion: 1,
+      operationId: "lada-reply-work-router-routing-v1",
+      capability: "meta.declaration.write",
+      entity: "state",
+      operation: "replace",
+      address: ROOT,
+      name: "работа",
+      state: {
+        name: "работа",
+        transitions: {
+          "маршрутизация работы": {
+            chatHistoryReady: { eq: true },
+            ownMessageExists: { eq: true },
           },
         },
       },
