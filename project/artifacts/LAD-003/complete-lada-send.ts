@@ -26,6 +26,12 @@ type Graph = {
   template: Record<string, RootTemplate>;
 };
 
+type Frontier = {
+  cutId: string;
+  throughSequence: number;
+  retroactiveComplete: false;
+};
+
 const transport = new BaseMonadTransport(
   "codex/lada",
   "http://127.0.0.1:4000/",
@@ -36,12 +42,26 @@ const peer = new MonadRpcPeer(transport.channel);
 const readGraph = async (): Promise<Graph> =>
   await peer.call("dark", "readGraph", {}, { waitMs: 5_000 }) as Graph;
 
-const readFrontier = async () => {
+const readFrontier = async (): Promise<Frontier> => {
   const receipt = await peer.call("dark", "dark.force.history.read", {
     contractVersion: 1,
     query: { kind: "frontier" },
-  }, { waitMs: 5_000 }) as { frontier: unknown };
+  }, { waitMs: 5_000 }) as { frontier: Frontier };
   return receipt.frontier;
+};
+
+const waitStableFrontier = async (): Promise<Frontier> => {
+  let previous = await readFrontier();
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    await Bun.sleep(100);
+    const current = await readFrontier();
+    if (
+      current.cutId === previous.cutId
+      && current.throughSequence === previous.throughSequence
+    ) return current;
+    previous = current;
+  }
+  throw new Error("Force frontier не стабилизировался после routed Field impulse.");
 };
 
 const readSourceRevision = async (): Promise<string> => {
@@ -148,23 +168,26 @@ try {
   if (
     root?.state === "работа"
     && root.values.replyToMessageKey === SOURCE_MESSAGE_KEY
-    && root.values.chatHistoryReady === true
     && currentRoutePresent
   ) {
-    const deactivateReceipt = await peer.call("dark", "meta.field.value.apply", {
-      contractVersion: 1,
-      atom: ROOT_LOCATOR,
-      field: "chatHistoryReady",
-      value: false,
-      expectedFrontier: await readFrontier(),
-    }, { waitMs: 10_000 });
-    console.log(JSON.stringify({ deactivateReceipt }, null, 2));
+    if (root.values.chatHistoryReady === true) {
+      const deactivateReceipt = await peer.call("dark", "meta.field.value.apply", {
+        contractVersion: 1,
+        atom: ROOT_LOCATOR,
+        field: "chatHistoryReady",
+        value: false,
+        expectedFrontier: await readFrontier(),
+      }, { waitMs: 10_000 });
+      console.log(JSON.stringify({ deactivateReceipt }, null, 2));
+    } else if (root.values.chatHistoryReady !== false) {
+      throw new Error("chatHistoryReady имеет недопустимое значение.");
+    }
     const activateReceipt = await peer.call("dark", "meta.field.value.apply", {
       contractVersion: 1,
       atom: ROOT_LOCATOR,
       field: "chatHistoryReady",
       value: true,
-      expectedFrontier: await readFrontier(),
+      expectedFrontier: await waitStableFrontier(),
     }, { waitMs: 10_000 });
     console.log(JSON.stringify({ activateReceipt }, null, 2));
   }
