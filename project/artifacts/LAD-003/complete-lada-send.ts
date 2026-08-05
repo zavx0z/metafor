@@ -138,6 +138,27 @@ try {
     }, { waitMs: 30_000 });
     console.log(JSON.stringify({ routeReceipt }, null, 2));
   }
+
+  graph = await readGraph();
+  root = graph.runtime.roots[0];
+  const currentWork = graph.template[ROOT]?.superposition.find(({ name }) => name === "работа");
+  const currentRoutePresent = currentWork?.transitions !== null
+    && currentWork?.transitions !== undefined
+    && Object.hasOwn(currentWork.transitions, "маршрутизация работы");
+  if (
+    root?.state === "работа"
+    && root.values.replyToMessageKey === SOURCE_MESSAGE_KEY
+    && currentRoutePresent
+  ) {
+    const activationReceipt = await peer.call("dark", "meta.field.value.apply", {
+      contractVersion: 1,
+      atom: ROOT_LOCATOR,
+      field: "replyToMessageKey",
+      value: SOURCE_MESSAGE_KEY,
+      expectedFrontier: await readFrontier(),
+    }, { waitMs: 10_000 });
+    console.log(JSON.stringify({ activationReceipt }, null, 2));
+  }
 } finally {
   peer.close();
   await transport.close();
