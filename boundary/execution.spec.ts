@@ -323,6 +323,49 @@ describe("Boundary canonical Process result", () => {
     expect(await fieldValue(OUTPUT)).toBe(8)
   })
 
+  test("records a selected Energy after supersession and drops its late result", async () => {
+    const processExecutionId = "execution-selected-after-rebuild"
+    await boundary.materialize(message({
+      part: "photon",
+      op: "test",
+      path: atomId,
+      from: processExecutionId,
+      value: "ready",
+    }))
+    await boundary.materialize(message({
+      part: "inflaton",
+      op: "replace",
+      path: "process",
+      value: {...processDeclaration(), label: "rebuilt before Energy selection"},
+    }))
+
+    await boundary.materialize(message({
+      part: "z",
+      op: "copy",
+      path: atomId,
+      from: ENERGY,
+      value: {processExecutionId, fields: {}},
+    }))
+    expect((await boundary.projection.sql<Array<{status: string; energy: string | null}>>`
+      SELECT status, energy
+        FROM boundary_process_execution
+       WHERE execution_id = ${processExecutionId}
+    `)[0]).toEqual({status: "superseded", energy: ENERGY})
+
+    expect(await boundary.materialize(message({
+      part: "w+",
+      op: "replace",
+      path: atomId,
+      from: ENERGY,
+      value: {
+        processExecutionId,
+        processId: PROCESS,
+        fields: {[String(OUTPUT)]: 7},
+      } satisfies ProcessResultProposal,
+    }))).toBeNull()
+    expect(await fieldValue(OUTPUT)).toBe(0)
+  })
+
   test("supersedes every pending execution of the changed WIMP", async () => {
     const secondAtom = Number((await boundary.projection.sql<Array<{id: number}>>`
       INSERT INTO atom (parent_atom, parent_topology, wimp, position)

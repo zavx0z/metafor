@@ -216,18 +216,25 @@ export class BoundaryExecutionStore {
       RETURNING execution_id AS executionId
     `
     if (updated.length !== 1) {
-      const stale = (await this.sql<Array<{energy: string | null}>>`
-        SELECT energy
-          FROM boundary_process_execution
+      const superseded = await this.sql<Array<{executionId: string}>>`
+        UPDATE boundary_process_execution
+           SET energy = COALESCE(energy, ${energy})
          WHERE execution_id = ${grant.processExecutionId}
-           AND atom = ${atomId} AND status = ${"superseded"}
-        UNION ALL
-        SELECT energy
-          FROM boundary_retired_process_execution
-         WHERE execution_id = ${grant.processExecutionId} AND atom = ${atomId}
-         LIMIT 1
-      `)[0]
-      if (stale && (stale.energy === null || stale.energy === energy)) return null
+           AND atom = ${atomId}
+           AND status = ${"superseded"}
+           AND (energy IS NULL OR energy = ${energy})
+        RETURNING execution_id AS executionId
+      `
+      if (superseded.length === 1) return null
+      const retired = await this.sql<Array<{executionId: string}>>`
+        UPDATE boundary_retired_process_execution
+           SET energy = COALESCE(energy, ${energy})
+         WHERE execution_id = ${grant.processExecutionId}
+           AND atom = ${atomId}
+           AND (energy IS NULL OR energy = ${energy})
+        RETURNING execution_id AS executionId
+      `
+      if (retired.length === 1) return null
       throw new Error(`Energy selection does not match pending execution ${grant.processExecutionId}`)
     }
     return null
