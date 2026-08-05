@@ -48,5 +48,7 @@
   прежнее число transitions и conditions, требуемое безопасным RPC replace.
   После structural patch `chatHistoryReady` получает явный импульс
   `true → false → true`: конечное подтверждённое значение не меняется, а
-  Matrix переоценивает transition уже стоящего State.
+  Matrix переоценивает transition уже стоящего State. В router причинный Field
+  получает такой же безопасный импульс `key → null → key`, чтобы запустить
+  следующий transition без каскадного предположения о Matrix.
 * Чувствительные сведения: отсутствуют.

@@ -191,6 +191,33 @@ try {
     }, { waitMs: 10_000 });
     console.log(JSON.stringify({ activateReceipt }, null, 2));
   }
+
+  await waitStableFrontier();
+  graph = await readGraph();
+  root = graph.runtime.roots[0];
+  if (
+    root?.state === "маршрутизация работы"
+    && root.values.replyToMessageKey === SOURCE_MESSAGE_KEY
+    && typeof root.values.replyDraft === "string"
+    && root.values.outgoingMessage === null
+  ) {
+    const clearCauseReceipt = await peer.call("dark", "meta.field.value.apply", {
+      contractVersion: 1,
+      atom: ROOT_LOCATOR,
+      field: "replyToMessageKey",
+      value: null,
+      expectedFrontier: await readFrontier(),
+    }, { waitMs: 10_000 });
+    console.log(JSON.stringify({ clearCauseReceipt }, null, 2));
+    const restoreCauseReceipt = await peer.call("dark", "meta.field.value.apply", {
+      contractVersion: 1,
+      atom: ROOT_LOCATOR,
+      field: "replyToMessageKey",
+      value: SOURCE_MESSAGE_KEY,
+      expectedFrontier: await waitStableFrontier(),
+    }, { waitMs: 10_000 });
+    console.log(JSON.stringify({ restoreCauseReceipt }, null, 2));
+  }
 } finally {
   peer.close();
   await transport.close();
