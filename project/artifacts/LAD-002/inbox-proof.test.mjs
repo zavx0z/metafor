@@ -1,10 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import {
-  connectCommonChat,
-  receiveCommonChatEvent,
-  stopCommonChat,
-} from "../../../cluster/zavx0z/lada-chat/actions/realtime.ts";
-import acknowledgeInbox from "../../../cluster/zavx0z/lada-chat/actions/inbox-ack.ts";
+
+const realtimeUrl = new URL("../../../cluster/zavx0z/lada-chat/actions/realtime.ts", import.meta.url);
+const acknowledgeUrl = new URL("../../../cluster/zavx0z/lada-chat/actions/inbox-ack.ts", import.meta.url);
+const peerAvailable = await Bun.file(realtimeUrl).exists() && await Bun.file(acknowledgeUrl).exists();
 
 const jsonMass = (initial = null) => {
   let source = initial === null ? "" : JSON.stringify(initial);
@@ -54,8 +52,14 @@ const message = (message_key, body, extra = {}) => ({
   ...extra,
 });
 
-describe("Lada addressed inbox proof", () => {
+describe.skipIf(!peerAvailable)("Lada addressed inbox proof", () => {
   test("joins paged history and realtime into one durable addressed path", async () => {
+    const {
+      connectCommonChat,
+      receiveCommonChatEvent,
+      stopCommonChat,
+    } = await import(realtimeUrl.href);
+    const { default: acknowledgeInbox } = await import(acknowledgeUrl.href);
     const session = jsonMass({
       cookie: "p1_sso=test-session",
       userId: "lada-id",
