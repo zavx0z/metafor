@@ -76,8 +76,8 @@ const readSourceRevision = async (): Promise<string> => {
 try {
   let graph = await readGraph();
   let root = graph.runtime.roots[0];
-  if (!root || root.state !== "работа") {
-    throw new Error(`Лада должна находиться в State «работа», получено: ${root?.state}`);
+  if (!root || !["работа", "маршрутизация работы"].includes(root.state)) {
+    throw new Error(`Лада должна находиться в рабочем маршруте, получено: ${root?.state}`);
   }
   if (typeof root.values.replyDraft !== "string" || root.values.replyDraft.trim() === "") {
     throw new Error("У Лады отсутствует подготовленный ответ для исходного обращения.");
