@@ -148,13 +148,14 @@ try {
   if (
     root?.state === "работа"
     && root.values.replyToMessageKey === SOURCE_MESSAGE_KEY
+    && root.values.chatHistoryReady === true
     && currentRoutePresent
   ) {
     const activationReceipt = await peer.call("dark", "meta.field.value.apply", {
       contractVersion: 1,
       atom: ROOT_LOCATOR,
-      field: "replyToMessageKey",
-      value: SOURCE_MESSAGE_KEY,
+      field: "chatHistoryReady",
+      value: true,
       expectedFrontier: await readFrontier(),
     }, { waitMs: 10_000 });
     console.log(JSON.stringify({ activationReceipt }, null, 2));
