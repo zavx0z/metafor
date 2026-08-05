@@ -197,6 +197,45 @@ const variantParticle = (
 })
 
 describe("Matrix incremental structural runtime", () => {
+  test("preserves absent optional strings across structural rebuilds", async () => {
+    await prepareIncrementalMatrixFixture({
+      version: 1,
+      pendingProcessExecutions: [],
+      atoms: [
+        {id: 1, wimp: "owner/optional-string", values: [{field: 101, valueId: 501, value: null}], state: null},
+        {id: 2, wimp: "owner/optional-string", values: [{field: 101, valueId: 502, value: ""}], state: null},
+      ],
+      declarations: [{
+        src: "owner/optional-string",
+        section: "fields",
+        localId: "1",
+        value: {id: 101, key: "value", type: "string", default: null, position: 0},
+      }],
+    })
+
+    const result = await applyIncrementalMatrixProjection(applyMatrixProjectionParticle({
+      part: "graviton",
+      op: "add",
+      path: "state",
+      by: "boundary",
+      ts: 2,
+      value: {
+        wimp: "owner/optional-string",
+        localId: 1,
+        id: 201,
+        name: "ready",
+        position: 0,
+      },
+    }))
+    weakStructuralUpdate(result.weakUpdate)
+
+    const absentField = strong$.runtimeFieldIndexByAtomFieldId.get(`${1}\0${101}`)!
+    const emptyField = strong$.runtimeFieldIndexByAtomFieldId.get(`${2}\0${101}`)!
+    expect(matrix$.getFieldValue(0, absentField)).toBeNull()
+    expect(matrix$.getFieldValue(1, emptyField)).toBe(0)
+    expect(matrix$.stringTable[0]).toBe("")
+  })
+
   test("touches one brane in a 1000-Atom projection and keeps the backend", async () => {
     await prepareIncrementalMatrixFixture(largeProjection(1000))
     const untouched = matrix$.branes[0]

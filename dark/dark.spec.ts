@@ -4,7 +4,7 @@ import type {ForceMessage} from "shared/protocol/force/message"
 import type {Particle} from "shared/protocol/force/particle"
 import {Force} from "shared/transport/force"
 import type {MatterParticle} from "@metafor/types/metafor/matter"
-import type {MetaDSL} from "@metafor/types/metafor/schema"
+import type {MetaDSL, MetaProcessDSL} from "@metafor/types/metafor/schema"
 import {createForceTestFixture, type ForceTestFixture} from "./force/fixture.ts"
 
 const dsl = ({
@@ -14,6 +14,7 @@ const dsl = ({
   matter,
   mass,
   energy,
+  processes,
   bulk,
 }: {
   name: string
@@ -22,6 +23,7 @@ const dsl = ({
   matter?: MatterParticle[]
   mass?: Array<{key: string; format: "json" | "binary"; label?: string; description?: string}>
   energy?: Record<string, unknown>
+  processes?: MetaProcessDSL[]
   bulk?: {view: string}
 }): MetaDSL => ({
   name,
@@ -30,6 +32,7 @@ const dsl = ({
   matter,
   mass,
   energy,
+  processes,
   bulk,
 }) as unknown as MetaDSL
 
@@ -386,7 +389,7 @@ describe("Dark incremental Inflaton projection", () => {
     expect(await read(root, loader(new Map([[root, dsl({name: "Root"})]])))).toEqual([])
   })
 
-  test("applies accepted State composition and Mass directly without rereading live state", async () => {
+  test("applies accepted State, Mass and Process directly without rereading live state", async () => {
     const root = "test/dark-authored-entities"
     const source = dsl({name: "Root", fields: [{key: "status", type: "string"}]})
     await read(root, loader(new Map([[root, source]])))
@@ -404,11 +407,45 @@ describe("Dark incremental Inflaton projection", () => {
       part: "inflaton", op: "add", path: "mass", by: "dark", ts: 45,
       value: {wimp: root, id: 1, key: "memory", format: "json"},
     })
+    await applyAuthoredDeclarationProjection({
+      part: "inflaton", op: "add", path: "process", by: "dark", ts: 46,
+      value: {
+        wimp: root,
+        id: 1,
+        key: "ready",
+        type: "action",
+        env: ["server"],
+        label: "Run",
+        desc: null,
+        action: {
+          src: "./actions/run.ts",
+          importSpecifier: "default",
+          wrapperSrc: "async () => (await import('./actions/run.ts')).default()",
+          read: [],
+        },
+        success: null,
+        error: null,
+      },
+    })
     expect(await read(root, loader(new Map([[root, dsl({
       name: "Root",
       fields: [{key: "status", type: "string"}],
       states: [{name: "ready", transitions: {ready: {status: {eq: "ok"}}}}],
       mass: [{key: "memory", format: "json"}],
+      processes: [{
+        key: "ready",
+        declaration: {
+          type: "action",
+          env: ["server"],
+          label: "Run",
+          action: {
+            src: "./actions/run.ts",
+            importSpecifier: "default",
+            wrapperSrc: "async () => (await import('./actions/run.ts')).default()",
+            read: [],
+          },
+        },
+      }],
     })]])))).toEqual([])
   })
 

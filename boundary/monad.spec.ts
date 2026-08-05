@@ -83,7 +83,7 @@ describe("Boundary Monad", () => {
       version: MONAD_RPC_VERSION,
       id: "matrix-birth",
       ok: true,
-      result: {version: 1, atoms: [], declarations: []},
+      result: {version: 1, atoms: [], declarations: [], pendingProcessExecutions: []},
     }])
 
     await channel.receive({

@@ -430,6 +430,7 @@ const expandAffectedAtoms = (initial: Iterable<number>): Set<number> => {
 }
 
 const decodeValue = (value: MatrixValue, field: MatrixFieldRecord, strings: string[]): unknown => {
+  if (value === null) return null
   if (field.enum !== undefined) return value
   if (field.type === FieldType.STRING_PTR) return strings[Number(value)] ?? ""
   if (field.type === FieldType.ARRAY_PTR && field.elementType === "string" && Array.isArray(value)) {

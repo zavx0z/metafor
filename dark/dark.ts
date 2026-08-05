@@ -592,7 +592,7 @@ const replaceFieldComposition = (
 }
 
 type AuthoredSimpleDeclaration = {
-  path: "wimp" | "state" | "mass" | "reaction" | "bulk"
+  path: "wimp" | "state" | "mass" | "reaction" | "process" | "bulk"
   wimp: string
   id: number
   entities: DeclarationEntity[]
@@ -601,7 +601,7 @@ type AuthoredSimpleDeclaration = {
 const authoredSimpleDeclaration = (part: SourcedParticle): AuthoredSimpleDeclaration => {
   if (
     part.by !== "dark" || part.part !== "inflaton" ||
-    (part.path !== "wimp" && part.path !== "state" && part.path !== "mass" && part.path !== "reaction" && part.path !== "bulk") ||
+    (part.path !== "wimp" && part.path !== "state" && part.path !== "mass" && part.path !== "reaction" && part.path !== "process" && part.path !== "bulk") ||
     (part.op !== "add" && part.op !== "replace" && part.op !== "remove" && part.op !== "move") ||
     !isRecord(part.value)
   ) throw new Error("Accepted declaration authoring Particle is invalid")
