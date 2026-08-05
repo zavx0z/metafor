@@ -151,14 +151,22 @@ try {
     && root.values.chatHistoryReady === true
     && currentRoutePresent
   ) {
-    const activationReceipt = await peer.call("dark", "meta.field.value.apply", {
+    const deactivateReceipt = await peer.call("dark", "meta.field.value.apply", {
+      contractVersion: 1,
+      atom: ROOT_LOCATOR,
+      field: "chatHistoryReady",
+      value: false,
+      expectedFrontier: await readFrontier(),
+    }, { waitMs: 10_000 });
+    console.log(JSON.stringify({ deactivateReceipt }, null, 2));
+    const activateReceipt = await peer.call("dark", "meta.field.value.apply", {
       contractVersion: 1,
       atom: ROOT_LOCATOR,
       field: "chatHistoryReady",
       value: true,
       expectedFrontier: await readFrontier(),
     }, { waitMs: 10_000 });
-    console.log(JSON.stringify({ activationReceipt }, null, 2));
+    console.log(JSON.stringify({ activateReceipt }, null, 2));
   }
 } finally {
   peer.close();

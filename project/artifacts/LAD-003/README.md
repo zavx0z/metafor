@@ -46,6 +46,7 @@
   `messageKey`. Добавленный последним State маршрутизирует работу к обработке
   inbox либо к уже объявленной подготовке Send Tool; State `работа` сохраняет
   прежнее число transitions и conditions, требуемое безопасным RPC replace.
-  После structural patch `chatHistoryReady=true` применяется повторно как
-  предметный сигнал Matrix переоценить transition уже стоящего State.
+  После structural patch `chatHistoryReady` получает явный импульс
+  `true → false → true`: конечное подтверждённое значение не меняется, а
+  Matrix переоценивает transition уже стоящего State.
 * Чувствительные сведения: отсутствуют.
