@@ -83,6 +83,7 @@ export class ForceLifecycle {
   #connectedDomains = new Set<ForceDomain>()
   #externalAdmissionClosed = false
   #startup: Promise<void> = Promise.resolve()
+  #recoveryDeliveriesQueued: Promise<void> = Promise.resolve()
 
   constructor(
     private readonly history: Pick<DarkForceHistory, "accept"> & Partial<Pick<DarkForceHistory, "read" | "status">>,
@@ -124,10 +125,15 @@ export class ForceLifecycle {
         this.#state = "running"
       } else {
         this.#state = "recovering"
-        this.#startup = this.#recover(pending).then(() => {
+        let releaseRecoveryDeliveries!: () => void
+        this.#recoveryDeliveriesQueued = new Promise<void>((resolve) => {
+          releaseRecoveryDeliveries = resolve
+        })
+        this.#startup = this.#recover(pending, releaseRecoveryDeliveries).then(() => {
           if (this.#state === "recovering") this.#state = "running"
         }).catch((error) => {
           this.#failStop("force", `could not recover accepted deliveries: ${this.#reason(error)}`)
+          releaseRecoveryDeliveries()
         })
       }
     }
@@ -265,8 +271,14 @@ export class ForceLifecycle {
    * выполняет fail-stop. В остальных состояниях Particle не проходит дальше.
    */
   async acceptParticle(domain: ForceDomain, value: SourcedForceMessage): Promise<ForceLifecycleDecision> {
-    if (this.#state !== "running" && this.#state !== "recovering") {
+    if (!this.#acceptsDomainCausality()) {
       return {ok: false, reason: "not_running", error: this.#blockedReason()}
+    }
+    if (this.#state === "recovering") {
+      await this.#recoveryDeliveriesQueued
+      if (!this.#acceptsDomainCausality()) {
+        return {ok: false, reason: "not_running", error: this.#blockedReason()}
+      }
     }
     try {
       const transfer = await this.#transfer(value, domain)
@@ -277,7 +289,10 @@ export class ForceLifecycle {
     }
   }
 
-  async #recover(pending: readonly CheckpointDeliveryReceipt[]): Promise<void> {
+  async #recover(
+    pending: readonly CheckpointDeliveryReceipt[],
+    releaseDeliveries: () => void,
+  ): Promise<void> {
     if (!this.checkpoint || !this.history.read) {
       throw new Error("Force recovery requires checkpoint receipts and readable history")
     }
@@ -299,8 +314,9 @@ export class ForceLifecycle {
         throw new Error(`Checkpoint recovery destinations do not match Force history entry ${sequence}`)
       }
       for (const receipt of receipts) force$[receipt.domain].send({parts: [entry.particle]})
-      await this.checkpoint.waitApplied(receipts)
     }
+    releaseDeliveries()
+    await this.checkpoint.waitApplied(pending)
   }
 
   async #transfer(
@@ -384,6 +400,10 @@ export class ForceLifecycle {
 
   #blockedReason(): string {
     return this.#error ?? `Force is not running: ${this.#state}`
+  }
+
+  #acceptsDomainCausality(): boolean {
+    return this.#state === "running" || this.#state === "recovering"
   }
 
   #reason(value: unknown): string {

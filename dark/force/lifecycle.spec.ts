@@ -188,8 +188,93 @@ describe("ForceLifecycle", () => {
     for (const domain of forceDomains) lifecycle.channelReady(domain)
     expect(await lifecycle.waitUntilStarted()).toMatchObject({ok: true, state: "running"})
     expect(prepared).toEqual([pending])
-    expect(applied).toEqual([[pending[0]], [pending[1]]])
+    expect(applied).toEqual([pending])
     expect(recording.deliveries("boundary")).toHaveLength(2)
+  })
+
+  test("queues cold-birth causality behind the complete recovery delivery frontier", async () => {
+    recording = createRecordingChannels()
+    const pending = [{
+      cutId: "recovery-cut",
+      domain: "energy" as const,
+      sentOrdinal: 1,
+      acceptanceSequence: 1,
+    }]
+    let releasePreparation!: () => void
+    const preparation = new Promise<void>((resolve) => {
+      releasePreparation = resolve
+    })
+    const prepared: unknown[] = []
+    const applied: unknown[] = []
+    lifecycle = new ForceLifecycle({
+      accept(particle) {
+        accepted.push(structuredClone(particle))
+        return {
+          schema: "metafor/dark-force-particle/v1",
+          id: "recovery-cut:2",
+          sequence: 2,
+          acceptedAt: "2026-08-04T12:00:01.000Z",
+          particle,
+        }
+      },
+      read() {
+        return [{
+          schema: "metafor/dark-force-particle/v1",
+          id: "recovery-cut:1",
+          sequence: 1,
+          acceptedAt: "2026-08-04T12:00:00.000Z",
+          particle: {
+            part: "photon",
+            op: "test",
+            path: 3,
+            by: "matrix",
+            ts: 1,
+            value: "авторизована",
+          },
+        }]
+      },
+    }, {
+      pendingDeliveries: () => structuredClone(pending),
+      recordAccepted(sequence, destinations) {
+        expect(sequence).toBe(2)
+        expect(destinations).toContain("energy")
+        return [{...pending[0]!, sentOrdinal: 2, acceptanceSequence: 2}]
+      },
+      async prepare(receipts) {
+        prepared.push(structuredClone(receipts))
+        if ((receipts[0]?.acceptanceSequence ?? 0) === 1) await preparation
+      },
+      async waitApplied(receipts) { applied.push(structuredClone(receipts)) },
+      acceptedFrom() {},
+    })
+
+    lifecycle.start(recording.channels)
+    for (const domain of forceDomains) lifecycle.channelReady(domain)
+    const coldBirth: SourcedForceMessage = {
+      parts: [{
+        part: "photon",
+        op: "test",
+        path: 3,
+        by: "matrix",
+        ts: 2,
+        value: "авторизована",
+      }],
+    }
+    const acceptedColdBirth = lifecycle.acceptParticle("matrix", coldBirth)
+    await Promise.resolve()
+    expect(accepted).toEqual([])
+    expect(recording.deliveries("energy")).toEqual([])
+
+    releasePreparation()
+    await expect(acceptedColdBirth).resolves.toMatchObject({ok: true})
+    await expect(lifecycle.waitUntilStarted()).resolves.toMatchObject({ok: true, state: "running"})
+
+    expect(prepared).toEqual([pending, [{...pending[0]!, sentOrdinal: 2, acceptanceSequence: 2}]])
+    expect(applied).toEqual([pending, [{...pending[0]!, sentOrdinal: 2, acceptanceSequence: 2}]])
+    expect(recording.deliveries("energy")).toEqual([
+      {parts: [expect.objectContaining({ts: 1})]},
+      {parts: [expect.objectContaining({ts: 2})]},
+    ])
   })
 
   test("accepts an agent Particle only in running state", async () => {
