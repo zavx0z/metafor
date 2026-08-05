@@ -43,7 +43,6 @@ export type CheckpointBarrierErrorCode =
   | "invalid_destinations"
   | "invalid_acknowledgement"
   | "acknowledgement_ahead"
-  | "acknowledgement_regression"
   | "sequence_zero_baseline_unresolved"
   | "barrier_in_progress"
   | "barrier_held"
@@ -220,9 +219,9 @@ export class CheckpointAppliedThroughBarrier {
    * Advances a domain's applied-through frontier.
    *
    * Acknowledging ordinal N also acknowledges all earlier ordinals because a
-   * domain is required to apply its Force input sequentially. Exact duplicate
-   * acknowledgements are idempotent; a regression or an unknown receipt is an
-   * error.
+   * domain is required to apply its Force input sequentially. Any exact
+   * acknowledgement already covered by that frontier is idempotent; an unknown
+   * or mismatching receipt is an error.
    */
   acknowledgeApplied(input: unknown): boolean {
     if (this.#phase === "held") {
@@ -246,13 +245,8 @@ export class CheckpointAppliedThroughBarrier {
         "Checkpoint acknowledgement does not match its recorded delivery receipt",
       )
     }
-    if (acknowledgement.sentOrdinal < state.appliedOrdinal) {
-      throw new CheckpointBarrierError(
-        "acknowledgement_regression",
-        `Checkpoint acknowledgement regresses ${acknowledgement.domain}'s applied frontier`,
-      )
-    }
-    if (acknowledgement.sentOrdinal === state.appliedOrdinal) {
+    if (acknowledgement.sentOrdinal <= state.appliedOrdinal) {
+      if (acknowledgement.sentOrdinal < state.appliedOrdinal) return false
       if (acknowledgement.acceptanceSequence !== state.appliedAcceptanceSequence) {
         throw new CheckpointBarrierError(
           "invalid_acknowledgement",

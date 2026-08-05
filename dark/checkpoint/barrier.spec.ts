@@ -142,7 +142,7 @@ describe("isolated checkpoint applied-through barrier", () => {
     })
   })
 
-  test("accepts an exact duplicate acknowledgement but rejects ahead, mismatch and regression", () => {
+  test("accepts exact acknowledgements already covered by a later applied frontier", () => {
     const barrier = new CheckpointAppliedThroughBarrier("cut-ack")
     const [first] = barrier.recordAccepted(1, ["boundary"])
     const [second] = barrier.recordAccepted(2, ["boundary"])
@@ -159,7 +159,7 @@ describe("isolated checkpoint applied-through barrier", () => {
     }))).toBe("invalid_acknowledgement")
 
     expect(barrier.acknowledgeApplied(second)).toBe(true)
-    expect(errorCode(() => barrier.acknowledgeApplied(first))).toBe("acknowledgement_regression")
+    expect(barrier.acknowledgeApplied(first)).toBe(false)
   })
 
   test("rejects open or malformed control-plane data without changing the frontier", () => {

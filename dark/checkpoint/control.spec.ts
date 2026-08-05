@@ -13,6 +13,7 @@ import {
   DarkCheckpointControl,
   initializeCheckpointControlBaseline,
 } from "./control.ts"
+import type {CheckpointDeliveryReceipt} from "./barrier.ts"
 
 const directories: string[] = []
 
@@ -120,6 +121,40 @@ describe("Dark checkpoint receipt persistence", () => {
     releaseFirst()
     await preparation
     expect(calls).toEqual([1, 2])
+  })
+
+  test("keeps a covered recovery acknowledgement idempotent after nested causal progress", async () => {
+    const filename = join(root(), "control-covered", "state.json")
+    const peer = new Peer()
+    let releaseFirst!: () => void
+    const firstPending = new Promise<void>((resolve) => {
+      releaseFirst = resolve
+    })
+    peer.call = async (_target, method, params) => {
+      if (method !== FORCE_CHECKPOINT_WAIT_APPLIED_METHOD) {
+        throw new Error(`Unexpected method: ${method}`)
+      }
+      const receipt = structuredClone(params) as CheckpointDeliveryReceipt
+      if (receipt.sentOrdinal === 1) await firstPending
+      return receipt
+    }
+    const control = new DarkCheckpointControl(
+      filename,
+      {cutId: "cut-covered", sequence: 0},
+      peer as never,
+    )
+    const [first] = control.recordAccepted(1, ["dark"])
+    const [second] = control.recordAccepted(2, ["dark"])
+
+    const waitingFirst = control.waitApplied([first!])
+    await control.waitApplied([second!])
+    releaseFirst()
+    await waitingFirst
+
+    expect(control.barrier.frontier().domains.find(({domain}) => domain === "dark")).toMatchObject({
+      appliedOrdinal: 2,
+      appliedAcceptanceSequence: 2,
+    })
   })
 
   test("refuses a missing baseline for non-empty Particle history", () => {
