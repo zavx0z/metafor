@@ -4,6 +4,10 @@ import {tmpdir} from "node:os"
 import {dirname, join} from "node:path"
 import {pathToFileURL} from "node:url"
 import {
+  DARK_BULK_VIEWPORT_CAPTURE_METHOD,
+  type DarkBulkViewportCaptureRequest,
+} from "@metafor/types/bulk/browser"
+import {
   META_AUTHORING_CONTRACT_VERSION,
   META_CAPABILITIES_READ_METHOD,
   META_DECLARATION_APPLY_METHOD,
@@ -257,13 +261,23 @@ describe("one complete trusted agent RPC session", () => {
     const energyPeer = bus.peer("energy")
     const bulkPeer = bus.peer("bulk")
     const agent = bus.peer(AGENT)
+    const captures = new BulkViewportCaptureRegistry({
+      minIntervalMs: 0,
+      randomId: () => "agent-session-capture",
+    })
+    darkPeer.expose(
+      DARK_BULK_VIEWPORT_CAPTURE_METHOD,
+      async (params: unknown) => {
+        const request = params as DarkBulkViewportCaptureRequest
+        return await captures.capture(request.params, {source: request.source})
+      },
+    )
 
     const boundaryMonad = new BoundaryMonad(boundary)
     boundaryMonad.onServerStarted(boundaryPeer)
 
     const bulk = new BulkMonad()
-    const captures = new BulkViewportCaptureRegistry({minIntervalMs: 0, randomId: () => "agent-session-capture"})
-    bulk.onServerStarting(bulkPeer, captures)
+    bulk.onServerStarting(bulkPeer)
     await bulk.onServerStarted(bulkPeer)
     bulk.onRuntimeBorn()
     const initialBulk = await bulk.openFreshObserver(bulkPeer, "initial-agent-session")

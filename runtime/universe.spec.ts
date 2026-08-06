@@ -45,8 +45,9 @@ describe("Universe launcher", () => {
 
     expect(exitCode, errors).toBe(0)
     expect(output).toContain("[metafor] Universe born")
-    expect(output).toContain(`\"dark\":${basePort}`)
-    expect(output).toContain(`\"darkCompatibility\":${basePort + 2}`)
+    expect(output).toContain(`\"port\":${basePort}`)
+    expect(output).not.toContain(`:${basePort + 1}`)
+    expect(output).not.toContain(`:${basePort + 2}`)
     expect(output).toContain("\"backend\":\"cpu\"")
     expect(existsSync(join(directory, "dark-history.jsonl"))).toBe(false)
   }, 50_000)

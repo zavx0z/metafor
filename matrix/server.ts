@@ -1,45 +1,18 @@
-import {MonadRpcPeer, MonadTransport} from "shared/transport/monad"
+import {
+  DARK_FORCE_STATUS_READ_METHOD,
+  DOMAIN_HEALTH_READ_METHOD,
+  type DarkForceStatus,
+} from "shared/protocol/monad/health"
+import {MonadRpcPeer, MonadWebSocketTransport} from "shared/transport/monad"
 import {installForceCheckpointSideband} from "shared/transport/force/checkpoint"
 import {waitForMatrixBirthGate} from "./birth-order.ts"
 import {MatrixMonad} from "./monad.ts"
 
-const forceHealthAddress = (): URL => {
-  const configured = Bun.env.FORCE_RPC_ADDRESS?.trim()
-  if (configured) return new URL("health", configured.endsWith("/") ? configured : `${configured}/`)
-  const address = new URL(Bun.env.FORCE_ADDRESS?.trim() || "ws://127.0.0.1:4000/ws")
-  address.protocol = address.protocol === "wss:" ? "https:" : "http:"
-  address.pathname = "/health"
-  address.search = ""
-  address.hash = ""
-  return address
-}
-
-const readForceStatus = async (): Promise<Record<string, unknown>> => {
-  const response = await fetch(forceHealthAddress(), {signal: AbortSignal.timeout(1_000)})
-  return await response.json() as Record<string, unknown>
-}
-
 const monad = new MatrixMonad()
-const transport = new MonadTransport("matrix")
+const transport = new MonadWebSocketTransport("matrix")
 const rpc = new MonadRpcPeer(transport.channel)
+rpc.expose(DOMAIN_HEALTH_READ_METHOD, () => monad.health())
 const checkpoint = installForceCheckpointSideband("matrix", rpc)
-
-const server = Bun.serve({
-  development: false,
-  port: Number(Bun.env.PORT ?? 4003),
-  routes: {
-    "/health": {
-      GET() {
-        return monad.onHealthRequested()
-      },
-    },
-    "/monad/channel": {
-      POST(request) {
-        return transport.receive(request)
-      },
-    },
-  },
-})
 
 let closing: Promise<void> | null = null
 const close = (): Promise<void> => {
@@ -52,7 +25,6 @@ const close = (): Promise<void> => {
     } catch (error) {
       console.error("[matrix] Monad channel close failed", error)
     }
-    server.stop()
   })()
   return closing
 }
@@ -60,11 +32,11 @@ const close = (): Promise<void> => {
 try {
   await transport.open({
     methods: rpc.methods(),
-    endpoint: new URL("/monad/channel", server.url),
     waitMs: 30_000,
   })
   await checkpoint.open()
-  await waitForMatrixBirthGate(readForceStatus)
+  await waitForMatrixBirthGate(async () =>
+    await rpc.call<DarkForceStatus>("dark", DARK_FORCE_STATUS_READ_METHOD, {}))
   const summary = await monad.onServerStarted(rpc)
   await import("./matrix.ts")
   monad.onRuntimeBorn()
@@ -79,4 +51,4 @@ try {
 process.once("SIGINT", close)
 process.once("SIGTERM", close)
 
-console.log(`[matrix] listening on ${server.url}`)
+console.log("[matrix] connected to Dark")

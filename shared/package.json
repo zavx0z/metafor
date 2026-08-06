@@ -24,6 +24,7 @@
     "./protocol/force/message": "./protocol/force/message.ts",
     "./protocol/force/particle": "./protocol/force/particle.ts",
     "./protocol/force/reaction": "./protocol/force/reaction.ts",
+    "./protocol/monad/health": "./protocol/monad/health.ts",
     "./protocol/monad/rpc": "./protocol/monad/rpc.ts"
   }
 }

@@ -4,6 +4,7 @@ import {
   type BoundaryInitialProjectionEntry,
 } from "@metafor/types/boundary/initial"
 import type {MonadRpcPeer} from "shared/transport/monad"
+import type {DomainHealth} from "shared/protocol/monad/health"
 import {EnergyCatalogStore} from "./catalog.ts"
 import {
   createFilesystemEnergyMassStore,
@@ -128,13 +129,17 @@ export class EnergyMonad {
   }
 
   onHealthRequested(): Response {
-    return Response.json({
+    return Response.json(this.health())
+  }
+
+  health(): DomainHealth {
+    return {
       ok: this.#state !== "error" && this.#state !== "stopped",
       domain: "energy",
       initialized: this.#state === "ready",
       rpc: this.#state,
       error: this.#error,
-    })
+    }
   }
 
   onServerStopping(): void {

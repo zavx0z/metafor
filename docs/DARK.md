@@ -77,6 +77,11 @@ Dark рождается первым. Force открывает history, подг
 * Dark переносит между ними причинные Particles и предоставляет service-level
   операции, но не читает и не изменяет их внутреннее состояние напрямую.
 
+Dark открывает единственный слушающий server Вселенной. Boundary, Matrix,
+Energy и Bulk подключают к нему исходящие Monad и Force WebSocket и не имеют
+собственных HTTP listeners. Bulk browser shell, initial и WebSocket доступны
+через Dark; их Store и Visual semantics остаются в Bulk.
+
 HTTP Monad channels доступны только loopback-клиентам. Текущая доверительная
 граница внешнего Force ingress описывается отдельно и не должна считаться
 аутентифицированной только из-за наличия HTTP или WebSocket transport.

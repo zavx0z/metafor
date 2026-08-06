@@ -3,7 +3,12 @@ import {existsSync, mkdtempSync, rmSync} from "node:fs"
 import {tmpdir} from "node:os"
 import {join} from "node:path"
 import type {ForceMessage} from "shared/protocol/force/message"
-import {MONAD_RPC_VERSION, type RoutedMonadRpcCall} from "shared/protocol/monad/rpc"
+import {DOMAIN_HEALTH_READ_METHOD} from "shared/protocol/monad/health"
+import {
+  MONAD_RPC_VERSION,
+  isRoutedMonadRpcCall,
+  type RoutedMonadRpcCall,
+} from "shared/protocol/monad/rpc"
 import {READ_GRAPH_METHOD} from "@metafor/types/metafor/graph"
 import type {RemoteForceDomain} from "./force/store.ts"
 
@@ -13,7 +18,6 @@ type ConnectedClient = {
 }
 
 let previousPort: string | undefined
-let previousCompatPort: string | undefined
 let previousForceHistory: string | undefined
 let previousCutId: string | undefined
 let previousCheckpointSideband: string | undefined
@@ -24,6 +28,7 @@ let providerServer: Bun.Server<unknown>
 let directory: string
 const rpcCalls: RoutedMonadRpcCall[] = []
 const clients: ConnectedClient[] = []
+const monadClients: WebSocket[] = []
 
 const waitFor = async (predicate: () => boolean | Promise<boolean>): Promise<void> => {
   const deadline = Date.now() + 1_000
@@ -55,6 +60,62 @@ const connect = (domain: RemoteForceDomain): Promise<ConnectedClient> => new Pro
     reject(new Error(`Could not connect Force domain: ${domain}`))
   }, {once: true})
 })
+
+const connectMonad = (identity: RemoteForceDomain): Promise<WebSocket> =>
+  new Promise((resolve, reject) => {
+    const address = new URL("/monad/ws", server.url)
+    address.protocol = "ws:"
+    address.searchParams.set("identity", identity)
+    address.searchParams.set("id", `${identity}-monad-test`)
+    const socket = new WebSocket(address)
+    monadClients.push(socket)
+    const timeout = setTimeout(
+      () => reject(new Error(`Timed out connecting Monad domain: ${identity}`)),
+      1_000,
+    )
+    socket.addEventListener("open", () => {
+      socket.send(JSON.stringify({
+        kind: "monad.open",
+        version: MONAD_RPC_VERSION,
+        identity,
+        methods: [DOMAIN_HEALTH_READ_METHOD],
+      }))
+    })
+    socket.addEventListener("message", (event) => {
+      const value = JSON.parse(String(event.data)) as unknown
+      if (
+        typeof value === "object" &&
+        value !== null &&
+        "kind" in value &&
+        value.kind === "monad.opened"
+      ) {
+        clearTimeout(timeout)
+        resolve(socket)
+        return
+      }
+      if (
+        isRoutedMonadRpcCall(value) &&
+        value.method === DOMAIN_HEALTH_READ_METHOD
+      ) {
+        socket.send(JSON.stringify({
+          version: MONAD_RPC_VERSION,
+          id: value.id,
+          ok: true,
+          result: {
+            ok: true,
+            domain: identity,
+            initialized: true,
+            rpc: "ready",
+            error: null,
+          },
+        }))
+      }
+    })
+    socket.addEventListener("error", () => {
+      clearTimeout(timeout)
+      reject(new Error(`Could not connect Monad domain: ${identity}`))
+    }, {once: true})
+  })
 
 const openMonadChannel = async (
   identity: string,
@@ -122,12 +183,10 @@ beforeAll(async () => {
     },
   })
   previousPort = Bun.env.PORT
-  previousCompatPort = Bun.env.DARK_COMPAT_PORT
   previousForceHistory = Bun.env.DARK_FORCE_HISTORY_PATH
   previousCutId = Bun.env.DARK_FORCE_HISTORY_CUT_ID
   previousCheckpointSideband = Bun.env.DARK_CHECKPOINT_SIDEBAND
   Bun.env.PORT = "0"
-  Bun.env.DARK_COMPAT_PORT = "0"
   Bun.env.DARK_FORCE_HISTORY_PATH = join(directory, "force-history", "v1")
   Bun.env.DARK_FORCE_HISTORY_CUT_ID = "server-spec-cut"
   Bun.env.DARK_CHECKPOINT_SIDEBAND = "0"
@@ -139,12 +198,11 @@ beforeAll(async () => {
 
 afterAll(async () => {
   for (const client of clients) client.socket.close()
+  for (const socket of monadClients) socket.close()
   await stopDark()
   providerServer.stop(true)
   if (previousPort === undefined) delete Bun.env.PORT
   else Bun.env.PORT = previousPort
-  if (previousCompatPort === undefined) delete Bun.env.DARK_COMPAT_PORT
-  else Bun.env.DARK_COMPAT_PORT = previousCompatPort
   if (previousForceHistory === undefined) delete Bun.env.DARK_FORCE_HISTORY_PATH
   else Bun.env.DARK_FORCE_HISTORY_PATH = previousForceHistory
   if (previousCutId === undefined) delete Bun.env.DARK_FORCE_HISTORY_CUT_ID
@@ -278,13 +336,16 @@ describe("Force server transport and relay", () => {
     expect(await health.json()).toMatchObject({state: "starting", connectedDomains: ["dark"]})
   })
 
-  test("combines one local Dark adapter with four remote channels and relays only Particle frames", async () => {
+  test("combines one local Dark adapter with four Monad and Force channel pairs", async () => {
     const before = await fetch(new URL("/health", server.url))
     expect(before.status).toBe(503)
     expect(await before.json()).toMatchObject({state: "starting", connectedDomains: ["dark"]})
     const selfWebSocket = await fetch(new URL("/ws?domain=dark&id=forbidden-self-socket", server.url))
     expect(selfWebSocket.status).toBe(400)
 
+    await Promise.all(
+      (["boundary", "matrix", "energy", "bulk"] as const).map(connectMonad),
+    )
     const connected = Object.fromEntries(await Promise.all(
       (["boundary", "matrix", "energy", "bulk"] as const).map(async (domain) => [domain, await connect(domain)]),
     )) as Record<RemoteForceDomain, ConnectedClient>

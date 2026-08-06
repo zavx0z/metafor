@@ -1,5 +1,43 @@
+import {file, type ServerWebSocket} from "bun"
 import {dirname, join, resolve} from "node:path"
+import {
+  BULK_BROWSER_INITIAL_METHOD,
+  BULK_BROWSER_MESSAGE_METHOD,
+  DARK_BULK_BROWSER_BROADCAST_METHOD,
+  DARK_BULK_VIEWPORT_CAPTURE_METHOD,
+  readDarkBulkViewportCaptureRequest,
+  type BulkBrowserInitialRequest,
+  type BulkBrowserMessageRequest,
+} from "@metafor/types/bulk/browser"
+import type {BulkStoreInitial} from "@metafor/types/bulk/store"
+import {isBulkStoreApplyControl} from "../bulk/store-initial.ts"
+import index from "../bulk/index.html"
+import {
+  BULK_VIEWPORT_CAPTURE_MAX_CONTROL_BYTES,
+} from "../bulk/capture.ts"
+import {
+  BulkBrowserGateway,
+  type BulkBrowserGatewayClient,
+} from "../bulk/browser-gateway.ts"
+import {
+  BULK_PAGE_SHELL_ROUTE,
+  serveBulkInitialStore,
+  serveBulkPageShell,
+} from "../bulk/page-bootstrap.ts"
+import {isBulkStoreInitial} from "../bulk/store.ts"
+import {
+  BULK_TIME_PAUSE_METHOD,
+  BULK_TIME_RESUME_METHOD,
+  BULK_TIME_STACK_METHOD,
+  bulkTimeControlResponse,
+} from "../bulk/time-control.ts"
 import {sourceForceMessage, type ForceMessageInput} from "shared/protocol/force/message"
+import {
+  DARK_FORCE_STATUS_READ_METHOD,
+  DOMAIN_HEALTH_READ_METHOD,
+  type DarkForceStatus,
+  type DomainHealth,
+} from "shared/protocol/monad/health"
 import {MONAD_RPC_VERSION, type MonadRpcResponse} from "shared/protocol/monad/rpc"
 import {logImpulse} from "shared/transport/force/log"
 import {
@@ -8,8 +46,12 @@ import {
 } from "shared/transport/force/checkpoint"
 import {
   createHttpMonadChannelRegistry,
+  createMonadWebSocketChannelRegistry,
   isLoopbackAddress,
+  MONAD_WEBSOCKET_MAX_MESSAGE_BYTES,
   MonadRpcPeer,
+  type MonadWebSocketData,
+  readMonadWebSocketData,
   readHttpMonadChannelOpening,
 } from "shared/transport/monad"
 import {
@@ -24,7 +66,11 @@ import {readJson} from "./force/http.ts"
 import {ForceLifecycle} from "./force/lifecycle.ts"
 import {LocalDarkForce} from "./force/local.ts"
 import type {ForceStore} from "./force/store.ts"
-import {createForceWebSocketChannels, type ForceSocketData} from "./force/websocket.ts"
+import {
+  createForceWebSocketChannels,
+  type ForceSocket,
+  type ForceSocketData,
+} from "./force/websocket.ts"
 import {DarkMonad} from "./monad.ts"
 import {MetaCreateService} from "./monad/create.ts"
 import {createLocalMonadChannelPair} from "./monad/local.ts"
@@ -130,7 +176,34 @@ monad.setAuthoring({
     {apply: applyAuthoredDeclarationProjection},
   ),
 })
+const bulkBrowser = new BulkBrowserGateway()
 monad.onServerStarted(rpc)
+rpc.expose(DARK_FORCE_STATUS_READ_METHOD, (): DarkForceStatus => {
+  const status = lifecycle.status()
+  return {
+    state: status.state,
+    connectedDomains: status.connectedDomains,
+    error: status.error,
+  }
+})
+rpc.expose(DARK_BULK_BROWSER_BROADCAST_METHOD, (params, context) => {
+  if (context.source !== "bulk") {
+    throw new Error("Bulk browser broadcast is accepted only from Bulk")
+  }
+  if (!isBulkStoreApplyControl(params)) {
+    throw new Error("Bulk browser update is invalid")
+  }
+  bulkBrowser.broadcast(params)
+  return {ok: true}
+})
+rpc.expose(DARK_BULK_VIEWPORT_CAPTURE_METHOD, async (params, context) => {
+  if (context.source !== "bulk") {
+    throw new Error("Bulk viewport capture relay is accepted only from Bulk")
+  }
+  const request = readDarkBulkViewportCaptureRequest(params)
+  if (request === null) throw new Error("Bulk viewport capture relay is invalid")
+  return await bulkBrowser.capture(request.params, request.source)
+})
 router.attach(localMonad.router)
 monad.onChannelOpened()
 await darkCheckpoint?.open()
@@ -158,6 +231,14 @@ const monadChannels = createHttpMonadChannelRegistry({
     router.detach(channel)
   },
 })
+const domainMonadChannels = createMonadWebSocketChannelRegistry({
+  opened(channel) {
+    router.attach(channel)
+  },
+  closed(channel) {
+    router.detach(channel)
+  },
+})
 
 const rpcStatus = (response: MonadRpcResponse): number => {
   if (response.ok) return 200
@@ -167,21 +248,151 @@ const rpcStatus = (response: MonadRpcResponse): number => {
   return 502
 }
 
-const health = (): Record<string, unknown> => ({
-  ...lifecycle.status(),
-  owner: "dark",
-  dark: monad.health(),
-  forceHistory: forceHistory.status(),
-})
+const remoteDomains = ["boundary", "matrix", "energy", "bulk"] as const
 
-export const server = Bun.serve<ForceSocketData>({
+const readDomainHealth = async (
+  domain: typeof remoteDomains[number],
+): Promise<DomainHealth | null> => {
+  try {
+    return await rpc.call<DomainHealth>(domain, DOMAIN_HEALTH_READ_METHOD, {})
+  } catch {
+    return null
+  }
+}
+
+const health = async (): Promise<Record<string, unknown>> => {
+  const force = lifecycle.status()
+  const entries = await Promise.all(remoteDomains.map(async (domain) =>
+    [domain, await readDomainHealth(domain)] as const))
+  const domains = Object.fromEntries(entries)
+  const domainHealthy = force.state !== "running" ||
+    entries.every(([, status]) => status?.ok === true)
+  return {
+    ...force,
+    ok: force.ok && domainHealthy,
+    owner: "dark",
+    dark: monad.health(),
+    domains,
+    forceHistory: forceHistory.status(),
+  }
+}
+
+type DarkForceSocketData = ForceSocketData & {kind: "force"}
+type BulkBrowserSocketData = {
+  kind: "bulk-browser"
+  domain: "bulk"
+  id: string
+  session: string
+}
+type DarkSocketData =
+  | DarkForceSocketData
+  | MonadWebSocketData
+  | BulkBrowserSocketData
+type DarkSocket = ServerWebSocket<DarkSocketData>
+
+const browserClients = new WeakMap<DarkSocket, BulkBrowserGatewayClient>()
+let browserPageShell: Promise<string> | null = null
+
+const sendBrowser = (socket: DarkSocket, payload: unknown): boolean => {
+  if (socket.readyState !== WebSocket.OPEN) return false
+  socket.send(JSON.stringify(payload))
+  return true
+}
+
+const readBulkBrowserData = (request: Request): BulkBrowserSocketData | null => {
+  const url = new URL(request.url)
+  const domain = url.searchParams.get("domain")
+  const id = url.searchParams.get("id")
+  const session = url.searchParams.get("session")
+  if (
+    domain !== "bulk" ||
+    !id ||
+    id.length > 256 ||
+    !session ||
+    session.length > 256
+  ) return null
+  return {kind: "bulk-browser", domain, id, session}
+}
+
+const readBrowserPageShell = (
+  current: Bun.Server<DarkSocketData>,
+): Promise<string> => {
+  if (browserPageShell !== null) return browserPageShell
+  browserPageShell = fetch(new URL(BULK_PAGE_SHELL_ROUTE, current.url))
+    .then(async (response) => {
+      if (!response.ok) throw new Error(`Bulk page shell failed: ${response.status}`)
+      return await response.text()
+    })
+    .catch((error) => {
+      browserPageShell = null
+      throw error
+    })
+  return browserPageShell
+}
+
+const forceSocket = (socket: DarkSocket): ForceSocket =>
+  socket as unknown as ForceSocket
+
+const monadSocket = (
+  socket: DarkSocket,
+): ServerWebSocket<MonadWebSocketData> =>
+  socket as unknown as ServerWebSocket<MonadWebSocketData>
+
+export const server = Bun.serve<DarkSocketData>({
   development: false,
+  hostname: Bun.env.DARK_HOSTNAME?.trim() || "127.0.0.1",
   port: Number(Bun.env.PORT ?? 4000),
   routes: {
-    "/health": {
+    [BULK_PAGE_SHELL_ROUTE]: index,
+    "/": {
+      GET(
+        _request: Bun.BunRequest<"/">,
+        current: Bun.Server<DarkSocketData>,
+      ) {
+        return serveBulkPageShell({
+          readShell: async () => await readBrowserPageShell(current),
+        })
+      },
+    },
+    "/initial": {
       GET() {
-        const status = health()
+        return serveBulkInitialStore({
+          openSession: () => bulkBrowser.openSession(),
+          cancelSession: (session) => bulkBrowser.cancelSession(session),
+          prepareInitial: async (session) => {
+            const initial = await rpc.call<BulkStoreInitial>(
+              "bulk",
+              BULK_BROWSER_INITIAL_METHOD,
+              {session} satisfies BulkBrowserInitialRequest,
+              {waitMs: 30_000},
+            )
+            if (!isBulkStoreInitial(initial)) {
+              throw new Error("Bulk returned an invalid initial Store")
+            }
+            return initial
+          },
+        })
+      },
+    },
+    "/health": {
+      async GET() {
+        const status = await health()
         return Response.json(status, {status: status.ok === true ? 200 : 503})
+      },
+    },
+    "/time/stack": {
+      GET() {
+        return bulkTimeControlResponse(rpc, BULK_TIME_STACK_METHOD)
+      },
+    },
+    "/time/pause": {
+      POST() {
+        return bulkTimeControlResponse(rpc, BULK_TIME_PAUSE_METHOD)
+      },
+    },
+    "/time/resume": {
+      POST() {
+        return bulkTimeControlResponse(rpc, BULK_TIME_RESUME_METHOD)
       },
     },
     "/force": {
@@ -235,27 +446,133 @@ export const server = Bun.serve<ForceSocketData>({
         return Response.json({ok: true})
       },
     },
-    "/ws": {
-      GET(request: Bun.BunRequest<"/ws">, current: Bun.Server<ForceSocketData>) {
-        const identity = websocket.readUpgradeIdentity(request)
-        if (!identity) return new Response("Force channel identity is required", {status: 400})
-        const upgraded = current.upgrade(request, {data: identity})
+    "/monad/ws": {
+      GET(
+        request: Bun.BunRequest<"/monad/ws">,
+        current: Bun.Server<DarkSocketData>,
+      ) {
+        if (!isLoopbackAddress(current.requestIP(request)?.address)) {
+          return new Response("Domain Monad WebSocket is local-only", {status: 403})
+        }
+        const data = readMonadWebSocketData(request)
+        if (!data) return new Response("Monad channel identity is required", {status: 400})
+        const upgraded = current.upgrade(request, {data})
         return upgraded ? undefined : new Response("WebSocket upgrade failed", {status: 426})
       },
     },
+    "/ws": {
+      GET(request: Bun.BunRequest<"/ws">, current: Bun.Server<DarkSocketData>) {
+        const browser = readBulkBrowserData(request)
+        if (browser) {
+          const upgraded = current.upgrade(request, {data: browser})
+          return upgraded ? undefined : new Response("WebSocket upgrade failed", {status: 426})
+        }
+        if (!isLoopbackAddress(current.requestIP(request)?.address)) {
+          return new Response("Domain Force WebSocket is local-only", {status: 403})
+        }
+        const identity = websocket.readUpgradeIdentity(request)
+        if (!identity) return new Response("Force channel identity is required", {status: 400})
+        const upgraded = current.upgrade(request, {
+          data: {kind: "force", ...identity} satisfies DarkForceSocketData,
+        })
+        return upgraded ? undefined : new Response("WebSocket upgrade failed", {status: 426})
+      },
+    },
+    "/engine-static/JetBrainsMono-Bold.ttf": file(
+      new URL("../pkg/engine/static/JetBrainsMono-Bold.ttf", import.meta.url),
+    ),
   },
   websocket: {
+    maxPayloadLength: Math.max(
+      BULK_VIEWPORT_CAPTURE_MAX_CONTROL_BYTES,
+      MONAD_WEBSOCKET_MAX_MESSAGE_BYTES,
+    ),
+    backpressureLimit: MONAD_WEBSOCKET_MAX_MESSAGE_BYTES * 2,
+    closeOnBackpressureLimit: true,
     open(socket) {
-      if (websocket.opened(socket)) lifecycle.channelReady(socket.data.domain)
-      console.log(`[dark:force] connected: ${socket.data.domain} ${socket.data.id}`)
-    },
-    close(socket) {
-      if (websocket.closed(socket)) {
-        lifecycle.channelDestroyed(socket.data.domain, "WebSocket closed")
+      if (socket.data.kind === "force") {
+        if (websocket.opened(forceSocket(socket))) {
+          lifecycle.channelReady(socket.data.domain)
+        }
+        console.log(`[dark:force] connected: ${socket.data.domain} ${socket.data.id}`)
+        return
       }
-      console.log(`[dark:force] disconnected: ${socket.data.domain} ${socket.data.id}`)
+      if (socket.data.kind === "monad") {
+        console.log(`[dark:monad] transport connected: ${socket.data.identity} ${socket.data.id}`)
+        return
+      }
+      const client: BulkBrowserGatewayClient = {
+        domain: socket.data.domain,
+        id: socket.data.id,
+        send: (message) => sendBrowser(socket, message),
+      }
+      browserClients.set(socket, client)
+      if (!bulkBrowser.connect(client, socket.data.session)) {
+        socket.close(1008, "Bulk observer session is missing or expired")
+        return
+      }
+      console.log(`[dark:bulk] browser connected ${socket.data.id}`)
+    },
+    async close(socket) {
+      if (socket.data.kind === "force") {
+        if (websocket.closed(forceSocket(socket))) {
+          lifecycle.channelDestroyed(socket.data.domain, "WebSocket closed")
+        }
+        console.log(`[dark:force] disconnected: ${socket.data.domain} ${socket.data.id}`)
+        return
+      }
+      if (socket.data.kind === "monad") {
+        await domainMonadChannels.closed(
+          monadSocket(socket),
+          new Error("Monad WebSocket closed"),
+        )
+        console.log(`[dark:monad] disconnected: ${socket.data.identity} ${socket.data.id}`)
+        return
+      }
+      const client = browserClients.get(socket)
+      if (client) bulkBrowser.disconnect(client)
+      browserClients.delete(socket)
+      console.log(`[dark:bulk] browser disconnected ${socket.data.id}`)
     },
     async message(socket, raw) {
+      if (socket.data.kind === "monad") {
+        try {
+          await domainMonadChannels.receive(monadSocket(socket), raw)
+        } catch (error) {
+          console.error(`[dark:monad] invalid message from ${socket.data.identity}`, error)
+          socket.close(1003, "Invalid Monad message")
+        }
+        return
+      }
+      if (socket.data.kind === "bulk-browser") {
+        let value: unknown
+        try {
+          value = JSON.parse(String(raw)) as unknown
+        } catch {
+          socket.close(1003, "Bulk browser payload is invalid")
+          return
+        }
+        const client = browserClients.get(socket)
+        if (!client) {
+          socket.close(1008, "Bulk browser is not connected")
+          return
+        }
+        if (bulkBrowser.receiveControl(client, value)) return
+        try {
+          const routed = await rpc.call<string>(
+            "bulk",
+            BULK_BROWSER_MESSAGE_METHOD,
+            {message: value} satisfies BulkBrowserMessageRequest,
+          )
+          if (routed !== "force") {
+            socket.close(1003, "Bulk browser payload is invalid")
+          }
+        } catch (error) {
+          console.error("[dark:bulk] browser relay failed", error)
+          socket.close(1011, "Bulk browser relay failed")
+        }
+        return
+      }
       try {
         const particle = websocket.decode(raw)
         logImpulse(`dark:force:${socket.data.domain}`, "<-", particle)
@@ -267,26 +584,6 @@ export const server = Bun.serve<ForceSocketData>({
     },
   },
 })
-
-const compatibilityPort = Number(Bun.env.DARK_COMPAT_PORT ?? 0)
-export const compatibilityServer = Number.isInteger(compatibilityPort) && compatibilityPort > 0 &&
-    compatibilityPort !== server.port
-  ? Bun.serve({
-      development: false,
-      port: compatibilityPort,
-      routes: {
-        "/health": {
-          GET() {
-            return Response.json({
-              ...monad.health(),
-              force: lifecycle.status(),
-              forceHistory: forceHistory.status(),
-            })
-          },
-        },
-      },
-    })
-  : null
 
 let closing: Promise<void> | null = null
 export const stop = (): Promise<void> => {
@@ -301,8 +598,9 @@ export const stop = (): Promise<void> => {
     stopDarkRuntime(localForce)
     localForce.close()
     await monadChannels.closeAll(new Error("Dark server stopped"))
+    await domainMonadChannels.closeAll(new Error("Dark server stopped"))
+    bulkBrowser.close()
     websocket.close()
-    compatibilityServer?.stop(true)
     server.stop(true)
   })()
   return closing
@@ -312,6 +610,5 @@ process.once("SIGINT", stop)
 process.once("SIGTERM", stop)
 
 console.log(
-  `[dark] listening on ${server.url} compatibility=${compatibilityServer?.url ?? "disabled"} ` +
-  `forceHistory=${forceHistoryPath}`,
+  `[dark] listening on ${server.url} forceHistory=${forceHistoryPath}`,
 )

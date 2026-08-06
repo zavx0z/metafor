@@ -8,7 +8,11 @@ type ManagedProcess = {
 
 const repositoryRoot = resolve(import.meta.dir, "..")
 const once = process.argv.includes("--once")
-const configuredBasePort = Number(Bun.env.METAFOR_UNIVERSE_PORT_BASE ?? 4000)
+const configuredPort = Number(
+  Bun.env.METAFOR_UNIVERSE_PORT ??
+  Bun.env.METAFOR_UNIVERSE_PORT_BASE ??
+  4000,
+)
 const forbiddenReloadFlags = new Set(["--hot", "--watch"])
 const requestedReloadFlags = [...process.execArgv, ...process.argv.slice(2)]
   .filter((argument) => forbiddenReloadFlags.has(argument))
@@ -19,41 +23,44 @@ if (requestedReloadFlags.length > 0) {
   )
 }
 
-if (!Number.isInteger(configuredBasePort) || configuredBasePort < 1024 || configuredBasePort > 65530) {
-  throw new Error(`Invalid METAFOR_UNIVERSE_PORT_BASE: ${Bun.env.METAFOR_UNIVERSE_PORT_BASE ?? ""}`)
+if (!Number.isInteger(configuredPort) || configuredPort < 1024 || configuredPort > 65535) {
+  throw new Error(
+    `Invalid METAFOR_UNIVERSE_PORT: ${
+      Bun.env.METAFOR_UNIVERSE_PORT ??
+      Bun.env.METAFOR_UNIVERSE_PORT_BASE ??
+      ""
+    }`,
+  )
 }
 
 const inheritedEnv = Object.fromEntries(
   Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined),
 )
-const forceHttp = `http://127.0.0.1:${configuredBasePort}`
+const forceHttp = `http://127.0.0.1:${configuredPort}`
 const domainEnv = {
   ...inheritedEnv,
   BUN_ENV: "production",
-  FORCE_ADDRESS: `ws://127.0.0.1:${configuredBasePort}/ws`,
+  FORCE_ADDRESS: `ws://127.0.0.1:${configuredPort}/ws`,
   FORCE_RPC_ADDRESS: `${forceHttp}/`,
   NODE_ENV: "production",
 }
 const processes: ManagedProcess[] = []
 let closing = false
 
-const port = (offset: number): number => configuredBasePort + offset
-
 const spawnDomain = (
   domain: string,
   entry: string,
-  domainPort: number,
   additionalEnv: Record<string, string> = {},
 ): ManagedProcess => {
   const managed: ManagedProcess = {
     domain,
     process: Bun.spawn({
       // Domain servers always start as ordinary one-shot source processes.
-      // Their Bun.serve instances also set `development: false`, so neither
-      // server modules nor the browser page are watched or hot-reloaded.
+      // Only Dark owns Bun.serve; no domain process or browser page is watched
+      // or hot-reloaded.
       cmd: ["bun", entry],
       cwd: repositoryRoot,
-      env: {...domainEnv, ...additionalEnv, PORT: String(domainPort)},
+      env: {...domainEnv, ...additionalEnv},
       stdin: "inherit",
       stdout: "inherit",
       stderr: "inherit",
@@ -91,6 +98,20 @@ const waitForHealth = async (
   throw new Error(`Timed out waiting for ${managed.domain}: ${JSON.stringify(last)}`)
 }
 
+const domainHealth = (
+  health: Health,
+  domain: string,
+): Health | null => {
+  const domains = health.domains
+  if (typeof domains !== "object" || domains === null || Array.isArray(domains)) {
+    return null
+  }
+  const status = (domains as Health)[domain]
+  return typeof status === "object" && status !== null && !Array.isArray(status)
+    ? status as Health
+    : null
+}
+
 const stop = async (): Promise<void> => {
   if (closing) return
   closing = true
@@ -102,43 +123,40 @@ const stop = async (): Promise<void> => {
   }
 }
 
-const birth = async (): Promise<{ports: Record<string, number>; backend: unknown}> => {
-  const dark = spawnDomain("dark", "dark/server.ts", port(0), {
-    DARK_COMPAT_PORT: String(port(2)),
+const birth = async (): Promise<{port: number; backend: unknown}> => {
+  const dark = spawnDomain("dark", "dark/server.ts", {
+    PORT: String(configuredPort),
   })
   await waitForHealth(dark, `${forceHttp}/health`, (health) =>
     (health.state === "starting" || health.state === "running") &&
     (health.dark as Health | undefined)?.rpc === "ready")
 
-  const boundary = spawnDomain("boundary", "boundary/server.ts", port(1))
-  await waitForHealth(boundary, `http://127.0.0.1:${port(1)}/health`, (health) => health.rpc === "ready")
+  const boundary = spawnDomain("boundary", "boundary/server.ts")
+  await waitForHealth(boundary, `${forceHttp}/health`, (health) =>
+    domainHealth(health, "boundary")?.rpc === "ready")
 
-  await waitForHealth(dark, `http://127.0.0.1:${port(2)}/health`, (health) => health.rpc === "ready")
+  const energy = spawnDomain("energy", "energy/server.ts")
+  await waitForHealth(energy, `${forceHttp}/health`, (health) =>
+    domainHealth(health, "energy")?.initialized === true)
 
-  const energy = spawnDomain("energy", "energy/server.ts", port(5))
-  await waitForHealth(energy, `http://127.0.0.1:${port(5)}/health`, (health) => health.initialized === true)
+  const bulk = spawnDomain("bulk", "bulk/server.ts")
+  await waitForHealth(bulk, `${forceHttp}/health`, (health) =>
+    domainHealth(health, "bulk")?.initialized === true)
 
-  const bulk = spawnDomain("bulk", "bulk/server.ts", port(4))
-  await waitForHealth(bulk, `http://127.0.0.1:${port(4)}/health`, (health) => health.initialized === true)
-
-  const matrix = spawnDomain("matrix", "matrix/server.ts", port(3))
+  const matrix = spawnDomain("matrix", "matrix/server.ts")
   const matrixHealth = await waitForHealth(
     matrix,
-    `http://127.0.0.1:${port(3)}/health`,
-    (health) => health.initialized === true,
+    `${forceHttp}/health`,
+    (health) => domainHealth(health, "matrix")?.initialized === true,
   )
-  await waitForHealth(dark, `${forceHttp}/health`, (health) => health.state === "running")
+  await waitForHealth(dark, `${forceHttp}/health`, (health) =>
+    health.state === "running" &&
+    ["boundary", "matrix", "energy", "bulk"].every((domain) =>
+      domainHealth(health, domain)?.ok === true))
 
   return {
-    ports: {
-      dark: port(0),
-      darkCompatibility: port(2),
-      boundary: port(1),
-      matrix: port(3),
-      bulk: port(4),
-      energy: port(5),
-    },
-    backend: matrixHealth.backend,
+    port: configuredPort,
+    backend: domainHealth(matrixHealth, "matrix")?.backend,
   }
 }
 

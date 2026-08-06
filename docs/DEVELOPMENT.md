@@ -25,10 +25,16 @@ Energy и Bulk, а Matrix — последней. Meta автоматическ�
 изменения кода весь причинно связанный контур нужно явно остановить и запустить
 заново; частичная горячая перезагрузка доменов не поддерживается.
 
+У contour один слушающий порт Dark. Boundary, Energy, Bulk и Matrix открывают к
+нему исходящие Monad и Force WebSocket и не поднимают собственных HTTP servers.
+По умолчанию используется `127.0.0.1:4000`; второй независимый contour
+запускается на другом единственном порту:
+
 Обычный рабочий режим — `auto`:
 
 ```bash
 bun run runtime:universe
+METAFOR_UNIVERSE_PORT=4100 bun run runtime:universe
 METAFOR_WEAK_BACKEND=gpu bun run runtime:universe
 METAFOR_WEAK_BACKEND=cpu bun run runtime:universe
 ```

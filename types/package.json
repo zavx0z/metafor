@@ -35,6 +35,7 @@
     "./matrix/cpu": "./matrix/cpu.ts",
     "./bulk/manifest": "./bulk/manifest.ts",
     "./bulk/visual": "./bulk/visual.ts",
+    "./bulk/browser": "./bulk/browser.ts",
     "./bulk/capture": "./bulk/capture.ts",
     "./bulk/initial": "./bulk/initial.ts",
     "./bulk/store": "./bulk/store.ts",

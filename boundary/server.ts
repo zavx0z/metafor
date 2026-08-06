@@ -2,7 +2,8 @@ import {mkdir} from "node:fs/promises"
 import {dirname, join, resolve} from "node:path"
 import {Force} from "shared/transport/force"
 import {installForceCheckpointSideband} from "shared/transport/force/checkpoint"
-import {MonadRpcPeer, MonadTransport} from "shared/transport/monad"
+import {DOMAIN_HEALTH_READ_METHOD} from "shared/protocol/monad/health"
+import {MonadRpcPeer, MonadWebSocketTransport} from "shared/transport/monad"
 import {unsourceForceMessage} from "shared/protocol/force/message"
 import {BoundaryMonad} from "./monad.ts"
 import {open} from "./sqlite.ts"
@@ -12,27 +13,11 @@ const filename = resolve(configuredFilename || join(import.meta.dir, "..", ".met
 await mkdir(dirname(filename), {recursive: true})
 const boundary = await open(filename)
 const monad = new BoundaryMonad(boundary)
-const transport = new MonadTransport("boundary")
+const transport = new MonadWebSocketTransport("boundary")
 const rpc = new MonadRpcPeer(transport.channel)
 monad.onServerStarted(rpc)
+rpc.expose(DOMAIN_HEALTH_READ_METHOD, () => monad.health(filename))
 const checkpoint = installForceCheckpointSideband("boundary", rpc)
-
-const server = Bun.serve({
-  development: false,
-  port: Number(Bun.env.PORT ?? 4001),
-  routes: {
-    "/health": {
-      GET() {
-        return monad.onHealthRequested(filename)
-      },
-    },
-    "/monad/channel": {
-      POST(request) {
-        return transport.receive(request)
-      },
-    },
-  },
-})
 
 let closing: Promise<void> | null = null
 const close = (): Promise<void> => {
@@ -45,7 +30,6 @@ const close = (): Promise<void> => {
     } catch (error) {
       console.error("[boundary] Monad channel close failed", error)
     }
-    server.stop()
     await boundary.close()
   })()
   return closing
@@ -54,7 +38,6 @@ const close = (): Promise<void> => {
 try {
   await transport.open({
     methods: rpc.methods(),
-    endpoint: new URL("/monad/channel", server.url),
     waitMs: 30_000,
   })
   await checkpoint.open()
@@ -88,4 +71,4 @@ try {
 process.once("SIGINT", close)
 process.once("SIGTERM", close)
 
-console.log(`[boundary] listening on ${server.url} database=${filename}`)
+console.log(`[boundary] connected to Dark database=${filename}`)

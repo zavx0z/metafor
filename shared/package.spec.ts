@@ -11,17 +11,23 @@ describe("shared package public API", () => {
     expect(checkpoint.FORCE_CHECKPOINT_SESSION_METHOD).toBe("force.checkpoint.session.open")
     expect(checkpoint.ForceCheckpointDomainSideband).toBeFunction()
     expect(Object.keys(monad).sort()).toEqual([
+      "MONAD_WEBSOCKET_MAX_MESSAGE_BYTES",
+      "MONAD_WEBSOCKET_PATH",
       "MonadRpcPeer",
       "MonadRpcRemoteError",
       "MonadTransport",
+      "MonadWebSocketTransport",
       "createHttpMonadChannelRegistry",
+      "createMonadWebSocketChannelRegistry",
       "isLoopbackAddress",
       "normalizeMonadIdentity",
       "readBearerToken",
       "readHttpMonadChannel",
       "readHttpMonadChannelOpening",
+      "readMonadWebSocketData",
     ])
     expect(monad.MonadTransport).toBeFunction()
+    expect(monad.MonadWebSocketTransport).toBeFunction()
     expect(monad.MonadRpcPeer).toBeFunction()
   })
 

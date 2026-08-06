@@ -7,8 +7,12 @@ Graph Store, Manifest, ReadyScene и второго scene Store в browser path 
 ## Bulk Store
 
 - Рождение Bulk поднимает RPC, Force, browser handoff и принадлежащее им
-  operational state. Сервер получает согласованный initial cut только через
-  RPC и не читает Boundary или SQLite напрямую.
+  operational state без собственного HTTP listener. Bulk получает
+  согласованный initial cut только через RPC и не читает Boundary или SQLite
+  напрямую.
+- Единственный server Dark отдаёт принадлежащие Bulk `GET /`, `/initial` и
+  browser WebSocket как транспортный gateway. Dark не строит, не читает и не
+  изменяет Bulk Store.
 - `GET /` немедленно отдаёт общий HTML shell с Canvas и loader, не ожидая
   initial cut и не встраивая данные мира. Browser параллельно поднимает
   client-only viewport и запрашивает `GET /initial`; этот отдельный запрос

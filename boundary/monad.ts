@@ -3,6 +3,7 @@ import {
   BOUNDARY_INITIAL_STATE_METHOD,
 } from "@metafor/types/boundary/initial"
 import type {MonadRpcPeer} from "shared/transport/monad"
+import type {DomainHealth} from "shared/protocol/monad/health"
 import {
   BOUNDARY_GRAPH_PROJECTION_METHOD,
   readBoundaryGraphProjection,
@@ -65,13 +66,17 @@ export class BoundaryMonad {
   }
 
   onHealthRequested(filename: string): Response {
-    return Response.json({
+    return Response.json(this.health(filename))
+  }
+
+  health(filename: string): DomainHealth {
+    return {
       ok: this.#state !== "error" && this.#state !== "stopped",
       domain: "boundary",
       database: filename,
       rpc: this.#state,
       error: this.#error,
-    })
+    }
   }
 
   onServerStopping(): void {

@@ -1,4 +1,7 @@
 import {BaseMonadTransport} from "./base.ts"
+import {
+  MonadWebSocketTransport as BaseMonadWebSocketTransport,
+} from "./socket.ts"
 
 export {
   createHttpMonadChannelRegistry,
@@ -30,6 +33,16 @@ export type {
   MonadRpcHandler,
   MonadRpcWaitOptions,
 } from "./peer.ts"
+export {
+  MONAD_WEBSOCKET_MAX_MESSAGE_BYTES,
+  MONAD_WEBSOCKET_PATH,
+  createMonadWebSocketChannelRegistry,
+  readMonadWebSocketData,
+} from "./socket.ts"
+export type {
+  MonadWebSocketChannelRegistry,
+  MonadWebSocketData,
+} from "./socket.ts"
 
 const forceRpcAddress = (): URL => {
   const configured = Bun.env.FORCE_RPC_ADDRESS?.trim()
@@ -45,6 +58,25 @@ const forceRpcAddress = (): URL => {
 /** Current server-side physical adapter that produces one logical MonadChannel. */
 export class MonadTransport extends BaseMonadTransport {
   constructor(identity: string, address: string | URL = forceRpcAddress()) {
+    super(identity, address)
+  }
+}
+
+const forceMonadWebSocketAddress = (): URL => {
+  const address = new URL(Bun.env.FORCE_ADDRESS?.trim() || "ws://127.0.0.1:4000/ws")
+  address.protocol = address.protocol === "https:" ? "wss:" : address.protocol === "http:" ? "ws:" : address.protocol
+  address.pathname = "/monad/ws"
+  address.search = ""
+  address.hash = ""
+  return address
+}
+
+/** Permanent domain-to-Dark Monad channel sharing Dark's only listener. */
+export class MonadWebSocketTransport extends BaseMonadWebSocketTransport {
+  constructor(
+    identity: string,
+    address: string | URL = forceMonadWebSocketAddress(),
+  ) {
     super(identity, address)
   }
 }

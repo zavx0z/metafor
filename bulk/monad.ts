@@ -2,11 +2,15 @@ import {
   BOUNDARY_INITIAL_PROJECTION_METHOD,
   type BoundaryInitialProjection,
 } from "@metafor/types/boundary/initial"
+import {
+  DARK_BULK_VIEWPORT_CAPTURE_METHOD,
+  type DarkBulkViewportCaptureRequest,
+} from "@metafor/types/bulk/browser"
 import {BULK_VIEWPORT_CAPTURE_METHOD} from "@metafor/types/bulk/capture"
 import type {BulkStore, BulkStoreInitial} from "@metafor/types/bulk/store"
 import type {ForceMessage} from "shared/protocol/force/message"
 import type {MonadRpcPeer} from "shared/transport/monad"
-import type {BulkViewportCaptureRegistry} from "./capture.ts"
+import type {DomainHealth} from "shared/protocol/monad/health"
 import {
   isBoundaryInitialProjection,
   prepareBulkStoreInitial,
@@ -31,12 +35,18 @@ export class BulkMonad {
 
   /** Register the typed observer capture method before advertising it. */
   onServerStarting(
-    peer: Pick<MonadRpcPeer, "expose">,
-    captures: Pick<BulkViewportCaptureRegistry, "capture">,
+    peer: Pick<MonadRpcPeer, "expose" | "call">,
   ): void {
     peer.expose(
       BULK_VIEWPORT_CAPTURE_METHOD,
-      async (params, context) => await captures.capture(params, context),
+      async (params, context) => await peer.call(
+        "dark",
+        DARK_BULK_VIEWPORT_CAPTURE_METHOD,
+        {
+          source: context.source,
+          params,
+        } satisfies DarkBulkViewportCaptureRequest,
+      ),
     )
   }
 
@@ -119,13 +129,17 @@ export class BulkMonad {
   }
 
   onHealthRequested(): Response {
-    return Response.json({
+    return Response.json(this.health())
+  }
+
+  health(): DomainHealth {
+    return {
       ok: this.#state !== "error" && this.#state !== "stopped",
       domain: "bulk",
       initialized: this.#state === "ready",
       rpc: this.#state,
       error: this.#error,
-    })
+    }
   }
 
   onServerStopping(): void {

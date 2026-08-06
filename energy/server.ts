@@ -1,34 +1,18 @@
-import {MonadRpcPeer, MonadTransport} from "shared/transport/monad"
+import {DOMAIN_HEALTH_READ_METHOD} from "shared/protocol/monad/health"
+import {MonadRpcPeer, MonadWebSocketTransport} from "shared/transport/monad"
 import {Force} from "shared/transport/force"
 import {installForceCheckpointSideband} from "shared/transport/force/checkpoint"
 import {birthEnergyRuntime, type EnergyRuntimeBirth} from "./birth.ts"
 import {EnergyMonad} from "./monad.ts"
 
 const monad = new EnergyMonad()
-const transport = new MonadTransport("energy")
+const transport = new MonadWebSocketTransport("energy")
 const rpc = new MonadRpcPeer(transport.channel)
 monad.onServerStarting(rpc)
+rpc.expose(DOMAIN_HEALTH_READ_METHOD, () => monad.health())
 const checkpoint = installForceCheckpointSideband("energy", rpc)
 let runtime: EnergyRuntimeBirth | null = null
-
-const server = Bun.serve({
-  development: false,
-  port: Number(Bun.env.PORT ?? 4005),
-  routes: {
-    "/health": {
-      GET() {
-        return monad.onHealthRequested()
-      },
-    },
-    "/monad/channel": {
-      POST(request) {
-        return transport.receive(request)
-      },
-    },
-  },
-})
-
-console.log(`[energy] listening on ${server.url}`)
+console.log("[energy] connecting to Dark")
 
 let closing: Promise<void> | null = null
 const close = (): Promise<void> => {
@@ -42,7 +26,6 @@ const close = (): Promise<void> => {
     } catch (error) {
       console.error("[energy] Monad channel close failed", error)
     }
-    server.stop()
   })()
   return closing
 }
@@ -54,7 +37,6 @@ try {
     openMonad: async () => {
       const opened = await transport.open({
         methods: rpc.methods(),
-        endpoint: new URL("/monad/channel", server.url),
         waitMs: 30_000,
       })
       await checkpoint.open()

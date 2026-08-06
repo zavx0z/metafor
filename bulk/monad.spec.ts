@@ -1,5 +1,8 @@
 import {describe, expect, test} from "bun:test"
 import {readFileSync} from "node:fs"
+import {
+  DARK_BULK_VIEWPORT_CAPTURE_METHOD,
+} from "@metafor/types/bulk/browser"
 import {BULK_VIEWPORT_CAPTURE_METHOD} from "@metafor/types/bulk/capture"
 import {
   BOUNDARY_INITIAL_PROJECTION_METHOD,
@@ -223,15 +226,14 @@ describe("Bulk Monad", () => {
         methods.push(method)
         if (method === BULK_VIEWPORT_CAPTURE_METHOD) captureHandler = handler
       },
-    } as never, {
-      capture(params, context) {
-        captureCalls.push({params, context})
+      call(target: string, method: string, request: unknown) {
+        captureCalls.push({target, method, request})
         return Promise.resolve({
           ok: false as const,
           error: {code: "permission_denied" as const, message: "denied"},
         })
       },
-    })
+    } as never)
 
     expect(methods).toEqual([BULK_VIEWPORT_CAPTURE_METHOD])
     const params = {version: 1, observerId: "bulk-web-owner"}
@@ -239,7 +241,11 @@ describe("Bulk Monad", () => {
       ok: false,
       error: {code: "permission_denied", message: "denied"},
     })
-    expect(captureCalls).toEqual([{params, context: {source: "codex"}}])
+    expect(captureCalls).toEqual([{
+      target: "dark",
+      method: DARK_BULK_VIEWPORT_CAPTURE_METHOD,
+      request: {source: "codex", params},
+    }])
   })
 
   test("becomes ready without reading or retaining a Graph", async () => {

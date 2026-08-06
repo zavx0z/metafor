@@ -3,6 +3,7 @@ import {
   type BoundaryInitialState,
 } from "@metafor/types/boundary/initial"
 import type {MonadRpcPeer} from "shared/transport/monad"
+import type {DomainHealth} from "shared/protocol/monad/health"
 import {weak$} from "@matrix/weak"
 import {prepareMatrixBirth} from "./birth.ts"
 
@@ -53,15 +54,19 @@ export class MatrixMonad {
   }
 
   onHealthRequested(): Response {
+    return Response.json(this.health())
+  }
+
+  health(): DomainHealth {
     const runtimeError = weak$.runtime?.fault() ?? null
-    return Response.json({
+    return {
       ok: this.#state !== "error" && this.#state !== "stopped" && runtimeError === null,
       domain: "matrix",
       backend: weak$.mode,
       initialized: this.#state === "ready" && weak$.initialized && runtimeError === null,
       rpc: this.#state,
       error: this.#error ?? runtimeError,
-    })
+    }
   }
 
   onServerStopping(): void {

@@ -32,6 +32,11 @@ Force переносит между ними отдельные изменени
 
 ## Рождение Вселенной
 
+Dark первым открывает единственный слушающий server Вселенной. Supervisor
+только запускает и завершает процессы: Boundary, Energy, Bulk и Matrix сами
+открывают к известному адресу Dark по одному постоянному Monad и Force
+WebSocket и не поднимают собственные HTTP servers.
+
 Сначала рождаются Dark, Boundary, Energy и Bulk. Energy до подключения к
 причинному потоку получает полный текущий каталог от Boundary и готовит свои
 местные связи.
@@ -139,8 +144,11 @@ Production writer сразу заполняет конечные semantic/geomet
 columns по фиксированному centered-nested закону; `BulkManifest`, `ReadyScene`
 и иная промежуточная scene model существуют только в parity-test oracle.
 
+Единственный server Dark через принадлежащий Bulk browser gateway обслуживает
+`GET /`, `/initial` и browser WebSocket. Gateway переносит opaque browser
+payload, session и Store между browser и Bulk, но не строит и не читает Store.
 `GET /` немедленно отдаёт не содержащий данных мира HTML shell с Canvas и
-loader. Отдельный `GET /initial` получает текущий согласованный Store и
+loader. Отдельный `GET /initial` получает у Bulk текущий согласованный Store и
 одноразовую session в форме `{session, store}`; handoff удерживает произошедшие
 после cut Particles до подключения browser Force. В initial JSON нет Graph,
 путей, semantic manifest, renderer-ready scene, revision или causal cursor.
