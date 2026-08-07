@@ -100,12 +100,6 @@
         "@metafor/types": "workspace:*",
       },
     },
-    "dark/strong": {
-      "name": "@dark/strong",
-      "dependencies": {
-        "@dark/gravity": "workspace:*",
-      },
-    },
     "energy": {
       "name": "energy",
       "version": "0.1.0",
@@ -220,8 +214,6 @@
     "@bulk/weak": ["@bulk/weak@workspace:bulk/weak"],
 
     "@dark/gravity": ["@dark/gravity@workspace:dark/gravity"],
-
-    "@dark/strong": ["@dark/strong@workspace:dark/strong"],
 
     "@gerrit0/mini-shiki": ["@gerrit0/mini-shiki@3.23.0", "", { "dependencies": { "@shikijs/engine-oniguruma": "^3.23.0", "@shikijs/langs": "^3.23.0", "@shikijs/themes": "^3.23.0", "@shikijs/types": "^3.23.0", "@shikijs/vscode-textmate": "^10.0.2" } }, "sha512-bEMORlG0cqdjVyCEuU0cDQbORWX+kYCeo0kV1lbxF5bt4r7SID2l9bqsxJEM0zndaxpOUT7riCyIVEuqq/Ynxg=="],
 

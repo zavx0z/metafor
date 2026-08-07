@@ -28,7 +28,6 @@
     "bulk/strong",
     "bulk/weak",
     "dark/gravity",
-    "dark/strong",
     "pkg/engine",
     "pkg/template",
     "pkg/ui/elements",
