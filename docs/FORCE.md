@@ -249,6 +249,6 @@ WebSocket является текущим физическим carrier дове�
 меняет Monad RPC envelopes, Force messages, routing или доменные проекции.
 
 Standalone `force` workspace, entry и process в canonical source отсутствуют.
-Предыдущий live contour остаётся pre-cut фактом до отдельного полного cold
-restart. Source parity и isolated five-process birth не являются утверждением,
-что live cut уже выполнен. Hot reload и частичный restart запрещены.
+Live contour становится post-cut только после полного cold restart на точной
+source revision. Source parity и isolated five-process birth сами по себе не
+доказывают выполненный live cut. Hot reload и частичный restart запрещены.

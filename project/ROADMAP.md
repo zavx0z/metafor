@@ -105,7 +105,8 @@ RPC между доменами. Текущий этап сначала дово
 Boundary, Matrix, Energy и Bulk подключают к нему отдельные исходящие Monad и
 Force WebSocket без собственных HTTP listeners, а browser ingress Bulk проходит
 через Dark gateway. Реализация сохраняет payload и routing и оставляет замену
-физической пары каналов на WebRTC отдельным будущим transport-этапом.
+физической пары каналов на WebRTC отдельным будущим transport-этапом:
+[`MF-410`](tasks/MF-410.md).
 
 Существующие capability checks не удаляются, но их расширение, новый graph
 scope и новая access policy не разрабатываются до завершения функциональной
