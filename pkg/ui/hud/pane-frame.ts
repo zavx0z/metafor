@@ -1,6 +1,7 @@
 import type {UiSurface, UiSurfaceRect} from "@ui/elements"
 
 export type HudPaneFramePhase = "change" | "end"
+export type HudViewportEdge = "left" | "right" | "top" | "bottom"
 export type HudPaneFrameEdge =
   | "move"
   | "left"
@@ -15,6 +16,11 @@ export type HudPaneFrameEdge =
 export type HudPaneFrameChange = Readonly<{
   rect: UiSurfaceRect
   phase: HudPaneFramePhase
+}>
+
+export type HudDockedFrame = Readonly<{
+  rect: UiSurfaceRect
+  edge: HudViewportEdge
 }>
 
 export type HudPaneFrameInteractionProps = Readonly<{
@@ -80,6 +86,61 @@ export function moveHudPaneFrame(
   if (edge.includes("top")) top = clamp(top + dy, 0, bottom - minimumHeight)
   if (edge.includes("bottom")) bottom = clamp(bottom + dy, top + minimumHeight, safeHeight)
   return {x: left, y: top, w: right - left, h: bottom - top}
+}
+
+/**
+ * A side tab is a dock, not a floating pane: it always touches one viewport
+ * edge. The preferred edge only resolves exact corner/equidistant ties.
+ */
+export function dockHudSideTabFrame(
+  frame: UiSurfaceRect,
+  bounds: Readonly<{w: number; h: number}>,
+  preferredEdge: HudViewportEdge = "right",
+): HudDockedFrame {
+  const safeWidth = Math.max(1, bounds.w)
+  const safeHeight = Math.max(1, bounds.h)
+  const rect = constrainHudPaneFrame(frame, bounds, frame.w, frame.h)
+  const edge = nearestHudViewportEdge(rect, {w: safeWidth, h: safeHeight}, preferredEdge)
+  if (edge === "left") return {edge, rect: {...rect, x: 0}}
+  if (edge === "right") return {edge, rect: {...rect, x: safeWidth - rect.w}}
+  if (edge === "top") return {edge, rect: {...rect, y: 0}}
+  return {edge, rect: {...rect, y: safeHeight - rect.h}}
+}
+
+/** Move a docked side tab along the viewport perimeter, switching edge at corners. */
+export function moveHudSideTabFrame(
+  start: UiSurfaceRect,
+  dx: number,
+  dy: number,
+  bounds: Readonly<{w: number; h: number}>,
+  preferredEdge: HudViewportEdge = "right",
+): HudDockedFrame {
+  return dockHudSideTabFrame({...start, x: start.x + dx, y: start.y + dy}, bounds, preferredEdge)
+}
+
+export function nearestHudViewportEdge(
+  frame: UiSurfaceRect,
+  bounds: Readonly<{w: number; h: number}>,
+  preferredEdge: HudViewportEdge = "right",
+): HudViewportEdge {
+  const rect = constrainHudPaneFrame(frame, bounds, frame.w, frame.h)
+  const distances: Record<HudViewportEdge, number> = {
+    left: Math.abs(rect.x),
+    right: Math.abs(Math.max(1, bounds.w) - (rect.x + rect.w)),
+    top: Math.abs(rect.y),
+    bottom: Math.abs(Math.max(1, bounds.h) - (rect.y + rect.h)),
+  }
+  const ordered: HudViewportEdge[] = [preferredEdge, "left", "right", "top", "bottom"]
+  let nearest = preferredEdge
+  let nearestDistance = distances[preferredEdge]
+  for (const edge of ordered) {
+    const distance = distances[edge]
+    if (distance < nearestDistance) {
+      nearest = edge
+      nearestDistance = distance
+    }
+  }
+  return nearest
 }
 
 export function constrainHudPaneFrame(

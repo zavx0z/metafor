@@ -1,6 +1,11 @@
 import {Color} from "@metafor/engine"
 import {Z, drawIconCentered, type DrawTextOpts, type HitState, type UiSurface} from "@ui/elements"
-import {moveHudPaneFrame, type HudPaneFrameChange} from "./pane-frame.ts"
+import {
+  moveHudSideTabFrame,
+  nearestHudViewportEdge,
+  type HudPaneFrameChange,
+  type HudViewportEdge,
+} from "./pane-frame.ts"
 
 export * from "./window.ts"
 export * from "./pane-frame.ts"
@@ -54,7 +59,7 @@ export type HudReturnDockProps = {
   z?: number
 }
 
-export type HudSideTabEdge = "left" | "right" | "top" | "bottom"
+export type HudSideTabEdge = HudViewportEdge
 export type HudSideTabTone = "neutral" | "active" | "warning" | "danger"
 
 export type HudSideTabProps = {
@@ -169,7 +174,11 @@ export function HudSideTab(host: UiSurface, props: HudSideTabProps): HudVisualSt
   const key = props.key ?? `hud-side-tab:${props.rect.x}:${props.rect.y}:${props.rect.w}:${props.rect.h}`
   const state = host.hitState(props.rect.x, props.rect.y, props.rect.w, props.rect.h, key)
   const z = props.z ?? DEFAULT_Z
-  const edge = props.edge ?? "left"
+  const surfaceFrame = props.movable === true ? host.surfaceFrame() : null
+  const preferredEdge = props.edge ?? "left"
+  const edge = surfaceFrame === null || surfaceFrame === undefined
+    ? preferredEdge
+    : nearestHudViewportEdge(surfaceFrame.rect, surfaceFrame.bounds, preferredEdge)
   const tone = props.tone ?? "neutral"
   const active = state.pressed
   const hovered = state.hovered
@@ -248,7 +257,12 @@ export function HudSideTab(host: UiSurface, props: HudSideTabProps): HudVisualSt
     })
   }
 
-  let drag: Readonly<{startClientX: number; startClientY: number; startRect: HudRect}> | null = null
+  let drag: Readonly<{
+    startClientX: number
+    startClientY: number
+    startRect: HudRect
+    startEdge: HudSideTabEdge
+  }> | null = null
   let moved = false
   const hitOptions = {
     key,
@@ -258,7 +272,12 @@ export function HudSideTab(host: UiSurface, props: HudSideTabProps): HudVisualSt
       onPointerDown: (_localX: number, _localY: number, event?: MouseEvent) => {
         const frame = host.surfaceFrame()
         if (frame === null || frame === undefined || event === undefined) return
-        drag = {startClientX: event.clientX, startClientY: event.clientY, startRect: frame.rect}
+        drag = {
+          startClientX: event.clientX,
+          startClientY: event.clientY,
+          startRect: frame.rect,
+          startEdge: nearestHudViewportEdge(frame.rect, frame.bounds, preferredEdge),
+        }
         moved = false
         event.preventDefault()
       },
@@ -268,24 +287,22 @@ export function HudSideTab(host: UiSurface, props: HudSideTabProps): HudVisualSt
         const dx = event.clientX - drag.startClientX
         const dy = event.clientY - drag.startClientY
         if (Math.abs(dx) + Math.abs(dy) >= 1) moved = true
-        const next = moveHudPaneFrame(drag.startRect, "move", dx, dy, frame.bounds, drag.startRect.w, drag.startRect.h)
-        host.setSurfaceFrame(next)
-        props.onFrameRectChange?.({rect: next, phase: "change"})
+        const next = moveHudSideTabFrame(drag.startRect, dx, dy, frame.bounds, drag.startEdge)
+        host.setSurfaceFrame(next.rect)
+        props.onFrameRectChange?.({rect: next.rect, phase: "change"})
       },
       onPointerUp: (event?: MouseEvent) => {
         const frame = host.surfaceFrame()
         if (drag === null || frame === null || frame === undefined || event === undefined) return
-        const next = moveHudPaneFrame(
+        const next = moveHudSideTabFrame(
           drag.startRect,
-          "move",
           event.clientX - drag.startClientX,
           event.clientY - drag.startClientY,
           frame.bounds,
-          drag.startRect.w,
-          drag.startRect.h,
+          drag.startEdge,
         )
-        host.setSurfaceFrame(next)
-        props.onFrameRectChange?.({rect: next, phase: "end"})
+        host.setSurfaceFrame(next.rect)
+        props.onFrameRectChange?.({rect: next.rect, phase: "end"})
         drag = null
       },
     }),

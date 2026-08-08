@@ -1,5 +1,10 @@
 import {describe, expect, test} from "bun:test"
-import {constrainHudPaneFrame, moveHudPaneFrame} from "./pane-frame.ts"
+import {
+  constrainHudPaneFrame,
+  dockHudSideTabFrame,
+  moveHudPaneFrame,
+  moveHudSideTabFrame,
+} from "./pane-frame.ts"
 
 describe("HUD pane frame", () => {
   test("moves a frame and clamps it to the visible bounds", () => {
@@ -25,5 +30,18 @@ describe("HUD pane frame", () => {
   test("constrains oversized frames for tiny viewports", () => {
     expect(constrainHudPaneFrame({x: 10, y: 20, w: 400, h: 300}, {w: 30, h: 20}, 240, 220))
       .toEqual({x: 0, y: 0, w: 30, h: 20})
+  })
+
+  test("keeps a movable side tab on the viewport perimeter", () => {
+    const right = {x: 1158, y: 100, w: 42, h: 34}
+    expect(moveHudSideTabFrame(right, -18, 150, {w: 1200, h: 800}, "right"))
+      .toEqual({edge: "right", rect: {x: 1158, y: 250, w: 42, h: 34}})
+    expect(moveHudSideTabFrame(right, -800, -120, {w: 1200, h: 800}, "right"))
+      .toEqual({edge: "top", rect: {x: 358, y: 0, w: 42, h: 34}})
+  })
+
+  test("repairs a formerly floating side tab by docking it to the nearest edge", () => {
+    expect(dockHudSideTabFrame({x: 950, y: 300, w: 42, h: 34}, {w: 1200, h: 800}, "right"))
+      .toEqual({edge: "right", rect: {x: 1158, y: 300, w: 42, h: 34}})
   })
 })

@@ -39,10 +39,10 @@ describe("Hamiltonian orchestration workspace", () => {
     expect(workspace.inspector).toEqual({x: 0, y: 0, w: 30, h: 20})
   })
 
-  test("uses caller-owned pane and movable stick frames", () => {
+  test("uses a caller-owned pane and docks a movable stick to the nearest viewport edge", () => {
     expect(planHamiltonianOrchestrationWorkspace(1200, 800, true, {x: 120, y: 90, w: 420, h: 360}).inspector)
       .toEqual({x: 120, y: 90, w: 420, h: 360})
     expect(planHamiltonianOrchestrationWorkspace(1200, 800, false, null, {x: 320, y: 180, w: 42, h: 34}).inspector)
-      .toEqual({x: 320, y: 180, w: 42, h: 34})
+      .toEqual({x: 320, y: 0, w: 42, h: 34})
   })
 })

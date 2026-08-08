@@ -1,4 +1,5 @@
 import type {UiSurfaceRect} from "@ui/elements"
+import {dockHudSideTabFrame} from "@ui/hud"
 
 export const HAMILTONIAN_INSPECTOR_STICK_WIDTH = 42
 export const HAMILTONIAN_INSPECTOR_STICK_HEIGHT = 34
@@ -30,14 +31,15 @@ export function planHamiltonianOrchestrationWorkspace(
       y: Math.min(HAMILTONIAN_INSPECTOR_STICK_TOP, safeHeight - stickHeight),
     }
     const requested = inspectorStickFrame ?? {...defaultStick, w: stickWidth, h: stickHeight}
+    const docked = dockHudSideTabFrame({
+      x: clamp(requested.x, 0, safeWidth - stickWidth),
+      y: clamp(requested.y, 0, safeHeight - stickHeight),
+      w: stickWidth,
+      h: stickHeight,
+    }, {w: safeWidth, h: safeHeight}, "right")
     return {
       graph: {x: 0, y: 0, w: safeWidth, h: safeHeight},
-      inspector: {
-        x: clamp(requested.x, 0, safeWidth - stickWidth),
-        y: clamp(requested.y, 0, safeHeight - stickHeight),
-        w: stickWidth,
-        h: stickHeight,
-      },
+      inspector: docked.rect,
     }
   }
 
