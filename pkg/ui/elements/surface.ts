@@ -924,29 +924,21 @@ export abstract class UiSurface implements UiSurfaceNode {
     const padX = 9
     const padY = 6
     const lineHeight = 15
-    const maxW = Math.min(340, Math.max(80, this.rectW - 12))
+    const surfaceFrame = this.surfaceFrame() ?? {
+      rect: {x: this.#screenOriginX, y: this.#screenOriginY, w: this.rectW, h: this.rectH},
+      bounds: {w: this.rectW, h: this.rectH},
+    }
+    const maxW = Math.min(340, Math.max(80, surfaceFrame.bounds.w - 12))
     const maxLabelW = Math.max(1, maxW - padX * 2)
-    const maxLines = Math.max(1, Math.min(8, Math.floor((Math.max(24, this.rectH) - padY * 2) / lineHeight)))
+    const maxLines = Math.max(1, Math.min(8, Math.floor((Math.max(24, surfaceFrame.bounds.h) - padY * 2) / lineHeight)))
     const lines = wrapUiTooltipLabel(label, maxLabelW, (value) => this.measureText(value, fontPx), maxLines)
     const labelW = Math.min(maxLabelW, Math.max(...lines.map((line) => Math.ceil(this.measureText(line, fontPx)))))
     const tooltipW = labelW + padX * 2
     const tooltipH = lines.length * lineHeight + padY * 2
-    let tx: number
-    let tooltipY: number
-    if (anchor === "cursor") {
-      const placement = placeUiCursorTooltip(
-        {x: cursorX, y: cursorY},
-        {w: tooltipW, h: tooltipH},
-        {w: this.rectW, h: this.rectH},
-      )
-      tx = placement.x
-      tooltipY = placement.y
-    } else {
-      tx = Math.max(0, Math.min(this.rectW - tooltipW, x + w / 2 - tooltipW / 2))
-      const ty = y - tooltipH - 7
-      tooltipY = this.#screenOriginY + ty < 4 ? y + h + 7 : ty
-    }
-    this.drawRoundedRect(tx, tooltipY, tooltipW, tooltipH, {
+    const placement = anchor === "cursor"
+      ? placeUiSurfaceTooltip({x: cursorX, y: cursorY}, {w: tooltipW, h: tooltipH}, surfaceFrame)
+      : placeUiSurfaceHitTooltip({x, y, w, h}, {w: tooltipW, h: tooltipH}, surfaceFrame)
+    this.drawRoundedRect(placement.x, placement.y, tooltipW, tooltipH, {
       radius: 7,
       fill: palette.bgElevated,
       border: palette.border,
@@ -954,7 +946,7 @@ export abstract class UiSurface implements UiSurfaceNode {
       z: Z.TEXT + 0.4,
     })
     for (const [index, line] of lines.entries()) {
-      this.drawText(line, tx + padX, tooltipY + padY + index * lineHeight, {
+      this.drawText(line, placement.x + padX, placement.y + padY + index * lineHeight, {
         fontPx,
         material: this.materials.text,
         maxWidthPx: labelW,
@@ -1674,6 +1666,80 @@ export function placeUiCursorTooltip(
     return {x: cursor.x - gap - tooltip.w, y: clampY(cursor.y - tooltip.h / 2), side: "left"}
   }
   return {x: clampX(cursor.x - tooltip.w / 2), y: clampY(cursor.y - gap - tooltip.h), side: "top"}
+}
+
+/** Place an overflowing surface tooltip inside the complete browser/display viewport. */
+export function placeUiSurfaceTooltip(
+  localAnchor: Readonly<{x: number; y: number}>,
+  tooltip: Readonly<{w: number; h: number}>,
+  frame: Readonly<{rect: UiSurfaceRect; bounds: {w: number; h: number}}>,
+  gap = 12,
+  margin = 4,
+): UiCursorTooltipPlacement {
+  const placement = placeUiCursorTooltip({
+    x: frame.rect.x + localAnchor.x,
+    y: frame.rect.y + localAnchor.y,
+  }, tooltip, frame.bounds, gap, margin)
+  return {
+    x: placement.x - frame.rect.x,
+    y: placement.y - frame.rect.y,
+    side: placement.side,
+  }
+}
+
+/** Default top, then right/bottom/left, with a real gap from the complete hit rectangle. */
+export function placeUiHitTooltip(
+  hit: UiSurfaceRect,
+  tooltip: Readonly<{w: number; h: number}>,
+  bounds: Readonly<{w: number; h: number}>,
+  gap = 12,
+  margin = 4,
+): UiCursorTooltipPlacement {
+  const maxX = Math.max(margin, bounds.w - tooltip.w - margin)
+  const maxY = Math.max(margin, bounds.h - tooltip.h - margin)
+  const clampX = (value: number): number => Math.max(margin, Math.min(maxX, value))
+  const clampY = (value: number): number => Math.max(margin, Math.min(maxY, value))
+  const centeredX = hit.x + hit.w / 2 - tooltip.w / 2
+  const centeredY = hit.y + hit.h / 2 - tooltip.h / 2
+  if (hit.y - gap - tooltip.h >= margin) {
+    return {x: clampX(centeredX), y: hit.y - gap - tooltip.h, side: "top"}
+  }
+  if (hit.x + hit.w + gap + tooltip.w <= bounds.w - margin) {
+    return {x: hit.x + hit.w + gap, y: clampY(centeredY), side: "right"}
+  }
+  if (hit.y + hit.h + gap + tooltip.h <= bounds.h - margin) {
+    return {x: clampX(centeredX), y: hit.y + hit.h + gap, side: "bottom"}
+  }
+  if (hit.x - gap - tooltip.w >= margin) {
+    return {x: hit.x - gap - tooltip.w, y: clampY(centeredY), side: "left"}
+  }
+  return placeUiCursorTooltip(
+    {x: hit.x + hit.w / 2, y: hit.y + hit.h / 2},
+    tooltip,
+    bounds,
+    gap,
+    margin,
+  )
+}
+
+export function placeUiSurfaceHitTooltip(
+  localHit: UiSurfaceRect,
+  tooltip: Readonly<{w: number; h: number}>,
+  frame: Readonly<{rect: UiSurfaceRect; bounds: {w: number; h: number}}>,
+  gap = 12,
+  margin = 4,
+): UiCursorTooltipPlacement {
+  const placement = placeUiHitTooltip({
+    x: frame.rect.x + localHit.x,
+    y: frame.rect.y + localHit.y,
+    w: localHit.w,
+    h: localHit.h,
+  }, tooltip, frame.bounds, gap, margin)
+  return {
+    x: placement.x - frame.rect.x,
+    y: placement.y - frame.rect.y,
+    side: placement.side,
+  }
 }
 
 export function wrapUiTooltipLabel(
