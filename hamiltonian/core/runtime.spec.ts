@@ -13,6 +13,7 @@ import {
   isCurrentLeaderPeerControl,
   isCurrentPeerGeneration,
   isCurrentWindowChannel,
+  mainRealmRequiresReload,
 } from "./browser-control.js"
 
 class FakeChannel extends EventTarget {
@@ -140,6 +141,14 @@ describe("shared Hamiltonian core", () => {
     expect(disposeFailedWorker(failed, failed)).toBeNull()
     expect(disposeFailedWorker(replacement, failed)).toBe(replacement)
     expect(terminated).toEqual(["failed", "failed"])
+  })
+
+  test("reloads a version only when replacing an active main in the current page realm", () => {
+    expect(mainRealmRequiresReload(true, "v1:hash-a", "v2:hash-b")).toBeTrue()
+    expect(mainRealmRequiresReload(true, "v2:hash-b", "v2:hash-b")).toBeFalse()
+    expect(mainRealmRequiresReload(true, null, "v2:hash-b")).toBeTrue()
+    expect(mainRealmRequiresReload(false, "v1:hash-a", "v2:hash-b")).toBeFalse()
+    expect(mainRealmRequiresReload(false, null, "v2:hash-b")).toBeFalse()
   })
 
   test("uses host epoch plus fencing token and rejects an expired or stale holder", () => {

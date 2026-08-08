@@ -348,7 +348,7 @@ function staticResponse(pathname: string): Response | null {
   const entry = files[pathname]
   if (!entry) return null
   const headers = new Headers(securityHeaders(entry.type))
-  headers.set("content-security-policy", "default-src 'self'; connect-src 'self' ws: wss: data:; img-src 'self' data:; script-src 'self'; style-src 'self'; worker-src 'self' blob:; base-uri 'none'; frame-ancestors 'none'")
+  headers.set("content-security-policy", "default-src 'self'; connect-src 'self' ws: wss: data:; img-src 'self' data: blob:; script-src 'self'; style-src 'self'; worker-src 'self' blob:; base-uri 'none'; frame-ancestors 'none'")
   if (pathname === "/sw.js") {
     headers.set("service-worker-allowed", "/")
     headers.set("cache-control", "no-cache")

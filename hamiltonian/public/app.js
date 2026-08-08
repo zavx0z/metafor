@@ -5,7 +5,11 @@ import {
   hamiltonianMessagePortEdgeId,
 } from "/core/traffic.js"
 import {authorityKey, LogicalChannelSession, PeerProtocol} from "/core/runtime.js"
-import {disposeFailedWorker, isCurrentPeerGeneration} from "/core/browser-control.js"
+import {
+  disposeFailedWorker,
+  isCurrentPeerGeneration,
+  mainRealmRequiresReload,
+} from "/core/browser-control.js"
 import {parseLocalHamiltonianWindowAction} from "/core/orchestration.js"
 
 const elements = Object.fromEntries([
@@ -429,14 +433,6 @@ async function reconcileMain() {
   }
   if (!loadedVersion || mainEmbodiment) return
 
-  const acceptedMainVersion = sessionStorage.getItem("hamiltonian-main-version")
-  if (acceptedMainVersion && acceptedMainVersion !== loadedVersion.fingerprint) {
-    sessionStorage.setItem("hamiltonian-main-version", loadedVersion.fingerprint)
-    sessionStorage.setItem("hamiltonian-main-reload-reason", `version ${loadedVersion.version}`)
-    log(`main realm update to ${loadedVersion.version} requires page reload`)
-    location.reload()
-    return
-  }
   sessionStorage.setItem("hamiltonian-main-version", loadedVersion.fingerprint)
 
   const mainIncarnation = crypto.randomUUID()
@@ -466,7 +462,7 @@ async function reconcileMain() {
 async function activateVersion(message) {
   const fingerprint = `${message.version}:${message.sha256}`
   if (loadedVersion?.fingerprint === fingerprint) return
-  if (mainEmbodiment && loadedVersion?.fingerprint !== fingerprint) {
+  if (mainRealmRequiresReload(Boolean(mainEmbodiment), loadedVersion?.fingerprint, fingerprint)) {
     sessionStorage.setItem("hamiltonian-main-version", fingerprint)
     sessionStorage.setItem("hamiltonian-main-reload-reason", `version ${message.version}`)
     log(`main realm update to ${message.version} requires page reload`)
@@ -479,6 +475,7 @@ async function activateVersion(message) {
     throw new Error("main realm received an invalid version module")
   }
   loadedVersion = {...message, fingerprint, loaded}
+  sessionStorage.setItem("hamiltonian-main-version", fingerprint)
   elements.module.textContent = loaded.describe()
   elements["source-hash"].textContent = message.sha256
   await birthDedicatedWorker(loadedVersion)

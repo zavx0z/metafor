@@ -168,7 +168,7 @@ describe("isolated Hamiltonian host", () => {
     expect(bootstrap.status).toBe(200)
     const bootstrapPolicy = bootstrap.headers.get("content-security-policy") ?? ""
     expect(bootstrapPolicy).toContain("connect-src 'self' ws: wss: data:")
-    expect(bootstrapPolicy).toContain("img-src 'self' data:")
+    expect(bootstrapPolicy).toContain("img-src 'self' data: blob:")
     const bootstrapSource = await bootstrap.text()
     expect(bootstrapSource).toContain("<title>Оркестрация Гамильтониана</title>")
     const trafficScriptIndex = bootstrapSource.indexOf('src="/core/traffic.js"')
