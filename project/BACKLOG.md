@@ -19,8 +19,9 @@
 | BLK-001 | DRAFT     | Bulk           | Поверхность выбранного объекта                  | [Открыть](tasks/BLK-001.md)      |
 | BLK-002 | DRAFT     | Bulk           | Детальный просмотр сущности                     | [Открыть](tasks/BLK-002.md)      |
 | BLK-003 | DRAFT     | Bulk / Visual  | Проекция Atom и обработчики на орбите State     | [Открыть](tasks/BLK-003.md)      |
+| DRK-002 | DRAFT     | Dark / Contour | Online-изменения без остановки мира             | [Открыть](tasks/DRK-002.md)      |
 | MF-408  | DRAFT     | Dark / Source  | Человеческий `meta.ts` authoring в live world   | [Открыть](tasks/MF-408.md)       |
-| MF-410  | DRAFT     | Dark / WebRTC  | Единый carrier и bootstrap будущей peer-сети    | [Открыть](tasks/MF-410.md)       |
+| MF-410  | DRAFT     | Peer transport | Carrier для RPC и Force после знакомства пиров  | [Открыть](tasks/MF-410.md)       |
 
 ## Зафиксировано без обсуждения
 

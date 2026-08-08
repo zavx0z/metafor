@@ -22,8 +22,11 @@ flowchart LR
     AUD013["AUD-013 · серверные проверки"]
     AUD014["AUD-014 · корневой пакет"]
     DRK001["DRK-001 · граница Dark"]
+    MF411["MF-411 · закон Hamiltonian"]
     MF412["MF-412 · опыт Hamiltonian"]
     MF413["MF-413 · единая RPC-поверхность Oracle"]
+    MF414["MF-414 · воплощения доменов"]
+    MF415["MF-415 · сцена Hamiltonian"]
     MTX001["MTX-001 · причинный порядок"]
     MTX002["MTX-002 · память"]
     MTX003["MTX-003 · структура и Process"]
@@ -42,6 +45,8 @@ flowchart LR
     LAD004["LAD-004 · рабочая Лада E2E"]
     MF109 --> MF110
     MF405 --> MF406
+    MF412 --> MF414
+    MF413 --> MF414
     LAD002 --> LAD003
     LAD001 --> LAD004
     LAD003 --> LAD004
@@ -62,19 +67,47 @@ flowchart LR
 | LAD-003 | REVIEW      | LAD-002          | [Открыть](tasks/LAD-003.md) |
 | LAD-004 | REVIEW      | LAD-001, LAD-003 | [Открыть](tasks/LAD-004.md) |
 
-## P1 — ближайшее функциональное расширение агента
+## P1 — ближайшая работа
+
+Текущие параллельные задачи Codex: документационный этап `MF-411` и
+интерактивная сцена `MF-415`.
+`DRK-001` закрывает только два уже утверждённых public dependency slice.
+`MF-411` продолжает уточнять закон Hamiltonian, а `MF-412` проверяет уже
+принятую минимальную управляющую схему без production-кода MetaFor.
+
+Эта диаграмма показывает этапы внутри одной карточки `DRK-001`, а не отдельные
+задачи. Статусы и stop conditions подробно описаны в карточке.
+
+```mermaid
+flowchart LR
+    DRK001S1["DONE · Boundary contract"]
+    DRK001S2["DONE · Create facade"]
+    DRK001S3["NEXT · проверка и закрытие"]
+    DRK001D1["DEFERRED · Dark → Bulk wiring"]
+    DRK001D2["DEFERRED · DSL bootstrap"]
+    DRK001G1["SEPARATE GATE · offline/cold recovery"]
+    DRK001G2["SEPARATE GATE · scoped pause"]
+    DRK001S1 --> DRK001S2
+    DRK001S2 --> DRK001S3
+```
+
+Dark → Bulk wiring, DSL bootstrap и separate gates не входят в закрытие двух
+утверждённых slices и не блокируют `NEXT`.
+
+| ID      | Состояние   | Зависимости    | Карточка                    |
+| ------- | ----------- | -------------- | --------------------------- |
+| DRK-001 | REVIEW      | нет            | [Открыть](tasks/DRK-001.md) |
+| MF-411  | IN_PROGRESS | нет            | [Открыть](tasks/MF-411.md)  |
+| MF-412  | REVIEW      | нет            | [Открыть](tasks/MF-412.md)  |
+| MF-413  | REVIEW      | нет            | [Открыть](tasks/MF-413.md)  |
+| MF-414  | READY       | MF-412, MF-413 | [Открыть](tasks/MF-414.md)  |
+| MF-415  | IN_PROGRESS | нет            | [Открыть](tasks/MF-415.md)  |
+
+## P2 — функциональное продолжение и надёжность
 
 | ID      | Состояние   | Зависимости | Карточка                    |
 | ------- | ----------- | ----------- | --------------------------- |
-| MF-412  | REVIEW      | нет         | [Открыть](tasks/MF-412.md)  |
-| DRK-001 | REVIEW      | нет         | [Открыть](tasks/DRK-001.md) |
-| MF-413  | REVIEW      | нет         | [Открыть](tasks/MF-413.md)  |
 | MF-407  | READY       | нет         | [Открыть](tasks/MF-407.md)  |
-
-## P2 — надёжность после функциональной полноты
-
-| ID      | Состояние   | Зависимости | Карточка                    |
-| ------- | ----------- | ----------- | --------------------------- |
 | AUD-009 | READY       | нет         | [Открыть](tasks/AUD-009.md) |
 | AUD-005 | GATE        | нет         | [Открыть](tasks/AUD-005.md) |
 | AUD-008 | GATE        | нет         | [Открыть](tasks/AUD-008.md) |
