@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Hamiltonian control-plane experiment</title>
+    <link rel="stylesheet" href="/styles.css">
+    <script type="module" src="/app.js"></script>
+  </head>
+  <body>
+    <main>
+      <header>
+        <p class="eyebrow">MF-412 · isolated control plane</p>
+        <h1>Hamiltonian</h1>
+        <p class="lede">One host listener, one Service Worker socket, many Window clients, one elected embodiment.</p>
+      </header>
+
+      <section class="status-grid" aria-label="Experiment status">
+        <article><span>Secure context</span><strong id="secure">checking</strong></article>
+        <article><span>Page control</span><strong id="control">checking</strong></article>
+        <article><span>Control socket</span><strong id="socket">offline</strong></article>
+        <article><span>This Window</span><strong id="role">candidate</strong></article>
+      </section>
+
+      <section class="identity">
+        <div><span>Host</span><code id="host">—</code></div>
+        <div><span>Version</span><code id="version">—</code></div>
+        <div><span>Device</span><code id="device">—</code></div>
+        <div><span>Window</span><code id="tab">—</code></div>
+        <div><span>Loaded module</span><code id="module">—</code></div>
+        <div><span>Source SHA-256</span><code id="source-hash">—</code></div>
+        <div><span>Window main realm</span><code id="main-embodiment">—</code></div>
+        <div><span>Singleton authority</span><code id="singleton-authority">none</code></div>
+        <div><span>Dedicated Worker</span><code id="worker-embodiment">—</code></div>
+        <div><span>Bun OS process</span><code id="bun-embodiment">—</code></div>
+        <div><span>Peer carrier</span><code id="peer-carrier">not connected</code></div>
+        <div><span>Oracle lane proof</span><code id="oracle-proof">waiting</code></div>
+        <div><span>Force lane proof</span><code id="force-proof">waiting</code></div>
+        <div><span>Version caches</span><code id="caches">—</code></div>
+      </section>
+
+      <section class="actions">
+        <button id="new-tab" type="button">Open another Window</button>
+        <button id="rebirth-worker" type="button">Rebirth Dedicated Worker</button>
+        <button id="reload-main" type="button">Rebirth main realm</button>
+        <button id="reconnect" type="button">Reconnect page channel</button>
+        <button id="reload" type="button">Reload</button>
+      </section>
+
+      <section>
+        <h2>Host topology</h2>
+        <pre id="topology">Waiting for the Service Worker…</pre>
+      </section>
+
+      <section>
+        <h2>Observed events</h2>
+        <ol id="events" reversed></ol>
+      </section>
+    </main>
+  </body>
+</html>

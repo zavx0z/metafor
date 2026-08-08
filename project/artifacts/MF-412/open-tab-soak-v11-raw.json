@@ -1,0 +1,201 @@
+{
+  "schema": "hamiltonian.open-tab-soak/v2",
+  "outcome": "passed",
+  "endpoint": "http://127.0.0.1:4401/lab/status",
+  "startedAt": "2026-08-08T07:52:31.381Z",
+  "finishedAt": "2026-08-08T07:54:31.385Z",
+  "requestedDurationMs": 120000,
+  "intervalMs": 15000,
+  "requestTimeoutMs": 5000,
+  "sampleCount": 9,
+  "identity": {
+    "hostEpoch": "2eac3058-0a86-49e9-bf23-0dc0efdef497",
+    "connectionId": null,
+    "workerIncarnationId": null,
+    "leaseId": "2eac3058-0a86-49e9-bf23-0dc0efdef497:1:607fbdc9-c4d8-4046-8b3c-18d1ba04cd0d:bee93ed9-8f4d-4304-a753-68f58bc886f7",
+    "deviceId": "de93899f-44ae-49db-b2a6-639f3101a068",
+    "tabId": "bee93ed9-8f4d-4304-a753-68f58bc886f7",
+    "peerId": "peer:2eac3058-0a86-49e9-bf23-0dc0efdef497:1:607fbdc9-c4d8-4046-8b3c-18d1ba04cd0d:bee93ed9-8f4d-4304-a753-68f58bc886f7:2",
+    "peerSessionEpoch": "0fa4e551-3568-4caa-b39f-cf880b516729",
+    "peerGeneration": 2,
+    "peerAuthorityKey": "2eac3058-0a86-49e9-bf23-0dc0efdef497:2eac3058-0a86-49e9-bf23-0dc0efdef497:1:607fbdc9-c4d8-4046-8b3c-18d1ba04cd0d:bee93ed9-8f4d-4304-a753-68f58bc886f7:1"
+  },
+  "initialCounters": {
+    "heartbeatAck": 3,
+    "monadRequests": 3,
+    "forceEvents": 3,
+    "realtimeFramesOnControlSocket": 0
+  },
+  "finalCounters": {
+    "heartbeatAck": 12,
+    "monadRequests": 15,
+    "forceEvents": 15,
+    "realtimeFramesOnControlSocket": 0
+  },
+  "progress": {
+    "heartbeatAcks": 9,
+    "monadRequests": 12,
+    "forceEvents": 12
+  },
+  "physicalTransitions": {
+    "connectionChanges": 5,
+    "workerRebirths": 2,
+    "detachedSamples": 3
+  },
+  "samples": [
+    {
+      "index": 0,
+      "observedAt": "2026-08-08T07:52:31.394Z",
+      "identity": {
+        "hostEpoch": "2eac3058-0a86-49e9-bf23-0dc0efdef497",
+        "connectionId": null,
+        "workerIncarnationId": null,
+        "leaseId": "2eac3058-0a86-49e9-bf23-0dc0efdef497:1:607fbdc9-c4d8-4046-8b3c-18d1ba04cd0d:bee93ed9-8f4d-4304-a753-68f58bc886f7",
+        "deviceId": "de93899f-44ae-49db-b2a6-639f3101a068",
+        "tabId": "bee93ed9-8f4d-4304-a753-68f58bc886f7",
+        "peerId": "peer:2eac3058-0a86-49e9-bf23-0dc0efdef497:1:607fbdc9-c4d8-4046-8b3c-18d1ba04cd0d:bee93ed9-8f4d-4304-a753-68f58bc886f7:2",
+        "peerSessionEpoch": "0fa4e551-3568-4caa-b39f-cf880b516729",
+        "peerGeneration": 2,
+        "peerAuthorityKey": "2eac3058-0a86-49e9-bf23-0dc0efdef497:2eac3058-0a86-49e9-bf23-0dc0efdef497:1:607fbdc9-c4d8-4046-8b3c-18d1ba04cd0d:bee93ed9-8f4d-4304-a753-68f58bc886f7:1"
+      },
+      "counters": {"heartbeatAck": 3, "monadRequests": 3, "forceEvents": 3, "realtimeFramesOnControlSocket": 0}
+    },
+    {
+      "index": 1,
+      "observedAt": "2026-08-08T07:52:46.386Z",
+      "identity": {
+        "hostEpoch": "2eac3058-0a86-49e9-bf23-0dc0efdef497",
+        "connectionId": "ab7f1baf-25db-4391-820c-5180e1158b5b",
+        "workerIncarnationId": "a6214790-c752-483c-9d46-83ef802d8771",
+        "leaseId": "2eac3058-0a86-49e9-bf23-0dc0efdef497:1:607fbdc9-c4d8-4046-8b3c-18d1ba04cd0d:bee93ed9-8f4d-4304-a753-68f58bc886f7",
+        "deviceId": "de93899f-44ae-49db-b2a6-639f3101a068",
+        "tabId": "bee93ed9-8f4d-4304-a753-68f58bc886f7",
+        "peerId": "peer:2eac3058-0a86-49e9-bf23-0dc0efdef497:1:607fbdc9-c4d8-4046-8b3c-18d1ba04cd0d:bee93ed9-8f4d-4304-a753-68f58bc886f7:2",
+        "peerSessionEpoch": "0fa4e551-3568-4caa-b39f-cf880b516729",
+        "peerGeneration": 2,
+        "peerAuthorityKey": "2eac3058-0a86-49e9-bf23-0dc0efdef497:2eac3058-0a86-49e9-bf23-0dc0efdef497:1:607fbdc9-c4d8-4046-8b3c-18d1ba04cd0d:bee93ed9-8f4d-4304-a753-68f58bc886f7:1"
+      },
+      "counters": {"heartbeatAck": 4, "monadRequests": 4, "forceEvents": 4, "realtimeFramesOnControlSocket": 0}
+    },
+    {
+      "index": 2,
+      "observedAt": "2026-08-08T07:53:01.386Z",
+      "identity": {
+        "hostEpoch": "2eac3058-0a86-49e9-bf23-0dc0efdef497",
+        "connectionId": "ab7f1baf-25db-4391-820c-5180e1158b5b",
+        "workerIncarnationId": "a6214790-c752-483c-9d46-83ef802d8771",
+        "leaseId": "2eac3058-0a86-49e9-bf23-0dc0efdef497:1:607fbdc9-c4d8-4046-8b3c-18d1ba04cd0d:bee93ed9-8f4d-4304-a753-68f58bc886f7",
+        "deviceId": "de93899f-44ae-49db-b2a6-639f3101a068",
+        "tabId": "bee93ed9-8f4d-4304-a753-68f58bc886f7",
+        "peerId": "peer:2eac3058-0a86-49e9-bf23-0dc0efdef497:1:607fbdc9-c4d8-4046-8b3c-18d1ba04cd0d:bee93ed9-8f4d-4304-a753-68f58bc886f7:2",
+        "peerSessionEpoch": "0fa4e551-3568-4caa-b39f-cf880b516729",
+        "peerGeneration": 2,
+        "peerAuthorityKey": "2eac3058-0a86-49e9-bf23-0dc0efdef497:2eac3058-0a86-49e9-bf23-0dc0efdef497:1:607fbdc9-c4d8-4046-8b3c-18d1ba04cd0d:bee93ed9-8f4d-4304-a753-68f58bc886f7:1"
+      },
+      "counters": {"heartbeatAck": 6, "monadRequests": 6, "forceEvents": 6, "realtimeFramesOnControlSocket": 0}
+    },
+    {
+      "index": 3,
+      "observedAt": "2026-08-08T07:53:16.386Z",
+      "identity": {
+        "hostEpoch": "2eac3058-0a86-49e9-bf23-0dc0efdef497",
+        "connectionId": "1e1c6ee1-e1b3-492c-ab22-1b0ff8d29063",
+        "workerIncarnationId": "88ddbb24-295d-47ca-8d1f-2bc376c6481a",
+        "leaseId": "2eac3058-0a86-49e9-bf23-0dc0efdef497:1:607fbdc9-c4d8-4046-8b3c-18d1ba04cd0d:bee93ed9-8f4d-4304-a753-68f58bc886f7",
+        "deviceId": "de93899f-44ae-49db-b2a6-639f3101a068",
+        "tabId": "bee93ed9-8f4d-4304-a753-68f58bc886f7",
+        "peerId": "peer:2eac3058-0a86-49e9-bf23-0dc0efdef497:1:607fbdc9-c4d8-4046-8b3c-18d1ba04cd0d:bee93ed9-8f4d-4304-a753-68f58bc886f7:2",
+        "peerSessionEpoch": "0fa4e551-3568-4caa-b39f-cf880b516729",
+        "peerGeneration": 2,
+        "peerAuthorityKey": "2eac3058-0a86-49e9-bf23-0dc0efdef497:2eac3058-0a86-49e9-bf23-0dc0efdef497:1:607fbdc9-c4d8-4046-8b3c-18d1ba04cd0d:bee93ed9-8f4d-4304-a753-68f58bc886f7:1"
+      },
+      "counters": {"heartbeatAck": 6, "monadRequests": 7, "forceEvents": 7, "realtimeFramesOnControlSocket": 0}
+    },
+    {
+      "index": 4,
+      "observedAt": "2026-08-08T07:53:31.386Z",
+      "identity": {
+        "hostEpoch": "2eac3058-0a86-49e9-bf23-0dc0efdef497",
+        "connectionId": "1e1c6ee1-e1b3-492c-ab22-1b0ff8d29063",
+        "workerIncarnationId": "88ddbb24-295d-47ca-8d1f-2bc376c6481a",
+        "leaseId": "2eac3058-0a86-49e9-bf23-0dc0efdef497:1:607fbdc9-c4d8-4046-8b3c-18d1ba04cd0d:bee93ed9-8f4d-4304-a753-68f58bc886f7",
+        "deviceId": "de93899f-44ae-49db-b2a6-639f3101a068",
+        "tabId": "bee93ed9-8f4d-4304-a753-68f58bc886f7",
+        "peerId": "peer:2eac3058-0a86-49e9-bf23-0dc0efdef497:1:607fbdc9-c4d8-4046-8b3c-18d1ba04cd0d:bee93ed9-8f4d-4304-a753-68f58bc886f7:2",
+        "peerSessionEpoch": "0fa4e551-3568-4caa-b39f-cf880b516729",
+        "peerGeneration": 2,
+        "peerAuthorityKey": "2eac3058-0a86-49e9-bf23-0dc0efdef497:2eac3058-0a86-49e9-bf23-0dc0efdef497:1:607fbdc9-c4d8-4046-8b3c-18d1ba04cd0d:bee93ed9-8f4d-4304-a753-68f58bc886f7:1"
+      },
+      "counters": {"heartbeatAck": 8, "monadRequests": 9, "forceEvents": 9, "realtimeFramesOnControlSocket": 0}
+    },
+    {
+      "index": 5,
+      "observedAt": "2026-08-08T07:53:46.386Z",
+      "identity": {
+        "hostEpoch": "2eac3058-0a86-49e9-bf23-0dc0efdef497",
+        "connectionId": null,
+        "workerIncarnationId": null,
+        "leaseId": "2eac3058-0a86-49e9-bf23-0dc0efdef497:1:607fbdc9-c4d8-4046-8b3c-18d1ba04cd0d:bee93ed9-8f4d-4304-a753-68f58bc886f7",
+        "deviceId": "de93899f-44ae-49db-b2a6-639f3101a068",
+        "tabId": "bee93ed9-8f4d-4304-a753-68f58bc886f7",
+        "peerId": "peer:2eac3058-0a86-49e9-bf23-0dc0efdef497:1:607fbdc9-c4d8-4046-8b3c-18d1ba04cd0d:bee93ed9-8f4d-4304-a753-68f58bc886f7:2",
+        "peerSessionEpoch": "0fa4e551-3568-4caa-b39f-cf880b516729",
+        "peerGeneration": 2,
+        "peerAuthorityKey": "2eac3058-0a86-49e9-bf23-0dc0efdef497:2eac3058-0a86-49e9-bf23-0dc0efdef497:1:607fbdc9-c4d8-4046-8b3c-18d1ba04cd0d:bee93ed9-8f4d-4304-a753-68f58bc886f7:1"
+      },
+      "counters": {"heartbeatAck": 9, "monadRequests": 10, "forceEvents": 10, "realtimeFramesOnControlSocket": 0}
+    },
+    {
+      "index": 6,
+      "observedAt": "2026-08-08T07:54:01.384Z",
+      "identity": {
+        "hostEpoch": "2eac3058-0a86-49e9-bf23-0dc0efdef497",
+        "connectionId": "1f26d44b-37c7-46b3-8f87-eb45df9acff0",
+        "workerIncarnationId": "96f5e707-0212-4f22-a7ad-1512b88e151c",
+        "leaseId": "2eac3058-0a86-49e9-bf23-0dc0efdef497:1:607fbdc9-c4d8-4046-8b3c-18d1ba04cd0d:bee93ed9-8f4d-4304-a753-68f58bc886f7",
+        "deviceId": "de93899f-44ae-49db-b2a6-639f3101a068",
+        "tabId": "bee93ed9-8f4d-4304-a753-68f58bc886f7",
+        "peerId": "peer:2eac3058-0a86-49e9-bf23-0dc0efdef497:1:607fbdc9-c4d8-4046-8b3c-18d1ba04cd0d:bee93ed9-8f4d-4304-a753-68f58bc886f7:2",
+        "peerSessionEpoch": "0fa4e551-3568-4caa-b39f-cf880b516729",
+        "peerGeneration": 2,
+        "peerAuthorityKey": "2eac3058-0a86-49e9-bf23-0dc0efdef497:2eac3058-0a86-49e9-bf23-0dc0efdef497:1:607fbdc9-c4d8-4046-8b3c-18d1ba04cd0d:bee93ed9-8f4d-4304-a753-68f58bc886f7:1"
+      },
+      "counters": {"heartbeatAck": 10, "monadRequests": 12, "forceEvents": 12, "realtimeFramesOnControlSocket": 0}
+    },
+    {
+      "index": 7,
+      "observedAt": "2026-08-08T07:54:16.385Z",
+      "identity": {
+        "hostEpoch": "2eac3058-0a86-49e9-bf23-0dc0efdef497",
+        "connectionId": "1f26d44b-37c7-46b3-8f87-eb45df9acff0",
+        "workerIncarnationId": "96f5e707-0212-4f22-a7ad-1512b88e151c",
+        "leaseId": "2eac3058-0a86-49e9-bf23-0dc0efdef497:1:607fbdc9-c4d8-4046-8b3c-18d1ba04cd0d:bee93ed9-8f4d-4304-a753-68f58bc886f7",
+        "deviceId": "de93899f-44ae-49db-b2a6-639f3101a068",
+        "tabId": "bee93ed9-8f4d-4304-a753-68f58bc886f7",
+        "peerId": "peer:2eac3058-0a86-49e9-bf23-0dc0efdef497:1:607fbdc9-c4d8-4046-8b3c-18d1ba04cd0d:bee93ed9-8f4d-4304-a753-68f58bc886f7:2",
+        "peerSessionEpoch": "0fa4e551-3568-4caa-b39f-cf880b516729",
+        "peerGeneration": 2,
+        "peerAuthorityKey": "2eac3058-0a86-49e9-bf23-0dc0efdef497:2eac3058-0a86-49e9-bf23-0dc0efdef497:1:607fbdc9-c4d8-4046-8b3c-18d1ba04cd0d:bee93ed9-8f4d-4304-a753-68f58bc886f7:1"
+      },
+      "counters": {"heartbeatAck": 11, "monadRequests": 13, "forceEvents": 13, "realtimeFramesOnControlSocket": 0}
+    },
+    {
+      "index": 8,
+      "observedAt": "2026-08-08T07:54:31.385Z",
+      "identity": {
+        "hostEpoch": "2eac3058-0a86-49e9-bf23-0dc0efdef497",
+        "connectionId": null,
+        "workerIncarnationId": null,
+        "leaseId": "2eac3058-0a86-49e9-bf23-0dc0efdef497:1:607fbdc9-c4d8-4046-8b3c-18d1ba04cd0d:bee93ed9-8f4d-4304-a753-68f58bc886f7",
+        "deviceId": "de93899f-44ae-49db-b2a6-639f3101a068",
+        "tabId": "bee93ed9-8f4d-4304-a753-68f58bc886f7",
+        "peerId": "peer:2eac3058-0a86-49e9-bf23-0dc0efdef497:1:607fbdc9-c4d8-4046-8b3c-18d1ba04cd0d:bee93ed9-8f4d-4304-a753-68f58bc886f7:2",
+        "peerSessionEpoch": "0fa4e551-3568-4caa-b39f-cf880b516729",
+        "peerGeneration": 2,
+        "peerAuthorityKey": "2eac3058-0a86-49e9-bf23-0dc0efdef497:2eac3058-0a86-49e9-bf23-0dc0efdef497:1:607fbdc9-c4d8-4046-8b3c-18d1ba04cd0d:bee93ed9-8f4d-4304-a753-68f58bc886f7:1"
+      },
+      "counters": {"heartbeatAck": 12, "monadRequests": 15, "forceEvents": 15, "realtimeFramesOnControlSocket": 0}
+    }
+  ],
+  "failure": null
+}

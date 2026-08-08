@@ -1,0 +1,13 @@
+{
+  "name": "metafor-hamiltonian-experiment",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "bun run host.ts",
+    "tls:create": "bun run create-tls.ts",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "werift": "0.24.3"
+  }
+}

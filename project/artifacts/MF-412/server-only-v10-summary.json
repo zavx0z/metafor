@@ -1,0 +1,43 @@
+{
+  "schema": "hamiltonian.server-only/v1",
+  "observedAt": "2026-08-08T10:37:00+03:00",
+  "sourceRevision": "6776bfb1c53e3122f0c8617a916657cce06a327c",
+  "experimentVersion": "v10-server",
+  "listener": {
+    "host": "127.0.0.1",
+    "port": 4401,
+    "count": 1
+  },
+  "placement": "server",
+  "browserConnections": 0,
+  "windowLeader": null,
+  "serverAuthority": {
+    "holderId": "main",
+    "fencingToken": 1,
+    "connectionId": "bun-host"
+  },
+  "embodiments": {
+    "main": {
+      "runtime": "bun-process",
+      "state": "ready",
+      "hasAuthority": true
+    },
+    "worker": {
+      "runtime": "bun-process",
+      "state": "ready",
+      "hasAuthority": false
+    },
+    "peer": {
+      "runtime": "bun-process",
+      "state": "online",
+      "hasAuthority": false
+    }
+  },
+  "realtimeFramesOnControlSocket": 0,
+  "cleanup": {
+    "auxiliaryListenerStopped": true,
+    "auxiliaryChildrenStopped": true,
+    "preexistingPort4400Untouched": true
+  },
+  "claimBoundary": "This live snapshot proves placement and process ownership only. Fence rotation, stale-envelope rejection, peer crash recovery, and direct Bun-to-Bun DataChannel traffic are deterministic fixture evidence, not claims from this snapshot."
+}

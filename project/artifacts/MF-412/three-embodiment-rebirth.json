@@ -1,0 +1,39 @@
+{
+  "dedicatedWorkerOnlyRebirth": {
+    "pageTimeOrigin": 1786147675021.8,
+    "mainIncarnation": "68114315-8b95-4c88-acb4-13b892527ee0",
+    "workerBefore": "4606ca99-552e-4110-b974-00cfda4b6755",
+    "workerAfter": "baf59104-1a94-4bd9-b27b-dcf9b3cfc8fe",
+    "pageReloaded": false,
+    "mainChanged": false,
+    "workerChanged": true
+  },
+  "versionRebirth": {
+    "before": {
+      "version": "v5",
+      "pageTimeOrigin": 1786147675021.8,
+      "windowId": "14f48e14-7d86-490d-b09f-aa14a5704c9c",
+      "mainIncarnation": "68114315-8b95-4c88-acb4-13b892527ee0",
+      "workerIncarnation": "baf59104-1a94-4bd9-b27b-dcf9b3cfc8fe",
+      "bunPid": 84400,
+      "bunIncarnation": "00fb66c5-216a-4ab3-a418-7941bc4ab48e",
+      "sha256": "d5f0f1c6601366708d80cf2037d65b190550e4783e159fb25f83f45393b43920"
+    },
+    "after": {
+      "version": "v6",
+      "pageTimeOrigin": 1786147723134,
+      "windowId": "14f48e14-7d86-490d-b09f-aa14a5704c9c",
+      "mainIncarnation": "666e1177-9dcb-40be-b28a-a350d497e1c3",
+      "workerIncarnation": "e6915864-dde5-4af8-8c56-43aa4be245dd",
+      "bunPid": 84668,
+      "bunIncarnation": "da2a8d1f-9120-4b30-8d54-ae98021a13f7",
+      "sha256": "6636ec31f63c12c6851468d0713a32c36a4d22ec6e6ff5662123c4e1a7a366e3"
+    },
+    "pageReloaded": true,
+    "windowIdentityPreserved": true,
+    "mainChanged": true,
+    "workerChanged": true,
+    "oldBunProcessStopped": true,
+    "bunProcessChanged": true
+  }
+}

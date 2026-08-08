@@ -7,6 +7,8 @@ __snapshots__
 .idea
 .DS_Store
 public
+!experiments/hamiltonian/public/
+!experiments/hamiltonian/public/**
 .firebase/*
 *.sqlite*
 *.db*

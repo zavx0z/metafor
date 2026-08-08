@@ -1,0 +1,976 @@
+import {networkInterfaces} from "node:os"
+import {fileURLToPath} from "node:url"
+import {
+  BunEmbodimentSet,
+  type EmbodimentAuthority,
+} from "./bun-embodiment.ts"
+import {authorityKey, makeLeaseId} from "./core/runtime.js"
+import {HostTopology, type WindowCandidate} from "./host-state.ts"
+import {PeerProcessSupervisor} from "./peer-supervisor.ts"
+import type {PeerSignal, WeriftPeerSnapshot} from "./peer/werift-peer.ts"
+
+interface SocketData {
+  connectionId: string
+  deviceId: string
+  openedAt: number
+  lastPongAt: number
+  lastChallengeSeq: number
+  lastAckSeq: number
+  workerIncarnationId: string | null
+  resumeNonce: string | null
+  retainAuthorityOnClose: boolean
+}
+
+interface HamiltonianHostOptions {
+  hostname?: string
+  port?: number
+  identity?: string
+  version?: string
+  token?: string
+  tlsCertPath?: string
+  tlsKeyPath?: string
+  heartbeatMs?: number
+  placement?: "browser" | "server"
+}
+
+interface ClientTabsMessage {
+  kind: "tabs"
+  windows: WindowCandidate[]
+}
+
+interface ClientPongMessage {
+  kind: "pong"
+  at: number
+  seq: number
+  workerIncarnationId: string
+}
+
+interface ClientIdentityMessage {
+  kind: "identity"
+  workerIncarnationId: string
+  resumeNonce: string
+}
+
+interface ClientPeerSignalMessage {
+  kind: "peer-signal"
+  peerId: string
+  sessionEpoch: string
+  peerGeneration: number
+  authorityKey: string
+  tabId: string
+  signal: PeerSignal
+}
+
+interface ClientPeerFailedMessage {
+  kind: "peer-failed"
+  peerId: string
+  sessionEpoch: string
+  peerGeneration: number
+  authorityKey: string
+  tabId: string
+  reason: string
+}
+
+type ClientMessage =
+  | ClientTabsMessage
+  | ClientPongMessage
+  | ClientIdentityMessage
+  | ClientPeerSignalMessage
+  | ClientPeerFailedMessage
+
+interface HostEvent {
+  at: number
+  kind: string
+  connectionId?: string
+  detail?: string
+}
+
+const experimentRoot = fileURLToPath(new URL(".", import.meta.url))
+const publicRoot = `${experimentRoot}/public`
+
+function safeEqual(left: string, right: string): boolean {
+  const leftBytes = new TextEncoder().encode(left)
+  const rightBytes = new TextEncoder().encode(right)
+  if (leftBytes.length !== rightBytes.length) return false
+  let mismatch = 0
+  for (let index = 0; index < leftBytes.length; index += 1) {
+    mismatch |= leftBytes[index]! ^ rightBytes[index]!
+  }
+  return mismatch === 0
+}
+
+function parseClientMessage(value: string | Buffer): ClientMessage | null {
+  if (value.length > 128 * 1024) return null
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(typeof value === "string" ? value : value.toString())
+  } catch {
+    return null
+  }
+  if (!parsed || typeof parsed !== "object" || !("kind" in parsed)) return null
+
+  if (
+    parsed.kind === "pong" &&
+    "at" in parsed && typeof parsed.at === "number" &&
+    "seq" in parsed && typeof parsed.seq === "number" &&
+    "workerIncarnationId" in parsed && typeof parsed.workerIncarnationId === "string"
+  ) {
+    return {
+      kind: "pong",
+      at: parsed.at,
+      seq: parsed.seq,
+      workerIncarnationId: parsed.workerIncarnationId,
+    }
+  }
+
+  if (
+    parsed.kind === "identity" &&
+    "workerIncarnationId" in parsed &&
+    typeof parsed.workerIncarnationId === "string" &&
+    parsed.workerIncarnationId.length > 0 &&
+    parsed.workerIncarnationId.length <= 128 &&
+    "resumeNonce" in parsed &&
+    typeof parsed.resumeNonce === "string" &&
+    parsed.resumeNonce.length > 0 &&
+    parsed.resumeNonce.length <= 128
+  ) {
+    return {
+      kind: "identity",
+      workerIncarnationId: parsed.workerIncarnationId,
+      resumeNonce: parsed.resumeNonce,
+    }
+  }
+
+  if (
+    parsed.kind === "peer-signal" &&
+    "peerId" in parsed && typeof parsed.peerId === "string" && parsed.peerId.length <= 256 &&
+    "sessionEpoch" in parsed && typeof parsed.sessionEpoch === "string" && parsed.sessionEpoch.length <= 128 &&
+    "peerGeneration" in parsed && typeof parsed.peerGeneration === "number" && Number.isSafeInteger(parsed.peerGeneration) && parsed.peerGeneration > 0 &&
+    "authorityKey" in parsed && typeof parsed.authorityKey === "string" && parsed.authorityKey.length <= 512 &&
+    "tabId" in parsed && typeof parsed.tabId === "string" && parsed.tabId.length <= 128 &&
+    "signal" in parsed && validPeerSignal(parsed.signal)
+  ) {
+    return {
+      kind: "peer-signal",
+      peerId: parsed.peerId,
+      sessionEpoch: parsed.sessionEpoch,
+      peerGeneration: parsed.peerGeneration as number,
+      authorityKey: parsed.authorityKey,
+      tabId: parsed.tabId,
+      signal: parsed.signal,
+    }
+  }
+
+  if (
+    parsed.kind === "peer-failed" &&
+    "peerId" in parsed && typeof parsed.peerId === "string" && parsed.peerId.length <= 256 &&
+    "sessionEpoch" in parsed && typeof parsed.sessionEpoch === "string" && parsed.sessionEpoch.length <= 128 &&
+    "peerGeneration" in parsed && typeof parsed.peerGeneration === "number" && Number.isSafeInteger(parsed.peerGeneration) && parsed.peerGeneration > 0 &&
+    "authorityKey" in parsed && typeof parsed.authorityKey === "string" && parsed.authorityKey.length <= 512 &&
+    "tabId" in parsed && typeof parsed.tabId === "string" && parsed.tabId.length <= 128 &&
+    "reason" in parsed && typeof parsed.reason === "string" && parsed.reason.length <= 256
+  ) {
+    return {
+      kind: "peer-failed",
+      peerId: parsed.peerId,
+      sessionEpoch: parsed.sessionEpoch,
+      peerGeneration: parsed.peerGeneration as number,
+      authorityKey: parsed.authorityKey,
+      tabId: parsed.tabId,
+      reason: parsed.reason,
+    }
+  }
+
+  if (parsed.kind !== "tabs" || !("windows" in parsed) || !Array.isArray(parsed.windows)) {
+    return null
+  }
+  if (parsed.windows.length > 64) return null
+
+  const windows: WindowCandidate[] = []
+  for (const candidate of parsed.windows) {
+    if (!candidate || typeof candidate !== "object") return null
+    if (!("tabId" in candidate) || typeof candidate.tabId !== "string") return null
+    if (!("joinedAt" in candidate) || typeof candidate.joinedAt !== "number") return null
+    if (!("visible" in candidate) || typeof candidate.visible !== "boolean") return null
+    if (!candidate.tabId || candidate.tabId.length > 128 || !Number.isFinite(candidate.joinedAt)) {
+      return null
+    }
+    windows.push({
+      tabId: candidate.tabId,
+      joinedAt: candidate.joinedAt,
+      visible: candidate.visible,
+    })
+  }
+  return {kind: "tabs", windows}
+}
+
+function validPeerSignal(value: unknown): value is PeerSignal {
+  if (!value || typeof value !== "object" || !("type" in value)) return false
+  if (value.type === "candidate") {
+    if (!("candidate" in value) || value.candidate === null) return "candidate" in value
+    const candidate = value.candidate
+    if (!candidate || typeof candidate !== "object" || !("candidate" in candidate)) return false
+    if (typeof candidate.candidate !== "string" || candidate.candidate.length > 8_192) return false
+    if (
+      "sdpMid" in candidate &&
+      candidate.sdpMid !== null &&
+      candidate.sdpMid !== undefined &&
+      (typeof candidate.sdpMid !== "string" || candidate.sdpMid.length > 256)
+    ) return false
+    if (
+      "sdpMLineIndex" in candidate &&
+      candidate.sdpMLineIndex !== null &&
+      candidate.sdpMLineIndex !== undefined &&
+      (!Number.isSafeInteger(candidate.sdpMLineIndex) || Number(candidate.sdpMLineIndex) < 0)
+    ) return false
+    if (
+      "usernameFragment" in candidate &&
+      candidate.usernameFragment !== null &&
+      candidate.usernameFragment !== undefined &&
+      (typeof candidate.usernameFragment !== "string" || candidate.usernameFragment.length > 256)
+    ) return false
+    return true
+  }
+  if (value.type !== "description" || !("description" in value)) return false
+  const description = value.description
+  return Boolean(
+    description &&
+    typeof description === "object" &&
+    "type" in description &&
+    (description.type === "offer" || description.type === "answer") &&
+    "sdp" in description &&
+    typeof description.sdp === "string" &&
+    description.sdp.length <= 100_000,
+  )
+}
+
+function isRealtimeControlPayload(value: string | Buffer): boolean {
+  try {
+    const parsed = JSON.parse(typeof value === "string" ? value : value.toString()) as {
+      kind?: unknown
+      lane?: unknown
+    }
+    return parsed?.lane === "oracle" || parsed?.lane === "force" ||
+      (typeof parsed?.kind === "string" && /^(oracle|force)(?:[.-]|$)/.test(parsed.kind))
+  } catch {
+    return false
+  }
+}
+
+function moduleSource(version: string): string {
+  return [
+    `export const version = ${JSON.stringify(version)};`,
+    "export function createEmbodiment(context) {",
+    "  const runtime = String(context.runtime);",
+    "  const role = String(context.role ?? runtime);",
+    "  const incarnation = String(context.incarnation);",
+    "  const authority = context.authority ?? null;",
+    "  let state = 'created';",
+    "  const snapshot = () => ({runtime, role, incarnation, version, state, authority});",
+    "  return {",
+    "    start() {",
+    "      if (state !== 'created') throw new Error(`cannot start embodiment from ${state}`);",
+    "      state = 'active';",
+    "      return snapshot();",
+    "    },",
+    "    stop() {",
+    "      if (state === 'active') state = 'stopped';",
+    "      return snapshot();",
+    "    },",
+    "    snapshot,",
+    "  };",
+    "}",
+    "export function describe() {",
+    "  return `versioned module ${version} loaded through Hamiltonian cache`;",
+    "}",
+    "",
+  ].join("\n")
+}
+
+function sha256Hex(value: string): string {
+  return new Bun.CryptoHasher("sha256").update(value).digest("hex") as string
+}
+
+function securityHeaders(contentType: string): HeadersInit {
+  return {
+    "cache-control": "no-store",
+    "content-type": contentType,
+    "cross-origin-resource-policy": "same-origin",
+    "referrer-policy": "no-referrer",
+    "x-content-type-options": "nosniff",
+  }
+}
+
+function staticResponse(pathname: string): Response | null {
+  const files: Record<string, {path: string; type: string; cache?: string}> = {
+    "/": {path: `${publicRoot}/index.html`, type: "text/html; charset=utf-8"},
+    "/index.html": {path: `${publicRoot}/index.html`, type: "text/html; charset=utf-8"},
+    "/app.js": {path: `${publicRoot}/app.js`, type: "text/javascript; charset=utf-8"},
+    "/embodiment-worker.js": {path: `${publicRoot}/embodiment-worker.js`, type: "text/javascript; charset=utf-8"},
+    "/styles.css": {path: `${publicRoot}/styles.css`, type: "text/css; charset=utf-8"},
+    "/sw.js": {path: `${publicRoot}/sw.js`, type: "text/javascript; charset=utf-8"},
+    "/core/runtime.js": {path: `${experimentRoot}/core/runtime.js`, type: "text/javascript; charset=utf-8"},
+    "/core/cache.js": {path: `${experimentRoot}/core/cache.js`, type: "text/javascript; charset=utf-8"},
+    "/core/browser-control.js": {path: `${experimentRoot}/core/browser-control.js`, type: "text/javascript; charset=utf-8"},
+  }
+  const entry = files[pathname]
+  if (!entry) return null
+  const headers = new Headers(securityHeaders(entry.type))
+  headers.set("content-security-policy", "default-src 'self'; connect-src 'self' ws: wss:; script-src 'self'; style-src 'self'; base-uri 'none'; frame-ancestors 'none'")
+  if (pathname === "/sw.js") {
+    headers.set("service-worker-allowed", "/")
+    headers.set("cache-control", "no-cache")
+  }
+  return new Response(Bun.file(entry.path), {headers})
+}
+
+function authorized(request: Request, expectedToken: string): boolean {
+  const authorization = request.headers.get("authorization")
+  return authorization?.startsWith("Bearer ") === true &&
+    safeEqual(authorization.slice("Bearer ".length), expectedToken)
+}
+
+export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
+  const hostname = options.hostname ?? Bun.env.HAMILTONIAN_HOST ?? "127.0.0.1"
+  const port = options.port ?? Number(Bun.env.HAMILTONIAN_PORT ?? 4400)
+  const identity = options.identity ?? Bun.env.HAMILTONIAN_ID ?? "hamiltonian-lab"
+  const version = options.version ?? Bun.env.HAMILTONIAN_VERSION ?? "v1"
+  const token = options.token ?? Bun.env.HAMILTONIAN_TOKEN ?? crypto.randomUUID()
+  const tlsCertPath = options.tlsCertPath ?? Bun.env.HAMILTONIAN_TLS_CERT
+  const tlsKeyPath = options.tlsKeyPath ?? Bun.env.HAMILTONIAN_TLS_KEY
+  const heartbeatMs = options.heartbeatMs ?? 10_000
+  const placement = options.placement ?? Bun.env.HAMILTONIAN_PLACEMENT ?? "browser"
+  if (placement !== "browser" && placement !== "server") {
+    throw new Error(`Unknown Hamiltonian placement: ${placement}`)
+  }
+  if ((tlsCertPath && !tlsKeyPath) || (!tlsCertPath && tlsKeyPath)) {
+    throw new Error("HAMILTONIAN_TLS_CERT and HAMILTONIAN_TLS_KEY must be provided together")
+  }
+
+  const hostEpoch = crypto.randomUUID()
+  const serverMainRole = placement === "server" ? "main" : "main-probe"
+  const serverWorkerRole = placement === "server" ? "worker" : "worker-probe"
+  let serverFencingToken = 1
+  const makeServerAuthority = (fencingToken: number): EmbodimentAuthority => ({
+    hostEpoch,
+    connectionId: "bun-host",
+    holderId: "main",
+    fencingToken,
+    leaseId: makeLeaseId(hostEpoch, fencingToken, "bun-host", "main"),
+    expiresAt: Number.MAX_SAFE_INTEGER,
+  })
+  let serverAuthority = placement === "server" ? makeServerAuthority(serverFencingToken) : null
+  const topology = new HostTopology(hostEpoch)
+  const sockets = new Map<string, Bun.ServerWebSocket<SocketData>>()
+  const detachedAuthorities = new Map<string, {
+    expiresAt: number
+    deviceId: string
+    workerIncarnationId: string
+    resumeNonce: string
+  }>()
+  const detachedLeaseTimers = new Map<string, ReturnType<typeof setTimeout>>()
+  const events: HostEvent[] = []
+  let boundPort = port
+  const record = (event: HostEvent) => {
+    events.push(event)
+    if (events.length > 500) events.splice(0, events.length - 500)
+  }
+  const source = moduleSource(version)
+  const sourceHash = sha256Hex(source)
+  let broadcastTopology = () => {}
+  let peerSnapshot: WeriftPeerSnapshot | null = null
+  let peerError: string | null = null
+  let peerAssignment: {
+    key: string
+    peerId: string
+    sessionEpoch: string
+    peerGeneration: number
+    authorityKey: string
+    connectionId: string
+    tabId: string
+  } | null = null
+  let peerGeneration = 0
+  let peerOperations: Promise<void> = Promise.resolve()
+  let readyPeerKey: string | null = null
+  let requestPeerRepair = (_reason: string) => {}
+  let signalingUp = 0
+  let signalingDown = 0
+  let controlFramesIn = 0
+  let controlBytesIn = 0
+  let heartbeatAcks = 0
+  let realtimeFramesRejected = 0
+  let stalePeerFramesDropped = 0
+  let peerRepairs = 0
+  let stopping = false
+  const peerSupervisor = new PeerProcessSupervisor({
+    onSignal(peerId, signal) {
+      const assignment = peerAssignment
+      if (!assignment || assignment.peerId !== peerId) return
+      const socket = sockets.get(assignment.connectionId)
+      if (!socket || socket.getBufferedAmount() > 256_000) return
+      signalingDown += 1
+      socket.send(JSON.stringify({
+        kind: "peer-signal",
+        peerId,
+        sessionEpoch: assignment.sessionEpoch,
+        peerGeneration: assignment.peerGeneration,
+        authorityKey: assignment.authorityKey,
+        tabId: assignment.tabId,
+        signal,
+      }))
+    },
+    onState(snapshot, error, errorPeerId) {
+      peerSnapshot = snapshot
+      const assignment = peerAssignment
+      const matchesAssignment = Boolean(
+        snapshot &&
+        assignment &&
+        snapshot.peerId === assignment.peerId &&
+        snapshot.sessionEpoch === assignment.sessionEpoch,
+      )
+      const snapshotKey = snapshot ? `${snapshot.peerId}:${snapshot.sessionEpoch}` : null
+      const errorMatchesAssignment = Boolean(
+        error &&
+        assignment &&
+        (errorPeerId ? errorPeerId === assignment.peerId : matchesAssignment),
+      )
+      if (errorMatchesAssignment) {
+        peerError = error ?? null
+        readyPeerKey = null
+        queueMicrotask(() => requestPeerRepair(`peer process failure: ${error}`))
+      } else if (
+        matchesAssignment &&
+        snapshot &&
+        snapshot.state === "connected" &&
+        snapshot.channels.includes("oracle") &&
+        snapshot.channels.includes("force")
+      ) {
+        peerError = null
+        readyPeerKey = snapshotKey
+      } else if (
+        matchesAssignment &&
+        snapshot &&
+        readyPeerKey === snapshotKey &&
+        (snapshot.state === "failed" || snapshot.state === "closed" || snapshot.channels.length < 2)
+      ) {
+        readyPeerKey = null
+        queueMicrotask(() => requestPeerRepair(`server peer ${snapshot.state}`))
+      }
+      broadcastTopology()
+    },
+  })
+  const bunEmbodiments = new BunEmbodimentSet(
+    [serverMainRole, serverWorkerRole],
+    () => broadcastTopology(),
+  )
+  const hostState = () => ({
+    identity,
+    hostEpoch,
+    version,
+    placement,
+    serverAuthority,
+    bunEmbodiment: bunEmbodiments.snapshot()[serverMainRole],
+    bunEmbodiments: bunEmbodiments.snapshot(),
+    peer: {assignment: peerAssignment, snapshot: peerSnapshot, error: peerError},
+  })
+
+  const topologyState = () => {
+    const snapshot = topology.snapshot()
+    if (placement === "server") {
+      return {...snapshot, leaseDurationMs: heartbeatMs * 3, leader: null}
+    }
+    const leaderSocket = snapshot.leader ? sockets.get(snapshot.leader.connectionId) : null
+    const detachedExpiry = snapshot.leader
+      ? detachedAuthorities.get(snapshot.leader.connectionId)?.expiresAt
+      : undefined
+    return {
+      ...snapshot,
+      leaseDurationMs: heartbeatMs * 3,
+      leader: snapshot.leader
+        ? {
+          ...snapshot.leader,
+          leaseExpiresAt: leaderSocket
+            ? leaderSocket.data.lastPongAt + heartbeatMs * 3
+            : detachedExpiry ?? 0,
+        }
+        : null,
+    }
+  }
+
+  const observableState = () => ({
+    identity,
+    hostEpoch,
+    version,
+    placement,
+    serverAuthority,
+    listener: {hostname, port: boundPort},
+    topology: topologyState(),
+    serverEmbodiments: bunEmbodiments.snapshot(),
+    peer: {
+      assignment: peerAssignment,
+      snapshot: peerSnapshot,
+      process: peerSupervisor.processSnapshot(),
+      error: peerError,
+      signalingUp,
+      signalingDown,
+      realtimeFramesOnControlSocket: 0,
+      realtimeFramesRejected,
+      stalePeerFramesDropped,
+      peerRepairs,
+      controlFramesIn,
+      controlBytesIn,
+      heartbeatAcks,
+    },
+    connections: [...sockets.values()].map((socket) => ({
+      connectionId: socket.data.connectionId,
+      deviceId: socket.data.deviceId,
+      workerIncarnationId: socket.data.workerIncarnationId,
+      openedAt: socket.data.openedAt,
+      lastPongAt: socket.data.lastPongAt,
+      lastChallengeSeq: socket.data.lastChallengeSeq,
+      lastAckSeq: socket.data.lastAckSeq,
+    })),
+    events: [...events],
+  })
+
+  const tryResumeDetachedAuthority = (
+    socket: Bun.ServerWebSocket<SocketData>,
+    windows: WindowCandidate[],
+  ): boolean => {
+    const leader = topology.snapshot().leader
+    if (!leader || sockets.has(leader.connectionId)) return false
+    const detached = detachedAuthorities.get(leader.connectionId)
+    if (
+      !detached ||
+      Date.now() >= detached.expiresAt ||
+      detached.deviceId !== socket.data.deviceId ||
+      detached.resumeNonce !== socket.data.resumeNonce
+    ) return false
+    if (!topology.rebindLeaderConnection(leader.connectionId, socket.data.connectionId, windows)) {
+      return false
+    }
+
+    const timer = detachedLeaseTimers.get(leader.connectionId)
+    if (timer) clearTimeout(timer)
+    detachedLeaseTimers.delete(leader.connectionId)
+    detachedAuthorities.delete(leader.connectionId)
+    if (peerAssignment?.connectionId === leader.connectionId) {
+      peerAssignment = {...peerAssignment, connectionId: socket.data.connectionId}
+    }
+    record({
+      at: Date.now(),
+      kind: "authority-resumed",
+      connectionId: socket.data.connectionId,
+      detail: `from ${leader.connectionId}`,
+    })
+    const assignment = peerAssignment
+    const readyAfterResume = assignment &&
+      !peerError &&
+      readyPeerKey === `${assignment.peerId}:${assignment.sessionEpoch}` &&
+      peerSnapshot?.peerId === assignment.peerId &&
+      peerSnapshot.sessionEpoch === assignment.sessionEpoch &&
+      peerSnapshot.state === "connected" &&
+      peerSnapshot.channels.includes("oracle") &&
+      peerSnapshot.channels.includes("force")
+    if (assignment && !readyAfterResume) {
+      queueMicrotask(() => requestPeerRepair("control resumed without a ready peer session"))
+    }
+    return true
+  }
+
+  broadcastTopology = () => {
+    const nextTopology = topologyState()
+    const payload = JSON.stringify({
+      kind: "topology",
+      host: hostState(),
+      topology: nextTopology,
+    })
+    for (const socket of sockets.values()) {
+      if (socket.getBufferedAmount() > 256_000) {
+        socket.close(1013, "control channel backpressure")
+        continue
+      }
+      socket.send(payload)
+    }
+    schedulePeer(nextTopology.leader)
+  }
+
+  const schedulePeer = (leader: ReturnType<typeof topologyState>["leader"]) => {
+    const nextKey = leader?.leaseId ?? null
+    if (peerAssignment?.key === nextKey || (!peerAssignment && !nextKey)) return
+    const previous = peerAssignment
+    peerAssignment = leader
+      ? {
+        key: leader.leaseId,
+        peerId: `peer:${leader.leaseId}:${peerGeneration += 1}`,
+        sessionEpoch: crypto.randomUUID(),
+        peerGeneration,
+        authorityKey: authorityKey(leader)!,
+        connectionId: leader.connectionId,
+        tabId: leader.tabId,
+      }
+      : null
+    readyPeerKey = null
+    const next = peerAssignment
+    peerOperations = peerOperations.then(async () => {
+      if (previous) await peerSupervisor.closePeer(previous.peerId)
+      if (next && peerAssignment?.key === next.key) {
+        record({at: Date.now(), kind: "peer-begin", connectionId: next.connectionId, detail: next.peerId})
+        await peerSupervisor.begin(next.peerId, next.sessionEpoch)
+      }
+    }).catch((error) => {
+      peerError = error instanceof Error ? error.message : String(error)
+    })
+  }
+
+  requestPeerRepair = (reason: string) => {
+    const previous = peerAssignment
+    if (!previous) return
+    const leader = topologyState().leader
+    if (
+      !leader ||
+      !sockets.has(previous.connectionId) ||
+      leader.connectionId !== previous.connectionId ||
+      leader.tabId !== previous.tabId ||
+      authorityKey(leader) !== previous.authorityKey ||
+      Date.now() >= leader.leaseExpiresAt
+    ) return
+    peerGeneration += 1
+    const next = {
+      ...previous,
+      peerId: `peer:${leader.leaseId}:${peerGeneration}`,
+      sessionEpoch: crypto.randomUUID(),
+      peerGeneration,
+    }
+    peerAssignment = next
+    readyPeerKey = null
+    peerRepairs += 1
+    record({
+      at: Date.now(),
+      kind: "peer-repair",
+      connectionId: next.connectionId,
+      detail: `${reason} -> ${next.peerId}`,
+    })
+    peerOperations = peerOperations.then(async () => {
+      await peerSupervisor.closePeer(previous.peerId)
+      if (peerAssignment?.peerId !== next.peerId) return
+      await peerSupervisor.begin(next.peerId, next.sessionEpoch)
+    }).catch((error) => {
+      peerError = error instanceof Error ? error.message : String(error)
+    })
+    broadcastTopology()
+  }
+
+  const tls = tlsCertPath && tlsKeyPath
+    ? {tls: {cert: Bun.file(tlsCertPath), key: Bun.file(tlsKeyPath)}}
+    : {}
+
+  const server = Bun.serve<SocketData>({
+    hostname,
+    port,
+    ...tls,
+    fetch(request, bunServer) {
+      const url = new URL(request.url)
+      if (url.pathname === "/control") {
+        const suppliedToken = url.searchParams.get("token") ?? ""
+        const deviceId = url.searchParams.get("device") ?? ""
+        if (!safeEqual(suppliedToken, token) || !deviceId || deviceId.length > 128) {
+          return new Response("Unauthorized", {status: 401})
+        }
+        const upgraded = bunServer.upgrade(request, {
+          data: {
+            connectionId: crypto.randomUUID(),
+            deviceId,
+            openedAt: Date.now(),
+            lastPongAt: Date.now(),
+            lastChallengeSeq: 0,
+            lastAckSeq: 0,
+            workerIncarnationId: null,
+            resumeNonce: null,
+            retainAuthorityOnClose: true,
+          },
+        })
+        return upgraded ? undefined : new Response("WebSocket upgrade required", {status: 426})
+      }
+
+      if (url.pathname === "/manifest.json") {
+        if (!authorized(request, token)) return new Response("Unauthorized", {status: 401})
+        return Response.json({
+          identity,
+          version,
+          moduleUrl: `/versions/${encodeURIComponent(version)}/module.js`,
+          sha256: sourceHash,
+        }, {headers: securityHeaders("application/json; charset=utf-8")})
+      }
+
+      if (url.pathname === "/lab/status") {
+        if (!authorized(request, token)) return new Response("Unauthorized", {status: 401})
+        return Response.json(observableState(), {
+          headers: securityHeaders("application/json; charset=utf-8"),
+        })
+      }
+
+      if (url.pathname === `/versions/${encodeURIComponent(version)}/module.js`) {
+        if (!authorized(request, token)) return new Response("Unauthorized", {status: 401})
+        const headers = new Headers(securityHeaders("text/javascript; charset=utf-8"))
+        headers.set("x-hamiltonian-sha256", sourceHash)
+        return new Response(source, {headers})
+      }
+
+      return staticResponse(url.pathname) ?? new Response("Not found", {status: 404})
+    },
+    websocket: {
+      open(socket) {
+        sockets.set(socket.data.connectionId, socket)
+        topology.connect(socket.data.connectionId, socket.data.deviceId)
+        record({at: Date.now(), kind: "connection-open", connectionId: socket.data.connectionId})
+        socket.send(JSON.stringify({
+          kind: "hello",
+          connectionId: socket.data.connectionId,
+          host: hostState(),
+        }))
+        broadcastTopology()
+      },
+      message(socket, rawMessage) {
+        controlFramesIn += 1
+        controlBytesIn += rawMessage.length
+        if (isRealtimeControlPayload(rawMessage)) {
+          realtimeFramesRejected += 1
+          socket.data.retainAuthorityOnClose = false
+          socket.close(1008, "realtime payload is forbidden on control channel")
+          return
+        }
+        const message = parseClientMessage(rawMessage)
+        if (!message) {
+          socket.data.retainAuthorityOnClose = false
+          socket.close(1008, "invalid control message")
+          return
+        }
+        if (message.kind === "pong") {
+          if (
+            message.seq !== socket.data.lastChallengeSeq ||
+            message.seq <= socket.data.lastAckSeq
+          ) {
+            socket.data.retainAuthorityOnClose = false
+            socket.close(1008, "invalid heartbeat acknowledgement")
+            return
+          }
+          socket.data.lastPongAt = Date.now()
+          socket.data.lastAckSeq = message.seq
+          socket.data.workerIncarnationId = message.workerIncarnationId
+          heartbeatAcks += 1
+          broadcastTopology()
+          return
+        }
+        if (message.kind === "identity") {
+          socket.data.workerIncarnationId = message.workerIncarnationId
+          socket.data.resumeNonce = message.resumeNonce
+          record({
+            at: Date.now(),
+            kind: "worker-identity",
+            connectionId: socket.data.connectionId,
+            detail: message.workerIncarnationId,
+          })
+          return
+        }
+        if (message.kind === "peer-signal") {
+          const assignment = peerAssignment
+          if (!assignment || assignment.connectionId !== socket.data.connectionId || assignment.tabId !== message.tabId) {
+            socket.data.retainAuthorityOnClose = false
+            socket.close(1008, "unauthorized peer signal")
+            return
+          }
+          if (
+            assignment.peerId !== message.peerId ||
+            assignment.sessionEpoch !== message.sessionEpoch ||
+            assignment.peerGeneration !== message.peerGeneration ||
+            assignment.authorityKey !== message.authorityKey
+          ) {
+            stalePeerFramesDropped += 1
+            record({at: Date.now(), kind: "stale-peer-signal", connectionId: socket.data.connectionId})
+            return
+          }
+          signalingUp += 1
+          void peerSupervisor.signal(message.peerId, message.signal)
+          return
+        }
+        if (message.kind === "peer-failed") {
+          const assignment = peerAssignment
+          if (!assignment || assignment.connectionId !== socket.data.connectionId || assignment.tabId !== message.tabId) {
+            socket.data.retainAuthorityOnClose = false
+            socket.close(1008, "unauthorized peer failure")
+            return
+          }
+          if (
+            assignment.peerId !== message.peerId ||
+            assignment.sessionEpoch !== message.sessionEpoch ||
+            assignment.peerGeneration !== message.peerGeneration ||
+            assignment.authorityKey !== message.authorityKey
+          ) {
+            stalePeerFramesDropped += 1
+            return
+          }
+          requestPeerRepair(`browser: ${message.reason}`)
+          return
+        }
+        if (!tryResumeDetachedAuthority(socket, message.windows)) {
+          topology.updateWindows(socket.data.connectionId, message.windows)
+        }
+        broadcastTopology()
+      },
+      close(socket) {
+        record({at: Date.now(), kind: "connection-close", connectionId: socket.data.connectionId})
+        sockets.delete(socket.data.connectionId)
+        const leader = topologyState().leader
+        const retainsCurrentAuthority =
+          !stopping &&
+          socket.data.retainAuthorityOnClose &&
+          leader?.connectionId === socket.data.connectionId
+        if (retainsCurrentAuthority) {
+          const expiresAt = socket.data.lastPongAt + heartbeatMs * 3
+          if (!socket.data.workerIncarnationId || !socket.data.resumeNonce) {
+            topology.disconnect(socket.data.connectionId)
+            broadcastTopology()
+            return
+          }
+          detachedAuthorities.set(socket.data.connectionId, {
+            expiresAt,
+            deviceId: socket.data.deviceId,
+            workerIncarnationId: socket.data.workerIncarnationId,
+            resumeNonce: socket.data.resumeNonce,
+          })
+          record({
+            at: Date.now(),
+            kind: "authority-detached",
+            connectionId: socket.data.connectionId,
+            detail: `valid until ${expiresAt}`,
+          })
+          const timer = setTimeout(() => {
+            detachedLeaseTimers.delete(socket.data.connectionId)
+            detachedAuthorities.delete(socket.data.connectionId)
+            topology.disconnect(socket.data.connectionId)
+            record({at: Date.now(), kind: "detached-authority-expired", connectionId: socket.data.connectionId})
+            broadcastTopology()
+          }, Math.max(0, expiresAt - Date.now()))
+          detachedLeaseTimers.set(socket.data.connectionId, timer)
+        } else {
+          detachedAuthorities.delete(socket.data.connectionId)
+          topology.disconnect(socket.data.connectionId)
+        }
+        broadcastTopology()
+      },
+      drain(socket) {
+        if (socket.getBufferedAmount() === 0) broadcastTopology()
+      },
+    },
+  })
+  boundPort = server.port ?? port
+
+  const heartbeat = setInterval(() => {
+    const now = Date.now()
+    for (const socket of sockets.values()) {
+      if (now - socket.data.lastPongAt > heartbeatMs * 3) {
+        record({at: now, kind: "heartbeat-timeout", connectionId: socket.data.connectionId})
+        socket.data.retainAuthorityOnClose = false
+        socket.close(4000, "heartbeat timeout")
+        continue
+      }
+      socket.data.lastChallengeSeq += 1
+      socket.send(JSON.stringify({kind: "ping", at: now, seq: socket.data.lastChallengeSeq}))
+    }
+  }, heartbeatMs)
+  const versionPayload = {version, source, sha256: sourceHash}
+  const payloadForRole = (role: string) => ({
+    ...versionPayload,
+    authority: placement === "server" && role === serverMainRole ? serverAuthority : null,
+  })
+  const bunReady = bunEmbodiments.birthAll(payloadForRole).catch(() => bunEmbodiments.snapshot())
+  let serverMainOperations: Promise<void> = Promise.resolve()
+  let stopPromise: Promise<void> | null = null
+
+  return {
+    server,
+    identity,
+    version,
+    token,
+    topology,
+    hostEpoch,
+    placement,
+    bunEmbodiments,
+    getStatus: observableState,
+    bunReady,
+    rebirthBunEmbodiment(role = serverMainRole) {
+      if (stopping) return Promise.reject(new Error("Hamiltonian host is stopping"))
+      if (placement !== "server" || role !== serverMainRole) {
+        return bunEmbodiments.rebirth(role, payloadForRole(role))
+      }
+      const rebirth = serverMainOperations.then(async () => {
+        serverFencingToken += 1
+        serverAuthority = makeServerAuthority(serverFencingToken)
+        broadcastTopology()
+        return await bunEmbodiments.rebirth(role, payloadForRole(role))
+      })
+      serverMainOperations = rebirth.then(() => undefined, () => undefined)
+      return rebirth
+    },
+    acceptsServerAuthorityForTest(candidate: EmbodimentAuthority | null) {
+      return placement === "server" &&
+        authorityKey(candidate) === authorityKey(serverAuthority)
+    },
+    crashPeerProcessForTest() {
+      return peerSupervisor.crashForTest()
+    },
+    requestPeerRepairForTest(reason: string) {
+      requestPeerRepair(reason)
+      return peerAssignment
+    },
+    reportPeerErrorForTest(peerId: string, error: string) {
+      peerSupervisor.reportErrorForTest(peerId, error)
+    },
+    stop() {
+      if (stopPromise) return stopPromise
+      stopPromise = (async () => {
+        stopping = true
+        clearInterval(heartbeat)
+        for (const timer of detachedLeaseTimers.values()) clearTimeout(timer)
+        detachedLeaseTimers.clear()
+        detachedAuthorities.clear()
+        // Bun 1.3.14 releases the listener synchronously, but the returned Promise can
+        // remain pending after the server has rejected a WebSocket frame with 1008.
+        // Bound that runtime-specific wait so child-process teardown is never skipped.
+        await Promise.race([server.stop(true), Bun.sleep(250)])
+        await Promise.all([peerSupervisor.stop(), bunEmbodiments.stopAll()])
+      })()
+      return stopPromise
+    },
+  }
+}
+
+function advertisedHosts(hostname: string): string[] {
+  if (hostname !== "0.0.0.0" && hostname !== "::") return [hostname]
+  const addresses = Object.values(networkInterfaces()).flatMap((entries) =>
+    (entries ?? [])
+      .filter((entry) => entry.family === "IPv4" && !entry.internal)
+      .map((entry) => entry.address)
+  )
+  return addresses.length > 0 ? addresses : ["127.0.0.1"]
+}
+
+if (import.meta.main) {
+  const host = createHamiltonianHost()
+  const scheme = host.server.protocol ?? "http"
+  const port = host.server.port
+  console.log(`Hamiltonian ${host.identity} · version ${host.version}`)
+  console.log(`One listener: ${scheme}://${host.server.hostname}:${port}`)
+  void host.bunReady.then((embodiments) => {
+    for (const [role, embodiment] of Object.entries(embodiments)) {
+      console.log(`Bun ${role}: ${embodiment.state} · pid ${embodiment.pid} · incarnation ${embodiment.incarnation}`)
+    }
+  })
+  for (const address of advertisedHosts(host.server.hostname ?? "127.0.0.1")) {
+    console.log(`Join: ${scheme}://${address}:${port}/?token=${encodeURIComponent(host.token)}`)
+  }
+  if (scheme === "http" && host.server.hostname !== "127.0.0.1" && host.server.hostname !== "localhost") {
+    console.warn("Remote browsers need trusted HTTPS before they can register the Service Worker.")
+  }
+}
