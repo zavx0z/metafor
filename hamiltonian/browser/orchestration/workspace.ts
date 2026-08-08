@@ -1,7 +1,7 @@
 import type {UiSurfaceRect} from "@ui/elements"
 import {dockHudSideTabFrame} from "@ui/hud"
 
-export const HAMILTONIAN_INSPECTOR_STICK_WIDTH = 42
+export const HAMILTONIAN_INSPECTOR_STICK_WIDTH = 38
 export const HAMILTONIAN_INSPECTOR_STICK_HEIGHT = 34
 export const HAMILTONIAN_INSPECTOR_STICK_TOP = 46
 export const HAMILTONIAN_INSPECTOR_MIN_WIDTH = 240

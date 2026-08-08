@@ -160,7 +160,7 @@ describe("isolated Hamiltonian host", () => {
 
     const bootstrap = await fetch(host.server.url)
     expect(bootstrap.status).toBe(200)
-    expect(await bootstrap.text()).toContain("Hamiltonian")
+    expect(await bootstrap.text()).toContain("<title>Оркестрация Гамильтониана</title>")
 
     const unauthorized = await fetch(new URL("/manifest.json", host.server.url))
     expect(unauthorized.status).toBe(401)
@@ -207,8 +207,8 @@ describe("isolated Hamiltonian host", () => {
     const orchestrationBundle = await fetch(new URL("/orchestration.js", host.server.url))
     expect(orchestrationBundle.status).toBe(200)
     const orchestrationSource = await orchestrationBundle.text()
-    expect(orchestrationSource).toContain("HAMILTONIAN · LIVE ORCHESTRATION")
-    expect(orchestrationSource).toContain("BroadcastChannel · UI projection")
+    expect(orchestrationSource).toContain("ГАМИЛЬТОНИАН · ЖИВАЯ ОРКЕСТРАЦИЯ")
+    expect(orchestrationSource).toContain("BroadcastChannel · UI-проекция")
     expect(orchestrationSource).toContain("struct GlobalUniforms")
     expect(orchestrationSource).not.toContain("mesh_basic-")
 

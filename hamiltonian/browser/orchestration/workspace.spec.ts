@@ -43,6 +43,6 @@ describe("Hamiltonian orchestration workspace", () => {
     expect(planHamiltonianOrchestrationWorkspace(1200, 800, true, {x: 120, y: 90, w: 420, h: 360}).inspector)
       .toEqual({x: 120, y: 90, w: 420, h: 360})
     expect(planHamiltonianOrchestrationWorkspace(1200, 800, false, null, {x: 320, y: 180, w: 42, h: 34}).inspector)
-      .toEqual({x: 320, y: 0, w: 42, h: 34})
+      .toEqual({x: 320, y: 0, w: HAMILTONIAN_INSPECTOR_STICK_WIDTH, h: HAMILTONIAN_INSPECTOR_STICK_HEIGHT})
   })
 })
