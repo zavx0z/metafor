@@ -111,6 +111,14 @@ semantic color edge. Render-on-demand временно запрашивает к
 unit-геометрию, а attachment views полноэкранного WebGPU renderer переиспользуются
 между кадрами. При скрытии Window анимация и её кадры немедленно прекращаются.
 
+До первой routed topology ранние traffic observations остаются в bounded
+Hamiltonian presentation-очереди и не тратят время жизни частицы на пустой
+route map. Сразу после установки первого routed layout очередь передаётся
+surface: presentation-время этих стартовых событий начинается в момент
+materialization, поэтому первый доступный render показывает их без ожидания
+следующего heartbeat. После открытия этого readiness gate новые observations
+передаются surface немедленно.
+
 ## Общие законы опыта
 
 `core/runtime.js` не зависит от платформы и задаёт:

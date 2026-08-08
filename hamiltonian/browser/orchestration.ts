@@ -52,6 +52,7 @@ import {
   type HamiltonianInspectorPresentation,
 } from "./orchestration/inspector-presentation.ts"
 import {planHamiltonianOrchestrationWorkspace} from "./orchestration/workspace.ts"
+import {HamiltonianTrafficPresentationGate} from "./orchestration/traffic-presentation.ts"
 
 declare global {
   interface Window {
@@ -73,19 +74,14 @@ const pending: Array<{projection: Record<string, unknown>; revision: number}> = 
 let acceptProjection: ((projection: Record<string, unknown>, revision: number) => void) | null = null
 const trafficCursor = new HamiltonianTrafficEnvelopeCursor()
 type HamiltonianTrafficEnvelope = NonNullable<ReturnType<HamiltonianTrafficEnvelopeCursor["accept"]>>
-const pendingTraffic: Array<{envelope: HamiltonianTrafficEnvelope; receivedAt: number}> = []
-let acceptTraffic: ((envelope: HamiltonianTrafficEnvelope, receivedAt: number) => void) | null = null
+const trafficPresentation = new HamiltonianTrafficPresentationGate<HamiltonianTrafficEnvelope>()
 
 const unsubscribeTraffic = subscribeHamiltonianTraffic((value) => {
   const envelope = trafficCursor.accept(value)
   if (envelope === null) return
-  const receivedAt = Date.now()
-  if (acceptTraffic === null) {
-    pendingTraffic.push({envelope, receivedAt})
-    if (pendingTraffic.length > 256) pendingTraffic.splice(0, pendingTraffic.length - 256)
-    return
-  }
-  acceptTraffic(envelope, receivedAt)
+  if (document.visibilityState !== "visible") return
+  trafficPresentation.observe(envelope)
+  document.documentElement.dataset.hamiltonianTrafficPending = String(trafficPresentation.pendingCount)
 })
 
 function queueProjection(projection: Record<string, unknown>, revision: number): void {
@@ -208,16 +204,21 @@ async function start(): Promise<void> {
   })
   graph.setEdgeAnimationEnabled(document.visibilityState === "visible")
   const synchronizeTrafficVisibility = () => {
-    graph.setEdgeAnimationEnabled(document.visibilityState === "visible")
+    const visible = document.visibilityState === "visible"
+    graph.setEdgeAnimationEnabled(visible)
+    if (!visible) {
+      trafficPresentation.clear()
+      document.documentElement.dataset.hamiltonianTrafficPending = "0"
+    }
   }
   document.addEventListener("visibilitychange", synchronizeTrafficVisibility)
   let acceptedTraffic = 0
-  acceptTraffic = (envelope, receivedAt) => {
+  trafficPresentation.connect((envelope, startedAt) => {
     const accepted = graph.emitEdgeMessage({
       id: `${envelope.sourceId}:${envelope.sequence}`,
       edgeId: envelope.edgeId,
       direction: envelope.direction,
-      at: receivedAt,
+      at: startedAt,
       messageClass: envelope.messageClass,
     })
     if (!accepted) return
@@ -229,8 +230,7 @@ async function start(): Promise<void> {
     document.documentElement.dataset.hamiltonianTrafficLastEdge = envelope.edgeId
     document.documentElement.dataset.hamiltonianTrafficLastDirection = envelope.direction
     document.documentElement.dataset.hamiltonianTrafficLastClass = envelope.messageClass
-  }
-  for (const item of pendingTraffic.splice(0)) acceptTraffic(item.envelope, item.receivedAt)
+  })
   const layouter = new ElkNodeSystemLayouter({
     direction: "RIGHT",
     nodeSpacing: 52,
@@ -350,6 +350,9 @@ async function start(): Promise<void> {
     applyingTopologyLayout = true
     try {
       graph.setLayout(nextLayout)
+      trafficPresentation.setMaterializedEdges(nextLayout.edges.map(({edge}) => edge.id))
+      globalThis.document.documentElement.dataset.hamiltonianTrafficPending = String(trafficPresentation.pendingCount)
+      globalThis.document.documentElement.dataset.hamiltonianTrafficPresentation = "ready"
     } finally {
       applyingTopologyLayout = false
     }
@@ -435,6 +438,8 @@ async function start(): Promise<void> {
       if (generation !== updateGeneration) return
       layout = routed
       graph.setLayout(routed)
+      trafficPresentation.setMaterializedEdges(routed.edges.map(({edge}) => edge.id))
+      document.documentElement.dataset.hamiltonianTrafficPending = String(trafficPresentation.pendingCount)
       graph.setViewport(previousViewport)
       inspector.inspect(graph.selectedNode?.node ?? null)
       status.textContent = `${routed.nodes.length} нод · ${routed.edges.length} связей · сохранено`
@@ -452,6 +457,7 @@ async function start(): Promise<void> {
     resizeObserver.disconnect()
     channel?.close()
     unsubscribeTraffic()
+    trafficPresentation.disconnect()
     layouter.dispose()
     runtime.dispose()
   }, {once: true})
