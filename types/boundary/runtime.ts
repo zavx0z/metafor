@@ -1,3 +1,24 @@
+import type {Graph, MetaAddress} from "../metafor/graph.ts"
+import type {
+  MetaProcessExecutionOutcome,
+  MetaProcessExecutionStatus,
+} from "../metafor/observation.ts"
+
+export const BOUNDARY_GRAPH_PROJECTION_METHOD = "boundary.graph.current.read" as const
+export const BOUNDARY_FIELD_VALUE_PLAN_METHOD = "boundary.runtime.field.value.plan" as const
+export const BOUNDARY_PROCESS_EXECUTION_PROJECT_METHOD = "boundary.runtime.process.execution.project" as const
+
+/** Boundary-owned current projection consumed by the stateless Oracle assembler. */
+export interface BoundaryGraphProjection {
+  root: MetaAddress
+  runtime: Graph["runtime"]
+}
+
+export type BoundaryProcessExecutionProjection = {
+  status: MetaProcessExecutionStatus
+  outcome: MetaProcessExecutionOutcome | null
+}
+
 export type EnergyRuntimeAtomRow = {id: number; wimp: string}
 
 export type EnergyRuntimeProcessActionRow = {

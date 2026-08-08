@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@metafor/types": "workspace:*",
+    "create-metafor": "workspace:*",
     "shared": "workspace:*"
   }
 }

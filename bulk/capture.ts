@@ -230,7 +230,7 @@ const validateCaptureResult = (
 }
 
 /**
- * Read-only correlation registry between Monad callers and connected browser
+ * Read-only correlation registry between Oracle callers and connected browser
  * observers. A browser id selects a socket; it never authorizes the caller.
  */
 export class BulkViewportCaptureRegistry {
@@ -291,7 +291,7 @@ export class BulkViewportCaptureRegistry {
 
     const observer = matches[0]!
     if (observer.boundSource !== null && observer.boundSource !== context.source) {
-      return failure("permission_denied", "Bulk observer is bound to another Monad caller")
+      return failure("permission_denied", "Bulk observer is bound to another Oracle caller")
     }
     observer.boundSource ??= context.source
 

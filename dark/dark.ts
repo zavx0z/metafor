@@ -866,7 +866,7 @@ export const applyAgentInflaton = (part: Particle): boolean => {
   return true
 }
 
-/** Connects Dark Monad runtime to the in-process Dark Force adapter. */
+/** Connects Dark Oracle runtime to the in-process Dark Force adapter. */
 export const startDarkRuntime = (force: DarkForcePort): DarkForcePort => {
   if (runtime) return runtime.force
   runtime = {force}

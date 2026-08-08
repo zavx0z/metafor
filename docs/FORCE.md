@@ -2,20 +2,19 @@
 
 Force — законы существования и единый причинный канал Particles. В целевой
 архитектуре Force не является отдельным доменом, package или process: он
-является равноправным слоем Dark рядом с Monad.
+является равноправным слоем Dark рядом с Oracle.
 
 ```text
 Dark
-├── Monad — законы мироздания и service level
+├── Oracle — законы мироздания и service level
 └── Force — законы существования и Particle causality
 ```
 
-Dark Monad решает, каким должно стать устройство мира: читает, создаёт и
-обновляет Meta-пакеты и Processes, ведёт собственные service Stores, проверяет
-структурное намерение и подготавливает Particles. Dark Force делает принятое
-изменение фактом живой Вселенной: принимает Particle, сохраняет её в полной
-filesystem history, проводит причинный порядок и маршрутизирует обязательным
-потребителям.
+Dark Oracle отвечает на чтения и принимает намерения: валидирует и нормализует
+операции над Meta-пакетами и Processes, ведёт свои service Stores и подготавливает Particles.
+Ответ или admission Oracle не является каноническим фактом. Dark Force принимает подготовленную
+Particle, сохраняет её в полной filesystem history, проводит причинный порядок и маршрутизирует
+обязательным потребителям; Boundary фиксирует её каноническое следствие.
 
 ## Единый Particle path
 
@@ -25,18 +24,18 @@ Force переносит все виды Particles, в том числе:
 - Inflaton — изменения структуры;
 - Graviton и остальные объявленные Particles.
 
-Структурное изменение начинается в Dark Monad:
+Структурное изменение начинается в Dark Oracle:
 
 ```text
 structural intent
-→ Dark Monad validate/create/update/normalize
+→ Dark Oracle validate/create/update/normalize
 → Inflaton
 → Dark Force persist/route
 → Boundary materialization
 → derived Particles через тот же Dark Force
 ```
 
-Dark Monad не пишет декларации напрямую в Boundary SQLite. Изменение, которое
+Dark Oracle не пишет декларации напрямую в Boundary SQLite. Изменение, которое
 должно стать фактом существующей Вселенной, выражается Particle через Dark
 Force.
 
@@ -62,7 +61,7 @@ applied-through frontier, candidate/stage receipts и commit являются
 live command и не маршрутизирует эти consequences.
 
 Одноразовый internal command перехода Inference→Lada и его приватные domain
-adapters удалены после завершения перехода. Общий write method в Monad или
+adapters удалены после завершения перехода. Общий write method в Oracle или
 `/force` не добавлен. Повторная активация старого сценария невозможна;
 переиспользуемые causal admission, checkpoint, rollback и dissolve primitives
 остаются внутренними строительными блоками для отдельно утверждённой общей
@@ -116,7 +115,7 @@ segment приводит к fail-stop без auto-truncate, cleanup или пе�
 Particle history. Формат использует только UTF-8 JSON/NDJSON и обычные filesystem
 операции; он не зависит от Bun storage API.
 
-Dark Monad публикует `dark.force.history.read`: exact current frontier либо
+Dark Oracle публикует `dark.force.history.read`: exact current frontier либо
 bounded acceptance-sequence range над этой же history. Service не становится
 владельцем persistence, не копирует строки и не публикует clear/rewrite.
 Authoring RPC использует сохранённую в той же строке cause как единственную
@@ -136,7 +135,7 @@ acceptance и новый пользовательский patch не созда�
 
 ## Текущая пауза и один шаг
 
-Dark Monad уже публикует `dark.force.pause`, `dark.force.step`,
+Dark Oracle уже публикует `dark.force.pause`, `dark.force.step`,
 `dark.force.stack` и `dark.force.resume`.
 
 `pause` закрывает только внешний вход Agent Particle и ждёт согласованную
@@ -155,25 +154,25 @@ Dark Force владеет:
 
 - единственным слушающим server всей Вселенной и внешним Particle ingress;
 - внешним REST и двумя постоянными исходящими WebSocket-каналами каждого
-  домена: Monad и Force;
+  домена: Oracle и Force;
 - particle relay и routing laws;
 - `ForceLifecycle` и общим causal gate;
 - domain channel Store;
 - fixtures, health и `/force`.
 
 Boundary, Matrix, Energy и Bulk не открывают HTTP/TCP listeners. После запуска
-каждый из них сам подключает Monad и Force к одному адресу Dark. Внешние RPC,
+каждый из них сам подключает Oracle и Force к одному адресу Dark. Внешние RPC,
 health и browser ingress Bulk используют тот же listener Dark; Dark только
 маршрутизирует Bulk browser traffic и не читает либо строит Bulk Store.
 
-Текущие `/force`, `/ws` и `/monad/*` задают передачу, но не задают проверку полномочий
+Текущие `/force`, `/ws` и `/oracle/*` задают передачу, но не задают проверку полномочий
 внешнего клиента. До отдельного решения доверительной границы они допустимы
 только внутри доверенного контура и не являются безопасным публичным сетевым
 интерфейсом.
 
-Dark Monad владеет `MonadRouter`, service RPC и `/monad/*`. Оба слоя находятся
+Dark Oracle владеет `OracleRouter`, service RPC и `/oracle/*`. Оба слоя находятся
 в одном Dark process и используют локальную границу вместо self-WebSocket.
-REST Monad сохраняется для loopback-клиентов и агентов; доменные Monad открывают
+REST Oracle сохраняется для loopback-клиентов и агентов; доменные Oracle открывают
 отдельный постоянный WebSocket к тому же Dark listener и больше не требуют
 callback server.
 Потеря обязательного domain channel сохраняет fail-stop law; перенос не
@@ -214,9 +213,9 @@ Dark Force lifecycle ждёт готовности локального Dark ada
 обязательного channel переводит lifecycle в `error`; физический reconnect не
 оживляет Universe и не снимает fail-stop.
 
-### MonadRouter compatibility
+### OracleRouter compatibility
 
-Service RPC проходят постоянными `MonadChannel`. `MonadRouter` связывает
+Service RPC проходят постоянными `OracleChannel`. `OracleRouter` связывает
 identity/capabilities при создании channel, маршрутизирует call в target и
 correlated response обратно в source. RPC payload не может объявить или
 подменить source. Router не интерпретирует domain data и не управляет Dark
@@ -226,8 +225,8 @@ Force lifecycle.
 
 Behavior-preserving migration сохраняет действующие routing results:
 
-- agent Inflaton доставляется Dark Monad adapter и Bulk;
-- подготовленный Dark Monad Inflaton доставляется Boundary и Bulk;
+- agent Inflaton доставляется Dark Oracle adapter и Bulk;
+- подготовленный Dark Oracle Inflaton доставляется Boundary и Bulk;
 - uncommitted Gluon/Higgs mutation без `from` доставляется Boundary;
 - остальные Particles доставляются всем релевантным доменам, кроме source.
 
@@ -237,16 +236,16 @@ Behavior-preserving migration сохраняет действующие routing 
 
 ## Реализация и cold-cut boundary
 
-Canonical source содержит единственный server, ingress, `MonadRouter`,
+Canonical source содержит единственный server, ingress, `OracleRouter`,
 `ForceLifecycle`, relay/routing, channel Store, fixtures, health, `/force`,
-`/monad/*` и browser gateway внутри Dark. `dark/server.ts` слушает один
+`/oracle/*` и browser gateway внутри Dark. `dark/server.ts` слушает один
 настраиваемый порт, локальный Dark adapter заменяет self-WebSocket, а Boundary,
-Matrix, Energy и Bulk подключают к Dark отдельные исходящие Monad и Force
+Matrix, Energy и Bulk подключают к Dark отдельные исходящие Oracle и Force
 WebSocket без собственных listeners.
 
 WebSocket является текущим физическим carrier доверенного локального contour.
 Будущая замена пары WebSocket на два надёжных ordered WebRTC DataChannel не
-меняет Monad RPC envelopes, Force messages, routing или доменные проекции.
+меняет Oracle RPC envelopes, Force messages, routing или доменные проекции.
 
 Standalone `force` workspace, entry и process в canonical source отсутствуют.
 Live contour становится post-cut только после полного cold restart на точной

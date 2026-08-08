@@ -3,12 +3,12 @@ import {existsSync, mkdtempSync, rmSync} from "node:fs"
 import {tmpdir} from "node:os"
 import {join} from "node:path"
 import type {ForceMessage} from "shared/protocol/force/message"
-import {DOMAIN_HEALTH_READ_METHOD} from "shared/protocol/monad/health"
+import {DOMAIN_HEALTH_READ_METHOD} from "shared/protocol/oracle/health"
 import {
-  MONAD_RPC_VERSION,
-  isRoutedMonadRpcCall,
-  type RoutedMonadRpcCall,
-} from "shared/protocol/monad/rpc"
+  ORACLE_RPC_VERSION,
+  isRoutedOracleRpcCall,
+  type RoutedOracleRpcCall,
+} from "shared/protocol/oracle/rpc"
 import {READ_GRAPH_METHOD} from "@metafor/types/metafor/graph"
 import type {RemoteForceDomain} from "./force/store.ts"
 
@@ -26,14 +26,14 @@ let stopDark: () => Promise<void>
 let forceHistory: {status(): {sequence: number}}
 let providerServer: Bun.Server<unknown>
 let directory: string
-const rpcCalls: RoutedMonadRpcCall[] = []
+const rpcCalls: RoutedOracleRpcCall[] = []
 const clients: ConnectedClient[] = []
-const monadClients: WebSocket[] = []
+const oracleClients: WebSocket[] = []
 
 const waitFor = async (predicate: () => boolean | Promise<boolean>): Promise<void> => {
   const deadline = Date.now() + 1_000
   while (!await predicate()) {
-    if (Date.now() >= deadline) throw new Error("Timed out waiting for Force server event")
+    if (Date.now() >= deadline) throw new Error("Timed out waiting for Dark server event")
     await Bun.sleep(1)
   }
 }
@@ -61,22 +61,22 @@ const connect = (domain: RemoteForceDomain): Promise<ConnectedClient> => new Pro
   }, {once: true})
 })
 
-const connectMonad = (identity: RemoteForceDomain): Promise<WebSocket> =>
+const connectOracle = (identity: RemoteForceDomain): Promise<WebSocket> =>
   new Promise((resolve, reject) => {
-    const address = new URL("/monad/ws", server.url)
+    const address = new URL("/oracle/ws", server.url)
     address.protocol = "ws:"
     address.searchParams.set("identity", identity)
-    address.searchParams.set("id", `${identity}-monad-test`)
+    address.searchParams.set("id", `${identity}-oracle-test`)
     const socket = new WebSocket(address)
-    monadClients.push(socket)
+    oracleClients.push(socket)
     const timeout = setTimeout(
-      () => reject(new Error(`Timed out connecting Monad domain: ${identity}`)),
+      () => reject(new Error(`Timed out connecting Oracle domain: ${identity}`)),
       1_000,
     )
     socket.addEventListener("open", () => {
       socket.send(JSON.stringify({
-        kind: "monad.open",
-        version: MONAD_RPC_VERSION,
+        kind: "oracle.open",
+        version: ORACLE_RPC_VERSION,
         identity,
         methods: [DOMAIN_HEALTH_READ_METHOD],
       }))
@@ -87,18 +87,18 @@ const connectMonad = (identity: RemoteForceDomain): Promise<WebSocket> =>
         typeof value === "object" &&
         value !== null &&
         "kind" in value &&
-        value.kind === "monad.opened"
+        value.kind === "oracle.opened"
       ) {
         clearTimeout(timeout)
         resolve(socket)
         return
       }
       if (
-        isRoutedMonadRpcCall(value) &&
+        isRoutedOracleRpcCall(value) &&
         value.method === DOMAIN_HEALTH_READ_METHOD
       ) {
         socket.send(JSON.stringify({
-          version: MONAD_RPC_VERSION,
+          version: ORACLE_RPC_VERSION,
           id: value.id,
           ok: true,
           result: {
@@ -113,20 +113,20 @@ const connectMonad = (identity: RemoteForceDomain): Promise<WebSocket> =>
     })
     socket.addEventListener("error", () => {
       clearTimeout(timeout)
-      reject(new Error(`Could not connect Monad domain: ${identity}`))
+      reject(new Error(`Could not connect Oracle domain: ${identity}`))
     }, {once: true})
   })
 
-const openMonadChannel = async (
+const openOracleChannel = async (
   identity: string,
   methods: readonly string[] = [],
   endpoint?: URL,
 ): Promise<string> => {
-  const response = await fetch(new URL("/monad/channels", server.url), {
+  const response = await fetch(new URL("/oracle/channels", server.url), {
     method: "POST",
     headers: {"content-type": "application/json"},
     body: JSON.stringify({
-      version: MONAD_RPC_VERSION,
+      version: ORACLE_RPC_VERSION,
       identity,
       methods,
       ...(endpoint === undefined ? {} : {endpoint, callback: `${identity}-callback`}),
@@ -138,8 +138,8 @@ const openMonadChannel = async (
   return payload.channel
 }
 
-const monadRequest = (
-  path: "/monad/rpc" | "/monad/channel",
+const oracleRequest = (
+  path: "/oracle/rpc" | "/oracle/channel",
   channel: string,
   method: "POST" | "DELETE",
   body?: unknown,
@@ -162,18 +162,18 @@ beforeAll(async () => {
     routes: {
       "/rpc": {
         async POST(request) {
-          const call = await request.json() as RoutedMonadRpcCall
+          const call = await request.json() as RoutedOracleRpcCall
           rpcCalls.push(call)
           if ((call.params as {fail?: unknown}).fail === true) {
             return Response.json({
-              version: MONAD_RPC_VERSION,
+              version: ORACLE_RPC_VERSION,
               id: call.id,
               ok: false,
               error: {code: "method_error", message: "Boundary read failed"},
             }, {status: 500})
           }
           return Response.json({
-            version: MONAD_RPC_VERSION,
+            version: ORACLE_RPC_VERSION,
             id: call.id,
             ok: true,
             result: {version: 1, atoms: [], declarations: []},
@@ -198,7 +198,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   for (const client of clients) client.socket.close()
-  for (const socket of monadClients) socket.close()
+  for (const socket of oracleClients) socket.close()
   await stopDark()
   providerServer.stop(true)
   if (previousPort === undefined) delete Bun.env.PORT
@@ -212,21 +212,21 @@ afterAll(async () => {
   rmSync(directory, {recursive: true, force: true})
 })
 
-describe("Force server transport and relay", () => {
+describe("Dark server transport and relay", () => {
   test("does not create or expose the retired legacy Dark history", () => {
     expect(existsSync(join(directory, "dark-history.jsonl"))).toBe(false)
   })
 
-  test("binds Monad identity to one duplex REST channel and removes it on close", async () => {
-    const boundaryChannel = await openMonadChannel(
+  test("binds Oracle identity to one duplex REST channel and removes it on close", async () => {
+    const boundaryChannel = await openOracleChannel(
       "boundary",
       ["boundary.initialState.read"],
       new URL("/rpc", providerServer.url),
     )
-    const interpreterChannel = await openMonadChannel("interpreter")
+    const interpreterChannel = await openOracleChannel("interpreter")
 
-    const liveGraph = await monadRequest("/monad/rpc", interpreterChannel, "POST", {
-      version: MONAD_RPC_VERSION,
+    const liveGraph = await oracleRequest("/oracle/rpc", interpreterChannel, "POST", {
+      version: ORACLE_RPC_VERSION,
       id: "live-graph",
       target: "dark",
       method: READ_GRAPH_METHOD,
@@ -241,8 +241,8 @@ describe("Force server transport and relay", () => {
       },
     })
 
-    const response = await monadRequest("/monad/rpc", interpreterChannel, "POST", {
-        version: MONAD_RPC_VERSION,
+    const response = await oracleRequest("/oracle/rpc", interpreterChannel, "POST", {
+        version: ORACLE_RPC_VERSION,
         id: "matrix-birth-server",
         source: "forged-source",
         target: "boundary",
@@ -252,13 +252,13 @@ describe("Force server transport and relay", () => {
 
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual({
-      version: MONAD_RPC_VERSION,
+      version: ORACLE_RPC_VERSION,
       id: "matrix-birth-server",
       ok: true,
       result: {version: 1, atoms: [], declarations: []},
     })
     expect(rpcCalls[0]).toEqual({
-      version: MONAD_RPC_VERSION,
+      version: ORACLE_RPC_VERSION,
       id: "matrix-birth-server",
       source: "interpreter",
       target: "boundary",
@@ -266,14 +266,14 @@ describe("Force server transport and relay", () => {
       params: {},
     })
 
-    await openMonadChannel(
+    await openOracleChannel(
       "administration",
       ["administration.health.read"],
       new URL("/rpc", providerServer.url),
     )
 
-    const administrativeResponse = await monadRequest("/monad/rpc", interpreterChannel, "POST", {
-        version: MONAD_RPC_VERSION,
+    const administrativeResponse = await oracleRequest("/oracle/rpc", interpreterChannel, "POST", {
+        version: ORACLE_RPC_VERSION,
         id: "administration-health",
         target: "administration",
         method: "administration.health.read",
@@ -287,9 +287,9 @@ describe("Force server transport and relay", () => {
       method: "administration.health.read",
     })
 
-    const matrixChannel = await openMonadChannel("matrix")
-    const failed = await monadRequest("/monad/rpc", matrixChannel, "POST", {
-        version: MONAD_RPC_VERSION,
+    const matrixChannel = await openOracleChannel("matrix")
+    const failed = await oracleRequest("/oracle/rpc", matrixChannel, "POST", {
+        version: ORACLE_RPC_VERSION,
         id: "matrix-birth-failed",
         target: "boundary",
         method: "boundary.initialState.read",
@@ -297,17 +297,17 @@ describe("Force server transport and relay", () => {
     })
     expect(failed.status).toBe(502)
     expect(await failed.json()).toEqual({
-      version: MONAD_RPC_VERSION,
+      version: ORACLE_RPC_VERSION,
       id: "matrix-birth-failed",
       ok: false,
       error: {code: "method_error", message: "Boundary read failed"},
     })
 
-    const unauthorized = await fetch(new URL("/monad/rpc", server.url), {
+    const unauthorized = await fetch(new URL("/oracle/rpc", server.url), {
       method: "POST",
       headers: {"content-type": "application/json"},
       body: JSON.stringify({
-        version: MONAD_RPC_VERSION,
+        version: ORACLE_RPC_VERSION,
         id: "forged",
         target: "boundary",
         method: "boundary.initialState.read",
@@ -316,10 +316,10 @@ describe("Force server transport and relay", () => {
     })
     expect(unauthorized.status).toBe(401)
 
-    const closed = await monadRequest("/monad/channel", boundaryChannel, "DELETE")
+    const closed = await oracleRequest("/oracle/channel", boundaryChannel, "DELETE")
     expect(closed.status).toBe(200)
-    const unavailable = await monadRequest("/monad/rpc", interpreterChannel, "POST", {
-      version: MONAD_RPC_VERSION,
+    const unavailable = await oracleRequest("/oracle/rpc", interpreterChannel, "POST", {
+      version: ORACLE_RPC_VERSION,
       id: "after-boundary-close",
       target: "boundary",
       method: "boundary.initialState.read",
@@ -336,7 +336,7 @@ describe("Force server transport and relay", () => {
     expect(await health.json()).toMatchObject({state: "starting", connectedDomains: ["dark"]})
   })
 
-  test("combines one local Dark adapter with four Monad and Force channel pairs", async () => {
+  test("combines one local Dark adapter with four Oracle and Force channel pairs", async () => {
     const before = await fetch(new URL("/health", server.url))
     expect(before.status).toBe(503)
     expect(await before.json()).toMatchObject({state: "starting", connectedDomains: ["dark"]})
@@ -344,7 +344,7 @@ describe("Force server transport and relay", () => {
     expect(selfWebSocket.status).toBe(400)
 
     await Promise.all(
-      (["boundary", "matrix", "energy", "bulk"] as const).map(connectMonad),
+      (["boundary", "matrix", "energy", "bulk"] as const).map(connectOracle),
     )
     const connected = Object.fromEntries(await Promise.all(
       (["boundary", "matrix", "energy", "bulk"] as const).map(async (domain) => [domain, await connect(domain)]),

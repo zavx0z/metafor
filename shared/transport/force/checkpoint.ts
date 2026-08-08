@@ -1,5 +1,5 @@
 import type {ForceMessage} from "../../protocol/force/message.ts"
-import type {MonadRpcPeer} from "../monad/peer.ts"
+import type {OracleRpcPeer} from "../oracle/peer.ts"
 
 export const FORCE_CHECKPOINT_SESSION_METHOD = "force.checkpoint.session.open" as const
 export const FORCE_CHECKPOINT_PREPARE_METHOD = "force.checkpoint.delivery.prepare" as const
@@ -46,7 +46,7 @@ type PendingDelivery = {
   reject(error: unknown): void
 }
 
-type CheckpointPeer = Pick<MonadRpcPeer, "call" | "expose">
+type CheckpointPeer = Pick<OracleRpcPeer, "call" | "expose">
 
 const domainSet = new Set<string>(checkpointForceDomains)
 const controllers = new Map<string, ForceCheckpointDomainSideband>()

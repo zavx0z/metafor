@@ -12,7 +12,7 @@ cluster/<owner>/<repository>/meta.ts
 вложенные Meta-репозитории и кодирование композиции файловой вложенностью
 запрещены. Составные роли получают уникальные hyphenated repository names
 (`git-commit`, `git-history-commit`, `git-worktree`), а композиция выражается
-явными Meta/Matter/Monad references.
+явными Meta/Matter/Oracle references.
 
 ## Граница работы агента
 

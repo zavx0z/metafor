@@ -17,7 +17,7 @@ import {
 // This test explicitly exercises both shipped strategies; production Bulk's
 // centered-only entrypoint remains independently bundle-checked.
 import "@metafor/visual/layout"
-import snapshotJson from "./fixture/monad-snapshot.json"
+import snapshotJson from "./fixture/oracle-snapshot.json"
 import {buildBulkManifestation} from "./manifestation.ts"
 import {BulkProjectionStore} from "./projection.ts"
 import {BulkVisualScenePresenter} from "./visual-viewport.ts"

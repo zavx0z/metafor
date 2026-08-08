@@ -5,20 +5,20 @@ import {
   readBulkBrowserInitialRequest,
   readBulkBrowserMessageRequest,
 } from "@metafor/types/bulk/browser"
-import {DOMAIN_HEALTH_READ_METHOD} from "shared/protocol/monad/health"
+import {DOMAIN_HEALTH_READ_METHOD} from "shared/protocol/oracle/health"
 import {unsourceForceMessage} from "shared/protocol/force/message"
 import {Force} from "shared/transport/force"
 import {installForceCheckpointSideband} from "shared/transport/force/checkpoint"
-import {MonadRpcPeer, MonadWebSocketTransport} from "shared/transport/monad"
+import {OracleRpcPeer, OracleWebSocketTransport} from "shared/transport/oracle"
 import {routeBulkBrowserPayload} from "./browser-protocol.ts"
-import {BulkMonad} from "./monad.ts"
+import {BulkOracle} from "./oracle.ts"
 import {bulkStoreApplyControl} from "./store-initial.ts"
 
-const monad = new BulkMonad()
-const transport = new MonadWebSocketTransport("bulk")
-const rpc = new MonadRpcPeer(transport.channel)
-monad.onServerStarting(rpc)
-rpc.expose(DOMAIN_HEALTH_READ_METHOD, () => monad.health())
+const oracle = new BulkOracle()
+const transport = new OracleWebSocketTransport("bulk")
+const rpc = new OracleRpcPeer(transport.channel)
+oracle.onServerStarting(rpc)
+rpc.expose(DOMAIN_HEALTH_READ_METHOD, () => oracle.health())
 const checkpoint = installForceCheckpointSideband("bulk", rpc)
 let force: Force | null = null
 
@@ -28,7 +28,7 @@ rpc.expose(BULK_BROWSER_INITIAL_METHOD, async (params, context) => {
   }
   const request = readBulkBrowserInitialRequest(params)
   if (request === null) throw new Error("Bulk browser initial request is invalid")
-  return await monad.openFreshObserver(rpc, request.session)
+  return await oracle.openFreshObserver(rpc, request.session)
 })
 
 rpc.expose(BULK_BROWSER_MESSAGE_METHOD, (params, context) => {
@@ -50,12 +50,12 @@ let closing: Promise<void> | null = null
 const close = (): Promise<void> => {
   if (closing) return closing
   closing = (async () => {
-    monad.onServerStopping()
+    oracle.onServerStopping()
     rpc.close()
     try {
       await transport.close()
     } catch (error) {
-      console.error("[bulk] Monad channel close failed", error)
+      console.error("[bulk] Oracle channel close failed", error)
     }
   })()
   return closing
@@ -67,10 +67,10 @@ try {
     waitMs: 30_000,
   })
   await checkpoint.open()
-  await monad.onServerStarted(rpc)
+  await oracle.onServerStarted(rpc)
   force = new Force("bulk")
   force.onImpulse = async (impulse) => {
-    monad.acceptImpulse(impulse)
+    oracle.acceptImpulse(impulse)
     const update = bulkStoreApplyControl(impulse)
     if (update === null) {
       console.log("[bulk] <- force excluded=bulk/view_css")
@@ -83,18 +83,18 @@ try {
   force.onConnectionChange = (connected) => {
     if (!connected || runtimeBorn) return
     runtimeBorn = true
-    monad.onRuntimeBorn()
+    oracle.onRuntimeBorn()
     console.log("[bulk] born graph=request-local")
   }
   force.onDestroy = close
 } catch (error) {
-  monad.onRuntimeBirthFailed(error)
+  oracle.onRuntimeBirthFailed(error)
   try {
     await transport.close()
   } catch (closeError) {
-    console.error("[bulk] Monad channel close failed", closeError)
+    console.error("[bulk] Oracle channel close failed", closeError)
   }
-  console.error("[bulk] Monad birth failed", error)
+  console.error("[bulk] Oracle birth failed", error)
 }
 
 process.once("SIGINT", close)

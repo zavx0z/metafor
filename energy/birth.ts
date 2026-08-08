@@ -1,7 +1,7 @@
 import type {EnergyProtocol, EnergyProtocolOptions} from "@metafor/types/energy/protocol"
-import type {MonadRpcPeer} from "shared/transport/monad"
+import type {OracleRpcPeer} from "shared/transport/oracle"
 import {startEnergyProtocol} from "./energy.ts"
-import {EnergyMonad} from "./monad.ts"
+import {EnergyOracle} from "./oracle.ts"
 
 export type EnergyRuntimeForce = NonNullable<EnergyProtocolOptions["force"]> & {
   readonly connected: boolean
@@ -23,30 +23,30 @@ export type EnergyRuntimeBirth = {
 }
 
 /**
- * Opens the Energy Monad channel, hydrates canonical data, and only then creates
+ * Opens the Energy Oracle channel, hydrates canonical data, and only then creates
  * the mandatory ForceChannel. No bootstrap data is carried through Force.
  */
 export async function birthEnergyRuntime(options: {
-  monad: EnergyMonad
-  peer: Pick<MonadRpcPeer, "call">
-  openMonad(): Promise<unknown>
+  oracle: EnergyOracle
+  peer: Pick<OracleRpcPeer, "call">
+  openOracle(): Promise<unknown>
   createForce(): EnergyRuntimeForce
   protocol?: Omit<EnergyProtocolOptions, "force">
   onBorn?(summary: EnergyRuntimeBirth["summary"]): void
 }): Promise<EnergyRuntimeBirth> {
-  await options.openMonad()
-  const summary = await options.monad.onServerStarted(options.peer)
+  await options.openOracle()
+  const summary = await options.oracle.onServerStarted(options.peer)
   const force = options.createForce()
   const protocol = startEnergyProtocol({
     ...options.protocol,
     force,
-    catalog: options.monad.catalog,
+    catalog: options.oracle.catalog,
   })
   let runtimeBorn = false
   force.onConnectionChange = (connected) => {
     if (!connected || runtimeBorn) return
     runtimeBorn = true
-    options.monad.onRuntimeBorn()
+    options.oracle.onRuntimeBorn()
     options.onBorn?.(summary)
   }
   return {force, protocol, summary}

@@ -90,7 +90,7 @@ export default MetaFor("<name>")
 
 Этот раздел является каноническим смысловым контрактом RPC-проекций для
 клиентов Create MetaFor. [`docs/FORCE.md`](../../docs/FORCE.md) владеет
-transport и routing законами Monad RPC, но не формой клиентской проекции.
+transport и routing законами Oracle RPC, но не формой клиентской проекции.
 Клиентские write operations создания Meta и изменения Matter принадлежат
 отдельному [RPC-контракту авторинга](rpc.md).
 
@@ -319,7 +319,7 @@ History fetch также остаётся отдельной capability. Каж�
 Действующий `dark.force.history.read` возвращает exact frontier и bounded
 acceptance-sequence range существующего cut. Старые типы
 `dark.history.read/clear` и отдельный старый класс history не являются рабочей
-поверхностью Dark Monad; rewind и history clear не опубликованы.
+поверхностью Dark Oracle; rewind и history clear не опубликованы.
 
 Gem возвращает proposal и доказательства выполненных validations в формате,
 заданном task envelope. Даже при наличии source-write capability canonical
@@ -1376,7 +1376,7 @@ cluster/<owner>` и получает полный актуальный template,
 Префикс `cluster/` в `src` не входит. Source-путь идентифицирует peer
 Meta-репозиторий, но не кодирует runtime parent chain: одна Meta может
 materialize occurrences у разных родителей и на любой глубине. Композиция
-выражается Meta/Matter/Monad references, а не файловой вложенностью.
+выражается Meta/Matter/Oracle references, а не файловой вложенностью.
 
 WIMP `src` не равен npm-имени. Например, source `owner/project-start`
 соответствует npm-имени `@owner/project-start`; оба выводятся только из owner и

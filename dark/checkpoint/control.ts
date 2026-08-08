@@ -10,7 +10,7 @@ import {
   writeSync,
 } from "node:fs"
 import {dirname, join, resolve} from "node:path"
-import type {MonadRpcPeer} from "shared/transport/monad"
+import type {OracleRpcPeer} from "shared/transport/oracle"
 import {
   FORCE_CHECKPOINT_OUTGOING_THROUGH_METHOD,
   FORCE_CHECKPOINT_PREPARE_METHOD,
@@ -44,7 +44,7 @@ type HistoryStatus = {
   sequence: number
 }
 
-type CheckpointControlPeer = Pick<MonadRpcPeer, "call" | "expose">
+type CheckpointControlPeer = Pick<OracleRpcPeer, "call" | "expose">
 
 type OutgoingWaiter = {
   ordinal: number

@@ -31,7 +31,7 @@ bun create metafor capsule-profile --dir cluster/zavx0z
 
 Root/internal branching, третий address segment и создание Meta внутри
 существующего Meta-репозитория запрещены. Составные роли используют уникальные
-hyphenated repository names. Композиция выполняется через Meta/Matter/Monad
+hyphenated repository names. Композиция выполняется через Meta/Matter/Oracle
 references, а не вложенностью каталогов.
 
 Сгенерированная Meta является source declaration, а не runtime snapshot. Dark

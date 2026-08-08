@@ -45,7 +45,7 @@ const sameIdentity = (
  * Executes one exact durable plan inside a caller-owned detached candidate.
  *
  * Fence hooks are deliberately local evidence only: this module has no Energy,
- * Monad, Force, source or runtime dependency and is absent from package exports.
+ * Oracle, Force, source or runtime dependency and is absent from package exports.
  */
 export const executeDetachedBoundaryDissolveCandidate = async (
   boundary: BoundaryDatabase,

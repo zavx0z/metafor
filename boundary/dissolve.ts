@@ -888,7 +888,7 @@ const verifyPlannedState = async (
 
 /**
  * Executes the approved proof only on the caller-provided isolated Boundary.
- * No Monad/Force endpoint imports or exposes this function.
+ * No Oracle/Force endpoint imports or exposes this function.
  */
 export async function executeBoundaryDissolveProof(
   boundary: BoundaryDatabase,

@@ -8,7 +8,7 @@ import {
   type BulkStore,
 } from "@metafor/types/bulk/store"
 import {parseMetaAddress} from "@metafor/types/metafor/graph"
-import snapshotJson from "./fixture/monad-snapshot.json"
+import snapshotJson from "./fixture/oracle-snapshot.json"
 import {buildDirectBulkStore} from "./store-direct.ts"
 import {bulkStoreApplyControl, prepareBulkStoreInitial} from "./store-initial.ts"
 import {BULK_STORE_RELATION_KIND, isBulkStore} from "./store.ts"
@@ -218,7 +218,7 @@ describe("direct Bulk Store production writer", () => {
   test("keeps the production initial path free of manifestation and scene stages", () => {
     const initial = readFileSync(new URL("./store-initial.ts", import.meta.url), "utf8")
     const runtime = readFileSync(new URL("./store-runtime.ts", import.meta.url), "utf8")
-    const monad = readFileSync(new URL("./monad.ts", import.meta.url), "utf8")
+    const oracle = readFileSync(new URL("./oracle.ts", import.meta.url), "utf8")
     const production = `${initial}\n${runtime}`
 
     for (const forbidden of [
@@ -230,10 +230,10 @@ describe("direct Bulk Store production writer", () => {
       "layoutCenteredNestedFieldSubtree",
     ]) expect(production).not.toContain(forbidden)
     expect(initial).not.toContain("structuredClone")
-    expect(monad).not.toContain('from "./manifestation.ts"')
-    expect(monad).not.toContain("prepareBulkInitialVisual")
-    expect(monad).not.toContain("store-test-oracle")
-    expect(monad).not.toContain("testOracle")
+    expect(oracle).not.toContain('from "./manifestation.ts"')
+    expect(oracle).not.toContain("prepareBulkInitialVisual")
+    expect(oracle).not.toContain("store-test-oracle")
+    expect(oracle).not.toContain("testOracle")
   })
 
   test("excludes WIMP view_css from the initial Store", () => {

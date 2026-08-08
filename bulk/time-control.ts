@@ -1,4 +1,4 @@
-import type {MonadRpcPeer} from "shared/transport/monad"
+import type {OracleRpcPeer} from "shared/transport/oracle"
 
 export const BULK_TIME_STACK_METHOD = "dark.force.stack" as const
 export const BULK_TIME_PAUSE_METHOD = "dark.force.pause" as const
@@ -10,7 +10,7 @@ export type BulkTimeControlMethod =
   | typeof BULK_TIME_RESUME_METHOD
 
 export const bulkTimeControlResponse = async (
-  peer: Pick<MonadRpcPeer, "call">,
+  peer: Pick<OracleRpcPeer, "call">,
   method: BulkTimeControlMethod,
   params: unknown = {},
 ): Promise<Response> => {

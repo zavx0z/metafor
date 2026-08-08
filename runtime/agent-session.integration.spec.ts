@@ -45,10 +45,10 @@ import {
   type BulkViewportCaptureResult,
 } from "@metafor/types/bulk/capture"
 import {
-  isMonadRpcCall,
-  isMonadRpcResponse,
-  type MonadRpcMessage,
-} from "shared/protocol/monad/rpc"
+  isOracleRpcCall,
+  isOracleRpcResponse,
+  type OracleRpcMessage,
+} from "shared/protocol/oracle/rpc"
 import {
   sourceForceMessage,
   unsourceForceMessage,
@@ -58,19 +58,19 @@ import {
 } from "shared/protocol/force/message"
 import type {Particle} from "shared/protocol/force/particle"
 import {
-  MonadRpcPeer,
-  type MonadChannel,
-  type MonadChannelListener,
-} from "shared/transport/monad"
-import {BoundaryMonad} from "../boundary/monad.ts"
+  OracleRpcPeer,
+  type OracleChannel,
+  type OracleChannelListener,
+} from "shared/transport/oracle"
+import {BoundaryOracle} from "../boundary/oracle.ts"
 import {open, type BoundaryDatabase} from "../boundary/sqlite.ts"
 import {BulkViewportCaptureRegistry, type BulkViewportObserverClient} from "../bulk/capture.ts"
-import {BulkMonad} from "../bulk/monad.ts"
+import {BulkOracle} from "../bulk/oracle.ts"
 import {bulkStoreCaptureProof} from "../bulk/store-render.ts"
 import {EnergyCatalogStore} from "../energy/catalog.ts"
 import {startEnergyProtocol} from "../energy/energy.ts"
 import {createFilesystemEnergyMassStore, EnergyMassCatalog, EnergyMassGate} from "../energy/mass.ts"
-import {EnergyMassResultReadService} from "../energy/monad/mass-result.ts"
+import {EnergyMassResultReadService} from "../energy/oracle/mass-result.ts"
 import type {EnergyForce, EnergyProtocol} from "../types/energy/protocol.ts"
 import {sourceRevision} from "../create-metafor/src/source.ts"
 import {evaluateMetaSource} from "../dark/load.ts"
@@ -78,13 +78,13 @@ import {readDarkDeclarationProjection} from "../dark/graph.ts"
 import {DarkForceHistory} from "../dark/force/history.ts"
 import {ForceLifecycle} from "../dark/force/lifecycle.ts"
 import {forceDomains, type ForceDomain, type ForceStore} from "../dark/force/store.ts"
-import {DarkMonad} from "../dark/monad.ts"
-import {MetaCreateService} from "../dark/monad/create.ts"
-import {DeclarationAuthoringService, type DeclarationAuthoringMetaReader} from "../dark/monad/declaration.ts"
-import {DarkForceHistoryReadService} from "../dark/monad/history.ts"
-import {MatterAuthoringService} from "../dark/monad/matter.ts"
-import {MetaRuntimeRpcService} from "../dark/monad/runtime.ts"
-import {MetaAuthoringRegistry, metaAuthoringCapabilitiesForScopes} from "../dark/monad/registry.ts"
+import {DarkOracle} from "../dark/oracle.ts"
+import {MetaCreateService} from "../dark/oracle/create.ts"
+import {DeclarationAuthoringService, type DeclarationAuthoringMetaReader} from "../dark/oracle/declaration.ts"
+import {DarkForceHistoryReadService} from "../dark/oracle/history.ts"
+import {MatterAuthoringService} from "../dark/oracle/matter.ts"
+import {MetaRuntimeRpcService} from "../dark/oracle/runtime.ts"
+import {MetaAuthoringRegistry, metaAuthoringCapabilitiesForScopes} from "../dark/oracle/registry.ts"
 import {DarkForceTimeController} from "../dark/time-control.ts"
 import {createForceTestFixture, type ForceTestFixture} from "../dark/force/fixture.ts"
 import {prepareMatrixBirth} from "../matrix/birth.ts"
@@ -97,22 +97,22 @@ const PNG_BYTES = 68
 
 type ParticleInput = Omit<Particle, "ts" | "by"> & {ts?: number}
 
-class MemoryMonadChannel implements MonadChannel {
+class MemoryOracleChannel implements OracleChannel {
   readonly methods: readonly string[] = []
-  readonly #listeners = new Set<MonadChannelListener>()
+  readonly #listeners = new Set<OracleChannelListener>()
 
-  constructor(readonly identity: string, private readonly bus: MemoryMonadBus) {}
+  constructor(readonly identity: string, private readonly bus: MemoryOracleBus) {}
 
-  async send(message: MonadRpcMessage): Promise<void> {
+  async send(message: OracleRpcMessage): Promise<void> {
     await this.bus.send(this.identity, message)
   }
 
-  subscribe(listener: MonadChannelListener): () => void {
+  subscribe(listener: OracleChannelListener): () => void {
     this.#listeners.add(listener)
     return () => this.#listeners.delete(listener)
   }
 
-  async receive(message: MonadRpcMessage): Promise<void> {
+  async receive(message: OracleRpcMessage): Promise<void> {
     await Promise.all([...this.#listeners].map((listener) => listener(message)))
   }
 
@@ -121,33 +121,33 @@ class MemoryMonadChannel implements MonadChannel {
   }
 }
 
-class MemoryMonadBus {
-  readonly #channels = new Map<string, MemoryMonadChannel>()
+class MemoryOracleBus {
+  readonly #channels = new Map<string, MemoryOracleChannel>()
   readonly #callers = new Map<string, string>()
 
-  peer(identity: string): MonadRpcPeer {
-    if (this.#channels.has(identity)) throw new Error(`Duplicate Monad identity: ${identity}`)
-    const channel = new MemoryMonadChannel(identity, this)
+  peer(identity: string): OracleRpcPeer {
+    if (this.#channels.has(identity)) throw new Error(`Duplicate Oracle identity: ${identity}`)
+    const channel = new MemoryOracleChannel(identity, this)
     this.#channels.set(identity, channel)
-    return new MonadRpcPeer(channel)
+    return new OracleRpcPeer(channel)
   }
 
-  async send(source: string, message: MonadRpcMessage): Promise<void> {
-    if (isMonadRpcCall(message)) {
+  async send(source: string, message: OracleRpcMessage): Promise<void> {
+    if (isOracleRpcCall(message)) {
       const target = this.#channels.get(message.target)
-      if (!target) throw new Error(`Monad target is unavailable: ${message.target}`)
+      if (!target) throw new Error(`Oracle target is unavailable: ${message.target}`)
       this.#callers.set(message.id, source)
       await target.receive({...message, source})
       return
     }
-    if (isMonadRpcResponse(message)) {
+    if (isOracleRpcResponse(message)) {
       const caller = this.#callers.get(message.id)
-      if (!caller) throw new Error(`Monad caller is unavailable: ${message.id}`)
+      if (!caller) throw new Error(`Oracle caller is unavailable: ${message.id}`)
       this.#callers.delete(message.id)
       await this.#channels.get(caller)!.receive(message)
       return
     }
-    throw new Error("Memory Monad bus received an already routed call")
+    throw new Error("Memory Oracle bus received an already routed call")
   }
 }
 
@@ -255,7 +255,7 @@ describe("one complete trusted agent RPC session", () => {
         success: {src: "({data, update}) => update({output: data.output})", read: [], write: [outputField]},
       },
     }))
-    const bus = new MemoryMonadBus()
+    const bus = new MemoryOracleBus()
     const boundaryPeer = bus.peer("boundary")
     const darkPeer = bus.peer("dark")
     const energyPeer = bus.peer("energy")
@@ -273,10 +273,10 @@ describe("one complete trusted agent RPC session", () => {
       },
     )
 
-    const boundaryMonad = new BoundaryMonad(boundary)
-    boundaryMonad.onServerStarted(boundaryPeer)
+    const boundaryOracle = new BoundaryOracle(boundary)
+    boundaryOracle.onServerStarted(boundaryPeer)
 
-    const bulk = new BulkMonad()
+    const bulk = new BulkOracle()
     bulk.onServerStarting(bulkPeer)
     await bulk.onServerStarted(bulkPeer)
     bulk.onRuntimeBorn()
@@ -372,7 +372,7 @@ describe("one complete trusted agent RPC session", () => {
       readMeta,
       () => metaPath,
     )
-    const dark = new DarkMonad(async (params) => await readDarkDeclarationProjection(params, async (address) => {
+    const dark = new DarkOracle(async (params) => await readDarkDeclarationProjection(params, async (address) => {
       if (address !== ROOT) throw new Error(`Unexpected Graph Meta: ${address}`)
       return await evaluateMetaSource(await readFile(metaPath, "utf8"))
     }))
@@ -399,7 +399,7 @@ describe("one complete trusted agent RPC session", () => {
       ),
     )
     energyPeer.expose(ENERGY_MASS_RESULT_READ_METHOD, async (input) => await massResults.read(input))
-    boundaryMonad.onChannelOpened()
+    boundaryOracle.onChannelOpened()
 
     let execution = ""
     const publish = async (domain: ForceDomain, input: ForceMessageInput): Promise<void> => {

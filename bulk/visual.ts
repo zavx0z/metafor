@@ -105,7 +105,7 @@ const HEADLESS_TARGET: BulkVisualViewportProjectionSink = Object.freeze({
 /**
  * The public Bulk-owned lifecycle of one visual scene.
  *
- * Bulk keeps the Monad-derived projection, root selection, semantic
+ * Bulk keeps the Oracle-derived projection, root selection, semantic
  * manifestation, persistent visual Store, renderer adaptation and target
  * cleanup. A selected Visual strategy is called only with one immutable
  * calculation input and returns derived artifacts which Bulk then composes.

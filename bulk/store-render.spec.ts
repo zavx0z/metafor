@@ -1,7 +1,7 @@
 import {describe, expect, test} from "bun:test"
 import type {BulkObserverSnapshot} from "@metafor/types/bulk/initial"
 import type {Particle} from "shared/protocol/force/particle"
-import snapshotJson from "./fixture/monad-snapshot.json"
+import snapshotJson from "./fixture/oracle-snapshot.json"
 import {buildBulkStore} from "./store.ts"
 import {BulkStoreViewportRenderer} from "./store-render.ts"
 import {activateBulkStore, applyBulkGluonReplace} from "./store-runtime.ts"

@@ -75,7 +75,7 @@ export interface ForceCheckpointTransfer {
  * Lifecycle божественного уровня Force.
  *
  * Он принимает только готовые ForceChannel и типизированные Particle, управляет
- * gate/fail-stop и не знает о WebSocket, REST, WebRTC или Monad RPC.
+ * gate/fail-stop и не знает о WebSocket, REST, WebRTC или Oracle RPC.
  */
 export class ForceLifecycle {
   #state: ForceLifecycleState = "created"
@@ -233,7 +233,7 @@ export class ForceLifecycle {
     }
   }
 
-  /** Accepts one Dark Monad-authored Particle with immutable RPC causation. */
+  /** Accepts one Dark Oracle-authored Particle with immutable RPC causation. */
   async acceptAuthoringParticle(
     input: ForceMessageInput,
     authoring: MetaAuthoringCauseV1,

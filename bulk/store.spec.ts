@@ -4,7 +4,7 @@ import {
   BULK_STORE_RELATION_CONTROL_STRIDE,
   BULK_STORE_TRANSITION_CONTROL_STRIDE,
 } from "@metafor/types/bulk/store"
-import snapshotJson from "./fixture/monad-snapshot.json"
+import snapshotJson from "./fixture/oracle-snapshot.json"
 import {BulkVisualSceneLifecycle} from "./visual.ts"
 import {prepareBulkInitialVisual} from "./visual-initial.ts"
 import {

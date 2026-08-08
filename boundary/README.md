@@ -10,7 +10,7 @@ Boundary хранит канонический текущий мир в SQLite �
 
 ## Entry и storage
 
-`boundary/server.ts` открывает SQLite, поднимает Monad RPC, подключает
+`boundary/server.ts` открывает SQLite, поднимает Oracle RPC, подключает
 `Force("boundary")`, применяет входные Particle и отправляет возвращённые
 consequences после commit.
 
@@ -36,7 +36,7 @@ database.
 - Photon/Z/W — Process commit в `execution.ts`;
 - Reaction lifecycle — `reaction.ts`.
 
-Initial reads проходят через Monad RPC. Realtime changes после рождения идут
+Initial reads проходят через Oracle RPC. Realtime changes после рождения идут
 поштучными Particle через Force; Boundary не рассылает bootstrap snapshot как
 Graviton.
 
@@ -46,7 +46,7 @@ Graviton.
 - `incremental.ts` — relational declaration/materialization projection;
 - `execution.ts` — Process registration, Energy selection и result commit;
 - `reaction.ts` — Reaction commit;
-- `monad.ts` — initial read RPC;
+- `oracle.ts` — initial read RPC;
 - `server.ts` — process lifecycle и transport wiring.
 
 Низкоуровневые тесты могут открывать Boundary напрямую:

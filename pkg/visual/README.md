@@ -6,7 +6,7 @@ and exact owner-bound `StateGraph` inputs, so consumers do not switch on layout
 slugs themselves. `centered-nested` and `outside-in` are both ready production
 strategies selected through the same Bulk renderer binding.
 Production source lives only in `src/`. The package itself stays runtime-neutral:
-Bulk owns persistent semantic/scene state and product composition. Dark Monad
+Bulk owns persistent semantic/scene state and product composition. Dark Oracle
 assembles Graph only for on-demand reads. Bulk owns the visual
 update policy, Canvas, `Renderer`, `Space`, `ViewPoint`, Engine adapter and
 viewport lifecycle.
@@ -86,7 +86,7 @@ private only because it binds that recorded fixture to a dedicated
 `ForceStoriesLab.ts` renders that adapter and never wires Bulk projection,
 manifestation or Force protocol internals itself.
 
-It renders `playground/fixture/monad-snapshot.json`, a single static full-tree
+It renders `playground/fixture/oracle-snapshot.json`, a single static full-tree
 `BulkObserverSnapshot` captured from the Bulk observer contour. The main layout reads the
 production Bulk manifestation as immutable structural input; isolated entity
 lenses remain development tools and are not top-level layouts.

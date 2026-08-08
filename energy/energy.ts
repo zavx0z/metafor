@@ -28,7 +28,7 @@ import {executeReaction} from "./reaction.ts"
 export type StartEnergyProtocolOptions = Omit<EnergyProtocolOptions, "force"> & {
   /** ForceChannel born by the service layer only after initial hydration. */
   force: NonNullable<EnergyProtocolOptions["force"]>
-  /** Pre-hydrated local catalog prepared by Energy Monad before Force birth. */
+  /** Pre-hydrated local catalog prepared by Energy Oracle before Force birth. */
   catalog: EnergyCatalogStore
 }
 

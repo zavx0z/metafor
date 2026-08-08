@@ -12,11 +12,11 @@
     },
     "./transport/force/log": "./transport/force/log.ts",
     "./transport/force/checkpoint": "./transport/force/checkpoint.ts",
-    "./transport/monad": {
-      "browser": "./transport/monad/web.ts",
-      "bun": "./transport/monad/server.ts",
-      "node": "./transport/monad/server.ts",
-      "default": "./transport/monad/web.ts"
+    "./transport/oracle": {
+      "browser": "./transport/oracle/web.ts",
+      "bun": "./transport/oracle/server.ts",
+      "node": "./transport/oracle/server.ts",
+      "default": "./transport/oracle/web.ts"
     },
     "./protocol/force/declaration": "./protocol/force/declaration.ts",
     "./protocol/force/execution": "./protocol/force/execution.ts",
@@ -24,7 +24,7 @@
     "./protocol/force/message": "./protocol/force/message.ts",
     "./protocol/force/particle": "./protocol/force/particle.ts",
     "./protocol/force/reaction": "./protocol/force/reaction.ts",
-    "./protocol/monad/health": "./protocol/monad/health.ts",
-    "./protocol/monad/rpc": "./protocol/monad/rpc.ts"
+    "./protocol/oracle/health": "./protocol/oracle/health.ts",
+    "./protocol/oracle/rpc": "./protocol/oracle/rpc.ts"
   }
 }

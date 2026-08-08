@@ -110,7 +110,7 @@ const cloneReceipt = (receipt: CheckpointDeliveryReceipt): CheckpointDeliveryRec
  * Transport-neutral checkpoint control-plane model.
  *
  * A caller records one accepted sequence together with its complete
- * destination set, then delivers each returned receipt over the Monad
+ * destination set, then delivers each returned receipt over the Oracle
  * sideband. A domain may acknowledge a receipt only after it has applied that
  * delivery and all causal output Particles produced by the application have
  * returned to Dark Force acceptance.

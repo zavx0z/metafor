@@ -1,34 +1,34 @@
 import {describe, expect, test} from "bun:test"
 
 describe("shared package public API", () => {
-  test("resolves server Force and Monad transports through public subpaths", async () => {
+  test("resolves server Force and Oracle transports through public subpaths", async () => {
     const force = await import("shared/transport/force")
     const checkpoint = await import("shared/transport/force/checkpoint")
-    const monad = await import("shared/transport/monad")
+    const oracle = await import("shared/transport/oracle")
 
     expect(Object.keys(force)).toEqual(["Force"])
     expect(force.Force).toBeFunction()
     expect(checkpoint.FORCE_CHECKPOINT_SESSION_METHOD).toBe("force.checkpoint.session.open")
     expect(checkpoint.ForceCheckpointDomainSideband).toBeFunction()
-    expect(Object.keys(monad).sort()).toEqual([
-      "MONAD_WEBSOCKET_MAX_MESSAGE_BYTES",
-      "MONAD_WEBSOCKET_PATH",
-      "MonadRpcPeer",
-      "MonadRpcRemoteError",
-      "MonadTransport",
-      "MonadWebSocketTransport",
-      "createHttpMonadChannelRegistry",
-      "createMonadWebSocketChannelRegistry",
+    expect(Object.keys(oracle).sort()).toEqual([
+      "ORACLE_WEBSOCKET_MAX_MESSAGE_BYTES",
+      "ORACLE_WEBSOCKET_PATH",
+      "OracleRpcPeer",
+      "OracleRpcRemoteError",
+      "OracleTransport",
+      "OracleWebSocketTransport",
+      "createHttpOracleChannelRegistry",
+      "createOracleWebSocketChannelRegistry",
       "isLoopbackAddress",
-      "normalizeMonadIdentity",
+      "normalizeOracleIdentity",
       "readBearerToken",
-      "readHttpMonadChannel",
-      "readHttpMonadChannelOpening",
-      "readMonadWebSocketData",
+      "readHttpOracleChannel",
+      "readHttpOracleChannelOpening",
+      "readOracleWebSocketData",
     ])
-    expect(monad.MonadTransport).toBeFunction()
-    expect(monad.MonadWebSocketTransport).toBeFunction()
-    expect(monad.MonadRpcPeer).toBeFunction()
+    expect(oracle.OracleTransport).toBeFunction()
+    expect(oracle.OracleWebSocketTransport).toBeFunction()
+    expect(oracle.OracleRpcPeer).toBeFunction()
   })
 
   test("keeps server and web implementations behind the same conditional exports", async () => {
@@ -42,19 +42,19 @@ describe("shared package public API", () => {
       node: "./transport/force/server.ts",
       default: "./transport/force/web.ts",
     })
-    expect(manifest.exports["./transport/monad"]).toEqual({
-      browser: "./transport/monad/web.ts",
-      bun: "./transport/monad/server.ts",
-      node: "./transport/monad/server.ts",
-      default: "./transport/monad/web.ts",
+    expect(manifest.exports["./transport/oracle"]).toEqual({
+      browser: "./transport/oracle/web.ts",
+      bun: "./transport/oracle/server.ts",
+      node: "./transport/oracle/server.ts",
+      default: "./transport/oracle/web.ts",
     })
   })
 
   test("exports one environment-independent protocol", async () => {
     const force = await import("shared/protocol/force/message")
-    const monad = await import("shared/protocol/monad/rpc")
+    const oracle = await import("shared/protocol/oracle/rpc")
 
     expect(Object.keys(force).sort()).toEqual(["sourceForceMessage", "unsourceForceMessage"])
-    expect(monad.MONAD_RPC_VERSION).toBe(1)
+    expect(oracle.ORACLE_RPC_VERSION).toBe(1)
   })
 })

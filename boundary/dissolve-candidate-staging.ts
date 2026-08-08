@@ -336,7 +336,7 @@ const receiptFromRow = (
  *
  * The caller must already have copied and verified the stopped checkpoint.
  * This class never opens a filesystem path, owns no Mass/history reader and
- * exposes no Boundary/Monad/Force runtime method.
+ * exposes no Boundary/Oracle/Force runtime method.
  */
 export class DetachedBoundaryDissolveCandidateStaging {
   readonly #boundary: BoundaryDatabase

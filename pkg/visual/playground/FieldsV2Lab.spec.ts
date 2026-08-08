@@ -4,7 +4,7 @@ import type {BulkObserverSnapshot} from "@metafor/types/bulk/initial"
 import {BulkVisualSceneLifecycle} from "bulk/visual"
 import {visualFieldParticleColor} from "../src/SemanticVisual.ts"
 import {resolveEmptyTorusForm} from "../src/Torus.ts"
-import snapshotJson from "./fixture/monad-snapshot.json"
+import snapshotJson from "./fixture/oracle-snapshot.json"
 import {
   buildFieldsV2Source,
   createFieldsV2QuantumMaterial,

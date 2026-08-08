@@ -91,6 +91,7 @@
       "version": "0.0.1",
       "dependencies": {
         "@metafor/types": "workspace:*",
+        "create-metafor": "workspace:*",
         "shared": "workspace:*",
       },
     },

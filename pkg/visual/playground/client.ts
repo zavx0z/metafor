@@ -90,7 +90,7 @@ import {
 } from "./ForceStories.ts"
 import {createStateGraphHermiteEdgeCurveBuilder} from "./StateGraphLab.ts"
 import {metaStateDslSource} from "./MetaSource.ts"
-import snapshotJson from "./fixture/monad-snapshot.json"
+import snapshotJson from "./fixture/oracle-snapshot.json"
 
 const STATE_GRAPH_FIELDS_SLUG = "state-graph/fields"
 const STATE_GRAPH_ACTIVITY_SLUG = "state-graph/activity"

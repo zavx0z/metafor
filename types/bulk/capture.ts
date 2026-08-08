@@ -22,7 +22,7 @@ export type BulkViewportCaptureRequest = {
   version: typeof BULK_VIEWPORT_CAPTURE_VERSION
   /**
    * Selects an observer whose one-use browser session was already consumed by
-   * its live WebSocket. The first capture binds it to the authenticated Monad
+   * its live WebSocket. The first capture binds it to the authenticated Oracle
    * caller identity.
    */
   observerId?: string

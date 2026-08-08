@@ -7,12 +7,12 @@ routing и Particle causality принадлежат [`docs/FORCE.md`](../../doc
 
 ## Общий закон
 
-Клиент меняет Meta только через типизированную Monad RPC operation. Наличие
+Клиент меняет Meta только через типизированную Oracle RPC operation. Наличие
 локального файла, CLI, Force ingress или имени метода не является разрешением.
 Каждый вызов связывается с source identity RPC-канала, версией contract,
 operation id, capability и точным Meta scope.
 
-RPC payload не объявляет source identity: её добавляет MonadRouter. Capability
+RPC payload не объявляет source identity: её добавляет OracleRouter. Capability
 проверяет provider операции. Текущий локальный authoring contour допускает
 только явно настроенные source identities и не считается публичной сетевой
 границей доверия.
@@ -242,7 +242,7 @@ entry, точные before/after source revisions и наблюдаемую пр
 
 Владельцы фаз:
 
-- Dark Monad — RPC admission, capability, scope, normalization и operation
+- Dark Oracle — RPC admission, capability, scope, normalization и operation
   outcome;
 - Create template boundary — полный набор файлов нового Meta;
 - Dark Force — durable acceptance и причинный порядок Inflaton;

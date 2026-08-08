@@ -37,23 +37,23 @@ import {
   DOMAIN_HEALTH_READ_METHOD,
   type DarkForceStatus,
   type DomainHealth,
-} from "shared/protocol/monad/health"
-import {MONAD_RPC_VERSION, type MonadRpcResponse} from "shared/protocol/monad/rpc"
+} from "shared/protocol/oracle/health"
+import {ORACLE_RPC_VERSION, type OracleRpcResponse} from "shared/protocol/oracle/rpc"
 import {logImpulse} from "shared/transport/force/log"
 import {
   installForceCheckpointSideband,
   uninstallForceCheckpointSideband,
 } from "shared/transport/force/checkpoint"
 import {
-  createHttpMonadChannelRegistry,
-  createMonadWebSocketChannelRegistry,
+  createHttpOracleChannelRegistry,
+  createOracleWebSocketChannelRegistry,
   isLoopbackAddress,
-  MONAD_WEBSOCKET_MAX_MESSAGE_BYTES,
-  MonadRpcPeer,
-  type MonadWebSocketData,
-  readMonadWebSocketData,
-  readHttpMonadChannelOpening,
-} from "shared/transport/monad"
+  ORACLE_WEBSOCKET_MAX_MESSAGE_BYTES,
+  OracleRpcPeer,
+  type OracleWebSocketData,
+  readOracleWebSocketData,
+  readHttpOracleChannelOpening,
+} from "shared/transport/oracle"
 import {
   applyAuthoredDeclarationProjection,
   applyAuthoredMatterProjection,
@@ -71,19 +71,19 @@ import {
   type ForceSocket,
   type ForceSocketData,
 } from "./force/websocket.ts"
-import {DarkMonad} from "./monad.ts"
-import {MetaCreateService} from "./monad/create.ts"
-import {createLocalMonadChannelPair} from "./monad/local.ts"
-import {MatterAuthoringService} from "./monad/matter.ts"
-import {DeclarationAuthoringService} from "./monad/declaration.ts"
-import {DarkForceHistoryReadService} from "./monad/history.ts"
-import {MetaRuntimeRpcService} from "./monad/runtime.ts"
+import {DarkOracle} from "./oracle.ts"
+import {MetaCreateService} from "./oracle/create.ts"
+import {createLocalOracleChannelPair} from "./oracle/local.ts"
+import {MatterAuthoringService} from "./oracle/matter.ts"
+import {DeclarationAuthoringService} from "./oracle/declaration.ts"
+import {DarkForceHistoryReadService} from "./oracle/history.ts"
+import {MetaRuntimeRpcService} from "./oracle/runtime.ts"
 import {
   MetaAuthoringRegistry,
   metaAuthoringCapabilitiesForScopes,
   readMetaAuthoringLocalConfiguration,
-} from "./monad/registry.ts"
-import {MonadRouter} from "./monad/router.ts"
+} from "./oracle/registry.ts"
+import {OracleRouter} from "./oracle/router.ts"
 import {DarkForceTimeController} from "./time-control.ts"
 import {
   checkpointControlStatePath,
@@ -117,13 +117,13 @@ export const forceHistory = new DarkForceHistory(
         ...(forceHistoryStartedAt === undefined ? {} : {startedAt: forceHistoryStartedAt}),
       },
 )
-export const router = new MonadRouter()
+export const router = new OracleRouter()
 const websocket = createForceWebSocketChannels()
 
-const monad = new DarkMonad()
-let rpc!: MonadRpcPeer
-const localMonad = createLocalMonadChannelPair("dark", () => rpc.methods())
-rpc = new MonadRpcPeer(localMonad.peer)
+const oracle = new DarkOracle()
+let rpc!: OracleRpcPeer
+const localOracle = createLocalOracleChannelPair("dark", () => rpc.methods())
+rpc = new OracleRpcPeer(localOracle.peer)
 const checkpoint = checkpointEnabled
   ? new DarkCheckpointControl(
       checkpointStatePath,
@@ -145,10 +145,10 @@ const authoringRegistry = new MetaAuthoringRegistry(authoringConfiguration
       ),
     ]]
   : [])
-monad.setTimeControl(new DarkForceTimeController(lifecycle, checkpoint))
-monad.setHistory(new DarkForceHistoryReadService(forceHistory))
-monad.setRuntime(new MetaRuntimeRpcService(forceHistory, lifecycle, rpc))
-monad.setAuthoring({
+oracle.setTimeControl(new DarkForceTimeController(lifecycle, checkpoint))
+oracle.setHistory(new DarkForceHistoryReadService(forceHistory))
+oracle.setRuntime(new MetaRuntimeRpcService(forceHistory, lifecycle, rpc))
+oracle.setAuthoring({
   registry: authoringRegistry,
   create: new MetaCreateService((source) => authoringRegistry.grants(source)),
   matter: new MatterAuthoringService(
@@ -177,7 +177,7 @@ monad.setAuthoring({
   ),
 })
 const bulkBrowser = new BulkBrowserGateway()
-monad.onServerStarted(rpc)
+oracle.onServerStarted(rpc)
 rpc.expose(DARK_FORCE_STATUS_READ_METHOD, (): DarkForceStatus => {
   const status = lifecycle.status()
   return {
@@ -204,8 +204,8 @@ rpc.expose(DARK_BULK_VIEWPORT_CAPTURE_METHOD, async (params, context) => {
   if (request === null) throw new Error("Bulk viewport capture relay is invalid")
   return await bulkBrowser.capture(request.params, request.source)
 })
-router.attach(localMonad.router)
-monad.onChannelOpened()
+router.attach(localOracle.router)
+oracle.onChannelOpened()
 await darkCheckpoint?.open()
 
 const localForce = new LocalDarkForce(async (message) => {
@@ -223,7 +223,7 @@ startDarkRuntime(localForce)
 localForce.activate()
 lifecycle.channelReady("dark")
 
-const monadChannels = createHttpMonadChannelRegistry({
+const oracleChannels = createHttpOracleChannelRegistry({
   opened(channel) {
     router.attach(channel)
   },
@@ -231,7 +231,7 @@ const monadChannels = createHttpMonadChannelRegistry({
     router.detach(channel)
   },
 })
-const domainMonadChannels = createMonadWebSocketChannelRegistry({
+const domainOracleChannels = createOracleWebSocketChannelRegistry({
   opened(channel) {
     router.attach(channel)
   },
@@ -240,7 +240,7 @@ const domainMonadChannels = createMonadWebSocketChannelRegistry({
   },
 })
 
-const rpcStatus = (response: MonadRpcResponse): number => {
+const rpcStatus = (response: OracleRpcResponse): number => {
   if (response.ok) return 200
   if (response.error.code === "provider_unavailable") return 503
   if (response.error.code === "method_unavailable") return 404
@@ -271,7 +271,7 @@ const health = async (): Promise<Record<string, unknown>> => {
     ...force,
     ok: force.ok && domainHealthy,
     owner: "dark",
-    dark: monad.health(),
+    dark: oracle.health(),
     domains,
     forceHistory: forceHistory.status(),
   }
@@ -286,7 +286,7 @@ type BulkBrowserSocketData = {
 }
 type DarkSocketData =
   | DarkForceSocketData
-  | MonadWebSocketData
+  | OracleWebSocketData
   | BulkBrowserSocketData
 type DarkSocket = ServerWebSocket<DarkSocketData>
 
@@ -333,10 +333,10 @@ const readBrowserPageShell = (
 const forceSocket = (socket: DarkSocket): ForceSocket =>
   socket as unknown as ForceSocket
 
-const monadSocket = (
+const oracleSocket = (
   socket: DarkSocket,
-): ServerWebSocket<MonadWebSocketData> =>
-  socket as unknown as ServerWebSocket<MonadWebSocketData>
+): ServerWebSocket<OracleWebSocketData> =>
+  socket as unknown as ServerWebSocket<OracleWebSocketData>
 
 export const server = Bun.serve<DarkSocketData>({
   development: false,
@@ -415,47 +415,47 @@ export const server = Bun.serve<DarkSocketData>({
         })
       },
     },
-    "/monad/channels": {
+    "/oracle/channels": {
       async POST(request: Request) {
         if (!isLoopbackAddress(server.requestIP(request)?.address)) {
-          return Response.json({ok: false, error: "Monad REST channels are local-only"}, {status: 403})
+          return Response.json({ok: false, error: "Oracle REST channels are local-only"}, {status: 403})
         }
         const payload = await readJson<unknown>(request)
         if (!payload.ok) return Response.json({ok: false, error: payload.error}, {status: 400})
-        const opening = readHttpMonadChannelOpening(payload.value)
-        if (!opening) return Response.json({ok: false, error: "Invalid Monad channel opening"}, {status: 400})
-        const session = await monadChannels.open(opening)
-        return Response.json({version: MONAD_RPC_VERSION, channel: session.token}, {status: 201})
+        const opening = readHttpOracleChannelOpening(payload.value)
+        if (!opening) return Response.json({ok: false, error: "Invalid Oracle channel opening"}, {status: 400})
+        const session = await oracleChannels.open(opening)
+        return Response.json({version: ORACLE_RPC_VERSION, channel: session.token}, {status: 201})
       },
     },
-    "/monad/rpc": {
+    "/oracle/rpc": {
       async POST(request: Request) {
-        const session = monadChannels.read(request)
-        if (!session) return Response.json({ok: false, error: "Monad channel is required"}, {status: 401})
+        const session = oracleChannels.read(request)
+        if (!session) return Response.json({ok: false, error: "Oracle channel is required"}, {status: 401})
         const payload = await readJson<unknown>(request)
         if (!payload.ok) return Response.json({ok: false, error: payload.error}, {status: 400})
-        const response = await monadChannels.receive(session, payload.value)
+        const response = await oracleChannels.receive(session, payload.value)
         return Response.json(response, {status: rpcStatus(response)})
       },
     },
-    "/monad/channel": {
+    "/oracle/channel": {
       async DELETE(request: Request) {
-        const session = monadChannels.read(request)
-        if (!session) return Response.json({ok: false, error: "Monad channel is required"}, {status: 401})
-        await monadChannels.close(session)
+        const session = oracleChannels.read(request)
+        if (!session) return Response.json({ok: false, error: "Oracle channel is required"}, {status: 401})
+        await oracleChannels.close(session)
         return Response.json({ok: true})
       },
     },
-    "/monad/ws": {
+    "/oracle/ws": {
       GET(
-        request: Bun.BunRequest<"/monad/ws">,
+        request: Bun.BunRequest<"/oracle/ws">,
         current: Bun.Server<DarkSocketData>,
       ) {
         if (!isLoopbackAddress(current.requestIP(request)?.address)) {
-          return new Response("Domain Monad WebSocket is local-only", {status: 403})
+          return new Response("Domain Oracle WebSocket is local-only", {status: 403})
         }
-        const data = readMonadWebSocketData(request)
-        if (!data) return new Response("Monad channel identity is required", {status: 400})
+        const data = readOracleWebSocketData(request)
+        if (!data) return new Response("Oracle channel identity is required", {status: 400})
         const upgraded = current.upgrade(request, {data})
         return upgraded ? undefined : new Response("WebSocket upgrade failed", {status: 426})
       },
@@ -485,9 +485,9 @@ export const server = Bun.serve<DarkSocketData>({
   websocket: {
     maxPayloadLength: Math.max(
       BULK_VIEWPORT_CAPTURE_MAX_CONTROL_BYTES,
-      MONAD_WEBSOCKET_MAX_MESSAGE_BYTES,
+      ORACLE_WEBSOCKET_MAX_MESSAGE_BYTES,
     ),
-    backpressureLimit: MONAD_WEBSOCKET_MAX_MESSAGE_BYTES * 2,
+    backpressureLimit: ORACLE_WEBSOCKET_MAX_MESSAGE_BYTES * 2,
     closeOnBackpressureLimit: true,
     open(socket) {
       if (socket.data.kind === "force") {
@@ -497,8 +497,8 @@ export const server = Bun.serve<DarkSocketData>({
         console.log(`[dark:force] connected: ${socket.data.domain} ${socket.data.id}`)
         return
       }
-      if (socket.data.kind === "monad") {
-        console.log(`[dark:monad] transport connected: ${socket.data.identity} ${socket.data.id}`)
+      if (socket.data.kind === "oracle") {
+        console.log(`[dark:oracle] transport connected: ${socket.data.identity} ${socket.data.id}`)
         return
       }
       const client: BulkBrowserGatewayClient = {
@@ -521,12 +521,12 @@ export const server = Bun.serve<DarkSocketData>({
         console.log(`[dark:force] disconnected: ${socket.data.domain} ${socket.data.id}`)
         return
       }
-      if (socket.data.kind === "monad") {
-        await domainMonadChannels.closed(
-          monadSocket(socket),
-          new Error("Monad WebSocket closed"),
+      if (socket.data.kind === "oracle") {
+        await domainOracleChannels.closed(
+          oracleSocket(socket),
+          new Error("Oracle WebSocket closed"),
         )
-        console.log(`[dark:monad] disconnected: ${socket.data.identity} ${socket.data.id}`)
+        console.log(`[dark:oracle] disconnected: ${socket.data.identity} ${socket.data.id}`)
         return
       }
       const client = browserClients.get(socket)
@@ -535,12 +535,12 @@ export const server = Bun.serve<DarkSocketData>({
       console.log(`[dark:bulk] browser disconnected ${socket.data.id}`)
     },
     async message(socket, raw) {
-      if (socket.data.kind === "monad") {
+      if (socket.data.kind === "oracle") {
         try {
-          await domainMonadChannels.receive(monadSocket(socket), raw)
+          await domainOracleChannels.receive(oracleSocket(socket), raw)
         } catch (error) {
-          console.error(`[dark:monad] invalid message from ${socket.data.identity}`, error)
-          socket.close(1003, "Invalid Monad message")
+          console.error(`[dark:oracle] invalid message from ${socket.data.identity}`, error)
+          socket.close(1003, "Invalid Oracle message")
         }
         return
       }
@@ -591,14 +591,14 @@ export const stop = (): Promise<void> => {
   closing = (async () => {
     lifecycle.stop()
     if (darkCheckpoint) uninstallForceCheckpointSideband("dark", darkCheckpoint)
-    monad.onServerStopping()
+    oracle.onServerStopping()
     rpc.close()
-    router.detach(localMonad.router)
-    await localMonad.peer.close(new Error("Dark server stopped"))
+    router.detach(localOracle.router)
+    await localOracle.peer.close(new Error("Dark server stopped"))
     stopDarkRuntime(localForce)
     localForce.close()
-    await monadChannels.closeAll(new Error("Dark server stopped"))
-    await domainMonadChannels.closeAll(new Error("Dark server stopped"))
+    await oracleChannels.closeAll(new Error("Dark server stopped"))
+    await domainOracleChannels.closeAll(new Error("Dark server stopped"))
     bulkBrowser.close()
     websocket.close()
     server.stop(true)

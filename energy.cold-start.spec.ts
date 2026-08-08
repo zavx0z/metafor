@@ -10,7 +10,7 @@ import type {ForceMessage} from "shared/protocol/force/message"
 import type {Particle} from "shared/protocol/force/particle"
 import {open, type BoundaryDatabase} from "./boundary/sqlite.ts"
 import {birthEnergyRuntime, type EnergyRuntimeForce} from "./energy/birth.ts"
-import {EnergyMonad} from "./energy/monad.ts"
+import {EnergyOracle} from "./energy/oracle.ts"
 
 type TestForce = EnergyRuntimeForce & {
   readonly sent: ForceMessage[]
@@ -157,7 +157,7 @@ describe("Energy cold start", () => {
       release: ({atomId}) => void energies.delete(atomId),
     }
     let force: TestForce | undefined
-    const monad = new EnergyMonad()
+    const oracle = new EnergyOracle()
     const initialProjection = await boundary.initialProjection()
     let resolveProjection: ((projection: BoundaryInitialProjection) => void) | undefined
     const projection = new Promise<BoundaryInitialProjection>((resolve) => {
@@ -165,9 +165,9 @@ describe("Energy cold start", () => {
     })
     const rpcCalls: unknown[] = []
     const birth = birthEnergyRuntime({
-      monad,
-      openMonad: async () => {
-        events.push("monad.open")
+      oracle,
+      openOracle: async () => {
+        events.push("oracle.open")
       },
       peer: {
         async call(target: string, method: string, params: unknown, options: unknown) {
@@ -177,15 +177,15 @@ describe("Energy cold start", () => {
         },
       } as never,
       createForce() {
-        expect(monad.catalog.atoms.size).toBe(2)
-        expect(monad.catalog.topologies.size).toBe(1)
-        expect(monad.catalog.processes.size).toBe(1)
-        expect(monad.catalog.fieldSchema("owner/child")).toEqual({
+        expect(oracle.catalog.atoms.size).toBe(2)
+        expect(oracle.catalog.topologies.size).toBe(1)
+        expect(oracle.catalog.processes.size).toBe(1)
+        expect(oracle.catalog.fieldSchema("owner/child")).toEqual({
           command: {type: "string", required: true, default: "launch"},
         })
-        expect(monad.catalog.continuations.size).toBe(1)
-        expect(monad.catalog.parentAtom(persisted.childId)?.id).toBe(persisted.rootId)
-        expect(monad.catalog.continuation(persisted.childId)).toEqual({
+        expect(oracle.catalog.continuations.size).toBe(1)
+        expect(oracle.catalog.parentAtom(persisted.childId)?.id).toBe(persisted.rootId)
+        expect(oracle.catalog.continuation(persisted.childId)).toEqual({
           massBinding: {data: "/mass", directMass: {kind: "whole"}},
           energyBinding: {data: "/energy"},
         })
@@ -198,7 +198,7 @@ describe("Energy cold start", () => {
 
     await waitFor(() => resolveProjection !== undefined)
     expect(force).toBeUndefined()
-    expect(events).toEqual(["monad.open", "boundary.initialProjection.read"])
+    expect(events).toEqual(["oracle.open", "boundary.initialProjection.read"])
     expect(rpcCalls).toEqual([{
       target: "boundary",
       method: BOUNDARY_INITIAL_PROJECTION_METHOD,
@@ -209,23 +209,23 @@ describe("Energy cold start", () => {
     const runtime = await birth
 
     expect(events).toEqual([
-      "monad.open",
+      "oracle.open",
       "boundary.initialProjection.read",
       "force.create",
     ])
     expect(runtime.summary).toEqual({
       atoms: 2, topologies: 1, fields: 2, variants: 0, processes: 1, continuations: 1,
     })
-    expect(monad.catalog.parentAtom(persisted.childId)?.id).toBe(persisted.rootId)
-    expect(monad.catalog.continuation(persisted.childId)).toEqual({
+    expect(oracle.catalog.parentAtom(persisted.childId)?.id).toBe(persisted.rootId)
+    expect(oracle.catalog.continuation(persisted.childId)).toEqual({
       massBinding: {data: "/mass", directMass: {kind: "whole"}},
       energyBinding: {data: "/energy"},
     })
-    expect(await monad.onHealthRequested().json()).toMatchObject({initialized: false, rpc: "prepared"})
+    expect(await oracle.onHealthRequested().json()).toMatchObject({initialized: false, rpc: "prepared"})
 
     force!.connect()
     expect(events.at(-1)).toBe("force.connected")
-    expect(await monad.onHealthRequested().json()).toMatchObject({initialized: true, rpc: "ready"})
+    expect(await oracle.onHealthRequested().json()).toMatchObject({initialized: true, rpc: "ready"})
 
     const executionId = "cold-start-execution"
     force!.receive({

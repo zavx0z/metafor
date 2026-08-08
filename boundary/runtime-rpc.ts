@@ -9,16 +9,9 @@ import {
   type MetaProcessExecutionStatus,
 } from "@metafor/types/metafor/observation"
 import type {JsonValue} from "@metafor/types/metafor/graph"
+import type {BoundaryProcessExecutionProjection} from "@metafor/types/boundary/runtime"
 import type {BoundaryDatabase} from "./sqlite.ts"
 import {resolveBoundaryRuntimeAtom} from "./graph.ts"
-
-export const BOUNDARY_FIELD_VALUE_PLAN_METHOD = "boundary.runtime.field.value.plan" as const
-export const BOUNDARY_PROCESS_EXECUTION_PROJECT_METHOD = "boundary.runtime.process.execution.project" as const
-
-export type BoundaryProcessExecutionProjection = {
-  status: MetaProcessExecutionStatus
-  outcome: MetaProcessExecutionOutcome | null
-}
 
 const invalid = (issues: Array<{path: string; code: string; message: string}>): Error =>
   new Error(issues.map(({path, code, message}) => `${path || "/"} [${code}] ${message}`).join("; "))

@@ -1,15 +1,15 @@
-import {DOMAIN_HEALTH_READ_METHOD} from "shared/protocol/monad/health"
-import {MonadRpcPeer, MonadWebSocketTransport} from "shared/transport/monad"
+import {DOMAIN_HEALTH_READ_METHOD} from "shared/protocol/oracle/health"
+import {OracleRpcPeer, OracleWebSocketTransport} from "shared/transport/oracle"
 import {Force} from "shared/transport/force"
 import {installForceCheckpointSideband} from "shared/transport/force/checkpoint"
 import {birthEnergyRuntime, type EnergyRuntimeBirth} from "./birth.ts"
-import {EnergyMonad} from "./monad.ts"
+import {EnergyOracle} from "./oracle.ts"
 
-const monad = new EnergyMonad()
-const transport = new MonadWebSocketTransport("energy")
-const rpc = new MonadRpcPeer(transport.channel)
-monad.onServerStarting(rpc)
-rpc.expose(DOMAIN_HEALTH_READ_METHOD, () => monad.health())
+const oracle = new EnergyOracle()
+const transport = new OracleWebSocketTransport("energy")
+const rpc = new OracleRpcPeer(transport.channel)
+oracle.onServerStarting(rpc)
+rpc.expose(DOMAIN_HEALTH_READ_METHOD, () => oracle.health())
 const checkpoint = installForceCheckpointSideband("energy", rpc)
 let runtime: EnergyRuntimeBirth | null = null
 console.log("[energy] connecting to Dark")
@@ -18,13 +18,13 @@ let closing: Promise<void> | null = null
 const close = (): Promise<void> => {
   if (closing) return closing
   closing = (async () => {
-    monad.onServerStopping()
+    oracle.onServerStopping()
     runtime?.protocol.close()
     rpc.close()
     try {
       await transport.close()
     } catch (error) {
-      console.error("[energy] Monad channel close failed", error)
+      console.error("[energy] Oracle channel close failed", error)
     }
   })()
   return closing
@@ -32,9 +32,9 @@ const close = (): Promise<void> => {
 
 try {
   runtime = await birthEnergyRuntime({
-    monad,
+    oracle,
     peer: rpc,
-    openMonad: async () => {
+    openOracle: async () => {
       const opened = await transport.open({
         methods: rpc.methods(),
         waitMs: 30_000,
@@ -43,7 +43,7 @@ try {
       return opened
     },
     createForce: () => new Force("energy"),
-    protocol: {massStore: monad.massStore},
+    protocol: {massStore: oracle.massStore},
     onBorn(summary) {
       console.log(
         `[energy] born atoms=${summary.atoms} topologies=${summary.topologies} ` +
@@ -55,13 +55,13 @@ try {
   checkpoint.bindQuiescence(async () => await runtime?.protocol.quiesce())
   runtime.force.onDestroy = close
 } catch (error) {
-  monad.onRuntimeBirthFailed(error)
+  oracle.onRuntimeBirthFailed(error)
   try {
     await transport.close()
   } catch (closeError) {
-    console.error("[energy] Monad channel close failed", closeError)
+    console.error("[energy] Oracle channel close failed", closeError)
   }
-  console.error("[energy] Monad birth failed", error)
+  console.error("[energy] Oracle birth failed", error)
 }
 
 process.once("SIGINT", close)

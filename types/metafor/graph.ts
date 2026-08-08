@@ -16,7 +16,7 @@ declare const MetaAddressBrand: unique symbol
 export type MetaAddress = string & {readonly [MetaAddressBrand]: "MetaAddress"}
 
 /**
- * Dark Monad `readGraph` accepts no client-selected root. The current root is
+ * Dark Oracle `readGraph` accepts no client-selected root. The current root is
  * owned by the world projection and is returned as `Graph.root`.
  */
 export type ReadGraphParams = Record<string, never>
@@ -339,7 +339,7 @@ export interface RuntimeTopology {
 export type RuntimeNode = RuntimeAtom | RuntimeTopology
 
 /**
- * The single public Graph assembled on demand by Dark Monad from the Dark
+ * The single public Graph assembled on demand by Dark Oracle from the Dark
  * declaration projection and the current Boundary projection. JSON is only
  * the transport serialization of this Graph, not its domain name or a second
  * public format. Graph is never authored or canonical storage. A downstream

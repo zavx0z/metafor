@@ -34,7 +34,7 @@ afterAll(() => {
   else Bun.env.METAFOR_WEAK_BACKEND = previousBackend
 })
 
-describe("Matrix Monad birth", () => {
+describe("Matrix Oracle birth", () => {
   test("owns the canonical Boundary to packed Matrix conversion", () => {
     const runtime = buildMatrixRuntime(initialState())
 

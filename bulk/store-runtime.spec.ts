@@ -20,7 +20,7 @@ import {
 import {OutsideIn} from "@metafor/visual/layout"
 import type {BulkRuntimeProjection} from "@metafor/types/bulk/runtime"
 import type {Particle} from "shared/protocol/force/particle"
-import snapshotJson from "./fixture/monad-snapshot.json"
+import snapshotJson from "./fixture/oracle-snapshot.json"
 import {buildDirectBulkStore} from "./store-direct.ts"
 import {buildBulkStore} from "./store.ts"
 import {

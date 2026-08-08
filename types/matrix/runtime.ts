@@ -74,7 +74,7 @@ export interface MatrixRuntimeTopology {
 }
 
 /**
- * Matrix-internal derived projection built by its Monad from canonical
+ * Matrix-internal derived projection built by its Oracle from canonical
  * Boundary initial data before runtime birth.
  *
  * Atom-prefixed keys identify materialized Atoms throughout the wire format.

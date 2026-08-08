@@ -99,7 +99,7 @@ frontiers и достигает fixed point только когда для ка�
 до окончания coherent capture.
 
 Dark персистит barrier state после durable Particle acceptance до routing.
-Domain получает receipt отдельным Monad RPC до неизменённого ForceMessage,
+Domain получает receipt отдельным Oracle RPC до неизменённого ForceMessage,
 применяет вход через свой последовательный Force handler и подтверждает его
 только после возврата всех причинно испущенных Particles в durable Dark Force
 acceptance. Перезапуск восстанавливает точные sent/applied и outgoing
@@ -194,7 +194,7 @@ proof, устаревшая stage binding или любое расхождени
 stage с `effects: none` сам по себе никогда не становится promotion.
 
 Bridge возвращает значение только для уже существующего локального аргумента
-Bulk manifestation. Он не создаёт Monad/Force/RPC endpoint, не публикует
+Bulk manifestation. Он не создаёт Oracle/Force/RPC endpoint, не публикует
 external capability и не разрешает activation или lifecycle transition.
 
 Owner-approved detached acceptance может передать bridge proof только после
@@ -210,4 +210,4 @@ Rollback acceptance не перезаписывает active paths. Она во�
 `path + length + SHA-256`, SQLite integrity, history/control identity и
 pre-Graph digest. Даже успешные detached execution, browser proof и
 restoration proof не разрешают live publication, source/root transition,
-Force/Monad admission, Energy retarget, restart или hot reload.
+Force/Oracle admission, Energy retarget, restart или hot reload.

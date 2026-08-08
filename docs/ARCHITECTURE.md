@@ -26,6 +26,10 @@ Force переносит между ними отдельные изменени
 хранилище соседа. Начальные согласованные снимки передаются до рождения, а
 последующие изменения идут отдельными причинными сообщениями.
 
+Общий междоменный public contract не возникает автоматически из удобства
+импорта. Перед выносом любого метода, DTO или другого API в shared/public
+contract требуется отдельное явное согласование владельца.
+
 Одно изменение одной сущности переносится одной Particle. Получатель применяет
 её к своей проекции и, если это создаёт следствие, выпускает следующее
 сообщение. Так сохраняется видимая причинная цепочка.
@@ -34,7 +38,7 @@ Force переносит между ними отдельные изменени
 
 Dark первым открывает единственный слушающий server Вселенной. Supervisor
 только запускает и завершает процессы: Boundary, Energy, Bulk и Matrix сами
-открывают к известному адресу Dark по одному постоянному Monad и Force
+открывают к известному адресу Dark по одному постоянному Oracle и Force
 WebSocket и не поднимают собственные HTTP servers.
 
 Сначала рождаются Dark, Boundary, Energy и Bulk. Energy до подключения к
@@ -127,13 +131,13 @@ Conditions одного Transition являются чистой конъюнк�
 priority-order не получают. Mass declaration и display order также не
 становятся новым законом. Универсального `order` vector в Graph нет.
 
-Операцию `readGraph` предоставляет Dark Monad. Её request всегда пуст: клиент
+Операцию `readGraph` предоставляет Dark Oracle. Её request всегда пуст: клиент
 не выбирает и не передаёт root. Stateless assembler сначала получает через
 Boundary coherent current projection с единственным текущим root, затем
 загружает для него полную declaration projection, собирает и валидирует один
 Graph и возвращает root как данные ответа. Assembler не хранит Graph и не
-читает Store другого домена напрямую. Dark Monad и Boundary остаются
-владельцами своих projections; Dark Force только переносит Monad RPC.
+читает Store другого домена напрямую. Dark Oracle и Boundary остаются
+владельцами своих projections; Dark Force только переносит Oracle RPC.
 
 При рождении Bulk один раз получает через `Boundary.initialProjection.read`
 согласованный набор необходимых canonical rows и сразу формирует плоский Bulk
@@ -217,9 +221,9 @@ claim старой связи. Прямой root alias сохраняет object
 зависимость равна `undefined`, binding не установлен и этот Energy не claim-ит
 ребёнка.
 
-Cold projection через Monad содержит только сериализуемые canonical entities и
+Cold projection через Oracle содержит только сериализуемые canonical entities и
 binding descriptors. Mass handles и живые Energy-сущности создаются и остаются
-в локальных Energy stores; Mass bytes хранятся в файловом каталоге. Ни Monad, ни
+в локальных Energy stores; Mass bytes хранятся в файловом каталоге. Ни Oracle, ни
 Force их не переносят. После рождения изменение continuation или
 owning-parent relation переустанавливает binding только по обычному Graviton,
 включая изменение владельца через Topology.
@@ -312,7 +316,7 @@ fullscreen и WebGPU renderer. Нижний существующий `HudTimelin
 показывавший Atom observer cut, теперь занят открытым по умолчанию causal
 time-документом: компактные Blender-подобные дорожки Force, Mass и Boundary,
 playhead и ромбовидные keyframe-маркеры кадров pause-stack, фактически
-прочитанных из Dark через локальный Monad Bulk. Заголовок и отдельная боковая
+прочитанных из Dark через локальный Oracle Bulk. Заголовок и отдельная боковая
 вкладка времени отсутствуют; timeline прижат к нижнему dock. Отдельная
 самодельная карточка времени поверх сцены запрещена. Нижний control dock
 использует общие `@ui/components`: icon-only Pause, Resume и Step, а рядом
@@ -377,7 +381,7 @@ platform-neutral, чтобы одна точка наблюдения могла
 
 ### Observer viewport capture
 
-Read-only Monad method `bulk.observer.captureViewport` получает PNG именно
+Read-only Oracle method `bulk.observer.captureViewport` получает PNG именно
 последнего уже представленного canvas подключённого browser observer: сцену,
 его текущие camera/zoom/root и HUD. Обычный render path копирует готовую
 WebGPU canvas texture в ограниченную browser-side texture. Capture читает
@@ -389,9 +393,9 @@ WebGPU canvas texture в ограниченную browser-side texture. Capture 
 Observer выбирается по `id`; без `id` capture допустим только при ровно одном
 подключённом observer. Capture eligible только пока жив WebSocket, который
 успешно поглотил одноразовую browser session при Upgrade; Bulk хранит только
-digest session на время этого соединения. Monad request не переносит session
+digest session на время этого соединения. Oracle request не переносит session
 или ручной grant. Первый валидный capture связывает выбранный observer с
-аутентифицированным `source` Monad channel, и до disconnect другой caller не
+аутентифицированным `source` Oracle channel, и до disconnect другой caller не
 получает право чтения. Ручная deployment-конфигурация для basic capture не
 требуется.
 

@@ -19,6 +19,7 @@ import {
   type MetaAddress,
   type Graph,
 } from "@metafor/types/metafor/graph"
+import {BOUNDARY_GRAPH_PROJECTION_METHOD} from "@metafor/types/boundary/runtime"
 import type {
   CheckpointForwardPatchDocumentV1,
   CheckpointManifestV1,
@@ -31,12 +32,9 @@ import type {BulkRuntimeProjection} from "@metafor/types/bulk/runtime"
 import type {Particle} from "shared/protocol/force/particle"
 import {MassCatalog, massFileName} from "../shared/mass.ts"
 import {open as openBoundary, type BoundaryDatabase} from "../boundary/sqlite.ts"
-import {assembleGraphForRoot} from "../dark/monad/graph.ts"
+import {assembleGraphForRoot} from "../dark/oracle/graph.ts"
 import {DARK_DECLARATION_PROJECTION_METHOD} from "../dark/graph.ts"
-import {
-  BOUNDARY_GRAPH_PROJECTION_METHOD,
-  readBoundaryGraphProjectionForRoot,
-} from "../boundary/graph.ts"
+import {readBoundaryGraphProjectionForRoot} from "../boundary/graph.ts"
 import {
   BOUNDARY_DISSOLVE_PROPOSAL_V1,
   type BoundaryDissolveProposalV1,
@@ -787,7 +785,7 @@ const main = async (): Promise<void> => {
         liveActivation: false,
         sourceWrite: false,
         force: false,
-        monad: false,
+        oracle: false,
         energy: false,
         runtimeLifecycle: false,
         hotReload: false,

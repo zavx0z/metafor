@@ -16,7 +16,7 @@ import {
   buildVisualPayloadRenderPlan,
   buildVisualSceneRenderPlan,
 } from "../VisualSceneViewport.ts"
-import snapshotJson from "./monad-snapshot.json"
+import snapshotJson from "./oracle-snapshot.json"
 
 const fixtureLifecycle = (): BulkVisualSceneLifecycle => {
   const lifecycle = new BulkVisualSceneLifecycle()

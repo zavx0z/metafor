@@ -196,7 +196,7 @@ export type MatterDefinitionParams<
    * Атрибут `src` задаёт ровно двухсегментный адрес `owner/repository` —
    * канонический идентификатор независимого peer Meta-репозитория, который
    * loader резолвит в meta-модуль. Вложенность runtime topology выражается
-   * occurrence и Meta/Matter/Monad references, а не третьим сегментом адреса или
+   * occurrence и Meta/Matter/Oracle references, а не третьим сегментом адреса или
    * вложением репозитория. Каждый occurrence materializes отдельный Atom.
    */
   html: (strings: TemplateStringsArray, ...values: any[]) => void

@@ -7,7 +7,7 @@ import {
 } from "./time-control.ts"
 
 describe("Bulk time-control bridge", () => {
-  test("relays only closed bounded intent to Dark over the existing Monad peer", async () => {
+  test("relays only closed bounded intent to Dark over the existing Oracle peer", async () => {
     const calls: unknown[][] = []
     const peer = {
       async call<T>(...args: unknown[]): Promise<T> {

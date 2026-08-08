@@ -444,7 +444,7 @@ export const sameVisualPayloadIdentities = (
  * Differing identity sets under one strategy and one mesh specification give an
  * explicit delta — add, update and remove by identity — because that is enough
  * to bring the scene up to date without touching anything else. Only a change
- * that re-specifies the whole scene (another strategy, another Monad root,
+ * that re-specifies the whole scene (another strategy, another Oracle root,
  * another mesh detail law) falls back to a replacement, since there every shape
  * genuinely has to be rebuilt.
  */

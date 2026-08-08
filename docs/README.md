@@ -23,7 +23,7 @@
 * [Агентные Вселенные](AGENT_UNIVERSES.md) — Agent Atom, окружающие Tool,
   Device и Service Atoms, предметное изменение Fields и будущий интерфейс Bulk.
 * [Архитектура runtime](ARCHITECTURE.md) — состав contour и связи доменов.
-* [Dark](DARK.md) — Monad, Force, декларации, причинное время и границы
+* [Dark](DARK.md) — Oracle, Force, декларации, причинное время и границы
   публичного наблюдения.
 * [Force](FORCE.md) — Dark Force: единый Particle channel, complete post-cut
   history, relay и fail-stop внутри Dark process.

@@ -3,7 +3,7 @@ import type {BulkObserverSnapshot} from "@metafor/types/bulk/initial"
 import {BulkVisualSceneLifecycle} from "bulk/visual"
 import {buildFieldsV2Source} from "./FieldsV2Lab.ts"
 import {FIELDS_V3_SLUG} from "./FieldsV3Lab.ts"
-import snapshotJson from "./fixture/monad-snapshot.json"
+import snapshotJson from "./fixture/oracle-snapshot.json"
 
 describe("Fields v3 playground", () => {
   test("stages only the standard root lada Torus", async () => {

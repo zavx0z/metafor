@@ -11,7 +11,7 @@ const document: HudNodeViewDocument = {
 }
 
 describe("HUD node-view plan", () => {
-  test("preserves Monad-supplied atom coordinates and keeps panel relations explicit", () => {
+  test("preserves Oracle-supplied atom coordinates and keeps panel relations explicit", () => {
     const plan = planHudNodeView(document, {x: 20, y: 30, w: 1200, h: 900})
     expect(plan.atoms).toHaveLength(2)
     expect(plan.atoms.map(({rect}) => ({x: rect.x, y: rect.y}))).toEqual([

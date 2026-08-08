@@ -1,4 +1,4 @@
-# MetaFor: дорожная карта Graph, Monad и Force
+# MetaFor: дорожная карта Graph, Oracle и Force
 
 Этот файл содержит текущую архитектурную линию и крупный порядок ещё не
 выполненной работы. Завершённые этапы, журналы запусков, старые коммиты и
@@ -25,7 +25,7 @@
 * Canonical Meta является отдельным peer Git-репозиторием
   `cluster/<owner>/<repository>`.
 * Canonical `src` имеет ровно два сегмента `<owner>/<repository>`.
-* Композиция выполняется через Meta, Matter и Monad references, а не через
+* Композиция выполняется через Meta, Matter и Oracle references, а не через
   вложенные Git-репозитории.
 * Boundary является каноническим состоянием работающей Вселенной. `meta.ts`
   является автоматически поддерживаемой source projection принятых structural
@@ -51,7 +51,7 @@
   `meta.field.value.apply` принимает точный Field input, а
   `meta.process.execution.read` наблюдает причинно связанный исход Process.
 * Одна полная рабочая сессия без скрытого контекста доказана через настоящий
-  Monad RPC-контур с реальными Matrix, Energy, Boundary, Dark и Bulk: explicit
+  Oracle RPC-контур с реальными Matrix, Energy, Boundary, Dark и Bulk: explicit
   envelope, structural source projection, Field, State/Process, history delta,
   Mass и Bulk evidence проверяются одним вызывающим RPC source.
 * Process-bound `photon/test` теперь проявляет вычисленный State в Bulk Store;
@@ -93,16 +93,16 @@ runtime occurrence и минимальное Matter closure с явной гра
 Новая access policy и конкурентные чтения в эту задачу не входят:
 [`MF-407`](tasks/MF-407.md).
 
-## Monad и Force
+## Oracle и Force
 
-Monad является RPC-поверхностью домена. Force переносит причинные Particle и
+Oracle является RPC-поверхностью домена. Force переносит причинные Particle и
 RPC между доменами. Текущий этап сначала доводит функциональную RPC-поверхность
 для одного доверенного локального агента: агент должен последовательно
 прочитать необходимое состояние, выполнить поддерживаемое изменение и
 проверить фактический результат.
 
 Реализован один слушающий Dark server на Вселенную:
-Boundary, Matrix, Energy и Bulk подключают к нему отдельные исходящие Monad и
+Boundary, Matrix, Energy и Bulk подключают к нему отдельные исходящие Oracle и
 Force WebSocket без собственных HTTP listeners, а browser ingress Bulk проходит
 через Dark gateway. Реализация сохраняет payload и routing и оставляет замену
 физической пары каналов на WebRTC отдельным будущим transport-этапом:
@@ -251,7 +251,7 @@ RPC и существующего шаблона:
 RPC -> template -> validate -> atomic peer repository -> receipt
 ```
 
-Параллельный генератор Monad и замена полного пакета на `directory + meta.ts`
+Параллельный генератор Oracle и замена полного пакета на `directory + meta.ts`
 не создаются. Canonical commit остаётся отдельной возможностью с решением
 владельца.
 

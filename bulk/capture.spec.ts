@@ -107,7 +107,7 @@ describe("Bulk observer viewport capture registry", () => {
     expect((await pending).ok).toBe(true)
   })
 
-  test("binds each live observer to its first Monad caller without a request grant", async () => {
+  test("binds each live observer to its first Oracle caller without a request grant", async () => {
     const registry = allowedRegistry()
     const owner = new Client("owner")
     const unrelated = new Client("unrelated")

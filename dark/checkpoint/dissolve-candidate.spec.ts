@@ -19,14 +19,12 @@ import {
   type MetaAddress,
   type Graph,
 } from "@metafor/types/metafor/graph"
+import {BOUNDARY_GRAPH_PROJECTION_METHOD} from "@metafor/types/boundary/runtime"
 import type {BulkRootPromotionReceipt} from "@metafor/types/bulk/manifest"
 import type {Particle} from "shared/protocol/force/particle"
-import {assembleGraphForRoot} from "../monad/graph.ts"
+import {assembleGraphForRoot} from "../oracle/graph.ts"
 import {DARK_DECLARATION_PROJECTION_METHOD} from "../graph.ts"
-import {
-  BOUNDARY_GRAPH_PROJECTION_METHOD,
-  readBoundaryGraphProjectionForRoot,
-} from "../../boundary/graph.ts"
+import {readBoundaryGraphProjectionForRoot} from "../../boundary/graph.ts"
 import {
   DetachedBoundaryDissolveCandidateStaging,
 } from "../../boundary/dissolve-candidate-staging.ts"

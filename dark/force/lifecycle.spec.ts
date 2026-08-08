@@ -386,7 +386,7 @@ describe("ForceLifecycle", () => {
     })
   })
 
-  test("accepts and sources the agent WIMP remove through the same Force Monad ingress", async () => {
+  test("accepts and sources the agent WIMP remove through the same Oracle-to-Force ingress", async () => {
     start()
 
     expect(await lifecycle.acceptAgentParticle(agentRemove(5))).toEqual({

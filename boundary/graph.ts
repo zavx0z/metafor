@@ -13,19 +13,12 @@ import type {
   BoundaryInitialDeclaration,
   BoundaryInitialProjectionEntry,
 } from "@metafor/types/boundary/initial"
+import type {BoundaryGraphProjection} from "@metafor/types/boundary/runtime"
 import {
   parseMetaRuntimeAtomPointer,
   type MetaRuntimeAtomLocator,
 } from "@metafor/types/metafor/observation"
 import type {BoundaryDatabase} from "./sqlite.ts"
-
-export const BOUNDARY_GRAPH_PROJECTION_METHOD = "boundary.graph.current.read" as const
-
-/** Boundary-owned current projection consumed by the stateless Monad assembler. */
-export interface BoundaryGraphProjection {
-  root: MetaAddress
-  runtime: Graph["runtime"]
-}
 
 type RecordValue = Record<string, unknown>
 type RuntimeKey = `atom/${number}` | `topology/${number}`

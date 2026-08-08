@@ -11,7 +11,7 @@ export type HudNodeViewDocument = {
 export type HudNodeViewAtom = {
   id: string
   title: string
-  /** Monad-supplied local panel coordinates; the HUD never computes topology. */
+  /** Oracle-supplied local panel coordinates; the HUD never computes topology. */
   x: number
   y: number
   width?: number

@@ -26,7 +26,7 @@ Energy и Bulk, а Matrix — последней. Meta автоматическ�
 заново; частичная горячая перезагрузка доменов не поддерживается.
 
 У contour один слушающий порт Dark. Boundary, Energy, Bulk и Matrix открывают к
-нему исходящие Monad и Force WebSocket и не поднимают собственных HTTP servers.
+нему исходящие Oracle и Force WebSocket и не поднимают собственных HTTP servers.
 По умолчанию используется `127.0.0.1:4000`; второй независимый contour
 запускается на другом единственном порту:
 
@@ -136,5 +136,5 @@ rm -rf "$tmpdir"
 является workspace и игнорируется внешним репозиторием MetaFor. Каждый
 `cluster/<owner>/<repository>` является независимым peer Git-репозиторием.
 Третьего сегмента и nested Meta repository нет; composition выполняется через
-Meta/Matter/Monad references. Оба вызова создают полный template, lockfile,
+Meta/Matter/Oracle references. Оба вызова создают полный template, lockfile,
 собственный Git и один `Initial commit`.

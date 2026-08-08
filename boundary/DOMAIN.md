@@ -281,7 +281,7 @@ global key ID, не создаёт Mass file и не изобретает даж
 identity и тот же evidence variant; поэтому valid absence отличается от
 corruption и участвует в обычной private manifest equality/CAS проверке.
 
-Этот proof не является live capability: он не exposed через Monad/Force,
+Этот proof не является live capability: он не exposed через Oracle/Force,
 не разрешает удаление Inference и не определяет activation lifecycle.
 Рекурсивное удаление и dissolve доказываются соседними, но раздельными тестами.
 
@@ -315,7 +315,7 @@ Stage table является Boundary-owned служебным состояни�
 SQLite integrity и checkpoint binding; collision, corruption или changed
 pre-state закрывают candidate.
 
-Candidate stage не экспортируется через Boundary/Monad/Force runtime. Он не
+Candidate stage не экспортируется через Boundary/Oracle/Force runtime. Он не
 разрешает activation, dissolve transaction, materialization, deletion,
 Energy fence/retarget, process lifecycle или source/root transition. Успешный
 и failed candidate не удаляются автоматически; retention/GC остаётся отдельным
@@ -331,7 +331,7 @@ binding, receipt и plan digests, текущие structural/Mass CAS и pre-Grap
 Успех обязан вернуть `BoundaryDissolveProof` и валидный post-Graph с Lada
 как root; исходный Inference Atom в candidate отсутствует, а сохранённые Lada
 Atom и всё её поддерево сохраняют identity и порядок. Это разрешение не
-распространяется на rollback copy, live Boundary, Monad/Force, Energy,
+распространяется на rollback copy, live Boundary, Oracle/Force, Energy,
 authored source или process lifecycle. Detached execution не является
 materialization либо activation live Universe.
 

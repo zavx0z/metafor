@@ -3,7 +3,7 @@ import type {BulkManifest} from "@metafor/types/bulk/manifest"
 import type {BulkRuntimeProjection} from "@metafor/types/bulk/runtime"
 import {BulkVisualSceneLifecycle} from "bulk/visual"
 import type {VisualLayoutInput} from "../src/internal/layout.ts"
-import snapshotJson from "../playground/fixture/monad-snapshot.json"
+import snapshotJson from "../playground/fixture/oracle-snapshot.json"
 
 /**
  * Test-only fixture: the real `zavx0z/lada` snapshot as complete layout input.

@@ -10,7 +10,7 @@
 - Bulk владеет общим semantic/persistent state и доменной
   согласованностью данных. Visual не принимает Graph либо snapshot мира
   как собственный вход и не хранит их.
-- Graph — отдельная on-demand read projection, которую собирает Dark Monad.
+- Graph — отдельная on-demand read projection, которую собирает Dark Oracle.
   Playground использует статичный полный `BulkObserverSnapshot` Лады и не
   читает live Bulk; эта fixture не является Graph.
 - Bulk выбирает, что показывать, какие product/UI elements составляют

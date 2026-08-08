@@ -14,7 +14,7 @@ Energy исполняет Process/Reaction и владеет локальным�
 
 ## Рождение
 
-`energy/server.ts` сначала открывает MonadChannel, читает
+`energy/server.ts` сначала открывает OracleChannel, читает
 `boundary.initialProjection.read` и гидратит `EnergyCatalogStore`. Только после
 этого он подключает обязательный `Force("energy")` channel. После рождения
 изменения catalog приходят по одному обычными Graviton; RPC на каждый claim нет.
@@ -26,7 +26,7 @@ Energy исполняет Process/Reaction и владеет локальным�
 * `reaction.ts` — Reaction execution;
 * `mass.ts` — filesystem catalog, атомарная запись и gated Mass handles;
 * `runtime.ts` — живые Energy-сущности и их release;
-* `monad.ts` — initial projection RPC;
+* `oracle.ts` — initial projection RPC;
 * `server.ts` — process lifecycle и transport wiring.
 
 Точные Process payload определены в
