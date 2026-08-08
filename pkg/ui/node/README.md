@@ -34,6 +34,17 @@ rendered stroke; edge одновременно становится толще. 
 линия сохраняет исходный цвет и выделяется только увеличенной толщиной.
 Карточка ноды, зарегистрированная позднее, сохраняет приоритет hit-testing.
 
+Surface принимает transient edge-message отдельно от serializable topology.
+Одно принятое сообщение создаёт одну частицу, которая равномерно проходит
+фактический rounded route по направлению source→target либо target→source.
+Хвост состоит из затухающих сегментов того же semantic edge color. Частицы не
+меняют document, layout, selection или persisted presentation state; кадры
+запрашиваются только до истечения последней частицы. Их meshes живут в
+retained presentation-layer: transforms и material uniforms меняются in-place,
+а декларативная сцена нод/текста/рёбер не пересобирается. Все particle shapes
+разделяют одну unit-plane geometry, поэтому peak concurrency не умножает
+одинаковые vertex/index GPU buffers.
+
 Card body и header используют отдельную умеренную opacity, поэтому рёбра и
 другие карточки остаются различимы под перекрытием. Прозрачность не применяется
 к typography, sockets и borders: она не должна превращать topology в бледный

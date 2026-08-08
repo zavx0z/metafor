@@ -1,3 +1,5 @@
+import "/core/traffic.js"
+
 let current = null
 
 self.addEventListener("message", async (event) => {

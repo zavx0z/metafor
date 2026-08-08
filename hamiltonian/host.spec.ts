@@ -158,9 +158,27 @@ describe("isolated Hamiltonian host", () => {
     const host = createHamiltonianHost({port: 0, token: "test-token", version: "v-test"})
     running.push(host)
 
-    const bootstrap = await fetch(host.server.url)
+    const localJoin = await fetch(host.server.url, {redirect: "manual"})
+    expect(localJoin.status).toBe(302)
+    const localJoinUrl = new URL(localJoin.headers.get("location")!, host.server.url)
+    expect(localJoinUrl.pathname).toBe("/")
+    expect(localJoinUrl.searchParams.get("token")).toBe("test-token")
+
+    const bootstrap = await fetch(localJoinUrl)
     expect(bootstrap.status).toBe(200)
-    expect(await bootstrap.text()).toContain("<title>Оркестрация Гамильтониана</title>")
+    const bootstrapPolicy = bootstrap.headers.get("content-security-policy") ?? ""
+    expect(bootstrapPolicy).toContain("connect-src 'self' ws: wss: data:")
+    expect(bootstrapPolicy).toContain("img-src 'self' data:")
+    const bootstrapSource = await bootstrap.text()
+    expect(bootstrapSource).toContain("<title>Оркестрация Гамильтониана</title>")
+    const trafficScriptIndex = bootstrapSource.indexOf('src="/core/traffic.js"')
+    expect(trafficScriptIndex).toBeGreaterThan(-1)
+    expect(trafficScriptIndex).toBeLessThan(bootstrapSource.indexOf('src="/app.js"'))
+    expect(trafficScriptIndex).toBeLessThan(bootstrapSource.indexOf('src="/orchestration.js"'))
+
+    const trafficBootstrap = await fetch(new URL("/core/traffic.js", host.server.url))
+    expect(trafficBootstrap.status).toBe(200)
+    expect(await trafficBootstrap.text()).toContain("metafor.hamiltonian.edge-traffic.v1")
 
     const unauthorized = await fetch(new URL("/manifest.json", host.server.url))
     expect(unauthorized.status).toBe(401)

@@ -24,6 +24,7 @@ export class PeerProcessSupervisor {
     error?: string,
     errorPeerId?: string | null,
   ) => void
+  readonly #onTraffic: (event: {direction: "forward" | "reverse"; messageClass: string}) => void
   #child: ReturnType<typeof Bun.spawn> | null = null
   #ready!: Promise<ReturnType<typeof Bun.spawn>>
   #resolveReady!: (child: ReturnType<typeof Bun.spawn>) => void
@@ -42,6 +43,7 @@ export class PeerProcessSupervisor {
   constructor({
     onSignal,
     onState = () => {},
+    onTraffic = () => {},
   }: {
     onSignal: (peerId: string, signal: PeerSignal) => void
     onState?: (
@@ -49,9 +51,11 @@ export class PeerProcessSupervisor {
       error?: string,
       errorPeerId?: string | null,
     ) => void
+    onTraffic?: (event: {direction: "forward" | "reverse"; messageClass: string}) => void
   }) {
     this.#onSignal = onSignal
     this.#onState = onState
+    this.#onTraffic = onTraffic
     this.#spawn("starting")
   }
 
@@ -105,6 +109,7 @@ export class PeerProcessSupervisor {
         Bun.sleep(250).then(() => null),
       ])
       if (online === child) child.send({kind: "stop"})
+      if (online === child) this.#onTraffic({direction: "forward", messageClass: "stop"})
     } catch {}
     const exited = await Promise.race([
       child.exited.then(() => true),
@@ -123,6 +128,12 @@ export class PeerProcessSupervisor {
       const child = await this.#ready
       if (child !== this.#child || this.#stopped) continue
       child.send(message)
+      this.#onTraffic({
+        direction: "forward",
+        messageClass: message && typeof message === "object" && "kind" in message && typeof message.kind === "string"
+          ? message.kind
+          : "unknown",
+      })
       return
     }
     throw new Error("peer process changed before IPC send")
@@ -191,6 +202,7 @@ export class PeerProcessSupervisor {
 
   #receive(child: ReturnType<typeof Bun.spawn>, message: ChildMessage): void {
     if (child !== this.#child) return
+    this.#onTraffic({direction: "reverse", messageClass: message?.kind ?? "unknown"})
     if (message?.kind === "online") {
       if (this.#startupTimer) {
         clearTimeout(this.#startupTimer)

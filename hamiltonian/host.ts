@@ -1,3 +1,10 @@
+import {
+  HAMILTONIAN_PEER_SUPERVISION_EDGE_ID,
+  HamiltonianTrafficSource,
+  hamiltonianControlWssEdgeId,
+  hamiltonianIpcEdgeId,
+  isHamiltonianTrafficEnvelope,
+} from "./core/traffic.js"
 import {networkInterfaces} from "node:os"
 import {fileURLToPath} from "node:url"
 import {
@@ -75,12 +82,20 @@ interface ClientPeerFailedMessage {
   reason: string
 }
 
+type HamiltonianTrafficEnvelope = ReturnType<HamiltonianTrafficSource["next"]>
+
+interface ClientTrafficMessage {
+  kind: "edge-traffic"
+  envelope: HamiltonianTrafficEnvelope
+}
+
 type ClientMessage =
   | ClientTabsMessage
   | ClientPongMessage
   | ClientIdentityMessage
   | ClientPeerSignalMessage
   | ClientPeerFailedMessage
+  | ClientTrafficMessage
 
 interface HostEvent {
   at: number
@@ -114,6 +129,14 @@ function parseClientMessage(value: string | Buffer): ClientMessage | null {
     return null
   }
   if (!parsed || typeof parsed !== "object" || !("kind" in parsed)) return null
+
+  if (
+    parsed.kind === "edge-traffic" &&
+    "envelope" in parsed &&
+    isHamiltonianTrafficEnvelope(parsed.envelope)
+  ) {
+    return {kind: "edge-traffic", envelope: parsed.envelope as ClientTrafficMessage["envelope"]}
+  }
 
   if (
     parsed.kind === "pong" &&
@@ -320,11 +343,12 @@ function staticResponse(pathname: string): Response | null {
     "/core/cache.js": {path: `${experimentRoot}/core/cache.js`, type: "text/javascript; charset=utf-8"},
     "/core/browser-control.js": {path: `${experimentRoot}/core/browser-control.js`, type: "text/javascript; charset=utf-8"},
     "/core/orchestration.js": {path: `${experimentRoot}/core/orchestration.js`, type: "text/javascript; charset=utf-8"},
+    "/core/traffic.js": {path: `${experimentRoot}/core/traffic.js`, type: "text/javascript; charset=utf-8"},
   }
   const entry = files[pathname]
   if (!entry) return null
   const headers = new Headers(securityHeaders(entry.type))
-  headers.set("content-security-policy", "default-src 'self'; connect-src 'self' ws: wss:; script-src 'self'; style-src 'self'; worker-src 'self' blob:; base-uri 'none'; frame-ancestors 'none'")
+  headers.set("content-security-policy", "default-src 'self'; connect-src 'self' ws: wss: data:; img-src 'self' data:; script-src 'self'; style-src 'self'; worker-src 'self' blob:; base-uri 'none'; frame-ancestors 'none'")
   if (pathname === "/sw.js") {
     headers.set("service-worker-allowed", "/")
     headers.set("cache-control", "no-cache")
@@ -385,6 +409,28 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
   }
   const source = moduleSource(version)
   const sourceHash = sha256Hex(source)
+  const hostTraffic = new HamiltonianTrafficSource(`host:${hostEpoch}`)
+  const broadcastTrafficEnvelope = (envelope: ClientTrafficMessage["envelope"]) => {
+    const payload = JSON.stringify({kind: "edge-traffic", envelope})
+    for (const observer of sockets.values()) {
+      if (observer.getBufferedAmount() <= 256_000) observer.send(payload)
+    }
+  }
+  const emitHostTraffic = (
+    edgeId: string,
+    direction: "forward" | "reverse",
+    messageClass: string,
+  ) => {
+    const envelope = hostTraffic.next({edgeId, direction, messageClass}) as ClientTrafficMessage["envelope"]
+    broadcastTrafficEnvelope(envelope)
+  }
+  const sendControl = (
+    socket: Bun.ServerWebSocket<SocketData>,
+    message: Readonly<{kind: string}> & Record<string, unknown>,
+  ) => {
+    socket.send(JSON.stringify(message))
+    emitHostTraffic(hamiltonianControlWssEdgeId(socket.data.connectionId), "forward", message.kind)
+  }
   const nodeSystemRouter = new LibavoidNodeSystemRouter()
   let orchestrationBundle: Promise<string> | null = null
   const getOrchestrationBundle = () => {
@@ -430,13 +476,16 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
   let peerRepairs = 0
   let stopping = false
   const peerSupervisor = new PeerProcessSupervisor({
+    onTraffic(event) {
+      emitHostTraffic(HAMILTONIAN_PEER_SUPERVISION_EDGE_ID, event.direction, event.messageClass)
+    },
     onSignal(peerId, signal) {
       const assignment = peerAssignment
       if (!assignment || assignment.peerId !== peerId) return
       const socket = sockets.get(assignment.connectionId)
       if (!socket || socket.getBufferedAmount() > 256_000) return
       signalingDown += 1
-      socket.send(JSON.stringify({
+      sendControl(socket, {
         kind: "peer-signal",
         peerId,
         sessionEpoch: assignment.sessionEpoch,
@@ -444,7 +493,7 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
         authorityKey: assignment.authorityKey,
         tabId: assignment.tabId,
         signal,
-      }))
+      })
     },
     onState(snapshot, error, errorPeerId) {
       peerSnapshot = snapshot
@@ -489,6 +538,7 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
   const bunEmbodiments = new BunEmbodimentSet(
     [serverMainRole, serverWorkerRole],
     () => broadcastTopology(),
+    (role, event) => emitHostTraffic(hamiltonianIpcEdgeId(role), event.direction, event.messageClass),
   )
   const hostState = () => ({
     identity,
@@ -618,6 +668,7 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
         continue
       }
       socket.send(payload)
+      emitHostTraffic(hamiltonianControlWssEdgeId(socket.data.connectionId), "forward", "topology")
     }
     schedulePeer(nextTopology.leader)
   }
@@ -698,6 +749,15 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
     ...tls,
     async fetch(request, bunServer) {
       const url = new URL(request.url)
+      if (
+        request.method === "GET" &&
+        url.pathname === "/" &&
+        !url.searchParams.has("token") &&
+        isLoopbackAddress(bunServer.requestIP(request)?.address)
+      ) {
+        url.searchParams.set("token", token)
+        return Response.redirect(url, 302)
+      }
       if (url.pathname === "/orchestration.js") {
         try {
           return new Response(await getOrchestrationBundle(), {
@@ -777,11 +837,11 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
         sockets.set(socket.data.connectionId, socket)
         topology.connect(socket.data.connectionId, socket.data.deviceId)
         record({at: Date.now(), kind: "connection-open", connectionId: socket.data.connectionId})
-        socket.send(JSON.stringify({
+        sendControl(socket, {
           kind: "hello",
           connectionId: socket.data.connectionId,
           host: hostState(),
-        }))
+        })
         broadcastTopology()
       },
       message(socket, rawMessage) {
@@ -797,6 +857,10 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
         if (!message) {
           socket.data.retainAuthorityOnClose = false
           socket.close(1008, "invalid control message")
+          return
+        }
+        if (message.kind === "edge-traffic") {
+          broadcastTrafficEnvelope(message.envelope)
           return
         }
         if (message.kind === "pong") {
@@ -929,7 +993,7 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
         continue
       }
       socket.data.lastChallengeSeq += 1
-      socket.send(JSON.stringify({kind: "ping", at: now, seq: socket.data.lastChallengeSeq}))
+      sendControl(socket, {kind: "ping", at: now, seq: socket.data.lastChallengeSeq})
     }
   }, heartbeatMs)
   const versionPayload = {version, source, sha256: sourceHash}
@@ -997,6 +1061,12 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
       return stopPromise
     },
   }
+}
+
+function isLoopbackAddress(address: string | undefined): boolean {
+  if (address === undefined) return false
+  return address === "::1" || address === "0:0:0:0:0:0:0:1" ||
+    address.startsWith("127.") || address.startsWith("::ffff:127.")
 }
 
 function advertisedHosts(hostname: string): string[] {

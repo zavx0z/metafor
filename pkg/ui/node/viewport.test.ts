@@ -164,4 +164,94 @@ describe("node-system viewport and surfaces", () => {
     surface.setLayout({...layout, revision: 2})
     expect(surface.hasMaterializedViewport).toBe(false)
   })
+
+  test("keeps concurrent edge messages distinct, rejects duplicates and exposes idle again", () => {
+    const counts: number[] = []
+    const surface = new NodeSystemSurface({onEdgeMessageCountChange: (count) => counts.push(count)})
+    const at = Date.now()
+    expect(surface.emitEdgeMessage({id: "source:1", edgeId: "link", direction: "forward", at})).toBeTrue()
+    expect(surface.emitEdgeMessage({id: "source:2", edgeId: "link", direction: "reverse", at})).toBeTrue()
+    expect(surface.emitEdgeMessage({id: "source:1", edgeId: "link", direction: "forward", at})).toBeFalse()
+    expect(surface.emitEdgeMessage({id: "expired", edgeId: "link", direction: "forward", at: at - 2_000})).toBeFalse()
+    expect(surface.activeEdgeMessageCount).toBe(2)
+    expect(counts).toEqual([1, 2])
+  })
+
+  test("requests one terminal clearing frame when the last edge particle expires", () => {
+    const originalNow = Date.now
+    const originalRequestAnimationFrame = globalThis.requestAnimationFrame
+    const originalCancelAnimationFrame = globalThis.cancelAnimationFrame
+    let now = 1_000
+    const scheduled: FrameRequestCallback[] = []
+
+    class CountingNodeSystemSurface extends NodeSystemSurface {
+      renderRequests = 0
+      presentationRequests = 0
+
+      override requestRender(): void {
+        this.renderRequests += 1
+      }
+
+      protected override requestPresentationFrame(): void {
+        this.presentationRequests += 1
+      }
+    }
+
+    try {
+      Date.now = () => now
+      globalThis.requestAnimationFrame = ((callback: FrameRequestCallback) => {
+        scheduled.push(callback)
+        return 1
+      }) as typeof requestAnimationFrame
+      globalThis.cancelAnimationFrame = (() => {}) as typeof cancelAnimationFrame
+
+      const surface = new CountingNodeSystemSurface()
+      expect(surface.emitEdgeMessage({id: "terminal", edgeId: "link", direction: "forward", at: now})).toBeTrue()
+      expect(surface.renderRequests).toBe(1)
+      expect(surface.presentationRequests).toBe(0)
+      expect(scheduled).toHaveLength(1)
+
+      now += 1_200
+      const terminalFrame = scheduled.shift()
+      terminalFrame?.(now)
+
+      expect(surface.activeEdgeMessageCount).toBe(0)
+      expect(surface.renderRequests).toBe(1)
+      expect(surface.presentationRequests).toBe(1)
+      expect(scheduled).toHaveLength(0)
+      surface.dispose()
+    } finally {
+      Date.now = originalNow
+      globalThis.requestAnimationFrame = originalRequestAnimationFrame
+      globalThis.cancelAnimationFrame = originalCancelAnimationFrame
+    }
+  })
+
+  test("drops transient traffic and cancels animation while its tab is hidden", () => {
+    const originalRequestAnimationFrame = globalThis.requestAnimationFrame
+    const originalCancelAnimationFrame = globalThis.cancelAnimationFrame
+    const cancelled: number[] = []
+
+    try {
+      globalThis.requestAnimationFrame = (() => 41) as typeof requestAnimationFrame
+      globalThis.cancelAnimationFrame = ((id: number) => cancelled.push(id)) as typeof cancelAnimationFrame
+
+      const counts: number[] = []
+      const surface = new NodeSystemSurface({onEdgeMessageCountChange: (count) => counts.push(count)})
+      const now = Date.now()
+      expect(surface.emitEdgeMessage({id: "visible", edgeId: "link", direction: "forward", at: now})).toBeTrue()
+      expect(surface.setEdgeAnimationEnabled(false)).toBeTrue()
+      expect(surface.edgeAnimationEnabled).toBeFalse()
+      expect(surface.activeEdgeMessageCount).toBe(0)
+      expect(cancelled).toEqual([41])
+      expect(counts).toEqual([1, 0])
+      expect(surface.emitEdgeMessage({id: "hidden", edgeId: "link", direction: "forward", at: now})).toBeFalse()
+      expect(surface.setEdgeAnimationEnabled(true)).toBeTrue()
+      expect(surface.edgeAnimationEnabled).toBeTrue()
+      surface.dispose()
+    } finally {
+      globalThis.requestAnimationFrame = originalRequestAnimationFrame
+      globalThis.cancelAnimationFrame = originalCancelAnimationFrame
+    }
+  })
 })

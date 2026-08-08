@@ -1,3 +1,9 @@
+import {
+  HAMILTONIAN_FORCE_EDGE_ID,
+  HAMILTONIAN_ORACLE_EDGE_ID,
+  emitHamiltonianTraffic,
+  hamiltonianMessagePortEdgeId,
+} from "/core/traffic.js"
 import {authorityKey, LogicalChannelSession, PeerProtocol} from "/core/runtime.js"
 import {disposeFailedWorker, isCurrentPeerGeneration} from "/core/browser-control.js"
 import {parseLocalHamiltonianWindowAction} from "/core/orchestration.js"
@@ -50,6 +56,7 @@ let leaseExpiresAt = 0
 let browserPeer = null
 let pendingPeerRepair = null
 let hostPlacement = "browser"
+let controlConnectionId = null
 const acceptedPeerGeneration = new Map()
 
 elements.secure.textContent = isSecureContext ? "yes" : "no"
@@ -68,9 +75,19 @@ function log(message, isError = false) {
 
 function send(message) {
   try {
-    port?.postMessage(message)
+    if (!port) return false
+    port.postMessage(message)
+    if (controlConnectionId && message?.kind !== "edge-traffic") {
+      emitHamiltonianTraffic({
+        edgeId: hamiltonianMessagePortEdgeId(controlConnectionId, tabId),
+        direction: "reverse",
+        messageClass: message?.kind,
+      })
+    }
+    return true
   } catch (error) {
     log(`page channel send failed: ${error.message}`, true)
+    return false
   }
 }
 
@@ -178,6 +195,11 @@ function activatePeerProtocol(peer) {
     sessionEpoch: peer.sessionEpoch,
     lanes: {oracle, force},
     onProtocolEvent: (event) => log(`peer protocol ${event.kind} on ${event.lane ?? "session"}`),
+    onTraffic: (event) => emitHamiltonianTraffic({
+      edgeId: event.lane === "oracle" ? HAMILTONIAN_ORACLE_EDGE_ID : HAMILTONIAN_FORCE_EDGE_ID,
+      direction: event.direction,
+      messageClass: event.messageClass,
+    }),
   })
   peer.protocol = new PeerProtocol(session)
   peer.protocol.onForce((event) => {
@@ -472,6 +494,7 @@ function receive(message) {
     return
   }
   if (message.kind === "worker-state") {
+    controlConnectionId = message.connectionId ?? null
     elements.socket.textContent = message.socket
     renderHost(message.host)
     if (message.socket !== "connected") {

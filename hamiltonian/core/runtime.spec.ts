@@ -207,6 +207,34 @@ describe("shared Hamiltonian core", () => {
     expect(pair.leftSession.stats().force.sent).toBe(1)
   })
 
+  test("reports a logical message only when its native DataChannel send or receive occurs", async () => {
+    const [leftOracle, rightOracle] = channelPair()
+    const [leftForce, rightForce] = channelPair()
+    const leftTraffic: unknown[] = []
+    const rightTraffic: unknown[] = []
+    const left = new LogicalChannelSession({
+      sessionEpoch: "traffic-session",
+      lanes: {oracle: leftOracle, force: leftForce},
+      onTraffic: (event: unknown) => leftTraffic.push(event),
+    })
+    new LogicalChannelSession({
+      sessionEpoch: "traffic-session",
+      lanes: {oracle: rightOracle, force: rightForce},
+      onTraffic: (event: unknown) => rightTraffic.push(event),
+    })
+    left.send("oracle", {type: "rpc.request", id: "one"})
+    left.send("force", {type: "force.event", sequence: 1})
+    await Bun.sleep(0)
+    expect(leftTraffic).toEqual([
+      {lane: "oracle", direction: "forward", messageClass: "rpc.request"},
+      {lane: "force", direction: "forward", messageClass: "force.event"},
+    ])
+    expect(rightTraffic).toEqual([
+      {lane: "oracle", direction: "reverse", messageClass: "rpc.request"},
+      {lane: "force", direction: "reverse", messageClass: "force.event"},
+    ])
+  })
+
   test("bounds backpressure independently without consuming a rejected sequence", async () => {
     const pair = protocolPair({highWaterMark: 1, maxQueuedMessagesPerLane: 1, maxQueuedBytesPerLane: 1_024})
     pair.channels.leftOracle.bufferedAmount = 10

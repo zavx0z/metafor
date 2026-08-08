@@ -1,3 +1,10 @@
+import {
+  emitHamiltonianTraffic,
+  hamiltonianBroadcastEdgeId,
+  hamiltonianControlWssEdgeId,
+  hamiltonianMessagePortEdgeId,
+  publishHamiltonianTrafficEnvelope,
+} from "/core/traffic.js"
 import {GenerationRegistry, ReconnectPolicy} from "/core/runtime.js"
 import {responseMatchesHash, sha256Hex, selectRetainedCaches} from "/core/cache.js"
 import {
@@ -41,6 +48,13 @@ self.addEventListener("activate", (event) => event.waitUntil((async () => {
 function tellWindow(window, message) {
   try {
     window.port.postMessage(message)
+    if (currentConnectionId && message?.kind !== "edge-traffic") {
+      emitHamiltonianTraffic({
+        edgeId: hamiltonianMessagePortEdgeId(currentConnectionId, window.tabId),
+        direction: "forward",
+        messageClass: message?.kind,
+      })
+    }
   } catch {
     windows.deleteIfCurrent(window.tabId, window)
   }
@@ -75,6 +89,15 @@ function publishOrchestration(reason, initialWindow = null) {
   })
   if (initialWindow) tellWindow(initialWindow, {kind: "orchestration-envelope", envelope})
   orchestrationChannel?.postMessage(envelope)
+  if (currentConnectionId) {
+    for (const window of windows.values()) {
+      emitHamiltonianTraffic({
+        edgeId: hamiltonianBroadcastEdgeId(currentConnectionId, window.tabId),
+        direction: "forward",
+        messageClass: "orchestration-envelope",
+      })
+    }
+  }
   return envelope
 }
 
@@ -86,6 +109,14 @@ function sendSocket(message) {
     return false
   }
   socket.send(JSON.stringify(message))
+  if (message?.kind !== "edge-traffic" && currentConnectionId) {
+    const envelope = emitHamiltonianTraffic({
+      edgeId: hamiltonianControlWssEdgeId(currentConnectionId),
+      direction: "reverse",
+      messageClass: message?.kind,
+    })
+    socket.send(JSON.stringify({kind: "edge-traffic", envelope}))
+  }
   return true
 }
 
@@ -164,6 +195,10 @@ function ensureSocket() {
       message = JSON.parse(event.data)
     } catch {
       openedSocket.close(1008, "invalid host message")
+      return
+    }
+    if (message.kind === "edge-traffic") {
+      publishHamiltonianTrafficEnvelope(message.envelope)
       return
     }
     if (message.kind === "ping") {

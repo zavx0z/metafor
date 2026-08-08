@@ -26,6 +26,7 @@ flowchart LR
     MF412["MF-412 · опыт Hamiltonian"]
     MF413["MF-413 · единая RPC-поверхность Oracle"]
     MF414["MF-414 · воплощения доменов"]
+    MF416["MF-416 · сообщения на рёбрах"]
     MTX001["MTX-001 · причинный порядок"]
     MTX002["MTX-002 · память"]
     MTX003["MTX-003 · структура и Process"]
@@ -99,6 +100,7 @@ Dark → Bulk wiring, DSL bootstrap и separate gates не входят в за�
 | MF-412  | REVIEW      | нет            | [Открыть](tasks/MF-412.md)  |
 | MF-413  | REVIEW      | нет            | [Открыть](tasks/MF-413.md)  |
 | MF-414  | READY       | MF-412, MF-413 | [Открыть](tasks/MF-414.md)  |
+| MF-416  | REVIEW      | нет            | [Открыть](tasks/MF-416.md)  |
 
 ## P2 — функциональное продолжение и надёжность
 

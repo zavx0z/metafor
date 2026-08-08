@@ -58,6 +58,7 @@ const childEntry = fileURLToPath(new URL("./embodiment-process.ts", import.meta.
 export class BunEmbodimentSupervisor {
   readonly role: string
   readonly #onChange: (snapshot: BunEmbodimentSnapshot) => void
+  readonly #onTraffic: (event: {direction: "forward" | "reverse"; messageClass: string}) => void
   #child: ReturnType<typeof Bun.spawn> | null = null
   #snapshot: BunEmbodimentSnapshot = {
     runtime: "bun-process",
@@ -73,9 +74,14 @@ export class BunEmbodimentSupervisor {
   #terminated = false
   #operations: Promise<void> = Promise.resolve()
 
-  constructor(role: string, onChange: (snapshot: BunEmbodimentSnapshot) => void = () => {}) {
+  constructor(
+    role: string,
+    onChange: (snapshot: BunEmbodimentSnapshot) => void = () => {},
+    onTraffic: (event: {direction: "forward" | "reverse"; messageClass: string}) => void = () => {},
+  ) {
     this.role = role
     this.#onChange = onChange
+    this.#onTraffic = onTraffic
     this.#snapshot = {...this.#snapshot, role}
   }
 
@@ -124,6 +130,7 @@ export class BunEmbodimentSupervisor {
         stderr: "pipe",
         ipc: (rawMessage) => {
           const message = rawMessage as ChildMessage
+          this.#onTraffic({direction: "reverse", messageClass: message?.kind ?? "unknown"})
           if (message?.kind === "error") {
             fail(new Error(message.error))
             return
@@ -179,6 +186,7 @@ export class BunEmbodimentSupervisor {
         }
       })
       child.send({kind: "birth", incarnation, role: this.role, ...payload})
+      this.#onTraffic({direction: "forward", messageClass: "birth"})
     })
   }
 
@@ -197,6 +205,7 @@ export class BunEmbodimentSupervisor {
     }
     this.#stopping = true
     child.send({kind: "stop"})
+    this.#onTraffic({direction: "forward", messageClass: "stop"})
     const exited = await Promise.race([
       child.exited.then(() => true),
       Bun.sleep(1_000).then(() => false),
@@ -228,10 +237,15 @@ export class BunEmbodimentSet {
   constructor(
     roles: string[],
     onChange: (snapshots: Record<string, BunEmbodimentSnapshot>) => void = () => {},
+    onTraffic: (role: string, event: {direction: "forward" | "reverse"; messageClass: string}) => void = () => {},
   ) {
     this.#supervisors = new Map(roles.map((role) => [
       role,
-      new BunEmbodimentSupervisor(role, () => onChange(this.snapshot())),
+      new BunEmbodimentSupervisor(
+        role,
+        () => onChange(this.snapshot()),
+        (event) => onTraffic(role, event),
+      ),
     ]))
   }
 

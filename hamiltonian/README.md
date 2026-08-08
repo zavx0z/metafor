@@ -86,6 +86,31 @@ RPC или Particle и не заменяет control WSS, Bun IPC либо пр�
 `revision` доступны диагностике как `data-hamiltonian-envelope-source` и
 `data-hamiltonian-envelope-revision`.
 
+### Живой поток сообщений
+
+Каждое фактически наблюдаемое сообщение на показанном канале рождает одно
+короткоживущее presentation-событие для соответствующего edge. В browser realm
+оно публикуется в отдельный versioned `BroadcastChannel` в самой ранней точке
+успешного send или принятого receive. Общий dependency-модуль создаёт этот
+канал до выполнения прикладного тела Window, Service Worker и Dedicated Worker.
+
+Bun process не разделяет browser-origin BroadcastChannel. Его IPC observation
+поэтому немедленно передаётся host через уже существующий process boundary,
+после чего Service Worker первым действием публикует минимальный envelope в
+browser channel. Envelope содержит только identity события, edge, направление,
+время и безопасный класс сообщения; payload, token, SDP/ICE, RPC params/result
+и Particle content не копируются. Сами observation envelopes повторно не
+наблюдаются, чтобы presentation не создавало рекурсивный трафик.
+
+Одно принятое событие рисуется одной движущейся частицей в направлении
+сообщения. Её градиентный хвост лежит на фактическом Bézier route и сохраняет
+semantic color edge. Render-on-demand временно запрашивает кадры только пока в
+сцене есть живые частицы; в покое постоянного animation loop нет. Частицы
+обновляются в retained presentation-layer и не пересобирают ноды, текст и
+рёбра на каждом кадре. Все головы и сегменты используют одну неизменяемую
+unit-геометрию, а attachment views полноэкранного WebGPU renderer переиспользуются
+между кадрами. При скрытии Window анимация и её кадры немедленно прекращаются.
+
 ## Общие законы опыта
 
 `core/runtime.js` не зависит от платформы и задаёт:
@@ -193,7 +218,8 @@ bunx tsc --ignoreConfig --noEmit --strict --module preserve \
 bun build public/app.js public/sw.js public/embodiment-worker.js \
   --outdir /tmp/hamiltonian-build-check --target browser \
   --external /core/runtime.js --external /core/cache.js \
-  --external /core/browser-control.js --external /core/orchestration.js
+  --external /core/browser-control.js --external /core/orchestration.js \
+  --external /core/traffic.js
 
 HAMILTONIAN_TOKEN=local-test \
   bun run soak/run.ts http://127.0.0.1:4400

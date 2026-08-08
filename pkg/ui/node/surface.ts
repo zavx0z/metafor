@@ -1,4 +1,4 @@
-import {Color} from "@metafor/engine"
+import {Color, Mesh, PlaneGeometry, RoundedRectMaterial} from "@metafor/engine"
 import {Typography} from "@ui/components"
 import {
   UiSurface,
@@ -25,6 +25,11 @@ import {
   type NodeSystemTextMeasurer,
 } from "./card-layout.ts"
 import {planNodeSystemEdgeHitRects, sampleNodeSystemBezierPath} from "./edge-curve.ts"
+import {
+  NODE_SYSTEM_EDGE_PARTICLE_DURATION_MS,
+  planNodeSystemEdgeParticle,
+  type NodeSystemEdgeMessage,
+} from "./edge-particle.ts"
 import {moveNodeSystemNodes, resizeNodeSystemNode} from "./incremental-layout.ts"
 import {
   DEFAULT_NODE_SYSTEM_VIEWPORT,
@@ -46,6 +51,7 @@ export type NodeSystemSurfaceOptions = UiSurfaceOpts & Readonly<{
   onNodeMove?: (event: NodeSystemNodeMoveEvent) => void
   onNodeResize?: (event: NodeSystemNodeResizeEvent) => void
   onViewportChange?: (viewport: NodeSystemViewport) => void
+  onEdgeMessageCountChange?: (count: number) => void
 }>
 
 export type NodeSystemNodeMoveEvent = Readonly<{
@@ -74,6 +80,22 @@ const EMPTY_LAYOUT: PositionedNodeSystem = Object.freeze({
 const HEADER_HEIGHT = 38
 const NODE_BODY_OPACITY = 0.72
 const NODE_HEADER_OPACITY = 0.8
+const EDGE_PARTICLE_TAIL_SEGMENTS = 12
+
+type RetainedParticleShape = Readonly<{
+  mesh: Mesh
+  material: RoundedRectMaterial
+}>
+
+type RetainedParticleVisual = Readonly<{
+  tail: readonly RetainedParticleShape[]
+  head: RetainedParticleShape
+}>
+
+type EdgeParticleRoute = Readonly<{
+  entry: PositionedNodeSystemEdge
+  stroke: readonly Readonly<{x: number; y: number}>[]
+}>
 
 /** WebGPU HUD surface for one already-positioned node system. */
 export class NodeSystemSurface extends UiSurface {
@@ -86,6 +108,7 @@ export class NodeSystemSurface extends UiSurface {
   readonly #onNodeMove: ((event: NodeSystemNodeMoveEvent) => void) | undefined
   readonly #onNodeResize: ((event: NodeSystemNodeResizeEvent) => void) | undefined
   readonly #onViewportChange: ((viewport: NodeSystemViewport) => void) | undefined
+  readonly #onEdgeMessageCountChange: ((count: number) => void) | undefined
   #layout: PositionedNodeSystem = EMPTY_LAYOUT
   #viewport: NodeSystemViewport = DEFAULT_NODE_SYSTEM_VIEWPORT
   #selectedNodeId: string | null = null
@@ -116,6 +139,13 @@ export class NodeSystemSurface extends UiSurface {
     currentY: number
     additive: boolean
   }> | null = null
+  #edgeMessages = new Map<string, NodeSystemEdgeMessage>()
+  #seenEdgeMessageIds = new Set<string>()
+  #particleFrameId: number | null = null
+  #edgeAnimationEnabled = true
+  #edgeParticleRoutes = new Map<string, EdgeParticleRoute>()
+  readonly #edgeParticleGeometry = new PlaneGeometry({width: 1, height: 1})
+  #particleVisuals: RetainedParticleVisual[] = []
 
   constructor(options: NodeSystemSurfaceOptions = {}) {
     super({
@@ -135,6 +165,7 @@ export class NodeSystemSurface extends UiSurface {
     this.#onNodeMove = options.onNodeMove
     this.#onNodeResize = options.onNodeResize
     this.#onViewportChange = options.onViewportChange
+    this.#onEdgeMessageCountChange = options.onEdgeMessageCountChange
     this.node.name = "NodeSystemSurface"
   }
 
@@ -160,6 +191,70 @@ export class NodeSystemSurface extends UiSurface {
 
   get toolbarVisible(): boolean {
     return this.#toolbar
+  }
+
+  get activeEdgeMessageCount(): number {
+    this.#pruneEdgeMessages(Date.now())
+    return this.#edgeMessages.size
+  }
+
+  get edgeAnimationEnabled(): boolean {
+    return this.#edgeAnimationEnabled
+  }
+
+  /** Number of retained visual slots allocated for the peak concurrent load. */
+  get retainedEdgeParticleVisualCount(): number {
+    return this.#particleVisuals.length
+  }
+
+  /** Suspends transient traffic rendering without pausing the owning topology. */
+  setEdgeAnimationEnabled(enabled: boolean): boolean {
+    if (this.#edgeAnimationEnabled === enabled) return false
+    this.#edgeAnimationEnabled = enabled
+    if (!enabled) {
+      if (this.#particleFrameId !== null && typeof cancelAnimationFrame === "function") {
+        cancelAnimationFrame(this.#particleFrameId)
+      }
+      this.#particleFrameId = null
+      const hadMessages = this.#edgeMessages.size > 0
+      this.#edgeMessages.clear()
+      this.#hideParticleVisuals()
+      if (hadMessages) this.#onEdgeMessageCountChange?.(0)
+      this.requestPresentationFrame()
+      return true
+    }
+    // Clear any retained terminal particle before accepting fresh traffic.
+    this.#updateParticleVisuals(Date.now())
+    this.requestPresentationFrame()
+    return true
+  }
+
+  /** Adds one already-observed transport message without mutating topology or layout. */
+  emitEdgeMessage(message: NodeSystemEdgeMessage): boolean {
+    const now = Date.now()
+    if (
+      !this.#edgeAnimationEnabled ||
+      !message.id || !message.edgeId ||
+      (message.direction !== "forward" && message.direction !== "reverse") ||
+      !Number.isFinite(message.at) ||
+      now - message.at >= NODE_SYSTEM_EDGE_PARTICLE_DURATION_MS ||
+      this.#seenEdgeMessageIds.has(message.id)
+    ) return false
+    this.#seenEdgeMessageIds.add(message.id)
+    if (this.#seenEdgeMessageIds.size > 2_048) {
+      const oldest = this.#seenEdgeMessageIds.values().next().value
+      if (oldest !== undefined) this.#seenEdgeMessageIds.delete(oldest)
+    }
+    this.#edgeMessages.set(message.id, Object.freeze({...message}))
+    this.#pruneEdgeMessages(now)
+    this.#onEdgeMessageCountChange?.(this.#edgeMessages.size)
+    if (this.#edgeParticleRoutes.size === 0) this.requestRender()
+    else {
+      this.#updateParticleVisuals(now)
+      this.requestPresentationFrame()
+    }
+    this.#ensureParticleAnimation()
+    return true
   }
 
   /** True only after the current layout has received a real fit or viewport. */
@@ -291,7 +386,15 @@ export class NodeSystemSurface extends UiSurface {
     try {
       const plan = this.renderPlan()
       this.#registerBackground(content)
-      for (const edge of plan.edges) drawEdge(this, edge, plan.viewport.scale)
+      this.#edgeParticleRoutes.clear()
+      for (const edge of plan.edges) {
+        const stroke = sampleNodeSystemBezierPath(edge.points, 10 * plan.viewport.scale, 6)
+        this.#edgeParticleRoutes.set(edge.edge.id, {entry: edge, stroke})
+        drawEdge(this, edge, plan.viewport.scale, stroke)
+      }
+      const now = Date.now()
+      this.#pruneEdgeMessages(now)
+      this.#updateParticleVisuals(now)
       for (const node of plan.nodes) this.#drawNode(node, plan.viewport.scale)
       this.#drawMarquee()
       if (plan.nodes.length === 0) {
@@ -323,6 +426,99 @@ export class NodeSystemSurface extends UiSurface {
     } finally {
       this.popClip()
     }
+  }
+
+  override dispose(): void {
+    if (this.#particleFrameId !== null && typeof cancelAnimationFrame === "function") {
+      cancelAnimationFrame(this.#particleFrameId)
+    }
+    this.#particleFrameId = null
+    this.#edgeMessages.clear()
+    this.#edgeParticleRoutes.clear()
+    this.#hideParticleVisuals()
+    super.dispose()
+  }
+
+  #pruneEdgeMessages(now: number): void {
+    const previousSize = this.#edgeMessages.size
+    for (const [id, message] of this.#edgeMessages) {
+      if (now - message.at >= NODE_SYSTEM_EDGE_PARTICLE_DURATION_MS) this.#edgeMessages.delete(id)
+    }
+    if (this.#edgeMessages.size !== previousSize) this.#onEdgeMessageCountChange?.(this.#edgeMessages.size)
+  }
+
+  #ensureParticleAnimation(): void {
+    if (
+      this.#particleFrameId !== null ||
+      !this.#edgeAnimationEnabled ||
+      this.#edgeMessages.size === 0 ||
+      typeof requestAnimationFrame !== "function"
+    ) return
+    this.#particleFrameId = requestAnimationFrame(() => {
+      this.#particleFrameId = null
+      this.#pruneEdgeMessages(Date.now())
+      // The terminal frame is as important as every movement frame: without
+      // it the retained canvas keeps showing the last particle position until
+      // some unrelated UI event invalidates the scene.
+      this.#updateParticleVisuals(Date.now())
+      this.requestPresentationFrame()
+      if (this.#edgeMessages.size === 0) return
+      this.#ensureParticleAnimation()
+    })
+  }
+
+  #updateParticleVisuals(now: number): void {
+    let visualIndex = 0
+    for (const message of this.#edgeMessages.values()) {
+      const route = this.#edgeParticleRoutes.get(message.edgeId)
+      if (route === undefined) continue
+      const particle = planNodeSystemEdgeParticle(
+        route.stroke,
+        message,
+        now,
+        NODE_SYSTEM_EDGE_PARTICLE_DURATION_MS,
+        undefined,
+        EDGE_PARTICLE_TAIL_SEGMENTS,
+      )
+      if (particle === null) continue
+      const visual = this.#particleVisuals[visualIndex] ?? this.#createParticleVisual()
+      updateParticleVisual(visual, particle, edgeColor(route.entry.edge.tone ?? "neutral"), this.pixelScale)
+      visualIndex += 1
+    }
+    for (let index = visualIndex; index < this.#particleVisuals.length; index += 1) {
+      setParticleVisualVisible(this.#particleVisuals[index]!, false)
+    }
+  }
+
+  #createParticleVisual(): RetainedParticleVisual {
+    const tail = Array.from({length: EDGE_PARTICLE_TAIL_SEGMENTS}, () => this.#createParticleShape())
+    const head = this.#createParticleShape(true)
+    const visual = {tail, head}
+    this.#particleVisuals.push(visual)
+    return visual
+  }
+
+  #createParticleShape(head = false): RetainedParticleShape {
+    const material = new RoundedRectMaterial({
+      width: 1,
+      height: 1,
+      radius: 0.5,
+      fill: palette.transparent,
+      border: head ? new Color(1, 1, 1, 0.72) : null,
+      borderWidth: 0,
+    })
+    // Every retained particle shape is a transformed unit quad. Sharing the
+    // immutable geometry keeps peak traffic concurrency from multiplying the
+    // same vertex/index GPU buffers for every head and tail segment.
+    const mesh = new Mesh(this.#edgeParticleGeometry, material)
+    mesh.visible = false
+    mesh.frustumCulled = false
+    this.addRetainedObject(mesh)
+    return {mesh, material}
+  }
+
+  #hideParticleVisuals(): void {
+    for (const visual of this.#particleVisuals) setParticleVisualVisible(visual, false)
   }
 
   #drawNode(entry: PositionedNodeSystemNode, scale: number): void {
@@ -707,10 +903,14 @@ function setsEqual<T>(left: ReadonlySet<T>, right: ReadonlySet<T>): boolean {
   return left.size === right.size && [...left].every((value) => right.has(value))
 }
 
-function drawEdge(host: UiSurface, entry: PositionedNodeSystemEdge, scale: number): void {
+function drawEdge(
+  host: UiSurface,
+  entry: PositionedNodeSystemEdge,
+  scale: number,
+  stroke: readonly Readonly<{x: number; y: number}>[],
+): void {
   const color = edgeColor(entry.edge.tone ?? "neutral")
   const thickness = Math.max(0.8, 1.6 * scale)
-  const stroke = sampleNodeSystemBezierPath(entry.points, 10 * scale, 6)
   const hitRects = planNodeSystemEdgeHitRects(stroke, Math.max(5, thickness * 2))
   const isHovered = hitRects.some((rect, index) => host.hitState(
     rect.x,
@@ -738,6 +938,97 @@ function drawEdge(host: UiSurface, entry: PositionedNodeSystemEdge, scale: numbe
       anchor: "cursor",
     })
   }
+}
+
+function updateParticleVisual(
+  visual: RetainedParticleVisual,
+  particle: NonNullable<ReturnType<typeof planNodeSystemEdgeParticle>>,
+  base: Color,
+  pixelScale: number,
+): void {
+  for (let index = 0; index < visual.tail.length; index += 1) {
+    const shape = visual.tail[index]!
+    const segment = particle.tail[index]
+    if (segment === undefined) {
+      shape.mesh.visible = false
+      continue
+    }
+    updateParticleSegment(
+      shape,
+      segment.from,
+      segment.to,
+      segment.thickness,
+      base,
+      base.a * segment.opacity,
+      pixelScale,
+      Z.ELEMENT_RULE + 0.006,
+    )
+  }
+
+  const radius = 3.8
+  const diameter = radius * 2 * pixelScale
+  const {mesh, material} = visual.head
+  mesh.visible = true
+  mesh.position.x = particle.head.x * pixelScale
+  mesh.position.y = -particle.head.y * pixelScale
+  mesh.position.z = Z.ELEMENT_RULE + 0.008
+  mesh.rotation.z = 0
+  mesh.scale.set(diameter, diameter, 1)
+  mesh.updateMatrix()
+  material.width = diameter
+  material.height = diameter
+  setUniformRadii(material, radius * pixelScale)
+  material.fill.setRGBA(base.r, base.g, base.b, 1)
+  material.border.setRGBA(1, 1, 1, 0.72)
+  material.borderWidth = 0.8 * pixelScale
+  material.opacity = 1
+}
+
+function updateParticleSegment(
+  shape: RetainedParticleShape,
+  from: Readonly<{x: number; y: number}>,
+  to: Readonly<{x: number; y: number}>,
+  thickness: number,
+  color: Color,
+  opacity: number,
+  pixelScale: number,
+  z: number,
+): void {
+  const dx = to.x - from.x
+  const dy = to.y - from.y
+  const length = Math.hypot(dx, dy)
+  if (length <= Number.EPSILON) {
+    shape.mesh.visible = false
+    return
+  }
+  const width = length * pixelScale
+  const height = thickness * pixelScale
+  shape.mesh.visible = true
+  shape.mesh.position.x = ((from.x + to.x) / 2) * pixelScale
+  shape.mesh.position.y = -((from.y + to.y) / 2) * pixelScale
+  shape.mesh.position.z = z
+  shape.mesh.rotation.z = -Math.atan2(dy, dx)
+  shape.mesh.scale.set(width, height, 1)
+  shape.mesh.updateMatrix()
+  shape.material.width = width
+  shape.material.height = height
+  setUniformRadii(shape.material, height / 2)
+  shape.material.fill.setRGBA(color.r, color.g, color.b, opacity)
+  shape.material.border.a = 0
+  shape.material.borderWidth = 0
+  shape.material.opacity = 1
+}
+
+function setUniformRadii(material: RoundedRectMaterial, radius: number): void {
+  material.radii[0] = radius
+  material.radii[1] = radius
+  material.radii[2] = radius
+  material.radii[3] = radius
+}
+
+function setParticleVisualVisible(visual: RetainedParticleVisual, visible: boolean): void {
+  for (const shape of visual.tail) shape.mesh.visible = visible
+  visual.head.mesh.visible = visible
 }
 
 function nodeBodyFill(selected: boolean): Color {

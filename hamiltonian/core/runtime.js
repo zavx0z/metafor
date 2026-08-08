@@ -8,7 +8,7 @@
  * @property {string} leaseId
  * @property {number} expiresAt
  */
-/** @typedef {{frame: string, bytes: number}} QueuedFrame */
+/** @typedef {{frame: string, bytes: number, messageClass: string}} QueuedFrame */
 /**
  * @typedef {object} LaneState
  * @property {any} channel
@@ -213,6 +213,8 @@ export class LogicalChannelSession {
   #handlers = new Map()
   /** @type {(event: ProtocolEvent) => unknown} */
   #protocolHandler
+  /** @type {(event: {lane: LogicalLane, direction: "forward" | "reverse", messageClass: string}) => unknown} */
+  #trafficHandler
   /** @type {Set<(reason: string) => unknown>} */
   #closeHandlers = new Set()
   #closed = false
@@ -226,6 +228,7 @@ export class LogicalChannelSession {
    * @param {number} [options.maxQueuedMessagesPerLane]
    * @param {number} [options.highWaterMark]
    * @param {(event: ProtocolEvent) => unknown} [options.onProtocolEvent]
+   * @param {(event: {lane: LogicalLane, direction: "forward" | "reverse", messageClass: string}) => unknown} [options.onTraffic]
    */
   constructor({
     sessionEpoch,
@@ -235,6 +238,7 @@ export class LogicalChannelSession {
     maxQueuedMessagesPerLane = 128,
     highWaterMark = 64 * 1024,
     onProtocolEvent = () => {},
+    onTraffic = () => {},
   }) {
     if (!sessionEpoch) throw new Error("sessionEpoch is required")
     this.#sessionEpoch = sessionEpoch
@@ -243,6 +247,7 @@ export class LogicalChannelSession {
     this.#maxQueuedMessages = maxQueuedMessagesPerLane
     this.#highWaterMark = highWaterMark
     this.#protocolHandler = onProtocolEvent
+    this.#trafficHandler = onTraffic
     this.#lanes = new Map()
 
     for (const lane of LOGICAL_LANES) {
@@ -291,10 +296,12 @@ export class LogicalChannelSession {
       payload,
     })
     const bytes = encoder.encode(frame).byteLength
+    const messageClass = logicalMessageClass(payload)
     if (bytes > this.#maxFrameBytes) throw new Error(`frame-too-large:${lane}`)
     if (state.channel.readyState === "open" && state.channel.bufferedAmount < this.#highWaterMark) {
       state.channel.send(frame)
       state.sendSeq = nextSequence
+      this.#trafficHandler({lane, direction: "forward", messageClass})
       return nextSequence
     }
     if (
@@ -303,7 +310,7 @@ export class LogicalChannelSession {
     ) {
       throw new Error(`backpressure-limit:${lane}`)
     }
-    state.queue.push({frame, bytes})
+    state.queue.push({frame, bytes, messageClass})
     state.queuedBytes += bytes
     state.sendSeq = nextSequence
     return nextSequence
@@ -347,6 +354,7 @@ export class LogicalChannelSession {
       if (!item) return
       state.queuedBytes -= item.bytes
       state.channel.send(item.frame)
+      this.#trafficHandler({lane, direction: "forward", messageClass: item.messageClass})
     }
   }
 
@@ -398,8 +406,20 @@ export class LogicalChannelSession {
       return
     }
     state.expectedSeq = frame.sequence + 1
+    this.#trafficHandler({
+      lane: physicalLane,
+      direction: "reverse",
+      messageClass: logicalMessageClass(frame.payload),
+    })
     for (const handler of this.#handlers.get(physicalLane) ?? []) handler(frame.payload, frame)
   }
+}
+
+/** @param {unknown} payload */
+function logicalMessageClass(payload) {
+  if (!payload || typeof payload !== "object") return "message"
+  const type = /** @type {{type?: unknown}} */ (payload).type
+  return typeof type === "string" && /^[A-Za-z0-9._:-]{1,64}$/.test(type) ? type : "message"
 }
 
 export class PeerProtocol {

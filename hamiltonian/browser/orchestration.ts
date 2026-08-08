@@ -1,3 +1,7 @@
+import {
+  HamiltonianTrafficEnvelopeCursor,
+  subscribeHamiltonianTraffic,
+} from "../core/traffic.js"
 import {UiRuntime, uiIcons, type UiSurfaceRect} from "@ui/elements"
 import {
   ElkNodeSystemLayouter,
@@ -67,6 +71,22 @@ const channel = typeof BroadcastChannel === "function"
   : null
 const pending: Array<{projection: Record<string, unknown>; revision: number}> = []
 let acceptProjection: ((projection: Record<string, unknown>, revision: number) => void) | null = null
+const trafficCursor = new HamiltonianTrafficEnvelopeCursor()
+type HamiltonianTrafficEnvelope = NonNullable<ReturnType<HamiltonianTrafficEnvelopeCursor["accept"]>>
+const pendingTraffic: Array<{envelope: HamiltonianTrafficEnvelope; receivedAt: number}> = []
+let acceptTraffic: ((envelope: HamiltonianTrafficEnvelope, receivedAt: number) => void) | null = null
+
+const unsubscribeTraffic = subscribeHamiltonianTraffic((value) => {
+  const envelope = trafficCursor.accept(value)
+  if (envelope === null) return
+  const receivedAt = Date.now()
+  if (acceptTraffic === null) {
+    pendingTraffic.push({envelope, receivedAt})
+    if (pendingTraffic.length > 256) pendingTraffic.splice(0, pendingTraffic.length - 256)
+    return
+  }
+  acceptTraffic(envelope, receivedAt)
+})
 
 function queueProjection(projection: Record<string, unknown>, revision: number): void {
   if (acceptProjection === null) {
@@ -182,7 +202,35 @@ async function start(): Promise<void> {
       persistObserverViewport(viewport)
       document.documentElement.dataset.hamiltonianViewport = "saved"
     },
+    onEdgeMessageCountChange(count) {
+      document.documentElement.dataset.hamiltonianTrafficActive = String(count)
+    },
   })
+  graph.setEdgeAnimationEnabled(document.visibilityState === "visible")
+  const synchronizeTrafficVisibility = () => {
+    graph.setEdgeAnimationEnabled(document.visibilityState === "visible")
+  }
+  document.addEventListener("visibilitychange", synchronizeTrafficVisibility)
+  let acceptedTraffic = 0
+  acceptTraffic = (envelope, receivedAt) => {
+    const accepted = graph.emitEdgeMessage({
+      id: `${envelope.sourceId}:${envelope.sequence}`,
+      edgeId: envelope.edgeId,
+      direction: envelope.direction,
+      at: receivedAt,
+      messageClass: envelope.messageClass,
+    })
+    if (!accepted) return
+    acceptedTraffic += 1
+    document.documentElement.dataset.hamiltonianTrafficAccepted = String(acceptedTraffic)
+    document.documentElement.dataset.hamiltonianTrafficVisualCapacity = String(
+      graph.retainedEdgeParticleVisualCount,
+    )
+    document.documentElement.dataset.hamiltonianTrafficLastEdge = envelope.edgeId
+    document.documentElement.dataset.hamiltonianTrafficLastDirection = envelope.direction
+    document.documentElement.dataset.hamiltonianTrafficLastClass = envelope.messageClass
+  }
+  for (const item of pendingTraffic.splice(0)) acceptTraffic(item.envelope, item.receivedAt)
   const layouter = new ElkNodeSystemLayouter({
     direction: "RIGHT",
     nodeSpacing: 52,
@@ -400,8 +448,10 @@ async function start(): Promise<void> {
   }
 
   window.addEventListener("pagehide", () => {
+    document.removeEventListener("visibilitychange", synchronizeTrafficVisibility)
     resizeObserver.disconnect()
     channel?.close()
+    unsubscribeTraffic()
     layouter.dispose()
     runtime.dispose()
   }, {once: true})

@@ -96,6 +96,10 @@ interface PreparedRenderLayer {
   uiObjects: RenderItem[]
 }
 
+function hasDirectRenderItems(layer: PreparedRenderLayer): boolean {
+  return layer.regularObjects.length > 0 || layer.glassObjects.length > 0 || layer.uiObjects.length > 0
+}
+
 export type RenderOverlay = Object3D & {
   updateForViewPoint?(viewPoint: ViewPoint): void
 }
@@ -153,7 +157,9 @@ export class Renderer {
 
   private geometryCache: Map<BufferGeometry, GeometryBuffers> = new Map()
   private depthTexture: GPUTexture | null = null
+  private depthTextureView: GPUTextureView | null = null
   private multisampleTexture: GPUTexture | null = null
+  private multisampleTextureView: GPUTextureView | null = null
   private presentedFrameTexture: GPUTexture | null = null
   private hasPresentedFrame = false
   private sampleCount = 4 // MSAA
@@ -1368,9 +1374,24 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
       )
     }
 
-    preparedLayers.forEach((layer, index) => {
-      this.renderPreparedLayer(commandEncoder, textureView, layer, renderIndexByItem, index === 0)
-    })
+    const directDrawLayers = preparedLayers.filter(hasDirectRenderItems)
+    if (directDrawLayers.length === 0) {
+      // Preserve background clearing even for a completely empty scene.
+      this.renderPreparedLayer(commandEncoder, textureView, preparedLayers[0]!, renderIndexByItem, true)
+    } else {
+      directDrawLayers.forEach((layer, index) => {
+        // An empty root layer used to consume a complete MSAA resolve pass only
+        // to clear the canvas. Clear in the first layer that actually draws.
+        this.renderPreparedLayer(
+          commandEncoder,
+          textureView,
+          layer,
+          renderIndexByItem,
+          index === 0,
+          preparedLayers[0]?.background,
+        )
+      })
+    }
     this.renderOverlayLines(
       commandEncoder,
       textureView,
@@ -1423,20 +1444,21 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     layer: PreparedRenderLayer,
     renderIndexByItem: ReadonlyMap<RenderItem, number>,
     clearColor: boolean,
+    clearValue?: GPUColor,
   ): void {
     const colorLoadOp: GPULoadOp = clearColor ? "clear" : "load"
     const renderPassDescriptor: GPURenderPassDescriptor = {
       colorAttachments: [
         {
-          view: this.multisampleTexture!.createView(),
+          view: this.multisampleTextureView!,
           resolveTarget: textureView,
           loadOp: colorLoadOp,
           storeOp: "store",
-          clearValue: layer.background ?? [0, 0, 0, 0],
+          clearValue: clearValue ?? layer.background ?? [0, 0, 0, 0],
         },
       ],
       depthStencilAttachment: {
-        view: this.depthTexture!.createView(),
+        view: this.depthTextureView!,
         depthClearValue: 1.0,
         depthLoadOp: "clear",
         depthStoreOp: "store",
@@ -2329,6 +2351,8 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
       this.depthTexture.height !== this.canvas.height
 
     if (needsResize) {
+      this.depthTextureView = null
+      this.multisampleTextureView = null
       if (this.depthTexture) this.depthTexture.destroy()
       if (this.multisampleTexture) this.multisampleTexture.destroy()
       if (this.presentedFrameTexture) this.presentedFrameTexture.destroy()
@@ -2349,6 +2373,11 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         usage: GPUTextureUsage.RENDER_ATTACHMENT,
         sampleCount: this.sampleCount,
       })
+      // These attachments outlive a frame. Reusing their views avoids two
+      // short-lived WebGPU wrappers per presentation and prevents external
+      // inspectors from accumulating them in long animated sessions.
+      this.depthTextureView = this.depthTexture.createView()
+      this.multisampleTextureView = this.multisampleTexture.createView()
 
       this.presentedFrameTexture = this.device.createTexture({
         size,

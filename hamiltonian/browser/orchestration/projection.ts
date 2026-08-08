@@ -6,6 +6,15 @@ import type {
   PositionedNodeSystem,
 } from "@ui/node"
 import {hamiltonianWindowNodeId} from "../../core/orchestration.js"
+import {
+  HAMILTONIAN_FORCE_EDGE_ID,
+  HAMILTONIAN_ORACLE_EDGE_ID,
+  HAMILTONIAN_PEER_SUPERVISION_EDGE_ID,
+  hamiltonianBroadcastEdgeId,
+  hamiltonianControlWssEdgeId,
+  hamiltonianIpcEdgeId,
+  hamiltonianMessagePortEdgeId,
+} from "../../core/traffic.js"
 
 export {hamiltonianWindowNodeId}
 
@@ -119,7 +128,7 @@ export function projectHamiltonianTopology(
       ],
     })
     edges.push(edge(
-      `control-wss:${safeId(connectionId)}`,
+      hamiltonianControlWssEdgeId(connectionId),
       listenerId,
       "control",
       controlId,
@@ -167,7 +176,7 @@ export function projectHamiltonianTopology(
         actions,
       })
       edges.push(edge(
-        `message-port:${safeId(connectionId)}:${safeId(tabId)}`,
+        hamiltonianMessagePortEdgeId(connectionId, tabId),
         controlId,
         "windows",
         windowId,
@@ -178,7 +187,7 @@ export function projectHamiltonianTopology(
       ))
       if (isLocalControl) {
         edges.push(edge(
-          `broadcast:${safeId(connectionId)}:${safeId(tabId)}`,
+          hamiltonianBroadcastEdgeId(connectionId, tabId),
           controlId,
           "broadcast",
           windowId,
@@ -208,7 +217,7 @@ export function projectHamiltonianTopology(
         {id: "incarnation", label: "Воплощение", value: compact(stringValue(snapshot.incarnation))},
       ],
     })
-    edges.push(edge(`ipc:${safeId(role)}`, hostId, "ipc", nodeId, "ipc", "Bun.spawn IPC", state === "ready" ? "live" : "paused", 70 + index))
+    edges.push(edge(hamiltonianIpcEdgeId(role), hostId, "ipc", nodeId, "ipc", "Bun.spawn IPC", state === "ready" ? "live" : "paused", 70 + index))
   }
 
   const assignment = host?.peer?.assignment
@@ -236,13 +245,13 @@ export function projectHamiltonianTopology(
         {id: "lanes", label: "Каналы", value: channels.map(localizeChannel).join(" + ") || "ожидание"},
       ],
     })
-    edges.push(edge("peer-supervision", hostId, "peer", peerNodeId, "supervision", "надзор Bun за пиром", "neutral", 100))
+    edges.push(edge(HAMILTONIAN_PEER_SUPERVISION_EDGE_ID, hostId, "peer", peerNodeId, "supervision", "надзор Bun за пиром", "neutral", 100))
     const leader = topology?.leader
     if (leader) {
       const leaderWindowId = hamiltonianWindowNodeId(stringValue(leader.deviceId), stringValue(leader.tabId))
       if (nodes.some((node) => node.id === leaderWindowId)) {
-        edges.push(edge("oracle-lane", leaderWindowId, "oracle", peerNodeId, "oracle", "Oracle · прямой RPC", channels.includes("oracle") ? "live" : "paused", 110))
-        edges.push(edge("force-lane", leaderWindowId, "force", peerNodeId, "force", "Force · прямые события", channels.includes("force") ? "live" : "paused", 111))
+        edges.push(edge(HAMILTONIAN_ORACLE_EDGE_ID, leaderWindowId, "oracle", peerNodeId, "oracle", "Oracle · прямой RPC", channels.includes("oracle") ? "live" : "paused", 110))
+        edges.push(edge(HAMILTONIAN_FORCE_EDGE_ID, leaderWindowId, "force", peerNodeId, "force", "Force · прямые события", channels.includes("force") ? "live" : "paused", 111))
       }
     }
   }

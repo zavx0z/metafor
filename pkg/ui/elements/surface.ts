@@ -348,6 +348,7 @@ export abstract class UiSurface implements UiSurfaceNode {
   readonly #selectionLayer: Object3D
   readonly #layer: Object3D
   readonly #overlayLayer: Object3D
+  readonly #retainedLayer: Object3D
   #drawLayer: UiSurfaceDrawLayer = "main"
   #framebufferDisplayId: UiDisplayId = "default"
   /** Padding в logical px (top, right, bottom, left). */
@@ -483,6 +484,14 @@ export abstract class UiSurface implements UiSurfaceNode {
     this.#overlayLayer.name = `${this.constructor.name}.overlayLayer`
     this.#overlayLayer.position.z = 0
     this.node.add(this.#overlayLayer)
+
+    // Objects in this layer are updated in place between presentation frames.
+    // They intentionally survive declarative surface redraws, avoiding GPU
+    // resource churn for short-lived animations.
+    this.#retainedLayer = new Object3D()
+    this.#retainedLayer.name = `${this.constructor.name}.retainedLayer`
+    this.#retainedLayer.position.z = 0
+    this.node.add(this.#retainedLayer)
   }
 
   attachCanvas(canvas: UiRuntime): void {
@@ -560,7 +569,7 @@ export abstract class UiSurface implements UiSurfaceNode {
     this.#screenOriginY = rect.y
     // Сдвигаем draw-слои на padLeft/padTop, чтобы локальные draw-координаты
     // [0..innerW] оказались в правильном месте canvas.
-    for (const layer of this.#contentLayers()) {
+    for (const layer of this.#positionedLayers()) {
       layer.position.x = this.#padLeft * pixelScale
       layer.position.y = -this.#padTop * pixelScale
       layer.updateMatrix()
@@ -637,6 +646,16 @@ export abstract class UiSurface implements UiSurfaceNode {
     }
     this.canvas?.requestRender()
     return true
+  }
+
+  /** Adds a retained object owned and updated by the subclass. */
+  protected addRetainedObject(object: Object3D): void {
+    this.#retainedLayer.add(object)
+  }
+
+  /** Presents current retained-object transforms without rebuilding the surface. */
+  protected requestPresentationFrame(): void {
+    this.canvas?.requestRender()
   }
 
   /** Subclass рисует контент. Вызывается ТОЛЬКО когда font установлен. */
@@ -1168,6 +1187,7 @@ export abstract class UiSurface implements UiSurfaceNode {
     this.#cancelPendingRerender()
     this.#cancelPendingLayerRerender()
     for (const layer of this.#contentLayers()) this.#clearLayer(layer)
+    this.#clearLayer(this.#retainedLayer)
     this.#clearLayer(this.#backgroundLayer)
   }
 
@@ -1290,6 +1310,10 @@ export abstract class UiSurface implements UiSurfaceNode {
 
   #contentLayers(): readonly Object3D[] {
     return [this.#underlayLayer, this.#contentUnderlayLayer, this.#selectionLayer, this.#layer, this.#overlayLayer]
+  }
+
+  #positionedLayers(): readonly Object3D[] {
+    return [...this.#contentLayers(), this.#retainedLayer]
   }
 
   #redrawRequestedLayers(): void {
