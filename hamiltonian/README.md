@@ -145,9 +145,17 @@ profile/origin, а не внутри incarnation Worker. Новый Worker и н
 Versioned module загружается с bearer token, проверяется по фактическим bytes
 через SHA-256 и кладётся в Cache Storage. При чтении cache bytes хешируются
 заново; одному заголовку доверия нет. Хранятся текущая и одна rollback-версия.
-Main получает новую версию только после настоящего page reload. Dedicated
-Worker и Bun process проходят cold rebirth: прежнее воплощение завершается до
-нового. Одинаковые source bytes и SHA-256 используются во всех оболочках.
+Активный main получает другую версию только после настоящего page reload.
+Follower без main может принять уже импортированный актуальный module и позже
+родить main без повторного reload из-за прежнего persisted fingerprint.
+Dedicated Worker и Bun process проходят cold rebirth: прежнее воплощение
+завершается до нового. Одинаковые source bytes и SHA-256 используются во всех
+оболочках.
+
+Встроенные SVG-иконки используют `data:` source и browser fallback через
+временный `blob:` URL. Поэтому CSP Hamiltonian разрешает `blob:` только в
+`img-src`; `script-src`, `connect-src` и остальные директивы этим не
+расширяются.
 
 ## Запуск
 
