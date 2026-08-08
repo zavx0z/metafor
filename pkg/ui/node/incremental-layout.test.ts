@@ -6,6 +6,7 @@ import type {
 } from "./model.ts"
 import {
   applyNodeSystemAnchors,
+  isNodeSystemRectVacant,
   moveNodeSystemNode,
   moveNodeSystemNodes,
   resizeNodeSystemNode,
@@ -53,7 +54,7 @@ describe("stable structural node-system updates", () => {
     const previous = layout([node("a", 40, 40, 0), node("b", 300, 40, 1)], 1)
     const proposed = layout([
       node("a", 80, 100, 0),
-      node("new", 40, 40, 1),
+      node("new", 170, 100, 1),
       node("b", 520, 100, 2),
     ], 2)
     const stable = stabilizeNodeSystemLayout(previous, proposed, {spacing: 24})
@@ -76,6 +77,37 @@ describe("stable structural node-system updates", () => {
     expect(stable.nodes.map(({node}) => node.id)).toEqual(["a", "b"])
     expect(stable.nodes.map(({rect}) => rect)).toEqual([previous.nodes[0]!.rect, previous.nodes[2]!.rect])
     expect(stable.edges[0]?.points).toEqual([{x: 140, y: 70}, {x: 320, y: 70}])
+  })
+
+  test("aligns an inserted node to the current position of its connected survivor", () => {
+    const previous = layout([node("a", 1_000, 700, 0)], 1)
+    const proposed = layout([node("a", 40, 40, 0), node("new", 180, 40, 1)], 2)
+    const stable = stabilizeNodeSystemLayout(previous, proposed)
+
+    expect(stable.nodes.map(({rect}) => ({x: rect.x, y: rect.y}))).toEqual([
+      {x: 1_000, y: 700},
+      {x: 1_140, y: 700},
+    ])
+  })
+
+  test("returns a reinserted node to its vacated relative slot", () => {
+    const initial = layout([node("a", 1_000, 700, 0), node("temporary", 1_140, 700, 1)], 1)
+    const removedProposal = layout([node("a", 40, 40, 0)], 2)
+    const removed = stabilizeNodeSystemLayout(initial, removedProposal)
+    const reinsertedProposal = layout([node("a", 40, 40, 0), node("temporary", 180, 40, 1)], 3)
+    const reinserted = stabilizeNodeSystemLayout(removed, reinsertedProposal)
+
+    expect(reinserted.nodes.map(({rect}) => ({x: rect.x, y: rect.y}))).toEqual([
+      {x: 1_000, y: 700},
+      {x: 1_140, y: 700},
+    ])
+  })
+
+  test("rejects a historical frame that would overlap the current scene", () => {
+    const current = layout([node("a", 40, 40, 0), node("returning", 300, 40, 1)], 1)
+
+    expect(isNodeSystemRectVacant(current, "returning", {x: 40, y: 40, w: 100, h: 60})).toBe(false)
+    expect(isNodeSystemRectVacant(current, "returning", {x: 180, y: 40, w: 100, h: 60}, {spacing: 24})).toBe(true)
   })
 
   test("moves exactly one card, its ports and connected edge endpoint", () => {

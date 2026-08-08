@@ -3,9 +3,10 @@ import {
   ElkNodeSystemLayouter,
   NodeInspectorSurface,
   NodeSystemSurface,
-  applyNodeSystemAnchors,
   createNodeSystemRouteRequest,
+  isNodeSystemRectVacant,
   measureNodeSystemCard,
+  moveNodeSystemNode,
   nodeSystemGeometryKey,
   parseNodeSystemRouteResponse,
   resizeNodeSystemNode,
@@ -110,7 +111,7 @@ async function start(): Promise<void> {
   let layout: PositionedNodeSystem | null = null
   let structureKey: string | null = null
   let updateGeneration = 0
-  let anchors = loadNodeAnchors()
+  let anchors: HamiltonianNodeGeometries = loadNodeAnchors()
   let restoredViewport = loadObserverViewport()
   const restoredInspector = loadObserverInspectorPresentation()
   let inspectorFrame: UiSurfaceRect | null = restoredInspector?.frame ?? null
@@ -271,23 +272,29 @@ async function start(): Promise<void> {
   for (const item of pending.splice(0)) acceptProjection(item.projection, item.revision)
 
   async function applyDocument(document: NodeSystemDocument, nextStructureKey: string, generation: number): Promise<void> {
-    const preserveViewport = layout !== null && graph.hasMaterializedViewport
+    const previousLayout = layout
+    const preserveViewport = previousLayout !== null && graph.hasMaterializedViewport
     const previousViewport = graph.viewport
     let nextLayout: PositionedNodeSystem
-    if (layout !== null && structureKey === nextStructureKey) {
-      nextLayout = refreshPositionedNodeSystem(layout, document)
+    if (previousLayout !== null && structureKey === nextStructureKey) {
+      nextLayout = refreshPositionedNodeSystem(previousLayout, document)
       // Persisted presentation geometry is an invariant, not only an initial
       // layout hint. Re-apply and reroute if any refresh ever drifts from it.
       if (hasHamiltonianNodeGeometryMismatch(nextLayout, anchors, graph)) {
-        nextLayout = await routeNodeSystemOnHost(applyHamiltonianNodeGeometries(nextLayout, anchors, graph))
+        nextLayout = await routeNodeSystemOnHost(applyHamiltonianNodeGeometries(nextLayout, anchors, graph).layout)
       }
     } else {
       const proposed = await layouter.layout(document)
-      const stable = layout === null ? proposed : stabilizeNodeSystemLayout(layout, proposed)
-      // An explicit user anchor wins over automatic insertion collision
-      // avoidance. Libavoid will route around the resulting fixed obstacle.
-      const fixed = applyHamiltonianNodeGeometries(stable, anchors, graph)
-      nextLayout = await routeNodeSystemOnHost(fixed)
+      const stable = previousLayout === null ? proposed : stabilizeNodeSystemLayout(previousLayout, proposed)
+      const insertedNodeIds = previousLayout === null
+        ? new Set<string>()
+        : new Set(proposed.nodes.flatMap(({node}) => previousLayout.nodes.some((entry) => entry.node.id === node.id) ? [] : [node.id]))
+      const applied = applyHamiltonianNodeGeometries(stable, anchors, graph, insertedNodeIds)
+      if (applied.relocated) {
+        anchors = applied.geometries
+        persistNodeAnchors(anchors)
+      }
+      nextLayout = await routeNodeSystemOnHost(applied.layout)
     }
     if (generation !== updateGeneration) return
     layout = nextLayout
@@ -467,16 +474,40 @@ function applyHamiltonianNodeGeometries(
   layout: PositionedNodeSystem,
   geometries: HamiltonianNodeGeometries,
   graph: NodeSystemSurface,
-): PositionedNodeSystem {
-  let result = applyNodeSystemAnchors(layout, geometries)
+  insertedNodeIds: ReadonlySet<string> = new Set(),
+): Readonly<{layout: PositionedNodeSystem; geometries: HamiltonianNodeGeometries; relocated: boolean}> {
+  let result = layout
+  let nextGeometries = geometries
+  let relocated = false
   for (const [nodeId, geometry] of [...geometries].sort(([left], [right]) => left.localeCompare(right))) {
-    if (geometry.width === undefined) continue
     const entry = result.nodes.find(({node}) => node.id === nodeId)
     if (entry === undefined) continue
     const minimum = measureNodeSystemCard(entry.node, graph.textMeasurer).width
-    result = resizeNodeSystemNode(result, nodeId, {x: geometry.x, w: Math.max(minimum, geometry.width)})
+    const width = Math.max(minimum, geometry.width ?? entry.rect.w)
+    const desired = {x: geometry.x, y: geometry.y, w: width, h: entry.rect.h}
+    if (insertedNodeIds.has(nodeId) && !isNodeSystemRectVacant(result, nodeId, desired, {spacing: 28})) {
+      const stable = {x: entry.rect.x, y: entry.rect.y, w: width, h: entry.rect.h}
+      if (isNodeSystemRectVacant(result, nodeId, stable, {spacing: 28})) {
+        result = resizeNodeSystemNode(result, nodeId, {x: stable.x, w: stable.w})
+        nextGeometries = withHamiltonianNodeGeometry(nextGeometries, nodeId, {
+          x: stable.x,
+          y: stable.y,
+          width: stable.w,
+        })
+      } else {
+        const mutable = new Map(nextGeometries)
+        mutable.delete(nodeId)
+        nextGeometries = mutable
+      }
+      relocated = true
+      continue
+    }
+    result = moveNodeSystemNode(result, nodeId, geometry)
+    if (geometry.width !== undefined) {
+      result = resizeNodeSystemNode(result, nodeId, {x: geometry.x, w: width})
+    }
   }
-  return result
+  return {layout: result, geometries: nextGeometries, relocated}
 }
 
 function hasHamiltonianNodeGeometryMismatch(

@@ -54,14 +54,12 @@ describe("Hamiltonian node projection", () => {
       "open-window",
       "rebirth-worker",
       "reload-main",
-      "reconnect",
       "reload",
     ])
     expect(current?.actions?.map((action) => action.label)).toEqual([
       "Открыть ещё одно окно",
       "Перезапустить выделенный воркер",
       "Перезапустить основной контур",
-      "Переподключить канал страницы",
       "Перезагрузить это окно",
     ])
     expect(current?.kind).toBe("выбранное основное воплощение")

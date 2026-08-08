@@ -17,9 +17,32 @@ export type StableNodeSystemLayoutOptions = Readonly<{
 
 export type NodeSystemAnchors = ReadonlyMap<string, NodeSystemPoint>
 
+/** Checks one proposed card frame against every other positioned card. */
+export function isNodeSystemRectVacant(
+  layout: PositionedNodeSystem,
+  nodeId: string,
+  rect: NodeSystemRect,
+  options: Pick<StableNodeSystemLayoutOptions, "spacing"> = {},
+): boolean {
+  validatePositionedNodeSystem(layout)
+  if (
+    !Number.isFinite(rect.x) || !Number.isFinite(rect.y) ||
+    !Number.isFinite(rect.w) || !Number.isFinite(rect.h) ||
+    rect.w <= 0 || rect.h <= 0
+  ) {
+    throw new Error(`Invalid node frame: ${nodeId}`)
+  }
+  const spacing = finiteNonNegative(options.spacing, 0)
+  return layout.nodes.every((entry) => entry.node.id === nodeId || !overlaps(rect, entry.rect, spacing))
+}
+
 /**
  * Keeps every surviving node anchored while accepting ELK geometry for new
- * nodes. Only an inserted node may be shifted to avoid an existing obstacle.
+ * nodes. The proposed layout is first aligned through an already positioned
+ * neighbour, so an inserted node keeps its ELK relationship to the current
+ * scene instead of appearing in the unrelated coordinate system of a fresh
+ * full-graph layout. Only an inserted node may then be shifted to avoid an
+ * existing obstacle.
  * Edge points are deliberately reduced to endpoints: the fixed geometry is
  * expected to be routed by Libavoid afterwards.
  */
@@ -33,6 +56,7 @@ export function stabilizeNodeSystemLayout(
   const spacing = finiteNonNegative(options.spacing, 28)
   const padding = finiteNonNegative(options.padding, 40)
   const previousById = new Map(previous.nodes.map((entry) => [entry.node.id, entry]))
+  const proposedById = new Map(proposed.nodes.map((entry) => [entry.node.id, entry]))
   const anchored = new Map<string, PositionedNodeSystemNode>()
   const inserted: PositionedNodeSystemNode[] = []
 
@@ -47,7 +71,8 @@ export function stabilizeNodeSystemLayout(
 
   const occupied = [...anchored.values()].map(({rect}) => rect)
   for (const candidate of inserted) {
-    const rect = firstVacantRect(candidate.rect, occupied, spacing)
+    const preferred = alignInsertedRect(candidate, proposedById, anchored, proposed.edges)
+    const rect = firstVacantRect(preferred, occupied, spacing)
     const positioned = translateNode(candidate, rect.x, rect.y)
     anchored.set(candidate.node.id, positioned)
     occupied.push(positioned.rect)
@@ -68,6 +93,51 @@ export function stabilizeNodeSystemLayout(
   }
   validatePositionedNodeSystem(result)
   return result
+}
+
+function alignInsertedRect(
+  candidate: PositionedNodeSystemNode,
+  proposedById: ReadonlyMap<string, PositionedNodeSystemNode>,
+  positioned: ReadonlyMap<string, PositionedNodeSystemNode>,
+  edges: readonly PositionedNodeSystemEdge[],
+): NodeSystemRect {
+  const connected = new Set<string>()
+  for (const {edge} of edges) {
+    if (edge.source.nodeId === candidate.node.id) connected.add(edge.target.nodeId)
+    if (edge.target.nodeId === candidate.node.id) connected.add(edge.source.nodeId)
+  }
+  const neighbourOffsets = alignmentOffsets(connected, proposedById, positioned)
+  const offsets = neighbourOffsets.length > 0
+    ? neighbourOffsets
+    : alignmentOffsets(positioned.keys(), proposedById, positioned)
+  if (offsets.length === 0) return candidate.rect
+  return {
+    ...candidate.rect,
+    x: candidate.rect.x + median(offsets.map(({x}) => x)),
+    y: candidate.rect.y + median(offsets.map(({y}) => y)),
+  }
+}
+
+function alignmentOffsets(
+  nodeIds: Iterable<string>,
+  proposedById: ReadonlyMap<string, PositionedNodeSystemNode>,
+  positioned: ReadonlyMap<string, PositionedNodeSystemNode>,
+): NodeSystemPoint[] {
+  const offsets: NodeSystemPoint[] = []
+  for (const nodeId of nodeIds) {
+    const proposed = proposedById.get(nodeId)
+    const actual = positioned.get(nodeId)
+    if (proposed === undefined || actual === undefined) continue
+    offsets.push({x: actual.rect.x - proposed.rect.x, y: actual.rect.y - proposed.rect.y})
+  }
+  return offsets
+}
+
+function median(values: readonly number[]): number {
+  const sorted = [...values].sort((left, right) => left - right)
+  const middle = Math.floor(sorted.length / 2)
+  if (sorted.length % 2 === 1) return sorted[middle]!
+  return (sorted[middle - 1]! + sorted[middle]!) / 2
 }
 
 /** Moves one fixed node and its ports without changing any other node. */

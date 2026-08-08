@@ -138,7 +138,6 @@ export function projectHamiltonianTopology(
         {id: "open-window", label: "Открыть ещё одно окно", tone: "neutral" as const},
         {id: "rebirth-worker", label: "Перезапустить выделенный воркер", tone: "paused" as const},
         ...(isLeader ? [{id: "reload-main", label: "Перезапустить основной контур", tone: "warn" as const}] : []),
-        {id: "reconnect", label: "Переподключить канал страницы", tone: "paused" as const},
         {id: "reload", label: "Перезагрузить это окно", tone: "neutral" as const},
       ] : []
       nodes.push({
