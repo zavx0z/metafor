@@ -1,13 +1,18 @@
-# MF-412 — изолированный опыт Hamiltonian
+# Hamiltonian
 
-Это standalone-стенд управляющего и peer-контура. Он намеренно не входит в
-root workspace, не импортирует домены, transport или shared-код MetaFor и не
-утверждает production-протокол.
+Это верхнеуровневый управляющий и peer-contour, выросший из изолированного
+опыта `MF-412`. Теперь он входит в root workspace и использует только
+presentation-пакеты MetaFor Engine/UI; production Dark, Boundary, Matrix,
+Energy и Bulk по-прежнему не подключены. Испытательный peer не утверждает
+production-протокол.
 
 ## Фактически собранная топология
 
-Подробная Mermaid-схема вынесена в
-[`TOPOLOGY.md`](TOPOLOGY.md), чтобы её было удобно отдельно открыть в WebStorm.
+Главное представление topology — живая интерактивная WebGPU HUD-сцена на
+стартовой странице. ELK первоначально расставляет фактические host, Service
+Worker, Window, Bun process и peer snapshots, а серверный Libavoid прокладывает
+рёбра вокруг фиксированных нод. Статическая
+[`TOPOLOGY.md`](TOPOLOGY.md) оставлена только как техническая справка.
 
 Физически host держит ровно один listener. Control WSS переносит только
 bootstrap-состояние, heartbeat, election и WebRTC signaling. Realtime payload
@@ -22,6 +27,46 @@ IPC. Bun Worker не используется. Дочерние процессы
 endpoints. Режимы placement взаимоисключающие: в `browser` Bun-роли называются
 `main-probe` и `worker-probe` и не получают authority; в `server` authority
 получает только Bun `main`, а Window leader не избирается.
+
+## Страница оркестрации
+
+`@ui/node` владеет только generic node/port/edge model, ELK layout, viewport,
+selection и WebGPU surfaces. Hamiltonian адаптирует собственные наблюдения в
+эту модель и добавляет только уже существующие lifecycle actions.
+
+Нодовая геометрия следует существующей Blender-derived дизайн-системе
+владельца, а не отдельному стилю Hamiltonian. MetaFor Engine сначала точно
+измеряет текст загруженного TrueType-шрифта, затем общий Flex plan определяет
+intrinsic card size и позиции sockets. ELK получает именно эту геометрию, а
+WebGPU рисует тот же plan. При первом snapshot ELK предлагает node positions.
+При добавлении или удалении нод surviving nodes остаются на прежних
+координатах, новый node получает свободную позицию из ELK proposal, после чего
+`POST /node-system/route` на том же единственном listener пересчитывает
+orthogonal edges через Libavoid. Telemetry-only update прежнего размера
+сохраняет всю geometry и viewport.
+
+Ноду можно перетащить непосредственно в сцене. Рамкой на пустом месте можно
+выделить несколько нод, после чего drag любой выбранной карточки перемещает
+всю группу одним изменением геометрии. Левую и правую границы карточки можно
+тянуть для изменения ширины с удержанием противоположного края. Карточки,
+sockets и connected endpoints меняются в graph coordinates сразу; на release
+Hamiltonian сохраняет positions и widths в origin-local browser storage и
+просит тот же listener повторно проложить рёбра. Renderer не заменяет
+obstacle-safe route одной свободной кривой: он скругляет каждый Libavoid
+waypoint локальным cubic Bézier segment.
+
+Pan/zoom viewport сохраняется отдельно в `sessionStorage` конкретной Window и
+восстанавливается после reload. Обычный drag пустого места строит selection
+rectangle; pan выполняется Alt-drag или средней/правой кнопкой. Поэтому разные
+вкладки могут иметь независимые точки наблюдения и не перезаписывают камеру
+друг друга.
+
+Service Worker публикует sanitised browser-local projection через versioned
+`BroadcastChannel`. Новая Window получает initial snapshot по прежнему
+направленному `MessagePort`, после чего сцена принимает live updates через
+BroadcastChannel. Эта шина не переносит token, resume capability, SDP/ICE,
+RPC или Particle и не заменяет control WSS, Bun IPC либо прямые
+`oracle`/`force` DataChannel.
 
 ## Общие законы опыта
 
@@ -66,7 +111,7 @@ Worker и Bun process проходят cold rebirth: прежнее воплощ
 Локально:
 
 ```bash
-cd /Users/zavx0z/repozitarium/metafor/experiments/hamiltonian
+cd /Users/zavx0z/repozitarium/metafor/hamiltonian
 HAMILTONIAN_TOKEN=local-test HAMILTONIAN_VERSION=v1 bun run start
 ```
 
@@ -91,7 +136,7 @@ authority envelope после этого отвергается лаборато
 сертификат на 30 дней создаются без изменения trust store Mac:
 
 ```bash
-cd /Users/zavx0z/repozitarium/metafor/experiments/hamiltonian
+cd /Users/zavx0z/repozitarium/metafor/hamiltonian
 bun run tls:create
 HAMILTONIAN_HOST=0.0.0.0 \
 HAMILTONIAN_PORT=4400 \
@@ -116,16 +161,21 @@ production identity/auth design: он хранится в browser storage и п�
 ## Проверки
 
 ```bash
-cd /Users/zavx0z/repozitarium/metafor/experiments/hamiltonian
+cd /Users/zavx0z/repozitarium/metafor/hamiltonian
 bun test
+cd /Users/zavx0z/repozitarium/metafor
+bun test pkg/ui/node hamiltonian/browser/orchestration
+bun run typecheck
+cd /Users/zavx0z/repozitarium/metafor/hamiltonian
 bunx tsc --ignoreConfig --noEmit --strict --module preserve \
-  --moduleResolution bundler --target es2022 --types bun \
+  --moduleResolution bundler --target es2022 --types bun,@webgpu/types \
   --allowImportingTsExtensions --allowJs --skipLibCheck \
+  ../types/module.d.ts ../pkg/ui/node/elk-worker-text.d.ts \
   types.d.ts *.ts peer/*.ts soak/*.ts
 bun build public/app.js public/sw.js public/embodiment-worker.js \
   --outdir /tmp/hamiltonian-build-check --target browser \
   --external /core/runtime.js --external /core/cache.js \
-  --external /core/browser-control.js
+  --external /core/browser-control.js --external /core/orchestration.js
 
 HAMILTONIAN_TOKEN=local-test \
   bun run soak/run.ts http://127.0.0.1:4400
@@ -138,9 +188,16 @@ logical lane, frame/queue backpressure, ordering/gap, RPC timeout/session loss,
 caller-driven RPC cancellation, WSS resume без смены logical authority, RTC
 repair с новой peer generation, stale session rejection, запрет realtime на
 WSS, browser/server placement и прямой Bun↔Bun WebRTC через `werift`.
+Отдельные `@ui/node` и orchestration fixtures проверяют ссылки node graph,
+детерминированный ELK placement, точные Flex/card metrics, сохранение
+координат surviving nodes при add/remove, Bun/WASM Libavoid routing,
+fit/pan/zoom/selection, drag/persisted anchors, Bézier rounding сохранённого
+route, разделение control WSS, BroadcastChannel и direct
+Oracle/Force lines, monotonic projection revision и сохранение geometry при
+telemetry-only update.
 
 Живая матрица и исходные JSON/screenshot находятся в
-[`project/artifacts/MF-412`](../../project/artifacts/MF-412/README.md). На
+[`project/artifacts/MF-412`](../project/artifacts/MF-412/README.md). На
 2026-08-08 проверены macOS Chrome, Yandex и Safari, Android Chrome и Yandex,
 несколько вкладок, handoff лидера, полный quit/reopen browser process,
 force-stop Android и screen-off.

@@ -1,0 +1,23 @@
+{
+  "name": "@ui/node",
+  "version": "0.0.1",
+  "description": "Transport-neutral node-system geometry, ELK placement, Libavoid routing and WebGPU UI surfaces.",
+  "type": "module",
+  "private": true,
+  "main": "index.ts",
+  "types": "index.ts",
+  "exports": {
+    ".": "./index.ts",
+    "./server": "./server.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit --pretty false"
+  },
+  "dependencies": {
+    "@metafor/engine": "workspace:*",
+    "@mr_mint/elkjs-libavoid": "0.5.0",
+    "@ui/components": "workspace:*",
+    "@ui/elements": "workspace:*",
+    "elkjs": "^0.11.1"
+  }
+}

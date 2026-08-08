@@ -1,8 +1,9 @@
-# Hamiltonian — текущая топология standalone-стенда
+# Hamiltonian — статическая техническая карта
 
-Это схема фактически реализованного `MF-412`, а не целевой production-топологии
-MetaFor. Hamiltonian показан как одно распределённое управляющее целое с Bun-,
-Service-Worker- и Window-воплощениями.
+Основное представление теперь находится на интерактивной WebGPU-странице
+Hamiltonian: она показывает фактический runtime и обновляется через отдельную
+browser-local orchestration projection. Эта Mermaid-схема остаётся справочной
+картой результата `MF-412`, а не целевой production-топологией MetaFor.
 
 ```mermaid
 flowchart TB
@@ -95,3 +96,7 @@ flowchart TB
   singleton-authority между разными браузерами и устройствами выдаёт Bun host.
 - `oracle` и `force` здесь являются названиями испытательных логических lane.
   Production-домены и их протоколы в стенд не импортированы.
+- Интерактивная сцена использует этот же listener для presentation-only
+  `POST /node-system/route`: ELK предлагает первоначальные node positions,
+  surviving nodes остаются фиксированными, а серверный Libavoid меняет только
+  edge routes. Это не Oracle RPC, Force stream и не второй server/port.

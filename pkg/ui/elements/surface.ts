@@ -122,6 +122,7 @@ export type WheelHitBox = {
 export type TooltipHit = {
   label: string
   delayMs: number
+  anchor?: "hit" | "cursor"
 }
 
 export type HitOptions = {
@@ -272,7 +273,16 @@ type PendingTooltipDraw = {
   w: number
   h: number
   label: string
+  anchor: "hit" | "cursor"
+  cursorX: number
+  cursorY: number
 }
+
+export type UiCursorTooltipPlacement = Readonly<{
+  x: number
+  y: number
+  side: "top" | "right" | "bottom" | "left"
+}>
 
 export const Z: {
   readonly CONTAINER: number
@@ -355,6 +365,8 @@ export abstract class UiSurface implements UiSurfaceNode {
   #hoverTooltipSince = 0
   #hoverTooltipDelayMs = 0
   #hoverTooltipTimer: ReturnType<typeof setTimeout> | null = null
+  #pointerX = 0
+  #pointerY = 0
   #pendingTooltipDraws: PendingTooltipDraw[] = []
   #backgroundImage: BackgroundImageOpts | null = null
   #rerenderRafId: UiFrameHandle | null = null
@@ -870,26 +882,47 @@ export abstract class UiSurface implements UiSurfaceNode {
     w: number,
     h: number,
     label: string,
-    opts: {delayMs?: number} = {},
+    opts: {delayMs?: number; anchor?: "hit" | "cursor"} = {},
   ): void {
     if (label.length === 0) return
     const delayMs = opts.delayMs ?? 450
     const key = tooltipKey(x, y, w, h, label)
     if (this.#hoverTooltipKey !== key) return
     if (performance.now() - this.#hoverTooltipSince < delayMs) return
-    this.#pendingTooltipDraws.push({x, y, w, h, label})
+    this.#pendingTooltipDraws.push({
+      x,
+      y,
+      w,
+      h,
+      label,
+      anchor: opts.anchor ?? "hit",
+      cursorX: this.#pointerX,
+      cursorY: this.#pointerY,
+    })
   }
 
-  #drawTooltipNow({x, y, w, h, label}: PendingTooltipDraw): void {
+  #drawTooltipNow({x, y, w, h, label, anchor, cursorX, cursorY}: PendingTooltipDraw): void {
     const fontPx = 11
     const padX = 9
     const tooltipH = 24
     const maxW = Math.min(220, Math.max(80, this.rectW - 12))
     const labelW = Math.min(maxW - padX * 2, Math.ceil(this.measureText(label, fontPx)))
     const tooltipW = labelW + padX * 2
-    const tx = Math.max(0, Math.min(this.rectW - tooltipW, x + w / 2 - tooltipW / 2))
-    const ty = y - tooltipH - 7
-    const tooltipY = this.#screenOriginY + ty < 4 ? y + h + 7 : ty
+    let tx: number
+    let tooltipY: number
+    if (anchor === "cursor") {
+      const placement = placeUiCursorTooltip(
+        {x: cursorX, y: cursorY},
+        {w: tooltipW, h: tooltipH},
+        {w: this.rectW, h: this.rectH},
+      )
+      tx = placement.x
+      tooltipY = placement.y
+    } else {
+      tx = Math.max(0, Math.min(this.rectW - tooltipW, x + w / 2 - tooltipW / 2))
+      const ty = y - tooltipH - 7
+      tooltipY = this.#screenOriginY + ty < 4 ? y + h + 7 : ty
+    }
     this.drawRoundedRect(tx, tooltipY, tooltipW, tooltipH, {
       radius: 7,
       fill: palette.bgElevated,
@@ -1053,6 +1086,8 @@ export abstract class UiSurface implements UiSurfaceNode {
 
   onPointerMove(_event: MouseEvent, localX: number, localY: number): void {
     if (this.canvas === null) return
+    this.#pointerX = localX - this.#padLeft
+    this.#pointerY = localY - this.#padTop
     if (this.pressedHit !== null) {
       this.pressedHit.onPointerMove?.(localX - this.#padLeft, localY - this.#padTop, _event)
       this.canvas.canvas.style.cursor = this.#cursorFor(this.pressedHit, true)
@@ -1583,6 +1618,33 @@ function textBlockPadding(opts: DrawTextBlockOpts): {top: number; right: number;
 
 function tooltipKey(x: number, y: number, w: number, h: number, label: string): string {
   return `${Math.round(x)}:${Math.round(y)}:${Math.round(w)}:${Math.round(h)}:${label}`
+}
+
+/** Default top, then right/bottom/left when the browser/surface edge blocks it. */
+export function placeUiCursorTooltip(
+  cursor: Readonly<{x: number; y: number}>,
+  tooltip: Readonly<{w: number; h: number}>,
+  bounds: Readonly<{w: number; h: number}>,
+  gap = 12,
+  margin = 4,
+): UiCursorTooltipPlacement {
+  const maxX = Math.max(margin, bounds.w - tooltip.w - margin)
+  const maxY = Math.max(margin, bounds.h - tooltip.h - margin)
+  const clampX = (value: number): number => Math.max(margin, Math.min(maxX, value))
+  const clampY = (value: number): number => Math.max(margin, Math.min(maxY, value))
+  if (cursor.y - gap - tooltip.h >= margin) {
+    return {x: clampX(cursor.x - tooltip.w / 2), y: cursor.y - gap - tooltip.h, side: "top"}
+  }
+  if (cursor.x + gap + tooltip.w <= bounds.w - margin) {
+    return {x: cursor.x + gap, y: clampY(cursor.y - tooltip.h / 2), side: "right"}
+  }
+  if (cursor.y + gap + tooltip.h <= bounds.h - margin) {
+    return {x: clampX(cursor.x - tooltip.w / 2), y: cursor.y + gap, side: "bottom"}
+  }
+  if (cursor.x - gap - tooltip.w >= margin) {
+    return {x: cursor.x - gap - tooltip.w, y: clampY(cursor.y - tooltip.h / 2), side: "left"}
+  }
+  return {x: clampX(cursor.x - tooltip.w / 2), y: clampY(cursor.y - gap - tooltip.h), side: "top"}
 }
 
 function hitKeyFor(x: number, y: number, w: number, h: number): string {

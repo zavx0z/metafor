@@ -3,14 +3,17 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Hamiltonian control-plane experiment</title>
+    <title>Hamiltonian orchestration</title>
     <link rel="stylesheet" href="/styles.css">
     <script type="module" src="/app.js"></script>
+    <script type="module" src="/orchestration.js"></script>
   </head>
   <body>
-    <main>
+    <canvas id="orchestration-canvas" aria-label="Interactive Hamiltonian infrastructure topology"></canvas>
+    <p id="orchestration-status" role="status">Loading orchestration scene…</p>
+    <main class="legacy-debug">
       <header>
-        <p class="eyebrow">MF-412 · isolated control plane</p>
+        <p class="eyebrow">MF-415 · orchestration fallback</p>
         <h1>Hamiltonian</h1>
         <p class="lede">One host listener, one Service Worker socket, many Window clients, one elected embodiment.</p>
       </header>

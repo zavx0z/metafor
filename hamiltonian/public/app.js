@@ -1,5 +1,6 @@
 import {authorityKey, LogicalChannelSession, PeerProtocol} from "/core/runtime.js"
 import {disposeFailedWorker, isCurrentPeerGeneration} from "/core/browser-control.js"
+import {createOrchestrationProjection} from "/core/orchestration.js"
 
 const elements = Object.fromEntries([
   "secure", "control", "socket", "role", "host", "version", "device",
@@ -49,6 +50,10 @@ let leaseExpiresAt = 0
 let browserPeer = null
 let pendingPeerRepair = null
 let hostPlacement = "browser"
+let initialSceneSent = false
+let sceneWorkerState = null
+let sceneHost = null
+let sceneTopology = null
 const acceptedPeerGeneration = new Map()
 
 elements.secure.textContent = isSecureContext ? "yes" : "no"
@@ -117,6 +122,22 @@ function renderTopology(nextTopology) {
   versionQueue = versionQueue
     .then(() => reconcileMain())
     .catch((error) => log(`main singleton reconciliation failed: ${error.message}`, true))
+}
+
+function publishInitialSceneProjection() {
+  if (initialSceneSent || !sceneWorkerState || !sceneHost || !sceneTopology) return
+  initialSceneSent = true
+  const initial = {
+    projection: createOrchestrationProjection(
+      sceneWorkerState,
+      sceneHost,
+      sceneTopology,
+      "window-initial-snapshot",
+    ),
+    revision: Number(sceneTopology.revision ?? 0),
+  }
+  window.__hamiltonianOrchestrationInitial = initial
+  window.dispatchEvent(new CustomEvent("hamiltonian-orchestration-initial", {detail: initial}))
 }
 
 function describeSnapshot(snapshot) {
@@ -462,16 +483,22 @@ function receive(message) {
   lastWorkerMessageAt = Date.now()
   if (!message || typeof message !== "object") return
   if (message.kind === "worker-state") {
+    sceneWorkerState = message
+    sceneHost = message.host ?? sceneHost
     elements.socket.textContent = message.socket
     renderHost(message.host)
+    publishInitialSceneProjection()
     if (message.socket !== "connected") {
       log(`control session unavailable; current authority remains valid until ${new Date(leaseExpiresAt).toLocaleTimeString()}`)
     }
     return
   }
   if (message.kind === "topology") {
+    sceneHost = message.host
+    sceneTopology = message.topology
     renderHost(message.host)
     renderTopology(message.topology)
+    publishInitialSceneProjection()
     return
   }
   if (message.kind === "version-ready") {
@@ -602,22 +629,42 @@ navigator.serviceWorker?.addEventListener("message", (event) => {
   if (event.data?.kind === "reattach-window") attachPageChannel(true)
 })
 
-document.getElementById("new-tab").addEventListener("click", () => window.open(location.href, "_blank", "noopener"))
-document.getElementById("rebirth-worker").addEventListener("click", () => {
-  if (!loadedVersion) return
-  versionQueue = versionQueue
-    .then(() => birthDedicatedWorker(loadedVersion))
-    .catch((error) => log(`Dedicated Worker rebirth failed: ${error.message}`, true))
-})
-document.getElementById("reload-main").addEventListener("click", () => {
-  if (!mainEmbodiment || !loadedVersion) {
-    log("Only the elected Window can rebirth the main realm", true)
+function runOrchestrationAction(actionId) {
+  if (actionId === "open-window") {
+    window.open(location.href, "_blank", "noopener")
     return
   }
-  sessionStorage.setItem("hamiltonian-main-reload-reason", "manual rebirth")
-  location.reload()
+  if (actionId === "rebirth-worker") {
+    if (!loadedVersion) return
+    versionQueue = versionQueue
+      .then(() => birthDedicatedWorker(loadedVersion))
+      .catch((error) => log(`Dedicated Worker rebirth failed: ${error.message}`, true))
+    return
+  }
+  if (actionId === "reload-main") {
+    if (!mainEmbodiment || !loadedVersion) {
+      log("Only the elected Window can rebirth the main realm", true)
+      return
+    }
+    sessionStorage.setItem("hamiltonian-main-reload-reason", "manual rebirth")
+    location.reload()
+    return
+  }
+  if (actionId === "reconnect") {
+    attachPageChannel(true)
+    return
+  }
+  if (actionId === "reload") location.reload()
+}
+
+document.getElementById("new-tab").addEventListener("click", () => runOrchestrationAction("open-window"))
+document.getElementById("rebirth-worker").addEventListener("click", () => runOrchestrationAction("rebirth-worker"))
+document.getElementById("reload-main").addEventListener("click", () => runOrchestrationAction("reload-main"))
+document.getElementById("reconnect").addEventListener("click", () => runOrchestrationAction("reconnect"))
+document.getElementById("reload").addEventListener("click", () => runOrchestrationAction("reload"))
+window.addEventListener("hamiltonian-orchestration-action", (event) => {
+  const actionId = event.detail?.actionId
+  if (typeof actionId === "string") runOrchestrationAction(actionId)
 })
-document.getElementById("reconnect").addEventListener("click", () => attachPageChannel(true))
-document.getElementById("reload").addEventListener("click", () => location.reload())
 
 void start()

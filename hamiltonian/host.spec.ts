@@ -1,4 +1,5 @@
 import {afterEach, describe, expect, test} from "bun:test"
+import {createNodeSystemRouteRequest, type PositionedNodeSystem} from "@ui/node"
 import {createHamiltonianHost} from "./host.ts"
 import {WeriftPeer, type PeerSignal} from "./peer/werift-peer.ts"
 
@@ -194,6 +195,59 @@ describe("isolated Hamiltonian host", () => {
     const browserSource = await browserBootstrap.text()
     expect(browserSource).toContain('channel.label !== "oracle"')
     expect(browserSource).toContain("lanes: {oracle, force}")
+
+    const serviceWorkerBootstrap = await fetch(new URL("/sw.js", host.server.url))
+    expect(serviceWorkerBootstrap.status).toBe(200)
+    expect(await serviceWorkerBootstrap.text()).toContain("HAMILTONIAN_ORCHESTRATION_CHANNEL")
+
+    const orchestrationContract = await fetch(new URL("/core/orchestration.js", host.server.url))
+    expect(orchestrationContract.status).toBe(200)
+    expect(await orchestrationContract.text()).toContain("metafor.hamiltonian.orchestration.v1")
+
+    const orchestrationBundle = await fetch(new URL("/orchestration.js", host.server.url))
+    expect(orchestrationBundle.status).toBe(200)
+    const orchestrationSource = await orchestrationBundle.text()
+    expect(orchestrationSource).toContain("HAMILTONIAN · LIVE ORCHESTRATION")
+    expect(orchestrationSource).toContain("BroadcastChannel · UI projection")
+    expect(orchestrationSource).toContain("struct GlobalUniforms")
+    expect(orchestrationSource).not.toContain("mesh_basic-")
+
+    const fixedLayout: PositionedNodeSystem = {
+      revision: "host-route:1",
+      bounds: {x: 0, y: 0, w: 400, h: 120},
+      nodes: [
+        {
+          node: {id: "source", title: "source", ports: [{id: "out", direction: "out"}]},
+          rect: {x: 0, y: 20, w: 80, h: 60},
+          ports: [{port: {id: "out", direction: "out"}, center: {x: 80, y: 50}}],
+        },
+        {node: {id: "obstacle", title: "obstacle"}, rect: {x: 140, y: 0, w: 80, h: 100}, ports: []},
+        {
+          node: {id: "target", title: "target", ports: [{id: "in", direction: "in"}]},
+          rect: {x: 280, y: 20, w: 80, h: 60},
+          ports: [{port: {id: "in", direction: "in"}, center: {x: 280, y: 50}}],
+        },
+      ],
+      edges: [{
+        edge: {id: "edge", source: {nodeId: "source", portId: "out"}, target: {nodeId: "target", portId: "in"}},
+        points: [{x: 80, y: 50}, {x: 280, y: 50}],
+      }],
+    }
+    const routedResponse = await fetch(new URL("/node-system/route", host.server.url), {
+      method: "POST",
+      headers: {"content-type": "application/json"},
+      body: JSON.stringify(createNodeSystemRouteRequest(fixedLayout)),
+    })
+    expect(routedResponse.status).toBe(200)
+    const routed = await routedResponse.json() as {kind: string; layout: PositionedNodeSystem}
+    expect(routed.kind).toBe("ui.node.libavoid.response.v1")
+    expect(routed.layout.nodes).toEqual(fixedLayout.nodes)
+    expect(routed.layout.edges[0]!.points.length).toBeGreaterThan(2)
+    expect((await fetch(new URL("/node-system/route", host.server.url))).status).toBe(405)
+
+    const uiFont = await fetch(new URL("/engine-static/JetBrainsMono-Bold.ttf", host.server.url))
+    expect(uiFont.status).toBe(200)
+    expect(uiFont.headers.get("content-type")).toBe("font/ttf")
 
     const bunEmbodiments = await host.bunReady
     const main = requireValue(bunEmbodiments["main-probe"], "main Bun lifecycle probe")

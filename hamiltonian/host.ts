@@ -1,6 +1,10 @@
 import {networkInterfaces} from "node:os"
 import {fileURLToPath} from "node:url"
 import {
+  LibavoidNodeSystemRouter,
+  parseAndRouteNodeSystem,
+} from "@ui/node/server"
+import {
   BunEmbodimentSet,
   type EmbodimentAuthority,
 } from "./bun-embodiment.ts"
@@ -87,6 +91,8 @@ interface HostEvent {
 
 const experimentRoot = fileURLToPath(new URL(".", import.meta.url))
 const publicRoot = `${experimentRoot}/public`
+const orchestrationEntry = `${experimentRoot}/browser/orchestration.ts`
+const engineFont = fileURLToPath(new URL("../pkg/engine/static/JetBrainsMono-Bold.ttf", import.meta.url))
 
 function safeEqual(left: string, right: string): boolean {
   const leftBytes = new TextEncoder().encode(left)
@@ -308,15 +314,17 @@ function staticResponse(pathname: string): Response | null {
     "/app.js": {path: `${publicRoot}/app.js`, type: "text/javascript; charset=utf-8"},
     "/embodiment-worker.js": {path: `${publicRoot}/embodiment-worker.js`, type: "text/javascript; charset=utf-8"},
     "/styles.css": {path: `${publicRoot}/styles.css`, type: "text/css; charset=utf-8"},
+    "/engine-static/JetBrainsMono-Bold.ttf": {path: engineFont, type: "font/ttf"},
     "/sw.js": {path: `${publicRoot}/sw.js`, type: "text/javascript; charset=utf-8"},
     "/core/runtime.js": {path: `${experimentRoot}/core/runtime.js`, type: "text/javascript; charset=utf-8"},
     "/core/cache.js": {path: `${experimentRoot}/core/cache.js`, type: "text/javascript; charset=utf-8"},
     "/core/browser-control.js": {path: `${experimentRoot}/core/browser-control.js`, type: "text/javascript; charset=utf-8"},
+    "/core/orchestration.js": {path: `${experimentRoot}/core/orchestration.js`, type: "text/javascript; charset=utf-8"},
   }
   const entry = files[pathname]
   if (!entry) return null
   const headers = new Headers(securityHeaders(entry.type))
-  headers.set("content-security-policy", "default-src 'self'; connect-src 'self' ws: wss:; script-src 'self'; style-src 'self'; base-uri 'none'; frame-ancestors 'none'")
+  headers.set("content-security-policy", "default-src 'self'; connect-src 'self' ws: wss:; script-src 'self'; style-src 'self'; worker-src 'self' blob:; base-uri 'none'; frame-ancestors 'none'")
   if (pathname === "/sw.js") {
     headers.set("service-worker-allowed", "/")
     headers.set("cache-control", "no-cache")
@@ -377,6 +385,25 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
   }
   const source = moduleSource(version)
   const sourceHash = sha256Hex(source)
+  const nodeSystemRouter = new LibavoidNodeSystemRouter()
+  let orchestrationBundle: Promise<string> | null = null
+  const getOrchestrationBundle = () => {
+    orchestrationBundle ??= Bun.build({
+      entrypoints: [orchestrationEntry],
+      target: "browser",
+      format: "esm",
+      loader: {".wgsl": "text"},
+      minify: false,
+      sourcemap: "inline",
+    }).then(async (result) => {
+      if (!result.success || result.outputs.length === 0) {
+        const detail = result.logs.map((log) => log.message).join("\n")
+        throw new Error(`Hamiltonian orchestration bundle failed${detail ? `: ${detail}` : ""}`)
+      }
+      return await result.outputs[0]!.text()
+    })
+    return orchestrationBundle
+  }
   let broadcastTopology = () => {}
   let peerSnapshot: WeriftPeerSnapshot | null = null
   let peerError: string | null = null
@@ -669,8 +696,34 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
     hostname,
     port,
     ...tls,
-    fetch(request, bunServer) {
+    async fetch(request, bunServer) {
       const url = new URL(request.url)
+      if (url.pathname === "/orchestration.js") {
+        try {
+          return new Response(await getOrchestrationBundle(), {
+            headers: securityHeaders("text/javascript; charset=utf-8"),
+          })
+        } catch (error) {
+          return new Response(error instanceof Error ? error.message : String(error), {status: 500})
+        }
+      }
+      if (url.pathname === "/node-system/route") {
+        if (request.method !== "POST") return new Response("Method not allowed", {status: 405})
+        const origin = request.headers.get("origin")
+        if (origin !== null && origin !== url.origin) return new Response("Cross-origin routing is forbidden", {status: 403})
+        const contentLength = Number(request.headers.get("content-length") ?? 0)
+        if (Number.isFinite(contentLength) && contentLength > 1024 * 1024) {
+          return new Response("Layout request is too large", {status: 413})
+        }
+        try {
+          const body = await request.text()
+          if (body.length > 1024 * 1024) return new Response("Layout request is too large", {status: 413})
+          const response = await parseAndRouteNodeSystem(nodeSystemRouter, JSON.parse(body))
+          return Response.json(response, {headers: securityHeaders("application/json; charset=utf-8")})
+        } catch (error) {
+          return new Response(error instanceof Error ? error.message : String(error), {status: 400})
+        }
+      }
       if (url.pathname === "/control") {
         const suppliedToken = url.searchParams.get("token") ?? ""
         const deviceId = url.searchParams.get("device") ?? ""

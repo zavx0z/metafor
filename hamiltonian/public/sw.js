@@ -5,6 +5,11 @@ import {
   isCurrentLeaderPeerControl,
   isCurrentWindowChannel,
 } from "/core/browser-control.js"
+import {
+  createOrchestrationEnvelope,
+  createOrchestrationProjection,
+  HAMILTONIAN_ORCHESTRATION_CHANNEL,
+} from "/core/orchestration.js"
 
 const windows = new GenerationRegistry()
 const MAX_SOCKET_BUFFER = 256_000
@@ -12,6 +17,10 @@ const WINDOW_TIMEOUT_MS = 7_000
 const MAX_VERSION_CACHES = 2
 const workerIncarnationId = crypto.randomUUID()
 const socketSlot = new ExclusiveResourceSlot()
+const orchestrationChannel = typeof BroadcastChannel === "function"
+  ? new BroadcastChannel(HAMILTONIAN_ORCHESTRATION_CHANNEL)
+  : null
+let orchestrationRevision = 0
 let reconnectTimer = null
 const reconnectPolicy = new ReconnectPolicy()
 let currentDeviceId = null
@@ -55,6 +64,16 @@ function workerState() {
     connectionId: currentConnectionId,
     host: currentHost,
   }
+}
+
+function publishOrchestration(reason) {
+  if (!orchestrationChannel) return
+  orchestrationRevision += 1
+  orchestrationChannel.postMessage(createOrchestrationEnvelope({
+    sourceId: workerIncarnationId,
+    revision: orchestrationRevision,
+    projection: createOrchestrationProjection(workerState(), currentHost, currentTopology, reason),
+  }))
 }
 
 function sendSocket(message) {
@@ -133,6 +152,7 @@ function ensureSocket() {
     sendSocket({kind: "identity", workerIncarnationId, resumeNonce: currentResumeNonce})
     emit("Service Worker control socket connected")
     tellAll(workerState())
+    publishOrchestration("control-open")
     void sendWindowSnapshot()
   })
   openedSocket.addEventListener("message", (event) => {
@@ -152,6 +172,7 @@ function ensureSocket() {
       currentConnectionId = message.connectionId ?? null
       currentHost = message.host
       tellAll(workerState())
+      publishOrchestration("host-hello")
       void prepareVersion(message.host.version)
       return
     }
@@ -159,6 +180,7 @@ function ensureSocket() {
       currentHost = message.host
       currentTopology = message.topology
       tellAll(message)
+      publishOrchestration("topology")
       return
     }
     if (message.kind === "peer-signal") {
@@ -171,6 +193,7 @@ function ensureSocket() {
     emit(`control socket closed (${event.code || "network"}); reconnect scheduled`)
     currentConnectionId = null
     tellAll(workerState())
+    publishOrchestration("control-close")
     scheduleReconnect()
   })
   openedSocket.addEventListener("error", () => {
@@ -298,6 +321,7 @@ async function connectWindow(message, port, clientId) {
   tellWindow(window, workerState())
   if (currentTopology) tellWindow(window, {kind: "topology", host: currentHost, topology: currentTopology})
   if (currentVersionState) tellWindow(window, currentVersionState)
+  publishOrchestration("window-attached")
   ensureSocket()
   void sendWindowSnapshot()
 }

@@ -28,11 +28,13 @@
     "bulk/strong",
     "bulk/weak",
     "dark/gravity",
+    "hamiltonian",
     "pkg/engine",
     "pkg/template",
     "pkg/ui/elements",
     "pkg/ui/components",
     "pkg/ui/hud",
+    "pkg/ui/node",
     "pkg/visual",
     "fixture",
     "create-metafor"
