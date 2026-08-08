@@ -43,9 +43,9 @@ export type HamiltonianOrchestrationContext = Readonly<{
 }>
 
 const hostPorts: readonly NodeSystemPort[] = [
-  {id: "listener", label: "listener", direction: "out"},
+  {id: "listener", label: "порт", direction: "out"},
   {id: "ipc", label: "IPC", direction: "out"},
-  {id: "peer", label: "peer", direction: "out"},
+  {id: "peer", label: "пир", direction: "out"},
 ]
 
 /** Turns the sanitised browser-local observation into a generic node document. */
@@ -64,34 +64,34 @@ export function projectHamiltonianTopology(
 
   nodes.push({
     id: hostId,
-    title: host?.identity || "Hamiltonian",
-    kind: "distributed coordinator",
+    title: localizeHostIdentity(host?.identity),
+    kind: "распределённый координатор",
     tone: host ? "live" : "paused",
     order: 0,
     ports: hostPorts,
     facts: [
-      {id: "version", label: "Version", value: host?.version || "waiting"},
-      {id: "placement", label: "Placement", value: host?.placement || "unknown"},
-      {id: "epoch", label: "Host epoch", value: compact(host?.hostEpoch)},
+      {id: "version", label: "Версия", value: host?.version || "ожидание"},
+      {id: "placement", label: "Размещение", value: localizeValue(host?.placement || "unknown")},
+      {id: "epoch", label: "Эпоха хоста", value: compact(host?.hostEpoch)},
     ],
   })
   nodes.push({
     id: listenerId,
-    title: "One fixed listener",
-    kind: "HTTP / control WSS",
+    title: "Единый внешний порт",
+    kind: "HTTP / управляющий WSS",
     tone: worker?.socket === "connected" ? "live" : "paused",
     order: 1,
     ports: [
-      {id: "host", direction: "in"},
-      {id: "control", direction: "out"},
+      {id: "host", label: "хост", direction: "in"},
+      {id: "control", label: "управление", direction: "out"},
     ],
     facts: [
-      {id: "origin", label: "Origin", value: context.origin},
-      {id: "path", label: "Control", value: "/control"},
-      {id: "socket", label: "Local socket", value: worker?.socket || "waiting"},
+      {id: "origin", label: "Адрес", value: context.origin},
+      {id: "path", label: "Управление", value: "/control"},
+      {id: "socket", label: "Локальный сокет", value: localizeValue(worker?.socket || "waiting")},
     ],
   })
-  edges.push(edge("host-listener", hostId, "listener", listenerId, "host", "owns fixed port", "neutral", 0))
+  edges.push(edge("host-listener", hostId, "listener", listenerId, "host", "владеет фиксированным портом", "neutral", 0))
 
   const peers = topology?.peers ?? []
   for (const [peerIndex, peer] of peers.entries()) {
@@ -100,19 +100,19 @@ export function projectHamiltonianTopology(
     const isLocalControl = connectionId === worker?.connectionId
     nodes.push({
       id: controlId,
-      title: isLocalControl ? "Service Worker" : "Browser profile",
-      kind: "browser control facet",
+      title: isLocalControl ? "Сервис-воркер" : "Профиль браузера",
+      kind: "контур управления браузером",
       tone: isLocalControl && worker?.socket !== "connected" ? "paused" : "live",
       order: 10 + peerIndex,
       ports: [
-        {id: "wss", direction: "in"},
-        {id: "windows", direction: "out"},
-        {id: "broadcast", direction: "out"},
+        {id: "wss", label: "WSS", direction: "in"},
+        {id: "windows", label: "окна", direction: "out"},
+        {id: "broadcast", label: "трансляция", direction: "out"},
       ],
       facts: [
-        {id: "device", label: "Device", value: compact(peer.deviceId)},
-        {id: "connection", label: "Connection", value: compact(connectionId)},
-        ...(isLocalControl ? [{id: "worker", label: "SW incarnation", value: compact(worker?.incarnationId)}] : []),
+        {id: "device", label: "Устройство", value: compact(peer.deviceId)},
+        {id: "connection", label: "Соединение", value: compact(connectionId)},
+        ...(isLocalControl ? [{id: "worker", label: "Воплощение сервис-воркера", value: compact(worker?.incarnationId)}] : []),
       ],
     })
     edges.push(edge(
@@ -121,43 +121,43 @@ export function projectHamiltonianTopology(
       "control",
       controlId,
       "wss",
-      "control WSS",
+      "управляющий WSS",
       isLocalControl && worker?.socket !== "connected" ? "paused" : "live",
       10 + peerIndex,
     ))
 
     for (const [windowIndex, candidate] of (peer.windows ?? []).entries()) {
       const tabId = stringValue(candidate.tabId) || `unknown-${windowIndex}`
-      const windowId = windowNodeId(peer.deviceId || "unknown", tabId)
+      const windowId = hamiltonianWindowNodeId(peer.deviceId || "unknown", tabId)
       const isLeader = sameLeader(topology?.leader, connectionId, tabId)
       const isLocal = peer.deviceId === context.deviceId && tabId === context.tabId
       const actions = isLocal ? [
-        {id: "open-window", label: "Open another Window", tone: "neutral" as const},
-        {id: "rebirth-worker", label: "Rebirth Dedicated Worker", tone: "paused" as const},
-        ...(isLeader ? [{id: "reload-main", label: "Rebirth main realm", tone: "warn" as const}] : []),
-        {id: "reconnect", label: "Reconnect page channel", tone: "paused" as const},
-        {id: "reload", label: "Reload this Window", tone: "neutral" as const},
+        {id: "open-window", label: "Открыть ещё одно окно", tone: "neutral" as const},
+        {id: "rebirth-worker", label: "Перезапустить выделенный воркер", tone: "paused" as const},
+        ...(isLeader ? [{id: "reload-main", label: "Перезапустить основной контур", tone: "warn" as const}] : []),
+        {id: "reconnect", label: "Переподключить канал страницы", tone: "paused" as const},
+        {id: "reload", label: "Перезагрузить это окно", tone: "neutral" as const},
       ] : []
       nodes.push({
         id: windowId,
-        title: isLocal ? "This Window" : `Window ${compact(tabId)}`,
-        kind: isLeader ? "elected main embodiment" : "observer Window",
-        ...(isLocal ? {summary: "Current browser Window and its lifecycle actions"} : {}),
+        title: isLocal ? "Это окно" : `Окно ${compact(tabId)}`,
+        kind: isLeader ? "выбранное основное воплощение" : "окно наблюдателя",
+        ...(isLocal ? {summary: "Текущее окно браузера и управление его жизненным циклом"} : {}),
         tone: isLeader ? "live" : candidate.visible === true ? "neutral" : "paused",
         order: 30 + peerIndex * 20 + windowIndex,
         ports: [
-          {id: "message", direction: "in"},
-          {id: "broadcast", direction: "in"},
+          {id: "message", label: "сообщения", direction: "in"},
+          {id: "broadcast", label: "трансляция", direction: "in"},
           {id: "oracle", label: "Oracle", direction: "out"},
           {id: "force", label: "Force", direction: "out"},
         ],
         facts: [
-          {id: "tab", label: "Window", value: compact(tabId)},
-          {id: "visibility", label: "Visibility", value: candidate.visible === true ? "visible" : "background"},
-          {id: "role", label: "Role", value: isLeader ? "leader" : "follower", tone: isLeader ? "live" : "neutral"},
+          {id: "tab", label: "Окно", value: compact(tabId)},
+          {id: "visibility", label: "Видимость", value: candidate.visible === true ? "видимое" : "фоновое"},
+          {id: "role", label: "Роль", value: isLeader ? "лидер" : "ведомое", tone: isLeader ? "live" : "neutral"},
           ...(isLeader ? [{
             id: "fence",
-            label: "Fence",
+            label: "Токен защиты",
             value: String(numberValue(topology?.leader?.fencingToken)),
             tone: "live" as const,
           }] : []),
@@ -181,7 +181,7 @@ export function projectHamiltonianTopology(
           "broadcast",
           windowId,
           "broadcast",
-          "BroadcastChannel · UI projection",
+          "BroadcastChannel · UI-проекция",
           "live",
           40 + windowIndex,
         ))
@@ -195,15 +195,15 @@ export function projectHamiltonianTopology(
     const state = stringValue(snapshot.state)
     nodes.push({
       id: nodeId,
-      title: role,
-      kind: "Bun OS process",
+      title: localizeBunRole(role),
+      kind: "процесс Bun в ОС",
       tone: state === "ready" ? "live" : state === "error" ? "warn" : "paused",
       order: 70 + index,
       ports: [{id: "ipc", direction: "in"}],
       facts: [
-        {id: "state", label: "State", value: state || "unknown"},
+        {id: "state", label: "Состояние", value: localizeValue(state || "unknown")},
         {id: "pid", label: "PID", value: nullableValue(snapshot.pid)},
-        {id: "incarnation", label: "Incarnation", value: compact(stringValue(snapshot.incarnation))},
+        {id: "incarnation", label: "Воплощение", value: compact(stringValue(snapshot.incarnation))},
       ],
     })
     edges.push(edge(`ipc:${safeId(role)}`, hostId, "ipc", nodeId, "ipc", "Bun.spawn IPC", state === "ready" ? "live" : "paused", 70 + index))
@@ -218,29 +218,29 @@ export function projectHamiltonianTopology(
     const channels = Array.isArray(peerSnapshot?.channels) ? peerSnapshot.channels.map(String) : []
     nodes.push({
       id: peerNodeId,
-      title: "Direct peer carrier",
+      title: "Прямой пиринговый канал",
       kind: "RTCPeerConnection",
       tone: peerState === "connected" ? "live" : host?.peer?.error ? "warn" : "paused",
       order: 100,
       ports: [
-        {id: "supervision", direction: "in"},
+        {id: "supervision", label: "надзор", direction: "in"},
         {id: "oracle", label: "Oracle", direction: "in"},
         {id: "force", label: "Force", direction: "in"},
       ],
       facts: [
-        {id: "state", label: "State", value: peerState || "negotiating"},
-        {id: "session", label: "Session", value: compact(stringValue(assignment.sessionEpoch))},
-        {id: "generation", label: "Generation", value: String(numberValue(assignment.peerGeneration))},
-        {id: "lanes", label: "Channels", value: channels.join(" + ") || "waiting"},
+        {id: "state", label: "Состояние", value: localizeValue(peerState || "negotiating")},
+        {id: "session", label: "Сессия", value: compact(stringValue(assignment.sessionEpoch))},
+        {id: "generation", label: "Поколение", value: String(numberValue(assignment.peerGeneration))},
+        {id: "lanes", label: "Каналы", value: channels.map(localizeChannel).join(" + ") || "ожидание"},
       ],
     })
-    edges.push(edge("peer-supervision", hostId, "peer", peerNodeId, "supervision", "Bun peer supervision", "neutral", 100))
+    edges.push(edge("peer-supervision", hostId, "peer", peerNodeId, "supervision", "надзор Bun за пиром", "neutral", 100))
     const leader = topology?.leader
     if (leader) {
-      const leaderWindowId = windowNodeId(stringValue(leader.deviceId), stringValue(leader.tabId))
+      const leaderWindowId = hamiltonianWindowNodeId(stringValue(leader.deviceId), stringValue(leader.tabId))
       if (nodes.some((node) => node.id === leaderWindowId)) {
-        edges.push(edge("oracle-lane", leaderWindowId, "oracle", peerNodeId, "oracle", "Oracle · direct RPC", channels.includes("oracle") ? "live" : "paused", 110))
-        edges.push(edge("force-lane", leaderWindowId, "force", peerNodeId, "force", "Force · direct events", channels.includes("force") ? "live" : "paused", 111))
+        edges.push(edge("oracle-lane", leaderWindowId, "oracle", peerNodeId, "oracle", "Oracle · прямой RPC", channels.includes("oracle") ? "live" : "paused", 110))
+        edges.push(edge("force-lane", leaderWindowId, "force", peerNodeId, "force", "Force · прямые события", channels.includes("force") ? "live" : "paused", 111))
       }
     }
   }
@@ -318,7 +318,7 @@ function sameLeader(leader: Readonly<Record<string, unknown>> | null | undefined
   return leader?.connectionId === connectionId && leader.tabId === tabId
 }
 
-function windowNodeId(deviceId: string, tabId: string): string {
+export function hamiltonianWindowNodeId(deviceId: string, tabId: string): string {
   return `window:${safeId(deviceId)}:${safeId(tabId)}`
 }
 
@@ -341,4 +341,41 @@ function nullableValue(value: unknown): string {
 function compact(value: string | null | undefined): string {
   if (!value) return "—"
   return value.length <= 18 ? value : `${value.slice(0, 8)}…${value.slice(-6)}`
+}
+
+function localizeHostIdentity(identity: string | undefined): string {
+  if (!identity || /^hamiltonian(?:-lab)?$/i.test(identity)) return "Гамильтониан"
+  return identity
+}
+
+function localizeBunRole(role: string): string {
+  return ({
+    "main-probe": "Проба основного процесса",
+    "worker-probe": "Проба воркера",
+  } as Readonly<Record<string, string>>)[role] ?? role
+}
+
+function localizeChannel(channel: string): string {
+  return ({oracle: "Oracle", force: "Force"} as Readonly<Record<string, string>>)[channel] ?? channel
+}
+
+function localizeValue(value: string): string {
+  return ({
+    background: "фоновое",
+    browser: "браузер",
+    connected: "подключено",
+    connecting: "подключение",
+    disconnected: "отключено",
+    error: "ошибка",
+    follower: "ведомое",
+    leader: "лидер",
+    negotiating: "согласование",
+    paused: "приостановлено",
+    ready: "готов",
+    reconnecting: "переподключение",
+    server: "сервер",
+    unknown: "неизвестно",
+    visible: "видимое",
+    waiting: "ожидание",
+  } as Readonly<Record<string, string>>)[value] ?? value
 }

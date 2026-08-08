@@ -1,4 +1,4 @@
-import {UiRuntime, flexRow, type UiSurfaceRect} from "@ui/elements"
+import {UiRuntime, uiIcons, type UiSurfaceRect} from "@ui/elements"
 import {
   ElkNodeSystemLayouter,
   NodeInspectorSurface,
@@ -22,10 +22,12 @@ import {
   OrchestrationEnvelopeCursor,
 } from "../core/orchestration.js"
 import {
+  hamiltonianWindowNodeId,
   nodeSystemStructureKey,
   projectHamiltonianTopology,
   refreshPositionedNodeSystem,
 } from "./orchestration/projection.ts"
+import {shouldRetainMissingLocalWindowSelection} from "./orchestration/selection-retention.ts"
 import {
   HAMILTONIAN_NODE_ANCHORS_STORAGE_KEY,
   parseHamiltonianNodeAnchors,
@@ -38,6 +40,13 @@ import {
   parseHamiltonianViewport,
   serializeHamiltonianViewport,
 } from "./orchestration/viewport.ts"
+import {
+  HAMILTONIAN_INSPECTOR_PRESENTATION_STORAGE_KEY,
+  parseHamiltonianInspectorPresentation,
+  serializeHamiltonianInspectorPresentation,
+  type HamiltonianInspectorPresentation,
+} from "./orchestration/inspector-presentation.ts"
+import {planHamiltonianOrchestrationWorkspace} from "./orchestration/workspace.ts"
 
 type InitialProjection = Readonly<{
   projection: Record<string, unknown>
@@ -55,6 +64,7 @@ const status = requiredElement(document.querySelector<HTMLElement>("#orchestrati
 
 const deviceId = localStorage.getItem("hamiltonian-device") ?? "unknown-device"
 const tabId = sessionStorage.getItem("hamiltonian-window-id") ?? "unknown-window"
+const localWindowNodeId = hamiltonianWindowNodeId(deviceId, tabId)
 const cursor = new OrchestrationEnvelopeCursor()
 const channel = typeof BroadcastChannel === "function"
   ? new BroadcastChannel(HAMILTONIAN_ORCHESTRATION_CHANNEL)
@@ -88,13 +98,13 @@ if (window.__hamiltonianOrchestrationInitial !== undefined) {
 
 void start().catch((error: unknown) => {
   const message = error instanceof Error ? error.message : String(error)
-  status.textContent = `WebGPU orchestration unavailable · ${message}`
+  status.textContent = `WebGPU-оркестрация недоступна · ${message}`
   status.dataset.state = "error"
   document.body.classList.add("orchestration-failed")
 })
 
 async function start(): Promise<void> {
-  status.textContent = "Starting MetaFor WebGPU HUD…"
+  status.textContent = "Запуск WebGPU HUD MetaFor…"
   const runtime = await UiRuntime.create(canvas, {
     fontUrl: "/engine-static/JetBrainsMono-Bold.ttf",
     inputProxy: false,
@@ -104,16 +114,63 @@ async function start(): Promise<void> {
   let updateGeneration = 0
   let anchors = loadNodeAnchors()
   let restoredViewport = loadObserverViewport()
+  const restoredInspector = loadObserverInspectorPresentation()
+  let inspectorFrame: UiSurfaceRect | null = restoredInspector?.frame ?? null
+  let inspectorStickFrame: UiSurfaceRect | null = restoredInspector?.stickFrame ?? null
+  let selectedNodeIds = [...(restoredInspector?.selectedNodeIds ?? [])]
+  let selectedNodeId = restoredInspector?.selectedNodeId ?? null
+  let restoreSelectionPending = selectedNodeIds.length > 0
+  let applyingTopologyLayout = false
+  let graph: NodeSystemSurface
 
   const inspector = new NodeInspectorSurface({
-    title: "HAMILTONIAN INSPECTOR",
+    title: "ИНСПЕКТОР ГАМИЛЬТОНИАНА",
+    open: restoredInspector?.open ?? true,
+    onOpenChange(open) {
+      document.documentElement.dataset.hamiltonianInspector = open ? "open" : "closed"
+      persistInspectorPresentation(open)
+      runtime.clearSurfaceRect(inspector)
+      runtime.relayout({scope: "hud"})
+    },
+    onFrameRectChange(change) {
+      inspectorFrame = change.rect
+      exposeInspectorFrame(change.rect, change.phase)
+      if (change.phase === "end") persistInspectorPresentation(inspector.isOpen)
+    },
+    onStickFrameRectChange(change) {
+      inspectorStickFrame = change.rect
+      exposeInspectorStickFrame(change.rect, change.phase)
+      if (change.phase === "end") persistInspectorPresentation(inspector.isOpen)
+    },
+    titleBarActions: [{
+      label: "Показать весь граф",
+      iconSrc: uiIcons.collapse,
+      tooltip: "Показать весь граф",
+      action: () => graph.fitToView(),
+    }],
     onAction: (node, action) => dispatchAction(node, action),
   })
-  const graph = new NodeSystemSurface({
-    title: "HAMILTONIAN · LIVE ORCHESTRATION",
+  document.documentElement.dataset.hamiltonianInspector = inspector.isOpen ? "open" : "closed"
+  exposeInspectorSelection([], null)
+  graph = new NodeSystemSurface({
+    title: "ГАМИЛЬТОНИАН · ЖИВАЯ ОРКЕСТРАЦИЯ",
+    toolbar: false,
     minScale: 0.12,
     maxScale: 2.5,
     onSelectionChange(nodeId) {
+      const available = new Set(graph.layout.nodes.map(({node}) => node.id))
+      if (
+        applyingTopologyLayout &&
+        shouldRetainMissingLocalWindowSelection(selectedNodeIds, localWindowNodeId, available)
+      ) {
+        restoreSelectionPending = true
+        exposeInspectorSelection(selectedNodeIds, selectedNodeId)
+        return
+      }
+      selectedNodeIds = [...graph.selectedNodeIds]
+      selectedNodeId = nodeId
+      exposeInspectorSelection(selectedNodeIds, selectedNodeId)
+      persistInspectorPresentation(inspector.isOpen)
       inspector.inspect(layout?.nodes.find((entry) => entry.node.id === nodeId)?.node ?? null)
     },
     onNodeMove(event) {
@@ -135,11 +192,11 @@ async function start(): Promise<void> {
     measureText: graph.textMeasurer,
   })
 
-  runtime.addHudSurface(graph, ({w, h}) => orchestrationWorkspace(w, h).graph, {
+  runtime.addHudSurface(graph, ({w, h}) => planHamiltonianOrchestrationWorkspace(w, h, inspector.isOpen, inspectorFrame, inspectorStickFrame).graph, {
     windowId: "hamiltonian-orchestration",
     zIndex: 0,
   })
-  runtime.addHudSurface(inspector, ({w, h}) => orchestrationWorkspace(w, h).inspector, {
+  runtime.addHudSurface(inspector, ({w, h}) => planHamiltonianOrchestrationWorkspace(w, h, inspector.isOpen, inspectorFrame, inspectorStickFrame).inspector, {
     windowId: "hamiltonian-orchestration",
     zIndex: 1,
   })
@@ -147,9 +204,54 @@ async function start(): Promise<void> {
   const resizeObserver = new ResizeObserver(() => runtime.handleResize())
   resizeObserver.observe(canvas)
   runtime.handleResize()
+  const initialWidth = Math.max(1, canvas.clientWidth)
+  const initialHeight = Math.max(1, canvas.clientHeight)
+  exposeInspectorFrame(planHamiltonianOrchestrationWorkspace(
+    initialWidth,
+    initialHeight,
+    true,
+    inspectorFrame,
+    inspectorStickFrame,
+  ).inspector, "end")
+  exposeInspectorStickFrame(planHamiltonianOrchestrationWorkspace(
+    initialWidth,
+    initialHeight,
+    false,
+    inspectorFrame,
+    inspectorStickFrame,
+  ).inspector, "end")
   runtime.requestRender()
-  status.textContent = "Waiting for the Service Worker topology…"
+  status.textContent = "Ожидание топологии от сервис-воркера…"
   status.dataset.state = "waiting"
+
+  function exposeInspectorFrame(frame: UiSurfaceRect, phase: "change" | "end"): void {
+    document.documentElement.dataset.hamiltonianInspectorFrame = [frame.x, frame.y, frame.w, frame.h]
+      .map((value) => Math.round(value))
+      .join(",")
+    document.documentElement.dataset.hamiltonianInspectorFramePhase = phase
+  }
+
+  function exposeInspectorStickFrame(frame: UiSurfaceRect, phase: "change" | "end"): void {
+    document.documentElement.dataset.hamiltonianInspectorStickFrame = [frame.x, frame.y, frame.w, frame.h]
+      .map((value) => Math.round(value))
+      .join(",")
+    document.documentElement.dataset.hamiltonianInspectorStickFramePhase = phase
+  }
+
+  function exposeInspectorSelection(nodeIds: readonly string[], primaryNodeId: string | null): void {
+    document.documentElement.dataset.hamiltonianSelectedNode = primaryNodeId ?? ""
+    document.documentElement.dataset.hamiltonianSelectedNodeCount = String(nodeIds.length)
+  }
+
+  function persistInspectorPresentation(open: boolean): void {
+    persistObserverInspectorPresentation({
+      open,
+      frame: inspectorFrame,
+      stickFrame: inspectorStickFrame,
+      selectedNodeIds,
+      selectedNodeId,
+    })
+  }
 
   acceptProjection = (projection, revision) => {
     const generation = ++updateGeneration
@@ -164,7 +266,7 @@ async function start(): Promise<void> {
     ].join("\u0000")
     void applyDocument(document, nextStructureKey, generation).catch((error: unknown) => {
       if (generation !== updateGeneration) return
-      status.textContent = `Topology layout failed · ${error instanceof Error ? error.message : String(error)}`
+      status.textContent = `Ошибка раскладки топологии · ${error instanceof Error ? error.message : String(error)}`
       status.dataset.state = "error"
     })
   }
@@ -192,7 +294,36 @@ async function start(): Promise<void> {
     if (generation !== updateGeneration) return
     layout = nextLayout
     structureKey = nextStructureKey
-    graph.setLayout(nextLayout)
+    applyingTopologyLayout = true
+    try {
+      graph.setLayout(nextLayout)
+    } finally {
+      applyingTopologyLayout = false
+    }
+    if (restoreSelectionPending) {
+      const available = new Set(nextLayout.nodes.map(({node}) => node.id))
+      if (shouldRetainMissingLocalWindowSelection(selectedNodeIds, localWindowNodeId, available)) {
+        exposeInspectorSelection(selectedNodeIds, selectedNodeId)
+        persistInspectorPresentation(inspector.isOpen)
+      } else {
+        restoreSelectionPending = false
+        const surviving = selectedNodeIds.filter((nodeId) => available.has(nodeId))
+        const primary = selectedNodeId !== null && surviving.includes(selectedNodeId)
+          ? selectedNodeId
+          : surviving.at(-1) ?? null
+        const ordered = primary === null
+          ? surviving
+          : [...surviving.filter((nodeId) => nodeId !== primary), primary]
+        if (ordered.length > 0) {
+          graph.selectMany(ordered)
+        } else {
+          selectedNodeIds = []
+          selectedNodeId = null
+          exposeInspectorSelection([], null)
+          persistInspectorPresentation(inspector.isOpen)
+        }
+      }
+    }
     if (restoredViewport !== null) {
       graph.setViewport(restoredViewport)
       restoredViewport = null
@@ -201,7 +332,7 @@ async function start(): Promise<void> {
       graph.setViewport(previousViewport)
     }
     inspector.inspect(graph.selectedNode?.node ?? null)
-    status.textContent = `${nextLayout.nodes.length} nodes · ${nextLayout.edges.length} links · live`
+    status.textContent = `${nextLayout.nodes.length} нод · ${nextLayout.edges.length} связей · живой режим`
     status.dataset.state = "live"
     documentElementEvidence(nextLayout, revisionLabel(document.revision), anchors)
   }
@@ -210,8 +341,8 @@ async function start(): Promise<void> {
     layout = event.layout
     inspector.inspect(graph.selectedNode?.node ?? null)
     status.textContent = event.phase === "move"
-      ? `Moving ${event.nodeIds.length} node${event.nodeIds.length === 1 ? "" : "s"}…`
-      : `Routing ${event.nodeIds.length} node${event.nodeIds.length === 1 ? "" : "s"}…`
+      ? `Перемещение нод: ${event.nodeIds.length}…`
+      : `Перестроение связей для нод: ${event.nodeIds.length}…`
     status.dataset.state = "moving"
     if (event.phase === "move") return
 
@@ -221,7 +352,7 @@ async function start(): Promise<void> {
   async function applyNodeResize(event: NodeSystemNodeResizeEvent): Promise<void> {
     layout = event.layout
     inspector.inspect(graph.selectedNode?.node ?? null)
-    status.textContent = event.phase === "resize" ? `Resizing ${event.nodeId}…` : `Routing ${event.nodeId}…`
+    status.textContent = event.phase === "resize" ? `Изменение ширины ${event.nodeId}…` : `Перестроение связей ${event.nodeId}…`
     status.dataset.state = "moving"
     if (event.phase === "resize") return
 
@@ -253,12 +384,12 @@ async function start(): Promise<void> {
       graph.setLayout(routed)
       graph.setViewport(previousViewport)
       inspector.inspect(graph.selectedNode?.node ?? null)
-      status.textContent = `${routed.nodes.length} nodes · ${routed.edges.length} links · saved`
+      status.textContent = `${routed.nodes.length} нод · ${routed.edges.length} связей · сохранено`
       status.dataset.state = "live"
       documentElementEvidence(routed, revisionLabel(routed.revision), anchors)
     } catch (error: unknown) {
       if (generation !== updateGeneration) return
-      status.textContent = `Position saved; reroute failed · ${error instanceof Error ? error.message : String(error)}`
+      status.textContent = `Позиция сохранена; связи не перестроены · ${error instanceof Error ? error.message : String(error)}`
       status.dataset.state = "error"
     }
   }
@@ -300,6 +431,27 @@ function persistObserverViewport(viewport: Readonly<{x: number; y: number; scale
     sessionStorage.setItem(HAMILTONIAN_VIEWPORT_STORAGE_KEY, serializeHamiltonianViewport(viewport))
   } catch {
     // View persistence is optional presentation state, never a scene blocker.
+  }
+}
+
+function loadObserverInspectorPresentation(): HamiltonianInspectorPresentation | null {
+  try {
+    return parseHamiltonianInspectorPresentation(
+      sessionStorage.getItem(HAMILTONIAN_INSPECTOR_PRESENTATION_STORAGE_KEY),
+    )
+  } catch {
+    return null
+  }
+}
+
+function persistObserverInspectorPresentation(presentation: HamiltonianInspectorPresentation): void {
+  try {
+    sessionStorage.setItem(
+      HAMILTONIAN_INSPECTOR_PRESENTATION_STORAGE_KEY,
+      serializeHamiltonianInspectorPresentation(presentation),
+    )
+  } catch {
+    // Inspector placement is optional observer-local state, never a scene blocker.
   }
 }
 
@@ -346,29 +498,6 @@ function hasHamiltonianNodeGeometryMismatch(
   })
 }
 
-function inspectorWidth(width: number): number {
-  if (width < 720) return Math.min(250, Math.max(190, width * 0.38))
-  return Math.min(360, Math.max(280, width * 0.28))
-}
-
-function orchestrationWorkspace(width: number, height: number): {graph: UiSurfaceRect; inspector: UiSurfaceRect} {
-  let graph: UiSurfaceRect = {x: 0, y: 0, w: Math.max(1, width), h: Math.max(1, height)}
-  let inspector: UiSurfaceRect = {x: Math.max(0, width - 1), y: 0, w: 1, h: Math.max(1, height)}
-  flexRow({
-    x: 0,
-    y: 0,
-    w: width,
-    h: height,
-    gap: 1,
-    alignItems: "stretch",
-    items: [
-      {width: "grow", height, draw: (x, y, w, h) => { graph = {x, y, w: Math.max(1, w), h: Math.max(1, h)} }},
-      {width: inspectorWidth(width), height, draw: (x, y, w, h) => { inspector = {x, y, w: Math.max(1, w), h: Math.max(1, h)} }},
-    ],
-  })
-  return {graph, inspector}
-}
-
 function dispatchAction(node: NodeSystemNode, action: NodeSystemAction): void {
   window.dispatchEvent(new CustomEvent("hamiltonian-orchestration-action", {
     detail: {nodeId: node.id, actionId: action.id},
@@ -405,10 +534,10 @@ function documentElementEvidence(
 }
 
 function revisionLabel(value: string | number | undefined): string {
-  return value === undefined ? "unknown" : String(value)
+  return value === undefined ? "неизвестно" : String(value)
 }
 
 function requiredElement<T extends Element>(value: T | null): T {
-  if (value === null) throw new Error("Hamiltonian orchestration shell is incomplete")
+  if (value === null) throw new Error("Оболочка оркестрации Гамильтониана неполна")
   return value
 }

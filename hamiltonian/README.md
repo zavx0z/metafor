@@ -11,8 +11,8 @@ production-протокол.
 Главное представление topology — живая интерактивная WebGPU HUD-сцена на
 стартовой странице. ELK первоначально расставляет фактические host, Service
 Worker, Window, Bun process и peer snapshots, а серверный Libavoid прокладывает
-рёбра вокруг фиксированных нод. Статическая
-[`TOPOLOGY.md`](TOPOLOGY.md) оставлена только как техническая справка.
+рёбра вокруг фиксированных нод. Это единственное представление текущей
+topology: отдельная статическая схема рядом не поддерживается.
 
 Физически host держит ровно один listener. Control WSS переносит только
 bootstrap-состояние, heartbeat, election и WebRTC signaling. Realtime payload
@@ -33,6 +33,10 @@ endpoints. Режимы placement взаимоисключающие: в `browse
 `@ui/node` владеет только generic node/port/edge model, ELK layout, viewport,
 selection и WebGPU surfaces. Hamiltonian адаптирует собственные наблюдения в
 эту модель и добавляет только уже существующие lifecycle actions.
+
+Inspector справа закрывается кнопкой в header. В закрытом состоянии граф
+получает всю ширину canvas, а поверх его правого края остаётся только узкая
+кнопка возврата; выбранная нода при этом не теряется.
 
 Нодовая геометрия следует существующей Blender-derived дизайн-системе
 владельца, а не отдельному стилю Hamiltonian. MetaFor Engine сначала точно
@@ -57,7 +61,9 @@ waypoint локальным cubic Bézier segment.
 
 Pan/zoom viewport сохраняется отдельно в `sessionStorage` конкретной Window и
 восстанавливается после reload. Обычный drag пустого места строит selection
-rectangle; pan выполняется Alt-drag или средней/правой кнопкой. Поэтому разные
+rectangle; два пальца на trackpad плавно перемещают камеру, pinch плавно
+масштабирует её вокруг cursor, а pointer-pan остаётся на Alt-drag или
+средней/правой кнопке. Поэтому разные
 вкладки могут иметь независимые точки наблюдения и не перезаписывают камеру
 друг друга.
 

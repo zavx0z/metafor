@@ -27,19 +27,14 @@ body {
 
 #orchestration-status {
   position: fixed;
-  left: 12px;
-  bottom: 10px;
-  z-index: 2;
-  margin: 0;
-  max-width: calc(100vw - 24px);
-  padding: 6px 10px;
-  border: 1px solid rgba(63, 92, 120, .7);
-  border-radius: 999px;
-  background: rgba(8, 11, 16, .78);
-  color: #84a0bb;
-  font-size: 11px;
-  pointer-events: none;
-  backdrop-filter: blur(12px);
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 #orchestration-status[data-state="live"] { color: #70f2c0; }
@@ -48,6 +43,16 @@ body {
 .legacy-debug { display: none; }
 .orchestration-failed { overflow: auto; }
 .orchestration-failed #orchestration-canvas { display: none; }
+.orchestration-failed #orchestration-status {
+  position: static;
+  width: auto;
+  height: auto;
+  margin: 1rem;
+  overflow: visible;
+  clip: auto;
+  clip-path: none;
+  white-space: normal;
+}
 .orchestration-failed .legacy-debug { display: block; }
 
 main {

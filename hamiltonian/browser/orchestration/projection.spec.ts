@@ -45,11 +45,11 @@ function observation(forceEvents = 2) {
 describe("Hamiltonian node projection", () => {
   test("shows physical control, browser-local UI broadcast and direct Oracle/Force lanes separately", () => {
     const document = projectHamiltonianTopology(observation(), context, 1)
-    expect(document.edges.map((edge) => edge.label)).toContain("control WSS")
-    expect(document.edges.map((edge) => edge.label)).toContain("BroadcastChannel · UI projection")
-    expect(document.edges.map((edge) => edge.label)).toContain("Oracle · direct RPC")
-    expect(document.edges.map((edge) => edge.label)).toContain("Force · direct events")
-    const current = document.nodes.find((node) => node.title === "This Window")
+    expect(document.edges.map((edge) => edge.label)).toContain("управляющий WSS")
+    expect(document.edges.map((edge) => edge.label)).toContain("BroadcastChannel · UI-проекция")
+    expect(document.edges.map((edge) => edge.label)).toContain("Oracle · прямой RPC")
+    expect(document.edges.map((edge) => edge.label)).toContain("Force · прямые события")
+    const current = document.nodes.find((node) => node.title === "Это окно")
     expect(current?.actions?.map((action) => action.id)).toEqual([
       "open-window",
       "rebirth-worker",
@@ -57,6 +57,18 @@ describe("Hamiltonian node projection", () => {
       "reconnect",
       "reload",
     ])
+    expect(current?.actions?.map((action) => action.label)).toEqual([
+      "Открыть ещё одно окно",
+      "Перезапустить выделенный воркер",
+      "Перезапустить основной контур",
+      "Переподключить канал страницы",
+      "Перезагрузить это окно",
+    ])
+    expect(current?.kind).toBe("выбранное основное воплощение")
+    expect(document.nodes.find((node) => node.id.startsWith("browser-control:"))?.title).toBe("Сервис-воркер")
+    expect(document.nodes.find((node) => node.id === "bun:main-probe")?.title).toBe("Проба основного процесса")
+    expect(document.nodes.find((node) => node.id.startsWith("direct-peer:"))?.facts?.find((fact) => fact.id === "lanes")?.value)
+      .toBe("Oracle + Force")
   })
 
   test("telemetry changes preserve the structural key", () => {
