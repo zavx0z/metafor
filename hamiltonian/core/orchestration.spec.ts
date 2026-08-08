@@ -2,9 +2,11 @@ import {describe, expect, test} from "bun:test"
 import {
   createOrchestrationEnvelope,
   createOrchestrationProjection,
+  hamiltonianWindowNodeId,
   hasForbiddenOrchestrationData,
   isOrchestrationEnvelope,
   OrchestrationEnvelopeCursor,
+  parseLocalHamiltonianWindowAction,
 } from "./orchestration.js"
 
 function projection() {
@@ -106,5 +108,18 @@ describe("Hamiltonian orchestration projection", () => {
     expect(cursor.accept(envelope("sw-2", 1))).not.toBeNull()
     expect(cursor.accept(envelope("sw-1", 3))).toBeNull()
     expect(cursor.snapshot()).toEqual({sourceId: "sw-2", revision: 1})
+  })
+
+  test("accepts only an allowlisted action addressed to the exact local Window", () => {
+    const nodeId = hamiltonianWindowNodeId("device/1", "tab 1")
+    expect(nodeId).toBe("window:device%2F1:tab%201")
+    expect(parseLocalHamiltonianWindowAction({nodeId, actionId: "reconnect"}, "device/1", "tab 1"))
+      .toEqual({nodeId, actionId: "reconnect"})
+    expect(parseLocalHamiltonianWindowAction({nodeId: "window:other:tab%201", actionId: "reconnect"}, "device/1", "tab 1"))
+      .toBeNull()
+    expect(parseLocalHamiltonianWindowAction({nodeId, actionId: "invented-action"}, "device/1", "tab 1"))
+      .toBeNull()
+    expect(parseLocalHamiltonianWindowAction({nodeId}, "device/1", "tab 1")).toBeNull()
+    expect(parseLocalHamiltonianWindowAction(null, "device/1", "tab 1")).toBeNull()
   })
 })

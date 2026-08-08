@@ -5,6 +5,9 @@ import type {
   NodeSystemPort,
   PositionedNodeSystem,
 } from "@ui/node"
+import {hamiltonianWindowNodeId} from "../../core/orchestration.js"
+
+export {hamiltonianWindowNodeId}
 
 type OrchestrationProjection = Readonly<{
   reason?: string
@@ -316,10 +319,6 @@ function edge(
 
 function sameLeader(leader: Readonly<Record<string, unknown>> | null | undefined, connectionId: string, tabId: string): boolean {
   return leader?.connectionId === connectionId && leader.tabId === tabId
-}
-
-export function hamiltonianWindowNodeId(deviceId: string, tabId: string): string {
-  return `window:${safeId(deviceId)}:${safeId(tabId)}`
 }
 
 function safeId(value: string): string {

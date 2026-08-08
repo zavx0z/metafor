@@ -195,6 +195,7 @@ describe("isolated Hamiltonian host", () => {
     const browserSource = await browserBootstrap.text()
     expect(browserSource).toContain('channel.label !== "oracle"')
     expect(browserSource).toContain("lanes: {oracle, force}")
+    expect(browserSource).toContain("parseLocalHamiltonianWindowAction(event.detail, deviceId, tabId)")
 
     const serviceWorkerBootstrap = await fetch(new URL("/sw.js", host.server.url))
     expect(serviceWorkerBootstrap.status).toBe(200)

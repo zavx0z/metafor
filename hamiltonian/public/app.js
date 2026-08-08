@@ -1,6 +1,9 @@
 import {authorityKey, LogicalChannelSession, PeerProtocol} from "/core/runtime.js"
 import {disposeFailedWorker, isCurrentPeerGeneration} from "/core/browser-control.js"
-import {createOrchestrationProjection} from "/core/orchestration.js"
+import {
+  createOrchestrationProjection,
+  parseLocalHamiltonianWindowAction,
+} from "/core/orchestration.js"
 
 const elements = Object.fromEntries([
   "secure", "control", "socket", "role", "host", "version", "device",
@@ -663,8 +666,12 @@ document.getElementById("reload-main").addEventListener("click", () => runOrches
 document.getElementById("reconnect").addEventListener("click", () => runOrchestrationAction("reconnect"))
 document.getElementById("reload").addEventListener("click", () => runOrchestrationAction("reload"))
 window.addEventListener("hamiltonian-orchestration-action", (event) => {
-  const actionId = event.detail?.actionId
-  if (typeof actionId === "string") runOrchestrationAction(actionId)
+  const action = parseLocalHamiltonianWindowAction(event.detail, deviceId, tabId)
+  if (action === null) {
+    log("Ignored orchestration action for another or unknown Window", true)
+    return
+  }
+  runOrchestrationAction(action.actionId)
 })
 
 void start()

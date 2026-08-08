@@ -1,5 +1,38 @@
 export const HAMILTONIAN_ORCHESTRATION_CHANNEL = "metafor.hamiltonian.orchestration.v1"
 export const HAMILTONIAN_ORCHESTRATION_VERSION = 1
+export const HAMILTONIAN_LOCAL_WINDOW_ACTION_IDS = Object.freeze([
+  "open-window",
+  "rebirth-worker",
+  "reload-main",
+  "reconnect",
+  "reload",
+])
+
+const HAMILTONIAN_LOCAL_WINDOW_ACTION_ID_SET = new Set(HAMILTONIAN_LOCAL_WINDOW_ACTION_IDS)
+
+/** @param {string} deviceId @param {string} tabId */
+export function hamiltonianWindowNodeId(deviceId, tabId) {
+  return `window:${encodeURIComponent(deviceId || "unknown")}:${encodeURIComponent(tabId || "unknown")}`
+}
+
+/**
+ * Accepts only an existing local-Window action addressed to this exact page.
+ * The DOM event is an adapter boundary, not authority: actual lifecycle guards
+ * still remain in the action implementation.
+ *
+ * @param {unknown} value
+ * @param {string} deviceId
+ * @param {string} tabId
+ * @returns {{nodeId: string, actionId: string} | null}
+ */
+export function parseLocalHamiltonianWindowAction(value, deviceId, tabId) {
+  const record = objectValue(value)
+  const nodeId = stringValue(record?.nodeId)
+  const actionId = stringValue(record?.actionId)
+  if (nodeId !== hamiltonianWindowNodeId(deviceId, tabId)) return null
+  if (!HAMILTONIAN_LOCAL_WINDOW_ACTION_ID_SET.has(actionId)) return null
+  return {nodeId, actionId}
+}
 
 /**
  * @typedef {{
