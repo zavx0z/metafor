@@ -489,6 +489,24 @@ export abstract class UiSurface implements UiSurfaceNode {
     this.canvas = canvas
   }
 
+  /** Full outer surface size before optional content padding. */
+  get frameWidth(): number {
+    return this.#fullRectW
+  }
+
+  get frameHeight(): number {
+    return this.#fullRectH
+  }
+
+  /** Public frame bridge for reusable UI chrome such as movable HUD panes. */
+  surfaceFrame(): {rect: UiSurfaceRect; bounds: {w: number; h: number}} | null {
+    return this.canvas?.surfaceFrame(this) ?? null
+  }
+
+  setSurfaceFrame(rect: UiSurfaceRect): UiSurfaceRect | null {
+    return this.canvas?.setSurfaceRect(this, rect) ?? null
+  }
+
   protected get active(): boolean {
     return this.#active
   }
@@ -904,10 +922,15 @@ export abstract class UiSurface implements UiSurfaceNode {
   #drawTooltipNow({x, y, w, h, label, anchor, cursorX, cursorY}: PendingTooltipDraw): void {
     const fontPx = 11
     const padX = 9
-    const tooltipH = 24
-    const maxW = Math.min(220, Math.max(80, this.rectW - 12))
-    const labelW = Math.min(maxW - padX * 2, Math.ceil(this.measureText(label, fontPx)))
+    const padY = 6
+    const lineHeight = 15
+    const maxW = Math.min(340, Math.max(80, this.rectW - 12))
+    const maxLabelW = Math.max(1, maxW - padX * 2)
+    const maxLines = Math.max(1, Math.min(8, Math.floor((Math.max(24, this.rectH) - padY * 2) / lineHeight)))
+    const lines = wrapUiTooltipLabel(label, maxLabelW, (value) => this.measureText(value, fontPx), maxLines)
+    const labelW = Math.min(maxLabelW, Math.max(...lines.map((line) => Math.ceil(this.measureText(line, fontPx)))))
     const tooltipW = labelW + padX * 2
+    const tooltipH = lines.length * lineHeight + padY * 2
     let tx: number
     let tooltipY: number
     if (anchor === "cursor") {
@@ -930,13 +953,15 @@ export abstract class UiSurface implements UiSurfaceNode {
       borderWidth: 1,
       z: Z.TEXT + 0.4,
     })
-    this.drawText(label, tx + padX, tooltipY + 6, {
-      fontPx,
-      material: this.materials.text,
-      maxWidthPx: labelW,
-      z: Z.TEXT + 0.5,
-      clip: false,
-    })
+    for (const [index, line] of lines.entries()) {
+      this.drawText(line, tx + padX, tooltipY + padY + index * lineHeight, {
+        fontPx,
+        material: this.materials.text,
+        maxWidthPx: labelW,
+        z: Z.TEXT + 0.5,
+        clip: false,
+      })
+    }
   }
 
   #flushPendingTooltipDraws(): void {
@@ -1518,7 +1543,11 @@ export abstract class UiSurface implements UiSurfaceNode {
 
   #fitText(value: string, maxPx: number, fontPx: number, letterSpacingPx?: number, spaceAdvancePx?: number): string {
     const fullW = this.measureText(value, fontPx, letterSpacingPx, spaceAdvancePx)
-    if (fullW <= maxPx) return value
+    // The Flex slot and the rendered glyph run are measured through the same
+    // font metrics, but scaling changes floating-point operation order. Do not
+    // turn a sub-pixel rounding difference into a visible ellipsis.
+    const fitTolerancePx = 0.01
+    if (fullW <= maxPx + fitTolerancePx) return value
     const ellipsis = "..."
     const ellipsisW = this.measureText(ellipsis, fontPx, letterSpacingPx, spaceAdvancePx)
     if (ellipsisW > maxPx) return ""
@@ -1527,7 +1556,7 @@ export abstract class UiSurface implements UiSurfaceNode {
     while (lo < hi) {
       const mid = Math.floor((lo + hi + 1) / 2)
       const sub = value.slice(0, mid)
-      if (this.measureText(sub, fontPx, letterSpacingPx, spaceAdvancePx) + ellipsisW <= maxPx) lo = mid
+      if (this.measureText(sub, fontPx, letterSpacingPx, spaceAdvancePx) + ellipsisW <= maxPx + fitTolerancePx) lo = mid
       else hi = mid - 1
     }
     if (lo === 0) return ellipsis
@@ -1645,6 +1674,75 @@ export function placeUiCursorTooltip(
     return {x: cursor.x - gap - tooltip.w, y: clampY(cursor.y - tooltip.h / 2), side: "left"}
   }
   return {x: clampX(cursor.x - tooltip.w / 2), y: clampY(cursor.y - gap - tooltip.h), side: "top"}
+}
+
+export function wrapUiTooltipLabel(
+  label: string,
+  maxWidth: number,
+  measureText: (value: string) => number,
+  maxLines = 8,
+): readonly string[] {
+  const safeWidth = Math.max(1, maxWidth)
+  const safeMaxLines = Math.max(1, Math.floor(maxLines))
+  const pending = label.split("\n")
+  const lines: string[] = []
+  while (pending.length > 0 && lines.length < safeMaxLines) {
+    let remaining = pending.shift() ?? ""
+    if (remaining.length === 0) {
+      lines.push("")
+      continue
+    }
+    while (remaining.length > 0 && lines.length < safeMaxLines) {
+      if (measureText(remaining) <= safeWidth) {
+        lines.push(remaining)
+        remaining = ""
+        continue
+      }
+      let end = longestFittingPrefix(remaining, safeWidth, measureText)
+      const softBreak = findTooltipSoftBreak(remaining, end)
+      if (softBreak > Math.floor(end * 0.55)) end = softBreak
+      const line = remaining.slice(0, end).trimEnd()
+      lines.push(line.length > 0 ? line : remaining.slice(0, Math.max(1, end)))
+      remaining = remaining.slice(end).trimStart()
+    }
+    if (remaining.length > 0) pending.unshift(remaining)
+  }
+  if (pending.length > 0) {
+    const last = lines.at(-1) ?? ""
+    lines[lines.length - 1] = fitTooltipEllipsis(last, safeWidth, measureText)
+  }
+  return lines.length > 0 ? lines : [""]
+}
+
+function longestFittingPrefix(value: string, maxWidth: number, measureText: (value: string) => number): number {
+  let low = 1
+  let high = value.length
+  let best = 1
+  while (low <= high) {
+    const middle = Math.floor((low + high) / 2)
+    if (measureText(value.slice(0, middle)) <= maxWidth) {
+      best = middle
+      low = middle + 1
+    } else {
+      high = middle - 1
+    }
+  }
+  return best
+}
+
+function findTooltipSoftBreak(value: string, limit: number): number {
+  for (let index = Math.min(limit, value.length - 1); index > 0; index--) {
+    if (/\s/.test(value[index - 1] ?? "")) return index
+  }
+  return limit
+}
+
+function fitTooltipEllipsis(value: string, maxWidth: number, measureText: (value: string) => number): string {
+  const ellipsis = "…"
+  if (measureText(`${value}${ellipsis}`) <= maxWidth) return `${value}${ellipsis}`
+  let end = value.length
+  while (end > 0 && measureText(`${value.slice(0, end)}${ellipsis}`) > maxWidth) end--
+  return `${value.slice(0, end)}${ellipsis}`
 }
 
 function hitKeyFor(x: number, y: number, w: number, h: number): string {

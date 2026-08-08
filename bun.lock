@@ -200,6 +200,7 @@
         "@mr_mint/elkjs-libavoid": "0.5.0",
         "@ui/components": "workspace:*",
         "@ui/elements": "workspace:*",
+        "@ui/hud": "workspace:*",
         "elkjs": "^0.11.1",
       },
     },

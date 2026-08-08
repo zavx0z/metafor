@@ -1,6 +1,7 @@
 import {Color} from "@metafor/engine"
-import {IconButton, type ButtonVariant} from "@ui/components"
+import {IconButton, Pane, type ButtonVariant} from "@ui/components"
 import {Z, flexColumn, flexRow, palette, radii, uiIcons, type Tone, type UiSurface, type UiSurfaceRect} from "@ui/elements"
+import {HudPaneFrameInteractions, type HudPaneFrameInteractionProps} from "./pane-frame.ts"
 
 export type HudWindowTitleBarAction = {
   label: string
@@ -35,7 +36,7 @@ export type HudWindowTitleBarProps = {
   z?: number
 }
 
-export type HudWindowProps = HudWindowTitleBarProps & {
+export type HudWindowProps = HudWindowTitleBarProps & HudPaneFrameInteractionProps & {
   active?: boolean
   fill?: Color | null
   border?: Color | null
@@ -53,13 +54,19 @@ export function HudWindow(host: UiSurface, x: number, y: number, w: number, h: n
   const bodyTopGap = props.bodyTopGap ?? 6
   const bodyBottomInset = props.bodyBottomInset ?? 6
   const border = props.border ?? (props.active === true ? palette.windowActiveBorder : palette.borderDim)
-  host.drawRoundedRect(x, y, w, h, {
-    radius: props.radius ?? radii.pane,
-    fill: props.fill ?? palette.bgPanelDim,
-    border,
-    borderWidth: props.borderWidth ?? (border === null ? 0 : 1),
-    z: props.frameZ ?? Z.CONTAINER,
+  Pane(host, x, y, w, h, {
+    variant: "outlined",
+    sx: {
+      background: props.fill ?? palette.bgPanelDim,
+      borderColor: border,
+      borderWidth: props.borderWidth ?? (border === null ? 0 : 1),
+      borderRadius: props.radius ?? radii.pane,
+      padding: 0,
+      zIndex: props.frameZ ?? Z.CONTAINER,
+    },
   })
+
+  HudPaneFrameInteractions(host, props)
 
   const body = {x: x + bodyInsetX, y: y + headerH + bodyTopGap, w: Math.max(1, w - bodyInsetX * 2), h: Math.max(1, h - headerH - bodyTopGap - bodyBottomInset)}
   HudWindowTitleBar(host, x, y, w, props)

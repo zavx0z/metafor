@@ -127,7 +127,7 @@ function measureCard(
   ]))
   const portDirectionWidths = new Map((node.ports ?? []).map((port) => [
     port.id,
-    textWidth(port.direction, metrics.metaFontPx),
+    textWidth(nodeSystemPortDirectionLabel(port.direction), metrics.metaFontPx),
   ]))
   const intrinsicRows = exact ? [
     metrics.contentPaddingX * 2
@@ -203,10 +203,9 @@ export function planNodeSystemCard(
                 title = {x: slotX, y: slotY, w: slotW, h: slotH}
               }},
               node.kind === undefined ? false : {
-                width: Math.min(
-                  measurement.exact ? measurement.kindWidth * unit : metrics.kindWidth,
-                  Math.max(0, w * 0.36),
-                ),
+                width: measurement.exact
+                  ? measurement.kindWidth * unit
+                  : Math.min(metrics.kindWidth, Math.max(0, w * 0.36)),
                 height: h,
                 draw: (slotX, slotY, slotW, slotH) => {
                   kind = {x: slotX, y: slotY, w: slotW, h: slotH}
@@ -262,7 +261,7 @@ export function planNodeSystemCard(
                     items: [
                       {
                         width: measurement.exact
-                          ? Math.min((measurement.factLabelWidths.get(fact.id) ?? 0) * unit, slotW * 0.45)
+                          ? (measurement.factLabelWidths.get(fact.id) ?? 0) * unit
                           : "1fr",
                         height: slotH,
                         draw: (x, y, w, h) => { label = {x, y, w, h} },
@@ -319,7 +318,8 @@ function planPortRow(
   const labelItem = {width: "grow" as const, height: row.h, draw: (x: number, y: number, w: number, h: number) => {
     label = {x, y, w, h}
   }}
-  const directionItem = {width: Math.min(measuredDirectionWidth ?? metrics.kindWidth * 0.5, row.w * 0.22), height: row.h, draw: (x: number, y: number, w: number, h: number) => {
+  const directionItem = {width: measuredDirectionWidth
+    ?? Math.min(metrics.kindWidth * 0.5, row.w * 0.22), height: row.h, draw: (x: number, y: number, w: number, h: number) => {
     direction = {x, y, w, h}
   }}
   const incoming = port.direction === "in"
@@ -384,4 +384,10 @@ export function memoizedTextMeasurer(
     cache.set(key, width)
     return width
   }
+}
+
+export function nodeSystemPortDirectionLabel(direction: NodeSystemPort["direction"]): string {
+  if (direction === "in") return "вход"
+  if (direction === "out") return "выход"
+  return "вход-выход"
 }

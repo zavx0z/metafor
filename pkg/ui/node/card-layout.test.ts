@@ -4,6 +4,7 @@ import {
   NODE_SYSTEM_CARD_METRICS,
   measureNodeSystemCard,
   nodeSystemGeometryKey,
+  nodeSystemPortDirectionLabel,
   planNodeSystemCard,
   type NodeSystemTextMeasurer,
 } from "./card-layout.ts"
@@ -90,6 +91,32 @@ describe("Flex node-card metric plan", () => {
 
     const explicit = measureNodeSystemCard({...long, width: 700}, exact)
     expect(explicit.width).toBe(700)
+  })
+
+  test("does not truncate measured text while the card has enough room", () => {
+    const exact: NodeSystemTextMeasurer = (value, fontPx) => value.length * fontPx
+    const node: NodeSystemNode = {
+      id: "intrinsic-slots",
+      title: "Hamiltonian",
+      kind: "distributed coordinator",
+      facts: [
+        {id: "placement", label: "Placement on a remote host", value: "local"},
+      ],
+      ports: [
+        {id: "supervision", label: "Supervision", direction: "inout"},
+      ],
+    }
+    const size = measureNodeSystemCard(node, exact)
+    const plan = planNodeSystemCard(node, {x: 0, y: 0, w: size.width, h: size.height}, 1, exact)
+
+    expect(plan.title.w).toBeGreaterThanOrEqual(exact(node.title, NODE_SYSTEM_CARD_METRICS.titleFontPx))
+    expect(plan.kind!.w).toBeGreaterThanOrEqual(exact(node.kind!, NODE_SYSTEM_CARD_METRICS.metaFontPx))
+    expect(plan.facts[0]!.label.w)
+      .toBeGreaterThanOrEqual(exact(node.facts![0]!.label, NODE_SYSTEM_CARD_METRICS.bodyFontPx))
+    expect(plan.facts[0]!.value.w)
+      .toBeGreaterThanOrEqual(exact(node.facts![0]!.value, NODE_SYSTEM_CARD_METRICS.bodyFontPx))
+    expect(plan.ports[0]!.direction.w)
+      .toBeGreaterThanOrEqual(exact(nodeSystemPortDirectionLabel(node.ports![0]!.direction), NODE_SYSTEM_CARD_METRICS.metaFontPx))
   })
 })
 

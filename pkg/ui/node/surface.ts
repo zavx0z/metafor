@@ -20,6 +20,7 @@ import type {
 import {
   NODE_SYSTEM_CARD_METRICS,
   measureNodeSystemCard,
+  nodeSystemPortDirectionLabel,
   planNodeSystemCard,
   type NodeSystemTextMeasurer,
 } from "./card-layout.ts"
@@ -38,6 +39,7 @@ import {
 
 export type NodeSystemSurfaceOptions = UiSurfaceOpts & Readonly<{
   title?: string
+  toolbar?: boolean
   minScale?: number
   maxScale?: number
   onSelectionChange?: (nodeId: string | null) => void
@@ -60,6 +62,10 @@ export type NodeSystemNodeResizeEvent = Readonly<{
   layout: PositionedNodeSystem
 }>
 
+export type NodeSystemWheelGesture =
+  | Readonly<{kind: "pan"; dx: number; dy: number}>
+  | Readonly<{kind: "zoom"; factor: number}>
+
 const EMPTY_LAYOUT: PositionedNodeSystem = Object.freeze({
   bounds: {x: 0, y: 0, w: 1, h: 1},
   nodes: [],
@@ -74,6 +80,7 @@ export class NodeSystemSurface extends UiSurface {
   /** Bound exact text metrics for ELK and geometry-key callers. */
   readonly textMeasurer: NodeSystemTextMeasurer = (value, fontPx) => this.measureText(value, fontPx)
   readonly #title: string
+  readonly #toolbar: boolean
   readonly #limits: NodeSystemViewportLimits
   readonly #onSelectionChange: ((nodeId: string | null) => void) | undefined
   readonly #onNodeMove: ((event: NodeSystemNodeMoveEvent) => void) | undefined
@@ -84,6 +91,7 @@ export class NodeSystemSurface extends UiSurface {
   #selectedNodeId: string | null = null
   #selectedNodeIds = new Set<string>()
   #fitPending = true
+  #notifyViewportAfterFit = false
   #viewportLayout: PositionedNodeSystem | null = null
   #lastFrame = {w: 0, h: 0}
   #panDrag: Readonly<{x: number; y: number; origin: NodeSystemViewport}> | null = null
@@ -118,6 +126,7 @@ export class NodeSystemSurface extends UiSurface {
       ...(options.padding === undefined ? {} : {padding: options.padding}),
     })
     this.#title = options.title ?? "NODE SYSTEM"
+    this.#toolbar = options.toolbar ?? true
     this.#limits = {
       ...(options.minScale === undefined ? {} : {minScale: options.minScale}),
       ...(options.maxScale === undefined ? {} : {maxScale: options.maxScale}),
@@ -147,6 +156,10 @@ export class NodeSystemSurface extends UiSurface {
 
   get selectedNode(): PositionedNodeSystemNode | null {
     return this.#layout.nodes.find((entry) => entry.node.id === this.#selectedNodeId) ?? null
+  }
+
+  get toolbarVisible(): boolean {
+    return this.#toolbar
   }
 
   /** True only after the current layout has received a real fit or viewport. */
@@ -193,6 +206,7 @@ export class NodeSystemSurface extends UiSurface {
     }
     this.#layout = moveNodeSystemNodes(this.#layout, positions)
     this.#fitPending = false
+    this.#notifyViewportAfterFit = false
     this.#viewportLayout = this.#layout
     const nodeIds = [...positions.keys()]
     this.#onNodeMove?.({nodeId: primaryNodeId ?? nodeIds[0]!, nodeIds, phase, layout: this.#layout})
@@ -214,6 +228,7 @@ export class NodeSystemSurface extends UiSurface {
     const x = side === "left" ? current.rect.x + current.rect.w - nextWidth : current.rect.x
     this.#layout = resizeNodeSystemNode(this.#layout, nodeId, {x, w: nextWidth})
     this.#fitPending = false
+    this.#notifyViewportAfterFit = false
     this.#viewportLayout = this.#layout
     this.#onNodeResize?.({nodeId, side, phase, layout: this.#layout})
     this.requestRender()
@@ -222,6 +237,7 @@ export class NodeSystemSurface extends UiSurface {
 
   fitToView(): void {
     this.#fitPending = true
+    this.#notifyViewportAfterFit = true
     this.#viewportLayout = null
     this.requestRender()
   }
@@ -235,6 +251,7 @@ export class NodeSystemSurface extends UiSurface {
       this.#limits,
     )
     this.#fitPending = false
+    this.#notifyViewportAfterFit = false
     this.#viewportLayout = this.#layout
     this.requestRender()
     return true
@@ -245,11 +262,14 @@ export class NodeSystemSurface extends UiSurface {
   }
 
   override onWheel(event: WheelEvent, localX: number, localY: number): void {
-    if (localY < HEADER_HEIGHT) return
+    if (localY < this.#headerHeight()) return
     event.preventDefault()
-    const factor = event.deltaY > 0 ? 0.9 : 1.1
-    this.#viewport = zoomNodeSystemViewportAt(this.#viewport, factor, {x: localX, y: localY}, this.#limits)
+    const gesture = nodeSystemWheelGesture(event)
+    this.#viewport = gesture.kind === "zoom"
+      ? zoomNodeSystemViewportAt(this.#viewport, gesture.factor, {x: localX, y: localY}, this.#limits)
+      : panNodeSystemViewport(this.#viewport, -gesture.dx, -gesture.dy)
     this.#fitPending = false
+    this.#notifyViewportAfterFit = false
     this.#viewportLayout = this.#layout
     this.#onViewportChange?.(this.#viewport)
     this.requestRender()
@@ -264,32 +284,7 @@ export class NodeSystemSurface extends UiSurface {
     if (this.#fitPending) this.#applyFit()
 
     this.drawRect(0, 0, this.rectW, this.rectH, palette.bg, Z.CONTAINER)
-    this.drawRect(0, 0, this.rectW, HEADER_HEIGHT, palette.bgToolbar, Z.ELEMENT)
-    this.drawRect(0, HEADER_HEIGHT - 1, this.rectW, 1, palette.borderDim, Z.SEPARATOR)
-    flexRow({
-      x: 0,
-      y: 0,
-      w: this.rectW,
-      h: HEADER_HEIGHT,
-      paddingLeft: 14,
-      paddingRight: 14,
-      gap: 12,
-      alignItems: "stretch",
-      items: [
-        {width: "grow", height: HEADER_HEIGHT, draw: (x, y, w, h) => {
-          Typography(this, x, y, w, h, {children: this.#title, variant: "caption", color: "cyan"})
-        }},
-        {width: Math.min(136, Math.max(0, this.rectW * 0.38)), height: HEADER_HEIGHT, draw: (x, y, w, h) => {
-          Typography(this, x, y, w, h, {
-            children: "drag · resize · box · Alt-pan",
-            variant: "caption",
-            fontPx: 9,
-            color: "muted",
-            sx: {textAlign: "right"},
-          })
-        }},
-      ],
-    })
+    if (this.#toolbar) this.#drawToolbar()
 
     const content = this.#contentRect()
     this.pushClip(content.x, content.y, content.w, content.h)
@@ -316,7 +311,7 @@ export class NodeSystemSurface extends UiSurface {
               alignItems: "center",
               items: [{width: "grow", height: 24, draw: (textX, textY, textW, textH) => {
                 Typography(this, textX, textY, textW, textH, {
-                  children: "No nodes",
+                  children: "Нет нод",
                   color: "muted",
                   sx: {textAlign: "center"},
                 })
@@ -408,7 +403,7 @@ export class NodeSystemSurface extends UiSurface {
         sx: {textAlign: port.direction === "in" ? "left" : "right"},
       })
       Typography(this, direction.x, direction.y, direction.w, direction.h, {
-        children: port.direction,
+        children: nodeSystemPortDirectionLabel(port.direction),
         fontPx: NODE_SYSTEM_CARD_METRICS.metaFontPx * scale,
         color: "muted",
         sx: {textAlign: port.direction === "in" ? "right" : "left"},
@@ -495,7 +490,7 @@ export class NodeSystemSurface extends UiSurface {
       key,
       cursor: "ew-resize",
       activeCursor: "ew-resize",
-      tooltip: {label: `Resize ${side}`, delayMs: 320, anchor: "cursor"},
+      tooltip: {label: side === "left" ? "Изменить ширину слева" : "Изменить ширину справа", delayMs: 320, anchor: "cursor"},
       onPointerDown: (x) => {
         const original = this.#layout.nodes.find(({node}) => node.id === entry.node.id)
         if (original === undefined) return
@@ -530,7 +525,7 @@ export class NodeSystemSurface extends UiSurface {
   #registerBackground(content: {x: number; y: number; w: number; h: number}): void {
     this.hit(content.x, content.y, content.w, content.h, () => {}, {
       key: "node-system:background",
-      cursor: "crosshair",
+      cursor: "default",
       activeCursor: "crosshair",
       onPointerDown: (x, y, event) => {
         if (event?.altKey === true || event?.button === 1 || event?.button === 2) {
@@ -543,6 +538,7 @@ export class NodeSystemSurface extends UiSurface {
         if (this.#panDrag !== null) {
           this.#viewport = panNodeSystemViewport(this.#panDrag.origin, x - this.#panDrag.x, y - this.#panDrag.y)
           this.#fitPending = false
+          this.#notifyViewportAfterFit = false
           this.#viewportLayout = this.#layout
           this.requestRender()
           return
@@ -550,6 +546,7 @@ export class NodeSystemSurface extends UiSurface {
         if (this.#marquee === null) return
         this.#marquee = {...this.#marquee, currentX: x, currentY: y}
         this.#fitPending = false
+        this.#notifyViewportAfterFit = false
         this.requestRender()
       },
       onPointerUp: () => {
@@ -602,10 +599,55 @@ export class NodeSystemSurface extends UiSurface {
     this.#fitPending = false
     this.#viewport = fitNodeSystemViewport(this.#layout, this.#contentRect(), 34, this.#limits)
     this.#viewportLayout = this.#layout
+    if (this.#notifyViewportAfterFit) {
+      this.#notifyViewportAfterFit = false
+      this.#onViewportChange?.(this.#viewport)
+    }
   }
 
   #contentRect(): {x: number; y: number; w: number; h: number} {
-    return {x: 0, y: HEADER_HEIGHT, w: this.rectW, h: Math.max(1, this.rectH - HEADER_HEIGHT)}
+    const headerHeight = this.#headerHeight()
+    return {x: 0, y: headerHeight, w: this.rectW, h: Math.max(1, this.rectH - headerHeight)}
+  }
+
+  #headerHeight(): number {
+    return this.#toolbar ? HEADER_HEIGHT : 0
+  }
+
+  #drawToolbar(): void {
+    this.drawRect(0, 0, this.rectW, HEADER_HEIGHT, palette.bgToolbar, Z.ELEMENT)
+    this.drawRect(0, HEADER_HEIGHT - 1, this.rectW, 1, palette.borderDim, Z.SEPARATOR)
+    const interactionHint = "2 пальца — панорама · щипок — масштаб"
+    const [titleWidth, hintWidth] = fitMeasuredPair(
+      Math.max(0, this.rectW - 14 * 2 - 12),
+      this.measureText(this.#title, 11),
+      this.measureText(interactionHint, 9),
+    )
+    flexRow({
+      x: 0,
+      y: 0,
+      w: this.rectW,
+      h: HEADER_HEIGHT,
+      paddingLeft: 14,
+      paddingRight: 14,
+      gap: 12,
+      alignItems: "stretch",
+      justifyContent: "space-between",
+      items: [
+        {width: titleWidth, height: HEADER_HEIGHT, draw: (x, y, w, h) => {
+          Typography(this, x, y, w, h, {children: this.#title, variant: "caption", color: "cyan"})
+        }},
+        {width: hintWidth, height: HEADER_HEIGHT, draw: (x, y, w, h) => {
+          Typography(this, x, y, w, h, {
+            children: interactionHint,
+            variant: "caption",
+            fontPx: 9,
+            color: "muted",
+            sx: {textAlign: "right"},
+          })
+        }},
+      ],
+    })
   }
 
   #setSelections(nodeIds: Iterable<string>, primaryNodeId: string | null = null): void {
@@ -617,6 +659,37 @@ export class NodeSystemSurface extends UiSurface {
     this.#onSelectionChange?.(primary)
     this.requestRender()
   }
+}
+
+/**
+ * Chrome exposes a Mac trackpad pinch as a ctrl+wheel stream. Plain wheel
+ * deltas remain a two-finger pan, including while the trackpad is pressed.
+ */
+export function nodeSystemWheelGesture(
+  event: Pick<WheelEvent, "ctrlKey" | "deltaMode" | "deltaX" | "deltaY">,
+): NodeSystemWheelGesture {
+  const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? 800 : 1
+  const dx = finiteWheelDelta(event.deltaX * unit)
+  const dy = finiteWheelDelta(event.deltaY * unit)
+  if (!event.ctrlKey) return {kind: "pan", dx, dy}
+  return {
+    kind: "zoom",
+    factor: Math.min(1.18, Math.max(0.85, Math.exp(-dy * 0.0025))),
+  }
+}
+
+function finiteWheelDelta(value: number): number {
+  return Number.isFinite(value) ? value : 0
+}
+
+function fitMeasuredPair(available: number, left: number, right: number): readonly [number, number] {
+  const safeAvailable = Math.max(0, available)
+  const safeLeft = Math.max(0, left)
+  const safeRight = Math.max(0, right)
+  const preferred = safeLeft + safeRight
+  if (preferred <= safeAvailable || preferred === 0) return [safeLeft, safeRight]
+  const ratio = safeAvailable / preferred
+  return [safeLeft * ratio, safeRight * ratio]
 }
 
 function normalizedRect(x0: number, y0: number, x1: number, y1: number): {x: number; y: number; w: number; h: number} {

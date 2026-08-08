@@ -1,7 +1,7 @@
 import {describe, expect, test} from "bun:test"
 import type {PositionedNodeSystem} from "./model.ts"
 import {NodeInspectorSurface, nodeInspectorRows} from "./inspector.ts"
-import {NodeSystemSurface} from "./surface.ts"
+import {NodeSystemSurface, nodeSystemWheelGesture} from "./surface.ts"
 import {
   fitNodeSystemViewport,
   hitTestNodeSystem,
@@ -34,6 +34,24 @@ const layout: PositionedNodeSystem = {
 }
 
 describe("node-system viewport and surfaces", () => {
+  test("maps Mac trackpad scroll to pan and pinch to smooth zoom", () => {
+    expect(nodeSystemWheelGesture({ctrlKey: false, deltaMode: 0, deltaX: 12, deltaY: -8}))
+      .toEqual({kind: "pan", dx: 12, dy: -8})
+    expect(nodeSystemWheelGesture({ctrlKey: false, deltaMode: 1, deltaX: 2, deltaY: 3}))
+      .toEqual({kind: "pan", dx: 32, dy: 48})
+
+    const gentle = nodeSystemWheelGesture({ctrlKey: true, deltaMode: 0, deltaX: 0, deltaY: -4})
+    expect(gentle.kind).toBe("zoom")
+    if (gentle.kind === "zoom") expect(gentle.factor).toBeCloseTo(Math.exp(0.01), 10)
+    expect(nodeSystemWheelGesture({ctrlKey: true, deltaMode: 2, deltaX: 0, deltaY: 10}))
+      .toEqual({kind: "zoom", factor: 0.85})
+  })
+
+  test("can remove the graph toolbar without changing the generic default", () => {
+    expect(new NodeSystemSurface().toolbarVisible).toBe(true)
+    expect(new NodeSystemSurface({toolbar: false}).toolbarVisible).toBe(false)
+  })
+
   test("fits the complete layout and preserves the point under zoom", () => {
     const viewport = fitNodeSystemViewport(layout, {x: 0, y: 40, w: 800, h: 400}, 20)
     const anchor = {x: 260, y: 180}
@@ -63,10 +81,23 @@ describe("node-system viewport and surfaces", () => {
     inspector.inspect(surface.selectedNode?.node ?? null)
     expect(inspector.inspectedNode?.id).toBe("host")
     expect(nodeInspectorRows(inspector.inspectedNode!)).toEqual([
-      {id: "identity", label: "Identity", value: "host"},
-      {id: "kind", label: "Kind", value: "runtime"},
+      {id: "identity", label: "Идентификатор", value: "host"},
+      {id: "kind", label: "Тип", value: "runtime"},
       {id: "status", label: "Status", value: "ready"},
     ])
+  })
+
+  test("closes and reopens the inspector without losing its selected node", () => {
+    const states: boolean[] = []
+    const inspector = new NodeInspectorSurface({onOpenChange: (open) => states.push(open)})
+    inspector.inspect(layout.nodes[0]!.node)
+    expect(inspector.setOpen(false)).toBe(true)
+    expect(inspector.isOpen).toBe(false)
+    expect(inspector.inspectedNode?.id).toBe("host")
+    expect(inspector.setOpen(false)).toBe(false)
+    expect(inspector.toggleOpen()).toBe(true)
+    expect(inspector.isOpen).toBe(true)
+    expect(states).toEqual([false, true])
   })
 
   test("moves a node through the surface contract without moving its peer", () => {

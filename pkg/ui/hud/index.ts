@@ -1,7 +1,9 @@
 import {Color} from "@metafor/engine"
 import {Z, drawIconCentered, type DrawTextOpts, type HitState, type UiSurface} from "@ui/elements"
+import {moveHudPaneFrame, type HudPaneFrameChange} from "./pane-frame.ts"
 
 export * from "./window.ts"
+export * from "./pane-frame.ts"
 export * from "./node-view.ts"
 export * from "./timeline.ts"
 
@@ -65,6 +67,8 @@ export type HudSideTabProps = {
   indicatorColor?: Color | null
   tooltip?: string
   tooltipDelayMs?: number
+  movable?: boolean
+  onFrameRectChange?: (change: HudPaneFrameChange) => void
   onClick?: () => void
   z?: number
 }
@@ -244,13 +248,53 @@ export function HudSideTab(host: UiSurface, props: HudSideTabProps): HudVisualSt
     })
   }
 
+  let drag: Readonly<{startClientX: number; startClientY: number; startRect: HudRect}> | null = null
+  let moved = false
   const hitOptions = {
     key,
-    cursor: "pointer",
-    activeCursor: "pointer",
+    cursor: props.movable === true ? "grab" : "pointer",
+    activeCursor: props.movable === true ? "grabbing" : "pointer",
+    ...(props.movable !== true ? {} : {
+      onPointerDown: (_localX: number, _localY: number, event?: MouseEvent) => {
+        const frame = host.surfaceFrame()
+        if (frame === null || frame === undefined || event === undefined) return
+        drag = {startClientX: event.clientX, startClientY: event.clientY, startRect: frame.rect}
+        moved = false
+        event.preventDefault()
+      },
+      onPointerMove: (_localX: number, _localY: number, event?: MouseEvent) => {
+        const frame = host.surfaceFrame()
+        if (drag === null || frame === null || frame === undefined || event === undefined) return
+        const dx = event.clientX - drag.startClientX
+        const dy = event.clientY - drag.startClientY
+        if (Math.abs(dx) + Math.abs(dy) >= 1) moved = true
+        const next = moveHudPaneFrame(drag.startRect, "move", dx, dy, frame.bounds, drag.startRect.w, drag.startRect.h)
+        host.setSurfaceFrame(next)
+        props.onFrameRectChange?.({rect: next, phase: "change"})
+      },
+      onPointerUp: (event?: MouseEvent) => {
+        const frame = host.surfaceFrame()
+        if (drag === null || frame === null || frame === undefined || event === undefined) return
+        const next = moveHudPaneFrame(
+          drag.startRect,
+          "move",
+          event.clientX - drag.startClientX,
+          event.clientY - drag.startClientY,
+          frame.bounds,
+          drag.startRect.w,
+          drag.startRect.h,
+        )
+        host.setSurfaceFrame(next)
+        props.onFrameRectChange?.({rect: next, phase: "end"})
+        drag = null
+      },
+    }),
+  }
+  const click = () => {
+    if (!moved) props.onClick?.()
   }
   if (props.tooltip !== undefined && props.tooltip.length > 0) {
-    host.hit(props.rect.x, props.rect.y, props.rect.w, props.rect.h, props.onClick ?? (() => {}), {
+    host.hit(props.rect.x, props.rect.y, props.rect.w, props.rect.h, click, {
       ...hitOptions,
       tooltip: {label: props.tooltip, delayMs: props.tooltipDelayMs ?? 450},
     })
@@ -258,7 +302,7 @@ export function HudSideTab(host: UiSurface, props: HudSideTabProps): HudVisualSt
     if (props.tooltipDelayMs !== undefined) tooltipOptions.delayMs = props.tooltipDelayMs
     host.drawTooltipForHit(props.rect.x, props.rect.y, props.rect.w, props.rect.h, props.tooltip, tooltipOptions)
   } else {
-    host.hit(props.rect.x, props.rect.y, props.rect.w, props.rect.h, props.onClick ?? (() => {}), hitOptions)
+    host.hit(props.rect.x, props.rect.y, props.rect.w, props.rect.h, click, hitOptions)
   }
 
   return state
