@@ -48,14 +48,9 @@ import {
 } from "./orchestration/inspector-presentation.ts"
 import {planHamiltonianOrchestrationWorkspace} from "./orchestration/workspace.ts"
 
-type InitialProjection = Readonly<{
-  projection: Record<string, unknown>
-  revision: number
-}>
-
 declare global {
   interface Window {
-    __hamiltonianOrchestrationInitial?: InitialProjection
+    __hamiltonianOrchestrationInitial?: unknown
   }
 }
 
@@ -80,20 +75,23 @@ function queueProjection(projection: Record<string, unknown>, revision: number):
   acceptProjection(projection, revision)
 }
 
-channel?.addEventListener("message", (event) => {
-  const envelope = cursor.accept(event.data)
+function receiveOrchestrationEnvelope(value: unknown): void {
+  const envelope = cursor.accept(value)
   if (envelope === null) return
+  document.documentElement.dataset.hamiltonianEnvelopeSource = envelope.sourceId
+  document.documentElement.dataset.hamiltonianEnvelopeRevision = String(envelope.revision)
   queueProjection(envelope.projection, envelope.revision)
+}
+
+channel?.addEventListener("message", (event) => {
+  receiveOrchestrationEnvelope(event.data)
 })
 
-window.addEventListener("hamiltonian-orchestration-initial", ((event: CustomEvent<InitialProjection>) => {
-  queueProjection(event.detail.projection, event.detail.revision)
+window.addEventListener("hamiltonian-orchestration-initial", ((event: CustomEvent<unknown>) => {
+  receiveOrchestrationEnvelope(event.detail)
 }) as EventListener)
 if (window.__hamiltonianOrchestrationInitial !== undefined) {
-  queueProjection(
-    window.__hamiltonianOrchestrationInitial.projection,
-    window.__hamiltonianOrchestrationInitial.revision,
-  )
+  receiveOrchestrationEnvelope(window.__hamiltonianOrchestrationInitial)
 }
 
 void start().catch((error: unknown) => {

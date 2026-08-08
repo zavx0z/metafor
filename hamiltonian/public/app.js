@@ -1,9 +1,6 @@
 import {authorityKey, LogicalChannelSession, PeerProtocol} from "/core/runtime.js"
 import {disposeFailedWorker, isCurrentPeerGeneration} from "/core/browser-control.js"
-import {
-  createOrchestrationProjection,
-  parseLocalHamiltonianWindowAction,
-} from "/core/orchestration.js"
+import {parseLocalHamiltonianWindowAction} from "/core/orchestration.js"
 
 const elements = Object.fromEntries([
   "secure", "control", "socket", "role", "host", "version", "device",
@@ -53,10 +50,6 @@ let leaseExpiresAt = 0
 let browserPeer = null
 let pendingPeerRepair = null
 let hostPlacement = "browser"
-let initialSceneSent = false
-let sceneWorkerState = null
-let sceneHost = null
-let sceneTopology = null
 const acceptedPeerGeneration = new Map()
 
 elements.secure.textContent = isSecureContext ? "yes" : "no"
@@ -127,20 +120,9 @@ function renderTopology(nextTopology) {
     .catch((error) => log(`main singleton reconciliation failed: ${error.message}`, true))
 }
 
-function publishInitialSceneProjection() {
-  if (initialSceneSent || !sceneWorkerState || !sceneHost || !sceneTopology) return
-  initialSceneSent = true
-  const initial = {
-    projection: createOrchestrationProjection(
-      sceneWorkerState,
-      sceneHost,
-      sceneTopology,
-      "window-initial-snapshot",
-    ),
-    revision: Number(sceneTopology.revision ?? 0),
-  }
-  window.__hamiltonianOrchestrationInitial = initial
-  window.dispatchEvent(new CustomEvent("hamiltonian-orchestration-initial", {detail: initial}))
+function publishInitialSceneEnvelope(envelope) {
+  window.__hamiltonianOrchestrationInitial = envelope
+  window.dispatchEvent(new CustomEvent("hamiltonian-orchestration-initial", {detail: envelope}))
 }
 
 function describeSnapshot(snapshot) {
@@ -485,23 +467,21 @@ async function activateVersion(message) {
 function receive(message) {
   lastWorkerMessageAt = Date.now()
   if (!message || typeof message !== "object") return
+  if (message.kind === "orchestration-envelope") {
+    publishInitialSceneEnvelope(message.envelope)
+    return
+  }
   if (message.kind === "worker-state") {
-    sceneWorkerState = message
-    sceneHost = message.host ?? sceneHost
     elements.socket.textContent = message.socket
     renderHost(message.host)
-    publishInitialSceneProjection()
     if (message.socket !== "connected") {
       log(`control session unavailable; current authority remains valid until ${new Date(leaseExpiresAt).toLocaleTimeString()}`)
     }
     return
   }
   if (message.kind === "topology") {
-    sceneHost = message.host
-    sceneTopology = message.topology
     renderHost(message.host)
     renderTopology(message.topology)
-    publishInitialSceneProjection()
     return
   }
   if (message.kind === "version-ready") {

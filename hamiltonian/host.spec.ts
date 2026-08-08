@@ -196,10 +196,15 @@ describe("isolated Hamiltonian host", () => {
     expect(browserSource).toContain('channel.label !== "oracle"')
     expect(browserSource).toContain("lanes: {oracle, force}")
     expect(browserSource).toContain("parseLocalHamiltonianWindowAction(event.detail, deviceId, tabId)")
+    expect(browserSource).toContain('message.kind === "orchestration-envelope"')
+    expect(browserSource).toContain("publishInitialSceneEnvelope(message.envelope)")
 
     const serviceWorkerBootstrap = await fetch(new URL("/sw.js", host.server.url))
     expect(serviceWorkerBootstrap.status).toBe(200)
-    expect(await serviceWorkerBootstrap.text()).toContain("HAMILTONIAN_ORCHESTRATION_CHANNEL")
+    const serviceWorkerSource = await serviceWorkerBootstrap.text()
+    expect(serviceWorkerSource).toContain("HAMILTONIAN_ORCHESTRATION_CHANNEL")
+    expect(serviceWorkerSource).toContain('tellWindow(initialWindow, {kind: "orchestration-envelope", envelope})')
+    expect(serviceWorkerSource).toContain("orchestrationChannel?.postMessage(envelope)")
 
     const orchestrationContract = await fetch(new URL("/core/orchestration.js", host.server.url))
     expect(orchestrationContract.status).toBe(200)
@@ -210,6 +215,10 @@ describe("isolated Hamiltonian host", () => {
     const orchestrationSource = await orchestrationBundle.text()
     expect(orchestrationSource).toContain("ГАМИЛЬТОНИАН · ЖИВАЯ ОРКЕСТРАЦИЯ")
     expect(orchestrationSource).toContain("BroadcastChannel · UI-проекция")
+    expect(orchestrationSource).toContain("receiveOrchestrationEnvelope(event.data)")
+    expect(orchestrationSource).toContain("receiveOrchestrationEnvelope(event.detail)")
+    expect(orchestrationSource).toContain("hamiltonianEnvelopeSource")
+    expect(orchestrationSource).toContain("hamiltonianEnvelopeRevision")
     expect(orchestrationSource).toContain("struct GlobalUniforms")
     expect(orchestrationSource).not.toContain("mesh_basic-")
 

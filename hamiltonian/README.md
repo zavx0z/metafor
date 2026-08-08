@@ -68,11 +68,15 @@ rectangle; два пальца на trackpad плавно перемещают �
 друг друга.
 
 Service Worker публикует sanitised browser-local projection через versioned
-`BroadcastChannel`. Новая Window получает initial snapshot по прежнему
-направленному `MessagePort`, после чего сцена принимает live updates через
-BroadcastChannel. Эта шина не переносит token, resume capability, SDP/ICE,
+`BroadcastChannel`. Новая Window сначала получает тот же versioned envelope по
+прежнему направленному `MessagePort`, после чего сцена принимает продолжение
+через BroadcastChannel. Initial и live проходят один monotonic cursor, поэтому
+задержавшийся initial, duplicate или сообщение прежнего Worker source не могут
+откатить уже принятую сцену. Эта шина не переносит token, resume capability, SDP/ICE,
 RPC или Particle и не заменяет control WSS, Bun IPC либо прямые
-`oracle`/`force` DataChannel.
+`oracle`/`force` DataChannel. Последние принятые non-secret `sourceId` и
+`revision` доступны диагностике как `data-hamiltonian-envelope-source` и
+`data-hamiltonian-envelope-revision`.
 
 ## Общие законы опыта
 
@@ -199,8 +203,8 @@ WSS, browser/server placement и прямой Bun↔Bun WebRTC через `werif
 координат surviving nodes при add/remove, Bun/WASM Libavoid routing,
 fit/pan/zoom/selection, drag/persisted anchors, Bézier rounding сохранённого
 route, разделение control WSS, BroadcastChannel и direct
-Oracle/Force lines, monotonic projection revision и сохранение geometry при
-telemetry-only update.
+Oracle/Force lines, общий cursor для directed initial и BroadcastChannel live,
+monotonic projection revision и сохранение geometry при telemetry-only update.
 
 Живая матрица и исходные JSON/screenshot находятся в
 [`project/artifacts/MF-412`](../project/artifacts/MF-412/README.md). На

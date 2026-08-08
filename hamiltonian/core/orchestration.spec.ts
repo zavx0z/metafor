@@ -110,6 +110,35 @@ describe("Hamiltonian orchestration projection", () => {
     expect(cursor.snapshot()).toEqual({sourceId: "sw-2", revision: 1})
   })
 
+  test("uses one cursor for a delayed directed initial and newer broadcast envelopes", () => {
+    const cursor = new OrchestrationEnvelopeCursor()
+    const envelope = (sourceId: string, revision: number, reason: string) => createOrchestrationEnvelope({
+      sourceId,
+      revision,
+      projection: {...projection(), reason},
+      at: revision,
+    })
+    const accepted: string[] = []
+    const receive = (value: unknown) => {
+      const current = cursor.accept(value)
+      if (current) accepted.push(String(current.projection.reason))
+    }
+
+    receive(envelope("sw-1", 2, "broadcast-live"))
+    receive(envelope("sw-1", 1, "delayed-message-port-initial"))
+    receive(envelope("sw-1", 2, "duplicate-message-port-initial"))
+    receive(envelope("sw-2", 1, "reborn-message-port-initial"))
+    receive(envelope("sw-1", 3, "late-retired-broadcast"))
+    receive(envelope("sw-2", 2, "reborn-broadcast-live"))
+
+    expect(accepted).toEqual([
+      "broadcast-live",
+      "reborn-message-port-initial",
+      "reborn-broadcast-live",
+    ])
+    expect(cursor.snapshot()).toEqual({sourceId: "sw-2", revision: 2})
+  })
+
   test("accepts only an allowlisted action addressed to the exact local Window", () => {
     const nodeId = hamiltonianWindowNodeId("device/1", "tab 1")
     expect(nodeId).toBe("window:device%2F1:tab%201")

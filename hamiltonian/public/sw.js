@@ -66,14 +66,16 @@ function workerState() {
   }
 }
 
-function publishOrchestration(reason) {
-  if (!orchestrationChannel) return
+function publishOrchestration(reason, initialWindow = null) {
   orchestrationRevision += 1
-  orchestrationChannel.postMessage(createOrchestrationEnvelope({
+  const envelope = createOrchestrationEnvelope({
     sourceId: workerIncarnationId,
     revision: orchestrationRevision,
     projection: createOrchestrationProjection(workerState(), currentHost, currentTopology, reason),
-  }))
+  })
+  if (initialWindow) tellWindow(initialWindow, {kind: "orchestration-envelope", envelope})
+  orchestrationChannel?.postMessage(envelope)
+  return envelope
 }
 
 function sendSocket(message) {
@@ -321,7 +323,7 @@ async function connectWindow(message, port, clientId) {
   tellWindow(window, workerState())
   if (currentTopology) tellWindow(window, {kind: "topology", host: currentHost, topology: currentTopology})
   if (currentVersionState) tellWindow(window, currentVersionState)
-  publishOrchestration("window-attached")
+  publishOrchestration("window-attached", window)
   ensureSocket()
   void sendWindowSnapshot()
 }
