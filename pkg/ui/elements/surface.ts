@@ -470,6 +470,14 @@ export abstract class UiSurface implements UiSurfaceNode {
     this.#contentUnderlayLayer.position.z = 0
     this.node.add(this.#contentUnderlayLayer)
 
+    // Retained presentation objects (for example graph traffic particles) are
+    // composited above declarative relation underlays and below interactive
+    // controls/sockets. They survive redraws without being allowed to hide UI.
+    this.#retainedLayer = new Object3D()
+    this.#retainedLayer.name = `${this.constructor.name}.retainedLayer`
+    this.#retainedLayer.position.z = 0
+    this.node.add(this.#retainedLayer)
+
     this.#selectionLayer = new Object3D()
     this.#selectionLayer.name = `${this.constructor.name}.selectionLayer`
     this.#selectionLayer.position.z = 0
@@ -485,13 +493,6 @@ export abstract class UiSurface implements UiSurfaceNode {
     this.#overlayLayer.position.z = 0
     this.node.add(this.#overlayLayer)
 
-    // Objects in this layer are updated in place between presentation frames.
-    // They intentionally survive declarative surface redraws, avoiding GPU
-    // resource churn for short-lived animations.
-    this.#retainedLayer = new Object3D()
-    this.#retainedLayer.name = `${this.constructor.name}.retainedLayer`
-    this.#retainedLayer.position.z = 0
-    this.node.add(this.#retainedLayer)
   }
 
   attachCanvas(canvas: UiRuntime): void {

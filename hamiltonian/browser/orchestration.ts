@@ -1,115 +1,94 @@
 import {
-  HamiltonianTrafficEnvelopeCursor,
-  subscribeHamiltonianTraffic,
-} from "../core/traffic.js"
-import {UiRuntime, uiIcons, type UiSurfaceRect} from "@ui/elements"
+  HamiltonianLifecycleCursor,
+  subscribeHamiltonianLifecycle,
+  subscribeHamiltonianLifecycleSnapshot,
+  type HamiltonianLifecycleEnvelope,
+  type HamiltonianLifecycleSnapshot,
+} from "../core/lifecycle.js"
+import {hamiltonianPageBootstrap} from "../core/monitor.js"
+import {UiRuntime, type UiSurfaceRect} from "@ui/elements"
 import {
-  ElkNodeSystemLayouter,
+  MetaForNodeSystemLayouter,
+  NODE_SYSTEM_PORT_PITCH,
   NodeInspectorSurface,
   NodeSystemSurface,
-  createNodeSystemRouteRequest,
-  isNodeSystemRectVacant,
-  measureNodeSystemCard,
-  moveNodeSystemNode,
+  fitNodeSystemCanvasTransform,
   nodeSystemGeometryKey,
-  parseNodeSystemRouteResponse,
-  resizeNodeSystemNode,
-  stabilizeNodeSystemLayout,
   type NodeSystemAction,
   type NodeSystemDocument,
   type NodeSystemNode,
-  type NodeSystemNodeMoveEvent,
-  type NodeSystemNodeResizeEvent,
+  type NodeSystemLayoutDirection,
   type PositionedNodeSystem,
 } from "@ui/node"
 import {
-  HAMILTONIAN_ORCHESTRATION_CHANNEL,
-  OrchestrationEnvelopeCursor,
-} from "../core/orchestration.js"
-import {
-  hamiltonianWindowNodeId,
+  HamiltonianLifecycleProjection,
+  hamiltonianLifecycleNeedsDocument,
+  hamiltonianPageNodeId,
   nodeSystemStructureKey,
-  projectHamiltonianTopology,
   refreshPositionedNodeSystem,
-} from "./orchestration/projection.ts"
+  type HamiltonianLifecyclePresentation,
+} from "./orchestration/lifecycle-projection.ts"
 import {shouldRetainMissingLocalWindowSelection} from "./orchestration/selection-retention.ts"
 import {
-  HAMILTONIAN_NODE_ANCHORS_STORAGE_KEY,
-  parseHamiltonianNodeAnchors,
-  serializeHamiltonianNodeAnchors,
-  withHamiltonianNodeGeometry,
-  type HamiltonianNodeGeometries,
-} from "./orchestration/anchors.ts"
-import {
-  HAMILTONIAN_VIEWPORT_STORAGE_KEY,
-  parseHamiltonianViewport,
-  serializeHamiltonianViewport,
-} from "./orchestration/viewport.ts"
-import {
-  HAMILTONIAN_INSPECTOR_PRESENTATION_STORAGE_KEY,
-  parseHamiltonianInspectorPresentation,
-  serializeHamiltonianInspectorPresentation,
-  type HamiltonianInspectorPresentation,
-} from "./orchestration/inspector-presentation.ts"
-import {planHamiltonianOrchestrationWorkspace} from "./orchestration/workspace.ts"
+  planHamiltonianCanvasViewFrame,
+  planHamiltonianGraphDisplayRect,
+  planHamiltonianOrchestrationWorkspace,
+} from "./orchestration/workspace.ts"
+import {HamiltonianCanvasViewSurface} from "./orchestration/canvas-view.ts"
 import {HamiltonianTrafficPresentationGate} from "./orchestration/traffic-presentation.ts"
-
-declare global {
-  interface Window {
-    __hamiltonianOrchestrationInitial?: unknown
-  }
-}
+import {
+  HAMILTONIAN_LAYOUT_TRANSITION_MS,
+  easeHamiltonianLayoutTransition,
+  hamiltonianLayoutGeometryChanged,
+  interpolateHamiltonianNodePositions,
+} from "./orchestration/layout-transition.ts"
+import {hamiltonianLayoutDirection} from "./orchestration/responsive-layout.ts"
+import {
+  captureHamiltonianSpatialRuntime,
+  serializeHamiltonianViewPoint,
+} from "./orchestration/spatial-runtime.ts"
 
 const canvas = requiredElement(document.querySelector<HTMLCanvasElement>("#orchestration-canvas"))
 const status = requiredElement(document.querySelector<HTMLElement>("#orchestration-status"))
 
 const deviceId = localStorage.getItem("hamiltonian-device") ?? "unknown-device"
 const tabId = sessionStorage.getItem("hamiltonian-window-id") ?? "unknown-window"
-const localWindowNodeId = hamiltonianWindowNodeId(deviceId, tabId)
-const cursor = new OrchestrationEnvelopeCursor()
-const channel = typeof BroadcastChannel === "function"
-  ? new BroadcastChannel(HAMILTONIAN_ORCHESTRATION_CHANNEL)
-  : null
-const pending: Array<{projection: Record<string, unknown>; revision: number}> = []
-let acceptProjection: ((projection: Record<string, unknown>, revision: number) => void) | null = null
-const trafficCursor = new HamiltonianTrafficEnvelopeCursor()
-type HamiltonianTrafficEnvelope = NonNullable<ReturnType<HamiltonianTrafficEnvelopeCursor["accept"]>>
-const trafficPresentation = new HamiltonianTrafficPresentationGate<HamiltonianTrafficEnvelope>()
+const pageBootstrap = hamiltonianPageBootstrap() ?? {
+  pageIncarnation: "unknown-page",
+  observedAt: Date.now(),
+  navigationId: "",
+  servedAt: 0,
+  server: {identity: "hamiltonian", hostEpoch: "", version: ""},
+}
+const localWindowNodeId = hamiltonianPageNodeId(pageBootstrap.pageIncarnation)
+const lifecycleCursor = new HamiltonianLifecycleCursor()
+type AcceptedLifecycle = NonNullable<ReturnType<HamiltonianLifecycleCursor["accept"]>>
+const pendingLifecycle: HamiltonianLifecycleEnvelope[] = []
+let acceptLifecycleEnvelope: ((envelope: HamiltonianLifecycleEnvelope) => void) | null = null
+let acceptLifecycle: ((accepted: AcceptedLifecycle) => void) | null = null
+const pendingLifecycleSnapshots = new Map<string, HamiltonianLifecycleSnapshot>()
+let acceptLifecycleSnapshot: ((snapshot: HamiltonianLifecycleSnapshot) => void) | null = null
+const resolvedLifecycleFrontier = new Map<string, number>()
+const trafficPresentation = new HamiltonianTrafficPresentationGate<HamiltonianLifecyclePresentation>()
+document.documentElement.dataset.hamiltonianOrchestrationModuleAt = String(performance.now())
 
-const unsubscribeTraffic = subscribeHamiltonianTraffic((value) => {
-  const envelope = trafficCursor.accept(value)
-  if (envelope === null) return
-  if (document.visibilityState !== "visible") return
-  trafficPresentation.observe(envelope)
-  document.documentElement.dataset.hamiltonianTrafficPending = String(trafficPresentation.pendingCount)
+function exposeHamiltonianViewPoint(snapshot: Parameters<typeof serializeHamiltonianViewPoint>[0]): void {
+  document.documentElement.dataset.hamiltonianViewPoint = serializeHamiltonianViewPoint(snapshot)
+}
+
+const unsubscribeLifecycle = subscribeHamiltonianLifecycle((value) => {
+  exposeFirstPerformanceTimestamp("hamiltonianFirstLifecycleEnvelopeAt")
+  if (acceptLifecycleEnvelope === null) pendingLifecycle.push(value)
+  else acceptLifecycleEnvelope(value)
 })
-
-function queueProjection(projection: Record<string, unknown>, revision: number): void {
-  if (acceptProjection === null) {
-    pending.splice(0, pending.length, {projection, revision})
-    return
+const unsubscribeLifecycleSnapshot = subscribeHamiltonianLifecycleSnapshot((snapshot) => {
+  exposeFirstPerformanceTimestamp("hamiltonianFirstLifecycleSnapshotAt")
+  if (acceptLifecycleSnapshot === null) {
+    pendingLifecycleSnapshots.set(snapshot.scopeId, snapshot)
+  } else {
+    acceptLifecycleSnapshot(snapshot)
   }
-  acceptProjection(projection, revision)
-}
-
-function receiveOrchestrationEnvelope(value: unknown): void {
-  const envelope = cursor.accept(value)
-  if (envelope === null) return
-  document.documentElement.dataset.hamiltonianEnvelopeSource = envelope.sourceId
-  document.documentElement.dataset.hamiltonianEnvelopeRevision = String(envelope.revision)
-  queueProjection(envelope.projection, envelope.revision)
-}
-
-channel?.addEventListener("message", (event) => {
-  receiveOrchestrationEnvelope(event.data)
 })
-
-window.addEventListener("hamiltonian-orchestration-initial", ((event: CustomEvent<unknown>) => {
-  receiveOrchestrationEnvelope(event.detail)
-}) as EventListener)
-if (window.__hamiltonianOrchestrationInitial !== undefined) {
-  receiveOrchestrationEnvelope(window.__hamiltonianOrchestrationInitial)
-}
 
 void start().catch((error: unknown) => {
   const message = error instanceof Error ? error.message : String(error)
@@ -123,48 +102,76 @@ async function start(): Promise<void> {
   const runtime = await UiRuntime.create(canvas, {
     fontUrl: "/engine-static/JetBrainsMono-Bold.ttf",
     inputProxy: false,
+    onViewPointChange: exposeHamiltonianViewPoint,
+    virtualDisplay: {
+      initial: "near",
+      surfaceDisplay: true,
+      grid: false,
+    },
   })
+  document.documentElement.dataset.hamiltonianGraphLayer = "space-display"
+  document.documentElement.dataset.hamiltonianWindowLayer = "hud"
   let layout: PositionedNodeSystem | null = null
   let structureKey: string | null = null
   let updateGeneration = 0
-  let anchors: HamiltonianNodeGeometries = loadNodeAnchors()
-  let restoredViewport = loadObserverViewport()
-  const restoredInspector = loadObserverInspectorPresentation()
-  let inspectorFrame: UiSurfaceRect | null = restoredInspector?.frame ?? null
-  let inspectorStickFrame: UiSurfaceRect | null = restoredInspector?.stickFrame ?? null
-  let selectedNodeIds = [...(restoredInspector?.selectedNodeIds ?? [])]
-  let selectedNodeId = restoredInspector?.selectedNodeId ?? null
-  let restoreSelectionPending = selectedNodeIds.length > 0
+  let inspectorFrame: UiSurfaceRect | null = null
+  let inspectorStickFrame: UiSurfaceRect | null = null
+  let canvasViewFrame: UiSurfaceRect | null = null
+  let selectedNodeIds: string[] = []
+  let selectedNodeId: string | null = null
+  let restoreSelectionPending = false
   let applyingTopologyLayout = false
+  let canvasAutoFitEnabled = true
   let graph: NodeSystemSurface
+  let exposeSpatialRuntime = (): void => {}
 
   const inspector = new NodeInspectorSurface({
-    title: "ИНСПЕКТОР ГАМИЛЬТОНИАНА",
-    open: restoredInspector?.open ?? true,
+    open: false,
     onOpenChange(open) {
       document.documentElement.dataset.hamiltonianInspector = open ? "open" : "closed"
-      persistInspectorPresentation(open)
       runtime.clearSurfaceRect(inspector)
       runtime.relayout({scope: "hud"})
+      exposeSpatialRuntime()
     },
     onFrameRectChange(change) {
       inspectorFrame = change.rect
       exposeInspectorFrame(change.rect, change.phase)
-      if (change.phase === "end") persistInspectorPresentation(inspector.isOpen)
+      exposeSpatialRuntime()
     },
     onStickFrameRectChange(change) {
       inspectorStickFrame = change.rect
       exposeInspectorStickFrame(change.rect, change.phase)
-      if (change.phase === "end") persistInspectorPresentation(inspector.isOpen)
+      exposeSpatialRuntime()
     },
-    titleBarActions: [{
-      label: "Показать весь граф",
-      iconSrc: uiIcons.collapse,
-      tooltip: "Показать весь граф",
-      action: () => graph.fitToView(),
-    }],
     onAction: (node, action) => dispatchAction(node, action),
   })
+  const canvasView = new HamiltonianCanvasViewSurface({
+    onFit() {
+      fitGraphCanvas(graph.layout, "manual-fit", true)
+    },
+    onAutoFitChange(enabled) {
+      canvasAutoFitEnabled = enabled
+      document.documentElement.dataset.hamiltonianCanvasMode = enabled ? "auto-fit" : "manual"
+      if (enabled) fitGraphCanvas(graph.layout, "auto-fit-enabled", true)
+    },
+    onOpenChange(open) {
+      document.documentElement.dataset.hamiltonianCanvasView = open ? "open" : "closed"
+      runtime.clearSurfaceRect(canvasView)
+      runtime.relayout({scope: "hud"})
+      exposeSpatialRuntime()
+    },
+    onFrameRectChange(change) {
+      canvasViewFrame = change.rect
+      document.documentElement.dataset.hamiltonianCanvasViewFrame = [
+        change.rect.x,
+        change.rect.y,
+        change.rect.w,
+        change.rect.h,
+      ].join(",")
+      exposeSpatialRuntime()
+    },
+  })
+  document.documentElement.dataset.hamiltonianCanvasView = canvasView.isOpen ? "open" : "closed"
   document.documentElement.dataset.hamiltonianInspector = inspector.isOpen ? "open" : "closed"
   exposeInspectorSelection([], null)
   graph = new NodeSystemSurface({
@@ -172,6 +179,7 @@ async function start(): Promise<void> {
     toolbar: false,
     minScale: 0.12,
     maxScale: 2.5,
+    editable: false,
     onSelectionChange(nodeId) {
       const available = new Set(graph.layout.nodes.map(({node}) => node.id))
       if (
@@ -185,18 +193,13 @@ async function start(): Promise<void> {
       selectedNodeIds = [...graph.selectedNodeIds]
       selectedNodeId = nodeId
       exposeInspectorSelection(selectedNodeIds, selectedNodeId)
-      persistInspectorPresentation(inspector.isOpen)
       inspector.inspect(layout?.nodes.find((entry) => entry.node.id === nodeId)?.node ?? null)
     },
-    onNodeMove(event) {
-      void applyNodeMove(event)
-    },
-    onNodeResize(event) {
-      void applyNodeResize(event)
-    },
-    onViewportChange(viewport) {
-      persistObserverViewport(viewport)
-      document.documentElement.dataset.hamiltonianViewport = "saved"
+    onCanvasTransformChange(transform) {
+      canvasAutoFitEnabled = false
+      canvasView.setAutoFitEnabled(false)
+      document.documentElement.dataset.hamiltonianCanvasTransform = "manual"
+      exposeCanvasTransform(transform)
     },
     onEdgeMessageCountChange(count) {
       document.documentElement.dataset.hamiltonianTrafficActive = String(count)
@@ -215,7 +218,7 @@ async function start(): Promise<void> {
   let acceptedTraffic = 0
   trafficPresentation.connect((envelope, startedAt) => {
     const accepted = graph.emitEdgeMessage({
-      id: `${envelope.sourceId}:${envelope.sequence}`,
+      id: envelope.messageId,
       edgeId: envelope.edgeId,
       direction: envelope.direction,
       at: startedAt,
@@ -223,6 +226,7 @@ async function start(): Promise<void> {
     })
     if (!accepted) return
     acceptedTraffic += 1
+    exposeFirstPerformanceTimestamp("hamiltonianFirstTrafficAcceptedAt")
     document.documentElement.dataset.hamiltonianTrafficAccepted = String(acceptedTraffic)
     document.documentElement.dataset.hamiltonianTrafficVisualCapacity = String(
       graph.retainedEdgeParticleVisualCount,
@@ -231,24 +235,66 @@ async function start(): Promise<void> {
     document.documentElement.dataset.hamiltonianTrafficLastDirection = envelope.direction
     document.documentElement.dataset.hamiltonianTrafficLastClass = envelope.messageClass
   })
-  const layouter = new ElkNodeSystemLayouter({
-    direction: "RIGHT",
-    nodeSpacing: 52,
-    layerSpacing: 94,
-    padding: 48,
+  let currentLayoutDirection = hamiltonianLayoutDirection({
+    width: Math.max(1, canvas.clientWidth),
+    height: Math.max(1, canvas.clientHeight),
+  })
+  document.documentElement.dataset.hamiltonianLayoutDirection = currentLayoutDirection
+  const layouter = new MetaForNodeSystemLayouter({
+    nodeSpacing: NODE_SYSTEM_PORT_PITCH,
+    layerSpacing: NODE_SYSTEM_PORT_PITCH,
+    padding: NODE_SYSTEM_PORT_PITCH,
     measureText: graph.textMeasurer,
   })
-
-  runtime.addHudSurface(graph, ({w, h}) => planHamiltonianOrchestrationWorkspace(w, h, inspector.isOpen, inspectorFrame, inspectorStickFrame).graph, {
-    windowId: "hamiltonian-orchestration",
+  runtime.addSurface(graph, ({w, h}) => planHamiltonianOrchestrationWorkspace(w, h, inspector.isOpen, inspectorFrame, inspectorStickFrame).graph, {
+    windowId: "hamiltonian-graph",
     zIndex: 0,
   })
   runtime.addHudSurface(inspector, ({w, h}) => planHamiltonianOrchestrationWorkspace(w, h, inspector.isOpen, inspectorFrame, inspectorStickFrame).inspector, {
-    windowId: "hamiltonian-orchestration",
+    windowId: "hamiltonian-inspector",
     zIndex: 1,
   })
+  runtime.addHudSurface(canvasView, ({w, h}) => planHamiltonianCanvasViewFrame(
+    w,
+    h,
+    canvasView.isOpen,
+    canvasViewFrame,
+  ), {
+    windowId: "hamiltonian-canvas-view",
+    zIndex: 2,
+  })
+  exposeSpatialRuntime = () => {
+    const snapshot = captureHamiltonianSpatialRuntime(runtime, graph, inspector, canvasView)
+    document.documentElement.dataset.hamiltonianSpatialRuntime = snapshot.valid ? "verified" : "invalid"
+    document.documentElement.dataset.hamiltonianObjectTree = snapshot.tree
+    document.documentElement.dataset.hamiltonianObjectTreeEvidence = JSON.stringify({
+      displayInSpace: snapshot.displayInSpace,
+      graphInDisplay: snapshot.graphInDisplay,
+      inspectorInHud: snapshot.inspectorInHud,
+      canvasControlsInHud: snapshot.canvasControlsInHud,
+    })
+    exposeHamiltonianViewPoint(snapshot.viewPoint)
+  }
+  exposeSpatialRuntime()
 
-  const resizeObserver = new ResizeObserver(() => runtime.handleResize())
+  let scheduleOrientationRelayout = (): void => {}
+  const resizeObserver = new ResizeObserver(() => {
+    runtime.handleResize()
+    const nextLayoutDirection = hamiltonianLayoutDirection({
+      width: Math.max(1, canvas.clientWidth),
+      height: Math.max(1, canvas.clientHeight),
+    })
+    const orientationChanged = nextLayoutDirection !== currentLayoutDirection
+    if (orientationChanged) {
+      currentLayoutDirection = nextLayoutDirection
+      document.documentElement.dataset.hamiltonianLayoutDirection = currentLayoutDirection
+      scheduleOrientationRelayout()
+    }
+    if (!orientationChanged && canvasAutoFitEnabled && layout !== null) {
+      fitGraphCanvas(layout, "auto-fit-display-resize")
+    }
+    exposeSpatialRuntime()
+  })
   resizeObserver.observe(canvas)
   runtime.handleResize()
   const initialWidth = Math.max(1, canvas.clientWidth)
@@ -268,7 +314,7 @@ async function start(): Promise<void> {
     inspectorStickFrame,
   ).inspector, "end")
   runtime.requestRender()
-  status.textContent = "Ожидание топологии от сервис-воркера…"
+  status.textContent = "Материализация причинного bootstrap…"
   status.dataset.state = "waiting"
 
   function exposeInspectorFrame(frame: UiSurfaceRect, phase: "change" | "end"): void {
@@ -290,77 +336,221 @@ async function start(): Promise<void> {
     document.documentElement.dataset.hamiltonianSelectedNodeCount = String(nodeIds.length)
   }
 
-  function persistInspectorPresentation(open: boolean): void {
-    persistObserverInspectorPresentation({
-      open,
-      frame: inspectorFrame,
-      stickFrame: inspectorStickFrame,
-      selectedNodeIds,
-      selectedNodeId,
-    })
+  const context = {
+    origin: location.origin,
+    deviceId,
+    tabId,
+    pageIncarnation: pageBootstrap.pageIncarnation,
+    observedAt: pageBootstrap.observedAt,
+    navigationId: pageBootstrap.navigationId,
+    servedAt: pageBootstrap.servedAt,
+    server: pageBootstrap.server,
   }
-
-  acceptProjection = (projection, revision) => {
-    const generation = ++updateGeneration
-    const document = projectHamiltonianTopology(projection, {
-      origin: location.origin,
-      deviceId,
-      tabId,
-    }, revision)
-    const nextStructureKey = [
-      nodeSystemStructureKey(document),
-      nodeSystemGeometryKey(document, graph.textMeasurer),
+  const lifecycleProjection = new HamiltonianLifecycleProjection(context)
+  const bootstrapDocument = lifecycleProjection.document()
+  const bootstrapGeometryKey = nodeSystemGeometryKey(bootstrapDocument, graph.textMeasurer)
+  // A resize may cross the orientation boundary while the first layout
+  // calculation is pending. applyDocument rejects that stale direction; retry the
+  // same guaranteed bootstrap until one current RIGHT/DOWN result commits.
+  while (layout === null) {
+    const bootstrapDirection = currentLayoutDirection
+    const bootstrapStructureKey = [
+      nodeSystemStructureKey(bootstrapDocument),
+      bootstrapGeometryKey,
+      bootstrapDirection,
     ].join("\u0000")
-    void applyDocument(document, nextStructureKey, generation).catch((error: unknown) => {
-      if (generation !== updateGeneration) return
-      status.textContent = `Ошибка раскладки топологии · ${error instanceof Error ? error.message : String(error)}`
-      status.dataset.state = "error"
-    })
+    await applyDocument(
+      bootstrapDocument,
+      bootstrapStructureKey,
+      ++updateGeneration,
+      bootstrapDirection,
+    )
   }
-  for (const item of pending.splice(0)) acceptProjection(item.projection, item.revision)
+  document.documentElement.dataset.hamiltonianBootstrapNodes = String(bootstrapDocument.nodes.length)
+  document.documentElement.dataset.hamiltonianBootstrapEdges = String(bootstrapDocument.edges.length)
+  document.documentElement.dataset.hamiltonianBootstrapServer = `server:${pageBootstrap.server.hostEpoch}`
+  document.documentElement.dataset.hamiltonianBootstrapPage = `page:${pageBootstrap.pageIncarnation}`
+  document.documentElement.dataset.hamiltonianBootstrapCommittedAt = String(performance.now())
 
-  async function applyDocument(document: NodeSystemDocument, nextStructureKey: string, generation: number): Promise<void> {
+  let scheduledDocument: NodeSystemDocument | null = null
+  let documentDrain: Promise<void> | null = null
+  const exposeLifecycleGap = () => {
+    const activeGap = lifecycleProjection.firstGap
+    if (activeGap === null) {
+      delete document.documentElement.dataset.hamiltonianLifecycleGap
+    } else {
+      document.documentElement.dataset.hamiltonianLifecycleGap =
+        `${activeGap.sourceId}:${activeGap.missingFrom}-${activeGap.missingTo}`
+    }
+  }
+  const retireProjectionSources = () => {
+    const retired = lifecycleProjection.takeRetiredLifecycleSources()
+    if (retired.length === 0) return
+    for (const source of retired) {
+      lifecycleCursor.retire(source.sourceId, source.sourceIncarnation)
+      resolvedLifecycleFrontier.delete(`${source.sourceId}\u0000${source.sourceIncarnation}`)
+    }
+    document.documentElement.dataset.hamiltonianLifecycleActiveSources = String(lifecycleCursor.activeSourceCount)
+    document.documentElement.dataset.hamiltonianLifecycleRetiredSources = String(lifecycleCursor.retiredSourceCount)
+    document.documentElement.dataset.hamiltonianLifecycleTerminalIdentities = String(
+      lifecycleProjection.retainedTerminalIdentityCount,
+    )
+    document.documentElement.dataset.hamiltonianLifecycleStructuralEvents = String(
+      lifecycleProjection.retainedStructuralEventCount,
+    )
+  }
+  const scheduleCurrentDocument = () => {
+    scheduledDocument = lifecycleProjection.document()
+    updateGeneration += 1
+    document.documentElement.dataset.hamiltonianLifecyclePending = "1"
+    if (documentDrain !== null) return
+    // A retained frontier and its already queued live continuation are applied
+    // synchronously during startup. Let that one turn finish before starting
+    // layout work so it positions the latest document once instead of laying
+    // out an immediately superseded retained snapshot first.
+    documentDrain = Promise.resolve()
+      .then(drainDocuments)
+      .finally(() => {
+        documentDrain = null
+        document.documentElement.dataset.hamiltonianLifecyclePending = scheduledDocument === null ? "0" : "1"
+      })
+  }
+  scheduleOrientationRelayout = scheduleCurrentDocument
+  acceptLifecycle = (accepted) => {
+    let effectiveGap = accepted.gap
+    if (effectiveGap !== null) {
+      const key = `${effectiveGap.sourceId}\u0000${effectiveGap.sourceIncarnation}`
+      const resolvedSequence = resolvedLifecycleFrontier.get(key) ?? 0
+      if (resolvedSequence >= effectiveGap.missingTo) {
+        effectiveGap = null
+      } else if (resolvedSequence >= effectiveGap.missingFrom) {
+        effectiveGap = {
+          ...effectiveGap,
+          expectedSequence: resolvedSequence + 1,
+          missingFrom: resolvedSequence + 1,
+        }
+      }
+    }
+    const presentation = lifecycleProjection.observe(accepted.envelope, effectiveGap)
+    retireProjectionSources()
+    for (const edgeId of lifecycleProjection.takeRetiredTransportIds()) {
+      trafficPresentation.forgetEdge(edgeId)
+    }
+    exposeLifecycleGap()
+    if (presentation !== null && document.visibilityState === "visible") {
+      exposeFirstPerformanceTimestamp("hamiltonianFirstTrafficObservedAt")
+      trafficPresentation.observe(presentation)
+      document.documentElement.dataset.hamiltonianTrafficPending = String(trafficPresentation.pendingCount)
+    }
+    if (!hamiltonianLifecycleNeedsDocument(accepted.envelope, effectiveGap)) return
+    scheduleCurrentDocument()
+  }
+  acceptLifecycleEnvelope = (envelope) => {
+    const accepted = lifecycleCursor.accept(envelope)
+    if (accepted === null) return
+    document.documentElement.dataset.hamiltonianLifecycleSource = accepted.envelope.sourceId
+    document.documentElement.dataset.hamiltonianLifecycleIncarnation = accepted.envelope.sourceIncarnation
+    document.documentElement.dataset.hamiltonianLifecycleSequence = String(accepted.envelope.sequence)
+    acceptLifecycle!(accepted)
+  }
+  acceptLifecycleSnapshot = (snapshot) => {
+    lifecycleProjection.replaceSnapshot(snapshot)
+    for (const entry of snapshot.frontier) {
+      const key = `${entry.sourceId}\u0000${entry.sourceIncarnation}`
+      const previous = resolvedLifecycleFrontier.get(key) ?? 0
+      if (entry.sequence > previous) resolvedLifecycleFrontier.set(key, entry.sequence)
+    }
+    lifecycleCursor.seed(snapshot.frontier)
+    lifecycleProjection.resolveFrontier(snapshot.frontier)
+    retireProjectionSources()
+    for (const edgeId of lifecycleProjection.takeRetiredTransportIds()) {
+      trafficPresentation.forgetEdge(edgeId)
+    }
+    exposeLifecycleGap()
+    scheduleCurrentDocument()
+  }
+  for (const snapshot of pendingLifecycleSnapshots.values()) acceptLifecycleSnapshot(snapshot)
+  pendingLifecycleSnapshots.clear()
+  for (const envelope of pendingLifecycle.splice(0)) acceptLifecycleEnvelope(envelope)
+
+  async function drainDocuments(): Promise<void> {
+    while (scheduledDocument !== null) {
+      const current = scheduledDocument
+      scheduledDocument = null
+      const generation = ++updateGeneration
+      const nextStructureKey = [
+        nodeSystemStructureKey(current),
+        nodeSystemGeometryKey(current, graph.textMeasurer),
+        currentLayoutDirection,
+      ].join("\u0000")
+      const direction = currentLayoutDirection
+      try {
+        await applyDocument(current, nextStructureKey, generation, direction)
+      } catch (error: unknown) {
+        if (generation !== updateGeneration) continue
+        status.textContent = `Ошибка раскладки топологии · ${error instanceof Error ? error.message : String(error)}`
+        status.dataset.state = "error"
+      }
+    }
+  }
+
+  async function applyDocument(
+    document: NodeSystemDocument,
+    nextStructureKey: string,
+    generation: number,
+    direction: NodeSystemLayoutDirection,
+  ): Promise<void> {
     const previousLayout = layout
-    const preserveViewport = previousLayout !== null && graph.hasMaterializedViewport
-    const previousViewport = graph.viewport
+    const preserveCanvasTransform = previousLayout !== null && graph.hasMaterializedCanvasTransform
+    const previousCanvasTransform = graph.canvasTransform
     let nextLayout: PositionedNodeSystem
     if (previousLayout !== null && structureKey === nextStructureKey) {
       nextLayout = refreshPositionedNodeSystem(previousLayout, document)
-      // Persisted presentation geometry is an invariant, not only an initial
-      // layout hint. Re-apply and reroute if any refresh ever drifts from it.
-      if (hasHamiltonianNodeGeometryMismatch(nextLayout, anchors, graph)) {
-        nextLayout = await routeNodeSystemOnHost(applyHamiltonianNodeGeometries(nextLayout, anchors, graph).layout)
-      }
     } else {
-      const proposed = await layouter.layout(document)
-      const stable = previousLayout === null ? proposed : stabilizeNodeSystemLayout(previousLayout, proposed)
-      const insertedNodeIds = previousLayout === null
-        ? new Set<string>()
-        : new Set(proposed.nodes.flatMap(({node}) => previousLayout.nodes.some((entry) => entry.node.id === node.id) ? [] : [node.id]))
-      const applied = applyHamiltonianNodeGeometries(stable, anchors, graph, insertedNodeIds)
-      if (applied.relocated) {
-        anchors = applied.geometries
-        persistNodeAnchors(anchors)
+      const viewport = {
+        width: Math.max(1, canvas.clientWidth),
+        height: Math.max(1, canvas.clientHeight),
       }
-      nextLayout = await routeNodeSystemOnHost(applied.layout)
+      if (hamiltonianLayoutDirection(viewport) !== direction) return
+      nextLayout = layouter.layout(document, {viewport})
+    }
+    if (generation !== updateGeneration || direction !== currentLayoutDirection) return
+    const geometryChanged = previousLayout !== null &&
+      hamiltonianLayoutGeometryChanged(previousLayout, nextLayout)
+    applyingTopologyLayout = true
+    try {
+      if (previousLayout !== null && geometryChanged) {
+        status.textContent = `Перестроение ${nextLayout.nodes.length} нод…`
+        status.dataset.state = "moving"
+        if (!await animateTopologyLayout(previousLayout, nextLayout, generation)) return
+      } else {
+        layout = nextLayout
+        graph.setLayout(nextLayout)
+        if (previousLayout === null) {
+          fitGraphCanvas(nextLayout, "auto-fit-growth")
+        } else if (preserveCanvasTransform) {
+          graph.setCanvasTransform(previousCanvasTransform)
+        }
+      }
+      if (nextLayout.edges.length > 0) {
+        exposeFirstPerformanceTimestamp("hamiltonianFirstEdgeMaterializedAt")
+      }
+      trafficPresentation.setMaterializedEdges(nextLayout.edges.map(({edge}) => edge.id))
+      globalThis.document.documentElement.dataset.hamiltonianTrafficPending = String(trafficPresentation.pendingCount)
+      globalThis.document.documentElement.dataset.hamiltonianTrafficPresentation = "ready"
+      globalThis.document.documentElement.dataset.hamiltonianLayoutTransition = "complete"
+    } finally {
+      applyingTopologyLayout = false
     }
     if (generation !== updateGeneration) return
     layout = nextLayout
     structureKey = nextStructureKey
-    applyingTopologyLayout = true
-    try {
-      graph.setLayout(nextLayout)
-      trafficPresentation.setMaterializedEdges(nextLayout.edges.map(({edge}) => edge.id))
-      globalThis.document.documentElement.dataset.hamiltonianTrafficPending = String(trafficPresentation.pendingCount)
-      globalThis.document.documentElement.dataset.hamiltonianTrafficPresentation = "ready"
-    } finally {
-      applyingTopologyLayout = false
-    }
+    trafficPresentation.discardPendingOutside(nextLayout.edges.map(({edge}) => edge.id))
+    globalThis.document.documentElement.dataset.hamiltonianTrafficPending = String(trafficPresentation.pendingCount)
     if (restoreSelectionPending) {
       const available = new Set(nextLayout.nodes.map(({node}) => node.id))
       if (shouldRetainMissingLocalWindowSelection(selectedNodeIds, localWindowNodeId, available)) {
         exposeInspectorSelection(selectedNodeIds, selectedNodeId)
-        persistInspectorPresentation(inspector.isOpen)
       } else {
         restoreSelectionPending = false
         const surviving = selectedNodeIds.filter((nodeId) => available.has(nodeId))
@@ -376,210 +566,95 @@ async function start(): Promise<void> {
           selectedNodeIds = []
           selectedNodeId = null
           exposeInspectorSelection([], null)
-          persistInspectorPresentation(inspector.isOpen)
         }
       }
-    }
-    if (restoredViewport !== null) {
-      graph.setViewport(restoredViewport)
-      restoredViewport = null
-      globalThis.document.documentElement.dataset.hamiltonianViewport = "restored"
-    } else if (preserveViewport) {
-      graph.setViewport(previousViewport)
     }
     inspector.inspect(graph.selectedNode?.node ?? null)
     status.textContent = `${nextLayout.nodes.length} нод · ${nextLayout.edges.length} связей · живой режим`
     status.dataset.state = "live"
-    documentElementEvidence(nextLayout, revisionLabel(document.revision), anchors)
+    documentElementEvidence(nextLayout, revisionLabel(document.revision))
   }
 
-  async function applyNodeMove(event: NodeSystemNodeMoveEvent): Promise<void> {
-    layout = event.layout
-    inspector.inspect(graph.selectedNode?.node ?? null)
-    status.textContent = event.phase === "move"
-      ? `Перемещение нод: ${event.nodeIds.length}…`
-      : `Перестроение связей для нод: ${event.nodeIds.length}…`
-    status.dataset.state = "moving"
-    if (event.phase === "move") return
-
-    await persistAndRouteNodeGeometry(event.layout, event.nodeIds)
-  }
-
-  async function applyNodeResize(event: NodeSystemNodeResizeEvent): Promise<void> {
-    layout = event.layout
-    inspector.inspect(graph.selectedNode?.node ?? null)
-    status.textContent = event.phase === "resize" ? `Изменение ширины ${event.nodeId}…` : `Перестроение связей ${event.nodeId}…`
-    status.dataset.state = "moving"
-    if (event.phase === "resize") return
-
-    await persistAndRouteNodeGeometry(event.layout, [event.nodeId])
-  }
-
-  async function persistAndRouteNodeGeometry(
-    eventLayout: PositionedNodeSystem,
-    nodeIds: readonly string[],
-  ): Promise<void> {
-    for (const nodeId of nodeIds) {
-      const entry = eventLayout.nodes.find(({node}) => node.id === nodeId)
-      if (entry === undefined) continue
-      anchors = withHamiltonianNodeGeometry(anchors, nodeId, {
-        x: entry.rect.x,
-        y: entry.rect.y,
-        width: entry.rect.w,
-      })
-    }
-    persistNodeAnchors(anchors)
-    document.documentElement.dataset.hamiltonianAnchors = String(anchors.size)
-
-    const generation = ++updateGeneration
-    const previousViewport = graph.viewport
-    try {
-      const routed = await routeNodeSystemOnHost(eventLayout)
-      if (generation !== updateGeneration) return
-      layout = routed
-      graph.setLayout(routed)
-      trafficPresentation.setMaterializedEdges(routed.edges.map(({edge}) => edge.id))
+  async function animateTopologyLayout(
+    previous: PositionedNodeSystem,
+    target: PositionedNodeSystem,
+    generation: number,
+  ): Promise<boolean> {
+    const startedAt = performance.now()
+    while (true) {
+      if (generation !== updateGeneration) return false
+      const elapsed = performance.now() - startedAt
+      const progress = Math.min(1, elapsed / HAMILTONIAN_LAYOUT_TRANSITION_MS)
+      const frame = interpolateHamiltonianNodePositions(
+        previous,
+        target,
+        easeHamiltonianLayoutTransition(progress),
+      )
+      layout = frame
+      const frameCanvasTransform = graph.canvasTransform
+      graph.setLayout(frame)
+      if (frame.edges.length > 0) {
+        exposeFirstPerformanceTimestamp("hamiltonianFirstEdgeMaterializedAt")
+      }
+      trafficPresentation.setMaterializedEdges(frame.edges.map(({edge}) => edge.id))
       document.documentElement.dataset.hamiltonianTrafficPending = String(trafficPresentation.pendingCount)
-      graph.setViewport(previousViewport)
-      inspector.inspect(graph.selectedNode?.node ?? null)
-      status.textContent = `${routed.nodes.length} нод · ${routed.edges.length} связей · сохранено`
-      status.dataset.state = "live"
-      documentElementEvidence(routed, revisionLabel(routed.revision), anchors)
-    } catch (error: unknown) {
-      if (generation !== updateGeneration) return
-      status.textContent = `Позиция сохранена; связи не перестроены · ${error instanceof Error ? error.message : String(error)}`
-      status.dataset.state = "error"
+      if (canvasAutoFitEnabled) {
+        fitGraphCanvas(frame, "auto-fit-topology-transition")
+      } else {
+        graph.setCanvasTransform(frameCanvasTransform)
+      }
+      document.documentElement.dataset.hamiltonianLayoutTransition = progress >= 1 ? "complete" : "moving"
+      if (progress >= 1) return true
+      await nextPresentationFrame()
     }
+  }
+
+  function fitGraphCanvas(target: PositionedNodeSystem, reason: string, force = false): void {
+    if (!canvasAutoFitEnabled && !force) return
+    const displayRect = planHamiltonianGraphDisplayRect(
+      Math.max(1, canvas.clientWidth),
+      Math.max(1, canvas.clientHeight),
+    )
+    const transform = fitNodeSystemCanvasTransform(target, displayRect, 34, {minScale: 0.12, maxScale: 2.5})
+    graph.setCanvasTransform(transform)
+    document.documentElement.dataset.hamiltonianCanvasTransform = reason
+    exposeCanvasTransform(transform)
+  }
+
+  function exposeCanvasTransform(transform: Readonly<{x: number; y: number; scale: number}>): void {
+    document.documentElement.dataset.hamiltonianCanvasOffsetX = String(transform.x)
+    document.documentElement.dataset.hamiltonianCanvasOffsetY = String(transform.y)
+    document.documentElement.dataset.hamiltonianCanvasScale = String(transform.scale)
+    document.documentElement.dataset.hamiltonianCanvasMode = canvasAutoFitEnabled ? "auto-fit" : "manual"
   }
 
   window.addEventListener("pagehide", () => {
     document.removeEventListener("visibilitychange", synchronizeTrafficVisibility)
     resizeObserver.disconnect()
-    channel?.close()
-    unsubscribeTraffic()
+    unsubscribeLifecycle()
+    unsubscribeLifecycleSnapshot()
     trafficPresentation.disconnect()
     layouter.dispose()
     runtime.dispose()
   }, {once: true})
 }
 
-function loadNodeAnchors(): Map<string, Readonly<{x: number; y: number; width?: number}>> {
-  try {
-    return parseHamiltonianNodeAnchors(localStorage.getItem(HAMILTONIAN_NODE_ANCHORS_STORAGE_KEY))
-  } catch {
-    return new Map()
-  }
+function exposeFirstPerformanceTimestamp(key: string): void {
+  if (document.documentElement.dataset[key] !== undefined) return
+  document.documentElement.dataset[key] = String(performance.now())
 }
 
-function persistNodeAnchors(anchors: HamiltonianNodeGeometries): void {
-  try {
-    localStorage.setItem(HAMILTONIAN_NODE_ANCHORS_STORAGE_KEY, serializeHamiltonianNodeAnchors(anchors))
-  } catch {
-    // Private/locked-down storage must not disable the live orchestration scene.
-  }
-}
-
-function loadObserverViewport(): ReturnType<typeof parseHamiltonianViewport> {
-  try {
-    return parseHamiltonianViewport(sessionStorage.getItem(HAMILTONIAN_VIEWPORT_STORAGE_KEY))
-  } catch {
-    return null
-  }
-}
-
-function persistObserverViewport(viewport: Readonly<{x: number; y: number; scale: number}>): void {
-  try {
-    sessionStorage.setItem(HAMILTONIAN_VIEWPORT_STORAGE_KEY, serializeHamiltonianViewport(viewport))
-  } catch {
-    // View persistence is optional presentation state, never a scene blocker.
-  }
-}
-
-function loadObserverInspectorPresentation(): HamiltonianInspectorPresentation | null {
-  try {
-    return parseHamiltonianInspectorPresentation(
-      sessionStorage.getItem(HAMILTONIAN_INSPECTOR_PRESENTATION_STORAGE_KEY),
-    )
-  } catch {
-    return null
-  }
-}
-
-function persistObserverInspectorPresentation(presentation: HamiltonianInspectorPresentation): void {
-  try {
-    sessionStorage.setItem(
-      HAMILTONIAN_INSPECTOR_PRESENTATION_STORAGE_KEY,
-      serializeHamiltonianInspectorPresentation(presentation),
-    )
-  } catch {
-    // Inspector placement is optional observer-local state, never a scene blocker.
-  }
-}
-
-async function routeNodeSystemOnHost(layout: PositionedNodeSystem): Promise<PositionedNodeSystem> {
-  const response = await fetch("/node-system/route", {
-    method: "POST",
-    headers: {"content-type": "application/json"},
-    body: JSON.stringify(createNodeSystemRouteRequest(layout)),
-  })
-  if (!response.ok) throw new Error(`Libavoid ${response.status}: ${await response.text()}`)
-  return parseNodeSystemRouteResponse(await response.json()).layout
-}
-
-function applyHamiltonianNodeGeometries(
-  layout: PositionedNodeSystem,
-  geometries: HamiltonianNodeGeometries,
-  graph: NodeSystemSurface,
-  insertedNodeIds: ReadonlySet<string> = new Set(),
-): Readonly<{layout: PositionedNodeSystem; geometries: HamiltonianNodeGeometries; relocated: boolean}> {
-  let result = layout
-  let nextGeometries = geometries
-  let relocated = false
-  for (const [nodeId, geometry] of [...geometries].sort(([left], [right]) => left.localeCompare(right))) {
-    const entry = result.nodes.find(({node}) => node.id === nodeId)
-    if (entry === undefined) continue
-    const minimum = measureNodeSystemCard(entry.node, graph.textMeasurer).width
-    const width = Math.max(minimum, geometry.width ?? entry.rect.w)
-    const desired = {x: geometry.x, y: geometry.y, w: width, h: entry.rect.h}
-    if (insertedNodeIds.has(nodeId) && !isNodeSystemRectVacant(result, nodeId, desired, {spacing: 28})) {
-      const stable = {x: entry.rect.x, y: entry.rect.y, w: width, h: entry.rect.h}
-      if (isNodeSystemRectVacant(result, nodeId, stable, {spacing: 28})) {
-        result = resizeNodeSystemNode(result, nodeId, {x: stable.x, w: stable.w})
-        nextGeometries = withHamiltonianNodeGeometry(nextGeometries, nodeId, {
-          x: stable.x,
-          y: stable.y,
-          width: stable.w,
-        })
-      } else {
-        const mutable = new Map(nextGeometries)
-        mutable.delete(nodeId)
-        nextGeometries = mutable
-      }
-      relocated = true
-      continue
+function nextPresentationFrame(): Promise<void> {
+  return new Promise((resolve) => {
+    let settled = false
+    const finish = () => {
+      if (settled) return
+      settled = true
+      clearTimeout(timeout)
+      resolve()
     }
-    result = moveNodeSystemNode(result, nodeId, geometry)
-    if (geometry.width !== undefined) {
-      result = resizeNodeSystemNode(result, nodeId, {x: geometry.x, w: width})
-    }
-  }
-  return {layout: result, geometries: nextGeometries, relocated}
-}
-
-function hasHamiltonianNodeGeometryMismatch(
-  layout: PositionedNodeSystem,
-  geometries: HamiltonianNodeGeometries,
-  graph: NodeSystemSurface,
-): boolean {
-  return [...geometries].some(([nodeId, geometry]) => {
-    const entry = layout.nodes.find(({node}) => node.id === nodeId)
-    if (entry === undefined) return false
-    const expectedWidth = geometry.width === undefined
-      ? entry.rect.w
-      : Math.max(measureNodeSystemCard(entry.node, graph.textMeasurer).width, geometry.width)
-    return Math.abs(entry.rect.x - geometry.x) >= 1e-6 ||
-      Math.abs(entry.rect.y - geometry.y) >= 1e-6 ||
-      Math.abs(entry.rect.w - expectedWidth) >= 1e-6
+    const timeout = setTimeout(finish, 50)
+    requestAnimationFrame(finish)
   })
 }
 
@@ -592,30 +667,23 @@ function dispatchAction(node: NodeSystemNode, action: NodeSystemAction): void {
 function documentElementEvidence(
   layout: PositionedNodeSystem,
   revision: string,
-  anchors: HamiltonianNodeGeometries,
 ): void {
   document.documentElement.dataset.hamiltonianScene = "ready"
   document.documentElement.dataset.hamiltonianNodes = String(layout.nodes.length)
   document.documentElement.dataset.hamiltonianEdges = String(layout.edges.length)
   document.documentElement.dataset.hamiltonianRevision = revision
-  document.documentElement.dataset.hamiltonianAnchors = String(anchors.size)
-  const known = [...anchors].flatMap(([nodeId, point]) => {
-    const node = layout.nodes.find((entry) => entry.node.id === nodeId)
-    return node === undefined ? [] : [{node, point}]
-  })
-  document.documentElement.dataset.hamiltonianKnownAnchors = String(known.length)
-  document.documentElement.dataset.hamiltonianPositionsApplied = String(known.filter(({node, point}) =>
-    Math.abs(node.rect.x - point.x) < 1e-6 && Math.abs(node.rect.y - point.y) < 1e-6
-  ).length)
-  document.documentElement.dataset.hamiltonianWidthsApplied = String(known.filter(({node, point}) =>
-    point.width !== undefined && Math.abs(node.rect.w - point.width) < 1e-6
-  ).length)
-  document.documentElement.dataset.hamiltonianAnchorsApplied = String(known.filter(({node, point}) =>
-      Math.abs(node.rect.x - point.x) < 1e-6 &&
-      Math.abs(node.rect.y - point.y) < 1e-6 &&
-      (point.width === undefined || Math.abs(node.rect.w - point.width) < 1e-6)
-  ).length)
-  document.documentElement.dataset.hamiltonianWidths = String([...anchors.values()].filter(({width}) => width !== undefined).length)
+  document.documentElement.dataset.hamiltonianLayoutEngine = "typescript"
+  document.documentElement.dataset.hamiltonianLayoutKernel = "fixed-point-a-star"
+  document.documentElement.dataset.hamiltonianLayoutContract = "exact-sockets"
+  document.documentElement.dataset.hamiltonianLayoutBounds = JSON.stringify(layout.bounds)
+  document.documentElement.dataset.hamiltonianLayoutRects = JSON.stringify(layout.nodes.map(({node, rect}) => ({
+    id: node.id,
+    parentId: node.parentId ?? null,
+    rect,
+  })))
+  const websocket = layout.edges.find(({edge}) => edge.label === "WS" || edge.label === "WSS")
+  document.documentElement.dataset.hamiltonianWebsocketEdge = websocket?.edge.id ?? ""
+  document.documentElement.dataset.hamiltonianWebsocketTone = websocket?.edge.tone ?? "absent"
 }
 
 function revisionLabel(value: string | number | undefined): string {

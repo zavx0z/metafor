@@ -8,12 +8,18 @@ import {
   ReconnectPolicy,
 } from "./runtime.js"
 import {
+  HAMILTONIAN_HIDDEN_WORKER_QUIET_MS,
+  HAMILTONIAN_PAGE_HEARTBEAT_MS,
+  HAMILTONIAN_VISIBLE_WORKER_QUIET_MS,
   disposeFailedWorker,
   ExclusiveResourceSlot,
   isCurrentLeaderPeerControl,
+  isCurrentPageChannel,
   isCurrentPeerGeneration,
   isCurrentWindowChannel,
   mainRealmRequiresReload,
+  sourceRevisionRequiresReload,
+  pageWorkerChannelIsQuiet,
 } from "./browser-control.js"
 
 class FakeChannel extends EventTarget {
@@ -151,6 +157,23 @@ describe("shared Hamiltonian core", () => {
     expect(mainRealmRequiresReload(false, null, "v2:hash-b")).toBeFalse()
   })
 
+  test("reloads one time for each non-empty dev source revision", () => {
+    expect(sourceRevisionRequiresReload(null, "host:1:hash")).toBeTrue()
+    expect(sourceRevisionRequiresReload("host:1:hash", "host:1:hash")).toBeFalse()
+    expect(sourceRevisionRequiresReload("host:1:hash", "host:2:hash")).toBeTrue()
+    expect(sourceRevisionRequiresReload("host:1:hash", "")).toBeFalse()
+  })
+
+  test("wakes a dead Service Worker quickly without mistaking background throttling for death", () => {
+    expect(HAMILTONIAN_PAGE_HEARTBEAT_MS).toBe(500)
+    expect(HAMILTONIAN_VISIBLE_WORKER_QUIET_MS).toBe(1_000)
+    expect(HAMILTONIAN_HIDDEN_WORKER_QUIET_MS).toBe(3_500)
+    expect(pageWorkerChannelIsQuiet({now: 2_000, lastWorkerMessageAt: 1_000, visibility: "visible"})).toBeFalse()
+    expect(pageWorkerChannelIsQuiet({now: 2_001, lastWorkerMessageAt: 1_000, visibility: "visible"})).toBeTrue()
+    expect(pageWorkerChannelIsQuiet({now: 4_500, lastWorkerMessageAt: 1_000, visibility: "hidden"})).toBeFalse()
+    expect(pageWorkerChannelIsQuiet({now: 4_501, lastWorkerMessageAt: 1_000, visibility: "hidden"})).toBeTrue()
+  })
+
   test("uses host epoch plus fencing token and rejects an expired or stale holder", () => {
     const authority = new LeaseAuthority({hostEpoch: "host-a", durationMs: 100})
     const first = authority.grant("connection-a", "main-a", 1_000)
@@ -195,6 +218,13 @@ describe("shared Hamiltonian core", () => {
     expect(isCurrentWindowChannel(registry, current)).toBeTrue()
   })
 
+  test("does not let a replaced page MessagePort report a stale worker incarnation", () => {
+    const stale = {generation: 1}
+    const current = {generation: 2}
+    expect(isCurrentPageChannel(current, stale)).toBeFalse()
+    expect(isCurrentPageChannel(current, current)).toBeTrue()
+  })
+
   test("routes RPC and Force through separate native channels", async () => {
     const pair = protocolPair()
     pair.right.register("sum", ({left, right}: {left: number; right: number}) => left + right)
@@ -221,9 +251,11 @@ describe("shared Hamiltonian core", () => {
     const [leftForce, rightForce] = channelPair()
     const leftTraffic: unknown[] = []
     const rightTraffic: unknown[] = []
+    let nextMessageId = 0
     const left = new LogicalChannelSession({
       sessionEpoch: "traffic-session",
       lanes: {oracle: leftOracle, force: leftForce},
+      messageIds: () => `rtc-message:${++nextMessageId}`,
       onTraffic: (event: unknown) => leftTraffic.push(event),
     })
     new LogicalChannelSession({
@@ -235,12 +267,12 @@ describe("shared Hamiltonian core", () => {
     left.send("force", {type: "force.event", sequence: 1})
     await Bun.sleep(0)
     expect(leftTraffic).toEqual([
-      {lane: "oracle", direction: "forward", messageClass: "rpc.request"},
-      {lane: "force", direction: "forward", messageClass: "force.event"},
+      {lane: "oracle", direction: "forward", messageClass: "rpc.request", messageId: "rtc-message:1", sequence: 1},
+      {lane: "force", direction: "forward", messageClass: "force.event", messageId: "rtc-message:2", sequence: 1},
     ])
     expect(rightTraffic).toEqual([
-      {lane: "oracle", direction: "reverse", messageClass: "rpc.request"},
-      {lane: "force", direction: "reverse", messageClass: "force.event"},
+      {lane: "oracle", direction: "reverse", messageClass: "rpc.request", messageId: "rtc-message:1", sequence: 1},
+      {lane: "force", direction: "reverse", messageClass: "force.event", messageId: "rtc-message:2", sequence: 1},
     ])
   })
 

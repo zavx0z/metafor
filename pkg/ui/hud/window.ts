@@ -48,8 +48,10 @@ export type HudWindowProps = HudWindowTitleBarProps & HudPaneFrameInteractionPro
   bodyBottomInset?: number
 }
 
+export const HUD_WINDOW_TITLE_HEIGHT = 36
+
 export function HudWindow(host: UiSurface, x: number, y: number, w: number, h: number, props: HudWindowProps): UiSurfaceRect {
-  const headerH = props.height ?? 36
+  const headerH = props.height ?? HUD_WINDOW_TITLE_HEIGHT
   const bodyInsetX = props.bodyInsetX ?? 8
   const bodyTopGap = props.bodyTopGap ?? 6
   const bodyBottomInset = props.bodyBottomInset ?? 6
@@ -93,7 +95,7 @@ export function HudWindow(host: UiSurface, x: number, y: number, w: number, h: n
 }
 
 export function HudWindowTitleBar(host: UiSurface, x: number, y: number, w: number, props: HudWindowTitleBarProps): void {
-  const h = props.height ?? 36
+  const h = props.height ?? HUD_WINDOW_TITLE_HEIGHT
   const insetX = props.insetX ?? 16
   const buttonSize = props.buttonSize ?? 22
   const buttonGap = props.buttonGap ?? 5

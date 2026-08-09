@@ -33,7 +33,13 @@ export function isNodeSystemRectVacant(
     throw new Error(`Invalid node frame: ${nodeId}`)
   }
   const spacing = finiteNonNegative(options.spacing, 0)
-  return layout.nodes.every((entry) => entry.node.id === nodeId || !overlaps(rect, entry.rect, spacing))
+  const node = layout.nodes.find((entry) => entry.node.id === nodeId)?.node
+  const byId = new Map(layout.nodes.map((entry) => [entry.node.id, entry.node]))
+  return layout.nodes.every((entry) =>
+    entry.node.id === nodeId ||
+    isContainedBy(entry.node, nodeId, byId) ||
+    (node !== undefined && isContainedBy(node, entry.node.id, byId)) ||
+    !overlaps(rect, entry.rect, spacing))
 }
 
 /**
@@ -43,8 +49,9 @@ export function isNodeSystemRectVacant(
  * scene instead of appearing in the unrelated coordinate system of a fresh
  * full-graph layout. Only an inserted node may then be shifted to avoid an
  * existing obstacle.
- * Edge points are deliberately reduced to endpoints: the fixed geometry is
- * expected to be routed by Libavoid afterwards.
+ * Edge points are deliberately reduced to endpoints because this generic
+ * helper describes an explicit manual edit. An application that delegates
+ * geometry to ELK must run ELK again instead of using this helper.
  */
 export function stabilizeNodeSystemLayout(
   previous: PositionedNodeSystem,
@@ -157,20 +164,37 @@ export function moveNodeSystemNodes(
   options: Pick<StableNodeSystemLayoutOptions, "padding"> = {},
 ): PositionedNodeSystem {
   validatePositionedNodeSystem(layout)
-  for (const [nodeId, position] of positions) {
+  const expandedPositions = new Map(positions)
+  const currentById = new Map(layout.nodes.map((entry) => [entry.node.id, entry]))
+  let expanded = true
+  while (expanded) {
+    expanded = false
+    for (const entry of layout.nodes) {
+      if (entry.node.parentId === undefined || expandedPositions.has(entry.node.id)) continue
+      const parentPosition = expandedPositions.get(entry.node.parentId)
+      if (parentPosition === undefined) continue
+      const parent = required(currentById.get(entry.node.parentId), `Missing contained parent: ${entry.node.parentId}`)
+      expandedPositions.set(entry.node.id, {
+        x: entry.rect.x + parentPosition.x - parent.rect.x,
+        y: entry.rect.y + parentPosition.y - parent.rect.y,
+      })
+      expanded = true
+    }
+  }
+  for (const [nodeId, position] of expandedPositions) {
     if (!Number.isFinite(position.x) || !Number.isFinite(position.y)) throw new Error(`Invalid node position: ${nodeId}`)
     if (!layout.nodes.some(({node}) => node.id === nodeId)) throw new Error(`Missing positioned node: ${nodeId}`)
   }
   const nodes = layout.nodes.map((entry) => {
-    const position = positions.get(entry.node.id)
+    const position = expandedPositions.get(entry.node.id)
     return position === undefined ? entry : translateNode(entry, position.x, position.y)
   })
   const nodeIndex = new Map(nodes.map((entry) => [entry.node.id, entry]))
   const edges = layout.edges.map((entry): PositionedNodeSystemEdge => {
-    if (!positions.has(entry.edge.source.nodeId) && !positions.has(entry.edge.target.nodeId)) return entry
+    if (!expandedPositions.has(entry.edge.source.nodeId) && !expandedPositions.has(entry.edge.target.nodeId)) return entry
     const points = [...entry.points]
-    if (positions.has(entry.edge.source.nodeId)) points[0] = endpointCenter(entry.edge.source, nodeIndex)
-    if (positions.has(entry.edge.target.nodeId)) points[points.length - 1] = endpointCenter(entry.edge.target, nodeIndex)
+    if (expandedPositions.has(entry.edge.source.nodeId)) points[0] = endpointCenter(entry.edge.source, nodeIndex)
+    if (expandedPositions.has(entry.edge.target.nodeId)) points[points.length - 1] = endpointCenter(entry.edge.target, nodeIndex)
     return {...entry, points}
   })
   const result: PositionedNodeSystem = {
@@ -199,6 +223,7 @@ export function resizeNodeSystemNode(
     throw new Error(`Invalid node width: ${nodeId}`)
   }
   const current = required(layout.nodes.find(({node}) => node.id === nodeId), `Missing positioned node: ${nodeId}`)
+  if (current.node.parentId !== undefined) throw new Error(`Contained node width is controlled by its parent: ${nodeId}`)
   const resized: PositionedNodeSystemNode = {
     node: current.node,
     rect: {...current.rect, x: rect.x, w: rect.w},
@@ -213,13 +238,34 @@ export function resizeNodeSystemNode(
       }
     }),
   }
-  const nodes = layout.nodes.map((entry) => entry.node.id === nodeId ? resized : entry)
+  const translatedChildren = new Map<string, PositionedNodeSystemNode>()
+  const directDeltas = new Map<string, NodeSystemPoint>()
+  for (const child of layout.nodes) {
+    if (child.node.parentId !== nodeId) continue
+    const nextX = rect.x + (rect.w - child.rect.w) / 2
+    directDeltas.set(child.node.id, {x: nextX - child.rect.x, y: 0})
+  }
+  const nodeById = new Map(layout.nodes.map((entry) => [entry.node.id, entry.node]))
+  for (const child of layout.nodes) {
+    if (!isContainedBy(child.node, nodeId, nodeById)) continue
+    const directChildId = directChildBelow(child.node, nodeId, nodeById)
+    const delta = directDeltas.get(directChildId)
+    if (delta === undefined) continue
+    translatedChildren.set(child.node.id, translateNode(
+      child,
+      child.rect.x + delta.x,
+      child.rect.y + delta.y,
+    ))
+  }
+  const nodes = layout.nodes.map((entry) =>
+    entry.node.id === nodeId ? resized : translatedChildren.get(entry.node.id) ?? entry)
   const nodeIndex = new Map(nodes.map((entry) => [entry.node.id, entry]))
+  const changedNodeIds = new Set([nodeId, ...translatedChildren.keys()])
   const edges = layout.edges.map((entry): PositionedNodeSystemEdge => {
-    if (entry.edge.source.nodeId !== nodeId && entry.edge.target.nodeId !== nodeId) return entry
+    if (!changedNodeIds.has(entry.edge.source.nodeId) && !changedNodeIds.has(entry.edge.target.nodeId)) return entry
     const points = [...entry.points]
-    if (entry.edge.source.nodeId === nodeId) points[0] = endpointCenter(entry.edge.source, nodeIndex)
-    if (entry.edge.target.nodeId === nodeId) points[points.length - 1] = endpointCenter(entry.edge.target, nodeIndex)
+    if (changedNodeIds.has(entry.edge.source.nodeId)) points[0] = endpointCenter(entry.edge.source, nodeIndex)
+    if (changedNodeIds.has(entry.edge.target.nodeId)) points[points.length - 1] = endpointCenter(entry.edge.target, nodeIndex)
     return {...entry, points}
   })
   const result: PositionedNodeSystem = {
@@ -230,6 +276,33 @@ export function resizeNodeSystemNode(
   }
   validatePositionedNodeSystem(result)
   return result
+}
+
+function isContainedBy(
+  node: Readonly<{id: string; parentId?: string}>,
+  ancestorId: string,
+  nodes: ReadonlyMap<string, Readonly<{id: string; parentId?: string}>>,
+): boolean {
+  let parentId = node.parentId
+  const seen = new Set<string>()
+  while (parentId !== undefined && !seen.has(parentId)) {
+    if (parentId === ancestorId) return true
+    seen.add(parentId)
+    parentId = nodes.get(parentId)?.parentId
+  }
+  return false
+}
+
+function directChildBelow(
+  node: Readonly<{id: string; parentId?: string}>,
+  ancestorId: string,
+  nodes: ReadonlyMap<string, Readonly<{id: string; parentId?: string}>>,
+): string {
+  let current = node
+  while (current.parentId !== ancestorId) {
+    current = required(nodes.get(current.parentId!), `Missing containment ancestor: ${current.id}`)
+  }
+  return current.id
 }
 
 /** Applies persisted manual anchors; unknown/removed node IDs are ignored. */
@@ -284,7 +357,6 @@ function endpointCenter(
   nodes: ReadonlyMap<string, PositionedNodeSystemNode>,
 ): NodeSystemPoint {
   const node = required(nodes.get(endpoint.nodeId), `Missing positioned node: ${endpoint.nodeId}`)
-  if (endpoint.portId === undefined) return {x: node.rect.x + node.rect.w / 2, y: node.rect.y + node.rect.h / 2}
   return required(
     node.ports.find(({port}) => port.id === endpoint.portId),
     `Missing positioned port: ${endpoint.nodeId}/${endpoint.portId}`,

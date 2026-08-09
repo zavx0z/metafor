@@ -1,11 +1,15 @@
 export type NodeSystemTone = "neutral" | "live" | "paused" | "warn"
 
 export type NodeSystemPortDirection = "in" | "out" | "inout"
+export type NodeSystemPortSide = "left" | "right"
 
 export type NodeSystemPort = Readonly<{
   id: string
-  label?: string
+  /** Parameter row that owns and visually contains this socket. */
+  parameterId: string
   direction: NodeSystemPortDirection
+  /** Optional visual side; message direction remains independent. */
+  side?: NodeSystemPortSide
 }>
 
 export type NodeSystemFact = Readonly<{
@@ -25,6 +29,11 @@ export type NodeSystemAction = Readonly<{
 
 export type NodeSystemNode = Readonly<{
   id: string
+  /**
+   * Optional visual containment. This is not an edge or a transport: the
+   * producer remains responsible for the meaning of the relation.
+   */
+  parentId?: string
   title: string
   kind?: string
   summary?: string
@@ -41,7 +50,8 @@ export type NodeSystemNode = Readonly<{
 
 export type NodeSystemEndpoint = Readonly<{
   nodeId: string
-  portId?: string
+  /** Every edge terminates at a socket owned by a concrete parameter. */
+  portId: string
 }>
 
 export type NodeSystemEdge = Readonly<{

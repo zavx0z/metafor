@@ -1,0 +1,497 @@
+import {describe, expect, test} from "bun:test"
+import {
+  HamiltonianLifecycleCursor,
+  HamiltonianLifecycleRetainedJournal,
+  HamiltonianLifecycleSource,
+  createHamiltonianLifecycleEnvelope,
+  createHamiltonianLifecycleObservation,
+  hamiltonianDataChannelTransportId,
+  hamiltonianRtcPeerEntityId,
+  emitHamiltonianLifecycle,
+  isHamiltonianLifecycleEnvelope,
+  isHamiltonianLifecycleSnapshot,
+  publishHamiltonianLifecycleSnapshot,
+  receiveHamiltonianLifecycleSnapshot,
+  subscribeHamiltonianLifecycle,
+  subscribeHamiltonianLifecycleSnapshot,
+} from "./lifecycle.js"
+import {HAMILTONIAN_LIFECYCLE_CHANNEL} from "./monitor.js"
+
+const pageBorn = createHamiltonianLifecycleObservation({
+  type: "entity",
+  phase: "born",
+  subjectId: "page:page-a",
+  subjectKind: "page",
+  ownerId: "page:page-a",
+  attributes: {visibility: "visible"},
+})
+
+describe("Hamiltonian owner lifecycle", () => {
+  test("derives the same peer endpoints and DataChannel incarnation in both runtimes", () => {
+    expect(hamiltonianRtcPeerEntityId("session/a", "server"))
+      .toBe("rtc-peer:session%2Fa%3Aserver")
+    expect(hamiltonianRtcPeerEntityId("session/a", "browser"))
+      .toBe("rtc-peer:session%2Fa%3Abrowser")
+    expect(hamiltonianDataChannelTransportId("session/a", "oracle"))
+      .toBe("data-channel:session%2Fa%3Aoracle")
+  })
+
+  test("binds every event to one owner incarnation and monotonic sequence", () => {
+    const source = new HamiltonianLifecycleSource({
+      id: "page:page-a",
+      kind: "page",
+      incarnation: "page-a",
+      startedAt: 10,
+    })
+    const first = source.next(pageBorn, {at: 11})
+    const changed = source.next(createHamiltonianLifecycleObservation({
+      type: "entity",
+      phase: "changed",
+      subjectId: "page:page-a",
+      subjectKind: "page",
+      ownerId: "page:page-a",
+      attributes: {visibility: "hidden"},
+    }), {at: 12, causedBy: first.eventId})
+
+    expect(first).toEqual({
+      kind: "hamiltonian-lifecycle",
+      version: 1,
+      sourceId: "page:page-a",
+      sourceKind: "page",
+      sourceIncarnation: "page-a",
+      sourceStartedAt: 10,
+      sequence: 1,
+      eventId: "event:page-a:1",
+      at: 11,
+      causedBy: null,
+      observation: pageBorn,
+    })
+    expect(changed.sequence).toBe(2)
+    expect(changed.causedBy).toBe(first.eventId)
+  })
+
+  test("reports every missing owner sequence, including a trimmed initial backlog", () => {
+    const source = new HamiltonianLifecycleSource({id: "sw:a", kind: "service-worker", incarnation: "a", startedAt: 1})
+    const first = source.next(pageBorn, {at: 2})
+    source.next(pageBorn, {at: 3})
+    const third = source.next(pageBorn, {at: 4})
+
+    const cursor = new HamiltonianLifecycleCursor()
+    expect(cursor.accept(first)).toEqual({envelope: first, gap: null})
+    expect(cursor.accept(third)?.gap).toEqual({
+      sourceId: "sw:a",
+      sourceIncarnation: "a",
+      expectedSequence: 2,
+      receivedSequence: 3,
+      missingFrom: 2,
+      missingTo: 2,
+    })
+    expect(cursor.accept(third)).toBeNull()
+
+    const lateCursor = new HamiltonianLifecycleCursor()
+    expect(lateCursor.accept(third)?.gap).toEqual(expect.objectContaining({missingFrom: 1, missingTo: 2}))
+  })
+
+  test("starts live continuation at a retained structural causal frontier", () => {
+    const serverId = "server:epoch-a"
+    const processId = "peer-process:incarnation-a"
+    const transportId = "ipc:incarnation-a"
+    const source = new HamiltonianLifecycleSource({
+      id: processId,
+      kind: "peer-process",
+      incarnation: "incarnation-a",
+      startedAt: 1,
+    })
+    const journal = new HamiltonianLifecycleRetainedJournal(serverId)
+    journal.observe(source.next(createHamiltonianLifecycleObservation({
+      type: "entity",
+      phase: "born",
+      subjectId: processId,
+      subjectKind: "peer-process",
+      ownerId: serverId,
+      attributes: {state: "online"},
+    })))
+    journal.observe(source.next(createHamiltonianLifecycleObservation({
+      type: "transport",
+      phase: "opened",
+      subjectId: transportId,
+      subjectKind: "ipc",
+      ownerId: processId,
+      sourceEntityId: serverId,
+      targetEntityId: processId,
+      transportId,
+      attributes: {state: "open"},
+    })))
+    for (let index = 0; index < 110; index += 1) {
+      const messageId = `message:${index}`
+      journal.observe(source.next(createHamiltonianLifecycleObservation({
+        type: "message",
+        phase: "sent",
+        subjectId: messageId,
+        subjectKind: "ipc-message",
+        ownerId: processId,
+        sourceEntityId: processId,
+        targetEntityId: serverId,
+        transportId,
+        messageId,
+        messageClass: "peer-state",
+      })))
+    }
+
+    const snapshot = journal.snapshot()
+    expect(isHamiltonianLifecycleSnapshot(snapshot)).toBeTrue()
+    expect(snapshot.envelopes.map(({observation}) => observation.type)).toEqual(["entity", "transport"])
+    expect(snapshot.frontier).toContainEqual({
+      sourceId: processId,
+      sourceIncarnation: "incarnation-a",
+      sequence: 112,
+    })
+    expect(journal.observe(snapshot.envelopes[0])).toBeFalse()
+    expect(journal.snapshot().revision).toBe(112)
+
+    const cursor = new HamiltonianLifecycleCursor()
+    cursor.seed(snapshot.frontier)
+    const nextMessageId = "message:live"
+    const live = source.next(createHamiltonianLifecycleObservation({
+      type: "message",
+      phase: "sent",
+      subjectId: nextMessageId,
+      subjectKind: "ipc-message",
+      ownerId: processId,
+      sourceEntityId: processId,
+      targetEntityId: serverId,
+      transportId,
+      messageId: nextMessageId,
+      messageClass: "peer-state",
+    }))
+    expect(cursor.accept(live)).toEqual({envelope: live, gap: null})
+    expect(journal.observe(live)).toBeTrue()
+    const continued = journal.snapshot()
+    expect(continued.revision).toBe(113)
+    expect(continued.envelopes.map(({observation}) => observation.type)).toEqual(["entity", "transport"])
+    expect(isHamiltonianLifecycleSnapshot({...continued, envelopes: [live]})).toBeFalse()
+    expect(isHamiltonianLifecycleSnapshot({
+      ...continued,
+      envelopes: [continued.envelopes[0], continued.envelopes[0]],
+    })).toBeFalse()
+    expect(journal.replace(snapshot)).toBeFalse()
+    const ended = source.next(createHamiltonianLifecycleObservation({
+      type: "entity",
+      phase: "ended",
+      subjectId: processId,
+      subjectKind: "peer-process",
+      ownerId: serverId,
+    }))
+    expect(journal.observe(ended)).toBeTrue()
+    const endedSnapshot = journal.snapshot()
+    expect(isHamiltonianLifecycleSnapshot({...endedSnapshot, envelopes: [ended]})).toBeFalse()
+  })
+
+  test("retains one latest transport incarnation per logical slot, including closed state", () => {
+    const serverId = "server:host-a"
+    const workerId = "service-worker:worker-a"
+    const source = new HamiltonianLifecycleSource({
+      id: workerId,
+      kind: "service-worker",
+      incarnation: "worker-a",
+      startedAt: 1,
+    })
+    const journal = new HamiltonianLifecycleRetainedJournal(workerId)
+    journal.observe(source.next(createHamiltonianLifecycleObservation({
+      type: "entity",
+      phase: "born",
+      subjectId: workerId,
+      subjectKind: "service-worker",
+      ownerId: workerId,
+    })))
+    const opened = source.next(createHamiltonianLifecycleObservation({
+      type: "transport",
+      phase: "opened",
+      subjectId: "websocket:one",
+      subjectKind: "websocket",
+      ownerId: workerId,
+      sourceEntityId: workerId,
+      targetEntityId: serverId,
+      transportId: "websocket:one",
+      attributes: {protocol: "ws"},
+    }))
+    journal.observe(opened)
+    const closed = source.next(createHamiltonianLifecycleObservation({
+      ...opened.observation,
+      phase: "closed",
+      attributes: {code: 1006, reason: "network"},
+    }))
+    journal.observe(closed)
+
+    const terminalSnapshot = journal.snapshot()
+    expect(isHamiltonianLifecycleSnapshot(terminalSnapshot)).toBeTrue()
+    expect(terminalSnapshot.envelopes.map(({observation}) => [observation.subjectId, observation.phase]))
+      .toContainEqual(["websocket:one", "closed"])
+
+    const replacement = source.next(createHamiltonianLifecycleObservation({
+      ...opened.observation,
+      phase: "opening",
+      subjectId: "websocket:two",
+      transportId: "websocket:two",
+      attributes: {protocol: "ws"},
+    }))
+    journal.observe(replacement)
+    const replacedSnapshot = journal.snapshot()
+    expect(replacedSnapshot.envelopes.filter(({observation}) => observation.type === "transport"))
+      .toEqual([replacement])
+    expect(isHamiltonianLifecycleSnapshot({
+      ...replacedSnapshot,
+      envelopes: [closed, replacement],
+    })).toBeFalse()
+
+    journal.observe(source.next(createHamiltonianLifecycleObservation({
+      type: "entity",
+      phase: "ended",
+      subjectId: workerId,
+      subjectKind: "service-worker",
+      ownerId: workerId,
+    })))
+    expect(journal.snapshot().envelopes).toEqual([])
+  })
+
+  test("materializes an externally observed endpoint end without retaining a foreign source frontier", () => {
+    const serverId = "server:host-a"
+    const workerId = "service-worker:worker-old"
+    const source = new HamiltonianLifecycleSource({
+      id: serverId,
+      kind: "server",
+      incarnation: "host-a",
+      startedAt: 1,
+    })
+    const journal = new HamiltonianLifecycleRetainedJournal(serverId)
+    journal.observe(source.next(createHamiltonianLifecycleObservation({
+      type: "transport",
+      phase: "closed",
+      subjectId: "websocket:old",
+      subjectKind: "websocket",
+      ownerId: workerId,
+      sourceEntityId: workerId,
+      targetEntityId: serverId,
+      transportId: "websocket:old",
+      attributes: {observedBy: "server"},
+    })))
+    const before = journal.snapshot()
+
+    expect(journal.retireEntity(workerId)).toBeTrue()
+    expect(journal.retireEntity(workerId)).toBeFalse()
+    const after = journal.snapshot()
+    expect(after.revision).toBe(before.revision + 1)
+    expect(after.frontier).toEqual(before.frontier)
+    expect(after.envelopes).toEqual([])
+  })
+
+  test("retains Oracle and Force DataChannels as separate logical slots", () => {
+    const source = new HamiltonianLifecycleSource({id: "peer:a", kind: "peer-process", incarnation: "a", startedAt: 1})
+    const journal = new HamiltonianLifecycleRetainedJournal("peer:a")
+    const channel = (id: string, lane: "oracle" | "force") => source.next(createHamiltonianLifecycleObservation({
+      type: "transport",
+      phase: "opened",
+      subjectId: id,
+      subjectKind: "data-channel",
+      ownerId: "rtc-peer:server",
+      sourceEntityId: "rtc-peer:server",
+      targetEntityId: "rtc-peer:browser",
+      transportId: id,
+      attributes: {lane},
+    }))
+    journal.observe(channel("data-channel:oracle-one", "oracle"))
+    journal.observe(channel("data-channel:force-one", "force"))
+    journal.observe(channel("data-channel:oracle-two", "oracle"))
+    expect(journal.snapshot().envelopes.map(({observation}) => observation.subjectId).sort())
+      .toEqual(["data-channel:force-one", "data-channel:oracle-two"])
+  })
+
+  test("fails explicitly instead of trimming active structure from a snapshot", () => {
+    const source = new HamiltonianLifecycleSource({
+      id: "server:capacity",
+      kind: "server",
+      incarnation: "capacity",
+      startedAt: 1,
+    })
+    const journal = new HamiltonianLifecycleRetainedJournal("server:capacity")
+    for (let index = 0; index < 1025; index += 1) {
+      expect(journal.observe(source.next(createHamiltonianLifecycleObservation({
+        type: "entity",
+        phase: "born",
+        subjectId: `entity:${index}`,
+        subjectKind: "probe",
+        ownerId: "server:capacity",
+      })))).toBeTrue()
+    }
+    expect(() => journal.snapshot()).toThrow("structural capacity exceeded")
+  })
+
+  test("keeps reborn sources separate even when their sequence restarts", () => {
+    const oldSource = new HamiltonianLifecycleSource({id: "service-worker", kind: "service-worker", incarnation: "old", startedAt: 1})
+    const newSource = new HamiltonianLifecycleSource({id: "service-worker", kind: "service-worker", incarnation: "new", startedAt: 2})
+    const cursor = new HamiltonianLifecycleCursor()
+
+    expect(cursor.accept(oldSource.next(pageBorn))?.gap).toBeNull()
+    expect(cursor.accept(newSource.next(pageBorn))?.gap).toBeNull()
+    expect(cursor.snapshot()).toEqual({"service-worker\u0000old": 1, "service-worker\u0000new": 1})
+  })
+
+  test("retires an ended source frontier behind a bounded stale-event tombstone", () => {
+    const cursor = new HamiltonianLifecycleCursor({retiredSourceCapacity: 2})
+    const sources = ["one", "two", "three"].map((incarnation) => new HamiltonianLifecycleSource({
+      id: `dedicated-worker:${incarnation}`,
+      kind: "dedicated-worker",
+      incarnation,
+      startedAt: 1,
+    }))
+    const envelopes = sources.map((source) => source.next(pageBorn))
+    for (const envelope of envelopes) expect(cursor.accept(envelope)?.gap).toBeNull()
+    expect(cursor.activeSourceCount).toBe(3)
+
+    expect(cursor.retire("dedicated-worker:one", "one")).toBeTrue()
+    expect(cursor.accept(envelopes[0])).toBeNull()
+    expect(cursor.retire("dedicated-worker:two", "two")).toBeTrue()
+    expect(cursor.retire("dedicated-worker:three", "three")).toBeTrue()
+    expect(cursor.activeSourceCount).toBe(0)
+    expect(cursor.retiredSourceCount).toBe(2)
+  })
+
+  test("uses one message identity for send and receive observations", () => {
+    const sent = createHamiltonianLifecycleObservation({
+      type: "message",
+      phase: "sent",
+      subjectId: "message:42",
+      subjectKind: "control-message",
+      ownerId: "page:a",
+      sourceEntityId: "page:a",
+      targetEntityId: "service-worker:b",
+      transportId: "controller:c",
+      messageId: "message:42",
+      messageClass: "connect-window",
+    })
+    const received = createHamiltonianLifecycleObservation({...sent, phase: "received", ownerId: "service-worker:b"})
+    expect(sent.messageId).toBe(received.messageId)
+    expect(sent.subjectId).toBe(received.subjectId)
+  })
+
+  test("replays startup observations once and never batches delivered traffic to a late subscriber", () => {
+    const singleton = Symbol.for("metafor.hamiltonian.lifecycle.singleton.v1")
+    delete (globalThis as Record<symbol, unknown>)[singleton]
+    const early = emitHamiltonianLifecycle(pageBorn, {at: 1})
+    const first: string[] = []
+    const unsubscribe = subscribeHamiltonianLifecycle((envelope) => first.push(envelope.eventId))
+    const live = emitHamiltonianLifecycle(pageBorn, {at: 2})
+    expect(first).toEqual([early.eventId, live.eventId])
+    unsubscribe()
+
+    const second: string[] = []
+    const unsubscribeSecond = subscribeHamiltonianLifecycle((envelope) => second.push(envelope.eventId))
+    expect(second).toEqual([])
+    const next = emitHamiltonianLifecycle(pageBorn, {at: 3})
+    expect(second).toEqual([next.eventId])
+    unsubscribeSecond()
+    delete (globalThis as Record<symbol, unknown>)[singleton]
+  })
+
+  test("rebroadcasts the retained latest snapshot without notifying local subscribers twice", () => {
+    const lifecycleSingleton = Symbol.for("metafor.hamiltonian.lifecycle.singleton.v1")
+    const monitorSingleton = Symbol.for("metafor.hamiltonian.monitor.bootstrap.v1")
+    delete (globalThis as Record<symbol, unknown>)[lifecycleSingleton]
+    const monitor = (globalThis as any)[monitorSingleton]
+    const channel = monitor.channels.get(HAMILTONIAN_LIFECYCLE_CHANNEL)
+    const previousChannel = channel.channel
+    const broadcasts: unknown[] = []
+    channel.channel = {postMessage: (value: unknown) => broadcasts.push(value)}
+    try {
+      const source = new HamiltonianLifecycleSource({
+        id: "service-worker:retained",
+        kind: "service-worker",
+        incarnation: "retained",
+        startedAt: 1,
+      })
+      const journal = new HamiltonianLifecycleRetainedJournal("service-worker:retained")
+      journal.observe(source.next(createHamiltonianLifecycleObservation({
+        type: "entity",
+        phase: "born",
+        subjectId: "service-worker:retained",
+        subjectKind: "service-worker",
+        ownerId: "service-worker:retained",
+      })))
+      const snapshot = journal.snapshot()
+      const localRevisions: number[] = []
+      const unsubscribe = subscribeHamiltonianLifecycleSnapshot((value) => localRevisions.push(value.revision))
+      expect(publishHamiltonianLifecycleSnapshot(snapshot)).toBeTrue()
+      expect(publishHamiltonianLifecycleSnapshot(snapshot)).toBeTrue()
+      expect(localRevisions).toEqual([snapshot.revision])
+      expect(broadcasts).toEqual([snapshot, snapshot])
+      unsubscribe()
+    } finally {
+      channel.channel = previousChannel
+      delete (globalThis as Record<symbol, unknown>)[lifecycleSingleton]
+    }
+  })
+
+  test("forgets a retained snapshot when its owning entity is observed ended", () => {
+    const singleton = Symbol.for("metafor.hamiltonian.lifecycle.singleton.v1")
+    delete (globalThis as Record<symbol, unknown>)[singleton]
+    const scopeId = "service-worker:retired"
+    const source = new HamiltonianLifecycleSource({
+      id: scopeId,
+      kind: "service-worker",
+      incarnation: "retired",
+      startedAt: 1,
+    })
+    const journal = new HamiltonianLifecycleRetainedJournal(scopeId)
+    journal.observe(source.next(createHamiltonianLifecycleObservation({
+      type: "entity",
+      phase: "born",
+      subjectId: scopeId,
+      subjectKind: "service-worker",
+      ownerId: scopeId,
+    })))
+    const snapshot = journal.snapshot()
+    expect(receiveHamiltonianLifecycleSnapshot(snapshot)).toBeTrue()
+    const before: string[] = []
+    const unsubscribeBefore = subscribeHamiltonianLifecycleSnapshot((value) => before.push(value.scopeId))
+    expect(before).toEqual([scopeId])
+    unsubscribeBefore()
+
+    emitHamiltonianLifecycle(createHamiltonianLifecycleObservation({
+      type: "entity",
+      phase: "ended",
+      subjectId: scopeId,
+      subjectKind: "service-worker",
+      ownerId: scopeId,
+      attributes: {reason: "superseded-by-observed-incarnation"},
+    }))
+    const late: string[] = []
+    const unsubscribeLate = subscribeHamiltonianLifecycleSnapshot((value) => late.push(value.scopeId))
+    expect(late).toEqual([])
+    unsubscribeLate()
+    delete (globalThis as Record<symbol, unknown>)[singleton]
+  })
+
+  test("rejects payloads, secret fields and unknown envelope fields", () => {
+    expect(() => createHamiltonianLifecycleObservation({
+      type: "entity",
+      phase: "born",
+      subjectId: "page:a",
+      subjectKind: "page",
+      attributes: {token: "secret"},
+    })).toThrow()
+
+    const safe = createHamiltonianLifecycleEnvelope({
+      sourceId: "page:a",
+      sourceKind: "page",
+      sourceIncarnation: "a",
+      sourceStartedAt: 1,
+      sequence: 1,
+      at: 2,
+      observation: pageBorn,
+    })
+    expect(isHamiltonianLifecycleEnvelope(safe)).toBeTrue()
+    expect(isHamiltonianLifecycleEnvelope({...safe, payload: "secret"})).toBeFalse()
+    expect(isHamiltonianLifecycleEnvelope({...safe, eventId: "invented"})).toBeFalse()
+  })
+
+})

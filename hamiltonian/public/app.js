@@ -1,16 +1,29 @@
 import {
-  HAMILTONIAN_FORCE_EDGE_ID,
-  HAMILTONIAN_ORACLE_EDGE_ID,
-  emitHamiltonianTraffic,
-  hamiltonianMessagePortEdgeId,
-} from "/core/traffic.js"
+  createHamiltonianLifecycleObservation,
+  emitHamiltonianLifecycle,
+  hamiltonianDataChannelTransportId,
+  hamiltonianLifecycleEntityId,
+  hamiltonianLifecycleMessageId,
+  hamiltonianLifecycleTransportId,
+  hamiltonianRtcPeerEntityId,
+  receiveHamiltonianLifecycleSnapshot,
+} from "/core/lifecycle.js"
+import {hamiltonianPageBootstrap, hamiltonianRealmSnapshot} from "/core/monitor.js"
 import {authorityKey, LogicalChannelSession, PeerProtocol} from "/core/runtime.js"
 import {
+  HAMILTONIAN_PAGE_HEARTBEAT_MS,
   disposeFailedWorker,
+  isCurrentPageChannel,
   isCurrentPeerGeneration,
   mainRealmRequiresReload,
+  sourceRevisionRequiresReload,
+  pageWorkerChannelIsQuiet,
 } from "/core/browser-control.js"
-import {parseLocalHamiltonianWindowAction} from "/core/orchestration.js"
+import {
+  hamiltonianBrowserNodeId,
+  hamiltonianBrowserRuntimeName,
+  parseLocalHamiltonianWindowAction,
+} from "/core/orchestration.js"
 
 const elements = Object.fromEntries([
   "secure", "control", "socket", "role", "host", "version", "device",
@@ -20,7 +33,13 @@ const elements = Object.fromEntries([
 ].map((id) => [id, document.getElementById(id)]))
 
 const firstLoadHadController = navigator.serviceWorker?.controller !== null
-const pageIncarnation = crypto.randomUUID()
+const pageIncarnation = hamiltonianRealmSnapshot().incarnation
+const pageEntityId = hamiltonianLifecycleEntityId("page", pageIncarnation)
+const mainEntityId = hamiltonianLifecycleEntityId("window-main", pageIncarnation)
+const pageBootstrap = hamiltonianPageBootstrap()
+const bootstrapServerEntityId = pageBootstrap?.server.hostEpoch
+  ? hamiltonianLifecycleEntityId("server", pageBootstrap.server.hostEpoch)
+  : null
 const tabId = sessionStorage.getItem("hamiltonian-window-id") ?? crypto.randomUUID()
 sessionStorage.setItem("hamiltonian-window-id", tabId)
 const joinedAt = Number(sessionStorage.getItem("hamiltonian-window-joined-at") ?? Date.now())
@@ -30,6 +49,8 @@ if (!deviceId) {
   deviceId = crypto.randomUUID()
   localStorage.setItem("hamiltonian-device", deviceId)
 }
+const browserEntityId = hamiltonianBrowserNodeId(deviceId)
+const browserRuntimeName = hamiltonianBrowserRuntimeName(navigator.userAgent)
 let controlResumeNonce = localStorage.getItem("hamiltonian-control-resume")
 if (!controlResumeNonce) {
   controlResumeNonce = crypto.randomUUID()
@@ -38,15 +59,25 @@ if (!controlResumeNonce) {
 
 const pageUrl = new URL(location.href)
 const suppliedToken = pageUrl.searchParams.get("token")
+const localJoinToken = document.querySelector('meta[name="hamiltonian-local-join-token"]')?.content || null
+const bootstrapToken = suppliedToken ?? localJoinToken
+if (bootstrapToken) {
+  localStorage.setItem("hamiltonian-token", bootstrapToken)
+}
 if (suppliedToken) {
-  localStorage.setItem("hamiltonian-token", suppliedToken)
   pageUrl.searchParams.delete("token")
   history.replaceState(null, "", pageUrl)
 }
-const token = suppliedToken ?? localStorage.getItem("hamiltonian-token")
+const token = bootstrapToken ?? localStorage.getItem("hamiltonian-token")
 
 let port = null
 let attachedController = null
+let attachedWorkerEntityId = null
+let controllerTransportId = null
+let messagePortTransportId = null
+let pendingControllerConnect = null
+let pendingPageMessages = []
+let supersededWorkerEntityId = null
 let lastWorkerMessageAt = 0
 let reconnecting = false
 let topology = null
@@ -62,6 +93,44 @@ let pendingPeerRepair = null
 let hostPlacement = "browser"
 let controlConnectionId = null
 const acceptedPeerGeneration = new Map()
+
+emitHamiltonianLifecycle(createHamiltonianLifecycleObservation({
+  type: "entity",
+  phase: "born",
+  subjectId: browserEntityId,
+  subjectKind: "browser-runtime",
+  ownerId: browserEntityId,
+  attributes: {
+    deviceId,
+    runtime: browserRuntimeName,
+    state: "active",
+  },
+}), {at: pageBootstrap?.observedAt ?? Date.now()})
+emitHamiltonianLifecycle(createHamiltonianLifecycleObservation({
+  type: "entity",
+  phase: "born",
+  subjectId: pageEntityId,
+  subjectKind: "page",
+  ownerId: browserEntityId,
+  attributes: {
+    incarnation: pageIncarnation,
+    navigation: pageBootstrap?.navigationId ?? "",
+    visibility: document.visibilityState,
+    state: "live",
+  },
+}), {at: pageBootstrap?.observedAt ?? Date.now()})
+emitHamiltonianLifecycle(createHamiltonianLifecycleObservation({
+  type: "entity",
+  phase: "born",
+  subjectId: mainEntityId,
+  subjectKind: "window-main",
+  ownerId: pageEntityId,
+  attributes: {
+    incarnation: pageIncarnation,
+    runtime: "Window",
+    state: "active",
+  },
+}))
 
 elements.secure.textContent = isSecureContext ? "yes" : "no"
 elements.secure.className = isSecureContext ? "leader" : "error"
@@ -80,14 +149,32 @@ function log(message, isError = false) {
 function send(message) {
   try {
     if (!port) return false
-    port.postMessage(message)
-    if (controlConnectionId && message?.kind !== "edge-traffic") {
-      emitHamiltonianTraffic({
-        edgeId: hamiltonianMessagePortEdgeId(controlConnectionId, tabId),
-        direction: "reverse",
-        messageClass: message?.kind,
+    const messageId = hamiltonianLifecycleMessageId(crypto.randomUUID())
+    const observedMessage = {...message, monitor: {messageId}}
+    const messageClass = lifecycleMessageClass(message?.kind)
+    if (messagePortTransportId && attachedWorkerEntityId) {
+      emitHamiltonianLifecycle(createHamiltonianLifecycleObservation({
+        type: "message",
+        phase: "sent",
+        subjectId: messageId,
+        subjectKind: "message-port-message",
+        ownerId: pageEntityId,
+        sourceEntityId: pageEntityId,
+        targetEntityId: attachedWorkerEntityId,
+        transportId: messagePortTransportId,
+        messageId,
+        messageClass,
+      }))
+    } else if (messagePortTransportId) {
+      pendingPageMessages.push({
+        messageId,
+        transportId: messagePortTransportId,
+        messageClass,
+        at: Date.now(),
       })
+      if (pendingPageMessages.length > 32) pendingPageMessages.splice(0, pendingPageMessages.length - 32)
     }
+    port.postMessage(observedMessage)
     return true
   } catch (error) {
     log(`page channel send failed: ${error.message}`, true)
@@ -141,11 +228,6 @@ function renderTopology(nextTopology) {
     .catch((error) => log(`main singleton reconciliation failed: ${error.message}`, true))
 }
 
-function publishInitialSceneEnvelope(envelope) {
-  window.__hamiltonianOrchestrationInitial = envelope
-  window.dispatchEvent(new CustomEvent("hamiltonian-orchestration-initial", {detail: envelope}))
-}
-
 function describeSnapshot(snapshot) {
   return `${snapshot.version} · ${snapshot.state} · ${snapshot.incarnation}`
 }
@@ -157,6 +239,7 @@ function closeBrowserPeer(reason) {
   if (previous.probeTimer) clearInterval(previous.probeTimer)
   previous.protocol?.close(reason)
   try { previous.connection.close() } catch {}
+  emitBrowserRtcPeer(previous, "ended", reason)
   elements["peer-carrier"].textContent = `closed · ${reason}`
 }
 
@@ -182,11 +265,17 @@ function acceptPeerChannel(peer, channel) {
     return
   }
   peer.channels.set(channel.label, channel)
-  channel.addEventListener("open", () => activatePeerProtocol(peer))
+  emitBrowserDataChannel(peer, channel, "opening")
+  channel.addEventListener("open", () => {
+    emitBrowserDataChannel(peer, channel, "opened")
+    activatePeerProtocol(peer)
+  })
   channel.addEventListener("close", () => {
+    emitBrowserDataChannel(peer, channel, "closed")
     elements["peer-carrier"].textContent = `${channel.label} closed`
     requestPeerRepair(peer, `${channel.label} DataChannel closed`)
   })
+  if (channel.readyState === "open") emitBrowserDataChannel(peer, channel, "opened")
   activatePeerProtocol(peer)
 }
 
@@ -199,11 +288,7 @@ function activatePeerProtocol(peer) {
     sessionEpoch: peer.sessionEpoch,
     lanes: {oracle, force},
     onProtocolEvent: (event) => log(`peer protocol ${event.kind} on ${event.lane ?? "session"}`),
-    onTraffic: (event) => emitHamiltonianTraffic({
-      edgeId: event.lane === "oracle" ? HAMILTONIAN_ORACLE_EDGE_ID : HAMILTONIAN_FORCE_EDGE_ID,
-      direction: event.direction,
-      messageClass: event.messageClass,
-    }),
+    onTraffic: (event) => observeBrowserDataChannelMessage(peer, event),
   })
   peer.protocol = new PeerProtocol(session)
   peer.protocol.onForce((event) => {
@@ -256,13 +341,18 @@ async function receivePeerSignal(message) {
     acceptedPeerGeneration.set(generationKey, message.peerGeneration)
     pendingPeerRepair = null
     const connection = new RTCPeerConnection()
+    const rtcEntityId = hamiltonianRtcPeerEntityId(message.sessionEpoch, "browser")
+    const remoteRtcEntityId = hamiltonianRtcPeerEntityId(message.sessionEpoch, "server")
     const peer = {
       peerId: message.peerId,
       sessionEpoch: message.sessionEpoch,
       peerGeneration: message.peerGeneration,
       authorityKey: message.authorityKey,
       connection,
+      rtcEntityId,
+      remoteRtcEntityId,
       channels: new Map(),
+      channelLifecycle: new WeakMap(),
       pendingCandidates: [],
       remoteDescriptionSet: false,
       protocol: null,
@@ -271,12 +361,15 @@ async function receivePeerSignal(message) {
       probeCount: 0,
       forceEchoCount: 0,
       repairRequested: false,
+      lifecycleEnded: false,
     }
     browserPeer = peer
+    emitBrowserRtcPeer(peer, "born")
     elements["peer-carrier"].textContent = `negotiating · ${peer.peerId}`
     connection.addEventListener("datachannel", (event) => acceptPeerChannel(peer, event.channel))
     connection.addEventListener("connectionstatechange", () => {
       if (browserPeer !== peer) return
+      emitBrowserRtcPeer(peer, connection.connectionState === "closed" ? "ended" : "changed")
       elements["peer-carrier"].textContent = `${connection.connectionState} · ${peer.peerId}`
       if (connection.connectionState === "failed" || connection.connectionState === "closed") {
         requestPeerRepair(peer, `RTCPeerConnection ${connection.connectionState}`)
@@ -343,34 +436,141 @@ async function receivePeerSignal(message) {
   }
 }
 
+function emitBrowserRtcPeer(peer, phase, reason = "") {
+  if (phase === "ended") {
+    if (peer.lifecycleEnded) return
+    peer.lifecycleEnded = true
+  } else if (peer.lifecycleEnded) {
+    return
+  }
+  emitHamiltonianLifecycle(createHamiltonianLifecycleObservation({
+    type: "entity",
+    phase,
+    subjectId: peer.rtcEntityId,
+    subjectKind: "rtc-peer",
+    ownerId: mainEntityId,
+    attributes: {
+      endpoint: "browser",
+      peerId: peer.peerId,
+      sessionEpoch: peer.sessionEpoch,
+      generation: peer.peerGeneration,
+      state: phase === "ended" ? "closed" : peer.connection.connectionState,
+      ...(reason ? {reason} : {}),
+    },
+  }))
+}
+
+function emitBrowserDataChannel(peer, channel, phase) {
+  const previous = peer.channelLifecycle.get(channel)
+  if (previous === phase || previous === "closed") return
+  peer.channelLifecycle.set(channel, phase)
+  const transportId = hamiltonianDataChannelTransportId(peer.sessionEpoch, channel.label)
+  emitHamiltonianLifecycle(createHamiltonianLifecycleObservation({
+    type: "transport",
+    phase,
+    subjectId: transportId,
+    subjectKind: "data-channel",
+    ownerId: peer.remoteRtcEntityId,
+    sourceEntityId: peer.remoteRtcEntityId,
+    targetEntityId: peer.rtcEntityId,
+    transportId,
+    attributes: {
+      endpoint: "browser",
+      lane: channel.label,
+      sessionEpoch: peer.sessionEpoch,
+      state: channel.readyState,
+    },
+  }))
+}
+
+function observeBrowserDataChannelMessage(peer, event) {
+  const sent = event.direction === "forward"
+  const transportId = hamiltonianDataChannelTransportId(peer.sessionEpoch, event.lane)
+  emitHamiltonianLifecycle(createHamiltonianLifecycleObservation({
+    type: "message",
+    phase: sent ? "sent" : "received",
+    subjectId: event.messageId,
+    subjectKind: "data-channel-message",
+    ownerId: peer.rtcEntityId,
+    sourceEntityId: sent ? peer.rtcEntityId : peer.remoteRtcEntityId,
+    targetEntityId: sent ? peer.remoteRtcEntityId : peer.rtcEntityId,
+    transportId,
+    messageId: event.messageId,
+    messageClass: event.messageClass,
+    attributes: {
+      lane: event.lane,
+      sequence: event.sequence,
+      sessionEpoch: peer.sessionEpoch,
+    },
+  }))
+}
+
 async function stopDedicatedWorker() {
   const previous = dedicatedEmbodiment
   if (!previous) return
   dedicatedEmbodiment = null
+  let stopCause = null
   await new Promise((resolve) => {
     const timeout = setTimeout(resolve, 500)
     previous.worker.addEventListener("message", (event) => {
       if (event.data?.kind !== "stopped") return
+      stopCause = observeDedicatedWorkerMessage(previous, event.data) ?? stopCause
       clearTimeout(timeout)
       resolve()
     }, {once: true})
-    previous.worker.postMessage({kind: "stop"})
+    stopCause = postDedicatedWorkerMessage(previous, {kind: "stop"})
   })
   previous.worker.terminate()
+  closeDedicatedWorkerFromOwner(previous, "page-terminated-after-stop", stopCause)
 }
 
 async function birthDedicatedWorker(versionState) {
   await stopDedicatedWorker()
   const incarnation = crypto.randomUUID()
-  const worker = new Worker("/embodiment-worker.js", {type: "module"})
+  const workerIncarnation = crypto.randomUUID()
+  const workerEntityId = hamiltonianLifecycleEntityId("dedicated-worker", workerIncarnation)
+  const workerTransportId = hamiltonianLifecycleTransportId("worker-message", crypto.randomUUID())
+  const worker = new Worker("/embodiment-worker-entry.js", {type: "module", name: workerIncarnation})
   elements["worker-embodiment"].textContent = `starting · ${incarnation}`
-  const attemptedEmbodiment = {worker, incarnation, fingerprint: versionState.fingerprint}
+  const attemptedEmbodiment = {
+    worker,
+    incarnation,
+    workerIncarnation,
+    workerEntityId,
+    workerTransportId,
+    fingerprint: versionState.fingerprint,
+  }
   dedicatedEmbodiment = attemptedEmbodiment
+  emitHamiltonianLifecycle(createHamiltonianLifecycleObservation({
+    type: "entity",
+    phase: "born",
+    subjectId: workerEntityId,
+    subjectKind: "dedicated-worker",
+    ownerId: pageEntityId,
+    attributes: {incarnation: workerIncarnation, state: "constructed"},
+  }))
+  emitHamiltonianLifecycle(createHamiltonianLifecycleObservation({
+    type: "transport",
+    phase: "opening",
+    subjectId: workerTransportId,
+    subjectKind: "worker-message",
+    ownerId: pageEntityId,
+    sourceEntityId: mainEntityId,
+    targetEntityId: workerEntityId,
+    transportId: workerTransportId,
+    attributes: {state: "constructed"},
+  }))
   try {
     await new Promise((resolve, reject) => {
       const timeout = setTimeout(() => reject(new Error("Dedicated Worker birth timed out")), 5_000)
       worker.addEventListener("message", (event) => {
+        if (dedicatedEmbodiment !== attemptedEmbodiment) return
         const message = event.data
+        if (message?.kind === "lifecycle-snapshot") {
+          receiveHamiltonianLifecycleSnapshot(message.snapshot)
+          return
+        }
+        observeDedicatedWorkerMessage(attemptedEmbodiment, message)
         if (message?.kind === "error") {
           clearTimeout(timeout)
           reject(new Error(message.error))
@@ -396,9 +596,13 @@ async function birthDedicatedWorker(versionState) {
         clearTimeout(timeout)
         reject(new Error(event.message || "Dedicated Worker failed"))
       }, {once: true})
-      worker.postMessage({
+      postDedicatedWorkerMessage(attemptedEmbodiment, {
         kind: "birth",
         incarnation,
+        pageEntityId,
+        mainEntityId,
+        workerEntityId,
+        workerTransportId,
         moduleUrl: versionState.moduleUrl,
         version: versionState.version,
         sha256: versionState.sha256,
@@ -406,9 +610,72 @@ async function birthDedicatedWorker(versionState) {
     })
   } catch (error) {
     dedicatedEmbodiment = disposeFailedWorker(dedicatedEmbodiment, attemptedEmbodiment)
+    closeDedicatedWorkerFromOwner(attemptedEmbodiment, "page-terminated-after-birth-failure", null)
     if (!dedicatedEmbodiment) elements["worker-embodiment"].textContent = "birth failed"
     throw error
   }
+}
+
+function postDedicatedWorkerMessage(embodiment, message) {
+  const messageId = hamiltonianLifecycleMessageId(crypto.randomUUID())
+  const envelope = emitHamiltonianLifecycle(createHamiltonianLifecycleObservation({
+    type: "message",
+    phase: "sent",
+    subjectId: messageId,
+    subjectKind: "worker-message",
+    ownerId: pageEntityId,
+    sourceEntityId: mainEntityId,
+    targetEntityId: embodiment.workerEntityId,
+    transportId: embodiment.workerTransportId,
+    messageId,
+    messageClass: lifecycleMessageClass(message?.kind),
+  }))
+  embodiment.worker.postMessage({...message, monitor: {messageId}})
+  return envelope.eventId
+}
+
+function observeDedicatedWorkerMessage(embodiment, message) {
+  const messageId = lifecycleMessageId(message)
+  if (!messageId) return null
+  const envelope = emitHamiltonianLifecycle(createHamiltonianLifecycleObservation({
+    type: "message",
+    phase: "received",
+    subjectId: messageId,
+    subjectKind: "worker-message",
+    ownerId: pageEntityId,
+    sourceEntityId: embodiment.workerEntityId,
+    targetEntityId: mainEntityId,
+    transportId: embodiment.workerTransportId,
+    messageId,
+    messageClass: lifecycleMessageClass(message?.kind),
+  }))
+  return envelope.eventId
+}
+
+function closeDedicatedWorkerFromOwner(embodiment, reason, causedBy) {
+  const closed = emitHamiltonianLifecycle(createHamiltonianLifecycleObservation({
+    type: "transport",
+    phase: "closed",
+    subjectId: embodiment.workerTransportId,
+    subjectKind: "worker-message",
+    ownerId: pageEntityId,
+    sourceEntityId: mainEntityId,
+    targetEntityId: embodiment.workerEntityId,
+    transportId: embodiment.workerTransportId,
+    attributes: {reason},
+  }), {causedBy})
+  emitHamiltonianLifecycle(createHamiltonianLifecycleObservation({
+    type: "entity",
+    phase: "ended",
+    subjectId: embodiment.workerEntityId,
+    subjectKind: "dedicated-worker",
+    ownerId: pageEntityId,
+    attributes: {
+      incarnation: embodiment.workerIncarnation,
+      state: "ended",
+      reason,
+    },
+  }), {causedBy: closed.eventId})
 }
 
 function stopMain(reason) {
@@ -486,9 +753,74 @@ async function activateVersion(message) {
 function receive(message) {
   lastWorkerMessageAt = Date.now()
   if (!message || typeof message !== "object") return
-  if (message.kind === "orchestration-envelope") {
-    publishInitialSceneEnvelope(message.envelope)
+  if (message.kind === "lifecycle-snapshot") {
+    receiveHamiltonianLifecycleSnapshot(message.snapshot)
     return
+  }
+  if (message.kind === "worker-state" && typeof message.workerIncarnationId === "string" && message.workerIncarnationId) {
+    const nextWorkerEntityId = hamiltonianLifecycleEntityId("service-worker", message.workerIncarnationId)
+    const previousWorkerEntityId = attachedWorkerEntityId ?? supersededWorkerEntityId
+    supersededWorkerEntityId = null
+    if (previousWorkerEntityId && previousWorkerEntityId !== nextWorkerEntityId) {
+      emitHamiltonianLifecycle(createHamiltonianLifecycleObservation({
+        type: "entity",
+        phase: "ended",
+        subjectId: previousWorkerEntityId,
+        subjectKind: "service-worker",
+        ownerId: previousWorkerEntityId,
+        attributes: {
+          state: "ended",
+          reason: "superseded-by-observed-incarnation",
+          successor: nextWorkerEntityId,
+        },
+      }), {causedBy: lifecycleMessageId(message)})
+    }
+    attachedWorkerEntityId = nextWorkerEntityId
+    if (pendingControllerConnect) {
+      const pending = pendingControllerConnect
+      pendingControllerConnect = null
+      emitHamiltonianLifecycle(createHamiltonianLifecycleObservation({
+        type: "message",
+        phase: "sent",
+        subjectId: pending.messageId,
+        subjectKind: "controller-message",
+        ownerId: pageEntityId,
+        sourceEntityId: pageEntityId,
+        targetEntityId: nextWorkerEntityId,
+        transportId: pending.transportId,
+        messageId: pending.messageId,
+        messageClass: "connect-window",
+      }), {at: pending.at})
+    }
+    for (const pending of pendingPageMessages.splice(0)) {
+      emitHamiltonianLifecycle(createHamiltonianLifecycleObservation({
+        type: "message",
+        phase: "sent",
+        subjectId: pending.messageId,
+        subjectKind: "message-port-message",
+        ownerId: pageEntityId,
+        sourceEntityId: pageEntityId,
+        targetEntityId: nextWorkerEntityId,
+        transportId: pending.transportId,
+        messageId: pending.messageId,
+        messageClass: pending.messageClass,
+      }), {at: pending.at})
+    }
+  }
+  const messageId = lifecycleMessageId(message)
+  if (messageId && messagePortTransportId && attachedWorkerEntityId) {
+    emitHamiltonianLifecycle(createHamiltonianLifecycleObservation({
+      type: "message",
+      phase: "received",
+      subjectId: messageId,
+      subjectKind: "message-port-message",
+      ownerId: pageEntityId,
+      sourceEntityId: attachedWorkerEntityId,
+      targetEntityId: pageEntityId,
+      transportId: messagePortTransportId,
+      messageId,
+      messageClass: lifecycleMessageClass(message.kind),
+    }))
   }
   if (message.kind === "worker-state") {
     controlConnectionId = message.connectionId ?? null
@@ -516,6 +848,16 @@ function receive(message) {
       })
     return
   }
+  if (message.kind === "source-update") {
+    const storageKey = "hamiltonian-source-revision"
+    const currentRevision = sessionStorage.getItem(storageKey)
+    if (!sourceRevisionRequiresReload(currentRevision, message.revision)) return
+    sessionStorage.setItem(storageKey, message.revision)
+    sessionStorage.setItem("hamiltonian-main-reload-reason", `source ${message.revision}`)
+    log(`source update ${message.revision} triggers one page reload`)
+    location.reload()
+    return
+  }
   if (message.kind === "peer-signal") {
     void receivePeerSignal(message).catch((error) => {
       if (!isCurrentPeerGeneration(browserPeer, message)) return
@@ -539,22 +881,45 @@ function attachPageChannel(force = false) {
   const controller = navigator.serviceWorker.controller
   if (!controller || !token) return false
   if (!force && port && attachedController === controller) return true
-  port?.close()
+  supersededWorkerEntityId = attachedWorkerEntityId
+  closeCurrentPageChannel("reattach")
+  attachedWorkerEntityId = null
+  pendingControllerConnect = null
+  pendingPageMessages = []
   const channel = new MessageChannel()
-  port = channel.port1
+  controllerTransportId = hamiltonianLifecycleTransportId("controller", crypto.randomUUID())
+  messagePortTransportId = hamiltonianLifecycleTransportId("message-port", crypto.randomUUID())
+  const connectMessageId = hamiltonianLifecycleMessageId(crypto.randomUUID())
+  const nextPort = channel.port1
+  port = nextPort
   attachedController = controller
-  port.onmessage = (event) => receive(event.data)
-  port.onmessageerror = () => log("page channel message error", true)
-  port.start()
+  nextPort.onmessage = (event) => {
+    if (!isCurrentPageChannel(port, nextPort)) return
+    receive(event.data)
+  }
+  nextPort.onmessageerror = () => {
+    if (isCurrentPageChannel(port, nextPort)) log("page channel message error", true)
+  }
+  nextPort.start()
+  pendingControllerConnect = {
+    messageId: connectMessageId,
+    transportId: controllerTransportId,
+    at: Date.now(),
+  }
   controller.postMessage({
     kind: "connect-window",
+    browserEntityId,
     deviceId,
     tabId,
     pageIncarnation,
     joinedAt,
     token,
     controlResumeNonce,
+    serverEntityId: bootstrapServerEntityId,
     visible: document.visibilityState === "visible",
+    controllerTransportId,
+    messagePortTransportId,
+    monitor: {messageId: connectMessageId},
   }, [channel.port2])
   lastWorkerMessageAt = Date.now()
   log("Window attached to Service Worker through MessageChannel")
@@ -587,7 +952,7 @@ async function start() {
   }
 
   try {
-    await navigator.serviceWorker.register("/sw.js", {scope: "/", type: "module"})
+    await navigator.serviceWorker.register("/sw-entry.js", {scope: "/", type: "module"})
     await navigator.serviceWorker.ready
     const controlled = await waitForController()
     elements.control.textContent = controlled
@@ -604,7 +969,12 @@ async function start() {
 }
 
 setInterval(() => {
-  if (!port || Date.now() - lastWorkerMessageAt > 7_000) {
+  const now = Date.now()
+  if (!port || pageWorkerChannelIsQuiet({
+    now,
+    lastWorkerMessageAt,
+    visibility: document.visibilityState,
+  })) {
     if (!reconnecting) {
       reconnecting = true
       log("page channel became quiet; retaining unexpired authority while attaching a fresh MessageChannel")
@@ -617,15 +987,45 @@ setInterval(() => {
     stopMain("singleton lease expired")
   }
   send({kind: "window-heartbeat", visible: document.visibilityState === "visible"})
-}, 2_000)
+}, HAMILTONIAN_PAGE_HEARTBEAT_MS)
 
 document.addEventListener("visibilitychange", () => {
+  emitHamiltonianLifecycle(createHamiltonianLifecycleObservation({
+    type: "entity",
+    phase: "changed",
+    subjectId: pageEntityId,
+    subjectKind: "page",
+    ownerId: browserEntityId,
+    attributes: {visibility: document.visibilityState, state: "live"},
+  }))
   send({kind: "window-heartbeat", visible: document.visibilityState === "visible"})
 })
 window.addEventListener("pagehide", () => {
   mainEmbodiment?.stop()
-  dedicatedEmbodiment?.worker.terminate()
+  const previousWorker = dedicatedEmbodiment
+  dedicatedEmbodiment = null
+  if (previousWorker) {
+    previousWorker.worker.terminate()
+    closeDedicatedWorkerFromOwner(previousWorker, "pagehide", null)
+  }
   send({kind: "disconnect-window"})
+  closeCurrentPageChannel("pagehide")
+  emitHamiltonianLifecycle(createHamiltonianLifecycleObservation({
+    type: "entity",
+    phase: "ended",
+    subjectId: mainEntityId,
+    subjectKind: "window-main",
+    ownerId: pageEntityId,
+    attributes: {state: "ended"},
+  }))
+  emitHamiltonianLifecycle(createHamiltonianLifecycleObservation({
+    type: "entity",
+    phase: "ended",
+    subjectId: pageEntityId,
+    subjectKind: "page",
+    ownerId: browserEntityId,
+    attributes: {state: "ended"},
+  }))
 })
 navigator.serviceWorker?.addEventListener("controllerchange", () => attachPageChannel())
 navigator.serviceWorker?.addEventListener("message", (event) => {
@@ -666,7 +1066,7 @@ document.getElementById("reload-main").addEventListener("click", () => runOrches
 document.getElementById("reconnect").addEventListener("click", () => runOrchestrationAction("reconnect"))
 document.getElementById("reload").addEventListener("click", () => runOrchestrationAction("reload"))
 window.addEventListener("hamiltonian-orchestration-action", (event) => {
-  const action = parseLocalHamiltonianWindowAction(event.detail, deviceId, tabId)
+  const action = parseLocalHamiltonianWindowAction(event.detail, deviceId, tabId, pageIncarnation)
   if (action === null) {
     log("Ignored orchestration action for another or unknown Window", true)
     return
@@ -675,3 +1075,34 @@ window.addEventListener("hamiltonian-orchestration-action", (event) => {
 })
 
 void start()
+
+function closeCurrentPageChannel(reason) {
+  if (messagePortTransportId && attachedWorkerEntityId) {
+    emitHamiltonianLifecycle(createHamiltonianLifecycleObservation({
+      type: "transport",
+      phase: "closed",
+      subjectId: messagePortTransportId,
+      subjectKind: "message-port",
+      ownerId: pageEntityId,
+      sourceEntityId: attachedWorkerEntityId,
+      targetEntityId: pageEntityId,
+      transportId: messagePortTransportId,
+      attributes: {reason},
+    }))
+  }
+  port?.close()
+  port = null
+  messagePortTransportId = null
+  pendingControllerConnect = null
+  pendingPageMessages = []
+}
+
+function lifecycleMessageId(message) {
+  return typeof message?.monitor?.messageId === "string" && message.monitor.messageId
+    ? message.monitor.messageId
+    : null
+}
+
+function lifecycleMessageClass(value) {
+  return typeof value === "string" && /^[A-Za-z0-9._:-]{1,64}$/.test(value) ? value : "unknown"
+}

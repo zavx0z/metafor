@@ -1,5 +1,6 @@
 import {describe, expect, test} from "bun:test"
 import {
+  connectNodeSystemEdgeToVisibleSockets,
   planNodeSystemBezierPath,
   planNodeSystemEdgeHitRects,
   sampleNodeSystemBezierPath,
@@ -7,7 +8,48 @@ import {
 } from "./edge-curve.ts"
 
 describe("node-system Bézier edge rendering", () => {
-  test("preserves routed endpoints and rounds a Libavoid corner", () => {
+  test("adds only the short renderer stub from each ELK port boundary to its visible parameter socket", () => {
+    const edge = {
+      edge: {
+        id: "message",
+        source: {nodeId: "source", portId: "out"},
+        target: {nodeId: "target", portId: "in"},
+      },
+      points: [{x: 104, y: 50}, {x: 296, y: 50}],
+    }
+    const nodes = new Map([
+      ["source", {
+        node: {
+          id: "source",
+          title: "Source",
+          facts: [{id: "message", label: "Message", value: "out"}],
+          ports: [{id: "out", parameterId: "message", direction: "out" as const}],
+        },
+        rect: {x: 0, y: 0, w: 100, h: 80},
+        ports: [{port: {id: "out", parameterId: "message", direction: "out" as const}, center: {x: 100, y: 50}}],
+      }],
+      ["target", {
+        node: {
+          id: "target",
+          title: "Target",
+          facts: [{id: "message", label: "Message", value: "in"}],
+          ports: [{id: "in", parameterId: "message", direction: "in" as const}],
+        },
+        rect: {x: 300, y: 0, w: 100, h: 80},
+        ports: [{port: {id: "in", parameterId: "message", direction: "in" as const}, center: {x: 300, y: 50}}],
+      }],
+    ])
+
+    expect(connectNodeSystemEdgeToVisibleSockets(edge, nodes)).toEqual([
+      {x: 100, y: 50},
+      {x: 104, y: 50},
+      {x: 296, y: 50},
+      {x: 300, y: 50},
+    ])
+    expect(edge.points).toEqual([{x: 104, y: 50}, {x: 296, y: 50}])
+  })
+
+  test("preserves routed endpoints and rounds an ELK corner", () => {
     const curves = planNodeSystemBezierPath([
       {x: 0, y: 0},
       {x: 100, y: 0},

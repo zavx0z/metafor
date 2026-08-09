@@ -9,6 +9,28 @@
  */
 /** @typedef {{worker: {terminate: () => void}}} WorkerEmbodiment */
 
+export const HAMILTONIAN_PAGE_HEARTBEAT_MS = 500
+export const HAMILTONIAN_VISIBLE_WORKER_QUIET_MS = 1_000
+export const HAMILTONIAN_HIDDEN_WORKER_QUIET_MS = 3_500
+
+/**
+ * A MessagePort does not keep ServiceWorkerGlobalScope alive. A visible page
+ * therefore treats one second without any worker reply as an expired liveness
+ * lease and reconnects through ServiceWorker.postMessage, which wakes a fresh
+ * global scope. Hidden pages use a wider lease because browsers throttle them.
+ *
+ * @param {object} input
+ * @param {number} input.now
+ * @param {number} input.lastWorkerMessageAt
+ * @param {string} input.visibility
+ */
+export function pageWorkerChannelIsQuiet({now, lastWorkerMessageAt, visibility}) {
+  const quietMs = visibility === "visible"
+    ? HAMILTONIAN_VISIBLE_WORKER_QUIET_MS
+    : HAMILTONIAN_HIDDEN_WORKER_QUIET_MS
+  return now - lastWorkerMessageAt > quietMs
+}
+
 /**
  * @param {object} input
  * @param {PeerControlMessage | null | undefined} input.message
@@ -81,6 +103,11 @@ export function isCurrentWindowChannel(registry, channel) {
   return registry.get(channel.tabId) === channel
 }
 
+/** @template T @param {T | null} current @param {T} candidate */
+export function isCurrentPageChannel(current, candidate) {
+  return current === candidate
+}
+
 /**
  * @param {WorkerEmbodiment | null} currentEmbodiment
  * @param {WorkerEmbodiment} failedEmbodiment
@@ -104,4 +131,17 @@ export function disposeFailedWorker(currentEmbodiment, failedEmbodiment) {
 export function mainRealmRequiresReload(hasMainEmbodiment, loadedFingerprint, nextFingerprint) {
   return hasMainEmbodiment === true &&
     loadedFingerprint !== nextFingerprint
+}
+
+/**
+ * A dev source revision reloads a page at most once. Persisting the accepted
+ * revision in sessionStorage prevents a reconnect or duplicate worker message
+ * from creating a reload loop.
+ *
+ * @param {string | null | undefined} currentRevision
+ * @param {string | null | undefined} nextRevision
+ */
+export function sourceRevisionRequiresReload(currentRevision, nextRevision) {
+  return typeof nextRevision === "string" && nextRevision.length > 0 &&
+    currentRevision !== nextRevision
 }

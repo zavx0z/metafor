@@ -1,16 +1,14 @@
 import {
-  HAMILTONIAN_PEER_SUPERVISION_EDGE_ID,
-  HamiltonianTrafficSource,
-  hamiltonianControlWssEdgeId,
-  hamiltonianIpcEdgeId,
-  isHamiltonianTrafficEnvelope,
-} from "./core/traffic.js"
+  HamiltonianLifecycleRetainedJournal,
+  HamiltonianLifecycleSource,
+  createHamiltonianLifecycleObservation,
+  hamiltonianLifecycleEntityId,
+  isHamiltonianLifecycleEnvelope,
+  type HamiltonianLifecycleEnvelope,
+} from "./core/lifecycle.js"
 import {networkInterfaces} from "node:os"
+import {watch, type FSWatcher} from "node:fs"
 import {fileURLToPath} from "node:url"
-import {
-  LibavoidNodeSystemRouter,
-  parseAndRouteNodeSystem,
-} from "@ui/node/server"
 import {
   BunEmbodimentSet,
   type EmbodimentAuthority,
@@ -23,6 +21,8 @@ import type {PeerSignal, WeriftPeerSnapshot} from "./peer/werift-peer.ts"
 interface SocketData {
   connectionId: string
   deviceId: string
+  lifecycleTransportId: string
+  workerEntityId: string
   openedAt: number
   lastPongAt: number
   lastChallengeSeq: number
@@ -82,20 +82,26 @@ interface ClientPeerFailedMessage {
   reason: string
 }
 
-type HamiltonianTrafficEnvelope = ReturnType<HamiltonianTrafficSource["next"]>
-
-interface ClientTrafficMessage {
-  kind: "edge-traffic"
-  envelope: HamiltonianTrafficEnvelope
+interface ClientLifecycleMonitor {
+  messageId: string
+  transportId: string
 }
 
-type ClientMessage =
+interface ClientLifecycleRetirementMessage {
+  kind: "lifecycle-retirement"
+  envelope: HamiltonianLifecycleEnvelope
+}
+
+type MonitoredClientMessage = (
   | ClientTabsMessage
   | ClientPongMessage
   | ClientIdentityMessage
   | ClientPeerSignalMessage
   | ClientPeerFailedMessage
-  | ClientTrafficMessage
+  | ClientLifecycleRetirementMessage
+) & {monitor?: ClientLifecycleMonitor}
+
+type ClientMessage = MonitoredClientMessage
 
 interface HostEvent {
   at: number
@@ -108,6 +114,37 @@ const experimentRoot = fileURLToPath(new URL(".", import.meta.url))
 const publicRoot = `${experimentRoot}/public`
 const orchestrationEntry = `${experimentRoot}/browser/orchestration.ts`
 const engineFont = fileURLToPath(new URL("../pkg/engine/static/JetBrainsMono-Bold.ttf", import.meta.url))
+const uiRoot = fileURLToPath(new URL("../pkg/ui/", import.meta.url))
+let orchestrationBundle: Promise<string> | null = null
+
+function getOrchestrationBundle(): Promise<string> {
+  orchestrationBundle ??= Bun.build({
+    entrypoints: [orchestrationEntry],
+    target: "browser",
+    format: "esm",
+    loader: {".wgsl": "text"},
+    minify: false,
+    sourcemap: "inline",
+  }).then(async (result) => {
+    if (!result.success || result.outputs.length === 0) {
+      const detail = result.logs.map((log) => log.message).join("\n")
+      throw new Error(`Hamiltonian orchestration bundle failed${detail ? `: ${detail}` : ""}`)
+    }
+    return await result.outputs[0]!.text()
+  })
+  return orchestrationBundle
+}
+
+function invalidateOrchestrationBundle(): void {
+  orchestrationBundle = null
+}
+
+function isReloadableSource(filename: string | Buffer | null): boolean {
+  if (filename === null) return false
+  const value = String(filename)
+  return /\.(?:html|css|js|ts|wgsl)$/.test(value) &&
+    !/\.(?:spec|test)\.(?:js|ts)$/.test(value)
+}
 
 function safeEqual(left: string, right: string): boolean {
   const leftBytes = new TextEncoder().encode(left)
@@ -130,13 +167,8 @@ function parseClientMessage(value: string | Buffer): ClientMessage | null {
   }
   if (!parsed || typeof parsed !== "object" || !("kind" in parsed)) return null
 
-  if (
-    parsed.kind === "edge-traffic" &&
-    "envelope" in parsed &&
-    isHamiltonianTrafficEnvelope(parsed.envelope)
-  ) {
-    return {kind: "edge-traffic", envelope: parsed.envelope as ClientTrafficMessage["envelope"]}
-  }
+  const monitor = parseClientLifecycleMonitor(parsed)
+  if (monitor === null) return null
 
   if (
     parsed.kind === "pong" &&
@@ -144,12 +176,12 @@ function parseClientMessage(value: string | Buffer): ClientMessage | null {
     "seq" in parsed && typeof parsed.seq === "number" &&
     "workerIncarnationId" in parsed && typeof parsed.workerIncarnationId === "string"
   ) {
-    return {
+    return withClientLifecycleMonitor({
       kind: "pong",
       at: parsed.at,
       seq: parsed.seq,
       workerIncarnationId: parsed.workerIncarnationId,
-    }
+    }, monitor)
   }
 
   if (
@@ -163,11 +195,22 @@ function parseClientMessage(value: string | Buffer): ClientMessage | null {
     parsed.resumeNonce.length > 0 &&
     parsed.resumeNonce.length <= 128
   ) {
-    return {
+    return withClientLifecycleMonitor({
       kind: "identity",
       workerIncarnationId: parsed.workerIncarnationId,
       resumeNonce: parsed.resumeNonce,
-    }
+    }, monitor)
+  }
+
+  if (
+    parsed.kind === "lifecycle-retirement" &&
+    "envelope" in parsed &&
+    isHamiltonianLifecycleEnvelope(parsed.envelope)
+  ) {
+    return withClientLifecycleMonitor({
+      kind: "lifecycle-retirement",
+      envelope: parsed.envelope,
+    }, monitor)
   }
 
   if (
@@ -179,7 +222,7 @@ function parseClientMessage(value: string | Buffer): ClientMessage | null {
     "tabId" in parsed && typeof parsed.tabId === "string" && parsed.tabId.length <= 128 &&
     "signal" in parsed && validPeerSignal(parsed.signal)
   ) {
-    return {
+    return withClientLifecycleMonitor({
       kind: "peer-signal",
       peerId: parsed.peerId,
       sessionEpoch: parsed.sessionEpoch,
@@ -187,7 +230,7 @@ function parseClientMessage(value: string | Buffer): ClientMessage | null {
       authorityKey: parsed.authorityKey,
       tabId: parsed.tabId,
       signal: parsed.signal,
-    }
+    }, monitor)
   }
 
   if (
@@ -199,7 +242,7 @@ function parseClientMessage(value: string | Buffer): ClientMessage | null {
     "tabId" in parsed && typeof parsed.tabId === "string" && parsed.tabId.length <= 128 &&
     "reason" in parsed && typeof parsed.reason === "string" && parsed.reason.length <= 256
   ) {
-    return {
+    return withClientLifecycleMonitor({
       kind: "peer-failed",
       peerId: parsed.peerId,
       sessionEpoch: parsed.sessionEpoch,
@@ -207,7 +250,7 @@ function parseClientMessage(value: string | Buffer): ClientMessage | null {
       authorityKey: parsed.authorityKey,
       tabId: parsed.tabId,
       reason: parsed.reason,
-    }
+    }, monitor)
   }
 
   if (parsed.kind !== "tabs" || !("windows" in parsed) || !Array.isArray(parsed.windows)) {
@@ -230,7 +273,55 @@ function parseClientMessage(value: string | Buffer): ClientMessage | null {
       visible: candidate.visible,
     })
   }
-  return {kind: "tabs", windows}
+  return withClientLifecycleMonitor({kind: "tabs", windows}, monitor)
+}
+
+function parseClientLifecycleMonitor(value: object): ClientLifecycleMonitor | null | undefined {
+  if (!("monitor" in value)) return undefined
+  const monitor = value.monitor
+  if (
+    !monitor ||
+    typeof monitor !== "object" ||
+    !("messageId" in monitor) ||
+    typeof monitor.messageId !== "string" ||
+    !monitor.messageId.startsWith("message:") ||
+    monitor.messageId.length > 512 ||
+    !("transportId" in monitor) ||
+    typeof monitor.transportId !== "string" ||
+    !monitor.transportId.startsWith("websocket:") ||
+    monitor.transportId.length > 512
+  ) return null
+  return {messageId: monitor.messageId, transportId: monitor.transportId}
+}
+
+function withClientLifecycleMonitor<T extends
+  ClientTabsMessage |
+  ClientPongMessage |
+  ClientIdentityMessage |
+  ClientPeerSignalMessage |
+  ClientPeerFailedMessage |
+  ClientLifecycleRetirementMessage
+>(
+  message: T,
+  monitor: ClientLifecycleMonitor | undefined,
+): T & {monitor?: ClientLifecycleMonitor} {
+  return monitor === undefined ? message : {...message, monitor}
+}
+
+function isObservedSupersededServiceWorkerEnd(
+  envelope: HamiltonianLifecycleEnvelope,
+  successorWorkerEntityId: string,
+): boolean {
+  const observation = envelope.observation
+  return envelope.sourceKind === "page" &&
+    envelope.sourceId === hamiltonianLifecycleEntityId("page", envelope.sourceIncarnation) &&
+    observation.type === "entity" &&
+    observation.phase === "ended" &&
+    observation.subjectKind === "service-worker" &&
+    observation.subjectId !== successorWorkerEntityId &&
+    observation.ownerId === observation.subjectId &&
+    observation.attributes.state === "ended" &&
+    observation.attributes.successor === successorWorkerEntityId
 }
 
 function validPeerSignal(value: unknown): value is PeerSignal {
@@ -334,22 +425,26 @@ function staticResponse(pathname: string): Response | null {
   const files: Record<string, {path: string; type: string; cache?: string}> = {
     "/": {path: `${publicRoot}/index.html`, type: "text/html; charset=utf-8"},
     "/index.html": {path: `${publicRoot}/index.html`, type: "text/html; charset=utf-8"},
+    "/window-entry.js": {path: `${publicRoot}/window-entry.js`, type: "text/javascript; charset=utf-8"},
     "/app.js": {path: `${publicRoot}/app.js`, type: "text/javascript; charset=utf-8"},
+    "/sw-entry.js": {path: `${publicRoot}/sw-entry.js`, type: "text/javascript; charset=utf-8"},
     "/embodiment-worker.js": {path: `${publicRoot}/embodiment-worker.js`, type: "text/javascript; charset=utf-8"},
+    "/embodiment-worker-entry.js": {path: `${publicRoot}/embodiment-worker-entry.js`, type: "text/javascript; charset=utf-8"},
     "/styles.css": {path: `${publicRoot}/styles.css`, type: "text/css; charset=utf-8"},
     "/engine-static/JetBrainsMono-Bold.ttf": {path: engineFont, type: "font/ttf"},
     "/sw.js": {path: `${publicRoot}/sw.js`, type: "text/javascript; charset=utf-8"},
     "/core/runtime.js": {path: `${experimentRoot}/core/runtime.js`, type: "text/javascript; charset=utf-8"},
     "/core/cache.js": {path: `${experimentRoot}/core/cache.js`, type: "text/javascript; charset=utf-8"},
     "/core/browser-control.js": {path: `${experimentRoot}/core/browser-control.js`, type: "text/javascript; charset=utf-8"},
+    "/core/monitor.js": {path: `${experimentRoot}/core/monitor.js`, type: "text/javascript; charset=utf-8"},
+    "/core/lifecycle.js": {path: `${experimentRoot}/core/lifecycle.js`, type: "text/javascript; charset=utf-8"},
     "/core/orchestration.js": {path: `${experimentRoot}/core/orchestration.js`, type: "text/javascript; charset=utf-8"},
-    "/core/traffic.js": {path: `${experimentRoot}/core/traffic.js`, type: "text/javascript; charset=utf-8"},
   }
   const entry = files[pathname]
   if (!entry) return null
   const headers = new Headers(securityHeaders(entry.type))
   headers.set("content-security-policy", "default-src 'self'; connect-src 'self' ws: wss: data:; img-src 'self' data: blob:; script-src 'self'; style-src 'self'; worker-src 'self' blob:; base-uri 'none'; frame-ancestors 'none'")
-  if (pathname === "/sw.js") {
+  if (pathname === "/sw.js" || pathname === "/sw-entry.js") {
     headers.set("service-worker-allowed", "/")
     headers.set("cache-control", "no-cache")
   }
@@ -380,6 +475,7 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
   }
 
   const hostEpoch = crypto.randomUUID()
+  const serverEntityId = hamiltonianLifecycleEntityId("server", hostEpoch)
   const serverMainRole = placement === "server" ? "main" : "main-probe"
   const serverWorkerRole = placement === "server" ? "worker" : "worker-probe"
   let serverFencingToken = 1
@@ -394,6 +490,9 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
   let serverAuthority = placement === "server" ? makeServerAuthority(serverFencingToken) : null
   const topology = new HostTopology(hostEpoch)
   const sockets = new Map<string, Bun.ServerWebSocket<SocketData>>()
+  const sourceWatchers: FSWatcher[] = []
+  let sourceUpdateTimer: ReturnType<typeof setTimeout> | null = null
+  let sourceUpdateGeneration = 0
   const detachedAuthorities = new Map<string, {
     expiresAt: number
     deviceId: string
@@ -409,47 +508,112 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
   }
   const source = moduleSource(version)
   const sourceHash = sha256Hex(source)
-  const hostTraffic = new HamiltonianTrafficSource(`host:${hostEpoch}`)
-  const broadcastTrafficEnvelope = (envelope: ClientTrafficMessage["envelope"]) => {
-    const payload = JSON.stringify({kind: "edge-traffic", envelope})
+  const indexResponse = async (localJoinToken = "") => {
+    const servedAt = Date.now()
+    const navigationId = crypto.randomUUID()
+    const template = await Bun.file(`${publicRoot}/index.html`).text()
+    const html = template
+      .replaceAll("__HAMILTONIAN_HOST_IDENTITY__", escapeHtmlAttribute(identity))
+      .replaceAll("__HAMILTONIAN_HOST_EPOCH__", escapeHtmlAttribute(hostEpoch))
+      .replaceAll("__HAMILTONIAN_HOST_VERSION__", escapeHtmlAttribute(version))
+      .replaceAll("__HAMILTONIAN_NAVIGATION_ID__", escapeHtmlAttribute(navigationId))
+      .replaceAll("__HAMILTONIAN_SERVED_AT__", String(servedAt))
+      .replaceAll("__HAMILTONIAN_LOCAL_JOIN_TOKEN__", escapeHtmlAttribute(localJoinToken))
+    const headers = new Headers(securityHeaders("text/html; charset=utf-8"))
+    headers.set("content-security-policy", "default-src 'self'; connect-src 'self' ws: wss: data:; img-src 'self' data: blob:; script-src 'self'; style-src 'self'; worker-src 'self' blob:; base-uri 'none'; frame-ancestors 'none'")
+    return new Response(html, {headers})
+  }
+  const hostLifecycleJournal = new HamiltonianLifecycleRetainedJournal(serverEntityId)
+  const broadcastLifecycleEnvelope = (value: HamiltonianLifecycleEnvelope) => {
+    const payload = JSON.stringify({kind: "lifecycle", envelope: value})
     for (const observer of sockets.values()) {
       if (observer.getBufferedAmount() <= 256_000) observer.send(payload)
     }
   }
-  const emitHostTraffic = (
-    edgeId: string,
-    direction: "forward" | "reverse",
-    messageClass: string,
-  ) => {
-    const envelope = hostTraffic.next({edgeId, direction, messageClass}) as ClientTrafficMessage["envelope"]
-    broadcastTrafficEnvelope(envelope)
+  const relayLifecycleEnvelope = (value: unknown) => {
+    if (!isHamiltonianLifecycleEnvelope(value)) return
+    hostLifecycleJournal.observe(value)
+    broadcastLifecycleEnvelope(value)
+  }
+  const hostLifecycle = new HamiltonianLifecycleSource({
+    id: serverEntityId,
+    kind: "server",
+    incarnation: hostEpoch,
+    startedAt: Date.now(),
+  })
+  const observeHostIpcMessage = (event: {
+    phase: "sent" | "received"
+    messageId: string
+    messageClass: string
+    processEntityId: string
+    transportId: string
+  }) => {
+    const sent = event.phase === "sent"
+    relayLifecycleEnvelope(hostLifecycle.next(createHamiltonianLifecycleObservation({
+      type: "message",
+      phase: event.phase,
+      subjectId: event.messageId,
+      subjectKind: "ipc-message",
+      ownerId: serverEntityId,
+      sourceEntityId: sent ? serverEntityId : event.processEntityId,
+      targetEntityId: sent ? event.processEntityId : serverEntityId,
+      transportId: event.transportId,
+      messageId: event.messageId,
+      messageClass: event.messageClass,
+    })))
   }
   const sendControl = (
     socket: Bun.ServerWebSocket<SocketData>,
     message: Readonly<{kind: string}> & Record<string, unknown>,
   ) => {
-    socket.send(JSON.stringify(message))
-    emitHostTraffic(hamiltonianControlWssEdgeId(socket.data.connectionId), "forward", message.kind)
+    const messageId = `message:${encodeURIComponent(crypto.randomUUID())}`
+    const monitor = {messageId, transportId: socket.data.lifecycleTransportId}
+    relayLifecycleEnvelope(hostLifecycle.next(createHamiltonianLifecycleObservation({
+      type: "message",
+      phase: "sent",
+      subjectId: messageId,
+      subjectKind: "websocket-message",
+      ownerId: serverEntityId,
+      sourceEntityId: serverEntityId,
+      targetEntityId: socket.data.workerEntityId,
+      transportId: socket.data.lifecycleTransportId,
+      messageId,
+      messageClass: message.kind,
+    })))
+    socket.send(JSON.stringify({...message, monitor}))
   }
-  const nodeSystemRouter = new LibavoidNodeSystemRouter()
-  let orchestrationBundle: Promise<string> | null = null
-  const getOrchestrationBundle = () => {
-    orchestrationBundle ??= Bun.build({
-      entrypoints: [orchestrationEntry],
-      target: "browser",
-      format: "esm",
-      loader: {".wgsl": "text"},
-      minify: false,
-      sourcemap: "inline",
-    }).then(async (result) => {
-      if (!result.success || result.outputs.length === 0) {
-        const detail = result.logs.map((log) => log.message).join("\n")
-        throw new Error(`Hamiltonian orchestration bundle failed${detail ? `: ${detail}` : ""}`)
-      }
-      return await result.outputs[0]!.text()
-    })
-    return orchestrationBundle
+
+  const scheduleSourceUpdate = (filename: string | Buffer | null) => {
+    if (!isReloadableSource(filename) || stopping) return
+    sourceUpdateGeneration += 1
+    const generation = sourceUpdateGeneration
+    invalidateOrchestrationBundle()
+    if (sourceUpdateTimer !== null) clearTimeout(sourceUpdateTimer)
+    sourceUpdateTimer = setTimeout(() => {
+      sourceUpdateTimer = null
+      void getOrchestrationBundle().then((bundle) => {
+        if (generation !== sourceUpdateGeneration || stopping) return
+        const revision = `${hostEpoch}:${generation}:${sha256Hex(bundle).slice(0, 16)}`
+        record({at: Date.now(), kind: "source-update", detail: revision})
+        for (const socket of sockets.values()) {
+          if (socket.getBufferedAmount() > 256_000) continue
+          sendControl(socket, {kind: "source-update", revision})
+        }
+      }).catch((error: unknown) => {
+        if (generation !== sourceUpdateGeneration || stopping) return
+        record({
+          at: Date.now(),
+          kind: "source-update-failed",
+          detail: error instanceof Error ? error.message : String(error),
+        })
+      })
+    }, 120)
   }
+  // Build once as soon as the host incarnation starts. A first navigation
+  // must not pay the browser bundle compilation cost on its module request.
+  // Bun 1.3.14 may crash when Bun.build races the test runner's own WGSL
+  // transpilation, so tests retain the same on-request build path they verify.
+  if (Bun.env.NODE_ENV !== "test") void getOrchestrationBundle().catch(() => {})
   let broadcastTopology = () => {}
   let peerSnapshot: WeriftPeerSnapshot | null = null
   let peerError: string | null = null
@@ -466,6 +630,7 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
   let peerOperations: Promise<void> = Promise.resolve()
   let readyPeerKey: string | null = null
   let requestPeerRepair = (_reason: string) => {}
+  let requestBunRepair = (_role: string, _reason: string) => {}
   let signalingUp = 0
   let signalingDown = 0
   let controlFramesIn = 0
@@ -476,8 +641,42 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
   let peerRepairs = 0
   let stopping = false
   const peerSupervisor = new PeerProcessSupervisor({
-    onTraffic(event) {
-      emitHostTraffic(HAMILTONIAN_PEER_SUPERVISION_EDGE_ID, event.direction, event.messageClass)
+    serverEntityId,
+    // The loopback host already has a directly reachable endpoint. ICE-lite
+    // avoids Werift waiting five seconds for its implicit public STUN probe.
+    ...(isLoopbackHostname(hostname) ? {iceLite: true} : {}),
+    onLifecycle(envelope) {
+      relayLifecycleEnvelope(envelope)
+    },
+    onMessage(event) {
+      observeHostIpcMessage(event)
+    },
+    onProcessExit(event) {
+      const closed = hostLifecycle.next(createHamiltonianLifecycleObservation({
+        type: "transport",
+        phase: "closed",
+        subjectId: event.transportId,
+        subjectKind: "ipc",
+        ownerId: serverEntityId,
+        sourceEntityId: serverEntityId,
+        targetEntityId: event.entityId,
+        transportId: event.transportId,
+        attributes: {reason: event.reason.slice(0, 256)},
+      }))
+      relayLifecycleEnvelope(closed)
+      relayLifecycleEnvelope(hostLifecycle.next(createHamiltonianLifecycleObservation({
+        type: "entity",
+        phase: "ended",
+        subjectId: event.entityId,
+        subjectKind: "peer-process",
+        ownerId: serverEntityId,
+        attributes: {
+          incarnation: event.incarnation,
+          role: event.role,
+          state: "stopped",
+          reason: event.reason.slice(0, 256),
+        },
+      }), {causedBy: closed.eventId}))
     },
     onSignal(peerId, signal) {
       const assignment = peerAssignment
@@ -538,7 +737,37 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
   const bunEmbodiments = new BunEmbodimentSet(
     [serverMainRole, serverWorkerRole],
     () => broadcastTopology(),
-    (role, event) => emitHostTraffic(hamiltonianIpcEdgeId(role), event.direction, event.messageClass),
+    undefined,
+    (_role, envelope) => relayLifecycleEnvelope(envelope),
+    (_role, event) => observeHostIpcMessage(event),
+    (role, event) => {
+      const closed = hostLifecycle.next(createHamiltonianLifecycleObservation({
+        type: "transport",
+        phase: "closed",
+        subjectId: event.transportId,
+        subjectKind: "ipc",
+        ownerId: serverEntityId,
+        sourceEntityId: serverEntityId,
+        targetEntityId: event.entityId,
+        transportId: event.transportId,
+        attributes: {exitCode: event.exitCode, reason: event.reason.slice(0, 256)},
+      }))
+      relayLifecycleEnvelope(closed)
+      relayLifecycleEnvelope(hostLifecycle.next(createHamiltonianLifecycleObservation({
+        type: "entity",
+        phase: "ended",
+        subjectId: event.entityId,
+        subjectKind: "bun-process",
+        ownerId: serverEntityId,
+        attributes: {
+          incarnation: event.incarnation,
+          role,
+          state: "stopped",
+          reason: event.reason.slice(0, 256),
+        },
+      }), {causedBy: closed.eventId}))
+      queueMicrotask(() => requestBunRepair(role, event.reason))
+    },
   )
   const hostState = () => ({
     identity,
@@ -657,18 +886,17 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
 
   broadcastTopology = () => {
     const nextTopology = topologyState()
-    const payload = JSON.stringify({
+    const message = {
       kind: "topology",
       host: hostState(),
       topology: nextTopology,
-    })
+    }
     for (const socket of sockets.values()) {
       if (socket.getBufferedAmount() > 256_000) {
         socket.close(1013, "control channel backpressure")
         continue
       }
-      socket.send(payload)
-      emitHostTraffic(hamiltonianControlWssEdgeId(socket.data.connectionId), "forward", "topology")
+      sendControl(socket, message)
     }
     schedulePeer(nextTopology.leader)
   }
@@ -749,14 +977,9 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
     ...tls,
     async fetch(request, bunServer) {
       const url = new URL(request.url)
-      if (
-        request.method === "GET" &&
-        url.pathname === "/" &&
-        !url.searchParams.has("token") &&
-        isLoopbackAddress(bunServer.requestIP(request)?.address)
-      ) {
-        url.searchParams.set("token", token)
-        return Response.redirect(url, 302)
+      if (request.method === "GET" && (url.pathname === "/" || url.pathname === "/index.html")) {
+        const localJoinToken = isLoopbackAddress(bunServer.requestIP(request)?.address) ? token : ""
+        return await indexResponse(localJoinToken)
       }
       if (url.pathname === "/orchestration.js") {
         try {
@@ -767,33 +990,25 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
           return new Response(error instanceof Error ? error.message : String(error), {status: 500})
         }
       }
-      if (url.pathname === "/node-system/route") {
-        if (request.method !== "POST") return new Response("Method not allowed", {status: 405})
-        const origin = request.headers.get("origin")
-        if (origin !== null && origin !== url.origin) return new Response("Cross-origin routing is forbidden", {status: 403})
-        const contentLength = Number(request.headers.get("content-length") ?? 0)
-        if (Number.isFinite(contentLength) && contentLength > 1024 * 1024) {
-          return new Response("Layout request is too large", {status: 413})
-        }
-        try {
-          const body = await request.text()
-          if (body.length > 1024 * 1024) return new Response("Layout request is too large", {status: 413})
-          const response = await parseAndRouteNodeSystem(nodeSystemRouter, JSON.parse(body))
-          return Response.json(response, {headers: securityHeaders("application/json; charset=utf-8")})
-        } catch (error) {
-          return new Response(error instanceof Error ? error.message : String(error), {status: 400})
-        }
-      }
       if (url.pathname === "/control") {
         const suppliedToken = url.searchParams.get("token") ?? ""
         const deviceId = url.searchParams.get("device") ?? ""
-        if (!safeEqual(suppliedToken, token) || !deviceId || deviceId.length > 128) {
+        const lifecycleTransportId = url.searchParams.get("transport") ?? ""
+        const workerEntityId = url.searchParams.get("worker") ?? ""
+        if (
+          !safeEqual(suppliedToken, token) ||
+          !deviceId || deviceId.length > 128 ||
+          !lifecycleTransportId.startsWith("websocket:") || lifecycleTransportId.length > 512 ||
+          !workerEntityId.startsWith("service-worker:") || workerEntityId.length > 512
+        ) {
           return new Response("Unauthorized", {status: 401})
         }
         const upgraded = bunServer.upgrade(request, {
           data: {
             connectionId: crypto.randomUUID(),
             deviceId,
+            lifecycleTransportId,
+            workerEntityId,
             openedAt: Date.now(),
             lastPongAt: Date.now(),
             lastChallengeSeq: 0,
@@ -837,6 +1052,10 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
         sockets.set(socket.data.connectionId, socket)
         topology.connect(socket.data.connectionId, socket.data.deviceId)
         record({at: Date.now(), kind: "connection-open", connectionId: socket.data.connectionId})
+        // Establish one explicit causal frontier before producing the first
+        // live event for this socket. Historical messages stay behind the
+        // frontier; only retained active entities and transports bootstrap.
+        socket.send(JSON.stringify({kind: "lifecycle-snapshot", snapshot: hostLifecycleJournal.snapshot()}))
         sendControl(socket, {
           kind: "hello",
           connectionId: socket.data.connectionId,
@@ -859,8 +1078,36 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
           socket.close(1008, "invalid control message")
           return
         }
-        if (message.kind === "edge-traffic") {
-          broadcastTrafficEnvelope(message.envelope)
+        if (message.monitor) {
+          if (message.monitor.transportId !== socket.data.lifecycleTransportId) {
+            socket.data.retainAuthorityOnClose = false
+            socket.close(1008, "control message transport identity mismatch")
+            return
+          }
+          relayLifecycleEnvelope(hostLifecycle.next(createHamiltonianLifecycleObservation({
+            type: "message",
+            phase: "received",
+            subjectId: message.monitor.messageId,
+            subjectKind: "websocket-message",
+            ownerId: serverEntityId,
+            sourceEntityId: socket.data.workerEntityId,
+            targetEntityId: serverEntityId,
+            transportId: socket.data.lifecycleTransportId,
+            messageId: message.monitor.messageId,
+            messageClass: message.kind,
+          })))
+        }
+        if (message.kind === "lifecycle-retirement") {
+          if (
+            message.monitor === undefined ||
+            !isObservedSupersededServiceWorkerEnd(message.envelope, socket.data.workerEntityId)
+          ) {
+            socket.data.retainAuthorityOnClose = false
+            socket.close(1008, "invalid browser lifecycle retirement")
+            return
+          }
+          hostLifecycleJournal.retireEntity(message.envelope.observation.subjectId)
+          broadcastLifecycleEnvelope(message.envelope)
           return
         }
         if (message.kind === "pong") {
@@ -935,9 +1182,25 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
         }
         broadcastTopology()
       },
-      close(socket) {
+      close(socket, code, reason) {
         record({at: Date.now(), kind: "connection-close", connectionId: socket.data.connectionId})
         sockets.delete(socket.data.connectionId)
+        relayLifecycleEnvelope(hostLifecycle.next(createHamiltonianLifecycleObservation({
+          type: "transport",
+          phase: "closed",
+          subjectId: socket.data.lifecycleTransportId,
+          subjectKind: "websocket",
+          ownerId: socket.data.workerEntityId,
+          sourceEntityId: socket.data.workerEntityId,
+          targetEntityId: serverEntityId,
+          transportId: socket.data.lifecycleTransportId,
+          attributes: {
+            connectionId: socket.data.connectionId,
+            code,
+            reason: String(reason).slice(0, 256),
+            observedBy: "server",
+          },
+        })))
         const leader = topologyState().leader
         const retainsCurrentAuthority =
           !stopping &&
@@ -983,6 +1246,22 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
   })
   boundPort = server.port ?? port
 
+  if (Bun.env.NODE_ENV !== "test") {
+    for (const root of [`${experimentRoot}/browser`, `${experimentRoot}/public`, `${experimentRoot}/core`, uiRoot]) {
+      try {
+        sourceWatchers.push(watch(root, {recursive: true}, (_event, filename) => {
+          scheduleSourceUpdate(filename)
+        }))
+      } catch (error) {
+        record({
+          at: Date.now(),
+          kind: "source-watch-failed",
+          detail: error instanceof Error ? error.message : String(error),
+        })
+      }
+    }
+  }
+
   const heartbeat = setInterval(() => {
     const now = Date.now()
     for (const socket of sockets.values()) {
@@ -999,10 +1278,29 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
   const versionPayload = {version, source, sha256: sourceHash}
   const payloadForRole = (role: string) => ({
     ...versionPayload,
+    serverEntityId,
     authority: placement === "server" && role === serverMainRole ? serverAuthority : null,
   })
-  const bunReady = bunEmbodiments.birthAll(payloadForRole).catch(() => bunEmbodiments.snapshot())
   let serverMainOperations: Promise<void> = Promise.resolve()
+  const rebirthBunEmbodiment = (role = serverMainRole) => {
+    if (stopping) return Promise.reject(new Error("Hamiltonian host is stopping"))
+    if (placement !== "server" || role !== serverMainRole) {
+      return bunEmbodiments.rebirth(role, payloadForRole(role))
+    }
+    const rebirth = serverMainOperations.then(async () => {
+      serverFencingToken += 1
+      serverAuthority = makeServerAuthority(serverFencingToken)
+      broadcastTopology()
+      return await bunEmbodiments.rebirth(role, payloadForRole(role))
+    })
+    serverMainOperations = rebirth.then(() => undefined, () => undefined)
+    return rebirth
+  }
+  requestBunRepair = (role, _reason) => {
+    if (stopping) return
+    void rebirthBunEmbodiment(role).catch(() => {})
+  }
+  const bunReady = bunEmbodiments.birthAll(payloadForRole).catch(() => bunEmbodiments.snapshot())
   let stopPromise: Promise<void> | null = null
 
   return {
@@ -1017,18 +1315,10 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
     getStatus: observableState,
     bunReady,
     rebirthBunEmbodiment(role = serverMainRole) {
-      if (stopping) return Promise.reject(new Error("Hamiltonian host is stopping"))
-      if (placement !== "server" || role !== serverMainRole) {
-        return bunEmbodiments.rebirth(role, payloadForRole(role))
-      }
-      const rebirth = serverMainOperations.then(async () => {
-        serverFencingToken += 1
-        serverAuthority = makeServerAuthority(serverFencingToken)
-        broadcastTopology()
-        return await bunEmbodiments.rebirth(role, payloadForRole(role))
-      })
-      serverMainOperations = rebirth.then(() => undefined, () => undefined)
-      return rebirth
+      return rebirthBunEmbodiment(role)
+    },
+    crashBunEmbodimentForTest(role = serverMainRole) {
+      return bunEmbodiments.crashForTest(role)
     },
     acceptsServerAuthorityForTest(candidate: EmbodimentAuthority | null) {
       return placement === "server" &&
@@ -1049,6 +1339,10 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
       stopPromise = (async () => {
         stopping = true
         clearInterval(heartbeat)
+        if (sourceUpdateTimer !== null) clearTimeout(sourceUpdateTimer)
+        sourceUpdateTimer = null
+        for (const watcher of sourceWatchers) watcher.close()
+        sourceWatchers.length = 0
         for (const timer of detachedLeaseTimers.values()) clearTimeout(timer)
         detachedLeaseTimers.clear()
         detachedAuthorities.clear()
@@ -1069,6 +1363,14 @@ function isLoopbackAddress(address: string | undefined): boolean {
     address.startsWith("127.") || address.startsWith("::ffff:127.")
 }
 
+function escapeHtmlAttribute(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+}
+
 function advertisedHosts(hostname: string): string[] {
   if (hostname !== "0.0.0.0" && hostname !== "::") return [hostname]
   const addresses = Object.values(networkInterfaces()).flatMap((entries) =>
@@ -1077,6 +1379,10 @@ function advertisedHosts(hostname: string): string[] {
       .map((entry) => entry.address)
   )
   return addresses.length > 0 ? addresses : ["127.0.0.1"]
+}
+
+function isLoopbackHostname(hostname: string): boolean {
+  return hostname === "127.0.0.1" || hostname === "localhost" || hostname === "::1"
 }
 
 if (import.meta.main) {
@@ -1091,7 +1397,10 @@ if (import.meta.main) {
     }
   })
   for (const address of advertisedHosts(host.server.hostname ?? "127.0.0.1")) {
-    console.log(`Join: ${scheme}://${address}:${port}/?token=${encodeURIComponent(host.token)}`)
+    const joinUrl = isLoopbackHostname(address)
+      ? `${scheme}://${address}:${port}/`
+      : `${scheme}://${address}:${port}/?token=${encodeURIComponent(host.token)}`
+    console.log(`Join: ${joinUrl}`)
   }
   if (scheme === "http" && host.server.hostname !== "127.0.0.1" && host.server.hostname !== "localhost") {
     console.warn("Remote browsers need trusted HTTPS before they can register the Service Worker.")

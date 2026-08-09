@@ -1,12 +1,19 @@
 import {describe, expect, test} from "bun:test"
+import {TrueTypeFont} from "@metafor/engine"
 import type {PositionedNodeSystem} from "./model.ts"
-import {NodeInspectorSurface, nodeInspectorRows} from "./inspector.ts"
-import {NodeSystemSurface, nodeSystemWheelGesture} from "./surface.ts"
+import {HUD_WINDOW_TITLE_HEIGHT} from "@ui/hud"
+import {NODE_INSPECTOR_TITLE_HEIGHT, NodeInspectorSurface, nodeInspectorRows} from "./inspector.ts"
 import {
-  fitNodeSystemViewport,
+  NodeSystemSurface,
+  nodeSystemScreenPresentationMetrics,
+  nodeSystemWheelGesture,
+  planNodeSystemContainmentPaintSteps,
+} from "./surface.ts"
+import {
+  fitNodeSystemCanvasTransform,
   hitTestNodeSystem,
-  planNodeSystemViewport,
-  zoomNodeSystemViewportAt,
+  planNodeSystemCanvasViewport,
+  zoomNodeSystemCanvasTransformAt,
 } from "./viewport.ts"
 
 const layout: PositionedNodeSystem = {
@@ -18,22 +25,41 @@ const layout: PositionedNodeSystem = {
         id: "host",
         title: "Host",
         kind: "runtime",
-        facts: [{id: "status", label: "Status", value: "ready"}],
+        facts: [{id: "status", label: "Status", value: "ready"}, {id: "link", label: "Link", value: "out"}],
+        ports: [{id: "link", parameterId: "link", direction: "out"}],
         actions: [{id: "restart", label: "Restart", enabled: false}],
       },
       rect: {x: 10, y: 20, w: 100, h: 80},
-      ports: [],
+      ports: [{port: {id: "link", parameterId: "link", direction: "out"}, center: {x: 110, y: 60}}],
     },
     {
-      node: {id: "peer", title: "Peer"},
+      node: {id: "peer", title: "Peer", facts: [{id: "link", label: "Link", value: "in"}], ports: [{id: "link", parameterId: "link", direction: "in"}]},
       rect: {x: 310, y: 140, w: 100, h: 80},
-      ports: [],
+      ports: [{port: {id: "link", parameterId: "link", direction: "in"}, center: {x: 310, y: 180}}],
     },
   ],
-  edges: [{edge: {id: "link", source: {nodeId: "host"}, target: {nodeId: "peer"}}, points: [{x: 110, y: 60}, {x: 310, y: 180}]}],
+  edges: [{edge: {id: "link", source: {nodeId: "host", portId: "link"}, target: {nodeId: "peer", portId: "link"}}, points: [{x: 114, y: 60}, {x: 306, y: 180}]}],
 }
 
-describe("node-system viewport and surfaces", () => {
+describe("node-system infinite canvas and surfaces", () => {
+  test("keeps text proportional while preserving screen-visible strokes and sockets", () => {
+    const fitted = nodeSystemScreenPresentationMetrics(0.3)
+    expect(fitted.titleFontPx).toBeCloseTo(3.6)
+    expect(fitted.bodyFontPx).toBeCloseTo(2.7)
+    expect(fitted.metaFontPx).toBeCloseTo(2.7)
+    expect(fitted.fieldPaddingPx).toBeCloseTo(1.2)
+    expect(fitted.nodeBorderPx).toBe(1.25)
+    expect(fitted.selectedNodeBorderPx).toBe(1.75)
+    expect(fitted.edgeThicknessPx).toBe(1.8)
+    expect(fitted.socketDiameterPx).toBe(5.5)
+
+    const native = nodeSystemScreenPresentationMetrics(2)
+    expect(native.titleFontPx).toBe(24)
+    expect(native.bodyFontPx).toBe(18)
+    expect(native.edgeThicknessPx).toBe(3.2)
+    expect(native.socketDiameterPx).toBe(16)
+  })
+
   test("maps Mac trackpad scroll to pan and pinch to smooth zoom", () => {
     expect(nodeSystemWheelGesture({ctrlKey: false, deltaMode: 0, deltaX: 12, deltaY: -8}))
       .toEqual({kind: "pan", dx: 12, dy: -8})
@@ -52,20 +78,56 @@ describe("node-system viewport and surfaces", () => {
     expect(new NodeSystemSurface({toolbar: false}).toolbarVisible).toBe(false)
   })
 
+  test("keeps retained traffic below the declarative control/socket layer", () => {
+    const surface = new NodeSystemSurface()
+    const names = surface.node.children.map(({name}) => name)
+    expect(names.indexOf("NodeSystemSurface.retainedLayer"))
+      .toBeLessThan(names.indexOf("NodeSystemSurface.layer"))
+  })
+
   test("fits the complete layout and preserves the point under zoom", () => {
-    const viewport = fitNodeSystemViewport(layout, {x: 0, y: 40, w: 800, h: 400}, 20)
+    const transform = fitNodeSystemCanvasTransform(layout, {x: 0, y: 40, w: 800, h: 400}, 20)
     const anchor = {x: 260, y: 180}
-    const logical = {x: (anchor.x - viewport.x) / viewport.scale, y: (anchor.y - viewport.y) / viewport.scale}
-    const zoomed = zoomNodeSystemViewportAt(viewport, 1.5, anchor)
+    const logical = {x: (anchor.x - transform.x) / transform.scale, y: (anchor.y - transform.y) / transform.scale}
+    const zoomed = zoomNodeSystemCanvasTransformAt(transform, 1.5, anchor)
     expect(zoomed.x + logical.x * zoomed.scale).toBeCloseTo(anchor.x, 10)
     expect(zoomed.y + logical.y * zoomed.scale).toBeCloseTo(anchor.y, 10)
   })
 
-  test("culls by viewport and hit-tests only visible transformed nodes", () => {
-    const plan = planNodeSystemViewport(layout, {x: 0, y: 0, scale: 1}, {x: 0, y: 0, w: 160, h: 120})
+  test("culls by the display window and hit-tests only visible transformed nodes", () => {
+    const plan = planNodeSystemCanvasViewport(layout, {x: 0, y: 0, scale: 1}, {x: 0, y: 0, w: 160, h: 120})
     expect(plan.nodes.map(({node}) => node.id)).toEqual(["host"])
     expect(hitTestNodeSystem(plan, {x: 20, y: 30})?.node.id).toBe("host")
     expect(hitTestNodeSystem(plan, {x: 500, y: 500})).toBeNull()
+  })
+
+  test("paints routes above every containing owner and below child cards", () => {
+    const entry = (id: string, parentId?: string) => ({
+      node: {id, title: id, ...(parentId === undefined ? {} : {parentId})},
+      rect: {x: 0, y: 0, w: 100, h: 80},
+      ports: [],
+    })
+    const nodes = [
+      entry("page"),
+      entry("main", "page"),
+      entry("rtc", "main"),
+      entry("worker", "page"),
+      entry("peer"),
+      entry("server-rtc", "peer"),
+    ]
+
+    expect(planNodeSystemContainmentPaintSteps(nodes)).toEqual([
+      {kind: "owner-background", nodeId: "page"},
+      {kind: "owner-background", nodeId: "peer"},
+      {kind: "owner-background", nodeId: "main"},
+      {kind: "edges"},
+      {kind: "node-foreground", nodeId: "page", includeBackground: false},
+      {kind: "node-foreground", nodeId: "peer", includeBackground: false},
+      {kind: "node-foreground", nodeId: "main", includeBackground: false},
+      {kind: "node-foreground", nodeId: "worker", includeBackground: true},
+      {kind: "node-foreground", nodeId: "server-rtc", includeBackground: true},
+      {kind: "node-foreground", nodeId: "rtc", includeBackground: true},
+    ])
   })
 
   test("keeps selection and action execution outside the serializable document", () => {
@@ -77,13 +139,16 @@ describe("node-system viewport and surfaces", () => {
     expect(surface.select("missing")).toBe(false)
     expect(selected).toEqual(["host"])
 
-    const inspector = new NodeInspectorSurface()
+    const inspector = new NodeInspectorSurface({open: false})
     inspector.inspect(surface.selectedNode?.node ?? null)
     expect(inspector.inspectedNode?.id).toBe("host")
+    expect(inspector.isOpen).toBe(false)
+    expect(NODE_INSPECTOR_TITLE_HEIGHT).toBe(HUD_WINDOW_TITLE_HEIGHT)
     expect(nodeInspectorRows(inspector.inspectedNode!)).toEqual([
       {id: "identity", label: "Идентификатор", value: "host"},
       {id: "kind", label: "Тип", value: "runtime"},
       {id: "status", label: "Status", value: "ready"},
+      {id: "link", label: "Link", value: "out"},
     ])
   })
 
@@ -155,14 +220,36 @@ describe("node-system viewport and surfaces", () => {
     ])
   })
 
-  test("does not preserve an empty/default viewport before the layout was materialized", () => {
+  test("does not preserve an empty/default canvas transform before the layout was materialized", () => {
     const surface = new NodeSystemSurface()
     surface.setLayout(layout)
-    expect(surface.hasMaterializedViewport).toBe(false)
-    expect(surface.setViewport({x: 12, y: 34, scale: 0.8})).toBe(true)
-    expect(surface.hasMaterializedViewport).toBe(true)
+    expect(surface.hasMaterializedCanvasTransform).toBe(false)
+    expect(surface.setCanvasTransform({x: 12, y: 34, scale: 0.8})).toBe(true)
+    expect(surface.hasMaterializedCanvasTransform).toBe(true)
     surface.setLayout({...layout, revision: 2})
-    expect(surface.hasMaterializedViewport).toBe(false)
+    expect(surface.hasMaterializedCanvasTransform).toBe(false)
+  })
+
+  test("preserves an owner-materialized canvas transform when the display frame changes", async () => {
+    const fontBuffer = await Bun.file(
+      new URL("../../engine/static/JetBrainsMono-Bold.ttf", import.meta.url),
+    ).arrayBuffer()
+    const font = new TrueTypeFont(fontBuffer)
+    const surface = new NodeSystemSurface({toolbar: false})
+    try {
+      surface.setLayout(layout)
+      surface.setRect({x: 0, y: 0, w: 800, h: 400}, 1, font)
+      expect(surface.hasMaterializedCanvasTransform).toBe(true)
+
+      const manual = {x: 73, y: -41, scale: 1.25}
+      expect(surface.setCanvasTransform(manual)).toBe(true)
+      surface.setRect({x: 0, y: 0, w: 1200, h: 700}, 1, font)
+
+      expect(surface.canvasTransform).toEqual(manual)
+      expect(surface.hasMaterializedCanvasTransform).toBe(true)
+    } finally {
+      surface.dispose()
+    }
   })
 
   test("keeps concurrent edge messages distinct, rejects duplicates and exposes idle again", () => {

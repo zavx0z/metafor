@@ -18,7 +18,11 @@ function node(id: string, x: number, y: number, order: number): PositionedNodeSy
     id,
     title: id,
     order,
-    ports: [{id: "in", direction: "in" as const}, {id: "out", direction: "out" as const}],
+    facts: [{id: "in", label: "In", value: ""}, {id: "out", label: "Out", value: ""}],
+    ports: [
+      {id: "in", parameterId: "in", direction: "in" as const},
+      {id: "out", parameterId: "out", direction: "out" as const},
+    ],
   }
   return {
     node: model,
@@ -182,6 +186,33 @@ describe("stable structural node-system updates", () => {
     ])
     expect(moved.edges[0]?.points[0]).toEqual({x: 170, y: 120})
     expect(moved.edges[0]?.points.at(-1)).toEqual({x: 320, y: 70})
+  })
+
+  test("moves the full descendant tree with its root parent", () => {
+    const parent = {
+      node: {id: "owner", title: "Owner"},
+      rect: {x: 40, y: 40, w: 200, h: 180},
+      ports: [],
+    }
+    const child = {
+      node: {id: "main", parentId: "owner", title: "main"},
+      rect: {x: 70, y: 120, w: 140, h: 80},
+      ports: [],
+    }
+    const grandchild = {
+      node: {id: "rtc", parentId: "main", title: "RTC"},
+      rect: {x: 85, y: 145, w: 110, h: 45},
+      ports: [],
+    }
+    const original: PositionedNodeSystem = {
+      bounds: {x: 0, y: 0, w: 300, h: 260},
+      nodes: [parent, child, grandchild],
+      edges: [],
+    }
+    const moved = moveNodeSystemNode(original, "owner", {x: 100, y: 90})
+    expect(moved.nodes[0]!.rect).toEqual({x: 100, y: 90, w: 200, h: 180})
+    expect(moved.nodes[1]!.rect).toEqual({x: 130, y: 170, w: 140, h: 80})
+    expect(moved.nodes[2]!.rect).toEqual({x: 145, y: 195, w: 110, h: 45})
   })
 })
 

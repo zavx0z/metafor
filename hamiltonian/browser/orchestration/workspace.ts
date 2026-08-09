@@ -8,6 +8,12 @@ export const HAMILTONIAN_INSPECTOR_MIN_WIDTH = 240
 export const HAMILTONIAN_INSPECTOR_MIN_HEIGHT = 220
 export const HAMILTONIAN_INSPECTOR_DEFAULT_HEIGHT = 620
 export const HAMILTONIAN_INSPECTOR_MARGIN = 12
+export const HAMILTONIAN_CANVAS_VIEW_STICK_WIDTH = 38
+export const HAMILTONIAN_CANVAS_VIEW_STICK_HEIGHT = 92
+export const HAMILTONIAN_CANVAS_VIEW_STICK_TOP = 46
+export const HAMILTONIAN_CANVAS_VIEW_MIN_WIDTH = 240
+export const HAMILTONIAN_CANVAS_VIEW_PANEL_WIDTH = 300
+export const HAMILTONIAN_CANVAS_VIEW_PANEL_HEIGHT = 128
 
 export function hamiltonianInspectorWidth(width: number): number {
   if (width < 720) return Math.min(250, Math.max(190, width * 0.38))
@@ -53,6 +59,55 @@ export function planHamiltonianOrchestrationWorkspace(
   return {
     graph: {x: 0, y: 0, w: safeWidth, h: safeHeight},
     inspector: constrainHamiltonianInspectorFrame(inspectorFrame ?? defaultFrame, safeWidth, safeHeight),
+  }
+}
+
+/** The UIDisplay exposes the full graph-canvas window; HUD never alters it. */
+export function planHamiltonianGraphDisplayRect(width: number, height: number): UiSurfaceRect {
+  return {x: 0, y: 0, w: Math.max(1, width), h: Math.max(1, height)}
+}
+
+/** Infinite-canvas controls or their reopen stick; both live in HUD. */
+export function planHamiltonianCanvasViewFrame(
+  width: number,
+  height: number,
+  open: boolean,
+  frame: UiSurfaceRect | null = null,
+): UiSurfaceRect {
+  const safeWidth = Math.max(1, width)
+  const safeHeight = Math.max(1, height)
+  if (open) {
+    return constrainHamiltonianCanvasViewFrame(frame ?? {
+      x: HAMILTONIAN_INSPECTOR_MARGIN,
+      y: HAMILTONIAN_CANVAS_VIEW_STICK_TOP,
+      w: Math.min(HAMILTONIAN_CANVAS_VIEW_PANEL_WIDTH, safeWidth),
+      h: Math.min(HAMILTONIAN_CANVAS_VIEW_PANEL_HEIGHT, safeHeight),
+    }, safeWidth, safeHeight)
+  }
+  return {
+    x: 0,
+    y: Math.min(HAMILTONIAN_CANVAS_VIEW_STICK_TOP, Math.max(0, safeHeight - Math.min(HAMILTONIAN_CANVAS_VIEW_STICK_HEIGHT, safeHeight))),
+    w: Math.min(HAMILTONIAN_CANVAS_VIEW_STICK_WIDTH, safeWidth),
+    h: Math.min(HAMILTONIAN_CANVAS_VIEW_STICK_HEIGHT, safeHeight),
+  }
+}
+
+export function constrainHamiltonianCanvasViewFrame(
+  frame: UiSurfaceRect,
+  viewportWidth: number,
+  viewportHeight: number,
+): UiSurfaceRect {
+  const safeWidth = Math.max(1, viewportWidth)
+  const safeHeight = Math.max(1, viewportHeight)
+  const minimumWidth = Math.min(HAMILTONIAN_CANVAS_VIEW_MIN_WIDTH, safeWidth)
+  const minimumHeight = Math.min(HAMILTONIAN_CANVAS_VIEW_PANEL_HEIGHT, safeHeight)
+  const w = clamp(frame.w, minimumWidth, safeWidth)
+  const h = clamp(frame.h, minimumHeight, safeHeight)
+  return {
+    x: clamp(frame.x, 0, safeWidth - w),
+    y: clamp(frame.y, 0, safeHeight - h),
+    w,
+    h,
   }
 }
 

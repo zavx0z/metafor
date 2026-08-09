@@ -1,5 +1,5 @@
 import {Color, Mesh, PlaneGeometry, RoundedRectMaterial} from "@metafor/engine"
-import {Typography} from "@ui/components"
+import {TextField, Typography} from "@ui/components"
 import {
   UiSurface,
   Z,
@@ -19,12 +19,16 @@ import type {
 } from "./model.ts"
 import {
   NODE_SYSTEM_CARD_METRICS,
+  NODE_SYSTEM_PORT_PITCH,
   measureNodeSystemCard,
-  nodeSystemPortDirectionLabel,
   planNodeSystemCard,
   type NodeSystemTextMeasurer,
 } from "./card-layout.ts"
-import {planNodeSystemEdgeHitRects, sampleNodeSystemBezierPath} from "./edge-curve.ts"
+import {
+  connectNodeSystemEdgeToVisibleSockets,
+  planNodeSystemEdgeHitRects,
+  sampleNodeSystemBezierPath,
+} from "./edge-curve.ts"
 import {
   NODE_SYSTEM_EDGE_PARTICLE_DURATION_MS,
   planNodeSystemEdgeParticle,
@@ -32,25 +36,27 @@ import {
 } from "./edge-particle.ts"
 import {moveNodeSystemNodes, resizeNodeSystemNode} from "./incremental-layout.ts"
 import {
-  DEFAULT_NODE_SYSTEM_VIEWPORT,
-  fitNodeSystemViewport,
-  panNodeSystemViewport,
-  planNodeSystemViewport,
-  zoomNodeSystemViewportAt,
+  DEFAULT_NODE_SYSTEM_CANVAS_TRANSFORM,
+  fitNodeSystemCanvasTransform,
+  panNodeSystemCanvasTransform,
+  planNodeSystemCanvasViewport,
+  zoomNodeSystemCanvasTransformAt,
+  type NodeSystemCanvasTransform,
+  type NodeSystemCanvasTransformLimits,
   type NodeSystemRenderPlan,
-  type NodeSystemViewport,
-  type NodeSystemViewportLimits,
 } from "./viewport.ts"
 
 export type NodeSystemSurfaceOptions = UiSurfaceOpts & Readonly<{
   title?: string
   toolbar?: boolean
+  /** Allow direct node move/resize. Keep false when ELK exclusively owns geometry. */
+  editable?: boolean
   minScale?: number
   maxScale?: number
   onSelectionChange?: (nodeId: string | null) => void
   onNodeMove?: (event: NodeSystemNodeMoveEvent) => void
   onNodeResize?: (event: NodeSystemNodeResizeEvent) => void
-  onViewportChange?: (viewport: NodeSystemViewport) => void
+  onCanvasTransformChange?: (transform: NodeSystemCanvasTransform) => void
   onEdgeMessageCountChange?: (count: number) => void
 }>
 
@@ -78,9 +84,39 @@ const EMPTY_LAYOUT: PositionedNodeSystem = Object.freeze({
   edges: [],
 })
 const HEADER_HEIGHT = 38
-const NODE_BODY_OPACITY = 0.72
-const NODE_HEADER_OPACITY = 0.8
+const NODE_BODY_OPACITY = 0.94
+const NODE_HEADER_OPACITY = 0.96
 const EDGE_PARTICLE_TAIL_SEGMENTS = 12
+
+export type NodeSystemScreenPresentationMetrics = Readonly<{
+  titleFontPx: number
+  bodyFontPx: number
+  metaFontPx: number
+  nodeBorderPx: number
+  selectedNodeBorderPx: number
+  edgeThicknessPx: number
+  socketDiameterPx: number
+  fieldPaddingPx: number
+}>
+
+/**
+ * Auto-fit may make world geometry small, but topology must remain visible in
+ * screen pixels. These are presentation-only minima: they never feed ELK or
+ * alter node/port coordinates.
+ */
+export function nodeSystemScreenPresentationMetrics(scale: number): NodeSystemScreenPresentationMetrics {
+  const unit = Number.isFinite(scale) && scale > 0 ? scale : 1
+  return {
+    titleFontPx: NODE_SYSTEM_CARD_METRICS.titleFontPx * unit,
+    bodyFontPx: NODE_SYSTEM_CARD_METRICS.bodyFontPx * unit,
+    metaFontPx: NODE_SYSTEM_CARD_METRICS.metaFontPx * unit,
+    nodeBorderPx: Math.max(1.25, unit),
+    selectedNodeBorderPx: Math.max(1.75, 2 * unit),
+    edgeThicknessPx: Math.max(1.8, 1.6 * unit),
+    socketDiameterPx: Math.max(5.5, NODE_SYSTEM_CARD_METRICS.markerSize * unit),
+    fieldPaddingPx: NODE_SYSTEM_CARD_METRICS.rowGap * unit,
+  }
+}
 
 type RetainedParticleShape = Readonly<{
   mesh: Mesh
@@ -97,27 +133,88 @@ type EdgeParticleRoute = Readonly<{
   stroke: readonly Readonly<{x: number; y: number}>[]
 }>
 
-/** WebGPU HUD surface for one already-positioned node system. */
+export type NodeSystemContainmentPaintStep =
+  | Readonly<{kind: "owner-background"; nodeId: string}>
+  | Readonly<{kind: "edges"}>
+  | Readonly<{kind: "node-foreground"; nodeId: string; includeBackground: boolean}>
+
+/**
+ * Places transport between owner chrome and child cards. An edge may cross an
+ * owner boundary, so drawing every node after every edge would hide the part
+ * of the real route that lies inside the owner.
+ */
+export function planNodeSystemContainmentPaintSteps(
+  allNodes: readonly PositionedNodeSystemNode[],
+  visibleNodes: readonly PositionedNodeSystemNode[] = allNodes,
+): readonly NodeSystemContainmentPaintStep[] {
+  const byId = new Map(allNodes.map((entry) => [entry.node.id, entry] as const))
+  const ownerIds = new Set(allNodes.flatMap(({node}) => node.parentId === undefined ? [] : [node.parentId]))
+  const depthMemo = new Map<string, number>()
+  const depth = (nodeId: string, visiting = new Set<string>()): number => {
+    const memoized = depthMemo.get(nodeId)
+    if (memoized !== undefined) return memoized
+    if (visiting.has(nodeId)) return 0
+    const parentId = byId.get(nodeId)?.node.parentId
+    if (parentId === undefined || !byId.has(parentId)) {
+      depthMemo.set(nodeId, 0)
+      return 0
+    }
+    const nextVisiting = new Set(visiting)
+    nextVisiting.add(nodeId)
+    const result = depth(parentId, nextVisiting) + 1
+    depthMemo.set(nodeId, result)
+    return result
+  }
+  const visibleOrder = new Map(visibleNodes.map((entry, index) => [entry.node.id, index] as const))
+  const ordered = [...visibleNodes].sort((left, right) => (
+    depth(left.node.id) - depth(right.node.id) ||
+    (visibleOrder.get(left.node.id) ?? 0) - (visibleOrder.get(right.node.id) ?? 0)
+  ))
+  return [
+    ...ordered
+      .filter(({node}) => ownerIds.has(node.id))
+      .map(({node}) => ({kind: "owner-background" as const, nodeId: node.id})),
+    {kind: "edges" as const},
+    ...ordered.map(({node}) => ({
+      kind: "node-foreground" as const,
+      nodeId: node.id,
+      includeBackground: !ownerIds.has(node.id),
+    })),
+  ]
+}
+
+/** Compound containment is structural chrome, not a transport or live-state stroke. */
+export function nodeSystemNodeBorderColor(
+  tone: NodeSystemTone,
+  selected: boolean,
+  compound: boolean,
+): Color {
+  if (selected) return palette.windowActiveBorder
+  return compound ? palette.border : toneBorder(tone)
+}
+
+/** Infinite 2D graph canvas that can be mounted on a UIDisplay or another surface target. */
 export class NodeSystemSurface extends UiSurface {
   /** Bound exact text metrics for ELK and geometry-key callers. */
   readonly textMeasurer: NodeSystemTextMeasurer = (value, fontPx) => this.measureText(value, fontPx)
   readonly #title: string
   readonly #toolbar: boolean
-  readonly #limits: NodeSystemViewportLimits
+  readonly #editable: boolean
+  readonly #limits: NodeSystemCanvasTransformLimits
   readonly #onSelectionChange: ((nodeId: string | null) => void) | undefined
   readonly #onNodeMove: ((event: NodeSystemNodeMoveEvent) => void) | undefined
   readonly #onNodeResize: ((event: NodeSystemNodeResizeEvent) => void) | undefined
-  readonly #onViewportChange: ((viewport: NodeSystemViewport) => void) | undefined
+  readonly #onCanvasTransformChange: ((transform: NodeSystemCanvasTransform) => void) | undefined
   readonly #onEdgeMessageCountChange: ((count: number) => void) | undefined
   #layout: PositionedNodeSystem = EMPTY_LAYOUT
-  #viewport: NodeSystemViewport = DEFAULT_NODE_SYSTEM_VIEWPORT
+  #canvasTransform: NodeSystemCanvasTransform = DEFAULT_NODE_SYSTEM_CANVAS_TRANSFORM
   #selectedNodeId: string | null = null
   #selectedNodeIds = new Set<string>()
   #fitPending = true
-  #notifyViewportAfterFit = false
-  #viewportLayout: PositionedNodeSystem | null = null
+  #notifyCanvasTransformAfterFit = false
+  #canvasTransformLayout: PositionedNodeSystem | null = null
   #lastFrame = {w: 0, h: 0}
-  #panDrag: Readonly<{x: number; y: number; origin: NodeSystemViewport}> | null = null
+  #panDrag: Readonly<{x: number; y: number; origin: NodeSystemCanvasTransform}> | null = null
   #nodeDrag: Readonly<{
     nodeIds: readonly string[]
     pointerX: number
@@ -157,6 +254,7 @@ export class NodeSystemSurface extends UiSurface {
     })
     this.#title = options.title ?? "NODE SYSTEM"
     this.#toolbar = options.toolbar ?? true
+    this.#editable = options.editable ?? true
     this.#limits = {
       ...(options.minScale === undefined ? {} : {minScale: options.minScale}),
       ...(options.maxScale === undefined ? {} : {maxScale: options.maxScale}),
@@ -164,7 +262,7 @@ export class NodeSystemSurface extends UiSurface {
     this.#onSelectionChange = options.onSelectionChange
     this.#onNodeMove = options.onNodeMove
     this.#onNodeResize = options.onNodeResize
-    this.#onViewportChange = options.onViewportChange
+    this.#onCanvasTransformChange = options.onCanvasTransformChange
     this.#onEdgeMessageCountChange = options.onEdgeMessageCountChange
     this.node.name = "NodeSystemSurface"
   }
@@ -173,8 +271,8 @@ export class NodeSystemSurface extends UiSurface {
     return this.#layout
   }
 
-  get viewport(): NodeSystemViewport {
-    return this.#viewport
+  get canvasTransform(): NodeSystemCanvasTransform {
+    return this.#canvasTransform
   }
 
   get selectedNodeId(): string | null {
@@ -257,14 +355,14 @@ export class NodeSystemSurface extends UiSurface {
     return true
   }
 
-  /** True only after the current layout has received a real fit or viewport. */
-  get hasMaterializedViewport(): boolean {
-    return !this.#fitPending && this.#viewportLayout === this.#layout
+  /** True only after the current layout has received a real canvas transform. */
+  get hasMaterializedCanvasTransform(): boolean {
+    return !this.#fitPending && this.#canvasTransformLayout === this.#layout
   }
 
   setLayout(layout: PositionedNodeSystem): void {
     this.#layout = layout
-    this.#viewportLayout = null
+    this.#canvasTransformLayout = null
     const available = new Set(layout.nodes.map(({node}) => node.id))
     const surviving = [...this.#selectedNodeIds].filter((nodeId) => available.has(nodeId))
     if (surviving.length !== this.#selectedNodeIds.size) this.#setSelections(surviving)
@@ -301,8 +399,8 @@ export class NodeSystemSurface extends UiSurface {
     }
     this.#layout = moveNodeSystemNodes(this.#layout, positions)
     this.#fitPending = false
-    this.#notifyViewportAfterFit = false
-    this.#viewportLayout = this.#layout
+    this.#notifyCanvasTransformAfterFit = false
+    this.#canvasTransformLayout = this.#layout
     const nodeIds = [...positions.keys()]
     this.#onNodeMove?.({nodeId: primaryNodeId ?? nodeIds[0]!, nodeIds, phase, layout: this.#layout})
     this.requestRender()
@@ -317,14 +415,20 @@ export class NodeSystemSurface extends UiSurface {
     phase: "resize" | "end" = "end",
   ): boolean {
     const current = this.#layout.nodes.find(({node}) => node.id === nodeId)
-    if (current === undefined || !Number.isFinite(width)) return false
-    const minimum = measureNodeSystemCard(current.node, this.textMeasurer).width
+    if (current === undefined || current.node.parentId !== undefined || !Number.isFinite(width)) return false
+    const childMinimum = Math.max(
+      0,
+      ...this.#layout.nodes
+        .filter(({node}) => node.parentId === nodeId)
+        .map(({rect}) => rect.w + NODE_SYSTEM_PORT_PITCH * 2),
+    )
+    const minimum = Math.max(measureNodeSystemCard(current.node, this.textMeasurer).width, childMinimum)
     const nextWidth = Math.max(minimum, width)
     const x = side === "left" ? current.rect.x + current.rect.w - nextWidth : current.rect.x
     this.#layout = resizeNodeSystemNode(this.#layout, nodeId, {x, w: nextWidth})
     this.#fitPending = false
-    this.#notifyViewportAfterFit = false
-    this.#viewportLayout = this.#layout
+    this.#notifyCanvasTransformAfterFit = false
+    this.#canvasTransformLayout = this.#layout
     this.#onNodeResize?.({nodeId, side, phase, layout: this.#layout})
     this.requestRender()
     return true
@@ -332,53 +436,64 @@ export class NodeSystemSurface extends UiSurface {
 
   fitToView(): void {
     this.#fitPending = true
-    this.#notifyViewportAfterFit = true
-    this.#viewportLayout = null
+    this.#notifyCanvasTransformAfterFit = true
+    this.#canvasTransformLayout = null
     this.requestRender()
   }
 
-  setViewport(viewport: NodeSystemViewport): boolean {
-    if (![viewport.x, viewport.y, viewport.scale].every(Number.isFinite) || viewport.scale <= 0) return false
-    this.#viewport = zoomNodeSystemViewportAt(
-      {x: viewport.x, y: viewport.y, scale: 1},
-      viewport.scale,
-      {x: viewport.x, y: viewport.y},
+  setCanvasTransform(transform: NodeSystemCanvasTransform): boolean {
+    if (![transform.x, transform.y, transform.scale].every(Number.isFinite) || transform.scale <= 0) return false
+    this.#canvasTransform = zoomNodeSystemCanvasTransformAt(
+      {x: transform.x, y: transform.y, scale: 1},
+      transform.scale,
+      {x: transform.x, y: transform.y},
       this.#limits,
     )
     this.#fitPending = false
-    this.#notifyViewportAfterFit = false
-    this.#viewportLayout = this.#layout
+    this.#notifyCanvasTransformAfterFit = false
+    this.#canvasTransformLayout = this.#layout
     this.requestRender()
     return true
   }
 
   renderPlan(): NodeSystemRenderPlan {
-    return planNodeSystemViewport(this.#layout, this.#viewport, this.#contentRect())
+    return planNodeSystemCanvasViewport(this.#layout, this.#canvasTransform, this.#contentRect())
   }
 
   override onWheel(event: WheelEvent, localX: number, localY: number): void {
     if (localY < this.#headerHeight()) return
     event.preventDefault()
     const gesture = nodeSystemWheelGesture(event)
-    this.#viewport = gesture.kind === "zoom"
-      ? zoomNodeSystemViewportAt(this.#viewport, gesture.factor, {x: localX, y: localY}, this.#limits)
-      : panNodeSystemViewport(this.#viewport, -gesture.dx, -gesture.dy)
+    this.#canvasTransform = gesture.kind === "zoom"
+      ? zoomNodeSystemCanvasTransformAt(this.#canvasTransform, gesture.factor, {x: localX, y: localY}, this.#limits)
+      : panNodeSystemCanvasTransform(this.#canvasTransform, -gesture.dx, -gesture.dy)
     this.#fitPending = false
-    this.#notifyViewportAfterFit = false
-    this.#viewportLayout = this.#layout
-    this.#onViewportChange?.(this.#viewport)
+    this.#notifyCanvasTransformAfterFit = false
+    this.#canvasTransformLayout = this.#layout
+    this.#onCanvasTransformChange?.(this.#canvasTransform)
     this.requestRender()
   }
 
   protected override render(): void {
     if (this.rectW !== this.#lastFrame.w || this.rectH !== this.#lastFrame.h) {
       this.#lastFrame = {w: this.rectW, h: this.rectH}
-      this.#fitPending = true
-      this.#viewportLayout = null
+      // The generic infinite canvas does not own an application's auto-fit
+      // policy. Once a transform is materialized, a display resize preserves
+      // it until the owner explicitly calls fitToView/setCanvasTransform.
+      if (!this.hasMaterializedCanvasTransform) {
+        this.#fitPending = true
+        this.#canvasTransformLayout = null
+      }
     }
     if (this.#fitPending) this.#applyFit()
 
-    this.drawRect(0, 0, this.rectW, this.rectH, palette.bg, Z.CONTAINER)
+    // The canvas fill must precede owner chrome and relation strokes. Drawing
+    // it in the default `main` layer would composite the opaque fill after the
+    // `underlay`/`contentUnderlay` layers and visually erase compound frames
+    // and edges while leaving only leaf-card foregrounds visible.
+    this.withLayer("underlay", () => {
+      this.drawRect(0, 0, this.rectW, this.rectH, palette.bg, Z.CONTAINER)
+    })
     if (this.#toolbar) this.#drawToolbar()
 
     const content = this.#contentRect()
@@ -387,15 +502,34 @@ export class NodeSystemSurface extends UiSurface {
       const plan = this.renderPlan()
       this.#registerBackground(content)
       this.#edgeParticleRoutes.clear()
-      for (const edge of plan.edges) {
-        const stroke = sampleNodeSystemBezierPath(edge.points, 10 * plan.viewport.scale, 6)
-        this.#edgeParticleRoutes.set(edge.edge.id, {entry: edge, stroke})
-        drawEdge(this, edge, plan.viewport.scale, stroke)
+      const visibleById = new Map(plan.nodes.map((entry) => [entry.node.id, entry] as const))
+      for (const step of planNodeSystemContainmentPaintSteps(this.#layout.nodes, plan.nodes)) {
+        if (step.kind === "owner-background") {
+          const node = visibleById.get(step.nodeId)
+          if (node !== undefined) {
+            this.withLayer("underlay", () => this.#drawNodeBackground(node, plan.canvasTransform.scale, true))
+          }
+          continue
+        }
+        if (step.kind === "edges") {
+          this.withLayer("contentUnderlay", () => {
+            for (const edge of plan.edges) {
+              const connected = connectNodeSystemEdgeToVisibleSockets(edge, visibleById)
+              const stroke = sampleNodeSystemBezierPath(connected, 10 * plan.canvasTransform.scale, 6)
+              this.#edgeParticleRoutes.set(edge.edge.id, {entry: edge, stroke})
+              drawEdge(this, edge, plan.canvasTransform.scale, stroke)
+            }
+          })
+          continue
+        }
+        const node = visibleById.get(step.nodeId)
+        if (node === undefined) continue
+        if (step.includeBackground) this.#drawNodeBackground(node, plan.canvasTransform.scale)
+        this.#drawNodeForeground(node, plan.canvasTransform.scale)
       }
       const now = Date.now()
       this.#pruneEdgeMessages(now)
       this.#updateParticleVisuals(now)
-      for (const node of plan.nodes) this.#drawNode(node, plan.viewport.scale)
       this.#drawMarquee()
       if (plan.nodes.length === 0) {
         flexColumn({
@@ -521,13 +655,14 @@ export class NodeSystemSurface extends UiSurface {
     for (const visual of this.#particleVisuals) setParticleVisualVisible(visual, false)
   }
 
-  #drawNode(entry: PositionedNodeSystemNode, scale: number): void {
+  #drawNodeBackground(entry: PositionedNodeSystemNode, scale: number, compound = false): void {
     const {node, rect} = entry
     const selected = this.#selectedNodeIds.has(node.id)
     const tone = node.tone ?? "neutral"
-    const border = selected ? palette.windowActiveBorder : toneBorder(tone)
+    const border = nodeSystemNodeBorderColor(tone, selected, compound)
     const fill = nodeBodyFill(selected)
     const card = planNodeSystemCard(node, rect, scale, this.textMeasurer)
+    const screen = nodeSystemScreenPresentationMetrics(scale)
     const radius = 10 * scale
 
     this.drawRoundedRect(rect.x, rect.y, rect.w, rect.h, {
@@ -541,7 +676,7 @@ export class NodeSystemSurface extends UiSurface {
       radius,
       fill: palette.transparent,
       border,
-      borderWidth: selected ? Math.max(0.8, 2 * scale) : Math.max(0.5, scale),
+      borderWidth: selected ? screen.selectedNodeBorderPx : screen.nodeBorderPx,
       z: Z.ELEMENT + 0.005,
     })
     this.drawRoundedRect(card.header.x, card.header.y, card.header.w, card.header.h, {
@@ -555,18 +690,26 @@ export class NodeSystemSurface extends UiSurface {
       radius,
       fill: palette.transparent,
       border,
-      borderWidth: Math.max(0.4, scale),
+      borderWidth: screen.nodeBorderPx,
       z: Z.ELEMENT + 0.015,
     })
+  }
+
+  #drawNodeForeground(entry: PositionedNodeSystemNode, scale: number): void {
+    const {node, rect} = entry
+    const contained = node.parentId !== undefined
+    const selected = this.#selectedNodeIds.has(node.id)
+    const card = planNodeSystemCard(node, rect, scale, this.textMeasurer)
+    const screen = nodeSystemScreenPresentationMetrics(scale)
     Typography(this, card.title.x, card.title.y, card.title.w, card.title.h, {
       children: node.title,
-      fontPx: NODE_SYSTEM_CARD_METRICS.titleFontPx * scale,
+      fontPx: screen.titleFontPx,
       color: selected ? "cyan" : "text",
     })
     if (node.kind !== undefined && card.kind !== undefined) {
       Typography(this, card.kind.x, card.kind.y, card.kind.w, card.kind.h, {
         children: node.kind,
-        fontPx: NODE_SYSTEM_CARD_METRICS.metaFontPx * scale,
+        fontPx: screen.metaFontPx,
         color: "muted",
         sx: {textAlign: "right"},
       })
@@ -574,48 +717,42 @@ export class NodeSystemSurface extends UiSurface {
     if (node.summary !== undefined && card.summary !== undefined) {
       Typography(this, card.summary.x, card.summary.y, card.summary.w, card.summary.h, {
         children: node.summary,
-        fontPx: NODE_SYSTEM_CARD_METRICS.bodyFontPx * scale,
-        color: "muted",
+        fontPx: screen.bodyFontPx,
+        color: scale < 0.55 ? "text" : "muted",
       })
     }
     for (const {fact, label, value} of card.facts) {
       Typography(this, label.x, label.y, label.w, label.h, {
         children: fact.label,
-        fontPx: NODE_SYSTEM_CARD_METRICS.bodyFontPx * scale,
-        color: "muted",
+        fontPx: screen.bodyFontPx,
+        color: scale < 0.55 ? "text" : "muted",
       })
-      Typography(this, value.x, value.y, value.w, value.h, {
-        children: fact.value,
-        fontPx: NODE_SYSTEM_CARD_METRICS.bodyFontPx * scale,
-        color: toneTextColor(fact.tone ?? "neutral"),
-        sx: {textAlign: "right"},
+      TextField(this, value.x, value.y + scale, value.w, Math.max(1, value.h - scale * 2), {
+        key: `node-system:field:${node.id}:${fact.id}`,
+        value: fact.value,
+        disabled: true,
+        fontPx: screen.bodyFontPx,
+        sx: {
+          color: toneTextColor(fact.tone ?? "neutral"),
+          borderRadius: 5 * scale,
+          paddingX: screen.fieldPaddingPx,
+        },
       })
     }
-    for (const {port, marker, label, direction} of card.ports) {
-      Typography(this, label.x, label.y, label.w, label.h, {
-        children: port.label ?? port.id,
-        fontPx: NODE_SYSTEM_CARD_METRICS.bodyFontPx * scale,
-        color: "text",
-        sx: {textAlign: port.direction === "in" ? "left" : "right"},
-      })
-      Typography(this, direction.x, direction.y, direction.w, direction.h, {
-        children: nodeSystemPortDirectionLabel(port.direction),
-        fontPx: NODE_SYSTEM_CARD_METRICS.metaFontPx * scale,
-        color: "muted",
-        sx: {textAlign: port.direction === "in" ? "right" : "left"},
-      })
-      this.drawRoundedRect(marker.x, marker.y, marker.w, marker.h, {
-        radius: marker.w / 2,
+    for (const {port, marker} of card.ports) {
+      const socket = visibleSocketRect(marker, screen.socketDiameterPx)
+      this.drawRoundedRect(socket.x, socket.y, socket.w, socket.h, {
+        radius: socket.w / 2,
         fill: port.direction === "in" ? palette.blue : port.direction === "out" ? palette.orange : palette.violet,
         border: palette.bg,
-        borderWidth: Math.max(0.35, scale),
+        borderWidth: Math.max(0.8, scale),
         z: Z.TEXT + 0.02,
       })
     }
     this.hit(rect.x, rect.y, rect.w, rect.h, () => {}, {
       key: `node-system:node:${node.id}`,
-      cursor: "grab",
-      activeCursor: "grabbing",
+      cursor: contained || !this.#editable ? "default" : "grab",
+      activeCursor: contained || !this.#editable ? "default" : "grabbing",
       tooltip: {label: node.summary ?? node.title, delayMs: 450},
       onPointerDown: (x, y, event) => {
         const original = this.#layout.nodes.find((entry) => entry.node.id === node.id)
@@ -631,6 +768,7 @@ export class NodeSystemSurface extends UiSurface {
           this.#selectedNodeId = node.id
           this.#onSelectionChange?.(node.id)
         }
+        if (contained || !this.#editable) return
         if (!this.#selectedNodeIds.has(node.id)) return
         const nodeIds = [...this.#selectedNodeIds]
         const origins = new Map(nodeIds.map((selectedId) => {
@@ -648,8 +786,8 @@ export class NodeSystemSurface extends UiSurface {
       onPointerMove: (x, y) => {
         const drag = this.#nodeDrag
         if (drag === null || !drag.nodeIds.includes(node.id)) return
-        const dx = (x - drag.pointerX) / this.#viewport.scale
-        const dy = (y - drag.pointerY) / this.#viewport.scale
+        const dx = (x - drag.pointerX) / this.#canvasTransform.scale
+        const dy = (y - drag.pointerY) / this.#canvasTransform.scale
         const moved = drag.moved || Math.hypot(x - drag.pointerX, y - drag.pointerY) >= 2
         this.#nodeDrag = {...drag, moved}
         if (!moved) return
@@ -665,8 +803,10 @@ export class NodeSystemSurface extends UiSurface {
         this.#onNodeMove?.({nodeId: node.id, nodeIds: drag.nodeIds, phase: "end", layout: this.#layout})
       },
     })
-    this.#registerResizeHandle(entry, rect, scale, "left")
-    this.#registerResizeHandle(entry, rect, scale, "right")
+    if (!contained && this.#editable) {
+      this.#registerResizeHandle(entry, rect, scale, "left")
+      this.#registerResizeHandle(entry, rect, scale, "right")
+    }
   }
 
   #registerResizeHandle(
@@ -703,7 +843,7 @@ export class NodeSystemSurface extends UiSurface {
         void y
         const drag = this.#nodeResize
         if (drag === null || drag.nodeId !== entry.node.id || drag.side !== side) return
-        const dx = (x - drag.pointerX) / this.#viewport.scale
+        const dx = (x - drag.pointerX) / this.#canvasTransform.scale
         const moved = drag.moved || Math.abs(x - drag.pointerX) >= 2
         this.#nodeResize = {...drag, moved}
         if (!moved) return
@@ -725,29 +865,29 @@ export class NodeSystemSurface extends UiSurface {
       activeCursor: "crosshair",
       onPointerDown: (x, y, event) => {
         if (event?.altKey === true || event?.button === 1 || event?.button === 2) {
-          this.#panDrag = {x, y, origin: this.#viewport}
+          this.#panDrag = {x, y, origin: this.#canvasTransform}
           return
         }
         this.#marquee = {startX: x, startY: y, currentX: x, currentY: y, additive: event?.shiftKey === true}
       },
       onPointerMove: (x, y) => {
         if (this.#panDrag !== null) {
-          this.#viewport = panNodeSystemViewport(this.#panDrag.origin, x - this.#panDrag.x, y - this.#panDrag.y)
+          this.#canvasTransform = panNodeSystemCanvasTransform(this.#panDrag.origin, x - this.#panDrag.x, y - this.#panDrag.y)
           this.#fitPending = false
-          this.#notifyViewportAfterFit = false
-          this.#viewportLayout = this.#layout
+          this.#notifyCanvasTransformAfterFit = false
+          this.#canvasTransformLayout = this.#layout
           this.requestRender()
           return
         }
         if (this.#marquee === null) return
         this.#marquee = {...this.#marquee, currentX: x, currentY: y}
         this.#fitPending = false
-        this.#notifyViewportAfterFit = false
+        this.#notifyCanvasTransformAfterFit = false
         this.requestRender()
       },
       onPointerUp: () => {
         if (this.#panDrag !== null) {
-          this.#onViewportChange?.(this.#viewport)
+          this.#onCanvasTransformChange?.(this.#canvasTransform)
           this.#panDrag = null
           return
         }
@@ -793,11 +933,11 @@ export class NodeSystemSurface extends UiSurface {
 
   #applyFit(): void {
     this.#fitPending = false
-    this.#viewport = fitNodeSystemViewport(this.#layout, this.#contentRect(), 34, this.#limits)
-    this.#viewportLayout = this.#layout
-    if (this.#notifyViewportAfterFit) {
-      this.#notifyViewportAfterFit = false
-      this.#onViewportChange?.(this.#viewport)
+    this.#canvasTransform = fitNodeSystemCanvasTransform(this.#layout, this.#contentRect(), 34, this.#limits)
+    this.#canvasTransformLayout = this.#layout
+    if (this.#notifyCanvasTransformAfterFit) {
+      this.#notifyCanvasTransformAfterFit = false
+      this.#onCanvasTransformChange?.(this.#canvasTransform)
     }
   }
 
@@ -910,7 +1050,7 @@ function drawEdge(
   stroke: readonly Readonly<{x: number; y: number}>[],
 ): void {
   const color = edgeColor(entry.edge.tone ?? "neutral")
-  const thickness = Math.max(0.8, 1.6 * scale)
+  const thickness = nodeSystemScreenPresentationMetrics(scale).edgeThicknessPx
   const hitRects = planNodeSystemEdgeHitRects(stroke, Math.max(5, thickness * 2))
   const isHovered = hitRects.some((rect, index) => host.hitState(
     rect.x,
@@ -937,6 +1077,19 @@ function drawEdge(
       delayMs: 220,
       anchor: "cursor",
     })
+  }
+}
+
+function visibleSocketRect(
+  marker: Readonly<{x: number; y: number; w: number; h: number}>,
+  minimumDiameter: number,
+): {x: number; y: number; w: number; h: number} {
+  const diameter = Math.max(marker.w, marker.h, minimumDiameter)
+  return {
+    x: marker.x + marker.w / 2 - diameter / 2,
+    y: marker.y + marker.h / 2 - diameter / 2,
+    w: diameter,
+    h: diameter,
   }
 }
 

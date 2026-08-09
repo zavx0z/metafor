@@ -1,5 +1,8 @@
 import {afterEach, describe, expect, test} from "bun:test"
-import {createNodeSystemRouteRequest, type PositionedNodeSystem} from "@ui/node"
+import {
+  HamiltonianLifecycleSource,
+  createHamiltonianLifecycleObservation,
+} from "./core/lifecycle.js"
 import {createHamiltonianHost} from "./host.ts"
 import {WeriftPeer, type PeerSignal} from "./peer/werift-peer.ts"
 
@@ -34,6 +37,10 @@ async function nextMessage(
 }
 
 async function openSocket(url: URL): Promise<WebSocket> {
+  if (url.pathname === "/control") {
+    url.searchParams.set("transport", url.searchParams.get("transport") ?? `websocket:${crypto.randomUUID()}`)
+    url.searchParams.set("worker", url.searchParams.get("worker") ?? `service-worker:${crypto.randomUUID()}`)
+  }
   const socket = new WebSocket(url)
   await new Promise<void>((resolve, reject) => {
     socket.addEventListener("open", () => resolve(), {once: true})
@@ -158,27 +165,42 @@ describe("isolated Hamiltonian host", () => {
     const host = createHamiltonianHost({port: 0, token: "test-token", version: "v-test"})
     running.push(host)
 
-    const localJoin = await fetch(host.server.url, {redirect: "manual"})
-    expect(localJoin.status).toBe(302)
-    const localJoinUrl = new URL(localJoin.headers.get("location")!, host.server.url)
+    const localJoinUrl = new URL(host.server.url)
     expect(localJoinUrl.pathname).toBe("/")
-    expect(localJoinUrl.searchParams.get("token")).toBe("test-token")
+    expect(localJoinUrl.search).toBe("")
 
-    const bootstrap = await fetch(localJoinUrl)
+    const bootstrap = await fetch(localJoinUrl, {redirect: "manual"})
     expect(bootstrap.status).toBe(200)
     const bootstrapPolicy = bootstrap.headers.get("content-security-policy") ?? ""
     expect(bootstrapPolicy).toContain("connect-src 'self' ws: wss: data:")
     expect(bootstrapPolicy).toContain("img-src 'self' data: blob:")
     const bootstrapSource = await bootstrap.text()
     expect(bootstrapSource).toContain("<title>Оркестрация Гамильтониана</title>")
-    const trafficScriptIndex = bootstrapSource.indexOf('src="/core/traffic.js"')
-    expect(trafficScriptIndex).toBeGreaterThan(-1)
-    expect(trafficScriptIndex).toBeLessThan(bootstrapSource.indexOf('src="/app.js"'))
-    expect(trafficScriptIndex).toBeLessThan(bootstrapSource.indexOf('src="/orchestration.js"'))
+    expect(bootstrapSource).toContain('meta name="hamiltonian-host-version" content="v-test"')
+    expect(bootstrapSource).toContain('meta name="hamiltonian-local-join-token" content="test-token"')
+    expect(bootstrapSource).not.toContain("__HAMILTONIAN_HOST_EPOCH__")
+    expect(bootstrapSource).toContain('<link rel="icon" href="data:image/svg+xml,')
+    expect(bootstrapSource).toContain('src="/window-entry.js"')
+
+    const windowEntry = await fetch(new URL("/window-entry.js", host.server.url))
+    expect(windowEntry.status).toBe(200)
+    const windowEntrySource = await windowEntry.text()
+    const monitorImportIndex = windowEntrySource.indexOf('import "/core/monitor.js"')
+    expect(monitorImportIndex).toBeGreaterThan(-1)
+    expect(windowEntrySource).not.toContain('import "/app.js"')
+    expect(windowEntrySource).not.toContain('import "/orchestration.js"')
+    expect(monitorImportIndex).toBeLessThan(windowEntrySource.indexOf('import("/app.js")'))
+    expect(monitorImportIndex).toBeLessThan(windowEntrySource.indexOf('import("/orchestration.js")'))
+
+    const monitorBootstrap = await fetch(new URL("/core/monitor.js", host.server.url))
+    expect(monitorBootstrap.status).toBe(200)
+    const monitorSource = await monitorBootstrap.text()
+    expect(monitorSource).toContain("metafor.hamiltonian.lifecycle.v1")
+    expect(monitorSource).not.toContain("metafor.hamiltonian.edge-traffic.v1")
+    expect(monitorSource).not.toContain("metafor.hamiltonian.orchestration.v1")
 
     const trafficBootstrap = await fetch(new URL("/core/traffic.js", host.server.url))
-    expect(trafficBootstrap.status).toBe(200)
-    expect(await trafficBootstrap.text()).toContain("metafor.hamiltonian.edge-traffic.v1")
+    expect(trafficBootstrap.status).toBe(404)
 
     const unauthorized = await fetch(new URL("/manifest.json", host.server.url))
     expect(unauthorized.status).toBe(401)
@@ -206,72 +228,77 @@ describe("isolated Hamiltonian host", () => {
 
     const workerBootstrap = await fetch(new URL("/embodiment-worker.js", host.server.url))
     expect(workerBootstrap.status).toBe(200)
-    expect(await workerBootstrap.text()).toContain('runtime: "dedicated-worker"')
+    const workerSource = await workerBootstrap.text()
+    expect(workerSource).toContain('runtime: "dedicated-worker"')
+    expect(workerSource).toContain('subjectKind: "dedicated-worker"')
+    expect(workerSource).toContain('subjectKind: "worker-message"')
+    expect(workerSource).toContain("new HamiltonianLifecycleRetainedJournal(workerEntityId)")
+    expect(workerSource).toContain('self.postMessage({kind: "lifecycle-snapshot"')
+
+    const workerEntry = await fetch(new URL("/embodiment-worker-entry.js", host.server.url))
+    expect(workerEntry.status).toBe(200)
+    const workerEntrySource = await workerEntry.text()
+    const workerMonitorImportIndex = workerEntrySource.indexOf('import "/core/monitor.js"')
+    expect(workerMonitorImportIndex).toBeGreaterThan(-1)
+    expect(workerMonitorImportIndex)
+      .toBeLessThan(workerEntrySource.indexOf('import "/embodiment-worker.js"'))
 
     const browserBootstrap = await fetch(new URL("/app.js", host.server.url))
     expect(browserBootstrap.status).toBe(200)
     const browserSource = await browserBootstrap.text()
     expect(browserSource).toContain('channel.label !== "oracle"')
     expect(browserSource).toContain("lanes: {oracle, force}")
-    expect(browserSource).toContain("parseLocalHamiltonianWindowAction(event.detail, deviceId, tabId)")
-    expect(browserSource).toContain('message.kind === "orchestration-envelope"')
-    expect(browserSource).toContain("publishInitialSceneEnvelope(message.envelope)")
+    expect(browserSource).toContain("parseLocalHamiltonianWindowAction(event.detail, deviceId, tabId, pageIncarnation)")
+    expect(browserSource).toContain("emitHamiltonianLifecycle(createHamiltonianLifecycleObservation")
+    expect(browserSource).toContain('subjectKind: "browser-runtime"')
+    expect(browserSource).toContain("browserEntityId,")
+    expect(browserSource).toContain('subjectKind: "page"')
+    expect(browserSource).toContain("closeDedicatedWorkerFromOwner(previous")
 
     const serviceWorkerBootstrap = await fetch(new URL("/sw.js", host.server.url))
     expect(serviceWorkerBootstrap.status).toBe(200)
     const serviceWorkerSource = await serviceWorkerBootstrap.text()
-    expect(serviceWorkerSource).toContain("HAMILTONIAN_ORCHESTRATION_CHANNEL")
-    expect(serviceWorkerSource).toContain('tellWindow(initialWindow, {kind: "orchestration-envelope", envelope})')
-    expect(serviceWorkerSource).toContain("orchestrationChannel?.postMessage(envelope)")
+    expect(serviceWorkerSource).toContain('subjectKind: "service-worker"')
+    expect(serviceWorkerSource).toContain('subjectKind: "controller"')
+    expect(serviceWorkerSource).toContain('subjectKind: "message-port"')
+    expect(serviceWorkerSource).toContain('lifecycleIdentifier(message.browserEntityId, "browser:")')
+    expect(serviceWorkerSource).toContain("nextBrowserEntityId !== hamiltonianBrowserNodeId(message.deviceId)")
+    expect(serviceWorkerSource).toContain("ownerId: nextBrowserEntityId")
+    expect(serviceWorkerSource).toContain('window.port.postMessage({kind: "lifecycle-snapshot", snapshot})')
+    expect(serviceWorkerSource).toContain('sendSocket({kind: "lifecycle-retirement", envelope})')
+    expect(serviceWorkerSource).not.toContain("HAMILTONIAN_ORCHESTRATION_CHANNEL")
+
+    const serviceWorkerEntry = await fetch(new URL("/sw-entry.js", host.server.url))
+    expect(serviceWorkerEntry.status).toBe(200)
+    const serviceWorkerEntrySource = await serviceWorkerEntry.text()
+    const serviceWorkerMonitorImportIndex = serviceWorkerEntrySource.indexOf('import "/core/monitor.js"')
+    expect(serviceWorkerMonitorImportIndex).toBeGreaterThan(-1)
+    expect(serviceWorkerMonitorImportIndex)
+      .toBeLessThan(serviceWorkerEntrySource.indexOf('import "/sw.js?mf419-v19"'))
+    expect(serviceWorkerEntrySource).toContain("MF-419 lifecycle entry v19")
 
     const orchestrationContract = await fetch(new URL("/core/orchestration.js", host.server.url))
     expect(orchestrationContract.status).toBe(200)
-    expect(await orchestrationContract.text()).toContain("metafor.hamiltonian.orchestration.v1")
+    const orchestrationContractSource = await orchestrationContract.text()
+    expect(orchestrationContractSource).toContain("parseLocalHamiltonianWindowAction")
+    expect(orchestrationContractSource).toContain("hamiltonianBrowserNodeId")
+
+    const lifecycleContract = await fetch(new URL("/core/lifecycle.js", host.server.url))
+    expect(lifecycleContract.status).toBe(200)
+    expect(await lifecycleContract.text()).toContain('HAMILTONIAN_LIFECYCLE_KIND = "hamiltonian-lifecycle"')
 
     const orchestrationBundle = await fetch(new URL("/orchestration.js", host.server.url))
     expect(orchestrationBundle.status).toBe(200)
     const orchestrationSource = await orchestrationBundle.text()
     expect(orchestrationSource).toContain("ГАМИЛЬТОНИАН · ЖИВАЯ ОРКЕСТРАЦИЯ")
-    expect(orchestrationSource).toContain("BroadcastChannel · UI-проекция")
-    expect(orchestrationSource).toContain("receiveOrchestrationEnvelope(event.data)")
-    expect(orchestrationSource).toContain("receiveOrchestrationEnvelope(event.detail)")
-    expect(orchestrationSource).toContain("hamiltonianEnvelopeSource")
-    expect(orchestrationSource).toContain("hamiltonianEnvelopeRevision")
+    expect(orchestrationSource).toContain("ServiceWorker controller")
+    expect(orchestrationSource).toContain("subscribeHamiltonianLifecycle")
+    expect(orchestrationSource).toContain("new HamiltonianLifecycleProjection")
+    expect(orchestrationSource).toContain("hamiltonianLifecycleSource")
+    expect(orchestrationSource).toContain("hamiltonianLifecycleSequence")
     expect(orchestrationSource).toContain("struct GlobalUniforms")
     expect(orchestrationSource).not.toContain("mesh_basic-")
-
-    const fixedLayout: PositionedNodeSystem = {
-      revision: "host-route:1",
-      bounds: {x: 0, y: 0, w: 400, h: 120},
-      nodes: [
-        {
-          node: {id: "source", title: "source", ports: [{id: "out", direction: "out"}]},
-          rect: {x: 0, y: 20, w: 80, h: 60},
-          ports: [{port: {id: "out", direction: "out"}, center: {x: 80, y: 50}}],
-        },
-        {node: {id: "obstacle", title: "obstacle"}, rect: {x: 140, y: 0, w: 80, h: 100}, ports: []},
-        {
-          node: {id: "target", title: "target", ports: [{id: "in", direction: "in"}]},
-          rect: {x: 280, y: 20, w: 80, h: 60},
-          ports: [{port: {id: "in", direction: "in"}, center: {x: 280, y: 50}}],
-        },
-      ],
-      edges: [{
-        edge: {id: "edge", source: {nodeId: "source", portId: "out"}, target: {nodeId: "target", portId: "in"}},
-        points: [{x: 80, y: 50}, {x: 280, y: 50}],
-      }],
-    }
-    const routedResponse = await fetch(new URL("/node-system/route", host.server.url), {
-      method: "POST",
-      headers: {"content-type": "application/json"},
-      body: JSON.stringify(createNodeSystemRouteRequest(fixedLayout)),
-    })
-    expect(routedResponse.status).toBe(200)
-    const routed = await routedResponse.json() as {kind: string; layout: PositionedNodeSystem}
-    expect(routed.kind).toBe("ui.node.libavoid.response.v1")
-    expect(routed.layout.nodes).toEqual(fixedLayout.nodes)
-    expect(routed.layout.edges[0]!.points.length).toBeGreaterThan(2)
-    expect((await fetch(new URL("/node-system/route", host.server.url))).status).toBe(405)
+    expect(orchestrationSource).not.toMatch(/if \(nodeId !== null\)\s+inspector\d*\.setOpen\(true\)/)
 
     const uiFont = await fetch(new URL("/engine-static/JetBrainsMono-Bold.ttf", host.server.url))
     expect(uiFont.status).toBe(200)
@@ -301,6 +328,91 @@ describe("isolated Hamiltonian host", () => {
     expect(worker.pid).not.toBe(main.pid)
   })
 
+  test("sends retained current state and a causal frontier before live control messages", async () => {
+    const host = createHamiltonianHost({port: 0, token: "test-token", heartbeatMs: 10_000})
+    running.push(host)
+    await host.bunReady
+
+    const transportId = `websocket:${crypto.randomUUID()}`
+    const workerEntityId = `service-worker:${crypto.randomUUID()}`
+    const controlUrl = new URL("/control", host.server.url)
+    controlUrl.protocol = "ws:"
+    controlUrl.searchParams.set("token", host.token)
+    controlUrl.searchParams.set("device", "journal-browser")
+    controlUrl.searchParams.set("transport", transportId)
+    controlUrl.searchParams.set("worker", workerEntityId)
+
+    const frames: Array<Record<string, unknown>> = []
+    let resolveHello!: (message: Record<string, unknown>) => void
+    const hello = new Promise<Record<string, unknown>>((resolve) => {
+      resolveHello = resolve
+    })
+    const socket = new WebSocket(controlUrl)
+    socket.addEventListener("message", (event) => {
+      const message = JSON.parse(String(event.data)) as Record<string, unknown>
+      frames.push(message)
+      if (message.kind === "hello") resolveHello(message)
+    })
+    await new Promise<void>((resolve, reject) => {
+      socket.addEventListener("open", () => resolve(), {once: true})
+      socket.addEventListener("error", () => reject(new Error("WebSocket open failed")), {once: true})
+    })
+    const helloMessage = await hello
+
+    const snapshotFrame = requireValue(
+      frames.find((message) => message.kind === "lifecycle-snapshot"),
+      "host lifecycle snapshot",
+    )
+    const snapshot = snapshotFrame.snapshot as {
+      scopeId: string
+      frontier: Array<{sourceId: string; sourceIncarnation: string; sequence: number}>
+      envelopes: Array<{observation: {type: string}}>
+    }
+    const serverSourceId = `server:${host.getStatus().hostEpoch}`
+    const serverFrontier = requireValue(
+      snapshot.frontier.find(({sourceId}) => sourceId === serverSourceId),
+      "server lifecycle frontier",
+    )
+    expect(snapshot.scopeId).toBe(serverSourceId)
+    expect(snapshot.envelopes.every(({observation}) => observation.type !== "message")).toBeTrue()
+
+    const serverEnvelopes = frames
+      .filter((message) => message.kind === "lifecycle")
+      .map((message) => message.envelope as {
+        sourceKind?: string
+        sequence?: number
+        observation?: {phase?: string; messageId?: string; transportId?: string}
+      })
+      .filter((envelope) => envelope.sourceKind === "server")
+    expect(serverEnvelopes[0]?.sequence).toBe(serverFrontier.sequence + 1)
+    expect(serverEnvelopes.map(({sequence}) => sequence)).toEqual(
+      serverEnvelopes.map((_, index) => serverFrontier.sequence + index + 1),
+    )
+    const helloMonitor = helloMessage.monitor as {messageId: string; transportId: string}
+    expect(helloMonitor.transportId).toBe(transportId)
+    expect(serverEnvelopes.some(({observation}) =>
+      observation?.phase === "sent" &&
+      observation.messageId === helloMonitor.messageId &&
+      observation.transportId === transportId
+    )).toBeTrue()
+
+    const inboundMessageId = `message:${crypto.randomUUID()}`
+    const received = nextMessage(socket, "lifecycle", (message) => {
+      const envelope = message.envelope as {observation?: {phase?: string; messageId?: string; transportId?: string}}
+      return envelope.observation?.phase === "received" &&
+        envelope.observation.messageId === inboundMessageId &&
+        envelope.observation.transportId === transportId
+    })
+    socket.send(JSON.stringify({
+      kind: "identity",
+      workerIncarnationId: "journal-worker",
+      resumeNonce: "journal-resume",
+      monitor: {messageId: inboundMessageId, transportId},
+    }))
+    await received
+    socket.close()
+  })
+
   test("cold-rebirths the Bun embodiment as a new OS process without another listener", async () => {
     const host = createHamiltonianHost({port: 0, token: "test-token", version: "v-process"})
     running.push(host)
@@ -316,6 +428,111 @@ describe("isolated Hamiltonian host", () => {
     expect(requireValue(host.bunEmbodiments.snapshot()["worker-probe"], "worker Bun lifecycle probe").state).toBe("ready")
     expect(host.server.port).toBeGreaterThan(0)
   })
+
+  test("auto-rebirths a crashed ready Bun process and replaces its retained lifecycle state", async () => {
+    const host = createHamiltonianHost({
+      port: 0,
+      token: "test-token",
+      version: "v-crash-repair",
+      placement: "server",
+      heartbeatMs: 10_000,
+    })
+    running.push(host)
+    const first = requireValue((await host.bunReady).main, "initial server main")
+    const worker = requireValue(host.bunEmbodiments.snapshot().worker, "initial server worker")
+    const firstAuthority = requireValue(first.authority, "initial server main authority")
+    const firstEntityId = `bun-process:${first.incarnation}`
+    const firstTransportId = `ipc:${first.incarnation}`
+
+    const liveUrl = new URL("/control", host.server.url)
+    liveUrl.protocol = "ws:"
+    liveUrl.searchParams.set("token", host.token)
+    liveUrl.searchParams.set("device", "crash-observer")
+    const live = await openSocket(liveUrl)
+    const liveEnvelopes: Array<{
+      eventId: string
+      causedBy?: string | null
+      observation: {type: string; phase: string; subjectId: string}
+    }> = []
+    live.addEventListener("message", (event) => {
+      const message = JSON.parse(String(event.data)) as {kind?: string; envelope?: unknown}
+      if (message.kind === "lifecycle") {
+        liveEnvelopes.push(message.envelope as typeof liveEnvelopes[number])
+      }
+    })
+
+    expect(host.crashBunEmbodimentForTest("main")).toBe(first.pid)
+    const repairDeadline = Date.now() + 5_000
+    let replacement = host.bunEmbodiments.snapshot().main
+    while (
+      replacement?.state !== "ready" ||
+      replacement.incarnation === first.incarnation ||
+      replacement.pid === first.pid
+    ) {
+      if (Date.now() >= repairDeadline) throw new Error("Crashed Bun process was not automatically reborn")
+      await Bun.sleep(5)
+      replacement = host.bunEmbodiments.snapshot().main
+    }
+    const second = requireValue(replacement, "replacement server main")
+    const secondAuthority = requireValue(second.authority, "replacement server main authority")
+    const secondEntityId = `bun-process:${second.incarnation}`
+    const secondTransportId = `ipc:${second.incarnation}`
+
+    while (
+      !liveEnvelopes.some(({observation}) => observation.phase === "ended" && observation.subjectId === firstEntityId) ||
+      !liveEnvelopes.some(({observation}) => observation.phase === "changed" && observation.subjectId === secondEntityId)
+    ) {
+      if (Date.now() >= repairDeadline) throw new Error("Crash lifecycle did not reach the observer")
+      await Bun.sleep(5)
+    }
+    const closed = requireValue(
+      liveEnvelopes.find(({observation}) => observation.phase === "closed" && observation.subjectId === firstTransportId),
+      "crashed process IPC closure",
+    )
+    const ended = requireValue(
+      liveEnvelopes.find(({observation}) => observation.phase === "ended" && observation.subjectId === firstEntityId),
+      "crashed process end",
+    )
+    expect(ended.causedBy).toBe(closed.eventId)
+    expect(liveEnvelopes.some(({observation}) =>
+      observation.phase === "opened" && observation.subjectId === secondTransportId
+    )).toBeTrue()
+    expect(secondAuthority.fencingToken).toBe(firstAuthority.fencingToken + 1)
+    expect(secondAuthority.leaseId).not.toBe(firstAuthority.leaseId)
+    expect(host.acceptsServerAuthorityForTest(firstAuthority)).toBeFalse()
+    expect(host.acceptsServerAuthorityForTest(secondAuthority)).toBeTrue()
+    expect(requireValue(host.bunEmbodiments.snapshot().worker, "unchanged server worker").pid).toBe(worker.pid)
+    expect(host.server.port).toBeGreaterThan(0)
+
+    const retainedUrl = new URL("/control", host.server.url)
+    retainedUrl.protocol = "ws:"
+    retainedUrl.searchParams.set("token", host.token)
+    retainedUrl.searchParams.set("device", "retained-crash-observer")
+    retainedUrl.searchParams.set("transport", `websocket:${crypto.randomUUID()}`)
+    retainedUrl.searchParams.set("worker", `service-worker:${crypto.randomUUID()}`)
+    let resolveSnapshot!: (snapshot: {envelopes: Array<{observation: {subjectId: string}}>}) => void
+    const retainedSnapshot = new Promise<{envelopes: Array<{observation: {subjectId: string}}>}>(
+      (resolve) => { resolveSnapshot = resolve },
+    )
+    const retained = new WebSocket(retainedUrl)
+    retained.addEventListener("message", (event) => {
+      const message = JSON.parse(String(event.data)) as {kind?: string; snapshot?: unknown}
+      if (message.kind === "lifecycle-snapshot") {
+        resolveSnapshot(message.snapshot as {envelopes: Array<{observation: {subjectId: string}}>})
+      }
+    })
+    await new Promise<void>((resolve, reject) => {
+      retained.addEventListener("open", () => resolve(), {once: true})
+      retained.addEventListener("error", () => reject(new Error("WebSocket open failed")), {once: true})
+    })
+    const retainedSubjectIds = (await retainedSnapshot).envelopes.map(({observation}) => observation.subjectId)
+    expect(retainedSubjectIds).not.toContain(firstEntityId)
+    expect(retainedSubjectIds).not.toContain(firstTransportId)
+    expect(retainedSubjectIds).toContain(secondEntityId)
+    expect(retainedSubjectIds).toContain(secondTransportId)
+    live.close()
+    retained.close()
+  }, 10_000)
 
   test("serializes concurrent rebirths of one Bun role", async () => {
     const host = createHamiltonianHost({port: 0, token: "test-token", version: "v-race"})
@@ -453,7 +670,13 @@ describe("isolated Hamiltonian host", () => {
     controlUrl.searchParams.set("device", "stable-installation")
 
     const connect = async (workerIncarnationId: string) => {
-      const socket = await openSocket(controlUrl)
+      const url = new URL(controlUrl)
+      const transportId = `websocket:${crypto.randomUUID()}`
+      url.searchParams.set("transport", transportId)
+      url.searchParams.set("worker", `service-worker:${workerIncarnationId}`)
+      const socket = new WebSocket(url)
+      const snapshot = nextMessage(socket, "lifecycle-snapshot")
+      const helloMessage = nextMessage(socket, "hello")
       socket.addEventListener("message", (event) => {
         const message = JSON.parse(String(event.data)) as {kind?: string; at?: number; seq?: number}
         if (message.kind !== "ping") return
@@ -464,13 +687,17 @@ describe("isolated Hamiltonian host", () => {
           workerIncarnationId,
         }))
       })
-      const hello = await nextMessage(socket, "hello")
+      await new Promise<void>((resolve, reject) => {
+        socket.addEventListener("open", () => resolve(), {once: true})
+        socket.addEventListener("error", () => reject(new Error("WebSocket open failed")), {once: true})
+      })
+      const [hello, lifecycleSnapshot] = await Promise.all([helloMessage, snapshot])
       socket.send(JSON.stringify({
         kind: "identity",
         workerIncarnationId,
         resumeNonce: crypto.randomUUID(),
       }))
-      return {socket, connectionId: String(hello.connectionId)}
+      return {socket, connectionId: String(hello.connectionId), lifecycleSnapshot, transportId}
     }
 
     const first = await connect("sw-incarnation-a")
@@ -486,8 +713,134 @@ describe("isolated Hamiltonian host", () => {
 
     const second = await connect("sw-incarnation-b")
     expect(second.connectionId).not.toBe(first.connectionId)
+    const retained = second.lifecycleSnapshot.snapshot as {
+      envelopes: Array<{observation: {phase?: string; subjectId?: string; subjectKind?: string}}>
+    }
+    expect(retained.envelopes.some(({observation}) =>
+      observation.phase === "closed" &&
+      observation.subjectKind === "websocket" &&
+      observation.subjectId === first.transportId
+    )).toBeTrue()
     expect(host.getStatus().hostEpoch).toBe(host.hostEpoch)
     second.socket.close()
+  })
+
+  test("removes closed WS state only after a page observes the old Service Worker endpoint ended", async () => {
+    const host = createHamiltonianHost({port: 0, token: "test-token", heartbeatMs: 10_000})
+    running.push(host)
+    const controlUrl = new URL("/control", host.server.url)
+    controlUrl.protocol = "ws:"
+    controlUrl.searchParams.set("token", host.token)
+    controlUrl.searchParams.set("device", "endpoint-retirement-browser")
+
+    const connect = async (workerEntityId: string, transportId: string) => {
+      const url = new URL(controlUrl)
+      url.searchParams.set("worker", workerEntityId)
+      url.searchParams.set("transport", transportId)
+      const socket = new WebSocket(url)
+      const snapshot = nextMessage(socket, "lifecycle-snapshot")
+      await new Promise<void>((resolve, reject) => {
+        socket.addEventListener("open", () => resolve(), {once: true})
+        socket.addEventListener("error", () => reject(new Error("WebSocket open failed")), {once: true})
+      })
+      return {socket, snapshot: await snapshot}
+    }
+
+    const oldWorkerEntityId = "service-worker:old-worker"
+    const oldTransportId = "websocket:old-worker"
+    const first = await connect(oldWorkerEntityId, oldTransportId)
+    first.socket.close()
+    await Bun.sleep(10)
+
+    const currentWorkerEntityId = "service-worker:current-worker"
+    const currentTransportId = "websocket:current-worker"
+    const current = await connect(currentWorkerEntityId, currentTransportId)
+    const before = current.snapshot.snapshot as {
+      envelopes: Array<{observation: {subjectId: string}}>
+    }
+    expect(before.envelopes.some(({observation}) => observation.subjectId === oldTransportId)).toBeTrue()
+
+    const pageSource = new HamiltonianLifecycleSource({
+      id: "page:page-a",
+      kind: "page",
+      incarnation: "page-a",
+      startedAt: 1,
+    })
+    const ended = pageSource.next(createHamiltonianLifecycleObservation({
+      type: "entity",
+      phase: "ended",
+      subjectId: oldWorkerEntityId,
+      subjectKind: "service-worker",
+      ownerId: oldWorkerEntityId,
+      attributes: {
+        state: "ended",
+        successor: currentWorkerEntityId,
+        reason: "superseded-by-observed-incarnation",
+      },
+    }))
+    const echoed = nextMessage(current.socket, "lifecycle", (message) =>
+      (message.envelope as {eventId?: string} | undefined)?.eventId === ended.eventId)
+    current.socket.send(JSON.stringify({
+      kind: "lifecycle-retirement",
+      envelope: ended,
+      monitor: {
+        messageId: `message:${crypto.randomUUID()}`,
+        transportId: currentTransportId,
+      },
+    }))
+    await echoed
+
+    const observer = await connect("service-worker:observer", "websocket:observer")
+    const after = observer.snapshot.snapshot as {
+      frontier: Array<{sourceId: string}>
+      envelopes: Array<{observation: {subjectId: string}}>
+    }
+    expect(after.envelopes.some(({observation}) => observation.subjectId === oldTransportId)).toBeFalse()
+    expect(after.frontier.some(({sourceId}) => sourceId === "page:page-a")).toBeFalse()
+    current.socket.close()
+    observer.socket.close()
+  })
+
+  test("rejects a forged Service Worker retirement that does not name the current worker as successor", async () => {
+    const host = createHamiltonianHost({port: 0, token: "test-token", heartbeatMs: 10_000})
+    running.push(host)
+    const workerEntityId = "service-worker:current-worker"
+    const transportId = "websocket:current-worker"
+    const controlUrl = new URL("/control", host.server.url)
+    controlUrl.protocol = "ws:"
+    controlUrl.searchParams.set("token", host.token)
+    controlUrl.searchParams.set("device", "forged-retirement-browser")
+    controlUrl.searchParams.set("worker", workerEntityId)
+    controlUrl.searchParams.set("transport", transportId)
+    const socket = await openSocket(controlUrl)
+
+    const pageSource = new HamiltonianLifecycleSource({
+      id: "page:page-a",
+      kind: "page",
+      incarnation: "page-a",
+      startedAt: 1,
+    })
+    const forged = pageSource.next(createHamiltonianLifecycleObservation({
+      type: "entity",
+      phase: "ended",
+      subjectId: "service-worker:old-worker",
+      subjectKind: "service-worker",
+      ownerId: "service-worker:old-worker",
+      attributes: {
+        state: "ended",
+        successor: "service-worker:not-the-socket-owner",
+      },
+    }))
+    const closed = new Promise<CloseEvent>((resolve) => socket.addEventListener("close", resolve, {once: true}))
+    socket.send(JSON.stringify({
+      kind: "lifecycle-retirement",
+      envelope: forged,
+      monitor: {
+        messageId: `message:${crypto.randomUUID()}`,
+        transportId,
+      },
+    }))
+    expect((await closed).code).toBe(1008)
   })
 
   test("rejects a heartbeat acknowledgement that was never challenged", async () => {
@@ -527,7 +880,35 @@ describe("isolated Hamiltonian host", () => {
     expect(host.getStatus().peer.realtimeFramesOnControlSocket).toBe(0)
   })
 
-  test("uses WSS only for signaling and sends oracle/force payload over direct DataChannels", async () => {
+  test("rejects the removed edge-traffic protocol on the control WebSocket", async () => {
+    const host = createHamiltonianHost({port: 0, token: "test-token"})
+    running.push(host)
+    await host.bunReady
+    const controlUrl = new URL("/control", host.server.url)
+    controlUrl.protocol = "ws:"
+    controlUrl.searchParams.set("token", "test-token")
+    controlUrl.searchParams.set("device", "legacy-traffic-client")
+    const socket = await openSocket(controlUrl)
+    await nextMessage(socket, "hello")
+    const closed = new Promise<CloseEvent>((resolve) => socket.addEventListener("close", resolve, {once: true}))
+    socket.send(JSON.stringify({
+      kind: "edge-traffic",
+      envelope: {
+        kind: "hamiltonian-edge-traffic",
+        version: 1,
+        sourceId: "legacy",
+        sequence: 1,
+        at: Date.now(),
+        edgeId: "fake",
+        direction: "forward",
+        messageClass: "fake",
+      },
+    }))
+    expect((await closed).code).toBe(1008)
+    expect(host.getStatus().connections).toHaveLength(0)
+  })
+
+  test("uses the control WebSocket only for signaling and sends oracle/force payload over direct DataChannels", async () => {
     const host = createHamiltonianHost({port: 0, token: "test-token", heartbeatMs: 10_000})
     running.push(host)
     const fixture = await openDirectBrowserPeer(host, {
@@ -821,10 +1202,28 @@ describe("isolated Hamiltonian host", () => {
       tabId: "process-recovery-window",
     })
     const before = host.getStatus().peer.process
+    const beforeAssignment = requireValue(host.getStatus().peer.assignment, "peer assignment before process crash")
     const killedPid = host.crashPeerProcessForTest()
     expect(killedPid).toBe(before.pid)
 
-    const replacement = await fixture.nextPeer()
+    const replacementPromise = fixture.nextPeer()
+    const replacementDeadline = Date.now() + 10_000
+    while (true) {
+      const observed = host.getStatus().peer
+      if (observed.snapshot && observed.assignment) {
+        expect(observed.snapshot.peerId).toBe(observed.assignment.peerId)
+        expect(observed.snapshot.sessionEpoch).toBe(observed.assignment.sessionEpoch)
+      }
+      if (
+        observed.process.state === "online" &&
+        observed.process.unexpectedExits === 1 &&
+        observed.assignment?.sessionEpoch !== beforeAssignment.sessionEpoch &&
+        observed.snapshot?.state === "connected"
+      ) break
+      if (Date.now() >= replacementDeadline) throw new Error("Peer process did not expose one coherent replacement")
+      await Bun.sleep(5)
+    }
+    const replacement = await replacementPromise
     try {
       const response = await replacement.protocol.request("probe", {afterProcessRebirth: true})
       const after = host.getStatus().peer.process

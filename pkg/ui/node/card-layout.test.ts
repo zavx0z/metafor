@@ -2,9 +2,9 @@ import {describe, expect, test} from "bun:test"
 import type {NodeSystemNode, NodeSystemRect} from "./model.ts"
 import {
   NODE_SYSTEM_CARD_METRICS,
+  NODE_SYSTEM_PORT_PITCH,
   measureNodeSystemCard,
   nodeSystemGeometryKey,
-  nodeSystemPortDirectionLabel,
   planNodeSystemCard,
   type NodeSystemTextMeasurer,
 } from "./card-layout.ts"
@@ -22,13 +22,25 @@ const denseNode: NodeSystemNode = {
     {id: "placement", label: "Placement", value: "local"},
   ],
   ports: [
-    {id: "input", label: "Input", direction: "in"},
-    {id: "events", label: "Events", direction: "out"},
-    {id: "control", label: "Control", direction: "inout"},
+    {id: "input", parameterId: "state", direction: "in"},
+    {id: "events", parameterId: "revision", direction: "out"},
+    {id: "control", parameterId: "placement", direction: "inout"},
   ],
 }
 
 describe("Flex node-card metric plan", () => {
+  test("derives one routing rhythm from the actual adjacent port centers", () => {
+    const size = measureNodeSystemCard(denseNode)
+    const plan = planNodeSystemCard(denseNode, {x: 0, y: 0, w: size.width, h: size.height})
+    const centers = plan.ports.map(({marker}) => marker.y + marker.h / 2).sort((left, right) => left - right)
+
+    expect(NODE_SYSTEM_PORT_PITCH)
+      .toBe(NODE_SYSTEM_CARD_METRICS.factRowHeight + NODE_SYSTEM_CARD_METRICS.rowGap)
+    for (let index = 1; index < centers.length; index += 1) {
+      expect(centers[index]! - centers[index - 1]!).toBe(NODE_SYSTEM_PORT_PITCH)
+    }
+  })
+
   test("expands undersized producer dimensions and keeps content rows inside the card", () => {
     const size = measureNodeSystemCard(denseNode)
     expect(size.width).toBeGreaterThan(denseNode.width!)
@@ -40,11 +52,10 @@ describe("Flex node-card metric plan", () => {
       plan.kind!,
       plan.summary!,
       ...plan.facts.flatMap(({label, value}) => [label, value]),
-      ...plan.ports.flatMap(({label, direction}) => [label, direction]),
     ]
     expect(textSlots.every((rect) => contained(rect, plan.frame))).toBe(true)
 
-    const rows = [...plan.facts.map(({row}) => row), ...plan.ports.map(({row}) => row)]
+    const rows = plan.facts.map(({row}) => row)
       .sort((left, right) => left.y - right.y)
     for (let index = 1; index < rows.length; index += 1) {
       expect(rows[index - 1]!.y + rows[index - 1]!.h).toBeLessThanOrEqual(rows[index]!.y)
@@ -73,7 +84,6 @@ describe("Flex node-card metric plan", () => {
     }
     for (let index = 0; index < logical.ports.length; index += 1) {
       expectRectScaled(logical.ports[index]!.marker, scaled.ports[index]!.marker, origin, scale)
-      expectRectScaled(logical.ports[index]!.label, scaled.ports[index]!.label, origin, scale)
     }
   })
 
@@ -101,9 +111,10 @@ describe("Flex node-card metric plan", () => {
       kind: "distributed coordinator",
       facts: [
         {id: "placement", label: "Placement on a remote host", value: "local"},
+        {id: "supervision", label: "Supervision", value: "input"},
       ],
       ports: [
-        {id: "supervision", label: "Supervision", direction: "inout"},
+        {id: "supervision", parameterId: "supervision", direction: "inout"},
       ],
     }
     const size = measureNodeSystemCard(node, exact)
@@ -115,8 +126,28 @@ describe("Flex node-card metric plan", () => {
       .toBeGreaterThanOrEqual(exact(node.facts![0]!.label, NODE_SYSTEM_CARD_METRICS.bodyFontPx))
     expect(plan.facts[0]!.value.w)
       .toBeGreaterThanOrEqual(exact(node.facts![0]!.value, NODE_SYSTEM_CARD_METRICS.bodyFontPx))
-    expect(plan.ports[0]!.direction.w)
-      .toBeGreaterThanOrEqual(exact(nodeSystemPortDirectionLabel(node.ports![0]!.direction), NODE_SYSTEM_CARD_METRICS.metaFontPx))
+    expect(plan.facts[0]!.value.w).toBeGreaterThanOrEqual(NODE_SYSTEM_CARD_METRICS.fieldControlMinWidth)
+    expect(plan.ports[0]!.row).toEqual(plan.facts[1]!.row)
+  })
+
+  test("keeps data direction independent from the requested visual side", () => {
+    const node: NodeSystemNode = {
+      id: "sides",
+      title: "Sides",
+      facts: [
+        {id: "left", label: "Left", value: "out"},
+        {id: "right", label: "Right", value: "in"},
+      ],
+      ports: [
+        {id: "out-left", parameterId: "left", direction: "out", side: "left"},
+        {id: "in-right", parameterId: "right", direction: "in", side: "right"},
+      ],
+    }
+    const size = measureNodeSystemCard(node)
+    const plan = planNodeSystemCard(node, {x: 10, y: 20, w: size.width, h: size.height})
+    expect(plan.ports.find(({port}) => port.id === "out-left")!.marker.x).toBeLessThan(10)
+    const rightMarker = plan.ports.find(({port}) => port.id === "in-right")!.marker
+    expect(rightMarker.x + rightMarker.w / 2).toBe(10 + size.width)
   })
 })
 

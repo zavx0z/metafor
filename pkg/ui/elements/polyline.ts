@@ -23,28 +23,37 @@ export const createUiPolylineStrokeGeometry = (
     if (!Number.isFinite(point.x) || !Number.isFinite(point.y)) return null
   }
 
+  const strokePoints: UiPolylinePoint[] = []
+  for (const point of points) {
+    const previous = strokePoints.at(-1)
+    if (previous !== undefined && Math.hypot(point.x - previous.x, point.y - previous.y) <= STROKE_EPSILON) {
+      continue
+    }
+    strokePoints.push(point)
+  }
+  if (strokePoints.length < 2) return null
+
   const halfWidth = thickness / 2
-  const vertexCount = points.length * 2
+  const vertexCount = strokePoints.length * 2
   const positions = new Float32Array(vertexCount * 3)
   const normals = new Float32Array(vertexCount * 3)
 
-  const directions = new Float32Array((points.length - 1) * 2)
-  for (let index = 0; index < points.length - 1; index += 1) {
-    const from = points[index]!
-    const to = points[index + 1]!
+  const directions = new Float32Array((strokePoints.length - 1) * 2)
+  for (let index = 0; index < strokePoints.length - 1; index += 1) {
+    const from = strokePoints[index]!
+    const to = strokePoints[index + 1]!
     const dx = to.x - from.x
     const dy = to.y - from.y
     const length = Math.hypot(dx, dy)
-    if (length <= STROKE_EPSILON) return null
     const offset = index * 2
     directions[offset] = dx / length
     directions[offset + 1] = dy / length
   }
 
-  for (let index = 0; index < points.length; index += 1) {
-    const point = points[index]!
+  for (let index = 0; index < strokePoints.length; index += 1) {
+    const point = strokePoints[index]!
     const previousDirectionOffset = Math.max(0, index - 1) * 2
-    const nextDirectionOffset = Math.min(points.length - 2, index) * 2
+    const nextDirectionOffset = Math.min(strokePoints.length - 2, index) * 2
     const previousNormalX = -directions[previousDirectionOffset + 1]!
     const previousNormalY = directions[previousDirectionOffset]!
     const nextNormalX = -directions[nextDirectionOffset + 1]!
@@ -52,7 +61,7 @@ export const createUiPolylineStrokeGeometry = (
 
     let offsetX = nextNormalX * halfWidth
     let offsetY = nextNormalY * halfWidth
-    if (index > 0 && index < points.length - 1) {
+    if (index > 0 && index < strokePoints.length - 1) {
       const miterX = previousNormalX + nextNormalX
       const miterY = previousNormalY + nextNormalY
       const miterLength = Math.hypot(miterX, miterY)
@@ -81,11 +90,11 @@ export const createUiPolylineStrokeGeometry = (
     normals[rightOffset + 2] = 1
   }
 
-  const indexCount = (points.length - 1) * 6
+  const indexCount = (strokePoints.length - 1) * 6
   const indices = vertexCount <= 0xffff
     ? new Uint16Array(indexCount)
     : new Uint32Array(indexCount)
-  for (let segment = 0; segment < points.length - 1; segment += 1) {
+  for (let segment = 0; segment < strokePoints.length - 1; segment += 1) {
     const vertex = segment * 2
     const offset = segment * 6
     indices[offset] = vertex

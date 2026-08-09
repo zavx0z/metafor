@@ -1,4 +1,6 @@
-export type HamiltonianTrafficPresentationValue = Readonly<{edgeId: string}>
+import {NODE_SYSTEM_EDGE_PARTICLE_DURATION_MS} from "@ui/node"
+
+export type HamiltonianTrafficPresentationValue = Readonly<{edgeId: string; at: number}>
 
 export type HamiltonianTrafficPresenter<T extends HamiltonianTrafficPresentationValue> = (
   value: T,
@@ -7,28 +9,36 @@ export type HamiltonianTrafficPresenter<T extends HamiltonianTrafficPresentation
 
 export class HamiltonianTrafficPresentationGate<T extends HamiltonianTrafficPresentationValue> {
   readonly #capacity: number
+  readonly #maxAgeMs: number
   readonly #now: () => number
   #materializedEdgeIds = new Set<string>()
-  #pending: T[] = []
+  #pending = new Map<string, T>()
   #present: HamiltonianTrafficPresenter<T> | null = null
 
-  constructor(options: Readonly<{capacity?: number; now?: () => number}> = {}) {
+  constructor(options: Readonly<{capacity?: number; maxAgeMs?: number; now?: () => number}> = {}) {
     this.#capacity = Math.max(1, Math.floor(options.capacity ?? 256))
+    this.#maxAgeMs = Math.max(1, Math.floor(options.maxAgeMs ?? NODE_SYSTEM_EDGE_PARTICLE_DURATION_MS))
     this.#now = options.now ?? Date.now
   }
 
   get pendingCount(): number {
-    return this.#pending.length
+    return this.#pending.size
   }
 
-  observe(value: T): "presented" | "queued" {
+  observe(value: T): "presented" | "queued" | "expired" {
+    const now = this.#now()
+    this.#pruneExpired(now)
+    if (!Number.isFinite(value.at) || now - value.at >= this.#maxAgeMs) return "expired"
     if (this.#present !== null && this.#materializedEdgeIds.has(value.edgeId)) {
-      this.#present(value, this.#now())
+      this.#present(value, value.at)
       return "presented"
     }
-    this.#pending.push(value)
-    if (this.#pending.length > this.#capacity) {
-      this.#pending.splice(0, this.#pending.length - this.#capacity)
+    this.#pending.delete(value.edgeId)
+    this.#pending.set(value.edgeId, value)
+    while (this.#pending.size > this.#capacity) {
+      const oldestEdgeId = this.#pending.keys().next().value
+      if (oldestEdgeId === undefined) break
+      this.#pending.delete(oldestEdgeId)
     }
     return "queued"
   }
@@ -43,9 +53,25 @@ export class HamiltonianTrafficPresentationGate<T extends HamiltonianTrafficPres
     this.#flushReady()
   }
 
+  forgetEdge(edgeId: string): number {
+    this.#materializedEdgeIds.delete(edgeId)
+    return this.#pending.delete(edgeId) ? 1 : 0
+  }
+
+  discardPendingOutside(edgeIds: Iterable<string>): number {
+    const retained = new Set(edgeIds)
+    let discarded = 0
+    for (const edgeId of this.#pending.keys()) {
+      if (retained.has(edgeId)) continue
+      this.#pending.delete(edgeId)
+      discarded += 1
+    }
+    return discarded
+  }
+
   clear(): number {
-    const count = this.#pending.length
-    this.#pending = []
+    const count = this.#pending.size
+    this.#pending.clear()
     return count
   }
 
@@ -56,16 +82,22 @@ export class HamiltonianTrafficPresentationGate<T extends HamiltonianTrafficPres
   }
 
   #flushReady(): void {
-    if (this.#present === null || this.#pending.length === 0 || this.#materializedEdgeIds.size === 0) return
+    if (this.#present === null || this.#pending.size === 0 || this.#materializedEdgeIds.size === 0) return
+    this.#pruneExpired(this.#now())
     const ready: T[] = []
-    const waiting: T[] = []
-    for (const value of this.#pending) {
-      if (this.#materializedEdgeIds.has(value.edgeId)) ready.push(value)
-      else waiting.push(value)
+    for (const [edgeId, value] of this.#pending) {
+      if (!this.#materializedEdgeIds.has(edgeId)) continue
+      ready.push(value)
+      this.#pending.delete(edgeId)
     }
-    this.#pending = waiting
     if (ready.length === 0) return
-    const startedAt = this.#now()
-    for (const value of ready) this.#present(value, startedAt)
+    for (const value of ready) this.#present(value, value.at)
+  }
+
+  #pruneExpired(now: number): void {
+    for (const [edgeId, value] of this.#pending) {
+      if (Number.isFinite(value.at) && now - value.at < this.#maxAgeMs) continue
+      this.#pending.delete(edgeId)
+    }
   }
 }

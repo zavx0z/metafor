@@ -6,85 +6,86 @@ import type {
   PositionedNodeSystemNode,
 } from "./model.ts"
 
-export type NodeSystemViewport = Readonly<{
+/** Position and scale of the infinite graph canvas inside its UIDisplay. */
+export type NodeSystemCanvasTransform = Readonly<{
   x: number
   y: number
   scale: number
 }>
 
-export type NodeSystemViewportLimits = Readonly<{
+export type NodeSystemCanvasTransformLimits = Readonly<{
   minScale?: number
   maxScale?: number
 }>
 
 export type NodeSystemRenderPlan = Readonly<{
-  viewport: NodeSystemViewport
+  canvasTransform: NodeSystemCanvasTransform
   nodes: readonly PositionedNodeSystemNode[]
   edges: readonly PositionedNodeSystemEdge[]
 }>
 
-export const DEFAULT_NODE_SYSTEM_VIEWPORT: NodeSystemViewport = Object.freeze({x: 0, y: 0, scale: 1})
+export const DEFAULT_NODE_SYSTEM_CANVAS_TRANSFORM: NodeSystemCanvasTransform = Object.freeze({x: 0, y: 0, scale: 1})
 
-export function fitNodeSystemViewport(
+export function fitNodeSystemCanvasTransform(
   layout: PositionedNodeSystem,
-  viewport: NodeSystemRect,
+  displayRect: NodeSystemRect,
   padding = 36,
-  limits: NodeSystemViewportLimits = {},
-): NodeSystemViewport {
-  const usableW = Math.max(1, viewport.w - Math.max(0, padding) * 2)
-  const usableH = Math.max(1, viewport.h - Math.max(0, padding) * 2)
+  limits: NodeSystemCanvasTransformLimits = {},
+): NodeSystemCanvasTransform {
+  const usableW = Math.max(1, displayRect.w - Math.max(0, padding) * 2)
+  const usableH = Math.max(1, displayRect.h - Math.max(0, padding) * 2)
   const scale = clampScale(
     Math.min(usableW / Math.max(1, layout.bounds.w), usableH / Math.max(1, layout.bounds.h)),
     limits,
   )
   return {
-    x: viewport.x + (viewport.w - layout.bounds.w * scale) / 2 - layout.bounds.x * scale,
-    y: viewport.y + (viewport.h - layout.bounds.h * scale) / 2 - layout.bounds.y * scale,
+    x: displayRect.x + (displayRect.w - layout.bounds.w * scale) / 2 - layout.bounds.x * scale,
+    y: displayRect.y + (displayRect.h - layout.bounds.h * scale) / 2 - layout.bounds.y * scale,
     scale,
   }
 }
 
-export function panNodeSystemViewport(
-  viewport: NodeSystemViewport,
+export function panNodeSystemCanvasTransform(
+  transform: NodeSystemCanvasTransform,
   dx: number,
   dy: number,
-): NodeSystemViewport {
-  return {x: viewport.x + dx, y: viewport.y + dy, scale: viewport.scale}
+): NodeSystemCanvasTransform {
+  return {x: transform.x + dx, y: transform.y + dy, scale: transform.scale}
 }
 
-export function zoomNodeSystemViewportAt(
-  viewport: NodeSystemViewport,
+export function zoomNodeSystemCanvasTransformAt(
+  transform: NodeSystemCanvasTransform,
   factor: number,
   anchor: NodeSystemPoint,
-  limits: NodeSystemViewportLimits = {},
-): NodeSystemViewport {
-  if (!Number.isFinite(factor) || factor <= 0) return viewport
-  const nextScale = clampScale(viewport.scale * factor, limits)
-  const ratio = nextScale / viewport.scale
+  limits: NodeSystemCanvasTransformLimits = {},
+): NodeSystemCanvasTransform {
+  if (!Number.isFinite(factor) || factor <= 0) return transform
+  const nextScale = clampScale(transform.scale * factor, limits)
+  const ratio = nextScale / transform.scale
   return {
-    x: anchor.x - (anchor.x - viewport.x) * ratio,
-    y: anchor.y - (anchor.y - viewport.y) * ratio,
+    x: anchor.x - (anchor.x - transform.x) * ratio,
+    y: anchor.y - (anchor.y - transform.y) * ratio,
     scale: nextScale,
   }
 }
 
-export function planNodeSystemViewport(
+export function planNodeSystemCanvasViewport(
   layout: PositionedNodeSystem,
-  viewport: NodeSystemViewport,
+  canvasTransform: NodeSystemCanvasTransform,
   clip?: NodeSystemRect,
 ): NodeSystemRenderPlan {
   const nodes = layout.nodes
-    .map((entry) => transformNode(entry, viewport))
+    .map((entry) => transformNode(entry, canvasTransform))
     .filter((entry) => clip === undefined || intersects(entry.rect, clip))
   const visibleNodeIds = new Set(nodes.map((entry) => entry.node.id))
   const edges = layout.edges
-    .map((entry) => transformEdge(entry, viewport))
+    .map((entry) => transformEdge(entry, canvasTransform))
     .filter((entry) => {
       if (clip === undefined) return true
       if (visibleNodeIds.has(entry.edge.source.nodeId) || visibleNodeIds.has(entry.edge.target.nodeId)) return true
       return intersects(pointsBounds(entry.points), clip)
     })
-  return {viewport, nodes, edges}
+  return {canvasTransform, nodes, edges}
 }
 
 export function hitTestNodeSystem(
@@ -100,41 +101,41 @@ export function hitTestNodeSystem(
 
 export function transformNodeSystemPoint(
   point: NodeSystemPoint,
-  viewport: NodeSystemViewport,
+  transform: NodeSystemCanvasTransform,
 ): NodeSystemPoint {
-  return {x: viewport.x + point.x * viewport.scale, y: viewport.y + point.y * viewport.scale}
+  return {x: transform.x + point.x * transform.scale, y: transform.y + point.y * transform.scale}
 }
 
 function transformNode(
   entry: PositionedNodeSystemNode,
-  viewport: NodeSystemViewport,
+  transform: NodeSystemCanvasTransform,
 ): PositionedNodeSystemNode {
   return {
     node: entry.node,
-    rect: transformRect(entry.rect, viewport),
+    rect: transformRect(entry.rect, transform),
     ports: entry.ports.map(({port, center}) => ({
       port,
-      center: transformNodeSystemPoint(center, viewport),
+      center: transformNodeSystemPoint(center, transform),
     })),
   }
 }
 
 function transformEdge(
   entry: PositionedNodeSystemEdge,
-  viewport: NodeSystemViewport,
+  transform: NodeSystemCanvasTransform,
 ): PositionedNodeSystemEdge {
   return {
     edge: entry.edge,
-    points: entry.points.map((point) => transformNodeSystemPoint(point, viewport)),
+    points: entry.points.map((point) => transformNodeSystemPoint(point, transform)),
   }
 }
 
-function transformRect(rect: NodeSystemRect, viewport: NodeSystemViewport): NodeSystemRect {
+function transformRect(rect: NodeSystemRect, transform: NodeSystemCanvasTransform): NodeSystemRect {
   return {
-    x: viewport.x + rect.x * viewport.scale,
-    y: viewport.y + rect.y * viewport.scale,
-    w: rect.w * viewport.scale,
-    h: rect.h * viewport.scale,
+    x: transform.x + rect.x * transform.scale,
+    y: transform.y + rect.y * transform.scale,
+    w: rect.w * transform.scale,
+    h: rect.h * transform.scale,
   }
 }
 
@@ -155,7 +156,7 @@ function intersects(left: NodeSystemRect, right: NodeSystemRect): boolean {
   return left.x + left.w >= right.x && right.x + right.w >= left.x && left.y + left.h >= right.y && right.y + right.h >= left.y
 }
 
-function clampScale(value: number, limits: NodeSystemViewportLimits): number {
+function clampScale(value: number, limits: NodeSystemCanvasTransformLimits): number {
   const minimum = Math.max(0.01, limits.minScale ?? 0.16)
   const maximum = Math.max(minimum, limits.maxScale ?? 3)
   return Math.min(maximum, Math.max(minimum, value))

@@ -25,17 +25,28 @@ export function validateNodeSystemDocument(document: NodeSystemDocument): NodeSy
     requirePositiveSize(node.height, `Node height must be positive: ${node.id}`)
     requireFiniteOrder(node.order, `Node order must be finite: ${node.id}`)
 
-    const nodePorts = new Map<string, NodeSystemPort>()
-    for (const port of node.ports ?? []) {
-      requireIdentifier(port.id, `port on ${node.id}`)
-      if (nodePorts.has(port.id)) throw new Error(`Duplicate port id: ${node.id}/${port.id}`)
-      nodePorts.set(port.id, port)
-    }
     const factIds = new Set<string>()
     for (const fact of node.facts ?? []) {
       requireIdentifier(fact.id, `fact on ${node.id}`)
       if (factIds.has(fact.id)) throw new Error(`Duplicate fact id: ${node.id}/${fact.id}`)
       factIds.add(fact.id)
+    }
+    const nodePorts = new Map<string, NodeSystemPort>()
+    const occupiedParameterSides = new Set<string>()
+    for (const port of node.ports ?? []) {
+      requireIdentifier(port.id, `port on ${node.id}`)
+      requireIdentifier(port.parameterId, `parameter on port ${node.id}/${port.id}`)
+      if (!factIds.has(port.parameterId)) {
+        throw new Error(`Unknown port parameter: ${node.id}/${port.id}/${port.parameterId}`)
+      }
+      if (nodePorts.has(port.id)) throw new Error(`Duplicate port id: ${node.id}/${port.id}`)
+      const side = port.side ?? (port.direction === "in" ? "left" : "right")
+      const parameterSide = `${port.parameterId}\u0000${side}`
+      if (occupiedParameterSides.has(parameterSide)) {
+        throw new Error(`Duplicate port side on parameter: ${node.id}/${port.parameterId}/${side}`)
+      }
+      occupiedParameterSides.add(parameterSide)
+      nodePorts.set(port.id, port)
     }
     const actionIds = new Set<string>()
     for (const action of node.actions ?? []) {
@@ -45,6 +56,23 @@ export function validateNodeSystemDocument(document: NodeSystemDocument): NodeSy
     }
     nodes.set(node.id, node)
     ports.set(node.id, nodePorts)
+  }
+
+  for (const node of document.nodes) {
+    if (node.parentId === undefined) continue
+    requireIdentifier(node.parentId, `parent on ${node.id}`)
+    if (node.parentId === node.id) throw new Error(`Node cannot contain itself: ${node.id}`)
+    const parent = nodes.get(node.parentId)
+    if (parent === undefined) throw new Error(`Unknown parent node: ${node.id}/${node.parentId}`)
+  }
+  for (const node of document.nodes) {
+    const path = new Set<string>()
+    let current: NodeSystemNode | undefined = node
+    while (current?.parentId !== undefined) {
+      if (path.has(current.id)) throw new Error(`Containment cycle: ${node.id}`)
+      path.add(current.id)
+      current = nodes.get(current.parentId)
+    }
   }
 
   const edgeIds = new Set<string>()
@@ -87,6 +115,15 @@ export function validatePositionedNodeSystem(layout: PositionedNodeSystem): Node
   }
   if (positionedNodeIds.size !== index.nodes.size) throw new Error("Positioned nodes are incomplete")
 
+  const positionedById = new Map(layout.nodes.map((entry) => [entry.node.id, entry]))
+  for (const entry of layout.nodes) {
+    if (entry.node.parentId === undefined) continue
+    const parent = positionedById.get(entry.node.parentId)!
+    if (!contains(parent.rect, entry.rect)) {
+      throw new Error(`Contained node escapes parent: ${entry.node.id}/${entry.node.parentId}`)
+    }
+  }
+
   const positionedEdgeIds = new Set<string>()
   for (const entry of layout.edges) {
     if (positionedEdgeIds.has(entry.edge.id)) throw new Error(`Duplicate positioned edge id: ${entry.edge.id}`)
@@ -107,7 +144,6 @@ function validateEndpoint(
 ): void {
   const node = nodes.get(endpoint.nodeId)
   if (node === undefined) throw new Error(`Unknown ${role} node for edge ${edgeId}: ${endpoint.nodeId}`)
-  if (endpoint.portId === undefined) return
   if (!ports.get(endpoint.nodeId)?.has(endpoint.portId)) {
     throw new Error(`Unknown ${role} port for edge ${edgeId}: ${endpoint.nodeId}/${endpoint.portId}`)
   }
@@ -134,4 +170,11 @@ function requireRect(rect: NodeSystemRect, label: string): void {
 
 function requirePoint(x: number, y: number, label: string): void {
   if (!Number.isFinite(x) || !Number.isFinite(y)) throw new Error(`${label} must be finite`)
+}
+
+function contains(outer: NodeSystemRect, inner: NodeSystemRect): boolean {
+  const epsilon = 1e-6
+  return inner.x + epsilon >= outer.x && inner.y + epsilon >= outer.y &&
+    inner.x + inner.w <= outer.x + outer.w + epsilon &&
+    inner.y + inner.h <= outer.y + outer.h + epsilon
 }

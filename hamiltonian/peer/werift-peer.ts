@@ -1,4 +1,4 @@
-import {RTCPeerConnection, type RTCDataChannel} from "werift"
+import {RTCPeerConnection, type RTCDataChannel, type RTCIceServer} from "werift"
 import {LogicalChannelSession, PeerProtocol} from "../core/runtime.js"
 
 export type PeerSignal =
@@ -14,6 +14,28 @@ export interface WeriftPeerSnapshot {
   forceEvents: number
 }
 
+export type WeriftPeerLifecycleEvent =
+  | {
+      kind: "rtc-peer"
+      phase: "born" | "changed" | "ended"
+      state: string
+      reason?: string
+    }
+  | {
+      kind: "data-channel"
+      phase: "opening" | "opened" | "closed"
+      label: "oracle" | "force"
+      state: string
+    }
+  | {
+      kind: "data-channel-message"
+      phase: "sent" | "received"
+      label: "oracle" | "force"
+      messageId: string
+      messageClass: string
+      sequence: number
+    }
+
 export class WeriftPeer {
   readonly peerId: string
   readonly sessionEpoch: string
@@ -21,7 +43,10 @@ export class WeriftPeer {
   readonly #connection: RTCPeerConnection
   readonly #onSignal: (signal: PeerSignal) => void
   readonly #onState: (snapshot: WeriftPeerSnapshot) => void
+  readonly #onLifecycle: (event: WeriftPeerLifecycleEvent) => void
+  readonly #onError: (error: Error) => void
   readonly #channels = new Map<string, RTCDataChannel>()
+  readonly #channelStates = new WeakMap<RTCDataChannel, string>()
   readonly #pendingCandidates: Array<Record<string, unknown> | null> = []
   readonly #serveProtocol: boolean
   #resolveProtocol!: (protocol: PeerProtocol) => void
@@ -29,6 +54,7 @@ export class WeriftPeer {
   #remoteDescriptionSet = false
   #oracleRequests = 0
   #forceEvents = 0
+  #peerEnded = false
 
   constructor({
     peerId,
@@ -36,6 +62,10 @@ export class WeriftPeer {
     initiator,
     onSignal,
     onState = () => {},
+    onLifecycle = () => {},
+    onError = () => {},
+    iceServers,
+    iceLite,
     serveProtocol = true,
   }: {
     peerId: string
@@ -43,25 +73,39 @@ export class WeriftPeer {
     initiator: boolean
     onSignal: (signal: PeerSignal) => void
     onState?: (snapshot: WeriftPeerSnapshot) => void
+    onLifecycle?: (event: WeriftPeerLifecycleEvent) => void
+    onError?: (error: Error) => void
+    iceServers?: RTCIceServer[]
+    iceLite?: boolean
     serveProtocol?: boolean
   }) {
     this.peerId = peerId
     this.sessionEpoch = sessionEpoch
     this.#onSignal = onSignal
     this.#onState = onState
+    this.#onLifecycle = onLifecycle
+    this.#onError = onError
     this.#serveProtocol = serveProtocol
     this.protocolReady = new Promise((resolve) => {
       this.#resolveProtocol = resolve
     })
-    this.#connection = new RTCPeerConnection({maxMessageSize: 64 * 1024})
+    this.#connection = new RTCPeerConnection({
+      maxMessageSize: 64 * 1024,
+      ...(iceServers === undefined ? {} : {iceServers}),
+      ...(iceLite === undefined ? {} : {iceLite}),
+    })
     this.#connection.onIceCandidate.subscribe((candidate) => {
       this.#onSignal({type: "candidate", candidate: candidate?.toJSON() ?? null})
     })
     this.#connection.connectionStateChange.subscribe((state) => {
       if (state === "failed" || state === "closed") this.#protocol?.close("transport-lost")
+      if (state === "closed") this.#emitPeerEnded("connection-closed")
+      else this.#emitLifecycle({kind: "rtc-peer", phase: "changed", state})
       this.#emitState()
     })
     this.#connection.onDataChannel.subscribe((channel) => this.#acceptChannel(channel))
+
+    this.#emitLifecycle({kind: "rtc-peer", phase: "born", state: this.#connection.connectionState})
 
     if (initiator) {
       this.#acceptChannel(this.#connection.createDataChannel("oracle", {ordered: true}))
@@ -71,10 +115,10 @@ export class WeriftPeer {
 
   async start(): Promise<void> {
     const offer = await this.#connection.createOffer()
-    const applied = await this.#connection.setLocalDescription(offer)
-    const description = applied.toJSON()
-    if (description.type !== "offer") throw new Error("initiator produced a non-offer description")
-    this.#onSignal({type: "description", description: {type: "offer", sdp: description.sdp}})
+    if (offer.type !== "offer") throw new Error("initiator produced a non-offer description")
+    const applying = this.#connection.setLocalDescription(offer)
+    this.#onSignal({type: "description", description: {type: "offer", sdp: offer.sdp}})
+    void applying.catch((error) => this.#reportError("local offer", error))
   }
 
   async signal(signal: PeerSignal): Promise<void> {
@@ -94,10 +138,10 @@ export class WeriftPeer {
     }
     if (signal.description.type === "offer") {
       const answer = await this.#connection.createAnswer()
-      const applied = await this.#connection.setLocalDescription(answer)
-      const description = applied.toJSON()
-      if (description.type !== "answer") throw new Error("answerer produced a non-answer description")
-      this.#onSignal({type: "description", description: {type: "answer", sdp: description.sdp}})
+      if (answer.type !== "answer") throw new Error("answerer produced a non-answer description")
+      const applying = this.#connection.setLocalDescription(answer)
+      this.#onSignal({type: "description", description: {type: "answer", sdp: answer.sdp}})
+      void applying.catch((error) => this.#reportError("local answer", error))
     }
   }
 
@@ -115,6 +159,7 @@ export class WeriftPeer {
   async close(): Promise<void> {
     this.#protocol?.close("peer-closed")
     await this.#connection.close()
+    this.#emitPeerEnded("peer-closed")
     this.#emitState()
   }
 
@@ -124,8 +169,16 @@ export class WeriftPeer {
       return
     }
     this.#channels.set(channel.label, channel)
-    channel.addEventListener("open", () => this.#maybeCreateProtocol())
-    channel.addEventListener("close", () => this.#emitState())
+    this.#emitChannel(channel, "opening")
+    channel.addEventListener("open", () => {
+      this.#emitChannel(channel, "opened")
+      this.#maybeCreateProtocol()
+    })
+    channel.addEventListener("close", () => {
+      this.#emitChannel(channel, "closed")
+      this.#emitState()
+    })
+    if (channel.readyState === "open") this.#emitChannel(channel, "opened")
     this.#maybeCreateProtocol()
   }
 
@@ -138,6 +191,14 @@ export class WeriftPeer {
       sessionEpoch: this.sessionEpoch,
       lanes: {oracle, force},
       onProtocolEvent: () => this.#emitState(),
+      onTraffic: (event) => this.#emitLifecycle({
+        kind: "data-channel-message",
+        phase: event.direction === "forward" ? "sent" : "received",
+        label: event.lane,
+        messageId: event.messageId,
+        messageClass: event.messageClass,
+        sequence: event.sequence,
+      }),
     })
     this.#protocol = new PeerProtocol(session)
     if (this.#serveProtocol) {
@@ -158,5 +219,38 @@ export class WeriftPeer {
 
   #emitState(): void {
     this.#onState(this.snapshot())
+  }
+
+  #emitChannel(channel: RTCDataChannel, phase: "opening" | "opened" | "closed"): void {
+    const previous = this.#channelStates.get(channel)
+    if (previous === phase || previous === "closed") return
+    this.#channelStates.set(channel, phase)
+    this.#emitLifecycle({
+      kind: "data-channel",
+      phase,
+      label: channel.label as "oracle" | "force",
+      state: channel.readyState,
+    })
+  }
+
+  #emitPeerEnded(reason: string): void {
+    if (this.#peerEnded) return
+    this.#peerEnded = true
+    this.#emitLifecycle({kind: "rtc-peer", phase: "ended", state: "closed", reason})
+  }
+
+  #emitLifecycle(event: WeriftPeerLifecycleEvent): void {
+    try {
+      this.#onLifecycle(event)
+    } catch {}
+  }
+
+  #reportError(stage: string, value: unknown): void {
+    const cause = value instanceof Error ? value.message : String(value)
+    const error = new Error(`${stage}: ${cause}`)
+    this.#emitLifecycle({kind: "rtc-peer", phase: "changed", state: "failed", reason: error.message})
+    try {
+      this.#onError(error)
+    } catch {}
   }
 }

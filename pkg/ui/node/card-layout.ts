@@ -4,6 +4,7 @@ import type {
   NodeSystemDocument,
   NodeSystemNode,
   NodeSystemPort,
+  NodeSystemPortSide,
   NodeSystemRect,
 } from "./model.ts"
 
@@ -16,15 +17,20 @@ export const NODE_SYSTEM_CARD_METRICS = Object.freeze({
   bodyPaddingY: 10,
   rowGap: 4,
   summaryRowHeight: 22,
-  factRowHeight: 20,
-  portRowHeight: 20,
+  factRowHeight: 24,
   titleFontPx: 12,
   metaFontPx: 9,
   bodyFontPx: 9,
   kindWidth: 78,
   contentPaddingX: 12,
   markerSize: 8,
+  fieldControlMinWidth: 92,
+  fieldControlPaddingX: 10,
 })
+
+/** Vertical center-to-center rhythm shared by adjacent card ports and routes. */
+export const NODE_SYSTEM_PORT_PITCH =
+  NODE_SYSTEM_CARD_METRICS.factRowHeight + NODE_SYSTEM_CARD_METRICS.rowGap
 
 export type NodeSystemCardSize = Readonly<{width: number; height: number}>
 export type NodeSystemTextMeasurer = (value: string, fontPx: number) => number
@@ -34,7 +40,6 @@ type NodeSystemCardMeasurement = Readonly<{
   exact: boolean
   kindWidth: number
   factLabelWidths: ReadonlyMap<string, number>
-  portDirectionWidths: ReadonlyMap<string, number>
 }>
 
 export type NodeSystemCardFactSlot = Readonly<{
@@ -48,8 +53,6 @@ export type NodeSystemCardPortSlot = Readonly<{
   port: NodeSystemPort
   row: NodeSystemRect
   marker: NodeSystemRect
-  label: NodeSystemRect
-  direction: NodeSystemRect
 }>
 
 export type NodeSystemCardPlan = Readonly<{
@@ -87,6 +90,7 @@ export function nodeSystemGeometryKey(
       const card = planNodeSystemCard(node, {x: 0, y: 0, w: size.width, h: size.height}, 1, measured)
       return [
         node.id,
+        node.parentId ?? null,
         rounded(size.width),
         rounded(size.height),
         card.ports.map(({port, marker}) => [
@@ -106,7 +110,6 @@ function measureCard(
   const rows = [
     ...(node.summary === undefined ? [] : [metrics.summaryRowHeight]),
     ...(node.facts ?? []).map(() => metrics.factRowHeight),
-    ...(node.ports ?? []).map(() => metrics.portRowHeight),
   ]
   const rowsHeight = rows.reduce((sum, height) => sum + height, 0)
     + Math.max(0, rows.length - 1) * metrics.rowGap
@@ -125,10 +128,6 @@ function measureCard(
     fact.id,
     textWidth(fact.label, metrics.bodyFontPx),
   ]))
-  const portDirectionWidths = new Map((node.ports ?? []).map((port) => [
-    port.id,
-    textWidth(nodeSystemPortDirectionLabel(port.direction), metrics.metaFontPx),
-  ]))
   const intrinsicRows = exact ? [
     metrics.contentPaddingX * 2
       + textWidth(node.title, metrics.titleFontPx)
@@ -139,11 +138,10 @@ function measureCard(
     ...(node.facts ?? []).map((fact) => metrics.contentPaddingX * 2
       + (factLabelWidths.get(fact.id) ?? 0)
       + metrics.rowGap
-      + textWidth(fact.value, metrics.bodyFontPx)),
-    ...(node.ports ?? []).map((port) => metrics.contentPaddingX * 2
-      + textWidth(port.label ?? port.id, metrics.bodyFontPx)
-      + (portDirectionWidths.get(port.id) ?? 0)
-      + metrics.rowGap * 4),
+      + Math.max(
+        metrics.fieldControlMinWidth,
+        textWidth(fact.value, metrics.bodyFontPx) + metrics.fieldControlPaddingX * 2,
+      )),
   ] : []
   const intrinsicWidth = exact
     ? Math.max(metrics.minimumWidth, ...intrinsicRows)
@@ -157,7 +155,6 @@ function measureCard(
     exact,
     kindWidth,
     factLabelWidths,
-    portDirectionWidths,
   }
 }
 
@@ -270,17 +267,9 @@ export function planNodeSystemCard(
                     ],
                   })
                   facts.push({fact, row, label, value})
-                },
-              })),
-              ...orderedPorts(node).map((port) => ({
-                height: metrics.portRowHeight,
-                draw: (slotX: number, slotY: number, slotW: number, slotH: number) => {
-                  ports.push(planPortRow(
-                    port,
-                    {x: slotX, y: slotY, w: slotW, h: slotH},
-                    metrics,
-                    measurement.exact ? (measurement.portDirectionWidths.get(port.id) ?? 0) * unit : undefined,
-                  ))
+                  for (const port of parameterPorts(node, fact.id)) {
+                    ports.push(planParameterPort(port, row, metrics))
+                  }
                 },
               })),
             ],
@@ -302,54 +291,33 @@ export function planNodeSystemCard(
   }
 }
 
-function planPortRow(
+function planParameterPort(
   port: NodeSystemPort,
   row: NodeSystemRect,
   metrics: ReturnType<typeof scaledMetrics>,
-  measuredDirectionWidth?: number,
 ): NodeSystemCardPortSlot {
-  let markerAnchor = emptyRect(row.x, row.y)
-  let label = emptyRect(row.x, row.y)
-  let direction = emptyRect(row.x, row.y)
-  const edgeItem = {width: 0 as const, height: row.h, draw: (x: number, y: number, w: number, h: number) => {
-    markerAnchor = {x, y, w, h}
-  }}
-  const insetItem = {width: metrics.contentPaddingX, height: row.h, draw: () => {}}
-  const labelItem = {width: "grow" as const, height: row.h, draw: (x: number, y: number, w: number, h: number) => {
-    label = {x, y, w, h}
-  }}
-  const directionItem = {width: measuredDirectionWidth
-    ?? Math.min(metrics.kindWidth * 0.5, row.w * 0.22), height: row.h, draw: (x: number, y: number, w: number, h: number) => {
-    direction = {x, y, w, h}
-  }}
-  const incoming = port.direction === "in"
-  flexRow({
-    x: row.x,
-    y: row.y,
-    w: row.w,
-    h: row.h,
-    gap: metrics.rowGap,
-    alignItems: "stretch",
-    items: incoming
-      ? [edgeItem, insetItem, labelItem, directionItem, insetItem]
-      : [insetItem, directionItem, labelItem, insetItem, edgeItem],
-  })
+  const left = port.side === "left" || (port.side === undefined && port.direction === "in")
   return {
     port,
     row,
     marker: {
-      x: markerAnchor.x - metrics.markerSize / 2,
-      y: markerAnchor.y + (markerAnchor.h - metrics.markerSize) / 2,
+      x: (left ? row.x : row.x + row.w) - metrics.markerSize / 2,
+      y: row.y + (row.h - metrics.markerSize) / 2,
       w: metrics.markerSize,
       h: metrics.markerSize,
     },
-    label,
-    direction,
   }
 }
 
-function orderedPorts(node: NodeSystemNode): readonly NodeSystemPort[] {
-  return [...(node.ports ?? [])].sort((left, right) => compareIds(left.id, right.id))
+function parameterPorts(node: NodeSystemNode, parameterId: string): readonly NodeSystemPort[] {
+  return (node.ports ?? [])
+    .filter((port) => port.parameterId === parameterId)
+    .sort((left, right) => portVisualSide(left).localeCompare(portVisualSide(right)) || compareIds(left.id, right.id))
+}
+
+function portVisualSide(port: NodeSystemPort): NodeSystemPortSide {
+  if (port.side !== undefined) return port.side
+  return port.direction === "in" ? "left" : "right"
 }
 
 function scaledMetrics(scale: number): typeof NODE_SYSTEM_CARD_METRICS {
@@ -384,10 +352,4 @@ export function memoizedTextMeasurer(
     cache.set(key, width)
     return width
   }
-}
-
-export function nodeSystemPortDirectionLabel(direction: NodeSystemPort["direction"]): string {
-  if (direction === "in") return "вход"
-  if (direction === "out") return "выход"
-  return "вход-выход"
 }

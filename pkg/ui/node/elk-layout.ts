@@ -22,13 +22,19 @@ import type {
 import {
   measureNodeSystemCard,
   memoizedTextMeasurer,
+  NODE_SYSTEM_PORT_PITCH,
   nodeSystemGeometryKey,
   planNodeSystemCard,
   type NodeSystemTextMeasurer,
 } from "./card-layout.ts"
+import {
+  indexNodeSystemContainment,
+  type NodeSystemContainmentIndex,
+} from "./containment.ts"
 import {validateNodeSystemDocument} from "./validation.ts"
 
-export type NodeSystemLayoutDirection = "RIGHT" | "DOWN" | "LEFT" | "UP"
+/** The node-system contract has exactly two responsive ELK layouts. */
+export type NodeSystemLayoutDirection = "RIGHT" | "DOWN"
 
 export type ElkNodeSystemLayoutOptions = Readonly<{
   direction?: NodeSystemLayoutDirection
@@ -40,14 +46,18 @@ export type ElkNodeSystemLayoutOptions = Readonly<{
 }>
 
 export interface NodeSystemLayouter {
-  layout(document: NodeSystemDocument): Promise<PositionedNodeSystem>
+  layout(
+    document: NodeSystemDocument,
+    overrides?: ElkNodeSystemLayoutOptions,
+  ): Promise<PositionedNodeSystem>
 }
 
 const PORT_SIZE = 8
 
 /**
- * One deterministic layered layout. Input order never controls the result:
- * explicit `order` and then stable IDs define ELK model order.
+ * One deterministic compound ELK layout. The adapter only measures intrinsic
+ * card content and translates the domain tree into ELK JSON; ELK owns every
+ * node position, compound size and edge section.
  */
 export class ElkNodeSystemLayouter implements NodeSystemLayouter {
   readonly #workerUrls: string[] = []
@@ -61,16 +71,23 @@ export class ElkNodeSystemLayouter implements NodeSystemLayouter {
 
   constructor(private readonly options: ElkNodeSystemLayoutOptions = {}) {}
 
-  async layout(document: NodeSystemDocument): Promise<PositionedNodeSystem> {
+  async layout(
+    document: NodeSystemDocument,
+    overrides: ElkNodeSystemLayoutOptions = {},
+  ): Promise<PositionedNodeSystem> {
     validateNodeSystemDocument(document)
-    const measureText = memoizedTextMeasurer(this.options.measureText)
+    const options = {...this.options, ...overrides}
+    const measureText = memoizedTextMeasurer(options.measureText)
     const nodes = [...document.nodes].sort(compareOrdered)
     const edges = [...document.edges].sort(compareOrdered)
+    const containment = indexNodeSystemContainment(nodes)
+    const edgesByOwner = indexEdgesByLayoutOwner(edges, containment)
     const graph: ElkNode = {
       id: "node-system-root",
-      children: nodes.map((node) => toElkNode(node, measureText)),
-      edges: edges.map(toElkEdge),
-      layoutOptions: rootLayoutOptions(this.options),
+      children: containment.roots.map((node) =>
+        toElkNode(node, containment, edgesByOwner, options, measureText)),
+      edges: (edgesByOwner.get(null) ?? []).map(toElkEdge),
+      layoutOptions: rootLayoutOptions(options),
     }
     const result = await this.#elk.layout(graph)
     return positionedDocument(
@@ -90,26 +107,69 @@ export class ElkNodeSystemLayouter implements NodeSystemLayouter {
 }
 
 function rootLayoutOptions(options: ElkNodeSystemLayoutOptions): Record<string, string> {
-  const direction = options.direction ?? "RIGHT"
-  const nodeSpacing = finitePositive(options.nodeSpacing, 46)
-  const layerSpacing = finitePositive(options.layerSpacing, 86)
-  const padding = finitePositive(options.padding, 40)
+  const padding = positiveOption(options.padding, NODE_SYSTEM_PORT_PITCH)
   return {
-    "elk.algorithm": "layered",
-    "elk.direction": direction,
-    "elk.edgeRouting": "SPLINES",
-    "elk.padding": `[top=${padding},left=${padding},bottom=${padding},right=${padding}]`,
-    "elk.spacing.nodeNode": String(nodeSpacing),
-    "elk.layered.spacing.nodeNodeBetweenLayers": String(layerSpacing),
-    "elk.layered.considerModelOrder.strategy": "NODES_AND_EDGES",
-    "elk.layered.crossingMinimization.forceNodeModelOrder": "true",
-    "elk.layered.cycleBreaking.strategy": "MODEL_ORDER",
+    ...parentLayoutOptions(options),
+    "elk.hierarchyHandling": "INCLUDE_CHILDREN",
+    "elk.json.shapeCoords": "ROOT",
+    "elk.json.edgeCoords": "ROOT",
+    "elk.padding": elkPadding(padding, padding, padding, padding),
   }
 }
 
-function toElkNode(node: NodeSystemNode, measureText?: NodeSystemTextMeasurer): ElkNode {
+/** ELK parent options are assigned at every compound level; they are not CSS inheritance. */
+function parentLayoutOptions(options: ElkNodeSystemLayoutOptions): Record<string, string> {
+  const nodeSpacing = positiveOption(options.nodeSpacing, NODE_SYSTEM_PORT_PITCH)
+  const layerSpacing = positiveOption(options.layerSpacing, NODE_SYSTEM_PORT_PITCH)
+  const routeSpacing = NODE_SYSTEM_PORT_PITCH
+  const direction = options.direction ?? "RIGHT"
+  return {
+    "elk.algorithm": "layered",
+    "elk.direction": direction,
+    "elk.edgeRouting": "ORTHOGONAL",
+    "elk.spacing.nodeNode": String(nodeSpacing),
+    "elk.layered.spacing.nodeNodeBetweenLayers": String(layerSpacing),
+    "elk.spacing.edgeEdge": String(routeSpacing),
+    "elk.layered.spacing.edgeEdgeBetweenLayers": String(routeSpacing),
+    "elk.spacing.edgeNode": String(routeSpacing),
+    "elk.layered.spacing.edgeNodeBetweenLayers": String(routeSpacing),
+    "elk.spacing.portPort": String(Math.max(0, NODE_SYSTEM_PORT_PITCH - PORT_SIZE)),
+    "elk.spacing.componentComponent": String(nodeSpacing),
+    "elk.layered.layering.strategy": "NETWORK_SIMPLEX",
+    "elk.layered.mergeEdges": "false",
+    "elk.layered.mergeHierarchyEdges": "false",
+    // Order is stable input metadata, not geometry authority. Forcing it while
+    // ELK only "prefers" nodes is invalid for cyclic compound graphs and can
+    // fail inside crossing minimization.
+    "elk.layered.considerModelOrder.strategy": "NONE",
+    "elk.layered.crossingMinimization.forceNodeModelOrder": "false",
+  }
+}
+
+function toElkNode(
+  node: NodeSystemNode,
+  containment: NodeSystemContainmentIndex,
+  edgesByOwner: ReadonlyMap<string | null, readonly NodeSystemEdge[]>,
+  options: ElkNodeSystemLayoutOptions,
+  measureText?: NodeSystemTextMeasurer,
+): ElkNode {
   const size = measureNodeSystemCard(node, measureText)
   const card = planNodeSystemCard(node, {x: 0, y: 0, w: size.width, h: size.height}, 1, measureText)
+  const children = containment.childrenByParent.get(node.id) ?? []
+  const layoutOptions: Record<string, string> = {
+    "elk.portConstraints": "FIXED_POS",
+  }
+  if (children.length > 0) {
+    const padding = positiveOption(options.padding, NODE_SYSTEM_PORT_PITCH)
+    Object.assign(layoutOptions, parentLayoutOptions(options))
+    // NETWORK_SIMPLEX node placement is a compound-level option. Applying it
+    // to the root breaks cyclic DOWN graphs in elkjs; metafor-space keeps the
+    // same ownership boundary.
+    layoutOptions["elk.layered.nodePlacement.strategy"] = "NETWORK_SIMPLEX"
+    layoutOptions["elk.padding"] = elkPadding(size.height + padding, padding, padding, padding)
+    layoutOptions["elk.nodeSize.constraints"] = "MINIMUM_SIZE"
+    layoutOptions["elk.nodeSize.minimum"] = `(${size.width},${size.height})`
+  }
   return {
     id: node.id,
     width: size.width,
@@ -125,10 +185,56 @@ function toElkNode(node: NodeSystemNode, measureText?: NodeSystemTextMeasurer): 
         "elk.port.borderOffset": String(-PORT_SIZE / 2),
       },
     })),
-    layoutOptions: {
-      "elk.portConstraints": "FIXED_POS",
-    },
+    ...(children.length === 0 ? {} : {
+      children: children.map((child) =>
+        toElkNode(child, containment, edgesByOwner, options, measureText)),
+    }),
+    ...((edgesByOwner.get(node.id)?.length ?? 0) === 0 ? {} : {
+      edges: edgesByOwner.get(node.id)!.map(toElkEdge),
+    }),
+    layoutOptions,
   }
+}
+
+/**
+ * ELK edges belong to the lowest graph that contains both endpoint shapes.
+ * Keeping every edge at root turns internal transports into hierarchy-crossing
+ * routes and needlessly expands their compound owner.
+ */
+function indexEdgesByLayoutOwner(
+  edges: readonly NodeSystemEdge[],
+  containment: NodeSystemContainmentIndex,
+): ReadonlyMap<string | null, readonly NodeSystemEdge[]> {
+  const result = new Map<string | null, NodeSystemEdge[]>()
+  for (const edge of edges) {
+    const owner = lowestCommonContainer(edge, containment)
+    const owned = result.get(owner) ?? []
+    owned.push(edge)
+    result.set(owner, owned)
+  }
+  return result
+}
+
+function lowestCommonContainer(
+  edge: NodeSystemEdge,
+  containment: NodeSystemContainmentIndex,
+): string | null {
+  const sourceAncestors = containerAncestors(edge.source.nodeId, containment.parentByChild)
+  const targetAncestors = new Set(containerAncestors(edge.target.nodeId, containment.parentByChild))
+  return sourceAncestors.find((nodeId) => targetAncestors.has(nodeId)) ?? null
+}
+
+function containerAncestors(
+  nodeId: string,
+  parentByChild: ReadonlyMap<string, string>,
+): readonly string[] {
+  const result: string[] = []
+  let current = parentByChild.get(nodeId)
+  while (current !== undefined) {
+    result.push(current)
+    current = parentByChild.get(current)
+  }
+  return result
 }
 
 function toElkEdge(edge: NodeSystemEdge): ElkExtendedEdge {
@@ -147,81 +253,84 @@ function positionedDocument(
   geometryKey: string,
   measureText?: NodeSystemTextMeasurer,
 ): PositionedNodeSystem {
-  const elkNodes = new Map((graph.children ?? []).map((node) => [node.id, node]))
-  const positionedNodes = sourceNodes.map((node): PositionedNodeSystemNode => {
-    const laidOut = required(elkNodes.get(node.id), `ELK omitted node: ${node.id}`)
-    const x = finite(laidOut.x, `ELK returned invalid x for node: ${node.id}`)
-    const y = finite(laidOut.y, `ELK returned invalid y for node: ${node.id}`)
-    const size = measureNodeSystemCard(node, measureText)
-    const width = finitePositive(laidOut.width, size.width)
-    const height = finitePositive(laidOut.height, size.height)
-    const elkPorts = new Map((laidOut.ports ?? []).map((port) => [port.id, port]))
-    const ports = [...(node.ports ?? [])]
-      .sort((left, right) => compareIds(left.id, right.id))
-      .map((port): PositionedNodeSystemPort => {
-        const laidOutPort = required(elkPorts.get(elkPortId(node.id, port.id)), `ELK omitted port: ${node.id}/${port.id}`)
-        return {
-          port,
-          center: {
-            x: x + finite(laidOutPort.x, `ELK returned invalid port x: ${node.id}/${port.id}`) + finitePositive(laidOutPort.width, PORT_SIZE) / 2,
-            y: y + finite(laidOutPort.y, `ELK returned invalid port y: ${node.id}/${port.id}`) + finitePositive(laidOutPort.height, PORT_SIZE) / 2,
-          },
-        }
-      })
-    return {node, rect: {x, y, w: width, h: height}, ports}
-  })
+  const sourceById = new Map(sourceNodes.map((node) => [node.id, node]))
+  const positionedById = new Map<string, PositionedNodeSystemNode>()
+  flattenElkNodes(graph.children ?? [], sourceById, positionedById, measureText)
+  const positionedNodes = sourceNodes.map((node) =>
+    required(positionedById.get(node.id), `ELK omitted node: ${node.id}`))
 
-  const byNode = new Map(positionedNodes.map((entry) => [entry.node.id, entry]))
-  const elkEdges = new Map((graph.edges ?? []).map((edge) => [edge.id, edge]))
+  const elkEdges = new Map(collectElkEdges(graph).map((edge) => [edge.id, edge]))
   const positionedEdges = sourceEdges.map((edge): PositionedNodeSystemEdge => {
     const laidOut = required(elkEdges.get(edge.id), `ELK omitted edge: ${edge.id}`)
-    const points = edgePoints(laidOut.sections ?? [], edge, byNode)
-    return {edge, points}
+    const routed = edgePoints(laidOut.sections ?? [])
+    if (routed.length < 2) throw new Error(`ELK omitted routed sections for edge: ${edge.id}`)
+    return {edge, points: routed}
   })
 
-  const result: PositionedNodeSystem = {
+  return {
     geometryKey,
     bounds: {
       x: finite(graph.x ?? 0, "ELK returned invalid graph x"),
       y: finite(graph.y ?? 0, "ELK returned invalid graph y"),
-      w: finitePositive(graph.width, contentExtent(positionedNodes, "x")),
-      h: finitePositive(graph.height, contentExtent(positionedNodes, "y")),
+      w: positiveElkGeometry(graph.width, "ELK returned invalid graph width"),
+      h: positiveElkGeometry(graph.height, "ELK returned invalid graph height"),
     },
     nodes: positionedNodes,
     edges: positionedEdges,
     ...(document.revision === undefined ? {} : {revision: document.revision}),
   }
-  return result
 }
 
-function edgePoints(
-  sections: readonly ElkEdgeSection[],
-  edge: NodeSystemEdge,
-  nodes: ReadonlyMap<string, PositionedNodeSystemNode>,
-): readonly NodeSystemPoint[] {
-  const ordered = [...sections].sort((left, right) => compareIds(left.id, right.id))
-  if (ordered.length === 0) return [endpointCenter(edge.source, nodes), endpointCenter(edge.target, nodes)]
+function collectElkEdges(graph: ElkNode): readonly ElkExtendedEdge[] {
+  return [
+    ...(graph.edges ?? []),
+    ...(graph.children ?? []).flatMap(collectElkEdges),
+  ]
+}
+
+function flattenElkNodes(
+  nodes: readonly ElkNode[],
+  sourceById: ReadonlyMap<string, NodeSystemNode>,
+  positionedById: Map<string, PositionedNodeSystemNode>,
+  measureText?: NodeSystemTextMeasurer,
+): void {
+  for (const laidOut of nodes) {
+    const node = required(sourceById.get(laidOut.id), `ELK returned unknown node: ${laidOut.id}`)
+    const rect = {
+      x: finite(laidOut.x, `ELK returned invalid x for node: ${node.id}`),
+      y: finite(laidOut.y, `ELK returned invalid y for node: ${node.id}`),
+      w: positiveElkGeometry(laidOut.width, `ELK returned invalid width for node: ${node.id}`),
+      h: positiveElkGeometry(laidOut.height, `ELK returned invalid height for node: ${node.id}`),
+    }
+    const elkPorts = new Map((laidOut.ports ?? []).map((port) => [port.id, port]))
+    const ports = (node.ports ?? []).map((port): PositionedNodeSystemPort => {
+      const laidOutPort = required(
+        elkPorts.get(elkPortId(node.id, port.id)),
+        `ELK omitted port: ${node.id}/${port.id}`,
+      )
+      return {
+        port,
+        center: {
+          x: finite(laidOutPort.x, `ELK returned invalid port x: ${node.id}/${port.id}`)
+            + positiveElkGeometry(laidOutPort.width, `ELK returned invalid port width: ${node.id}/${port.id}`) / 2,
+          y: finite(laidOutPort.y, `ELK returned invalid port y: ${node.id}/${port.id}`)
+            + positiveElkGeometry(laidOutPort.height, `ELK returned invalid port height: ${node.id}/${port.id}`) / 2,
+        },
+      }
+    })
+    positionedById.set(node.id, {node, rect, ports})
+    flattenElkNodes(laidOut.children ?? [], sourceById, positionedById, measureText)
+  }
+}
+
+function edgePoints(sections: readonly ElkEdgeSection[]): readonly NodeSystemPoint[] {
   const points: NodeSystemPoint[] = []
-  for (const section of ordered) {
+  for (const section of sections) {
     appendPoint(points, section.startPoint)
     for (const point of section.bendPoints ?? []) appendPoint(points, point)
     appendPoint(points, section.endPoint)
   }
   return points
-}
-
-function endpointCenter(
-  endpoint: NodeSystemEndpoint,
-  nodes: ReadonlyMap<string, PositionedNodeSystemNode>,
-): NodeSystemPoint {
-  const node = required(nodes.get(endpoint.nodeId), `Missing positioned node: ${endpoint.nodeId}`)
-  if (endpoint.portId !== undefined) {
-    return required(
-      node.ports.find((entry) => entry.port.id === endpoint.portId),
-      `Missing positioned port: ${endpoint.nodeId}/${endpoint.portId}`,
-    ).center
-  }
-  return {x: node.rect.x + node.rect.w / 2, y: node.rect.y + node.rect.h / 2}
 }
 
 function appendPoint(points: NodeSystemPoint[], point: ElkPoint): void {
@@ -235,22 +344,23 @@ function appendPoint(points: NodeSystemPoint[], point: ElkPoint): void {
 }
 
 function elkEndpointId(endpoint: NodeSystemEndpoint): string {
-  return endpoint.portId === undefined ? endpoint.nodeId : elkPortId(endpoint.nodeId, endpoint.portId)
+  return elkPortId(endpoint.nodeId, endpoint.portId)
 }
 
 function elkPortId(nodeId: string, portId: string): string {
   return `${nodeId}\u0000${portId}`
 }
 
-function portSide(port: NodeSystemPort): "WEST" | "EAST" | "SOUTH" {
+function portSide(port: NodeSystemPort): "WEST" | "EAST" {
+  if (port.side === "left") return "WEST"
+  if (port.side === "right") return "EAST"
   if (port.direction === "in") return "WEST"
   if (port.direction === "out") return "EAST"
-  return "SOUTH"
+  return "EAST"
 }
 
-function contentExtent(nodes: readonly PositionedNodeSystemNode[], axis: "x" | "y"): number {
-  if (nodes.length === 0) return 1
-  return Math.max(...nodes.map(({rect}) => axis === "x" ? rect.x + rect.w : rect.y + rect.h))
+function elkPadding(top: number, left: number, bottom: number, right: number): string {
+  return `[top=${top},left=${left},bottom=${bottom},right=${right}]`
 }
 
 function compareOrdered<T extends {id: string; order?: number}>(left: T, right: T): number {
@@ -266,8 +376,13 @@ function finite(value: number | undefined, message: string): number {
   return value
 }
 
-function finitePositive(value: number | undefined, fallback: number): number {
+function positiveOption(value: number | undefined, fallback: number): number {
   return value !== undefined && Number.isFinite(value) && value > 0 ? value : fallback
+}
+
+function positiveElkGeometry(value: number | undefined, message: string): number {
+  if (value === undefined || !Number.isFinite(value) || value <= 0) throw new Error(message)
+  return value
 }
 
 function required<T>(value: T | undefined, message: string): T {

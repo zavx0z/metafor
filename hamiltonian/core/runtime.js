@@ -8,7 +8,15 @@
  * @property {string} leaseId
  * @property {number} expiresAt
  */
-/** @typedef {{frame: string, bytes: number, messageClass: string}} QueuedFrame */
+/**
+ * @typedef {object} LogicalTrafficEvent
+ * @property {LogicalLane} lane
+ * @property {"forward" | "reverse"} direction
+ * @property {string} messageClass
+ * @property {string} messageId
+ * @property {number} sequence
+ */
+/** @typedef {{frame: string, bytes: number, messageClass: string, messageId: string, sequence: number}} QueuedFrame */
 /**
  * @typedef {object} LaneState
  * @property {any} channel
@@ -209,11 +217,13 @@ export class LogicalChannelSession {
   #maxQueuedMessages
   /** @type {number} */
   #highWaterMark
+  /** @type {() => string} */
+  #messageIds
   /** @type {Map<LogicalLane, Set<(payload: any, frame: any) => unknown>>} */
   #handlers = new Map()
   /** @type {(event: ProtocolEvent) => unknown} */
   #protocolHandler
-  /** @type {(event: {lane: LogicalLane, direction: "forward" | "reverse", messageClass: string}) => unknown} */
+  /** @type {(event: LogicalTrafficEvent) => unknown} */
   #trafficHandler
   /** @type {Set<(reason: string) => unknown>} */
   #closeHandlers = new Set()
@@ -227,8 +237,9 @@ export class LogicalChannelSession {
    * @param {number} [options.maxQueuedBytesPerLane]
    * @param {number} [options.maxQueuedMessagesPerLane]
    * @param {number} [options.highWaterMark]
+   * @param {() => string} [options.messageIds]
    * @param {(event: ProtocolEvent) => unknown} [options.onProtocolEvent]
-   * @param {(event: {lane: LogicalLane, direction: "forward" | "reverse", messageClass: string}) => unknown} [options.onTraffic]
+   * @param {(event: LogicalTrafficEvent) => unknown} [options.onTraffic]
    */
   constructor({
     sessionEpoch,
@@ -237,6 +248,7 @@ export class LogicalChannelSession {
     maxQueuedBytesPerLane = 256 * 1024,
     maxQueuedMessagesPerLane = 128,
     highWaterMark = 64 * 1024,
+    messageIds = randomLogicalMessageId,
     onProtocolEvent = () => {},
     onTraffic = () => {},
   }) {
@@ -246,6 +258,7 @@ export class LogicalChannelSession {
     this.#maxQueuedBytes = maxQueuedBytesPerLane
     this.#maxQueuedMessages = maxQueuedMessagesPerLane
     this.#highWaterMark = highWaterMark
+    this.#messageIds = messageIds
     this.#protocolHandler = onProtocolEvent
     this.#trafficHandler = onTraffic
     this.#lanes = new Map()
@@ -289,10 +302,13 @@ export class LogicalChannelSession {
     const state = this.#lanes.get(lane)
     if (!state) throw new Error(`unknown logical channel: ${lane}`)
     const nextSequence = state.sendSeq + 1
+    const messageId = this.#messageIds()
+    if (!validLogicalMessageId(messageId)) throw new Error("invalid logical message identity")
     const frame = JSON.stringify({
       sessionEpoch: this.#sessionEpoch,
       lane,
       sequence: nextSequence,
+      messageId,
       payload,
     })
     const bytes = encoder.encode(frame).byteLength
@@ -301,7 +317,7 @@ export class LogicalChannelSession {
     if (state.channel.readyState === "open" && state.channel.bufferedAmount < this.#highWaterMark) {
       state.channel.send(frame)
       state.sendSeq = nextSequence
-      this.#trafficHandler({lane, direction: "forward", messageClass})
+      this.#trafficHandler({lane, direction: "forward", messageClass, messageId, sequence: nextSequence})
       return nextSequence
     }
     if (
@@ -310,7 +326,7 @@ export class LogicalChannelSession {
     ) {
       throw new Error(`backpressure-limit:${lane}`)
     }
-    state.queue.push({frame, bytes, messageClass})
+    state.queue.push({frame, bytes, messageClass, messageId, sequence: nextSequence})
     state.queuedBytes += bytes
     state.sendSeq = nextSequence
     return nextSequence
@@ -354,7 +370,13 @@ export class LogicalChannelSession {
       if (!item) return
       state.queuedBytes -= item.bytes
       state.channel.send(item.frame)
-      this.#trafficHandler({lane, direction: "forward", messageClass: item.messageClass})
+      this.#trafficHandler({
+        lane,
+        direction: "forward",
+        messageClass: item.messageClass,
+        messageId: item.messageId,
+        sequence: item.sequence,
+      })
     }
   }
 
@@ -386,7 +408,8 @@ export class LogicalChannelSession {
     if (
       frame.lane !== physicalLane ||
       !Number.isSafeInteger(frame.sequence) ||
-      frame.sequence < 1
+      frame.sequence < 1 ||
+      !validLogicalMessageId(frame.messageId)
     ) {
       this.#protocolHandler({kind: "invalid-envelope", lane: physicalLane})
       return
@@ -410,6 +433,8 @@ export class LogicalChannelSession {
       lane: physicalLane,
       direction: "reverse",
       messageClass: logicalMessageClass(frame.payload),
+      messageId: frame.messageId,
+      sequence: frame.sequence,
     })
     for (const handler of this.#handlers.get(physicalLane) ?? []) handler(frame.payload, frame)
   }
@@ -420,6 +445,19 @@ function logicalMessageClass(payload) {
   if (!payload || typeof payload !== "object") return "message"
   const type = /** @type {{type?: unknown}} */ (payload).type
   return typeof type === "string" && /^[A-Za-z0-9._:-]{1,64}$/.test(type) ? type : "message"
+}
+
+function randomLogicalMessageId() {
+  try {
+    return `rtc-message:${crypto.randomUUID()}`
+  } catch {
+    return `rtc-message:${Date.now()}:${Math.random().toString(36).slice(2)}`
+  }
+}
+
+/** @param {unknown} value */
+function validLogicalMessageId(value) {
+  return typeof value === "string" && value.length > 0 && value.length <= 256
 }
 
 export class PeerProtocol {

@@ -1,6 +1,12 @@
 import {Button, StatusChip, Typography, uiIcons} from "@ui/components"
 import {UiSurface, div, flexColumn, flexRow, type UiSurfaceOpts} from "@ui/elements"
-import {HudSideTab, HudWindow, type HudPaneFrameChange, type HudWindowTitleBarAction} from "@ui/hud"
+import {
+  HUD_WINDOW_TITLE_HEIGHT,
+  HudSideTab,
+  HudWindow,
+  type HudPaneFrameChange,
+  type HudWindowTitleBarAction,
+} from "@ui/hud"
 import type {NodeSystemAction, NodeSystemNode} from "./model.ts"
 
 export type NodeInspectorSurfaceOptions = UiSurfaceOpts & Readonly<{
@@ -42,6 +48,7 @@ const INSPECTOR_ROW_HEIGHT = 22
 const INSPECTOR_ROW_GAP = 2
 const INSPECTOR_ACTION_HEIGHT = 28
 const INSPECTOR_ACTION_GAP = 6
+export const NODE_INSPECTOR_TITLE_HEIGHT = HUD_WINDOW_TITLE_HEIGHT
 
 export function nodeInspectorRowsHeight(rowCount: number): number {
   const count = Math.max(0, Math.floor(rowCount))
@@ -83,7 +90,7 @@ export class NodeInspectorSurface extends UiSurface {
       ...(options.borderRadiusPx === undefined ? {} : {borderRadiusPx: options.borderRadiusPx}),
       ...(options.padding === undefined ? {} : {padding: options.padding}),
     })
-    this.#title = options.title ?? "ИНСПЕКТОР"
+    this.#title = options.title ?? "Нода не выбрана"
     this.#open = options.open ?? true
     this.#onOpenChange = options.onOpenChange
     this.#onFrameRectChange = options.onFrameRectChange
@@ -125,14 +132,15 @@ export class NodeInspectorSurface extends UiSurface {
       return
     }
     const body = HudWindow(this, 0, 0, this.rectW, this.rectH, {
-      title: this.#title,
+      title: this.#node?.title ?? this.#title,
+      ...(this.#node?.kind === undefined ? {} : {subtitle: this.#node.kind}),
       active: true,
       movable: true,
       resizable: true,
       minWidth: 240,
       minHeight: 220,
       ...(this.#onFrameRectChange === undefined ? {} : {onFrameRectChange: this.#onFrameRectChange}),
-      height: 38,
+      height: NODE_INSPECTOR_TITLE_HEIGHT,
       bodyInsetX: 18,
       bodyTopGap: 8,
       bodyBottomInset: 18,

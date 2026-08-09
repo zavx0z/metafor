@@ -24,4 +24,16 @@ describe("UI polyline stroke geometry", () => {
     expect(createUiPolylineStrokeGeometry([{x: 0, y: 0}, {x: 1, y: 0}], 0)).toBeNull()
     expect(createUiPolylineStrokeGeometry([{x: 0, y: 0}, {x: Number.NaN, y: 0}], 2)).toBeNull()
   })
+
+  test("drops a near-duplicate join without hiding the remaining stroke", () => {
+    const geometry = createUiPolylineStrokeGeometry([
+      {x: 0, y: 0},
+      {x: 1e-9, y: 0},
+      {x: 10, y: 0},
+    ], 2)
+
+    expect(geometry).not.toBeNull()
+    expect(geometry?.attributes.position?.count).toBe(4)
+    expect(Array.from(geometry?.index?.array ?? [])).toEqual([0, 1, 2, 2, 1, 3])
+  })
 })
