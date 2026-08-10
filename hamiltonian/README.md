@@ -113,12 +113,21 @@ listener эта оптимизация не включается. Режимы p
 `LayoutGraph → LayoutResult` протоколом. Hamiltonian адаптирует собственные
 наблюдения в UI-модель и добавляет только уже существующие lifecycle actions.
 Generic `parentId` задаёт только визуальный контейнер и не сообщает пакету
-предметный смысл ownership. Hamiltonian выставляет его только для наблюдённых
-`page`, `service-worker`, `window-main`, `dedicated-worker` и `rtc-peer`, чей
-фактический `ownerId` уже присутствует в текущей причинной проекции. Сам
-`browser-runtime` становится root owner только после page-наблюдения, а
-Service Worker получает его как parent только после направленного
-`connect-window`.
+предметный смысл ownership. В браузерной части Hamiltonian выставляет его для
+наблюдённых `page`, `service-worker`, `window-main`, `dedicated-worker` и
+`rtc-peer`, чей фактический `ownerId` уже присутствует в текущей причинной
+проекции. Сам `browser-runtime` становится root owner только после
+page-наблюдения, а Service Worker получает его как parent только после
+направленного `connect-window`.
+
+Серверная часть собрана в отдельный presentation-only контейнер `Сервер`. У
+него нет параметров, transport-сокетов и действий; он не является lifecycle
+entity или endpoint. Внутри находятся фактический Bun host Hamiltonian и
+принадлежащие ему Bun/peer OS processes, а серверный `RTCPeerConnection`
+остаётся внутри своего `Peer process`. Все transport продолжают заканчиваться
+на фактических runtime-нодах, поэтому визуальная группировка не меняет
+причинную проекцию.
+
 Диагностическое пересоздание локального MessagePort не показывается в
 Inspector: тихий канал и смена Service Worker controller уже восстанавливаются
 автоматически, а legacy-кнопка остаётся только на резервном debug-экране.
