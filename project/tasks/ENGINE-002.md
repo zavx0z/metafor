@@ -111,3 +111,10 @@ uniform-данных и матриц костей должно сократит�
   изменение GPU-времени не утверждается. Frame-health sample снят отдельно от
   capture, но текущая CDP-сессия уже была instrumented; он не считается новым
   clean cold-start измерением.
+
+## Решение по независимому ревью
+
+Renderer-level regression test полного skinned path не блокирует эту задачу.
+По решению владельца он вынесен в будущую задачу
+[`ENGINE-003 — Сквозной тест skinned mesh в Renderer`](ENGINE-003.md) и будет
+выполнен вместе с предметной работой над skinned mesh.

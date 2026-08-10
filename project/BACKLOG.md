@@ -6,22 +6,23 @@
 
 ## Черновики с карточками
 
-| ID      | Состояние | Область        | Наблюдение                                          | Карточка                         |
-| ------- | --------- | -------------- | --------------------------------------------------- | -------------------------------- |
-| BND-001 | DRAFT     | Boundary       | Приватный WIMP-клон для одного Atom                 | [Открыть](tasks/BND-001.md)      |
-| BND-002 | DRAFT     | Boundary       | Завершение долгих действий и многочастичный cut     | [Открыть](tasks/BND-002.md)      |
-| BND-003 | DRAFT     | Force          | Сквозное доказательство fail-stop                   | [Открыть](tasks/BND-003.md)      |
-| BND-004 | DRAFT     | Boundary       | Миграция типа Field и ожидание enum default         | [Открыть](tasks/BND-004.md)      |
-| BND-005 | DRAFT     | Boundary       | Ограничение стоимости локальных изменений           | [Открыть](tasks/BND-005.md)      |
-| BND-006 | DRAFT     | Contour        | Живая приёмка Browser Process                       | [Открыть](tasks/BND-006.md)      |
-| ENG-001 | DRAFT     | Energy         | Перепроверка зависимых рисков Energy                | [Открыть](tasks/ENG-001.md)      |
-| MTX-005 | DRAFT     | Matrix         | Проверочная подмена устройства                      | [Открыть](tasks/MTX-005.md)      |
-| BLK-001 | DRAFT     | Bulk           | Поверхность выбранного объекта                      | [Открыть](tasks/BLK-001.md)      |
-| BLK-002 | DRAFT     | Bulk           | Детальный просмотр сущности                         | [Открыть](tasks/BLK-002.md)      |
-| BLK-003 | DRAFT     | Bulk / Visual  | Проекция Atom и обработчики на орбите State         | [Открыть](tasks/BLK-003.md)      |
-| DRK-002 | DRAFT     | Dark / Contour | Online-изменения без остановки мира                 | [Открыть](tasks/DRK-002.md)      |
-| MF-408  | DRAFT     | Dark / Source  | Человеческий `meta.ts` authoring в live world       | [Открыть](tasks/MF-408.md)       |
-| MF-410  | DRAFT     | Связь доменов  | Прямой обмен командами и событиями после знакомства | [Открыть](tasks/MF-410.md)       |
+| ID         | Состояние | Область        | Наблюдение                                          | Карточка                       |
+| ---------- | --------- | -------------- | --------------------------------------------------- | ------------------------------ |
+| BND-001    | DRAFT     | Boundary       | Приватный WIMP-клон для одного Atom                 | [Открыть](tasks/BND-001.md)    |
+| BND-002    | DRAFT     | Boundary       | Завершение долгих действий и многочастичный cut     | [Открыть](tasks/BND-002.md)    |
+| BND-003    | DRAFT     | Force          | Сквозное доказательство fail-stop                   | [Открыть](tasks/BND-003.md)    |
+| BND-004    | DRAFT     | Boundary       | Миграция типа Field и ожидание enum default         | [Открыть](tasks/BND-004.md)    |
+| BND-005    | DRAFT     | Boundary       | Ограничение стоимости локальных изменений           | [Открыть](tasks/BND-005.md)    |
+| BND-006    | DRAFT     | Contour        | Живая приёмка Browser Process                       | [Открыть](tasks/BND-006.md)    |
+| ENG-001    | DRAFT     | Energy         | Перепроверка зависимых рисков Energy                | [Открыть](tasks/ENG-001.md)    |
+| MTX-005    | DRAFT     | Matrix         | Проверочная подмена устройства                      | [Открыть](tasks/MTX-005.md)    |
+| BLK-001    | DRAFT     | Bulk           | Поверхность выбранного объекта                      | [Открыть](tasks/BLK-001.md)    |
+| BLK-002    | DRAFT     | Bulk           | Детальный просмотр сущности                         | [Открыть](tasks/BLK-002.md)    |
+| BLK-003    | DRAFT     | Bulk / Visual  | Проекция Atom и обработчики на орбите State         | [Открыть](tasks/BLK-003.md)    |
+| DRK-002    | DRAFT     | Dark / Contour | Online-изменения без остановки мира                 | [Открыть](tasks/DRK-002.md)    |
+| ENGINE-003 | DRAFT     | Engine / Skin  | Сквозной Renderer-тест матриц костей                | [Открыть](tasks/ENGINE-003.md) |
+| MF-408     | DRAFT     | Dark / Source  | Человеческий `meta.ts` authoring в live world       | [Открыть](tasks/MF-408.md)     |
+| MF-410     | DRAFT     | Связь доменов  | Прямой обмен командами и событиями после знакомства | [Открыть](tasks/MF-410.md)     |
 
 ## Зафиксировано без обсуждения
 
