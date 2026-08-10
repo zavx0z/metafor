@@ -130,9 +130,14 @@ Layout package не может сортировать или менять domain
   массивов.
 * Большие пустоты в portrait и compound считаются дефектом placement.
 
-Алгоритм сочетает layered median/barycenter ordering, ограниченную compaction по
-мотивам Brandes–Köpf и sparse visibility A*. ELK и Libavoid не являются
-runtime-зависимостями.
+По алгоритму выбран производительный гибрид: layered median/barycenter ordering,
+bounded compaction по мотивам
+[Brandes–Köpf](https://boriskoepf.de/papers/gd01a.pdf) и sparse visibility A* из
+подхода
+[orthogonal connector routing](https://users.monash.edu/~mwybrow/papers/wybrow-gd-2009.pdf).
+Network-simplex оставлен только как ориентир layered-архитектуры, описанной
+[Gansner et al.](https://graphviz.org/documentation/TSE93.pdf). ELK и Libavoid не
+являются runtime-зависимостями.
 
 ## TypeDoc и проверки
 

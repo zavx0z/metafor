@@ -27,7 +27,6 @@ flowchart LR
     MF413["MF-413 · единая RPC-поверхность Oracle"]
     MF414["MF-414 · воплощения доменов"]
     MF421["MF-421 · деактивация невидимого monitor display"]
-    MF422["MF-422 · layout package и Worker"]
     MTX001["MTX-001 · причинный порядок"]
     MTX002["MTX-002 · память"]
     MTX003["MTX-003 · структура и Process"]
@@ -110,7 +109,6 @@ Dark → Bulk wiring, DSL bootstrap и separate gates не входят в за�
 | ID      | Состояние   | Зависимости | Карточка                    |
 | ------- | ----------- | ----------- | --------------------------- |
 | MF-407  | READY       | нет         | [Открыть](tasks/MF-407.md)  |
-| MF-422  | REVIEW      | нет         | [Открыть](tasks/MF-422.md)  |
 | MF-421  | READY       | нет         | [Открыть](tasks/MF-421.md)  |
 | AUD-009 | READY       | нет         | [Открыть](tasks/AUD-009.md) |
 | AUD-005 | GATE        | нет         | [Открыть](tasks/AUD-005.md) |
