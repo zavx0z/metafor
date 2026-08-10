@@ -16,7 +16,6 @@
     "@metafor/engine": "workspace:*",
     "@ui/components": "workspace:*",
     "@ui/elements": "workspace:*",
-    "@ui/hud": "workspace:*",
-    "elkjs": "^0.11.1"
+    "@ui/hud": "workspace:*"
   }
 }

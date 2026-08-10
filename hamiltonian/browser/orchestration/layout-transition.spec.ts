@@ -116,7 +116,7 @@ describe("Hamiltonian topology layout transition", () => {
     }
   })
 
-  test("interpolates complete ELK bounds and routes instead of grafting moving endpoints onto target bends", () => {
+  test("interpolates complete layout bounds and routes instead of grafting moving endpoints onto target bends", () => {
     const previous: PositionedNodeSystem = {
       bounds: {x: 0, y: 0, w: 600, h: 300},
       nodes: [
@@ -150,7 +150,7 @@ describe("Hamiltonian topology layout transition", () => {
     expect(middle.edges[0]!.points.at(-1)).toEqual({x: 196, y: 240})
   })
 
-  test("reveals a new edge only with its completed target ELK route", () => {
+  test("reveals a new edge only with its completed target route", () => {
     const previous = layout([node("a", 10, 20), node("b", 300, 20)])
     const target: PositionedNodeSystem = {
       ...layout([node("a", 100, 100), node("b", 100, 400)]),

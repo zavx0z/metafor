@@ -60,6 +60,15 @@ const UNITS_PER_PIXEL = 1_000
 /**
  * Serializable synchronous core. A future Worker adapter can structured-clone
  * this input and result without changing placement or routing behavior.
+ *
+ * Placement combines layered median/barycenter ordering with bounded
+ * Brandes–Köpf-inspired compaction; routing uses an obstacle visibility grid
+ * and lexicographic A*. Network simplex is an architectural reference only,
+ * not a product dependency or solver.
+ *
+ * @see https://boriskoepf.de/papers/gd01a.pdf
+ * @see https://users.monash.edu/~mwybrow/papers/wybrow-gd-2009.pdf
+ * @see https://graphviz.org/documentation/TSE93.pdf
  */
 export function layoutGraph(input: PlacementInput): LayoutGraphResult {
   const placements = placementCandidates(input)
@@ -71,7 +80,7 @@ export function layoutGraph(input: PlacementInput): LayoutGraphResult {
   const preferredKey = input.viewport.width >= input.viewport.height
     ? stableKey(placeGraph(input))
     : null
-  const ordered = [...placements].sort((left, right) => {
+  const comparePlacementQuality = (left: PlacementResult, right: PlacementResult): number => {
     if (preferredKey !== null) {
       const leftPreferred = stableKey(left) === preferredKey
       const rightPreferred = stableKey(right) === preferredKey
@@ -92,15 +101,47 @@ export function layoutGraph(input: PlacementInput): LayoutGraphResult {
       const rightArea = right.bounds.w * right.bounds.h
       if (leftArea !== rightArea) return leftArea - rightArea
     }
-    return compareIds(stableKey(left), stableKey(right))
-  })
-  for (const placement of ordered) {
-    try {
-      const routing = routeGraph(placement.routeInput)
-      return {placement, routing, candidates: {generated: placements.length, routable: 1}}
-    } catch (error) {
-      if (!(error instanceof Error) || !error.message.startsWith("NO_LEGAL_ROUTE ")) throw error
+    return 0
+  }
+  const ordered = [...placements].sort((left, right) =>
+    comparePlacementQuality(left, right) || compareIds(stableKey(left), stableKey(right)))
+  const compareRoutingQuality = (left: LayoutGraphResult, right: LayoutGraphResult): number => {
+    const leftMetrics = left.routing.metrics
+    const rightMetrics = right.routing.metrics
+    const primary = leftMetrics.totalTurns - rightMetrics.totalTurns ||
+      leftMetrics.maxTurns - rightMetrics.maxTurns ||
+      left.placement.metrics.sourceCorridorDeficit - right.placement.metrics.sourceCorridorDeficit ||
+      leftMetrics.totalManhattan - rightMetrics.totalManhattan ||
+      leftMetrics.maxManhattan - rightMetrics.maxManhattan ||
+      leftMetrics.maxDetour - rightMetrics.maxDetour
+    if (primary !== 0) return primary
+    const leftDetours = [...leftMetrics.perEdge].sort((a, b) => compareIds(a.edgeId, b.edgeId)).map(({detour}) => detour)
+    const rightDetours = [...rightMetrics.perEdge].sort((a, b) => compareIds(a.edgeId, b.edgeId)).map(({detour}) => detour)
+    for (let index = 0; index < Math.max(leftDetours.length, rightDetours.length); index += 1) {
+      const difference = (leftDetours[index] ?? 0) - (rightDetours[index] ?? 0)
+      if (difference !== 0) return difference
     }
+    return leftMetrics.clearanceVariance - rightMetrics.clearanceVariance ||
+      leftMetrics.crossings - rightMetrics.crossings ||
+      compareIds(stableKey(left.placement), stableKey(right.placement))
+  }
+  for (let start = 0; start < ordered.length;) {
+    let end = start + 1
+    while (end < ordered.length && comparePlacementQuality(ordered[start]!, ordered[end]!) === 0) end += 1
+    const routable: LayoutGraphResult[] = []
+    for (const placement of ordered.slice(start, end)) {
+      try {
+        const routing = routeGraph(placement.routeInput)
+        routable.push({placement, routing, candidates: {generated: placements.length, routable: 0}})
+      } catch (error) {
+        if (!(error instanceof Error) || !error.message.startsWith("NO_LEGAL_ROUTE ")) throw error
+      }
+    }
+    if (routable.length > 0) {
+      const best = routable.sort(compareRoutingQuality)[0]!
+      return {...best, candidates: {generated: placements.length, routable: routable.length}}
+    }
+    start = end
   }
   throw new Error(
     `NO_LEGAL_LAYOUT: ${placements.length} generated placements provide no legal route graph`,
@@ -199,7 +240,6 @@ export class MetaForNodeSystemLayouter {
     return {positioned, result}
   }
 
-  dispose(): void {}
 }
 
 /**

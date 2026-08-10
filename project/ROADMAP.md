@@ -142,15 +142,15 @@ evidence.
 наблюдаемую инфраструктуру как WebGPU HUD-сцену MetaFor Engine, а не как
 статическую документационную диаграмму.
 
-Универсальная модель нод, первоначальная ELK-расстановка, стабильная
-incremental geometry, серверный Libavoid edge routing, viewport и presentation
-принадлежат `@ui/node`. Неизменившиеся ноды сохраняют координаты при
-структурном обновлении; Libavoid обходит их как фиксированные препятствия и не
-подменяет node placement. Ручной drag сохраняет origin-local presentation
-anchor и после отпускания повторно маршрутизирует рёбра; WebGPU скругляет
-безопасный Libavoid route локальными cubic Bézier segments. Смысл host, Service Worker, Window, Bun process, peer
-и lifecycle actions остаётся у Hamiltonian. `pkg/visual` не становится
-владельцем инфраструктурного графа мира.
+Универсальная модель нод, intrinsic card measurement, responsive placement,
+compound compaction, orthogonal routing, viewport и presentation принадлежат
+`@ui/node`. Один синхронный pure TypeScript engine получает serializable
+fixed-point graph, единолично вычисляет node/compound/gateway/edge coordinates
+и возвращает exact parameter-socket routes. WebGPU только отображает и
+локально скругляет готовые waypoints; ручной drag остаётся отдельной generic
+возможностью surface и выключен в Hamiltonian. Смысл host, Service Worker,
+Window, Bun process, peer и lifecycle actions остаётся у Hamiltonian.
+`pkg/visual` не становится владельцем инфраструктурного графа мира.
 
 Browser-local realtime проекции идёт через versioned `BroadcastChannel`. Это
 не новый Oracle или Force transport: channel не переносит причинные payload,
@@ -158,11 +158,11 @@ signaling, secrets или authority и не заменяет существую�
 Bun IPC и direct peer paths. Управляющие действия добавляются по одному через
 направленный проверяемый control path.
 
-Первый интерактивный срез реализован и проверен на живой сцене: первоначальная
-и incremental-раскладка, сохранение presentation state, Libavoid routing и
-локальные действия Inspector работают в одном Hamiltonian contour. Дальнейшую
-детализацию topology и каждую новую управляющую операцию владелец принимает как
-отдельный owner-gate.
+Первый интерактивный срез реализован и проверен на живой сцене: полный
+responsive layout при структурном обновлении, сохранение presentation state,
+exact-socket routing и локальные действия Inspector работают в одном
+Hamiltonian contour. Дальнейшую детализацию topology и каждую новую
+управляющую операцию владелец принимает как отдельный owner-gate.
 
 ## Oracle и Force
 

@@ -67,7 +67,7 @@ export type NodeSystemCardPlan = Readonly<{
 }>
 
 /**
- * One intrinsic metric model shared by ELK and rendering. Producer dimensions
+ * One intrinsic metric model shared by the layout engine and rendering. Producer dimensions
  * are minimum requests: a card expands instead of compressing its content.
  */
 export function measureNodeSystemCard(
@@ -77,7 +77,7 @@ export function measureNodeSystemCard(
   return measureCard(node, measureText).size
 }
 
-/** Stable geometry fingerprint for deciding whether ELK must run again. */
+/** Stable geometry fingerprint for deciding whether layout must run again. */
 export function nodeSystemGeometryKey(
   document: Pick<NodeSystemDocument, "nodes">,
   measureText?: NodeSystemTextMeasurer,

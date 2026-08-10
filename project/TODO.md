@@ -26,7 +26,9 @@ flowchart LR
     MF412["MF-412 · опыт Hamiltonian"]
     MF413["MF-413 · единая RPC-поверхность Oracle"]
     MF414["MF-414 · воплощения доменов"]
+    MF419["MF-419 · lifecycle, Space/HUD и структура Hamiltonian"]
     MF420["MF-420 · стартовый edge traffic"]
+    MF421["MF-421 · деактивация невидимого monitor display"]
     MTX001["MTX-001 · причинный порядок"]
     MTX002["MTX-002 · память"]
     MTX003["MTX-003 · структура и Process"]
@@ -46,6 +48,8 @@ flowchart LR
     MF109 --> MF110
     MF405 --> MF406
     MF412 --> MF414
+    MF419 --> MF420
+    MF419 --> MF421
     MF413 --> MF414
     LAD002 --> LAD003
     LAD001 --> LAD004
@@ -69,8 +73,9 @@ flowchart LR
 
 ## P1 — ближайшая работа
 
-Текущие задачи Codex: документационный этап `MF-411` и устранение стартовой
-задержки edge traffic `MF-420`.
+Текущая задача Codex: нет. Причинно точный монитор Hamiltonian `MF-419`
+и стартовая задержка edge traffic `MF-420` находятся на закрывающей проверке.
+Документационный этап `MF-411` остаётся отдельной незавершённой работой.
 `DRK-001` закрывает только два уже утверждённых public dependency slice.
 `MF-411` продолжает уточнять закон Hamiltonian, а `MF-412` проверяет уже
 принятую минимальную управляющую схему без production-кода MetaFor.
@@ -101,13 +106,15 @@ Dark → Bulk wiring, DSL bootstrap и separate gates не входят в за�
 | MF-412  | REVIEW      | нет            | [Открыть](tasks/MF-412.md)  |
 | MF-413  | REVIEW      | нет            | [Открыть](tasks/MF-413.md)  |
 | MF-414  | READY       | MF-412, MF-413 | [Открыть](tasks/MF-414.md)  |
-| MF-420  | REVIEW      | нет            | [Открыть](tasks/MF-420.md)  |
+| MF-419  | REVIEW      | нет            | [Открыть](tasks/MF-419.md)  |
+| MF-420  | WAITING     | MF-419         | [Открыть](tasks/MF-420.md)  |
 
 ## P2 — функциональное продолжение и надёжность
 
 | ID      | Состояние   | Зависимости | Карточка                    |
 | ------- | ----------- | ----------- | --------------------------- |
 | MF-407  | READY       | нет         | [Открыть](tasks/MF-407.md)  |
+| MF-421  | WAITING     | MF-419      | [Открыть](tasks/MF-421.md)  |
 | AUD-009 | READY       | нет         | [Открыть](tasks/AUD-009.md) |
 | AUD-005 | GATE        | нет         | [Открыть](tasks/AUD-005.md) |
 | AUD-008 | GATE        | нет         | [Открыть](tasks/AUD-008.md) |

@@ -43,15 +43,15 @@ export function isNodeSystemRectVacant(
 }
 
 /**
- * Keeps every surviving node anchored while accepting ELK geometry for new
+ * Keeps every surviving node anchored while accepting proposed geometry for new
  * nodes. The proposed layout is first aligned through an already positioned
- * neighbour, so an inserted node keeps its ELK relationship to the current
+ * neighbour, so an inserted node keeps its proposed relationship to the current
  * scene instead of appearing in the unrelated coordinate system of a fresh
  * full-graph layout. Only an inserted node may then be shifted to avoid an
  * existing obstacle.
  * Edge points are deliberately reduced to endpoints because this generic
  * helper describes an explicit manual edit. An application that delegates
- * geometry to ELK must run ELK again instead of using this helper.
+ * geometry to the automatic engine must run layout again instead of using this helper.
  */
 export function stabilizeNodeSystemLayout(
   previous: PositionedNodeSystem,

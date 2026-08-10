@@ -71,8 +71,9 @@ owner-source. Исторические сообщения остаются до 
 MessagePort, WebSocket, Dedicated Worker, два Bun process, отдельный WebRTC
 peer process, обе стороны RTCPeerConnection и два RTCDataChannel уже переведены
 на owner lifecycle в `MF-419`. Одно сообщение Oracle/Force получает общую
-identity для send и receive. Полный compound graph передаётся одним вызовом
-ELK; отдельного серверного layout или routing engine у монитора нет.
+identity для send и receive. Полный compound graph передаётся одним синхронным
+вызовом собственного TypeScript engine; отдельного серверного layout или
+routing engine у монитора нет.
 
 Обе `RTCPeerConnection` остаются самостоятельными lifecycle-нодами. Текущая
 page и `Service Worker` являются соседними realm внутри наблюдённого
@@ -103,9 +104,10 @@ listener эта оптимизация не включается. Режимы p
 
 ## Страница оркестрации
 
-`@ui/node` владеет только generic node/port/edge model, ELK layout, transform
-бесконечного 2D-холста, selection и WebGPU surfaces. Hamiltonian адаптирует собственные наблюдения в
-эту модель и добавляет только уже существующие lifecycle actions.
+`@ui/node` владеет только generic node/port/edge model, pure TypeScript layout,
+transform бесконечного 2D-холста, selection и WebGPU surfaces. Hamiltonian
+адаптирует собственные наблюдения в эту модель и добавляет только уже
+существующие lifecycle actions.
 Generic `parentId` задаёт только визуальный контейнер и не сообщает пакету
 предметный смысл ownership. Hamiltonian выставляет его только для наблюдённых
 `page`, `service-worker`, `window-main`, `dedicated-worker` и `rtc-peer`, чей
@@ -133,15 +135,16 @@ canvas transform или pose ViewPoint. Заголовок Inspector показ�
 Нодовая геометрия следует существующей Blender-derived дизайн-системе
 владельца, а не отдельному стилю Hamiltonian. MetaFor Engine сначала точно
 измеряет текст загруженного TrueType-шрифта, затем общий Flex plan определяет
-intrinsic card size и позиции sockets. ELK получает именно эту геометрию, а
-WebGPU рисует тот же plan. Navigation-ноды и каждое последующее добавление
-либо удаление ноды проходят через один и тот же полный ELK layout. Готовый
-browser bundle собирается один раз при старте host incarnation, а не внутри
-первого запроса страницы. `elk.hierarchyHandling=INCLUDE_CHILDREN` передаёт
-Layered всё дерево вместе с реальными ports и cross-hierarchy edges;
-`ORTHOGONAL` возвращает окончательные edge sections в корневых координатах.
+intrinsic card size и позиции sockets. Один serializable fixed-point input
+передаёт эту геометрию, всё containment tree и semantic edges синхронному
+TypeScript engine; WebGPU рисует возвращённый plan без post-routing.
+Navigation-ноды и каждое последующее добавление либо удаление ноды проходят
+через один и тот же полный layout. Готовый browser bundle собирается один раз
+при старте host incarnation, а не внутри первого запроса страницы. Engine сам
+вычисляет responsive layered placement, compound sizes, generated WEST/EAST
+gateways и окончательные orthogonal sections между exact parameter sockets.
 Единственный routing spacing равен фактическому шагу центров соседних портов
-карточки и задаётся ELK options для edge-edge, edge-node и port-port. Compound
+карточки и применяется к edge-edge, edge-node и port-port clearance. Compound
 padding резервирует тот же видимый зазор до border owner. Поэтому между
 соседними параллельными edges и между
 edge и ближайшей нодой либо compound border сохраняется один и тот же ритм на
@@ -154,10 +157,9 @@ internal transport не превращается в self-loop внешнего �
 owner background рисуется под проходящим внутри него маршрутом, а foreground и
 дочерние карточки — над маршрутом. Поэтому `Worker messaging` и участки
 RTCDataChannel от вложенного RTC до границы owner не исчезают под parent fill.
-Несвязанные реальными transport компоненты после ELK только
-переносятся целиком: в узком graph viewport они упаковываются вертикально, в
-широком — горизонтально. Внутренние ноды и edges компонента не меняются, а
-ложная ownership-связь ради раскладки не создаётся. Предыдущая раскладка
+Несвязанные реальными transport компоненты упаковываются тем же engine: в узком
+graph viewport сверху вниз и слева направо, в широком — слева направо.
+Ложная ownership-связь ради раскладки не создаётся. Предыдущая раскладка
 используется только как начальный кадр: surviving nodes за 320 ms плавно
 перемещаются в новые координаты. Положение и размер каждого compound owner
 интерполируются вместе со всей containment-цепочкой; новый потомок сначала
@@ -167,18 +169,18 @@ canvas transform на каждом кадре показывает весь
 движущийся graph на полном display. HUD-окна из расчёта display rect исключены.
 Новая page incarnation не читает старые coordinates или widths.
 Telemetry-only update прежнего размера сохраняет текущую geometry и canvas
-transform без ELK.
+transform без повторного layout.
 Реальная замена runtime incarnation не подменяется стабильной identity. Но
-если новый ELK result занимает те же visual frames и bounds, документ и
+если новый layout result занимает те же visual frames и bounds, документ и
 transport identity обновляются без layout transition и auto-fit. Поэтому
 штатное завершение и пробуждение Chrome Service Worker не вызывает
 периодического сдвига всего графа с возвратом.
 
 Ноды остаются отдельно выбираемыми для Inspector, но Hamiltonian не разрешает
 ручное изменение их geometry: позиции, compound sizes и endpoints принадлежат
-ELK. Панорамирование и масштабирование изменяют только transform бесконечного
-холста. Renderer не заменяет orthogonal route свободной кривой: он лишь
-локально скругляет каждый готовый ELK waypoint cubic Bézier segment.
+TypeScript engine. Панорамирование и масштабирование изменяют только transform
+бесконечного холста. Renderer не заменяет orthogonal route свободной кривой:
+он лишь локально скругляет каждый готовый waypoint cubic Bézier segment.
 
 Новая page incarnation не наследует старый canvas transform. Первый graph и
 каждое добавление ноды автоматически вызывают fit всей текущей топологии: по
@@ -259,7 +261,7 @@ traffic observation каждого edge, а не историю ранних с�
 
 Retained frontier и уже находящееся в стартовой очереди его live-продолжение
 сначала сводятся к одному актуальному document в конце той же микрозадачи, и
-только затем запускают первый ELK. Это не добавляет debounce или таймер и не
+только затем запускают первый layout. Это не добавляет debounce или таймер и не
 задерживает последующие live-события, но не позволяет синхронной стартовой
 очереди заведомо запустить раскладку уже устаревшего snapshot.
 
@@ -396,8 +398,7 @@ cd /Users/zavx0z/repozitarium/metafor/hamiltonian
 bunx tsc --ignoreConfig --noEmit --strict --module preserve \
   --moduleResolution bundler --target es2022 --types bun,@webgpu/types \
   --allowImportingTsExtensions --allowJs --skipLibCheck \
-  ../types/module.d.ts ../pkg/ui/node/elk-worker-text.d.ts \
-  types.d.ts *.ts peer/*.ts soak/*.ts
+  ../types/module.d.ts types.d.ts *.ts peer/*.ts soak/*.ts
 bun build public/app.js public/sw.js public/embodiment-worker.js \
   --outdir /tmp/hamiltonian-build-check --target browser \
   --external /core/monitor.js \
@@ -421,9 +422,9 @@ caller-driven RPC cancellation, WSS resume без смены logical authority, 
 repair с новой peer generation, stale session rejection, запрет realtime на
 WSS, browser/server placement и прямой Bun↔Bun WebRTC через `werift`.
 Отдельные `@ui/node` и orchestration fixtures проверяют ссылки node graph,
-детерминированный ELK placement, точные Flex/card metrics, полный compound ELK
-layout при add/remove и при смене landscape/portrait,
-fit/pan/zoom/selection, Bézier rounding готового ELK route, многоуровневую
+детерминированный fixed-point placement, точные Flex/card metrics, полный
+compound layout при add/remove и при смене landscape/portrait,
+fit/pan/zoom/selection, Bézier rounding готового engine route, многоуровневую
 ациклическую visual containment без ownership-edge и реальные
 descendant-to-descendant edge sections, разделение message
 direction и стороны socket, control WSS, BroadcastChannel и direct

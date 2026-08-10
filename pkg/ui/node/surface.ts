@@ -25,7 +25,6 @@ import {
   type NodeSystemTextMeasurer,
 } from "./card-layout.ts"
 import {
-  connectNodeSystemEdgeToVisibleSockets,
   planNodeSystemEdgeHitRects,
   sampleNodeSystemBezierPath,
 } from "./edge-curve.ts"
@@ -49,7 +48,7 @@ import {
 export type NodeSystemSurfaceOptions = UiSurfaceOpts & Readonly<{
   title?: string
   toolbar?: boolean
-  /** Allow direct node move/resize. Keep false when ELK exclusively owns geometry. */
+  /** Allow direct node move/resize. Keep false when the layout engine owns geometry. */
   editable?: boolean
   minScale?: number
   maxScale?: number
@@ -101,7 +100,7 @@ export type NodeSystemScreenPresentationMetrics = Readonly<{
 
 /**
  * Auto-fit may make world geometry small, but topology must remain visible in
- * screen pixels. These are presentation-only minima: they never feed ELK or
+ * screen pixels. These are presentation-only minima: they never feed layout or
  * alter node/port coordinates.
  */
 export function nodeSystemScreenPresentationMetrics(scale: number): NodeSystemScreenPresentationMetrics {
@@ -195,7 +194,7 @@ export function nodeSystemNodeBorderColor(
 
 /** Infinite 2D graph canvas that can be mounted on a UIDisplay or another surface target. */
 export class NodeSystemSurface extends UiSurface {
-  /** Bound exact text metrics for ELK and geometry-key callers. */
+  /** Bound exact text metrics for layout and geometry-key callers. */
   readonly textMeasurer: NodeSystemTextMeasurer = (value, fontPx) => this.measureText(value, fontPx)
   readonly #title: string
   readonly #toolbar: boolean
@@ -514,8 +513,7 @@ export class NodeSystemSurface extends UiSurface {
         if (step.kind === "edges") {
           this.withLayer("contentUnderlay", () => {
             for (const edge of plan.edges) {
-              const connected = connectNodeSystemEdgeToVisibleSockets(edge, visibleById)
-              const stroke = sampleNodeSystemBezierPath(connected, 10 * plan.canvasTransform.scale, 6)
+              const stroke = sampleNodeSystemBezierPath(edge.points, 10 * plan.canvasTransform.scale, 6)
               this.#edgeParticleRoutes.set(edge.edge.id, {entry: edge, stroke})
               drawEdge(this, edge, plan.canvasTransform.scale, stroke)
             }

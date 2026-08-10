@@ -580,7 +580,7 @@ export function nodeSystemStructureKey(document: NodeSystemDocument): string {
   })
 }
 
-/** Replaces observable labels/facts while preserving ELK geometry and canvas transform. */
+/** Replaces observable labels/facts while preserving layout geometry and canvas transform. */
 export function refreshPositionedNodeSystem(
   layout: PositionedNodeSystem,
   document: NodeSystemDocument,

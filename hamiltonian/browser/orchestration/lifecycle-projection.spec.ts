@@ -37,7 +37,7 @@ describe("Hamiltonian lifecycle projection", () => {
     expect(hamiltonianServerNodeId("host/a")).toBe("server:host%2Fa")
   })
 
-  test("invalidates ELK geometry when model order changes", () => {
+  test("invalidates layout geometry when model order changes", () => {
     const base = {
       nodes: [
         {id: "a", title: "A", order: 1, facts: [{id: "out", label: "Out", value: ""}], ports: [{id: "out", parameterId: "out", direction: "out" as const}]},

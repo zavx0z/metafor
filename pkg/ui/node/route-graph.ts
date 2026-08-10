@@ -92,17 +92,18 @@ export type RouteGraphDiagnostic =
   }>
 
 type Axis = "H" | "V"
+type StepDirection = "WEST" | "NORTH" | "SOUTH" | "EAST"
 type SearchState = Readonly<{
   xi: number
   yi: number
-  lastAxis: Axis | null
+  lastDirection: StepDirection | null
   sourceExited: number
   targetEntered: number
   sourceGatewayY: number | null
   targetGatewayY: number | null
 }>
 
-type Score = Readonly<{turns: number; length: number; pathKey: string}>
+type Score = Readonly<{turns: number; length: number}>
 type HeapItem = Readonly<{state: SearchState; score: Score; estimatedTurns: number; estimatedLength: number}>
 type SearchRejection = "pointBlocked" | "segmentIllegal" | "sourceDirection" | "targetDirection" | "hierarchyTransition"
 type ParallelClearanceBlock = Readonly<{
@@ -397,12 +398,13 @@ function buildEdgeContext(input: RouteGraphInput, index: RouteIndex, edge: Route
   const areaBase = owner?.rect ?? input.bounds
   const area = insetRect(areaBase, input.clearance)
   if (area.w <= 0 || area.h <= 0) throw new Error(`routing owner has no inner area: ${edge.id}`)
+  const portals = terminalPortals(source, target, sourceNode, targetNode, input.clearance)
   return {
     edge,
     source,
     target,
-    sourcePortal: {x: portPortalX(source, sourceNode, input.clearance), y: source.center.y},
-    targetPortal: {x: portPortalX(target, targetNode, input.clearance), y: target.center.y},
+    sourcePortal: portals.source,
+    targetPortal: portals.target,
     sourceChain,
     targetChain,
     owner,
@@ -434,7 +436,7 @@ function routeEdge(
   const start: SearchState = {
     xi: startXi,
     yi: startYi,
-    lastAxis: null,
+    lastDirection: null,
     sourceExited: 0,
     targetEntered: 0,
     sourceGatewayY: null,
@@ -445,7 +447,7 @@ function routeEdge(
     const gatewayIndex = (value: number | null): number => value === null ? 0 : required(yIndex.get(value), `gateway omitted from y grid: ${context.edge.id}`) + 1
     let key = state.xi
     key = key * ys.length + state.yi
-    key = key * 3 + (state.lastAxis === null ? 0 : state.lastAxis === "H" ? 1 : 2)
+    key = key * 5 + stepDirectionIndex(state.lastDirection)
     key = key * (context.sourceChain.length + 1) + state.sourceExited
     key = key * (context.targetChain.length + 1) + state.targetEntered
     key = key * (ys.length + 1) + gatewayIndex(state.sourceGatewayY)
@@ -455,33 +457,58 @@ function routeEdge(
   }
   const startKey = searchStateKey(start)
   const startPoint = pointAt(start, xs, ys)
-  const signedOrder = (left: number, right: number): number => {
-    const leftNegative = left < 0
-    const rightNegative = right < 0
-    if (leftNegative !== rightNegative) return leftNegative ? 1 : -1
-    return Math.abs(left) - Math.abs(right)
+  // A valid straight or H-V-H route dominates every longer grid path in the
+  // hard-validity -> turns -> Manhattan objective. Enumerating every grid X
+  // therefore preserves the exact optimum while avoiding A* for the common
+  // forward-facing case.
+  const dominantCandidates: FixedPoint[][] = []
+  if (
+    context.source.center.y === context.target.center.y &&
+    context.source.center.x < context.target.center.x
+  ) {
+    dominantCandidates.push([context.source.center, context.target.center])
   }
-  const xLexRank = new Map([...xs].sort(signedOrder).map((value, index) => [value, index]))
-  const yLexRank = new Map([...ys].sort(signedOrder).map((value, index) => [value, index]))
-  const encodedPoint = (point: FixedPoint): string => {
-    const rank = required(xLexRank.get(point.x), `x omitted from lex grid: ${context.edge.id}`) * ys.length + required(yLexRank.get(point.y), `y omitted from lex grid: ${context.edge.id}`)
-    if (rank > 0xffff_ffff) throw new Error(`path point rank overflow: ${context.edge.id}`)
-    return String.fromCharCode(Math.floor(rank / 0x1_0000), rank % 0x1_0000)
+  if (context.source.center.x < context.target.center.x) {
+    for (const x of xs) {
+      if (x <= context.source.center.x || x >= context.target.center.x) continue
+      dominantCandidates.push(simplifyPoints([
+        context.source.center,
+        {x, y: context.source.center.y},
+        {x, y: context.target.center.y},
+        context.target.center,
+      ]) as FixedPoint[])
+    }
   }
-  const startScore: Score = {turns: 0, length: 0, pathKey: encodedPoint(startPoint)}
+  const dominant = dominantCandidates
+    .filter((points) => validatePath(input, index, context, points, prior).length === 0)
+    .map((points) => ({
+      points,
+      score: {
+        turns: Math.max(0, points.length - 2),
+        length: pathLength(points),
+      } satisfies Score,
+    }))
+    .sort((left, right) => compareScores(left.score, right.score) || comparePointPaths(left.points, right.points))[0]
+  if (dominant !== undefined) return dominant.points
+  const startScore: Score = {turns: 0, length: 0}
   const scores = new Map<number, Score>([[startKey, startScore]])
   const previous = new Map<number, number>()
   const states = new Map<number, SearchState>([[startKey, start]])
   const heap = new MinHeap(compareHeapItems)
   const remainingTurns = (state: SearchState, point: FixedPoint): number => {
     if (samePoint(point, context.target.center)) return 0
-    if (point.y !== context.target.center.y) return state.lastAxis === "V" ? 1 : 2
-    if (point.x < context.target.center.x) return state.lastAxis === "V" ? 1 : 0
-    return 0
+    const lastAxis = axisOfStepDirection(state.lastDirection)
+    const targetIsEast = point.x < context.target.center.x
+    if (point.y !== context.target.center.y) {
+      if (targetIsEast) return lastAxis === "V" ? 1 : 2
+      return lastAxis === "V" ? 3 : 2
+    }
+    if (targetIsEast) return lastAxis === "V" ? 1 : 0
+    return lastAxis === "V" ? 3 : 4
   }
   heap.push({state: start, score: startScore, estimatedTurns: remainingTurns(start, startPoint), estimatedLength: manhattanBetween(startPoint, context.target.center)})
-  const pointLegality = new Map<string, boolean>()
-  const segmentLegality = new Map<string, boolean>()
+  const pointLegality = new Map<number, boolean>()
+  const segmentLegality = new Map<number, boolean>()
   let finalKey: number | null = null
   while (heap.size > 0) {
     const current = heap.pop()!
@@ -497,8 +524,19 @@ function routeEdge(
       break
     }
     const currentPoint = pointAt(current.state, xs, ys)
-    for (const next of neighborPoints(current.state, xs, ys)) {
-      const nextPoint = pointAt(next, xs, ys)
+    for (let directionIndex = 0; directionIndex < 4; directionIndex += 1) {
+      const nextXi = directionIndex === 0
+        ? current.state.xi - 1
+        : directionIndex === 3 ? current.state.xi + 1 : current.state.xi
+      const nextYi = directionIndex === 1
+        ? current.state.yi - 1
+        : directionIndex === 2 ? current.state.yi + 1 : current.state.yi
+      if (nextXi < 0 || nextYi < 0 || nextXi >= xs.length || nextYi >= ys.length) continue
+      const nextPoint: FixedPoint = {x: xs[nextXi]!, y: ys[nextYi]!}
+      const direction: StepDirection = directionIndex === 0
+        ? "WEST"
+        : directionIndex === 1 ? "NORTH" : directionIndex === 2 ? "SOUTH" : "EAST"
+      if (isOppositeStepDirection(current.state.lastDirection, direction)) continue
       const reject = (kind: SearchRejection): void => {
         if (trace === undefined) return
         trace.rejectedTransitions[kind] += 1
@@ -506,34 +544,34 @@ function routeEdge(
           trace.firstRejectedHierarchyTransition = {from: currentPoint, to: nextPoint, state: current.state}
         }
       }
-      const nextPointKey = `${next.xi}:${next.yi}`
+      const nextPointKey = nextXi * ys.length + nextYi
       let isPointBlocked = pointLegality.get(nextPointKey)
       if (isPointBlocked === undefined) {
         isPointBlocked = pointBlocked(nextPoint, input, context, trace)
         pointLegality.set(nextPointKey, isPointBlocked)
       }
       if (isPointBlocked) { reject("pointBlocked"); continue }
-      const segmentKey = current.state.xi < next.xi || current.state.yi < next.yi
-        ? `${current.state.xi}:${current.state.yi}-${next.xi}:${next.yi}`
-        : `${next.xi}:${next.yi}-${current.state.xi}:${current.state.yi}`
+      const horizontalSegmentCount = ys.length * Math.max(0, xs.length - 1)
+      const segmentKey = current.state.yi === nextYi
+        ? current.state.yi * Math.max(0, xs.length - 1) + Math.min(current.state.xi, nextXi)
+        : horizontalSegmentCount + current.state.xi * Math.max(0, ys.length - 1) + Math.min(current.state.yi, nextYi)
       let isSegmentLegal = segmentLegality.get(segmentKey)
       if (isSegmentLegal === undefined) {
         isSegmentLegal = segmentLegal(currentPoint, nextPoint, input, index, context, prior, trace, priorSegments)
         segmentLegality.set(segmentKey, isSegmentLegal)
       }
       if (!isSegmentLegal) { reject("segmentIllegal"); continue }
-      if (current.state.lastAxis === null && !(nextPoint.y === currentPoint.y && nextPoint.x > currentPoint.x)) { reject("sourceDirection"); continue }
-      if (next.xi === targetXi && next.yi === targetYi && !(currentPoint.y === nextPoint.y && currentPoint.x < nextPoint.x)) { reject("targetDirection"); continue }
+      if (current.state.lastDirection === null && !(nextPoint.y === currentPoint.y && nextPoint.x > currentPoint.x)) { reject("sourceDirection"); continue }
+      if (nextXi === targetXi && nextYi === targetYi && !(currentPoint.y === nextPoint.y && currentPoint.x < nextPoint.x)) { reject("targetDirection"); continue }
       const axis: Axis = currentPoint.y === nextPoint.y ? "H" : "V"
-      const transitioned = transitionHierarchy(current.state, next, currentPoint, nextPoint, context)
+      const transitioned = transitionHierarchy(current.state, nextXi, nextYi, currentPoint, nextPoint, context, direction)
       if (transitioned === null) { reject("hierarchyTransition"); continue }
       const stepLength = manhattanBetween(currentPoint, nextPoint)
       const score: Score = {
-        turns: current.score.turns + (current.state.lastAxis !== null && current.state.lastAxis !== axis ? 1 : 0),
+        turns: current.score.turns + (current.state.lastDirection !== null && axisOfStepDirection(current.state.lastDirection) !== axis ? 1 : 0),
         length: current.score.length + stepLength,
-        pathKey: current.score.pathKey + encodedPoint(nextPoint),
       }
-      const nextState: SearchState = {...transitioned, lastAxis: axis}
+      const nextState = transitioned
       const nextKey = searchStateKey(nextState)
       const old = scores.get(nextKey)
       if (old !== undefined && compareScores(score, old) >= 0) continue
@@ -583,21 +621,21 @@ function candidateAxes(
     context.area.y,
     rectBottom(context.area),
   ])
-  for (const node of index.sortedNodes) {
+  for (const node of context.obstacles) {
     const {x, y, w, h} = node.rect
-    for (const value of [x, x + w, x - input.clearance, x + w + input.clearance]) xs.add(value)
-    for (const value of [y, y + h, y - input.clearance, y + h + input.clearance]) ys.add(value)
+    for (const value of [x - input.clearance, x + w + input.clearance]) xs.add(value)
+    for (const value of [y - input.clearance, y + h + input.clearance]) ys.add(value)
+  }
+  for (const node of [...context.sourceChain, ...context.targetChain]) {
+    xs.add(node.rect.x)
+    xs.add(rectRight(node.rect))
+    ys.add(node.rect.y)
+    ys.add(rectBottom(node.rect))
   }
   for (const port of index.ports.values()) {
-    const node = required(index.nodes.get(port.nodeId), `missing port node ${port.id}`)
-    xs.add(port.center.x)
-    const portalX = portPortalX(port, node, input.clearance)
-    xs.add(portalX)
-    xs.add(port.center.x - input.clearance)
-    xs.add(port.center.x + input.clearance)
-    xs.add(portalX - input.clearance)
-    xs.add(portalX + input.clearance)
-    ys.add(port.center.y)
+    // Other ports reserve horizontal terminal stubs. Their X endpoints are
+    // already represented by node sides and side +/- clearance; only the two
+    // Y lanes around the stub add visibility coordinates for this edge.
     ys.add(port.center.y - input.clearance)
     ys.add(port.center.y + input.clearance)
   }
@@ -620,19 +658,6 @@ function candidateAxes(
   }
 }
 
-function neighborPoints(state: SearchState, xs: readonly number[], ys: readonly number[]): readonly SearchState[] {
-  const result: SearchState[] = []
-  const add = (xi: number, yi: number): void => {
-    if (xi < 0 || yi < 0 || xi >= xs.length || yi >= ys.length) return
-    result.push({...state, xi, yi})
-  }
-  add(state.xi - 1, state.yi)
-  add(state.xi + 1, state.yi)
-  add(state.xi, state.yi - 1)
-  add(state.xi, state.yi + 1)
-  return result.sort((left, right) => left.xi - right.xi || left.yi - right.yi)
-}
-
 function pointBlocked(point: FixedPoint, input: RouteGraphInput, context: EdgeContext, trace?: SearchTrace): boolean {
   const record = (reason: unknown): void => {
     if (trace === undefined) return
@@ -647,6 +672,10 @@ function pointBlocked(point: FixedPoint, input: RouteGraphInput, context: EdgeCo
   }
   for (const {node: obstacle, rect: inflated} of context.inflatedObstacles) {
     if (!insideOpen(inflated, point)) continue
+    if (
+      (obstacle.id === context.source.nodeId || obstacle.id === context.target.nodeId) &&
+      insideFacingTerminalZone(point, context)
+    ) continue
     if (obstacle.id === context.source.nodeId && onStub(point, context.source.center, context.sourcePortal)) continue
     if (obstacle.id === context.target.nodeId && onStub(point, context.targetPortal, context.target.center)) continue
     record({kind: "INFLATED_NODE", nodeId: obstacle.id, rect: obstacle.rect, inflated})
@@ -670,6 +699,10 @@ function segmentLegal(
   if (!containsPoint(context.area, to) && !samePoint(to, context.source.center) && !samePoint(to, context.target.center)) return false
   for (const {node: obstacle, rect: inflated} of context.inflatedObstacles) {
     if (!segmentIntersectsOpenRect(from, to, inflated)) continue
+    if (
+      (obstacle.id === context.source.nodeId || obstacle.id === context.target.nodeId) &&
+      obstacleIntersectionInsideFacingTerminalZone(from, to, inflated, context)
+    ) continue
     if (obstacle.id === context.source.nodeId && obstacleIntersectionOnStub(from, to, inflated, context.source.center, context.sourcePortal)) continue
     if (obstacle.id === context.target.nodeId && obstacleIntersectionOnStub(from, to, inflated, context.targetPortal, context.target.center)) continue
     return false
@@ -726,13 +759,68 @@ function terminalReservations(
     if (edge.id === currentEdgeId) continue
     const source = required(index.ports.get(edge.sourcePortId), `missing source ${edge.id}`)
     const target = required(index.ports.get(edge.targetPortId), `missing target ${edge.id}`)
-    const add = (port: RoutePort, kind: "SOURCE" | "TARGET", portalX: number): void => {
-      result.push({edgeId: edge.id, portId: port.id, kind, from: port.center, to: {x: portalX, y: port.center.y}})
+    const sourceNode = required(index.nodes.get(source.nodeId), `missing source node ${edge.id}`)
+    const targetNode = required(index.nodes.get(target.nodeId), `missing target node ${edge.id}`)
+    const portals = terminalPortals(source, target, sourceNode, targetNode, input.clearance)
+    const add = (port: RoutePort, kind: "SOURCE" | "TARGET", portal: FixedPoint): void => {
+      result.push({edgeId: edge.id, portId: port.id, kind, from: port.center, to: portal})
     }
-    add(source, "SOURCE", portPortalX(source, required(index.nodes.get(source.nodeId), `missing source node ${edge.id}`), input.clearance))
-    add(target, "TARGET", portPortalX(target, required(index.nodes.get(target.nodeId), `missing target node ${edge.id}`), input.clearance))
+    add(source, "SOURCE", portals.source)
+    add(target, "TARGET", portals.target)
   }
   return result
+}
+
+function terminalPortals(
+  source: RoutePort,
+  target: RoutePort,
+  sourceNode: RouteNode,
+  targetNode: RouteNode,
+  clearance: number,
+): Readonly<{source: FixedPoint; target: FixedPoint}> {
+  let sourceX = portPortalX(source, sourceNode, clearance)
+  let targetX = portPortalX(target, targetNode, clearance)
+  if (source.center.x < target.center.x && sourceX > targetX) {
+    const meetingX = source.center.x + Math.floor((target.center.x - source.center.x) / 2)
+    sourceX = meetingX
+    targetX = meetingX
+  }
+  return {
+    source: {x: sourceX, y: source.center.y},
+    target: {x: targetX, y: target.center.y},
+  }
+}
+
+function insideFacingTerminalZone(point: FixedPoint, context: EdgeContext): boolean {
+  if (context.sourcePortal.x !== context.targetPortal.x) return false
+  return point.x >= context.source.center.x && point.x <= context.target.center.x &&
+    point.y >= Math.min(context.source.center.y, context.target.center.y) &&
+    point.y <= Math.max(context.source.center.y, context.target.center.y)
+}
+
+function obstacleIntersectionInsideFacingTerminalZone(
+  from: FixedPoint,
+  to: FixedPoint,
+  obstacle: FixedRect,
+  context: EdgeContext,
+): boolean {
+  if (context.sourcePortal.x !== context.targetPortal.x) return false
+  const zone: FixedRect = {
+    x: context.source.center.x,
+    y: Math.min(context.source.center.y, context.target.center.y),
+    w: context.target.center.x - context.source.center.x,
+    h: Math.abs(context.target.center.y - context.source.center.y),
+  }
+  if (from.y === to.y) {
+    if (from.y < zone.y || from.y > rectBottom(zone)) return false
+    const intersectionMin = Math.max(Math.min(from.x, to.x), obstacle.x)
+    const intersectionMax = Math.min(Math.max(from.x, to.x), rectRight(obstacle))
+    return intersectionMin >= zone.x && intersectionMax <= rectRight(zone)
+  }
+  if (from.x !== to.x || from.x < zone.x || from.x > rectRight(zone)) return false
+  const intersectionMin = Math.max(Math.min(from.y, to.y), obstacle.y)
+  const intersectionMax = Math.min(Math.max(from.y, to.y), rectBottom(obstacle))
+  return intersectionMin >= zone.y && intersectionMax <= rectBottom(zone)
 }
 
 function portPortalX(port: RoutePort, node: RouteNode, clearance: number): number {
@@ -743,10 +831,12 @@ function portPortalX(port: RoutePort, node: RouteNode, clearance: number): numbe
 
 function transitionHierarchy(
   state: SearchState,
-  next: SearchState,
+  nextXi: number,
+  nextYi: number,
   from: FixedPoint,
   to: FixedPoint,
   context: EdgeContext,
+  lastDirection: StepDirection | null,
 ): SearchState | null {
   let sourceExited = state.sourceExited
   let targetEntered = state.targetEntered
@@ -778,7 +868,15 @@ function transitionHierarchy(
       targetEntered += 1
     }
   }
-  return {...next, sourceExited, targetEntered, sourceGatewayY, targetGatewayY}
+  return {
+    xi: nextXi,
+    yi: nextYi,
+    lastDirection,
+    sourceExited,
+    targetEntered,
+    sourceGatewayY,
+    targetGatewayY,
+  }
 }
 
 function validatePath(
@@ -795,7 +893,7 @@ function validatePath(
   let state: SearchState = {
     xi: 0,
     yi: 0,
-    lastAxis: null,
+    lastDirection: null,
     sourceExited: 0,
     targetEntered: 0,
     sourceGatewayY: null,
@@ -807,7 +905,7 @@ function validatePath(
     if (samePoint(from, to)) violations.push(`duplicate point at ${index}`)
     if (from.x !== to.x && from.y !== to.y) violations.push(`non-orthogonal segment at ${index}`)
     if (!segmentLegal(from, to, input, routeIndex, context, prior)) violations.push(`clearance/obstacle violation at ${index}`)
-    const transitioned = transitionHierarchy(state, state, from, to, context)
+    const transitioned = transitionHierarchy(state, state.xi, state.yi, from, to, context, stepDirectionBetween(from, to))
     if (transitioned === null) violations.push(`hierarchy transition violation at ${index}`)
     else state = transitioned
     if (index >= 2) {
@@ -1073,11 +1171,32 @@ function pointAt(state: Pick<SearchState, "xi" | "yi">, xs: readonly number[], y
   return {x: xs[state.xi]!, y: ys[state.yi]!}
 }
 
+function stepDirectionBetween(from: FixedPoint, to: FixedPoint): StepDirection | null {
+  if (from.y === to.y) return to.x > from.x ? "EAST" : to.x < from.x ? "WEST" : null
+  if (from.x === to.x) return to.y > from.y ? "SOUTH" : to.y < from.y ? "NORTH" : null
+  return null
+}
+
+function axisOfStepDirection(direction: StepDirection | null): Axis | null {
+  return direction === null ? null : direction === "WEST" || direction === "EAST" ? "H" : "V"
+}
+
+function isOppositeStepDirection(previous: StepDirection | null, next: StepDirection): boolean {
+  return (previous === "WEST" && next === "EAST") ||
+    (previous === "EAST" && next === "WEST") ||
+    (previous === "NORTH" && next === "SOUTH") ||
+    (previous === "SOUTH" && next === "NORTH")
+}
+
+function stepDirectionIndex(direction: StepDirection | null): number {
+  return direction === null ? 0 : direction === "WEST" ? 1 : direction === "NORTH" ? 2 : direction === "SOUTH" ? 3 : 4
+}
+
 function pointKey(point: FixedPoint): string { return `${signedKey(point.x)},${signedKey(point.y)}` }
 function signedKey(value: number): string { return `${value < 0 ? "-" : "+"}${Math.abs(value).toString().padStart(16, "0")}` }
 
 function compareScores(left: Score, right: Score): number {
-  return left.turns - right.turns || left.length - right.length || compareIds(left.pathKey, right.pathKey)
+  return left.turns - right.turns || left.length - right.length
 }
 
 function compareHeapItems(left: HeapItem, right: HeapItem): number {
@@ -1085,17 +1204,26 @@ function compareHeapItems(left: HeapItem, right: HeapItem): number {
     left.estimatedLength - right.estimatedLength ||
     left.score.turns - right.score.turns ||
     left.score.length - right.score.length ||
-    compareIds(left.score.pathKey, right.score.pathKey) ||
     compareStates(left.state, right.state)
 }
 
+function comparePointPaths(left: readonly FixedPoint[], right: readonly FixedPoint[]): number {
+  for (let index = 0; index < Math.max(left.length, right.length); index += 1) {
+    const leftPoint = left[index]
+    const rightPoint = right[index]
+    if (leftPoint === undefined || rightPoint === undefined) return leftPoint === undefined ? -1 : 1
+    const difference = leftPoint.x - rightPoint.x || leftPoint.y - rightPoint.y
+    if (difference !== 0) return difference
+  }
+  return 0
+}
+
 function compareStates(left: SearchState, right: SearchState): number {
-  const axis = (value: Axis | null): number => value === null ? 0 : value === "H" ? 1 : 2
   const nullable = (leftValue: number | null, rightValue: number | null): number =>
     leftValue === rightValue ? 0 : leftValue === null ? -1 : rightValue === null ? 1 : leftValue - rightValue
   return left.xi - right.xi ||
     left.yi - right.yi ||
-    axis(left.lastAxis) - axis(right.lastAxis) ||
+    stepDirectionIndex(left.lastDirection) - stepDirectionIndex(right.lastDirection) ||
     left.sourceExited - right.sourceExited ||
     left.targetEntered - right.targetEntered ||
     nullable(left.sourceGatewayY, right.sourceGatewayY) ||

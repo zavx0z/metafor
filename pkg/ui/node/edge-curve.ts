@@ -1,9 +1,6 @@
 import type {
-  NodeSystemEndpoint,
   NodeSystemPoint,
   NodeSystemRect,
-  PositionedNodeSystemEdge,
-  PositionedNodeSystemNode,
 } from "./model.ts"
 
 export type NodeSystemCubicBezier = Readonly<{
@@ -14,25 +11,7 @@ export type NodeSystemCubicBezier = Readonly<{
 }>
 
 /**
- * ELK sections terminate at the outer edge of a port rectangle. Rendering may
- * extend only that final in-port distance to the center of the visible socket;
- * the stored ELK route and every bend point remain unchanged.
- */
-export function connectNodeSystemEdgeToVisibleSockets(
-  entry: PositionedNodeSystemEdge,
-  visibleNodes: ReadonlyMap<string, PositionedNodeSystemNode>,
-): readonly NodeSystemPoint[] {
-  const points: NodeSystemPoint[] = []
-  const sourceCenter = visiblePortCenter(entry.edge.source, visibleNodes)
-  if (sourceCenter !== undefined) appendDistinctPoint(points, sourceCenter)
-  for (const point of entry.points) appendDistinctPoint(points, point)
-  const targetCenter = visiblePortCenter(entry.edge.target, visibleNodes)
-  if (targetCenter !== undefined) appendDistinctPoint(points, targetCenter)
-  return points
-}
-
-/**
- * Converts an ELK-routed polyline into cubics that round each routed corner.
+ * Converts an engine-routed polyline into cubics that round each routed corner.
  * Curves remain inside a bounded radius around the original route instead of
  * replacing it with one unconstrained source-to-target spline.
  */
@@ -150,25 +129,6 @@ function lerp(from: NodeSystemPoint, to: NodeSystemPoint, t: number): NodeSystem
 
 function distance(left: NodeSystemPoint, right: NodeSystemPoint): number {
   return Math.hypot(right.x - left.x, right.y - left.y)
-}
-
-function visiblePortCenter(
-  endpoint: NodeSystemEndpoint,
-  visibleNodes: ReadonlyMap<string, PositionedNodeSystemNode>,
-): NodeSystemPoint | undefined {
-  const node = visibleNodes.get(endpoint.nodeId)
-  if (node === undefined) return undefined
-  const positioned = node.ports.find(({port}) => port.id === endpoint.portId)
-  if (positioned === undefined) {
-    throw new Error(`Missing visible socket: ${endpoint.nodeId}/${endpoint.portId}`)
-  }
-  return positioned.center
-}
-
-function appendDistinctPoint(points: NodeSystemPoint[], point: NodeSystemPoint): void {
-  const previous = points.at(-1)
-  if (previous?.x === point.x && previous.y === point.y) return
-  points.push(point)
 }
 
 function collinear(previous: NodeSystemPoint, corner: NodeSystemPoint, next: NodeSystemPoint): boolean {

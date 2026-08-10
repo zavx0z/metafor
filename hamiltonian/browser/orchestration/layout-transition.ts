@@ -77,7 +77,7 @@ export function interpolateHamiltonianNodePositions(
   const previousEdges = new Map(previous.edges.map((entry) => [entry.edge.id, entry]))
   const edges = target.edges.flatMap((entry): readonly PositionedNodeSystemEdge[] => {
     const before = previousEdges.get(entry.edge.id)
-    // A newly observed transport is revealed with its complete ELK route at
+    // A newly observed transport is revealed with its complete engine route at
     // the end. Drawing the target route while its endpoints still move would
     // fabricate a detached intermediate edge.
     if (before === undefined || !sameEdgeEndpoints(before, entry)) return []
@@ -155,7 +155,7 @@ function sameEdgeEndpoints(left: PositionedNodeSystemEdge, right: PositionedNode
     left.edge.target.portId === right.edge.target.portId
 }
 
-/** Morphs the complete previous ELK polyline into the complete target ELK polyline. */
+/** Morphs the complete previous route into the complete target route. */
 function interpolatePolyline(
   before: readonly NodeSystemPoint[],
   target: readonly NodeSystemPoint[],

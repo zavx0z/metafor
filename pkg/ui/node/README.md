@@ -119,10 +119,16 @@ transform изменение размера surface сохраняет его б
 многострочный текст существующим cursor tooltip; короткие значения не получают
 лишнего hover chrome.
 
-Product path не содержит ELK, Libavoid, Web Worker, WASM routing backend,
-manual placement или post-routing. `layoutGraph(input)` — синхронная pure
-function со structured-clone-safe contract; будущий Worker может быть только
-адаптером вокруг неизменного ядра. `RIGHT` выбирается при `width >= height`,
+Product path не имеет внешнего layout/routing backend, Web Worker, manual
+placement или post-routing. `layoutGraph(input)` — синхронная pure function со
+structured-clone-safe contract; будущий Worker может быть только адаптером
+вокруг неизменного ядра. Выбран производительный гибрид: layered
+median/barycenter ordering, bounded compaction по мотивам
+[Brandes–Köpf](https://boriskoepf.de/papers/gd01a.pdf) и sparse visibility A*
+из подхода [orthogonal connector routing](https://users.monash.edu/~mwybrow/papers/wybrow-gd-2009.pdf).
+Network-simplex служит только ориентиром layered-архитектуры, описанной
+[Gansner et al.](https://graphviz.org/documentation/TSE93.pdf), и не является
+отдельным solver в product path. `RIGHT` выбирается при `width >= height`,
 `DOWN` — только при `height > width`. Для portrait действует выбранная
 владельцем compact policy: compound empty ratio является acceptance gate до
 soft turn/length objective. Повторы и стабильные permutations обязаны давать

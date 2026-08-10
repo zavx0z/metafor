@@ -634,7 +634,6 @@ async function start(): Promise<void> {
     unsubscribeLifecycle()
     unsubscribeLifecycleSnapshot()
     trafficPresentation.disconnect()
-    layouter.dispose()
     runtime.dispose()
   }, {once: true})
 }

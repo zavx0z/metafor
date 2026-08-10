@@ -2,6 +2,7 @@ import {describe, expect, test} from "bun:test"
 import {NODE_SYSTEM_PORT_PITCH} from "./card-layout.ts"
 import {MetaForNodeSystemLayouter, orderNodeSystemPortFactsForLayout} from "./layout-engine.ts"
 import type {NodeSystemDocument, PositionedNodeSystem} from "./model.ts"
+import {choosePortraitRowX} from "./place-graph.ts"
 
 const document: NodeSystemDocument = {
   revision: "layout-engine:1",
@@ -63,6 +64,40 @@ describe("MetaFor TypeScript node-system layout", () => {
     expectOrthogonal(portrait)
   })
 
+  test("reserves a deterministic landscape corridor for multi-edge fanout", () => {
+    const fanout: NodeSystemDocument = {
+      nodes: [
+        {
+          id: "source",
+          title: "Source",
+          facts: ["a", "b", "c"].map((id) => ({id, label: id, value: "out"})),
+          ports: ["a", "b", "c"].map((id) => ({id, parameterId: id, direction: "out" as const})),
+        },
+        ...["a", "b", "c"].map((id) => ({
+          id: `target-${id}`,
+          title: `Target ${id}`,
+          facts: [{id: "in", label: "In", value: id}],
+          ports: [{id: "in", parameterId: "in", direction: "in" as const}],
+        })),
+      ],
+      edges: ["a", "b", "c"].map((id) => ({
+        id: `edge-${id}`,
+        source: {nodeId: "source", portId: id},
+        target: {nodeId: `target-${id}`, portId: "in"},
+      })),
+    }
+    const layout = new MetaForNodeSystemLayouter().layout(fanout, {
+      viewport: {width: 1_200, height: 700},
+    })
+    const source = node(layout, "source")
+    const targetX = Math.min(...["a", "b", "c"].map((id) => node(layout, `target-${id}`).rect.x))
+
+    expect(targetX - source.rect.x - source.rect.w).toBeGreaterThanOrEqual(4 * NODE_SYSTEM_PORT_PITCH)
+    expect(layout.edges).toHaveLength(3)
+    expectExactEdgeEndpoints(layout)
+    expectOrthogonal(layout)
+  })
+
   test("packs equal portrait cards into a balanced flow instead of an empty row or column", () => {
     const wideLayer: NodeSystemDocument = {
       nodes: ["a", "b", "c", "d", "e", "f", "g", "h"].map((id) => ({
@@ -82,6 +117,19 @@ describe("MetaFor TypeScript node-system layout", () => {
     )
     expect(new Set(portrait.nodes.map(({rect}) => rect.x)).size).toBeGreaterThan(1)
     expect(new Set(portrait.nodes.map(({rect}) => rect.y)).size).toBeGreaterThan(1)
+  })
+
+  test("uses only existing portrait-row slack to move a target ahead of source EAST", () => {
+    const x = choosePortraitRowX({
+      minimumX: 100,
+      centeredX: 160,
+      maximumX: 240,
+      clearance: 28,
+      relations: [{sourceEast: 250, targetWestOffset: 40}],
+    })
+    expect(x).toBe(240)
+    expect(x).toBeLessThanOrEqual(240)
+    expect(x + 40).toBeGreaterThanOrEqual(250)
   })
 
   test("orders connected parameter rows by counterpart position without moving ordinary facts", () => {
