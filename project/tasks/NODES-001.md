@@ -100,9 +100,10 @@ bun run --cwd pkg/nodes typecheck
 
 ## Closing handoff
 
-* Result commit: `e17a3394f61194dccda790a97406ac7c92118f37` (`feat(nodes):
-  compact layout and minimize crossings`). Final benchmark/documentation
-  supplement: `35d3183f4` (`docs(nodes): record final layout benchmark`).
+* Original result commit: `e17a3394f61194dccda790a97406ac7c92118f37`
+  (`feat(nodes): compact layout and minimize crossings`). Closing correction:
+  `915d13976c633f2ed30f350eccb3aa3a32fdeada` (`fix(nodes): align layout
+  package boundaries`).
 * Затронутые владельцы: вычислительное ядро `@nodes/layout`, presentation-
   adapter `nodes`, измерение карточек `@nodes/ui`; Hamiltonian служит live
   acceptance consumer, его topology и renderer не менялись.
@@ -117,9 +118,14 @@ bun run --cwd pkg/nodes typecheck
   compaction, edge-node/edge-edge clearance в обеих осях, запрет прохода через
   unrelated node content, плотный `DOWN` flow и socket-aligned `RIGHT` placement
   описаны у постоянных владельцев.
-* Свежая проверка перед handoff: `26/26` focused tests, typecheck пакетов
-  `@nodes/layout` и `nodes`, `git diff --check` — green. Machine-readable RIGHT
-  и DOWN proofs, exact requests и live screenshots находятся в artifacts.
+* Свежая проверка перед handoff: `98/98` tests пакетов `nodes` и Hamiltonian
+  host/browser build, typecheck пакетов `@nodes/layout`, `nodes` и корня,
+  TypeDoc build, `git diff --check` — green. Machine-readable RIGHT и DOWN
+  proofs, exact requests и live screenshots находятся в artifacts.
+* Final benchmark на exact frozen inputs: RIGHT median `46.13 ms`, DOWN median
+  `267.61 ms`; предыдущий сопоставимый замер `47.83/285.78 ms`, geometry hashes
+  совпадают. Полный protocol и samples сохранены в
+  [`benchmark-current.json`](../artifacts/NODES-001/benchmark-current.json).
 * Владелец 2026-08-10 визуально принял итоговую геометрию. Closing correction
   устраняет выявленные расхождения физической границы Worker, UI measurement
   law, objective order и stale proof hashes. Перед удалением карточки требуется

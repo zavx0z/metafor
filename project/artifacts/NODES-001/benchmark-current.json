@@ -1,0 +1,65 @@
+{
+  "kind": "NODES-001-layout-benchmark",
+  "measuredAt": "2026-08-10T20:40:15.697Z",
+  "gitHead": "915d13976c633f2ed30f350eccb3aa3a32fdeada",
+  "layoutTree": "6c3a696d35bfecedff544f51b4f6face346b4a3e",
+  "runtime": {
+    "bun": "1.3.14",
+    "platform": "darwin",
+    "release": "22.6.0",
+    "arch": "x64",
+    "cpu": "Intel(R) Core(TM) i7-7820HQ CPU @ 2.90GHz"
+  },
+  "protocol": {
+    "process": "one Bun process",
+    "warmupRunsPerFixture": 1,
+    "measuredRunsPerFixture": 5,
+    "scope": "@nodes/layout layout(graph), without nodes adapter, Worker, renderer or assertions"
+  },
+  "results": [
+    {
+      "fixture": "live-layout-request-landscape.json",
+      "inputSha256": "e1a0b66c3bea30cfba400ae68f34da0861a1725e2a12b2b5c33152a2c7672abd",
+      "direction": "RIGHT",
+      "nodes": 12,
+      "ports": 18,
+      "edges": 9,
+      "warmupRuns": 1,
+      "measuredRuns": 5,
+      "samplesMs": [
+        74.40344700000003,
+        53.72467900000004,
+        46.12535099999997,
+        44.12983200000002,
+        41.20192400000002
+      ],
+      "minMs": 41.20192400000002,
+      "medianMs": 46.12535099999997,
+      "p95Ms": 74.40344700000003,
+      "maxMs": 74.40344700000003,
+      "geometrySha256": "a8c7921d9be4cdd6a8864fd06a4577924bce3fb12e4517842e241f529c535ecd"
+    },
+    {
+      "fixture": "live-layout-request-portrait.json",
+      "inputSha256": "61cba3028e0266c59b433637e2aab6d904c9ec7611ad4930bfe63ed45edbb181",
+      "direction": "DOWN",
+      "nodes": 12,
+      "ports": 18,
+      "edges": 9,
+      "warmupRuns": 1,
+      "measuredRuns": 5,
+      "samplesMs": [
+        164.04631100000006,
+        306.07656299999996,
+        264.02163599999994,
+        267.61052399999994,
+        328.73052499999994
+      ],
+      "minMs": 164.04631100000006,
+      "medianMs": 267.61052399999994,
+      "p95Ms": 328.73052499999994,
+      "maxMs": 328.73052499999994,
+      "geometrySha256": "0d8aadffa459fef9f6cbfd57826823cfc3e12b4b553b5cdd8ac8f4f0c9abe70c"
+    }
+  ]
+}

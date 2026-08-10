@@ -41,3 +41,31 @@ edge-edge clearance. Его SHA-256:
 
 `live-landscape.json` и `live-portrait.json` содержат соответствующие
 browser-observation snapshots; machine geometry принадлежит `live-proof-*`.
+
+## Final benchmark
+
+`benchmark.ts` измеряет только синхронный `@nodes/layout layout(graph)` без
+nodes-adapter, Worker, renderer и assertions. Для каждого exact input выполнен
+один прогрев и пять последовательных замеров в одном Bun-процессе. Каждый
+результат проверен по geometry SHA-256.
+
+Замер выполнен на implementation commit
+`915d13976c633f2ed30f350eccb3aa3a32fdeada`, layout tree
+`6c3a696d35bfecedff544f51b4f6face346b4a3e`, Bun `1.3.14`, macOS `13.7.8`,
+Intel i7-7820HQ:
+
+| Режим | Samples, ms | Min | Median | Max |
+| --- | --- | ---: | ---: | ---: |
+| `RIGHT` | 74.40, 53.72, 46.13, 44.13, 41.20 | 41.20 | 46.13 | 74.40 |
+| `DOWN` | 164.05, 306.08, 264.02, 267.61, 328.73 | 164.05 | 267.61 | 328.73 |
+
+Последний сопоставимый замер из Git commit `35d3183f4` использовал те же input
+SHA, Bun, OS и CPU: median `47.83 ms` для `RIGHT` и `285.78 ms` для `DOWN`.
+Текущие geometry SHA также совпали (`a8c792…` и `0d8aad…`). Короткая серия не
+показывает performance regression; разница median не объявляется отдельным
+ускорением.
+
+SHA-256 `benchmark.ts`:
+`01c87ba726c995e5ef51c4255c18107ed2400e939432aabbadb08b490d421e48`.
+SHA-256 `benchmark-current.json`:
+`4c296ce1dbb3565eeb0fd2548f6758ae311a18920f7300d98a94beb6b92b542b`.

@@ -60,14 +60,13 @@ flowchart LR
 отдельной незавершённой работой. После неё начинается
 `MF-414 — Определить, где работают домены и какая их копия действующая`.
 
-Текущая задача Codex: NODES-001. Исправляются блокеры closing review: stale
-machine proof, физическая граница Worker, UI measurement law и точный порядок
-layout objectives.
+Текущая задача Codex: нет. NODES-001 повторно передана на независимую
+закрывающую проверку после исправления stale proof и package contracts.
 
 | ID         | Состояние   | Зависимости    | Карточка                       |
 | ---------- | ----------- | -------------- | ------------------------------ |
 | MF-424     | IN_PROGRESS | нет            | [Открыть](tasks/MF-424.md)     |
-| NODES-001  | IN_PROGRESS | нет            | [Открыть](tasks/NODES-001.md)  |
+| NODES-001  | REVIEW      | нет            | [Открыть](tasks/NODES-001.md)  |
 | MF-425     | IN_PROGRESS | нет            | [Открыть](tasks/MF-425.md)     |
 | MF-411     | IN_PROGRESS | нет            | [Открыть](tasks/MF-411.md)     |
 | MF-414     | WAITING     | MF-411         | [Открыть](tasks/MF-414.md)     |
