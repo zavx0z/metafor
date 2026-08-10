@@ -235,7 +235,10 @@ describe("MetaFor TypeScript node-system layout", () => {
     })
     const permuted = layouter.layout({
       ...transition,
-      nodes: [...transition.nodes].reverse(),
+      nodes: [...transition.nodes].reverse().map((entry) => {
+        if (!entry.id.startsWith("service-worker-") || entry.facts === undefined) return entry
+        return {...entry, facts: [entry.facts[0]!, entry.facts[2]!, entry.facts[1]!]}
+      }),
       edges: [...transition.edges].reverse(),
     }, {viewport: {width: 647, height: 1088}})
 

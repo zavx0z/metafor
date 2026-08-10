@@ -36,6 +36,9 @@ type LayoutPass = Readonly<{
   positioned: PositionedNodeSystem
   result: LayoutResult
 }>
+
+const MAX_CONNECTED_ROW_ORDER_CANDIDATES = 2
+
 /** Presentation adapter: измеряет UI document и материализует готовую geometry. */
 export class MetaForNodeSystemLayouter {
   constructor(private readonly options: MetaForNodeSystemLayoutOptions = {}) {}
@@ -51,21 +54,19 @@ export class MetaForNodeSystemLayouter {
     }
     const measureText = memoizedTextMeasurer(this.options.measureText)
     const first = this.layoutPass(document, viewport, measureText)
-    const direction: NodeSystemLayoutDirection = viewport.width >= viewport.height ? "RIGHT" : "DOWN"
-    const orderedDocument = orderNodeSystemPortFactsForLayout(document, first.positioned, direction)
-    if (orderedDocument === document) return first.positioned
-
-    try {
-      const ordered = this.layoutPass(orderedDocument, viewport, measureText)
-      return compareRoutingObjective(ordered.result, first.result) < 0
-        ? ordered.positioned
-        : first.positioned
-    } catch (error) {
-      if (error instanceof Error && error.message.startsWith("NO_LEGAL_LAYOUT")) {
-        return first.positioned
+    let best = first
+    for (const candidate of nodeSystemPortFactOrderCandidates(document, first)) {
+      try {
+        const ordered = this.layoutPass(candidate, viewport, measureText)
+        if (compareRoutingObjective(ordered.result, best.result) < 0) best = ordered
+      } catch (error) {
+        if (error instanceof Error && error.message.startsWith("NO_LEGAL_LAYOUT")) {
+          continue
+        }
+        throw error
       }
-      throw error
     }
+    return best.positioned
   }
 
   private layoutPass(
@@ -100,21 +101,17 @@ export class MetaForNodeSystemWorkerLayouter {
     }
     const measureText = memoizedTextMeasurer(this.options.measureText)
     const first = await this.layoutPass(document, viewport, measureText, generation)
-    const orderedDocument = orderNodeSystemPortFactsForLayout(
-      document,
-      first.positioned,
-      first.result.direction,
-    )
-    if (orderedDocument === document) return first.positioned
-    try {
-      const ordered = await this.layoutPass(orderedDocument, viewport, measureText, generation)
-      return compareRoutingObjective(ordered.result, first.result) < 0
-        ? ordered.positioned
-        : first.positioned
-    } catch (error) {
-      if (error instanceof Error && error.message.startsWith("NO_LEGAL_LAYOUT")) return first.positioned
-      throw error
+    let best = first
+    for (const candidate of nodeSystemPortFactOrderCandidates(document, first)) {
+      try {
+        const ordered = await this.layoutPass(candidate, viewport, measureText, generation)
+        if (compareRoutingObjective(ordered.result, best.result) < 0) best = ordered
+      } catch (error) {
+        if (error instanceof Error && error.message.startsWith("NO_LEGAL_LAYOUT")) continue
+        throw error
+      }
     }
+    return best.positioned
   }
 
   private async layoutPass(
@@ -288,6 +285,139 @@ export function orderNodeSystemPortFactsForLayout(
     return {...node, facts: nextFacts}
   })
   return changed ? {...document, nodes} : document
+}
+
+/**
+ * Bounded presentation search. Besides the median/barycenter proposal it tries
+ * pair swaps only where two crossing edges share a concrete endpoint card.
+ */
+function nodeSystemPortFactOrderCandidates(
+  document: NodeSystemDocument,
+  first: LayoutPass,
+): readonly NodeSystemDocument[] {
+  const candidates = new Map<string, NodeSystemDocument>()
+  const originalKey = nodeSystemFactOrderKey(document)
+  candidates.set(originalKey, document)
+  const add = (candidate: NodeSystemDocument): void => {
+    if (candidates.size >= MAX_CONNECTED_ROW_ORDER_CANDIDATES) return
+    const key = nodeSystemFactOrderKey(candidate)
+    if (!candidates.has(key)) candidates.set(key, candidate)
+  }
+  const heuristicCandidate = orderNodeSystemPortFactsForLayout(
+    document,
+    first.positioned,
+    first.result.direction,
+  )
+
+  const edgeById = new Map(document.edges.map((edge) => [edge.id, edge]))
+  const portByEndpoint = new Map(document.nodes.flatMap((node) =>
+    (node.ports ?? []).map((port) => [enginePortId(node.id, port.id), port] as const)))
+  const swaps = new Map<string, Readonly<{nodeId: string; leftParameterId: string; rightParameterId: string; crossings: number}>>()
+  for (const [leftEdgeId, rightEdgeId] of crossingEdgePairs(first.positioned)) {
+    const left = edgeById.get(leftEdgeId)
+    const right = edgeById.get(rightEdgeId)
+    if (left === undefined || right === undefined) continue
+    for (const leftEndpoint of [left.source, left.target]) {
+      for (const rightEndpoint of [right.source, right.target]) {
+        if (leftEndpoint.nodeId !== rightEndpoint.nodeId) continue
+        const leftParameterId = portByEndpoint.get(enginePortId(leftEndpoint.nodeId, leftEndpoint.portId))?.parameterId
+        const rightParameterId = portByEndpoint.get(enginePortId(rightEndpoint.nodeId, rightEndpoint.portId))?.parameterId
+        if (leftParameterId === undefined || rightParameterId === undefined || leftParameterId === rightParameterId) continue
+        const orderedParameterIds = [leftParameterId, rightParameterId].sort(compareIds)
+        const firstParameterId = orderedParameterIds[0]!
+        const secondParameterId = orderedParameterIds[1]!
+        const key = `${leftEndpoint.nodeId}\u0000${firstParameterId}\u0000${secondParameterId}`
+        const previous = swaps.get(key)
+        swaps.set(key, {
+          nodeId: leftEndpoint.nodeId,
+          leftParameterId: firstParameterId,
+          rightParameterId: secondParameterId,
+          crossings: (previous?.crossings ?? 0) + 1,
+        })
+      }
+    }
+  }
+  let crossingCandidate = document
+  const usedParameters = new Map<string, Set<string>>()
+  for (const swap of [...swaps.values()].sort((left, right) =>
+    right.crossings - left.crossings ||
+    compareIds(left.nodeId, right.nodeId) ||
+    compareIds(left.leftParameterId, right.leftParameterId) ||
+    compareIds(left.rightParameterId, right.rightParameterId))) {
+    const used = usedParameters.get(swap.nodeId) ?? new Set<string>()
+    if (used.has(swap.leftParameterId) || used.has(swap.rightParameterId)) continue
+    const swapped = swapNodeSystemFacts(
+      crossingCandidate,
+      swap.nodeId,
+      swap.leftParameterId,
+      swap.rightParameterId,
+    )
+    if (swapped === crossingCandidate) continue
+    crossingCandidate = swapped
+    used.add(swap.leftParameterId)
+    used.add(swap.rightParameterId)
+    usedParameters.set(swap.nodeId, used)
+  }
+  add(crossingCandidate === document ? heuristicCandidate : crossingCandidate)
+
+  return [...candidates.entries()]
+    .filter(([key]) => key !== originalKey)
+    .map(([, candidate]) => candidate)
+}
+
+function crossingEdgePairs(positioned: PositionedNodeSystem): readonly (readonly [string, string])[] {
+  const pairs = new Set<string>()
+  const edges = [...positioned.edges].sort((left, right) => compareIds(left.edge.id, right.edge.id))
+  for (let leftIndex = 0; leftIndex < edges.length; leftIndex += 1) {
+    const left = edges[leftIndex]!
+    for (let rightIndex = leftIndex + 1; rightIndex < edges.length; rightIndex += 1) {
+      const right = edges[rightIndex]!
+      let crosses = false
+      for (let li = 1; li < left.points.length && !crosses; li += 1) {
+        for (let ri = 1; ri < right.points.length; ri += 1) {
+          if (!properPerpendicularLayoutCrossing(
+            left.points[li - 1]!, left.points[li]!,
+            right.points[ri - 1]!, right.points[ri]!,
+          )) continue
+          crosses = true
+          break
+        }
+      }
+      if (crosses) pairs.add(`${left.edge.id}\u0000${right.edge.id}`)
+    }
+  }
+  return [...pairs].sort(compareIds).map((key) => {
+    const [left, right] = key.split("\u0000")
+    return [left!, right!] as const
+  })
+}
+
+function swapNodeSystemFacts(
+  document: NodeSystemDocument,
+  nodeId: string,
+  leftParameterId: string,
+  rightParameterId: string,
+): NodeSystemDocument {
+  let changed = false
+  const nodes = document.nodes.map((node): NodeSystemNode => {
+    if (node.id !== nodeId || node.facts === undefined) return node
+    const leftIndex = node.facts.findIndex(({id}) => id === leftParameterId)
+    const rightIndex = node.facts.findIndex(({id}) => id === rightParameterId)
+    if (leftIndex < 0 || rightIndex < 0) return node
+    const facts = [...node.facts]
+    const left = facts[leftIndex]!
+    facts[leftIndex] = facts[rightIndex]!
+    facts[rightIndex] = left
+    changed = true
+    return {...node, facts}
+  })
+  return changed ? {...document, nodes} : document
+}
+
+function nodeSystemFactOrderKey(document: NodeSystemDocument): string {
+  return JSON.stringify([...document.nodes]
+    .sort((left, right) => compareIds(left.id, right.id))
+    .map((node) => [node.id, (node.facts ?? []).map(({id}) => id)]))
 }
 
 type RowAssignment = Readonly<{
