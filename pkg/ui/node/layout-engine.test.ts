@@ -119,6 +119,88 @@ describe("MetaFor TypeScript node-system layout", () => {
     expect(new Set(portrait.nodes.map(({rect}) => rect.y)).size).toBeGreaterThan(1)
   })
 
+  test("routes two simultaneous sibling lifecycle contours with a bounded portrait-width fallback", () => {
+    const nodeWithPorts = (
+      id: string,
+      parentId: string | undefined,
+      title: string,
+      parameters: readonly (readonly [string, "in" | "out"])[],
+    ) => ({
+      id,
+      ...(parentId === undefined ? {} : {parentId}),
+      title,
+      facts: parameters.map(([parameterId, direction]) => ({
+        id: parameterId,
+        label: parameterId,
+        value: direction,
+      })),
+      ports: parameters.map(([parameterId, direction]) => ({
+        id: parameterId,
+        parameterId,
+        direction,
+      })),
+    })
+    const transition: NodeSystemDocument = {
+      nodes: [
+        {id: "browser", title: "Browser"},
+        nodeWithPorts("page", "browser", "Current page realm", [
+          ["controller-a", "out"], ["message-a", "in"],
+          ["controller-b", "out"], ["message-b", "in"],
+        ]),
+        nodeWithPorts("service-worker-a", "browser", "Service Worker A", [
+          ["controller-a", "in"], ["message-a", "out"], ["websocket-a", "out"],
+        ]),
+        nodeWithPorts("service-worker-b", "browser", "Service Worker B", [
+          ["controller-b", "in"], ["message-b", "out"], ["websocket-b", "out"],
+        ]),
+        nodeWithPorts("server", undefined, "Hamiltonian server", [
+          ["ipc-worker", "out"], ["ipc-main", "out"], ["ipc-peer", "out"],
+          ["websocket-a", "in"], ["websocket-b", "in"],
+        ]),
+        nodeWithPorts("bun-worker", undefined, "Worker probe process", [["ipc-worker", "in"]]),
+        nodeWithPorts("bun-main", undefined, "Main probe process", [["ipc-main", "in"]]),
+        nodeWithPorts("window-main", "page", "Window main realm", [["worker-message", "out"]]),
+        nodeWithPorts("peer-process", undefined, "WebRTC peer process", [["ipc-peer", "in"]]),
+        nodeWithPorts("dedicated-worker", "page", "Dedicated Worker", [["worker-message", "in"]]),
+        nodeWithPorts("rtc-server", "peer-process", "Server RTCPeerConnection", [
+          ["data-force", "out"], ["data-oracle", "out"],
+        ]),
+        nodeWithPorts("rtc-browser", "window-main", "Browser RTCPeerConnection", [
+          ["data-force", "in"], ["data-oracle", "in"],
+        ]),
+      ],
+      edges: [
+        {id: "controller-a", source: {nodeId: "page", portId: "controller-a"}, target: {nodeId: "service-worker-a", portId: "controller-a"}},
+        {id: "message-a", source: {nodeId: "service-worker-a", portId: "message-a"}, target: {nodeId: "page", portId: "message-a"}},
+        {id: "websocket-a", source: {nodeId: "service-worker-a", portId: "websocket-a"}, target: {nodeId: "server", portId: "websocket-a"}},
+        {id: "controller-b", source: {nodeId: "page", portId: "controller-b"}, target: {nodeId: "service-worker-b", portId: "controller-b"}},
+        {id: "message-b", source: {nodeId: "service-worker-b", portId: "message-b"}, target: {nodeId: "page", portId: "message-b"}},
+        {id: "websocket-b", source: {nodeId: "service-worker-b", portId: "websocket-b"}, target: {nodeId: "server", portId: "websocket-b"}},
+        {id: "ipc-worker", source: {nodeId: "server", portId: "ipc-worker"}, target: {nodeId: "bun-worker", portId: "ipc-worker"}},
+        {id: "ipc-main", source: {nodeId: "server", portId: "ipc-main"}, target: {nodeId: "bun-main", portId: "ipc-main"}},
+        {id: "ipc-peer", source: {nodeId: "server", portId: "ipc-peer"}, target: {nodeId: "peer-process", portId: "ipc-peer"}},
+        {id: "worker-message", source: {nodeId: "window-main", portId: "worker-message"}, target: {nodeId: "dedicated-worker", portId: "worker-message"}},
+        {id: "data-force", source: {nodeId: "rtc-server", portId: "data-force"}, target: {nodeId: "rtc-browser", portId: "data-force"}},
+        {id: "data-oracle", source: {nodeId: "rtc-server", portId: "data-oracle"}, target: {nodeId: "rtc-browser", portId: "data-oracle"}},
+      ],
+    }
+    const layouter = new MetaForNodeSystemLayouter()
+    const layout = layouter.layout(transition, {
+      viewport: {width: 647, height: 1088},
+    })
+    const permuted = layouter.layout({
+      ...transition,
+      nodes: [...transition.nodes].reverse(),
+      edges: [...transition.edges].reverse(),
+    }, {viewport: {width: 647, height: 1088}})
+
+    expect(layout.nodes).toHaveLength(12)
+    expect(layout.edges).toHaveLength(12)
+    expect(permuted).toEqual(layout)
+    expectAllExactEdgeEndpoints(layout)
+    expectOrthogonal(layout)
+  })
+
   test("uses only existing portrait-row slack to move a target ahead of source EAST", () => {
     const x = choosePortraitRowX({
       minimumX: 100,
@@ -253,6 +335,19 @@ function expectExactEdgeEndpoints(layout: PositionedNodeSystem): void {
   )!.center
   expect(edge.points[0]).toEqual(source)
   expect(edge.points.at(-1)).toEqual(target)
+}
+
+function expectAllExactEdgeEndpoints(layout: PositionedNodeSystem): void {
+  for (const edge of layout.edges) {
+    const source = node(layout, edge.edge.source.nodeId).ports.find(
+      ({port}) => port.id === edge.edge.source.portId,
+    )!.center
+    const target = node(layout, edge.edge.target.nodeId).ports.find(
+      ({port}) => port.id === edge.edge.target.portId,
+    )!.center
+    expect(edge.points[0]).toEqual(source)
+    expect(edge.points.at(-1)).toEqual(target)
+  }
 }
 
 function expectOrthogonal(layout: PositionedNodeSystem): void {

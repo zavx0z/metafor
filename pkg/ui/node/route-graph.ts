@@ -158,8 +158,28 @@ const compareIds = (left: string, right: string): number =>
 
 export function routeGraph(input: RouteGraphInput): RouteGraphResult {
   const index = validateInput(input)
+  try {
+    return routeGraphInOrder(input, index, index.sortedEdges)
+  } catch (error) {
+    if (!expectedRouteFailure(error)) throw error
+    // Stable semantic ID remains the primary order. Only a hard failure opens
+    // this one permutation-independent target-port schedule.
+    try {
+      return routeGraphInOrder(input, index, fallbackEdgeOrder(index))
+    } catch (fallbackError) {
+      if (!expectedRouteFailure(fallbackError)) throw fallbackError
+      throw error
+    }
+  }
+}
+
+function routeGraphInOrder(
+  input: RouteGraphInput,
+  index: RouteIndex,
+  edges: readonly RouteEdge[],
+): RouteGraphResult {
   const routed = new Map<string, readonly FixedPoint[]>()
-  for (const edge of index.sortedEdges) {
+  for (const edge of edges) {
     const context = buildEdgeContext(input, index, edge)
     routed.set(edge.id, routeEdge(input, index, context, routed))
   }
@@ -182,6 +202,20 @@ export function routeGraph(input: RouteGraphInput): RouteGraphResult {
     throw new Error(`routeGraph produced invalid geometry:\n${hardViolations.join("\n")}`)
   }
   return {...provisional, metrics: measureResult(input, index, sections, hardViolations)}
+}
+
+function expectedRouteFailure(error: unknown): boolean {
+  return error instanceof Error && (
+    error.message.startsWith("NO_LEGAL_ROUTE ") ||
+    error.message.startsWith("routeGraph produced invalid geometry:")
+  )
+}
+
+function fallbackEdgeOrder(index: RouteIndex): readonly RouteEdge[] {
+  return [...index.sortedEdges].sort((left, right) =>
+    compareIds(left.targetPortId, right.targetPortId) ||
+    compareIds(left.sourcePortId, right.sourcePortId) ||
+    compareIds(left.id, right.id))
 }
 
 export function diagnoseRouteGraph(input: RouteGraphInput): RouteGraphDiagnostic {

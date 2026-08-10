@@ -83,7 +83,10 @@ export function placementCandidates(input: PlacementInput): readonly PlacementRe
     }
   }
   if (input.viewport.height > input.viewport.width) {
-    const widthPermilles = [600, 800, 1_000, 1_250, 1_600]
+    const widthPermilles = [
+      600, 800, 1_000, 1_250, 1_600,
+      ...(needsWidePortraitFallback(input) ? [2_000] : []),
+    ]
     for (const rootWidthPermille of widthPermilles) {
       for (const nestedWidthPermille of widthPermilles) {
         for (const compactSources of [false, true]) {
@@ -100,6 +103,24 @@ export function placementCandidates(input: PlacementInput): readonly PlacementRe
     }
   }
   return [...unique.entries()].sort(([left], [right]) => compareIds(left, right)).map(([, result]) => result)
+}
+
+function needsWidePortraitFallback(input: PlacementInput): boolean {
+  const nodeById = new Map(input.nodes.map((node) => [node.id, node]))
+  const portById = new Map(input.ports.map((port) => [port.id, port]))
+  const siblingRelations = new Map<string, number>()
+  for (const edge of input.edges) {
+    const source = portById.get(edge.sourcePortId)
+    const target = portById.get(edge.targetPortId)
+    if (source === undefined || target === undefined) continue
+    const sourceParent = nodeById.get(source.nodeId)?.parentId
+    const targetParent = nodeById.get(target.nodeId)?.parentId
+    if (sourceParent === undefined || sourceParent !== targetParent) continue
+    const count = (siblingRelations.get(sourceParent) ?? 0) + 1
+    if (count > 2) return true
+    siblingRelations.set(sourceParent, count)
+  }
+  return false
 }
 
 function placeGraphWithAlignedContainers(input: PlacementInput, alignedContainers: ReadonlySet<string | null>, packing: PackingPolicy): PlacementResult {

@@ -128,7 +128,10 @@ median/barycenter ordering, bounded compaction по мотивам
 из подхода [orthogonal connector routing](https://users.monash.edu/~mwybrow/papers/wybrow-gd-2009.pdf).
 Network-simplex служит только ориентиром layered-архитектуры, описанной
 [Gansner et al.](https://graphviz.org/documentation/TSE93.pdf), и не является
-отдельным solver в product path. `RIGHT` выбирается при `width >= height`,
+отдельным solver в product path. Если compact portrait candidates не оставляют
+legal corridor для нескольких sibling relations, placement генерирует один
+bounded wide fallback; router обращается к deterministic target-port edge order
+только после hard failure основного semantic-ID order. `RIGHT` выбирается при `width >= height`,
 `DOWN` — только при `height > width`. Для portrait действует выбранная
 владельцем compact policy: compound empty ratio является acceptance gate до
 soft turn/length objective. Повторы и стабильные permutations обязаны давать
