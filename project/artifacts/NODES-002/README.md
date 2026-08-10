@@ -104,3 +104,58 @@ Worker bundle содержал новый bundle-uncross код; scene имел�
   Worker и crossing IPC fan-out.
 * После proof вкладка возвращена к исходному content viewport 729 × 1088:
   `DOWN`, Worker `ready`, transition `complete`, generation `186`.
+
+## Производительность
+
+`benchmark.ts` измеряет только синхронный вызов `@nodes/layout layout(graph)`:
+без nodes-adapter, Worker messaging, renderer и test assertions. Для каждого
+frozen request выполняется один прогрев и пять последовательных замеров в одном
+Bun-процессе; каждый результат сверяется по SHA-256 geometry. Команда:
+
+```bash
+bun project/artifacts/NODES-002/benchmark.ts
+```
+
+`benchmark-current.json` хранит среду, exact input hashes, все samples,
+min/median/p95/max и geometry hashes текущего `HEAD`.
+
+На `e17a3394f61194dccda790a97406ac7c92118f37`, Bun `1.3.14`, macOS `13.7.8`,
+Intel i7-7820HQ получены:
+
+| Режим | Samples, ms | Min | Median | P95/max |
+| --- | --- | ---: | ---: | ---: |
+| `RIGHT` | 88.56, 68.54, 46.90, 47.83, 46.14 | 46.14 | 47.83 | 88.56 |
+| `DOWN` | 226.92, 418.49, 352.80, 265.97, 285.78 | 226.92 | 285.78 | 418.49 |
+
+При пяти samples `p95` совпадает с максимальным значением и не является
+устойчивой tail-latency оценкой; в отчёте он оставлен только как верхняя точка
+этой короткой серии.
+
+Для сравнения сохранён `benchmark-historical.json` — последний benchmark старого
+product engine на исходном frozen MF-419 graph: 11 нод, 18 портов, 9 рёбер.
+Исторический median custom составлял `1216.84 ms` для `RIGHT` и `139.23 ms` для
+`DOWN`; зафиксированный в том же trace ELK — `69.5 ms` и `134.7 ms`
+соответственно. Исторический runner не записал Git revision, Bun version и CPU,
+поэтому эти числа являются session baseline, а не строгим межмашинным
+benchmark.
+
+Прямое численное сопоставление snapshots даёт `RIGHT 1216.84 → 47.83 ms`
+(`25.4×` меньше времени) и `DOWN 139.23 → 285.78 ms` (`2.05×` больше времени).
+Это диагностическое сравнение, а не доказанная скорость изменения алгоритма:
+исторический snapshot имел 11 нод, текущий — 12. Наблюдавшийся ранее live
+Worker interval около `607.5 ms` также не является чистым solver benchmark:
+он включал browser scheduling, Worker transport и применение результата.
+
+Время около `4.15 s` у тяжёлого `layout-engine.test.ts` также исключено из
+benchmark. Тест дважды вызывает nodes-adapter — для исходного и reversed graph;
+каждый adapter-вызов может выполнить исходный и connected-row layout pass.
+Итого один тест запускает pure solver до четырёх раз, затем выполняет
+materialization и геометрические assertions. Это полезное время интеграционной
+проверки, но не latency одного `layout(graph)`.
+
+Текущие NODES-002 requests содержат 12 нод: к графу добавлен `server-contour`.
+Поэтому новый замер сравнивается с историческим по порядку величины и выявляет
+изменение performance-профиля, но не доказывает ускорение или замедление на
+identical input. На текущем snapshot `RIGHT` быстрее исторического ELK trace,
+а `DOWN` медленнее, однако утверждение «движок быстрее ELK» по разным inputs и
+неполностью зафиксированной исторической среде не делается.

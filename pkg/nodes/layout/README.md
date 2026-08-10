@@ -134,3 +134,35 @@ bun run docs:layout
 bun test pkg/nodes/layout/src
 bun run --cwd pkg/nodes/layout typecheck
 ```
+
+## Обязательный benchmark перед REVIEW
+
+Внутри задачи агент сначала достигает её функционального и геометрического
+результата. Benchmark не выполняется после каждой промежуточной попытки и не
+заменяет hard validation, tests или visual acceptance.
+
+Когда задача, меняющая placement, compaction, routing, порядок кандидатов, soft
+objectives или поисковый бюджет, готова к переводу в `REVIEW`, исполнитель:
+
+1. Запускает один final benchmark на принятых frozen `RIGHT` и `DOWN` inputs.
+2. Сохраняет machine-readable result в
+   `project/artifacts/<ID>/benchmark-current.json`. Результат содержит все
+   samples, min/median/max, hashes inputs и geometry, runtime environment и
+   точную Git revision или hash изменённого layout source.
+3. Записывает итоговые числа и ссылку на artifact в карточке задачи.
+4. Включает код, final benchmark и обязательную документацию в result-коммит,
+   который переводит задачу в `REVIEW`.
+
+Если применимый предыдущий benchmark существует, он берётся из Git history и
+сопоставляется только при одинаковых inputs и условиях. Изменение fixture
+создаёт новый baseline; числа разных inputs нельзя выдавать за прямое ускорение
+или regression.
+
+Benchmark фиксирует стоимость уже достигнутого результата. После review
+владелец решает, приемлема ли она сейчас или нужна отдельная задача
+оптимизации. При закрытии `project/artifacts/<ID>/` удаляется по обычным
+правилам проекта; отдельный постоянный архив benchmark JSON внутри package не
+создаётся.
+
+Изменения только Worker transport, UI, view или renderer измеряются у своего
+владельца и не превращаются в benchmark вычислительного ядра layout.

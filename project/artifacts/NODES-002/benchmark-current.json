@@ -1,0 +1,64 @@
+{
+  "kind": "NODES-002-layout-benchmark",
+  "measuredAt": "2026-08-10T18:53:34.856Z",
+  "gitHead": "e17a3394f61194dccda790a97406ac7c92118f37",
+  "runtime": {
+    "bun": "1.3.14",
+    "platform": "darwin",
+    "release": "22.6.0",
+    "arch": "x64",
+    "cpu": "Intel(R) Core(TM) i7-7820HQ CPU @ 2.90GHz"
+  },
+  "protocol": {
+    "process": "one Bun process",
+    "warmupRunsPerFixture": 1,
+    "measuredRunsPerFixture": 5,
+    "scope": "@nodes/layout layout(graph), without nodes adapter, Worker, renderer or assertions"
+  },
+  "results": [
+    {
+      "fixture": "layout-request-landscape.json",
+      "inputSha256": "e1a0b66c3bea30cfba400ae68f34da0861a1725e2a12b2b5c33152a2c7672abd",
+      "direction": "RIGHT",
+      "nodes": 12,
+      "ports": 18,
+      "edges": 9,
+      "warmupRuns": 1,
+      "measuredRuns": 5,
+      "samplesMs": [
+        88.56221700000003,
+        68.53668899999997,
+        46.89703400000002,
+        47.832832999999994,
+        46.14358600000003
+      ],
+      "minMs": 46.14358600000003,
+      "medianMs": 47.832832999999994,
+      "p95Ms": 88.56221700000003,
+      "maxMs": 88.56221700000003,
+      "geometrySha256": "a8c7921d9be4cdd6a8864fd06a4577924bce3fb12e4517842e241f529c535ecd"
+    },
+    {
+      "fixture": "layout-request-portrait.json",
+      "inputSha256": "61cba3028e0266c59b433637e2aab6d904c9ec7611ad4930bfe63ed45edbb181",
+      "direction": "DOWN",
+      "nodes": 12,
+      "ports": 18,
+      "edges": 9,
+      "warmupRuns": 1,
+      "measuredRuns": 5,
+      "samplesMs": [
+        226.924214,
+        418.488748,
+        352.80477599999995,
+        265.97045300000013,
+        285.7818339999999
+      ],
+      "minMs": 226.924214,
+      "medianMs": 285.7818339999999,
+      "p95Ms": 418.488748,
+      "maxMs": 418.488748,
+      "geometrySha256": "0d8aadffa459fef9f6cbfd57826823cfc3e12b4b553b5cdd8ac8f4f0c9abe70c"
+    }
+  ]
+}
