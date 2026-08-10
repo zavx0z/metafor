@@ -92,3 +92,31 @@ bun run --cwd pkg/nodes typecheck
 * Пересечения рёбер, найденные после этого среза, вынесены в NODES-002 и
   исправлены в том же готовом result bundle; обе задачи требуют одной
   независимой закрывающей проверки.
+
+## Closing handoff
+
+* Result commit: `e17a3394f61194dccda790a97406ac7c92118f37` (`feat(nodes):
+  compact layout and minimize crossings`). Final benchmark/documentation
+  supplement: `35d3183f4` (`docs(nodes): record final layout benchmark`).
+* Затронутые владельцы: вычислительное ядро `@nodes/layout`, presentation-
+  adapter `nodes`, измерение карточек `@nodes/ui`; Hamiltonian служит live
+  acceptance consumer, его topology и renderer не менялись.
+* Постоянные документы для сверки:
+  [`layout/requirements/COMMON.md`](../../pkg/nodes/layout/requirements/COMMON.md),
+  [`RIGHT.md`](../../pkg/nodes/layout/requirements/RIGHT.md),
+  [`DOWN.md`](../../pkg/nodes/layout/requirements/DOWN.md),
+  [`layout/README.md`](../../pkg/nodes/layout/README.md),
+  [`nodes/REQUIREMENTS.md`](../../pkg/nodes/REQUIREMENTS.md) и
+  [`ui/REQUIREMENTS.md`](../../pkg/nodes/ui/REQUIREMENTS.md).
+* Долговечные выводы: единый socket-pitch rhythm, content-aware compound
+  compaction, edge-node/edge-edge clearance в обеих осях, запрет прохода через
+  unrelated node content, плотный `DOWN` flow и socket-aligned `RIGHT` placement
+  описаны у постоянных владельцев.
+* Свежая проверка перед handoff: `26/26` focused tests, typecheck пакетов
+  `@nodes/layout` и `nodes`, `git diff --check` — green. Machine-readable RIGHT
+  и DOWN proofs, exact requests и live screenshots находятся в artifacts.
+* Владелец 2026-08-10 визуально принял итоговую геометрию. Независимому
+  проверяющему нужно отдельно оценить документированную границу Worker: карточка
+  отмечает физическое нахождение Worker adapter/types в `@nodes/layout` как
+  отдельный последующий implementation-срез; это нельзя молча считать ни
+  выполненным, ни блокирующим без verdict по scope NODES-001.

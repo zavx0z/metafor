@@ -119,6 +119,30 @@ gate повторно открывать не требуется, если пр�
 итерации. Решение о необходимости performance-оптимизации принимается после
 review и при необходимости оформляется отдельной задачей.
 
+## Closing handoff
+
+* Result commit: `e17a3394f61194dccda790a97406ac7c92118f37` (`feat(nodes):
+  compact layout and minimize crossings`). Final benchmark/documentation
+  supplement: `35d3183f4` (`docs(nodes): record final layout benchmark`).
+* Затронутые владельцы: routing `@nodes/layout`, connected-row presentation-
+  adapter `nodes` и измерение parameter rows в `@nodes/ui`; Hamiltonian — только
+  live acceptance consumer.
+* Постоянные документы для сверки:
+  [`layout/requirements/COMMON.md`](../../pkg/nodes/layout/requirements/COMMON.md),
+  [`layout/README.md`](../../pkg/nodes/layout/README.md),
+  [`nodes/REQUIREMENTS.md`](../../pkg/nodes/REQUIREMENTS.md) и
+  [`ui/REQUIREMENTS.md`](../../pkg/nodes/ui/REQUIREMENTS.md).
+* Долговечные выводы: crossing-first objective, стабильный lane order на
+  поворотах, ограниченная перестановка только связанных parameter rows и
+  обязательный final benchmark перед `REVIEW` перенесены постоянным владельцам.
+* Свежая проверка перед handoff: `26/26` focused tests, typecheck пакетов
+  `@nodes/layout` и `nodes`, `git diff --check` — green. Frozen proofs дают
+  `RIGHT 10→4`, `DOWN 10→6`, live acceptance устраняет показанные crossings;
+  final median ядра — `47.83 ms RIGHT` и `285.78 ms DOWN`.
+* Владелец 2026-08-10 визуально принял результат и benchmark. Performance-
+  оптимизация не входит в это закрытие и создаётся отдельной задачей только по
+  последующему решению владельца.
+
 ## Артефакты
 
 Исходные снимки и их provenance находятся в
