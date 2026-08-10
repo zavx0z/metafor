@@ -130,3 +130,13 @@ bun run --cwd pkg/nodes typecheck
   устраняет выявленные расхождения физической границы Worker, UI measurement
   law, objective order и stale proof hashes. Перед удалением карточки требуется
   новый независимый verdict по актуальному HEAD.
+
+## Independent closing review
+
+`PASS` на `539179a5a5468a8b7197c31741aaf799c93fcf6b`: проверяющий независимо
+подтвердил чистую Worker/package boundary, полноту постоянных требований,
+соответствие soft objectives коду, байтовую воспроизводимость RIGHT/DOWN proof,
+совместимость benchmark protocol и отсутствие regression. Свежий прогон дал
+`98 pass / 0 fail`; typecheck `@nodes/layout`, `nodes` и корня, Hamiltonian
+browser/Worker build и `docs:layout` прошли. Runtime и browser при review не
+изменялись.
