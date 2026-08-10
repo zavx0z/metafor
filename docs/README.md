@@ -39,6 +39,8 @@
   локальные Force handlers и принадлежащая `pkg/visual` геометрия.
 * [Visual layouts](../pkg/visual/CONTRACT.md) — именованные способы показать
   один полный Bulk scene snapshot.
+* [Engine](../pkg/engine/CONTRACT.md) — координаты и единицы сцены, правила
+  обычных и скелетных mesh и материалы renderer.
 * [Node system](../pkg/nodes/README.md) — модель, validation и связь между
   минимальной раскладкой `@nodes/layout` и компонентами `@nodes/ui`.
 * [Протоколы сил](proto/) — справочное чтение wire-потоков; при конфликте
