@@ -104,10 +104,15 @@ bun run --cwd pkg/nodes typecheck
   объединяет неперекрывающиеся перестановки строк их общего endpoint в один
   стабильный кандидат и сравнивает не более двух полных layouts: исходный и
   исправленный.
+* Повторная closing review обнаружила remaining `RIGHT` input-order defect:
+  candidate search начинался с raw lifecycle order. Adapter теперь сначала
+  канонизирует по semantic ID только связанные facts внутри их прежних slots;
+  несвязанные строки не двигаются. Поэтому оба допустимых порядка событий дают
+  одну базу и одну итоговую geometry в `RIGHT` и `DOWN`.
 * Reproducible performance benchmark запускает чистый `@nodes/layout` на двух
   frozen `LayoutGraph` отдельно от UI, Worker и test assertions. Подробные
   samples и сопоставление с историческим MF-419/ELK baseline находятся в
-  artifacts: текущий median `70.48 ms` для `RIGHT` и `336.02 ms` для `DOWN`;
+  artifacts: текущий median `55.66 ms` для `RIGHT` и `277.27 ms` для `DOWN`;
   snapshots с разным числом нод не выдаются за одинаковый input.
 * Frozen и live evidence записаны в artifacts; runtime не запускался и не
   перезапускался.
@@ -130,7 +135,9 @@ review и при необходимости оформляется отдель�
 * Result commits: `e17a3394f61194dccda790a97406ac7c92118f37` (`feat(nodes):
   compact layout and minimize crossings`) и closing-review correction
   `2a1047555f154a3cbd21b55dc343680745a741c6` (`fix(nodes): stabilize
-  connected row order`). Предыдущий benchmark/documentation supplement:
+  connected row order`), затем input-order correction
+  `9fd85f0536fde95f75999d24afbb832fd6eb524a` (`fix(nodes): canonicalize
+  connected row inputs`). Предыдущий benchmark/documentation supplement:
   `35d3183f4` (`docs(nodes): record final layout benchmark`).
 * Затронутые владельцы: routing `@nodes/layout`, connected-row presentation-
   adapter `nodes` и измерение parameter rows в `@nodes/ui`; Hamiltonian — только
@@ -145,9 +152,10 @@ review и при необходимости оформляется отдель�
   обязательный final benchmark перед `REVIEW` перенесены постоянным владельцам.
 * Свежая проверка перед handoff: `74/74` package tests, typecheck пакетов
   `@nodes/layout` и `nodes`, `git diff --check` — green. Frozen proofs дают
-  `RIGHT 10→4`, `DOWN 10→6`; фактический Service Worker auto-reappear проверен
-  в обоих режимах без crossing `MessagePort/WS`. Final median ядра —
-  `70.48 ms RIGHT` и `336.02 ms DOWN`.
+  `RIGHT 10→4`, `DOWN 10→6`; exact 12-node regression даёт одинаковую geometry
+  из обоих row orders в `RIGHT` и `DOWN`, фактический Service Worker
+  auto-reappear проверен без crossing `MessagePort/WS`. Final median ядра —
+  `55.66 ms RIGHT` и `277.27 ms DOWN`.
 * Владелец 2026-08-10 визуально принял результат и benchmark. Performance-
   оптимизация не входит в это закрытие и создаётся отдельной задачей только по
   последующему решению владельца.

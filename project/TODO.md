@@ -62,14 +62,14 @@ flowchart LR
 отдельной незавершённой работой. После неё начинается
 `MF-414 — Определить, где работают домены и какая их копия действующая`.
 
-Текущая задача Codex: NODES-002. Повторная closing review подтвердила live fix,
-но обнаружила, что в `RIGHT` два исходных порядка `MessagePort`/`WS` дают
-разную финальную geometry; исправляется input-order determinism.
+Текущая задача Codex: нет. NODES-002 исправлена после повторной closing review:
+оба row orders дают одну geometry в `RIGHT` и `DOWN`, live auto-reappear и final
+benchmark подтверждены; задача ожидает третью независимую проверку.
 
 | ID         | Состояние   | Зависимости    | Карточка                       |
 | ---------- | ----------- | -------------- | ------------------------------ |
 | MF-424     | IN_PROGRESS | нет            | [Открыть](tasks/MF-424.md)     |
-| NODES-002  | IN_PROGRESS | нет            | [Открыть](tasks/NODES-002.md)  |
+| NODES-002  | REVIEW      | нет            | [Открыть](tasks/NODES-002.md)  |
 | NODES-001  | REVIEW      | NODES-002      | [Открыть](tasks/NODES-001.md)  |
 | MF-425     | IN_PROGRESS | нет            | [Открыть](tasks/MF-425.md)     |
 | MF-411     | IN_PROGRESS | нет            | [Открыть](tasks/MF-411.md)     |
