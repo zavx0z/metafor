@@ -160,15 +160,12 @@ Navigation-ноды и каждое последующее добавление 
 при старте host incarnation, а не внутри первого запроса страницы. Engine сам
 вычисляет responsive layered placement, compound sizes, generated WEST/EAST
 gateways и окончательные orthogonal sections между exact parameter sockets.
-Единственный routing spacing равен фактическому шагу центров соседних портов
-карточки и применяется к edge-edge, edge-node и port-port clearance. Compound
-padding резервирует тот же видимый зазор до border owner. Поэтому между
-соседними параллельными edges и между
-edge и ближайшей нодой либо compound border сохраняется один и тот же ритм на
-верхнем уровне и внутри owner. Этот ритм не суммируется повторно как пустой
-layout gap: от собственного body parent до первого child остаётся один port
-pitch, а corridor с одним edge между двумя children занимает два pitch — по
-одному с каждой стороны линии. Так
+Единственный layout spacing равен фактическому шагу центров соседних портов
+карточки и применяется к compound padding, node-node, edge-node, edge-edge и
+port-port расстояниям. Правило одинаково для горизонтальных и вертикальных
+участков. Пустой промежуток занимает один pitch, а corridor с одной линией
+между двумя нодами — два pitch: по одному от линии до каждой ноды. Несколько
+линий расширяют только фактически занятый corridor. Так
 internal transport не превращается в self-loop внешнего контейнера и не
 прижимается к его рамке. WebGPU compositing также учитывает containment:
 owner background рисуется под проходящим внутри него маршрутом, а foreground и

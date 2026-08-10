@@ -20,3 +20,7 @@ import {
 selection, pan/zoom и необязательные explicit move/resize для generic editor.
 Hamiltonian передаёт `editable: false`, поэтому координаты там принадлежат
 `@nodes/layout`.
+
+Требования к точному отображению geometry, containment-aware compositing,
+auto-fit и ручному управлению видом находятся в
+[`REQUIREMENTS.md`](REQUIREMENTS.md).

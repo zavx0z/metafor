@@ -5,6 +5,15 @@ compound-графов. Он получает уже измеренные нод�
 placement, размеры compound-контейнеров, gateways и ортогональные маршруты,
 затем возвращает только готовую геометрию.
 
+Алгоритмические требования разделены по режимам:
+
+* [общие законы](requirements/COMMON.md);
+* [горизонтальная раскладка `RIGHT`](requirements/RIGHT.md);
+* [вертикальная раскладка `DOWN`](requirements/DOWN.md).
+
+Worker, UI, управление видом и traffic presentation не принадлежат этим
+документам.
+
 Layout ничего не знает о тексте карточки, Flex, `NodeSystemDocument`, DOM,
 WebGPU, Hamiltonian или способе отображения результата.
 
@@ -23,6 +32,7 @@ type LayoutGraph = {
     parentId?: string
     width: number
     height: number
+    contentHeight?: number // нижняя граница занятого собственного content
   }>
   ports: Array<{
     id: string
@@ -87,57 +97,14 @@ const result = layout(graph)
 Синхронная pure function нужна для offline tests и других небраузерных
 потребителей. Она не использует Worker и не имеет side effects.
 
-## Worker
+## Требования
 
-Worker protocol добавляет к тому же `LayoutGraph` только служебные
-`requestId` и `generation`:
-
-```ts
-type LayoutWorkerRequest = {
-  type: "layout"
-  requestId: number
-  generation: number
-  graph: LayoutGraph
-}
-```
-
-`LayoutWorkerClient` управляет одним долгоживущим endpoint, связывает ответы с
-requests, отклоняет устаревшие generations и завершает Worker при `dispose()`.
-Молчаливого main-thread fallback нет. Реальный Worker entrypoint вызывает ту же
-`runLayoutWorkerRequest`, которую используют offline tests.
-
-## Граница с UI
-
-`nodes` и `@nodes/ui` на main thread:
-
-1. измеряет загруженный renderer-шрифт и строит card plan;
-2. превращает карточки в `LayoutNode` и видимые сокеты в `LayoutPort`;
-3. отправляет минимальный `LayoutGraph` в Worker;
-4. связывает полученные IDs с исходным UI document и рисует результат.
-
-Layout package не может сортировать или менять domain facts: presentation-only
-перестановка строк происходит до построения следующего измеренного graph.
-
-## Геометрические законы
-
-* Один semantic edge остаётся одним edge и заканчивается в точных сокетах.
-* Source всегда EAST, target всегда WEST в `RIGHT` и `DOWN`.
-* Compound boundary пересекается только через WEST/EAST gateway.
-* Маршрут не проходит через постороннюю ноду или запрещённую containment chain.
-* Соблюдаются containment, spacing, clearance, orthogonality и отсутствие
-  overlap.
-* Результат детерминирован для повторов и стабильных перестановок входных
-  массивов.
-* Большие пустоты в portrait и compound считаются дефектом placement.
-
-По алгоритму выбран производительный гибрид: layered median/barycenter ordering,
-bounded compaction по мотивам
-[Brandes–Köpf](https://boriskoepf.de/papers/gd01a.pdf) и sparse visibility A* из
-подхода
-[orthogonal connector routing](https://users.monash.edu/~mwybrow/papers/wybrow-gd-2009.pdf).
-Network-simplex оставлен только как ориентир layered-архитектуры, описанной
-[Gansner et al.](https://graphviz.org/documentation/TSE93.pdf). ELK и Libavoid не
-являются runtime-зависимостями.
+Общие hard laws и порядок оптимизации принадлежат
+[`requirements/COMMON.md`](requirements/COMMON.md). Responsive-правила находятся
+отдельно в [`RIGHT.md`](requirements/RIGHT.md) и
+[`DOWN.md`](requirements/DOWN.md). Интеграция и Worker принадлежат
+[`nodes`](../REQUIREMENTS.md), а renderer/view —
+[`@nodes/ui`](../ui/REQUIREMENTS.md).
 
 ## TypeDoc и проверки
 

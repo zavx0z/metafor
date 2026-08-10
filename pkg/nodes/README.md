@@ -25,7 +25,6 @@ import {
   type NodeSystemDocument,
 } from "nodes"
 
-import {LayoutWorkerClient} from "@nodes/layout"
 import {NodeInspectorSurface, NodeSystemSurface} from "@nodes/ui"
 ```
 
@@ -42,6 +41,10 @@ import {NodeInspectorSurface, NodeSystemSurface} from "@nodes/ui"
   topology.
 * Renderer может скруглить готовый маршрут для рисования, но не меняет exact
   endpoint, gateway или bend ownership.
+
+Нормативные требования к projection и layout Worker находятся в
+[`REQUIREMENTS.md`](REQUIREMENTS.md). Worker adapter принадлежит `nodes`, а не
+алгоритмическому пакету `@nodes/layout`.
 
 ## Проверка
 

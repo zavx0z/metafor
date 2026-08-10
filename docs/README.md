@@ -43,6 +43,12 @@
   обычных и скелетных mesh и материалы renderer.
 * [Node system](../pkg/nodes/README.md) — модель, validation и связь между
   минимальной раскладкой `@nodes/layout` и компонентами `@nodes/ui`.
+  Integration и Worker принадлежат
+  [`nodes`](../pkg/nodes/REQUIREMENTS.md), отображение и view —
+  [`@nodes/ui`](../pkg/nodes/ui/REQUIREMENTS.md), а алгоритмические законы
+  разделены на [общие](../pkg/nodes/layout/requirements/COMMON.md),
+  [`RIGHT`](../pkg/nodes/layout/requirements/RIGHT.md) и
+  [`DOWN`](../pkg/nodes/layout/requirements/DOWN.md).
 * [Протоколы сил](proto/) — справочное чтение wire-потоков; при конфликте
   приоритет имеет контракт домена и public type.
 * [Работа с Meta-пакетами](META_PACKAGES.md) — граница внешних репозиториев в
