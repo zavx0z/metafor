@@ -5,7 +5,11 @@ import {
   type LayoutWorkerRequest,
   type LayoutWorkerResponse,
 } from "@nodes/layout"
-import {NODE_SYSTEM_PORT_PITCH} from "@nodes/ui/card-layout"
+import {
+  measureNodeSystemCard,
+  measureNodeSystemCardContentHeight,
+  NODE_SYSTEM_PORT_PITCH,
+} from "@nodes/ui/card-layout"
 import {
   MetaForNodeSystemLayouter,
   MetaForNodeSystemWorkerLayouter,
@@ -64,13 +68,44 @@ describe("MetaFor TypeScript node-system layout", () => {
     expect(node(landscape, "target").rect.x).toBeGreaterThan(node(landscape, "source").rect.x)
     expect(node(square, "target").rect.x).toBeGreaterThan(node(square, "source").rect.x)
     expect(node(portrait, "target").rect.y).toBeGreaterThan(node(portrait, "source").rect.y)
-    expect(
-      node(portrait, "target").rect.y -
-      node(portrait, "source").rect.y -
-      node(portrait, "source").rect.h,
-    ).toBe(NODE_SYSTEM_PORT_PITCH)
+    const portraitSource = node(portrait, "source")
+    const portraitTarget = node(portrait, "target")
+    const verticalGap = portraitTarget.rect.y - portraitSource.rect.y - portraitSource.rect.h
+    const edgeOccupiesGap = portrait.edges.some((edge) => edge.points.slice(1).some((to, index) => {
+      const from = edge.points[index]!
+      return from.y === to.y && from.y > portraitSource.rect.y + portraitSource.rect.h &&
+        from.y < portraitTarget.rect.y
+    }))
+    expect(verticalGap).toBe((edgeOccupiesGap ? 2 : 1) * NODE_SYSTEM_PORT_PITCH)
     expectExactEdgeEndpoints(portrait)
     expectOrthogonal(portrait)
+  })
+
+  test("keeps measured compound content and children on one socket-pitch rhythm", () => {
+    for (const ownerFacts of [undefined, [{id: "status", label: "Status", value: "active"}]]) {
+      const compact: NodeSystemDocument = {
+        nodes: [
+          {id: "owner", title: "Owner", ...(ownerFacts === undefined ? {} : {facts: ownerFacts})},
+          {id: "child-a", parentId: "owner", title: "Child A"},
+          {id: "child-b", parentId: "owner", title: "Child B"},
+        ],
+        edges: [],
+      }
+      for (const viewport of [{width: 900, height: 600}, {width: 390, height: 844}]) {
+        const positioned = new MetaForNodeSystemLayouter().layout(compact, {viewport})
+        const owner = node(positioned, "owner")
+        const children = [node(positioned, "child-a"), node(positioned, "child-b")]
+        const contentHeight = measureNodeSystemCardContentHeight(owner.node)
+        const minChildY = Math.min(...children.map(({rect}) => rect.y))
+        const maxChildBottom = Math.max(...children.map(({rect}) => rect.y + rect.h))
+
+        expect(minChildY - owner.rect.y - contentHeight).toBe(NODE_SYSTEM_PORT_PITCH)
+        expect(owner.rect.y + owner.rect.h - maxChildBottom).toBe(NODE_SYSTEM_PORT_PITCH)
+        expect(Math.min(...children.map(({rect}) => rect.x)) - owner.rect.x).toBe(NODE_SYSTEM_PORT_PITCH)
+        expect(owner.rect.x + owner.rect.w - Math.max(...children.map(({rect}) => rect.x + rect.w)))
+          .toBe(NODE_SYSTEM_PORT_PITCH)
+      }
+    }
   })
 
   test("reserves a deterministic landscape corridor for multi-edge fanout", () => {
@@ -105,6 +140,7 @@ describe("MetaFor TypeScript node-system layout", () => {
     expect(layout.edges).toHaveLength(3)
     expectExactEdgeEndpoints(layout)
     expectOrthogonal(layout)
+    expectNoEdgeIntersectsUnrelatedNodeContent(layout)
   })
 
   test("packs equal portrait cards into a balanced flow instead of an empty row or column", () => {
@@ -208,6 +244,8 @@ describe("MetaFor TypeScript node-system layout", () => {
     expect(permuted).toEqual(layout)
     expectAllExactEdgeEndpoints(layout)
     expectOrthogonal(layout)
+    expectNoEdgeIntersectsUnrelatedNodeContent(layout)
+    expectParallelEdgeClearanceOnBothAxes(layout, NODE_SYSTEM_PORT_PITCH)
   })
 
   test("orders connected parameter rows by counterpart position without moving ordinary facts", () => {
@@ -261,6 +299,16 @@ describe("MetaFor TypeScript node-system layout", () => {
       "right",
     ])
     expect(sortable.nodes[0]!.facts!.map(({id}) => id)).toEqual(["right", "identity", "left"])
+
+    const routed = new MetaForNodeSystemLayouter().layout(sortable, {
+      viewport: {width: 390, height: 844},
+    })
+    expect(routed.nodes.find(({node}) => node.id === "source")!.node.facts!.map(({id}) => id)).toEqual([
+      "left",
+      "identity",
+      "right",
+    ])
+    expect(countProperEdgeCrossings(routed)).toBe(0)
   })
 
   test("prefers an exact opposite socket row before shorter nonzero offsets", () => {
@@ -377,6 +425,115 @@ function expectExactEdgeEndpoints(layout: PositionedNodeSystem): void {
   )!.center
   expect(edge.points[0]).toEqual(source)
   expect(edge.points.at(-1)).toEqual(target)
+}
+
+function countProperEdgeCrossings(layout: PositionedNodeSystem): number {
+  let crossings = 0
+  for (let leftIndex = 0; leftIndex < layout.edges.length; leftIndex += 1) {
+    const left = layout.edges[leftIndex]!.points
+    for (let rightIndex = leftIndex + 1; rightIndex < layout.edges.length; rightIndex += 1) {
+      const right = layout.edges[rightIndex]!.points
+      for (let li = 1; li < left.length; li += 1) {
+        for (let ri = 1; ri < right.length; ri += 1) {
+          const a = left[li - 1]!
+          const b = left[li]!
+          const c = right[ri - 1]!
+          const d = right[ri]!
+          const firstHorizontal = a.y === b.y
+          const secondHorizontal = c.y === d.y
+          if (firstHorizontal === secondHorizontal) continue
+          const horizontalA = firstHorizontal ? a : c
+          const horizontalB = firstHorizontal ? b : d
+          const verticalA = firstHorizontal ? c : a
+          const verticalB = firstHorizontal ? d : b
+          if (verticalA.x > Math.min(horizontalA.x, horizontalB.x) &&
+              verticalA.x < Math.max(horizontalA.x, horizontalB.x) &&
+              horizontalA.y > Math.min(verticalA.y, verticalB.y) &&
+              horizontalA.y < Math.max(verticalA.y, verticalB.y)) crossings += 1
+        }
+      }
+    }
+  }
+  return crossings
+}
+
+function expectNoEdgeIntersectsUnrelatedNodeContent(layout: PositionedNodeSystem): void {
+  const entries = new Map(layout.nodes.map((entry) => [entry.node.id, entry]))
+  const ancestors = (nodeId: string): ReadonlySet<string> => {
+    const result = new Set<string>()
+    let parentId = entries.get(nodeId)?.node.parentId
+    while (parentId !== undefined) {
+      result.add(parentId)
+      parentId = entries.get(parentId)?.node.parentId
+    }
+    return result
+  }
+  for (const edge of layout.edges) {
+    const transparentAncestors = new Set([
+      ...ancestors(edge.edge.source.nodeId),
+      ...ancestors(edge.edge.target.nodeId),
+    ])
+    for (const entry of layout.nodes) {
+      if (entry.node.id === edge.edge.source.nodeId || entry.node.id === edge.edge.target.nodeId) continue
+      const obstacle = transparentAncestors.has(entry.node.id)
+        ? {...entry.rect, h: measureNodeSystemCard(entry.node).height}
+        : entry.rect
+      for (let index = 1; index < edge.points.length; index += 1) {
+        expect(segmentIntersectsOpenRect(edge.points[index - 1]!, edge.points[index]!, obstacle)).toBeFalse()
+      }
+    }
+  }
+}
+
+function segmentIntersectsOpenRect(
+  from: Readonly<{x: number; y: number}>,
+  to: Readonly<{x: number; y: number}>,
+  rect: Readonly<{x: number; y: number; w: number; h: number}>,
+): boolean {
+  if (from.y === to.y) {
+    return from.y > rect.y && from.y < rect.y + rect.h &&
+      Math.max(Math.min(from.x, to.x), rect.x) < Math.min(Math.max(from.x, to.x), rect.x + rect.w)
+  }
+  return from.x > rect.x && from.x < rect.x + rect.w &&
+    Math.max(Math.min(from.y, to.y), rect.y) < Math.min(Math.max(from.y, to.y), rect.y + rect.h)
+}
+
+function expectParallelEdgeClearanceOnBothAxes(
+  layout: PositionedNodeSystem,
+  clearance: number,
+): void {
+  const segments = layout.edges.flatMap((edge) => {
+    const points = edge.points
+    return points.slice(1).map((to, index) => ({
+      edgeId: edge.edge.id,
+      from: points[index]!,
+      to,
+      axis: points[index]!.y === to.y ? "H" as const : "V" as const,
+    }))
+  })
+  for (const axis of ["H", "V"] as const) {
+    const distances: number[] = []
+    for (let leftIndex = 0; leftIndex < segments.length; leftIndex += 1) {
+      const left = segments[leftIndex]!
+      if (left.axis !== axis) continue
+      for (let rightIndex = leftIndex + 1; rightIndex < segments.length; rightIndex += 1) {
+        const right = segments[rightIndex]!
+        if (right.axis !== axis || right.edgeId === left.edgeId) continue
+        const leftStart = axis === "H" ? left.from.x : left.from.y
+        const leftEnd = axis === "H" ? left.to.x : left.to.y
+        const rightStart = axis === "H" ? right.from.x : right.from.y
+        const rightEnd = axis === "H" ? right.to.x : right.to.y
+        const overlaps = Math.max(Math.min(leftStart, leftEnd), Math.min(rightStart, rightEnd)) <
+          Math.min(Math.max(leftStart, leftEnd), Math.max(rightStart, rightEnd))
+        if (!overlaps) continue
+        distances.push(axis === "H"
+          ? Math.abs(left.from.y - right.from.y)
+          : Math.abs(left.from.x - right.from.x))
+      }
+    }
+    expect(distances.length).toBeGreaterThan(0)
+    expect(Math.min(...distances)).toBeGreaterThanOrEqual(clearance)
+  }
 }
 
 function expectAllExactEdgeEndpoints(layout: PositionedNodeSystem): void {

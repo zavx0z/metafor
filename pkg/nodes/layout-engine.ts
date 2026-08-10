@@ -25,6 +25,7 @@ import type {NodeSystemTextMeasurer} from "./types/card.ts"
 import {
   NODE_SYSTEM_PORT_PITCH,
   measureNodeSystemCard,
+  measureNodeSystemCardContentHeight,
   memoizedTextMeasurer,
   nodeSystemGeometryKey,
   planNodeSystemCard,
@@ -181,6 +182,7 @@ function prepareLayoutPass(
         ...(node.parentId === undefined ? {} : {parentId: node.parentId}),
         width: size.width,
         height: size.height,
+        contentHeight: measureNodeSystemCardContentHeight(node),
       }
     }),
     ports: [...ports.values()].sort((left, right) => compareIds(left.id, right.id)),
@@ -360,6 +362,8 @@ function compareRoutingObjective(left: LayoutResult, right: LayoutResult): numbe
   const leftMetrics = routingObjective(left)
   const rightMetrics = routingObjective(right)
   const pairs = [
+    [leftMetrics.totalCrossings, rightMetrics.totalCrossings],
+    [leftMetrics.maxCrossings, rightMetrics.maxCrossings],
     [leftMetrics.totalTurns, rightMetrics.totalTurns],
     [leftMetrics.maxTurns, rightMetrics.maxTurns],
     [leftMetrics.totalManhattan, rightMetrics.totalManhattan],
@@ -373,15 +377,35 @@ function compareRoutingObjective(left: LayoutResult, right: LayoutResult): numbe
 }
 
 function routingObjective(result: LayoutResult): Readonly<{
+  totalCrossings: number
+  maxCrossings: number
   totalTurns: number
   maxTurns: number
   totalManhattan: number
   maxManhattan: number
   maxDetour: number
 }> {
-  const edges = result.edges.map(({sections}) => {
+  const pointsByEdge = result.edges.map(({id, sections}) => {
     const section = sections[0]
     const points = [section.startPoint, ...section.bendPoints, section.endPoint]
+    return {id, points}
+  })
+  const crossingsByEdge = new Map(pointsByEdge.map(({id}) => [id, 0]))
+  for (let leftIndex = 0; leftIndex < pointsByEdge.length; leftIndex += 1) {
+    const left = pointsByEdge[leftIndex]!
+    for (let rightIndex = leftIndex + 1; rightIndex < pointsByEdge.length; rightIndex += 1) {
+      const right = pointsByEdge[rightIndex]!
+      for (let li = 1; li < left.points.length; li += 1) {
+        for (let ri = 1; ri < right.points.length; ri += 1) {
+          if (!properPerpendicularLayoutCrossing(left.points[li - 1]!, left.points[li]!, right.points[ri - 1]!, right.points[ri]!)) continue
+          crossingsByEdge.set(left.id, crossingsByEdge.get(left.id)! + 1)
+          crossingsByEdge.set(right.id, crossingsByEdge.get(right.id)! + 1)
+        }
+      }
+    }
+  }
+  const edges = pointsByEdge.map(({points}) => {
+    const section = {startPoint: points[0]!, bendPoints: points.slice(1, -1), endPoint: points.at(-1)!}
     const manhattan = points.slice(1).reduce((sum, point, index) => {
       const previous = points[index]!
       return sum + Math.abs(point.x - previous.x) + Math.abs(point.y - previous.y)
@@ -391,12 +415,33 @@ function routingObjective(result: LayoutResult): Readonly<{
     return {turns: section.bendPoints.length, manhattan, detour: manhattan - direct}
   })
   return {
+    totalCrossings: [...crossingsByEdge.values()].reduce((sum, value) => sum + value, 0) / 2,
+    maxCrossings: Math.max(0, ...crossingsByEdge.values()),
     totalTurns: edges.reduce((sum, edge) => sum + edge.turns, 0),
     maxTurns: Math.max(0, ...edges.map((edge) => edge.turns)),
     totalManhattan: edges.reduce((sum, edge) => sum + edge.manhattan, 0),
     maxManhattan: Math.max(0, ...edges.map((edge) => edge.manhattan)),
     maxDetour: Math.max(0, ...edges.map((edge) => edge.detour)),
   }
+}
+
+function properPerpendicularLayoutCrossing(
+  a: Readonly<{x: number; y: number}>,
+  b: Readonly<{x: number; y: number}>,
+  c: Readonly<{x: number; y: number}>,
+  d: Readonly<{x: number; y: number}>,
+): boolean {
+  const firstHorizontal = a.y === b.y
+  const secondHorizontal = c.y === d.y
+  if (firstHorizontal === secondHorizontal) return false
+  const horizontalA = firstHorizontal ? a : c
+  const horizontalB = firstHorizontal ? b : d
+  const verticalA = firstHorizontal ? c : a
+  const verticalB = firstHorizontal ? d : b
+  const x = verticalA.x
+  const y = horizontalA.y
+  return x > Math.min(horizontalA.x, horizontalB.x) && x < Math.max(horizontalA.x, horizontalB.x) &&
+    y > Math.min(verticalA.y, verticalB.y) && y < Math.max(verticalA.y, verticalB.y)
 }
 
 function endpointPort(

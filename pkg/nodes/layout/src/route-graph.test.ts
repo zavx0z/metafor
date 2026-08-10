@@ -106,6 +106,44 @@ describe("rectilinear semantic-edge router", () => {
     expect(permuted).toEqual(first)
   })
 
+  test("preserves two and three parallel lane ranks through all four turns of a shared U corridor", () => {
+    for (const laneCount of [2, 3]) {
+      const ranks = Array.from({length: laneCount}, (_, rank) => rank)
+      const input = base({
+        bounds: {x: 0, y: 0, w: 600, h: 420},
+        nodes: [
+          {id: "target", rect: {x: 100, y: 0, w: 100, h: 140}},
+          {id: "source", rect: {x: 360, y: 0, w: 100, h: 140}},
+        ],
+        ports: ranks.flatMap((rank) => [
+          {id: `source:${rank}`, nodeId: "source", center: {x: 460, y: 40 + rank * 30}, side: "EAST" as const, direction: "out" as const},
+          {id: `target:${rank}`, nodeId: "target", center: {x: 100, y: 40 + rank * 30}, side: "WEST" as const, direction: "in" as const},
+        ]),
+        edges: ranks.map((rank) => ({
+          id: `edge:${rank}`,
+          sourcePortId: `source:${rank}`,
+          targetPortId: `target:${rank}`,
+        })),
+      })
+
+      const first = routeGraph(input)
+      const repeated = routeGraph(input)
+      const permuted = routeGraph({
+        ...input,
+        nodes: [...input.nodes].reverse(),
+        ports: [...input.ports].reverse(),
+        edges: [...input.edges].reverse(),
+      })
+
+      expect(first.metrics.crossings).toBe(0)
+      expect(first.metrics.maxCrossings).toBe(0)
+      expect(first.sections.every(({bendPoints}) => bendPoints.length === 4)).toBeTrue()
+      expect(validateRouteGraphResult(input, first)).toEqual([])
+      expect(repeated).toEqual(first)
+      expect(permuted).toEqual(first)
+    }
+  })
+
   test("crosses an intermediate compound boundary only through EAST", () => {
     const input = base({
       bounds: {x: 0, y: 0, w: 600, h: 400},
@@ -129,4 +167,52 @@ describe("rectilinear semantic-edge router", () => {
     })
     expect(crossing).toBeDefined()
   })
+
+  test("keeps a nested endpoint route out of its ancestor content band", () => {
+    for (const direction of ["RIGHT", "DOWN"] as const) {
+      const input: RouteGraphInput = {
+        ...base({
+          bounds: {x: 0, y: 0, w: 600, h: 400},
+          nodes: [
+            {
+              id: "compound",
+              rect: {x: 30, y: 40, w: 270, h: 280},
+              contentRect: {x: 30, y: 40, w: 270, h: 80},
+            },
+            {id: "source", parentId: "compound", rect: {x: 80, y: 210, w: 80, h: 60}},
+            {id: "target", rect: {x: 400, y: 70, w: 80, h: 60}},
+          ],
+          ports: [
+            {id: "out", nodeId: "source", center: {x: 160, y: 240}, side: "EAST", direction: "out"},
+            {id: "in", nodeId: "target", center: {x: 400, y: 100}, side: "WEST", direction: "in"},
+          ],
+          edges: [{id: "nested-edge", sourcePortId: "out", targetPortId: "in"}],
+        }),
+        direction,
+      }
+
+      const result = routeGraph(input)
+      const section = result.sections[0]!
+      const points = [section.startPoint, ...section.bendPoints, section.endPoint]
+      expect(points.slice(1).some((point, index) => segmentIntersectsOpenRect(
+        points[index]!,
+        point,
+        {x: 30, y: 40, w: 270, h: 80},
+      ))).toBeFalse()
+      expect(validateRouteGraphResult(input, result)).toEqual([])
+    }
+  })
 })
+
+function segmentIntersectsOpenRect(
+  from: Readonly<{x: number; y: number}>,
+  to: Readonly<{x: number; y: number}>,
+  rect: Readonly<{x: number; y: number; w: number; h: number}>,
+): boolean {
+  if (from.y === to.y) {
+    return from.y > rect.y && from.y < rect.y + rect.h &&
+      Math.max(Math.min(from.x, to.x), rect.x) < Math.min(Math.max(from.x, to.x), rect.x + rect.w)
+  }
+  return from.x > rect.x && from.x < rect.x + rect.w &&
+    Math.max(Math.min(from.y, to.y), rect.y) < Math.min(Math.max(from.y, to.y), rect.y + rect.h)
+}

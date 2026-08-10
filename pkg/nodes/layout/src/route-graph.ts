@@ -29,19 +29,23 @@ const compareIds = (left: string, right: string): number =>
 
 export function routeGraph(input: RouteGraphInput): RouteGraphResult {
   const index = validateInput(input)
-  try {
-    return routeGraphInOrder(input, index, index.sortedEdges)
-  } catch (error) {
-    if (!expectedRouteFailure(error)) throw error
-    // Stable semantic ID remains the primary order. Only a hard failure opens
-    // this one permutation-independent target-port schedule.
+  let firstFailure: unknown
+  const results: RouteGraphResult[] = []
+  for (const edges of edgeOrderCandidates(index)) {
     try {
-      return routeGraphInOrder(input, index, fallbackEdgeOrder(index))
-    } catch (fallbackError) {
-      if (!expectedRouteFailure(fallbackError)) throw fallbackError
-      throw error
+      const result = routeGraphInOrder(input, index, edges)
+      results.push(result)
+      // Zero is the absolute lower bound for the new primary objective. The
+      // canonical ID schedule therefore remains the fast path when it already
+      // reaches that bound.
+      if (results.length === 1 && result.metrics.crossings === 0) return result
+    } catch (error) {
+      if (!expectedRouteFailure(error)) throw error
+      firstFailure ??= error
     }
   }
+  if (results.length > 0) return results.sort(compareRouteResults)[0]!
+  throw firstFailure
 }
 
 function routeGraphInOrder(
@@ -72,7 +76,127 @@ function routeGraphInOrder(
   if (hardViolations.length > 0) {
     throw new Error(`routeGraph produced invalid geometry:\n${hardViolations.join("\n")}`)
   }
-  return {...provisional, metrics: measureResult(input, index, sections, hardViolations)}
+  return minimizeParallelBundleCrossings(input, index, {
+    ...provisional,
+    metrics: measureResult(input, index, sections, hardViolations),
+  })
+}
+
+function minimizeParallelBundleCrossings(
+  input: RouteGraphInput,
+  index: RouteIndex,
+  initial: RouteGraphResult,
+): RouteGraphResult {
+  let best = initial
+  const groups = new Map<string, RouteEdge[]>()
+  for (const edge of index.sortedEdges) {
+    const source = required(index.ports.get(edge.sourcePortId), `missing source ${edge.id}`)
+    const target = required(index.ports.get(edge.targetPortId), `missing target ${edge.id}`)
+    const key = `${source.nodeId}\u0000${target.nodeId}`
+    const entries = groups.get(key) ?? []
+    entries.push(edge)
+    groups.set(key, entries)
+  }
+  for (const edges of groups.values()) {
+    if (edges.length < 2) continue
+    const replacement = uncrossParallelBundle(input, index, best.sections, edges)
+    if (replacement === null) continue
+    const provisional = {
+      direction: input.direction,
+      unitsPerPixel: input.unitsPerPixel,
+      sections: replacement,
+    }
+    const hardViolations = validateRouteGraphResult(input, provisional)
+    if (hardViolations.length > 0) continue
+    const candidate: RouteGraphResult = {
+      ...provisional,
+      metrics: measureResult(input, index, replacement, hardViolations),
+    }
+    if (compareRouteResults(candidate, best) < 0) best = candidate
+  }
+  return best
+}
+
+function uncrossParallelBundle(
+  input: RouteGraphInput,
+  index: RouteIndex,
+  sections: readonly RouteSection[],
+  edges: readonly RouteEdge[],
+): readonly RouteSection[] | null {
+  const sectionByEdge = new Map(sections.map((section) => [section.edgeId, section]))
+  const entries = edges.map((edge) => {
+    const source = required(index.ports.get(edge.sourcePortId), `missing source ${edge.id}`)
+    const target = required(index.ports.get(edge.targetPortId), `missing target ${edge.id}`)
+    const section = required(sectionByEdge.get(edge.id), `missing section ${edge.id}`)
+    const points = [section.startPoint, ...section.bendPoints, section.endPoint]
+    return {edge, source, target, points}
+  })
+  if (entries.some(({points}) => points.length !== 6 || !isOrthogonalU(points))) return null
+  const sourceOrder = [...entries].sort((left, right) =>
+    left.source.center.y - right.source.center.y ||
+    left.source.center.x - right.source.center.x ||
+    compareIds(left.edge.id, right.edge.id))
+  const targetOrder = [...entries].sort((left, right) =>
+    left.target.center.y - right.target.center.y ||
+    left.target.center.x - right.target.center.x ||
+    compareIds(left.edge.id, right.edge.id))
+  if (sourceOrder.some((entry, rank) => entry.edge.id !== targetOrder[rank]!.edge.id)) return null
+
+  const backward = sourceOrder[0]!.source.center.x > sourceOrder[0]!.target.center.x
+  if (sourceOrder.some(({source, target}) => (source.center.x > target.center.x) !== backward)) return null
+  const below = sourceOrder.every(({source, target, points}) =>
+    points[2]!.y > Math.max(source.center.y, target.center.y))
+  const above = sourceOrder.every(({source, target, points}) =>
+    points[2]!.y < Math.min(source.center.y, target.center.y))
+  if (!below && !above) return null
+
+  const sourceXs = sourceOrder.map(({points}) => points[1]!.x)
+    .sort((left, right) => backward ? right - left : left - right)
+  const middleYs = sourceOrder.map(({points}) => points[2]!.y)
+    .sort((left, right) => below ? right - left : left - right)
+  const targetXs = sourceOrder.map(({points}) => points[3]!.x)
+    .sort((left, right) => backward ? left - right : right - left)
+  if (!tracksHaveClearance(sourceXs, input.clearance) ||
+      !tracksHaveClearance(middleYs, input.clearance) ||
+      !tracksHaveClearance(targetXs, input.clearance)) return null
+
+  const replacements = new Map<string, RouteSection>()
+  for (let rank = 0; rank < sourceOrder.length; rank += 1) {
+    const {edge, source, target} = sourceOrder[rank]!
+    const points = simplifyPoints([
+      source.center,
+      {x: sourceXs[rank]!, y: source.center.y},
+      {x: sourceXs[rank]!, y: middleYs[rank]!},
+      {x: targetXs[rank]!, y: middleYs[rank]!},
+      {x: targetXs[rank]!, y: target.center.y},
+      target.center,
+    ])
+    replacements.set(edge.id, {
+      edgeId: edge.id,
+      startPoint: points[0]!,
+      bendPoints: points.slice(1, -1),
+      endPoint: points.at(-1)!,
+    })
+  }
+  return sections.map((section) => replacements.get(section.edgeId) ?? section)
+}
+
+function isOrthogonalU(points: readonly FixedPoint[]): boolean {
+  if (points.length !== 6) return false
+  for (let index = 1; index < points.length; index += 1) {
+    const from = points[index - 1]!
+    const to = points[index]!
+    const horizontal = from.y === to.y && from.x !== to.x
+    const vertical = from.x === to.x && from.y !== to.y
+    if ((index % 2 === 1 && !horizontal) || (index % 2 === 0 && !vertical)) return false
+  }
+  return true
+}
+
+function tracksHaveClearance(values: readonly number[], clearance: number): boolean {
+  const unique = [...new Set(values)].sort((left, right) => left - right)
+  if (unique.length !== values.length) return false
+  return unique.slice(1).every((value, index) => value - unique[index]! >= clearance)
 }
 
 function expectedRouteFailure(error: unknown): boolean {
@@ -82,11 +206,47 @@ function expectedRouteFailure(error: unknown): boolean {
   )
 }
 
-function fallbackEdgeOrder(index: RouteIndex): readonly RouteEdge[] {
-  return [...index.sortedEdges].sort((left, right) =>
-    compareIds(left.targetPortId, right.targetPortId) ||
-    compareIds(left.sourcePortId, right.sourcePortId) ||
-    compareIds(left.id, right.id))
+function edgeOrderCandidates(index: RouteIndex): readonly (readonly RouteEdge[])[] {
+  const port = (id: string): RoutePort => required(index.ports.get(id), `missing port ${id}`)
+  const sourceGeometry = (left: RouteEdge, right: RouteEdge): number => {
+    const leftSource = port(left.sourcePortId).center
+    const rightSource = port(right.sourcePortId).center
+    const leftTarget = port(left.targetPortId).center
+    const rightTarget = port(right.targetPortId).center
+    return leftSource.y - rightSource.y || leftSource.x - rightSource.x ||
+      leftTarget.y - rightTarget.y || leftTarget.x - rightTarget.x || compareIds(left.id, right.id)
+  }
+  const schedules = [
+    index.sortedEdges,
+    [...index.sortedEdges].sort((left, right) => -sourceGeometry(left, right)),
+  ]
+  const unique = new Map<string, readonly RouteEdge[]>()
+  for (const schedule of schedules) {
+    const key = schedule.map(({id}) => id).join("\u0000")
+    if (!unique.has(key)) unique.set(key, schedule)
+  }
+  return [...unique.values()]
+}
+
+function compareRouteResults(left: RouteGraphResult, right: RouteGraphResult): number {
+  const leftMetrics = left.metrics
+  const rightMetrics = right.metrics
+  const primary = leftMetrics.crossings - rightMetrics.crossings ||
+    leftMetrics.maxCrossings - rightMetrics.maxCrossings ||
+    leftMetrics.totalTurns - rightMetrics.totalTurns ||
+    leftMetrics.maxTurns - rightMetrics.maxTurns ||
+    leftMetrics.totalManhattan - rightMetrics.totalManhattan ||
+    leftMetrics.maxManhattan - rightMetrics.maxManhattan ||
+    leftMetrics.maxDetour - rightMetrics.maxDetour
+  if (primary !== 0) return primary
+  const leftDetours = [...leftMetrics.perEdge].sort((a, b) => compareIds(a.edgeId, b.edgeId))
+  const rightDetours = [...rightMetrics.perEdge].sort((a, b) => compareIds(a.edgeId, b.edgeId))
+  for (let index = 0; index < Math.max(leftDetours.length, rightDetours.length); index += 1) {
+    const difference = (leftDetours[index]?.detour ?? 0) - (rightDetours[index]?.detour ?? 0)
+    if (difference !== 0) return difference
+  }
+  return leftMetrics.clearanceVariance - rightMetrics.clearanceVariance ||
+    compareIds(JSON.stringify(left.sections), JSON.stringify(right.sections))
 }
 
 export function diagnoseRouteGraph(input: RouteGraphInput): RouteGraphDiagnostic {
@@ -219,6 +379,12 @@ function validateInput(input: RouteGraphInput): RouteIndex {
   for (const node of [...input.nodes].sort((a, b) => compareIds(a.id, b.id))) {
     requireId(node.id, "node")
     requireRect(node.rect, `node ${node.id}`)
+    if (node.contentRect !== undefined) {
+      requireRect(node.contentRect, `node content ${node.id}`)
+      if (!containsRect(node.rect, node.contentRect)) {
+        throw new Error(`node content escapes node: ${node.id}`)
+      }
+    }
     if (nodes.has(node.id)) throw new Error(`duplicate node: ${node.id}`)
     nodes.set(node.id, node)
   }
@@ -299,7 +465,11 @@ function buildEdgeContext(input: RouteGraphInput, index: RouteIndex, edge: Route
     ...sourceAncestors.map((node) => node.id),
     ...targetAncestors.map((node) => node.id),
   ])
-  const obstacles = index.sortedNodes.filter((node) => !transparent.has(node.id))
+  const obstacles = index.sortedNodes.flatMap((node): RouteNode[] => {
+    if (!transparent.has(node.id)) return [node]
+    if (node.contentRect === undefined) return []
+    return [{...node, rect: node.contentRect}]
+  })
   const areaBase = owner?.rect ?? input.bounds
   const area = insetRect(areaBase, input.clearance)
   if (area.w <= 0 || area.h <= 0) throw new Error(`routing owner has no inner area: ${edge.id}`)
@@ -362,10 +532,9 @@ function routeEdge(
   }
   const startKey = searchStateKey(start)
   const startPoint = pointAt(start, xs, ys)
-  // A valid straight or H-V-H route dominates every longer grid path in the
-  // hard-validity -> turns -> Manhattan objective. Enumerating every grid X
-  // therefore preserves the exact optimum while avoiding A* for the common
-  // forward-facing case.
+  // A crossing-free straight or H-V-H route dominates every longer grid path.
+  // A dominant candidate that still crosses a prior edge cannot short-circuit:
+  // crossing-first search may legally spend more turns to remove it.
   const dominantCandidates: FixedPoint[][] = []
   if (
     context.source.center.y === context.target.center.y &&
@@ -389,13 +558,14 @@ function routeEdge(
     .map((points) => ({
       points,
       score: {
+        crossings: countPathCrossings(points, priorSegments),
         turns: Math.max(0, points.length - 2),
         length: pathLength(points),
       } satisfies Score,
     }))
     .sort((left, right) => compareScores(left.score, right.score) || comparePointPaths(left.points, right.points))[0]
-  if (dominant !== undefined) return dominant.points
-  const startScore: Score = {turns: 0, length: 0}
+  if (dominant !== undefined && dominant.score.crossings === 0) return dominant.points
+  const startScore: Score = {crossings: 0, turns: 0, length: 0}
   const scores = new Map<number, Score>([[startKey, startScore]])
   const previous = new Map<number, number>()
   const states = new Map<number, SearchState>([[startKey, start]])
@@ -473,6 +643,7 @@ function routeEdge(
       if (transitioned === null) { reject("hierarchyTransition"); continue }
       const stepLength = manhattanBetween(currentPoint, nextPoint)
       const score: Score = {
+        crossings: current.score.crossings + countSegmentCrossings(currentPoint, nextPoint, priorSegments),
         turns: current.score.turns + (current.state.lastDirection !== null && axisOfStepDirection(current.state.lastDirection) !== axis ? 1 : 0),
         length: current.score.length + stepLength,
       }
@@ -654,6 +825,26 @@ function flattenPriorSegments(prior: ReadonlyMap<string, readonly FixedPoint[]>)
   return result
 }
 
+function countPathCrossings(points: readonly FixedPoint[], priorSegments: readonly RoutedSegment[]): number {
+  let crossings = 0
+  for (let index = 1; index < points.length; index += 1) {
+    crossings += countSegmentCrossings(points[index - 1]!, points[index]!, priorSegments)
+  }
+  return crossings
+}
+
+function countSegmentCrossings(
+  from: FixedPoint,
+  to: FixedPoint,
+  priorSegments: readonly RoutedSegment[],
+): number {
+  let crossings = 0
+  for (const segment of priorSegments) {
+    if (properPerpendicularCrossing(from, to, segment.from, segment.to)) crossings += 1
+  }
+  return crossings
+}
+
 function terminalReservations(
   input: RouteGraphInput,
   index: RouteIndex,
@@ -833,11 +1024,18 @@ function measureResult(
   sections: readonly RouteSection[],
   hardViolations: readonly string[],
 ): RouteMetrics {
+  const crossingsByEdge = countCrossingsByEdge(sections)
   const perEdge = sections.map((section): RouteEdgeMetrics => {
     const points = [section.startPoint, ...section.bendPoints, section.endPoint]
     const manhattan = pathLength(points)
     const direct = manhattanBetween(points[0]!, points.at(-1)!)
-    return {edgeId: section.edgeId, turns: Math.max(0, points.length - 2), manhattan, detour: manhattan - direct}
+    return {
+      edgeId: section.edgeId,
+      crossings: crossingsByEdge.get(section.edgeId) ?? 0,
+      turns: Math.max(0, points.length - 2),
+      manhattan,
+      detour: manhattan - direct,
+    }
   })
   const compounds = index.sortedNodes.filter((node) => (index.childrenByParent.get(node.id)?.length ?? 0) > 0)
   const compoundArea = compounds.reduce((sum, node) => sum + node.rect.w * node.rect.h, 0)
@@ -860,7 +1058,8 @@ function measureResult(
     fitScale,
     compoundEmptyRatio: compoundArea === 0 ? 0 : 1 - occupiedArea / compoundArea,
     clearanceVariance: measureClearanceVariance(input, index, sections),
-    crossings: countCrossings(sections),
+    crossings: [...crossingsByEdge.values()].reduce((sum, value) => sum + value, 0) / 2,
+    maxCrossings: Math.max(0, ...crossingsByEdge.values()),
     perEdge,
   }
 }
@@ -887,15 +1086,19 @@ function measureClearanceVariance(input: RouteGraphInput, index: RouteIndex, sec
   return values.reduce((sum, value) => sum + (value - mean) ** 2, 0) / values.length
 }
 
-function countCrossings(sections: readonly RouteSection[]): number {
-  let crossings = 0
+function countCrossingsByEdge(sections: readonly RouteSection[]): ReadonlyMap<string, number> {
+  const crossings = new Map<string, number>()
   for (let leftIndex = 0; leftIndex < sections.length; leftIndex += 1) {
     const left = [sections[leftIndex]!.startPoint, ...sections[leftIndex]!.bendPoints, sections[leftIndex]!.endPoint]
     for (let rightIndex = leftIndex + 1; rightIndex < sections.length; rightIndex += 1) {
       const right = [sections[rightIndex]!.startPoint, ...sections[rightIndex]!.bendPoints, sections[rightIndex]!.endPoint]
       for (let li = 1; li < left.length; li += 1) {
         for (let ri = 1; ri < right.length; ri += 1) {
-          if (properPerpendicularCrossing(left[li - 1]!, left[li]!, right[ri - 1]!, right[ri]!)) crossings += 1
+          if (!properPerpendicularCrossing(left[li - 1]!, left[li]!, right[ri - 1]!, right[ri]!)) continue
+          const leftEdgeId = sections[leftIndex]!.edgeId
+          const rightEdgeId = sections[rightIndex]!.edgeId
+          crossings.set(leftEdgeId, (crossings.get(leftEdgeId) ?? 0) + 1)
+          crossings.set(rightEdgeId, (crossings.get(rightEdgeId) ?? 0) + 1)
         }
       }
     }
@@ -1101,11 +1304,12 @@ function pointKey(point: FixedPoint): string { return `${signedKey(point.x)},${s
 function signedKey(value: number): string { return `${value < 0 ? "-" : "+"}${Math.abs(value).toString().padStart(16, "0")}` }
 
 function compareScores(left: Score, right: Score): number {
-  return left.turns - right.turns || left.length - right.length
+  return left.crossings - right.crossings || left.turns - right.turns || left.length - right.length
 }
 
 function compareHeapItems(left: HeapItem, right: HeapItem): number {
-  return left.estimatedTurns - right.estimatedTurns ||
+  return left.score.crossings - right.score.crossings ||
+    left.estimatedTurns - right.estimatedTurns ||
     left.estimatedLength - right.estimatedLength ||
     left.score.turns - right.score.turns ||
     left.score.length - right.score.length ||

@@ -51,6 +51,24 @@ export function measureNodeSystemCard(
   return measureCard(node, measureText).size
 }
 
+/**
+ * Нижняя граница реально занятого header/rows внутри карточки.
+ * Число не включает декоративный нижний padding и позволяет владельцу
+ * compound-layout выдержать один портовый ритм до первого child.
+ */
+export function measureNodeSystemCardContentHeight(node: NodeSystemNode): number {
+  const metrics = NODE_SYSTEM_CARD_METRICS
+  const rows = [
+    ...(node.summary === undefined ? [] : [metrics.summaryRowHeight]),
+    ...(node.facts ?? []).map(() => metrics.factRowHeight),
+  ]
+  if (rows.length === 0) return metrics.headerHeight
+  return metrics.headerHeight
+    + metrics.bodyPaddingY
+    + rows.reduce((sum, height) => sum + height, 0)
+    + Math.max(0, rows.length - 1) * metrics.rowGap
+}
+
 /** Stable geometry fingerprint for deciding whether layout must run again. */
 export function nodeSystemGeometryKey(
   document: Pick<NodeSystemDocument, "nodes">,
@@ -67,6 +85,7 @@ export function nodeSystemGeometryKey(
         node.parentId ?? null,
         rounded(size.width),
         rounded(size.height),
+        rounded(measureNodeSystemCardContentHeight(node)),
         card.ports.map(({port, marker}) => [
           port.id,
           rounded(marker.x + marker.w / 2),

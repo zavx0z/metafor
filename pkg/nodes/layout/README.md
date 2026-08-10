@@ -97,6 +97,20 @@ const result = layout(graph)
 Синхронная pure function нужна для offline tests и других небраузерных
 потребителей. Она не использует Worker и не имеет side effects.
 
+## Минимизация пересечений
+
+После hard validity router сравнивает варианты сначала по общему и максимальному
+числу crossings. Sparse visibility A* учитывает уже занятые segments, а
+ограниченный стабильный edge schedule не зависит от порядка входных массивов.
+Для двух и более связей с одинаковыми source/target nodes отдельный bundle-pass
+сохраняет порядок lanes на всех четырёх поворотах общего U-corridor: он только
+переставляет между рёбрами уже найденные legal tracks, повторно запускает полный
+validator и принимает кандидат лишь при улучшении crossing-first objective.
+
+Layout не переставляет parameter rows: `ports[].y` является уже измеренным
+входом минимального протокола. Перестановка связанных строк до повторного layout
+принадлежит presentation-adapter пакета [`nodes`](../README.md).
+
 ## Требования
 
 Общие hard laws и порядок оптимизации принадлежат

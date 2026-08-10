@@ -76,3 +76,19 @@ bun test pkg/nodes/layout/src pkg/nodes/layout-engine.test.ts
 bun run --cwd pkg/nodes/layout typecheck
 bun run --cwd pkg/nodes typecheck
 ```
+
+## Реализованный срез
+
+* Compound sizing использует измеренный собственный `contentHeight` и ровно
+  один входной socket pitch между content, children и внутренней границей.
+* Placement различает свободный gap и фактически занятый routing corridor,
+  поддерживает плотный portrait flow и не центрирует крайний fan-out target ценой
+  подъёма всего ряда.
+* Router рассматривает content-band прозрачного ancestor как obstacle,
+  сохраняет H/V edge-edge и edge-node clearance и не проводит semantic edge
+  через постороннюю ноду.
+* Exact RIGHT/DOWN запросы, machine proof и live screenshots находятся в
+  [`project/artifacts/NODES-001`](../artifacts/NODES-001/README.md).
+* Пересечения рёбер, найденные после этого среза, вынесены в NODES-002 и
+  исправлены в том же готовом result bundle; обе задачи требуют одной
+  независимой закрывающей проверки.

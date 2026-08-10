@@ -19,6 +19,12 @@ export type LayoutNode = Readonly<{
   parentId?: string
   width: number
   height: number
+  /**
+   * Нижняя граница занятого собственного content относительно верха ноды.
+   * Для compound children начинаются через `padding` после этой границы;
+   * для leaf поле не меняет её полный `height`. По умолчанию равно `height`.
+   */
+  contentHeight?: number
 }>
 
 /**
@@ -44,7 +50,10 @@ export type LayoutEdge = Readonly<{
 
 /**
  * Числовые ограничения engine в логических пикселях.
- * Пропущенные значения получают одинаковый ритм из `spacing`.
+ * Пропущенные `padding`, `layerSpacing` и `clearance` получают один ритм из
+ * `spacing`. Поэтому параллельные участки рёбер и ребро с ближайшей нодой
+ * разделяет один полный spacing независимо от горизонтальной или вертикальной
+ * ориентации.
  */
 export type LayoutOptions = Readonly<{
   spacing?: number

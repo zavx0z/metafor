@@ -4,6 +4,7 @@ import {
   NODE_SYSTEM_CARD_METRICS,
   NODE_SYSTEM_PORT_PITCH,
   measureNodeSystemCard,
+  measureNodeSystemCardContentHeight,
   nodeSystemGeometryKey,
   planNodeSystemCard,
 } from "./card-layout.ts"
@@ -29,6 +30,19 @@ const denseNode: NodeSystemNode = {
 }
 
 describe("Flex node-card metric plan", () => {
+  test("reports occupied content without decorative trailing body padding", () => {
+    const headerOnly: NodeSystemNode = {id: "header", title: "Header"}
+    const oneFact: NodeSystemNode = {
+      id: "fact",
+      title: "Fact",
+      facts: [{id: "state", label: "State", value: "ready"}],
+    }
+
+    expect(measureNodeSystemCardContentHeight(headerOnly)).toBe(NODE_SYSTEM_CARD_METRICS.headerHeight)
+    expect(measureNodeSystemCard(oneFact).height - measureNodeSystemCardContentHeight(oneFact))
+      .toBe(NODE_SYSTEM_CARD_METRICS.bodyPaddingY)
+  })
+
   test("derives one routing rhythm from the actual adjacent port centers", () => {
     const size = measureNodeSystemCard(denseNode)
     const plan = planNodeSystemCard(denseNode, {x: 0, y: 0, w: size.width, h: size.height})

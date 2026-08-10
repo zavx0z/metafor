@@ -4,7 +4,13 @@ export type FixedRect = Readonly<{x: number; y: number; w: number; h: number}>
 export type RouteDirection = "RIGHT" | "DOWN"
 export type RoutePortSide = "WEST" | "EAST"
 export type RoutePortDirection = "in" | "out"
-export type RouteNode = Readonly<{id: string; parentId?: string; rect: FixedRect}>
+export type RouteNode = Readonly<{
+  id: string
+  parentId?: string
+  rect: FixedRect
+  /** Own intrinsic card band; children occupy only the remaining compound area. */
+  contentRect?: FixedRect
+}>
 export type RoutePort = Readonly<{id: string; nodeId: string; center: FixedPoint; side: RoutePortSide; direction: RoutePortDirection}>
 export type RouteEdge = Readonly<{id: string; sourcePortId: string; targetPortId: string}>
 export type RouteGraphInput = Readonly<{
@@ -18,7 +24,7 @@ export type RouteGraphInput = Readonly<{
   edges: readonly RouteEdge[]
 }>
 export type RouteSection = Readonly<{edgeId: string; startPoint: FixedPoint; bendPoints: readonly FixedPoint[]; endPoint: FixedPoint}>
-export type RouteEdgeMetrics = Readonly<{edgeId: string; turns: number; manhattan: number; detour: number}>
+export type RouteEdgeMetrics = Readonly<{edgeId: string; crossings: number; turns: number; manhattan: number; detour: number}>
 export type RouteMetrics = Readonly<{
   hardViolations: readonly string[]
   totalTurns: number
@@ -30,6 +36,7 @@ export type RouteMetrics = Readonly<{
   compoundEmptyRatio: number
   clearanceVariance: number
   crossings: number
+  maxCrossings: number
   perEdge: readonly RouteEdgeMetrics[]
 }>
 export type RouteGraphResult = Readonly<{direction: RouteDirection; unitsPerPixel: number; sections: readonly RouteSection[]; metrics: RouteMetrics}>
@@ -46,7 +53,7 @@ export type SearchState = Readonly<{
   sourceGatewayY: number | null
   targetGatewayY: number | null
 }>
-export type Score = Readonly<{turns: number; length: number}>
+export type Score = Readonly<{crossings: number; turns: number; length: number}>
 export type HeapItem = Readonly<{
   state: SearchState
   score: Score

@@ -102,6 +102,10 @@ types задают точную форму протокола, код реали
    центре общего socket неизбежно и не считается нарушением. Сразу после
    минимально необходимого выхода из socket маршруты разделяются до полного
    pitch. Несвязанные edges такого исключения не получают.
+7. Параллельные edges в общем corridor получают устойчивый порядок lanes.
+   На повороте, split или merge этот порядок нельзя инвертировать, если
+   существует transition без пересечения. Внутренняя lane остаётся внутренней,
+   внешняя — внешней, с тем же полным pitch.
 
 ## Плотность и размещение
 
@@ -133,18 +137,20 @@ types задают точную форму протокола, код реали
    edge использует его без hierarchy stairs. Независимая граница compound сама
    по себе не является причиной нового bend.
 3. После hard validity качество сравнивается лексикографически:
-   1. total turns;
-   2. max turns одного edge;
-   3. total Manhattan length;
-   4. max Manhattan length;
-   5. detour каждого edge в устойчивом порядке semantic ID;
-   6. bounds и fit scale;
-   7. общий и максимальный compound empty ratio;
-   8. clearance variance;
-   9. crossings;
-   10. стабильный semantic-ID key.
+   1. total edge-edge crossings;
+   2. max crossings одного edge;
+   3. total turns;
+   4. max turns одного edge;
+   5. total Manhattan length;
+   6. max Manhattan length;
+   7. detour каждого edge в устойчивом порядке semantic ID;
+   8. bounds и fit scale;
+   9. общий и максимальный compound empty ratio;
+   10. clearance variance;
+   11. стабильный semantic-ID key.
 4. Нельзя оптимизировать только сумму: один edge с чрезмерным числом bends,
-   длиной или detour остаётся дефектом даже при хорошем среднем результате.
+   crossings, длиной или detour остаётся дефектом даже при хорошем среднем
+   результате.
 5. Если фиксированные rectangles не оставляют legal corridor, router не двигает
    их молча. Он возвращает machine-readable `NO_LEGAL_ROUTE` witness с edge,
    endpoints, ancestor chains, candidate axes, reachable frontier, rejected

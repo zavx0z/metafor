@@ -10,6 +10,7 @@ import {routeGraph} from "./route-graph.ts"
 
 const COORDINATE_SCALE = 1_000
 const DEFAULT_SPACING = 28
+const MAX_ROUTED_PLACEMENTS = 8
 
 /**
  * Вычисляет всю геометрию graph: placement, compound compaction и routing.
@@ -74,10 +75,13 @@ function layoutEngine(input: PlacementInput): EngineResult {
   }
   const ordered = [...placements].sort((left, right) =>
     comparePlacementQuality(left, right) || compareIds(stableKey(left), stableKey(right)))
+  const bounded = boundedPlacements(ordered, MAX_ROUTED_PLACEMENTS)
   const compareRoutingQuality = (left: EngineResult, right: EngineResult): number => {
     const leftMetrics = left.routing.metrics
     const rightMetrics = right.routing.metrics
-    const primary = leftMetrics.totalTurns - rightMetrics.totalTurns ||
+    const primary = leftMetrics.crossings - rightMetrics.crossings ||
+      leftMetrics.maxCrossings - rightMetrics.maxCrossings ||
+      leftMetrics.totalTurns - rightMetrics.totalTurns ||
       leftMetrics.maxTurns - rightMetrics.maxTurns ||
       left.placement.metrics.sourceCorridorDeficit - right.placement.metrics.sourceCorridorDeficit ||
       leftMetrics.totalManhattan - rightMetrics.totalManhattan ||
@@ -92,29 +96,39 @@ function layoutEngine(input: PlacementInput): EngineResult {
       const difference = (leftDetours[index] ?? 0) - (rightDetours[index] ?? 0)
       if (difference !== 0) return difference
     }
-    return leftMetrics.clearanceVariance - rightMetrics.clearanceVariance ||
-      leftMetrics.crossings - rightMetrics.crossings ||
+    return comparePlacementQuality(left.placement, right.placement) ||
+      leftMetrics.clearanceVariance - rightMetrics.clearanceVariance ||
       compareIds(stableKey(left.placement), stableKey(right.placement))
   }
-  for (let start = 0; start < ordered.length;) {
-    let end = start + 1
-    while (end < ordered.length && comparePlacementQuality(ordered[start]!, ordered[end]!) === 0) end += 1
-    const routable: EngineResult[] = []
-    for (const placement of ordered.slice(start, end)) {
-      try {
-        const routing = routeGraph(placement.routeInput)
-        routable.push({placement, routing, candidates: {generated: placements.length, routable: 0}})
-      } catch (error) {
-        if (!(error instanceof Error) || !error.message.startsWith("NO_LEGAL_ROUTE ")) throw error
-      }
+  const routable: EngineResult[] = []
+  for (const placement of bounded) {
+    try {
+      const routing = routeGraph(placement.routeInput)
+      routable.push({placement, routing, candidates: {generated: placements.length, routable: 0}})
+    } catch (error) {
+      if (!(error instanceof Error) || !error.message.startsWith("NO_LEGAL_ROUTE ")) throw error
     }
-    if (routable.length > 0) {
-      const best = routable.sort(compareRoutingQuality)[0]!
-      return {...best, candidates: {generated: placements.length, routable: routable.length}}
-    }
-    start = end
   }
-  throw new Error(`NO_LEGAL_LAYOUT: ${placements.length} generated placements provide no legal route graph`)
+  if (routable.length > 0) {
+    const best = routable.sort(compareRoutingQuality)[0]!
+    return {...best, candidates: {generated: placements.length, routable: routable.length}}
+  }
+  throw new Error(`NO_LEGAL_LAYOUT: ${bounded.length}/${placements.length} bounded placements provide no legal route graph`)
+}
+
+function boundedPlacements(
+  ordered: readonly PlacementResult[],
+  limit: number,
+): readonly PlacementResult[] {
+  if (ordered.length <= limit) return ordered
+  const selected = new Set<number>()
+  const preferredCount = Math.ceil(limit / 2)
+  for (let index = 0; index < preferredCount; index += 1) selected.add(index)
+  const remaining = limit - selected.size
+  for (let index = 1; index <= remaining; index += 1) {
+    selected.add(Math.round(index * (ordered.length - 1) / remaining))
+  }
+  return [...selected].sort((left, right) => left - right).map((index) => ordered[index]!)
 }
 
 function toPlacementInput(graph: LayoutGraph): PlacementInput {
@@ -138,15 +152,21 @@ function toPlacementInput(graph: LayoutGraph): PlacementInput {
       height: positive(graph.viewport.height, undefined, "viewport.height"),
     },
     clearance: scaled(clearance),
-    padding: Math.max(scaled(padding), scaled(clearance) * 2),
+    padding: scaled(padding),
     nodeSpacing: scaled(spacing),
     layerSpacing: scaled(layerSpacing),
     outerPadding: scaled(padding),
-    nodes: graph.nodes.map((node) => ({
-      id: node.id,
-      ...(node.parentId === undefined ? {} : {parentId: node.parentId}),
-      size: {w: scaledPositive(node.width, `node.width:${node.id}`), h: scaledPositive(node.height, `node.height:${node.id}`)},
-    })),
+    nodes: graph.nodes.map((node) => {
+      const height = scaledPositive(node.height, `node.height:${node.id}`)
+      const contentHeight = scaledPositive(node.contentHeight ?? node.height, `node.contentHeight:${node.id}`)
+      if (contentHeight > height) throw new Error(`node.contentHeight must not exceed height: ${node.id}`)
+      return {
+        id: node.id,
+        ...(node.parentId === undefined ? {} : {parentId: node.parentId}),
+        size: {w: scaledPositive(node.width, `node.width:${node.id}`), h: height},
+        contentHeight,
+      }
+    }),
     ports: graph.ports.flatMap((port) => {
       const direction = roles.get(port.id)
       if (direction === undefined) return []

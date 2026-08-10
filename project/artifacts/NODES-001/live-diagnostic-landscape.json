@@ -1,0 +1,869 @@
+{
+  "viewport": {
+    "width": 1200,
+    "height": 800
+  },
+  "candidates": 32,
+  "routable": 16,
+  "failures": [
+    [
+      "ipc:0d55bbd8-c856-4148-a5ed-950b45f6223e",
+      8
+    ],
+    [
+      "ipc:2d8e3de6-d6db-42ac-a376-5f5f9eff71d7",
+      8
+    ]
+  ],
+  "examples": {
+    "ipc:0d55bbd8-c856-4148-a5ed-950b45f6223e": {
+      "status": "NO_LEGAL_ROUTE",
+      "error": "NO_LEGAL_ROUTE ipc:0d55bbd8-c856-4148-a5ed-950b45f6223e: fixed rectangles provide no corridor at clearance 28000",
+      "witness": {
+        "edge": {
+          "id": "ipc:0d55bbd8-c856-4148-a5ed-950b45f6223e",
+          "sourcePortId": "server:5bcd3d92-e854-4dfc-8499-ba0343327b73\u0000out:ipc%3A0d55bbd8-c856-4148-a5ed-950b45f6223e",
+          "targetPortId": "bun-process:0d55bbd8-c856-4148-a5ed-950b45f6223e\u0000in:ipc%3A0d55bbd8-c856-4148-a5ed-950b45f6223e"
+        },
+        "endpoints": {
+          "source": {
+            "id": "server:5bcd3d92-e854-4dfc-8499-ba0343327b73\u0000out:ipc%3A0d55bbd8-c856-4148-a5ed-950b45f6223e",
+            "nodeId": "server:5bcd3d92-e854-4dfc-8499-ba0343327b73",
+            "center": {
+              "x": 1544650,
+              "y": 648000
+            },
+            "side": "EAST",
+            "direction": "out"
+          },
+          "target": {
+            "id": "bun-process:0d55bbd8-c856-4148-a5ed-950b45f6223e\u0000in:ipc%3A0d55bbd8-c856-4148-a5ed-950b45f6223e",
+            "nodeId": "bun-process:0d55bbd8-c856-4148-a5ed-950b45f6223e",
+            "center": {
+              "x": 1572650,
+              "y": 374000
+            },
+            "side": "WEST",
+            "direction": "in"
+          },
+          "sourcePortal": {
+            "x": 1558650,
+            "y": 648000
+          },
+          "targetPortal": {
+            "x": 1558650,
+            "y": 374000
+          }
+        },
+        "ancestors": {
+          "source": [
+            "server-contour"
+          ],
+          "target": [
+            "server-contour"
+          ],
+          "sourceChain": [],
+          "targetChain": [],
+          "owner": "server-contour"
+        },
+        "candidateAxes": {
+          "xs": [
+            0,
+            28000,
+            56000,
+            84000,
+            112000,
+            140000,
+            168000,
+            550050,
+            578050,
+            906750,
+            934750,
+            1236150,
+            1264150,
+            1292150,
+            1320150,
+            1544650,
+            1558650,
+            1572650,
+            1794900,
+            1806400,
+            1946900,
+            1974900,
+            2002900,
+            2030900,
+            2058900
+          ],
+          "ys": [
+            56000,
+            112000,
+            150000,
+            178000,
+            346000,
+            348000,
+            374000,
+            396000,
+            402000,
+            424000,
+            510000,
+            564000,
+            592000,
+            620000,
+            642000,
+            648000,
+            670000,
+            676000,
+            704000,
+            732000,
+            754000,
+            760000,
+            782000,
+            788000,
+            810000,
+            860000,
+            866000,
+            950000,
+            1000000,
+            1006000,
+            1028000,
+            1056000,
+            1084000,
+            1112000,
+            1134000,
+            1162000,
+            1196000,
+            1224000,
+            1252000,
+            1280000,
+            1302000,
+            1330000,
+            1358000,
+            1386000,
+            1414000,
+            1442000,
+            1470000
+          ]
+        },
+        "reachableStates": 1,
+        "reachableFrontier": [
+          {
+            "key": 8294400,
+            "point": {
+              "x": 1544650,
+              "y": 648000
+            },
+            "state": {
+              "xi": 15,
+              "yi": 15,
+              "lastDirection": null,
+              "sourceExited": 0,
+              "targetEntered": 0,
+              "sourceGatewayY": null,
+              "targetGatewayY": null
+            },
+            "score": {
+              "turns": 0,
+              "length": 0
+            },
+            "distanceToTarget": 302000
+          }
+        ],
+        "rejectedTransitions": {
+          "pointBlocked": 3,
+          "segmentIllegal": 0,
+          "sourceDirection": 1,
+          "targetDirection": 0,
+          "hierarchyTransition": 0
+        },
+        "firstRejectedHierarchyTransition": null,
+        "pointBlocks": [
+          {
+            "point": {
+              "x": 1320150,
+              "y": 648000
+            },
+            "reason": {
+              "kind": "INFLATED_NODE",
+              "nodeId": "server:5bcd3d92-e854-4dfc-8499-ba0343327b73",
+              "rect": {
+                "x": 1320150,
+                "y": 452000,
+                "w": 224500,
+                "h": 274000
+              },
+              "inflated": {
+                "x": 1292150,
+                "y": 424000,
+                "w": 280500,
+                "h": 330000
+              }
+            }
+          },
+          {
+            "point": {
+              "x": 1544650,
+              "y": 670000
+            },
+            "reason": {
+              "kind": "INFLATED_NODE",
+              "nodeId": "server:5bcd3d92-e854-4dfc-8499-ba0343327b73",
+              "rect": {
+                "x": 1320150,
+                "y": 452000,
+                "w": 224500,
+                "h": 274000
+              },
+              "inflated": {
+                "x": 1292150,
+                "y": 424000,
+                "w": 280500,
+                "h": 330000
+              }
+            }
+          },
+          {
+            "point": {
+              "x": 1558650,
+              "y": 648000
+            },
+            "reason": {
+              "kind": "INFLATED_NODE",
+              "nodeId": "bun-process:2d8e3de6-d6db-42ac-a376-5f5f9eff71d7",
+              "rect": {
+                "x": 1572650,
+                "y": 424000,
+                "w": 194250,
+                "h": 218000
+              },
+              "inflated": {
+                "x": 1544650,
+                "y": 396000,
+                "w": 250250,
+                "h": 274000
+              }
+            }
+          }
+        ],
+        "parallelClearanceBlocks": [],
+        "blockingRectangles": [
+          {
+            "id": "browser:b04b5959-28a2-4ac0-ba5c-6bdba29e0091",
+            "parentId": null,
+            "rect": {
+              "x": 84000,
+              "y": 376000,
+              "w": 1180150,
+              "h": 1010000
+            },
+            "inflated": {
+              "x": 56000,
+              "y": 348000,
+              "w": 1236150,
+              "h": 1066000
+            }
+          },
+          {
+            "id": "bun-process:0d55bbd8-c856-4148-a5ed-950b45f6223e",
+            "parentId": "server-contour",
+            "rect": {
+              "x": 1572650,
+              "y": 178000,
+              "w": 205750,
+              "h": 218000
+            },
+            "inflated": {
+              "x": 1544650,
+              "y": 150000,
+              "w": 261750,
+              "h": 274000
+            }
+          },
+          {
+            "id": "bun-process:2d8e3de6-d6db-42ac-a376-5f5f9eff71d7",
+            "parentId": "server-contour",
+            "rect": {
+              "x": 1572650,
+              "y": 424000,
+              "w": 194250,
+              "h": 218000
+            },
+            "inflated": {
+              "x": 1544650,
+              "y": 396000,
+              "w": 250250,
+              "h": 274000
+            }
+          },
+          {
+            "id": "dedicated-worker:92fe14bc-47c1-4896-80d2-28ebbe043d21",
+            "parentId": "page:ddbf8f6b-fc30-43e7-83b1-ffacde5ebe33",
+            "rect": {
+              "x": 578050,
+              "y": 810000,
+              "w": 300700,
+              "h": 190000
+            },
+            "inflated": {
+              "x": 550050,
+              "y": 782000,
+              "w": 356700,
+              "h": 246000
+            }
+          },
+          {
+            "id": "page:ddbf8f6b-fc30-43e7-83b1-ffacde5ebe33",
+            "parentId": "browser:b04b5959-28a2-4ac0-ba5c-6bdba29e0091",
+            "rect": {
+              "x": 140000,
+              "y": 538000,
+              "w": 766750,
+              "h": 792000
+            },
+            "inflated": {
+              "x": 112000,
+              "y": 510000,
+              "w": 822750,
+              "h": 848000
+            }
+          },
+          {
+            "id": "peer-process:a6a73bf5-aa7a-4272-9a1e-25386e46b092",
+            "parentId": "server-contour",
+            "rect": {
+              "x": 1572650,
+              "y": 670000,
+              "w": 374250,
+              "h": 464000
+            },
+            "inflated": {
+              "x": 1544650,
+              "y": 642000,
+              "w": 430250,
+              "h": 520000
+            }
+          },
+          {
+            "id": "rtc-peer:1a0992c6-f8b3-42a1-8562-e9e0374d9291%3Abrowser",
+            "parentId": "window-main:ddbf8f6b-fc30-43e7-83b1-ffacde5ebe33",
+            "rect": {
+              "x": 196000,
+              "y": 1028000,
+              "w": 326050,
+              "h": 246000
+            },
+            "inflated": {
+              "x": 168000,
+              "y": 1000000,
+              "w": 382050,
+              "h": 302000
+            }
+          },
+          {
+            "id": "rtc-peer:1a0992c6-f8b3-42a1-8562-e9e0374d9291%3Aserver",
+            "parentId": "peer-process:a6a73bf5-aa7a-4272-9a1e-25386e46b092",
+            "rect": {
+              "x": 1600650,
+              "y": 888000,
+              "w": 318250,
+              "h": 218000
+            },
+            "inflated": {
+              "x": 1572650,
+              "y": 860000,
+              "w": 374250,
+              "h": 274000
+            }
+          },
+          {
+            "id": "server-contour",
+            "parentId": null,
+            "rect": {
+              "x": 1292150,
+              "y": 84000,
+              "w": 682750,
+              "h": 66000
+            },
+            "inflated": {
+              "x": 1264150,
+              "y": 56000,
+              "w": 738750,
+              "h": 122000
+            }
+          },
+          {
+            "id": "server:5bcd3d92-e854-4dfc-8499-ba0343327b73",
+            "parentId": "server-contour",
+            "rect": {
+              "x": 1320150,
+              "y": 452000,
+              "w": 224500,
+              "h": 274000
+            },
+            "inflated": {
+              "x": 1292150,
+              "y": 424000,
+              "w": 280500,
+              "h": 330000
+            }
+          },
+          {
+            "id": "service-worker:7930a4b2-c821-4e46-8e49-1d72efa1ecf1",
+            "parentId": "browser:b04b5959-28a2-4ac0-ba5c-6bdba29e0091",
+            "rect": {
+              "x": 934750,
+              "y": 592000,
+              "w": 273400,
+              "h": 190000
+            },
+            "inflated": {
+              "x": 906750,
+              "y": 564000,
+              "w": 329400,
+              "h": 246000
+            }
+          },
+          {
+            "id": "window-main:ddbf8f6b-fc30-43e7-83b1-ffacde5ebe33",
+            "parentId": "page:ddbf8f6b-fc30-43e7-83b1-ffacde5ebe33",
+            "rect": {
+              "x": 168000,
+              "y": 838000,
+              "w": 382050,
+              "h": 464000
+            },
+            "inflated": {
+              "x": 140000,
+              "y": 810000,
+              "w": 438050,
+              "h": 520000
+            }
+          }
+        ]
+      }
+    },
+    "ipc:2d8e3de6-d6db-42ac-a376-5f5f9eff71d7": {
+      "status": "NO_LEGAL_ROUTE",
+      "error": "NO_LEGAL_ROUTE ipc:2d8e3de6-d6db-42ac-a376-5f5f9eff71d7: fixed rectangles provide no corridor at clearance 28000",
+      "witness": {
+        "edge": {
+          "id": "ipc:2d8e3de6-d6db-42ac-a376-5f5f9eff71d7",
+          "sourcePortId": "server:5bcd3d92-e854-4dfc-8499-ba0343327b73\u0000out:ipc%3A2d8e3de6-d6db-42ac-a376-5f5f9eff71d7",
+          "targetPortId": "bun-process:2d8e3de6-d6db-42ac-a376-5f5f9eff71d7\u0000in:ipc%3A2d8e3de6-d6db-42ac-a376-5f5f9eff71d7"
+        },
+        "endpoints": {
+          "source": {
+            "id": "server:5bcd3d92-e854-4dfc-8499-ba0343327b73\u0000out:ipc%3A2d8e3de6-d6db-42ac-a376-5f5f9eff71d7",
+            "nodeId": "server:5bcd3d92-e854-4dfc-8499-ba0343327b73",
+            "center": {
+              "x": 1544650,
+              "y": 346000
+            },
+            "side": "EAST",
+            "direction": "out"
+          },
+          "target": {
+            "id": "bun-process:2d8e3de6-d6db-42ac-a376-5f5f9eff71d7\u0000in:ipc%3A2d8e3de6-d6db-42ac-a376-5f5f9eff71d7",
+            "nodeId": "bun-process:2d8e3de6-d6db-42ac-a376-5f5f9eff71d7",
+            "center": {
+              "x": 1572650,
+              "y": 620000
+            },
+            "side": "WEST",
+            "direction": "in"
+          },
+          "sourcePortal": {
+            "x": 1558650,
+            "y": 346000
+          },
+          "targetPortal": {
+            "x": 1558650,
+            "y": 620000
+          }
+        },
+        "ancestors": {
+          "source": [
+            "server-contour"
+          ],
+          "target": [
+            "server-contour"
+          ],
+          "sourceChain": [],
+          "targetChain": [],
+          "owner": "server-contour"
+        },
+        "candidateAxes": {
+          "xs": [
+            0,
+            28000,
+            56000,
+            84000,
+            112000,
+            140000,
+            168000,
+            550050,
+            578050,
+            906750,
+            934750,
+            1236150,
+            1264150,
+            1292150,
+            1320150,
+            1544650,
+            1558650,
+            1572650,
+            1794900,
+            1806400,
+            1946900,
+            1974900,
+            2002900,
+            2030900,
+            2058900
+          ],
+          "ys": [
+            56000,
+            74000,
+            112000,
+            150000,
+            178000,
+            236000,
+            290000,
+            318000,
+            346000,
+            374000,
+            396000,
+            402000,
+            424000,
+            430000,
+            458000,
+            480000,
+            486000,
+            508000,
+            514000,
+            536000,
+            592000,
+            620000,
+            642000,
+            648000,
+            670000,
+            676000,
+            726000,
+            732000,
+            754000,
+            810000,
+            860000,
+            866000,
+            922000,
+            950000,
+            978000,
+            1006000,
+            1028000,
+            1056000,
+            1084000,
+            1112000,
+            1134000,
+            1140000,
+            1162000,
+            1190000,
+            1218000,
+            1246000
+          ]
+        },
+        "reachableStates": 1,
+        "reachableFrontier": [
+          {
+            "key": 7709410,
+            "point": {
+              "x": 1544650,
+              "y": 346000
+            },
+            "state": {
+              "xi": 15,
+              "yi": 8,
+              "lastDirection": null,
+              "sourceExited": 0,
+              "targetEntered": 0,
+              "sourceGatewayY": null,
+              "targetGatewayY": null
+            },
+            "score": {
+              "turns": 0,
+              "length": 0
+            },
+            "distanceToTarget": 302000
+          }
+        ],
+        "rejectedTransitions": {
+          "pointBlocked": 3,
+          "segmentIllegal": 0,
+          "sourceDirection": 1,
+          "targetDirection": 0,
+          "hierarchyTransition": 0
+        },
+        "firstRejectedHierarchyTransition": null,
+        "pointBlocks": [
+          {
+            "point": {
+              "x": 1320150,
+              "y": 346000
+            },
+            "reason": {
+              "kind": "INFLATED_NODE",
+              "nodeId": "server:5bcd3d92-e854-4dfc-8499-ba0343327b73",
+              "rect": {
+                "x": 1320150,
+                "y": 178000,
+                "w": 224500,
+                "h": 274000
+              },
+              "inflated": {
+                "x": 1292150,
+                "y": 150000,
+                "w": 280500,
+                "h": 330000
+              }
+            }
+          },
+          {
+            "point": {
+              "x": 1544650,
+              "y": 318000
+            },
+            "reason": {
+              "kind": "INFLATED_NODE",
+              "nodeId": "server:5bcd3d92-e854-4dfc-8499-ba0343327b73",
+              "rect": {
+                "x": 1320150,
+                "y": 178000,
+                "w": 224500,
+                "h": 274000
+              },
+              "inflated": {
+                "x": 1292150,
+                "y": 150000,
+                "w": 280500,
+                "h": 330000
+              }
+            }
+          },
+          {
+            "point": {
+              "x": 1558650,
+              "y": 346000
+            },
+            "reason": {
+              "kind": "INFLATED_NODE",
+              "nodeId": "bun-process:0d55bbd8-c856-4148-a5ed-950b45f6223e",
+              "rect": {
+                "x": 1572650,
+                "y": 178000,
+                "w": 205750,
+                "h": 218000
+              },
+              "inflated": {
+                "x": 1544650,
+                "y": 150000,
+                "w": 261750,
+                "h": 274000
+              }
+            }
+          }
+        ],
+        "parallelClearanceBlocks": [],
+        "blockingRectangles": [
+          {
+            "id": "browser:b04b5959-28a2-4ac0-ba5c-6bdba29e0091",
+            "parentId": null,
+            "rect": {
+              "x": 84000,
+              "y": 102000,
+              "w": 1180150,
+              "h": 1010000
+            },
+            "inflated": {
+              "x": 56000,
+              "y": 74000,
+              "w": 1236150,
+              "h": 1066000
+            }
+          },
+          {
+            "id": "bun-process:0d55bbd8-c856-4148-a5ed-950b45f6223e",
+            "parentId": "server-contour",
+            "rect": {
+              "x": 1572650,
+              "y": 178000,
+              "w": 205750,
+              "h": 218000
+            },
+            "inflated": {
+              "x": 1544650,
+              "y": 150000,
+              "w": 261750,
+              "h": 274000
+            }
+          },
+          {
+            "id": "bun-process:2d8e3de6-d6db-42ac-a376-5f5f9eff71d7",
+            "parentId": "server-contour",
+            "rect": {
+              "x": 1572650,
+              "y": 424000,
+              "w": 194250,
+              "h": 218000
+            },
+            "inflated": {
+              "x": 1544650,
+              "y": 396000,
+              "w": 250250,
+              "h": 274000
+            }
+          },
+          {
+            "id": "dedicated-worker:92fe14bc-47c1-4896-80d2-28ebbe043d21",
+            "parentId": "page:ddbf8f6b-fc30-43e7-83b1-ffacde5ebe33",
+            "rect": {
+              "x": 578050,
+              "y": 536000,
+              "w": 300700,
+              "h": 190000
+            },
+            "inflated": {
+              "x": 550050,
+              "y": 508000,
+              "w": 356700,
+              "h": 246000
+            }
+          },
+          {
+            "id": "page:ddbf8f6b-fc30-43e7-83b1-ffacde5ebe33",
+            "parentId": "browser:b04b5959-28a2-4ac0-ba5c-6bdba29e0091",
+            "rect": {
+              "x": 140000,
+              "y": 264000,
+              "w": 766750,
+              "h": 792000
+            },
+            "inflated": {
+              "x": 112000,
+              "y": 236000,
+              "w": 822750,
+              "h": 848000
+            }
+          },
+          {
+            "id": "peer-process:a6a73bf5-aa7a-4272-9a1e-25386e46b092",
+            "parentId": "server-contour",
+            "rect": {
+              "x": 1572650,
+              "y": 670000,
+              "w": 374250,
+              "h": 464000
+            },
+            "inflated": {
+              "x": 1544650,
+              "y": 642000,
+              "w": 430250,
+              "h": 520000
+            }
+          },
+          {
+            "id": "rtc-peer:1a0992c6-f8b3-42a1-8562-e9e0374d9291%3Abrowser",
+            "parentId": "window-main:ddbf8f6b-fc30-43e7-83b1-ffacde5ebe33",
+            "rect": {
+              "x": 196000,
+              "y": 754000,
+              "w": 326050,
+              "h": 246000
+            },
+            "inflated": {
+              "x": 168000,
+              "y": 726000,
+              "w": 382050,
+              "h": 302000
+            }
+          },
+          {
+            "id": "rtc-peer:1a0992c6-f8b3-42a1-8562-e9e0374d9291%3Aserver",
+            "parentId": "peer-process:a6a73bf5-aa7a-4272-9a1e-25386e46b092",
+            "rect": {
+              "x": 1600650,
+              "y": 888000,
+              "w": 318250,
+              "h": 218000
+            },
+            "inflated": {
+              "x": 1572650,
+              "y": 860000,
+              "w": 374250,
+              "h": 274000
+            }
+          },
+          {
+            "id": "server-contour",
+            "parentId": null,
+            "rect": {
+              "x": 1292150,
+              "y": 84000,
+              "w": 682750,
+              "h": 66000
+            },
+            "inflated": {
+              "x": 1264150,
+              "y": 56000,
+              "w": 738750,
+              "h": 122000
+            }
+          },
+          {
+            "id": "server:5bcd3d92-e854-4dfc-8499-ba0343327b73",
+            "parentId": "server-contour",
+            "rect": {
+              "x": 1320150,
+              "y": 178000,
+              "w": 224500,
+              "h": 274000
+            },
+            "inflated": {
+              "x": 1292150,
+              "y": 150000,
+              "w": 280500,
+              "h": 330000
+            }
+          },
+          {
+            "id": "service-worker:7930a4b2-c821-4e46-8e49-1d72efa1ecf1",
+            "parentId": "browser:b04b5959-28a2-4ac0-ba5c-6bdba29e0091",
+            "rect": {
+              "x": 934750,
+              "y": 318000,
+              "w": 273400,
+              "h": 190000
+            },
+            "inflated": {
+              "x": 906750,
+              "y": 290000,
+              "w": 329400,
+              "h": 246000
+            }
+          },
+          {
+            "id": "window-main:ddbf8f6b-fc30-43e7-83b1-ffacde5ebe33",
+            "parentId": "page:ddbf8f6b-fc30-43e7-83b1-ffacde5ebe33",
+            "rect": {
+              "x": 168000,
+              "y": 564000,
+              "w": 382050,
+              "h": 464000
+            },
+            "inflated": {
+              "x": 140000,
+              "y": 536000,
+              "w": 438050,
+              "h": 520000
+            }
+          }
+        ]
+      }
+    }
+  }
+}

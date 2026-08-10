@@ -1,0 +1,2142 @@
+{
+  "viewport": {
+    "width": 390,
+    "height": 844
+  },
+  "candidates": 45,
+  "routable": 13,
+  "failures": [
+    [
+      "ipc:2d8e3de6-d6db-42ac-a376-5f5f9eff71d7",
+      32
+    ]
+  ],
+  "candidateResults": [
+    {
+      "index": 0,
+      "status": "NO_LEGAL_ROUTE",
+      "edge": "ipc:2d8e3de6-d6db-42ac-a376-5f5f9eff71d7",
+      "metrics": {
+        "direction": "DOWN",
+        "width": 1460150,
+        "height": 2586000,
+        "fitScale": 0.2670958463171592,
+        "displayEmptyRatio": 0.7914736356721057,
+        "compoundEmptyRatio": 0.44133608857550655,
+        "maxCompoundEmptyRatio": 0.5544513330421352,
+        "sourceCorridorDeficit": 1325500,
+        "hardViolations": []
+      }
+    },
+    {
+      "index": 1,
+      "status": "NO_LEGAL_ROUTE",
+      "edge": "ipc:2d8e3de6-d6db-42ac-a376-5f5f9eff71d7",
+      "metrics": {
+        "direction": "DOWN",
+        "width": 1460150,
+        "height": 2558000,
+        "fitScale": 0.2670958463171592,
+        "displayEmptyRatio": 0.7882622867481075,
+        "compoundEmptyRatio": 0.46220610430460674,
+        "maxCompoundEmptyRatio": 0.614534772612767,
+        "sourceCorridorDeficit": 1194750,
+        "hardViolations": []
+      }
+    },
+    {
+      "index": 2,
+      "status": "NO_LEGAL_ROUTE",
+      "edge": "ipc:2d8e3de6-d6db-42ac-a376-5f5f9eff71d7",
+      "metrics": {
+        "direction": "DOWN",
+        "width": 1460150,
+        "height": 2754000,
+        "fitScale": 0.2670958463171592,
+        "displayEmptyRatio": 0.7914736356721057,
+        "compoundEmptyRatio": 0.4599860723288405,
+        "maxCompoundEmptyRatio": 0.5918774210665959,
+        "sourceCorridorDeficit": 1325500,
+        "hardViolations": []
+      }
+    },
+    {
+      "index": 3,
+      "status": "NO_LEGAL_ROUTE",
+      "edge": "ipc:2d8e3de6-d6db-42ac-a376-5f5f9eff71d7",
+      "metrics": {
+        "direction": "DOWN",
+        "width": 1460150,
+        "height": 2726000,
+        "fitScale": 0.2670958463171592,
+        "displayEmptyRatio": 0.7882622867481075,
+        "compoundEmptyRatio": 0.48158680640076024,
+        "maxCompoundEmptyRatio": 0.6478465823869723,
+        "sourceCorridorDeficit": 1194750,
+        "hardViolations": []
+      }
+    },
+    {
+      "index": 4,
+      "status": "NO_LEGAL_ROUTE",
+      "edge": "ipc:2d8e3de6-d6db-42ac-a376-5f5f9eff71d7",
+      "metrics": {
+        "direction": "DOWN",
+        "width": 1166250,
+        "height": 2642000,
+        "fitScale": 0.3194549583648751,
+        "displayEmptyRatio": 0.7483034851624014,
+        "compoundEmptyRatio": 0.3819933485972059,
+        "maxCompoundEmptyRatio": 0.5544513330421352,
+        "sourceCorridorDeficit": 1784750,
+        "hardViolations": []
+      }
+    },
+    {
+      "index": 5,
+      "status": "NO_LEGAL_ROUTE",
+      "edge": "ipc:2d8e3de6-d6db-42ac-a376-5f5f9eff71d7",
+      "metrics": {
+        "direction": "DOWN",
+        "width": 1390750,
+        "height": 2614000,
+        "fitScale": 0.28042423152975016,
+        "displayEmptyRatio": 0.8025104991795597,
+        "compoundEmptyRatio": 0.41416885878061926,
+        "maxCompoundEmptyRatio": 0.614534772612767,
+        "sourceCorridorDeficit": 1429500,
+        "hardViolations": []
+      }
+    },
+    {
+      "index": 6,
+      "status": "NO_LEGAL_ROUTE",
+      "edge": "ipc:2d8e3de6-d6db-42ac-a376-5f5f9eff71d7",
+      "metrics": {
+        "direction": "DOWN",
+        "width": 1166250,
+        "height": 2810000,
+        "fitScale": 0.300355871886121,
+        "displayEmptyRatio": 0.7774999111213293,
+        "compoundEmptyRatio": 0.4055990180116339,
+        "maxCompoundEmptyRatio": 0.5918774210665959,
+        "sourceCorridorDeficit": 1784750,
+        "hardViolations": []
+      }
+    },
+    {
+      "index": 7,
+      "status": "NO_LEGAL_ROUTE",
+      "edge": "ipc:2d8e3de6-d6db-42ac-a376-5f5f9eff71d7",
+      "metrics": {
+        "direction": "DOWN",
+        "width": 1390750,
+        "height": 2782000,
+        "fitScale": 0.28042423152975016,
+        "displayEmptyRatio": 0.8025104991795597,
+        "compoundEmptyRatio": 0.43854996169411586,
+        "maxCompoundEmptyRatio": 0.6478465823869723,
+        "sourceCorridorDeficit": 1429500,
+        "hardViolations": []
+      }
+    },
+    {
+      "index": 8,
+      "status": "NO_LEGAL_ROUTE",
+      "edge": "ipc:2d8e3de6-d6db-42ac-a376-5f5f9eff71d7",
+      "metrics": {
+        "direction": "DOWN",
+        "width": 1166250,
+        "height": 2614000,
+        "fitScale": 0.3228768171384851,
+        "displayEmptyRatio": 0.7312794932570854,
+        "compoundEmptyRatio": 0.44600165431734884,
+        "maxCompoundEmptyRatio": 0.5544513330421352,
+        "sourceCorridorDeficit": 1756750,
+        "hardViolations": []
+      }
+    },
+    {
+      "index": 9,
+      "status": "NO_LEGAL_ROUTE",
+      "edge": "ipc:2d8e3de6-d6db-42ac-a376-5f5f9eff71d7",
+      "metrics": {
+        "direction": "DOWN",
+        "width": 1390750,
+        "height": 2586000,
+        "fitScale": 0.28042423152975016,
+        "displayEmptyRatio": 0.7937580956666479,
+        "compoundEmptyRatio": 0.4710151000028283,
+        "maxCompoundEmptyRatio": 0.614534772612767,
+        "sourceCorridorDeficit": 1401500,
+        "hardViolations": []
+      }
+    },
+    {
+      "index": 10,
+      "status": "NO_LEGAL_ROUTE",
+      "edge": "ipc:2d8e3de6-d6db-42ac-a376-5f5f9eff71d7",
+      "metrics": {
+        "direction": "DOWN",
+        "width": 1166250,
+        "height": 2782000,
+        "fitScale": 0.3033788641265277,
+        "displayEmptyRatio": 0.7627546412812586,
+        "compoundEmptyRatio": 0.4667737243007958,
+        "maxCompoundEmptyRatio": 0.5918774210665959,
+        "sourceCorridorDeficit": 1756750,
+        "hardViolations": []
+      }
+    },
+    {
+      "index": 11,
+      "status": "NO_LEGAL_ROUTE",
+      "edge": "ipc:2d8e3de6-d6db-42ac-a376-5f5f9eff71d7",
+      "metrics": {
+        "direction": "DOWN",
+        "width": 1390750,
+        "height": 2754000,
+        "fitScale": 0.28042423152975016,
+        "displayEmptyRatio": 0.7937580956666479,
+        "compoundEmptyRatio": 0.49247915144668886,
+        "maxCompoundEmptyRatio": 0.6478465823869723,
+        "sourceCorridorDeficit": 1401500,
+        "hardViolations": []
+      }
+    },
+    {
+      "index": 12,
+      "status": "NO_LEGAL_ROUTE",
+      "edge": "ipc:2d8e3de6-d6db-42ac-a376-5f5f9eff71d7",
+      "metrics": {
+        "direction": "DOWN",
+        "width": 1186750,
+        "height": 2614000,
+        "fitScale": 0.3228768171384851,
+        "displayEmptyRatio": 0.7068833635929885,
+        "compoundEmptyRatio": 0.392647805536943,
+        "maxCompoundEmptyRatio": 0.5544513330421352,
+        "sourceCorridorDeficit": 1626900,
+        "hardViolations": []
+      }
+    },
+    {
+      "index": 13,
+      "status": "NO_LEGAL_ROUTE",
+      "edge": "ipc:2d8e3de6-d6db-42ac-a376-5f5f9eff71d7",
+      "metrics": {
+        "direction": "DOWN",
+        "width": 1390750,
+        "height": 2586000,
+        "fitScale": 0.28042423152975016,
+        "displayEmptyRatio": 0.775355533945369,
+        "compoundEmptyRatio": 0.41799871119561305,
+        "maxCompoundEmptyRatio": 0.614534772612767,
+        "sourceCorridorDeficit": 1292150,
+        "hardViolations": []
+      }
+    },
+    {
+      "index": 14,
+      "status": "NO_LEGAL_ROUTE",
+      "edge": "ipc:2d8e3de6-d6db-42ac-a376-5f5f9eff71d7",
+      "metrics": {
+        "direction": "DOWN",
+        "width": 1186750,
+        "height": 2782000,
+        "fitScale": 0.3033788641265277,
+        "displayEmptyRatio": 0.7412160225741835,
+        "compoundEmptyRatio": 0.41299792327395657,
+        "maxCompoundEmptyRatio": 0.5918774210665959,
+        "sourceCorridorDeficit": 1626900,
+        "hardViolations": []
+      }
+    },
+    {
+      "index": 15,
+      "status": "NO_LEGAL_ROUTE",
+      "edge": "ipc:2d8e3de6-d6db-42ac-a376-5f5f9eff71d7",
+      "metrics": {
+        "direction": "DOWN",
+        "width": 1390750,
+        "height": 2754000,
+        "fitScale": 0.28042423152975016,
+        "displayEmptyRatio": 0.775355533945369,
+        "compoundEmptyRatio": 0.439188251432433,
+        "maxCompoundEmptyRatio": 0.6478465823869723,
+        "sourceCorridorDeficit": 1292150,
+        "hardViolations": []
+      }
+    },
+    {
+      "index": 16,
+      "status": "ROUTABLE",
+      "metrics": {
+        "direction": "DOWN",
+        "width": 1734050,
+        "height": 1726000,
+        "fitScale": 0.22490700960179927,
+        "displayEmptyRatio": 0.8754074888623561,
+        "compoundEmptyRatio": 0.4133827078701171,
+        "maxCompoundEmptyRatio": 0.5695661700262927,
+        "sourceCorridorDeficit": 1240100,
+        "hardViolations": []
+      }
+    },
+    {
+      "index": 17,
+      "status": "ROUTABLE",
+      "metrics": {
+        "direction": "DOWN",
+        "width": 1790050,
+        "height": 1726000,
+        "fitScale": 0.21787100918968744,
+        "displayEmptyRatio": 0.8825480702285792,
+        "compoundEmptyRatio": 0.4303022860740985,
+        "maxCompoundEmptyRatio": 0.608031731872053,
+        "sourceCorridorDeficit": 1503350,
+        "hardViolations": []
+      }
+    },
+    {
+      "index": 18,
+      "status": "ROUTABLE",
+      "metrics": {
+        "direction": "DOWN",
+        "width": 1708300,
+        "height": 1800000,
+        "fitScale": 0.22829713750512204,
+        "displayEmptyRatio": 0.8718921994422398,
+        "compoundEmptyRatio": 0.4469405436181044,
+        "maxCompoundEmptyRatio": 0.6441455324644828,
+        "sourceCorridorDeficit": 1235100,
+        "hardViolations": []
+      }
+    },
+    {
+      "index": 19,
+      "status": "ROUTABLE",
+      "metrics": {
+        "direction": "DOWN",
+        "width": 1708300,
+        "height": 1800000,
+        "fitScale": 0.22829713750512204,
+        "displayEmptyRatio": 0.8718921994422398,
+        "compoundEmptyRatio": 0.4469405436181044,
+        "maxCompoundEmptyRatio": 0.6441455324644828,
+        "sourceCorridorDeficit": 1375725,
+        "hardViolations": []
+      }
+    },
+    {
+      "index": 20,
+      "status": "ROUTABLE",
+      "metrics": {
+        "direction": "DOWN",
+        "width": 1902550,
+        "height": 1726000,
+        "fitScale": 0.20498804236419543,
+        "displayEmptyRatio": 0.895079674353999,
+        "compoundEmptyRatio": 0.4037211670237445,
+        "maxCompoundEmptyRatio": 0.5411115173674589,
+        "sourceCorridorDeficit": 968850,
+        "hardViolations": []
+      }
+    },
+    {
+      "index": 21,
+      "status": "ROUTABLE",
+      "metrics": {
+        "direction": "DOWN",
+        "width": 1902550,
+        "height": 1726000,
+        "fitScale": 0.20498804236419543,
+        "displayEmptyRatio": 0.895079674353999,
+        "compoundEmptyRatio": 0.4037211670237445,
+        "maxCompoundEmptyRatio": 0.5411115173674589,
+        "sourceCorridorDeficit": 1079100,
+        "hardViolations": []
+      }
+    },
+    {
+      "index": 22,
+      "status": "ROUTABLE",
+      "metrics": {
+        "direction": "DOWN",
+        "width": 1327450,
+        "height": 2508000,
+        "fitScale": 0.29379637651135637,
+        "displayEmptyRatio": 0.7743844620543967,
+        "compoundEmptyRatio": 0.40579663628084817,
+        "maxCompoundEmptyRatio": 0.5131840674398438,
+        "sourceCorridorDeficit": 1149200,
+        "hardViolations": []
+      }
+    },
+    {
+      "index": 23,
+      "status": "ROUTABLE",
+      "metrics": {
+        "direction": "DOWN",
+        "width": 1054050,
+        "height": 3224000,
+        "fitScale": 0.2617866004962779,
+        "displayEmptyRatio": 0.8304272381685618,
+        "compoundEmptyRatio": 0.4303022860740985,
+        "maxCompoundEmptyRatio": 0.608031731872053,
+        "sourceCorridorDeficit": 1983600,
+        "hardViolations": []
+      }
+    },
+    {
+      "index": 24,
+      "status": "ROUTABLE",
+      "metrics": {
+        "direction": "DOWN",
+        "width": 1054050,
+        "height": 3196000,
+        "fitScale": 0.2640801001251564,
+        "displayEmptyRatio": 0.8282260475581641,
+        "compoundEmptyRatio": 0.4133827078701171,
+        "maxCompoundEmptyRatio": 0.5695661700262927,
+        "sourceCorridorDeficit": 1780100,
+        "hardViolations": []
+      }
+    },
+    {
+      "index": 25,
+      "status": "ROUTABLE",
+      "metrics": {
+        "direction": "DOWN",
+        "width": 1054050,
+        "height": 3526000,
+        "fitScale": 0.23936471922858762,
+        "displayEmptyRatio": 0.8591700840673854,
+        "compoundEmptyRatio": 0.4469405436181044,
+        "maxCompoundEmptyRatio": 0.6441455324644828,
+        "sourceCorridorDeficit": 1721350,
+        "hardViolations": []
+      }
+    },
+    {
+      "index": 26,
+      "status": "ROUTABLE",
+      "metrics": {
+        "direction": "DOWN",
+        "width": 1054050,
+        "height": 3526000,
+        "fitScale": 0.23936471922858762,
+        "displayEmptyRatio": 0.8591700840673854,
+        "compoundEmptyRatio": 0.4469405436181044,
+        "maxCompoundEmptyRatio": 0.6441455324644828,
+        "sourceCorridorDeficit": 1815100,
+        "hardViolations": []
+      }
+    },
+    {
+      "index": 27,
+      "status": "ROUTABLE",
+      "metrics": {
+        "direction": "DOWN",
+        "width": 1128500,
+        "height": 2894000,
+        "fitScale": 0.29163787145818937,
+        "displayEmptyRatio": 0.7876313464097593,
+        "compoundEmptyRatio": 0.4037211670237445,
+        "maxCompoundEmptyRatio": 0.5411115173674589,
+        "sourceCorridorDeficit": 1602900,
+        "hardViolations": []
+      }
+    },
+    {
+      "index": 28,
+      "status": "ROUTABLE",
+      "metrics": {
+        "direction": "DOWN",
+        "width": 1128500,
+        "height": 2894000,
+        "fitScale": 0.29163787145818937,
+        "displayEmptyRatio": 0.7876313464097593,
+        "compoundEmptyRatio": 0.4037211670237445,
+        "maxCompoundEmptyRatio": 0.5411115173674589,
+        "sourceCorridorDeficit": 1695250,
+        "hardViolations": []
+      }
+    },
+    {
+      "index": 29,
+      "status": "NO_LEGAL_ROUTE",
+      "edge": "ipc:2d8e3de6-d6db-42ac-a376-5f5f9eff71d7",
+      "metrics": {
+        "direction": "DOWN",
+        "width": 2402400,
+        "height": 2530000,
+        "fitScale": 0.16233766233766234,
+        "displayEmptyRatio": 0.9229690456339992,
+        "compoundEmptyRatio": 0.44133608857550655,
+        "maxCompoundEmptyRatio": 0.5544513330421352,
+        "sourceCorridorDeficit": 439250,
+        "hardViolations": []
+      }
+    },
+    {
+      "index": 30,
+      "status": "NO_LEGAL_ROUTE",
+      "edge": "ipc:2d8e3de6-d6db-42ac-a376-5f5f9eff71d7",
+      "metrics": {
+        "direction": "DOWN",
+        "width": 2626900,
+        "height": 2502000,
+        "fitScale": 0.14846396893676958,
+        "displayEmptyRatio": 0.9345806713493812,
+        "compoundEmptyRatio": 0.46220610430460674,
+        "maxCompoundEmptyRatio": 0.614534772612767,
+        "sourceCorridorDeficit": 56000,
+        "hardViolations": []
+      }
+    },
+    {
+      "index": 31,
+      "status": "NO_LEGAL_ROUTE",
+      "edge": "ipc:2d8e3de6-d6db-42ac-a376-5f5f9eff71d7",
+      "metrics": {
+        "direction": "DOWN",
+        "width": 2402400,
+        "height": 2698000,
+        "fitScale": 0.16233766233766234,
+        "displayEmptyRatio": 0.9229690456339992,
+        "compoundEmptyRatio": 0.4599860723288405,
+        "maxCompoundEmptyRatio": 0.5918774210665959,
+        "sourceCorridorDeficit": 439250,
+        "hardViolations": []
+      }
+    },
+    {
+      "index": 32,
+      "status": "NO_LEGAL_ROUTE",
+      "edge": "ipc:2d8e3de6-d6db-42ac-a376-5f5f9eff71d7",
+      "metrics": {
+        "direction": "DOWN",
+        "width": 2626900,
+        "height": 2670000,
+        "fitScale": 0.14846396893676958,
+        "displayEmptyRatio": 0.9345806713493812,
+        "compoundEmptyRatio": 0.48158680640076024,
+        "maxCompoundEmptyRatio": 0.6478465823869723,
+        "sourceCorridorDeficit": 56000,
+        "hardViolations": []
+      }
+    },
+    {
+      "index": 33,
+      "status": "NO_LEGAL_ROUTE",
+      "edge": "ipc:2d8e3de6-d6db-42ac-a376-5f5f9eff71d7",
+      "metrics": {
+        "direction": "DOWN",
+        "width": 2052800,
+        "height": 2558000,
+        "fitScale": 0.18998441153546375,
+        "displayEmptyRatio": 0.9093539526606162,
+        "compoundEmptyRatio": 0.41416885878061926,
+        "maxCompoundEmptyRatio": 0.614534772612767,
+        "sourceCorridorDeficit": 823450,
+        "hardViolations": []
+      }
+    },
+    {
+      "index": 34,
+      "status": "NO_LEGAL_ROUTE",
+      "edge": "ipc:2d8e3de6-d6db-42ac-a376-5f5f9eff71d7",
+      "metrics": {
+        "direction": "DOWN",
+        "width": 1828300,
+        "height": 2586000,
+        "fitScale": 0.21331291363561777,
+        "displayEmptyRatio": 0.8877743237935138,
+        "compoundEmptyRatio": 0.3819933485972059,
+        "maxCompoundEmptyRatio": 0.5544513330421352,
+        "sourceCorridorDeficit": 1206700,
+        "hardViolations": []
+      }
+    },
+    {
+      "index": 35,
+      "status": "NO_LEGAL_ROUTE",
+      "edge": "ipc:2d8e3de6-d6db-42ac-a376-5f5f9eff71d7",
+      "metrics": {
+        "direction": "DOWN",
+        "width": 2052800,
+        "height": 2726000,
+        "fitScale": 0.18998441153546375,
+        "displayEmptyRatio": 0.9093539526606162,
+        "compoundEmptyRatio": 0.43854996169411586,
+        "maxCompoundEmptyRatio": 0.6478465823869723,
+        "sourceCorridorDeficit": 823450,
+        "hardViolations": []
+      }
+    },
+    {
+      "index": 36,
+      "status": "NO_LEGAL_ROUTE",
+      "edge": "ipc:2d8e3de6-d6db-42ac-a376-5f5f9eff71d7",
+      "metrics": {
+        "direction": "DOWN",
+        "width": 1828300,
+        "height": 2754000,
+        "fitScale": 0.21331291363561777,
+        "displayEmptyRatio": 0.8877743237935138,
+        "compoundEmptyRatio": 0.4055990180116339,
+        "maxCompoundEmptyRatio": 0.5918774210665959,
+        "sourceCorridorDeficit": 1206700,
+        "hardViolations": []
+      }
+    },
+    {
+      "index": 37,
+      "status": "NO_LEGAL_ROUTE",
+      "edge": "ipc:2d8e3de6-d6db-42ac-a376-5f5f9eff71d7",
+      "metrics": {
+        "direction": "DOWN",
+        "width": 2101700,
+        "height": 2558000,
+        "fitScale": 0.18556406718370844,
+        "displayEmptyRatio": 0.911240499685398,
+        "compoundEmptyRatio": 0.44600165431734884,
+        "maxCompoundEmptyRatio": 0.5544513330421352,
+        "sourceCorridorDeficit": 877300,
+        "hardViolations": []
+      }
+    },
+    {
+      "index": 38,
+      "status": "NO_LEGAL_ROUTE",
+      "edge": "ipc:2d8e3de6-d6db-42ac-a376-5f5f9eff71d7",
+      "metrics": {
+        "direction": "DOWN",
+        "width": 2326200,
+        "height": 2530000,
+        "fitScale": 0.16765540366262574,
+        "displayEmptyRatio": 0.926280743829083,
+        "compoundEmptyRatio": 0.4710151000028283,
+        "maxCompoundEmptyRatio": 0.614534772612767,
+        "sourceCorridorDeficit": 494050,
+        "hardViolations": []
+      }
+    },
+    {
+      "index": 39,
+      "status": "NO_LEGAL_ROUTE",
+      "edge": "ipc:2d8e3de6-d6db-42ac-a376-5f5f9eff71d7",
+      "metrics": {
+        "direction": "DOWN",
+        "width": 2101700,
+        "height": 2726000,
+        "fitScale": 0.18556406718370844,
+        "displayEmptyRatio": 0.911240499685398,
+        "compoundEmptyRatio": 0.4667737243007958,
+        "maxCompoundEmptyRatio": 0.5918774210665959,
+        "sourceCorridorDeficit": 877300,
+        "hardViolations": []
+      }
+    },
+    {
+      "index": 40,
+      "status": "NO_LEGAL_ROUTE",
+      "edge": "ipc:2d8e3de6-d6db-42ac-a376-5f5f9eff71d7",
+      "metrics": {
+        "direction": "DOWN",
+        "width": 2326200,
+        "height": 2698000,
+        "fitScale": 0.16765540366262574,
+        "displayEmptyRatio": 0.926280743829083,
+        "compoundEmptyRatio": 0.49247915144668886,
+        "maxCompoundEmptyRatio": 0.6478465823869723,
+        "sourceCorridorDeficit": 494050,
+        "hardViolations": []
+      }
+    },
+    {
+      "index": 41,
+      "status": "NO_LEGAL_ROUTE",
+      "edge": "ipc:2d8e3de6-d6db-42ac-a376-5f5f9eff71d7",
+      "metrics": {
+        "direction": "DOWN",
+        "width": 2129000,
+        "height": 2558000,
+        "fitScale": 0.18318459370596524,
+        "displayEmptyRatio": 0.905649407281779,
+        "compoundEmptyRatio": 0.392647805536943,
+        "maxCompoundEmptyRatio": 0.5544513330421352,
+        "sourceCorridorDeficit": 768650,
+        "hardViolations": []
+      }
+    },
+    {
+      "index": 42,
+      "status": "NO_LEGAL_ROUTE",
+      "edge": "ipc:2d8e3de6-d6db-42ac-a376-5f5f9eff71d7",
+      "metrics": {
+        "direction": "DOWN",
+        "width": 2353500,
+        "height": 2530000,
+        "fitScale": 0.165710643722116,
+        "displayEmptyRatio": 0.921554965835272,
+        "compoundEmptyRatio": 0.41799871119561305,
+        "maxCompoundEmptyRatio": 0.614534772612767,
+        "sourceCorridorDeficit": 385400,
+        "hardViolations": []
+      }
+    },
+    {
+      "index": 43,
+      "status": "NO_LEGAL_ROUTE",
+      "edge": "ipc:2d8e3de6-d6db-42ac-a376-5f5f9eff71d7",
+      "metrics": {
+        "direction": "DOWN",
+        "width": 2129000,
+        "height": 2726000,
+        "fitScale": 0.18318459370596524,
+        "displayEmptyRatio": 0.905649407281779,
+        "compoundEmptyRatio": 0.41299792327395657,
+        "maxCompoundEmptyRatio": 0.5918774210665959,
+        "sourceCorridorDeficit": 768650,
+        "hardViolations": []
+      }
+    },
+    {
+      "index": 44,
+      "status": "NO_LEGAL_ROUTE",
+      "edge": "ipc:2d8e3de6-d6db-42ac-a376-5f5f9eff71d7",
+      "metrics": {
+        "direction": "DOWN",
+        "width": 2353500,
+        "height": 2698000,
+        "fitScale": 0.165710643722116,
+        "displayEmptyRatio": 0.921554965835272,
+        "compoundEmptyRatio": 0.439188251432433,
+        "maxCompoundEmptyRatio": 0.6478465823869723,
+        "sourceCorridorDeficit": 385400,
+        "hardViolations": []
+      }
+    }
+  ],
+  "examples": {
+    "ipc:2d8e3de6-d6db-42ac-a376-5f5f9eff71d7": {
+      "index": 0,
+      "placement": {
+        "bounds": {
+          "x": 0,
+          "y": 0,
+          "w": 1460150,
+          "h": 2586000
+        },
+        "nodes": [
+          {
+            "id": "browser:b04b5959-28a2-4ac0-ba5c-6bdba29e0091",
+            "rect": {
+              "x": 112000,
+              "y": 112000,
+              "w": 1236150,
+              "h": 1418000
+            },
+            "contentRect": {
+              "x": 112000,
+              "y": 112000,
+              "w": 1236150,
+              "h": 134000
+            }
+          },
+          {
+            "id": "bun-process:0d55bbd8-c856-4148-a5ed-950b45f6223e",
+            "parentId": "server-contour",
+            "rect": {
+              "x": 461900,
+              "y": 1954000,
+              "w": 205750,
+              "h": 218000
+            },
+            "contentRect": {
+              "x": 461900,
+              "y": 1954000,
+              "w": 205750,
+              "h": 218000
+            }
+          },
+          {
+            "id": "bun-process:2d8e3de6-d6db-42ac-a376-5f5f9eff71d7",
+            "parentId": "server-contour",
+            "rect": {
+              "x": 695650,
+              "y": 1954000,
+              "w": 194250,
+              "h": 218000
+            },
+            "contentRect": {
+              "x": 695650,
+              "y": 1954000,
+              "w": 194250,
+              "h": 218000
+            }
+          },
+          {
+            "id": "dedicated-worker:92fe14bc-47c1-4896-80d2-28ebbe043d21",
+            "parentId": "page:ddbf8f6b-fc30-43e7-83b1-ffacde5ebe33",
+            "rect": {
+              "x": 634050,
+              "y": 1038000,
+              "w": 300700,
+              "h": 190000
+            },
+            "contentRect": {
+              "x": 634050,
+              "y": 1038000,
+              "w": 300700,
+              "h": 190000
+            }
+          },
+          {
+            "id": "page:ddbf8f6b-fc30-43e7-83b1-ffacde5ebe33",
+            "parentId": "browser:b04b5959-28a2-4ac0-ba5c-6bdba29e0091",
+            "rect": {
+              "x": 168000,
+              "y": 274000,
+              "w": 794750,
+              "h": 982000
+            },
+            "contentRect": {
+              "x": 168000,
+              "y": 274000,
+              "w": 794750,
+              "h": 244000
+            }
+          },
+          {
+            "id": "peer-process:a6a73bf5-aa7a-4272-9a1e-25386e46b092",
+            "parentId": "server-contour",
+            "rect": {
+              "x": 917900,
+              "y": 1954000,
+              "w": 374250,
+              "h": 464000
+            },
+            "contentRect": {
+              "x": 917900,
+              "y": 1954000,
+              "w": 374250,
+              "h": 190000
+            }
+          },
+          {
+            "id": "rtc-peer:1a0992c6-f8b3-42a1-8562-e9e0374d9291%3Abrowser",
+            "parentId": "window-main:ddbf8f6b-fc30-43e7-83b1-ffacde5ebe33",
+            "rect": {
+              "x": 224000,
+              "y": 736000,
+              "w": 326050,
+              "h": 246000
+            },
+            "contentRect": {
+              "x": 224000,
+              "y": 736000,
+              "w": 326050,
+              "h": 246000
+            }
+          },
+          {
+            "id": "rtc-peer:1a0992c6-f8b3-42a1-8562-e9e0374d9291%3Aserver",
+            "parentId": "peer-process:a6a73bf5-aa7a-4272-9a1e-25386e46b092",
+            "rect": {
+              "x": 945900,
+              "y": 2172000,
+              "w": 318250,
+              "h": 218000
+            },
+            "contentRect": {
+              "x": 945900,
+              "y": 2172000,
+              "w": 318250,
+              "h": 218000
+            }
+          },
+          {
+            "id": "server-contour",
+            "rect": {
+              "x": 405900,
+              "y": 1558000,
+              "w": 942250,
+              "h": 916000
+            },
+            "contentRect": {
+              "x": 405900,
+              "y": 1558000,
+              "w": 942250,
+              "h": 66000
+            }
+          },
+          {
+            "id": "server:5bcd3d92-e854-4dfc-8499-ba0343327b73",
+            "parentId": "server-contour",
+            "rect": {
+              "x": 461900,
+              "y": 1652000,
+              "w": 224500,
+              "h": 274000
+            },
+            "contentRect": {
+              "x": 461900,
+              "y": 1652000,
+              "w": 224500,
+              "h": 274000
+            }
+          },
+          {
+            "id": "service-worker:7930a4b2-c821-4e46-8e49-1d72efa1ecf1",
+            "parentId": "browser:b04b5959-28a2-4ac0-ba5c-6bdba29e0091",
+            "rect": {
+              "x": 1018750,
+              "y": 1284000,
+              "w": 273400,
+              "h": 190000
+            },
+            "contentRect": {
+              "x": 1018750,
+              "y": 1284000,
+              "w": 273400,
+              "h": 190000
+            }
+          },
+          {
+            "id": "window-main:ddbf8f6b-fc30-43e7-83b1-ffacde5ebe33",
+            "parentId": "page:ddbf8f6b-fc30-43e7-83b1-ffacde5ebe33",
+            "rect": {
+              "x": 196000,
+              "y": 546000,
+              "w": 382050,
+              "h": 464000
+            },
+            "contentRect": {
+              "x": 196000,
+              "y": 546000,
+              "w": 382050,
+              "h": 162000
+            }
+          }
+        ],
+        "ports": [
+          {
+            "id": "bun-process:0d55bbd8-c856-4148-a5ed-950b45f6223e\u0000in:ipc%3A0d55bbd8-c856-4148-a5ed-950b45f6223e",
+            "nodeId": "bun-process:0d55bbd8-c856-4148-a5ed-950b45f6223e",
+            "center": {
+              "x": 461900,
+              "y": 2150000
+            },
+            "side": "WEST",
+            "direction": "in"
+          },
+          {
+            "id": "bun-process:2d8e3de6-d6db-42ac-a376-5f5f9eff71d7\u0000in:ipc%3A2d8e3de6-d6db-42ac-a376-5f5f9eff71d7",
+            "nodeId": "bun-process:2d8e3de6-d6db-42ac-a376-5f5f9eff71d7",
+            "center": {
+              "x": 695650,
+              "y": 2150000
+            },
+            "side": "WEST",
+            "direction": "in"
+          },
+          {
+            "id": "dedicated-worker:92fe14bc-47c1-4896-80d2-28ebbe043d21\u0000in:worker-message%3A75d7c803-15f3-487b-a60c-2fcfa4061d3a",
+            "nodeId": "dedicated-worker:92fe14bc-47c1-4896-80d2-28ebbe043d21",
+            "center": {
+              "x": 634050,
+              "y": 1206000
+            },
+            "side": "WEST",
+            "direction": "in"
+          },
+          {
+            "id": "page:ddbf8f6b-fc30-43e7-83b1-ffacde5ebe33\u0000in:message-port%3Ac27ba17a-3798-493d-97c4-071d3bacb58d",
+            "nodeId": "page:ddbf8f6b-fc30-43e7-83b1-ffacde5ebe33",
+            "center": {
+              "x": 168000,
+              "y": 496000
+            },
+            "side": "WEST",
+            "direction": "in"
+          },
+          {
+            "id": "page:ddbf8f6b-fc30-43e7-83b1-ffacde5ebe33\u0000out:controller%3A73ccc5da-1433-4bb4-a7ea-45e86b641505",
+            "nodeId": "page:ddbf8f6b-fc30-43e7-83b1-ffacde5ebe33",
+            "center": {
+              "x": 962750,
+              "y": 468000
+            },
+            "side": "EAST",
+            "direction": "out"
+          },
+          {
+            "id": "peer-process:a6a73bf5-aa7a-4272-9a1e-25386e46b092\u0000in:ipc%3Aa6a73bf5-aa7a-4272-9a1e-25386e46b092",
+            "nodeId": "peer-process:a6a73bf5-aa7a-4272-9a1e-25386e46b092",
+            "center": {
+              "x": 917900,
+              "y": 2122000
+            },
+            "side": "WEST",
+            "direction": "in"
+          },
+          {
+            "id": "rtc-peer:1a0992c6-f8b3-42a1-8562-e9e0374d9291%3Abrowser\u0000in:data-channel%3A1a0992c6-f8b3-42a1-8562-e9e0374d9291%253Aforce",
+            "nodeId": "rtc-peer:1a0992c6-f8b3-42a1-8562-e9e0374d9291%3Abrowser",
+            "center": {
+              "x": 224000,
+              "y": 932000
+            },
+            "side": "WEST",
+            "direction": "in"
+          },
+          {
+            "id": "rtc-peer:1a0992c6-f8b3-42a1-8562-e9e0374d9291%3Abrowser\u0000in:data-channel%3A1a0992c6-f8b3-42a1-8562-e9e0374d9291%253Aoracle",
+            "nodeId": "rtc-peer:1a0992c6-f8b3-42a1-8562-e9e0374d9291%3Abrowser",
+            "center": {
+              "x": 224000,
+              "y": 960000
+            },
+            "side": "WEST",
+            "direction": "in"
+          },
+          {
+            "id": "rtc-peer:1a0992c6-f8b3-42a1-8562-e9e0374d9291%3Aserver\u0000out:data-channel%3A1a0992c6-f8b3-42a1-8562-e9e0374d9291%253Aforce",
+            "nodeId": "rtc-peer:1a0992c6-f8b3-42a1-8562-e9e0374d9291%3Aserver",
+            "center": {
+              "x": 1264150,
+              "y": 2340000
+            },
+            "side": "EAST",
+            "direction": "out"
+          },
+          {
+            "id": "rtc-peer:1a0992c6-f8b3-42a1-8562-e9e0374d9291%3Aserver\u0000out:data-channel%3A1a0992c6-f8b3-42a1-8562-e9e0374d9291%253Aoracle",
+            "nodeId": "rtc-peer:1a0992c6-f8b3-42a1-8562-e9e0374d9291%3Aserver",
+            "center": {
+              "x": 1264150,
+              "y": 2368000
+            },
+            "side": "EAST",
+            "direction": "out"
+          },
+          {
+            "id": "server:5bcd3d92-e854-4dfc-8499-ba0343327b73\u0000in:websocket%3A19646fc8-116d-476b-bcab-649e108b947d",
+            "nodeId": "server:5bcd3d92-e854-4dfc-8499-ba0343327b73",
+            "center": {
+              "x": 461900,
+              "y": 1904000
+            },
+            "side": "WEST",
+            "direction": "in"
+          },
+          {
+            "id": "server:5bcd3d92-e854-4dfc-8499-ba0343327b73\u0000out:ipc%3A0d55bbd8-c856-4148-a5ed-950b45f6223e",
+            "nodeId": "server:5bcd3d92-e854-4dfc-8499-ba0343327b73",
+            "center": {
+              "x": 686400,
+              "y": 1848000
+            },
+            "side": "EAST",
+            "direction": "out"
+          },
+          {
+            "id": "server:5bcd3d92-e854-4dfc-8499-ba0343327b73\u0000out:ipc%3A2d8e3de6-d6db-42ac-a376-5f5f9eff71d7",
+            "nodeId": "server:5bcd3d92-e854-4dfc-8499-ba0343327b73",
+            "center": {
+              "x": 686400,
+              "y": 1820000
+            },
+            "side": "EAST",
+            "direction": "out"
+          },
+          {
+            "id": "server:5bcd3d92-e854-4dfc-8499-ba0343327b73\u0000out:ipc%3Aa6a73bf5-aa7a-4272-9a1e-25386e46b092",
+            "nodeId": "server:5bcd3d92-e854-4dfc-8499-ba0343327b73",
+            "center": {
+              "x": 686400,
+              "y": 1876000
+            },
+            "side": "EAST",
+            "direction": "out"
+          },
+          {
+            "id": "service-worker:7930a4b2-c821-4e46-8e49-1d72efa1ecf1\u0000in:controller%3A73ccc5da-1433-4bb4-a7ea-45e86b641505",
+            "nodeId": "service-worker:7930a4b2-c821-4e46-8e49-1d72efa1ecf1",
+            "center": {
+              "x": 1018750,
+              "y": 1424000
+            },
+            "side": "WEST",
+            "direction": "in"
+          },
+          {
+            "id": "service-worker:7930a4b2-c821-4e46-8e49-1d72efa1ecf1\u0000out:message-port%3Ac27ba17a-3798-493d-97c4-071d3bacb58d",
+            "nodeId": "service-worker:7930a4b2-c821-4e46-8e49-1d72efa1ecf1",
+            "center": {
+              "x": 1292150,
+              "y": 1452000
+            },
+            "side": "EAST",
+            "direction": "out"
+          },
+          {
+            "id": "service-worker:7930a4b2-c821-4e46-8e49-1d72efa1ecf1\u0000out:websocket%3A19646fc8-116d-476b-bcab-649e108b947d",
+            "nodeId": "service-worker:7930a4b2-c821-4e46-8e49-1d72efa1ecf1",
+            "center": {
+              "x": 1292150,
+              "y": 1396000
+            },
+            "side": "EAST",
+            "direction": "out"
+          },
+          {
+            "id": "window-main:ddbf8f6b-fc30-43e7-83b1-ffacde5ebe33\u0000out:worker-message%3A75d7c803-15f3-487b-a60c-2fcfa4061d3a",
+            "nodeId": "window-main:ddbf8f6b-fc30-43e7-83b1-ffacde5ebe33",
+            "center": {
+              "x": 578050,
+              "y": 686000
+            },
+            "side": "EAST",
+            "direction": "out"
+          }
+        ],
+        "metrics": {
+          "direction": "DOWN",
+          "width": 1460150,
+          "height": 2586000,
+          "fitScale": 0.2670958463171592,
+          "displayEmptyRatio": 0.7914736356721057,
+          "compoundEmptyRatio": 0.44133608857550655,
+          "maxCompoundEmptyRatio": 0.5544513330421352,
+          "sourceCorridorDeficit": 1325500,
+          "hardViolations": []
+        }
+      },
+      "diagnostic": {
+        "status": "NO_LEGAL_ROUTE",
+        "error": "NO_LEGAL_ROUTE ipc:2d8e3de6-d6db-42ac-a376-5f5f9eff71d7: fixed rectangles provide no corridor at clearance 28000",
+        "witness": {
+          "edge": {
+            "id": "ipc:2d8e3de6-d6db-42ac-a376-5f5f9eff71d7",
+            "sourcePortId": "server:5bcd3d92-e854-4dfc-8499-ba0343327b73\u0000out:ipc%3A2d8e3de6-d6db-42ac-a376-5f5f9eff71d7",
+            "targetPortId": "bun-process:2d8e3de6-d6db-42ac-a376-5f5f9eff71d7\u0000in:ipc%3A2d8e3de6-d6db-42ac-a376-5f5f9eff71d7"
+          },
+          "endpoints": {
+            "source": {
+              "id": "server:5bcd3d92-e854-4dfc-8499-ba0343327b73\u0000out:ipc%3A2d8e3de6-d6db-42ac-a376-5f5f9eff71d7",
+              "nodeId": "server:5bcd3d92-e854-4dfc-8499-ba0343327b73",
+              "center": {
+                "x": 686400,
+                "y": 1820000
+              },
+              "side": "EAST",
+              "direction": "out"
+            },
+            "target": {
+              "id": "bun-process:2d8e3de6-d6db-42ac-a376-5f5f9eff71d7\u0000in:ipc%3A2d8e3de6-d6db-42ac-a376-5f5f9eff71d7",
+              "nodeId": "bun-process:2d8e3de6-d6db-42ac-a376-5f5f9eff71d7",
+              "center": {
+                "x": 695650,
+                "y": 2150000
+              },
+              "side": "WEST",
+              "direction": "in"
+            },
+            "sourcePortal": {
+              "x": 691025,
+              "y": 1820000
+            },
+            "targetPortal": {
+              "x": 691025,
+              "y": 2150000
+            }
+          },
+          "ancestors": {
+            "source": [
+              "server-contour"
+            ],
+            "target": [
+              "server-contour"
+            ],
+            "sourceChain": [],
+            "targetChain": [],
+            "owner": "server-contour"
+          },
+          "candidateAxes": {
+            "xs": [
+              28000,
+              56000,
+              84000,
+              112000,
+              140000,
+              168000,
+              196000,
+              377900,
+              405900,
+              433900,
+              461900,
+              578050,
+              606050,
+              667650,
+              686400,
+              691025,
+              695650,
+              714400,
+              889900,
+              917900,
+              962750,
+              990750,
+              1018750,
+              1292150,
+              1320150,
+              1348150,
+              1376150,
+              1404150,
+              1432150
+            ],
+            "ys": [
+              84000,
+              246000,
+              440000,
+              468000,
+              496000,
+              518000,
+              524000,
+              658000,
+              708000,
+              714000,
+              904000,
+              932000,
+              960000,
+              988000,
+              1010000,
+              1038000,
+              1178000,
+              1234000,
+              1256000,
+              1284000,
+              1368000,
+              1396000,
+              1424000,
+              1452000,
+              1480000,
+              1502000,
+              1530000,
+              1558000,
+              1586000,
+              1624000,
+              1652000,
+              1792000,
+              1820000,
+              1848000,
+              1876000,
+              1904000,
+              1926000,
+              1932000,
+              1954000,
+              2094000,
+              2122000,
+              2144000,
+              2150000,
+              2178000,
+              2200000,
+              2312000,
+              2340000,
+              2368000,
+              2396000,
+              2418000,
+              2446000,
+              2474000,
+              2502000,
+              2530000,
+              2558000,
+              2586000
+            ]
+          },
+          "reachableStates": 42,
+          "reachableFrontier": [
+            {
+              "key": 15231312,
+              "point": {
+                "x": 695650,
+                "y": 2144000
+              },
+              "state": {
+                "xi": 16,
+                "yi": 41,
+                "lastDirection": "SOUTH",
+                "sourceExited": 0,
+                "targetEntered": 0,
+                "sourceGatewayY": null,
+                "targetGatewayY": null
+              },
+              "score": {
+                "turns": 1,
+                "length": 333250
+              },
+              "distanceToTarget": 6000
+            },
+            {
+              "key": 15215067,
+              "point": {
+                "x": 695650,
+                "y": 2122000
+              },
+              "state": {
+                "xi": 16,
+                "yi": 40,
+                "lastDirection": "SOUTH",
+                "sourceExited": 0,
+                "targetEntered": 0,
+                "sourceGatewayY": null,
+                "targetGatewayY": null
+              },
+              "score": {
+                "turns": 1,
+                "length": 311250
+              },
+              "distanceToTarget": 28000
+            },
+            {
+              "key": 15198822,
+              "point": {
+                "x": 695650,
+                "y": 2094000
+              },
+              "state": {
+                "xi": 16,
+                "yi": 39,
+                "lastDirection": "SOUTH",
+                "sourceExited": 0,
+                "targetEntered": 0,
+                "sourceGatewayY": null,
+                "targetGatewayY": null
+              },
+              "score": {
+                "turns": 1,
+                "length": 283250
+              },
+              "distanceToTarget": 56000
+            },
+            {
+              "key": 15182577,
+              "point": {
+                "x": 695650,
+                "y": 1954000
+              },
+              "state": {
+                "xi": 16,
+                "yi": 38,
+                "lastDirection": "SOUTH",
+                "sourceExited": 0,
+                "targetEntered": 0,
+                "sourceGatewayY": null,
+                "targetGatewayY": null
+              },
+              "score": {
+                "turns": 1,
+                "length": 143250
+              },
+              "distanceToTarget": 196000
+            },
+            {
+              "key": 15166332,
+              "point": {
+                "x": 695650,
+                "y": 1932000
+              },
+              "state": {
+                "xi": 16,
+                "yi": 37,
+                "lastDirection": "SOUTH",
+                "sourceExited": 0,
+                "targetEntered": 0,
+                "sourceGatewayY": null,
+                "targetGatewayY": null
+              },
+              "score": {
+                "turns": 1,
+                "length": 121250
+              },
+              "distanceToTarget": 218000
+            },
+            {
+              "key": 15150087,
+              "point": {
+                "x": 695650,
+                "y": 1926000
+              },
+              "state": {
+                "xi": 16,
+                "yi": 36,
+                "lastDirection": "SOUTH",
+                "sourceExited": 0,
+                "targetEntered": 0,
+                "sourceGatewayY": null,
+                "targetGatewayY": null
+              },
+              "score": {
+                "turns": 1,
+                "length": 115250
+              },
+              "distanceToTarget": 224000
+            },
+            {
+              "key": 15153336,
+              "point": {
+                "x": 695650,
+                "y": 1926000
+              },
+              "state": {
+                "xi": 16,
+                "yi": 36,
+                "lastDirection": "EAST",
+                "sourceExited": 0,
+                "targetEntered": 0,
+                "sourceGatewayY": null,
+                "targetGatewayY": null
+              },
+              "score": {
+                "turns": 2,
+                "length": 115250
+              },
+              "distanceToTarget": 224000
+            },
+            {
+              "key": 14233869,
+              "point": {
+                "x": 691025,
+                "y": 1926000
+              },
+              "state": {
+                "xi": 15,
+                "yi": 36,
+                "lastDirection": "WEST",
+                "sourceExited": 0,
+                "targetEntered": 0,
+                "sourceGatewayY": null,
+                "targetGatewayY": null
+              },
+              "score": {
+                "turns": 2,
+                "length": 119875
+              },
+              "distanceToTarget": 228625
+            },
+            {
+              "key": 14240367,
+              "point": {
+                "x": 691025,
+                "y": 1926000
+              },
+              "state": {
+                "xi": 15,
+                "yi": 36,
+                "lastDirection": "SOUTH",
+                "sourceExited": 0,
+                "targetEntered": 0,
+                "sourceGatewayY": null,
+                "targetGatewayY": null
+              },
+              "score": {
+                "turns": 1,
+                "length": 110625
+              },
+              "distanceToTarget": 228625
+            },
+            {
+              "key": 14243616,
+              "point": {
+                "x": 691025,
+                "y": 1926000
+              },
+              "state": {
+                "xi": 15,
+                "yi": 36,
+                "lastDirection": "EAST",
+                "sourceExited": 0,
+                "targetEntered": 0,
+                "sourceGatewayY": null,
+                "targetGatewayY": null
+              },
+              "score": {
+                "turns": 4,
+                "length": 119875
+              },
+              "distanceToTarget": 228625
+            },
+            {
+              "key": 13324149,
+              "point": {
+                "x": 686400,
+                "y": 1926000
+              },
+              "state": {
+                "xi": 14,
+                "yi": 36,
+                "lastDirection": "WEST",
+                "sourceExited": 0,
+                "targetEntered": 0,
+                "sourceGatewayY": null,
+                "targetGatewayY": null
+              },
+              "score": {
+                "turns": 2,
+                "length": 115250
+              },
+              "distanceToTarget": 233250
+            },
+            {
+              "key": 13330647,
+              "point": {
+                "x": 686400,
+                "y": 1926000
+              },
+              "state": {
+                "xi": 14,
+                "yi": 36,
+                "lastDirection": "SOUTH",
+                "sourceExited": 0,
+                "targetEntered": 0,
+                "sourceGatewayY": null,
+                "targetGatewayY": null
+              },
+              "score": {
+                "turns": 3,
+                "length": 115250
+              },
+              "distanceToTarget": 233250
+            }
+          ],
+          "rejectedTransitions": {
+            "pointBlocked": 35,
+            "segmentIllegal": 27,
+            "sourceDirection": 1,
+            "targetDirection": 1,
+            "hierarchyTransition": 0
+          },
+          "firstRejectedHierarchyTransition": null,
+          "pointBlocks": [
+            {
+              "point": {
+                "x": 667650,
+                "y": 1820000
+              },
+              "reason": {
+                "kind": "INFLATED_NODE",
+                "nodeId": "server:5bcd3d92-e854-4dfc-8499-ba0343327b73",
+                "rect": {
+                  "x": 461900,
+                  "y": 1652000,
+                  "w": 224500,
+                  "h": 274000
+                },
+                "inflated": {
+                  "x": 433900,
+                  "y": 1624000,
+                  "w": 280500,
+                  "h": 330000
+                }
+              }
+            },
+            {
+              "point": {
+                "x": 686400,
+                "y": 1792000
+              },
+              "reason": {
+                "kind": "INFLATED_NODE",
+                "nodeId": "server:5bcd3d92-e854-4dfc-8499-ba0343327b73",
+                "rect": {
+                  "x": 461900,
+                  "y": 1652000,
+                  "w": 224500,
+                  "h": 274000
+                },
+                "inflated": {
+                  "x": 433900,
+                  "y": 1624000,
+                  "w": 280500,
+                  "h": 330000
+                }
+              }
+            },
+            {
+              "point": {
+                "x": 691025,
+                "y": 1792000
+              },
+              "reason": {
+                "kind": "INFLATED_NODE",
+                "nodeId": "server:5bcd3d92-e854-4dfc-8499-ba0343327b73",
+                "rect": {
+                  "x": 461900,
+                  "y": 1652000,
+                  "w": 224500,
+                  "h": 274000
+                },
+                "inflated": {
+                  "x": 433900,
+                  "y": 1624000,
+                  "w": 280500,
+                  "h": 330000
+                }
+              }
+            },
+            {
+              "point": {
+                "x": 695650,
+                "y": 1792000
+              },
+              "reason": {
+                "kind": "INFLATED_NODE",
+                "nodeId": "server:5bcd3d92-e854-4dfc-8499-ba0343327b73",
+                "rect": {
+                  "x": 461900,
+                  "y": 1652000,
+                  "w": 224500,
+                  "h": 274000
+                },
+                "inflated": {
+                  "x": 433900,
+                  "y": 1624000,
+                  "w": 280500,
+                  "h": 330000
+                }
+              }
+            },
+            {
+              "point": {
+                "x": 691025,
+                "y": 1932000
+              },
+              "reason": {
+                "kind": "INFLATED_NODE",
+                "nodeId": "bun-process:0d55bbd8-c856-4148-a5ed-950b45f6223e",
+                "rect": {
+                  "x": 461900,
+                  "y": 1954000,
+                  "w": 205750,
+                  "h": 218000
+                },
+                "inflated": {
+                  "x": 433900,
+                  "y": 1926000,
+                  "w": 261750,
+                  "h": 274000
+                }
+              }
+            },
+            {
+              "point": {
+                "x": 714400,
+                "y": 1932000
+              },
+              "reason": {
+                "kind": "INFLATED_NODE",
+                "nodeId": "bun-process:2d8e3de6-d6db-42ac-a376-5f5f9eff71d7",
+                "rect": {
+                  "x": 695650,
+                  "y": 1954000,
+                  "w": 194250,
+                  "h": 218000
+                },
+                "inflated": {
+                  "x": 667650,
+                  "y": 1926000,
+                  "w": 250250,
+                  "h": 274000
+                }
+              }
+            },
+            {
+              "point": {
+                "x": 691025,
+                "y": 1954000
+              },
+              "reason": {
+                "kind": "INFLATED_NODE",
+                "nodeId": "bun-process:0d55bbd8-c856-4148-a5ed-950b45f6223e",
+                "rect": {
+                  "x": 461900,
+                  "y": 1954000,
+                  "w": 205750,
+                  "h": 218000
+                },
+                "inflated": {
+                  "x": 433900,
+                  "y": 1926000,
+                  "w": 261750,
+                  "h": 274000
+                }
+              }
+            },
+            {
+              "point": {
+                "x": 714400,
+                "y": 1954000
+              },
+              "reason": {
+                "kind": "INFLATED_NODE",
+                "nodeId": "bun-process:2d8e3de6-d6db-42ac-a376-5f5f9eff71d7",
+                "rect": {
+                  "x": 695650,
+                  "y": 1954000,
+                  "w": 194250,
+                  "h": 218000
+                },
+                "inflated": {
+                  "x": 667650,
+                  "y": 1926000,
+                  "w": 250250,
+                  "h": 274000
+                }
+              }
+            },
+            {
+              "point": {
+                "x": 691025,
+                "y": 2094000
+              },
+              "reason": {
+                "kind": "INFLATED_NODE",
+                "nodeId": "bun-process:0d55bbd8-c856-4148-a5ed-950b45f6223e",
+                "rect": {
+                  "x": 461900,
+                  "y": 1954000,
+                  "w": 205750,
+                  "h": 218000
+                },
+                "inflated": {
+                  "x": 433900,
+                  "y": 1926000,
+                  "w": 261750,
+                  "h": 274000
+                }
+              }
+            },
+            {
+              "point": {
+                "x": 714400,
+                "y": 2094000
+              },
+              "reason": {
+                "kind": "INFLATED_NODE",
+                "nodeId": "bun-process:2d8e3de6-d6db-42ac-a376-5f5f9eff71d7",
+                "rect": {
+                  "x": 695650,
+                  "y": 1954000,
+                  "w": 194250,
+                  "h": 218000
+                },
+                "inflated": {
+                  "x": 667650,
+                  "y": 1926000,
+                  "w": 250250,
+                  "h": 274000
+                }
+              }
+            },
+            {
+              "point": {
+                "x": 691025,
+                "y": 2122000
+              },
+              "reason": {
+                "kind": "INFLATED_NODE",
+                "nodeId": "bun-process:0d55bbd8-c856-4148-a5ed-950b45f6223e",
+                "rect": {
+                  "x": 461900,
+                  "y": 1954000,
+                  "w": 205750,
+                  "h": 218000
+                },
+                "inflated": {
+                  "x": 433900,
+                  "y": 1926000,
+                  "w": 261750,
+                  "h": 274000
+                }
+              }
+            },
+            {
+              "point": {
+                "x": 714400,
+                "y": 2122000
+              },
+              "reason": {
+                "kind": "INFLATED_NODE",
+                "nodeId": "bun-process:2d8e3de6-d6db-42ac-a376-5f5f9eff71d7",
+                "rect": {
+                  "x": 695650,
+                  "y": 1954000,
+                  "w": 194250,
+                  "h": 218000
+                },
+                "inflated": {
+                  "x": 667650,
+                  "y": 1926000,
+                  "w": 250250,
+                  "h": 274000
+                }
+              }
+            },
+            {
+              "point": {
+                "x": 691025,
+                "y": 2144000
+              },
+              "reason": {
+                "kind": "INFLATED_NODE",
+                "nodeId": "bun-process:0d55bbd8-c856-4148-a5ed-950b45f6223e",
+                "rect": {
+                  "x": 461900,
+                  "y": 1954000,
+                  "w": 205750,
+                  "h": 218000
+                },
+                "inflated": {
+                  "x": 433900,
+                  "y": 1926000,
+                  "w": 261750,
+                  "h": 274000
+                }
+              }
+            },
+            {
+              "point": {
+                "x": 714400,
+                "y": 2144000
+              },
+              "reason": {
+                "kind": "INFLATED_NODE",
+                "nodeId": "bun-process:2d8e3de6-d6db-42ac-a376-5f5f9eff71d7",
+                "rect": {
+                  "x": 695650,
+                  "y": 1954000,
+                  "w": 194250,
+                  "h": 218000
+                },
+                "inflated": {
+                  "x": 667650,
+                  "y": 1926000,
+                  "w": 250250,
+                  "h": 274000
+                }
+              }
+            },
+            {
+              "point": {
+                "x": 667650,
+                "y": 1904000
+              },
+              "reason": {
+                "kind": "INFLATED_NODE",
+                "nodeId": "server:5bcd3d92-e854-4dfc-8499-ba0343327b73",
+                "rect": {
+                  "x": 461900,
+                  "y": 1652000,
+                  "w": 224500,
+                  "h": 274000
+                },
+                "inflated": {
+                  "x": 433900,
+                  "y": 1624000,
+                  "w": 280500,
+                  "h": 330000
+                }
+              }
+            },
+            {
+              "point": {
+                "x": 667650,
+                "y": 1926000
+              },
+              "reason": {
+                "kind": "INFLATED_NODE",
+                "nodeId": "server:5bcd3d92-e854-4dfc-8499-ba0343327b73",
+                "rect": {
+                  "x": 461900,
+                  "y": 1652000,
+                  "w": 224500,
+                  "h": 274000
+                },
+                "inflated": {
+                  "x": 433900,
+                  "y": 1624000,
+                  "w": 280500,
+                  "h": 330000
+                }
+              }
+            },
+            {
+              "point": {
+                "x": 686400,
+                "y": 1932000
+              },
+              "reason": {
+                "kind": "INFLATED_NODE",
+                "nodeId": "bun-process:0d55bbd8-c856-4148-a5ed-950b45f6223e",
+                "rect": {
+                  "x": 461900,
+                  "y": 1954000,
+                  "w": 205750,
+                  "h": 218000
+                },
+                "inflated": {
+                  "x": 433900,
+                  "y": 1926000,
+                  "w": 261750,
+                  "h": 274000
+                }
+              }
+            },
+            {
+              "point": {
+                "x": 667650,
+                "y": 1876000
+              },
+              "reason": {
+                "kind": "INFLATED_NODE",
+                "nodeId": "server:5bcd3d92-e854-4dfc-8499-ba0343327b73",
+                "rect": {
+                  "x": 461900,
+                  "y": 1652000,
+                  "w": 224500,
+                  "h": 274000
+                },
+                "inflated": {
+                  "x": 433900,
+                  "y": 1624000,
+                  "w": 280500,
+                  "h": 330000
+                }
+              }
+            },
+            {
+              "point": {
+                "x": 667650,
+                "y": 1848000
+              },
+              "reason": {
+                "kind": "INFLATED_NODE",
+                "nodeId": "server:5bcd3d92-e854-4dfc-8499-ba0343327b73",
+                "rect": {
+                  "x": 461900,
+                  "y": 1652000,
+                  "w": 224500,
+                  "h": 274000
+                },
+                "inflated": {
+                  "x": 433900,
+                  "y": 1624000,
+                  "w": 280500,
+                  "h": 330000
+                }
+              }
+            }
+          ],
+          "parallelClearanceBlocks": [],
+          "blockingRectangles": [
+            {
+              "id": "browser:b04b5959-28a2-4ac0-ba5c-6bdba29e0091",
+              "parentId": null,
+              "rect": {
+                "x": 112000,
+                "y": 112000,
+                "w": 1236150,
+                "h": 1418000
+              },
+              "inflated": {
+                "x": 84000,
+                "y": 84000,
+                "w": 1292150,
+                "h": 1474000
+              }
+            },
+            {
+              "id": "bun-process:0d55bbd8-c856-4148-a5ed-950b45f6223e",
+              "parentId": "server-contour",
+              "rect": {
+                "x": 461900,
+                "y": 1954000,
+                "w": 205750,
+                "h": 218000
+              },
+              "inflated": {
+                "x": 433900,
+                "y": 1926000,
+                "w": 261750,
+                "h": 274000
+              }
+            },
+            {
+              "id": "bun-process:2d8e3de6-d6db-42ac-a376-5f5f9eff71d7",
+              "parentId": "server-contour",
+              "rect": {
+                "x": 695650,
+                "y": 1954000,
+                "w": 194250,
+                "h": 218000
+              },
+              "inflated": {
+                "x": 667650,
+                "y": 1926000,
+                "w": 250250,
+                "h": 274000
+              }
+            },
+            {
+              "id": "dedicated-worker:92fe14bc-47c1-4896-80d2-28ebbe043d21",
+              "parentId": "page:ddbf8f6b-fc30-43e7-83b1-ffacde5ebe33",
+              "rect": {
+                "x": 634050,
+                "y": 1038000,
+                "w": 300700,
+                "h": 190000
+              },
+              "inflated": {
+                "x": 606050,
+                "y": 1010000,
+                "w": 356700,
+                "h": 246000
+              }
+            },
+            {
+              "id": "page:ddbf8f6b-fc30-43e7-83b1-ffacde5ebe33",
+              "parentId": "browser:b04b5959-28a2-4ac0-ba5c-6bdba29e0091",
+              "rect": {
+                "x": 168000,
+                "y": 274000,
+                "w": 794750,
+                "h": 982000
+              },
+              "inflated": {
+                "x": 140000,
+                "y": 246000,
+                "w": 850750,
+                "h": 1038000
+              }
+            },
+            {
+              "id": "peer-process:a6a73bf5-aa7a-4272-9a1e-25386e46b092",
+              "parentId": "server-contour",
+              "rect": {
+                "x": 917900,
+                "y": 1954000,
+                "w": 374250,
+                "h": 464000
+              },
+              "inflated": {
+                "x": 889900,
+                "y": 1926000,
+                "w": 430250,
+                "h": 520000
+              }
+            },
+            {
+              "id": "rtc-peer:1a0992c6-f8b3-42a1-8562-e9e0374d9291%3Abrowser",
+              "parentId": "window-main:ddbf8f6b-fc30-43e7-83b1-ffacde5ebe33",
+              "rect": {
+                "x": 224000,
+                "y": 736000,
+                "w": 326050,
+                "h": 246000
+              },
+              "inflated": {
+                "x": 196000,
+                "y": 708000,
+                "w": 382050,
+                "h": 302000
+              }
+            },
+            {
+              "id": "rtc-peer:1a0992c6-f8b3-42a1-8562-e9e0374d9291%3Aserver",
+              "parentId": "peer-process:a6a73bf5-aa7a-4272-9a1e-25386e46b092",
+              "rect": {
+                "x": 945900,
+                "y": 2172000,
+                "w": 318250,
+                "h": 218000
+              },
+              "inflated": {
+                "x": 917900,
+                "y": 2144000,
+                "w": 374250,
+                "h": 274000
+              }
+            },
+            {
+              "id": "server-contour",
+              "parentId": null,
+              "rect": {
+                "x": 405900,
+                "y": 1558000,
+                "w": 942250,
+                "h": 66000
+              },
+              "inflated": {
+                "x": 377900,
+                "y": 1530000,
+                "w": 998250,
+                "h": 122000
+              }
+            },
+            {
+              "id": "server:5bcd3d92-e854-4dfc-8499-ba0343327b73",
+              "parentId": "server-contour",
+              "rect": {
+                "x": 461900,
+                "y": 1652000,
+                "w": 224500,
+                "h": 274000
+              },
+              "inflated": {
+                "x": 433900,
+                "y": 1624000,
+                "w": 280500,
+                "h": 330000
+              }
+            },
+            {
+              "id": "service-worker:7930a4b2-c821-4e46-8e49-1d72efa1ecf1",
+              "parentId": "browser:b04b5959-28a2-4ac0-ba5c-6bdba29e0091",
+              "rect": {
+                "x": 1018750,
+                "y": 1284000,
+                "w": 273400,
+                "h": 190000
+              },
+              "inflated": {
+                "x": 990750,
+                "y": 1256000,
+                "w": 329400,
+                "h": 246000
+              }
+            },
+            {
+              "id": "window-main:ddbf8f6b-fc30-43e7-83b1-ffacde5ebe33",
+              "parentId": "page:ddbf8f6b-fc30-43e7-83b1-ffacde5ebe33",
+              "rect": {
+                "x": 196000,
+                "y": 546000,
+                "w": 382050,
+                "h": 464000
+              },
+              "inflated": {
+                "x": 168000,
+                "y": 518000,
+                "w": 438050,
+                "h": 520000
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}

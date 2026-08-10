@@ -2,7 +2,12 @@ import type {FixedRect, RouteDirection, RouteEdge, RouteGraphInput, RouteNode, R
 
 /** Internal integer solver contract; never crosses the package boundary. */
 
-export type IntrinsicNode = Readonly<{id: string; parentId?: string; size: Readonly<{w: number; h: number}>}>
+export type IntrinsicNode = Readonly<{
+  id: string
+  parentId?: string
+  size: Readonly<{w: number; h: number}>
+  contentHeight: number
+}>
 export type IntrinsicPort = Readonly<{id: string; nodeId: string; offsetY: number; side: RoutePortSide; direction: RoutePortDirection}>
 export type PlacementInput = Readonly<{
   unitsPerPixel: number

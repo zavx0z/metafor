@@ -122,11 +122,11 @@ function placeGraphWithAlignedContainers(input: PlacementInput, alignedContainer
     const result: LocalPlacement = {
       size: {
         w: Math.max(node.size.w, arranged.size.w + input.padding * 2),
-        h: node.size.h + arranged.size.h + input.padding * 2,
+        h: Math.max(node.size.h, node.contentHeight + arranged.size.h + input.padding * 2),
       },
       childOffsets: new Map([...arranged.childOffsets].map(([id, point]) => [id, {
         x: point.x + input.padding,
-        y: point.y + node.size.h + input.padding,
+        y: point.y + node.contentHeight + input.padding,
       }])),
     }
     measured.set(nodeId, result)
@@ -136,10 +136,41 @@ function placeGraphWithAlignedContainers(input: PlacementInput, alignedContainer
   const topIds = children.get(null) ?? []
   for (const id of topIds) measure(id)
   const rootArrangement = arrangeChildren(input, direction, null, topIds, measured, nodeById, portById, alignedContainers, packing)
+  const topChild = (nodeId: string): string => {
+    let current = nodeId
+    while (nodeById.get(current)?.parentId !== undefined) current = nodeById.get(current)!.parentId!
+    return current
+  }
+  const relativePortX = (topId: string, port: IntrinsicPort): number => {
+    let x = 0
+    let current = port.nodeId
+    while (current !== topId) {
+      const parentId = nodeById.get(current)?.parentId
+      if (parentId === undefined) throw new Error(`port ${port.id} is not inside top-level child ${topId}`)
+      const offset = measured.get(parentId)?.childOffsets.get(current)
+      if (offset === undefined) throw new Error(`missing measured offset ${parentId}/${current}`)
+      x += offset.x
+      current = parentId
+    }
+    return x + (port.side === "EAST" ? measured.get(port.nodeId)!.size.w : 0)
+  }
+  const backwardRootEdges = input.edges.filter((edge) => {
+    const source = portById.get(edge.sourcePortId)
+    const target = portById.get(edge.targetPortId)
+    if (source === undefined || target === undefined) return false
+    const sourceTop = topChild(source.nodeId)
+    const targetTop = topChild(target.nodeId)
+    if (sourceTop === targetTop) return false
+    const sourceX = rootArrangement.childOffsets.get(sourceTop)!.x + relativePortX(sourceTop, source)
+    const targetX = rootArrangement.childOffsets.get(targetTop)!.x + relativePortX(targetTop, target)
+    return sourceX + input.clearance * 2 > targetX
+  }).length
   // The declared outer padding is the minimum obstacle clearance. Keep one
-  // additional clearance band so unrelated top-level routes are not forced to
-  // share the single line occupied by WEST/EAST endpoint portals.
-  const rootCorridor = input.outerPadding + input.clearance
+  // additional clearance band for the first outside track, then one track for
+  // every reverse-flow semantic edge that must leave a right-hand top-level
+  // subtree before reaching a WEST target. This is occupied routing capacity,
+  // not global empty compound padding.
+  const rootCorridor = input.outerPadding + Math.max(input.clearance, backwardRootEdges * input.clearance)
   const bounds: FixedRect = {x: 0, y: 0, w: rootArrangement.size.w + rootCorridor * 2, h: rootArrangement.size.h + rootCorridor * 2}
   const rects = new Map<string, FixedRect>()
   const place = (nodeId: string, x: number, y: number): void => {
@@ -149,7 +180,15 @@ function placeGraphWithAlignedContainers(input: PlacementInput, alignedContainer
   }
   for (const [id, offset] of rootArrangement.childOffsets) place(id, rootCorridor + offset.x, rootCorridor + offset.y)
 
-  const routeNodes: RouteNode[] = [...nodeById.values()].map((node) => ({id: node.id, ...(node.parentId === undefined ? {} : {parentId: node.parentId}), rect: rects.get(node.id)!}))
+  const routeNodes: RouteNode[] = [...nodeById.values()].map((node) => {
+    const rect = rects.get(node.id)!
+    return {
+      id: node.id,
+      ...(node.parentId === undefined ? {} : {parentId: node.parentId}),
+      rect,
+      contentRect: {x: rect.x, y: rect.y, w: rect.w, h: node.contentHeight},
+    }
+  })
   const routePorts: RoutePort[] = [...portById.values()].map((port) => {
     const rect = rects.get(port.nodeId)!
     return {id: port.id, nodeId: port.nodeId, center: {x: port.side === "WEST" ? rect.x : rect.x + rect.w, y: rect.y + port.offsetY}, side: port.side, direction: port.direction}
@@ -160,7 +199,7 @@ function placeGraphWithAlignedContainers(input: PlacementInput, alignedContainer
   const compounds = routeNodes.filter((node) => (children.get(node.id)?.length ?? 0) > 0)
   const compoundArea = compounds.reduce((sum, node) => sum + node.rect.w * node.rect.h, 0)
   const compoundEmptyRatios = compounds.map((node) => {
-    const ownContentArea = node.rect.w * nodeById.get(node.id)!.size.h
+    const ownContentArea = node.rect.w * nodeById.get(node.id)!.contentHeight
     const childArea = (children.get(node.id) ?? []).reduce(
       (childSum, id) => childSum + rects.get(id)!.w * rects.get(id)!.h,
       0,
@@ -171,7 +210,7 @@ function placeGraphWithAlignedContainers(input: PlacementInput, alignedContainer
     sum + node.rect.w * node.rect.h * (1 - compoundEmptyRatios[index]!), 0)
   const fitScale = Math.min(input.viewport.width * input.unitsPerPixel / bounds.w, input.viewport.height * input.unitsPerPixel / bounds.h, 1)
   const visibleContentArea = routeNodes.reduce((sum, node) => {
-    const intrinsicHeight = nodeById.get(node.id)!.size.h
+    const intrinsicHeight = nodeById.get(node.id)!.contentHeight
     return sum + node.rect.w * intrinsicHeight
   }, 0)
   const viewportArea = input.viewport.width * input.unitsPerPixel * input.viewport.height * input.unitsPerPixel
@@ -311,6 +350,58 @@ function arrangeChildren(
     for (let rowIndex = 0; rowIndex < rows.length; rowIndex += 1) {
       for (const id of rows[rowIndex]!.ids) rowIndexById.set(id, rowIndex)
     }
+    const verticalOffsetById = new Map<string, number>()
+    const componentsByRow: string[][][] = []
+    for (let rowIndex = 0; rowIndex < rows.length; rowIndex += 1) {
+      const entry = rows[rowIndex]!
+      const rowComponents: string[][] = []
+      const ids = new Set(entry.ids)
+      const adjacency = new Map(entry.ids.map((id) => [id, [] as Array<Readonly<{
+        id: string
+        delta: number
+        edgeId: string
+      }>>]))
+      const rowRelations = ranked.relations.filter((relation) =>
+        ids.has(relation.sourceChild) && ids.has(relation.targetChild))
+      const relationDegree = new Map(entry.ids.map((id) => [
+        id,
+        rowRelations.filter((relation) =>
+          relation.sourceChild === id || relation.targetChild === id).length,
+      ]))
+      for (const relation of rowRelations) {
+        if (relationDegree.get(relation.sourceChild) !== 1 || relationDegree.get(relation.targetChild) !== 1) continue
+        const source = relativePortPoint(relation.sourceChild, relation.sourcePort)
+        const target = relativePortPoint(relation.targetChild, relation.targetPort)
+        const targetDelta = source.y - target.y
+        adjacency.get(relation.sourceChild)!.push({id: relation.targetChild, delta: targetDelta, edgeId: relation.edgeId})
+        adjacency.get(relation.targetChild)!.push({id: relation.sourceChild, delta: -targetDelta, edgeId: relation.edgeId})
+      }
+      for (const neighbours of adjacency.values()) {
+        neighbours.sort((left, right) => compareIds(left.edgeId, right.edgeId) || compareIds(left.id, right.id))
+      }
+      const visited = new Set<string>()
+      for (const root of [...entry.ids].sort(compareIds)) {
+        if (visited.has(root)) continue
+        const component = new Map<string, number>([[root, 0]])
+        const queue = [root]
+        visited.add(root)
+        while (queue.length > 0) {
+          const current = queue.shift()!
+          for (const neighbour of adjacency.get(current)!) {
+            if (visited.has(neighbour.id)) continue
+            component.set(neighbour.id, component.get(current)! + neighbour.delta)
+            visited.add(neighbour.id)
+            queue.push(neighbour.id)
+          }
+        }
+        const minimum = Math.min(...component.values())
+        for (const [id, value] of component) verticalOffsetById.set(id, value - minimum)
+        rowComponents.push([...component.keys()].sort(compareIds))
+      }
+      componentsByRow.push(rowComponents)
+      entry.height = Math.max(...entry.ids.map((id) =>
+        verticalOffsetById.get(id)! + measured.get(id)!.size.h))
+    }
     const width = Math.max(...rows.map((entry) => entry.width))
     const offsets = new Map<string, Readonly<{x: number; y: number}>>()
     let y = 0
@@ -318,8 +409,6 @@ function arrangeChildren(
       const entry = rows[rowIndex]!
       const leadingReserve = edgeReserve(westFanin.get(entry.ids[0]!)!)
       const minimumX = leadingReserve
-      const centeredX = Math.floor((width - entry.width) / 2) + leadingReserve
-      const maximumX = width - entry.width + leadingReserve
       const relativeXs = new Map<string, number>()
       let relativeX = 0
       for (let index = 0; index < entry.ids.length; index += 1) {
@@ -339,6 +428,8 @@ function arrangeChildren(
           targetWestOffset: relativeXs.get(relation.targetChild)! + targetPort.x,
         }
       })
+      const maximumX = width - entry.width + leadingReserve
+      const centeredX = Math.floor((width - entry.width) / 2) + leadingReserve
       let x = choosePortraitRowX({
         minimumX,
         centeredX,
@@ -354,8 +445,29 @@ function arrangeChildren(
         const nextId = entry.ids[index + 1]
         if (nextId !== undefined) x += size.w + gapBetween(id, nextId)
       }
-      for (const id of entry.ids) offsets.set(id, {x: positions.get(id)!, y})
-      y += entry.height + input.layerSpacing
+      for (const id of entry.ids) {
+        offsets.set(id, {x: positions.get(id)!, y: y + verticalOffsetById.get(id)!})
+      }
+      const nextRow = rows[rowIndex + 1]
+      if (nextRow === undefined) {
+        y += entry.height
+      } else {
+        const crossingRelations = ranked.relations.filter((relation) => {
+          const sourceRow = rowIndexById.get(relation.sourceChild)!
+          const targetRow = rowIndexById.get(relation.targetChild)!
+          return Math.min(sourceRow, targetRow) <= rowIndex && Math.max(sourceRow, targetRow) > rowIndex
+        })
+        const countByEndpoint = new Map<string, number>()
+        for (const relation of crossingRelations) {
+          for (const id of [relation.sourceChild, relation.targetChild]) {
+            countByEndpoint.set(id, (countByEndpoint.get(id) ?? 0) + 1)
+          }
+        }
+        const occupiedCorridor = crossingRelations.length === 0
+          ? input.layerSpacing
+          : (Math.max(...countByEndpoint.values()) + 1) * input.clearance
+        y += entry.height + Math.max(input.layerSpacing, occupiedCorridor)
+      }
     }
     if (packing.compactSources) {
       for (let rowIndex = rows.length - 1; rowIndex >= 0; rowIndex -= 1) {
@@ -383,8 +495,108 @@ function arrangeChildren(
         }
       }
     }
+    const rightSideTracks = containerId === null ? 0 : ranked.relations.filter((relation) => {
+      const sourceOffset = offsets.get(relation.sourceChild)!
+      const targetOffset = offsets.get(relation.targetChild)!
+      const source = relativePortPoint(relation.sourceChild, relation.sourcePort)
+      const target = relativePortPoint(relation.targetChild, relation.targetPort)
+      return sourceOffset.x + source.x + input.clearance * 2 > targetOffset.x + target.x
+    }).length
+    const sideReserve = rightSideTracks * input.clearance
+    let reservedWidth = width
+    if (sideReserve > 0) {
+      const rowBounds = rows.map((entry) => {
+        const left = Math.min(...entry.ids.map((id) => offsets.get(id)!.x))
+        const right = Math.max(...entry.ids.map((id) => offsets.get(id)!.x + measured.get(id)!.size.w))
+        return {entry, left, right}
+      })
+      reservedWidth = Math.max(
+        width,
+        ...rowBounds.map(({left, right}) => right - left + sideReserve * 2),
+      )
+      for (const {entry, left, right} of rowBounds) {
+        const minimumShift = sideReserve - left
+        const maximumShift = reservedWidth - sideReserve - right
+        const shift = Math.max(minimumShift, Math.min(0, maximumShift))
+        if (shift === 0) continue
+        for (const id of entry.ids) {
+          const point = offsets.get(id)!
+          offsets.set(id, {x: point.x + shift, y: point.y})
+        }
+      }
+    }
+    const horizontalGap = (leftId: string, rightId: string): number => {
+      const left = offsets.get(leftId)!
+      const right = offsets.get(rightId)!
+      const leftWidth = measured.get(leftId)!.size.w
+      const rightWidth = measured.get(rightId)!.size.w
+      return Math.max(right.x - left.x - leftWidth, left.x - right.x - rightWidth)
+    }
+    const downwardTracks = (beforeRow: number): readonly Readonly<{left: number; right: number; y: number}>[] => {
+      const tracks: Array<Readonly<{left: number; right: number; y: number}>> = []
+      for (const relation of ranked.relations) {
+        const sourceRow = rowIndexById.get(relation.sourceChild)
+        const targetRow = rowIndexById.get(relation.targetChild)
+        if (sourceRow === undefined || sourceRow !== targetRow || sourceRow >= beforeRow) continue
+        const sourceOffset = offsets.get(relation.sourceChild)!
+        const targetOffset = offsets.get(relation.targetChild)!
+        const sourcePort = relativePortPoint(relation.sourceChild, relation.sourcePort)
+        const targetPort = relativePortPoint(relation.targetChild, relation.targetPort)
+        const source = {x: sourceOffset.x + sourcePort.x, y: sourceOffset.y + sourcePort.y}
+        const target = {x: targetOffset.x + targetPort.x, y: targetOffset.y + targetPort.y}
+        const left = Math.min(source.x, target.x)
+        const right = Math.max(source.x, target.x)
+        const blockers = rows[sourceRow]!.ids.filter((id) => {
+          if (id === relation.sourceChild || id === relation.targetChild) return false
+          const point = offsets.get(id)!
+          const size = measured.get(id)!.size
+          const blocksEndpointLane = (laneY: number): boolean =>
+            laneY > point.y - input.clearance && laneY < point.y + size.h + input.clearance
+          return (blocksEndpointLane(source.y) || blocksEndpointLane(target.y)) &&
+            Math.max(left, point.x - input.clearance) < Math.min(right, point.x + size.w + input.clearance)
+        })
+        if (blockers.length === 0) continue
+        const above = Math.min(...blockers.map((id) => offsets.get(id)!.y)) - input.clearance
+        const below = Math.max(...blockers.map((id) => offsets.get(id)!.y + measured.get(id)!.size.h)) + input.clearance
+        const aboveCost = Math.abs(source.y - above) + Math.abs(target.y - above)
+        const belowCost = Math.abs(source.y - below) + Math.abs(target.y - below)
+        if (belowCost >= aboveCost) continue
+        tracks.push({left, right, y: below})
+      }
+      return tracks
+    }
+    for (let rowIndex = 1; rowIndex < rows.length; rowIndex += 1) {
+      const earlierIds = rows.slice(0, rowIndex).flatMap((entry) => entry.ids)
+      const tracks = downwardTracks(rowIndex)
+      for (const component of componentsByRow[rowIndex]!) {
+        let translation = 0
+        for (const id of component) {
+          const relativeY = verticalOffsetById.get(id)!
+          const point = offsets.get(id)!
+          const size = measured.get(id)!.size
+          for (const earlierId of earlierIds) {
+            if (horizontalGap(id, earlierId) >= input.nodeSpacing) continue
+            const earlier = offsets.get(earlierId)!
+            translation = Math.max(
+              translation,
+              earlier.y + measured.get(earlierId)!.size.h + input.nodeSpacing - relativeY,
+            )
+          }
+          for (const track of tracks) {
+            if (Math.max(point.x, track.left) >= Math.min(point.x + size.w, track.right)) continue
+            translation = Math.max(translation, track.y + input.clearance - relativeY)
+          }
+        }
+        for (const id of component) {
+          const point = offsets.get(id)!
+          offsets.set(id, {x: point.x, y: translation + verticalOffsetById.get(id)!})
+        }
+      }
+    }
+    const compactedHeight = Math.max(...childIds.map((id) =>
+      offsets.get(id)!.y + measured.get(id)!.size.h))
     return {
-      size: {w: width, h: Math.max(0, y - input.layerSpacing)},
+      size: {w: reservedWidth, h: compactedHeight + sideReserve},
       childOffsets: offsets,
     }
   }
@@ -406,7 +618,7 @@ function arrangeChildren(
     cross = Math.max(0, cross - input.nodeSpacing)
     placedLayers.push({rank: layerNumbers[layerIndex]!, ids: layer, crossExtent: cross})
     const rank = layerNumbers[layerIndex]!
-    const corridorRelations = direction === "RIGHT" && packing.kind === "LAYERED" && packing.reserveCorridors
+    const corridorRelations = packing.kind === "LAYERED" && packing.reserveCorridors
       ? ranked.relations.filter((relation) =>
         ranks.get(relation.sourceChild)! <= rank && ranks.get(relation.targetChild)! > rank)
       : []
@@ -472,7 +684,23 @@ function arrangeChildren(
       offsets.set(id, direction === "RIGHT" ? {x: point.x, y: point.y - crossStart} : {x: point.x - crossStart, y: point.y})
     }
   }
-  return {size: direction === "RIGHT" ? {w: primary, h: crossExtent} : {w: crossExtent, h: primary}, childOffsets: offsets}
+  const rightSideTracks = containerId === null ? 0 : ranked.relations.filter((relation) => {
+    const sourceOffset = offsets.get(relation.sourceChild)!
+    const targetOffset = offsets.get(relation.targetChild)!
+    const source = relativePortPoint(relation.sourceChild, relation.sourcePort)
+    const target = relativePortPoint(relation.targetChild, relation.targetPort)
+    return sourceOffset.x + source.x >= targetOffset.x + target.x
+  }).length
+  const sideReserve = rightSideTracks * input.clearance
+  const reservedOffsets = sideReserve === 0
+    ? offsets
+    : new Map([...offsets].map(([id, point]) => [id, {x: point.x + sideReserve, y: point.y}]))
+  return {
+    size: direction === "RIGHT"
+      ? {w: primary + sideReserve * 2, h: crossExtent + sideReserve}
+      : {w: crossExtent + sideReserve * 2, h: primary + sideReserve},
+    childOffsets: reservedOffsets,
+  }
 }
 
 export function choosePortraitRowX(input: Readonly<{
@@ -594,6 +822,7 @@ function validatePlacementInput(input: PlacementInput): void {
   for (const node of input.nodes) {
     if (ids.has(node.id)) throw new Error(`duplicate node: ${node.id}`)
     if (!Number.isSafeInteger(node.size.w) || !Number.isSafeInteger(node.size.h) || node.size.w <= 0 || node.size.h <= 0) throw new Error(`invalid intrinsic size: ${node.id}`)
+    if (!Number.isSafeInteger(node.contentHeight) || node.contentHeight <= 0 || node.contentHeight > node.size.h) throw new Error(`invalid content height: ${node.id}`)
     ids.add(node.id)
   }
   for (const node of input.nodes) if (node.parentId !== undefined && !ids.has(node.parentId)) throw new Error(`unknown parent: ${node.id}/${node.parentId}`)
@@ -623,7 +852,7 @@ export function validatePlacement(
       continue
     }
     const owner = rects.get(node.parentId)
-    const ownerIntrinsicHeight = intrinsic.get(node.parentId)?.size.h
+    const ownerIntrinsicHeight = intrinsic.get(node.parentId)?.contentHeight
     if (owner === undefined || ownerIntrinsicHeight === undefined || node.rect.x < owner.x + input.padding || node.rect.y < owner.y + ownerIntrinsicHeight + input.padding || right(node.rect) > right(owner) - input.padding || bottom(node.rect) > bottom(owner) - input.padding) violations.push(`child escapes compound content/padding: ${node.id}`)
   }
   for (let leftIndex = 0; leftIndex < result.nodes.length; leftIndex += 1) {

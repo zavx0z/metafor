@@ -1,0 +1,434 @@
+{
+  "input": {
+    "viewport": {
+      "width": 1200,
+      "height": 800
+    },
+    "nodes": 12,
+    "ports": 18,
+    "edges": 9,
+    "clearance": 28
+  },
+  "proof": {
+    "direction": "RIGHT",
+    "repeats": 3,
+    "reversedPermutationStable": true,
+    "exactEndpoints": 9,
+    "orthogonalSegments": 25,
+    "unrelatedInflatedObstacleViolations": 0,
+    "minimumParallelClearance": {
+      "horizontal": 28,
+      "vertical": 28
+    },
+    "bounds": {
+      "x": 0,
+      "y": 0,
+      "width": 2226.9,
+      "height": 1312
+    },
+    "fitScale": 0.5388656877273339,
+    "displayEmptyRatio": 0.7124830690241176
+  },
+  "geometry": {
+    "direction": "RIGHT",
+    "bounds": {
+      "x": 0,
+      "y": 0,
+      "width": 2226.9,
+      "height": 1312
+    },
+    "nodes": [
+      {
+        "id": "browser:b04b5959-28a2-4ac0-ba5c-6bdba29e0091",
+        "x": 84,
+        "y": 84,
+        "width": 1236.15,
+        "height": 1010
+      },
+      {
+        "id": "bun-process:0d55bbd8-c856-4148-a5ed-950b45f6223e",
+        "x": 1740.65,
+        "y": 244,
+        "width": 205.75,
+        "height": 218
+      },
+      {
+        "id": "bun-process:2d8e3de6-d6db-42ac-a376-5f5f9eff71d7",
+        "x": 1740.65,
+        "y": 490,
+        "width": 194.25,
+        "height": 218
+      },
+      {
+        "id": "dedicated-worker:99cc1187-cd41-4e5f-8cba-17934b3421a6",
+        "x": 606.05,
+        "y": 518,
+        "width": 300.7,
+        "height": 190
+      },
+      {
+        "id": "page:b331b65f-6c8c-4403-8262-4d1279980bb0",
+        "x": 140,
+        "y": 246,
+        "width": 794.75,
+        "height": 792
+      },
+      {
+        "id": "peer-process:a6a73bf5-aa7a-4272-9a1e-25386e46b092",
+        "x": 1740.65,
+        "y": 736,
+        "width": 374.25,
+        "height": 464
+      },
+      {
+        "id": "rtc-peer:11eddf8b-c0d0-4d76-bafe-71774ed83a6c%3Abrowser",
+        "x": 196,
+        "y": 736,
+        "width": 326.05,
+        "height": 246
+      },
+      {
+        "id": "rtc-peer:11eddf8b-c0d0-4d76-bafe-71774ed83a6c%3Aserver",
+        "x": 1768.65,
+        "y": 954,
+        "width": 318.25,
+        "height": 218
+      },
+      {
+        "id": "server-contour",
+        "x": 1376.15,
+        "y": 150,
+        "width": 766.75,
+        "height": 1078
+      },
+      {
+        "id": "server:5bcd3d92-e854-4dfc-8499-ba0343327b73",
+        "x": 1404.15,
+        "y": 244,
+        "width": 224.5,
+        "height": 274
+      },
+      {
+        "id": "service-worker:8bc9012d-e032-4a40-a50b-3aea75136e3e",
+        "x": 990.75,
+        "y": 328,
+        "width": 273.4,
+        "height": 190
+      },
+      {
+        "id": "window-main:b331b65f-6c8c-4403-8262-4d1279980bb0",
+        "x": 168,
+        "y": 546,
+        "width": 382.05,
+        "height": 464
+      }
+    ],
+    "ports": [
+      {
+        "id": "bun-process:0d55bbd8-c856-4148-a5ed-950b45f6223e\u0000in:ipc%3A0d55bbd8-c856-4148-a5ed-950b45f6223e",
+        "x": 1740.65,
+        "y": 440
+      },
+      {
+        "id": "bun-process:2d8e3de6-d6db-42ac-a376-5f5f9eff71d7\u0000in:ipc%3A2d8e3de6-d6db-42ac-a376-5f5f9eff71d7",
+        "x": 1740.65,
+        "y": 686
+      },
+      {
+        "id": "dedicated-worker:99cc1187-cd41-4e5f-8cba-17934b3421a6\u0000in:worker-message%3Afe57039a-645b-432a-bc72-d3422ba0e529",
+        "x": 606.05,
+        "y": 686
+      },
+      {
+        "id": "page:b331b65f-6c8c-4403-8262-4d1279980bb0\u0000in:message-port%3Ac7a329ec-37b2-4c90-a3a9-840fdba54a16",
+        "x": 140,
+        "y": 468
+      },
+      {
+        "id": "page:b331b65f-6c8c-4403-8262-4d1279980bb0\u0000out:controller%3A65ed5183-1d8b-40bc-b254-2076280ba99c",
+        "x": 934.75,
+        "y": 440
+      },
+      {
+        "id": "peer-process:a6a73bf5-aa7a-4272-9a1e-25386e46b092\u0000in:ipc%3Aa6a73bf5-aa7a-4272-9a1e-25386e46b092",
+        "x": 1740.65,
+        "y": 904
+      },
+      {
+        "id": "rtc-peer:11eddf8b-c0d0-4d76-bafe-71774ed83a6c%3Abrowser\u0000in:data-channel%3A11eddf8b-c0d0-4d76-bafe-71774ed83a6c%253Aforce",
+        "x": 196,
+        "y": 932
+      },
+      {
+        "id": "rtc-peer:11eddf8b-c0d0-4d76-bafe-71774ed83a6c%3Abrowser\u0000in:data-channel%3A11eddf8b-c0d0-4d76-bafe-71774ed83a6c%253Aoracle",
+        "x": 196,
+        "y": 960
+      },
+      {
+        "id": "rtc-peer:11eddf8b-c0d0-4d76-bafe-71774ed83a6c%3Aserver\u0000out:data-channel%3A11eddf8b-c0d0-4d76-bafe-71774ed83a6c%253Aforce",
+        "x": 2086.9,
+        "y": 1122
+      },
+      {
+        "id": "rtc-peer:11eddf8b-c0d0-4d76-bafe-71774ed83a6c%3Aserver\u0000out:data-channel%3A11eddf8b-c0d0-4d76-bafe-71774ed83a6c%253Aoracle",
+        "x": 2086.9,
+        "y": 1150
+      },
+      {
+        "id": "server:5bcd3d92-e854-4dfc-8499-ba0343327b73\u0000in:websocket%3Adc720e45-f14c-4558-be5d-dc9c5d4175b7",
+        "x": 1404.15,
+        "y": 496
+      },
+      {
+        "id": "server:5bcd3d92-e854-4dfc-8499-ba0343327b73\u0000out:ipc%3A0d55bbd8-c856-4148-a5ed-950b45f6223e",
+        "x": 1628.65,
+        "y": 440
+      },
+      {
+        "id": "server:5bcd3d92-e854-4dfc-8499-ba0343327b73\u0000out:ipc%3A2d8e3de6-d6db-42ac-a376-5f5f9eff71d7",
+        "x": 1628.65,
+        "y": 412
+      },
+      {
+        "id": "server:5bcd3d92-e854-4dfc-8499-ba0343327b73\u0000out:ipc%3Aa6a73bf5-aa7a-4272-9a1e-25386e46b092",
+        "x": 1628.65,
+        "y": 468
+      },
+      {
+        "id": "service-worker:8bc9012d-e032-4a40-a50b-3aea75136e3e\u0000in:controller%3A65ed5183-1d8b-40bc-b254-2076280ba99c",
+        "x": 990.75,
+        "y": 440
+      },
+      {
+        "id": "service-worker:8bc9012d-e032-4a40-a50b-3aea75136e3e\u0000out:message-port%3Ac7a329ec-37b2-4c90-a3a9-840fdba54a16",
+        "x": 1264.15,
+        "y": 468
+      },
+      {
+        "id": "service-worker:8bc9012d-e032-4a40-a50b-3aea75136e3e\u0000out:websocket%3Adc720e45-f14c-4558-be5d-dc9c5d4175b7",
+        "x": 1264.15,
+        "y": 496
+      },
+      {
+        "id": "window-main:b331b65f-6c8c-4403-8262-4d1279980bb0\u0000out:worker-message%3Afe57039a-645b-432a-bc72-d3422ba0e529",
+        "x": 550.05,
+        "y": 686
+      }
+    ],
+    "edges": [
+      {
+        "id": "controller:65ed5183-1d8b-40bc-b254-2076280ba99c",
+        "sections": [
+          {
+            "startPoint": {
+              "x": 934.75,
+              "y": 440
+            },
+            "bendPoints": [],
+            "endPoint": {
+              "x": 990.75,
+              "y": 440
+            }
+          }
+        ]
+      },
+      {
+        "id": "data-channel:11eddf8b-c0d0-4d76-bafe-71774ed83a6c%3Aforce",
+        "sections": [
+          {
+            "startPoint": {
+              "x": 2086.9,
+              "y": 1122
+            },
+            "bendPoints": [
+              {
+                "x": 2170.9,
+                "y": 1122
+              },
+              {
+                "x": 2170.9,
+                "y": 1284
+              },
+              {
+                "x": 56,
+                "y": 1284
+              },
+              {
+                "x": 56,
+                "y": 932
+              }
+            ],
+            "endPoint": {
+              "x": 196,
+              "y": 932
+            }
+          }
+        ]
+      },
+      {
+        "id": "data-channel:11eddf8b-c0d0-4d76-bafe-71774ed83a6c%3Aoracle",
+        "sections": [
+          {
+            "startPoint": {
+              "x": 2086.9,
+              "y": 1150
+            },
+            "bendPoints": [
+              {
+                "x": 2198.9,
+                "y": 1150
+              },
+              {
+                "x": 2198.9,
+                "y": 1256
+              },
+              {
+                "x": 28,
+                "y": 1256
+              },
+              {
+                "x": 28,
+                "y": 960
+              }
+            ],
+            "endPoint": {
+              "x": 196,
+              "y": 960
+            }
+          }
+        ]
+      },
+      {
+        "id": "ipc:0d55bbd8-c856-4148-a5ed-950b45f6223e",
+        "sections": [
+          {
+            "startPoint": {
+              "x": 1628.65,
+              "y": 440
+            },
+            "bendPoints": [],
+            "endPoint": {
+              "x": 1740.65,
+              "y": 440
+            }
+          }
+        ]
+      },
+      {
+        "id": "ipc:2d8e3de6-d6db-42ac-a376-5f5f9eff71d7",
+        "sections": [
+          {
+            "startPoint": {
+              "x": 1628.65,
+              "y": 412
+            },
+            "bendPoints": [
+              {
+                "x": 1656.65,
+                "y": 412
+              },
+              {
+                "x": 1656.65,
+                "y": 686
+              }
+            ],
+            "endPoint": {
+              "x": 1740.65,
+              "y": 686
+            }
+          }
+        ]
+      },
+      {
+        "id": "ipc:a6a73bf5-aa7a-4272-9a1e-25386e46b092",
+        "sections": [
+          {
+            "startPoint": {
+              "x": 1628.65,
+              "y": 468
+            },
+            "bendPoints": [
+              {
+                "x": 1684.65,
+                "y": 468
+              },
+              {
+                "x": 1684.65,
+                "y": 904
+              }
+            ],
+            "endPoint": {
+              "x": 1740.65,
+              "y": 904
+            }
+          }
+        ]
+      },
+      {
+        "id": "message-port:c7a329ec-37b2-4c90-a3a9-840fdba54a16",
+        "sections": [
+          {
+            "startPoint": {
+              "x": 1264.15,
+              "y": 468
+            },
+            "bendPoints": [
+              {
+                "x": 1292.15,
+                "y": 468
+              },
+              {
+                "x": 1292.15,
+                "y": 1066
+              },
+              {
+                "x": 112,
+                "y": 1066
+              },
+              {
+                "x": 112,
+                "y": 468
+              }
+            ],
+            "endPoint": {
+              "x": 140,
+              "y": 468
+            }
+          }
+        ]
+      },
+      {
+        "id": "websocket:dc720e45-f14c-4558-be5d-dc9c5d4175b7",
+        "sections": [
+          {
+            "startPoint": {
+              "x": 1264.15,
+              "y": 496
+            },
+            "bendPoints": [],
+            "endPoint": {
+              "x": 1404.15,
+              "y": 496
+            }
+          }
+        ]
+      },
+      {
+        "id": "worker-message:fe57039a-645b-432a-bc72-d3422ba0e529",
+        "sections": [
+          {
+            "startPoint": {
+              "x": 550.05,
+              "y": 686
+            },
+            "bendPoints": [],
+            "endPoint": {
+              "x": 606.05,
+              "y": 686
+            }
+          }
+        ]
+      }
+    ]
+  }
+}
