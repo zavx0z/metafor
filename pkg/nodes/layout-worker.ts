@@ -1,12 +1,12 @@
-import {layout} from "./layout.ts"
+import {layout} from "@nodes/layout"
 import type {
   LayoutWorkerEndpoint,
   LayoutWorkerInput,
   LayoutWorkerRequest,
   LayoutWorkerResponse,
   LayoutWorkerSuccess,
-} from "../types/worker.ts"
-import type {PendingLayout} from "../types/worker-internal.ts"
+} from "./types/worker.ts"
+import type {PendingLayout} from "./types/worker-internal.ts"
 
 /**
  * Исполняет один protocol request без доступа к browser globals.

@@ -1,10 +1,6 @@
 import {describe, expect, test} from "bun:test"
-import {
-  LayoutWorkerClient,
-  runLayoutWorkerRequest,
-  type LayoutWorkerRequest,
-  type LayoutWorkerResponse,
-} from "@nodes/layout"
+import {LayoutWorkerClient, runLayoutWorkerRequest} from "./layout-worker.ts"
+import type {LayoutWorkerRequest, LayoutWorkerResponse} from "./types/worker.ts"
 import {
   measureNodeSystemCard,
   measureNodeSystemCardContentHeight,

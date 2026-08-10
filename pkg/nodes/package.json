@@ -12,6 +12,7 @@
     "./validation": "./validation.ts",
     "./containment": "./containment.ts",
     "./layout-engine": "./layout-engine.ts",
+    "./layout-worker": "./layout-worker.ts",
     "./incremental-layout": "./incremental-layout.ts"
   },
   "scripts": {

@@ -20,6 +20,7 @@ node-system только проверяет presentation model и связыва
 
 ```ts
 import {
+  LayoutWorkerClient,
   MetaForNodeSystemWorkerLayouter,
   validateNodeSystemDocument,
   type NodeSystemDocument,
@@ -28,14 +29,15 @@ import {
 import {NodeInspectorSurface, NodeSystemSurface} from "@nodes/ui"
 ```
 
-Публичные model-типы находятся в [`types`](types/index.ts). Типы layout
-принадлежат [`layout/types`](layout/types/index.ts); UI-компоненты не создают
-параллельную модель нод.
+Публичные model- и Worker-типы находятся в [`types`](types/index.ts). Только
+числовые типы layout protocol принадлежат
+[`layout/types`](layout/types/index.ts); UI-компоненты не создают параллельную
+модель нод.
 
 ## Границы
 
 * `nodes` содержит model validation, containment, layout adapter и
-  incremental presentation logic.
+  incremental presentation logic, а также Worker transport adapter.
 * `@nodes/layout` не читает UI document, текст, DOM или WebGPU state.
 * `@nodes/ui` не рассчитывает автоматическое размещение и не владеет semantic
   topology.

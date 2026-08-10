@@ -1,8 +1,10 @@
 import {
   runLayoutWorkerRequest,
-  type LayoutWorkerRequest,
-  type LayoutWorkerResponse,
-} from "@nodes/layout"
+} from "nodes/layout-worker"
+import type {
+  LayoutWorkerRequest,
+  LayoutWorkerResponse,
+} from "nodes/types"
 
 type LayoutWorkerScope = Readonly<{
   addEventListener(

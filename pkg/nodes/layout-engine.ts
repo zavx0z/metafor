@@ -3,9 +3,9 @@ import type {
   LayoutGraph,
   LayoutPort,
   LayoutResult,
-  LayoutWorkerClient,
 } from "@nodes/layout"
 import {layout as calculateLayout} from "@nodes/layout"
+import type {LayoutWorkerClient} from "./layout-worker.ts"
 import type {
   NodeSystemDocument,
   NodeSystemEdge,

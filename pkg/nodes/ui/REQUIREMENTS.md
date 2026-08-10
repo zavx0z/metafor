@@ -4,6 +4,20 @@
 и управлению видом. `@nodes/ui` не рассчитывает автоматическое размещение и не
 меняет semantic topology.
 
+## Intrinsic measurement
+
+1. `@nodes/ui` до вызова layout измеряет фактические intrinsic width/height
+   карточки, нижнюю границу занятого собственного content и offsets центров
+   видимых parameter sockets. Измерение использует тот же card plan, шрифты и
+   содержимое, которые затем отображаются.
+2. `contentHeight` заканчивается на последней занятой строке карточки либо на
+   нижней границе header, если собственных строк нет. Декоративный нижний
+   padding в эту величину не входит.
+3. Расстояние между центрами соседних parameter sockets передаётся владельцу
+   layout как единый socket pitch. UI не добавляет к нему скрытый spacing.
+4. Масштабирование одинаково применяется к card slots и socket offsets. UI не
+   выбирает координаты нод, compound, gateways или bends.
+
 ## Отображение geometry
 
 1. Визуальный stroke доходит до exact port center и не заменяет socket точкой

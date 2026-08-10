@@ -14,7 +14,7 @@
     "repeats": 3,
     "reversedPermutationStable": true,
     "exactEndpoints": 9,
-    "orthogonalSegments": 25,
+    "orthogonalSegments": 27,
     "unrelatedInflatedObstacleViolations": 0,
     "minimumParallelClearance": {
       "horizontal": 28,
@@ -24,7 +24,7 @@
       "x": 0,
       "y": 0,
       "width": 2226.9,
-      "height": 1312
+      "height": 1246
     },
     "fitScale": 0.5388656877273339,
     "displayEmptyRatio": 0.7124830690241176
@@ -35,7 +35,7 @@
       "x": 0,
       "y": 0,
       "width": 2226.9,
-      "height": 1312
+      "height": 1246
     },
     "nodes": [
       {
@@ -48,14 +48,14 @@
       {
         "id": "bun-process:0d55bbd8-c856-4148-a5ed-950b45f6223e",
         "x": 1740.65,
-        "y": 244,
+        "y": 178,
         "width": 205.75,
         "height": 218
       },
       {
         "id": "bun-process:2d8e3de6-d6db-42ac-a376-5f5f9eff71d7",
         "x": 1740.65,
-        "y": 490,
+        "y": 424,
         "width": 194.25,
         "height": 218
       },
@@ -76,7 +76,7 @@
       {
         "id": "peer-process:a6a73bf5-aa7a-4272-9a1e-25386e46b092",
         "x": 1740.65,
-        "y": 736,
+        "y": 670,
         "width": 374.25,
         "height": 464
       },
@@ -90,21 +90,21 @@
       {
         "id": "rtc-peer:11eddf8b-c0d0-4d76-bafe-71774ed83a6c%3Aserver",
         "x": 1768.65,
-        "y": 954,
+        "y": 888,
         "width": 318.25,
         "height": 218
       },
       {
         "id": "server-contour",
         "x": 1376.15,
-        "y": 150,
+        "y": 84,
         "width": 766.75,
         "height": 1078
       },
       {
         "id": "server:5bcd3d92-e854-4dfc-8499-ba0343327b73",
         "x": 1404.15,
-        "y": 244,
+        "y": 178,
         "width": 224.5,
         "height": 274
       },
@@ -127,12 +127,12 @@
       {
         "id": "bun-process:0d55bbd8-c856-4148-a5ed-950b45f6223e\u0000in:ipc%3A0d55bbd8-c856-4148-a5ed-950b45f6223e",
         "x": 1740.65,
-        "y": 440
+        "y": 374
       },
       {
         "id": "bun-process:2d8e3de6-d6db-42ac-a376-5f5f9eff71d7\u0000in:ipc%3A2d8e3de6-d6db-42ac-a376-5f5f9eff71d7",
         "x": 1740.65,
-        "y": 686
+        "y": 620
       },
       {
         "id": "dedicated-worker:99cc1187-cd41-4e5f-8cba-17934b3421a6\u0000in:worker-message%3Afe57039a-645b-432a-bc72-d3422ba0e529",
@@ -152,7 +152,7 @@
       {
         "id": "peer-process:a6a73bf5-aa7a-4272-9a1e-25386e46b092\u0000in:ipc%3Aa6a73bf5-aa7a-4272-9a1e-25386e46b092",
         "x": 1740.65,
-        "y": 904
+        "y": 838
       },
       {
         "id": "rtc-peer:11eddf8b-c0d0-4d76-bafe-71774ed83a6c%3Abrowser\u0000in:data-channel%3A11eddf8b-c0d0-4d76-bafe-71774ed83a6c%253Aforce",
@@ -167,32 +167,32 @@
       {
         "id": "rtc-peer:11eddf8b-c0d0-4d76-bafe-71774ed83a6c%3Aserver\u0000out:data-channel%3A11eddf8b-c0d0-4d76-bafe-71774ed83a6c%253Aforce",
         "x": 2086.9,
-        "y": 1122
+        "y": 1056
       },
       {
         "id": "rtc-peer:11eddf8b-c0d0-4d76-bafe-71774ed83a6c%3Aserver\u0000out:data-channel%3A11eddf8b-c0d0-4d76-bafe-71774ed83a6c%253Aoracle",
         "x": 2086.9,
-        "y": 1150
+        "y": 1084
       },
       {
         "id": "server:5bcd3d92-e854-4dfc-8499-ba0343327b73\u0000in:websocket%3Adc720e45-f14c-4558-be5d-dc9c5d4175b7",
         "x": 1404.15,
-        "y": 496
+        "y": 430
       },
       {
         "id": "server:5bcd3d92-e854-4dfc-8499-ba0343327b73\u0000out:ipc%3A0d55bbd8-c856-4148-a5ed-950b45f6223e",
         "x": 1628.65,
-        "y": 440
+        "y": 374
       },
       {
         "id": "server:5bcd3d92-e854-4dfc-8499-ba0343327b73\u0000out:ipc%3A2d8e3de6-d6db-42ac-a376-5f5f9eff71d7",
         "x": 1628.65,
-        "y": 412
+        "y": 346
       },
       {
         "id": "server:5bcd3d92-e854-4dfc-8499-ba0343327b73\u0000out:ipc%3Aa6a73bf5-aa7a-4272-9a1e-25386e46b092",
         "x": 1628.65,
-        "y": 468
+        "y": 402
       },
       {
         "id": "service-worker:8bc9012d-e032-4a40-a50b-3aea75136e3e\u0000in:controller%3A65ed5183-1d8b-40bc-b254-2076280ba99c",
@@ -238,23 +238,23 @@
           {
             "startPoint": {
               "x": 2086.9,
-              "y": 1122
+              "y": 1056
             },
             "bendPoints": [
               {
-                "x": 2170.9,
-                "y": 1122
+                "x": 2198.9,
+                "y": 1056
               },
               {
-                "x": 2170.9,
-                "y": 1284
+                "x": 2198.9,
+                "y": 1218
               },
               {
-                "x": 56,
-                "y": 1284
+                "x": 28,
+                "y": 1218
               },
               {
-                "x": 56,
+                "x": 28,
                 "y": 932
               }
             ],
@@ -271,23 +271,23 @@
           {
             "startPoint": {
               "x": 2086.9,
-              "y": 1150
+              "y": 1084
             },
             "bendPoints": [
               {
-                "x": 2198.9,
-                "y": 1150
+                "x": 2170.9,
+                "y": 1084
               },
               {
-                "x": 2198.9,
-                "y": 1256
+                "x": 2170.9,
+                "y": 1190
               },
               {
-                "x": 28,
-                "y": 1256
+                "x": 56,
+                "y": 1190
               },
               {
-                "x": 28,
+                "x": 56,
                 "y": 960
               }
             ],
@@ -304,12 +304,12 @@
           {
             "startPoint": {
               "x": 1628.65,
-              "y": 440
+              "y": 374
             },
             "bendPoints": [],
             "endPoint": {
               "x": 1740.65,
-              "y": 440
+              "y": 374
             }
           }
         ]
@@ -320,21 +320,21 @@
           {
             "startPoint": {
               "x": 1628.65,
-              "y": 412
+              "y": 346
             },
             "bendPoints": [
               {
-                "x": 1656.65,
-                "y": 412
+                "x": 1712.65,
+                "y": 346
               },
               {
-                "x": 1656.65,
-                "y": 686
+                "x": 1712.65,
+                "y": 620
               }
             ],
             "endPoint": {
               "x": 1740.65,
-              "y": 686
+              "y": 620
             }
           }
         ]
@@ -345,21 +345,21 @@
           {
             "startPoint": {
               "x": 1628.65,
-              "y": 468
+              "y": 402
             },
             "bendPoints": [
               {
-                "x": 1684.65,
-                "y": 468
+                "x": 1656.65,
+                "y": 402
               },
               {
-                "x": 1684.65,
-                "y": 904
+                "x": 1656.65,
+                "y": 838
               }
             ],
             "endPoint": {
               "x": 1740.65,
-              "y": 904
+              "y": 838
             }
           }
         ]
@@ -405,10 +405,19 @@
               "x": 1264.15,
               "y": 496
             },
-            "bendPoints": [],
+            "bendPoints": [
+              {
+                "x": 1348.15,
+                "y": 496
+              },
+              {
+                "x": 1348.15,
+                "y": 430
+              }
+            ],
             "endPoint": {
               "x": 1404.15,
-              "y": 496
+              "y": 430
             }
           }
         ]

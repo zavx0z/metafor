@@ -7,10 +7,8 @@ import {
 } from "../core/lifecycle.js"
 import {hamiltonianPageBootstrap} from "../core/monitor.js"
 import {UiRuntime, type UiSurfaceRect} from "@ui/elements"
-import {
-  LayoutWorkerClient,
-  type LayoutWorkerEndpoint,
-} from "@nodes/layout"
+import {LayoutWorkerClient} from "nodes/layout-worker"
+import type {LayoutWorkerEndpoint} from "nodes/types"
 import {
   MetaForNodeSystemWorkerLayouter,
 } from "nodes/layout-engine"

@@ -1,12 +1,11 @@
 import {describe, expect, test} from "bun:test"
-import {layout} from "./layout.ts"
-import {LayoutWorkerClient, runLayoutWorkerRequest} from "./worker.ts"
-import type {LayoutGraph} from "../types/protocol.ts"
+import {layout, type LayoutGraph} from "@nodes/layout"
+import {LayoutWorkerClient, runLayoutWorkerRequest} from "./layout-worker.ts"
 import type {
   LayoutWorkerEndpoint,
   LayoutWorkerRequest,
   LayoutWorkerResponse,
-} from "../types/worker.ts"
+} from "./types/worker.ts"
 
 const graph = (viewport: Readonly<{width: number; height: number}>): LayoutGraph => ({
   viewport,

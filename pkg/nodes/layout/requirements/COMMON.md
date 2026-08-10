@@ -141,13 +141,19 @@ types задают точную форму протокола, код реали
    2. max crossings одного edge;
    3. total turns;
    4. max turns одного edge;
-   5. total Manhattan length;
-   6. max Manhattan length;
-   7. detour каждого edge в устойчивом порядке semantic ID;
-   8. bounds и fit scale;
-   9. общий и максимальный compound empty ratio;
-   10. clearance variance;
-   11. стабильный semantic-ID key.
+   5. суммарный дефицит свободного выходного коридора source;
+   6. total Manhattan length;
+   7. max Manhattan length;
+   8. max detour;
+   9. detour каждого edge в устойчивом порядке semantic ID;
+   10. orientation-specific placement quality: для `RIGHT` — устойчивый
+       socket-aligned базовый placement, для `DOWN` — display empty ratio,
+       compound empty ratio, fit scale и площадь bounds;
+   11. clearance variance;
+   12. стабильный semantic-ID key.
+   Та же orientation-specific placement quality ограничивает число кандидатов,
+   передаваемых дорогому router; hard-invalid candidate при этом не может быть
+   принят из-за высокого soft score.
 4. Нельзя оптимизировать только сумму: один edge с чрезмерным числом bends,
    crossings, длиной или detour остаётся дефектом даже при хорошем среднем
    результате.

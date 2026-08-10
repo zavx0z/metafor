@@ -23,9 +23,9 @@ edge-edge clearance. Его SHA-256:
 
 * `live-proof-landscape.json`: `RIGHT`, 9/9 exact endpoints, 0 unrelated
   obstacle violations, minimum H/V clearance 28 px; SHA-256
-  `7a46be6916728436a4970f1e048e4fe7ed5f4f7bbbd0bff5119d3c8e1dbbd2f2`.
+  `58909de5520af4f0708d16bfb925f856822fa54afc1c51a155a65e942cbf303a`.
 * `live-proof-portrait.json`: `DOWN`, те же hard результаты; SHA-256
-  `895fdcb6277319b2f82278a9e2b70e2b18da6d69733570eabf2d75a61ccd07fa`.
+  `bde7fcd3d748bc517ef5dea60aa8f2202fadb4a10aeb675b7a099144fdd6532d`.
 * `diagnose-live.ts` и `live-diagnostic-*.json` сохраняют candidate-level
   routability evidence; это диагностические, а не acceptance results.
 

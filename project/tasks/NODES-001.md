@@ -26,9 +26,9 @@
   задаёт его равным шагу между сокетами.
 * Адаптер передаёт одинаковые `spacing`, `padding` и `clearance`, но layout
   kernel внутренне увеличивает compound padding как минимум до двух clearance.
-* Layout Worker adapter и его request/response types пока физически находятся
-  в `@nodes/layout`; это расходится с уточнённой границей владельца и требует
-  отдельного implementation-среза после документационного разделения.
+* Layout Worker adapter и его request/response types перенесены из
+  `@nodes/layout` в пакет `nodes`; алгоритмический пакет снова экспортирует
+  только pure function и числовой layout protocol.
 * На живом landscape-снимке длинное semantic edge проходит через внутренность
   посторонней ноды `Peer process` на уровне параметра `Состояние`.
 * На предоставленных снимках виден увеличенный промежуток между последним
@@ -44,9 +44,8 @@
   Worker/integration принадлежат [`nodes`](../../pkg/nodes/REQUIREMENTS.md),
   UI/view — [`@nodes/ui`](../../pkg/nodes/ui/REQUIREMENTS.md), а traffic —
   приложению Hamiltonian.
-* Текущий документационный срез только собирает и сверяет требования в обратной
-  хронологии. Tests в этом срезе не меняются и не запускаются; их соответствие
-  реестру проверяется отдельным последующим срезом.
+* При закрытии задачи постоянные документы, public exports, tests и сохранённые
+  machine proofs сверяются отдельной независимой проверкой.
 
 ## Границы
 
@@ -89,6 +88,12 @@ bun run --cwd pkg/nodes typecheck
   через постороннюю ноду.
 * Exact RIGHT/DOWN запросы, machine proof и live screenshots находятся в
   [`project/artifacts/NODES-001`](../artifacts/NODES-001/README.md).
+* Worker transport adapter, request/response types и его tests физически
+  принадлежат `nodes`; `@nodes/layout` не экспортирует Worker API.
+* `@nodes/ui` документирует intrinsic measurement ширины/высоты, занятого
+  `contentHeight`, socket offsets и socket pitch до вызова layout.
+* Общий документ алгоритма фиксирует фактический лексикографический порядок
+  routing и orientation-specific placement objectives.
 * Пересечения рёбер, найденные после этого среза, исправлены и независимо
   проверены отдельной завершённой задачей. NODES-001 требует собственной
   отдельной закрывающей проверки актуальных proof и package contracts.
@@ -115,8 +120,7 @@ bun run --cwd pkg/nodes typecheck
 * Свежая проверка перед handoff: `26/26` focused tests, typecheck пакетов
   `@nodes/layout` и `nodes`, `git diff --check` — green. Machine-readable RIGHT
   и DOWN proofs, exact requests и live screenshots находятся в artifacts.
-* Владелец 2026-08-10 визуально принял итоговую геометрию. Независимому
-  проверяющему нужно отдельно оценить документированную границу Worker: карточка
-  отмечает физическое нахождение Worker adapter/types в `@nodes/layout` как
-  отдельный последующий implementation-срез; это нельзя молча считать ни
-  выполненным, ни блокирующим без verdict по scope NODES-001.
+* Владелец 2026-08-10 визуально принял итоговую геометрию. Closing correction
+  устраняет выявленные расхождения физической границы Worker, UI measurement
+  law, objective order и stale proof hashes. Перед удалением карточки требуется
+  новый независимый verdict по актуальному HEAD.

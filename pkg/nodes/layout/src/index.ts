@@ -10,4 +10,3 @@
 
 export * from "../types/index.ts"
 export {layout} from "./layout.ts"
-export {LayoutWorkerClient, runLayoutWorkerRequest} from "./worker.ts"

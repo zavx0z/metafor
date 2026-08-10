@@ -1,4 +1,4 @@
-import type {LayoutGraph, LayoutResult} from "./protocol.ts"
+import type {LayoutGraph, LayoutResult} from "@nodes/layout"
 
 /** Запрос к долгоживущему layout Worker. */
 export type LayoutWorkerRequest = Readonly<{
