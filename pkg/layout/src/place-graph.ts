@@ -1,40 +1,17 @@
-import type {FixedRect, RouteDirection, RouteEdge, RouteGraphInput, RouteNode, RoutePort, RoutePortDirection, RoutePortSide} from "./route-graph.ts"
-
-export type IntrinsicNode = Readonly<{id: string; parentId?: string; size: Readonly<{w: number; h: number}>}>
-export type IntrinsicPort = Readonly<{id: string; nodeId: string; offsetY: number; side: RoutePortSide; direction: RoutePortDirection}>
-export type PlacementInput = Readonly<{
-  unitsPerPixel: number
-  clearance: number
-  viewport: Readonly<{width: number; height: number}>
-  padding: number
-  nodeSpacing: number
-  layerSpacing: number
-  outerPadding: number
-  nodes: readonly IntrinsicNode[]
-  ports: readonly IntrinsicPort[]
-  edges: readonly RouteEdge[]
-}>
-
-export type PlacementMetrics = Readonly<{
-  direction: RouteDirection
-  width: number
-  height: number
-  fitScale: number
-  displayEmptyRatio: number
-  compoundEmptyRatio: number
-  maxCompoundEmptyRatio: number
-  sourceCorridorDeficit: number
-  hardViolations: readonly string[]
-}>
-
-export type PlacementResult = Readonly<{
-  direction: RouteDirection
-  nodes: readonly RouteNode[]
-  ports: readonly RoutePort[]
-  bounds: FixedRect
-  metrics: PlacementMetrics
-  routeInput: RouteGraphInput
-}>
+import type {
+  IntrinsicNode,
+  IntrinsicPort,
+  PlacementInput,
+  PlacementResult,
+} from "./internal/placement.ts"
+import type {
+  FixedRect,
+  RouteDirection,
+  RouteEdge,
+  RouteGraphInput,
+  RouteNode,
+  RoutePort,
+} from "./internal/routing.ts"
 
 type Size = Readonly<{w: number; h: number}>
 type LocalPlacement = Readonly<{size: Size; childOffsets: ReadonlyMap<string, Readonly<{x: number; y: number}>>}>

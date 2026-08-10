@@ -113,9 +113,12 @@ interface HostEvent {
 const experimentRoot = fileURLToPath(new URL(".", import.meta.url))
 const publicRoot = `${experimentRoot}/public`
 const orchestrationEntry = `${experimentRoot}/browser/orchestration.ts`
+const layoutWorkerEntry = `${experimentRoot}/browser/layout-worker.ts`
 const engineFont = fileURLToPath(new URL("../pkg/engine/static/JetBrainsMono-Bold.ttf", import.meta.url))
 const uiRoot = fileURLToPath(new URL("../pkg/ui/", import.meta.url))
+const layoutRoot = fileURLToPath(new URL("../pkg/layout/", import.meta.url))
 let orchestrationBundle: Promise<string> | null = null
+let layoutWorkerBundle: Promise<string> | null = null
 
 function getOrchestrationBundle(): Promise<string> {
   orchestrationBundle ??= Bun.build({
@@ -135,8 +138,26 @@ function getOrchestrationBundle(): Promise<string> {
   return orchestrationBundle
 }
 
-function invalidateOrchestrationBundle(): void {
+function getLayoutWorkerBundle(): Promise<string> {
+  layoutWorkerBundle ??= Bun.build({
+    entrypoints: [layoutWorkerEntry],
+    target: "browser",
+    format: "esm",
+    minify: false,
+    sourcemap: "inline",
+  }).then(async (result) => {
+    if (!result.success || result.outputs.length === 0) {
+      const detail = result.logs.map((log) => log.message).join("\n")
+      throw new Error(`Hamiltonian layout Worker bundle failed${detail ? `: ${detail}` : ""}`)
+    }
+    return await result.outputs[0]!.text()
+  })
+  return layoutWorkerBundle
+}
+
+function invalidateBrowserBundles(): void {
   orchestrationBundle = null
+  layoutWorkerBundle = null
 }
 
 function isReloadableSource(filename: string | Buffer | null): boolean {
@@ -587,13 +608,13 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
     if (!isReloadableSource(filename) || stopping) return
     sourceUpdateGeneration += 1
     const generation = sourceUpdateGeneration
-    invalidateOrchestrationBundle()
+    invalidateBrowserBundles()
     if (sourceUpdateTimer !== null) clearTimeout(sourceUpdateTimer)
     sourceUpdateTimer = setTimeout(() => {
       sourceUpdateTimer = null
-      void getOrchestrationBundle().then((bundle) => {
+      void Promise.all([getOrchestrationBundle(), getLayoutWorkerBundle()]).then(([bundle, workerBundle]) => {
         if (generation !== sourceUpdateGeneration || stopping) return
-        const revision = `${hostEpoch}:${generation}:${sha256Hex(bundle).slice(0, 16)}`
+        const revision = `${hostEpoch}:${generation}:${sha256Hex(`${bundle}\u0000${workerBundle}`).slice(0, 16)}`
         record({at: Date.now(), kind: "source-update", detail: revision})
         for (const socket of sockets.values()) {
           if (socket.getBufferedAmount() > 256_000) continue
@@ -613,7 +634,9 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
   // must not pay the browser bundle compilation cost on its module request.
   // Bun 1.3.14 may crash when Bun.build races the test runner's own WGSL
   // transpilation, so tests retain the same on-request build path they verify.
-  if (Bun.env.NODE_ENV !== "test") void getOrchestrationBundle().catch(() => {})
+  if (Bun.env.NODE_ENV !== "test") {
+    void Promise.all([getOrchestrationBundle(), getLayoutWorkerBundle()]).catch(() => {})
+  }
   let broadcastTopology = () => {}
   let peerSnapshot: WeriftPeerSnapshot | null = null
   let peerError: string | null = null
@@ -990,6 +1013,15 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
           return new Response(error instanceof Error ? error.message : String(error), {status: 500})
         }
       }
+      if (url.pathname === "/layout-worker.js") {
+        try {
+          return new Response(await getLayoutWorkerBundle(), {
+            headers: securityHeaders("text/javascript; charset=utf-8"),
+          })
+        } catch (error) {
+          return new Response(error instanceof Error ? error.message : String(error), {status: 500})
+        }
+      }
       if (url.pathname === "/control") {
         const suppliedToken = url.searchParams.get("token") ?? ""
         const deviceId = url.searchParams.get("device") ?? ""
@@ -1247,7 +1279,7 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
   boundPort = server.port ?? port
 
   if (Bun.env.NODE_ENV !== "test") {
-    for (const root of [`${experimentRoot}/browser`, `${experimentRoot}/public`, `${experimentRoot}/core`, uiRoot]) {
+    for (const root of [`${experimentRoot}/browser`, `${experimentRoot}/public`, `${experimentRoot}/core`, uiRoot, layoutRoot]) {
       try {
         sourceWatchers.push(watch(root, {recursive: true}, (_event, filename) => {
           scheduleSourceUpdate(filename)

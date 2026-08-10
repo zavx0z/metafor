@@ -4,26 +4,14 @@ import type {
   PositionedNodeSystem,
   PositionedNodeSystemEdge,
   PositionedNodeSystemNode,
-} from "./model.ts"
+} from "./types/model.ts"
+import type {
+  NodeSystemCanvasTransform,
+  NodeSystemCanvasTransformLimits,
+  NodeSystemRenderPlan,
+} from "./types/viewport.ts"
 
 /** Position and scale of the infinite graph canvas inside its UIDisplay. */
-export type NodeSystemCanvasTransform = Readonly<{
-  x: number
-  y: number
-  scale: number
-}>
-
-export type NodeSystemCanvasTransformLimits = Readonly<{
-  minScale?: number
-  maxScale?: number
-}>
-
-export type NodeSystemRenderPlan = Readonly<{
-  canvasTransform: NodeSystemCanvasTransform
-  nodes: readonly PositionedNodeSystemNode[]
-  edges: readonly PositionedNodeSystemEdge[]
-}>
-
 export const DEFAULT_NODE_SYSTEM_CANVAS_TRANSFORM: NodeSystemCanvasTransform = Object.freeze({x: 0, y: 0, scale: 1})
 
 export function fitNodeSystemCanvasTransform(

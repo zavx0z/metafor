@@ -142,14 +142,16 @@ evidence.
 наблюдаемую инфраструктуру как WebGPU HUD-сцену MetaFor Engine, а не как
 статическую документационную диаграмму.
 
-Универсальная модель нод, intrinsic card measurement, responsive placement,
-compound compaction, orthogonal routing, viewport и presentation принадлежат
-`@ui/node`. Один синхронный pure TypeScript engine получает serializable
-fixed-point graph, единолично вычисляет node/compound/gateway/edge coordinates
-и возвращает exact parameter-socket routes. WebGPU только отображает и
-локально скругляет готовые waypoints; ручной drag остаётся отдельной generic
-возможностью surface и выключен в Hamiltonian. Смысл host, Service Worker,
-Window, Bun process, peer и lifecycle actions остаётся у Hamiltonian.
+Универсальная UI-модель нод, intrinsic card measurement и viewport принадлежат
+`@ui/node`. `@metafor/layout` получает минимальный ELK-like `LayoutGraph` с уже
+измеренными node sizes и port offsets, единолично вычисляет
+node/compound/gateway/edge coordinates и возвращает exact parameter-socket
+routes. В Hamiltonian renderer измеряет загруженный шрифт на main thread, а
+полный placement/routing выполняет отдельный browser Worker через числовой
+structured-clone contract без UI document и text metrics. WebGPU только отображает и локально скругляет
+готовые waypoints; ручной drag остаётся отдельной generic возможностью surface
+и выключен в Hamiltonian. Смысл host, Service Worker, Window, Bun process, peer
+и lifecycle actions остаётся у Hamiltonian.
 `pkg/visual` не становится владельцем инфраструктурного графа мира.
 
 Browser-local realtime проекции идёт через versioned `BroadcastChannel`. Это

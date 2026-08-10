@@ -1,4 +1,4 @@
-import type {NodeSystemLayoutDirection} from "@ui/node"
+import type {NodeSystemLayoutDirection} from "@ui/node/types"
 
 /** Product law: the graph follows the actual display orientation. */
 export function hamiltonianLayoutDirection(

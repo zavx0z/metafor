@@ -1,19 +1,27 @@
 {
   "name": "@ui/node",
   "version": "0.0.1",
-  "description": "Transport-neutral TypeScript compound layout and WebGPU node-system surfaces.",
+  "description": "Node-system presentation model, card measurement and WebGPU surfaces.",
   "type": "module",
   "private": true,
   "main": "index.ts",
   "types": "index.ts",
   "exports": {
-    ".": "./index.ts"
+    ".": "./index.ts",
+    "./types": "./types/index.ts",
+    "./card-layout": "./card-layout.ts",
+    "./layout-engine": "./layout-engine.ts",
+    "./validation": "./validation.ts",
+    "./viewport": "./viewport.ts",
+    "./surface": "./surface.ts",
+    "./inspector": "./inspector.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --pretty false"
   },
   "dependencies": {
     "@metafor/engine": "workspace:*",
+    "@metafor/layout": "workspace:*",
     "@ui/components": "workspace:*",
     "@ui/elements": "workspace:*",
     "@ui/hud": "workspace:*"

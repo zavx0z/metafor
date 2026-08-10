@@ -1,13 +1,13 @@
 import {describe, expect, test} from "bun:test"
-import type {NodeSystemNode, NodeSystemRect} from "./model.ts"
+import type {NodeSystemNode, NodeSystemRect} from "./types/model.ts"
 import {
   NODE_SYSTEM_CARD_METRICS,
   NODE_SYSTEM_PORT_PITCH,
   measureNodeSystemCard,
   nodeSystemGeometryKey,
   planNodeSystemCard,
-  type NodeSystemTextMeasurer,
 } from "./card-layout.ts"
+import type {NodeSystemTextMeasurer} from "./types/card.ts"
 
 const denseNode: NodeSystemNode = {
   id: "dense",

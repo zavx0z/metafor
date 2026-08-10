@@ -1,6 +1,12 @@
 import {describe, expect, test} from "bun:test"
 import {TrueTypeFont} from "@metafor/engine"
-import type {PositionedNodeSystem} from "./model.ts"
+import {
+  fitNodeSystemCanvasTransform,
+  hitTestNodeSystem,
+  planNodeSystemCanvasViewport,
+  zoomNodeSystemCanvasTransformAt,
+  type PositionedNodeSystem,
+} from "./index.ts"
 import {HUD_WINDOW_TITLE_HEIGHT} from "@ui/hud"
 import {NODE_INSPECTOR_TITLE_HEIGHT, NodeInspectorSurface, nodeInspectorRows} from "./inspector.ts"
 import {
@@ -9,12 +15,6 @@ import {
   nodeSystemWheelGesture,
   planNodeSystemContainmentPaintSteps,
 } from "./surface.ts"
-import {
-  fitNodeSystemCanvasTransform,
-  hitTestNodeSystem,
-  planNodeSystemCanvasViewport,
-  zoomNodeSystemCanvasTransformAt,
-} from "./viewport.ts"
 
 const layout: PositionedNodeSystem = {
   revision: 1,

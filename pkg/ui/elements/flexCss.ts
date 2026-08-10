@@ -30,7 +30,7 @@
  *   })
  */
 
-import type {FlexAlign, FlexJustify} from "./flex.ts"
+import type {FlexAlign, FlexJustify} from "./flex.types.ts"
 
 export type UiSize =
   | number

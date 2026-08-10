@@ -1,3 +1,4 @@
+/** Visual state owned by the node-system presentation model. */
 export type NodeSystemTone = "neutral" | "live" | "paused" | "warn"
 
 export type NodeSystemPortDirection = "in" | "out" | "inout"

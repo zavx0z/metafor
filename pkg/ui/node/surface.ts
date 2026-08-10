@@ -16,14 +16,14 @@ import type {
   PositionedNodeSystem,
   PositionedNodeSystemEdge,
   PositionedNodeSystemNode,
-} from "./model.ts"
+} from "./types/model.ts"
 import {
   NODE_SYSTEM_CARD_METRICS,
   NODE_SYSTEM_PORT_PITCH,
   measureNodeSystemCard,
   planNodeSystemCard,
-  type NodeSystemTextMeasurer,
 } from "./card-layout.ts"
+import type {NodeSystemTextMeasurer} from "./types/card.ts"
 import {
   planNodeSystemEdgeHitRects,
   sampleNodeSystemBezierPath,
@@ -33,17 +33,22 @@ import {
   planNodeSystemEdgeParticle,
   type NodeSystemEdgeMessage,
 } from "./edge-particle.ts"
-import {moveNodeSystemNodes, resizeNodeSystemNode} from "./incremental-layout.ts"
 import {
   DEFAULT_NODE_SYSTEM_CANVAS_TRANSFORM,
   fitNodeSystemCanvasTransform,
   panNodeSystemCanvasTransform,
   planNodeSystemCanvasViewport,
   zoomNodeSystemCanvasTransformAt,
-  type NodeSystemCanvasTransform,
-  type NodeSystemCanvasTransformLimits,
-  type NodeSystemRenderPlan,
 } from "./viewport.ts"
+import {
+  moveNodeSystemNodes,
+  resizeNodeSystemNode,
+} from "./incremental-layout.ts"
+import type {
+  NodeSystemCanvasTransform,
+  NodeSystemCanvasTransformLimits,
+  NodeSystemRenderPlan,
+} from "./types/viewport.ts"
 
 export type NodeSystemSurfaceOptions = UiSurfaceOpts & Readonly<{
   title?: string

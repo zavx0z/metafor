@@ -4,7 +4,7 @@ import type {
   PositionedNodeSystem,
   PositionedNodeSystemEdge,
   PositionedNodeSystemNode,
-} from "@ui/node"
+} from "@ui/node/types"
 
 export const HAMILTONIAN_LAYOUT_TRANSITION_MS = 320
 

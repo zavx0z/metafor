@@ -5,17 +5,9 @@ import type {
   PositionedNodeSystem,
   PositionedNodeSystemEdge,
   PositionedNodeSystemNode,
-} from "./model.ts"
+} from "./types/model.ts"
+import type {NodeSystemAnchors, StableNodeSystemLayoutOptions} from "./types/incremental.ts"
 import {validatePositionedNodeSystem} from "./validation.ts"
-
-export type StableNodeSystemLayoutOptions = Readonly<{
-  /** Empty space kept between a newly inserted card and every anchored card. */
-  spacing?: number
-  /** Outer space included in the returned fit bounds. */
-  padding?: number
-}>
-
-export type NodeSystemAnchors = ReadonlyMap<string, NodeSystemPoint>
 
 /** Checks one proposed card frame against every other positioned card. */
 export function isNodeSystemRectVacant(

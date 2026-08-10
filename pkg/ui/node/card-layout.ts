@@ -6,7 +6,15 @@ import type {
   NodeSystemPort,
   NodeSystemPortSide,
   NodeSystemRect,
-} from "./model.ts"
+} from "./types/model.ts"
+import type {
+  NodeSystemCardFactSlot,
+  NodeSystemCardMeasurement,
+  NodeSystemCardPlan,
+  NodeSystemCardPortSlot,
+  NodeSystemCardSize,
+  NodeSystemTextMeasurer,
+} from "./types/card.ts"
 
 export const NODE_SYSTEM_CARD_METRICS = Object.freeze({
   defaultWidth: 260,
@@ -31,40 +39,6 @@ export const NODE_SYSTEM_CARD_METRICS = Object.freeze({
 /** Vertical center-to-center rhythm shared by adjacent card ports and routes. */
 export const NODE_SYSTEM_PORT_PITCH =
   NODE_SYSTEM_CARD_METRICS.factRowHeight + NODE_SYSTEM_CARD_METRICS.rowGap
-
-export type NodeSystemCardSize = Readonly<{width: number; height: number}>
-export type NodeSystemTextMeasurer = (value: string, fontPx: number) => number
-
-type NodeSystemCardMeasurement = Readonly<{
-  size: NodeSystemCardSize
-  exact: boolean
-  kindWidth: number
-  factLabelWidths: ReadonlyMap<string, number>
-}>
-
-export type NodeSystemCardFactSlot = Readonly<{
-  fact: NodeSystemFact
-  row: NodeSystemRect
-  label: NodeSystemRect
-  value: NodeSystemRect
-}>
-
-export type NodeSystemCardPortSlot = Readonly<{
-  port: NodeSystemPort
-  row: NodeSystemRect
-  marker: NodeSystemRect
-}>
-
-export type NodeSystemCardPlan = Readonly<{
-  frame: NodeSystemRect
-  header: NodeSystemRect
-  body: NodeSystemRect
-  title: NodeSystemRect
-  kind?: NodeSystemRect
-  summary?: NodeSystemRect
-  facts: readonly NodeSystemCardFactSlot[]
-  ports: readonly NodeSystemCardPortSlot[]
-}>
 
 /**
  * One intrinsic metric model shared by the layout engine and rendering. Producer dimensions

@@ -7,7 +7,15 @@ export * from "./targets/index.ts"
 export * from "./surface.ts"
 export * from "./polyline.ts"
 export * from "./elements.ts"
-export * from "./flex.ts"
+export {flexColumn, flexRow} from "./flex.ts"
+export type {
+  FlexAlign,
+  FlexColumnItem,
+  FlexColumnOpts,
+  FlexJustify,
+  FlexRowItem,
+  FlexRowOpts,
+} from "./flex.types.ts"
 export * from "./flexCss.ts"
 export * from "./theme.ts"
 export * from "./icons.ts"

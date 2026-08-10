@@ -30,48 +30,14 @@
  * условного отображения (`zoomMode === "spread" && {width:..., draw:...}`).
  */
 
-export type FlexAlign = "start" | "center" | "end" | "stretch"
-export type FlexJustify = "start" | "center" | "end" | "space-between" | "space-around"
-
-type FlexBoxBase = {
-  x: number
-  y: number
-  w: number
-  h: number
-  paddingX?: number
-  paddingY?: number
-  paddingLeft?: number
-  paddingRight?: number
-  paddingTop?: number
-  paddingBottom?: number
-  gap?: number
-  alignItems?: FlexAlign
-  justifyContent?: FlexJustify
-}
-
-type FlexMainSize = number | "grow" | `${number}fr`
-
-export type FlexRowItem = {
-  /** Фиксированная ширина в logical px, или "grow"/"Nfr". */
-  width: FlexMainSize
-  /** Высота для alignItems-вычислений. */
-  height: number
-  alignSelf?: FlexAlign
-  /** Получает computed-slot (x, y, width, height). */
-  draw(x: number, y: number, width: number, height: number): void
-}
-
-export type FlexColumnItem = {
-  /** Фиксированная высота, или "grow"/"Nfr". */
-  height: FlexMainSize
-  /** Опциональная фикс-ширина (для alignSelf != stretch). */
-  width?: number
-  alignSelf?: FlexAlign
-  draw(x: number, y: number, width: number, height: number): void
-}
-
-export type FlexRowOpts = FlexBoxBase & {items: Array<FlexRowItem | null | undefined | false>}
-export type FlexColumnOpts = FlexBoxBase & {items: Array<FlexColumnItem | null | undefined | false>}
+import type {
+  FlexBoxBase,
+  FlexColumnItem,
+  FlexColumnOpts,
+  FlexMainSize,
+  FlexRowItem,
+  FlexRowOpts,
+} from "./flex.types.ts"
 
 export function flexRow(opts: FlexRowOpts): void {
   const {padL, padR, padT, padB, gap} = paddings(opts)

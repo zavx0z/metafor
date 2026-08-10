@@ -1,8 +1,17 @@
 import {describe, expect, test} from "bun:test"
+import {
+  LayoutWorkerClient,
+  runLayoutWorkerRequest,
+  type LayoutWorkerRequest,
+  type LayoutWorkerResponse,
+} from "@metafor/layout"
 import {NODE_SYSTEM_PORT_PITCH} from "./card-layout.ts"
-import {MetaForNodeSystemLayouter, orderNodeSystemPortFactsForLayout} from "./layout-engine.ts"
-import type {NodeSystemDocument, PositionedNodeSystem} from "./model.ts"
-import {choosePortraitRowX} from "./place-graph.ts"
+import {
+  MetaForNodeSystemLayouter,
+  MetaForNodeSystemWorkerLayouter,
+  orderNodeSystemPortFactsForLayout,
+} from "./layout-engine.ts"
+import type {NodeSystemDocument, PositionedNodeSystem} from "./types/model.ts"
 
 const document: NodeSystemDocument = {
   revision: "layout-engine:1",
@@ -201,19 +210,6 @@ describe("MetaFor TypeScript node-system layout", () => {
     expectOrthogonal(layout)
   })
 
-  test("uses only existing portrait-row slack to move a target ahead of source EAST", () => {
-    const x = choosePortraitRowX({
-      minimumX: 100,
-      centeredX: 160,
-      maximumX: 240,
-      clearance: 28,
-      relations: [{sourceEast: 250, targetWestOffset: 40}],
-    })
-    expect(x).toBe(240)
-    expect(x).toBeLessThanOrEqual(240)
-    expect(x + 40).toBeGreaterThanOrEqual(250)
-  })
-
   test("orders connected parameter rows by counterpart position without moving ordinary facts", () => {
     const sortable: NodeSystemDocument = {
       nodes: [
@@ -323,7 +319,53 @@ describe("MetaFor TypeScript node-system layout", () => {
       {viewport: {width: 900, height: 600}},
     )).toThrow("source must be out/EAST")
   })
+
+  test("materializes the same UI geometry through the minimal Worker graph", async () => {
+    for (const viewport of [{width: 900, height: 600}, {width: 390, height: 844}]) {
+      const endpoint = new InlineLayoutWorkerEndpoint()
+      const client = new LayoutWorkerClient(endpoint)
+      const expected = new MetaForNodeSystemLayouter().layout(document, {viewport})
+      const actual = await new MetaForNodeSystemWorkerLayouter(client).layout(document, {viewport}, 4)
+
+      expect(actual).toEqual(expected)
+      expect(endpoint.requests.length).toBeGreaterThan(0)
+      expect(Object.keys(endpoint.requests[0]!.graph).sort()).toEqual([
+        "edges", "layoutOptions", "nodes", "ports", "viewport",
+      ])
+      expect(JSON.stringify(endpoint.requests[0])).not.toContain("title")
+      expect(JSON.stringify(endpoint.requests[0])).not.toContain("facts")
+      client.dispose()
+    }
+  })
 })
+
+class InlineLayoutWorkerEndpoint {
+  readonly requests: LayoutWorkerRequest[] = []
+  readonly messageListeners = new Set<(event: MessageEvent<LayoutWorkerResponse>) => void>()
+  readonly errorListeners = new Set<(event: ErrorEvent) => void>()
+
+  postMessage(message: LayoutWorkerRequest): void {
+    this.requests.push(structuredClone(message))
+    queueMicrotask(() => {
+      const response = runLayoutWorkerRequest(message)
+      for (const listener of this.messageListeners) {
+        listener({data: structuredClone(response)} as MessageEvent<LayoutWorkerResponse>)
+      }
+    })
+  }
+
+  addEventListener(type: "message" | "error", listener: ((event: MessageEvent<LayoutWorkerResponse>) => void) | ((event: ErrorEvent) => void)): void {
+    if (type === "message") this.messageListeners.add(listener as (event: MessageEvent<LayoutWorkerResponse>) => void)
+    else this.errorListeners.add(listener as (event: ErrorEvent) => void)
+  }
+
+  removeEventListener(type: "message" | "error", listener: ((event: MessageEvent<LayoutWorkerResponse>) => void) | ((event: ErrorEvent) => void)): void {
+    if (type === "message") this.messageListeners.delete(listener as (event: MessageEvent<LayoutWorkerResponse>) => void)
+    else this.errorListeners.delete(listener as (event: ErrorEvent) => void)
+  }
+
+  terminate(): void {}
+}
 
 function expectExactEdgeEndpoints(layout: PositionedNodeSystem): void {
   const edge = layout.edges[0]!

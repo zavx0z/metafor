@@ -8,18 +8,26 @@ import {
 import {hamiltonianPageBootstrap} from "../core/monitor.js"
 import {UiRuntime, type UiSurfaceRect} from "@ui/elements"
 import {
-  MetaForNodeSystemLayouter,
+  LayoutWorkerClient,
+  type LayoutWorkerEndpoint,
+} from "@metafor/layout"
+import {
+  MetaForNodeSystemWorkerLayouter,
+} from "@ui/node/layout-engine"
+import {
   NODE_SYSTEM_PORT_PITCH,
-  NodeInspectorSurface,
-  NodeSystemSurface,
-  fitNodeSystemCanvasTransform,
   nodeSystemGeometryKey,
-  type NodeSystemAction,
-  type NodeSystemDocument,
-  type NodeSystemNode,
-  type NodeSystemLayoutDirection,
-  type PositionedNodeSystem,
-} from "@ui/node"
+} from "@ui/node/card-layout"
+import {NodeInspectorSurface} from "@ui/node/inspector"
+import {NodeSystemSurface} from "@ui/node/surface"
+import {fitNodeSystemCanvasTransform} from "@ui/node/viewport"
+import type {
+  NodeSystemAction,
+  NodeSystemDocument,
+  NodeSystemLayoutDirection,
+  NodeSystemNode,
+  PositionedNodeSystem,
+} from "@ui/node/types"
 import {
   HamiltonianLifecycleProjection,
   hamiltonianLifecycleNeedsDocument,
@@ -240,12 +248,27 @@ async function start(): Promise<void> {
     height: Math.max(1, canvas.clientHeight),
   })
   document.documentElement.dataset.hamiltonianLayoutDirection = currentLayoutDirection
-  const layouter = new MetaForNodeSystemLayouter({
+  const layoutOptions = Object.freeze({
     nodeSpacing: NODE_SYSTEM_PORT_PITCH,
     layerSpacing: NODE_SYSTEM_PORT_PITCH,
     padding: NODE_SYSTEM_PORT_PITCH,
+  })
+  const layoutWorkerEndpoint = new Worker("/layout-worker.js", {
+    type: "module",
+    name: "metafor-layout",
+  })
+  const layoutWorker = new LayoutWorkerClient(
+    layoutWorkerEndpoint as unknown as LayoutWorkerEndpoint,
+  )
+  const nodeSystemLayouter = new MetaForNodeSystemWorkerLayouter(layoutWorker, {
+    ...layoutOptions,
     measureText: graph.textMeasurer,
   })
+  document.documentElement.dataset.hamiltonianLayoutWorker = "ready"
+  window.addEventListener("pagehide", () => {
+    layoutWorker.dispose()
+    document.documentElement.dataset.hamiltonianLayoutWorker = "disposed"
+  }, {once: true})
   runtime.addSurface(graph, ({w, h}) => planHamiltonianOrchestrationWorkspace(w, h, inspector.isOpen, inspectorFrame, inspectorStickFrame).graph, {
     windowId: "hamiltonian-graph",
     zIndex: 0,
@@ -402,6 +425,7 @@ async function start(): Promise<void> {
   const scheduleCurrentDocument = () => {
     scheduledDocument = lifecycleProjection.document()
     updateGeneration += 1
+    layoutWorker.cancelBefore(updateGeneration)
     document.documentElement.dataset.hamiltonianLifecyclePending = "1"
     if (documentDrain !== null) return
     // A retained frontier and its already queued live continuation are applied
@@ -488,6 +512,7 @@ async function start(): Promise<void> {
         await applyDocument(current, nextStructureKey, generation, direction)
       } catch (error: unknown) {
         if (generation !== updateGeneration) continue
+        document.documentElement.dataset.hamiltonianLayoutWorker = "error"
         status.textContent = `Ошибка раскладки топологии · ${error instanceof Error ? error.message : String(error)}`
         status.dataset.state = "error"
       }
@@ -512,7 +537,10 @@ async function start(): Promise<void> {
         height: Math.max(1, canvas.clientHeight),
       }
       if (hamiltonianLayoutDirection(viewport) !== direction) return
-      nextLayout = layouter.layout(document, {viewport})
+      globalThis.document.documentElement.dataset.hamiltonianLayoutWorker = "busy"
+      nextLayout = await nodeSystemLayouter.layout(document, {viewport}, generation)
+      globalThis.document.documentElement.dataset.hamiltonianLayoutWorker = "ready"
+      globalThis.document.documentElement.dataset.hamiltonianLayoutWorkerGeneration = String(generation)
     }
     if (generation !== updateGeneration || direction !== currentLayoutDirection) return
     const geometryChanged = previousLayout !== null &&
@@ -671,8 +699,8 @@ function documentElementEvidence(
   document.documentElement.dataset.hamiltonianNodes = String(layout.nodes.length)
   document.documentElement.dataset.hamiltonianEdges = String(layout.edges.length)
   document.documentElement.dataset.hamiltonianRevision = revision
-  document.documentElement.dataset.hamiltonianLayoutEngine = "typescript"
-  document.documentElement.dataset.hamiltonianLayoutKernel = "fixed-point-a-star"
+  document.documentElement.dataset.hamiltonianLayoutEngine = "typescript-worker"
+  document.documentElement.dataset.hamiltonianLayoutKernel = "layered-visibility-a-star"
   document.documentElement.dataset.hamiltonianLayoutContract = "exact-sockets"
   document.documentElement.dataset.hamiltonianLayoutBounds = JSON.stringify(layout.bounds)
   document.documentElement.dataset.hamiltonianLayoutRects = JSON.stringify(layout.nodes.map(({node, rect}) => ({

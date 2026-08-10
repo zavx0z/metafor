@@ -1,20 +1,18 @@
 /**
- * @ui/node — transport-neutral node-system model, TypeScript layout and WebGPU UI.
- *
- * Producers adapt their own runtime facts into {@link NodeSystemDocument}.
- * This package never reads application state or transports by itself.
- * Its Blender-derived visual grammar is content-first: exact renderer text
- * metrics feed one Flex plan shared by fixed-point geometry and WebGPU rendering.
+ * Node-system presentation model, card measurement and WebGPU rendering.
+ * Automatic numeric geometry is delegated to `@metafor/layout` through a
+ * minimal measured graph; layout does not receive this package's UI document.
+ * @packageDocumentation
  */
 
-export * from "./model.ts"
+export * from "./types/index.ts"
 export * from "./validation.ts"
 export * from "./card-layout.ts"
 export * from "./containment.ts"
 export * from "./layout-engine.ts"
 export * from "./incremental-layout.ts"
+export * from "./viewport.ts"
 export * from "./edge-curve.ts"
 export * from "./edge-particle.ts"
-export * from "./viewport.ts"
 export * from "./surface.ts"
 export * from "./inspector.ts"

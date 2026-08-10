@@ -2,8 +2,8 @@ import {describe, expect, test} from "bun:test"
 import {
   routeGraph,
   validateRouteGraphResult,
-  type RouteGraphInput,
 } from "./route-graph.ts"
+import type {RouteGraphInput} from "./internal/routing.ts"
 
 const base = (input: Omit<RouteGraphInput, "direction" | "unitsPerPixel" | "clearance" | "viewport">): RouteGraphInput => ({
   direction: "DOWN",

@@ -1,4 +1,4 @@
-import type {NodeSystemPoint} from "./model.ts"
+import type {NodeSystemPoint} from "./types/model.ts"
 
 export const NODE_SYSTEM_EDGE_PARTICLE_DURATION_MS = 1_200
 export const NODE_SYSTEM_EDGE_PARTICLE_TAIL_PX = 84

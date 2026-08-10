@@ -5,12 +5,8 @@ import type {
   NodeSystemPort,
   NodeSystemRect,
   PositionedNodeSystem,
-} from "./model.ts"
-
-export type NodeSystemIndex = Readonly<{
-  nodes: ReadonlyMap<string, NodeSystemNode>
-  ports: ReadonlyMap<string, ReadonlyMap<string, NodeSystemPort>>
-}>
+} from "./types/model.ts"
+import type {NodeSystemIndex} from "./types/validation.ts"
 
 /** Rejects ambiguity instead of silently dropping nodes, ports or edges. */
 export function validateNodeSystemDocument(document: NodeSystemDocument): NodeSystemIndex {

@@ -3,7 +3,7 @@ import type {
   NodeSystemDocument,
   PositionedNodeSystem,
   PositionedNodeSystemNode,
-} from "./model.ts"
+} from "./types/model.ts"
 import {
   applyNodeSystemAnchors,
   isNodeSystemRectVacant,

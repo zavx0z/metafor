@@ -1,4 +1,12 @@
 import type {
+  LayoutEdge,
+  LayoutGraph,
+  LayoutPort,
+  LayoutResult,
+  LayoutWorkerClient,
+} from "@metafor/layout"
+import {layout as calculateLayout} from "@metafor/layout"
+import type {
   NodeSystemDocument,
   NodeSystemEdge,
   NodeSystemNode,
@@ -7,148 +15,27 @@ import type {
   PositionedNodeSystemEdge,
   PositionedNodeSystemNode,
   PositionedNodeSystemPort,
-} from "./model.ts"
+} from "./types/model.ts"
+import type {
+  MetaForNodeSystemLayoutOptions,
+  MetaForNodeSystemLayoutRequest,
+  NodeSystemLayoutDirection,
+} from "./types/engine.ts"
+import type {NodeSystemTextMeasurer} from "./types/card.ts"
 import {
   NODE_SYSTEM_PORT_PITCH,
   measureNodeSystemCard,
   memoizedTextMeasurer,
   nodeSystemGeometryKey,
   planNodeSystemCard,
-  type NodeSystemTextMeasurer,
 } from "./card-layout.ts"
-import {
-  placeGraph,
-  placementCandidates,
-  type IntrinsicPort,
-  type PlacementInput,
-  type PlacementResult,
-} from "./place-graph.ts"
-import {
-  routeGraph,
-  type RouteEdge,
-  type RouteGraphResult,
-} from "./route-graph.ts"
 import {validateNodeSystemDocument, validatePositionedNodeSystem} from "./validation.ts"
-
-export type LayoutGraphResult = Readonly<{
-  placement: PlacementResult
-  routing: RouteGraphResult
-  candidates: Readonly<{generated: number; routable: number}>
-}>
-
-export type NodeSystemLayoutDirection = "RIGHT" | "DOWN"
-
-export type MetaForNodeSystemLayoutOptions = Readonly<{
-  clearance?: number
-  nodeSpacing?: number
-  layerSpacing?: number
-  padding?: number
-  measureText?: NodeSystemTextMeasurer
-}>
-
-export type MetaForNodeSystemLayoutRequest = Readonly<{
-  viewport: Readonly<{width: number; height: number}>
-}>
 
 type LayoutPass = Readonly<{
   positioned: PositionedNodeSystem
-  result: LayoutGraphResult
+  result: LayoutResult
 }>
-
-const UNITS_PER_PIXEL = 1_000
-
-/**
- * Serializable synchronous core. A future Worker adapter can structured-clone
- * this input and result without changing placement or routing behavior.
- *
- * Placement combines layered median/barycenter ordering with bounded
- * Brandes–Köpf-inspired compaction; routing uses an obstacle visibility grid
- * and lexicographic A*. Network simplex is an architectural reference only,
- * not a product dependency or solver.
- *
- * @see https://boriskoepf.de/papers/gd01a.pdf
- * @see https://users.monash.edu/~mwybrow/papers/wybrow-gd-2009.pdf
- * @see https://graphviz.org/documentation/TSE93.pdf
- */
-export function layoutGraph(input: PlacementInput): LayoutGraphResult {
-  const placements = placementCandidates(input)
-  const stableKey = (placement: PlacementResult): string => JSON.stringify({
-    nodes: placement.nodes,
-    ports: placement.ports,
-    bounds: placement.bounds,
-  })
-  const preferredKey = input.viewport.width >= input.viewport.height
-    ? stableKey(placeGraph(input))
-    : null
-  const comparePlacementQuality = (left: PlacementResult, right: PlacementResult): number => {
-    if (preferredKey !== null) {
-      const leftPreferred = stableKey(left) === preferredKey
-      const rightPreferred = stableKey(right) === preferredKey
-      if (leftPreferred !== rightPreferred) return leftPreferred ? -1 : 1
-    } else {
-      // Owner-selected compact portrait policy: empty display pixels and large
-      // empty compound areas are acceptance defects before soft path costs.
-      if (left.metrics.displayEmptyRatio !== right.metrics.displayEmptyRatio) {
-        return left.metrics.displayEmptyRatio - right.metrics.displayEmptyRatio
-      }
-      if (left.metrics.compoundEmptyRatio !== right.metrics.compoundEmptyRatio) {
-        return left.metrics.compoundEmptyRatio - right.metrics.compoundEmptyRatio
-      }
-      if (left.metrics.fitScale !== right.metrics.fitScale) {
-        return right.metrics.fitScale - left.metrics.fitScale
-      }
-      const leftArea = left.bounds.w * left.bounds.h
-      const rightArea = right.bounds.w * right.bounds.h
-      if (leftArea !== rightArea) return leftArea - rightArea
-    }
-    return 0
-  }
-  const ordered = [...placements].sort((left, right) =>
-    comparePlacementQuality(left, right) || compareIds(stableKey(left), stableKey(right)))
-  const compareRoutingQuality = (left: LayoutGraphResult, right: LayoutGraphResult): number => {
-    const leftMetrics = left.routing.metrics
-    const rightMetrics = right.routing.metrics
-    const primary = leftMetrics.totalTurns - rightMetrics.totalTurns ||
-      leftMetrics.maxTurns - rightMetrics.maxTurns ||
-      left.placement.metrics.sourceCorridorDeficit - right.placement.metrics.sourceCorridorDeficit ||
-      leftMetrics.totalManhattan - rightMetrics.totalManhattan ||
-      leftMetrics.maxManhattan - rightMetrics.maxManhattan ||
-      leftMetrics.maxDetour - rightMetrics.maxDetour
-    if (primary !== 0) return primary
-    const leftDetours = [...leftMetrics.perEdge].sort((a, b) => compareIds(a.edgeId, b.edgeId)).map(({detour}) => detour)
-    const rightDetours = [...rightMetrics.perEdge].sort((a, b) => compareIds(a.edgeId, b.edgeId)).map(({detour}) => detour)
-    for (let index = 0; index < Math.max(leftDetours.length, rightDetours.length); index += 1) {
-      const difference = (leftDetours[index] ?? 0) - (rightDetours[index] ?? 0)
-      if (difference !== 0) return difference
-    }
-    return leftMetrics.clearanceVariance - rightMetrics.clearanceVariance ||
-      leftMetrics.crossings - rightMetrics.crossings ||
-      compareIds(stableKey(left.placement), stableKey(right.placement))
-  }
-  for (let start = 0; start < ordered.length;) {
-    let end = start + 1
-    while (end < ordered.length && comparePlacementQuality(ordered[start]!, ordered[end]!) === 0) end += 1
-    const routable: LayoutGraphResult[] = []
-    for (const placement of ordered.slice(start, end)) {
-      try {
-        const routing = routeGraph(placement.routeInput)
-        routable.push({placement, routing, candidates: {generated: placements.length, routable: 0}})
-      } catch (error) {
-        if (!(error instanceof Error) || !error.message.startsWith("NO_LEGAL_ROUTE ")) throw error
-      }
-    }
-    if (routable.length > 0) {
-      const best = routable.sort(compareRoutingQuality)[0]!
-      return {...best, candidates: {generated: placements.length, routable: routable.length}}
-    }
-    start = end
-  }
-  throw new Error(
-    `NO_LEGAL_LAYOUT: ${placements.length} generated placements provide no legal route graph`,
-  )
-}
-
-/** Product adapter: intrinsic card measurement in, pure fixed-point core out. */
+/** Presentation adapter: измеряет UI document и материализует готовую geometry. */
 export class MetaForNodeSystemLayouter {
   constructor(private readonly options: MetaForNodeSystemLayoutOptions = {}) {}
 
@@ -185,61 +72,141 @@ export class MetaForNodeSystemLayouter {
     viewport: Readonly<{width: number; height: number}>,
     measureText?: NodeSystemTextMeasurer,
   ): LayoutPass {
-    const index = validateNodeSystemDocument(document)
-    const nodes = [...document.nodes].sort(compareOrdered)
-    const edges = [...document.edges].sort(compareOrdered)
-    const cards = new Map(nodes.map((node) => {
-      const size = measureNodeSystemCard(node, measureText)
-      return [node.id, {
-        size,
-        plan: planNodeSystemCard(node, {x: 0, y: 0, w: size.width, h: size.height}, 1, measureText),
-      }] as const
-    }))
-    const routePorts = new Map<string, IntrinsicPort>()
-    const routeEdges: RouteEdge[] = edges.map((edge) => {
-      const source = endpointPort(edge, "source", index.ports)
-      const target = endpointPort(edge, "target", index.ports)
-      addRoutePort(routePorts, edge.source.nodeId, source, cards, "out", "EAST", edge.id)
-      addRoutePort(routePorts, edge.target.nodeId, target, cards, "in", "WEST", edge.id)
-      return {
-        id: edge.id,
-        sourcePortId: enginePortId(edge.source.nodeId, edge.source.portId),
-        targetPortId: enginePortId(edge.target.nodeId, edge.target.portId),
-      }
-    })
-    const clearance = fixed(positiveOption(this.options.clearance, NODE_SYSTEM_PORT_PITCH))
-    const placementInput: PlacementInput = {
-      unitsPerPixel: UNITS_PER_PIXEL,
-      clearance,
-      viewport,
-      padding: Math.max(fixed(positiveOption(this.options.padding, NODE_SYSTEM_PORT_PITCH)), clearance * 2),
-      nodeSpacing: Math.max(fixed(positiveOption(this.options.nodeSpacing, NODE_SYSTEM_PORT_PITCH)), clearance),
-      layerSpacing: Math.max(fixed(positiveOption(this.options.layerSpacing, NODE_SYSTEM_PORT_PITCH)), clearance),
-      outerPadding: Math.max(fixed(positiveOption(this.options.padding, NODE_SYSTEM_PORT_PITCH)), clearance),
-      nodes: nodes.map((node) => {
-        const size = cards.get(node.id)!.size
-        return {
-          id: node.id,
-          ...(node.parentId === undefined ? {} : {parentId: node.parentId}),
-          size: {w: fixed(size.width), h: fixed(size.height)},
-        }
-      }),
-      ports: [...routePorts.values()].sort((left, right) => compareIds(left.id, right.id)),
-      edges: routeEdges,
+    const prepared = prepareLayoutPass(document, viewport, this.options, measureText)
+    return materializeLayoutPass(prepared, calculateLayout(prepared.graph))
+  }
+}
+
+/**
+ * Product adapter: measurement stays on main thread, while both placement and
+ * routing run through the minimal {@link LayoutWorkerClient} protocol.
+ */
+export class MetaForNodeSystemWorkerLayouter {
+  constructor(
+    private readonly worker: LayoutWorkerClient,
+    private readonly options: MetaForNodeSystemLayoutOptions = {},
+  ) {}
+
+  async layout(
+    document: NodeSystemDocument,
+    request: MetaForNodeSystemLayoutRequest,
+    generation: number,
+  ): Promise<PositionedNodeSystem> {
+    validateNodeSystemDocument(document)
+    const viewport = {
+      width: positiveViewport(request.viewport.width, "viewport width"),
+      height: positiveViewport(request.viewport.height, "viewport height"),
     }
-    const result = layoutGraph(placementInput)
-    const positioned = positionedDocument(
+    const measureText = memoizedTextMeasurer(this.options.measureText)
+    const first = await this.layoutPass(document, viewport, measureText, generation)
+    const orderedDocument = orderNodeSystemPortFactsForLayout(
       document,
-      nodes,
-      edges,
-      result,
-      nodeSystemGeometryKey(document, measureText),
-      measureText,
+      first.positioned,
+      first.result.direction,
     )
-    validatePositionedNodeSystem(positioned)
-    return {positioned, result}
+    if (orderedDocument === document) return first.positioned
+    try {
+      const ordered = await this.layoutPass(orderedDocument, viewport, measureText, generation)
+      return compareRoutingObjective(ordered.result, first.result) < 0
+        ? ordered.positioned
+        : first.positioned
+    } catch (error) {
+      if (error instanceof Error && error.message.startsWith("NO_LEGAL_LAYOUT")) return first.positioned
+      throw error
+    }
   }
 
+  private async layoutPass(
+    document: NodeSystemDocument,
+    viewport: Readonly<{width: number; height: number}>,
+    measureText: NodeSystemTextMeasurer | undefined,
+    generation: number,
+  ): Promise<LayoutPass> {
+    const prepared = prepareLayoutPass(document, viewport, this.options, measureText)
+    const response = await this.worker.layout({generation, graph: prepared.graph})
+    return materializeLayoutPass(prepared, response.result)
+  }
+}
+
+type PreparedLayoutPass = Readonly<{
+  document: NodeSystemDocument
+  nodes: readonly NodeSystemNode[]
+  edges: readonly NodeSystemEdge[]
+  graph: LayoutGraph
+  geometryKey: string
+  measureText?: NodeSystemTextMeasurer
+}>
+
+function prepareLayoutPass(
+  document: NodeSystemDocument,
+  viewport: Readonly<{width: number; height: number}>,
+  options: MetaForNodeSystemLayoutOptions,
+  measureText?: NodeSystemTextMeasurer,
+): PreparedLayoutPass {
+  const index = validateNodeSystemDocument(document)
+  const nodes = [...document.nodes].sort(compareOrdered)
+  const edges = [...document.edges].sort(compareOrdered)
+  const cards = new Map(nodes.map((node) => {
+    const size = measureNodeSystemCard(node, measureText)
+    return [node.id, {
+      size,
+      plan: planNodeSystemCard(node, {x: 0, y: 0, w: size.width, h: size.height}, 1, measureText),
+    }] as const
+  }))
+  const ports = new Map<string, LayoutPort>()
+  const layoutEdges: LayoutEdge[] = edges.map((edge) => {
+    const source = endpointPort(edge, "source", index.ports)
+    const target = endpointPort(edge, "target", index.ports)
+    addLayoutPort(ports, edge.source.nodeId, source, cards, "out", "EAST", edge.id)
+    addLayoutPort(ports, edge.target.nodeId, target, cards, "in", "WEST", edge.id)
+    return {
+      id: edge.id,
+      sourcePortId: enginePortId(edge.source.nodeId, edge.source.portId),
+      targetPortId: enginePortId(edge.target.nodeId, edge.target.portId),
+    }
+  })
+  const clearance = positiveOption(options.clearance, NODE_SYSTEM_PORT_PITCH)
+  const graph: LayoutGraph = {
+    viewport,
+    layoutOptions: {
+      clearance,
+      spacing: Math.max(positiveOption(options.nodeSpacing, NODE_SYSTEM_PORT_PITCH), clearance),
+      layerSpacing: Math.max(positiveOption(options.layerSpacing, NODE_SYSTEM_PORT_PITCH), clearance),
+      padding: positiveOption(options.padding, NODE_SYSTEM_PORT_PITCH),
+    },
+    nodes: nodes.map((node) => {
+      const size = cards.get(node.id)!.size
+      return {
+        id: node.id,
+        ...(node.parentId === undefined ? {} : {parentId: node.parentId}),
+        width: size.width,
+        height: size.height,
+      }
+    }),
+    ports: [...ports.values()].sort((left, right) => compareIds(left.id, right.id)),
+    edges: layoutEdges,
+  }
+  return {
+    document,
+    nodes,
+    edges,
+    graph,
+    geometryKey: nodeSystemGeometryKey(document, measureText),
+    ...(measureText === undefined ? {} : {measureText}),
+  }
+}
+
+function materializeLayoutPass(prepared: PreparedLayoutPass, result: LayoutResult): LayoutPass {
+  const positioned = positionedDocument(
+    prepared.document,
+    prepared.nodes,
+    prepared.edges,
+    result,
+    prepared.geometryKey,
+    prepared.measureText,
+  )
+  validatePositionedNodeSystem(positioned)
+  return {positioned, result}
 }
 
 /**
@@ -389,21 +356,47 @@ function median(values: readonly number[]): number | null {
     : sorted[middle]!
 }
 
-function compareRoutingObjective(left: LayoutGraphResult, right: LayoutGraphResult): number {
-  const leftMetrics = left.routing.metrics
-  const rightMetrics = right.routing.metrics
+function compareRoutingObjective(left: LayoutResult, right: LayoutResult): number {
+  const leftMetrics = routingObjective(left)
+  const rightMetrics = routingObjective(right)
   const pairs = [
     [leftMetrics.totalTurns, rightMetrics.totalTurns],
     [leftMetrics.maxTurns, rightMetrics.maxTurns],
     [leftMetrics.totalManhattan, rightMetrics.totalManhattan],
     [leftMetrics.maxManhattan, rightMetrics.maxManhattan],
     [leftMetrics.maxDetour, rightMetrics.maxDetour],
-    [leftMetrics.crossings, rightMetrics.crossings],
   ] as const
   for (const [leftValue, rightValue] of pairs) {
     if (leftValue !== rightValue) return leftValue - rightValue
   }
   return 0
+}
+
+function routingObjective(result: LayoutResult): Readonly<{
+  totalTurns: number
+  maxTurns: number
+  totalManhattan: number
+  maxManhattan: number
+  maxDetour: number
+}> {
+  const edges = result.edges.map(({sections}) => {
+    const section = sections[0]
+    const points = [section.startPoint, ...section.bendPoints, section.endPoint]
+    const manhattan = points.slice(1).reduce((sum, point, index) => {
+      const previous = points[index]!
+      return sum + Math.abs(point.x - previous.x) + Math.abs(point.y - previous.y)
+    }, 0)
+    const direct = Math.abs(section.endPoint.x - section.startPoint.x) +
+      Math.abs(section.endPoint.y - section.startPoint.y)
+    return {turns: section.bendPoints.length, manhattan, detour: manhattan - direct}
+  })
+  return {
+    totalTurns: edges.reduce((sum, edge) => sum + edge.turns, 0),
+    maxTurns: Math.max(0, ...edges.map((edge) => edge.turns)),
+    totalManhattan: edges.reduce((sum, edge) => sum + edge.manhattan, 0),
+    maxManhattan: Math.max(0, ...edges.map((edge) => edge.manhattan)),
+    maxDetour: Math.max(0, ...edges.map((edge) => edge.detour)),
+  }
 }
 
 function endpointPort(
@@ -417,8 +410,8 @@ function endpointPort(
   return port
 }
 
-function addRoutePort(
-  routePorts: Map<string, IntrinsicPort>,
+function addLayoutPort(
+  layoutPorts: Map<string, LayoutPort>,
   nodeId: string,
   port: NodeSystemPort,
   cards: ReadonlyMap<string, Readonly<{plan: ReturnType<typeof planNodeSystemCard>}>>,
@@ -434,37 +427,35 @@ function addRoutePort(
   const id = enginePortId(nodeId, port.id)
   const marker = cards.get(nodeId)?.plan.ports.find((entry) => entry.port.id === port.id)?.marker
   if (marker === undefined) throw new Error(`Card omitted parameter socket: ${nodeId}/${port.id}`)
-  const candidate: IntrinsicPort = {
+  const candidate: LayoutPort = {
     id,
     nodeId,
-    offsetY: fixed(marker.y + marker.h / 2),
-    side,
-    direction,
+    y: marker.y + marker.h / 2,
   }
-  const existing = routePorts.get(id)
+  const existing = layoutPorts.get(id)
   if (existing !== undefined && JSON.stringify(existing) !== JSON.stringify(candidate)) {
     throw new Error(`Conflicting endpoint role: ${nodeId}/${port.id}`)
   }
-  routePorts.set(id, candidate)
+  layoutPorts.set(id, candidate)
 }
 
 function positionedDocument(
   document: NodeSystemDocument,
   nodes: readonly NodeSystemNode[],
   edges: readonly NodeSystemEdge[],
-  result: LayoutGraphResult,
+  result: LayoutResult,
   geometryKey: string,
   measureText?: NodeSystemTextMeasurer,
 ): PositionedNodeSystem {
-  const rects = new Map(result.placement.nodes.map((node) => [node.id, {
-    x: pixels(node.rect.x),
-    y: pixels(node.rect.y),
-    w: pixels(node.rect.w),
-    h: pixels(node.rect.h),
+  const rects = new Map(result.nodes.map((node) => [node.id, {
+    x: node.x,
+    y: node.y,
+    w: node.width,
+    h: node.height,
   }]))
-  const exactEndpointCenters = new Map(result.placement.ports.map((port) => [port.id, {
-    x: pixels(port.center.x),
-    y: pixels(port.center.y),
+  const exactEndpointCenters = new Map(result.ports.map((port) => [port.id, {
+    x: port.x,
+    y: port.y,
   }]))
   const positionedNodes = nodes.map((node): PositionedNodeSystemNode => {
     const rect = required(rects.get(node.id), `Layout omitted node: ${node.id}`)
@@ -484,21 +475,22 @@ function positionedDocument(
     })
     return {node, rect, ports}
   })
-  const sections = new Map(result.routing.sections.map((section) => [section.edgeId, section]))
+  const sections = new Map(result.edges.map((edge) => [edge.id, edge.sections[0]]))
   const positionedEdges = edges.map((edge): PositionedNodeSystemEdge => {
     const section = required(sections.get(edge.id), `Layout omitted edge: ${edge.id}`)
     return {
       edge,
-      points: [section.startPoint, ...section.bendPoints, section.endPoint].map((point) => ({
-        x: pixels(point.x),
-        y: pixels(point.y),
-      })),
+      points: [section.startPoint, ...section.bendPoints, section.endPoint],
     }
   })
-  const bounds = result.placement.bounds
   return {
     geometryKey,
-    bounds: {x: pixels(bounds.x), y: pixels(bounds.y), w: pixels(bounds.w), h: pixels(bounds.h)},
+    bounds: {
+      x: result.bounds.x,
+      y: result.bounds.y,
+      w: result.bounds.width,
+      h: result.bounds.height,
+    },
     nodes: positionedNodes,
     edges: positionedEdges,
     ...(document.revision === undefined ? {} : {revision: document.revision}),
@@ -507,16 +499,6 @@ function positionedDocument(
 
 function enginePortId(nodeId: string, portId: string): string {
   return `${nodeId}\u0000${portId}`
-}
-
-function fixed(value: number): number {
-  const result = Math.round(value * UNITS_PER_PIXEL)
-  if (!Number.isSafeInteger(result)) throw new Error(`Geometry exceeds fixed-point range: ${value}`)
-  return result
-}
-
-function pixels(value: number): number {
-  return value / UNITS_PER_PIXEL
 }
 
 function positiveViewport(value: number, label: string): number {
@@ -540,13 +522,3 @@ function required<T>(value: T | undefined, message: string): T {
   if (value === undefined) throw new Error(message)
   return value
 }
-
-export {diagnoseRouteGraph, routeGraph, validateRouteGraphResult} from "./route-graph.ts"
-export {placeGraph, placementCandidates, validatePlacement} from "./place-graph.ts"
-export type {
-  RouteGraphInput,
-  RouteGraphResult,
-  RouteMetrics,
-  RouteSection,
-} from "./route-graph.ts"
-export type {PlacementInput, PlacementResult} from "./place-graph.ts"

@@ -1,14 +1,7 @@
 import type {
   NodeSystemNode,
-} from "./model.ts"
-
-export type NodeSystemContainmentIndex = Readonly<{
-  roots: readonly NodeSystemNode[]
-  childrenByParent: ReadonlyMap<string, readonly NodeSystemNode[]>
-  parentByChild: ReadonlyMap<string, string>
-  rootIdByNode: ReadonlyMap<string, string>
-  descendantsByRoot: ReadonlyMap<string, readonly NodeSystemNode[]>
-}>
+} from "./types/model.ts"
+import type {NodeSystemContainmentIndex} from "./types/containment.ts"
 
 /** Builds an acyclic visual-containment tree of arbitrary depth. */
 export function indexNodeSystemContainment(

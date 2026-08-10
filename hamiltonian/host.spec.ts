@@ -288,7 +288,7 @@ describe("isolated Hamiltonian host", () => {
     expect(await lifecycleContract.text()).toContain('HAMILTONIAN_LIFECYCLE_KIND = "hamiltonian-lifecycle"')
 
     const orchestrationBundle = await fetch(new URL("/orchestration.js", host.server.url))
-    expect(orchestrationBundle.status).toBe(200)
+    if (!orchestrationBundle.ok) throw new Error(await orchestrationBundle.text())
     const orchestrationSource = await orchestrationBundle.text()
     expect(orchestrationSource).toContain("ГАМИЛЬТОНИАН · ЖИВАЯ ОРКЕСТРАЦИЯ")
     expect(orchestrationSource).toContain("ServiceWorker controller")
@@ -296,9 +296,18 @@ describe("isolated Hamiltonian host", () => {
     expect(orchestrationSource).toContain("new HamiltonianLifecycleProjection")
     expect(orchestrationSource).toContain("hamiltonianLifecycleSource")
     expect(orchestrationSource).toContain("hamiltonianLifecycleSequence")
+    expect(orchestrationSource).toContain('new Worker("/layout-worker.js"')
+    expect(orchestrationSource).toContain("new LayoutWorkerClient")
     expect(orchestrationSource).toContain("struct GlobalUniforms")
     expect(orchestrationSource).not.toContain("mesh_basic-")
     expect(orchestrationSource).not.toMatch(/if \(nodeId !== null\)\s+inspector\d*\.setOpen\(true\)/)
+
+    const layoutWorkerBundle = await fetch(new URL("/layout-worker.js", host.server.url))
+    expect(layoutWorkerBundle.status).toBe(200)
+    const layoutWorkerSource = await layoutWorkerBundle.text()
+    expect(layoutWorkerSource).toContain("runLayoutWorkerRequest")
+    expect(layoutWorkerSource).toContain('type: "layout-result"')
+    expect(layoutWorkerSource).not.toContain("@ui/node")
 
     const uiFont = await fetch(new URL("/engine-static/JetBrainsMono-Bold.ttf", host.server.url))
     expect(uiFont.status).toBe(200)

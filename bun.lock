@@ -119,6 +119,7 @@
       "name": "@metafor/hamiltonian",
       "dependencies": {
         "@metafor/engine": "workspace:*",
+        "@metafor/layout": "workspace:*",
         "@ui/components": "workspace:*",
         "@ui/elements": "workspace:*",
         "@ui/node": "workspace:*",
@@ -161,6 +162,10 @@
       "name": "@metafor/engine",
       "version": "1.0.0",
     },
+    "pkg/layout": {
+      "name": "@metafor/layout",
+      "version": "0.0.1",
+    },
     "pkg/template": {
       "name": "@metafor/template",
       "version": "2.6.2",
@@ -197,6 +202,7 @@
       "version": "0.0.1",
       "dependencies": {
         "@metafor/engine": "workspace:*",
+        "@metafor/layout": "workspace:*",
         "@ui/components": "workspace:*",
         "@ui/elements": "workspace:*",
         "@ui/hud": "workspace:*",
@@ -255,6 +261,8 @@
     "@metafor/engine": ["@metafor/engine@workspace:pkg/engine"],
 
     "@metafor/hamiltonian": ["@metafor/hamiltonian@workspace:hamiltonian"],
+
+    "@metafor/layout": ["@metafor/layout@workspace:pkg/layout"],
 
     "@metafor/template": ["@metafor/template@workspace:pkg/template"],
 

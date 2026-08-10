@@ -7,7 +7,7 @@ import {
   type HudPaneFrameChange,
   type HudWindowTitleBarAction,
 } from "@ui/hud"
-import type {NodeSystemAction, NodeSystemNode} from "./model.ts"
+import type {NodeSystemAction, NodeSystemNode} from "./types/model.ts"
 
 export type NodeInspectorSurfaceOptions = UiSurfaceOpts & Readonly<{
   title?: string

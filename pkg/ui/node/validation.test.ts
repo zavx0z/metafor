@@ -1,5 +1,5 @@
 import {describe, expect, test} from "bun:test"
-import type {NodeSystemDocument} from "./model.ts"
+import type {NodeSystemDocument} from "./types/model.ts"
 import {validateNodeSystemDocument} from "./validation.ts"
 
 const valid: NodeSystemDocument = {

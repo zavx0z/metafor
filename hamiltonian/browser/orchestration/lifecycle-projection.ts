@@ -5,7 +5,7 @@ import type {
   NodeSystemNode,
   NodeSystemPort,
   PositionedNodeSystem,
-} from "@ui/node"
+} from "@ui/node/types"
 import type {
   HamiltonianLifecycleEnvelope,
   HamiltonianLifecycleFrontierEntry,
