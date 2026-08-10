@@ -70,6 +70,7 @@ export type HamiltonianLifecycleProjectionOptions = Readonly<{
 
 const DEFAULT_MESSAGE_IDENTITY_CAPACITY = 4_096
 const DEFAULT_TERMINAL_IDENTITY_CAPACITY = 2_048
+const SERVER_CONTOUR_NODE_ID = "server-contour"
 
 export class HamiltonianLifecycleProjection {
   readonly #context: HamiltonianLifecycleContext
@@ -303,31 +304,41 @@ export class HamiltonianLifecycleProjection {
       })
     }
 
-    const nodes = visibleEntities
+    const entityNodes = visibleEntities
       .sort((left, right) => entityOrder(left.kind) - entityOrder(right.kind) || left.bornAt - right.bornAt || left.id.localeCompare(right.id))
-      .map((entity, index): NodeSystemNode => ({
-        id: entity.id,
-        ...(visualParentId(entity, visibleEntityIds) === null
-          ? {}
-          : {parentId: visualParentId(entity, visibleEntityIds)!}),
-        title: entityTitle(entity, this.#pageId),
-        kind: entityKindLabel(entity.kind),
-        tone: nodeTone(entity.state, this.#hasGap(entity)),
-        order: entityOrder(entity.kind) + index,
-        ports: ports.get(entity.id) ?? [],
-        facts: [
-          ...entityFacts(entity, this.#gapsFor(entity)),
-          ...(transportParameters.get(entity.id) ?? []),
-        ],
-        ...(entity.id === this.#pageId ? {
-          summary: "Текущая page realm; существует с начала этой загрузки",
-          actions: [
-            {id: "open-window", label: "Открыть ещё одно окно", tone: "neutral" as const},
-            {id: "rebirth-worker", label: "Перезапустить выделенный воркер", tone: "paused" as const},
-            {id: "reload", label: "Перезагрузить это окно", tone: "neutral" as const},
+      .map((entity, index): NodeSystemNode => {
+        const parentId = visualParentId(entity, visibleEntityIds, this.#serverId)
+        return {
+          id: entity.id,
+          ...(parentId === null ? {} : {parentId}),
+          title: entityTitle(entity, this.#pageId),
+          kind: entityKindLabel(entity.kind),
+          tone: nodeTone(entity.state, this.#hasGap(entity)),
+          order: entityOrder(entity.kind) + index,
+          ports: ports.get(entity.id) ?? [],
+          facts: [
+            ...entityFacts(entity, this.#gapsFor(entity)),
+            ...(transportParameters.get(entity.id) ?? []),
           ],
-        } : {}),
-      }))
+          ...(entity.id === this.#pageId ? {
+            summary: "Текущая page realm; существует с начала этой загрузки",
+            actions: [
+              {id: "open-window", label: "Открыть ещё одно окно", tone: "neutral" as const},
+              {id: "rebirth-worker", label: "Перезапустить выделенный воркер", tone: "paused" as const},
+              {id: "reload", label: "Перезагрузить это окно", tone: "neutral" as const},
+            ],
+          } : {}),
+        }
+      })
+    const nodes: NodeSystemNode[] = [
+      {
+        id: SERVER_CONTOUR_NODE_ID,
+        title: "Сервер",
+        tone: "live",
+        order: -1,
+      },
+      ...entityNodes,
+    ]
 
     return {
       revision: `lifecycle:${this.#revision}`,
@@ -664,7 +675,7 @@ function entityFacts(entity: LifecycleEntity, gaps: HamiltonianLifecycleGap[]) {
 
 function entityTitle(entity: LifecycleEntity, pageId: string): string {
   if (entity.id === pageId) return "Эта страница"
-  if (entity.kind === "server") return "Сервер"
+  if (entity.kind === "server") return "Hamiltonian"
   if (entity.kind === "browser-runtime") return stringAttribute(entity.attributes.runtime) || "Браузер"
   if (entity.kind === "service-worker") return "Service Worker"
   if (entity.kind === "dedicated-worker") return "Dedicated Worker"
@@ -727,7 +738,16 @@ function entityOrder(kind: string): number {
   return 90
 }
 
-function visualParentId(entity: LifecycleEntity, visible: ReadonlySet<string>): string | null {
+function visualParentId(
+  entity: LifecycleEntity,
+  visible: ReadonlySet<string>,
+  serverId: string,
+): string | null {
+  if (entity.id === serverId) return SERVER_CONTOUR_NODE_ID
+  if (
+    entity.ownerId === serverId &&
+    (entity.kind === "bun-process" || entity.kind === "peer-process")
+  ) return SERVER_CONTOUR_NODE_ID
   if (
     entity.ownerId === null ||
     entity.ownerId === entity.id ||

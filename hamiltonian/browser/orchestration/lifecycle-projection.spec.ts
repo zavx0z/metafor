@@ -29,11 +29,16 @@ describe("Hamiltonian lifecycle projection", () => {
     const projection = new HamiltonianLifecycleProjection(context)
     expect(projection.document()).toMatchObject({
       nodes: [
-        {id: "server:host-a", title: "Сервер"},
+        {id: "server-contour", title: "Сервер"},
+        {id: "server:host-a", parentId: "server-contour", title: "Hamiltonian"},
         {id: "page:page-a", title: "Эта страница"},
       ],
       edges: [],
     })
+    const serverContour = projection.document().nodes[0]!
+    expect(serverContour.facts).toBeUndefined()
+    expect(serverContour.ports).toBeUndefined()
+    expect(serverContour.actions).toBeUndefined()
     expect(hamiltonianServerNodeId("host/a")).toBe("server:host%2Fa")
   })
 
@@ -209,7 +214,12 @@ describe("Hamiltonian lifecycle projection", () => {
       attributes: {incarnation: "sw-a", state: "active"},
     }), {at: 20})
     projection.observe(born, null)
-    expect(projection.document().nodes.map((node) => node.title)).toEqual(["Сервер", "Эта страница", "Service Worker"])
+    expect(projection.document().nodes.map((node) => node.title)).toEqual([
+      "Сервер",
+      "Hamiltonian",
+      "Эта страница",
+      "Service Worker",
+    ])
     expect(projection.document().edges).toEqual([])
 
     const opening = source.next(createHamiltonianLifecycleObservation({
@@ -531,10 +541,15 @@ describe("Hamiltonian lifecycle projection", () => {
     })), null)
 
     expect(projection.document().nodes.map((node) => node.id)).toEqual([
+      "server-contour",
       "server:host-a",
       "page:page-a",
       "bun-process:current",
     ])
+    expect(projection.document().nodes.find(({id}) => id === "server:host-a")?.parentId)
+      .toBe("server-contour")
+    expect(projection.document().nodes.find(({id}) => id === "bun-process:current")?.parentId)
+      .toBe("server-contour")
     expect(projection.document().nodes.some((node) => node.id === "rtc-peer:old%3Aserver")).toBeFalse()
     expect(stalePresentation).toBeNull()
   })
@@ -624,6 +639,8 @@ describe("Hamiltonian lifecycle projection", () => {
     ]))
     expect(document.nodes.find(({id}) => id === "rtc-peer:session-a%3Aserver")?.parentId)
       .toBe("peer-process:process-a")
+    expect(document.nodes.find(({id}) => id === "peer-process:process-a")?.parentId)
+      .toBe("server-contour")
     expect(document.nodes.find(({id}) => id === "rtc-peer:session-a%3Abrowser")?.parentId)
       .toBe("window-main:page-a")
     expect(document.nodes.find(({id}) => id === "window-main:page-a")?.parentId)
