@@ -23,7 +23,7 @@
 | ENGINE-003 | DRAFT     | Engine / Skin  | Сквозной Renderer-тест матриц костей                | [Открыть](tasks/ENGINE-003.md) |
 | MF-408     | DRAFT     | Dark / Source  | Человеческий `meta.ts` authoring в live world       | [Открыть](tasks/MF-408.md)     |
 | MF-410     | DRAFT     | Связь доменов  | Прямой обмен командами и событиями после знакомства | [Открыть](tasks/MF-410.md)     |
-| MF-428     | DRAFT     | Hamiltonian    | Восстановление Service Worker не показано причинно  | [Открыть](tasks/MF-428.md)     |
+| MF-428     | DRAFT     | Hamiltonian    | Service Worker должен оставаться постоянно живым   | [Открыть](tasks/MF-428.md)     |
 
 ## Зафиксировано без обсуждения
 
