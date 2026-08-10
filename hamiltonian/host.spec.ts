@@ -274,8 +274,8 @@ describe("isolated Hamiltonian host", () => {
     const serviceWorkerMonitorImportIndex = serviceWorkerEntrySource.indexOf('import "/core/monitor.js"')
     expect(serviceWorkerMonitorImportIndex).toBeGreaterThan(-1)
     expect(serviceWorkerMonitorImportIndex)
-      .toBeLessThan(serviceWorkerEntrySource.indexOf('import "/sw.js?mf419-v19"'))
-    expect(serviceWorkerEntrySource).toContain("MF-419 lifecycle entry v19")
+      .toBeLessThan(serviceWorkerEntrySource.indexOf('import "/sw.js?lifecycle-v19"'))
+    expect(serviceWorkerEntrySource).toContain("joins its observed browser-runtime owner")
 
     const orchestrationContract = await fetch(new URL("/core/orchestration.js", host.server.url))
     expect(orchestrationContract.status).toBe(200)

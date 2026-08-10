@@ -70,7 +70,7 @@ owner-source. Исторические сообщения остаются до 
 непосредственно из navigation bootstrap. Service Worker, controller,
 MessagePort, WebSocket, Dedicated Worker, два Bun process, отдельный WebRTC
 peer process, обе стороны RTCPeerConnection и два RTCDataChannel уже переведены
-на owner lifecycle в `MF-419`. Одно сообщение Oracle/Force получает общую
+на owner lifecycle. Одно сообщение Oracle/Force получает общую
 identity для send и receive. Полный compound graph передаётся одним синхронным
 вызовом собственного TypeScript engine; отдельного серверного layout или
 routing engine у монитора нет.
