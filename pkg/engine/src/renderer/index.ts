@@ -40,6 +40,14 @@ import {
   unpackGpuFrameRgba,
 } from "./frame-readback"
 import {createSceneUniformLayout} from "./scene-uniform-layout"
+import {
+  BONE_MATRICES_SIZE,
+  MAX_BONES,
+  PER_OBJECT_UNIFORM_SIZE,
+  planPerObjectUploads,
+  populateBoneMatrixBlock,
+  type PerObjectUploadPlan,
+} from "./per-object-upload"
 
 if (import.meta.hot) {
   (import.meta.hot.accept as unknown as (dependencies: string[], callback: () => void) => void)([
@@ -60,16 +68,9 @@ if (import.meta.hot) {
 }
 
 // --- Константы для uniform-буферов ---
-const UNIFORM_ALIGNMENT = 256
 const INITIAL_RENDERABLE_CAPACITY = 512
 const MAX_LIGHTS = 4 // Максимальное количество источников света
 const WEBGPU_INIT_TIMEOUT_MS = 15000
-
-// Размер данных для одного объекта: mat4x4 (64) + mat4x4 (64) + vec4 (16) + u32 (4) + 3*padding(12) = 160. Выравниваем до 256.
-const PER_OBJECT_UNIFORM_SIZE = Math.ceil((64 + 64 + 16 + 4) / UNIFORM_ALIGNMENT) * UNIFORM_ALIGNMENT
-const MAX_BONES = 128
-const BONE_MATRICES_SIZE = MAX_BONES * 16 * 4 // 128 * mat4x4<f32>
-const PER_OBJECT_DATA_SIZE = PER_OBJECT_UNIFORM_SIZE + BONE_MATRICES_SIZE
 
 const LIGHT_STRUCT_SIZE = 32
 const SCENE_UNIFORM_LAYOUT = createSceneUniformLayout(MAX_LIGHTS, LIGHT_STRUCT_SIZE)
@@ -150,9 +151,11 @@ export class Renderer {
 
   // --- Ресурсы для каждого объекта ---
   private perObjectUniformBuffer: GPUBuffer | null = null
+  private boneMatricesBuffer: GPUBuffer | null = null
   private perObjectBindGroupLayout: GPUBindGroupLayout | null = null
   private perObjectBindGroup: GPUBindGroup | null = null
   private perObjectDataCPU: Float32Array | null = null
+  private boneMatricesDataCPU: Float32Array | null = null
   private perObjectCapacity = INITIAL_RENDERABLE_CAPACITY
 
   private geometryCache: Map<BufferGeometry, GeometryBuffers> = new Map()
@@ -1249,9 +1252,11 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
       this.globalUniformBuffer &&
       this.sceneUniformBuffer &&
       this.perObjectUniformBuffer &&
+      this.boneMatricesBuffer &&
       this.perObjectBindGroupLayout &&
       this.perObjectBindGroup &&
       this.perObjectDataCPU &&
+      this.boneMatricesDataCPU &&
       this.canvas
     )
   }
@@ -1363,15 +1368,26 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     // passes before submit would make earlier passes read the later data.
     this.updateSceneUniforms(frameLights, viewPoint.viewMatrix)
     this.ensurePerObjectCapacity(frameRenderItems.length)
-    const perObjectDataBytes = this.updatePerObjectData(frameRenderItems)
-    if (perObjectDataBytes > 0 && this.perObjectDataCPU && this.perObjectUniformBuffer) {
+    const uploadPlan = this.updatePerObjectData(frameRenderItems)
+    if (uploadPlan.uniformBytes > 0 && this.perObjectDataCPU && this.perObjectUniformBuffer) {
       this.device!.queue.writeBuffer(
         this.perObjectUniformBuffer,
         0,
         this.perObjectDataCPU.buffer,
         this.perObjectDataCPU.byteOffset,
-        perObjectDataBytes,
+        uploadPlan.uniformBytes,
       )
+    }
+    if (this.boneMatricesDataCPU && this.boneMatricesBuffer) {
+      for (const range of uploadPlan.boneRanges) {
+        this.device!.queue.writeBuffer(
+          this.boneMatricesBuffer,
+          range.byteOffset,
+          this.boneMatricesDataCPU.buffer,
+          this.boneMatricesDataCPU.byteOffset + range.byteOffset,
+          range.byteLength,
+        )
+      }
     }
 
     const directDrawLayers = preparedLayers.filter(hasDirectRenderItems)
@@ -1509,34 +1525,42 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
   private createPerObjectResources(capacity: number): void {
     if (!this.device || !this.perObjectBindGroupLayout) return
-    const previousBuffer = this.perObjectUniformBuffer
-    const buffer = this.device.createBuffer({
-      size: capacity * PER_OBJECT_DATA_SIZE,
+    const previousUniformBuffer = this.perObjectUniformBuffer
+    const previousBoneMatricesBuffer = this.boneMatricesBuffer
+    const uniformBuffer = this.device.createBuffer({
+      size: capacity * PER_OBJECT_UNIFORM_SIZE,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     })
-    this.perObjectUniformBuffer = buffer
-    this.perObjectDataCPU = new Float32Array(capacity * (PER_OBJECT_DATA_SIZE / 4))
+    const boneMatricesBuffer = this.device.createBuffer({
+      size: capacity * BONE_MATRICES_SIZE,
+      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+    })
+    this.perObjectUniformBuffer = uniformBuffer
+    this.boneMatricesBuffer = boneMatricesBuffer
+    this.perObjectDataCPU = new Float32Array(capacity * (PER_OBJECT_UNIFORM_SIZE / 4))
+    this.boneMatricesDataCPU = new Float32Array(capacity * (BONE_MATRICES_SIZE / 4))
     this.perObjectBindGroup = this.device.createBindGroup({
       layout: this.perObjectBindGroupLayout,
       entries: [
         {
           binding: 0,
           resource: {
-            buffer,
+            buffer: uniformBuffer,
             size: PER_OBJECT_UNIFORM_SIZE,
           },
         },
         {
           binding: 1,
           resource: {
-            buffer,
+            buffer: boneMatricesBuffer,
             size: BONE_MATRICES_SIZE,
           },
         },
       ],
     })
     this.perObjectCapacity = capacity
-    previousBuffer?.destroy()
+    previousUniformBuffer?.destroy()
+    previousBoneMatricesBuffer?.destroy()
   }
 
   private writePerObjectRgba(offsetFloats: number, color: {r: number, g: number, b: number, a: number}, alpha = color.a): void {
@@ -1557,17 +1581,20 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     data[offsetFloats + 3] = w
   }
 
-  private updatePerObjectData(objects: RenderItem[]): number {
-    if (!this.perObjectDataCPU) return 0
+  private updatePerObjectData(objects: RenderItem[]): PerObjectUploadPlan {
+    if (!this.perObjectDataCPU || !this.boneMatricesDataCPU) {
+      return {uniformBytes: 0, boneRanges: []}
+    }
 
     const objectCount = objects.length
-    const usedFloats = objectCount * (PER_OBJECT_DATA_SIZE / 4)
+    const usedFloats = objectCount * (PER_OBJECT_UNIFORM_SIZE / 4)
     this.perObjectDataCPU.fill(0, 0, usedFloats)
+    const uploadPlan = planPerObjectUploads(objectCount, index => objects[index]?.type === "skinned-mesh")
 
     for (let i = 0; i < objectCount; i++) {
       const item = objects[i]
       if (!item) continue
-      const dynamicOffset = i * PER_OBJECT_DATA_SIZE
+      const dynamicOffset = i * PER_OBJECT_UNIFORM_SIZE
       const offsetFloats = dynamicOffset / 4
 
       switch (item.type) {
@@ -1575,7 +1602,12 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
           this.updateMeshData(item.object as Mesh, item.worldMatrix, offsetFloats)
           break
         case "skinned-mesh":
-          this.updateSkinnedMeshData(item.object as SkinnedMesh, item.worldMatrix, offsetFloats)
+          this.updateSkinnedMeshData(
+            item.object as SkinnedMesh,
+            item.worldMatrix,
+            offsetFloats,
+            i * (BONE_MATRICES_SIZE / 4),
+          )
           break
         case "instanced-mesh":
           this.updateInstancedMeshData(item.object as InstancedMesh, item.worldMatrix, offsetFloats)
@@ -1592,29 +1624,31 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
           break
       }
     }
-    return objectCount * PER_OBJECT_DATA_SIZE
+    return uploadPlan
   }
 
-  private updateSkinnedMeshData(mesh: SkinnedMesh, worldMatrix: Matrix4, offsetFloats: number): void {
+  private updateSkinnedMeshData(
+    mesh: SkinnedMesh,
+    worldMatrix: Matrix4,
+    offsetFloats: number,
+    boneMatricesOffsetFloats: number,
+  ): void {
     this.updateMeshData(mesh, worldMatrix, offsetFloats)
 
-    const dynamicOffset = offsetFloats * 4
-    const boneMatricesOffset = dynamicOffset + PER_OBJECT_UNIFORM_SIZE
-    const boneMatricesOffsetFloats = boneMatricesOffset / 4
     const boneCount = Math.min(mesh.skeleton.bones.length, mesh.skeleton.boneInverses.length, MAX_BONES)
     // The skinned shader applies modelMatrix after skinning, so uniforms stay mesh-local.
     const meshWorldInverse = this.skinnedMeshWorldInverse.copy(worldMatrix).invert()
     const boneMatrix = this.skinnedBoneMatrix
 
-    for (let i = 0; i < boneCount; i++) {
-      const bone = mesh.skeleton.bones[i]!
-      const boneInverse = mesh.skeleton.boneInverses[i]!
+    populateBoneMatrixBlock(this.boneMatricesDataCPU!, boneMatricesOffsetFloats, boneCount, index => {
+      const bone = mesh.skeleton.bones[index]!
+      const boneInverse = mesh.skeleton.boneInverses[index]!
       boneMatrix
         .multiplyMatrices(meshWorldInverse, bone.matrixWorld)
         .multiply(boneInverse)
 
-      this.perObjectDataCPU!.set(boneMatrix.elements, boneMatricesOffsetFloats + i * 16)
-    }
+      return boneMatrix.elements
+    })
   }
 
   private updateMeshData(mesh: Mesh, worldMatrix: Matrix4, offsetFloats: number): void {
@@ -2191,8 +2225,8 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     if (!material!.visible) return
 
     const isSkinned = (mesh as SkinnedMesh).isSkinnedMesh
-    const dynamicOffset = renderIndex * PER_OBJECT_DATA_SIZE
-    const boneMatricesOffset = dynamicOffset + PER_OBJECT_UNIFORM_SIZE
+    const dynamicOffset = renderIndex * PER_OBJECT_UNIFORM_SIZE
+    const boneMatricesOffset = renderIndex * BONE_MATRICES_SIZE
 
     if (passEncoder) {
       passEncoder.setBindGroup(1, this.perObjectBindGroup, [dynamicOffset, boneMatricesOffset])
@@ -2234,10 +2268,10 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     const material = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material
     if (!material!.visible) return
 
-    const dynamicOffset = renderIndex * PER_OBJECT_DATA_SIZE
+    const dynamicOffset = renderIndex * PER_OBJECT_UNIFORM_SIZE
 
     if (passEncoder) {
-      const boneMatricesOffset = dynamicOffset + PER_OBJECT_UNIFORM_SIZE
+      const boneMatricesOffset = renderIndex * BONE_MATRICES_SIZE
       passEncoder.setBindGroup(1, this.perObjectBindGroup, [dynamicOffset, boneMatricesOffset])
 
       const {positionBuffer, normalBuffer, indexBuffer, instanceMatrixBuffer} = this.getOrCreateGeometryBuffers(
@@ -2277,10 +2311,10 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     if (!(isLineBasic || isLineGlow) || !material.visible) return
 
-    const dynamicOffset = renderIndex * PER_OBJECT_DATA_SIZE
+    const dynamicOffset = renderIndex * PER_OBJECT_UNIFORM_SIZE
 
     if (passEncoder) {
-      const boneMatricesOffset = dynamicOffset + PER_OBJECT_UNIFORM_SIZE
+      const boneMatricesOffset = renderIndex * BONE_MATRICES_SIZE
       passEncoder.setBindGroup(1, this.perObjectBindGroup, [dynamicOffset, boneMatricesOffset])
       const buffers = this.getOrCreateGeometryBuffers(lines.geometry)
       const colorBuffer = this.getOrCreateDefaultLineColorBuffer(lines.geometry, buffers)
@@ -2301,10 +2335,10 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     // Проверяем видимость
     if (!lines.visible) return
 
-    const dynamicOffset = renderIndex * PER_OBJECT_DATA_SIZE
+    const dynamicOffset = renderIndex * PER_OBJECT_UNIFORM_SIZE
 
     if (passEncoder) {
-      const boneMatricesOffset = dynamicOffset + PER_OBJECT_UNIFORM_SIZE
+      const boneMatricesOffset = renderIndex * BONE_MATRICES_SIZE
       passEncoder.setBindGroup(1, this.perObjectBindGroup, [dynamicOffset, boneMatricesOffset])
       const buffers = this.getOrCreateGeometryBuffers(lines.geometry)
       const colorBuffer = this.getOrCreateDefaultLineColorBuffer(lines.geometry, buffers)
@@ -2328,10 +2362,10 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     const geometry = isStencil ? text.stencilGeometry : text.coverGeometry
     if (!geometry.index) return
 
-    const dynamicOffset = renderIndex * PER_OBJECT_DATA_SIZE
+    const dynamicOffset = renderIndex * PER_OBJECT_UNIFORM_SIZE
 
     if (passEncoder) {
-      const boneMatricesOffset = dynamicOffset + PER_OBJECT_UNIFORM_SIZE
+      const boneMatricesOffset = renderIndex * BONE_MATRICES_SIZE
       passEncoder.setBindGroup(1, this.perObjectBindGroup, [dynamicOffset, boneMatricesOffset])
       const {positionBuffer, indexBuffer} = this.getOrCreateGeometryBuffers(geometry)
 
