@@ -89,9 +89,9 @@ bun run --cwd pkg/nodes typecheck
   через постороннюю ноду.
 * Exact RIGHT/DOWN запросы, machine proof и live screenshots находятся в
   [`project/artifacts/NODES-001`](../artifacts/NODES-001/README.md).
-* Пересечения рёбер, найденные после этого среза, вынесены в NODES-002 и
-  исправлены в том же готовом result bundle; обе задачи требуют одной
-  независимой закрывающей проверки.
+* Пересечения рёбер, найденные после этого среза, исправлены и независимо
+  проверены отдельной завершённой задачей. NODES-001 требует собственной
+  отдельной закрывающей проверки актуальных proof и package contracts.
 
 ## Closing handoff
 
