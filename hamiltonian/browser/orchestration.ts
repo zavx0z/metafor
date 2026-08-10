@@ -10,24 +10,24 @@ import {UiRuntime, type UiSurfaceRect} from "@ui/elements"
 import {
   LayoutWorkerClient,
   type LayoutWorkerEndpoint,
-} from "@metafor/layout"
+} from "@nodes/layout"
 import {
   MetaForNodeSystemWorkerLayouter,
-} from "@ui/node/layout-engine"
+} from "nodes/layout-engine"
 import {
   NODE_SYSTEM_PORT_PITCH,
   nodeSystemGeometryKey,
-} from "@ui/node/card-layout"
-import {NodeInspectorSurface} from "@ui/node/inspector"
-import {NodeSystemSurface} from "@ui/node/surface"
-import {fitNodeSystemCanvasTransform} from "@ui/node/viewport"
+} from "@nodes/ui/card-layout"
+import {NodeInspectorSurface} from "@nodes/ui/inspector"
+import {NodeSystemSurface} from "@nodes/ui/surface"
+import {fitNodeSystemCanvasTransform} from "@nodes/ui/viewport"
 import type {
   NodeSystemAction,
   NodeSystemDocument,
   NodeSystemLayoutDirection,
   NodeSystemNode,
   PositionedNodeSystem,
-} from "@ui/node/types"
+} from "nodes/types"
 import {
   HamiltonianLifecycleProjection,
   hamiltonianLifecycleNeedsDocument,

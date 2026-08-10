@@ -1,6 +1,6 @@
 import {describe, expect, test} from "bun:test"
-import {validatePositionedNodeSystem} from "@ui/node/validation"
-import type {PositionedNodeSystem} from "@ui/node/types"
+import {validatePositionedNodeSystem} from "nodes/validation"
+import type {PositionedNodeSystem} from "nodes/types"
 import {
   easeHamiltonianLayoutTransition,
   hamiltonianLayoutGeometryChanged,

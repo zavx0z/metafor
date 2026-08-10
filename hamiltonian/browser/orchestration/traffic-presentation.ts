@@ -1,4 +1,4 @@
-import {NODE_SYSTEM_EDGE_PARTICLE_DURATION_MS} from "@ui/node"
+import {NODE_SYSTEM_EDGE_PARTICLE_DURATION_MS} from "@nodes/ui"
 
 export type HamiltonianTrafficPresentationValue = Readonly<{edgeId: string; at: number}>
 

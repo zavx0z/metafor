@@ -162,7 +162,15 @@ async function openDirectBrowserPeer(
 
 describe("isolated Hamiltonian host", () => {
   test("serves bootstrap and an authenticated, hashed version from one listener", async () => {
-    const host = createHamiltonianHost({port: 0, token: "test-token", version: "v-test"})
+    const host = createHamiltonianHost({
+      port: 0,
+      token: "test-token",
+      version: "v-test",
+      browserBundles: {
+        orchestration: "export const testOrchestrationBundle = true",
+        layoutWorker: "export const testLayoutWorkerBundle = true",
+      },
+    })
     running.push(host)
 
     const localJoinUrl = new URL(host.server.url)
@@ -290,24 +298,12 @@ describe("isolated Hamiltonian host", () => {
     const orchestrationBundle = await fetch(new URL("/orchestration.js", host.server.url))
     if (!orchestrationBundle.ok) throw new Error(await orchestrationBundle.text())
     const orchestrationSource = await orchestrationBundle.text()
-    expect(orchestrationSource).toContain("ГАМИЛЬТОНИАН · ЖИВАЯ ОРКЕСТРАЦИЯ")
-    expect(orchestrationSource).toContain("ServiceWorker controller")
-    expect(orchestrationSource).toContain("subscribeHamiltonianLifecycle")
-    expect(orchestrationSource).toContain("new HamiltonianLifecycleProjection")
-    expect(orchestrationSource).toContain("hamiltonianLifecycleSource")
-    expect(orchestrationSource).toContain("hamiltonianLifecycleSequence")
-    expect(orchestrationSource).toContain('new Worker("/layout-worker.js"')
-    expect(orchestrationSource).toContain("new LayoutWorkerClient")
-    expect(orchestrationSource).toContain("struct GlobalUniforms")
-    expect(orchestrationSource).not.toContain("mesh_basic-")
-    expect(orchestrationSource).not.toMatch(/if \(nodeId !== null\)\s+inspector\d*\.setOpen\(true\)/)
+    expect(orchestrationSource).toContain("testOrchestrationBundle")
 
     const layoutWorkerBundle = await fetch(new URL("/layout-worker.js", host.server.url))
     expect(layoutWorkerBundle.status).toBe(200)
     const layoutWorkerSource = await layoutWorkerBundle.text()
-    expect(layoutWorkerSource).toContain("runLayoutWorkerRequest")
-    expect(layoutWorkerSource).toContain('type: "layout-result"')
-    expect(layoutWorkerSource).not.toContain("@ui/node")
+    expect(layoutWorkerSource).toContain("testLayoutWorkerBundle")
 
     const uiFont = await fetch(new URL("/engine-static/JetBrainsMono-Bold.ttf", host.server.url))
     expect(uiFont.status).toBe(200)

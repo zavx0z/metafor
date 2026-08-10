@@ -1,0 +1,11 @@
+{
+  "name": "@nodes/layout — протокол раскладки",
+  "entryPoints": ["./src/index.ts"],
+  "out": "../../../tmp/typedoc/layout",
+  "readme": "./README.md",
+  "excludeExternals": true,
+  "excludePrivate": true,
+  "excludeProtected": true,
+  "includeVersion": false,
+  "categorizeByGroup": false
+}

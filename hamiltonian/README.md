@@ -106,9 +106,10 @@ listener эта оптимизация не включается. Режимы p
 
 ## Страница оркестрации
 
-`@ui/node` владеет generic node-system document, intrinsic card measurement,
-transform бесконечного 2D-холста, selection, Inspector и WebGPU surfaces.
-`@metafor/layout` владеет только pure TypeScript geometry engine и минимальным
+`nodes` владеет generic node-system document, validation и layout adapter.
+`@nodes/ui` владеет intrinsic card measurement, transform бесконечного
+2D-холста, selection, Inspector и WebGPU surfaces.
+`@nodes/layout` владеет только pure TypeScript geometry engine и минимальным
 `LayoutGraph → LayoutResult` протоколом. Hamiltonian адаптирует собственные
 наблюдения в UI-модель и добавляет только уже существующие lifecycle actions.
 Generic `parentId` задаёт только визуальный контейнер и не сообщает пакету
@@ -142,7 +143,7 @@ intrinsic card size и позиции sockets. Main-thread adapter переда�
 долгоживущему layout Worker только viewport/spacing, измеренные node sizes,
 port offsets и semantic edge endpoint IDs. Текст, facts, actions, Flex и
 `NodeSystemDocument` границу Worker не пересекают. Worker возвращает
-`LayoutResult`, а `@ui/node` связывает IDs с исходным document без post-routing. Новая
+`LayoutResult`, а `nodes` связывает IDs с исходным document без post-routing. Новая
 topology generation отменяет ожидание устаревшего ответа, а ошибка Worker не
 включает скрытый синхронный fallback на main thread.
 Navigation-ноды и каждое последующее добавление либо удаление ноды проходят
@@ -347,8 +348,8 @@ HAMILTONIAN_TOKEN=local-test HAMILTONIAN_VERSION=v1 bun run start
 host запускается с тем же identity/token и новым `HAMILTONIAN_VERSION`;
 управляемая страница подготавливает cache и выполняет reload.
 
-Локальный host наблюдает изменения browser/public/core, `pkg/layout` и
-`pkg/ui` source.
+Локальный host наблюдает изменения browser/public/core, `pkg/nodes` и `pkg/ui`
+source.
 После 120 ms debounce он сначала успешно пересобирает orchestration bundle и
 только затем отправляет controlled pages новую source revision по текущему
 control socket. Страница сохраняет принятую revision в `sessionStorage` и
@@ -400,7 +401,7 @@ production identity/auth design: он хранится в browser storage и п�
 ```bash
 cd /Users/zavx0z/repozitarium/metafor
 bun test hamiltonian
-bun test pkg/layout/src pkg/ui/node hamiltonian/browser/orchestration
+bun test pkg/nodes hamiltonian/browser/orchestration
 bun run typecheck
 cd /Users/zavx0z/repozitarium/metafor/hamiltonian
 bunx tsc --ignoreConfig --noEmit --strict --module preserve \
@@ -429,7 +430,7 @@ logical lane, frame/queue backpressure, ordering/gap, RPC timeout/session loss,
 caller-driven RPC cancellation, WSS resume без смены logical authority, RTC
 repair с новой peer generation, stale session rejection, запрет realtime на
 WSS, browser/server placement и прямой Bun↔Bun WebRTC через `werift`.
-Отдельные `@metafor/layout`, `@ui/node` и orchestration fixtures проверяют
+Отдельные `nodes`, `@nodes/layout`, `@nodes/ui` и orchestration fixtures проверяют
 ссылки node graph, Worker parity, детерминированный placement,
 точные Flex/card metrics, полный
 compound layout при add/remove и при смене landscape/portrait,

@@ -2,7 +2,7 @@ import {
   runLayoutWorkerRequest,
   type LayoutWorkerRequest,
   type LayoutWorkerResponse,
-} from "@metafor/layout"
+} from "@nodes/layout"
 
 type LayoutWorkerScope = Readonly<{
   addEventListener(

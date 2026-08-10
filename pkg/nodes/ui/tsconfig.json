@@ -1,0 +1,9 @@
+{
+  "extends": "../../../tsconfig.json",
+  "include": [
+    "**/*.ts",
+    "../types/**/*.ts",
+    "../incremental-layout.ts",
+    "../validation.ts"
+  ]
+}

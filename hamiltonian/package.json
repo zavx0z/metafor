@@ -9,10 +9,11 @@
   },
   "dependencies": {
     "@metafor/engine": "workspace:*",
-    "@metafor/layout": "workspace:*",
+    "@nodes/layout": "workspace:*",
+    "@nodes/ui": "workspace:*",
     "@ui/components": "workspace:*",
     "@ui/elements": "workspace:*",
-    "@ui/node": "workspace:*",
+    "nodes": "workspace:*",
     "werift": "0.24.3"
   }
 }

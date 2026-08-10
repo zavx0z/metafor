@@ -11,7 +11,7 @@ import {
   nodeSystemStructureKey,
   refreshPositionedNodeSystem,
 } from "./lifecycle-projection.ts"
-import type {PositionedNodeSystem} from "@ui/node/types"
+import type {PositionedNodeSystem} from "nodes/types"
 
 const context = {
   origin: "http://127.0.0.1:4400",

@@ -42,6 +42,7 @@ interface HamiltonianHostOptions {
   tlsKeyPath?: string
   heartbeatMs?: number
   placement?: "browser" | "server"
+  browserBundles?: Readonly<{orchestration: string; layoutWorker: string}>
 }
 
 interface ClientTabsMessage {
@@ -111,17 +112,19 @@ interface HostEvent {
 }
 
 const experimentRoot = fileURLToPath(new URL(".", import.meta.url))
+const repositoryRoot = fileURLToPath(new URL("..", import.meta.url))
 const publicRoot = `${experimentRoot}/public`
 const orchestrationEntry = `${experimentRoot}/browser/orchestration.ts`
 const layoutWorkerEntry = `${experimentRoot}/browser/layout-worker.ts`
 const engineFont = fileURLToPath(new URL("../pkg/engine/static/JetBrainsMono-Bold.ttf", import.meta.url))
 const uiRoot = fileURLToPath(new URL("../pkg/ui/", import.meta.url))
-const layoutRoot = fileURLToPath(new URL("../pkg/layout/", import.meta.url))
+const nodesRoot = fileURLToPath(new URL("../pkg/nodes/", import.meta.url))
 let orchestrationBundle: Promise<string> | null = null
 let layoutWorkerBundle: Promise<string> | null = null
 
 function getOrchestrationBundle(): Promise<string> {
   orchestrationBundle ??= Bun.build({
+    root: repositoryRoot,
     entrypoints: [orchestrationEntry],
     target: "browser",
     format: "esm",
@@ -134,12 +137,15 @@ function getOrchestrationBundle(): Promise<string> {
       throw new Error(`Hamiltonian orchestration bundle failed${detail ? `: ${detail}` : ""}`)
     }
     return await result.outputs[0]!.text()
+  }).catch((error: unknown) => {
+    throw new Error(`Hamiltonian orchestration bundle failed: ${browserBuildError(error)}`)
   })
   return orchestrationBundle
 }
 
 function getLayoutWorkerBundle(): Promise<string> {
   layoutWorkerBundle ??= Bun.build({
+    root: repositoryRoot,
     entrypoints: [layoutWorkerEntry],
     target: "browser",
     format: "esm",
@@ -151,8 +157,21 @@ function getLayoutWorkerBundle(): Promise<string> {
       throw new Error(`Hamiltonian layout Worker bundle failed${detail ? `: ${detail}` : ""}`)
     }
     return await result.outputs[0]!.text()
+  }).catch((error: unknown) => {
+    throw new Error(`Hamiltonian layout Worker bundle failed: ${browserBuildError(error)}`)
   })
   return layoutWorkerBundle
+}
+
+function browserBuildError(error: unknown): string {
+  if (typeof error !== "object" || error === null) return String(error)
+  const message = "message" in error ? String(error.message) : String(error)
+  const logs = "logs" in error && Array.isArray(error.logs)
+    ? error.logs.map((log) => typeof log === "object" && log !== null && "message" in log
+      ? String(log.message)
+      : String(log)).filter(Boolean)
+    : []
+  return logs.length === 0 ? message : `${message}: ${logs.join("\n")}`
 }
 
 function invalidateBrowserBundles(): void {
@@ -630,12 +649,16 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
       })
     }, 120)
   }
-  // Build once as soon as the host incarnation starts. A first navigation
-  // must not pay the browser bundle compilation cost on its module request.
-  // Bun 1.3.14 may crash when Bun.build races the test runner's own WGSL
-  // transpilation, so tests retain the same on-request build path they verify.
-  if (Bun.env.NODE_ENV !== "test") {
-    void Promise.all([getOrchestrationBundle(), getLayoutWorkerBundle()]).catch(() => {})
+  if (options.browserBundles !== undefined) {
+    orchestrationBundle = Promise.resolve(options.browserBundles.orchestration)
+    layoutWorkerBundle = Promise.resolve(options.browserBundles.layoutWorker)
+  } else {
+    invalidateBrowserBundles()
+    if (Bun.env.NODE_ENV !== "test") {
+      // Build once as soon as the host incarnation starts. A first navigation
+      // must not pay the browser bundle compilation cost on its module request.
+      void Promise.all([getOrchestrationBundle(), getLayoutWorkerBundle()]).catch(() => {})
+    }
   }
   let broadcastTopology = () => {}
   let peerSnapshot: WeriftPeerSnapshot | null = null
@@ -1279,7 +1302,7 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
   boundPort = server.port ?? port
 
   if (Bun.env.NODE_ENV !== "test") {
-    for (const root of [`${experimentRoot}/browser`, `${experimentRoot}/public`, `${experimentRoot}/core`, uiRoot, layoutRoot]) {
+    for (const root of [`${experimentRoot}/browser`, `${experimentRoot}/public`, `${experimentRoot}/core`, uiRoot, nodesRoot]) {
       try {
         sourceWatchers.push(watch(root, {recursive: true}, (_event, filename) => {
           scheduleSourceUpdate(filename)

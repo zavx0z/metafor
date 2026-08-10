@@ -39,9 +39,8 @@
   локальные Force handlers и принадлежащая `pkg/visual` геометрия.
 * [Visual layouts](../pkg/visual/CONTRACT.md) — именованные способы показать
   один полный Bulk scene snapshot.
-* [Node-system layout](../pkg/layout/README.md) — минимальный ELK-like graph,
-  compound placement, orthogonal routing и Worker contract; UI-модель и
-  измерение карточек принадлежат `@ui/node`.
+* [Node system](../pkg/nodes/README.md) — модель, validation и связь между
+  минимальной раскладкой `@nodes/layout` и компонентами `@nodes/ui`.
 * [Протоколы сил](proto/) — справочное чтение wire-потоков; при конфликте
   приоритет имеет контракт домена и public type.
 * [Работа с Meta-пакетами](META_PACKAGES.md) — граница внешних репозиториев в
