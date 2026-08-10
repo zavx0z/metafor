@@ -53,9 +53,10 @@ export class MetaForNodeSystemLayouter {
       height: positiveViewport(request.viewport.height, "viewport height"),
     }
     const measureText = memoizedTextMeasurer(this.options.measureText)
-    const first = this.layoutPass(document, viewport, measureText)
+    const canonicalDocument = canonicalizeConnectedNodeSystemFacts(document)
+    const first = this.layoutPass(canonicalDocument, viewport, measureText)
     let best = first
-    for (const candidate of nodeSystemPortFactOrderCandidates(document, first)) {
+    for (const candidate of nodeSystemPortFactOrderCandidates(canonicalDocument, first)) {
       try {
         const ordered = this.layoutPass(candidate, viewport, measureText)
         if (compareRoutingObjective(ordered.result, best.result) < 0) best = ordered
@@ -100,9 +101,10 @@ export class MetaForNodeSystemWorkerLayouter {
       height: positiveViewport(request.viewport.height, "viewport height"),
     }
     const measureText = memoizedTextMeasurer(this.options.measureText)
-    const first = await this.layoutPass(document, viewport, measureText, generation)
+    const canonicalDocument = canonicalizeConnectedNodeSystemFacts(document)
+    const first = await this.layoutPass(canonicalDocument, viewport, measureText, generation)
     let best = first
-    for (const candidate of nodeSystemPortFactOrderCandidates(document, first)) {
+    for (const candidate of nodeSystemPortFactOrderCandidates(canonicalDocument, first)) {
       try {
         const ordered = await this.layoutPass(candidate, viewport, measureText, generation)
         if (compareRoutingObjective(ordered.result, best.result) < 0) best = ordered
@@ -288,8 +290,41 @@ export function orderNodeSystemPortFactsForLayout(
 }
 
 /**
- * Bounded presentation search. Besides the median/barycenter proposal it tries
- * pair swaps only where two crossing edges share a concrete endpoint card.
+ * Raw lifecycle order is not presentation state. Canonicalize only connected
+ * facts inside their existing slots; unrelated rows keep their exact position.
+ */
+function canonicalizeConnectedNodeSystemFacts(document: NodeSystemDocument): NodeSystemDocument {
+  const parameterByPort = new Map(document.nodes.flatMap((node) =>
+    (node.ports ?? []).map((port) => [enginePortId(node.id, port.id), port.parameterId] as const)))
+  const connectedParameters = new Map<string, Set<string>>()
+  for (const edge of document.edges) {
+    for (const endpoint of [edge.source, edge.target]) {
+      const parameterId = parameterByPort.get(enginePortId(endpoint.nodeId, endpoint.portId))
+      if (parameterId === undefined) continue
+      const parameters = connectedParameters.get(endpoint.nodeId) ?? new Set<string>()
+      parameters.add(parameterId)
+      connectedParameters.set(endpoint.nodeId, parameters)
+    }
+  }
+  let changed = false
+  const nodes = document.nodes.map((node): NodeSystemNode => {
+    const connected = connectedParameters.get(node.id)
+    if (connected === undefined || connected.size < 2 || node.facts === undefined) return node
+    const slots = node.facts.flatMap((fact, index) => connected.has(fact.id) ? [index] : [])
+    if (slots.length < 2) return node
+    const facts = [...node.facts]
+    const ordered = slots.map((index) => facts[index]!).sort((left, right) => compareIds(left.id, right.id))
+    for (let index = 0; index < slots.length; index += 1) facts[slots[index]!] = ordered[index]!
+    if (facts.every((fact, index) => fact === node.facts![index])) return node
+    changed = true
+    return {...node, facts}
+  })
+  return changed ? {...document, nodes} : document
+}
+
+/**
+ * Bounded presentation search. It tries one aggregate crossing-driven swap;
+ * the median/barycenter proposal is the fallback when no such swap exists.
  */
 function nodeSystemPortFactOrderCandidates(
   document: NodeSystemDocument,

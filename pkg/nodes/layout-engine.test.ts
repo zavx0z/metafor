@@ -164,7 +164,7 @@ describe("MetaFor TypeScript node-system layout", () => {
     expect(new Set(portrait.nodes.map(({rect}) => rect.y)).size).toBeGreaterThan(1)
   })
 
-  test("routes two simultaneous sibling lifecycle contours with a bounded portrait-width fallback", () => {
+  test("routes two simultaneous sibling lifecycle contours independently of connected row arrival order", () => {
     const nodeWithPorts = (
       id: string,
       parentId: string | undefined,
@@ -230,26 +230,26 @@ describe("MetaFor TypeScript node-system layout", () => {
       ],
     }
     const layouter = new MetaForNodeSystemLayouter()
-    const layout = layouter.layout(transition, {
-      viewport: {width: 647, height: 1088},
-    })
-    const permuted = layouter.layout({
-      ...transition,
-      nodes: [...transition.nodes].reverse().map((entry) => {
-        if (!entry.id.startsWith("service-worker-") || entry.facts === undefined) return entry
-        return {...entry, facts: [entry.facts[0]!, entry.facts[2]!, entry.facts[1]!]}
-      }),
-      edges: [...transition.edges].reverse(),
-    }, {viewport: {width: 647, height: 1088}})
+    for (const viewport of [{width: 647, height: 1088}, {width: 1200, height: 800}]) {
+      const layout = layouter.layout(transition, {viewport})
+      const permuted = layouter.layout({
+        ...transition,
+        nodes: [...transition.nodes].reverse().map((entry) => {
+          if (!entry.id.startsWith("service-worker-") || entry.facts === undefined) return entry
+          return {...entry, facts: [entry.facts[0]!, entry.facts[2]!, entry.facts[1]!]}
+        }),
+        edges: [...transition.edges].reverse(),
+      }, {viewport})
 
-    expect(layout.nodes).toHaveLength(12)
-    expect(layout.edges).toHaveLength(12)
-    expect(permuted).toEqual(layout)
-    expectAllExactEdgeEndpoints(layout)
-    expectOrthogonal(layout)
-    expectNoEdgeIntersectsUnrelatedNodeContent(layout)
-    expectParallelEdgeClearanceOnBothAxes(layout, NODE_SYSTEM_PORT_PITCH)
-  })
+      expect(layout.nodes).toHaveLength(12)
+      expect(layout.edges).toHaveLength(12)
+      expect(permuted).toEqual(layout)
+      expectAllExactEdgeEndpoints(layout)
+      expectOrthogonal(layout)
+      expectNoEdgeIntersectsUnrelatedNodeContent(layout)
+      expectParallelEdgeClearanceOnBothAxes(layout, NODE_SYSTEM_PORT_PITCH)
+    }
+  }, 10_000)
 
   test("orders connected parameter rows by counterpart position without moving ordinary facts", () => {
     const sortable: NodeSystemDocument = {
