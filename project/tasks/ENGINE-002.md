@@ -118,3 +118,17 @@ Renderer-level regression test полного skinned path не блокируе
 По решению владельца он вынесен в будущую задачу
 [`ENGINE-003 — Сквозной тест skinned mesh в Renderer`](ENGINE-003.md) и будет
 выполнен вместе с предметной работой над skinned mesh.
+
+## Артефакты
+
+* [`README`](../artifacts/ENGINE-002/README.md) описывает происхождение,
+  ограничения и контрольные суммы доказательств.
+* [`instrumented-hamiltonian.png`](../artifacts/ENGINE-002/instrumented-hamiltonian.png)
+  сохраняет composited вид живой сцены.
+* [`camera-drag-capture-summary.json`](../artifacts/ENGINE-002/camera-drag-capture-summary.json)
+  сохраняет проверяемые команды, offsets, объём upload и validation state.
+
+По указанию владельца эти доказательства фиксируются отдельным review-коммитом,
+после чего выполняется закрывающая проверка. Clean cold-start не используется
+как доказательство ускорения: ENGINE-002 подтверждает сокращение per-frame
+upload и не делает утверждений о first-paint или точном GPU-времени.
