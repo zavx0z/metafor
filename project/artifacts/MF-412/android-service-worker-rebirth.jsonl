@@ -1,8 +1,0 @@
-{"event":"version","versionId":"94","runningStatus":"running","status":"activated","targetId":"6B860C97575AB2CC3666D9B0505FAE6D","controlledClients":["0673636D5056D16B400688BED7F22BD4"]}
-{"event":"stopWorker-result","result":{},"error":null}
-{"event":"version","versionId":"94","runningStatus":"stopping","status":"activated","targetId":"6B860C97575AB2CC3666D9B0505FAE6D","controlledClients":["0673636D5056D16B400688BED7F22BD4"]}
-{"event":"version","versionId":"94","runningStatus":"stopped","status":"activated","targetId":null,"controlledClients":["0673636D5056D16B400688BED7F22BD4"]}
-{"event":"version","versionId":"94","runningStatus":"starting","status":"activated","targetId":null,"controlledClients":["0673636D5056D16B400688BED7F22BD4"]}
-{"event":"version","versionId":"94","runningStatus":"starting","status":"activated","targetId":"F1E8300A237BD74CB9546B3B0E1ABF3D","controlledClients":["0673636D5056D16B400688BED7F22BD4"]}
-{"event":"version","versionId":"94","runningStatus":"running","status":"activated","targetId":"F1E8300A237BD74CB9546B3B0E1ABF3D","controlledClients":["0673636D5056D16B400688BED7F22BD4"]}
-{"proof":"reborn","sameVersion":"94","oldTarget":"6B860C97575AB2CC3666D9B0505FAE6D","newTarget":"F1E8300A237BD74CB9546B3B0E1ABF3D","targetChanged":true}

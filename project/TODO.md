@@ -21,10 +21,7 @@ flowchart LR
     AUD012["AUD-012 · завершение Renderer"]
     AUD013["AUD-013 · серверные проверки"]
     AUD014["AUD-014 · корневой пакет"]
-    DRK001["DRK-001 · граница Dark"]
     MF411["MF-411 · закон Hamiltonian"]
-    MF412["MF-412 · опыт Hamiltonian"]
-    MF413["MF-413 · единая RPC-поверхность Oracle"]
     MF414["MF-414 · воплощения доменов"]
     MF421["MF-421 · деактивация невидимого monitor display"]
     MTX001["MTX-001 · причинный порядок"]
@@ -41,8 +38,7 @@ flowchart LR
     MF407["MF-407 · частичная Graph-проекция"]
     MF109 --> MF110
     MF405 --> MF406
-    MF412 --> MF414
-    MF413 --> MF414
+    MF411 --> MF414
 ```
 
 ## P1 — ближайшая работа
@@ -51,36 +47,12 @@ flowchart LR
 Деактивация невидимого monitor display `MF-421` готова к выбору как отдельное
 функциональное продолжение.
 Документационный этап `MF-411` остаётся отдельной незавершённой работой.
-`DRK-001` закрывает только два уже утверждённых public dependency slice.
-`MF-411` продолжает уточнять закон Hamiltonian, а `MF-412` проверяет уже
-принятую минимальную управляющую схему без production-кода MetaFor.
-
-Эта диаграмма показывает этапы внутри одной карточки `DRK-001`, а не отдельные
-задачи. Статусы и stop conditions подробно описаны в карточке.
-
-```mermaid
-flowchart LR
-    DRK001S1["DONE · Boundary contract"]
-    DRK001S2["DONE · Create facade"]
-    DRK001S3["NEXT · проверка и закрытие"]
-    DRK001D1["DEFERRED · Dark → Bulk wiring"]
-    DRK001D2["DEFERRED · DSL bootstrap"]
-    DRK001G1["SEPARATE GATE · offline/cold recovery"]
-    DRK001G2["SEPARATE GATE · scoped pause"]
-    DRK001S1 --> DRK001S2
-    DRK001S2 --> DRK001S3
-```
-
-Dark → Bulk wiring, DSL bootstrap и separate gates не входят в закрытие двух
-утверждённых slices и не блокируют `NEXT`.
+Задача `MF-414` ждёт завершения этого закона.
 
 | ID      | Состояние   | Зависимости    | Карточка                    |
 | ------- | ----------- | -------------- | --------------------------- |
-| DRK-001 | REVIEW      | нет            | [Открыть](tasks/DRK-001.md) |
 | MF-411  | IN_PROGRESS | нет            | [Открыть](tasks/MF-411.md)  |
-| MF-412  | REVIEW      | нет            | [Открыть](tasks/MF-412.md)  |
-| MF-413  | REVIEW      | нет            | [Открыть](tasks/MF-413.md)  |
-| MF-414  | READY       | MF-412, MF-413 | [Открыть](tasks/MF-414.md)  |
+| MF-414  | WAITING     | MF-411         | [Открыть](tasks/MF-414.md)  |
 
 ## P2 — функциональное продолжение и надёжность
 

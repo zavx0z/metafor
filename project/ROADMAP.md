@@ -65,7 +65,7 @@
 Graph является единой семантической read-only проекцией структуры Вселенной
 для агента. Он собирается при запросе и не становится вторым каноническим
 Store. Graph доступен через Dark Oracle RPC и входит в единую
-RPC-поверхность, закрепляемую `MF-413`. Это не меняет provider и не
+RPC-поверхность Oracle. Это не меняет provider и не
 назначает Bulk обязательным посредником.
 
 Graph содержит:
@@ -131,9 +131,10 @@ platform lifecycle и transport adapters могут различаться.
 1. по фактам опыта уточнить Oracle, identity и peer routing;
 1. только затем принять transport и migration slices.
 
-Первый эксперимент — [`MF-412`](tasks/MF-412.md). Полная раздача кода,
-placement production-доменов и переход listener не проектируются до его
-evidence.
+Первый standalone-эксперимент завершён. Его действующие законы,
+доказанные границы и недоказанные production-свойства закреплены в
+[`hamiltonian/README.md`](../hamiltonian/README.md). Placement production-доменов
+и переход listener остаются отдельной будущей работой.
 
 ### Наблюдаемость и управление Hamiltonian
 
@@ -340,13 +341,9 @@ Bulk. Она должна уметь:
 
 ## Порядок оставшейся работы
 
-1. закрыть в `DRK-001` только уже утверждённые Boundary/Create public
-   dependencies, не создавая Bulk composition facade;
 1. в `MF-411` закрепить закон Hamiltonian, его identity и embodiments;
-1. выполнить изолированный Hamiltonian experiment `MF-412` до переноса
-   production-кода;
-1. закрепить единую Oracle RPC-семантику `MF-413` и
-   identity/cardinality/placement `MF-414`;
+1. после `MF-411` определить identity, cardinality и placement доменных
+   воплощений в `MF-414`;
 1. после этого решить, принимать ли peer carrier `MF-410` и какими
    минимальными migration slices переносить listener и доменные воплощения;
 1. независимо реализовать релевантную частичную Graph-проекцию `MF-407`;
