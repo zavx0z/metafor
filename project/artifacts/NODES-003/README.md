@@ -53,6 +53,11 @@ warmups выполнено по `10` samples:
 Это первый baseline именно для двухвкладочного input; historical
 одно-вкладочные measurements нельзя использовать как прямое сравнение.
 
+Result commit:
+`60c09339fdeac546690c5934193bc40cfa5898d8`. Benchmark был снят до записи
+коммита, поэтому поле `gitRevision` содержит parent revision; независимая
+проверка обязана сверить `layoutSourceSha256` с тремя committed solver-файлами.
+
 Runtime, browser, canvas и Worker transport для этой диагностики не нужны.
 Симметричная lifecycle-сходимость вкладок остаётся отдельной проверкой
 `MF-424.3`.

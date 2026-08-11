@@ -78,3 +78,35 @@
 Диагностика и frozen fixture находятся в
 [`project/artifacts/NODES-003`](../artifacts/NODES-003/README.md).
 Machine-readable benchmark: [`benchmark-current.json`](../artifacts/NODES-003/benchmark-current.json).
+
+## Closing handoff
+
+Статус: `REVIEW`.
+
+Result commit:
+`60c09339fdeac546690c5934193bc40cfa5898d8` (`fix(layout): preserve occupied
+row corridors`).
+
+Затронутые постоянные владельцы и contracts:
+
+* `pkg/nodes/layout/requirements/COMMON.md` — compaction сохраняет только
+  фактически занятый межрядный corridor;
+* `pkg/nodes/layout/src/place-graph.ts` — универсальное применение размера
+  corridor при последующем compaction соседних рядов;
+* `pkg/nodes/layout/src/layout.test.ts` — двухстраничный shared-worker regression
+  в `RIGHT` и `DOWN`, включая permutation stability;
+* `pkg/nodes/layout-engine.test.ts` — crossing-first выбор parameter-row order
+  поверх counterpart heuristic.
+
+На closing review передаются frozen fixture и SHA-256, полная классификация
+`0/46 → 4/46`, representative route witnesses, `RIGHT`/`DOWN` geometry hashes,
+три повтора, три перестановки, focused Hamiltonian test и final benchmark.
+Lifecycle/BroadcastChannel convergence не входит в результат и остаётся в
+`MF-424.3`.
+
+Эта же closing review обязана явно перепроверить действующие законы ранее
+закрытой `NODES-002`: crossing-first row ordering, отсутствие зависимости от
+arrival order, `RIGHT`/`DOWN`, exact endpoints, orthogonality, node clearance и
+edge clearance на обеих осях. Это устраняет процессный разрыв старого closure,
+где перед удалением карточки не был записан отдельный независимый verdict; сами
+удалённые карточка и временные артефакты как архив не восстанавливаются.
