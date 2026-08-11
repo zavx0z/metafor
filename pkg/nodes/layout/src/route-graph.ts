@@ -218,6 +218,7 @@ function edgeOrderCandidates(index: RouteIndex): readonly (readonly RouteEdge[])
   }
   const schedules = [
     index.sortedEdges,
+    [...index.sortedEdges].sort(sourceGeometry),
     [...index.sortedEdges].sort((left, right) => -sourceGeometry(left, right)),
   ]
   const unique = new Map<string, readonly RouteEdge[]>()
