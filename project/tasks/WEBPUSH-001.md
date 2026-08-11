@@ -171,28 +171,95 @@ dependencies.
 1. Выполнить живой HTTPS-сценарий и сохранить evidence в
    `project/artifacts/WEBPUSH-001/` до закрывающего коммита.
 
-## Результат проверки перед REVIEW
+## Результат и closing handoff
 
-* Browser/server exports разделены; общий пакет не предоставляет
-  `BroadcastChannel`, а Hamiltonian подключает наблюдение своим lifecycle hook.
-* Прошёл 21 package test, 38 focused browser/layout/projection tests и 149 Hamiltonian
-  tests; strict TypeScript пакета, root typecheck и `git diff --check` успешны.
-* В обычном Chrome 151 на HTTPS подтверждены `granted`, сохранённая подписка и
-  неизменная стабильная identity Service Worker при смене его внутреннего
-  runtime incarnation.
-* Для `wakeId` `a710ec3f-de44-4990-98d1-bb17cff5acab` наблюдены
-  `push-armed`, `push-sent`, `push-service-accepted` и
-  `push-reconnect-confirmed`; после подтверждения `pendingWakeIds` пуст. Затем
-  Chrome сменил внутренний runtime incarnation, а восстановленный bootstrap
-  остался `pushReady: true`, без ложного красного состояния стабильной ноды.
-* Живая проекция содержит 12 нод и 10 связей без orphan roots. Один выходной
-  IPC-параметр host совместно используется тремя IPC edges, Web Push и WSS
-  остаются отдельными связями.
-* Повторяемые runtime-данные и визуальный снимок сохранены в
-  `project/artifacts/WEBPUSH-001/`. Независимое предварительное implementation
-  review не нашло P0/P1; его единственный P2 о stale live evidence устранён
-  повторным HTTPS-capture финального runtime с module SHA-256, checksum обоих
-  артефактов и проверкой следующего browser-managed incarnation. После
-  перевода задачи в `REVIEW` точный result commit отдельно проходит
-  обязательную closing-проверку по `project/README.md`; только её verdict
-  разрешает закрывающий коммит.
+### Точная граница результата
+
+Готовый результат состоит из трёх последовательных коммитов одной ветки:
+
+1. `347fca844567074652be18768133ad0ece1a369f` — общий Web Push package,
+   Hamiltonian adapter, lifecycle/projection, документация, проверки и перевод
+   задачи в `REVIEW`;
+1. `dac31433bb4b1bddaf637f50f257a468e2e700c7` — закрытие замечаний первого
+   review: строгий discriminated lifecycle union, запрет неизвестных и
+   несогласованных полей, безопасный root browser export;
+1. `a343bb1ecc1d9d4fd60e6076015b8fc2142ccad0` — исправление обнаруженного на
+   exact clean runtime layout-regression для фактического порядка портов и
+   отдельный regression test.
+
+Фактическая implementation boundary — последний commit и его Git tree
+`df1f4d0abb024a0b2b62fbfed9c42634ae8e2ff4`. Артефакты сняты после запуска
+host именно из этого чистого состояния.
+
+### Затронутые пакеты, домены и постоянные владельцы
+
+| Граница | Постоянный владелец | Что сверять |
+| --- | --- | --- |
+| `@metafor/web-push`, workspace exports и зависимости | `pkg/web-push/CONTRACT.md`; usage — `pkg/web-push/README.md`; карта — `docs/README.md` | runtime-разделение, permission, subscription, send/receipt correlation, safe optional lifecycle hook |
+| Hamiltonian host, Page, Service Worker и lifecycle projection | `hamiltonian/README.md` | adapter к общему package, стабильная Service Worker identity, wake proof, Cache bootstrap, WSS/Web Push edges и текущая проекция |
+| `@nodes/layout` placement и rectilinear routing | `pkg/nodes/layout/requirements/COMMON.md`, `RIGHT.md`, `DOWN.md`; карта пакета — `pkg/nodes/layout/README.md` | существующие законы детерминизма, bounded search, terminal direction и shared-port split; семантический закон не менялся, исправлен выбор детерминированного edge schedule |
+| Граф исполнения и зависимость `MF-428` | процесс — `project/README.md`; текущее состояние — `project/TODO.md` и `project/tasks/MF-428.md` | `MF-428` остаётся отдельной технической и визуальной приёмкой Hamiltonian и разблокируется только после закрытия этой задачи |
+
+### Добавленные, изменённые и отменённые формулировки
+
+* Добавлен переиспользуемый runtime-разделённый package. Он не знает о Graph,
+  Hamiltonian и `BroadcastChannel`; приложение передаёт hook и policy через
+  dependency injection.
+* Permission запрашивается напрямую системным API при `default`; после
+  `denied` приложение не пристаёт, закрытый prompt оставляет возможность нового
+  запроса при следующей загрузке. `granted` без подходящей подписки запускает
+  восстановление или ротацию.
+* Push-service acceptance и фактическая обработка устройством являются двумя
+  разными receipt; correlation требует точные `operationId` и `messageId`.
+* Lifecycle event является строгим безопасным discriminated union: source,
+  type и detail взаимно согласованы, неизвестные поля и secret-shaped data
+  отвергаются.
+* Hamiltonian строит одну стабильную Service Worker ноду и реальные Web Push,
+  WSS, controller и MessagePort edges из тех же lifecycle events. Внутренняя
+  runtime incarnation остаётся фактом ноды, а не отдельной визуальной
+  сущностью.
+* Устарели: monolithic Hamiltonian-only Web Push, успешный HTTP/push-service
+  ответ как доказательство доставки, произвольный lifecycle detail, отдельная
+  `ServiceWorkerGlobalScope` нода и декоративная визуализация вне технического
+  механизма.
+* Для layout новых смысловых правил нет. Исправлена реализация уже действующих
+  законов: маршрутизатор пробует canonical, прямой и обратный геометрические
+  порядки edge, оставаясь конечным и детерминированным.
+
+`MF-424.2` (цвета transport family и легенда) не входит в этот результат и
+остаётся отдельной подзадачей визуальной приёмки.
+
+### Проверки и evidence
+
+* `bun run check`: `2484 passed`, `0 failed`, включая root typecheck и
+  expect-error proof.
+* `bun test hamiltonian`: `149 passed`, `0 failed`.
+* `bun test pkg/nodes/layout/src/layout.test.ts
+  pkg/nodes/layout/src/route-graph.test.ts`: `15 passed`, `0 failed`; тот же
+  измеренный contour без нового schedule воспроизводил
+  `NO_LEGAL_LAYOUT: 32/43`, после исправления возвращает `12/10`.
+* `pkg/web-push` check: `21 passed`, `0 failed`, strict TypeScript и пять
+  browser-safe exports.
+* Exact Chrome 151 HTTPS run: permission `granted`, активный controller,
+  существующая subscription, `12 нод · 10 связей · живой режим`.
+* Wake `476ab1f7-1600-496c-93ba-0febc97b45b3` прошёл цепочку
+  `push-armed → push-sent → push-service-accepted →
+  push-reconnect-confirmed`; после idle runtime сменился с `22018090…` на
+  `bc3016a7…`, identity осталась `8f762ecc…`, Cache bootstrap —
+  `pushReady: true`, pending wake отсутствует.
+* `project/artifacts/WEBPUSH-001/live-after-push.png` — SHA-256
+  `236ea270aa631340052c954c78399920f09d050b8ac812c2b6d28fe0821087ba`.
+* `project/artifacts/WEBPUSH-001/runtime-evidence.json` — SHA-256
+  `e0eb450ae9e04026b281e9cbe389a211629f2d40306fbe1764019e33b8cc01d5`;
+  внутри записаны exact implementation commit/tree, host source и SHA-256 всех
+  реально отданных browser-бандлов.
+
+### История независимого review
+
+Первое review точного result commit `347fca844…` не было положительным: оно
+нашло широкий lifecycle validator, неполный closing handoff и недостаточную
+привязку live evidence к exact tree. Validator и browser export исправлены в
+`dac31433…`; clean runtime затем обнаружил отдельный layout-regression,
+исправленный в `a343bb1e…`. Текущий closing handoff и новые exact artifacts
+должны пройти повторное независимое review. До его явного положительного
+verdict карточка, запись `TODO.md` и артефакты не удаляются.

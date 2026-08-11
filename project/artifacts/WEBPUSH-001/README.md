@@ -4,44 +4,48 @@
 
 * Источник: canvas уже открытой clean-вкладки Chrome CDP target
   `2B712B733E5B9CB18CA3DA211578AE05` на
-  `https://127.0.0.1:4400/`; снимок получен через внешний diagnostics contour
-  без WebGPU Inspector instrumentation.
-* Дата: `2026-08-11T09:49:05Z`.
-* Версия проекта: base HEAD `413008bcc6540ef0dd4c9f506502be31fea91a2f`,
-  финальный pre-commit runtime `webpush-001-result-final-3` из текущего diff;
-  загруженный versioned module имеет SHA-256
-  `0400c1cb1910399786e5827c7088f37294e7ccb4485df0769e9d70dc480ca394`.
-* Ожидание: после реального Web Push граф остаётся живым; одна нода Service
-  Worker остаётся внутри Chrome, Web Push и восстановленный WS присутствуют,
-  серверные процессы и серверный RTCPeerConnection не выходят из блока
-  `Сервер`, а три IPC edge используют один выходной параметр host.
-* Фактическое наблюдение: статус страницы `12 нод · 10 связей · живой режим`;
-  структура владельцев соответствует ожиданию, Service Worker показывает
-  `Push ready`, `heartbeat observed`, `notification shown`, Web Push и WS
-  материализованы отдельными связями. После capture подтверждён не только
-  исходный reconnect: Chrome штатно завершил внутреннее исполнение, создал
-  следующее, а та же Service Worker identity осталась Push-ready без красного
-  ложного состояния и без изменения структуры графа.
+  `https://127.0.0.1:4400/`; пиксели получены через внешний diagnostics
+  contour без WebGPU Inspector instrumentation и без открытия другого окна.
+* Дата: `2026-08-11T10:36:42Z`.
+* Версия проекта: clean commit
+  `a343bb1ecc1d9d4fd60e6076015b8fc2142ccad0`, Git tree
+  `df1f4d0abb024a0b2b62fbfed9c42634ae8e2ff4`; host запущен с полным commit
+  как `HAMILTONIAN_VERSION`, а точные SHA-256 browser-бандлов перечислены в
+  `runtime-evidence.json`.
+* Ожидание: полный граф содержит 12 нод и 10 связей; Service Worker находится
+  внутри Chrome, серверный `RTCPeerConnection` — внутри `Peer process` и блока
+  `Сервер`, orphan root отсутствуют, Web Push и WSS являются разными edges.
+* Фактическое наблюдение: `12 нод · 10 связей · живой режим`; структура
+  владельцев совпала с ожиданием, Service Worker показывает `Push ready`, а
+  после штатной смены внутреннего исполнения сохранил ту же identity и
+  `pushReady: true`. Выпавших нод и ошибки `NO_LEGAL_LAYOUT` нет.
 * Чувствительные сведения: снимок содержит только локальные сокращённые UUID,
-  PID и loopback URL; token, VAPID private key и PushSubscription endpoint
-  отсутствуют.
+  PID и loopback URL; token, VAPID private key, PushSubscription endpoint и
+  subscription keys отсутствуют.
 * Контрольная сумма: SHA-256
-  `95aee930c9cca3b049ee90f7506eacb19b93eb0fff343b6f6e618a3c72f2c3d2`.
+  `236ea270aa631340052c954c78399920f09d050b8ac812c2b6d28fe0821087ba`.
 
 ## `runtime-evidence.json`
 
-* Источник: авторизованный локальный `/lab/status` того же HTTPS-host и
-  DOM-status точной clean-вкладки после вызова `/lab/wake-service-worker`.
-* Дата: `2026-08-11T09:49:05Z`.
+* Источник: авторизованный локальный `/lab/status`, Cache bootstrap и DOM-status
+  той же точной вкладки после реального `/lab/wake-service-worker`; Git tree,
+  host source и каждый отданный browser-бандл связаны отдельными SHA-256.
+* Дата: `2026-08-11T10:36:42Z`.
+* Версия проекта: result boundary
+  `347fca844567074652be18768133ad0ece1a369f` →
+  `dac31433bb4b1bddaf637f50f257a468e2e700c7` →
+  `a343bb1ecc1d9d4fd60e6076015b8fc2142ccad0`; runtime запущен из последнего
+  чистого коммита.
 * Ожидание: одна устойчивая Service Worker identity связывает server send,
-  принятие push service и подтверждённый reconnect; pending wake после
-  подтверждения отсутствует.
+  принятие push service и подтверждённый reconnect; после завершения этого
+  исполнения новый runtime восстанавливает Push-ready bootstrap; pending wake
+  отсутствует, а проекция остаётся `12/10`.
 * Фактическое наблюдение: `push-armed → push-sent → push-service-accepted →
-  push-reconnect-confirmed` относится к одному `wakeId` и одной identity;
-  notification permission равен `granted`, граф остаётся `live`. После
-  подтверждённого reconnect зафиксирована смена внутреннего runtime incarnation
-  и сохранённый `pushReady: true` в следующем исполнении.
+  push-reconnect-confirmed` относится к wake `476ab1f7…`; Chrome затем сменил
+  runtime `22018090…` на `bc3016a7…`, сохранив identity
+  `8f762ecc…`, подписку, controller и `bootstrap.pushReady: true`.
 * Чувствительные сведения: сохранены только неавторизующие correlation и
-  runtime identity; токен, VAPID keys, subscription keys и endpoint удалены.
+  runtime identity; token, resume nonce, VAPID keys, subscription keys,
+  endpoint и payload удалены.
 * Контрольная сумма: SHA-256
-  `984473519e431444dd9b112ab7846517590f477904a7b51cc6f4c40b6bd3f9aa`.
+  `e0eb450ae9e04026b281e9cbe389a211629f2d40306fbe1764019e33b8cc01d5`.
