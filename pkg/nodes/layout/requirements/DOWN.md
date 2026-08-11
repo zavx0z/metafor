@@ -26,3 +26,6 @@
    порядок routing-целей.
 8. Все общие hard laws и единый socket-pitch rhythm действуют без ослабления для
    узкого viewport.
+9. Связанные edges могут использовать общий generated trunk и в portrait.
+   Направление responsive placement не отменяет exact EAST/WEST terminal stubs,
+   устойчивый порядок junctions и запрет overlap для несвязанных edges.
