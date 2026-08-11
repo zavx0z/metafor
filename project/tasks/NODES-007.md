@@ -142,3 +142,20 @@ bun run typecheck
 * Evidence: `project/artifacts/NODES-007/README.md`, machine-readable reload и
   resize proof, четыре PNG и final benchmark `RIGHT 195.81 ms`,
   `DOWN 424.73 ms`.
+
+## Независимая закрывающая проверка
+
+Проверяющий `nodes005_closing_review`, read-only review на canonical `main`,
+HEAD `11cf88d28`: **PASS**, закрытие разрешено.
+
+Независимо подтверждены result provenance `da7e34d7e`, отсутствие изменений
+pure `@nodes/layout`, unique `layoutId`, remap rectangles/routes к исходным
+domain IDs, RIGHT/DOWN reincarnation regression с тремя повторами и reversed
+arrays, exact viewport key, `120 ms` debounce и отклонение stale Worker result.
+Повторно прошли `81/81` тестов `pkg/nodes`, `29/29` focused Hamiltonian tests,
+layout/nodes/root typecheck и `git diff --check`. JSON parse, PNG hashes и
+dimensions, frozen fixture/source/input/geometry hashes и adapter source hash
+`f1b91692…` совпали. Постоянные документы `pkg/nodes/README.md`,
+`pkg/nodes/REQUIREMENTS.md` и `hamiltonian/README.md` признаны полными;
+`@nodes/ui` contract остаётся актуален, алгоритмические законы
+`@nodes/layout` не изменены.
