@@ -178,6 +178,11 @@ types задают точную форму протокола, код реали
    их молча. Он возвращает machine-readable `NO_LEGAL_ROUTE` witness с edge,
    endpoints, ancestor chains, candidate axes, reachable frontier, rejected
    transitions и blocking rectangles/segments.
+7. Нулевое число crossings одного edge schedule завершает только первую
+   координату soft objective, но не весь bounded global search. Router сравнивает
+   все уже определённые стабильные schedules по полному лексикографическому
+   порядку; первый найденный допустимый вариант не получает отдельного
+   приоритета перед меньшими turns, Manhattan length или detour.
 
 ## Детерминизм и производительность
 

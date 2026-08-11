@@ -35,10 +35,6 @@ export function routeGraph(input: RouteGraphInput): RouteGraphResult {
     try {
       const result = routeGraphInOrder(input, index, edges)
       results.push(result)
-      // Zero is the absolute lower bound for the new primary objective. The
-      // canonical ID schedule therefore remains the fast path when it already
-      // reaches that bound.
-      if (results.length === 1 && result.metrics.crossings === 0) return result
     } catch (error) {
       if (!expectedRouteFailure(error)) throw error
       firstFailure ??= error

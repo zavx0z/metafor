@@ -106,6 +106,53 @@ describe("rectilinear semantic-edge router", () => {
     expect(permuted).toEqual(first)
   })
 
+  test("compares the full objective after the first zero-crossing edge schedule", () => {
+    for (const direction of ["RIGHT", "DOWN"] as const) {
+      const input: RouteGraphInput = {
+        direction,
+        unitsPerPixel: 1,
+        clearance: 24,
+        bounds: {x: 0, y: 0, w: 800, h: 700},
+        viewport: direction === "RIGHT"
+          ? {width: 1000, height: 700}
+          : {width: 700, height: 1000},
+        nodes: [
+          {id: "target:upper", rect: {x: 100, y: 320, w: 120, h: 72}},
+          {id: "target:lower", rect: {x: 100, y: 140, w: 120, h: 72}},
+          {id: "source:upper", rect: {x: 500, y: 80, w: 120, h: 72}},
+          {id: "source:lower", rect: {x: 500, y: 260, w: 120, h: 72}},
+        ],
+        ports: [
+          {id: "source:upper/out", nodeId: "source:upper", center: {x: 620, y: 116}, side: "EAST", direction: "out"},
+          {id: "source:lower/out", nodeId: "source:lower", center: {x: 620, y: 296}, side: "EAST", direction: "out"},
+          {id: "target:upper/in", nodeId: "target:upper", center: {x: 100, y: 356}, side: "WEST", direction: "in"},
+          {id: "target:lower/in", nodeId: "target:lower", center: {x: 100, y: 176}, side: "WEST", direction: "in"},
+        ],
+        edges: [
+          {id: "edge:upper", sourcePortId: "source:upper/out", targetPortId: "target:upper/in"},
+          {id: "edge:lower", sourcePortId: "source:lower/out", targetPortId: "target:lower/in"},
+        ],
+      }
+
+      const first = routeGraph(input)
+      const repeated = routeGraph(input)
+      const permuted = routeGraph({
+        ...input,
+        nodes: [...input.nodes].reverse(),
+        ports: [...input.ports].reverse(),
+        edges: [...input.edges].reverse(),
+      })
+
+      expect(first.metrics.crossings).toBe(0)
+      expect(first.metrics.totalTurns).toBe(8)
+      expect(first.metrics.totalManhattan).toBe(1760)
+      expect(first.metrics.maxDetour).toBe(264)
+      expect(validateRouteGraphResult(input, first)).toEqual([])
+      expect(repeated).toEqual(first)
+      expect(permuted).toEqual(first)
+    }
+  })
+
   test("preserves two and three parallel lane ranks through all four turns of a shared U corridor", () => {
     for (const laneCount of [2, 3]) {
       const ranks = Array.from({length: laneCount}, (_, rank) => rank)
