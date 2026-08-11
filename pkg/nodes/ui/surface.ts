@@ -25,6 +25,7 @@ import {
 } from "./card-layout.ts"
 import type {NodeSystemTextMeasurer} from "../types/card.ts"
 import {
+  hitTestNodeSystemEdges,
   planNodeSystemEdgeHitRects,
   sampleNodeSystemBezierPath,
 } from "./edge-curve.ts"
@@ -304,6 +305,15 @@ export class NodeSystemSurface extends UiSurface {
     return this.#edgeAnimationEnabled
   }
 
+  override onPointerMove(event: MouseEvent, localX: number, localY: number): void {
+    super.onPointerMove(event, localX, localY)
+    // A compound owns one large hit rectangle, while edge hover inside its
+    // empty body depends on the exact pointer coordinate. requestRender is
+    // frame-coalesced by UiSurface, so rapid mouse events still produce at
+    // most one pending redraw.
+    this.requestRender()
+  }
+
   /** Number of retained visual slots allocated for the peak concurrent load. */
   get retainedEdgeParticleVisualCount(): number {
     return this.#particleVisuals.length
@@ -517,10 +527,27 @@ export class NodeSystemSurface extends UiSurface {
         }
         if (step.kind === "edges") {
           this.withLayer("contentUnderlay", () => {
-            for (const edge of plan.edges) {
+            const routes = plan.edges.map((edge) => {
               const stroke = sampleNodeSystemBezierPath(edge.points, 10 * plan.canvasTransform.scale, 6)
+              const thickness = nodeSystemScreenPresentationMetrics(plan.canvasTransform.scale).edgeThicknessPx
+              return {
+                edge,
+                stroke,
+                hitRects: planNodeSystemEdgeHitRects(stroke, Math.max(5, thickness * 2)),
+              }
+            })
+            const compoundNodeIds = new Set(this.#layout.nodes.flatMap(({node}) => (
+              node.parentId === undefined ? [] : [node.parentId]
+            )))
+            const pointer = this.hoveredPointer()
+            const hoveredEdgeIds = new Set(pointer === null ? [] : hitTestNodeSystemEdges(
+              routes.map(({edge, hitRects}) => ({edgeId: edge.edge.id, rects: hitRects})),
+              pointer,
+              plan.nodes.flatMap(({node, rect}) => compoundNodeIds.has(node.id) ? [] : [rect]),
+            ))
+            for (const {edge, stroke, hitRects} of routes) {
               this.#edgeParticleRoutes.set(edge.edge.id, {entry: edge, stroke})
-              drawEdge(this, edge, plan.canvasTransform.scale, stroke)
+              drawEdge(this, edge, plan.canvasTransform.scale, stroke, hitRects, hoveredEdgeIds.has(edge.edge.id))
             }
           })
           continue
@@ -1051,26 +1078,23 @@ function drawEdge(
   entry: PositionedNodeSystemEdge,
   scale: number,
   stroke: readonly Readonly<{x: number; y: number}>[],
+  hitRects: readonly Readonly<{x: number; y: number; w: number; h: number}>[],
+  isHovered: boolean,
 ): void {
   const color = edgeColor(entry.edge.tone ?? "neutral")
   const thickness = nodeSystemScreenPresentationMetrics(scale).edgeThicknessPx
-  const hitRects = planNodeSystemEdgeHitRects(stroke, Math.max(5, thickness * 2))
-  const isHovered = hitRects.some((rect, index) => host.hitState(
-    rect.x,
-    rect.y,
-    rect.w,
-    rect.h,
-    `node-system:edge:${entry.edge.id}:${index}`,
-  ).hovered)
   host.drawPolyline(
     stroke,
     color,
     isHovered ? thickness * 1.8 : thickness,
     Z.ELEMENT_RULE,
   )
-  if (entry.edge.label === undefined) return
   for (const [index, rect] of hitRects.entries()) {
     const key = `node-system:edge:${entry.edge.id}:${index}`
+    if (entry.edge.label === undefined) {
+      host.hit(rect.x, rect.y, rect.w, rect.h, () => {}, {key, cursor: "default"})
+      continue
+    }
     host.hit(rect.x, rect.y, rect.w, rect.h, () => {}, {
       key,
       cursor: "default",

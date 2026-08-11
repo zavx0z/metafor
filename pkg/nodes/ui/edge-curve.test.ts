@@ -1,5 +1,6 @@
 import {describe, expect, test} from "bun:test"
 import {
+  hitTestNodeSystemEdges,
   planNodeSystemBezierPath,
   planNodeSystemEdgeHitRects,
   sampleNodeSystemBezierPath,
@@ -50,5 +51,16 @@ describe("node-system Bézier edge rendering", () => {
     expect(planNodeSystemEdgeHitRects(stroke, 5)).toEqual([
       {x: 5, y: 15, w: 90, h: 10},
     ])
+  })
+
+  test("returns every overlapping semantic edge independently of input order", () => {
+    const targets = [
+      {edgeId: "edge-b", rects: [{x: 10, y: 10, w: 40, h: 10}]},
+      {edgeId: "edge-a", rects: [{x: 20, y: 5, w: 10, h: 30}]},
+      {edgeId: "edge-c", rects: [{x: 80, y: 80, w: 10, h: 10}]},
+    ]
+    expect(hitTestNodeSystemEdges(targets, {x: 25, y: 15})).toEqual(["edge-a", "edge-b"])
+    expect(hitTestNodeSystemEdges([...targets].reverse(), {x: 25, y: 15})).toEqual(["edge-a", "edge-b"])
+    expect(hitTestNodeSystemEdges(targets, {x: 25, y: 15}, [{x: 22, y: 12, w: 6, h: 6}])).toEqual([])
   })
 })

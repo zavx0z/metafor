@@ -1067,6 +1067,12 @@ export abstract class UiSurface implements UiSurfaceNode {
     }
   }
 
+  /** Pointer inside the currently hovered surface hit, in surface coordinates. */
+  hoveredPointer(): Readonly<{x: number; y: number}> | null {
+    if (this.#hoveredHitKey === null) return null
+    return {x: this.#pointerX, y: this.#pointerY}
+  }
+
   /** Регистрирует hit-rect в surface-px coords. Поздние побеждают. */
   hit(
     x: number,

@@ -10,6 +10,11 @@ export type NodeSystemCubicBezier = Readonly<{
   to: NodeSystemPoint
 }>
 
+export type NodeSystemEdgeHitTarget = Readonly<{
+  edgeId: string
+  rects: readonly NodeSystemRect[]
+}>
+
 /**
  * Converts an engine-routed polyline into cubics that round each routed corner.
  * Curves remain inside a bounded radius around the original route instead of
@@ -94,6 +99,20 @@ export function planNodeSystemEdgeHitRects(
   return rects
 }
 
+/** All semantic edges whose visible hover corridors contain the pointer. */
+export function hitTestNodeSystemEdges(
+  targets: readonly NodeSystemEdgeHitTarget[],
+  point: NodeSystemPoint,
+  blockingRects: readonly NodeSystemRect[] = [],
+): readonly string[] {
+  if (blockingRects.some((rect) => pointInsideRect(point, rect))) return []
+  const edgeIds = new Set<string>()
+  for (const target of targets) {
+    if (target.rects.some((rect) => pointInsideRect(point, rect))) edgeIds.add(target.edgeId)
+  }
+  return [...edgeIds].sort(stableIdCompare)
+}
+
 function cubicPoint(segment: NodeSystemCubicBezier, t: number): NodeSystemPoint {
   const u = 1 - t
   return {
@@ -129,6 +148,15 @@ function lerp(from: NodeSystemPoint, to: NodeSystemPoint, t: number): NodeSystem
 
 function distance(left: NodeSystemPoint, right: NodeSystemPoint): number {
   return Math.hypot(right.x - left.x, right.y - left.y)
+}
+
+function pointInsideRect(point: NodeSystemPoint, rect: NodeSystemRect): boolean {
+  return point.x >= rect.x && point.x <= rect.x + rect.w &&
+    point.y >= rect.y && point.y <= rect.y + rect.h
+}
+
+function stableIdCompare(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0
 }
 
 function collinear(previous: NodeSystemPoint, corner: NodeSystemPoint, next: NodeSystemPoint): boolean {
