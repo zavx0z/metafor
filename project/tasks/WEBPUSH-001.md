@@ -269,6 +269,23 @@ host именно из этого чистого состояния.
 нашло широкий lifecycle validator, неполный closing handoff и недостаточную
 привязку live evidence к exact tree. Validator и browser export исправлены в
 `dac31433…`; clean runtime затем обнаружил отдельный layout-regression,
-исправленный в `a343bb1e…`. Текущий closing handoff и новые exact artifacts
-должны пройти повторное независимое review. До его явного положительного
-verdict карточка, запись `TODO.md` и артефакты не удаляются.
+исправленный в `a343bb1e…`.
+
+Повторное независимое closing review exact evidence commit
+`b32890a430f8a6a756acdced3dcdb4e0453341ba` завершилось verdict `CLEAN` без
+P0–P3 findings. Проверяющий независимо пересчитал все 151 raw samples, causal
+цепочку, `803 ms` до подтверждённого reconnect, `40.046 s` жизни WSS, четыре
+ACK и `250.840 s` без повторного соединения; сверил SHA-256, secret scan,
+границу с работающим Chrome и пустой вкладкой, `0` Hamiltonian clients и
+состояния `WEBPUSH-001: REVIEW` / `MF-428: WAITING`. Verdict является
+техническим review evidence и не подменяет решение владельца.
+
+### Принятие владельцем
+
+11 августа 2026 года владелец явно принял результат после предъявления
+closed-Page замера и CLEAN-verdict. Принятый runtime-смысл: Web Push причинно
+пробуждает ту же зарегистрированную Service Worker entity и восстанавливает
+новый WSS; обычный Web Service Worker и один socket не объявляются постоянно
+живыми. Разрешено выполнить отдельный closing commit по правилам
+`project/README.md`: удалить только `WEBPUSH-001` из графа, её карточку и
+артефакты, сохранив и разблокировав самостоятельную `MF-428`.
