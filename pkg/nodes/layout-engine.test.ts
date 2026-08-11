@@ -501,6 +501,7 @@ function expectParallelEdgeClearanceOnBothAxes(
   layout: PositionedNodeSystem,
   clearance: number,
 ): void {
+  const edgesById = new Map(layout.edges.map(({edge}) => [edge.id, edge]))
   const segments = layout.edges.flatMap((edge) => {
     const points = edge.points
     return points.slice(1).map((to, index) => ({
@@ -525,9 +526,20 @@ function expectParallelEdgeClearanceOnBothAxes(
         const overlaps = Math.max(Math.min(leftStart, leftEnd), Math.min(rightStart, rightEnd)) <
           Math.min(Math.max(leftStart, leftEnd), Math.max(rightStart, rightEnd))
         if (!overlaps) continue
-        distances.push(axis === "H"
+        const distance = axis === "H"
           ? Math.abs(left.from.y - right.from.y)
-          : Math.abs(left.from.x - right.from.x))
+          : Math.abs(left.from.x - right.from.x)
+        const leftEdge = edgesById.get(left.edgeId)!
+        const rightEdge = edgesById.get(right.edgeId)!
+        const relatedBundle = (
+          leftEdge.source.nodeId === rightEdge.source.nodeId &&
+          leftEdge.source.portId === rightEdge.source.portId
+        ) || (
+          leftEdge.target.nodeId === rightEdge.target.nodeId &&
+          leftEdge.target.portId === rightEdge.target.portId
+        )
+        if (distance === 0 && relatedBundle) continue
+        distances.push(distance)
       }
     }
     expect(distances.length).toBeGreaterThan(0)

@@ -240,7 +240,7 @@ describe("rectilinear semantic-edge router", () => {
       for (let rightIndex = leftIndex + 1; rightIndex < result.sections.length; rightIndex += 1) {
         const right = result.sections[rightIndex]!
         const rightPoints = [right.startPoint, ...right.bendPoints, right.endPoint]
-        let sharedStubObserved = false
+        let sharedSegmentObserved = false
         for (let li = 1; li < leftPoints.length; li += 1) {
           for (let ri = 1; ri < rightPoints.length; ri += 1) {
             const [leftFrom, leftTo] = [leftPoints[li - 1]!, leftPoints[li]!]
@@ -249,18 +249,110 @@ describe("rectilinear semantic-edge router", () => {
               const overlapFrom = Math.max(Math.min(leftFrom.x, leftTo.x), Math.min(rightFrom.x, rightTo.x))
               const overlapTo = Math.min(Math.max(leftFrom.x, leftTo.x), Math.max(rightFrom.x, rightTo.x))
               if (overlapFrom >= overlapTo) continue
-              expect(leftFrom.y).toBe(190)
-              expect(overlapFrom).toBeGreaterThanOrEqual(370)
-              expect(overlapTo).toBeLessThanOrEqual(380)
-              sharedStubObserved = true
+              sharedSegmentObserved = true
             } else if (leftFrom.x === leftTo.x && rightFrom.x === rightTo.x && leftFrom.x === rightFrom.x) {
               const overlapFrom = Math.max(Math.min(leftFrom.y, leftTo.y), Math.min(rightFrom.y, rightTo.y))
               const overlapTo = Math.min(Math.max(leftFrom.y, leftTo.y), Math.max(rightFrom.y, rightTo.y))
-              expect(overlapFrom).toBeGreaterThanOrEqual(overlapTo)
+              if (overlapFrom < overlapTo) sharedSegmentObserved = true
             }
           }
         }
-        expect(sharedStubObserved).toBeTrue()
+        expect(sharedSegmentObserved).toBeTrue()
+      }
+    }
+    expect(validateRouteGraphResult(input, result)).toEqual([])
+  })
+
+  test("bundles one exact source socket into a generated trunk in RIGHT and DOWN", () => {
+    for (const direction of ["RIGHT", "DOWN"] as const) {
+      const input: RouteGraphInput = {
+        ...base({
+          bounds: {x: 0, y: 0, w: 460, h: 360},
+          nodes: [
+            {id: "source", rect: {x: 40, y: 190, w: 100, h: 110}},
+            {id: "target:upper", rect: {x: 320, y: 60, w: 100, h: 80}},
+            {id: "target:lower", rect: {x: 320, y: 150, w: 100, h: 80}},
+          ],
+          ports: [
+            {id: "source:out", nodeId: "source", center: {x: 140, y: 250}, side: "EAST", direction: "out"},
+            {id: "target:upper", nodeId: "target:upper", center: {x: 320, y: 100}, side: "WEST", direction: "in"},
+            {id: "target:lower", nodeId: "target:lower", center: {x: 320, y: 190}, side: "WEST", direction: "in"},
+          ],
+          edges: [
+            {id: "edge:upper", sourcePortId: "source:out", targetPortId: "target:upper"},
+            {id: "edge:lower", sourcePortId: "source:out", targetPortId: "target:lower"},
+          ],
+        }),
+        direction,
+      }
+
+      const first = routeGraph(input)
+      const repeated = routeGraph(input)
+      const permuted = routeGraph({
+        ...input,
+        nodes: [...input.nodes].reverse(),
+        ports: [...input.ports].reverse(),
+        edges: [...input.edges].reverse(),
+      })
+      const points = first.sections.map((section) => [section.startPoint, ...section.bendPoints, section.endPoint])
+      const sharedVerticalTrunk = points[0]!.slice(1).some((to, leftIndex) => {
+        const from = points[0]![leftIndex]!
+        if (from.x !== to.x) return false
+        return points[1]!.slice(1).some((rightTo, rightIndex) => {
+          const rightFrom = points[1]![rightIndex]!
+          if (rightFrom.x !== rightTo.x || rightFrom.x !== from.x) return false
+          return Math.max(Math.min(from.y, to.y), Math.min(rightFrom.y, rightTo.y)) <
+            Math.min(Math.max(from.y, to.y), Math.max(rightFrom.y, rightTo.y))
+        })
+      })
+
+      expect(sharedVerticalTrunk).toBeTrue()
+      expect(first.metrics.crossings).toBe(0)
+      expect(validateRouteGraphResult(input, first)).toEqual([])
+      expect(repeated).toEqual(first)
+      expect(permuted).toEqual(first)
+    }
+  })
+
+  test("keeps full clearance between different sockets of one source node", () => {
+    const input = base({
+      bounds: {x: 0, y: 0, w: 460, h: 470},
+      nodes: [
+        {id: "source", rect: {x: 40, y: 190, w: 100, h: 140}},
+        {id: "target:a", rect: {x: 320, y: 60, w: 100, h: 80}},
+        {id: "target:b", rect: {x: 320, y: 150, w: 100, h: 80}},
+      ],
+      ports: [
+        {id: "source:a/out", nodeId: "source", center: {x: 140, y: 230}, side: "EAST", direction: "out"},
+        {id: "source:b/out", nodeId: "source", center: {x: 140, y: 290}, side: "EAST", direction: "out"},
+        {id: "target:a/in", nodeId: "target:a", center: {x: 320, y: 100}, side: "WEST", direction: "in"},
+        {id: "target:b/in", nodeId: "target:b", center: {x: 320, y: 190}, side: "WEST", direction: "in"},
+      ],
+      edges: [
+        {id: "edge:a", sourcePortId: "source:a/out", targetPortId: "target:a/in"},
+        {id: "edge:b", sourcePortId: "source:b/out", targetPortId: "target:b/in"},
+      ],
+    })
+
+    const result = routeGraph(input)
+    const segments = result.sections.map((section) => {
+      const points = [section.startPoint, ...section.bendPoints, section.endPoint]
+      return points.slice(1).map((to, index) => ({from: points[index]!, to}))
+    })
+    for (const left of segments[0]!) {
+      for (const right of segments[1]!) {
+        const bothHorizontal = left.from.y === left.to.y && right.from.y === right.to.y
+        const bothVertical = left.from.x === left.to.x && right.from.x === right.to.x
+        if (bothHorizontal) {
+          const overlap = Math.max(Math.min(left.from.x, left.to.x), Math.min(right.from.x, right.to.x)) <
+            Math.min(Math.max(left.from.x, left.to.x), Math.max(right.from.x, right.to.x))
+          if (overlap) expect(Math.abs(left.from.y - right.from.y)).toBeGreaterThanOrEqual(input.clearance)
+        }
+        if (bothVertical) {
+          const overlap = Math.max(Math.min(left.from.y, left.to.y), Math.min(right.from.y, right.to.y)) <
+            Math.min(Math.max(left.from.y, left.to.y), Math.max(right.from.y, right.to.y))
+          if (overlap) expect(Math.abs(left.from.x - right.from.x)).toBeGreaterThanOrEqual(input.clearance)
+        }
       }
     }
     expect(validateRouteGraphResult(input, result)).toEqual([])

@@ -716,14 +716,21 @@ function candidateAxes(
     ys.add(port.center.y - input.clearance)
     ys.add(port.center.y + input.clearance)
   }
-  for (const points of prior.values()) {
+  for (const [priorEdgeId, points] of prior.entries()) {
+    const priorEdge = required(
+      index.sortedEdges.find((candidate) => candidate.id === priorEdgeId),
+      `missing prior edge ${priorEdgeId}`,
+    )
+    const canBundle = relatedBundleEdges(context.edge, priorEdge)
     for (let index = 1; index < points.length; index += 1) {
       const left = points[index - 1]!
       const right = points[index]!
       if (left.x === right.x) {
+        if (canBundle) xs.add(left.x)
         xs.add(left.x - input.clearance)
         xs.add(left.x + input.clearance)
       } else {
+        if (canBundle) ys.add(left.y)
         ys.add(left.y - input.clearance)
         ys.add(left.y + input.clearance)
       }
@@ -798,6 +805,10 @@ function segmentLegal(
           `missing prior edge ${priorEdgeId}`,
         )
         if (sharedEndpointStubAllows(from, to, blockingFrom, blockingTo, context, priorEdge)) continue
+        if (
+          relatedBundleEdges(context.edge, priorEdge) &&
+          collinearSegmentsOverlap(from, to, blockingFrom, blockingTo)
+        ) continue
         if (trace !== undefined) {
           const horizontal = from.y === to.y
           const overlap = horizontal
@@ -891,6 +902,35 @@ function sharedEndpointStubAllows(
   }
   return sharedStubs.some(([stubFrom, stubTo]) =>
     collinearOverlapContainedInStub(from, to, blockingFrom, blockingTo, stubFrom, stubTo))
+}
+
+function relatedBundleEdges(left: RouteEdge, right: RouteEdge): boolean {
+  return left.sourcePortId === right.sourcePortId || left.targetPortId === right.targetPortId
+}
+
+function collinearSegmentsOverlap(
+  leftFrom: FixedPoint,
+  leftTo: FixedPoint,
+  rightFrom: FixedPoint,
+  rightTo: FixedPoint,
+): boolean {
+  if (
+    leftFrom.y === leftTo.y &&
+    rightFrom.y === rightTo.y &&
+    leftFrom.y === rightFrom.y
+  ) {
+    return Math.max(Math.min(leftFrom.x, leftTo.x), Math.min(rightFrom.x, rightTo.x)) <
+      Math.min(Math.max(leftFrom.x, leftTo.x), Math.max(rightFrom.x, rightTo.x))
+  }
+  if (
+    leftFrom.x === leftTo.x &&
+    rightFrom.x === rightTo.x &&
+    leftFrom.x === rightFrom.x
+  ) {
+    return Math.max(Math.min(leftFrom.y, leftTo.y), Math.min(rightFrom.y, rightTo.y)) <
+      Math.min(Math.max(leftFrom.y, leftTo.y), Math.max(rightFrom.y, rightTo.y))
+  }
+  return false
 }
 
 function collinearOverlapContainedInStub(

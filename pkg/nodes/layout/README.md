@@ -107,11 +107,13 @@ const result = layout(graph)
 переставляет между рёбрами уже найденные legal tracks, повторно запускает полный
 validator и принимает кандидат лишь при улучшении crossing-first objective.
 
-Связанные edges с общим source-node или target-node могут оставаться разными
-semantic edges и одновременно использовать совпадающий generated trunk. Router
-строит отдельные exact terminal stubs, считает merge/split junction частью
-bundle, не разрешает overlap несвязанных edges и принимает объединение только
-после полного validator и лексикографического улучшения geometry.
+Связанные edges с одним exact source-port или одним exact target-port могут
+оставаться разными semantic edges и одновременно использовать совпадающий
+generated trunk. Router строит отдельные exact terminal stubs, считает
+merge/split junction частью bundle, не разрешает overlap несвязанных edges и
+принимает объединение только после полного validator и лексикографического
+улучшения geometry. Общая карточка без общего exact port не разрешает
+объединение: рёбра разных портов сохраняют полный clearance.
 
 Layout не переставляет parameter rows: `ports[].y` является уже измеренным
 входом минимального протокола. Перестановка связанных строк до повторного layout

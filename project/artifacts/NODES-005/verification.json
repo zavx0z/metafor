@@ -1,0 +1,201 @@
+{
+  "fixture": "two-tab-layout-portrait.json",
+  "fixtureSha256": "27c0155999cec911e1479a3418f0b462c1d03a74f65da2fa36b19155b14be78d",
+  "results": [
+    {
+      "direction": "RIGHT",
+      "viewport": {
+        "width": 1088,
+        "height": 722
+      },
+      "geometrySha256": "b845bae5cd1f8087c943519c78a27d91c22bcf7156340bb67ea61974d2d45292",
+      "repeats": 3,
+      "permutations": 3,
+      "nodes": 14,
+      "ports": 20,
+      "edges": 12,
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "width": 2421.25,
+        "height": 1788
+      },
+      "ipcSections": [
+        {
+          "id": "ipc:main",
+          "section": {
+            "startPoint": {
+              "x": 1836.1,
+              "y": 616
+            },
+            "bendPoints": [
+              {
+                "x": 1864.1,
+                "y": 616
+              },
+              {
+                "x": 1864.1,
+                "y": 370
+              }
+            ],
+            "endPoint": {
+              "x": 1948.1,
+              "y": 370
+            }
+          }
+        },
+        {
+          "id": "ipc:peer",
+          "section": {
+            "startPoint": {
+              "x": 1836.1,
+              "y": 616
+            },
+            "bendPoints": [
+              {
+                "x": 1892.1,
+                "y": 616
+              },
+              {
+                "x": 1892.1,
+                "y": 834
+              }
+            ],
+            "endPoint": {
+              "x": 1948.1,
+              "y": 834
+            }
+          }
+        },
+        {
+          "id": "ipc:worker",
+          "section": {
+            "startPoint": {
+              "x": 1836.1,
+              "y": 616
+            },
+            "bendPoints": [],
+            "endPoint": {
+              "x": 1948.1,
+              "y": 616
+            }
+          }
+        }
+      ]
+    },
+    {
+      "direction": "DOWN",
+      "viewport": {
+        "width": 722,
+        "height": 1088
+      },
+      "geometrySha256": "cd8cfd53f36a2518886396cd7391595aeca09665c91a31def95bcfce44a89037",
+      "repeats": 3,
+      "permutations": 3,
+      "nodes": 14,
+      "ports": 20,
+      "edges": 12,
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "width": 1146.45,
+        "height": 4242
+      },
+      "ipcSections": [
+        {
+          "id": "ipc:main",
+          "section": {
+            "startPoint": {
+              "x": 676.9,
+              "y": 2770
+            },
+            "bendPoints": [
+              {
+                "x": 732.9,
+                "y": 2770
+              },
+              {
+                "x": 732.9,
+                "y": 2932
+              },
+              {
+                "x": 540.05,
+                "y": 2932
+              },
+              {
+                "x": 540.05,
+                "y": 3156
+              }
+            ],
+            "endPoint": {
+              "x": 574.45,
+              "y": 3156
+            }
+          }
+        },
+        {
+          "id": "ipc:peer",
+          "section": {
+            "startPoint": {
+              "x": 676.9,
+              "y": 2770
+            },
+            "bendPoints": [
+              {
+                "x": 732.9,
+                "y": 2770
+              },
+              {
+                "x": 732.9,
+                "y": 2932
+              },
+              {
+                "x": 449.3,
+                "y": 2932
+              },
+              {
+                "x": 449.3,
+                "y": 3704
+              }
+            ],
+            "endPoint": {
+              "x": 477.3,
+              "y": 3704
+            }
+          }
+        },
+        {
+          "id": "ipc:worker",
+          "section": {
+            "startPoint": {
+              "x": 676.9,
+              "y": 2770
+            },
+            "bendPoints": [
+              {
+                "x": 732.9,
+                "y": 2770
+              },
+              {
+                "x": 732.9,
+                "y": 2932
+              },
+              {
+                "x": 540.05,
+                "y": 2932
+              },
+              {
+                "x": 540.05,
+                "y": 3458
+              }
+            ],
+            "endPoint": {
+              "x": 568.05,
+              "y": 3458
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
