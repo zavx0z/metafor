@@ -28,6 +28,7 @@ import type {
 } from "nodes/types"
 import {
   HamiltonianLifecycleProjection,
+  hamiltonianLayoutRequestRequiresCancellation,
   hamiltonianLifecycleNeedsDocument,
   hamiltonianPageNodeId,
   nodeSystemStructureKey,
@@ -394,7 +395,17 @@ async function start(): Promise<void> {
   document.documentElement.dataset.hamiltonianBootstrapCommittedAt = String(performance.now())
 
   let scheduledDocument: NodeSystemDocument | null = null
+  let scheduledStructureKey: string | null = null
+  let inFlightStructureKey: string | null = null
   let documentDrain: Promise<void> | null = null
+  const layoutStructureKey = (
+    nextDocument: NodeSystemDocument,
+    direction: NodeSystemLayoutDirection,
+  ): string => [
+    nodeSystemStructureKey(nextDocument),
+    nodeSystemGeometryKey(nextDocument, graph.textMeasurer),
+    direction,
+  ].join("\u0000")
   const exposeLifecycleGap = () => {
     const activeGap = lifecycleProjection.firstGap
     if (activeGap === null) {
@@ -421,11 +432,18 @@ async function start(): Promise<void> {
     )
   }
   const scheduleCurrentDocument = () => {
-    scheduledDocument = lifecycleProjection.document()
-    updateGeneration += 1
-    layoutWorker.cancelBefore(updateGeneration)
+    const nextDocument = lifecycleProjection.document()
+    const nextStructureKey = layoutStructureKey(nextDocument, currentLayoutDirection)
+    scheduledDocument = nextDocument
+    scheduledStructureKey = nextStructureKey
     document.documentElement.dataset.hamiltonianLifecyclePending = "1"
-    if (documentDrain !== null) return
+    if (documentDrain !== null) {
+      if (hamiltonianLayoutRequestRequiresCancellation(inFlightStructureKey, nextStructureKey)) {
+        updateGeneration += 1
+        layoutWorker.cancelBefore(updateGeneration)
+      }
+      return
+    }
     // A retained frontier and its already queued live continuation are applied
     // synchronously during startup. Let that one turn finish before starting
     // layout work so it positions the latest document once instead of laying
@@ -498,14 +516,12 @@ async function start(): Promise<void> {
   async function drainDocuments(): Promise<void> {
     while (scheduledDocument !== null) {
       const current = scheduledDocument
+      const nextStructureKey = scheduledStructureKey ?? layoutStructureKey(current, currentLayoutDirection)
       scheduledDocument = null
+      scheduledStructureKey = null
       const generation = ++updateGeneration
-      const nextStructureKey = [
-        nodeSystemStructureKey(current),
-        nodeSystemGeometryKey(current, graph.textMeasurer),
-        currentLayoutDirection,
-      ].join("\u0000")
       const direction = currentLayoutDirection
+      inFlightStructureKey = nextStructureKey
       try {
         await applyDocument(current, nextStructureKey, generation, direction)
       } catch (error: unknown) {
@@ -513,6 +529,8 @@ async function start(): Promise<void> {
         document.documentElement.dataset.hamiltonianLayoutWorker = "error"
         status.textContent = `Ошибка раскладки топологии · ${error instanceof Error ? error.message : String(error)}`
         status.dataset.state = "error"
+      } finally {
+        inFlightStructureKey = null
       }
     }
   }

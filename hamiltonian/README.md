@@ -24,7 +24,7 @@ Service Worker входит в тот же parent только после фак
 с browser identity. До этого события Worker не приписывается браузеру заранее.
 На loopback запрос `http://127.0.0.1:4400/` сразу возвращает также локальную
 join capability внутри этого HTML и не перенаправляет браузер на служебный URL.
-Service Worker, WebSocket, MessagePort, Dedicated Worker, OS process,
+Service Worker, Service Worker API, WebSocket, Dedicated Worker, OS process,
 RTCPeerConnection и DataChannel появляются только после собственных
 lifecycle-событий. Heartbeat является сообщением на существующем transport,
 а не самостоятельным edge.
@@ -40,8 +40,8 @@ socket incarnation только после успешного сообщения
 identity или отклонённый при проверке Web Push, не может создать либо обновить
 Service Worker и его transport в retained lifecycle. Service Worker включает
 подтверждённую terminal-запись в retained
-состояние и передаёт новый host snapshot уже подключённым Window не только
-через ранний BroadcastChannel, но и прямо по их MessagePort. Поэтому
+состояние и передаёт новый host snapshot уже подключённым Window через
+`WindowClient.postMessage` единого Service Worker API transport. Поэтому
 остановка/пробуждение Service Worker не может стереть последний наблюдённый
 WS: до рождения замены он остаётся `inactive/closed`.
 Когда page затем фактически наблюдает завершение прежнего Service Worker,
@@ -62,18 +62,76 @@ startup-очередь; первый subscriber забирает её один �
 доставленные observations не удерживаются и позднее не replay-ятся. Отдельного
 `edge-traffic` канала нет: движущийся сигнал
 строится только из lifecycle-наблюдения реального `message sent/received`.
-Новая page сначала получает по направленному MessagePort только retained
+Новая page сначала получает по единому Service Worker API transport retained
 snapshot активных сущностей и transport плюс точный causal frontier каждого
 owner-source. Исторические сообщения остаются до frontier и не выходят
 запоздалой пачкой; последующее live-событие обязано продолжить sequence без gap.
+Каждая page realm через `ServiceWorker.postMessage` того же transport передаёт Service Worker свой
+incarnation-bound retained journal и его live-продолжение. Service Worker
+объединяет только journal точного подключённого page-source и направленно
+возвращает общий snapshot всем подключённым Window через
+`WindowClient.postMessage`. Поэтому все одновременно
+открытые вкладки одного Chrome наблюдают один и тот же набор page realm, а
+новая вкладка получает уже открытые страницы без попытки восстановить их из
+host topology. Закрытие или перезагрузка page завершают прежнее ownership-
+поддерево до закрытия Service Worker API transport; наблюдённое исчезновение browser client
+является резервным terminal-наблюдением Service Worker.
+Первый локальный subscriber page realm сам забирает bounded startup-очередь,
+поэтому после рождения `browser → page → window-main` он публикует в своей
+realm точный retained snapshot с causal frontier. Параллельно загружающаяся
+orchestration начинает live-продолжение после этого frontier и не принимает
+нормальные стартовые события за потерянные `1…3`.
+Стабильный scope этого aggregate snapshot переживает остановку исполнения
+Service Worker, поэтому новая execution получает revision-базу из собственного
+`startedAt`, заведомо новее предыдущего исполнения. Следующая версия одного
+scope авторитетно заменяет ранее перечисленный этим scope состав и удаляет
+отсутствующие page realm даже тогда, когда новый Worker уже не мог наблюдать их
+старый source frontier.
+Reload одной вкладки не смешивается с клонированием её `sessionStorage` в новую
+вкладку: только `pagehide` одноразово записывает incarnation фактического
+предшественника, а следующий document того же browsing context читает и сразу
+удаляет это доказательство. Service Worker может заменить ещё видимый старый
+`WindowClient` только при точном совпадении predecessor; без него прежняя
+защита от двух живых вкладок с одним `tabId` остаётся fail-closed.
+
+Живые heartbeat и другие обновления фактов не должны голодать раскладку. Если
+новая lifecycle-ревизия сохраняет тот же структурно-геометрический ключ, она не
+отменяет уже выполняющийся Layout Worker request: расчёт завершается один раз,
+после чего на готовую геометрию накладываются самые свежие факты. Только реально
+изменившийся ключ или направление делает выполняющуюся раскладку устаревшей.
+
+Новый execution Service Worker не объявляет первый подключившийся page snapshot
+полным составом браузера. Перед публикацией авторитетного stable-scope snapshot
+он перечисляет все живые `WindowClient`, просит каждый отсутствующий client
+повторить `connect-window` через Service Worker API и ждёт, пока exact client ids представлены в
+реестре в пределах bounded grace. Повторные запросы одному client в течение
+этого grace схлопываются. Неответивший чужой `WindowClient` не закрывает уже
+доказанный текущий Service Worker API transport: после grace snapshot строится из фактически
+ответивших page journals, а возобновившийся client снова присоединяется своим
+обычным `connect-window`. Поэтому перезапуск execution не превращает
+последовательное переподключение вкладок во временное удаление ещё живых page
+realm и не останавливает heartbeat здоровой страницы из-за BFCache или
+неисполняемого client.
+
+Page и Service Worker используют один двусторонний Service Worker API transport:
+page отправляет `connect-window`, heartbeat и остальные сообщения через
+`ServiceWorker.postMessage`, а Worker отвечает через `WindowClient.postMessage`.
+Обе механики являются двумя направлениями одного браузерного API, поэтому у
+каждой endpoint-ноды это одна строка `Service Worker API`: её входной сокет
+находится слева, выходной — справа. Направления остаются двумя отдельными edge:
+page → Service Worker и Service Worker → page. Каждые 500 мс `window-heartbeat` проходит через стандартное
+Service Worker event delivery и действительно пробуждает остановленное
+execution. Точный `WindowClient`, `tabId`, page incarnation и message identity
+проверяются в Worker; `worker-state` возвращается по тому же логическому
+transport.
 
 ## Текущее переходное состояние
 
 Главное представление topology — живая интерактивная WebGPU-сцена на
 `UIDisplay` внутри engine `Space`; отдельный camera-locked `HUD` содержит только
 окна управления поверх display. Первый причинный срез материализует server и текущую page
-непосредственно из navigation bootstrap. Service Worker, controller,
-MessagePort, WebSocket, Dedicated Worker, два Bun process, отдельный WebRTC
+непосредственно из navigation bootstrap. Service Worker, Service Worker API,
+WebSocket, Dedicated Worker, два Bun process, отдельный WebRTC
 peer process, обе стороны RTCPeerConnection и два RTCDataChannel уже переведены
 на owner lifecycle. Одно сообщение Oracle/Force получает общую
 identity для send и receive. Полный compound graph передаётся собственному
@@ -138,9 +196,9 @@ owner завершается, его вложенные runtime-сущности
 также удаляются из текущего снимка: объект из завершённого процесса не может
 сохраниться за счёт связи с другой средой и стать ложной корневой нодой.
 
-Диагностическое пересоздание локального MessagePort не показывается в
-Inspector: тихий канал и смена Service Worker controller уже восстанавливаются
-автоматически, а legacy-кнопка остаётся только на резервном debug-экране.
+Повторный `connect-window` не создаёт вторую визуальную связь: Service Worker
+API transport сохраняет identity текущей page realm, а тихий канал и смена
+controller восстанавливаются автоматически.
 
 Graph surface является бесконечным 2D-холстом внутри `UIDisplay`. Engine
 `ViewPoint` управляет наблюдением самого дисплея в `Space`; graph pan/zoom
@@ -227,9 +285,9 @@ cursor, а pointer-pan остаётся на Alt-drag или
 
 Host и Service Worker удерживают не историю traffic, а компактное текущее
 состояние lifecycle: последнюю активную entity/transport observation и
-sequence frontier каждого source. Новая Window сначала получает эти snapshot
-по направленному `MessagePort`, затем принимает live-продолжение через
-BroadcastChannel. Snapshot сохраняет исходные event identity, но не повторяет
+sequence frontier каждого source. Новая Window получает snapshot и направленное
+live-продолжение через Service Worker API, а локальная orchestration принимает
+их через ранний BroadcastChannel своей page realm. Snapshot сохраняет исходные event identity, но не повторяет
 сообщения до frontier. Incarnation-aware cursor обнаруживает настоящий разрыв
 после frontier, а duplicate и событие прежнего source не откатывают сцену.
 Когда owning entity наблюдается завершённой, retained snapshot этой incarnation
@@ -551,7 +609,7 @@ HAMILTONIAN_TOKEN=local-test \
 
 Автоматические проверки покрывают один listener, TLS-neutral HTTP surface,
 auth/hash/cache, Bun process birth/rebirth, automatic crash repair и concurrent rebirth, global
-election/fencing, stale MessagePort generation, reconnect, две независимые
+election/fencing, stale Service Worker API client generation, reconnect, две независимые
 logical lane, frame/queue backpressure, ordering/gap, RPC timeout/session loss,
 caller-driven RPC cancellation, WSS resume без смены logical authority, RTC
 repair с новой peer generation, stale session rejection, запрет realtime на

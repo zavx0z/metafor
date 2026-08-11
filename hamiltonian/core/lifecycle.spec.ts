@@ -9,8 +9,11 @@ import {
   hamiltonianRtcPeerEntityId,
   emitHamiltonianLifecycle,
   isHamiltonianLifecycleEnvelope,
+  isHamiltonianLifecycleEnvelopeFromSource,
   isHamiltonianLifecycleSnapshot,
+  isHamiltonianLifecycleSnapshotFromSource,
   publishHamiltonianLifecycleSnapshot,
+  receiveHamiltonianLifecycleEnvelope,
   receiveHamiltonianLifecycleSnapshot,
   subscribeHamiltonianLifecycle,
   subscribeHamiltonianLifecycleSnapshot,
@@ -185,6 +188,129 @@ describe("Hamiltonian owner lifecycle", () => {
     expect(journal.observe(ended)).toBeTrue()
     const endedSnapshot = journal.snapshot()
     expect(isHamiltonianLifecycleSnapshot({...endedSnapshot, envelopes: [ended]})).toBeFalse()
+  })
+
+  test("merges exact page snapshots into one retained browser lifecycle", () => {
+    const browserId = "browser:device-a"
+    const createPage = (incarnation: string) => {
+      const pageId = `page:${incarnation}`
+      const source = new HamiltonianLifecycleSource({
+        id: pageId,
+        kind: "page",
+        incarnation,
+        startedAt: 1,
+      })
+      const journal = new HamiltonianLifecycleRetainedJournal(pageId)
+      for (const observation of [
+        createHamiltonianLifecycleObservation({
+          type: "entity",
+          phase: "born",
+          subjectId: browserId,
+          subjectKind: "browser-runtime",
+          ownerId: browserId,
+          attributes: {runtime: "Chrome"},
+        }),
+        createHamiltonianLifecycleObservation({
+          type: "entity",
+          phase: "born",
+          subjectId: pageId,
+          subjectKind: "page",
+          ownerId: browserId,
+          attributes: {incarnation},
+        }),
+        createHamiltonianLifecycleObservation({
+          type: "entity",
+          phase: "born",
+          subjectId: `window-main:${incarnation}`,
+          subjectKind: "window-main",
+          ownerId: pageId,
+          attributes: {incarnation},
+        }),
+      ]) journal.observe(source.next(observation))
+      return {incarnation, pageId, source, journal}
+    }
+
+    const pageA = createPage("page-a")
+    const pageB = createPage("page-b")
+    const aggregate = new HamiltonianLifecycleRetainedJournal("service-worker:worker-a")
+    const snapshotA = pageA.journal.snapshot()
+    expect(isHamiltonianLifecycleSnapshotFromSource(
+      snapshotA,
+      pageA.pageId,
+      pageA.pageId,
+      "page",
+      pageA.incarnation,
+    )).toBeTrue()
+    expect(aggregate.merge(snapshotA)).toBeTrue()
+    expect(aggregate.merge(snapshotA)).toBeFalse()
+    expect(aggregate.merge(pageB.journal.snapshot())).toBeTrue()
+    expect(aggregate.snapshot().envelopes.map(({observation}) => observation.subjectId).sort())
+      .toEqual([
+        browserId,
+        pageA.pageId,
+        pageB.pageId,
+        "window-main:page-a",
+        "window-main:page-b",
+      ].sort())
+
+    pageA.journal.observe(pageA.source.next(createHamiltonianLifecycleObservation({
+      type: "entity",
+      phase: "ended",
+      subjectId: pageA.pageId,
+      subjectKind: "page",
+      ownerId: browserId,
+      attributes: {incarnation: pageA.incarnation},
+    })))
+    expect(aggregate.merge(pageA.journal.snapshot())).toBeTrue()
+    expect(aggregate.snapshot().envelopes.map(({observation}) => observation.subjectId).sort())
+      .toEqual([browserId, pageB.pageId, "window-main:page-b"].sort())
+  })
+
+  test("starts a restarted retained scope from an explicit monotonic revision base", () => {
+    const journal = new HamiltonianLifecycleRetainedJournal("service-worker:stable", {
+      initialRevision: 10_000,
+    })
+    expect(journal.snapshot().revision).toBe(10_000)
+    const source = new HamiltonianLifecycleSource({
+      id: "service-worker:runtime-a",
+      kind: "service-worker",
+      incarnation: "runtime-a",
+      startedAt: 1,
+    })
+    expect(journal.observe(source.next(pageBorn))).toBeTrue()
+    expect(journal.snapshot().revision).toBe(10_001)
+    expect(() => new HamiltonianLifecycleRetainedJournal("service-worker:stable", {
+      initialRevision: -1,
+    })).toThrow("invalid Hamiltonian lifecycle initial revision")
+  })
+
+  test("accepts directed lifecycle only from the exact connected page source", () => {
+    const source = new HamiltonianLifecycleSource({
+      id: "page:page-a",
+      kind: "page",
+      incarnation: "page-a",
+      startedAt: 1,
+    })
+    const envelope = source.next(pageBorn)
+    expect(isHamiltonianLifecycleEnvelopeFromSource(
+      envelope,
+      "page:page-a",
+      "page",
+      "page-a",
+    )).toBeTrue()
+    expect(isHamiltonianLifecycleEnvelopeFromSource(
+      envelope,
+      "page:page-b",
+      "page",
+      "page-b",
+    )).toBeFalse()
+    expect(isHamiltonianLifecycleSnapshotFromSource(
+      new HamiltonianLifecycleRetainedJournal("page:page-a").snapshot(),
+      "page:page-a",
+      "page:page-a",
+      "page",
+      "page-a",
+    )).toBeFalse()
   })
 
   test("retires an owned RTC subtree when its peer process ends", () => {
@@ -501,6 +627,65 @@ describe("Hamiltonian owner lifecycle", () => {
     delete (globalThis as Record<symbol, unknown>)[singleton]
   })
 
+  test("seeds a late local subscriber after the page journal consumes bootstrap observations", () => {
+    const singleton = Symbol.for("metafor.hamiltonian.lifecycle.singleton.v1")
+    delete (globalThis as Record<symbol, unknown>)[singleton]
+    const journal = new HamiltonianLifecycleRetainedJournal("page:bootstrap")
+    const unsubscribeJournal = subscribeHamiltonianLifecycle((envelope) => journal.observe(envelope))
+    const observations = [
+      createHamiltonianLifecycleObservation({
+        type: "entity",
+        phase: "born",
+        subjectId: "browser:bootstrap",
+        subjectKind: "browser-runtime",
+        ownerId: "browser:bootstrap",
+      }),
+      createHamiltonianLifecycleObservation({
+        type: "entity",
+        phase: "born",
+        subjectId: "page:bootstrap",
+        subjectKind: "page",
+        ownerId: "browser:bootstrap",
+      }),
+      createHamiltonianLifecycleObservation({
+        type: "entity",
+        phase: "born",
+        subjectId: "window-main:bootstrap",
+        subjectKind: "window-main",
+        ownerId: "page:bootstrap",
+      }),
+    ]
+    for (const observation of observations) emitHamiltonianLifecycle(observation)
+
+    expect(receiveHamiltonianLifecycleSnapshot(journal.snapshot())).toBeTrue()
+    const snapshots: ReturnType<HamiltonianLifecycleRetainedJournal["snapshot"]>[] = []
+    const unsubscribeSnapshots = subscribeHamiltonianLifecycleSnapshot((snapshot) => snapshots.push(snapshot))
+    expect(snapshots).toHaveLength(1)
+    expect(snapshots[0]?.frontier).toEqual([expect.objectContaining({sequence: 3})])
+
+    const cursor = new HamiltonianLifecycleCursor()
+    cursor.seed(snapshots[0]!.frontier)
+    let live: ReturnType<typeof emitHamiltonianLifecycle> | null = null
+    const unsubscribeLate = subscribeHamiltonianLifecycle((envelope) => {
+      if (envelope.sequence === 4) live = envelope
+    })
+    emitHamiltonianLifecycle(createHamiltonianLifecycleObservation({
+      type: "entity",
+      phase: "changed",
+      subjectId: "page:bootstrap",
+      subjectKind: "page",
+      ownerId: "browser:bootstrap",
+      attributes: {visibility: "visible"},
+    }))
+    expect(live).not.toBeNull()
+    expect(cursor.accept(live!)?.gap).toBeNull()
+
+    unsubscribeLate()
+    unsubscribeSnapshots()
+    unsubscribeJournal()
+    delete (globalThis as Record<symbol, unknown>)[singleton]
+  })
+
   test("rebroadcasts the retained latest snapshot without notifying local subscribers twice", () => {
     const lifecycleSingleton = Symbol.for("metafor.hamiltonian.lifecycle.singleton.v1")
     const monitorSingleton = Symbol.for("metafor.hamiltonian.monitor.bootstrap.v1")
@@ -532,6 +717,35 @@ describe("Hamiltonian owner lifecycle", () => {
       expect(publishHamiltonianLifecycleSnapshot(snapshot)).toBeTrue()
       expect(localRevisions).toEqual([snapshot.revision])
       expect(broadcasts).toEqual([snapshot, snapshot])
+      unsubscribe()
+    } finally {
+      channel.channel = previousChannel
+      delete (globalThis as Record<symbol, unknown>)[lifecycleSingleton]
+    }
+  })
+
+  test("receives a directed lifecycle envelope without rebroadcasting it", () => {
+    const lifecycleSingleton = Symbol.for("metafor.hamiltonian.lifecycle.singleton.v1")
+    const monitorSingleton = Symbol.for("metafor.hamiltonian.monitor.bootstrap.v1")
+    delete (globalThis as Record<symbol, unknown>)[lifecycleSingleton]
+    const monitor = (globalThis as any)[monitorSingleton]
+    const channel = monitor.channels.get(HAMILTONIAN_LIFECYCLE_CHANNEL)
+    const previousChannel = channel.channel
+    const broadcasts: unknown[] = []
+    channel.channel = {postMessage: (value: unknown) => broadcasts.push(value)}
+    try {
+      const received: string[] = []
+      const unsubscribe = subscribeHamiltonianLifecycle((envelope) => received.push(envelope.eventId))
+      const source = new HamiltonianLifecycleSource({
+        id: "page:directed",
+        kind: "page",
+        incarnation: "directed",
+        startedAt: 1,
+      })
+      const envelope = source.next(pageBorn)
+      expect(receiveHamiltonianLifecycleEnvelope(envelope)).toBeTrue()
+      expect(received).toEqual([envelope.eventId])
+      expect(broadcasts).toEqual([])
       unsubscribe()
     } finally {
       channel.channel = previousChannel

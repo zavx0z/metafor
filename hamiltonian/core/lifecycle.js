@@ -277,10 +277,15 @@ export class HamiltonianLifecycleRetainedJournal {
   /** @type {string[]} */
   #retiredEntityOrder = []
 
-  /** @param {string} scopeId */
-  constructor(scopeId) {
+  /** @param {string} scopeId @param {{initialRevision?: number}} [options] */
+  constructor(scopeId, options = {}) {
     if (!validId(scopeId, 512)) throw new Error("invalid Hamiltonian lifecycle journal scope")
+    const initialRevision = options.initialRevision ?? 0
+    if (!Number.isSafeInteger(initialRevision) || initialRevision < 0) {
+      throw new Error("invalid Hamiltonian lifecycle initial revision")
+    }
     this.#scopeId = scopeId
+    this.#revision = initialRevision
   }
 
   /** @param {unknown} value */
@@ -311,6 +316,68 @@ export class HamiltonianLifecycleRetainedJournal {
     } else if (observation.type === "transport") {
       this.#setTransport(envelope)
     }
+    return true
+  }
+
+  /**
+   * Merges an authoritative retained snapshot for only the source frontiers
+   * carried by that snapshot. This lets one relay journal aggregate several
+   * independently owned realms without replacing unrelated sources.
+   *
+   * @param {unknown} value
+   */
+  merge(value) {
+    if (!isHamiltonianLifecycleSnapshot(value)) return false
+    const authoritative = new Set()
+    for (const entry of value.frontier) {
+      const key = `${entry.sourceId}\u0000${entry.sourceIncarnation}`
+      const previous = this.#frontier.get(key)
+      if (previous === undefined || entry.sequence > previous.sequence) authoritative.add(key)
+    }
+    if (authoritative.size === 0) return false
+
+    const retainedEntities = new Set()
+    const retainedTransports = new Set()
+    for (const envelope of value.envelopes) {
+      const sourceKey = `${envelope.sourceId}\u0000${envelope.sourceIncarnation}`
+      if (!authoritative.has(sourceKey)) continue
+      if (envelope.observation.type === "entity") retainedEntities.add(envelope.observation.subjectId)
+      if (envelope.observation.type === "transport") retainedTransports.add(envelope.observation.subjectId)
+    }
+    for (const [entityId, envelope] of [...this.#entities]) {
+      const sourceKey = `${envelope.sourceId}\u0000${envelope.sourceIncarnation}`
+      if (authoritative.has(sourceKey) && !retainedEntities.has(entityId)) this.#deleteEntityTree(entityId)
+    }
+    for (const [transportId, envelope] of [...this.#transports]) {
+      const sourceKey = `${envelope.sourceId}\u0000${envelope.sourceIncarnation}`
+      if (authoritative.has(sourceKey) && !retainedTransports.has(transportId)) this.#deleteTransport(transportId)
+    }
+
+    for (const envelope of value.envelopes) {
+      const sourceKey = `${envelope.sourceId}\u0000${envelope.sourceIncarnation}`
+      if (!authoritative.has(sourceKey) || envelope.observation.type !== "entity") continue
+      const observation = envelope.observation
+      if (
+        this.#retiredEntities.has(observation.subjectId) ||
+        (observation.ownerId !== null && this.#retiredEntities.has(observation.ownerId))
+      ) {
+        this.#deleteEntityTree(observation.subjectId)
+      } else {
+        this.#entities.set(observation.subjectId, envelope)
+      }
+    }
+    this.#pruneRetiredOwnership()
+    for (const envelope of value.envelopes) {
+      const sourceKey = `${envelope.sourceId}\u0000${envelope.sourceIncarnation}`
+      if (authoritative.has(sourceKey) && envelope.observation.type === "transport") {
+        this.#setTransport(envelope)
+      }
+    }
+    for (const entry of value.frontier) {
+      const key = `${entry.sourceId}\u0000${entry.sourceIncarnation}`
+      if (authoritative.has(key)) this.#frontier.set(key, entry)
+    }
+    this.#revision += 1
     return true
   }
 
@@ -682,6 +749,44 @@ export function isHamiltonianLifecycleSnapshot(value) {
   })
 }
 
+/**
+ * @param {unknown} value
+ * @param {string} sourceId
+ * @param {string} sourceKind
+ * @param {string} sourceIncarnation
+ * @returns {value is HamiltonianLifecycleEnvelope}
+ */
+export function isHamiltonianLifecycleEnvelopeFromSource(value, sourceId, sourceKind, sourceIncarnation) {
+  return isHamiltonianLifecycleEnvelope(value) &&
+    value.sourceId === sourceId &&
+    value.sourceKind === sourceKind &&
+    value.sourceIncarnation === sourceIncarnation
+}
+
+/**
+ * @param {unknown} value
+ * @param {string} scopeId
+ * @param {string} sourceId
+ * @param {string} sourceKind
+ * @param {string} sourceIncarnation
+ * @returns {value is HamiltonianLifecycleSnapshot}
+ */
+export function isHamiltonianLifecycleSnapshotFromSource(
+  value,
+  scopeId,
+  sourceId,
+  sourceKind,
+  sourceIncarnation,
+) {
+  if (!isHamiltonianLifecycleSnapshot(value) || value.scopeId !== scopeId || value.frontier.length !== 1) return false
+  const frontier = value.frontier[0]
+  if (!frontier) return false
+  return frontier.sourceId === sourceId &&
+    frontier.sourceIncarnation === sourceIncarnation &&
+    value.envelopes.every((envelope) =>
+      isHamiltonianLifecycleEnvelopeFromSource(envelope, sourceId, sourceKind, sourceIncarnation))
+}
+
 /** @param {unknown} value @returns {value is HamiltonianLifecycleFrontierEntry} */
 export function isHamiltonianLifecycleFrontierEntry(value) {
   if (!plainObject(value) || !hasExactFields(value, FRONTIER_FIELDS)) return false
@@ -733,6 +838,13 @@ export function emitHamiltonianLifecycle(observation, context = {}) {
 export function publishHamiltonianLifecycleEnvelope(value) {
   if (!isHamiltonianLifecycleEnvelope(value)) return false
   publish(lifecycleState(), value, true)
+  return true
+}
+
+/** @param {unknown} value */
+export function receiveHamiltonianLifecycleEnvelope(value) {
+  if (!isHamiltonianLifecycleEnvelope(value)) return false
+  publish(lifecycleState(), value, false)
   return true
 }
 

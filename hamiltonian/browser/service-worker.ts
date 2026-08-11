@@ -8,7 +8,9 @@ import {
   hamiltonianLifecycleMessageId,
   hamiltonianLifecycleTransportId,
   isHamiltonianLifecycleEnvelope,
+  isHamiltonianLifecycleEnvelopeFromSource,
   isHamiltonianLifecycleSnapshot,
+  isHamiltonianLifecycleSnapshotFromSource,
   publishHamiltonianLifecycleEnvelope,
   publishHamiltonianLifecycleSnapshot,
   subscribeHamiltonianLifecycle,
@@ -23,6 +25,9 @@ import {
   ExclusiveResourceSlot,
   isCurrentLeaderPeerControl,
   isCurrentWindowChannel,
+  isWindowPageReplacement,
+  missingWindowClientChannels,
+  windowClientLeaseExpired,
 } from "../core/browser-control.js"
 import type {TopologySnapshot} from "../host-state.ts"
 import {createWebPushWorkerHandlers} from "@metafor/web-push/worker"
@@ -57,8 +62,7 @@ interface HamiltonianExtendableEvent {
 
 interface HamiltonianExtendableMessageEvent extends HamiltonianExtendableEvent {
   readonly data: unknown
-  readonly ports: readonly MessagePort[]
-  readonly source: {readonly id?: unknown} | null
+  readonly source: HamiltonianWorkerClient | null
 }
 
 interface HamiltonianPushEvent extends HamiltonianExtendableEvent {
@@ -107,10 +111,10 @@ interface WindowChannel {
   lastSeenAt: number
   clientId: string | null
   pageIncarnation: string
+  predecessorPageIncarnation: string | null
   pageEntityId: string
-  controllerTransportId: string
-  messagePortTransportId: string
-  port: MessagePort
+  serviceWorkerTransportId: string
+  client: HamiltonianWorkerClient
 }
 
 interface WindowRegistry extends Iterable<[string, WindowChannel]> {
@@ -126,11 +130,12 @@ interface ConnectWindowMessage extends MessageRecord {
   kind: "connect-window"
   browserEntityId: string
   controlResumeNonce: string
-  controllerTransportId: string
   deviceId: string
   joinedAt: number
-  messagePortTransportId: string
+  serviceWorkerTransportId: string
+  pageLifecycleSnapshot: HamiltonianLifecycleSnapshot
   pageIncarnation: string
+  predecessorPageIncarnation: string | null
   serverEntityId: string
   tabId: string
   token: string
@@ -140,6 +145,8 @@ interface ConnectWindowMessage extends MessageRecord {
 
 interface PageControlMessage extends MessageRecord {
   kind: "window-heartbeat" | "disconnect-window" | "peer-signal" | "peer-failed" | string
+  envelope?: unknown
+  pageIncarnation?: string
   visible?: boolean
   tabId?: string
 }
@@ -230,10 +237,14 @@ const serviceWorkerRuntime = globalThis as unknown as HamiltonianWorkerRuntime
 const windows = new GenerationRegistry() as WindowRegistry
 const MAX_SOCKET_BUFFER = 256_000
 const WINDOW_TIMEOUT_MS = 7_000
+const WINDOW_REHYDRATION_TIMEOUT_MS = 4_000
+const WINDOW_REHYDRATION_POLL_MS = 100
+const windowReattachRequestedAt = new Map<string, number>()
 const MAX_VERSION_CACHES = 2
 const CONTROL_CACHE = "hamiltonian-control:v1"
 const CONTROL_BOOTSTRAP_URL = "/.hamiltonian/control-bootstrap"
-const workerRuntimeIncarnation = hamiltonianRealmSnapshot().incarnation
+const workerRuntime = hamiltonianRealmSnapshot()
+const workerRuntimeIncarnation = workerRuntime.incarnation
 let workerIdentity = ""
 let workerEntityId = ""
 let workerLifecycleJournal: LifecycleJournal | null = null
@@ -256,7 +267,11 @@ let currentPushReady = false
 const pendingPushRegistrations = new Map<string, PendingPushRegistration>()
 let pendingPushWake: PendingPushWake | null = null
 subscribeHamiltonianLifecycle((envelope) => {
-  if (workerEntityId && envelope.sourceId === workerEntityId && envelope.sourceIncarnation === workerRuntimeIncarnation) {
+  if (
+    workerEntityId &&
+    envelope.sourceId === hamiltonianLifecycleEntityId("service-worker", workerRuntimeIncarnation) &&
+    envelope.sourceIncarnation === workerRuntimeIncarnation
+  ) {
     workerLifecycleJournal?.observe(envelope)
   }
   if (!isObservedSupersededServiceWorkerEnd(envelope)) return
@@ -292,7 +307,9 @@ function initializeWorkerIdentity(identity: string, browserEntityId: string): bo
   if (workerIdentity) return workerIdentity === identity
   workerIdentity = identity
   workerEntityId = hamiltonianLifecycleEntityId("service-worker", workerIdentity)
-  workerLifecycleJournal = new HamiltonianLifecycleRetainedJournal(workerEntityId)
+  workerLifecycleJournal = new HamiltonianLifecycleRetainedJournal(workerEntityId, {
+    initialRevision: workerRuntime.startedAt * 1_024,
+  })
   emitHamiltonianLifecycle(createHamiltonianLifecycleObservation({
     type: "entity",
     phase: "born",
@@ -469,15 +486,15 @@ function tellWindow(window: WindowChannel, message: MessageRecord): void {
       type: "message",
       phase: "sent",
       subjectId: messageId,
-      subjectKind: "message-port-message",
+      subjectKind: "service-worker-api-message",
       ownerId: workerEntityId,
       sourceEntityId: workerEntityId,
       targetEntityId: window.pageEntityId,
-      transportId: window.messagePortTransportId,
+      transportId: window.serviceWorkerTransportId,
       messageId,
       messageClass: lifecycleMessageClass(message?.kind),
     }))
-    window.port.postMessage({...message, monitor: {messageId}})
+    window.client.postMessage({...message, monitor: {messageId}})
   } catch {
     windows.deleteIfCurrent(window.tabId, window)
   }
@@ -490,11 +507,66 @@ function tellAll(message: MessageRecord): void {
 function tellAllLifecycleSnapshot(snapshot: HamiltonianLifecycleSnapshot): void {
   for (const window of windows.values()) {
     try {
-      window.port.postMessage({kind: "lifecycle-snapshot", snapshot})
+      window.client.postMessage({kind: "lifecycle-snapshot", snapshot})
     } catch {
       windows.deleteIfCurrent(window.tabId, window)
     }
   }
+}
+
+function tellAllLifecycleEnvelope(envelope: HamiltonianLifecycleEnvelope): void {
+  for (const window of windows.values()) {
+    try {
+      window.client.postMessage({kind: "lifecycle", envelope})
+    } catch {
+      windows.deleteIfCurrent(window.tabId, window)
+    }
+  }
+}
+
+function tellAllWorkerLifecycleSnapshot(): void {
+  const snapshot = workerLifecycleJournal?.snapshot()
+  if (snapshot) tellAllLifecycleSnapshot(snapshot)
+}
+
+function waitForWindowRehydrationPoll(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, WINDOW_REHYDRATION_POLL_MS))
+}
+
+async function awaitLiveWindowChannels(currentClientId: string | null): Promise<boolean> {
+  const deadline = Date.now() + WINDOW_REHYDRATION_TIMEOUT_MS
+  let completeSamples = 0
+  while (Date.now() <= deadline) {
+    const liveClients = await serviceWorkerRuntime.clients.matchAll({
+      type: "window",
+      includeUncontrolled: true,
+    })
+    const liveClientIds = liveClients.map((client) => client.id)
+    const connectedClientIds = [...windows.values()]
+      .flatMap((window) => window.clientId === null ? [] : [window.clientId])
+    const missingClientIds = missingWindowClientChannels(liveClientIds, connectedClientIds)
+    const currentClientObserved = currentClientId === null || liveClientIds.includes(currentClientId)
+    if (currentClientObserved && missingClientIds.length === 0) {
+      completeSamples += 1
+      if (completeSamples >= 2) return true
+    } else {
+      completeSamples = 0
+      const missing = new Set(missingClientIds)
+      const now = Date.now()
+      for (const [clientId, requestedAt] of windowReattachRequestedAt) {
+        if (now - requestedAt >= WINDOW_REHYDRATION_TIMEOUT_MS) {
+          windowReattachRequestedAt.delete(clientId)
+        }
+      }
+      for (const client of liveClients) {
+        if (!missing.has(client.id) || windowReattachRequestedAt.has(client.id)) continue
+        windowReattachRequestedAt.set(client.id, now)
+        client.postMessage({kind: "reattach-window"})
+      }
+    }
+    await waitForWindowRehydrationPoll()
+  }
+  return false
 }
 
 function emit(message: string, level: "info" | "error" = "info"): void {
@@ -505,7 +577,7 @@ function workerState(): WorkerState {
   const socket = socketSlot.current
   return {
     kind: "worker-state",
-    control: "MessageChannel active",
+    control: "Service Worker API active",
     socket: socket?.readyState === WebSocket.OPEN ? "connected" : "reconnecting",
     workerIdentity,
     workerRuntimeIncarnation,
@@ -613,15 +685,21 @@ async function sweepWindows(): Promise<boolean> {
     (await serviceWorkerRuntime.clients.matchAll({type: "window", includeUncontrolled: false}))
       .map((client) => client.id),
   )
-  const cutoff = Date.now() - WINDOW_TIMEOUT_MS
+  const now = Date.now()
   let changed = false
   for (const [tabId, window] of windows) {
-    if (window.clientId && liveClients.has(window.clientId)) continue
-    if (!window.clientId && window.lastSeenAt >= cutoff) continue
-    closeWindowPort(window, "client-missing")
+    if (!windowClientLeaseExpired({
+      hasLiveClient: Boolean(window.clientId && liveClients.has(window.clientId)),
+      now,
+      lastSeenAt: window.lastSeenAt,
+      timeoutMs: WINDOW_TIMEOUT_MS,
+    })) continue
+    observeWindowEnded(window, "client-missing")
+    closeWindowChannel(window, "client-missing")
     windows.deleteIfCurrent(tabId, window)
     changed = true
   }
+  if (changed) tellAllWorkerLifecycleSnapshot()
   return changed
 }
 
@@ -1012,24 +1090,33 @@ async function retainVersionCaches(currentCacheName: string): Promise<string[]> 
   return (await caches.keys()).filter((name) => name.startsWith("hamiltonian-code:")).sort()
 }
 
-async function connectWindow(message: ConnectWindowMessage, port: MessagePort, clientId: string | null): Promise<void> {
+async function connectWindow(message: ConnectWindowMessage, client: HamiltonianWorkerClient): Promise<void> {
   await restoreControlBootstrap()
+  const clientId = client.id
   const pageEntityId = hamiltonianLifecycleEntityId("page", message.pageIncarnation)
   const nextBrowserEntityId = lifecycleIdentifier(message.browserEntityId, "browser:")
   const nextServerEntityId = lifecycleIdentifier(message.serverEntityId, "server:")
-  const nextControllerTransportId = lifecycleIdentifier(message.controllerTransportId, "controller:")
-  const nextMessagePortTransportId = lifecycleIdentifier(message.messagePortTransportId, "message-port:")
+  const nextServiceWorkerTransportId = lifecycleIdentifier(
+    message.serviceWorkerTransportId,
+    "service-worker-api:",
+  )
   const connectMessageId = lifecycleMessageId(message)
+  const pageLifecycleSnapshot = isHamiltonianLifecycleSnapshotFromSource(
+    message.pageLifecycleSnapshot,
+    pageEntityId,
+    pageEntityId,
+    "page",
+    message.pageIncarnation,
+  ) ? message.pageLifecycleSnapshot : null
   if (
     !nextBrowserEntityId ||
     nextBrowserEntityId !== hamiltonianBrowserNodeId(message.deviceId) ||
     !nextServerEntityId ||
-    !nextControllerTransportId ||
-    !nextMessagePortTransportId ||
+    !nextServiceWorkerTransportId ||
     !connectMessageId ||
+    !pageLifecycleSnapshot ||
     !initializeWorkerIdentity(message.workerIdentity, nextBrowserEntityId)
   ) {
-    port.close()
     return
   }
   const controlIdentityChanged =
@@ -1045,7 +1132,7 @@ async function connectWindow(message: ConnectWindowMessage, port: MessagePort, c
   }
   if (currentDeviceId && currentDeviceId !== message.deviceId) {
     socketSlot.current?.close(4001, "device identity changed")
-    for (const window of windows.values()) closeWindowPort(window, "device-identity-changed")
+    for (const window of windows.values()) closeWindowChannel(window, "device-identity-changed")
     windows.clear()
   }
   if (currentToken && currentToken !== message.token) socketSlot.current?.close(4001, "token changed")
@@ -1067,20 +1154,22 @@ async function connectWindow(message: ConnectWindowMessage, port: MessagePort, c
 
   const previous = windows.get(message.tabId)
   const previousClient = previous?.clientId ? await serviceWorkerRuntime.clients.get(previous.clientId) : null
+  const replacesPreviousPage = isWindowPageReplacement(previous, message)
   if (
     previous &&
     previous.clientId !== clientId &&
-    previousClient
+    previousClient &&
+    !replacesPreviousPage
   ) {
-    port.postMessage({kind: "window-id-collision", replacementTabId: crypto.randomUUID()})
-    port.close()
+    client.postMessage({kind: "window-id-collision", replacementTabId: crypto.randomUUID()})
     return
   }
   if (previous) {
-    closeWindowPort(
+    if (replacesPreviousPage) observeWindowEnded(previous, "page-reloaded")
+    closeWindowChannel(
       previous,
       "replaced",
-      previous.controllerTransportId !== nextControllerTransportId,
+      previous.serviceWorkerTransportId !== nextServiceWorkerTransportId,
     )
   }
   const window: WindowChannel = {
@@ -1090,93 +1179,25 @@ async function connectWindow(message: ConnectWindowMessage, port: MessagePort, c
     lastSeenAt: Date.now(),
     clientId,
     pageIncarnation: message.pageIncarnation,
+    predecessorPageIncarnation: message.predecessorPageIncarnation,
     pageEntityId,
-    controllerTransportId: nextControllerTransportId,
-    messagePortTransportId: nextMessagePortTransportId,
-    port,
+    serviceWorkerTransportId: nextServiceWorkerTransportId,
+    client,
   }
   windows.set(message.tabId, window)
-  port.onmessage = (event) => {
-    if (!isCurrentWindowChannel(windows, window)) return
-    const pageMessage = isMessageRecord(event.data) ? event.data as PageControlMessage : null
-    const pageMessageId = lifecycleMessageId(pageMessage)
-    if (pageMessageId) {
-      emitHamiltonianLifecycle(createHamiltonianLifecycleObservation({
-        type: "message",
-        phase: "received",
-        subjectId: pageMessageId,
-        subjectKind: "message-port-message",
-        ownerId: workerEntityId,
-        sourceEntityId: window.pageEntityId,
-        targetEntityId: workerEntityId,
-        transportId: window.messagePortTransportId,
-        messageId: pageMessageId,
-        messageClass: lifecycleMessageClass(pageMessage?.kind),
-      }))
-    }
-    if (pageMessage?.kind === "register-push-subscription") {
-      const registrationId = pageMessage.registrationId
-      if (
-        !validControlIdentity(registrationId) ||
-        pageMessage.workerIdentity !== workerIdentity ||
-        !isPushSubscriptionRecord(pageMessage.subscription)
-      ) {
-        tellWindow(window, {
-          kind: "push-subscription-rejected",
-          registrationId: typeof registrationId === "string" ? registrationId : "invalid",
-          reason: "invalid PushSubscription registration",
-        })
-        return
-      }
-      pendingPushRegistrations.set(registrationId, {
-        registrationId,
-        subscription: pageMessage.subscription,
-        tabId: window.tabId,
-      })
-      ensureSocket()
-      flushPushRegistrations()
-      return
-    }
-    if (pageMessage?.kind === "window-heartbeat") {
-      window.lastSeenAt = Date.now()
-      window.visible = pageMessage.visible === true
-      tellWindow(window, workerState())
-      void (async () => {
-        if (await sweepWindows()) await sendWindowSnapshot()
-      })()
-      ensureSocket()
-      return
-    }
-    if (pageMessage?.kind === "disconnect-window") {
-      windows.deleteIfCurrent(window.tabId, window)
-      closeWindowPort(window, "window-disconnected")
-      void sendWindowSnapshot()
-      return
-    }
-    if (pageMessage?.kind === "peer-signal" || pageMessage?.kind === "peer-failed") {
-      const leader = currentTopology?.leader
-      if (!isCurrentLeaderPeerControl({
-        message: pageMessage,
-        leader,
-        deviceId: currentDeviceId,
-        tabId: window.tabId,
-        connectionId: currentConnectionId,
-      })) return
-      sendSocket(pageMessage)
-    }
-  }
-  port.start()
+  workerLifecycleJournal?.merge(pageLifecycleSnapshot)
+  await awaitLiveWindowChannels(clientId)
   const workerLifecycleSnapshot = workerLifecycleJournal?.snapshot()
-  if (!workerLifecycleSnapshot) {
-    port.close()
+  if (!workerLifecycleSnapshot || !isCurrentWindowChannel(windows, window)) {
+    windows.deleteIfCurrent(window.tabId, window)
     return
   }
   publishHamiltonianLifecycleSnapshot(workerLifecycleSnapshot)
-  port.postMessage({kind: "lifecycle-snapshot", snapshot: workerLifecycleSnapshot})
+  tellAllLifecycleSnapshot(workerLifecycleSnapshot)
   if (currentHostLifecycleJournal) {
     const hostLifecycleSnapshot = currentHostLifecycleJournal.snapshot()
     publishHamiltonianLifecycleSnapshot(hostLifecycleSnapshot)
-    port.postMessage({kind: "lifecycle-snapshot", snapshot: hostLifecycleSnapshot})
+    client.postMessage({kind: "lifecycle-snapshot", snapshot: hostLifecycleSnapshot})
   }
   emitHamiltonianLifecycle(createHamiltonianLifecycleObservation({
     type: "entity",
@@ -1194,37 +1215,29 @@ async function connectWindow(message: ConnectWindowMessage, port: MessagePort, c
   emitHamiltonianLifecycle(createHamiltonianLifecycleObservation({
     type: "transport",
     phase: "opened",
-    subjectId: nextControllerTransportId,
-    subjectKind: "controller",
+    subjectId: nextServiceWorkerTransportId,
+    subjectKind: "service-worker-api",
     ownerId: workerEntityId,
     sourceEntityId: pageEntityId,
     targetEntityId: workerEntityId,
-    transportId: nextControllerTransportId,
-    attributes: {state: "controlled"},
+    transportId: nextServiceWorkerTransportId,
+    attributes: {
+      state: "active",
+      mechanism: "ServiceWorker.postMessage / WindowClient.postMessage",
+    },
   }), {causedBy: connectMessageId})
   emitHamiltonianLifecycle(createHamiltonianLifecycleObservation({
     type: "message",
     phase: "received",
     subjectId: connectMessageId,
-    subjectKind: "controller-message",
+    subjectKind: "service-worker-api-message",
     ownerId: workerEntityId,
     sourceEntityId: pageEntityId,
     targetEntityId: workerEntityId,
-    transportId: nextControllerTransportId,
+    transportId: nextServiceWorkerTransportId,
     messageId: connectMessageId,
     messageClass: "connect-window",
   }))
-  emitHamiltonianLifecycle(createHamiltonianLifecycleObservation({
-    type: "transport",
-    phase: "opened",
-    subjectId: nextMessagePortTransportId,
-    subjectKind: "message-port",
-    ownerId: workerEntityId,
-    sourceEntityId: workerEntityId,
-    targetEntityId: pageEntityId,
-    transportId: nextMessagePortTransportId,
-    attributes: {state: "started"},
-  }), {causedBy: connectMessageId})
   tellWindow(window, workerState())
   if (currentTopology) tellWindow(window, {kind: "topology", host: currentHost, topology: currentTopology})
   if (currentVersionState) tellWindow(window, currentVersionState)
@@ -1232,14 +1245,101 @@ async function connectWindow(message: ConnectWindowMessage, port: MessagePort, c
   void sendWindowSnapshot()
 }
 
+async function receiveWindowMessage(pageMessage: PageControlMessage, client: HamiltonianWorkerClient): Promise<void> {
+  const window = [...windows.values()].find((candidate) => candidate.clientId === client.id)
+  if (!window || !isCurrentWindowChannel(windows, window)) {
+    client.postMessage({kind: "reattach-window"})
+    return
+  }
+  const pageMessageId = lifecycleMessageId(pageMessage)
+  if (pageMessageId) {
+    emitHamiltonianLifecycle(createHamiltonianLifecycleObservation({
+      type: "message",
+      phase: "received",
+      subjectId: pageMessageId,
+      subjectKind: "service-worker-api-message",
+      ownerId: workerEntityId,
+      sourceEntityId: window.pageEntityId,
+      targetEntityId: workerEntityId,
+      transportId: window.serviceWorkerTransportId,
+      messageId: pageMessageId,
+      messageClass: lifecycleMessageClass(pageMessage.kind),
+    }))
+  }
+  if (pageMessage.kind === "page-lifecycle") {
+    if (!isHamiltonianLifecycleEnvelopeFromSource(
+      pageMessage.envelope,
+      window.pageEntityId,
+      "page",
+      window.pageIncarnation,
+    )) return
+    if (workerLifecycleJournal?.observe(pageMessage.envelope)) {
+      tellAllLifecycleEnvelope(pageMessage.envelope)
+    }
+    return
+  }
+  if (pageMessage.kind === "register-push-subscription") {
+    const registrationId = pageMessage.registrationId
+    if (
+      !validControlIdentity(registrationId) ||
+      pageMessage.workerIdentity !== workerIdentity ||
+      !isPushSubscriptionRecord(pageMessage.subscription)
+    ) {
+      tellWindow(window, {
+        kind: "push-subscription-rejected",
+        registrationId: typeof registrationId === "string" ? registrationId : "invalid",
+        reason: "invalid PushSubscription registration",
+      })
+      return
+    }
+    pendingPushRegistrations.set(registrationId, {
+      registrationId,
+      subscription: pageMessage.subscription,
+      tabId: window.tabId,
+    })
+    ensureSocket()
+    flushPushRegistrations()
+    return
+  }
+  if (pageMessage.kind === "window-heartbeat") {
+    if (pageMessage.tabId !== window.tabId || pageMessage.pageIncarnation !== window.pageIncarnation) return
+    window.lastSeenAt = Date.now()
+    window.visible = pageMessage.visible === true
+    tellWindow(window, workerState())
+    if (await sweepWindows()) await sendWindowSnapshot()
+    ensureSocket()
+    return
+  }
+  if (pageMessage.kind === "disconnect-window") {
+    windows.deleteIfCurrent(window.tabId, window)
+    observeWindowEnded(window, "window-disconnected")
+    closeWindowChannel(window, "window-disconnected")
+    tellAllWorkerLifecycleSnapshot()
+    await sendWindowSnapshot()
+    return
+  }
+  if (pageMessage.kind === "peer-signal" || pageMessage.kind === "peer-failed") {
+    const leader = currentTopology?.leader
+    if (!isCurrentLeaderPeerControl({
+      message: pageMessage,
+      leader,
+      deviceId: currentDeviceId,
+      tabId: window.tabId,
+      connectionId: currentConnectionId,
+    })) return
+    sendSocket(pageMessage)
+  }
+}
+
 serviceWorkerRuntime.addEventListener("message", (event) => {
   const message = event.data
-  const port = event.ports[0]
-  if (!isConnectWindowMessage(message) || !port) return
-  const clientId = event.source && "id" in event.source && typeof event.source.id === "string"
-    ? event.source.id
-    : null
-  event.waitUntil(connectWindow(message, port, clientId))
+  const client = event.source
+  if (!client || !isMessageRecord(message)) return
+  if (isConnectWindowMessage(message)) {
+    event.waitUntil(connectWindow(message, client))
+    return
+  }
+  event.waitUntil(receiveWindowMessage(message as PageControlMessage, client))
 })
 
 serviceWorkerRuntime.addEventListener("push", (event) => {
@@ -1361,32 +1461,35 @@ serviceWorkerRuntime.addEventListener("fetch", (event) => {
   })())
 })
 
-function closeWindowPort(window: WindowChannel, reason: string, closeController = true): void {
-  if (closeController) {
-    emitHamiltonianLifecycle(createHamiltonianLifecycleObservation({
-      type: "transport",
-      phase: "closed",
-      subjectId: window.controllerTransportId,
-      subjectKind: "controller",
-      ownerId: workerEntityId,
-      sourceEntityId: window.pageEntityId,
-      targetEntityId: workerEntityId,
-      transportId: window.controllerTransportId,
-      attributes: {reason},
-    }))
-  }
+function closeWindowChannel(window: WindowChannel, reason: string, closeTransport = true): void {
+  if (!closeTransport) return
   emitHamiltonianLifecycle(createHamiltonianLifecycleObservation({
     type: "transport",
     phase: "closed",
-    subjectId: window.messagePortTransportId,
-    subjectKind: "message-port",
+    subjectId: window.serviceWorkerTransportId,
+    subjectKind: "service-worker-api",
     ownerId: workerEntityId,
-    sourceEntityId: workerEntityId,
-    targetEntityId: window.pageEntityId,
-    transportId: window.messagePortTransportId,
+    sourceEntityId: window.pageEntityId,
+    targetEntityId: workerEntityId,
+    transportId: window.serviceWorkerTransportId,
     attributes: {reason},
   }))
-  window.port.close()
+}
+
+function observeWindowEnded(window: WindowChannel, reason: string): void {
+  if (!currentBrowserEntityId || !workerEntityId) return
+  emitHamiltonianLifecycle(createHamiltonianLifecycleObservation({
+    type: "entity",
+    phase: "ended",
+    subjectId: window.pageEntityId,
+    subjectKind: "page",
+    ownerId: currentBrowserEntityId,
+    attributes: {
+      incarnation: window.pageIncarnation,
+      state: "ended",
+      reason,
+    },
+  }))
 }
 
 function lifecycleMessageId(message: unknown): string | null {
@@ -1441,11 +1544,12 @@ function isConnectWindowMessage(value: unknown): value is ConnectWindowMessage {
   if (!isMessageRecord(value) || value.kind !== "connect-window") return false
   return typeof value.browserEntityId === "string" &&
     typeof value.controlResumeNonce === "string" &&
-    typeof value.controllerTransportId === "string" &&
     typeof value.deviceId === "string" &&
     typeof value.joinedAt === "number" &&
-    typeof value.messagePortTransportId === "string" &&
+    typeof value.serviceWorkerTransportId === "string" &&
+    isHamiltonianLifecycleSnapshot(value.pageLifecycleSnapshot) &&
     typeof value.pageIncarnation === "string" &&
+    (value.predecessorPageIncarnation === null || validControlIdentity(value.predecessorPageIncarnation)) &&
     typeof value.serverEntityId === "string" &&
     typeof value.tabId === "string" &&
     typeof value.token === "string" &&

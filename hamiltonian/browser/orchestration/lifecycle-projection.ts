@@ -91,6 +91,8 @@ export class HamiltonianLifecycleProjection {
   readonly #retiredLifecycleSources = new Map<string, {sourceId: string; sourceIncarnation: string}>()
   readonly #gaps = new Map<string, HamiltonianLifecycleGap>()
   readonly #structuralEvents = new Map<string, {sourceKey: string; sequence: number}>()
+  readonly #snapshotEntitiesByScope = new Map<string, Set<string>>()
+  readonly #snapshotTransportsByScope = new Map<string, Set<string>>()
   #revision = 0
 
   constructor(
@@ -206,6 +208,26 @@ export class HamiltonianLifecycleProjection {
     }
 
     let retired = false
+    const previousEntities = this.#snapshotEntitiesByScope.get(snapshot.scopeId) ?? new Set<string>()
+    const previousTransports = this.#snapshotTransportsByScope.get(snapshot.scopeId) ?? new Set<string>()
+    for (const entityId of previousEntities) {
+      if (
+        retainedEntities.has(entityId) ||
+        entityId === this.#serverId ||
+        entityId === this.#pageId ||
+        this.#entities.get(entityId)?.kind === "browser-runtime"
+      ) continue
+      this.#retireEntity(entityId)
+      retired = true
+    }
+    for (const transportId of previousTransports) {
+      if (retainedTransports.has(transportId)) continue
+      this.#retireTransport(transportId)
+      retired = true
+    }
+    this.#snapshotEntitiesByScope.set(snapshot.scopeId, retainedEntities)
+    this.#snapshotTransportsByScope.set(snapshot.scopeId, retainedTransports)
+
     for (const entity of this.#entities.values()) {
       if (
         entity.id === this.#serverId ||
@@ -268,9 +290,12 @@ export class HamiltonianLifecycleProjection {
 
     for (const [index, transport] of activeTransports.entries()) {
       const label = transportLabel(transport.kind, transport.attributes)
-      const duplex = transport.kind === "websocket"
-      const sourceSlot = transportEndpointSlot(label, "out", duplex)
-      const targetSlot = transportEndpointSlot(label, "in", duplex)
+      const directedPair = transport.kind === "service-worker-api"
+      const sharedParameterRole = transport.kind === "websocket"
+        ? "duplex"
+        : directedPair ? "channel" : null
+      const sourceSlot = transportEndpointSlot(label, "out", sharedParameterRole)
+      const targetSlot = transportEndpointSlot(label, "in", sharedParameterRole)
       const tone = transport.state === "opened" ? "live" : transport.state === "changed" ? "neutral" : "paused"
       addPort(ports, transport.sourceEntityId, {
         id: sourceSlot.portId,
@@ -282,16 +307,28 @@ export class HamiltonianLifecycleProjection {
         parameterId: targetSlot.parameterId,
         direction: "in",
       })
+      if (directedPair) {
+        addPort(ports, transport.sourceEntityId, {
+          id: targetSlot.portId,
+          parameterId: targetSlot.parameterId,
+          direction: "in",
+        })
+        addPort(ports, transport.targetEntityId, {
+          id: sourceSlot.portId,
+          parameterId: sourceSlot.parameterId,
+          direction: "out",
+        })
+      }
       addParameter(transportParameters, transport.sourceEntityId, {
         id: sourceSlot.parameterId,
         label,
-        value: duplex ? "вход / выход" : "выход",
+        value: sharedParameterRole === null ? "выход" : "вход / выход",
         tone,
       })
       addParameter(transportParameters, transport.targetEntityId, {
         id: targetSlot.parameterId,
         label,
-        value: duplex ? "вход / выход" : "вход",
+        value: sharedParameterRole === null ? "вход" : "вход / выход",
         tone,
       })
       edges.push({
@@ -300,8 +337,18 @@ export class HamiltonianLifecycleProjection {
         target: {nodeId: transport.targetEntityId, portId: targetSlot.portId},
         label,
         tone,
-        order: 100 + index,
+        order: 100 + index * 2,
       })
+      if (directedPair) {
+        edges.push({
+          id: serviceWorkerApiReverseEdgeId(transport.id),
+          source: {nodeId: transport.targetEntityId, portId: sourceSlot.portId},
+          target: {nodeId: transport.sourceEntityId, portId: targetSlot.portId},
+          label,
+          tone,
+          order: 101 + index * 2,
+        })
+      }
     }
 
     const entityNodes = visibleEntities
@@ -431,6 +478,9 @@ export class HamiltonianLifecycleProjection {
         observation.subjectId,
       )
       this.#retiredTransports.add(observation.subjectId)
+      if (observation.subjectKind === "service-worker-api") {
+        this.#retiredTransports.add(serviceWorkerApiReverseEdgeId(observation.subjectId))
+      }
     }
   }
 
@@ -459,10 +509,13 @@ export class HamiltonianLifecycleProjection {
       observation.targetEntityId === transport.sourceEntityId
     if (!forward && !reverse) return null
     this.#retainMessageIdentity(observation.messageId)
+    const directedPair = transport.kind === "service-worker-api"
     return {
       messageId: observation.messageId,
-      edgeId: observation.transportId,
-      direction: forward ? "forward" : "reverse",
+      edgeId: directedPair && reverse
+        ? serviceWorkerApiReverseEdgeId(observation.transportId)
+        : observation.transportId,
+      direction: directedPair ? "forward" : forward ? "forward" : "reverse",
       messageClass: observation.messageClass,
       at: envelope.at,
     }
@@ -548,6 +601,9 @@ export class HamiltonianLifecycleProjection {
     )
     this.#structuralEvents.delete(structuralEventKey("transport", transportId))
     this.#retiredTransports.add(transportId)
+    if (transport?.kind === "service-worker-api") {
+      this.#retiredTransports.add(serviceWorkerApiReverseEdgeId(transportId))
+    }
     if (transport && this.#transportSlots.get(transport.slot) === transportId) {
       this.#transportSlots.delete(transport.slot)
     }
@@ -617,6 +673,14 @@ export function hamiltonianLifecycleNeedsDocument(
   gap: HamiltonianLifecycleGap | null,
 ): boolean {
   return gap !== null || envelope.observation.type !== "message"
+}
+
+/** Same-geometry telemetry waits for the active layout instead of starving it. */
+export function hamiltonianLayoutRequestRequiresCancellation(
+  inFlightStructureKey: string | null,
+  nextStructureKey: string,
+): boolean {
+  return inFlightStructureKey !== null && inFlightStructureKey !== nextStructureKey
 }
 
 /** Structural identity excludes telemetry and node copy, so layout is reused. */
@@ -727,14 +791,18 @@ function addParameter(
 function transportEndpointSlot(
   label: string,
   direction: "in" | "out",
-  duplex: boolean,
+  sharedParameterRole: "duplex" | "channel" | null,
 ): {portId: string; parameterId: string} {
   const family = safeId(label)
-  const role = duplex ? "duplex" : direction
+  const role = sharedParameterRole ?? direction
   return {
     portId: `${direction}:${family}`,
     parameterId: `transport:${family}:${role}`,
   }
+}
+
+function serviceWorkerApiReverseEdgeId(transportId: string): string {
+  return `${transportId}:reverse`
 }
 
 function strongerTransportTone(
@@ -762,6 +830,7 @@ function entityFacts(entity: LifecycleEntity, gaps: HamiltonianLifecycleGap[]) {
 
 function entityTitle(entity: LifecycleEntity, pageId: string): string {
   if (entity.id === pageId) return "Эта страница"
+  if (entity.kind === "page") return "Страница"
   if (entity.kind === "server") return "Hamiltonian"
   if (entity.kind === "browser-runtime") return stringAttribute(entity.attributes.runtime) || "Браузер"
   if (entity.kind === "service-worker") return "Service Worker"
@@ -791,6 +860,7 @@ function entityKindLabel(kind: string): string {
 
 function transportLabel(kind: string, attributes: Record<string, string | number | boolean | null>): string {
   if (kind === "websocket") return attributes.protocol === "wss" ? "WSS" : "WS"
+  if (kind === "service-worker-api") return "Service Worker API"
   if (kind === "controller") return "ServiceWorker controller"
   if (kind === "message-port") return "MessagePort"
   if (kind === "worker-message") return "Worker messaging"
@@ -883,6 +953,7 @@ function factLabel(key: string, entityKind: string): string {
     reason: "Причина",
     state: "Состояние",
     sessionEpoch: "Сессия",
+    tabId: "Вкладка",
     version: "Версия",
     visibility: "Видимость",
     wakeId: "Пробуждение",

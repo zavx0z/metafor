@@ -17,9 +17,12 @@ import {
   isCurrentPageChannel,
   isCurrentPeerGeneration,
   isCurrentWindowChannel,
+  isWindowPageReplacement,
+  missingWindowClientChannels,
   mainRealmRequiresReload,
   sourceRevisionRequiresReload,
   pageWorkerChannelIsQuiet,
+  windowClientLeaseExpired,
 } from "./browser-control.js"
 
 class FakeChannel extends EventTarget {
@@ -174,6 +177,27 @@ describe("shared Hamiltonian core", () => {
     expect(pageWorkerChannelIsQuiet({now: 4_501, lastWorkerMessageAt: 1_000, visibility: "hidden"})).toBeTrue()
   })
 
+  test("does not retire a temporarily missing Window before its heartbeat lease expires", () => {
+    expect(windowClientLeaseExpired({
+      hasLiveClient: true,
+      now: 20_000,
+      lastSeenAt: 1_000,
+      timeoutMs: 7_000,
+    })).toBeFalse()
+    expect(windowClientLeaseExpired({
+      hasLiveClient: false,
+      now: 7_000,
+      lastSeenAt: 0,
+      timeoutMs: 7_000,
+    })).toBeFalse()
+    expect(windowClientLeaseExpired({
+      hasLiveClient: false,
+      now: 7_001,
+      lastSeenAt: 0,
+      timeoutMs: 7_000,
+    })).toBeTrue()
+  })
+
   test("uses host epoch plus fencing token and rejects an expired or stale holder", () => {
     const authority = new LeaseAuthority({hostEpoch: "host-a", durationMs: 100})
     const first = authority.grant("connection-a", "main-a", 1_000)
@@ -216,6 +240,36 @@ describe("shared Hamiltonian core", () => {
 
     expect(isCurrentWindowChannel(registry, stale)).toBeFalse()
     expect(isCurrentWindowChannel(registry, current)).toBeTrue()
+  })
+
+  test("distinguishes a page reload successor from a cloned tab identity", () => {
+    const previous = {tabId: "tab-a", pageIncarnation: "page-old"}
+    expect(isWindowPageReplacement(previous, {
+      tabId: "tab-a",
+      pageIncarnation: "page-new",
+      predecessorPageIncarnation: "page-old",
+    })).toBeTrue()
+    expect(isWindowPageReplacement(previous, {
+      tabId: "tab-a",
+      pageIncarnation: "page-clone",
+      predecessorPageIncarnation: null,
+    })).toBeFalse()
+    expect(isWindowPageReplacement(previous, {
+      tabId: "tab-b",
+      pageIncarnation: "page-new",
+      predecessorPageIncarnation: "page-old",
+    })).toBeFalse()
+  })
+
+  test("waits for every live WindowClient before publishing a restarted aggregate", () => {
+    expect(missingWindowClientChannels(
+      ["client-b", "client-a", "client-b"],
+      ["client-a"],
+    )).toEqual(["client-b"])
+    expect(missingWindowClientChannels(
+      ["client-b", "client-a"],
+      ["client-a", "client-b"],
+    )).toEqual([])
   })
 
   test("does not let a replaced page MessagePort report a stale worker incarnation", () => {

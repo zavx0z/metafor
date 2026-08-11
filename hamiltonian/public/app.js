@@ -1,4 +1,5 @@
 import {
+  HamiltonianLifecycleRetainedJournal,
   createHamiltonianLifecycleObservation,
   emitHamiltonianLifecycle,
   hamiltonianDataChannelTransportId,
@@ -6,14 +7,16 @@ import {
   hamiltonianLifecycleMessageId,
   hamiltonianLifecycleTransportId,
   hamiltonianRtcPeerEntityId,
+  isHamiltonianLifecycleEnvelopeFromSource,
+  receiveHamiltonianLifecycleEnvelope,
   receiveHamiltonianLifecycleSnapshot,
+  subscribeHamiltonianLifecycle,
 } from "/core/lifecycle.js"
 import {hamiltonianPageBootstrap, hamiltonianRealmSnapshot} from "/core/monitor.js"
 import {authorityKey, LogicalChannelSession, PeerProtocol} from "/core/runtime.js"
 import {
   HAMILTONIAN_PAGE_HEARTBEAT_MS,
   disposeFailedWorker,
-  isCurrentPageChannel,
   isCurrentPeerGeneration,
   mainRealmRequiresReload,
   sourceRevisionRequiresReload,
@@ -43,6 +46,9 @@ const bootstrapServerEntityId = pageBootstrap?.server.hostEpoch
   : null
 const tabId = sessionStorage.getItem("hamiltonian-window-id") ?? crypto.randomUUID()
 sessionStorage.setItem("hamiltonian-window-id", tabId)
+const pagePredecessorStorageKey = "hamiltonian-page-predecessor"
+const predecessorPageIncarnation = sessionStorage.getItem(pagePredecessorStorageKey)
+sessionStorage.removeItem(pagePredecessorStorageKey)
 const joinedAt = Number(sessionStorage.getItem("hamiltonian-window-joined-at") ?? Date.now())
 sessionStorage.setItem("hamiltonian-window-joined-at", String(joinedAt))
 let deviceId = localStorage.getItem("hamiltonian-device")
@@ -80,11 +86,9 @@ if (suppliedToken) {
 }
 const token = bootstrapToken ?? localStorage.getItem("hamiltonian-token")
 
-let port = null
 let attachedController = null
 let attachedWorkerEntityId = null
-let controllerTransportId = null
-let messagePortTransportId = null
+const serviceWorkerTransportId = hamiltonianLifecycleTransportId("service-worker-api", crypto.randomUUID())
 let pendingControllerConnect = null
 let pendingPageMessages = []
 let supersededWorkerEntityId = null
@@ -104,6 +108,22 @@ let hostPlacement = "browser"
 let controlConnectionId = null
 const acceptedPeerGeneration = new Map()
 const pendingPushRegistrations = new Map()
+const pageLifecycleJournal = new HamiltonianLifecycleRetainedJournal(pageEntityId)
+subscribeHamiltonianLifecycle((envelope) => {
+  if (!isHamiltonianLifecycleEnvelopeFromSource(
+    envelope,
+    pageEntityId,
+    "page",
+    pageIncarnation,
+  )) return
+  pageLifecycleJournal.observe(envelope)
+  if (!attachedController) return
+  try {
+    attachedController.postMessage({kind: "page-lifecycle", envelope})
+  } catch {
+    // The next attach sends the complete retained page snapshot.
+  }
+})
 
 emitHamiltonianLifecycle(createHamiltonianLifecycleObservation({
   type: "entity",
@@ -125,6 +145,7 @@ emitHamiltonianLifecycle(createHamiltonianLifecycleObservation({
   ownerId: browserEntityId,
   attributes: {
     incarnation: pageIncarnation,
+    tabId,
     navigation: pageBootstrap?.navigationId ?? "",
     visibility: document.visibilityState,
     state: "live",
@@ -142,6 +163,11 @@ emitHamiltonianLifecycle(createHamiltonianLifecycleObservation({
     state: "active",
   },
 }))
+// The page journal is the first lifecycle subscriber, so it consumes the
+// bounded startup queue before orchestration can subscribe. Seed the local
+// snapshot channel at the exact bootstrap frontier; orchestration can then
+// continue with the next live page event without reporting a false 1…3 gap.
+receiveHamiltonianLifecycleSnapshot(pageLifecycleJournal.snapshot())
 
 elements.secure.textContent = isSecureContext ? "yes" : "no"
 elements.secure.className = isSecureContext ? "leader" : "error"
@@ -159,33 +185,33 @@ function log(message, isError = false) {
 
 function send(message) {
   try {
-    if (!port) return false
+    if (!attachedController) return false
     const messageId = hamiltonianLifecycleMessageId(crypto.randomUUID())
     const observedMessage = {...message, monitor: {messageId}}
     const messageClass = lifecycleMessageClass(message?.kind)
-    if (messagePortTransportId && attachedWorkerEntityId) {
+    if (attachedWorkerEntityId) {
       emitHamiltonianLifecycle(createHamiltonianLifecycleObservation({
         type: "message",
         phase: "sent",
         subjectId: messageId,
-        subjectKind: "message-port-message",
+        subjectKind: "service-worker-api-message",
         ownerId: pageEntityId,
         sourceEntityId: pageEntityId,
         targetEntityId: attachedWorkerEntityId,
-        transportId: messagePortTransportId,
+        transportId: serviceWorkerTransportId,
         messageId,
         messageClass,
       }))
-    } else if (messagePortTransportId) {
+    } else {
       pendingPageMessages.push({
         messageId,
-        transportId: messagePortTransportId,
+        transportId: serviceWorkerTransportId,
         messageClass,
         at: Date.now(),
       })
       if (pendingPageMessages.length > 32) pendingPageMessages.splice(0, pendingPageMessages.length - 32)
     }
-    port.postMessage(observedMessage)
+    attachedController.postMessage(observedMessage)
     return true
   } catch (error) {
     log(`page channel send failed: ${error.message}`, true)
@@ -776,6 +802,10 @@ function observeAttachedWorkerQuiet(reason) {
 function receive(message) {
   lastWorkerMessageAt = Date.now()
   if (!message || typeof message !== "object") return
+  if (message.kind === "lifecycle") {
+    receiveHamiltonianLifecycleEnvelope(message.envelope)
+    return
+  }
   if (message.kind === "lifecycle-snapshot") {
     receiveHamiltonianLifecycleSnapshot(message.snapshot)
     return
@@ -806,7 +836,7 @@ function receive(message) {
         type: "message",
         phase: "sent",
         subjectId: pending.messageId,
-        subjectKind: "controller-message",
+        subjectKind: "service-worker-api-message",
         ownerId: pageEntityId,
         sourceEntityId: pageEntityId,
         targetEntityId: nextWorkerEntityId,
@@ -820,7 +850,7 @@ function receive(message) {
         type: "message",
         phase: "sent",
         subjectId: pending.messageId,
-        subjectKind: "message-port-message",
+        subjectKind: "service-worker-api-message",
         ownerId: pageEntityId,
         sourceEntityId: pageEntityId,
         targetEntityId: nextWorkerEntityId,
@@ -831,16 +861,16 @@ function receive(message) {
     }
   }
   const messageId = lifecycleMessageId(message)
-  if (messageId && messagePortTransportId && attachedWorkerEntityId) {
+  if (messageId && attachedWorkerEntityId) {
     emitHamiltonianLifecycle(createHamiltonianLifecycleObservation({
       type: "message",
       phase: "received",
       subjectId: messageId,
-      subjectKind: "message-port-message",
+      subjectKind: "service-worker-api-message",
       ownerId: pageEntityId,
       sourceEntityId: attachedWorkerEntityId,
       targetEntityId: pageEntityId,
-      transportId: messagePortTransportId,
+      transportId: serviceWorkerTransportId,
       messageId,
       messageClass: lifecycleMessageClass(message.kind),
     }))
@@ -912,33 +942,18 @@ function receive(message) {
   if (message.kind === "event") log(message.message, message.level === "error")
 }
 
-function attachPageChannel(force = false) {
+function attachServiceWorkerChannel(force = false) {
   const controller = navigator.serviceWorker.controller
   if (!controller || !token) return false
-  if (!force && port && attachedController === controller) return true
+  if (!force && attachedController === controller) return true
   supersededWorkerEntityId = attachedWorkerEntityId
-  closeCurrentPageChannel("reattach")
-  attachedWorkerEntityId = null
   pendingControllerConnect = null
   pendingPageMessages = []
-  const channel = new MessageChannel()
-  controllerTransportId = hamiltonianLifecycleTransportId("controller", crypto.randomUUID())
-  messagePortTransportId = hamiltonianLifecycleTransportId("message-port", crypto.randomUUID())
   const connectMessageId = hamiltonianLifecycleMessageId(crypto.randomUUID())
-  const nextPort = channel.port1
-  port = nextPort
   attachedController = controller
-  nextPort.onmessage = (event) => {
-    if (!isCurrentPageChannel(port, nextPort)) return
-    receive(event.data)
-  }
-  nextPort.onmessageerror = () => {
-    if (isCurrentPageChannel(port, nextPort)) log("page channel message error", true)
-  }
-  nextPort.start()
   pendingControllerConnect = {
     messageId: connectMessageId,
-    transportId: controllerTransportId,
+    transportId: serviceWorkerTransportId,
     at: Date.now(),
   }
   controller.postMessage({
@@ -947,18 +962,19 @@ function attachPageChannel(force = false) {
     deviceId,
     tabId,
     pageIncarnation,
+    predecessorPageIncarnation,
     joinedAt,
     token,
     workerIdentity: serviceWorkerIdentity,
     controlResumeNonce,
     serverEntityId: bootstrapServerEntityId,
     visible: document.visibilityState === "visible",
-    controllerTransportId,
-    messagePortTransportId,
+    serviceWorkerTransportId,
+    pageLifecycleSnapshot: pageLifecycleJournal.snapshot(),
     monitor: {messageId: connectMessageId},
-  }, [channel.port2])
+  })
   lastWorkerMessageAt = Date.now()
-  log("Window attached to Service Worker through MessageChannel")
+  log("Window attached through Service Worker API")
   return true
 }
 
@@ -998,7 +1014,7 @@ async function start() {
       log("Worker installed but did not claim this page; reload once", true)
       return
     }
-    attachPageChannel()
+    attachServiceWorkerChannel()
     const publicKey = await fetchVapidPublicKey()
     webPushClient = createHamiltonianWebPushClient(publicKey)
     const restored = await webPushClient.restore(crypto.randomUUID())
@@ -1122,7 +1138,7 @@ async function fetchVapidPublicKey() {
 
 setInterval(() => {
   const now = Date.now()
-  if (!port || pageWorkerChannelIsQuiet({
+  if (!attachedController || pageWorkerChannelIsQuiet({
     now,
     lastWorkerMessageAt,
     visibility: document.visibilityState,
@@ -1130,8 +1146,8 @@ setInterval(() => {
     if (!reconnecting) {
       reconnecting = true
       observeAttachedWorkerQuiet("page-channel-quiet")
-      log("page channel became quiet; retaining unexpired authority while attaching a fresh MessageChannel")
-      attachPageChannel(true)
+      log("Service Worker API became quiet; repeating connect-window")
+      attachServiceWorkerChannel(true)
       reconnecting = false
     }
   }
@@ -1139,7 +1155,12 @@ setInterval(() => {
     isMainLeader = false
     stopMain("singleton lease expired")
   }
-  send({kind: "window-heartbeat", visible: document.visibilityState === "visible"})
+  send({
+    kind: "window-heartbeat",
+    tabId,
+    pageIncarnation,
+    visible: document.visibilityState === "visible",
+  })
 }, HAMILTONIAN_PAGE_HEARTBEAT_MS)
 
 document.addEventListener("visibilitychange", () => {
@@ -1151,9 +1172,15 @@ document.addEventListener("visibilitychange", () => {
     ownerId: browserEntityId,
     attributes: {visibility: document.visibilityState, state: "live"},
   }))
-  send({kind: "window-heartbeat", visible: document.visibilityState === "visible"})
+  send({
+    kind: "window-heartbeat",
+    tabId,
+    pageIncarnation,
+    visible: document.visibilityState === "visible",
+  })
 })
 window.addEventListener("pagehide", () => {
+  sessionStorage.setItem(pagePredecessorStorageKey, pageIncarnation)
   mainEmbodiment?.stop()
   const previousWorker = dedicatedEmbodiment
   dedicatedEmbodiment = null
@@ -1161,8 +1188,6 @@ window.addEventListener("pagehide", () => {
     previousWorker.worker.terminate()
     closeDedicatedWorkerFromOwner(previousWorker, "pagehide", null)
   }
-  send({kind: "disconnect-window"})
-  closeCurrentPageChannel("pagehide")
   emitHamiltonianLifecycle(createHamiltonianLifecycleObservation({
     type: "entity",
     phase: "ended",
@@ -1179,10 +1204,16 @@ window.addEventListener("pagehide", () => {
     ownerId: browserEntityId,
     attributes: {state: "ended"},
   }))
+  send({kind: "disconnect-window"})
+  closeCurrentServiceWorkerChannel("pagehide")
 })
-navigator.serviceWorker?.addEventListener("controllerchange", () => attachPageChannel())
+window.addEventListener("pageshow", (event) => {
+  if (event.persisted) sessionStorage.removeItem(pagePredecessorStorageKey)
+})
+navigator.serviceWorker?.addEventListener("controllerchange", () => attachServiceWorkerChannel())
 navigator.serviceWorker?.addEventListener("message", (event) => {
-  if (event.data?.kind === "reattach-window") attachPageChannel(true)
+  if (event.data?.kind === "reattach-window") attachServiceWorkerChannel(true)
+  else receive(event.data)
 })
 
 function runOrchestrationAction(actionId) {
@@ -1207,7 +1238,7 @@ function runOrchestrationAction(actionId) {
     return
   }
   if (actionId === "reconnect") {
-    attachPageChannel(true)
+    attachServiceWorkerChannel(true)
     return
   }
   if (actionId === "enable-push") {
@@ -1246,23 +1277,21 @@ window.addEventListener("hamiltonian-orchestration-action", (event) => {
 
 void start()
 
-function closeCurrentPageChannel(reason) {
-  if (messagePortTransportId && attachedWorkerEntityId) {
+function closeCurrentServiceWorkerChannel(reason) {
+  if (attachedWorkerEntityId) {
     emitHamiltonianLifecycle(createHamiltonianLifecycleObservation({
       type: "transport",
       phase: "closed",
-      subjectId: messagePortTransportId,
-      subjectKind: "message-port",
+      subjectId: serviceWorkerTransportId,
+      subjectKind: "service-worker-api",
       ownerId: pageEntityId,
-      sourceEntityId: attachedWorkerEntityId,
-      targetEntityId: pageEntityId,
-      transportId: messagePortTransportId,
+      sourceEntityId: pageEntityId,
+      targetEntityId: attachedWorkerEntityId,
+      transportId: serviceWorkerTransportId,
       attributes: {reason},
     }))
   }
-  port?.close()
-  port = null
-  messagePortTransportId = null
+  attachedController = null
   pendingControllerConnect = null
   pendingPageMessages = []
 }
