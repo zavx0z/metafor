@@ -86,3 +86,30 @@ Final benchmark на том же frozen input: RIGHT median `216.37 ms`, DOWN me
 `+10.2%` и `+10.8%`; geometry hashes и environment совпадают. Регрессия
 зафиксирована для решения владельца после review и не скрыта визуальной
 приёмкой.
+
+Result commit: `2125e5614e2acb1ca169f4ec4e70e6fffc4bf6d4`.
+
+## Closing handoff
+
+* Граница result commit: только bounded global schedule selection
+  `@nodes/layout`, его regression test, постоянные алгоритмические документы и
+  evidence NODES-006. Placement, public protocol, Worker, UI, renderer и
+  Hamiltonian source не менялись.
+* Затронутый пакет: `@nodes/layout`.
+* Постоянные владельцы: `pkg/nodes/layout/requirements/COMMON.md` владеет
+  обязательным продолжением lexicographic comparison после нулевых crossings;
+  `pkg/nodes/layout/requirements/RIGHT.md` уточняет выбор верхнего/нижнего
+  обхода; `pkg/nodes/layout/README.md` объясняет поведение пользователю пакета.
+* Public contracts: без изменений. Internal router по-прежнему использует те
+  же три bounded deterministic schedules и прежний comparator.
+* Долговечный вывод: ноль crossings является нижней границей только первой
+  soft-координаты, а не разрешением пропустить turns/Manhattan/detour.
+* Проверки: `bun test pkg/nodes` — 80/80; package/root typecheck — PASS;
+  `verify-fixture.ts` — RIGHT/DOWN, x3 и permutations; live canvas artifacts —
+  свежий Worker RIGHT/DOWN; `benchmark-current.json` — полный final sample set.
+* Известное ограничение: benchmark стал медленнее на 10.2% RIGHT и 10.8% DOWN;
+  порог regression проектом не установлен, решение об отдельной оптимизации
+  остаётся владельцу после независимого review.
+* Не относящееся к задаче evidence: две live-вкладки расходятся по retained
+  lifecycle cardinality. Это MF-424.3 и не должно блокировать либо доказывать
+  корректность layout result.
