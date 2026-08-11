@@ -73,3 +73,6 @@ SHA-256: `db4ebffe2b943630743110e9903096d96e9809ced1aa02c85b454440dd45059a`.
 решения после независимого review; она не скрыта под визуальной приёмкой.
 
 Result commit: `611283e776ac350764cf392603913bbc91b4185f`.
+
+Независимая closing review: **PASS**. Frozen output воспроизведён побайтно,
+tests/typechecks и provenance прошли, три PNG сверены визуально и по SHA-256.

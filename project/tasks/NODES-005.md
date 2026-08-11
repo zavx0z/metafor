@@ -58,3 +58,12 @@ NODES-003 это +9.2% и +5.9%, что передаётся независим�
 функциональным результатом.
 
 Result commit: `611283e776ac350764cf392603913bbc91b4185f`.
+
+## Независимая закрывающая проверка
+
+Verdict: **PASS**. Reviewer подтвердил exact-port predicate, полный clearance
+разных sockets одной ноды, 79/79 tests, оба typecheck, побайтовое совпадение
+frozen proof, hashes и визуальное различие negative/final RIGHT/DOWN evidence.
+Benchmark `+9.2% RIGHT / +5.9% DOWN` не блокирует NODES-005: обязательного
+performance threshold в критериях нет; отдельная оптимизация остаётся решением
+владельца после review.
