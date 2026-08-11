@@ -118,7 +118,7 @@ bun run typecheck
 
 ## Closing handoff
 
-* Result commit: `da7e34d7e426412010b5d404da0efab7cd907df4`.
+* Result commit: `da7e34d7e6b177642808089ac251d8d7f02ea4d2`.
 * Граница результата: стабильная layout identity на adapter boundary,
   уникальность `layoutId`, Hamiltonian visual-slot projection, exact viewport
   scheduling с bounded debounce и отклонением устаревшего Worker result.
