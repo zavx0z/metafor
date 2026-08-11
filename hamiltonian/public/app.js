@@ -49,6 +49,11 @@ if (!deviceId) {
   deviceId = crypto.randomUUID()
   localStorage.setItem("hamiltonian-device", deviceId)
 }
+let serviceWorkerIdentity = localStorage.getItem("hamiltonian-service-worker-id")
+if (!serviceWorkerIdentity) {
+  serviceWorkerIdentity = crypto.randomUUID()
+  localStorage.setItem("hamiltonian-service-worker-id", serviceWorkerIdentity)
+}
 const browserEntityId = hamiltonianBrowserNodeId(deviceId)
 const browserRuntimeName = hamiltonianBrowserRuntimeName(navigator.userAgent)
 let controlResumeNonce = localStorage.getItem("hamiltonian-control-resume")
@@ -93,6 +98,7 @@ let pendingPeerRepair = null
 let hostPlacement = "browser"
 let controlConnectionId = null
 const acceptedPeerGeneration = new Map()
+const pendingPushRegistrations = new Map()
 
 emitHamiltonianLifecycle(createHamiltonianLifecycleObservation({
   type: "entity",
@@ -750,6 +756,18 @@ async function activateVersion(message) {
   log(`loaded ${loaded.version} from ${message.moduleUrl}`)
 }
 
+function observeAttachedWorkerFailure(reason) {
+  if (!attachedWorkerEntityId) return
+  emitHamiltonianLifecycle(createHamiltonianLifecycleObservation({
+    type: "entity",
+    phase: "changed",
+    subjectId: attachedWorkerEntityId,
+    subjectKind: "service-worker",
+    ownerId: attachedWorkerEntityId,
+    attributes: {state: "error", heartbeat: "failed", reason},
+  }))
+}
+
 function receive(message) {
   lastWorkerMessageAt = Date.now()
   if (!message || typeof message !== "object") return
@@ -757,8 +775,8 @@ function receive(message) {
     receiveHamiltonianLifecycleSnapshot(message.snapshot)
     return
   }
-  if (message.kind === "worker-state" && typeof message.workerIncarnationId === "string" && message.workerIncarnationId) {
-    const nextWorkerEntityId = hamiltonianLifecycleEntityId("service-worker", message.workerIncarnationId)
+  if (message.kind === "worker-state" && typeof message.workerIdentity === "string" && message.workerIdentity) {
+    const nextWorkerEntityId = hamiltonianLifecycleEntityId("service-worker", message.workerIdentity)
     const previousWorkerEntityId = attachedWorkerEntityId ?? supersededWorkerEntityId
     supersededWorkerEntityId = null
     if (previousWorkerEntityId && previousWorkerEntityId !== nextWorkerEntityId) {
@@ -829,6 +847,18 @@ function receive(message) {
     if (message.socket !== "connected") {
       log(`control session unavailable; current authority remains valid until ${new Date(leaseExpiresAt).toLocaleTimeString()}`)
     }
+    return
+  }
+  if (
+    (message.kind === "push-subscription-confirmed" || message.kind === "push-subscription-rejected") &&
+    typeof message.registrationId === "string"
+  ) {
+    const pending = pendingPushRegistrations.get(message.registrationId)
+    if (!pending) return
+    pendingPushRegistrations.delete(message.registrationId)
+    clearTimeout(pending.timer)
+    if (message.kind === "push-subscription-confirmed") pending.resolve()
+    else pending.reject(new Error(typeof message.reason === "string" ? message.reason : "server rejected subscription"))
     return
   }
   if (message.kind === "topology") {
@@ -914,6 +944,7 @@ function attachPageChannel(force = false) {
     pageIncarnation,
     joinedAt,
     token,
+    workerIdentity: serviceWorkerIdentity,
     controlResumeNonce,
     serverEntityId: bootstrapServerEntityId,
     visible: document.visibilityState === "visible",
@@ -953,7 +984,7 @@ async function start() {
 
   try {
     await navigator.serviceWorker.register("/sw-entry.js", {scope: "/", type: "module"})
-    await navigator.serviceWorker.ready
+    const registration = await navigator.serviceWorker.ready
     const controlled = await waitForController()
     elements.control.textContent = controlled
       ? (firstLoadHadController ? "pre-existing" : "claimed after install")
@@ -963,9 +994,93 @@ async function start() {
       return
     }
     attachPageChannel()
+    await registerExistingPushSubscription(registration)
   } catch (error) {
     log(`Service Worker registration failed: ${error.message}`, true)
   }
+}
+
+async function enableWebPush() {
+  try {
+    if (!("PushManager" in window) || !("Notification" in window)) {
+      throw new Error("Web Push is unavailable in this browser")
+    }
+    const permission = await Notification.requestPermission()
+    if (permission !== "granted") throw new Error(`notification permission is ${permission}`)
+    const registration = await navigator.serviceWorker.ready
+    const publicKey = await fetchVapidPublicKey()
+    let subscription = await registration.pushManager.getSubscription()
+    if (subscription && !sameApplicationServerKey(subscription.options.applicationServerKey, publicKey)) {
+      await subscription.unsubscribe()
+      subscription = null
+    }
+    subscription ??= await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: publicKey,
+    })
+    await registerPushSubscription(subscription)
+    log("Web Push готов: Bun может пробудить этот Service Worker без открытой страницы")
+  } catch (error) {
+    log(`Web Push setup failed: ${error.message}`, true)
+  }
+}
+
+async function registerExistingPushSubscription(registration) {
+  const subscription = await registration.pushManager?.getSubscription()
+  if (!subscription) return
+  try {
+    await registerPushSubscription(subscription)
+    log("Existing Web Push subscription restored")
+  } catch (error) {
+    log(`Existing Web Push subscription is unavailable: ${error.message}`, true)
+  }
+}
+
+async function registerPushSubscription(subscription) {
+  const registrationId = crypto.randomUUID()
+  const confirmation = new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      pendingPushRegistrations.delete(registrationId)
+      reject(new Error("Service Worker did not confirm PushSubscription registration"))
+    }, 10_000)
+    pendingPushRegistrations.set(registrationId, {resolve, reject, timer})
+  })
+  if (!send({
+    kind: "register-push-subscription",
+    registrationId,
+    workerIdentity: serviceWorkerIdentity,
+    subscription: subscription.toJSON(),
+  })) {
+    const pending = pendingPushRegistrations.get(registrationId)
+    if (pending) clearTimeout(pending.timer)
+    pendingPushRegistrations.delete(registrationId)
+    throw new Error("Service Worker control channel is unavailable")
+  }
+  await confirmation
+}
+
+async function fetchVapidPublicKey() {
+  const response = await fetch("/push/vapid-public-key", {
+    headers: {authorization: `Bearer ${token}`},
+    cache: "no-store",
+  })
+  if (!response.ok) throw new Error(`VAPID key ${response.status}`)
+  const payload = await response.json()
+  if (!payload || typeof payload.publicKey !== "string") throw new Error("invalid VAPID public key")
+  return base64UrlBytes(payload.publicKey)
+}
+
+function sameApplicationServerKey(applicationServerKey, expected) {
+  if (!(applicationServerKey instanceof ArrayBuffer)) return false
+  const actual = new Uint8Array(applicationServerKey)
+  if (actual.length !== expected.length) return false
+  return actual.every((value, index) => value === expected[index])
+}
+
+function base64UrlBytes(value) {
+  const padding = "=".repeat((4 - value.length % 4) % 4)
+  const bytes = atob(`${value.replaceAll("-", "+").replaceAll("_", "/")}${padding}`)
+  return Uint8Array.from(bytes, (character) => character.charCodeAt(0))
 }
 
 setInterval(() => {
@@ -977,6 +1092,7 @@ setInterval(() => {
   })) {
     if (!reconnecting) {
       reconnecting = true
+      observeAttachedWorkerFailure("page-channel-quiet")
       log("page channel became quiet; retaining unexpired authority while attaching a fresh MessageChannel")
       attachPageChannel(true)
       reconnecting = false
@@ -1057,16 +1173,33 @@ function runOrchestrationAction(actionId) {
     attachPageChannel(true)
     return
   }
+  if (actionId === "enable-push") {
+    void enableWebPush()
+    return
+  }
   if (actionId === "reload") location.reload()
 }
+
+window.addEventListener("keydown", (event) => {
+  if (!event.altKey || event.code !== "KeyP") return
+  event.preventDefault()
+  runOrchestrationAction("enable-push")
+})
 
 document.getElementById("new-tab").addEventListener("click", () => runOrchestrationAction("open-window"))
 document.getElementById("rebirth-worker").addEventListener("click", () => runOrchestrationAction("rebirth-worker"))
 document.getElementById("reload-main").addEventListener("click", () => runOrchestrationAction("reload-main"))
 document.getElementById("reconnect").addEventListener("click", () => runOrchestrationAction("reconnect"))
+document.getElementById("enable-push").addEventListener("click", () => runOrchestrationAction("enable-push"))
 document.getElementById("reload").addEventListener("click", () => runOrchestrationAction("reload"))
 window.addEventListener("hamiltonian-orchestration-action", (event) => {
-  const action = parseLocalHamiltonianWindowAction(event.detail, deviceId, tabId, pageIncarnation)
+  const action = parseLocalHamiltonianWindowAction(
+    event.detail,
+    deviceId,
+    tabId,
+    pageIncarnation,
+    attachedWorkerEntityId,
+  )
   if (action === null) {
     log("Ignored orchestration action for another or unknown Window", true)
     return

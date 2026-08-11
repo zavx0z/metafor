@@ -272,6 +272,7 @@ export class HamiltonianLifecycleProjection {
       const sourceParameter = `transport:${safeId(transport.id)}:out`
       const targetParameter = `transport:${safeId(transport.id)}:in`
       const label = transportLabel(transport.kind, transport.attributes)
+      const endpointValue = transport.kind === "websocket" ? "вход / выход" : null
       addPort(ports, transport.sourceEntityId, {
         id: sourcePort,
         parameterId: sourceParameter,
@@ -285,13 +286,13 @@ export class HamiltonianLifecycleProjection {
       addParameter(transportParameters, transport.sourceEntityId, {
         id: sourceParameter,
         label,
-        value: "выход",
+        value: endpointValue ?? "выход",
         tone: transport.state === "opened" ? "live" : transport.state === "changed" ? "neutral" : "paused",
       })
       addParameter(transportParameters, transport.targetEntityId, {
         id: targetParameter,
         label,
-        value: "вход",
+        value: endpointValue ?? "вход",
         tone: transport.state === "opened" ? "live" : transport.state === "changed" ? "neutral" : "paused",
       })
       edges.push({
@@ -307,25 +308,39 @@ export class HamiltonianLifecycleProjection {
     const entityNodes = visibleEntities
       .sort((left, right) => entityOrder(left.kind) - entityOrder(right.kind) || left.bornAt - right.bornAt || left.id.localeCompare(right.id))
       .map((entity, index): NodeSystemNode => {
-        const parentId = visualParentId(entity, visibleEntityIds, this.#serverId)
+        const failedHeartbeat = serviceWorkerControlFailed(entity, activeTransports)
+        const presentedEntity = failedHeartbeat
+          ? {
+              ...entity,
+              state: "error",
+              attributes: {...entity.attributes, state: "error", heartbeat: "failed"},
+            }
+          : entity
+        const parentId = visualParentId(presentedEntity, visibleEntityIds, this.#serverId)
         return {
-          id: entity.id,
+          id: presentedEntity.id,
           ...(parentId === null ? {} : {parentId}),
-          title: entityTitle(entity, this.#pageId),
-          kind: entityKindLabel(entity.kind),
-          tone: nodeTone(entity.state, this.#hasGap(entity)),
-          order: entityOrder(entity.kind) + index,
-          ports: ports.get(entity.id) ?? [],
+          title: entityTitle(presentedEntity, this.#pageId),
+          ...(presentedEntity.kind === "service-worker" ? {} : {kind: entityKindLabel(presentedEntity.kind)}),
+          tone: nodeTone(presentedEntity.state, this.#hasGap(presentedEntity)),
+          order: entityOrder(presentedEntity.kind) + index,
+          ports: ports.get(presentedEntity.id) ?? [],
           facts: [
-            ...entityFacts(entity, this.#gapsFor(entity)),
-            ...(transportParameters.get(entity.id) ?? []),
+            ...entityFacts(presentedEntity, this.#gapsFor(presentedEntity)),
+            ...(transportParameters.get(presentedEntity.id) ?? []),
           ],
-          ...(entity.id === this.#pageId ? {
+          ...(presentedEntity.id === this.#pageId ? {
             summary: "Текущая page realm; существует с начала этой загрузки",
             actions: [
               {id: "open-window", label: "Открыть ещё одно окно", tone: "neutral" as const},
               {id: "rebirth-worker", label: "Перезапустить выделенный воркер", tone: "paused" as const},
               {id: "reload", label: "Перезагрузить это окно", tone: "neutral" as const},
+            ],
+          } : {}),
+          ...(presentedEntity.kind === "service-worker" ? {
+            summary: "Один зарегистрированный Service Worker; Web Push пробуждает его и восстанавливает WebSocket",
+            actions: [
+              {id: "enable-push", label: "Настроить Web Push", tone: "neutral" as const},
             ],
           } : {}),
         }
@@ -661,7 +676,7 @@ function addParameter(
 function entityFacts(entity: LifecycleEntity, gaps: HamiltonianLifecycleGap[]) {
   const facts: Array<NonNullable<NodeSystemNode["facts"]>[number]> = Object.entries(entity.attributes)
     .filter(([, value]) => value !== null && value !== "")
-    .map(([key, value]) => ({id: key, label: factLabel(key), value: compactValue(value ?? "")}))
+    .map(([key, value]) => ({id: key, label: factLabel(key, entity.kind), value: compactValue(value ?? "")}))
   for (const [index, gap] of gaps.entries()) {
     facts.push({
       id: `gap-${index}`,
@@ -694,7 +709,6 @@ function entityKindLabel(kind: string): string {
   if (kind === "server") return "Bun host Hamiltonian"
   if (kind === "browser-runtime") return "user-agent runtime"
   if (kind === "page") return "page realm"
-  if (kind === "service-worker") return "ServiceWorkerGlobalScope"
   if (kind === "dedicated-worker") return "DedicatedWorkerGlobalScope"
   if (kind === "window-main") return "Window main realm"
   if (kind === "bun-process") return "процесс Bun в ОС"
@@ -721,7 +735,8 @@ function transportLabel(kind: string, attributes: Record<string, string | number
 
 function nodeTone(state: string, hasGap: boolean): "neutral" | "live" | "paused" | "warn" {
   if (hasGap || state === "error" || state === "failed") return "warn"
-  if (state === "paused" || state === "stopped") return "paused"
+  if (state === "paused" || state === "stopped" || state === "standby") return "paused"
+  if (state === "waking") return "neutral"
   return "live"
 }
 
@@ -771,27 +786,50 @@ function isLifecycleSourceEntityKind(kind: string): boolean {
     kind === "server"
 }
 
-function factLabel(key: string): string {
+function factLabel(key: string, entityKind: string): string {
   const labels: Record<string, string> = {
     connectionId: "Соединение",
     deviceId: "Устройство",
     endpoint: "Сторона",
     epoch: "Эпоха",
+    failedWorker: "Завершённый Worker",
     generation: "Поколение",
+    heartbeat: "Heartbeat",
+    heartbeatSequence: "Heartbeat №",
     incarnation: "Воплощение",
     identity: "Identity",
+    lastFailure: "Последний отказ",
     navigation: "Navigation",
     origin: "Адрес",
     pid: "PID",
     peerId: "Peer",
     role: "Роль",
     runtime: "Runtime",
+    runtimeIncarnation: "Исполнение",
+    push: "Push",
+    reason: "Причина",
     state: "Состояние",
     sessionEpoch: "Сессия",
     version: "Версия",
     visibility: "Видимость",
+    wakeId: "Пробуждение",
   }
   return labels[key] ?? key
+}
+
+function serviceWorkerControlFailed(
+  entity: LifecycleEntity,
+  transports: readonly LifecycleTransport[],
+): boolean {
+  if (entity.kind !== "service-worker") return false
+  const push = stringAttribute(entity.attributes.push)
+  if (push === "ready" || push === "received" || push === "sent") return false
+  let latest: LifecycleTransport | null = null
+  for (const transport of transports) {
+    if (transport.kind !== "websocket" || transport.sourceEntityId !== entity.id) continue
+    if (latest === null || transport.changedAt >= latest.changedAt) latest = transport
+  }
+  return latest?.state === "closed"
 }
 
 function compactValue(value: string | number | boolean): string {

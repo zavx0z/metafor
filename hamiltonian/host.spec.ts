@@ -1,12 +1,17 @@
 import {afterEach, describe, expect, test} from "bun:test"
+import {mkdtempSync, rmSync} from "node:fs"
+import {tmpdir} from "node:os"
+import {join} from "node:path"
 import {
   HamiltonianLifecycleSource,
   createHamiltonianLifecycleObservation,
+  hamiltonianLifecycleEntityId,
 } from "./core/lifecycle.js"
 import {createHamiltonianHost} from "./host.ts"
 import {WeriftPeer, type PeerSignal} from "./peer/werift-peer.ts"
 
 const running: Array<ReturnType<typeof createHamiltonianHost>> = []
+const temporaryDirectories: string[] = []
 
 function requireValue<T>(value: T | null | undefined, label: string): T {
   if (value === undefined || value === null) throw new Error(`Missing ${label}`)
@@ -15,6 +20,7 @@ function requireValue<T>(value: T | null | undefined, label: string): T {
 
 afterEach(async () => {
   await Promise.all(running.splice(0).map((host) => host.stop()))
+  for (const directory of temporaryDirectories.splice(0)) rmSync(directory, {recursive: true, force: true})
 })
 
 async function nextMessage(
@@ -49,20 +55,64 @@ async function openSocket(url: URL): Promise<WebSocket> {
   return socket
 }
 
+async function registerTestPushSubscription(
+  host: ReturnType<typeof createHamiltonianHost>,
+  workerIdentity: string,
+  deviceId: string,
+  endpoint: string,
+): Promise<WebSocket> {
+  const workerEntityId = hamiltonianLifecycleEntityId("service-worker", workerIdentity)
+  const controlUrl = new URL("/control", host.server.url)
+  controlUrl.protocol = "ws:"
+  controlUrl.searchParams.set("token", host.token)
+  controlUrl.searchParams.set("device", deviceId)
+  controlUrl.searchParams.set("worker", workerEntityId)
+  const socket = await openSocket(controlUrl)
+  await nextMessage(socket, "hello")
+  socket.send(JSON.stringify({
+    kind: "identity",
+    workerIdentity,
+    workerRuntimeIncarnation: `registration-runtime:${workerIdentity}`,
+    resumeNonce: `registration-resume:${workerIdentity}`,
+  }))
+  const registrationId = crypto.randomUUID()
+  const confirmed = nextMessage(socket, "push-subscription-confirmed", (message) =>
+    message.registrationId === registrationId)
+  socket.send(JSON.stringify({
+    kind: "push-subscription",
+    registrationId,
+    subscription: {
+      endpoint,
+      expirationTime: null,
+      keys: {p256dh: "public_key", auth: "auth_key"},
+    },
+  }))
+  await confirmed
+  return socket
+}
+
 async function openDirectBrowserPeer(
   host: ReturnType<typeof createHamiltonianHost>,
   {
     deviceId,
     tabId,
-    workerIncarnationId = `fixture-worker:${deviceId}`,
+    workerIdentity = `fixture-worker:${deviceId}`,
+    workerRuntimeIncarnation = `fixture-runtime:${deviceId}`,
     resumeNonce = crypto.randomUUID(),
-  }: {deviceId: string; tabId: string; workerIncarnationId?: string; resumeNonce?: string},
+  }: {
+    deviceId: string
+    tabId: string
+    workerIdentity?: string
+    workerRuntimeIncarnation?: string
+    resumeNonce?: string
+  },
 ) {
   await host.bunReady
   const controlUrl = new URL("/control", host.server.url)
   controlUrl.protocol = "ws:"
   controlUrl.searchParams.set("token", host.token)
   controlUrl.searchParams.set("device", deviceId)
+  controlUrl.searchParams.set("worker", hamiltonianLifecycleEntityId("service-worker", workerIdentity))
   const socket = await openSocket(controlUrl)
   const hello = await nextMessage(socket, "hello")
 
@@ -98,7 +148,8 @@ async function openDirectBrowserPeer(
         kind: "pong",
         at: message.at,
         seq: message.seq,
-        workerIncarnationId,
+        workerIdentity,
+        workerRuntimeIncarnation,
       }))
       return
     }
@@ -142,7 +193,7 @@ async function openDirectBrowserPeer(
     if (answerer) void answerer.signal(message.signal)
   })
 
-  socket.send(JSON.stringify({kind: "identity", workerIncarnationId, resumeNonce}))
+  socket.send(JSON.stringify({kind: "identity", workerIdentity, workerRuntimeIncarnation, resumeNonce}))
   socket.send(JSON.stringify({
     kind: "tabs",
     windows: [{tabId, joinedAt: 10, visible: true}],
@@ -154,7 +205,8 @@ async function openDirectBrowserPeer(
     protocol: initial.protocol,
     connectionId: String(hello.connectionId),
     sessionEpoch: initial.sessionEpoch,
-    workerIncarnationId,
+    workerIdentity,
+    workerRuntimeIncarnation,
     resumeNonce,
     nextPeer,
   }
@@ -169,6 +221,7 @@ describe("isolated Hamiltonian host", () => {
       browserBundles: {
         orchestration: "export const testOrchestrationBundle = true",
         layoutWorker: "export const testLayoutWorkerBundle = true",
+        serviceWorker: "export const testServiceWorkerBundle = true",
       },
     })
     running.push(host)
@@ -256,34 +309,22 @@ describe("isolated Hamiltonian host", () => {
     const browserSource = await browserBootstrap.text()
     expect(browserSource).toContain('channel.label !== "oracle"')
     expect(browserSource).toContain("lanes: {oracle, force}")
-    expect(browserSource).toContain("parseLocalHamiltonianWindowAction(event.detail, deviceId, tabId, pageIncarnation)")
+    expect(browserSource).toContain('localStorage.getItem("hamiltonian-service-worker-id")')
+    expect(browserSource).toContain("attachedWorkerEntityId,")
     expect(browserSource).toContain("emitHamiltonianLifecycle(createHamiltonianLifecycleObservation")
     expect(browserSource).toContain('subjectKind: "browser-runtime"')
     expect(browserSource).toContain("browserEntityId,")
     expect(browserSource).toContain('subjectKind: "page"')
     expect(browserSource).toContain("closeDedicatedWorkerFromOwner(previous")
-
-    const serviceWorkerBootstrap = await fetch(new URL("/sw.js", host.server.url))
-    expect(serviceWorkerBootstrap.status).toBe(200)
-    const serviceWorkerSource = await serviceWorkerBootstrap.text()
-    expect(serviceWorkerSource).toContain('subjectKind: "service-worker"')
-    expect(serviceWorkerSource).toContain('subjectKind: "controller"')
-    expect(serviceWorkerSource).toContain('subjectKind: "message-port"')
-    expect(serviceWorkerSource).toContain('lifecycleIdentifier(message.browserEntityId, "browser:")')
-    expect(serviceWorkerSource).toContain("nextBrowserEntityId !== hamiltonianBrowserNodeId(message.deviceId)")
-    expect(serviceWorkerSource).toContain("ownerId: nextBrowserEntityId")
-    expect(serviceWorkerSource).toContain('window.port.postMessage({kind: "lifecycle-snapshot", snapshot})')
-    expect(serviceWorkerSource).toContain('sendSocket({kind: "lifecycle-retirement", envelope})')
-    expect(serviceWorkerSource).not.toContain("HAMILTONIAN_ORCHESTRATION_CHANNEL")
+    expect(browserSource).toContain('observeAttachedWorkerFailure("page-channel-quiet")')
 
     const serviceWorkerEntry = await fetch(new URL("/sw-entry.js", host.server.url))
     expect(serviceWorkerEntry.status).toBe(200)
+    expect(serviceWorkerEntry.headers.get("content-security-policy")).toContain("connect-src 'self' ws: wss: data:")
+    expect(serviceWorkerEntry.headers.get("service-worker-allowed")).toBe("/")
+    expect(serviceWorkerEntry.headers.get("cache-control")).toBe("no-cache")
     const serviceWorkerEntrySource = await serviceWorkerEntry.text()
-    const serviceWorkerMonitorImportIndex = serviceWorkerEntrySource.indexOf('import "/core/monitor.js"')
-    expect(serviceWorkerMonitorImportIndex).toBeGreaterThan(-1)
-    expect(serviceWorkerMonitorImportIndex)
-      .toBeLessThan(serviceWorkerEntrySource.indexOf('import "/sw.js?lifecycle-v19"'))
-    expect(serviceWorkerEntrySource).toContain("joins its observed browser-runtime owner")
+    expect(serviceWorkerEntrySource).toContain("testServiceWorkerBundle")
 
     const orchestrationContract = await fetch(new URL("/core/orchestration.js", host.server.url))
     expect(orchestrationContract.status).toBe(200)
@@ -333,13 +374,295 @@ describe("isolated Hamiltonian host", () => {
     expect(worker.pid).not.toBe(main.pid)
   })
 
+  test("registers Web Push and causally confirms reconnect of the same Service Worker", async () => {
+    const deliveries: Array<{payload: string; endpoint: string}> = []
+    let releaseDelivery!: () => void
+    let announceDelivery!: () => void
+    const deliveryStarted = new Promise<void>((resolve) => { announceDelivery = resolve })
+    const deliveryReleased = new Promise<void>((resolve) => { releaseDelivery = resolve })
+    const host = createHamiltonianHost({
+      port: 0,
+      token: "test-token",
+      heartbeatMs: 10_000,
+      webPush: {
+        publicKey: "public-test-key",
+        privateKey: "private-test-key",
+        send: async (subscription, payload) => {
+          deliveries.push({payload, endpoint: subscription.endpoint})
+          announceDelivery()
+          await deliveryReleased
+        },
+      },
+    })
+    running.push(host)
+
+    const keyUrl = new URL("/push/vapid-public-key", host.server.url)
+    expect((await fetch(keyUrl)).status).toBe(401)
+    const keyResponse = await fetch(keyUrl, {headers: {authorization: "Bearer test-token"}})
+    expect(await keyResponse.json()).toEqual({publicKey: "public-test-key"})
+
+    const workerIdentity = "stable-push-worker"
+    const registrationSocket = await registerTestPushSubscription(
+      host,
+      workerIdentity,
+      "push-device",
+      "https://push.example.test/subscription/one",
+    )
+    registrationSocket.close()
+    expect(host.getStatus().push.subscriptions).toHaveLength(1)
+
+    const wakeResponsePromise = fetch(new URL("/lab/wake-service-worker", host.server.url), {
+      method: "POST",
+      headers: {authorization: "Bearer test-token", "content-type": "application/json"},
+      body: JSON.stringify({workerIdentity}),
+    })
+    await deliveryStarted
+    expect(deliveries).toHaveLength(1)
+    const payload = JSON.parse(deliveries[0]!.payload) as {
+      kind: string
+      wakeId: string
+      wakeProof: string
+      token: string
+      serverEntityId: string
+    }
+    expect(payload).toMatchObject({
+      kind: "wake-service-worker",
+      token: "test-token",
+      serverEntityId: `server:${host.hostEpoch}`,
+    })
+    expect(host.getStatus().push.pendingWakeIds).toEqual([
+      expect.objectContaining({wakeId: payload.wakeId}),
+    ])
+
+    const controlUrl = new URL("/control", host.server.url)
+    controlUrl.protocol = "ws:"
+    controlUrl.searchParams.set("token", payload.token)
+    controlUrl.searchParams.set("device", "push-device")
+    controlUrl.searchParams.set("worker", hamiltonianLifecycleEntityId("service-worker", workerIdentity))
+    const socket = await openSocket(controlUrl)
+    await nextMessage(socket, "hello")
+    const confirmed = nextMessage(socket, "wake-confirmed", (message) => message.wakeId === payload.wakeId)
+    socket.send(JSON.stringify({
+      kind: "identity",
+      workerIdentity,
+      workerRuntimeIncarnation: "runtime-after-push",
+      resumeNonce: "push-resume",
+      wakeId: payload.wakeId,
+      wakeProof: payload.wakeProof,
+    }))
+    await confirmed
+    releaseDelivery()
+    const wakeResponse = await wakeResponsePromise
+    expect(wakeResponse.status).toBe(200)
+    const wake = await wakeResponse.json() as {wakeId: string; workerEntityId: string}
+    expect(wake.wakeId).toBe(payload.wakeId)
+    expect(host.getStatus().push.pendingWakeIds).toHaveLength(0)
+    expect(host.getStatus().events).toContainEqual(expect.objectContaining({
+      kind: "push-reconnect-confirmed",
+      connectionId: expect.any(String),
+    }))
+    const causalKinds = host.getStatus().events
+      .filter((event) => event.detail?.includes(payload.wakeId))
+      .map((event) => event.kind)
+    expect(causalKinds.indexOf("push-sent")).toBeLessThan(causalKinds.indexOf("push-reconnect-confirmed"))
+    socket.close()
+  })
+
+  test("makes Web Push delivery failure an explicit Service Worker failure", async () => {
+    const host = createHamiltonianHost({
+      port: 0,
+      token: "test-token",
+      webPush: {
+        publicKey: "public-test-key",
+        privateKey: "private-test-key",
+        send: async () => {
+          throw new Error("push service unavailable")
+        },
+      },
+    })
+    running.push(host)
+    const workerIdentity = "failed-push-worker"
+    const registrationSocket = await registerTestPushSubscription(
+      host,
+      workerIdentity,
+      "push-device",
+      "https://push.example.test/subscription/failure",
+    )
+    registrationSocket.close()
+    const wakeResponse = await fetch(new URL("/lab/wake-service-worker", host.server.url), {
+      method: "POST",
+      headers: {authorization: "Bearer test-token", "content-type": "application/json"},
+      body: JSON.stringify({workerIdentity}),
+    })
+    expect(wakeResponse.status).toBe(502)
+    expect(await wakeResponse.text()).toContain("push service unavailable")
+    expect(host.getStatus().push.pendingWakeIds).toHaveLength(0)
+    expect(host.getStatus().events).toContainEqual(expect.objectContaining({kind: "push-send-failed"}))
+  })
+
+  test("supplies fresh host capability through encrypted Push after Bun restart", async () => {
+    const directory = mkdtempSync(join(tmpdir(), "hamiltonian-host-push-"))
+    temporaryDirectories.push(directory)
+    const storagePath = join(directory, "web-push.json")
+    const workerIdentity = "restart-push-worker"
+    const deviceId = "restart-push-device"
+    const first = createHamiltonianHost({
+      port: 0,
+      token: "first-host-token",
+      webPush: {storagePath, send: async () => {}},
+    })
+    running.push(first)
+    const registrationSocket = await registerTestPushSubscription(
+      first,
+      workerIdentity,
+      deviceId,
+      "https://push.example.test/subscription/restart",
+    )
+    registrationSocket.close()
+    const firstServerEntityId = `server:${first.hostEpoch}`
+    await first.stop()
+    running.splice(running.indexOf(first), 1)
+
+    const deliveries: string[] = []
+    const restarted = createHamiltonianHost({
+      port: 0,
+      token: "second-host-token",
+      webPush: {
+        storagePath,
+        send: async (_subscription, payload) => { deliveries.push(payload) },
+      },
+    })
+    running.push(restarted)
+    expect(restarted.getStatus().push.subscriptions).toHaveLength(1)
+    const wakeResponse = await fetch(new URL("/lab/wake-service-worker", restarted.server.url), {
+      method: "POST",
+      headers: {authorization: "Bearer second-host-token", "content-type": "application/json"},
+      body: JSON.stringify({workerIdentity}),
+    })
+    expect(wakeResponse.status).toBe(200)
+    const payload = JSON.parse(deliveries[0]!) as {
+      wakeId: string
+      wakeProof: string
+      token: string
+      serverEntityId: string
+    }
+    expect(payload.token).toBe("second-host-token")
+    expect(payload.serverEntityId).toBe(`server:${restarted.hostEpoch}`)
+    expect(payload.serverEntityId).not.toBe(firstServerEntityId)
+
+    const controlUrl = new URL("/control", restarted.server.url)
+    controlUrl.protocol = "ws:"
+    controlUrl.searchParams.set("token", payload.token)
+    controlUrl.searchParams.set("device", deviceId)
+    controlUrl.searchParams.set("worker", hamiltonianLifecycleEntityId("service-worker", workerIdentity))
+    const socket = await openSocket(controlUrl)
+    await nextMessage(socket, "hello")
+    const confirmed = nextMessage(socket, "wake-confirmed", (message) => message.wakeId === payload.wakeId)
+    socket.send(JSON.stringify({
+      kind: "identity",
+      workerIdentity,
+      workerRuntimeIncarnation: "runtime-after-host-restart",
+      resumeNonce: "persisted-restart-resume",
+      wakeId: payload.wakeId,
+      wakeProof: payload.wakeProof,
+    }))
+    await confirmed
+    expect(restarted.getStatus().push.pendingWakeIds).toHaveLength(0)
+    expect(restarted.getStatus().events).toContainEqual(expect.objectContaining({
+      kind: "push-reconnect-confirmed",
+    }))
+    socket.close()
+  })
+
+  test("does not expose wakeProof and rejects a forged reconnect that only knows wakeId", async () => {
+    const deliveries: string[] = []
+    const host = createHamiltonianHost({
+      port: 0,
+      token: "proof-test-token",
+      webPush: {
+        publicKey: "public-test-key",
+        privateKey: "private-test-key",
+        send: async (_subscription, payload) => { deliveries.push(payload) },
+      },
+    })
+    running.push(host)
+    const workerIdentity = "proof-bound-worker"
+    const deviceId = "proof-bound-device"
+    const registrationSocket = await registerTestPushSubscription(
+      host,
+      workerIdentity,
+      deviceId,
+      "https://push.example.test/subscription/proof",
+    )
+    const response = await fetch(new URL("/lab/wake-service-worker", host.server.url), {
+      method: "POST",
+      headers: {authorization: "Bearer proof-test-token", "content-type": "application/json"},
+      body: JSON.stringify({workerIdentity}),
+    })
+    expect(response.status).toBe(200)
+    const payload = JSON.parse(deliveries[0]!) as {
+      wakeId: string
+      wakeProof: string
+    }
+    expect(JSON.stringify(host.getStatus())).not.toContain(payload.wakeProof)
+
+    const staleSocketRejected = new Promise<CloseEvent>((resolve) =>
+      registrationSocket.addEventListener("close", resolve, {once: true})
+    )
+    registrationSocket.send(JSON.stringify({
+      kind: "identity",
+      workerIdentity,
+      workerRuntimeIncarnation: `registration-runtime:${workerIdentity}`,
+      resumeNonce: `registration-resume:${workerIdentity}`,
+      wakeId: payload.wakeId,
+      wakeProof: payload.wakeProof,
+    }))
+    expect((await staleSocketRejected).code).toBe(1008)
+    expect(host.getStatus().push.pendingWakeIds).toHaveLength(1)
+
+    const controlUrl = new URL("/control", host.server.url)
+    controlUrl.protocol = "ws:"
+    controlUrl.searchParams.set("token", host.token)
+    controlUrl.searchParams.set("device", deviceId)
+    controlUrl.searchParams.set("worker", hamiltonianLifecycleEntityId("service-worker", workerIdentity))
+    const forged = await openSocket(controlUrl)
+    await nextMessage(forged, "hello")
+    const rejected = new Promise<CloseEvent>((resolve) => forged.addEventListener("close", resolve, {once: true}))
+    forged.send(JSON.stringify({
+      kind: "identity",
+      workerIdentity,
+      workerRuntimeIncarnation: "forged-runtime",
+      resumeNonce: "proof-resume",
+      wakeId: payload.wakeId,
+      wakeProof: "forged-proof",
+    }))
+    expect((await rejected).code).toBe(1008)
+    expect(host.getStatus().push.pendingWakeIds).toHaveLength(1)
+
+    const legitimate = await openSocket(controlUrl)
+    await nextMessage(legitimate, "hello")
+    const confirmed = nextMessage(legitimate, "wake-confirmed", (message) => message.wakeId === payload.wakeId)
+    legitimate.send(JSON.stringify({
+      kind: "identity",
+      workerIdentity,
+      workerRuntimeIncarnation: "legitimate-runtime",
+      resumeNonce: "proof-resume",
+      wakeId: payload.wakeId,
+      wakeProof: payload.wakeProof,
+    }))
+    await confirmed
+    expect(host.getStatus().push.pendingWakeIds).toHaveLength(0)
+    legitimate.close()
+  })
+
   test("sends retained current state and a causal frontier before live control messages", async () => {
     const host = createHamiltonianHost({port: 0, token: "test-token", heartbeatMs: 10_000})
     running.push(host)
     await host.bunReady
 
     const transportId = `websocket:${crypto.randomUUID()}`
-    const workerEntityId = `service-worker:${crypto.randomUUID()}`
+    const workerIdentity = "journal-worker"
+    const workerEntityId = hamiltonianLifecycleEntityId("service-worker", workerIdentity)
     const controlUrl = new URL("/control", host.server.url)
     controlUrl.protocol = "ws:"
     controlUrl.searchParams.set("token", host.token)
@@ -410,7 +733,8 @@ describe("isolated Hamiltonian host", () => {
     })
     socket.send(JSON.stringify({
       kind: "identity",
-      workerIncarnationId: "journal-worker",
+      workerIdentity,
+      workerRuntimeIncarnation: "journal-runtime",
       resumeNonce: "journal-resume",
       monitor: {messageId: inboundMessageId, transportId},
     }))
@@ -596,6 +920,7 @@ describe("isolated Hamiltonian host", () => {
     controlUrl.protocol = "ws:"
     controlUrl.searchParams.set("token", host.token)
     controlUrl.searchParams.set("device", "browser-observer")
+    controlUrl.searchParams.set("worker", hamiltonianLifecycleEntityId("service-worker", "observer-sw"))
     const socket = await openSocket(controlUrl)
     await nextMessage(socket, "hello")
     const topologyMessage = nextMessage(socket, "topology", (message) =>
@@ -603,7 +928,8 @@ describe("isolated Hamiltonian host", () => {
     )
     socket.send(JSON.stringify({
       kind: "identity",
-      workerIncarnationId: "observer-sw",
+      workerIdentity: "observer-sw",
+      workerRuntimeIncarnation: "observer-runtime",
       resumeNonce: "observer-resume",
     }))
     socket.send(JSON.stringify({
@@ -674,11 +1000,12 @@ describe("isolated Hamiltonian host", () => {
     controlUrl.searchParams.set("token", "test-token")
     controlUrl.searchParams.set("device", "stable-installation")
 
-    const connect = async (workerIncarnationId: string) => {
+    const workerIdentity = "stable-service-worker"
+    const connect = async (workerRuntimeIncarnation: string) => {
       const url = new URL(controlUrl)
       const transportId = `websocket:${crypto.randomUUID()}`
       url.searchParams.set("transport", transportId)
-      url.searchParams.set("worker", `service-worker:${workerIncarnationId}`)
+      url.searchParams.set("worker", `service-worker:${workerIdentity}`)
       const socket = new WebSocket(url)
       const snapshot = nextMessage(socket, "lifecycle-snapshot")
       const helloMessage = nextMessage(socket, "hello")
@@ -689,7 +1016,8 @@ describe("isolated Hamiltonian host", () => {
           kind: "pong",
           at: message.at,
           seq: message.seq,
-          workerIncarnationId,
+          workerIdentity,
+          workerRuntimeIncarnation,
         }))
       })
       await new Promise<void>((resolve, reject) => {
@@ -699,24 +1027,26 @@ describe("isolated Hamiltonian host", () => {
       const [hello, lifecycleSnapshot] = await Promise.all([helloMessage, snapshot])
       socket.send(JSON.stringify({
         kind: "identity",
-        workerIncarnationId,
+        workerIdentity,
+        workerRuntimeIncarnation,
         resumeNonce: crypto.randomUUID(),
       }))
       return {socket, connectionId: String(hello.connectionId), lifecycleSnapshot, transportId}
     }
 
-    const first = await connect("sw-incarnation-a")
+    const first = await connect("sw-runtime-a")
     await Bun.sleep(80)
     const firstStatus = host.getStatus()
     expect(firstStatus.connections[0]).toMatchObject({
       connectionId: first.connectionId,
-      workerIncarnationId: "sw-incarnation-a",
+      workerIdentity,
+      workerRuntimeIncarnation: "sw-runtime-a",
     })
     expect(firstStatus.connections[0]!.lastAckSeq).toBeGreaterThan(0)
     first.socket.close()
     await Bun.sleep(10)
 
-    const second = await connect("sw-incarnation-b")
+    const second = await connect("sw-runtime-b")
     expect(second.connectionId).not.toBe(first.connectionId)
     const retained = second.lifecycleSnapshot.snapshot as {
       envelopes: Array<{observation: {phase?: string; subjectId?: string; subjectKind?: string}}>
@@ -848,7 +1178,54 @@ describe("isolated Hamiltonian host", () => {
     expect((await closed).code).toBe(1008)
   })
 
-  test("rejects a heartbeat acknowledgement that was never challenged", async () => {
+  test("starts the next heartbeat only after the previous pong", async () => {
+    const heartbeatMs = 50
+    const host = createHamiltonianHost({port: 0, token: "test-token", heartbeatMs})
+    running.push(host)
+    const controlUrl = new URL("/control", host.server.url)
+    controlUrl.protocol = "ws:"
+    controlUrl.searchParams.set("token", "test-token")
+    controlUrl.searchParams.set("device", "causal-heartbeat")
+    controlUrl.searchParams.set("transport", `websocket:${crypto.randomUUID()}`)
+    controlUrl.searchParams.set("worker", "service-worker:causal-heartbeat")
+
+    const queuedPings: Array<{at: number; seq: number}> = []
+    const pingWaiters: Array<(ping: {at: number; seq: number}) => void> = []
+    const socket = new WebSocket(controlUrl)
+    socket.addEventListener("message", (event) => {
+      const message = JSON.parse(String(event.data)) as {kind?: string; at?: number; seq?: number}
+      if (message.kind !== "ping" || typeof message.at !== "number" || typeof message.seq !== "number") return
+      const ping = {at: message.at, seq: message.seq}
+      const waiter = pingWaiters.shift()
+      if (waiter) waiter(ping)
+      else queuedPings.push(ping)
+    })
+    const nextPing = async () => queuedPings.shift() ?? await new Promise<{at: number; seq: number}>((resolve) => {
+      pingWaiters.push(resolve)
+    })
+    await new Promise<void>((resolve, reject) => {
+      socket.addEventListener("open", () => resolve(), {once: true})
+      socket.addEventListener("error", () => reject(new Error("WebSocket open failed")), {once: true})
+    })
+
+    const first = await nextPing()
+    expect(first.seq).toBe(1)
+    await Bun.sleep(heartbeatMs + 20)
+    expect(host.getStatus().connections[0]).toMatchObject({lastChallengeSeq: 1, lastAckSeq: 0})
+
+    socket.send(JSON.stringify({
+      kind: "pong",
+      ...first,
+      workerIdentity: "causal-heartbeat",
+      workerRuntimeIncarnation: "causal-runtime",
+    }))
+    const second = await nextPing()
+    expect(second.seq).toBe(2)
+    expect(second.at - first.at).toBeGreaterThanOrEqual(heartbeatMs)
+    socket.close()
+  })
+
+  test("rejects a heartbeat acknowledgement that does not match the current challenge", async () => {
     const host = createHamiltonianHost({port: 0, token: "test-token", heartbeatMs: 1_000})
     running.push(host)
     await host.bunReady
@@ -862,11 +1239,59 @@ describe("isolated Hamiltonian host", () => {
     socket.send(JSON.stringify({
       kind: "pong",
       at: Date.now(),
-      seq: 1,
-      workerIncarnationId: "forged-worker",
+      seq: 2,
+      workerIdentity: "forged-worker",
+      workerRuntimeIncarnation: "forged-runtime",
     }))
     expect((await closed).code).toBe(1008)
     expect(host.getStatus().connections).toHaveLength(0)
+  })
+
+  test("rejects a worker identity that does not match the control endpoint", async () => {
+    const host = createHamiltonianHost({port: 0, token: "test-token", heartbeatMs: 1_000})
+    running.push(host)
+    const controlUrl = new URL("/control", host.server.url)
+    controlUrl.protocol = "ws:"
+    controlUrl.searchParams.set("token", host.token)
+    controlUrl.searchParams.set("device", "bound-identity")
+    controlUrl.searchParams.set("worker", hamiltonianLifecycleEntityId("service-worker", "expected-worker"))
+    const socket = await openSocket(controlUrl)
+    await nextMessage(socket, "hello")
+    const closed = new Promise<CloseEvent>((resolve) => socket.addEventListener("close", resolve, {once: true}))
+    socket.send(JSON.stringify({
+      kind: "identity",
+      workerIdentity: "different-worker",
+      workerRuntimeIncarnation: "different-runtime",
+      resumeNonce: "bound-identity-resume",
+    }))
+    expect((await closed).code).toBe(1008)
+  })
+
+  test("rejects a matching heartbeat sequence attributed to another worker", async () => {
+    const host = createHamiltonianHost({port: 0, token: "test-token", heartbeatMs: 1_000})
+    running.push(host)
+    const controlUrl = new URL("/control", host.server.url)
+    controlUrl.protocol = "ws:"
+    controlUrl.searchParams.set("token", host.token)
+    controlUrl.searchParams.set("device", "bound-heartbeat")
+    controlUrl.searchParams.set("transport", `websocket:${crypto.randomUUID()}`)
+    controlUrl.searchParams.set("worker", hamiltonianLifecycleEntityId("service-worker", "expected-worker"))
+    const socket = new WebSocket(controlUrl)
+    const challenged = nextMessage(socket, "ping")
+    await new Promise<void>((resolve, reject) => {
+      socket.addEventListener("open", () => resolve(), {once: true})
+      socket.addEventListener("error", () => reject(new Error("WebSocket open failed")), {once: true})
+    })
+    const ping = await challenged
+    const closed = new Promise<CloseEvent>((resolve) => socket.addEventListener("close", resolve, {once: true}))
+    socket.send(JSON.stringify({
+      kind: "pong",
+      at: ping.at,
+      seq: ping.seq,
+      workerIdentity: "different-worker",
+      workerRuntimeIncarnation: "different-runtime",
+    }))
+    expect((await closed).code).toBe(1008)
   })
 
   test("rejects realtime lane payload on the signaling WebSocket", async () => {
@@ -971,9 +1396,13 @@ describe("isolated Hamiltonian host", () => {
     controlUrl.protocol = "ws:"
     controlUrl.searchParams.set("token", host.token)
     controlUrl.searchParams.set("device", "stable-browser")
+    const replacementWorkerRuntimeIncarnation = `${first.workerRuntimeIncarnation}:reborn`
+    controlUrl.searchParams.set(
+      "worker",
+      hamiltonianLifecycleEntityId("service-worker", first.workerIdentity),
+    )
     const secondSocket = await openSocket(controlUrl)
     const hello = await nextMessage(secondSocket, "hello")
-    const replacementWorkerIncarnationId = `${first.workerIncarnationId}:reborn`
     secondSocket.addEventListener("message", (event) => {
       const message = JSON.parse(String(event.data)) as {kind?: string; at?: number; seq?: number}
       if (message.kind !== "ping") return
@@ -981,7 +1410,8 @@ describe("isolated Hamiltonian host", () => {
         kind: "pong",
         at: message.at,
         seq: message.seq,
-        workerIncarnationId: replacementWorkerIncarnationId,
+        workerIdentity: first.workerIdentity,
+        workerRuntimeIncarnation: replacementWorkerRuntimeIncarnation,
       }))
     })
     const resumed = nextMessage(secondSocket, "topology", (message) =>
@@ -989,7 +1419,8 @@ describe("isolated Hamiltonian host", () => {
     )
     secondSocket.send(JSON.stringify({
       kind: "identity",
-      workerIncarnationId: replacementWorkerIncarnationId,
+      workerIdentity: first.workerIdentity,
+      workerRuntimeIncarnation: replacementWorkerRuntimeIncarnation,
       resumeNonce: first.resumeNonce,
     }))
     secondSocket.send(JSON.stringify({
@@ -1026,9 +1457,11 @@ describe("isolated Hamiltonian host", () => {
     controlUrl.protocol = "ws:"
     controlUrl.searchParams.set("token", host.token)
     controlUrl.searchParams.set("device", "negotiating-browser")
-    const workerIncarnationId = "negotiating-sw-a"
+    const workerIdentity = "negotiating-sw"
+    const firstWorkerRuntimeIncarnation = "negotiating-runtime-a"
     const resumeNonce = "stable-profile-resume"
 
+    controlUrl.searchParams.set("worker", hamiltonianLifecycleEntityId("service-worker", workerIdentity))
     const firstSocket = await openSocket(controlUrl)
     await nextMessage(firstSocket, "hello")
     const firstOffer = nextMessage(
@@ -1037,7 +1470,12 @@ describe("isolated Hamiltonian host", () => {
       (message) => (message.signal as {type?: string})?.type === "description",
       10_000,
     )
-    firstSocket.send(JSON.stringify({kind: "identity", workerIncarnationId, resumeNonce}))
+    firstSocket.send(JSON.stringify({
+      kind: "identity",
+      workerIdentity,
+      workerRuntimeIncarnation: firstWorkerRuntimeIncarnation,
+      resumeNonce,
+    }))
     firstSocket.send(JSON.stringify({
       kind: "tabs",
       windows: [{tabId: "negotiating-tab", joinedAt: 10, visible: true}],
@@ -1050,6 +1488,11 @@ describe("isolated Hamiltonian host", () => {
     firstSocket.close()
     await firstClosed
 
+    const replacementWorkerRuntimeIncarnation = "negotiating-runtime-b"
+    controlUrl.searchParams.set(
+      "worker",
+      hamiltonianLifecycleEntityId("service-worker", workerIdentity),
+    )
     const secondSocket = await openSocket(controlUrl)
     const hello = await nextMessage(secondSocket, "hello")
     const resumedTopology = nextMessage(secondSocket, "topology", (message) =>
@@ -1063,7 +1506,8 @@ describe("isolated Hamiltonian host", () => {
     )
     secondSocket.send(JSON.stringify({
       kind: "identity",
-      workerIncarnationId: "negotiating-sw-b",
+      workerIdentity,
+      workerRuntimeIncarnation: replacementWorkerRuntimeIncarnation,
       resumeNonce,
     }))
     secondSocket.send(JSON.stringify({
@@ -1280,6 +1724,11 @@ describe("isolated Hamiltonian host", () => {
     controlUrl.protocol = "ws:"
     controlUrl.searchParams.set("token", host.token)
     controlUrl.searchParams.set("device", "detached-process-recovery-browser")
+    const replacementWorkerRuntimeIncarnation = `${fixture.workerRuntimeIncarnation}:reborn`
+    controlUrl.searchParams.set(
+      "worker",
+      hamiltonianLifecycleEntityId("service-worker", fixture.workerIdentity),
+    )
     const secondSocket = await openSocket(controlUrl)
     const hello = await nextMessage(secondSocket, "hello")
     const resumedTopology = nextMessage(secondSocket, "topology", (message) =>
@@ -1293,7 +1742,8 @@ describe("isolated Hamiltonian host", () => {
     )
     secondSocket.send(JSON.stringify({
       kind: "identity",
-      workerIncarnationId: `${fixture.workerIncarnationId}:reborn`,
+      workerIdentity: fixture.workerIdentity,
+      workerRuntimeIncarnation: replacementWorkerRuntimeIncarnation,
       resumeNonce: fixture.resumeNonce,
     }))
     secondSocket.send(JSON.stringify({

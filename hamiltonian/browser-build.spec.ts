@@ -28,6 +28,18 @@ test("builds the real orchestration and isolated layout Worker bundles", async (
     expect(layoutWorkerSource).toContain("runLayoutWorkerRequest")
     expect(layoutWorkerSource).toContain('type: "layout-result"')
     expect(layoutWorkerSource).not.toContain("@nodes/ui")
+
+    await buildBrowserEntry("hamiltonian/browser/service-worker.ts", outdir)
+    const serviceWorkerSource = await Bun.file(join(outdir, "service-worker.js")).text()
+    expect(serviceWorkerSource).toContain('subjectKind: "service-worker"')
+    expect(serviceWorkerSource).toContain('subjectKind: "controller"')
+    expect(serviceWorkerSource).toContain('subjectKind: "message-port"')
+    expect(serviceWorkerSource).toContain("Service Worker control socket connected")
+    expect(serviceWorkerSource).toContain("lifecycle-retirement")
+    expect(serviceWorkerSource).toContain('lastFailure: "worker-replaced"')
+    expect(serviceWorkerSource).not.toContain("ServiceWorkerGlobalScope")
+    expect(serviceWorkerSource).not.toContain("awaiting-heartbeat")
+    expect(serviceWorkerSource).not.toContain("continuity")
   } finally {
     await rm(outdir, {recursive: true, force: true})
   }

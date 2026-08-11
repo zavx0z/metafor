@@ -14,10 +14,10 @@ export const HAMILTONIAN_VISIBLE_WORKER_QUIET_MS = 1_000
 export const HAMILTONIAN_HIDDEN_WORKER_QUIET_MS = 3_500
 
 /**
- * A MessagePort does not keep ServiceWorkerGlobalScope alive. A visible page
+ * A MessagePort alone does not keep a Service Worker alive. A visible page
  * therefore treats one second without any worker reply as an expired liveness
- * lease and reconnects through ServiceWorker.postMessage, which wakes a fresh
- * global scope. Hidden pages use a wider lease because browsers throttle them.
+ * lease and reconnects through ServiceWorker.postMessage. Hidden pages use a
+ * wider lease because browsers throttle them.
  *
  * @param {object} input
  * @param {number} input.now

@@ -3,6 +3,7 @@ export const HAMILTONIAN_LOCAL_WINDOW_ACTION_IDS = Object.freeze([
   "rebirth-worker",
   "reload-main",
   "reconnect",
+  "enable-push",
   "reload",
 ])
 
@@ -43,18 +44,22 @@ export function hamiltonianBrowserRuntimeName(userAgent) {
  * @param {string} deviceId
  * @param {string} tabId
  * @param {string} [pageIncarnation]
+ * @param {string | null} [serviceWorkerEntityId]
  * @returns {{nodeId: string, actionId: string} | null}
  */
-export function parseLocalHamiltonianWindowAction(value, deviceId, tabId, pageIncarnation) {
+export function parseLocalHamiltonianWindowAction(value, deviceId, tabId, pageIncarnation, serviceWorkerEntityId) {
   const record = objectValue(value)
   const nodeId = stringValue(record?.nodeId)
   const actionId = stringValue(record?.actionId)
-  const acceptedNodeIds = new Set([
+  const acceptedWindowNodeIds = new Set([
     hamiltonianWindowNodeId(deviceId, tabId),
     hamiltonianPageNodeId(pageIncarnation ?? ""),
   ])
-  if (!acceptedNodeIds.has(nodeId)) return null
   if (!HAMILTONIAN_LOCAL_WINDOW_ACTION_ID_SET.has(actionId)) return null
+  if (nodeId === serviceWorkerEntityId) {
+    return actionId === "enable-push" ? {nodeId, actionId} : null
+  }
+  if (!acceptedWindowNodeIds.has(nodeId) || actionId === "enable-push") return null
   return {nodeId, actionId}
 }
 

@@ -197,7 +197,7 @@ describe("Hamiltonian lifecycle projection", () => {
       .toBe("browser:device-a")
   })
 
-  test("materializes Service Worker and its exact WebSocket incarnation only from owner events", () => {
+  test("materializes one Service Worker identity and its exact WebSocket only from owner events", () => {
     const projection = new HamiltonianLifecycleProjection(context)
     const source = new HamiltonianLifecycleSource({
       id: "service-worker:sw-a",
@@ -211,7 +211,14 @@ describe("Hamiltonian lifecycle projection", () => {
       subjectId: "service-worker:sw-a",
       subjectKind: "service-worker",
       ownerId: "service-worker:sw-a",
-      attributes: {incarnation: "sw-a", state: "active"},
+      attributes: {
+        identity: "sw-a",
+        runtimeIncarnation: "runtime-a",
+        state: "active",
+        push: "ready",
+        heartbeat: "observed",
+        heartbeatSequence: 2,
+      },
     }), {at: 20})
     projection.observe(born, null)
     expect(projection.document().nodes.map((node) => node.title)).toEqual([
@@ -220,6 +227,16 @@ describe("Hamiltonian lifecycle projection", () => {
       "Эта страница",
       "Service Worker",
     ])
+    const serviceWorkerNode = projection.document().nodes.find(({id}) => id === "service-worker:sw-a")
+    expect(serviceWorkerNode?.kind).toBeUndefined()
+    expect(serviceWorkerNode?.facts).toContainEqual({id: "identity", label: "Identity", value: "sw-a"})
+    expect(serviceWorkerNode?.facts).toContainEqual({id: "runtimeIncarnation", label: "Исполнение", value: "runtime-a"})
+    expect(serviceWorkerNode?.facts).toContainEqual({id: "push", label: "Push", value: "ready"})
+    expect(serviceWorkerNode?.actions).toContainEqual({id: "enable-push", label: "Настроить Web Push", tone: "neutral"})
+    expect(serviceWorkerNode?.facts).toContainEqual({id: "state", label: "Состояние", value: "active"})
+    expect(serviceWorkerNode?.facts).not.toContainEqual(expect.objectContaining({label: "Непрерывность"}))
+    expect(serviceWorkerNode?.facts).toContainEqual({id: "heartbeat", label: "Heartbeat", value: "observed"})
+    expect(serviceWorkerNode?.facts).toContainEqual({id: "heartbeatSequence", label: "Heartbeat №", value: "2"})
     expect(projection.document().edges).toEqual([])
 
     const opening = source.next(createHamiltonianLifecycleObservation({
@@ -247,6 +264,8 @@ describe("Hamiltonian lifecycle projection", () => {
       attributes: {socketIncarnation: "socket-a", connectionId: "connection-a"},
     }), {at: 22}), null)
     expect(projection.document().edges[0]?.tone).toBe("live")
+    expect(projection.document().nodes.find(({id}) => id === "service-worker:sw-a")?.facts)
+      .toContainEqual(expect.objectContaining({label: "WS", value: "вход / выход"}))
   })
 
   test("keeps a closed transport inactive until an endpoint ends or a new incarnation replaces it", () => {
@@ -273,6 +292,10 @@ describe("Hamiltonian lifecycle projection", () => {
       label: "WS",
       tone: "paused",
     })])
+    const failedWorker = projection.document().nodes.find(({id}) => id === "service-worker:sw")
+    expect(failedWorker?.tone).toBe("warn")
+    expect(failedWorker?.facts).toContainEqual({id: "state", label: "Состояние", value: "error"})
+    expect(failedWorker?.facts).toContainEqual({id: "heartbeat", label: "Heartbeat", value: "failed"})
     expect(projection.takeRetiredTransportIds()).toEqual(["websocket:one"])
     expect(projection.takeRetiredTransportIds()).toEqual([])
 
@@ -290,11 +313,78 @@ describe("Hamiltonian lifecycle projection", () => {
       id: "websocket:two",
       tone: "live",
     })])
+    expect(projection.document().nodes.find(({id}) => id === "service-worker:sw")?.tone).toBe("live")
 
     projection.observe(source.next(createHamiltonianLifecycleObservation({
       type: "entity", phase: "ended", subjectId: "service-worker:sw", subjectKind: "service-worker", ownerId: "service-worker:sw",
     })), null)
     expect(projection.document().edges).toEqual([])
+  })
+
+  test("keeps one Service Worker node through standby and a new browser-managed execution", () => {
+    const projection = new HamiltonianLifecycleProjection(context)
+    const firstRuntime = new HamiltonianLifecycleSource({
+      id: "service-worker:stable",
+      kind: "service-worker",
+      incarnation: "runtime-a",
+      startedAt: 1,
+    })
+    projection.observe(firstRuntime.next(createHamiltonianLifecycleObservation({
+      type: "entity",
+      phase: "born",
+      subjectId: "service-worker:stable",
+      subjectKind: "service-worker",
+      ownerId: "service-worker:stable",
+      attributes: {identity: "stable", runtimeIncarnation: "runtime-a", state: "active", push: "ready"},
+    })), null)
+    projection.observe(firstRuntime.next(createHamiltonianLifecycleObservation({
+      type: "transport",
+      phase: "opened",
+      subjectId: "websocket:first",
+      subjectKind: "websocket",
+      ownerId: "service-worker:stable",
+      sourceEntityId: "service-worker:stable",
+      targetEntityId: "server:host-a",
+      transportId: "websocket:first",
+    })), null)
+    projection.observe(firstRuntime.next(createHamiltonianLifecycleObservation({
+      type: "transport",
+      phase: "closed",
+      subjectId: "websocket:first",
+      subjectKind: "websocket",
+      ownerId: "service-worker:stable",
+      sourceEntityId: "service-worker:stable",
+      targetEntityId: "server:host-a",
+      transportId: "websocket:first",
+    })), null)
+    projection.observe(firstRuntime.next(createHamiltonianLifecycleObservation({
+      type: "entity",
+      phase: "changed",
+      subjectId: "service-worker:stable",
+      subjectKind: "service-worker",
+      ownerId: "service-worker:stable",
+      attributes: {identity: "stable", runtimeIncarnation: "runtime-a", state: "standby", push: "ready"},
+    })), null)
+    expect(projection.document().nodes.find(({id}) => id === "service-worker:stable")?.tone).toBe("paused")
+
+    const secondRuntime = new HamiltonianLifecycleSource({
+      id: "service-worker:stable",
+      kind: "service-worker",
+      incarnation: "runtime-b",
+      startedAt: 2,
+    })
+    projection.observe(secondRuntime.next(createHamiltonianLifecycleObservation({
+      type: "entity",
+      phase: "changed",
+      subjectId: "service-worker:stable",
+      subjectKind: "service-worker",
+      ownerId: "service-worker:stable",
+      attributes: {identity: "stable", runtimeIncarnation: "runtime-b", state: "active", push: "received"},
+    })), null)
+    const workers = projection.document().nodes.filter(({id}) => id === "service-worker:stable")
+    expect(workers).toHaveLength(1)
+    expect(workers[0]?.facts).toContainEqual({id: "runtimeIncarnation", label: "Исполнение", value: "runtime-b"})
+    expect(workers[0]?.facts).toContainEqual({id: "push", label: "Push", value: "received"})
   })
 
   test("materializes an already closed retained WS for a late subscriber", () => {

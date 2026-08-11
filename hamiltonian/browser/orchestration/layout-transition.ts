@@ -10,7 +10,7 @@ export const HAMILTONIAN_LAYOUT_TRANSITION_MS = 320
 
 /**
  * Runtime identity may legitimately change while the visual slots stay put
- * (for example when Chrome wakes a new ServiceWorkerGlobalScope). Identity is
+ * (for example when Chrome restarts a Service Worker). Identity is
  * still replaced in the document, but it is not a reason to move the canvas.
  */
 export function hamiltonianLayoutGeometryChanged(

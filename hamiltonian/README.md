@@ -302,14 +302,66 @@ Service Worker координирует только данный browser origin
 браузерах и устройствах. Dedicated Worker остаётся per-Window и не считается
 singleton.
 
-Обычный website Service Worker может быть завершён браузером даже при открытой
-Window. Поэтому стабильная resume-capability хранится на уровне browser
-profile/origin, а не внутри incarnation Worker. Новый Worker и новый WebSocket
-могут привязаться к прежним lease/fence и уже готовому direct peer до `expiresAt`.
-На локальном HTTP contour это `ws:`, а `wss:` существует только при TLS.
-Если peer ещё не был готов или успел сломаться, прежняя authority сохраняется,
-но создаётся новая `peerGeneration/sessionEpoch`; потерянный signaling не
-выдаётся за восстановленный.
+Предметная сущность этого контура — один зарегистрированный Service Worker
+Hamiltonian. Браузер может остановить и позднее заново создать его внутреннее
+JS-исполнение; это не рождает второй Service Worker и не меняет его стабильную
+`identity`. Identity создаётся страницей один раз для browser origin, а
+control bootstrap (`deviceId`, token, resume capability, host и готовность
+Push) хранится Service Worker в Cache Storage. Внутреннее исполнение имеет
+отдельный диагностический `runtimeIncarnation`, но не образует отдельную ноду.
+
+PushSubscription и VAPID identity хранятся Bun в локальном игнорируемом
+`.metafor/hamiltonian-web-push.json` с правами `0600`. Явно заданные
+`HAMILTONIAN_VAPID_PUBLIC_KEY`, `HAMILTONIAN_VAPID_PRIVATE_KEY` и
+`HAMILTONIAN_VAPID_SUBJECT` имеют приоритет. По пользовательскому действию
+страница запрашивает Notification permission и подписывает тот же
+зарегистрированный Service Worker с `userVisibleOnly: true`. При явном
+пробуждении Bun отправляет один стандартный Web Push; Service Worker показывает
+одно уведомление о результате и восстанавливает control WebSocket без Window.
+Web Push не используется как частый скрытый heartbeat.
+
+Page передаёт полученную `PushSubscription` своему Service Worker. Только уже
+идентифицированный control WSS регистрирует её у Bun: сервер берёт worker и
+device identity из самого socket, а не из заявленных Page полей. Отдельного
+HTTP endpoint регистрации подписки нет. После restart Bun сохраняет прежние
+VAPID identity и подписку, а зашифрованный Push передаёт Service Worker свежие
+host identity и bearer capability нового процесса. Стабильная resume capability
+Service Worker остаётся в его Cache Storage.
+
+Каждое пробуждение получает уникальные `wakeId` и скрытый одноразовый
+`wakeProof`. Bun вооружает ожидаемое доказательство до асинхронной отправки,
+поэтому быстрый Push не может обогнать server state. Новый control socket
+подтверждает оба значения вместе со стабильной identity и текущим
+`runtimeIncarnation`; значение `wakeProof` не публикуется через status или
+HTTP response. После проверки Bun фиксирует `push-reconnect-confirmed` и
+отправляет Worker обратный `wake-confirmed`. Только этот ACK разрешает Worker
+показать уведомление об успешном восстановлении. После получения Push Worker
+ждёт этот ACK 30 секунд и при таймауте показывает локальную ошибку. Bun держит
+ожидаемое доказательство 90 секунд: это отдельное серверное окно, включающее
+TTL доставки Push и запас на новый WSS. Потеря Push или отсутствие причинного
+reconnect до конца этого окна становятся серверной ошибкой той же ноды.
+Закрытый WebSocket при готовом
+Push означает `standby`, а не смерть Service Worker. На локальном HTTP contour
+используется `ws:`, на доверенном HTTPS — `wss:`. Возобновление прежнего
+lease/fence допустимо только с той же identity, device и resume capability до
+`expiresAt`; потерянный signaling не выдаётся за восстановленный.
+
+Открытая Hamiltonian Page для Push не требуется, но desktop Chrome должен
+фактически продолжать принимать push-service traffic. На проверенном macOS
+профиле цепочка подтверждена при `0` Hamiltonian Page/Window clients и пустом
+окне Chrome. При `0` окон Chrome тот же живой browser process дважды не
+доставил Push до TTL; поэтому строгий zero-window режим нельзя объявлять
+поддержанным без включённого background mode и отдельного live-подтверждения.
+
+Host начинает causal heartbeat первым `ping` после открытия control WebSocket.
+Следующий challenge назначается только после `pong` с точным текущим sequence;
+чужой или опережающий ACK закрывает соединение fail-closed. Такой round trip
+доказывает доступность текущего внутреннего исполнения и WebSocket в момент
+ответа, но не удерживает обычный web Service Worker запущенным. Lifecycle строит
+одну ноду `Service Worker`: `Identity` остаётся стабильной, `Исполнение` может
+смениться, `Push` сообщает `ready / sent / received / failed`, а `Heartbeat` —
+состояние текущего WSS. В целевой модели нет отдельной ноды или подписи
+`ServiceWorkerGlobalScope`.
 
 Versioned module загружается с bearer token, проверяется по фактическим bytes
 через SHA-256 и кладётся в Cache Storage. При чтении cache bytes хешируются
@@ -356,13 +408,14 @@ host запускается с тем же identity/token и новым `HAMILTO
 
 Локальный host наблюдает изменения browser/public/core, `pkg/nodes` и `pkg/ui`
 source.
-После 120 ms debounce он сначала успешно пересобирает orchestration bundle и
-только затем отправляет controlled pages новую source revision по текущему
-control socket. Страница сохраняет принятую revision в `sessionStorage` и
-перезагружается для неё ровно один раз; повторное сообщение не создаёт
-reload-loop, а failed build не перезагружает UI. Самая первая регистрация
-Service Worker может один раз показать `reload required`: этот bootstrap reload
-нужен для получения controller и не является source auto-update.
+После 120 ms debounce он сначала успешно пересобирает orchestration, layout
+Worker и Service Worker bundles и только затем отправляет controlled pages
+новую source revision по текущему control socket. Страница сохраняет принятую
+revision в `sessionStorage` и перезагружается для неё ровно один раз; повторное
+сообщение не создаёт reload-loop, а failed build не перезагружает UI. Самая
+первая регистрация Service Worker может один раз показать `reload required`:
+этот bootstrap reload нужен для получения controller и не является source
+auto-update.
 
 По умолчанию используется `HAMILTONIAN_PLACEMENT=browser`. Для server-only
 проверки без браузера:
@@ -396,6 +449,28 @@ Private keys остаются в Git-ignored `.tls/`. Для Android серти�
 устройства. `adb reverse tcp:4400 tcp:4400` может дать Android адрес
 `https://localhost:4400`, но прямой LAN path также проверен.
 
+Для первого Web Push выбрать ноду `Service Worker` и действие «Настроить Web
+Push» (или одноимённую кнопку диагностической страницы), затем разрешить
+уведомления Chrome. То же действие доступно клавиатурой через `⌥P`, чтобы
+permission prompt не зависел от масштаба canvas. VAPID identity и подписка
+автоматически сохраняются в Git-ignored
+`.metafor/hamiltonian-web-push.json`; private key не возвращается через
+`/lab/status`. Для внешнего управления ключи можно задать переменными
+`HAMILTONIAN_VAPID_PUBLIC_KEY`, `HAMILTONIAN_VAPID_PRIVATE_KEY` и
+`HAMILTONIAN_VAPID_SUBJECT`.
+
+При одной зарегистрированной подписке явное пробуждение запускается так:
+
+```bash
+curl -X POST https://127.0.0.1:4400/lab/wake-service-worker \
+  -H 'authorization: Bearer replace-with-a-test-secret' \
+  -H 'content-type: application/json' \
+  -d '{}'
+```
+
+Ответ содержит `wakeId`. `/lab/status` затем должен показать причинную пару
+`push-sent` и `push-reconnect-confirmed` для того же `wakeId`.
+
 `GET /lab/status` требует тот же bearer token и отдаёт bounded observability:
 listener, host epoch, lease/fence, server incarnations, connection/challenge
 ACK, peer channels/counters и signaling counters. Join token не является
@@ -414,16 +489,23 @@ bunx tsc --ignoreConfig --noEmit --strict --module preserve \
   --moduleResolution bundler --target es2022 --types bun,@webgpu/types \
   --allowImportingTsExtensions --allowJs --skipLibCheck \
   ../types/module.d.ts types.d.ts *.ts peer/*.ts soak/*.ts
-bun build public/app.js public/sw.js public/embodiment-worker.js \
+bun build public/app.js public/embodiment-worker.js \
   --outdir /tmp/hamiltonian-build-check --target browser \
   --external /core/monitor.js \
   --external /core/lifecycle.js \
   --external /core/runtime.js --external /core/cache.js \
   --external /core/browser-control.js --external /core/orchestration.js
-bun build public/window-entry.js public/sw-entry.js public/embodiment-worker-entry.js \
+bun build public/window-entry.js public/embodiment-worker-entry.js \
   --outdir /tmp/hamiltonian-entry-build-check --target browser \
   --external /core/monitor.js --external /app.js --external /orchestration.js \
-  --external '/sw.js?mf419-v19' --external /embodiment-worker.js
+  --external /embodiment-worker.js
+bun build browser/service-worker.ts --target browser --format esm \
+  --sourcemap=inline \
+  --outfile /tmp/hamiltonian-entry-build-check/sw-entry.js
+bunx tsc --ignoreConfig --noEmit --strict --module preserve \
+  --moduleResolution bundler --target es2022 --lib es2022,webworker \
+  --allowImportingTsExtensions --allowJs --skipLibCheck \
+  browser/service-worker.ts types.d.ts
 
 HAMILTONIAN_TOKEN=local-test \
   bun run soak/run.ts http://127.0.0.1:4400
@@ -470,9 +552,11 @@ WSS; DOM и screenshot показывают успешные Oracle response и 
 ## Границы доказанного
 
 * Обычный web Service Worker может создать WebSocket, но не является daemon.
-  При закрытии всех страниц поведение зависит от браузера; при полном завершении
-  browser process прежний TCP/TLS/WSS физически исчезает. Восстанавливаются
-  identity и state, а не тот же socket.
+  При закрытии всех страниц прежний TCP/TLS/WSS физически исчезает. Стандартный
+  Web Push пробуждает зарегистрированный Service Worker и восстанавливает новый
+  WSS как продолжение той же identity; тот же socket не восстанавливается.
+  При полном завершении browser process доставка ждёт следующего запуска
+  браузера и политики его push service.
 * Android Yandex потерял соединение через 30 секунд screen-off. Chrome Android
   закрыл его почти сразу после последней Window. Chrome macOS сохранял WSS на
   пятой секунде без Window, Safari закрыл позднее. Это измерения версий, не

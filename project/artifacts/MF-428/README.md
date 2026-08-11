@@ -4,6 +4,41 @@
 Они являются небольшими фрагментами одной текущей ноды и не содержат полного
 доказательства lifecycle Service Worker.
 
+Отдельный runtime-замер находится в
+[`chrome-151-ordinary-https-lifetime.md`](chrome-151-ordinary-https-lifetime.md).
+
+## web-push-wake-ordinary-chrome.md
+
+* Источник: bounded `/lab/status` текущего HTTPS-host, exact targeting обычного
+  Chrome через локальные macOS services и read-only профильные настройки
+  Notifications/GCM.
+* Дата: 2026-08-11.
+* Версия проекта: `c439492e19fdf2767764675fb115793227953a70` с рабочим патчем MF-428.
+* Ожидание: Bun Web Push запускает тот же зарегистрированный Service Worker и
+  восстанавливает WSS после закрытия Hamiltonian Page/Window clients.
+* Фактическое наблюдение: при `0` Hamiltonian clients подтверждена цепочка
+  `push-sent → новый runtime → новый WSS → push-reconnect-confirmed` той же
+  identity. При строгих `0` окнах Chrome два отдельных Push завершились
+  timeout; эта более сильная граница среды не объявлена принятой.
+* Чувствительные сведения: bearer token, VAPID private key, полная
+  PushSubscription и `wakeProof` не сохранены.
+* Контрольная сумма: `20f53ecd401af451a219ed5b729458e80b13bcfafe4303f0a65d6487b57e7352`.
+
+## chrome-151-ordinary-https-lifetime.md
+
+* Источник: bounded `/lab/status` текущего Hamiltonian host, побайтовое
+  сравнение локальных и реально отданных browser bundles и первичные документы
+  W3C/Chromium, ссылки на которые сохранены внутри файла.
+* Дата: 2026-08-11.
+* Версия проекта: `c439492e19fdf2767764675fb115793227953a70` с рабочим патчем MF-428.
+* Ожидание: тот же обычный Service Worker и control WebSocket остаются живыми
+  дольше штатной 30-секундной idle-границы Chrome по доверенному HTTPS.
+* Фактическое наблюдение: подтверждённый causal heartbeat не предотвратил
+  повторную замену Worker и WebSocket примерно каждые 30 секунд.
+* Чувствительные сведения: token и private key не сохранены; device, Worker,
+  WebSocket и host epoch являются случайными локальными identity стенда.
+* Контрольная сумма: `f0e65f286ded33229baac7ce8a0ff31df823ebbecde637551cc9f7671374942a`.
+
 ## service-worker-incarnation.png
 
 * Источник: снимок экрана владельца от 2026-08-11 00:34:03 (Europe/Moscow).
@@ -49,3 +84,14 @@
   `выход`, которое может быть понято как направление всего трафика.
 * Чувствительные сведения: отсутствуют.
 * Контрольная сумма: `8474f78feeef53e57cdd2e37efe8671fbf3564a5242bbdb38b9d9d07cdc2a8a8`.
+
+## ordinary-chrome-https-before-listener.png
+
+* Источник: снимок экрана владельца от 2026-08-11 01:55:02 (Europe/Moscow).
+* Дата: 2026-08-11.
+* Версия проекта: `c439492e19fdf2767764675fb115793227953a70` с рабочим патчем MF-428.
+* Ожидание: открыть Hamiltonian по HTTPS в обычном профиле Chrome.
+* Фактическое наблюдение: до запуска TLS listener обычный Chrome получил
+  `ERR_SSL_PROTOCOL_ERROR` от HTTP listener на том же порту.
+* Чувствительные сведения: отсутствуют.
+* Контрольная сумма: `aa4a29063bbf73e86a8c3fce75e8473b64099d868dfff7dfdc3201a2d31cdd94`.

@@ -17,9 +17,17 @@ import {authorityKey, makeLeaseId} from "./core/runtime.js"
 import {HostTopology, type WindowCandidate} from "./host-state.ts"
 import {PeerProcessSupervisor} from "./peer-supervisor.ts"
 import type {PeerSignal, WeriftPeerSnapshot} from "./peer/werift-peer.ts"
+import {
+  HamiltonianWebPush,
+  isHamiltonianPushSubscription,
+  validWorkerIdentity,
+  type HamiltonianPushSubscriptionInput,
+  type HamiltonianWebPushOptions,
+} from "./web-push.ts"
 
 interface SocketData {
   connectionId: string
+  connectionGeneration: number
   deviceId: string
   lifecycleTransportId: string
   workerEntityId: string
@@ -27,7 +35,10 @@ interface SocketData {
   lastPongAt: number
   lastChallengeSeq: number
   lastAckSeq: number
-  workerIncarnationId: string | null
+  nextHeartbeatTimer: ReturnType<typeof setTimeout> | null
+  heartbeatTimeoutTimer: ReturnType<typeof setTimeout> | null
+  workerIdentity: string | null
+  workerRuntimeIncarnation: string | null
   resumeNonce: string | null
   retainAuthorityOnClose: boolean
 }
@@ -42,7 +53,8 @@ interface HamiltonianHostOptions {
   tlsKeyPath?: string
   heartbeatMs?: number
   placement?: "browser" | "server"
-  browserBundles?: Readonly<{orchestration: string; layoutWorker: string}>
+  browserBundles?: Readonly<{orchestration: string; layoutWorker: string; serviceWorker: string}>
+  webPush?: HamiltonianWebPushOptions
 }
 
 interface ClientTabsMessage {
@@ -54,13 +66,23 @@ interface ClientPongMessage {
   kind: "pong"
   at: number
   seq: number
-  workerIncarnationId: string
+  workerIdentity: string
+  workerRuntimeIncarnation: string
 }
 
 interface ClientIdentityMessage {
   kind: "identity"
-  workerIncarnationId: string
+  workerIdentity: string
+  workerRuntimeIncarnation: string
   resumeNonce: string
+  wakeId?: string
+  wakeProof?: string
+}
+
+interface ClientPushSubscriptionMessage {
+  kind: "push-subscription"
+  registrationId: string
+  subscription: HamiltonianPushSubscriptionInput["subscription"]
 }
 
 interface ClientPeerSignalMessage {
@@ -97,6 +119,7 @@ type MonitoredClientMessage = (
   | ClientTabsMessage
   | ClientPongMessage
   | ClientIdentityMessage
+  | ClientPushSubscriptionMessage
   | ClientPeerSignalMessage
   | ClientPeerFailedMessage
   | ClientLifecycleRetirementMessage
@@ -111,16 +134,25 @@ interface HostEvent {
   detail?: string
 }
 
+interface PendingPushWake {
+  wakeId: string
+  wakeProof: string
+  armedAt: number
+  armedAfterConnectionGeneration: number
+}
+
 const experimentRoot = fileURLToPath(new URL(".", import.meta.url))
 const repositoryRoot = fileURLToPath(new URL("..", import.meta.url))
 const publicRoot = `${experimentRoot}/public`
 const orchestrationEntry = `${experimentRoot}/browser/orchestration.ts`
 const layoutWorkerEntry = `${experimentRoot}/browser/layout-worker.ts`
+const serviceWorkerEntry = `${experimentRoot}/browser/service-worker.ts`
 const engineFont = fileURLToPath(new URL("../pkg/engine/static/JetBrainsMono-Bold.ttf", import.meta.url))
 const uiRoot = fileURLToPath(new URL("../pkg/ui/", import.meta.url))
 const nodesRoot = fileURLToPath(new URL("../pkg/nodes/", import.meta.url))
 let orchestrationBundle: Promise<string> | null = null
 let layoutWorkerBundle: Promise<string> | null = null
+let serviceWorkerBundle: Promise<string> | null = null
 
 function getOrchestrationBundle(): Promise<string> {
   orchestrationBundle ??= Bun.build({
@@ -163,6 +195,26 @@ function getLayoutWorkerBundle(): Promise<string> {
   return layoutWorkerBundle
 }
 
+function getServiceWorkerBundle(): Promise<string> {
+  serviceWorkerBundle ??= Bun.build({
+    root: repositoryRoot,
+    entrypoints: [serviceWorkerEntry],
+    target: "browser",
+    format: "esm",
+    minify: false,
+    sourcemap: "inline",
+  }).then(async (result) => {
+    if (!result.success || result.outputs.length === 0) {
+      const detail = result.logs.map((log) => log.message).join("\n")
+      throw new Error(`Hamiltonian Service Worker bundle failed${detail ? `: ${detail}` : ""}`)
+    }
+    return await result.outputs[0]!.text()
+  }).catch((error: unknown) => {
+    throw new Error(`Hamiltonian Service Worker bundle failed: ${browserBuildError(error)}`)
+  })
+  return serviceWorkerBundle
+}
+
 function browserBuildError(error: unknown): string {
   if (typeof error !== "object" || error === null) return String(error)
   const message = "message" in error ? String(error.message) : String(error)
@@ -177,6 +229,7 @@ function browserBuildError(error: unknown): string {
 function invalidateBrowserBundles(): void {
   orchestrationBundle = null
   layoutWorkerBundle = null
+  serviceWorkerBundle = null
 }
 
 function isReloadableSource(filename: string | Buffer | null): boolean {
@@ -214,31 +267,52 @@ function parseClientMessage(value: string | Buffer): ClientMessage | null {
     parsed.kind === "pong" &&
     "at" in parsed && typeof parsed.at === "number" &&
     "seq" in parsed && typeof parsed.seq === "number" &&
-    "workerIncarnationId" in parsed && typeof parsed.workerIncarnationId === "string"
+    "workerIdentity" in parsed && validWorkerIdentity(parsed.workerIdentity) &&
+    "workerRuntimeIncarnation" in parsed && validWorkerIdentity(parsed.workerRuntimeIncarnation)
   ) {
     return withClientLifecycleMonitor({
       kind: "pong",
       at: parsed.at,
       seq: parsed.seq,
-      workerIncarnationId: parsed.workerIncarnationId,
+      workerIdentity: parsed.workerIdentity,
+      workerRuntimeIncarnation: parsed.workerRuntimeIncarnation,
     }, monitor)
   }
 
   if (
     parsed.kind === "identity" &&
-    "workerIncarnationId" in parsed &&
-    typeof parsed.workerIncarnationId === "string" &&
-    parsed.workerIncarnationId.length > 0 &&
-    parsed.workerIncarnationId.length <= 128 &&
+    "workerIdentity" in parsed && validWorkerIdentity(parsed.workerIdentity) &&
+    "workerRuntimeIncarnation" in parsed && validWorkerIdentity(parsed.workerRuntimeIncarnation) &&
     "resumeNonce" in parsed &&
     typeof parsed.resumeNonce === "string" &&
     parsed.resumeNonce.length > 0 &&
-    parsed.resumeNonce.length <= 128
+    parsed.resumeNonce.length <= 128 &&
+    (
+      (!("wakeId" in parsed) || parsed.wakeId === undefined) &&
+      (!("wakeProof" in parsed) || parsed.wakeProof === undefined) ||
+      ("wakeId" in parsed && validWorkerIdentity(parsed.wakeId) &&
+        "wakeProof" in parsed && validWorkerIdentity(parsed.wakeProof))
+    )
   ) {
     return withClientLifecycleMonitor({
       kind: "identity",
-      workerIncarnationId: parsed.workerIncarnationId,
+      workerIdentity: parsed.workerIdentity,
+      workerRuntimeIncarnation: parsed.workerRuntimeIncarnation,
       resumeNonce: parsed.resumeNonce,
+      ...("wakeId" in parsed && typeof parsed.wakeId === "string" ? {wakeId: parsed.wakeId} : {}),
+      ...("wakeProof" in parsed && typeof parsed.wakeProof === "string" ? {wakeProof: parsed.wakeProof} : {}),
+    }, monitor)
+  }
+
+  if (
+    parsed.kind === "push-subscription" &&
+    "registrationId" in parsed && validWorkerIdentity(parsed.registrationId) &&
+    "subscription" in parsed && isHamiltonianPushSubscription(parsed.subscription)
+  ) {
+    return withClientLifecycleMonitor({
+      kind: "push-subscription",
+      registrationId: parsed.registrationId,
+      subscription: parsed.subscription,
     }, monitor)
   }
 
@@ -338,6 +412,7 @@ function withClientLifecycleMonitor<T extends
   ClientTabsMessage |
   ClientPongMessage |
   ClientIdentityMessage |
+  ClientPushSubscriptionMessage |
   ClientPeerSignalMessage |
   ClientPeerFailedMessage |
   ClientLifecycleRetirementMessage
@@ -467,12 +542,10 @@ function staticResponse(pathname: string): Response | null {
     "/index.html": {path: `${publicRoot}/index.html`, type: "text/html; charset=utf-8"},
     "/window-entry.js": {path: `${publicRoot}/window-entry.js`, type: "text/javascript; charset=utf-8"},
     "/app.js": {path: `${publicRoot}/app.js`, type: "text/javascript; charset=utf-8"},
-    "/sw-entry.js": {path: `${publicRoot}/sw-entry.js`, type: "text/javascript; charset=utf-8"},
     "/embodiment-worker.js": {path: `${publicRoot}/embodiment-worker.js`, type: "text/javascript; charset=utf-8"},
     "/embodiment-worker-entry.js": {path: `${publicRoot}/embodiment-worker-entry.js`, type: "text/javascript; charset=utf-8"},
     "/styles.css": {path: `${publicRoot}/styles.css`, type: "text/css; charset=utf-8"},
     "/engine-static/JetBrainsMono-Bold.ttf": {path: engineFont, type: "font/ttf"},
-    "/sw.js": {path: `${publicRoot}/sw.js`, type: "text/javascript; charset=utf-8"},
     "/core/runtime.js": {path: `${experimentRoot}/core/runtime.js`, type: "text/javascript; charset=utf-8"},
     "/core/cache.js": {path: `${experimentRoot}/core/cache.js`, type: "text/javascript; charset=utf-8"},
     "/core/browser-control.js": {path: `${experimentRoot}/core/browser-control.js`, type: "text/javascript; charset=utf-8"},
@@ -484,10 +557,6 @@ function staticResponse(pathname: string): Response | null {
   if (!entry) return null
   const headers = new Headers(securityHeaders(entry.type))
   headers.set("content-security-policy", "default-src 'self'; connect-src 'self' ws: wss: data:; img-src 'self' data: blob:; script-src 'self'; style-src 'self'; worker-src 'self' blob:; base-uri 'none'; frame-ancestors 'none'")
-  if (pathname === "/sw.js" || pathname === "/sw-entry.js") {
-    headers.set("service-worker-allowed", "/")
-    headers.set("cache-control", "no-cache")
-  }
   return new Response(Bun.file(entry.path), {headers})
 }
 
@@ -495,6 +564,16 @@ function authorized(request: Request, expectedToken: string): boolean {
   const authorization = request.headers.get("authorization")
   return authorization?.startsWith("Bearer ") === true &&
     safeEqual(authorization.slice("Bearer ".length), expectedToken)
+}
+
+async function boundedJson(request: Request, maxBytes = 16 * 1024): Promise<unknown> {
+  const declaredLength = Number(request.headers.get("content-length") ?? 0)
+  if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
+    throw new Error("Request body is too large")
+  }
+  const text = await request.text()
+  if (new TextEncoder().encode(text).length > maxBytes) throw new Error("Request body is too large")
+  return JSON.parse(text) as unknown
 }
 
 export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
@@ -507,6 +586,18 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
   const tlsKeyPath = options.tlsKeyPath ?? Bun.env.HAMILTONIAN_TLS_KEY
   const heartbeatMs = options.heartbeatMs ?? 10_000
   const placement = options.placement ?? Bun.env.HAMILTONIAN_PLACEMENT ?? "browser"
+  const configuredVapidPublicKey = options.webPush?.publicKey ?? Bun.env.HAMILTONIAN_VAPID_PUBLIC_KEY
+  const configuredVapidPrivateKey = options.webPush?.privateKey ?? Bun.env.HAMILTONIAN_VAPID_PRIVATE_KEY
+  const configuredVapidSubject = options.webPush?.subject ?? Bun.env.HAMILTONIAN_VAPID_SUBJECT
+  const webPushStoragePath = options.webPush?.storagePath ??
+    (Bun.env.NODE_ENV === "test" ? undefined : `${repositoryRoot}/.metafor/hamiltonian-web-push.json`)
+  const webPush = new HamiltonianWebPush({
+    ...(configuredVapidPublicKey === undefined ? {} : {publicKey: configuredVapidPublicKey}),
+    ...(configuredVapidPrivateKey === undefined ? {} : {privateKey: configuredVapidPrivateKey}),
+    ...(configuredVapidSubject === undefined ? {} : {subject: configuredVapidSubject}),
+    ...(webPushStoragePath === undefined ? {} : {storagePath: webPushStoragePath}),
+    ...(options.webPush?.send === undefined ? {} : {send: options.webPush.send}),
+  })
   if (placement !== "browser" && placement !== "server") {
     throw new Error(`Unknown Hamiltonian placement: ${placement}`)
   }
@@ -530,21 +621,32 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
   let serverAuthority = placement === "server" ? makeServerAuthority(serverFencingToken) : null
   const topology = new HostTopology(hostEpoch)
   const sockets = new Map<string, Bun.ServerWebSocket<SocketData>>()
+  let controlConnectionGeneration = 0
   const sourceWatchers: FSWatcher[] = []
   let sourceUpdateTimer: ReturnType<typeof setTimeout> | null = null
   let sourceUpdateGeneration = 0
   const detachedAuthorities = new Map<string, {
     expiresAt: number
     deviceId: string
-    workerIncarnationId: string
+    workerIdentity: string
     resumeNonce: string
   }>()
+  const pendingWakes = new Map<string, PendingPushWake>()
+  const pendingWakeTimers = new Map<string, ReturnType<typeof setTimeout>>()
   const detachedLeaseTimers = new Map<string, ReturnType<typeof setTimeout>>()
   const events: HostEvent[] = []
   let boundPort = port
   const record = (event: HostEvent) => {
     events.push(event)
     if (events.length > 500) events.splice(0, events.length - 500)
+  }
+  const clearPendingWake = (workerEntityId: string, wakeId: string): boolean => {
+    if (pendingWakes.get(workerEntityId)?.wakeId !== wakeId) return false
+    pendingWakes.delete(workerEntityId)
+    const timer = pendingWakeTimers.get(workerEntityId)
+    if (timer) clearTimeout(timer)
+    pendingWakeTimers.delete(workerEntityId)
+    return true
   }
   const source = moduleSource(version)
   const sourceHash = sha256Hex(source)
@@ -581,6 +683,20 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
     incarnation: hostEpoch,
     startedAt: Date.now(),
   })
+  const observeServiceWorkerAvailability = (
+    workerEntityId: string,
+    attributes: Record<string, string | number | boolean | null>,
+    causedBy?: string,
+  ) => {
+    relayLifecycleEnvelope(hostLifecycle.next(createHamiltonianLifecycleObservation({
+      type: "entity",
+      phase: "changed",
+      subjectId: workerEntityId,
+      subjectKind: "service-worker",
+      ownerId: workerEntityId,
+      attributes,
+    }), causedBy === undefined ? undefined : {causedBy}))
+  }
   const observeHostIpcMessage = (event: {
     phase: "sent" | "received"
     messageId: string
@@ -622,6 +738,35 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
     })))
     socket.send(JSON.stringify({...message, monitor}))
   }
+  const clearHeartbeatTimers = (socket: Bun.ServerWebSocket<SocketData>) => {
+    if (socket.data.nextHeartbeatTimer !== null) clearTimeout(socket.data.nextHeartbeatTimer)
+    if (socket.data.heartbeatTimeoutTimer !== null) clearTimeout(socket.data.heartbeatTimeoutTimer)
+    socket.data.nextHeartbeatTimer = null
+    socket.data.heartbeatTimeoutTimer = null
+  }
+  const challengeHeartbeat = (socket: Bun.ServerWebSocket<SocketData>) => {
+    if (stopping || sockets.get(socket.data.connectionId) !== socket) return
+    if (socket.data.lastChallengeSeq > socket.data.lastAckSeq) return
+    socket.data.nextHeartbeatTimer = null
+    socket.data.lastChallengeSeq += 1
+    sendControl(socket, {
+      kind: "ping",
+      at: Date.now(),
+      seq: socket.data.lastChallengeSeq,
+    })
+    const expiresAt = socket.data.lastPongAt + heartbeatMs * 3
+    socket.data.heartbeatTimeoutTimer = setTimeout(() => {
+      socket.data.heartbeatTimeoutTimer = null
+      if (socket.data.lastChallengeSeq === socket.data.lastAckSeq) return
+      record({at: Date.now(), kind: "heartbeat-timeout", connectionId: socket.data.connectionId})
+      socket.data.retainAuthorityOnClose = false
+      socket.close(4000, "heartbeat timeout")
+    }, Math.max(1, expiresAt - Date.now()))
+  }
+  const scheduleHeartbeatAfterAck = (socket: Bun.ServerWebSocket<SocketData>) => {
+    if (socket.data.nextHeartbeatTimer !== null) clearTimeout(socket.data.nextHeartbeatTimer)
+    socket.data.nextHeartbeatTimer = setTimeout(() => challengeHeartbeat(socket), heartbeatMs)
+  }
 
   const scheduleSourceUpdate = (filename: string | Buffer | null) => {
     if (!isReloadableSource(filename) || stopping) return
@@ -631,9 +776,9 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
     if (sourceUpdateTimer !== null) clearTimeout(sourceUpdateTimer)
     sourceUpdateTimer = setTimeout(() => {
       sourceUpdateTimer = null
-      void Promise.all([getOrchestrationBundle(), getLayoutWorkerBundle()]).then(([bundle, workerBundle]) => {
+      void Promise.all([getOrchestrationBundle(), getLayoutWorkerBundle(), getServiceWorkerBundle()]).then(([bundle, workerBundle, workerServiceBundle]) => {
         if (generation !== sourceUpdateGeneration || stopping) return
-        const revision = `${hostEpoch}:${generation}:${sha256Hex(`${bundle}\u0000${workerBundle}`).slice(0, 16)}`
+        const revision = `${hostEpoch}:${generation}:${sha256Hex(`${bundle}\u0000${workerBundle}\u0000${workerServiceBundle}`).slice(0, 16)}`
         record({at: Date.now(), kind: "source-update", detail: revision})
         for (const socket of sockets.values()) {
           if (socket.getBufferedAmount() > 256_000) continue
@@ -652,12 +797,13 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
   if (options.browserBundles !== undefined) {
     orchestrationBundle = Promise.resolve(options.browserBundles.orchestration)
     layoutWorkerBundle = Promise.resolve(options.browserBundles.layoutWorker)
+    serviceWorkerBundle = Promise.resolve(options.browserBundles.serviceWorker)
   } else {
     invalidateBrowserBundles()
     if (Bun.env.NODE_ENV !== "test") {
       // Build once as soon as the host incarnation starts. A first navigation
       // must not pay the browser bundle compilation cost on its module request.
-      void Promise.all([getOrchestrationBundle(), getLayoutWorkerBundle()]).catch(() => {})
+      void Promise.all([getOrchestrationBundle(), getLayoutWorkerBundle(), getServiceWorkerBundle()]).catch(() => {})
     }
   }
   let broadcastTopology = () => {}
@@ -876,12 +1022,22 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
     connections: [...sockets.values()].map((socket) => ({
       connectionId: socket.data.connectionId,
       deviceId: socket.data.deviceId,
-      workerIncarnationId: socket.data.workerIncarnationId,
+      workerIdentity: socket.data.workerIdentity,
+      workerRuntimeIncarnation: socket.data.workerRuntimeIncarnation,
       openedAt: socket.data.openedAt,
       lastPongAt: socket.data.lastPongAt,
       lastChallengeSeq: socket.data.lastChallengeSeq,
       lastAckSeq: socket.data.lastAckSeq,
     })),
+    push: {
+      publicKey: webPush.publicKey,
+      subscriptions: webPush.snapshots(),
+      pendingWakeIds: [...pendingWakes.entries()].map(([workerEntityId, wake]) => ({
+        workerEntityId,
+        wakeId: wake.wakeId,
+        armedAt: wake.armedAt,
+      })),
+    },
     events: [...events],
   })
 
@@ -896,6 +1052,7 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
       !detached ||
       Date.now() >= detached.expiresAt ||
       detached.deviceId !== socket.data.deviceId ||
+      detached.workerIdentity !== socket.data.workerIdentity ||
       detached.resumeNonce !== socket.data.resumeNonce
     ) return false
     if (!topology.rebindLeaderConnection(leader.connectionId, socket.data.connectionId, windows)) {
@@ -1045,6 +1202,17 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
           return new Response(error instanceof Error ? error.message : String(error), {status: 500})
         }
       }
+      if (url.pathname === "/sw-entry.js") {
+        try {
+          const headers = new Headers(securityHeaders("text/javascript; charset=utf-8"))
+          headers.set("content-security-policy", "default-src 'self'; connect-src 'self' ws: wss: data:; img-src 'self' data: blob:; script-src 'self'; style-src 'self'; worker-src 'self' blob:; base-uri 'none'; frame-ancestors 'none'")
+          headers.set("service-worker-allowed", "/")
+          headers.set("cache-control", "no-cache")
+          return new Response(await getServiceWorkerBundle(), {headers})
+        } catch (error) {
+          return new Response(error instanceof Error ? error.message : String(error), {status: 500})
+        }
+      }
       if (url.pathname === "/control") {
         const suppliedToken = url.searchParams.get("token") ?? ""
         const deviceId = url.searchParams.get("device") ?? ""
@@ -1061,6 +1229,7 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
         const upgraded = bunServer.upgrade(request, {
           data: {
             connectionId: crypto.randomUUID(),
+            connectionGeneration: ++controlConnectionGeneration,
             deviceId,
             lifecycleTransportId,
             workerEntityId,
@@ -1068,12 +1237,102 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
             lastPongAt: Date.now(),
             lastChallengeSeq: 0,
             lastAckSeq: 0,
-            workerIncarnationId: null,
+            nextHeartbeatTimer: null,
+            heartbeatTimeoutTimer: null,
+            workerIdentity: null,
+            workerRuntimeIncarnation: null,
             resumeNonce: null,
             retainAuthorityOnClose: true,
           },
         })
         return upgraded ? undefined : new Response("WebSocket upgrade required", {status: 426})
+      }
+
+      if (request.method === "GET" && url.pathname === "/push/vapid-public-key") {
+        if (!authorized(request, token)) return new Response("Unauthorized", {status: 401})
+        return Response.json({publicKey: webPush.publicKey}, {
+          headers: securityHeaders("application/json; charset=utf-8"),
+        })
+      }
+
+      if (request.method === "POST" && url.pathname === "/lab/wake-service-worker") {
+        if (!authorized(request, token)) return new Response("Unauthorized", {status: 401})
+        let workerIdentity: string | null = null
+        try {
+          const input = await boundedJson(request)
+          if (typeof input === "object" && input !== null && "workerIdentity" in input) {
+            if (!validWorkerIdentity(input.workerIdentity)) {
+              return new Response("Invalid Service Worker identity", {status: 400})
+            }
+            workerIdentity = input.workerIdentity
+          }
+        } catch (error) {
+          return new Response(error instanceof Error ? error.message : String(error), {status: 400})
+        }
+        const workerEntityId = workerIdentity === null
+          ? webPush.onlyWorkerEntityId()
+          : hamiltonianLifecycleEntityId("service-worker", workerIdentity)
+        if (!workerEntityId || !webPush.has(workerEntityId)) {
+          return new Response("PushSubscription not found", {status: 404})
+        }
+        if (pendingWakes.has(workerEntityId)) {
+          return new Response("A Web Push wake is already pending for this Service Worker", {status: 409})
+        }
+        const wakeId = crypto.randomUUID()
+        const wakeProof = Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString("base64url")
+        const wake: PendingPushWake = {
+          wakeId,
+          wakeProof,
+          armedAt: Date.now(),
+          armedAfterConnectionGeneration: controlConnectionGeneration,
+        }
+        pendingWakes.set(workerEntityId, wake)
+        pendingWakeTimers.set(workerEntityId, setTimeout(() => {
+          pendingWakeTimers.delete(workerEntityId)
+          if (pendingWakes.get(workerEntityId)?.wakeId !== wakeId) return
+          pendingWakes.delete(workerEntityId)
+          record({at: Date.now(), kind: "push-reconnect-timeout", detail: `${workerEntityId} ${wakeId}`})
+          observeServiceWorkerAvailability(workerEntityId, {
+            state: "error",
+            push: "reconnect-failed",
+            wakeId,
+            reason: "push-reconnect-timeout",
+          })
+        }, 90_000))
+        record({at: Date.now(), kind: "push-armed", detail: `${workerEntityId} ${wakeId}`})
+        observeServiceWorkerAvailability(workerEntityId, {
+          state: "waking",
+          push: "sent",
+          wakeId,
+        })
+        try {
+          const delivery = webPush.wake(workerEntityId, {
+            kind: "wake-service-worker",
+            wakeId,
+            wakeProof,
+            token,
+            serverEntityId,
+          })
+          record({at: Date.now(), kind: "push-sent", detail: `${workerEntityId} ${wakeId}`})
+          await delivery
+          return Response.json({ok: true, workerEntityId, wakeId}, {
+            headers: securityHeaders("application/json; charset=utf-8"),
+          })
+        } catch (error) {
+          const reason = error instanceof Error ? error.message : String(error)
+          if (!clearPendingWake(workerEntityId, wakeId)) {
+            return Response.json({ok: true, workerEntityId, wakeId, delivery: "confirmed"}, {
+              headers: securityHeaders("application/json; charset=utf-8"),
+            })
+          }
+          record({at: Date.now(), kind: "push-send-failed", detail: `${workerEntityId} ${reason}`.slice(0, 512)})
+          observeServiceWorkerAvailability(workerEntityId, {
+            state: "error",
+            push: "failed",
+            reason: reason.slice(0, 256),
+          })
+          return new Response(reason, {status: 502})
+        }
       }
 
       if (url.pathname === "/manifest.json") {
@@ -1117,6 +1376,7 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
           host: hostState(),
         })
         broadcastTopology()
+        challengeHeartbeat(socket)
       },
       message(socket, rawMessage) {
         controlFramesIn += 1
@@ -1168,7 +1428,11 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
         if (message.kind === "pong") {
           if (
             message.seq !== socket.data.lastChallengeSeq ||
-            message.seq <= socket.data.lastAckSeq
+            message.seq <= socket.data.lastAckSeq ||
+            socket.data.workerEntityId !== hamiltonianLifecycleEntityId("service-worker", message.workerIdentity) ||
+            (socket.data.workerIdentity !== null && socket.data.workerIdentity !== message.workerIdentity) ||
+            (socket.data.workerRuntimeIncarnation !== null &&
+              socket.data.workerRuntimeIncarnation !== message.workerRuntimeIncarnation)
           ) {
             socket.data.retainAuthorityOnClose = false
             socket.close(1008, "invalid heartbeat acknowledgement")
@@ -1176,20 +1440,111 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
           }
           socket.data.lastPongAt = Date.now()
           socket.data.lastAckSeq = message.seq
-          socket.data.workerIncarnationId = message.workerIncarnationId
+          socket.data.workerIdentity = message.workerIdentity
+          socket.data.workerRuntimeIncarnation = message.workerRuntimeIncarnation
+          if (socket.data.heartbeatTimeoutTimer !== null) {
+            clearTimeout(socket.data.heartbeatTimeoutTimer)
+            socket.data.heartbeatTimeoutTimer = null
+          }
+          scheduleHeartbeatAfterAck(socket)
           heartbeatAcks += 1
           broadcastTopology()
           return
         }
         if (message.kind === "identity") {
-          socket.data.workerIncarnationId = message.workerIncarnationId
+          if (
+            socket.data.workerEntityId !== hamiltonianLifecycleEntityId("service-worker", message.workerIdentity) ||
+            (socket.data.workerIdentity !== null && socket.data.workerIdentity !== message.workerIdentity) ||
+            (socket.data.workerRuntimeIncarnation !== null &&
+              socket.data.workerRuntimeIncarnation !== message.workerRuntimeIncarnation)
+          ) {
+            socket.data.retainAuthorityOnClose = false
+            socket.close(1008, "worker identity does not match control endpoint")
+            return
+          }
+          socket.data.workerIdentity = message.workerIdentity
+          socket.data.workerRuntimeIncarnation = message.workerRuntimeIncarnation
           socket.data.resumeNonce = message.resumeNonce
           record({
             at: Date.now(),
             kind: "worker-identity",
             connectionId: socket.data.connectionId,
-            detail: message.workerIncarnationId,
+            detail: `${message.workerIdentity} runtime ${message.workerRuntimeIncarnation}`,
           })
+          if (message.wakeId !== undefined) {
+            const pendingWake = pendingWakes.get(socket.data.workerEntityId)
+            if (
+              message.wakeProof === undefined ||
+              pendingWake?.wakeId !== message.wakeId ||
+              !safeEqual(pendingWake.wakeProof, message.wakeProof) ||
+              socket.data.connectionGeneration <= pendingWake.armedAfterConnectionGeneration ||
+              !webPush.matchesDevice(socket.data.workerEntityId, socket.data.deviceId)
+            ) {
+              socket.data.retainAuthorityOnClose = false
+              socket.close(1008, "unexpected Web Push wake identity")
+              return
+            }
+            clearPendingWake(socket.data.workerEntityId, message.wakeId)
+            record({
+              at: Date.now(),
+              kind: "push-reconnect-confirmed",
+              connectionId: socket.data.connectionId,
+              detail: `${socket.data.workerEntityId} ${message.wakeId}`,
+            })
+            observeServiceWorkerAvailability(socket.data.workerEntityId, {
+              identity: message.workerIdentity,
+              runtimeIncarnation: message.workerRuntimeIncarnation,
+              state: "active",
+              push: "received",
+              wakeId: message.wakeId,
+            })
+            sendControl(socket, {kind: "wake-confirmed", wakeId: message.wakeId})
+          } else if (webPush.has(socket.data.workerEntityId)) {
+            observeServiceWorkerAvailability(socket.data.workerEntityId, {
+              identity: message.workerIdentity,
+              runtimeIncarnation: message.workerRuntimeIncarnation,
+              state: "active",
+              push: "ready",
+            })
+          }
+          return
+        }
+        if (message.kind === "push-subscription") {
+          if (!socket.data.workerIdentity || !socket.data.workerRuntimeIncarnation) {
+            socket.data.retainAuthorityOnClose = false
+            socket.close(1008, "PushSubscription requires an identified Service Worker")
+            return
+          }
+          try {
+            const subscription = webPush.register(socket.data.workerEntityId, {
+              workerIdentity: socket.data.workerIdentity,
+              deviceId: socket.data.deviceId,
+              subscription: message.subscription,
+            })
+            record({
+              at: Date.now(),
+              kind: "push-subscription",
+              connectionId: socket.data.connectionId,
+              detail: socket.data.workerEntityId,
+            })
+            observeServiceWorkerAvailability(socket.data.workerEntityId, {
+              identity: socket.data.workerIdentity,
+              runtimeIncarnation: socket.data.workerRuntimeIncarnation,
+              state: "active",
+              push: "ready",
+            })
+            sendControl(socket, {
+              kind: "push-subscription-confirmed",
+              registrationId: message.registrationId,
+              subscription,
+            })
+          } catch (error) {
+            sendControl(socket, {
+              kind: "push-subscription-rejected",
+              registrationId: message.registrationId,
+              reason: (error instanceof Error ? error.message : String(error)).slice(0, 256),
+            })
+          }
           return
         }
         if (message.kind === "peer-signal") {
@@ -1238,6 +1593,7 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
         broadcastTopology()
       },
       close(socket, code, reason) {
+        clearHeartbeatTimers(socket)
         record({at: Date.now(), kind: "connection-close", connectionId: socket.data.connectionId})
         sockets.delete(socket.data.connectionId)
         relayLifecycleEnvelope(hostLifecycle.next(createHamiltonianLifecycleObservation({
@@ -1256,6 +1612,9 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
             observedBy: "server",
           },
         })))
+        observeServiceWorkerAvailability(socket.data.workerEntityId, webPush.has(socket.data.workerEntityId)
+          ? {state: "standby", push: "ready", heartbeat: "paused"}
+          : {state: "error", push: "unavailable", heartbeat: "failed"})
         const leader = topologyState().leader
         const retainsCurrentAuthority =
           !stopping &&
@@ -1263,7 +1622,7 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
           leader?.connectionId === socket.data.connectionId
         if (retainsCurrentAuthority) {
           const expiresAt = socket.data.lastPongAt + heartbeatMs * 3
-          if (!socket.data.workerIncarnationId || !socket.data.resumeNonce) {
+          if (!socket.data.workerIdentity || !socket.data.resumeNonce) {
             topology.disconnect(socket.data.connectionId)
             broadcastTopology()
             return
@@ -1271,7 +1630,7 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
           detachedAuthorities.set(socket.data.connectionId, {
             expiresAt,
             deviceId: socket.data.deviceId,
-            workerIncarnationId: socket.data.workerIncarnationId,
+            workerIdentity: socket.data.workerIdentity,
             resumeNonce: socket.data.resumeNonce,
           })
           record({
@@ -1317,19 +1676,6 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
     }
   }
 
-  const heartbeat = setInterval(() => {
-    const now = Date.now()
-    for (const socket of sockets.values()) {
-      if (now - socket.data.lastPongAt > heartbeatMs * 3) {
-        record({at: now, kind: "heartbeat-timeout", connectionId: socket.data.connectionId})
-        socket.data.retainAuthorityOnClose = false
-        socket.close(4000, "heartbeat timeout")
-        continue
-      }
-      socket.data.lastChallengeSeq += 1
-      sendControl(socket, {kind: "ping", at: now, seq: socket.data.lastChallengeSeq})
-    }
-  }, heartbeatMs)
   const versionPayload = {version, source, sha256: sourceHash}
   const payloadForRole = (role: string) => ({
     ...versionPayload,
@@ -1393,7 +1739,7 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
       if (stopPromise) return stopPromise
       stopPromise = (async () => {
         stopping = true
-        clearInterval(heartbeat)
+        for (const socket of sockets.values()) clearHeartbeatTimers(socket)
         if (sourceUpdateTimer !== null) clearTimeout(sourceUpdateTimer)
         sourceUpdateTimer = null
         for (const watcher of sourceWatchers) watcher.close()
@@ -1401,6 +1747,9 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
         for (const timer of detachedLeaseTimers.values()) clearTimeout(timer)
         detachedLeaseTimers.clear()
         detachedAuthorities.clear()
+        for (const timer of pendingWakeTimers.values()) clearTimeout(timer)
+        pendingWakeTimers.clear()
+        pendingWakes.clear()
         // Bun 1.3.14 releases the listener synchronously, but the returned Promise can
         // remain pending after the server has rejected a WebSocket frame with 1008.
         // Bound that runtime-specific wait so child-process teardown is never skipped.

@@ -33,5 +33,20 @@ describe("Hamiltonian local orchestration actions", () => {
       "tab 1",
       "page/1",
     )).toEqual({nodeId: pageNodeId, actionId: "reload"})
+    const serviceWorkerNodeId = "service-worker:stable"
+    expect(parseLocalHamiltonianWindowAction(
+      {nodeId: serviceWorkerNodeId, actionId: "enable-push"},
+      "device/1",
+      "tab 1",
+      "page/1",
+      serviceWorkerNodeId,
+    )).toEqual({nodeId: serviceWorkerNodeId, actionId: "enable-push"})
+    expect(parseLocalHamiltonianWindowAction(
+      {nodeId: serviceWorkerNodeId, actionId: "reload"},
+      "device/1",
+      "tab 1",
+      "page/1",
+      serviceWorkerNodeId,
+    )).toBeNull()
   })
 })
