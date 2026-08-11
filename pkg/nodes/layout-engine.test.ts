@@ -56,6 +56,40 @@ describe("MetaFor TypeScript node-system layout", () => {
     expect(reversed).toEqual(first)
   })
 
+  test("keeps geometry when runtime incarnations retain their layout identities", () => {
+    const stable: NodeSystemDocument = {
+      ...document,
+      nodes: document.nodes.map((entry) => ({...entry, layoutId: `slot:${entry.id}`})),
+    }
+    const reincarnated: NodeSystemDocument = {
+      ...stable,
+      revision: "layout-engine:reloaded",
+      nodes: stable.nodes.map((entry) => ({
+        ...entry,
+        id: `runtime:${entry.id}`,
+        ...(entry.parentId === undefined ? {} : {parentId: `runtime:${entry.parentId}`}),
+      })).reverse(),
+      edges: stable.edges.map((edge) => ({
+        ...edge,
+        id: `runtime:${edge.id}`,
+        source: {...edge.source, nodeId: `runtime:${edge.source.nodeId}`},
+        target: {...edge.target, nodeId: `runtime:${edge.target.nodeId}`},
+      })).reverse(),
+    }
+    const layouter = new MetaForNodeSystemLayouter()
+
+    for (const viewport of [{width: 900, height: 600}, {width: 390, height: 844}]) {
+      const before = layouter.layout(stable, {viewport})
+      const repeated = Array.from({length: 3}, () => layouter.layout(reincarnated, {viewport}))
+      for (const after of repeated) {
+        expect(geometryByLayoutIdentity(after)).toEqual(geometryByLayoutIdentity(before))
+        expect(after.edges[0]?.edge.id).toBe("runtime:message")
+        expectExactEdgeEndpoints(after)
+        expectOrthogonal(after)
+      }
+    }
+  })
+
   test("uses RIGHT for landscape and square, DOWN only for portrait", () => {
     const layouter = new MetaForNodeSystemLayouter()
     const landscape = layouter.layout(document, {viewport: {width: 900, height: 600}})
@@ -412,6 +446,27 @@ class InlineLayoutWorkerEndpoint {
   }
 
   terminate(): void {}
+}
+
+function geometryByLayoutIdentity(layout: PositionedNodeSystem) {
+  const layoutIdByNodeId = new Map(layout.nodes.map(({node}) => [node.id, node.layoutId ?? node.id]))
+  return {
+    bounds: layout.bounds,
+    nodes: layout.nodes.map(({node, rect, ports}) => ({
+      id: node.layoutId ?? node.id,
+      rect,
+      ports: ports.map(({port, center}) => ({id: port.id, center})),
+    })).sort((left, right) => left.id.localeCompare(right.id)),
+    edges: layout.edges.map(({edge, points}) => ({
+      id: JSON.stringify([
+        layoutIdByNodeId.get(edge.source.nodeId),
+        edge.source.portId,
+        layoutIdByNodeId.get(edge.target.nodeId),
+        edge.target.portId,
+      ]),
+      points,
+    })).sort((left, right) => left.id.localeCompare(right.id)),
+  }
 }
 
 function expectExactEdgeEndpoints(layout: PositionedNodeSystem): void {

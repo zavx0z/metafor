@@ -133,6 +133,8 @@ type PreparedLayoutPass = Readonly<{
   nodes: readonly NodeSystemNode[]
   edges: readonly NodeSystemEdge[]
   graph: LayoutGraph
+  layoutNodeIdByNodeId: ReadonlyMap<string, string>
+  layoutEdgeIdByEdgeId: ReadonlyMap<string, string>
   geometryKey: string
   measureText?: NodeSystemTextMeasurer
 }>
@@ -146,6 +148,8 @@ function prepareLayoutPass(
   const index = validateNodeSystemDocument(document)
   const nodes = [...document.nodes].sort(compareOrdered)
   const edges = [...document.edges].sort(compareOrdered)
+  const layoutNodeIdByNodeId = new Map(nodes.map((node) => [node.id, node.layoutId ?? node.id]))
+  const layoutEdgeIdByEdgeId = stableLayoutEdgeIds(edges, layoutNodeIdByNodeId)
   const cards = new Map(nodes.map((node) => {
     const size = measureNodeSystemCard(node, measureText)
     return [node.id, {
@@ -157,12 +161,30 @@ function prepareLayoutPass(
   const layoutEdges: LayoutEdge[] = edges.map((edge) => {
     const source = endpointPort(edge, "source", index.ports)
     const target = endpointPort(edge, "target", index.ports)
-    addLayoutPort(ports, edge.source.nodeId, source, cards, "out", "EAST", edge.id)
-    addLayoutPort(ports, edge.target.nodeId, target, cards, "in", "WEST", edge.id)
+    addLayoutPort(
+      ports,
+      edge.source.nodeId,
+      required(layoutNodeIdByNodeId.get(edge.source.nodeId), `Missing source layout identity: ${edge.id}`),
+      source,
+      cards,
+      "out",
+      "EAST",
+      edge.id,
+    )
+    addLayoutPort(
+      ports,
+      edge.target.nodeId,
+      required(layoutNodeIdByNodeId.get(edge.target.nodeId), `Missing target layout identity: ${edge.id}`),
+      target,
+      cards,
+      "in",
+      "WEST",
+      edge.id,
+    )
     return {
-      id: edge.id,
-      sourcePortId: enginePortId(edge.source.nodeId, edge.source.portId),
-      targetPortId: enginePortId(edge.target.nodeId, edge.target.portId),
+      id: required(layoutEdgeIdByEdgeId.get(edge.id), `Missing edge layout identity: ${edge.id}`),
+      sourcePortId: enginePortId(required(layoutNodeIdByNodeId.get(edge.source.nodeId), `Missing source node: ${edge.id}`), edge.source.portId),
+      targetPortId: enginePortId(required(layoutNodeIdByNodeId.get(edge.target.nodeId), `Missing target node: ${edge.id}`), edge.target.portId),
     }
   })
   const clearance = positiveOption(options.clearance, NODE_SYSTEM_PORT_PITCH)
@@ -177,8 +199,10 @@ function prepareLayoutPass(
     nodes: nodes.map((node) => {
       const size = cards.get(node.id)!.size
       return {
-        id: node.id,
-        ...(node.parentId === undefined ? {} : {parentId: node.parentId}),
+        id: required(layoutNodeIdByNodeId.get(node.id), `Missing node layout identity: ${node.id}`),
+        ...(node.parentId === undefined ? {} : {
+          parentId: required(layoutNodeIdByNodeId.get(node.parentId), `Missing parent layout identity: ${node.id}`),
+        }),
         width: size.width,
         height: size.height,
         contentHeight: measureNodeSystemCardContentHeight(node),
@@ -192,6 +216,8 @@ function prepareLayoutPass(
     nodes,
     edges,
     graph,
+    layoutNodeIdByNodeId,
+    layoutEdgeIdByEdgeId,
     geometryKey: nodeSystemGeometryKey(document, measureText),
     ...(measureText === undefined ? {} : {measureText}),
   }
@@ -204,6 +230,8 @@ function materializeLayoutPass(prepared: PreparedLayoutPass, result: LayoutResul
     prepared.edges,
     result,
     prepared.geometryKey,
+    prepared.layoutNodeIdByNodeId,
+    prepared.layoutEdgeIdByEdgeId,
     prepared.measureText,
   )
   validatePositionedNodeSystem(positioned)
@@ -623,6 +651,7 @@ function endpointPort(
 function addLayoutPort(
   layoutPorts: Map<string, LayoutPort>,
   nodeId: string,
+  layoutNodeId: string,
   port: NodeSystemPort,
   cards: ReadonlyMap<string, Readonly<{plan: ReturnType<typeof planNodeSystemCard>}>>,
   direction: "in" | "out",
@@ -634,12 +663,12 @@ function addLayoutPort(
   if (port.direction !== direction || actualSide !== requiredSide) {
     throw new Error(`${direction === "out" ? "source" : "target"} must be ${direction}/${side}: ${edgeId}`)
   }
-  const id = enginePortId(nodeId, port.id)
+  const id = enginePortId(layoutNodeId, port.id)
   const marker = cards.get(nodeId)?.plan.ports.find((entry) => entry.port.id === port.id)?.marker
   if (marker === undefined) throw new Error(`Card omitted parameter socket: ${nodeId}/${port.id}`)
   const candidate: LayoutPort = {
     id,
-    nodeId,
+    nodeId: layoutNodeId,
     y: marker.y + marker.h / 2,
   }
   const existing = layoutPorts.get(id)
@@ -655,6 +684,8 @@ function positionedDocument(
   edges: readonly NodeSystemEdge[],
   result: LayoutResult,
   geometryKey: string,
+  layoutNodeIdByNodeId: ReadonlyMap<string, string>,
+  layoutEdgeIdByEdgeId: ReadonlyMap<string, string>,
   measureText?: NodeSystemTextMeasurer,
 ): PositionedNodeSystem {
   const rects = new Map(result.nodes.map((node) => [node.id, {
@@ -668,7 +699,8 @@ function positionedDocument(
     y: port.y,
   }]))
   const positionedNodes = nodes.map((node): PositionedNodeSystemNode => {
-    const rect = required(rects.get(node.id), `Layout omitted node: ${node.id}`)
+    const layoutNodeId = required(layoutNodeIdByNodeId.get(node.id), `Missing positioned layout identity: ${node.id}`)
+    const rect = required(rects.get(layoutNodeId), `Layout omitted node: ${node.id}`)
     const card = planNodeSystemCard(node, rect, 1, measureText)
     const ports = (node.ports ?? []).map((port): PositionedNodeSystemPort => {
       const marker = required(
@@ -677,7 +709,7 @@ function positionedDocument(
       )
       return {
         port,
-        center: exactEndpointCenters.get(enginePortId(node.id, port.id)) ?? {
+        center: exactEndpointCenters.get(enginePortId(layoutNodeId, port.id)) ?? {
           x: marker.x + marker.w / 2,
           y: marker.y + marker.h / 2,
         },
@@ -687,7 +719,8 @@ function positionedDocument(
   })
   const sections = new Map(result.edges.map((edge) => [edge.id, edge.sections[0]]))
   const positionedEdges = edges.map((edge): PositionedNodeSystemEdge => {
-    const section = required(sections.get(edge.id), `Layout omitted edge: ${edge.id}`)
+    const layoutEdgeId = required(layoutEdgeIdByEdgeId.get(edge.id), `Missing positioned edge identity: ${edge.id}`)
+    const section = required(sections.get(layoutEdgeId), `Layout omitted edge: ${edge.id}`)
     return {
       edge,
       points: [section.startPoint, ...section.bendPoints, section.endPoint],
@@ -705,6 +738,22 @@ function positionedDocument(
     edges: positionedEdges,
     ...(document.revision === undefined ? {} : {revision: document.revision}),
   }
+}
+
+function stableLayoutEdgeIds(
+  edges: readonly NodeSystemEdge[],
+  layoutNodeIdByNodeId: ReadonlyMap<string, string>,
+): ReadonlyMap<string, string> {
+  const key = (edge: NodeSystemEdge): string => JSON.stringify([
+    required(layoutNodeIdByNodeId.get(edge.source.nodeId), `Missing source layout identity: ${edge.id}`),
+    edge.source.portId,
+    required(layoutNodeIdByNodeId.get(edge.target.nodeId), `Missing target layout identity: ${edge.id}`),
+    edge.target.portId,
+  ])
+  const ordered = [...edges].sort((left, right) =>
+    compareIds(key(left), key(right)) || compareOrdered(left, right))
+  const width = Math.max(1, String(ordered.length).length)
+  return new Map(ordered.map((edge, index) => [edge.id, `e${String(index).padStart(width, "0")}`]))
 }
 
 function enginePortId(nodeId: string, portId: string): string {

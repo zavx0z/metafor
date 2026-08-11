@@ -31,6 +31,13 @@ export type NodeSystemAction = Readonly<{
 export type NodeSystemNode = Readonly<{
   id: string
   /**
+   * Стабильная presentation identity для автоматической раскладки.
+   * Domain `id` может обозначать сменяемое runtime-воплощение; `layoutId`
+   * сохраняет тот же структурный слот между его последовательными incarnation.
+   * Значение не отображается и не заменяет domain identity в actions/edges.
+   */
+  layoutId?: string
+  /**
    * Optional visual containment. This is not an edge or a transport: the
    * producer remains responsible for the meaning of the relation.
    */

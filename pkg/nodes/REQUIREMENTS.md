@@ -13,7 +13,13 @@
    текст, facts, actions, Flex и `NodeSystemDocument` границу не пересекают.
 3. Layout result связывается с исходным document по semantic IDs без
    post-routing и без изменения рассчитанной geometry.
-4. Presentation adapter может переставлять только связанные parameter rows,
+4. Domain `NodeSystemNode.id` остаётся exact identity факта, action и endpoint.
+   Если runtime incarnation меняется, но visual slot остаётся тем же, producer
+   передаёт отдельный уникальный `layoutId`. Adapter использует его только как
+   стабильную identity минимального `LayoutGraph`, а результат связывает
+   обратно с domain IDs. Runtime UUID, время появления и порядок lifecycle
+   событий сами по себе не являются сигналом для другой geometry.
+5. Presentation adapter может переставлять только связанные parameter rows,
    чтобы прежде всего уменьшить edge-edge crossings, затем bends и Manhattan
    length. ID параметров и edges не меняются, обычные и несвязанные строки
    сохраняют исходный порядок. Если crossing устраняется перестановкой строк,
@@ -38,9 +44,10 @@
 4. Worker request/response/client types принадлежат `nodes/types`, не
    `@nodes/layout/types`. В layout protocol остаются только вход и результат
    синхронного алгоритма.
-5. Новая topology generation, добавление/удаление нод или переход viewport через
-   границу `RIGHT`/`DOWN` запускают один полный пересчёт актуального graph.
-   Telemetry-only update без изменения topology, intrinsic geometry или режима
-   не запускает layout повторно.
+5. Новая topology generation, добавление/удаление нод или settled изменение
+   точного viewport запускают один полный пересчёт актуального graph. Серия
+   resize-событий ограничивается debounce, а устаревший Worker result не может
+   примениться после более нового размера. Telemetry-only update без изменения
+   topology, intrinsic geometry или viewport не запускает layout повторно.
 6. Предыдущая geometry может быть только начальным кадром presentation-анимации
    и не передаётся как input новой раскладки.

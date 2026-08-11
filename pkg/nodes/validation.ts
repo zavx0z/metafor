@@ -12,10 +12,15 @@ import type {NodeSystemIndex} from "./types/validation.ts"
 export function validateNodeSystemDocument(document: NodeSystemDocument): NodeSystemIndex {
   const nodes = new Map<string, NodeSystemNode>()
   const ports = new Map<string, ReadonlyMap<string, NodeSystemPort>>()
+  const layoutIds = new Set<string>()
 
   for (const node of document.nodes) {
     requireIdentifier(node.id, "node")
     if (nodes.has(node.id)) throw new Error(`Duplicate node id: ${node.id}`)
+    const layoutId = node.layoutId ?? node.id
+    requireIdentifier(layoutId, `layout node on ${node.id}`)
+    if (layoutIds.has(layoutId)) throw new Error(`Duplicate node layoutId: ${layoutId}`)
+    layoutIds.add(layoutId)
     if (node.title.trim().length === 0) throw new Error(`Node title must be non-empty: ${node.id}`)
     requirePositiveSize(node.width, `Node width must be positive: ${node.id}`)
     requirePositiveSize(node.height, `Node height must be positive: ${node.id}`)

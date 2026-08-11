@@ -49,7 +49,10 @@ import {
   hamiltonianLayoutGeometryChanged,
   interpolateHamiltonianNodePositions,
 } from "./orchestration/layout-transition.ts"
-import {hamiltonianLayoutDirection} from "./orchestration/responsive-layout.ts"
+import {
+  hamiltonianLayoutDirection,
+  hamiltonianLayoutViewportKey,
+} from "./orchestration/responsive-layout.ts"
 import {
   captureHamiltonianSpatialRuntime,
   serializeHamiltonianViewPoint,
@@ -299,22 +302,24 @@ async function start(): Promise<void> {
   }
   exposeSpatialRuntime()
 
-  let scheduleOrientationRelayout = (): void => {}
+  const currentLayoutViewport = () => ({
+    width: Math.max(1, canvas.clientWidth),
+    height: Math.max(1, canvas.clientHeight),
+  })
+  let scheduleViewportRelayout = (): void => {}
+  let resizeRelayoutTimer: ReturnType<typeof setTimeout> | null = null
   const resizeObserver = new ResizeObserver(() => {
     runtime.handleResize()
-    const nextLayoutDirection = hamiltonianLayoutDirection({
-      width: Math.max(1, canvas.clientWidth),
-      height: Math.max(1, canvas.clientHeight),
-    })
+    const nextLayoutDirection = hamiltonianLayoutDirection(currentLayoutViewport())
     const orientationChanged = nextLayoutDirection !== currentLayoutDirection
     if (orientationChanged) {
       currentLayoutDirection = nextLayoutDirection
       document.documentElement.dataset.hamiltonianLayoutDirection = currentLayoutDirection
-      scheduleOrientationRelayout()
     }
-    if (!orientationChanged && canvasAutoFitEnabled && layout !== null) {
+    if (canvasAutoFitEnabled && layout !== null) {
       fitGraphCanvas(layout, "auto-fit-display-resize")
     }
+    if (layout !== null) scheduleViewportRelayout()
     exposeSpatialRuntime()
   })
   resizeObserver.observe(canvas)
@@ -375,17 +380,20 @@ async function start(): Promise<void> {
   // calculation is pending. applyDocument rejects that stale direction; retry the
   // same guaranteed bootstrap until one current RIGHT/DOWN result commits.
   while (layout === null) {
-    const bootstrapDirection = currentLayoutDirection
+    const bootstrapViewport = currentLayoutViewport()
+    const bootstrapDirection = hamiltonianLayoutDirection(bootstrapViewport)
+    currentLayoutDirection = bootstrapDirection
     const bootstrapStructureKey = [
       nodeSystemStructureKey(bootstrapDocument),
       bootstrapGeometryKey,
-      bootstrapDirection,
+      hamiltonianLayoutViewportKey(bootstrapViewport),
     ].join("\u0000")
     await applyDocument(
       bootstrapDocument,
       bootstrapStructureKey,
       ++updateGeneration,
       bootstrapDirection,
+      bootstrapViewport,
     )
   }
   document.documentElement.dataset.hamiltonianBootstrapNodes = String(bootstrapDocument.nodes.length)
@@ -396,15 +404,16 @@ async function start(): Promise<void> {
 
   let scheduledDocument: NodeSystemDocument | null = null
   let scheduledStructureKey: string | null = null
+  let scheduledViewport: Readonly<{width: number; height: number}> | null = null
   let inFlightStructureKey: string | null = null
   let documentDrain: Promise<void> | null = null
   const layoutStructureKey = (
     nextDocument: NodeSystemDocument,
-    direction: NodeSystemLayoutDirection,
+    viewport: Readonly<{width: number; height: number}>,
   ): string => [
     nodeSystemStructureKey(nextDocument),
     nodeSystemGeometryKey(nextDocument, graph.textMeasurer),
-    direction,
+    hamiltonianLayoutViewportKey(viewport),
   ].join("\u0000")
   const exposeLifecycleGap = () => {
     const activeGap = lifecycleProjection.firstGap
@@ -433,9 +442,11 @@ async function start(): Promise<void> {
   }
   const scheduleCurrentDocument = () => {
     const nextDocument = lifecycleProjection.document()
-    const nextStructureKey = layoutStructureKey(nextDocument, currentLayoutDirection)
+    const nextViewport = currentLayoutViewport()
+    const nextStructureKey = layoutStructureKey(nextDocument, nextViewport)
     scheduledDocument = nextDocument
     scheduledStructureKey = nextStructureKey
+    scheduledViewport = nextViewport
     document.documentElement.dataset.hamiltonianLifecyclePending = "1"
     if (documentDrain !== null) {
       if (hamiltonianLayoutRequestRequiresCancellation(inFlightStructureKey, nextStructureKey)) {
@@ -455,7 +466,13 @@ async function start(): Promise<void> {
         document.documentElement.dataset.hamiltonianLifecyclePending = scheduledDocument === null ? "0" : "1"
       })
   }
-  scheduleOrientationRelayout = scheduleCurrentDocument
+  scheduleViewportRelayout = () => {
+    if (resizeRelayoutTimer !== null) clearTimeout(resizeRelayoutTimer)
+    resizeRelayoutTimer = setTimeout(() => {
+      resizeRelayoutTimer = null
+      scheduleCurrentDocument()
+    }, 120)
+  }
   acceptLifecycle = (accepted) => {
     let effectiveGap = accepted.gap
     if (effectiveGap !== null) {
@@ -516,14 +533,16 @@ async function start(): Promise<void> {
   async function drainDocuments(): Promise<void> {
     while (scheduledDocument !== null) {
       const current = scheduledDocument
-      const nextStructureKey = scheduledStructureKey ?? layoutStructureKey(current, currentLayoutDirection)
+      const viewport = scheduledViewport ?? currentLayoutViewport()
+      const nextStructureKey = scheduledStructureKey ?? layoutStructureKey(current, viewport)
       scheduledDocument = null
       scheduledStructureKey = null
+      scheduledViewport = null
       const generation = ++updateGeneration
-      const direction = currentLayoutDirection
+      const direction = hamiltonianLayoutDirection(viewport)
       inFlightStructureKey = nextStructureKey
       try {
-        await applyDocument(current, nextStructureKey, generation, direction)
+        await applyDocument(current, nextStructureKey, generation, direction, viewport)
       } catch (error: unknown) {
         if (generation !== updateGeneration) continue
         document.documentElement.dataset.hamiltonianLayoutWorker = "error"
@@ -540,6 +559,7 @@ async function start(): Promise<void> {
     nextStructureKey: string,
     generation: number,
     direction: NodeSystemLayoutDirection,
+    viewport: Readonly<{width: number; height: number}>,
   ): Promise<void> {
     const previousLayout = layout
     const preserveCanvasTransform = previousLayout !== null && graph.hasMaterializedCanvasTransform
@@ -548,17 +568,17 @@ async function start(): Promise<void> {
     if (previousLayout !== null && structureKey === nextStructureKey) {
       nextLayout = refreshPositionedNodeSystem(previousLayout, document)
     } else {
-      const viewport = {
-        width: Math.max(1, canvas.clientWidth),
-        height: Math.max(1, canvas.clientHeight),
-      }
       if (hamiltonianLayoutDirection(viewport) !== direction) return
       globalThis.document.documentElement.dataset.hamiltonianLayoutWorker = "busy"
       nextLayout = await nodeSystemLayouter.layout(document, {viewport}, generation)
       globalThis.document.documentElement.dataset.hamiltonianLayoutWorker = "ready"
       globalThis.document.documentElement.dataset.hamiltonianLayoutWorkerGeneration = String(generation)
     }
-    if (generation !== updateGeneration || direction !== currentLayoutDirection) return
+    if (
+      generation !== updateGeneration ||
+      direction !== currentLayoutDirection ||
+      hamiltonianLayoutViewportKey(viewport) !== hamiltonianLayoutViewportKey(currentLayoutViewport())
+    ) return
     const geometryChanged = previousLayout !== null &&
       hamiltonianLayoutGeometryChanged(previousLayout, nextLayout)
     applyingTopologyLayout = true
@@ -673,6 +693,7 @@ async function start(): Promise<void> {
   }
 
   window.addEventListener("pagehide", () => {
+    if (resizeRelayoutTimer !== null) clearTimeout(resizeRelayoutTimer)
     document.removeEventListener("visibilitychange", synchronizeTrafficVisibility)
     resizeObserver.disconnect()
     unsubscribeLifecycle()
@@ -721,8 +742,20 @@ function documentElementEvidence(
   document.documentElement.dataset.hamiltonianLayoutBounds = JSON.stringify(layout.bounds)
   document.documentElement.dataset.hamiltonianLayoutRects = JSON.stringify(layout.nodes.map(({node, rect}) => ({
     id: node.id,
+    layoutId: node.layoutId ?? node.id,
     parentId: node.parentId ?? null,
     rect,
+  })))
+  const layoutIdByNodeId = new Map(layout.nodes.map(({node}) => [node.id, node.layoutId ?? node.id]))
+  document.documentElement.dataset.hamiltonianLayoutRoutes = JSON.stringify(layout.edges.map(({edge, points}) => ({
+    edgeId: edge.id,
+    layoutEndpoints: [
+      layoutIdByNodeId.get(edge.source.nodeId),
+      edge.source.portId,
+      layoutIdByNodeId.get(edge.target.nodeId),
+      edge.target.portId,
+    ],
+    points,
   })))
   const websocket = layout.edges.find(({edge}) => edge.label === "WS" || edge.label === "WSS")
   document.documentElement.dataset.hamiltonianWebsocketEdge = websocket?.edge.id ?? ""

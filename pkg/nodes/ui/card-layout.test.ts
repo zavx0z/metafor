@@ -112,6 +112,8 @@ describe("Flex node-card metric plan", () => {
     expect(longSize.width).toBe(NODE_SYSTEM_CARD_METRICS.maximumWidth)
     expect(nodeSystemGeometryKey({nodes: [short]}, exact))
       .not.toBe(nodeSystemGeometryKey({nodes: [long]}, exact))
+    expect(nodeSystemGeometryKey({nodes: [{...short, layoutId: "slot-a"}]}, exact))
+      .not.toBe(nodeSystemGeometryKey({nodes: [{...short, layoutId: "slot-b"}]}, exact))
 
     const explicit = measureNodeSystemCard({...long, width: 700}, exact)
     expect(explicit.width).toBe(700)

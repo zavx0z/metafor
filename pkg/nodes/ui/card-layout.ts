@@ -82,6 +82,7 @@ export function nodeSystemGeometryKey(
       const card = planNodeSystemCard(node, {x: 0, y: 0, w: size.width, h: size.height}, 1, measured)
       return [
         node.id,
+        node.layoutId ?? node.id,
         node.parentId ?? null,
         rounded(size.width),
         rounded(size.height),

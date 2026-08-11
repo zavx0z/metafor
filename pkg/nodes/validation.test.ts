@@ -25,6 +25,13 @@ describe("node-system validation", () => {
       nodes: [{id: "host", title: "Host", facts: [{id: "p", label: "P", value: ""}], ports: [{id: "p", parameterId: "p", direction: "in"}, {id: "p", parameterId: "p", direction: "out"}]}],
       edges: [],
     })).toThrow("Duplicate port id: host/p")
+    expect(() => validateNodeSystemDocument({
+      nodes: [
+        {id: "old-incarnation", layoutId: "stable-slot", title: "Old"},
+        {id: "new-incarnation", layoutId: "stable-slot", title: "New"},
+      ],
+      edges: [],
+    })).toThrow("Duplicate node layoutId: stable-slot")
   })
 
   test("rejects dangling nodes and ports", () => {

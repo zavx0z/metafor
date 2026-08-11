@@ -351,8 +351,17 @@ export class HamiltonianLifecycleProjection {
       }
     }
 
+    const layoutIds = stableEntityLayoutIds(
+      visibleEntities,
+      visibleEntityIds,
+      this.#serverId,
+      this.#pageId,
+      this.#context.tabId,
+    )
     const entityNodes = visibleEntities
-      .sort((left, right) => entityOrder(left.kind) - entityOrder(right.kind) || left.bornAt - right.bornAt || left.id.localeCompare(right.id))
+      .sort((left, right) =>
+        entityOrder(left.kind) - entityOrder(right.kind) ||
+        requiredLayoutId(layoutIds, left.id).localeCompare(requiredLayoutId(layoutIds, right.id)))
       .map((entity, index): NodeSystemNode => {
         const failedHeartbeat = serviceWorkerControlFailed(entity, activeTransports)
         const presentedEntity = failedHeartbeat
@@ -365,11 +374,12 @@ export class HamiltonianLifecycleProjection {
         const parentId = visualParentId(presentedEntity, visibleEntityIds, this.#serverId)
         return {
           id: presentedEntity.id,
+          layoutId: requiredLayoutId(layoutIds, presentedEntity.id),
           ...(parentId === null ? {} : {parentId}),
           title: entityTitle(presentedEntity, this.#pageId),
           ...(presentedEntity.kind === "service-worker" ? {} : {kind: entityKindLabel(presentedEntity.kind)}),
           tone: nodeTone(presentedEntity.state, this.#hasGap(presentedEntity)),
-          order: entityOrder(presentedEntity.kind) + index,
+          order: index,
           ports: ports.get(presentedEntity.id) ?? [],
           facts: [
             ...entityFacts(presentedEntity, this.#gapsFor(presentedEntity)),
@@ -688,6 +698,7 @@ export function nodeSystemStructureKey(document: NodeSystemDocument): string {
   return JSON.stringify({
     nodes: document.nodes.map((node) => ({
       id: node.id,
+      layoutId: node.layoutId ?? node.id,
       order: node.order ?? 0,
       parentId: node.parentId ?? null,
       ports: (node.ports ?? []).map((port) =>
@@ -918,6 +929,62 @@ function visualParentId(
     entity.kind === "rtc-peer"
     ? entity.ownerId
     : null
+}
+
+function stableEntityLayoutIds(
+  entities: readonly LifecycleEntity[],
+  visible: ReadonlySet<string>,
+  serverId: string,
+  currentPageId: string,
+  currentTabId: string,
+): ReadonlyMap<string, string> {
+  const byId = new Map(entities.map((entity) => [entity.id, entity]))
+  const resolved = new Map<string, string>()
+  const resolving = new Set<string>()
+
+  const resolve = (entity: LifecycleEntity): string => {
+    const cached = resolved.get(entity.id)
+    if (cached !== undefined) return cached
+    if (resolving.has(entity.id)) return entity.id
+    resolving.add(entity.id)
+
+    const owner = entity.ownerId === null || entity.ownerId === entity.id || !visible.has(entity.ownerId)
+      ? null
+      : byId.get(entity.ownerId) ?? null
+    const ownerLayoutId = owner === null ? null : resolve(owner)
+    const tabId = stringAttribute(entity.attributes.tabId) ||
+      (entity.id === currentPageId ? currentTabId : "")
+    const role = stringAttribute(entity.attributes.role)
+    const endpoint = stringAttribute(entity.attributes.endpoint)
+    const layoutId = entity.id === serverId
+      ? entity.id
+      : entity.kind === "page" && tabId
+        ? stableLayoutSlot("page", tabId)
+        : entity.kind === "window-main" && ownerLayoutId !== null
+          ? stableLayoutSlot(ownerLayoutId, "window-main")
+          : entity.kind === "dedicated-worker" && ownerLayoutId !== null
+            ? stableLayoutSlot(ownerLayoutId, "dedicated-worker", role || "primary")
+            : entity.kind === "rtc-peer" && ownerLayoutId !== null
+              ? stableLayoutSlot(ownerLayoutId, "rtc-peer", endpoint || "peer")
+              : entity.id
+
+    resolving.delete(entity.id)
+    resolved.set(entity.id, layoutId)
+    return layoutId
+  }
+
+  for (const entity of entities) resolve(entity)
+  return resolved
+}
+
+function stableLayoutSlot(...parts: readonly string[]): string {
+  return `hamiltonian:${JSON.stringify(parts)}`
+}
+
+function requiredLayoutId(layoutIds: ReadonlyMap<string, string>, entityId: string): string {
+  const layoutId = layoutIds.get(entityId)
+  if (layoutId === undefined) throw new Error(`Missing Hamiltonian layout identity: ${entityId}`)
+  return layoutId
 }
 
 function isLifecycleSourceEntityKind(kind: string): boolean {

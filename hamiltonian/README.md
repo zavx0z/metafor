@@ -98,7 +98,10 @@ Reload одной вкладки не смешивается с клониров
 новая lifecycle-ревизия сохраняет тот же структурно-геометрический ключ, она не
 отменяет уже выполняющийся Layout Worker request: расчёт завершается один раз,
 после чего на готовую геометрию накладываются самые свежие факты. Только реально
-изменившийся ключ или направление делает выполняющуюся раскладку устаревшей.
+изменившийся ключ или viewport делает выполняющуюся раскладку устаревшей.
+Exact `width × height` входит в ключ даже внутри одной ориентации: после 120 ms
+без новых resize events Hamiltonian запускает один полный layout для финального
+viewport и не принимает рассчитанную для промежуточного размера geometry.
 
 Новый execution Service Worker не объявляет первый подключившийся page snapshot
 полным составом браузера. Перед публикацией авторитетного stable-scope snapshot
@@ -223,6 +226,10 @@ port offsets и semantic edge endpoint IDs. Текст, facts, actions, Flex и
 `LayoutResult`, а `nodes` связывает IDs с исходным document без post-routing. Новая
 topology generation отменяет ожидание устаревшего ответа, а ошибка Worker не
 включает скрытый синхронный fallback на main thread.
+Runtime incarnation остаётся domain `id`, но не управляет tie-break раскладки:
+page, main, Dedicated Worker и RTCPeerConnection передают отдельный стабильный
+`layoutId` своего visual slot. Reload и resize одной topology поэтому не меняют
+packing из-за нового UUID.
 Navigation-ноды и каждое последующее добавление либо удаление ноды проходят
 через один и тот же полный layout. Готовый browser bundle собирается один раз
 при старте host incarnation, а не внутри первого запроса страницы. Engine сам

@@ -14,7 +14,9 @@
 Hamiltonian и другие приложения передают в `nodes` собственный
 `NodeSystemDocument`. Смысл domain facts и actions остаётся у приложения:
 node-system только проверяет presentation model и связывает её IDs с готовой
-геометрией.
+геометрией. Сменяемый runtime `id` не обязан быть layout identity: producer
+может передать стабильный `layoutId` того же visual slot, а adapter вернёт
+рассчитанную геометрию к исходным domain IDs.
 
 ## Импорты
 
@@ -38,6 +40,8 @@ import {NodeInspectorSurface, NodeSystemSurface} from "@nodes/ui"
 
 * `nodes` содержит model validation, containment, layout adapter и
   incremental presentation logic, а также Worker transport adapter.
+* `NodeSystemNode.id` остаётся domain identity; optional `layoutId` используется
+  только внутри layout adapter и обязан быть уникальным в document.
 * `@nodes/layout` не читает UI document, текст, DOM или WebGPU state.
 * `@nodes/ui` не рассчитывает автоматическое размещение и не владеет semantic
   topology.

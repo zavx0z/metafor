@@ -39,7 +39,7 @@ describe("Hamiltonian lifecycle projection", () => {
       nodes: [
         {id: "server-contour", title: "Сервер"},
         {id: "server:host-a", parentId: "server-contour", title: "Hamiltonian"},
-        {id: "page:page-a", title: "Эта страница"},
+        {id: "page:page-a", layoutId: expect.stringContaining("tab-a"), title: "Эта страница"},
       ],
       edges: [],
     })
@@ -65,6 +65,10 @@ describe("Hamiltonian lifecycle projection", () => {
     expect(nodeSystemStructureKey(base)).not.toBe(nodeSystemStructureKey({
       ...base,
       edges: [{...base.edges[0]!, order: 2}],
+    }))
+    expect(nodeSystemStructureKey(base)).not.toBe(nodeSystemStructureKey({
+      ...base,
+      nodes: [base.nodes[0]!, {...base.nodes[1]!, layoutId: "stable-b"}],
     }))
   })
 
@@ -207,7 +211,8 @@ describe("Hamiltonian lifecycle projection", () => {
     const bothPagesSnapshot = workerJournal.snapshot()
     projection.replaceSnapshot(bothPagesSnapshot)
 
-    const pages = projection.document().nodes.filter(({kind}) => kind === "page realm")
+    const initialDocument = projection.document()
+    const pages = initialDocument.nodes.filter(({kind}) => kind === "page realm")
     expect(pages).toHaveLength(2)
     expect(pages.map(({parentId}) => parentId)).toEqual([browserId, browserId])
     expect(pages.find(({id}) => id === pageA.pageId)).toMatchObject({
@@ -219,6 +224,8 @@ describe("Hamiltonian lifecycle projection", () => {
       facts: expect.arrayContaining([{id: "tabId", label: "Вкладка", value: "tab-b"}]),
     })
     expect(pages.find(({id}) => id === pageB.pageId)?.actions).toBeUndefined()
+    const pageBLayoutId = pages.find(({id}) => id === pageB.pageId)?.layoutId
+    const pageBMainLayoutId = initialDocument.nodes.find(({id}) => id === "window-main:page-b")?.layoutId
 
     const recoveredProjection = new HamiltonianLifecycleProjection(context)
     recoveredProjection.replaceSnapshot(bothPagesSnapshot)
@@ -245,8 +252,13 @@ describe("Hamiltonian lifecycle projection", () => {
 
     const pageBReloaded = addPage("page-b-reloaded", "tab-b")
     projection.replaceSnapshot(workerJournal.snapshot())
-    expect(projection.document().nodes.filter(({kind}) => kind === "page realm").map(({id}) => id).sort())
+    const reloadedDocument = projection.document()
+    expect(reloadedDocument.nodes.filter(({kind}) => kind === "page realm").map(({id}) => id).sort())
       .toEqual([pageA.pageId, pageBReloaded.pageId].sort())
+    expect(reloadedDocument.nodes.find(({id}) => id === pageBReloaded.pageId)?.layoutId)
+      .toBe(pageBLayoutId)
+    expect(reloadedDocument.nodes.find(({id}) => id === "window-main:page-b-reloaded")?.layoutId)
+      .toBe(pageBMainLayoutId)
   })
 
   test("keeps the locally observed browser runtime when a late retained snapshot missed its birth", () => {
