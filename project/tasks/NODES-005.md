@@ -56,3 +56,5 @@ Offline proof, оба typecheck и live RIGHT/DOWN прошли. Финальн�
 зафиксировал median 196.41 ms RIGHT и 426.99 ms DOWN; относительно последнего
 NODES-003 это +9.2% и +5.9%, что передаётся независимому reviewer вместе с
 функциональным результатом.
+
+Result commit: `611283e776ac350764cf392603913bbc91b4185f`.

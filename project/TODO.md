@@ -66,12 +66,12 @@ transport family и легенда в панели `Вид холста`. Пар
 Текущая задача Codex: нет.
 
 Параллельная задача NodeSystem/Layout: `NODES-005 — Объединять связанные рёбра
-в общий trunk` выполняется.
+в общий trunk` передана в независимый `REVIEW`.
 
 | ID     | Состояние   | Зависимости | Карточка                   |
 | ------ | ----------- | ----------- | -------------------------- |
 | MF-424 | IN_PROGRESS | нет         | [Открыть](tasks/MF-424.md) |
-| NODES-005 | IN_PROGRESS | нет      | [Открыть](tasks/NODES-005.md) |
+| NODES-005 | REVIEW      | нет      | [Открыть](tasks/NODES-005.md) |
 | MF-425 | IN_PROGRESS | нет         | [Открыть](tasks/MF-425.md) |
 | MF-411 | IN_PROGRESS | нет         | [Открыть](tasks/MF-411.md) |
 | MF-414 | WAITING     | MF-411      | [Открыть](tasks/MF-414.md) |
