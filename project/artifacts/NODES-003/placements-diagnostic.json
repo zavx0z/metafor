@@ -1,0 +1,4074 @@
+{
+  "fixture": "two-tab-layout-portrait.json",
+  "fixtureSha256": "27c0155999cec911e1479a3418f0b462c1d03a74f65da2fa36b19155b14be78d",
+  "candidates": 46,
+  "routable": 4,
+  "firstFailureCounts": {
+    "ROUTABLE": 4,
+    "ipc:main": 4,
+    "ipc:peer": 32,
+    "service-worker-controller:page": 6
+  },
+  "representativeWitnesses": {
+    "ipc:main": {
+      "status": "NO_LEGAL_ROUTE",
+      "error": "NO_LEGAL_ROUTE ipc:main: fixed rectangles provide no corridor at clearance 28000",
+      "witness": {
+        "edge": {
+          "id": "ipc:main",
+          "sourcePortId": "server:host-a\u0000out:IPC",
+          "targetPortId": "bun-process:main\u0000in:IPC"
+        },
+        "endpoints": {
+          "source": {
+            "id": "server:host-a\u0000out:IPC",
+            "nodeId": "server:host-a",
+            "center": {
+              "x": 1290050,
+              "y": 342000
+            },
+            "side": "EAST",
+            "direction": "out"
+          },
+          "target": {
+            "id": "bun-process:main\u0000in:IPC",
+            "nodeId": "bun-process:main",
+            "center": {
+              "x": 1090450,
+              "y": 728000
+            },
+            "side": "WEST",
+            "direction": "in"
+          },
+          "sourcePortal": {
+            "x": 1318050,
+            "y": 342000
+          },
+          "targetPortal": {
+            "x": 1062450,
+            "y": 728000
+          }
+        },
+        "ancestors": {
+          "source": [
+            "server-contour"
+          ],
+          "target": [
+            "server-contour"
+          ],
+          "sourceChain": [],
+          "targetChain": [],
+          "owner": "server-contour"
+        },
+        "candidateAxes": {
+          "xs": [
+            112000,
+            140000,
+            168000,
+            196000,
+            308000,
+            336000,
+            364000,
+            392000,
+            441450,
+            572000,
+            602800,
+            731750,
+            759750,
+            815750,
+            838450,
+            978450,
+            1034450,
+            1062450,
+            1090450,
+            1123700,
+            1151700,
+            1290050,
+            1298450,
+            1318050,
+            1484850,
+            1512850,
+            1540850,
+            1568850,
+            1596850,
+            1624850,
+            1652850,
+            1680850
+          ],
+          "ys": [
+            28000,
+            56000,
+            84000,
+            112000,
+            140000,
+            146000,
+            174000,
+            236000,
+            314000,
+            342000,
+            370000,
+            398000,
+            420000,
+            426000,
+            430000,
+            448000,
+            458000,
+            486000,
+            498000,
+            504000,
+            514000,
+            638000,
+            678000,
+            694000,
+            700000,
+            728000,
+            756000,
+            778000,
+            874000,
+            902000,
+            930000,
+            946000,
+            958000,
+            980000,
+            986000,
+            1002000,
+            1008000,
+            1154000,
+            1176000,
+            1182000,
+            1210000,
+            1232000,
+            1238000,
+            1254000,
+            1260000,
+            1288000,
+            1310000,
+            1316000,
+            1338000,
+            1506000,
+            1534000,
+            1562000,
+            1574000,
+            1590000,
+            1764000,
+            1792000,
+            1876000,
+            2098000,
+            2126000,
+            2154000,
+            2182000,
+            2210000,
+            2238000,
+            2260000,
+            2400000
+          ]
+        },
+        "reachableStates": 2,
+        "reachableFrontier": [
+          {
+            "key": 29925720,
+            "point": {
+              "x": 1290050,
+              "y": 342000
+            },
+            "state": {
+              "xi": 21,
+              "yi": 9,
+              "lastDirection": null,
+              "sourceExited": 0,
+              "targetEntered": 0,
+              "sourceGatewayY": null,
+              "targetGatewayY": null
+            },
+            "score": {
+              "crossings": 0,
+              "turns": 0,
+              "length": 0
+            },
+            "distanceToTarget": 585600
+          },
+          {
+            "key": 31358844,
+            "point": {
+              "x": 1298450,
+              "y": 342000
+            },
+            "state": {
+              "xi": 22,
+              "yi": 9,
+              "lastDirection": "EAST",
+              "sourceExited": 0,
+              "targetEntered": 0,
+              "sourceGatewayY": null,
+              "targetGatewayY": null
+            },
+            "score": {
+              "crossings": 0,
+              "turns": 0,
+              "length": 8400
+            },
+            "distanceToTarget": 594000
+          }
+        ],
+        "rejectedTransitions": {
+          "pointBlocked": 6,
+          "segmentIllegal": 0,
+          "sourceDirection": 0,
+          "targetDirection": 0,
+          "hierarchyTransition": 0
+        },
+        "firstRejectedHierarchyTransition": null,
+        "pointBlocks": [
+          {
+            "point": {
+              "x": 1151700,
+              "y": 342000
+            },
+            "reason": {
+              "kind": "INFLATED_NODE",
+              "nodeId": "server:host-a",
+              "rect": {
+                "x": 1090450,
+                "y": 174000,
+                "w": 199600,
+                "h": 246000
+              },
+              "inflated": {
+                "x": 1062450,
+                "y": 146000,
+                "w": 255600,
+                "h": 302000
+              }
+            }
+          },
+          {
+            "point": {
+              "x": 1290050,
+              "y": 314000
+            },
+            "reason": {
+              "kind": "INFLATED_NODE",
+              "nodeId": "server:host-a",
+              "rect": {
+                "x": 1090450,
+                "y": 174000,
+                "w": 199600,
+                "h": 246000
+              },
+              "inflated": {
+                "x": 1062450,
+                "y": 146000,
+                "w": 255600,
+                "h": 302000
+              }
+            }
+          },
+          {
+            "point": {
+              "x": 1290050,
+              "y": 370000
+            },
+            "reason": {
+              "kind": "INFLATED_NODE",
+              "nodeId": "server:host-a",
+              "rect": {
+                "x": 1090450,
+                "y": 174000,
+                "w": 199600,
+                "h": 246000
+              },
+              "inflated": {
+                "x": 1062450,
+                "y": 146000,
+                "w": 255600,
+                "h": 302000
+              }
+            }
+          },
+          {
+            "point": {
+              "x": 1298450,
+              "y": 314000
+            },
+            "reason": {
+              "kind": "INFLATED_NODE",
+              "nodeId": "server:host-a",
+              "rect": {
+                "x": 1090450,
+                "y": 174000,
+                "w": 199600,
+                "h": 246000
+              },
+              "inflated": {
+                "x": 1062450,
+                "y": 146000,
+                "w": 255600,
+                "h": 302000
+              }
+            }
+          },
+          {
+            "point": {
+              "x": 1298450,
+              "y": 370000
+            },
+            "reason": {
+              "kind": "INFLATED_NODE",
+              "nodeId": "server:host-a",
+              "rect": {
+                "x": 1090450,
+                "y": 174000,
+                "w": 199600,
+                "h": 246000
+              },
+              "inflated": {
+                "x": 1062450,
+                "y": 146000,
+                "w": 255600,
+                "h": 302000
+              }
+            }
+          },
+          {
+            "point": {
+              "x": 1318050,
+              "y": 342000
+            },
+            "reason": {
+              "kind": "INFLATED_NODE",
+              "nodeId": "bun-process:worker",
+              "rect": {
+                "x": 1326450,
+                "y": 174000,
+                "w": 186400,
+                "h": 218000
+              },
+              "inflated": {
+                "x": 1298450,
+                "y": 146000,
+                "w": 242400,
+                "h": 274000
+              }
+            }
+          }
+        ],
+        "parallelClearanceBlocks": [],
+        "blockingRectangles": [
+          {
+            "id": "browser:device-a",
+            "parentId": null,
+            "rect": {
+              "x": 196000,
+              "y": 112000,
+              "w": 754450,
+              "h": 2260000
+            },
+            "inflated": {
+              "x": 168000,
+              "y": 84000,
+              "w": 810450,
+              "h": 2316000
+            }
+          },
+          {
+            "id": "bun-process:main",
+            "parentId": "server-contour",
+            "rect": {
+              "x": 1090450,
+              "y": 532000,
+              "w": 180000,
+              "h": 218000
+            },
+            "inflated": {
+              "x": 1062450,
+              "y": 504000,
+              "w": 236000,
+              "h": 274000
+            }
+          },
+          {
+            "id": "bun-process:worker",
+            "parentId": "server-contour",
+            "rect": {
+              "x": 1326450,
+              "y": 174000,
+              "w": 186400,
+              "h": 218000
+            },
+            "inflated": {
+              "x": 1298450,
+              "y": 146000,
+              "w": 242400,
+              "h": 274000
+            }
+          },
+          {
+            "id": "dedicated-worker:worker-a",
+            "parentId": "page:page-a",
+            "rect": {
+              "x": 469450,
+              "y": 1036000,
+              "w": 262300,
+              "h": 190000
+            },
+            "inflated": {
+              "x": 441450,
+              "y": 1008000,
+              "w": 318300,
+              "h": 246000
+            }
+          },
+          {
+            "id": "page:page-a",
+            "parentId": "browser:device-a",
+            "rect": {
+              "x": 336000,
+              "y": 264000,
+              "w": 451750,
+              "h": 1018000
+            },
+            "inflated": {
+              "x": 308000,
+              "y": 236000,
+              "w": 507750,
+              "h": 1074000
+            }
+          },
+          {
+            "id": "page:page-b",
+            "parentId": "browser:device-a",
+            "rect": {
+              "x": 336000,
+              "y": 1366000,
+              "w": 238800,
+              "h": 398000
+            },
+            "inflated": {
+              "x": 308000,
+              "y": 1338000,
+              "w": 294800,
+              "h": 454000
+            }
+          },
+          {
+            "id": "peer-process:peer-a",
+            "parentId": "server-contour",
+            "rect": {
+              "x": 1151700,
+              "y": 806000,
+              "w": 333150,
+              "h": 454000
+            },
+            "inflated": {
+              "x": 1123700,
+              "y": 778000,
+              "w": 389150,
+              "h": 510000
+            }
+          },
+          {
+            "id": "rtc-peer:session-a%3Abrowser",
+            "parentId": "window-main:page-a",
+            "rect": {
+              "x": 420000,
+              "y": 706000,
+              "w": 283750,
+              "h": 246000
+            },
+            "inflated": {
+              "x": 392000,
+              "y": 678000,
+              "w": 339750,
+              "h": 302000
+            }
+          },
+          {
+            "id": "rtc-peer:session-a%3Aserver",
+            "parentId": "peer-process:peer-a",
+            "rect": {
+              "x": 1179700,
+              "y": 1014000,
+              "w": 277150,
+              "h": 218000
+            },
+            "inflated": {
+              "x": 1151700,
+              "y": 986000,
+              "w": 333150,
+              "h": 274000
+            }
+          },
+          {
+            "id": "server-contour",
+            "parentId": null,
+            "rect": {
+              "x": 1006450,
+              "y": 112000,
+              "w": 590400,
+              "h": 34000
+            },
+            "inflated": {
+              "x": 978450,
+              "y": 84000,
+              "w": 646400,
+              "h": 90000
+            }
+          },
+          {
+            "id": "server:host-a",
+            "parentId": "server-contour",
+            "rect": {
+              "x": 1090450,
+              "y": 174000,
+              "w": 199600,
+              "h": 246000
+            },
+            "inflated": {
+              "x": 1062450,
+              "y": 146000,
+              "w": 255600,
+              "h": 302000
+            }
+          },
+          {
+            "id": "service-worker:sw-a",
+            "parentId": "browser:device-a",
+            "rect": {
+              "x": 336000,
+              "y": 1904000,
+              "w": 474450,
+              "h": 328000
+            },
+            "inflated": {
+              "x": 308000,
+              "y": 1876000,
+              "w": 530450,
+              "h": 384000
+            }
+          },
+          {
+            "id": "window-main:page-a",
+            "parentId": "page:page-a",
+            "rect": {
+              "x": 392000,
+              "y": 526000,
+              "w": 339750,
+              "h": 454000
+            },
+            "inflated": {
+              "x": 364000,
+              "y": 498000,
+              "w": 395750,
+              "h": 510000
+            }
+          },
+          {
+            "id": "window-main:page-b",
+            "parentId": "page:page-b",
+            "rect": {
+              "x": 364000,
+              "y": 1602000,
+              "w": 180000,
+              "h": 134000
+            },
+            "inflated": {
+              "x": 336000,
+              "y": 1574000,
+              "w": 236000,
+              "h": 190000
+            }
+          }
+        ]
+      }
+    },
+    "ipc:peer": {
+      "status": "NO_LEGAL_ROUTE",
+      "error": "NO_LEGAL_ROUTE ipc:peer: fixed rectangles provide no corridor at clearance 28000",
+      "witness": {
+        "edge": {
+          "id": "ipc:peer",
+          "sourcePortId": "server:host-a\u0000out:IPC",
+          "targetPortId": "peer-process:peer-a\u0000in:IPC"
+        },
+        "endpoints": {
+          "source": {
+            "id": "server:host-a\u0000out:IPC",
+            "nodeId": "server:host-a",
+            "center": {
+              "x": 1684450,
+              "y": 1980000
+            },
+            "side": "EAST",
+            "direction": "out"
+          },
+          "target": {
+            "id": "peer-process:peer-a\u0000in:IPC",
+            "nodeId": "peer-process:peer-a",
+            "center": {
+              "x": 1907250,
+              "y": 2254000
+            },
+            "side": "WEST",
+            "direction": "in"
+          },
+          "sourcePortal": {
+            "x": 1712450,
+            "y": 1980000
+          },
+          "targetPortal": {
+            "x": 1879250,
+            "y": 2254000
+          }
+        },
+        "ancestors": {
+          "source": [
+            "server-contour"
+          ],
+          "target": [
+            "server-contour"
+          ],
+          "sourceChain": [],
+          "targetChain": [],
+          "owner": "server-contour"
+        },
+        "candidateAxes": {
+          "xs": [
+            28000,
+            56000,
+            84000,
+            112000,
+            224000,
+            252000,
+            280000,
+            619750,
+            647750,
+            730400,
+            966050,
+            994050,
+            1230050,
+            1260850,
+            1400850,
+            1428850,
+            1456850,
+            1484850,
+            1664850,
+            1684450,
+            1692850,
+            1712450,
+            1879250,
+            1907250,
+            2240400,
+            2268400,
+            2296400,
+            2324400,
+            2352400,
+            2380400
+          ],
+          "ys": [
+            84000,
+            236000,
+            404000,
+            430000,
+            432000,
+            458000,
+            460000,
+            472000,
+            486000,
+            488000,
+            498000,
+            514000,
+            638000,
+            662000,
+            678000,
+            690000,
+            694000,
+            874000,
+            902000,
+            930000,
+            958000,
+            980000,
+            1008000,
+            1148000,
+            1204000,
+            1226000,
+            1254000,
+            1448000,
+            1476000,
+            1504000,
+            1532000,
+            1560000,
+            1588000,
+            1610000,
+            1722000,
+            1750000,
+            1778000,
+            1784000,
+            1812000,
+            1952000,
+            1980000,
+            2008000,
+            2036000,
+            2058000,
+            2064000,
+            2086000,
+            2226000,
+            2254000,
+            2266000,
+            2282000,
+            2310000,
+            2332000,
+            2434000,
+            2462000,
+            2490000,
+            2518000,
+            2540000,
+            2568000,
+            2596000,
+            2624000,
+            2652000,
+            2680000,
+            2708000
+          ]
+        },
+        "reachableStates": 85,
+        "reachableFrontier": [
+          {
+            "key": 30560256,
+            "point": {
+              "x": 1907250,
+              "y": 2058000
+            },
+            "state": {
+              "xi": 23,
+              "yi": 43,
+              "lastDirection": "WEST",
+              "sourceExited": 0,
+              "targetEntered": 0,
+              "sourceGatewayY": null,
+              "targetGatewayY": null
+            },
+            "score": {
+              "crossings": 0,
+              "turns": 4,
+              "length": 967100
+            },
+            "distanceToTarget": 196000
+          },
+          {
+            "key": 30568448,
+            "point": {
+              "x": 1907250,
+              "y": 2058000
+            },
+            "state": {
+              "xi": 23,
+              "yi": 43,
+              "lastDirection": "SOUTH",
+              "sourceExited": 0,
+              "targetEntered": 0,
+              "sourceGatewayY": null,
+              "targetGatewayY": null
+            },
+            "score": {
+              "crossings": 0,
+              "turns": 3,
+              "length": 300800
+            },
+            "distanceToTarget": 196000
+          },
+          {
+            "key": 30572544,
+            "point": {
+              "x": 1907250,
+              "y": 2058000
+            },
+            "state": {
+              "xi": 23,
+              "yi": 43,
+              "lastDirection": "EAST",
+              "sourceExited": 0,
+              "targetEntered": 0,
+              "sourceGatewayY": null,
+              "targetGatewayY": null
+            },
+            "score": {
+              "crossings": 0,
+              "turns": 2,
+              "length": 300800
+            },
+            "distanceToTarget": 196000
+          },
+          {
+            "key": 30539776,
+            "point": {
+              "x": 1907250,
+              "y": 2036000
+            },
+            "state": {
+              "xi": 23,
+              "yi": 42,
+              "lastDirection": "WEST",
+              "sourceExited": 0,
+              "targetEntered": 0,
+              "sourceGatewayY": null,
+              "targetGatewayY": null
+            },
+            "score": {
+              "crossings": 0,
+              "turns": 4,
+              "length": 945100
+            },
+            "distanceToTarget": 218000
+          },
+          {
+            "key": 30543872,
+            "point": {
+              "x": 1907250,
+              "y": 2036000
+            },
+            "state": {
+              "xi": 23,
+              "yi": 42,
+              "lastDirection": "NORTH",
+              "sourceExited": 0,
+              "targetEntered": 0,
+              "sourceGatewayY": null,
+              "targetGatewayY": null
+            },
+            "score": {
+              "crossings": 0,
+              "turns": 3,
+              "length": 322800
+            },
+            "distanceToTarget": 218000
+          },
+          {
+            "key": 30547968,
+            "point": {
+              "x": 1907250,
+              "y": 2036000
+            },
+            "state": {
+              "xi": 23,
+              "yi": 42,
+              "lastDirection": "SOUTH",
+              "sourceExited": 0,
+              "targetEntered": 0,
+              "sourceGatewayY": null,
+              "targetGatewayY": null
+            },
+            "score": {
+              "crossings": 0,
+              "turns": 3,
+              "length": 278800
+            },
+            "distanceToTarget": 218000
+          },
+          {
+            "key": 30552064,
+            "point": {
+              "x": 1907250,
+              "y": 2036000
+            },
+            "state": {
+              "xi": 23,
+              "yi": 42,
+              "lastDirection": "EAST",
+              "sourceExited": 0,
+              "targetEntered": 0,
+              "sourceGatewayY": null,
+              "targetGatewayY": null
+            },
+            "score": {
+              "crossings": 0,
+              "turns": 2,
+              "length": 278800
+            },
+            "distanceToTarget": 218000
+          },
+          {
+            "key": 29270016,
+            "point": {
+              "x": 1879250,
+              "y": 2058000
+            },
+            "state": {
+              "xi": 22,
+              "yi": 43,
+              "lastDirection": "WEST",
+              "sourceExited": 0,
+              "targetEntered": 0,
+              "sourceGatewayY": null,
+              "targetGatewayY": null
+            },
+            "score": {
+              "crossings": 0,
+              "turns": 4,
+              "length": 328800
+            },
+            "distanceToTarget": 224000
+          },
+          {
+            "key": 29278208,
+            "point": {
+              "x": 1879250,
+              "y": 2058000
+            },
+            "state": {
+              "xi": 22,
+              "yi": 43,
+              "lastDirection": "SOUTH",
+              "sourceExited": 0,
+              "targetEntered": 0,
+              "sourceGatewayY": null,
+              "targetGatewayY": null
+            },
+            "score": {
+              "crossings": 0,
+              "turns": 3,
+              "length": 272800
+            },
+            "distanceToTarget": 224000
+          },
+          {
+            "key": 29282304,
+            "point": {
+              "x": 1879250,
+              "y": 2058000
+            },
+            "state": {
+              "xi": 22,
+              "yi": 43,
+              "lastDirection": "EAST",
+              "sourceExited": 0,
+              "targetEntered": 0,
+              "sourceGatewayY": null,
+              "targetGatewayY": null
+            },
+            "score": {
+              "crossings": 0,
+              "turns": 2,
+              "length": 272800
+            },
+            "distanceToTarget": 224000
+          },
+          {
+            "key": 29249536,
+            "point": {
+              "x": 1879250,
+              "y": 2036000
+            },
+            "state": {
+              "xi": 22,
+              "yi": 42,
+              "lastDirection": "WEST",
+              "sourceExited": 0,
+              "targetEntered": 0,
+              "sourceGatewayY": null,
+              "targetGatewayY": null
+            },
+            "score": {
+              "crossings": 0,
+              "turns": 4,
+              "length": 306800
+            },
+            "distanceToTarget": 246000
+          },
+          {
+            "key": 29253632,
+            "point": {
+              "x": 1879250,
+              "y": 2036000
+            },
+            "state": {
+              "xi": 22,
+              "yi": 42,
+              "lastDirection": "NORTH",
+              "sourceExited": 0,
+              "targetEntered": 0,
+              "sourceGatewayY": null,
+              "targetGatewayY": null
+            },
+            "score": {
+              "crossings": 0,
+              "turns": 3,
+              "length": 294800
+            },
+            "distanceToTarget": 246000
+          }
+        ],
+        "rejectedTransitions": {
+          "pointBlocked": 54,
+          "segmentIllegal": 23,
+          "sourceDirection": 0,
+          "targetDirection": 0,
+          "hierarchyTransition": 0
+        },
+        "firstRejectedHierarchyTransition": null,
+        "pointBlocks": [
+          {
+            "point": {
+              "x": 1664850,
+              "y": 1980000
+            },
+            "reason": {
+              "kind": "INFLATED_NODE",
+              "nodeId": "server:host-a",
+              "rect": {
+                "x": 1484850,
+                "y": 1812000,
+                "w": 199600,
+                "h": 246000
+              },
+              "inflated": {
+                "x": 1456850,
+                "y": 1784000,
+                "w": 255600,
+                "h": 302000
+              }
+            }
+          },
+          {
+            "point": {
+              "x": 1684450,
+              "y": 1952000
+            },
+            "reason": {
+              "kind": "INFLATED_NODE",
+              "nodeId": "server:host-a",
+              "rect": {
+                "x": 1484850,
+                "y": 1812000,
+                "w": 199600,
+                "h": 246000
+              },
+              "inflated": {
+                "x": 1456850,
+                "y": 1784000,
+                "w": 255600,
+                "h": 302000
+              }
+            }
+          },
+          {
+            "point": {
+              "x": 1684450,
+              "y": 2008000
+            },
+            "reason": {
+              "kind": "INFLATED_NODE",
+              "nodeId": "server:host-a",
+              "rect": {
+                "x": 1484850,
+                "y": 1812000,
+                "w": 199600,
+                "h": 246000
+              },
+              "inflated": {
+                "x": 1456850,
+                "y": 1784000,
+                "w": 255600,
+                "h": 302000
+              }
+            }
+          },
+          {
+            "point": {
+              "x": 1692850,
+              "y": 1952000
+            },
+            "reason": {
+              "kind": "INFLATED_NODE",
+              "nodeId": "server:host-a",
+              "rect": {
+                "x": 1484850,
+                "y": 1812000,
+                "w": 199600,
+                "h": 246000
+              },
+              "inflated": {
+                "x": 1456850,
+                "y": 1784000,
+                "w": 255600,
+                "h": 302000
+              }
+            }
+          },
+          {
+            "point": {
+              "x": 1692850,
+              "y": 2008000
+            },
+            "reason": {
+              "kind": "INFLATED_NODE",
+              "nodeId": "server:host-a",
+              "rect": {
+                "x": 1484850,
+                "y": 1812000,
+                "w": 199600,
+                "h": 246000
+              },
+              "inflated": {
+                "x": 1456850,
+                "y": 1784000,
+                "w": 255600,
+                "h": 302000
+              }
+            }
+          },
+          {
+            "point": {
+              "x": 1692850,
+              "y": 2036000
+            },
+            "reason": {
+              "kind": "INFLATED_NODE",
+              "nodeId": "server:host-a",
+              "rect": {
+                "x": 1484850,
+                "y": 1812000,
+                "w": 199600,
+                "h": 246000
+              },
+              "inflated": {
+                "x": 1456850,
+                "y": 1784000,
+                "w": 255600,
+                "h": 302000
+              }
+            }
+          },
+          {
+            "point": {
+              "x": 1692850,
+              "y": 2058000
+            },
+            "reason": {
+              "kind": "INFLATED_NODE",
+              "nodeId": "server:host-a",
+              "rect": {
+                "x": 1484850,
+                "y": 1812000,
+                "w": 199600,
+                "h": 246000
+              },
+              "inflated": {
+                "x": 1456850,
+                "y": 1784000,
+                "w": 255600,
+                "h": 302000
+              }
+            }
+          },
+          {
+            "point": {
+              "x": 1712450,
+              "y": 2064000
+            },
+            "reason": {
+              "kind": "INFLATED_NODE",
+              "nodeId": "bun-process:worker",
+              "rect": {
+                "x": 1692850,
+                "y": 2086000,
+                "w": 186400,
+                "h": 218000
+              },
+              "inflated": {
+                "x": 1664850,
+                "y": 2058000,
+                "w": 242400,
+                "h": 274000
+              }
+            }
+          },
+          {
+            "point": {
+              "x": 1692850,
+              "y": 1812000
+            },
+            "reason": {
+              "kind": "INFLATED_NODE",
+              "nodeId": "server:host-a",
+              "rect": {
+                "x": 1484850,
+                "y": 1812000,
+                "w": 199600,
+                "h": 246000
+              },
+              "inflated": {
+                "x": 1456850,
+                "y": 1784000,
+                "w": 255600,
+                "h": 302000
+              }
+            }
+          },
+          {
+            "point": {
+              "x": 1712450,
+              "y": 1784000
+            },
+            "reason": {
+              "kind": "INFLATED_NODE",
+              "nodeId": "server-contour",
+              "rect": {
+                "x": 1428850,
+                "y": 1750000,
+                "w": 867550,
+                "h": 34000
+              },
+              "inflated": {
+                "x": 1400850,
+                "y": 1722000,
+                "w": 923550,
+                "h": 90000
+              }
+            }
+          },
+          {
+            "point": {
+              "x": 1879250,
+              "y": 2064000
+            },
+            "reason": {
+              "kind": "INFLATED_NODE",
+              "nodeId": "bun-process:worker",
+              "rect": {
+                "x": 1692850,
+                "y": 2086000,
+                "w": 186400,
+                "h": 218000
+              },
+              "inflated": {
+                "x": 1664850,
+                "y": 2058000,
+                "w": 242400,
+                "h": 274000
+              }
+            }
+          },
+          {
+            "point": {
+              "x": 1907250,
+              "y": 2064000
+            },
+            "reason": {
+              "kind": "INFLATED_NODE",
+              "nodeId": "peer-process:peer-a",
+              "rect": {
+                "x": 1907250,
+                "y": 2086000,
+                "w": 333150,
+                "h": 454000
+              },
+              "inflated": {
+                "x": 1879250,
+                "y": 2058000,
+                "w": 389150,
+                "h": 510000
+              }
+            }
+          },
+          {
+            "point": {
+              "x": 1879250,
+              "y": 1784000
+            },
+            "reason": {
+              "kind": "INFLATED_NODE",
+              "nodeId": "server-contour",
+              "rect": {
+                "x": 1428850,
+                "y": 1750000,
+                "w": 867550,
+                "h": 34000
+              },
+              "inflated": {
+                "x": 1400850,
+                "y": 1722000,
+                "w": 923550,
+                "h": 90000
+              }
+            }
+          },
+          {
+            "point": {
+              "x": 1907250,
+              "y": 1784000
+            },
+            "reason": {
+              "kind": "INFLATED_NODE",
+              "nodeId": "server-contour",
+              "rect": {
+                "x": 1428850,
+                "y": 1750000,
+                "w": 867550,
+                "h": 34000
+              },
+              "inflated": {
+                "x": 1400850,
+                "y": 1722000,
+                "w": 923550,
+                "h": 90000
+              }
+            }
+          },
+          {
+            "point": {
+              "x": 2240400,
+              "y": 2064000
+            },
+            "reason": {
+              "kind": "INFLATED_NODE",
+              "nodeId": "peer-process:peer-a",
+              "rect": {
+                "x": 1907250,
+                "y": 2086000,
+                "w": 333150,
+                "h": 454000
+              },
+              "inflated": {
+                "x": 1879250,
+                "y": 2058000,
+                "w": 389150,
+                "h": 510000
+              }
+            }
+          },
+          {
+            "point": {
+              "x": 2296400,
+              "y": 2008000
+            },
+            "reason": {
+              "kind": "ROUTING_AREA",
+              "area": {
+                "x": 1456850,
+                "y": 1778000,
+                "w": 811550,
+                "h": 790000
+              }
+            }
+          },
+          {
+            "point": {
+              "x": 2296400,
+              "y": 2036000
+            },
+            "reason": {
+              "kind": "ROUTING_AREA",
+              "area": {
+                "x": 1456850,
+                "y": 1778000,
+                "w": 811550,
+                "h": 790000
+              }
+            }
+          },
+          {
+            "point": {
+              "x": 2296400,
+              "y": 2058000
+            },
+            "reason": {
+              "kind": "ROUTING_AREA",
+              "area": {
+                "x": 1456850,
+                "y": 1778000,
+                "w": 811550,
+                "h": 790000
+              }
+            }
+          },
+          {
+            "point": {
+              "x": 2296400,
+              "y": 1952000
+            },
+            "reason": {
+              "kind": "ROUTING_AREA",
+              "area": {
+                "x": 1456850,
+                "y": 1778000,
+                "w": 811550,
+                "h": 790000
+              }
+            }
+          },
+          {
+            "point": {
+              "x": 2240400,
+              "y": 1784000
+            },
+            "reason": {
+              "kind": "INFLATED_NODE",
+              "nodeId": "server-contour",
+              "rect": {
+                "x": 1428850,
+                "y": 1750000,
+                "w": 867550,
+                "h": 34000
+              },
+              "inflated": {
+                "x": 1400850,
+                "y": 1722000,
+                "w": 923550,
+                "h": 90000
+              }
+            }
+          },
+          {
+            "point": {
+              "x": 2268400,
+              "y": 1784000
+            },
+            "reason": {
+              "kind": "INFLATED_NODE",
+              "nodeId": "server-contour",
+              "rect": {
+                "x": 1428850,
+                "y": 1750000,
+                "w": 867550,
+                "h": 34000
+              },
+              "inflated": {
+                "x": 1400850,
+                "y": 1722000,
+                "w": 923550,
+                "h": 90000
+              }
+            }
+          },
+          {
+            "point": {
+              "x": 2296400,
+              "y": 1812000
+            },
+            "reason": {
+              "kind": "ROUTING_AREA",
+              "area": {
+                "x": 1456850,
+                "y": 1778000,
+                "w": 811550,
+                "h": 790000
+              }
+            }
+          },
+          {
+            "point": {
+              "x": 2296400,
+              "y": 1980000
+            },
+            "reason": {
+              "kind": "ROUTING_AREA",
+              "area": {
+                "x": 1456850,
+                "y": 1778000,
+                "w": 811550,
+                "h": 790000
+              }
+            }
+          }
+        ],
+        "parallelClearanceBlocks": [
+          {
+            "priorEdgeId": "ipc:main",
+            "candidateSegment": {
+              "from": {
+                "x": 1712450,
+                "y": 1980000
+              },
+              "to": {
+                "x": 1879250,
+                "y": 1980000
+              }
+            },
+            "blockingSegment": {
+              "from": {
+                "x": 1684450,
+                "y": 1980000
+              },
+              "to": {
+                "x": 2268400,
+                "y": 1980000
+              }
+            },
+            "axis": "H",
+            "distance": 0,
+            "overlap": 166800,
+            "priorEdge": {
+              "id": "ipc:main",
+              "sourcePortId": "server:host-a\u0000out:IPC",
+              "targetPortId": "bun-process:main\u0000in:IPC"
+            },
+            "identity": {
+              "sameSourcePort": true,
+              "sameTargetPort": false,
+              "sharedEndpointPortIds": [
+                "server:host-a\u0000out:IPC"
+              ]
+            },
+            "terminalZone": "NONE"
+          },
+          {
+            "priorEdgeId": "ipc:main",
+            "candidateSegment": {
+              "from": {
+                "x": 1879250,
+                "y": 1980000
+              },
+              "to": {
+                "x": 1907250,
+                "y": 1980000
+              }
+            },
+            "blockingSegment": {
+              "from": {
+                "x": 1684450,
+                "y": 1980000
+              },
+              "to": {
+                "x": 2268400,
+                "y": 1980000
+              }
+            },
+            "axis": "H",
+            "distance": 0,
+            "overlap": 28000,
+            "priorEdge": {
+              "id": "ipc:main",
+              "sourcePortId": "server:host-a\u0000out:IPC",
+              "targetPortId": "bun-process:main\u0000in:IPC"
+            },
+            "identity": {
+              "sameSourcePort": true,
+              "sameTargetPort": false,
+              "sharedEndpointPortIds": [
+                "server:host-a\u0000out:IPC"
+              ]
+            },
+            "terminalZone": "NONE"
+          },
+          {
+            "priorEdgeId": "ipc:main",
+            "candidateSegment": {
+              "from": {
+                "x": 2268400,
+                "y": 2008000
+              },
+              "to": {
+                "x": 2268400,
+                "y": 1980000
+              }
+            },
+            "blockingSegment": {
+              "from": {
+                "x": 2268400,
+                "y": 1980000
+              },
+              "to": {
+                "x": 2268400,
+                "y": 2568000
+              }
+            },
+            "axis": "V",
+            "distance": 0,
+            "overlap": 28000,
+            "priorEdge": {
+              "id": "ipc:main",
+              "sourcePortId": "server:host-a\u0000out:IPC",
+              "targetPortId": "bun-process:main\u0000in:IPC"
+            },
+            "identity": {
+              "sameSourcePort": true,
+              "sameTargetPort": false,
+              "sharedEndpointPortIds": [
+                "server:host-a\u0000out:IPC"
+              ]
+            },
+            "terminalZone": "NONE"
+          },
+          {
+            "priorEdgeId": "ipc:main",
+            "candidateSegment": {
+              "from": {
+                "x": 2268400,
+                "y": 2008000
+              },
+              "to": {
+                "x": 2268400,
+                "y": 2036000
+              }
+            },
+            "blockingSegment": {
+              "from": {
+                "x": 2268400,
+                "y": 1980000
+              },
+              "to": {
+                "x": 2268400,
+                "y": 2568000
+              }
+            },
+            "axis": "V",
+            "distance": 0,
+            "overlap": 28000,
+            "priorEdge": {
+              "id": "ipc:main",
+              "sourcePortId": "server:host-a\u0000out:IPC",
+              "targetPortId": "bun-process:main\u0000in:IPC"
+            },
+            "identity": {
+              "sameSourcePort": true,
+              "sameTargetPort": false,
+              "sharedEndpointPortIds": [
+                "server:host-a\u0000out:IPC"
+              ]
+            },
+            "terminalZone": "NONE"
+          },
+          {
+            "priorEdgeId": "ipc:main",
+            "candidateSegment": {
+              "from": {
+                "x": 2268400,
+                "y": 2036000
+              },
+              "to": {
+                "x": 2268400,
+                "y": 2058000
+              }
+            },
+            "blockingSegment": {
+              "from": {
+                "x": 2268400,
+                "y": 1980000
+              },
+              "to": {
+                "x": 2268400,
+                "y": 2568000
+              }
+            },
+            "axis": "V",
+            "distance": 0,
+            "overlap": 22000,
+            "priorEdge": {
+              "id": "ipc:main",
+              "sourcePortId": "server:host-a\u0000out:IPC",
+              "targetPortId": "bun-process:main\u0000in:IPC"
+            },
+            "identity": {
+              "sameSourcePort": true,
+              "sameTargetPort": false,
+              "sharedEndpointPortIds": [
+                "server:host-a\u0000out:IPC"
+              ]
+            },
+            "terminalZone": "NONE"
+          },
+          {
+            "priorEdgeId": "ipc:main",
+            "candidateSegment": {
+              "from": {
+                "x": 2268400,
+                "y": 2058000
+              },
+              "to": {
+                "x": 2268400,
+                "y": 2064000
+              }
+            },
+            "blockingSegment": {
+              "from": {
+                "x": 2268400,
+                "y": 1980000
+              },
+              "to": {
+                "x": 2268400,
+                "y": 2568000
+              }
+            },
+            "axis": "V",
+            "distance": 0,
+            "overlap": 6000,
+            "priorEdge": {
+              "id": "ipc:main",
+              "sourcePortId": "server:host-a\u0000out:IPC",
+              "targetPortId": "bun-process:main\u0000in:IPC"
+            },
+            "identity": {
+              "sameSourcePort": true,
+              "sameTargetPort": false,
+              "sharedEndpointPortIds": [
+                "server:host-a\u0000out:IPC"
+              ]
+            },
+            "terminalZone": "NONE"
+          },
+          {
+            "priorEdgeId": "ipc:main",
+            "candidateSegment": {
+              "from": {
+                "x": 1907250,
+                "y": 1980000
+              },
+              "to": {
+                "x": 2240400,
+                "y": 1980000
+              }
+            },
+            "blockingSegment": {
+              "from": {
+                "x": 1684450,
+                "y": 1980000
+              },
+              "to": {
+                "x": 2268400,
+                "y": 1980000
+              }
+            },
+            "axis": "H",
+            "distance": 0,
+            "overlap": 333150,
+            "priorEdge": {
+              "id": "ipc:main",
+              "sourcePortId": "server:host-a\u0000out:IPC",
+              "targetPortId": "bun-process:main\u0000in:IPC"
+            },
+            "identity": {
+              "sameSourcePort": true,
+              "sameTargetPort": false,
+              "sharedEndpointPortIds": [
+                "server:host-a\u0000out:IPC"
+              ]
+            },
+            "terminalZone": "NONE"
+          },
+          {
+            "priorEdgeId": "ipc:main",
+            "candidateSegment": {
+              "from": {
+                "x": 2240400,
+                "y": 1980000
+              },
+              "to": {
+                "x": 2268400,
+                "y": 1980000
+              }
+            },
+            "blockingSegment": {
+              "from": {
+                "x": 1684450,
+                "y": 1980000
+              },
+              "to": {
+                "x": 2268400,
+                "y": 1980000
+              }
+            },
+            "axis": "H",
+            "distance": 0,
+            "overlap": 28000,
+            "priorEdge": {
+              "id": "ipc:main",
+              "sourcePortId": "server:host-a\u0000out:IPC",
+              "targetPortId": "bun-process:main\u0000in:IPC"
+            },
+            "identity": {
+              "sameSourcePort": true,
+              "sameTargetPort": false,
+              "sharedEndpointPortIds": [
+                "server:host-a\u0000out:IPC"
+              ]
+            },
+            "terminalZone": "NONE"
+          }
+        ],
+        "blockingRectangles": [
+          {
+            "id": "browser:device-a",
+            "parentId": null,
+            "rect": {
+              "x": 112000,
+              "y": 112000,
+              "w": 1260850,
+              "h": 1610000
+            },
+            "inflated": {
+              "x": 84000,
+              "y": 84000,
+              "w": 1316850,
+              "h": 1666000
+            }
+          },
+          {
+            "id": "bun-process:main",
+            "parentId": "server-contour",
+            "rect": {
+              "x": 1484850,
+              "y": 2086000,
+              "w": 180000,
+              "h": 218000
+            },
+            "inflated": {
+              "x": 1456850,
+              "y": 2058000,
+              "w": 236000,
+              "h": 274000
+            }
+          },
+          {
+            "id": "bun-process:worker",
+            "parentId": "server-contour",
+            "rect": {
+              "x": 1692850,
+              "y": 2086000,
+              "w": 186400,
+              "h": 218000
+            },
+            "inflated": {
+              "x": 1664850,
+              "y": 2058000,
+              "w": 242400,
+              "h": 274000
+            }
+          },
+          {
+            "id": "dedicated-worker:worker-a",
+            "parentId": "page:page-a",
+            "rect": {
+              "x": 675750,
+              "y": 1008000,
+              "w": 262300,
+              "h": 190000
+            },
+            "inflated": {
+              "x": 647750,
+              "y": 980000,
+              "w": 318300,
+              "h": 246000
+            }
+          },
+          {
+            "id": "page:page-a",
+            "parentId": "browser:device-a",
+            "rect": {
+              "x": 252000,
+              "y": 264000,
+              "w": 714050,
+              "h": 962000
+            },
+            "inflated": {
+              "x": 224000,
+              "y": 236000,
+              "w": 770050,
+              "h": 1018000
+            }
+          },
+          {
+            "id": "page:page-b",
+            "parentId": "browser:device-a",
+            "rect": {
+              "x": 994050,
+              "y": 264000,
+              "w": 238800,
+              "h": 398000
+            },
+            "inflated": {
+              "x": 966050,
+              "y": 236000,
+              "w": 294800,
+              "h": 454000
+            }
+          },
+          {
+            "id": "peer-process:peer-a",
+            "parentId": "server-contour",
+            "rect": {
+              "x": 1907250,
+              "y": 2086000,
+              "w": 333150,
+              "h": 454000
+            },
+            "inflated": {
+              "x": 1879250,
+              "y": 2058000,
+              "w": 389150,
+              "h": 510000
+            }
+          },
+          {
+            "id": "rtc-peer:session-a%3Abrowser",
+            "parentId": "window-main:page-a",
+            "rect": {
+              "x": 308000,
+              "y": 706000,
+              "w": 283750,
+              "h": 246000
+            },
+            "inflated": {
+              "x": 280000,
+              "y": 678000,
+              "w": 339750,
+              "h": 302000
+            }
+          },
+          {
+            "id": "rtc-peer:session-a%3Aserver",
+            "parentId": "peer-process:peer-a",
+            "rect": {
+              "x": 1935250,
+              "y": 2294000,
+              "w": 277150,
+              "h": 218000
+            },
+            "inflated": {
+              "x": 1907250,
+              "y": 2266000,
+              "w": 333150,
+              "h": 274000
+            }
+          },
+          {
+            "id": "server-contour",
+            "parentId": null,
+            "rect": {
+              "x": 1428850,
+              "y": 1750000,
+              "w": 867550,
+              "h": 34000
+            },
+            "inflated": {
+              "x": 1400850,
+              "y": 1722000,
+              "w": 923550,
+              "h": 90000
+            }
+          },
+          {
+            "id": "server:host-a",
+            "parentId": "server-contour",
+            "rect": {
+              "x": 1484850,
+              "y": 1812000,
+              "w": 199600,
+              "h": 246000
+            },
+            "inflated": {
+              "x": 1456850,
+              "y": 1784000,
+              "w": 255600,
+              "h": 302000
+            }
+          },
+          {
+            "id": "service-worker:sw-a",
+            "parentId": "browser:device-a",
+            "rect": {
+              "x": 758400,
+              "y": 1254000,
+              "w": 474450,
+              "h": 328000
+            },
+            "inflated": {
+              "x": 730400,
+              "y": 1226000,
+              "w": 530450,
+              "h": 384000
+            }
+          },
+          {
+            "id": "window-main:page-a",
+            "parentId": "page:page-a",
+            "rect": {
+              "x": 280000,
+              "y": 526000,
+              "w": 339750,
+              "h": 454000
+            },
+            "inflated": {
+              "x": 252000,
+              "y": 498000,
+              "w": 395750,
+              "h": 510000
+            }
+          },
+          {
+            "id": "window-main:page-b",
+            "parentId": "page:page-b",
+            "rect": {
+              "x": 1022050,
+              "y": 500000,
+              "w": 180000,
+              "h": 134000
+            },
+            "inflated": {
+              "x": 994050,
+              "y": 472000,
+              "w": 236000,
+              "h": 190000
+            }
+          }
+        ]
+      }
+    },
+    "service-worker-controller:page": {
+      "status": "NO_LEGAL_ROUTE",
+      "error": "NO_LEGAL_ROUTE service-worker-controller:page: fixed rectangles provide no corridor at clearance 28000",
+      "witness": {
+        "edge": {
+          "id": "service-worker-controller:page",
+          "sourcePortId": "page:page-a\u0000out:ServiceWorker%20controller",
+          "targetPortId": "service-worker:sw-a\u0000in:ServiceWorker%20controller"
+        },
+        "endpoints": {
+          "source": {
+            "id": "page:page-a\u0000out:ServiceWorker%20controller",
+            "nodeId": "page:page-a",
+            "center": {
+              "x": 787750,
+              "y": 486000
+            },
+            "side": "EAST",
+            "direction": "out"
+          },
+          "target": {
+            "id": "service-worker:sw-a\u0000in:ServiceWorker%20controller",
+            "nodeId": "service-worker:sw-a",
+            "center": {
+              "x": 496100,
+              "y": 1672000
+            },
+            "side": "WEST",
+            "direction": "in"
+          },
+          "sourcePortal": {
+            "x": 815750,
+            "y": 486000
+          },
+          "targetPortal": {
+            "x": 468100,
+            "y": 1672000
+          }
+        },
+        "ancestors": {
+          "source": [
+            "browser:device-a"
+          ],
+          "target": [
+            "browser:device-a"
+          ],
+          "sourceChain": [],
+          "targetChain": [],
+          "owner": "browser:device-a"
+        },
+        "candidateAxes": {
+          "xs": [
+            112000,
+            140000,
+            168000,
+            196000,
+            224000,
+            280000,
+            308000,
+            336000,
+            364000,
+            392000,
+            441450,
+            468100,
+            496100,
+            731750,
+            759750,
+            787750,
+            815750,
+            843750,
+            970550,
+            998550,
+            1026550,
+            1054550,
+            1079750,
+            1110550,
+            1194550,
+            1250550,
+            1278550,
+            1506150,
+            1534150,
+            1562150,
+            1590150,
+            1618150,
+            1798150,
+            1826150,
+            1854150,
+            1895300,
+            1923300,
+            2068550,
+            2096550,
+            2124550,
+            2152550
+          ],
+          "ys": [
+            28000,
+            56000,
+            84000,
+            112000,
+            140000,
+            146000,
+            236000,
+            264000,
+            286000,
+            314000,
+            342000,
+            370000,
+            392000,
+            398000,
+            404000,
+            420000,
+            426000,
+            430000,
+            432000,
+            448000,
+            458000,
+            460000,
+            472000,
+            486000,
+            488000,
+            498000,
+            514000,
+            560000,
+            588000,
+            616000,
+            628000,
+            638000,
+            644000,
+            662000,
+            678000,
+            690000,
+            694000,
+            718000,
+            796000,
+            824000,
+            852000,
+            874000,
+            880000,
+            902000,
+            930000,
+            958000,
+            980000,
+            1008000,
+            1176000,
+            1232000,
+            1254000,
+            1282000,
+            1310000,
+            1338000,
+            1394000,
+            1616000,
+            1644000,
+            1672000,
+            1700000,
+            1728000,
+            1756000,
+            1778000,
+            1862000
+          ]
+        },
+        "reachableStates": 2,
+        "reachableFrontier": [
+          {
+            "key": 19824640,
+            "point": {
+              "x": 787750,
+              "y": 486000
+            },
+            "state": {
+              "xi": 15,
+              "yi": 23,
+              "lastDirection": null,
+              "sourceExited": 0,
+              "targetEntered": 0,
+              "sourceGatewayY": null,
+              "targetGatewayY": null
+            },
+            "score": {
+              "crossings": 0,
+              "turns": 0,
+              "length": 0
+            },
+            "distanceToTarget": 1477650
+          },
+          {
+            "key": 21131264,
+            "point": {
+              "x": 815750,
+              "y": 486000
+            },
+            "state": {
+              "xi": 16,
+              "yi": 23,
+              "lastDirection": "EAST",
+              "sourceExited": 0,
+              "targetEntered": 0,
+              "sourceGatewayY": null,
+              "targetGatewayY": null
+            },
+            "score": {
+              "crossings": 0,
+              "turns": 0,
+              "length": 28000
+            },
+            "distanceToTarget": 1505650
+          }
+        ],
+        "rejectedTransitions": {
+          "pointBlocked": 4,
+          "segmentIllegal": 2,
+          "sourceDirection": 0,
+          "targetDirection": 0,
+          "hierarchyTransition": 0
+        },
+        "firstRejectedHierarchyTransition": null,
+        "pointBlocks": [
+          {
+            "point": {
+              "x": 759750,
+              "y": 486000
+            },
+            "reason": {
+              "kind": "INFLATED_NODE",
+              "nodeId": "page:page-a",
+              "rect": {
+                "x": 336000,
+                "y": 264000,
+                "w": 451750,
+                "h": 1018000
+              },
+              "inflated": {
+                "x": 308000,
+                "y": 236000,
+                "w": 507750,
+                "h": 1074000
+              }
+            }
+          },
+          {
+            "point": {
+              "x": 787750,
+              "y": 472000
+            },
+            "reason": {
+              "kind": "INFLATED_NODE",
+              "nodeId": "page:page-a",
+              "rect": {
+                "x": 336000,
+                "y": 264000,
+                "w": 451750,
+                "h": 1018000
+              },
+              "inflated": {
+                "x": 308000,
+                "y": 236000,
+                "w": 507750,
+                "h": 1074000
+              }
+            }
+          },
+          {
+            "point": {
+              "x": 787750,
+              "y": 488000
+            },
+            "reason": {
+              "kind": "INFLATED_NODE",
+              "nodeId": "page:page-a",
+              "rect": {
+                "x": 336000,
+                "y": 264000,
+                "w": 451750,
+                "h": 1018000
+              },
+              "inflated": {
+                "x": 308000,
+                "y": 236000,
+                "w": 507750,
+                "h": 1074000
+              }
+            }
+          },
+          {
+            "point": {
+              "x": 843750,
+              "y": 486000
+            },
+            "reason": {
+              "kind": "INFLATED_NODE",
+              "nodeId": "page:page-b",
+              "rect": {
+                "x": 843750,
+                "y": 264000,
+                "w": 238800,
+                "h": 398000
+              },
+              "inflated": {
+                "x": 815750,
+                "y": 236000,
+                "w": 294800,
+                "h": 454000
+              }
+            }
+          }
+        ],
+        "parallelClearanceBlocks": [
+          {
+            "priorEdgeId": "message-port:page-b",
+            "candidateSegment": {
+              "from": {
+                "x": 815750,
+                "y": 486000
+              },
+              "to": {
+                "x": 815750,
+                "y": 472000
+              }
+            },
+            "blockingSegment": {
+              "from": {
+                "x": 815750,
+                "y": 690000
+              },
+              "to": {
+                "x": 815750,
+                "y": 432000
+              }
+            },
+            "axis": "V",
+            "distance": 0,
+            "overlap": 14000,
+            "priorEdge": {
+              "id": "message-port:page-b",
+              "sourcePortId": "service-worker:sw-a\u0000out:MessagePort",
+              "targetPortId": "page:page-b\u0000in:MessagePort"
+            },
+            "identity": {
+              "sameSourcePort": false,
+              "sameTargetPort": false,
+              "sharedEndpointPortIds": []
+            },
+            "terminalZone": "NONE"
+          },
+          {
+            "priorEdgeId": "message-port:page-b",
+            "candidateSegment": {
+              "from": {
+                "x": 815750,
+                "y": 486000
+              },
+              "to": {
+                "x": 815750,
+                "y": 488000
+              }
+            },
+            "blockingSegment": {
+              "from": {
+                "x": 815750,
+                "y": 690000
+              },
+              "to": {
+                "x": 815750,
+                "y": 432000
+              }
+            },
+            "axis": "V",
+            "distance": 0,
+            "overlap": 2000,
+            "priorEdge": {
+              "id": "message-port:page-b",
+              "sourcePortId": "service-worker:sw-a\u0000out:MessagePort",
+              "targetPortId": "page:page-b\u0000in:MessagePort"
+            },
+            "identity": {
+              "sameSourcePort": false,
+              "sameTargetPort": false,
+              "sharedEndpointPortIds": []
+            },
+            "terminalZone": "NONE"
+          }
+        ],
+        "blockingRectangles": [
+          {
+            "id": "browser:device-a",
+            "parentId": null,
+            "rect": {
+              "x": 196000,
+              "y": 112000,
+              "w": 1026550,
+              "h": 124000
+            },
+            "inflated": {
+              "x": 168000,
+              "y": 84000,
+              "w": 1082550,
+              "h": 180000
+            }
+          },
+          {
+            "id": "bun-process:main",
+            "parentId": "server-contour",
+            "rect": {
+              "x": 1618150,
+              "y": 174000,
+              "w": 180000,
+              "h": 218000
+            },
+            "inflated": {
+              "x": 1590150,
+              "y": 146000,
+              "w": 236000,
+              "h": 274000
+            }
+          },
+          {
+            "id": "bun-process:worker",
+            "parentId": "server-contour",
+            "rect": {
+              "x": 1854150,
+              "y": 174000,
+              "w": 186400,
+              "h": 218000
+            },
+            "inflated": {
+              "x": 1826150,
+              "y": 146000,
+              "w": 242400,
+              "h": 274000
+            }
+          },
+          {
+            "id": "dedicated-worker:worker-a",
+            "parentId": "page:page-a",
+            "rect": {
+              "x": 469450,
+              "y": 1036000,
+              "w": 262300,
+              "h": 190000
+            },
+            "inflated": {
+              "x": 441450,
+              "y": 1008000,
+              "w": 318300,
+              "h": 246000
+            }
+          },
+          {
+            "id": "page:page-a",
+            "parentId": "browser:device-a",
+            "rect": {
+              "x": 336000,
+              "y": 264000,
+              "w": 451750,
+              "h": 1018000
+            },
+            "inflated": {
+              "x": 308000,
+              "y": 236000,
+              "w": 507750,
+              "h": 1074000
+            }
+          },
+          {
+            "id": "page:page-b",
+            "parentId": "browser:device-a",
+            "rect": {
+              "x": 843750,
+              "y": 264000,
+              "w": 238800,
+              "h": 398000
+            },
+            "inflated": {
+              "x": 815750,
+              "y": 236000,
+              "w": 294800,
+              "h": 454000
+            }
+          },
+          {
+            "id": "peer-process:peer-a",
+            "parentId": "server-contour",
+            "rect": {
+              "x": 1562150,
+              "y": 448000,
+              "w": 333150,
+              "h": 454000
+            },
+            "inflated": {
+              "x": 1534150,
+              "y": 420000,
+              "w": 389150,
+              "h": 510000
+            }
+          },
+          {
+            "id": "rtc-peer:session-a%3Abrowser",
+            "parentId": "window-main:page-a",
+            "rect": {
+              "x": 420000,
+              "y": 706000,
+              "w": 283750,
+              "h": 246000
+            },
+            "inflated": {
+              "x": 392000,
+              "y": 678000,
+              "w": 339750,
+              "h": 302000
+            }
+          },
+          {
+            "id": "rtc-peer:session-a%3Aserver",
+            "parentId": "peer-process:peer-a",
+            "rect": {
+              "x": 1590150,
+              "y": 656000,
+              "w": 277150,
+              "h": 218000
+            },
+            "inflated": {
+              "x": 1562150,
+              "y": 628000,
+              "w": 333150,
+              "h": 274000
+            }
+          },
+          {
+            "id": "server-contour",
+            "parentId": null,
+            "rect": {
+              "x": 1278550,
+              "y": 112000,
+              "w": 790000,
+              "h": 818000
+            },
+            "inflated": {
+              "x": 1250550,
+              "y": 84000,
+              "w": 846000,
+              "h": 874000
+            }
+          },
+          {
+            "id": "server:host-a",
+            "parentId": "server-contour",
+            "rect": {
+              "x": 1306550,
+              "y": 174000,
+              "w": 199600,
+              "h": 246000
+            },
+            "inflated": {
+              "x": 1278550,
+              "y": 146000,
+              "w": 255600,
+              "h": 302000
+            }
+          },
+          {
+            "id": "service-worker:sw-a",
+            "parentId": "browser:device-a",
+            "rect": {
+              "x": 496100,
+              "y": 1422000,
+              "w": 474450,
+              "h": 328000
+            },
+            "inflated": {
+              "x": 468100,
+              "y": 1394000,
+              "w": 530450,
+              "h": 384000
+            }
+          },
+          {
+            "id": "window-main:page-a",
+            "parentId": "page:page-a",
+            "rect": {
+              "x": 392000,
+              "y": 526000,
+              "w": 339750,
+              "h": 454000
+            },
+            "inflated": {
+              "x": 364000,
+              "y": 498000,
+              "w": 395750,
+              "h": 510000
+            }
+          },
+          {
+            "id": "window-main:page-b",
+            "parentId": "page:page-b",
+            "rect": {
+              "x": 871750,
+              "y": 500000,
+              "w": 180000,
+              "h": 134000
+            },
+            "inflated": {
+              "x": 843750,
+              "y": 472000,
+              "w": 236000,
+              "h": 190000
+            }
+          }
+        ]
+      }
+    }
+  },
+  "results": [
+    {
+      "index": 0,
+      "status": "NO_LEGAL_ROUTE",
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "w": 2408400,
+        "h": 2708000
+      },
+      "placementMetrics": {
+        "direction": "DOWN",
+        "width": 2408400,
+        "height": 2708000,
+        "fitScale": 0.2997840890217572,
+        "displayEmptyRatio": 0.8875901077038854,
+        "compoundEmptyRatio": 0.4572221283595408,
+        "maxCompoundEmptyRatio": 0.5780029438080909,
+        "sourceCorridorDeficit": 1209300,
+        "hardViolations": []
+      },
+      "error": "NO_LEGAL_ROUTE ipc:peer: fixed rectangles provide no corridor at clearance 28000",
+      "firstFailureEdgeId": "ipc:peer"
+    },
+    {
+      "index": 1,
+      "status": "NO_LEGAL_ROUTE",
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "w": 2608000,
+        "h": 2680000
+      },
+      "placementMetrics": {
+        "direction": "DOWN",
+        "width": 2608000,
+        "height": 2680000,
+        "fitScale": 0.276840490797546,
+        "displayEmptyRatio": 0.9034758622118058,
+        "compoundEmptyRatio": 0.47442603000241357,
+        "maxCompoundEmptyRatio": 0.6374159768146013,
+        "sourceCorridorDeficit": 850100,
+        "hardViolations": []
+      },
+      "error": "NO_LEGAL_ROUTE ipc:peer: fixed rectangles provide no corridor at clearance 28000",
+      "firstFailureEdgeId": "ipc:peer"
+    },
+    {
+      "index": 2,
+      "status": "NO_LEGAL_ROUTE",
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "w": 1484850,
+        "h": 2680000
+      },
+      "placementMetrics": {
+        "direction": "DOWN",
+        "width": 1484850,
+        "height": 2680000,
+        "fitScale": 0.4059701492537313,
+        "displayEmptyRatio": 0.7924298435881123,
+        "compoundEmptyRatio": 0.47442603000241357,
+        "maxCompoundEmptyRatio": 0.6374159768146013,
+        "sourceCorridorDeficit": 1805250,
+        "hardViolations": []
+      },
+      "error": "NO_LEGAL_ROUTE ipc:peer: fixed rectangles provide no corridor at clearance 28000",
+      "firstFailureEdgeId": "ipc:peer"
+    },
+    {
+      "index": 3,
+      "status": "NO_LEGAL_ROUTE",
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "w": 2408400,
+        "h": 2904000
+      },
+      "placementMetrics": {
+        "direction": "DOWN",
+        "width": 2408400,
+        "height": 2904000,
+        "fitScale": 0.2997840890217572,
+        "displayEmptyRatio": 0.8875901077038854,
+        "compoundEmptyRatio": 0.4789248911503251,
+        "maxCompoundEmptyRatio": 0.6161188069480052,
+        "sourceCorridorDeficit": 1209300,
+        "hardViolations": []
+      },
+      "error": "NO_LEGAL_ROUTE ipc:peer: fixed rectangles provide no corridor at clearance 28000",
+      "firstFailureEdgeId": "ipc:peer"
+    },
+    {
+      "index": 4,
+      "status": "NO_LEGAL_ROUTE",
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "w": 2608000,
+        "h": 2876000
+      },
+      "placementMetrics": {
+        "direction": "DOWN",
+        "width": 2608000,
+        "height": 2876000,
+        "fitScale": 0.276840490797546,
+        "displayEmptyRatio": 0.9034758622118058,
+        "compoundEmptyRatio": 0.4966071809116993,
+        "maxCompoundEmptyRatio": 0.6711821164460574,
+        "sourceCorridorDeficit": 850100,
+        "hardViolations": []
+      },
+      "error": "NO_LEGAL_ROUTE ipc:peer: fixed rectangles provide no corridor at clearance 28000",
+      "firstFailureEdgeId": "ipc:peer"
+    },
+    {
+      "index": 5,
+      "status": "NO_LEGAL_ROUTE",
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "w": 1484850,
+        "h": 2876000
+      },
+      "placementMetrics": {
+        "direction": "DOWN",
+        "width": 1484850,
+        "height": 2876000,
+        "fitScale": 0.37830319888734354,
+        "displayEmptyRatio": 0.8197576931078043,
+        "compoundEmptyRatio": 0.4966071809116993,
+        "maxCompoundEmptyRatio": 0.6711821164460574,
+        "sourceCorridorDeficit": 1805250,
+        "hardViolations": []
+      },
+      "error": "NO_LEGAL_ROUTE ipc:peer: fixed rectangles provide no corridor at clearance 28000",
+      "firstFailureEdgeId": "ipc:peer"
+    },
+    {
+      "index": 6,
+      "status": "NO_LEGAL_ROUTE",
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "w": 2564550,
+        "h": 2680000
+      },
+      "placementMetrics": {
+        "direction": "DOWN",
+        "width": 2564550,
+        "height": 2680000,
+        "fitScale": 0.28153087286268547,
+        "displayEmptyRatio": 0.9051014889465667,
+        "compoundEmptyRatio": 0.526930573648757,
+        "maxCompoundEmptyRatio": 0.6102935993940297,
+        "sourceCorridorDeficit": 810950,
+        "hardViolations": []
+      },
+      "error": "NO_LEGAL_ROUTE ipc:peer: fixed rectangles provide no corridor at clearance 28000",
+      "firstFailureEdgeId": "ipc:peer"
+    },
+    {
+      "index": 7,
+      "status": "NO_LEGAL_ROUTE",
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "w": 2764150,
+        "h": 2652000
+      },
+      "placementMetrics": {
+        "direction": "DOWN",
+        "width": 2764150,
+        "height": 2652000,
+        "fitScale": 0.26120145433496733,
+        "displayEmptyRatio": 0.9177225309670515,
+        "compoundEmptyRatio": 0.541810832450744,
+        "maxCompoundEmptyRatio": 0.6374159768146013,
+        "sourceCorridorDeficit": 451750,
+        "hardViolations": []
+      },
+      "error": "NO_LEGAL_ROUTE ipc:peer: fixed rectangles provide no corridor at clearance 28000",
+      "firstFailureEdgeId": "ipc:peer"
+    },
+    {
+      "index": 8,
+      "status": "NO_LEGAL_ROUTE",
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "w": 1641000,
+        "h": 2652000
+      },
+      "placementMetrics": {
+        "direction": "DOWN",
+        "width": 1641000,
+        "height": 2652000,
+        "fitScale": 0.41025641025641024,
+        "displayEmptyRatio": 0.7970259611327033,
+        "compoundEmptyRatio": 0.541810832450744,
+        "maxCompoundEmptyRatio": 0.6374159768146013,
+        "sourceCorridorDeficit": 1462900,
+        "hardViolations": []
+      },
+      "error": "NO_LEGAL_ROUTE ipc:peer: fixed rectangles provide no corridor at clearance 28000",
+      "firstFailureEdgeId": "ipc:peer"
+    },
+    {
+      "index": 9,
+      "status": "NO_LEGAL_ROUTE",
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "w": 2564550,
+        "h": 2876000
+      },
+      "placementMetrics": {
+        "direction": "DOWN",
+        "width": 2564550,
+        "height": 2876000,
+        "fitScale": 0.28153087286268547,
+        "displayEmptyRatio": 0.9051014889465667,
+        "compoundEmptyRatio": 0.5478140569280162,
+        "maxCompoundEmptyRatio": 0.6245845550640863,
+        "sourceCorridorDeficit": 810950,
+        "hardViolations": []
+      },
+      "error": "NO_LEGAL_ROUTE ipc:peer: fixed rectangles provide no corridor at clearance 28000",
+      "firstFailureEdgeId": "ipc:peer"
+    },
+    {
+      "index": 10,
+      "status": "NO_LEGAL_ROUTE",
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "w": 2764150,
+        "h": 2848000
+      },
+      "placementMetrics": {
+        "direction": "DOWN",
+        "width": 2764150,
+        "height": 2848000,
+        "fitScale": 0.26120145433496733,
+        "displayEmptyRatio": 0.9177225309670515,
+        "compoundEmptyRatio": 0.5630255650018723,
+        "maxCompoundEmptyRatio": 0.6711821164460574,
+        "sourceCorridorDeficit": 451750,
+        "hardViolations": []
+      },
+      "error": "NO_LEGAL_ROUTE ipc:peer: fixed rectangles provide no corridor at clearance 28000",
+      "firstFailureEdgeId": "ipc:peer"
+    },
+    {
+      "index": 11,
+      "status": "NO_LEGAL_ROUTE",
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "w": 1641000,
+        "h": 2848000
+      },
+      "placementMetrics": {
+        "direction": "DOWN",
+        "width": 1641000,
+        "height": 2848000,
+        "fitScale": 0.38202247191011235,
+        "displayEmptyRatio": 0.8240020686883389,
+        "compoundEmptyRatio": 0.5630255650018723,
+        "maxCompoundEmptyRatio": 0.6711821164460574,
+        "sourceCorridorDeficit": 1462900,
+        "hardViolations": []
+      },
+      "error": "NO_LEGAL_ROUTE ipc:peer: fixed rectangles provide no corridor at clearance 28000",
+      "firstFailureEdgeId": "ipc:peer"
+    },
+    {
+      "index": 12,
+      "status": "NO_LEGAL_ROUTE",
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "w": 1903300,
+        "h": 2624000
+      },
+      "placementMetrics": {
+        "direction": "DOWN",
+        "width": 1903300,
+        "height": 2624000,
+        "fitScale": 0.37934114432827193,
+        "displayEmptyRatio": 0.8092621274904501,
+        "compoundEmptyRatio": 0.5297361978601387,
+        "maxCompoundEmptyRatio": 0.6374159768146013,
+        "sourceCorridorDeficit": 1067150,
+        "hardViolations": []
+      },
+      "error": "NO_LEGAL_ROUTE ipc:peer: fixed rectangles provide no corridor at clearance 28000",
+      "firstFailureEdgeId": "ipc:peer"
+    },
+    {
+      "index": 13,
+      "status": "NO_LEGAL_ROUTE",
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "w": 2826850,
+        "h": 2652000
+      },
+      "placementMetrics": {
+        "direction": "DOWN",
+        "width": 2826850,
+        "height": 2652000,
+        "fitScale": 0.2554079629269328,
+        "displayEmptyRatio": 0.9140974567178554,
+        "compoundEmptyRatio": 0.5165177225201536,
+        "maxCompoundEmptyRatio": 0.5780029438080909,
+        "sourceCorridorDeficit": 415200,
+        "hardViolations": []
+      },
+      "error": "NO_LEGAL_ROUTE ipc:peer: fixed rectangles provide no corridor at clearance 28000",
+      "firstFailureEdgeId": "ipc:peer"
+    },
+    {
+      "index": 14,
+      "status": "NO_LEGAL_ROUTE",
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "w": 3026450,
+        "h": 2624000
+      },
+      "placementMetrics": {
+        "direction": "DOWN",
+        "width": 3026450,
+        "height": 2624000,
+        "fitScale": 0.23856333327826332,
+        "displayEmptyRatio": 0.9245629975978356,
+        "compoundEmptyRatio": 0.5297361978601387,
+        "maxCompoundEmptyRatio": 0.6374159768146013,
+        "sourceCorridorDeficit": 56000,
+        "hardViolations": []
+      },
+      "error": "NO_LEGAL_ROUTE ipc:peer: fixed rectangles provide no corridor at clearance 28000",
+      "firstFailureEdgeId": "ipc:peer"
+    },
+    {
+      "index": 15,
+      "status": "NO_LEGAL_ROUTE",
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "w": 1903300,
+        "h": 2820000
+      },
+      "placementMetrics": {
+        "direction": "DOWN",
+        "width": 1903300,
+        "height": 2820000,
+        "fitScale": 0.37934114432827193,
+        "displayEmptyRatio": 0.8092621274904501,
+        "compoundEmptyRatio": 0.5500442963685523,
+        "maxCompoundEmptyRatio": 0.6711821164460574,
+        "sourceCorridorDeficit": 1067150,
+        "hardViolations": []
+      },
+      "error": "NO_LEGAL_ROUTE ipc:peer: fixed rectangles provide no corridor at clearance 28000",
+      "firstFailureEdgeId": "ipc:peer"
+    },
+    {
+      "index": 16,
+      "status": "NO_LEGAL_ROUTE",
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "w": 2826850,
+        "h": 2848000
+      },
+      "placementMetrics": {
+        "direction": "DOWN",
+        "width": 2826850,
+        "height": 2848000,
+        "fitScale": 0.2554079629269328,
+        "displayEmptyRatio": 0.9140974567178554,
+        "compoundEmptyRatio": 0.5364765134063003,
+        "maxCompoundEmptyRatio": 0.6161188069480052,
+        "sourceCorridorDeficit": 415200,
+        "hardViolations": []
+      },
+      "error": "NO_LEGAL_ROUTE ipc:peer: fixed rectangles provide no corridor at clearance 28000",
+      "firstFailureEdgeId": "ipc:peer"
+    },
+    {
+      "index": 17,
+      "status": "NO_LEGAL_ROUTE",
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "w": 3026450,
+        "h": 2820000
+      },
+      "placementMetrics": {
+        "direction": "DOWN",
+        "width": 3026450,
+        "height": 2820000,
+        "fitScale": 0.23856333327826332,
+        "displayEmptyRatio": 0.9245629975978356,
+        "compoundEmptyRatio": 0.5500442963685523,
+        "maxCompoundEmptyRatio": 0.6711821164460574,
+        "sourceCorridorDeficit": 56000,
+        "hardViolations": []
+      },
+      "error": "NO_LEGAL_ROUTE ipc:peer: fixed rectangles provide no corridor at clearance 28000",
+      "firstFailureEdgeId": "ipc:peer"
+    },
+    {
+      "index": 18,
+      "status": "NO_LEGAL_ROUTE",
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "w": 2146100,
+        "h": 2736000
+      },
+      "placementMetrics": {
+        "direction": "DOWN",
+        "width": 2146100,
+        "height": 2736000,
+        "fitScale": 0.33642421136014167,
+        "displayEmptyRatio": 0.8719628032358027,
+        "compoundEmptyRatio": 0.45394335706191413,
+        "maxCompoundEmptyRatio": 0.5780029438080909,
+        "sourceCorridorDeficit": 1605050,
+        "hardViolations": []
+      },
+      "error": "NO_LEGAL_ROUTE ipc:peer: fixed rectangles provide no corridor at clearance 28000",
+      "firstFailureEdgeId": "ipc:peer"
+    },
+    {
+      "index": 19,
+      "status": "NO_LEGAL_ROUTE",
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "w": 2345700,
+        "h": 2708000
+      },
+      "placementMetrics": {
+        "direction": "DOWN",
+        "width": 2345700,
+        "height": 2708000,
+        "fitScale": 0.3077972460246408,
+        "displayEmptyRatio": 0.8920071126912534,
+        "compoundEmptyRatio": 0.4745329348459123,
+        "maxCompoundEmptyRatio": 0.6374159768146013,
+        "sourceCorridorDeficit": 1245850,
+        "hardViolations": []
+      },
+      "error": "NO_LEGAL_ROUTE ipc:peer: fixed rectangles provide no corridor at clearance 28000",
+      "firstFailureEdgeId": "ipc:peer"
+    },
+    {
+      "index": 20,
+      "status": "NO_LEGAL_ROUTE",
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "w": 1291150,
+        "h": 2708000
+      },
+      "placementMetrics": {
+        "direction": "DOWN",
+        "width": 1291150,
+        "height": 2708000,
+        "fitScale": 0.4017725258493353,
+        "displayEmptyRatio": 0.8159964661222171,
+        "compoundEmptyRatio": 0.4745329348459123,
+        "maxCompoundEmptyRatio": 0.6374159768146013,
+        "sourceCorridorDeficit": 2132400,
+        "hardViolations": []
+      },
+      "error": "NO_LEGAL_ROUTE ipc:peer: fixed rectangles provide no corridor at clearance 28000",
+      "firstFailureEdgeId": "ipc:peer"
+    },
+    {
+      "index": 21,
+      "status": "NO_LEGAL_ROUTE",
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "w": 2146100,
+        "h": 2932000
+      },
+      "placementMetrics": {
+        "direction": "DOWN",
+        "width": 2146100,
+        "height": 2932000,
+        "fitScale": 0.33642421136014167,
+        "displayEmptyRatio": 0.8719628032358027,
+        "compoundEmptyRatio": 0.4775216770816322,
+        "maxCompoundEmptyRatio": 0.6161188069480052,
+        "sourceCorridorDeficit": 1605050,
+        "hardViolations": []
+      },
+      "error": "NO_LEGAL_ROUTE ipc:peer: fixed rectangles provide no corridor at clearance 28000",
+      "firstFailureEdgeId": "ipc:peer"
+    },
+    {
+      "index": 22,
+      "status": "NO_LEGAL_ROUTE",
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "w": 2345700,
+        "h": 2904000
+      },
+      "placementMetrics": {
+        "direction": "DOWN",
+        "width": 2345700,
+        "height": 2904000,
+        "fitScale": 0.3077972460246408,
+        "displayEmptyRatio": 0.8920071126912534,
+        "compoundEmptyRatio": 0.49857703313957247,
+        "maxCompoundEmptyRatio": 0.6711821164460574,
+        "sourceCorridorDeficit": 1245850,
+        "hardViolations": []
+      },
+      "error": "NO_LEGAL_ROUTE ipc:peer: fixed rectangles provide no corridor at clearance 28000",
+      "firstFailureEdgeId": "ipc:peer"
+    },
+    {
+      "index": 23,
+      "status": "NO_LEGAL_ROUTE",
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "w": 1291150,
+        "h": 2904000
+      },
+      "placementMetrics": {
+        "direction": "DOWN",
+        "width": 1291150,
+        "height": 2904000,
+        "fitScale": 0.3746556473829201,
+        "displayEmptyRatio": 0.8399962136794876,
+        "compoundEmptyRatio": 0.49857703313957247,
+        "maxCompoundEmptyRatio": 0.6711821164460574,
+        "sourceCorridorDeficit": 2132400,
+        "hardViolations": []
+      },
+      "error": "NO_LEGAL_ROUTE ipc:peer: fixed rectangles provide no corridor at clearance 28000",
+      "firstFailureEdgeId": "ipc:peer"
+    },
+    {
+      "index": 24,
+      "status": "NO_LEGAL_ROUTE",
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "w": 1540850,
+        "h": 2764000
+      },
+      "placementMetrics": {
+        "direction": "DOWN",
+        "width": 1540850,
+        "height": 2764000,
+        "fitScale": 0.39363241678726485,
+        "displayEmptyRatio": 0.8061931660392212,
+        "compoundEmptyRatio": 0.4572221283595408,
+        "maxCompoundEmptyRatio": 0.5780029438080909,
+        "sourceCorridorDeficit": 1936850,
+        "hardViolations": []
+      },
+      "error": "NO_LEGAL_ROUTE ipc:peer: fixed rectangles provide no corridor at clearance 28000",
+      "firstFailureEdgeId": "ipc:peer"
+    },
+    {
+      "index": 25,
+      "status": "NO_LEGAL_ROUTE",
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "w": 1540850,
+        "h": 2960000
+      },
+      "placementMetrics": {
+        "direction": "DOWN",
+        "width": 1540850,
+        "height": 2960000,
+        "fitScale": 0.3675675675675676,
+        "displayEmptyRatio": 0.8310097135017775,
+        "compoundEmptyRatio": 0.4789248911503251,
+        "maxCompoundEmptyRatio": 0.6161188069480052,
+        "sourceCorridorDeficit": 1936850,
+        "hardViolations": []
+      },
+      "error": "NO_LEGAL_ROUTE ipc:peer: fixed rectangles provide no corridor at clearance 28000",
+      "firstFailureEdgeId": "ipc:peer"
+    },
+    {
+      "index": 26,
+      "status": "NO_LEGAL_ROUTE",
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "w": 1697000,
+        "h": 2736000
+      },
+      "placementMetrics": {
+        "direction": "DOWN",
+        "width": 1697000,
+        "height": 2736000,
+        "fitScale": 0.39766081871345027,
+        "displayEmptyRatio": 0.810664108264105,
+        "compoundEmptyRatio": 0.526930573648757,
+        "maxCompoundEmptyRatio": 0.6102935993940297,
+        "sourceCorridorDeficit": 1594500,
+        "hardViolations": []
+      },
+      "error": "NO_LEGAL_ROUTE ipc:peer: fixed rectangles provide no corridor at clearance 28000",
+      "firstFailureEdgeId": "ipc:peer"
+    },
+    {
+      "index": 27,
+      "status": "NO_LEGAL_ROUTE",
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "w": 1697000,
+        "h": 2932000
+      },
+      "placementMetrics": {
+        "direction": "DOWN",
+        "width": 1697000,
+        "height": 2932000,
+        "fitScale": 0.3710777626193724,
+        "displayEmptyRatio": 0.8351316833882902,
+        "compoundEmptyRatio": 0.5478140569280162,
+        "maxCompoundEmptyRatio": 0.6245845550640863,
+        "sourceCorridorDeficit": 1594500,
+        "hardViolations": []
+      },
+      "error": "NO_LEGAL_ROUTE ipc:peer: fixed rectangles provide no corridor at clearance 28000",
+      "firstFailureEdgeId": "ipc:peer"
+    },
+    {
+      "index": 28,
+      "status": "NO_LEGAL_ROUTE",
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "w": 1959300,
+        "h": 2708000
+      },
+      "placementMetrics": {
+        "direction": "DOWN",
+        "width": 1959300,
+        "height": 2708000,
+        "fitScale": 0.36849895370795693,
+        "displayEmptyRatio": 0.8211826421215926,
+        "compoundEmptyRatio": 0.5165177225201536,
+        "maxCompoundEmptyRatio": 0.5780029438080909,
+        "sourceCorridorDeficit": 1198750,
+        "hardViolations": []
+      },
+      "error": "NO_LEGAL_ROUTE ipc:peer: fixed rectangles provide no corridor at clearance 28000",
+      "firstFailureEdgeId": "ipc:peer"
+    },
+    {
+      "index": 29,
+      "status": "NO_LEGAL_ROUTE",
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "w": 1959300,
+        "h": 2904000
+      },
+      "placementMetrics": {
+        "direction": "DOWN",
+        "width": 1959300,
+        "height": 2904000,
+        "fitScale": 0.36849895370795693,
+        "displayEmptyRatio": 0.8211826421215926,
+        "compoundEmptyRatio": 0.5364765134063003,
+        "maxCompoundEmptyRatio": 0.6161188069480052,
+        "sourceCorridorDeficit": 1198750,
+        "hardViolations": []
+      },
+      "error": "NO_LEGAL_ROUTE ipc:peer: fixed rectangles provide no corridor at clearance 28000",
+      "firstFailureEdgeId": "ipc:peer"
+    },
+    {
+      "index": 30,
+      "status": "NO_LEGAL_ROUTE",
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "w": 1278550,
+        "h": 2792000
+      },
+      "placementMetrics": {
+        "direction": "DOWN",
+        "width": 1278550,
+        "height": 2792000,
+        "fitScale": 0.38968481375358166,
+        "displayEmptyRatio": 0.8282136572117623,
+        "compoundEmptyRatio": 0.45394335706191413,
+        "maxCompoundEmptyRatio": 0.5780029438080909,
+        "sourceCorridorDeficit": 2332600,
+        "hardViolations": []
+      },
+      "error": "NO_LEGAL_ROUTE ipc:peer: fixed rectangles provide no corridor at clearance 28000",
+      "firstFailureEdgeId": "ipc:peer"
+    },
+    {
+      "index": 31,
+      "status": "NO_LEGAL_ROUTE",
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "w": 1278550,
+        "h": 2988000
+      },
+      "placementMetrics": {
+        "direction": "DOWN",
+        "width": 1278550,
+        "height": 2988000,
+        "fitScale": 0.36412315930388217,
+        "displayEmptyRatio": 0.8500113916589149,
+        "compoundEmptyRatio": 0.4775216770816322,
+        "maxCompoundEmptyRatio": 0.6161188069480052,
+        "sourceCorridorDeficit": 2332600,
+        "hardViolations": []
+      },
+      "error": "NO_LEGAL_ROUTE ipc:peer: fixed rectangles provide no corridor at clearance 28000",
+      "firstFailureEdgeId": "ipc:peer"
+    },
+    {
+      "index": 32,
+      "status": "NO_LEGAL_ROUTE",
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "w": 2264550,
+        "h": 2002000
+      },
+      "placementMetrics": {
+        "direction": "DOWN",
+        "width": 2264550,
+        "height": 2002000,
+        "fitScale": 0.31882714004989954,
+        "displayEmptyRatio": 0.884898688858668,
+        "compoundEmptyRatio": 0.46866212079884595,
+        "maxCompoundEmptyRatio": 0.5409637345572902,
+        "sourceCorridorDeficit": 5493050,
+        "hardViolations": []
+      },
+      "error": "NO_LEGAL_ROUTE service-worker-controller:page: fixed rectangles provide no corridor at clearance 28000",
+      "firstFailureEdgeId": "service-worker-controller:page"
+    },
+    {
+      "index": 33,
+      "status": "NO_LEGAL_ROUTE",
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "w": 2078150,
+        "h": 2002000
+      },
+      "placementMetrics": {
+        "direction": "DOWN",
+        "width": 2078150,
+        "height": 2002000,
+        "fitScale": 0.3474243918870149,
+        "displayEmptyRatio": 0.8642984333270625,
+        "compoundEmptyRatio": 0.4778843596998389,
+        "maxCompoundEmptyRatio": 0.565976238965741,
+        "sourceCorridorDeficit": 2723600,
+        "hardViolations": []
+      },
+      "error": "NO_LEGAL_ROUTE service-worker-controller:page: fixed rectangles provide no corridor at clearance 28000",
+      "firstFailureEdgeId": "service-worker-controller:page"
+    },
+    {
+      "index": 34,
+      "status": "NO_LEGAL_ROUTE",
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "w": 2526850,
+        "h": 1756000
+      },
+      "placementMetrics": {
+        "direction": "DOWN",
+        "width": 2526850,
+        "height": 1756000,
+        "fitScale": 0.2857312464135188,
+        "displayEmptyRatio": 0.897795057552705,
+        "compoundEmptyRatio": 0.4525985523175521,
+        "maxCompoundEmptyRatio": 0.5247951162142923,
+        "sourceCorridorDeficit": 5755350,
+        "hardViolations": []
+      },
+      "error": "NO_LEGAL_ROUTE service-worker-controller:page: fixed rectangles provide no corridor at clearance 28000",
+      "firstFailureEdgeId": "service-worker-controller:page"
+    },
+    {
+      "index": 35,
+      "status": "NO_LEGAL_ROUTE",
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "w": 1792850,
+        "h": 2484000
+      },
+      "placementMetrics": {
+        "direction": "DOWN",
+        "width": 1792850,
+        "height": 2484000,
+        "fitScale": 0.40271076777198317,
+        "displayEmptyRatio": 0.8247315558175798,
+        "compoundEmptyRatio": 0.47467718165019523,
+        "maxCompoundEmptyRatio": 0.5871436215376764,
+        "sourceCorridorDeficit": 2748850,
+        "hardViolations": []
+      },
+      "error": "NO_LEGAL_ROUTE ipc:main: fixed rectangles provide no corridor at clearance 28000",
+      "firstFailureEdgeId": "ipc:main"
+    },
+    {
+      "index": 36,
+      "status": "NO_LEGAL_ROUTE",
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "w": 1848850,
+        "h": 2484000
+      },
+      "placementMetrics": {
+        "direction": "DOWN",
+        "width": 1848850,
+        "height": 2484000,
+        "fitScale": 0.3905130216080266,
+        "displayEmptyRatio": 0.8348185717798506,
+        "compoundEmptyRatio": 0.4876498897983885,
+        "maxCompoundEmptyRatio": 0.6289529064513595,
+        "sourceCorridorDeficit": 2866675,
+        "hardViolations": []
+      },
+      "error": "NO_LEGAL_ROUTE ipc:main: fixed rectangles provide no corridor at clearance 28000",
+      "firstFailureEdgeId": "ipc:main"
+    },
+    {
+      "index": 37,
+      "status": "ROUTABLE",
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "w": 1759600,
+        "h": 2484000
+      },
+      "placementMetrics": {
+        "direction": "DOWN",
+        "width": 1759600,
+        "height": 2484000,
+        "fitScale": 0.41032052739258923,
+        "displayEmptyRatio": 0.8182874068017072,
+        "compoundEmptyRatio": 0.49685483134404185,
+        "maxCompoundEmptyRatio": 0.6562324515324757,
+        "sourceCorridorDeficit": 3073800,
+        "hardViolations": []
+      },
+      "routingMetrics": {
+        "hardViolations": [],
+        "totalTurns": 48,
+        "maxTurns": 6,
+        "totalManhattan": 24887500,
+        "maxManhattan": 4285600,
+        "maxDetour": 2700000,
+        "fitScale": 0.41032052739258923,
+        "compoundEmptyRatio": 0.6073064835006129,
+        "clearanceVariance": 729638367.346939,
+        "crossings": 12,
+        "maxCrossings": 5,
+        "perEdge": [
+          {
+            "edgeId": "data-channel:force",
+            "crossings": 2,
+            "turns": 4,
+            "manhattan": 4061600,
+            "detour": 2476000
+          },
+          {
+            "edgeId": "data-channel:oracle",
+            "crossings": 2,
+            "turns": 4,
+            "manhattan": 4285600,
+            "detour": 2700000
+          },
+          {
+            "edgeId": "ipc:main",
+            "crossings": 2,
+            "turns": 4,
+            "manhattan": 600450,
+            "detour": 112000
+          },
+          {
+            "edgeId": "ipc:peer",
+            "crossings": 2,
+            "turns": 4,
+            "manhattan": 1301600,
+            "detour": 168000
+          },
+          {
+            "edgeId": "ipc:worker",
+            "crossings": 1,
+            "turns": 6,
+            "manhattan": 1119950,
+            "detour": 323100
+          },
+          {
+            "edgeId": "message-port:page",
+            "crossings": 4,
+            "turns": 4,
+            "manhattan": 2254450,
+            "detour": 112000
+          },
+          {
+            "edgeId": "message-port:page-b",
+            "crossings": 3,
+            "turns": 4,
+            "manhattan": 1234450,
+            "detour": 168000
+          },
+          {
+            "edgeId": "service-worker-controller:page",
+            "crossings": 2,
+            "turns": 4,
+            "manhattan": 2389150,
+            "detour": 269400
+          },
+          {
+            "edgeId": "service-worker-controller:page-b",
+            "crossings": 1,
+            "turns": 4,
+            "manhattan": 998800,
+            "detour": 168000
+          },
+          {
+            "edgeId": "web-push:worker",
+            "crossings": 5,
+            "turns": 4,
+            "manhattan": 3609150,
+            "detour": 815100
+          },
+          {
+            "edgeId": "websocket:control",
+            "crossings": 0,
+            "turns": 2,
+            "manhattan": 2120000,
+            "detour": 0
+          },
+          {
+            "edgeId": "worker-message:worker",
+            "crossings": 0,
+            "turns": 4,
+            "manhattan": 912300,
+            "detour": 112000
+          }
+        ]
+      }
+    },
+    {
+      "index": 38,
+      "status": "ROUTABLE",
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "w": 1759600,
+        "h": 2484000
+      },
+      "placementMetrics": {
+        "direction": "DOWN",
+        "width": 1759600,
+        "height": 2484000,
+        "fitScale": 0.41032052739258923,
+        "displayEmptyRatio": 0.8182874068017072,
+        "compoundEmptyRatio": 0.49685483134404185,
+        "maxCompoundEmptyRatio": 0.6562324515324757,
+        "sourceCorridorDeficit": 3135625,
+        "hardViolations": []
+      },
+      "routingMetrics": {
+        "hardViolations": [],
+        "totalTurns": 48,
+        "maxTurns": 6,
+        "totalManhattan": 24831500,
+        "maxManhattan": 4285600,
+        "maxDetour": 2700000,
+        "fitScale": 0.41032052739258923,
+        "compoundEmptyRatio": 0.6073064835006129,
+        "clearanceVariance": 747393819.8573127,
+        "crossings": 12,
+        "maxCrossings": 5,
+        "perEdge": [
+          {
+            "edgeId": "data-channel:force",
+            "crossings": 2,
+            "turns": 4,
+            "manhattan": 4061600,
+            "detour": 2476000
+          },
+          {
+            "edgeId": "data-channel:oracle",
+            "crossings": 2,
+            "turns": 4,
+            "manhattan": 4285600,
+            "detour": 2700000
+          },
+          {
+            "edgeId": "ipc:main",
+            "crossings": 2,
+            "turns": 4,
+            "manhattan": 600450,
+            "detour": 112000
+          },
+          {
+            "edgeId": "ipc:peer",
+            "crossings": 2,
+            "turns": 4,
+            "manhattan": 1301600,
+            "detour": 168000
+          },
+          {
+            "edgeId": "ipc:worker",
+            "crossings": 1,
+            "turns": 6,
+            "manhattan": 1119950,
+            "detour": 323100
+          },
+          {
+            "edgeId": "message-port:page",
+            "crossings": 4,
+            "turns": 4,
+            "manhattan": 2254450,
+            "detour": 112000
+          },
+          {
+            "edgeId": "message-port:page-b",
+            "crossings": 2,
+            "turns": 4,
+            "manhattan": 1172625,
+            "detour": 168000
+          },
+          {
+            "edgeId": "service-worker-controller:page",
+            "crossings": 2,
+            "turns": 4,
+            "manhattan": 2333150,
+            "detour": 213400
+          },
+          {
+            "edgeId": "service-worker-controller:page-b",
+            "crossings": 2,
+            "turns": 4,
+            "manhattan": 1060625,
+            "detour": 168000
+          },
+          {
+            "edgeId": "web-push:worker",
+            "crossings": 5,
+            "turns": 4,
+            "manhattan": 3609150,
+            "detour": 815100
+          },
+          {
+            "edgeId": "websocket:control",
+            "crossings": 0,
+            "turns": 2,
+            "manhattan": 2120000,
+            "detour": 0
+          },
+          {
+            "edgeId": "worker-message:worker",
+            "crossings": 0,
+            "turns": 4,
+            "manhattan": 912300,
+            "detour": 112000
+          }
+        ]
+      }
+    },
+    {
+      "index": 39,
+      "status": "NO_LEGAL_ROUTE",
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "w": 1418550,
+        "h": 3016000
+      },
+      "placementMetrics": {
+        "direction": "DOWN",
+        "width": 1418550,
+        "height": 3016000,
+        "fitScale": 0.36074270557029176,
+        "displayEmptyRatio": 0.8526450191974756,
+        "compoundEmptyRatio": 0.46866212079884595,
+        "maxCompoundEmptyRatio": 0.5409637345572902,
+        "sourceCorridorDeficit": 1930400,
+        "hardViolations": []
+      },
+      "error": "NO_LEGAL_ROUTE service-worker-controller:page: fixed rectangles provide no corridor at clearance 28000",
+      "firstFailureEdgeId": "service-worker-controller:page"
+    },
+    {
+      "index": 40,
+      "status": "NO_LEGAL_ROUTE",
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "w": 1418550,
+        "h": 3346000
+      },
+      "placementMetrics": {
+        "direction": "DOWN",
+        "width": 1418550,
+        "height": 3346000,
+        "fitScale": 0.3251643753735804,
+        "displayEmptyRatio": 0.8811305735999224,
+        "compoundEmptyRatio": 0.4778843596998389,
+        "maxCompoundEmptyRatio": 0.565976238965741,
+        "sourceCorridorDeficit": 1925150,
+        "hardViolations": []
+      },
+      "error": "NO_LEGAL_ROUTE service-worker-controller:page: fixed rectangles provide no corridor at clearance 28000",
+      "firstFailureEdgeId": "service-worker-controller:page"
+    },
+    {
+      "index": 41,
+      "status": "NO_LEGAL_ROUTE",
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "w": 1680850,
+        "h": 2770000
+      },
+      "placementMetrics": {
+        "direction": "DOWN",
+        "width": 1680850,
+        "height": 2770000,
+        "fitScale": 0.3927797833935018,
+        "displayEmptyRatio": 0.8068678037236424,
+        "compoundEmptyRatio": 0.4525985523175521,
+        "maxCompoundEmptyRatio": 0.5247951162142923,
+        "sourceCorridorDeficit": 1612100,
+        "hardViolations": []
+      },
+      "error": "NO_LEGAL_ROUTE service-worker-controller:page: fixed rectangles provide no corridor at clearance 28000",
+      "firstFailureEdgeId": "service-worker-controller:page"
+    },
+    {
+      "index": 42,
+      "status": "NO_LEGAL_ROUTE",
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "w": 1146450,
+        "h": 3940000
+      },
+      "placementMetrics": {
+        "direction": "DOWN",
+        "width": 1146450,
+        "height": 3940000,
+        "fitScale": 0.27614213197969545,
+        "displayEmptyRatio": 0.9174046640379345,
+        "compoundEmptyRatio": 0.4876498897983885,
+        "maxCompoundEmptyRatio": 0.6289529064513595,
+        "sourceCorridorDeficit": 2223025,
+        "hardViolations": []
+      },
+      "error": "NO_LEGAL_ROUTE ipc:main: fixed rectangles provide no corridor at clearance 28000",
+      "firstFailureEdgeId": "ipc:main"
+    },
+    {
+      "index": 43,
+      "status": "NO_LEGAL_ROUTE",
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "w": 1146450,
+        "h": 3912000
+      },
+      "placementMetrics": {
+        "direction": "DOWN",
+        "width": 1146450,
+        "height": 3912000,
+        "fitScale": 0.278118609406953,
+        "displayEmptyRatio": 0.9164055690068291,
+        "compoundEmptyRatio": 0.47467718165019523,
+        "maxCompoundEmptyRatio": 0.5871436215376764,
+        "sourceCorridorDeficit": 2105200,
+        "hardViolations": []
+      },
+      "error": "NO_LEGAL_ROUTE ipc:main: fixed rectangles provide no corridor at clearance 28000",
+      "firstFailureEdgeId": "ipc:main"
+    },
+    {
+      "index": 44,
+      "status": "ROUTABLE",
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "w": 1146450,
+        "h": 4242000
+      },
+      "placementMetrics": {
+        "direction": "DOWN",
+        "width": 1146450,
+        "height": 4242000,
+        "fitScale": 0.2564827911362565,
+        "displayEmptyRatio": 0.9290005474543432,
+        "compoundEmptyRatio": 0.49685483134404185,
+        "maxCompoundEmptyRatio": 0.6562324515324757,
+        "sourceCorridorDeficit": 2284900,
+        "hardViolations": []
+      },
+      "routingMetrics": {
+        "hardViolations": [],
+        "totalTurns": 52,
+        "maxTurns": 6,
+        "totalManhattan": 22442400,
+        "maxManhattan": 4268450,
+        "maxDetour": 952000,
+        "fitScale": 0.2564827911362565,
+        "compoundEmptyRatio": 0.6073064835006129,
+        "clearanceVariance": 704275354.2731922,
+        "crossings": 15,
+        "maxCrossings": 5,
+        "perEdge": [
+          {
+            "edgeId": "data-channel:force",
+            "crossings": 5,
+            "turns": 4,
+            "manhattan": 4268450,
+            "detour": 952000
+          },
+          {
+            "edgeId": "data-channel:oracle",
+            "crossings": 5,
+            "turns": 4,
+            "manhattan": 4156450,
+            "detour": 840000
+          },
+          {
+            "edgeId": "ipc:main",
+            "crossings": 2,
+            "turns": 6,
+            "manhattan": 993250,
+            "detour": 504800
+          },
+          {
+            "edgeId": "ipc:peer",
+            "crossings": 3,
+            "turns": 4,
+            "manhattan": 1301600,
+            "detour": 168000
+          },
+          {
+            "edgeId": "ipc:worker",
+            "crossings": 5,
+            "turns": 6,
+            "manhattan": 1020850,
+            "detour": 224000
+          },
+          {
+            "edgeId": "message-port:page",
+            "crossings": 3,
+            "turns": 4,
+            "manhattan": 2310450,
+            "detour": 168000
+          },
+          {
+            "edgeId": "message-port:page-b",
+            "crossings": 1,
+            "turns": 4,
+            "manhattan": 1178450,
+            "detour": 112000
+          },
+          {
+            "edgeId": "service-worker-controller:page",
+            "crossings": 1,
+            "turns": 4,
+            "manhattan": 2287750,
+            "detour": 168000
+          },
+          {
+            "edgeId": "service-worker-controller:page-b",
+            "crossings": 1,
+            "turns": 4,
+            "manhattan": 942800,
+            "detour": 112000
+          },
+          {
+            "edgeId": "web-push:worker",
+            "crossings": 2,
+            "turns": 4,
+            "manhattan": 1504900,
+            "detour": 604000
+          },
+          {
+            "edgeId": "websocket:control",
+            "crossings": 2,
+            "turns": 4,
+            "manhattan": 1565150,
+            "detour": 616000
+          },
+          {
+            "edgeId": "worker-message:worker",
+            "crossings": 0,
+            "turns": 4,
+            "manhattan": 912300,
+            "detour": 112000
+          }
+        ]
+      }
+    },
+    {
+      "index": 45,
+      "status": "ROUTABLE",
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "w": 1146450,
+        "h": 4242000
+      },
+      "placementMetrics": {
+        "direction": "DOWN",
+        "width": 1146450,
+        "height": 4242000,
+        "fitScale": 0.2564827911362565,
+        "displayEmptyRatio": 0.9290005474543432,
+        "compoundEmptyRatio": 0.49685483134404185,
+        "maxCompoundEmptyRatio": 0.6562324515324757,
+        "sourceCorridorDeficit": 2346725,
+        "hardViolations": []
+      },
+      "routingMetrics": {
+        "hardViolations": [],
+        "totalTurns": 52,
+        "maxTurns": 6,
+        "totalManhattan": 22442400,
+        "maxManhattan": 4268450,
+        "maxDetour": 952000,
+        "fitScale": 0.2564827911362565,
+        "compoundEmptyRatio": 0.6073064835006129,
+        "clearanceVariance": 732316212.244898,
+        "crossings": 15,
+        "maxCrossings": 5,
+        "perEdge": [
+          {
+            "edgeId": "data-channel:force",
+            "crossings": 5,
+            "turns": 4,
+            "manhattan": 4268450,
+            "detour": 952000
+          },
+          {
+            "edgeId": "data-channel:oracle",
+            "crossings": 5,
+            "turns": 4,
+            "manhattan": 4156450,
+            "detour": 840000
+          },
+          {
+            "edgeId": "ipc:main",
+            "crossings": 2,
+            "turns": 6,
+            "manhattan": 993250,
+            "detour": 504800
+          },
+          {
+            "edgeId": "ipc:peer",
+            "crossings": 3,
+            "turns": 4,
+            "manhattan": 1301600,
+            "detour": 168000
+          },
+          {
+            "edgeId": "ipc:worker",
+            "crossings": 5,
+            "turns": 6,
+            "manhattan": 1020850,
+            "detour": 224000
+          },
+          {
+            "edgeId": "message-port:page",
+            "crossings": 3,
+            "turns": 4,
+            "manhattan": 2310450,
+            "detour": 168000
+          },
+          {
+            "edgeId": "message-port:page-b",
+            "crossings": 1,
+            "turns": 4,
+            "manhattan": 1116625,
+            "detour": 112000
+          },
+          {
+            "edgeId": "service-worker-controller:page",
+            "crossings": 1,
+            "turns": 4,
+            "manhattan": 2287750,
+            "detour": 168000
+          },
+          {
+            "edgeId": "service-worker-controller:page-b",
+            "crossings": 1,
+            "turns": 4,
+            "manhattan": 1004625,
+            "detour": 112000
+          },
+          {
+            "edgeId": "web-push:worker",
+            "crossings": 2,
+            "turns": 4,
+            "manhattan": 1504900,
+            "detour": 604000
+          },
+          {
+            "edgeId": "websocket:control",
+            "crossings": 2,
+            "turns": 4,
+            "manhattan": 1565150,
+            "detour": 616000
+          },
+          {
+            "edgeId": "worker-message:worker",
+            "crossings": 0,
+            "turns": 4,
+            "manhattan": 912300,
+            "detour": 112000
+          }
+        ]
+      }
+    }
+  ]
+}

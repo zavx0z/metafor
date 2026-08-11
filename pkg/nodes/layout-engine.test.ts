@@ -247,7 +247,7 @@ describe("MetaFor TypeScript node-system layout", () => {
     }
   }, 10_000)
 
-  test("orders connected parameter rows by counterpart position without moving ordinary facts", () => {
+  test("proposes counterpart row order but keeps the lower-crossing routed order", () => {
     const sortable: NodeSystemDocument = {
       nodes: [
         {
@@ -303,9 +303,9 @@ describe("MetaFor TypeScript node-system layout", () => {
       viewport: {width: 390, height: 844},
     })
     expect(routed.nodes.find(({node}) => node.id === "source")!.node.facts!.map(({id}) => id)).toEqual([
-      "left",
-      "identity",
       "right",
+      "identity",
+      "left",
     ])
     expect(countProperEdgeCrossings(routed)).toBe(0)
   })

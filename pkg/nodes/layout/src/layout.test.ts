@@ -197,7 +197,7 @@ describe("compound spacing rhythm", () => {
     }
   })
 
-  test("falls back beyond the fast candidate budget for the measured Hamiltonian Web Push contour", () => {
+  test("keeps two pages connected to one shared worker routable in RIGHT and DOWN", () => {
     const graph: LayoutGraph = {
       viewport: {width: 722, height: 1088},
       layoutOptions: {clearance: 28, spacing: 28, layerSpacing: 28, padding: 28},
@@ -206,10 +206,12 @@ describe("compound spacing rhythm", () => {
         {id: "server:runtime", parentId: "server-contour", width: 224.5, height: 246, contentHeight: 236},
         {id: "browser:device", width: 194.25, height: 134, contentHeight: 124},
         {id: "page:realm", parentId: "browser:device", width: 312, height: 244, contentHeight: 234},
+        {id: "page:realm-b", parentId: "browser:device", width: 238.8, height: 218, contentHeight: 208},
         {id: "service-worker:stable", parentId: "browser:device", width: 520, height: 440, contentHeight: 430},
         {id: "bun-process:main", parentId: "server-contour", width: 194.25, height: 218, contentHeight: 208},
         {id: "bun-process:worker", parentId: "server-contour", width: 205.75, height: 218, contentHeight: 208},
         {id: "window-main:realm", parentId: "page:realm", width: 210.45, height: 162, contentHeight: 152},
+        {id: "window-main:realm-b", parentId: "page:realm-b", width: 180, height: 134, contentHeight: 124},
         {id: "peer-process:runtime", parentId: "server-contour", width: 245.2, height: 190, contentHeight: 180},
         {id: "dedicated-worker:runtime", parentId: "page:realm", width: 300.7, height: 190, contentHeight: 180},
         {id: "rtc-peer:session%3Aserver", parentId: "peer-process:runtime", width: 318.25, height: 218, contentHeight: 208},
@@ -221,6 +223,8 @@ describe("compound spacing rhythm", () => {
         {id: "dedicated-worker:runtime\0in:Worker", nodeId: "dedicated-worker:runtime", y: 168},
         {id: "page:realm\0in:MessagePort", nodeId: "page:realm", y: 194},
         {id: "page:realm\0out:Controller", nodeId: "page:realm", y: 222},
+        {id: "page:realm-b\0in:MessagePort", nodeId: "page:realm-b", y: 168},
+        {id: "page:realm-b\0out:Controller", nodeId: "page:realm-b", y: 196},
         {id: "peer-process:runtime\0in:IPC", nodeId: "peer-process:runtime", y: 168},
         {id: "rtc-peer:session%3Abrowser\0in:Force", nodeId: "rtc-peer:session%3Abrowser", y: 196},
         {id: "rtc-peer:session%3Abrowser\0in:Oracle", nodeId: "rtc-peer:session%3Abrowser", y: 224},
@@ -246,11 +250,24 @@ describe("compound spacing rhythm", () => {
         {id: "websocket:control", sourcePortId: "service-worker:stable\0out:WS", targetPortId: "server:runtime\0in:WS"},
         {id: "controller:page", sourcePortId: "page:realm\0out:Controller", targetPortId: "service-worker:stable\0in:Controller"},
         {id: "message-port:page", sourcePortId: "service-worker:stable\0out:MessagePort", targetPortId: "page:realm\0in:MessagePort"},
+        {id: "controller:page-b", sourcePortId: "page:realm-b\0out:Controller", targetPortId: "service-worker:stable\0in:Controller"},
+        {id: "message-port:page-b", sourcePortId: "service-worker:stable\0out:MessagePort", targetPortId: "page:realm-b\0in:MessagePort"},
       ],
     }
 
-    const result = layout(graph)
-    expect(result.edges).toHaveLength(10)
-    expect(result.nodes).toHaveLength(12)
-  })
+    for (const viewport of [{width: 1088, height: 722}, {width: 722, height: 1088}]) {
+      const input = {...graph, viewport}
+      const result = layout(input)
+      const permuted = layout({
+        ...input,
+        nodes: [...input.nodes].reverse(),
+        ports: [...input.ports].reverse(),
+        edges: [...input.edges].reverse(),
+      })
+
+      expect(result.edges).toHaveLength(12)
+      expect(result.nodes).toHaveLength(14)
+      expect(permuted).toEqual(result)
+    }
+  }, 15_000)
 })

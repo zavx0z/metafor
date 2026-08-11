@@ -1,0 +1,274 @@
+{
+  "viewport": {
+    "width": 722,
+    "height": 1088
+  },
+  "layoutOptions": {
+    "clearance": 28,
+    "spacing": 28,
+    "layerSpacing": 28,
+    "padding": 28
+  },
+  "nodes": [
+    {
+      "id": "server-contour",
+      "width": 180,
+      "height": 66,
+      "contentHeight": 34
+    },
+    {
+      "id": "server:host-a",
+      "parentId": "server-contour",
+      "width": 199.60000000000002,
+      "height": 246,
+      "contentHeight": 236
+    },
+    {
+      "id": "browser:device-a",
+      "width": 180,
+      "height": 134,
+      "contentHeight": 124
+    },
+    {
+      "id": "page:page-a",
+      "parentId": "browser:device-a",
+      "width": 286.35,
+      "height": 244,
+      "contentHeight": 234
+    },
+    {
+      "id": "page:page-b",
+      "parentId": "browser:device-a",
+      "width": 238.8,
+      "height": 218,
+      "contentHeight": 208
+    },
+    {
+      "id": "service-worker:sw-a",
+      "parentId": "browser:device-a",
+      "width": 474.45000000000005,
+      "height": 328,
+      "contentHeight": 318
+    },
+    {
+      "id": "bun-process:main",
+      "parentId": "server-contour",
+      "width": 180,
+      "height": 218,
+      "contentHeight": 208
+    },
+    {
+      "id": "bun-process:worker",
+      "parentId": "server-contour",
+      "width": 186.4,
+      "height": 218,
+      "contentHeight": 208
+    },
+    {
+      "id": "window-main:page-a",
+      "parentId": "page:page-a",
+      "width": 199.2,
+      "height": 162,
+      "contentHeight": 152
+    },
+    {
+      "id": "window-main:page-b",
+      "parentId": "page:page-b",
+      "width": 180,
+      "height": 134,
+      "contentHeight": 124
+    },
+    {
+      "id": "peer-process:peer-a",
+      "parentId": "server-contour",
+      "width": 226,
+      "height": 190,
+      "contentHeight": 180
+    },
+    {
+      "id": "dedicated-worker:worker-a",
+      "parentId": "page:page-a",
+      "width": 262.30000000000007,
+      "height": 190,
+      "contentHeight": 180
+    },
+    {
+      "id": "rtc-peer:session-a%3Abrowser",
+      "parentId": "window-main:page-a",
+      "width": 283.75,
+      "height": 246,
+      "contentHeight": 236
+    },
+    {
+      "id": "rtc-peer:session-a%3Aserver",
+      "parentId": "peer-process:peer-a",
+      "width": 277.15,
+      "height": 218,
+      "contentHeight": 208
+    }
+  ],
+  "ports": [
+    {
+      "id": "bun-process:main\u0000in:IPC",
+      "nodeId": "bun-process:main",
+      "y": 196
+    },
+    {
+      "id": "bun-process:worker\u0000in:IPC",
+      "nodeId": "bun-process:worker",
+      "y": 196
+    },
+    {
+      "id": "dedicated-worker:worker-a\u0000in:Worker%20messaging",
+      "nodeId": "dedicated-worker:worker-a",
+      "y": 168
+    },
+    {
+      "id": "page:page-a\u0000in:MessagePort",
+      "nodeId": "page:page-a",
+      "y": 194
+    },
+    {
+      "id": "page:page-a\u0000out:ServiceWorker%20controller",
+      "nodeId": "page:page-a",
+      "y": 222
+    },
+    {
+      "id": "page:page-b\u0000in:MessagePort",
+      "nodeId": "page:page-b",
+      "y": 168
+    },
+    {
+      "id": "page:page-b\u0000out:ServiceWorker%20controller",
+      "nodeId": "page:page-b",
+      "y": 196
+    },
+    {
+      "id": "peer-process:peer-a\u0000in:IPC",
+      "nodeId": "peer-process:peer-a",
+      "y": 168
+    },
+    {
+      "id": "rtc-peer:session-a%3Abrowser\u0000in:Force%20RTCDataChannel",
+      "nodeId": "rtc-peer:session-a%3Abrowser",
+      "y": 196
+    },
+    {
+      "id": "rtc-peer:session-a%3Abrowser\u0000in:Oracle%20RTCDataChannel",
+      "nodeId": "rtc-peer:session-a%3Abrowser",
+      "y": 224
+    },
+    {
+      "id": "rtc-peer:session-a%3Aserver\u0000out:Force%20RTCDataChannel",
+      "nodeId": "rtc-peer:session-a%3Aserver",
+      "y": 168
+    },
+    {
+      "id": "rtc-peer:session-a%3Aserver\u0000out:Oracle%20RTCDataChannel",
+      "nodeId": "rtc-peer:session-a%3Aserver",
+      "y": 196
+    },
+    {
+      "id": "server:host-a\u0000in:WS",
+      "nodeId": "server:host-a",
+      "y": 196
+    },
+    {
+      "id": "server:host-a\u0000out:IPC",
+      "nodeId": "server:host-a",
+      "y": 168
+    },
+    {
+      "id": "server:host-a\u0000out:Web%20Push",
+      "nodeId": "server:host-a",
+      "y": 224
+    },
+    {
+      "id": "service-worker:sw-a\u0000in:ServiceWorker%20controller",
+      "nodeId": "service-worker:sw-a",
+      "y": 250
+    },
+    {
+      "id": "service-worker:sw-a\u0000in:Web%20Push",
+      "nodeId": "service-worker:sw-a",
+      "y": 306
+    },
+    {
+      "id": "service-worker:sw-a\u0000out:MessagePort",
+      "nodeId": "service-worker:sw-a",
+      "y": 222
+    },
+    {
+      "id": "service-worker:sw-a\u0000out:WS",
+      "nodeId": "service-worker:sw-a",
+      "y": 278
+    },
+    {
+      "id": "window-main:page-a\u0000out:Worker%20messaging",
+      "nodeId": "window-main:page-a",
+      "y": 140
+    }
+  ],
+  "edges": [
+    {
+      "id": "service-worker-controller:page",
+      "sourcePortId": "page:page-a\u0000out:ServiceWorker%20controller",
+      "targetPortId": "service-worker:sw-a\u0000in:ServiceWorker%20controller"
+    },
+    {
+      "id": "data-channel:force",
+      "sourcePortId": "rtc-peer:session-a%3Aserver\u0000out:Force%20RTCDataChannel",
+      "targetPortId": "rtc-peer:session-a%3Abrowser\u0000in:Force%20RTCDataChannel"
+    },
+    {
+      "id": "data-channel:oracle",
+      "sourcePortId": "rtc-peer:session-a%3Aserver\u0000out:Oracle%20RTCDataChannel",
+      "targetPortId": "rtc-peer:session-a%3Abrowser\u0000in:Oracle%20RTCDataChannel"
+    },
+    {
+      "id": "ipc:main",
+      "sourcePortId": "server:host-a\u0000out:IPC",
+      "targetPortId": "bun-process:main\u0000in:IPC"
+    },
+    {
+      "id": "ipc:peer",
+      "sourcePortId": "server:host-a\u0000out:IPC",
+      "targetPortId": "peer-process:peer-a\u0000in:IPC"
+    },
+    {
+      "id": "ipc:worker",
+      "sourcePortId": "server:host-a\u0000out:IPC",
+      "targetPortId": "bun-process:worker\u0000in:IPC"
+    },
+    {
+      "id": "message-port:page",
+      "sourcePortId": "service-worker:sw-a\u0000out:MessagePort",
+      "targetPortId": "page:page-a\u0000in:MessagePort"
+    },
+    {
+      "id": "message-port:page-b",
+      "sourcePortId": "service-worker:sw-a\u0000out:MessagePort",
+      "targetPortId": "page:page-b\u0000in:MessagePort"
+    },
+    {
+      "id": "service-worker-controller:page-b",
+      "sourcePortId": "page:page-b\u0000out:ServiceWorker%20controller",
+      "targetPortId": "service-worker:sw-a\u0000in:ServiceWorker%20controller"
+    },
+    {
+      "id": "web-push:worker",
+      "sourcePortId": "server:host-a\u0000out:Web%20Push",
+      "targetPortId": "service-worker:sw-a\u0000in:Web%20Push"
+    },
+    {
+      "id": "websocket:control",
+      "sourcePortId": "service-worker:sw-a\u0000out:WS",
+      "targetPortId": "server:host-a\u0000in:WS"
+    },
+    {
+      "id": "worker-message:worker",
+      "sourcePortId": "window-main:page-a\u0000out:Worker%20messaging",
+      "targetPortId": "dedicated-worker:worker-a\u0000in:Worker%20messaging"
+    }
+  ]
+}

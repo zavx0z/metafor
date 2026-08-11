@@ -350,6 +350,21 @@ function arrangeChildren(
     for (let rowIndex = 0; rowIndex < rows.length; rowIndex += 1) {
       for (const id of rows[rowIndex]!.ids) rowIndexById.set(id, rowIndex)
     }
+    const occupiedCorridorAfter = (rowIndex: number): number => {
+      const crossingRelations = ranked.relations.filter((relation) => {
+        const sourceRow = rowIndexById.get(relation.sourceChild)!
+        const targetRow = rowIndexById.get(relation.targetChild)!
+        return Math.min(sourceRow, targetRow) <= rowIndex && Math.max(sourceRow, targetRow) > rowIndex
+      })
+      if (crossingRelations.length === 0) return input.layerSpacing
+      const countByEndpoint = new Map<string, number>()
+      for (const relation of crossingRelations) {
+        for (const id of [relation.sourceChild, relation.targetChild]) {
+          countByEndpoint.set(id, (countByEndpoint.get(id) ?? 0) + 1)
+        }
+      }
+      return (Math.max(...countByEndpoint.values()) + 1) * input.clearance
+    }
     const verticalOffsetById = new Map<string, number>()
     const componentsByRow: string[][][] = []
     for (let rowIndex = 0; rowIndex < rows.length; rowIndex += 1) {
@@ -452,21 +467,7 @@ function arrangeChildren(
       if (nextRow === undefined) {
         y += entry.height
       } else {
-        const crossingRelations = ranked.relations.filter((relation) => {
-          const sourceRow = rowIndexById.get(relation.sourceChild)!
-          const targetRow = rowIndexById.get(relation.targetChild)!
-          return Math.min(sourceRow, targetRow) <= rowIndex && Math.max(sourceRow, targetRow) > rowIndex
-        })
-        const countByEndpoint = new Map<string, number>()
-        for (const relation of crossingRelations) {
-          for (const id of [relation.sourceChild, relation.targetChild]) {
-            countByEndpoint.set(id, (countByEndpoint.get(id) ?? 0) + 1)
-          }
-        }
-        const occupiedCorridor = crossingRelations.length === 0
-          ? input.layerSpacing
-          : (Math.max(...countByEndpoint.values()) + 1) * input.clearance
-        y += entry.height + Math.max(input.layerSpacing, occupiedCorridor)
+        y += entry.height + Math.max(input.layerSpacing, occupiedCorridorAfter(rowIndex))
       }
     }
     if (packing.compactSources) {
@@ -577,9 +578,13 @@ function arrangeChildren(
           for (const earlierId of earlierIds) {
             if (horizontalGap(id, earlierId) >= input.nodeSpacing) continue
             const earlier = offsets.get(earlierId)!
+            const earlierRow = rowIndexById.get(earlierId)!
+            const requiredGap = earlierRow === rowIndex - 1
+              ? Math.max(input.layerSpacing, occupiedCorridorAfter(earlierRow))
+              : input.nodeSpacing
             translation = Math.max(
               translation,
-              earlier.y + measured.get(earlierId)!.size.h + input.nodeSpacing - relativeY,
+              earlier.y + measured.get(earlierId)!.size.h + requiredGap - relativeY,
             )
           }
           for (const track of tracks) {
