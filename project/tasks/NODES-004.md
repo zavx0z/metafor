@@ -43,11 +43,18 @@
 
 ## Closing handoff
 
-Проверяющему нужно независимо подтвердить: новый закон находится у владельца
-`@nodes/ui`; layout/Worker/Hamiltonian topology не изменены; совпадающие
-коридоры возвращают все stable edge ID; пустое тело compound не блокирует
-видимый edge, а leaf-card продолжает его перекрывать; focused tests,
-typechecks, live hashes и pixel evidence воспроизводимы.
+Result commit: `3be6c99681ffb1e4c66749a6742f0262f9a7eeaf`.
+
+Затронуты `@nodes/ui` и технический surface primitive `@ui/elements`:
+долговечный пользовательский закон принадлежит
+`pkg/nodes/ui/REQUIREMENTS.md`, а accessor `UiSurface.hoveredPointer()`
+документирован TypeDoc рядом с кодом. Layout, Worker и Hamiltonian topology не
+изменены.
+
+Проверяющему нужно независимо подтвердить: совпадающие коридоры возвращают все
+stable edge ID; пустое тело compound не блокирует видимый edge, а leaf-card
+продолжает его перекрывать; focused tests, typechecks, live hashes и pixel
+evidence воспроизводимы.
 
 ## Артефакты
 
