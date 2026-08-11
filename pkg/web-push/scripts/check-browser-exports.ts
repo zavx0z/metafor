@@ -1,4 +1,5 @@
 const browserEntries = [
+  "src/index.ts",
   "src/protocol.ts",
   "src/lifecycle.ts",
   "src/client.ts",
@@ -22,6 +23,9 @@ for (const output of result.outputs) {
   const source = await output.text()
   if (/from\s+["'](?:node:|bun:|web-push)/.test(source)) {
     throw new Error(`Server-only dependency leaked into browser export ${output.path}`)
+  }
+  if (output.path.endsWith("index.js") && /WebPushService|MemoryWebPushSubscriptionStore/.test(source)) {
+    throw new Error("Root export must remain runtime-neutral")
   }
 }
 

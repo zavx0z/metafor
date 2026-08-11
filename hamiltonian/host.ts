@@ -737,7 +737,10 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
   const webPushTransportId = (workerEntityId: string) =>
     hamiltonianLifecycleTransportId("web-push", workerEntityId)
   const webPushWorkerEntityId = (event: WebPushLifecycleEvent): string | null => {
-    const candidate = event.subjectId ?? event.detail?.subscriptionId
+    const detail = event.detail
+    const candidate = event.subjectId ?? (
+      detail && "subscriptionId" in detail ? detail.subscriptionId : null
+    )
     return typeof candidate === "string" && candidate.startsWith("service-worker:")
       ? candidate
       : null

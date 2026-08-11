@@ -34,7 +34,7 @@ describe("Web Push lifecycle", () => {
       type: "server.push-accepted",
       operationId: "operation-2",
       subjectId: "subscription-1",
-      detail: {messageId: "message-1", statusCode: 201},
+      detail: {subscriptionId: "subscription-1", messageId: "message-1", statusCode: 201},
     })
     expect(events).toHaveLength(1)
     expect(isWebPushLifecycleEvent(events[0])).toBe(true)
@@ -53,7 +53,11 @@ describe("Web Push lifecycle", () => {
       source: "worker",
       onLifecycle: hook,
       createId: () => "event-3",
-    }).emit({type: "worker.push-received", operationId: "operation-3"})).not.toThrow()
+    }).emit({
+      type: "worker.push-received",
+      operationId: "operation-3",
+      detail: {messageId: "message-3"},
+    })).not.toThrow()
     await Promise.resolve()
     expect(delivered).toEqual(["event-3"])
   })
@@ -74,5 +78,12 @@ describe("Web Push lifecycle", () => {
     expect(JSON.stringify(event)).not.toContain("token-super-secret")
     expect(isWebPushLifecycleEvent(event)).toBeTrue()
     expect(isWebPushLifecycleEvent({...event, detail: {reason: "token-super-secret"}})).toBeFalse()
+    expect(isWebPushLifecycleEvent({...event, token: "token-super-secret"})).toBeFalse()
+    expect(isWebPushLifecycleEvent({...event, source: "server"})).toBeFalse()
+    expect(isWebPushLifecycleEvent({...event, type: "client.supported"})).toBeFalse()
+    expect(() => lifecycle.emit({
+      type: "server.vapid-ready",
+      operationId: "operation-6",
+    } as never)).toThrow("does not belong to client")
   })
 })

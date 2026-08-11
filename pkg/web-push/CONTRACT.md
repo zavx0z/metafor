@@ -20,7 +20,9 @@ Hamiltonian или конкретному transport приложения. Он �
 `protocol` и `lifecycle` не имеют side effects. `client` работает только в
 Window, `worker` — только в Service Worker, `server` — в произвольном server
 runtime, а `server/bun` содержит Bun/Node и `web-push` adapters. Browser entry
-points не импортируют server-код.
+points не импортируют server-код. Корневой export содержит только
+runtime-neutral `protocol` и `lifecycle`; исполняемые API импортируются через
+явные subpath `client`, `worker`, `server` и `server/bun`.
 
 Core не знает о WSS, Force, Oracle, Hamiltonian identity, `wakeProof`, нодах и
 визуальной сцене.
@@ -52,6 +54,9 @@ Hook наблюдает, но не управляет механизмом:
 * policy, sender, store и receipt являются отдельными зависимостями;
 * событие содержит `schema`, `eventId`, `operationId`, `at`, `source`, `type` и
   только безопасные presentation data;
+* public type является discriminated union: префикс `type` обязан совпадать с
+  `source`, а detail проверяется по allowlist конкретного варианта; неизвестные
+  top-level и detail-поля запрещены;
 * событие никогда не содержит endpoint, VAPID/auth/p256dh keys, payload,
   capability или иной секрет; произвольный текст ошибки не публикуется, а
   неизвестная причина заменяется безопасной категорией `RedactedError`.

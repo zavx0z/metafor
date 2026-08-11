@@ -12,6 +12,7 @@ import {
 } from "./protocol.ts"
 import {
   createWebPushLifecycleEmitter,
+  type WebPushLifecycleEmitter,
   type WebPushLifecycleHook,
 } from "./lifecycle.ts"
 
@@ -74,7 +75,7 @@ export class WebPushService {
   readonly #now: () => number
   readonly #createId: () => string
   readonly #receiptRetentionMs: number
-  readonly #lifecycle: ReturnType<typeof createWebPushLifecycleEmitter>
+  readonly #lifecycle: WebPushLifecycleEmitter<"server">
   readonly #receipts = new Map<string, WebPushDeliveryReceipt>()
   readonly #receiptWaiters = new Map<string, Set<(receipt: WebPushDeliveryReceipt) => void>>()
 

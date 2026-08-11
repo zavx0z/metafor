@@ -120,7 +120,7 @@ describe("Web Push client", () => {
       onLifecycle: (event) => { events.push(event) },
     }).enable("operation-rejected")
     expect(rejected).toEqual({accepted: false, operationId: "operation-rejected", reason: "registration-rejected"})
-    expect(events.at(-1)?.detail?.reason).toBe("RegistrationRejected")
+    expect(events.at(-1)).toMatchObject({detail: {reason: "RegistrationRejected"}})
     expect(JSON.stringify(events)).not.toContain("token-super-secret")
   })
 })

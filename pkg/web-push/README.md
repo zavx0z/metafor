@@ -3,6 +3,10 @@
 Переиспользуемые TypeScript-примитивы Web Push для client, Service Worker и
 server. Публичный закон находится в [`CONTRACT.md`](CONTRACT.md).
 
+Корневой import экспортирует только runtime-neutral protocol и lifecycle.
+Исполняемые API подключаются явными subpath imports: `/client`, `/worker`,
+`/server` и `/server/bun`; так browser consumer не затягивает server service.
+
 Пакет не открывает `BroadcastChannel`. Для наблюдения приложение передаёт
 необязательный lifecycle hook; Hamiltonian публикует события в собственную
 browser-local шину из этого hook.
