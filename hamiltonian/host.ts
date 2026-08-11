@@ -14,6 +14,7 @@ import {
   type EmbodimentAuthority,
 } from "./bun-embodiment.ts"
 import {authorityKey, makeLeaseId} from "./core/runtime.js"
+import {hamiltonianBrowserNodeId} from "./core/orchestration.js"
 import {HostTopology, type WindowCandidate} from "./host-state.ts"
 import {PeerProcessSupervisor} from "./peer-supervisor.ts"
 import type {PeerSignal, WeriftPeerSnapshot} from "./peer/werift-peer.ts"
@@ -426,6 +427,7 @@ function withClientLifecycleMonitor<T extends
 function isObservedSupersededServiceWorkerEnd(
   envelope: HamiltonianLifecycleEnvelope,
   successorWorkerEntityId: string,
+  browserEntityId: string,
 ): boolean {
   const observation = envelope.observation
   return envelope.sourceKind === "page" &&
@@ -434,7 +436,7 @@ function isObservedSupersededServiceWorkerEnd(
     observation.phase === "ended" &&
     observation.subjectKind === "service-worker" &&
     observation.subjectId !== successorWorkerEntityId &&
-    observation.ownerId === observation.subjectId &&
+    observation.ownerId === browserEntityId &&
     observation.attributes.state === "ended" &&
     observation.attributes.successor === successorWorkerEntityId
 }
@@ -685,6 +687,7 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
   })
   const observeServiceWorkerAvailability = (
     workerEntityId: string,
+    deviceId: string,
     attributes: Record<string, string | number | boolean | null>,
     causedBy?: string,
   ) => {
@@ -693,7 +696,7 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
       phase: "changed",
       subjectId: workerEntityId,
       subjectKind: "service-worker",
-      ownerId: workerEntityId,
+      ownerId: hamiltonianBrowserNodeId(webPush.deviceIdFor(workerEntityId) ?? deviceId),
       attributes,
     }), causedBy === undefined ? undefined : {causedBy}))
   }
@@ -1275,6 +1278,10 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
         if (!workerEntityId || !webPush.has(workerEntityId)) {
           return new Response("PushSubscription not found", {status: 404})
         }
+        const workerDeviceId = webPush.deviceIdFor(workerEntityId)
+        if (!workerDeviceId) {
+          return new Response("PushSubscription device not found", {status: 404})
+        }
         if (pendingWakes.has(workerEntityId)) {
           return new Response("A Web Push wake is already pending for this Service Worker", {status: 409})
         }
@@ -1292,7 +1299,7 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
           if (pendingWakes.get(workerEntityId)?.wakeId !== wakeId) return
           pendingWakes.delete(workerEntityId)
           record({at: Date.now(), kind: "push-reconnect-timeout", detail: `${workerEntityId} ${wakeId}`})
-          observeServiceWorkerAvailability(workerEntityId, {
+          observeServiceWorkerAvailability(workerEntityId, workerDeviceId, {
             state: "error",
             push: "reconnect-failed",
             wakeId,
@@ -1300,7 +1307,7 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
           })
         }, 90_000))
         record({at: Date.now(), kind: "push-armed", detail: `${workerEntityId} ${wakeId}`})
-        observeServiceWorkerAvailability(workerEntityId, {
+        observeServiceWorkerAvailability(workerEntityId, workerDeviceId, {
           state: "waking",
           push: "sent",
           wakeId,
@@ -1326,7 +1333,7 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
             })
           }
           record({at: Date.now(), kind: "push-send-failed", detail: `${workerEntityId} ${reason}`.slice(0, 512)})
-          observeServiceWorkerAvailability(workerEntityId, {
+          observeServiceWorkerAvailability(workerEntityId, workerDeviceId, {
             state: "error",
             push: "failed",
             reason: reason.slice(0, 256),
@@ -1415,7 +1422,11 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
         if (message.kind === "lifecycle-retirement") {
           if (
             message.monitor === undefined ||
-            !isObservedSupersededServiceWorkerEnd(message.envelope, socket.data.workerEntityId)
+            !isObservedSupersededServiceWorkerEnd(
+              message.envelope,
+              socket.data.workerEntityId,
+              hamiltonianBrowserNodeId(socket.data.deviceId),
+            )
           ) {
             socket.data.retainAuthorityOnClose = false
             socket.close(1008, "invalid browser lifecycle retirement")
@@ -1491,7 +1502,7 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
               connectionId: socket.data.connectionId,
               detail: `${socket.data.workerEntityId} ${message.wakeId}`,
             })
-            observeServiceWorkerAvailability(socket.data.workerEntityId, {
+            observeServiceWorkerAvailability(socket.data.workerEntityId, socket.data.deviceId, {
               identity: message.workerIdentity,
               runtimeIncarnation: message.workerRuntimeIncarnation,
               state: "active",
@@ -1500,7 +1511,7 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
             })
             sendControl(socket, {kind: "wake-confirmed", wakeId: message.wakeId})
           } else if (webPush.has(socket.data.workerEntityId)) {
-            observeServiceWorkerAvailability(socket.data.workerEntityId, {
+            observeServiceWorkerAvailability(socket.data.workerEntityId, socket.data.deviceId, {
               identity: message.workerIdentity,
               runtimeIncarnation: message.workerRuntimeIncarnation,
               state: "active",
@@ -1527,7 +1538,7 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
               connectionId: socket.data.connectionId,
               detail: socket.data.workerEntityId,
             })
-            observeServiceWorkerAvailability(socket.data.workerEntityId, {
+            observeServiceWorkerAvailability(socket.data.workerEntityId, socket.data.deviceId, {
               identity: socket.data.workerIdentity,
               runtimeIncarnation: socket.data.workerRuntimeIncarnation,
               state: "active",
@@ -1612,9 +1623,14 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
             observedBy: "server",
           },
         })))
-        observeServiceWorkerAvailability(socket.data.workerEntityId, webPush.has(socket.data.workerEntityId)
-          ? {state: "standby", push: "ready", heartbeat: "paused"}
-          : {state: "error", push: "unavailable", heartbeat: "failed"})
+        if (
+          socket.data.retainAuthorityOnClose &&
+          !pendingWakes.has(socket.data.workerEntityId)
+        ) {
+          observeServiceWorkerAvailability(socket.data.workerEntityId, socket.data.deviceId, webPush.has(socket.data.workerEntityId)
+            ? {state: "standby", push: "ready", heartbeat: "paused"}
+            : {state: "error", push: "unavailable", heartbeat: "failed"})
+        }
         const leader = topologyState().leader
         const retainsCurrentAuthority =
           !stopping &&

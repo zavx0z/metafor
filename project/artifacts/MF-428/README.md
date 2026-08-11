@@ -7,6 +7,22 @@
 Отдельный runtime-замер находится в
 [`chrome-151-ordinary-https-lifetime.md`](chrome-151-ordinary-https-lifetime.md).
 
+## service-worker-parent-stability.md
+
+* Источник: визуальное наблюдение владельца и bounded `/lab/status` текущего
+  HTTPS-host после исправления.
+* Дата: 2026-08-11.
+* Версия проекта: `b53e057346d62c67a425b9f48a2255ed5966062c` с рабочим исправлением MF-428.
+* Ожидание: штатная смена внутреннего исполнения и WSS не меняет browser parent
+  одной ноды Service Worker.
+* Фактическое наблюдение: за 100 секунд Chrome трижды сменил runtime и WSS при
+  неизменных worker/device identity; все lifecycle-эмиттеры и регрессионная
+  проекция сохраняют один `browser:*` owner. Автоматический screenshot не
+  получен из-за macOS Automation error `-1743` и не заявлен как доказанный.
+* Чувствительные сведения: token, VAPID private key, PushSubscription endpoint
+  и wake proof не сохранены.
+* Контрольная сумма: `a976e1e22185c97cb805aa8fd1285274d8397c0b28363e156a3cf764a205e14d`.
+
 ## web-push-wake-ordinary-chrome.md
 
 * Источник: bounded `/lab/status` текущего HTTPS-host, exact targeting обычного

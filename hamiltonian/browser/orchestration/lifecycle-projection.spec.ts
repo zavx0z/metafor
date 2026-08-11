@@ -132,23 +132,14 @@ describe("Hamiltonian lifecycle projection", () => {
       phase: "born",
       subjectId: "service-worker:sw-a",
       subjectKind: "service-worker",
-      ownerId: "service-worker:sw-a",
+      ownerId: "browser:device-a",
       attributes: {incarnation: "sw-a", state: "evaluating"},
     })), null)
 
     expect(projection.document().nodes.find(({id}) => id === "page:page-a")?.parentId)
       .toBe("browser:device-a")
     expect(projection.document().nodes.find(({id}) => id === "service-worker:sw-a")?.parentId)
-      .toBeUndefined()
-
-    projection.observe(worker.next(createHamiltonianLifecycleObservation({
-      type: "entity",
-      phase: "changed",
-      subjectId: "service-worker:sw-a",
-      subjectKind: "service-worker",
-      ownerId: "browser:device-a",
-      attributes: {incarnation: "sw-a", state: "active"},
-    })), null)
+      .toBe("browser:device-a")
 
     const document = projection.document()
     expect(document.nodes.find(({id}) => id === "browser:device-a")).toMatchObject({
@@ -332,9 +323,17 @@ describe("Hamiltonian lifecycle projection", () => {
     projection.observe(firstRuntime.next(createHamiltonianLifecycleObservation({
       type: "entity",
       phase: "born",
+      subjectId: "browser:device-a",
+      subjectKind: "browser-runtime",
+      ownerId: "browser:device-a",
+      attributes: {deviceId: "device-a", runtime: "Chrome", state: "active"},
+    })), null)
+    projection.observe(firstRuntime.next(createHamiltonianLifecycleObservation({
+      type: "entity",
+      phase: "born",
       subjectId: "service-worker:stable",
       subjectKind: "service-worker",
-      ownerId: "service-worker:stable",
+      ownerId: "browser:device-a",
       attributes: {identity: "stable", runtimeIncarnation: "runtime-a", state: "active", push: "ready"},
     })), null)
     projection.observe(firstRuntime.next(createHamiltonianLifecycleObservation({
@@ -362,10 +361,12 @@ describe("Hamiltonian lifecycle projection", () => {
       phase: "changed",
       subjectId: "service-worker:stable",
       subjectKind: "service-worker",
-      ownerId: "service-worker:stable",
+      ownerId: "browser:device-a",
       attributes: {identity: "stable", runtimeIncarnation: "runtime-a", state: "standby", push: "ready"},
     })), null)
     expect(projection.document().nodes.find(({id}) => id === "service-worker:stable")?.tone).toBe("paused")
+    expect(projection.document().nodes.find(({id}) => id === "service-worker:stable")?.parentId)
+      .toBe("browser:device-a")
 
     const secondRuntime = new HamiltonianLifecycleSource({
       id: "service-worker:stable",
@@ -378,11 +379,12 @@ describe("Hamiltonian lifecycle projection", () => {
       phase: "changed",
       subjectId: "service-worker:stable",
       subjectKind: "service-worker",
-      ownerId: "service-worker:stable",
+      ownerId: "browser:device-a",
       attributes: {identity: "stable", runtimeIncarnation: "runtime-b", state: "active", push: "received"},
     })), null)
     const workers = projection.document().nodes.filter(({id}) => id === "service-worker:stable")
     expect(workers).toHaveLength(1)
+    expect(workers[0]?.parentId).toBe("browser:device-a")
     expect(workers[0]?.facts).toContainEqual({id: "runtimeIncarnation", label: "Исполнение", value: "runtime-b"})
     expect(workers[0]?.facts).toContainEqual({id: "push", label: "Push", value: "received"})
   })

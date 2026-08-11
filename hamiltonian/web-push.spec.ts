@@ -37,6 +37,8 @@ describe("Hamiltonian Web Push persistence", () => {
       workerEntityId: "service-worker:stable",
       deviceId: "device-a",
     })])
+    expect(restarted.deviceIdFor("service-worker:stable")).toBe("device-a")
+    expect(restarted.deviceIdFor("service-worker:unknown")).toBeNull()
     await restarted.wake("service-worker:stable", {
       kind: "wake-service-worker",
       wakeId: "wake-one",

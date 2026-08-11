@@ -245,13 +245,14 @@ subscribeHamiltonianLifecycle((envelope) => {
     workerLifecycleJournal?.observe(envelope)
   }
   if (!isObservedSupersededServiceWorkerEnd(envelope)) return
+  if (!workerEntityId || !currentBrowserEntityId) return
   pendingHostRetirements.set(envelope.observation.subjectId, envelope)
   emitHamiltonianLifecycle(createHamiltonianLifecycleObservation({
     type: "entity",
     phase: "changed",
     subjectId: workerEntityId,
     subjectKind: "service-worker",
-    ownerId: currentBrowserEntityId ?? workerEntityId,
+    ownerId: currentBrowserEntityId,
     attributes: {
       lastFailure: "worker-replaced",
       failedWorker: envelope.observation.subjectId,
@@ -271,7 +272,7 @@ serviceWorkerRuntime.addEventListener("activate", (event) => event.waitUntil((as
   for (const client of clients) client.postMessage({kind: "reattach-window"})
 })()))
 
-function initializeWorkerIdentity(identity: string, browserEntityId: string | null): boolean {
+function initializeWorkerIdentity(identity: string, browserEntityId: string): boolean {
   if (!validControlIdentity(identity)) return false
   if (workerIdentity) return workerIdentity === identity
   workerIdentity = identity
@@ -282,7 +283,7 @@ function initializeWorkerIdentity(identity: string, browserEntityId: string | nu
     phase: "born",
     subjectId: workerEntityId,
     subjectKind: "service-worker",
-    ownerId: browserEntityId ?? workerEntityId,
+    ownerId: browserEntityId,
     attributes: {
       identity: workerIdentity,
       runtimeIncarnation: workerRuntimeIncarnation,
@@ -354,13 +355,13 @@ function observeWorkerAvailability(
   push: "ready" | "unavailable" | "received" | "reconnect-failed",
   attributes: Record<string, string | number | boolean | null> = {},
 ): void {
-  if (!workerEntityId) return
+  if (!workerEntityId || !currentBrowserEntityId) return
   emitHamiltonianLifecycle(createHamiltonianLifecycleObservation({
     type: "entity",
     phase: "changed",
     subjectId: workerEntityId,
     subjectKind: "service-worker",
-    ownerId: currentBrowserEntityId ?? workerEntityId,
+    ownerId: currentBrowserEntityId,
     attributes: {
       identity: workerIdentity,
       runtimeIncarnation: workerRuntimeIncarnation,
@@ -428,12 +429,13 @@ function observeWorkerHeartbeat(
   heartbeat: "awaiting" | "observed" | "failed",
   attributes: Record<string, string | number | boolean | null> = {},
 ): void {
+  if (!workerEntityId || !currentBrowserEntityId) return
   emitHamiltonianLifecycle(createHamiltonianLifecycleObservation({
     type: "entity",
     phase: "changed",
     subjectId: workerEntityId,
     subjectKind: "service-worker",
-    ownerId: currentBrowserEntityId ?? workerEntityId,
+    ownerId: currentBrowserEntityId,
     attributes: {
       identity: workerIdentity,
       runtimeIncarnation: workerRuntimeIncarnation,
@@ -504,13 +506,14 @@ function flushHostRetirements(): void {
 
 function isObservedSupersededServiceWorkerEnd(envelope: HamiltonianLifecycleEnvelope): boolean {
   const observation = envelope?.observation
-  return envelope?.sourceKind === "page" &&
+  return currentBrowserEntityId !== null &&
+    envelope?.sourceKind === "page" &&
     envelope?.sourceId === hamiltonianLifecycleEntityId("page", envelope?.sourceIncarnation) &&
     observation?.type === "entity" &&
     observation?.phase === "ended" &&
     observation?.subjectKind === "service-worker" &&
     observation?.subjectId !== workerEntityId &&
-    observation?.ownerId === observation?.subjectId &&
+    observation?.ownerId === currentBrowserEntityId &&
     observation?.attributes?.state === "ended" &&
     observation?.attributes?.successor === workerEntityId
 }

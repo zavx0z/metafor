@@ -309,6 +309,10 @@ JS-исполнение; это не рождает второй Service Worker 
 control bootstrap (`deviceId`, token, resume capability, host и готовность
 Push) хранится Service Worker в Cache Storage. Внутреннее исполнение имеет
 отдельный диагностический `runtimeIncarnation`, но не образует отдельную ноду.
+После получения browser identity владельцем этой сущности всегда остаётся
+соответствующий user-agent runtime. Наблюдения host и page о Push, heartbeat,
+ошибке или смене внутреннего исполнения обновляют состояние той же ноды, но не
+могут перенести её из browser parent или сделать корневой.
 
 PushSubscription и VAPID identity хранятся Bun в локальном игнорируемом
 `.metafor/hamiltonian-web-push.json` с правами `0600`. Явно заданные

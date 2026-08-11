@@ -40,6 +40,15 @@ test("builds the real orchestration and isolated layout Worker bundles", async (
     expect(serviceWorkerSource).not.toContain("ServiceWorkerGlobalScope")
     expect(serviceWorkerSource).not.toContain("awaiting-heartbeat")
     expect(serviceWorkerSource).not.toContain("continuity")
+    expect(serviceWorkerSource).not.toContain("currentBrowserEntityId??workerEntityId")
+
+    const serviceWorkerTypeScript = await Bun.file(join(repositoryRoot, "hamiltonian/browser/service-worker.ts")).text()
+    expect(serviceWorkerTypeScript).toContain("observation?.ownerId === currentBrowserEntityId")
+    expect(serviceWorkerTypeScript).not.toContain("observation?.ownerId === observation?.subjectId")
+
+    const pageSource = await Bun.file(join(repositoryRoot, "hamiltonian/public/app.js")).text()
+    expect(pageSource).not.toContain("ownerId: attachedWorkerEntityId")
+    expect(pageSource).not.toContain("ownerId: previousWorkerEntityId")
   } finally {
     await rm(outdir, {recursive: true, force: true})
   }

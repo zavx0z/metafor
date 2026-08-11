@@ -763,7 +763,7 @@ function observeAttachedWorkerFailure(reason) {
     phase: "changed",
     subjectId: attachedWorkerEntityId,
     subjectKind: "service-worker",
-    ownerId: attachedWorkerEntityId,
+    ownerId: browserEntityId,
     attributes: {state: "error", heartbeat: "failed", reason},
   }))
 }
@@ -785,7 +785,7 @@ function receive(message) {
         phase: "ended",
         subjectId: previousWorkerEntityId,
         subjectKind: "service-worker",
-        ownerId: previousWorkerEntityId,
+        ownerId: browserEntityId,
         attributes: {
           state: "ended",
           reason: "superseded-by-observed-incarnation",

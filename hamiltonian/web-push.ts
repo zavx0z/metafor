@@ -112,6 +112,10 @@ export class HamiltonianWebPush {
     return this.#subscriptions.has(workerEntityId)
   }
 
+  deviceIdFor(workerEntityId: string): string | null {
+    return this.#subscriptions.get(workerEntityId)?.deviceId ?? null
+  }
+
   matchesDevice(workerEntityId: string, deviceId: string): boolean {
     return this.#subscriptions.get(workerEntityId)?.deviceId === deviceId
   }
