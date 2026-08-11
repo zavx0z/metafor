@@ -7,6 +7,33 @@
 Отдельный runtime-замер находится в
 [`chrome-151-ordinary-https-lifetime.md`](chrome-151-ordinary-https-lifetime.md).
 
+## closed-tab-web-push-lifetime.json
+
+* Источник: 151 последовательный авторизованный `/lab/status` sample с
+  интервалом 2 секунды, события того же host и точное CDP-закрытие вкладки
+  Hamiltonian. Chrome продолжал работать с одной пустой вкладкой; Page и Window
+  clients Hamiltonian всё время отсутствовали.
+* Дата: 2026-08-11, `11:28:23Z`–`11:33:29Z`.
+* Версия проекта: clean runtime commit
+  `a343bb1ecc1d9d4fd60e6076015b8fc2142ccad0`, Git tree
+  `df1f4d0abb024a0b2b62fbfed9c42634ae8e2ff4`, Chrome
+  `151.0.7922.76`.
+* Ожидание: после закрытия вкладки и штатного исчезновения прежнего WSS реальный
+  Web Push пробуждает ту же зарегистрированную Service Worker entity,
+  восстанавливает причинно новый WSS и позволяет измерить его фактическую
+  жизнь без помощи Page.
+* Фактическое наблюдение: Push подтвердил reconnect за `803 ms`; новая runtime
+  incarnation сохранила worker identity, а WSS прожил `40.046 s`, подтвердив
+  четыре heartbeat ACK. После закрытия WSS ещё `250.840 s` не было ни одного
+  автоматического reconnect без второго Push. Во всех 151 samples число
+  Hamiltonian Window clients было равно нулю.
+* Чувствительные сведения: bearer token, VAPID private key, PushSubscription
+  endpoint/keys, payload, capability и `wakeProof` не сохранены. Raw stream
+  проверен поиском secret-shaped полей; в JSON перенесены только безопасные
+  identity, timestamps, агрегаты и SHA-256 исходных временных файлов.
+* Контрольная сумма: SHA-256
+  `658b6abf268069de9cb540ec921b6315545ab79ce6f4bbbc87ba8725a1cf9d6d`.
+
 ## service-worker-parent-stability.md
 
 * Источник: визуальное наблюдение владельца и bounded `/lab/status` текущего

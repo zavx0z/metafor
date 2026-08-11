@@ -1,0 +1,112 @@
+{
+  "schema": "metafor.mf428.closed-tab-web-push-lifetime.v1",
+  "capturedAt": "2026-08-11T11:33:29Z",
+  "checkout": "/Users/zavx0z/repozitarium/metafor",
+  "implementationCommit": "a343bb1ecc1d9d4fd60e6076015b8fc2142ccad0",
+  "implementationTree": "df1f4d0abb024a0b2b62fbfed9c42634ae8e2ff4",
+  "runtimeVersion": "a343bb1ecc1d9d4fd60e6076015b8fc2142ccad0",
+  "hostEpoch": "53d5f22f-5ba0-4d61-a0b2-3e1a53011cc3",
+  "browser": "Chrome/151.0.7922.76",
+  "boundary": {
+    "hamiltonianTargetClosed": "2B712B733E5B9CB18CA3DA211578AE05",
+    "observerTarget": "2BFEEBD05B85882BABA5131E3D46AACE",
+    "observerUrl": "chrome://newtab/",
+    "chromeProcessKeptRunning": true,
+    "hamiltonianPageAndWindowClients": 0,
+    "strictZeroChromeWindows": false,
+    "devTools": false,
+    "webGpuInspectorInstrumentation": false
+  },
+  "serviceWorker": {
+    "workerIdentity": "8f762ecc-48e8-47db-beaa-38898ffffdd9",
+    "pushSubscriptionPresent": true,
+    "baselineRuntimeIncarnation": "990b6b3f-da9b-4dee-85c8-f254870a1f7e",
+    "postPageCloseRuntimeIncarnation": "5b3bebcc-9c04-4b09-a9c7-cbd0d2c82174",
+    "pushWakeRuntimeIncarnation": "3f08b382-8684-40db-a566-e9b9f96620c1"
+  },
+  "preWakeQuiet": {
+    "postPageCloseConnectionId": "8b5889f9-8bd7-4a3b-a581-07797ce5f4a2",
+    "openedAtMs": 1786447638472,
+    "closedAtMs": 1786447668510,
+    "lifetimeMs": 30038,
+    "quietBeforeWakeMs": 49196
+  },
+  "wake": {
+    "wakeId": "69fa01a7-5b20-42d4-9101-474a3e1f7912",
+    "pushArmedAtMs": 1786447717706,
+    "pushSentAtMs": 1786447717708,
+    "pushServiceAcceptedAtMs": 1786447718307,
+    "connectionOpenedAtMs": 1786447718509,
+    "reconnectConfirmedAtMs": 1786447718511,
+    "pushSentToReconnectConfirmedMs": 803
+  },
+  "restoredConnection": {
+    "connectionId": "d9de635e-1251-404b-a254-39271a581064",
+    "openedAtMs": 1786447718509,
+    "lastPongAtMs": 1786447748552,
+    "closedAtMs": 1786447758555,
+    "lifetimeMs": 40046,
+    "openToLastPongMs": 30043,
+    "lastPongToCloseMs": 10003,
+    "confirmedHeartbeatAcks": 4
+  },
+  "monitor": {
+    "schema": "mf428.closed-tab-lifetime.sample/v1",
+    "sampleCount": 151,
+    "intervalMs": 2000,
+    "firstObservedAtMs": 1786447703275,
+    "lastObservedAtMs": 1786448009395,
+    "observedSpanMs": 306120,
+    "hamiltonianWindowCountNonZeroSamples": 0,
+    "runtimeVersionChangeSamples": 0,
+    "hostEpochChangeSamples": 0,
+    "postConnectionCloseReconnectSamples": 0,
+    "noReconnectAfterCloseMs": 250840,
+    "stateRuns": [
+      {
+        "startSample": 0,
+        "endSample": 7,
+        "startAtMs": 1786447703275,
+        "endAtMs": 1786447717550,
+        "hamiltonianWindowCount": 0,
+        "connectionCount": 0
+      },
+      {
+        "startSample": 8,
+        "endSample": 27,
+        "startAtMs": 1786447719590,
+        "endAtMs": 1786447758333,
+        "hamiltonianWindowCount": 0,
+        "connectionCount": 1
+      },
+      {
+        "startSample": 28,
+        "endSample": 150,
+        "startAtMs": 1786447760375,
+        "endAtMs": 1786448009395,
+        "hamiltonianWindowCount": 0,
+        "connectionCount": 0
+      }
+    ]
+  },
+  "finalState": {
+    "hamiltonianWindowCount": 0,
+    "connectionCount": 0,
+    "pendingWakeIds": []
+  },
+  "sourceSha256": {
+    "samplesJsonl": "b3ad35b18b6de179e33851ef937de50b664d91664a1841a66ec76d4514deca1c",
+    "statusFinalJson": "2ababd11c8d2526cd9e59c5d8f218b6151d604104860e436f4b4e0b940e7a38f",
+    "wakeResponseJson": "07b8a53d74633949f2e011bc96200829caac451769cc5baafdbc9616b8ef1f91",
+    "baselineJson": "6f149b0540afc871428f55d4c1ae8aebebf0a98474620e4c50ed6e9dc501e7c1",
+    "idleJson": "714cec5570bd6d187859ece326bd7776b2778377157459326d3d1d90444fa767"
+  },
+  "conclusion": {
+    "webPushWokeRegisteredServiceWorker": true,
+    "stableWorkerIdentityPreserved": true,
+    "runtimeIncarnationChanged": true,
+    "restoredWebSocketWasContinuous": false,
+    "automaticReconnectWithoutAnotherEventObserved": false,
+    "acceptanceMeaning": "Web Push causally restores a new WSS for the same registered Service Worker; it does not keep an ordinary web Service Worker or one WebSocket permanently alive."
+  }
+}

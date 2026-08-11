@@ -63,8 +63,9 @@ transport family и легенда в панели `Вид холста`. Пар
 отдельной незавершённой работой. После неё начинается
 `MF-414 — Определить, где работают домены и какая их копия действующая`.
 
-Текущая задача Codex: `WEBPUSH-001 — closing review exact implementation
-boundary`; связанная живая структура `MF-424.1` проверяется тем же contour.
+Текущая задача Codex: `WEBPUSH-001 — owner acceptance после длительного
+closed-Page Web Push замера`; связанная живая структура `MF-424.1` проверяется
+тем же contour.
 `WEBPUSH-001 — переиспользуемый Web Push` предъявляет коммиты
 `347fca844… → dac31433… → a343bb1e…` и exact clean HTTPS evidence.
 

@@ -151,6 +151,10 @@ dependencies.
 * Живой HTTPS-сценарий обычного Chrome подтверждает системный permission,
   subscription ACK, server send, `push` в Service Worker, notification,
   receipt и соответствующие визуальные изменения.
+* После закрытия Hamiltonian Page/Window clients длительный живой замер
+  подтверждает причинное пробуждение той же зарегистрированной Service Worker
+  entity, измеряет жизнь восстановленного WSS и не выдаёт отсутствие
+  автоматического reconnect за постоянное соединение.
 * Готовый diff проходит независимое ревью; визуальный и технический результат
   MF-428 принимает владелец одним сценарием.
 
@@ -253,6 +257,11 @@ host именно из этого чистого состояния.
   `e0eb450ae9e04026b281e9cbe389a211629f2d40306fbe1764019e33b8cc01d5`;
   внутри записаны exact implementation commit/tree, host source и SHA-256 всех
   реально отданных browser-бандлов.
+* Дополнительный закрытый-Page замер
+  `project/artifacts/MF-428/closed-tab-web-push-lifetime.json` относится к тому
+  же exact runtime `a343bb1e…`: Push подтвердил reconnect за `803 ms`, WSS
+  прожил `40.046 s`, а следующие `250.840 s` без второго Push автоматического
+  соединения не было. Все 151 samples сняты при `0` Hamiltonian Window clients.
 
 ### История независимого review
 
