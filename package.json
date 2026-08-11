@@ -30,6 +30,7 @@
     "dark/gravity",
     "hamiltonian",
     "pkg/engine",
+    "pkg/web-push",
     "pkg/nodes",
     "pkg/nodes/layout",
     "pkg/nodes/ui",

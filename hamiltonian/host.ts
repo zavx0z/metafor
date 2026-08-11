@@ -3,6 +3,8 @@ import {
   HamiltonianLifecycleSource,
   createHamiltonianLifecycleObservation,
   hamiltonianLifecycleEntityId,
+  hamiltonianLifecycleMessageId,
+  hamiltonianLifecycleTransportId,
   isHamiltonianLifecycleEnvelope,
   type HamiltonianLifecycleEnvelope,
 } from "./core/lifecycle.js"
@@ -25,6 +27,7 @@ import {
   type HamiltonianPushSubscriptionInput,
   type HamiltonianWebPushOptions,
 } from "./web-push.ts"
+import type {WebPushLifecycleEvent, WebPushLifecycleHook} from "@metafor/web-push/lifecycle"
 
 interface SocketData {
   connectionId: string
@@ -41,6 +44,7 @@ interface SocketData {
   workerIdentity: string | null
   workerRuntimeIncarnation: string | null
   resumeNonce: string | null
+  identityConfirmed: boolean
   retainAuthorityOnClose: boolean
 }
 
@@ -54,7 +58,12 @@ interface HamiltonianHostOptions {
   tlsKeyPath?: string
   heartbeatMs?: number
   placement?: "browser" | "server"
-  browserBundles?: Readonly<{orchestration: string; layoutWorker: string; serviceWorker: string}>
+  browserBundles?: Readonly<{
+    orchestration: string
+    layoutWorker: string
+    serviceWorker: string
+    webPushClient?: string
+  }>
   webPush?: HamiltonianWebPushOptions
 }
 
@@ -148,12 +157,14 @@ const publicRoot = `${experimentRoot}/public`
 const orchestrationEntry = `${experimentRoot}/browser/orchestration.ts`
 const layoutWorkerEntry = `${experimentRoot}/browser/layout-worker.ts`
 const serviceWorkerEntry = `${experimentRoot}/browser/service-worker.ts`
+const webPushClientEntry = `${repositoryRoot}/pkg/web-push/src/client.ts`
 const engineFont = fileURLToPath(new URL("../pkg/engine/static/JetBrainsMono-Bold.ttf", import.meta.url))
 const uiRoot = fileURLToPath(new URL("../pkg/ui/", import.meta.url))
 const nodesRoot = fileURLToPath(new URL("../pkg/nodes/", import.meta.url))
 let orchestrationBundle: Promise<string> | null = null
 let layoutWorkerBundle: Promise<string> | null = null
 let serviceWorkerBundle: Promise<string> | null = null
+let webPushClientBundle: Promise<string> | null = null
 
 function getOrchestrationBundle(): Promise<string> {
   orchestrationBundle ??= Bun.build({
@@ -216,6 +227,26 @@ function getServiceWorkerBundle(): Promise<string> {
   return serviceWorkerBundle
 }
 
+function getWebPushClientBundle(): Promise<string> {
+  webPushClientBundle ??= Bun.build({
+    root: repositoryRoot,
+    entrypoints: [webPushClientEntry],
+    target: "browser",
+    format: "esm",
+    minify: false,
+    sourcemap: "inline",
+  }).then(async (result) => {
+    if (!result.success || result.outputs.length === 0) {
+      const detail = result.logs.map((log) => log.message).join("\n")
+      throw new Error(`Hamiltonian Web Push client bundle failed${detail ? `: ${detail}` : ""}`)
+    }
+    return await result.outputs[0]!.text()
+  }).catch((error: unknown) => {
+    throw new Error(`Hamiltonian Web Push client bundle failed: ${browserBuildError(error)}`)
+  })
+  return webPushClientBundle
+}
+
 function browserBuildError(error: unknown): string {
   if (typeof error !== "object" || error === null) return String(error)
   const message = "message" in error ? String(error.message) : String(error)
@@ -231,6 +262,7 @@ function invalidateBrowserBundles(): void {
   orchestrationBundle = null
   layoutWorkerBundle = null
   serviceWorkerBundle = null
+  webPushClientBundle = null
 }
 
 function isReloadableSource(filename: string | Buffer | null): boolean {
@@ -593,12 +625,14 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
   const configuredVapidSubject = options.webPush?.subject ?? Bun.env.HAMILTONIAN_VAPID_SUBJECT
   const webPushStoragePath = options.webPush?.storagePath ??
     (Bun.env.NODE_ENV === "test" ? undefined : `${repositoryRoot}/.metafor/hamiltonian-web-push.json`)
+  let observeWebPushLifecycle: WebPushLifecycleHook = () => {}
   const webPush = new HamiltonianWebPush({
     ...(configuredVapidPublicKey === undefined ? {} : {publicKey: configuredVapidPublicKey}),
     ...(configuredVapidPrivateKey === undefined ? {} : {privateKey: configuredVapidPrivateKey}),
     ...(configuredVapidSubject === undefined ? {} : {subject: configuredVapidSubject}),
     ...(webPushStoragePath === undefined ? {} : {storagePath: webPushStoragePath}),
     ...(options.webPush?.send === undefined ? {} : {send: options.webPush.send}),
+    onLifecycle: (event) => observeWebPushLifecycle(event),
   })
   if (placement !== "browser" && placement !== "server") {
     throw new Error(`Unknown Hamiltonian placement: ${placement}`)
@@ -699,6 +733,92 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
       ownerId: hamiltonianBrowserNodeId(webPush.deviceIdFor(workerEntityId) ?? deviceId),
       attributes,
     }), causedBy === undefined ? undefined : {causedBy}))
+  }
+  const webPushTransportId = (workerEntityId: string) =>
+    hamiltonianLifecycleTransportId("web-push", workerEntityId)
+  const webPushWorkerEntityId = (event: WebPushLifecycleEvent): string | null => {
+    const candidate = event.subjectId ?? event.detail?.subscriptionId
+    return typeof candidate === "string" && candidate.startsWith("service-worker:")
+      ? candidate
+      : null
+  }
+  observeWebPushLifecycle = (event) => {
+    const workerEntityId = webPushWorkerEntityId(event)
+    if (!workerEntityId) return
+    const deviceId = webPush.deviceIdFor(workerEntityId)
+    if (!deviceId) return
+    const transportId = webPushTransportId(workerEntityId)
+    if (event.type === "server.subscription-stored" || event.type === "server.subscription-replaced") {
+      relayLifecycleEnvelope(hostLifecycle.next(createHamiltonianLifecycleObservation({
+        type: "transport",
+        phase: "opened",
+        subjectId: transportId,
+        subjectKind: "web-push",
+        ownerId: serverEntityId,
+        sourceEntityId: serverEntityId,
+        targetEntityId: workerEntityId,
+        transportId,
+        attributes: {state: "ready", mediatedBy: "browser-push-service"},
+      })))
+      observeServiceWorkerAvailability(workerEntityId, deviceId, {push: "ready"})
+      return
+    }
+    if (event.type === "server.subscription-removed") {
+      relayLifecycleEnvelope(hostLifecycle.next(createHamiltonianLifecycleObservation({
+        type: "transport",
+        phase: "closed",
+        subjectId: transportId,
+        subjectKind: "web-push",
+        ownerId: serverEntityId,
+        sourceEntityId: serverEntityId,
+        targetEntityId: workerEntityId,
+        transportId,
+        attributes: {reason: event.detail?.statusCode ?? "subscription-removed"},
+      })))
+      observeServiceWorkerAvailability(workerEntityId, deviceId, {push: "unavailable"})
+      return
+    }
+    if (event.type === "server.push-queued") {
+      observeServiceWorkerAvailability(workerEntityId, deviceId, {state: "waking", push: "sending"})
+      return
+    }
+    if (event.type === "server.push-dispatched" && event.detail?.messageId) {
+      const messageId = hamiltonianLifecycleMessageId(event.detail.messageId)
+      relayLifecycleEnvelope(hostLifecycle.next(createHamiltonianLifecycleObservation({
+        type: "message",
+        phase: "sent",
+        subjectId: messageId,
+        subjectKind: "web-push-message",
+        ownerId: serverEntityId,
+        sourceEntityId: serverEntityId,
+        targetEntityId: workerEntityId,
+        transportId,
+        messageId,
+        messageClass: "web-push",
+      })))
+      record({
+        at: event.at,
+        kind: "push-sent",
+        detail: `${workerEntityId} ${event.detail.messageId}`,
+      })
+      observeServiceWorkerAvailability(workerEntityId, deviceId, {state: "waking", push: "sent"})
+      return
+    }
+    if (event.type === "server.push-accepted") {
+      observeServiceWorkerAvailability(workerEntityId, deviceId, {state: "waking", push: "accepted"})
+      return
+    }
+    if (event.type === "server.push-failed") {
+      observeServiceWorkerAvailability(workerEntityId, deviceId, {
+        state: "error",
+        push: "failed",
+        ...(event.detail?.reason === undefined ? {} : {reason: event.detail.reason}),
+      })
+      return
+    }
+    if (event.type === "server.receipt-confirmed") {
+      observeServiceWorkerAvailability(workerEntityId, deviceId, {state: "active", push: "received"})
+    }
   }
   const observeHostIpcMessage = (event: {
     phase: "sent" | "received"
@@ -801,12 +921,22 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
     orchestrationBundle = Promise.resolve(options.browserBundles.orchestration)
     layoutWorkerBundle = Promise.resolve(options.browserBundles.layoutWorker)
     serviceWorkerBundle = Promise.resolve(options.browserBundles.serviceWorker)
+    if (options.browserBundles.webPushClient !== undefined) {
+      webPushClientBundle = Promise.resolve(options.browserBundles.webPushClient)
+    } else {
+      webPushClientBundle = null
+    }
   } else {
     invalidateBrowserBundles()
     if (Bun.env.NODE_ENV !== "test") {
       // Build once as soon as the host incarnation starts. A first navigation
       // must not pay the browser bundle compilation cost on its module request.
-      void Promise.all([getOrchestrationBundle(), getLayoutWorkerBundle(), getServiceWorkerBundle()]).catch(() => {})
+      void Promise.all([
+        getOrchestrationBundle(),
+        getLayoutWorkerBundle(),
+        getServiceWorkerBundle(),
+        getWebPushClientBundle(),
+      ]).catch(() => {})
     }
   }
   let broadcastTopology = () => {}
@@ -1205,6 +1335,15 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
           return new Response(error instanceof Error ? error.message : String(error), {status: 500})
         }
       }
+      if (url.pathname === "/web-push-client.js") {
+        try {
+          return new Response(await getWebPushClientBundle(), {
+            headers: securityHeaders("text/javascript; charset=utf-8"),
+          })
+        } catch (error) {
+          return new Response(error instanceof Error ? error.message : String(error), {status: 500})
+        }
+      }
       if (url.pathname === "/sw-entry.js") {
         try {
           const headers = new Headers(securityHeaders("text/javascript; charset=utf-8"))
@@ -1245,7 +1384,8 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
             workerIdentity: null,
             workerRuntimeIncarnation: null,
             resumeNonce: null,
-            retainAuthorityOnClose: true,
+            identityConfirmed: false,
+            retainAuthorityOnClose: false,
           },
         })
         return upgraded ? undefined : new Response("WebSocket upgrade required", {status: 426})
@@ -1309,7 +1449,7 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
         record({at: Date.now(), kind: "push-armed", detail: `${workerEntityId} ${wakeId}`})
         observeServiceWorkerAvailability(workerEntityId, workerDeviceId, {
           state: "waking",
-          push: "sent",
+          push: "armed",
           wakeId,
         })
         try {
@@ -1320,8 +1460,8 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
             token,
             serverEntityId,
           })
-          record({at: Date.now(), kind: "push-sent", detail: `${workerEntityId} ${wakeId}`})
           await delivery
+          record({at: Date.now(), kind: "push-service-accepted", detail: `${workerEntityId} ${wakeId}`})
           return Response.json({ok: true, workerEntityId, wakeId}, {
             headers: securityHeaders("application/json; charset=utf-8"),
           })
@@ -1385,7 +1525,7 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
         broadcastTopology()
         challengeHeartbeat(socket)
       },
-      message(socket, rawMessage) {
+      async message(socket, rawMessage) {
         controlFramesIn += 1
         controlBytesIn += rawMessage.length
         if (isRealtimeControlPayload(rawMessage)) {
@@ -1451,8 +1591,6 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
           }
           socket.data.lastPongAt = Date.now()
           socket.data.lastAckSeq = message.seq
-          socket.data.workerIdentity = message.workerIdentity
-          socket.data.workerRuntimeIncarnation = message.workerRuntimeIncarnation
           if (socket.data.heartbeatTimeoutTimer !== null) {
             clearTimeout(socket.data.heartbeatTimeoutTimer)
             socket.data.heartbeatTimeoutTimer = null
@@ -1473,15 +1611,6 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
             socket.close(1008, "worker identity does not match control endpoint")
             return
           }
-          socket.data.workerIdentity = message.workerIdentity
-          socket.data.workerRuntimeIncarnation = message.workerRuntimeIncarnation
-          socket.data.resumeNonce = message.resumeNonce
-          record({
-            at: Date.now(),
-            kind: "worker-identity",
-            connectionId: socket.data.connectionId,
-            detail: `${message.workerIdentity} runtime ${message.workerRuntimeIncarnation}`,
-          })
           if (message.wakeId !== undefined) {
             const pendingWake = pendingWakes.get(socket.data.workerEntityId)
             if (
@@ -1495,7 +1624,26 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
               socket.close(1008, "unexpected Web Push wake identity")
               return
             }
+          }
+          socket.data.workerIdentity = message.workerIdentity
+          socket.data.workerRuntimeIncarnation = message.workerRuntimeIncarnation
+          socket.data.resumeNonce = message.resumeNonce
+          socket.data.identityConfirmed = true
+          socket.data.retainAuthorityOnClose = true
+          record({
+            at: Date.now(),
+            kind: "worker-identity",
+            connectionId: socket.data.connectionId,
+            detail: `${message.workerIdentity} runtime ${message.workerRuntimeIncarnation}`,
+          })
+          if (message.wakeId !== undefined) {
             clearPendingWake(socket.data.workerEntityId, message.wakeId)
+            webPush.confirmReceipt(socket.data.workerEntityId, {
+              schema: 1,
+              messageId: message.wakeId,
+              operationId: message.wakeId,
+              receivedAt: Date.now(),
+            })
             record({
               at: Date.now(),
               kind: "push-reconnect-confirmed",
@@ -1521,17 +1669,21 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
           return
         }
         if (message.kind === "push-subscription") {
-          if (!socket.data.workerIdentity || !socket.data.workerRuntimeIncarnation) {
+          if (
+            !socket.data.identityConfirmed ||
+            !socket.data.workerIdentity ||
+            !socket.data.workerRuntimeIncarnation
+          ) {
             socket.data.retainAuthorityOnClose = false
             socket.close(1008, "PushSubscription requires an identified Service Worker")
             return
           }
           try {
-            const subscription = webPush.register(socket.data.workerEntityId, {
+            const subscription = await webPush.register(socket.data.workerEntityId, {
               workerIdentity: socket.data.workerIdentity,
               deviceId: socket.data.deviceId,
               subscription: message.subscription,
-            })
+            }, message.registrationId)
             record({
               at: Date.now(),
               kind: "push-subscription",
@@ -1607,23 +1759,26 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
         clearHeartbeatTimers(socket)
         record({at: Date.now(), kind: "connection-close", connectionId: socket.data.connectionId})
         sockets.delete(socket.data.connectionId)
-        relayLifecycleEnvelope(hostLifecycle.next(createHamiltonianLifecycleObservation({
-          type: "transport",
-          phase: "closed",
-          subjectId: socket.data.lifecycleTransportId,
-          subjectKind: "websocket",
-          ownerId: socket.data.workerEntityId,
-          sourceEntityId: socket.data.workerEntityId,
-          targetEntityId: serverEntityId,
-          transportId: socket.data.lifecycleTransportId,
-          attributes: {
-            connectionId: socket.data.connectionId,
-            code,
-            reason: String(reason).slice(0, 256),
-            observedBy: "server",
-          },
-        })))
+        if (socket.data.identityConfirmed && socket.data.retainAuthorityOnClose) {
+          relayLifecycleEnvelope(hostLifecycle.next(createHamiltonianLifecycleObservation({
+            type: "transport",
+            phase: "closed",
+            subjectId: socket.data.lifecycleTransportId,
+            subjectKind: "websocket",
+            ownerId: socket.data.workerEntityId,
+            sourceEntityId: socket.data.workerEntityId,
+            targetEntityId: serverEntityId,
+            transportId: socket.data.lifecycleTransportId,
+            attributes: {
+              connectionId: socket.data.connectionId,
+              code,
+              reason: String(reason).slice(0, 256),
+              observedBy: "server",
+            },
+          })))
+        }
         if (
+          socket.data.identityConfirmed &&
           socket.data.retainAuthorityOnClose &&
           !pendingWakes.has(socket.data.workerEntityId)
         ) {

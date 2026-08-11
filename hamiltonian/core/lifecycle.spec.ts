@@ -187,6 +187,114 @@ describe("Hamiltonian owner lifecycle", () => {
     expect(isHamiltonianLifecycleSnapshot({...endedSnapshot, envelopes: [ended]})).toBeFalse()
   })
 
+  test("retires an owned RTC subtree when its peer process ends", () => {
+    const serverId = "server:epoch-a"
+    const processId = "peer-process:incarnation-a"
+    const serverRtcId = "rtc-peer:session-a%3Aserver"
+    const browserRtcId = "rtc-peer:session-a%3Abrowser"
+    const dataChannelId = "data-channel:session-a%3Aforce"
+    const source = new HamiltonianLifecycleSource({
+      id: processId,
+      kind: "peer-process",
+      incarnation: "incarnation-a",
+      startedAt: 1,
+    })
+    const journal = new HamiltonianLifecycleRetainedJournal(serverId)
+    for (const observation of [
+      createHamiltonianLifecycleObservation({
+        type: "entity",
+        phase: "born",
+        subjectId: processId,
+        subjectKind: "peer-process",
+        ownerId: serverId,
+      }),
+      createHamiltonianLifecycleObservation({
+        type: "entity",
+        phase: "born",
+        subjectId: serverRtcId,
+        subjectKind: "rtc-peer",
+        ownerId: processId,
+        attributes: {endpoint: "server"},
+      }),
+      createHamiltonianLifecycleObservation({
+        type: "entity",
+        phase: "born",
+        subjectId: browserRtcId,
+        subjectKind: "rtc-peer",
+        ownerId: "window-main:page-a",
+        attributes: {endpoint: "browser"},
+      }),
+      createHamiltonianLifecycleObservation({
+        type: "transport",
+        phase: "opened",
+        subjectId: dataChannelId,
+        subjectKind: "data-channel",
+        ownerId: serverRtcId,
+        sourceEntityId: serverRtcId,
+        targetEntityId: browserRtcId,
+        transportId: dataChannelId,
+        attributes: {lane: "force"},
+      }),
+    ]) journal.observe(source.next(observation))
+
+    journal.observe(source.next(createHamiltonianLifecycleObservation({
+      type: "entity",
+      phase: "ended",
+      subjectId: processId,
+      subjectKind: "peer-process",
+      ownerId: serverId,
+    })))
+
+    const retained = journal.snapshot().envelopes.map(({observation}) => observation.subjectId)
+    expect(retained).toEqual([browserRtcId])
+
+    expect(journal.observe(source.next(createHamiltonianLifecycleObservation({
+      type: "entity",
+      phase: "changed",
+      subjectId: serverRtcId,
+      subjectKind: "rtc-peer",
+      ownerId: processId,
+      attributes: {endpoint: "server", state: "connected"},
+    })))).toBeTrue()
+    expect(journal.observe(source.next(createHamiltonianLifecycleObservation({
+      type: "transport",
+      phase: "opened",
+      subjectId: dataChannelId,
+      subjectKind: "data-channel",
+      ownerId: serverRtcId,
+      sourceEntityId: serverRtcId,
+      targetEntityId: browserRtcId,
+      transportId: dataChannelId,
+      attributes: {lane: "force"},
+    })))).toBeTrue()
+    expect(journal.snapshot().envelopes.map(({observation}) => observation.subjectId))
+      .toEqual([browserRtcId])
+
+    const neverRetainedRtcId = "rtc-peer:late-session%3Aserver"
+    const neverRetainedChannelId = "data-channel:late-session%3Aforce"
+    expect(journal.observe(source.next(createHamiltonianLifecycleObservation({
+      type: "transport",
+      phase: "opened",
+      subjectId: neverRetainedChannelId,
+      subjectKind: "data-channel",
+      ownerId: neverRetainedRtcId,
+      sourceEntityId: neverRetainedRtcId,
+      targetEntityId: browserRtcId,
+      transportId: neverRetainedChannelId,
+      attributes: {lane: "force"},
+    })))).toBeTrue()
+    expect(journal.observe(source.next(createHamiltonianLifecycleObservation({
+      type: "entity",
+      phase: "changed",
+      subjectId: neverRetainedRtcId,
+      subjectKind: "rtc-peer",
+      ownerId: processId,
+      attributes: {endpoint: "server", state: "connected"},
+    })))).toBeTrue()
+    expect(journal.snapshot().envelopes.map(({observation}) => observation.subjectId))
+      .toEqual([browserRtcId])
+  })
+
   test("retains one latest transport incarnation per logical slot, including closed state", () => {
     const serverId = "server:host-a"
     const workerId = "service-worker:worker-a"

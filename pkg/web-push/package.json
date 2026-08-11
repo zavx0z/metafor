@@ -1,0 +1,54 @@
+{
+  "name": "@metafor/web-push",
+  "version": "0.1.0",
+  "description": "Reusable permission, subscription, delivery and lifecycle primitives for Web Push.",
+  "type": "module",
+  "private": true,
+  "files": [
+    "CONTRACT.md",
+    "README.md",
+    "src"
+  ],
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./protocol": {
+      "types": "./src/protocol.ts",
+      "default": "./src/protocol.ts"
+    },
+    "./lifecycle": {
+      "types": "./src/lifecycle.ts",
+      "default": "./src/lifecycle.ts"
+    },
+    "./client": {
+      "types": "./src/client.ts",
+      "default": "./src/client.ts"
+    },
+    "./worker": {
+      "types": "./src/worker.ts",
+      "default": "./src/worker.ts"
+    },
+    "./server": {
+      "types": "./src/server.ts",
+      "default": "./src/server.ts"
+    },
+    "./server/bun": {
+      "types": "./src/server-bun.ts",
+      "default": "./src/server-bun.ts"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit --pretty false",
+    "test": "bun test",
+    "check:browser-exports": "bun run scripts/check-browser-exports.ts",
+    "check": "bun run typecheck && bun run test && bun run check:browser-exports"
+  },
+  "dependencies": {
+    "web-push": "3.6.7"
+  },
+  "devDependencies": {
+    "@types/web-push": "3.6.4"
+  }
+}

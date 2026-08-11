@@ -24,6 +24,7 @@ import {
   hamiltonianBrowserRuntimeName,
   parseLocalHamiltonianWindowAction,
 } from "/core/orchestration.js"
+import {createWebPushClient} from "/web-push-client.js"
 
 const elements = Object.fromEntries([
   "secure", "control", "socket", "role", "host", "version", "device",
@@ -55,12 +56,16 @@ if (!serviceWorkerIdentity) {
   localStorage.setItem("hamiltonian-service-worker-id", serviceWorkerIdentity)
 }
 const browserEntityId = hamiltonianBrowserNodeId(deviceId)
+const stableServiceWorkerEntityId = hamiltonianLifecycleEntityId("service-worker", serviceWorkerIdentity)
 const browserRuntimeName = hamiltonianBrowserRuntimeName(navigator.userAgent)
 let controlResumeNonce = localStorage.getItem("hamiltonian-control-resume")
 if (!controlResumeNonce) {
   controlResumeNonce = crypto.randomUUID()
   localStorage.setItem("hamiltonian-control-resume", controlResumeNonce)
 }
+
+let webPushClient = null
+let webPushEnablePromise = null
 
 const pageUrl = new URL(location.href)
 const suppliedToken = pageUrl.searchParams.get("token")
@@ -756,7 +761,7 @@ async function activateVersion(message) {
   log(`loaded ${loaded.version} from ${message.moduleUrl}`)
 }
 
-function observeAttachedWorkerFailure(reason) {
+function observeAttachedWorkerQuiet(reason) {
   if (!attachedWorkerEntityId) return
   emitHamiltonianLifecycle(createHamiltonianLifecycleObservation({
     type: "entity",
@@ -764,7 +769,7 @@ function observeAttachedWorkerFailure(reason) {
     subjectId: attachedWorkerEntityId,
     subjectKind: "service-worker",
     ownerId: browserEntityId,
-    attributes: {state: "error", heartbeat: "failed", reason},
+    attributes: {state: "standby", heartbeat: "paused", reason},
   }))
 }
 
@@ -857,7 +862,7 @@ function receive(message) {
     if (!pending) return
     pendingPushRegistrations.delete(message.registrationId)
     clearTimeout(pending.timer)
-    if (message.kind === "push-subscription-confirmed") pending.resolve()
+    if (message.kind === "push-subscription-confirmed") pending.resolve(message.subscription ?? null)
     else pending.reject(new Error(typeof message.reason === "string" ? message.reason : "server rejected subscription"))
     return
   }
@@ -994,50 +999,95 @@ async function start() {
       return
     }
     attachPageChannel()
-    await registerExistingPushSubscription(registration)
+    const publicKey = await fetchVapidPublicKey()
+    webPushClient = createHamiltonianWebPushClient(publicKey)
+    const restored = await webPushClient.restore(crypto.randomUUID())
+    if (restored) log("Existing Web Push subscription restored")
+    const disposition = webPushClient.permissionDisposition()
+    if (!restored && (disposition === "request" || disposition === "silent")) {
+      void enableWebPush()
+    }
   } catch (error) {
     log(`Service Worker registration failed: ${error.message}`, true)
   }
 }
 
 async function enableWebPush() {
-  try {
-    if (!("PushManager" in window) || !("Notification" in window)) {
-      throw new Error("Web Push is unavailable in this browser")
-    }
-    const permission = await Notification.requestPermission()
-    if (permission !== "granted") throw new Error(`notification permission is ${permission}`)
-    const registration = await navigator.serviceWorker.ready
+  if (webPushEnablePromise) return webPushEnablePromise
+  webPushEnablePromise = (async () => {
     const publicKey = await fetchVapidPublicKey()
-    let subscription = await registration.pushManager.getSubscription()
-    if (subscription && !sameApplicationServerKey(subscription.options.applicationServerKey, publicKey)) {
-      await subscription.unsubscribe()
-      subscription = null
+    webPushClient ??= createHamiltonianWebPushClient(publicKey)
+    const result = await webPushClient.enable(crypto.randomUUID())
+    if (!result.accepted) {
+      if (result.reason === "permission-dismissed") {
+        log("Notification permission request dismissed; Hamiltonian will request it again after reload")
+        return result
+      }
+      if (result.reason === "permission-denied") {
+        log("Notification permission denied; Hamiltonian will not request it again")
+        return result
+      }
+      throw new Error(result.reason)
     }
-    subscription ??= await registration.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: publicKey,
-    })
-    await registerPushSubscription(subscription)
     log("Web Push готов: Bun может пробудить этот Service Worker без открытой страницы")
-  } catch (error) {
+    return result
+  })().catch((error) => {
     log(`Web Push setup failed: ${error.message}`, true)
-  }
+    return null
+  }).finally(() => { webPushEnablePromise = null })
+  return webPushEnablePromise
 }
 
-async function registerExistingPushSubscription(registration) {
-  const subscription = await registration.pushManager?.getSubscription()
-  if (!subscription) return
-  try {
-    await registerPushSubscription(subscription)
-    log("Existing Web Push subscription restored")
-  } catch (error) {
-    log(`Existing Web Push subscription is unavailable: ${error.message}`, true)
-  }
+function createHamiltonianWebPushClient(publicKey) {
+  return createWebPushClient({
+    serviceWorker: navigator.serviceWorker,
+    notifications: "Notification" in window ? Notification : undefined,
+    applicationServerKey: publicKey,
+    registerSubscription: async (request) => {
+      try {
+        const confirmation = await registerPushSubscription(request.subscription, request.operationId)
+        return {
+          schema: 1,
+          accepted: true,
+          subscriptionId: stableServiceWorkerEntityId,
+          registeredAt: typeof confirmation?.registeredAt === "number"
+            ? confirmation.registeredAt
+            : Date.now(),
+        }
+      } catch (error) {
+        return {
+          schema: 1,
+          accepted: false,
+          reason: error instanceof Error ? error.name : "RegistrationError",
+        }
+      }
+    },
+    onLifecycle: observeWebPushLifecycle,
+  })
 }
 
-async function registerPushSubscription(subscription) {
-  const registrationId = crypto.randomUUID()
+function observeWebPushLifecycle(event) {
+  /** @type {Record<string, string | number | boolean | null>} */
+  const attributes = {webPushLifecycle: event.type}
+  if (event.type === "client.registration-accepted") {
+    attributes.push = "ready"
+    attributes.state = "active"
+  } else if (event.type === "client.permission-denied") {
+    attributes.push = "permission-denied"
+  } else if (event.type === "client.registration-rejected") {
+    attributes.push = "registration-rejected"
+  }
+  emitHamiltonianLifecycle(createHamiltonianLifecycleObservation({
+    type: "entity",
+    phase: "changed",
+    subjectId: stableServiceWorkerEntityId,
+    subjectKind: "service-worker",
+    ownerId: browserEntityId,
+    attributes,
+  }))
+}
+
+async function registerPushSubscription(subscription, registrationId = crypto.randomUUID()) {
   const confirmation = new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
       pendingPushRegistrations.delete(registrationId)
@@ -1049,14 +1099,14 @@ async function registerPushSubscription(subscription) {
     kind: "register-push-subscription",
     registrationId,
     workerIdentity: serviceWorkerIdentity,
-    subscription: subscription.toJSON(),
+    subscription,
   })) {
     const pending = pendingPushRegistrations.get(registrationId)
     if (pending) clearTimeout(pending.timer)
     pendingPushRegistrations.delete(registrationId)
     throw new Error("Service Worker control channel is unavailable")
   }
-  await confirmation
+  return await confirmation
 }
 
 async function fetchVapidPublicKey() {
@@ -1067,20 +1117,7 @@ async function fetchVapidPublicKey() {
   if (!response.ok) throw new Error(`VAPID key ${response.status}`)
   const payload = await response.json()
   if (!payload || typeof payload.publicKey !== "string") throw new Error("invalid VAPID public key")
-  return base64UrlBytes(payload.publicKey)
-}
-
-function sameApplicationServerKey(applicationServerKey, expected) {
-  if (!(applicationServerKey instanceof ArrayBuffer)) return false
-  const actual = new Uint8Array(applicationServerKey)
-  if (actual.length !== expected.length) return false
-  return actual.every((value, index) => value === expected[index])
-}
-
-function base64UrlBytes(value) {
-  const padding = "=".repeat((4 - value.length % 4) % 4)
-  const bytes = atob(`${value.replaceAll("-", "+").replaceAll("_", "/")}${padding}`)
-  return Uint8Array.from(bytes, (character) => character.charCodeAt(0))
+  return payload.publicKey
 }
 
 setInterval(() => {
@@ -1092,7 +1129,7 @@ setInterval(() => {
   })) {
     if (!reconnecting) {
       reconnecting = true
-      observeAttachedWorkerFailure("page-channel-quiet")
+      observeAttachedWorkerQuiet("page-channel-quiet")
       log("page channel became quiet; retaining unexpired authority while attaching a fresh MessageChannel")
       attachPageChannel(true)
       reconnecting = false

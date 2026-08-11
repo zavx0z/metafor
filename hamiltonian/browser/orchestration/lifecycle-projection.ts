@@ -267,40 +267,39 @@ export class HamiltonianLifecycleProjection {
       .sort((left, right) => left.openedAt - right.openedAt || left.id.localeCompare(right.id))
 
     for (const [index, transport] of activeTransports.entries()) {
-      const sourcePort = `out:${safeId(transport.id)}`
-      const targetPort = `in:${safeId(transport.id)}`
-      const sourceParameter = `transport:${safeId(transport.id)}:out`
-      const targetParameter = `transport:${safeId(transport.id)}:in`
       const label = transportLabel(transport.kind, transport.attributes)
-      const endpointValue = transport.kind === "websocket" ? "вход / выход" : null
+      const duplex = transport.kind === "websocket"
+      const sourceSlot = transportEndpointSlot(label, "out", duplex)
+      const targetSlot = transportEndpointSlot(label, "in", duplex)
+      const tone = transport.state === "opened" ? "live" : transport.state === "changed" ? "neutral" : "paused"
       addPort(ports, transport.sourceEntityId, {
-        id: sourcePort,
-        parameterId: sourceParameter,
+        id: sourceSlot.portId,
+        parameterId: sourceSlot.parameterId,
         direction: "out",
       })
       addPort(ports, transport.targetEntityId, {
-        id: targetPort,
-        parameterId: targetParameter,
+        id: targetSlot.portId,
+        parameterId: targetSlot.parameterId,
         direction: "in",
       })
       addParameter(transportParameters, transport.sourceEntityId, {
-        id: sourceParameter,
+        id: sourceSlot.parameterId,
         label,
-        value: endpointValue ?? "выход",
-        tone: transport.state === "opened" ? "live" : transport.state === "changed" ? "neutral" : "paused",
+        value: duplex ? "вход / выход" : "выход",
+        tone,
       })
       addParameter(transportParameters, transport.targetEntityId, {
-        id: targetParameter,
+        id: targetSlot.parameterId,
         label,
-        value: endpointValue ?? "вход",
-        tone: transport.state === "opened" ? "live" : transport.state === "changed" ? "neutral" : "paused",
+        value: duplex ? "вход / выход" : "вход",
+        tone,
       })
       edges.push({
         id: transport.id,
-        source: {nodeId: transport.sourceEntityId, portId: sourcePort},
-        target: {nodeId: transport.targetEntityId, portId: targetPort},
+        source: {nodeId: transport.sourceEntityId, portId: sourceSlot.portId},
+        target: {nodeId: transport.targetEntityId, portId: targetSlot.portId},
         label,
-        tone: transport.state === "opened" ? "live" : transport.state === "changed" ? "neutral" : "paused",
+        tone,
         order: 100 + index,
       })
     }
@@ -377,6 +376,10 @@ export class HamiltonianLifecycleProjection {
       this.#retireEntity(observation.subjectId)
       return
     }
+    if (observation.ownerId !== null && this.#terminalEntities.has(observation.ownerId)) {
+      this.#retireEntity(observation.subjectId)
+      return
+    }
     this.#entities.set(observation.subjectId, {
       id: observation.subjectId,
       kind: observation.subjectKind,
@@ -393,6 +396,14 @@ export class HamiltonianLifecycleProjection {
     if (observation.phase !== "closed" && this.#terminalTransports.has(observation.subjectId)) return
     if (!this.#advanceStructuralEvent("transport", envelope)) return
     if (observation.ownerId === null || observation.sourceEntityId === null || observation.targetEntityId === null) return
+    if (
+      this.#terminalEntities.has(observation.ownerId) ||
+      this.#terminalEntities.has(observation.sourceEntityId) ||
+      this.#terminalEntities.has(observation.targetEntityId)
+    ) {
+      this.#retireTransport(observation.subjectId)
+      return
+    }
     const slot = hamiltonianLifecycleTransportSlot(observation)
     if (slot === null) return
     const previousTransportId = this.#transportSlots.get(slot)
@@ -487,21 +498,42 @@ export class HamiltonianLifecycleProjection {
   }
 
   #retireEntity(entityId: string): void {
-    const entity = this.#entities.get(entityId)
-    const incarnation = stringAttribute(entity?.attributes.incarnation)
-    if (entity && incarnation && isLifecycleSourceEntityKind(entity.kind)) {
-      const key = `${entity.id}\u0000${incarnation}`
-      this.#retiredLifecycleSources.set(key, {sourceId: entity.id, sourceIncarnation: incarnation})
+    const removed = new Set([entityId])
+    let expanded = true
+    while (expanded) {
+      expanded = false
+      for (const entity of this.#entities.values()) {
+        if (
+          removed.has(entity.id) ||
+          entity.ownerId === null ||
+          !removed.has(entity.ownerId)
+        ) continue
+        removed.add(entity.id)
+        expanded = true
+      }
     }
-    this.#retainTerminalIdentity(
-      this.#terminalEntities,
-      this.#terminalEntityOrder,
-      entityId,
-    )
-    this.#structuralEvents.delete(structuralEventKey("entity", entityId))
-    this.#entities.delete(entityId)
+
+    for (const removedId of removed) {
+      const entity = this.#entities.get(removedId)
+      const incarnation = stringAttribute(entity?.attributes.incarnation)
+      if (entity && incarnation && isLifecycleSourceEntityKind(entity.kind)) {
+        const key = `${entity.id}\u0000${incarnation}`
+        this.#retiredLifecycleSources.set(key, {sourceId: entity.id, sourceIncarnation: incarnation})
+      }
+      this.#retainTerminalIdentity(
+        this.#terminalEntities,
+        this.#terminalEntityOrder,
+        removedId,
+      )
+      this.#structuralEvents.delete(structuralEventKey("entity", removedId))
+      this.#entities.delete(removedId)
+    }
     for (const transport of [...this.#transports.values()]) {
-      if (transport.sourceEntityId === entityId || transport.targetEntityId === entityId) {
+      if (
+        removed.has(transport.ownerId) ||
+        removed.has(transport.sourceEntityId) ||
+        removed.has(transport.targetEntityId)
+      ) {
         this.#retireTransport(transport.id)
       }
     }
@@ -659,6 +691,13 @@ function preservePresentationFactOrder(
 
 function addPort(ports: Map<string, NodeSystemPort[]>, nodeId: string, port: NodeSystemPort): void {
   const current = ports.get(nodeId) ?? []
+  const existing = current.find((candidate) => candidate.id === port.id)
+  if (existing) {
+    if (existing.parameterId !== port.parameterId || existing.direction !== port.direction) {
+      throw new Error(`Conflicting lifecycle port slot: ${nodeId}/${port.id}`)
+    }
+    return
+  }
   current.push(port)
   ports.set(nodeId, current)
 }
@@ -669,8 +708,41 @@ function addParameter(
   parameter: NodeSystemFact,
 ): void {
   const current = parameters.get(nodeId) ?? []
+  const existingIndex = current.findIndex((candidate) => candidate.id === parameter.id)
+  if (existingIndex >= 0) {
+    const existing = current[existingIndex]!
+    if (existing.label !== parameter.label || existing.value !== parameter.value) {
+      throw new Error(`Conflicting lifecycle parameter slot: ${nodeId}/${parameter.id}`)
+    }
+    const tone = strongerTransportTone(existing.tone, parameter.tone)
+    current[existingIndex] = tone === undefined
+      ? {id: existing.id, label: existing.label, value: existing.value}
+      : {...existing, tone}
+    return
+  }
   current.push(parameter)
   parameters.set(nodeId, current)
+}
+
+function transportEndpointSlot(
+  label: string,
+  direction: "in" | "out",
+  duplex: boolean,
+): {portId: string; parameterId: string} {
+  const family = safeId(label)
+  const role = duplex ? "duplex" : direction
+  return {
+    portId: `${direction}:${family}`,
+    parameterId: `transport:${family}:${role}`,
+  }
+}
+
+function strongerTransportTone(
+  left: NodeSystemFact["tone"],
+  right: NodeSystemFact["tone"],
+): NodeSystemFact["tone"] {
+  const rank = {neutral: 0, paused: 1, live: 2, warn: 3} as const
+  return rank[right ?? "neutral"] > rank[left ?? "neutral"] ? right : left
 }
 
 function entityFacts(entity: LifecycleEntity, gaps: HamiltonianLifecycleGap[]) {
@@ -723,6 +795,7 @@ function transportLabel(kind: string, attributes: Record<string, string | number
   if (kind === "message-port") return "MessagePort"
   if (kind === "worker-message") return "Worker messaging"
   if (kind === "broadcast-channel") return "BroadcastChannel"
+  if (kind === "web-push") return "Web Push"
   if (kind === "ipc") return "IPC"
   if (kind === "data-channel") {
     const lane = stringAttribute(attributes.lane)

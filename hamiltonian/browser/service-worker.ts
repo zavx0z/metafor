@@ -25,6 +25,9 @@ import {
   isCurrentWindowChannel,
 } from "../core/browser-control.js"
 import type {TopologySnapshot} from "../host-state.ts"
+import {createWebPushWorkerHandlers} from "@metafor/web-push/worker"
+import type {WebPushLifecycleEvent} from "@metafor/web-push/lifecycle"
+import type {WebPushMessage} from "@metafor/web-push/protocol"
 
 type LifecycleJournal = InstanceType<typeof HamiltonianLifecycleRetainedJournal>
 type MessageRecord = {kind: string; monitor?: LifecycleMonitor; [key: string]: unknown}
@@ -36,13 +39,16 @@ interface LifecycleMonitor {
 
 interface HamiltonianWorkerClient {
   readonly id: string
+  readonly url?: string
   postMessage(message: unknown): void
+  focus?(): Promise<HamiltonianWorkerClient>
 }
 
 interface HamiltonianWorkerClients {
   claim(): Promise<void>
   get(id: string): Promise<HamiltonianWorkerClient | undefined>
   matchAll(options: {type: "window"; includeUncontrolled: boolean}): Promise<HamiltonianWorkerClient[]>
+  openWindow?(url: string): Promise<HamiltonianWorkerClient | null>
 }
 
 interface HamiltonianExtendableEvent {
@@ -59,6 +65,14 @@ interface HamiltonianPushEvent extends HamiltonianExtendableEvent {
   readonly data: {json(): unknown} | null
 }
 
+interface HamiltonianNotificationClickEvent extends HamiltonianExtendableEvent {
+  readonly action?: string
+  readonly notification: {
+    readonly data?: unknown
+    close(): void
+  }
+}
+
 interface HamiltonianWorkerRegistration {
   showNotification(title: string, options?: NotificationOptions): Promise<void>
 }
@@ -71,6 +85,7 @@ interface HamiltonianWorkerRuntime {
   addEventListener(type: "message", listener: (event: HamiltonianExtendableMessageEvent) => void): void
   addEventListener(type: "fetch", listener: (event: FetchEvent) => void): void
   addEventListener(type: "push", listener: (event: HamiltonianPushEvent) => void): void
+  addEventListener(type: "notificationclick", listener: (event: HamiltonianNotificationClickEvent) => void): void
 }
 
 interface HostIdentity {
@@ -371,6 +386,81 @@ function observeWorkerAvailability(
     },
   }))
 }
+
+function observeWebPushLifecycle(event: WebPushLifecycleEvent): void {
+  if (!workerEntityId || !currentBrowserEntityId) return
+  const attributes: Record<string, string | number | boolean | null> = {
+    webPushLifecycle: event.type,
+  }
+  if (event.type === "worker.push-received") {
+    attributes.push = "received"
+    attributes.state = "waking"
+  } else if (event.type === "worker.notification-shown") {
+    attributes.push = "received"
+    attributes.notification = "shown"
+    attributes.state = "active"
+  } else if (event.type === "worker.notification-failed" || event.type === "worker.push-rejected") {
+    attributes.push = "failed"
+    attributes.state = "error"
+  }
+  emitHamiltonianLifecycle(createHamiltonianLifecycleObservation({
+    type: "entity",
+    phase: "changed",
+    subjectId: workerEntityId,
+    subjectKind: "service-worker",
+    ownerId: currentBrowserEntityId,
+    attributes,
+  }))
+  if (event.type !== "worker.push-received" || !currentServerEntityId || !event.detail?.messageId) return
+  const transportId = hamiltonianLifecycleTransportId("web-push", workerEntityId)
+  emitHamiltonianLifecycle(createHamiltonianLifecycleObservation({
+    type: "transport",
+    phase: "opened",
+    subjectId: transportId,
+    subjectKind: "web-push",
+    ownerId: currentServerEntityId,
+    sourceEntityId: currentServerEntityId,
+    targetEntityId: workerEntityId,
+    transportId,
+    attributes: {state: "delivered", mediatedBy: "browser-push-service"},
+  }))
+  const messageId = hamiltonianLifecycleMessageId(event.detail.messageId)
+  emitHamiltonianLifecycle(createHamiltonianLifecycleObservation({
+    type: "message",
+    phase: "received",
+    subjectId: messageId,
+    subjectKind: "web-push-message",
+    ownerId: workerEntityId,
+    sourceEntityId: currentServerEntityId,
+    targetEntityId: workerEntityId,
+    transportId,
+    messageId,
+    messageClass: "web-push",
+  }))
+}
+
+const webPushWorker = createWebPushWorkerHandlers({
+  beforeNotification: handleHamiltonianPushMessage,
+  showNotification: (title, options) => serviceWorkerRuntime.registration.showNotification(title, options),
+  onNotificationClick: async ({applicationData}) => {
+    const requestedRoute = typeof applicationData?.route === "string" ? applicationData.route : "/"
+    const route = requestedRoute.startsWith("/") && !requestedRoute.startsWith("//") ? requestedRoute : "/"
+    const targetUrl = new URL(route, location.origin).href
+    const clients = await serviceWorkerRuntime.clients.matchAll({type: "window", includeUncontrolled: true})
+    const exact = clients.find((client) => client.url === targetUrl && client.focus)
+    if (exact?.focus) {
+      await exact.focus()
+      return
+    }
+    const available = clients.find((client) => client.focus)
+    if (available?.focus) {
+      await available.focus()
+      return
+    }
+    await serviceWorkerRuntime.clients.openWindow?.(targetUrl)
+  },
+  onLifecycle: observeWebPushLifecycle,
+})
 
 function tellWindow(window: WindowChannel, message: MessageRecord): void {
   try {
@@ -723,7 +813,11 @@ function ensureSocket(): void {
       void persistControlBootstrap()
       observeWorkerAvailability("active", "ready")
       const window = windows.get(pending.tabId)
-      if (window) tellWindow(window, {kind: "push-subscription-confirmed", registrationId})
+      if (window) tellWindow(window, {
+        kind: "push-subscription-confirmed",
+        registrationId,
+        subscription: message.subscription,
+      })
       tellAll(workerState())
       return
     }
@@ -919,6 +1013,7 @@ async function retainVersionCaches(currentCacheName: string): Promise<string[]> 
 }
 
 async function connectWindow(message: ConnectWindowMessage, port: MessagePort, clientId: string | null): Promise<void> {
+  await restoreControlBootstrap()
   const pageEntityId = hamiltonianLifecycleEntityId("page", message.pageIncarnation)
   const nextBrowserEntityId = lifecycleIdentifier(message.browserEntityId, "browser:")
   const nextServerEntityId = lifecycleIdentifier(message.serverEntityId, "server:")
@@ -1148,17 +1243,16 @@ serviceWorkerRuntime.addEventListener("message", (event) => {
 })
 
 serviceWorkerRuntime.addEventListener("push", (event) => {
-  event.waitUntil(handlePush(event))
+  void webPushWorker.handlePush(event)
+})
+serviceWorkerRuntime.addEventListener("notificationclick", (event) => {
+  void webPushWorker.handleNotificationClick(event)
 })
 
-async function handlePush(event: HamiltonianPushEvent): Promise<void> {
-  const payload = parseWakePayload(event.data)
+async function handleHamiltonianPushMessage(message: WebPushMessage): Promise<void> {
+  const payload = parseWakePayload(message.data)
   if (!payload || !await restoreControlBootstrap()) {
-    await serviceWorkerRuntime.registration.showNotification("Hamiltonian", {
-      body: "Service Worker получил некорректный запрос пробуждения",
-      tag: "hamiltonian-service-worker",
-    })
-    return
+    throw new Error("invalid Hamiltonian Web Push wake payload")
   }
   const confirmation = beginPushWake(payload)
   try {
@@ -1166,11 +1260,6 @@ async function handlePush(event: HamiltonianPushEvent): Promise<void> {
     observeWorkerAvailability("waking", "received", {wakeId: payload.wakeId})
     ensureSocket()
     await withTimeout(confirmation, 30_000, "server did not confirm the Web Push wake")
-    await serviceWorkerRuntime.registration.showNotification("Hamiltonian", {
-      body: "Service Worker восстановил связь с сервером",
-      tag: "hamiltonian-service-worker",
-      data: {wakeId: payload.wakeId},
-    })
   } catch (error) {
     if (pendingPushWake?.wakeId === payload.wakeId) pendingPushWake = null
     const reason = error instanceof Error ? error.message : String(error)
@@ -1183,6 +1272,7 @@ async function handlePush(event: HamiltonianPushEvent): Promise<void> {
       tag: "hamiltonian-service-worker",
       data: {wakeId: payload.wakeId},
     })
+    throw error
   }
 }
 
@@ -1199,6 +1289,10 @@ async function applyPushWakePayload(payload: PushWakePayload): Promise<void> {
   }
   currentToken = payload.token
   currentServerEntityId = payload.serverEntityId
+  // Delivery proves that this registration still has a usable PushSubscription.
+  // Persist it inside the extendable push task so the next browser-managed
+  // execution restores the stable Service Worker as Push-ready.
+  currentPushReady = true
   await persistControlBootstrap()
 }
 
@@ -1236,10 +1330,8 @@ async function withTimeout(promise: Promise<void>, timeoutMs: number, message: s
   }
 }
 
-function parseWakePayload(data: HamiltonianPushEvent["data"]): PushWakePayload | null {
-  if (!data) return null
+function parseWakePayload(value: unknown): PushWakePayload | null {
   try {
-    const value = data.json()
     return isRecord(value) &&
       value.kind === "wake-service-worker" &&
       validControlIdentity(value.wakeId) &&

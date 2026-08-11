@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@metafor/engine": "workspace:*",
+    "@metafor/web-push": "workspace:*",
     "@nodes/layout": "workspace:*",
     "@nodes/ui": "workspace:*",
     "@ui/components": "workspace:*",

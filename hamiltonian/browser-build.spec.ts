@@ -44,11 +44,15 @@ test("builds the real orchestration and isolated layout Worker bundles", async (
 
     const serviceWorkerTypeScript = await Bun.file(join(repositoryRoot, "hamiltonian/browser/service-worker.ts")).text()
     expect(serviceWorkerTypeScript).toContain("observation?.ownerId === currentBrowserEntityId")
+    expect(serviceWorkerTypeScript).toContain("currentPushReady = true")
+    expect(serviceWorkerTypeScript).toContain("await restoreControlBootstrap()")
     expect(serviceWorkerTypeScript).not.toContain("observation?.ownerId === observation?.subjectId")
 
     const pageSource = await Bun.file(join(repositoryRoot, "hamiltonian/public/app.js")).text()
     expect(pageSource).not.toContain("ownerId: attachedWorkerEntityId")
     expect(pageSource).not.toContain("ownerId: previousWorkerEntityId")
+    expect(pageSource).toContain('attributes: {state: "standby", heartbeat: "paused", reason}')
+    expect(pageSource).toContain('disposition === "request" || disposition === "silent"')
   } finally {
     await rm(outdir, {recursive: true, force: true})
   }

@@ -486,7 +486,7 @@ function buildEdgeContext(input: RouteGraphInput, index: RouteIndex, edge: Route
     area,
     obstacles,
     inflatedObstacles: obstacles.map((node) => ({node, rect: expandRect(node.rect, input.clearance)})),
-    terminalReservations: terminalReservations(input, index, edge.id),
+    terminalReservations: terminalReservations(input, index, edge),
   }
 }
 
@@ -792,6 +792,11 @@ function segmentLegal(
       const blockingFrom = segment.from
       const blockingTo = segment.to
       if (parallelTooClose(from, to, blockingFrom, blockingTo, input.clearance)) {
+        const priorEdge = required(
+          index.sortedEdges.find((candidate) => candidate.id === priorEdgeId),
+          `missing prior edge ${priorEdgeId}`,
+        )
+        if (sharedEndpointStubAllows(from, to, blockingFrom, blockingTo, context, priorEdge)) continue
         if (trace !== undefined) {
           const horizontal = from.y === to.y
           const overlap = horizontal
@@ -848,23 +853,80 @@ function countSegmentCrossings(
 function terminalReservations(
   input: RouteGraphInput,
   index: RouteIndex,
-  currentEdgeId: string,
+  currentEdge: RouteEdge,
 ): readonly TerminalReservation[] {
   const result: TerminalReservation[] = []
   for (const edge of index.sortedEdges) {
-    if (edge.id === currentEdgeId) continue
+    if (edge.id === currentEdge.id) continue
     const source = required(index.ports.get(edge.sourcePortId), `missing source ${edge.id}`)
     const target = required(index.ports.get(edge.targetPortId), `missing target ${edge.id}`)
     const sourceNode = required(index.nodes.get(source.nodeId), `missing source node ${edge.id}`)
     const targetNode = required(index.nodes.get(target.nodeId), `missing target node ${edge.id}`)
     const portals = terminalPortals(source, target, sourceNode, targetNode, input.clearance)
     const add = (port: RoutePort, kind: "SOURCE" | "TARGET", portal: FixedPoint): void => {
+      if (port.id === currentEdge.sourcePortId || port.id === currentEdge.targetPortId) return
       result.push({edgeId: edge.id, portId: port.id, kind, from: port.center, to: portal})
     }
     add(source, "SOURCE", portals.source)
     add(target, "TARGET", portals.target)
   }
   return result
+}
+
+function sharedEndpointStubAllows(
+  from: FixedPoint,
+  to: FixedPoint,
+  blockingFrom: FixedPoint,
+  blockingTo: FixedPoint,
+  context: EdgeContext,
+  priorEdge: RouteEdge,
+): boolean {
+  const sharedStubs: Array<readonly [FixedPoint, FixedPoint]> = []
+  if (priorEdge.sourcePortId === context.edge.sourcePortId) {
+    sharedStubs.push([context.source.center, context.sourcePortal])
+  }
+  if (priorEdge.targetPortId === context.edge.targetPortId) {
+    sharedStubs.push([context.targetPortal, context.target.center])
+  }
+  return sharedStubs.some(([stubFrom, stubTo]) =>
+    collinearOverlapContainedInStub(from, to, blockingFrom, blockingTo, stubFrom, stubTo))
+}
+
+function collinearOverlapContainedInStub(
+  from: FixedPoint,
+  to: FixedPoint,
+  blockingFrom: FixedPoint,
+  blockingTo: FixedPoint,
+  stubFrom: FixedPoint,
+  stubTo: FixedPoint,
+): boolean {
+  if (
+    from.y === to.y &&
+    blockingFrom.y === blockingTo.y &&
+    stubFrom.y === stubTo.y &&
+    from.y === blockingFrom.y &&
+    from.y === stubFrom.y
+  ) {
+    const overlapFrom = Math.max(Math.min(from.x, to.x), Math.min(blockingFrom.x, blockingTo.x))
+    const overlapTo = Math.min(Math.max(from.x, to.x), Math.max(blockingFrom.x, blockingTo.x))
+    return overlapFrom < overlapTo &&
+      overlapFrom >= Math.min(stubFrom.x, stubTo.x) &&
+      overlapTo <= Math.max(stubFrom.x, stubTo.x)
+  }
+  if (
+    from.x === to.x &&
+    blockingFrom.x === blockingTo.x &&
+    stubFrom.x === stubTo.x &&
+    from.x === blockingFrom.x &&
+    from.x === stubFrom.x
+  ) {
+    const overlapFrom = Math.max(Math.min(from.y, to.y), Math.min(blockingFrom.y, blockingTo.y))
+    const overlapTo = Math.min(Math.max(from.y, to.y), Math.max(blockingFrom.y, blockingTo.y))
+    return overlapFrom < overlapTo &&
+      overlapFrom >= Math.min(stubFrom.y, stubTo.y) &&
+      overlapTo <= Math.max(stubFrom.y, stubTo.y)
+  }
+  return false
 }
 
 function terminalPortals(

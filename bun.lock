@@ -119,6 +119,7 @@
       "name": "@metafor/hamiltonian",
       "dependencies": {
         "@metafor/engine": "workspace:*",
+        "@metafor/web-push": "workspace:*",
         "@nodes/layout": "workspace:*",
         "@nodes/ui": "workspace:*",
         "@ui/components": "workspace:*",
@@ -230,6 +231,16 @@
         "@metafor/engine": "workspace:*",
       },
     },
+    "pkg/web-push": {
+      "name": "@metafor/web-push",
+      "version": "0.1.0",
+      "dependencies": {
+        "web-push": "3.6.7",
+      },
+      "devDependencies": {
+        "@types/web-push": "3.6.4",
+      },
+    },
     "shared": {
       "name": "shared",
       "version": "0.0.1",
@@ -279,6 +290,8 @@
     "@metafor/types": ["@metafor/types@workspace:types"],
 
     "@metafor/visual": ["@metafor/visual@workspace:pkg/visual"],
+
+    "@metafor/web-push": ["@metafor/web-push@workspace:pkg/web-push"],
 
     "@noble/curves": ["@noble/curves@1.9.7", "", { "dependencies": { "@noble/hashes": "1.8.0" } }, "sha512-gbKGcRUYIjA3/zCCNaWDciTMFI0dCkvou3TL8Zmy5Nc7sJ47a0jtOeZoTaMxkuqRo9cRhjOdZJXegxYE5FN/xw=="],
 

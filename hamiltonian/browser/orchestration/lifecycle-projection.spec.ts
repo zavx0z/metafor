@@ -12,6 +12,7 @@ import {
   refreshPositionedNodeSystem,
 } from "./lifecycle-projection.ts"
 import type {PositionedNodeSystem} from "nodes/types"
+import {MetaForNodeSystemLayouter} from "nodes/layout-engine"
 
 const context = {
   origin: "http://127.0.0.1:4400",
@@ -257,6 +258,144 @@ describe("Hamiltonian lifecycle projection", () => {
     expect(projection.document().edges[0]?.tone).toBe("live")
     expect(projection.document().nodes.find(({id}) => id === "service-worker:sw-a")?.facts)
       .toContainEqual(expect.objectContaining({label: "WS", value: "вход / выход"}))
+  })
+
+  test("renders the observed Web Push transport between Bun and the same Service Worker", () => {
+    const projection = new HamiltonianLifecycleProjection(context)
+    const browser = new HamiltonianLifecycleSource({
+      id: "browser:device-a",
+      kind: "browser-runtime",
+      incarnation: "device-a",
+      startedAt: 12,
+    })
+    const worker = new HamiltonianLifecycleSource({
+      id: "service-worker:sw-a",
+      kind: "service-worker",
+      incarnation: "sw-a",
+      startedAt: 20,
+    })
+    const server = new HamiltonianLifecycleSource({
+      id: "server:host-a",
+      kind: "server",
+      incarnation: "host-a",
+      startedAt: 10,
+    })
+    projection.observe(browser.next(createHamiltonianLifecycleObservation({
+      type: "entity",
+      phase: "born",
+      subjectId: "browser:device-a",
+      subjectKind: "browser-runtime",
+      ownerId: null,
+      attributes: {runtime: "Chrome", state: "active"},
+    })), null)
+    projection.observe(worker.next(createHamiltonianLifecycleObservation({
+      type: "entity",
+      phase: "born",
+      subjectId: "service-worker:sw-a",
+      subjectKind: "service-worker",
+      ownerId: "browser:device-a",
+      attributes: {identity: "sw-a", state: "active", push: "ready"},
+    })), null)
+    projection.observe(server.next(createHamiltonianLifecycleObservation({
+      type: "transport",
+      phase: "opened",
+      subjectId: "web-push:sw-a",
+      subjectKind: "web-push",
+      ownerId: "server:host-a",
+      sourceEntityId: "server:host-a",
+      targetEntityId: "service-worker:sw-a",
+      transportId: "web-push:sw-a",
+      attributes: {state: "ready", mediatedBy: "browser-push-service"},
+    })), null)
+    expect(projection.document().edges).toContainEqual(expect.objectContaining({
+      id: "web-push:sw-a",
+      label: "Web Push",
+      source: expect.objectContaining({nodeId: "server:host-a"}),
+      target: expect.objectContaining({nodeId: "service-worker:sw-a"}),
+    }))
+  })
+
+  test("lays out the full bidirectional browser/server contour with Web Push", () => {
+    const runtimeContext = {
+      ...context,
+      origin: "https://127.0.0.1:4400",
+      server: {
+        identity: "hamiltonian-lab",
+        hostEpoch: "host-a",
+        version: "webpush-001-layout-evidence",
+      },
+    }
+    const projection = new HamiltonianLifecycleProjection(runtimeContext)
+    const sources = new Map<string, HamiltonianLifecycleSource>()
+    const observe = (sourceId: string, sourceKind: string, observation: Parameters<typeof createHamiltonianLifecycleObservation>[0]) => {
+      let source = sources.get(sourceId)
+      if (!source) {
+        source = new HamiltonianLifecycleSource({id: sourceId, kind: sourceKind, incarnation: sourceId, startedAt: 1})
+        sources.set(sourceId, source)
+      }
+      projection.observe(source.next(createHamiltonianLifecycleObservation(observation)), null)
+    }
+    const browserId = "browser:device-a"
+    const pageId = "page:page-a"
+    const mainId = "window-main:page-a"
+    const workerId = "service-worker:sw-a"
+    const dedicatedId = "dedicated-worker:worker-a"
+    const peerId = "peer-process:peer-a"
+    const serverRtcId = "rtc-peer:session-a%3Aserver"
+    const browserRtcId = "rtc-peer:session-a%3Abrowser"
+
+    for (const [sourceId, sourceKind, subjectId, subjectKind, ownerId, attributes] of [
+      [pageId, "page", browserId, "browser-runtime", browserId, {runtime: "Chrome", state: "active", deviceId: "device-a"}],
+      [pageId, "page", pageId, "page", browserId, {incarnation: "page-a", navigation: "8459f3b0-e693-4241-9df9-5ff84e77d3e7", state: "live", visibility: "visible"}],
+      [pageId, "page", mainId, "window-main", pageId, {incarnation: "page-a", runtime: "Window", state: "active"}],
+      [workerId, "service-worker", workerId, "service-worker", browserId, {identity: "sw-a", runtimeIncarnation: "367dc681-e3f4-41a7-a04c-dcbd9e7a4092", state: "active", push: "ready", webPushLifecycle: "client.registration.accepted"}],
+      [dedicatedId, "dedicated-worker", dedicatedId, "dedicated-worker", pageId, {incarnation: "worker-a", state: "active", embodimentIncarnation: "09740c68-b9f1-490d-9c08-3789b1619f28", version: "webpush-001-layout-evidence"}],
+      [peerId, "peer-process", peerId, "peer-process", "server:host-a", {incarnation: "peer-a", pid: 44, role: "peer", state: "active"}],
+      [peerId, "peer-process", serverRtcId, "rtc-peer", peerId, {endpoint: "server", peerId: "peer:7cd14309-f4dc-4a38-8291-562a97b89bee:3", sessionEpoch: "session-a", state: "connected"}],
+      [pageId, "page", browserRtcId, "rtc-peer", mainId, {endpoint: "browser", peerId: "peer:7cd14309-f4dc-4a38-8291-562a97b89bee:3", sessionEpoch: "session-a", generation: 3, state: "connected"}],
+      ["bun-process:main", "bun-process", "bun-process:main", "bun-process", "server:host-a", {incarnation: "main", pid: 45, role: "main-probe", state: "active", version: "webpush-001-layout-evidence"}],
+      ["bun-process:worker", "bun-process", "bun-process:worker", "bun-process", "server:host-a", {incarnation: "worker", pid: 46, role: "worker-probe", state: "active", version: "webpush-001-layout-evidence"}],
+    ] as const) {
+      observe(sourceId, sourceKind, {type: "entity", phase: "changed", subjectId, subjectKind, ownerId, attributes})
+    }
+
+    const transports = [
+      [pageId, "page", "service-worker-controller:page", "controller", pageId, pageId, workerId, {}],
+      [pageId, "page", "message-port:page", "message-port", pageId, workerId, pageId, {}],
+      [dedicatedId, "dedicated-worker", "worker-message:worker", "worker-message", dedicatedId, mainId, dedicatedId, {}],
+      ["bun-process:main", "bun-process", "ipc:main", "ipc", "bun-process:main", "server:host-a", "bun-process:main", {state: "connected"}],
+      ["bun-process:worker", "bun-process", "ipc:worker", "ipc", "bun-process:worker", "server:host-a", "bun-process:worker", {state: "connected"}],
+      [peerId, "peer-process", "ipc:peer", "ipc", peerId, "server:host-a", peerId, {state: "connected"}],
+      [peerId, "peer-process", "data-channel:oracle", "data-channel", serverRtcId, serverRtcId, browserRtcId, {lane: "oracle", state: "open"}],
+      [peerId, "peer-process", "data-channel:force", "data-channel", serverRtcId, serverRtcId, browserRtcId, {lane: "force", state: "open"}],
+      [workerId, "service-worker", "websocket:control", "websocket", workerId, workerId, "server:host-a", {state: "connected"}],
+      ["server:host-a", "server", "web-push:worker", "web-push", "server:host-a", "server:host-a", workerId, {state: "ready", mediatedBy: "browser-push-service"}],
+    ] as const
+    for (const [sourceId, sourceKind, subjectId, subjectKind, ownerId, sourceEntityId, targetEntityId, attributes] of transports) {
+      observe(sourceId, sourceKind, {
+        type: "transport",
+        phase: "opened",
+        subjectId,
+        subjectKind,
+        ownerId,
+        sourceEntityId,
+        targetEntityId,
+        transportId: subjectId,
+        attributes,
+      })
+    }
+
+    const document = projection.document()
+    expect(document.edges).toHaveLength(10)
+    const serverNode = document.nodes.find(({id}) => id === "server:host-a")!
+    expect(serverNode.facts?.filter(({label}) => label === "IPC"))
+      .toEqual([{id: "transport:IPC:out", label: "IPC", value: "выход", tone: "live"}])
+    const ipcEdges = document.edges.filter(({label}) => label === "IPC")
+    expect(new Set(ipcEdges.map(({source}) => source.portId))).toEqual(new Set(["out:IPC"]))
+    expect(() => new MetaForNodeSystemLayouter({
+      measureText: (value, fontPx) => value.length * fontPx * 0.55,
+    }).layout(document, {viewport: {width: 722, height: 1_088}}))
+      .not.toThrow()
   })
 
   test("keeps a closed transport inactive until an endpoint ends or a new incarnation replaces it", () => {
@@ -747,17 +886,18 @@ describe("Hamiltonian lifecycle projection", () => {
       .toEqual([{direction: "in", side: undefined}, {direction: "in", side: undefined}])
     for (const lane of ["oracle", "force"] as const) {
       const transportId = `data-channel:session-a%3A${lane}`
-      const encodedTransportId = encodeURIComponent(transportId)
+      const label = lane === "oracle" ? "Oracle RTCDataChannel" : "Force RTCDataChannel"
+      const encodedLabel = encodeURIComponent(label)
       const matchingEdges = document.edges.filter(({id}) => id === transportId)
       expect(matchingEdges).toHaveLength(1)
       const edge = matchingEdges[0]!
       expect(edge).toEqual(expect.objectContaining({
-        source: {nodeId: "rtc-peer:session-a%3Aserver", portId: `out:${encodedTransportId}`},
-        target: {nodeId: "rtc-peer:session-a%3Abrowser", portId: `in:${encodedTransportId}`},
+        source: {nodeId: "rtc-peer:session-a%3Aserver", portId: `out:${encodedLabel}`},
+        target: {nodeId: "rtc-peer:session-a%3Abrowser", portId: `in:${encodedLabel}`},
       }))
       for (const [nodeId, portId, parameterId] of [
-        [edge.source.nodeId, edge.source.portId, `transport:${encodedTransportId}:out`],
-        [edge.target.nodeId, edge.target.portId, `transport:${encodedTransportId}:in`],
+        [edge.source.nodeId, edge.source.portId, `transport:${encodedLabel}:out`],
+        [edge.target.nodeId, edge.target.portId, `transport:${encodedLabel}:in`],
       ] as const) {
         const node = document.nodes.find(({id}) => id === nodeId)!
         const port = node.ports?.find(({id}) => id === portId)
@@ -769,6 +909,82 @@ describe("Hamiltonian lifecycle projection", () => {
       "Oracle RTCDataChannel",
       "Force RTCDataChannel",
     ]))
+  })
+
+  test("never promotes an RTC child to a root when its peer process ends", () => {
+    const projection = new HamiltonianLifecycleProjection(context)
+    const process = new HamiltonianLifecycleSource({
+      id: "peer-process:process-a",
+      kind: "peer-process",
+      incarnation: "process-a",
+      startedAt: 20,
+    })
+    const page = new HamiltonianLifecycleSource({
+      id: "page:page-a",
+      kind: "page",
+      incarnation: "page-a",
+      startedAt: 11,
+    })
+    const serverRtcId = "rtc-peer:session-a%3Aserver"
+    const browserRtcId = "rtc-peer:session-a%3Abrowser"
+    const dataChannelId = "data-channel:session-a%3Aforce"
+    for (const observation of [
+      createHamiltonianLifecycleObservation({
+        type: "entity", phase: "born", subjectId: "peer-process:process-a", subjectKind: "peer-process",
+        ownerId: "server:host-a", attributes: {state: "active"},
+      }),
+      createHamiltonianLifecycleObservation({
+        type: "entity", phase: "born", subjectId: serverRtcId, subjectKind: "rtc-peer",
+        ownerId: "peer-process:process-a", attributes: {endpoint: "server", state: "new"},
+      }),
+    ]) projection.observe(process.next(observation), null)
+    for (const observation of [
+      createHamiltonianLifecycleObservation({
+        type: "entity", phase: "born", subjectId: "window-main:page-a", subjectKind: "window-main",
+        ownerId: "page:page-a", attributes: {state: "active"},
+      }),
+      createHamiltonianLifecycleObservation({
+        type: "entity", phase: "born", subjectId: browserRtcId, subjectKind: "rtc-peer",
+        ownerId: "window-main:page-a", attributes: {endpoint: "browser", state: "new"},
+      }),
+    ]) projection.observe(page.next(observation), null)
+    projection.observe(process.next(createHamiltonianLifecycleObservation({
+      type: "transport", phase: "opened", subjectId: dataChannelId, subjectKind: "data-channel",
+      ownerId: serverRtcId, sourceEntityId: serverRtcId, targetEntityId: browserRtcId,
+      transportId: dataChannelId, attributes: {lane: "force"},
+    })), null)
+
+    projection.observe(process.next(createHamiltonianLifecycleObservation({
+      type: "entity", phase: "ended", subjectId: "peer-process:process-a", subjectKind: "peer-process",
+      ownerId: "server:host-a", attributes: {state: "stopped"},
+    })), null)
+
+    const document = projection.document()
+    expect(document.nodes.some(({id}) => id === "peer-process:process-a")).toBeFalse()
+    expect(document.nodes.some(({id}) => id === serverRtcId)).toBeFalse()
+    expect(document.nodes.find(({id}) => id === browserRtcId)?.parentId).toBe("window-main:page-a")
+    expect(document.edges.some(({id}) => id === dataChannelId)).toBeFalse()
+
+    for (const suffix of ["entity-first", "transport-first"] as const) {
+      const lateRtcId = `rtc-peer:late-${suffix}%3Aserver`
+      const lateChannelId = `data-channel:late-${suffix}%3Aforce`
+      const lateEntity = createHamiltonianLifecycleObservation({
+        type: "entity", phase: "changed", subjectId: lateRtcId, subjectKind: "rtc-peer",
+        ownerId: "peer-process:process-a", attributes: {endpoint: "server", state: "connected"},
+      })
+      const lateTransport = createHamiltonianLifecycleObservation({
+        type: "transport", phase: "opened", subjectId: lateChannelId, subjectKind: "data-channel",
+        ownerId: lateRtcId, sourceEntityId: lateRtcId, targetEntityId: browserRtcId,
+        transportId: lateChannelId, attributes: {lane: "force"},
+      })
+      const ordered = suffix === "entity-first"
+        ? [lateEntity, lateTransport]
+        : [lateTransport, lateEntity]
+      for (const observation of ordered) projection.observe(process.next(observation), null)
+      const afterLateDelivery = projection.document()
+      expect(afterLateDelivery.nodes.some(({id}) => id === lateRtcId)).toBeFalse()
+      expect(afterLateDelivery.edges.some(({id}) => id === lateChannelId)).toBeFalse()
+    }
   })
 
   test("presents one message once when send and receive share identity", () => {

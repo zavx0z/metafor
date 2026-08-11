@@ -14,6 +14,7 @@ const SINGLETON = Symbol.for("metafor.hamiltonian.lifecycle.singleton.v1")
 const MAX_PENDING_OBSERVATIONS = 1024
 const MAX_RECENT_EVENT_IDENTITIES = 1024
 const MAX_RETIRED_SOURCE_IDENTITIES = 512
+const MAX_RETIRED_ENTITY_IDENTITIES = 2048
 const MAX_SNAPSHOT_ENVELOPES = 1024
 const MAX_SNAPSHOT_SOURCES = 512
 const ENVELOPE_FIELDS = Object.freeze([
@@ -271,6 +272,10 @@ export class HamiltonianLifecycleRetainedJournal {
   #transportSlots = new Map()
   /** @type {Map<string, HamiltonianLifecycleFrontierEntry>} */
   #frontier = new Map()
+  /** @type {Set<string>} */
+  #retiredEntities = new Set()
+  /** @type {string[]} */
+  #retiredEntityOrder = []
 
   /** @param {string} scopeId */
   constructor(scopeId) {
@@ -294,14 +299,12 @@ export class HamiltonianLifecycleRetainedJournal {
     const observation = envelope.observation
     if (observation.type === "entity") {
       if (observation.phase === "ended") {
-        this.#entities.delete(observation.subjectId)
-        for (const [transportId, transportEnvelope] of this.#transports) {
-          const transport = transportEnvelope.observation
-          if (
-            transport.sourceEntityId === observation.subjectId ||
-            transport.targetEntityId === observation.subjectId
-          ) this.#deleteTransport(transportId)
-        }
+        this.#deleteEntityTree(observation.subjectId)
+      } else if (
+        this.#retiredEntities.has(observation.subjectId) ||
+        (observation.ownerId !== null && this.#retiredEntities.has(observation.ownerId))
+      ) {
+        this.#deleteEntityTree(observation.subjectId)
       } else {
         this.#entities.set(observation.subjectId, envelope)
       }
@@ -325,8 +328,13 @@ export class HamiltonianLifecycleRetainedJournal {
     }
     for (const envelope of value.envelopes) {
       const observation = envelope.observation
-      if (observation.type === "entity") this.#entities.set(observation.subjectId, envelope)
-      if (observation.type === "transport") this.#setTransport(envelope)
+      if (observation.type === "entity" && !this.#retiredEntities.has(observation.subjectId)) {
+        this.#entities.set(observation.subjectId, envelope)
+      }
+    }
+    this.#pruneRetiredOwnership()
+    for (const envelope of value.envelopes) {
+      if (envelope.observation.type === "transport") this.#setTransport(envelope)
     }
     return true
   }
@@ -372,20 +380,64 @@ export class HamiltonianLifecycleRetainedJournal {
    */
   retireEntity(entityId) {
     if (!validId(entityId, 512)) return false
-    let changed = this.#entities.delete(entityId)
+    const changed = this.#deleteEntityTree(entityId)
+    if (changed) this.#revision += 1
+    return changed
+  }
+
+  /**
+   * Retained ownership is structural: an owned runtime object cannot outlive
+   * the entity that contains it. Remove the whole ownership subtree before
+   * considering transports, otherwise a surviving cross-runtime transport can
+   * make an orphaned child visible as a false root.
+   *
+   * @param {string} entityId
+   */
+  #deleteEntityTree(entityId) {
+    const removed = new Set([entityId])
+    let expanded = true
+    while (expanded) {
+      expanded = false
+      for (const envelope of this.#entities.values()) {
+        const observation = envelope.observation
+        if (
+          observation.type !== "entity" ||
+          removed.has(observation.subjectId) ||
+          observation.ownerId === null ||
+          !removed.has(observation.ownerId)
+        ) continue
+        removed.add(observation.subjectId)
+        expanded = true
+      }
+    }
+
+    let changed = false
+    for (const removedId of removed) {
+      this.#retainRetiredEntity(removedId)
+      if (this.#entities.delete(removedId)) changed = true
+    }
     for (const [transportId, transportEnvelope] of [...this.#transports]) {
       const transport = transportEnvelope.observation
-      if (transport.sourceEntityId !== entityId && transport.targetEntityId !== entityId) continue
-      this.#deleteTransport(transportId)
-      changed = true
+      if (
+        (transport.ownerId !== null && removed.has(transport.ownerId)) ||
+        (transport.sourceEntityId !== null && removed.has(transport.sourceEntityId)) ||
+        (transport.targetEntityId !== null && removed.has(transport.targetEntityId))
+      ) {
+        this.#deleteTransport(transportId)
+        changed = true
+      }
     }
-    if (changed) this.#revision += 1
     return changed
   }
 
   /** @param {HamiltonianLifecycleEnvelope} envelope */
   #setTransport(envelope) {
     const observation = envelope.observation
+    if (
+      (observation.ownerId !== null && this.#retiredEntities.has(observation.ownerId)) ||
+      (observation.sourceEntityId !== null && this.#retiredEntities.has(observation.sourceEntityId)) ||
+      (observation.targetEntityId !== null && this.#retiredEntities.has(observation.targetEntityId))
+    ) return
     const slot = hamiltonianLifecycleTransportSlot(observation)
     if (slot === null) return
     const previousTransportId = this.#transportSlots.get(slot)
@@ -394,6 +446,41 @@ export class HamiltonianLifecycleRetainedJournal {
     }
     this.#transportSlots.set(slot, observation.subjectId)
     this.#transports.set(observation.subjectId, envelope)
+  }
+
+  /** @param {string} entityId */
+  #retainRetiredEntity(entityId) {
+    if (this.#retiredEntities.has(entityId)) return
+    this.#retiredEntities.add(entityId)
+    this.#retiredEntityOrder.push(entityId)
+    if (this.#retiredEntityOrder.length <= MAX_RETIRED_ENTITY_IDENTITIES) return
+    const expired = this.#retiredEntityOrder.splice(
+      0,
+      this.#retiredEntityOrder.length - MAX_RETIRED_ENTITY_IDENTITIES,
+    )
+    for (const expiredId of expired) this.#retiredEntities.delete(expiredId)
+  }
+
+  #pruneRetiredOwnership() {
+    const removed = new Set(this.#retiredEntities)
+    let expanded = true
+    while (expanded) {
+      expanded = false
+      for (const envelope of this.#entities.values()) {
+        const observation = envelope.observation
+        if (
+          removed.has(observation.subjectId) ||
+          observation.ownerId === null ||
+          !removed.has(observation.ownerId)
+        ) continue
+        removed.add(observation.subjectId)
+        expanded = true
+      }
+    }
+    for (const removedId of removed) {
+      if (!this.#entities.delete(removedId)) continue
+      this.#retainRetiredEntity(removedId)
+    }
   }
 
   /** @param {string} transportId */

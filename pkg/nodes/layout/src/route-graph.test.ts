@@ -202,6 +202,69 @@ describe("rectilinear semantic-edge router", () => {
       expect(validateRouteGraphResult(input, result)).toEqual([])
     }
   })
+
+  test("fans out several edges from one shared output port inside a compound", () => {
+    const input = base({
+      bounds: {x: 0, y: 0, w: 720, h: 720},
+      nodes: [
+        {
+          id: "compound",
+          rect: {x: 40, y: 40, w: 640, h: 640},
+          contentRect: {x: 40, y: 40, w: 640, h: 70},
+        },
+        {id: "source", parentId: "compound", rect: {x: 270, y: 150, w: 100, h: 80}},
+        {id: "target:a", parentId: "compound", rect: {x: 100, y: 470, w: 100, h: 80}},
+        {id: "target:b", parentId: "compound", rect: {x: 310, y: 470, w: 100, h: 80}},
+        {id: "target:c", parentId: "compound", rect: {x: 520, y: 470, w: 100, h: 80}},
+      ],
+      ports: [
+        {id: "source:IPC:out", nodeId: "source", center: {x: 370, y: 190}, side: "EAST", direction: "out"},
+        {id: "target:a:IPC:in", nodeId: "target:a", center: {x: 100, y: 510}, side: "WEST", direction: "in"},
+        {id: "target:b:IPC:in", nodeId: "target:b", center: {x: 310, y: 510}, side: "WEST", direction: "in"},
+        {id: "target:c:IPC:in", nodeId: "target:c", center: {x: 520, y: 510}, side: "WEST", direction: "in"},
+      ],
+      edges: [
+        {id: "ipc:a", sourcePortId: "source:IPC:out", targetPortId: "target:a:IPC:in"},
+        {id: "ipc:b", sourcePortId: "source:IPC:out", targetPortId: "target:b:IPC:in"},
+        {id: "ipc:c", sourcePortId: "source:IPC:out", targetPortId: "target:c:IPC:in"},
+      ],
+    })
+
+    const result = routeGraph(input)
+    expect(result.sections).toHaveLength(3)
+    expect(result.sections.every(({startPoint}) =>
+      startPoint.x === 370 && startPoint.y === 190)).toBeTrue()
+    for (let leftIndex = 0; leftIndex < result.sections.length; leftIndex += 1) {
+      const left = result.sections[leftIndex]!
+      const leftPoints = [left.startPoint, ...left.bendPoints, left.endPoint]
+      for (let rightIndex = leftIndex + 1; rightIndex < result.sections.length; rightIndex += 1) {
+        const right = result.sections[rightIndex]!
+        const rightPoints = [right.startPoint, ...right.bendPoints, right.endPoint]
+        let sharedStubObserved = false
+        for (let li = 1; li < leftPoints.length; li += 1) {
+          for (let ri = 1; ri < rightPoints.length; ri += 1) {
+            const [leftFrom, leftTo] = [leftPoints[li - 1]!, leftPoints[li]!]
+            const [rightFrom, rightTo] = [rightPoints[ri - 1]!, rightPoints[ri]!]
+            if (leftFrom.y === leftTo.y && rightFrom.y === rightTo.y && leftFrom.y === rightFrom.y) {
+              const overlapFrom = Math.max(Math.min(leftFrom.x, leftTo.x), Math.min(rightFrom.x, rightTo.x))
+              const overlapTo = Math.min(Math.max(leftFrom.x, leftTo.x), Math.max(rightFrom.x, rightTo.x))
+              if (overlapFrom >= overlapTo) continue
+              expect(leftFrom.y).toBe(190)
+              expect(overlapFrom).toBeGreaterThanOrEqual(370)
+              expect(overlapTo).toBeLessThanOrEqual(380)
+              sharedStubObserved = true
+            } else if (leftFrom.x === leftTo.x && rightFrom.x === rightTo.x && leftFrom.x === rightFrom.x) {
+              const overlapFrom = Math.max(Math.min(leftFrom.y, leftTo.y), Math.min(rightFrom.y, rightTo.y))
+              const overlapTo = Math.min(Math.max(leftFrom.y, leftTo.y), Math.max(rightFrom.y, rightTo.y))
+              expect(overlapFrom).toBeGreaterThanOrEqual(overlapTo)
+            }
+          }
+        }
+        expect(sharedStubObserved).toBeTrue()
+      }
+    }
+    expect(validateRouteGraphResult(input, result)).toEqual([])
+  })
 })
 
 function segmentIntersectsOpenRect(

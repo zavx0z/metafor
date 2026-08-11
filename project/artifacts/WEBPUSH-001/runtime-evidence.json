@@ -1,0 +1,59 @@
+{
+  "schema": "metafor.webpush.runtime-evidence.v1",
+  "capturedAt": "2026-08-11T09:49:05Z",
+  "checkout": "/Users/zavx0z/repozitarium/metafor",
+  "baseHead": "413008bcc6540ef0dd4c9f506502be31fea91a2f",
+  "runtimeVersion": "webpush-001-result-final-3",
+  "runtimeModuleSha256": "0400c1cb1910399786e5827c7088f37294e7ccb4485df0769e9d70dc480ca394",
+  "hostEpoch": "908dc245-741a-478f-b9fb-d741665d2958",
+  "browser": "Chrome/151.0.7922.76",
+  "targetId": "2B712B733E5B9CB18CA3DA211578AE05",
+  "url": "https://127.0.0.1:4400/",
+  "notificationPermission": "granted",
+  "graph": {
+    "status": "live",
+    "nodes": 12,
+    "edges": 10
+  },
+  "workerIdentity": "8f762ecc-48e8-47db-beaa-38898ffffdd9",
+  "wakeId": "a710ec3f-de44-4990-98d1-bb17cff5acab",
+  "confirmedConnectionId": "90aacbe6-60a4-4c6f-83d4-d8d43e6ebb88",
+  "confirmedWorkerRuntimeIncarnation": "0ac14f0a-8bf0-47d7-9a82-f920ad678646",
+  "postIdleConnectionId": "9f5bb2b3-27f3-4305-8f3a-a456beea4f9e",
+  "postIdleWorkerRuntimeIncarnation": "1878edc8-cfc0-42b7-bc1c-5588a283d79e",
+  "bootstrapPushReadyAfterSuccessor": true,
+  "pendingWakeIds": [],
+  "events": [
+    {
+      "at": 1786441650111,
+      "kind": "push-armed"
+    },
+    {
+      "at": 1786441650133,
+      "kind": "push-sent"
+    },
+    {
+      "at": 1786441650413,
+      "kind": "push-service-accepted"
+    },
+    {
+      "at": 1786441650937,
+      "kind": "push-reconnect-confirmed"
+    },
+    {
+      "at": 1786441680951,
+      "kind": "connection-close",
+      "connectionId": "90aacbe6-60a4-4c6f-83d4-d8d43e6ebb88"
+    },
+    {
+      "at": 1786441682079,
+      "kind": "connection-open",
+      "connectionId": "9f5bb2b3-27f3-4305-8f3a-a456beea4f9e"
+    },
+    {
+      "at": 1786441682096,
+      "kind": "authority-resumed",
+      "connectionId": "9f5bb2b3-27f3-4305-8f3a-a456beea4f9e"
+    }
+  ]
+}

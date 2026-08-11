@@ -196,4 +196,61 @@ describe("compound spacing rhythm", () => {
       )).toBeGreaterThanOrEqual(3 * spacing)
     }
   })
+
+  test("falls back beyond the fast candidate budget for the measured Hamiltonian Web Push contour", () => {
+    const graph: LayoutGraph = {
+      viewport: {width: 722, height: 1088},
+      layoutOptions: {clearance: 28, spacing: 28, layerSpacing: 28, padding: 28},
+      nodes: [
+        {id: "server-contour", width: 180, height: 66, contentHeight: 34},
+        {id: "server:runtime", parentId: "server-contour", width: 224.5, height: 246, contentHeight: 236},
+        {id: "browser:device", width: 194.25, height: 134, contentHeight: 124},
+        {id: "page:realm", parentId: "browser:device", width: 312, height: 244, contentHeight: 234},
+        {id: "service-worker:stable", parentId: "browser:device", width: 520, height: 440, contentHeight: 430},
+        {id: "bun-process:main", parentId: "server-contour", width: 194.25, height: 218, contentHeight: 208},
+        {id: "bun-process:worker", parentId: "server-contour", width: 205.75, height: 218, contentHeight: 208},
+        {id: "window-main:realm", parentId: "page:realm", width: 210.45, height: 162, contentHeight: 152},
+        {id: "peer-process:runtime", parentId: "server-contour", width: 245.2, height: 190, contentHeight: 180},
+        {id: "dedicated-worker:runtime", parentId: "page:realm", width: 300.7, height: 190, contentHeight: 180},
+        {id: "rtc-peer:session%3Aserver", parentId: "peer-process:runtime", width: 318.25, height: 218, contentHeight: 208},
+        {id: "rtc-peer:session%3Abrowser", parentId: "window-main:realm", width: 326.05, height: 246, contentHeight: 236},
+      ],
+      ports: [
+        {id: "bun-process:main\0in:IPC", nodeId: "bun-process:main", y: 196},
+        {id: "bun-process:worker\0in:IPC", nodeId: "bun-process:worker", y: 196},
+        {id: "dedicated-worker:runtime\0in:Worker", nodeId: "dedicated-worker:runtime", y: 168},
+        {id: "page:realm\0in:MessagePort", nodeId: "page:realm", y: 222},
+        {id: "page:realm\0out:Controller", nodeId: "page:realm", y: 194},
+        {id: "peer-process:runtime\0in:IPC", nodeId: "peer-process:runtime", y: 168},
+        {id: "rtc-peer:session%3Abrowser\0in:Force", nodeId: "rtc-peer:session%3Abrowser", y: 196},
+        {id: "rtc-peer:session%3Abrowser\0in:Oracle", nodeId: "rtc-peer:session%3Abrowser", y: 224},
+        {id: "rtc-peer:session%3Aserver\0out:Force", nodeId: "rtc-peer:session%3Aserver", y: 168},
+        {id: "rtc-peer:session%3Aserver\0out:Oracle", nodeId: "rtc-peer:session%3Aserver", y: 196},
+        {id: "server:runtime\0in:WS", nodeId: "server:runtime", y: 196},
+        {id: "server:runtime\0out:IPC", nodeId: "server:runtime", y: 224},
+        {id: "server:runtime\0out:WebPush", nodeId: "server:runtime", y: 168},
+        {id: "service-worker:stable\0in:Controller", nodeId: "service-worker:stable", y: 334},
+        {id: "service-worker:stable\0in:WebPush", nodeId: "service-worker:stable", y: 418},
+        {id: "service-worker:stable\0out:MessagePort", nodeId: "service-worker:stable", y: 362},
+        {id: "service-worker:stable\0out:WS", nodeId: "service-worker:stable", y: 390},
+        {id: "window-main:realm\0out:Worker", nodeId: "window-main:realm", y: 140},
+      ],
+      edges: [
+        {id: "ipc:main", sourcePortId: "server:runtime\0out:IPC", targetPortId: "bun-process:main\0in:IPC"},
+        {id: "ipc:worker", sourcePortId: "server:runtime\0out:IPC", targetPortId: "bun-process:worker\0in:IPC"},
+        {id: "ipc:peer", sourcePortId: "server:runtime\0out:IPC", targetPortId: "peer-process:runtime\0in:IPC"},
+        {id: "web-push:worker", sourcePortId: "server:runtime\0out:WebPush", targetPortId: "service-worker:stable\0in:WebPush"},
+        {id: "data-channel:force", sourcePortId: "rtc-peer:session%3Aserver\0out:Force", targetPortId: "rtc-peer:session%3Abrowser\0in:Force"},
+        {id: "data-channel:oracle", sourcePortId: "rtc-peer:session%3Aserver\0out:Oracle", targetPortId: "rtc-peer:session%3Abrowser\0in:Oracle"},
+        {id: "worker-message:worker", sourcePortId: "window-main:realm\0out:Worker", targetPortId: "dedicated-worker:runtime\0in:Worker"},
+        {id: "websocket:control", sourcePortId: "service-worker:stable\0out:WS", targetPortId: "server:runtime\0in:WS"},
+        {id: "controller:page", sourcePortId: "page:realm\0out:Controller", targetPortId: "service-worker:stable\0in:Controller"},
+        {id: "message-port:page", sourcePortId: "service-worker:stable\0out:MessagePort", targetPortId: "page:realm\0in:MessagePort"},
+      ],
+    }
+
+    const result = layout(graph)
+    expect(result.edges).toHaveLength(10)
+    expect(result.nodes).toHaveLength(12)
+  })
 })

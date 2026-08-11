@@ -41,6 +41,9 @@
   один полный Bulk scene snapshot.
 * [Engine](../pkg/engine/CONTRACT.md) — координаты и единицы сцены, правила
   обычных и скелетных mesh и материалы renderer.
+* [Web Push](../pkg/web-push/CONTRACT.md) — runtime-разделённые permission,
+  подписка, доставка, receipt и необязательные lifecycle hooks без встроенного
+  transport наблюдения.
 * [Node system](../pkg/nodes/README.md) — модель, validation и связь между
   минимальной раскладкой `@nodes/layout` и компонентами `@nodes/ui`.
   Integration и Worker принадлежат

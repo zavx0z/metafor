@@ -11,6 +11,7 @@ import {routeGraph} from "./route-graph.ts"
 const COORDINATE_SCALE = 1_000
 const DEFAULT_SPACING = 28
 const MAX_ROUTED_PLACEMENTS = 8
+const MAX_FALLBACK_ROUTED_PLACEMENTS = 24
 
 /**
  * Вычисляет всю геометрию graph: placement, compound compaction и routing.
@@ -101,19 +102,40 @@ function layoutEngine(input: PlacementInput): EngineResult {
       compareIds(stableKey(left.placement), stableKey(right.placement))
   }
   const routable: EngineResult[] = []
-  for (const placement of bounded) {
-    try {
-      const routing = routeGraph(placement.routeInput)
-      routable.push({placement, routing, candidates: {generated: placements.length, routable: 0}})
-    } catch (error) {
-      if (!(error instanceof Error) || !error.message.startsWith("NO_LEGAL_ROUTE ")) throw error
+  let firstRouteFailure: string | null = null
+  let attemptedPlacements = 0
+  const routePlacements = (
+    candidates: readonly PlacementResult[],
+    stopAfterFirstRoutable = false,
+  ): void => {
+    for (const placement of candidates) {
+      attemptedPlacements += 1
+      try {
+        const routing = routeGraph(placement.routeInput)
+        routable.push({placement, routing, candidates: {generated: placements.length, routable: 0}})
+        if (stopAfterFirstRoutable) return
+      } catch (error) {
+        if (!(error instanceof Error) || !error.message.startsWith("NO_LEGAL_ROUTE ")) throw error
+        firstRouteFailure ??= error.message
+      }
     }
+  }
+  routePlacements(bounded)
+  if (routable.length === 0 && bounded.length < ordered.length) {
+    const attemptedKeys = new Set(bounded.map(stableKey))
+    const fallback = ordered
+      .filter((placement) => !attemptedKeys.has(stableKey(placement)))
+      .slice(0, MAX_FALLBACK_ROUTED_PLACEMENTS)
+    routePlacements(fallback, true)
   }
   if (routable.length > 0) {
     const best = routable.sort(compareRoutingQuality)[0]!
     return {...best, candidates: {generated: placements.length, routable: routable.length}}
   }
-  throw new Error(`NO_LEGAL_LAYOUT: ${bounded.length}/${placements.length} bounded placements provide no legal route graph`)
+  throw new Error(
+    `NO_LEGAL_LAYOUT: ${attemptedPlacements}/${placements.length} placements provide no legal route graph` +
+    (firstRouteFailure === null ? "" : `; first route failure: ${firstRouteFailure}`),
+  )
 }
 
 function boundedPlacements(
@@ -122,7 +144,11 @@ function boundedPlacements(
 ): readonly PlacementResult[] {
   if (ordered.length <= limit) return ordered
   const selected = new Set<number>()
-  const preferredCount = Math.ceil(limit / 2)
+  // Placement candidates are already ordered by product quality. Keep most of
+  // the bounded routing budget on that head while still sampling the tail for
+  // a structurally different fallback. A half/head split skipped the first
+  // routable high-quality placement of a bidirectional cross-compound contour.
+  const preferredCount = Math.ceil(limit * 3 / 4)
   for (let index = 0; index < preferredCount; index += 1) selected.add(index)
   const remaining = limit - selected.size
   for (let index = 1; index <= remaining; index += 1) {

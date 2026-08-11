@@ -1,17 +1,28 @@
 import {
-  generateVAPIDKeys,
-  sendNotification,
-  type PushSubscription,
-  type RequestOptions,
-  type SendResult,
-} from "web-push"
+  WebPushService,
+  type StoredWebPushSubscription,
+  type WebPushSubscriptionStore,
+} from "@metafor/web-push/server"
+import {
+  createBunWebPushSender,
+  createBunWebPushVapidCredentials,
+} from "@metafor/web-push/server/bun"
+import {
+  validateWebPushSubscription,
+  validPublicId,
+  type WebPushDeliveryReceipt,
+  type WebPushMessage,
+  type WebPushSubscriptionJSON,
+} from "@metafor/web-push/protocol"
+import type {WebPushLifecycleHook} from "@metafor/web-push/lifecycle"
+import type {PushSubscription, RequestOptions} from "web-push"
 import {chmodSync, mkdirSync, readFileSync, renameSync, writeFileSync} from "node:fs"
 import {dirname} from "node:path"
 
 export interface HamiltonianPushSubscriptionInput {
   workerIdentity: string
   deviceId: string
-  subscription: PushSubscription
+  subscription: WebPushSubscriptionJSON
 }
 
 export interface HamiltonianPushWakePayload {
@@ -39,26 +50,29 @@ export interface HamiltonianWebPushOptions {
     payload: string,
     options: RequestOptions,
   ) => Promise<unknown>
-}
-
-interface StoredSubscription extends HamiltonianPushSubscriptionSnapshot {
-  subscription: PushSubscription
+  onLifecycle?: WebPushLifecycleHook
 }
 
 interface StoredWebPushState {
   schema: 1
   publicKey: string
   privateKey: string
-  subscriptions: StoredSubscription[]
+  subject?: string
+  subscriptions: LegacyStoredSubscription[]
+}
+
+interface LegacyStoredSubscription extends HamiltonianPushSubscriptionSnapshot {
+  subscription: WebPushSubscriptionJSON
 }
 
 export class HamiltonianWebPush {
   readonly publicKey: string
   readonly #privateKey: string
   readonly #subject: string
-  readonly #send: NonNullable<HamiltonianWebPushOptions["send"]>
   readonly #storagePath: string | null
-  readonly #subscriptions = new Map<string, StoredSubscription>()
+  readonly #store: HamiltonianSubscriptionStore
+  readonly #service: WebPushService
+  readonly #knownDeviceIds = new Map<string, string>()
 
   constructor(options: HamiltonianWebPushOptions = {}) {
     if ((options.publicKey && !options.privateKey) || (!options.publicKey && options.privateKey)) {
@@ -66,102 +80,137 @@ export class HamiltonianWebPush {
     }
     this.#storagePath = options.storagePath ?? null
     const persisted = this.#storagePath === null ? null : readStoredState(this.#storagePath)
-    const keys = options.publicKey && options.privateKey
-      ? {publicKey: options.publicKey, privateKey: options.privateKey}
-      : persisted ?? generateVAPIDKeys()
-    this.publicKey = keys.publicKey
-    this.#privateKey = keys.privateKey
-    this.#subject = options.subject ?? "mailto:hamiltonian@localhost"
-    this.#send = options.send ?? (async (subscription, payload, requestOptions) => {
-      await sendNotification(subscription, payload, requestOptions) as SendResult
-    })
-    const persistedSubscriptions = persisted &&
+    const credentials = options.publicKey && options.privateKey
+      ? {
+          schema: 1 as const,
+          subject: options.subject ?? "mailto:hamiltonian@localhost",
+          publicKey: options.publicKey,
+          privateKey: options.privateKey,
+        }
+      : persisted
+        ? {
+            schema: 1 as const,
+            subject: options.subject ?? persisted.subject ?? "mailto:hamiltonian@localhost",
+            publicKey: persisted.publicKey,
+            privateKey: persisted.privateKey,
+          }
+        : createBunWebPushVapidCredentials(options.subject ?? "mailto:hamiltonian@localhost")
+    this.publicKey = credentials.publicKey
+    this.#privateKey = credentials.privateKey
+    this.#subject = credentials.subject
+    const initial = persisted &&
       persisted.publicKey === this.publicKey &&
       persisted.privateKey === this.#privateKey
-      ? persisted.subscriptions
+      ? persisted.subscriptions.flatMap(toStoredSubscription)
       : []
-    for (const subscription of persistedSubscriptions) {
-      try {
-        this.#subscriptions.set(subscription.workerEntityId, {
-          ...subscription,
-          subscription: validatePushSubscription(subscription.subscription),
-        })
-      } catch {
-        // A single stale record must not invalidate the VAPID identity or other subscriptions.
-      }
+    this.#store = new HamiltonianSubscriptionStore(initial, () => this.#persist())
+    for (const stored of initial) {
+      const deviceId = metadataString(stored.metadata, "deviceId")
+      if (deviceId) this.#knownDeviceIds.set(stored.subscriptionId, deviceId)
     }
+    this.#service = new WebPushService({
+      publicKey: this.publicKey,
+      store: this.#store,
+      send: createBunWebPushSender({
+        ...credentials,
+        ...(options.send === undefined ? {} : {send: options.send}),
+      }),
+      onLifecycle: options.onLifecycle,
+    })
     this.#persist()
   }
 
-  register(workerEntityId: string, input: HamiltonianPushSubscriptionInput): HamiltonianPushSubscriptionSnapshot {
-    const subscription = validatePushSubscription(input.subscription)
-    const endpointOrigin = new URL(subscription.endpoint).origin
-    const stored: StoredSubscription = {
-      workerEntityId,
-      deviceId: input.deviceId,
-      endpointOrigin,
-      registeredAt: Date.now(),
-      subscription,
+  async register(
+    workerEntityId: string,
+    input: HamiltonianPushSubscriptionInput,
+    operationId: string = crypto.randomUUID(),
+  ): Promise<HamiltonianPushSubscriptionSnapshot> {
+    if (!workerEntityId.startsWith("service-worker:") || !validPublicId(input.workerIdentity) || !validPublicId(input.deviceId)) {
+      throw new Error("Invalid Hamiltonian PushSubscription identity")
     }
-    this.#subscriptions.set(workerEntityId, stored)
-    this.#persist()
+    const expectedWorkerEntityId = `service-worker:${input.workerIdentity}`
+    if (workerEntityId !== expectedWorkerEntityId) {
+      throw new Error("PushSubscription worker identity does not match its entity")
+    }
+    const acknowledgement = await this.#service.register(workerEntityId, {
+      schema: 1,
+      operationId,
+      subscription: validateWebPushSubscription(input.subscription),
+    }, {
+      metadata: {
+        deviceId: input.deviceId,
+        workerIdentity: input.workerIdentity,
+      },
+    })
+    if (!acknowledgement.accepted) throw new Error(acknowledgement.reason)
+    this.#knownDeviceIds.set(workerEntityId, input.deviceId)
+    const stored = this.#store.get(workerEntityId)
+    if (!stored) throw new Error("Stored PushSubscription disappeared")
     return publicSnapshot(stored)
   }
 
   has(workerEntityId: string): boolean {
-    return this.#subscriptions.has(workerEntityId)
+    return this.#store.has(workerEntityId)
   }
 
   deviceIdFor(workerEntityId: string): string | null {
-    return this.#subscriptions.get(workerEntityId)?.deviceId ?? null
+    return metadataString(this.#store.get(workerEntityId)?.metadata, "deviceId") ??
+      this.#knownDeviceIds.get(workerEntityId) ??
+      null
   }
 
   matchesDevice(workerEntityId: string, deviceId: string): boolean {
-    return this.#subscriptions.get(workerEntityId)?.deviceId === deviceId
+    return metadataString(this.#store.get(workerEntityId)?.metadata, "deviceId") === deviceId
   }
 
   onlyWorkerEntityId(): string | null {
-    return this.#subscriptions.size === 1
-      ? this.#subscriptions.keys().next().value ?? null
-      : null
+    const subscriptions = this.#store.list()
+    return subscriptions.length === 1 ? subscriptions[0]!.subscriptionId : null
   }
 
   snapshots(): HamiltonianPushSubscriptionSnapshot[] {
-    return [...this.#subscriptions.values()].map(publicSnapshot)
+    return this.#store.list().map(publicSnapshot)
   }
 
   async wake(workerEntityId: string, payload: HamiltonianPushWakePayload): Promise<void> {
-    const stored = this.#subscriptions.get(workerEntityId)
-    if (!stored) throw new Error("PushSubscription is not registered for this Service Worker")
-    try {
-      await this.#send(stored.subscription, JSON.stringify(payload), {
-        TTL: 60,
-        urgency: "high",
-        topic: "hamiltonian-wake",
-        timeout: 10_000,
-        vapidDetails: {
-          subject: this.#subject,
-          publicKey: this.publicKey,
-          privateKey: this.#privateKey,
-        },
-      })
-    } catch (error) {
-      const statusCode = webPushStatusCode(error)
-      if (statusCode === 404 || statusCode === 410) {
-        this.#subscriptions.delete(workerEntityId)
-        this.#persist()
-      }
-      throw error
+    const message: WebPushMessage = {
+      schema: 1,
+      messageId: payload.wakeId,
+      operationId: payload.wakeId,
+      notification: {
+        title: "Hamiltonian",
+        body: "Service Worker восстановил связь с сервером",
+        tag: "hamiltonian-service-worker",
+        data: {wakeId: payload.wakeId},
+      },
+      data: {...payload},
     }
+    await this.#service.send(workerEntityId, message, {
+      ttl: 60,
+      urgency: "high",
+      topic: "hamiltonian-wake",
+      timeout: 10_000,
+    })
+  }
+
+  confirmReceipt(workerEntityId: string, receipt: WebPushDeliveryReceipt): void {
+    this.#service.confirmReceipt(receipt, workerEntityId)
   }
 
   #persist(): void {
-    if (this.#storagePath === null) return
+    if (this.#storagePath === null || !this.#store) return
     const state: StoredWebPushState = {
       schema: 1,
       publicKey: this.publicKey,
       privateKey: this.#privateKey,
-      subscriptions: [...this.#subscriptions.values()],
+      subject: this.#subject,
+      subscriptions: this.#store.list().map((stored) => ({
+        workerEntityId: stored.subscriptionId,
+        deviceId: metadataString(stored.metadata, "deviceId") ?? "unknown-device",
+        endpointOrigin: new URL(stored.subscription.endpoint).origin,
+        registeredAt: stored.registeredAt,
+        subscription: stored.subscription,
+      })),
     }
     const temporaryPath = `${this.#storagePath}.${process.pid}.${crypto.randomUUID()}.tmp`
     mkdirSync(dirname(this.#storagePath), {recursive: true})
@@ -173,24 +222,18 @@ export class HamiltonianWebPush {
 
 export function isHamiltonianPushSubscriptionInput(value: unknown): value is HamiltonianPushSubscriptionInput {
   if (!isRecord(value)) return false
-  if (
-    typeof value.workerIdentity !== "string" ||
-    !validIdentity(value.workerIdentity) ||
-    typeof value.deviceId !== "string" ||
-    !validIdentity(value.deviceId) ||
-    !isRecord(value.subscription)
-  ) return false
+  if (!validPublicId(value.workerIdentity) || !validPublicId(value.deviceId)) return false
   try {
-    validatePushSubscription(value.subscription)
+    validateWebPushSubscription(value.subscription)
     return true
   } catch {
     return false
   }
 }
 
-export function isHamiltonianPushSubscription(value: unknown): value is PushSubscription {
+export function isHamiltonianPushSubscription(value: unknown): value is WebPushSubscriptionJSON {
   try {
-    validatePushSubscription(value)
+    validateWebPushSubscription(value)
     return true
   } catch {
     return false
@@ -198,51 +241,78 @@ export function isHamiltonianPushSubscription(value: unknown): value is PushSubs
 }
 
 export function validWorkerIdentity(value: unknown): value is string {
-  return typeof value === "string" && validIdentity(value)
+  return validPublicId(value)
 }
 
-function validatePushSubscription(value: unknown): PushSubscription {
-  if (!isRecord(value)) throw new Error("Invalid PushSubscription")
-  const endpoint = value.endpoint
-  const keys = value.keys
-  if (typeof endpoint !== "string" || endpoint.length > 4_096) {
-    throw new Error("Invalid PushSubscription endpoint")
+class HamiltonianSubscriptionStore implements WebPushSubscriptionStore {
+  readonly #subscriptions = new Map<string, StoredWebPushSubscription>()
+  readonly #onChange: () => void
+
+  constructor(initial: StoredWebPushSubscription[], onChange: () => void) {
+    this.#onChange = onChange
+    for (const value of initial) this.#subscriptions.set(value.subscriptionId, structuredClone(value))
   }
-  const endpointUrl = new URL(endpoint)
-  if (endpointUrl.protocol !== "https:") throw new Error("PushSubscription endpoint must use HTTPS")
-  if (!isRecord(keys) || !validPushKey(keys.p256dh, 512) || !validPushKey(keys.auth, 256)) {
-    throw new Error("Invalid PushSubscription keys")
+
+  has(subscriptionId: string): boolean {
+    return this.#subscriptions.has(subscriptionId)
   }
-  const expirationTime = value.expirationTime
-  if (expirationTime !== undefined && expirationTime !== null && typeof expirationTime !== "number") {
-    throw new Error("Invalid PushSubscription expiration")
+
+  get(subscriptionId: string): StoredWebPushSubscription | null {
+    const value = this.#subscriptions.get(subscriptionId)
+    return value ? structuredClone(value) : null
   }
-  return {
-    endpoint,
-    ...(expirationTime === undefined ? {} : {expirationTime}),
-    keys: {p256dh: keys.p256dh, auth: keys.auth},
+
+  put(value: StoredWebPushSubscription): void {
+    this.#subscriptions.set(value.subscriptionId, structuredClone(value))
+    this.#onChange()
+  }
+
+  delete(subscriptionId: string): boolean {
+    const deleted = this.#subscriptions.delete(subscriptionId)
+    if (deleted) this.#onChange()
+    return deleted
+  }
+
+  list(): StoredWebPushSubscription[] {
+    return [...this.#subscriptions.values()].map((value) => structuredClone(value))
   }
 }
 
-function publicSnapshot(value: StoredSubscription): HamiltonianPushSubscriptionSnapshot {
+function publicSnapshot(value: StoredWebPushSubscription): HamiltonianPushSubscriptionSnapshot {
   return {
-    workerEntityId: value.workerEntityId,
-    deviceId: value.deviceId,
-    endpointOrigin: value.endpointOrigin,
+    workerEntityId: value.subscriptionId,
+    deviceId: metadataString(value.metadata, "deviceId") ?? "unknown-device",
+    endpointOrigin: new URL(value.subscription.endpoint).origin,
     registeredAt: value.registeredAt,
   }
 }
 
-function validIdentity(value: string): boolean {
-  return value.length > 0 && value.length <= 128 && /^[A-Za-z0-9._:-]+$/.test(value)
+function metadataString(
+  metadata: StoredWebPushSubscription["metadata"],
+  key: string,
+): string | null {
+  const value = metadata?.[key]
+  return typeof value === "string" ? value : null
 }
 
-function validPushKey(value: unknown, maxLength: number): value is string {
-  return typeof value === "string" && value.length > 0 && value.length <= maxLength && /^[A-Za-z0-9_-]+$/.test(value)
-}
-
-function webPushStatusCode(error: unknown): number | null {
-  return isRecord(error) && typeof error.statusCode === "number" ? error.statusCode : null
+function toStoredSubscription(value: LegacyStoredSubscription): StoredWebPushSubscription[] {
+  try {
+    const subscription = validateWebPushSubscription(value.subscription)
+    if (!value.workerEntityId.startsWith("service-worker:") || !validPublicId(value.deviceId)) return []
+    return [{
+      schema: 1,
+      subscriptionId: value.workerEntityId,
+      subscription,
+      metadata: {
+        deviceId: value.deviceId,
+        workerIdentity: value.workerEntityId.slice("service-worker:".length),
+      },
+      registeredAt: value.registeredAt,
+      updatedAt: value.registeredAt,
+    }]
+  } catch {
+    return []
+  }
 }
 
 function readStoredState(storagePath: string): StoredWebPushState | null {
@@ -253,9 +323,10 @@ function readStoredState(storagePath: string): StoredWebPushState | null {
       value.schema !== 1 ||
       typeof value.publicKey !== "string" ||
       typeof value.privateKey !== "string" ||
+      (value.subject !== undefined && typeof value.subject !== "string") ||
       !Array.isArray(value.subscriptions)
     ) return null
-    const subscriptions = value.subscriptions.filter((entry): entry is StoredSubscription =>
+    const subscriptions = value.subscriptions.filter((entry): entry is LegacyStoredSubscription =>
       isRecord(entry) &&
       typeof entry.workerEntityId === "string" && entry.workerEntityId.startsWith("service-worker:") &&
       typeof entry.deviceId === "string" &&
@@ -266,6 +337,7 @@ function readStoredState(storagePath: string): StoredWebPushState | null {
       schema: 1,
       publicKey: value.publicKey,
       privateKey: value.privateKey,
+      ...(value.subject === undefined ? {} : {subject: value.subject}),
       subscriptions,
     }
   } catch {

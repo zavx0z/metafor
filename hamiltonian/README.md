@@ -34,7 +34,12 @@ lifecycle-событий. Heartbeat является сообщением на �
 заменяет этот visual slot; завершение owner или endpoint удаляет уже саму
 возможность показать связь.
 Физическое закрытие control WebSocket наблюдает и записывает host для точной
-socket incarnation. Service Worker включает эту terminal-запись в retained
+socket incarnation только после успешного сообщения `identity`: параметры
+`device`, `worker` и `transport` в URL являются заявкой на маршрут, а не
+доказательством существования Service Worker. Сокет, закрытый до подтверждения
+identity или отклонённый при проверке Web Push, не может создать либо обновить
+Service Worker и его transport в retained lifecycle. Service Worker включает
+подтверждённую terminal-запись в retained
 состояние и передаёт новый host snapshot уже подключённым Window не только
 через ранний BroadcastChannel, но и прямо по их MessagePort. Поэтому
 остановка/пробуждение Service Worker не может стереть последний наблюдённый
@@ -127,6 +132,11 @@ entity или endpoint. Внутри находятся фактический B
 остаётся внутри своего `Peer process`. Все transport продолжают заканчиваться
 на фактических runtime-нодах, поэтому визуальная группировка не меняет
 причинную проекцию.
+
+Retained lifecycle сохраняет только действующее ownership-поддерево. Когда
+owner завершается, его вложенные runtime-сущности и принадлежащие им transport
+также удаляются из текущего снимка: объект из завершённого процесса не может
+сохраниться за счёт связи с другой средой и стать ложной корневой нодой.
 
 Диагностическое пересоздание локального MessagePort не показывается в
 Inspector: тихий канал и смена Service Worker controller уже восстанавливаются
@@ -226,8 +236,11 @@ BroadcastChannel. Snapshot сохраняет исходные event identity, �
 сразу удаляется: поздний subscriber не получает структуру уже умершего runtime.
 Её active sequence frontier и structural records также удаляются. От очень
 поздней доставки защищает не бесконечная история, а bounded recent tombstone:
-cursor удерживает последние 512 завершённых source identity, проекция — до
-2048 завершённых entity и до 2048 transport identity. Эти границы не обрезают
+cursor удерживает последние 512 завершённых source identity, host-журнал и
+проекция — последние 2048 завершённых entity, а проекция также до 2048
+transport identity. Запоздалые entity и transport, касающиеся завершённого
+ownership-поддерева, обновляют causal frontier, но не возвращаются в current
+state. Эти границы не обрезают
 активное состояние или настоящий gap.
 Более новый snapshot заменяет покрытую им структуру: отсутствующая в нём
 entity или transport больше не считается активной. Capacity не обрезает
@@ -317,9 +330,13 @@ Push) хранится Service Worker в Cache Storage. Внутреннее и�
 PushSubscription и VAPID identity хранятся Bun в локальном игнорируемом
 `.metafor/hamiltonian-web-push.json` с правами `0600`. Явно заданные
 `HAMILTONIAN_VAPID_PUBLIC_KEY`, `HAMILTONIAN_VAPID_PRIVATE_KEY` и
-`HAMILTONIAN_VAPID_SUBJECT` имеют приоритет. По пользовательскому действию
-страница запрашивает Notification permission и подписывает тот же
-зарегистрированный Service Worker с `userVisibleOnly: true`. При явном
+`HAMILTONIAN_VAPID_SUBJECT` имеют приоритет. Если Notification permission
+равен `default`, страница напрямую вызывает системный запрос и подписывает тот
+же зарегистрированный Service Worker с `userVisibleOnly: true`. Собственного
+pre-prompt нет. После `denied` приложение больше не запрашивает permission;
+закрытый системный prompt оставляет `default`, и запрос повторяется после
+следующей загрузки. При `granted` существующая подписка восстанавливается без
+нового prompt. При явном
 пробуждении Bun отправляет один стандартный Web Push; Service Worker показывает
 одно уведомление о результате и восстанавливает control WebSocket без Window.
 Web Push не используется как частый скрытый heartbeat.
@@ -366,6 +383,15 @@ Host начинает causal heartbeat первым `ping` после откры
 смениться, `Push` сообщает `ready / sent / received / failed`, а `Heartbeat` —
 состояние текущего WSS. В целевой модели нет отдельной ноды или подписи
 `ServiceWorkerGlobalScope`.
+
+Штатная тишина page-канала означает, что браузер приостановил внутреннее
+исполнение: стабильная Service Worker сущность переходит в `standby`, а её
+heartbeat — в `paused`, но это не состояние ошибки. При следующем
+`connect-window` новое исполнение сначала восстанавливает control bootstrap из
+Cache Storage и только затем публикует текущее состояние. Фактически
+доставленный Web Push закрепляет `pushReady: true` в том же bootstrap, поэтому
+последующий browser-managed restart не может превратить действующую подписку в
+ложное `unavailable`.
 
 Versioned module загружается с bearer token, проверяется по фактическим bytes
 через SHA-256 и кладётся в Cache Storage. При чтении cache bytes хешируются
@@ -453,11 +479,11 @@ Private keys остаются в Git-ignored `.tls/`. Для Android серти�
 устройства. `adb reverse tcp:4400 tcp:4400` может дать Android адрес
 `https://localhost:4400`, но прямой LAN path также проверен.
 
-Для первого Web Push выбрать ноду `Service Worker` и действие «Настроить Web
-Push» (или одноимённую кнопку диагностической страницы), затем разрешить
-уведомления Chrome. То же действие доступно клавиатурой через `⌥P`, чтобы
-permission prompt не зависел от масштаба canvas. VAPID identity и подписка
-автоматически сохраняются в Git-ignored
+При первом открытии с permission `default` страница сразу вызывает системный
+запрос Chrome на уведомления. Действие «Настроить Web Push» в ноде
+`Service Worker` и клавиша `⌥P` остаются ручным повтором, пока закрытый prompt
+оставляет состояние `default`; после `denied` они не вызывают системный prompt
+повторно. VAPID identity и подписка автоматически сохраняются в Git-ignored
 `.metafor/hamiltonian-web-push.json`; private key не возвращается через
 `/lab/status`. Для внешнего управления ключи можно задать переменными
 `HAMILTONIAN_VAPID_PUBLIC_KEY`, `HAMILTONIAN_VAPID_PRIVATE_KEY` и
