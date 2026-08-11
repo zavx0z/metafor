@@ -115,3 +115,30 @@ bun run typecheck
 ## Артефакты
 
 [`project/artifacts/NODES-007/`](../artifacts/NODES-007/README.md)
+
+## Closing handoff
+
+* Result commit: `da7e34d7e426412010b5d404da0efab7cd907df4`.
+* Граница результата: стабильная layout identity на adapter boundary,
+  уникальность `layoutId`, Hamiltonian visual-slot projection, exact viewport
+  scheduling с bounded debounce и отклонением устаревшего Worker result.
+* Затронутый пакет `nodes`: постоянные владельцы —
+  [`pkg/nodes/README.md`](../../pkg/nodes/README.md) и
+  [`pkg/nodes/REQUIREMENTS.md`](../../pkg/nodes/REQUIREMENTS.md). Они описывают
+  различие domain `id` и `layoutId`, serializable Worker boundary и settled
+  exact-viewport relayout.
+* Затронутый `@nodes/ui`: geometry cache включает layout identity; визуальный и
+  interaction contract не менялся, поэтому `pkg/nodes/ui/REQUIREMENTS.md`
+  остаётся актуален без нового закона.
+* Затронутый Hamiltonian: постоянный владелец —
+  [`hamiltonian/README.md`](../../hamiltonian/README.md). Он описывает стабильные
+  structural slots, exact viewport key, debounce и запрет stale commit.
+* `@nodes/layout` не изменён: pure source SHA-256
+  `58891578269d629b68011760f51e04756a5af66656101795cb082ab59505434e`
+  и обе geometry SHA совпадают с NODES-006 frozen baseline.
+* Независимо воспроизводимые проверки: `bun test pkg/nodes` (`81/81`), focused
+  Hamiltonian build/lifecycle/responsive tests (`29/29`), typecheck пакетов
+  layout/nodes и root, `git diff --check`, JSON validation и benchmark runner.
+* Evidence: `project/artifacts/NODES-007/README.md`, machine-readable reload и
+  resize proof, четыре PNG и final benchmark `RIGHT 195.81 ms`,
+  `DOWN 424.73 ms`.
