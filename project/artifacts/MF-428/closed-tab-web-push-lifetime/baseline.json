@@ -1,0 +1,20 @@
+{
+  "schema": "metafor.mf428.closed-tab-status-snapshot.v1",
+  "phase": "baseline",
+  "observedAtMs": 1786447636000,
+  "version": "a343bb1ecc1d9d4fd60e6076015b8fc2142ccad0",
+  "hostEpoch": "53d5f22f-5ba0-4d61-a0b2-3e1a53011cc3",
+  "hamiltonianWindowCount": 1,
+  "connections": [
+    {
+      "connectionId": "cdc16e35-c16c-4cee-b0e1-eb5c4efe72cd",
+      "workerIdentity": "8f762ecc-48e8-47db-beaa-38898ffffdd9",
+      "workerRuntimeIncarnation": "990b6b3f-da9b-4dee-85c8-f254870a1f7e",
+      "openedAt": 1786447606973,
+      "lastPongAt": 1786447626999,
+      "lastChallengeSeq": 3,
+      "lastAckSeq": 3
+    }
+  ],
+  "pendingWakeIds": []
+}

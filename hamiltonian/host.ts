@@ -1468,8 +1468,8 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
           return Response.json({ok: true, workerEntityId, wakeId}, {
             headers: securityHeaders("application/json; charset=utf-8"),
           })
-        } catch (error) {
-          const reason = error instanceof Error ? error.message : String(error)
+        } catch {
+          const reason = "RedactedError"
           if (!clearPendingWake(workerEntityId, wakeId)) {
             return Response.json({ok: true, workerEntityId, wakeId, delivery: "confirmed"}, {
               headers: securityHeaders("application/json; charset=utf-8"),
@@ -1479,9 +1479,9 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
           observeServiceWorkerAvailability(workerEntityId, workerDeviceId, {
             state: "error",
             push: "failed",
-            reason: reason.slice(0, 256),
+            reason,
           })
-          return new Response(reason, {status: 502})
+          return new Response("Web Push delivery failed", {status: 502})
         }
       }
 

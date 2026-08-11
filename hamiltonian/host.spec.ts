@@ -511,6 +511,7 @@ describe("isolated Hamiltonian host", () => {
   })
 
   test("makes Web Push delivery failure an explicit Service Worker failure", async () => {
+    const secret = "token-super-secret"
     const host = createHamiltonianHost({
       port: 0,
       token: "test-token",
@@ -518,7 +519,7 @@ describe("isolated Hamiltonian host", () => {
         publicKey: "public-test-key",
         privateKey: "private-test-key",
         send: async () => {
-          throw new Error("push service unavailable")
+          throw new Error(secret)
         },
       },
     })
@@ -537,9 +538,41 @@ describe("isolated Hamiltonian host", () => {
       body: JSON.stringify({workerIdentity}),
     })
     expect(wakeResponse.status).toBe(502)
-    expect(await wakeResponse.text()).toContain("push service unavailable")
+    expect(await wakeResponse.text()).toBe("Web Push delivery failed")
     expect(host.getStatus().push.pendingWakeIds).toHaveLength(0)
-    expect(host.getStatus().events).toContainEqual(expect.objectContaining({kind: "push-send-failed"}))
+    expect(JSON.stringify(host.getStatus())).not.toContain(secret)
+    expect(host.getStatus().events).toContainEqual(expect.objectContaining({
+      kind: "push-send-failed",
+      detail: expect.stringContaining("RedactedError"),
+    }))
+
+    const observerUrl = new URL("/control", host.server.url)
+    observerUrl.protocol = "ws:"
+    observerUrl.searchParams.set("token", "test-token")
+    observerUrl.searchParams.set("device", "failure-observer-device")
+    observerUrl.searchParams.set("transport", `websocket:${crypto.randomUUID()}`)
+    observerUrl.searchParams.set("worker", "service-worker:failure-observer")
+    const observer = new WebSocket(observerUrl)
+    const retainedFrame = nextMessage(observer, "lifecycle-snapshot")
+    await new Promise<void>((resolve, reject) => {
+      observer.addEventListener("open", () => resolve(), {once: true})
+      observer.addEventListener("error", () => reject(new Error("WebSocket open failed")), {once: true})
+    })
+    const retainedSnapshot = (await retainedFrame).snapshot as {
+      envelopes: Array<{observation: {
+        subjectId?: string
+        attributes?: {state?: string; push?: string; reason?: string}
+      }}>
+    }
+    expect(JSON.stringify(retainedSnapshot)).not.toContain(secret)
+    expect(retainedSnapshot.envelopes.find(({observation}) =>
+      observation.subjectId === hamiltonianLifecycleEntityId("service-worker", workerIdentity)
+    )?.observation.attributes).toMatchObject({
+      state: "error",
+      push: "failed",
+      reason: "RedactedError",
+    })
+    observer.close()
   })
 
   test("supplies fresh host capability through encrypted Push after Bun restart", async () => {

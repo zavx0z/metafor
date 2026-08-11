@@ -1,5 +1,5 @@
 {
-  "schema": "metafor.mf428.closed-tab-web-push-lifetime.v1",
+  "schema": "metafor.mf428.closed-tab-web-push-lifetime.v2",
   "capturedAt": "2026-08-11T11:33:29Z",
   "checkout": "/Users/zavx0z/repozitarium/metafor",
   "implementationCommit": "a343bb1ecc1d9d4fd60e6076015b8fc2142ccad0",
@@ -94,12 +94,27 @@
     "connectionCount": 0,
     "pendingWakeIds": []
   },
-  "sourceSha256": {
-    "samplesJsonl": "b3ad35b18b6de179e33851ef937de50b664d91664a1841a66ec76d4514deca1c",
-    "statusFinalJson": "2ababd11c8d2526cd9e59c5d8f218b6151d604104860e436f4b4e0b940e7a38f",
-    "wakeResponseJson": "07b8a53d74633949f2e011bc96200829caac451769cc5baafdbc9616b8ef1f91",
-    "baselineJson": "6f149b0540afc871428f55d4c1ae8aebebf0a98474620e4c50ed6e9dc501e7c1",
-    "idleJson": "714cec5570bd6d187859ece326bd7776b2778377157459326d3d1d90444fa767"
+  "sourceFiles": {
+    "samplesJsonl": {
+      "path": "closed-tab-web-push-lifetime/samples.jsonl",
+      "sha256": "b3ad35b18b6de179e33851ef937de50b664d91664a1841a66ec76d4514deca1c"
+    },
+    "statusFinalJson": {
+      "path": "closed-tab-web-push-lifetime/status-final.json",
+      "sha256": "b70ef6090497644c43c824ca2f0dc92cb0fcbf0cdb869457a1f2cc70b8821539"
+    },
+    "wakeResponseJson": {
+      "path": "closed-tab-web-push-lifetime/wake-response.json",
+      "sha256": "07b8a53d74633949f2e011bc96200829caac451769cc5baafdbc9616b8ef1f91"
+    },
+    "baselineJson": {
+      "path": "closed-tab-web-push-lifetime/baseline.json",
+      "sha256": "82d6696e2724c2c3c4484c0ff6b64a3c25089e570f4d33a9a188715c323fc7c3"
+    },
+    "idleJson": {
+      "path": "closed-tab-web-push-lifetime/idle.json",
+      "sha256": "c00b0db995efa1b6475f995dc50305f0ea90ff6d6cded4ab52a791bc74c3e022"
+    }
   },
   "conclusion": {
     "webPushWokeRegisteredServiceWorker": true,

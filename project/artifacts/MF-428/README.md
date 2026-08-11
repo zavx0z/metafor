@@ -29,10 +29,38 @@
   Hamiltonian Window clients было равно нулю.
 * Чувствительные сведения: bearer token, VAPID private key, PushSubscription
   endpoint/keys, payload, capability и `wakeProof` не сохранены. Raw stream
-  проверен поиском secret-shaped полей; в JSON перенесены только безопасные
-  identity, timestamps, агрегаты и SHA-256 исходных временных файлов.
+  проверен поиском secret-shaped полей; сводка ссылается на
+  обезличенные исходники в Git и их SHA-256.
 * Контрольная сумма: SHA-256
-  `658b6abf268069de9cb540ec921b6315545ab79ce6f4bbbc87ba8725a1cf9d6d`.
+  `09d9cd9e7d6cf62806254bbbd5095491b38483f151ebae46448b287b1dd98081`.
+
+## closed-tab-web-push-lifetime/
+
+* Источник: обезличенные raw-файлы того же 151-sample замера:
+  `samples.jsonl`, `status-final.json`, `wake-response.json`, `baseline.json` и
+  `idle.json`. Полные host snapshots не хранятся: три snapshots содержат
+  только allowlisted causal evidence.
+* Дата: 2026-08-11, `11:28:23Z`–`11:33:29Z`.
+* Версия проекта: clean runtime commit
+  `a343bb1ecc1d9d4fd60e6076015b8fc2142ccad0`, Git tree
+  `df1f4d0abb024a0b2b62fbfed9c42634ae8e2ff4`, Chrome
+  `151.0.7922.76`.
+* Ожидание: сохранить долговечный источник, из которого независимо
+  пересчитываются 151 samples, `803 ms`, `40.046 s`, четыре heartbeat
+  ACK и `250.840 s` без reconnect.
+* Фактическое наблюдение: все 151 строк JSONL и четыре JSON-файла
+  валидны; их контрольные суммы совпадают со сводкой.
+* Чувствительные сведения: full `topology`, `peer`, authority, fencing,
+  lease, server embodiments, Push public key/subscriptions и полная история
+  событий исключены allowlist-проекцией. Secret-shaped поля и значения
+  поиском не найдены; endpoint, keys, bearer token, private key, payload,
+  capability и `wakeProof` отсутствуют.
+* Контрольные суммы SHA-256:
+  `samples.jsonl` — `b3ad35b18b6de179e33851ef937de50b664d91664a1841a66ec76d4514deca1c`;
+  `status-final.json` — `b70ef6090497644c43c824ca2f0dc92cb0fcbf0cdb869457a1f2cc70b8821539`;
+  `wake-response.json` — `07b8a53d74633949f2e011bc96200829caac451769cc5baafdbc9616b8ef1f91`;
+  `baseline.json` — `82d6696e2724c2c3c4484c0ff6b64a3c25089e570f4d33a9a188715c323fc7c3`;
+  `idle.json` — `c00b0db995efa1b6475f995dc50305f0ea90ff6d6cded4ab52a791bc74c3e022`.
 
 ## service-worker-parent-stability.md
 
