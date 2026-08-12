@@ -29,3 +29,26 @@
   директорию задачи без преобразования.
 * Контрольная сумма SHA-256:
   `87d27157ce975f1c5f82e8bceef58fb0a9a8b80e68f514d8bf896c82618f0de4`.
+
+## `ham-001-3-current-canvas-missing-webrtc.png`
+
+* Источник: `HTMLCanvasElement.toDataURL("image/png")` exact Hamiltonian canvas
+  пользовательской CDP-вкладки `http://127.0.0.1:4400/` после полного restart
+  canonical contour на result checkpoint HAM-001.2.
+* Дата: 13 августа 2026 года.
+* Версия проекта: HEAD `b109ae338727e9ba9df3d52b18a5898aa4395fd1`, result
+  checkpoint HAM-001.2 `2e8a9949849d580b439ab06bec0dd51eb7e7450d`;
+  Hamiltonian identity `ham-001-live`, version `ham-001-live-stable`, host epoch
+  `0517dda7-1281-420b-8169-8c67dbca8e5c`.
+* Ожидание владельца: current canvas показывает две отдельные линии Oracle и
+  Force между exact connected browser/server `RTCPeerConnection` одной
+  session.
+* Фактическое наблюдение: параллельные read-only declarations устойчиво
+  содержали оба RTC endpoints и две `opened/open` DataChannel, status был
+  `19 нод · 14 связей · живой режим`, но canvas не показал browser RTC и обе
+  линии. Снимок доказывает pixel mismatch, но не устанавливает слой причины.
+* Чувствительные сведения: секретов нет; видны localhost, временные runtime
+  identities, session IDs и PID испытательного контура.
+* Размер: `3840 × 2176`, `415596` байт.
+* Контрольная сумма SHA-256:
+  `67693dc859b1393756d1fb9c4d8c31fbcff6fdd9b3a49915d58e2092e531ce67`.
