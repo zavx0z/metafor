@@ -6,6 +6,7 @@ import {
   createHamiltonianNodeSystemDeclaration,
   hamiltonianLifecycleSnapshotId,
   hamiltonianLogicalContourId,
+  projectHamiltonianNodeSystemBoundaryTransports,
 } from "../../core/lifecycle.js"
 import {
   HamiltonianLifecycleProjection,
@@ -1262,6 +1263,142 @@ describe("Hamiltonian lifecycle projection", () => {
       if (index >= 2) {
         expect(current.nodes.some(({id}) => id === "server:host-a")).toBeFalse()
         expect(current.nodes.some(({id}) => id === "peer-process:host-a")).toBeFalse()
+      }
+    }
+  })
+
+  test("shows only physically observed current Oracle and Force declaration boundaries", () => {
+    const browserLogicalContourId = hamiltonianLogicalContourId("browser-profile", "device-a")
+    const serverLogicalContourId = hamiltonianLogicalContourId("server", "hamiltonian-lab")
+    const browserId = "browser:device-a"
+    const workerId = "service-worker:worker-a"
+    const pageId = "page:page-a"
+    const mainId = "window-main:page-a"
+    const browserRtcId = "rtc-peer:session-a%3Abrowser"
+    const serverId = "server:host-a"
+    const processId = "peer-process:process-a"
+    const serverRtcId = "rtc-peer:session-a%3Aserver"
+
+    const browserSource = new HamiltonianLifecycleSource({
+      id: workerId,
+      kind: "service-worker",
+      incarnation: "worker-runtime-a",
+      startedAt: 5,
+    })
+    const browserJournal = new HamiltonianLifecycleRetainedJournal(workerId)
+    for (const observation of [
+      createHamiltonianLifecycleObservation({
+        type: "entity", phase: "born", subjectId: browserId, subjectKind: "browser-runtime",
+        ownerId: browserId, attributes: {profileId: "device-a", runtime: "Chrome"},
+      }),
+      createHamiltonianLifecycleObservation({
+        type: "entity", phase: "born", subjectId: workerId, subjectKind: "service-worker",
+        ownerId: browserId, attributes: {runtimeIncarnation: "worker-runtime-a"},
+      }),
+      createHamiltonianLifecycleObservation({
+        type: "entity", phase: "born", subjectId: pageId, subjectKind: "page",
+        ownerId: browserId, attributes: {incarnation: "page-a", tabId: "tab-a"},
+      }),
+      createHamiltonianLifecycleObservation({
+        type: "entity", phase: "born", subjectId: mainId, subjectKind: "window-main",
+        ownerId: pageId, attributes: {role: "main"},
+      }),
+      createHamiltonianLifecycleObservation({
+        type: "entity", phase: "born", subjectId: browserRtcId, subjectKind: "rtc-peer",
+        ownerId: mainId, attributes: {endpoint: "browser", sessionEpoch: "session-a", state: "connected"},
+      }),
+    ]) browserJournal.observe(browserSource.next(observation))
+    const browserSnapshot = browserJournal.snapshot()
+    const browserDeclaration = createHamiltonianNodeSystemDeclaration({
+      logicalContourId: browserLogicalContourId,
+      incarnation: "worker-runtime-a",
+      incarnationStartedAt: 5,
+      revision: browserSnapshot.revision,
+      rootId: browserId,
+      snapshot: browserSnapshot,
+    })
+
+    const serverSource = new HamiltonianLifecycleSource({
+      id: serverId,
+      kind: "server",
+      incarnation: "host-a",
+      startedAt: 10,
+    })
+    const serverJournal = new HamiltonianLifecycleRetainedJournal(serverId)
+    for (const observation of [
+      createHamiltonianLifecycleObservation({
+        type: "entity", phase: "born", subjectId: serverId, subjectKind: "server",
+        ownerId: serverId, attributes: {identity: "hamiltonian-lab", hostEpoch: "host-a"},
+      }),
+      createHamiltonianLifecycleObservation({
+        type: "entity", phase: "born", subjectId: processId, subjectKind: "peer-process",
+        ownerId: serverId, attributes: {incarnation: "process-a", state: "active"},
+      }),
+      createHamiltonianLifecycleObservation({
+        type: "entity", phase: "born", subjectId: serverRtcId, subjectKind: "rtc-peer",
+        ownerId: processId, attributes: {endpoint: "server", sessionEpoch: "session-a", state: "connected"},
+      }),
+    ]) serverJournal.observe(serverSource.next(observation))
+    const serverSnapshot = serverJournal.snapshot()
+    const serverWithoutBoundary = createHamiltonianNodeSystemDeclaration({
+      logicalContourId: serverLogicalContourId,
+      incarnation: "host-a",
+      incarnationStartedAt: 10,
+      revision: serverSnapshot.revision,
+      rootId: serverId,
+      snapshot: serverSnapshot,
+    })
+
+    const observedJournal = new HamiltonianLifecycleRetainedJournal(serverId)
+    expect(observedJournal.merge(serverSnapshot)).toBeTrue()
+    expect(observedJournal.merge(browserSnapshot)).toBeTrue()
+    for (const lane of ["oracle", "force"] as const) {
+      expect(observedJournal.observe(serverSource.next(createHamiltonianLifecycleObservation({
+        type: "transport", phase: "opened", subjectId: `data-channel:session-a%3A${lane}`,
+        subjectKind: "data-channel", ownerId: serverRtcId, sourceEntityId: serverRtcId,
+        targetEntityId: browserRtcId, transportId: `data-channel:session-a%3A${lane}`,
+        attributes: {endpoint: "server", lane, sessionEpoch: "session-a", state: "open"},
+      })))).toBeTrue()
+    }
+
+    for (const declarationOrder of [
+      [browserDeclaration, serverWithoutBoundary],
+      [serverWithoutBoundary, browserDeclaration],
+    ]) {
+      const boundaries = projectHamiltonianNodeSystemBoundaryTransports({
+        logicalContourId: serverLogicalContourId,
+        incarnation: "host-a",
+        rootId: serverId,
+        snapshot: serverSnapshot,
+        observedSnapshot: observedJournal.snapshot(),
+        declarations: declarationOrder,
+      })
+      expect(boundaries.map(({transportId}) => transportId).sort()).toEqual([
+        "data-channel:session-a%3Aforce",
+        "data-channel:session-a%3Aoracle",
+      ])
+      const serverWithBoundary = createHamiltonianNodeSystemDeclaration({
+        ...serverWithoutBoundary,
+        revision: serverWithoutBoundary.revision + 1,
+        boundaryTransports: boundaries,
+      })
+      const projection = new HamiltonianLifecycleProjection(context)
+      const published: NodeSystemDocument[] = []
+      for (const declaration of declarationOrder) {
+        expect(projection.replaceDeclaration(declaration)).toBeTrue()
+        published.push(projection.document())
+      }
+      expect(projection.replaceDeclaration(serverWithBoundary)).toBeTrue()
+      published.push(projection.document())
+
+      for (const [index, document] of published.entries()) {
+        const dataChannels = document.edges.filter(({connectionType}) =>
+          connectionType === "oracle-rtc-data-channel" || connectionType === "force-rtc-data-channel")
+        expect(dataChannels).toHaveLength(index === published.length - 1 ? 2 : 0)
+        expect(document.nodes.some(({id, parentId}) =>
+          id.startsWith("rtc-peer:") &&
+          (parentId === undefined || !document.nodes.some(({id: ownerId}) => ownerId === parentId))))
+          .toBeFalse()
       }
     }
   })

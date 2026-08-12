@@ -290,6 +290,12 @@ browser/profile declaration, target — exact server incarnation, а connection 
 heartbeat относятся к тому же transport. Service Worker принимает новую
 server declaration до продолжения host lifecycle, передаёт browser declaration
 и затем направляет page обновлённую server declaration с подтверждённым WS/WSS.
+Фактически открытые ordered/reliable DataChannel `oracle` и `force` тоже
+объявляет host: owner/source — exact server `RTCPeerConnection`, target —
+exact browser `RTCPeerConnection` той же current session в уже принятых
+declarations. Session ID, peer status или вид ноды не создают такую boundary-
+запись без retained physical transport observation; close или replacement
+точной session удаляет обе её грани.
 Поэтому cold host `A → B` не требует reload page: declaration B заменяет A
 вместе с WSS A, а snapshot или запоздалое live-наблюдение A не может вернуть
 старое серверное поддерево.

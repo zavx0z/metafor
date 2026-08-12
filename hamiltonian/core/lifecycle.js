@@ -982,13 +982,25 @@ export function createHamiltonianNodeSystemDeclaration(input) {
 export function isHamiltonianNodeSystemBoundaryTransport(value) {
   if (!plainObject(value) || !hasExactFields(value, NODE_SYSTEM_BOUNDARY_TRANSPORT_FIELDS)) return false
   const record = /** @type {Record<string, unknown>} */ (value)
-  return validId(record.transportId, 512) &&
+  const valid = validId(record.transportId, 512) &&
     validKind(record.kind) &&
     typeof record.phase === "string" && TRANSPORT_PHASES.has(record.phase) &&
     isHamiltonianNodeSystemEntityReference(record.owner) &&
     isHamiltonianNodeSystemEntityReference(record.source) &&
     isHamiltonianNodeSystemEntityReference(record.target) &&
     validAttributes(record.attributes)
+  if (!valid) return false
+  if (record.kind !== "data-channel") return true
+  const attributes = /** @type {Record<string, unknown>} */ (record.attributes)
+  const lane = attributes.lane
+  const sessionEpoch = attributes.sessionEpoch
+  return record.phase === "opened" &&
+    attributes.endpoint === "server" &&
+    attributes.state === "open" &&
+    (lane === "oracle" || lane === "force") &&
+    validId(sessionEpoch, 256) &&
+    record.transportId === hamiltonianDataChannelTransportId(String(sessionEpoch), lane) &&
+    sameNodeSystemEntityReference(record.owner, record.source)
 }
 
 /** @param {unknown} value @returns {value is HamiltonianNodeSystemEntityReference} */
@@ -1001,12 +1013,119 @@ function isHamiltonianNodeSystemEntityReference(value) {
 }
 
 /**
+ * Projects only physical cross-contour transports whose exact endpoint
+ * entities are already present in current declarations. The observed snapshot
+ * may contain the aggregate host journal, while the owner snapshot stays
+ * ownership-closed and therefore cannot contain the cross-contour transport.
+ *
+ * @param {object} input
+ * @param {string} input.logicalContourId
+ * @param {string} input.incarnation
+ * @param {string} input.rootId
+ * @param {HamiltonianLifecycleSnapshot} input.snapshot
+ * @param {HamiltonianLifecycleSnapshot} input.observedSnapshot
+ * @param {Iterable<HamiltonianNodeSystemDeclaration>} input.declarations
+ * @returns {readonly HamiltonianNodeSystemBoundaryTransport[]}
+ */
+export function projectHamiltonianNodeSystemBoundaryTransports(input) {
+  if (
+    !validId(input.logicalContourId, 512) ||
+    !validId(input.incarnation, 256) ||
+    !validId(input.rootId, 512) ||
+    !isHamiltonianLifecycleSnapshot(input.snapshot) ||
+    !isHamiltonianLifecycleSnapshot(input.observedSnapshot) ||
+    !isHamiltonianLifecycleOwnershipClosed(input.snapshot, [input.rootId])
+  ) throw new Error("invalid Hamiltonian boundary projection input")
+
+  /** @type {Map<string, HamiltonianNodeSystemDeclaration | {
+   *   logicalContourId: string,
+   *   incarnation: string,
+   *   rootId: string,
+   *   snapshot: HamiltonianLifecycleSnapshot,
+   * }>} */
+  const declarations = new Map()
+  for (const declaration of input.declarations) {
+    if (!isHamiltonianNodeSystemDeclaration(declaration)) {
+      throw new Error("invalid Hamiltonian boundary projection declaration")
+    }
+    if (declaration.logicalContourId === input.logicalContourId) continue
+    if (declarations.has(declaration.logicalContourId)) {
+      throw new Error("duplicate Hamiltonian boundary projection contour")
+    }
+    declarations.set(declaration.logicalContourId, declaration)
+  }
+  declarations.set(input.logicalContourId, {
+    logicalContourId: input.logicalContourId,
+    incarnation: input.incarnation,
+    rootId: input.rootId,
+    snapshot: input.snapshot,
+  })
+
+  /** @type {Map<string, HamiltonianNodeSystemEntityReference | null>} */
+  const references = new Map()
+  for (const declaration of declarations.values()) {
+    for (const {observation} of declaration.snapshot.envelopes) {
+      if (observation.type !== "entity") continue
+      const reference = Object.freeze({
+        logicalContourId: declaration.logicalContourId,
+        incarnation: declaration.incarnation,
+        entityId: observation.subjectId,
+      })
+      if (!references.has(observation.subjectId)) {
+        references.set(observation.subjectId, reference)
+      } else if (!sameNodeSystemEntityReference(references.get(observation.subjectId), reference)) {
+        references.set(observation.subjectId, null)
+      }
+    }
+  }
+
+  /** @type {HamiltonianNodeSystemBoundaryTransport[]} */
+  const projected = []
+  for (const {observation} of input.observedSnapshot.envelopes) {
+    if (
+      observation.type !== "transport" ||
+      (observation.subjectKind !== "websocket" && observation.subjectKind !== "data-channel") ||
+      observation.ownerId === null ||
+      observation.sourceEntityId === null ||
+      observation.targetEntityId === null
+    ) continue
+    const owner = references.get(observation.ownerId) ?? null
+    const source = references.get(observation.sourceEntityId) ?? null
+    const target = references.get(observation.targetEntityId) ?? null
+    if (!owner || !source || !target) continue
+    const boundary = {
+      transportId: observation.transportId ?? observation.subjectId,
+      kind: observation.subjectKind,
+      phase: observation.phase,
+      owner,
+      source,
+      target,
+      attributes: observation.attributes,
+    }
+    if (
+      !isHamiltonianNodeSystemBoundaryTransport(boundary) ||
+      !boundaryTransportReferencesCurrentDeclarations(boundary, declarations) ||
+      (
+        source.logicalContourId !== input.logicalContourId &&
+        target.logicalContourId !== input.logicalContourId
+      )
+    ) continue
+    projected.push(freezeBoundaryTransport(boundary))
+  }
+  return Object.freeze(projected)
+}
+
+/**
  * A boundary record never imports a foreign ownership subtree. It only becomes
  * current when both exact endpoint declarations are already current and each
  * referenced entity exists in its own ownership-closed snapshot.
  *
  * @param {HamiltonianNodeSystemBoundaryTransport} transport
- * @param {ReadonlyMap<string, HamiltonianNodeSystemDeclaration>} declarations
+ * @param {ReadonlyMap<string, {
+ *   incarnation: string,
+ *   rootId: string,
+ *   snapshot: HamiltonianLifecycleSnapshot,
+ * }>} declarations
  */
 function boundaryTransportReferencesCurrentDeclarations(transport, declarations) {
   const references = [transport.owner, transport.source, transport.target]
@@ -1015,12 +1134,54 @@ function boundaryTransportReferencesCurrentDeclarations(transport, declarations)
     transport.owner.logicalContourId !== transport.source.logicalContourId &&
     transport.owner.logicalContourId !== transport.target.logicalContourId
   ) return false
-  return references.every((reference) => {
+  const current = references.every((reference) => {
     const declaration = declarations.get(reference.logicalContourId)
     return declaration?.incarnation === reference.incarnation &&
       declaration.snapshot.envelopes.some(({observation}) =>
         observation.type === "entity" && observation.subjectId === reference.entityId)
   })
+  if (!current) return false
+  const source = declaredEntityObservation(transport.source, declarations)
+  const target = declaredEntityObservation(transport.target, declarations)
+  if (transport.kind === "websocket") {
+    const targetDeclaration = declarations.get(transport.target.logicalContourId)
+    return sameNodeSystemEntityReference(transport.owner, transport.source) &&
+      source?.subjectKind === "service-worker" &&
+      target?.subjectKind === "server" &&
+      target.ownerId === target.subjectId &&
+      target.subjectId === targetDeclaration?.rootId
+  }
+  if (transport.kind !== "data-channel") return true
+  const sessionEpoch = transport.attributes.sessionEpoch
+  return source?.subjectKind === "rtc-peer" &&
+    source.attributes.endpoint === "server" &&
+    source.attributes.sessionEpoch === sessionEpoch &&
+    source.subjectId === hamiltonianRtcPeerEntityId(String(sessionEpoch), "server") &&
+    target?.subjectKind === "rtc-peer" &&
+    target.attributes.endpoint === "browser" &&
+    target.attributes.sessionEpoch === sessionEpoch &&
+    target.subjectId === hamiltonianRtcPeerEntityId(String(sessionEpoch), "browser")
+}
+
+/**
+ * @param {HamiltonianNodeSystemEntityReference} reference
+ * @param {ReadonlyMap<string, {incarnation: string, rootId: string, snapshot: HamiltonianLifecycleSnapshot}>} declarations
+ */
+function declaredEntityObservation(reference, declarations) {
+  const declaration = declarations.get(reference.logicalContourId)
+  if (declaration?.incarnation !== reference.incarnation) return null
+  return declaration.snapshot.envelopes.find(({observation}) =>
+    observation.type === "entity" && observation.subjectId === reference.entityId)?.observation ?? null
+}
+
+/** @param {unknown} left @param {unknown} right */
+function sameNodeSystemEntityReference(left, right) {
+  if (!isHamiltonianNodeSystemEntityReference(left) || !isHamiltonianNodeSystemEntityReference(right)) {
+    return false
+  }
+  return left.logicalContourId === right.logicalContourId &&
+    left.incarnation === right.incarnation &&
+    left.entityId === right.entityId
 }
 
 /**

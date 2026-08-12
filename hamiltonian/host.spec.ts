@@ -7,8 +7,10 @@ import {
   HamiltonianLifecycleSource,
   HamiltonianNodeSystemDeclarationRegistry,
   createHamiltonianLifecycleObservation,
+  hamiltonianDataChannelTransportId,
   hamiltonianLifecycleEntityId,
   hamiltonianLogicalContourId,
+  hamiltonianRtcPeerEntityId,
   isHamiltonianLifecycleOwnershipClosed,
   isHamiltonianNodeSystemDeclaration,
   type HamiltonianNodeSystemDeclaration,
@@ -2486,6 +2488,131 @@ describe("isolated Hamiltonian host", () => {
       expect(status.peer.signalingDown).toBeGreaterThan(0)
       expect(status.peer.realtimeFramesOnControlSocket).toBe(0)
       expect(status.peer.snapshot).toMatchObject({oracleRequests: 1, forceEvents: 1})
+    } finally {
+      await fixture.peer.close()
+      fixture.socket.close()
+    }
+  }, 20_000)
+
+  test("declares exact current Oracle and Force DataChannels and retires them after peer replacement", async () => {
+    const host = createHamiltonianHost({port: 0, token: "test-token", heartbeatMs: 10_000})
+    running.push(host)
+    const deviceId = "declared-rtc-profile"
+    const tabId = "declared-rtc-tab"
+    const pageIncarnation = "declared-rtc-page"
+    const pageId = hamiltonianLifecycleEntityId("page", pageIncarnation)
+    const mainId = hamiltonianLifecycleEntityId("window-main", pageIncarnation)
+    const fixture = await openDirectBrowserPeer(host, {deviceId, tabId})
+    try {
+      await waitUntil(() => {
+        const snapshot = host.getStatus().peer.snapshot
+        return snapshot?.state === "connected" &&
+          snapshot.channels.includes("oracle") &&
+          snapshot.channels.includes("force")
+      }, "physical Oracle and Force DataChannels", 10_000)
+
+      const browserRtcId = hamiltonianRtcPeerEntityId(fixture.sessionEpoch, "browser")
+      const browserSnapshot = browserProfileLifecycleSnapshot(
+        deviceId,
+        fixture.workerIdentity,
+        fixture.workerRuntimeIncarnation,
+        [
+          createHamiltonianLifecycleObservation({
+            type: "entity", phase: "born", subjectId: pageId, subjectKind: "page",
+            ownerId: hamiltonianBrowserNodeId(deviceId),
+            attributes: {incarnation: pageIncarnation, tabId, state: "live"},
+          }),
+          createHamiltonianLifecycleObservation({
+            type: "entity", phase: "born", subjectId: mainId, subjectKind: "window-main",
+            ownerId: pageId, attributes: {role: "main", state: "active"},
+          }),
+          createHamiltonianLifecycleObservation({
+            type: "entity", phase: "born", subjectId: browserRtcId, subjectKind: "rtc-peer",
+            ownerId: mainId,
+            attributes: {endpoint: "browser", sessionEpoch: fixture.sessionEpoch, state: "connected"},
+          }),
+        ],
+      )
+      const browserLogicalContourId = hamiltonianLogicalContourId("browser-profile", deviceId)
+      const serverLogicalContourId = hamiltonianLogicalContourId("server", host.identity)
+      const transportIds = (["oracle", "force"] as const)
+        .map((lane) => hamiltonianDataChannelTransportId(fixture.sessionEpoch, lane))
+      const transportIdSet = new Set(transportIds)
+      const browserDeclarationFrame = nextMessage(fixture.socket, "node-system-declaration", (message) => {
+        const declaration = message.declaration as HamiltonianNodeSystemDeclaration | undefined
+        return declaration?.logicalContourId === browserLogicalContourId &&
+          declaration.snapshot.snapshotId === browserSnapshot.snapshotId
+      }, 10_000)
+      const serverDeclarationFrame = nextMessage(fixture.socket, "node-system-declaration", (message) => {
+        const declaration = message.declaration as HamiltonianNodeSystemDeclaration | undefined
+        return declaration?.logicalContourId === serverLogicalContourId &&
+          transportIds.every((transportId) => declaration.boundaryTransports.some((transport) =>
+            transport.transportId === transportId))
+      }, 10_000)
+      fixture.socket.send(JSON.stringify({kind: "browser-lifecycle-snapshot", snapshot: browserSnapshot}))
+
+      const browserDeclaration = (await browserDeclarationFrame).declaration as HamiltonianNodeSystemDeclaration
+      const serverDeclaration = (await serverDeclarationFrame).declaration as HamiltonianNodeSystemDeclaration
+      expect(serverDeclaration.boundaryTransports.filter(({kind}) => kind === "data-channel"))
+        .toEqual(expect.arrayContaining(([
+          ["oracle", transportIds[0]],
+          ["force", transportIds[1]],
+        ] as const).map(([lane, transportId]) => expect.objectContaining({
+          transportId,
+          kind: "data-channel",
+          phase: "opened",
+          owner: {
+            logicalContourId: serverLogicalContourId,
+            incarnation: host.hostEpoch,
+            entityId: hamiltonianRtcPeerEntityId(fixture.sessionEpoch, "server"),
+          },
+          source: expect.objectContaining({
+            entityId: hamiltonianRtcPeerEntityId(fixture.sessionEpoch, "server"),
+          }),
+          target: expect.objectContaining({
+            logicalContourId: browserLogicalContourId,
+            incarnation: fixture.workerRuntimeIncarnation,
+            entityId: browserRtcId,
+          }),
+          attributes: {endpoint: "server", lane, sessionEpoch: fixture.sessionEpoch, state: "open"},
+        }))))
+
+      const projection = new HamiltonianLifecycleProjection({
+        origin: host.server.url.href,
+        deviceId,
+        tabId,
+        pageIncarnation,
+        observedAt: Date.now(),
+        navigationId: "declared-rtc-navigation",
+        servedAt: Date.now(),
+        server: {identity: host.identity, hostEpoch: host.hostEpoch, version: "v1"},
+      })
+      expect(projection.replaceDeclaration(browserDeclaration)).toBeTrue()
+      expect(projection.replaceDeclaration(serverDeclaration)).toBeTrue()
+      expect(projection.document().edges.filter(({id}) => transportIdSet.has(id)))
+        .toHaveLength(2)
+
+      const retiredDeclarationFrame = nextMessage(fixture.socket, "node-system-declaration", (message) => {
+        const declaration = message.declaration as HamiltonianNodeSystemDeclaration | undefined
+        return declaration?.logicalContourId === serverLogicalContourId &&
+          declaration.revision > serverDeclaration.revision &&
+          transportIds.every((transportId) => !declaration.boundaryTransports.some((transport) =>
+            transport.transportId === transportId))
+      }, 10_000)
+      const assignment = requireValue(host.getStatus().peer.assignment, "current peer assignment")
+      fixture.socket.send(JSON.stringify({
+        kind: "peer-failed",
+        peerId: assignment.peerId,
+        sessionEpoch: assignment.sessionEpoch,
+        peerGeneration: assignment.peerGeneration,
+        authorityKey: assignment.authorityKey,
+        tabId: assignment.tabId,
+        reason: "fixture peer replacement",
+      }))
+      const retiredDeclaration = (await retiredDeclarationFrame).declaration as HamiltonianNodeSystemDeclaration
+      expect(projection.replaceDeclaration(retiredDeclaration)).toBeTrue()
+      expect(projection.document().edges.some(({id}) => transportIdSet.has(id)))
+        .toBeFalse()
     } finally {
       await fixture.peer.close()
       fixture.socket.close()

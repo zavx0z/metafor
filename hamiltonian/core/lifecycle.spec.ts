@@ -17,13 +17,16 @@ import {
   isHamiltonianLifecycleOwnershipClosed,
   isHamiltonianLifecycleSnapshot,
   isHamiltonianLifecycleSnapshotFromSource,
+  isHamiltonianNodeSystemBoundaryTransport,
   isHamiltonianNodeSystemDeclaration,
   projectHamiltonianLifecycleOwnershipScope,
+  projectHamiltonianNodeSystemBoundaryTransports,
   publishHamiltonianLifecycleSnapshot,
   receiveHamiltonianLifecycleEnvelope,
   receiveHamiltonianLifecycleSnapshot,
   subscribeHamiltonianLifecycle,
   subscribeHamiltonianLifecycleSnapshot,
+  type HamiltonianNodeSystemDeclaration,
 } from "./lifecycle.js"
 import {HAMILTONIAN_LIFECYCLE_CHANNEL} from "./monitor.js"
 import {pageLifecycleChangesNodeSystem} from "../browser/page-lifecycle-declaration.ts"
@@ -597,6 +600,10 @@ describe("Hamiltonian owner lifecycle", () => {
         type: "entity", phase: "changed", subjectId: rootId, subjectKind: "server",
         ownerId: rootId, attributes: {identity, epoch, state: "live"},
       })))
+      journal.observe(source.next(createHamiltonianLifecycleObservation({
+        type: "entity", phase: "born", subjectId: `peer-process:${epoch}`, subjectKind: "peer-process",
+        ownerId: rootId, attributes: {incarnation: epoch, state: "active"},
+      })))
       return createHamiltonianNodeSystemDeclaration({
         logicalContourId,
         incarnation: epoch,
@@ -624,6 +631,55 @@ describe("Hamiltonian owner lifecycle", () => {
     const serverA = serverDeclaration("hamiltonian-lab", "host-a", 10, true)
     const serverB = serverDeclaration("hamiltonian-lab", "host-b", 20, true)
     const serverOther = serverDeclaration("other-lab", "other-a", 15)
+    const projectWebSocket = (references: {
+      ownerId: string
+      sourceEntityId: string
+      targetEntityId: string
+    }) => {
+      const observed = new HamiltonianLifecycleRetainedJournal(serverA.rootId)
+      expect(observed.merge(serverA.snapshot)).toBeTrue()
+      expect(observed.merge(browserDeclaration.snapshot)).toBeTrue()
+      const observerIncarnation = crypto.randomUUID()
+      const observer = new HamiltonianLifecycleSource({
+        id: `server-observer:${observerIncarnation}`,
+        kind: "server",
+        incarnation: observerIncarnation,
+        startedAt: 11,
+      })
+      expect(observed.observe(observer.next(createHamiltonianLifecycleObservation({
+        type: "transport", phase: "opened", subjectId: "websocket:host-a",
+        subjectKind: "websocket", ...references, transportId: "websocket:host-a",
+        attributes: {connectionId: "connection-host-a", heartbeat: "observed"},
+      })))).toBeTrue()
+      return projectHamiltonianNodeSystemBoundaryTransports({
+        logicalContourId: serverA.logicalContourId,
+        incarnation: serverA.incarnation,
+        rootId: serverA.rootId,
+        snapshot: serverA.snapshot,
+        observedSnapshot: observed.snapshot(),
+        declarations: [browserDeclaration, serverA],
+      })
+    }
+    expect(projectWebSocket({
+      ownerId: workerId,
+      sourceEntityId: workerId,
+      targetEntityId: serverA.rootId,
+    }).map(({transportId}) => transportId)).toEqual(["websocket:host-a"])
+    expect(projectWebSocket({
+      ownerId: serverA.rootId,
+      sourceEntityId: workerId,
+      targetEntityId: serverA.rootId,
+    })).toEqual([])
+    expect(projectWebSocket({
+      ownerId: workerId,
+      sourceEntityId: workerId,
+      targetEntityId: "peer-process:host-a",
+    })).toEqual([])
+    expect(projectWebSocket({
+      ownerId: serverA.rootId,
+      sourceEntityId: serverA.rootId,
+      targetEntityId: workerId,
+    })).toEqual([])
     expect(registry.accept(serverA)?.declaration).toBe(serverA)
     const browserWithBoundary = createHamiltonianNodeSystemDeclaration({
       ...browserDeclaration,
@@ -663,6 +719,174 @@ describe("Hamiltonian owner lifecycle", () => {
       boundaryTransports: [],
     })
     expect(registry.accept(regressedFrontier)).toBeNull()
+  })
+
+  test("accepts DataChannel boundaries only for exact current RTC endpoints", () => {
+    const browserLogicalId = hamiltonianLogicalContourId("browser-profile", "profile-a")
+    const serverLogicalId = hamiltonianLogicalContourId("server", "hamiltonian-lab")
+    const browserRootId = "browser:profile-a"
+    const browserRtcId = hamiltonianRtcPeerEntityId("session-a", "browser")
+    const serverRootId = "server:host-a"
+    const serverRtcId = hamiltonianRtcPeerEntityId("session-a", "server")
+    const makeDeclaration = (
+      logicalContourId: string,
+      incarnation: string,
+      startedAt: number,
+      rootId: string,
+      rtcId: string,
+      endpoint: "browser" | "server",
+    ) => {
+      const source = new HamiltonianLifecycleSource({
+        id: rootId,
+        kind: endpoint === "browser" ? "browser-runtime" : "server",
+        incarnation,
+        startedAt,
+      })
+      const journal = new HamiltonianLifecycleRetainedJournal(rootId)
+      journal.observe(source.next(createHamiltonianLifecycleObservation({
+        type: "entity", phase: "born", subjectId: rootId,
+        subjectKind: endpoint === "browser" ? "browser-runtime" : "server",
+        ownerId: rootId, attributes: {state: "active"},
+      })))
+      journal.observe(source.next(createHamiltonianLifecycleObservation({
+        type: "entity", phase: "born", subjectId: rtcId, subjectKind: "rtc-peer",
+        ownerId: rootId, attributes: {endpoint, sessionEpoch: "session-a", state: "connected"},
+      })))
+      const snapshot = journal.snapshot()
+      return createHamiltonianNodeSystemDeclaration({
+        logicalContourId,
+        incarnation,
+        incarnationStartedAt: startedAt,
+        revision: snapshot.revision,
+        rootId,
+        snapshot,
+      })
+    }
+    const browser = makeDeclaration(
+      browserLogicalId, "runtime-a", 5, browserRootId, browserRtcId, "browser",
+    )
+    const server = makeDeclaration(
+      serverLogicalId, "host-a", 10, serverRootId, serverRtcId, "server",
+    )
+    const boundary = {
+      transportId: hamiltonianDataChannelTransportId("session-a", "oracle"),
+      kind: "data-channel",
+      phase: "opened" as const,
+      owner: {logicalContourId: serverLogicalId, incarnation: "host-a", entityId: serverRtcId},
+      source: {logicalContourId: serverLogicalId, incarnation: "host-a", entityId: serverRtcId},
+      target: {logicalContourId: browserLogicalId, incarnation: "runtime-a", entityId: browserRtcId},
+      attributes: {endpoint: "server", lane: "oracle", sessionEpoch: "session-a", state: "open"},
+    }
+    expect(isHamiltonianNodeSystemBoundaryTransport(boundary)).toBeTrue()
+    for (const invalid of [
+      {...boundary, owner: boundary.target},
+      {...boundary, phase: "changed"},
+      {...boundary, transportId: hamiltonianDataChannelTransportId("session-a", "force")},
+      {...boundary, attributes: {...boundary.attributes, lane: "bulk"}},
+      {...boundary, attributes: {...boundary.attributes, endpoint: "browser"}},
+      {...boundary, attributes: {...boundary.attributes, state: "closed"}},
+    ]) expect(isHamiltonianNodeSystemBoundaryTransport(invalid)).toBeFalse()
+    const withBoundary = createHamiltonianNodeSystemDeclaration({
+      ...server,
+      revision: server.revision + 1,
+      boundaryTransports: [boundary],
+    })
+    const registry = new HamiltonianNodeSystemDeclarationRegistry()
+    expect(registry.accept(browser)).not.toBeNull()
+    expect(registry.accept(withBoundary)).not.toBeNull()
+
+    for (const exactMismatch of [
+      {
+        ...boundary,
+        owner: boundary.target,
+        source: boundary.target,
+        target: boundary.source,
+      },
+      {
+        ...boundary,
+        owner: {...boundary.owner, incarnation: "host-stale"},
+        source: {...boundary.source, incarnation: "host-stale"},
+      },
+    ]) {
+      expect(isHamiltonianNodeSystemBoundaryTransport(exactMismatch)).toBeTrue()
+      const mismatchRegistry = new HamiltonianNodeSystemDeclarationRegistry()
+      expect(mismatchRegistry.accept(browser)).not.toBeNull()
+      expect(mismatchRegistry.accept(createHamiltonianNodeSystemDeclaration({
+        ...server,
+        revision: server.revision + 1,
+        boundaryTransports: [exactMismatch],
+      }))).toBeNull()
+    }
+
+    const forgedSession = {
+      ...boundary,
+      transportId: hamiltonianDataChannelTransportId("session-b", "oracle"),
+      attributes: {...boundary.attributes, sessionEpoch: "session-b"},
+    }
+    expect(isHamiltonianNodeSystemBoundaryTransport(forgedSession)).toBeTrue()
+    const forgedRegistry = new HamiltonianNodeSystemDeclarationRegistry()
+    expect(forgedRegistry.accept(browser)).not.toBeNull()
+    expect(forgedRegistry.accept(createHamiltonianNodeSystemDeclaration({
+      ...server,
+      revision: server.revision + 1,
+      boundaryTransports: [forgedSession],
+    }))).toBeNull()
+
+    const closed = {
+      ...boundary,
+      phase: "closed" as const,
+      attributes: {...boundary.attributes, state: "closed"},
+    }
+    expect(isHamiltonianNodeSystemBoundaryTransport(closed)).toBeFalse()
+    expect(() => createHamiltonianNodeSystemDeclaration({
+      ...server,
+      revision: server.revision + 1,
+      boundaryTransports: [closed],
+    })).toThrow("invalid Hamiltonian node-system declaration")
+
+    const observed = new HamiltonianLifecycleRetainedJournal(serverRootId)
+    expect(observed.merge(server.snapshot)).toBeTrue()
+    expect(observed.merge(browser.snapshot)).toBeTrue()
+    const serverSource = new HamiltonianLifecycleSource({
+      id: "peer-process:observer-a",
+      kind: "peer-process",
+      incarnation: "observer-a",
+      startedAt: 11,
+    })
+    expect(observed.observe(serverSource.next(createHamiltonianLifecycleObservation({
+      type: "transport", phase: "opened", subjectId: boundary.transportId,
+      subjectKind: "data-channel", ownerId: serverRtcId, sourceEntityId: serverRtcId,
+      targetEntityId: browserRtcId, transportId: boundary.transportId,
+      attributes: boundary.attributes,
+    })))).toBeTrue()
+    const projectObserved = (declarations: readonly HamiltonianNodeSystemDeclaration[]) =>
+      projectHamiltonianNodeSystemBoundaryTransports({
+        logicalContourId: serverLogicalId,
+        incarnation: "host-a",
+        rootId: serverRootId,
+        snapshot: server.snapshot,
+        observedSnapshot: observed.snapshot(),
+        declarations,
+      })
+    expect(projectObserved([browser, server]).map(({transportId}) => transportId))
+      .toEqual([boundary.transportId])
+    const duplicateBrowserRtc = makeDeclaration(
+      hamiltonianLogicalContourId("browser-profile", "profile-duplicate"),
+      "runtime-duplicate",
+      6,
+      "browser:profile-duplicate",
+      browserRtcId,
+      "browser",
+    )
+    expect(projectObserved([browser, duplicateBrowserRtc, server])).toEqual([])
+
+    expect(observed.observe(serverSource.next(createHamiltonianLifecycleObservation({
+      type: "transport", phase: "closed", subjectId: boundary.transportId,
+      subjectKind: "data-channel", ownerId: serverRtcId, sourceEntityId: serverRtcId,
+      targetEntityId: browserRtcId, transportId: boundary.transportId,
+      attributes: {...boundary.attributes, state: "closed"},
+    })))).toBeTrue()
+    expect(projectObserved([browser, server])).toEqual([])
   })
 
   test("projects a browser ownership scope without its externally observed server transport", () => {
