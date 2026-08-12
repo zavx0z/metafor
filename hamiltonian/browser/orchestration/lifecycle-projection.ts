@@ -414,11 +414,11 @@ export class HamiltonianLifecycleProjection {
           layoutId: requiredLayoutId(layoutIds, presentedEntity.id),
           ...(parentId === null ? {} : {parentId}),
           title: entityTitle(presentedEntity, this.#pageId),
-          ...(presentedEntity.kind === "service-worker" ? {} : {
-            kind: presentedEntity.kind === "browser-runtime"
-              ? browserProfileHeader(presentedEntity)
+          kind: presentedEntity.kind === "browser-runtime"
+            ? browserProfileHeader(presentedEntity)
+            : presentedEntity.kind === "service-worker"
+              ? serviceWorkerHeader(presentedEntity)
               : entityKindLabel(presentedEntity.kind),
-          }),
           tone: nodeTone(presentedEntity.state, this.#hasGap(presentedEntity)),
           order: index,
           ports: ports.get(presentedEntity.id) ?? [],
@@ -435,7 +435,6 @@ export class HamiltonianLifecycleProjection {
             ],
           } : {}),
           ...(presentedEntity.kind === "service-worker" ? {
-            summary: "Один зарегистрированный Service Worker; Web Push пробуждает его и восстанавливает WebSocket",
             actions: [
               {id: "enable-push", label: "Настроить Web Push", tone: "neutral" as const},
             ],
@@ -934,7 +933,10 @@ function strongerTransportTone(
 
 function entityFacts(entity: LifecycleEntity, gaps: HamiltonianLifecycleGap[]) {
   const facts: Array<NonNullable<NodeSystemNode["facts"]>[number]> = Object.entries(entity.attributes)
-    .filter(([, value]) => value !== null && value !== "")
+    .filter(([key, value]) =>
+      !(entity.kind === "service-worker" && key === "identity") &&
+      value !== null &&
+      value !== "")
     .map(([key, value]) => ({id: key, label: factLabel(key, entity.kind), value: compactValue(value ?? "")}))
   for (const [index, gap] of gaps.entries()) {
     facts.push({
@@ -981,6 +983,12 @@ function browserProfileHeader(entity: LifecycleEntity): string {
     stringAttribute(entity.attributes.deviceId) ||
     entity.id.replace(/^browser:/, "")
   return compactValue(profileId)
+}
+
+function serviceWorkerHeader(entity: LifecycleEntity): string {
+  const identity = stringAttribute(entity.attributes.identity) ||
+    entity.id.replace(/^service-worker:/, "")
+  return compactValue(identity)
 }
 
 function transportLabel(kind: string, attributes: Record<string, string | number | boolean | null>): string {

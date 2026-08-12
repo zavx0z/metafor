@@ -264,10 +264,10 @@ metadata допустимы только по синтаксису SemVer. Ве�
 logical identity, но получает новую incarnation и подтверждённую code version.
 Одна incarnation не может сменить заявленную версию без нового execution.
 В ноде Service Worker версия видна отдельным параметром `Версия кода`.
-
-Текущий presentation ещё показывает logical Worker identity отдельным
-параметром и описательный текст. Их перенос в шапку и удаление текста являются
-отдельным нереализованным presentation-срезом и не скрывают версию кода.
+Слева в шапке этой ноды остаётся `Service Worker`, справа находится compact
+logical Worker identity. Identity не повторяется отдельным параметром, а между
+шапкой и параметрами нет описательного блока; удаление этих presentation-полей
+не скрывает версию кода.
 
 Отдельная принятая, но ещё не реализованная server-owned операция обновления задаёт
 exact target SemVer. Она адресует все известные browser/profile scope, но не
@@ -533,8 +533,8 @@ Host начинает causal heartbeat первым `ping` после откры
 чужой или опережающий ACK закрывает соединение fail-closed. Такой round trip
 доказывает доступность текущего внутреннего исполнения и WebSocket в момент
 ответа, но не удерживает обычный web Service Worker запущенным. Lifecycle строит
-одну ноду `Service Worker`: `Identity` остаётся стабильной, `Исполнение` и
-`Версия кода` описывают его текущее embodiment, `Push` сообщает
+одну ноду `Service Worker`: стабильная logical identity находится справа в её
+шапке, `Исполнение` и `Версия кода` описывают текущее embodiment, `Push` сообщает
 `ready / sent / received / failed`, а `Heartbeat` — состояние текущего WSS. В целевой
 модели нет отдельной ноды или подписи
 `ServiceWorkerGlobalScope`.

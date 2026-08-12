@@ -172,6 +172,9 @@ describe("Hamiltonian lifecycle projection", () => {
         const profileBaseAt = profileId === "profile-a" ? 100 : 200
         const browserId = `browser:${profileId}`
         const workerId = `service-worker:${profileId}`
+        const workerIdentity = profileId === "profile-a"
+          ? "45d8fde1-9ecb-4c83-b52a-095c974cb4a1"
+          : "093eeb45-7def-47dd-ac0c-fde43d5659e6"
         const source = new HamiltonianLifecycleSource({
           id: `profile-source:${profileId}`,
           kind: "service-worker",
@@ -192,7 +195,7 @@ describe("Hamiltonian lifecycle projection", () => {
           subjectId: workerId,
           subjectKind: "service-worker",
           ownerId: browserId,
-          attributes: {identity: profileId, runtimeIncarnation: `runtime-${profileId}`, codeVersion: "1.0.0", state: "active"},
+          attributes: {identity: workerIdentity, runtimeIncarnation: `runtime-${profileId}`, codeVersion: "1.0.0", state: "active"},
         }), {at: profileBaseAt + 1}), null)
         for (const pageSuffix of ["a", "b"] as const) {
           const pageOffset = pageSuffix === "a" ? 2 : 4
@@ -245,6 +248,51 @@ describe("Hamiltonian lifecycle projection", () => {
       .toBe("browser:profile-b")
     expect(forward.nodes.find(({id}) => id === "service-worker:profile-b")?.facts)
       .toContainEqual({id: "codeVersion", label: "Версия кода", value: "1.0.0"})
+    expect(forward.nodes
+      .filter(({title}) => title === "Service Worker")
+      .map(({id, parentId, title, kind, summary, facts}) => ({
+        id,
+        parentId,
+        title,
+        kind,
+        summary,
+        identityFacts: facts?.filter((fact) => fact.id === "identity"),
+        codeVersionFacts: facts?.filter((fact) => fact.id === "codeVersion"),
+      })))
+      .toMatchInlineSnapshot(`
+        [
+          {
+            "codeVersionFacts": [
+              {
+                "id": "codeVersion",
+                "label": "Версия кода",
+                "value": "1.0.0",
+              },
+            ],
+            "id": "service-worker:profile-a",
+            "identityFacts": [],
+            "kind": "45d8fde1…4cb4a1",
+            "parentId": "browser:profile-a",
+            "summary": undefined,
+            "title": "Service Worker",
+          },
+          {
+            "codeVersionFacts": [
+              {
+                "id": "codeVersion",
+                "label": "Версия кода",
+                "value": "1.0.0",
+              },
+            ],
+            "id": "service-worker:profile-b",
+            "identityFacts": [],
+            "kind": "093eeb45…5659e6",
+            "parentId": "browser:profile-b",
+            "summary": undefined,
+            "title": "Service Worker",
+          },
+        ]
+      `)
     for (const profileId of ["profile-a", "profile-b"] as const) {
       const browserId = `browser:${profileId}`
       const workerId = `service-worker:${profileId}`
@@ -588,8 +636,9 @@ describe("Hamiltonian lifecycle projection", () => {
       "Service Worker",
     ])
     const serviceWorkerNode = projection.document().nodes.find(({id}) => id === "service-worker:sw-a")
-    expect(serviceWorkerNode?.kind).toBeUndefined()
-    expect(serviceWorkerNode?.facts).toContainEqual({id: "identity", label: "Identity", value: "sw-a"})
+    expect(serviceWorkerNode?.kind).toBe("sw-a")
+    expect(serviceWorkerNode?.summary).toBeUndefined()
+    expect(serviceWorkerNode?.facts).not.toContainEqual(expect.objectContaining({id: "identity"}))
     expect(serviceWorkerNode?.facts).toContainEqual({id: "runtimeIncarnation", label: "Исполнение", value: "runtime-a"})
     expect(serviceWorkerNode?.facts).toContainEqual({id: "push", label: "Push", value: "ready"})
     expect(serviceWorkerNode?.actions).toContainEqual({id: "enable-push", label: "Настроить Web Push", tone: "neutral"})

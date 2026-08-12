@@ -249,3 +249,64 @@ logical identity и browser owner сохраняются. Server-owned уста�
 * Размер: `3840 × 2176` PNG.
 * SHA-256:
   `ffcf66fde506727ea79a6e439647ce48dfafaa85380844091676ebbac89c146e`.
+
+## Live-сценарий MF-428.5 — шапка Service Worker
+
+### Provenance и точная граница доказательства
+
+Проверка выполнена 12 августа 2026 года в каноническом checkout на baseline
+`ffc70e291542838e55485c12e2b5ec91ae181c11` плюс изменения MF-428.5. После
+точной проверки принадлежности Hamiltonian contour был полностью запущен из
+`hamiltonian/` командой `HAMILTONIAN_TOKEN=local-test
+HAMILTONIAN_VERSION=mf-428-5-live bun run start`; listener
+`127.0.0.1:4400` принадлежал каноническому checkout. Во время финального
+оформления evidence contour и Chrome processes не перезапускались и не
+закрывались.
+
+`@meta/chrome` health точно различил два уже открытых процесса:
+
+* default Chrome process `56964` без remote debugging, profile
+  `06cb9ee3-433d-4ca1-9c9f-56def51a0328`, logical Worker
+  `14fdce37-ce46-44cb-8697-cbcee2c7f810`, execution
+  `2b7ba09a-7a30-411c-8a09-4c4bad3bdc62`;
+* отдельный Chrome-CDP process `60105` с user data dir
+  `Google/Chrome-CDP`, profile `b04b5959-28a2-4ac0-ba5c-6bdba29e0091`,
+  logical Worker `45d8fde1-9ecb-4c83-b52a-095c974cb4a1`, execution
+  `2e1b06ee-3ae2-46ce-bc5c-71279a3c3cbb`.
+
+Authenticated host lifecycle status одновременно показал обе profile/Worker
+пары, для обеих `workerCodeVersion = 1.0.0` и точный Chrome owner. Exact CDP
+target `448CD67C94E66FD8B02019099F80F6E6` имел profile
+`b04b5959-28a2-4ac0-ba5c-6bdba29e0091`, Worker
+`45d8fde1-9ecb-4c83-b52a-095c974cb4a1`, готовую scene и
+`hamiltonianLifecyclePending = 0`. Canvas получен через разрешённый
+`@meta/chrome` CDP REST surface как `canvas.toDataURL("image/png")`.
+
+При двух Chrome processes `@meta/chrome /windows` не смог выдать exact
+tab-addressing default process, а `@meta/window` сообщил отсутствующее
+Accessibility permission. По правилу сервиса был один раз вызван permission
+surface, открывший System Settings; операция не повторялась. Поэтому отдельный
+прямой screenshot default profile является tooling boundary: его exact scope
+подтверждён host lifecycle evidence и общей агрегированной сценой. Incognito
+для этой проверки не создавался и не закрывался; оба существующих процесса и
+профиля были сохранены.
+
+### `mf-428-5-service-worker-headers-cdp.png`
+
+* Источник: exact CDP target `448CD67C94E66FD8B02019099F80F6E6`, WebGPU
+  canvas через `toDataURL("image/png")`.
+* Ожидание: в каждой из двух Service Worker cards слева находится `Service
+  Worker`, справа — своя compact logical identity; строки `Identity` и
+  description нет; `Версия кода 1.0.0` остаётся видимой, а card находится
+  внутри exact Chrome owner.
+* Фактический результат: card Worker `45d8fde1-…4cb4a1` находится внутри Chrome
+  `b04b5959-…`, card Worker `14fdce37-…c7f810` — внутри Chrome
+  `06cb9ee3-…`; обе совпадают с ожиданием без дублирования identity и с видимой
+  SemVer.
+* Ограничение: полный кадр также содержит независимый предсуществующий
+  host-epoch/node-system declaration defect server RTCPeerConnection. Владелец
+  вынес его в `HAMILTONIAN-001.1`; он не относится к MF-428.5 и этим снимком не
+  утверждается общая корректность topology всего графа.
+* Размер: `3840 × 2176`, `404714` байт.
+* SHA-256:
+  `91e661fe4316d6d042102234b3a79662687130ab87ed5caf3c8b71c7c476d38b`.
