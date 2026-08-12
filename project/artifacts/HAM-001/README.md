@@ -52,3 +52,25 @@
 * Размер: `3840 × 2176`, `415596` байт.
 * Контрольная сумма SHA-256:
   `67693dc859b1393756d1fb9c4d8c31fbcff6fdd9b3a49915d58e2092e531ce67`.
+
+## `ham-001-4-live-webrtc-lines.png`
+
+* Источник: `HTMLCanvasElement.toDataURL("image/png")` той же exact
+  Hamiltonian CDP-вкладки `http://127.0.0.1:4400/` после полного restart
+  contour на result checkpoint HAM-001.4.
+* Дата: 13 августа 2026 года.
+* Версия проекта: HEAD `ba2e5469ba65b571bd69c33c4f2ad28c19bfa04b`, result
+  checkpoint HAM-001.4 `ba5c7abf0335537b824276e5cb506acab9d80dcf`; Hamiltonian
+  identity `ham-001-live`, version `ham-001-live-stable`, host epoch
+  `ff90f372-6c12-4756-98a2-58246b318c62`.
+* Ожидание: canvas показывает browser и server RTC одной session и
+  две различимые линии Oracle/Force между ними.
+* Фактическое наблюдение: ожидание совпало. Applied layout имеет `20`
+  нод, `16` связей, exact browser/server RTC session
+  `2e7b2a24-6b79-44fd-aee6-11d262f8a751` и два DataChannel routes; на canvas
+  видны розовая Oracle и фиолетовая Force линии.
+* Чувствительные сведения: секретов нет; видны localhost, временные
+  runtime identities, session IDs и PID испытательного контура.
+* Размер: `3840 × 2176`, `387648` байт.
+* Контрольная сумма SHA-256:
+  `458f751bdffe8979ec00cc190889fec052c49b0c900a5dc7a93a0b4c0d71856d`.
