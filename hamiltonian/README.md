@@ -250,6 +250,38 @@ Chrome-нодой. Browser owner текущей page сохраняется да
 owner текущей page берётся из самой retained page-записи, а не из порядка
 доставки событий.
 
+### Принятый следующий контракт версии и обновления Service Worker
+
+Требования `MF-428.3`–`MF-428.5` приняты владельцем, но ещё не реализованы и не
+являются описанием текущей runtime-возможности. До их отдельной проверки
+действующий контур по-прежнему показывает logical Worker identity параметром,
+не публикует отдельную версию Worker code и не имеет server-owned команды
+обновления всех profile scope.
+
+Целевой закон различает logical Service Worker identity, incarnation текущего
+execution и версию фактически исполняемого кода. Код несёт собственную версию
+в валидном SemVer с обязательными `MAJOR.MINOR.PATCH`; prerelease и build
+metadata допустимы только по синтаксису SemVer. Версию сообщает само
+исполняемое Worker embodiment, а lifecycle валидирует и удерживает её отдельно
+от host version, Git revision, URL и времени сборки. Restart execution без
+смены bundle сохраняет code version; установка нового bundle сохраняет
+logical identity, но получает новую incarnation и подтверждённую code version.
+
+В presentation ноды Service Worker слева в шапке остаётся имя вида, справа
+находится compact logical Worker identifier. Identifier не повторяется фактом
+или параметром; описательный текст между шапкой и параметрами отсутствует.
+SemVer исполняемого Worker code остаётся видимым параметром.
+
+Hamiltonian server получает отдельную авторизованную операцию обновления с
+exact target SemVer. Она адресует все известные browser/profile scope, но не
+сливает их lifecycle: каждый профиль независимо проходит browser-managed
+проверку регистрации, установку, активацию, смену controller и восстановление
+control transport. Отправка команды не считается фактом обновления. Общий
+result успешен только после authoritative подтверждения target version каждым
+достижимым profile; недоступный либо незавершённый profile остаётся явным
+pending/failed result и обновляется при следующем достижимом lifecycle, а не
+скрывается как успех.
+
 Повторный `connect-window` не создаёт вторую визуальную связь: Service Worker
 API transport сохраняет identity текущей page realm, а тихий канал и смена
 controller восстанавливаются автоматически.
