@@ -77,7 +77,8 @@ Compound должен быть увеличен только под действ
 
 Partial result commit `38c258b64a5a4624d57ccc94fe39fb753dcb671a`
 был отклонён owner review: он исправлял только portrait. Итоговый result commit
-фиксируется отдельным handoff после записи.
+`3097bb2c2e190831f647e6e74b4ba070421d1b55` исправляет также landscape и
+является предметом отдельной closing review.
 
 * Portrait generator сначала создаёт компактный вариант без копирования
   бокового reserve вниз. Нижний reserve сохранён как ограниченный fallback для
