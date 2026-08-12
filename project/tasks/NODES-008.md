@@ -299,6 +299,36 @@ corridor; все интервалы равны `28` при тестовом sock
 вернуло `rowSideViolations=[]` и `layerViolations=[]`. Вторая вкладка не
 активировалась, не перезагружалась и не изменялась.
 
+Checkpoint NODES-008.4 сохранён отдельным коммитом
+`b0fee1ee0b726d1d1ad3497f9788224d15bd4ddf`; это не result commit всей
+NODES-008 и benchmark для него не снимался.
+
+### NODES-008.5 — Не удваивать правый боковой corridor в DOWN
+
+Статус: `IN_PROGRESS`.
+
+Owner portrait-снимок `13.42.51` от 12 августа 2026 года показал зеркальное
+нарушение общего закона spacing: после EAST-порта compound ближайшая занятая
+vertical lane находится справа через лишний пустой pitch. Визуально тот же
+дефект повторяется у двух page compounds в одном `DOWN` layout.
+
+Исходный machine-readable live witness подтвердил дефект в обеих строках при
+`clearance=28`: `childRight=524.7`, ближайший vertical track `x=580.7`, и
+`childRight=634.05`, ближайший vertical track `x=690.05`. Оба расстояния равны
+`56 px`, то есть содержат лишний единичный pitch.
+
+Разрешён только симметричный общий post-route шаг, работающий по геометрии и
+actual occupied tracks без fixture IDs, manual lanes или ослабления clearance.
+Каждый принятый сдвиг обязан заново валидировать весь graph. Вторая вкладка,
+runtime и viewport в этой подзадаче не изменяются.
+
+Acceptance: для `RIGHT` и `DOWN` последовательность
+`child/compound boundary → occupied tracks → parent boundary` не содержит
+интервала больше одного `clearance`, если его не требует реальная отдельная
+lane; exact sockets, containment, orthogonality, edge/node и edge/edge
+clearance остаются зелёными. Финальный benchmark выполняется один раз только
+после готовности всей NODES-008 к `REVIEW`.
+
 ## Отклонённые результаты
 
 Ниже сохранена только причинная история отвергнутых checkpoint этой карточки.
