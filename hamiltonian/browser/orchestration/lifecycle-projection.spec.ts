@@ -7,6 +7,7 @@ import {
   hamiltonianLifecycleSnapshotId,
   hamiltonianLogicalContourId,
   projectHamiltonianNodeSystemBoundaryTransports,
+  type HamiltonianLifecycleEnvelope,
 } from "../../core/lifecycle.js"
 import {
   HamiltonianLifecycleProjection,
@@ -1554,6 +1555,78 @@ describe("Hamiltonian lifecycle projection", () => {
       expect(finalDocument.nodes.some(({id}) => id === "server:host-session-a")).toBeFalse()
       expect(finalDocument.nodes.some(({id}) => id === "server:host-session-b")).toBeTrue()
     }
+  })
+
+  test("diagnoses a continuing page source suppressed by browser declaration replacement", () => {
+    const logicalContourId = hamiltonianLogicalContourId("browser-profile", "device-a")
+    const browserId = "browser:device-a"
+    const workerId = "service-worker:worker-a"
+    const pageId = "page:page-a"
+    const mainId = "window-main:page-a"
+    const rtcId = "rtc-peer:session-a%3Abrowser"
+    const pageSource = new HamiltonianLifecycleSource({
+      id: pageId,
+      kind: "page",
+      incarnation: "page-a",
+      startedAt: 6,
+    })
+    const page = pageSource.next(createHamiltonianLifecycleObservation({
+      type: "entity", phase: "born", subjectId: pageId, subjectKind: "page",
+      ownerId: browserId, attributes: {tabId: "tab-a", incarnation: "page-a"},
+    }))
+    const main = pageSource.next(createHamiltonianLifecycleObservation({
+      type: "entity", phase: "born", subjectId: mainId, subjectKind: "window-main",
+      ownerId: pageId, attributes: {role: "main"},
+    }))
+    const rtc = pageSource.next(createHamiltonianLifecycleObservation({
+      type: "entity", phase: "born", subjectId: rtcId, subjectKind: "rtc-peer",
+      ownerId: mainId, attributes: {endpoint: "browser", sessionEpoch: "session-a", state: "connected"},
+    }))
+    const declaration = (
+      workerIncarnation: string,
+      startedAt: number,
+      pageEnvelopes: readonly HamiltonianLifecycleEnvelope[],
+    ) => {
+      const workerSource = new HamiltonianLifecycleSource({
+        id: workerId,
+        kind: "service-worker",
+        incarnation: workerIncarnation,
+        startedAt,
+      })
+      const journal = new HamiltonianLifecycleRetainedJournal(workerId)
+      for (const envelope of [
+        workerSource.next(createHamiltonianLifecycleObservation({
+          type: "entity", phase: "born", subjectId: browserId, subjectKind: "browser-runtime",
+          ownerId: browserId, attributes: {profileId: "device-a", runtime: "Chrome"},
+        })),
+        workerSource.next(createHamiltonianLifecycleObservation({
+          type: "entity", phase: "born", subjectId: workerId, subjectKind: "service-worker",
+          ownerId: browserId, attributes: {runtimeIncarnation: workerIncarnation},
+        })),
+        ...pageEnvelopes,
+      ]) journal.observe(envelope)
+      const snapshot = journal.snapshot()
+      return createHamiltonianNodeSystemDeclaration({
+        logicalContourId,
+        incarnation: workerIncarnation,
+        incarnationStartedAt: startedAt,
+        revision: snapshot.revision,
+        rootId: browserId,
+        snapshot,
+      })
+    }
+    const previous = declaration("worker-runtime-a", 5, [page, main])
+    const current = declaration("worker-runtime-b", 10, [page, main, rtc])
+
+    const longLived = new HamiltonianLifecycleProjection(context)
+    expect(longLived.replaceDeclaration(previous)).toBeTrue()
+    expect(longLived.replaceDeclaration(current)).toBeTrue()
+
+    const fresh = new HamiltonianLifecycleProjection(context)
+    expect(fresh.replaceDeclaration(current)).toBeTrue()
+    expect(current.snapshot.envelopes.some(({observation}) => observation.subjectId === rtcId)).toBeTrue()
+    expect(fresh.document().nodes.some(({id}) => id === rtcId)).toBeTrue()
+    expect(longLived.document().nodes.some(({id}) => id === rtcId)).toBeFalse()
   })
 
   test("keeps the exact WSS across stale-live permutations until a declaration retires its endpoint", () => {
