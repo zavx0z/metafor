@@ -750,6 +750,48 @@ export function isHamiltonianLifecycleSnapshot(value) {
 }
 
 /**
+ * A retained scope may cross a realm boundary only when every retained entity
+ * has an explicit owner chain ending at one of the declared roots. Consumers
+ * must never infer a missing parent from entity kind, transport endpoints, or
+ * observation order.
+ *
+ * @param {unknown} value
+ * @param {readonly string[]} rootIds
+ * @returns {value is HamiltonianLifecycleSnapshot}
+ */
+export function isHamiltonianLifecycleOwnershipClosed(value, rootIds) {
+  if (
+    !isHamiltonianLifecycleSnapshot(value) ||
+    !Array.isArray(rootIds) ||
+    rootIds.length === 0 ||
+    rootIds.some((rootId) => !validId(rootId, 512))
+  ) return false
+  const roots = new Set(rootIds)
+  if (roots.size !== rootIds.length) return false
+  const entities = new Map()
+  for (const envelope of value.envelopes) {
+    const observation = envelope.observation
+    if (observation.type === "entity") entities.set(observation.subjectId, observation)
+  }
+  for (const rootId of roots) {
+    const root = entities.get(rootId)
+    if (!root || (root.ownerId !== null && root.ownerId !== rootId)) return false
+  }
+  for (const entityId of entities.keys()) {
+    const visited = new Set()
+    let currentId = entityId
+    while (!roots.has(currentId)) {
+      if (visited.has(currentId)) return false
+      visited.add(currentId)
+      const current = entities.get(currentId)
+      if (!current || current.ownerId === null || current.ownerId === currentId) return false
+      currentId = current.ownerId
+    }
+  }
+  return true
+}
+
+/**
  * @param {unknown} value
  * @param {string} sourceId
  * @param {string} sourceKind

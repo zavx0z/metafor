@@ -129,7 +129,7 @@ describe("Hamiltonian lifecycle projection", () => {
       subjectId: "browser:device-a",
       subjectKind: "browser-runtime",
       ownerId: "browser:device-a",
-      attributes: {deviceId: "device-a", runtime: "Chrome", state: "active"},
+      attributes: {profileId: "device-a", runtime: "Chrome", state: "active"},
     })), null)
     projection.observe(page.next(createHamiltonianLifecycleObservation({
       type: "entity",
@@ -156,12 +156,110 @@ describe("Hamiltonian lifecycle projection", () => {
     const document = projection.document()
     expect(document.nodes.find(({id}) => id === "browser:device-a")).toMatchObject({
       title: "Chrome",
-      kind: "user-agent runtime",
+      kind: "device-a",
+      facts: expect.arrayContaining([{id: "profileId", label: "Профиль", value: "device-a"}]),
     })
     expect(document.nodes.find(({id}) => id === "service-worker:sw-a")?.parentId)
       .toBe("browser:device-a")
     expect(document.edges).toEqual([])
     expect(JSON.stringify(document)).not.toContain("Профиль браузера")
+  })
+
+  test("materializes every Chrome profile owner and keeps its Service Worker inside it regardless of observation order", () => {
+    const materialize = (profiles: readonly string[]) => {
+      const projection = new HamiltonianLifecycleProjection(context)
+      for (const profileId of profiles) {
+        const browserId = `browser:${profileId}`
+        const workerId = `service-worker:${profileId}`
+        const source = new HamiltonianLifecycleSource({
+          id: `profile-source:${profileId}`,
+          kind: "service-worker",
+          incarnation: profileId,
+          startedAt: 20,
+        })
+        projection.observe(source.next(createHamiltonianLifecycleObservation({
+          type: "entity",
+          phase: "changed",
+          subjectId: browserId,
+          subjectKind: "browser-runtime",
+          ownerId: browserId,
+          attributes: {profileId, runtime: "Chrome", state: "active"},
+        })), null)
+        projection.observe(source.next(createHamiltonianLifecycleObservation({
+          type: "entity",
+          phase: "changed",
+          subjectId: workerId,
+          subjectKind: "service-worker",
+          ownerId: browserId,
+          attributes: {identity: profileId, state: "active"},
+        })), null)
+        for (const pageSuffix of ["a", "b"] as const) {
+          const pageId = `page:${profileId}-${pageSuffix}`
+          const transportId = `service-worker-api:${profileId}-${pageSuffix}`
+          projection.observe(source.next(createHamiltonianLifecycleObservation({
+            type: "entity",
+            phase: "changed",
+            subjectId: pageId,
+            subjectKind: "page",
+            ownerId: browserId,
+            attributes: {incarnation: `${profileId}-${pageSuffix}`, state: "live"},
+          })), null)
+          projection.observe(source.next(createHamiltonianLifecycleObservation({
+            type: "transport",
+            phase: "opened",
+            subjectId: transportId,
+            subjectKind: "service-worker-api",
+            ownerId: workerId,
+            sourceEntityId: pageId,
+            targetEntityId: workerId,
+            transportId,
+            attributes: {mechanism: "ServiceWorker.postMessage / WindowClient.postMessage"},
+          })), null)
+        }
+      }
+      return projection.document()
+    }
+
+    const forward = materialize(["profile-a", "profile-b"])
+    const reversed = materialize(["profile-b", "profile-a"])
+    expect(forward).toEqual(reversed)
+    expect(forward.nodes.filter(({title}) => title === "Chrome")).toEqual([
+      expect.objectContaining({
+        id: "browser:profile-a",
+        kind: "profile-a",
+        facts: expect.arrayContaining([{id: "profileId", label: "Профиль", value: "profile-a"}]),
+      }),
+      expect.objectContaining({
+        id: "browser:profile-b",
+        kind: "profile-b",
+        facts: expect.arrayContaining([{id: "profileId", label: "Профиль", value: "profile-b"}]),
+      }),
+    ])
+    expect(forward.nodes.find(({id}) => id === "service-worker:profile-a")?.parentId)
+      .toBe("browser:profile-a")
+    expect(forward.nodes.find(({id}) => id === "service-worker:profile-b")?.parentId)
+      .toBe("browser:profile-b")
+    for (const profileId of ["profile-a", "profile-b"] as const) {
+      const browserId = `browser:${profileId}`
+      const workerId = `service-worker:${profileId}`
+      for (const pageSuffix of ["a", "b"] as const) {
+        const pageId = `page:${profileId}-${pageSuffix}`
+        const transportId = `service-worker-api:${profileId}-${pageSuffix}`
+        expect(forward.nodes.find(({id}) => id === pageId)?.parentId).toBe(browserId)
+        expect(forward.edges).toEqual(expect.arrayContaining([
+          expect.objectContaining({
+            id: transportId,
+            source: {nodeId: pageId, portId: "out:Service%20Worker%20API"},
+            target: {nodeId: workerId, portId: "in:Service%20Worker%20API"},
+          }),
+          expect.objectContaining({
+            id: `${transportId}:reverse`,
+            source: {nodeId: workerId, portId: "out:Service%20Worker%20API"},
+            target: {nodeId: pageId, portId: "in:Service%20Worker%20API"},
+          }),
+        ]))
+      }
+    }
   })
 
   test("shows every retained page under one Chrome and keeps actions local", () => {
@@ -184,7 +282,7 @@ describe("Hamiltonian lifecycle projection", () => {
           subjectId: browserId,
           subjectKind: "browser-runtime",
           ownerId: browserId,
-          attributes: {runtime: "Chrome", deviceId: "device-a"},
+          attributes: {runtime: "Chrome", profileId: "device-a"},
         }),
         createHamiltonianLifecycleObservation({
           type: "entity",
@@ -275,7 +373,7 @@ describe("Hamiltonian lifecycle projection", () => {
       subjectId: "browser:device-a",
       subjectKind: "browser-runtime",
       ownerId: "browser:device-a",
-      attributes: {deviceId: "device-a", runtime: "Chrome", state: "active"},
+      attributes: {profileId: "device-a", runtime: "Chrome", state: "active"},
     })), null)
 
     const lateJournal = new HamiltonianLifecycleRetainedJournal("page:page-a")
@@ -291,7 +389,7 @@ describe("Hamiltonian lifecycle projection", () => {
 
     expect(projection.document().nodes.find(({id}) => id === "browser:device-a")).toMatchObject({
       title: "Chrome",
-      kind: "user-agent runtime",
+      kind: "device-a",
     })
     expect(projection.document().nodes.find(({id}) => id === "page:page-a")?.parentId)
       .toBe("browser:device-a")
@@ -455,7 +553,7 @@ describe("Hamiltonian lifecycle projection", () => {
     const browserRtcId = "rtc-peer:session-a%3Abrowser"
 
     for (const [sourceId, sourceKind, subjectId, subjectKind, ownerId, attributes] of [
-      [pageId, "page", browserId, "browser-runtime", browserId, {runtime: "Chrome", state: "active", deviceId: "device-a"}],
+      [pageId, "page", browserId, "browser-runtime", browserId, {runtime: "Chrome", state: "active", profileId: "device-a"}],
       [pageId, "page", pageId, "page", browserId, {incarnation: "page-a", navigation: "8459f3b0-e693-4241-9df9-5ff84e77d3e7", state: "live", visibility: "visible"}],
       [pageId, "page", mainId, "window-main", pageId, {incarnation: "page-a", runtime: "Window", state: "active"}],
       [secondPageId, "page", secondPageId, "page", browserId, {incarnation: "page-b", navigation: "navigation-b", state: "live", visibility: "hidden"}],
@@ -610,7 +708,7 @@ describe("Hamiltonian lifecycle projection", () => {
       subjectId: "browser:device-a",
       subjectKind: "browser-runtime",
       ownerId: "browser:device-a",
-      attributes: {deviceId: "device-a", runtime: "Chrome", state: "active"},
+      attributes: {profileId: "device-a", runtime: "Chrome", state: "active"},
     })), null)
     projection.observe(firstRuntime.next(createHamiltonianLifecycleObservation({
       type: "entity",

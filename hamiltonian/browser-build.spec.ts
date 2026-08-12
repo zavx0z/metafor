@@ -35,6 +35,8 @@ test("builds the real orchestration and isolated layout Worker bundles", async (
     expect(serviceWorkerSource).toContain('subjectKind: "service-worker-api"')
     expect(serviceWorkerSource).toContain('subjectKind: "service-worker-api-message"')
     expect(serviceWorkerSource).toContain("pageLifecycleSnapshot")
+    expect(serviceWorkerSource).toContain("browser-lifecycle-snapshot")
+    expect(serviceWorkerSource).toContain("lifecycleSnapshot")
     expect(serviceWorkerSource).toContain("page-reloaded")
     expect(serviceWorkerSource).toContain("awaitLiveWindowChannels")
     expect(serviceWorkerSource).toContain("includeUncontrolled: true")

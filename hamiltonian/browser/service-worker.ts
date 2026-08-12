@@ -18,7 +18,7 @@ import {
   type HamiltonianLifecycleSnapshot,
 } from "../core/lifecycle.js"
 import {hamiltonianRealmSnapshot} from "../core/monitor.js"
-import {hamiltonianBrowserNodeId} from "../core/orchestration.js"
+import {hamiltonianBrowserNodeId, hamiltonianBrowserRuntimeName} from "../core/orchestration.js"
 import {GenerationRegistry, ReconnectPolicy} from "../core/runtime.js"
 import {responseMatchesHash, sha256Hex, selectRetainedCaches} from "../core/cache.js"
 import {
@@ -245,6 +245,9 @@ const CONTROL_CACHE = "hamiltonian-control:v1"
 const CONTROL_BOOTSTRAP_URL = "/.hamiltonian/control-bootstrap"
 const workerRuntime = hamiltonianRealmSnapshot()
 const workerRuntimeIncarnation = workerRuntime.incarnation
+const browserRuntimeName = hamiltonianBrowserRuntimeName(
+  (globalThis as unknown as {navigator?: {userAgent?: string}}).navigator?.userAgent ?? "",
+)
 let workerIdentity = ""
 let workerEntityId = ""
 let workerLifecycleJournal: LifecycleJournal | null = null
@@ -302,7 +305,7 @@ serviceWorkerRuntime.addEventListener("activate", (event) => event.waitUntil((as
   for (const client of clients) client.postMessage({kind: "reattach-window"})
 })()))
 
-function initializeWorkerIdentity(identity: string, browserEntityId: string): boolean {
+function initializeWorkerIdentity(identity: string, browserEntityId: string, profileId: string): boolean {
   if (!validControlIdentity(identity)) return false
   if (workerIdentity) return workerIdentity === identity
   workerIdentity = identity
@@ -310,6 +313,18 @@ function initializeWorkerIdentity(identity: string, browserEntityId: string): bo
   workerLifecycleJournal = new HamiltonianLifecycleRetainedJournal(workerEntityId, {
     initialRevision: workerRuntime.startedAt * 1_024,
   })
+  emitHamiltonianLifecycle(createHamiltonianLifecycleObservation({
+    type: "entity",
+    phase: "born",
+    subjectId: browserEntityId,
+    subjectKind: "browser-runtime",
+    ownerId: browserEntityId,
+    attributes: {
+      profileId,
+      runtime: browserRuntimeName,
+      state: "active",
+    },
+  }))
   emitHamiltonianLifecycle(createHamiltonianLifecycleObservation({
     type: "entity",
     phase: "born",
@@ -329,7 +344,7 @@ function initializeWorkerIdentity(identity: string, browserEntityId: string): bo
 function applyControlBootstrap(bootstrap: ControlBootstrap): boolean {
   if (!validControlBootstrap(bootstrap)) return false
   currentPushReady = bootstrap.pushReady
-  if (!initializeWorkerIdentity(bootstrap.workerIdentity, bootstrap.browserEntityId)) return false
+  if (!initializeWorkerIdentity(bootstrap.workerIdentity, bootstrap.browserEntityId, bootstrap.deviceId)) return false
   currentDeviceId = bootstrap.deviceId
   currentBrowserEntityId = bootstrap.browserEntityId
   currentToken = bootstrap.token
@@ -639,13 +654,15 @@ function sendSocket(message: MessageRecord): boolean {
 }
 
 function sendWorkerIdentity(): boolean {
-  if (!workerIdentity || !currentResumeNonce) return false
+  const lifecycleSnapshot = workerLifecycleJournal?.snapshot()
+  if (!workerIdentity || !currentResumeNonce || !lifecycleSnapshot) return false
   const wake = pendingPushWake
   return sendSocket({
     kind: "identity",
     workerIdentity,
     workerRuntimeIncarnation,
     resumeNonce: currentResumeNonce,
+    lifecycleSnapshot,
     ...(wake === null ? {} : {wakeId: wake.wakeId, wakeProof: wake.wakeProof}),
   })
 }
@@ -713,6 +730,8 @@ async function sendWindowSnapshot(): Promise<void> {
       visible: window.visible,
     })),
   })
+  const snapshot = workerLifecycleJournal?.snapshot()
+  if (snapshot) sendSocket({kind: "browser-lifecycle-snapshot", snapshot})
 }
 
 function reconnectDelay(): number {
@@ -1115,7 +1134,7 @@ async function connectWindow(message: ConnectWindowMessage, client: HamiltonianW
     !nextServiceWorkerTransportId ||
     !connectMessageId ||
     !pageLifecycleSnapshot ||
-    !initializeWorkerIdentity(message.workerIdentity, nextBrowserEntityId)
+    !initializeWorkerIdentity(message.workerIdentity, nextBrowserEntityId, message.deviceId)
   ) {
     return
   }

@@ -384,7 +384,11 @@ export class HamiltonianLifecycleProjection {
           layoutId: requiredLayoutId(layoutIds, presentedEntity.id),
           ...(parentId === null ? {} : {parentId}),
           title: entityTitle(presentedEntity, this.#pageId),
-          ...(presentedEntity.kind === "service-worker" ? {} : {kind: entityKindLabel(presentedEntity.kind)}),
+          ...(presentedEntity.kind === "service-worker" ? {} : {
+            kind: presentedEntity.kind === "browser-runtime"
+              ? browserProfileHeader(presentedEntity)
+              : entityKindLabel(presentedEntity.kind),
+          }),
           tone: nodeTone(presentedEntity.state, this.#hasGap(presentedEntity)),
           order: index,
           ports: ports.get(presentedEntity.id) ?? [],
@@ -870,7 +874,6 @@ function entityTitle(entity: LifecycleEntity, pageId: string): string {
 
 function entityKindLabel(kind: string): string {
   if (kind === "server") return "Bun host Hamiltonian"
-  if (kind === "browser-runtime") return "user-agent runtime"
   if (kind === "page") return "page realm"
   if (kind === "dedicated-worker") return "DedicatedWorkerGlobalScope"
   if (kind === "window-main") return "Window main realm"
@@ -878,6 +881,13 @@ function entityKindLabel(kind: string): string {
   if (kind === "peer-process") return "процесс WebRTC peer в ОС"
   if (kind === "rtc-peer") return "RTCPeerConnection"
   return kind
+}
+
+function browserProfileHeader(entity: LifecycleEntity): string {
+  const profileId = stringAttribute(entity.attributes.profileId) ||
+    stringAttribute(entity.attributes.deviceId) ||
+    entity.id.replace(/^browser:/, "")
+  return compactValue(profileId)
 }
 
 function transportLabel(kind: string, attributes: Record<string, string | number | boolean | null>): string {
@@ -1029,6 +1039,7 @@ function isLifecycleSourceEntityKind(kind: string): boolean {
 }
 
 function factLabel(key: string, entityKind: string): string {
+  if (key === "deviceId" && entityKind === "browser-runtime") return "Профиль"
   const labels: Record<string, string> = {
     connectionId: "Соединение",
     deviceId: "Устройство",
@@ -1044,6 +1055,7 @@ function factLabel(key: string, entityKind: string): string {
     navigation: "Navigation",
     origin: "Адрес",
     pid: "PID",
+    profileId: "Профиль",
     peerId: "Peer",
     role: "Роль",
     runtime: "Runtime",

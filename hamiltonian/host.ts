@@ -6,7 +6,10 @@ import {
   hamiltonianLifecycleMessageId,
   hamiltonianLifecycleTransportId,
   isHamiltonianLifecycleEnvelope,
+  isHamiltonianLifecycleOwnershipClosed,
+  isHamiltonianLifecycleSnapshot,
   type HamiltonianLifecycleEnvelope,
+  type HamiltonianLifecycleSnapshot,
 } from "./core/lifecycle.js"
 import {networkInterfaces} from "node:os"
 import {watch, type FSWatcher} from "node:fs"
@@ -85,8 +88,14 @@ interface ClientIdentityMessage {
   workerIdentity: string
   workerRuntimeIncarnation: string
   resumeNonce: string
+  lifecycleSnapshot: HamiltonianLifecycleSnapshot
   wakeId?: string
   wakeProof?: string
+}
+
+interface ClientBrowserLifecycleSnapshotMessage {
+  kind: "browser-lifecycle-snapshot"
+  snapshot: HamiltonianLifecycleSnapshot
 }
 
 interface ClientPushSubscriptionMessage {
@@ -133,6 +142,7 @@ type MonitoredClientMessage = (
   | ClientPeerSignalMessage
   | ClientPeerFailedMessage
   | ClientLifecycleRetirementMessage
+  | ClientBrowserLifecycleSnapshotMessage
 ) & {monitor?: ClientLifecycleMonitor}
 
 type ClientMessage = MonitoredClientMessage
@@ -283,6 +293,36 @@ function safeEqual(left: string, right: string): boolean {
   return mismatch === 0
 }
 
+function isBrowserProfileLifecycleSnapshot(
+  value: unknown,
+  socket: SocketData,
+  workerIdentity: string,
+  workerRuntimeIncarnation: string,
+): value is HamiltonianLifecycleSnapshot {
+  const browserEntityId = hamiltonianBrowserNodeId(socket.deviceId)
+  if (
+    !isHamiltonianLifecycleSnapshot(value) ||
+    value.scopeId !== socket.workerEntityId ||
+    !isHamiltonianLifecycleOwnershipClosed(value, [browserEntityId])
+  ) return false
+  const entities = value.envelopes
+    .filter(({observation}) => observation.type === "entity")
+    .map(({observation}) => observation)
+  const browser = entities.find(({subjectId}) => subjectId === browserEntityId)
+  const worker = entities.find(({subjectId}) => subjectId === socket.workerEntityId)
+  return entities.filter(({subjectKind}) => subjectKind === "browser-runtime").length === 1 &&
+    entities.filter(({subjectKind}) => subjectKind === "service-worker").length === 1 &&
+    browser?.subjectKind === "browser-runtime" &&
+    browser.ownerId === browserEntityId &&
+    browser.attributes.profileId === socket.deviceId &&
+    typeof browser.attributes.runtime === "string" &&
+    browser.attributes.runtime.length > 0 &&
+    worker?.subjectKind === "service-worker" &&
+    worker.ownerId === browserEntityId &&
+    worker.attributes.identity === workerIdentity &&
+    worker.attributes.runtimeIncarnation === workerRuntimeIncarnation
+}
+
 function parseClientMessage(value: string | Buffer): ClientMessage | null {
   if (value.length > 128 * 1024) return null
   let parsed: unknown
@@ -320,6 +360,7 @@ function parseClientMessage(value: string | Buffer): ClientMessage | null {
     typeof parsed.resumeNonce === "string" &&
     parsed.resumeNonce.length > 0 &&
     parsed.resumeNonce.length <= 128 &&
+    "lifecycleSnapshot" in parsed && isHamiltonianLifecycleSnapshot(parsed.lifecycleSnapshot) &&
     (
       (!("wakeId" in parsed) || parsed.wakeId === undefined) &&
       (!("wakeProof" in parsed) || parsed.wakeProof === undefined) ||
@@ -332,8 +373,19 @@ function parseClientMessage(value: string | Buffer): ClientMessage | null {
       workerIdentity: parsed.workerIdentity,
       workerRuntimeIncarnation: parsed.workerRuntimeIncarnation,
       resumeNonce: parsed.resumeNonce,
+      lifecycleSnapshot: parsed.lifecycleSnapshot,
       ...("wakeId" in parsed && typeof parsed.wakeId === "string" ? {wakeId: parsed.wakeId} : {}),
       ...("wakeProof" in parsed && typeof parsed.wakeProof === "string" ? {wakeProof: parsed.wakeProof} : {}),
+    }, monitor)
+  }
+
+  if (
+    parsed.kind === "browser-lifecycle-snapshot" &&
+    "snapshot" in parsed && isHamiltonianLifecycleSnapshot(parsed.snapshot)
+  ) {
+    return withClientLifecycleMonitor({
+      kind: "browser-lifecycle-snapshot",
+      snapshot: parsed.snapshot,
     }, monitor)
   }
 
@@ -448,7 +500,8 @@ function withClientLifecycleMonitor<T extends
   ClientPushSubscriptionMessage |
   ClientPeerSignalMessage |
   ClientPeerFailedMessage |
-  ClientLifecycleRetirementMessage
+  ClientLifecycleRetirementMessage |
+  ClientBrowserLifecycleSnapshotMessage
 >(
   message: T,
   monitor: ClientLifecycleMonitor | undefined,
@@ -707,6 +760,17 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
     for (const observer of sockets.values()) {
       if (observer.getBufferedAmount() <= 256_000) observer.send(payload)
     }
+  }
+  const broadcastLifecycleSnapshot = () => {
+    const payload = JSON.stringify({kind: "lifecycle-snapshot", snapshot: hostLifecycleJournal.snapshot()})
+    for (const observer of sockets.values()) {
+      if (observer.getBufferedAmount() <= 256_000) observer.send(payload)
+    }
+  }
+  const mergeBrowserLifecycleSnapshot = (snapshot: HamiltonianLifecycleSnapshot) => {
+    if (!hostLifecycleJournal.merge(snapshot)) return false
+    broadcastLifecycleSnapshot()
+    return true
   }
   const relayLifecycleEnvelope = (value: unknown) => {
     if (!isHamiltonianLifecycleEnvelope(value)) return
@@ -1579,6 +1643,25 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
           broadcastLifecycleEnvelope(message.envelope)
           return
         }
+        if (message.kind === "browser-lifecycle-snapshot") {
+          if (
+            !socket.data.identityConfirmed ||
+            !socket.data.workerIdentity ||
+            !socket.data.workerRuntimeIncarnation ||
+            !isBrowserProfileLifecycleSnapshot(
+              message.snapshot,
+              socket.data,
+              socket.data.workerIdentity,
+              socket.data.workerRuntimeIncarnation,
+            )
+          ) {
+            socket.data.retainAuthorityOnClose = false
+            socket.close(1008, "invalid browser lifecycle snapshot")
+            return
+          }
+          mergeBrowserLifecycleSnapshot(message.snapshot)
+          return
+        }
         if (message.kind === "pong") {
           if (
             message.seq !== socket.data.lastChallengeSeq ||
@@ -1608,7 +1691,13 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
             socket.data.workerEntityId !== hamiltonianLifecycleEntityId("service-worker", message.workerIdentity) ||
             (socket.data.workerIdentity !== null && socket.data.workerIdentity !== message.workerIdentity) ||
             (socket.data.workerRuntimeIncarnation !== null &&
-              socket.data.workerRuntimeIncarnation !== message.workerRuntimeIncarnation)
+              socket.data.workerRuntimeIncarnation !== message.workerRuntimeIncarnation) ||
+            !isBrowserProfileLifecycleSnapshot(
+              message.lifecycleSnapshot,
+              socket.data,
+              message.workerIdentity,
+              message.workerRuntimeIncarnation,
+            )
           ) {
             socket.data.retainAuthorityOnClose = false
             socket.close(1008, "worker identity does not match control endpoint")
@@ -1633,6 +1722,7 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
           socket.data.resumeNonce = message.resumeNonce
           socket.data.identityConfirmed = true
           socket.data.retainAuthorityOnClose = true
+          mergeBrowserLifecycleSnapshot(message.lifecycleSnapshot)
           record({
             at: Date.now(),
             kind: "worker-identity",
@@ -1661,12 +1751,12 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
               wakeId: message.wakeId,
             })
             sendControl(socket, {kind: "wake-confirmed", wakeId: message.wakeId})
-          } else if (webPush.has(socket.data.workerEntityId)) {
+          } else {
             observeServiceWorkerAvailability(socket.data.workerEntityId, socket.data.deviceId, {
               identity: message.workerIdentity,
               runtimeIncarnation: message.workerRuntimeIncarnation,
               state: "active",
-              push: "ready",
+              push: webPush.has(socket.data.workerEntityId) ? "ready" : "unavailable",
             })
           }
           return

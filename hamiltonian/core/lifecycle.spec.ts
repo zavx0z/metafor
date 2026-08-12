@@ -10,6 +10,7 @@ import {
   emitHamiltonianLifecycle,
   isHamiltonianLifecycleEnvelope,
   isHamiltonianLifecycleEnvelopeFromSource,
+  isHamiltonianLifecycleOwnershipClosed,
   isHamiltonianLifecycleSnapshot,
   isHamiltonianLifecycleSnapshotFromSource,
   publishHamiltonianLifecycleSnapshot,
@@ -264,6 +265,90 @@ describe("Hamiltonian owner lifecycle", () => {
     expect(aggregate.merge(pageA.journal.snapshot())).toBeTrue()
     expect(aggregate.snapshot().envelopes.map(({observation}) => observation.subjectId).sort())
       .toEqual([browserId, pageB.pageId, "window-main:page-b"].sort())
+  })
+
+  test("accepts only retained entity trees closed to their declared owner root", () => {
+    const browserId = "browser:profile-a"
+    const workerId = "service-worker:worker-a"
+    const source = new HamiltonianLifecycleSource({
+      id: workerId,
+      kind: "service-worker",
+      incarnation: "runtime-a",
+      startedAt: 1,
+    })
+    const journal = new HamiltonianLifecycleRetainedJournal(workerId)
+    journal.observe(source.next(createHamiltonianLifecycleObservation({
+      type: "entity",
+      phase: "born",
+      subjectId: browserId,
+      subjectKind: "browser-runtime",
+      ownerId: browserId,
+      attributes: {profileId: "profile-a", runtime: "Chrome"},
+    })))
+    journal.observe(source.next(createHamiltonianLifecycleObservation({
+      type: "entity",
+      phase: "born",
+      subjectId: workerId,
+      subjectKind: "service-worker",
+      ownerId: browserId,
+      attributes: {identity: "worker-a"},
+    })))
+    journal.observe(source.next(createHamiltonianLifecycleObservation({
+      type: "entity",
+      phase: "born",
+      subjectId: "paint-worklet:worklet-a",
+      subjectKind: "paint-worklet",
+      ownerId: browserId,
+      attributes: {state: "active"},
+    })))
+    const closed = journal.snapshot()
+    expect(isHamiltonianLifecycleOwnershipClosed(closed, [browserId])).toBeTrue()
+    expect(isHamiltonianLifecycleOwnershipClosed(closed, ["browser:profile-b"])).toBeFalse()
+
+    const orphanJournal = new HamiltonianLifecycleRetainedJournal("service-worker:orphan")
+    orphanJournal.observe(source.next(createHamiltonianLifecycleObservation({
+      type: "entity",
+      phase: "changed",
+      subjectId: "service-worker:orphan",
+      subjectKind: "service-worker",
+      ownerId: "browser:missing",
+      attributes: {identity: "orphan"},
+    })))
+    expect(isHamiltonianLifecycleOwnershipClosed(orphanJournal.snapshot(), ["browser:missing"]))
+      .toBeFalse()
+
+    const cycleSource = new HamiltonianLifecycleSource({
+      id: "page:cycle",
+      kind: "page",
+      incarnation: "cycle",
+      startedAt: 1,
+    })
+    const cycleJournal = new HamiltonianLifecycleRetainedJournal("cycle")
+    cycleJournal.observe(cycleSource.next(createHamiltonianLifecycleObservation({
+      type: "entity",
+      phase: "born",
+      subjectId: browserId,
+      subjectKind: "browser-runtime",
+      ownerId: browserId,
+      attributes: {profileId: "profile-a"},
+    })))
+    cycleJournal.observe(cycleSource.next(createHamiltonianLifecycleObservation({
+      type: "entity",
+      phase: "born",
+      subjectId: "page:one",
+      subjectKind: "page",
+      ownerId: "page:two",
+      attributes: {},
+    })))
+    cycleJournal.observe(cycleSource.next(createHamiltonianLifecycleObservation({
+      type: "entity",
+      phase: "born",
+      subjectId: "page:two",
+      subjectKind: "page",
+      ownerId: "page:one",
+      attributes: {},
+    })))
+    expect(isHamiltonianLifecycleOwnershipClosed(cycleJournal.snapshot(), [browserId])).toBeFalse()
   })
 
   test("starts a restarted retained scope from an explicit monotonic revision base", () => {

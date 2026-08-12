@@ -132,7 +132,7 @@ emitHamiltonianLifecycle(createHamiltonianLifecycleObservation({
   subjectKind: "browser-runtime",
   ownerId: browserEntityId,
   attributes: {
-    deviceId,
+    profileId: deviceId,
     runtime: browserRuntimeName,
     state: "active",
   },

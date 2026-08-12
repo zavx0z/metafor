@@ -3,6 +3,7 @@ import {mkdtempSync, rmSync} from "node:fs"
 import {tmpdir} from "node:os"
 import {join} from "node:path"
 import {
+  HamiltonianLifecycleRetainedJournal,
   HamiltonianLifecycleSource,
   createHamiltonianLifecycleObservation,
   hamiltonianLifecycleEntityId,
@@ -17,6 +18,66 @@ const temporaryDirectories: string[] = []
 function requireValue<T>(value: T | null | undefined, label: string): T {
   if (value === undefined || value === null) throw new Error(`Missing ${label}`)
   return value
+}
+
+function browserIdentityMessage(
+  profileId: string,
+  workerIdentity: string,
+  workerRuntimeIncarnation: string,
+  resumeNonce: string,
+  extra: Record<string, unknown> = {},
+) {
+  return {
+    kind: "identity",
+    workerIdentity,
+    workerRuntimeIncarnation,
+    resumeNonce,
+    lifecycleSnapshot: browserProfileLifecycleSnapshot(
+      profileId,
+      workerIdentity,
+      workerRuntimeIncarnation,
+    ),
+    ...extra,
+  }
+}
+
+function browserProfileLifecycleSnapshot(
+  profileId: string,
+  workerIdentity: string,
+  workerRuntimeIncarnation: string,
+  additional: Array<ReturnType<typeof createHamiltonianLifecycleObservation>> = [],
+) {
+  const browserEntityId = hamiltonianBrowserNodeId(profileId)
+  const workerEntityId = hamiltonianLifecycleEntityId("service-worker", workerIdentity)
+  const source = new HamiltonianLifecycleSource({
+    id: workerEntityId,
+    kind: "service-worker",
+    incarnation: workerRuntimeIncarnation,
+    startedAt: 1,
+  })
+  const journal = new HamiltonianLifecycleRetainedJournal(workerEntityId)
+  journal.observe(source.next(createHamiltonianLifecycleObservation({
+    type: "entity",
+    phase: "born",
+    subjectId: browserEntityId,
+    subjectKind: "browser-runtime",
+    ownerId: browserEntityId,
+    attributes: {profileId, runtime: "Chrome", state: "active"},
+  })))
+  journal.observe(source.next(createHamiltonianLifecycleObservation({
+    type: "entity",
+    phase: "born",
+    subjectId: workerEntityId,
+    subjectKind: "service-worker",
+    ownerId: browserEntityId,
+    attributes: {
+      identity: workerIdentity,
+      runtimeIncarnation: workerRuntimeIncarnation,
+      state: "active",
+    },
+  })))
+  for (const observation of additional) journal.observe(source.next(observation))
+  return journal.snapshot()
 }
 
 afterEach(async () => {
@@ -76,12 +137,12 @@ async function registerTestPushSubscription(
       frames.push(JSON.parse(String(event.data)) as Record<string, unknown>)
     })
   }
-  socket.send(JSON.stringify({
-    kind: "identity",
+  socket.send(JSON.stringify(browserIdentityMessage(
+    deviceId,
     workerIdentity,
-    workerRuntimeIncarnation: `registration-runtime:${workerIdentity}`,
-    resumeNonce: `registration-resume:${workerIdentity}`,
-  }))
+    `registration-runtime:${workerIdentity}`,
+    `registration-resume:${workerIdentity}`,
+  )))
   const registrationId = crypto.randomUUID()
   const confirmed = nextMessage(socket, "push-subscription-confirmed", (message) =>
     message.registrationId === registrationId)
@@ -200,7 +261,12 @@ async function openDirectBrowserPeer(
     if (answerer) void answerer.signal(message.signal)
   })
 
-  socket.send(JSON.stringify({kind: "identity", workerIdentity, workerRuntimeIncarnation, resumeNonce}))
+  socket.send(JSON.stringify(browserIdentityMessage(
+    deviceId,
+    workerIdentity,
+    workerRuntimeIncarnation,
+    resumeNonce,
+  )))
   socket.send(JSON.stringify({
     kind: "tabs",
     windows: [{tabId, joinedAt: 10, visible: true}],
@@ -484,14 +550,16 @@ describe("isolated Hamiltonian host", () => {
     const socket = await openSocket(controlUrl)
     await nextMessage(socket, "hello")
     const confirmed = nextMessage(socket, "wake-confirmed", (message) => message.wakeId === payload.wakeId)
-    socket.send(JSON.stringify({
-      kind: "identity",
+    socket.send(JSON.stringify(browserIdentityMessage(
+      "push-device",
       workerIdentity,
-      workerRuntimeIncarnation: "runtime-after-push",
-      resumeNonce: "push-resume",
+      "runtime-after-push",
+      "push-resume",
+      {
       wakeId: payload.wakeId,
       wakeProof: payload.wakeProof,
-    }))
+      },
+    )))
     await confirmed
     releaseDelivery()
     const wakeResponse = await wakeResponsePromise
@@ -633,14 +701,16 @@ describe("isolated Hamiltonian host", () => {
     const socket = await openSocket(controlUrl)
     await nextMessage(socket, "hello")
     const confirmed = nextMessage(socket, "wake-confirmed", (message) => message.wakeId === payload.wakeId)
-    socket.send(JSON.stringify({
-      kind: "identity",
+    socket.send(JSON.stringify(browserIdentityMessage(
+      deviceId,
       workerIdentity,
-      workerRuntimeIncarnation: "runtime-after-host-restart",
-      resumeNonce: "persisted-restart-resume",
+      "runtime-after-host-restart",
+      "persisted-restart-resume",
+      {
       wakeId: payload.wakeId,
       wakeProof: payload.wakeProof,
-    }))
+      },
+    )))
     await confirmed
     expect(restarted.getStatus().push.pendingWakeIds).toHaveLength(0)
     expect(restarted.getStatus().events).toContainEqual(expect.objectContaining({
@@ -684,14 +754,16 @@ describe("isolated Hamiltonian host", () => {
     const staleSocketRejected = new Promise<CloseEvent>((resolve) =>
       registrationSocket.addEventListener("close", resolve, {once: true})
     )
-    registrationSocket.send(JSON.stringify({
-      kind: "identity",
+    registrationSocket.send(JSON.stringify(browserIdentityMessage(
+      deviceId,
       workerIdentity,
-      workerRuntimeIncarnation: `registration-runtime:${workerIdentity}`,
-      resumeNonce: `registration-resume:${workerIdentity}`,
+      `registration-runtime:${workerIdentity}`,
+      `registration-resume:${workerIdentity}`,
+      {
       wakeId: payload.wakeId,
       wakeProof: payload.wakeProof,
-    }))
+      },
+    )))
     expect((await staleSocketRejected).code).toBe(1008)
     expect(host.getStatus().push.pendingWakeIds).toHaveLength(1)
 
@@ -705,14 +777,16 @@ describe("isolated Hamiltonian host", () => {
     const forged = await openSocket(forgedUrl)
     await nextMessage(forged, "hello")
     const rejected = new Promise<CloseEvent>((resolve) => forged.addEventListener("close", resolve, {once: true}))
-    forged.send(JSON.stringify({
-      kind: "identity",
+    forged.send(JSON.stringify(browserIdentityMessage(
+      "forged-device",
       workerIdentity,
-      workerRuntimeIncarnation: "forged-runtime",
-      resumeNonce: "proof-resume",
+      "forged-runtime",
+      "proof-resume",
+      {
       wakeId: payload.wakeId,
       wakeProof: "forged-proof",
-    }))
+      },
+    )))
     expect((await rejected).code).toBe(1008)
     expect(host.getStatus().push.pendingWakeIds).toHaveLength(1)
 
@@ -750,14 +824,16 @@ describe("isolated Hamiltonian host", () => {
     const legitimate = await openSocket(controlUrl)
     await nextMessage(legitimate, "hello")
     const confirmed = nextMessage(legitimate, "wake-confirmed", (message) => message.wakeId === payload.wakeId)
-    legitimate.send(JSON.stringify({
-      kind: "identity",
+    legitimate.send(JSON.stringify(browserIdentityMessage(
+      deviceId,
       workerIdentity,
-      workerRuntimeIncarnation: "legitimate-runtime",
-      resumeNonce: "proof-resume",
+      "legitimate-runtime",
+      "proof-resume",
+      {
       wakeId: payload.wakeId,
       wakeProof: payload.wakeProof,
-    }))
+      },
+    )))
     await confirmed
     expect(host.getStatus().push.pendingWakeIds).toHaveLength(0)
     legitimate.close()
@@ -839,13 +915,15 @@ describe("isolated Hamiltonian host", () => {
         envelope.observation.messageId === inboundMessageId &&
         envelope.observation.transportId === transportId
     })
-    socket.send(JSON.stringify({
-      kind: "identity",
+    socket.send(JSON.stringify(browserIdentityMessage(
+      "journal-browser",
       workerIdentity,
-      workerRuntimeIncarnation: "journal-runtime",
-      resumeNonce: "journal-resume",
+      "journal-runtime",
+      "journal-resume",
+      {
       monitor: {messageId: inboundMessageId, transportId},
-    }))
+      },
+    )))
     await received
     socket.close()
   })
@@ -886,6 +964,183 @@ describe("isolated Hamiltonian host", () => {
     const retainedIds = retained.envelopes.map(({observation}) => observation.subjectId)
     expect(retainedIds).not.toContain(unconfirmedWorkerId)
     expect(retainedIds).not.toContain(unconfirmedTransportId)
+    observer.close()
+  })
+
+  test("retains a distinct browser profile owner before every identified Service Worker", async () => {
+    const host = createHamiltonianHost({port: 0, token: "test-token", heartbeatMs: 10_000})
+    running.push(host)
+    await host.bunReady
+
+    const connectProfile = async (profileId: string, workerIdentity: string) => {
+      const workerEntityId = hamiltonianLifecycleEntityId("service-worker", workerIdentity)
+      const controlUrl = new URL("/control", host.server.url)
+      controlUrl.protocol = "ws:"
+      controlUrl.searchParams.set("token", host.token)
+      controlUrl.searchParams.set("device", profileId)
+      controlUrl.searchParams.set("worker", workerEntityId)
+      const socket = await openSocket(controlUrl)
+      await nextMessage(socket, "hello")
+      const observedWorker = nextMessage(socket, "lifecycle", (message) => {
+        const envelope = message.envelope as {observation?: {subjectId?: string}} | undefined
+        return envelope?.observation?.subjectId === workerEntityId
+      })
+      socket.send(JSON.stringify(browserIdentityMessage(
+        profileId,
+        workerIdentity,
+        `runtime:${workerIdentity}`,
+        `resume:${workerIdentity}`,
+      )))
+      await observedWorker
+      return socket
+    }
+
+    const profileA = await connectProfile("profile-a", "worker-a")
+    const profileB = await connectProfile("profile-b", "worker-b")
+    const profileAPageId = "page:profile-a-page"
+    const profileATransportId = "service-worker-api:profile-a-page"
+    const updated = nextMessage(profileA, "lifecycle-snapshot", (message) => {
+      const snapshot = message.snapshot as {envelopes?: Array<{observation?: {subjectId?: string}}>} | undefined
+      return snapshot?.envelopes?.some(({observation}) => observation?.subjectId === profileAPageId) === true
+    })
+    profileA.send(JSON.stringify({
+      kind: "browser-lifecycle-snapshot",
+      snapshot: browserProfileLifecycleSnapshot(
+        "profile-a",
+        "worker-a",
+        "runtime:worker-a",
+        [
+          createHamiltonianLifecycleObservation({
+            type: "entity",
+            phase: "changed",
+            subjectId: profileAPageId,
+            subjectKind: "page",
+            ownerId: hamiltonianBrowserNodeId("profile-a"),
+            attributes: {incarnation: "profile-a-page", state: "live"},
+          }),
+          createHamiltonianLifecycleObservation({
+            type: "transport",
+            phase: "opened",
+            subjectId: profileATransportId,
+            subjectKind: "service-worker-api",
+            ownerId: hamiltonianLifecycleEntityId("service-worker", "worker-a"),
+            sourceEntityId: profileAPageId,
+            targetEntityId: hamiltonianLifecycleEntityId("service-worker", "worker-a"),
+            transportId: profileATransportId,
+            attributes: {state: "active"},
+          }),
+        ],
+      ),
+    }))
+    await updated
+
+    const observerUrl = new URL("/control", host.server.url)
+    observerUrl.protocol = "ws:"
+    observerUrl.searchParams.set("token", host.token)
+    observerUrl.searchParams.set("device", "observer-profile")
+    observerUrl.searchParams.set("worker", "service-worker:observer")
+    observerUrl.searchParams.set("transport", "websocket:observer")
+    const observer = new WebSocket(observerUrl)
+    const retainedFrame = nextMessage(observer, "lifecycle-snapshot")
+    await new Promise<void>((resolve, reject) => {
+      observer.addEventListener("open", () => resolve(), {once: true})
+      observer.addEventListener("error", () => reject(new Error("WebSocket open failed")), {once: true})
+    })
+    const retained = (await retainedFrame).snapshot as {
+      envelopes: Array<{observation: {
+        subjectId: string
+        subjectKind: string
+        ownerId: string | null
+        sourceEntityId: string | null
+        targetEntityId: string | null
+        attributes: Record<string, unknown>
+      }}>
+    }
+    const entities = retained.envelopes
+      .map(({observation}) => observation)
+      .filter(({subjectKind}) =>
+        subjectKind === "browser-runtime" || subjectKind === "service-worker" || subjectKind === "page")
+    expect(entities).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        subjectId: hamiltonianBrowserNodeId("profile-a"),
+        ownerId: hamiltonianBrowserNodeId("profile-a"),
+        attributes: expect.objectContaining({profileId: "profile-a"}),
+      }),
+      expect.objectContaining({
+        subjectId: hamiltonianBrowserNodeId("profile-b"),
+        ownerId: hamiltonianBrowserNodeId("profile-b"),
+        attributes: expect.objectContaining({profileId: "profile-b"}),
+      }),
+      expect.objectContaining({
+        subjectId: hamiltonianLifecycleEntityId("service-worker", "worker-a"),
+        ownerId: hamiltonianBrowserNodeId("profile-a"),
+      }),
+      expect.objectContaining({
+        subjectId: hamiltonianLifecycleEntityId("service-worker", "worker-b"),
+        ownerId: hamiltonianBrowserNodeId("profile-b"),
+      }),
+      expect.objectContaining({
+        subjectId: profileAPageId,
+        ownerId: hamiltonianBrowserNodeId("profile-a"),
+      }),
+    ]))
+    expect(retained.envelopes.map(({observation}) => observation)).toContainEqual(expect.objectContaining({
+      subjectId: profileATransportId,
+      ownerId: hamiltonianLifecycleEntityId("service-worker", "worker-a"),
+      sourceEntityId: profileAPageId,
+      targetEntityId: hamiltonianLifecycleEntityId("service-worker", "worker-a"),
+    }))
+
+    observer.close()
+    profileA.close()
+    profileB.close()
+  })
+
+  test("rejects an identified browser scope whose retained owner chain is incomplete", async () => {
+    const host = createHamiltonianHost({port: 0, token: "test-token", heartbeatMs: 10_000})
+    running.push(host)
+    await host.bunReady
+
+    const profileId = "orphan-profile"
+    const workerIdentity = "orphan-worker"
+    const workerRuntimeIncarnation = "orphan-runtime"
+    const controlUrl = new URL("/control", host.server.url)
+    controlUrl.protocol = "ws:"
+    controlUrl.searchParams.set("token", host.token)
+    controlUrl.searchParams.set("device", profileId)
+    controlUrl.searchParams.set("worker", hamiltonianLifecycleEntityId("service-worker", workerIdentity))
+    const socket = await openSocket(controlUrl)
+    await nextMessage(socket, "hello")
+    const identity = browserIdentityMessage(
+      profileId,
+      workerIdentity,
+      workerRuntimeIncarnation,
+      "orphan-resume",
+    )
+    const incompleteSnapshot = {
+      ...identity.lifecycleSnapshot,
+      envelopes: identity.lifecycleSnapshot.envelopes.filter(({observation}) =>
+        observation.subjectKind !== "browser-runtime"),
+    }
+    const closed = new Promise<CloseEvent>((resolve) => socket.addEventListener("close", resolve, {once: true}))
+    socket.send(JSON.stringify({...identity, lifecycleSnapshot: incompleteSnapshot}))
+    expect((await closed).code).toBe(1008)
+
+    const observerUrl = new URL(controlUrl)
+    observerUrl.searchParams.set("device", "orphan-observer")
+    observerUrl.searchParams.set("worker", "service-worker:orphan-observer")
+    const observer = new WebSocket(observerUrl)
+    const retainedFrame = nextMessage(observer, "lifecycle-snapshot")
+    await new Promise<void>((resolve, reject) => {
+      observer.addEventListener("open", () => resolve(), {once: true})
+      observer.addEventListener("error", () => reject(new Error("WebSocket open failed")), {once: true})
+    })
+    const retained = (await retainedFrame).snapshot as {
+      envelopes: Array<{observation: {subjectId: string}}>
+    }
+    expect(retained.envelopes.some(({observation}) =>
+      observation.subjectId === hamiltonianLifecycleEntityId("service-worker", workerIdentity)
+    )).toBeFalse()
     observer.close()
   })
 
@@ -1073,12 +1328,12 @@ describe("isolated Hamiltonian host", () => {
     const topologyMessage = nextMessage(socket, "topology", (message) =>
       (message.topology as {peers?: unknown[]}).peers?.length === 1
     )
-    socket.send(JSON.stringify({
-      kind: "identity",
-      workerIdentity: "observer-sw",
-      workerRuntimeIncarnation: "observer-runtime",
-      resumeNonce: "observer-resume",
-    }))
+    socket.send(JSON.stringify(browserIdentityMessage(
+      "browser-observer",
+      "observer-sw",
+      "observer-runtime",
+      "observer-resume",
+    )))
     socket.send(JSON.stringify({
       kind: "tabs",
       windows: [{tabId: "observer-tab", joinedAt: 10, visible: true}],
@@ -1172,12 +1427,12 @@ describe("isolated Hamiltonian host", () => {
         socket.addEventListener("error", () => reject(new Error("WebSocket open failed")), {once: true})
       })
       const [hello, lifecycleSnapshot] = await Promise.all([helloMessage, snapshot])
-      socket.send(JSON.stringify({
-        kind: "identity",
+      socket.send(JSON.stringify(browserIdentityMessage(
+        "stable-installation",
         workerIdentity,
         workerRuntimeIncarnation,
-        resumeNonce: crypto.randomUUID(),
-      }))
+        crypto.randomUUID(),
+      )))
       return {socket, connectionId: String(hello.connectionId), lifecycleSnapshot, transportId}
     }
 
@@ -1230,13 +1485,15 @@ describe("isolated Hamiltonian host", () => {
       const identified = nextMessage(socket, "lifecycle", (message) =>
         (message.envelope as {observation?: {messageId?: string}} | undefined)
           ?.observation?.messageId === identityMessageId)
-      socket.send(JSON.stringify({
-        kind: "identity",
+      socket.send(JSON.stringify(browserIdentityMessage(
+        "endpoint-retirement-browser",
         workerIdentity,
-        workerRuntimeIncarnation: `runtime:${workerIdentity}`,
-        resumeNonce: `resume:${workerIdentity}`,
+        `runtime:${workerIdentity}`,
+        `resume:${workerIdentity}`,
+        {
         monitor: {messageId: identityMessageId, transportId},
-      }))
+        },
+      )))
       await identified
       return {socket, snapshot: await snapshot}
     }
@@ -1418,12 +1675,12 @@ describe("isolated Hamiltonian host", () => {
     const socket = await openSocket(controlUrl)
     await nextMessage(socket, "hello")
     const closed = new Promise<CloseEvent>((resolve) => socket.addEventListener("close", resolve, {once: true}))
-    socket.send(JSON.stringify({
-      kind: "identity",
-      workerIdentity: "different-worker",
-      workerRuntimeIncarnation: "different-runtime",
-      resumeNonce: "bound-identity-resume",
-    }))
+    socket.send(JSON.stringify(browserIdentityMessage(
+      "bound-identity",
+      "different-worker",
+      "different-runtime",
+      "bound-identity-resume",
+    )))
     expect((await closed).code).toBe(1008)
   })
 
@@ -1577,12 +1834,12 @@ describe("isolated Hamiltonian host", () => {
     const resumed = nextMessage(secondSocket, "topology", (message) =>
       (message.topology as {leader?: {connectionId?: string}}).leader?.connectionId === hello.connectionId
     )
-    secondSocket.send(JSON.stringify({
-      kind: "identity",
-      workerIdentity: first.workerIdentity,
-      workerRuntimeIncarnation: replacementWorkerRuntimeIncarnation,
-      resumeNonce: first.resumeNonce,
-    }))
+    secondSocket.send(JSON.stringify(browserIdentityMessage(
+      "stable-browser",
+      first.workerIdentity,
+      replacementWorkerRuntimeIncarnation,
+      first.resumeNonce,
+    )))
     secondSocket.send(JSON.stringify({
       kind: "tabs",
       windows: [{tabId: "stable-window", joinedAt: 10, visible: true}],
@@ -1630,12 +1887,12 @@ describe("isolated Hamiltonian host", () => {
       (message) => (message.signal as {type?: string})?.type === "description",
       10_000,
     )
-    firstSocket.send(JSON.stringify({
-      kind: "identity",
+    firstSocket.send(JSON.stringify(browserIdentityMessage(
+      "negotiating-browser",
       workerIdentity,
-      workerRuntimeIncarnation: firstWorkerRuntimeIncarnation,
+      firstWorkerRuntimeIncarnation,
       resumeNonce,
-    }))
+    )))
     firstSocket.send(JSON.stringify({
       kind: "tabs",
       windows: [{tabId: "negotiating-tab", joinedAt: 10, visible: true}],
@@ -1664,12 +1921,12 @@ describe("isolated Hamiltonian host", () => {
       (message) => Number(message.peerGeneration) > firstAssignment.peerGeneration,
       10_000,
     )
-    secondSocket.send(JSON.stringify({
-      kind: "identity",
+    secondSocket.send(JSON.stringify(browserIdentityMessage(
+      "negotiating-browser",
       workerIdentity,
-      workerRuntimeIncarnation: replacementWorkerRuntimeIncarnation,
+      replacementWorkerRuntimeIncarnation,
       resumeNonce,
-    }))
+    )))
     secondSocket.send(JSON.stringify({
       kind: "tabs",
       windows: [{tabId: "negotiating-tab", joinedAt: 10, visible: true}],
@@ -1929,12 +2186,12 @@ describe("isolated Hamiltonian host", () => {
       (message) => Number(message.peerGeneration) > firstAssignment.peerGeneration,
       10_000,
     )
-    secondSocket.send(JSON.stringify({
-      kind: "identity",
-      workerIdentity: fixture.workerIdentity,
-      workerRuntimeIncarnation: replacementWorkerRuntimeIncarnation,
-      resumeNonce: fixture.resumeNonce,
-    }))
+    secondSocket.send(JSON.stringify(browserIdentityMessage(
+      "detached-process-recovery-browser",
+      fixture.workerIdentity,
+      replacementWorkerRuntimeIncarnation,
+      fixture.resumeNonce,
+    )))
     secondSocket.send(JSON.stringify({
       kind: "tabs",
       windows: [{tabId: "detached-process-recovery-window", joinedAt: 10, visible: true}],

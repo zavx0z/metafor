@@ -185,6 +185,26 @@ Generic `parentId` задаёт только визуальный контейн
 проекции. Сам `browser-runtime` становится root owner только после
 page-наблюдения, а Service Worker получает его как parent только после
 направленного `connect-window`.
+Каждая одновременно наблюдаемая browser/profile identity материализуется как
+отдельная compound-нода: имя runtime (`Chrome` в текущем контуре) находится
+слева в шапке, компактный profile identifier — справа, а полный identifier — в
+фактах. Profile identifier — это UUID Hamiltonian в origin-local storage
+browser profile (исторический storage key `hamiltonian-device`), а не имя
+Google-профиля, PID, title, user agent или URL. Все вкладки одного storage
+profile читают один UUID; page передаёт его Service Worker и host. Identity
+переживает quit/reopen вместе с browser storage, а новый, очищенный или
+off-the-record storage создаёт нового owner. Page realm, Service Worker и
+browser transport одного профиля не могут
+попасть в compound другого профиля. После подтверждённого `connect-window`
+отсутствующий browser parent является ошибкой lifecycle-проекции и не разрешает
+показывать Service Worker корневой нодой.
+Retained snapshot, переходящий границу realm, всегда ownership-closed: каждая
+некорневая entity передаётся вместе с живой owner-chain до объявленного root
+этого scope. Service Worker передаёт host целый валидированный browser/profile
+snapshot, а host объединяет такие независимые scope без синтеза отдельных
+Chrome или специальной обработки второго Worker. Snapshot с отсутствующим,
+чужим либо циклическим owner не принимается; presentation отображает только уже
+декларированную причинную принадлежность.
 
 Серверная часть собрана в отдельный presentation-only контейнер `Сервер`. У
 него нет параметров, transport-сокетов и действий; он не является lifecycle
