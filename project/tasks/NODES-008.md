@@ -216,6 +216,41 @@ Input SHA-256 не изменились; RIGHT geometry SHA сохранился
 не задан; возможная отдельная оптимизация не меняет hard/visual acceptance
 этой задачи.
 
+## Closing handoff
+
+Result commit: `4eb4b03d147ae776331f92d7ba96fbbbf192fcaa`.
+
+Граница результата — только pure `@nodes/layout`: placement candidates,
+compound compaction, visibility routing и их regressions. Public numeric
+protocol, Worker transport, `nodes` adapter, `@nodes/ui`, Hamiltonian runtime и
+renderer не менялись.
+
+Постоянные владельцы:
+
+* общие hard laws, socket-pitch clearance и лексикографическая цель —
+  `pkg/nodes/layout/requirements/COMMON.md`;
+* landscape-specific routing/compaction —
+  `pkg/nodes/layout/requirements/RIGHT.md`;
+* portrait-specific placement/compaction —
+  `pkg/nodes/layout/requirements/DOWN.md`;
+* пользовательское устройство выбранного гибридного алгоритма и benchmark
+  process — `pkg/nodes/layout/README.md`.
+
+Актуализированный долговечный вывод: пустой compound reserve не сохраняется;
+каждая фактически соседняя boundary, occupied lane и child разделена одним
+socket pitch. Exact-port bundling разрешено только для одинакового semantic
+port; разные порты сохраняют полный clearance. Portful boundary может
+сжиматься только вместе с exact port centers и terminal sections, а результат
+принимается после полных placement/route validators. Старое утверждение, что
+portful compound не сжимается, удалено из постоянной документации.
+
+Evidence для независимой проверки: `86/86` package tests; layout/nodes/root
+typechecks и `git diff --check` — PASS; frozen `verification.json` подтверждает
+RIGHT/DOWN x3 repeats и три permutations; final `benchmark-current.json`
+содержит все samples/hashes/provenance; два принятых live PNG подтверждают
+открытые вкладки без reload/restart. Владелец явно принял финальный визуальный
+результат 12 августа 2026 года.
+
 ## Отклонённые результаты
 
 Ниже сохранена только причинная история отвергнутых checkpoint этой карточки.
