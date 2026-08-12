@@ -37,11 +37,12 @@ stale incarnation, non-monotonic revision/frontier и частичное сме�
 угадывают parent, не синтезируют пропущенный контур и не поднимают orphan на
 корень.
 
-Сейчас browser/profile snapshot уже частично соблюдает этот закон через
-ownership closure, но server restart ещё способен оставить прежнее серверное
-поддерево и частично показать новую incarnation. Поэтому полный enforcement и
-его первый server-replacement slice остаются принятой, но не реализованной
-задачей [`HAM-001`](../project/tasks/HAM-001.md).
+Для server contour и его browser/profile boundary первый enforcement этого
+закона реализован и проверен offline: новая host incarnation заменяет прежнее
+серверное поддерево без reload page, а stale snapshot и live event не возвращают
+его. Общая родительская [`HAM-001`](../project/tasks/HAM-001.md) остаётся
+незавершённой до применения того же закона к остальным independently
+authoritative contours и exact-target live restart proof.
 
 В начале выполнения page-кода гарантированы ровно две сущности: Bun server,
 который отдал документ, и текущая page realm. Host identity и epoch приходят
@@ -261,7 +262,11 @@ incarnation одного logical contour заменяет прежнюю тол�
 отклоняется. Registry удерживает одну декларацию на logical contour, поэтому
 replacement атомарно удаляет прежний root, всё его ownership-поддерево и
 связанные boundary transport до материализации преемника, не затрагивая другой
-logical contour.
+logical contour. В той же операции registry сверяет boundary transport всех
+остальных current declarations и удаляет запись, если replacement сделал её
+endpoint incarnation stale; новый document публикуется только после этой
+reconciliation, поэтому порядок доставки следующей декларации transport не
+является частью закона.
 
 Cross-contour transport не импортируется внутрь чужого ownership snapshot.
 Минимальная boundary-запись ссылается на exact current declarations обоих

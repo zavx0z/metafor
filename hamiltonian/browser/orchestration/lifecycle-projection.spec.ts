@@ -1288,7 +1288,7 @@ describe("Hamiltonian lifecycle projection", () => {
       }),
     ]) browserJournal.observe(browserSource.next(observation))
     const browserSnapshot = browserJournal.snapshot()
-    const browserDeclaration = createHamiltonianNodeSystemDeclaration({
+    const initialBrowserDeclaration = createHamiltonianNodeSystemDeclaration({
       logicalContourId: profileLogicalId,
       incarnation: "worker-runtime-a",
       incarnationStartedAt: 5,
@@ -1354,11 +1354,21 @@ describe("Hamiltonian lifecycle projection", () => {
       const projection = new HamiltonianLifecycleProjection(context)
       const serverA = makeServer("host-a", 10)
       const serverB = makeServer("host-b", 20)
+      let browserDeclaration = initialBrowserDeclaration
       const published: NodeSystemDocument[] = []
       expect(projection.replaceDeclaration(browserDeclaration)).toBeTrue()
       published.push(projection.document())
       expect(projection.replaceDeclaration(serverA.declaration)).toBeTrue()
       published.push(projection.document())
+      browserDeclaration = createHamiltonianNodeSystemDeclaration({
+        ...browserDeclaration,
+        revision: browserDeclaration.revision + 1,
+        boundaryTransports: serverA.declaration.boundaryTransports,
+      })
+      expect(projection.replaceDeclaration(browserDeclaration)).toBeTrue()
+      published.push(projection.document())
+      expect(published.at(-1)?.edges.filter(({label}) => label === "WS" || label === "WSS"))
+        .toMatchObject([{id: serverA.transportId}])
       if (staleLiveBeforeSuccessor) {
         projection.replaceSnapshot(serverA.declaration.snapshot)
         published.push(projection.document())
@@ -1377,7 +1387,7 @@ describe("Hamiltonian lifecycle projection", () => {
         published.push(projection.document())
       }
 
-      const successorIndex = staleLiveBeforeSuccessor ? 4 : 2
+      const successorIndex = staleLiveBeforeSuccessor ? 5 : 3
       for (const [index, document] of published.entries()) {
         const websocketEdges = document.edges.filter(({label}) => label === "WS" || label === "WSS")
         const orphanRtc = document.nodes.some(({id, parentId}) =>

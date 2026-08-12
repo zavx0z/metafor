@@ -214,7 +214,9 @@ const FORBIDDEN_ATTRIBUTE_KEYS = new Set([
  * Retains one current declaration per stable logical contour. Incarnations
  * converge by their monotonic start point; revisions advance only inside the
  * accepted incarnation. Equal start points are rejected because wall-clock
- * order alone cannot prove which incarnation supersedes the other.
+ * order alone cannot prove which incarnation supersedes the other. Accept is
+ * one aggregation transaction: replacement also reconciles every other
+ * current declaration whose boundary referenced the superseded incarnation.
  */
 export class HamiltonianNodeSystemDeclarationRegistry {
   /** @type {Map<string, HamiltonianNodeSystemDeclaration>} */
@@ -222,7 +224,14 @@ export class HamiltonianNodeSystemDeclarationRegistry {
 
   /**
    * @param {unknown} value
-   * @returns {{declaration: HamiltonianNodeSystemDeclaration, previous: HamiltonianNodeSystemDeclaration | null} | null}
+   * @returns {{
+   *   declaration: HamiltonianNodeSystemDeclaration,
+   *   previous: HamiltonianNodeSystemDeclaration | null,
+   *   reconciled: readonly Readonly<{
+   *     declaration: HamiltonianNodeSystemDeclaration,
+   *     previous: HamiltonianNodeSystemDeclaration,
+   *   }>[],
+   * } | null}
    */
   accept(value) {
     if (!isHamiltonianNodeSystemDeclaration(value)) return null
@@ -245,8 +254,22 @@ export class HamiltonianNodeSystemDeclarationRegistry {
       (transport.source.logicalContourId === declaration.logicalContourId ||
         transport.target.logicalContourId === declaration.logicalContourId) &&
       boundaryTransportReferencesCurrentDeclarations(transport, declarations))) return null
-    this.#declarations.set(declaration.logicalContourId, declaration)
-    return {declaration, previous}
+    /** @type {Array<Readonly<{
+     *   declaration: HamiltonianNodeSystemDeclaration,
+     *   previous: HamiltonianNodeSystemDeclaration,
+     * }>>} */
+    const reconciled = []
+    for (const [logicalContourId, retained] of declarations) {
+      if (logicalContourId === declaration.logicalContourId) continue
+      const boundaryTransports = retained.boundaryTransports.filter((transport) =>
+        boundaryTransportReferencesCurrentDeclarations(transport, declarations))
+      if (boundaryTransports.length === retained.boundaryTransports.length) continue
+      const next = createHamiltonianNodeSystemDeclaration({...retained, boundaryTransports})
+      declarations.set(logicalContourId, next)
+      reconciled.push(Object.freeze({declaration: next, previous: retained}))
+    }
+    this.#declarations = declarations
+    return Object.freeze({declaration, previous, reconciled: Object.freeze(reconciled)})
   }
 
   /** @param {string} logicalContourId */

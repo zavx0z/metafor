@@ -311,6 +311,9 @@ export class HamiltonianLifecycleProjection {
   replaceDeclaration(declaration: HamiltonianNodeSystemDeclaration): boolean {
     const accepted = this.#declarationRegistry.accept(declaration)
     if (!accepted) return false
+    for (const reconciled of accepted.reconciled) {
+      this.#replaceBoundaryTransports(reconciled.declaration)
+    }
     if (accepted.previous !== null && accepted.previous.incarnation !== declaration.incarnation) {
       for (const entry of accepted.previous.snapshot.frontier) {
         const key = `${entry.sourceId}\u0000${entry.sourceIncarnation}`
@@ -325,14 +328,10 @@ export class HamiltonianLifecycleProjection {
     if (previousRootId !== null && previousRootId !== declaration.rootId) {
       this.#forgetEntity(previousRootId)
     }
-    for (const transportId of this.#boundaryTransportsByContour.get(declaration.logicalContourId) ?? []) {
-      this.#forgetTransport(transportId)
-    }
-    this.#boundaryTransportsByContour.delete(declaration.logicalContourId)
     this.#declarationRoots.set(declaration.logicalContourId, declaration.rootId)
     this.#terminalEntities.delete(declaration.rootId)
     this.replaceSnapshot(declaration.snapshot)
-    this.#materializeBoundaryTransports(declaration)
+    this.#replaceBoundaryTransports(declaration)
     if (declaration.logicalContourId === this.#serverLogicalContourId) {
       this.#currentServerId = declaration.rootId
     }
@@ -840,7 +839,11 @@ export class HamiltonianLifecycleProjection {
     return visible
   }
 
-  #materializeBoundaryTransports(declaration: HamiltonianNodeSystemDeclaration): void {
+  #replaceBoundaryTransports(declaration: HamiltonianNodeSystemDeclaration): void {
+    for (const transportId of this.#boundaryTransportsByContour.get(declaration.logicalContourId) ?? []) {
+      this.#forgetTransport(transportId)
+    }
+    this.#boundaryTransportsByContour.delete(declaration.logicalContourId)
     if (declaration.boundaryTransports.length === 0) return
     const retained = new Set<string>()
     for (const [index, transport] of declaration.boundaryTransports.entries()) {

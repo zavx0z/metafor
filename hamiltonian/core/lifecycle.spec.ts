@@ -529,14 +529,25 @@ describe("Hamiltonian owner lifecycle", () => {
     const serverB = serverDeclaration("hamiltonian-lab", "host-b", 20, true)
     const serverOther = serverDeclaration("other-lab", "other-a", 15)
     expect(registry.accept(serverA)?.declaration).toBe(serverA)
+    const browserWithBoundary = createHamiltonianNodeSystemDeclaration({
+      ...browserDeclaration,
+      revision: browserDeclaration.revision + 1,
+      boundaryTransports: serverA.boundaryTransports,
+    })
+    expect(registry.accept(browserWithBoundary)?.declaration).toBe(browserWithBoundary)
     expect(registry.accept(createHamiltonianNodeSystemDeclaration({
       ...serverOther,
       boundaryTransports: serverA.boundaryTransports,
     }))).toBeNull()
     expect(registry.accept(serverOther)?.declaration).toBe(serverOther)
-    expect(registry.accept(serverB)?.previous).toBe(serverA)
+    const replacement = registry.accept(serverB)
+    expect(replacement?.previous).toBe(serverA)
+    expect(replacement?.reconciled).toHaveLength(1)
+    expect(replacement?.reconciled[0]?.previous).toBe(browserWithBoundary)
+    expect(replacement?.reconciled[0]?.declaration.boundaryTransports).toEqual([])
     expect(registry.current(hamiltonianLogicalContourId("server", "hamiltonian-lab"))).toBe(serverB)
     expect(registry.current(hamiltonianLogicalContourId("server", "other-lab"))).toBe(serverOther)
+    expect(registry.current(browserLogicalId)?.boundaryTransports).toEqual([])
     expect(registry.accept(serverA)).toBeNull()
     expect(registry.accept(serverB)).toBeNull()
     expect(registry.accept(serverDeclaration("hamiltonian-lab", "host-c", 20))).toBeNull()
