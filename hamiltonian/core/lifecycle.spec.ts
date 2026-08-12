@@ -3,16 +3,21 @@ import {
   HamiltonianLifecycleCursor,
   HamiltonianLifecycleRetainedJournal,
   HamiltonianLifecycleSource,
+  HamiltonianNodeSystemDeclarationRegistry,
   createHamiltonianLifecycleEnvelope,
   createHamiltonianLifecycleObservation,
+  createHamiltonianNodeSystemDeclaration,
   hamiltonianDataChannelTransportId,
+  hamiltonianLifecycleSnapshotId,
   hamiltonianRtcPeerEntityId,
+  hamiltonianLogicalContourId,
   emitHamiltonianLifecycle,
   isHamiltonianLifecycleEnvelope,
   isHamiltonianLifecycleEnvelopeFromSource,
   isHamiltonianLifecycleOwnershipClosed,
   isHamiltonianLifecycleSnapshot,
   isHamiltonianLifecycleSnapshotFromSource,
+  isHamiltonianNodeSystemDeclaration,
   projectHamiltonianLifecycleOwnershipScope,
   publishHamiltonianLifecycleSnapshot,
   receiveHamiltonianLifecycleEnvelope,
@@ -441,6 +446,116 @@ describe("Hamiltonian owner lifecycle", () => {
       profileTransportSnapshot({...validRefs, targetEntityId: "service-worker:worker-b"}, true),
       [browserId, "browser:profile-b"],
     )).toBeFalse()
+  })
+
+  test("retains one monotonic declaration per logical contour and validates exact boundary endpoints", () => {
+    const browserLogicalId = hamiltonianLogicalContourId("browser-profile", "profile-a")
+    const browserRootId = "browser:profile-a"
+    const workerId = "service-worker:worker-a"
+    const browserSource = new HamiltonianLifecycleSource({
+      id: "service-worker:runtime-a",
+      kind: "service-worker",
+      incarnation: "runtime-a",
+      startedAt: 5,
+    })
+    const browserJournal = new HamiltonianLifecycleRetainedJournal(workerId)
+    for (const observation of [
+      createHamiltonianLifecycleObservation({
+        type: "entity", phase: "born", subjectId: browserRootId, subjectKind: "browser-runtime",
+        ownerId: browserRootId, attributes: {profileId: "profile-a"},
+      }),
+      createHamiltonianLifecycleObservation({
+        type: "entity", phase: "born", subjectId: workerId, subjectKind: "service-worker",
+        ownerId: browserRootId, attributes: {runtimeIncarnation: "runtime-a"},
+      }),
+    ]) browserJournal.observe(browserSource.next(observation))
+    const browserDeclaration = createHamiltonianNodeSystemDeclaration({
+      logicalContourId: browserLogicalId,
+      incarnation: "runtime-a",
+      incarnationStartedAt: 5,
+      revision: browserJournal.snapshot().revision,
+      rootId: browserRootId,
+      snapshot: browserJournal.snapshot(),
+    })
+
+    const serverDeclaration = (
+      identity: string,
+      epoch: string,
+      startedAt: number,
+      withBoundary = false,
+    ) => {
+      const logicalContourId = hamiltonianLogicalContourId("server", identity)
+      const rootId = `server:${epoch}`
+      const source = new HamiltonianLifecycleSource({
+        id: rootId,
+        kind: "server",
+        incarnation: epoch,
+        startedAt,
+      })
+      const journal = new HamiltonianLifecycleRetainedJournal(rootId)
+      journal.observe(source.next(createHamiltonianLifecycleObservation({
+        type: "entity", phase: "born", subjectId: rootId, subjectKind: "server",
+        ownerId: rootId, attributes: {identity, epoch},
+      })))
+      journal.observe(source.next(createHamiltonianLifecycleObservation({
+        type: "entity", phase: "changed", subjectId: rootId, subjectKind: "server",
+        ownerId: rootId, attributes: {identity, epoch, state: "live"},
+      })))
+      return createHamiltonianNodeSystemDeclaration({
+        logicalContourId,
+        incarnation: epoch,
+        incarnationStartedAt: startedAt,
+        revision: journal.snapshot().revision,
+        rootId,
+        snapshot: journal.snapshot(),
+        boundaryTransports: withBoundary ? [{
+          transportId: `websocket:${epoch}`,
+          kind: "websocket",
+          phase: "opened",
+          owner: {logicalContourId: browserLogicalId, incarnation: "runtime-a", entityId: workerId},
+          source: {logicalContourId: browserLogicalId, incarnation: "runtime-a", entityId: workerId},
+          target: {logicalContourId, incarnation: epoch, entityId: rootId},
+          attributes: {connectionId: `connection-${epoch}`, heartbeat: "observed"},
+        }] : [],
+      })
+    }
+
+    expect(isHamiltonianNodeSystemDeclaration(browserDeclaration)).toBeTrue()
+    const registry = new HamiltonianNodeSystemDeclarationRegistry()
+    expect(registry.accept(serverDeclaration("hamiltonian-lab", "host-a", 10, true))).toBeNull()
+    expect(registry.accept(browserDeclaration)?.previous).toBeNull()
+
+    const serverA = serverDeclaration("hamiltonian-lab", "host-a", 10, true)
+    const serverB = serverDeclaration("hamiltonian-lab", "host-b", 20, true)
+    const serverOther = serverDeclaration("other-lab", "other-a", 15)
+    expect(registry.accept(serverA)?.declaration).toBe(serverA)
+    expect(registry.accept(createHamiltonianNodeSystemDeclaration({
+      ...serverOther,
+      boundaryTransports: serverA.boundaryTransports,
+    }))).toBeNull()
+    expect(registry.accept(serverOther)?.declaration).toBe(serverOther)
+    expect(registry.accept(serverB)?.previous).toBe(serverA)
+    expect(registry.current(hamiltonianLogicalContourId("server", "hamiltonian-lab"))).toBe(serverB)
+    expect(registry.current(hamiltonianLogicalContourId("server", "other-lab"))).toBe(serverOther)
+    expect(registry.accept(serverA)).toBeNull()
+    expect(registry.accept(serverB)).toBeNull()
+    expect(registry.accept(serverDeclaration("hamiltonian-lab", "host-c", 20))).toBeNull()
+
+    const regressedSnapshot = {
+      ...serverB.snapshot,
+      revision: serverB.snapshot.revision + 1,
+      snapshotId: hamiltonianLifecycleSnapshotId(serverB.snapshot.scopeId, serverB.snapshot.revision + 1),
+      frontier: serverB.snapshot.frontier.map((entry) => ({...entry, sequence: entry.sequence - 1})),
+      envelopes: serverB.snapshot.envelopes.map((envelope) => ({...envelope, sequence: envelope.sequence - 1,
+        eventId: `event:${envelope.sourceIncarnation}:${envelope.sequence - 1}`})),
+    }
+    const regressedFrontier = createHamiltonianNodeSystemDeclaration({
+      ...serverB,
+      revision: serverB.revision + 1,
+      snapshot: regressedSnapshot,
+      boundaryTransports: [],
+    })
+    expect(registry.accept(regressedFrontier)).toBeNull()
   })
 
   test("projects a browser ownership scope without its externally observed server transport", () => {

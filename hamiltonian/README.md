@@ -248,6 +248,34 @@ journal на exact browser root: внешний control WebSocket и server endp
 на realm boundary принимается только замкнутый browser-owned graph, после чего
 он агрегируется с host-owned transport observations.
 
+Node-system declaration является retained replacement-границей над таким
+ownership-closed snapshot. Она явно задаёт стабильный `logicalContourId`,
+incarnation и её `incarnationStartedAt`, монотонную revision, exact root и
+snapshot с causal frontier. Серверный logical contour выводится из
+сконфигурированной Hamiltonian identity, а browser/profile contour — из
+устойчивого profile UUID; временные host epoch, PID, navigation и connection ID
+не используются как registry key. Для одной incarnation принимается только
+строго большая revision с frontier, не отступающим от уже принятого. Другая
+incarnation одного logical contour заменяет прежнюю только при строго более
+позднем `incarnationStartedAt`; stale, равная либо немонотонная декларация
+отклоняется. Registry удерживает одну декларацию на logical contour, поэтому
+replacement атомарно удаляет прежний root, всё его ownership-поддерево и
+связанные boundary transport до материализации преемника, не затрагивая другой
+logical contour.
+
+Cross-contour transport не импортируется внутрь чужого ownership snapshot.
+Минимальная boundary-запись ссылается на exact current declarations обоих
+endpoint contours, их incarnations и реально существующие entity; owner также
+обязан принадлежать одному из этих contours. Control WebSocket объявляет host
+только после подтверждения identity: owner/source — exact Service Worker в
+browser/profile declaration, target — exact server incarnation, а connection и
+heartbeat относятся к тому же transport. Service Worker принимает новую
+server declaration до продолжения host lifecycle, передаёт browser declaration
+и затем направляет page обновлённую server declaration с подтверждённым WS/WSS.
+Поэтому cold host `A → B` не требует reload page: declaration B заменяет A
+вместе с WSS A, а snapshot или запоздалое live-наблюдение A не может вернуть
+старое серверное поддерево.
+
 Серверная часть собрана в отдельный presentation-only контейнер `Сервер`. У
 него нет параметров, transport-сокетов и действий; он не является lifecycle
 entity или endpoint. Внутри находятся фактический Bun host Hamiltonian и

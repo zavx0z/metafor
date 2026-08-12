@@ -1,9 +1,11 @@
 import {
   HamiltonianLifecycleCursor,
   subscribeHamiltonianLifecycle,
+  subscribeHamiltonianNodeSystemDeclaration,
   subscribeHamiltonianLifecycleSnapshot,
   type HamiltonianLifecycleEnvelope,
   type HamiltonianLifecycleSnapshot,
+  type HamiltonianNodeSystemDeclaration,
 } from "../core/lifecycle.js"
 import {hamiltonianPageBootstrap} from "../core/monitor.js"
 import {UiRuntime, type UiSurfaceRect} from "@ui/elements"
@@ -78,6 +80,8 @@ let acceptLifecycleEnvelope: ((envelope: HamiltonianLifecycleEnvelope) => void) 
 let acceptLifecycle: ((accepted: AcceptedLifecycle) => void) | null = null
 const pendingLifecycleSnapshots = new Map<string, HamiltonianLifecycleSnapshot>()
 let acceptLifecycleSnapshot: ((snapshot: HamiltonianLifecycleSnapshot) => void) | null = null
+const pendingDeclarations = new Map<string, HamiltonianNodeSystemDeclaration>()
+let acceptDeclaration: ((declaration: HamiltonianNodeSystemDeclaration) => void) | null = null
 const resolvedLifecycleFrontier = new Map<string, number>()
 const trafficPresentation = new HamiltonianTrafficPresentationGate<HamiltonianLifecyclePresentation>()
 document.documentElement.dataset.hamiltonianOrchestrationModuleAt = String(performance.now())
@@ -98,6 +102,11 @@ const unsubscribeLifecycleSnapshot = subscribeHamiltonianLifecycleSnapshot((snap
   } else {
     acceptLifecycleSnapshot(snapshot)
   }
+})
+const unsubscribeDeclaration = subscribeHamiltonianNodeSystemDeclaration((declaration) => {
+  exposeFirstPerformanceTimestamp("hamiltonianFirstNodeSystemDeclarationAt")
+  if (acceptDeclaration === null) pendingDeclarations.set(declaration.logicalContourId, declaration)
+  else acceptDeclaration(declaration)
 })
 
 void start().catch((error: unknown) => {
@@ -526,6 +535,24 @@ async function start(): Promise<void> {
     exposeLifecycleGap()
     scheduleCurrentDocument()
   }
+  acceptDeclaration = (declaration) => {
+    if (!lifecycleProjection.replaceDeclaration(declaration)) return
+    for (const entry of declaration.snapshot.frontier) {
+      const key = `${entry.sourceId}\u0000${entry.sourceIncarnation}`
+      const previous = resolvedLifecycleFrontier.get(key) ?? 0
+      if (entry.sequence > previous) resolvedLifecycleFrontier.set(key, entry.sequence)
+    }
+    lifecycleCursor.seed(declaration.snapshot.frontier)
+    lifecycleProjection.resolveFrontier(declaration.snapshot.frontier)
+    retireProjectionSources()
+    for (const edgeId of lifecycleProjection.takeRetiredTransportIds()) {
+      trafficPresentation.forgetEdge(edgeId)
+    }
+    exposeLifecycleGap()
+    scheduleCurrentDocument()
+  }
+  for (const declaration of pendingDeclarations.values()) acceptDeclaration(declaration)
+  pendingDeclarations.clear()
   for (const snapshot of pendingLifecycleSnapshots.values()) acceptLifecycleSnapshot(snapshot)
   pendingLifecycleSnapshots.clear()
   for (const envelope of pendingLifecycle.splice(0)) acceptLifecycleEnvelope(envelope)
@@ -699,6 +726,7 @@ async function start(): Promise<void> {
     resizeObserver.disconnect()
     unsubscribeLifecycle()
     unsubscribeLifecycleSnapshot()
+    unsubscribeDeclaration()
     trafficPresentation.disconnect()
     runtime.dispose()
   }, {once: true})

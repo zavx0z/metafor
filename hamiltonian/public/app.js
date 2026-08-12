@@ -10,6 +10,7 @@ import {
   isHamiltonianLifecycleEnvelopeFromSource,
   receiveHamiltonianLifecycleEnvelope,
   receiveHamiltonianLifecycleSnapshot,
+  receiveHamiltonianNodeSystemDeclaration,
   subscribeHamiltonianLifecycle,
 } from "/core/lifecycle.js"
 import {hamiltonianPageBootstrap, hamiltonianRealmSnapshot} from "/core/monitor.js"
@@ -808,6 +809,10 @@ function receive(message) {
   }
   if (message.kind === "lifecycle-snapshot") {
     receiveHamiltonianLifecycleSnapshot(message.snapshot)
+    return
+  }
+  if (message.kind === "node-system-declaration") {
+    receiveHamiltonianNodeSystemDeclaration(message.declaration)
     return
   }
   if (message.kind === "worker-state" && typeof message.workerIdentity === "string" && message.workerIdentity) {

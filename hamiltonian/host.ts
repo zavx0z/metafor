@@ -1,15 +1,22 @@
 import {
   HamiltonianLifecycleRetainedJournal,
   HamiltonianLifecycleSource,
+  HamiltonianNodeSystemDeclarationRegistry,
   createHamiltonianLifecycleObservation,
+  createHamiltonianNodeSystemDeclaration,
   hamiltonianLifecycleEntityId,
   hamiltonianLifecycleMessageId,
   hamiltonianLifecycleTransportId,
+  hamiltonianLogicalContourId,
   isHamiltonianLifecycleEnvelope,
   isHamiltonianLifecycleOwnershipClosed,
   isHamiltonianLifecycleSnapshot,
+  isHamiltonianNodeSystemDeclaration,
+  projectHamiltonianLifecycleOwnershipScope,
   type HamiltonianLifecycleEnvelope,
   type HamiltonianLifecycleSnapshot,
+  type HamiltonianNodeSystemBoundaryTransport,
+  type HamiltonianNodeSystemDeclaration,
 } from "./core/lifecycle.js"
 import {networkInterfaces} from "node:os"
 import {watch, type FSWatcher} from "node:fs"
@@ -93,6 +100,7 @@ interface ClientIdentityMessage {
   workerCodeVersion: string
   resumeNonce: string
   lifecycleSnapshot: HamiltonianLifecycleSnapshot
+  lifecycleDeclaration?: HamiltonianNodeSystemDeclaration
   wakeId?: string
   wakeProof?: string
 }
@@ -100,6 +108,7 @@ interface ClientIdentityMessage {
 interface ClientBrowserLifecycleSnapshotMessage {
   kind: "browser-lifecycle-snapshot"
   snapshot: HamiltonianLifecycleSnapshot
+  declaration?: HamiltonianNodeSystemDeclaration
 }
 
 interface ClientPushSubscriptionMessage {
@@ -369,6 +378,8 @@ function parseClientMessage(value: string | Buffer): ClientMessage | null {
     parsed.resumeNonce.length > 0 &&
     parsed.resumeNonce.length <= 128 &&
     "lifecycleSnapshot" in parsed && isHamiltonianLifecycleSnapshot(parsed.lifecycleSnapshot) &&
+    (!("lifecycleDeclaration" in parsed) || parsed.lifecycleDeclaration === undefined ||
+      isHamiltonianNodeSystemDeclaration(parsed.lifecycleDeclaration)) &&
     (
       (!("wakeId" in parsed) || parsed.wakeId === undefined) &&
       (!("wakeProof" in parsed) || parsed.wakeProof === undefined) ||
@@ -383,6 +394,10 @@ function parseClientMessage(value: string | Buffer): ClientMessage | null {
       workerCodeVersion: parsed.workerCodeVersion,
       resumeNonce: parsed.resumeNonce,
       lifecycleSnapshot: parsed.lifecycleSnapshot,
+      ...("lifecycleDeclaration" in parsed &&
+        isHamiltonianNodeSystemDeclaration(parsed.lifecycleDeclaration)
+        ? {lifecycleDeclaration: parsed.lifecycleDeclaration}
+        : {}),
       ...("wakeId" in parsed && typeof parsed.wakeId === "string" ? {wakeId: parsed.wakeId} : {}),
       ...("wakeProof" in parsed && typeof parsed.wakeProof === "string" ? {wakeProof: parsed.wakeProof} : {}),
     }, monitor)
@@ -390,11 +405,16 @@ function parseClientMessage(value: string | Buffer): ClientMessage | null {
 
   if (
     parsed.kind === "browser-lifecycle-snapshot" &&
-    "snapshot" in parsed && isHamiltonianLifecycleSnapshot(parsed.snapshot)
+    "snapshot" in parsed && isHamiltonianLifecycleSnapshot(parsed.snapshot) &&
+    (!("declaration" in parsed) || parsed.declaration === undefined ||
+      isHamiltonianNodeSystemDeclaration(parsed.declaration))
   ) {
     return withClientLifecycleMonitor({
       kind: "browser-lifecycle-snapshot",
       snapshot: parsed.snapshot,
+      ...("declaration" in parsed && isHamiltonianNodeSystemDeclaration(parsed.declaration)
+        ? {declaration: parsed.declaration}
+        : {}),
     }, monitor)
   }
 
@@ -703,8 +723,10 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
     throw new Error("HAMILTONIAN_TLS_CERT and HAMILTONIAN_TLS_KEY must be provided together")
   }
 
+  const hostStartedAt = Date.now()
   const hostEpoch = crypto.randomUUID()
   const serverEntityId = hamiltonianLifecycleEntityId("server", hostEpoch)
+  const serverLogicalContourId = hamiltonianLogicalContourId("server", identity)
   const serverMainRole = placement === "server" ? "main" : "main-probe"
   const serverWorkerRole = placement === "server" ? "worker" : "worker-probe"
   let serverFencingToken = 1
@@ -766,6 +788,9 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
     return new Response(html, {headers})
   }
   const hostLifecycleJournal = new HamiltonianLifecycleRetainedJournal(serverEntityId)
+  const nodeSystemDeclarations = new HamiltonianNodeSystemDeclarationRegistry()
+  const browserDeclarationsByWorker = new Map<string, HamiltonianNodeSystemDeclaration>()
+  let serverDeclarationRevision = 0
   const broadcastLifecycleEnvelope = (value: HamiltonianLifecycleEnvelope) => {
     const payload = JSON.stringify({kind: "lifecycle", envelope: value})
     for (const observer of sockets.values()) {
@@ -834,8 +859,171 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
     id: serverEntityId,
     kind: "server",
     incarnation: hostEpoch,
-    startedAt: Date.now(),
+    startedAt: hostStartedAt,
   })
+  relayLifecycleEnvelope(hostLifecycle.next(createHamiltonianLifecycleObservation({
+    type: "entity",
+    phase: "born",
+    subjectId: serverEntityId,
+    subjectKind: "server",
+    ownerId: serverEntityId,
+    attributes: {identity, hostEpoch, version, placement, state: "active"},
+  })))
+
+  const sendNodeSystemDeclaration = (
+    socket: Bun.ServerWebSocket<SocketData>,
+    declaration: HamiltonianNodeSystemDeclaration,
+  ) => {
+    if (socket.getBufferedAmount() > 256_000) return
+    socket.send(JSON.stringify({kind: "node-system-declaration", declaration}))
+  }
+  const broadcastNodeSystemDeclaration = (declaration: HamiltonianNodeSystemDeclaration) => {
+    for (const socket of sockets.values()) sendNodeSystemDeclaration(socket, declaration)
+  }
+  const currentBrowserDeclaration = (workerEntityId: string) => {
+    const observed = browserDeclarationsByWorker.get(workerEntityId)
+    const current = observed === undefined
+      ? null
+      : nodeSystemDeclarations.current(observed.logicalContourId)
+    return current?.snapshot.envelopes.some(({observation}) =>
+      observation.type === "entity" && observation.subjectId === workerEntityId)
+      ? current
+      : null
+  }
+  const browserDeclarationStartedAt = (
+    snapshot: HamiltonianLifecycleSnapshot,
+    workerRuntimeIncarnation: string,
+  ) => snapshot.envelopes.find((envelope) =>
+    envelope.sourceIncarnation === workerRuntimeIncarnation)?.sourceStartedAt ?? -1
+  const browserDeclarationForSnapshot = (
+    snapshot: HamiltonianLifecycleSnapshot,
+    socket: SocketData,
+    workerRuntimeIncarnation: string,
+    supplied?: HamiltonianNodeSystemDeclaration,
+  ): HamiltonianNodeSystemDeclaration | null => {
+    const logicalContourId = hamiltonianLogicalContourId("browser-profile", socket.deviceId)
+    const rootId = hamiltonianBrowserNodeId(socket.deviceId)
+    const startedAt = browserDeclarationStartedAt(snapshot, workerRuntimeIncarnation)
+    if (startedAt < 0) return null
+    if (supplied !== undefined) {
+      return supplied.logicalContourId === logicalContourId &&
+        supplied.incarnation === workerRuntimeIncarnation &&
+        supplied.incarnationStartedAt === startedAt &&
+        supplied.revision === snapshot.revision &&
+        supplied.rootId === rootId &&
+        supplied.snapshot.snapshotId === snapshot.snapshotId &&
+        supplied.boundaryTransports.length === 0
+        ? supplied
+        : null
+    }
+    return createHamiltonianNodeSystemDeclaration({
+      logicalContourId,
+      incarnation: workerRuntimeIncarnation,
+      incarnationStartedAt: startedAt,
+      revision: snapshot.revision,
+      rootId,
+      snapshot,
+    })
+  }
+  const acceptBrowserDeclaration = (
+    declaration: HamiltonianNodeSystemDeclaration,
+    workerEntityId: string,
+  ): HamiltonianNodeSystemDeclaration | null => {
+    const accepted = nodeSystemDeclarations.accept(declaration)
+    if (accepted) {
+      browserDeclarationsByWorker.set(workerEntityId, accepted.declaration)
+      broadcastNodeSystemDeclaration(accepted.declaration)
+      return accepted.declaration
+    }
+    const current = nodeSystemDeclarations.current(declaration.logicalContourId)
+    if (
+      current?.incarnation === declaration.incarnation &&
+      current.revision === declaration.revision &&
+      current.snapshot.snapshotId === declaration.snapshot.snapshotId
+    ) {
+      browserDeclarationsByWorker.set(workerEntityId, current)
+      return current
+    }
+    return null
+  }
+  const serverBoundaryTransports = (): HamiltonianNodeSystemBoundaryTransport[] => {
+    const transports: HamiltonianNodeSystemBoundaryTransport[] = []
+    for (const envelope of hostLifecycleJournal.snapshot().envelopes) {
+      const observation = envelope.observation
+      if (
+        observation.type !== "transport" ||
+        observation.subjectKind !== "websocket" ||
+        (observation.phase !== "opening" && observation.phase !== "opened" &&
+          observation.phase !== "changed" && observation.phase !== "closed") ||
+        observation.ownerId === null ||
+        observation.sourceEntityId === null ||
+        observation.targetEntityId !== serverEntityId ||
+        observation.sourceEntityId !== observation.ownerId
+      ) continue
+      const browserDeclaration = currentBrowserDeclaration(observation.ownerId)
+      if (!browserDeclaration) continue
+      const browserReference = {
+        logicalContourId: browserDeclaration.logicalContourId,
+        incarnation: browserDeclaration.incarnation,
+        entityId: observation.ownerId,
+      }
+      transports.push({
+        transportId: observation.transportId ?? observation.subjectId,
+        kind: observation.subjectKind,
+        phase: observation.phase,
+        owner: browserReference,
+        source: browserReference,
+        target: {
+          logicalContourId: serverLogicalContourId,
+          incarnation: hostEpoch,
+          entityId: serverEntityId,
+        },
+        attributes: observation.attributes,
+      })
+    }
+    return transports
+  }
+  const refreshServerDeclaration = (): HamiltonianNodeSystemDeclaration => {
+    const projected = projectHamiltonianLifecycleOwnershipScope(
+      hostLifecycleJournal.snapshot(),
+      [serverEntityId],
+    )
+    if (!projected) throw new Error("Hamiltonian server lifecycle is not ownership-closed")
+    const retainedSources = new Set(projected.envelopes.map((envelope) =>
+      `${envelope.sourceId}\u0000${envelope.sourceIncarnation}`))
+    for (const entry of nodeSystemDeclarations.current(serverLogicalContourId)?.snapshot.frontier ?? []) {
+      retainedSources.add(`${entry.sourceId}\u0000${entry.sourceIncarnation}`)
+    }
+    const snapshot = Object.freeze({
+      ...projected,
+      frontier: Object.freeze(projected.frontier.filter((entry) =>
+        retainedSources.has(`${entry.sourceId}\u0000${entry.sourceIncarnation}`))),
+    })
+    const declaration = createHamiltonianNodeSystemDeclaration({
+      logicalContourId: serverLogicalContourId,
+      incarnation: hostEpoch,
+      incarnationStartedAt: hostStartedAt,
+      revision: ++serverDeclarationRevision,
+      rootId: serverEntityId,
+      snapshot,
+      boundaryTransports: serverBoundaryTransports(),
+    })
+    const accepted = nodeSystemDeclarations.accept(declaration)
+    if (!accepted) throw new Error("Hamiltonian server declaration did not advance monotonically")
+    return accepted.declaration
+  }
+  const broadcastServerDeclaration = () => {
+    const declaration = refreshServerDeclaration()
+    broadcastNodeSystemDeclaration(declaration)
+    return declaration
+  }
+  const sendCurrentNodeSystemDeclarations = (socket: Bun.ServerWebSocket<SocketData>) => {
+    for (const declaration of nodeSystemDeclarations.values()) {
+      if (declaration.logicalContourId === serverLogicalContourId) continue
+      sendNodeSystemDeclaration(socket, declaration)
+    }
+    sendNodeSystemDeclaration(socket, refreshServerDeclaration())
+  }
   const observeServiceWorkerAvailability = (
     workerEntityId: string,
     deviceId: string,
@@ -1640,6 +1828,7 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
         sockets.set(socket.data.connectionId, socket)
         topology.connect(socket.data.connectionId, socket.data.deviceId)
         record({at: Date.now(), kind: "connection-open", connectionId: socket.data.connectionId})
+        sendCurrentNodeSystemDeclarations(socket)
         // Establish one explicit causal frontier before producing the first
         // live event for this socket. Historical messages stay behind the
         // frontier; only retained active entities and transports bootstrap.
@@ -1722,6 +1911,17 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
             socket.close(1008, "invalid browser lifecycle snapshot")
             return
           }
+          const browserDeclaration = browserDeclarationForSnapshot(
+            message.snapshot,
+            socket.data,
+            socket.data.workerRuntimeIncarnation,
+            message.declaration,
+          )
+          if (!browserDeclaration || !acceptBrowserDeclaration(browserDeclaration, socket.data.workerEntityId)) {
+            socket.data.retainAuthorityOnClose = false
+            socket.close(1008, "invalid browser node-system declaration")
+            return
+          }
           mergeBrowserLifecycleSnapshot(message.snapshot)
           return
         }
@@ -1746,6 +1946,26 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
           }
           scheduleHeartbeatAfterAck(socket)
           heartbeatAcks += 1
+          if (socket.data.identityConfirmed) {
+            relayLifecycleEnvelope(hostLifecycle.next(createHamiltonianLifecycleObservation({
+              type: "transport",
+              phase: "changed",
+              subjectId: socket.data.lifecycleTransportId,
+              subjectKind: "websocket",
+              ownerId: socket.data.workerEntityId,
+              sourceEntityId: socket.data.workerEntityId,
+              targetEntityId: serverEntityId,
+              transportId: socket.data.lifecycleTransportId,
+              attributes: {
+                connectionId: socket.data.connectionId,
+                heartbeat: "observed",
+                heartbeatSequence: socket.data.lastAckSeq,
+                lastPongAt: socket.data.lastPongAt,
+                observedBy: "server",
+              },
+            })))
+            broadcastServerDeclaration()
+          }
           broadcastTopology()
           return
         }
@@ -1792,6 +2012,17 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
               return
             }
           }
+          const browserDeclaration = browserDeclarationForSnapshot(
+            message.lifecycleSnapshot,
+            socket.data,
+            message.workerRuntimeIncarnation,
+            message.lifecycleDeclaration,
+          )
+          if (!browserDeclaration || !acceptBrowserDeclaration(browserDeclaration, socket.data.workerEntityId)) {
+            socket.data.retainAuthorityOnClose = false
+            socket.close(1008, "invalid browser node-system declaration")
+            return
+          }
           socket.data.workerIdentity = message.workerIdentity
           socket.data.workerRuntimeIncarnation = message.workerRuntimeIncarnation
           socket.data.workerCodeVersion = message.workerCodeVersion
@@ -1804,6 +2035,22 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
           socket.data.retainAuthorityOnClose = true
           cancelBrowserProfileReachabilityExpiry(socket.data.deviceId)
           mergeBrowserLifecycleSnapshot(message.lifecycleSnapshot)
+          relayLifecycleEnvelope(hostLifecycle.next(createHamiltonianLifecycleObservation({
+            type: "transport",
+            phase: "opened",
+            subjectId: socket.data.lifecycleTransportId,
+            subjectKind: "websocket",
+            ownerId: socket.data.workerEntityId,
+            sourceEntityId: socket.data.workerEntityId,
+            targetEntityId: serverEntityId,
+            transportId: socket.data.lifecycleTransportId,
+            attributes: {
+              connectionId: socket.data.connectionId,
+              heartbeat: "awaiting",
+              observedBy: "server",
+            },
+          })))
+          broadcastServerDeclaration()
           record({
             at: Date.now(),
             kind: "worker-identity",
@@ -1965,6 +2212,7 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
               observedBy: "server",
             },
           })))
+          broadcastServerDeclaration()
         }
         if (browserScopeUnreachable) {
           forgetBrowserProfileIfUnreachable(

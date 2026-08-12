@@ -9,6 +9,8 @@ export const HAMILTONIAN_LIFECYCLE_KIND = "hamiltonian-lifecycle"
 export const HAMILTONIAN_LIFECYCLE_VERSION = 1
 export const HAMILTONIAN_LIFECYCLE_SNAPSHOT_KIND = "hamiltonian-lifecycle-snapshot"
 export const HAMILTONIAN_LIFECYCLE_SNAPSHOT_VERSION = 1
+export const HAMILTONIAN_NODE_SYSTEM_DECLARATION_KIND = "hamiltonian-node-system-declaration"
+export const HAMILTONIAN_NODE_SYSTEM_DECLARATION_VERSION = 1
 
 const SINGLETON = Symbol.for("metafor.hamiltonian.lifecycle.singleton.v1")
 const MAX_PENDING_OBSERVATIONS = 1024
@@ -52,6 +54,31 @@ const SNAPSHOT_FIELDS = Object.freeze([
   "scopeId",
   "snapshotId",
   "version",
+])
+const NODE_SYSTEM_DECLARATION_FIELDS = Object.freeze([
+  "boundaryTransports",
+  "incarnation",
+  "incarnationStartedAt",
+  "kind",
+  "logicalContourId",
+  "revision",
+  "rootId",
+  "snapshot",
+  "version",
+])
+const NODE_SYSTEM_BOUNDARY_TRANSPORT_FIELDS = Object.freeze([
+  "attributes",
+  "kind",
+  "owner",
+  "phase",
+  "source",
+  "target",
+  "transportId",
+])
+const NODE_SYSTEM_ENTITY_REFERENCE_FIELDS = Object.freeze([
+  "entityId",
+  "incarnation",
+  "logicalContourId",
 ])
 const FRONTIER_FIELDS = Object.freeze(["sequence", "sourceId", "sourceIncarnation"])
 const ENTITY_PHASES = new Set(["born", "changed", "ended"])
@@ -122,6 +149,8 @@ const FORBIDDEN_ATTRIBUTE_KEYS = new Set([
  *   retainedOrder: string[],
  *   snapshotSubscribers: Set<(snapshot: HamiltonianLifecycleSnapshot) => unknown>,
  *   snapshots: Map<string, HamiltonianLifecycleSnapshot>,
+ *   declarationRegistry: HamiltonianNodeSystemDeclarationRegistry,
+ *   declarationSubscribers: Set<(declaration: HamiltonianNodeSystemDeclaration) => unknown>,
  *   unsubscribe: () => unknown,
  * }} HamiltonianLifecycleState
  */
@@ -146,6 +175,89 @@ const FORBIDDEN_ATTRIBUTE_KEYS = new Set([
  *   envelopes: readonly HamiltonianLifecycleEnvelope[],
  * }>} HamiltonianLifecycleSnapshot
  */
+
+/**
+ * @typedef {Readonly<{
+ *   kind: "hamiltonian-node-system-declaration",
+ *   version: 1,
+ *   logicalContourId: string,
+ *   incarnation: string,
+ *   incarnationStartedAt: number,
+ *   revision: number,
+ *   rootId: string,
+ *   snapshot: HamiltonianLifecycleSnapshot,
+ *   boundaryTransports: readonly HamiltonianNodeSystemBoundaryTransport[],
+ * }>} HamiltonianNodeSystemDeclaration
+ */
+
+/**
+ * @typedef {Readonly<{
+ *   logicalContourId: string,
+ *   incarnation: string,
+ *   entityId: string,
+ * }>} HamiltonianNodeSystemEntityReference
+ */
+
+/**
+ * @typedef {Readonly<{
+ *   transportId: string,
+ *   kind: string,
+ *   phase: "opening" | "opened" | "changed" | "closed",
+ *   owner: HamiltonianNodeSystemEntityReference,
+ *   source: HamiltonianNodeSystemEntityReference,
+ *   target: HamiltonianNodeSystemEntityReference,
+ *   attributes: Readonly<Record<string, string | number | boolean | null>>,
+ * }>} HamiltonianNodeSystemBoundaryTransport
+ */
+
+/**
+ * Retains one current declaration per stable logical contour. Incarnations
+ * converge by their monotonic start point; revisions advance only inside the
+ * accepted incarnation. Equal start points are rejected because wall-clock
+ * order alone cannot prove which incarnation supersedes the other.
+ */
+export class HamiltonianNodeSystemDeclarationRegistry {
+  /** @type {Map<string, HamiltonianNodeSystemDeclaration>} */
+  #declarations = new Map()
+
+  /**
+   * @param {unknown} value
+   * @returns {{declaration: HamiltonianNodeSystemDeclaration, previous: HamiltonianNodeSystemDeclaration | null} | null}
+   */
+  accept(value) {
+    if (!isHamiltonianNodeSystemDeclaration(value)) return null
+    const declaration = value
+    const previous = this.#declarations.get(declaration.logicalContourId) ?? null
+    if (previous !== null) {
+      if (declaration.incarnation === previous.incarnation) {
+        if (
+          declaration.incarnationStartedAt !== previous.incarnationStartedAt ||
+          declaration.revision <= previous.revision ||
+          !frontierDominates(declaration.snapshot.frontier, previous.snapshot.frontier)
+        ) return null
+      } else {
+        if (declaration.incarnationStartedAt <= previous.incarnationStartedAt) return null
+      }
+    }
+    const declarations = new Map(this.#declarations)
+    declarations.set(declaration.logicalContourId, declaration)
+    if (!declaration.boundaryTransports.every((transport) =>
+      (transport.source.logicalContourId === declaration.logicalContourId ||
+        transport.target.logicalContourId === declaration.logicalContourId) &&
+      boundaryTransportReferencesCurrentDeclarations(transport, declarations))) return null
+    this.#declarations.set(declaration.logicalContourId, declaration)
+    return {declaration, previous}
+  }
+
+  /** @param {string} logicalContourId */
+  current(logicalContourId) {
+    return this.#declarations.get(logicalContourId) ?? null
+  }
+
+  values() {
+    return this.#declarations.values()
+  }
+}
 
 export class HamiltonianLifecycleSource {
   /** @type {Readonly<{id: string, kind: string, incarnation: string, startedAt: number}>} */
@@ -767,6 +879,160 @@ export function isHamiltonianLifecycleSnapshot(value) {
 }
 
 /**
+ * A contour declaration is the validated replacement boundary above retained
+ * lifecycle snapshots. The snapshot scope is the incarnation and its exact
+ * ownership-closed root; logicalContourId is the stable registry key.
+ *
+ * @param {unknown} value
+ * @returns {value is HamiltonianNodeSystemDeclaration}
+ */
+export function isHamiltonianNodeSystemDeclaration(value) {
+  if (!plainObject(value) || !hasExactFields(value, NODE_SYSTEM_DECLARATION_FIELDS)) return false
+  const record = /** @type {Record<string, unknown>} */ (value)
+  if (
+    record.kind !== HAMILTONIAN_NODE_SYSTEM_DECLARATION_KIND ||
+    record.version !== HAMILTONIAN_NODE_SYSTEM_DECLARATION_VERSION ||
+    !validId(record.logicalContourId, 512) ||
+    !validId(record.incarnation, 256) ||
+    !Number.isSafeInteger(record.incarnationStartedAt) || Number(record.incarnationStartedAt) < 0 ||
+    !Number.isSafeInteger(record.revision) || Number(record.revision) <= 0 ||
+    !validId(record.rootId, 512) ||
+    !isHamiltonianLifecycleSnapshot(record.snapshot) ||
+    !Array.isArray(record.boundaryTransports) ||
+    record.boundaryTransports.length > MAX_SNAPSHOT_ENVELOPES ||
+    !record.boundaryTransports.every(isHamiltonianNodeSystemBoundaryTransport)
+  ) return false
+  const snapshot = /** @type {HamiltonianLifecycleSnapshot} */ (record.snapshot)
+  const boundaryTransportIds = new Set()
+  const boundaryTransportSlots = new Set()
+  for (const transport of /** @type {HamiltonianNodeSystemBoundaryTransport[]} */ (record.boundaryTransports)) {
+    if (boundaryTransportIds.has(transport.transportId)) return false
+    boundaryTransportIds.add(transport.transportId)
+    const slot = JSON.stringify([
+      transport.kind,
+      transport.source.entityId,
+      transport.target.entityId,
+      transport.kind === "data-channel" ? String(transport.attributes.lane ?? "") : "",
+    ])
+    if (boundaryTransportSlots.has(slot)) return false
+    boundaryTransportSlots.add(slot)
+  }
+  return snapshot.revision > 0 &&
+    snapshot.frontier.some((entry) => entry.sourceIncarnation === record.incarnation) &&
+    isHamiltonianLifecycleOwnershipClosed(snapshot, [String(record.rootId)])
+}
+
+/**
+ * @param {object} input
+ * @param {string} input.logicalContourId
+ * @param {string} input.incarnation
+ * @param {number} input.incarnationStartedAt
+ * @param {number} input.revision
+ * @param {string} input.rootId
+ * @param {HamiltonianLifecycleSnapshot} input.snapshot
+ * @param {readonly HamiltonianNodeSystemBoundaryTransport[]} [input.boundaryTransports]
+ * @returns {HamiltonianNodeSystemDeclaration}
+ */
+export function createHamiltonianNodeSystemDeclaration(input) {
+  const boundaryTransports = (input.boundaryTransports ?? []).map(freezeBoundaryTransport)
+  const declaration = {
+    kind: HAMILTONIAN_NODE_SYSTEM_DECLARATION_KIND,
+    version: HAMILTONIAN_NODE_SYSTEM_DECLARATION_VERSION,
+    logicalContourId: input.logicalContourId,
+    incarnation: input.incarnation,
+    incarnationStartedAt: input.incarnationStartedAt,
+    revision: input.revision,
+    rootId: input.rootId,
+    snapshot: input.snapshot,
+    boundaryTransports: Object.freeze(boundaryTransports),
+  }
+  if (!isHamiltonianNodeSystemDeclaration(declaration)) {
+    throw new Error("invalid Hamiltonian node-system declaration")
+  }
+  return /** @type {HamiltonianNodeSystemDeclaration} */ (Object.freeze(declaration))
+}
+
+/**
+ * @param {unknown} value
+ * @returns {value is HamiltonianNodeSystemBoundaryTransport}
+ */
+export function isHamiltonianNodeSystemBoundaryTransport(value) {
+  if (!plainObject(value) || !hasExactFields(value, NODE_SYSTEM_BOUNDARY_TRANSPORT_FIELDS)) return false
+  const record = /** @type {Record<string, unknown>} */ (value)
+  return validId(record.transportId, 512) &&
+    validKind(record.kind) &&
+    typeof record.phase === "string" && TRANSPORT_PHASES.has(record.phase) &&
+    isHamiltonianNodeSystemEntityReference(record.owner) &&
+    isHamiltonianNodeSystemEntityReference(record.source) &&
+    isHamiltonianNodeSystemEntityReference(record.target) &&
+    validAttributes(record.attributes)
+}
+
+/** @param {unknown} value @returns {value is HamiltonianNodeSystemEntityReference} */
+function isHamiltonianNodeSystemEntityReference(value) {
+  if (!plainObject(value) || !hasExactFields(value, NODE_SYSTEM_ENTITY_REFERENCE_FIELDS)) return false
+  const record = /** @type {Record<string, unknown>} */ (value)
+  return validId(record.logicalContourId, 512) &&
+    validId(record.incarnation, 256) &&
+    validId(record.entityId, 512)
+}
+
+/**
+ * A boundary record never imports a foreign ownership subtree. It only becomes
+ * current when both exact endpoint declarations are already current and each
+ * referenced entity exists in its own ownership-closed snapshot.
+ *
+ * @param {HamiltonianNodeSystemBoundaryTransport} transport
+ * @param {ReadonlyMap<string, HamiltonianNodeSystemDeclaration>} declarations
+ */
+function boundaryTransportReferencesCurrentDeclarations(transport, declarations) {
+  const references = [transport.owner, transport.source, transport.target]
+  if (transport.source.logicalContourId === transport.target.logicalContourId) return false
+  if (
+    transport.owner.logicalContourId !== transport.source.logicalContourId &&
+    transport.owner.logicalContourId !== transport.target.logicalContourId
+  ) return false
+  return references.every((reference) => {
+    const declaration = declarations.get(reference.logicalContourId)
+    return declaration?.incarnation === reference.incarnation &&
+      declaration.snapshot.envelopes.some(({observation}) =>
+        observation.type === "entity" && observation.subjectId === reference.entityId)
+  })
+}
+
+/**
+ * @param {readonly HamiltonianLifecycleFrontierEntry[]} next
+ * @param {readonly HamiltonianLifecycleFrontierEntry[]} previous
+ */
+function frontierDominates(next, previous) {
+  const bySource = new Map(next.map((entry) => [
+    `${entry.sourceId}\u0000${entry.sourceIncarnation}`,
+    entry.sequence,
+  ]))
+  return previous.every((entry) =>
+    (bySource.get(`${entry.sourceId}\u0000${entry.sourceIncarnation}`) ?? 0) >= entry.sequence)
+}
+
+/** @param {HamiltonianNodeSystemBoundaryTransport} transport */
+function freezeBoundaryTransport(transport) {
+  return Object.freeze({
+    ...transport,
+    owner: Object.freeze({...transport.owner}),
+    source: Object.freeze({...transport.source}),
+    target: Object.freeze({...transport.target}),
+    attributes: Object.freeze({...transport.attributes}),
+  })
+}
+
+/** @param {string} kind @param {string} identity */
+export function hamiltonianLogicalContourId(kind, identity) {
+  if (!validKind(kind) || !validId(identity, 256)) {
+    throw new Error("invalid Hamiltonian logical contour identity")
+  }
+  return `${kind}:${encodeURIComponent(identity)}`
+}
+
+/**
  * A retained scope may cross a realm boundary only when every retained entity
  * has an explicit owner chain ending at one of the declared roots. Every
  * retained transport owner and endpoint must also exist in the snapshot, and
@@ -1049,6 +1315,20 @@ export function publishHamiltonianLifecycleSnapshot(value) {
 }
 
 /** @param {unknown} value */
+export function publishHamiltonianNodeSystemDeclaration(value) {
+  if (!isHamiltonianNodeSystemDeclaration(value)) return false
+  publishDeclaration(lifecycleState(), value, true)
+  return true
+}
+
+/** @param {unknown} value */
+export function receiveHamiltonianNodeSystemDeclaration(value) {
+  if (!isHamiltonianNodeSystemDeclaration(value)) return false
+  publishDeclaration(lifecycleState(), value, false)
+  return true
+}
+
+/** @param {unknown} value */
 export function receiveHamiltonianLifecycleSnapshot(value) {
   if (!isHamiltonianLifecycleSnapshot(value)) return false
   publishSnapshot(lifecycleState(), value, false)
@@ -1070,6 +1350,14 @@ export function subscribeHamiltonianLifecycleSnapshot(handler) {
   state.snapshotSubscribers.add(handler)
   for (const snapshot of state.snapshots.values()) handler(snapshot)
   return () => state.snapshotSubscribers.delete(handler)
+}
+
+/** @param {(declaration: HamiltonianNodeSystemDeclaration) => unknown} handler */
+export function subscribeHamiltonianNodeSystemDeclaration(handler) {
+  const state = lifecycleState()
+  state.declarationSubscribers.add(handler)
+  for (const declaration of state.declarationRegistry.values()) handler(declaration)
+  return () => state.declarationSubscribers.delete(handler)
 }
 
 /** @returns {HamiltonianLifecycleState} */
@@ -1099,6 +1387,9 @@ function lifecycleState() {
   const retainedOrder = []
   /** @type {Map<string, HamiltonianLifecycleSnapshot>} */
   const snapshots = new Map()
+  const declarationRegistry = new HamiltonianNodeSystemDeclarationRegistry()
+  /** @type {Set<(declaration: HamiltonianNodeSystemDeclaration) => unknown>} */
+  const declarationSubscribers = new Set()
   /** @type {HamiltonianLifecycleState} */
   const state = {
     source,
@@ -1108,11 +1399,14 @@ function lifecycleState() {
     retainedOrder,
     snapshotSubscribers,
     snapshots,
+    declarationRegistry,
+    declarationSubscribers,
     unsubscribe: () => {},
   }
   state.unsubscribe = subscribeHamiltonianEarlyChannel(HAMILTONIAN_LIFECYCLE_CHANNEL, (value) => {
     if (isHamiltonianLifecycleEnvelope(value)) publish(state, value, false)
     else if (isHamiltonianLifecycleSnapshot(value)) publishSnapshot(state, value, false)
+    else if (isHamiltonianNodeSystemDeclaration(value)) publishDeclaration(state, value, false)
   })
   global[SINGLETON] = state
   return state
@@ -1128,6 +1422,20 @@ function publishSnapshot(state, snapshot, broadcast) {
     for (const subscriber of state.snapshotSubscribers) subscriber(snapshot)
   }
   if (broadcast) publishHamiltonianEarlyChannel(HAMILTONIAN_LIFECYCLE_CHANNEL, retained)
+}
+
+/**
+ * @param {HamiltonianLifecycleState} state
+ * @param {HamiltonianNodeSystemDeclaration} declaration
+ * @param {boolean} broadcast
+ */
+function publishDeclaration(state, declaration, broadcast) {
+  const accepted = state.declarationRegistry.accept(declaration)
+  const retained = accepted?.declaration ?? state.declarationRegistry.current(declaration.logicalContourId)
+  if (accepted) {
+    for (const subscriber of state.declarationSubscribers) subscriber(accepted.declaration)
+  }
+  if (broadcast && retained) publishHamiltonianEarlyChannel(HAMILTONIAN_LIFECYCLE_CHANNEL, retained)
 }
 
 /** @param {HamiltonianLifecycleState} state @param {HamiltonianLifecycleEnvelope} envelope @param {boolean} broadcast */

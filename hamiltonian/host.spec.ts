@@ -5,15 +5,23 @@ import {join} from "node:path"
 import {
   HamiltonianLifecycleRetainedJournal,
   HamiltonianLifecycleSource,
+  HamiltonianNodeSystemDeclarationRegistry,
   createHamiltonianLifecycleObservation,
   hamiltonianLifecycleEntityId,
+  hamiltonianLogicalContourId,
+  isHamiltonianLifecycleOwnershipClosed,
+  isHamiltonianNodeSystemDeclaration,
+  type HamiltonianNodeSystemDeclaration,
 } from "./core/lifecycle.js"
 import {hamiltonianBrowserNodeId} from "./core/orchestration.js"
+import {HamiltonianLifecycleProjection} from "./browser/orchestration/lifecycle-projection.ts"
 import {createHamiltonianHost} from "./host.ts"
 import {WeriftPeer, type PeerSignal} from "./peer/werift-peer.ts"
 
 const running: Array<ReturnType<typeof createHamiltonianHost>> = []
 const temporaryDirectories: string[] = []
+const browserRuntimeStartedAt = new Map<string, number>()
+let nextBrowserRuntimeStartedAt = 1
 
 function requireValue<T>(value: T | null | undefined, label: string): T {
   if (value === undefined || value === null) throw new Error(`Missing ${label}`)
@@ -56,11 +64,14 @@ function browserProfileLifecycleSnapshot(
 ) {
   const browserEntityId = hamiltonianBrowserNodeId(profileId)
   const workerEntityId = hamiltonianLifecycleEntityId("service-worker", workerIdentity)
+  const runtimeKey = `${profileId}\u0000${workerRuntimeIncarnation}`
+  const startedAt = browserRuntimeStartedAt.get(runtimeKey) ?? nextBrowserRuntimeStartedAt++
+  browserRuntimeStartedAt.set(runtimeKey, startedAt)
   const source = new HamiltonianLifecycleSource({
     id: workerEntityId,
     kind: "service-worker",
     incarnation: workerRuntimeIncarnation,
-    startedAt: 1,
+    startedAt,
   })
   const journal = new HamiltonianLifecycleRetainedJournal(workerEntityId)
   journal.observe(source.next(createHamiltonianLifecycleObservation({
@@ -1027,6 +1038,184 @@ describe("isolated Hamiltonian host", () => {
     )))
     await received
     socket.close()
+  })
+
+  test("declares the exact identity-confirmed control WebSocket with its browser and server endpoints", async () => {
+    const host = createHamiltonianHost({port: 0, token: "test-token", heartbeatMs: 10_000})
+    running.push(host)
+    const profileId = "declared-wss-profile"
+    const workerIdentity = "declared-wss-worker"
+    const workerRuntimeIncarnation = "declared-wss-runtime"
+    const workerEntityId = hamiltonianLifecycleEntityId("service-worker", workerIdentity)
+    const transportId = "websocket:declared-wss"
+    const controlUrl = new URL("/control", host.server.url)
+    controlUrl.protocol = "ws:"
+    controlUrl.searchParams.set("token", host.token)
+    controlUrl.searchParams.set("device", profileId)
+    controlUrl.searchParams.set("worker", workerEntityId)
+    controlUrl.searchParams.set("transport", transportId)
+
+    let pendingPing: {at: number; seq: number} | null = null
+    const socket = new WebSocket(controlUrl)
+    socket.addEventListener("message", (event) => {
+      const message = JSON.parse(String(event.data)) as {kind?: string; at?: number; seq?: number}
+      if (message.kind === "ping" && typeof message.at === "number" && typeof message.seq === "number") {
+        pendingPing = {at: message.at, seq: message.seq}
+      }
+    })
+    const hello = nextMessage(socket, "hello")
+    await new Promise<void>((resolve, reject) => {
+      socket.addEventListener("open", () => resolve(), {once: true})
+      socket.addEventListener("error", () => reject(new Error("WebSocket open failed")), {once: true})
+    })
+    await hello
+    const browserDeclarationFrame = nextMessage(socket, "node-system-declaration", (message) =>
+      (message.declaration as {logicalContourId?: string})?.logicalContourId ===
+        hamiltonianLogicalContourId("browser-profile", profileId))
+    const serverDeclarationFrame = nextMessage(socket, "node-system-declaration", (message) =>
+      (message.declaration as {boundaryTransports?: Array<{transportId?: string}>})
+        ?.boundaryTransports?.some(({transportId: id}) => id === transportId) === true)
+    socket.send(JSON.stringify(browserIdentityMessage(
+      profileId,
+      workerIdentity,
+      workerRuntimeIncarnation,
+      "declared-wss-resume",
+    )))
+    const browserDeclaration = (await browserDeclarationFrame).declaration as HamiltonianNodeSystemDeclaration
+    const serverDeclaration = (await serverDeclarationFrame).declaration as HamiltonianNodeSystemDeclaration
+    expect(isHamiltonianNodeSystemDeclaration(browserDeclaration)).toBeTrue()
+    expect(isHamiltonianNodeSystemDeclaration(serverDeclaration)).toBeTrue()
+    expect(isHamiltonianLifecycleOwnershipClosed(serverDeclaration.snapshot, [serverDeclaration.rootId])).toBeTrue()
+    const registry = new HamiltonianNodeSystemDeclarationRegistry()
+    expect(registry.accept(browserDeclaration)).not.toBeNull()
+    expect(registry.accept(serverDeclaration)).not.toBeNull()
+    const boundary = requireValue(
+      serverDeclaration.boundaryTransports.find(({transportId: id}) => id === transportId),
+      "declared control WebSocket",
+    )
+    expect(boundary).toMatchObject({
+      phase: "opened",
+      owner: {
+        logicalContourId: browserDeclaration.logicalContourId,
+        incarnation: workerRuntimeIncarnation,
+        entityId: workerEntityId,
+      },
+      source: {entityId: workerEntityId},
+      target: {
+        logicalContourId: hamiltonianLogicalContourId("server", host.identity),
+        incarnation: host.hostEpoch,
+        entityId: hamiltonianLifecycleEntityId("server", host.hostEpoch),
+      },
+      attributes: {heartbeat: "awaiting", observedBy: "server"},
+    })
+
+    const ping = requireValue<{at: number; seq: number}>(pendingPing, "initial heartbeat challenge")
+    const heartbeatDeclarationFrame = nextMessage(socket, "node-system-declaration", (message) => {
+      const declaration = message.declaration as HamiltonianNodeSystemDeclaration | undefined
+      return declaration?.incarnation === host.hostEpoch && declaration.boundaryTransports.some((transport) =>
+        transport.transportId === transportId && transport.attributes.heartbeat === "observed")
+    })
+    socket.send(JSON.stringify({
+      kind: "pong",
+      ...ping,
+      workerIdentity,
+      workerRuntimeIncarnation,
+    }))
+    const heartbeatDeclaration = (await heartbeatDeclarationFrame).declaration as HamiltonianNodeSystemDeclaration
+    expect(heartbeatDeclaration.revision).toBeGreaterThan(serverDeclaration.revision)
+    expect(registry.accept(heartbeatDeclaration)).not.toBeNull()
+    expect(heartbeatDeclaration.boundaryTransports.find(({transportId: id}) => id === transportId)?.attributes)
+      .toMatchObject({heartbeat: "observed", heartbeatSequence: ping.seq})
+    socket.close()
+  })
+
+  test("replaces host A with host B in one retained page projection without reloading the browser profile", async () => {
+    const profileId = "host-restart-profile"
+    const workerIdentity = "host-restart-worker"
+    const workerRuntimeIncarnation = "host-restart-worker-runtime"
+    const workerEntityId = hamiltonianLifecycleEntityId("service-worker", workerIdentity)
+    const identity = "stable-hamiltonian"
+    const connect = async (
+      host: ReturnType<typeof createHamiltonianHost>,
+      transportId: string,
+    ) => {
+      const url = new URL("/control", host.server.url)
+      url.protocol = "ws:"
+      url.searchParams.set("token", host.token)
+      url.searchParams.set("device", profileId)
+      url.searchParams.set("worker", workerEntityId)
+      url.searchParams.set("transport", transportId)
+      const socket = await openSocket(url)
+      await nextMessage(socket, "hello")
+      const browserDeclarationFrame = nextMessage(socket, "node-system-declaration", (message) =>
+        (message.declaration as {logicalContourId?: string})?.logicalContourId ===
+          hamiltonianLogicalContourId("browser-profile", profileId))
+      const serverDeclarationFrame = nextMessage(socket, "node-system-declaration", (message) =>
+        (message.declaration as {boundaryTransports?: Array<{transportId?: string}>})
+          ?.boundaryTransports?.some(({transportId: id}) => id === transportId) === true)
+      socket.send(JSON.stringify(browserIdentityMessage(
+        profileId,
+        workerIdentity,
+        workerRuntimeIncarnation,
+        "host-restart-resume",
+      )))
+      return {
+        socket,
+        browserDeclaration: (await browserDeclarationFrame).declaration as HamiltonianNodeSystemDeclaration,
+        serverDeclaration: (await serverDeclarationFrame).declaration as HamiltonianNodeSystemDeclaration,
+      }
+    }
+
+    const hostA = createHamiltonianHost({port: 0, token: "host-a-token", identity, heartbeatMs: 10_000})
+    running.push(hostA)
+    const transportA = "websocket:host-restart-a"
+    const first = await connect(hostA, transportA)
+    const projection = new HamiltonianLifecycleProjection({
+      origin: hostA.server.url.href,
+      deviceId: profileId,
+      tabId: "host-restart-page",
+      pageIncarnation: "host-restart-page-runtime",
+      observedAt: Date.now(),
+      navigationId: "host-restart-navigation",
+      servedAt: Date.now(),
+      server: {identity, hostEpoch: hostA.hostEpoch, version: "v1"},
+    })
+    const published = []
+    expect(projection.replaceDeclaration(first.browserDeclaration)).toBeTrue()
+    published.push(projection.document())
+    expect(projection.replaceDeclaration(first.serverDeclaration)).toBeTrue()
+    published.push(projection.document())
+    first.socket.close()
+    await hostA.stop()
+    running.splice(running.indexOf(hostA), 1)
+
+    await Bun.sleep(2)
+    const hostB = createHamiltonianHost({port: 0, token: "host-b-token", identity, heartbeatMs: 10_000})
+    running.push(hostB)
+    const transportB = "websocket:host-restart-b"
+    const second = await connect(hostB, transportB)
+    expect(second.browserDeclaration.incarnation).toBe(first.browserDeclaration.incarnation)
+    expect(projection.replaceDeclaration(second.browserDeclaration)).toBeFalse()
+    expect(projection.replaceDeclaration(second.serverDeclaration)).toBeTrue()
+    published.push(projection.document())
+    expect(projection.replaceDeclaration(first.serverDeclaration)).toBeFalse()
+    published.push(projection.document())
+
+    for (const document of published.slice(2)) {
+      const servers = document.nodes.filter(({kind}) => kind === "Bun host Hamiltonian")
+      const wss = document.edges.filter(({label}) => label === "WS" || label === "WSS")
+      expect(servers.map(({id}) => id)).toEqual([hamiltonianLifecycleEntityId("server", hostB.hostEpoch)])
+      expect(document.nodes.some(({id}) => id === hamiltonianLifecycleEntityId("server", hostA.hostEpoch))).toBeFalse()
+      expect(document.nodes.some(({id}) => id.includes(hostA.hostEpoch) && id.startsWith("rtc-peer:"))).toBeFalse()
+      expect(wss, JSON.stringify({nodes: document.nodes.map(({id}) => id), edges: document.edges}))
+        .toHaveLength(1)
+      expect(wss[0]).toMatchObject({
+        id: transportB,
+        source: {nodeId: workerEntityId},
+        target: {nodeId: hamiltonianLifecycleEntityId("server", hostB.hostEpoch)},
+      })
+    }
+    second.socket.close()
   })
 
   test("does not retain a Service Worker or WebSocket for a control socket closed before identity", async () => {

@@ -11,8 +11,16 @@ import type {
   HamiltonianLifecycleFrontierEntry,
   HamiltonianLifecycleGap,
   HamiltonianLifecycleSnapshot,
+  HamiltonianNodeSystemDeclaration,
+  HamiltonianNodeSystemBoundaryTransport,
 } from "../../core/lifecycle.js"
-import {hamiltonianLifecycleTransportSlot} from "../../core/lifecycle.js"
+import {
+  HamiltonianNodeSystemDeclarationRegistry,
+  createHamiltonianLifecycleEnvelope,
+  createHamiltonianLifecycleObservation,
+  hamiltonianLifecycleTransportSlot,
+  hamiltonianLogicalContourId,
+} from "../../core/lifecycle.js"
 import {hamiltonianPageNodeId} from "../../core/orchestration.js"
 
 export {hamiltonianPageNodeId}
@@ -74,7 +82,8 @@ const SERVER_CONTOUR_NODE_ID = "server-contour"
 
 export class HamiltonianLifecycleProjection {
   readonly #context: HamiltonianLifecycleContext
-  readonly #serverId: string
+  readonly #navigationServerId: string
+  readonly #serverLogicalContourId: string
   readonly #pageId: string
   readonly #entities = new Map<string, LifecycleEntity>()
   readonly #transports = new Map<string, LifecycleTransport>()
@@ -93,6 +102,11 @@ export class HamiltonianLifecycleProjection {
   readonly #structuralEvents = new Map<string, {sourceKey: string; sequence: number}>()
   readonly #snapshotEntitiesByScope = new Map<string, Set<string>>()
   readonly #snapshotTransportsByScope = new Map<string, Set<string>>()
+  readonly #declarationRegistry = new HamiltonianNodeSystemDeclarationRegistry()
+  readonly #declarationRoots = new Map<string, string>()
+  readonly #boundaryTransportsByContour = new Map<string, Set<string>>()
+  readonly #supersededDeclarationSources = new Set<string>()
+  #currentServerId: string
   #revision = 0
 
   constructor(
@@ -112,12 +126,17 @@ export class HamiltonianLifecycleProjection {
     this.#terminalIdentityCapacity = Number.isFinite(requestedTerminalCapacity)
       ? Math.max(1, requestedTerminalCapacity)
       : DEFAULT_TERMINAL_IDENTITY_CAPACITY
-    this.#serverId = hamiltonianServerNodeId(context.server.hostEpoch || context.origin)
+    this.#navigationServerId = hamiltonianServerNodeId(context.server.hostEpoch || context.origin)
+    this.#serverLogicalContourId = hamiltonianLogicalContourId(
+      "server",
+      context.server.identity || "hamiltonian",
+    )
+    this.#currentServerId = this.#navigationServerId
     this.#pageId = hamiltonianPageNodeId(context.pageIncarnation)
-    this.#entities.set(this.#serverId, {
-      id: this.#serverId,
+    this.#entities.set(this.#navigationServerId, {
+      id: this.#navigationServerId,
       kind: "server",
-      ownerId: this.#serverId,
+      ownerId: this.#navigationServerId,
       state: "live",
       attributes: {
         identity: context.server.identity || "hamiltonian",
@@ -144,7 +163,7 @@ export class HamiltonianLifecycleProjection {
   }
 
   get serverId(): string {
-    return this.#serverId
+    return this.#currentServerId
   }
 
   get pageId(): string {
@@ -196,13 +215,21 @@ export class HamiltonianLifecycleProjection {
    * covers. Structural subjects missing from that frontier are no longer
    * active; this repairs a close/end event missed during a disconnect without
    * replaying or fabricating the missing event.
-   */
+  */
   replaceSnapshot(snapshot: HamiltonianLifecycleSnapshot): void {
-    const coveredSources = new Set(snapshot.frontier.map((entry) =>
+    const retainedFrontier = snapshot.frontier.filter((entry) =>
+      !this.#supersededDeclarationSources.has(
+        `${entry.sourceId}\u0000${entry.sourceIncarnation}`,
+      ))
+    const retainedEnvelopes = snapshot.envelopes.filter((envelope) =>
+      !this.#supersededDeclarationSources.has(
+        `${envelope.sourceId}\u0000${envelope.sourceIncarnation}`,
+      ))
+    const coveredSources = new Set(retainedFrontier.map((entry) =>
       `${entry.sourceId}\u0000${entry.sourceIncarnation}`))
     const retainedEntities = new Set<string>()
     const retainedTransports = new Set<string>()
-    for (const envelope of snapshot.envelopes) {
+    for (const envelope of retainedEnvelopes) {
       if (envelope.observation.type === "entity") retainedEntities.add(envelope.observation.subjectId)
       if (envelope.observation.type === "transport") retainedTransports.add(envelope.observation.subjectId)
     }
@@ -210,7 +237,7 @@ export class HamiltonianLifecycleProjection {
     let retired = false
     const previousEntities = this.#snapshotEntitiesByScope.get(snapshot.scopeId) ?? new Set<string>()
     const previousTransports = this.#snapshotTransportsByScope.get(snapshot.scopeId) ?? new Set<string>()
-    const retainedLocalPage = snapshot.envelopes.find(({observation}) =>
+    const retainedLocalPage = retainedEnvelopes.find(({observation}) =>
       observation.type === "entity" && observation.subjectId === this.#pageId)
     const localBrowserOwnerId = retainedLocalPage?.observation.ownerId ??
       this.#entities.get(this.#pageId)?.ownerId
@@ -228,7 +255,7 @@ export class HamiltonianLifecycleProjection {
       const entity = this.#entities.get(entityId)
       if (
         retainedEntities.has(entityId) ||
-        entityId === this.#serverId ||
+        entityId === this.#navigationServerId ||
         entityId === this.#pageId ||
         (entity?.kind === "browser-runtime" && entityId === localBrowserOwnerId)
       ) continue
@@ -257,7 +284,7 @@ export class HamiltonianLifecycleProjection {
     }
     for (const entity of this.#entities.values()) {
       if (
-        entity.id === this.#serverId ||
+        entity.id === this.#navigationServerId ||
         entity.id === this.#pageId ||
         entity.kind === "browser-runtime"
       ) continue
@@ -273,7 +300,43 @@ export class HamiltonianLifecycleProjection {
       retired = true
     }
     if (retired) this.#revision += 1
-    for (const envelope of snapshot.envelopes) this.observe(envelope, null)
+    for (const envelope of retainedEnvelopes) this.observe(envelope, null)
+  }
+
+  /**
+   * Applies one validated retained contour as an indivisible structural unit.
+   * A newer incarnation removes the previous root and every transport that
+   * referenced it before any envelope from the successor is materialized.
+   */
+  replaceDeclaration(declaration: HamiltonianNodeSystemDeclaration): boolean {
+    const accepted = this.#declarationRegistry.accept(declaration)
+    if (!accepted) return false
+    if (accepted.previous !== null && accepted.previous.incarnation !== declaration.incarnation) {
+      for (const entry of accepted.previous.snapshot.frontier) {
+        const key = `${entry.sourceId}\u0000${entry.sourceIncarnation}`
+        this.#supersededDeclarationSources.add(key)
+        this.#retiredLifecycleSources.set(key, {
+          sourceId: entry.sourceId,
+          sourceIncarnation: entry.sourceIncarnation,
+        })
+      }
+    }
+    const previousRootId = this.#declarationRoots.get(declaration.logicalContourId) ?? null
+    if (previousRootId !== null && previousRootId !== declaration.rootId) {
+      this.#forgetEntity(previousRootId)
+    }
+    for (const transportId of this.#boundaryTransportsByContour.get(declaration.logicalContourId) ?? []) {
+      this.#forgetTransport(transportId)
+    }
+    this.#boundaryTransportsByContour.delete(declaration.logicalContourId)
+    this.#declarationRoots.set(declaration.logicalContourId, declaration.rootId)
+    this.#terminalEntities.delete(declaration.rootId)
+    this.replaceSnapshot(declaration.snapshot)
+    this.#materializeBoundaryTransports(declaration)
+    if (declaration.logicalContourId === this.#serverLogicalContourId) {
+      this.#currentServerId = declaration.rootId
+    }
+    return true
   }
 
   takeRetiredTransportIds(): string[] {
@@ -289,6 +352,9 @@ export class HamiltonianLifecycleProjection {
   }
 
   observe(envelope: HamiltonianLifecycleEnvelope, gap: HamiltonianLifecycleGap | null): HamiltonianLifecyclePresentation | null {
+    if (this.#supersededDeclarationSources.has(
+      `${envelope.sourceId}\u0000${envelope.sourceIncarnation}`,
+    )) return null
     this.#revision += 1
     if (gap !== null) {
       this.#gaps.set(`${gap.sourceId}\u0000${gap.sourceIncarnation}`, gap)
@@ -391,7 +457,7 @@ export class HamiltonianLifecycleProjection {
     const layoutIds = stableEntityLayoutIds(
       visibleEntities,
       visibleEntityIds,
-      this.#serverId,
+      this.#currentServerId,
       this.#pageId,
       this.#context.tabId,
     )
@@ -408,7 +474,7 @@ export class HamiltonianLifecycleProjection {
               attributes: {...entity.attributes, state: "error", heartbeat: "failed"},
             }
           : entity
-        const parentId = visualParentId(presentedEntity, visibleEntityIds, this.#serverId)
+        const parentId = visualParentId(presentedEntity, visibleEntityIds, this.#currentServerId)
         return {
           id: presentedEntity.id,
           layoutId: requiredLayoutId(layoutIds, presentedEntity.id),
@@ -737,7 +803,9 @@ export class HamiltonianLifecycleProjection {
    * not enough: that previously leaked orphan RTC peers after a host restart.
    */
   #visibleEntityIds(): Set<string> {
-    const visible = new Set([this.#serverId, this.#pageId])
+    const visible = new Set([this.#pageId])
+    for (const rootId of this.#declarationRoots.values()) visible.add(rootId)
+    if (this.#entities.has(this.#currentServerId)) visible.add(this.#currentServerId)
     for (const entity of this.#entities.values()) {
       if (
         entity.ownerId === entity.id &&
@@ -771,6 +839,47 @@ export class HamiltonianLifecycleProjection {
     }
     return visible
   }
+
+  #materializeBoundaryTransports(declaration: HamiltonianNodeSystemDeclaration): void {
+    if (declaration.boundaryTransports.length === 0) return
+    const retained = new Set<string>()
+    for (const [index, transport] of declaration.boundaryTransports.entries()) {
+      const envelope = boundaryTransportEnvelope(declaration, transport, index)
+      this.#observeTransport(envelope)
+      retained.add(transport.transportId)
+    }
+    this.#boundaryTransportsByContour.set(declaration.logicalContourId, retained)
+  }
+}
+
+function boundaryTransportEnvelope(
+  declaration: HamiltonianNodeSystemDeclaration,
+  transport: HamiltonianNodeSystemBoundaryTransport,
+  index: number,
+): HamiltonianLifecycleEnvelope {
+  const sequence = declaration.snapshot.revision + index + 1
+  const root = declaration.snapshot.envelopes.find(({observation}) =>
+    observation.type === "entity" && observation.subjectId === declaration.rootId)?.observation
+  if (!root) throw new Error("Hamiltonian declaration root is unavailable")
+  return createHamiltonianLifecycleEnvelope({
+    sourceId: declaration.rootId,
+    sourceKind: root.subjectKind,
+    sourceIncarnation: declaration.incarnation,
+    sourceStartedAt: declaration.incarnationStartedAt,
+    sequence,
+    at: declaration.snapshot.at,
+    observation: createHamiltonianLifecycleObservation({
+      type: "transport",
+      phase: transport.phase,
+      subjectId: transport.transportId,
+      subjectKind: transport.kind,
+      ownerId: transport.owner.entityId,
+      sourceEntityId: transport.source.entityId,
+      targetEntityId: transport.target.entityId,
+      transportId: transport.transportId,
+      attributes: transport.attributes,
+    }),
+  })
 }
 
 function structuralEventKey(type: "entity" | "transport", subjectId: string): string {

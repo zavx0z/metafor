@@ -3,6 +3,8 @@ import {
   HamiltonianLifecycleRetainedJournal,
   HamiltonianLifecycleSource,
   createHamiltonianLifecycleObservation,
+  createHamiltonianNodeSystemDeclaration,
+  hamiltonianLogicalContourId,
 } from "../../core/lifecycle.js"
 import {
   HamiltonianLifecycleProjection,
@@ -12,7 +14,7 @@ import {
   nodeSystemStructureKey,
   refreshPositionedNodeSystem,
 } from "./lifecycle-projection.ts"
-import type {PositionedNodeSystem} from "nodes/types"
+import type {NodeSystemDocument, PositionedNodeSystem} from "nodes/types"
 import {MetaForNodeSystemLayouter} from "nodes/layout-engine"
 
 const context = {
@@ -1182,6 +1184,222 @@ describe("Hamiltonian lifecycle projection", () => {
     expect(projection.retainedTerminalIdentityCount).toBe(4)
     expect(projection.retainedStructuralEventCount).toBe(0)
     expect(projection.takeRetiredLifecycleSources()).toHaveLength(4)
+  })
+
+  test("atomically replaces a frozen server declaration when the host incarnation changes", () => {
+    const projection = new HamiltonianLifecycleProjection(context)
+    const logicalContourId = hamiltonianLogicalContourId("server", "hamiltonian-lab")
+    const otherLogicalContourId = hamiltonianLogicalContourId("server", "other-lab")
+    const serverDeclaration = (
+      epoch: string,
+      startedAt: number,
+      identity = "hamiltonian-lab",
+      contourId = logicalContourId,
+    ) => {
+      const serverId = `server:${epoch}`
+      const processId = `peer-process:${epoch}`
+      const rtcId = `rtc-peer:${epoch}%3Aserver`
+      const source = new HamiltonianLifecycleSource({
+        id: serverId,
+        kind: "server",
+        incarnation: epoch,
+        startedAt,
+      })
+      const journal = new HamiltonianLifecycleRetainedJournal(serverId)
+      for (const observation of [
+        createHamiltonianLifecycleObservation({
+          type: "entity", phase: "born", subjectId: serverId, subjectKind: "server",
+          ownerId: serverId, attributes: {identity, epoch, state: "live"},
+        }),
+        createHamiltonianLifecycleObservation({
+          type: "entity", phase: "born", subjectId: processId, subjectKind: "peer-process",
+          ownerId: serverId, attributes: {incarnation: epoch, state: "active"},
+        }),
+        createHamiltonianLifecycleObservation({
+          type: "entity", phase: "born", subjectId: rtcId, subjectKind: "rtc-peer",
+          ownerId: processId, attributes: {endpoint: "server", sessionEpoch: epoch, state: "connected"},
+        }),
+      ]) journal.observe(source.next(observation))
+      return createHamiltonianNodeSystemDeclaration({
+        logicalContourId: contourId,
+        incarnation: epoch,
+        incarnationStartedAt: startedAt,
+        revision: journal.snapshot().revision,
+        rootId: serverId,
+        snapshot: journal.snapshot(),
+      })
+    }
+
+    const serverA = serverDeclaration("host-a", 10)
+    const serverB = serverDeclaration("host-b", 20)
+    const other = serverDeclaration("other-a", 15, "other-lab", otherLogicalContourId)
+    const published = []
+    expect(projection.replaceDeclaration(serverA)).toBeTrue()
+    published.push(projection.document())
+    expect(projection.replaceDeclaration(other)).toBeTrue()
+    published.push(projection.document())
+    expect(projection.replaceDeclaration(serverB)).toBeTrue()
+    published.push(projection.document())
+    expect(projection.replaceDeclaration(serverA)).toBeFalse()
+    published.push(projection.document())
+
+    const document = projection.document()
+    expect(document.nodes.filter(({kind}) => kind === "Bun host Hamiltonian").map(({id}) => id))
+      .toEqual(["server:host-b", "server:other-a"])
+    expect(document.nodes.some(({id}) => id === "peer-process:host-a")).toBeFalse()
+    expect(document.nodes.some(({id}) => id === "rtc-peer:host-a%3Aserver")).toBeFalse()
+    expect(document.nodes.find(({id}) => id === "peer-process:host-b")?.parentId)
+      .toBe("server-contour")
+    expect(document.nodes.find(({id}) => id === "rtc-peer:host-b%3Aserver")?.parentId)
+      .toBe("peer-process:host-b")
+    expect(document.nodes.find(({id}) => id === "rtc-peer:host-b%3Aserver")?.parentId)
+      .not.toBeUndefined()
+    expect(document.nodes.some(({id}) => id === "server:other-a")).toBeTrue()
+    for (const [index, current] of published.entries()) {
+      expect(current.nodes.some(({id}) => id === "rtc-peer:host-b%3Aserver" && !current.nodes.find(({id}) => id === "peer-process:host-b")))
+        .toBeFalse()
+      if (index >= 2) {
+        expect(current.nodes.some(({id}) => id === "server:host-a")).toBeFalse()
+        expect(current.nodes.some(({id}) => id === "peer-process:host-a")).toBeFalse()
+      }
+    }
+  })
+
+  test("keeps the exact WSS on the accepted server across both stale-live permutations", () => {
+    const profileLogicalId = hamiltonianLogicalContourId("browser-profile", "profile-a")
+    const serverLogicalId = hamiltonianLogicalContourId("server", "hamiltonian-lab")
+    const browserId = "browser:profile-a"
+    const workerId = "service-worker:worker-a"
+    const browserSource = new HamiltonianLifecycleSource({
+      id: workerId,
+      kind: "service-worker",
+      incarnation: "worker-runtime-a",
+      startedAt: 5,
+    })
+    const browserJournal = new HamiltonianLifecycleRetainedJournal(workerId)
+    for (const observation of [
+      createHamiltonianLifecycleObservation({
+        type: "entity", phase: "born", subjectId: browserId, subjectKind: "browser-runtime",
+        ownerId: browserId, attributes: {profileId: "profile-a", runtime: "Chrome"},
+      }),
+      createHamiltonianLifecycleObservation({
+        type: "entity", phase: "born", subjectId: workerId, subjectKind: "service-worker",
+        ownerId: browserId, attributes: {runtimeIncarnation: "worker-runtime-a"},
+      }),
+    ]) browserJournal.observe(browserSource.next(observation))
+    const browserSnapshot = browserJournal.snapshot()
+    const browserDeclaration = createHamiltonianNodeSystemDeclaration({
+      logicalContourId: profileLogicalId,
+      incarnation: "worker-runtime-a",
+      incarnationStartedAt: 5,
+      revision: browserSnapshot.revision,
+      rootId: browserId,
+      snapshot: browserSnapshot,
+    })
+    const makeServer = (epoch: string, startedAt: number) => {
+      const serverId = `server:${epoch}`
+      const processId = `peer-process:${epoch}`
+      const rtcId = `rtc-peer:${epoch}%3Aserver`
+      const transportId = `websocket:${epoch}`
+      const source = new HamiltonianLifecycleSource({
+        id: serverId,
+        kind: "server",
+        incarnation: epoch,
+        startedAt,
+      })
+      const journal = new HamiltonianLifecycleRetainedJournal(serverId)
+      for (const observation of [
+        createHamiltonianLifecycleObservation({
+          type: "entity", phase: "born", subjectId: serverId, subjectKind: "server",
+          ownerId: serverId, attributes: {identity: "hamiltonian-lab", epoch, state: "live"},
+        }),
+        createHamiltonianLifecycleObservation({
+          type: "entity", phase: "born", subjectId: processId, subjectKind: "peer-process",
+          ownerId: serverId, attributes: {incarnation: epoch, state: "active"},
+        }),
+        createHamiltonianLifecycleObservation({
+          type: "entity", phase: "born", subjectId: rtcId, subjectKind: "rtc-peer",
+          ownerId: processId, attributes: {endpoint: "server", sessionEpoch: epoch, state: "connected"},
+        }),
+      ]) journal.observe(source.next(observation))
+      const snapshot = journal.snapshot()
+      return {
+        declaration: createHamiltonianNodeSystemDeclaration({
+          logicalContourId: serverLogicalId,
+          incarnation: epoch,
+          incarnationStartedAt: startedAt,
+          revision: snapshot.revision,
+          rootId: serverId,
+          snapshot,
+          boundaryTransports: [{
+            transportId,
+            kind: "websocket",
+            phase: "opened",
+            owner: {logicalContourId: profileLogicalId, incarnation: "worker-runtime-a", entityId: workerId},
+            source: {logicalContourId: profileLogicalId, incarnation: "worker-runtime-a", entityId: workerId},
+            target: {logicalContourId: serverLogicalId, incarnation: epoch, entityId: serverId},
+            attributes: {connectionId: `connection-${epoch}`, heartbeat: `observed-${epoch}`},
+          }],
+        }),
+        staleLive: source.next(createHamiltonianLifecycleObservation({
+          type: "entity", phase: "changed", subjectId: rtcId, subjectKind: "rtc-peer",
+          ownerId: processId, attributes: {endpoint: "server", sessionEpoch: epoch, state: "connected"},
+        })),
+        serverId,
+        transportId,
+      }
+    }
+
+    for (const staleLiveBeforeSuccessor of [true, false]) {
+      const projection = new HamiltonianLifecycleProjection(context)
+      const serverA = makeServer("host-a", 10)
+      const serverB = makeServer("host-b", 20)
+      const published: NodeSystemDocument[] = []
+      expect(projection.replaceDeclaration(browserDeclaration)).toBeTrue()
+      published.push(projection.document())
+      expect(projection.replaceDeclaration(serverA.declaration)).toBeTrue()
+      published.push(projection.document())
+      if (staleLiveBeforeSuccessor) {
+        projection.replaceSnapshot(serverA.declaration.snapshot)
+        published.push(projection.document())
+        projection.observe(serverA.staleLive, null)
+        published.push(projection.document())
+      }
+      expect(projection.replaceDeclaration(serverB.declaration)).toBeTrue()
+      published.push(projection.document())
+      if (!staleLiveBeforeSuccessor) {
+        const structuralEvents = projection.retainedStructuralEventCount
+        projection.replaceSnapshot(serverA.declaration.snapshot)
+        expect(projection.retainedStructuralEventCount).toBe(structuralEvents)
+        published.push(projection.document())
+        projection.observe(serverA.staleLive, null)
+        expect(projection.retainedStructuralEventCount).toBe(structuralEvents)
+        published.push(projection.document())
+      }
+
+      const successorIndex = staleLiveBeforeSuccessor ? 4 : 2
+      for (const [index, document] of published.entries()) {
+        const websocketEdges = document.edges.filter(({label}) => label === "WS" || label === "WSS")
+        const orphanRtc = document.nodes.some(({id, parentId}) =>
+          id.startsWith("rtc-peer:") &&
+          (parentId === undefined || !document.nodes.some(({id: ownerId}) => ownerId === parentId)))
+        expect(orphanRtc).toBeFalse()
+        if (index < successorIndex) continue
+        expect(document.nodes.some(({id}) => id === serverA.serverId)).toBeFalse()
+        expect(document.nodes.some(({id}) => id === "peer-process:host-a")).toBeFalse()
+        expect(document.nodes.some(({id}) => id === "rtc-peer:host-a%3Aserver")).toBeFalse()
+        expect(websocketEdges).toHaveLength(1)
+        expect(websocketEdges[0]).toMatchObject({
+          id: serverB.transportId,
+          source: {nodeId: workerId},
+          target: {nodeId: serverB.serverId},
+        })
+        expect(document.nodes.some(({id}) => id === workerId)).toBeTrue()
+        expect(document.nodes.some(({id}) => id === serverB.serverId)).toBeTrue()
+        expect(document.nodes.find(({id}) => id === "rtc-peer:host-b%3Aserver")?.parentId)
+          .toBe("peer-process:host-b")
+      }
+    }
   })
 
   test("does not show a child process retained from another server incarnation", () => {

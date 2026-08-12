@@ -2,21 +2,28 @@
 import "../core/monitor.js"
 import {
   HamiltonianLifecycleRetainedJournal,
+  HamiltonianNodeSystemDeclarationRegistry,
   createHamiltonianLifecycleObservation,
+  createHamiltonianNodeSystemDeclaration,
   emitHamiltonianLifecycle,
   hamiltonianLifecycleEntityId,
   hamiltonianLifecycleMessageId,
   hamiltonianLifecycleTransportId,
+  hamiltonianLogicalContourId,
   isHamiltonianLifecycleEnvelope,
   isHamiltonianLifecycleEnvelopeFromSource,
   isHamiltonianLifecycleSnapshot,
   isHamiltonianLifecycleSnapshotFromSource,
+  isHamiltonianNodeSystemDeclaration,
   projectHamiltonianLifecycleOwnershipScope,
   publishHamiltonianLifecycleEnvelope,
   publishHamiltonianLifecycleSnapshot,
+  publishHamiltonianNodeSystemDeclaration,
+  receiveHamiltonianNodeSystemDeclaration,
   subscribeHamiltonianLifecycle,
   type HamiltonianLifecycleEnvelope,
   type HamiltonianLifecycleSnapshot,
+  type HamiltonianNodeSystemDeclaration,
 } from "../core/lifecycle.js"
 import {hamiltonianRealmSnapshot} from "../core/monitor.js"
 import {hamiltonianBrowserNodeId, hamiltonianBrowserRuntimeName} from "../core/orchestration.js"
@@ -103,7 +110,9 @@ interface HostIdentity {
 interface SocketLifecycle {
   socketIncarnation: string
   transportId: string
-  serverEntityId: string
+  serverEntityId: string | null
+  identitySent: boolean
+  transportDeclared: boolean
 }
 
 interface WindowChannel {
@@ -158,6 +167,7 @@ interface HostControlMessage extends MessageRecord {
   envelope?: HamiltonianLifecycleEnvelope
   host?: HostIdentity
   snapshot?: HamiltonianLifecycleSnapshot
+  declaration?: HamiltonianNodeSystemDeclaration
   topology?: TopologySnapshot
   at?: number
   seq?: number
@@ -257,6 +267,7 @@ let workerEntityId = ""
 let workerLifecycleJournal: LifecycleJournal | null = null
 const socketSlot = new ExclusiveResourceSlot<WebSocket>()
 const socketLifecycle = new WeakMap<WebSocket, SocketLifecycle>()
+const nodeSystemDeclarations = new HamiltonianNodeSystemDeclarationRegistry()
 const pendingHostRetirements = new Map<string, HamiltonianLifecycleEnvelope>()
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null
 const reconnectPolicy = new ReconnectPolicy()
@@ -269,6 +280,7 @@ let currentVersionState: VersionState | null = null
 let currentConnectionId: string | null = null
 let currentResumeNonce: string | null = null
 let currentServerEntityId: string | null = null
+let currentServerLogicalContourId: string | null = null
 let currentHostLifecycleJournal: LifecycleJournal | null = null
 let currentPushReady = false
 const pendingPushRegistrations = new Map<string, PendingPushRegistration>()
@@ -342,6 +354,114 @@ function initializeWorkerIdentity(identity: string, browserEntityId: string, pro
       push: currentPushReady ? "ready" : "unavailable",
     },
   }))
+  return true
+}
+
+function retainBrowserNodeSystemDeclaration(): HamiltonianNodeSystemDeclaration | null {
+  const snapshot = workerLifecycleJournal?.snapshot()
+  const browserSnapshot = currentBrowserEntityId && snapshot
+    ? projectHamiltonianLifecycleOwnershipScope(snapshot, [currentBrowserEntityId])
+    : null
+  if (!browserSnapshot || !currentDeviceId || !currentBrowserEntityId) return null
+  const declaration = createHamiltonianNodeSystemDeclaration({
+    logicalContourId: hamiltonianLogicalContourId("browser-profile", currentDeviceId),
+    incarnation: workerRuntimeIncarnation,
+    incarnationStartedAt: workerRuntime.startedAt,
+    revision: browserSnapshot.revision,
+    rootId: currentBrowserEntityId,
+    snapshot: browserSnapshot,
+  })
+  const accepted = nodeSystemDeclarations.accept(declaration)
+  const retained = accepted?.declaration ?? nodeSystemDeclarations.current(declaration.logicalContourId)
+  if (
+    !retained ||
+    retained.incarnation !== declaration.incarnation ||
+    retained.revision !== declaration.revision ||
+    retained.snapshot.snapshotId !== declaration.snapshot.snapshotId
+  ) return null
+  publishHamiltonianNodeSystemDeclaration(retained)
+  return retained
+}
+
+function browserDeclarationIdentity(
+  declaration: HamiltonianNodeSystemDeclaration,
+): {profileId: string; workerId: string} | null {
+  const entityEnvelopes = declaration.snapshot.envelopes
+    .filter(({observation}) => observation.type === "entity")
+  const rootEnvelope = entityEnvelopes.find(({observation}) =>
+    observation.subjectId === declaration.rootId)
+  const workerEnvelope = entityEnvelopes.find(({observation}) =>
+    observation.subjectKind === "service-worker")
+  const root = rootEnvelope?.observation
+  const worker = workerEnvelope?.observation
+  const profileId = root?.attributes.profileId
+  const workerIdentity = worker?.attributes.identity
+  if (
+    root?.subjectKind !== "browser-runtime" ||
+    typeof profileId !== "string" ||
+    typeof workerIdentity !== "string" ||
+    declaration.logicalContourId !== hamiltonianLogicalContourId("browser-profile", profileId) ||
+    worker?.ownerId !== declaration.rootId ||
+    worker.subjectId !== hamiltonianLifecycleEntityId("service-worker", workerIdentity) ||
+    worker.attributes.runtimeIncarnation !== declaration.incarnation ||
+    workerEnvelope?.sourceIncarnation !== declaration.incarnation ||
+    workerEnvelope.sourceStartedAt !== declaration.incarnationStartedAt
+  ) return null
+  return {profileId, workerId: worker.subjectId}
+}
+
+function serverDeclarationIdentity(declaration: HamiltonianNodeSystemDeclaration): HostIdentity | null {
+  const root = declaration.snapshot.envelopes
+    .map(({observation}) => observation)
+    .find((observation) => observation.type === "entity" && observation.subjectId === declaration.rootId)
+  const identity = root?.attributes.identity
+  const hostEpoch = root?.attributes.hostEpoch
+  const version = root?.attributes.version
+  if (
+    root?.subjectKind !== "server" ||
+    typeof identity !== "string" ||
+    typeof hostEpoch !== "string" ||
+    typeof version !== "string" ||
+    hostEpoch !== declaration.incarnation ||
+    declaration.rootId !== hamiltonianLifecycleEntityId("server", hostEpoch) ||
+    declaration.logicalContourId !== hamiltonianLogicalContourId("server", identity)
+  ) return null
+  return {identity, hostEpoch, version}
+}
+
+function acceptHostNodeSystemDeclaration(
+  declaration: HamiltonianNodeSystemDeclaration,
+  socket: WebSocket,
+): boolean {
+  const serverIdentity = serverDeclarationIdentity(declaration)
+  const browserIdentity = serverIdentity === null ? browserDeclarationIdentity(declaration) : null
+  if (serverIdentity === null && browserIdentity === null) return false
+  if (
+    serverIdentity !== null &&
+    currentServerLogicalContourId !== null &&
+    currentServerLogicalContourId !== declaration.logicalContourId
+  ) return false
+  const accepted = nodeSystemDeclarations.accept(declaration)
+  if (!accepted) {
+    const current = nodeSystemDeclarations.current(declaration.logicalContourId)
+    return current?.incarnation === declaration.incarnation &&
+      current.revision === declaration.revision &&
+      current.snapshot.snapshotId === declaration.snapshot.snapshotId
+  }
+  if (!receiveHamiltonianNodeSystemDeclaration(accepted.declaration)) return false
+  tellAllNodeSystemDeclaration(accepted.declaration)
+  if (serverIdentity === null) return true
+
+  currentServerLogicalContourId = accepted.declaration.logicalContourId
+  if (currentServerEntityId !== accepted.declaration.rootId) {
+    currentServerEntityId = accepted.declaration.rootId
+    currentHostLifecycleJournal = new HamiltonianLifecycleRetainedJournal(currentServerEntityId)
+  }
+  currentHost = serverIdentity
+  const lifecycle = socketLifecycle.get(socket)
+  if (!lifecycle) return false
+  lifecycle.serverEntityId = currentServerEntityId
+  void persistControlBootstrap()
   return true
 }
 
@@ -533,6 +653,24 @@ function tellAllLifecycleSnapshot(snapshot: HamiltonianLifecycleSnapshot): void 
   }
 }
 
+function tellAllNodeSystemDeclaration(declaration: HamiltonianNodeSystemDeclaration): void {
+  for (const window of windows.values()) {
+    try {
+      window.client.postMessage({kind: "node-system-declaration", declaration})
+    } catch {
+      windows.deleteIfCurrent(window.tabId, window)
+    }
+  }
+}
+
+function tellCurrentNodeSystemDeclarations(client: HamiltonianWorkerClient): void {
+  const declarations = [...nodeSystemDeclarations.values()].sort((left, right) =>
+    Number(serverDeclarationIdentity(left) !== null) - Number(serverDeclarationIdentity(right) !== null))
+  for (const declaration of declarations) {
+    client.postMessage({kind: "node-system-declaration", declaration})
+  }
+}
+
 function tellAllLifecycleEnvelope(envelope: HamiltonianLifecycleEnvelope): void {
   for (const window of windows.values()) {
     try {
@@ -658,11 +796,9 @@ function sendSocket(message: MessageRecord): boolean {
 }
 
 function sendWorkerIdentity(): boolean {
-  const lifecycleSnapshot = workerLifecycleJournal?.snapshot()
-  const browserLifecycleSnapshot = currentBrowserEntityId && lifecycleSnapshot
-    ? projectHamiltonianLifecycleOwnershipScope(lifecycleSnapshot, [currentBrowserEntityId])
-    : null
-  if (!workerIdentity || !currentResumeNonce || !browserLifecycleSnapshot) return false
+  const lifecycleDeclaration = retainBrowserNodeSystemDeclaration()
+  const browserLifecycleSnapshot = lifecycleDeclaration?.snapshot ?? null
+  if (!workerIdentity || !currentResumeNonce || !browserLifecycleSnapshot || !lifecycleDeclaration) return false
   const wake = pendingPushWake
   return sendSocket({
     kind: "identity",
@@ -671,6 +807,7 @@ function sendWorkerIdentity(): boolean {
     workerCodeVersion,
     resumeNonce: currentResumeNonce,
     lifecycleSnapshot: browserLifecycleSnapshot,
+    lifecycleDeclaration,
     ...(wake === null ? {} : {wakeId: wake.wakeId, wakeProof: wake.wakeProof}),
   })
 }
@@ -742,7 +879,10 @@ async function sendWindowSnapshot(): Promise<void> {
   const browserSnapshot = currentBrowserEntityId && snapshot
     ? projectHamiltonianLifecycleOwnershipScope(snapshot, [currentBrowserEntityId])
     : null
-  if (browserSnapshot) sendSocket({kind: "browser-lifecycle-snapshot", snapshot: browserSnapshot})
+  const declaration = retainBrowserNodeSystemDeclaration()
+  if (browserSnapshot && declaration?.snapshot.snapshotId === browserSnapshot.snapshotId) {
+    sendSocket({kind: "browser-lifecycle-snapshot", snapshot: browserSnapshot, declaration})
+  }
 }
 
 function reconnectDelay(): number {
@@ -768,51 +908,28 @@ function ensureSocket(): void {
   const url = new URL(`${protocol}//${location.host}/control`)
   const socketIncarnation = crypto.randomUUID()
   const transportId = hamiltonianLifecycleTransportId("websocket", socketIncarnation)
-  const serverEntityId = currentServerEntityId
   url.searchParams.set("token", currentToken)
   url.searchParams.set("device", currentDeviceId)
   url.searchParams.set("transport", transportId)
   url.searchParams.set("worker", workerEntityId)
   const openedSocket = new WebSocket(url)
-  socketLifecycle.set(openedSocket, {socketIncarnation, transportId, serverEntityId})
+  socketLifecycle.set(openedSocket, {
+    socketIncarnation,
+    transportId,
+    serverEntityId: null,
+    identitySent: false,
+    transportDeclared: false,
+  })
   if (!socketSlot.attach(openedSocket)) {
     openedSocket.close(1000, "another control socket is current")
     return
   }
-  emitHamiltonianLifecycle(createHamiltonianLifecycleObservation({
-    type: "transport",
-    phase: "opening",
-    subjectId: transportId,
-    subjectKind: "websocket",
-    ownerId: workerEntityId,
-    sourceEntityId: workerEntityId,
-    targetEntityId: serverEntityId,
-    transportId,
-    attributes: {socketIncarnation, protocol: protocol === "wss:" ? "wss" : "ws"},
-  }))
   tellAll(workerState())
 
   openedSocket.addEventListener("open", () => {
     if (!socketSlot.isCurrent(openedSocket)) return
     reconnectPolicy.reset()
-    emitHamiltonianLifecycle(createHamiltonianLifecycleObservation({
-      type: "transport",
-      phase: "opened",
-      subjectId: transportId,
-      subjectKind: "websocket",
-      ownerId: workerEntityId,
-      sourceEntityId: workerEntityId,
-      targetEntityId: serverEntityId,
-      transportId,
-      attributes: {socketIncarnation, protocol: protocol === "wss:" ? "wss" : "ws"},
-    }))
-    sendWorkerIdentity()
-    flushPushRegistrations()
-    flushHostRetirements()
-    observeWorkerHeartbeat("active", "awaiting")
-    emit("Service Worker control socket connected")
     tellAll(workerState())
-    void sendWindowSnapshot()
   })
   openedSocket.addEventListener("message", (event) => {
     if (!socketSlot.isCurrent(openedSocket)) return
@@ -825,6 +942,37 @@ function ensureSocket(): void {
     }
     const lifecycle = socketLifecycle.get(openedSocket)
     if (!lifecycle) return
+    if (message.kind === "node-system-declaration") {
+      const declaration = message.declaration
+      const serverIdentity = isHamiltonianNodeSystemDeclaration(declaration)
+        ? serverDeclarationIdentity(declaration)
+        : null
+      if (
+        !isHamiltonianNodeSystemDeclaration(declaration) ||
+        !acceptHostNodeSystemDeclaration(declaration, openedSocket)
+      ) {
+        openedSocket.close(1008, "invalid host node-system declaration")
+        return
+      }
+      if (serverIdentity !== null && !lifecycle.identitySent) {
+        lifecycle.identitySent = true
+        if (!sendWorkerIdentity()) {
+          openedSocket.close(1008, "browser node-system declaration is unavailable")
+          return
+        }
+        flushPushRegistrations()
+        flushHostRetirements()
+        observeWorkerHeartbeat("active", "awaiting")
+        emit("Service Worker control socket connected")
+        tellAll(workerState())
+        void sendWindowSnapshot()
+      }
+      if (serverIdentity !== null && declaration.boundaryTransports.some(({transportId: declaredId}) =>
+        declaredId === lifecycle.transportId)) {
+        lifecycle.transportDeclared = true
+      }
+      return
+    }
     const serverEntityId = lifecycle.serverEntityId
     if (message.kind === "lifecycle-snapshot") {
       const snapshot = message.snapshot
@@ -968,23 +1116,21 @@ function ensureSocket(): void {
         openedSocket.close(1008, "invalid host identity")
         return
       }
+      const declaredHost = currentServerLogicalContourId === null
+        ? null
+        : nodeSystemDeclarations.current(currentServerLogicalContourId)
+      const declaredIdentity = declaredHost === null ? null : serverDeclarationIdentity(declaredHost)
+      if (
+        declaredIdentity === null ||
+        declaredIdentity.identity !== message.host.identity ||
+        declaredIdentity.hostEpoch !== message.host.hostEpoch ||
+        declaredIdentity.version !== message.host.version
+      ) {
+        openedSocket.close(1008, "host identity does not match its node-system declaration")
+        return
+      }
       currentConnectionId = message.connectionId ?? null
       currentHost = message.host
-      emitHamiltonianLifecycle(createHamiltonianLifecycleObservation({
-        type: "transport",
-        phase: "changed",
-        subjectId: transportId,
-        subjectKind: "websocket",
-        ownerId: workerEntityId,
-        sourceEntityId: workerEntityId,
-        targetEntityId: serverEntityId,
-        transportId,
-        attributes: {
-          socketIncarnation,
-          protocol: protocol === "wss:" ? "wss" : "ws",
-          connectionId: currentConnectionId ?? "unknown",
-        },
-      }))
       tellAll(workerState())
       void prepareVersion(message.host.version)
       return
@@ -1012,7 +1158,7 @@ function ensureSocket(): void {
     if (!socketSlot.clearIfCurrent(openedSocket)) return
     const lifecycle = socketLifecycle.get(openedSocket)
     const serverEntityId = lifecycle?.serverEntityId ?? null
-    if (serverEntityId) {
+    if (serverEntityId && lifecycle?.transportDeclared) {
       emitHamiltonianLifecycle(createHamiltonianLifecycleObservation({
         type: "transport",
         phase: "closed",
@@ -1049,7 +1195,7 @@ function ensureSocket(): void {
     if (socketSlot.isCurrent(openedSocket)) {
       emit("control socket error", "error")
       const serverEntityId = socketLifecycle.get(openedSocket)?.serverEntityId ?? null
-      if (serverEntityId) {
+      if (serverEntityId && socketLifecycle.get(openedSocket)?.transportDeclared) {
         emitHamiltonianLifecycle(createHamiltonianLifecycleObservation({
           type: "transport",
           phase: "changed",
@@ -1149,12 +1295,16 @@ async function connectWindow(message: ConnectWindowMessage, client: HamiltonianW
   ) {
     return
   }
+  const declaredServerEntityId = currentServerLogicalContourId === null
+    ? null
+    : nodeSystemDeclarations.current(currentServerLogicalContourId)?.rootId ?? null
+  const acceptedServerEntityId = declaredServerEntityId ?? nextServerEntityId
   const controlIdentityChanged =
     (currentDeviceId !== null && currentDeviceId !== message.deviceId) ||
     (currentBrowserEntityId !== null && currentBrowserEntityId !== nextBrowserEntityId) ||
     (currentToken !== null && currentToken !== message.token) ||
     (currentResumeNonce !== null && currentResumeNonce !== message.controlResumeNonce) ||
-    (currentServerEntityId !== null && currentServerEntityId !== nextServerEntityId)
+    (currentServerEntityId !== null && currentServerEntityId !== acceptedServerEntityId)
   if (controlIdentityChanged) {
     if (reconnectTimer) clearTimeout(reconnectTimer)
     reconnectTimer = null
@@ -1169,17 +1319,17 @@ async function connectWindow(message: ConnectWindowMessage, client: HamiltonianW
   if (currentResumeNonce && currentResumeNonce !== message.controlResumeNonce) {
     socketSlot.current?.close(4001, "resume capability changed")
   }
-  if (currentServerEntityId && currentServerEntityId !== nextServerEntityId) {
+  if (currentServerEntityId && currentServerEntityId !== acceptedServerEntityId) {
     socketSlot.current?.close(4001, "server incarnation changed")
   }
   currentDeviceId = message.deviceId
   currentBrowserEntityId = nextBrowserEntityId
   currentToken = message.token
   currentResumeNonce = message.controlResumeNonce
-  if (currentServerEntityId !== nextServerEntityId) {
-    currentHostLifecycleJournal = new HamiltonianLifecycleRetainedJournal(nextServerEntityId)
+  if (currentServerEntityId !== acceptedServerEntityId) {
+    currentHostLifecycleJournal = new HamiltonianLifecycleRetainedJournal(acceptedServerEntityId)
   }
-  currentServerEntityId = nextServerEntityId
+  currentServerEntityId = acceptedServerEntityId
   await persistControlBootstrap()
 
   const previous = windows.get(message.tabId)
@@ -1224,6 +1374,7 @@ async function connectWindow(message: ConnectWindowMessage, client: HamiltonianW
   }
   publishHamiltonianLifecycleSnapshot(workerLifecycleSnapshot)
   tellAllLifecycleSnapshot(workerLifecycleSnapshot)
+  tellCurrentNodeSystemDeclarations(client)
   if (currentHostLifecycleJournal) {
     const hostLifecycleSnapshot = currentHostLifecycleJournal.snapshot()
     publishHamiltonianLifecycleSnapshot(hostLifecycleSnapshot)
