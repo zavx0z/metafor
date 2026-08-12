@@ -14,6 +14,35 @@ runtime, а не картинкой, восстановленной из пос�
 сущность наблюдена, transport создан или изменил состояние, сообщение
 отправлено либо принято, transport закрыт, incarnation завершена.
 
+### Декларация нодовой системы каждого контура
+
+Целевой закон `HAM-001` распространяет причинный монитор на все Hamiltonian-
+контуры. Каждый независимо авторитетный контур публикует одну текущую
+декларацию своего участка нодовой системы: стабильную logical contour identity,
+incarnation, exact root, монотонную revision/frontier и принадлежащие root
+entity и transport. Это единый lifecycle contract, а не отдельная обработка
+Service Worker, RTCPeerConnection или любого другого вида ноды.
+
+Новая incarnation того же logical contour атомарно заменяет прежнюю без
+обязательной перезагрузки страницы. Декларации разных действующих контуров могут
+сосуществовать, но две incarnation одного контура не образуют две части общей
+сцены. После принятия replacement старое ownership-поддерево, его transport и
+causal frontier больше не входят в текущий node-system document.
+
+Материализация объединяет только текущие валидные декларации. У каждой видимой
+некорневой entity должен быть видимый exact owner; межконтурная связь допустима
+только через явно проверенную boundary identity. Отсутствующий root или owner,
+stale incarnation, non-monotonic revision/frontier и частичное смешение прежней
+и новой декларации отклоняются до presentation. Presentation и `@nodes/layout` не
+угадывают parent, не синтезируют пропущенный контур и не поднимают orphan на
+корень.
+
+Сейчас browser/profile snapshot уже частично соблюдает этот закон через
+ownership closure, но server restart ещё способен оставить прежнее серверное
+поддерево и частично показать новую incarnation. Поэтому полный enforcement и
+его первый server-replacement slice остаются принятой, но не реализованной
+задачей [`HAM-001`](../project/tasks/HAM-001.md).
+
 В начале выполнения page-кода гарантированы ровно две сущности: Bun server,
 который отдал документ, и текущая page realm. Host identity и epoch приходят
 вместе с HTML, а page получает новую incarnation до прикладного bootstrap.
