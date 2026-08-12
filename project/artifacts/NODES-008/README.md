@@ -1,5 +1,32 @@
 # NODES-008 — Артефакты
 
+## Owner rejection для NODES-008.4
+
+Landscape-снимки `12.07.20`, `12.11.43` и `12.12.15` от 12 августа 2026 года
+показывают общий IPC trunk и отдельный WebPush track между source-card и target
+cards. Оригиналы переданы как temporary screencapture
+attachments и пока не копировались в Git.
+
+Machine witness на frozen fixture при `clearance=28`: source EAST `1780.1`,
+shared IPC trunk `1836.1`, target WEST `1892.1`; node gap `112`. В полном
+corridor присутствует ещё отдельный WebPush track. Требование COMMON для двух
+линий между препятствиями: три промежутка по `28`, node gap `84`. Три IPC edges
+имеют один exact source-port и занимают одну lane; WebPush занимает вторую.
+
+Повторные portrait-снимки владельца показали тот же общий дефект в `DOWN`,
+поэтому прежняя формулировка только про `RIGHT` отозвана. После общего
+исправления `verification.json` фиксирует x3 repeats и три permutations:
+RIGHT SHA `a44c90fd466ed57bf97ffd5d6018307b57f2f2f6118b37afbeb1dda26e3b6f41`,
+DOWN SHA `50ee91bcae904feeaa80fa5732af580171360217e325effd8752dbcf4d166171`.
+Cardinality: 14 nodes / 20 ports / 12 edges.
+
+Live после fresh Worker bundle и reload только первой вкладки: auto-update
+сошёлся до `DOWN`, 15 nodes / 13 edges, bounds `1398.25×2478`. Точный
+machine-readable анализ DOM evidence дал `rowSideViolations=[]` и
+`layerViolations=[]`. Medium screenshot текущего результата сохранён только во
+временном `/tmp/nodes0084-common-spacing-after-ready.png`; до owner visual
+acceptance он не объявляется постоянным proof и не добавляется в Git.
+
 ## Owner rejection для NODES-008.3
 
 Два crop-снимка `11.34.38` и `11.34.44` от 12 августа 2026 года показывают

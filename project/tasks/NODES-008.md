@@ -218,6 +218,11 @@ Input SHA-256 не изменились; RIGHT geometry SHA сохранился
 
 ## Closing handoff
 
+Этот handoff отозван owner review 12 августа 2026 года: после его записи
+обнаружен ещё один общий spacing defect, описанный в NODES-008.4 ниже. Задача
+возвращена в `IN_PROGRESS`; result `4eb4b03d…` остаётся промежуточным
+checkpoint, а не основанием для закрытия.
+
 Result commit: `4eb4b03d147ae776331f92d7ba96fbbbf192fcaa`.
 
 Граница результата — только pure `@nodes/layout`: placement candidates,
@@ -250,6 +255,49 @@ RIGHT/DOWN x3 repeats и три permutations; final `benchmark-current.json`
 содержит все samples/hashes/provenance; два принятых live PNG подтверждают
 открытые вкладки без reload/restart. Владелец явно принял финальный визуальный
 результат 12 августа 2026 года.
+
+### NODES-008.4 — Не удваивать единичный межслойный corridor
+
+Статус: исправлено offline и в текущем live `DOWN`; ожидается повторное
+визуальное подтверждение владельца перед result benchmark и `REVIEW`.
+
+Owner landscape-снимок показал один общий IPC trunk между Hamiltonian и тремя
+target cards. По общему закону corridor с одной линией между двумя
+препятствиями занимает два socket pitch: один от source-card до trunk и один
+от trunk до target-card.
+
+Exact frozen witness при `clearance=28` подтвердил нарушение в `RIGHT`: source
+EAST `x=1780.1`, shared IPC trunk `x=1836.1`, target WEST `x=1892.1`.
+Дополнительная сверка полного corridor показала отдельный WebPush track между
+source и IPC trunk. Значит corridor содержит две фактические lanes и должен
+занимать `28 + 28 + 28 = 84`, а не текущие `112`; лишний один pitch остаётся
+между IPC trunk и target cards. Три IPC semantic edges используют один shared
+exact-source trunk, WebPush с другим source port использует отдельный track.
+
+Последующие owner portrait-снимки доказали, что тот же закон нарушался и в
+`DOWN`: после глобальной strip compaction более поздние локальные изменения
+рядов и compound bounds могли снова оставить два шага между границей, дорожкой
+и первым рядом. Поэтому частное `RIGHT`-исправление было недостаточным.
+
+Итоговое исправление применяет общий post-route проход в обоих направлениях.
+Он измеряет только фактически занятые вертикальные tracks в высоте конкретного
+ряда, сдвигает в `DOWN` этот ряд, а в `RIGHT` — всю устойчиво выровненную
+колонку первого topology-layer. После каждого сдвига весь graph заново
+маршрутизируется и проходит placement/route validation; затем повторно
+сжимаются portless/portful compound bounds и верхнеуровневые strip. Ни manual
+lane, ни fixture ID, ни direction-specific spacing constant не добавлены.
+
+Focused proof: `18/18` layout/router tests, `115` assertions и package
+typecheck — PASS. Общий regression для RIGHT/DOWN проверяет каждый ряд как
+последовательность `boundary → occupied tracks → child` и каждый межслойный
+corridor; все интервалы равны `28` при тестовом socket pitch `28`. Frozen proof
+для 14 nodes / 20 ports / 12 edges: x3 repeats и три stable permutations дают
+один SHA на направление — RIGHT `a44c90fd…`, DOWN `50ee91bc…`.
+
+Текущий live auto-update первой вкладки: `DOWN`, 15 nodes / 13 edges, bounds
+`1398.25×2478`; независимое чтение `data-hamiltonian-layout-rects/routes`
+вернуло `rowSideViolations=[]` и `layerViolations=[]`. Вторая вкладка не
+активировалась, не перезагружалась и не изменялась.
 
 ## Отклонённые результаты
 

@@ -277,6 +277,78 @@ describe("compound spacing rhythm", () => {
       expect(result.edges).toHaveLength(12)
       expect(result.nodes).toHaveLength(14)
       expect(permuted).toEqual(result)
+      const nodeById = new Map(result.nodes.map((node) => [node.id, node]))
+      const verticalSegments = result.edges.flatMap(({sections}) => sections.flatMap((section) => {
+        const points = [section.startPoint, ...section.bendPoints, section.endPoint]
+        return points.slice(1).flatMap((to, index) => {
+          const from = points[index]!
+          return from.x === to.x
+            ? [{x: from.x, top: Math.min(from.y, to.y), bottom: Math.max(from.y, to.y)}]
+            : []
+        })
+      }))
+      const layerCorridorRhythmViolations = result.nodes.flatMap((parent) => {
+        const bands = graph.nodes
+          .filter(({parentId}) => parentId === parent.id)
+          .map(({id}) => nodeById.get(id)!)
+          .sort((left, right) => left.x - right.x || left.id.localeCompare(right.id))
+          .reduce<Array<{left: number; right: number}>>((all, node) => {
+            const previous = all.at(-1)
+            if (previous === undefined || node.x >= previous.right) {
+              all.push({left: node.x, right: node.x + node.width})
+            } else {
+              previous.right = Math.max(previous.right, node.x + node.width)
+            }
+            return all
+          }, [])
+        return bands.slice(1).flatMap((rightBand, index) => {
+          const leftBand = bands[index]!
+          const tracks = [...new Set(verticalSegments
+            .filter(({x, top, bottom}) => x > leftBand.right && x < rightBand.left &&
+              Math.max(top, parent.y) < Math.min(bottom, parent.y + parent.height))
+            .map(({x}) => x))].sort((left, right) => left - right)
+          const coordinates = [leftBand.right, ...tracks, rightBand.left]
+          return coordinates.slice(1).flatMap((coordinate, coordinateIndex) => {
+            const distance = coordinate - coordinates[coordinateIndex]!
+            return distance === 28 ? [] : [{parentId: parent.id, distance}]
+          })
+        })
+      })
+      expect(layerCorridorRhythmViolations).toEqual([])
+      const rowSideRhythmViolations = result.nodes.flatMap((parent) => {
+        const rows = graph.nodes
+          .filter(({parentId}) => parentId === parent.id)
+          .map(({id}) => nodeById.get(id)!)
+          .sort((upper, lower) => upper.y - lower.y || upper.id.localeCompare(lower.id))
+          .reduce<Array<{top: number; bottom: number; ids: string[]}>>((all, node) => {
+            const previous = all.at(-1)
+            if (previous === undefined || node.y >= previous.bottom) {
+              all.push({top: node.y, bottom: node.y + node.height, ids: [node.id]})
+            } else {
+              previous.bottom = Math.max(previous.bottom, node.y + node.height)
+              previous.ids.push(node.id)
+            }
+            return all
+          }, [])
+        const firstLayerX = Math.min(...graph.nodes
+          .filter(({parentId}) => parentId === parent.id)
+          .map(({id}) => nodeById.get(id)!.x))
+        return rows.flatMap((row) => {
+          if (viewport.width >= viewport.height &&
+              !row.ids.some((id) => nodeById.get(id)!.x === firstLayerX)) return []
+          const childLeft = Math.min(...row.ids.map((id) => nodeById.get(id)!.x))
+          const tracks = [...new Set(verticalSegments
+            .filter(({x, top, bottom}) => x > parent.x && x < childLeft &&
+              Math.max(top, row.top) < Math.min(bottom, row.bottom))
+            .map(({x}) => x))].sort((left, right) => left - right)
+          const coordinates = [parent.x, ...tracks, childLeft]
+          return coordinates.slice(1).flatMap((coordinate, index) => {
+            const distance = coordinate - coordinates[index]!
+            return distance === 28 ? [] : [{parentId: parent.id, row: row.ids, distance}]
+          })
+        })
+      })
+      expect(rowSideRhythmViolations).toEqual([])
       if (viewport.height > viewport.width) {
         const owner = result.nodes.find(({id}) => id === "browser:device")!
         const directChildren = graph.nodes
@@ -297,9 +369,9 @@ describe("compound spacing rhythm", () => {
         }))
         const leftRhythm = [owner.x, ...leftTracks, childLeft].sort((left, right) => left - right)
         expect(leftTracks.size).toBeGreaterThan(0)
-        for (let index = 1; index < leftRhythm.length; index += 1) {
-          expect(leftRhythm[index]! - leftRhythm[index - 1]!).toBe(28)
-        }
+        expect(leftRhythm.slice(1).map((coordinate, index) => coordinate - leftRhythm[index]!)).toEqual(
+          leftRhythm.slice(1).map(() => 28),
+        )
         const server = result.nodes.find(({id}) => id === "server-contour")!
         const topLevelGap = Math.max(
           server.x - owner.x - owner.width,
@@ -319,7 +391,6 @@ describe("compound spacing rhythm", () => {
         })
         expect(externalLeftTracks.length).toBeGreaterThan(0)
         expect(owner.x - Math.max(...externalLeftTracks)).toBe(28)
-        const nodeById = new Map(result.nodes.map((node) => [node.id, node]))
         const horizontalSegments = result.edges.flatMap(({sections}) => sections.flatMap((section) => {
           const points = [section.startPoint, ...section.bendPoints, section.endPoint]
           return points.slice(1).flatMap((to, index) => {
@@ -380,15 +451,6 @@ describe("compound spacing rhythm", () => {
           })
         })
         expect(bottomRhythmViolations).toEqual([])
-        const verticalSegments = result.edges.flatMap(({sections}) => sections.flatMap((section) => {
-          const points = [section.startPoint, ...section.bendPoints, section.endPoint]
-          return points.slice(1).flatMap((to, index) => {
-            const from = points[index]!
-            return from.x === to.x
-              ? [{x: from.x, top: Math.min(from.y, to.y), bottom: Math.max(from.y, to.y)}]
-              : []
-          })
-        }))
         const sideRhythmViolations = result.nodes.flatMap((parent) => {
           const inputParent = graph.nodes.find(({id}) => id === parent.id)!
           const children = graph.nodes
@@ -403,10 +465,54 @@ describe("compound spacing rhythm", () => {
           const occupiedRight = Math.max(...children.map(({x, width}) => x + width), ...tracks)
           const minimumWidth = Math.max(inputParent.width, occupiedRight - occupiedLeft + 56)
           const removable = parent.width - minimumWidth
-          return removable > 0.001 ? [{parentId: parent.id, removable}] : []
+          return removable > 0.001 ? [{
+            parentId: parent.id,
+            parentX: parent.x,
+            parentWidth: parent.width,
+            intrinsicWidth: inputParent.width,
+            occupiedLeft,
+            occupiedRight,
+            removable,
+          }] : []
         })
         expect(sideRhythmViolations).toEqual([])
       } else {
+        const ipcSource = result.nodes.find(({id}) => id === "server:runtime")!
+        const ipcTargets = ["bun-process:main", "bun-process:worker", "peer-process:runtime"]
+          .map((id) => result.nodes.find((node) => node.id === id)!)
+        const sourceEast = ipcSource.x + ipcSource.width
+        const targetWests = [...new Set(ipcTargets.map(({x}) => x))]
+        expect(targetWests).toHaveLength(1)
+        const targetWest = targetWests[0]!
+        const ipcTrackSets = ["ipc:0-peer", "ipc:1-main", "ipc:2-worker"].map((id) => {
+          const edge = result.edges.find((candidate) => candidate.id === id)!
+          return new Set(edge.sections.flatMap((section) => {
+            const points = [section.startPoint, ...section.bendPoints, section.endPoint]
+            return points.slice(1).flatMap((to, index) => {
+              const from = points[index]!
+              return from.x === to.x && from.x > sourceEast && from.x < targetWest
+                ? [from.x]
+                : []
+            })
+          }))
+        })
+        const sharedTrunks = [...ipcTrackSets[0]!]
+          .filter((x) => ipcTrackSets.every((tracks) => tracks.has(x)))
+          .sort((left, right) => left - right)
+        const corridorTracks = [...new Set(result.edges.flatMap(({sections}) => sections.flatMap((section) => {
+          const points = [section.startPoint, ...section.bendPoints, section.endPoint]
+          return points.slice(1).flatMap((to, index) => {
+            const from = points[index]!
+            return from.x === to.x && from.x > sourceEast && from.x < targetWest
+              ? [from.x]
+              : []
+          })
+        })))].sort((left, right) => left - right)
+        expect([sourceEast, ...corridorTracks, targetWest].slice(1)
+          .map((x, index) => x - [sourceEast, ...corridorTracks, targetWest][index]!))
+          .toEqual([28, 28, 28])
+        expect(sharedTrunks.length).toBeLessThanOrEqual(1)
+
         const owner = result.nodes.find(({id}) => id === "browser:device")!
         const directChildren = graph.nodes
           .filter(({parentId}) => parentId === "browser:device")

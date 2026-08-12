@@ -4,7 +4,7 @@ import type {
 } from "../types/protocol.ts"
 import type {EngineResult} from "../types/engine.ts"
 import type {PlacementInput, PlacementResult} from "../types/placement.ts"
-import type {RouteGraphResult} from "../types/routing.ts"
+import type {RouteGraphResult, RouteNode} from "../types/routing.ts"
 import {placeGraph, placementCandidates, validatePlacement} from "./place-graph.ts"
 import {measureRouteGraphResult, routeGraph, validateRouteGraphResult} from "./route-graph.ts"
 
@@ -169,11 +169,24 @@ function layoutEngine(input: PlacementInput): EngineResult {
     routePlacements(fallback, true)
   }
   if (routable.length > 0) {
-    const finalized = routable.map((candidate) => {
-      const compacted = compactPortraitPortfulSideReserves(input, candidate.placement, candidate.routing)
-      return compacted === null ? candidate : {...candidate, ...compacted}
-    })
-    for (const candidate of finalized.sort(compareRoutingQuality)) {
+    for (const routed of routable.sort(compareRoutingQuality)) {
+      let candidate = routed
+      const rowInsetCompacted = compactHorizontalRowInsets(input, candidate.placement, candidate.routing)
+      if (rowInsetCompacted !== null) candidate = {...candidate, ...rowInsetCompacted}
+      const compoundCompacted = compactCompoundSideReserves(input, candidate.placement, candidate.routing)
+      if (compoundCompacted !== null && validatePlacement(input, compoundCompacted).length === 0) {
+        candidate = {
+          ...candidate,
+          placement: compoundCompacted,
+          routing: measureRouteGraphResult(compoundCompacted.routeInput, candidate.routing),
+        }
+      }
+      const portfulCompacted = compactPortraitPortfulSideReserves(input, candidate.placement, candidate.routing)
+      if (portfulCompacted !== null) candidate = {...candidate, ...portfulCompacted}
+      const finalStripCompacted = compactPortraitVerticalStrips(input, candidate.placement, candidate.routing)
+      if (finalStripCompacted !== null) candidate = {...candidate, ...finalStripCompacted}
+      const layerCorridorCompacted = compactHorizontalLayerCorridors(input, candidate.placement, candidate.routing)
+      if (layerCorridorCompacted !== null) candidate = {...candidate, ...layerCorridorCompacted}
       const hardViolations = validateRouteGraphResult(candidate.placement.routeInput, candidate.routing)
       if (hardViolations.length > 0) {
         firstRouteFailure ??= `COMPACTED_ROUTE_INVALID ${hardViolations.join(",")}`
@@ -190,6 +203,286 @@ function layoutEngine(input: PlacementInput): EngineResult {
     `NO_LEGAL_LAYOUT: ${attemptedPlacements}/${placements.length} placements provide no legal route graph` +
     (firstRouteFailure === null ? "" : `; first route failure: ${firstRouteFailure}`),
   )
+}
+
+function compactHorizontalRowInsets(
+  input: PlacementInput,
+  placement: PlacementResult,
+  routing: RouteGraphResult,
+): Readonly<{placement: PlacementResult; routing: RouteGraphResult}> | null {
+  const parentById = new Map(input.nodes.map((node) => [node.id, node.parentId]))
+  const childrenByParent = new Map<string, string[]>()
+  for (const node of input.nodes) {
+    if (node.parentId === undefined) continue
+    const children = childrenByParent.get(node.parentId) ?? []
+    children.push(node.id)
+    childrenByParent.set(node.parentId, children)
+  }
+  const depthOf = (nodeId: string): number => {
+    let depth = 0
+    let parentId = parentById.get(nodeId)
+    while (parentId !== undefined) {
+      depth += 1
+      parentId = parentById.get(parentId)
+    }
+    return depth
+  }
+  const parentIds = [...childrenByParent.keys()]
+    .sort((left, right) => depthOf(right) - depthOf(left) || compareIds(left, right))
+  const verticalSegments = (value: RouteGraphResult): Array<Readonly<{
+    x: number
+    top: number
+    bottom: number
+  }>> => value.sections.flatMap((section) => {
+    const points = [section.startPoint, ...section.bendPoints, section.endPoint]
+    return points.slice(1).flatMap((to, index) => {
+      const from = points[index]!
+      return from.x === to.x
+        ? [{x: from.x, top: Math.min(from.y, to.y), bottom: Math.max(from.y, to.y)}]
+        : []
+    })
+  })
+  const rowLeftExcess = (
+    parent: RouteNode,
+    rowIds: readonly string[],
+    nodes: ReadonlyMap<string, RouteNode>,
+    value: RouteGraphResult,
+  ): number => {
+    const row = rowIds.map((id) => nodes.get(id)!)
+    const top = Math.min(...row.map((node) => node.rect.y))
+    const bottom = Math.max(...row.map((node) => node.rect.y + node.rect.h))
+    const childLeft = Math.min(...row.map((node) => node.rect.x))
+    const tracks = [...new Set(verticalSegments(value)
+      .filter(({x, top: segmentTop, bottom: segmentBottom}) =>
+        x > parent.rect.x && x < childLeft &&
+        Math.max(segmentTop, top) < Math.min(segmentBottom, bottom))
+      .map(({x}) => x))].sort((left, right) => left - right)
+    const coordinates = [parent.rect.x, ...tracks, childLeft]
+    return coordinates.slice(1).reduce((sum, coordinate, index) =>
+      sum + Math.max(0, coordinate - coordinates[index]! - input.clearance), 0)
+  }
+  let currentPlacement = placement
+  let currentRouting = routing
+  let changed = false
+  for (let pass = 0; pass < input.nodes.length * 2; pass += 1) {
+    const currentNodes = new Map(currentPlacement.nodes.map((node) => [node.id, node]))
+    let accepted = false
+    for (const parentId of parentIds) {
+      const parent = currentNodes.get(parentId)
+      if (parent === undefined) continue
+      const rows = (childrenByParent.get(parentId) ?? [])
+        .map((id) => currentNodes.get(id)!)
+        .sort((upper, lower) => upper.rect.y - lower.rect.y || compareIds(upper.id, lower.id))
+        .reduce<Array<{top: number; bottom: number; ids: string[]}>>((result, node) => {
+          const previous = result.at(-1)
+          if (previous === undefined || node.rect.y >= previous.bottom) {
+            result.push({top: node.rect.y, bottom: node.rect.y + node.rect.h, ids: [node.id]})
+          } else {
+            previous.bottom = Math.max(previous.bottom, node.rect.y + node.rect.h)
+            previous.ids.push(node.id)
+          }
+          return result
+        }, [])
+      const firstLayerX = Math.min(...(childrenByParent.get(parentId) ?? [])
+        .map((id) => currentNodes.get(id)!.rect.x))
+      for (const row of rows) {
+        if (currentPlacement.direction === "RIGHT" &&
+            !row.ids.some((id) => currentNodes.get(id)!.rect.x === firstLayerX)) continue
+        const oldExcess = rowLeftExcess(parent, row.ids, currentNodes, currentRouting)
+        if (oldExcess <= 0) continue
+        const childLeft = Math.min(...row.ids.map((id) => currentNodes.get(id)!.rect.x))
+        const containmentCapacity = childLeft - parent.rect.x - input.padding
+        const maxShift = Math.min(oldExcess, containmentCapacity)
+        if (maxShift <= 0) continue
+        const shifts = [...new Set([
+          maxShift,
+          ...Array.from({length: Math.floor(maxShift / input.clearance)}, (_, index) =>
+          (Math.floor(maxShift / input.clearance) - index) * input.clearance),
+        ])].filter((shift) => shift > 0).sort((left, right) => right - left)
+        const shiftedRootIds = currentPlacement.direction === "RIGHT"
+          ? (childrenByParent.get(parentId) ?? []).filter((id) =>
+            row.ids.some((rowId) => currentNodes.get(id)!.rect.x === currentNodes.get(rowId)!.rect.x))
+          : row.ids
+        for (const shift of shifts) {
+          const nodes = new Map(currentPlacement.nodes.map((node) => [node.id, {
+            ...node,
+            rect: {...node.rect},
+            ...(node.contentRect === undefined ? {} : {contentRect: {...node.contentRect}}),
+          }]))
+          const translateSubtree = (nodeId: string): void => {
+            const node = nodes.get(nodeId)!
+            nodes.set(nodeId, {
+              ...node,
+              rect: {...node.rect, x: node.rect.x - shift},
+              ...(node.contentRect === undefined ? {} : {
+                contentRect: {...node.contentRect, x: node.contentRect.x - shift},
+              }),
+            })
+            for (const childId of childrenByParent.get(nodeId) ?? []) translateSubtree(childId)
+          }
+          for (const id of shiftedRootIds) translateSubtree(id)
+          const compactedNodes = currentPlacement.nodes.map(({id}) => nodes.get(id)!)
+          const compactedNodeById = new Map(compactedNodes.map((node) => [node.id, node]))
+          const oldNodeById = new Map(currentPlacement.nodes.map((node) => [node.id, node]))
+          const compactedPorts = currentPlacement.ports.map((port) => {
+            const oldNode = oldNodeById.get(port.nodeId)!
+            const newNode = compactedNodeById.get(port.nodeId)!
+            return {...port, center: {...port.center, x: port.center.x + newNode.rect.x - oldNode.rect.x}}
+          })
+          const candidate: PlacementResult = {
+            ...currentPlacement,
+            nodes: compactedNodes,
+            ports: compactedPorts,
+            routeInput: {...currentPlacement.routeInput, nodes: compactedNodes, ports: compactedPorts},
+          }
+          if (validatePlacement(input, candidate).length > 0) continue
+          try {
+            const rerouted = routeGraph(candidate.routeInput)
+            const candidateNodes = new Map(compactedNodes.map((node) => [node.id, node]))
+            const candidateParent = candidateNodes.get(parentId)!
+            if (rowLeftExcess(candidateParent, row.ids, candidateNodes, rerouted) >= oldExcess) continue
+            currentPlacement = {
+              ...candidate,
+              metrics: measureCompactedPlacement(input, currentPlacement, compactedNodes, compactedPorts),
+            }
+            currentRouting = rerouted
+            accepted = true
+            changed = true
+            break
+          } catch (error) {
+            if (!(error instanceof Error) || !error.message.startsWith("NO_LEGAL_ROUTE ")) throw error
+          }
+        }
+        if (accepted) break
+      }
+      if (accepted) break
+    }
+    if (!accepted) break
+  }
+  return changed ? {placement: currentPlacement, routing: currentRouting} : null
+}
+
+function compactHorizontalLayerCorridors(
+  input: PlacementInput,
+  placement: PlacementResult,
+  routing: RouteGraphResult,
+): Readonly<{placement: PlacementResult; routing: RouteGraphResult}> | null {
+  const intrinsicById = new Map(input.nodes.map((node) => [node.id, node]))
+  const compoundIds = new Set(input.nodes.flatMap((node) =>
+    node.parentId === undefined ? [] : [node.parentId]))
+  const childrenByParent = new Map<string, string[]>()
+  for (const node of input.nodes) {
+    if (node.parentId === undefined) continue
+    const children = childrenByParent.get(node.parentId) ?? []
+    children.push(node.id)
+    childrenByParent.set(node.parentId, children)
+  }
+  const shiftedCoordinate = (value: number, cut: number, width: number): number =>
+    value >= cut + width ? value - width : value
+  let currentPlacement = placement
+  let currentRouting = routing
+  let changed = false
+  for (let pass = 0; pass < input.nodes.length; pass += 1) {
+    const nodeById = new Map(currentPlacement.nodes.map((node) => [node.id, node]))
+    const verticalSegments: Array<{x: number; top: number; bottom: number}> = []
+    for (const section of currentRouting.sections) {
+      const points = [section.startPoint, ...section.bendPoints, section.endPoint]
+      for (let index = 1; index < points.length; index += 1) {
+        const from = points[index - 1]!
+        const to = points[index]!
+        if (from.x === to.x) {
+          verticalSegments.push({x: from.x, top: Math.min(from.y, to.y), bottom: Math.max(from.y, to.y)})
+        }
+      }
+    }
+    const corridors = [...childrenByParent.entries()].flatMap(([parentId, childIds]) => {
+      const parent = nodeById.get(parentId)
+      if (parent === undefined) return []
+      const bands = childIds
+        .map((id) => nodeById.get(id)!)
+        .sort((left, right) => left.rect.x - right.rect.x || compareIds(left.id, right.id))
+        .reduce<Array<{left: number; right: number}>>((result, node) => {
+          const previous = result.at(-1)
+          if (previous === undefined || node.rect.x >= previous.right) {
+            result.push({left: node.rect.x, right: node.rect.x + node.rect.w})
+          } else {
+            previous.right = Math.max(previous.right, node.rect.x + node.rect.w)
+          }
+          return result
+        }, [])
+      return bands.slice(1).flatMap((rightBand, index) => {
+        const leftBand = bands[index]!
+        const tracks = [...new Set(verticalSegments
+          .filter(({top, bottom}) =>
+            Math.max(top, parent.rect.y) < Math.min(bottom, parent.rect.y + parent.rect.h))
+          .map(({x}) => x))]
+          .filter((x) => x > leftBand.right && x < rightBand.left)
+          .sort((left, right) => left - right)
+        if (tracks.length === 0) return []
+        const coordinates = [leftBand.right, ...tracks, rightBand.left]
+        return coordinates.slice(1).flatMap((right, coordinateIndex) => {
+          const left = coordinates[coordinateIndex]!
+          const excess = right - left - input.clearance
+          return excess <= 0 ? [] : [{parentId, cut: left + input.clearance, width: excess}]
+        })
+      })
+    }).sort((left, right) =>
+      left.cut - right.cut || compareIds(left.parentId, right.parentId))
+    let accepted = false
+    for (const {cut, width} of corridors) {
+      const end = cut + width
+      let legal = true
+      const nodes = currentPlacement.nodes.map((node) => {
+        const transformRect = (rect: typeof node.rect, allowShrink: boolean): typeof node.rect => {
+          const right = rect.x + rect.w
+          if (right <= cut) return rect
+          if (rect.x >= end) return {...rect, x: rect.x - width}
+          if (rect.x <= cut && right >= end && allowShrink) return {...rect, w: rect.w - width}
+          legal = false
+          return rect
+        }
+        const compound = compoundIds.has(node.id)
+        const rect = transformRect(node.rect, compound)
+        if (rect.w < intrinsicById.get(node.id)!.size.w) legal = false
+        const contentRect = node.contentRect === undefined
+          ? undefined
+          : transformRect(node.contentRect, compound)
+        return {...node, rect, ...(contentRect === undefined ? {} : {contentRect})}
+      })
+      const ports = currentPlacement.ports.map((port) => {
+        if (port.center.x > cut && port.center.x < end) legal = false
+        return {...port, center: {...port.center, x: shiftedCoordinate(port.center.x, cut, width)}}
+      })
+      const sections = currentRouting.sections.map((section) => ({
+        ...section,
+        startPoint: {...section.startPoint, x: shiftedCoordinate(section.startPoint.x, cut, width)},
+        bendPoints: section.bendPoints.map((point) => ({
+          ...point,
+          x: shiftedCoordinate(point.x, cut, width),
+        })),
+        endPoint: {...section.endPoint, x: shiftedCoordinate(section.endPoint.x, cut, width)},
+      }))
+      if (!legal) continue
+      const bounds = {...currentPlacement.bounds, w: currentPlacement.bounds.w - width}
+      const candidate: PlacementResult = {
+        ...currentPlacement,
+        nodes,
+        ports,
+        bounds,
+        routeInput: {...currentPlacement.routeInput, nodes, ports, bounds},
+        metrics: measureCompactedPlacement(input, currentPlacement, nodes, ports),
+      }
+      const candidateRouting: RouteGraphResult = {...currentRouting, sections}
+      if (validatePlacement(input, candidate).length > 0) continue
+      currentPlacement = candidate
+      currentRouting = measureRouteGraphResult(candidate.routeInput, candidateRouting)
+      changed = true
+      accepted = true
+      break
+    }
+    if (!accepted) break
+  }
+  return changed ? {placement: currentPlacement, routing: currentRouting} : null
 }
 
 function compactPortraitBottomReserves(
