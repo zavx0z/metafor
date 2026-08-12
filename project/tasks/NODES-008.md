@@ -72,6 +72,8 @@ Compound должен быть увеличен только под действ
 
 Статус: `REVIEW`.
 
+Result commit: `38c258b64a5a4624d57ccc94fe39fb753dcb671a`.
+
 * Portrait generator сначала создаёт компактный вариант без копирования
   бокового reserve вниз. Нижний reserve сохранён как ограниченный fallback для
   графов, которым он нужен для legal route.
