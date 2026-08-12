@@ -329,6 +329,20 @@ lane; exact sockets, containment, orthogonality, edge/node и edge/edge
 clearance остаются зелёными. Финальный benchmark выполняется один раз только
 после готовности всей NODES-008 к `REVIEW`.
 
+Checkpoint `e1b2aea50b452716fc99fe8b3a33dc9bd58cb98c` добавляет общий post-route
+проход для начального EAST terminal track. Он двигает только первые два bend
+point exact-source группы и принимает изменение лишь после полной route
+validation и без ухудшения crossings, turns, Manhattan и detour objectives.
+Fixture IDs, manual lanes и ослабление clearance не добавлены.
+
+Focused proof на checkpoint: `18/18` layout/router tests, `116` assertions,
+package typecheck и `git diff --check` — PASS. Повторный live witness первой
+Hamiltonian-вкладки получил расстояния `606.05 → 634.05` и
+`524.7 → 552.7`, то есть ровно по `28 px`; список нарушений пуст. Отдельный
+Chrome-CDP подтвердил загрузку актуального Worker bundle и сохранил canvas во
+временный диагностический файл; owner visual acceptance ещё не заявлен.
+Финальный benchmark NODES-008 не запускался.
+
 ## Отклонённые результаты
 
 Ниже сохранена только причинная история отвергнутых checkpoint этой карточки.

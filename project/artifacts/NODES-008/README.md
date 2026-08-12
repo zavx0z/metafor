@@ -14,6 +14,13 @@ machine-readable live witness из первой открытой вкладки 
 `634.05 → 690.05`, то есть по `56 px`. Вторая вкладка не является частью
 диагностического действия.
 
+Checkpoint `e1b2aea50` сокращает начальный EAST terminal track без перемещения
+нод. Повторный live witness получил `606.05 → 634.05` и
+`524.7 → 552.7`, то есть ровно по `28 px`, и не нашёл нарушений. Focused proof:
+`18/18` tests, `116` assertions, package typecheck и `git diff --check` — PASS.
+CDP canvas пока остаётся временным диагностическим файлом и не считается
+owner visual acceptance. Финальный benchmark родительской задачи не запускался.
+
 ## Owner rejection для NODES-008.4
 
 Landscape-снимки `12.07.20`, `12.11.43` и `12.12.15` от 12 августа 2026 года
