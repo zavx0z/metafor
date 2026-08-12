@@ -768,9 +768,11 @@ export function isHamiltonianLifecycleSnapshot(value) {
 
 /**
  * A retained scope may cross a realm boundary only when every retained entity
- * has an explicit owner chain ending at one of the declared roots. Consumers
- * must never infer a missing parent from entity kind, transport endpoints, or
- * observation order.
+ * has an explicit owner chain ending at one of the declared roots. Every
+ * retained transport owner and endpoint must also exist in the snapshot, and
+ * all three chains must end at the same declared root. Consumers must never
+ * infer a missing parent from entity kind, transport endpoints, or observation
+ * order.
  *
  * @param {unknown} value
  * @param {readonly string[]} rootIds
@@ -785,6 +787,7 @@ export function isHamiltonianLifecycleOwnershipClosed(value, rootIds) {
   ) return false
   const roots = new Set(rootIds)
   if (roots.size !== rootIds.length) return false
+  /** @type {Map<string, HamiltonianLifecycleObservation>} */
   const entities = new Map()
   for (const envelope of value.envelopes) {
     const observation = envelope.observation
@@ -794,16 +797,58 @@ export function isHamiltonianLifecycleOwnershipClosed(value, rootIds) {
     const root = entities.get(rootId)
     if (!root || (root.ownerId !== null && root.ownerId !== rootId)) return false
   }
-  for (const entityId of entities.keys()) {
+  /** @type {Map<string, string>} */
+  const resolvedRoots = new Map()
+  /**
+   * @param {string} entityId
+   * @returns {string | null}
+   */
+  const resolveRoot = (entityId) => {
+    const cached = resolvedRoots.get(entityId)
+    if (cached !== undefined) return cached
+    /** @type {string[]} */
+    const path = []
     const visited = new Set()
     let currentId = entityId
-    while (!roots.has(currentId)) {
-      if (visited.has(currentId)) return false
+    let rootId = null
+    while (rootId === null) {
+      const cachedRoot = resolvedRoots.get(currentId)
+      if (cachedRoot !== undefined) {
+        rootId = cachedRoot
+        break
+      }
+      if (roots.has(currentId)) {
+        rootId = currentId
+        break
+      }
+      if (visited.has(currentId)) return null
       visited.add(currentId)
+      path.push(currentId)
       const current = entities.get(currentId)
-      if (!current || current.ownerId === null || current.ownerId === currentId) return false
+      if (!current || current.ownerId === null || current.ownerId === currentId) return null
       currentId = current.ownerId
     }
+    for (const pathId of path) resolvedRoots.set(pathId, rootId)
+    resolvedRoots.set(entityId, rootId)
+    return rootId
+  }
+  for (const entityId of entities.keys()) {
+    if (resolveRoot(entityId) === null) return false
+  }
+  for (const envelope of value.envelopes) {
+    const transport = envelope.observation
+    if (transport.type !== "transport") continue
+    if (
+      transport.ownerId === null ||
+      transport.sourceEntityId === null ||
+      transport.targetEntityId === null
+    ) return false
+    const ownerRoot = resolveRoot(transport.ownerId)
+    if (
+      ownerRoot === null ||
+      resolveRoot(transport.sourceEntityId) !== ownerRoot ||
+      resolveRoot(transport.targetEntityId) !== ownerRoot
+    ) return false
   }
   return true
 }

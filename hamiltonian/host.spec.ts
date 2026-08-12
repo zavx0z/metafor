@@ -1144,6 +1144,95 @@ describe("isolated Hamiltonian host", () => {
     observer.close()
   })
 
+  test("rejects a profile snapshot whose transport endpoint belongs to another retained browser profile", async () => {
+    const host = createHamiltonianHost({port: 0, token: "test-token", heartbeatMs: 10_000})
+    running.push(host)
+    await host.bunReady
+
+    const connectProfile = async (profileId: string, workerIdentity: string) => {
+      const workerEntityId = hamiltonianLifecycleEntityId("service-worker", workerIdentity)
+      const controlUrl = new URL("/control", host.server.url)
+      controlUrl.protocol = "ws:"
+      controlUrl.searchParams.set("token", host.token)
+      controlUrl.searchParams.set("device", profileId)
+      controlUrl.searchParams.set("worker", workerEntityId)
+      const socket = await openSocket(controlUrl)
+      await nextMessage(socket, "hello")
+      const observedWorker = nextMessage(socket, "lifecycle", (message) => {
+        const envelope = message.envelope as {observation?: {subjectId?: string}} | undefined
+        return envelope?.observation?.subjectId === workerEntityId
+      })
+      socket.send(JSON.stringify(browserIdentityMessage(
+        profileId,
+        workerIdentity,
+        `runtime:${workerIdentity}`,
+        `resume:${workerIdentity}`,
+      )))
+      await observedWorker
+      return socket
+    }
+
+    const profileB = await connectProfile("profile-b", "worker-b")
+    const profileA = await connectProfile("profile-a", "worker-a")
+    const profileAPageId = "page:profile-a-cross-profile-probe"
+    const crossProfileTransportId = "service-worker-api:cross-profile-probe"
+    const closed = new Promise<CloseEvent>((resolve) =>
+      profileA.addEventListener("close", resolve, {once: true}))
+    profileA.send(JSON.stringify({
+      kind: "browser-lifecycle-snapshot",
+      snapshot: browserProfileLifecycleSnapshot(
+        "profile-a",
+        "worker-a",
+        "runtime:worker-a",
+        [
+          createHamiltonianLifecycleObservation({
+            type: "entity",
+            phase: "changed",
+            subjectId: profileAPageId,
+            subjectKind: "page",
+            ownerId: hamiltonianBrowserNodeId("profile-a"),
+            attributes: {incarnation: "profile-a-cross-profile-probe", state: "live"},
+          }),
+          createHamiltonianLifecycleObservation({
+            type: "transport",
+            phase: "opened",
+            subjectId: crossProfileTransportId,
+            subjectKind: "service-worker-api",
+            ownerId: hamiltonianLifecycleEntityId("service-worker", "worker-a"),
+            sourceEntityId: profileAPageId,
+            targetEntityId: hamiltonianLifecycleEntityId("service-worker", "worker-b"),
+            transportId: crossProfileTransportId,
+            attributes: {state: "active"},
+          }),
+        ],
+      ),
+    }))
+    expect((await closed).code).toBe(1008)
+
+    const observerUrl = new URL("/control", host.server.url)
+    observerUrl.protocol = "ws:"
+    observerUrl.searchParams.set("token", host.token)
+    observerUrl.searchParams.set("device", "cross-profile-observer")
+    observerUrl.searchParams.set("worker", "service-worker:cross-profile-observer")
+    observerUrl.searchParams.set("transport", "websocket:cross-profile-observer")
+    const observer = new WebSocket(observerUrl)
+    const retainedFrame = nextMessage(observer, "lifecycle-snapshot")
+    await new Promise<void>((resolve, reject) => {
+      observer.addEventListener("open", () => resolve(), {once: true})
+      observer.addEventListener("error", () => reject(new Error("WebSocket open failed")), {once: true})
+    })
+    const retained = (await retainedFrame).snapshot as {
+      envelopes: Array<{observation: {subjectId: string}}>
+    }
+    const retainedIds = retained.envelopes.map(({observation}) => observation.subjectId)
+    expect(retainedIds).toContain(hamiltonianLifecycleEntityId("service-worker", "worker-b"))
+    expect(retainedIds).not.toContain(crossProfileTransportId)
+    expect(retainedIds).not.toContain(profileAPageId)
+
+    observer.close()
+    profileB.close()
+  })
+
   test("removes only an unreachable browser profile after its last window and control path close", async () => {
     const host = createHamiltonianHost({port: 0, token: "test-token", heartbeatMs: 10_000})
     running.push(host)

@@ -349,6 +349,97 @@ describe("Hamiltonian owner lifecycle", () => {
       attributes: {},
     })))
     expect(isHamiltonianLifecycleOwnershipClosed(cycleJournal.snapshot(), [browserId])).toBeFalse()
+
+    const profileTransportSnapshot = (
+      refs: Readonly<{ownerId: string; sourceEntityId: string; targetEntityId: string}>,
+      includeProfileB = false,
+    ) => {
+      const profileBId = "browser:profile-b"
+      const workerBId = "service-worker:worker-b"
+      const pageId = "page:profile-a"
+      const transportSource = new HamiltonianLifecycleSource({
+        id: workerId,
+        kind: "service-worker",
+        incarnation: `transport-${includeProfileB ? "two-roots" : "one-root"}`,
+        startedAt: 2,
+      })
+      const transportJournal = new HamiltonianLifecycleRetainedJournal(workerId)
+      for (const observation of [
+        createHamiltonianLifecycleObservation({
+          type: "entity",
+          phase: "born",
+          subjectId: browserId,
+          subjectKind: "browser-runtime",
+          ownerId: browserId,
+          attributes: {profileId: "profile-a"},
+        }),
+        createHamiltonianLifecycleObservation({
+          type: "entity",
+          phase: "born",
+          subjectId: workerId,
+          subjectKind: "service-worker",
+          ownerId: browserId,
+          attributes: {identity: "worker-a"},
+        }),
+        createHamiltonianLifecycleObservation({
+          type: "entity",
+          phase: "born",
+          subjectId: pageId,
+          subjectKind: "page",
+          ownerId: browserId,
+          attributes: {incarnation: "profile-a"},
+        }),
+        ...(includeProfileB ? [
+          createHamiltonianLifecycleObservation({
+            type: "entity",
+            phase: "born",
+            subjectId: profileBId,
+            subjectKind: "browser-runtime",
+            ownerId: profileBId,
+            attributes: {profileId: "profile-b"},
+          }),
+          createHamiltonianLifecycleObservation({
+            type: "entity",
+            phase: "born",
+            subjectId: workerBId,
+            subjectKind: "service-worker",
+            ownerId: profileBId,
+            attributes: {identity: "worker-b"},
+          }),
+        ] : []),
+        createHamiltonianLifecycleObservation({
+          type: "transport",
+          phase: "opened",
+          subjectId: "service-worker-api:profile-a",
+          subjectKind: "service-worker-api",
+          ownerId: refs.ownerId,
+          sourceEntityId: refs.sourceEntityId,
+          targetEntityId: refs.targetEntityId,
+          transportId: "service-worker-api:profile-a",
+          attributes: {state: "active"},
+        }),
+      ]) transportJournal.observe(transportSource.next(observation))
+      return transportJournal.snapshot()
+    }
+    const validRefs = {ownerId: workerId, sourceEntityId: "page:profile-a", targetEntityId: workerId}
+    expect(isHamiltonianLifecycleOwnershipClosed(
+      profileTransportSnapshot(validRefs),
+      [browserId],
+    )).toBeTrue()
+    for (const invalidRefs of [
+      {...validRefs, ownerId: "service-worker:missing-owner"},
+      {...validRefs, sourceEntityId: "page:missing-source"},
+      {...validRefs, targetEntityId: "service-worker:missing-target"},
+    ]) {
+      expect(isHamiltonianLifecycleOwnershipClosed(
+        profileTransportSnapshot(invalidRefs),
+        [browserId],
+      )).toBeFalse()
+    }
+    expect(isHamiltonianLifecycleOwnershipClosed(
+      profileTransportSnapshot({...validRefs, targetEntityId: "service-worker:worker-b"}, true),
+      [browserId, "browser:profile-b"],
+    )).toBeFalse()
   })
 
   test("forgets an unreachable ownership subtree without fencing its stable identity", () => {

@@ -264,6 +264,82 @@ describe("Hamiltonian lifecycle projection", () => {
     }
   })
 
+  test("does not materialize a transport or message across distinct Chrome profile roots", () => {
+    const projection = new HamiltonianLifecycleProjection(context)
+    const source = new HamiltonianLifecycleSource({
+      id: "service-worker:profile-a",
+      kind: "service-worker",
+      incarnation: "cross-profile-probe",
+      startedAt: 20,
+    })
+    for (const profileId of ["profile-a", "profile-b"] as const) {
+      const browserId = `browser:${profileId}`
+      const workerId = `service-worker:${profileId}`
+      projection.observe(source.next(createHamiltonianLifecycleObservation({
+        type: "entity",
+        phase: "changed",
+        subjectId: browserId,
+        subjectKind: "browser-runtime",
+        ownerId: browserId,
+        attributes: {profileId, runtime: "Chrome", state: "active"},
+      })), null)
+      projection.observe(source.next(createHamiltonianLifecycleObservation({
+        type: "entity",
+        phase: "changed",
+        subjectId: workerId,
+        subjectKind: "service-worker",
+        ownerId: browserId,
+        attributes: {identity: profileId, state: "active"},
+      })), null)
+    }
+    projection.observe(source.next(createHamiltonianLifecycleObservation({
+      type: "entity",
+      phase: "changed",
+      subjectId: "page:profile-a",
+      subjectKind: "page",
+      ownerId: "browser:profile-a",
+      attributes: {incarnation: "profile-a", state: "live"},
+    })), null)
+    const transportId = "service-worker-api:cross-profile"
+    projection.observe(source.next(createHamiltonianLifecycleObservation({
+      type: "transport",
+      phase: "opened",
+      subjectId: transportId,
+      subjectKind: "service-worker-api",
+      ownerId: "service-worker:profile-a",
+      sourceEntityId: "page:profile-a",
+      targetEntityId: "service-worker:profile-b",
+      transportId,
+      attributes: {state: "active"},
+    })), null)
+    const presentation = projection.observe(source.next(createHamiltonianLifecycleObservation({
+      type: "message",
+      phase: "sent",
+      subjectId: "service-worker-api-message:cross-profile",
+      subjectKind: "service-worker-api-message",
+      ownerId: "page:profile-a",
+      sourceEntityId: "page:profile-a",
+      targetEntityId: "service-worker:profile-b",
+      transportId,
+      messageId: "service-worker-api-message:cross-profile",
+      messageClass: "probe",
+      attributes: {},
+    })), null)
+
+    const document = projection.document()
+    expect(document.nodes.find(({id}) => id === "page:profile-a")?.parentId)
+      .toBe("browser:profile-a")
+    expect(document.nodes.find(({id}) => id === "service-worker:profile-b")?.parentId)
+      .toBe("browser:profile-b")
+    expect(document.edges.some(({id}) => id === transportId || id === `${transportId}:reverse`))
+      .toBeFalse()
+    for (const nodeId of ["page:profile-a", "service-worker:profile-b"]) {
+      expect(document.nodes.find(({id}) => id === nodeId)?.ports
+        ?.some(({connectionType}) => connectionType === "service-worker-api") ?? false).toBeFalse()
+    }
+    expect(presentation).toBeNull()
+  })
+
   test("shows every retained page under one Chrome and keeps actions local", () => {
     const projection = new HamiltonianLifecycleProjection(context)
     const workerJournal = new HamiltonianLifecycleRetainedJournal("service-worker:worker-a")

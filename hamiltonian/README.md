@@ -203,8 +203,15 @@ Retained snapshot, переходящий границу realm, всегда own
 этого scope. Service Worker передаёт host целый валидированный browser/profile
 snapshot, а host объединяет такие независимые scope без синтеза отдельных
 Chrome или специальной обработки второго Worker. Snapshot с отсутствующим,
-чужим либо циклическим owner не принимается; presentation отображает только уже
-декларированную причинную принадлежность.
+чужим либо циклическим owner не принимается. Каждый retained transport также
+замкнут внутри exact scope: его owner, source endpoint и target endpoint обязаны
+быть entity того же snapshot, а все три owner-chain обязаны завершаться в одном
+и том же объявленном root. Наличие нескольких объявленных roots не разрешает
+transport между ними. Presentation отображает только уже декларированную
+причинную принадлежность и защитно не материализует transport, если у его
+owner/endpoints обнаружены разные browser-runtime ancestors. Эта защита не
+запрещает наблюдённый transport между browser-owned entity и server entity,
+потому что server не является другим browser/profile root.
 
 Серверная часть собрана в отдельный presentation-only контейнер `Сервер`. У
 него нет параметров, transport-сокетов и действий; он не является lifecycle

@@ -312,7 +312,10 @@ export class HamiltonianLifecycleProjection {
     const visibleEntityIds = this.#visibleEntityIds()
     const visibleEntities = [...this.#entities.values()].filter((entity) => visibleEntityIds.has(entity.id))
     const activeTransports = [...this.#transports.values()]
-      .filter((transport) => visibleEntityIds.has(transport.sourceEntityId) && visibleEntityIds.has(transport.targetEntityId))
+      .filter((transport) =>
+        visibleEntityIds.has(transport.sourceEntityId) &&
+        visibleEntityIds.has(transport.targetEntityId) &&
+        !this.#transportCrossesBrowserOwnershipBoundary(transport))
       .sort((left, right) => left.openedAt - right.openedAt || left.id.localeCompare(right.id))
 
     for (const [index, transport] of activeTransports.entries()) {
@@ -547,7 +550,8 @@ export class HamiltonianLifecycleProjection {
       transport === undefined ||
       transport.state === "closed" ||
       !this.#entities.has(transport.sourceEntityId) ||
-      !this.#entities.has(transport.targetEntityId)
+      !this.#entities.has(transport.targetEntityId) ||
+      this.#transportCrossesBrowserOwnershipBoundary(transport)
     ) return null
     const forward =
       observation.sourceEntityId === transport.sourceEntityId &&
@@ -578,6 +582,29 @@ export class HamiltonianLifecycleProjection {
       this.#messageIdentityOrder.length - this.#messageIdentityCapacity,
     )
     for (const id of removed) this.#messageIdentities.delete(id)
+  }
+
+  #browserOwnershipRoot(entityId: string): string | null {
+    const visited = new Set<string>()
+    let currentId = entityId
+    while (!visited.has(currentId)) {
+      visited.add(currentId)
+      const current = this.#entities.get(currentId)
+      if (current === undefined) return null
+      if (current.kind === "browser-runtime") return current.id
+      if (current.ownerId === null || current.ownerId === currentId) return null
+      currentId = current.ownerId
+    }
+    return null
+  }
+
+  #transportCrossesBrowserOwnershipBoundary(transport: LifecycleTransport): boolean {
+    const browserRoots = new Set([
+      this.#browserOwnershipRoot(transport.ownerId),
+      this.#browserOwnershipRoot(transport.sourceEntityId),
+      this.#browserOwnershipRoot(transport.targetEntityId),
+    ].filter((rootId): rootId is string => rootId !== null))
+    return browserRoots.size > 1
   }
 
   #gapsFor(entity: LifecycleEntity): HamiltonianLifecycleGap[] {
@@ -733,6 +760,7 @@ export class HamiltonianLifecycleProjection {
         }
       }
       for (const transport of this.#transports.values()) {
+        if (this.#transportCrossesBrowserOwnershipBoundary(transport)) continue
         const sourceVisible = visible.has(transport.sourceEntityId)
         const targetVisible = visible.has(transport.targetEntityId)
         if (sourceVisible === targetVisible) continue
