@@ -1557,7 +1557,7 @@ describe("Hamiltonian lifecycle projection", () => {
     }
   })
 
-  test("diagnoses a continuing page source suppressed by browser declaration replacement", () => {
+  test("preserves exact source keys that continue in a replacement declaration", () => {
     const logicalContourId = hamiltonianLogicalContourId("browser-profile", "device-a")
     const browserId = "browser:device-a"
     const workerId = "service-worker:worker-a"
@@ -1581,6 +1581,28 @@ describe("Hamiltonian lifecycle projection", () => {
     const rtc = pageSource.next(createHamiltonianLifecycleObservation({
       type: "entity", phase: "born", subjectId: rtcId, subjectKind: "rtc-peer",
       ownerId: mainId, attributes: {endpoint: "browser", sessionEpoch: "session-a", state: "connected"},
+    }))
+    const retiredPageId = "page:retired-page"
+    const retiredMainId = "window-main:retired-page"
+    const retiredRtcId = "rtc-peer:retired-session%3Abrowser"
+    const retiredPageSource = new HamiltonianLifecycleSource({
+      id: retiredPageId,
+      kind: "page",
+      incarnation: "retired-page",
+      startedAt: 7,
+    })
+    const retiredPage = retiredPageSource.next(createHamiltonianLifecycleObservation({
+      type: "entity", phase: "born", subjectId: retiredPageId, subjectKind: "page",
+      ownerId: browserId, attributes: {tabId: "retired-tab", incarnation: "retired-page"},
+    }))
+    const retiredMain = retiredPageSource.next(createHamiltonianLifecycleObservation({
+      type: "entity", phase: "born", subjectId: retiredMainId, subjectKind: "window-main",
+      ownerId: retiredPageId, attributes: {role: "main"},
+    }))
+    const retiredRtc = retiredPageSource.next(createHamiltonianLifecycleObservation({
+      type: "entity", phase: "born", subjectId: retiredRtcId, subjectKind: "rtc-peer",
+      ownerId: retiredMainId,
+      attributes: {endpoint: "browser", sessionEpoch: "retired-session", state: "connected"},
     }))
     const declaration = (
       workerIncarnation: string,
@@ -1615,7 +1637,13 @@ describe("Hamiltonian lifecycle projection", () => {
         snapshot,
       })
     }
-    const previous = declaration("worker-runtime-a", 5, [page, main])
+    const previous = declaration("worker-runtime-a", 5, [
+      page,
+      main,
+      retiredPage,
+      retiredMain,
+      retiredRtc,
+    ])
     const current = declaration("worker-runtime-b", 10, [page, main, rtc])
 
     const longLived = new HamiltonianLifecycleProjection(context)
@@ -1626,7 +1654,26 @@ describe("Hamiltonian lifecycle projection", () => {
     expect(fresh.replaceDeclaration(current)).toBeTrue()
     expect(current.snapshot.envelopes.some(({observation}) => observation.subjectId === rtcId)).toBeTrue()
     expect(fresh.document().nodes.some(({id}) => id === rtcId)).toBeTrue()
-    expect(longLived.document().nodes.some(({id}) => id === rtcId)).toBeFalse()
+    expect(longLived.document().nodes.some(({id}) => id === rtcId)).toBeTrue()
+    expect({nodes: longLived.document().nodes, edges: longLived.document().edges})
+      .toEqual({nodes: fresh.document().nodes, edges: fresh.document().edges})
+    for (const retiredId of [retiredPageId, retiredMainId, retiredRtcId]) {
+      expect(longLived.document().nodes.some(({id}) => id === retiredId)).toBeFalse()
+    }
+    const retiredSources = longLived.takeRetiredLifecycleSources()
+    expect(retiredSources).toHaveLength(2)
+    expect(retiredSources).toEqual(expect.arrayContaining([
+      {sourceId: workerId, sourceIncarnation: "worker-runtime-a"},
+      {sourceId: retiredPageId, sourceIncarnation: "retired-page"},
+    ]))
+    expect(retiredSources).not.toContainEqual({sourceId: pageId, sourceIncarnation: "page-a"})
+
+    longLived.observe(retiredPageSource.next(createHamiltonianLifecycleObservation({
+      type: "entity", phase: "changed", subjectId: retiredRtcId, subjectKind: "rtc-peer",
+      ownerId: retiredMainId,
+      attributes: {endpoint: "browser", sessionEpoch: "retired-session", state: "connected"},
+    })), null)
+    expect(longLived.document().nodes.some(({id}) => id === retiredRtcId)).toBeFalse()
   })
 
   test("keeps the exact WSS across stale-live permutations until a declaration retires its endpoint", () => {

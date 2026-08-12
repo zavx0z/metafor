@@ -27,7 +27,10 @@ Service Worker, RTCPeerConnection или любого другого вида н
 обязательной перезагрузки страницы. Декларации разных действующих контуров могут
 сосуществовать, но две incarnation одного контура не образуют две части общей
 сцены. После принятия replacement старое ownership-поддерево, его transport и
-causal frontier больше не входят в текущий node-system document.
+causal frontier больше не входят в текущий node-system document. Exact source,
+который прямо присутствует в successor declaration, продолжает свой causal
+поток и не завершается только из-за смены incarnation самой декларации; source,
+которого successor больше не объявляет, остаётся superseded.
 
 Материализация объединяет только текущие валидные декларации. У каждой видимой
 некорневой entity должен быть видимый exact owner; межконтурная связь допустима

@@ -334,8 +334,11 @@ export class HamiltonianLifecycleProjection {
       this.#replaceBoundaryTransports(reconciled.declaration)
     }
     if (accepted.previous !== null && accepted.previous.incarnation !== declaration.incarnation) {
+      const successorSources = new Set(declaration.snapshot.frontier.map((entry) =>
+        `${entry.sourceId}\u0000${entry.sourceIncarnation}`))
       for (const entry of accepted.previous.snapshot.frontier) {
         const key = `${entry.sourceId}\u0000${entry.sourceIncarnation}`
+        if (successorSources.has(key)) continue
         this.#supersededDeclarationSources.add(key)
         this.#retiredLifecycleSources.set(key, {
           sourceId: entry.sourceId,
