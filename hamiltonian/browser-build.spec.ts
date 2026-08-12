@@ -34,7 +34,9 @@ test("builds the real orchestration and isolated layout Worker bundles", async (
     expect(serviceWorkerSource).toContain('subjectKind: "service-worker"')
     expect(serviceWorkerSource).toContain('subjectKind: "service-worker-api"')
     expect(serviceWorkerSource).toContain('subjectKind: "service-worker-api-message"')
-    expect(serviceWorkerSource).toContain('HAMILTONIAN_SERVICE_WORKER_CODE_VERSION = "1.0.0"')
+    expect(serviceWorkerSource).toContain('HAMILTONIAN_SERVICE_WORKER_CODE_VERSION = "1.1.0"')
+    expect(serviceWorkerSource).toContain("registration.update()")
+    expect(serviceWorkerSource).toContain("applicationReady")
     expect(serviceWorkerSource).toContain("codeVersion: workerCodeVersion")
     expect(serviceWorkerSource).toContain("pageLifecycleSnapshot")
     expect(serviceWorkerSource).toContain("browser-lifecycle-snapshot")
@@ -65,6 +67,7 @@ test("builds the real orchestration and isolated layout Worker bundles", async (
     expect(serviceWorkerTypeScript).toContain("observation?.ownerId === currentBrowserEntityId")
     expect(serviceWorkerTypeScript).toContain("currentPushReady = true")
     expect(serviceWorkerTypeScript).toContain("await restoreControlBootstrap()")
+    expect(serviceWorkerTypeScript).toContain('...(state === "active" ? {reason: null} : {})')
     expect(serviceWorkerTypeScript).toContain('hamiltonianLifecycleEntityId("service-worker", workerRuntimeIncarnation)')
     const pageLifecycleBranch = serviceWorkerTypeScript.slice(
       serviceWorkerTypeScript.indexOf('if (pageMessage.kind === "page-lifecycle")'),

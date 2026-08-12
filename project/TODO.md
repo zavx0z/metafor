@@ -107,12 +107,16 @@ canvas показали оба RTC endpoint и exact Oracle/Force lines. HAM-001
 `MF-428.5 — Нормализовать шапку ноды Service Worker` завершена отдельным
 checkpoint-коммитом `70fe491c1`. MF-428 остаётся `IN_PROGRESS`; следующий
 разрешённый срез `MF-428.4 — Обновлять Worker всех запущенных локальных
-профилей` прошёл read-only исследование и решением владельца сужен до одного
-локального Mac: простой build hook обновляет JSON manifest latest browser
-build, а каждый сейчас запущенный Chrome/profile при подключении сравнивает с
-ним declared Worker version и обновляет stale Worker до прикладной работы.
-Web Push кода не переносит. Иные среды и выключенные профили в этот срез не
-входят; product patch и live-управление профилями ещё не начаты.
+профилей` получил product checkpoint: manifest различает module и Worker
+release, stale профили не допускаются в application topology/peer, а один
+exact CDP-профиль live обновлён с Worker `1.0.0` до `1.1.0`. Live-derived
+stale projection facts и transient error reason закрыты отдельными frozen
+regressions; финальный offline proof — `195/195`, `4048` assertions. MF-428
+остаётся `IN_PROGRESS`: для завершения среза нужна обязательная одновременная
+exact-target проверка второго, default Chrome-профиля. CDP и Hamiltonian
+оставлены запущенными; владелец должен открыть `http://127.0.0.1:4400` в
+default Chrome process `408`. Web Push кода не переносит; иные среды и
+выключенные профили в этот срез не входят.
 
 | ID      | Состояние   | Зависимости | Карточка                    |
 | ------- | ----------- | ----------- | --------------------------- |

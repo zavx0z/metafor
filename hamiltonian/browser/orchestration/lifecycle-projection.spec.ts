@@ -321,6 +321,84 @@ describe("Hamiltonian lifecycle projection", () => {
     }
   })
 
+  test("atomically replaces one logical Chrome Worker declaration with its newer incarnation facts", () => {
+    const projection = new HamiltonianLifecycleProjection(context)
+    const logicalContourId = hamiltonianLogicalContourId("browser-profile", "profile-a")
+    const browserId = "browser:profile-a"
+    const workerId = "service-worker:stable-worker"
+    const declaration = (
+      runtimeIncarnation: string,
+      startedAt: number,
+      codeVersion: string,
+      reason?: string,
+    ) => {
+      const source = new HamiltonianLifecycleSource({
+        id: workerId,
+        kind: "service-worker",
+        incarnation: runtimeIncarnation,
+        startedAt,
+      })
+      const journal = new HamiltonianLifecycleRetainedJournal(workerId)
+      journal.observe(source.next(createHamiltonianLifecycleObservation({
+        type: "entity",
+        phase: "changed",
+        subjectId: browserId,
+        subjectKind: "browser-runtime",
+        ownerId: browserId,
+        attributes: {profileId: "profile-a", runtime: "Chrome", state: "active"},
+      }), {at: startedAt}))
+      journal.observe(source.next(createHamiltonianLifecycleObservation({
+        type: "entity",
+        phase: "changed",
+        subjectId: workerId,
+        subjectKind: "service-worker",
+        ownerId: browserId,
+        attributes: {
+          identity: "stable-worker",
+          runtimeIncarnation,
+          codeVersion,
+          state: "active",
+          ...(reason === undefined ? {} : {reason}),
+        },
+      }), {at: startedAt + 1}))
+      const snapshot = journal.snapshot()
+      return createHamiltonianNodeSystemDeclaration({
+        logicalContourId,
+        incarnation: runtimeIncarnation,
+        incarnationStartedAt: startedAt,
+        revision: snapshot.revision,
+        rootId: browserId,
+        snapshot,
+      })
+    }
+
+    expect(projection.replaceDeclaration(declaration(
+      "worker-runtime-old",
+      10,
+      "1.0.0",
+      "invalid browser lifecycle snapshot",
+    ))).toBeTrue()
+    expect(projection.replaceDeclaration(declaration(
+      "worker-runtime-current",
+      20,
+      "1.1.0",
+    ))).toBeTrue()
+
+    const document = projection.document()
+    expect(document.nodes.filter(({id}) => id === browserId)).toHaveLength(1)
+    expect(document.nodes.filter(({id}) => id === workerId)).toHaveLength(1)
+    const worker = document.nodes.find(({id}) => id === workerId)
+    expect(worker?.parentId).toBe(browserId)
+    expect(worker?.facts).toEqual(expect.arrayContaining([
+      {id: "runtimeIncarnation", label: "Исполнение", value: "worker-runtime-current"},
+      {id: "codeVersion", label: "Версия кода", value: "1.1.0"},
+    ]))
+    expect(worker?.facts?.some(({id}) => id === "reason")).toBeFalse()
+    expect(JSON.stringify(document)).not.toContain("worker-runtime-old")
+    expect(JSON.stringify(document)).not.toContain("1.0.0")
+    expect(JSON.stringify(document)).not.toContain("invalid browser lifecycle snapshot")
+  })
+
   test("does not materialize a transport or message across distinct Chrome profile roots", () => {
     const projection = new HamiltonianLifecycleProjection(context)
     const source = new HamiltonianLifecycleSource({
@@ -1006,6 +1084,60 @@ describe("Hamiltonian lifecycle projection", () => {
     expect(updated[0]?.parentId).toBe("browser:device-a")
     expect(updated[0]?.facts).toContainEqual({id: "runtimeIncarnation", label: "Исполнение", value: "runtime-c"})
     expect(updated[0]?.facts).toContainEqual({id: "codeVersion", label: "Версия кода", value: "2.0.0-rc.1+bundle.7"})
+  })
+
+  test("clears a recovered Worker's transient reason without deleting its last failure", () => {
+    const projection = new HamiltonianLifecycleProjection(context)
+    const source = new HamiltonianLifecycleSource({
+      id: "service-worker:recovered",
+      kind: "service-worker",
+      incarnation: "runtime-recovered",
+      startedAt: 1,
+    })
+    projection.observe(source.next(createHamiltonianLifecycleObservation({
+      type: "entity",
+      phase: "born",
+      subjectId: "browser:device-a",
+      subjectKind: "browser-runtime",
+      ownerId: "browser:device-a",
+      attributes: {profileId: "device-a", runtime: "Chrome", state: "active"},
+    })), null)
+    projection.observe(source.next(createHamiltonianLifecycleObservation({
+      type: "entity",
+      phase: "changed",
+      subjectId: "service-worker:recovered",
+      subjectKind: "service-worker",
+      ownerId: "browser:device-a",
+      attributes: {
+        identity: "recovered",
+        runtimeIncarnation: "runtime-recovered",
+        codeVersion: "1.1.0",
+        state: "error",
+        heartbeat: "failed",
+        reason: "invalid browser lifecycle snapshot",
+        lastFailure: "worker-replaced",
+      },
+    })), null)
+    projection.observe(source.next(createHamiltonianLifecycleObservation({
+      type: "entity",
+      phase: "changed",
+      subjectId: "service-worker:recovered",
+      subjectKind: "service-worker",
+      ownerId: "browser:device-a",
+      attributes: {
+        identity: "recovered",
+        runtimeIncarnation: "runtime-recovered",
+        codeVersion: "1.1.0",
+        state: "active",
+        heartbeat: "observed",
+        reason: null,
+      },
+    })), null)
+
+    const facts = projection.document().nodes.find(({id}) => id === "service-worker:recovered")?.facts
+    expect(facts).toContainEqual({id: "lastFailure", label: "Последний отказ", value: "worker-replaced"})
+    expect(facts?.some(({id}) => id === "reason")).toBeFalse()
+    expect(JSON.stringify(facts)).not.toContain("invalid browser lifecycle snapshot")
   })
 
   test("materializes an already closed retained WS for a late subscriber", () => {

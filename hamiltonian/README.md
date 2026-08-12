@@ -355,16 +355,40 @@ logical Worker identity. Identity не повторяется отдельным
 шапкой и параметрами нет описательного блока; удаление этих presentation-полей
 не скрывает версию кода.
 
-Отдельная принятая, но ещё не реализованная server-owned операция обновления задаёт
-exact target SemVer. Она адресует все известные browser/profile scope, но не
-сливает их lifecycle: каждый профиль независимо проходит browser-managed
-проверку регистрации, установку, активацию, смену controller и восстановление
-control transport. Отправка команды не считается фактом обновления. Общий
-result успешен только после authoritative подтверждения target version каждым
-достижимым profile; недоступный либо незавершённый profile остаётся явным
-pending/failed result и обновляется при следующем достижимом lifecycle, а не
-скрывается как успех. Наличие наблюдаемой code version само по себе не создаёт эту
-операцию.
+На одном локальном Mac действующий `Bun.build` Service Worker создаёт локальный
+release `{version, sha256}`. Его SemVer берётся из исполняемого Worker bundle,
+а SHA-256 вычисляется по точному результату сборки. `/manifest.json` хранит
+этот release во вложенном поле `serviceWorker`; существующие top-level
+`version`, `moduleUrl` и `sha256` по-прежнему принадлежат внутреннему versioned
+module и не переименовываются в Worker version/hash.
+
+Каждое подключение локального Chrome/profile проходит profile-scoped admission.
+Host сравнивает заявленную Worker code version с текущим локальным manifest.
+Совпавшая версия получает `service-worker-current` и только после этого входит
+в retained browser lifecycle, topology, peer и иную прикладную работу. Stale
+execution допускается лишь к техническим declaration/identity, heartbeat и
+`service-worker-update`; его snapshot и окна не материализуются. Получив exact
+target `{version, sha256}`, Worker вызывает browser-managed
+`ServiceWorkerRegistration.update()`. Отправка запроса и завершение `update()`
+не являются успехом: профиль подтверждён только когда тот же logical Worker
+подключился с новой execution incarnation и manifest version. Попытка заявить
+target version из уже отвергнутой incarnation отклоняется.
+
+После новой локальной сборки host посылает тот же exact target всем сейчас
+подключённым stale профилям. Перед отправкой update он атомарно отзывает их
+окна из application topology, закрывает прежний peer и дожидается завершения
+этого teardown; stale DataChannel не продолжает прикладную работу во время
+browser-managed update. Поздно подключившийся запущенный профиль проходит ту
+же admission-проверку. Web Push переносит только wake capability и может
+инициировать reconnect/check, но не содержит versioned code. Выключенные
+профили, remote release/fleet registry, server/device agents, Git delivery и
+межмашинная публикация в этот локальный закон не входят.
+
+Новая authoritative declaration следующего execution одного logical Worker
+атомарно заменяет факты и timestamps предыдущего execution, даже если browser
+root и logical Worker identity не меняются. Факты старой incarnation не
+доклеиваются к новой. Успешный current admission/heartbeat явно снимает
+transient `reason`, но не удаляет отдельный исторический `lastFailure`.
 
 Повторный `connect-window` не создаёт вторую визуальную связь: Service Worker
 API transport сохраняет identity текущей page realm, а тихий канал и смена

@@ -573,6 +573,7 @@ export class HamiltonianLifecycleProjection {
     ) return
     if (observation.phase !== "ended" && this.#terminalEntities.has(observation.subjectId)) return
     const existing = this.#entities.get(observation.subjectId)
+    const previousEvent = this.#structuralEvents.get(structuralEventKey("entity", observation.subjectId))
     if (!this.#advanceStructuralEvent("entity", envelope)) return
     if (observation.phase === "ended") {
       const incarnation = stringAttribute(existing?.attributes.incarnation)
@@ -584,6 +585,10 @@ export class HamiltonianLifecycleProjection {
       this.#retireEntity(observation.subjectId)
       return
     }
+    const replacesSupersededDeclarationSource = declarationAuthority &&
+      previousEvent !== undefined &&
+      previousEvent.sourceKey !== lifecycleSourceKey(envelope) &&
+      this.#supersededDeclarationSources.has(previousEvent.sourceKey)
     if (observation.ownerId !== null && this.#terminalEntities.has(observation.ownerId)) {
       this.#retireEntity(observation.subjectId)
       return
@@ -593,8 +598,10 @@ export class HamiltonianLifecycleProjection {
       kind: observation.subjectKind,
       ownerId: observation.ownerId,
       state: stringAttribute(observation.attributes.state) || (observation.phase === "born" ? "live" : existing?.state ?? "live"),
-      attributes: {...(existing?.attributes ?? {}), ...observation.attributes},
-      bornAt: existing?.bornAt ?? envelope.at,
+      attributes: replacesSupersededDeclarationSource
+        ? {...observation.attributes}
+        : {...(existing?.attributes ?? {}), ...observation.attributes},
+      bornAt: replacesSupersededDeclarationSource ? envelope.at : existing?.bornAt ?? envelope.at,
       changedAt: envelope.at,
     })
   }
@@ -616,6 +623,7 @@ export class HamiltonianLifecycleProjection {
       this.#declaredTransportIds.has(observation.subjectId)
     ) return
     if (observation.phase !== "closed" && this.#terminalTransports.has(observation.subjectId)) return
+    const previousEvent = this.#structuralEvents.get(structuralEventKey("transport", observation.subjectId))
     if (!this.#advanceStructuralEvent("transport", envelope)) return
     if (observation.ownerId === null || observation.sourceEntityId === null || observation.targetEntityId === null) return
     if (
@@ -633,6 +641,10 @@ export class HamiltonianLifecycleProjection {
       this.#retireTransport(previousTransportId)
     }
     const existing = this.#transports.get(observation.subjectId)
+    const replacesSupersededDeclarationSource = declarationAuthority &&
+      previousEvent !== undefined &&
+      previousEvent.sourceKey !== lifecycleSourceKey(envelope) &&
+      this.#supersededDeclarationSources.has(previousEvent.sourceKey)
     this.#transports.set(observation.subjectId, {
       id: observation.subjectId,
       kind: observation.subjectKind,
@@ -640,8 +652,10 @@ export class HamiltonianLifecycleProjection {
       sourceEntityId: observation.sourceEntityId,
       targetEntityId: observation.targetEntityId,
       state: observation.phase,
-      attributes: {...(existing?.attributes ?? {}), ...observation.attributes},
-      openedAt: existing?.openedAt ?? envelope.at,
+      attributes: replacesSupersededDeclarationSource
+        ? {...observation.attributes}
+        : {...(existing?.attributes ?? {}), ...observation.attributes},
+      openedAt: replacesSupersededDeclarationSource ? envelope.at : existing?.openedAt ?? envelope.at,
       changedAt: envelope.at,
       slot,
     })

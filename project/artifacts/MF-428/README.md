@@ -250,6 +250,68 @@ logical identity и browser owner сохраняются. Server-owned уста�
 * SHA-256:
   `ffcf66fde506727ea79a6e439647ce48dfafaa85380844091676ebbac89c146e`.
 
+## Live-checkpoint MF-428.4 — локальное обновление Service Worker
+
+### Provenance и граница доказательства
+
+Проверка выполнена 13 августа 2026 года из канонического checkout на baseline
+`e9ba248145a6659859cf6dcddfbfa9b65f70d082` плюс изменения MF-428.4.
+Hamiltonian полностью перезапущен из `hamiltonian/`; финальный host epoch
+`53db807f-6d0b-4280-8e64-c11534ba7fab`. `@meta/chrome` сохранил два уже
+работавших процесса: default PID `408` без remote debugging и Chrome-CDP PID
+`23906` с user data dir `Google/Chrome-CDP`. Exact CDP target
+`11E491A8B2D07463D406EBAF7948C35A` принадлежит профилю
+`b04b5959-28a2-4ac0-ba5c-6bdba29e0091`.
+
+Host обновил logical Worker `45d8fde1-9ecb-4c83-b52a-095c974cb4a1` с code
+version `1.0.0` до `1.1.0`; финальная execution incarnation —
+`6ea18570-52a5-4044-b736-2e1ad3cdb0b8`. Authenticated status подтвердил
+`identityConfirmed=true`, `workerUpdateRequired=false`, восстановленные
+topology и peer. Exact target после reload имел готовую scene, а console
+observation за `1200` мс вернула `0` записей.
+
+Это checkpoint одного профиля, а не двухпрофильная приёмка. Default Chrome
+process был жив, но Hamiltonian-вкладки не имел. При двух Chrome processes
+`@meta/chrome` не создаёт неоднозначное AppleScript-окно и требует exact CDP
+target, которого у default profile нет. Hamiltonian и CDP оставлены
+работающими для открытия URL владельцем в default Chrome.
+
+### `mf-428-4-stale-declaration-facts.png`
+
+* Источник: exact CDP screenshot после первого обновления Worker до `1.1.0`.
+* Ожидание: новая authoritative declaration атомарно заменяет старые facts.
+* Фактическое наблюдение: карточка оставалась на execution и code version
+  `1.0.0` с `Причина: invalid browser lifecycle snapshot`, хотя host уже
+  принял новое execution `1.1.0`. Это defect evidence, не приёмка.
+* Размер: `3840 × 2176`, `391383` байта.
+* SHA-256:
+  `a1f6429e4243e268f944b1111735b8e250fa89a7cf7d8a7312be65ff98993ca1`.
+
+### `mf-428-4-stale-transient-reason.png`
+
+* Источник: exact CDP screenshot после atomic declaration replacement fix.
+* Ожидание: Worker `1.1.0` нового execution не сохраняет причину ошибки
+  предыдущего execution.
+* Фактическое наблюдение: execution и version уже правильные, Worker находится
+  внутри Chrome, WS/RTC восстановлены, но `Причина: invalid ... snapshot`
+  повторно пришла из current retained Worker journal. Это defect evidence, не
+  приёмка.
+* Размер: `3840 × 2176`, `225774` байта.
+* SHA-256:
+  `5bf65cd5fa5672f1a49ac655c91cb2832fdea853d16b72eb43662ab35b388384`.
+
+### `mf-428-4-final-cdp.png`
+
+* Источник: exact CDP screenshot после второго полного restart contour и
+  завершённого topology update.
+* Ожидание и результат: один Chrome `b04b5959-...` содержит один logical
+  Service Worker `45d8fde1-...` с execution `6ea18570-...` и `Версия кода
+  1.1.0`; transient `Причина` отсутствует, WS и оба Oracle/Force
+  RTCDataChannel видимы. Расхождений с ожиданием нет.
+* Размер: `3840 × 2176`, `222524` байта.
+* SHA-256:
+  `f18cba8dd123424ec2a1222637d682c095510363a379fbc22e213bdd140ed65c`.
+
 ## Live-сценарий MF-428.5 — шапка Service Worker
 
 ### Provenance и точная граница доказательства

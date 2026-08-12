@@ -42,6 +42,7 @@ import {createWebPushWorkerHandlers} from "@metafor/web-push/worker"
 import type {WebPushLifecycleEvent} from "@metafor/web-push/lifecycle"
 import type {WebPushMessage} from "@metafor/web-push/protocol"
 import {HAMILTONIAN_SERVICE_WORKER_CODE_VERSION} from "./service-worker-code-version.ts"
+import {isHamiltonianServiceWorkerCodeVersion} from "../core/service-worker-code-version.js"
 import {pageLifecycleChangesNodeSystem} from "./page-lifecycle-declaration.ts"
 
 type LifecycleJournal = InstanceType<typeof HamiltonianLifecycleRetainedJournal>
@@ -89,6 +90,7 @@ interface HamiltonianNotificationClickEvent extends HamiltonianExtendableEvent {
 
 interface HamiltonianWorkerRegistration {
   showNotification(title: string, options?: NotificationOptions): Promise<void>
+  update(): Promise<HamiltonianWorkerRegistration>
 }
 
 interface HamiltonianWorkerRuntime {
@@ -173,6 +175,12 @@ interface HostControlMessage extends MessageRecord {
   at?: number
   seq?: number
   tabId?: string
+  target?: ServiceWorkerRelease
+}
+
+interface ServiceWorkerRelease {
+  version: string
+  sha256: string
 }
 
 interface VersionManifest {
@@ -277,6 +285,7 @@ let currentBrowserEntityId: string | null = null
 let currentToken: string | null = null
 let currentHost: HostIdentity | null = null
 let currentTopology: TopologySnapshot | null = null
+let currentSourceUpdate: HostControlMessage | null = null
 let currentVersionState: VersionState | null = null
 let currentConnectionId: string | null = null
 let currentResumeNonce: string | null = null
@@ -284,6 +293,11 @@ let currentServerEntityId: string | null = null
 let currentServerLogicalContourId: string | null = null
 let currentHostLifecycleJournal: LifecycleJournal | null = null
 let currentPushReady = false
+let applicationReady = false
+const pendingWindowConnections = new Map<string, {
+  message: ConnectWindowMessage
+  client: HamiltonianWorkerClient
+}>()
 const pendingPushRegistrations = new Map<string, PendingPushRegistration>()
 let pendingPushWake: PendingPushWake | null = null
 subscribeHamiltonianLifecycle((envelope) => {
@@ -761,6 +775,7 @@ function observeWorkerHeartbeat(
       ...workerEmbodimentAttributes(),
       state,
       heartbeat,
+      ...(state === "active" ? {reason: null} : {}),
       ...attributes,
     },
   }))
@@ -965,12 +980,6 @@ function ensureSocket(): void {
           openedSocket.close(1008, "browser node-system declaration is unavailable")
           return
         }
-        flushPushRegistrations()
-        flushHostRetirements()
-        observeWorkerHeartbeat("active", "awaiting")
-        emit("Service Worker control socket connected")
-        tellAll(workerState())
-        void sendWindowSnapshot()
       }
       if (serverIdentity !== null && declaration.boundaryTransports.some(({transportId: declaredId}) =>
         declaredId === lifecycle.transportId)) {
@@ -1137,7 +1146,6 @@ function ensureSocket(): void {
       currentConnectionId = message.connectionId ?? null
       currentHost = message.host
       tellAll(workerState())
-      void prepareVersion(message.host.version)
       return
     }
     if (message.kind === "topology") {
@@ -1147,11 +1155,33 @@ function ensureSocket(): void {
       }
       currentHost = message.host
       currentTopology = message.topology
-      tellAll(message)
+      if (applicationReady) tellAll(message)
       return
     }
     if (message.kind === "source-update") {
-      tellAll(message)
+      currentSourceUpdate = message
+      if (applicationReady) tellAll(message)
+      return
+    }
+    if (message.kind === "service-worker-update") {
+      if (!isServiceWorkerRelease(message.target) || message.target.version === workerCodeVersion) {
+        openedSocket.close(1008, "invalid Service Worker update target")
+        return
+      }
+      applicationReady = false
+      void serviceWorkerRuntime.registration.update().then(() => {
+        emit(`browser accepted Service Worker update check for ${message.target!.version}`)
+      }).catch((error: unknown) => {
+        emit(`Service Worker update check failed: ${error instanceof Error ? error.message : String(error)}`, "error")
+      })
+      return
+    }
+    if (message.kind === "service-worker-current") {
+      if (!isServiceWorkerRelease(message.target) || message.target.version !== workerCodeVersion) {
+        openedSocket.close(1008, "invalid current Service Worker release")
+        return
+      }
+      void admitServiceWorkerApplication()
       return
     }
     if (message.kind === "peer-signal" && typeof message.tabId === "string") {
@@ -1161,6 +1191,7 @@ function ensureSocket(): void {
   })
   openedSocket.addEventListener("close", (event) => {
     if (!socketSlot.clearIfCurrent(openedSocket)) return
+    applicationReady = false
     const lifecycle = socketLifecycle.get(openedSocket)
     const serverEntityId = lifecycle?.serverEntityId ?? null
     if (serverEntityId && lifecycle?.transportDeclared) {
@@ -1219,6 +1250,27 @@ function ensureSocket(): void {
       }
     }
   })
+}
+
+async function admitServiceWorkerApplication(): Promise<void> {
+  if (applicationReady) return
+  applicationReady = true
+  flushPushRegistrations()
+  flushHostRetirements()
+  observeWorkerHeartbeat("active", "awaiting")
+  emit("Service Worker control socket connected")
+  tellAll(workerState())
+  if (currentHost) void prepareVersion(currentHost.version)
+  if (currentTopology && currentHost) {
+    tellAll({kind: "topology", host: currentHost, topology: currentTopology})
+  }
+  if (currentSourceUpdate) tellAll(currentSourceUpdate)
+  const pending = [...pendingWindowConnections.values()]
+  pendingWindowConnections.clear()
+  for (const connection of pending) {
+    await connectWindow(connection.message, connection.client)
+  }
+  await sendWindowSnapshot()
 }
 
 async function prepareVersion(expectedVersion: string): Promise<void> {
@@ -1337,6 +1389,13 @@ async function connectWindow(message: ConnectWindowMessage, client: HamiltonianW
   currentServerEntityId = acceptedServerEntityId
   await persistControlBootstrap()
 
+  if (!applicationReady) {
+    pendingWindowConnections.set(message.tabId, {message, client})
+    ensureSocket()
+    return
+  }
+  pendingWindowConnections.delete(message.tabId)
+
   const previous = windows.get(message.tabId)
   const previousClient = previous?.clientId ? await serviceWorkerRuntime.clients.get(previous.clientId) : null
   const replacesPreviousPage = isWindowPageReplacement(previous, message)
@@ -1431,6 +1490,7 @@ async function connectWindow(message: ConnectWindowMessage, client: HamiltonianW
 }
 
 async function receiveWindowMessage(pageMessage: PageControlMessage, client: HamiltonianWorkerClient): Promise<void> {
+  if (!applicationReady) return
   const window = [...windows.values()].find((candidate) => candidate.clientId === client.id)
   if (!window || !isCurrentWindowChannel(windows, window)) {
     client.postMessage({kind: "reattach-window"})
@@ -1726,6 +1786,13 @@ function isVersionManifest(value: unknown): value is VersionManifest {
     typeof value.version === "string" &&
     typeof value.moduleUrl === "string" &&
     typeof value.sha256 === "string"
+}
+
+function isServiceWorkerRelease(value: unknown): value is ServiceWorkerRelease {
+  return isRecord(value) &&
+    isHamiltonianServiceWorkerCodeVersion(value.version) &&
+    typeof value.sha256 === "string" &&
+    /^[0-9a-f]{64}$/.test(value.sha256)
 }
 
 function isConnectWindowMessage(value: unknown): value is ConnectWindowMessage {

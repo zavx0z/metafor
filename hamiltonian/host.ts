@@ -58,6 +58,7 @@ interface SocketData {
   workerCodeVersion: string | null
   resumeNonce: string | null
   identityConfirmed: boolean
+  workerUpdateRequired: boolean
   retainAuthorityOnClose: boolean
   reportedEmptyWindowInventory: boolean
 }
@@ -84,6 +85,15 @@ interface HamiltonianHostOptions {
 interface ClientTabsMessage {
   kind: "tabs"
   windows: WindowCandidate[]
+}
+
+const TECHNICAL_CLIENT_MESSAGE_KINDS = new Set(["identity", "pong"])
+
+export function hamiltonianServiceWorkerApplicationMessageAllowed(
+  identityConfirmed: boolean,
+  kind: string,
+): boolean {
+  return identityConfirmed || TECHNICAL_CLIENT_MESSAGE_KINDS.has(kind)
 }
 
 interface ClientPongMessage {
@@ -668,6 +678,22 @@ export interface HamiltonianBrowserSourceArtifacts {
   directlyServedText: Readonly<Record<string, string>>
 }
 
+interface HamiltonianServiceWorkerRelease {
+  version: string
+  sha256: string
+}
+
+export function hamiltonianServiceWorkerRelease(source: string): HamiltonianServiceWorkerRelease {
+  const version = source.match(/HAMILTONIAN_SERVICE_WORKER_CODE_VERSION\s*=\s*["']([^"']+)["']/)?.[1]
+  if (!isHamiltonianServiceWorkerCodeVersion(version)) {
+    throw new Error("Hamiltonian Service Worker bundle lacks a valid code SemVer")
+  }
+  return {
+    version,
+    sha256: sha256Hex(source),
+  }
+}
+
 export function hamiltonianBrowserSourceRevision(
   artifacts: HamiltonianBrowserSourceArtifacts,
 ): string {
@@ -796,6 +822,10 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
   const topology = new HostTopology(hostEpoch)
   const sockets = new Map<string, Bun.ServerWebSocket<SocketData>>()
   const serviceWorkerEmbodiments = new Map<string, {runtimeIncarnation: string; codeVersion: string}>()
+  const pendingServiceWorkerUpdates = new Map<string, {
+    runtimeIncarnation: string
+    target: HamiltonianServiceWorkerRelease
+  }>()
   let controlConnectionGeneration = 0
   const sourceWatchers: FSWatcher[] = []
   let sourceUpdateTimer: ReturnType<typeof setTimeout> | null = null
@@ -812,9 +842,64 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
   const browserProfileReachabilityTimers = new Map<string, ReturnType<typeof setTimeout>>()
   const events: HostEvent[] = []
   let boundPort = port
+  let broadcastTopology = () => {}
   const record = (event: HostEvent) => {
     events.push(event)
     if (events.length > 500) events.splice(0, events.length - 500)
+  }
+  const currentServiceWorkerRelease = async (): Promise<HamiltonianServiceWorkerRelease> => {
+    return hamiltonianServiceWorkerRelease(await getServiceWorkerBundle())
+  }
+  const serviceWorkerUpdateKey = (socket: Bun.ServerWebSocket<SocketData>) =>
+    `${socket.data.deviceId}\u0000${socket.data.workerEntityId}`
+  const markServiceWorkerUpdate = (
+    socket: Bun.ServerWebSocket<SocketData>,
+    target: HamiltonianServiceWorkerRelease,
+  ): boolean => {
+    if (!socket.data.workerRuntimeIncarnation) return false
+    const revokedApplication = socket.data.identityConfirmed
+    socket.data.identityConfirmed = false
+    socket.data.retainAuthorityOnClose = false
+    socket.data.workerUpdateRequired = true
+    pendingServiceWorkerUpdates.set(serviceWorkerUpdateKey(socket), {
+      runtimeIncarnation: socket.data.workerRuntimeIncarnation,
+      target,
+    })
+    return revokedApplication
+  }
+  const sendServiceWorkerUpdate = (
+    socket: Bun.ServerWebSocket<SocketData>,
+    target: HamiltonianServiceWorkerRelease,
+  ) => {
+    sendControl(socket, {kind: "service-worker-update", target})
+    record({
+      at: Date.now(),
+      kind: "service-worker-update-required",
+      connectionId: socket.data.connectionId,
+      detail: `${socket.data.workerEntityId} ${socket.data.workerCodeVersion ?? "unknown"} -> ${target.version}`,
+    })
+  }
+  const revokeServiceWorkerApplication = async (
+    staleSockets: ReadonlyArray<Bun.ServerWebSocket<SocketData>>,
+  ) => {
+    for (const socket of staleSockets) topology.disconnect(socket.data.connectionId)
+    if (staleSockets.length === 0) return
+    broadcastTopology()
+    await peerOperations
+  }
+  const requireServiceWorkerUpdate = async (
+    socket: Bun.ServerWebSocket<SocketData>,
+    target: HamiltonianServiceWorkerRelease,
+  ) => {
+    if (markServiceWorkerUpdate(socket, target)) await revokeServiceWorkerApplication([socket])
+    sendServiceWorkerUpdate(socket, target)
+  }
+  const reconcileServiceWorkerReleases = async (target: HamiltonianServiceWorkerRelease) => {
+    const staleSockets = [...sockets.values()].filter((socket) =>
+      socket.data.workerCodeVersion !== null && socket.data.workerCodeVersion !== target.version)
+    const revokedSockets = staleSockets.filter((socket) => markServiceWorkerUpdate(socket, target))
+    await revokeServiceWorkerApplication(revokedSockets)
+    for (const socket of staleSockets) sendServiceWorkerUpdate(socket, target)
   }
   const clearPendingWake = (workerEntityId: string, wakeId: string): boolean => {
     if (pendingWakes.get(workerEntityId)?.wakeId !== wakeId) return false
@@ -849,12 +934,14 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
   const broadcastLifecycleEnvelope = (value: HamiltonianLifecycleEnvelope) => {
     const payload = JSON.stringify({kind: "lifecycle", envelope: value})
     for (const observer of sockets.values()) {
+      if (!observer.data.identityConfirmed) continue
       if (observer.getBufferedAmount() <= 256_000) observer.send(payload)
     }
   }
   const broadcastLifecycleSnapshot = () => {
     const payload = JSON.stringify({kind: "lifecycle-snapshot", snapshot: hostLifecycleJournal.snapshot()})
     for (const observer of sockets.values()) {
+      if (!observer.data.identityConfirmed) continue
       if (observer.getBufferedAmount() <= 256_000) observer.send(payload)
     }
   }
@@ -933,7 +1020,9 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
     socket.send(JSON.stringify({kind: "node-system-declaration", declaration}))
   }
   const broadcastNodeSystemDeclaration = (declaration: HamiltonianNodeSystemDeclaration) => {
-    for (const socket of sockets.values()) sendNodeSystemDeclaration(socket, declaration)
+    for (const socket of sockets.values()) {
+      if (socket.data.identityConfirmed) sendNodeSystemDeclaration(socket, declaration)
+    }
   }
   const browserDeclarationStartedAt = (
     snapshot: HamiltonianLifecycleSnapshot,
@@ -1036,10 +1125,6 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
     return declaration
   }
   const sendCurrentNodeSystemDeclarations = (socket: Bun.ServerWebSocket<SocketData>) => {
-    for (const declaration of nodeSystemDeclarations.values()) {
-      if (declaration.logicalContourId === serverLogicalContourId) continue
-      sendNodeSystemDeclaration(socket, declaration)
-    }
     sendNodeSystemDeclaration(socket, refreshServerDeclaration())
   }
   const observeServiceWorkerAvailability = (
@@ -1177,18 +1262,20 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
   ) => {
     const messageId = `message:${encodeURIComponent(crypto.randomUUID())}`
     const monitor = {messageId, transportId: socket.data.lifecycleTransportId}
-    relayLifecycleEnvelope(hostLifecycle.next(createHamiltonianLifecycleObservation({
-      type: "message",
-      phase: "sent",
-      subjectId: messageId,
-      subjectKind: "websocket-message",
-      ownerId: serverEntityId,
-      sourceEntityId: serverEntityId,
-      targetEntityId: socket.data.workerEntityId,
-      transportId: socket.data.lifecycleTransportId,
-      messageId,
-      messageClass: message.kind,
-    })))
+    if (socket.data.identityConfirmed) {
+      relayLifecycleEnvelope(hostLifecycle.next(createHamiltonianLifecycleObservation({
+        type: "message",
+        phase: "sent",
+        subjectId: messageId,
+        subjectKind: "websocket-message",
+        ownerId: serverEntityId,
+        sourceEntityId: serverEntityId,
+        targetEntityId: socket.data.workerEntityId,
+        transportId: socket.data.lifecycleTransportId,
+        messageId,
+        messageClass: message.kind,
+      })))
+    }
     socket.send(JSON.stringify({...message, monitor}))
   }
   const clearHeartbeatTimers = (socket: Bun.ServerWebSocket<SocketData>) => {
@@ -1229,10 +1316,15 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
     if (sourceUpdateTimer !== null) clearTimeout(sourceUpdateTimer)
     sourceUpdateTimer = setTimeout(() => {
       sourceUpdateTimer = null
-      void currentHamiltonianBrowserSourceRevision().then((revision) => {
+      void Promise.all([
+        currentHamiltonianBrowserSourceRevision(),
+        currentServiceWorkerRelease(),
+      ]).then(async ([revision, serviceWorkerRelease]) => {
         if (generation !== sourceUpdateGeneration || stopping) return
         record({at: Date.now(), kind: "source-update", detail: revision})
+        await reconcileServiceWorkerReleases(serviceWorkerRelease)
         for (const socket of sockets.values()) {
+          if (!socket.data.identityConfirmed) continue
           if (socket.getBufferedAmount() > 256_000) continue
           sendControl(socket, {kind: "source-update", revision})
         }
@@ -1268,7 +1360,6 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
       ]).catch(() => {})
     }
   }
-  let broadcastTopology = () => {}
   let peerSnapshot: WeriftPeerSnapshot | null = null
   let peerError: string | null = null
   let peerAssignment: {
@@ -1491,6 +1582,8 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
       workerIdentity: socket.data.workerIdentity,
       workerRuntimeIncarnation: socket.data.workerRuntimeIncarnation,
       workerCodeVersion: socket.data.workerCodeVersion,
+      identityConfirmed: socket.data.identityConfirmed,
+      workerUpdateRequired: socket.data.workerUpdateRequired,
       openedAt: socket.data.openedAt,
       lastPongAt: socket.data.lastPongAt,
       lastChallengeSeq: socket.data.lastChallengeSeq,
@@ -1562,6 +1655,7 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
       topology: nextTopology,
     }
     for (const socket of sockets.values()) {
+      if (!socket.data.identityConfirmed) continue
       if (socket.getBufferedAmount() > 256_000) {
         socket.close(1013, "control channel backpressure")
         continue
@@ -1720,6 +1814,7 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
             workerCodeVersion: null,
             resumeNonce: null,
             identityConfirmed: false,
+            workerUpdateRequired: false,
             retainAuthorityOnClose: false,
             reportedEmptyWindowInventory: false,
           },
@@ -1820,11 +1915,13 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
 
       if (url.pathname === "/manifest.json") {
         if (!authorized(request, token)) return new Response("Unauthorized", {status: 401})
+        const serviceWorker = await currentServiceWorkerRelease()
         return Response.json({
           identity,
           version,
           moduleUrl: `/versions/${encodeURIComponent(version)}/module.js`,
           sha256: sourceHash,
+          serviceWorker,
         }, {headers: securityHeaders("application/json; charset=utf-8")})
       }
 
@@ -1850,9 +1947,6 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
         topology.connect(socket.data.connectionId, socket.data.deviceId)
         record({at: Date.now(), kind: "connection-open", connectionId: socket.data.connectionId})
         sendCurrentNodeSystemDeclarations(socket)
-        // Establish one explicit causal frontier before producing the first
-        // live event for this socket. Historical messages stay behind the
-        // frontier; only retained active entities and transports bootstrap.
         socket.send(JSON.stringify({kind: "lifecycle-snapshot", snapshot: hostLifecycleJournal.snapshot()}))
         sendControl(socket, {
           kind: "hello",
@@ -1862,7 +1956,7 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
         broadcastTopology()
         challengeHeartbeat(socket)
         void currentHamiltonianBrowserSourceRevision().then((revision) => {
-          if (sockets.get(socket.data.connectionId) !== socket) return
+          if (sockets.get(socket.data.connectionId) !== socket || !socket.data.identityConfirmed) return
           sendControl(socket, {kind: "source-update", revision})
         }).catch((error: unknown) => {
           record({
@@ -1888,24 +1982,29 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
           socket.close(1008, "invalid control message")
           return
         }
+        if (!hamiltonianServiceWorkerApplicationMessageAllowed(socket.data.identityConfirmed, message.kind)) {
+          return
+        }
         if (message.monitor) {
           if (message.monitor.transportId !== socket.data.lifecycleTransportId) {
             socket.data.retainAuthorityOnClose = false
             socket.close(1008, "control message transport identity mismatch")
             return
           }
-          relayLifecycleEnvelope(hostLifecycle.next(createHamiltonianLifecycleObservation({
-            type: "message",
-            phase: "received",
-            subjectId: message.monitor.messageId,
-            subjectKind: "websocket-message",
-            ownerId: serverEntityId,
-            sourceEntityId: socket.data.workerEntityId,
-            targetEntityId: serverEntityId,
-            transportId: socket.data.lifecycleTransportId,
-            messageId: message.monitor.messageId,
-            messageClass: message.kind,
-          })))
+          if (socket.data.identityConfirmed) {
+            relayLifecycleEnvelope(hostLifecycle.next(createHamiltonianLifecycleObservation({
+              type: "message",
+              phase: "received",
+              subjectId: message.monitor.messageId,
+              subjectKind: "websocket-message",
+              ownerId: serverEntityId,
+              sourceEntityId: socket.data.workerEntityId,
+              targetEntityId: serverEntityId,
+              transportId: socket.data.lifecycleTransportId,
+              messageId: message.monitor.messageId,
+              messageClass: message.kind,
+            })))
+          }
         }
         if (message.kind === "lifecycle-retirement") {
           if (
@@ -2003,6 +2102,7 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
           return
         }
         if (message.kind === "identity") {
+          socket.data.workerUpdateRequired = true
           if (
             socket.data.workerEntityId !== hamiltonianLifecycleEntityId("service-worker", message.workerIdentity) ||
             (socket.data.workerIdentity !== null && socket.data.workerIdentity !== message.workerIdentity) ||
@@ -2045,6 +2145,25 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
               return
             }
           }
+          const targetServiceWorker = await currentServiceWorkerRelease()
+          const updateKey = serviceWorkerUpdateKey(socket)
+          const pendingUpdate = pendingServiceWorkerUpdates.get(updateKey)
+          if (
+            pendingUpdate?.runtimeIncarnation === message.workerRuntimeIncarnation &&
+            message.workerCodeVersion === pendingUpdate.target.version
+          ) {
+            socket.data.retainAuthorityOnClose = false
+            socket.close(1008, "Service Worker target version requires a new execution")
+            return
+          }
+          socket.data.workerIdentity = message.workerIdentity
+          socket.data.workerRuntimeIncarnation = message.workerRuntimeIncarnation
+          socket.data.workerCodeVersion = message.workerCodeVersion
+          socket.data.resumeNonce = message.resumeNonce
+          if (message.workerCodeVersion !== targetServiceWorker.version) {
+            await requireServiceWorkerUpdate(socket, targetServiceWorker)
+            return
+          }
           const browserDeclaration = browserDeclarationForSnapshot(
             message.lifecycleSnapshot,
             socket.data,
@@ -2056,18 +2175,22 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
             socket.close(1008, "invalid browser node-system declaration")
             return
           }
-          socket.data.workerIdentity = message.workerIdentity
-          socket.data.workerRuntimeIncarnation = message.workerRuntimeIncarnation
-          socket.data.workerCodeVersion = message.workerCodeVersion
           serviceWorkerEmbodiments.set(socket.data.workerEntityId, {
             runtimeIncarnation: message.workerRuntimeIncarnation,
             codeVersion: message.workerCodeVersion,
           })
-          socket.data.resumeNonce = message.resumeNonce
           socket.data.identityConfirmed = true
+          socket.data.workerUpdateRequired = false
           socket.data.retainAuthorityOnClose = true
+          pendingServiceWorkerUpdates.delete(updateKey)
           cancelBrowserProfileReachabilityExpiry(socket.data.deviceId)
           mergeBrowserLifecycleSnapshot(message.lifecycleSnapshot)
+          socket.send(JSON.stringify({kind: "lifecycle-snapshot", snapshot: hostLifecycleJournal.snapshot()}))
+          for (const declaration of nodeSystemDeclarations.values()) {
+            if (declaration.logicalContourId !== serverLogicalContourId) {
+              sendNodeSystemDeclaration(socket, declaration)
+            }
+          }
           relayLifecycleEnvelope(hostLifecycle.next(createHamiltonianLifecycleObservation({
             type: "transport",
             phase: "opened",
@@ -2089,6 +2212,19 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
             kind: "worker-identity",
             connectionId: socket.data.connectionId,
             detail: `${message.workerIdentity} runtime ${message.workerRuntimeIncarnation} code ${message.workerCodeVersion}`,
+          })
+          sendControl(socket, {kind: "service-worker-current", target: targetServiceWorker})
+          void currentHamiltonianBrowserSourceRevision().then((revision) => {
+            if (sockets.get(socket.data.connectionId) === socket && socket.data.identityConfirmed) {
+              sendControl(socket, {kind: "source-update", revision})
+            }
+          }).catch((error: unknown) => {
+            record({
+              at: Date.now(),
+              kind: "source-update-failed",
+              connectionId: socket.data.connectionId,
+              detail: error instanceof Error ? error.message : String(error),
+            })
           })
           if (message.wakeId !== undefined) {
             clearPendingWake(socket.data.workerEntityId, message.wakeId)
@@ -2406,6 +2542,12 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
     },
     reportPeerErrorForTest(peerId: string, error: string) {
       peerSupervisor.reportErrorForTest(peerId, error)
+    },
+    async updateServiceWorkerReleaseForTest(source: string) {
+      serviceWorkerBundle = Promise.resolve(source)
+      const target = hamiltonianServiceWorkerRelease(source)
+      await reconcileServiceWorkerReleases(target)
+      return target
     },
     stop() {
       if (stopPromise) return stopPromise
