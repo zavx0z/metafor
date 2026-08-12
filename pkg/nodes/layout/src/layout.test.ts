@@ -300,6 +300,25 @@ describe("compound spacing rhythm", () => {
         for (let index = 1; index < leftRhythm.length; index += 1) {
           expect(leftRhythm[index]! - leftRhythm[index - 1]!).toBe(28)
         }
+        const server = result.nodes.find(({id}) => id === "server-contour")!
+        const topLevelGap = Math.max(
+          server.x - owner.x - owner.width,
+          owner.x - server.x - server.width,
+        )
+        expect(topLevelGap).toBe(28)
+        const externalLeftTracks = result.edges.flatMap(({sections}) => {
+          const section = sections[0]!
+          const points = [section.startPoint, ...section.bendPoints, section.endPoint]
+          return points.slice(1).flatMap((to, index) => {
+            const from = points[index]!
+            return from.x === to.x && from.x < owner.x &&
+              Math.max(Math.min(from.y, to.y), owner.y) < Math.min(Math.max(from.y, to.y), owner.y + owner.height)
+              ? [from.x]
+              : []
+          })
+        })
+        expect(externalLeftTracks.length).toBeGreaterThan(0)
+        expect(owner.x - Math.max(...externalLeftTracks)).toBe(28)
       } else {
         const owner = result.nodes.find(({id}) => id === "browser:device")!
         const directChildren = graph.nodes
