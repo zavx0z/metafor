@@ -123,8 +123,7 @@ PASS. Frozen RIGHT/DOWN сохранили geometry SHA, bounds, x3 repeats и �
 
 ### NODES-008.3 — Убрать пустой боковой pitch у compound с портами
 
-Статус: подзадача выполнена и визуально принята владельцем 12 августа 2026;
-вся NODES-008 остаётся `IN_PROGRESS` до отдельного final benchmark и review.
+Статус: подзадача выполнена и визуально принята владельцем 12 августа 2026.
 
 Два owner-crop относятся к действующему общему закону: между child envelope,
 фактически занятыми vertical tracks и внутренней side boundary каждый соседний
@@ -195,9 +194,31 @@ bounds `782.45 × 3570`.
 
 [`project/artifacts/NODES-008/`](../artifacts/NODES-008/README.md)
 
+## Готовый результат для REVIEW
+
+Все критерии задачи выполнены. Общий socket pitch `28 px` действует по обеим
+осям между children, фактически занятыми route tracks и compound boundary;
+пустой reserve удаляется, занятый corridor сохраняется. Portful compound
+сжимается вместе с exact boundary ports и terminal sections, после чего
+кандидат повторно проходит полные placement и route validators. RIGHT/DOWN,
+x3 repeats и три stable permutations детерминированы; владелец принял live
+результат в обеих уже открытых вкладках без reload и restart runtime.
+
+Final benchmark на прежнем frozen input и том же Mac/Bun `1.3.14`:
+
+| Режим | Предыдущий совместимый | Final | Изменение |
+| --- | ---: | ---: | ---: |
+| RIGHT | 195.90 ms | 163.42 ms | −16.6% |
+| DOWN | 581.17 ms | 1036.62 ms | +78.4% |
+
+Input SHA-256 не изменились; RIGHT geometry SHA сохранился `2188e801…`, DOWN
+целевая geometry имеет SHA `9870e1a9…`. Порог performance-отказа контрактом
+не задан; возможная отдельная оптимизация не меняет hard/visual acceptance
+этой задачи.
+
 ## Отклонённые результаты
 
-Статус: `IN_PROGRESS`.
+Ниже сохранена только причинная история отвергнутых checkpoint этой карточки.
 
 Partial result commit `38c258b64a5a4624d57ccc94fe39fb753dcb671a`
 был отклонён owner review: он исправлял только portrait. Итоговый result commit
@@ -229,7 +250,9 @@ compound и ближайшим внешним horizontal route оставало�
 расстояния теперь равны одному pitch `28 px`; separate-track fallback и полный
 validator сохранены.
 
-## Текущий checkpoint после повторного owner rejection
+## Предыдущий checkpoint после повторного owner rejection
+
+Этот раздел заменён принятым результатом NODES-008.3 выше.
 
 * Воспроизведён точный дефект: `DOWN` Browser boundary `x=196`, занятые
   vertical lanes `x=280/308`, первый child `x=336`; первый gap был `84 px`,

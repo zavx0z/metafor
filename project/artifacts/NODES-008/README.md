@@ -185,13 +185,13 @@ WebGPU `canvas.toDataURL` вернул чёрный buffer, поэтому ло�
 checkpoint на том же frozen input и том же Mac/Bun `1.3.14`; промежуточные
 замеры не накапливаются.
 
-| Режим | Отклонённый NODES-008 | Текущий checkpoint | Изменение |
+| Режим | Предыдущий совместимый | Final result | Изменение |
 | --- | ---: | ---: | ---: |
-| RIGHT | 180.60 ms | 195.90 ms | +8.5% |
-| DOWN | 479.27 ms | 581.17 ms | +21.3% |
+| RIGHT | 195.90 ms | 163.42 ms | −16.6% |
+| DOWN | 581.17 ms | 1036.62 ms | +78.4% |
 
 Input SHA-256 совпадает с предыдущим замером; RIGHT geometry сохранена, DOWN
-изменена целевым route-aware side compaction. Pure layout source SHA-256:
-`68d7951fe076526a08ffc2607d536f5623d811a2e5429f9fa72c88d3ad892eed`.
+изменена целевым portful side compaction. Pure layout source SHA-256:
+`5f7949165582ae6917b5950b7b7583fb12e20d1de295080ea5c890f35f2fc01a`.
 SHA-256 `benchmark-current.json`:
-`2af39532dd10f9042401399618d9ab2942196c5ab8a9739a925fb0f0201eab6b`.
+`949da3c3ce482f982f3718454592bd92e9cefd983b3aa232a2115a52a4ba72ca`.
