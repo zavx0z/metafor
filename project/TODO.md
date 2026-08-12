@@ -79,14 +79,15 @@ checkpoint NODES-008.4 с общим исправлением левых инт�
 запустит самостоятельно. Срез заменяет старое server-поддерево при новой host
 incarnation и не относится к layout или индивидуальной обработке RTC-ноды.
 
-Текущая задача Codex: NODES-008.5 — не удваивать правый боковой corridor в
-`DOWN`.
+Текущие задачи Codex: NODES-008.5 — не удваивать правый боковой corridor в
+`DOWN`; HAM-001.1 — заменять серверное поддерево при новой incarnation
+Hamiltonian.
 
 | ID     | Состояние   | Зависимости | Карточка                   |
 | ------ | ----------- | ----------- | -------------------------- |
 | MF-424 | IN_PROGRESS | нет         | [Открыть](tasks/MF-424.md) |
 | MF-425 | IN_PROGRESS | нет         | [Открыть](tasks/MF-425.md) |
-| HAM-001 | READY      | нет         | [Открыть](tasks/HAM-001.md) |
+| HAM-001 | IN_PROGRESS | нет         | [Открыть](tasks/HAM-001.md) |
 | MF-411 | IN_PROGRESS | нет         | [Открыть](tasks/MF-411.md) |
 | NODES-006 | REVIEW      | нет       | [Открыть](tasks/NODES-006.md) |
 | NODES-008 | IN_PROGRESS | нет       | [Открыть](tasks/NODES-008.md) |
