@@ -41,11 +41,13 @@ stale incarnation, non-monotonic revision/frontier и частичное сме�
 корень.
 
 Для server contour и его browser/profile boundary первый enforcement этого
-закона реализован и проверен offline: новая host incarnation заменяет прежнее
-серверное поддерево без reload page, а stale snapshot и live event не возвращают
-его. Общая родительская [`HAM-001`](../project/tasks/HAM-001.md) остаётся
-незавершённой до применения того же закона к остальным independently
-authoritative contours и exact-target live restart proof.
+закона реализован и проверен offline и на exact-target live contour: новая host
+incarnation заменяет прежнее серверное поддерево, а exact current WSS и
+Oracle/Force DataChannel остаются связаны с current endpoints. При неизменном
+browser artifact set page не перезагружается; stale snapshot и live event не
+возвращают прежнюю incarnation. Общая родительская
+[`HAM-001`](../project/tasks/HAM-001.md) остаётся незавершённой, пока тот же закон не
+применён к остальным independently authoritative contours.
 
 В начале выполнения page-кода гарантированы ровно две сущности: Bun server,
 который отдал документ, и текущая page realm. Host identity и epoch приходят
