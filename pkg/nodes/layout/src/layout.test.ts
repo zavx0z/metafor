@@ -284,6 +284,41 @@ describe("compound spacing rhythm", () => {
           .map(({id}) => result.nodes.find((node) => node.id === id)!)
         const childBottom = Math.max(...directChildren.map((node) => node.y + node.height))
         expect(owner.y + owner.height - childBottom).toBe(28)
+      } else {
+        const owner = result.nodes.find(({id}) => id === "browser:device")!
+        const directChildren = graph.nodes
+          .filter(({parentId}) => parentId === "browser:device")
+          .map(({id}) => result.nodes.find((node) => node.id === id)!)
+        const childBottom = Math.max(...directChildren.map((node) => node.y + node.height))
+        const internalBottomTracks = result.edges.flatMap(({sections}) => {
+          const section = sections[0]!
+          const points = [section.startPoint, ...section.bendPoints, section.endPoint]
+          return points.slice(1).flatMap((to, index) => {
+            const from = points[index]!
+            return from.y === to.y &&
+              from.y > childBottom &&
+              from.y < owner.y + owner.height &&
+              Math.max(Math.min(from.x, to.x), owner.x) < Math.min(Math.max(from.x, to.x), owner.x + owner.width)
+              ? [from.y]
+              : []
+          })
+        })
+        expect(internalBottomTracks.length).toBeGreaterThan(0)
+        expect(owner.y + owner.height - Math.max(...internalBottomTracks)).toBe(28)
+        const externalBottomTracks = result.edges.flatMap(({sections}) => {
+          const section = sections[0]!
+          const points = [section.startPoint, ...section.bendPoints, section.endPoint]
+          return points.slice(1).flatMap((to, index) => {
+            const from = points[index]!
+            return from.y === to.y &&
+              from.y > owner.y + owner.height &&
+              Math.max(Math.min(from.x, to.x), owner.x) < Math.min(Math.max(from.x, to.x), owner.x + owner.width)
+              ? [from.y]
+              : []
+          })
+        })
+        expect(externalBottomTracks.length).toBeGreaterThan(0)
+        expect(Math.min(...externalBottomTracks) - owner.y - owner.height).toBe(28)
       }
     }
   }, 15_000)

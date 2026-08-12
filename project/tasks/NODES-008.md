@@ -9,8 +9,10 @@ Compound должен быть увеличен только под действ
 ## Наблюдение владельца
 
 В portrait Hamiltonian у карточки `Service Worker` внутри `Chrome` снова
-появилась большая пустота снизу и по бокам. Исходный снимок и точные live-меры
-описаны в [`project/artifacts/NODES-008/`](../artifacts/NODES-008/README.md).
+появилась большая пустота снизу и по бокам. При owner review landscape также
+показал двойной вертикальный шаг между route и compound boundary. Исходные
+снимки и точные live-меры описаны в
+[`project/artifacts/NODES-008/`](../artifacts/NODES-008/README.md).
 
 ## Подтверждённые факты
 
@@ -37,8 +39,8 @@ Compound должен быть увеличен только под действ
 
 ## Границы
 
-* Меняются только универсальный portrait placement/compaction
-  `@nodes/layout`, его проверки и evidence.
+* Меняются только универсальные placement/compaction и visibility coordinates
+  `@nodes/layout`, их проверки и evidence.
 * Exact ports, semantic edges, routing clearance, EAST/WEST gateways,
   containment, RIGHT/DOWN selection и bounded search не ослабляются.
 * Боковой corridor не сжимается, если в нём действительно находятся routes.
@@ -49,8 +51,9 @@ Compound должен быть увеличен только под действ
 
 ## Критерии готовности
 
-1. Regression воспроизводит portrait compound с reverse-flow side lanes и
-   пустым нижним резервом.
+1. Regressions воспроизводят portrait compound с reverse-flow side lanes и
+   пустым нижним резервом, а также landscape внутренний и внешний двойной
+   вертикальный clearance.
 2. После исправления нижний gap равен одному pitch, если под children нет
    route segment; занятые боковые corridors сохраняют полный clearance.
 3. Если legal route действительно требует нижний corridor, соответствующий
@@ -61,8 +64,8 @@ Compound должен быть увеличен только под действ
    `git diff --check` проходят.
 6. Перед `REVIEW` сохранён final benchmark на прежнем frozen RIGHT/DOWN input и
    сопоставлен с последним совместимым замером.
-7. В открытом portrait contour нижняя пустота исчезла без сжатия занятых
-   боковых lanes и без перезапуска runtime.
+7. В открытых portrait/landscape contours нижняя пустота исчезла без сжатия
+   занятых lanes и без перезапуска runtime.
 
 ## Артефакты
 
@@ -72,7 +75,9 @@ Compound должен быть увеличен только под действ
 
 Статус: `REVIEW`.
 
-Result commit: `38c258b64a5a4624d57ccc94fe39fb753dcb671a`.
+Partial result commit `38c258b64a5a4624d57ccc94fe39fb753dcb671a`
+был отклонён owner review: он исправлял только portrait. Итоговый result commit
+фиксируется отдельным handoff после записи.
 
 * Portrait generator сначала создаёт компактный вариант без копирования
   бокового reserve вниз. Нижний reserve сохранён как ограниченный fallback для
@@ -80,15 +85,34 @@ Result commit: `38c258b64a5a4624d57ccc94fe39fb753dcb671a`.
 * Regression до исправления получал `84 px` при пустом нижнем corridor; после
   исправления получает ровно `28 px`. Если corridor занят горизонтальным
   segment, тест требует сохранения полного резерва.
+* В `RIGHT` exact-port bundle резервирует один общий track; отдельный
+  side-track вариант сохранён как fallback. Route-aware hard-check отбрасывает
+  candidate, если после routing нижний reserve фактически пуст.
+* Visibility-grid `RIGHT` получил exact `±clearance` axes у прозрачных
+  ancestor boundaries. Regression подтверждает `28 px` и внутри compound,
+  и снаружи до ближайшего horizontal route.
 * Frozen RIGHT/DOWN: `14` нод, `20` портов, `12` рёбер; x3 repeats и три
-  стабильные перестановки идентичны. Geometry SHA не изменилась:
-  RIGHT `b845bae5…`, DOWN `cd8cfd53…`.
+  стабильные перестановки идентичны. RIGHT bounds уменьшились
+  `2421.25 × 1788 → 2365.25 × 1658`, geometry SHA `2188e801…`. DOWN
+  byte-for-byte сохранён: `1146.45 × 4242`, SHA `cd8cfd53…`.
 * Проверки: `bun test pkg/nodes` — `86/86`; typecheck
   `@nodes/layout`, `nodes` и root — PASS; `git diff --check` — PASS.
 * Live portrait без перезапуска runtime: `15/13`, bounds
   `1846.25 × 2674`; `Chrome` `196,112,800,2450`,
   `Service Worker` `336,2150,520,384`, bottom gap `28 px`.
-* Final benchmark на совместимом frozen input: RIGHT median `210.78 ms`,
-  DOWN `469.36 ms`. Относительно NODES-007 (`195.81/424.73 ms`) это
-  `+7.6%`/`+10.5%`; inputs и geometry hashes совпадают, порог блокировки в
-  package contract не задан.
+* После owner review live landscape `1920 × 1088`: все пять compound имеют
+  bottom clearance `28 px`; у Browser lowest occupied route `y=1356`,
+  boundary `y=1384`. Текущая lifecycle topology была `13/8`.
+* Final benchmark на совместимом frozen input: RIGHT median `180.60 ms`,
+  DOWN `479.27 ms`. Относительно NODES-007 (`195.81/424.73 ms`) это
+  `-7.8%`/`+12.8%`; DOWN geometry идентична, порог блокировки в package
+  contract не задан.
+
+## Дополнение owner review
+
+На landscape `1920 × 1088` две reverse-flow связи из одного exact source-port
+уже использовали один общий generated trunk, но placement считал их двумя
+независимыми нижними tracks. Между trunk и внутренней границей, а также между
+compound и ближайшим внешним horizontal route оставалось по `56 px`. Оба
+расстояния теперь равны одному pitch `28 px`; separate-track fallback и полный
+validator сохранены.

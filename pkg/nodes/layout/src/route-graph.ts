@@ -704,6 +704,12 @@ function candidateAxes(
     xs.add(rectRight(node.rect))
     ys.add(node.rect.y)
     ys.add(rectBottom(node.rect))
+    if (input.direction === "RIGHT") {
+      xs.add(node.rect.x - input.clearance)
+      xs.add(rectRight(node.rect) + input.clearance)
+      ys.add(node.rect.y - input.clearance)
+      ys.add(rectBottom(node.rect) + input.clearance)
+    }
   }
   for (const port of index.ports.values()) {
     // Other ports reserve horizontal terminal stubs. Their X endpoints are

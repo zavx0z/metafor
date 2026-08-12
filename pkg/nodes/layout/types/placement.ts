@@ -60,11 +60,16 @@ export type RankResult = Readonly<{
   relations: readonly ChildRelation[]
 }>
 export type PackingPolicy =
-  | Readonly<{kind: "LAYERED"; reserveCorridors: boolean}>
+  | Readonly<{
+    kind: "LAYERED"
+    reserveCorridors: boolean
+    separateSideTracks: boolean
+  }>
   | Readonly<{
     kind: "PORTRAIT_FLOW"
     rootWidthPermille: number
     nestedWidthPermille: number
     compactSources: boolean
     reserveBottomCorridor: boolean
+    separateSideTracks: boolean
   }>

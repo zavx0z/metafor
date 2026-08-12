@@ -52,21 +52,42 @@
 * SHA-256:
   `aed2e29ab6184d97befc00f4ce80cc6d3a828d0e40f7551c55e6607fff33ae98`.
 
+## `landscape-vertical-gap-before.png`
+
+* Источник: второй снимок владельца при owner review частичного результата.
+* Наблюдение: ближайший occupied trunk и ближайший внешний horizontal route
+  находятся в `56 px` от compound boundary вместо одного pitch `28 px`.
+* Размер: `260 × 1954`.
+* SHA-256:
+  `7fe91100663c35aa58344e12e1feb6ae9a03f5cb1bdac2bdea953dd1e62270f7`.
+
+## Live landscape after owner review
+
+Точный target `8CDFADB480F89CA2A70E52EB706719F5`, viewport
+`1920 × 1088 @2`, Worker ready, pending `0`. На момент замера lifecycle
+содержал `13` нод и `8` рёбер, bounds `2245.9 × 1440`.
+
+Для всех пяти compound machine-readable bottom clearance равен `28 px`.
+У Browser последний child заканчивается на `y=1328`, occupied trunk находится
+на `y=1356`, нижняя граница — `y=1384`. Runtime не перезапускался.
+WebGPU `canvas.toDataURL` вернул чёрный buffer, поэтому ложный after-PNG удалён
+и visual acceptance им не заявляется.
+
 ## Frozen proof
 
 `verification.json` получен из `two-tab-layout-portrait.json` с SHA-256
 `27c0155999cec911e1479a3418f0b462c1d03a74f65da2fa36b19155b14be78d`.
 
 * RIGHT: geometry SHA-256
-  `b845bae5cd1f8087c943519c78a27d91c22bcf7156340bb67ea61974d2d45292`,
-  bounds `2421.25 × 1788`.
+  `2188e8017abb9e416091663dfb3dd880db2ad310c4e8d584fee07c8b672a5904`,
+  bounds `2365.25 × 1658`.
 * DOWN: geometry SHA-256
   `cd8cfd53f36a2518886396cd7391595aeca09665c91a31def95bcfce44a89037`,
   bounds `1146.45 × 4242`.
 * В обоих режимах: `14` нод, `20` портов, `12` рёбер, x3 repeats и
   три stable permutations идентичны.
 * SHA-256 `verification.json`:
-  `96845f07a74b2624adccd7c563c581aea55016e9bdd7b5f2764047596ef3b21b`.
+  `85780c6d75061655185359fe8fd58db8f98a450a8186684b82d2a5b5c1810ece`.
 
 ## Final benchmark
 
@@ -75,10 +96,11 @@
 
 | Режим | NODES-007 median | NODES-008 median | Изменение |
 | --- | ---: | ---: | ---: |
-| RIGHT | 195.81 ms | 210.78 ms | +7.6% |
-| DOWN | 424.73 ms | 469.36 ms | +10.5% |
+| RIGHT | 195.81 ms | 180.60 ms | -7.8% |
+| DOWN | 424.73 ms | 479.27 ms | +12.8% |
 
-Input и geometry SHA-256 совпадают с NODES-007. Pure layout source SHA-256:
-`8c656ce3989da0b7c24197261a74a16b51622a280a489cf1440827f6f8673264`.
+Input SHA-256 совпадает с NODES-007. DOWN geometry SHA-256 совпадает; RIGHT
+изменён целевым исправлением. Pure layout source SHA-256:
+`77ca77cea9e289bc8eea73d7ca843c26ef8c05e3fcb5a2b2634720c3faf7220f`.
 SHA-256 `benchmark-current.json`:
-`2c8770ce7d805e205e06da8d4b74b34a165c561ab8c311975024008961d6a61e`.
+`a174d68e17ab1a52fb48d0ae0fc86faf4c700c9648d1cdac0a0f4ed2fce6e121`.

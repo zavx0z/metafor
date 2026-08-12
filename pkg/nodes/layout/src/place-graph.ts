@@ -20,11 +20,43 @@ import type {
 
 const compareIds = (left: string, right: string): number => left < right ? -1 : left > right ? 1 : 0
 
+function requiredSideTracks(
+  relations: readonly ChildRelation[],
+  separateSideTracks: boolean,
+): number {
+  if (separateSideTracks) return relations.length
+  const roots = relations.map((_, index) => index)
+  const root = (index: number): number => {
+    while (roots[index] !== index) {
+      roots[index] = roots[roots[index]!]!
+      index = roots[index]!
+    }
+    return index
+  }
+  const unite = (left: number, right: number): void => {
+    const leftRoot = root(left)
+    const rightRoot = root(right)
+    if (leftRoot !== rightRoot) roots[rightRoot] = leftRoot
+  }
+  for (let left = 0; left < relations.length; left += 1) {
+    for (let right = left + 1; right < relations.length; right += 1) {
+      const leftRelation = relations[left]!
+      const rightRelation = relations[right]!
+      if (
+        leftRelation.sourcePort.id === rightRelation.sourcePort.id ||
+        leftRelation.targetPort.id === rightRelation.targetPort.id
+      ) unite(left, right)
+    }
+  }
+  return new Set(relations.map((_, index) => root(index))).size
+}
+
 export function placeGraph(input: PlacementInput): PlacementResult {
   validatePlacementInput(input)
   return placeGraphWithAlignedContainers(input, new Set(relationContainers(input)), {
     kind: "LAYERED",
     reserveCorridors: false,
+    separateSideTracks: false,
   })
 }
 
@@ -43,12 +75,16 @@ export function placementCandidates(input: PlacementInput): readonly PlacementRe
   const unique = new Map<string, PlacementResult>()
   for (const policy of policies) {
     for (const reserveCorridors of [false, true]) {
-      const result = placeGraphWithAlignedContainers(input, policy, {
-        kind: "LAYERED",
-        reserveCorridors,
-      })
-      const key = JSON.stringify({nodes: result.nodes, ports: result.ports, bounds: result.bounds})
-      if (!unique.has(key)) unique.set(key, result)
+      const sideTrackOptions = reserveCorridors ? [false, true] : [false]
+      for (const separateSideTracks of sideTrackOptions) {
+        const result = placeGraphWithAlignedContainers(input, policy, {
+          kind: "LAYERED",
+          reserveCorridors,
+          separateSideTracks,
+        })
+        const key = JSON.stringify({nodes: result.nodes, ports: result.ports, bounds: result.bounds})
+        if (!unique.has(key)) unique.set(key, result)
+      }
     }
   }
   if (input.viewport.height > input.viewport.width) {
@@ -69,6 +105,7 @@ export function placementCandidates(input: PlacementInput): readonly PlacementRe
               nestedWidthPermille,
               compactSources,
               reserveBottomCorridor,
+              separateSideTracks: true,
             })
             const key = JSON.stringify({nodes: result.nodes, ports: result.ports, bounds: result.bounds})
             if (!unique.has(key)) unique.set(key, result)
@@ -502,13 +539,14 @@ function arrangeChildren(
         }
       }
     }
-    const rightSideTracks = containerId === null ? 0 : ranked.relations.filter((relation) => {
+    const rightSideRelations = containerId === null ? [] : ranked.relations.filter((relation) => {
       const sourceOffset = offsets.get(relation.sourceChild)!
       const targetOffset = offsets.get(relation.targetChild)!
       const source = relativePortPoint(relation.sourceChild, relation.sourcePort)
       const target = relativePortPoint(relation.targetChild, relation.targetPort)
       return sourceOffset.x + source.x + input.clearance * 2 > targetOffset.x + target.x
-    }).length
+    })
+    const rightSideTracks = rightSideRelations.length
     const sideReserve = rightSideTracks * input.clearance
     let reservedWidth = width
     if (sideReserve > 0) {
@@ -698,13 +736,14 @@ function arrangeChildren(
       offsets.set(id, direction === "RIGHT" ? {x: point.x, y: point.y - crossStart} : {x: point.x - crossStart, y: point.y})
     }
   }
-  const rightSideTracks = containerId === null ? 0 : ranked.relations.filter((relation) => {
+  const rightSideRelations = containerId === null ? [] : ranked.relations.filter((relation) => {
     const sourceOffset = offsets.get(relation.sourceChild)!
     const targetOffset = offsets.get(relation.targetChild)!
     const source = relativePortPoint(relation.sourceChild, relation.sourcePort)
     const target = relativePortPoint(relation.targetChild, relation.targetPort)
     return sourceOffset.x + source.x >= targetOffset.x + target.x
-  }).length
+  })
+  const rightSideTracks = requiredSideTracks(rightSideRelations, packing.separateSideTracks)
   const sideReserve = rightSideTracks * input.clearance
   const reservedOffsets = sideReserve === 0
     ? offsets

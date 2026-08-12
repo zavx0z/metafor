@@ -112,6 +112,11 @@ function layoutEngine(input: PlacementInput): EngineResult {
       attemptedPlacements += 1
       try {
         const routing = routeGraph(placement.routeInput)
+        const unusedBottomReserves = findUnusedCompoundBottomReserves(input, placement, routing)
+        if (unusedBottomReserves.length > 0) {
+          firstRouteFailure ??= `UNUSED_COMPOUND_BOTTOM_RESERVE ${unusedBottomReserves.join(",")}`
+          continue
+        }
         routable.push({placement, routing, candidates: {generated: placements.length, routable: 0}})
         if (stopAfterFirstRoutable) return
       } catch (error) {
@@ -136,6 +141,50 @@ function layoutEngine(input: PlacementInput): EngineResult {
     `NO_LEGAL_LAYOUT: ${attemptedPlacements}/${placements.length} placements provide no legal route graph` +
     (firstRouteFailure === null ? "" : `; first route failure: ${firstRouteFailure}`),
   )
+}
+
+function findUnusedCompoundBottomReserves(
+  input: PlacementInput,
+  placement: PlacementResult,
+  routing: RouteGraphResult,
+): readonly string[] {
+  if (placement.direction !== "RIGHT") return []
+  const nodeById = new Map(placement.nodes.map((node) => [node.id, node]))
+  const intrinsicById = new Map(input.nodes.map((node) => [node.id, node]))
+  const childrenByParent = new Map<string, string[]>()
+  for (const node of input.nodes) {
+    if (node.parentId === undefined) continue
+    const children = childrenByParent.get(node.parentId) ?? []
+    children.push(node.id)
+    childrenByParent.set(node.parentId, children)
+  }
+  const routePoints = routing.sections.flatMap((section) => [
+    section.startPoint,
+    ...section.bendPoints,
+    section.endPoint,
+  ])
+  const result: string[] = []
+  for (const [parentId, childIds] of childrenByParent) {
+    const parent = nodeById.get(parentId)
+    const intrinsic = intrinsicById.get(parentId)
+    if (parent === undefined || intrinsic === undefined) continue
+    let occupiedBottom = parent.rect.y + intrinsic.size.h
+    for (const childId of childIds) {
+      const child = nodeById.get(childId)
+      if (child !== undefined) occupiedBottom = Math.max(occupiedBottom, child.rect.y + child.rect.h)
+    }
+    for (const point of routePoints) {
+      if (
+        point.x >= parent.rect.x &&
+        point.x <= parent.rect.x + parent.rect.w &&
+        point.y >= parent.rect.y &&
+        point.y <= parent.rect.y + parent.rect.h
+      ) occupiedBottom = Math.max(occupiedBottom, point.y)
+    }
+    const unused = parent.rect.y + parent.rect.h - occupiedBottom - input.clearance
+    if (unused > 0) result.push(`${parentId}:${unused}`)
+  }
+  return result.sort(compareIds)
 }
 
 function boundedPlacements(
