@@ -75,6 +75,6 @@ describe("Hamiltonian orchestration workspace", () => {
       h: HAMILTONIAN_CANVAS_VIEW_PANEL_HEIGHT,
     })
     expect(planHamiltonianCanvasViewFrame(1200, 800, true, {x: 240, y: 100, w: 360, h: 240}))
-      .toEqual({x: 240, y: 100, w: 360, h: 240})
+      .toEqual({x: 240, y: 100, w: 360, h: HAMILTONIAN_CANVAS_VIEW_PANEL_HEIGHT})
   })
 })

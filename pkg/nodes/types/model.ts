@@ -3,12 +3,16 @@ export type NodeSystemTone = "neutral" | "live" | "paused" | "warn"
 
 export type NodeSystemPortDirection = "in" | "out" | "inout"
 export type NodeSystemPortSide = "left" | "right"
+/** Stable producer-owned semantic family shared by an edge and both sockets. */
+export type NodeSystemConnectionType = string
 
 export type NodeSystemPort = Readonly<{
   id: string
   /** Parameter row that owns and visually contains this socket. */
   parameterId: string
   direction: NodeSystemPortDirection
+  /** Determines socket color; never inferred from direction. */
+  connectionType?: NodeSystemConnectionType
   /** Optional visual side; message direction remains independent. */
   side?: NodeSystemPortSide
 }>
@@ -67,6 +71,8 @@ export type NodeSystemEdge = Readonly<{
   source: NodeSystemEndpoint
   target: NodeSystemEndpoint
   label?: string
+  /** Must match both endpoint sockets when connection semantics are provided. */
+  connectionType?: NodeSystemConnectionType
   tone?: NodeSystemTone
   order?: number
 }>

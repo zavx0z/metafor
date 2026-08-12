@@ -4,6 +4,7 @@ import {
   HAMILTONIAN_CANVAS_VIEW_BODY_TOP_GAP,
   HAMILTONIAN_CANVAS_VIEW_CONTROL_GAP,
   HAMILTONIAN_CANVAS_VIEW_FIT_HEIGHT,
+  HAMILTONIAN_CANVAS_VIEW_LEGEND_GAP,
   HAMILTONIAN_CANVAS_VIEW_TITLE_HEIGHT,
   HAMILTONIAN_CANVAS_VIEW_TOGGLE_HEIGHT,
   planHamiltonianCanvasViewControls,
@@ -25,8 +26,9 @@ describe("Hamiltonian canvas-view pane", () => {
 
     expect(controls.fit.y - (controls.toggle.y + controls.toggle.h))
       .toBe(HAMILTONIAN_CANVAS_VIEW_CONTROL_GAP)
-    expect(controls.fit.y + controls.fit.h).toBe(body.y + body.h)
     expect(controls.toggle.h).toBe(HAMILTONIAN_CANVAS_VIEW_TOGGLE_HEIGHT)
     expect(controls.fit.h).toBe(HAMILTONIAN_CANVAS_VIEW_FIT_HEIGHT)
+    expect(controls.legend.y - (controls.fit.y + controls.fit.h)).toBe(HAMILTONIAN_CANVAS_VIEW_LEGEND_GAP)
+    expect(controls.legend.y + controls.legend.h).toBe(body.y + body.h)
   })
 })

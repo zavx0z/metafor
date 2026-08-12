@@ -45,6 +45,10 @@ import {NodeInspectorSurface, NodeSystemSurface} from "@nodes/ui"
 * `@nodes/layout` не читает UI document, текст, DOM или WebGPU state.
 * `@nodes/ui` не рассчитывает автоматическое размещение и не владеет semantic
   topology.
+* `connectionType` является presentation-семантикой соединения, общей для
+  semantic edge и обоих его exact sockets. UI выводит из неё один устойчивый
+  цвет; `direction` определяет сторону сокета, а `tone` отдельно показывает
+  состояние и не меняет тип соединения.
 * Renderer может скруглить готовый маршрут для рисования, но не меняет exact
   endpoint, gateway или bend ownership.
 * Перед вторым layout-pass adapter может переставить только связанные

@@ -34,6 +34,7 @@ import {
   planNodeSystemEdgeParticle,
   type NodeSystemEdgeMessage,
 } from "./edge-particle.ts"
+import {nodeSystemConnectionColor} from "./connection-color.ts"
 import {
   DEFAULT_NODE_SYSTEM_CANVAS_TRANSFORM,
   fitNodeSystemCanvasTransform,
@@ -646,7 +647,7 @@ export class NodeSystemSurface extends UiSurface {
       )
       if (particle === null) continue
       const visual = this.#particleVisuals[visualIndex] ?? this.#createParticleVisual()
-      updateParticleVisual(visual, particle, edgeColor(route.entry.edge.tone ?? "neutral"), this.pixelScale)
+      updateParticleVisual(visual, particle, nodeSystemConnectionColor(route.entry.edge.connectionType), this.pixelScale)
       visualIndex += 1
     }
     for (let index = visualIndex; index < this.#particleVisuals.length; index += 1) {
@@ -773,7 +774,7 @@ export class NodeSystemSurface extends UiSurface {
       const socket = visibleSocketRect(marker, screen.socketDiameterPx)
       this.drawRoundedRect(socket.x, socket.y, socket.w, socket.h, {
         radius: socket.w / 2,
-        fill: port.direction === "in" ? palette.blue : port.direction === "out" ? palette.orange : palette.violet,
+        fill: nodeSystemConnectionColor(port.connectionType),
         border: palette.bg,
         borderWidth: Math.max(0.8, scale),
         z: Z.TEXT + 0.02,
@@ -1081,7 +1082,7 @@ function drawEdge(
   hitRects: readonly Readonly<{x: number; y: number; w: number; h: number}>[],
   isHovered: boolean,
 ): void {
-  const color = edgeColor(entry.edge.tone ?? "neutral")
+  const color = nodeSystemConnectionColor(entry.edge.connectionType)
   const thickness = nodeSystemScreenPresentationMetrics(scale).edgeThicknessPx
   host.drawPolyline(
     stroke,
@@ -1218,13 +1219,6 @@ function nodeBodyFill(selected: boolean): Color {
 function nodeHeaderFill(tone: NodeSystemTone, selected: boolean): Color {
   if (tone === "neutral") return selected ? palette.bgHot : palette.bgPanel
   return toneFill(tone)
-}
-
-function edgeColor(tone: NodeSystemTone): Color {
-  if (tone === "live") return palette.green
-  if (tone === "paused") return palette.orange
-  if (tone === "warn") return palette.red
-  return palette.cyan
 }
 
 function toneTextColor(tone: NodeSystemTone): CssColor {

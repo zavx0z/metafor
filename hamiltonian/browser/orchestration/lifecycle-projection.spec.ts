@@ -508,24 +508,26 @@ describe("Hamiltonian lifecycle projection", () => {
       .toEqual([{id: "transport:Service%20Worker%20API:channel", label: "Service Worker API", value: "вход / выход", tone: "live"}])
     expect(pageNode.ports?.filter(({parameterId}) => parameterId === "transport:Service%20Worker%20API:channel"))
       .toEqual([
-        {id: "out:Service%20Worker%20API", parameterId: "transport:Service%20Worker%20API:channel", direction: "out"},
-        {id: "in:Service%20Worker%20API", parameterId: "transport:Service%20Worker%20API:channel", direction: "in"},
+        {id: "out:Service%20Worker%20API", parameterId: "transport:Service%20Worker%20API:channel", direction: "out", connectionType: "service-worker-api"},
+        {id: "in:Service%20Worker%20API", parameterId: "transport:Service%20Worker%20API:channel", direction: "in", connectionType: "service-worker-api"},
       ])
     expect(workerNode.ports?.filter(({parameterId}) => parameterId === "transport:Service%20Worker%20API:channel"))
       .toEqual([
-        {id: "in:Service%20Worker%20API", parameterId: "transport:Service%20Worker%20API:channel", direction: "in"},
-        {id: "out:Service%20Worker%20API", parameterId: "transport:Service%20Worker%20API:channel", direction: "out"},
+        {id: "in:Service%20Worker%20API", parameterId: "transport:Service%20Worker%20API:channel", direction: "in", connectionType: "service-worker-api"},
+        {id: "out:Service%20Worker%20API", parameterId: "transport:Service%20Worker%20API:channel", direction: "out", connectionType: "service-worker-api"},
       ])
     expect(document.edges.filter(({label}) => label === "Service Worker API")).toEqual([
       expect.objectContaining({
         id: "service-worker-api:page",
         source: {nodeId: pageId, portId: "out:Service%20Worker%20API"},
         target: {nodeId: workerId, portId: "in:Service%20Worker%20API"},
+        connectionType: "service-worker-api",
       }),
       expect.objectContaining({
         id: "service-worker-api:page:reverse",
         source: {nodeId: workerId, portId: "out:Service%20Worker%20API"},
         target: {nodeId: pageId, portId: "in:Service%20Worker%20API"},
+        connectionType: "service-worker-api",
       }),
       expect.objectContaining({id: "service-worker-api:page-b"}),
       expect.objectContaining({id: "service-worker-api:page-b:reverse"}),
@@ -1037,6 +1039,7 @@ describe("Hamiltonian lifecycle projection", () => {
       expect(edge).toEqual(expect.objectContaining({
         source: {nodeId: "rtc-peer:session-a%3Aserver", portId: `out:${encodedLabel}`},
         target: {nodeId: "rtc-peer:session-a%3Abrowser", portId: `in:${encodedLabel}`},
+        connectionType: `${lane}-rtc-data-channel`,
       }))
       for (const [nodeId, portId, parameterId] of [
         [edge.source.nodeId, edge.source.portId, `transport:${encodedLabel}:out`],
@@ -1045,6 +1048,7 @@ describe("Hamiltonian lifecycle projection", () => {
         const node = document.nodes.find(({id}) => id === nodeId)!
         const port = node.ports?.find(({id}) => id === portId)
         expect(port?.parameterId).toBe(parameterId)
+        expect(port?.connectionType).toBe(`${lane}-rtc-data-channel`)
         expect(node.facts?.some(({id}) => id === parameterId)).toBeTrue()
       }
     }

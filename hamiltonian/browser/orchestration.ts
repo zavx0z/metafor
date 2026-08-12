@@ -607,8 +607,9 @@ async function start(): Promise<void> {
       applyingTopologyLayout = false
     }
     if (generation !== updateGeneration) return
-    layout = nextLayout
-    structureKey = nextStructureKey
+      layout = nextLayout
+      structureKey = nextStructureKey
+      canvasView.setConnectionLegend(connectionLegend(nextLayout))
     trafficPresentation.discardPendingOutside(nextLayout.edges.map(({edge}) => edge.id))
     globalThis.document.documentElement.dataset.hamiltonianTrafficPending = String(trafficPresentation.pendingCount)
     if (restoreSelectionPending) {
@@ -757,9 +758,19 @@ function documentElementEvidence(
     ],
     points,
   })))
+  document.documentElement.dataset.hamiltonianConnectionTypes = JSON.stringify(connectionLegend(layout))
   const websocket = layout.edges.find(({edge}) => edge.label === "WS" || edge.label === "WSS")
   document.documentElement.dataset.hamiltonianWebsocketEdge = websocket?.edge.id ?? ""
   document.documentElement.dataset.hamiltonianWebsocketTone = websocket?.edge.tone ?? "absent"
+}
+
+function connectionLegend(layout: PositionedNodeSystem): Array<{connectionType: string; label: string}> {
+  const entries = new Map<string, string>()
+  for (const {edge} of layout.edges) {
+    if (edge.connectionType === undefined) continue
+    entries.set(edge.connectionType, edge.label ?? edge.connectionType)
+  }
+  return [...entries].map(([connectionType, label]) => ({connectionType, label}))
 }
 
 function revisionLabel(value: string | number | undefined): string {

@@ -41,6 +41,9 @@ export function validateNodeSystemDocument(document: NodeSystemDocument): NodeSy
         throw new Error(`Unknown port parameter: ${node.id}/${port.id}/${port.parameterId}`)
       }
       if (nodePorts.has(port.id)) throw new Error(`Duplicate port id: ${node.id}/${port.id}`)
+      if (port.connectionType !== undefined) {
+        requireIdentifier(port.connectionType, `connection type on port ${node.id}/${port.id}`)
+      }
       const side = port.side ?? (port.direction === "in" ? "left" : "right")
       const parameterSide = `${port.parameterId}\u0000${side}`
       if (occupiedParameterSides.has(parameterSide)) {
@@ -84,9 +87,27 @@ export function validateNodeSystemDocument(document: NodeSystemDocument): NodeSy
     requireFiniteOrder(edge.order, `Edge order must be finite: ${edge.id}`)
     validateEndpoint(edge.source, "source", edge.id, nodes, ports)
     validateEndpoint(edge.target, "target", edge.id, nodes, ports)
+    validateConnectionType(edge, ports)
   }
 
   return {nodes, ports}
+}
+
+function validateConnectionType(
+  edge: NodeSystemDocument["edges"][number],
+  ports: ReadonlyMap<string, ReadonlyMap<string, NodeSystemPort>>,
+): void {
+  const sourceType = ports.get(edge.source.nodeId)?.get(edge.source.portId)?.connectionType
+  const targetType = ports.get(edge.target.nodeId)?.get(edge.target.portId)?.connectionType
+  const provided = [edge.connectionType, sourceType, targetType].filter((value) => value !== undefined)
+  if (provided.length === 0) return
+  if (edge.connectionType === undefined || sourceType === undefined || targetType === undefined) {
+    throw new Error(`Incomplete edge connection type: ${edge.id}`)
+  }
+  requireIdentifier(edge.connectionType, `connection type on edge ${edge.id}`)
+  if (sourceType !== edge.connectionType || targetType !== edge.connectionType) {
+    throw new Error(`Mismatched edge connection type: ${edge.id}`)
+  }
 }
 
 /** Validates fixed geometry before it crosses a routing-process boundary. */

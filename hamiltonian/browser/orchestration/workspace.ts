@@ -13,7 +13,7 @@ export const HAMILTONIAN_CANVAS_VIEW_STICK_HEIGHT = 92
 export const HAMILTONIAN_CANVAS_VIEW_STICK_TOP = 46
 export const HAMILTONIAN_CANVAS_VIEW_MIN_WIDTH = 240
 export const HAMILTONIAN_CANVAS_VIEW_PANEL_WIDTH = 300
-export const HAMILTONIAN_CANVAS_VIEW_PANEL_HEIGHT = 128
+export const HAMILTONIAN_CANVAS_VIEW_PANEL_HEIGHT = 360
 
 export function hamiltonianInspectorWidth(width: number): number {
   if (width < 720) return Math.min(250, Math.max(190, width * 0.38))

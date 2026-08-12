@@ -11,6 +11,7 @@
     "./card-layout": "./card-layout.ts",
     "./edge-curve": "./edge-curve.ts",
     "./edge-particle": "./edge-particle.ts",
+    "./connection-color": "./connection-color.ts",
     "./viewport": "./viewport.ts",
     "./surface": "./surface.ts",
     "./inspector": "./inspector.ts"

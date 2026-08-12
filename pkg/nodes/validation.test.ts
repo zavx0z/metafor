@@ -18,6 +18,25 @@ describe("node-system validation", () => {
     expect(index.ports.get("host")?.get("out")?.direction).toBe("out")
   })
 
+  test("keeps connection semantics identical across an edge and both sockets", () => {
+    const typed: NodeSystemDocument = {
+      nodes: [
+        {id: "host", title: "Host", facts: [{id: "channel", label: "Channel", value: "out"}], ports: [{id: "out", parameterId: "channel", direction: "out", connectionType: "ipc"}]},
+        {id: "window", title: "Window", facts: [{id: "channel", label: "Channel", value: "in"}], ports: [{id: "in", parameterId: "channel", direction: "in", connectionType: "ipc"}]},
+      ],
+      edges: [{id: "host-window", source: {nodeId: "host", portId: "out"}, target: {nodeId: "window", portId: "in"}, connectionType: "ipc"}],
+    }
+    expect(() => validateNodeSystemDocument(typed)).not.toThrow()
+    expect(() => validateNodeSystemDocument({
+      ...typed,
+      edges: [{...typed.edges[0]!, connectionType: "websocket"}],
+    })).toThrow("Mismatched edge connection type: host-window")
+    expect(() => validateNodeSystemDocument({
+      ...typed,
+      edges: [{id: "host-window", source: {nodeId: "host", portId: "out"}, target: {nodeId: "window", portId: "in"}}],
+    })).toThrow("Incomplete edge connection type: host-window")
+  })
+
   test("rejects duplicate identities", () => {
     expect(() => validateNodeSystemDocument({...valid, nodes: [...valid.nodes, valid.nodes[0]!]}))
       .toThrow("Duplicate node id: host")

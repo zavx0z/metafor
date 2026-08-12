@@ -290,6 +290,7 @@ export class HamiltonianLifecycleProjection {
 
     for (const [index, transport] of activeTransports.entries()) {
       const label = transportLabel(transport.kind, transport.attributes)
+      const connectionType = transportConnectionType(transport.kind, transport.attributes)
       const directedPair = transport.kind === "service-worker-api"
       const sharedParameterRole = transport.kind === "websocket"
         ? "duplex"
@@ -301,22 +302,26 @@ export class HamiltonianLifecycleProjection {
         id: sourceSlot.portId,
         parameterId: sourceSlot.parameterId,
         direction: "out",
+        connectionType,
       })
       addPort(ports, transport.targetEntityId, {
         id: targetSlot.portId,
         parameterId: targetSlot.parameterId,
         direction: "in",
+        connectionType,
       })
       if (directedPair) {
         addPort(ports, transport.sourceEntityId, {
           id: targetSlot.portId,
           parameterId: targetSlot.parameterId,
           direction: "in",
+          connectionType,
         })
         addPort(ports, transport.targetEntityId, {
           id: sourceSlot.portId,
           parameterId: sourceSlot.parameterId,
           direction: "out",
+          connectionType,
         })
       }
       addParameter(transportParameters, transport.sourceEntityId, {
@@ -336,6 +341,7 @@ export class HamiltonianLifecycleProjection {
         source: {nodeId: transport.sourceEntityId, portId: sourceSlot.portId},
         target: {nodeId: transport.targetEntityId, portId: targetSlot.portId},
         label,
+        connectionType,
         tone,
         order: 100 + index * 2,
       })
@@ -345,6 +351,7 @@ export class HamiltonianLifecycleProjection {
           source: {nodeId: transport.targetEntityId, portId: sourceSlot.portId},
           target: {nodeId: transport.sourceEntityId, portId: targetSlot.portId},
           label,
+          connectionType,
           tone,
           order: 101 + index * 2,
         })
@@ -768,7 +775,11 @@ function addPort(ports: Map<string, NodeSystemPort[]>, nodeId: string, port: Nod
   const current = ports.get(nodeId) ?? []
   const existing = current.find((candidate) => candidate.id === port.id)
   if (existing) {
-    if (existing.parameterId !== port.parameterId || existing.direction !== port.direction) {
+    if (
+      existing.parameterId !== port.parameterId ||
+      existing.direction !== port.direction ||
+      existing.connectionType !== port.connectionType
+    ) {
       throw new Error(`Conflicting lifecycle port slot: ${nodeId}/${port.id}`)
     }
     return
@@ -885,6 +896,27 @@ function transportLabel(kind: string, attributes: Record<string, string | number
     return "RTCDataChannel"
   }
   return kind
+}
+
+function transportConnectionType(
+  kind: string,
+  attributes: Record<string, string | number | boolean | null>,
+): string {
+  if (kind === "websocket") return "websocket"
+  if (kind === "service-worker-api") return "service-worker-api"
+  if (kind === "controller") return "service-worker-controller"
+  if (kind === "message-port") return "message-port"
+  if (kind === "worker-message") return "worker-messaging"
+  if (kind === "broadcast-channel") return "broadcast-channel"
+  if (kind === "web-push") return "web-push"
+  if (kind === "ipc") return "ipc"
+  if (kind === "data-channel") {
+    const lane = stringAttribute(attributes.lane)
+    if (lane === "oracle") return "oracle-rtc-data-channel"
+    if (lane === "force") return "force-rtc-data-channel"
+    return "rtc-data-channel"
+  }
+  return safeId(kind).toLowerCase()
 }
 
 function nodeTone(state: string, hasGap: boolean): "neutral" | "live" | "paused" | "warn" {
