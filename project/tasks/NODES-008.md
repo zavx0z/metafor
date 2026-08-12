@@ -71,14 +71,15 @@ Compound должен быть увеличен только под действ
 
 [`project/artifacts/NODES-008/`](../artifacts/NODES-008/README.md)
 
-## Результат
+## Отклонённые результаты
 
-Статус: `REVIEW`.
+Статус: `IN_PROGRESS`.
 
 Partial result commit `38c258b64a5a4624d57ccc94fe39fb753dcb671a`
 был отклонён owner review: он исправлял только portrait. Итоговый result commit
 `3097bb2c2e190831f647e6e74b4ba070421d1b55` исправляет также landscape и
-является предметом отдельной closing review.
+был возвращён из owner review: боковой `DOWN` reserve всё ещё оставлял пустой
+шаг между compound boundary и первой фактически занятой vertical lane.
 
 * Portrait generator сначала создаёт компактный вариант без копирования
   бокового reserve вниз. Нижний reserve сохранён как ограниченный fallback для
@@ -92,22 +93,8 @@ Partial result commit `38c258b64a5a4624d57ccc94fe39fb753dcb671a`
 * Visibility-grid `RIGHT` получил exact `±clearance` axes у прозрачных
   ancestor boundaries. Regression подтверждает `28 px` и внутри compound,
   и снаружи до ближайшего horizontal route.
-* Frozen RIGHT/DOWN: `14` нод, `20` портов, `12` рёбер; x3 repeats и три
-  стабильные перестановки идентичны. RIGHT bounds уменьшились
-  `2421.25 × 1788 → 2365.25 × 1658`, geometry SHA `2188e801…`. DOWN
-  byte-for-byte сохранён: `1146.45 × 4242`, SHA `cd8cfd53…`.
-* Проверки: `bun test pkg/nodes` — `86/86`; typecheck
-  `@nodes/layout`, `nodes` и root — PASS; `git diff --check` — PASS.
-* Live portrait без перезапуска runtime: `15/13`, bounds
-  `1846.25 × 2674`; `Chrome` `196,112,800,2450`,
-  `Service Worker` `336,2150,520,384`, bottom gap `28 px`.
-* После owner review live landscape `1920 × 1088`: все пять compound имеют
-  bottom clearance `28 px`; у Browser lowest occupied route `y=1356`,
-  boundary `y=1384`. Текущая lifecycle topology была `13/8`.
-* Final benchmark на совместимом frozen input: RIGHT median `180.60 ms`,
-  DOWN `479.27 ms`. Относительно NODES-007 (`195.81/424.73 ms`) это
-  `-7.8%`/`+12.8%`; DOWN geometry идентична, порог блокировки в package
-  contract не задан.
+* Предыдущие frozen proof, live evidence и benchmark относятся только к
+  отклонённому результату и не являются доказательством текущего checkpoint.
 
 ## Дополнение owner review
 
@@ -117,3 +104,26 @@ Partial result commit `38c258b64a5a4624d57ccc94fe39fb753dcb671a`
 compound и ближайшим внешним horizontal route оставалось по `56 px`. Оба
 расстояния теперь равны одному pitch `28 px`; separate-track fallback и полный
 validator сохранены.
+
+## Текущий checkpoint после повторного owner rejection
+
+* Воспроизведён точный дефект: `DOWN` Browser boundary `x=196`, занятые
+  vertical lanes `x=280/308`, первый child `x=336`; первый gap был `84 px`,
+  то есть содержал пустые `56 px` сверх одного pitch.
+* После routing portless compound сжимается только до фактически занятых
+  vertical lanes и children. Сохранённые sections затем проходят полный
+  route validator на новых границах; невалидный candidate не возвращается.
+  Compound с собственными semantic ports этим проходом не перемещается.
+* Текущие обе открытые вкладки без перезапуска runtime имеют `15/13`, Worker
+  `ready`, pending `0` и одинаковый ритм Browser
+  `224 → 252 → 280 → 308 → 336`: четыре промежутка по `28 px`.
+* Frozen RIGHT/DOWN: `14` нод, `20` портов, `12` рёбер; x3 repeats и три
+  стабильные перестановки идентичны. RIGHT сохранён: `2365.25 × 1658`, SHA
+  `2188e801…`. DOWN сохраняет общие bounds `1146.45 × 4242`, но portless
+  compound boundaries сжаты; geometry SHA изменился на `35941e99…`.
+* Проверки текущего checkpoint: `bun test pkg/nodes` — `86/86`; typecheck
+  `@nodes/layout`, `nodes` и root — PASS; `git diff --check` — PASS.
+* Benchmark на совместимом frozen input: RIGHT median `195.90 ms`, DOWN
+  `581.17 ms`. Относительно отклонённого результата `180.60/479.27 ms` это
+  `+8.5%/+21.3%`; отдельный performance follow-up решается владельцем после
+  визуальной приёмки.

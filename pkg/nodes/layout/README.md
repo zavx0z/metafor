@@ -127,6 +127,13 @@ Layout не переставляет parameter rows: `ports[].y` являетс�
 снизу; ограниченные варианты с нижним corridor остаются в наборе кандидатов для
 графов, которым такой маршрут действительно нужен.
 
+После `DOWN` routing portless compound boundary подтягивается к фактически
+занятым vertical lanes и children: между каждой соседней boundary, lane и child
+остаётся ровно один `clearance`. Найденные sections не принимаются на веру —
+они полностью валидируются повторно на сжатых rectangles. Compound с
+собственными semantic ports этим проходом не перемещается, потому что его
+граница является exact endpoint geometry.
+
 В `RIGHT` связи с общим exact source/target port сначала резервируют общий
 side track, а вариант с раздельными tracks остаётся bounded fallback. После
 routing кандидат с пустым нижним compound-reserve отбрасывается. Visibility

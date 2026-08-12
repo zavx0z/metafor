@@ -40,17 +40,31 @@
 
 ## `live-portrait-after.png`
 
-* Источник: точный CDP target `92F54A46F9AACB1CC5376F1C8963B41F` уже
+* Источник: точный CDP target `8CDFADB480F89CA2A70E52EB706719F5` уже
   открытой Hamiltonian-вкладки; runtime не перезапускался.
-* Viewport: `722 × 1088 @2`, направление `DOWN`.
+* Viewport: `731 × 1088 @2`, направление `DOWN`.
 * Сцена: Worker `ready`, pending `0`, `15` нод, `13` рёбер.
-* Bounds: `1846.25 × 2674`.
-* `Chrome`: `x=196, y=112, w=800, h=2450`.
-* `Service Worker`: `x=336, y=2150, w=520, h=384`.
-* Bottom gap: `28 px = 1 pitch`; занятые боковые lanes сохранены.
-* Размер PNG: `1444 × 2176`.
+* Bounds: `1846.25 × 2646`.
+* `Chrome`: `x=224, y=112, w=718.05, h=2422`.
+* `Service Worker`: `x=336, y=2150, w=520, h=356`.
+* Bottom gap: `28 px = 1 pitch`.
+* Side rhythm: boundary `224`, lanes `252/280/308`, первый child `336`;
+  четыре соседних gap равны `28 px`.
+* Размер PNG: `1462 × 2176`.
 * SHA-256:
-  `aed2e29ab6184d97befc00f4ce80cc6d3a828d0e40f7551c55e6607fff33ae98`.
+  `744eafcf05acd76dae0260bdebb8c80c26d5f3986e1d380ddd4eff93b12e6198`.
+
+## `portrait-side-gap-before.png`
+
+* Источник: последний owner-rejection предыдущего `REVIEW`.
+* Наблюдение: между compound boundary и ближайшей vertical lane визуально
+  оставалась дополнительная пустая полоса.
+* Machine-readable live geometry предыдущего результата: boundary `196`,
+  lanes `280/308`, child `336`; gaps `84/28/28`, то есть первый gap содержал
+  лишние `56 px`.
+* Размер: `130 × 450` px.
+* SHA-256:
+  `fb6ffc8d742cb0c06b9e921e074391fd8d8bf8df4adae1ba3f544541a5bd98e6`.
 
 ## `landscape-vertical-gap-before.png`
 
@@ -82,25 +96,26 @@ WebGPU `canvas.toDataURL` вернул чёрный buffer, поэтому ло�
   `2188e8017abb9e416091663dfb3dd880db2ad310c4e8d584fee07c8b672a5904`,
   bounds `2365.25 × 1658`.
 * DOWN: geometry SHA-256
-  `cd8cfd53f36a2518886396cd7391595aeca09665c91a31def95bcfce44a89037`,
+  `35941e99763939039e28470a4367f24106c4bdb8d0c3524e52d585b21d47b878`,
   bounds `1146.45 × 4242`.
 * В обоих режимах: `14` нод, `20` портов, `12` рёбер, x3 repeats и
   три stable permutations идентичны.
 * SHA-256 `verification.json`:
-  `85780c6d75061655185359fe8fd58db8f98a450a8186684b82d2a5b5c1810ece`.
+  `f17f6bb6048efdb95bfef55686fa6f8fb8323f303fdfc5df12851e8858c65bed`.
 
-## Final benchmark
+## Benchmark текущего checkpoint
 
-`benchmark-current.json` измерен один раз после всех функциональных проверок
-на том же frozen input и том же Mac/Bun `1.3.14`.
+`benchmark-current.json` содержит один актуальный результат выбранного
+checkpoint на том же frozen input и том же Mac/Bun `1.3.14`; промежуточные
+замеры не накапливаются.
 
-| Режим | NODES-007 median | NODES-008 median | Изменение |
+| Режим | Отклонённый NODES-008 | Текущий checkpoint | Изменение |
 | --- | ---: | ---: | ---: |
-| RIGHT | 195.81 ms | 180.60 ms | -7.8% |
-| DOWN | 424.73 ms | 479.27 ms | +12.8% |
+| RIGHT | 180.60 ms | 195.90 ms | +8.5% |
+| DOWN | 479.27 ms | 581.17 ms | +21.3% |
 
-Input SHA-256 совпадает с NODES-007. DOWN geometry SHA-256 совпадает; RIGHT
-изменён целевым исправлением. Pure layout source SHA-256:
-`77ca77cea9e289bc8eea73d7ca843c26ef8c05e3fcb5a2b2634720c3faf7220f`.
+Input SHA-256 совпадает с предыдущим замером; RIGHT geometry сохранена, DOWN
+изменена целевым route-aware side compaction. Pure layout source SHA-256:
+`68d7951fe076526a08ffc2607d536f5623d811a2e5429f9fa72c88d3ad892eed`.
 SHA-256 `benchmark-current.json`:
-`a174d68e17ab1a52fb48d0ae0fc86faf4c700c9648d1cdac0a0f4ed2fce6e121`.
+`2af39532dd10f9042401399618d9ab2942196c5ab8a9739a925fb0f0201eab6b`.

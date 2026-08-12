@@ -284,6 +284,22 @@ describe("compound spacing rhythm", () => {
           .map(({id}) => result.nodes.find((node) => node.id === id)!)
         const childBottom = Math.max(...directChildren.map((node) => node.y + node.height))
         expect(owner.y + owner.height - childBottom).toBe(28)
+        const childLeft = Math.min(...directChildren.map((node) => node.x))
+        const leftTracks = new Set(result.edges.flatMap(({sections}) => {
+          const section = sections[0]!
+          const points = [section.startPoint, ...section.bendPoints, section.endPoint]
+          return points.slice(1).flatMap((to, index) => {
+            const from = points[index]!
+            return from.x === to.x && from.x > owner.x && from.x < childLeft
+              ? [from.x]
+              : []
+          })
+        }))
+        const leftRhythm = [owner.x, ...leftTracks, childLeft].sort((left, right) => left - right)
+        expect(leftTracks.size).toBeGreaterThan(0)
+        for (let index = 1; index < leftRhythm.length; index += 1) {
+          expect(leftRhythm[index]! - leftRhythm[index - 1]!).toBe(28)
+        }
       } else {
         const owner = result.nodes.find(({id}) => id === "browser:device")!
         const directChildren = graph.nodes

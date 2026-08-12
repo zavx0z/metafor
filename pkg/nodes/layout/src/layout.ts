@@ -5,8 +5,8 @@ import type {
 import type {EngineResult} from "../types/engine.ts"
 import type {PlacementInput, PlacementResult} from "../types/placement.ts"
 import type {RouteGraphResult} from "../types/routing.ts"
-import {placeGraph, placementCandidates} from "./place-graph.ts"
-import {routeGraph} from "./route-graph.ts"
+import {placeGraph, placementCandidates, validatePlacement} from "./place-graph.ts"
+import {measureRouteGraphResult, routeGraph, validateRouteGraphResult} from "./route-graph.ts"
 
 const COORDINATE_SCALE = 1_000
 const DEFAULT_SPACING = 28
@@ -111,13 +111,28 @@ function layoutEngine(input: PlacementInput): EngineResult {
     for (const placement of candidates) {
       attemptedPlacements += 1
       try {
-        const routing = routeGraph(placement.routeInput)
-        const unusedBottomReserves = findUnusedCompoundBottomReserves(input, placement, routing)
-        if (unusedBottomReserves.length > 0) {
-          firstRouteFailure ??= `UNUSED_COMPOUND_BOTTOM_RESERVE ${unusedBottomReserves.join(",")}`
+        let acceptedPlacement = placement
+        let routing = routeGraph(placement.routeInput)
+        const compacted = compactCompoundSideReserves(input, placement, routing)
+        if (compacted !== null) {
+          const placementViolations = validatePlacement(input, compacted)
+          if (placementViolations.length > 0) {
+            firstRouteFailure ??= `COMPACTED_PLACEMENT_INVALID ${placementViolations.join(",")}`
+            continue
+          }
+          const measured = measureRouteGraphResult(compacted.routeInput, routing)
+          acceptedPlacement = compacted
+          routing = measured
+        }
+        const unusedReserves = [
+          ...findUnusedCompoundBottomReserves(input, acceptedPlacement, routing),
+          ...findUnusedCompoundSideReserves(input, acceptedPlacement, routing),
+        ]
+        if (unusedReserves.length > 0) {
+          firstRouteFailure ??= `UNUSED_COMPOUND_RESERVE ${unusedReserves.join(",")}`
           continue
         }
-        routable.push({placement, routing, candidates: {generated: placements.length, routable: 0}})
+        routable.push({placement: acceptedPlacement, routing, candidates: {generated: placements.length, routable: 0}})
         if (stopAfterFirstRoutable) return
       } catch (error) {
         if (!(error instanceof Error) || !error.message.startsWith("NO_LEGAL_ROUTE ")) throw error
@@ -134,13 +149,161 @@ function layoutEngine(input: PlacementInput): EngineResult {
     routePlacements(fallback, true)
   }
   if (routable.length > 0) {
-    const best = routable.sort(compareRoutingQuality)[0]!
-    return {...best, candidates: {generated: placements.length, routable: routable.length}}
+    for (const candidate of routable.sort(compareRoutingQuality)) {
+      const hardViolations = validateRouteGraphResult(candidate.placement.routeInput, candidate.routing)
+      if (hardViolations.length > 0) {
+        firstRouteFailure ??= `COMPACTED_ROUTE_INVALID ${hardViolations.join(",")}`
+        continue
+      }
+      return {
+        ...candidate,
+        routing: measureRouteGraphResult(candidate.placement.routeInput, candidate.routing, hardViolations),
+        candidates: {generated: placements.length, routable: routable.length},
+      }
+    }
   }
   throw new Error(
     `NO_LEGAL_LAYOUT: ${attemptedPlacements}/${placements.length} placements provide no legal route graph` +
     (firstRouteFailure === null ? "" : `; first route failure: ${firstRouteFailure}`),
   )
+}
+
+function compactCompoundSideReserves(
+  input: PlacementInput,
+  placement: PlacementResult,
+  routing: RouteGraphResult,
+): PlacementResult | null {
+  if (placement.direction !== "DOWN") return null
+  const intrinsicById = new Map(input.nodes.map((node) => [node.id, node]))
+  const nodeIdsWithPorts = new Set(input.ports.map((port) => port.nodeId))
+  const nodeById = new Map(placement.nodes.map((node) => [node.id, node]))
+  const childrenByParent = new Map<string, string[]>()
+  for (const node of input.nodes) {
+    if (node.parentId === undefined) continue
+    const children = childrenByParent.get(node.parentId) ?? []
+    children.push(node.id)
+    childrenByParent.set(node.parentId, children)
+  }
+  const verticalSegments = routing.sections.flatMap((section) => {
+    const points = [section.startPoint, ...section.bendPoints, section.endPoint]
+    return points.slice(1).flatMap((to, index) => {
+      const from = points[index]!
+      return from.x === to.x
+        ? [{x: from.x, top: Math.min(from.y, to.y), bottom: Math.max(from.y, to.y)}]
+        : []
+    })
+  })
+  let changed = false
+  const compactedNodes = placement.nodes.map((node) => {
+    const childIds = childrenByParent.get(node.id)
+    const intrinsic = intrinsicById.get(node.id)
+    if (childIds === undefined || intrinsic === undefined || nodeIdsWithPorts.has(node.id)) return node
+    const children = childIds.flatMap((id) => {
+      const child = nodeById.get(id)
+      return child === undefined ? [] : [child]
+    })
+    if (children.length === 0) return node
+    const tracks = verticalSegments
+      .filter(({top, bottom}) => top < node.rect.y + node.rect.h && bottom > node.rect.y)
+      .map(({x}) => x)
+      .filter((x) => x > node.rect.x && x < node.rect.x + node.rect.w)
+    const occupiedLeft = Math.min(...children.map(({rect}) => rect.x), ...tracks)
+    const occupiedRight = Math.max(...children.map(({rect}) => rect.x + rect.w), ...tracks)
+    let left = Math.max(node.rect.x, occupiedLeft - input.clearance)
+    let right = Math.min(node.rect.x + node.rect.w, occupiedRight + input.clearance)
+    if (right - left < intrinsic.size.w) {
+      const missing = intrinsic.size.w - (right - left)
+      const growLeft = Math.min(left - node.rect.x, Math.ceil(missing / 2))
+      left -= growLeft
+      right = Math.min(node.rect.x + node.rect.w, right + missing - growLeft)
+      left = Math.max(node.rect.x, right - intrinsic.size.w)
+    }
+    if (left === node.rect.x && right === node.rect.x + node.rect.w) return node
+    changed = true
+    const rect = {...node.rect, x: left, w: right - left}
+    return {...node, rect, ...(node.contentRect === undefined ? {} : {contentRect: {...node.contentRect, x: left, w: right - left}})}
+  })
+  if (!changed) return null
+  const compactedNodeById = new Map(compactedNodes.map((node) => [node.id, node]))
+  const compactedPorts = placement.ports.map((port) => {
+    const node = compactedNodeById.get(port.nodeId)!
+    return {...port, center: {...port.center, x: port.side === "WEST" ? node.rect.x : node.rect.x + node.rect.w}}
+  })
+  const compactedMetrics = measureCompactedPlacement(input, placement, compactedNodes, compactedPorts)
+  return {
+    ...placement,
+    nodes: compactedNodes,
+    ports: compactedPorts,
+    metrics: compactedMetrics,
+    routeInput: {...placement.routeInput, nodes: compactedNodes, ports: compactedPorts},
+  }
+}
+
+function measureCompactedPlacement(
+  input: PlacementInput,
+  placement: PlacementResult,
+  nodes: PlacementResult["nodes"],
+  ports: PlacementResult["ports"],
+): PlacementResult["metrics"] {
+  const intrinsicById = new Map(input.nodes.map((node) => [node.id, node]))
+  const nodeById = new Map(nodes.map((node) => [node.id, node]))
+  const childrenByParent = new Map<string, string[]>()
+  for (const node of input.nodes) {
+    if (node.parentId === undefined) continue
+    const children = childrenByParent.get(node.parentId) ?? []
+    children.push(node.id)
+    childrenByParent.set(node.parentId, children)
+  }
+  const compounds = nodes.filter((node) => childrenByParent.has(node.id))
+  const compoundEmptyRatios = compounds.map((node) => {
+    const ownContentArea = node.rect.w * intrinsicById.get(node.id)!.contentHeight
+    const childArea = childrenByParent.get(node.id)!.reduce((sum, id) => {
+      const child = nodeById.get(id)!
+      return sum + child.rect.w * child.rect.h
+    }, 0)
+    return 1 - (ownContentArea + childArea) / (node.rect.w * node.rect.h)
+  })
+  const compoundArea = compounds.reduce((sum, node) => sum + node.rect.w * node.rect.h, 0)
+  const occupiedArea = compounds.reduce((sum, node, index) =>
+    sum + node.rect.w * node.rect.h * (1 - compoundEmptyRatios[index]!), 0)
+  const fitScale = Math.min(
+    input.viewport.width * input.unitsPerPixel / placement.bounds.w,
+    input.viewport.height * input.unitsPerPixel / placement.bounds.h,
+    1,
+  )
+  const visibleContentArea = nodes.reduce((sum, node) =>
+    sum + node.rect.w * intrinsicById.get(node.id)!.contentHeight, 0)
+  const viewportArea = input.viewport.width * input.unitsPerPixel * input.viewport.height * input.unitsPerPixel
+  const displayEmptyRatio = Math.max(0, 1 - visibleContentArea * fitScale ** 2 / viewportArea)
+  const portById = new Map(ports.map((port) => [port.id, port]))
+  const forwardBySource = new Map<string, Array<Readonly<{sourceId: string; targetId: string}>>>()
+  for (const edge of input.edges) {
+    const source = portById.get(edge.sourcePortId)
+    const target = portById.get(edge.targetPortId)
+    if (source === undefined || target === undefined) continue
+    const sourceRect = nodeById.get(source.nodeId)!.rect
+    const targetRect = nodeById.get(target.nodeId)!.rect
+    if (targetRect.y <= sourceRect.y) continue
+    const entries = forwardBySource.get(source.nodeId) ?? []
+    entries.push({sourceId: source.id, targetId: target.id})
+    forwardBySource.set(source.nodeId, entries)
+  }
+  const sourceCorridorDeficit = [...forwardBySource.values()].reduce((total, entries) => {
+    const requiredRunway = (entries.length + 1) * input.clearance
+    return total + entries.reduce((sum, {sourceId, targetId}) => {
+      const source = portById.get(sourceId)!
+      const target = portById.get(targetId)!
+      return sum + Math.max(0, source.center.x + requiredRunway - target.center.x)
+    }, 0)
+  }, 0)
+  return {
+    ...placement.metrics,
+    fitScale,
+    displayEmptyRatio,
+    compoundEmptyRatio: compoundArea === 0 ? 0 : 1 - occupiedArea / compoundArea,
+    maxCompoundEmptyRatio: Math.max(0, ...compoundEmptyRatios),
+    sourceCorridorDeficit,
+  }
 }
 
 function findUnusedCompoundBottomReserves(
@@ -183,6 +346,58 @@ function findUnusedCompoundBottomReserves(
     }
     const unused = parent.rect.y + parent.rect.h - occupiedBottom - input.clearance
     if (unused > 0) result.push(`${parentId}:${unused}`)
+  }
+  return result.sort(compareIds)
+}
+
+function findUnusedCompoundSideReserves(
+  input: PlacementInput,
+  placement: PlacementResult,
+  routing: RouteGraphResult,
+): readonly string[] {
+  if (placement.direction !== "DOWN") return []
+  const nodeById = new Map(placement.nodes.map((node) => [node.id, node]))
+  const nodeIdsWithPorts = new Set(input.ports.map((port) => port.nodeId))
+  const childrenByParent = new Map<string, string[]>()
+  for (const node of input.nodes) {
+    if (node.parentId === undefined) continue
+    const children = childrenByParent.get(node.parentId) ?? []
+    children.push(node.id)
+    childrenByParent.set(node.parentId, children)
+  }
+  const verticalSegments = routing.sections.flatMap((section) => {
+    const points = [section.startPoint, ...section.bendPoints, section.endPoint]
+    return points.slice(1).flatMap((to, index) => {
+      const from = points[index]!
+      return from.x === to.x
+        ? [{x: from.x, top: Math.min(from.y, to.y), bottom: Math.max(from.y, to.y)}]
+        : []
+    })
+  })
+  const result: string[] = []
+  for (const [parentId, childIds] of childrenByParent) {
+    const parent = nodeById.get(parentId)
+    const children = childIds.flatMap((id) => {
+      const child = nodeById.get(id)
+      return child === undefined ? [] : [child]
+    })
+    if (parent === undefined || children.length === 0 || nodeIdsWithPorts.has(parentId)) continue
+    const parentLeft = parent.rect.x
+    const parentRight = parent.rect.x + parent.rect.w
+    const childLeft = Math.min(...children.map(({rect}) => rect.x))
+    const childRight = Math.max(...children.map(({rect}) => rect.x + rect.w))
+    const tracks = verticalSegments
+      .filter(({top, bottom}) => top < parent.rect.y + parent.rect.h && bottom > parent.rect.y)
+      .map(({x}) => x)
+    const sides = [
+      {name: "left", coordinates: [parentLeft, ...tracks.filter((x) => x > parentLeft && x < childLeft), childLeft]},
+      {name: "right", coordinates: [childRight, ...tracks.filter((x) => x > childRight && x < parentRight), parentRight]},
+    ] as const
+    for (const side of sides) {
+      const coordinates = [...new Set(side.coordinates)].sort((left, right) => left - right)
+      const maximumGap = Math.max(...coordinates.slice(1).map((value, index) => value - coordinates[index]!))
+      if (maximumGap > input.clearance) result.push(`${parentId}:${side.name}:${maximumGap}`)
+    }
   }
   return result.sort(compareIds)
 }

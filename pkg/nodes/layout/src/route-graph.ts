@@ -366,6 +366,41 @@ export function validateRouteGraphResult(
   return violations.sort(compareIds)
 }
 
+export function measureRouteGraphResult(
+  input: RouteGraphInput,
+  result: RouteGraphResult,
+  hardViolations: readonly string[] = [],
+): RouteGraphResult {
+  const sortedNodes = [...input.nodes].sort((left, right) => compareIds(left.id, right.id))
+  const ports = new Map(input.ports.map((port) => [port.id, port]))
+  const childrenByParent = new Map<string, RouteNode[]>()
+  for (const node of sortedNodes) {
+    if (node.parentId === undefined) continue
+    const children = childrenByParent.get(node.parentId) ?? []
+    children.push(node)
+    childrenByParent.set(node.parentId, children)
+  }
+  const compounds = sortedNodes.filter((node) => childrenByParent.has(node.id))
+  const compoundArea = compounds.reduce((sum, node) => sum + node.rect.w * node.rect.h, 0)
+  const occupiedArea = compounds.reduce((sum, node) => sum + childrenByParent.get(node.id)!
+    .reduce((childSum, child) => childSum + child.rect.w * child.rect.h, 0), 0)
+  const fitScale = Math.min(
+    input.viewport.width * input.unitsPerPixel / input.bounds.w,
+    input.viewport.height * input.unitsPerPixel / input.bounds.h,
+    1,
+  )
+  return {
+    ...result,
+    metrics: {
+      ...result.metrics,
+      hardViolations,
+      fitScale,
+      compoundEmptyRatio: compoundArea === 0 ? 0 : 1 - occupiedArea / compoundArea,
+      clearanceVariance: measureClearanceVariance(input, {sortedNodes, ports}, result.sections),
+    },
+  }
+}
+
 function validateInput(input: RouteGraphInput): RouteIndex {
   requirePositiveInteger(input.unitsPerPixel, "unitsPerPixel")
   requirePositiveInteger(input.clearance, "clearance")
@@ -1169,7 +1204,11 @@ function measureResult(
   }
 }
 
-function measureClearanceVariance(input: RouteGraphInput, index: RouteIndex, sections: readonly RouteSection[]): number {
+function measureClearanceVariance(
+  input: RouteGraphInput,
+  index: Pick<RouteIndex, "sortedNodes" | "ports">,
+  sections: readonly RouteSection[],
+): number {
   const values: number[] = []
   for (const section of sections) {
     const edge = input.edges.find((candidate) => candidate.id === section.edgeId)!

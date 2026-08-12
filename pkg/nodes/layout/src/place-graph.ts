@@ -73,9 +73,12 @@ export function placementCandidates(input: PlacementInput): readonly PlacementRe
     for (const container of containers) policies.push(new Set([container]))
   }
   const unique = new Map<string, PlacementResult>()
+  const landscape = input.viewport.width >= input.viewport.height
   for (const policy of policies) {
     for (const reserveCorridors of [false, true]) {
-      const sideTrackOptions = reserveCorridors ? [false, true] : [false]
+      const sideTrackOptions = landscape
+        ? reserveCorridors ? [false, true] : [false]
+        : [true]
       for (const separateSideTracks of sideTrackOptions) {
         const result = placeGraphWithAlignedContainers(input, policy, {
           kind: "LAYERED",
@@ -546,8 +549,9 @@ function arrangeChildren(
       const target = relativePortPoint(relation.targetChild, relation.targetPort)
       return sourceOffset.x + source.x + input.clearance * 2 > targetOffset.x + target.x
     })
-    const rightSideTracks = rightSideRelations.length
+    const rightSideTracks = requiredSideTracks(rightSideRelations, packing.separateSideTracks)
     const sideReserve = rightSideTracks * input.clearance
+    const routeReserve = rightSideRelations.length * input.clearance
     let reservedWidth = width
     if (sideReserve > 0) {
       const rowBounds = rows.map((entry) => {
@@ -557,11 +561,11 @@ function arrangeChildren(
       })
       reservedWidth = Math.max(
         width,
-        ...rowBounds.map(({left, right}) => right - left + sideReserve * 2),
+        ...rowBounds.map(({left, right}) => right - left + sideReserve + routeReserve),
       )
       for (const {entry, left, right} of rowBounds) {
         const minimumShift = sideReserve - left
-        const maximumShift = reservedWidth - sideReserve - right
+        const maximumShift = reservedWidth - routeReserve - right
         const shift = Math.max(minimumShift, Math.min(0, maximumShift))
         if (shift === 0) continue
         for (const id of entry.ids) {
