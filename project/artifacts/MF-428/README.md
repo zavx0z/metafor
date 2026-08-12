@@ -176,3 +176,76 @@ Normal target завершил обновление сцены с `hamiltonianLi
 * Размер: `1470 × 2176` PNG.
 * SHA-256:
   `6c69b65c384de4ebf163b4708a49fd74346a6ec810ffd0ac081c88f183c149fa`.
+
+## Live-сценарий MF-428.3 — SemVer кода Service Worker
+
+### Provenance и два изолированных профиля
+
+Проверка выполнена 12 августа 2026 года из канонического checkout на baseline
+`48ec7327e45cca2ddfde13c41f52c25ceb4863aa` плюс изменения MF-428.3. Отдельная
+незакоммиченная работа `NODES-008` в проверку не входила. Hamiltonian полностью
+перезапущен обычной командой `HAMILTONIAN_TOKEN=local-test
+HAMILTONIAN_VERSION=mf-428-3-live bun run start` из `hamiltonian/`; listener
+`127.0.0.1:4400` и оба Bun probe готовы.
+
+Отдельный Chrome-CDP `Chrome/151.0.7922.109` одновременно держал normal и
+incognito storage scope. Exact Hamiltonian targets:
+
+* normal target `448CD67C94E66FD8B02019099F80F6E6`, profile
+  `b04b5959-28a2-4ac0-ba5c-6bdba29e0091`, logical Worker
+  `45d8fde1-9ecb-4c83-b52a-095c974cb4a1`;
+* incognito target `4767D33E7CB4E9451D9690A6B650F186`, profile
+  `9e2abb81-0978-46a7-9fd5-ce29ce223568`, logical Worker
+  `093eeb45-7def-47dd-ac0c-fde43d5659e6`.
+
+Authenticated host status одновременно показал обе разные logical identity и
+для обеих `workerCodeVersion = 1.0.0`. Incognito WebGPU scene
+материализовала две Chrome compound-ноды и по одному Worker внутри каждой;
+обе карточки содержали `Версия кода 1.0.0`. Выбранный Worker дополнительно
+показал то же значение в Inspector. Exact target завершил сцену без
+`orchestration-failed`; после restart его состояние было `16 нод · 11 связей ·
+живой режим`, а console observation за `1500` мс вернула `0` записей.
+
+### Настоящий restart того же bundle
+
+На `chrome://serviceworker-internals/` normal storage scope была нажата кнопка
+`Stop` exact регистрации `http://127.0.0.1:4400/`, после чего normal target
+перезагружен и поднял новое execution того же установленного bundle. Host
+зафиксировал:
+
+* logical Worker identity до и после:
+  `45d8fde1-9ecb-4c83-b52a-095c974cb4a1`;
+* execution incarnation: `16ce6839-6e01-4113-a9f7-62caa585627d` →
+  `2e1b06ee-3ae2-46ce-bc5c-71279a3c3cbb`;
+* code version до и после: `1.0.0`;
+* exact Chrome owner до и после:
+  `browser:b04b5959-28a2-4ac0-ba5c-6bdba29e0091`.
+
+После restart в retained scene остался один normal Worker без root или
+дубликата. Переход на другую версию bundle (`2.0.0-rc.1+bundle.7`) отдельно
+доказан host/projection regression: меняются incarnation и code version, а
+logical identity и browser owner сохраняются. Server-owned установка этой
+версии во все профили не утверждается и остаётся следующим срезом MF-428.4.
+
+### `mf-428-3-two-profiles-code-version.png`
+
+* Источник: exact CDP screenshot incognito target
+  `4767D33E7CB4E9451D9690A6B650F186` до restart normal Worker.
+* Ожидание и результат: две разные Chrome compound-ноды, по одному Service
+  Worker в каждой; обе карточки и Inspector выбранного Worker показывают
+  `Версия кода 1.0.0`. Расхождений с ожиданием нет.
+* Размер: `3840 × 2176` PNG.
+* SHA-256:
+  `2b83f426949faef9f096a00d94061e4cc77477b28c6d7b332506c5f234073a80`.
+
+### `mf-428-3-after-worker-restart.png`
+
+* Источник: тот же exact target после restart normal Worker и завершённого
+  topology update.
+* Ожидание и результат: выбранная logical identity `45d8fde1-…` остаётся внутри
+  прежнего Chrome owner, execution показывает новое `2e1b06ee-…`, а
+  `Версия кода` остаётся `1.0.0`; root и дубликата Worker нет. Расхождений с
+  ожиданием нет.
+* Размер: `3840 × 2176` PNG.
+* SHA-256:
+  `ffcf66fde506727ea79a6e439647ce48dfafaa85380844091676ebbac89c146e`.

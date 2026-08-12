@@ -34,6 +34,7 @@ import type {TopologySnapshot} from "../host-state.ts"
 import {createWebPushWorkerHandlers} from "@metafor/web-push/worker"
 import type {WebPushLifecycleEvent} from "@metafor/web-push/lifecycle"
 import type {WebPushMessage} from "@metafor/web-push/protocol"
+import {HAMILTONIAN_SERVICE_WORKER_CODE_VERSION} from "./service-worker-code-version.ts"
 
 type LifecycleJournal = InstanceType<typeof HamiltonianLifecycleRetainedJournal>
 type MessageRecord = {kind: string; monitor?: LifecycleMonitor; [key: string]: unknown}
@@ -189,6 +190,7 @@ interface WorkerState extends MessageRecord {
   socket: "connected" | "reconnecting"
   workerIdentity: string
   workerRuntimeIncarnation: string
+  workerCodeVersion: string
   connectionId: string | null
   host: HostIdentity | null
 }
@@ -246,6 +248,7 @@ const CONTROL_CACHE = "hamiltonian-control:v1"
 const CONTROL_BOOTSTRAP_URL = "/.hamiltonian/control-bootstrap"
 const workerRuntime = hamiltonianRealmSnapshot()
 const workerRuntimeIncarnation = workerRuntime.incarnation
+const workerCodeVersion = HAMILTONIAN_SERVICE_WORKER_CODE_VERSION
 const browserRuntimeName = hamiltonianBrowserRuntimeName(
   (globalThis as unknown as {navigator?: {userAgent?: string}}).navigator?.userAgent ?? "",
 )
@@ -288,6 +291,7 @@ subscribeHamiltonianLifecycle((envelope) => {
     subjectKind: "service-worker",
     ownerId: currentBrowserEntityId,
     attributes: {
+      ...workerEmbodimentAttributes(),
       lastFailure: "worker-replaced",
       failedWorker: envelope.observation.subjectId,
     },
@@ -333,8 +337,7 @@ function initializeWorkerIdentity(identity: string, browserEntityId: string, pro
     subjectKind: "service-worker",
     ownerId: browserEntityId,
     attributes: {
-      identity: workerIdentity,
-      runtimeIncarnation: workerRuntimeIncarnation,
+      ...workerEmbodimentAttributes(),
       state: "evaluating",
       push: currentPushReady ? "ready" : "unavailable",
     },
@@ -411,8 +414,7 @@ function observeWorkerAvailability(
     subjectKind: "service-worker",
     ownerId: currentBrowserEntityId,
     attributes: {
-      identity: workerIdentity,
-      runtimeIncarnation: workerRuntimeIncarnation,
+      ...workerEmbodimentAttributes(),
       state,
       push,
       ...attributes,
@@ -423,6 +425,7 @@ function observeWorkerAvailability(
 function observeWebPushLifecycle(event: WebPushLifecycleEvent): void {
   if (!workerEntityId || !currentBrowserEntityId) return
   const attributes: Record<string, string | number | boolean | null> = {
+    ...workerEmbodimentAttributes(),
     webPushLifecycle: event.type,
   }
   if (event.type === "worker.push-received") {
@@ -597,6 +600,7 @@ function workerState(): WorkerState {
     socket: socket?.readyState === WebSocket.OPEN ? "connected" : "reconnecting",
     workerIdentity,
     workerRuntimeIncarnation,
+    workerCodeVersion,
     connectionId: currentConnectionId,
     host: currentHost,
   }
@@ -615,8 +619,7 @@ function observeWorkerHeartbeat(
     subjectKind: "service-worker",
     ownerId: currentBrowserEntityId,
     attributes: {
-      identity: workerIdentity,
-      runtimeIncarnation: workerRuntimeIncarnation,
+      ...workerEmbodimentAttributes(),
       state,
       heartbeat,
       ...attributes,
@@ -665,6 +668,7 @@ function sendWorkerIdentity(): boolean {
     kind: "identity",
     workerIdentity,
     workerRuntimeIncarnation,
+    workerCodeVersion,
     resumeNonce: currentResumeNonce,
     lifecycleSnapshot: browserLifecycleSnapshot,
     ...(wake === null ? {} : {wakeId: wake.wakeId, wakeProof: wake.wakeProof}),
@@ -1232,8 +1236,7 @@ async function connectWindow(message: ConnectWindowMessage, client: HamiltonianW
     subjectKind: "service-worker",
     ownerId: nextBrowserEntityId,
     attributes: {
-      identity: workerIdentity,
-      runtimeIncarnation: workerRuntimeIncarnation,
+      ...workerEmbodimentAttributes(),
       state: "active",
       push: currentPushReady ? "ready" : "unavailable",
     },
@@ -1613,4 +1616,12 @@ function validControlBootstrap(value: unknown): value is ControlBootstrap {
 
 function validControlIdentity(value: unknown): value is string {
   return typeof value === "string" && value.length > 0 && value.length <= 128 && /^[A-Za-z0-9._:-]+$/.test(value)
+}
+
+function workerEmbodimentAttributes(): Record<string, string> {
+  return {
+    identity: workerIdentity,
+    runtimeIncarnation: workerRuntimeIncarnation,
+    codeVersion: workerCodeVersion,
+  }
 }

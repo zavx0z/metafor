@@ -1135,6 +1135,7 @@ function factLabel(key: string, entityKind: string): string {
   if (key === "deviceId" && entityKind === "browser-runtime") return "Профиль"
   const labels: Record<string, string> = {
     connectionId: "Соединение",
+    codeVersion: "Версия кода",
     deviceId: "Устройство",
     endpoint: "Сторона",
     epoch: "Эпоха",

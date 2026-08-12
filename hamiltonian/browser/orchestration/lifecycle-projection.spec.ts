@@ -192,7 +192,7 @@ describe("Hamiltonian lifecycle projection", () => {
           subjectId: workerId,
           subjectKind: "service-worker",
           ownerId: browserId,
-          attributes: {identity: profileId, state: "active"},
+          attributes: {identity: profileId, runtimeIncarnation: `runtime-${profileId}`, codeVersion: "1.0.0", state: "active"},
         }), {at: profileBaseAt + 1}), null)
         for (const pageSuffix of ["a", "b"] as const) {
           const pageOffset = pageSuffix === "a" ? 2 : 4
@@ -239,8 +239,12 @@ describe("Hamiltonian lifecycle projection", () => {
     ])
     expect(forward.nodes.find(({id}) => id === "service-worker:profile-a")?.parentId)
       .toBe("browser:profile-a")
+    expect(forward.nodes.find(({id}) => id === "service-worker:profile-a")?.facts)
+      .toContainEqual({id: "codeVersion", label: "Версия кода", value: "1.0.0"})
     expect(forward.nodes.find(({id}) => id === "service-worker:profile-b")?.parentId)
       .toBe("browser:profile-b")
+    expect(forward.nodes.find(({id}) => id === "service-worker:profile-b")?.facts)
+      .toContainEqual({id: "codeVersion", label: "Версия кода", value: "1.0.0"})
     for (const profileId of ["profile-a", "profile-b"] as const) {
       const browserId = `browser:${profileId}`
       const workerId = `service-worker:${profileId}`
@@ -874,7 +878,7 @@ describe("Hamiltonian lifecycle projection", () => {
       subjectId: "service-worker:stable",
       subjectKind: "service-worker",
       ownerId: "browser:device-a",
-      attributes: {identity: "stable", runtimeIncarnation: "runtime-a", state: "active", push: "ready"},
+      attributes: {identity: "stable", runtimeIncarnation: "runtime-a", codeVersion: "1.0.0", state: "active", push: "ready"},
     })), null)
     projection.observe(firstRuntime.next(createHamiltonianLifecycleObservation({
       type: "transport",
@@ -902,7 +906,7 @@ describe("Hamiltonian lifecycle projection", () => {
       subjectId: "service-worker:stable",
       subjectKind: "service-worker",
       ownerId: "browser:device-a",
-      attributes: {identity: "stable", runtimeIncarnation: "runtime-a", state: "standby", push: "ready"},
+      attributes: {identity: "stable", runtimeIncarnation: "runtime-a", codeVersion: "1.0.0", state: "standby", push: "ready"},
     })), null)
     expect(projection.document().nodes.find(({id}) => id === "service-worker:stable")?.tone).toBe("paused")
     expect(projection.document().nodes.find(({id}) => id === "service-worker:stable")?.parentId)
@@ -920,13 +924,34 @@ describe("Hamiltonian lifecycle projection", () => {
       subjectId: "service-worker:stable",
       subjectKind: "service-worker",
       ownerId: "browser:device-a",
-      attributes: {identity: "stable", runtimeIncarnation: "runtime-b", state: "active", push: "received"},
+      attributes: {identity: "stable", runtimeIncarnation: "runtime-b", codeVersion: "1.0.0", state: "active", push: "received"},
     })), null)
     const workers = projection.document().nodes.filter(({id}) => id === "service-worker:stable")
     expect(workers).toHaveLength(1)
     expect(workers[0]?.parentId).toBe("browser:device-a")
     expect(workers[0]?.facts).toContainEqual({id: "runtimeIncarnation", label: "Исполнение", value: "runtime-b"})
+    expect(workers[0]?.facts).toContainEqual({id: "codeVersion", label: "Версия кода", value: "1.0.0"})
     expect(workers[0]?.facts).toContainEqual({id: "push", label: "Push", value: "received"})
+
+    const updatedRuntime = new HamiltonianLifecycleSource({
+      id: "service-worker:stable",
+      kind: "service-worker",
+      incarnation: "runtime-c",
+      startedAt: 3,
+    })
+    projection.observe(updatedRuntime.next(createHamiltonianLifecycleObservation({
+      type: "entity",
+      phase: "changed",
+      subjectId: "service-worker:stable",
+      subjectKind: "service-worker",
+      ownerId: "browser:device-a",
+      attributes: {identity: "stable", runtimeIncarnation: "runtime-c", codeVersion: "2.0.0-rc.1+bundle.7", state: "active"},
+    })), null)
+    const updated = projection.document().nodes.filter(({id}) => id === "service-worker:stable")
+    expect(updated).toHaveLength(1)
+    expect(updated[0]?.parentId).toBe("browser:device-a")
+    expect(updated[0]?.facts).toContainEqual({id: "runtimeIncarnation", label: "Исполнение", value: "runtime-c"})
+    expect(updated[0]?.facts).toContainEqual({id: "codeVersion", label: "Версия кода", value: "2.0.0-rc.1+bundle.7"})
   })
 
   test("materializes an already closed retained WS for a late subscriber", () => {

@@ -27,15 +27,21 @@ function browserIdentityMessage(
   resumeNonce: string,
   extra: Record<string, unknown> = {},
 ) {
+  const workerCodeVersion = typeof extra.workerCodeVersion === "string"
+    ? extra.workerCodeVersion
+    : "1.0.0"
   return {
     kind: "identity",
     workerIdentity,
     workerRuntimeIncarnation,
+    workerCodeVersion,
     resumeNonce,
     lifecycleSnapshot: browserProfileLifecycleSnapshot(
       profileId,
       workerIdentity,
       workerRuntimeIncarnation,
+      [],
+      workerCodeVersion,
     ),
     ...extra,
   }
@@ -46,6 +52,7 @@ function browserProfileLifecycleSnapshot(
   workerIdentity: string,
   workerRuntimeIncarnation: string,
   additional: Array<ReturnType<typeof createHamiltonianLifecycleObservation>> = [],
+  workerCodeVersion = "1.0.0",
 ) {
   const browserEntityId = hamiltonianBrowserNodeId(profileId)
   const workerEntityId = hamiltonianLifecycleEntityId("service-worker", workerIdentity)
@@ -73,6 +80,7 @@ function browserProfileLifecycleSnapshot(
     attributes: {
       identity: workerIdentity,
       runtimeIncarnation: workerRuntimeIncarnation,
+      codeVersion: workerCodeVersion,
       state: "active",
     },
   })))
@@ -286,6 +294,27 @@ async function openDirectBrowserPeer(
 }
 
 describe("isolated Hamiltonian host", () => {
+  test("rejects a Service Worker identity whose code version is not SemVer", async () => {
+    const host = createHamiltonianHost({port: 0, token: "test-token"})
+    running.push(host)
+    const controlUrl = new URL("/control", host.server.url)
+    controlUrl.protocol = "ws:"
+    controlUrl.searchParams.set("token", host.token)
+    controlUrl.searchParams.set("device", "invalid-version-profile")
+    controlUrl.searchParams.set("worker", "service-worker:invalid-version-worker")
+    const socket = await openSocket(controlUrl)
+    await nextMessage(socket, "hello")
+    const closed = new Promise<CloseEvent>((resolve) => socket.addEventListener("close", resolve, {once: true}))
+    socket.send(JSON.stringify(browserIdentityMessage(
+      "invalid-version-profile",
+      "invalid-version-worker",
+      "invalid-version-runtime",
+      "invalid-version-resume",
+      {workerCodeVersion: "v1"},
+    )))
+    expect((await closed).code).toBe(1008)
+  })
+
   test("serves bootstrap and an authenticated, hashed version from one listener", async () => {
     const host = createHamiltonianHost({
       port: 0,
@@ -1074,10 +1103,12 @@ describe("isolated Hamiltonian host", () => {
       expect.objectContaining({
         subjectId: hamiltonianLifecycleEntityId("service-worker", "worker-a"),
         ownerId: hamiltonianBrowserNodeId("profile-a"),
+        attributes: expect.objectContaining({codeVersion: "1.0.0"}),
       }),
       expect.objectContaining({
         subjectId: hamiltonianLifecycleEntityId("service-worker", "worker-b"),
         ownerId: hamiltonianBrowserNodeId("profile-b"),
+        attributes: expect.objectContaining({codeVersion: "1.0.0"}),
       }),
       expect.objectContaining({
         subjectId: profileAPageId,
@@ -1676,7 +1707,7 @@ describe("isolated Hamiltonian host", () => {
     controlUrl.searchParams.set("device", "stable-installation")
 
     const workerIdentity = "stable-service-worker"
-    const connect = async (workerRuntimeIncarnation: string) => {
+    const connect = async (workerRuntimeIncarnation: string, workerCodeVersion: string) => {
       const url = new URL(controlUrl)
       const transportId = `websocket:${crypto.randomUUID()}`
       url.searchParams.set("transport", transportId)
@@ -1700,28 +1731,39 @@ describe("isolated Hamiltonian host", () => {
         socket.addEventListener("error", () => reject(new Error("WebSocket open failed")), {once: true})
       })
       const [hello, lifecycleSnapshot] = await Promise.all([helloMessage, snapshot])
+      const workerObserved = nextMessage(socket, "lifecycle", (message) => {
+        const observation = (message.envelope as {
+          observation?: {subjectId?: string; attributes?: {codeVersion?: string; runtimeIncarnation?: string}}
+        } | undefined)?.observation
+        return observation?.subjectId === `service-worker:${workerIdentity}` &&
+          observation.attributes?.runtimeIncarnation === workerRuntimeIncarnation &&
+          observation.attributes.codeVersion === workerCodeVersion
+      })
       socket.send(JSON.stringify(browserIdentityMessage(
         "stable-installation",
         workerIdentity,
         workerRuntimeIncarnation,
         crypto.randomUUID(),
+        {workerCodeVersion},
       )))
+      await workerObserved
       return {socket, connectionId: String(hello.connectionId), lifecycleSnapshot, transportId}
     }
 
-    const first = await connect("sw-runtime-a")
+    const first = await connect("sw-runtime-a", "1.0.0")
     await Bun.sleep(80)
     const firstStatus = host.getStatus()
     expect(firstStatus.connections[0]).toMatchObject({
       connectionId: first.connectionId,
       workerIdentity,
       workerRuntimeIncarnation: "sw-runtime-a",
+      workerCodeVersion: "1.0.0",
     })
     expect(firstStatus.connections[0]!.lastAckSeq).toBeGreaterThan(0)
     first.socket.close()
     await Bun.sleep(10)
 
-    const second = await connect("sw-runtime-b")
+    const second = await connect("sw-runtime-b", "2.0.0-rc.1+bundle.7")
     expect(second.connectionId).not.toBe(first.connectionId)
     const retained = second.lifecycleSnapshot.snapshot as {
       envelopes: Array<{observation: {phase?: string; subjectId?: string; subjectKind?: string}}>
@@ -1732,6 +1774,11 @@ describe("isolated Hamiltonian host", () => {
       observation.subjectId === first.transportId
     )).toBeTrue()
     expect(host.getStatus().hostEpoch).toBe(host.hostEpoch)
+    expect(host.getStatus().connections[0]).toMatchObject({
+      workerIdentity,
+      workerRuntimeIncarnation: "sw-runtime-b",
+      workerCodeVersion: "2.0.0-rc.1+bundle.7",
+    })
     second.socket.close()
   })
 

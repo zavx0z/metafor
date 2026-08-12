@@ -250,29 +250,26 @@ Chrome-нодой. Browser owner текущей page сохраняется да
 owner текущей page берётся из самой retained page-записи, а не из порядка
 доставки событий.
 
-### Принятый следующий контракт версии и обновления Service Worker
+### Версия кода Service Worker
 
-Требования `MF-428.3`–`MF-428.5` приняты владельцем, но ещё не реализованы и не
-являются описанием текущей runtime-возможности. До их отдельной проверки
-действующий контур по-прежнему показывает logical Worker identity параметром,
-не публикует отдельную версию Worker code и не имеет server-owned команды
-обновления всех profile scope.
-
-Целевой закон различает logical Service Worker identity, incarnation текущего
+Lifecycle различает logical Service Worker identity, incarnation текущего
 execution и версию фактически исполняемого кода. Код несёт собственную версию
 в валидном SemVer с обязательными `MAJOR.MINOR.PATCH`; prerelease и build
 metadata допустимы только по синтаксису SemVer. Версию сообщает само
-исполняемое Worker embodiment, а lifecycle валидирует и удерживает её отдельно
+исполняемое Worker embodiment в identity message и своей lifecycle entity. Host
+принимает profile snapshot только при совпадающей валидной версии в обоих
+местах и удерживает её отдельно
 от host version, Git revision, URL и времени сборки. Restart execution без
 смены bundle сохраняет code version; установка нового bundle сохраняет
 logical identity, но получает новую incarnation и подтверждённую code version.
+Одна incarnation не может сменить заявленную версию без нового execution.
+В ноде Service Worker версия видна отдельным параметром `Версия кода`.
 
-В presentation ноды Service Worker слева в шапке остаётся имя вида, справа
-находится compact logical Worker identifier. Identifier не повторяется фактом
-или параметром; описательный текст между шапкой и параметрами отсутствует.
-SemVer исполняемого Worker code остаётся видимым параметром.
+Текущий presentation ещё показывает logical Worker identity отдельным
+параметром и описательный текст. Их перенос в шапку и удаление текста являются
+отдельным нереализованным presentation-срезом и не скрывают версию кода.
 
-Hamiltonian server получает отдельную авторизованную операцию обновления с
+Отдельная принятая, но ещё не реализованная server-owned операция обновления задаёт
 exact target SemVer. Она адресует все известные browser/profile scope, но не
 сливает их lifecycle: каждый профиль независимо проходит browser-managed
 проверку регистрации, установку, активацию, смену controller и восстановление
@@ -280,7 +277,8 @@ control transport. Отправка команды не считается фа�
 result успешен только после authoritative подтверждения target version каждым
 достижимым profile; недоступный либо незавершённый profile остаётся явным
 pending/failed result и обновляется при следующем достижимом lifecycle, а не
-скрывается как успех.
+скрывается как успех. Наличие наблюдаемой code version само по себе не создаёт эту
+операцию.
 
 Повторный `connect-window` не создаёт вторую визуальную связь: Service Worker
 API transport сохраняет identity текущей page realm, а тихий канал и смена
@@ -535,9 +533,10 @@ Host начинает causal heartbeat первым `ping` после откры
 чужой или опережающий ACK закрывает соединение fail-closed. Такой round trip
 доказывает доступность текущего внутреннего исполнения и WebSocket в момент
 ответа, но не удерживает обычный web Service Worker запущенным. Lifecycle строит
-одну ноду `Service Worker`: `Identity` остаётся стабильной, `Исполнение` может
-смениться, `Push` сообщает `ready / sent / received / failed`, а `Heartbeat` —
-состояние текущего WSS. В целевой модели нет отдельной ноды или подписи
+одну ноду `Service Worker`: `Identity` остаётся стабильной, `Исполнение` и
+`Версия кода` описывают его текущее embodiment, `Push` сообщает
+`ready / sent / received / failed`, а `Heartbeat` — состояние текущего WSS. В целевой
+модели нет отдельной ноды или подписи
 `ServiceWorkerGlobalScope`.
 
 Штатная тишина page-канала означает, что браузер приостановил внутреннее

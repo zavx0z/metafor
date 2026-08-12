@@ -31,6 +31,7 @@ import {
   type HamiltonianWebPushOptions,
 } from "./web-push.ts"
 import type {WebPushLifecycleEvent, WebPushLifecycleHook} from "@metafor/web-push/lifecycle"
+import {isHamiltonianServiceWorkerCodeVersion} from "./core/service-worker-code-version.js"
 
 interface SocketData {
   connectionId: string
@@ -46,6 +47,7 @@ interface SocketData {
   heartbeatTimeoutTimer: ReturnType<typeof setTimeout> | null
   workerIdentity: string | null
   workerRuntimeIncarnation: string | null
+  workerCodeVersion: string | null
   resumeNonce: string | null
   identityConfirmed: boolean
   retainAuthorityOnClose: boolean
@@ -88,6 +90,7 @@ interface ClientIdentityMessage {
   kind: "identity"
   workerIdentity: string
   workerRuntimeIncarnation: string
+  workerCodeVersion: string
   resumeNonce: string
   lifecycleSnapshot: HamiltonianLifecycleSnapshot
   wakeId?: string
@@ -299,6 +302,7 @@ function isBrowserProfileLifecycleSnapshot(
   socket: SocketData,
   workerIdentity: string,
   workerRuntimeIncarnation: string,
+  workerCodeVersion: string,
 ): value is HamiltonianLifecycleSnapshot {
   const browserEntityId = hamiltonianBrowserNodeId(socket.deviceId)
   if (
@@ -321,7 +325,9 @@ function isBrowserProfileLifecycleSnapshot(
     worker?.subjectKind === "service-worker" &&
     worker.ownerId === browserEntityId &&
     worker.attributes.identity === workerIdentity &&
-    worker.attributes.runtimeIncarnation === workerRuntimeIncarnation
+    worker.attributes.runtimeIncarnation === workerRuntimeIncarnation &&
+    worker.attributes.codeVersion === workerCodeVersion &&
+    isHamiltonianServiceWorkerCodeVersion(worker.attributes.codeVersion)
 }
 
 function parseClientMessage(value: string | Buffer): ClientMessage | null {
@@ -357,6 +363,7 @@ function parseClientMessage(value: string | Buffer): ClientMessage | null {
     parsed.kind === "identity" &&
     "workerIdentity" in parsed && validWorkerIdentity(parsed.workerIdentity) &&
     "workerRuntimeIncarnation" in parsed && validWorkerIdentity(parsed.workerRuntimeIncarnation) &&
+    "workerCodeVersion" in parsed && isHamiltonianServiceWorkerCodeVersion(parsed.workerCodeVersion) &&
     "resumeNonce" in parsed &&
     typeof parsed.resumeNonce === "string" &&
     parsed.resumeNonce.length > 0 &&
@@ -373,6 +380,7 @@ function parseClientMessage(value: string | Buffer): ClientMessage | null {
       kind: "identity",
       workerIdentity: parsed.workerIdentity,
       workerRuntimeIncarnation: parsed.workerRuntimeIncarnation,
+      workerCodeVersion: parsed.workerCodeVersion,
       resumeNonce: parsed.resumeNonce,
       lifecycleSnapshot: parsed.lifecycleSnapshot,
       ...("wakeId" in parsed && typeof parsed.wakeId === "string" ? {wakeId: parsed.wakeId} : {}),
@@ -711,6 +719,7 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
   let serverAuthority = placement === "server" ? makeServerAuthority(serverFencingToken) : null
   const topology = new HostTopology(hostEpoch)
   const sockets = new Map<string, Bun.ServerWebSocket<SocketData>>()
+  const serviceWorkerEmbodiments = new Map<string, {runtimeIncarnation: string; codeVersion: string}>()
   let controlConnectionGeneration = 0
   const sourceWatchers: FSWatcher[] = []
   let sourceUpdateTimer: ReturnType<typeof setTimeout> | null = null
@@ -793,6 +802,7 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
     cancelBrowserProfileReachabilityExpiry(deviceId)
     const browserEntityId = hamiltonianBrowserNodeId(deviceId)
     if (!hostLifecycleJournal.forgetEntityTree(browserEntityId)) return false
+    serviceWorkerEmbodiments.delete(workerEntityId)
     broadcastLifecycleSnapshot()
     record({
       at: Date.now(),
@@ -832,13 +842,17 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
     attributes: Record<string, string | number | boolean | null>,
     causedBy?: string,
   ) => {
+    const embodiment = serviceWorkerEmbodiments.get(workerEntityId)
     relayLifecycleEnvelope(hostLifecycle.next(createHamiltonianLifecycleObservation({
       type: "entity",
       phase: "changed",
       subjectId: workerEntityId,
       subjectKind: "service-worker",
       ownerId: hamiltonianBrowserNodeId(webPush.deviceIdFor(workerEntityId) ?? deviceId),
-      attributes,
+      attributes: {
+        ...attributes,
+        ...(embodiment === undefined ? {} : {codeVersion: embodiment.codeVersion}),
+      },
     }), causedBy === undefined ? undefined : {causedBy}))
   }
   const webPushTransportId = (workerEntityId: string) =>
@@ -1267,6 +1281,7 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
       deviceId: socket.data.deviceId,
       workerIdentity: socket.data.workerIdentity,
       workerRuntimeIncarnation: socket.data.workerRuntimeIncarnation,
+      workerCodeVersion: socket.data.workerCodeVersion,
       openedAt: socket.data.openedAt,
       lastPongAt: socket.data.lastPongAt,
       lastChallengeSeq: socket.data.lastChallengeSeq,
@@ -1493,6 +1508,7 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
             heartbeatTimeoutTimer: null,
             workerIdentity: null,
             workerRuntimeIncarnation: null,
+            workerCodeVersion: null,
             resumeNonce: null,
             identityConfirmed: false,
             retainAuthorityOnClose: false,
@@ -1684,6 +1700,7 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
             return
           }
           hostLifecycleJournal.retireEntity(message.envelope.observation.subjectId)
+          serviceWorkerEmbodiments.delete(message.envelope.observation.subjectId)
           broadcastLifecycleEnvelope(message.envelope)
           return
         }
@@ -1692,11 +1709,13 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
             !socket.data.identityConfirmed ||
             !socket.data.workerIdentity ||
             !socket.data.workerRuntimeIncarnation ||
+            !socket.data.workerCodeVersion ||
             !isBrowserProfileLifecycleSnapshot(
               message.snapshot,
               socket.data,
               socket.data.workerIdentity,
               socket.data.workerRuntimeIncarnation,
+              socket.data.workerCodeVersion,
             )
           ) {
             socket.data.retainAuthorityOnClose = false
@@ -1736,15 +1755,27 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
             (socket.data.workerIdentity !== null && socket.data.workerIdentity !== message.workerIdentity) ||
             (socket.data.workerRuntimeIncarnation !== null &&
               socket.data.workerRuntimeIncarnation !== message.workerRuntimeIncarnation) ||
+            (socket.data.workerCodeVersion !== null &&
+              socket.data.workerCodeVersion !== message.workerCodeVersion) ||
             !isBrowserProfileLifecycleSnapshot(
               message.lifecycleSnapshot,
               socket.data,
               message.workerIdentity,
               message.workerRuntimeIncarnation,
+              message.workerCodeVersion,
             )
           ) {
             socket.data.retainAuthorityOnClose = false
             socket.close(1008, "worker identity does not match control endpoint")
+            return
+          }
+          const previousEmbodiment = serviceWorkerEmbodiments.get(socket.data.workerEntityId)
+          if (
+            previousEmbodiment?.runtimeIncarnation === message.workerRuntimeIncarnation &&
+            previousEmbodiment.codeVersion !== message.workerCodeVersion
+          ) {
+            socket.data.retainAuthorityOnClose = false
+            socket.close(1008, "Service Worker code version changed without a new execution")
             return
           }
           if (message.wakeId !== undefined) {
@@ -1763,6 +1794,11 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
           }
           socket.data.workerIdentity = message.workerIdentity
           socket.data.workerRuntimeIncarnation = message.workerRuntimeIncarnation
+          socket.data.workerCodeVersion = message.workerCodeVersion
+          serviceWorkerEmbodiments.set(socket.data.workerEntityId, {
+            runtimeIncarnation: message.workerRuntimeIncarnation,
+            codeVersion: message.workerCodeVersion,
+          })
           socket.data.resumeNonce = message.resumeNonce
           socket.data.identityConfirmed = true
           socket.data.retainAuthorityOnClose = true
@@ -1772,7 +1808,7 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
             at: Date.now(),
             kind: "worker-identity",
             connectionId: socket.data.connectionId,
-            detail: `${message.workerIdentity} runtime ${message.workerRuntimeIncarnation}`,
+            detail: `${message.workerIdentity} runtime ${message.workerRuntimeIncarnation} code ${message.workerCodeVersion}`,
           })
           if (message.wakeId !== undefined) {
             clearPendingWake(socket.data.workerEntityId, message.wakeId)
@@ -1791,6 +1827,7 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
             observeServiceWorkerAvailability(socket.data.workerEntityId, socket.data.deviceId, {
               identity: message.workerIdentity,
               runtimeIncarnation: message.workerRuntimeIncarnation,
+              codeVersion: message.workerCodeVersion,
               state: "active",
               push: "received",
               wakeId: message.wakeId,
@@ -1800,6 +1837,7 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
             observeServiceWorkerAvailability(socket.data.workerEntityId, socket.data.deviceId, {
               identity: message.workerIdentity,
               runtimeIncarnation: message.workerRuntimeIncarnation,
+              codeVersion: message.workerCodeVersion,
               state: "active",
               push: webPush.has(socket.data.workerEntityId) ? "ready" : "unavailable",
             })
@@ -1831,6 +1869,7 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
             observeServiceWorkerAvailability(socket.data.workerEntityId, socket.data.deviceId, {
               identity: socket.data.workerIdentity,
               runtimeIncarnation: socket.data.workerRuntimeIncarnation,
+              ...(socket.data.workerCodeVersion === null ? {} : {codeVersion: socket.data.workerCodeVersion}),
               state: "active",
               push: "ready",
             })
