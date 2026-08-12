@@ -85,16 +85,17 @@ result исправлен и ожидает повторного визуаль�
 
 ## P2 — функциональное продолжение и надёжность
 
-Текущая задача Codex: нет. После owner review `MF-428` возвращена в `READY`:
-подзадачи `MF-428.3`–`MF-428.5` вводят SemVer кода Service Worker, server-owned
-обновление всех browser/profile scope и новый presentation-контракт карточки.
-Результаты `MF-428.1` и `MF-428.2` остаются принятым baseline.
+Текущая задача Codex: нет. Срез `MF-428.3` с SemVer кода Service Worker
+зафиксирован checkpoint-коммитом `002570bb0`; MF-428 остаётся `IN_PROGRESS`,
+потому что server-owned обновление всех browser/profile scope (`MF-428.4`) и
+новый presentation-контракт карточки (`MF-428.5`) ещё не выполнены. Результаты
+`MF-428.1` и `MF-428.2` остаются принятым baseline.
 
 | ID      | Состояние   | Зависимости | Карточка                    |
 | ------- | ----------- | ----------- | --------------------------- |
 | MF-407  | READY       | нет         | [Открыть](tasks/MF-407.md)  |
 | MF-421  | READY       | нет         | [Открыть](tasks/MF-421.md)  |
-| MF-428  | READY       | нет         | [Открыть](tasks/MF-428.md)  |
+| MF-428  | IN_PROGRESS | нет         | [Открыть](tasks/MF-428.md)  |
 | AUD-009 | READY       | нет         | [Открыть](tasks/AUD-009.md) |
 | AUD-005 | GATE        | нет         | [Открыть](tasks/AUD-005.md) |
 | AUD-008 | GATE        | нет         | [Открыть](tasks/AUD-008.md) |
