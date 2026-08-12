@@ -1266,6 +1266,159 @@ describe("Hamiltonian lifecycle projection", () => {
     }
   })
 
+  test("does not publish two peer sessions inside one declaration-owned browser slot", () => {
+    const browserLogicalContourId = hamiltonianLogicalContourId("browser-profile", "device-a")
+    const serverLogicalContourId = hamiltonianLogicalContourId("server", "hamiltonian-lab")
+    const browserId = "browser:device-a"
+    const workerId = "service-worker:worker-a"
+    const pageId = "page:page-a"
+    const mainId = "window-main:page-a"
+    const browserRtcA = "rtc-peer:session-a%3Abrowser"
+    const browserRtcB = "rtc-peer:session-b%3Abrowser"
+    const workerSource = new HamiltonianLifecycleSource({
+      id: workerId,
+      kind: "service-worker",
+      incarnation: "worker-runtime-a",
+      startedAt: 5,
+    })
+    const pageSource = new HamiltonianLifecycleSource({
+      id: pageId,
+      kind: "page",
+      incarnation: "page-a",
+      startedAt: 6,
+    })
+    const browserJournal = new HamiltonianLifecycleRetainedJournal(workerId)
+    for (const envelope of [
+      workerSource.next(createHamiltonianLifecycleObservation({
+        type: "entity", phase: "born", subjectId: browserId, subjectKind: "browser-runtime",
+        ownerId: browserId, attributes: {profileId: "device-a", runtime: "Chrome"},
+      })),
+      workerSource.next(createHamiltonianLifecycleObservation({
+        type: "entity", phase: "born", subjectId: workerId, subjectKind: "service-worker",
+        ownerId: browserId, attributes: {runtimeIncarnation: "worker-runtime-a"},
+      })),
+      pageSource.next(createHamiltonianLifecycleObservation({
+        type: "entity", phase: "born", subjectId: pageId, subjectKind: "page",
+        ownerId: browserId, attributes: {tabId: "tab-a", incarnation: "page-a"},
+      })),
+      pageSource.next(createHamiltonianLifecycleObservation({
+        type: "entity", phase: "born", subjectId: mainId, subjectKind: "window-main",
+        ownerId: pageId, attributes: {role: "main"},
+      })),
+      pageSource.next(createHamiltonianLifecycleObservation({
+        type: "entity", phase: "born", subjectId: browserRtcA, subjectKind: "rtc-peer",
+        ownerId: mainId, attributes: {endpoint: "browser", sessionEpoch: "session-a", state: "connected"},
+      })),
+    ]) browserJournal.observe(envelope)
+    const browserSnapshotA = browserJournal.snapshot()
+    const browserDeclarationA = createHamiltonianNodeSystemDeclaration({
+      logicalContourId: browserLogicalContourId,
+      incarnation: "worker-runtime-a",
+      incarnationStartedAt: 5,
+      revision: browserSnapshotA.revision,
+      rootId: browserId,
+      snapshot: browserSnapshotA,
+    })
+    const disconnectedRtcA = pageSource.next(createHamiltonianLifecycleObservation({
+      type: "entity", phase: "changed", subjectId: browserRtcA, subjectKind: "rtc-peer",
+      ownerId: mainId, attributes: {endpoint: "browser", sessionEpoch: "session-a", state: "disconnected"},
+    }))
+    const endedRtcA = pageSource.next(createHamiltonianLifecycleObservation({
+      type: "entity", phase: "ended", subjectId: browserRtcA, subjectKind: "rtc-peer",
+      ownerId: mainId, attributes: {endpoint: "browser", sessionEpoch: "session-a", state: "closed"},
+    }))
+    const bornRtcB = pageSource.next(createHamiltonianLifecycleObservation({
+      type: "entity", phase: "born", subjectId: browserRtcB, subjectKind: "rtc-peer",
+      ownerId: mainId, attributes: {endpoint: "browser", sessionEpoch: "session-b", state: "connected"},
+    }))
+    for (const envelope of [disconnectedRtcA, endedRtcA, bornRtcB]) browserJournal.observe(envelope)
+    const browserSnapshotB = browserJournal.snapshot()
+    const browserDeclarationB = createHamiltonianNodeSystemDeclaration({
+      logicalContourId: browserLogicalContourId,
+      incarnation: "worker-runtime-a",
+      incarnationStartedAt: 5,
+      revision: browserSnapshotB.revision,
+      rootId: browserId,
+      snapshot: browserSnapshotB,
+    })
+    const serverDeclaration = (sessionEpoch: "session-a" | "session-b", startedAt: number) => {
+      const serverId = `server:host-${sessionEpoch}`
+      const processId = `peer-process:${sessionEpoch}`
+      const rtcId = `rtc-peer:${sessionEpoch}%3Aserver`
+      const source = new HamiltonianLifecycleSource({
+        id: serverId,
+        kind: "server",
+        incarnation: `host-${sessionEpoch}`,
+        startedAt,
+      })
+      const journal = new HamiltonianLifecycleRetainedJournal(serverId)
+      for (const observation of [
+        createHamiltonianLifecycleObservation({
+          type: "entity", phase: "born", subjectId: serverId, subjectKind: "server",
+          ownerId: serverId, attributes: {identity: "hamiltonian-lab", state: "live"},
+        }),
+        createHamiltonianLifecycleObservation({
+          type: "entity", phase: "born", subjectId: processId, subjectKind: "peer-process",
+          ownerId: serverId, attributes: {incarnation: `host-${sessionEpoch}`, state: "active"},
+        }),
+        createHamiltonianLifecycleObservation({
+          type: "entity", phase: "born", subjectId: rtcId, subjectKind: "rtc-peer",
+          ownerId: processId, attributes: {endpoint: "server", sessionEpoch, state: "connected"},
+        }),
+      ]) journal.observe(source.next(observation))
+      const snapshot = journal.snapshot()
+      return createHamiltonianNodeSystemDeclaration({
+        logicalContourId: serverLogicalContourId,
+        incarnation: `host-${sessionEpoch}`,
+        incarnationStartedAt: startedAt,
+        revision: snapshot.revision,
+        rootId: serverId,
+        snapshot,
+      })
+    }
+    const serverA = serverDeclaration("session-a", 10)
+    const serverB = serverDeclaration("session-b", 20)
+
+    for (const serverReplacementFirst of [true, false]) {
+      const projection = new HamiltonianLifecycleProjection(context)
+      const published: NodeSystemDocument[] = []
+      const publish = () => published.push(projection.document())
+      expect(projection.replaceDeclaration(browserDeclarationA)).toBeTrue()
+      publish()
+      expect(projection.replaceDeclaration(serverA)).toBeTrue()
+      publish()
+      if (serverReplacementFirst) {
+        expect(projection.replaceDeclaration(serverB)).toBeTrue()
+        publish()
+      }
+      projection.observe(disconnectedRtcA, null)
+      publish()
+      projection.observe(endedRtcA, null)
+      publish()
+      projection.observe(bornRtcB, null)
+      publish()
+      if (!serverReplacementFirst) {
+        expect(projection.replaceDeclaration(serverB)).toBeTrue()
+        publish()
+      }
+      expect(projection.replaceDeclaration(browserDeclarationB)).toBeTrue()
+      publish()
+
+      for (const [index, document] of published.entries()) {
+        const layoutIds = document.nodes.flatMap(({layoutId}) => layoutId === undefined ? [] : [layoutId])
+        expect(new Set(layoutIds).size, `duplicate layout identity in document ${index}`)
+          .toBe(layoutIds.length)
+        expect(document.nodes.filter(({id}) => id === browserRtcB), `undeclared RTC B in document ${index}`)
+          .toHaveLength(index === published.length - 1 ? 1 : 0)
+      }
+      const finalDocument = published.at(-1)!
+      expect(finalDocument.nodes.some(({id}) => id === browserRtcA)).toBeFalse()
+      expect(finalDocument.nodes.some(({id}) => id === browserRtcB)).toBeTrue()
+      expect(finalDocument.nodes.some(({id}) => id === "server:host-session-a")).toBeFalse()
+      expect(finalDocument.nodes.some(({id}) => id === "server:host-session-b")).toBeTrue()
+    }
+  })
+
   test("keeps the exact WSS across stale-live permutations until a declaration retires its endpoint", () => {
     const profileLogicalId = hamiltonianLogicalContourId("browser-profile", "profile-a")
     const serverLogicalId = hamiltonianLogicalContourId("server", "hamiltonian-lab")

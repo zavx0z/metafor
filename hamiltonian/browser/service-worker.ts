@@ -42,6 +42,7 @@ import {createWebPushWorkerHandlers} from "@metafor/web-push/worker"
 import type {WebPushLifecycleEvent} from "@metafor/web-push/lifecycle"
 import type {WebPushMessage} from "@metafor/web-push/protocol"
 import {HAMILTONIAN_SERVICE_WORKER_CODE_VERSION} from "./service-worker-code-version.ts"
+import {pageLifecycleChangesNodeSystem} from "./page-lifecycle-declaration.ts"
 
 type LifecycleJournal = InstanceType<typeof HamiltonianLifecycleRetainedJournal>
 type MessageRecord = {kind: string; monitor?: LifecycleMonitor; [key: string]: unknown}
@@ -875,6 +876,10 @@ async function sendWindowSnapshot(): Promise<void> {
       visible: window.visible,
     })),
   })
+  sendCurrentBrowserNodeSystemDeclaration()
+}
+
+function sendCurrentBrowserNodeSystemDeclaration(): void {
   const snapshot = workerLifecycleJournal?.snapshot()
   const browserSnapshot = currentBrowserEntityId && snapshot
     ? projectHamiltonianLifecycleOwnershipScope(snapshot, [currentBrowserEntityId])
@@ -1455,6 +1460,9 @@ async function receiveWindowMessage(pageMessage: PageControlMessage, client: Ham
     )) return
     if (workerLifecycleJournal?.observe(pageMessage.envelope)) {
       tellAllLifecycleEnvelope(pageMessage.envelope)
+      if (pageLifecycleChangesNodeSystem(pageMessage.envelope)) {
+        sendCurrentBrowserNodeSystemDeclaration()
+      }
     }
     return
   }

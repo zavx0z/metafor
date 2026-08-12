@@ -26,6 +26,7 @@ import {
   subscribeHamiltonianLifecycleSnapshot,
 } from "./lifecycle.js"
 import {HAMILTONIAN_LIFECYCLE_CHANNEL} from "./monitor.js"
+import {pageLifecycleChangesNodeSystem} from "../browser/page-lifecycle-declaration.ts"
 
 const pageBorn = createHamiltonianLifecycleObservation({
   type: "entity",
@@ -37,6 +38,101 @@ const pageBorn = createHamiltonianLifecycleObservation({
 })
 
 describe("Hamiltonian owner lifecycle", () => {
+  test("advances browser declarations only for structural page lifecycle", () => {
+    const browserId = "browser:profile-a"
+    const workerId = "service-worker:worker-a"
+    const pageId = "page:page-a"
+    const mainId = "window-main:page-a"
+    const rtcA = "rtc-peer:session-a%3Abrowser"
+    const rtcB = "rtc-peer:session-b%3Abrowser"
+    const workerSource = new HamiltonianLifecycleSource({
+      id: workerId,
+      kind: "service-worker",
+      incarnation: "worker-runtime-a",
+      startedAt: 5,
+    })
+    const pageSource = new HamiltonianLifecycleSource({
+      id: "page:page-a",
+      kind: "page",
+      incarnation: "page-a",
+      startedAt: 10,
+    })
+    const journal = new HamiltonianLifecycleRetainedJournal(workerId)
+    for (const envelope of [
+      workerSource.next(createHamiltonianLifecycleObservation({
+        type: "entity", phase: "born", subjectId: browserId, subjectKind: "browser-runtime",
+        ownerId: browserId, attributes: {profileId: "profile-a"},
+      })),
+      workerSource.next(createHamiltonianLifecycleObservation({
+        type: "entity", phase: "born", subjectId: workerId, subjectKind: "service-worker",
+        ownerId: browserId, attributes: {runtimeIncarnation: "worker-runtime-a"},
+      })),
+      pageSource.next(createHamiltonianLifecycleObservation({
+        type: "entity", phase: "born", subjectId: pageId, subjectKind: "page",
+        ownerId: browserId, attributes: {incarnation: "page-a"},
+      })),
+      pageSource.next(createHamiltonianLifecycleObservation({
+        type: "entity", phase: "born", subjectId: mainId, subjectKind: "window-main",
+        ownerId: pageId, attributes: {role: "main"},
+      })),
+      pageSource.next(createHamiltonianLifecycleObservation({
+        type: "entity", phase: "born", subjectId: rtcA, subjectKind: "rtc-peer",
+        ownerId: mainId, attributes: {endpoint: "browser", sessionEpoch: "session-a"},
+      })),
+    ]) journal.observe(envelope)
+    const logicalContourId = hamiltonianLogicalContourId("browser-profile", "profile-a")
+    const declaration = () => {
+      const snapshot = projectHamiltonianLifecycleOwnershipScope(journal.snapshot(), [browserId])
+      if (snapshot === null) throw new Error("browser declaration snapshot is not ownership-closed")
+      return createHamiltonianNodeSystemDeclaration({
+        logicalContourId,
+        incarnation: "worker-runtime-a",
+        incarnationStartedAt: 5,
+        revision: snapshot.revision,
+        rootId: browserId,
+        snapshot,
+      })
+    }
+    const registry = new HamiltonianNodeSystemDeclarationRegistry()
+    expect(registry.accept(declaration())).not.toBeNull()
+
+    const ended = pageSource.next(createHamiltonianLifecycleObservation({
+      type: "entity", phase: "ended", subjectId: rtcA,
+      subjectKind: "rtc-peer", ownerId: mainId,
+      attributes: {endpoint: "browser", sessionEpoch: "session-a"},
+    }))
+    const born = pageSource.next(createHamiltonianLifecycleObservation({
+      type: "entity", phase: "born", subjectId: rtcB,
+      subjectKind: "rtc-peer", ownerId: mainId,
+      attributes: {endpoint: "browser", sessionEpoch: "session-b"},
+    }))
+    const traffic = pageSource.next(createHamiltonianLifecycleObservation({
+      type: "message", phase: "sent", subjectId: "message:probe",
+      subjectKind: "data-channel-message", ownerId: rtcB,
+      sourceEntityId: rtcB,
+      targetEntityId: "rtc-peer:session-b%3Aserver",
+      transportId: "data-channel:session-b%3Aoracle",
+      messageId: "message:probe", messageClass: "probe",
+    }))
+
+    const declarationRevisions: number[] = []
+    for (const envelope of [ended, born, traffic]) {
+      expect(journal.observe(envelope)).toBeTrue()
+      if (!pageLifecycleChangesNodeSystem(envelope)) continue
+      const accepted = registry.accept(declaration())
+      expect(accepted).not.toBeNull()
+      declarationRevisions.push(accepted!.declaration.revision)
+    }
+    expect(declarationRevisions).toHaveLength(2)
+    expect(declarationRevisions[1]).toBeGreaterThan(declarationRevisions[0]!)
+    expect(registry.current(logicalContourId)?.snapshot.envelopes.some(({observation}) =>
+      observation.subjectId === rtcA)).toBeFalse()
+    expect(registry.current(logicalContourId)?.snapshot.envelopes.some(({observation}) =>
+      observation.subjectId === rtcB)).toBeTrue()
+    expect(registry.current(logicalContourId)?.revision).toBe(declarationRevisions[1])
+    expect(journal.snapshot().revision).toBeGreaterThan(registry.current(logicalContourId)!.revision)
+  })
+
   test("derives the same peer endpoints and DataChannel incarnation in both runtimes", () => {
     expect(hamiltonianRtcPeerEntityId("session/a", "server"))
       .toBe("rtc-peer:session%2Fa%3Aserver")

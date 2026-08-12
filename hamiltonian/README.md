@@ -268,13 +268,18 @@ endpoint incarnation stale; новый document публикуется толь�
 reconciliation, поэтому порядок доставки следующей декларации transport не
 является частью закона. После принятия декларации её structural membership
 остаётся authoritative до следующей принятой декларации того же logical
-contour: более новый raw snapshot с пересекающимся causal frontier и отдельное
-terminal live-наблюдение могут обновить недекларированную структуру, но не могут
-сами удалить ещё current declared entity, transport либо boundary endpoint.
-Иначе registry и page могли бы удерживать валидную exact WSS reference, пока
-projection уже потеряла её Service Worker endpoint. Следующая декларация,
-действительно исключившая endpoint, удаляет его и зависимый boundary transport
-одной aggregation operation.
+contour: более новый raw snapshot и live-наблюдение могут обновить факты уже
+объявленного subject либо структуру ещё не объявленного contour, но
+source/owner-chain, покрытый current declaration, не может live-событием
+добавить или удалить structural member. Так старый browser RTC не остаётся
+одновременно с ещё не объявленным RTC новой peer session. Service Worker после
+каждого принятого structural `page-lifecycle` в том же event-turn выпускает
+следующий browser snapshot и declaration; только эта declaration атомарно
+меняет membership до следующего page-source event. Иначе registry и page могли
+бы удерживать валидную exact WSS reference, пока projection уже потеряла её
+Service Worker endpoint, либо материализовать две peer session в одном browser
+slot. Следующая декларация, действительно исключившая endpoint, удаляет его и
+зависимый boundary transport одной aggregation operation.
 
 Cross-contour transport не импортируется внутрь чужого ownership snapshot.
 Минимальная boundary-запись ссылается на exact current declarations обоих

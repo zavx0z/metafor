@@ -66,6 +66,19 @@ test("builds the real orchestration and isolated layout Worker bundles", async (
     expect(serviceWorkerTypeScript).toContain("currentPushReady = true")
     expect(serviceWorkerTypeScript).toContain("await restoreControlBootstrap()")
     expect(serviceWorkerTypeScript).toContain('hamiltonianLifecycleEntityId("service-worker", workerRuntimeIncarnation)')
+    const pageLifecycleBranch = serviceWorkerTypeScript.slice(
+      serviceWorkerTypeScript.indexOf('if (pageMessage.kind === "page-lifecycle")'),
+      serviceWorkerTypeScript.indexOf('if (pageMessage.kind === "register-push-subscription")'),
+    )
+    expect(pageLifecycleBranch).toContain("workerLifecycleJournal?.observe(pageMessage.envelope)")
+    expect(pageLifecycleBranch).toContain("pageLifecycleChangesNodeSystem(pageMessage.envelope)")
+    const pageLifecycleDeclarationSource = await Bun.file(join(
+      repositoryRoot,
+      "hamiltonian/browser/page-lifecycle-declaration.ts",
+    )).text()
+    expect(pageLifecycleDeclarationSource).toContain(
+      'envelope.observation.type === "entity" || envelope.observation.type === "transport"',
+    )
     expect(serviceWorkerTypeScript).not.toContain("observation?.ownerId === observation?.subjectId")
 
     const pageSource = await Bun.file(join(repositoryRoot, "hamiltonian/public/app.js")).text()

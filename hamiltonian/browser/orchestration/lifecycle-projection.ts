@@ -106,6 +106,7 @@ export class HamiltonianLifecycleProjection {
   readonly #declarationRoots = new Map<string, string>()
   readonly #declaredEntityIds = new Set<string>()
   readonly #declaredTransportIds = new Set<string>()
+  readonly #declaredSourceKeys = new Set<string>()
   readonly #boundaryTransportsByContour = new Map<string, Set<string>>()
   readonly #supersededDeclarationSources = new Set<string>()
   #currentServerId: string
@@ -555,6 +556,14 @@ export class HamiltonianLifecycleProjection {
   #observeEntity(envelope: HamiltonianLifecycleEnvelope, declarationAuthority = false): void {
     const observation = envelope.observation
     if (
+      !declarationAuthority &&
+      !this.#declaredEntityIds.has(observation.subjectId) &&
+      (
+        this.#declaredSourceKeys.has(lifecycleSourceKey(envelope)) ||
+        (observation.ownerId !== null && this.#declaredEntityIds.has(observation.ownerId))
+      )
+    ) return
+    if (
       observation.phase === "ended" &&
       !declarationAuthority &&
       this.#declaredEntityIds.has(observation.subjectId)
@@ -589,6 +598,15 @@ export class HamiltonianLifecycleProjection {
 
   #observeTransport(envelope: HamiltonianLifecycleEnvelope, declarationAuthority = false): void {
     const observation = envelope.observation
+    if (
+      !declarationAuthority &&
+      !this.#declaredTransportIds.has(observation.subjectId) &&
+      (
+        this.#declaredSourceKeys.has(lifecycleSourceKey(envelope)) ||
+        [observation.ownerId, observation.sourceEntityId, observation.targetEntityId]
+          .some((entityId) => entityId !== null && this.#declaredEntityIds.has(entityId))
+      )
+    ) return
     if (
       observation.phase === "closed" &&
       !declarationAuthority &&
@@ -896,7 +914,11 @@ export class HamiltonianLifecycleProjection {
   #refreshDeclaredSubjects(): void {
     this.#declaredEntityIds.clear()
     this.#declaredTransportIds.clear()
+    this.#declaredSourceKeys.clear()
     for (const declaration of this.#declarationRegistry.values()) {
+      for (const entry of declaration.snapshot.frontier) {
+        this.#declaredSourceKeys.add(`${entry.sourceId}\u0000${entry.sourceIncarnation}`)
+      }
       for (const {observation} of declaration.snapshot.envelopes) {
         if (observation.type === "entity") this.#declaredEntityIds.add(observation.subjectId)
         if (observation.type === "transport") this.#declaredTransportIds.add(observation.subjectId)
@@ -950,6 +972,10 @@ function boundaryTransportEnvelope(
 
 function structuralEventKey(type: "entity" | "transport", subjectId: string): string {
   return `${type}\u0000${subjectId}`
+}
+
+function lifecycleSourceKey(envelope: HamiltonianLifecycleEnvelope): string {
+  return `${envelope.sourceId}\u0000${envelope.sourceIncarnation}`
 }
 
 export function hamiltonianServerNodeId(hostEpochOrOrigin: string): string {
