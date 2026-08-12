@@ -136,6 +136,18 @@ async function openSocket(url: URL): Promise<WebSocket> {
   return socket
 }
 
+async function waitUntil(
+  predicate: () => boolean,
+  label: string,
+  timeoutMs = 2_000,
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs
+  while (!predicate()) {
+    if (Date.now() >= deadline) throw new Error(`Timed out waiting for ${label}`)
+    await Bun.sleep(1)
+  }
+}
+
 async function registerTestPushSubscription(
   host: ReturnType<typeof createHamiltonianHost>,
   workerIdentity: string,
@@ -2021,8 +2033,14 @@ describe("isolated Hamiltonian host", () => {
       workerCodeVersion: "1.0.0",
     })
     expect(firstStatus.connections[0]!.lastAckSeq).toBeGreaterThan(0)
+    const firstClosed = new Promise<void>((resolve) => {
+      first.socket.addEventListener("close", () => resolve(), {once: true})
+    })
     first.socket.close()
-    await Bun.sleep(10)
+    await firstClosed
+    await waitUntil(() => host.getStatus().events.some((event) =>
+      event.kind === "connection-close" && event.connectionId === first.connectionId
+    ), `server close observation for ${first.connectionId}`)
 
     const second = await connect("sw-runtime-b", "2.0.0-rc.1+bundle.7")
     expect(second.connectionId).not.toBe(first.connectionId)

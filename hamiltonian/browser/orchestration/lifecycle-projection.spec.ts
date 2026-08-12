@@ -4,6 +4,7 @@ import {
   HamiltonianLifecycleSource,
   createHamiltonianLifecycleObservation,
   createHamiltonianNodeSystemDeclaration,
+  hamiltonianLifecycleSnapshotId,
   hamiltonianLogicalContourId,
 } from "../../core/lifecycle.js"
 import {
@@ -1265,7 +1266,7 @@ describe("Hamiltonian lifecycle projection", () => {
     }
   })
 
-  test("keeps the exact WSS on the accepted server across both stale-live permutations", () => {
+  test("keeps the exact WSS across stale-live permutations until a declaration retires its endpoint", () => {
     const profileLogicalId = hamiltonianLogicalContourId("browser-profile", "profile-a")
     const serverLogicalId = hamiltonianLogicalContourId("server", "hamiltonian-lab")
     const browserId = "browser:profile-a"
@@ -1409,6 +1410,46 @@ describe("Hamiltonian lifecycle projection", () => {
         expect(document.nodes.find(({id}) => id === "rtc-peer:host-b%3Aserver")?.parentId)
           .toBe("peer-process:host-b")
       }
+
+      const browserSnapshotWithoutWorker = {
+        ...browserSnapshot,
+        revision: browserSnapshot.revision + 1,
+        snapshotId: hamiltonianLifecycleSnapshotId(
+          browserSnapshot.scopeId,
+          browserSnapshot.revision + 1,
+        ),
+        envelopes: browserSnapshot.envelopes.filter(({observation}) =>
+          observation.subjectId !== workerId),
+      }
+      projection.replaceSnapshot(browserSnapshotWithoutWorker)
+      expect(projection.document().nodes.some(({id}) => id === workerId)).toBeTrue()
+      expect(projection.document().edges.filter(({label}) => label === "WS" || label === "WSS"))
+        .toMatchObject([{id: serverB.transportId}])
+
+      const unrelatedPageSource = new HamiltonianLifecycleSource({
+        id: "page:late-observer",
+        kind: "page",
+        incarnation: "late-observer",
+        startedAt: 30,
+      })
+      projection.observe(unrelatedPageSource.next(createHamiltonianLifecycleObservation({
+        type: "entity", phase: "ended", subjectId: workerId, subjectKind: "service-worker",
+        ownerId: browserId, attributes: {state: "ended", successor: "service-worker:unconfirmed"},
+      })), null)
+      expect(projection.document().nodes.some(({id}) => id === workerId)).toBeTrue()
+      expect(projection.document().edges.filter(({label}) => label === "WS" || label === "WSS"))
+        .toMatchObject([{id: serverB.transportId}])
+
+      const browserDeclarationWithoutWorker = createHamiltonianNodeSystemDeclaration({
+        ...initialBrowserDeclaration,
+        revision: browserDeclaration.revision + 1,
+        snapshot: browserSnapshotWithoutWorker,
+      })
+      expect(projection.replaceDeclaration(browserDeclarationWithoutWorker)).toBeTrue()
+      expect(projection.document().nodes.some(({id}) => id === browserId)).toBeTrue()
+      expect(projection.document().nodes.some(({id}) => id === workerId)).toBeFalse()
+      expect(projection.document().edges.some(({label}) => label === "WS" || label === "WSS"))
+        .toBeFalse()
     }
   })
 

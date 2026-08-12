@@ -104,6 +104,8 @@ export class HamiltonianLifecycleProjection {
   readonly #snapshotTransportsByScope = new Map<string, Set<string>>()
   readonly #declarationRegistry = new HamiltonianNodeSystemDeclarationRegistry()
   readonly #declarationRoots = new Map<string, string>()
+  readonly #declaredEntityIds = new Set<string>()
+  readonly #declaredTransportIds = new Set<string>()
   readonly #boundaryTransportsByContour = new Map<string, Set<string>>()
   readonly #supersededDeclarationSources = new Set<string>()
   #currentServerId: string
@@ -212,11 +214,17 @@ export class HamiltonianLifecycleProjection {
 
   /**
    * A newer retained snapshot is authoritative for every source frontier it
-   * covers. Structural subjects missing from that frontier are no longer
-   * active; this repairs a close/end event missed during a disconnect without
-   * replaying or fabricating the missing event.
+   * covers, except for structural subjects retained by a current declaration.
+   * Only the next accepted declaration may change that membership; a raw
+   * snapshot cannot make its still-current endpoint disappear between wire
+   * updates. Undeclared subjects missing from the frontier are no longer
+   * active, repairing a close/end event missed during a disconnect.
   */
   replaceSnapshot(snapshot: HamiltonianLifecycleSnapshot): void {
+    this.#replaceSnapshot(snapshot, false)
+  }
+
+  #replaceSnapshot(snapshot: HamiltonianLifecycleSnapshot, declarationAuthority: boolean): void {
     const retainedFrontier = snapshot.frontier.filter((entry) =>
       !this.#supersededDeclarationSources.has(
         `${entry.sourceId}\u0000${entry.sourceIncarnation}`,
@@ -248,6 +256,7 @@ export class HamiltonianLifecycleProjection {
         !retainedEntities.has(entityId)
     })
     for (const browserId of missingPreviousBrowserRoots) {
+      if (this.#declaredEntityIds.has(browserId)) continue
       this.#forgetEntity(browserId)
       retired = true
     }
@@ -255,6 +264,7 @@ export class HamiltonianLifecycleProjection {
       const entity = this.#entities.get(entityId)
       if (
         retainedEntities.has(entityId) ||
+        this.#declaredEntityIds.has(entityId) ||
         entityId === this.#navigationServerId ||
         entityId === this.#pageId ||
         (entity?.kind === "browser-runtime" && entityId === localBrowserOwnerId)
@@ -264,7 +274,11 @@ export class HamiltonianLifecycleProjection {
       retired = true
     }
     for (const transportId of previousTransports) {
-      if (retainedTransports.has(transportId) || !this.#transports.has(transportId)) continue
+      if (
+        retainedTransports.has(transportId) ||
+        this.#declaredTransportIds.has(transportId) ||
+        !this.#transports.has(transportId)
+      ) continue
       this.#retireTransport(transportId)
       retired = true
     }
@@ -279,6 +293,7 @@ export class HamiltonianLifecycleProjection {
         !retainedEntities.has(entity.id)
     })
     for (const browser of missingCoveredBrowserRoots) {
+      if (this.#declaredEntityIds.has(browser.id)) continue
       this.#forgetEntity(browser.id)
       retired = true
     }
@@ -286,7 +301,8 @@ export class HamiltonianLifecycleProjection {
       if (
         entity.id === this.#navigationServerId ||
         entity.id === this.#pageId ||
-        entity.kind === "browser-runtime"
+        entity.kind === "browser-runtime" ||
+        this.#declaredEntityIds.has(entity.id)
       ) continue
       const event = this.#structuralEvents.get(structuralEventKey("entity", entity.id))
       if (!event || !coveredSources.has(event.sourceKey) || retainedEntities.has(entity.id)) continue
@@ -294,13 +310,14 @@ export class HamiltonianLifecycleProjection {
       retired = true
     }
     for (const transport of this.#transports.values()) {
+      if (this.#declaredTransportIds.has(transport.id)) continue
       const event = this.#structuralEvents.get(structuralEventKey("transport", transport.id))
       if (!event || !coveredSources.has(event.sourceKey) || retainedTransports.has(transport.id)) continue
       this.#retireTransport(transport.id)
       retired = true
     }
     if (retired) this.#revision += 1
-    for (const envelope of retainedEnvelopes) this.observe(envelope, null)
+    for (const envelope of retainedEnvelopes) this.#observe(envelope, null, declarationAuthority)
   }
 
   /**
@@ -311,6 +328,7 @@ export class HamiltonianLifecycleProjection {
   replaceDeclaration(declaration: HamiltonianNodeSystemDeclaration): boolean {
     const accepted = this.#declarationRegistry.accept(declaration)
     if (!accepted) return false
+    this.#refreshDeclaredSubjects()
     for (const reconciled of accepted.reconciled) {
       this.#replaceBoundaryTransports(reconciled.declaration)
     }
@@ -330,7 +348,7 @@ export class HamiltonianLifecycleProjection {
     }
     this.#declarationRoots.set(declaration.logicalContourId, declaration.rootId)
     this.#terminalEntities.delete(declaration.rootId)
-    this.replaceSnapshot(declaration.snapshot)
+    this.#replaceSnapshot(declaration.snapshot, true)
     this.#replaceBoundaryTransports(declaration)
     if (declaration.logicalContourId === this.#serverLogicalContourId) {
       this.#currentServerId = declaration.rootId
@@ -350,7 +368,18 @@ export class HamiltonianLifecycleProjection {
     return retired
   }
 
-  observe(envelope: HamiltonianLifecycleEnvelope, gap: HamiltonianLifecycleGap | null): HamiltonianLifecyclePresentation | null {
+  observe(
+    envelope: HamiltonianLifecycleEnvelope,
+    gap: HamiltonianLifecycleGap | null,
+  ): HamiltonianLifecyclePresentation | null {
+    return this.#observe(envelope, gap, false)
+  }
+
+  #observe(
+    envelope: HamiltonianLifecycleEnvelope,
+    gap: HamiltonianLifecycleGap | null,
+    declarationAuthority: boolean,
+  ): HamiltonianLifecyclePresentation | null {
     if (this.#supersededDeclarationSources.has(
       `${envelope.sourceId}\u0000${envelope.sourceIncarnation}`,
     )) return null
@@ -360,11 +389,11 @@ export class HamiltonianLifecycleProjection {
     }
     const observation = envelope.observation
     if (observation.type === "entity") {
-      this.#observeEntity(envelope)
+      this.#observeEntity(envelope, declarationAuthority)
       return null
     }
     if (observation.type === "transport") {
-      this.#observeTransport(envelope)
+      this.#observeTransport(envelope, declarationAuthority)
       return null
     }
     return this.#observeMessage(envelope)
@@ -523,8 +552,13 @@ export class HamiltonianLifecycleProjection {
     }
   }
 
-  #observeEntity(envelope: HamiltonianLifecycleEnvelope): void {
+  #observeEntity(envelope: HamiltonianLifecycleEnvelope, declarationAuthority = false): void {
     const observation = envelope.observation
+    if (
+      observation.phase === "ended" &&
+      !declarationAuthority &&
+      this.#declaredEntityIds.has(observation.subjectId)
+    ) return
     if (observation.phase !== "ended" && this.#terminalEntities.has(observation.subjectId)) return
     const existing = this.#entities.get(observation.subjectId)
     if (!this.#advanceStructuralEvent("entity", envelope)) return
@@ -553,8 +587,13 @@ export class HamiltonianLifecycleProjection {
     })
   }
 
-  #observeTransport(envelope: HamiltonianLifecycleEnvelope): void {
+  #observeTransport(envelope: HamiltonianLifecycleEnvelope, declarationAuthority = false): void {
     const observation = envelope.observation
+    if (
+      observation.phase === "closed" &&
+      !declarationAuthority &&
+      this.#declaredTransportIds.has(observation.subjectId)
+    ) return
     if (observation.phase !== "closed" && this.#terminalTransports.has(observation.subjectId)) return
     if (!this.#advanceStructuralEvent("transport", envelope)) return
     if (observation.ownerId === null || observation.sourceEntityId === null || observation.targetEntityId === null) return
@@ -848,10 +887,34 @@ export class HamiltonianLifecycleProjection {
     const retained = new Set<string>()
     for (const [index, transport] of declaration.boundaryTransports.entries()) {
       const envelope = boundaryTransportEnvelope(declaration, transport, index)
-      this.#observeTransport(envelope)
+      this.#observeTransport(envelope, true)
       retained.add(transport.transportId)
     }
     this.#boundaryTransportsByContour.set(declaration.logicalContourId, retained)
+  }
+
+  #refreshDeclaredSubjects(): void {
+    this.#declaredEntityIds.clear()
+    this.#declaredTransportIds.clear()
+    for (const declaration of this.#declarationRegistry.values()) {
+      for (const {observation} of declaration.snapshot.envelopes) {
+        if (observation.type === "entity") this.#declaredEntityIds.add(observation.subjectId)
+        if (observation.type === "transport") this.#declaredTransportIds.add(observation.subjectId)
+      }
+      for (const transport of declaration.boundaryTransports) {
+        this.#declaredTransportIds.add(transport.transportId)
+      }
+    }
+    for (const entityId of this.#declaredEntityIds) this.#terminalEntities.delete(entityId)
+    for (const transportId of this.#declaredTransportIds) this.#terminalTransports.delete(transportId)
+    removeIdentities(this.#terminalEntityOrder, this.#declaredEntityIds)
+    removeIdentities(this.#terminalTransportOrder, this.#declaredTransportIds)
+  }
+}
+
+function removeIdentities(order: string[], retained: ReadonlySet<string>): void {
+  for (let index = order.length - 1; index >= 0; index -= 1) {
+    if (retained.has(order[index]!)) order.splice(index, 1)
   }
 }
 

@@ -266,7 +266,15 @@ logical contour. В той же операции registry сверяет boundar
 остальных current declarations и удаляет запись, если replacement сделал её
 endpoint incarnation stale; новый document публикуется только после этой
 reconciliation, поэтому порядок доставки следующей декларации transport не
-является частью закона.
+является частью закона. После принятия декларации её structural membership
+остаётся authoritative до следующей принятой декларации того же logical
+contour: более новый raw snapshot с пересекающимся causal frontier и отдельное
+terminal live-наблюдение могут обновить недекларированную структуру, но не могут
+сами удалить ещё current declared entity, transport либо boundary endpoint.
+Иначе registry и page могли бы удерживать валидную exact WSS reference, пока
+projection уже потеряла её Service Worker endpoint. Следующая декларация,
+действительно исключившая endpoint, удаляет его и зависимый boundary transport
+одной aggregation operation.
 
 Cross-contour transport не импортируется внутрь чужого ownership snapshot.
 Минимальная boundary-запись ссылается на exact current declarations обоих
