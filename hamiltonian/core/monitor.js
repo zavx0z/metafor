@@ -85,6 +85,7 @@ export function hamiltonianPageBootstrap() {
     observedAt: realm.startedAt,
     navigationId: meta("hamiltonian-navigation-id"),
     servedAt: Number(meta("hamiltonian-served-at")) || 0,
+    browserSourceRevision: meta("hamiltonian-browser-source-revision"),
     server: Object.freeze({
       identity: meta("hamiltonian-host-identity") || "hamiltonian",
       hostEpoch: meta("hamiltonian-host-epoch"),

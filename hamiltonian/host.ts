@@ -184,6 +184,23 @@ const webPushClientEntry = `${repositoryRoot}/pkg/web-push/src/client.ts`
 const engineFont = fileURLToPath(new URL("../pkg/engine/static/JetBrainsMono-Bold.ttf", import.meta.url))
 const uiRoot = fileURLToPath(new URL("../pkg/ui/", import.meta.url))
 const nodesRoot = fileURLToPath(new URL("../pkg/nodes/", import.meta.url))
+const webPushRoot = fileURLToPath(new URL("../pkg/web-push/", import.meta.url))
+const browserStaticFiles: Readonly<Record<string, {path: string; type: string}>> = Object.freeze({
+  "/": {path: `${publicRoot}/index.html`, type: "text/html; charset=utf-8"},
+  "/index.html": {path: `${publicRoot}/index.html`, type: "text/html; charset=utf-8"},
+  "/window-entry.js": {path: `${publicRoot}/window-entry.js`, type: "text/javascript; charset=utf-8"},
+  "/app.js": {path: `${publicRoot}/app.js`, type: "text/javascript; charset=utf-8"},
+  "/embodiment-worker.js": {path: `${publicRoot}/embodiment-worker.js`, type: "text/javascript; charset=utf-8"},
+  "/embodiment-worker-entry.js": {path: `${publicRoot}/embodiment-worker-entry.js`, type: "text/javascript; charset=utf-8"},
+  "/styles.css": {path: `${publicRoot}/styles.css`, type: "text/css; charset=utf-8"},
+  "/engine-static/JetBrainsMono-Bold.ttf": {path: engineFont, type: "font/ttf"},
+  "/core/runtime.js": {path: `${experimentRoot}/core/runtime.js`, type: "text/javascript; charset=utf-8"},
+  "/core/cache.js": {path: `${experimentRoot}/core/cache.js`, type: "text/javascript; charset=utf-8"},
+  "/core/browser-control.js": {path: `${experimentRoot}/core/browser-control.js`, type: "text/javascript; charset=utf-8"},
+  "/core/monitor.js": {path: `${experimentRoot}/core/monitor.js`, type: "text/javascript; charset=utf-8"},
+  "/core/lifecycle.js": {path: `${experimentRoot}/core/lifecycle.js`, type: "text/javascript; charset=utf-8"},
+  "/core/orchestration.js": {path: `${experimentRoot}/core/orchestration.js`, type: "text/javascript; charset=utf-8"},
+})
 let orchestrationBundle: Promise<string> | null = null
 let layoutWorkerBundle: Promise<string> | null = null
 let serviceWorkerBundle: Promise<string> | null = null
@@ -642,6 +659,58 @@ function sha256Hex(value: string): string {
   return new Bun.CryptoHasher("sha256").update(value).digest("hex") as string
 }
 
+export interface HamiltonianBrowserSourceArtifacts {
+  orchestrationBundle: string
+  layoutWorkerBundle: string
+  serviceWorkerBundle: string
+  webPushClientBundle: string
+  directlyServedText: Readonly<Record<string, string>>
+}
+
+export function hamiltonianBrowserSourceRevision(
+  artifacts: HamiltonianBrowserSourceArtifacts,
+): string {
+  const canonicalArtifacts = Object.entries({
+    ...artifacts.directlyServedText,
+    "/orchestration.js": artifacts.orchestrationBundle,
+    "/layout-worker.js": artifacts.layoutWorkerBundle,
+    "/sw-entry.js": artifacts.serviceWorkerBundle,
+    "/web-push-client.js": artifacts.webPushClientBundle,
+  })
+    .sort(([left], [right]) => left.localeCompare(right))
+  return `source:${sha256Hex(JSON.stringify(canonicalArtifacts))}`
+}
+
+async function directlyServedBrowserSourceArtifacts(): Promise<Record<string, string>> {
+  const artifacts = await Promise.all(Object.entries(browserStaticFiles)
+    .filter(([, {type}]) => type !== "font/ttf")
+    .map(async ([pathname, {path}]) => [pathname, await Bun.file(path).text()] as const))
+  return Object.fromEntries(artifacts)
+}
+
+async function currentHamiltonianBrowserSourceRevision(): Promise<string> {
+  const [
+    orchestrationBundle,
+    layoutWorkerBundle,
+    serviceWorkerBundle,
+    webPushClientBundle,
+    directlyServedText,
+  ] = await Promise.all([
+    getOrchestrationBundle(),
+    getLayoutWorkerBundle(),
+    getServiceWorkerBundle(),
+    getWebPushClientBundle(),
+    directlyServedBrowserSourceArtifacts(),
+  ])
+  return hamiltonianBrowserSourceRevision({
+    orchestrationBundle,
+    layoutWorkerBundle,
+    serviceWorkerBundle,
+    webPushClientBundle,
+    directlyServedText,
+  })
+}
+
 function securityHeaders(contentType: string): HeadersInit {
   return {
     "cache-control": "no-store",
@@ -653,23 +722,7 @@ function securityHeaders(contentType: string): HeadersInit {
 }
 
 function staticResponse(pathname: string): Response | null {
-  const files: Record<string, {path: string; type: string; cache?: string}> = {
-    "/": {path: `${publicRoot}/index.html`, type: "text/html; charset=utf-8"},
-    "/index.html": {path: `${publicRoot}/index.html`, type: "text/html; charset=utf-8"},
-    "/window-entry.js": {path: `${publicRoot}/window-entry.js`, type: "text/javascript; charset=utf-8"},
-    "/app.js": {path: `${publicRoot}/app.js`, type: "text/javascript; charset=utf-8"},
-    "/embodiment-worker.js": {path: `${publicRoot}/embodiment-worker.js`, type: "text/javascript; charset=utf-8"},
-    "/embodiment-worker-entry.js": {path: `${publicRoot}/embodiment-worker-entry.js`, type: "text/javascript; charset=utf-8"},
-    "/styles.css": {path: `${publicRoot}/styles.css`, type: "text/css; charset=utf-8"},
-    "/engine-static/JetBrainsMono-Bold.ttf": {path: engineFont, type: "font/ttf"},
-    "/core/runtime.js": {path: `${experimentRoot}/core/runtime.js`, type: "text/javascript; charset=utf-8"},
-    "/core/cache.js": {path: `${experimentRoot}/core/cache.js`, type: "text/javascript; charset=utf-8"},
-    "/core/browser-control.js": {path: `${experimentRoot}/core/browser-control.js`, type: "text/javascript; charset=utf-8"},
-    "/core/monitor.js": {path: `${experimentRoot}/core/monitor.js`, type: "text/javascript; charset=utf-8"},
-    "/core/lifecycle.js": {path: `${experimentRoot}/core/lifecycle.js`, type: "text/javascript; charset=utf-8"},
-    "/core/orchestration.js": {path: `${experimentRoot}/core/orchestration.js`, type: "text/javascript; charset=utf-8"},
-  }
-  const entry = files[pathname]
+  const entry = browserStaticFiles[pathname]
   if (!entry) return null
   const headers = new Headers(securityHeaders(entry.type))
   headers.set("content-security-policy", "default-src 'self'; connect-src 'self' ws: wss: data:; img-src 'self' data: blob:; script-src 'self'; style-src 'self'; worker-src 'self' blob:; base-uri 'none'; frame-ancestors 'none'")
@@ -775,6 +828,7 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
   const indexResponse = async (localJoinToken = "") => {
     const servedAt = Date.now()
     const navigationId = crypto.randomUUID()
+    const browserSourceRevision = await currentHamiltonianBrowserSourceRevision()
     const template = await Bun.file(`${publicRoot}/index.html`).text()
     const html = template
       .replaceAll("__HAMILTONIAN_HOST_IDENTITY__", escapeHtmlAttribute(identity))
@@ -782,6 +836,7 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
       .replaceAll("__HAMILTONIAN_HOST_VERSION__", escapeHtmlAttribute(version))
       .replaceAll("__HAMILTONIAN_NAVIGATION_ID__", escapeHtmlAttribute(navigationId))
       .replaceAll("__HAMILTONIAN_SERVED_AT__", String(servedAt))
+      .replaceAll("__HAMILTONIAN_BROWSER_SOURCE_REVISION__", escapeHtmlAttribute(browserSourceRevision))
       .replaceAll("__HAMILTONIAN_LOCAL_JOIN_TOKEN__", escapeHtmlAttribute(localJoinToken))
     const headers = new Headers(securityHeaders("text/html; charset=utf-8"))
     headers.set("content-security-policy", "default-src 'self'; connect-src 'self' ws: wss: data:; img-src 'self' data: blob:; script-src 'self'; style-src 'self'; worker-src 'self' blob:; base-uri 'none'; frame-ancestors 'none'")
@@ -1211,9 +1266,8 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
     if (sourceUpdateTimer !== null) clearTimeout(sourceUpdateTimer)
     sourceUpdateTimer = setTimeout(() => {
       sourceUpdateTimer = null
-      void Promise.all([getOrchestrationBundle(), getLayoutWorkerBundle(), getServiceWorkerBundle()]).then(([bundle, workerBundle, workerServiceBundle]) => {
+      void currentHamiltonianBrowserSourceRevision().then((revision) => {
         if (generation !== sourceUpdateGeneration || stopping) return
-        const revision = `${hostEpoch}:${generation}:${sha256Hex(`${bundle}\u0000${workerBundle}\u0000${workerServiceBundle}`).slice(0, 16)}`
         record({at: Date.now(), kind: "source-update", detail: revision})
         for (const socket of sockets.values()) {
           if (socket.getBufferedAmount() > 256_000) continue
@@ -1840,6 +1894,17 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
         })
         broadcastTopology()
         challengeHeartbeat(socket)
+        void currentHamiltonianBrowserSourceRevision().then((revision) => {
+          if (sockets.get(socket.data.connectionId) !== socket) return
+          sendControl(socket, {kind: "source-update", revision})
+        }).catch((error: unknown) => {
+          record({
+            at: Date.now(),
+            kind: "source-update-failed",
+            connectionId: socket.data.connectionId,
+            detail: error instanceof Error ? error.message : String(error),
+          })
+        })
       },
       async message(socket, rawMessage) {
         controlFramesIn += 1
@@ -2293,7 +2358,14 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
   boundPort = server.port ?? port
 
   if (Bun.env.NODE_ENV !== "test") {
-    for (const root of [`${experimentRoot}/browser`, `${experimentRoot}/public`, `${experimentRoot}/core`, uiRoot, nodesRoot]) {
+    for (const root of [
+      `${experimentRoot}/browser`,
+      `${experimentRoot}/public`,
+      `${experimentRoot}/core`,
+      uiRoot,
+      nodesRoot,
+      webPushRoot,
+    ]) {
       try {
         sourceWatchers.push(watch(root, {recursive: true}, (_event, filename) => {
           scheduleSourceUpdate(filename)

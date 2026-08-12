@@ -14,8 +14,9 @@ import {
   type HamiltonianNodeSystemDeclaration,
 } from "./core/lifecycle.js"
 import {hamiltonianBrowserNodeId} from "./core/orchestration.js"
+import {sourceRevisionRequiresReload} from "./core/browser-control.js"
 import {HamiltonianLifecycleProjection} from "./browser/orchestration/lifecycle-projection.ts"
-import {createHamiltonianHost} from "./host.ts"
+import {createHamiltonianHost, hamiltonianBrowserSourceRevision} from "./host.ts"
 import {WeriftPeer, type PeerSignal} from "./peer/werift-peer.ts"
 
 const running: Array<ReturnType<typeof createHamiltonianHost>> = []
@@ -123,12 +124,20 @@ async function nextMessage(
   })
 }
 
-async function openSocket(url: URL): Promise<WebSocket> {
+async function openSocket(
+  url: URL,
+  frames?: Array<Record<string, unknown>>,
+): Promise<WebSocket> {
   if (url.pathname === "/control") {
     url.searchParams.set("transport", url.searchParams.get("transport") ?? `websocket:${crypto.randomUUID()}`)
     url.searchParams.set("worker", url.searchParams.get("worker") ?? `service-worker:${crypto.randomUUID()}`)
   }
   const socket = new WebSocket(url)
+  if (frames) {
+    socket.addEventListener("message", (event) => {
+      frames.push(JSON.parse(String(event.data)) as Record<string, unknown>)
+    })
+  }
   await new Promise<void>((resolve, reject) => {
     socket.addEventListener("open", () => resolve(), {once: true})
     socket.addEventListener("error", () => reject(new Error("WebSocket open failed")), {once: true})
@@ -317,6 +326,78 @@ async function openDirectBrowserPeer(
 }
 
 describe("isolated Hamiltonian host", () => {
+  test("keys page source reloads by served browser code instead of host incarnation", async () => {
+    const servedByHostA = {
+      orchestrationBundle: "orchestration-a",
+      layoutWorkerBundle: "layout-worker-a",
+      serviceWorkerBundle: "service-worker-a",
+      webPushClientBundle: "web-push-client-a",
+      directlyServedText: {
+        "/app.js": "app-a",
+        "/core/browser-control.js": "browser-control-a",
+      },
+    }
+    const revisionA = hamiltonianBrowserSourceRevision(servedByHostA)
+    const revisionB = hamiltonianBrowserSourceRevision({
+      ...servedByHostA,
+      directlyServedText: {
+        "/core/browser-control.js": "browser-control-a",
+        "/app.js": "app-a",
+      },
+    })
+    expect(revisionB).toBe(revisionA)
+    expect(sourceRevisionRequiresReload(revisionA, revisionB)).toBeFalse()
+
+    const browserBundles = {
+      orchestration: servedByHostA.orchestrationBundle,
+      layoutWorker: servedByHostA.layoutWorkerBundle,
+      serviceWorker: servedByHostA.serviceWorkerBundle,
+      webPushClient: servedByHostA.webPushClientBundle,
+    }
+    const hostA = createHamiltonianHost({
+      port: 0,
+      token: "source-host-a",
+      identity: "stable-source-host",
+      browserBundles,
+    })
+    const hostB = createHamiltonianHost({
+      port: 0,
+      token: "source-host-b",
+      identity: "stable-source-host",
+      browserBundles,
+    })
+    running.push(hostA, hostB)
+    const [bootstrapA, bootstrapB] = await Promise.all([
+      fetch(hostA.server.url).then((response) => response.text()),
+      fetch(hostB.server.url).then((response) => response.text()),
+    ])
+    const bootstrapValue = (source: string, name: string) => requireValue(
+      source.match(new RegExp(`meta name="${name}" content="([^"]+)"`))?.[1],
+      `${name} bootstrap`,
+    )
+    expect(bootstrapValue(bootstrapB, "hamiltonian-host-epoch"))
+      .not.toBe(bootstrapValue(bootstrapA, "hamiltonian-host-epoch"))
+    const hostRevisionA = bootstrapValue(bootstrapA, "hamiltonian-browser-source-revision")
+    const hostRevisionB = bootstrapValue(bootstrapB, "hamiltonian-browser-source-revision")
+    expect(hostRevisionB).toBe(hostRevisionA)
+    expect(sourceRevisionRequiresReload(hostRevisionA, hostRevisionB)).toBeFalse()
+
+    for (const changedArtifacts of [
+      {...servedByHostA, orchestrationBundle: "orchestration-b"},
+      {...servedByHostA, layoutWorkerBundle: "layout-worker-b"},
+      {...servedByHostA, serviceWorkerBundle: "service-worker-b"},
+      {...servedByHostA, webPushClientBundle: "web-push-client-b"},
+      {
+        ...servedByHostA,
+        directlyServedText: {...servedByHostA.directlyServedText, "/app.js": "app-b"},
+      },
+    ]) {
+      const changedRevision = hamiltonianBrowserSourceRevision(changedArtifacts)
+      expect(changedRevision).not.toBe(revisionA)
+      expect(sourceRevisionRequiresReload(revisionA, changedRevision)).toBeTrue()
+    }
+  })
+
   test("rejects a Service Worker identity whose code version is not SemVer", async () => {
     const host = createHamiltonianHost({port: 0, token: "test-token"})
     running.push(host)
@@ -436,6 +517,11 @@ describe("isolated Hamiltonian host", () => {
     const bootstrapSource = await bootstrap.text()
     expect(bootstrapSource).toContain("<title>Оркестрация Гамильтониана</title>")
     expect(bootstrapSource).toContain('meta name="hamiltonian-host-version" content="v-test"')
+    const bootstrapSourceRevision = requireValue(
+      bootstrapSource.match(/meta name="hamiltonian-browser-source-revision" content="([^"]+)"/)?.[1],
+      "browser source revision bootstrap",
+    )
+    expect(bootstrapSourceRevision).toMatch(/^source:[0-9a-f]{64}$/)
     expect(bootstrapSource).toContain('meta name="hamiltonian-local-join-token" content="test-token"')
     expect(bootstrapSource).not.toContain("__HAMILTONIAN_HOST_EPOCH__")
     expect(bootstrapSource).toContain('<link rel="icon" href="data:image/svg+xml,')
@@ -455,6 +541,7 @@ describe("isolated Hamiltonian host", () => {
     expect(monitorBootstrap.status).toBe(200)
     const monitorSource = await monitorBootstrap.text()
     expect(monitorSource).toContain("metafor.hamiltonian.lifecycle.v1")
+    expect(monitorSource).toContain('meta("hamiltonian-browser-source-revision")')
     expect(monitorSource).not.toContain("metafor.hamiltonian.edge-traffic.v1")
     expect(monitorSource).not.toContain("metafor.hamiltonian.orchestration.v1")
 
@@ -484,6 +571,17 @@ describe("isolated Hamiltonian host", () => {
     const source = await moduleResponse.text()
     expect(source).toContain('export const version = "v-test"')
     expect(source).toContain("export function createEmbodiment")
+
+    const controlFrames: Array<Record<string, unknown>> = []
+    const controlUrl = new URL("/control", host.server.url)
+    controlUrl.protocol = "ws:"
+    controlUrl.searchParams.set("token", host.token)
+    controlUrl.searchParams.set("device", "source-bootstrap-profile")
+    const controlSocket = await openSocket(controlUrl, controlFrames)
+    await waitUntil(() => controlFrames.some((frame) =>
+      frame.kind === "source-update" && frame.revision === bootstrapSourceRevision
+    ), "matching browser source revision over control")
+    controlSocket.close()
 
     const workerBootstrap = await fetch(new URL("/embodiment-worker.js", host.server.url))
     expect(workerBootstrap.status).toBe(200)
@@ -516,6 +614,8 @@ describe("isolated Hamiltonian host", () => {
     expect(browserSource).toContain("closeDedicatedWorkerFromOwner(previous")
     expect(browserSource).toContain('observeAttachedWorkerQuiet("page-channel-quiet")')
     expect(browserSource).toContain('attributes: {state: "standby", heartbeat: "paused", reason}')
+    expect(browserSource).toContain("pageBootstrap?.browserSourceRevision")
+    expect(browserSource).toContain("sessionStorage.setItem(sourceRevisionStorageKey")
 
     const webPushClientEntry = await fetch(new URL("/web-push-client.js", host.server.url))
     expect(webPushClientEntry.status).toBe(200)

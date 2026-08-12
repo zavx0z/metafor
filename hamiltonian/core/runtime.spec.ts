@@ -160,11 +160,11 @@ describe("shared Hamiltonian core", () => {
     expect(mainRealmRequiresReload(false, null, "v2:hash-b")).toBeFalse()
   })
 
-  test("reloads one time for each non-empty dev source revision", () => {
-    expect(sourceRevisionRequiresReload(null, "host:1:hash")).toBeTrue()
-    expect(sourceRevisionRequiresReload("host:1:hash", "host:1:hash")).toBeFalse()
-    expect(sourceRevisionRequiresReload("host:1:hash", "host:2:hash")).toBeTrue()
-    expect(sourceRevisionRequiresReload("host:1:hash", "")).toBeFalse()
+  test("reloads one time for each non-empty served-code revision", () => {
+    expect(sourceRevisionRequiresReload(null, "source:hash-a")).toBeTrue()
+    expect(sourceRevisionRequiresReload("source:hash-a", "source:hash-a")).toBeFalse()
+    expect(sourceRevisionRequiresReload("source:hash-a", "source:hash-b")).toBeTrue()
+    expect(sourceRevisionRequiresReload("source:hash-a", "")).toBeFalse()
   })
 
   test("wakes a dead Service Worker quickly without mistaking background throttling for death", () => {

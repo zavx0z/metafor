@@ -42,6 +42,10 @@ const pageIncarnation = hamiltonianRealmSnapshot().incarnation
 const pageEntityId = hamiltonianLifecycleEntityId("page", pageIncarnation)
 const mainEntityId = hamiltonianLifecycleEntityId("window-main", pageIncarnation)
 const pageBootstrap = hamiltonianPageBootstrap()
+const sourceRevisionStorageKey = "hamiltonian-source-revision"
+if (pageBootstrap?.browserSourceRevision) {
+  sessionStorage.setItem(sourceRevisionStorageKey, pageBootstrap.browserSourceRevision)
+}
 const bootstrapServerEntityId = pageBootstrap?.server.hostEpoch
   ? hamiltonianLifecycleEntityId("server", pageBootstrap.server.hostEpoch)
   : null
@@ -919,10 +923,9 @@ function receive(message) {
     return
   }
   if (message.kind === "source-update") {
-    const storageKey = "hamiltonian-source-revision"
-    const currentRevision = sessionStorage.getItem(storageKey)
+    const currentRevision = sessionStorage.getItem(sourceRevisionStorageKey)
     if (!sourceRevisionRequiresReload(currentRevision, message.revision)) return
-    sessionStorage.setItem(storageKey, message.revision)
+    sessionStorage.setItem(sourceRevisionStorageKey, message.revision)
     sessionStorage.setItem("hamiltonian-main-reload-reason", `source ${message.revision}`)
     log(`source update ${message.revision} triggers one page reload`)
     location.reload()

@@ -181,9 +181,11 @@ export function mainRealmRequiresReload(hasMainEmbodiment, loadedFingerprint, ne
 }
 
 /**
- * A dev source revision reloads a page at most once. Persisting the accepted
- * revision in sessionStorage prevents a reconnect or duplicate worker message
- * from creating a reload loop.
+ * A served-code revision reloads a page at most once. The producer derives it
+ * only from browser artifacts, never from a host incarnation or local build
+ * generation. Persisting the accepted revision in sessionStorage therefore
+ * prevents both cold-host reloads with unchanged code and duplicate-message
+ * reload loops.
  *
  * @param {string | null | undefined} currentRevision
  * @param {string | null | undefined} nextRevision
