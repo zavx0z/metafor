@@ -134,6 +134,13 @@ Layout не переставляет parameter rows: `ports[].y` являетс�
 собственными semantic ports этим проходом не перемещается, потому что его
 граница является exact endpoint geometry.
 
+Локальные вертикальные пустоты между sibling-рядами compact устраняет отдельно
+внутри каждого parent, начиная с глубоко вложенных compounds. Если между
+рядами проходит horizontal route, сохраняется по одному `clearance` с обеих
+сторон фактически занятого track; без route остаётся один `clearance` между
+рядами. После каждого сдвига нижнего sibling-поддерева маршруты строятся заново,
+и вариант принимается только после полных placement и route validators.
+
 В `RIGHT` связи с общим exact source/target port сначала резервируют общий
 side track, а вариант с раздельными tracks остаётся bounded fallback. После
 routing кандидат с пустым нижним compound-reserve отбрасывается. Visibility

@@ -319,6 +319,45 @@ describe("compound spacing rhythm", () => {
         })
         expect(externalLeftTracks.length).toBeGreaterThan(0)
         expect(owner.x - Math.max(...externalLeftTracks)).toBe(28)
+        const nodeById = new Map(result.nodes.map((node) => [node.id, node]))
+        const horizontalSegments = result.edges.flatMap(({sections}) => sections.flatMap((section) => {
+          const points = [section.startPoint, ...section.bendPoints, section.endPoint]
+          return points.slice(1).flatMap((to, index) => {
+            const from = points[index]!
+            return from.y === to.y
+              ? [{y: from.y, left: Math.min(from.x, to.x), right: Math.max(from.x, to.x)}]
+              : []
+          })
+        }))
+        const rowRhythmViolations = result.nodes.flatMap((parent) => {
+          const rows = graph.nodes
+            .filter(({parentId}) => parentId === parent.id)
+            .map(({id}) => nodeById.get(id)!)
+            .sort((left, right) => left.y - right.y || left.id.localeCompare(right.id))
+            .reduce<Array<{top: number; bottom: number; ids: string[]}>>((all, node) => {
+              const previous = all.at(-1)
+              if (previous === undefined || node.y >= previous.bottom) {
+                all.push({top: node.y, bottom: node.y + node.height, ids: [node.id]})
+              } else {
+                previous.bottom = Math.max(previous.bottom, node.y + node.height)
+                previous.ids.push(node.id)
+              }
+              return all
+            }, [])
+          return rows.slice(1).flatMap((lower, rowIndex) => {
+            const upper = rows[rowIndex]!
+            const trackYs = [...new Set(horizontalSegments
+              .filter(({y, left, right}) => y > upper.bottom && y < lower.top &&
+                Math.max(left, parent.x) < Math.min(right, parent.x + parent.width))
+              .map(({y}) => y))]
+            const coordinates = [upper.bottom, ...trackYs, lower.top].sort((left, right) => left - right)
+            return coordinates.slice(1).flatMap((coordinate, index) => {
+              const distance = coordinate - coordinates[index]!
+              return distance === 28 ? [] : [{parentId: parent.id, upper: upper.ids, lower: lower.ids, distance}]
+            })
+          })
+        })
+        expect(rowRhythmViolations).toEqual([])
       } else {
         const owner = result.nodes.find(({id}) => id === "browser:device")!
         const directChildren = graph.nodes

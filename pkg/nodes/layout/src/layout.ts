@@ -124,6 +124,11 @@ function layoutEngine(input: PlacementInput): EngineResult {
           acceptedPlacement = compacted
           routing = measured
         }
+        const rowCompacted = compactPortraitRowGaps(input, acceptedPlacement, routing)
+        if (rowCompacted !== null) {
+          acceptedPlacement = rowCompacted.placement
+          routing = rowCompacted.routing
+        }
         const stripCompacted = compactPortraitVerticalStrips(input, acceptedPlacement, routing)
         if (stripCompacted !== null) {
           acceptedPlacement = stripCompacted.placement
@@ -176,6 +181,136 @@ function layoutEngine(input: PlacementInput): EngineResult {
     `NO_LEGAL_LAYOUT: ${attemptedPlacements}/${placements.length} placements provide no legal route graph` +
     (firstRouteFailure === null ? "" : `; first route failure: ${firstRouteFailure}`),
   )
+}
+
+function compactPortraitRowGaps(
+  input: PlacementInput,
+  placement: PlacementResult,
+  routing: RouteGraphResult,
+): Readonly<{placement: PlacementResult; routing: RouteGraphResult}> | null {
+  if (placement.direction !== "DOWN") return null
+  const parentById = new Map(input.nodes.map((node) => [node.id, node.parentId]))
+  const childrenByParent = new Map<string, string[]>()
+  for (const node of input.nodes) {
+    if (node.parentId === undefined) continue
+    const children = childrenByParent.get(node.parentId) ?? []
+    children.push(node.id)
+    childrenByParent.set(node.parentId, children)
+  }
+  const depthOf = (nodeId: string): number => {
+    let depth = 0
+    let parentId = parentById.get(nodeId)
+    while (parentId !== undefined) {
+      depth += 1
+      parentId = parentById.get(parentId)
+    }
+    return depth
+  }
+  const parentIds = [...childrenByParent.keys()]
+    .sort((left, right) => depthOf(right) - depthOf(left) || compareIds(left, right))
+  let currentPlacement = placement
+  let currentRouting = routing
+  let changed = false
+  for (let pass = 0; pass < input.nodes.length * 4; pass += 1) {
+    const horizontalSegments = currentRouting.sections.flatMap((section) => {
+      const points = [section.startPoint, ...section.bendPoints, section.endPoint]
+      return points.slice(1).flatMap((to, index) => {
+        const from = points[index]!
+        return from.y === to.y
+          ? [{y: from.y, left: Math.min(from.x, to.x), right: Math.max(from.x, to.x)}]
+          : []
+      })
+    })
+    const currentNodes = new Map(currentPlacement.nodes.map((node) => [node.id, node]))
+    let accepted = false
+    for (const parentId of parentIds) {
+      const parent = currentNodes.get(parentId)
+      if (parent === undefined) continue
+      const bands = (childrenByParent.get(parentId) ?? [])
+        .map((id) => currentNodes.get(id)!)
+        .sort((left, right) => left.rect.y - right.rect.y || compareIds(left.id, right.id))
+        .reduce<Array<{top: number; bottom: number; ids: string[]}>>((rows, node) => {
+          const previous = rows.at(-1)
+          if (previous === undefined || node.rect.y >= previous.bottom) {
+            rows.push({top: node.rect.y, bottom: node.rect.y + node.rect.h, ids: [node.id]})
+          } else {
+            previous.bottom = Math.max(previous.bottom, node.rect.y + node.rect.h)
+            previous.ids.push(node.id)
+          }
+          return rows
+        }, [])
+      for (let rowIndex = 1; rowIndex < bands.length; rowIndex += 1) {
+        const upper = bands[rowIndex - 1]!
+        const lower = bands[rowIndex]!
+        const coordinates = [
+          upper.bottom,
+          ...new Set(horizontalSegments
+            .filter(({y, left, right}) => y > upper.bottom && y < lower.top &&
+              Math.max(left, parent.rect.x) < Math.min(right, parent.rect.x + parent.rect.w))
+            .map(({y}) => y)),
+          lower.top,
+        ].sort((left, right) => left - right)
+        const excess = coordinates.slice(1).reduce((sum, value, index) =>
+          sum + Math.max(0, value - coordinates[index]! - input.clearance), 0)
+        const maxShift = Math.floor(excess / input.clearance) * input.clearance
+        if (maxShift === 0) continue
+        const shiftedRootIds = bands.slice(rowIndex).flatMap(({ids}) => ids)
+        for (let shift = maxShift; shift >= input.clearance; shift -= input.clearance) {
+          const nodes = new Map(currentPlacement.nodes.map((node) => [node.id, {
+            ...node,
+            rect: {...node.rect},
+            ...(node.contentRect === undefined ? {} : {contentRect: {...node.contentRect}}),
+          }]))
+          const translateSubtree = (nodeId: string): void => {
+            const node = nodes.get(nodeId)!
+            nodes.set(nodeId, {
+              ...node,
+              rect: {...node.rect, y: node.rect.y - shift},
+              ...(node.contentRect === undefined ? {} : {
+                contentRect: {...node.contentRect, y: node.contentRect.y - shift},
+              }),
+            })
+            for (const childId of childrenByParent.get(nodeId) ?? []) translateSubtree(childId)
+          }
+          for (const id of shiftedRootIds) translateSubtree(id)
+          const compactedNodes = currentPlacement.nodes.map(({id}) => nodes.get(id)!)
+          const compactedNodeById = new Map(compactedNodes.map((node) => [node.id, node]))
+          const oldNodeById = new Map(currentPlacement.nodes.map((node) => [node.id, node]))
+          const compactedPorts = currentPlacement.ports.map((port) => {
+            const oldNode = oldNodeById.get(port.nodeId)!
+            const newNode = compactedNodeById.get(port.nodeId)!
+            return {...port, center: {...port.center, y: port.center.y + newNode.rect.y - oldNode.rect.y}}
+          })
+          const bounds = currentPlacement.bounds
+          const candidate: PlacementResult = {
+            ...currentPlacement,
+            nodes: compactedNodes,
+            ports: compactedPorts,
+            bounds,
+            routeInput: {...currentPlacement.routeInput, nodes: compactedNodes, ports: compactedPorts, bounds},
+          }
+          if (validatePlacement(input, candidate).length > 0) continue
+          try {
+            const rerouted = routeGraph(candidate.routeInput)
+            currentPlacement = {
+              ...candidate,
+              metrics: measureCompactedPlacement(input, candidate, compactedNodes, compactedPorts),
+            }
+            currentRouting = rerouted
+            changed = true
+            accepted = true
+            break
+          } catch (error) {
+            if (!(error instanceof Error) || !error.message.startsWith("NO_LEGAL_ROUTE ")) throw error
+          }
+        }
+        if (accepted) break
+      }
+      if (accepted) break
+    }
+    if (!accepted) break
+  }
+  return changed ? {placement: currentPlacement, routing: currentRouting} : null
 }
 
 function compactPortraitVerticalStrips(
