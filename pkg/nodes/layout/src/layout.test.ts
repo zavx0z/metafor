@@ -187,13 +187,22 @@ describe("compound spacing rhythm", () => {
       const owner = result.nodes.find(({id}) => id === "owner")!
       const left = result.nodes.find(({id}) => id === "left")!
       const right = result.nodes.find(({id}) => id === "right")!
+      const childBottom = Math.max(left.y + left.height, right.y + right.height)
+      const bottomGap = owner.y + owner.height - childBottom
+      const bottomRoute = result.edges.some(({sections}) => {
+        const section = sections[0]!
+        const points = [section.startPoint, ...section.bendPoints, section.endPoint]
+        return points.slice(1).some((to, index) => {
+          const from = points[index]!
+          return from.y === to.y && from.y > childBottom && from.y < owner.y + owner.height &&
+            Math.max(Math.min(from.x, to.x), owner.x) < Math.min(Math.max(from.x, to.x), owner.x + owner.width)
+        })
+      })
 
       expect(result.edges).toHaveLength(3)
       expect(left.x - owner.x).toBeGreaterThanOrEqual(3 * spacing)
       expect(owner.x + owner.width - right.x - right.width).toBeGreaterThanOrEqual(3 * spacing)
-      expect(owner.y + owner.height - Math.max(
-        ...result.nodes.filter(({id}) => id === "left" || id === "right").map((node) => node.y + node.height),
-      )).toBeGreaterThanOrEqual(3 * spacing)
+      expect(bottomRoute ? bottomGap >= 3 * spacing : bottomGap === spacing).toBeTrue()
     }
   })
 
@@ -268,6 +277,14 @@ describe("compound spacing rhythm", () => {
       expect(result.edges).toHaveLength(12)
       expect(result.nodes).toHaveLength(14)
       expect(permuted).toEqual(result)
+      if (viewport.height > viewport.width) {
+        const owner = result.nodes.find(({id}) => id === "browser:device")!
+        const directChildren = graph.nodes
+          .filter(({parentId}) => parentId === "browser:device")
+          .map(({id}) => result.nodes.find((node) => node.id === id)!)
+        const childBottom = Math.max(...directChildren.map((node) => node.y + node.height))
+        expect(owner.y + owner.height - childBottom).toBe(28)
+      }
     }
   }, 15_000)
 })

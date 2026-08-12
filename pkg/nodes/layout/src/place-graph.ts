@@ -59,14 +59,20 @@ export function placementCandidates(input: PlacementInput): readonly PlacementRe
     for (const rootWidthPermille of widthPermilles) {
       for (const nestedWidthPermille of widthPermilles) {
         for (const compactSources of [false, true]) {
-          const result = placeGraphWithAlignedContainers(input, new Set(), {
-            kind: "PORTRAIT_FLOW",
-            rootWidthPermille,
-            nestedWidthPermille,
-            compactSources,
-          })
-          const key = JSON.stringify({nodes: result.nodes, ports: result.ports, bounds: result.bounds})
-          if (!unique.has(key)) unique.set(key, result)
+          const bottomCorridorOptions = rootWidthPermille === nestedWidthPermille
+            ? [false, true]
+            : [false]
+          for (const reserveBottomCorridor of bottomCorridorOptions) {
+            const result = placeGraphWithAlignedContainers(input, new Set(), {
+              kind: "PORTRAIT_FLOW",
+              rootWidthPermille,
+              nestedWidthPermille,
+              compactSources,
+              reserveBottomCorridor,
+            })
+            const key = JSON.stringify({nodes: result.nodes, ports: result.ports, bounds: result.bounds})
+            if (!unique.has(key)) unique.set(key, result)
+          }
         }
       }
     }
@@ -601,7 +607,10 @@ function arrangeChildren(
     const compactedHeight = Math.max(...childIds.map((id) =>
       offsets.get(id)!.y + measured.get(id)!.size.h))
     return {
-      size: {w: reservedWidth, h: compactedHeight + sideReserve},
+      size: {
+        w: reservedWidth,
+        h: compactedHeight + (packing.reserveBottomCorridor ? sideReserve : 0),
+      },
       childOffsets: offsets,
     }
   }

@@ -66,4 +66,5 @@ export type PackingPolicy =
     rootWidthPermille: number
     nestedWidthPermille: number
     compactSources: boolean
+    reserveBottomCorridor: boolean
   }>
