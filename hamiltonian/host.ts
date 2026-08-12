@@ -49,6 +49,7 @@ interface SocketData {
   resumeNonce: string | null
   identityConfirmed: boolean
   retainAuthorityOnClose: boolean
+  reportedEmptyWindowInventory: boolean
 }
 
 interface HamiltonianHostOptions {
@@ -723,6 +724,7 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
   const pendingWakes = new Map<string, PendingPushWake>()
   const pendingWakeTimers = new Map<string, ReturnType<typeof setTimeout>>()
   const detachedLeaseTimers = new Map<string, ReturnType<typeof setTimeout>>()
+  const browserProfileReachabilityTimers = new Map<string, ReturnType<typeof setTimeout>>()
   const events: HostEvent[] = []
   let boundPort = port
   const record = (event: HostEvent) => {
@@ -771,6 +773,47 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
     if (!hostLifecycleJournal.merge(snapshot)) return false
     broadcastLifecycleSnapshot()
     return true
+  }
+  const cancelBrowserProfileReachabilityExpiry = (deviceId: string) => {
+    const timer = browserProfileReachabilityTimers.get(deviceId)
+    if (timer) clearTimeout(timer)
+    browserProfileReachabilityTimers.delete(deviceId)
+  }
+  const forgetBrowserProfileIfUnreachable = (
+    deviceId: string,
+    workerEntityId: string,
+    connectionId?: string,
+  ): boolean => {
+    if (
+      [...sockets.values()].some((candidate) =>
+        candidate.data.identityConfirmed && candidate.data.deviceId === deviceId) ||
+      webPush.has(workerEntityId) ||
+      pendingWakes.has(workerEntityId)
+    ) return false
+    cancelBrowserProfileReachabilityExpiry(deviceId)
+    const browserEntityId = hamiltonianBrowserNodeId(deviceId)
+    if (!hostLifecycleJournal.forgetEntityTree(browserEntityId)) return false
+    broadcastLifecycleSnapshot()
+    record({
+      at: Date.now(),
+      kind: "browser-profile-unreachable",
+      ...(connectionId === undefined ? {} : {connectionId}),
+      detail: browserEntityId,
+    })
+    return true
+  }
+  const scheduleBrowserProfileReachabilityExpiry = (
+    deviceId: string,
+    workerEntityId: string,
+    connectionId: string,
+    expiresAt: number,
+  ) => {
+    cancelBrowserProfileReachabilityExpiry(deviceId)
+    const timer = setTimeout(() => {
+      browserProfileReachabilityTimers.delete(deviceId)
+      forgetBrowserProfileIfUnreachable(deviceId, workerEntityId, connectionId)
+    }, Math.max(0, expiresAt - Date.now()))
+    browserProfileReachabilityTimers.set(deviceId, timer)
   }
   const relayLifecycleEnvelope = (value: unknown) => {
     if (!isHamiltonianLifecycleEnvelope(value)) return
@@ -1453,6 +1496,7 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
             resumeNonce: null,
             identityConfirmed: false,
             retainAuthorityOnClose: false,
+            reportedEmptyWindowInventory: false,
           },
         })
         return upgraded ? undefined : new Response("WebSocket upgrade required", {status: 426})
@@ -1722,6 +1766,7 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
           socket.data.resumeNonce = message.resumeNonce
           socket.data.identityConfirmed = true
           socket.data.retainAuthorityOnClose = true
+          cancelBrowserProfileReachabilityExpiry(socket.data.deviceId)
           mergeBrowserLifecycleSnapshot(message.lifecycleSnapshot)
           record({
             at: Date.now(),
@@ -1843,6 +1888,7 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
           requestPeerRepair(`browser: ${message.reason}`)
           return
         }
+        socket.data.reportedEmptyWindowInventory = message.windows.length === 0
         if (!tryResumeDetachedAuthority(socket, message.windows)) {
           topology.updateWindows(socket.data.connectionId, message.windows)
         }
@@ -1852,6 +1898,17 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
         clearHeartbeatTimers(socket)
         record({at: Date.now(), kind: "connection-close", connectionId: socket.data.connectionId})
         sockets.delete(socket.data.connectionId)
+        const closingPeer = topology.snapshot().peers.find(({connectionId}) =>
+          connectionId === socket.data.connectionId)
+        const browserScopeUnreachable =
+          socket.data.identityConfirmed &&
+          socket.data.retainAuthorityOnClose &&
+          socket.data.reportedEmptyWindowInventory &&
+          closingPeer?.windows.length === 0 &&
+          !webPush.has(socket.data.workerEntityId) &&
+          !pendingWakes.has(socket.data.workerEntityId) &&
+          ![...sockets.values()].some((candidate) =>
+            candidate.data.identityConfirmed && candidate.data.deviceId === socket.data.deviceId)
         if (socket.data.identityConfirmed && socket.data.retainAuthorityOnClose) {
           relayLifecycleEnvelope(hostLifecycle.next(createHamiltonianLifecycleObservation({
             type: "transport",
@@ -1870,9 +1927,32 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
             },
           })))
         }
+        if (browserScopeUnreachable) {
+          forgetBrowserProfileIfUnreachable(
+            socket.data.deviceId,
+            socket.data.workerEntityId,
+            socket.data.connectionId,
+          )
+        } else if (
+          !stopping &&
+          socket.data.identityConfirmed &&
+          socket.data.retainAuthorityOnClose &&
+          !webPush.has(socket.data.workerEntityId) &&
+          !pendingWakes.has(socket.data.workerEntityId) &&
+          ![...sockets.values()].some((candidate) =>
+            candidate.data.identityConfirmed && candidate.data.deviceId === socket.data.deviceId)
+        ) {
+          scheduleBrowserProfileReachabilityExpiry(
+            socket.data.deviceId,
+            socket.data.workerEntityId,
+            socket.data.connectionId,
+            socket.data.lastPongAt + heartbeatMs * 3,
+          )
+        }
         if (
           socket.data.identityConfirmed &&
           socket.data.retainAuthorityOnClose &&
+          !browserScopeUnreachable &&
           !pendingWakes.has(socket.data.workerEntityId)
         ) {
           observeServiceWorkerAvailability(socket.data.workerEntityId, socket.data.deviceId, webPush.has(socket.data.workerEntityId)
@@ -1882,6 +1962,7 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
         const leader = topologyState().leader
         const retainsCurrentAuthority =
           !stopping &&
+          !browserScopeUnreachable &&
           socket.data.retainAuthorityOnClose &&
           leader?.connectionId === socket.data.connectionId
         if (retainsCurrentAuthority) {
@@ -2011,6 +2092,8 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
         for (const timer of detachedLeaseTimers.values()) clearTimeout(timer)
         detachedLeaseTimers.clear()
         detachedAuthorities.clear()
+        for (const timer of browserProfileReachabilityTimers.values()) clearTimeout(timer)
+        browserProfileReachabilityTimers.clear()
         for (const timer of pendingWakeTimers.values()) clearTimeout(timer)
         pendingWakeTimers.clear()
         pendingWakes.clear()

@@ -453,6 +453,23 @@ export class HamiltonianLifecycleRetainedJournal {
   }
 
   /**
+   * Forgets a currently unreachable ownership subtree without declaring its
+   * logical identity terminal. A later authoritative observation may
+   * materialize the same stable owner again (for example after reopening a
+   * browser profile whose local storage survived). This is intentionally
+   * distinct from retireEntity(), which fences the ended identity against
+   * stale resurrection.
+   *
+   * @param {string} entityId
+   */
+  forgetEntityTree(entityId) {
+    if (!validId(entityId, 512)) return false
+    const changed = this.#deleteEntityTree(entityId, false)
+    if (changed) this.#revision += 1
+    return changed
+  }
+
+  /**
    * Retained ownership is structural: an owned runtime object cannot outlive
    * the entity that contains it. Remove the whole ownership subtree before
    * considering transports, otherwise a surviving cross-runtime transport can
@@ -460,7 +477,7 @@ export class HamiltonianLifecycleRetainedJournal {
    *
    * @param {string} entityId
    */
-  #deleteEntityTree(entityId) {
+  #deleteEntityTree(entityId, retainAsRetired = true) {
     const removed = new Set([entityId])
     let expanded = true
     while (expanded) {
@@ -480,7 +497,7 @@ export class HamiltonianLifecycleRetainedJournal {
 
     let changed = false
     for (const removedId of removed) {
-      this.#retainRetiredEntity(removedId)
+      if (retainAsRetired) this.#retainRetiredEntity(removedId)
       if (this.#entities.delete(removedId)) changed = true
     }
     for (const [transportId, transportEnvelope] of [...this.#transports]) {

@@ -351,6 +351,60 @@ describe("Hamiltonian owner lifecycle", () => {
     expect(isHamiltonianLifecycleOwnershipClosed(cycleJournal.snapshot(), [browserId])).toBeFalse()
   })
 
+  test("forgets an unreachable ownership subtree without fencing its stable identity", () => {
+    const browserId = "browser:stable-profile"
+    const pageId = "page:stable-profile"
+    const transportId = "service-worker-api:stable-profile"
+    const source = new HamiltonianLifecycleSource({
+      id: "service-worker:stable-profile",
+      kind: "service-worker",
+      incarnation: "runtime-a",
+      startedAt: 1,
+    })
+    const journal = new HamiltonianLifecycleRetainedJournal("service-worker:stable-profile")
+    const observeTree = () => {
+      journal.observe(source.next(createHamiltonianLifecycleObservation({
+        type: "entity",
+        phase: "changed",
+        subjectId: browserId,
+        subjectKind: "browser-runtime",
+        ownerId: browserId,
+        attributes: {profileId: "stable-profile", state: "active"},
+      })))
+      journal.observe(source.next(createHamiltonianLifecycleObservation({
+        type: "entity",
+        phase: "changed",
+        subjectId: pageId,
+        subjectKind: "page",
+        ownerId: browserId,
+        attributes: {state: "live"},
+      })))
+      journal.observe(source.next(createHamiltonianLifecycleObservation({
+        type: "transport",
+        phase: "opened",
+        subjectId: transportId,
+        subjectKind: "service-worker-api",
+        ownerId: pageId,
+        sourceEntityId: pageId,
+        targetEntityId: "service-worker:stable-profile",
+        transportId,
+        attributes: {state: "active"},
+      })))
+    }
+    observeTree()
+    expect(journal.forgetEntityTree(browserId)).toBeTrue()
+    expect(journal.snapshot().envelopes.map(({observation}) => observation.subjectId))
+      .not.toContain(browserId)
+    expect(journal.snapshot().envelopes.map(({observation}) => observation.subjectId))
+      .not.toContain(pageId)
+    expect(journal.snapshot().envelopes.map(({observation}) => observation.subjectId))
+      .not.toContain(transportId)
+
+    observeTree()
+    expect(journal.snapshot().envelopes.map(({observation}) => observation.subjectId))
+      .toEqual(expect.arrayContaining([browserId, pageId, transportId]))
+  })
+
   test("starts a restarted retained scope from an explicit monotonic revision base", () => {
     const journal = new HamiltonianLifecycleRetainedJournal("service-worker:stable", {
       initialRevision: 10_000,

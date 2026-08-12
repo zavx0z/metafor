@@ -169,6 +169,7 @@ describe("Hamiltonian lifecycle projection", () => {
     const materialize = (profiles: readonly string[]) => {
       const projection = new HamiltonianLifecycleProjection(context)
       for (const profileId of profiles) {
+        const profileBaseAt = profileId === "profile-a" ? 100 : 200
         const browserId = `browser:${profileId}`
         const workerId = `service-worker:${profileId}`
         const source = new HamiltonianLifecycleSource({
@@ -184,7 +185,7 @@ describe("Hamiltonian lifecycle projection", () => {
           subjectKind: "browser-runtime",
           ownerId: browserId,
           attributes: {profileId, runtime: "Chrome", state: "active"},
-        })), null)
+        }), {at: profileBaseAt}), null)
         projection.observe(source.next(createHamiltonianLifecycleObservation({
           type: "entity",
           phase: "changed",
@@ -192,8 +193,9 @@ describe("Hamiltonian lifecycle projection", () => {
           subjectKind: "service-worker",
           ownerId: browserId,
           attributes: {identity: profileId, state: "active"},
-        })), null)
+        }), {at: profileBaseAt + 1}), null)
         for (const pageSuffix of ["a", "b"] as const) {
+          const pageOffset = pageSuffix === "a" ? 2 : 4
           const pageId = `page:${profileId}-${pageSuffix}`
           const transportId = `service-worker-api:${profileId}-${pageSuffix}`
           projection.observe(source.next(createHamiltonianLifecycleObservation({
@@ -203,7 +205,7 @@ describe("Hamiltonian lifecycle projection", () => {
             subjectKind: "page",
             ownerId: browserId,
             attributes: {incarnation: `${profileId}-${pageSuffix}`, state: "live"},
-          })), null)
+          }), {at: profileBaseAt + pageOffset}), null)
           projection.observe(source.next(createHamiltonianLifecycleObservation({
             type: "transport",
             phase: "opened",
@@ -214,7 +216,7 @@ describe("Hamiltonian lifecycle projection", () => {
             targetEntityId: workerId,
             transportId,
             attributes: {mechanism: "ServiceWorker.postMessage / WindowClient.postMessage"},
-          })), null)
+          }), {at: profileBaseAt + pageOffset + 1}), null)
         }
       }
       return projection.document()
@@ -393,6 +395,86 @@ describe("Hamiltonian lifecycle projection", () => {
     })
     expect(projection.document().nodes.find(({id}) => id === "page:page-a")?.parentId)
       .toBe("browser:device-a")
+  })
+
+  test("forgets a remote browser scope missing from the authoritative host snapshot", () => {
+    const projection = new HamiltonianLifecycleProjection(context)
+    const localPage = new HamiltonianLifecycleSource({
+      id: "page:page-a",
+      kind: "page",
+      incarnation: "page-a",
+      startedAt: 10,
+    })
+    projection.observe(localPage.next(createHamiltonianLifecycleObservation({
+      type: "entity",
+      phase: "born",
+      subjectId: "browser:device-a",
+      subjectKind: "browser-runtime",
+      ownerId: "browser:device-a",
+      attributes: {profileId: "device-a", runtime: "Chrome", state: "active"},
+    })), null)
+    projection.observe(localPage.next(createHamiltonianLifecycleObservation({
+      type: "entity",
+      phase: "changed",
+      subjectId: "page:page-a",
+      subjectKind: "page",
+      ownerId: "browser:device-a",
+      attributes: {incarnation: "page-a", state: "live"},
+    })), null)
+
+    const remoteBrowserId = "browser:device-b"
+    const remoteWorkerId = "service-worker:stable-b"
+    const remoteSource = new HamiltonianLifecycleSource({
+      id: remoteWorkerId,
+      kind: "service-worker",
+      incarnation: "runtime-b",
+      startedAt: 20,
+    })
+    const hostJournal = new HamiltonianLifecycleRetainedJournal("server:host-a")
+    const observeRemoteScope = (workerFirst = false) => {
+      const browserObservation = createHamiltonianLifecycleObservation({
+        type: "entity",
+        phase: "changed",
+        subjectId: remoteBrowserId,
+        subjectKind: "browser-runtime",
+        ownerId: remoteBrowserId,
+        attributes: {profileId: "device-b", runtime: "Chrome", state: "active"},
+      })
+      const workerObservation = createHamiltonianLifecycleObservation({
+        type: "entity",
+        phase: "changed",
+        subjectId: remoteWorkerId,
+        subjectKind: "service-worker",
+        ownerId: remoteBrowserId,
+        attributes: {identity: "stable-b", runtimeIncarnation: "runtime-b", state: "active"},
+      })
+      for (const observation of workerFirst
+        ? [workerObservation, browserObservation]
+        : [browserObservation, workerObservation]) {
+        hostJournal.observe(remoteSource.next(observation))
+      }
+    }
+
+    observeRemoteScope(true)
+    projection.replaceSnapshot(hostJournal.snapshot())
+    expect(projection.document().nodes.map(({id}) => id)).toEqual(expect.arrayContaining([
+      "browser:device-a",
+      remoteBrowserId,
+      remoteWorkerId,
+    ]))
+
+    expect(hostJournal.forgetEntityTree(remoteBrowserId)).toBeTrue()
+    projection.replaceSnapshot(hostJournal.snapshot())
+    expect(projection.document().nodes.some(({id}) => id === remoteBrowserId)).toBeFalse()
+    expect(projection.document().nodes.some(({id}) => id === remoteWorkerId)).toBeFalse()
+    expect(projection.document().nodes.some(({id}) => id === "browser:device-a")).toBeTrue()
+
+    observeRemoteScope()
+    projection.replaceSnapshot(hostJournal.snapshot())
+    expect(projection.document().nodes.map(({id}) => id)).toEqual(expect.arrayContaining([
+      remoteBrowserId,
+      remoteWorkerId,
+    ]))
   })
 
   test("materializes one Service Worker identity and its exact WebSocket only from owner events", () => {

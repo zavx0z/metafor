@@ -218,6 +218,24 @@ Retained lifecycle сохраняет только действующее owners
 owner завершается, его вложенные runtime-сущности и принадлежащие им transport
 также удаляются из текущего снимка: объект из завершённого процесса не может
 сохраниться за счёт связи с другой средой и стать ложной корневой нодой.
+Исчезновение control WebSocket само по себе ещё не означает завершение
+browser/profile scope: новый execution того же Service Worker может
+переподключиться в пределах общей heartbeat/authority grace. Подтверждённая
+identity того же profile в этот срок отменяет удаление, обновляет только
+execution incarnation Worker и сохраняет прежний browser owner. Если grace
+истекла, другого подтверждённого соединения этого profile нет и не осталось ни
+действующей Web Push subscription, ни уже начатого push wake, весь недостижимый
+browser ownership scope забывается одним retained snapshot. Это не terminal
+retirement стабильной identity: сохранённый profile UUID может позднее снова
+материализовать тот же логический owner после quit/reopen. Действующая Web Push
+subscription, напротив, означает достижимый `standby` scope и не позволяет
+удалить его только из-за отсутствия открытых окон.
+Page-side projection применяет такой host snapshot авторитетно: отсутствующий
+remote browser scope забывается вместе с поддеревом и не остаётся пустой
+Chrome-нодой. Browser owner текущей page сохраняется даже при late snapshot,
+в котором его собственное раннее birth-наблюдение ещё не повторено; точный
+owner текущей page берётся из самой retained page-записи, а не из порядка
+доставки событий.
 
 Повторный `connect-window` не создаёт вторую визуальную связь: Service Worker
 API transport сохраняет identity текущей page realm, а тихий канал и смена
@@ -617,7 +635,8 @@ bun build public/app.js public/embodiment-worker.js \
   --external /core/monitor.js \
   --external /core/lifecycle.js \
   --external /core/runtime.js --external /core/cache.js \
-  --external /core/browser-control.js --external /core/orchestration.js
+  --external /core/browser-control.js --external /core/orchestration.js \
+  --external /web-push-client.js
 bun build public/window-entry.js public/embodiment-worker-entry.js \
   --outdir /tmp/hamiltonian-entry-build-check --target browser \
   --external /core/monitor.js --external /app.js --external /orchestration.js \

@@ -1144,6 +1144,190 @@ describe("isolated Hamiltonian host", () => {
     observer.close()
   })
 
+  test("removes only an unreachable browser profile after its last window and control path close", async () => {
+    const host = createHamiltonianHost({port: 0, token: "test-token", heartbeatMs: 10_000})
+    running.push(host)
+    await host.bunReady
+
+    const connectProfile = async (profileId: string, workerIdentity: string, tabId: string) => {
+      const workerEntityId = hamiltonianLifecycleEntityId("service-worker", workerIdentity)
+      const controlUrl = new URL("/control", host.server.url)
+      controlUrl.protocol = "ws:"
+      controlUrl.searchParams.set("token", host.token)
+      controlUrl.searchParams.set("device", profileId)
+      controlUrl.searchParams.set("worker", workerEntityId)
+      const socket = await openSocket(controlUrl)
+      const hello = await nextMessage(socket, "hello")
+      const observedWorker = nextMessage(socket, "lifecycle", (message) => {
+        const envelope = message.envelope as {observation?: {subjectId?: string}} | undefined
+        return envelope?.observation?.subjectId === workerEntityId
+      })
+      socket.send(JSON.stringify(browserIdentityMessage(
+        profileId,
+        workerIdentity,
+        `runtime:${workerIdentity}`,
+        `resume:${workerIdentity}`,
+      )))
+      await observedWorker
+      const topology = nextMessage(socket, "topology", (message) => {
+        const peers = (message.topology as {peers?: Array<{connectionId?: string; windows?: unknown[]}>}).peers
+        return peers?.some((peer) =>
+          peer.connectionId === hello.connectionId && peer.windows?.length === 1) === true
+      })
+      socket.send(JSON.stringify({
+        kind: "tabs",
+        windows: [{tabId, joinedAt: 10, visible: true}],
+      }))
+      await topology
+      return {socket, connectionId: String(hello.connectionId)}
+    }
+
+    const closingProfileId = "closing-profile"
+    const closingWorkerIdentity = "closing-worker"
+    const closingBrowserId = hamiltonianBrowserNodeId(closingProfileId)
+    const closingWorkerId = hamiltonianLifecycleEntityId("service-worker", closingWorkerIdentity)
+    const closingPageId = "page:closing-profile"
+    const closingTransportId = "service-worker-api:closing-profile"
+    const closing = await connectProfile(closingProfileId, closingWorkerIdentity, "closing-tab")
+    const surviving = await connectProfile("surviving-profile", "surviving-worker", "surviving-tab")
+    const pageMerged = nextMessage(closing.socket, "lifecycle-snapshot", (message) => {
+      const snapshot = message.snapshot as {envelopes?: Array<{observation?: {subjectId?: string}}>} | undefined
+      return snapshot?.envelopes?.some(({observation}) => observation?.subjectId === closingPageId) === true
+    })
+    closing.socket.send(JSON.stringify({
+      kind: "browser-lifecycle-snapshot",
+      snapshot: browserProfileLifecycleSnapshot(
+        closingProfileId,
+        closingWorkerIdentity,
+        `runtime:${closingWorkerIdentity}`,
+        [
+          createHamiltonianLifecycleObservation({
+            type: "entity",
+            phase: "changed",
+            subjectId: closingPageId,
+            subjectKind: "page",
+            ownerId: closingBrowserId,
+            attributes: {incarnation: "closing-profile", state: "live"},
+          }),
+          createHamiltonianLifecycleObservation({
+            type: "transport",
+            phase: "opened",
+            subjectId: closingTransportId,
+            subjectKind: "service-worker-api",
+            ownerId: closingWorkerId,
+            sourceEntityId: closingPageId,
+            targetEntityId: closingWorkerId,
+            transportId: closingTransportId,
+            attributes: {state: "active"},
+          }),
+        ],
+      ),
+    }))
+    await pageMerged
+
+    const emptyTopology = nextMessage(closing.socket, "topology", (message) => {
+      const peers = (message.topology as {peers?: Array<{connectionId?: string; windows?: unknown[]}>}).peers
+      return peers?.some((peer) =>
+        peer.connectionId === closing.connectionId && peer.windows?.length === 0) === true
+    })
+    closing.socket.send(JSON.stringify({kind: "tabs", windows: []}))
+    await emptyTopology
+
+    const retainedWithoutClosedProfile = nextMessage(surviving.socket, "lifecycle-snapshot", (message) => {
+      const snapshot = message.snapshot as {envelopes?: Array<{observation?: {subjectId?: string}}>} | undefined
+      const ids = snapshot?.envelopes?.map(({observation}) => observation?.subjectId) ?? []
+      return ids.includes(hamiltonianBrowserNodeId("surviving-profile")) && !ids.includes(closingBrowserId)
+    })
+    closing.socket.close()
+    const retained = (await retainedWithoutClosedProfile).snapshot as {
+      envelopes: Array<{observation: {subjectId: string}}>
+    }
+    const retainedIds = retained.envelopes.map(({observation}) => observation.subjectId)
+    expect(retainedIds).not.toContain(closingBrowserId)
+    expect(retainedIds).not.toContain(closingWorkerId)
+    expect(retainedIds).not.toContain(closingPageId)
+    expect(retainedIds).not.toContain(closingTransportId)
+    expect(retainedIds).toContain(hamiltonianBrowserNodeId("surviving-profile"))
+    expect(retainedIds).toContain(hamiltonianLifecycleEntityId("service-worker", "surviving-worker"))
+
+    surviving.socket.close()
+  })
+
+  test("expires an abruptly closed browser profile only after its reconnect grace", async () => {
+    const heartbeatMs = 100
+    const host = createHamiltonianHost({port: 0, token: "test-token", heartbeatMs})
+    running.push(host)
+    await host.bunReady
+
+    const connectProfile = async (profileId: string, workerIdentity: string, tabId: string) => {
+      const workerRuntimeIncarnation = `runtime:${workerIdentity}`
+      const controlUrl = new URL("/control", host.server.url)
+      controlUrl.protocol = "ws:"
+      controlUrl.searchParams.set("token", host.token)
+      controlUrl.searchParams.set("device", profileId)
+      controlUrl.searchParams.set("worker", hamiltonianLifecycleEntityId("service-worker", workerIdentity))
+      const socket = await openSocket(controlUrl)
+      const hello = await nextMessage(socket, "hello")
+      socket.addEventListener("message", (event) => {
+        const message = JSON.parse(String(event.data)) as Record<string, unknown>
+        if (message.kind !== "ping") return
+        socket.send(JSON.stringify({
+          kind: "pong",
+          at: message.at,
+          seq: message.seq,
+          workerIdentity,
+          workerRuntimeIncarnation,
+        }))
+      })
+      const observedWorker = nextMessage(socket, "lifecycle", (message) => {
+        const envelope = message.envelope as {observation?: {subjectId?: string}} | undefined
+        return envelope?.observation?.subjectId === hamiltonianLifecycleEntityId("service-worker", workerIdentity)
+      })
+      socket.send(JSON.stringify(browserIdentityMessage(
+        profileId,
+        workerIdentity,
+        workerRuntimeIncarnation,
+        `resume:${workerIdentity}`,
+      )))
+      await observedWorker
+      const topology = nextMessage(socket, "topology", (message) => {
+        const peers = (message.topology as {peers?: Array<{connectionId?: string; windows?: unknown[]}>}).peers
+        return peers?.some((peer) =>
+          peer.connectionId === hello.connectionId && peer.windows?.length === 1) === true
+      })
+      socket.send(JSON.stringify({
+        kind: "tabs",
+        windows: [{tabId, joinedAt: 10, visible: true}],
+      }))
+      await topology
+      return socket
+    }
+
+    const closingProfileId = "abrupt-profile"
+    const closingWorkerIdentity = "abrupt-worker"
+    const closingBrowserId = hamiltonianBrowserNodeId(closingProfileId)
+    const closingWorkerId = hamiltonianLifecycleEntityId("service-worker", closingWorkerIdentity)
+    const closing = await connectProfile(closingProfileId, closingWorkerIdentity, "abrupt-tab")
+    const surviving = await connectProfile("grace-survivor", "grace-surviving-worker", "surviving-tab")
+    const retainedAfterGrace = nextMessage(surviving, "lifecycle-snapshot", (message) => {
+      const snapshot = message.snapshot as {envelopes?: Array<{observation?: {subjectId?: string}}>} | undefined
+      const ids = snapshot?.envelopes?.map(({observation}) => observation?.subjectId) ?? []
+      return ids.includes(hamiltonianBrowserNodeId("grace-survivor")) && !ids.includes(closingBrowserId)
+    }, heartbeatMs * 8)
+
+    closing.close()
+    const retained = (await retainedAfterGrace).snapshot as {
+      envelopes: Array<{observation: {subjectId: string}}>
+    }
+    const retainedIds = retained.envelopes.map(({observation}) => observation.subjectId)
+    expect(retainedIds).not.toContain(closingBrowserId)
+    expect(retainedIds).not.toContain(closingWorkerId)
+    expect(retainedIds).toContain(hamiltonianBrowserNodeId("grace-survivor"))
+    expect(retainedIds).toContain(hamiltonianLifecycleEntityId("service-worker", "grace-surviving-worker"))
+
+    surviving.close()
+  })
+
   test("cold-rebirths the Bun embodiment as a new OS process without another listener", async () => {
     const host = createHamiltonianHost({port: 0, token: "test-token", version: "v-process"})
     running.push(host)

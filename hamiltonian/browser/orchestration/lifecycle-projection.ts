@@ -210,24 +210,51 @@ export class HamiltonianLifecycleProjection {
     let retired = false
     const previousEntities = this.#snapshotEntitiesByScope.get(snapshot.scopeId) ?? new Set<string>()
     const previousTransports = this.#snapshotTransportsByScope.get(snapshot.scopeId) ?? new Set<string>()
+    const retainedLocalPage = snapshot.envelopes.find(({observation}) =>
+      observation.type === "entity" && observation.subjectId === this.#pageId)
+    const localBrowserOwnerId = retainedLocalPage?.observation.ownerId ??
+      this.#entities.get(this.#pageId)?.ownerId
+    const missingPreviousBrowserRoots = [...previousEntities].filter((entityId) => {
+      const entity = this.#entities.get(entityId)
+      return entity?.kind === "browser-runtime" &&
+        entityId !== localBrowserOwnerId &&
+        !retainedEntities.has(entityId)
+    })
+    for (const browserId of missingPreviousBrowserRoots) {
+      this.#forgetEntity(browserId)
+      retired = true
+    }
     for (const entityId of previousEntities) {
+      const entity = this.#entities.get(entityId)
       if (
         retainedEntities.has(entityId) ||
         entityId === this.#serverId ||
         entityId === this.#pageId ||
-        this.#entities.get(entityId)?.kind === "browser-runtime"
+        (entity?.kind === "browser-runtime" && entityId === localBrowserOwnerId)
       ) continue
+      if (!entity) continue
       this.#retireEntity(entityId)
       retired = true
     }
     for (const transportId of previousTransports) {
-      if (retainedTransports.has(transportId)) continue
+      if (retainedTransports.has(transportId) || !this.#transports.has(transportId)) continue
       this.#retireTransport(transportId)
       retired = true
     }
     this.#snapshotEntitiesByScope.set(snapshot.scopeId, retainedEntities)
     this.#snapshotTransportsByScope.set(snapshot.scopeId, retainedTransports)
 
+    const missingCoveredBrowserRoots = [...this.#entities.values()].filter((entity) => {
+      if (entity.kind !== "browser-runtime" || entity.id === localBrowserOwnerId) return false
+      const event = this.#structuralEvents.get(structuralEventKey("entity", entity.id))
+      return event !== undefined &&
+        coveredSources.has(event.sourceKey) &&
+        !retainedEntities.has(entity.id)
+    })
+    for (const browser of missingCoveredBrowserRoots) {
+      this.#forgetEntity(browser.id)
+      retired = true
+    }
     for (const entity of this.#entities.values()) {
       if (
         entity.id === this.#serverId ||
@@ -613,6 +640,31 @@ export class HamiltonianLifecycleProjection {
     }
   }
 
+  #forgetEntity(entityId: string): void {
+    const removed = new Set([entityId])
+    let expanded = true
+    while (expanded) {
+      expanded = false
+      for (const entity of this.#entities.values()) {
+        if (removed.has(entity.id) || entity.ownerId === null || !removed.has(entity.ownerId)) continue
+        removed.add(entity.id)
+        expanded = true
+      }
+    }
+
+    for (const removedId of removed) {
+      this.#structuralEvents.delete(structuralEventKey("entity", removedId))
+      this.#entities.delete(removedId)
+    }
+    for (const transport of [...this.#transports.values()]) {
+      if (
+        removed.has(transport.ownerId) ||
+        removed.has(transport.sourceEntityId) ||
+        removed.has(transport.targetEntityId)
+      ) this.#forgetTransport(transport.id)
+    }
+  }
+
   #retireTransport(transportId: string): void {
     const transport = this.#transports.get(transportId)
     this.#retainTerminalIdentity(
@@ -620,6 +672,19 @@ export class HamiltonianLifecycleProjection {
       this.#terminalTransportOrder,
       transportId,
     )
+    this.#structuralEvents.delete(structuralEventKey("transport", transportId))
+    this.#retiredTransports.add(transportId)
+    if (transport?.kind === "service-worker-api") {
+      this.#retiredTransports.add(serviceWorkerApiReverseEdgeId(transportId))
+    }
+    if (transport && this.#transportSlots.get(transport.slot) === transportId) {
+      this.#transportSlots.delete(transport.slot)
+    }
+    this.#transports.delete(transportId)
+  }
+
+  #forgetTransport(transportId: string): void {
+    const transport = this.#transports.get(transportId)
     this.#structuralEvents.delete(structuralEventKey("transport", transportId))
     this.#retiredTransports.add(transportId)
     if (transport?.kind === "service-worker-api") {
