@@ -187,6 +187,8 @@ function layoutEngine(input: PlacementInput): EngineResult {
       if (finalStripCompacted !== null) candidate = {...candidate, ...finalStripCompacted}
       const layerCorridorCompacted = compactHorizontalLayerCorridors(input, candidate.placement, candidate.routing)
       if (layerCorridorCompacted !== null) candidate = {...candidate, ...layerCorridorCompacted}
+      const sourceTerminalCompacted = compactSourceTerminalTracks(candidate.placement, candidate.routing)
+      if (sourceTerminalCompacted !== null) candidate = {...candidate, routing: sourceTerminalCompacted}
       const hardViolations = validateRouteGraphResult(candidate.placement.routeInput, candidate.routing)
       if (hardViolations.length > 0) {
         firstRouteFailure ??= `COMPACTED_ROUTE_INVALID ${hardViolations.join(",")}`
@@ -203,6 +205,73 @@ function layoutEngine(input: PlacementInput): EngineResult {
     `NO_LEGAL_LAYOUT: ${attemptedPlacements}/${placements.length} placements provide no legal route graph` +
     (firstRouteFailure === null ? "" : `; first route failure: ${firstRouteFailure}`),
   )
+}
+
+function compactSourceTerminalTracks(
+  placement: PlacementResult,
+  routing: RouteGraphResult,
+): RouteGraphResult | null {
+  const edgeById = new Map(placement.routeInput.edges.map((edge) => [edge.id, edge]))
+  const sourceGroups = new Map<string, string[]>()
+  for (const section of routing.sections) {
+    const edge = edgeById.get(section.edgeId)
+    if (edge === undefined) continue
+    const points = [section.startPoint, ...section.bendPoints, section.endPoint]
+    if (points.length < 3) continue
+    const first = points[0]!
+    const turn = points[1]!
+    const afterTurn = points[2]!
+    if (first.y !== turn.y || turn.x <= first.x || turn.x !== afterTurn.x) continue
+    const key = `${edge.sourcePortId}\0${first.x}\0${first.y}\0${turn.x}`
+    const ids = sourceGroups.get(key) ?? []
+    ids.push(section.edgeId)
+    sourceGroups.set(key, ids)
+  }
+  let current = routing
+  let changed = false
+  for (const [, edgeIds] of [...sourceGroups.entries()].sort(([left], [right]) => compareIds(left, right))) {
+    const selected = new Set(edgeIds)
+    const reference = current.sections.find(({edgeId}) => selected.has(edgeId))
+    if (reference === undefined) continue
+    const referencePoints = [reference.startPoint, ...reference.bendPoints, reference.endPoint]
+    const excess = referencePoints[1]!.x - referencePoints[0]!.x - placement.routeInput.clearance
+    if (excess <= 0) continue
+    const shifts = [...new Set([
+      excess,
+      ...Array.from({length: Math.floor(excess / placement.routeInput.clearance)}, (_, index) =>
+        (Math.floor(excess / placement.routeInput.clearance) - index) * placement.routeInput.clearance),
+    ])].filter((shift) => shift > 0).sort((left, right) => right - left)
+    for (const shift of shifts) {
+      const sections = current.sections.map((section) => {
+        if (!selected.has(section.edgeId)) return section
+        const points = [section.startPoint, ...section.bendPoints, section.endPoint]
+        if (points.length < 3 || points[1]!.x !== points[2]!.x) return section
+        const compacted = points.map((point, index) =>
+          index === 1 || index === 2 ? {...point, x: point.x - shift} : point)
+        return {
+          ...section,
+          startPoint: compacted[0]!,
+          bendPoints: compacted.slice(1, -1),
+          endPoint: compacted.at(-1)!,
+        }
+      })
+      const candidateResult: RouteGraphResult = {...current, sections}
+      const hardViolations = validateRouteGraphResult(placement.routeInput, candidateResult)
+      if (hardViolations.length > 0) continue
+      const candidate = measureRouteGraphResult(placement.routeInput, candidateResult, hardViolations)
+      if (candidate.metrics.crossings > current.metrics.crossings ||
+          candidate.metrics.maxCrossings > current.metrics.maxCrossings ||
+          candidate.metrics.totalTurns > current.metrics.totalTurns ||
+          candidate.metrics.maxTurns > current.metrics.maxTurns ||
+          candidate.metrics.totalManhattan > current.metrics.totalManhattan ||
+          candidate.metrics.maxManhattan > current.metrics.maxManhattan ||
+          candidate.metrics.maxDetour > current.metrics.maxDetour) continue
+      current = candidate
+      changed = true
+      break
+    }
+  }
+  return changed ? current : null
 }
 
 function compactHorizontalRowInsets(

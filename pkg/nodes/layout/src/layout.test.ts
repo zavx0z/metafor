@@ -350,6 +350,8 @@ describe("compound spacing rhythm", () => {
       })
       expect(rowSideRhythmViolations).toEqual([])
       if (viewport.height > viewport.width) {
+        const controller = result.edges.find(({id}) => id === "controller:page")!.sections[0]!
+        expect(controller.bendPoints[0]!.x - controller.startPoint.x).toBe(28)
         const owner = result.nodes.find(({id}) => id === "browser:device")!
         const directChildren = graph.nodes
           .filter(({parentId}) => parentId === "browser:device")
