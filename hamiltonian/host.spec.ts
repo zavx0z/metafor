@@ -315,6 +315,78 @@ describe("isolated Hamiltonian host", () => {
     expect((await closed).code).toBe(1008)
   })
 
+  test("rejects a Service Worker code version that does not match its lifecycle snapshot", async () => {
+    const host = createHamiltonianHost({port: 0, token: "test-token"})
+    running.push(host)
+    const controlUrl = new URL("/control", host.server.url)
+    controlUrl.protocol = "ws:"
+    controlUrl.searchParams.set("token", host.token)
+    controlUrl.searchParams.set("device", "mismatched-version-profile")
+    controlUrl.searchParams.set("worker", "service-worker:mismatched-version-worker")
+    const socket = await openSocket(controlUrl)
+    await nextMessage(socket, "hello")
+    const closed = new Promise<CloseEvent>((resolve) => socket.addEventListener("close", resolve, {once: true}))
+    const identity = browserIdentityMessage(
+      "mismatched-version-profile",
+      "mismatched-version-worker",
+      "mismatched-version-runtime",
+      "mismatched-version-resume",
+      {workerCodeVersion: "1.0.0"},
+    )
+    identity.lifecycleSnapshot = browserProfileLifecycleSnapshot(
+      "mismatched-version-profile",
+      "mismatched-version-worker",
+      "mismatched-version-runtime",
+      [],
+      "2.0.0",
+    )
+    socket.send(JSON.stringify(identity))
+    expect((await closed).code).toBe(1008)
+  })
+
+  test("rejects a code version change without a new Service Worker execution", async () => {
+    const host = createHamiltonianHost({port: 0, token: "test-token", heartbeatMs: 10_000})
+    running.push(host)
+    const controlUrl = new URL("/control", host.server.url)
+    controlUrl.protocol = "ws:"
+    controlUrl.searchParams.set("token", host.token)
+    controlUrl.searchParams.set("device", "stable-version-profile")
+    controlUrl.searchParams.set("worker", "service-worker:stable-version-worker")
+
+    const first = await openSocket(controlUrl)
+    await nextMessage(first, "hello")
+    const observed = nextMessage(first, "lifecycle", (message) => {
+      const observation = (message.envelope as {
+        observation?: {subjectId?: string; attributes?: {codeVersion?: string}}
+      } | undefined)?.observation
+      return observation?.subjectId === "service-worker:stable-version-worker" &&
+        observation.attributes?.codeVersion === "1.0.0"
+    })
+    first.send(JSON.stringify(browserIdentityMessage(
+      "stable-version-profile",
+      "stable-version-worker",
+      "stable-version-runtime",
+      "stable-version-resume-a",
+      {workerCodeVersion: "1.0.0"},
+    )))
+    await observed
+    const firstClosed = new Promise<CloseEvent>((resolve) => first.addEventListener("close", resolve, {once: true}))
+    first.close()
+    await firstClosed
+
+    const second = await openSocket(controlUrl)
+    await nextMessage(second, "hello")
+    const rejected = new Promise<CloseEvent>((resolve) => second.addEventListener("close", resolve, {once: true}))
+    second.send(JSON.stringify(browserIdentityMessage(
+      "stable-version-profile",
+      "stable-version-worker",
+      "stable-version-runtime",
+      "stable-version-resume-b",
+      {workerCodeVersion: "2.0.0"},
+    )))
+    expect((await rejected).code).toBe(1008)
+  })
+
   test("serves bootstrap and an authenticated, hashed version from one listener", async () => {
     const host = createHamiltonianHost({
       port: 0,
