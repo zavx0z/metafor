@@ -83,6 +83,44 @@ Focused regression сначала воспроизвёл четыре наруш
 Final benchmark остаётся обязательным только перед переводом всей NODES-008 в
 `REVIEW`.
 
+### NODES-008.2 — Подтянуть нижнюю границу parent после локального уплотнения
+
+Статус: реализована и проверена offline/live; ожидает owner visual confirmation
+перед отдельным промежуточным коммитом.
+
+Новый owner-снимок относится к уже действующему общему закону: от последнего
+child или собственного content до внутренней границы compound остаётся один
+socket pitch, а дополнительная высота разрешена только фактически занятому
+нижнему routing corridor.
+
+Тот же exact Worker input `15/22/13` с SHA-256
+`13a8659cf9184fea43212e6bcd505cfea4c132ffd9c573384d13d6d412647922`
+после NODES-008.1 даёт единственное нарушение нижнего ритма:
+
+* `server-contour`: последний direct child заканчивается на `y=1338`, нижняя
+  граница находится на `y=1506`, horizontal route tracks между ними
+  отсутствуют; пустой gap равен `168 px` вместо `28 px`.
+
+Причина установлена до реализации. Локальный межрядный compaction сдвигает
+нижние sibling-поддеревья, но сохраняет прежнюю высоту parent. Следующий
+глобальный strip-pass может убрать остаток только при пустой полосе через весь
+graph; геометрия соседней top-level ветви на тех же Y блокирует такое удаление.
+Имеющийся regression проверяет нижний шаг только выбранного Browser compound,
+а не каждого parent после локального сдвига.
+
+Общий focused regression сначала воспроизвёл единственное нарушение
+`server-contour = 168 px`. Новый `DOWN` pass рассматривает parents от глубоких
+к внешним, оставляет нижнюю границу на один `clearance` после последнего
+собственного content, child или route point и не двигает ноды, порты и
+sections. Кандидат принимается только после полных placement и route validators.
+
+После исправления exact Worker input `15/22/13` возвращает `0` нарушений;
+`server-contour` заканчивается на `y=1366`, то есть ровно `28 px` после child
+bottom `1338`. Полный пакет проходит `86/86`; layout/nodes/root typechecks —
+PASS. Frozen RIGHT/DOWN сохранили geometry SHA, bounds, x3 repeats и три
+перестановки byte-identical NODES-008.1. В обеих уже открытых Hamiltonian
+вкладках результат подтверждён без reload и без restart runtime.
+
 ## Границы
 
 * Меняются только универсальные placement/compaction и visibility coordinates

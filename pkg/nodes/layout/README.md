@@ -141,6 +141,12 @@ Layout не переставляет parameter rows: `ports[].y` являетс�
 рядами. После каждого сдвига нижнего sibling-поддерева маршруты строятся заново,
 и вариант принимается только после полных placement и route validators.
 
+После локального сдвига `DOWN` отдельно подтягивает нижнюю границу каждого
+parent к последнему собственному content, child или фактически занятой route
+coordinate. Свободный остаток сокращается до одного `clearance`; ноды, порты и
+sections не перемещаются, а сжатая граница принимается только после полных
+placement и route validators.
+
 В `RIGHT` связи с общим exact source/target port сначала резервируют общий
 side track, а вариант с раздельными tracks остаётся bounded fallback. После
 routing кандидат с пустым нижним compound-reserve отбрасывается. Visibility

@@ -129,6 +129,11 @@ function layoutEngine(input: PlacementInput): EngineResult {
           acceptedPlacement = rowCompacted.placement
           routing = rowCompacted.routing
         }
+        const bottomCompacted = compactPortraitBottomReserves(input, acceptedPlacement, routing)
+        if (bottomCompacted !== null) {
+          acceptedPlacement = bottomCompacted.placement
+          routing = bottomCompacted.routing
+        }
         const stripCompacted = compactPortraitVerticalStrips(input, acceptedPlacement, routing)
         if (stripCompacted !== null) {
           acceptedPlacement = stripCompacted.placement
@@ -181,6 +186,77 @@ function layoutEngine(input: PlacementInput): EngineResult {
     `NO_LEGAL_LAYOUT: ${attemptedPlacements}/${placements.length} placements provide no legal route graph` +
     (firstRouteFailure === null ? "" : `; first route failure: ${firstRouteFailure}`),
   )
+}
+
+function compactPortraitBottomReserves(
+  input: PlacementInput,
+  placement: PlacementResult,
+  routing: RouteGraphResult,
+): Readonly<{placement: PlacementResult; routing: RouteGraphResult}> | null {
+  if (placement.direction !== "DOWN") return null
+  const intrinsicById = new Map(input.nodes.map((node) => [node.id, node]))
+  const parentById = new Map(input.nodes.map((node) => [node.id, node.parentId]))
+  const childrenByParent = new Map<string, string[]>()
+  for (const node of input.nodes) {
+    if (node.parentId === undefined) continue
+    const children = childrenByParent.get(node.parentId) ?? []
+    children.push(node.id)
+    childrenByParent.set(node.parentId, children)
+  }
+  const depthOf = (nodeId: string): number => {
+    let depth = 0
+    let parentId = parentById.get(nodeId)
+    while (parentId !== undefined) {
+      depth += 1
+      parentId = parentById.get(parentId)
+    }
+    return depth
+  }
+  const routePoints = routing.sections.flatMap((section) => [
+    section.startPoint,
+    ...section.bendPoints,
+    section.endPoint,
+  ])
+  const nodes = new Map(placement.nodes.map((node) => [node.id, node]))
+  let changed = false
+  for (const parentId of [...childrenByParent.keys()]
+    .sort((left, right) => depthOf(right) - depthOf(left) || compareIds(left, right))) {
+    const parent = nodes.get(parentId)
+    const intrinsic = intrinsicById.get(parentId)
+    if (parent === undefined || intrinsic === undefined) continue
+    let occupiedBottom = parent.rect.y + intrinsic.size.h
+    for (const childId of childrenByParent.get(parentId) ?? []) {
+      const child = nodes.get(childId)
+      if (child !== undefined) occupiedBottom = Math.max(occupiedBottom, child.rect.y + child.rect.h)
+    }
+    for (const point of routePoints) {
+      if (
+        point.x >= parent.rect.x &&
+        point.x <= parent.rect.x + parent.rect.w &&
+        point.y >= parent.rect.y &&
+        point.y <= parent.rect.y + parent.rect.h
+      ) occupiedBottom = Math.max(occupiedBottom, point.y)
+    }
+    const height = Math.max(intrinsic.size.h, occupiedBottom + input.clearance - parent.rect.y)
+    if (height >= parent.rect.h) continue
+    nodes.set(parentId, {...parent, rect: {...parent.rect, h: height}})
+    changed = true
+  }
+  if (!changed) return null
+  const compactedNodes = placement.nodes.map(({id}) => nodes.get(id)!)
+  const candidate: PlacementResult = {
+    ...placement,
+    nodes: compactedNodes,
+    routeInput: {...placement.routeInput, nodes: compactedNodes},
+    metrics: measureCompactedPlacement(input, placement, compactedNodes, placement.ports),
+  }
+  if (validatePlacement(input, candidate).length > 0) return null
+  const hardViolations = validateRouteGraphResult(candidate.routeInput, routing)
+  if (hardViolations.length > 0) return null
+  return {
+    placement: candidate,
+    routing: measureRouteGraphResult(candidate.routeInput, routing, hardViolations),
+  }
 }
 
 function compactPortraitRowGaps(

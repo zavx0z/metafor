@@ -1,5 +1,32 @@
 # NODES-008 — Артефакты
 
+## Owner rejection для NODES-008.2
+
+Crop-снимок `11.17.24` от 12 августа 2026 года показывает пустой нижний остаток
+внешнего Server compound после визуально правильного внутреннего отступа
+`RTCPeerConnection → Peer process boundary`. Оригинал передан владельцем как
+temporary screencapture attachment и пока не копировался в Git.
+
+* Размер: `508 × 460`.
+* SHA-256: `a1ec2b01f03c78a5e7f7cc34fcb4958cd98b972a1a2f6a408b495aebff258229`.
+* Ожидание: без нижнего horizontal route последний child отделён от внутренней
+  границы одним socket pitch.
+* Exact witness: `server-contour` child bottom `1338`, boundary bottom `1506`,
+  bottom tracks отсутствуют, gap `168 px` при `clearance=28`.
+* Чувствительные сведения: локальные runtime IDs; секретов нет.
+
+После исправления exact witness даёт boundary bottom `1366`, gap `28 px` и
+пустой список нарушений. Две уже открытые Hamiltonian-вкладки проверены через
+точные CDP target IDs без reload/restart:
+
+* portrait: `live-portrait-bottom-after.png`, `1462 × 2176`, SHA-256
+  `ed7691d755801c2cf4fcb2ba8455990161351d708ec22e75fcaaa9beb0970937`;
+* landscape: `live-landscape-bottom-after.png`, `1462 × 2176`, SHA-256
+  `89b38a9d05fb9b91a14b6a9f1746c98e45b9f7bb1420e864ca95482b4a288981`.
+
+На обеих геометриях нижняя граница Server compound следует на один pitch после
+последнего вложенного compound; соседние placements и routes сохранены.
+
 ## Owner rejection для NODES-008.1
 
 Три crop-снимка от 12 августа 2026 года показывают лишние вертикальные

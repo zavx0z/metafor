@@ -358,6 +358,28 @@ describe("compound spacing rhythm", () => {
           })
         })
         expect(rowRhythmViolations).toEqual([])
+        const bottomRhythmViolations = result.nodes.flatMap((parent) => {
+          const inputParent = graph.nodes.find(({id}) => id === parent.id)!
+          const children = graph.nodes
+            .filter(({parentId}) => parentId === parent.id)
+            .map(({id}) => nodeById.get(id)!)
+          if (children.length === 0) return []
+          const occupiedBottom = Math.max(
+            parent.y + (inputParent.contentHeight ?? 0),
+            ...children.map((child) => child.y + child.height),
+          )
+          const trackYs = [...new Set(horizontalSegments
+            .filter(({y, left, right}) => y > occupiedBottom && y < parent.y + parent.height &&
+              Math.max(left, parent.x) < Math.min(right, parent.x + parent.width))
+            .map(({y}) => y))]
+          const coordinates = [occupiedBottom, ...trackYs, parent.y + parent.height]
+            .sort((left, right) => left - right)
+          return coordinates.slice(1).flatMap((coordinate, index) => {
+            const distance = coordinate - coordinates[index]!
+            return distance === 28 ? [] : [{parentId: parent.id, distance}]
+          })
+        })
+        expect(bottomRhythmViolations).toEqual([])
       } else {
         const owner = result.nodes.find(({id}) => id === "browser:device")!
         const directChildren = graph.nodes
