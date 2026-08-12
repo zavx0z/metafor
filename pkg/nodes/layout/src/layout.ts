@@ -169,7 +169,11 @@ function layoutEngine(input: PlacementInput): EngineResult {
     routePlacements(fallback, true)
   }
   if (routable.length > 0) {
-    for (const candidate of routable.sort(compareRoutingQuality)) {
+    const finalized = routable.map((candidate) => {
+      const compacted = compactPortraitPortfulSideReserves(input, candidate.placement, candidate.routing)
+      return compacted === null ? candidate : {...candidate, ...compacted}
+    })
+    for (const candidate of finalized.sort(compareRoutingQuality)) {
       const hardViolations = validateRouteGraphResult(candidate.placement.routeInput, candidate.routing)
       if (hardViolations.length > 0) {
         firstRouteFailure ??= `COMPACTED_ROUTE_INVALID ${hardViolations.join(",")}`
@@ -671,6 +675,111 @@ function compactCompoundSideReserves(
     ports: compactedPorts,
     metrics: compactedMetrics,
     routeInput: {...placement.routeInput, nodes: compactedNodes, ports: compactedPorts},
+  }
+}
+
+function compactPortraitPortfulSideReserves(
+  input: PlacementInput,
+  placement: PlacementResult,
+  routing: RouteGraphResult,
+): Readonly<{placement: PlacementResult; routing: RouteGraphResult}> | null {
+  if (placement.direction !== "DOWN") return null
+  const intrinsicById = new Map(input.nodes.map((node) => [node.id, node]))
+  const nodeIdsWithPorts = new Set(input.ports.map((port) => port.nodeId))
+  const nodeById = new Map(placement.nodes.map((node) => [node.id, node]))
+  const childrenByParent = new Map<string, string[]>()
+  for (const node of input.nodes) {
+    if (node.parentId === undefined) continue
+    const children = childrenByParent.get(node.parentId) ?? []
+    children.push(node.id)
+    childrenByParent.set(node.parentId, children)
+  }
+  const verticalSegments = routing.sections.flatMap((section) => {
+    const points = [section.startPoint, ...section.bendPoints, section.endPoint]
+    return points.slice(1).flatMap((to, index) => {
+      const from = points[index]!
+      return from.x === to.x
+        ? [{x: from.x, top: Math.min(from.y, to.y), bottom: Math.max(from.y, to.y)}]
+        : []
+    })
+  })
+  const changedIds = new Set<string>()
+  const compactedNodes = placement.nodes.map((node) => {
+    const childIds = childrenByParent.get(node.id)
+    const intrinsic = intrinsicById.get(node.id)
+    if (childIds === undefined || intrinsic === undefined || !nodeIdsWithPorts.has(node.id)) return node
+    const children = childIds.map((id) => nodeById.get(id)!)
+    const tracks = verticalSegments
+      .filter(({top, bottom}) => Math.max(top, node.rect.y) < Math.min(bottom, node.rect.y + node.rect.h))
+      .map(({x}) => x)
+      .filter((x) => x > node.rect.x && x < node.rect.x + node.rect.w)
+    const occupiedLeft = Math.min(...children.map(({rect}) => rect.x), ...tracks)
+    const occupiedRight = Math.max(...children.map(({rect}) => rect.x + rect.w), ...tracks)
+    let left = Math.max(node.rect.x, occupiedLeft - input.clearance)
+    let right = Math.min(node.rect.x + node.rect.w, occupiedRight + input.clearance)
+    if (right - left < intrinsic.size.w) {
+      const missing = intrinsic.size.w - (right - left)
+      const growLeft = Math.min(left - node.rect.x, Math.ceil(missing / 2))
+      left -= growLeft
+      right = Math.min(node.rect.x + node.rect.w, right + missing - growLeft)
+      left = Math.max(node.rect.x, right - intrinsic.size.w)
+    }
+    if (left === node.rect.x && right === node.rect.x + node.rect.w) return node
+    changedIds.add(node.id)
+    const rect = {...node.rect, x: left, w: right - left}
+    return {...node, rect, ...(node.contentRect === undefined ? {} : {contentRect: {...node.contentRect, x: left, w: right - left}})}
+  })
+  if (changedIds.size === 0) return null
+  const compactedNodeById = new Map(compactedNodes.map((node) => [node.id, node]))
+  const compactedPorts = placement.ports.map((port) => {
+    if (!changedIds.has(port.nodeId)) return port
+    const node = compactedNodeById.get(port.nodeId)!
+    return {...port, center: {...port.center, x: port.side === "WEST" ? node.rect.x : node.rect.x + node.rect.w}}
+  })
+  const candidate: PlacementResult = {
+    ...placement,
+    nodes: compactedNodes,
+    ports: compactedPorts,
+    routeInput: {...placement.routeInput, nodes: compactedNodes, ports: compactedPorts},
+    metrics: measureCompactedPlacement(input, placement, compactedNodes, compactedPorts),
+  }
+  if (validatePlacement(input, candidate).length > 0) return null
+  const edgeById = new Map(input.edges.map((edge) => [edge.id, edge]))
+  const portById = new Map(compactedPorts.map((port) => [port.id, port]))
+  const simplify = (points: ReadonlyArray<Readonly<{x: number; y: number}>>): ReadonlyArray<Readonly<{x: number; y: number}>> => {
+    const simplified: Array<Readonly<{x: number; y: number}>> = []
+    for (const point of points) {
+      const previous = simplified.at(-1)
+      if (previous?.x === point.x && previous.y === point.y) continue
+      simplified.push(point)
+      while (simplified.length >= 3) {
+        const left = simplified.at(-3)!
+        const middle = simplified.at(-2)!
+        const right = simplified.at(-1)!
+        if (!((left.x === middle.x && middle.x === right.x) || (left.y === middle.y && middle.y === right.y))) break
+        simplified.splice(-2, 1)
+      }
+    }
+    return simplified
+  }
+  const adjustedSections = routing.sections.map((section) => {
+    const edge = edgeById.get(section.edgeId)!
+    const points = simplify([
+      portById.get(edge.sourcePortId)!.center,
+      ...section.bendPoints,
+      portById.get(edge.targetPortId)!.center,
+    ])
+    return {
+      edgeId: section.edgeId,
+      startPoint: points[0]!,
+      bendPoints: points.slice(1, -1),
+      endPoint: points.at(-1)!,
+    }
+  })
+  const adjustedRouting: RouteGraphResult = {...routing, sections: adjustedSections}
+  return {
+    placement: candidate,
+    routing: measureRouteGraphResult(candidate.routeInput, adjustedRouting, []),
   }
 }
 

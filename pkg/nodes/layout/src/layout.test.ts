@@ -380,6 +380,32 @@ describe("compound spacing rhythm", () => {
           })
         })
         expect(bottomRhythmViolations).toEqual([])
+        const verticalSegments = result.edges.flatMap(({sections}) => sections.flatMap((section) => {
+          const points = [section.startPoint, ...section.bendPoints, section.endPoint]
+          return points.slice(1).flatMap((to, index) => {
+            const from = points[index]!
+            return from.x === to.x
+              ? [{x: from.x, top: Math.min(from.y, to.y), bottom: Math.max(from.y, to.y)}]
+              : []
+          })
+        }))
+        const sideRhythmViolations = result.nodes.flatMap((parent) => {
+          const inputParent = graph.nodes.find(({id}) => id === parent.id)!
+          const children = graph.nodes
+            .filter(({parentId}) => parentId === parent.id)
+            .map(({id}) => nodeById.get(id)!)
+          if (children.length === 0) return []
+          const tracks = verticalSegments
+            .filter(({top, bottom}) => Math.max(top, parent.y) < Math.min(bottom, parent.y + parent.height))
+            .map(({x}) => x)
+            .filter((x) => x > parent.x && x < parent.x + parent.width)
+          const occupiedLeft = Math.min(...children.map(({x}) => x), ...tracks)
+          const occupiedRight = Math.max(...children.map(({x, width}) => x + width), ...tracks)
+          const minimumWidth = Math.max(inputParent.width, occupiedRight - occupiedLeft + 56)
+          const removable = parent.width - minimumWidth
+          return removable > 0.001 ? [{parentId: parent.id, removable}] : []
+        })
+        expect(sideRhythmViolations).toEqual([])
       } else {
         const owner = result.nodes.find(({id}) => id === "browser:device")!
         const directChildren = graph.nodes

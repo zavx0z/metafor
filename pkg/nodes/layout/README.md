@@ -127,12 +127,12 @@ Layout не переставляет parameter rows: `ports[].y` являетс�
 снизу; ограниченные варианты с нижним corridor остаются в наборе кандидатов для
 графов, которым такой маршрут действительно нужен.
 
-После `DOWN` routing portless compound boundary подтягивается к фактически
-занятым vertical lanes и children: между каждой соседней boundary, lane и child
-остаётся ровно один `clearance`. Найденные sections не принимаются на веру —
-они полностью валидируются повторно на сжатых rectangles. Compound с
-собственными semantic ports этим проходом не перемещается, потому что его
-граница является exact endpoint geometry.
+После `DOWN` routing compound boundary подтягивается к фактически занятым
+vertical lanes и children: между каждой соседней boundary, lane и child
+остаётся ровно один `clearance`. Для compound с semantic ports вместе с
+границей перемещаются exact port centers и terminal sections; intrinsic width
+не уменьшается. Найденная геометрия не принимается на веру — она полностью
+валидируется повторно на сжатых rectangles и обновлённых routes.
 
 Локальные вертикальные пустоты между sibling-рядами compact устраняет отдельно
 внутри каждого parent, начиная с глубоко вложенных compounds. Если между

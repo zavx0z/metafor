@@ -1,5 +1,33 @@
 # NODES-008 — Артефакты
 
+## Owner rejection для NODES-008.3
+
+Два crop-снимка `11.34.38` и `11.34.44` от 12 августа 2026 года показывают
+пустой боковой pitch между child envelope и внутренней границей двух page
+compounds. Оригиналы переданы как temporary screencapture attachments и пока
+не копировались в Git.
+
+* Правый crop: `102 × 394`, SHA-256
+  `bae0a01597359e49db40a3feb8b0cf381213380101e150b1632aa81458982e9d`.
+* Левый crop: `96 × 670`, SHA-256
+  `64a6ba5de4b7536643b267ceeb4ea062e86a2c417ca6fcc80996b1e5bb847bd3`.
+* Exact witness: два portful page compounds имеют по одному пустому gap
+  `56 px` при `clearance=28`; противоположная сторона каждого compound занята
+  правильной последовательностью `boundary → track → child = 28/28`.
+* Чувствительные сведения: локальные runtime IDs; секретов нет.
+
+После исправления тот же exact Worker input (`15` нод, `22` порта, `13`
+рёбер) даёт пустой список parent-level side-rhythm violations. Regression и
+полный пакет `86/86` проходят.
+
+Владелец визуально принял результат 12 августа 2026 года. Две уже открытые
+Hamiltonian-вкладки подхватили исправление без reload и без restart runtime:
+
+* `live-portful-sides-after-a.png`: `1462 × 2176`, SHA-256
+  `18dbc5979023cb82987f500661c37261d04ea38d4e454ead9e764a6155dad97c`;
+* `live-portful-sides-after-b.png`: `1462 × 2176`, SHA-256
+  `b9fb593c96d8ecc98701b95b648679a530804f47c412598bbb5beaa48f1bd7c7`.
+
 ## Owner rejection для NODES-008.2
 
 Crop-снимок `11.17.24` от 12 августа 2026 года показывает пустой нижний остаток
@@ -144,12 +172,12 @@ WebGPU `canvas.toDataURL` вернул чёрный buffer, поэтому ло�
   `2188e8017abb9e416091663dfb3dd880db2ad310c4e8d584fee07c8b672a5904`,
   bounds `2365.25 × 1658`.
 * DOWN: geometry SHA-256
-  `35941e99763939039e28470a4367f24106c4bdb8d0c3524e52d585b21d47b878`,
-  bounds `1146.45 × 4242`.
+  `9870e1a96195a17bd849730d9081ac3b381c2e940135c46bde9aaa06b8616404`,
+  bounds `782.45 × 3570`.
 * В обоих режимах: `14` нод, `20` портов, `12` рёбер, x3 repeats и
   три stable permutations идентичны.
 * SHA-256 `verification.json`:
-  `f17f6bb6048efdb95bfef55686fa6f8fb8323f303fdfc5df12851e8858c65bed`.
+  `f545e77882b28cbe2cb98a8c027976f8c06c55b4b1f050797718e6f9e90780d5`.
 
 ## Benchmark текущего checkpoint
 

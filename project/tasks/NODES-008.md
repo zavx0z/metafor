@@ -85,8 +85,8 @@ Final benchmark остаётся обязательным только пере�
 
 ### NODES-008.2 — Подтянуть нижнюю границу parent после локального уплотнения
 
-Статус: реализована и проверена offline/live; ожидает owner visual confirmation
-перед отдельным промежуточным коммитом.
+Статус: выполнена, проверена offline/live и зафиксирована отдельным commit
+`600ccf35d`.
 
 Новый owner-снимок относится к уже действующему общему закону: от последнего
 child или собственного content до внутренней границы compound остаётся один
@@ -120,6 +120,46 @@ bottom `1338`. Полный пакет проходит `86/86`; layout/nodes/ro
 PASS. Frozen RIGHT/DOWN сохранили geometry SHA, bounds, x3 repeats и три
 перестановки byte-identical NODES-008.1. В обеих уже открытых Hamiltonian
 вкладках результат подтверждён без reload и без restart runtime.
+
+### NODES-008.3 — Убрать пустой боковой pitch у compound с портами
+
+Статус: подзадача выполнена и визуально принята владельцем 12 августа 2026;
+вся NODES-008 остаётся `IN_PROGRESS` до отдельного final benchmark и review.
+
+Два owner-crop относятся к действующему общему закону: между child envelope,
+фактически занятыми vertical tracks и внутренней side boundary каждый соседний
+промежуток равен одному socket pitch. Exact Worker input `15/22/13` с SHA-256
+`13a8659cf9184fea43212e6bcd505cfea4c132ffd9c573384d13d6d412647922`
+даёт ровно два нарушения parent-level side rhythm при `clearance=28`:
+
+* первый page compound: слева `boundary 196 → track 224 → child 252` даёт
+  правильные `28/28`, а справа `child 552.7 → boundary 608.7` оставляет пустые
+  `56 px` без vertical track;
+* второй page compound: слева `boundary 196 → child 252` оставляет пустые
+  `56 px`, а справа `child 634.05 → track 662.05 → boundary 690.05` даёт
+  правильные `28/28`.
+
+Причина установлена до реализации. `compactCompoundSideReserves` и
+`findUnusedCompoundSideReserves` намеренно пропускают compound с semantic
+ports, потому что изменение его side boundary перемещает exact port centers,
+а текущий проход не перестраивает routes. Поэтому общий `sideReserve`, нужный
+одному ряду, остаётся пустым на противоположной стороне всего portful parent.
+
+Generic regression воспроизвёл один съёмный pitch `28 px`. Финальный bounded
+`DOWN` pass сжимает только пустую сторону portful compound, обновляет exact
+boundary ports и terminal sections, после чего принимает candidate только
+после полных placement/route validators. На exact Worker input список
+parent-level нарушений стал пустым. Имена Hamiltonian и fixture-specific
+offsets в алгоритм не входят.
+
+Offline proof: `86/86` tests; layout/nodes/root typechecks и `diff-check` —
+PASS. Frozen RIGHT остался byte-identical с SHA-256 `2188e801…`; новый DOWN
+детерминирован на x3 repeats и трёх stable permutations, SHA-256 `9870e1a9…`,
+bounds `782.45 × 3570`.
+
+Две уже открытые Hamiltonian-вкладки подхватили новую геометрию без reload и
+без restart runtime. Владелец визуально принял результат; полные live-кадры
+сохранены в артефактах NODES-008.
 
 ## Границы
 
