@@ -11,6 +11,7 @@ import {
   isHamiltonianLifecycleEnvelopeFromSource,
   isHamiltonianLifecycleSnapshot,
   isHamiltonianLifecycleSnapshotFromSource,
+  projectHamiltonianLifecycleOwnershipScope,
   publishHamiltonianLifecycleEnvelope,
   publishHamiltonianLifecycleSnapshot,
   subscribeHamiltonianLifecycle,
@@ -655,14 +656,17 @@ function sendSocket(message: MessageRecord): boolean {
 
 function sendWorkerIdentity(): boolean {
   const lifecycleSnapshot = workerLifecycleJournal?.snapshot()
-  if (!workerIdentity || !currentResumeNonce || !lifecycleSnapshot) return false
+  const browserLifecycleSnapshot = currentBrowserEntityId && lifecycleSnapshot
+    ? projectHamiltonianLifecycleOwnershipScope(lifecycleSnapshot, [currentBrowserEntityId])
+    : null
+  if (!workerIdentity || !currentResumeNonce || !browserLifecycleSnapshot) return false
   const wake = pendingPushWake
   return sendSocket({
     kind: "identity",
     workerIdentity,
     workerRuntimeIncarnation,
     resumeNonce: currentResumeNonce,
-    lifecycleSnapshot,
+    lifecycleSnapshot: browserLifecycleSnapshot,
     ...(wake === null ? {} : {wakeId: wake.wakeId, wakeProof: wake.wakeProof}),
   })
 }
@@ -731,7 +735,10 @@ async function sendWindowSnapshot(): Promise<void> {
     })),
   })
   const snapshot = workerLifecycleJournal?.snapshot()
-  if (snapshot) sendSocket({kind: "browser-lifecycle-snapshot", snapshot})
+  const browserSnapshot = currentBrowserEntityId && snapshot
+    ? projectHamiltonianLifecycleOwnershipScope(snapshot, [currentBrowserEntityId])
+    : null
+  if (browserSnapshot) sendSocket({kind: "browser-lifecycle-snapshot", snapshot: browserSnapshot})
 }
 
 function reconnectDelay(): number {

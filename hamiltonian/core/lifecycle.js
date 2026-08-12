@@ -854,6 +854,95 @@ export function isHamiltonianLifecycleOwnershipClosed(value, rootIds) {
 }
 
 /**
+ * Projects a full local retained journal onto declared ownership roots before
+ * it crosses a realm boundary. Entities outside those roots and transports
+ * attached to an external endpoint are deliberately omitted; the receiving
+ * owner must observe its side of a cross-scope transport independently.
+ *
+ * @param {unknown} value
+ * @param {readonly string[]} rootIds
+ * @returns {HamiltonianLifecycleSnapshot | null}
+ */
+export function projectHamiltonianLifecycleOwnershipScope(value, rootIds) {
+  if (
+    !isHamiltonianLifecycleSnapshot(value) ||
+    !Array.isArray(rootIds) ||
+    rootIds.length === 0 ||
+    rootIds.some((rootId) => !validId(rootId, 512))
+  ) return null
+  const roots = new Set(rootIds)
+  if (roots.size !== rootIds.length) return null
+  /** @type {Map<string, HamiltonianLifecycleObservation>} */
+  const entities = new Map()
+  for (const envelope of value.envelopes) {
+    const observation = envelope.observation
+    if (observation.type === "entity") entities.set(observation.subjectId, observation)
+  }
+  for (const rootId of roots) {
+    const root = entities.get(rootId)
+    if (!root || (root.ownerId !== null && root.ownerId !== rootId)) return null
+  }
+  /** @type {Map<string, string | null>} */
+  const resolvedRoots = new Map()
+  /**
+   * @param {string} entityId
+   * @returns {string | null}
+   */
+  const resolveTopOwner = (entityId) => {
+    if (resolvedRoots.has(entityId)) return resolvedRoots.get(entityId) ?? null
+    /** @type {string[]} */
+    const path = []
+    const visited = new Set()
+    let currentId = entityId
+    let topOwner = null
+    while (topOwner === null) {
+      if (resolvedRoots.has(currentId)) {
+        topOwner = resolvedRoots.get(currentId) ?? null
+        break
+      }
+      if (visited.has(currentId)) break
+      visited.add(currentId)
+      path.push(currentId)
+      const current = entities.get(currentId)
+      if (!current) break
+      if (current.ownerId === null || current.ownerId === currentId) {
+        topOwner = currentId
+        break
+      }
+      currentId = current.ownerId
+    }
+    for (const pathId of path) resolvedRoots.set(pathId, topOwner)
+    return topOwner
+  }
+  const includedEntityIds = new Set(
+    [...entities.keys()].filter((entityId) => {
+      const rootId = resolveTopOwner(entityId)
+      return rootId !== null && roots.has(rootId)
+    }),
+  )
+  const envelopes = value.envelopes.filter((envelope) => {
+    const observation = envelope.observation
+    if (observation.type === "entity") return includedEntityIds.has(observation.subjectId)
+    if (observation.type !== "transport") return false
+    if (
+      observation.ownerId === null ||
+      observation.sourceEntityId === null ||
+      observation.targetEntityId === null ||
+      !includedEntityIds.has(observation.ownerId) ||
+      !includedEntityIds.has(observation.sourceEntityId) ||
+      !includedEntityIds.has(observation.targetEntityId)
+    ) return false
+    const rootId = resolveTopOwner(observation.ownerId)
+    return rootId !== null &&
+      resolveTopOwner(observation.sourceEntityId) === rootId &&
+      resolveTopOwner(observation.targetEntityId) === rootId
+  })
+  const projected = {...value, envelopes}
+  if (!isHamiltonianLifecycleOwnershipClosed(projected, rootIds)) return null
+  return /** @type {HamiltonianLifecycleSnapshot} */ (deepFreezeSnapshot(projected))
+}
+
+/**
  * @param {unknown} value
  * @param {string} sourceId
  * @param {string} sourceKind

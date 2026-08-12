@@ -212,6 +212,12 @@ transport между ними. Presentation отображает только у
 owner/endpoints обнаружены разные browser-runtime ancestors. Эта защита не
 запрещает наблюдённый transport между browser-owned entity и server entity,
 потому что server не является другим browser/profile root.
+Service Worker перед отправкой profile snapshot проецирует свой полный local
+journal на exact browser root: внешний control WebSocket и server endpoint в
+этот snapshot не входят, потому что host наблюдает их самостоятельно со своей
+стороны соединения. Host не ослабляет profile validator ради внешнего endpoint:
+на realm boundary принимается только замкнутый browser-owned graph, после чего
+он агрегируется с host-owned transport observations.
 
 Серверная часть собрана в отдельный presentation-only контейнер `Сервер`. У
 него нет параметров, transport-сокетов и действий; он не является lifecycle

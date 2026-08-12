@@ -13,6 +13,7 @@ import {
   isHamiltonianLifecycleOwnershipClosed,
   isHamiltonianLifecycleSnapshot,
   isHamiltonianLifecycleSnapshotFromSource,
+  projectHamiltonianLifecycleOwnershipScope,
   publishHamiltonianLifecycleSnapshot,
   receiveHamiltonianLifecycleEnvelope,
   receiveHamiltonianLifecycleSnapshot,
@@ -440,6 +441,94 @@ describe("Hamiltonian owner lifecycle", () => {
       profileTransportSnapshot({...validRefs, targetEntityId: "service-worker:worker-b"}, true),
       [browserId, "browser:profile-b"],
     )).toBeFalse()
+  })
+
+  test("projects a browser ownership scope without its externally observed server transport", () => {
+    const browserId = "browser:profile-a"
+    const workerId = "service-worker:worker-a"
+    const pageId = "page:profile-a"
+    const serverId = "server:host-a"
+    const serviceWorkerTransportId = "service-worker-api:profile-a"
+    const webSocketTransportId = "websocket:profile-a"
+    const source = new HamiltonianLifecycleSource({
+      id: workerId,
+      kind: "service-worker",
+      incarnation: "runtime-a",
+      startedAt: 1,
+    })
+    const journal = new HamiltonianLifecycleRetainedJournal(workerId)
+    for (const observation of [
+      createHamiltonianLifecycleObservation({
+        type: "entity",
+        phase: "born",
+        subjectId: browserId,
+        subjectKind: "browser-runtime",
+        ownerId: browserId,
+        attributes: {profileId: "profile-a"},
+      }),
+      createHamiltonianLifecycleObservation({
+        type: "entity",
+        phase: "born",
+        subjectId: workerId,
+        subjectKind: "service-worker",
+        ownerId: browserId,
+        attributes: {identity: "worker-a"},
+      }),
+      createHamiltonianLifecycleObservation({
+        type: "entity",
+        phase: "born",
+        subjectId: pageId,
+        subjectKind: "page",
+        ownerId: browserId,
+        attributes: {incarnation: "page-a"},
+      }),
+      createHamiltonianLifecycleObservation({
+        type: "entity",
+        phase: "born",
+        subjectId: serverId,
+        subjectKind: "bun-host",
+        ownerId: serverId,
+        attributes: {state: "active"},
+      }),
+      createHamiltonianLifecycleObservation({
+        type: "transport",
+        phase: "opened",
+        subjectId: serviceWorkerTransportId,
+        subjectKind: "service-worker-api",
+        ownerId: workerId,
+        sourceEntityId: pageId,
+        targetEntityId: workerId,
+        transportId: serviceWorkerTransportId,
+        attributes: {state: "active"},
+      }),
+      createHamiltonianLifecycleObservation({
+        type: "transport",
+        phase: "opened",
+        subjectId: webSocketTransportId,
+        subjectKind: "websocket",
+        ownerId: workerId,
+        sourceEntityId: workerId,
+        targetEntityId: serverId,
+        transportId: webSocketTransportId,
+        attributes: {state: "active"},
+      }),
+    ]) journal.observe(source.next(observation))
+
+    const full = journal.snapshot()
+    expect(isHamiltonianLifecycleOwnershipClosed(full, [browserId, serverId])).toBeFalse()
+    const projected = projectHamiltonianLifecycleOwnershipScope(full, [browserId])
+    expect(projected).not.toBeNull()
+    if (!projected) throw new Error("browser ownership projection failed")
+    const projectedIds = projected.envelopes.map(({observation}) => observation.subjectId)
+    expect(projectedIds).toEqual([
+      browserId,
+      workerId,
+      pageId,
+      serviceWorkerTransportId,
+    ])
+    expect(projectedIds).not.toContain(serverId)
+    expect(projectedIds).not.toContain(webSocketTransportId)
+    expect(isHamiltonianLifecycleOwnershipClosed(projected, [browserId])).toBeTrue()
   })
 
   test("forgets an unreachable ownership subtree without fencing its stable identity", () => {
