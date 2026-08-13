@@ -28,7 +28,7 @@ import {
 import {hamiltonianRealmSnapshot} from "../core/monitor.js"
 import {hamiltonianBrowserNodeId, hamiltonianBrowserRuntimeName} from "../core/orchestration.js"
 import {GenerationRegistry, ReconnectPolicy} from "../core/runtime.js"
-import {responseMatchesHash, sha256Hex, selectRetainedCaches} from "../core/cache.js"
+import {responseMatchesHash, sha256Hex, selectRetainedCaches} from "../update/browser/release-cache.js"
 import {
   ExclusiveResourceSlot,
   isCurrentLeaderPeerControl,

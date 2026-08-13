@@ -216,7 +216,7 @@ const browserStaticFiles: Readonly<Record<string, {path: string; type: string}>>
   "/styles.css": {path: `${visualRoot}/browser/styles.css`, type: "text/css; charset=utf-8"},
   "/engine-static/JetBrainsMono-Bold.ttf": {path: engineFont, type: "font/ttf"},
   "/core/runtime.js": {path: `${experimentRoot}/core/runtime.js`, type: "text/javascript; charset=utf-8"},
-  "/core/cache.js": {path: `${experimentRoot}/core/cache.js`, type: "text/javascript; charset=utf-8"},
+  "/core/cache.js": {path: `${updateRoot}/browser/release-cache.js`, type: "text/javascript; charset=utf-8"},
   "/core/browser-control.js": {path: `${experimentRoot}/core/browser-control.js`, type: "text/javascript; charset=utf-8"},
   "/core/monitor.js": {path: `${experimentRoot}/core/monitor.js`, type: "text/javascript; charset=utf-8"},
   "/core/lifecycle.js": {path: `${experimentRoot}/core/lifecycle.js`, type: "text/javascript; charset=utf-8"},

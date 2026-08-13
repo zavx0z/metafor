@@ -1,5 +1,5 @@
 import {describe, expect, test} from "bun:test"
-import {responseMatchesHash, selectRetainedCaches, sha256Hex} from "./cache.js"
+import {responseMatchesHash, selectRetainedCaches, sha256Hex} from "./release-cache.js"
 
 describe("version cache policy", () => {
   test("rehashes bytes and rejects a forged matching metadata header", async () => {
