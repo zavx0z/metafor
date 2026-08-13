@@ -39,7 +39,7 @@ import {
   type HamiltonianWebPushOptions,
 } from "./web-push.ts"
 import type {WebPushLifecycleEvent, WebPushLifecycleHook} from "@metafor/web-push/lifecycle"
-import {isHamiltonianServiceWorkerCodeVersion} from "./core/service-worker-code-version.js"
+import {isHamiltonianServiceWorkerCodeVersion} from "./update/shared/service-worker-release.js"
 
 interface SocketData {
   connectionId: string

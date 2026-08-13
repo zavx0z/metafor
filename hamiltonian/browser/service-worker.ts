@@ -41,9 +41,9 @@ import type {TopologySnapshot} from "../host-state.ts"
 import {createWebPushWorkerHandlers} from "@metafor/web-push/worker"
 import type {WebPushLifecycleEvent} from "@metafor/web-push/lifecycle"
 import type {WebPushMessage} from "@metafor/web-push/protocol"
-import {HAMILTONIAN_SERVICE_WORKER_CODE_VERSION} from "./service-worker-code-version.ts"
+import {HAMILTONIAN_SERVICE_WORKER_CODE_VERSION} from "../update/browser/service-worker-code-version.ts"
 import {rejectHamiltonianControlSocket} from "./control-socket-rejection.ts"
-import {isHamiltonianServiceWorkerCodeVersion} from "../core/service-worker-code-version.js"
+import {isHamiltonianServiceWorkerCodeVersion} from "../update/shared/service-worker-release.js"
 import {
   pageLifecycleChangesNodeSystem,
   pageLifecycleMayEnterBrowserJournal,

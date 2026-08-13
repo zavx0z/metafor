@@ -19,7 +19,7 @@ import {
 import {hamiltonianBrowserNodeId} from "./core/orchestration.js"
 import {sourceRevisionRequiresReload} from "./core/browser-control.js"
 import {HamiltonianLifecycleProjection} from "./browser/orchestration/lifecycle-projection.ts"
-import {HAMILTONIAN_SERVICE_WORKER_CODE_VERSION} from "./browser/service-worker-code-version.ts"
+import {HAMILTONIAN_SERVICE_WORKER_CODE_VERSION} from "./update/browser/service-worker-code-version.ts"
 import {
   createHamiltonianHost,
   hamiltonianBrowserSourceRevision,
