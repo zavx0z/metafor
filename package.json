@@ -29,6 +29,7 @@
     "bulk/weak",
     "dark/gravity",
     "hamiltonian",
+    "hamiltonian/visual",
     "pkg/engine",
     "pkg/web-push",
     "pkg/nodes",

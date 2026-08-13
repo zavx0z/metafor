@@ -1,0 +1,24 @@
+{
+  "name": "@hamiltonian/visual",
+  "version": "0.0.1",
+  "description": "Hamiltonian-owned node-system projection, composition and presentation.",
+  "type": "module",
+  "private": true,
+  "main": "index.ts",
+  "types": "index.ts",
+  "exports": {
+    ".": "./index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit --pretty false"
+  },
+  "dependencies": {
+    "@metafor/engine": "workspace:*",
+    "@nodes/hud": "workspace:*",
+    "@nodes/ui": "workspace:*",
+    "@ui/components": "workspace:*",
+    "@ui/elements": "workspace:*",
+    "@ui/hud": "workspace:*",
+    "nodes": "workspace:*"
+  }
+}

@@ -118,6 +118,7 @@
     "hamiltonian": {
       "name": "@metafor/hamiltonian",
       "dependencies": {
+        "@hamiltonian/visual": "workspace:*",
         "@metafor/engine": "workspace:*",
         "@metafor/web-push": "workspace:*",
         "@nodes/hud": "workspace:*",
@@ -131,6 +132,19 @@
       },
       "devDependencies": {
         "@types/web-push": "3.6.4",
+      },
+    },
+    "hamiltonian/visual": {
+      "name": "@hamiltonian/visual",
+      "version": "0.0.1",
+      "dependencies": {
+        "@metafor/engine": "workspace:*",
+        "@nodes/hud": "workspace:*",
+        "@nodes/ui": "workspace:*",
+        "@ui/components": "workspace:*",
+        "@ui/elements": "workspace:*",
+        "@ui/hud": "workspace:*",
+        "nodes": "workspace:*",
       },
     },
     "matrix": {
@@ -283,6 +297,8 @@
     "@fidm/x509": ["@fidm/x509@1.2.1", "", { "dependencies": { "@fidm/asn1": "^1.0.4", "tweetnacl": "^1.0.1" } }, "sha512-nwc2iesjyc9hkuzcrMCBXQRn653XuAUKorfWM8PZyJawiy1QzLj4vahwzaI25+pfpwOLvMzbJ0uKpWLDNmo16w=="],
 
     "@gerrit0/mini-shiki": ["@gerrit0/mini-shiki@3.23.0", "", { "dependencies": { "@shikijs/engine-oniguruma": "^3.23.0", "@shikijs/langs": "^3.23.0", "@shikijs/themes": "^3.23.0", "@shikijs/types": "^3.23.0", "@shikijs/vscode-textmate": "^10.0.2" } }, "sha512-bEMORlG0cqdjVyCEuU0cDQbORWX+kYCeo0kV1lbxF5bt4r7SID2l9bqsxJEM0zndaxpOUT7riCyIVEuqq/Ynxg=="],
+
+    "@hamiltonian/visual": ["@hamiltonian/visual@workspace:hamiltonian/visual"],
 
     "@leichtgewicht/ip-codec": ["@leichtgewicht/ip-codec@2.0.5", "", {}, "sha512-Vo+PSpZG2/fmgmiNzYK9qWRh8h/CHrwD0mo1h1DzL4yzHNSfWYujGTYsWGreD000gcgmZ7K4Ys6Tx9TxtsKdDw=="],
 

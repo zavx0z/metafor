@@ -915,6 +915,7 @@ describe("isolated Hamiltonian host", () => {
     const stylesResponse = await fetch(new URL("/styles.css", host.server.url))
     expect(stylesResponse.status).toBe(200)
     const stylesSource = await stylesResponse.text()
+    expect(stylesSource).toBe(await Bun.file(new URL("./visual/browser/styles.css", import.meta.url)).text())
     expect(stylesSource).toContain('.orchestration-failed #orchestration-status')
     expect(stylesSource).not.toContain(".legacy-debug")
     expect(stylesSource).not.toContain(".status-grid")

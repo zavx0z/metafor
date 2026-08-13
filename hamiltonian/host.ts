@@ -196,6 +196,7 @@ interface PendingPushWake {
 const experimentRoot = fileURLToPath(new URL(".", import.meta.url))
 const repositoryRoot = fileURLToPath(new URL("..", import.meta.url))
 const publicRoot = `${experimentRoot}/public`
+const visualRoot = `${experimentRoot}/visual`
 const orchestrationEntry = `${experimentRoot}/browser/orchestration.ts`
 const layoutWorkerEntry = `${experimentRoot}/browser/layout-worker.ts`
 const serviceWorkerEntry = `${experimentRoot}/browser/service-worker.ts`
@@ -211,7 +212,7 @@ const browserStaticFiles: Readonly<Record<string, {path: string; type: string}>>
   "/app.js": {path: `${publicRoot}/app.js`, type: "text/javascript; charset=utf-8"},
   "/embodiment-worker.js": {path: `${publicRoot}/embodiment-worker.js`, type: "text/javascript; charset=utf-8"},
   "/embodiment-worker-entry.js": {path: `${publicRoot}/embodiment-worker-entry.js`, type: "text/javascript; charset=utf-8"},
-  "/styles.css": {path: `${publicRoot}/styles.css`, type: "text/css; charset=utf-8"},
+  "/styles.css": {path: `${visualRoot}/browser/styles.css`, type: "text/css; charset=utf-8"},
   "/engine-static/JetBrainsMono-Bold.ttf": {path: engineFont, type: "font/ttf"},
   "/core/runtime.js": {path: `${experimentRoot}/core/runtime.js`, type: "text/javascript; charset=utf-8"},
   "/core/cache.js": {path: `${experimentRoot}/core/cache.js`, type: "text/javascript; charset=utf-8"},
@@ -2477,6 +2478,7 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
       `${experimentRoot}/browser`,
       `${experimentRoot}/public`,
       `${experimentRoot}/core`,
+      visualRoot,
       uiRoot,
       nodesRoot,
       webPushRoot,

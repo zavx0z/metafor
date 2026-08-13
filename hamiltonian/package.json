@@ -8,6 +8,7 @@
     "test": "bun test"
   },
   "dependencies": {
+    "@hamiltonian/visual": "workspace:*",
     "@metafor/engine": "workspace:*",
     "@metafor/web-push": "workspace:*",
     "@nodes/layout": "workspace:*",
