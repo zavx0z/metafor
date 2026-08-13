@@ -202,6 +202,15 @@ Hamiltonian contour. Дальнейшую детализацию topology и к�
 стороне одного устройства и строит его причинно точное визуальное
 представление. Она является частью `MF-425`, а не отдельной декоративной схемой.
 
+Физическая универсальность node-system принадлежит
+[`NODES-009 — Разделить библиотеку нод для разных способов представления
+графа`](tasks/NODES-009.md). После неё
+[`HAM-002 — Собрать визуальный слой Hamiltonian в одном контуре`](tasks/HAM-002.md)
+собирает его product-specific projection, composition, панели, стили и live
+presentation в одной внутренней директории. `HAM-002` не забирает generic
+model, validation, geometry, renderer primitives или layout laws из `nodes` и
+не заменяет поэтапную owner-приёмку `MF-424`.
+
 ## Oracle и Force
 
 Текущая Oracle является единой RPC-поверхностью Dark и содержит чтения,

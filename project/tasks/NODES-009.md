@@ -144,65 +144,74 @@ dependency graph, занимать память и усложнять поним
 * fixed и adaptive представления используют одну совместимую смысловую основу,
   но не обязаны импортировать layout/UI/interaction реализацию друг друга.
 
-## Обсуждаемые варианты
+## Принятая физическая граница
 
-Решение пока не принято. Нужно сравнить как минимум:
+Владелец 13 августа 2026 года разрешил реализацию следующего package graph:
 
-1. отдельные workspace-пакеты поверх минимального общего model/kernel;
-2. один repository package с независимыми subpath entrypoints, отдельными
-   browser builds и запрещёнными обратными импортами;
-3. сочетание: общий protocol/model, отдельные fixed/adaptive layout adapters и
-   отдельные UI-компоненты, собираемые только явным composition entrypoint.
+1. `nodes` — лёгкое ядро: serializable model, validation, containment,
+   positioned-geometry helpers и Worker transport. Корневой barrel не
+   реэкспортирует renderer, HUD или числовой layout package.
+2. `@nodes/layout` — чистая числовая геометрия и routing. Она не знает карточки,
+   HUD, Hamiltonian, Bulk или renderer.
+3. `@nodes/ui` — HUD-free WebGPU primitives, viewport, edge/flow presentation,
+   универсальный card preset и явно названный fixed-port card adapter. Любая
+   предметная палитра приходит через consumer-provided resolver.
+4. `@nodes/hud` — необязательные HUD-компоненты вроде Inspector. Ни ядро, ни
+   renderer не зависят от него.
+5. Hamiltonian владеет transport catalog, его палитрой, легендой, lifecycle
+   projection и composition этих универсальных частей. Необходимый перенос из
+   `nodes` выполняется сейчас; дальнейшее собирание всего visual-кода в единую
+   внутреннюю директорию принадлежит отдельной `HAM-002`.
 
-Для каждого варианта требуется показать реальный import graph и собранные
-bytes. Надежда на tree shaking без измерения не является доказательством
-декомпозиции.
+Общий `NodeSystemDocument` остаётся единственным смысловым договором. Fixed и
+будущий adaptive adapter выбирают placement socket, не создавая второй model.
+`NodeSystemSurface` принимает уже positioned geometry, поэтому consumer со
+своей adaptive policy не импортирует fixed adapter.
 
-## Открытые вопросы
+## Разрешённые зависимости
 
-1. Что является минимальным общим kernel: identity/validation/document types,
-   geometry protocol, shared UI primitives или более узкий набор?
-2. Должны fixed и adaptive представления иметь разные document types либо
-   общий discriminated contract без необязательных вводящих в заблуждение
-   полей?
-3. Где живёт выбор стороны адаптивного I/O-сокета: в layout policy, отдельном
-   adapter или producer contract?
-4. Какие interaction primitives действительно общие, а какие нельзя включать
-   в фиксированную Bulk-сборку?
-5. Нужны отдельные workspace-пакеты или достаточно физически независимых
-   subpath builds с автоматической проверкой dependency graph?
-6. Как измерять стоимость: raw/minified/gzip bundle bytes, число загруженных
-   modules, memory после инициализации и время cold import/layout?
-7. Как мигрировать существующих consumers без временного второго источника
-   типов и без скрытого compatibility-монолита?
-8. Какие названия entrypoints прямо сообщают capability и не смешивают
-   fixed placement с adaptive I/O semantics?
-9. Как отделить нейтральные visual tokens и consumer-provided style resolver от
-   текущего встроенного Hamiltonian transport catalog?
-10. Является ли текущая `facts/actions` card model одним необязательным UI
-    preset или её нейтральная часть должна быть параметризуемым content adapter?
-11. Какие viewport, socket, edge, flow-marker и interaction primitives могут
-    жить без обязательной зависимости от `@ui/hud` и конкретного Inspector?
+* `nodes -> @nodes/layout` только для числовых Worker types/transport;
+* `@nodes/ui -> nodes + @nodes/layout + engine/ui primitives`;
+* `@nodes/hud -> nodes + @ui/hud`;
+* `Hamiltonian -> nodes + выбранные @nodes/* entrypoints`;
+* запрещены `nodes -> @nodes/ui`, `nodes -> @nodes/hud`,
+  `@nodes/ui -> @nodes/hud|@ui/hud` и любые imports из `nodes` в Hamiltonian.
+
+Корневые barrels не восстанавливают запрещённые зависимости реэкспортом.
+
+## Отложенные вопросы
+
+1. Точная семантика, форма и side-selection будущего adaptive `inout` socket;
+   она получает отдельную задачу после физического refactor.
+2. Нужен ли кроме универсального card preset параметризуемый content adapter
+   для проектов с другой внутренней анатомией ноды.
+3. Какие interaction primitives нужны Bulk; решение принадлежит `BLK-002` и не
+   расширяет текущий patch.
+4. Абсолютный memory budget: текущий срез доказывает import graph и bundle
+   composition; память измеряется только воспроизводимым методом отдельно.
+
+## Подзадачи реализации
+
+| ID | Срез | Состояние |
+| --- | --- | --- |
+| NODES-009.1 | Отделить ядро и явно назвать fixed card adapter | IN_PROGRESS |
+| NODES-009.2 | Отделить HUD и универсализировать visual style resolver | IN_PROGRESS |
+| NODES-009.3 | Перенести Hamiltonian catalog из `nodes` и мигрировать consumer | IN_PROGRESS |
+| NODES-009.4 | Доказать package graph, browser bundles и отсутствие регрессии | WAITING |
+
+NODES-009.1–NODES-009.3 меняют независимые владельцы файлов и сходятся перед
+NODES-009.4. Подготовительный baseline: `c6b74258000a38812b49f2fe65c2e8ae2e1d0786`.
 
 ## Поведение процесса
 
-Задача остаётся `DRAFT`, пока владелец не выберет архитектурную границу.
-До этого нельзя:
-
-* регистрировать подзадачи реализации socket types;
-* менять public types, exports, layout, UI или consumers;
-* переводить Hamiltonian на новый socket contract;
-* считать существующий `inout` принятым целевым дизайном.
-
-После решения владельца карточка сначала фиксирует целевой package graph,
-dependency rules, budgets и порядок миграции. Только затем задача принимается в
-`TODO`, получает подготовительный project-коммит и декомпозируется на
-реализационные подзадачи.
+Задача принята в исполнение. Текущий patch меняет физические границы и переносит
+уже существующее поведение без проектирования новой формы socket. `inout` не
+считается принятым adaptive-дизайном только из-за сохранения compatibility.
 
 ## Границы
 
-* Не менять действующий runtime и визуальный контур.
-* Не переделывать `MF-424.2`, Bulk или MetaFor в рамках обсуждения.
+* Не менять смысл действующего runtime и принятой визуальной сцены.
+* Не продолжать визуальный дизайн `MF-424.2`, Bulk или MetaFor в этом patch.
   Bulk-specific cleanup и новая нодовая система принадлежат `BLK-002`.
 * Не проектировать формы всех сокетов до решения физической границы пакетов.
 * Не обещать экономию памяти или bundle size без воспроизводимого измерения.
@@ -211,10 +220,11 @@ dependency rules, budgets и порядок миграции. Только за�
 
 ## Критерии готовности
 
-1. Зафиксирован текущий import/dependency graph и измерена стоимость минимум
-   одного fixed и одного adaptive consumer.
-2. Владелец принял целевой package/module graph с однозначным владельцем model,
-   validation, layout policy, Worker adapter, UI и interaction.
+1. Зафиксирован текущий и итоговый import/dependency graph и измерена стоимость
+   fixed-adapter consumer и custom-positioned consumer, способного использовать
+   внешнюю adaptive policy.
+2. Реализован принятый package/module graph с однозначным владельцем model,
+   validation, layout policy, Worker adapter, UI и HUD integration.
 3. Доказано, что fixed consumer не включает adaptive реализацию, а adaptive
    consumer не обязан импортировать fixed policy.
 4. Общие принципы выражены одним public contract без копирования типов.
@@ -224,8 +234,8 @@ dependency rules, budgets и порядок миграции. Только за�
    layout и memory cost.
 7. Подготовлен порядок миграции MetaFor/Bulk, Hamiltonian и стороннего consumer
    без временного монолитного fallback.
-8. Только после выполнения пунктов 1–7 зарегистрированы отдельные подзадачи по
-   каждому принятому типу сокета и отдельная Hamiltonian-подзадача в `MF-424`.
+8. Отдельная `HAM-002` зарегистрирована зависимой задачей; формы и поведение
+   новых socket types не реализованы скрыто внутри package refactor.
 
 ## Проверка результата
 

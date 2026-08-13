@@ -26,6 +26,8 @@ flowchart LR
     MF421["MF-421 · деактивация невидимого monitor display"]
     MF424["MF-424 · визуальная доводка Hamiltonian"]
     HAM001["HAM-001 · декларации нодовой системы Hamiltonian"]
+    NODES009["NODES-009 · универсальные границы node-system"]
+    HAM002["HAM-002 · единый визуальный слой Hamiltonian"]
     NODES006["NODES-006 · кратчайший законный маршрут"]
     NODES008["NODES-008 · убрать пустой compound-резерв"]
     MF425["MF-425 · одна Вселенная на одном устройстве"]
@@ -48,6 +50,7 @@ flowchart LR
     MF411 --> MF414
     MF425 --> MF426
     MF426 --> MF427
+    NODES009 --> HAM002
 ```
 
 ## P1 — ближайшая работа
@@ -85,15 +88,22 @@ canvas показали оба RTC endpoint и exact Oracle/Force lines. HAM-001
 после положительной независимой проверки; HAM-001 остаётся `IN_PROGRESS` для
 остальных independently authoritative contours.
 
-Текущая задача Codex: NODES-008.5 — не удваивать правый боковой corridor в
-`DOWN`. HAM-001.1–HAM-001.4 закрыты; у HAM-001 нет текущего среза, а родитель намеренно
-оставлен `IN_PROGRESS`.
+Текущая задача Codex: `NODES-009 — Разделить библиотеку нод для разных способов
+представления графа`. Владелец принял универсальную физическую границу пакетов:
+лёгкое ядро `nodes`, чистая числовая геометрия `@nodes/layout`, HUD-free
+`@nodes/ui` и необязательная интеграция `@nodes/hud`. Текущий срез удаляет из
+общих пакетов Hamiltonian-каталог transport family, отделяет fixed card adapter
+и переносит Inspector из renderer package. Следующая `HAM-002` ожидает
+NODES-009 и затем соберёт разбросанный визуальный код Hamiltonian в одном
+внутреннем контуре без изменения принятой сцены.
 
 | ID     | Состояние   | Зависимости | Карточка                   |
 | ------ | ----------- | ----------- | -------------------------- |
 | MF-424 | IN_PROGRESS | нет         | [Открыть](tasks/MF-424.md) |
 | MF-425 | IN_PROGRESS | нет         | [Открыть](tasks/MF-425.md) |
 | HAM-001 | IN_PROGRESS | нет         | [Открыть](tasks/HAM-001.md) |
+| NODES-009 | IN_PROGRESS | нет       | [Открыть](tasks/NODES-009.md) |
+| HAM-002 | WAITING     | NODES-009   | [Открыть](tasks/HAM-002.md) |
 | MF-411 | IN_PROGRESS | нет         | [Открыть](tasks/MF-411.md) |
 | NODES-006 | REVIEW      | нет       | [Открыть](tasks/NODES-006.md) |
 | NODES-008 | IN_PROGRESS | нет       | [Открыть](tasks/NODES-008.md) |
