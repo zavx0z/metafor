@@ -199,9 +199,26 @@ dependency graph, занимать память и усложнять поним
 | NODES-009.2 | Отделить HUD и универсализировать visual style resolver | COMPLETE |
 | NODES-009.3 | Перенести Hamiltonian catalog из `nodes` и мигрировать consumer | COMPLETE |
 | NODES-009.4 | Доказать package graph, browser bundles и отсутствие регрессии | COMPLETE |
+| NODES-009.5 | Обновить и доказать Service Worker после пакетного рефакторинга | IN_PROGRESS |
 
 NODES-009.1–NODES-009.3 меняют независимые владельцы файлов и сходятся перед
 NODES-009.4. Подготовительный baseline: `c6b74258000a38812b49f2fe65c2e8ae2e1d0786`.
+
+### NODES-009.5 — Обновить и доказать Service Worker после пакетного рефакторинга
+
+Live-проверка 13 августа 2026 года подтвердила новый browser source revision:
+старая открытая вкладка сохраняла `source:703202966b…`, а чистая вкладка после
+запуска `main@9c569e9c9` получила `source:0c71d7b217…`. Новый WebGPU-граф
+непуст, console capture чист, Service Worker активен, host identity подтверждён,
+Oracle/Force peer находится в `connected` и счётчики сообщений растут.
+
+При этом executable Service Worker version осталась `1.1.2`, как и в
+подготовительном commit `9ae82ba1d`. Владелец требует завершить refactor с явно
+обновлённой SW version. Срез повышает её до `1.1.3`, выполняет полный restart
+Hamiltonian, проверяет новый bundle hash, активную runtime incarnation,
+`workerUpdateRequired=false`, актуальный source revision и живую сцену. После
+этого NODES-009.1–NODES-009.5 получают закрывающую live-проверку; родительская
+NODES-009 остаётся `IN_PROGRESS` для дальнейшей работы владельца.
 
 ## Поведение процесса
 
