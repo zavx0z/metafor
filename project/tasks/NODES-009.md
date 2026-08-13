@@ -195,11 +195,11 @@ dependency graph, занимать память и усложнять поним
 
 | ID | Срез | Состояние |
 | --- | --- | --- |
-| NODES-009.1 | Отделить ядро и явно назвать fixed card adapter | COMPLETE |
-| NODES-009.2 | Отделить HUD и универсализировать visual style resolver | COMPLETE |
-| NODES-009.3 | Перенести Hamiltonian catalog из `nodes` и мигрировать consumer | COMPLETE |
-| NODES-009.4 | Доказать package graph, browser bundles и отсутствие регрессии | COMPLETE |
-| NODES-009.5 | Обновить и доказать Service Worker после пакетного рефакторинга | COMPLETE |
+| NODES-009.1 | Отделить ядро и явно назвать fixed card adapter | CLOSED |
+| NODES-009.2 | Отделить HUD и универсализировать visual style resolver | CLOSED |
+| NODES-009.3 | Перенести Hamiltonian catalog из `nodes` и мигрировать consumer | CLOSED |
+| NODES-009.4 | Доказать package graph, browser bundles и отсутствие регрессии | CLOSED |
+| NODES-009.5 | Обновить и доказать Service Worker после пакетного рефакторинга | CLOSED |
 
 NODES-009.1–NODES-009.3 меняют независимые владельцы файлов и сходятся перед
 NODES-009.4. Подготовительный baseline: `c6b74258000a38812b49f2fe65c2e8ae2e1d0786`.
@@ -234,6 +234,17 @@ Result NODES-009.5:
   update выросли с `3/3` до `9/9`, console capture — `0` entries;
 * финальный WebGPU-кадр содержит обе актуальные page realm, Service Worker
   `1.1.3`, серверный контур и обе RTC-линии без stale/error realm.
+
+### Closing review подзадач
+
+После result-коммита `e3d6b5960` отдельно повторены package-boundary test
+(`4/4`), production browser/Worker build и Service Worker SemVer tests (`3/3`),
+`git show --check` и live-read текущей вкладки. Live listener продолжает
+работать на `127.0.0.1:4400`; release остаётся `1.1.3`, identity подтверждена,
+update не требуется, peer `connected`, Oracle/Force счётчики достигли `20/20`
+без peer error. NODES-009.1–NODES-009.5 закрыты этой проверкой. Родительская
+NODES-009 по решению владельца остаётся `IN_PROGRESS` и не проходит closing
+cleanup.
 
 ## Поведение процесса
 

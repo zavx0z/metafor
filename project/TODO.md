@@ -91,9 +91,10 @@ canvas показали оба RTC endpoint и exact Oracle/Force lines. HAM-001
 `NODES-009 — Разделить библиотеку нод для разных способов представления графа`
 остаётся `IN_PROGRESS`: лёгкое ядро `nodes`, чистая числовая геометрия
 `@nodes/layout`, HUD-free `@nodes/ui`, optional `@nodes/hud`, fixed card adapter
-и consumer-owned Hamiltonian palette физически разделены и проверены. Текущий
-срез `NODES-009.5` повышает executable Service Worker version после browser
-refactor и закрывает live-проверкой все подзадачи, не закрывая родителя.
+и consumer-owned Hamiltonian palette физически разделены и проверены.
+NODES-009.1–NODES-009.5 закрыты после отдельной package/browser/live-проверки;
+executable Service Worker обновлён до `1.1.3`. Родитель не закрывается и
+остаётся текущим местом дальнейшей работы владельца.
 `HAM-002` ожидает closing review NODES-009 и затем соберёт разбросанный
 визуальный код Hamiltonian в одном внутреннем контуре без изменения принятой
 сцены.
