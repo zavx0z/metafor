@@ -122,7 +122,7 @@ Hamiltonian в одной директории`. Задача переносит
 | ------ | ----------- | ----------- | -------------------------- |
 | MF-424 | IN_PROGRESS | нет         | [Открыть](tasks/MF-424.md) |
 | MF-425 | IN_PROGRESS | нет         | [Открыть](tasks/MF-425.md) |
-| UPD-001 | IN_PROGRESS | нет        | [Открыть](tasks/UPD-001.md) |
+| UPD-001 | REVIEW      | нет        | [Открыть](tasks/UPD-001.md) |
 | HAM-001 | IN_PROGRESS | нет         | [Открыть](tasks/HAM-001.md) |
 | NODES-009 | IN_PROGRESS | нет       | [Открыть](tasks/NODES-009.md) |
 | HAM-002 | IN_PROGRESS | нет         | [Открыть](tasks/HAM-002.md) |
