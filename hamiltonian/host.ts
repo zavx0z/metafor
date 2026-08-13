@@ -218,6 +218,7 @@ const browserStaticFiles: Readonly<Record<string, {path: string; type: string}>>
   "/core/runtime.js": {path: `${experimentRoot}/core/runtime.js`, type: "text/javascript; charset=utf-8"},
   "/core/cache.js": {path: `${updateRoot}/browser/release-cache.js`, type: "text/javascript; charset=utf-8"},
   "/core/browser-control.js": {path: `${experimentRoot}/core/browser-control.js`, type: "text/javascript; charset=utf-8"},
+  "/update/page-update.js": {path: `${updateRoot}/browser/page-update.js`, type: "text/javascript; charset=utf-8"},
   "/core/monitor.js": {path: `${experimentRoot}/core/monitor.js`, type: "text/javascript; charset=utf-8"},
   "/core/lifecycle.js": {path: `${experimentRoot}/core/lifecycle.js`, type: "text/javascript; charset=utf-8"},
   "/core/orchestration.js": {path: `${experimentRoot}/core/orchestration.js`, type: "text/javascript; charset=utf-8"},

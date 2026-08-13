@@ -19,10 +19,12 @@ import {
   HAMILTONIAN_PAGE_HEARTBEAT_MS,
   disposeFailedWorker,
   isCurrentPeerGeneration,
-  mainRealmRequiresReload,
-  sourceRevisionRequiresReload,
   pageWorkerChannelIsQuiet,
 } from "/core/browser-control.js"
+import {
+  mainRealmRequiresReload,
+  sourceRevisionRequiresReload,
+} from "/update/page-update.js"
 import {
   hamiltonianBrowserNodeId,
   hamiltonianBrowserRuntimeName,

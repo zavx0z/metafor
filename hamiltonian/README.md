@@ -820,6 +820,7 @@ bun build public/app.js public/embodiment-worker.js \
   --external /core/lifecycle.js \
   --external /core/runtime.js --external /core/cache.js \
   --external /core/browser-control.js --external /core/orchestration.js \
+  --external /update/page-update.js \
   --external /web-push-client.js
 bun build public/window-entry.js public/embodiment-worker-entry.js \
   --outdir /tmp/hamiltonian-entry-build-check --target browser \

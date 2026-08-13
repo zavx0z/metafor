@@ -124,6 +124,20 @@ test("builds the real orchestration and isolated layout Worker bundles", async (
     expect(pageSource).toContain('runOrchestrationAction("enable-push")')
     expect(pageSource).toContain('window.addEventListener("hamiltonian-orchestration-action"')
     expect(pageSource).toContain("runOrchestrationAction(action.actionId)")
+    expect(pageSource).toContain('from "/update/page-update.js"')
+
+    const browserControlSource = await Bun.file(join(
+      repositoryRoot,
+      "hamiltonian/core/browser-control.js",
+    )).text()
+    expect(browserControlSource).not.toContain("mainRealmRequiresReload")
+    expect(browserControlSource).not.toContain("sourceRevisionRequiresReload")
+    const pageUpdateSource = await Bun.file(join(
+      repositoryRoot,
+      "hamiltonian/update/browser/page-update.js",
+    )).text()
+    expect(pageUpdateSource).toContain("export function mainRealmRequiresReload(")
+    expect(pageUpdateSource).toContain("export function sourceRevisionRequiresReload(")
   } finally {
     await rm(outdir, {recursive: true, force: true})
   }

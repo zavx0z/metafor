@@ -17,7 +17,7 @@ import {
   type HamiltonianNodeSystemDeclaration,
 } from "./core/lifecycle.js"
 import {hamiltonianBrowserNodeId} from "./core/orchestration.js"
-import {sourceRevisionRequiresReload} from "./core/browser-control.js"
+import {sourceRevisionRequiresReload} from "./update/browser/page-update.js"
 import {HamiltonianLifecycleProjection} from "./browser/orchestration/lifecycle-projection.ts"
 import {HAMILTONIAN_SERVICE_WORKER_CODE_VERSION} from "./update/browser/service-worker-code-version.ts"
 import {
@@ -438,6 +438,7 @@ describe("isolated Hamiltonian host", () => {
       directlyServedText: {
         "/app.js": "app-a",
         "/core/browser-control.js": "browser-control-a",
+        "/update/page-update.js": "page-update-a",
       },
     }
     const revisionA = hamiltonianBrowserSourceRevision(servedByHostA)
@@ -445,6 +446,7 @@ describe("isolated Hamiltonian host", () => {
       ...servedByHostA,
       directlyServedText: {
         "/core/browser-control.js": "browser-control-a",
+        "/update/page-update.js": "page-update-a",
         "/app.js": "app-a",
       },
     })
@@ -493,6 +495,13 @@ describe("isolated Hamiltonian host", () => {
       {
         ...servedByHostA,
         directlyServedText: {...servedByHostA.directlyServedText, "/app.js": "app-b"},
+      },
+      {
+        ...servedByHostA,
+        directlyServedText: {
+          ...servedByHostA.directlyServedText,
+          "/update/page-update.js": "page-update-b",
+        },
       },
     ]) {
       const changedRevision = hamiltonianBrowserSourceRevision(changedArtifacts)
@@ -1032,6 +1041,13 @@ describe("isolated Hamiltonian host", () => {
     expect(browserSource).toContain('attributes: {state: "standby", heartbeat: "paused", reason}')
     expect(browserSource).toContain("pageBootstrap?.browserSourceRevision")
     expect(browserSource).toContain("sessionStorage.setItem(sourceRevisionStorageKey")
+    expect(browserSource).toContain('from "/update/page-update.js"')
+
+    const pageUpdateContract = await fetch(new URL("/update/page-update.js", host.server.url))
+    expect(pageUpdateContract.status).toBe(200)
+    const pageUpdateSource = await pageUpdateContract.text()
+    expect(pageUpdateSource).toContain("export function mainRealmRequiresReload(")
+    expect(pageUpdateSource).toContain("export function sourceRevisionRequiresReload(")
 
     const webPushClientEntry = await fetch(new URL("/web-push-client.js", host.server.url))
     expect(webPushClientEntry.status).toBe(200)
