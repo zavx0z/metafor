@@ -105,7 +105,9 @@ screen вместе с DOM-only функциональностью. `HAM-002.3` 
 stylesheet нодового canvas без изменения визуального поведения. Текущий
 `HAM-002.4` перенёс в пакет presentation leaf-модули с их unit specs. Текущий
 `HAM-002.5` перенёс Hamiltonian HUD/workspace composition. Текущий
-`HAM-002.6` перемещает только изолированный layout Worker entrypoint.
+`HAM-002.6` перенёс изолированный layout Worker entrypoint. По прямому запросу
+владельца текущий `HAM-002.7` поднимает постоянный Hamiltonian host и даёт
+визуальное подтверждение canvas-only нодового UI в dedicated CDP Chrome.
 
 | ID     | Состояние   | Зависимости | Карточка                   |
 | ------ | ----------- | ----------- | -------------------------- |
