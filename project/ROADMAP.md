@@ -204,10 +204,13 @@ Hamiltonian contour. Дальнейшую детализацию topology и к�
 
 Физическая универсальность node-system принадлежит
 [`NODES-009 — Разделить библиотеку нод для разных способов представления
-графа`](tasks/NODES-009.md). После неё
+графа`](tasks/NODES-009.md). Закрытые срезы `NODES-009.1`–`NODES-009.5` уже
+зафиксировали необходимую package-границу и разблокировали
 [`HAM-002 — Собрать визуальный слой Hamiltonian в одном контуре`](tasks/HAM-002.md)
-собирает его product-specific projection, composition, панели, стили и live
-presentation в одной внутренней директории. `HAM-002` не забирает generic
+для независимого запуска, хотя родитель `NODES-009` остаётся открытым для
+дальнейшей работы владельца. `HAM-002` собирает product-specific projection,
+composition, панели, стили и live presentation в одной внутренней директории.
+Она не забирает generic
 model, validation, geometry, renderer primitives или layout laws из `nodes` и
 не заменяет поэтапную owner-приёмку `MF-424`.
 
