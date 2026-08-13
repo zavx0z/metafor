@@ -28,7 +28,7 @@ import {
 import {hamiltonianRealmSnapshot} from "../core/monitor.js"
 import {hamiltonianBrowserNodeId, hamiltonianBrowserRuntimeName} from "../core/orchestration.js"
 import {GenerationRegistry, ReconnectPolicy} from "../core/runtime.js"
-import {responseMatchesHash, sha256Hex, selectRetainedCaches} from "../update/browser/release-cache.js"
+import {HamiltonianBrowserReleaseCacheController} from "../update/browser/release-cache.js"
 import {
   ExclusiveResourceSlot,
   isCurrentLeaderPeerControl,
@@ -186,24 +186,10 @@ interface HostControlMessage extends MessageRecord {
   target?: HamiltonianServiceWorkerRelease
 }
 
-interface VersionManifest {
-  version: string
-  moduleUrl: string
-  sha256: string
-}
-
 interface HostPingMessage extends HostControlMessage {
   kind: "ping"
   at: number
   seq: number
-}
-
-interface VersionState extends MessageRecord {
-  kind: "version-ready"
-  version: string
-  moduleUrl: string
-  sha256: string
-  caches: string[]
 }
 
 interface WorkerState extends MessageRecord {
@@ -265,7 +251,6 @@ const WINDOW_TIMEOUT_MS = 7_000
 const WINDOW_REHYDRATION_TIMEOUT_MS = 4_000
 const WINDOW_REHYDRATION_POLL_MS = 100
 const windowReattachRequestedAt = new Map<string, number>()
-const MAX_VERSION_CACHES = 2
 const CONTROL_CACHE = "hamiltonian-control:v1"
 const CONTROL_BOOTSTRAP_URL = "/.hamiltonian/control-bootstrap"
 const workerRuntime = hamiltonianRealmSnapshot()
@@ -289,7 +274,6 @@ let currentToken: string | null = null
 let currentHost: HostIdentity | null = null
 let currentTopology: TopologySnapshot | null = null
 let currentSourceUpdate: HostControlMessage | null = null
-let currentVersionState: VersionState | null = null
 let currentConnectionId: string | null = null
 let currentResumeNonce: string | null = null
 let currentServerEntityId: string | null = null
@@ -300,6 +284,13 @@ const serviceWorkerUpdateController = new HamiltonianServiceWorkerUpdateControll
   codeVersion: workerCodeVersion,
   updateRegistration: () => serviceWorkerRuntime.registration.update(),
   admitApplication: admitServiceWorkerApplication,
+})
+const browserReleaseCacheController = new HamiltonianBrowserReleaseCacheController({
+  origin: location.origin,
+  cacheStorage: caches,
+  fetchResponse: (input, init) => fetch(input, init),
+  emit,
+  publish: tellAll,
 })
 const pendingWindowConnections = new Map<string, {
   message: ConnectWindowMessage
@@ -1266,7 +1257,7 @@ async function admitServiceWorkerApplication(): Promise<void> {
   observeWorkerHeartbeat("active", "awaiting")
   emit("Service Worker control socket connected")
   tellAll(workerState())
-  if (currentHost) void prepareVersion(currentHost.version)
+  if (currentHost) void browserReleaseCacheController.prepare(currentHost.version, currentToken)
   if (currentTopology && currentHost) {
     tellAll({kind: "topology", host: currentHost, topology: currentTopology})
   }
@@ -1277,56 +1268,6 @@ async function admitServiceWorkerApplication(): Promise<void> {
     await connectWindow(connection.message, connection.client)
   }
   await sendWindowSnapshot()
-}
-
-async function prepareVersion(expectedVersion: string): Promise<void> {
-  try {
-    const headers = {authorization: `Bearer ${currentToken}`}
-    const manifestResponse = await fetch("/manifest.json", {headers, cache: "no-store"})
-    if (!manifestResponse.ok) throw new Error(`manifest ${manifestResponse.status}`)
-    const manifest = await manifestResponse.json()
-    if (!isVersionManifest(manifest)) throw new Error("invalid version manifest")
-    if (manifest.version !== expectedVersion) throw new Error("host and manifest versions differ")
-
-    const cacheName = `hamiltonian-code:${manifest.version}`
-    const cache = await caches.open(cacheName)
-    let moduleResponse = await cache.match(manifest.moduleUrl)
-    if (!await responseMatchesHash(moduleResponse, manifest.sha256)) {
-      const fetched = await fetch(manifest.moduleUrl, {headers, cache: "no-store"})
-      if (!fetched.ok) throw new Error(`module ${fetched.status}`)
-      const actualHash = await sha256Hex(fetched.clone())
-      if (actualHash !== manifest.sha256) throw new Error("module SHA-256 mismatch")
-      await cache.put(manifest.moduleUrl, fetched.clone())
-      moduleResponse = fetched
-      emit(`cached version ${manifest.version} after SHA-256 verification`)
-    } else {
-      emit(`reused cached version ${manifest.version}`)
-    }
-
-    const cacheNames = await retainVersionCaches(cacheName)
-    currentVersionState = {
-      kind: "version-ready",
-      version: manifest.version,
-      moduleUrl: manifest.moduleUrl,
-      sha256: manifest.sha256,
-      caches: cacheNames,
-    }
-    tellAll(currentVersionState)
-  } catch (error) {
-    emit(`version preparation failed: ${error instanceof Error ? error.message : String(error)}`, "error")
-  }
-}
-
-async function retainVersionCaches(currentCacheName: string): Promise<string[]> {
-  const names = (await caches.keys())
-    .filter((name) => name.startsWith("hamiltonian-code:"))
-    .sort()
-  const previous = currentVersionState
-    ? `hamiltonian-code:${currentVersionState.version}`
-    : null
-  const keep = new Set(selectRetainedCaches(names, currentCacheName, previous, MAX_VERSION_CACHES))
-  await Promise.all(names.filter((name) => !keep.has(name)).map((name) => caches.delete(name)))
-  return (await caches.keys()).filter((name) => name.startsWith("hamiltonian-code:")).sort()
 }
 
 async function connectWindow(message: ConnectWindowMessage, client: HamiltonianWorkerClient): Promise<void> {
@@ -1493,7 +1434,9 @@ async function connectWindow(message: ConnectWindowMessage, client: HamiltonianW
   }))
   tellWindow(window, workerState())
   if (currentTopology) tellWindow(window, {kind: "topology", host: currentHost, topology: currentTopology})
-  if (currentVersionState) tellWindow(window, currentVersionState)
+  if (browserReleaseCacheController.currentVersionState) {
+    tellWindow(window, browserReleaseCacheController.currentVersionState)
+  }
   ensureSocket()
   void sendWindowSnapshot()
 }
@@ -1711,10 +1654,9 @@ function parseWakePayload(value: unknown): PushWakePayload | null {
 }
 
 serviceWorkerRuntime.addEventListener("fetch", (event) => {
-  const url = new URL(event.request.url)
-  if (url.origin !== location.origin || !url.pathname.startsWith("/versions/")) return
+  if (!browserReleaseCacheController.handlesVersionRequest(event.request)) return
   event.respondWith((async () => {
-    const cached = await caches.match(event.request)
+    const cached = await browserReleaseCacheController.cachedVersionResponse(event.request)
     return cached ?? new Response("Version is not prepared by Hamiltonian", {status: 503})
   })())
 })
@@ -1789,13 +1731,6 @@ function isHostIdentity(value: unknown): value is HostIdentity {
 
 function isHostPingMessage(value: HostControlMessage): value is HostPingMessage {
   return value.kind === "ping" && typeof value.at === "number" && typeof value.seq === "number"
-}
-
-function isVersionManifest(value: unknown): value is VersionManifest {
-  return isRecord(value) &&
-    typeof value.version === "string" &&
-    typeof value.moduleUrl === "string" &&
-    typeof value.sha256 === "string"
 }
 
 function isConnectWindowMessage(value: unknown): value is ConnectWindowMessage {

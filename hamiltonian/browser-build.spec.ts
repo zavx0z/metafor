@@ -71,8 +71,14 @@ test("builds the real orchestration and isolated layout Worker bundles", async (
 
     const serviceWorkerTypeScript = await Bun.file(join(repositoryRoot, "hamiltonian/browser/service-worker.ts")).text()
     expect(serviceWorkerTypeScript).toContain("new HamiltonianServiceWorkerUpdateController(")
+    expect(serviceWorkerTypeScript).toContain("new HamiltonianBrowserReleaseCacheController(")
     expect(serviceWorkerTypeScript).not.toContain("let applicationReady")
     expect(serviceWorkerTypeScript).not.toContain("function isServiceWorkerRelease(")
+    expect(serviceWorkerTypeScript).not.toContain("async function prepareVersion(")
+    expect(serviceWorkerTypeScript).not.toContain("function isVersionManifest(")
+    expect(serviceWorkerTypeScript).not.toContain("let currentVersionState")
+    expect(serviceWorkerTypeScript).not.toContain("responseMatchesHash")
+    expect(serviceWorkerTypeScript).not.toContain("selectRetainedCaches")
     const serviceWorkerUpdateSource = await Bun.file(join(
       repositoryRoot,
       "hamiltonian/update/browser/service-worker-update.ts",
@@ -81,6 +87,24 @@ test("builds the real orchestration and isolated layout Worker bundles", async (
     expect(serviceWorkerUpdateSource).toContain("#applicationReady")
     expect(serviceWorkerUpdateSource).toContain("isHamiltonianServiceWorkerRelease(target)")
     expect(serviceWorkerUpdateSource).not.toContain("registration.update()")
+    const releaseCacheSource = await Bun.file(join(
+      repositoryRoot,
+      "hamiltonian/update/browser/release-cache.js",
+    )).text()
+    expect(releaseCacheSource).toContain("export class HamiltonianBrowserReleaseCacheController")
+    expect(releaseCacheSource).toContain('this.#fetchResponse("/manifest.json", {headers, cache: "no-store"})')
+    expect(releaseCacheSource).toContain("responseMatchesHash(moduleResponse, manifest.sha256)")
+    expect(releaseCacheSource).toContain("this.#publish(state)")
+    expect(releaseCacheSource).toContain('url.pathname.startsWith("/versions/")')
+    expect(releaseCacheSource).not.toContain("../host")
+    const versionFetchAdapter = serviceWorkerTypeScript.slice(
+      serviceWorkerTypeScript.indexOf('serviceWorkerRuntime.addEventListener("fetch"'),
+      serviceWorkerTypeScript.indexOf("function closeWindowChannel"),
+    )
+    expect(versionFetchAdapter).toContain("browserReleaseCacheController.handlesVersionRequest(event.request)")
+    expect(versionFetchAdapter).toContain("browserReleaseCacheController.cachedVersionResponse(event.request)")
+    expect(versionFetchAdapter).toContain("Version is not prepared by Hamiltonian")
+    expect(versionFetchAdapter).toContain("status: 503")
     expect(serviceWorkerTypeScript).toContain("observation?.ownerId === currentBrowserEntityId")
     expect(serviceWorkerTypeScript).toContain("currentPushReady = true")
     expect(serviceWorkerTypeScript).toContain("await restoreControlBootstrap()")
