@@ -34,7 +34,7 @@ test("builds the real orchestration and isolated layout Worker bundles", async (
     expect(serviceWorkerSource).toContain('subjectKind: "service-worker"')
     expect(serviceWorkerSource).toContain('subjectKind: "service-worker-api"')
     expect(serviceWorkerSource).toContain('subjectKind: "service-worker-api-message"')
-    expect(serviceWorkerSource).toContain('HAMILTONIAN_SERVICE_WORKER_CODE_VERSION = "1.1.1"')
+    expect(serviceWorkerSource).toContain('HAMILTONIAN_SERVICE_WORKER_CODE_VERSION = "1.1.2"')
     expect(serviceWorkerSource).toContain("registration.update()")
     expect(serviceWorkerSource).toContain("applicationReady")
     expect(serviceWorkerSource).toContain("codeVersion: workerCodeVersion")
@@ -69,6 +69,13 @@ test("builds the real orchestration and isolated layout Worker bundles", async (
     expect(serviceWorkerTypeScript).toContain("await restoreControlBootstrap()")
     expect(serviceWorkerTypeScript).toContain('...(state === "active" ? {reason: null} : {})')
     expect(serviceWorkerTypeScript).toContain('hamiltonianLifecycleEntityId("service-worker", workerRuntimeIncarnation)')
+    const directBrowserCloseCodes = [...serviceWorkerTypeScript.matchAll(/\.close\(\s*(\d+)/g)]
+      .map(([, code]) => Number(code))
+    expect(directBrowserCloseCodes.filter((code) => code >= 1001 && code <= 2999)).toEqual([])
+    expect(serviceWorkerTypeScript).toContain("rejectHamiltonianControlSocket(")
+    expect(serviceWorkerTypeScript).toContain(
+      "!socketSlot.isCurrent(openedSocket) || openedSocket.readyState !== WebSocket.OPEN",
+    )
     const pageLifecycleBranch = serviceWorkerTypeScript.slice(
       serviceWorkerTypeScript.indexOf('if (pageMessage.kind === "page-lifecycle")'),
       serviceWorkerTypeScript.indexOf('if (pageMessage.kind === "register-push-subscription")'),

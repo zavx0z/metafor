@@ -73,8 +73,12 @@ socket incarnation только после успешного сообщения
 `device`, `worker` и `transport` в URL являются заявкой на маршрут, а не
 доказательством существования Service Worker. Сокет, закрытый до подтверждения
 identity или отклонённый при проверке Web Push, не может создать либо обновить
-Service Worker и его transport в retained lifecycle. Service Worker включает
-подтверждённую terminal-запись в retained
+Service Worker и его transport в retained lifecycle. Service Worker отклоняет
+browser WebSocket только через private application code `3000–4999`
+и UTF-8 reason не длиннее 123 bytes; после начала такого закрытия он больше не
+принимает с этого socket identity либо application traffic. Нормальное закрытие
+заменённого socket использует `1000`, а server-side close contract от этого не
+меняется. Service Worker включает подтверждённую terminal-запись в retained
 состояние и передаёт новый host snapshot уже подключённым Window через
 `WindowClient.postMessage` единого Service Worker API transport. Поэтому
 остановка/пробуждение Service Worker не может стереть последний наблюдённый

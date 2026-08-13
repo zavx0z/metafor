@@ -42,6 +42,7 @@ import {createWebPushWorkerHandlers} from "@metafor/web-push/worker"
 import type {WebPushLifecycleEvent} from "@metafor/web-push/lifecycle"
 import type {WebPushMessage} from "@metafor/web-push/protocol"
 import {HAMILTONIAN_SERVICE_WORKER_CODE_VERSION} from "./service-worker-code-version.ts"
+import {rejectHamiltonianControlSocket} from "./control-socket-rejection.ts"
 import {isHamiltonianServiceWorkerCodeVersion} from "../core/service-worker-code-version.js"
 import {
   pageLifecycleChangesNodeSystem,
@@ -789,7 +790,7 @@ function sendSocket(message: MessageRecord): boolean {
   const socket = socketSlot.current
   if (!socket || socket.readyState !== WebSocket.OPEN) return false
   if (socket.bufferedAmount > MAX_SOCKET_BUFFER) {
-    socket.close(1013, "control channel backpressure")
+    rejectHamiltonianControlSocket(socketSlot, socket, "control channel backpressure")
     return false
   }
   const lifecycle = socketLifecycle.get(socket)
@@ -956,12 +957,12 @@ function ensureSocket(): void {
     tellAll(workerState())
   })
   openedSocket.addEventListener("message", (event) => {
-    if (!socketSlot.isCurrent(openedSocket)) return
+    if (!socketSlot.isCurrent(openedSocket) || openedSocket.readyState !== WebSocket.OPEN) return
     let message: HostControlMessage
     try {
       message = JSON.parse(String(event.data)) as HostControlMessage
     } catch {
-      openedSocket.close(1008, "invalid host message")
+      rejectHamiltonianControlSocket(socketSlot, openedSocket, "invalid host message")
       return
     }
     const lifecycle = socketLifecycle.get(openedSocket)
@@ -975,13 +976,13 @@ function ensureSocket(): void {
         !isHamiltonianNodeSystemDeclaration(declaration) ||
         !acceptHostNodeSystemDeclaration(declaration, openedSocket)
       ) {
-        openedSocket.close(1008, "invalid host node-system declaration")
+        rejectHamiltonianControlSocket(socketSlot, openedSocket, "invalid host node-system declaration")
         return
       }
       if (serverIdentity !== null && !lifecycle.identitySent) {
         lifecycle.identitySent = true
         if (!sendWorkerIdentity()) {
-          openedSocket.close(1008, "browser node-system declaration is unavailable")
+          rejectHamiltonianControlSocket(socketSlot, openedSocket, "browser node-system declaration is unavailable")
           return
         }
       }
@@ -995,12 +996,12 @@ function ensureSocket(): void {
     if (message.kind === "lifecycle-snapshot") {
       const snapshot = message.snapshot
       if (!serverEntityId || !isHamiltonianLifecycleSnapshot(snapshot) || snapshot.scopeId !== serverEntityId) {
-        openedSocket.close(1008, "host lifecycle snapshot scope mismatch")
+        rejectHamiltonianControlSocket(socketSlot, openedSocket, "host lifecycle snapshot scope mismatch")
         return
       }
       const journal = currentHostLifecycleJournal ?? new HamiltonianLifecycleRetainedJournal(serverEntityId)
       if (!journal.replace(snapshot) || !publishHamiltonianLifecycleSnapshot(snapshot)) {
-        openedSocket.close(1008, "invalid host lifecycle snapshot")
+        rejectHamiltonianControlSocket(socketSlot, openedSocket, "invalid host lifecycle snapshot")
         return
       }
       currentHostLifecycleJournal = journal
@@ -1010,7 +1011,7 @@ function ensureSocket(): void {
     if (message.kind === "lifecycle") {
       const envelope = message.envelope
       if (!isHamiltonianLifecycleEnvelope(envelope)) {
-        openedSocket.close(1008, "invalid host lifecycle envelope")
+        rejectHamiltonianControlSocket(socketSlot, openedSocket, "invalid host lifecycle envelope")
         return
       }
       const retiredSubjectId = envelope.observation.subjectId
@@ -1019,7 +1020,7 @@ function ensureSocket(): void {
         pendingHostRetirements.delete(retiredSubjectId)
       }
       if (!publishHamiltonianLifecycleEnvelope(envelope)) {
-        openedSocket.close(1008, "invalid host lifecycle envelope")
+        rejectHamiltonianControlSocket(socketSlot, openedSocket, "invalid host lifecycle envelope")
         return
       }
       currentHostLifecycleJournal?.observe(envelope)
@@ -1031,18 +1032,18 @@ function ensureSocket(): void {
         ? hamiltonianLifecycleEntityId("server", host.hostEpoch)
         : null
       if (!nextServerEntityId) {
-        openedSocket.close(1008, "hello lacks server incarnation")
+        rejectHamiltonianControlSocket(socketSlot, openedSocket, "hello lacks server incarnation")
         return
       }
       if (lifecycle.serverEntityId && lifecycle.serverEntityId !== nextServerEntityId) {
-        openedSocket.close(1008, "server incarnation changed on one socket")
+        rejectHamiltonianControlSocket(socketSlot, openedSocket, "server incarnation changed on one socket")
         return
       }
     }
     const messageId = lifecycleMessageId(message)
     const messageTransportId = lifecycleMonitorTransportId(message)
     if (messageId && messageTransportId !== transportId) {
-      openedSocket.close(1008, "host message transport identity mismatch")
+      rejectHamiltonianControlSocket(socketSlot, openedSocket, "host message transport identity mismatch")
       return
     }
     if (messageId && serverEntityId) {
@@ -1066,7 +1067,7 @@ function ensureSocket(): void {
         const error = new Error("host confirmed an unexpected Web Push wake")
         pending?.reject(error)
         pendingPushWake = null
-        openedSocket.close(1008, error.message)
+        rejectHamiltonianControlSocket(socketSlot, openedSocket, error.message)
         return
       }
       pendingPushWake = null
@@ -1077,7 +1078,7 @@ function ensureSocket(): void {
     if (message.kind === "push-subscription-confirmed") {
       const registrationId = message.registrationId
       if (!validControlIdentity(registrationId)) {
-        openedSocket.close(1008, "invalid PushSubscription confirmation")
+        rejectHamiltonianControlSocket(socketSlot, openedSocket, "invalid PushSubscription confirmation")
         return
       }
       const pending = pendingPushRegistrations.get(registrationId)
@@ -1098,7 +1099,7 @@ function ensureSocket(): void {
     if (message.kind === "push-subscription-rejected") {
       const registrationId = message.registrationId
       if (!validControlIdentity(registrationId)) {
-        openedSocket.close(1008, "invalid PushSubscription rejection")
+        rejectHamiltonianControlSocket(socketSlot, openedSocket, "invalid PushSubscription rejection")
         return
       }
       const pending = pendingPushRegistrations.get(registrationId)
@@ -1131,7 +1132,7 @@ function ensureSocket(): void {
     }
     if (message.kind === "hello") {
       if (!isHostIdentity(message.host)) {
-        openedSocket.close(1008, "invalid host identity")
+        rejectHamiltonianControlSocket(socketSlot, openedSocket, "invalid host identity")
         return
       }
       const declaredHost = currentServerLogicalContourId === null
@@ -1144,7 +1145,7 @@ function ensureSocket(): void {
         declaredIdentity.hostEpoch !== message.host.hostEpoch ||
         declaredIdentity.version !== message.host.version
       ) {
-        openedSocket.close(1008, "host identity does not match its node-system declaration")
+        rejectHamiltonianControlSocket(socketSlot, openedSocket, "host identity does not match its node-system declaration")
         return
       }
       currentConnectionId = message.connectionId ?? null
@@ -1154,7 +1155,7 @@ function ensureSocket(): void {
     }
     if (message.kind === "topology") {
       if (!isHostIdentity(message.host) || !message.topology) {
-        openedSocket.close(1008, "invalid topology message")
+        rejectHamiltonianControlSocket(socketSlot, openedSocket, "invalid topology message")
         return
       }
       currentHost = message.host
@@ -1169,7 +1170,7 @@ function ensureSocket(): void {
     }
     if (message.kind === "service-worker-update") {
       if (!isServiceWorkerRelease(message.target) || message.target.version === workerCodeVersion) {
-        openedSocket.close(1008, "invalid Service Worker update target")
+        rejectHamiltonianControlSocket(socketSlot, openedSocket, "invalid Service Worker update target")
         return
       }
       applicationReady = false
@@ -1182,7 +1183,7 @@ function ensureSocket(): void {
     }
     if (message.kind === "service-worker-current") {
       if (!isServiceWorkerRelease(message.target) || message.target.version !== workerCodeVersion) {
-        openedSocket.close(1008, "invalid current Service Worker release")
+        rejectHamiltonianControlSocket(socketSlot, openedSocket, "invalid current Service Worker release")
         return
       }
       void admitServiceWorkerApplication()
