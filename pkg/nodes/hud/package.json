@@ -1,0 +1,22 @@
+{
+  "name": "@nodes/hud",
+  "version": "0.0.1",
+  "description": "Optional HUD surfaces for node-system consumers.",
+  "type": "module",
+  "private": true,
+  "main": "index.ts",
+  "types": "index.ts",
+  "exports": {
+    ".": "./index.ts",
+    "./inspector": "./inspector.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit --pretty false"
+  },
+  "dependencies": {
+    "@ui/components": "workspace:*",
+    "@ui/elements": "workspace:*",
+    "@ui/hud": "workspace:*",
+    "nodes": "workspace:*"
+  }
+}

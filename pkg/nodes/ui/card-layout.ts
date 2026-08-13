@@ -1,4 +1,4 @@
-import {flexColumn, flexRow} from "@ui/elements"
+import {flexColumn, flexRow} from "@ui/elements/flex"
 import type {
   NodeSystemFact,
   NodeSystemDocument,
@@ -6,15 +6,40 @@ import type {
   NodeSystemPort,
   NodeSystemPortSide,
   NodeSystemRect,
-} from "../types/model.ts"
-import type {
-  NodeSystemCardFactSlot,
-  NodeSystemCardMeasurement,
-  NodeSystemCardPlan,
-  NodeSystemCardPortSlot,
-  NodeSystemCardSize,
-  NodeSystemTextMeasurer,
-} from "../types/card.ts"
+} from "nodes/types"
+
+/** Intrinsic card size measured on the main thread. */
+export type NodeSystemCardSize = Readonly<{width: number; height: number}>
+export type NodeSystemTextMeasurer = (value: string, fontPx: number) => number
+export type NodeSystemCardFactSlot = Readonly<{
+  fact: NodeSystemFact
+  row: NodeSystemRect
+  label: NodeSystemRect
+  value: NodeSystemRect
+}>
+export type NodeSystemCardPortSlot = Readonly<{
+  port: NodeSystemPort
+  row: NodeSystemRect
+  marker: NodeSystemRect
+}>
+export type NodeSystemCardPlan = Readonly<{
+  frame: NodeSystemRect
+  header: NodeSystemRect
+  body: NodeSystemRect
+  title: NodeSystemRect
+  kind?: NodeSystemRect
+  summary?: NodeSystemRect
+  facts: readonly NodeSystemCardFactSlot[]
+  ports: readonly NodeSystemCardPortSlot[]
+}>
+
+/** Internal measurement is exported for implementations, not required by callers. */
+export type NodeSystemCardMeasurement = Readonly<{
+  size: NodeSystemCardSize
+  exact: boolean
+  kindWidth: number
+  factLabelWidths: ReadonlyMap<string, number>
+}>
 
 export const NODE_SYSTEM_CARD_METRICS = Object.freeze({
   defaultWidth: 260,

@@ -11,6 +11,7 @@
     "@metafor/engine": "workspace:*",
     "@metafor/web-push": "workspace:*",
     "@nodes/layout": "workspace:*",
+    "@nodes/hud": "workspace:*",
     "@nodes/ui": "workspace:*",
     "@ui/components": "workspace:*",
     "@ui/elements": "workspace:*",

@@ -175,7 +175,8 @@ dependency graph, занимать память и усложнять поним
 * `@nodes/hud -> nodes + @ui/hud`;
 * `Hamiltonian -> nodes + выбранные @nodes/* entrypoints`;
 * запрещены `nodes -> @nodes/ui`, `nodes -> @nodes/hud`,
-  `@nodes/ui -> @nodes/hud|@ui/hud` и любые imports из `nodes` в Hamiltonian.
+  `@nodes/ui -> @nodes/hud|@ui/hud` и любые imports из Hamiltonian в пакеты
+  `nodes`.
 
 Корневые barrels не восстанавливают запрещённые зависимости реэкспортом.
 
@@ -194,10 +195,10 @@ dependency graph, занимать память и усложнять поним
 
 | ID | Срез | Состояние |
 | --- | --- | --- |
-| NODES-009.1 | Отделить ядро и явно назвать fixed card adapter | IN_PROGRESS |
-| NODES-009.2 | Отделить HUD и универсализировать visual style resolver | IN_PROGRESS |
-| NODES-009.3 | Перенести Hamiltonian catalog из `nodes` и мигрировать consumer | IN_PROGRESS |
-| NODES-009.4 | Доказать package graph, browser bundles и отсутствие регрессии | WAITING |
+| NODES-009.1 | Отделить ядро и явно назвать fixed card adapter | COMPLETE |
+| NODES-009.2 | Отделить HUD и универсализировать visual style resolver | COMPLETE |
+| NODES-009.3 | Перенести Hamiltonian catalog из `nodes` и мигрировать consumer | COMPLETE |
+| NODES-009.4 | Доказать package graph, browser bundles и отсутствие регрессии | COMPLETE |
 
 NODES-009.1–NODES-009.3 меняют независимые владельцы файлов и сходятся перед
 NODES-009.4. Подготовительный baseline: `c6b74258000a38812b49f2fe65c2e8ae2e1d0786`.
@@ -248,8 +249,43 @@ NODES-009.4. Подготовительный baseline: `c6b74258000a38812b49f2f
 * package tests, typecheck и browser-export checks;
 * независимая проверка границ до принятия реализации.
 
+## Результат реализации
+
+13 августа 2026 года подготовлен result для review:
+
+1. Корневой `nodes` больше не зависит от `@nodes/ui` и не реэкспортирует
+   renderer или `@nodes/layout`. Validation-only browser fixture собирается в
+   `3,045` bytes (`1,044` gzip) вместо прежних `283,140` bytes через root barrel.
+2. Card-specific adapter перенесён в явный
+   `@nodes/ui/fixed-card-layout`; public API называется
+   `FixedNodeSystemCardLayouter`/`FixedNodeSystemCardWorkerLayouter` без
+   MetaFor branding.
+3. `@nodes/ui` не зависит от HUD. Inspector вынесен в отдельный optional
+   workspace `@nodes/hud`.
+4. Hamiltonian transport catalog и его палитра перенесены к consumer. Generic
+   surface принимает один `NodeSystemConnectionColorResolver` и одинаково
+   применяет его к socket, edge и flow marker.
+5. Public `edge-particle` переименован в универсальный `edge-flow-marker`, не
+   смешивающий UI-анимацию с доменным понятием MetaFor Particle.
+6. Автоматический package-boundary test проверяет source imports, реальные
+   exports, отсутствие product vocabulary и три независимые browser-сборки.
+7. Hamiltonian мигрирован на новые entrypoints без compatibility barrel.
+
+Проверено на итоговом дереве:
+
+* `bun test pkg/nodes` — `91 pass / 0 fail`, `1686 expect()`;
+* `bun run test` в `hamiltonian` — `203 pass / 0 fail`, `4006 expect()`;
+* root, `nodes`, `@nodes/ui` и `@nodes/hud` typecheck — успешно;
+* `hamiltonian/browser-build.spec.ts` — production browser orchestration и
+  isolated Worker bundles собираются;
+* `bun run docs:layout` и `git diff --check` — успешно.
+
+Runtime не перезапускался и live visual acceptance не выполнялась: этот result
+доказывает package/import equivalence, tests и browser build. Structural
+реорганизация всей Hamiltonian visualization остаётся в зависимой `HAM-002`.
+
 ## Артефакты
 
-На этапе регистрации исходных артефактов нет. Воспроизводимые fixtures,
-bundle reports и measurements должны храниться в `project/artifacts/NODES-009/`
-после принятия конкретного исследовательского среза.
+Воспроизводимые fixtures находятся в `pkg/nodes/fixtures/`, проверки — в
+`pkg/nodes/package-boundary.test.ts`, а размеры и границы доказательства — в
+[`project/artifacts/NODES-009/README.md`](../artifacts/NODES-009/README.md).

@@ -38,17 +38,29 @@
    победителя. Leaf-card foreground остаётся поверх маршрута и не активирует
    скрытый под ним edge; пустая область compound-контейнера не блокирует
    наведение на видимый внутри него маршрут.
-7. Цвет exact socket и semantic edge определяется только их общим
-   `connectionType`. Вход и выход одного типа имеют одинаковый цвет;
-   `direction` определяет лишь левую или правую сторону. Состояние
+7. Цвет exact socket, semantic edge и moving-message marker определяется одним
+   consumer-provided resolver по их общему `connectionType`; без resolver
+   применяется детерминированный универсальный fallback. Вход и выход одного
+   типа имеют одинаковый цвет. `direction` задаёт универсальную capability,
+   placement side выбирает adapter или явный `side`; состояние
    `neutral / live / paused / warn` передаётся отдельным признаком и не меняет
    цветовую identity типа соединения.
+
+## Package boundary
+
+1. `@nodes/ui` не импортирует `@ui/hud` или `@nodes/hud`.
+2. Inspector и другие HUD-window integrations принадлежат `@nodes/hud`.
+3. `@nodes/ui/surface` принимает готовую geometry и не импортирует fixed card
+   adapter. Поэтому custom/adaptive consumer не загружает fixed policy.
+4. `@nodes/ui/fixed-card-layout` явно владеет fixed placement exact sockets и
+   может импортировать `@nodes/layout`; этот import не проходит через renderer
+   surface entrypoint.
 
 ## View
 
 1. Auto-fit и canvas transform не входят в layout algorithm. Пока auto-fit
-   включён, UI показывает весь текущий graph и исключает HUD-окна из display
-   rect.
+   включён, UI показывает весь текущий graph внутри переданного владельцем
+   display rect.
 2. Первый ручной pan/zoom выключает auto-fit для текущей page incarnation.
    Последующий transform принадлежит пользователю, пока он явно не включит
    auto-fit снова.

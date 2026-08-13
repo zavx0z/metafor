@@ -4,7 +4,8 @@
  * Package принимает только заранее измеренный {@link LayoutGraph} и владеет
  * координатами нод, уплотнением compound-контейнеров, generated gateways и
  * orthogonal routing.
- * UI documents, текст, Flex, renderer, DOM и Hamiltonian находятся за границей.
+ * UI documents, текст, Flex, renderer, DOM и product vocabulary находятся за
+ * границей.
  * @packageDocumentation
  */
 

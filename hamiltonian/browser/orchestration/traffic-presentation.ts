@@ -1,4 +1,4 @@
-import {NODE_SYSTEM_EDGE_PARTICLE_DURATION_MS} from "@nodes/ui"
+import {NODE_SYSTEM_EDGE_FLOW_MARKER_DURATION_MS} from "@nodes/ui/edge-flow-marker"
 
 export type HamiltonianTrafficPresentationValue = Readonly<{edgeId: string; at: number}>
 
@@ -17,7 +17,7 @@ export class HamiltonianTrafficPresentationGate<T extends HamiltonianTrafficPres
 
   constructor(options: Readonly<{capacity?: number; maxAgeMs?: number; now?: () => number}> = {}) {
     this.#capacity = Math.max(1, Math.floor(options.capacity ?? 256))
-    this.#maxAgeMs = Math.max(1, Math.floor(options.maxAgeMs ?? NODE_SYSTEM_EDGE_PARTICLE_DURATION_MS))
+    this.#maxAgeMs = Math.max(1, Math.floor(options.maxAgeMs ?? NODE_SYSTEM_EDGE_FLOW_MARKER_DURATION_MS))
     this.#now = options.now ?? Date.now
   }
 

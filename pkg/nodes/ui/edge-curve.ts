@@ -1,7 +1,7 @@
 import type {
   NodeSystemPoint,
   NodeSystemRect,
-} from "../types/model.ts"
+} from "nodes/types"
 
 export type NodeSystemCubicBezier = Readonly<{
   from: NodeSystemPoint

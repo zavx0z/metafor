@@ -6,9 +6,7 @@ import {
   planNodeSystemCanvasViewport,
   zoomNodeSystemCanvasTransformAt,
 } from "./index.ts"
-import type {PositionedNodeSystem} from "../types/model.ts"
-import {HUD_WINDOW_TITLE_HEIGHT} from "@ui/hud"
-import {NODE_INSPECTOR_TITLE_HEIGHT, NodeInspectorSurface, nodeInspectorRows} from "./inspector.ts"
+import type {PositionedNodeSystem} from "nodes/types"
 import {
   NodeSystemSurface,
   nodeSystemScreenPresentationMetrics,
@@ -130,7 +128,7 @@ describe("node-system infinite canvas and surfaces", () => {
     ])
   })
 
-  test("keeps selection and action execution outside the serializable document", () => {
+  test("keeps selection outside the serializable document", () => {
     const selected: Array<string | null> = []
     const surface = new NodeSystemSurface({onSelectionChange: (nodeId) => selected.push(nodeId)})
     surface.setLayout(layout)
@@ -138,31 +136,6 @@ describe("node-system infinite canvas and surfaces", () => {
     expect(surface.selectedNode?.node.title).toBe("Host")
     expect(surface.select("missing")).toBe(false)
     expect(selected).toEqual(["host"])
-
-    const inspector = new NodeInspectorSurface({open: false})
-    inspector.inspect(surface.selectedNode?.node ?? null)
-    expect(inspector.inspectedNode?.id).toBe("host")
-    expect(inspector.isOpen).toBe(false)
-    expect(NODE_INSPECTOR_TITLE_HEIGHT).toBe(HUD_WINDOW_TITLE_HEIGHT)
-    expect(nodeInspectorRows(inspector.inspectedNode!)).toEqual([
-      {id: "identity", label: "Идентификатор", value: "host"},
-      {id: "kind", label: "Тип", value: "runtime"},
-      {id: "status", label: "Status", value: "ready"},
-      {id: "link", label: "Link", value: "out"},
-    ])
-  })
-
-  test("closes and reopens the inspector without losing its selected node", () => {
-    const states: boolean[] = []
-    const inspector = new NodeInspectorSurface({onOpenChange: (open) => states.push(open)})
-    inspector.inspect(layout.nodes[0]!.node)
-    expect(inspector.setOpen(false)).toBe(true)
-    expect(inspector.isOpen).toBe(false)
-    expect(inspector.inspectedNode?.id).toBe("host")
-    expect(inspector.setOpen(false)).toBe(false)
-    expect(inspector.toggleOpen()).toBe(true)
-    expect(inspector.isOpen).toBe(true)
-    expect(states).toEqual([false, true])
   })
 
   test("moves a node through the surface contract without moving its peer", () => {
@@ -264,7 +237,7 @@ describe("node-system infinite canvas and surfaces", () => {
     expect(counts).toEqual([1, 2])
   })
 
-  test("requests one terminal clearing frame when the last edge particle expires", () => {
+  test("requests one terminal clearing frame when the last edge marker expires", () => {
     const originalNow = Date.now
     const originalRequestAnimationFrame = globalThis.requestAnimationFrame
     const originalCancelAnimationFrame = globalThis.cancelAnimationFrame

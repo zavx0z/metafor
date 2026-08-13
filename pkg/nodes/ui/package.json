@@ -1,7 +1,7 @@
 {
   "name": "@nodes/ui",
   "version": "0.0.1",
-  "description": "Node-system card, viewport, inspector and WebGPU components.",
+  "description": "Node-system card, viewport and WebGPU components.",
   "type": "module",
   "private": true,
   "main": "index.ts",
@@ -9,20 +9,21 @@
   "exports": {
     ".": "./index.ts",
     "./card-layout": "./card-layout.ts",
+    "./fixed-card-layout": "./fixed-card-layout.ts",
     "./edge-curve": "./edge-curve.ts",
-    "./edge-particle": "./edge-particle.ts",
+    "./edge-flow-marker": "./edge-flow-marker.ts",
     "./connection-color": "./connection-color.ts",
     "./viewport": "./viewport.ts",
-    "./surface": "./surface.ts",
-    "./inspector": "./inspector.ts"
+    "./surface": "./surface.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --pretty false"
   },
   "dependencies": {
     "@metafor/engine": "workspace:*",
+    "@nodes/layout": "workspace:*",
     "@ui/components": "workspace:*",
     "@ui/elements": "workspace:*",
-    "@ui/hud": "workspace:*"
+    "nodes": "workspace:*"
   }
 }

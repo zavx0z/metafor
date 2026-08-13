@@ -16,25 +16,28 @@ import type {
   PositionedNodeSystem,
   PositionedNodeSystemEdge,
   PositionedNodeSystemNode,
-} from "../types/model.ts"
+} from "nodes/types"
 import {
   NODE_SYSTEM_CARD_METRICS,
   NODE_SYSTEM_PORT_PITCH,
   measureNodeSystemCard,
   planNodeSystemCard,
+  type NodeSystemTextMeasurer,
 } from "./card-layout.ts"
-import type {NodeSystemTextMeasurer} from "../types/card.ts"
 import {
   hitTestNodeSystemEdges,
   planNodeSystemEdgeHitRects,
   sampleNodeSystemBezierPath,
 } from "./edge-curve.ts"
 import {
-  NODE_SYSTEM_EDGE_PARTICLE_DURATION_MS,
-  planNodeSystemEdgeParticle,
+  NODE_SYSTEM_EDGE_FLOW_MARKER_DURATION_MS,
+  planNodeSystemEdgeFlowMarker,
   type NodeSystemEdgeMessage,
-} from "./edge-particle.ts"
-import {nodeSystemConnectionColor} from "./connection-color.ts"
+} from "./edge-flow-marker.ts"
+import {
+  defaultNodeSystemConnectionColor,
+  type NodeSystemConnectionColorResolver,
+} from "./connection-color.ts"
 import {
   DEFAULT_NODE_SYSTEM_CANVAS_TRANSFORM,
   fitNodeSystemCanvasTransform,
@@ -45,12 +48,12 @@ import {
 import {
   moveNodeSystemNodes,
   resizeNodeSystemNode,
-} from "../incremental-layout.ts"
+} from "nodes/incremental-layout"
 import type {
   NodeSystemCanvasTransform,
   NodeSystemCanvasTransformLimits,
   NodeSystemRenderPlan,
-} from "../types/viewport.ts"
+} from "nodes/types"
 
 export type NodeSystemSurfaceOptions = UiSurfaceOpts & Readonly<{
   title?: string
@@ -59,6 +62,8 @@ export type NodeSystemSurfaceOptions = UiSurfaceOpts & Readonly<{
   editable?: boolean
   minScale?: number
   maxScale?: number
+  /** Consumer-owned mapping from semantic connection identity to presentation color. */
+  connectionColor?: NodeSystemConnectionColorResolver
   onSelectionChange?: (nodeId: string | null) => void
   onNodeMove?: (event: NodeSystemNodeMoveEvent) => void
   onNodeResize?: (event: NodeSystemNodeResizeEvent) => void
@@ -92,7 +97,7 @@ const EMPTY_LAYOUT: PositionedNodeSystem = Object.freeze({
 const HEADER_HEIGHT = 38
 const NODE_BODY_OPACITY = 0.94
 const NODE_HEADER_OPACITY = 0.96
-const EDGE_PARTICLE_TAIL_SEGMENTS = 12
+const EDGE_FLOW_MARKER_TAIL_SEGMENTS = 12
 
 export type NodeSystemScreenPresentationMetrics = Readonly<{
   titleFontPx: number
@@ -124,17 +129,17 @@ export function nodeSystemScreenPresentationMetrics(scale: number): NodeSystemSc
   }
 }
 
-type RetainedParticleShape = Readonly<{
+type RetainedFlowMarkerShape = Readonly<{
   mesh: Mesh
   material: RoundedRectMaterial
 }>
 
-type RetainedParticleVisual = Readonly<{
-  tail: readonly RetainedParticleShape[]
-  head: RetainedParticleShape
+type RetainedFlowMarkerVisual = Readonly<{
+  tail: readonly RetainedFlowMarkerShape[]
+  head: RetainedFlowMarkerShape
 }>
 
-type EdgeParticleRoute = Readonly<{
+type EdgeFlowMarkerRoute = Readonly<{
   entry: PositionedNodeSystemEdge
   stroke: readonly Readonly<{x: number; y: number}>[]
 }>
@@ -207,6 +212,7 @@ export class NodeSystemSurface extends UiSurface {
   readonly #toolbar: boolean
   readonly #editable: boolean
   readonly #limits: NodeSystemCanvasTransformLimits
+  readonly #connectionColor: NodeSystemConnectionColorResolver
   readonly #onSelectionChange: ((nodeId: string | null) => void) | undefined
   readonly #onNodeMove: ((event: NodeSystemNodeMoveEvent) => void) | undefined
   readonly #onNodeResize: ((event: NodeSystemNodeResizeEvent) => void) | undefined
@@ -244,11 +250,11 @@ export class NodeSystemSurface extends UiSurface {
   }> | null = null
   #edgeMessages = new Map<string, NodeSystemEdgeMessage>()
   #seenEdgeMessageIds = new Set<string>()
-  #particleFrameId: number | null = null
+  #flowMarkerFrameId: number | null = null
   #edgeAnimationEnabled = true
-  #edgeParticleRoutes = new Map<string, EdgeParticleRoute>()
-  readonly #edgeParticleGeometry = new PlaneGeometry({width: 1, height: 1})
-  #particleVisuals: RetainedParticleVisual[] = []
+  #edgeFlowMarkerRoutes = new Map<string, EdgeFlowMarkerRoute>()
+  readonly #edgeFlowMarkerGeometry = new PlaneGeometry({width: 1, height: 1})
+  #flowMarkerVisuals: RetainedFlowMarkerVisual[] = []
 
   constructor(options: NodeSystemSurfaceOptions = {}) {
     super({
@@ -265,6 +271,7 @@ export class NodeSystemSurface extends UiSurface {
       ...(options.minScale === undefined ? {} : {minScale: options.minScale}),
       ...(options.maxScale === undefined ? {} : {maxScale: options.maxScale}),
     }
+    this.#connectionColor = options.connectionColor ?? defaultNodeSystemConnectionColor
     this.#onSelectionChange = options.onSelectionChange
     this.#onNodeMove = options.onNodeMove
     this.#onNodeResize = options.onNodeResize
@@ -316,8 +323,8 @@ export class NodeSystemSurface extends UiSurface {
   }
 
   /** Number of retained visual slots allocated for the peak concurrent load. */
-  get retainedEdgeParticleVisualCount(): number {
-    return this.#particleVisuals.length
+  get retainedEdgeFlowMarkerVisualCount(): number {
+    return this.#flowMarkerVisuals.length
   }
 
   /** Suspends transient traffic rendering without pausing the owning topology. */
@@ -325,19 +332,19 @@ export class NodeSystemSurface extends UiSurface {
     if (this.#edgeAnimationEnabled === enabled) return false
     this.#edgeAnimationEnabled = enabled
     if (!enabled) {
-      if (this.#particleFrameId !== null && typeof cancelAnimationFrame === "function") {
-        cancelAnimationFrame(this.#particleFrameId)
+      if (this.#flowMarkerFrameId !== null && typeof cancelAnimationFrame === "function") {
+        cancelAnimationFrame(this.#flowMarkerFrameId)
       }
-      this.#particleFrameId = null
+      this.#flowMarkerFrameId = null
       const hadMessages = this.#edgeMessages.size > 0
       this.#edgeMessages.clear()
-      this.#hideParticleVisuals()
+      this.#hideFlowMarkerVisuals()
       if (hadMessages) this.#onEdgeMessageCountChange?.(0)
       this.requestPresentationFrame()
       return true
     }
-    // Clear any retained terminal particle before accepting fresh traffic.
-    this.#updateParticleVisuals(Date.now())
+    // Clear any retained terminal marker before accepting fresh traffic.
+    this.#updateFlowMarkerVisuals(Date.now())
     this.requestPresentationFrame()
     return true
   }
@@ -350,7 +357,7 @@ export class NodeSystemSurface extends UiSurface {
       !message.id || !message.edgeId ||
       (message.direction !== "forward" && message.direction !== "reverse") ||
       !Number.isFinite(message.at) ||
-      now - message.at >= NODE_SYSTEM_EDGE_PARTICLE_DURATION_MS ||
+      now - message.at >= NODE_SYSTEM_EDGE_FLOW_MARKER_DURATION_MS ||
       this.#seenEdgeMessageIds.has(message.id)
     ) return false
     this.#seenEdgeMessageIds.add(message.id)
@@ -361,12 +368,12 @@ export class NodeSystemSurface extends UiSurface {
     this.#edgeMessages.set(message.id, Object.freeze({...message}))
     this.#pruneEdgeMessages(now)
     this.#onEdgeMessageCountChange?.(this.#edgeMessages.size)
-    if (this.#edgeParticleRoutes.size === 0) this.requestRender()
+    if (this.#edgeFlowMarkerRoutes.size === 0) this.requestRender()
     else {
-      this.#updateParticleVisuals(now)
+      this.#updateFlowMarkerVisuals(now)
       this.requestPresentationFrame()
     }
-    this.#ensureParticleAnimation()
+    this.#ensureFlowMarkerAnimation()
     return true
   }
 
@@ -516,7 +523,7 @@ export class NodeSystemSurface extends UiSurface {
     try {
       const plan = this.renderPlan()
       this.#registerBackground(content)
-      this.#edgeParticleRoutes.clear()
+      this.#edgeFlowMarkerRoutes.clear()
       const visibleById = new Map(plan.nodes.map((entry) => [entry.node.id, entry] as const))
       for (const step of planNodeSystemContainmentPaintSteps(this.#layout.nodes, plan.nodes)) {
         if (step.kind === "owner-background") {
@@ -547,8 +554,16 @@ export class NodeSystemSurface extends UiSurface {
               plan.nodes.flatMap(({node, rect}) => compoundNodeIds.has(node.id) ? [] : [rect]),
             ))
             for (const {edge, stroke, hitRects} of routes) {
-              this.#edgeParticleRoutes.set(edge.edge.id, {entry: edge, stroke})
-              drawEdge(this, edge, plan.canvasTransform.scale, stroke, hitRects, hoveredEdgeIds.has(edge.edge.id))
+              this.#edgeFlowMarkerRoutes.set(edge.edge.id, {entry: edge, stroke})
+              drawEdge(
+                this,
+                edge,
+                plan.canvasTransform.scale,
+                stroke,
+                hitRects,
+                hoveredEdgeIds.has(edge.edge.id),
+                this.#connectionColor,
+              )
             }
           })
           continue
@@ -560,7 +575,7 @@ export class NodeSystemSurface extends UiSurface {
       }
       const now = Date.now()
       this.#pruneEdgeMessages(now)
-      this.#updateParticleVisuals(now)
+      this.#updateFlowMarkerVisuals(now)
       this.#drawMarquee()
       if (plan.nodes.length === 0) {
         flexColumn({
@@ -594,76 +609,76 @@ export class NodeSystemSurface extends UiSurface {
   }
 
   override dispose(): void {
-    if (this.#particleFrameId !== null && typeof cancelAnimationFrame === "function") {
-      cancelAnimationFrame(this.#particleFrameId)
+    if (this.#flowMarkerFrameId !== null && typeof cancelAnimationFrame === "function") {
+      cancelAnimationFrame(this.#flowMarkerFrameId)
     }
-    this.#particleFrameId = null
+    this.#flowMarkerFrameId = null
     this.#edgeMessages.clear()
-    this.#edgeParticleRoutes.clear()
-    this.#hideParticleVisuals()
+    this.#edgeFlowMarkerRoutes.clear()
+    this.#hideFlowMarkerVisuals()
     super.dispose()
   }
 
   #pruneEdgeMessages(now: number): void {
     const previousSize = this.#edgeMessages.size
     for (const [id, message] of this.#edgeMessages) {
-      if (now - message.at >= NODE_SYSTEM_EDGE_PARTICLE_DURATION_MS) this.#edgeMessages.delete(id)
+      if (now - message.at >= NODE_SYSTEM_EDGE_FLOW_MARKER_DURATION_MS) this.#edgeMessages.delete(id)
     }
     if (this.#edgeMessages.size !== previousSize) this.#onEdgeMessageCountChange?.(this.#edgeMessages.size)
   }
 
-  #ensureParticleAnimation(): void {
+  #ensureFlowMarkerAnimation(): void {
     if (
-      this.#particleFrameId !== null ||
+      this.#flowMarkerFrameId !== null ||
       !this.#edgeAnimationEnabled ||
       this.#edgeMessages.size === 0 ||
       typeof requestAnimationFrame !== "function"
     ) return
-    this.#particleFrameId = requestAnimationFrame(() => {
-      this.#particleFrameId = null
+    this.#flowMarkerFrameId = requestAnimationFrame(() => {
+      this.#flowMarkerFrameId = null
       this.#pruneEdgeMessages(Date.now())
       // The terminal frame is as important as every movement frame: without
-      // it the retained canvas keeps showing the last particle position until
+      // it the retained canvas keeps showing the last marker position until
       // some unrelated UI event invalidates the scene.
-      this.#updateParticleVisuals(Date.now())
+      this.#updateFlowMarkerVisuals(Date.now())
       this.requestPresentationFrame()
       if (this.#edgeMessages.size === 0) return
-      this.#ensureParticleAnimation()
+      this.#ensureFlowMarkerAnimation()
     })
   }
 
-  #updateParticleVisuals(now: number): void {
+  #updateFlowMarkerVisuals(now: number): void {
     let visualIndex = 0
     for (const message of this.#edgeMessages.values()) {
-      const route = this.#edgeParticleRoutes.get(message.edgeId)
+      const route = this.#edgeFlowMarkerRoutes.get(message.edgeId)
       if (route === undefined) continue
-      const particle = planNodeSystemEdgeParticle(
+      const marker = planNodeSystemEdgeFlowMarker(
         route.stroke,
         message,
         now,
-        NODE_SYSTEM_EDGE_PARTICLE_DURATION_MS,
+        NODE_SYSTEM_EDGE_FLOW_MARKER_DURATION_MS,
         undefined,
-        EDGE_PARTICLE_TAIL_SEGMENTS,
+        EDGE_FLOW_MARKER_TAIL_SEGMENTS,
       )
-      if (particle === null) continue
-      const visual = this.#particleVisuals[visualIndex] ?? this.#createParticleVisual()
-      updateParticleVisual(visual, particle, nodeSystemConnectionColor(route.entry.edge.connectionType), this.pixelScale)
+      if (marker === null) continue
+      const visual = this.#flowMarkerVisuals[visualIndex] ?? this.#createFlowMarkerVisual()
+      updateFlowMarkerVisual(visual, marker, this.#connectionColor(route.entry.edge.connectionType), this.pixelScale)
       visualIndex += 1
     }
-    for (let index = visualIndex; index < this.#particleVisuals.length; index += 1) {
-      setParticleVisualVisible(this.#particleVisuals[index]!, false)
+    for (let index = visualIndex; index < this.#flowMarkerVisuals.length; index += 1) {
+      setFlowMarkerVisualVisible(this.#flowMarkerVisuals[index]!, false)
     }
   }
 
-  #createParticleVisual(): RetainedParticleVisual {
-    const tail = Array.from({length: EDGE_PARTICLE_TAIL_SEGMENTS}, () => this.#createParticleShape())
-    const head = this.#createParticleShape(true)
+  #createFlowMarkerVisual(): RetainedFlowMarkerVisual {
+    const tail = Array.from({length: EDGE_FLOW_MARKER_TAIL_SEGMENTS}, () => this.#createFlowMarkerShape())
+    const head = this.#createFlowMarkerShape(true)
     const visual = {tail, head}
-    this.#particleVisuals.push(visual)
+    this.#flowMarkerVisuals.push(visual)
     return visual
   }
 
-  #createParticleShape(head = false): RetainedParticleShape {
+  #createFlowMarkerShape(head = false): RetainedFlowMarkerShape {
     const material = new RoundedRectMaterial({
       width: 1,
       height: 1,
@@ -672,18 +687,18 @@ export class NodeSystemSurface extends UiSurface {
       border: head ? new Color(1, 1, 1, 0.72) : null,
       borderWidth: 0,
     })
-    // Every retained particle shape is a transformed unit quad. Sharing the
+    // Every retained marker shape is a transformed unit quad. Sharing the
     // immutable geometry keeps peak traffic concurrency from multiplying the
     // same vertex/index GPU buffers for every head and tail segment.
-    const mesh = new Mesh(this.#edgeParticleGeometry, material)
+    const mesh = new Mesh(this.#edgeFlowMarkerGeometry, material)
     mesh.visible = false
     mesh.frustumCulled = false
     this.addRetainedObject(mesh)
     return {mesh, material}
   }
 
-  #hideParticleVisuals(): void {
-    for (const visual of this.#particleVisuals) setParticleVisualVisible(visual, false)
+  #hideFlowMarkerVisuals(): void {
+    for (const visual of this.#flowMarkerVisuals) setFlowMarkerVisualVisible(visual, false)
   }
 
   #drawNodeBackground(entry: PositionedNodeSystemNode, scale: number, compound = false): void {
@@ -774,7 +789,7 @@ export class NodeSystemSurface extends UiSurface {
       const socket = visibleSocketRect(marker, screen.socketDiameterPx)
       this.drawRoundedRect(socket.x, socket.y, socket.w, socket.h, {
         radius: socket.w / 2,
-        fill: nodeSystemConnectionColor(port.connectionType),
+        fill: this.#connectionColor(port.connectionType),
         border: palette.bg,
         borderWidth: Math.max(0.8, scale),
         z: Z.TEXT + 0.02,
@@ -1081,8 +1096,9 @@ function drawEdge(
   stroke: readonly Readonly<{x: number; y: number}>[],
   hitRects: readonly Readonly<{x: number; y: number; w: number; h: number}>[],
   isHovered: boolean,
+  connectionColor: NodeSystemConnectionColorResolver,
 ): void {
-  const color = nodeSystemConnectionColor(entry.edge.connectionType)
+  const color = connectionColor(entry.edge.connectionType)
   const thickness = nodeSystemScreenPresentationMetrics(scale).edgeThicknessPx
   host.drawPolyline(
     stroke,
@@ -1121,20 +1137,20 @@ function visibleSocketRect(
   }
 }
 
-function updateParticleVisual(
-  visual: RetainedParticleVisual,
-  particle: NonNullable<ReturnType<typeof planNodeSystemEdgeParticle>>,
+function updateFlowMarkerVisual(
+  visual: RetainedFlowMarkerVisual,
+  marker: NonNullable<ReturnType<typeof planNodeSystemEdgeFlowMarker>>,
   base: Color,
   pixelScale: number,
 ): void {
   for (let index = 0; index < visual.tail.length; index += 1) {
     const shape = visual.tail[index]!
-    const segment = particle.tail[index]
+    const segment = marker.tail[index]
     if (segment === undefined) {
       shape.mesh.visible = false
       continue
     }
-    updateParticleSegment(
+    updateFlowMarkerSegment(
       shape,
       segment.from,
       segment.to,
@@ -1150,8 +1166,8 @@ function updateParticleVisual(
   const diameter = radius * 2 * pixelScale
   const {mesh, material} = visual.head
   mesh.visible = true
-  mesh.position.x = particle.head.x * pixelScale
-  mesh.position.y = -particle.head.y * pixelScale
+  mesh.position.x = marker.head.x * pixelScale
+  mesh.position.y = -marker.head.y * pixelScale
   mesh.position.z = Z.ELEMENT_RULE + 0.008
   mesh.rotation.z = 0
   mesh.scale.set(diameter, diameter, 1)
@@ -1165,8 +1181,8 @@ function updateParticleVisual(
   material.opacity = 1
 }
 
-function updateParticleSegment(
-  shape: RetainedParticleShape,
+function updateFlowMarkerSegment(
+  shape: RetainedFlowMarkerShape,
   from: Readonly<{x: number; y: number}>,
   to: Readonly<{x: number; y: number}>,
   thickness: number,
@@ -1207,7 +1223,7 @@ function setUniformRadii(material: RoundedRectMaterial, radius: number): void {
   material.radii[3] = radius
 }
 
-function setParticleVisualVisible(visual: RetainedParticleVisual, visible: boolean): void {
+function setFlowMarkerVisualVisible(visual: RetainedFlowMarkerVisual, visible: boolean): void {
   for (const shape of visual.tail) shape.mesh.visible = visible
   visual.head.mesh.visible = visible
 }

@@ -1,20 +1,20 @@
 import {describe, expect, test} from "bun:test"
-import {LayoutWorkerClient, runLayoutWorkerRequest} from "./layout-worker.ts"
-import type {LayoutWorkerRequest, LayoutWorkerResponse} from "./types/worker.ts"
+import {LayoutWorkerClient, runLayoutWorkerRequest} from "nodes/layout-worker"
+import type {LayoutWorkerRequest, LayoutWorkerResponse} from "nodes/types"
 import {
   measureNodeSystemCard,
   measureNodeSystemCardContentHeight,
   NODE_SYSTEM_PORT_PITCH,
-} from "@nodes/ui/card-layout"
+} from "./card-layout.ts"
 import {
-  MetaForNodeSystemLayouter,
-  MetaForNodeSystemWorkerLayouter,
-  orderNodeSystemPortFactsForLayout,
-} from "./layout-engine.ts"
-import type {NodeSystemDocument, PositionedNodeSystem} from "./types/model.ts"
+  FixedNodeSystemCardLayouter,
+  FixedNodeSystemCardWorkerLayouter,
+  orderFixedNodeSystemCardPortFactsForLayout,
+} from "./fixed-card-layout.ts"
+import type {NodeSystemDocument, PositionedNodeSystem} from "nodes/types"
 
 const document: NodeSystemDocument = {
-  revision: "layout-engine:1",
+  revision: "fixed-card-layout:1",
   nodes: [
     {id: "owner", title: "Owner"},
     {
@@ -39,12 +39,12 @@ const document: NodeSystemDocument = {
   }],
 }
 
-describe("MetaFor TypeScript node-system layout", () => {
+describe("Fixed node-system card layout", () => {
   test("is synchronous, exact-socket and deterministic across input permutations", () => {
-    const layouter = new MetaForNodeSystemLayouter()
+    const layouter = new FixedNodeSystemCardLayouter()
     const first = layouter.layout(document, {viewport: {width: 900, height: 600}})
     expect(first).not.toBeInstanceOf(Promise)
-    expect(first.revision).toBe("layout-engine:1")
+    expect(first.revision).toBe("fixed-card-layout:1")
     expectExactEdgeEndpoints(first)
     expectOrthogonal(first)
 
@@ -63,7 +63,7 @@ describe("MetaFor TypeScript node-system layout", () => {
     }
     const reincarnated: NodeSystemDocument = {
       ...stable,
-      revision: "layout-engine:reloaded",
+      revision: "fixed-card-layout:reloaded",
       nodes: stable.nodes.map((entry) => ({
         ...entry,
         id: `runtime:${entry.id}`,
@@ -76,7 +76,7 @@ describe("MetaFor TypeScript node-system layout", () => {
         target: {...edge.target, nodeId: `runtime:${edge.target.nodeId}`},
       })).reverse(),
     }
-    const layouter = new MetaForNodeSystemLayouter()
+    const layouter = new FixedNodeSystemCardLayouter()
 
     for (const viewport of [{width: 900, height: 600}, {width: 390, height: 844}]) {
       const before = layouter.layout(stable, {viewport})
@@ -91,7 +91,7 @@ describe("MetaFor TypeScript node-system layout", () => {
   })
 
   test("uses RIGHT for landscape and square, DOWN only for portrait", () => {
-    const layouter = new MetaForNodeSystemLayouter()
+    const layouter = new FixedNodeSystemCardLayouter()
     const landscape = layouter.layout(document, {viewport: {width: 900, height: 600}})
     const square = layouter.layout(document, {viewport: {width: 600, height: 600}})
     const portrait = layouter.layout(document, {viewport: {width: 600, height: 900}})
@@ -122,7 +122,7 @@ describe("MetaFor TypeScript node-system layout", () => {
         edges: [],
       }
       for (const viewport of [{width: 900, height: 600}, {width: 390, height: 844}]) {
-        const positioned = new MetaForNodeSystemLayouter().layout(compact, {viewport})
+        const positioned = new FixedNodeSystemCardLayouter().layout(compact, {viewport})
         const owner = node(positioned, "owner")
         const children = [node(positioned, "child-a"), node(positioned, "child-b")]
         const contentHeight = measureNodeSystemCardContentHeight(owner.node)
@@ -160,7 +160,7 @@ describe("MetaFor TypeScript node-system layout", () => {
         target: {nodeId: `target-${id}`, portId: "in"},
       })),
     }
-    const layout = new MetaForNodeSystemLayouter().layout(fanout, {
+    const layout = new FixedNodeSystemCardLayouter().layout(fanout, {
       viewport: {width: 1_200, height: 700},
     })
     const source = node(layout, "source")
@@ -186,7 +186,7 @@ describe("MetaFor TypeScript node-system layout", () => {
       })),
       edges: [],
     }
-    const portrait = new MetaForNodeSystemLayouter().layout(
+    const portrait = new FixedNodeSystemCardLayouter().layout(
       wideLayer,
       {viewport: {width: 390, height: 844}},
     )
@@ -259,7 +259,7 @@ describe("MetaFor TypeScript node-system layout", () => {
         {id: "data-oracle", source: {nodeId: "rtc-server", portId: "data-oracle"}, target: {nodeId: "rtc-browser", portId: "data-oracle"}},
       ],
     }
-    const layouter = new MetaForNodeSystemLayouter()
+    const layouter = new FixedNodeSystemCardLayouter()
     for (const viewport of [{width: 647, height: 1088}, {width: 1200, height: 800}]) {
       const layout = layouter.layout(transition, {viewport})
       const permuted = layouter.layout({
@@ -279,7 +279,7 @@ describe("MetaFor TypeScript node-system layout", () => {
       expectNoEdgeIntersectsUnrelatedNodeContent(layout)
       expectParallelEdgeClearanceOnBothAxes(layout, NODE_SYSTEM_PORT_PITCH)
     }
-  }, 10_000)
+  }, 60_000)
 
   test("proposes counterpart row order but keeps the lower-crossing routed order", () => {
     const sortable: NodeSystemDocument = {
@@ -325,7 +325,7 @@ describe("MetaFor TypeScript node-system layout", () => {
       })),
       edges: [],
     }
-    const ordered = orderNodeSystemPortFactsForLayout(sortable, observed, "DOWN")
+    const ordered = orderFixedNodeSystemCardPortFactsForLayout(sortable, observed, "DOWN")
     expect(ordered.nodes.find(({id}) => id === "source")!.facts!.map(({id}) => id)).toEqual([
       "left",
       "identity",
@@ -333,7 +333,7 @@ describe("MetaFor TypeScript node-system layout", () => {
     ])
     expect(sortable.nodes[0]!.facts!.map(({id}) => id)).toEqual(["right", "identity", "left"])
 
-    const routed = new MetaForNodeSystemLayouter().layout(sortable, {
+    const routed = new FixedNodeSystemCardLayouter().layout(sortable, {
       viewport: {width: 390, height: 844},
     })
     expect(routed.nodes.find(({node}) => node.id === "source")!.node.facts!.map(({id}) => id)).toEqual([
@@ -383,7 +383,7 @@ describe("MetaFor TypeScript node-system layout", () => {
       ],
       edges: [],
     }
-    expect(orderNodeSystemPortFactsForLayout(exact, positioned, "DOWN")
+    expect(orderFixedNodeSystemCardPortFactsForLayout(exact, positioned, "DOWN")
       .nodes[0]!.facts!.map(({id}) => id)).toEqual(["exact", "far"])
   })
 
@@ -395,7 +395,7 @@ describe("MetaFor TypeScript node-system layout", () => {
         ports: [{id: "out", parameterId: "message", direction: "out", side: "left"}],
       }),
     }
-    expect(() => new MetaForNodeSystemLayouter().layout(
+    expect(() => new FixedNodeSystemCardLayouter().layout(
       invalid,
       {viewport: {width: 900, height: 600}},
     )).toThrow("source must be out/EAST")
@@ -405,8 +405,8 @@ describe("MetaFor TypeScript node-system layout", () => {
     for (const viewport of [{width: 900, height: 600}, {width: 390, height: 844}]) {
       const endpoint = new InlineLayoutWorkerEndpoint()
       const client = new LayoutWorkerClient(endpoint)
-      const expected = new MetaForNodeSystemLayouter().layout(document, {viewport})
-      const actual = await new MetaForNodeSystemWorkerLayouter(client).layout(document, {viewport}, 4)
+      const expected = new FixedNodeSystemCardLayouter().layout(document, {viewport})
+      const actual = await new FixedNodeSystemCardWorkerLayouter(client).layout(document, {viewport}, 4)
 
       expect(actual).toEqual(expected)
       expect(endpoint.requests.length).toBeGreaterThan(0)

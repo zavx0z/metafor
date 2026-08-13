@@ -88,21 +88,20 @@ canvas показали оба RTC endpoint и exact Oracle/Force lines. HAM-001
 после положительной независимой проверки; HAM-001 остаётся `IN_PROGRESS` для
 остальных independently authoritative contours.
 
-Текущая задача Codex: `NODES-009 — Разделить библиотеку нод для разных способов
-представления графа`. Владелец принял универсальную физическую границу пакетов:
-лёгкое ядро `nodes`, чистая числовая геометрия `@nodes/layout`, HUD-free
-`@nodes/ui` и необязательная интеграция `@nodes/hud`. Текущий срез удаляет из
-общих пакетов Hamiltonian-каталог transport family, отделяет fixed card adapter
-и переносит Inspector из renderer package. Следующая `HAM-002` ожидает
-NODES-009 и затем соберёт разбросанный визуальный код Hamiltonian в одном
-внутреннем контуре без изменения принятой сцены.
+`NODES-009 — Разделить библиотеку нод для разных способов представления графа`
+передана в `REVIEW`: лёгкое ядро `nodes`, чистая числовая геометрия
+`@nodes/layout`, HUD-free `@nodes/ui`, optional `@nodes/hud`, fixed card adapter
+и consumer-owned Hamiltonian palette физически разделены и проверены.
+`HAM-002` ожидает closing review NODES-009 и затем соберёт разбросанный
+визуальный код Hamiltonian в одном внутреннем контуре без изменения принятой
+сцены.
 
 | ID     | Состояние   | Зависимости | Карточка                   |
 | ------ | ----------- | ----------- | -------------------------- |
 | MF-424 | IN_PROGRESS | нет         | [Открыть](tasks/MF-424.md) |
 | MF-425 | IN_PROGRESS | нет         | [Открыть](tasks/MF-425.md) |
 | HAM-001 | IN_PROGRESS | нет         | [Открыть](tasks/HAM-001.md) |
-| NODES-009 | IN_PROGRESS | нет       | [Открыть](tasks/NODES-009.md) |
+| NODES-009 | REVIEW      | нет       | [Открыть](tasks/NODES-009.md) |
 | HAM-002 | WAITING     | NODES-009   | [Открыть](tasks/HAM-002.md) |
 | MF-411 | IN_PROGRESS | нет         | [Открыть](tasks/MF-411.md) |
 | NODES-006 | REVIEW      | нет       | [Открыть](tasks/NODES-006.md) |

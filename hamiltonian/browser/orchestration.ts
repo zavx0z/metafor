@@ -12,13 +12,13 @@ import {UiRuntime, type UiSurfaceRect} from "@ui/elements"
 import {LayoutWorkerClient} from "nodes/layout-worker"
 import type {LayoutWorkerEndpoint} from "nodes/types"
 import {
-  MetaForNodeSystemWorkerLayouter,
-} from "nodes/layout-engine"
+  FixedNodeSystemCardWorkerLayouter,
+} from "@nodes/ui/fixed-card-layout"
 import {
   NODE_SYSTEM_PORT_PITCH,
   nodeSystemGeometryKey,
 } from "@nodes/ui/card-layout"
-import {NodeInspectorSurface} from "@nodes/ui/inspector"
+import {NodeInspectorSurface} from "@nodes/hud/inspector"
 import {NodeSystemSurface} from "@nodes/ui/surface"
 import {fitNodeSystemCanvasTransform} from "@nodes/ui/viewport"
 import type {
@@ -59,6 +59,7 @@ import {
   captureHamiltonianSpatialRuntime,
   serializeHamiltonianViewPoint,
 } from "./orchestration/spatial-runtime.ts"
+import {hamiltonianConnectionColor} from "./orchestration/connection-color.ts"
 
 const canvas = requiredElement(document.querySelector<HTMLCanvasElement>("#orchestration-canvas"))
 const status = requiredElement(document.querySelector<HTMLElement>("#orchestration-status"))
@@ -199,6 +200,7 @@ async function start(): Promise<void> {
     minScale: 0.12,
     maxScale: 2.5,
     editable: false,
+    connectionColor: hamiltonianConnectionColor,
     onSelectionChange(nodeId) {
       const available = new Set(graph.layout.nodes.map(({node}) => node.id))
       if (
@@ -248,7 +250,7 @@ async function start(): Promise<void> {
     exposeFirstPerformanceTimestamp("hamiltonianFirstTrafficAcceptedAt")
     document.documentElement.dataset.hamiltonianTrafficAccepted = String(acceptedTraffic)
     document.documentElement.dataset.hamiltonianTrafficVisualCapacity = String(
-      graph.retainedEdgeParticleVisualCount,
+      graph.retainedEdgeFlowMarkerVisualCount,
     )
     document.documentElement.dataset.hamiltonianTrafficLastEdge = envelope.edgeId
     document.documentElement.dataset.hamiltonianTrafficLastDirection = envelope.direction
@@ -271,7 +273,7 @@ async function start(): Promise<void> {
   const layoutWorker = new LayoutWorkerClient(
     layoutWorkerEndpoint as unknown as LayoutWorkerEndpoint,
   )
-  const nodeSystemLayouter = new MetaForNodeSystemWorkerLayouter(layoutWorker, {
+  const nodeSystemLayouter = new FixedNodeSystemCardWorkerLayouter(layoutWorker, {
     ...layoutOptions,
     measureText: graph.textMeasurer,
   })

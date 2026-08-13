@@ -1,11 +1,11 @@
 import {describe, expect, test} from "bun:test"
-import {planNodeSystemEdgeParticle} from "./edge-particle.ts"
+import {planNodeSystemEdgeFlowMarker} from "./edge-flow-marker.ts"
 
 const stroke = [{x: 0, y: 0}, {x: 100, y: 0}, {x: 100, y: 100}]
 
-describe("node-system edge particles", () => {
+describe("node-system edge flow markers", () => {
   test("moves one forward message along the complete route with a fading tail", () => {
-    const plan = planNodeSystemEdgeParticle(stroke, {
+    const plan = planNodeSystemEdgeFlowMarker(stroke, {
       id: "source:1",
       edgeId: "edge-a",
       direction: "forward",
@@ -19,7 +19,7 @@ describe("node-system edge particles", () => {
   })
 
   test("reverses the route without reversing the gradient behind the moving head", () => {
-    const plan = planNodeSystemEdgeParticle(stroke, {
+    const plan = planNodeSystemEdgeFlowMarker(stroke, {
       id: "source:2",
       edgeId: "edge-a",
       direction: "reverse",
@@ -30,9 +30,9 @@ describe("node-system edge particles", () => {
     expect(plan?.tail[0]!.to.y).toBeGreaterThan(plan!.tail[0]!.from.y)
   })
 
-  test("does not materialize a particle before or after its lifetime", () => {
+  test("does not materialize a marker before or after its lifetime", () => {
     const message = {id: "source:3", edgeId: "edge-a", direction: "forward" as const, at: 1_000}
-    expect(planNodeSystemEdgeParticle(stroke, message, 999)).toBeNull()
-    expect(planNodeSystemEdgeParticle(stroke, message, 2_200)).toBeNull()
+    expect(planNodeSystemEdgeFlowMarker(stroke, message, 999)).toBeNull()
+    expect(planNodeSystemEdgeFlowMarker(stroke, message, 2_200)).toBeNull()
   })
 })

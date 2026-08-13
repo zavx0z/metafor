@@ -1,17 +1,18 @@
 # Требования пакета nodes
 
-Этот документ владеет требованиями к model/layout integration. Алгоритмические
-законы находятся отдельно в `@nodes/layout`: [общие](layout/requirements/COMMON.md),
+Этот документ владеет требованиями к общей model/geometry границе и fixed card
+adapter. Алгоритмические законы находятся отдельно в `@nodes/layout`: [общие](layout/requirements/COMMON.md),
 [`RIGHT`](layout/requirements/RIGHT.md) и [`DOWN`](layout/requirements/DOWN.md).
 
 ## Projection и измерение
 
-1. `nodes` владеет validation node-system model, containment index и
-   преобразованием измеренной presentation-модели в минимальный `LayoutGraph`.
+1. `nodes` владеет validation node-system model и containment index.
+   `@nodes/ui/fixed-card-layout` владеет преобразованием измеренного generic
+   card preset в минимальный `LayoutGraph`.
 2. Загруженный renderer font и card plan измеряются до вызова layout. В graph
    передаются только числовые intrinsic sizes, content boundary и port offsets;
    текст, facts, actions, Flex и `NodeSystemDocument` границу не пересекают.
-3. Layout result связывается с исходным document по semantic IDs без
+3. Fixed card adapter связывает layout result с исходным document по semantic IDs без
    post-routing и без изменения рассчитанной geometry.
 4. Domain `NodeSystemNode.id` остаётся exact identity факта, action и endpoint.
    Если runtime incarnation меняется, но visual slot остаётся тем же, producer
@@ -19,7 +20,7 @@
    стабильную identity минимального `LayoutGraph`, а результат связывает
    обратно с domain IDs. Runtime UUID, время появления и порядок lifecycle
    событий сами по себе не являются сигналом для другой geometry.
-5. Presentation adapter может переставлять только связанные parameter rows,
+5. Fixed card adapter может переставлять только связанные parameter rows,
    чтобы прежде всего уменьшить edge-edge crossings, затем bends и Manhattan
    length. ID параметров и edges не меняются, обычные и несвязанные строки
    сохраняют исходный порядок. Если crossing устраняется перестановкой строк,
@@ -32,7 +33,7 @@
 
 ## Layout Worker
 
-1. Worker adapter принадлежит пакету `nodes`, а не алгоритмическому
+1. Worker transport adapter принадлежит пакету `nodes`, а не алгоритмическому
    `@nodes/layout`. Layout package предоставляет только синхронное pure ядро и
    его serializable protocol.
 2. Один долгоживущий browser-local Worker получает минимальный `LayoutGraph`,
@@ -51,3 +52,5 @@
    topology, intrinsic geometry или viewport не запускает layout повторно.
 6. Предыдущая geometry может быть только начальным кадром presentation-анимации
    и не передаётся как input новой раскладки.
+7. Ни Worker transport, ни корневой barrel `nodes` не импортируют и не
+   реэкспортируют `@nodes/ui` или `@nodes/hud`.

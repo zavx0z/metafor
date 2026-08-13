@@ -211,12 +211,17 @@ listener эта оптимизация не включается. Режимы p
 
 ## Страница оркестрации
 
-`nodes` владеет generic node-system document, validation и layout adapter.
-`@nodes/ui` владеет intrinsic card measurement, transform бесконечного
-2D-холста, selection, Inspector и WebGPU surfaces.
+`nodes` владеет generic node-system document, validation, positioned-geometry
+helpers и transport layout Worker. `@nodes/ui` владеет intrinsic card
+measurement, fixed-port card adapter, transform бесконечного 2D-холста,
+selection и WebGPU surfaces. Необязательный Inspector приходит из
+`@nodes/hud`, поэтому renderer не зависит от HUD.
 `@nodes/layout` владеет только pure TypeScript geometry engine и минимальным
 `LayoutGraph → LayoutResult` протоколом. Hamiltonian адаптирует собственные
 наблюдения в UI-модель и добавляет только уже существующие lifecycle actions.
+Transport catalog и его палитра принадлежат Hamiltonian: один
+`hamiltonianConnectionColor` resolver передаётся generic surface и легенде.
+`@nodes/ui` знает только opaque `connectionType` и универсальный fallback.
 Generic `parentId` задаёт только визуальный контейнер и не сообщает пакету
 предметный смысл ownership. В браузерной части Hamiltonian выставляет его для
 наблюдённых `page`, `service-worker`, `window-main`, `dedicated-worker` и
@@ -431,7 +436,8 @@ intrinsic card size и позиции sockets. Main-thread adapter переда�
 долгоживущему layout Worker только viewport/spacing, измеренные node sizes,
 port offsets и semantic edge endpoint IDs. Текст, facts, actions, Flex и
 `NodeSystemDocument` границу Worker не пересекают. Worker возвращает
-`LayoutResult`, а `nodes` связывает IDs с исходным document без post-routing. Новая
+`LayoutResult`, а fixed card adapter связывает IDs с исходным document без
+post-routing. Новая
 topology generation отменяет ожидание устаревшего ответа, а ошибка Worker не
 включает скрытый синхронный fallback на main thread.
 Runtime incarnation остаётся domain `id`, но не управляет tie-break раскладки:
@@ -838,7 +844,7 @@ logical lane, frame/queue backpressure, ordering/gap, RPC timeout/session loss,
 caller-driven RPC cancellation, WSS resume без смены logical authority, RTC
 repair с новой peer generation, stale session rejection, запрет realtime на
 WSS, browser/server placement и прямой Bun↔Bun WebRTC через `werift`.
-Отдельные `nodes`, `@nodes/layout`, `@nodes/ui` и orchestration fixtures проверяют
+Отдельные `nodes`, `@nodes/layout`, `@nodes/ui`, `@nodes/hud` и orchestration fixtures проверяют
 ссылки node graph, Worker parity, детерминированный placement,
 точные Flex/card metrics, полный
 compound layout при add/remove и при смене landscape/portrait,

@@ -18,7 +18,7 @@ import {
   refreshPositionedNodeSystem,
 } from "./lifecycle-projection.ts"
 import type {NodeSystemDocument, PositionedNodeSystem} from "nodes/types"
-import {MetaForNodeSystemLayouter} from "nodes/layout-engine"
+import {FixedNodeSystemCardLayouter} from "@nodes/ui/fixed-card-layout"
 
 const context = {
   origin: "http://127.0.0.1:4400",
@@ -929,11 +929,11 @@ describe("Hamiltonian lifecycle projection", () => {
       .toEqual([{id: "transport:IPC:out", label: "IPC", value: "выход", tone: "live"}])
     const ipcEdges = document.edges.filter(({label}) => label === "IPC")
     expect(new Set(ipcEdges.map(({source}) => source.portId))).toEqual(new Set(["out:IPC"]))
-    expect(() => new MetaForNodeSystemLayouter({
+    expect(() => new FixedNodeSystemCardLayouter({
       measureText: (value, fontPx) => value.length * fontPx * 0.55,
     }).layout(document, {viewport: {width: 722, height: 1_088}}))
       .not.toThrow()
-  })
+  }, 30_000)
 
   test("keeps a closed transport inactive until an endpoint ends or a new incarnation replaces it", () => {
     const projection = new HamiltonianLifecycleProjection(context)

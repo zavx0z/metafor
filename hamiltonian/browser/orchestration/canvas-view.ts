@@ -1,8 +1,8 @@
 import {Button, Checkbox, Typography, uiIcons} from "@ui/components"
 import {UiSurface, type UiSurfaceOpts} from "@ui/elements"
 import {HUD_WINDOW_TITLE_HEIGHT, HudSideTab, HudWindow, type HudPaneFrameChange} from "@ui/hud"
-import {nodeSystemConnectionColor} from "@nodes/ui/connection-color"
 import {HAMILTONIAN_CANVAS_VIEW_PANEL_HEIGHT} from "./workspace.ts"
+import {hamiltonianConnectionColor} from "./connection-color.ts"
 
 export const HAMILTONIAN_CANVAS_VIEW_TITLE_HEIGHT = HUD_WINDOW_TITLE_HEIGHT
 export const HAMILTONIAN_CANVAS_VIEW_BODY_TOP_GAP = 10
@@ -175,7 +175,7 @@ export class HamiltonianCanvasViewSurface extends UiSurface {
           const y = controls.legend.y + HAMILTONIAN_CANVAS_VIEW_LEGEND_TITLE_HEIGHT + index * HAMILTONIAN_CANVAS_VIEW_LEGEND_ROW_HEIGHT
           this.drawRoundedRect(controls.legend.x, y + 5, 10, 10, {
             radius: 5,
-            fill: nodeSystemConnectionColor(entry.connectionType),
+            fill: hamiltonianConnectionColor(entry.connectionType),
             border: null,
           })
           Typography(this, controls.legend.x + 18, y, Math.max(1, controls.legend.w - 18), HAMILTONIAN_CANVAS_VIEW_LEGEND_ROW_HEIGHT, {

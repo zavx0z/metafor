@@ -44,11 +44,11 @@
 * [Web Push](../pkg/web-push/CONTRACT.md) — runtime-разделённые permission,
   подписка, доставка, receipt и необязательные lifecycle hooks без встроенного
   transport наблюдения.
-* [Node system](../pkg/nodes/README.md) — модель, validation и связь между
-  минимальной раскладкой `@nodes/layout` и компонентами `@nodes/ui`.
-  Integration и Worker принадлежат
-  [`nodes`](../pkg/nodes/REQUIREMENTS.md), отображение и view —
-  [`@nodes/ui`](../pkg/nodes/ui/REQUIREMENTS.md), а алгоритмические законы
+* [Node system](../pkg/nodes/README.md) — универсальная model/geometry граница,
+  минимальная раскладка `@nodes/layout`, HUD-free renderer `@nodes/ui` и
+  необязательная HUD-интеграция `@nodes/hud`. Model и Worker transport
+  принадлежат [`nodes`](../pkg/nodes/REQUIREMENTS.md), fixed card adapter,
+  отображение и view — [`@nodes/ui`](../pkg/nodes/ui/REQUIREMENTS.md), а алгоритмические законы
   разделены на [общие](../pkg/nodes/layout/requirements/COMMON.md),
   [`RIGHT`](../pkg/nodes/layout/requirements/RIGHT.md) и
   [`DOWN`](../pkg/nodes/layout/requirements/DOWN.md).

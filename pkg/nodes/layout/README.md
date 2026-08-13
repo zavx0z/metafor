@@ -15,7 +15,7 @@ Worker, UI, управление видом и traffic presentation не при�
 документам.
 
 Layout ничего не знает о тексте карточки, Flex, `NodeSystemDocument`, DOM,
-WebGPU, Hamiltonian или способе отображения результата.
+WebGPU, конкретном consumer или способе отображения результата.
 
 ## Протокол
 

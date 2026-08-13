@@ -1,13 +1,10 @@
 /**
- * Модель и логика node-system, связывающая чистую раскладку с UI-компонентами.
+ * Универсальная model/geometry граница node-system без renderer и HUD.
  * @packageDocumentation
  */
 
 export * from "./types/index.ts"
 export * from "./validation.ts"
 export * from "./containment.ts"
-export * from "./layout-engine.ts"
 export * from "./layout-worker.ts"
 export * from "./incremental-layout.ts"
-export * from "@nodes/layout"
-export * from "@nodes/ui"

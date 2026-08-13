@@ -1,7 +1,7 @@
-import type {NodeSystemPoint} from "../types/model.ts"
+import type {NodeSystemPoint} from "nodes/types"
 
-export const NODE_SYSTEM_EDGE_PARTICLE_DURATION_MS = 1_200
-export const NODE_SYSTEM_EDGE_PARTICLE_TAIL_PX = 84
+export const NODE_SYSTEM_EDGE_FLOW_MARKER_DURATION_MS = 1_200
+export const NODE_SYSTEM_EDGE_FLOW_MARKER_TAIL_PX = 84
 
 export type NodeSystemEdgeMessage = Readonly<{
   id: string
@@ -11,7 +11,7 @@ export type NodeSystemEdgeMessage = Readonly<{
   messageClass?: string
 }>
 
-export type NodeSystemEdgeParticlePlan = Readonly<{
+export type NodeSystemEdgeFlowMarkerPlan = Readonly<{
   head: NodeSystemPoint
   tail: readonly Readonly<{
     from: NodeSystemPoint
@@ -21,17 +21,17 @@ export type NodeSystemEdgeParticlePlan = Readonly<{
   }>[]
 }>
 
-/** Plans one particle and its piecewise gradient tail on a sampled Bézier route. */
-export function planNodeSystemEdgeParticle(
+/** Plans one flow marker and its fading tail on a sampled Bézier route. */
+export function planNodeSystemEdgeFlowMarker(
   stroke: readonly NodeSystemPoint[],
   message: NodeSystemEdgeMessage,
   now: number,
-  durationMs = NODE_SYSTEM_EDGE_PARTICLE_DURATION_MS,
-  tailPx = NODE_SYSTEM_EDGE_PARTICLE_TAIL_PX,
+  durationMs = NODE_SYSTEM_EDGE_FLOW_MARKER_DURATION_MS,
+  tailPx = NODE_SYSTEM_EDGE_FLOW_MARKER_TAIL_PX,
   tailSteps = 12,
-): NodeSystemEdgeParticlePlan | null {
+): NodeSystemEdgeFlowMarkerPlan | null {
   if (stroke.length < 2 || !Number.isFinite(now) || !Number.isFinite(message.at)) return null
-  const duration = Number.isFinite(durationMs) ? Math.max(1, durationMs) : NODE_SYSTEM_EDGE_PARTICLE_DURATION_MS
+  const duration = Number.isFinite(durationMs) ? Math.max(1, durationMs) : NODE_SYSTEM_EDGE_FLOW_MARKER_DURATION_MS
   const elapsed = now - message.at
   if (elapsed < 0 || elapsed >= duration) return null
   const path = measurePath(stroke)

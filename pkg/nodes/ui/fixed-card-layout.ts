@@ -1,11 +1,12 @@
 import type {
+  LayoutDirection,
   LayoutEdge,
   LayoutGraph,
   LayoutPort,
   LayoutResult,
 } from "@nodes/layout"
 import {layout as calculateLayout} from "@nodes/layout"
-import type {LayoutWorkerClient} from "./layout-worker.ts"
+import type {LayoutWorkerClient} from "nodes/layout-worker"
 import type {
   NodeSystemDocument,
   NodeSystemEdge,
@@ -15,13 +16,7 @@ import type {
   PositionedNodeSystemEdge,
   PositionedNodeSystemNode,
   PositionedNodeSystemPort,
-} from "./types/model.ts"
-import type {
-  MetaForNodeSystemLayoutOptions,
-  MetaForNodeSystemLayoutRequest,
-  NodeSystemLayoutDirection,
-} from "./types/engine.ts"
-import type {NodeSystemTextMeasurer} from "./types/card.ts"
+} from "nodes/types"
 import {
   NODE_SYSTEM_PORT_PITCH,
   measureNodeSystemCard,
@@ -29,8 +24,9 @@ import {
   memoizedTextMeasurer,
   nodeSystemGeometryKey,
   planNodeSystemCard,
-} from "@nodes/ui/card-layout"
-import {validateNodeSystemDocument, validatePositionedNodeSystem} from "./validation.ts"
+  type NodeSystemTextMeasurer,
+} from "./card-layout.ts"
+import {validateNodeSystemDocument, validatePositionedNodeSystem} from "nodes/validation"
 
 type LayoutPass = Readonly<{
   positioned: PositionedNodeSystem
@@ -39,13 +35,26 @@ type LayoutPass = Readonly<{
 
 const MAX_CONNECTED_ROW_ORDER_CANDIDATES = 2
 
-/** Presentation adapter: измеряет UI document и материализует готовую geometry. */
-export class MetaForNodeSystemLayouter {
-  constructor(private readonly options: MetaForNodeSystemLayoutOptions = {}) {}
+/** Options for the fixed-port card presentation adapter. */
+export type FixedNodeSystemCardLayoutOptions = Readonly<{
+  clearance?: number
+  nodeSpacing?: number
+  layerSpacing?: number
+  padding?: number
+  measureText?: NodeSystemTextMeasurer
+}>
+
+export type FixedNodeSystemCardLayoutRequest = Readonly<{
+  viewport: Readonly<{width: number; height: number}>
+}>
+
+/** Measures fixed-port cards and materializes their complete UI geometry. */
+export class FixedNodeSystemCardLayouter {
+  constructor(private readonly options: FixedNodeSystemCardLayoutOptions = {}) {}
 
   layout(
     document: NodeSystemDocument,
-    request: MetaForNodeSystemLayoutRequest,
+    request: FixedNodeSystemCardLayoutRequest,
   ): PositionedNodeSystem {
     validateNodeSystemDocument(document)
     const viewport = {
@@ -84,15 +93,15 @@ export class MetaForNodeSystemLayouter {
  * Product adapter: measurement stays on main thread, while both placement and
  * routing run through the minimal {@link LayoutWorkerClient} protocol.
  */
-export class MetaForNodeSystemWorkerLayouter {
+export class FixedNodeSystemCardWorkerLayouter {
   constructor(
     private readonly worker: LayoutWorkerClient,
-    private readonly options: MetaForNodeSystemLayoutOptions = {},
+    private readonly options: FixedNodeSystemCardLayoutOptions = {},
   ) {}
 
   async layout(
     document: NodeSystemDocument,
-    request: MetaForNodeSystemLayoutRequest,
+    request: FixedNodeSystemCardLayoutRequest,
     generation: number,
   ): Promise<PositionedNodeSystem> {
     validateNodeSystemDocument(document)
@@ -142,7 +151,7 @@ type PreparedLayoutPass = Readonly<{
 function prepareLayoutPass(
   document: NodeSystemDocument,
   viewport: Readonly<{width: number; height: number}>,
-  options: MetaForNodeSystemLayoutOptions,
+  options: FixedNodeSystemCardLayoutOptions,
   measureText?: NodeSystemTextMeasurer,
 ): PreparedLayoutPass {
   const index = validateNodeSystemDocument(document)
@@ -243,10 +252,10 @@ function materializeLayoutPass(prepared: PreparedLayoutPass, result: LayoutResul
  * rows between their existing slots; domain facts, port identities and edges
  * remain unchanged.
  */
-export function orderNodeSystemPortFactsForLayout(
+export function orderFixedNodeSystemCardPortFactsForLayout(
   document: NodeSystemDocument,
   positioned: PositionedNodeSystem,
-  _direction: NodeSystemLayoutDirection,
+  _direction: LayoutDirection,
 ): NodeSystemDocument {
   const positionedNodes = new Map(positioned.nodes.map((entry) => [entry.node.id, entry]))
   const parameterByPort = new Map<string, string>()
@@ -366,7 +375,7 @@ function nodeSystemPortFactOrderCandidates(
     const key = nodeSystemFactOrderKey(candidate)
     if (!candidates.has(key)) candidates.set(key, candidate)
   }
-  const heuristicCandidate = orderNodeSystemPortFactsForLayout(
+  const heuristicCandidate = orderFixedNodeSystemCardPortFactsForLayout(
     document,
     first.positioned,
     first.result.direction,
