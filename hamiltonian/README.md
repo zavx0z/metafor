@@ -389,6 +389,10 @@ browser-managed update. Поздно подключившийся запущен
 root и logical Worker identity не меняются. Факты старой incarnation не
 доклеиваются к новой. Успешный current admission/heartbeat явно снимает
 transient `reason`, но не удаляет отдельный исторический `lastFailure`.
+Retained entity действующего Worker изменяет только его собственное execution.
+Page может завершить другой наблюдённый superseded Worker, но её локальное
+наблюдение не заменяет identity, incarnation и code version текущего Worker.
+Защита этого авторства входит в Service Worker release `1.1.1`.
 
 Повторный `connect-window` не создаёт вторую визуальную связь: Service Worker
 API transport сохраняет identity текущей page realm, а тихий канал и смена

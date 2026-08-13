@@ -29,7 +29,11 @@ import {
   type HamiltonianNodeSystemDeclaration,
 } from "./lifecycle.js"
 import {HAMILTONIAN_LIFECYCLE_CHANNEL} from "./monitor.js"
-import {pageLifecycleChangesNodeSystem} from "../browser/page-lifecycle-declaration.ts"
+import {
+  pageLifecycleChangesNodeSystem,
+  pageLifecycleMayEnterBrowserJournal,
+  projectPageLifecycleForBrowserJournal,
+} from "../browser/page-lifecycle-declaration.ts"
 
 const pageBorn = createHamiltonianLifecycleObservation({
   type: "entity",
@@ -41,6 +45,73 @@ const pageBorn = createHamiltonianLifecycleObservation({
 })
 
 describe("Hamiltonian owner lifecycle", () => {
+  test("keeps the current Worker declaration authoritative when a page observes Web Push", () => {
+    const browserId = "browser:profile-a"
+    const workerId = "service-worker:worker-a"
+    const workerSource = new HamiltonianLifecycleSource({
+      id: workerId,
+      kind: "service-worker",
+      incarnation: "worker-runtime-a",
+      startedAt: 5,
+    })
+    const pageSource = new HamiltonianLifecycleSource({
+      id: "page:page-a",
+      kind: "page",
+      incarnation: "page-a",
+      startedAt: 10,
+    })
+    const browserJournal = new HamiltonianLifecycleRetainedJournal(workerId)
+    for (const envelope of [
+      workerSource.next(createHamiltonianLifecycleObservation({
+        type: "entity", phase: "born", subjectId: browserId, subjectKind: "browser-runtime",
+        ownerId: browserId, attributes: {profileId: "profile-a", runtime: "Chrome", state: "active"},
+      })),
+      workerSource.next(createHamiltonianLifecycleObservation({
+        type: "entity", phase: "born", subjectId: workerId, subjectKind: "service-worker",
+        ownerId: browserId, attributes: {
+          identity: "worker-a",
+          runtimeIncarnation: "worker-runtime-a",
+          codeVersion: "1.1.0",
+          state: "active",
+        },
+      })),
+    ]) browserJournal.observe(envelope)
+
+    const pageJournal = new HamiltonianLifecycleRetainedJournal("page:page-a")
+    pageJournal.observe(pageSource.next(createHamiltonianLifecycleObservation({
+      type: "entity", phase: "born", subjectId: "page:page-a", subjectKind: "page",
+      ownerId: browserId, attributes: {incarnation: "page-a", state: "live"},
+    })))
+    const rejected = pageSource.next(createHamiltonianLifecycleObservation({
+      type: "entity", phase: "changed", subjectId: workerId, subjectKind: "service-worker",
+      ownerId: browserId, attributes: {
+        webPushLifecycle: "client.registration-rejected",
+        push: "registration-rejected",
+      },
+    }))
+    pageJournal.observe(rejected)
+
+    expect(pageLifecycleMayEnterBrowserJournal(rejected, workerId)).toBeFalse()
+    expect(browserJournal.merge(projectPageLifecycleForBrowserJournal(pageJournal.snapshot(), workerId))).toBeTrue()
+    const retainedWorker = browserJournal.snapshot().envelopes.find(({observation}) =>
+      observation.subjectId === workerId)
+    expect(retainedWorker?.sourceKind).toBe("service-worker")
+    expect(retainedWorker?.sourceIncarnation).toBe("worker-runtime-a")
+    expect(retainedWorker?.observation.attributes).toMatchObject({
+      identity: "worker-a",
+      runtimeIncarnation: "worker-runtime-a",
+      codeVersion: "1.1.0",
+    })
+    expect(browserJournal.snapshot().envelopes.some(({observation}) =>
+      observation.subjectId === "page:page-a")).toBeTrue()
+
+    const supersededRetirement = pageSource.next(createHamiltonianLifecycleObservation({
+      type: "entity", phase: "ended", subjectId: "service-worker:worker-old", subjectKind: "service-worker",
+      ownerId: browserId, attributes: {state: "ended", successor: workerId},
+    }))
+    expect(pageLifecycleMayEnterBrowserJournal(supersededRetirement, workerId)).toBeTrue()
+  })
+
   test("advances browser declarations only for structural page lifecycle", () => {
     const browserId = "browser:profile-a"
     const workerId = "service-worker:worker-a"

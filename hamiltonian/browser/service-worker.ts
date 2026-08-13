@@ -43,7 +43,11 @@ import type {WebPushLifecycleEvent} from "@metafor/web-push/lifecycle"
 import type {WebPushMessage} from "@metafor/web-push/protocol"
 import {HAMILTONIAN_SERVICE_WORKER_CODE_VERSION} from "./service-worker-code-version.ts"
 import {isHamiltonianServiceWorkerCodeVersion} from "../core/service-worker-code-version.js"
-import {pageLifecycleChangesNodeSystem} from "./page-lifecycle-declaration.ts"
+import {
+  pageLifecycleChangesNodeSystem,
+  pageLifecycleMayEnterBrowserJournal,
+  projectPageLifecycleForBrowserJournal,
+} from "./page-lifecycle-declaration.ts"
 
 type LifecycleJournal = InstanceType<typeof HamiltonianLifecycleRetainedJournal>
 type MessageRecord = {kind: string; monitor?: LifecycleMonitor; [key: string]: unknown}
@@ -1429,7 +1433,10 @@ async function connectWindow(message: ConnectWindowMessage, client: HamiltonianW
     client,
   }
   windows.set(message.tabId, window)
-  workerLifecycleJournal?.merge(pageLifecycleSnapshot)
+  workerLifecycleJournal?.merge(projectPageLifecycleForBrowserJournal(
+    pageLifecycleSnapshot,
+    workerEntityId,
+  ))
   await awaitLiveWindowChannels(clientId)
   const workerLifecycleSnapshot = workerLifecycleJournal?.snapshot()
   if (!workerLifecycleSnapshot || !isCurrentWindowChannel(windows, window)) {
@@ -1518,6 +1525,7 @@ async function receiveWindowMessage(pageMessage: PageControlMessage, client: Ham
       "page",
       window.pageIncarnation,
     )) return
+    if (!pageLifecycleMayEnterBrowserJournal(pageMessage.envelope, workerEntityId)) return
     if (workerLifecycleJournal?.observe(pageMessage.envelope)) {
       tellAllLifecycleEnvelope(pageMessage.envelope)
       if (pageLifecycleChangesNodeSystem(pageMessage.envelope)) {

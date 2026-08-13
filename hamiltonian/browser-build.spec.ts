@@ -34,7 +34,7 @@ test("builds the real orchestration and isolated layout Worker bundles", async (
     expect(serviceWorkerSource).toContain('subjectKind: "service-worker"')
     expect(serviceWorkerSource).toContain('subjectKind: "service-worker-api"')
     expect(serviceWorkerSource).toContain('subjectKind: "service-worker-api-message"')
-    expect(serviceWorkerSource).toContain('HAMILTONIAN_SERVICE_WORKER_CODE_VERSION = "1.1.0"')
+    expect(serviceWorkerSource).toContain('HAMILTONIAN_SERVICE_WORKER_CODE_VERSION = "1.1.1"')
     expect(serviceWorkerSource).toContain("registration.update()")
     expect(serviceWorkerSource).toContain("applicationReady")
     expect(serviceWorkerSource).toContain("codeVersion: workerCodeVersion")
@@ -73,7 +73,9 @@ test("builds the real orchestration and isolated layout Worker bundles", async (
       serviceWorkerTypeScript.indexOf('if (pageMessage.kind === "page-lifecycle")'),
       serviceWorkerTypeScript.indexOf('if (pageMessage.kind === "register-push-subscription")'),
     )
+    expect(serviceWorkerTypeScript).toContain("projectPageLifecycleForBrowserJournal(")
     expect(pageLifecycleBranch).toContain("workerLifecycleJournal?.observe(pageMessage.envelope)")
+    expect(pageLifecycleBranch).toContain("pageLifecycleMayEnterBrowserJournal(pageMessage.envelope, workerEntityId)")
     expect(pageLifecycleBranch).toContain("pageLifecycleChangesNodeSystem(pageMessage.envelope)")
     const pageLifecycleDeclarationSource = await Bun.file(join(
       repositoryRoot,
