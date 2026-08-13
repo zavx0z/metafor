@@ -1,5 +1,8 @@
 import {describe, expect, test} from "bun:test"
-import {isHamiltonianServiceWorkerCodeVersion} from "./service-worker-release.js"
+import {
+  isHamiltonianServiceWorkerCodeVersion,
+  isHamiltonianServiceWorkerRelease,
+} from "./service-worker-release.js"
 
 describe("Service Worker code version", () => {
   test("accepts exact SemVer 2.0.0 versions", () => {
@@ -33,6 +36,25 @@ describe("Service Worker code version", () => {
       null,
     ]) {
       expect(isHamiltonianServiceWorkerCodeVersion(value), String(value)).toBeFalse()
+    }
+  })
+})
+
+describe("Service Worker exact release", () => {
+  test("accepts only a valid SemVer and lowercase SHA-256 pair", () => {
+    expect(isHamiltonianServiceWorkerRelease({
+      version: "1.2.3",
+      sha256: "a".repeat(64),
+    })).toBeTrue()
+
+    for (const value of [
+      null,
+      {version: "1.2.3"},
+      {version: "v1.2.3", sha256: "a".repeat(64)},
+      {version: "1.2.3", sha256: "a".repeat(63)},
+      {version: "1.2.3", sha256: "A".repeat(64)},
+    ]) {
+      expect(isHamiltonianServiceWorkerRelease(value), String(value)).toBeFalse()
     }
   })
 })

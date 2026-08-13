@@ -70,6 +70,17 @@ test("builds the real orchestration and isolated layout Worker bundles", async (
     expect(hostTypeScript.slice(watchRootsStart, watchRootsEnd)).toContain("updateRoot")
 
     const serviceWorkerTypeScript = await Bun.file(join(repositoryRoot, "hamiltonian/browser/service-worker.ts")).text()
+    expect(serviceWorkerTypeScript).toContain("new HamiltonianServiceWorkerUpdateController(")
+    expect(serviceWorkerTypeScript).not.toContain("let applicationReady")
+    expect(serviceWorkerTypeScript).not.toContain("function isServiceWorkerRelease(")
+    const serviceWorkerUpdateSource = await Bun.file(join(
+      repositoryRoot,
+      "hamiltonian/update/browser/service-worker-update.ts",
+    )).text()
+    expect(serviceWorkerUpdateSource).toContain("this.#updateRegistration")
+    expect(serviceWorkerUpdateSource).toContain("#applicationReady")
+    expect(serviceWorkerUpdateSource).toContain("isHamiltonianServiceWorkerRelease(target)")
+    expect(serviceWorkerUpdateSource).not.toContain("registration.update()")
     expect(serviceWorkerTypeScript).toContain("observation?.ownerId === currentBrowserEntityId")
     expect(serviceWorkerTypeScript).toContain("currentPushReady = true")
     expect(serviceWorkerTypeScript).toContain("await restoreControlBootstrap()")
