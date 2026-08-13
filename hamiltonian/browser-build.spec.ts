@@ -34,7 +34,7 @@ test("builds the real orchestration and isolated layout Worker bundles", async (
     expect(serviceWorkerSource).toContain('subjectKind: "service-worker"')
     expect(serviceWorkerSource).toContain('subjectKind: "service-worker-api"')
     expect(serviceWorkerSource).toContain('subjectKind: "service-worker-api-message"')
-    expect(serviceWorkerSource).toContain('HAMILTONIAN_SERVICE_WORKER_CODE_VERSION = "1.1.2"')
+    expect(serviceWorkerSource).toContain('HAMILTONIAN_SERVICE_WORKER_CODE_VERSION = "1.1.3"')
     expect(serviceWorkerSource).toContain("registration.update()")
     expect(serviceWorkerSource).toContain("applicationReady")
     expect(serviceWorkerSource).toContain("codeVersion: workerCodeVersion")

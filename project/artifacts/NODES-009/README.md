@@ -66,3 +66,30 @@ The automated boundary test also proves:
 
 These measurements prove code composition and bundle size, not live visual
 acceptance or exact process memory.
+
+## Hamiltonian Service Worker 1.1.3 live proof
+
+### `hamiltonian-sw-1.1.3-live.png`
+
+* Источник: чистая CDP-вкладка `http://127.0.0.1:4400/`, target
+  `11E491A8B2D07463D406EBAF7948C35A`.
+* Дата: 13 августа 2026 года.
+* Версия проекта: `main`, result подготовлен поверх `febd71042`.
+* Ожидание: две актуальные page realm без красной stale realm, Service Worker
+  `1.1.3`, серверный контур и подключённые Oracle/Force линии.
+* Фактическое наблюдение: ожидание выполнено; обе страницы принадлежат одному
+  Chrome, Worker `1.1.3` active, server/peer active, обе RTC-линии connected.
+* Контрольная сумма:
+  `f40f9bc17dacc2211e5bfa88771eca90d2978fbfb6a683006dafc54438297dbd`.
+
+Машинное подтверждение того же состояния:
+
+* browser source revision:
+  `source:7bfdf82e3f545de9d7123eb4c660185fbdfab39c8293158f94dbcc5fadc9d27c`;
+* Service Worker release `1.1.3`, bundle SHA-256
+  `8f337ddb2d8a92f57f3c5433cd02a60b7b32ae0f5889ae407795ddbc28031045`;
+* runtime incarnation `f5c188b2-4d21-4596-a9c2-97b85c400284`, identity
+  confirmed, `workerUpdateRequired=false`, no waiting/installing Worker;
+* both browser targets reported the same revision and Worker;
+* Oracle/Force counters advanced from `3/3` to `9/9`; console capture returned
+  zero entries.

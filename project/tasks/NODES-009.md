@@ -199,7 +199,7 @@ dependency graph, занимать память и усложнять поним
 | NODES-009.2 | Отделить HUD и универсализировать visual style resolver | COMPLETE |
 | NODES-009.3 | Перенести Hamiltonian catalog из `nodes` и мигрировать consumer | COMPLETE |
 | NODES-009.4 | Доказать package graph, browser bundles и отсутствие регрессии | COMPLETE |
-| NODES-009.5 | Обновить и доказать Service Worker после пакетного рефакторинга | IN_PROGRESS |
+| NODES-009.5 | Обновить и доказать Service Worker после пакетного рефакторинга | COMPLETE |
 
 NODES-009.1–NODES-009.3 меняют независимые владельцы файлов и сходятся перед
 NODES-009.4. Подготовительный baseline: `c6b74258000a38812b49f2fe65c2e8ae2e1d0786`.
@@ -219,6 +219,21 @@ Hamiltonian, проверяет новый bundle hash, активную runtime
 `workerUpdateRequired=false`, актуальный source revision и живую сцену. После
 этого NODES-009.1–NODES-009.5 получают закрывающую live-проверку; родительская
 NODES-009 остаётся `IN_PROGRESS` для дальнейшей работы владельца.
+
+Result NODES-009.5:
+
+* executable version повышена `1.1.2 → 1.1.3`, новый bundle SHA-256 —
+  `8f337ddb2d8a92f57f3c5433cd02a60b7b32ae0f5889ae407795ddbc28031045`;
+* после полного restart активна новая runtime incarnation
+  `f5c188b2-4d21-4596-a9c2-97b85c400284`, identity подтверждена,
+  `workerUpdateRequired=false`, waiting/installing Worker отсутствует;
+* обе открытые вкладки получили один актуальный browser revision
+  `source:7bfdf82e3f545de9d7123eb4c660185fbdfab39c8293158f94dbcc5fadc9d27c`
+  и находятся в retained topology одного Chrome;
+* peer `connected`, native channels `oracle`/`force` действуют, счётчики после
+  update выросли с `3/3` до `9/9`, console capture — `0` entries;
+* финальный WebGPU-кадр содержит обе актуальные page realm, Service Worker
+  `1.1.3`, серверный контур и обе RTC-линии без stale/error realm.
 
 ## Поведение процесса
 
