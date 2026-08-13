@@ -1,0 +1,543 @@
+{
+  "schema": "upd-001.11/live-evidence-v1",
+  "provenance": {
+    "state": "baseline-committed-1.1.3",
+    "capturedAt": "2026-08-13T22:43:37Z",
+    "commit": "3b16205684407d3b771ee1a5827292daddb3907e",
+    "branch": "main",
+    "launchAgent": "dev.metafor.hamiltonian",
+    "runtimeCwd": "/Users/zavx0z/repozitarium/metafor/hamiltonian",
+    "manifestEndpoint": "GET http://127.0.0.1:4400/manifest.json",
+    "statusEndpoint": "GET http://127.0.0.1:4400/lab/status",
+    "statusAuthenticated": true,
+    "cdpTargetsEndpoint": "GET http://127.0.0.1:7880/cdp/targets",
+    "sanitized": true,
+    "omitted": [
+      "authorization bearer",
+      "push payload and subscription fields",
+      "unrelated topology payload"
+    ]
+  },
+  "manifest": {
+    "identity": "hamiltonian-lab",
+    "version": "v2",
+    "moduleUrl": "/versions/v2/module.js",
+    "sha256": "88e7d1c42dd7e20518141df6428ae42f63c171355d0a4e03fd224b0a484088f6",
+    "serviceWorker": {
+      "version": "1.1.3",
+      "sha256": "0cfc5d19f08e86c0258730679a3b877a242f7f3393e04aa976c5201323d9428d"
+    }
+  },
+  "cdpTargets": [
+    {
+      "targetId": "7B227055B2489360CD83F7790823F8FF",
+      "type": "page",
+      "title": "Оркестрация Гамильтониана",
+      "url": "http://127.0.0.1:4400/"
+    },
+    {
+      "targetId": "11E491A8B2D07463D406EBAF7948C35A",
+      "type": "page",
+      "title": "Оркестрация Гамильтониана",
+      "url": "http://127.0.0.1:4400/"
+    }
+  ],
+  "status": {
+    "hostEpoch": "0ebbcf8a-9bfa-4e6c-91c8-02d06fe67f2e",
+    "version": "v2",
+    "placement": "browser",
+    "connections": [
+      {
+        "connectionId": "a785281b-07a1-4b8c-8344-425fb110ff54",
+        "deviceId": "b04b5959-28a2-4ac0-ba5c-6bdba29e0091",
+        "workerIdentity": "45d8fde1-9ecb-4c83-b52a-095c974cb4a1",
+        "workerRuntimeIncarnation": "161f4585-1d60-4c00-8af3-67952cb30a34",
+        "workerCodeVersion": "1.1.3",
+        "identityConfirmed": true,
+        "workerUpdateRequired": false,
+        "openedAt": 1786659969932,
+        "lastPongAt": 1786661010409,
+        "lastChallengeSeq": 105,
+        "lastAckSeq": 105
+      },
+      {
+        "connectionId": "6d50a784-b219-4fd6-b3e2-0eb79a90a2a2",
+        "deviceId": "06cb9ee3-433d-4ca1-9c9f-56def51a0328",
+        "workerIdentity": "14fdce37-ce46-44cb-8697-cbcee2c7f810",
+        "workerRuntimeIncarnation": "52134c71-ecdf-44e2-80ed-b5ef8b180b0c",
+        "workerCodeVersion": "1.1.3",
+        "identityConfirmed": true,
+        "workerUpdateRequired": false,
+        "openedAt": 1786661014067,
+        "lastPongAt": 1786661014413,
+        "lastChallengeSeq": 1,
+        "lastAckSeq": 1
+      }
+    ],
+    "topology": {
+      "revision": 94,
+      "peers": [
+        {
+          "connectionId": "6d50a784-b219-4fd6-b3e2-0eb79a90a2a2",
+          "deviceId": "06cb9ee3-433d-4ca1-9c9f-56def51a0328",
+          "windows": [
+            {
+              "tabId": "f20d6b99-4853-40f2-b882-b3a3ecace7df",
+              "joinedAt": 1786566930488,
+              "visible": false
+            },
+            {
+              "tabId": "7a3785fa-970a-4d03-a4fe-662ce55db6f0",
+              "joinedAt": 1786544010378,
+              "visible": false
+            }
+          ]
+        },
+        {
+          "connectionId": "a785281b-07a1-4b8c-8344-425fb110ff54",
+          "deviceId": "b04b5959-28a2-4ac0-ba5c-6bdba29e0091",
+          "windows": [
+            {
+              "tabId": "a436e532-16c6-4052-9a80-76d418f5417e",
+              "joinedAt": 1786636510261,
+              "visible": true
+            },
+            {
+              "tabId": "30e0929a-9a96-495b-a413-0bf2850203d7",
+              "joinedAt": 1786576914333,
+              "visible": false
+            }
+          ]
+        }
+      ]
+    },
+    "events": [
+      {
+        "at": 1786659958643,
+        "kind": "connection-open",
+        "connectionId": "bd59b3aa-80ae-4b5a-82dc-25101fb79816",
+        "detail": null
+      },
+      {
+        "at": 1786659959006,
+        "kind": "worker-identity",
+        "connectionId": "bd59b3aa-80ae-4b5a-82dc-25101fb79816",
+        "detail": "14fdce37-ce46-44cb-8697-cbcee2c7f810 runtime 52134c71-ecdf-44e2-80ed-b5ef8b180b0c code 1.1.3"
+      },
+      {
+        "at": 1786659959058,
+        "kind": "connection-open",
+        "connectionId": "36a29369-5e55-42cf-897f-f306178ed094",
+        "detail": null
+      },
+      {
+        "at": 1786659959100,
+        "kind": "worker-identity",
+        "connectionId": "36a29369-5e55-42cf-897f-f306178ed094",
+        "detail": "45d8fde1-9ecb-4c83-b52a-095c974cb4a1 runtime 161f4585-1d60-4c00-8af3-67952cb30a34 code 1.1.3"
+      },
+      {
+        "at": 1786659959256,
+        "kind": "connection-close",
+        "connectionId": "36a29369-5e55-42cf-897f-f306178ed094",
+        "detail": null
+      },
+      {
+        "at": 1786659959260,
+        "kind": "authority-detached",
+        "connectionId": "36a29369-5e55-42cf-897f-f306178ed094",
+        "detail": "valid until 1786659989108"
+      },
+      {
+        "at": 1786659959933,
+        "kind": "connection-open",
+        "connectionId": "5d94cb41-5358-4956-bcc4-2d0d7d9a9d4f",
+        "detail": null
+      },
+      {
+        "at": 1786659959966,
+        "kind": "worker-identity",
+        "connectionId": "5d94cb41-5358-4956-bcc4-2d0d7d9a9d4f",
+        "detail": "45d8fde1-9ecb-4c83-b52a-095c974cb4a1 runtime 161f4585-1d60-4c00-8af3-67952cb30a34 code 1.1.3"
+      },
+      {
+        "at": 1786659960026,
+        "kind": "authority-resumed",
+        "connectionId": "5d94cb41-5358-4956-bcc4-2d0d7d9a9d4f",
+        "detail": "from 36a29369-5e55-42cf-897f-f306178ed094"
+      },
+      {
+        "at": 1786659960036,
+        "kind": "connection-close",
+        "connectionId": "5d94cb41-5358-4956-bcc4-2d0d7d9a9d4f",
+        "detail": null
+      },
+      {
+        "at": 1786659960040,
+        "kind": "authority-detached",
+        "connectionId": "5d94cb41-5358-4956-bcc4-2d0d7d9a9d4f",
+        "detail": "valid until 1786659989968"
+      },
+      {
+        "at": 1786659960803,
+        "kind": "connection-open",
+        "connectionId": "c9a8df99-6650-40d1-a9e5-8783c6d30051",
+        "detail": null
+      },
+      {
+        "at": 1786659960867,
+        "kind": "worker-identity",
+        "connectionId": "c9a8df99-6650-40d1-a9e5-8783c6d30051",
+        "detail": "45d8fde1-9ecb-4c83-b52a-095c974cb4a1 runtime 161f4585-1d60-4c00-8af3-67952cb30a34 code 1.1.3"
+      },
+      {
+        "at": 1786659960923,
+        "kind": "authority-resumed",
+        "connectionId": "c9a8df99-6650-40d1-a9e5-8783c6d30051",
+        "detail": "from 5d94cb41-5358-4956-bcc4-2d0d7d9a9d4f"
+      },
+      {
+        "at": 1786659961015,
+        "kind": "connection-close",
+        "connectionId": "c9a8df99-6650-40d1-a9e5-8783c6d30051",
+        "detail": null
+      },
+      {
+        "at": 1786659961018,
+        "kind": "authority-detached",
+        "connectionId": "c9a8df99-6650-40d1-a9e5-8783c6d30051",
+        "detail": "valid until 1786659990870"
+      },
+      {
+        "at": 1786659961582,
+        "kind": "connection-open",
+        "connectionId": "52ff8db8-24cb-46e0-ba66-ce5e097887d8",
+        "detail": null
+      },
+      {
+        "at": 1786659961623,
+        "kind": "worker-identity",
+        "connectionId": "52ff8db8-24cb-46e0-ba66-ce5e097887d8",
+        "detail": "45d8fde1-9ecb-4c83-b52a-095c974cb4a1 runtime 161f4585-1d60-4c00-8af3-67952cb30a34 code 1.1.3"
+      },
+      {
+        "at": 1786659961708,
+        "kind": "authority-resumed",
+        "connectionId": "52ff8db8-24cb-46e0-ba66-ce5e097887d8",
+        "detail": "from c9a8df99-6650-40d1-a9e5-8783c6d30051"
+      },
+      {
+        "at": 1786659965134,
+        "kind": "connection-close",
+        "connectionId": "bd59b3aa-80ae-4b5a-82dc-25101fb79816",
+        "detail": null
+      },
+      {
+        "at": 1786659965842,
+        "kind": "connection-open",
+        "connectionId": "f98ae28f-ec2e-4966-a530-cddaf2e439d2",
+        "detail": null
+      },
+      {
+        "at": 1786659966007,
+        "kind": "worker-identity",
+        "connectionId": "f98ae28f-ec2e-4966-a530-cddaf2e439d2",
+        "detail": "14fdce37-ce46-44cb-8697-cbcee2c7f810 runtime 52134c71-ecdf-44e2-80ed-b5ef8b180b0c code 1.1.3"
+      },
+      {
+        "at": 1786659966166,
+        "kind": "connection-close",
+        "connectionId": "52ff8db8-24cb-46e0-ba66-ce5e097887d8",
+        "detail": null
+      },
+      {
+        "at": 1786659966171,
+        "kind": "authority-detached",
+        "connectionId": "52ff8db8-24cb-46e0-ba66-ce5e097887d8",
+        "detail": "valid until 1786659991624"
+      },
+      {
+        "at": 1786659966951,
+        "kind": "connection-open",
+        "connectionId": "ff39cdd3-1c6c-4fec-914f-b0eb0f194bc1",
+        "detail": null
+      },
+      {
+        "at": 1786659967026,
+        "kind": "worker-identity",
+        "connectionId": "ff39cdd3-1c6c-4fec-914f-b0eb0f194bc1",
+        "detail": "45d8fde1-9ecb-4c83-b52a-095c974cb4a1 runtime 161f4585-1d60-4c00-8af3-67952cb30a34 code 1.1.3"
+      },
+      {
+        "at": 1786659967090,
+        "kind": "authority-resumed",
+        "connectionId": "ff39cdd3-1c6c-4fec-914f-b0eb0f194bc1",
+        "detail": "from 52ff8db8-24cb-46e0-ba66-ce5e097887d8"
+      },
+      {
+        "at": 1786659969124,
+        "kind": "connection-close",
+        "connectionId": "ff39cdd3-1c6c-4fec-914f-b0eb0f194bc1",
+        "detail": null
+      },
+      {
+        "at": 1786659969130,
+        "kind": "authority-detached",
+        "connectionId": "ff39cdd3-1c6c-4fec-914f-b0eb0f194bc1",
+        "detail": "valid until 1786659997026"
+      },
+      {
+        "at": 1786659969932,
+        "kind": "connection-open",
+        "connectionId": "a785281b-07a1-4b8c-8344-425fb110ff54",
+        "detail": null
+      },
+      {
+        "at": 1786659969992,
+        "kind": "worker-identity",
+        "connectionId": "a785281b-07a1-4b8c-8344-425fb110ff54",
+        "detail": "45d8fde1-9ecb-4c83-b52a-095c974cb4a1 runtime 161f4585-1d60-4c00-8af3-67952cb30a34 code 1.1.3"
+      },
+      {
+        "at": 1786659970056,
+        "kind": "authority-resumed",
+        "connectionId": "a785281b-07a1-4b8c-8344-425fb110ff54",
+        "detail": "from ff39cdd3-1c6c-4fec-914f-b0eb0f194bc1"
+      },
+      {
+        "at": 1786659972031,
+        "kind": "connection-close",
+        "connectionId": "f98ae28f-ec2e-4966-a530-cddaf2e439d2",
+        "detail": null
+      },
+      {
+        "at": 1786659972896,
+        "kind": "connection-open",
+        "connectionId": "b5738968-371e-4dcc-831e-4fbc3d60dd9a",
+        "detail": null
+      },
+      {
+        "at": 1786659973009,
+        "kind": "worker-identity",
+        "connectionId": "b5738968-371e-4dcc-831e-4fbc3d60dd9a",
+        "detail": "14fdce37-ce46-44cb-8697-cbcee2c7f810 runtime 52134c71-ecdf-44e2-80ed-b5ef8b180b0c code 1.1.3"
+      },
+      {
+        "at": 1786659976396,
+        "kind": "connection-close",
+        "connectionId": "b5738968-371e-4dcc-831e-4fbc3d60dd9a",
+        "detail": null
+      },
+      {
+        "at": 1786659977447,
+        "kind": "connection-open",
+        "connectionId": "e6bb748f-eda9-4670-b8b2-6f1953a8fbbb",
+        "detail": null
+      },
+      {
+        "at": 1786659977557,
+        "kind": "worker-identity",
+        "connectionId": "e6bb748f-eda9-4670-b8b2-6f1953a8fbbb",
+        "detail": "14fdce37-ce46-44cb-8697-cbcee2c7f810 runtime 52134c71-ecdf-44e2-80ed-b5ef8b180b0c code 1.1.3"
+      },
+      {
+        "at": 1786659989501,
+        "kind": "connection-close",
+        "connectionId": "e6bb748f-eda9-4670-b8b2-6f1953a8fbbb",
+        "detail": null
+      },
+      {
+        "at": 1786659990601,
+        "kind": "connection-open",
+        "connectionId": "e64acdb6-ab31-45ab-af20-6dfc837c6b70",
+        "detail": null
+      },
+      {
+        "at": 1786659990677,
+        "kind": "worker-identity",
+        "connectionId": "e64acdb6-ab31-45ab-af20-6dfc837c6b70",
+        "detail": "14fdce37-ce46-44cb-8697-cbcee2c7f810 runtime 52134c71-ecdf-44e2-80ed-b5ef8b180b0c code 1.1.3"
+      },
+      {
+        "at": 1786660028366,
+        "kind": "connection-close",
+        "connectionId": "e64acdb6-ab31-45ab-af20-6dfc837c6b70",
+        "detail": null
+      },
+      {
+        "at": 1786660028986,
+        "kind": "connection-open",
+        "connectionId": "4e24fa08-baef-4d80-b02a-6727ea256825",
+        "detail": null
+      },
+      {
+        "at": 1786660029188,
+        "kind": "worker-identity",
+        "connectionId": "4e24fa08-baef-4d80-b02a-6727ea256825",
+        "detail": "14fdce37-ce46-44cb-8697-cbcee2c7f810 runtime 52134c71-ecdf-44e2-80ed-b5ef8b180b0c code 1.1.3"
+      },
+      {
+        "at": 1786660472092,
+        "kind": "connection-close",
+        "connectionId": "4e24fa08-baef-4d80-b02a-6727ea256825",
+        "detail": null
+      },
+      {
+        "at": 1786660473899,
+        "kind": "connection-open",
+        "connectionId": "71a9e32e-c0aa-4570-b422-d6c243d2c463",
+        "detail": null
+      },
+      {
+        "at": 1786660474121,
+        "kind": "worker-identity",
+        "connectionId": "71a9e32e-c0aa-4570-b422-d6c243d2c463",
+        "detail": "14fdce37-ce46-44cb-8697-cbcee2c7f810 runtime 52134c71-ecdf-44e2-80ed-b5ef8b180b0c code 1.1.3"
+      },
+      {
+        "at": 1786660532413,
+        "kind": "connection-close",
+        "connectionId": "71a9e32e-c0aa-4570-b422-d6c243d2c463",
+        "detail": null
+      },
+      {
+        "at": 1786660534060,
+        "kind": "connection-open",
+        "connectionId": "e5568b30-1edb-4fa6-965b-61cda1667279",
+        "detail": null
+      },
+      {
+        "at": 1786660534191,
+        "kind": "worker-identity",
+        "connectionId": "e5568b30-1edb-4fa6-965b-61cda1667279",
+        "detail": "14fdce37-ce46-44cb-8697-cbcee2c7f810 runtime 52134c71-ecdf-44e2-80ed-b5ef8b180b0c code 1.1.3"
+      },
+      {
+        "at": 1786660591168,
+        "kind": "connection-close",
+        "connectionId": "e5568b30-1edb-4fa6-965b-61cda1667279",
+        "detail": null
+      },
+      {
+        "at": 1786660593926,
+        "kind": "connection-open",
+        "connectionId": "25e6a342-b836-4963-bf3c-30577622f65d",
+        "detail": null
+      },
+      {
+        "at": 1786660594109,
+        "kind": "worker-identity",
+        "connectionId": "25e6a342-b836-4963-bf3c-30577622f65d",
+        "detail": "14fdce37-ce46-44cb-8697-cbcee2c7f810 runtime 52134c71-ecdf-44e2-80ed-b5ef8b180b0c code 1.1.3"
+      },
+      {
+        "at": 1786660651919,
+        "kind": "connection-close",
+        "connectionId": "25e6a342-b836-4963-bf3c-30577622f65d",
+        "detail": null
+      },
+      {
+        "at": 1786660654070,
+        "kind": "connection-open",
+        "connectionId": "af8a15b8-4918-446b-b6f8-96cbf89bbee3",
+        "detail": null
+      },
+      {
+        "at": 1786660654239,
+        "kind": "worker-identity",
+        "connectionId": "af8a15b8-4918-446b-b6f8-96cbf89bbee3",
+        "detail": "14fdce37-ce46-44cb-8697-cbcee2c7f810 runtime 52134c71-ecdf-44e2-80ed-b5ef8b180b0c code 1.1.3"
+      },
+      {
+        "at": 1786660711567,
+        "kind": "connection-close",
+        "connectionId": "af8a15b8-4918-446b-b6f8-96cbf89bbee3",
+        "detail": null
+      },
+      {
+        "at": 1786660713927,
+        "kind": "connection-open",
+        "connectionId": "abc8863e-c910-48c7-ac39-9688fd2b5678",
+        "detail": null
+      },
+      {
+        "at": 1786660714088,
+        "kind": "worker-identity",
+        "connectionId": "abc8863e-c910-48c7-ac39-9688fd2b5678",
+        "detail": "14fdce37-ce46-44cb-8697-cbcee2c7f810 runtime 52134c71-ecdf-44e2-80ed-b5ef8b180b0c code 1.1.3"
+      },
+      {
+        "at": 1786660831416,
+        "kind": "connection-close",
+        "connectionId": "abc8863e-c910-48c7-ac39-9688fd2b5678",
+        "detail": null
+      },
+      {
+        "at": 1786660833965,
+        "kind": "connection-open",
+        "connectionId": "a74176eb-4868-4838-8607-3bd3da012d66",
+        "detail": null
+      },
+      {
+        "at": 1786660834106,
+        "kind": "worker-identity",
+        "connectionId": "a74176eb-4868-4838-8607-3bd3da012d66",
+        "detail": "14fdce37-ce46-44cb-8697-cbcee2c7f810 runtime 52134c71-ecdf-44e2-80ed-b5ef8b180b0c code 1.1.3"
+      },
+      {
+        "at": 1786660891913,
+        "kind": "connection-close",
+        "connectionId": "a74176eb-4868-4838-8607-3bd3da012d66",
+        "detail": null
+      },
+      {
+        "at": 1786660894113,
+        "kind": "connection-open",
+        "connectionId": "1f69cfc0-1890-4ed7-909e-c082f5939a8e",
+        "detail": null
+      },
+      {
+        "at": 1786660894281,
+        "kind": "worker-identity",
+        "connectionId": "1f69cfc0-1890-4ed7-909e-c082f5939a8e",
+        "detail": "14fdce37-ce46-44cb-8697-cbcee2c7f810 runtime 52134c71-ecdf-44e2-80ed-b5ef8b180b0c code 1.1.3"
+      },
+      {
+        "at": 1786660951569,
+        "kind": "connection-close",
+        "connectionId": "1f69cfc0-1890-4ed7-909e-c082f5939a8e",
+        "detail": null
+      },
+      {
+        "at": 1786660954022,
+        "kind": "connection-open",
+        "connectionId": "887a132a-289f-46ad-b8bd-27fdaba83971",
+        "detail": null
+      },
+      {
+        "at": 1786660954297,
+        "kind": "worker-identity",
+        "connectionId": "887a132a-289f-46ad-b8bd-27fdaba83971",
+        "detail": "14fdce37-ce46-44cb-8697-cbcee2c7f810 runtime 52134c71-ecdf-44e2-80ed-b5ef8b180b0c code 1.1.3"
+      },
+      {
+        "at": 1786661010865,
+        "kind": "connection-close",
+        "connectionId": "887a132a-289f-46ad-b8bd-27fdaba83971",
+        "detail": null
+      },
+      {
+        "at": 1786661014067,
+        "kind": "connection-open",
+        "connectionId": "6d50a784-b219-4fd6-b3e2-0eb79a90a2a2",
+        "detail": null
+      },
+      {
+        "at": 1786661014201,
+        "kind": "worker-identity",
+        "connectionId": "6d50a784-b219-4fd6-b3e2-0eb79a90a2a2",
+        "detail": "14fdce37-ce46-44cb-8697-cbcee2c7f810 runtime 52134c71-ecdf-44e2-80ed-b5ef8b180b0c code 1.1.3"
+      }
+    ]
+  }
+}

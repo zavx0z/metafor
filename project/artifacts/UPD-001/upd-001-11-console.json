@@ -1,0 +1,35 @@
+{
+  "schema": "upd-001.11/cdp-console-reload-v1",
+  "provenance": {
+    "capturedAt": "2026-08-13T23:04:43Z",
+    "commit": "3b16205684407d3b771ee1a5827292daddb3907e",
+    "endpoint": "POST http://127.0.0.1:7880/cdp/command Runtime.evaluate",
+    "sanitized": true
+  },
+  "targets": [
+    {
+      "targetId": "7B227055B2489360CD83F7790823F8FF",
+      "result": {
+        "probePresent": true,
+        "observedMs": 24442,
+        "timeOrigin": 1786662165019.8,
+        "readyState": "complete",
+        "errors": [],
+        "rejections": [],
+        "consoleErrors": []
+      }
+    },
+    {
+      "targetId": "11E491A8B2D07463D406EBAF7948C35A",
+      "result": {
+        "probePresent": true,
+        "observedMs": 24452,
+        "timeOrigin": 1786662172185.6,
+        "readyState": "complete",
+        "errors": [],
+        "rejections": [],
+        "consoleErrors": []
+      }
+    }
+  ]
+}

@@ -9,6 +9,40 @@ Authenticated `/lab/status` читался с локальным test-token, н�
 другие секреты в артефактах не сохранены. Chrome/profile и их storage во время
 опыта не закрывались и не очищались.
 
+### Повтор после closing review: raw evidence
+
+Proof gap повторно проверен 2026-08-14 на prepared commit
+`3b16205684407d3b771ee1a5827292daddb3907e`. JSON созданы напрямую из exact
+HTTP responses через `jq`; значения profile, identity, execution, version,
+admission, Window, heartbeat и host events вручную не переписывались. Bearer,
+wake proof и push payload/subscription fields не сохранены.
+
+* `upd-001-11-baseline.json` — manifest, authenticated status и CDP targets
+  до patch; `2026-08-13T22:43:37Z`, SHA-256 `8cccb9ed40483c9bebea18c386622e861470df3871bc1fe877bbc7f5d14e7ad7`, `17969` bytes.
+* `upd-001-11-temporary.json` — те же endpoints в одном simultaneous current
+  state `1.1.4`; `2026-08-13T22:59:58Z`, SHA-256 `2fe243e0e79621117bef6d0d853b6eda5fd31831314d3c14236ed10fa618b91e`, `11059` bytes.
+* `upd-001-11-final.json` — те же endpoints после обязательного возврата к
+  committed `1.1.3`; `2026-08-13T23:04:06Z`, SHA-256 `08e18c671ae910743ca0dc5d81d50813dd75bf05290552188991e66d7cff1c12`, `14078` bytes.
+* `upd-001-11-console.json` — direct results bounded probes двух stable CDP
+  targets; `2026-08-13T23:04:43Z`, SHA-256 `d52448f5f8b3ffeebbf8d879801ed3b3721f0f3a1beb96964d8e5a8eded5d049`, `892` bytes.
+
+| Raw state | Manifest | Profile `b04b5959-…` | Profile `06cb9ee3-…` | Admission/topology |
+|---|---|---|---|---|
+| baseline | `1.1.3`, `0cfc5d19…` | identity `45d8fde1-…`, execution `161f4585-…`, ACK `105/105` | identity `14fdce37-…`, execution `52134c71-…`, ACK `1/1` | оба current, update false, по две Window |
+| temporary | `1.1.4`, `61bed1d2…` | та же identity, execution `426aa26a-…`, ACK `27/27` | та же identity, execution `6ce44030-…`, ACK `3/3` | оба current, update false, по две Window |
+| final | `1.1.3`, `0cfc5d19…` | та же identity, execution `bf100681-…`, ACK `7/7` | та же identity, execution `dc18dfdd-…`, ACK `1/1` | оба current, update false, по две Window |
+
+Relevant raw events сохранены в каждом sanitized status projection. Temporary
+events содержат фактические `connection-*`, `worker-identity`, `authority-*` и
+standard Push chain `armed → sent → service-accepted → reconnect-timeout`,
+после которой status фиксирует поздний reconnect exact default identity.
+Отдельных `service-worker-update-required` в повторном corpus нет: browser
+registration и source-reload успевали установить новую version до первого
+stale host admission. Короткий повтор дал ту же race; events не
+синтезировались. Причинная смена независимо проверяется тремя exact
+manifest/status states с неизменными logical identities, разными executions,
+current admission, Window topology и heartbeat.
+
 ### Причинные состояния
 
 | Состояние | Host epoch | Profile `b04b5959-…` | Profile `06cb9ee3-…` | Topology |
@@ -45,3 +79,8 @@ Chrome/profile compound и current Service Worker `1.1.3` в каждом. Фа�
 `complete`, а все три error-массива — пустыми. Probes после чтения сняты; это
 подтверждает отсутствие нового console error и reload loop в bounded final
 интервале, но не является историей консоли до установки probe.
+
+Повторный bounded probe из `upd-001-11-console.json` наблюдал targets
+`24442`/`24452` ms: `timeOrigin` оставался
+`1786662165019.8`/`1786662172185.6`, document — `complete`, а `error`,
+`unhandledrejection` и `console.error` — пустыми. Probes после чтения сняты.

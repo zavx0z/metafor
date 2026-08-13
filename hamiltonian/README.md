@@ -724,14 +724,14 @@ HAMILTONIAN_TOKEN=local-test HAMILTONIAN_VERSION=v1 bun run start
 host запускается с тем же identity/token и новым `HAMILTONIAN_VERSION`;
 управляемая страница подготавливает cache и выполняет reload.
 
-Локальный host наблюдает изменения browser/public/core, `pkg/nodes`, `pkg/ui`
-и `pkg/web-push` source.
+Локальный host наблюдает изменения `hamiltonian/browser`, `public`, `core`,
+`update`, `visual`, а также `pkg/nodes`, `pkg/ui` и `pkg/web-push` source.
 После 120 ms debounce он сначала успешно пересобирает orchestration, layout
 Worker, Service Worker и Web Push client bundles и только затем отправляет
 controlled pages новую source revision по текущему control socket. Source
 revision является fingerprint полного browser-кода, который фактически отдаёт
-host: собранных bundles и напрямую served HTML, JS, CSS и core modules. Host
-epoch, PID и локальный номер build generation в эту identity не входят.
+host: собранных bundles и напрямую served HTML, JS, CSS, core и update modules.
+Host epoch, PID и локальный номер build generation в эту identity не входят.
 Поэтому cold restart host с теми же browser artifacts не перезагружает page, а
 успешная generation с изменившимся fingerprint перезагружает её ровно один
 раз. Navigation HTML содержит fingerprint загруженного кода как исходный
