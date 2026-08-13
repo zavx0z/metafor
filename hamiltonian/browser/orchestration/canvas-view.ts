@@ -2,7 +2,7 @@ import {Button, Checkbox, Typography, uiIcons} from "@ui/components"
 import {UiSurface, type UiSurfaceOpts} from "@ui/elements"
 import {HUD_WINDOW_TITLE_HEIGHT, HudSideTab, HudWindow, type HudPaneFrameChange} from "@ui/hud"
 import {HAMILTONIAN_CANVAS_VIEW_PANEL_HEIGHT} from "./workspace.ts"
-import {hamiltonianConnectionColor} from "./connection-color.ts"
+import {hamiltonianConnectionColor} from "@hamiltonian/visual/presentation"
 
 export const HAMILTONIAN_CANVAS_VIEW_TITLE_HEIGHT = HUD_WINDOW_TITLE_HEIGHT
 export const HAMILTONIAN_CANVAS_VIEW_BODY_TOP_GAP = 10

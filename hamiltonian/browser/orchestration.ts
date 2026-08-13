@@ -37,14 +37,12 @@ import {
   refreshPositionedNodeSystem,
   type HamiltonianLifecyclePresentation,
 } from "./orchestration/lifecycle-projection.ts"
-import {shouldRetainMissingLocalWindowSelection} from "./orchestration/selection-retention.ts"
 import {
   planHamiltonianCanvasViewFrame,
   planHamiltonianGraphDisplayRect,
   planHamiltonianOrchestrationWorkspace,
 } from "./orchestration/workspace.ts"
 import {HamiltonianCanvasViewSurface} from "./orchestration/canvas-view.ts"
-import {HamiltonianTrafficPresentationGate} from "./orchestration/traffic-presentation.ts"
 import {
   HAMILTONIAN_LAYOUT_TRANSITION_MS,
   easeHamiltonianLayoutTransition,
@@ -56,10 +54,12 @@ import {
   hamiltonianLayoutViewportKey,
 } from "./orchestration/responsive-layout.ts"
 import {
+  HamiltonianTrafficPresentationGate,
   captureHamiltonianSpatialRuntime,
+  hamiltonianConnectionColor,
   serializeHamiltonianViewPoint,
-} from "./orchestration/spatial-runtime.ts"
-import {hamiltonianConnectionColor} from "./orchestration/connection-color.ts"
+  shouldRetainMissingLocalWindowSelection,
+} from "@hamiltonian/visual/presentation"
 
 const canvas = requiredElement(document.querySelector<HTMLCanvasElement>("#orchestration-canvas"))
 const status = requiredElement(document.querySelector<HTMLElement>("#orchestration-status"))

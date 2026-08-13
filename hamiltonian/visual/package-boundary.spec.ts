@@ -28,6 +28,7 @@ describe("Hamiltonian visual package boundary", () => {
     expect(visualPackage.private).toBeTrue()
     expect(visualPackage.exports).toEqual({
       ".": "./index.ts",
+      "./presentation": "./presentation/index.ts",
     })
     expect(Object.keys(visualPackage.dependencies ?? {}).sort()).toEqual([
       "@metafor/engine",
@@ -49,6 +50,21 @@ describe("Hamiltonian visual package boundary", () => {
     expect(styles).toContain("#orchestration-canvas")
     expect(styles).toContain('.orchestration-failed #orchestration-status')
     expect(styles).not.toContain(".legacy-debug")
+  })
+
+  test("owns Hamiltonian presentation leaves outside browser orchestration", async () => {
+    const leaves = [
+      "connection-color",
+      "selection-retention",
+      "spatial-runtime",
+      "traffic-presentation",
+    ]
+    for (const leaf of leaves) {
+      for (const suffix of [".ts", ".spec.ts"]) {
+        expect(await Bun.file(join(packageRoot, "presentation", `${leaf}${suffix}`)).exists()).toBeTrue()
+        expect(await Bun.file(join(hamiltonianRoot, "browser/orchestration", `${leaf}${suffix}`)).exists()).toBeFalse()
+      }
+    }
   })
 
   test("keeps universal node-system packages free of reverse Hamiltonian imports", async () => {
