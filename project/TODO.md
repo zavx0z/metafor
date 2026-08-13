@@ -106,17 +106,19 @@ canvas показали оба RTC endpoint и exact Oracle/Force lines. HAM-001
 
 `MF-428.5 — Нормализовать шапку ноды Service Worker` завершена отдельным
 checkpoint-коммитом `70fe491c1`. MF-428 остаётся `IN_PROGRESS`; следующий
-разрешённый срез `MF-428.4 — Обновлять Worker всех запущенных локальных
-профилей` получил product checkpoint: manifest различает module и Worker
+срез `MF-428.4 — Обновлять Worker всех запущенных локальных профилей`
+получил product checkpoint: manifest различает module и Worker
 release, stale профили не допускаются в application topology/peer, а один
 exact CDP-профиль live обновлён с Worker `1.0.0` до `1.1.0`. Live-derived
 stale projection facts и transient error reason закрыты отдельными frozen
-regressions; финальный offline proof — `195/195`, `4048` assertions. MF-428
-остаётся `IN_PROGRESS`: для завершения среза нужна обязательная одновременная
-exact-target проверка второго, default Chrome-профиля. CDP и Hamiltonian
-оставлены запущенными; владелец должен открыть `http://127.0.0.1:4400` в
-default Chrome process `408`. Web Push кода не переносит; иные среды и
-выключенные профили в этот срез не входят.
+regressions. Checkpoint `260aa786a` защитил current Worker identity от page-side Web Push
+observation и поднял release до `1.1.1`, но live rollout открыл две новые причины.
+Текущий срез — `MF-428.6 — Допускать новый Worker к действующему Hamiltonian`:
+bootstrap server declaration не должна требовать от новой execution уже знать старую browser boundary.
+После него `MF-428.7 — Гарантированно закрывать отклонённый WebSocket в browser Worker`
+уберёт browser-invalid `close(1008)` и heartbeat-only ghost connection. Оба Chrome process и Hamiltonian
+оставлены запущенными для той же two-profile acceptance; Web Push кода не переносит, иные
+среды и выключенные профили в этот срез не входят.
 
 | ID      | Состояние   | Зависимости | Карточка                    |
 | ------- | ----------- | ----------- | --------------------------- |
