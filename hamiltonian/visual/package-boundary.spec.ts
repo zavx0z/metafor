@@ -28,6 +28,7 @@ describe("Hamiltonian visual package boundary", () => {
     expect(visualPackage.private).toBeTrue()
     expect(visualPackage.exports).toEqual({
       ".": "./index.ts",
+      "./hud": "./hud/index.ts",
       "./presentation": "./presentation/index.ts",
     })
     expect(Object.keys(visualPackage.dependencies ?? {}).sort()).toEqual([
@@ -62,6 +63,15 @@ describe("Hamiltonian visual package boundary", () => {
     for (const leaf of leaves) {
       for (const suffix of [".ts", ".spec.ts"]) {
         expect(await Bun.file(join(packageRoot, "presentation", `${leaf}${suffix}`)).exists()).toBeTrue()
+        expect(await Bun.file(join(hamiltonianRoot, "browser/orchestration", `${leaf}${suffix}`)).exists()).toBeFalse()
+      }
+    }
+  })
+
+  test("owns Hamiltonian HUD composition outside browser orchestration", async () => {
+    for (const leaf of ["canvas-view", "workspace"]) {
+      for (const suffix of [".ts", ".spec.ts"]) {
+        expect(await Bun.file(join(packageRoot, "hud", `${leaf}${suffix}`)).exists()).toBeTrue()
         expect(await Bun.file(join(hamiltonianRoot, "browser/orchestration", `${leaf}${suffix}`)).exists()).toBeFalse()
       }
     }

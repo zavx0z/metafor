@@ -8,6 +8,7 @@
   "types": "index.ts",
   "exports": {
     ".": "./index.ts",
+    "./hud": "./hud/index.ts",
     "./presentation": "./presentation/index.ts"
   },
   "scripts": {

@@ -38,11 +38,11 @@ import {
   type HamiltonianLifecyclePresentation,
 } from "./orchestration/lifecycle-projection.ts"
 import {
+  HamiltonianCanvasViewSurface,
   planHamiltonianCanvasViewFrame,
   planHamiltonianGraphDisplayRect,
   planHamiltonianOrchestrationWorkspace,
-} from "./orchestration/workspace.ts"
-import {HamiltonianCanvasViewSurface} from "./orchestration/canvas-view.ts"
+} from "@hamiltonian/visual/hud"
 import {
   HAMILTONIAN_LAYOUT_TRANSITION_MS,
   easeHamiltonianLayoutTransition,
