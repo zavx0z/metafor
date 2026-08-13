@@ -25,7 +25,6 @@ flowchart LR
     MF414["MF-414 · где работают домены"]
     MF421["MF-421 · деактивация невидимого monitor display"]
     MF424["MF-424 · визуальная доводка Hamiltonian"]
-    MF428["MF-428 · несколько Chrome и Service Worker"]
     HAM001["HAM-001 · декларации нодовой системы Hamiltonian"]
     NODES006["NODES-006 · кратчайший законный маршрут"]
     NODES008["NODES-008 · убрать пустой compound-резерв"]
@@ -104,21 +103,10 @@ canvas показали оба RTC endpoint и exact Oracle/Force lines. HAM-001
 
 ## P2 — функциональное продолжение и надёжность
 
-MF-428.1–MF-428.8 завершены и зафиксированы result/evidence-коммитом
-`1579d11cd`; родитель находится в `REVIEW`. Финальный local-Mac сценарий
-одновременно подтвердил два exact Chrome/profile, два разных Worker `1.1.2`,
-по две восстановленные Window, раздельные ownership/WS boundaries и отсутствие
-root/duplicate/cross-profile Worker. `hamiltonian/README.md` содержит
-долговечные законы; полный текущий closing handoff находится в карточке.
-Работающие default Chrome, Chrome-CDP и Hamiltonian оставлены для owner check.
-После устранения документальных замечаний выполняется повторная независимая
-closing review; до её PASS карточка, строка TODO и артефакты сохраняются.
-
 | ID      | Состояние   | Зависимости | Карточка                    |
 | ------- | ----------- | ----------- | --------------------------- |
 | MF-407  | READY       | нет         | [Открыть](tasks/MF-407.md)  |
 | MF-421  | READY       | нет         | [Открыть](tasks/MF-421.md)  |
-| MF-428  | REVIEW      | нет         | [Открыть](tasks/MF-428.md)  |
 | AUD-009 | READY       | нет         | [Открыть](tasks/AUD-009.md) |
 | AUD-005 | GATE        | нет         | [Открыть](tasks/AUD-005.md) |
 | AUD-008 | GATE        | нет         | [Открыть](tasks/AUD-008.md) |
