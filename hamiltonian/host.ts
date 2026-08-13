@@ -47,6 +47,7 @@ import {
   hamiltonianVersionedModuleRelease,
   type HamiltonianServiceWorkerRelease,
 } from "./update/host/browser-release.ts"
+import {HamiltonianServiceWorkerAdmissionRegistry} from "./update/host/service-worker-admission.ts"
 
 interface SocketData {
   connectionId: string
@@ -92,15 +93,6 @@ interface HamiltonianHostOptions {
 interface ClientTabsMessage {
   kind: "tabs"
   windows: WindowCandidate[]
-}
-
-const TECHNICAL_CLIENT_MESSAGE_KINDS = new Set(["identity", "pong"])
-
-export function hamiltonianServiceWorkerApplicationMessageAllowed(
-  identityConfirmed: boolean,
-  kind: string,
-): boolean {
-  return identityConfirmed || TECHNICAL_CLIENT_MESSAGE_KINDS.has(kind)
 }
 
 export function hamiltonianServerBootstrapDeclaration(
@@ -797,11 +789,7 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
   let serverAuthority = placement === "server" ? makeServerAuthority(serverFencingToken) : null
   const topology = new HostTopology(hostEpoch)
   const sockets = new Map<string, Bun.ServerWebSocket<SocketData>>()
-  const serviceWorkerEmbodiments = new Map<string, {runtimeIncarnation: string; codeVersion: string}>()
-  const pendingServiceWorkerUpdates = new Map<string, {
-    runtimeIncarnation: string
-    target: HamiltonianServiceWorkerRelease
-  }>()
+  const serviceWorkerAdmission = new HamiltonianServiceWorkerAdmissionRegistry()
   let controlConnectionGeneration = 0
   const sourceWatchers: FSWatcher[] = []
   let sourceUpdateTimer: ReturnType<typeof setTimeout> | null = null
@@ -826,22 +814,10 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
   const currentServiceWorkerRelease = async (): Promise<HamiltonianServiceWorkerRelease> => {
     return hamiltonianServiceWorkerRelease(await getServiceWorkerBundle())
   }
-  const serviceWorkerUpdateKey = (socket: Bun.ServerWebSocket<SocketData>) =>
-    `${socket.data.deviceId}\u0000${socket.data.workerEntityId}`
-  const markServiceWorkerUpdate = (
-    socket: Bun.ServerWebSocket<SocketData>,
-    target: HamiltonianServiceWorkerRelease,
-  ): boolean => {
-    if (!socket.data.workerRuntimeIncarnation) return false
-    const revokedApplication = socket.data.identityConfirmed
+  const applyServiceWorkerUpdateState = (socket: Bun.ServerWebSocket<SocketData>) => {
     socket.data.identityConfirmed = false
     socket.data.retainAuthorityOnClose = false
     socket.data.workerUpdateRequired = true
-    pendingServiceWorkerUpdates.set(serviceWorkerUpdateKey(socket), {
-      runtimeIncarnation: socket.data.workerRuntimeIncarnation,
-      target,
-    })
-    return revokedApplication
   }
   const sendServiceWorkerUpdate = (
     socket: Bun.ServerWebSocket<SocketData>,
@@ -863,19 +839,23 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
     broadcastTopology()
     await peerOperations
   }
-  const requireServiceWorkerUpdate = async (
-    socket: Bun.ServerWebSocket<SocketData>,
-    target: HamiltonianServiceWorkerRelease,
-  ) => {
-    if (markServiceWorkerUpdate(socket, target)) await revokeServiceWorkerApplication([socket])
-    sendServiceWorkerUpdate(socket, target)
-  }
   const reconcileServiceWorkerReleases = async (target: HamiltonianServiceWorkerRelease) => {
-    const staleSockets = [...sockets.values()].filter((socket) =>
-      socket.data.workerCodeVersion !== null && socket.data.workerCodeVersion !== target.version)
-    const revokedSockets = staleSockets.filter((socket) => markServiceWorkerUpdate(socket, target))
+    const updates = serviceWorkerAdmission.reconcileRelease([...sockets.values()].map((socket) => ({
+      endpoint: socket,
+      profileId: socket.data.deviceId,
+      workerEntityId: socket.data.workerEntityId,
+      runtimeIncarnation: socket.data.workerRuntimeIncarnation,
+      codeVersion: socket.data.workerCodeVersion,
+      applicationAdmitted: socket.data.identityConfirmed,
+    })), target)
+    for (const {endpoint} of updates) applyServiceWorkerUpdateState(endpoint)
+    const revokedSockets = updates
+      .filter(({revokeApplication}) => revokeApplication)
+      .map(({endpoint}) => endpoint)
     await revokeServiceWorkerApplication(revokedSockets)
-    for (const socket of staleSockets) sendServiceWorkerUpdate(socket, target)
+    for (const {endpoint, target: updateTarget} of updates) {
+      sendServiceWorkerUpdate(endpoint, updateTarget)
+    }
   }
   const clearPendingWake = (workerEntityId: string, wakeId: string): boolean => {
     if (pendingWakes.get(workerEntityId)?.wakeId !== wakeId) return false
@@ -946,7 +926,7 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
     cancelBrowserProfileReachabilityExpiry(deviceId)
     const browserEntityId = hamiltonianBrowserNodeId(deviceId)
     if (!hostLifecycleJournal.forgetEntityTree(browserEntityId)) return false
-    serviceWorkerEmbodiments.delete(workerEntityId)
+    serviceWorkerAdmission.forgetEmbodiment(workerEntityId)
     broadcastLifecycleSnapshot()
     record({
       at: Date.now(),
@@ -1113,7 +1093,7 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
     attributes: Record<string, string | number | boolean | null>,
     causedBy?: string,
   ) => {
-    const embodiment = serviceWorkerEmbodiments.get(workerEntityId)
+    const embodiment = serviceWorkerAdmission.embodiment(workerEntityId)
     relayLifecycleEnvelope(hostLifecycle.next(createHamiltonianLifecycleObservation({
       type: "entity",
       phase: "changed",
@@ -1959,7 +1939,7 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
           socket.close(1008, "invalid control message")
           return
         }
-        if (!hamiltonianServiceWorkerApplicationMessageAllowed(socket.data.identityConfirmed, message.kind)) {
+        if (!serviceWorkerAdmission.applicationMessageAllowed(socket.data.identityConfirmed, message.kind)) {
           return
         }
         if (message.monitor) {
@@ -1997,7 +1977,7 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
             return
           }
           hostLifecycleJournal.retireEntity(message.envelope.observation.subjectId)
-          serviceWorkerEmbodiments.delete(message.envelope.observation.subjectId)
+          serviceWorkerAdmission.forgetEmbodiment(message.envelope.observation.subjectId)
           broadcastLifecycleEnvelope(message.envelope)
           return
         }
@@ -2099,15 +2079,6 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
             socket.close(1008, "worker identity does not match control endpoint")
             return
           }
-          const previousEmbodiment = serviceWorkerEmbodiments.get(socket.data.workerEntityId)
-          if (
-            previousEmbodiment?.runtimeIncarnation === message.workerRuntimeIncarnation &&
-            previousEmbodiment.codeVersion !== message.workerCodeVersion
-          ) {
-            socket.data.retainAuthorityOnClose = false
-            socket.close(1008, "Service Worker code version changed without a new execution")
-            return
-          }
           if (message.wakeId !== undefined) {
             const pendingWake = pendingWakes.get(socket.data.workerEntityId)
             if (
@@ -2123,22 +2094,27 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
             }
           }
           const targetServiceWorker = await currentServiceWorkerRelease()
-          const updateKey = serviceWorkerUpdateKey(socket)
-          const pendingUpdate = pendingServiceWorkerUpdates.get(updateKey)
-          if (
-            pendingUpdate?.runtimeIncarnation === message.workerRuntimeIncarnation &&
-            message.workerCodeVersion === pendingUpdate.target.version
-          ) {
+          const admissionClaim = {
+            profileId: socket.data.deviceId,
+            workerEntityId: socket.data.workerEntityId,
+            runtimeIncarnation: message.workerRuntimeIncarnation,
+            codeVersion: message.workerCodeVersion,
+            applicationAdmitted: socket.data.identityConfirmed,
+          }
+          const admission = serviceWorkerAdmission.decideIdentity(admissionClaim, targetServiceWorker)
+          if (admission.kind === "reject") {
             socket.data.retainAuthorityOnClose = false
-            socket.close(1008, "Service Worker target version requires a new execution")
+            socket.close(1008, admission.reason)
             return
           }
           socket.data.workerIdentity = message.workerIdentity
           socket.data.workerRuntimeIncarnation = message.workerRuntimeIncarnation
           socket.data.workerCodeVersion = message.workerCodeVersion
           socket.data.resumeNonce = message.resumeNonce
-          if (message.workerCodeVersion !== targetServiceWorker.version) {
-            await requireServiceWorkerUpdate(socket, targetServiceWorker)
+          if (admission.kind === "stale") {
+            applyServiceWorkerUpdateState(socket)
+            if (admission.revokeApplication) await revokeServiceWorkerApplication([socket])
+            sendServiceWorkerUpdate(socket, admission.target)
             return
           }
           const browserDeclaration = browserDeclarationForSnapshot(
@@ -2152,14 +2128,10 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
             socket.close(1008, "invalid browser node-system declaration")
             return
           }
-          serviceWorkerEmbodiments.set(socket.data.workerEntityId, {
-            runtimeIncarnation: message.workerRuntimeIncarnation,
-            codeVersion: message.workerCodeVersion,
-          })
+          serviceWorkerAdmission.confirmCurrent(admissionClaim)
           socket.data.identityConfirmed = true
           socket.data.workerUpdateRequired = false
           socket.data.retainAuthorityOnClose = true
-          pendingServiceWorkerUpdates.delete(updateKey)
           cancelBrowserProfileReachabilityExpiry(socket.data.deviceId)
           mergeBrowserLifecycleSnapshot(message.lifecycleSnapshot)
           socket.send(JSON.stringify({kind: "lifecycle-snapshot", snapshot: hostLifecycleJournal.snapshot()}))

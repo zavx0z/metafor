@@ -22,7 +22,6 @@ import {HAMILTONIAN_SERVICE_WORKER_CODE_VERSION} from "./update/browser/service-
 import {
   createHamiltonianHost,
   hamiltonianServerBootstrapDeclaration,
-  hamiltonianServiceWorkerApplicationMessageAllowed,
 } from "./host.ts"
 import {WeriftPeer, type PeerSignal} from "./peer/werift-peer.ts"
 
@@ -459,14 +458,6 @@ describe("isolated Hamiltonian host", () => {
     const hostRevisionA = bootstrapValue(bootstrapA, "hamiltonian-browser-source-revision")
     const hostRevisionB = bootstrapValue(bootstrapB, "hamiltonian-browser-source-revision")
     expect(hostRevisionB).toBe(hostRevisionA)
-  })
-
-  test("admits only technical Worker messages before exact profile identity is current", () => {
-    expect(hamiltonianServiceWorkerApplicationMessageAllowed(false, "identity")).toBeTrue()
-    expect(hamiltonianServiceWorkerApplicationMessageAllowed(false, "pong")).toBeTrue()
-    expect(hamiltonianServiceWorkerApplicationMessageAllowed(false, "tabs")).toBeFalse()
-    expect(hamiltonianServiceWorkerApplicationMessageAllowed(false, "peer-signal")).toBeFalse()
-    expect(hamiltonianServiceWorkerApplicationMessageAllowed(true, "tabs")).toBeTrue()
   })
 
   test("rejects a Service Worker identity whose code version is not SemVer", async () => {
