@@ -104,24 +104,15 @@ canvas показали оба RTC endpoint и exact Oracle/Force lines. HAM-001
 
 ## P2 — функциональное продолжение и надёжность
 
-`MF-428.5 — Нормализовать шапку ноды Service Worker` завершена отдельным
-checkpoint-коммитом `70fe491c1`. MF-428 остаётся `IN_PROGRESS`; следующий
-срез `MF-428.4 — Обновлять Worker всех запущенных локальных профилей`
-получил product checkpoint: manifest различает module и Worker
-release, stale профили не допускаются в application topology/peer, а один
-exact CDP-профиль live обновлён с Worker `1.0.0` до `1.1.0`. Live-derived
-stale projection facts и transient error reason закрыты отдельными frozen
-regressions. Checkpoint `260aa786a` защитил current Worker identity от page-side Web Push
-observation и поднял release до `1.1.1`, но live rollout открыл две новые причины.
-`MF-428.6 — Допускать новый Worker к действующему Hamiltonian` завершена
-checkpoint-коммитом `bf10ae45c`: bootstrap server declaration больше не требует
-от новой execution уже знать старую browser boundary. `MF-428.8 — Синхронизировать
-host-фикстуры с текущей версией Worker` завершена checkpoint-коммитом `72561b4e2`:
-full host suite снова проверяет current Worker release. Текущий срез —
-`MF-428.7 — Гарантированно закрывать отклонённый WebSocket в browser Worker`;
-уберёт browser-invalid `close(1008)` и heartbeat-only ghost connection. Оба Chrome process и Hamiltonian
-оставлены запущенными для той же two-profile acceptance; Web Push кода не переносит, иные
-среды и выключенные профили в этот срез не входят.
+MF-428.1–MF-428.8 завершены и зафиксированы result/evidence-коммитом
+`1579d11cd`; родитель находится в `REVIEW`. Финальный local-Mac сценарий
+одновременно подтвердил два exact Chrome/profile, два разных Worker `1.1.2`,
+по две восстановленные Window, раздельные ownership/WS boundaries и отсутствие
+root/duplicate/cross-profile Worker. `hamiltonian/README.md` содержит
+долговечные законы; полный текущий closing handoff находится в карточке.
+Работающие default Chrome, Chrome-CDP и Hamiltonian оставлены для owner check.
+После устранения документальных замечаний выполняется повторная независимая
+closing review; до её PASS карточка, строка TODO и артефакты сохраняются.
 
 | ID      | Состояние   | Зависимости | Карточка                    |
 | ------- | ----------- | ----------- | --------------------------- |
