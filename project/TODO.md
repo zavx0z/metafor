@@ -127,7 +127,7 @@ full host suite снова проверяет current Worker release. Текущ
 | ------- | ----------- | ----------- | --------------------------- |
 | MF-407  | READY       | нет         | [Открыть](tasks/MF-407.md)  |
 | MF-421  | READY       | нет         | [Открыть](tasks/MF-421.md)  |
-| MF-428  | IN_PROGRESS | нет         | [Открыть](tasks/MF-428.md)  |
+| MF-428  | REVIEW      | нет         | [Открыть](tasks/MF-428.md)  |
 | AUD-009 | READY       | нет         | [Открыть](tasks/AUD-009.md) |
 | AUD-005 | GATE        | нет         | [Открыть](tasks/AUD-005.md) |
 | AUD-008 | GATE        | нет         | [Открыть](tasks/AUD-008.md) |

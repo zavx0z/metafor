@@ -1,5 +1,39 @@
 # MF-428 — Артефакты
 
+## Финальная двухпрофильная приёмка Worker `1.1.2`
+
+Проверка выполнена 13 августа 2026 года из canonical checkout на product commit
+`84a1c99affc19f2f1773832a67475a6ce0de128a`. Hamiltonian полностью перезапущен
+с тем local control token, который уже был сохранён в открытом default Chrome;
+Chrome process не закрывались: default PID `408`, CDP PID `23906`, CDP user data
+dir `Google/Chrome-CDP`. Две CDP-вкладки были адресно перезагружены по exact
+target `D1D7A9529080479EA007B1E465DCCA3E` и
+`11E491A8B2D07463D406EBAF7948C35A`.
+
+Authenticated status после полного heartbeat-интервала одновременно показал:
+
+* default scope `06cb9ee3-433d-4ca1-9c9f-56def51a0328`, Worker
+  `14fdce37-ce46-44cb-8697-cbcee2c7f810`, execution
+  `cc6b9a7e-32aa-452b-993a-9b65ec42deb6`, code `1.1.2`, confirmed, update=false,
+  две восстановленные Window;
+* CDP scope `b04b5959-28a2-4ac0-ba5c-6bdba29e0091`, Worker
+  `45d8fde1-9ecb-4c83-b52a-095c974cb4a1`, execution
+  `62c5ce63-14b2-4e97-b703-064244b3de73`, code `1.1.2`, confirmed, update=false,
+  две exact CDP Window.
+
+### `mf-428-7-two-profiles-worker-1.1.2.png`
+
+* Источник: WebGPU canvas `toDataURL("image/png")` через exact CDP target
+  `D1D7A9529080479EA007B1E465DCCA3E`. Прямой REST screenshot намеренно не
+  использован: при двух Chrome process сервис fail-closed отвергает
+  неоднозначный AppleScript target.
+* Ожидание и результат: две отдельные Chrome compound-ноды; внутри каждой свой
+  Service Worker `1.1.2`; корневого/дублирующего Worker и cross-profile page
+  ownership нет. Server WebSocket edges выходят отдельно из каждого Worker.
+* Размер: `3840 × 2176`, `373884` байт.
+* SHA-256:
+  `22d0ab5408b06a8a8b9c351546af24d9ae3ff54fe5efff2f4b4358205fcd8aa0`.
+
 ## `multi-profile-root-service-worker.png`
 
 * Источник: точный WebGPU canvas Hamiltonian, полученный через CDP target
