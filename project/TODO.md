@@ -100,9 +100,10 @@ executable Service Worker обновлён до `1.1.3`. Родитель не �
 собраться под `hamiltonian/visual` без переноса lifecycle/control orchestration.
 Bulk и `pkg/visual` не входят в работу. `HAM-002.1` зафиксировала полный import
 graph и атомарную последовательность, `HAM-002.2` удалила legacy fallback
-screen вместе с DOM-only функциональностью. Текущий `HAM-002.3` создаёт
-приватный `@hamiltonian/visual` внутри Hamiltonian и переносит туда очищенный
-stylesheet нодового canvas без изменения визуального поведения.
+screen вместе с DOM-only функциональностью. `HAM-002.3` создал приватный
+`@hamiltonian/visual` внутри Hamiltonian и перенёс туда очищенный
+stylesheet нодового canvas без изменения визуального поведения. Текущий
+`HAM-002.4` перемещает в пакет только presentation leaf-модули с их unit specs.
 
 | ID     | Состояние   | Зависимости | Карточка                   |
 | ------ | ----------- | ----------- | -------------------------- |
