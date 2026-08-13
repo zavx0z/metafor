@@ -8,6 +8,7 @@
   "types": "index.ts",
   "exports": {
     ".": "./index.ts",
+    "./browser/layout-worker": "./browser/layout-worker.ts",
     "./hud": "./hud/index.ts",
     "./presentation": "./presentation/index.ts"
   },

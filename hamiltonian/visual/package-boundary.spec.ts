@@ -28,6 +28,7 @@ describe("Hamiltonian visual package boundary", () => {
     expect(visualPackage.private).toBeTrue()
     expect(visualPackage.exports).toEqual({
       ".": "./index.ts",
+      "./browser/layout-worker": "./browser/layout-worker.ts",
       "./hud": "./hud/index.ts",
       "./presentation": "./presentation/index.ts",
     })
@@ -51,6 +52,11 @@ describe("Hamiltonian visual package boundary", () => {
     expect(styles).toContain("#orchestration-canvas")
     expect(styles).toContain('.orchestration-failed #orchestration-status')
     expect(styles).not.toContain(".legacy-debug")
+  })
+
+  test("owns the isolated layout Worker entrypoint outside browser bootstrap", async () => {
+    expect(await Bun.file(join(packageRoot, "browser/layout-worker.ts")).exists()).toBeTrue()
+    expect(await Bun.file(join(hamiltonianRoot, "browser/layout-worker.ts")).exists()).toBeFalse()
   })
 
   test("owns Hamiltonian presentation leaves outside browser orchestration", async () => {

@@ -23,7 +23,7 @@ test("builds the real orchestration and isolated layout Worker bundles", async (
     expect(orchestrationSource).not.toContain("mesh_basic-")
     expect(orchestrationSource).not.toMatch(/if \(nodeId !== null\)\s+inspector\d*\.setOpen\(true\)/)
 
-    await buildBrowserEntry("hamiltonian/browser/layout-worker.ts", outdir)
+    await buildBrowserEntry("hamiltonian/visual/browser/layout-worker.ts", outdir)
     const layoutWorkerSource = await Bun.file(join(outdir, "layout-worker.js")).text()
     expect(layoutWorkerSource).toContain("runLayoutWorkerRequest")
     expect(layoutWorkerSource).toContain('type: "layout-result"')
