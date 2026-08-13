@@ -115,9 +115,10 @@ regressions. Checkpoint `260aa786a` защитил current Worker identity от 
 observation и поднял release до `1.1.1`, но live rollout открыл две новые причины.
 `MF-428.6 — Допускать новый Worker к действующему Hamiltonian` завершена
 checkpoint-коммитом `bf10ae45c`: bootstrap server declaration больше не требует
-от новой execution уже знать старую browser boundary. Текущий короткий срез —
-`MF-428.8 — Синхронизировать host-фикстуры с текущей версией Worker`; после него
-`MF-428.7 — Гарантированно закрывать отклонённый WebSocket в browser Worker`
+от новой execution уже знать старую browser boundary. `MF-428.8 — Синхронизировать
+host-фикстуры с текущей версией Worker` завершена checkpoint-коммитом `72561b4e2`:
+full host suite снова проверяет current Worker release. Текущий срез —
+`MF-428.7 — Гарантированно закрывать отклонённый WebSocket в browser Worker`;
 уберёт browser-invalid `close(1008)` и heartbeat-only ghost connection. Оба Chrome process и Hamiltonian
 оставлены запущенными для той же two-profile acceptance; Web Push кода не переносит, иные
 среды и выключенные профили в этот срез не входят.
