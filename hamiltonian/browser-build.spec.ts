@@ -108,6 +108,16 @@ test("builds the real orchestration and isolated layout Worker bundles", async (
     expect(pageSource).toContain('kind: "page-lifecycle"')
     expect(pageSource).not.toContain("MessageChannel")
     expect(pageSource).not.toContain("MessagePort")
+    expect(pageSource).not.toContain("const elements = Object.fromEntries")
+    expect(pageSource).not.toContain('document.createElement("li")')
+    expect(pageSource).not.toContain("document.getElementById")
+    expect(pageSource).not.toContain('.addEventListener("click"')
+    expect(pageSource).not.toContain("function log(")
+    expect(pageSource).toContain("function runOrchestrationAction(actionId)")
+    expect(pageSource).toContain('window.addEventListener("keydown"')
+    expect(pageSource).toContain('runOrchestrationAction("enable-push")')
+    expect(pageSource).toContain('window.addEventListener("hamiltonian-orchestration-action"')
+    expect(pageSource).toContain("runOrchestrationAction(action.actionId)")
   } finally {
     await rm(outdir, {recursive: true, force: true})
   }

@@ -869,6 +869,58 @@ describe("isolated Hamiltonian host", () => {
     expect(bootstrapSource).not.toContain("__HAMILTONIAN_HOST_EPOCH__")
     expect(bootstrapSource).toContain('<link rel="icon" href="data:image/svg+xml,')
     expect(bootstrapSource).toContain('src="/window-entry.js"')
+    expect(bootstrapSource).toContain(
+      '<canvas id="orchestration-canvas" aria-label="Интерактивная топология инфраструктуры Гамильтониана"></canvas>',
+    )
+    expect(bootstrapSource).toContain('<p id="orchestration-status" role="status">')
+    for (const legacyMarker of [
+      'class="legacy-debug"',
+      'class="status-grid"',
+      'class="identity"',
+      'class="actions"',
+      'id="secure"',
+      'id="control"',
+      'id="socket"',
+      'id="role"',
+      'id="host"',
+      'id="version"',
+      'id="device"',
+      'id="tab"',
+      'id="module"',
+      'id="source-hash"',
+      'id="main-embodiment"',
+      'id="singleton-authority"',
+      'id="worker-embodiment"',
+      'id="bun-embodiment"',
+      'id="peer-carrier"',
+      'id="oracle-proof"',
+      'id="force-proof"',
+      'id="caches"',
+      'id="topology"',
+      'id="events"',
+      'id="new-tab"',
+      'id="rebirth-worker"',
+      'id="reload-main"',
+      'id="reconnect"',
+      'id="enable-push"',
+      'id="reload"',
+      "Резервный экран оркестрации",
+      "Состояние стенда",
+      "Топология хоста",
+      "Наблюдаемые события",
+    ]) {
+      expect(bootstrapSource).not.toContain(legacyMarker)
+    }
+
+    const stylesResponse = await fetch(new URL("/styles.css", host.server.url))
+    expect(stylesResponse.status).toBe(200)
+    const stylesSource = await stylesResponse.text()
+    expect(stylesSource).toContain('.orchestration-failed #orchestration-status')
+    expect(stylesSource).not.toContain(".legacy-debug")
+    expect(stylesSource).not.toContain(".status-grid")
+    expect(stylesSource).not.toContain(".identity")
+    expect(stylesSource).not.toContain(".actions")
+    expect(stylesSource).not.toContain("section:has")
 
     const windowEntry = await fetch(new URL("/window-entry.js", host.server.url))
     expect(windowEntry.status).toBe(200)

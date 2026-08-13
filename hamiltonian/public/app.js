@@ -30,14 +30,6 @@ import {
 } from "/core/orchestration.js"
 import {createWebPushClient} from "/web-push-client.js"
 
-const elements = Object.fromEntries([
-  "secure", "control", "socket", "role", "host", "version", "device",
-  "tab", "module", "source-hash", "main-embodiment", "worker-embodiment",
-  "singleton-authority", "bun-embodiment", "caches", "topology", "events",
-  "peer-carrier", "oracle-proof", "force-proof",
-].map((id) => [id, document.getElementById(id)]))
-
-const firstLoadHadController = navigator.serviceWorker?.controller !== null
 const pageIncarnation = hamiltonianRealmSnapshot().incarnation
 const pageEntityId = hamiltonianLifecycleEntityId("page", pageIncarnation)
 const mainEntityId = hamiltonianLifecycleEntityId("window-main", pageIncarnation)
@@ -174,20 +166,6 @@ emitHamiltonianLifecycle(createHamiltonianLifecycleObservation({
 // continue with the next live page event without reporting a false 1…3 gap.
 receiveHamiltonianLifecycleSnapshot(pageLifecycleJournal.snapshot())
 
-elements.secure.textContent = isSecureContext ? "yes" : "no"
-elements.secure.className = isSecureContext ? "leader" : "error"
-elements.control.textContent = firstLoadHadController ? "pre-existing" : "first install"
-elements.device.textContent = deviceId
-elements.tab.textContent = tabId
-
-function log(message, isError = false) {
-  const item = document.createElement("li")
-  item.textContent = `${new Date().toLocaleTimeString()} · ${message}`
-  if (isError) item.className = "error"
-  elements.events.prepend(item)
-  while (elements.events.children.length > 80) elements.events.lastElementChild?.remove()
-}
-
 function send(message) {
   try {
     if (!attachedController) return false
@@ -218,8 +196,7 @@ function send(message) {
     }
     attachedController.postMessage(observedMessage)
     return true
-  } catch (error) {
-    log(`page channel send failed: ${error.message}`, true)
+  } catch {
     return false
   }
 }
@@ -227,17 +204,6 @@ function send(message) {
 function renderHost(nextHost) {
   if (!nextHost) return
   hostPlacement = nextHost.placement ?? "browser"
-  elements.host.textContent = nextHost.identity
-  elements.version.textContent = nextHost.version
-  const buns = nextHost.bunEmbodiments
-  const bun = nextHost.bunEmbodiment
-  elements["bun-embodiment"].textContent = buns
-    ? Object.entries(buns).map(([role, snapshot]) =>
-      `${role}: ${snapshot.state} · pid ${snapshot.pid ?? "—"} · ${snapshot.incarnation ?? "—"}`
-    ).join(" | ")
-    : bun
-      ? `${bun.state} · ${bun.version ?? "—"} · pid ${bun.pid ?? "—"} · ${bun.incarnation ?? "—"}`
-    : "not reported"
 }
 
 function renderTopology(nextTopology) {
@@ -247,16 +213,6 @@ function renderTopology(nextTopology) {
     leader?.deviceId === deviceId &&
     leader?.tabId === tabId
   leaseExpiresAt = isMainLeader ? Number(leader.leaseExpiresAt ?? 0) : 0
-  elements.role.textContent = isMainLeader
-    ? "elected embodiment"
-    : hostPlacement === "server"
-      ? "observer · server placement"
-      : "candidate"
-  elements.role.className = isMainLeader ? "leader" : ""
-  elements["singleton-authority"].textContent = isMainLeader
-    ? `fence ${leader.fencingToken} · ${leader.leaseId}`
-    : "none"
-  elements.topology.textContent = JSON.stringify(nextTopology, null, 2)
   if (pendingPeerRepair) {
     if (
       isMainLeader &&
@@ -267,11 +223,7 @@ function renderTopology(nextTopology) {
   }
   versionQueue = versionQueue
     .then(() => reconcileMain())
-    .catch((error) => log(`main singleton reconciliation failed: ${error.message}`, true))
-}
-
-function describeSnapshot(snapshot) {
-  return `${snapshot.version} · ${snapshot.state} · ${snapshot.incarnation}`
+    .catch(() => {})
 }
 
 function closeBrowserPeer(reason) {
@@ -282,7 +234,6 @@ function closeBrowserPeer(reason) {
   previous.protocol?.close(reason)
   try { previous.connection.close() } catch {}
   emitBrowserRtcPeer(previous, "ended", reason)
-  elements["peer-carrier"].textContent = `closed · ${reason}`
 }
 
 function requestPeerRepair(peer, reason) {
@@ -314,7 +265,6 @@ function acceptPeerChannel(peer, channel) {
   })
   channel.addEventListener("close", () => {
     emitBrowserDataChannel(peer, channel, "closed")
-    elements["peer-carrier"].textContent = `${channel.label} closed`
     requestPeerRepair(peer, `${channel.label} DataChannel closed`)
   })
   if (channel.readyState === "open") emitBrowserDataChannel(peer, channel, "opened")
@@ -329,16 +279,9 @@ function activatePeerProtocol(peer) {
   const session = new LogicalChannelSession({
     sessionEpoch: peer.sessionEpoch,
     lanes: {oracle, force},
-    onProtocolEvent: (event) => log(`peer protocol ${event.kind} on ${event.lane ?? "session"}`),
     onTraffic: (event) => observeBrowserDataChannelMessage(peer, event),
   })
   peer.protocol = new PeerProtocol(session)
-  peer.protocol.onForce((event) => {
-    peer.forceEchoCount += 1
-    elements["force-proof"].textContent =
-      `echo ${peer.forceEchoCount} · seq ${event.sequence} · ${JSON.stringify(event.particle)}`
-  })
-  elements["peer-carrier"].textContent = `connected · ${peer.peerId} · oracle + force`
   void runPeerProbe(peer)
   peer.probeTimer = setInterval(() => void runPeerProbe(peer), 10_000)
 }
@@ -348,7 +291,7 @@ async function runPeerProbe(peer) {
   peer.probePending = true
   const sequence = peer.probeCount + 1
   try {
-    const result = await peer.protocol.request("probe", {
+    await peer.protocol.request("probe", {
       runtime: "browser-window",
       tabId,
       pageIncarnation,
@@ -356,11 +299,8 @@ async function runPeerProbe(peer) {
     })
     if (browserPeer !== peer) return
     peer.probeCount = sequence
-    elements["oracle-proof"].textContent = `response ${sequence} · ${JSON.stringify(result)}`
     peer.protocol.publishForce({kind: "particle", from: tabId, at: Date.now(), sequence})
-  } catch (error) {
-    if (browserPeer === peer) elements["oracle-proof"].textContent = `failed · ${error.message}`
-  } finally {
+  } catch {} finally {
     peer.probePending = false
   }
 }
@@ -375,7 +315,6 @@ async function receivePeerSignal(message) {
     browserPeer.peerGeneration === message.peerGeneration &&
     browserPeer.authorityKey === message.authorityKey
   if (!isCurrent && message.peerGeneration <= previousGeneration) {
-    log(`ignored stale peer generation ${message.peerGeneration}`)
     return
   }
   if (!isCurrent) {
@@ -401,18 +340,15 @@ async function receivePeerSignal(message) {
       probeTimer: null,
       probePending: false,
       probeCount: 0,
-      forceEchoCount: 0,
       repairRequested: false,
       lifecycleEnded: false,
     }
     browserPeer = peer
     emitBrowserRtcPeer(peer, "born")
-    elements["peer-carrier"].textContent = `negotiating · ${peer.peerId}`
     connection.addEventListener("datachannel", (event) => acceptPeerChannel(peer, event.channel))
     connection.addEventListener("connectionstatechange", () => {
       if (browserPeer !== peer) return
       emitBrowserRtcPeer(peer, connection.connectionState === "closed" ? "ended" : "changed")
-      elements["peer-carrier"].textContent = `${connection.connectionState} · ${peer.peerId}`
       if (connection.connectionState === "failed" || connection.connectionState === "closed") {
         requestPeerRepair(peer, `RTCPeerConnection ${connection.connectionState}`)
       }
@@ -573,7 +509,6 @@ async function birthDedicatedWorker(versionState) {
   const workerEntityId = hamiltonianLifecycleEntityId("dedicated-worker", workerIncarnation)
   const workerTransportId = hamiltonianLifecycleTransportId("worker-message", crypto.randomUUID())
   const worker = new Worker("/embodiment-worker-entry.js", {type: "module", name: workerIncarnation})
-  elements["worker-embodiment"].textContent = `starting · ${incarnation}`
   const attemptedEmbodiment = {
     worker,
     incarnation,
@@ -630,8 +565,6 @@ async function birthDedicatedWorker(versionState) {
           reject(new Error("Dedicated Worker returned an invalid ready snapshot"))
           return
         }
-        elements["worker-embodiment"].textContent = describeSnapshot(message.snapshot)
-        log(`Dedicated Worker born as ${incarnation}`)
         resolve()
       })
       worker.addEventListener("error", (event) => {
@@ -653,7 +586,6 @@ async function birthDedicatedWorker(versionState) {
   } catch (error) {
     dedicatedEmbodiment = disposeFailedWorker(dedicatedEmbodiment, attemptedEmbodiment)
     closeDedicatedWorkerFromOwner(attemptedEmbodiment, "page-terminated-after-birth-failure", null)
-    if (!dedicatedEmbodiment) elements["worker-embodiment"].textContent = "birth failed"
     throw error
   }
 }
@@ -723,11 +655,9 @@ function closeDedicatedWorkerFromOwner(embodiment, reason, causedBy) {
 function stopMain(reason) {
   closeBrowserPeer(reason)
   if (!mainEmbodiment) return
-  const stopped = mainEmbodiment.stop()
+  mainEmbodiment.stop()
   mainEmbodiment = null
   mainAuthorityKey = null
-  elements["main-embodiment"].textContent = "not elected"
-  log(`Window main stopped (${reason}) at ${stopped.incarnation}`)
 }
 
 async function reconcileMain() {
@@ -756,15 +686,12 @@ async function reconcileMain() {
       expiresAt: leaseExpiresAt,
     },
   })
-  const mainSnapshot = mainEmbodiment.start()
+  mainEmbodiment.start()
   mainAuthorityKey = nextAuthorityKey
-  elements["main-embodiment"].textContent = describeSnapshot(mainSnapshot)
-  log(`Window main singleton born as ${mainIncarnation} with fence ${leader.fencingToken}`)
 
   const reloadReason = sessionStorage.getItem("hamiltonian-main-reload-reason")
   if (reloadReason) {
     sessionStorage.removeItem("hamiltonian-main-reload-reason")
-    log(`main realm completed page reload for ${reloadReason}`)
   }
 }
 
@@ -774,7 +701,6 @@ async function activateVersion(message) {
   if (mainRealmRequiresReload(Boolean(mainEmbodiment), loadedVersion?.fingerprint, fingerprint)) {
     sessionStorage.setItem("hamiltonian-main-version", fingerprint)
     sessionStorage.setItem("hamiltonian-main-reload-reason", `version ${message.version}`)
-    log(`main realm update to ${message.version} requires page reload`)
     location.reload()
     return
   }
@@ -785,11 +711,8 @@ async function activateVersion(message) {
   }
   loadedVersion = {...message, fingerprint, loaded}
   sessionStorage.setItem("hamiltonian-main-version", fingerprint)
-  elements.module.textContent = loaded.describe()
-  elements["source-hash"].textContent = message.sha256
   await birthDedicatedWorker(loadedVersion)
   await reconcileMain()
-  log(`loaded ${loaded.version} from ${message.moduleUrl}`)
 }
 
 function observeAttachedWorkerQuiet(reason) {
@@ -886,11 +809,7 @@ function receive(message) {
   }
   if (message.kind === "worker-state") {
     controlConnectionId = message.connectionId ?? null
-    elements.socket.textContent = message.socket
     renderHost(message.host)
-    if (message.socket !== "connected") {
-      log(`control session unavailable; current authority remains valid until ${new Date(leaseExpiresAt).toLocaleTimeString()}`)
-    }
     return
   }
   if (
@@ -911,15 +830,9 @@ function receive(message) {
     return
   }
   if (message.kind === "version-ready") {
-    elements.caches.textContent = message.caches.join(", ") || "none"
-    elements.version.textContent = message.version
     versionQueue = versionQueue
       .then(() => activateVersion(message))
-      .catch((error) => {
-        elements.module.textContent = `load failed: ${error.message}`
-        elements.module.className = "error"
-        log(`embodiment birth failed: ${error.message}`, true)
-      })
+      .catch(() => {})
     return
   }
   if (message.kind === "source-update") {
@@ -927,15 +840,12 @@ function receive(message) {
     if (!sourceRevisionRequiresReload(currentRevision, message.revision)) return
     sessionStorage.setItem(sourceRevisionStorageKey, message.revision)
     sessionStorage.setItem("hamiltonian-main-reload-reason", `source ${message.revision}`)
-    log(`source update ${message.revision} triggers one page reload`)
     location.reload()
     return
   }
   if (message.kind === "peer-signal") {
     void receivePeerSignal(message).catch((error) => {
       if (!isCurrentPeerGeneration(browserPeer, message)) return
-      elements["peer-carrier"].textContent = `failed · ${error.message}`
-      log(`peer negotiation failed: ${error.message}`, true)
       requestPeerRepair(browserPeer, `negotiation failed: ${error.message}`)
     })
     return
@@ -947,7 +857,6 @@ function receive(message) {
     location.reload()
     return
   }
-  if (message.kind === "event") log(message.message, message.level === "error")
 }
 
 function attachServiceWorkerChannel(force = false) {
@@ -982,7 +891,6 @@ function attachServiceWorkerChannel(force = false) {
     monitor: {messageId: connectMessageId},
   })
   lastWorkerMessageAt = Date.now()
-  log("Window attached through Service Worker API")
   return true
 }
 
@@ -998,42 +906,24 @@ async function waitForController(timeoutMs = 8_000) {
 }
 
 async function start() {
-  if (!("serviceWorker" in navigator)) {
-    log("Service Worker API is unavailable", true)
-    return
-  }
-  if (!isSecureContext) {
-    log("A remote device must open this experiment through trusted HTTPS", true)
-    return
-  }
-  if (!token) {
-    log("Missing join token. Open the complete URL printed by the host.", true)
-    return
-  }
+  if (!("serviceWorker" in navigator)) return
+  if (!isSecureContext) return
+  if (!token) return
 
   try {
     await navigator.serviceWorker.register("/sw-entry.js", {scope: "/", type: "module"})
-    const registration = await navigator.serviceWorker.ready
+    await navigator.serviceWorker.ready
     const controlled = await waitForController()
-    elements.control.textContent = controlled
-      ? (firstLoadHadController ? "pre-existing" : "claimed after install")
-      : "reload required"
-    if (!controlled) {
-      log("Worker installed but did not claim this page; reload once", true)
-      return
-    }
+    if (!controlled) return
     attachServiceWorkerChannel()
     const publicKey = await fetchVapidPublicKey()
     webPushClient = createHamiltonianWebPushClient(publicKey)
     const restored = await webPushClient.restore(crypto.randomUUID())
-    if (restored) log("Existing Web Push subscription restored")
     const disposition = webPushClient.permissionDisposition()
     if (!restored && (disposition === "request" || disposition === "silent")) {
       void enableWebPush()
     }
-  } catch (error) {
-    log(`Service Worker registration failed: ${error.message}`, true)
-  }
+  } catch {}
 }
 
 async function enableWebPush() {
@@ -1043,22 +933,12 @@ async function enableWebPush() {
     webPushClient ??= createHamiltonianWebPushClient(publicKey)
     const result = await webPushClient.enable(crypto.randomUUID())
     if (!result.accepted) {
-      if (result.reason === "permission-dismissed") {
-        log("Notification permission request dismissed; Hamiltonian will request it again after reload")
-        return result
-      }
-      if (result.reason === "permission-denied") {
-        log("Notification permission denied; Hamiltonian will not request it again")
-        return result
-      }
+      if (result.reason === "permission-dismissed") return result
+      if (result.reason === "permission-denied") return result
       throw new Error(result.reason)
     }
-    log("Web Push готов: Bun может пробудить этот Service Worker без открытой страницы")
     return result
-  })().catch((error) => {
-    log(`Web Push setup failed: ${error.message}`, true)
-    return null
-  }).finally(() => { webPushEnablePromise = null })
+  })().catch(() => null).finally(() => { webPushEnablePromise = null })
   return webPushEnablePromise
 }
 
@@ -1154,7 +1034,6 @@ setInterval(() => {
     if (!reconnecting) {
       reconnecting = true
       observeAttachedWorkerQuiet("page-channel-quiet")
-      log("Service Worker API became quiet; repeating connect-window")
       attachServiceWorkerChannel(true)
       reconnecting = false
     }
@@ -1233,14 +1112,11 @@ function runOrchestrationAction(actionId) {
     if (!loadedVersion) return
     versionQueue = versionQueue
       .then(() => birthDedicatedWorker(loadedVersion))
-      .catch((error) => log(`Dedicated Worker rebirth failed: ${error.message}`, true))
+      .catch(() => {})
     return
   }
   if (actionId === "reload-main") {
-    if (!mainEmbodiment || !loadedVersion) {
-      log("Only the elected Window can rebirth the main realm", true)
-      return
-    }
+    if (!mainEmbodiment || !loadedVersion) return
     sessionStorage.setItem("hamiltonian-main-reload-reason", "manual rebirth")
     location.reload()
     return
@@ -1262,12 +1138,6 @@ window.addEventListener("keydown", (event) => {
   runOrchestrationAction("enable-push")
 })
 
-document.getElementById("new-tab").addEventListener("click", () => runOrchestrationAction("open-window"))
-document.getElementById("rebirth-worker").addEventListener("click", () => runOrchestrationAction("rebirth-worker"))
-document.getElementById("reload-main").addEventListener("click", () => runOrchestrationAction("reload-main"))
-document.getElementById("reconnect").addEventListener("click", () => runOrchestrationAction("reconnect"))
-document.getElementById("enable-push").addEventListener("click", () => runOrchestrationAction("enable-push"))
-document.getElementById("reload").addEventListener("click", () => runOrchestrationAction("reload"))
 window.addEventListener("hamiltonian-orchestration-action", (event) => {
   const action = parseLocalHamiltonianWindowAction(
     event.detail,
@@ -1276,10 +1146,7 @@ window.addEventListener("hamiltonian-orchestration-action", (event) => {
     pageIncarnation,
     attachedWorkerEntityId,
   )
-  if (action === null) {
-    log("Ignored orchestration action for another or unknown Window", true)
-    return
-  }
+  if (action === null) return
   runOrchestrationAction(action.actionId)
 })
 

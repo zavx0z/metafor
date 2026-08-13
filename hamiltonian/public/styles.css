@@ -40,8 +40,6 @@ body {
 #orchestration-status[data-state="live"] { color: #70f2c0; }
 #orchestration-status[data-state="error"] { color: #ff8f8f; }
 
-.legacy-debug { display: none; }
-.orchestration-failed { overflow: auto; }
 .orchestration-failed #orchestration-canvas { display: none; }
 .orchestration-failed #orchestration-status {
   position: static;
@@ -52,68 +50,4 @@ body {
   clip: auto;
   clip-path: none;
   white-space: normal;
-}
-.orchestration-failed .legacy-debug { display: block; }
-
-main {
-  width: min(72rem, calc(100% - 2rem));
-  margin: 0 auto;
-  padding: 4rem 0 6rem;
-}
-
-header { margin-bottom: 2rem; }
-.eyebrow, h2, article span, .identity span { color: #84a0bb; }
-.eyebrow { letter-spacing: .12em; text-transform: uppercase; font-size: .78rem; }
-h1 { margin: .25rem 0; font-size: clamp(3rem, 10vw, 7rem); letter-spacing: -.08em; }
-.lede { max-width: 50rem; color: #afbdcb; line-height: 1.6; }
-
-.status-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
-  gap: .75rem;
-}
-
-article, .identity, section:has(pre), section:has(ol) {
-  border: 1px solid #27313e;
-  background: rgba(13, 18, 25, .78);
-  border-radius: .8rem;
-}
-
-article { padding: 1rem; display: grid; gap: .5rem; }
-article strong { font-size: 1.15rem; color: #70f2c0; }
-
-.identity {
-  margin-top: .75rem;
-  padding: 1rem;
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
-  gap: 1rem;
-}
-
-.identity div { display: grid; gap: .35rem; min-width: 0; }
-code { color: #d4e8ff; overflow-wrap: anywhere; }
-
-.actions { display: flex; flex-wrap: wrap; gap: .75rem; margin: 1rem 0 2rem; }
-button {
-  border: 1px solid #37516b;
-  border-radius: 999px;
-  padding: .72rem 1rem;
-  background: #122131;
-  color: #e9f0f8;
-  font: inherit;
-  cursor: pointer;
-}
-button:hover { background: #183149; }
-
-section:has(pre), section:has(ol) { margin-top: 1rem; padding: 1rem; }
-h2 { margin: 0 0 .8rem; font-size: .9rem; letter-spacing: .08em; text-transform: uppercase; }
-pre { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.5; }
-ol { margin: 0; padding-left: 1.6rem; max-height: 18rem; overflow: auto; }
-li { padding: .28rem 0; color: #afbdcb; }
-.error { color: #ff8f8f !important; }
-.leader { color: #70f2c0 !important; }
-
-@media (max-width: 36rem) {
-  main { padding-top: 2rem; }
-  .identity { grid-template-columns: 1fr; }
 }

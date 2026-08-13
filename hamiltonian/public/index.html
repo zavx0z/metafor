@@ -18,55 +18,5 @@
   <body>
     <canvas id="orchestration-canvas" aria-label="Интерактивная топология инфраструктуры Гамильтониана"></canvas>
     <p id="orchestration-status" role="status">Загрузка сцены оркестрации…</p>
-    <main class="legacy-debug">
-      <header>
-        <p class="eyebrow">Резервный экран оркестрации</p>
-        <h1>Гамильтониан</h1>
-        <p class="lede">Один listener хоста, один сокет Service Worker, много окон и одно выбранное воплощение.</p>
-      </header>
-
-      <section class="status-grid" aria-label="Состояние стенда">
-        <article><span>Защищённый контекст</span><strong id="secure">проверка</strong></article>
-        <article><span>Управление страницей</span><strong id="control">проверка</strong></article>
-        <article><span>Управляющий сокет</span><strong id="socket">отключён</strong></article>
-        <article><span>Это окно</span><strong id="role">кандидат</strong></article>
-      </section>
-
-      <section class="identity">
-        <div><span>Host</span><code id="host">—</code></div>
-        <div><span>Версия</span><code id="version">—</code></div>
-        <div><span>Устройство</span><code id="device">—</code></div>
-        <div><span>Окно</span><code id="tab">—</code></div>
-        <div><span>Загруженный модуль</span><code id="module">—</code></div>
-        <div><span>SHA-256 исходника</span><code id="source-hash">—</code></div>
-        <div><span>Main-контур окна</span><code id="main-embodiment">—</code></div>
-        <div><span>Полномочия singleton</span><code id="singleton-authority">нет</code></div>
-        <div><span>Dedicated Worker</span><code id="worker-embodiment">—</code></div>
-        <div><span>OS-процесс Bun</span><code id="bun-embodiment">—</code></div>
-        <div><span>Пиринговый канал</span><code id="peer-carrier">не подключён</code></div>
-        <div><span>Проверка Oracle</span><code id="oracle-proof">ожидание</code></div>
-        <div><span>Проверка Force</span><code id="force-proof">ожидание</code></div>
-        <div><span>Кэши версий</span><code id="caches">—</code></div>
-      </section>
-
-      <section class="actions">
-        <button id="new-tab" type="button">Открыть ещё одно окно</button>
-        <button id="rebirth-worker" type="button">Перезапустить Dedicated Worker</button>
-        <button id="reload-main" type="button">Перезапустить main-контур</button>
-        <button id="reconnect" type="button">Переподключить канал страницы</button>
-        <button id="enable-push" type="button">Разрешить пробуждение Service Worker</button>
-        <button id="reload" type="button">Перезагрузить</button>
-      </section>
-
-      <section>
-        <h2>Топология хоста</h2>
-        <pre id="topology">Ожидание Service Worker…</pre>
-      </section>
-
-      <section>
-        <h2>Наблюдаемые события</h2>
-        <ol id="events" reversed></ol>
-      </section>
-    </main>
   </body>
 </html>
