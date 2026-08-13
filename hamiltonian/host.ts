@@ -82,10 +82,10 @@ interface HamiltonianHostOptions {
   heartbeatMs?: number
   placement?: "browser" | "server"
   browserBundles?: Readonly<{
-    orchestration: string
-    layoutWorker: string
-    serviceWorker: string
-    webPushClient?: string
+    orchestration: string | Promise<string>
+    layoutWorker: string | Promise<string>
+    serviceWorker: string | Promise<string>
+    webPushClient?: string | Promise<string>
   }>
   webPush?: HamiltonianWebPushOptions
 }

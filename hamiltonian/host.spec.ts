@@ -460,6 +460,63 @@ describe("isolated Hamiltonian host", () => {
     expect(hostRevisionB).toBe(hostRevisionA)
   })
 
+  test("does not publish browser source or release materialization after a rejected artifact", async () => {
+    const orchestrationBundle = Promise.withResolvers<string>()
+    const serviceWorkerSource =
+      'const HAMILTONIAN_SERVICE_WORKER_CODE_VERSION = "1.1.0"; service-worker-release'
+    const frames: Array<Record<string, unknown>> = []
+    const host = createHamiltonianHost({
+      port: 0,
+      token: "failed-source-token",
+      browserBundles: {
+        orchestration: orchestrationBundle.promise,
+        layoutWorker: "layout-worker",
+        serviceWorker: serviceWorkerSource,
+        webPushClient: "web-push-client",
+      },
+    })
+    running.push(host)
+    const manifestBefore = await fetch(new URL("/manifest.json", host.server.url), {
+      headers: {authorization: "Bearer failed-source-token"},
+    }).then((response) => response.json())
+    const controlUrl = new URL("/control", host.server.url)
+    controlUrl.protocol = "ws:"
+    controlUrl.searchParams.set("token", host.token)
+    controlUrl.searchParams.set("device", "failed-source-profile")
+    controlUrl.searchParams.set("worker", "service-worker:failed-source-worker")
+    const socket = await openSocket(controlUrl, frames)
+    await waitUntil(() => frames.some(({kind}) => kind === "hello"), "failed source hello")
+    const admitted = nextMessage(socket, "service-worker-current")
+    socket.send(JSON.stringify(browserIdentityMessage(
+      "failed-source-profile",
+      "failed-source-worker",
+      "failed-source-runtime",
+      "failed-source-resume",
+      {workerCodeVersion: "1.1.0"},
+    )))
+    await admitted
+
+    orchestrationBundle.reject(new Error("deterministic orchestration build failure"))
+    await waitUntil(() => host.getStatus().events.some(({kind}) =>
+      kind === "source-update-failed"), "observable source update failure")
+
+    expect(frames.some(({kind}) => kind === "source-update")).toBeFalse()
+    expect(host.getStatus().events.some(({kind}) => kind === "source-update")).toBeFalse()
+    expect(host.getStatus().events.some(({kind}) => kind === "service-worker-update-required")).toBeFalse()
+    expect(host.getStatus().events.find(({kind}) => kind === "source-update-failed")?.detail)
+      .toContain("deterministic orchestration build failure")
+
+    const manifestAfter = await fetch(new URL("/manifest.json", host.server.url), {
+      headers: {authorization: "Bearer failed-source-token"},
+    }).then((response) => response.json())
+    expect(manifestAfter).toEqual(manifestBefore)
+
+    const serviceWorker = await fetch(new URL("/sw-entry.js", host.server.url))
+    expect(serviceWorker.status).toBe(200)
+    expect(await serviceWorker.text()).toBe(serviceWorkerSource)
+    socket.close()
+  })
+
   test("rejects a Service Worker identity whose code version is not SemVer", async () => {
     const host = createHamiltonianHost({port: 0, token: "test-token"})
     running.push(host)
