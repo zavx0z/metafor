@@ -49,6 +49,10 @@ dependency graph, занимать память и усложнять поним
   Последующий аудит показал, что добавление обратного edge для каждого
   двустороннего транспорта перегружает граф и что capability сокета нельзя
   подменять числом рёбер.
+* [`BLK-002 — Нодовая система Bulk в Space`](BLK-002.md) сохраняет отдельную
+  продуктовую линию Bulk: смысловые WebGPU-компоненты, проекцию Bulk Store,
+  Field intent и visual/live acceptance. Она использует универсальные законы
+  `nodes`, но не переносит Bulk entities в этот пакет.
 * В текущем public type уже существуют `in`, `out`, `inout` и необязательная
   сторона `left/right`. Это ещё не доказывает правильную пакетную границу:
   общая модель, layout adapter, Worker adapter и presentation logic сейчас
@@ -75,6 +79,23 @@ dependency graph, занимать память и усложнять поним
 5. Один граф может содержать только фиксированные directional sockets, только
    адаптивные sockets или оба вида. Пакетная декомпозиция не должна требовать
    одного глобального runtime-переключателя для всех графов.
+6. В `@nodes/ui/connection-color.ts` сейчас зашит Hamiltonian transport catalog:
+   `ipc`, `websocket`, `web-push`, Service Worker/Worker/MessagePort/Broadcast
+   Channel и Oracle/Force RTC families вместе с конкретной палитрой. Это
+   фактическая consumer-специфика внутри общего UI package.
+7. Общий `layout-engine.ts` импортирует `@nodes/ui/card-layout` и переставляет
+   `facts` конкретной карточной модели. Поэтому model/layout integration сейчас
+   зависит не только от универсальных measured nodes/ports, но и от одного
+   presentation preset, используемого Hamiltonian.
+8. `@nodes/ui` содержит Inspector с обязательной зависимостью от `@ui/hud`, а
+   root `nodes` barrel реэкспортирует model, layout, WebGPU surface и Inspector.
+   Consumer не получает физически минимальную UI-зависимость одним выбором
+   socket/layout policy.
+9. Чистый runtime-код `@nodes/layout` не содержит branches по Hamiltonian
+   entity или transport kind. Hamiltonian-названия в его tests являются
+   сложной acceptance fixture, а не сами по себе нарушением универсальности.
+   Нарушением остаётся public fixed-only law `source=out/EAST`,
+   `target=in/WEST`, если его выдавать за единственную политику всех consumers.
 
 ## Решения владельца
 
@@ -94,6 +115,18 @@ dependency graph, занимать память и усложнять поним
 7. После решения пакетной архитектуры будущая работа декомпозируется по
    семантике сокета: каждая подзадача отвечает за свой тип целиком, включая
    форму, геометрию, размер, состояния, различимость и интерактивность.
+8. В `nodes` не попадают MetaFor-, Bulk-, Hamiltonian- или transport-specific
+   сущности, каталоги и палитры. Пакет хранит только общие законы построения
+   node-system.
+9. UI может предоставлять несколько видов сокетов и presentation policies, но
+   их public names описывают универсальную capability/geometry/interaction
+   role. Предметный смысл и style mapping задаёт consumer.
+10. Формулы placement/routing для fixed, adaptive и явно собранного смешанного
+    представления принадлежат пакетам `nodes` и не копируются в Bulk,
+    Hamiltonian или сторонний проект.
+11. Нодовое представление Bulk принадлежит `Space`/`Display`, не HUD, и
+    обсуждается отдельно в `BLK-002`. Отключённый текущий HUD Node View является
+    неудавшимся экспериментом и не задаёт архитектуру `nodes`.
 
 ## Общие принципы, которые нужно сохранить
 
@@ -144,6 +177,12 @@ bytes. Надежда на tree shaking без измерения не явля�
    типов и без скрытого compatibility-монолита?
 8. Какие названия entrypoints прямо сообщают capability и не смешивают
    fixed placement с adaptive I/O semantics?
+9. Как отделить нейтральные visual tokens и consumer-provided style resolver от
+   текущего встроенного Hamiltonian transport catalog?
+10. Является ли текущая `facts/actions` card model одним необязательным UI
+    preset или её нейтральная часть должна быть параметризуемым content adapter?
+11. Какие viewport, socket, edge, flow-marker и interaction primitives могут
+    жить без обязательной зависимости от `@ui/hud` и конкретного Inspector?
 
 ## Поведение процесса
 
@@ -164,6 +203,7 @@ dependency rules, budgets и порядок миграции. Только за�
 
 * Не менять действующий runtime и визуальный контур.
 * Не переделывать `MF-424.2`, Bulk или MetaFor в рамках обсуждения.
+  Bulk-specific cleanup и новая нодовая система принадлежат `BLK-002`.
 * Не проектировать формы всех сокетов до решения физической границы пакетов.
 * Не обещать экономию памяти или bundle size без воспроизводимого измерения.
 * Не ослаблять exact-socket routing, containment, clearance, deterministic
