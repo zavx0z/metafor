@@ -962,7 +962,10 @@ describe("isolated Hamiltonian host", () => {
     expect(browserSource).toContain('observeAttachedWorkerQuiet("page-channel-quiet")')
     expect(browserSource).toContain('attributes: {state: "standby", heartbeat: "paused", reason}')
     expect(browserSource).toContain("pageBootstrap?.browserSourceRevision")
-    expect(browserSource).toContain("sessionStorage.setItem(sourceRevisionStorageKey")
+    expect(browserSource).toContain("new HamiltonianPageUpdateController({")
+    expect(browserSource).toContain("pageUpdateController.acceptNavigationSourceRevision(")
+    expect(browserSource).not.toContain("sourceRevisionStorageKey")
+    expect(browserSource).not.toContain("function activateVersion(")
     expect(browserSource).toContain('from "/update/page-update.js"')
 
     const pageUpdateContract = await fetch(new URL("/update/page-update.js", host.server.url))
@@ -970,6 +973,9 @@ describe("isolated Hamiltonian host", () => {
     const pageUpdateSource = await pageUpdateContract.text()
     expect(pageUpdateSource).toContain("export function mainRealmRequiresReload(")
     expect(pageUpdateSource).toContain("export function sourceRevisionRequiresReload(")
+    expect(pageUpdateSource).toContain("export class HamiltonianPageUpdateController")
+    expect(pageUpdateSource).toContain('const SOURCE_REVISION_STORAGE_KEY = "hamiltonian-source-revision"')
+    expect(pageUpdateSource).toContain("this.#importModule(release.moduleUrl)")
 
     const webPushClientEntry = await fetch(new URL("/web-push-client.js", host.server.url))
     expect(webPushClientEntry.status).toBe(200)

@@ -160,6 +160,15 @@ test("builds the real orchestration and isolated layout Worker bundles", async (
     expect(pageSource).toContain('window.addEventListener("hamiltonian-orchestration-action"')
     expect(pageSource).toContain("runOrchestrationAction(action.actionId)")
     expect(pageSource).toContain('from "/update/page-update.js"')
+    expect(pageSource).toContain("new HamiltonianPageUpdateController({")
+    expect(pageSource).toContain("pageUpdateController.acceptNavigationSourceRevision(")
+    expect(pageSource).toContain("pageUpdateController.activateVersion(message)")
+    expect(pageSource).toContain("pageUpdateController.acceptSourceRevision(message.revision)")
+    expect(pageSource).not.toContain("function activateVersion(")
+    expect(pageSource).not.toContain("sourceRevisionStorageKey")
+    expect(pageSource).not.toContain('`${message.version}:${message.sha256}`')
+    expect(pageSource).not.toContain("mainRealmRequiresReload")
+    expect(pageSource).not.toContain("sourceRevisionRequiresReload")
 
     const browserControlSource = await Bun.file(join(
       repositoryRoot,
@@ -173,12 +182,37 @@ test("builds the real orchestration and isolated layout Worker bundles", async (
     )).text()
     expect(pageUpdateSource).toContain("export function mainRealmRequiresReload(")
     expect(pageUpdateSource).toContain("export function sourceRevisionRequiresReload(")
+    expect(pageUpdateSource).toContain("export class HamiltonianPageUpdateController")
+    expect(pageUpdateSource).toContain('const SOURCE_REVISION_STORAGE_KEY = "hamiltonian-source-revision"')
+    expect(pageUpdateSource).toContain('const MAIN_VERSION_STORAGE_KEY = "hamiltonian-main-version"')
+    expect(pageUpdateSource).toContain("this.#importModule(release.moduleUrl)")
+    expect(pageUpdateSource).toContain("this.#birthDedicatedWorker(loadedRelease)")
+    expect(pageUpdateSource).toContain("this.#reconcileMain(loadedRelease)")
+    expect(pageUpdateSource).not.toContain("../host")
+    expect(pageUpdateSource).not.toMatch(/^\s*import\s/m)
+
+    await buildBrowserEntry("hamiltonian/public/app.js", outdir, [
+      "/core/monitor.js",
+      "/core/lifecycle.js",
+      "/core/runtime.js",
+      "/core/browser-control.js",
+      "/core/orchestration.js",
+      "/update/page-update.js",
+      "/web-push-client.js",
+    ])
+    const pageBundle = await Bun.file(join(outdir, "app.js")).text()
+    expect(pageBundle).toContain('from "/update/page-update.js"')
+    expect(pageBundle).toContain("new HamiltonianPageUpdateController")
   } finally {
     await rm(outdir, {recursive: true, force: true})
   }
 })
 
-async function buildBrowserEntry(entrypoint: string, outdir: string): Promise<void> {
+async function buildBrowserEntry(
+  entrypoint: string,
+  outdir: string,
+  externals: string[] = [],
+): Promise<void> {
   const child = Bun.spawn({
     cmd: [
       process.execPath,
@@ -189,6 +223,7 @@ async function buildBrowserEntry(entrypoint: string, outdir: string): Promise<vo
       "--sourcemap=inline",
       "--outdir",
       outdir,
+      ...externals.flatMap((external) => ["--external", external]),
     ],
     cwd: repositoryRoot,
     stdout: "pipe",

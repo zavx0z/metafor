@@ -21,10 +21,7 @@ import {
   isCurrentPeerGeneration,
   pageWorkerChannelIsQuiet,
 } from "/core/browser-control.js"
-import {
-  mainRealmRequiresReload,
-  sourceRevisionRequiresReload,
-} from "/update/page-update.js"
+import {HamiltonianPageUpdateController} from "/update/page-update.js"
 import {
   hamiltonianBrowserNodeId,
   hamiltonianBrowserRuntimeName,
@@ -36,10 +33,6 @@ const pageIncarnation = hamiltonianRealmSnapshot().incarnation
 const pageEntityId = hamiltonianLifecycleEntityId("page", pageIncarnation)
 const mainEntityId = hamiltonianLifecycleEntityId("window-main", pageIncarnation)
 const pageBootstrap = hamiltonianPageBootstrap()
-const sourceRevisionStorageKey = "hamiltonian-source-revision"
-if (pageBootstrap?.browserSourceRevision) {
-  sessionStorage.setItem(sourceRevisionStorageKey, pageBootstrap.browserSourceRevision)
-}
 const bootstrapServerEntityId = pageBootstrap?.server.hostEpoch
   ? hamiltonianLifecycleEntityId("server", pageBootstrap.server.hostEpoch)
   : null
@@ -94,10 +87,8 @@ let supersededWorkerEntityId = null
 let lastWorkerMessageAt = 0
 let reconnecting = false
 let topology = null
-let loadedVersion = null
 let mainEmbodiment = null
 let dedicatedEmbodiment = null
-let versionQueue = Promise.resolve()
 let isMainLeader = false
 let mainAuthorityKey = null
 let leaseExpiresAt = 0
@@ -107,6 +98,15 @@ let hostPlacement = "browser"
 let controlConnectionId = null
 const acceptedPeerGeneration = new Map()
 const pendingPushRegistrations = new Map()
+const pageUpdateController = new HamiltonianPageUpdateController({
+  storage: sessionStorage,
+  importModule: (moduleUrl) => import(moduleUrl),
+  reloadPage: () => location.reload(),
+  hasMainEmbodiment: () => Boolean(mainEmbodiment),
+  birthDedicatedWorker,
+  reconcileMain,
+})
+pageUpdateController.acceptNavigationSourceRevision(pageBootstrap?.browserSourceRevision)
 const pageLifecycleJournal = new HamiltonianLifecycleRetainedJournal(pageEntityId)
 subscribeHamiltonianLifecycle((envelope) => {
   if (!isHamiltonianLifecycleEnvelopeFromSource(
@@ -223,9 +223,7 @@ function renderTopology(nextTopology) {
     ) send(pendingPeerRepair)
     else pendingPeerRepair = null
   }
-  versionQueue = versionQueue
-    .then(() => reconcileMain())
-    .catch(() => {})
+  void pageUpdateController.reconcileCurrent().catch(() => {})
 }
 
 function closeBrowserPeer(reason) {
@@ -662,19 +660,17 @@ function stopMain(reason) {
   mainAuthorityKey = null
 }
 
-async function reconcileMain() {
+async function reconcileMain(loadedVersion) {
   const leader = topology?.leader
   const nextAuthorityKey = authorityKey(leader)
   if (!isMainLeader || !leader || !leaseExpiresAt || Date.now() >= leaseExpiresAt) {
     stopMain("singleton lease lost")
-    return
+    return false
   }
   if (mainEmbodiment && mainAuthorityKey !== nextAuthorityKey) {
     stopMain("singleton authority changed")
   }
-  if (!loadedVersion || mainEmbodiment) return
-
-  sessionStorage.setItem("hamiltonian-main-version", loadedVersion.fingerprint)
+  if (!loadedVersion || mainEmbodiment) return false
 
   const mainIncarnation = crypto.randomUUID()
   mainEmbodiment = loadedVersion.loaded.createEmbodiment({
@@ -690,31 +686,7 @@ async function reconcileMain() {
   })
   mainEmbodiment.start()
   mainAuthorityKey = nextAuthorityKey
-
-  const reloadReason = sessionStorage.getItem("hamiltonian-main-reload-reason")
-  if (reloadReason) {
-    sessionStorage.removeItem("hamiltonian-main-reload-reason")
-  }
-}
-
-async function activateVersion(message) {
-  const fingerprint = `${message.version}:${message.sha256}`
-  if (loadedVersion?.fingerprint === fingerprint) return
-  if (mainRealmRequiresReload(Boolean(mainEmbodiment), loadedVersion?.fingerprint, fingerprint)) {
-    sessionStorage.setItem("hamiltonian-main-version", fingerprint)
-    sessionStorage.setItem("hamiltonian-main-reload-reason", `version ${message.version}`)
-    location.reload()
-    return
-  }
-
-  const loaded = await import(message.moduleUrl)
-  if (loaded.version !== message.version || typeof loaded.createEmbodiment !== "function") {
-    throw new Error("main realm received an invalid version module")
-  }
-  loadedVersion = {...message, fingerprint, loaded}
-  sessionStorage.setItem("hamiltonian-main-version", fingerprint)
-  await birthDedicatedWorker(loadedVersion)
-  await reconcileMain()
+  return true
 }
 
 function observeAttachedWorkerQuiet(reason) {
@@ -832,17 +804,11 @@ function receive(message) {
     return
   }
   if (message.kind === "version-ready") {
-    versionQueue = versionQueue
-      .then(() => activateVersion(message))
-      .catch(() => {})
+    void pageUpdateController.activateVersion(message).catch(() => {})
     return
   }
   if (message.kind === "source-update") {
-    const currentRevision = sessionStorage.getItem(sourceRevisionStorageKey)
-    if (!sourceRevisionRequiresReload(currentRevision, message.revision)) return
-    sessionStorage.setItem(sourceRevisionStorageKey, message.revision)
-    sessionStorage.setItem("hamiltonian-main-reload-reason", `source ${message.revision}`)
-    location.reload()
+    pageUpdateController.acceptSourceRevision(message.revision)
     return
   }
   if (message.kind === "peer-signal") {
@@ -1111,16 +1077,11 @@ function runOrchestrationAction(actionId) {
     return
   }
   if (actionId === "rebirth-worker") {
-    if (!loadedVersion) return
-    versionQueue = versionQueue
-      .then(() => birthDedicatedWorker(loadedVersion))
-      .catch(() => {})
+    void pageUpdateController.rebirthDedicatedWorker().catch(() => {})
     return
   }
   if (actionId === "reload-main") {
-    if (!mainEmbodiment || !loadedVersion) return
-    sessionStorage.setItem("hamiltonian-main-reload-reason", "manual rebirth")
-    location.reload()
+    pageUpdateController.reloadCurrentMain("manual rebirth")
     return
   }
   if (actionId === "reconnect") {
