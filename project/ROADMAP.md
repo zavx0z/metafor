@@ -177,6 +177,9 @@ waypoints; ручной drag остаётся отдельной generic воз�
 выключен в Hamiltonian. Смысл host, Service Worker, Window, Bun process, peer и
 lifecycle actions остаётся у Hamiltonian.
 `pkg/visual` не становится владельцем инфраструктурного графа мира.
+Hamiltonian-specific projection, composition, presentation и HUD собираются в
+`hamiltonian/visual`; невизуальные lifecycle, control и bootstrap остаются в
+orchestration.
 
 Browser-local realtime проекции идёт через versioned `BroadcastChannel`. Это
 не новый Oracle или Force transport: channel не переносит причинные payload,
@@ -208,11 +211,12 @@ Hamiltonian contour. Дальнейшую детализацию topology и к�
 зафиксировали необходимую package-границу и разблокировали
 [`HAM-002 — Собрать визуальный слой Hamiltonian в одном контуре`](tasks/HAM-002.md)
 для независимого запуска, хотя родитель `NODES-009` остаётся открытым для
-дальнейшей работы владельца. `HAM-002` собирает product-specific projection,
-composition, панели, стили и live presentation в одной внутренней директории.
-Она не забирает generic
+дальнейшей работы владельца. `HAM-002` собирает под `hamiltonian/visual`
+оставленные после NODES-009 product-specific projection, composition, панели,
+стили и live presentation. Она не забирает generic
 model, validation, geometry, renderer primitives или layout laws из `nodes` и
-не заменяет поэтапную owner-приёмку `MF-424`.
+не заменяет поэтапную owner-приёмку `MF-424`. Старый fallback screen удаляется:
+нодовая система остаётся единственным отображением Hamiltonian.
 
 ## Oracle и Force
 
