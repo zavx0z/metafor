@@ -19,6 +19,7 @@ import {
 import {hamiltonianBrowserNodeId} from "./core/orchestration.js"
 import {sourceRevisionRequiresReload} from "./core/browser-control.js"
 import {HamiltonianLifecycleProjection} from "./browser/orchestration/lifecycle-projection.ts"
+import {HAMILTONIAN_SERVICE_WORKER_CODE_VERSION} from "./browser/service-worker-code-version.ts"
 import {
   createHamiltonianHost,
   hamiltonianBrowserSourceRevision,
@@ -47,7 +48,7 @@ function browserIdentityMessage(
 ) {
   const workerCodeVersion = typeof extra.workerCodeVersion === "string"
     ? extra.workerCodeVersion
-    : "1.1.0"
+    : HAMILTONIAN_SERVICE_WORKER_CODE_VERSION
   return {
     kind: "identity",
     workerIdentity,
@@ -70,7 +71,7 @@ function browserProfileLifecycleSnapshot(
   workerIdentity: string,
   workerRuntimeIncarnation: string,
   additional: Array<ReturnType<typeof createHamiltonianLifecycleObservation>> = [],
-  workerCodeVersion = "1.1.0",
+  workerCodeVersion = HAMILTONIAN_SERVICE_WORKER_CODE_VERSION,
 ) {
   const browserEntityId = hamiltonianBrowserNodeId(profileId)
   const workerEntityId = hamiltonianLifecycleEntityId("service-worker", workerIdentity)
@@ -338,6 +339,31 @@ async function openDirectBrowserPeer(
 }
 
 describe("isolated Hamiltonian host", () => {
+  test("uses the executable Worker version by default without rewriting explicit release fixtures", () => {
+    const defaultIdentity = browserIdentityMessage(
+      "default-version-profile",
+      "default-version-worker",
+      "default-version-runtime",
+      "default-version-resume",
+    )
+    expect(defaultIdentity.workerCodeVersion).toBe(HAMILTONIAN_SERVICE_WORKER_CODE_VERSION)
+    expect(defaultIdentity.lifecycleSnapshot.envelopes.find((envelope) =>
+      envelope.observation.subjectKind === "service-worker")?.observation.attributes?.codeVersion,
+    ).toBe(HAMILTONIAN_SERVICE_WORKER_CODE_VERSION)
+
+    const explicitIdentity = browserIdentityMessage(
+      "explicit-version-profile",
+      "explicit-version-worker",
+      "explicit-version-runtime",
+      "explicit-version-resume",
+      {workerCodeVersion: "1.0.0"},
+    )
+    expect(explicitIdentity.workerCodeVersion).toBe("1.0.0")
+    expect(explicitIdentity.lifecycleSnapshot.envelopes.find((envelope) =>
+      envelope.observation.subjectKind === "service-worker")?.observation.attributes?.codeVersion,
+    ).toBe("1.0.0")
+  })
+
   test("projects an exact server bootstrap that an empty Worker registry can accept", () => {
     const serverLogicalContourId = hamiltonianLogicalContourId("server", "bootstrap-host")
     const browserLogicalContourId = hamiltonianLogicalContourId("browser-profile", "old-profile")
@@ -554,7 +580,17 @@ describe("isolated Hamiltonian host", () => {
   })
 
   test("rejects a code version change without a new Service Worker execution", async () => {
-    const host = createHamiltonianHost({port: 0, token: "test-token", heartbeatMs: 10_000})
+    const host = createHamiltonianHost({
+      port: 0,
+      token: "test-token",
+      heartbeatMs: 10_000,
+      browserBundles: {
+        orchestration: "orchestration",
+        layoutWorker: "layout-worker",
+        serviceWorker: 'const HAMILTONIAN_SERVICE_WORKER_CODE_VERSION = "1.1.0"; service-worker-release',
+        webPushClient: "web-push-client",
+      },
+    })
     running.push(host)
     const controlUrl = new URL("/control", host.server.url)
     controlUrl.protocol = "ws:"
@@ -897,6 +933,7 @@ describe("isolated Hamiltonian host", () => {
       "source-bootstrap-worker",
       "source-bootstrap-runtime",
       "source-bootstrap-resume",
+      {workerCodeVersion: "1.1.0"},
     )))
     await nextMessage(controlSocket, "service-worker-current")
     const admittedSourceRevision = await fetch(host.server.url).then((response) => response.text()).then((html) =>
@@ -1537,6 +1574,7 @@ describe("isolated Hamiltonian host", () => {
       workerIdentity,
       oldRuntime,
       "updated-worker-resume-old",
+      {workerCodeVersion: "1.1.0"},
     )))
     await oldCurrent
     const oldBoundary = (await oldBoundaryFrame).declaration as HamiltonianNodeSystemDeclaration
@@ -1574,6 +1612,7 @@ describe("isolated Hamiltonian host", () => {
       workerIdentity,
       newRuntime,
       "updated-worker-resume-new",
+      {workerCodeVersion: "1.1.0"},
     )))
     await newCurrent
     const newBrowser = (await newBrowserFrame).declaration as HamiltonianNodeSystemDeclaration
@@ -1921,12 +1960,12 @@ describe("isolated Hamiltonian host", () => {
       expect.objectContaining({
         subjectId: hamiltonianLifecycleEntityId("service-worker", "worker-a"),
         ownerId: hamiltonianBrowserNodeId("profile-a"),
-        attributes: expect.objectContaining({codeVersion: "1.1.0"}),
+        attributes: expect.objectContaining({codeVersion: HAMILTONIAN_SERVICE_WORKER_CODE_VERSION}),
       }),
       expect.objectContaining({
         subjectId: hamiltonianLifecycleEntityId("service-worker", "worker-b"),
         ownerId: hamiltonianBrowserNodeId("profile-b"),
-        attributes: expect.objectContaining({codeVersion: "1.1.0"}),
+        attributes: expect.objectContaining({codeVersion: HAMILTONIAN_SERVICE_WORKER_CODE_VERSION}),
       }),
       expect.objectContaining({
         subjectId: profileAPageId,
@@ -2597,14 +2636,14 @@ describe("isolated Hamiltonian host", () => {
       return {socket, connectionId: String(hello.connectionId), lifecycleSnapshot, transportId}
     }
 
-    const first = await connect("sw-runtime-a", "1.1.0")
+    const first = await connect("sw-runtime-a", HAMILTONIAN_SERVICE_WORKER_CODE_VERSION)
     await Bun.sleep(80)
     const firstStatus = host.getStatus()
     expect(firstStatus.connections[0]).toMatchObject({
       connectionId: first.connectionId,
       workerIdentity,
       workerRuntimeIncarnation: "sw-runtime-a",
-      workerCodeVersion: "1.1.0",
+      workerCodeVersion: HAMILTONIAN_SERVICE_WORKER_CODE_VERSION,
     })
     expect(firstStatus.connections[0]!.lastAckSeq).toBeGreaterThan(0)
     const firstClosed = new Promise<void>((resolve) => {
@@ -2616,7 +2655,7 @@ describe("isolated Hamiltonian host", () => {
       event.kind === "connection-close" && event.connectionId === first.connectionId
     ), `server close observation for ${first.connectionId}`)
 
-    const second = await connect("sw-runtime-b", "1.1.0")
+    const second = await connect("sw-runtime-b", HAMILTONIAN_SERVICE_WORKER_CODE_VERSION)
     expect(second.connectionId).not.toBe(first.connectionId)
     const retained = second.lifecycleSnapshot.snapshot as {
       envelopes: Array<{observation: {phase?: string; subjectId?: string; subjectKind?: string}}>
@@ -2630,7 +2669,7 @@ describe("isolated Hamiltonian host", () => {
     expect(host.getStatus().connections[0]).toMatchObject({
       workerIdentity,
       workerRuntimeIncarnation: "sw-runtime-b",
-      workerCodeVersion: "1.1.0",
+      workerCodeVersion: HAMILTONIAN_SERVICE_WORKER_CODE_VERSION,
     })
     second.socket.close()
   })
