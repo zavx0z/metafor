@@ -113,9 +113,11 @@ exact CDP-профиль live обновлён с Worker `1.0.0` до `1.1.0`. L
 stale projection facts и transient error reason закрыты отдельными frozen
 regressions. Checkpoint `260aa786a` защитил current Worker identity от page-side Web Push
 observation и поднял release до `1.1.1`, но live rollout открыл две новые причины.
-Текущий срез — `MF-428.6 — Допускать новый Worker к действующему Hamiltonian`:
-bootstrap server declaration не должна требовать от новой execution уже знать старую browser boundary.
-После него `MF-428.7 — Гарантированно закрывать отклонённый WebSocket в browser Worker`
+`MF-428.6 — Допускать новый Worker к действующему Hamiltonian` завершена
+checkpoint-коммитом `bf10ae45c`: bootstrap server declaration больше не требует
+от новой execution уже знать старую browser boundary. Текущий короткий срез —
+`MF-428.8 — Синхронизировать host-фикстуры с текущей версией Worker`; после него
+`MF-428.7 — Гарантированно закрывать отклонённый WebSocket в browser Worker`
 уберёт browser-invalid `close(1008)` и heartbeat-only ghost connection. Оба Chrome process и Hamiltonian
 оставлены запущенными для той же two-profile acceptance; Web Push кода не переносит, иные
 среды и выключенные профили в этот срез не входят.
