@@ -96,6 +96,14 @@ export function hamiltonianServiceWorkerApplicationMessageAllowed(
   return identityConfirmed || TECHNICAL_CLIENT_MESSAGE_KINDS.has(kind)
 }
 
+export function hamiltonianServerBootstrapDeclaration(
+  declaration: HamiltonianNodeSystemDeclaration,
+): HamiltonianNodeSystemDeclaration {
+  return declaration.boundaryTransports.length === 0
+    ? declaration
+    : createHamiltonianNodeSystemDeclaration({...declaration, boundaryTransports: []})
+}
+
 interface ClientPongMessage {
   kind: "pong"
   at: number
@@ -1125,7 +1133,10 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
     return declaration
   }
   const sendCurrentNodeSystemDeclarations = (socket: Bun.ServerWebSocket<SocketData>) => {
-    sendNodeSystemDeclaration(socket, refreshServerDeclaration())
+    sendNodeSystemDeclaration(
+      socket,
+      hamiltonianServerBootstrapDeclaration(refreshServerDeclaration()),
+    )
   }
   const observeServiceWorkerAvailability = (
     workerEntityId: string,

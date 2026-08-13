@@ -374,6 +374,15 @@ target `{version, sha256}`, Worker вызывает browser-managed
 подключился с новой execution incarnation и manifest version. Попытка заявить
 target version из уже отвергнутой incarnation отклоняется.
 
+Новая execution сначала получает server bootstrap declaration без browser
+boundary: её пустой registry ещё не обязан знать прежнюю incarnation этого или
+другого профиля. Это только адресованная pre-identity bootstrap-проекция;
+authoritative retained server declaration остаётся полной и не заменяется.
+После приёма собственной browser/profile declaration Host обязательно выдаёт
+обычную полную server declaration, где control boundary ссылается уже на exact
+новую incarnation. Проверка closure и разделение profile scope при этом не
+ослабляются.
+
 После новой локальной сборки host посылает тот же exact target всем сейчас
 подключённым stale профилям. Перед отправкой update он атомарно отзывает их
 окна из application topology, закрывает прежний peer и дожидается завершения

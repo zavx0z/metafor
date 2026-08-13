@@ -7,6 +7,7 @@ import {
   HamiltonianLifecycleSource,
   HamiltonianNodeSystemDeclarationRegistry,
   createHamiltonianLifecycleObservation,
+  createHamiltonianNodeSystemDeclaration,
   hamiltonianDataChannelTransportId,
   hamiltonianLifecycleEntityId,
   hamiltonianLogicalContourId,
@@ -21,6 +22,7 @@ import {HamiltonianLifecycleProjection} from "./browser/orchestration/lifecycle-
 import {
   createHamiltonianHost,
   hamiltonianBrowserSourceRevision,
+  hamiltonianServerBootstrapDeclaration,
   hamiltonianServiceWorkerApplicationMessageAllowed,
   hamiltonianServiceWorkerRelease,
 } from "./host.ts"
@@ -336,6 +338,71 @@ async function openDirectBrowserPeer(
 }
 
 describe("isolated Hamiltonian host", () => {
+  test("projects an exact server bootstrap that an empty Worker registry can accept", () => {
+    const serverLogicalContourId = hamiltonianLogicalContourId("server", "bootstrap-host")
+    const browserLogicalContourId = hamiltonianLogicalContourId("browser-profile", "old-profile")
+    const serverEntityId = hamiltonianLifecycleEntityId("server", "bootstrap-host-runtime")
+    const workerEntityId = hamiltonianLifecycleEntityId("service-worker", "old-worker")
+    const source = new HamiltonianLifecycleSource({
+      id: serverEntityId,
+      kind: "server",
+      incarnation: "bootstrap-host-runtime",
+      startedAt: 1,
+    })
+    const journal = new HamiltonianLifecycleRetainedJournal(serverEntityId)
+    journal.observe(source.next(createHamiltonianLifecycleObservation({
+      type: "entity",
+      phase: "born",
+      subjectId: serverEntityId,
+      subjectKind: "server",
+      ownerId: serverEntityId,
+      attributes: {identity: "bootstrap-host", hostEpoch: "bootstrap-host-runtime", version: "v1"},
+    })))
+    const declaration = createHamiltonianNodeSystemDeclaration({
+      logicalContourId: serverLogicalContourId,
+      incarnation: "bootstrap-host-runtime",
+      incarnationStartedAt: 1,
+      revision: journal.snapshot().revision,
+      rootId: serverEntityId,
+      snapshot: journal.snapshot(),
+      boundaryTransports: [{
+        transportId: "websocket:old-worker",
+        kind: "websocket",
+        phase: "opened",
+        owner: {
+          logicalContourId: browserLogicalContourId,
+          incarnation: "old-worker-runtime",
+          entityId: workerEntityId,
+        },
+        source: {
+          logicalContourId: browserLogicalContourId,
+          incarnation: "old-worker-runtime",
+          entityId: workerEntityId,
+        },
+        target: {
+          logicalContourId: serverLogicalContourId,
+          incarnation: "bootstrap-host-runtime",
+          entityId: serverEntityId,
+        },
+        attributes: {state: "open"},
+      }],
+    })
+    const emptyRegistry = new HamiltonianNodeSystemDeclarationRegistry()
+    expect(emptyRegistry.accept(declaration)).toBeNull()
+
+    const bootstrap = hamiltonianServerBootstrapDeclaration(declaration)
+    expect(bootstrap).toMatchObject({
+      logicalContourId: declaration.logicalContourId,
+      incarnation: declaration.incarnation,
+      incarnationStartedAt: declaration.incarnationStartedAt,
+      revision: declaration.revision,
+      rootId: declaration.rootId,
+      snapshot: declaration.snapshot,
+      boundaryTransports: [],
+    })
+    expect(emptyRegistry.accept(bootstrap)).not.toBeNull()
+  })
+
   test("keys page source reloads by served browser code instead of host incarnation", async () => {
     const servedByHostA = {
       orchestrationBundle: "orchestration-a",
@@ -1425,6 +1492,109 @@ describe("isolated Hamiltonian host", () => {
     )))
     await received
     socket.close()
+  })
+
+  test("bootstraps a new Worker without the previous browser boundary and restores only its new incarnation", async () => {
+    const host = createHamiltonianHost({
+      port: 0,
+      token: "test-token",
+      heartbeatMs: 10_000,
+      browserBundles: {
+        orchestration: "orchestration",
+        layoutWorker: "layout-worker",
+        serviceWorker: 'const HAMILTONIAN_SERVICE_WORKER_CODE_VERSION = "1.1.0"; service-worker-release',
+        webPushClient: "web-push-client",
+      },
+    })
+    running.push(host)
+    const profileId = "updated-profile"
+    const workerIdentity = "updated-worker"
+    const workerEntityId = hamiltonianLifecycleEntityId("service-worker", workerIdentity)
+    const oldRuntime = "updated-worker-runtime-old"
+    const newRuntime = "updated-worker-runtime-new"
+    const serverLogicalContourId = hamiltonianLogicalContourId("server", host.identity)
+    const browserLogicalContourId = hamiltonianLogicalContourId("browser-profile", profileId)
+    const controlUrl = new URL("/control", host.server.url)
+    controlUrl.protocol = "ws:"
+    controlUrl.searchParams.set("token", host.token)
+    controlUrl.searchParams.set("device", profileId)
+    controlUrl.searchParams.set("worker", workerEntityId)
+
+    const oldTransportId = "websocket:updated-worker-old"
+    const oldUrl = new URL(controlUrl)
+    oldUrl.searchParams.set("transport", oldTransportId)
+    const oldFrames: Array<Record<string, unknown>> = []
+    const oldSocket = await openSocket(oldUrl, oldFrames)
+    await waitUntil(() => oldFrames.some(({kind}) => kind === "hello"), "old Worker hello")
+    const oldCurrent = nextMessage(oldSocket, "service-worker-current")
+    const oldBoundaryFrame = nextMessage(oldSocket, "node-system-declaration", (message) => {
+      const declaration = message.declaration as HamiltonianNodeSystemDeclaration | undefined
+      return declaration?.logicalContourId === serverLogicalContourId &&
+        declaration.boundaryTransports.some(({transportId}) => transportId === oldTransportId)
+    })
+    oldSocket.send(JSON.stringify(browserIdentityMessage(
+      profileId,
+      workerIdentity,
+      oldRuntime,
+      "updated-worker-resume-old",
+    )))
+    await oldCurrent
+    const oldBoundary = (await oldBoundaryFrame).declaration as HamiltonianNodeSystemDeclaration
+    expect(oldBoundary.boundaryTransports.find(({transportId}) => transportId === oldTransportId)?.owner.incarnation)
+      .toBe(oldRuntime)
+
+    const newTransportId = "websocket:updated-worker-new"
+    const newUrl = new URL(controlUrl)
+    newUrl.searchParams.set("transport", newTransportId)
+    const newFrames: Array<Record<string, unknown>> = []
+    const newSocket = await openSocket(newUrl, newFrames)
+    await waitUntil(() => newFrames.some((frame) =>
+      frame.kind === "node-system-declaration" &&
+      (frame.declaration as HamiltonianNodeSystemDeclaration | undefined)?.logicalContourId === serverLogicalContourId),
+    "new Worker server bootstrap")
+    const bootstrap = newFrames.find((frame) =>
+      frame.kind === "node-system-declaration" &&
+      (frame.declaration as HamiltonianNodeSystemDeclaration | undefined)?.logicalContourId === serverLogicalContourId)
+      ?.declaration as HamiltonianNodeSystemDeclaration
+    const workerRegistry = new HamiltonianNodeSystemDeclarationRegistry()
+    expect(bootstrap.boundaryTransports).toHaveLength(0)
+    expect(workerRegistry.accept(bootstrap)).not.toBeNull()
+
+    const newBrowserFrame = nextMessage(newSocket, "node-system-declaration", (message) =>
+      (message.declaration as HamiltonianNodeSystemDeclaration | undefined)?.logicalContourId ===
+        browserLogicalContourId)
+    const newBoundaryFrame = nextMessage(newSocket, "node-system-declaration", (message) => {
+      const declaration = message.declaration as HamiltonianNodeSystemDeclaration | undefined
+      return declaration?.logicalContourId === serverLogicalContourId &&
+        declaration.boundaryTransports.some(({transportId}) => transportId === newTransportId)
+    })
+    const newCurrent = nextMessage(newSocket, "service-worker-current")
+    newSocket.send(JSON.stringify(browserIdentityMessage(
+      profileId,
+      workerIdentity,
+      newRuntime,
+      "updated-worker-resume-new",
+    )))
+    await newCurrent
+    const newBrowser = (await newBrowserFrame).declaration as HamiltonianNodeSystemDeclaration
+    const newBoundary = (await newBoundaryFrame).declaration as HamiltonianNodeSystemDeclaration
+    expect(workerRegistry.accept(newBrowser)).not.toBeNull()
+    expect(workerRegistry.accept(newBoundary)).not.toBeNull()
+    expect(newBoundary.revision).toBeGreaterThan(bootstrap.revision)
+    expect(newBoundary.boundaryTransports.filter(({kind}) => kind === "websocket")).toEqual([
+      expect.objectContaining({
+        transportId: newTransportId,
+        owner: expect.objectContaining({
+          logicalContourId: browserLogicalContourId,
+          incarnation: newRuntime,
+          entityId: workerEntityId,
+        }),
+      }),
+    ])
+    expect(JSON.stringify(newBoundary.boundaryTransports)).not.toContain(oldRuntime)
+    expect(JSON.stringify(newBoundary.boundaryTransports)).not.toContain(oldTransportId)
+    oldSocket.close()
+    newSocket.close()
   })
 
   test("declares the exact identity-confirmed control WebSocket with its browser and server endpoints", async () => {
