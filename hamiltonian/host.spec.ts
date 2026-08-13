@@ -17,15 +17,12 @@ import {
   type HamiltonianNodeSystemDeclaration,
 } from "./core/lifecycle.js"
 import {hamiltonianBrowserNodeId} from "./core/orchestration.js"
-import {sourceRevisionRequiresReload} from "./update/browser/page-update.js"
 import {HamiltonianLifecycleProjection} from "./browser/orchestration/lifecycle-projection.ts"
 import {HAMILTONIAN_SERVICE_WORKER_CODE_VERSION} from "./update/browser/service-worker-code-version.ts"
 import {
   createHamiltonianHost,
-  hamiltonianBrowserSourceRevision,
   hamiltonianServerBootstrapDeclaration,
   hamiltonianServiceWorkerApplicationMessageAllowed,
-  hamiltonianServiceWorkerRelease,
 } from "./host.ts"
 import {WeriftPeer, type PeerSignal} from "./peer/werift-peer.ts"
 
@@ -429,35 +426,12 @@ describe("isolated Hamiltonian host", () => {
     expect(emptyRegistry.accept(bootstrap)).not.toBeNull()
   })
 
-  test("keys page source reloads by served browser code instead of host incarnation", async () => {
-    const servedByHostA = {
-      orchestrationBundle: "orchestration-a",
-      layoutWorkerBundle: "layout-worker-a",
-      serviceWorkerBundle: 'const HAMILTONIAN_SERVICE_WORKER_CODE_VERSION = "1.1.0"; service-worker-a',
-      webPushClientBundle: "web-push-client-a",
-      directlyServedText: {
-        "/app.js": "app-a",
-        "/core/browser-control.js": "browser-control-a",
-        "/update/page-update.js": "page-update-a",
-      },
-    }
-    const revisionA = hamiltonianBrowserSourceRevision(servedByHostA)
-    const revisionB = hamiltonianBrowserSourceRevision({
-      ...servedByHostA,
-      directlyServedText: {
-        "/core/browser-control.js": "browser-control-a",
-        "/update/page-update.js": "page-update-a",
-        "/app.js": "app-a",
-      },
-    })
-    expect(revisionB).toBe(revisionA)
-    expect(sourceRevisionRequiresReload(revisionA, revisionB)).toBeFalse()
-
+  test("keeps page source revision stable across cold hosts with identical browser bundles", async () => {
     const browserBundles = {
-      orchestration: servedByHostA.orchestrationBundle,
-      layoutWorker: servedByHostA.layoutWorkerBundle,
-      serviceWorker: servedByHostA.serviceWorkerBundle,
-      webPushClient: servedByHostA.webPushClientBundle,
+      orchestration: "orchestration-a",
+      layoutWorker: "layout-worker-a",
+      serviceWorker: 'const HAMILTONIAN_SERVICE_WORKER_CODE_VERSION = "1.1.0"; service-worker-a',
+      webPushClient: "web-push-client-a",
     }
     const hostA = createHamiltonianHost({
       port: 0,
@@ -485,49 +459,6 @@ describe("isolated Hamiltonian host", () => {
     const hostRevisionA = bootstrapValue(bootstrapA, "hamiltonian-browser-source-revision")
     const hostRevisionB = bootstrapValue(bootstrapB, "hamiltonian-browser-source-revision")
     expect(hostRevisionB).toBe(hostRevisionA)
-    expect(sourceRevisionRequiresReload(hostRevisionA, hostRevisionB)).toBeFalse()
-
-    for (const changedArtifacts of [
-      {...servedByHostA, orchestrationBundle: "orchestration-b"},
-      {...servedByHostA, layoutWorkerBundle: "layout-worker-b"},
-      {...servedByHostA, serviceWorkerBundle: 'const HAMILTONIAN_SERVICE_WORKER_CODE_VERSION = "1.1.0"; service-worker-b'},
-      {...servedByHostA, webPushClientBundle: "web-push-client-b"},
-      {
-        ...servedByHostA,
-        directlyServedText: {...servedByHostA.directlyServedText, "/app.js": "app-b"},
-      },
-      {
-        ...servedByHostA,
-        directlyServedText: {
-          ...servedByHostA.directlyServedText,
-          "/update/page-update.js": "page-update-b",
-        },
-      },
-    ]) {
-      const changedRevision = hamiltonianBrowserSourceRevision(changedArtifacts)
-      expect(changedRevision).not.toBe(revisionA)
-      expect(sourceRevisionRequiresReload(revisionA, changedRevision)).toBeTrue()
-    }
-  })
-
-  test("derives each Service Worker manifest release from the exact successive build output", () => {
-    const moduleRelease = {version: "module-v1", sha256: "module-hash"}
-    const releaseA = hamiltonianServiceWorkerRelease(
-      'const HAMILTONIAN_SERVICE_WORKER_CODE_VERSION = "1.0.0";\nrelease A',
-    )
-    const releaseB = hamiltonianServiceWorkerRelease(
-      'const HAMILTONIAN_SERVICE_WORKER_CODE_VERSION = "1.1.0";\nrelease B',
-    )
-    expect(releaseA).toEqual({
-      version: "1.0.0",
-      sha256: expect.stringMatching(/^[0-9a-f]{64}$/),
-    })
-    expect(releaseB).toEqual({
-      version: "1.1.0",
-      sha256: expect.stringMatching(/^[0-9a-f]{64}$/),
-    })
-    expect(releaseB.sha256).not.toBe(releaseA.sha256)
-    expect(moduleRelease).toEqual({version: "module-v1", sha256: "module-hash"})
   })
 
   test("admits only technical Worker messages before exact profile identity is current", () => {

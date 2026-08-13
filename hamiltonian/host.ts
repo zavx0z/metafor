@@ -40,6 +40,13 @@ import {
 } from "./web-push.ts"
 import type {WebPushLifecycleEvent, WebPushLifecycleHook} from "@metafor/web-push/lifecycle"
 import {isHamiltonianServiceWorkerCodeVersion} from "./update/shared/service-worker-release.js"
+import {
+  hamiltonianBrowserManifest,
+  hamiltonianBrowserSourceRevision,
+  hamiltonianServiceWorkerRelease,
+  hamiltonianVersionedModuleRelease,
+  type HamiltonianServiceWorkerRelease,
+} from "./update/host/browser-release.ts"
 
 interface SocketData {
   connectionId: string
@@ -677,48 +684,6 @@ function moduleSource(version: string): string {
   ].join("\n")
 }
 
-function sha256Hex(value: string): string {
-  return new Bun.CryptoHasher("sha256").update(value).digest("hex") as string
-}
-
-export interface HamiltonianBrowserSourceArtifacts {
-  orchestrationBundle: string
-  layoutWorkerBundle: string
-  serviceWorkerBundle: string
-  webPushClientBundle: string
-  directlyServedText: Readonly<Record<string, string>>
-}
-
-interface HamiltonianServiceWorkerRelease {
-  version: string
-  sha256: string
-}
-
-export function hamiltonianServiceWorkerRelease(source: string): HamiltonianServiceWorkerRelease {
-  const version = source.match(/HAMILTONIAN_SERVICE_WORKER_CODE_VERSION\s*=\s*["']([^"']+)["']/)?.[1]
-  if (!isHamiltonianServiceWorkerCodeVersion(version)) {
-    throw new Error("Hamiltonian Service Worker bundle lacks a valid code SemVer")
-  }
-  return {
-    version,
-    sha256: sha256Hex(source),
-  }
-}
-
-export function hamiltonianBrowserSourceRevision(
-  artifacts: HamiltonianBrowserSourceArtifacts,
-): string {
-  const canonicalArtifacts = Object.entries({
-    ...artifacts.directlyServedText,
-    "/orchestration.js": artifacts.orchestrationBundle,
-    "/layout-worker.js": artifacts.layoutWorkerBundle,
-    "/sw-entry.js": artifacts.serviceWorkerBundle,
-    "/web-push-client.js": artifacts.webPushClientBundle,
-  })
-    .sort(([left], [right]) => left.localeCompare(right))
-  return `source:${sha256Hex(JSON.stringify(canonicalArtifacts))}`
-}
-
 async function directlyServedBrowserSourceArtifacts(): Promise<Record<string, string>> {
   const artifacts = await Promise.all(Object.entries(browserStaticFiles)
     .filter(([, {type}]) => type !== "font/ttf")
@@ -921,7 +886,8 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
     return true
   }
   const source = moduleSource(version)
-  const sourceHash = sha256Hex(source)
+  const moduleRelease = hamiltonianVersionedModuleRelease(version, source)
+  const sourceHash = moduleRelease.sha256
   const indexResponse = async (localJoinToken = "") => {
     const servedAt = Date.now()
     const navigationId = crypto.randomUUID()
@@ -1930,13 +1896,10 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
       if (url.pathname === "/manifest.json") {
         if (!authorized(request, token)) return new Response("Unauthorized", {status: 401})
         const serviceWorker = await currentServiceWorkerRelease()
-        return Response.json({
-          identity,
-          version,
-          moduleUrl: `/versions/${encodeURIComponent(version)}/module.js`,
-          sha256: sourceHash,
-          serviceWorker,
-        }, {headers: securityHeaders("application/json; charset=utf-8")})
+        return Response.json(
+          hamiltonianBrowserManifest(identity, moduleRelease, serviceWorker),
+          {headers: securityHeaders("application/json; charset=utf-8")},
+        )
       }
 
       if (url.pathname === "/lab/status") {
