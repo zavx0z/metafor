@@ -104,7 +104,8 @@ screen вместе с DOM-only функциональностью. `HAM-002.3` 
 `@hamiltonian/visual` внутри Hamiltonian и перенёс туда очищенный
 stylesheet нодового canvas без изменения визуального поведения. Текущий
 `HAM-002.4` перенёс в пакет presentation leaf-модули с их unit specs. Текущий
-`HAM-002.5` перемещает только Hamiltonian HUD/workspace composition.
+`HAM-002.5` перенёс Hamiltonian HUD/workspace composition. Текущий
+`HAM-002.6` перемещает только изолированный layout Worker entrypoint.
 
 | ID     | Состояние   | Зависимости | Карточка                   |
 | ------ | ----------- | ----------- | -------------------------- |
