@@ -229,9 +229,9 @@ model, validation, geometry, renderer primitives или layout laws из `nodes`
 и восстановление после неудачи, не смешивая эти новые механизмы с первым
 структурным шагом.
 
-Первой задачей направления является
-[`UPD-001 — Собрать механизм обновлений Hamiltonian в одной
-директории`](tasks/UPD-001.md).
+Первый структурный шаг завершён: действующий локальный browser-update собран
+под `hamiltonian/update`, а host, Service Worker и page entrypoints оставлены
+адаптерами своих runtime-событий.
 
 ## Oracle и Force
 
