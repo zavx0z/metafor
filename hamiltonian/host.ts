@@ -196,6 +196,7 @@ interface PendingPushWake {
 const experimentRoot = fileURLToPath(new URL(".", import.meta.url))
 const repositoryRoot = fileURLToPath(new URL("..", import.meta.url))
 const publicRoot = `${experimentRoot}/public`
+const updateRoot = `${experimentRoot}/update`
 const visualRoot = `${experimentRoot}/visual`
 const orchestrationEntry = `${experimentRoot}/browser/orchestration.ts`
 const layoutWorkerEntry = `${visualRoot}/browser/layout-worker.ts`
@@ -2478,6 +2479,7 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
       `${experimentRoot}/browser`,
       `${experimentRoot}/public`,
       `${experimentRoot}/core`,
+      updateRoot,
       visualRoot,
       uiRoot,
       nodesRoot,

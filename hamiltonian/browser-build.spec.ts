@@ -63,6 +63,12 @@ test("builds the real orchestration and isolated layout Worker bundles", async (
     expect(serviceWorkerSource).not.toContain('subjectKind: "controller"')
     expect(serviceWorkerSource).not.toContain('subjectKind: "message-port"')
 
+    const hostTypeScript = await Bun.file(join(repositoryRoot, "hamiltonian/host.ts")).text()
+    expect(hostTypeScript).toContain('const updateRoot = `${experimentRoot}/update`')
+    const watchRootsStart = hostTypeScript.indexOf("for (const root of [")
+    const watchRootsEnd = hostTypeScript.indexOf("]) {", watchRootsStart)
+    expect(hostTypeScript.slice(watchRootsStart, watchRootsEnd)).toContain("updateRoot")
+
     const serviceWorkerTypeScript = await Bun.file(join(repositoryRoot, "hamiltonian/browser/service-worker.ts")).text()
     expect(serviceWorkerTypeScript).toContain("observation?.ownerId === currentBrowserEntityId")
     expect(serviceWorkerTypeScript).toContain("currentPushReady = true")
