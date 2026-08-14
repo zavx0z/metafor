@@ -32,6 +32,7 @@ flowchart LR
     NODES006["NODES-006 · кратчайший законный маршрут"]
     NODES008["NODES-008 · убрать пустой compound-резерв"]
     MF425["MF-425 · одна Вселенная на одном устройстве"]
+    LOAD001["LOAD-001 · минимальный browser loader"]
     UPD002["UPD-002 · клиентская сборка через Service Worker"]
     MF426["MF-426 · одна Вселенная на нескольких устройствах"]
     MF427["MF-427 · несколько Вселенных"]
@@ -50,6 +51,7 @@ flowchart LR
     MF109 --> MF110
     MF405 --> MF406
     MF411 --> MF414
+    LOAD001 --> UPD002
     MF425 --> MF426
     MF426 --> MF427
 ```
@@ -112,10 +114,12 @@ stylesheet нодового canvas без изменения визуально�
 дал визуальное подтверждение canvas-only нодового UI в dedicated CDP Chrome.
 Следующий structural срез ждёт координации с активным NODES-008 benchmark.
 
-Линия обновлений продолжается задачей `UPD-002 — Обновлять всю клиентскую
-сборку через Service Worker`. Она заменяет три параллельных browser-update пути
-одним полным выпуском, который Service Worker проверяет, сохраняет и выдаёт
-страницам после переключения.
+Перед линией обновлений зарегистрирована `LOAD-001 — Загружать браузерный
+функционал через минимальный Service Worker`. Она сначала доказывает
+неизменяемый minimal HTML/main/Service Worker loader, WSS-загрузку от одного
+signaling peer, подготовку cache и запуск сменяемых частей. `UPD-002 —
+Обновлять всю клиентскую сборку через Service Worker` ждёт этот результат и
+после него заменяет три параллельных browser-update пути одним полным выпуском.
 
 `HAM-003 — Разделить Hamiltonian по средам исполнения и механизмам` остаётся
 `IN_PROGRESS`. Широкий object-oriented срез `HAM-003.8` отклонён владельцем и
@@ -133,7 +137,8 @@ literal routes, русским TSDoc, всеми HTTP conditions и полной
 | ------ | ----------- | ----------- | -------------------------- |
 | MF-424 | IN_PROGRESS | нет         | [Открыть](tasks/MF-424.md) |
 | MF-425 | IN_PROGRESS | нет         | [Открыть](tasks/MF-425.md) |
-| UPD-002 | IN_PROGRESS | нет        | [Открыть](tasks/UPD-002.md) |
+| LOAD-001 | READY     | нет         | [Открыть](tasks/LOAD-001.md) |
+| UPD-002 | WAITING   | LOAD-001    | [Открыть](tasks/UPD-002.md) |
 | HAM-001 | IN_PROGRESS | нет         | [Открыть](tasks/HAM-001.md) |
 | NODES-009 | IN_PROGRESS | нет       | [Открыть](tasks/NODES-009.md) |
 | HAM-002 | IN_PROGRESS | нет         | [Открыть](tasks/HAM-002.md) |
