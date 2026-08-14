@@ -28,8 +28,8 @@ import {
 import {authorityKey, makeLeaseId} from "./core/runtime.js"
 import {hamiltonianBrowserNodeId} from "./core/orchestration.js"
 import {HostTopology, type WindowCandidate} from "./host-state.ts"
-import {PeerProcessSupervisor} from "./peer-supervisor.ts"
-import type {PeerSignal, WeriftPeerSnapshot} from "./peer/werift-peer.ts"
+import {PeerProcessSupervisor} from "./server/peer/process-supervisor.ts"
+import type {PeerSignal, WeriftPeerSnapshot} from "./server/peer/werift-peer.ts"
 import {
   HamiltonianWebPush,
   isHamiltonianPushSubscription,

@@ -23,7 +23,7 @@ import {
   createHamiltonianHost,
   hamiltonianServerBootstrapDeclaration,
 } from "./host.ts"
-import {WeriftPeer, type PeerSignal} from "./peer/werift-peer.ts"
+import {WeriftPeer, type PeerSignal} from "./server/peer/werift-peer.ts"
 
 const running: Array<ReturnType<typeof createHamiltonianHost>> = []
 const temporaryDirectories: string[] = []

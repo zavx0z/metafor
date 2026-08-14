@@ -3,9 +3,9 @@ import {
   hamiltonianLifecycleEntityId,
   hamiltonianLifecycleMessageId,
   hamiltonianLifecycleTransportId,
-} from "./core/lifecycle.js"
+} from "../../core/lifecycle.js"
 import type {RTCIceServer} from "werift"
-import type {PeerSignal, WeriftPeerSnapshot} from "./peer/werift-peer.ts"
+import type {PeerSignal, WeriftPeerSnapshot} from "./werift-peer.ts"
 
 type ChildMessage =
   | {kind: "online"; pid: number; monitor: {messageId: string}}
@@ -30,7 +30,7 @@ export interface PeerProcessSnapshot {
   unexpectedExits: number
 }
 
-const childEntry = fileURLToPath(new URL("./peer-process.ts", import.meta.url))
+const childEntry = fileURLToPath(new URL("./process-entry.ts", import.meta.url))
 
 export class PeerProcessSupervisor {
   readonly #onSignal: (peerId: string, signal: PeerSignal) => void

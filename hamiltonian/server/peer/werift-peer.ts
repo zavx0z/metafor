@@ -1,5 +1,5 @@
 import {RTCPeerConnection, type RTCDataChannel, type RTCIceServer} from "werift"
-import {LogicalChannelSession, PeerProtocol} from "../core/runtime.js"
+import {LogicalChannelSession, PeerProtocol} from "../../core/runtime.js"
 
 export type PeerSignal =
   | {type: "description"; description: {type: "offer" | "answer"; sdp: string}}
