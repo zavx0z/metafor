@@ -114,12 +114,14 @@ stylesheet нодового canvas без изменения визуально�
 дал визуальное подтверждение canvas-only нодового UI в dedicated CDP Chrome.
 Следующий structural срез ждёт координации с активным NODES-008 benchmark.
 
-Перед линией обновлений зарегистрирована `LOAD-001 — Загружать браузерный
-функционал через минимальный Service Worker`. Она сначала доказывает
-неизменяемый minimal HTML/main/Service Worker loader, WSS-загрузку от одного
-signaling peer, подготовку cache и запуск сменяемых частей. `UPD-002 —
-Обновлять всю клиентскую сборку через Service Worker` ждёт этот результат и
-после него заменяет три параллельных browser-update пути одним полным выпуском.
+Начата `LOAD-001 — Загружать браузерный функционал через минимальный Service
+Worker`. Весь прежний Hamiltonian зафиксирован как рабочий прототип без
+дальнейшего рефакторинга. Первый срез `LOAD-001.1 — Создать чистую пакетную
+структуру новой реализации` материализует только пустые package boundaries
+`web`, `server`, `interface` и их `import`, `service`, `update`, не перенося
+старый код. После этого последовательные LOAD-срезы реализуют минимальный
+browser loader с нуля. `UPD-002 — Обновлять всю клиентскую сборку через Service
+Worker` ждёт результата `LOAD-001`.
 
 `HAM-003 — Разделить Hamiltonian по средам исполнения и механизмам` остаётся
 `IN_PROGRESS`. Широкий object-oriented срез `HAM-003.8` отклонён владельцем и
@@ -137,7 +139,7 @@ literal routes, русским TSDoc, всеми HTTP conditions и полной
 | ------ | ----------- | ----------- | -------------------------- |
 | MF-424 | IN_PROGRESS | нет         | [Открыть](tasks/MF-424.md) |
 | MF-425 | IN_PROGRESS | нет         | [Открыть](tasks/MF-425.md) |
-| LOAD-001 | READY     | нет         | [Открыть](tasks/LOAD-001.md) |
+| LOAD-001 | IN_PROGRESS | нет       | [Открыть](tasks/LOAD-001.md) |
 | UPD-002 | WAITING   | LOAD-001    | [Открыть](tasks/UPD-002.md) |
 | HAM-001 | IN_PROGRESS | нет         | [Открыть](tasks/HAM-001.md) |
 | NODES-009 | IN_PROGRESS | нет       | [Открыть](tasks/NODES-009.md) |
