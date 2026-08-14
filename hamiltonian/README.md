@@ -719,6 +719,12 @@ supervision, peer и другие механизмы не реализуются
 место добавления REST API определяется явной HTTP-границей Bun-воплощения, а не
 поиском подходящего участка в общем host-файле.
 
+Действующий реестр `pathname + method` находится в
+`hamiltonian/server/http-router.ts`. Он определяет только порядок dispatch и
+имена handlers; Web Push, browser publication, update, lab status и control
+сохраняют собственное состояние у своих механизмов и передают router явные
+зависимости.
+
 Каждый рабочий модуль имеет одного владельца и одну среду исполнения: общий
 runtime-safe contract, Bun host, browser page, Service Worker, Dedicated Worker,
 layout Worker или peer process. Переход между средами проходит только через

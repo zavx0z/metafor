@@ -47,6 +47,11 @@ import {
   type HamiltonianServiceWorkerRelease,
 } from "./update/host/browser-release.ts"
 import {HamiltonianServiceWorkerAdmissionRegistry} from "./update/host/service-worker-admission.ts"
+import {
+  HAMILTONIAN_HTTP_PATHS,
+  routeHamiltonianHttpRequest,
+  type HamiltonianHttpHandlers,
+} from "./server/http-router.ts"
 
 interface SocketData {
   connectionId: string
@@ -205,8 +210,8 @@ const uiRoot = fileURLToPath(new URL("../pkg/ui/", import.meta.url))
 const nodesRoot = fileURLToPath(new URL("../pkg/nodes/", import.meta.url))
 const webPushRoot = fileURLToPath(new URL("../pkg/web-push/", import.meta.url))
 const browserStaticFiles: Readonly<Record<string, {path: string; type: string}>> = Object.freeze({
-  "/": {path: `${publicRoot}/index.html`, type: "text/html; charset=utf-8"},
-  "/index.html": {path: `${publicRoot}/index.html`, type: "text/html; charset=utf-8"},
+  [HAMILTONIAN_HTTP_PATHS.navigation]: {path: `${publicRoot}/index.html`, type: "text/html; charset=utf-8"},
+  [HAMILTONIAN_HTTP_PATHS.navigationIndex]: {path: `${publicRoot}/index.html`, type: "text/html; charset=utf-8"},
   "/window-entry.js": {path: `${publicRoot}/window-entry.js`, type: "text/javascript; charset=utf-8"},
   "/app.js": {path: `${publicRoot}/app.js`, type: "text/javascript; charset=utf-8"},
   "/embodiment-worker.js": {path: `${publicRoot}/embodiment-worker.js`, type: "text/javascript; charset=utf-8"},
@@ -1694,208 +1699,208 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
     ? {tls: {cert: Bun.file(tlsCertPath), key: Bun.file(tlsKeyPath)}}
     : {}
 
+  const httpHandlers: HamiltonianHttpHandlers<Bun.Server<SocketData>> = {
+    version,
+    async navigation({request, bunServer}) {
+      const localJoinToken = isLoopbackAddress(bunServer.requestIP(request)?.address) ? token : ""
+      return await indexResponse(localJoinToken)
+    },
+    async orchestrationBundle() {
+      try {
+        return new Response(await getOrchestrationBundle(), {
+          headers: securityHeaders("text/javascript; charset=utf-8"),
+        })
+      } catch (error) {
+        return new Response(error instanceof Error ? error.message : String(error), {status: 500})
+      }
+    },
+    async layoutWorkerBundle() {
+      try {
+        return new Response(await getLayoutWorkerBundle(), {
+          headers: securityHeaders("text/javascript; charset=utf-8"),
+        })
+      } catch (error) {
+        return new Response(error instanceof Error ? error.message : String(error), {status: 500})
+      }
+    },
+    async webPushClientBundle() {
+      try {
+        return new Response(await getWebPushClientBundle(), {
+          headers: securityHeaders("text/javascript; charset=utf-8"),
+        })
+      } catch (error) {
+        return new Response(error instanceof Error ? error.message : String(error), {status: 500})
+      }
+    },
+    async serviceWorkerBundle() {
+      try {
+        const headers = new Headers(securityHeaders("text/javascript; charset=utf-8"))
+        headers.set("content-security-policy", "default-src 'self'; connect-src 'self' ws: wss: data:; img-src 'self' data: blob:; script-src 'self'; style-src 'self'; worker-src 'self' blob:; base-uri 'none'; frame-ancestors 'none'")
+        headers.set("service-worker-allowed", "/")
+        headers.set("cache-control", "no-cache")
+        return new Response(await getServiceWorkerBundle(), {headers})
+      } catch (error) {
+        return new Response(error instanceof Error ? error.message : String(error), {status: 500})
+      }
+    },
+    control({request, url, bunServer}) {
+      const suppliedToken = url.searchParams.get("token") ?? ""
+      const deviceId = url.searchParams.get("device") ?? ""
+      const lifecycleTransportId = url.searchParams.get("transport") ?? ""
+      const workerEntityId = url.searchParams.get("worker") ?? ""
+      if (
+        !safeEqual(suppliedToken, token) ||
+        !deviceId || deviceId.length > 128 ||
+        !lifecycleTransportId.startsWith("websocket:") || lifecycleTransportId.length > 512 ||
+        !workerEntityId.startsWith("service-worker:") || workerEntityId.length > 512
+      ) {
+        return new Response("Unauthorized", {status: 401})
+      }
+      const upgraded = bunServer.upgrade(request, {
+        data: {
+          connectionId: crypto.randomUUID(),
+          connectionGeneration: ++controlConnectionGeneration,
+          deviceId,
+          lifecycleTransportId,
+          workerEntityId,
+          openedAt: Date.now(),
+          lastPongAt: Date.now(),
+          lastChallengeSeq: 0,
+          lastAckSeq: 0,
+          nextHeartbeatTimer: null,
+          heartbeatTimeoutTimer: null,
+          workerIdentity: null,
+          workerRuntimeIncarnation: null,
+          workerCodeVersion: null,
+          resumeNonce: null,
+          identityConfirmed: false,
+          workerUpdateRequired: false,
+          retainAuthorityOnClose: false,
+          reportedEmptyWindowInventory: false,
+        },
+      })
+      return upgraded ? undefined : new Response("WebSocket upgrade required", {status: 426})
+    },
+    vapidPublicKey({request}) {
+      if (!authorized(request, token)) return new Response("Unauthorized", {status: 401})
+      return Response.json({publicKey: webPush.publicKey}, {
+        headers: securityHeaders("application/json; charset=utf-8"),
+      })
+    },
+    async wakeServiceWorker({request}) {
+      if (!authorized(request, token)) return new Response("Unauthorized", {status: 401})
+      let workerIdentity: string | null = null
+      try {
+        const input = await boundedJson(request)
+        if (typeof input === "object" && input !== null && "workerIdentity" in input) {
+          if (!validWorkerIdentity(input.workerIdentity)) {
+            return new Response("Invalid Service Worker identity", {status: 400})
+          }
+          workerIdentity = input.workerIdentity
+        }
+      } catch (error) {
+        return new Response(error instanceof Error ? error.message : String(error), {status: 400})
+      }
+      const workerEntityId = workerIdentity === null
+        ? webPush.onlyWorkerEntityId()
+        : hamiltonianLifecycleEntityId("service-worker", workerIdentity)
+      if (!workerEntityId || !webPush.has(workerEntityId)) {
+        return new Response("PushSubscription not found", {status: 404})
+      }
+      const workerDeviceId = webPush.deviceIdFor(workerEntityId)
+      if (!workerDeviceId) {
+        return new Response("PushSubscription device not found", {status: 404})
+      }
+      if (pendingWakes.has(workerEntityId)) {
+        return new Response("A Web Push wake is already pending for this Service Worker", {status: 409})
+      }
+      const wakeId = crypto.randomUUID()
+      const wakeProof = Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString("base64url")
+      const wake: PendingPushWake = {
+        wakeId,
+        wakeProof,
+        armedAt: Date.now(),
+        armedAfterConnectionGeneration: controlConnectionGeneration,
+      }
+      pendingWakes.set(workerEntityId, wake)
+      pendingWakeTimers.set(workerEntityId, setTimeout(() => {
+        pendingWakeTimers.delete(workerEntityId)
+        if (pendingWakes.get(workerEntityId)?.wakeId !== wakeId) return
+        pendingWakes.delete(workerEntityId)
+        record({at: Date.now(), kind: "push-reconnect-timeout", detail: `${workerEntityId} ${wakeId}`})
+        observeServiceWorkerAvailability(workerEntityId, workerDeviceId, {
+          state: "error",
+          push: "reconnect-failed",
+          wakeId,
+          reason: "push-reconnect-timeout",
+        })
+      }, 90_000))
+      record({at: Date.now(), kind: "push-armed", detail: `${workerEntityId} ${wakeId}`})
+      observeServiceWorkerAvailability(workerEntityId, workerDeviceId, {
+        state: "waking",
+        push: "armed",
+        wakeId,
+      })
+      try {
+        const delivery = webPush.wake(workerEntityId, {
+          kind: "wake-service-worker",
+          wakeId,
+          wakeProof,
+          token,
+          serverEntityId,
+        })
+        await delivery
+        record({at: Date.now(), kind: "push-service-accepted", detail: `${workerEntityId} ${wakeId}`})
+        return Response.json({ok: true, workerEntityId, wakeId}, {
+          headers: securityHeaders("application/json; charset=utf-8"),
+        })
+      } catch {
+        const reason = "RedactedError"
+        if (!clearPendingWake(workerEntityId, wakeId)) {
+          return Response.json({ok: true, workerEntityId, wakeId, delivery: "confirmed"}, {
+            headers: securityHeaders("application/json; charset=utf-8"),
+          })
+        }
+        record({at: Date.now(), kind: "push-send-failed", detail: `${workerEntityId} ${reason}`.slice(0, 512)})
+        observeServiceWorkerAvailability(workerEntityId, workerDeviceId, {
+          state: "error",
+          push: "failed",
+          reason,
+        })
+        return new Response("Web Push delivery failed", {status: 502})
+      }
+    },
+    async manifest({request}) {
+      if (!authorized(request, token)) return new Response("Unauthorized", {status: 401})
+      const serviceWorker = await currentServiceWorkerRelease()
+      return Response.json(
+        hamiltonianBrowserManifest(identity, moduleRelease, serviceWorker),
+        {headers: securityHeaders("application/json; charset=utf-8")},
+      )
+    },
+    status({request}) {
+      if (!authorized(request, token)) return new Response("Unauthorized", {status: 401})
+      return Response.json(observableState(), {
+        headers: securityHeaders("application/json; charset=utf-8"),
+      })
+    },
+    versionedModule({request}) {
+      if (!authorized(request, token)) return new Response("Unauthorized", {status: 401})
+      const headers = new Headers(securityHeaders("text/javascript; charset=utf-8"))
+      headers.set("x-hamiltonian-sha256", sourceHash)
+      return new Response(source, {headers})
+    },
+    staticFallback({url}) {
+      return staticResponse(url.pathname) ?? new Response("Not found", {status: 404})
+    },
+  }
+
   const server = Bun.serve<SocketData>({
     hostname,
     port,
     ...tls,
-    async fetch(request, bunServer) {
-      const url = new URL(request.url)
-      if (request.method === "GET" && (url.pathname === "/" || url.pathname === "/index.html")) {
-        const localJoinToken = isLoopbackAddress(bunServer.requestIP(request)?.address) ? token : ""
-        return await indexResponse(localJoinToken)
-      }
-      if (url.pathname === "/orchestration.js") {
-        try {
-          return new Response(await getOrchestrationBundle(), {
-            headers: securityHeaders("text/javascript; charset=utf-8"),
-          })
-        } catch (error) {
-          return new Response(error instanceof Error ? error.message : String(error), {status: 500})
-        }
-      }
-      if (url.pathname === "/layout-worker.js") {
-        try {
-          return new Response(await getLayoutWorkerBundle(), {
-            headers: securityHeaders("text/javascript; charset=utf-8"),
-          })
-        } catch (error) {
-          return new Response(error instanceof Error ? error.message : String(error), {status: 500})
-        }
-      }
-      if (url.pathname === "/web-push-client.js") {
-        try {
-          return new Response(await getWebPushClientBundle(), {
-            headers: securityHeaders("text/javascript; charset=utf-8"),
-          })
-        } catch (error) {
-          return new Response(error instanceof Error ? error.message : String(error), {status: 500})
-        }
-      }
-      if (url.pathname === "/sw-entry.js") {
-        try {
-          const headers = new Headers(securityHeaders("text/javascript; charset=utf-8"))
-          headers.set("content-security-policy", "default-src 'self'; connect-src 'self' ws: wss: data:; img-src 'self' data: blob:; script-src 'self'; style-src 'self'; worker-src 'self' blob:; base-uri 'none'; frame-ancestors 'none'")
-          headers.set("service-worker-allowed", "/")
-          headers.set("cache-control", "no-cache")
-          return new Response(await getServiceWorkerBundle(), {headers})
-        } catch (error) {
-          return new Response(error instanceof Error ? error.message : String(error), {status: 500})
-        }
-      }
-      if (url.pathname === "/control") {
-        const suppliedToken = url.searchParams.get("token") ?? ""
-        const deviceId = url.searchParams.get("device") ?? ""
-        const lifecycleTransportId = url.searchParams.get("transport") ?? ""
-        const workerEntityId = url.searchParams.get("worker") ?? ""
-        if (
-          !safeEqual(suppliedToken, token) ||
-          !deviceId || deviceId.length > 128 ||
-          !lifecycleTransportId.startsWith("websocket:") || lifecycleTransportId.length > 512 ||
-          !workerEntityId.startsWith("service-worker:") || workerEntityId.length > 512
-        ) {
-          return new Response("Unauthorized", {status: 401})
-        }
-        const upgraded = bunServer.upgrade(request, {
-          data: {
-            connectionId: crypto.randomUUID(),
-            connectionGeneration: ++controlConnectionGeneration,
-            deviceId,
-            lifecycleTransportId,
-            workerEntityId,
-            openedAt: Date.now(),
-            lastPongAt: Date.now(),
-            lastChallengeSeq: 0,
-            lastAckSeq: 0,
-            nextHeartbeatTimer: null,
-            heartbeatTimeoutTimer: null,
-            workerIdentity: null,
-            workerRuntimeIncarnation: null,
-            workerCodeVersion: null,
-            resumeNonce: null,
-            identityConfirmed: false,
-            workerUpdateRequired: false,
-            retainAuthorityOnClose: false,
-            reportedEmptyWindowInventory: false,
-          },
-        })
-        return upgraded ? undefined : new Response("WebSocket upgrade required", {status: 426})
-      }
-
-      if (request.method === "GET" && url.pathname === "/push/vapid-public-key") {
-        if (!authorized(request, token)) return new Response("Unauthorized", {status: 401})
-        return Response.json({publicKey: webPush.publicKey}, {
-          headers: securityHeaders("application/json; charset=utf-8"),
-        })
-      }
-
-      if (request.method === "POST" && url.pathname === "/lab/wake-service-worker") {
-        if (!authorized(request, token)) return new Response("Unauthorized", {status: 401})
-        let workerIdentity: string | null = null
-        try {
-          const input = await boundedJson(request)
-          if (typeof input === "object" && input !== null && "workerIdentity" in input) {
-            if (!validWorkerIdentity(input.workerIdentity)) {
-              return new Response("Invalid Service Worker identity", {status: 400})
-            }
-            workerIdentity = input.workerIdentity
-          }
-        } catch (error) {
-          return new Response(error instanceof Error ? error.message : String(error), {status: 400})
-        }
-        const workerEntityId = workerIdentity === null
-          ? webPush.onlyWorkerEntityId()
-          : hamiltonianLifecycleEntityId("service-worker", workerIdentity)
-        if (!workerEntityId || !webPush.has(workerEntityId)) {
-          return new Response("PushSubscription not found", {status: 404})
-        }
-        const workerDeviceId = webPush.deviceIdFor(workerEntityId)
-        if (!workerDeviceId) {
-          return new Response("PushSubscription device not found", {status: 404})
-        }
-        if (pendingWakes.has(workerEntityId)) {
-          return new Response("A Web Push wake is already pending for this Service Worker", {status: 409})
-        }
-        const wakeId = crypto.randomUUID()
-        const wakeProof = Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString("base64url")
-        const wake: PendingPushWake = {
-          wakeId,
-          wakeProof,
-          armedAt: Date.now(),
-          armedAfterConnectionGeneration: controlConnectionGeneration,
-        }
-        pendingWakes.set(workerEntityId, wake)
-        pendingWakeTimers.set(workerEntityId, setTimeout(() => {
-          pendingWakeTimers.delete(workerEntityId)
-          if (pendingWakes.get(workerEntityId)?.wakeId !== wakeId) return
-          pendingWakes.delete(workerEntityId)
-          record({at: Date.now(), kind: "push-reconnect-timeout", detail: `${workerEntityId} ${wakeId}`})
-          observeServiceWorkerAvailability(workerEntityId, workerDeviceId, {
-            state: "error",
-            push: "reconnect-failed",
-            wakeId,
-            reason: "push-reconnect-timeout",
-          })
-        }, 90_000))
-        record({at: Date.now(), kind: "push-armed", detail: `${workerEntityId} ${wakeId}`})
-        observeServiceWorkerAvailability(workerEntityId, workerDeviceId, {
-          state: "waking",
-          push: "armed",
-          wakeId,
-        })
-        try {
-          const delivery = webPush.wake(workerEntityId, {
-            kind: "wake-service-worker",
-            wakeId,
-            wakeProof,
-            token,
-            serverEntityId,
-          })
-          await delivery
-          record({at: Date.now(), kind: "push-service-accepted", detail: `${workerEntityId} ${wakeId}`})
-          return Response.json({ok: true, workerEntityId, wakeId}, {
-            headers: securityHeaders("application/json; charset=utf-8"),
-          })
-        } catch {
-          const reason = "RedactedError"
-          if (!clearPendingWake(workerEntityId, wakeId)) {
-            return Response.json({ok: true, workerEntityId, wakeId, delivery: "confirmed"}, {
-              headers: securityHeaders("application/json; charset=utf-8"),
-            })
-          }
-          record({at: Date.now(), kind: "push-send-failed", detail: `${workerEntityId} ${reason}`.slice(0, 512)})
-          observeServiceWorkerAvailability(workerEntityId, workerDeviceId, {
-            state: "error",
-            push: "failed",
-            reason,
-          })
-          return new Response("Web Push delivery failed", {status: 502})
-        }
-      }
-
-      if (url.pathname === "/manifest.json") {
-        if (!authorized(request, token)) return new Response("Unauthorized", {status: 401})
-        const serviceWorker = await currentServiceWorkerRelease()
-        return Response.json(
-          hamiltonianBrowserManifest(identity, moduleRelease, serviceWorker),
-          {headers: securityHeaders("application/json; charset=utf-8")},
-        )
-      }
-
-      if (url.pathname === "/lab/status") {
-        if (!authorized(request, token)) return new Response("Unauthorized", {status: 401})
-        return Response.json(observableState(), {
-          headers: securityHeaders("application/json; charset=utf-8"),
-        })
-      }
-
-      if (url.pathname === `/versions/${encodeURIComponent(version)}/module.js`) {
-        if (!authorized(request, token)) return new Response("Unauthorized", {status: 401})
-        const headers = new Headers(securityHeaders("text/javascript; charset=utf-8"))
-        headers.set("x-hamiltonian-sha256", sourceHash)
-        return new Response(source, {headers})
-      }
-
-      return staticResponse(url.pathname) ?? new Response("Not found", {status: 404})
+    fetch(request, bunServer) {
+      return routeHamiltonianHttpRequest(request, bunServer, httpHandlers)
     },
     websocket: {
       open(socket) {
