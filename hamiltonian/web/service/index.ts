@@ -15,7 +15,7 @@ addEventListener("message", (event: ExtendableMessageEvent) => {
 function connect() {
   if (socket && socket.readyState < WebSocket.CLOSING) return
 
-  const url = new URL("/control", location.origin)
+  const url = new URL("/service", location.origin)
   url.protocol = location.protocol === "https:" ? "wss:" : "ws:"
   socket = new WebSocket(url)
 

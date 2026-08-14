@@ -10,7 +10,7 @@ Bun.serve<{ source: "web/service" }>({
         "Content-Type": "text/javascript; charset=utf-8",
       },
     }),
-    "/control": (request: Request, server: Bun.Server<{ source: "web/service" }>) => {
+    "/service": (request: Request, server: Bun.Server<{ source: "web/service" }>) => {
       if (server.upgrade(request, {data: {source: "web/service"}})) return
       return new Response("WebSocket upgrade required", {status: 426})
     },
