@@ -118,17 +118,16 @@ stylesheet нодового canvas без изменения визуально�
 страницам после переключения.
 
 `HAM-003 — Разделить Hamiltonian по средам исполнения и механизмам` остаётся
-`IN_PROGRESS`. После owner review результаты `HAM-003.2-.7` признаны полезными
-промежуточными extractions, но недостаточными для исходной цели: созданная
-цепочка `server.ts -> createHamiltonianHost() -> Bun.serve` скрывает фактический
-сервер в 2168-строчном `host.ts`, а HTTP dispatcher вынес только условия путей.
-Корректирующий срез `HAM-003.8` делает `server.ts` непосредственным владельцем
-`Bun.serve`, собирает REST/HTTP bindings в `server/routes.ts`, распределяет
-состояние и эффекты host по browser publication,
-lifecycle, control, topology/authority, Web Push, process/peer и observation
-owners, документирует каждый route русским TSDoc и удаляет `host.ts` вместе с
-поверхностным router. Поведение `HAM-002` и
-`UPD-002` попутно не меняется.
+`IN_PROGRESS`. Широкий object-oriented срез `HAM-003.8` отклонён владельцем и
+полностью откачен. Корректирующий `HAM-003.9` находится в `REVIEW`: корневой
+`server.ts` непосредственно объявляет единственный singleton `Bun.serve` с
+literal routes, русским TSDoc, всеми HTTP conditions и полной WebSocket
+поверхностью; `createHamiltonianHost`, server factory и второй listener
+отсутствуют. Полный Hamiltonian suite и перезапущенный persistent contour
+зелёные, peer восстановлен и подтверждён владельцем. Следующая предметная
+декомпозиция server runtime не смешивается с этим принятым входным boundary и
+будет выполняться отдельно под пошаговым owner review. Поведение `HAM-002` и
+`UPD-002` попутно не менялось.
 
 | ID     | Состояние   | Зависимости | Карточка                   |
 | ------ | ----------- | ----------- | -------------------------- |
