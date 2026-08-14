@@ -7,16 +7,16 @@ const hamiltonianRoot = fileURLToPath(new URL("../..", import.meta.url))
 const processRoot = join(hamiltonianRoot, "server/process")
 
 describe("Hamiltonian Bun process package boundary", () => {
-  test("keeps host, supervisor and child entry in one directed runtime chain", async () => {
-    const hostSource = await Bun.file(join(hamiltonianRoot, "host.ts")).text()
+  test("keeps composition, coordinator, supervisor and child entry in one directed runtime chain", async () => {
+    const compositionSource = await Bun.file(join(hamiltonianRoot, "server/composition.ts")).text()
+    const coordinatorSource = await Bun.file(join(processRoot, "coordinator.ts")).text()
     const supervisorSource = await Bun.file(join(processRoot, "embodiment-supervisor.ts")).text()
     const entrySource = await Bun.file(join(processRoot, "embodiment-entry.ts")).text()
 
-    expect(hostSource).toMatch(
-      /from\s+["']\.\/server\/process\/embodiment-supervisor\.ts["']/,
-    )
-    expect(hostSource).not.toContain("bun-embodiment.ts")
-    expect(hostSource).not.toContain("embodiment-entry.ts")
+    expect(compositionSource).toMatch(/from\s+["']\.\/process\/coordinator\.ts["']/)
+    expect(compositionSource).not.toContain("embodiment-supervisor.ts")
+    expect(coordinatorSource).toMatch(/from\s+["']\.\/embodiment-supervisor\.ts["']/)
+    expect(coordinatorSource).not.toContain("embodiment-entry.ts")
 
     expect(supervisorSource).toContain(
       'const childEntry = fileURLToPath(new URL("./embodiment-entry.ts", import.meta.url))',
@@ -29,6 +29,7 @@ describe("Hamiltonian Bun process package boundary", () => {
     )
 
     expect(entrySource).not.toContain("embodiment-supervisor")
+    expect(entrySource).not.toContain("coordinator")
     expect(entrySource).not.toMatch(/from\s+["'](?:\.\.\/)*host\.ts["']/)
     expect(entrySource).not.toMatch(/from\s+["'](?:\.\.\/)*server\.ts["']/)
   })
@@ -37,6 +38,7 @@ describe("Hamiltonian Bun process package boundary", () => {
     expect(existsSync(join(hamiltonianRoot, "bun-embodiment.ts"))).toBe(false)
     expect(existsSync(join(hamiltonianRoot, "embodiment-process.ts"))).toBe(false)
     expect(existsSync(join(processRoot, "embodiment-supervisor.ts"))).toBe(true)
+    expect(existsSync(join(processRoot, "coordinator.ts"))).toBe(true)
     expect(existsSync(join(processRoot, "embodiment-entry.ts"))).toBe(true)
   })
 })

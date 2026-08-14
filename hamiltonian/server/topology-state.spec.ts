@@ -1,5 +1,5 @@
 import {describe, expect, test} from "bun:test"
-import {HostTopology} from "./host-state.ts"
+import {HostTopology} from "./topology-state.ts"
 
 describe("Hamiltonian host topology", () => {
   test("keeps exactly one stable leader until that Window disappears", () => {
