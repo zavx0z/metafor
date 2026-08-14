@@ -28,6 +28,7 @@ flowchart LR
     HAM001["HAM-001 · декларации нодовой системы Hamiltonian"]
     NODES009["NODES-009 · универсальные границы node-system"]
     HAM002["HAM-002 · единый визуальный слой Hamiltonian"]
+    HAM003["HAM-003 · среды и механизмы Hamiltonian"]
     NODES006["NODES-006 · кратчайший законный маршрут"]
     NODES008["NODES-008 · убрать пустой compound-резерв"]
     MF425["MF-425 · одна Вселенная на одном устройстве"]
@@ -116,6 +117,13 @@ stylesheet нодового canvas без изменения визуально�
 одним полным выпуском, который Service Worker проверяет, сохраняет и выдаёт
 страницам после переключения.
 
+`HAM-003 — Разделить Hamiltonian по средам исполнения и механизмам` начата как
+общая структурная линия. Первый диагностический срез фиксирует все рабочие
+entrypoints, принадлежность Bun/browser/Worker/peer средам, import graph,
+HTTP/REST boundary и причины оставшегося JavaScript. До этой карты product code
+не перемещается; последующие срезы меняют по одному механизму и сохраняют
+договоры `HAM-002` и `UPD-002`.
+
 | ID     | Состояние   | Зависимости | Карточка                   |
 | ------ | ----------- | ----------- | -------------------------- |
 | MF-424 | IN_PROGRESS | нет         | [Открыть](tasks/MF-424.md) |
@@ -124,6 +132,7 @@ stylesheet нодового canvas без изменения визуально�
 | HAM-001 | IN_PROGRESS | нет         | [Открыть](tasks/HAM-001.md) |
 | NODES-009 | IN_PROGRESS | нет       | [Открыть](tasks/NODES-009.md) |
 | HAM-002 | IN_PROGRESS | нет         | [Открыть](tasks/HAM-002.md) |
+| HAM-003 | IN_PROGRESS | нет         | [Открыть](tasks/HAM-003.md) |
 | MF-411 | IN_PROGRESS | нет         | [Открыть](tasks/MF-411.md) |
 | NODES-006 | REVIEW      | нет       | [Открыть](tasks/NODES-006.md) |
 | NODES-008 | IN_PROGRESS | нет       | [Открыть](tasks/NODES-008.md) |
