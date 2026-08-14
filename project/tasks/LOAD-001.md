@@ -105,12 +105,13 @@ Evidence-backed gate выполнен в
   `server_proto.ts`, остаётся рабочим наглядным образцом и не рефакторится;
   прежние `browser`, `core`, `public`, `update`, `visual` и остальные исходники
   также принадлежат прототипу.
-* Новая реализация создаётся с нуля рядом в `web`, `server` и `interface` без
-  новых package manifests и workspace packages. Вложенные `import`, `service`,
-  `update` являются обычными source boundaries.
-* Отдельный build pipeline сейчас не создаётся. HTML импортируется прямо в
-  `Bun.serve()` как route; Bun может выполнять runtime bundling, но LOAD-код не
-  вызывает `Bun.build` и не материализует собственный `dist`.
+* Новая реализация создаётся с нуля рядом в `web`, `server` и `interface`.
+  Только `web/service` оформляется workspace-пакетом `@web/service`, потому что
+  Service Worker требует отдельного browser entrypoint и собственного build;
+  остальные вложенные boundaries пакетами автоматически не становятся.
+* HTML импортируется прямо в `Bun.serve()` как route и main получает runtime
+  bundling. `@web/service` отдельно собирает Service Worker в готовый JavaScript;
+  `server.ts` не транспилирует его и только выдаёт build artifact.
 * `web/import` владеет минимальным main-потоком: получает от Service Worker
   готовый кэшированный endpoint и импортирует модуль.
 * `web/service` владеет минимальной неизменяемой оболочкой Service Worker:
@@ -208,8 +209,8 @@ Result checkpoint:
 
 ### LOAD-001.2 — Проверить loader через Bun Fullstack без отдельной сборки
 
-Статус и исполнитель: `IN_PROGRESS`; выполняет руководитель текущей задачи
-Codex напрямую, без субагентов.
+Статус и исполнитель: `STOPPED`; runtime `Bun.Transpiler` в `server.ts`
+отклонён владельцем, а отдельный Service Worker build вынесен в `LOAD-001.4`.
 
 Классификация: новый диагностический механизм после owner-отказа от packages;
 срез принимает воспроизводимый ответ, может ли Bun Fullstack стать первым
@@ -261,8 +262,8 @@ Result checkpoint:
 
 ### LOAD-001.3 — Подключить Service Worker к одному WebSocket
 
-Статус и исполнитель: `IN_PROGRESS`; выполняет руководитель текущей задачи
-Codex напрямую, без субагентов.
+Статус и исполнитель: `WAITING`; продолжится после `LOAD-001.4`, выполняет
+руководитель текущей задачи Codex напрямую, без субагентов.
 
 Классификация: следующий минимальный runtime-механизм после регистрации Service
 Worker; он доказывает только принадлежность WebSocket соединения Worker-контексту.
@@ -289,6 +290,36 @@ update или imports из прототипа.
 
 Result checkpoint:
 
+### LOAD-001.4 — Собирать Service Worker пакетом @web/service
+
+Статус и исполнитель: `IN_PROGRESS`; выполняет руководитель текущей задачи
+Codex напрямую, без субагентов.
+
+Классификация: новый build-механизм после отклонения runtime-транспиляции в
+Hamiltonian server.
+
+Требование: `hamiltonian/web/service` является workspace-пакетом `@web/service`.
+Пакет владеет Service Worker entrypoint, его строгими типами и командой `build`,
+которая материализует готовый browser JavaScript. `server.ts` только читает и
+выдаёт этот artifact.
+
+Наблюдаемое расхождение: текущий `server.ts` читает TypeScript source и вызывает
+`Bun.Transpiler` при запуске, смешивая HTTP server и Service Worker build.
+
+Разрешённое изменение одного механизма: добавить package manifest и workspace
+membership `@web/service`, перенести в него `@types/serviceworker`, добавить
+одну build-команду и заменить runtime transpilation чтением результата build.
+Не менять HTML/main registration, WebSocket protocol, cache, update или
+прототипный Hamiltonian.
+
+Среда и критерий приёмки: `bun run --filter @web/service build` успешно создаёт
+игнорируемый Git build artifact, строгая проверка Worker source проходит, а
+`server.ts` не содержит `Bun.Transpiler` или `Bun.build`.
+
+Подготовительный commit:
+
+Result checkpoint:
+
 ## Открытые вопросы
 
 * Какие exact bytes входят в минимальные HTML, main и Service Worker?
@@ -308,9 +339,9 @@ Result checkpoint:
 
 Входит:
 
-* обычные source-директории `web`, `server`, `interface` и вложенные
-  `import`, `service`, `update` без package manifests;
-* Bun Fullstack HTML route и runtime bundling без отдельного build pipeline;
+* source-директории `web`, `server`, `interface` и отдельный workspace-пакет
+  `@web/service` в `web/service`;
+* Bun Fullstack HTML/main route и отдельный Service Worker build;
 * сохранение отдельно запускаемого прототипа через `server_proto.ts`;
 * минимальный HTML/main/Service Worker bootstrap;
 * один signaling peer и WSS code delivery;
@@ -322,7 +353,8 @@ Result checkpoint:
 Не входит:
 
 * рефакторинг или перенос прежнего Hamiltonian в новые source-директории;
-* package manifests, workspace packages и package exports новой реализации;
+* другие package manifests, workspace packages и package exports новой
+  реализации кроме `@web/service`;
 * создание общего `interface` contract до двух реализаций;
 * полный production artifact inventory и update-transition `UPD-002`;
 * каталог или выбор нескольких signaling peers;

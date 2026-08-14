@@ -117,14 +117,13 @@ stylesheet нодового canvas без изменения визуально�
 Начата `LOAD-001 — Загружать браузерный функционал через минимальный Service
 Worker`. Весь прежний Hamiltonian зафиксирован как рабочий прототип без
 дальнейшего рефакторинга. Package-вариант `LOAD-001.1` остановлен до product
-implementation после owner-решения не создавать новые packages. Текущий срез
-`LOAD-001.2 — Проверить loader через Bun Fullstack без отдельной сборки`
-доказывает минимальный HTML/main/Service Worker contour в обычных
-`web/import` и `web/service`: Bun может выполнять runtime bundling, но отдельный
-build pipeline и перенос старого кода запрещены. Следующий согласованный срез
-`LOAD-001.3 — Подключить Service Worker к одному WebSocket` добавляет только
-само соединение с тем же Bun server после регистрации Worker, без code delivery,
-cache protocol и reconnect. `UPD-002 — Обновлять всю клиентскую сборку через
+implementation после owner-решения не создавать все задуманные packages.
+`LOAD-001.2` установил границу Bun Fullstack: HTML/main обрабатываются, но
+Service Worker требует отдельного entrypoint; runtime `Bun.Transpiler` в
+`server.ts` отклонён владельцем. Текущий срез `LOAD-001.4 — Собирать Service
+Worker пакетом @web/service` создаёт только этот workspace-пакет и его `build`.
+`LOAD-001.3 — Подключить Service Worker к одному WebSocket` продолжится после
+готового build artifact. `UPD-002 — Обновлять всю клиентскую сборку через
 Service Worker` ждёт результата `LOAD-001`.
 
 `HAM-003 — Разделить Hamiltonian по средам исполнения и механизмам` остаётся

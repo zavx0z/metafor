@@ -233,20 +233,19 @@ model, validation, geometry, renderer primitives или layout laws из `nodes`
 `visual` и остальные исходники сохраняют только границу прототипа и evidence;
 они не являются source base нового Hamiltonian.
 
-Новая реализация создаётся с нуля рядом в обычных source-директориях `web`,
-`server` и `interface`, без отдельных package manifests и workspace packages.
-Вложенные `import`, `service` и `update` являются границами механизмов, а не
-пакетами. Browser loader реализуют `web/import` и `web/service`; server-аналоги
+Новая реализация создаётся с нуля рядом в source-директориях `web`, `server` и
+`interface`. Browser loader реализуют `web/import` и `web/service`; server-аналоги
 появляются позднее, а общий договор выделяется в `interface` только после двух
-фактических реализаций.
+фактических реализаций. `web/service` оформляется отдельным workspace-пакетом
+`@web/service`, потому что Service Worker требует самостоятельного browser
+entrypoint и собственного build. Остальные вложенные `import`, `service` и
+`update` не становятся пакетами без отдельного решения владельца.
 
-На первом этапе отдельный build pipeline не создаётся. `server.ts` использует
-Bun Fullstack Dev Server: импортирует HTML как route, а Bun на запросе сам
-обрабатывает его browser entrypoints и обслуживает полученные assets. Это
-runtime bundling, а не отсутствие bundling; отдельный `Bun.build` и заранее
-материализованный `dist` пока не требуются. Возможность выдать тем же путём
-Service Worker script с его точными headers сначала доказывается отдельным
-минимальным срезом.
+`server.ts` использует Bun Fullstack Dev Server для HTML и main entrypoint.
+Service Worker не проходит через эту HTML-границу: `@web/service` отдельно
+собирает его командой `build`, а server только выдаёт готовый JavaScript с
+точными Service Worker headers. Build не переносит в пакет Hamiltonian server,
+main, WSS protocol или сменяемый functionality.
 
 Отдельная линия `LOAD` владеет первоначальной загрузкой браузерного функционала
 Hamiltonian. Первый HTTPS response доставляет только минимальные HTML,
