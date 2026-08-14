@@ -20,12 +20,12 @@ import {hamiltonianBrowserNodeId} from "./core/orchestration.js"
 import {HamiltonianLifecycleProjection} from "./browser/orchestration/lifecycle-projection.ts"
 import {HAMILTONIAN_SERVICE_WORKER_CODE_VERSION} from "./update/browser/service-worker-code-version.ts"
 import {
-  createHamiltonianHost,
-  hamiltonianServerBootstrapDeclaration,
-} from "./host.ts"
+  createHamiltonianTestServer as createHamiltonianHost,
+} from "./server-test-client.ts"
+import {hamiltonianServerBootstrapDeclaration} from "./server-runtime.ts"
 import {WeriftPeer, type PeerSignal} from "./peer/werift-peer.ts"
 
-const running: Array<ReturnType<typeof createHamiltonianHost>> = []
+const running: Array<Awaited<ReturnType<typeof createHamiltonianHost>>> = []
 const temporaryDirectories: string[] = []
 const browserRuntimeStartedAt = new Map<string, number>()
 let nextBrowserRuntimeStartedAt = 1
@@ -164,7 +164,7 @@ async function waitUntil(
 }
 
 async function registerTestPushSubscription(
-  host: ReturnType<typeof createHamiltonianHost>,
+  host: Awaited<ReturnType<typeof createHamiltonianHost>>,
   workerIdentity: string,
   deviceId: string,
   endpoint: string,
@@ -207,7 +207,7 @@ async function registerTestPushSubscription(
 }
 
 async function openDirectBrowserPeer(
-  host: ReturnType<typeof createHamiltonianHost>,
+  host: Awaited<ReturnType<typeof createHamiltonianHost>>,
   {
     deviceId,
     tabId,
@@ -432,13 +432,13 @@ describe("isolated Hamiltonian host", () => {
       serviceWorker: 'const HAMILTONIAN_SERVICE_WORKER_CODE_VERSION = "1.1.0"; service-worker-a',
       webPushClient: "web-push-client-a",
     }
-    const hostA = createHamiltonianHost({
+    const hostA = await createHamiltonianHost({
       port: 0,
       token: "source-host-a",
       identity: "stable-source-host",
       browserBundles,
     })
-    const hostB = createHamiltonianHost({
+    const hostB = await createHamiltonianHost({
       port: 0,
       token: "source-host-b",
       identity: "stable-source-host",
@@ -465,7 +465,7 @@ describe("isolated Hamiltonian host", () => {
     const serviceWorkerSource =
       'const HAMILTONIAN_SERVICE_WORKER_CODE_VERSION = "1.1.0"; service-worker-release'
     const frames: Array<Record<string, unknown>> = []
-    const host = createHamiltonianHost({
+    const host = await createHamiltonianHost({
       port: 0,
       token: "failed-source-token",
       browserBundles: {
@@ -518,7 +518,7 @@ describe("isolated Hamiltonian host", () => {
   })
 
   test("rejects a Service Worker identity whose code version is not SemVer", async () => {
-    const host = createHamiltonianHost({port: 0, token: "test-token"})
+    const host = await createHamiltonianHost({port: 0, token: "test-token"})
     running.push(host)
     const controlUrl = new URL("/control", host.server.url)
     controlUrl.protocol = "ws:"
@@ -539,7 +539,7 @@ describe("isolated Hamiltonian host", () => {
   })
 
   test("rejects a Service Worker code version that does not match its lifecycle snapshot", async () => {
-    const host = createHamiltonianHost({port: 0, token: "test-token"})
+    const host = await createHamiltonianHost({port: 0, token: "test-token"})
     running.push(host)
     const controlUrl = new URL("/control", host.server.url)
     controlUrl.protocol = "ws:"
@@ -568,7 +568,7 @@ describe("isolated Hamiltonian host", () => {
   })
 
   test("rejects a code version change without a new Service Worker execution", async () => {
-    const host = createHamiltonianHost({
+    const host = await createHamiltonianHost({
       port: 0,
       token: "test-token",
       heartbeatMs: 10_000,
@@ -621,7 +621,7 @@ describe("isolated Hamiltonian host", () => {
   })
 
   test("keeps a stale profile out of application topology until a new target-version execution connects", async () => {
-    const host = createHamiltonianHost({
+    const host = await createHamiltonianHost({
       port: 0,
       token: "test-token",
       heartbeatMs: 10_000,
@@ -728,7 +728,7 @@ describe("isolated Hamiltonian host", () => {
   test("revokes every admitted profile before sending one rebuilt Worker release", async () => {
     const releaseA = 'const HAMILTONIAN_SERVICE_WORKER_CODE_VERSION = "1.1.0"; release-a'
     const releaseB = 'const HAMILTONIAN_SERVICE_WORKER_CODE_VERSION = "1.2.0"; release-b'
-    const host = createHamiltonianHost({
+    const host = await createHamiltonianHost({
       port: 0,
       token: "test-token",
       heartbeatMs: 10_000,
@@ -823,7 +823,7 @@ describe("isolated Hamiltonian host", () => {
   })
 
   test("serves bootstrap and an authenticated, hashed version from one listener", async () => {
-    const host = createHamiltonianHost({
+    const host = await createHamiltonianHost({
       port: 0,
       token: "test-token",
       version: "v-test",
@@ -1100,7 +1100,7 @@ describe("isolated Hamiltonian host", () => {
     let announceDelivery!: () => void
     const deliveryStarted = new Promise<void>((resolve) => { announceDelivery = resolve })
     const deliveryReleased = new Promise<void>((resolve) => { releaseDelivery = resolve })
-    const host = createHamiltonianHost({
+    const host = await createHamiltonianHost({
       port: 0,
       token: "test-token",
       heartbeatMs: 10_000,
@@ -1224,7 +1224,7 @@ describe("isolated Hamiltonian host", () => {
 
   test("makes Web Push delivery failure an explicit Service Worker failure", async () => {
     const secret = "token-super-secret"
-    const host = createHamiltonianHost({
+    const host = await createHamiltonianHost({
       port: 0,
       token: "test-token",
       webPush: {
@@ -1293,7 +1293,7 @@ describe("isolated Hamiltonian host", () => {
     const storagePath = join(directory, "web-push.json")
     const workerIdentity = "restart-push-worker"
     const deviceId = "restart-push-device"
-    const first = createHamiltonianHost({
+    const first = await createHamiltonianHost({
       port: 0,
       token: "first-host-token",
       webPush: {storagePath, send: async () => {}},
@@ -1311,7 +1311,7 @@ describe("isolated Hamiltonian host", () => {
     running.splice(running.indexOf(first), 1)
 
     const deliveries: string[] = []
-    const restarted = createHamiltonianHost({
+    const restarted = await createHamiltonianHost({
       port: 0,
       token: "second-host-token",
       webPush: {
@@ -1365,7 +1365,7 @@ describe("isolated Hamiltonian host", () => {
 
   test("does not expose wakeProof and rejects a forged reconnect that only knows wakeId", async () => {
     const deliveries: string[] = []
-    const host = createHamiltonianHost({
+    const host = await createHamiltonianHost({
       port: 0,
       token: "proof-test-token",
       webPush: {
@@ -1484,7 +1484,7 @@ describe("isolated Hamiltonian host", () => {
   })
 
   test("sends retained current state and a causal frontier before live control messages", async () => {
-    const host = createHamiltonianHost({port: 0, token: "test-token", heartbeatMs: 10_000})
+    const host = await createHamiltonianHost({port: 0, token: "test-token", heartbeatMs: 10_000})
     running.push(host)
     await host.bunReady
 
@@ -1586,7 +1586,7 @@ describe("isolated Hamiltonian host", () => {
   })
 
   test("bootstraps a new Worker without the previous browser boundary and restores only its new incarnation", async () => {
-    const host = createHamiltonianHost({
+    const host = await createHamiltonianHost({
       port: 0,
       token: "test-token",
       heartbeatMs: 10_000,
@@ -1691,7 +1691,7 @@ describe("isolated Hamiltonian host", () => {
   })
 
   test("declares the exact identity-confirmed control WebSocket with its browser and server endpoints", async () => {
-    const host = createHamiltonianHost({port: 0, token: "test-token", heartbeatMs: 10_000})
+    const host = await createHamiltonianHost({port: 0, token: "test-token", heartbeatMs: 10_000})
     running.push(host)
     const profileId = "declared-wss-profile"
     const workerIdentity = "declared-wss-worker"
@@ -1786,7 +1786,7 @@ describe("isolated Hamiltonian host", () => {
     const workerEntityId = hamiltonianLifecycleEntityId("service-worker", workerIdentity)
     const identity = "stable-hamiltonian"
     const connect = async (
-      host: ReturnType<typeof createHamiltonianHost>,
+      host: Awaited<ReturnType<typeof createHamiltonianHost>>,
       transportId: string,
     ) => {
       const url = new URL("/control", host.server.url)
@@ -1816,7 +1816,7 @@ describe("isolated Hamiltonian host", () => {
       }
     }
 
-    const hostA = createHamiltonianHost({port: 0, token: "host-a-token", identity, heartbeatMs: 10_000})
+    const hostA = await createHamiltonianHost({port: 0, token: "host-a-token", identity, heartbeatMs: 10_000})
     running.push(hostA)
     const transportA = "websocket:host-restart-a"
     const first = await connect(hostA, transportA)
@@ -1840,7 +1840,7 @@ describe("isolated Hamiltonian host", () => {
     running.splice(running.indexOf(hostA), 1)
 
     await Bun.sleep(2)
-    const hostB = createHamiltonianHost({port: 0, token: "host-b-token", identity, heartbeatMs: 10_000})
+    const hostB = await createHamiltonianHost({port: 0, token: "host-b-token", identity, heartbeatMs: 10_000})
     running.push(hostB)
     const transportB = "websocket:host-restart-b"
     const second = await connect(hostB, transportB)
@@ -1869,7 +1869,7 @@ describe("isolated Hamiltonian host", () => {
   })
 
   test("does not retain a Service Worker or WebSocket for a control socket closed before identity", async () => {
-    const host = createHamiltonianHost({port: 0, token: "test-token", heartbeatMs: 10_000})
+    const host = await createHamiltonianHost({port: 0, token: "test-token", heartbeatMs: 10_000})
     running.push(host)
     await host.bunReady
 
@@ -1908,7 +1908,7 @@ describe("isolated Hamiltonian host", () => {
   })
 
   test("retains a distinct browser profile owner before every identified Service Worker", async () => {
-    const host = createHamiltonianHost({port: 0, token: "test-token", heartbeatMs: 10_000})
+    const host = await createHamiltonianHost({port: 0, token: "test-token", heartbeatMs: 10_000})
     running.push(host)
     await host.bunReady
 
@@ -2039,7 +2039,7 @@ describe("isolated Hamiltonian host", () => {
   })
 
   test("rejects an identified browser scope whose retained owner chain is incomplete", async () => {
-    const host = createHamiltonianHost({port: 0, token: "test-token", heartbeatMs: 10_000})
+    const host = await createHamiltonianHost({port: 0, token: "test-token", heartbeatMs: 10_000})
     running.push(host)
     await host.bunReady
 
@@ -2087,7 +2087,7 @@ describe("isolated Hamiltonian host", () => {
   })
 
   test("rejects a profile snapshot whose transport endpoint belongs to another retained browser profile", async () => {
-    const host = createHamiltonianHost({port: 0, token: "test-token", heartbeatMs: 10_000})
+    const host = await createHamiltonianHost({port: 0, token: "test-token", heartbeatMs: 10_000})
     running.push(host)
     await host.bunReady
 
@@ -2176,7 +2176,7 @@ describe("isolated Hamiltonian host", () => {
   })
 
   test("removes only an unreachable browser profile after its last window and control path close", async () => {
-    const host = createHamiltonianHost({port: 0, token: "test-token", heartbeatMs: 10_000})
+    const host = await createHamiltonianHost({port: 0, token: "test-token", heartbeatMs: 10_000})
     running.push(host)
     await host.bunReady
 
@@ -2286,7 +2286,7 @@ describe("isolated Hamiltonian host", () => {
 
   test("expires an abruptly closed browser profile only after its reconnect grace", async () => {
     const heartbeatMs = 100
-    const host = createHamiltonianHost({port: 0, token: "test-token", heartbeatMs})
+    const host = await createHamiltonianHost({port: 0, token: "test-token", heartbeatMs})
     running.push(host)
     await host.bunReady
 
@@ -2360,7 +2360,7 @@ describe("isolated Hamiltonian host", () => {
   })
 
   test("cold-rebirths the Bun embodiment as a new OS process without another listener", async () => {
-    const host = createHamiltonianHost({port: 0, token: "test-token", version: "v-process"})
+    const host = await createHamiltonianHost({port: 0, token: "test-token", version: "v-process"})
     running.push(host)
     const first = requireValue((await host.bunReady)["main-probe"], "initial main Bun lifecycle probe")
     const second = await host.rebirthBunEmbodiment()
@@ -2376,7 +2376,7 @@ describe("isolated Hamiltonian host", () => {
   })
 
   test("auto-rebirths a crashed ready Bun process and replaces its retained lifecycle state", async () => {
-    const host = createHamiltonianHost({
+    const host = await createHamiltonianHost({
       port: 0,
       token: "test-token",
       version: "v-crash-repair",
@@ -2416,7 +2416,7 @@ describe("isolated Hamiltonian host", () => {
     )))
     await admitted
 
-    expect(host.crashBunEmbodimentForTest("main")).toBe(first.pid)
+    expect(await host.crashBunEmbodimentForTest("main")).toBe(first.pid)
     const repairDeadline = Date.now() + 5_000
     let replacement = host.bunEmbodiments.snapshot().main
     while (
@@ -2454,8 +2454,8 @@ describe("isolated Hamiltonian host", () => {
     )).toBeTrue()
     expect(secondAuthority.fencingToken).toBe(firstAuthority.fencingToken + 1)
     expect(secondAuthority.leaseId).not.toBe(firstAuthority.leaseId)
-    expect(host.acceptsServerAuthorityForTest(firstAuthority)).toBeFalse()
-    expect(host.acceptsServerAuthorityForTest(secondAuthority)).toBeTrue()
+    expect(await host.acceptsServerAuthorityForTest(firstAuthority)).toBeFalse()
+    expect(await host.acceptsServerAuthorityForTest(secondAuthority)).toBeTrue()
     expect(requireValue(host.bunEmbodiments.snapshot().worker, "unchanged server worker").pid).toBe(worker.pid)
     expect(host.server.port).toBeGreaterThan(0)
 
@@ -2490,7 +2490,7 @@ describe("isolated Hamiltonian host", () => {
   }, 10_000)
 
   test("serializes concurrent rebirths of one Bun role", async () => {
-    const host = createHamiltonianHost({port: 0, token: "test-token", version: "v-race"})
+    const host = await createHamiltonianHost({port: 0, token: "test-token", version: "v-race"})
     running.push(host)
     const initial = requireValue((await host.bunReady)["main-probe"], "initial main Bun lifecycle probe")
     const [first, second] = await Promise.all([
@@ -2506,7 +2506,7 @@ describe("isolated Hamiltonian host", () => {
   })
 
   test("runs server-only main under exclusive authority and fences its previous incarnation", async () => {
-    const host = createHamiltonianHost({
+    const host = await createHamiltonianHost({
       port: 0,
       token: "test-token",
       version: "v-server",
@@ -2521,7 +2521,7 @@ describe("isolated Hamiltonian host", () => {
     expect(host.placement).toBe("server")
     expect(host.getStatus().topology.leader).toBeNull()
     expect(worker.authority).toBeNull()
-    expect(host.acceptsServerAuthorityForTest(firstAuthority)).toBeTrue()
+    expect(await host.acceptsServerAuthorityForTest(firstAuthority)).toBeTrue()
 
     const secondMain = await host.rebirthBunEmbodiment("main")
     const secondAuthority = requireValue(secondMain.authority, "replacement server main authority")
@@ -2529,13 +2529,13 @@ describe("isolated Hamiltonian host", () => {
     expect(secondMain.incarnation).not.toBe(firstMain.incarnation)
     expect(secondAuthority.fencingToken).toBe(firstAuthority.fencingToken + 1)
     expect(secondAuthority.leaseId).not.toBe(firstAuthority.leaseId)
-    expect(host.acceptsServerAuthorityForTest(firstAuthority)).toBeFalse()
-    expect(host.acceptsServerAuthorityForTest(secondAuthority)).toBeTrue()
+    expect(await host.acceptsServerAuthorityForTest(firstAuthority)).toBeFalse()
+    expect(await host.acceptsServerAuthorityForTest(secondAuthority)).toBeTrue()
     expect(requireValue(host.bunEmbodiments.snapshot().worker, "unchanged server worker").pid).toBe(worker.pid)
   })
 
   test("does not grant a Window authority while server placement owns main", async () => {
-    const host = createHamiltonianHost({
+    const host = await createHamiltonianHost({
       port: 0,
       token: "test-token",
       placement: "server",
@@ -2571,7 +2571,7 @@ describe("isolated Hamiltonian host", () => {
   })
 
   test("does not birth a Bun process after host shutdown has started", async () => {
-    const host = createHamiltonianHost({port: 0, token: "test-token", placement: "server"})
+    const host = await createHamiltonianHost({port: 0, token: "test-token", placement: "server"})
     running.push(host)
     await host.bunReady
     const stopping = host.stop()
@@ -2582,7 +2582,7 @@ describe("isolated Hamiltonian host", () => {
   })
 
   test("elects one Window across two device sockets and replaces a lost leader", async () => {
-    const host = createHamiltonianHost({port: 0, token: "test-token", heartbeatMs: 1_000})
+    const host = await createHamiltonianHost({port: 0, token: "test-token", heartbeatMs: 1_000})
     running.push(host)
     const controlUrl = new URL("/control", host.server.url)
     controlUrl.protocol = "ws:"
@@ -2639,7 +2639,7 @@ describe("isolated Hamiltonian host", () => {
   })
 
   test("distinguishes one acknowledged connection from a reconnect epoch", async () => {
-    const host = createHamiltonianHost({port: 0, token: "test-token", heartbeatMs: 100})
+    const host = await createHamiltonianHost({port: 0, token: "test-token", heartbeatMs: 100})
     running.push(host)
     const controlUrl = new URL("/control", host.server.url)
     controlUrl.protocol = "ws:"
@@ -2729,7 +2729,7 @@ describe("isolated Hamiltonian host", () => {
   })
 
   test("removes closed WS state only after a page observes the old Service Worker endpoint ended", async () => {
-    const host = createHamiltonianHost({port: 0, token: "test-token", heartbeatMs: 10_000})
+    const host = await createHamiltonianHost({port: 0, token: "test-token", heartbeatMs: 10_000})
     running.push(host)
     const controlUrl = new URL("/control", host.server.url)
     controlUrl.protocol = "ws:"
@@ -2818,7 +2818,7 @@ describe("isolated Hamiltonian host", () => {
   })
 
   test("rejects a forged Service Worker retirement that does not name the current worker as successor", async () => {
-    const host = createHamiltonianHost({port: 0, token: "test-token", heartbeatMs: 10_000})
+    const host = await createHamiltonianHost({port: 0, token: "test-token", heartbeatMs: 10_000})
     running.push(host)
     const workerEntityId = "service-worker:current-worker"
     const transportId = "websocket:current-worker"
@@ -2868,7 +2868,7 @@ describe("isolated Hamiltonian host", () => {
 
   test("starts the next heartbeat only after the previous pong", async () => {
     const heartbeatMs = 50
-    const host = createHamiltonianHost({port: 0, token: "test-token", heartbeatMs})
+    const host = await createHamiltonianHost({port: 0, token: "test-token", heartbeatMs})
     running.push(host)
     const controlUrl = new URL("/control", host.server.url)
     controlUrl.protocol = "ws:"
@@ -2914,7 +2914,7 @@ describe("isolated Hamiltonian host", () => {
   })
 
   test("rejects a heartbeat acknowledgement that does not match the current challenge", async () => {
-    const host = createHamiltonianHost({port: 0, token: "test-token", heartbeatMs: 1_000})
+    const host = await createHamiltonianHost({port: 0, token: "test-token", heartbeatMs: 1_000})
     running.push(host)
     await host.bunReady
     const controlUrl = new URL("/control", host.server.url)
@@ -2936,7 +2936,7 @@ describe("isolated Hamiltonian host", () => {
   })
 
   test("rejects a worker identity that does not match the control endpoint", async () => {
-    const host = createHamiltonianHost({port: 0, token: "test-token", heartbeatMs: 1_000})
+    const host = await createHamiltonianHost({port: 0, token: "test-token", heartbeatMs: 1_000})
     running.push(host)
     const controlUrl = new URL("/control", host.server.url)
     controlUrl.protocol = "ws:"
@@ -2956,7 +2956,7 @@ describe("isolated Hamiltonian host", () => {
   })
 
   test("rejects a matching heartbeat sequence attributed to another worker", async () => {
-    const host = createHamiltonianHost({port: 0, token: "test-token", heartbeatMs: 1_000})
+    const host = await createHamiltonianHost({port: 0, token: "test-token", heartbeatMs: 1_000})
     running.push(host)
     const controlUrl = new URL("/control", host.server.url)
     controlUrl.protocol = "ws:"
@@ -2983,7 +2983,7 @@ describe("isolated Hamiltonian host", () => {
   })
 
   test("rejects realtime lane payload on the signaling WebSocket", async () => {
-    const host = createHamiltonianHost({port: 0, token: "test-token"})
+    const host = await createHamiltonianHost({port: 0, token: "test-token"})
     running.push(host)
     await host.bunReady
     const controlUrl = new URL("/control", host.server.url)
@@ -2999,7 +2999,7 @@ describe("isolated Hamiltonian host", () => {
   })
 
   test("rejects the removed edge-traffic protocol on the control WebSocket", async () => {
-    const host = createHamiltonianHost({port: 0, token: "test-token"})
+    const host = await createHamiltonianHost({port: 0, token: "test-token"})
     running.push(host)
     await host.bunReady
     const controlUrl = new URL("/control", host.server.url)
@@ -3027,7 +3027,7 @@ describe("isolated Hamiltonian host", () => {
   })
 
   test("uses the control WebSocket only for signaling and sends oracle/force payload over direct DataChannels", async () => {
-    const host = createHamiltonianHost({port: 0, token: "test-token", heartbeatMs: 10_000})
+    const host = await createHamiltonianHost({port: 0, token: "test-token", heartbeatMs: 10_000})
     running.push(host)
     const fixture = await openDirectBrowserPeer(host, {
       deviceId: "browser-fixture",
@@ -3065,7 +3065,7 @@ describe("isolated Hamiltonian host", () => {
   }, 20_000)
 
   test("declares exact current Oracle and Force DataChannels and retires them after peer replacement", async () => {
-    const host = createHamiltonianHost({port: 0, token: "test-token", heartbeatMs: 10_000})
+    const host = await createHamiltonianHost({port: 0, token: "test-token", heartbeatMs: 10_000})
     running.push(host)
     const deviceId = "declared-rtc-profile"
     const tabId = "declared-rtc-tab"
@@ -3190,7 +3190,7 @@ describe("isolated Hamiltonian host", () => {
   }, 20_000)
 
   test("rebinds a new control connection to the same authority and live direct peer", async () => {
-    const host = createHamiltonianHost({port: 0, token: "test-token", heartbeatMs: 10_000})
+    const host = await createHamiltonianHost({port: 0, token: "test-token", heartbeatMs: 10_000})
     running.push(host)
     const first = await openDirectBrowserPeer(host, {
       deviceId: "stable-browser",
@@ -3265,7 +3265,7 @@ describe("isolated Hamiltonian host", () => {
   }, 35_000)
 
   test("starts a new peer generation when control resumes before RTC became ready", async () => {
-    const host = createHamiltonianHost({port: 0, token: "test-token", heartbeatMs: 10_000})
+    const host = await createHamiltonianHost({port: 0, token: "test-token", heartbeatMs: 10_000})
     running.push(host)
     await host.bunReady
     const controlUrl = new URL("/control", host.server.url)
@@ -3344,7 +3344,7 @@ describe("isolated Hamiltonian host", () => {
   }, 20_000)
 
   test("repairs RTC under the same control connection and authority", async () => {
-    const host = createHamiltonianHost({port: 0, token: "test-token", heartbeatMs: 10_000})
+    const host = await createHamiltonianHost({port: 0, token: "test-token", heartbeatMs: 10_000})
     running.push(host)
     const fixture = await openDirectBrowserPeer(host, {
       deviceId: "repair-browser",
@@ -3391,7 +3391,7 @@ describe("isolated Hamiltonian host", () => {
   }, 35_000)
 
   test("correlates a peer begin error before the new generation publishes a snapshot", async () => {
-    const host = createHamiltonianHost({port: 0, token: "test-token", heartbeatMs: 10_000})
+    const host = await createHamiltonianHost({port: 0, token: "test-token", heartbeatMs: 10_000})
     running.push(host)
     const fixture = await openDirectBrowserPeer(host, {
       deviceId: "begin-error-browser",
@@ -3399,13 +3399,13 @@ describe("isolated Hamiltonian host", () => {
     })
     const firstAssignment = requireValue(host.getStatus().peer.assignment, "initial peer assignment")
     const failedAssignment = requireValue(
-      host.requestPeerRepairForTest("prepare begin failure"),
+      await host.requestPeerRepairForTest("prepare begin failure"),
       "failed peer assignment",
     )
     expect(failedAssignment.peerGeneration).toBe(firstAssignment.peerGeneration + 1)
     expect(host.getStatus().peer.snapshot?.peerId).not.toBe(failedAssignment.peerId)
 
-    host.reportPeerErrorForTest(failedAssignment.peerId, "fixture begin failed before peer-state")
+    await host.reportPeerErrorForTest(failedAssignment.peerId, "fixture begin failed before peer-state")
     const replacement = await fixture.nextPeer()
     try {
       const response = await replacement.protocol.request("probe", {afterBeginError: true})
@@ -3422,7 +3422,7 @@ describe("isolated Hamiltonian host", () => {
 
   test("keeps direct realtime alive without control signaling until lease expiry", async () => {
     const heartbeatMs = 250
-    const host = createHamiltonianHost({port: 0, token: "test-token", heartbeatMs})
+    const host = await createHamiltonianHost({port: 0, token: "test-token", heartbeatMs})
     running.push(host)
     const fixture = await openDirectBrowserPeer(host, {
       deviceId: "detached-browser",
@@ -3463,7 +3463,7 @@ describe("isolated Hamiltonian host", () => {
   }, 20_000)
 
   test("rebirths a crashed Bun peer process and repairs direct RTC", async () => {
-    const host = createHamiltonianHost({port: 0, token: "test-token", heartbeatMs: 10_000})
+    const host = await createHamiltonianHost({port: 0, token: "test-token", heartbeatMs: 10_000})
     running.push(host)
     const fixture = await openDirectBrowserPeer(host, {
       deviceId: "process-recovery-browser",
@@ -3471,7 +3471,7 @@ describe("isolated Hamiltonian host", () => {
     })
     const before = host.getStatus().peer.process
     const beforeAssignment = requireValue(host.getStatus().peer.assignment, "peer assignment before process crash")
-    const killedPid = host.crashPeerProcessForTest()
+    const killedPid = await host.crashPeerProcessForTest()
     expect(killedPid).toBe(before.pid)
 
     const replacementPromise = fixture.nextPeer()
@@ -3539,7 +3539,7 @@ describe("isolated Hamiltonian host", () => {
   }, 35_000)
 
   test("repairs a crashed Bun peer process after detached control resumes", async () => {
-    const host = createHamiltonianHost({port: 0, token: "test-token", heartbeatMs: 10_000})
+    const host = await createHamiltonianHost({port: 0, token: "test-token", heartbeatMs: 10_000})
     running.push(host)
     const fixture = await openDirectBrowserPeer(host, {
       deviceId: "detached-process-recovery-browser",
@@ -3552,7 +3552,7 @@ describe("isolated Hamiltonian host", () => {
     fixture.socket.close()
     await firstClosed
 
-    const killedPid = host.crashPeerProcessForTest()
+    const killedPid = await host.crashPeerProcessForTest()
     expect(killedPid).toBeGreaterThan(0)
     const processRestartedAt = Date.now() + 10_000
     while (

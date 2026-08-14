@@ -19,7 +19,6 @@ import {
   type HamiltonianNodeSystemBoundaryTransport,
   type HamiltonianNodeSystemDeclaration,
 } from "./core/lifecycle.js"
-import {networkInterfaces} from "node:os"
 import {watch, type FSWatcher} from "node:fs"
 import {fileURLToPath} from "node:url"
 import {
@@ -49,7 +48,7 @@ import {
 } from "./update/host/browser-release.ts"
 import {HamiltonianServiceWorkerAdmissionRegistry} from "./update/host/service-worker-admission.ts"
 
-interface SocketData {
+export interface HamiltonianServerSocketData {
   connectionId: string
   connectionGeneration: number
   deviceId: string
@@ -71,26 +70,7 @@ interface SocketData {
   reportedEmptyWindowInventory: boolean
 }
 
-interface HamiltonianHostOptions {
-  hostname?: string
-  port?: number
-  identity?: string
-  version?: string
-  token?: string
-  tlsCertPath?: string
-  tlsKeyPath?: string
-  heartbeatMs?: number
-  placement?: "browser" | "server"
-  browserBundles?: Readonly<{
-    orchestration: string | Promise<string>
-    layoutWorker: string | Promise<string>
-    serviceWorker: string | Promise<string>
-    webPushClient?: string | Promise<string>
-  }>
-  webPush?: HamiltonianWebPushOptions
-}
-
-interface ClientTabsMessage {
+export interface ClientTabsMessage {
   kind: "tabs"
   windows: WindowCandidate[]
 }
@@ -103,7 +83,7 @@ export function hamiltonianServerBootstrapDeclaration(
     : createHamiltonianNodeSystemDeclaration({...declaration, boundaryTransports: []})
 }
 
-interface ClientPongMessage {
+export interface ClientPongMessage {
   kind: "pong"
   at: number
   seq: number
@@ -111,7 +91,7 @@ interface ClientPongMessage {
   workerRuntimeIncarnation: string
 }
 
-interface ClientIdentityMessage {
+export interface ClientIdentityMessage {
   kind: "identity"
   workerIdentity: string
   workerRuntimeIncarnation: string
@@ -123,19 +103,19 @@ interface ClientIdentityMessage {
   wakeProof?: string
 }
 
-interface ClientBrowserLifecycleSnapshotMessage {
+export interface ClientBrowserLifecycleSnapshotMessage {
   kind: "browser-lifecycle-snapshot"
   snapshot: HamiltonianLifecycleSnapshot
   declaration?: HamiltonianNodeSystemDeclaration
 }
 
-interface ClientPushSubscriptionMessage {
+export interface ClientPushSubscriptionMessage {
   kind: "push-subscription"
   registrationId: string
   subscription: HamiltonianPushSubscriptionInput["subscription"]
 }
 
-interface ClientPeerSignalMessage {
+export interface ClientPeerSignalMessage {
   kind: "peer-signal"
   peerId: string
   sessionEpoch: string
@@ -145,7 +125,7 @@ interface ClientPeerSignalMessage {
   signal: PeerSignal
 }
 
-interface ClientPeerFailedMessage {
+export interface ClientPeerFailedMessage {
   kind: "peer-failed"
   peerId: string
   sessionEpoch: string
@@ -160,7 +140,7 @@ interface ClientLifecycleMonitor {
   transportId: string
 }
 
-interface ClientLifecycleRetirementMessage {
+export interface ClientLifecycleRetirementMessage {
   kind: "lifecycle-retirement"
   envelope: HamiltonianLifecycleEnvelope
 }
@@ -176,7 +156,7 @@ type MonitoredClientMessage = (
   | ClientBrowserLifecycleSnapshotMessage
 ) & {monitor?: ClientLifecycleMonitor}
 
-type ClientMessage = MonitoredClientMessage
+export type HamiltonianClientMessage = MonitoredClientMessage
 
 interface HostEvent {
   at: number
@@ -346,7 +326,7 @@ function safeEqual(left: string, right: string): boolean {
 
 function isBrowserProfileLifecycleSnapshot(
   value: unknown,
-  socket: SocketData,
+  socket: HamiltonianServerSocketData,
   workerIdentity: string,
   workerRuntimeIncarnation: string,
   workerCodeVersion: string,
@@ -377,7 +357,7 @@ function isBrowserProfileLifecycleSnapshot(
     isHamiltonianServiceWorkerCodeVersion(worker.attributes.codeVersion)
 }
 
-function parseClientMessage(value: string | Buffer): ClientMessage | null {
+function parseClientMessage(value: string | Buffer): HamiltonianClientMessage | null {
   if (value.length > 128 * 1024) return null
   let parsed: unknown
   try {
@@ -716,6 +696,8 @@ function securityHeaders(contentType: string): HeadersInit {
   }
 }
 
+const CONTENT_SECURITY_POLICY = "default-src 'self'; connect-src 'self' ws: wss: data:; img-src 'self' data: blob:; script-src 'self'; style-src 'self'; worker-src 'self' blob:; base-uri 'none'; frame-ancestors 'none'"
+
 function staticResponse(pathname: string): Response | null {
   const entry = browserStaticFiles[pathname]
   if (!entry) return null
@@ -740,28 +722,57 @@ async function boundedJson(request: Request, maxBytes = 16 * 1024): Promise<unkn
   return JSON.parse(text) as unknown
 }
 
-export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
-  const hostname = options.hostname ?? Bun.env.HAMILTONIAN_HOST ?? "127.0.0.1"
-  const port = options.port ?? Number(Bun.env.HAMILTONIAN_PORT ?? 4400)
-  const identity = options.identity ?? Bun.env.HAMILTONIAN_ID ?? "hamiltonian-lab"
-  const version = options.version ?? Bun.env.HAMILTONIAN_VERSION ?? "v1"
-  const token = options.token ?? Bun.env.HAMILTONIAN_TOKEN ?? crypto.randomUUID()
-  const tlsCertPath = options.tlsCertPath ?? Bun.env.HAMILTONIAN_TLS_CERT
-  const tlsKeyPath = options.tlsKeyPath ?? Bun.env.HAMILTONIAN_TLS_KEY
-  const heartbeatMs = options.heartbeatMs ?? 10_000
-  const placement = options.placement ?? Bun.env.HAMILTONIAN_PLACEMENT ?? "browser"
-  const configuredVapidPublicKey = options.webPush?.publicKey ?? Bun.env.HAMILTONIAN_VAPID_PUBLIC_KEY
-  const configuredVapidPrivateKey = options.webPush?.privateKey ?? Bun.env.HAMILTONIAN_VAPID_PRIVATE_KEY
-  const configuredVapidSubject = options.webPush?.subject ?? Bun.env.HAMILTONIAN_VAPID_SUBJECT
-  const webPushStoragePath = options.webPush?.storagePath ??
-    (Bun.env.NODE_ENV === "test" ? undefined : `${repositoryRoot}/.metafor/hamiltonian-web-push.json`)
+export const hostname = Bun.env.HAMILTONIAN_HOST ?? "127.0.0.1"
+export const port = Number(Bun.env.HAMILTONIAN_PORT ?? 4400)
+export const identity = Bun.env.HAMILTONIAN_ID ?? "hamiltonian-lab"
+export const version = Bun.env.HAMILTONIAN_VERSION ?? "v1"
+export const token = Bun.env.HAMILTONIAN_TOKEN ?? crypto.randomUUID()
+const tlsCertPath = Bun.env.HAMILTONIAN_TLS_CERT
+const tlsKeyPath = Bun.env.HAMILTONIAN_TLS_KEY
+const heartbeatMs = Number(Bun.env.HAMILTONIAN_HEARTBEAT_MS ?? 10_000)
+export const placement = Bun.env.HAMILTONIAN_PLACEMENT ?? "browser"
+const configuredVapidPublicKey = Bun.env.HAMILTONIAN_VAPID_PUBLIC_KEY
+const configuredVapidPrivateKey = Bun.env.HAMILTONIAN_VAPID_PRIVATE_KEY
+const configuredVapidSubject = Bun.env.HAMILTONIAN_VAPID_SUBJECT
+const webPushStoragePath = Bun.env.HAMILTONIAN_WEB_PUSH_STORAGE_PATH ?? (
+  Bun.env.NODE_ENV === "test" ? undefined : `${repositoryRoot}/.metafor/hamiltonian-web-push.json`
+)
+const pendingTestWebPush = new Map<number, {
+  resolve(value: unknown): void
+  reject(error: Error): void
+}>()
+let nextTestWebPushRequestId = 0
+const testWebPushSend: HamiltonianWebPushOptions["send"] = Bun.env.HAMILTONIAN_TEST_WEB_PUSH_IPC === "1"
+  ? (subscription, payload, requestOptions) => new Promise((resolve, reject) => {
+      const requestId = ++nextTestWebPushRequestId
+      pendingTestWebPush.set(requestId, {resolve, reject})
+      process.send?.({kind: "hamiltonian-test-web-push", requestId, subscription, payload, requestOptions})
+    })
+  : undefined
+if (testWebPushSend !== undefined) {
+  process.on("message", (rawMessage) => {
+    const message = rawMessage as {
+      kind?: string
+      requestId?: number
+      ok?: boolean
+      value?: unknown
+      error?: string
+    }
+    if (message.kind !== "hamiltonian-test-web-push-result" || typeof message.requestId !== "number") return
+    const pending = pendingTestWebPush.get(message.requestId)
+    if (!pending) return
+    pendingTestWebPush.delete(message.requestId)
+    if (message.ok) pending.resolve(message.value)
+    else pending.reject(new Error(message.error ?? "test Web Push failed"))
+  })
+}
   let observeWebPushLifecycle: WebPushLifecycleHook = () => {}
   const webPush = new HamiltonianWebPush({
     ...(configuredVapidPublicKey === undefined ? {} : {publicKey: configuredVapidPublicKey}),
     ...(configuredVapidPrivateKey === undefined ? {} : {privateKey: configuredVapidPrivateKey}),
     ...(configuredVapidSubject === undefined ? {} : {subject: configuredVapidSubject}),
     ...(webPushStoragePath === undefined ? {} : {storagePath: webPushStoragePath}),
-    ...(options.webPush?.send === undefined ? {} : {send: options.webPush.send}),
+    ...(testWebPushSend === undefined ? {} : {send: testWebPushSend}),
     onLifecycle: (event) => observeWebPushLifecycle(event),
   })
   if (placement !== "browser" && placement !== "server") {
@@ -788,7 +799,7 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
   })
   let serverAuthority = placement === "server" ? makeServerAuthority(serverFencingToken) : null
   const topology = new HostTopology(hostEpoch)
-  const sockets = new Map<string, Bun.ServerWebSocket<SocketData>>()
+  const sockets = new Map<string, Bun.ServerWebSocket<HamiltonianServerSocketData>>()
   const serviceWorkerAdmission = new HamiltonianServiceWorkerAdmissionRegistry()
   let controlConnectionGeneration = 0
   const sourceWatchers: FSWatcher[] = []
@@ -814,13 +825,13 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
   const currentServiceWorkerRelease = async (): Promise<HamiltonianServiceWorkerRelease> => {
     return hamiltonianServiceWorkerRelease(await getServiceWorkerBundle())
   }
-  const applyServiceWorkerUpdateState = (socket: Bun.ServerWebSocket<SocketData>) => {
+  const applyServiceWorkerUpdateState = (socket: Bun.ServerWebSocket<HamiltonianServerSocketData>) => {
     socket.data.identityConfirmed = false
     socket.data.retainAuthorityOnClose = false
     socket.data.workerUpdateRequired = true
   }
   const sendServiceWorkerUpdate = (
-    socket: Bun.ServerWebSocket<SocketData>,
+    socket: Bun.ServerWebSocket<HamiltonianServerSocketData>,
     target: HamiltonianServiceWorkerRelease,
   ) => {
     sendControl(socket, {kind: "service-worker-update", target})
@@ -832,7 +843,7 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
     })
   }
   const revokeServiceWorkerApplication = async (
-    staleSockets: ReadonlyArray<Bun.ServerWebSocket<SocketData>>,
+    staleSockets: ReadonlyArray<Bun.ServerWebSocket<HamiltonianServerSocketData>>,
   ) => {
     for (const socket of staleSockets) topology.disconnect(socket.data.connectionId)
     if (staleSockets.length === 0) return
@@ -970,7 +981,7 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
   })))
 
   const sendNodeSystemDeclaration = (
-    socket: Bun.ServerWebSocket<SocketData>,
+    socket: Bun.ServerWebSocket<HamiltonianServerSocketData>,
     declaration: HamiltonianNodeSystemDeclaration,
   ) => {
     if (socket.getBufferedAmount() > 256_000) return
@@ -988,7 +999,7 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
     envelope.sourceIncarnation === workerRuntimeIncarnation)?.sourceStartedAt ?? -1
   const browserDeclarationForSnapshot = (
     snapshot: HamiltonianLifecycleSnapshot,
-    socket: SocketData,
+    socket: HamiltonianServerSocketData,
     workerRuntimeIncarnation: string,
     supplied?: HamiltonianNodeSystemDeclaration,
   ): HamiltonianNodeSystemDeclaration | null => {
@@ -1081,7 +1092,7 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
     broadcastNodeSystemDeclaration(declaration)
     return declaration
   }
-  const sendCurrentNodeSystemDeclarations = (socket: Bun.ServerWebSocket<SocketData>) => {
+  const sendCurrentNodeSystemDeclarations = (socket: Bun.ServerWebSocket<HamiltonianServerSocketData>) => {
     sendNodeSystemDeclaration(
       socket,
       hamiltonianServerBootstrapDeclaration(refreshServerDeclaration()),
@@ -1217,7 +1228,7 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
     })))
   }
   const sendControl = (
-    socket: Bun.ServerWebSocket<SocketData>,
+    socket: Bun.ServerWebSocket<HamiltonianServerSocketData>,
     message: Readonly<{kind: string}> & Record<string, unknown>,
   ) => {
     const messageId = `message:${encodeURIComponent(crypto.randomUUID())}`
@@ -1238,13 +1249,13 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
     }
     socket.send(JSON.stringify({...message, monitor}))
   }
-  const clearHeartbeatTimers = (socket: Bun.ServerWebSocket<SocketData>) => {
+  const clearHeartbeatTimers = (socket: Bun.ServerWebSocket<HamiltonianServerSocketData>) => {
     if (socket.data.nextHeartbeatTimer !== null) clearTimeout(socket.data.nextHeartbeatTimer)
     if (socket.data.heartbeatTimeoutTimer !== null) clearTimeout(socket.data.heartbeatTimeoutTimer)
     socket.data.nextHeartbeatTimer = null
     socket.data.heartbeatTimeoutTimer = null
   }
-  const challengeHeartbeat = (socket: Bun.ServerWebSocket<SocketData>) => {
+  const challengeHeartbeat = (socket: Bun.ServerWebSocket<HamiltonianServerSocketData>) => {
     if (stopping || sockets.get(socket.data.connectionId) !== socket) return
     if (socket.data.lastChallengeSeq > socket.data.lastAckSeq) return
     socket.data.nextHeartbeatTimer = null
@@ -1263,7 +1274,7 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
       socket.close(4000, "heartbeat timeout")
     }, Math.max(1, expiresAt - Date.now()))
   }
-  const scheduleHeartbeatAfterAck = (socket: Bun.ServerWebSocket<SocketData>) => {
+  const scheduleHeartbeatAfterAck = (socket: Bun.ServerWebSocket<HamiltonianServerSocketData>) => {
     if (socket.data.nextHeartbeatTimer !== null) clearTimeout(socket.data.nextHeartbeatTimer)
     socket.data.nextHeartbeatTimer = setTimeout(() => challengeHeartbeat(socket), heartbeatMs)
   }
@@ -1298,28 +1309,44 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
       })
     }, 120)
   }
-  if (options.browserBundles !== undefined) {
-    orchestrationBundle = Promise.resolve(options.browserBundles.orchestration)
-    layoutWorkerBundle = Promise.resolve(options.browserBundles.layoutWorker)
-    serviceWorkerBundle = Promise.resolve(options.browserBundles.serviceWorker)
-    if (options.browserBundles.webPushClient !== undefined) {
-      webPushClientBundle = Promise.resolve(options.browserBundles.webPushClient)
-    } else {
-      webPushClientBundle = null
-    }
-  } else {
-    invalidateBrowserBundles()
-    if (Bun.env.NODE_ENV !== "test") {
-      // Build once as soon as the host incarnation starts. A first navigation
-      // must not pay the browser bundle compilation cost on its module request.
-      void Promise.all([
-        getOrchestrationBundle(),
-        getLayoutWorkerBundle(),
-        getServiceWorkerBundle(),
-        getWebPushClientBundle(),
-      ]).catch(() => {})
-    }
+  const pendingTestBundles = new Map<string, PromiseWithResolvers<string>>()
+
+  invalidateBrowserBundles()
+  orchestrationBundle = testBundle("HAMILTONIAN_TEST_ORCHESTRATION_BUNDLE_BASE64")
+  layoutWorkerBundle = testBundle("HAMILTONIAN_TEST_LAYOUT_WORKER_BUNDLE_BASE64")
+  serviceWorkerBundle = testBundle("HAMILTONIAN_TEST_SERVICE_WORKER_BUNDLE_BASE64")
+  webPushClientBundle = testBundle("HAMILTONIAN_TEST_WEB_PUSH_CLIENT_BUNDLE_BASE64")
+  if (Bun.env.NODE_ENV !== "test") {
+    // Build once as soon as the host incarnation starts. A first navigation
+    // must not pay the browser bundle compilation cost on its module request.
+    void Promise.all([
+      getOrchestrationBundle(),
+      getLayoutWorkerBundle(),
+      getServiceWorkerBundle(),
+      getWebPushClientBundle(),
+    ]).catch(() => {})
   }
+
+function testBundle(name: string): Promise<string> | null {
+  const encoded = Bun.env[name]
+  if (encoded !== undefined) return Promise.resolve(Buffer.from(encoded, "base64").toString("utf8"))
+  if (Bun.env[`${name}_PENDING`] !== "1") return null
+  const pending = Promise.withResolvers<string>()
+  pendingTestBundles.set(name, pending)
+  return pending.promise
+}
+
+/** Завершает отложенную browser-сборку только в изолированном test process. */
+export function settleHamiltonianTestBundle(
+  name: string,
+  result: {ok: true; source: string} | {ok: false; error: string},
+): void {
+  const pending = pendingTestBundles.get(name)
+  if (!pending) throw new Error(`Unknown pending Hamiltonian test bundle: ${name}`)
+  pendingTestBundles.delete(name)
+  if (result.ok) pending.resolve(result.source)
+  else pending.reject(new Error(result.error))
+}
   let peerSnapshot: WeriftPeerSnapshot | null = null
   let peerError: string | null = null
   let peerAssignment: {
@@ -1562,7 +1589,7 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
   })
 
   const tryResumeDetachedAuthority = (
-    socket: Bun.ServerWebSocket<SocketData>,
+    socket: Bun.ServerWebSocket<HamiltonianServerSocketData>,
     windows: WindowCandidate[],
   ): boolean => {
     const leader = topology.snapshot().leader
@@ -1691,725 +1718,735 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
     broadcastTopology()
   }
 
-  const tls = tlsCertPath && tlsKeyPath
+  export const tls = tlsCertPath && tlsKeyPath
     ? {tls: {cert: Bun.file(tlsCertPath), key: Bun.file(tlsKeyPath)}}
     : {}
 
-  const server = Bun.serve<SocketData>({
-    hostname,
-    port,
-    ...tls,
-    async fetch(request, bunServer) {
-      const url = new URL(request.url)
-      if (request.method === "GET" && (url.pathname === "/" || url.pathname === "/index.html")) {
-        const localJoinToken = isLoopbackAddress(bunServer.requestIP(request)?.address) ? token : ""
-        return await indexResponse(localJoinToken)
-      }
-      if (url.pathname === "/orchestration.js") {
-        try {
-          return new Response(await getOrchestrationBundle(), {
-            headers: securityHeaders("text/javascript; charset=utf-8"),
-          })
-        } catch (error) {
-          return new Response(error instanceof Error ? error.message : String(error), {status: 500})
-        }
-      }
-      if (url.pathname === "/layout-worker.js") {
-        try {
-          return new Response(await getLayoutWorkerBundle(), {
-            headers: securityHeaders("text/javascript; charset=utf-8"),
-          })
-        } catch (error) {
-          return new Response(error instanceof Error ? error.message : String(error), {status: 500})
-        }
-      }
-      if (url.pathname === "/web-push-client.js") {
-        try {
-          return new Response(await getWebPushClientBundle(), {
-            headers: securityHeaders("text/javascript; charset=utf-8"),
-          })
-        } catch (error) {
-          return new Response(error instanceof Error ? error.message : String(error), {status: 500})
-        }
-      }
-      if (url.pathname === "/sw-entry.js") {
-        try {
-          const headers = new Headers(securityHeaders("text/javascript; charset=utf-8"))
-          headers.set("content-security-policy", "default-src 'self'; connect-src 'self' ws: wss: data:; img-src 'self' data: blob:; script-src 'self'; style-src 'self'; worker-src 'self' blob:; base-uri 'none'; frame-ancestors 'none'")
-          headers.set("service-worker-allowed", "/")
-          headers.set("cache-control", "no-cache")
-          return new Response(await getServiceWorkerBundle(), {headers})
-        } catch (error) {
-          return new Response(error instanceof Error ? error.message : String(error), {status: 500})
-        }
-      }
-      if (url.pathname === "/control") {
-        const suppliedToken = url.searchParams.get("token") ?? ""
-        const deviceId = url.searchParams.get("device") ?? ""
-        const lifecycleTransportId = url.searchParams.get("transport") ?? ""
-        const workerEntityId = url.searchParams.get("worker") ?? ""
-        if (
-          !safeEqual(suppliedToken, token) ||
-          !deviceId || deviceId.length > 128 ||
-          !lifecycleTransportId.startsWith("websocket:") || lifecycleTransportId.length > 512 ||
-          !workerEntityId.startsWith("service-worker:") || workerEntityId.length > 512
-        ) {
-          return new Response("Unauthorized", {status: 401})
-        }
-        const upgraded = bunServer.upgrade(request, {
-          data: {
-            connectionId: crypto.randomUUID(),
-            connectionGeneration: ++controlConnectionGeneration,
-            deviceId,
-            lifecycleTransportId,
-            workerEntityId,
-            openedAt: Date.now(),
-            lastPongAt: Date.now(),
-            lastChallengeSeq: 0,
-            lastAckSeq: 0,
-            nextHeartbeatTimer: null,
-            heartbeatTimeoutTimer: null,
-            workerIdentity: null,
-            workerRuntimeIncarnation: null,
-            workerCodeVersion: null,
-            resumeNonce: null,
-            identityConfirmed: false,
-            workerUpdateRequired: false,
-            retainAuthorityOnClose: false,
-            reportedEmptyWindowInventory: false,
-          },
-        })
-        return upgraded ? undefined : new Response("WebSocket upgrade required", {status: 426})
-      }
+export async function handleNavigation(localJoinToken: string): Promise<Response> {
+  return await indexResponse(localJoinToken)
+}
 
-      if (request.method === "GET" && url.pathname === "/push/vapid-public-key") {
-        if (!authorized(request, token)) return new Response("Unauthorized", {status: 401})
-        return Response.json({publicKey: webPush.publicKey}, {
-          headers: securityHeaders("application/json; charset=utf-8"),
-        })
-      }
+export async function handleOrchestrationBundle(): Promise<Response> {
+  return await bundleResponse(getOrchestrationBundle)
+}
 
-      if (request.method === "POST" && url.pathname === "/lab/wake-service-worker") {
-        if (!authorized(request, token)) return new Response("Unauthorized", {status: 401})
-        let workerIdentity: string | null = null
-        try {
-          const input = await boundedJson(request)
-          if (typeof input === "object" && input !== null && "workerIdentity" in input) {
-            if (!validWorkerIdentity(input.workerIdentity)) {
-              return new Response("Invalid Service Worker identity", {status: 400})
-            }
-            workerIdentity = input.workerIdentity
-          }
-        } catch (error) {
-          return new Response(error instanceof Error ? error.message : String(error), {status: 400})
-        }
-        const workerEntityId = workerIdentity === null
-          ? webPush.onlyWorkerEntityId()
-          : hamiltonianLifecycleEntityId("service-worker", workerIdentity)
-        if (!workerEntityId || !webPush.has(workerEntityId)) {
-          return new Response("PushSubscription not found", {status: 404})
-        }
-        const workerDeviceId = webPush.deviceIdFor(workerEntityId)
-        if (!workerDeviceId) {
-          return new Response("PushSubscription device not found", {status: 404})
-        }
-        if (pendingWakes.has(workerEntityId)) {
-          return new Response("A Web Push wake is already pending for this Service Worker", {status: 409})
-        }
-        const wakeId = crypto.randomUUID()
-        const wakeProof = Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString("base64url")
-        const wake: PendingPushWake = {
-          wakeId,
-          wakeProof,
-          armedAt: Date.now(),
-          armedAfterConnectionGeneration: controlConnectionGeneration,
-        }
-        pendingWakes.set(workerEntityId, wake)
-        pendingWakeTimers.set(workerEntityId, setTimeout(() => {
-          pendingWakeTimers.delete(workerEntityId)
-          if (pendingWakes.get(workerEntityId)?.wakeId !== wakeId) return
-          pendingWakes.delete(workerEntityId)
-          record({at: Date.now(), kind: "push-reconnect-timeout", detail: `${workerEntityId} ${wakeId}`})
-          observeServiceWorkerAvailability(workerEntityId, workerDeviceId, {
-            state: "error",
-            push: "reconnect-failed",
-            wakeId,
-            reason: "push-reconnect-timeout",
-          })
-        }, 90_000))
-        record({at: Date.now(), kind: "push-armed", detail: `${workerEntityId} ${wakeId}`})
-        observeServiceWorkerAvailability(workerEntityId, workerDeviceId, {
-          state: "waking",
-          push: "armed",
-          wakeId,
-        })
-        try {
-          const delivery = webPush.wake(workerEntityId, {
-            kind: "wake-service-worker",
-            wakeId,
-            wakeProof,
-            token,
-            serverEntityId,
-          })
-          await delivery
-          record({at: Date.now(), kind: "push-service-accepted", detail: `${workerEntityId} ${wakeId}`})
-          return Response.json({ok: true, workerEntityId, wakeId}, {
-            headers: securityHeaders("application/json; charset=utf-8"),
-          })
-        } catch {
-          const reason = "RedactedError"
-          if (!clearPendingWake(workerEntityId, wakeId)) {
-            return Response.json({ok: true, workerEntityId, wakeId, delivery: "confirmed"}, {
-              headers: securityHeaders("application/json; charset=utf-8"),
-            })
-          }
-          record({at: Date.now(), kind: "push-send-failed", detail: `${workerEntityId} ${reason}`.slice(0, 512)})
-          observeServiceWorkerAvailability(workerEntityId, workerDeviceId, {
-            state: "error",
-            push: "failed",
-            reason,
-          })
-          return new Response("Web Push delivery failed", {status: 502})
-        }
-      }
+export async function handleLayoutWorkerBundle(): Promise<Response> {
+  return await bundleResponse(getLayoutWorkerBundle)
+}
 
-      if (url.pathname === "/manifest.json") {
-        if (!authorized(request, token)) return new Response("Unauthorized", {status: 401})
-        const serviceWorker = await currentServiceWorkerRelease()
-        return Response.json(
-          hamiltonianBrowserManifest(identity, moduleRelease, serviceWorker),
-          {headers: securityHeaders("application/json; charset=utf-8")},
-        )
-      }
+export async function handleWebPushClientBundle(): Promise<Response> {
+  return await bundleResponse(getWebPushClientBundle)
+}
 
-      if (url.pathname === "/lab/status") {
-        if (!authorized(request, token)) return new Response("Unauthorized", {status: 401})
-        return Response.json(observableState(), {
-          headers: securityHeaders("application/json; charset=utf-8"),
-        })
-      }
+export async function handleServiceWorkerBundle(): Promise<Response> {
+  try {
+    const headers = new Headers(securityHeaders("text/javascript; charset=utf-8"))
+    headers.set("content-security-policy", CONTENT_SECURITY_POLICY)
+    headers.set("service-worker-allowed", "/")
+    headers.set("cache-control", "no-cache")
+    return new Response(await getServiceWorkerBundle(), {headers})
+  } catch (error) {
+    return new Response(error instanceof Error ? error.message : String(error), {status: 500})
+  }
+}
 
-      if (url.pathname === `/versions/${encodeURIComponent(version)}/module.js`) {
-        if (!authorized(request, token)) return new Response("Unauthorized", {status: 401})
-        const headers = new Headers(securityHeaders("text/javascript; charset=utf-8"))
-        headers.set("x-hamiltonian-sha256", sourceHash)
-        return new Response(source, {headers})
-      }
+export function controlTokenMatches(suppliedToken: string): boolean {
+  return safeEqual(suppliedToken, token)
+}
 
-      return staticResponse(url.pathname) ?? new Response("Not found", {status: 404})
-    },
-    websocket: {
-      open(socket) {
-        sockets.set(socket.data.connectionId, socket)
-        topology.connect(socket.data.connectionId, socket.data.deviceId)
-        record({at: Date.now(), kind: "connection-open", connectionId: socket.data.connectionId})
-        sendCurrentNodeSystemDeclarations(socket)
-        socket.send(JSON.stringify({kind: "lifecycle-snapshot", snapshot: hostLifecycleJournal.snapshot()}))
-        sendControl(socket, {
-          kind: "hello",
-          connectionId: socket.data.connectionId,
-          host: hostState(),
-        })
-        broadcastTopology()
-        challengeHeartbeat(socket)
-        void currentHamiltonianBrowserSourceRevision().then((revision) => {
-          if (sockets.get(socket.data.connectionId) !== socket || !socket.data.identityConfirmed) return
-          sendControl(socket, {kind: "source-update", revision})
-        }).catch((error: unknown) => {
-          record({
-            at: Date.now(),
-            kind: "source-update-failed",
-            connectionId: socket.data.connectionId,
-            detail: error instanceof Error ? error.message : String(error),
-          })
-        })
-      },
-      async message(socket, rawMessage) {
-        controlFramesIn += 1
-        controlBytesIn += rawMessage.length
-        if (isRealtimeControlPayload(rawMessage)) {
-          realtimeFramesRejected += 1
-          socket.data.retainAuthorityOnClose = false
-          socket.close(1008, "realtime payload is forbidden on control channel")
-          return
-        }
-        const message = parseClientMessage(rawMessage)
-        if (!message) {
-          socket.data.retainAuthorityOnClose = false
-          socket.close(1008, "invalid control message")
-          return
-        }
-        if (!serviceWorkerAdmission.applicationMessageAllowed(socket.data.identityConfirmed, message.kind)) {
-          return
-        }
-        if (message.monitor) {
-          if (message.monitor.transportId !== socket.data.lifecycleTransportId) {
-            socket.data.retainAuthorityOnClose = false
-            socket.close(1008, "control message transport identity mismatch")
-            return
-          }
-          if (socket.data.identityConfirmed) {
-            relayLifecycleEnvelope(hostLifecycle.next(createHamiltonianLifecycleObservation({
-              type: "message",
-              phase: "received",
-              subjectId: message.monitor.messageId,
-              subjectKind: "websocket-message",
-              ownerId: serverEntityId,
-              sourceEntityId: socket.data.workerEntityId,
-              targetEntityId: serverEntityId,
-              transportId: socket.data.lifecycleTransportId,
-              messageId: message.monitor.messageId,
-              messageClass: message.kind,
-            })))
-          }
-        }
-        if (message.kind === "lifecycle-retirement") {
-          if (
-            message.monitor === undefined ||
-            !isObservedSupersededServiceWorkerEnd(
-              message.envelope,
-              socket.data.workerEntityId,
-              hamiltonianBrowserNodeId(socket.data.deviceId),
-            )
-          ) {
-            socket.data.retainAuthorityOnClose = false
-            socket.close(1008, "invalid browser lifecycle retirement")
-            return
-          }
-          hostLifecycleJournal.retireEntity(message.envelope.observation.subjectId)
-          serviceWorkerAdmission.forgetEmbodiment(message.envelope.observation.subjectId)
-          broadcastLifecycleEnvelope(message.envelope)
-          return
-        }
-        if (message.kind === "browser-lifecycle-snapshot") {
-          if (
-            !socket.data.identityConfirmed ||
-            !socket.data.workerIdentity ||
-            !socket.data.workerRuntimeIncarnation ||
-            !socket.data.workerCodeVersion ||
-            !isBrowserProfileLifecycleSnapshot(
-              message.snapshot,
-              socket.data,
-              socket.data.workerIdentity,
-              socket.data.workerRuntimeIncarnation,
-              socket.data.workerCodeVersion,
-            )
-          ) {
-            socket.data.retainAuthorityOnClose = false
-            socket.close(1008, "invalid browser lifecycle snapshot")
-            return
-          }
-          const browserDeclaration = browserDeclarationForSnapshot(
-            message.snapshot,
-            socket.data,
-            socket.data.workerRuntimeIncarnation,
-            message.declaration,
-          )
-          if (!browserDeclaration || !acceptBrowserDeclaration(browserDeclaration)) {
-            socket.data.retainAuthorityOnClose = false
-            socket.close(1008, "invalid browser node-system declaration")
-            return
-          }
-          mergeBrowserLifecycleSnapshot(message.snapshot)
-          broadcastServerDeclaration()
-          return
-        }
-        if (message.kind === "pong") {
-          if (
-            message.seq !== socket.data.lastChallengeSeq ||
-            message.seq <= socket.data.lastAckSeq ||
-            socket.data.workerEntityId !== hamiltonianLifecycleEntityId("service-worker", message.workerIdentity) ||
-            (socket.data.workerIdentity !== null && socket.data.workerIdentity !== message.workerIdentity) ||
-            (socket.data.workerRuntimeIncarnation !== null &&
-              socket.data.workerRuntimeIncarnation !== message.workerRuntimeIncarnation)
-          ) {
-            socket.data.retainAuthorityOnClose = false
-            socket.close(1008, "invalid heartbeat acknowledgement")
-            return
-          }
-          socket.data.lastPongAt = Date.now()
-          socket.data.lastAckSeq = message.seq
-          if (socket.data.heartbeatTimeoutTimer !== null) {
-            clearTimeout(socket.data.heartbeatTimeoutTimer)
-            socket.data.heartbeatTimeoutTimer = null
-          }
-          scheduleHeartbeatAfterAck(socket)
-          heartbeatAcks += 1
-          if (socket.data.identityConfirmed) {
-            relayLifecycleEnvelope(hostLifecycle.next(createHamiltonianLifecycleObservation({
-              type: "transport",
-              phase: "changed",
-              subjectId: socket.data.lifecycleTransportId,
-              subjectKind: "websocket",
-              ownerId: socket.data.workerEntityId,
-              sourceEntityId: socket.data.workerEntityId,
-              targetEntityId: serverEntityId,
-              transportId: socket.data.lifecycleTransportId,
-              attributes: {
-                connectionId: socket.data.connectionId,
-                heartbeat: "observed",
-                heartbeatSequence: socket.data.lastAckSeq,
-                lastPongAt: socket.data.lastPongAt,
-                observedBy: "server",
-              },
-            })))
-            broadcastServerDeclaration()
-          }
-          broadcastTopology()
-          return
-        }
-        if (message.kind === "identity") {
-          socket.data.workerUpdateRequired = true
-          if (
-            socket.data.workerEntityId !== hamiltonianLifecycleEntityId("service-worker", message.workerIdentity) ||
-            (socket.data.workerIdentity !== null && socket.data.workerIdentity !== message.workerIdentity) ||
-            (socket.data.workerRuntimeIncarnation !== null &&
-              socket.data.workerRuntimeIncarnation !== message.workerRuntimeIncarnation) ||
-            (socket.data.workerCodeVersion !== null &&
-              socket.data.workerCodeVersion !== message.workerCodeVersion) ||
-            !isBrowserProfileLifecycleSnapshot(
-              message.lifecycleSnapshot,
-              socket.data,
-              message.workerIdentity,
-              message.workerRuntimeIncarnation,
-              message.workerCodeVersion,
-            )
-          ) {
-            socket.data.retainAuthorityOnClose = false
-            socket.close(1008, "worker identity does not match control endpoint")
-            return
-          }
-          if (message.wakeId !== undefined) {
-            const pendingWake = pendingWakes.get(socket.data.workerEntityId)
-            if (
-              message.wakeProof === undefined ||
-              pendingWake?.wakeId !== message.wakeId ||
-              !safeEqual(pendingWake.wakeProof, message.wakeProof) ||
-              socket.data.connectionGeneration <= pendingWake.armedAfterConnectionGeneration ||
-              !webPush.matchesDevice(socket.data.workerEntityId, socket.data.deviceId)
-            ) {
-              socket.data.retainAuthorityOnClose = false
-              socket.close(1008, "unexpected Web Push wake identity")
-              return
-            }
-          }
-          const targetServiceWorker = await currentServiceWorkerRelease()
-          const admissionClaim = {
-            profileId: socket.data.deviceId,
-            workerEntityId: socket.data.workerEntityId,
-            runtimeIncarnation: message.workerRuntimeIncarnation,
-            codeVersion: message.workerCodeVersion,
-            applicationAdmitted: socket.data.identityConfirmed,
-          }
-          const admission = serviceWorkerAdmission.decideIdentity(admissionClaim, targetServiceWorker)
-          if (admission.kind === "reject") {
-            socket.data.retainAuthorityOnClose = false
-            socket.close(1008, admission.reason)
-            return
-          }
-          socket.data.workerIdentity = message.workerIdentity
-          socket.data.workerRuntimeIncarnation = message.workerRuntimeIncarnation
-          socket.data.workerCodeVersion = message.workerCodeVersion
-          socket.data.resumeNonce = message.resumeNonce
-          if (admission.kind === "stale") {
-            applyServiceWorkerUpdateState(socket)
-            if (admission.revokeApplication) await revokeServiceWorkerApplication([socket])
-            sendServiceWorkerUpdate(socket, admission.target)
-            return
-          }
-          const browserDeclaration = browserDeclarationForSnapshot(
-            message.lifecycleSnapshot,
-            socket.data,
-            message.workerRuntimeIncarnation,
-            message.lifecycleDeclaration,
-          )
-          if (!browserDeclaration || !acceptBrowserDeclaration(browserDeclaration)) {
-            socket.data.retainAuthorityOnClose = false
-            socket.close(1008, "invalid browser node-system declaration")
-            return
-          }
-          serviceWorkerAdmission.confirmCurrent(admissionClaim)
-          socket.data.identityConfirmed = true
-          socket.data.workerUpdateRequired = false
-          socket.data.retainAuthorityOnClose = true
-          cancelBrowserProfileReachabilityExpiry(socket.data.deviceId)
-          mergeBrowserLifecycleSnapshot(message.lifecycleSnapshot)
-          socket.send(JSON.stringify({kind: "lifecycle-snapshot", snapshot: hostLifecycleJournal.snapshot()}))
-          for (const declaration of nodeSystemDeclarations.values()) {
-            if (declaration.logicalContourId !== serverLogicalContourId) {
-              sendNodeSystemDeclaration(socket, declaration)
-            }
-          }
-          relayLifecycleEnvelope(hostLifecycle.next(createHamiltonianLifecycleObservation({
-            type: "transport",
-            phase: "opened",
-            subjectId: socket.data.lifecycleTransportId,
-            subjectKind: "websocket",
-            ownerId: socket.data.workerEntityId,
-            sourceEntityId: socket.data.workerEntityId,
-            targetEntityId: serverEntityId,
-            transportId: socket.data.lifecycleTransportId,
-            attributes: {
-              connectionId: socket.data.connectionId,
-              heartbeat: "awaiting",
-              observedBy: "server",
-            },
-          })))
-          broadcastServerDeclaration()
-          record({
-            at: Date.now(),
-            kind: "worker-identity",
-            connectionId: socket.data.connectionId,
-            detail: `${message.workerIdentity} runtime ${message.workerRuntimeIncarnation} code ${message.workerCodeVersion}`,
-          })
-          sendControl(socket, {kind: "service-worker-current", target: targetServiceWorker})
-          void currentHamiltonianBrowserSourceRevision().then((revision) => {
-            if (sockets.get(socket.data.connectionId) === socket && socket.data.identityConfirmed) {
-              sendControl(socket, {kind: "source-update", revision})
-            }
-          }).catch((error: unknown) => {
-            record({
-              at: Date.now(),
-              kind: "source-update-failed",
-              connectionId: socket.data.connectionId,
-              detail: error instanceof Error ? error.message : String(error),
-            })
-          })
-          if (message.wakeId !== undefined) {
-            clearPendingWake(socket.data.workerEntityId, message.wakeId)
-            webPush.confirmReceipt(socket.data.workerEntityId, {
-              schema: 1,
-              messageId: message.wakeId,
-              operationId: message.wakeId,
-              receivedAt: Date.now(),
-            })
-            record({
-              at: Date.now(),
-              kind: "push-reconnect-confirmed",
-              connectionId: socket.data.connectionId,
-              detail: `${socket.data.workerEntityId} ${message.wakeId}`,
-            })
-            observeServiceWorkerAvailability(socket.data.workerEntityId, socket.data.deviceId, {
-              identity: message.workerIdentity,
-              runtimeIncarnation: message.workerRuntimeIncarnation,
-              codeVersion: message.workerCodeVersion,
-              state: "active",
-              push: "received",
-              wakeId: message.wakeId,
-            })
-            sendControl(socket, {kind: "wake-confirmed", wakeId: message.wakeId})
-          } else {
-            observeServiceWorkerAvailability(socket.data.workerEntityId, socket.data.deviceId, {
-              identity: message.workerIdentity,
-              runtimeIncarnation: message.workerRuntimeIncarnation,
-              codeVersion: message.workerCodeVersion,
-              state: "active",
-              push: webPush.has(socket.data.workerEntityId) ? "ready" : "unavailable",
-            })
-          }
-          return
-        }
-        if (message.kind === "push-subscription") {
-          if (
-            !socket.data.identityConfirmed ||
-            !socket.data.workerIdentity ||
-            !socket.data.workerRuntimeIncarnation
-          ) {
-            socket.data.retainAuthorityOnClose = false
-            socket.close(1008, "PushSubscription requires an identified Service Worker")
-            return
-          }
-          try {
-            const subscription = await webPush.register(socket.data.workerEntityId, {
-              workerIdentity: socket.data.workerIdentity,
-              deviceId: socket.data.deviceId,
-              subscription: message.subscription,
-            }, message.registrationId)
-            record({
-              at: Date.now(),
-              kind: "push-subscription",
-              connectionId: socket.data.connectionId,
-              detail: socket.data.workerEntityId,
-            })
-            observeServiceWorkerAvailability(socket.data.workerEntityId, socket.data.deviceId, {
-              identity: socket.data.workerIdentity,
-              runtimeIncarnation: socket.data.workerRuntimeIncarnation,
-              ...(socket.data.workerCodeVersion === null ? {} : {codeVersion: socket.data.workerCodeVersion}),
-              state: "active",
-              push: "ready",
-            })
-            sendControl(socket, {
-              kind: "push-subscription-confirmed",
-              registrationId: message.registrationId,
-              subscription,
-            })
-          } catch (error) {
-            sendControl(socket, {
-              kind: "push-subscription-rejected",
-              registrationId: message.registrationId,
-              reason: (error instanceof Error ? error.message : String(error)).slice(0, 256),
-            })
-          }
-          return
-        }
-        if (message.kind === "peer-signal") {
-          const assignment = peerAssignment
-          if (!assignment || assignment.connectionId !== socket.data.connectionId || assignment.tabId !== message.tabId) {
-            socket.data.retainAuthorityOnClose = false
-            socket.close(1008, "unauthorized peer signal")
-            return
-          }
-          if (
-            assignment.peerId !== message.peerId ||
-            assignment.sessionEpoch !== message.sessionEpoch ||
-            assignment.peerGeneration !== message.peerGeneration ||
-            assignment.authorityKey !== message.authorityKey
-          ) {
-            stalePeerFramesDropped += 1
-            record({at: Date.now(), kind: "stale-peer-signal", connectionId: socket.data.connectionId})
-            return
-          }
-          signalingUp += 1
-          void peerSupervisor.signal(message.peerId, message.signal)
-          return
-        }
-        if (message.kind === "peer-failed") {
-          const assignment = peerAssignment
-          if (!assignment || assignment.connectionId !== socket.data.connectionId || assignment.tabId !== message.tabId) {
-            socket.data.retainAuthorityOnClose = false
-            socket.close(1008, "unauthorized peer failure")
-            return
-          }
-          if (
-            assignment.peerId !== message.peerId ||
-            assignment.sessionEpoch !== message.sessionEpoch ||
-            assignment.peerGeneration !== message.peerGeneration ||
-            assignment.authorityKey !== message.authorityKey
-          ) {
-            stalePeerFramesDropped += 1
-            return
-          }
-          requestPeerRepair(`browser: ${message.reason}`)
-          return
-        }
-        socket.data.reportedEmptyWindowInventory = message.windows.length === 0
-        if (!tryResumeDetachedAuthority(socket, message.windows)) {
-          topology.updateWindows(socket.data.connectionId, message.windows)
-        }
-        broadcastTopology()
-      },
-      close(socket, code, reason) {
-        clearHeartbeatTimers(socket)
-        record({at: Date.now(), kind: "connection-close", connectionId: socket.data.connectionId})
-        sockets.delete(socket.data.connectionId)
-        const closingPeer = topology.snapshot().peers.find(({connectionId}) =>
-          connectionId === socket.data.connectionId)
-        const browserScopeUnreachable =
-          socket.data.identityConfirmed &&
-          socket.data.retainAuthorityOnClose &&
-          socket.data.reportedEmptyWindowInventory &&
-          closingPeer?.windows.length === 0 &&
-          !webPush.has(socket.data.workerEntityId) &&
-          !pendingWakes.has(socket.data.workerEntityId) &&
-          ![...sockets.values()].some((candidate) =>
-            candidate.data.identityConfirmed && candidate.data.deviceId === socket.data.deviceId)
-        if (socket.data.identityConfirmed && socket.data.retainAuthorityOnClose) {
-          relayLifecycleEnvelope(hostLifecycle.next(createHamiltonianLifecycleObservation({
-            type: "transport",
-            phase: "closed",
-            subjectId: socket.data.lifecycleTransportId,
-            subjectKind: "websocket",
-            ownerId: socket.data.workerEntityId,
-            sourceEntityId: socket.data.workerEntityId,
-            targetEntityId: serverEntityId,
-            transportId: socket.data.lifecycleTransportId,
-            attributes: {
-              connectionId: socket.data.connectionId,
-              code,
-              reason: String(reason).slice(0, 256),
-              observedBy: "server",
-            },
-          })))
-          broadcastServerDeclaration()
-        }
-        if (browserScopeUnreachable) {
-          forgetBrowserProfileIfUnreachable(
-            socket.data.deviceId,
-            socket.data.workerEntityId,
-            socket.data.connectionId,
-          )
-        } else if (
-          !stopping &&
-          socket.data.identityConfirmed &&
-          socket.data.retainAuthorityOnClose &&
-          !webPush.has(socket.data.workerEntityId) &&
-          !pendingWakes.has(socket.data.workerEntityId) &&
-          ![...sockets.values()].some((candidate) =>
-            candidate.data.identityConfirmed && candidate.data.deviceId === socket.data.deviceId)
-        ) {
-          scheduleBrowserProfileReachabilityExpiry(
-            socket.data.deviceId,
-            socket.data.workerEntityId,
-            socket.data.connectionId,
-            socket.data.lastPongAt + heartbeatMs * 3,
-          )
-        }
-        if (
-          socket.data.identityConfirmed &&
-          socket.data.retainAuthorityOnClose &&
-          !browserScopeUnreachable &&
-          !pendingWakes.has(socket.data.workerEntityId)
-        ) {
-          observeServiceWorkerAvailability(socket.data.workerEntityId, socket.data.deviceId, webPush.has(socket.data.workerEntityId)
-            ? {state: "standby", push: "ready", heartbeat: "paused"}
-            : {state: "error", push: "unavailable", heartbeat: "failed"})
-        }
-        const leader = topologyState().leader
-        const retainsCurrentAuthority =
-          !stopping &&
-          !browserScopeUnreachable &&
-          socket.data.retainAuthorityOnClose &&
-          leader?.connectionId === socket.data.connectionId
-        if (retainsCurrentAuthority) {
-          const expiresAt = socket.data.lastPongAt + heartbeatMs * 3
-          if (!socket.data.workerIdentity || !socket.data.resumeNonce) {
-            topology.disconnect(socket.data.connectionId)
-            broadcastTopology()
-            return
-          }
-          detachedAuthorities.set(socket.data.connectionId, {
-            expiresAt,
-            deviceId: socket.data.deviceId,
-            workerIdentity: socket.data.workerIdentity,
-            resumeNonce: socket.data.resumeNonce,
-          })
-          record({
-            at: Date.now(),
-            kind: "authority-detached",
-            connectionId: socket.data.connectionId,
-            detail: `valid until ${expiresAt}`,
-          })
-          const timer = setTimeout(() => {
-            detachedLeaseTimers.delete(socket.data.connectionId)
-            detachedAuthorities.delete(socket.data.connectionId)
-            topology.disconnect(socket.data.connectionId)
-            record({at: Date.now(), kind: "detached-authority-expired", connectionId: socket.data.connectionId})
-            broadcastTopology()
-          }, Math.max(0, expiresAt - Date.now()))
-          detachedLeaseTimers.set(socket.data.connectionId, timer)
-        } else {
-          detachedAuthorities.delete(socket.data.connectionId)
-          topology.disconnect(socket.data.connectionId)
-        }
-        broadcastTopology()
-      },
-      drain(socket) {
-        if (socket.getBufferedAmount() === 0) broadcastTopology()
-      },
-    },
+export function nextControlSocketData(
+  deviceId: string,
+  lifecycleTransportId: string,
+  workerEntityId: string,
+): HamiltonianServerSocketData {
+  return {
+    connectionId: crypto.randomUUID(),
+    connectionGeneration: ++controlConnectionGeneration,
+    deviceId,
+    lifecycleTransportId,
+    workerEntityId,
+    openedAt: Date.now(),
+    lastPongAt: Date.now(),
+    lastChallengeSeq: 0,
+    lastAckSeq: 0,
+    nextHeartbeatTimer: null,
+    heartbeatTimeoutTimer: null,
+    workerIdentity: null,
+    workerRuntimeIncarnation: null,
+    workerCodeVersion: null,
+    resumeNonce: null,
+    identityConfirmed: false,
+    workerUpdateRequired: false,
+    retainAuthorityOnClose: false,
+    reportedEmptyWindowInventory: false,
+  }
+}
+
+export function isAuthorizedRequest(request: Request): boolean {
+  return authorized(request, token)
+}
+
+export function handleVapidPublicKey(): Response {
+  return Response.json({publicKey: webPush.publicKey}, {
+    headers: securityHeaders("application/json; charset=utf-8"),
   })
-  boundPort = server.port ?? port
+}
 
+export async function readWakeWorkerIdentity(request: Request): Promise<string | null> {
+  const input = await boundedJson(request)
+  if (typeof input !== "object" || input === null || !("workerIdentity" in input)) return null
+  if (!validWorkerIdentity(input.workerIdentity)) throw new Error("Invalid Service Worker identity")
+  return input.workerIdentity
+}
+
+export function wakeWorkerEntityId(workerIdentity: string | null): string | null {
+  return workerIdentity === null
+    ? webPush.onlyWorkerEntityId()
+    : hamiltonianLifecycleEntityId("service-worker", workerIdentity)
+}
+
+export function hasPushSubscription(workerEntityId: string): boolean {
+  return webPush.has(workerEntityId)
+}
+
+export function pushSubscriptionDeviceId(workerEntityId: string): string | null {
+  return webPush.deviceIdFor(workerEntityId)
+}
+
+export function hasPendingWake(workerEntityId: string): boolean {
+  return pendingWakes.has(workerEntityId)
+}
+
+export async function handleWakeServiceWorker(workerEntityId: string, workerDeviceId: string): Promise<Response> {
+  const wakeId = crypto.randomUUID()
+  const wakeProof = Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString("base64url")
+  const wake: PendingPushWake = {
+    wakeId,
+    wakeProof,
+    armedAt: Date.now(),
+    armedAfterConnectionGeneration: controlConnectionGeneration,
+  }
+  pendingWakes.set(workerEntityId, wake)
+  pendingWakeTimers.set(workerEntityId, setTimeout(() => {
+    pendingWakeTimers.delete(workerEntityId)
+    if (pendingWakes.get(workerEntityId)?.wakeId !== wakeId) return
+    pendingWakes.delete(workerEntityId)
+    record({at: Date.now(), kind: "push-reconnect-timeout", detail: `${workerEntityId} ${wakeId}`})
+    observeServiceWorkerAvailability(workerEntityId, workerDeviceId, {
+      state: "error",
+      push: "reconnect-failed",
+      wakeId,
+      reason: "push-reconnect-timeout",
+    })
+  }, 90_000))
+  record({at: Date.now(), kind: "push-armed", detail: `${workerEntityId} ${wakeId}`})
+  observeServiceWorkerAvailability(workerEntityId, workerDeviceId, {
+    state: "waking",
+    push: "armed",
+    wakeId,
+  })
+  try {
+    await webPush.wake(workerEntityId, {
+      kind: "wake-service-worker",
+      wakeId,
+      wakeProof,
+      token,
+      serverEntityId,
+    })
+    record({at: Date.now(), kind: "push-service-accepted", detail: `${workerEntityId} ${wakeId}`})
+    return Response.json({ok: true, workerEntityId, wakeId}, {
+      headers: securityHeaders("application/json; charset=utf-8"),
+    })
+  } catch {
+    const reason = "RedactedError"
+    if (!clearPendingWake(workerEntityId, wakeId)) {
+      return Response.json({ok: true, workerEntityId, wakeId, delivery: "confirmed"}, {
+        headers: securityHeaders("application/json; charset=utf-8"),
+      })
+    }
+    record({at: Date.now(), kind: "push-send-failed", detail: `${workerEntityId} ${reason}`.slice(0, 512)})
+    observeServiceWorkerAvailability(workerEntityId, workerDeviceId, {
+      state: "error",
+      push: "failed",
+      reason,
+    })
+    return new Response("Web Push delivery failed", {status: 502})
+  }
+}
+
+export async function handleManifest(): Promise<Response> {
+  const serviceWorker = await currentServiceWorkerRelease()
+  return Response.json(
+    hamiltonianBrowserManifest(identity, moduleRelease, serviceWorker),
+    {headers: securityHeaders("application/json; charset=utf-8")},
+  )
+}
+
+export function handleStatus(): Response {
+  return Response.json(observableState(), {
+    headers: securityHeaders("application/json; charset=utf-8"),
+  })
+}
+
+export const versionedModulePath = `/versions/${encodeURIComponent(version)}/module.js`
+
+export function handleVersionedModule(): Response {
+  const headers = new Headers(securityHeaders("text/javascript; charset=utf-8"))
+  headers.set("x-hamiltonian-sha256", sourceHash)
+  return new Response(source, {headers})
+}
+
+export function handleStaticAsset(pathname: string): Response {
+  return staticResponse(pathname) ?? new Response("Not found", {status: 404})
+}
+
+async function bundleResponse(load: () => Promise<string>): Promise<Response> {
+  try {
+    return new Response(await load(), {headers: securityHeaders("text/javascript; charset=utf-8")})
+  } catch (error) {
+    return new Response(error instanceof Error ? error.message : String(error), {status: 500})
+  }
+}
+
+type ControlSocket = Bun.ServerWebSocket<HamiltonianServerSocketData>
+
+export function handleControlOpen(socket: ControlSocket): void {
+  sockets.set(socket.data.connectionId, socket)
+  topology.connect(socket.data.connectionId, socket.data.deviceId)
+  record({at: Date.now(), kind: "connection-open", connectionId: socket.data.connectionId})
+  sendCurrentNodeSystemDeclarations(socket)
+  socket.send(JSON.stringify({kind: "lifecycle-snapshot", snapshot: hostLifecycleJournal.snapshot()}))
+  sendControl(socket, {
+    kind: "hello",
+    connectionId: socket.data.connectionId,
+    host: hostState(),
+  })
+  broadcastTopology()
+  challengeHeartbeat(socket)
+  void currentHamiltonianBrowserSourceRevision().then((revision) => {
+    if (sockets.get(socket.data.connectionId) !== socket || !socket.data.identityConfirmed) return
+    sendControl(socket, {kind: "source-update", revision})
+  }).catch((error: unknown) => {
+    record({
+      at: Date.now(),
+      kind: "source-update-failed",
+      connectionId: socket.data.connectionId,
+      detail: error instanceof Error ? error.message : String(error),
+    })
+  })
+}
+
+export function recordControlFrame(rawMessage: string | Buffer): void {
+  controlFramesIn += 1
+  controlBytesIn += rawMessage.length
+}
+
+export function isRealtimePayloadOnControlChannel(rawMessage: string | Buffer): boolean {
+  return isRealtimeControlPayload(rawMessage)
+}
+
+export function rejectRealtimeControlPayload(socket: ControlSocket): void {
+  realtimeFramesRejected += 1
+  socket.data.retainAuthorityOnClose = false
+  socket.close(1008, "realtime payload is forbidden on control channel")
+}
+
+export function parseControlMessage(rawMessage: string | Buffer): HamiltonianClientMessage | null {
+  return parseClientMessage(rawMessage)
+}
+
+export function rejectInvalidControlMessage(socket: ControlSocket): void {
+  socket.data.retainAuthorityOnClose = false
+  socket.close(1008, "invalid control message")
+}
+
+export function applicationMessageAllowed(socket: ControlSocket, message: HamiltonianClientMessage): boolean {
+  return serviceWorkerAdmission.applicationMessageAllowed(socket.data.identityConfirmed, message.kind)
+}
+
+export function acceptControlMessageMonitor(
+  socket: ControlSocket,
+  message: HamiltonianClientMessage,
+): boolean {
+  if (!message.monitor) return true
+  if (message.monitor.transportId !== socket.data.lifecycleTransportId) {
+    socket.data.retainAuthorityOnClose = false
+    socket.close(1008, "control message transport identity mismatch")
+    return false
+  }
+  if (socket.data.identityConfirmed) {
+    relayLifecycleEnvelope(hostLifecycle.next(createHamiltonianLifecycleObservation({
+      type: "message",
+      phase: "received",
+      subjectId: message.monitor.messageId,
+      subjectKind: "websocket-message",
+      ownerId: serverEntityId,
+      sourceEntityId: socket.data.workerEntityId,
+      targetEntityId: serverEntityId,
+      transportId: socket.data.lifecycleTransportId,
+      messageId: message.monitor.messageId,
+      messageClass: message.kind,
+    })))
+  }
+  return true
+}
+
+export function handleLifecycleRetirement(
+  socket: ControlSocket,
+  message: ClientLifecycleRetirementMessage & {monitor?: ClientLifecycleMonitor},
+): void {
+  if (
+    message.monitor === undefined ||
+    !isObservedSupersededServiceWorkerEnd(
+      message.envelope,
+      socket.data.workerEntityId,
+      hamiltonianBrowserNodeId(socket.data.deviceId),
+    )
+  ) {
+    socket.data.retainAuthorityOnClose = false
+    socket.close(1008, "invalid browser lifecycle retirement")
+    return
+  }
+  hostLifecycleJournal.retireEntity(message.envelope.observation.subjectId)
+  serviceWorkerAdmission.forgetEmbodiment(message.envelope.observation.subjectId)
+  broadcastLifecycleEnvelope(message.envelope)
+}
+
+export function handleBrowserLifecycleSnapshot(
+  socket: ControlSocket,
+  message: ClientBrowserLifecycleSnapshotMessage,
+): void {
+  if (
+    !socket.data.identityConfirmed ||
+    !socket.data.workerIdentity ||
+    !socket.data.workerRuntimeIncarnation ||
+    !socket.data.workerCodeVersion ||
+    !isBrowserProfileLifecycleSnapshot(
+      message.snapshot,
+      socket.data,
+      socket.data.workerIdentity,
+      socket.data.workerRuntimeIncarnation,
+      socket.data.workerCodeVersion,
+    )
+  ) {
+    socket.data.retainAuthorityOnClose = false
+    socket.close(1008, "invalid browser lifecycle snapshot")
+    return
+  }
+  const browserDeclaration = browserDeclarationForSnapshot(
+    message.snapshot,
+    socket.data,
+    socket.data.workerRuntimeIncarnation,
+    message.declaration,
+  )
+  if (!browserDeclaration || !acceptBrowserDeclaration(browserDeclaration)) {
+    socket.data.retainAuthorityOnClose = false
+    socket.close(1008, "invalid browser node-system declaration")
+    return
+  }
+  mergeBrowserLifecycleSnapshot(message.snapshot)
+  broadcastServerDeclaration()
+}
+
+export function handlePong(socket: ControlSocket, message: ClientPongMessage): void {
+  if (
+    message.seq !== socket.data.lastChallengeSeq ||
+    message.seq <= socket.data.lastAckSeq ||
+    socket.data.workerEntityId !== hamiltonianLifecycleEntityId("service-worker", message.workerIdentity) ||
+    (socket.data.workerIdentity !== null && socket.data.workerIdentity !== message.workerIdentity) ||
+    (socket.data.workerRuntimeIncarnation !== null &&
+      socket.data.workerRuntimeIncarnation !== message.workerRuntimeIncarnation)
+  ) {
+    socket.data.retainAuthorityOnClose = false
+    socket.close(1008, "invalid heartbeat acknowledgement")
+    return
+  }
+  socket.data.lastPongAt = Date.now()
+  socket.data.lastAckSeq = message.seq
+  if (socket.data.heartbeatTimeoutTimer !== null) {
+    clearTimeout(socket.data.heartbeatTimeoutTimer)
+    socket.data.heartbeatTimeoutTimer = null
+  }
+  scheduleHeartbeatAfterAck(socket)
+  heartbeatAcks += 1
+  if (socket.data.identityConfirmed) {
+    relayLifecycleEnvelope(hostLifecycle.next(createHamiltonianLifecycleObservation({
+      type: "transport",
+      phase: "changed",
+      subjectId: socket.data.lifecycleTransportId,
+      subjectKind: "websocket",
+      ownerId: socket.data.workerEntityId,
+      sourceEntityId: socket.data.workerEntityId,
+      targetEntityId: serverEntityId,
+      transportId: socket.data.lifecycleTransportId,
+      attributes: {
+        connectionId: socket.data.connectionId,
+        heartbeat: "observed",
+        heartbeatSequence: socket.data.lastAckSeq,
+        lastPongAt: socket.data.lastPongAt,
+        observedBy: "server",
+      },
+    })))
+    broadcastServerDeclaration()
+  }
+  broadcastTopology()
+}
+
+export async function handleIdentity(socket: ControlSocket, message: ClientIdentityMessage): Promise<void> {
+  socket.data.workerUpdateRequired = true
+  if (
+    socket.data.workerEntityId !== hamiltonianLifecycleEntityId("service-worker", message.workerIdentity) ||
+    (socket.data.workerIdentity !== null && socket.data.workerIdentity !== message.workerIdentity) ||
+    (socket.data.workerRuntimeIncarnation !== null &&
+      socket.data.workerRuntimeIncarnation !== message.workerRuntimeIncarnation) ||
+    (socket.data.workerCodeVersion !== null && socket.data.workerCodeVersion !== message.workerCodeVersion) ||
+    !isBrowserProfileLifecycleSnapshot(
+      message.lifecycleSnapshot,
+      socket.data,
+      message.workerIdentity,
+      message.workerRuntimeIncarnation,
+      message.workerCodeVersion,
+    )
+  ) {
+    socket.data.retainAuthorityOnClose = false
+    socket.close(1008, "worker identity does not match control endpoint")
+    return
+  }
+  if (message.wakeId !== undefined) {
+    const pendingWake = pendingWakes.get(socket.data.workerEntityId)
+    if (
+      message.wakeProof === undefined ||
+      pendingWake?.wakeId !== message.wakeId ||
+      !safeEqual(pendingWake.wakeProof, message.wakeProof) ||
+      socket.data.connectionGeneration <= pendingWake.armedAfterConnectionGeneration ||
+      !webPush.matchesDevice(socket.data.workerEntityId, socket.data.deviceId)
+    ) {
+      socket.data.retainAuthorityOnClose = false
+      socket.close(1008, "unexpected Web Push wake identity")
+      return
+    }
+  }
+  const targetServiceWorker = await currentServiceWorkerRelease()
+  const admissionClaim = {
+    profileId: socket.data.deviceId,
+    workerEntityId: socket.data.workerEntityId,
+    runtimeIncarnation: message.workerRuntimeIncarnation,
+    codeVersion: message.workerCodeVersion,
+    applicationAdmitted: socket.data.identityConfirmed,
+  }
+  const admission = serviceWorkerAdmission.decideIdentity(admissionClaim, targetServiceWorker)
+  if (admission.kind === "reject") {
+    socket.data.retainAuthorityOnClose = false
+    socket.close(1008, admission.reason)
+    return
+  }
+  socket.data.workerIdentity = message.workerIdentity
+  socket.data.workerRuntimeIncarnation = message.workerRuntimeIncarnation
+  socket.data.workerCodeVersion = message.workerCodeVersion
+  socket.data.resumeNonce = message.resumeNonce
+  if (admission.kind === "stale") {
+    applyServiceWorkerUpdateState(socket)
+    if (admission.revokeApplication) await revokeServiceWorkerApplication([socket])
+    sendServiceWorkerUpdate(socket, admission.target)
+    return
+  }
+  const browserDeclaration = browserDeclarationForSnapshot(
+    message.lifecycleSnapshot,
+    socket.data,
+    message.workerRuntimeIncarnation,
+    message.lifecycleDeclaration,
+  )
+  if (!browserDeclaration || !acceptBrowserDeclaration(browserDeclaration)) {
+    socket.data.retainAuthorityOnClose = false
+    socket.close(1008, "invalid browser node-system declaration")
+    return
+  }
+  serviceWorkerAdmission.confirmCurrent(admissionClaim)
+  socket.data.identityConfirmed = true
+  socket.data.workerUpdateRequired = false
+  socket.data.retainAuthorityOnClose = true
+  cancelBrowserProfileReachabilityExpiry(socket.data.deviceId)
+  mergeBrowserLifecycleSnapshot(message.lifecycleSnapshot)
+  socket.send(JSON.stringify({kind: "lifecycle-snapshot", snapshot: hostLifecycleJournal.snapshot()}))
+  for (const declaration of nodeSystemDeclarations.values()) {
+    if (declaration.logicalContourId !== serverLogicalContourId) {
+      sendNodeSystemDeclaration(socket, declaration)
+    }
+  }
+  relayLifecycleEnvelope(hostLifecycle.next(createHamiltonianLifecycleObservation({
+    type: "transport",
+    phase: "opened",
+    subjectId: socket.data.lifecycleTransportId,
+    subjectKind: "websocket",
+    ownerId: socket.data.workerEntityId,
+    sourceEntityId: socket.data.workerEntityId,
+    targetEntityId: serverEntityId,
+    transportId: socket.data.lifecycleTransportId,
+    attributes: {
+      connectionId: socket.data.connectionId,
+      heartbeat: "awaiting",
+      observedBy: "server",
+    },
+  })))
+  broadcastServerDeclaration()
+  record({
+    at: Date.now(),
+    kind: "worker-identity",
+    connectionId: socket.data.connectionId,
+    detail: `${message.workerIdentity} runtime ${message.workerRuntimeIncarnation} code ${message.workerCodeVersion}`,
+  })
+  sendControl(socket, {kind: "service-worker-current", target: targetServiceWorker})
+  void currentHamiltonianBrowserSourceRevision().then((revision) => {
+    if (sockets.get(socket.data.connectionId) === socket && socket.data.identityConfirmed) {
+      sendControl(socket, {kind: "source-update", revision})
+    }
+  }).catch((error: unknown) => {
+    record({
+      at: Date.now(),
+      kind: "source-update-failed",
+      connectionId: socket.data.connectionId,
+      detail: error instanceof Error ? error.message : String(error),
+    })
+  })
+  if (message.wakeId !== undefined) {
+    clearPendingWake(socket.data.workerEntityId, message.wakeId)
+    webPush.confirmReceipt(socket.data.workerEntityId, {
+      schema: 1,
+      messageId: message.wakeId,
+      operationId: message.wakeId,
+      receivedAt: Date.now(),
+    })
+    record({
+      at: Date.now(),
+      kind: "push-reconnect-confirmed",
+      connectionId: socket.data.connectionId,
+      detail: `${socket.data.workerEntityId} ${message.wakeId}`,
+    })
+    observeServiceWorkerAvailability(socket.data.workerEntityId, socket.data.deviceId, {
+      identity: message.workerIdentity,
+      runtimeIncarnation: message.workerRuntimeIncarnation,
+      codeVersion: message.workerCodeVersion,
+      state: "active",
+      push: "received",
+      wakeId: message.wakeId,
+    })
+    sendControl(socket, {kind: "wake-confirmed", wakeId: message.wakeId})
+  } else {
+    observeServiceWorkerAvailability(socket.data.workerEntityId, socket.data.deviceId, {
+      identity: message.workerIdentity,
+      runtimeIncarnation: message.workerRuntimeIncarnation,
+      codeVersion: message.workerCodeVersion,
+      state: "active",
+      push: webPush.has(socket.data.workerEntityId) ? "ready" : "unavailable",
+    })
+  }
+}
+
+export async function handlePushSubscription(
+  socket: ControlSocket,
+  message: ClientPushSubscriptionMessage,
+): Promise<void> {
+  if (!socket.data.identityConfirmed || !socket.data.workerIdentity || !socket.data.workerRuntimeIncarnation) {
+    socket.data.retainAuthorityOnClose = false
+    socket.close(1008, "PushSubscription requires an identified Service Worker")
+    return
+  }
+  try {
+    const subscription = await webPush.register(socket.data.workerEntityId, {
+      workerIdentity: socket.data.workerIdentity,
+      deviceId: socket.data.deviceId,
+      subscription: message.subscription,
+    }, message.registrationId)
+    record({
+      at: Date.now(),
+      kind: "push-subscription",
+      connectionId: socket.data.connectionId,
+      detail: socket.data.workerEntityId,
+    })
+    observeServiceWorkerAvailability(socket.data.workerEntityId, socket.data.deviceId, {
+      identity: socket.data.workerIdentity,
+      runtimeIncarnation: socket.data.workerRuntimeIncarnation,
+      ...(socket.data.workerCodeVersion === null ? {} : {codeVersion: socket.data.workerCodeVersion}),
+      state: "active",
+      push: "ready",
+    })
+    sendControl(socket, {
+      kind: "push-subscription-confirmed",
+      registrationId: message.registrationId,
+      subscription,
+    })
+  } catch (error) {
+    sendControl(socket, {
+      kind: "push-subscription-rejected",
+      registrationId: message.registrationId,
+      reason: (error instanceof Error ? error.message : String(error)).slice(0, 256),
+    })
+  }
+}
+
+export function handlePeerSignal(socket: ControlSocket, message: ClientPeerSignalMessage): void {
+  const assignment = peerAssignment
+  if (!assignment || assignment.connectionId !== socket.data.connectionId || assignment.tabId !== message.tabId) {
+    socket.data.retainAuthorityOnClose = false
+    socket.close(1008, "unauthorized peer signal")
+    return
+  }
+  if (
+    assignment.peerId !== message.peerId ||
+    assignment.sessionEpoch !== message.sessionEpoch ||
+    assignment.peerGeneration !== message.peerGeneration ||
+    assignment.authorityKey !== message.authorityKey
+  ) {
+    stalePeerFramesDropped += 1
+    record({at: Date.now(), kind: "stale-peer-signal", connectionId: socket.data.connectionId})
+    return
+  }
+  signalingUp += 1
+  void peerSupervisor.signal(message.peerId, message.signal)
+}
+
+export function handlePeerFailure(socket: ControlSocket, message: ClientPeerFailedMessage): void {
+  const assignment = peerAssignment
+  if (!assignment || assignment.connectionId !== socket.data.connectionId || assignment.tabId !== message.tabId) {
+    socket.data.retainAuthorityOnClose = false
+    socket.close(1008, "unauthorized peer failure")
+    return
+  }
+  if (
+    assignment.peerId !== message.peerId ||
+    assignment.sessionEpoch !== message.sessionEpoch ||
+    assignment.peerGeneration !== message.peerGeneration ||
+    assignment.authorityKey !== message.authorityKey
+  ) {
+    stalePeerFramesDropped += 1
+    return
+  }
+  requestPeerRepair(`browser: ${message.reason}`)
+}
+
+export function handleTabs(socket: ControlSocket, message: ClientTabsMessage): void {
+  socket.data.reportedEmptyWindowInventory = message.windows.length === 0
+  if (!tryResumeDetachedAuthority(socket, message.windows)) {
+    topology.updateWindows(socket.data.connectionId, message.windows)
+  }
+  broadcastTopology()
+}
+
+export function handleControlClose(socket: ControlSocket, code: number, reason: string | Buffer): void {
+  clearHeartbeatTimers(socket)
+  record({at: Date.now(), kind: "connection-close", connectionId: socket.data.connectionId})
+  sockets.delete(socket.data.connectionId)
+  const closingPeer = topology.snapshot().peers.find(({connectionId}) =>
+    connectionId === socket.data.connectionId)
+  const browserScopeUnreachable =
+    socket.data.identityConfirmed &&
+    socket.data.retainAuthorityOnClose &&
+    socket.data.reportedEmptyWindowInventory &&
+    closingPeer?.windows.length === 0 &&
+    !webPush.has(socket.data.workerEntityId) &&
+    !pendingWakes.has(socket.data.workerEntityId) &&
+    ![...sockets.values()].some((candidate) =>
+      candidate.data.identityConfirmed && candidate.data.deviceId === socket.data.deviceId)
+  if (socket.data.identityConfirmed && socket.data.retainAuthorityOnClose) {
+    relayLifecycleEnvelope(hostLifecycle.next(createHamiltonianLifecycleObservation({
+      type: "transport",
+      phase: "closed",
+      subjectId: socket.data.lifecycleTransportId,
+      subjectKind: "websocket",
+      ownerId: socket.data.workerEntityId,
+      sourceEntityId: socket.data.workerEntityId,
+      targetEntityId: serverEntityId,
+      transportId: socket.data.lifecycleTransportId,
+      attributes: {
+        connectionId: socket.data.connectionId,
+        code,
+        reason: String(reason).slice(0, 256),
+        observedBy: "server",
+      },
+    })))
+    broadcastServerDeclaration()
+  }
+  if (browserScopeUnreachable) {
+    forgetBrowserProfileIfUnreachable(
+      socket.data.deviceId,
+      socket.data.workerEntityId,
+      socket.data.connectionId,
+    )
+  } else if (
+    !stopping &&
+    socket.data.identityConfirmed &&
+    socket.data.retainAuthorityOnClose &&
+    !webPush.has(socket.data.workerEntityId) &&
+    !pendingWakes.has(socket.data.workerEntityId) &&
+    ![...sockets.values()].some((candidate) =>
+      candidate.data.identityConfirmed && candidate.data.deviceId === socket.data.deviceId)
+  ) {
+    scheduleBrowserProfileReachabilityExpiry(
+      socket.data.deviceId,
+      socket.data.workerEntityId,
+      socket.data.connectionId,
+      socket.data.lastPongAt + heartbeatMs * 3,
+    )
+  }
+  if (
+    socket.data.identityConfirmed &&
+    socket.data.retainAuthorityOnClose &&
+    !browserScopeUnreachable &&
+    !pendingWakes.has(socket.data.workerEntityId)
+  ) {
+    observeServiceWorkerAvailability(
+      socket.data.workerEntityId,
+      socket.data.deviceId,
+      webPush.has(socket.data.workerEntityId)
+        ? {state: "standby", push: "ready", heartbeat: "paused"}
+        : {state: "error", push: "unavailable", heartbeat: "failed"},
+    )
+  }
+  const leader = topologyState().leader
+  const retainsCurrentAuthority =
+    !stopping &&
+    !browserScopeUnreachable &&
+    socket.data.retainAuthorityOnClose &&
+    leader?.connectionId === socket.data.connectionId
+  if (retainsCurrentAuthority) {
+    const expiresAt = socket.data.lastPongAt + heartbeatMs * 3
+    if (!socket.data.workerIdentity || !socket.data.resumeNonce) {
+      topology.disconnect(socket.data.connectionId)
+      broadcastTopology()
+      return
+    }
+    detachedAuthorities.set(socket.data.connectionId, {
+      expiresAt,
+      deviceId: socket.data.deviceId,
+      workerIdentity: socket.data.workerIdentity,
+      resumeNonce: socket.data.resumeNonce,
+    })
+    record({
+      at: Date.now(),
+      kind: "authority-detached",
+      connectionId: socket.data.connectionId,
+      detail: `valid until ${expiresAt}`,
+    })
+    const timer = setTimeout(() => {
+      detachedLeaseTimers.delete(socket.data.connectionId)
+      detachedAuthorities.delete(socket.data.connectionId)
+      topology.disconnect(socket.data.connectionId)
+      record({at: Date.now(), kind: "detached-authority-expired", connectionId: socket.data.connectionId})
+      broadcastTopology()
+    }, Math.max(0, expiresAt - Date.now()))
+    detachedLeaseTimers.set(socket.data.connectionId, timer)
+  } else {
+    detachedAuthorities.delete(socket.data.connectionId)
+    topology.disconnect(socket.data.connectionId)
+  }
+  broadcastTopology()
+}
+
+export function handleControlDrain(socket: ControlSocket): void {
+  if (socket.getBufferedAmount() === 0) broadcastTopology()
+}
+
+function startSourceWatchers(): void {
   if (Bun.env.NODE_ENV !== "test") {
     for (const root of [
       `${experimentRoot}/browser`,
@@ -2434,6 +2471,7 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
       }
     }
   }
+}
 
   const versionPayload = {version, source, sha256: sourceHash}
   const payloadForRole = (role: string) => ({
@@ -2442,7 +2480,7 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
     authority: placement === "server" && role === serverMainRole ? serverAuthority : null,
   })
   let serverMainOperations: Promise<void> = Promise.resolve()
-  const rebirthBunEmbodiment = (role = serverMainRole) => {
+  const rebirthBunEmbodimentInternal = (role = serverMainRole) => {
     if (stopping) return Promise.reject(new Error("Hamiltonian host is stopping"))
     if (placement !== "server" || role !== serverMainRole) {
       return bunEmbodiments.rebirth(role, payloadForRole(role))
@@ -2458,80 +2496,80 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
   }
   requestBunRepair = (role, _reason) => {
     if (stopping) return
-    void rebirthBunEmbodiment(role).catch(() => {})
+    void rebirthBunEmbodimentInternal(role).catch(() => {})
   }
-  const bunReady = bunEmbodiments.birthAll(payloadForRole).catch(() => bunEmbodiments.snapshot())
+export let bunReady: Promise<ReturnType<typeof bunEmbodiments.snapshot>> =
+  Promise.resolve(bunEmbodiments.snapshot())
   let stopPromise: Promise<void> | null = null
+let runtimeBound = false
 
-  return {
-    server,
-    identity,
-    version,
-    token,
-    topology,
-    hostEpoch,
-    placement,
-    bunEmbodiments,
-    getStatus: observableState,
-    bunReady,
-    rebirthBunEmbodiment(role = serverMainRole) {
-      return rebirthBunEmbodiment(role)
-    },
-    crashBunEmbodimentForTest(role = serverMainRole) {
-      return bunEmbodiments.crashForTest(role)
-    },
-    acceptsServerAuthorityForTest(candidate: EmbodimentAuthority | null) {
-      return placement === "server" &&
-        authorityKey(candidate) === authorityKey(serverAuthority)
-    },
-    crashPeerProcessForTest() {
-      return peerSupervisor.crashForTest()
-    },
-    requestPeerRepairForTest(reason: string) {
-      requestPeerRepair(reason)
-      return peerAssignment
-    },
-    reportPeerErrorForTest(peerId: string, error: string) {
-      peerSupervisor.reportErrorForTest(peerId, error)
-    },
-    async updateServiceWorkerReleaseForTest(source: string) {
-      serviceWorkerBundle = Promise.resolve(source)
-      const target = hamiltonianServiceWorkerRelease(source)
-      await reconcileServiceWorkerReleases(target)
-      return target
-    },
-    stop() {
-      if (stopPromise) return stopPromise
-      stopPromise = (async () => {
-        stopping = true
-        for (const socket of sockets.values()) clearHeartbeatTimers(socket)
-        if (sourceUpdateTimer !== null) clearTimeout(sourceUpdateTimer)
-        sourceUpdateTimer = null
-        for (const watcher of sourceWatchers) watcher.close()
-        sourceWatchers.length = 0
-        for (const timer of detachedLeaseTimers.values()) clearTimeout(timer)
-        detachedLeaseTimers.clear()
-        detachedAuthorities.clear()
-        for (const timer of browserProfileReachabilityTimers.values()) clearTimeout(timer)
-        browserProfileReachabilityTimers.clear()
-        for (const timer of pendingWakeTimers.values()) clearTimeout(timer)
-        pendingWakeTimers.clear()
-        pendingWakes.clear()
-        // Bun 1.3.14 releases the listener synchronously, but the returned Promise can
-        // remain pending after the server has rejected a WebSocket frame with 1008.
-        // Bound that runtime-specific wait so child-process teardown is never skipped.
-        await Promise.race([server.stop(true), Bun.sleep(250)])
-        await Promise.all([peerSupervisor.stop(), bunEmbodiments.stopAll()])
-      })()
-      return stopPromise
-    },
-  }
+export {hostEpoch, topology, bunEmbodiments}
+
+export function bindHamiltonianServer(server: Bun.Server<HamiltonianServerSocketData>): void {
+  if (runtimeBound) throw new Error("Hamiltonian server runtime is already bound")
+  runtimeBound = true
+  boundPort = server.port ?? port
+  startSourceWatchers()
+  bunReady = bunEmbodiments.birthAll(payloadForRole).catch(() => bunEmbodiments.snapshot())
 }
 
-function isLoopbackAddress(address: string | undefined): boolean {
-  if (address === undefined) return false
-  return address === "::1" || address === "0:0:0:0:0:0:0:1" ||
-    address.startsWith("127.") || address.startsWith("::ffff:127.")
+export function getHamiltonianStatus() {
+  return observableState()
+}
+
+export function rebirthBunEmbodiment(role = serverMainRole) {
+  return rebirthBunEmbodimentInternal(role)
+}
+
+export function crashBunEmbodimentForTest(role = serverMainRole) {
+  return bunEmbodiments.crashForTest(role)
+}
+
+export function acceptsServerAuthorityForTest(candidate: EmbodimentAuthority | null): boolean {
+  return placement === "server" && authorityKey(candidate) === authorityKey(serverAuthority)
+}
+
+export function crashPeerProcessForTest() {
+  return peerSupervisor.crashForTest()
+}
+
+export function requestPeerRepairForTest(reason: string) {
+  requestPeerRepair(reason)
+  return peerAssignment
+}
+
+export function reportPeerErrorForTest(peerId: string, error: string): void {
+  peerSupervisor.reportErrorForTest(peerId, error)
+}
+
+export async function updateServiceWorkerReleaseForTest(nextSource: string) {
+  serviceWorkerBundle = Promise.resolve(nextSource)
+  const target = hamiltonianServiceWorkerRelease(nextSource)
+  await reconcileServiceWorkerReleases(target)
+  return target
+}
+
+export function stopHamiltonianRuntime(server: Bun.Server<HamiltonianServerSocketData>): Promise<void> {
+  if (stopPromise) return stopPromise
+  stopPromise = (async () => {
+    stopping = true
+    for (const socket of sockets.values()) clearHeartbeatTimers(socket)
+    if (sourceUpdateTimer !== null) clearTimeout(sourceUpdateTimer)
+    sourceUpdateTimer = null
+    for (const watcher of sourceWatchers) watcher.close()
+    sourceWatchers.length = 0
+    for (const timer of detachedLeaseTimers.values()) clearTimeout(timer)
+    detachedLeaseTimers.clear()
+    detachedAuthorities.clear()
+    for (const timer of browserProfileReachabilityTimers.values()) clearTimeout(timer)
+    browserProfileReachabilityTimers.clear()
+    for (const timer of pendingWakeTimers.values()) clearTimeout(timer)
+    pendingWakeTimers.clear()
+    pendingWakes.clear()
+    await Promise.race([server.stop(true), Bun.sleep(250)])
+    await Promise.all([peerSupervisor.stop(), bunEmbodiments.stopAll()])
+  })()
+  return stopPromise
 }
 
 function escapeHtmlAttribute(value: string): string {
@@ -2542,38 +2580,6 @@ function escapeHtmlAttribute(value: string): string {
     .replaceAll(">", "&gt;")
 }
 
-function advertisedHosts(hostname: string): string[] {
-  if (hostname !== "0.0.0.0" && hostname !== "::") return [hostname]
-  const addresses = Object.values(networkInterfaces()).flatMap((entries) =>
-    (entries ?? [])
-      .filter((entry) => entry.family === "IPv4" && !entry.internal)
-      .map((entry) => entry.address)
-  )
-  return addresses.length > 0 ? addresses : ["127.0.0.1"]
-}
-
 function isLoopbackHostname(hostname: string): boolean {
   return hostname === "127.0.0.1" || hostname === "localhost" || hostname === "::1"
-}
-
-if (import.meta.main) {
-  const host = createHamiltonianHost()
-  const scheme = host.server.protocol ?? "http"
-  const port = host.server.port
-  console.log(`Hamiltonian ${host.identity} · version ${host.version}`)
-  console.log(`One listener: ${scheme}://${host.server.hostname}:${port}`)
-  void host.bunReady.then((embodiments) => {
-    for (const [role, embodiment] of Object.entries(embodiments)) {
-      console.log(`Bun ${role}: ${embodiment.state} · pid ${embodiment.pid} · incarnation ${embodiment.incarnation}`)
-    }
-  })
-  for (const address of advertisedHosts(host.server.hostname ?? "127.0.0.1")) {
-    const joinUrl = isLoopbackHostname(address)
-      ? `${scheme}://${address}:${port}/`
-      : `${scheme}://${address}:${port}/?token=${encodeURIComponent(host.token)}`
-    console.log(`Join: ${joinUrl}`)
-  }
-  if (scheme === "http" && host.server.hostname !== "127.0.0.1" && host.server.hostname !== "localhost") {
-    console.warn("Remote browsers need trusted HTTPS before they can register the Service Worker.")
-  }
 }
