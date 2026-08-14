@@ -1,3 +1,14 @@
+/**
+ * Точка входа единственного HTTP- и WebSocket-сервера Hamiltonian.
+ *
+ * Литеральный `routes` показывает всю внешнюю HTTP-границу и условия выбора
+ * ответа. WebSocket callbacks показывают полный control protocol. Предметное
+ * состояние остаётся в `server-runtime.ts`; этот модуль только проверяет
+ * входные условия и передаёт допустимые события именованным функциям.
+ *
+ * @packageDocumentation
+ */
+
 import {networkInterfaces} from "node:os"
 import {
   acceptControlMessageMonitor,
@@ -53,11 +64,6 @@ import {
 
 type HamiltonianBunServer = Bun.Server<HamiltonianServerSocketData>
 
-/**
- * Единственный Bun server Hamiltonian. Routes и WebSocket callbacks ниже
- * являются полной картой входящих запросов; предметные действия выполняют
- * именованные функции server runtime.
- */
 export const server = Bun.serve<HamiltonianServerSocketData>({
   hostname,
   port,
@@ -65,9 +71,13 @@ export const server = Bun.serve<HamiltonianServerSocketData>({
   development: false,
   routes: {
     /**
-     * Создаёт page realm с identity/epoch сервера и revision browser source.
-     * Local join token встраивается только в loopback GET; остальные методы
-     * получают исходный документ без локального credential.
+     * Загружает страницу с `hostEpoch` текущего запуска и
+     * `browserSourceRevision`. Страница использует их, чтобы не смешивать
+     * lifecycle разных запусков сервера и перезагружаться после изменения
+     * клиентских исходников.
+     *
+     * При локальной GET-навигации в HTML встраивается token: локальный browser
+     * подключается без ручного ввода, а внешний клиент не получает секрет.
      */
     "/": async (request: Request, bunServer: HamiltonianBunServer) => {
       if (request.method === "GET") {
@@ -80,8 +90,9 @@ export const server = Bun.serve<HamiltonianServerSocketData>({
     },
 
     /**
-     * Сохраняет тот же bootstrap и loopback policy для явной навигации на
-     * `index.html`, чтобы прямой URL не создавал другой page runtime.
+     * Явный адрес того же документа для прямых ссылок и перезагрузки страницы.
+     * Применяет ту же привязку к запуску сервера и то же правило локального
+     * token, поэтому `/` и `/index.html` не создают разные варианты bootstrap.
      */
     "/index.html": async (request: Request, bunServer: HamiltonianBunServer) => {
       if (request.method === "GET") {
@@ -94,34 +105,43 @@ export const server = Bun.serve<HamiltonianServerSocketData>({
     },
 
     /**
-     * Превращает lifecycle и node-system declarations в read-only граф,
-     * размещает его через layout Worker и ведёт WebGPU HUD текущей страницы.
+     * Визуализирует наблюдаемое состояние Hamiltonian. Модуль подписывается на
+     * lifecycle и описания систем нод, строит из них read-only граф, передаёт
+     * расчёт геометрии в layout Worker и обновляет WebGPU-сцену.
      */
     "/orchestration.js": async () => await handleOrchestrationBundle(),
 
     /**
-     * Выносит расчёт геометрии node-system из page realm, чтобы перестроение
-     * topology не блокировало ввод и отрисовку WebGPU HUD.
+     * Рассчитывает расположение нод вне основного потока страницы. Worker
+     * принимает снимок графа и возвращает только результат раскладки, поэтому
+     * тяжёлый расчёт не задерживает ввод и отрисовку WebGPU-сцены.
      */
     "/layout-worker.js": async () => await handleLayoutWorkerBundle(),
 
     /**
-     * Согласует permission, PushSubscription и её регистрацию на server,
-     * позволяя разбудить тот же Service Worker после остановки browser runtime.
+     * Даёт странице единый сценарий включения Web Push: запросить разрешение,
+     * восстановить подходящую `PushSubscription` или заменить подписку с другим
+     * VAPID key и зарегистрировать результат через Service Worker.
      */
     "/web-push-client.js": async () => await handleWebPushClientBundle(),
 
     /**
-     * Запускает владельца browser-profile control: Service Worker связывает
-     * вкладки с server, удерживает verified release и принимает Web Push wake.
-     * Специальная cache policy не позволяет browser скрыть новую worker release.
+     * Запускает общий для browser profile Service Worker. Он объединяет вкладки,
+     * удерживает control WebSocket, проверяет и кеширует browser release,
+     * принимает Web Push и восстанавливает связь после пробуждения.
+     *
+     * `Cache-Control: no-cache` заставляет browser перепроверять worker script,
+     * иначе обновлённый Service Worker мог бы остаться незамеченным.
      */
     "/sw-entry.js": async () => await handleServiceWorkerBundle(),
 
     /**
-     * Подключает Service Worker к server control plane для lifecycle, topology,
-     * release и WebRTC signalling. До upgrade проверяются token и полная
-     * browser-profile identity, чтобы socket нельзя было присвоить чужому realm.
+     * Создаёт единственный server control channel для Service Worker. Через него
+     * browser сообщает lifecycle и состав вкладок, получает release target и
+     * обменивается WebRTC signalling.
+     *
+     * До upgrade token подтверждает право подключения, а `device`, `transport`
+     * и `worker` связывают socket с конкретным browser profile и Service Worker.
      */
     "/control": (request: Request, bunServer: HamiltonianBunServer) => {
       const url = new URL(request.url)
@@ -147,8 +167,10 @@ export const server = Bun.serve<HamiltonianServerSocketData>({
     },
 
     /**
-     * Даёт авторизованной page application server key, с которым browser
-     * создаёт PushSubscription, принимаемую Hamiltonian для последующего wake.
+     * Передаёт странице публичный VAPID key текущего Hamiltonian. Web Push
+     * client привязывает к нему `PushSubscription`, чтобы push service мог
+     * доставить подписанную сервером команду пробуждения. Сам key не является
+     * секретом, но этот contour выдаёт его только уже авторизованной странице.
      */
     "/push/vapid-public-key": {
       GET: (request: Request) => {
@@ -161,9 +183,10 @@ export const server = Bun.serve<HamiltonianServerSocketData>({
     },
 
     /**
-     * Проверяет лабораторный сценарий пробуждения конкретного Service Worker:
-     * допускает только известную subscription и не создаёт второй wake, пока
-     * первый ожидает подтверждения новой control generation.
+     * Проверяет полный сценарий Web Push wake: отправляет сообщение ранее
+     * зарегистрированному Service Worker и ожидает новый control connection как
+     * доказательство пробуждения. Повторный wake запрещён, пока прежняя попытка
+     * не подтверждена или не завершилась по timeout.
      */
     "/lab/wake-service-worker": {
       POST: async (request: Request) => {
@@ -195,9 +218,9 @@ export const server = Bun.serve<HamiltonianServerSocketData>({
     },
 
     /**
-     * Связывает ожидаемую browser version с immutable module URL и SHA-256;
-     * Service Worker использует этот авторизованный договор до помещения release
-     * в Cache Storage и до её исполнения.
+     * Описывает release, которую должен подготовить Service Worker: versioned
+     * module, его SHA-256 и целевую версию самого Service Worker. До исполнения
+     * кода browser сверяет полученные bytes с этим manifest.
      */
     "/manifest.json": async (request: Request) => {
       if (isAuthorizedRequest(request)) {
@@ -208,8 +231,10 @@ export const server = Bun.serve<HamiltonianServerSocketData>({
     },
 
     /**
-     * Даёт лабораторной диагностике read-only снимок server, control, process,
-     * peer и lifecycle без возможности изменить состояние singleton runtime.
+     * Показывает диагностике единый снимок server lifecycle, подключённых
+     * browser profiles, выбранного лидера, Bun-процессов и WebRTC peer. Endpoint
+     * ничего не изменяет, а Bearer gate не раскрывает operational topology
+     * клиенту, который не присоединился к Hamiltonian.
      */
     "/lab/status": (request: Request) => {
       if (isAuthorizedRequest(request)) {
@@ -220,9 +245,9 @@ export const server = Bun.serve<HamiltonianServerSocketData>({
     },
 
     /**
-     * Предоставляет исполняемое воплощение текущей release только после
-     * авторизации; его bytes проверяются Service Worker по manifest SHA-256 до
-     * рождения main и Dedicated Worker embodiments.
+     * Содержит код воплощения текущей версии. Service Worker сначала сверяет
+     * bytes с SHA-256 из manifest и только затем разрешает странице загрузить
+     * модуль для `main` и Dedicated Worker.
      */
     [versionedModulePath]: (request: Request) => {
       if (isAuthorizedRequest(request)) {
@@ -233,80 +258,95 @@ export const server = Bun.serve<HamiltonianServerSocketData>({
     },
 
     /**
-     * Загружает realm monitor раньше page runtime и visual orchestration, чтобы
-     * incarnation и первые lifecycle observations существовали до подписчиков.
+     * Сохраняет правильный порядок запуска страницы: сначала создаёт monitor,
+     * затем параллельно загружает прикладной runtime и визуализацию. Благодаря
+     * этому первые lifecycle messages не проходят раньше открытия канала.
      */
     "/window-entry.js": () => handleStaticAsset("/window-entry.js"),
 
     /**
-     * Ведёт воплощение текущей страницы: связывает Window с Service Worker и
-     * Dedicated Worker, применяет release и поднимает direct Oracle/Force peer.
+     * Управляет жизненным циклом текущей страницы. Модуль подключает её к
+     * Service Worker, создаёт `main` и Dedicated Worker из принятой release и
+     * поддерживает прямые WebRTC-каналы Oracle и Force.
      */
     "/app.js": () => handleStaticAsset("/app.js"),
 
     /**
-     * Исполняет подтверждённый versioned module в отдельном Dedicated Worker и
-     * сообщает page realm о рождении, состоянии и завершении его embodiment.
+     * Принимает от страницы команду рождения, загружает указанный versioned
+     * module и создаёт его воплощение внутри Dedicated Worker. Результат запуска
+     * и lifecycle observations возвращаются странице через worker messages.
      */
     "/embodiment-worker.js": () => handleStaticAsset("/embodiment-worker.js"),
 
     /**
-     * Устанавливает realm monitor до Dedicated Worker runtime, чтобы его
-     * incarnation и ранние lifecycle events не потерялись при bootstrap.
+     * Создаёт monitor до запуска кода Dedicated Worker. Это фиксирует identity
+     * нового Worker и открывает lifecycle channel раньше первого сообщения о
+     * его рождении.
      */
     "/embodiment-worker-entry.js": () => handleStaticAsset("/embodiment-worker-entry.js"),
 
     /**
-     * Закрепляет canvas как единственную полноэкранную visual surface, отключает
-     * browser gestures над ней и раскрывает доступный status при отказе WebGPU.
+     * Растягивает WebGPU canvas на всё окно и запрещает browser обрабатывать
+     * жесты поверх интерактивной сцены. Текстовый status скрыт при нормальной
+     * работе и становится видимым, если визуализация не запустилась.
      */
     "/styles.css": () => handleStaticAsset("/styles.css"),
 
     /**
-     * Даёт canvas renderer встроенный моноширинный шрифт для подписей и метрик
-     * нод, не зависящий от наличия системного font asset в browser profile.
+     * Фиксирует шрифт, которым WebGPU renderer измеряет и рисует текст нод.
+     * Собственный TTF сохраняет одинаковую геометрию подписей независимо от
+     * набора системных шрифтов на машине с browser.
      */
     "/engine-static/JetBrainsMono-Bold.ttf": () => handleStaticAsset("/engine-static/JetBrainsMono-Bold.ttf"),
 
     /**
-     * Задаёт общие для server и browser правила lease/fencing, reconnect
-     * generations и раздельных Oracle/Force sessions, отсекая stale authority.
+     * Содержит общий механизм authority lease, fencing и поколений подключения.
+     * Server формирует из него lease identity, Service Worker выбирает поколение
+     * reconnect, а WebRTC peer упорядочивает Oracle и Force messages.
      */
     "/core/runtime.js": () => handleStaticAsset("/core/runtime.js"),
 
     /**
-     * Проверяет versioned module по manifest SHA-256 и удерживает current с
-     * предыдущей release, чтобы Service Worker исполнял только проверенный код.
+     * Управляет Cache Storage для versioned modules. Service Worker исполняет
+     * модуль только после проверки SHA-256 и сохраняет текущий с предыдущим
+     * cache, чтобы не потерять уже подтверждённую release при переходе.
      */
     "/core/cache.js": () => handleStaticAsset("/core/cache.js"),
 
     /**
-     * Защищает ownership page, Service Worker, worker channel и peer generation,
-     * чтобы поздний callback заменённой incarnation не управлял текущим contour.
+     * Содержит проверки актуальности browser resources: heartbeat страницы,
+     * замену Window после reload, текущий MessagePort, Worker и поколение peer.
+     * Они не дают запоздавшему callback старого ресурса изменить новый runtime.
      */
     "/core/browser-control.js": () => handleStaticAsset("/core/browser-control.js"),
 
     /**
-     * Сериализует переход page realm на проверенную release: перерождает
-     * Dedicated Worker и перезагружает active main только при его замене.
+     * Последовательно применяет принятую release к странице. При смене
+     * `browserSourceRevision` перезагружает документ; при смене versioned module
+     * заменяет Dedicated Worker и перезагружает активный `main` только тогда,
+     * когда старое воплощение уже исполняется в Window.
      */
     "/update/page-update.js": () => handleStaticAsset("/update/page-update.js"),
 
     /**
-     * Создаёт identity каждого browser realm и заранее открывает lifecycle
-     * BroadcastChannel с bounded backlog до загрузки типизированных consumers.
+     * Первым создаёт identity текущего Window или Worker и открывает общий
+     * lifecycle `BroadcastChannel`. До подключения consumers сохраняет не более
+     * 512 ранних сообщений, поэтому параллельный bootstrap не теряет события.
      */
     "/core/monitor.js": () => handleStaticAsset("/core/monitor.js"),
 
     /**
-     * Даёт всем realm одну causal-модель entity, transport и message
-     * observations, retained snapshots и node-system declarations.
+     * Определяет единый формат наблюдений за entity, transport и messages.
+     * Journal, cursor и validators позволяют server и browser realms объединять
+     * причинный порядок, восстанавливать снимки, замечать gaps и отбрасывать
+     * повторные события уже завершившегося источника.
      */
     "/core/lifecycle.js": () => handleStaticAsset("/core/lifecycle.js"),
 
     /**
-     * Нормализует browser/page node identity и разрешает visual HUD направлять
-     * allowlisted действие только точному локальному Window или Service Worker.
+     * Строит стабильные идентификаторы browser, Window и page для visual graph.
+     * При выполнении действия проверяет allowlist и точного локального адресата,
+     * чтобы команда из HUD не ушла другой вкладке или Service Worker.
      */
     "/core/orchestration.js": () => handleStaticAsset("/core/orchestration.js"),
   },
