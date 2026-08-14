@@ -741,6 +741,11 @@ TypeScript является обычным форматом first-party source. 
 
 ## Запуск
 
+Штатная серверная точка входа находится в `hamiltonian/server.ts`. Она только
+создаёт host composition из `host.ts` и публикует operational адреса; listener,
+HTTP routes, control, lifecycle, process и peer mechanisms в entrypoint не
+реализуются.
+
 Локально:
 
 ```bash
