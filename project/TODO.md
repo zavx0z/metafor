@@ -123,10 +123,11 @@ stylesheet нодового canvas без изменения визуально�
 и причины оставшегося JavaScript. `HAM-003.2` сделала корневой server entrypoint
 явным и тонким без изменения host mechanisms. `HAM-003.3` собрала HTTP
 path/method dispatch в одном server adapter. `HAM-003.4` собрала supervisor и
-executable entry Bun-воплощений под одним `server/process` owner. Текущий
-`HAM-003.5` собирает peer supervisor, process entry и Werift adapter под одним
-`server/peer` owner; последующие срезы меняют по одному механизму и сохраняют
-договоры `HAM-002` и `UPD-002`.
+executable entry Bun-воплощений под одним `server/process` owner, а
+`HAM-003.5` — peer supervisor, process entry и Werift adapter под одним
+`server/peer` owner. Текущий `HAM-003.6` отделяет чистый contract и validation
+control WebSocket до переноса stateful adapter; последующие срезы меняют по
+одному механизму и сохраняют договоры `HAM-002` и `UPD-002`.
 
 | ID     | Состояние   | Зависимости | Карточка                   |
 | ------ | ----------- | ----------- | -------------------------- |
