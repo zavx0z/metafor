@@ -7,7 +7,8 @@ Service Worker загружает сменяемый функционал по W
 предоставляет main-процессу кэшированные endpoints для запуска.
 
 Прежний Hamiltonian остаётся отдельно запускаемым прототипом. Новый loader
-создаётся с нуля в чистых пакетах и не получает перенесённый prototype-код.
+создаётся с нуля в чистых source-директориях и не получает перенесённый
+prototype-код.
 
 ## Зачем
 
@@ -74,7 +75,15 @@ Evidence-backed gate выполнен в
 * В рабочем дереве уже начато отделение prototype entrypoint как
   `server_proto.ts` и созданы незакоммиченные заготовки новых директорий. Это
   параллельные изменения владельца; они не являются готовым результатом
-  `LOAD-001.1` до проверки exact package boundaries.
+  LOAD-среза до проверки exact source boundaries и поведения.
+* Bun Fullstack Dev Server при импорте HTML в `Bun.serve({routes})`
+  автоматически обрабатывает указанные в HTML scripts и styles, выполняет
+  runtime bundling и публикует полученные assets. При `development: false`
+  результат лениво создаётся по первому HTML request и кэшируется в памяти до
+  перезапуска server.
+* Официальная Fullstack-документация не определяет Service Worker registration,
+  script URL и обязательные для него response headers. Применимость этого пути
+  к `web/service` требует отдельного воспроизводимого proof.
 
 ## Решения владельца
 
@@ -96,11 +105,12 @@ Evidence-backed gate выполнен в
   `server_proto.ts`, остаётся рабочим наглядным образцом и не рефакторится;
   прежние `browser`, `core`, `public`, `update`, `visual` и остальные исходники
   также принадлежат прототипу.
-* Новая реализация создаётся с нуля рядом в `web`, `server` и `interface`.
-  Каждая из этих директорий и вложенные `import`, `service`, `update`
-  оформляются самостоятельными пакетами.
-* Первый structural result содержит только чистую пакетную структуру. Старый
-  код, HTML и runtime behavior в новые пакеты не переносятся.
+* Новая реализация создаётся с нуля рядом в `web`, `server` и `interface` без
+  новых package manifests и workspace packages. Вложенные `import`, `service`,
+  `update` являются обычными source boundaries.
+* Отдельный build pipeline сейчас не создаётся. HTML импортируется прямо в
+  `Bun.serve()` как route; Bun может выполнять runtime bundling, но LOAD-код не
+  вызывает `Bun.build` и не материализует собственный `dist`.
 * `web/import` владеет минимальным main-потоком: получает от Service Worker
   готовый кэшированный endpoint и импортирует модуль.
 * `web/service` владеет минимальной неизменяемой оболочкой Service Worker:
@@ -109,7 +119,7 @@ Evidence-backed gate выполнен в
   минимальный loader этой задачи.
 * `server/import` и `server/service` позднее реализуют тот же принцип для Bun.
   Общий договор выделяется в `interface` только после появления обеих
-  реализаций, а не проектируется заранее.
+  реализаций, а не проектируется заранее и не оформляется отдельным пакетом.
 * `update` остаётся отдельным механизмом обновления уже загруженного
   функционала и не смешивается с первоначальным `import`.
 * Каждый следующий срез берёт один механизм: наблюдает его поведение в
@@ -130,16 +140,14 @@ Evidence-backed gate выполнен в
 
 ## Поведение процесса
 
-Первый срез не реализует runtime. Он материализует только package boundaries
-нового Hamiltonian рядом с отдельно запускаемым прототипом. Имена пакетов,
-workspace membership и разрешённые зависимости согласуются до добавления
-manifest-файлов; пустые каталоги или отдельный HTML сами по себе не доказывают
-package structure.
+Первый зарегистрированный package-срез остановлен до product implementation:
+пакеты не создаются. Текущий срез проверяет один выбранный механизм — способен
+ли Bun Fullstack обслужить минимальный HTML/main/Service Worker contour без
+отдельного build-step. Runtime bundling самого Bun допустим и называется точно.
 
-После принятия структуры следующий срез фиксирует exact минимальные файлы,
-события и handoff первой navigation: что делает HTML, что делает minimal main,
-когда страница становится controlled и каким запросом она узнаёт о готовности
-cache.
+Только после proof следующий срез фиксирует exact handoff первой navigation:
+что делает minimal main, когда страница становится controlled и каким запросом
+она узнаёт о готовности cache.
 
 Затем по одному причинному механизму регистрируются WSS loading, cache
 preparation, cached endpoint serving, Window launch и Service Worker functional
@@ -150,9 +158,8 @@ activation. Каждый новый механизм получает отдел
 
 ### LOAD-001.1 — Создать чистую пакетную структуру новой реализации
 
-Статус и исполнитель: `IN_PROGRESS`; руководитель — текущая задача Codex,
-реализация после подготовительного project-коммита передаётся внутреннему
-субагенту этой задачи.
+Статус и исполнитель: `STOPPED BEFORE IMPLEMENTATION`; product-исполнитель не
+запускался, package manifests и workspace membership не создавались.
 
 Классификация: один structural result в границах `LOAD-001`; новый Hamiltonian
 получает физические package boundaries без runtime behavior.
@@ -191,6 +198,62 @@ Regression или опровергающее доказательство: packa
 
 Фактические действия:
 
+Результат и вывод: владелец отказался от package architecture до product patch.
+`web`, `server`, `interface` и вложенные механизмы остаются обычными
+source-директориями.
+
+Подготовительный commit: `a90d9adfd`.
+
+Result checkpoint:
+
+### LOAD-001.2 — Проверить loader через Bun Fullstack без отдельной сборки
+
+Статус и исполнитель: `IN_PROGRESS`; руководитель — текущая задача Codex,
+реализация после подготовительного project-коммита передаётся внутреннему
+субагенту этой задачи.
+
+Классификация: новый диагностический механизм после owner-отказа от packages;
+срез принимает воспроизводимый ответ, может ли Bun Fullstack стать первым
+server/browser loading path без отдельного build pipeline.
+
+Требование: новый `server.ts` импортирует минимальный `web/index.html` как route
+`Bun.serve()`. HTML указывает минимальный main из `web/import`, а Service Worker
+script принадлежит `web/service`. Новые directory boundaries не имеют
+`package.json`, не входят в workspaces и не импортируют prototype source.
+
+Основание и связанная история: официальный Bun Fullstack contract подтверждает
+автоматическую обработку HTML scripts/styles и runtime bundling. Он не описывает
+Service Worker, поэтому точная выдача его script URL и headers остаётся
+проверяемой гипотезой, а не принятым фактом.
+
+Наблюдаемое расхождение: prototype использует ручной `Bun.build` Service Worker
+bundle и множество static routes; новая реализация ещё не доказала ни одного
+Fullstack HTML/main request и ни одной Service Worker registration без этого
+механизма.
+
+Причина: выбран новый Bun Fullstack loading mechanism, отсутствующий в
+прототипе и не покрытый его проверками.
+
+Разрешённое изменение одного механизма: создать минимальный воспроизводимый
+Fullstack contour в новых `server.ts`, `web/index.html`, `web/import` и
+`web/service`. Допускается только код, необходимый доказать HTML route, main
+execution и Service Worker registration/response. Не добавлять WSS delivery,
+cache protocol, functional module, `update`, общий `interface` или packages.
+
+Regression или опровергающее доказательство: проверка должна устанавливать,
+что HTML обслужен Fullstack route, main фактически выполнился, Service Worker
+script получен с допустимым URL и headers и browser зарегистрировал его. Если
+Fullstack route не может корректно выдать Worker, срез принимает точную границу
+и останавливается; минимально необходимый явный server route сначала отдельно
+предъявляется владельцу, а не добавляется автоматически.
+
+Среда и критерий приёмки: canonical checkout и локальный secure browser contour;
+prototype продолжает запускаться через `server_proto.ts`, новый contour не
+использует prototype imports или отдельный `Bun.build`, а browser evidence
+отличает загрузку HTML/main от фактической Service Worker registration.
+
+Фактические действия:
+
 Результат и вывод:
 
 Подготовительный commit:
@@ -216,8 +279,9 @@ Result checkpoint:
 
 Входит:
 
-* чистая пакетная структура `web`, `server`, `interface` и вложенных
-  `import`, `service`, `update` без функционального source;
+* обычные source-директории `web`, `server`, `interface` и вложенные
+  `import`, `service`, `update` без package manifests;
+* Bun Fullstack HTML route и runtime bundling без отдельного build pipeline;
 * сохранение отдельно запускаемого прототипа через `server_proto.ts`;
 * минимальный HTML/main/Service Worker bootstrap;
 * один signaling peer и WSS code delivery;
@@ -228,7 +292,8 @@ Result checkpoint:
 
 Не входит:
 
-* рефакторинг или перенос прежнего Hamiltonian в новые packages;
+* рефакторинг или перенос прежнего Hamiltonian в новые source-директории;
+* package manifests, workspace packages и package exports новой реализации;
 * создание общего `interface` contract до двух реализаций;
 * полный production artifact inventory и update-transition `UPD-002`;
 * каталог или выбор нескольких signaling peers;
@@ -267,8 +332,8 @@ Result checkpoint:
 
 ## Текущее состояние и следующий шаг
 
-`LOAD-001` находится в `IN_PROGRESS`. Текущий срез — `LOAD-001.1 — Создать
-чистую пакетную структуру новой реализации`. Сначала фиксируется этот
-подготовительный project-коммит; затем вместе с владельцем по одному выбираются
-точные package names и разрешённые зависимости. До их решения функциональный
-код в новые packages не добавляется.
+`LOAD-001` находится в `IN_PROGRESS`. Package-срез `LOAD-001.1` остановлен до
+implementation решением владельца. Текущий срез — `LOAD-001.2 — Проверить
+loader через Bun Fullstack без отдельной сборки`. Сначала фиксируется этот
+подготовительный project-коммит; затем минимальный proof отдельно устанавливает
+поведение HTML/main и фактическую возможность зарегистрировать Service Worker.
