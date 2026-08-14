@@ -120,11 +120,12 @@ Worker`. Весь прежний Hamiltonian зафиксирован как р�
 implementation после owner-решения не создавать все задуманные packages.
 `LOAD-001.2` установил границу Bun Fullstack: HTML/main обрабатываются, но
 Service Worker требует отдельного entrypoint; runtime `Bun.Transpiler` в
-`server.ts` отклонён владельцем. Текущий срез `LOAD-001.4 — Собирать Service
-Worker пакетом @web/service` создаёт только этот workspace-пакет и его `build`.
-`LOAD-001.3 — Подключить Service Worker к одному WebSocket` продолжится после
-готового build artifact. `UPD-002 — Обновлять всю клиентскую сборку через
-Service Worker` ждёт результата `LOAD-001`.
+`server.ts` отклонён владельцем. `LOAD-001.4 — Собирать Service Worker пакетом
+@web/service` находится в `REVIEW`: workspace-пакет строго проверяет и собирает
+Worker до штатного запуска Hamiltonian, а server только выдаёт готовые bytes.
+Текущий `LOAD-001.3 — Подключить Service Worker к одному WebSocket` ждёт
+browser/runtime-проверки регистрации и соединения. `UPD-002 — Обновлять всю
+клиентскую сборку через Service Worker` ждёт результата `LOAD-001`.
 
 `HAM-003 — Разделить Hamiltonian по средам исполнения и механизмам` остаётся
 `IN_PROGRESS`. Широкий object-oriented срез `HAM-003.8` отклонён владельцем и

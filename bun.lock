@@ -147,6 +147,12 @@
         "nodes": "workspace:*",
       },
     },
+    "hamiltonian/web/service": {
+      "name": "@web/service",
+      "devDependencies": {
+        "@types/serviceworker": "^0.0.200",
+      },
+    },
     "matrix": {
       "name": "matrix",
       "version": "0.0.1",
@@ -376,6 +382,8 @@
 
     "@types/node": ["@types/node@25.5.0", "", { "dependencies": { "undici-types": "~7.18.0" } }, "sha512-jp2P3tQMSxWugkCUKLRPVUpGaL5MVFwF8RDuSRztfwgN1wmqJeMSbKlnEtQqU8UrhTmzEmZdu2I6v2dpp7XIxw=="],
 
+    "@types/serviceworker": ["@types/serviceworker@0.0.200", "", {}, "sha512-g6wCD+XlCDKytamqjiVvYRUJbS0jr/1lZ2PpXSYTU802UyPNlOVl9DN6A9EhRuFRH7s2LATTgheBnMEWJahV8A=="],
+
     "@types/unist": ["@types/unist@3.0.3", "https://registry.yarnpkg.com/@types/unist/-/unist-3.0.3.tgz", {}, "sha512-ko/gIFJRv177XgZsZcBwnqJN5x/Gien8qNOn0D5bQU/zAzVf9Zt3BlcUiLqhV9y4ARk0GbT3tnUiPNgnTXzc/Q=="],
 
     "@types/web-push": ["@types/web-push@3.6.4", "", { "dependencies": { "@types/node": "*" } }, "sha512-GnJmSr40H3RAnj0s34FNTcJi1hmWFV5KXugE0mYWnYhgTAHLJ/dJKAwDmvPJYMke0RplY2XE9LnM4hqSqKIjhQ=="],
@@ -385,6 +393,8 @@
     "@ui/elements": ["@ui/elements@workspace:pkg/ui/elements"],
 
     "@ui/hud": ["@ui/hud@workspace:pkg/ui/hud"],
+
+    "@web/service": ["@web/service@workspace:hamiltonian/web/service"],
 
     "@webgpu/types": ["@webgpu/types@0.1.68", "https://registry.yarnpkg.com/@webgpu/types/-/types-0.1.68.tgz", {}, "sha512-3ab1B59Ojb6RwjOspYLsTpCzbNB3ZaamIAxBMmvnNkiDoLTZUOBXZ9p5nAYVEkQlDdf6qAZWi1pqj9+ypiqznA=="],
 

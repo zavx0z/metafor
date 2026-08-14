@@ -262,8 +262,8 @@ Result checkpoint:
 
 ### LOAD-001.3 — Подключить Service Worker к одному WebSocket
 
-Статус и исполнитель: `WAITING`; продолжится после `LOAD-001.4`, выполняет
-руководитель текущей задачи Codex напрямую, без субагентов.
+Статус и исполнитель: `IN_PROGRESS`; build prerequisite готов в `LOAD-001.4`,
+выполняет руководитель текущей задачи Codex напрямую, без субагентов.
 
 Классификация: следующий минимальный runtime-механизм после регистрации Service
 Worker; он доказывает только принадлежность WebSocket соединения Worker-контексту.
@@ -292,8 +292,8 @@ Result checkpoint:
 
 ### LOAD-001.4 — Собирать Service Worker пакетом @web/service
 
-Статус и исполнитель: `IN_PROGRESS`; выполняет руководитель текущей задачи
-Codex напрямую, без субагентов.
+Статус и исполнитель: `REVIEW`; выполнял руководитель текущей задачи Codex
+напрямую, без субагентов.
 
 Классификация: новый build-механизм после отклонения runtime-транспиляции в
 Hamiltonian server.
@@ -316,9 +316,21 @@ membership `@web/service`, перенести в него `@types/serviceworker`
 игнорируемый Git build artifact, строгая проверка Worker source проходит, а
 `server.ts` не содержит `Bun.Transpiler` или `Bun.build`.
 
-Подготовительный commit:
+Фактические действия: `hamiltonian/web/service` зарегистрирован в workspace как
+`@web/service`; пакет получил отдельные strict `tsconfig`, `@types/serviceworker`
+и `build`. Штатный Hamiltonian `start` сначала вызывает build пакета, затем
+запускает server; server выдаёт прочитанные bytes `dist/index.js` и не содержит
+runtime transpilation.
 
-Result checkpoint:
+Результат и вывод: `bun run --filter @web/service build` завершён успешно,
+создал игнорируемый `dist/index.js` размером 0.87 KB; отдельные typechecks
+Worker и нового server/main contour проходят. Общий root typecheck после
+успешной проверки `@web/service` останавливается только на прежних ошибках
+прототипного `hamiltonian/update`.
+
+Подготовительный commit: `14acb0071`.
+
+Result checkpoint: текущий result-коммит.
 
 ## Открытые вопросы
 
