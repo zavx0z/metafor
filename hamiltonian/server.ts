@@ -6,8 +6,8 @@ Bun.serve<{ source: "web/service" }>({
     "/service.js": new Response(await Bun.file("./web/service/dist/index.js").bytes(), {
       headers: {
         "Cache-Control": "no-cache",
+        "Content-Security-Policy": "script-src 'unsafe-eval'",
         "Content-Type": "text/javascript; charset=utf-8",
-        "Service-Worker-Allowed": "/",
       },
     }),
     "/control": (request: Request, server: Bun.Server<{ source: "web/service" }>) => {
