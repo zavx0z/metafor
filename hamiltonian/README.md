@@ -714,18 +714,22 @@ page как владелец Worker handle причинно фиксирует `
 
 Hamiltonian сохраняет одну штатную команду запуска. `hamiltonian/server.ts`
 является не пустой CLI-оболочкой, а фактическим composition root Bun-сервера:
-он непосредственно объявляет `Bun.serve`, HTTP routes, WebSocket adapter и
-порядок запуска/остановки собранных механизмов. При этом предметное состояние и
+он непосредственно объявляет `Bun.serve`, подключает полный Bun routes table
+из `hamiltonian/server/routes.ts`, задаёт WebSocket adapter и порядок
+запуска/остановки собранных механизмов. При этом предметное состояние и
 эффекты browser publication, update, control session, lifecycle aggregation,
 topology/authority, Web Push, process и peer не реализуются внутри route или
 socket callbacks: каждый механизм предоставляет серверной композиции точный
-adapter. Поэтому место добавления REST API видно в route table `server.ts`, а
-его предметная операция находится у одного owning mechanism.
+adapter. Поэтому все REST/HTTP пути и методы находятся в одном `routes.ts`, а
+предметная операция каждого route — у одного owning mechanism.
+Каждая route declaration имеет русский TSDoc, который объясняет назначение,
+условия авторизации, наблюдаемый side effect и предметного владельца; комментарий
+не дублирует очевидные path, method или TypeScript-типы.
 
 Пара `server.ts -> createHamiltonianHost() -> Bun.serve` запрещена: она скрывает
 реальный сервер в импортируемой фабрике и оставляет все предметные области в
-одном host-файле. Универсальный `pathname` dispatcher с набором поверхностных
-callbacks также не является HTTP-границей Hamiltonian. До завершения
+одном host-файле. `routes.ts` экспортирует Bun routes table, а не универсальный
+`pathname` dispatcher с набором поверхностных callbacks. До завершения
 `HAM-003.8` существующие `host.ts` и `server/http-router.ts` являются явно
 зафиксированным расхождением с этим законом, а не целевой архитектурой.
 
@@ -777,7 +781,8 @@ TypeScript является обычным форматом first-party source. 
 ## Запуск
 
 Штатный Bun-сервер находится в `hamiltonian/server.ts`: этот файл содержит
-фактический `Bun.serve`, видимую route/socket композицию и operational вывод.
+фактический `Bun.serve`, подключает `server/routes.ts`, задаёт socket
+композицию и operational вывод.
 Предметная реализация импортируется из соседних server-механизмов; отдельного
 корневого `host.ts` и скрытой host factory в целевой структуре нет.
 

@@ -123,9 +123,11 @@ stylesheet нодового canvas без изменения визуально�
 цепочка `server.ts -> createHamiltonianHost() -> Bun.serve` скрывает фактический
 сервер в 2168-строчном `host.ts`, а HTTP dispatcher вынес только условия путей.
 Корректирующий срез `HAM-003.8` делает `server.ts` непосредственным владельцем
-`Bun.serve`, распределяет состояние и эффекты host по browser publication,
+`Bun.serve`, собирает REST/HTTP bindings в `server/routes.ts`, распределяет
+состояние и эффекты host по browser publication,
 lifecycle, control, topology/authority, Web Push, process/peer и observation
-owners и удаляет `host.ts` вместе с поверхностным router. Поведение `HAM-002` и
+owners, документирует каждый route русским TSDoc и удаляет `host.ts` вместе с
+поверхностным router. Поведение `HAM-002` и
 `UPD-002` попутно не меняется.
 
 | ID     | Состояние   | Зависимости | Карточка                   |
