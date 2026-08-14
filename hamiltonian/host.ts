@@ -54,28 +54,10 @@ import {
   isHamiltonianRealtimePayloadOnControlChannel,
   parseHamiltonianControlClientMessage,
 } from "./server/control/protocol.ts"
-
-interface SocketData {
-  connectionId: string
-  connectionGeneration: number
-  deviceId: string
-  lifecycleTransportId: string
-  workerEntityId: string
-  openedAt: number
-  lastPongAt: number
-  lastChallengeSeq: number
-  lastAckSeq: number
-  nextHeartbeatTimer: ReturnType<typeof setTimeout> | null
-  heartbeatTimeoutTimer: ReturnType<typeof setTimeout> | null
-  workerIdentity: string | null
-  workerRuntimeIncarnation: string | null
-  workerCodeVersion: string | null
-  resumeNonce: string | null
-  identityConfirmed: boolean
-  workerUpdateRequired: boolean
-  retainAuthorityOnClose: boolean
-  reportedEmptyWindowInventory: boolean
-}
+import {
+  HamiltonianControlEndpoint,
+  type HamiltonianControlSocketData,
+} from "./server/control/endpoint.ts"
 
 interface HamiltonianHostOptions {
   hostname?: string
@@ -272,7 +254,7 @@ function safeEqual(left: string, right: string): boolean {
 
 function isBrowserProfileLifecycleSnapshot(
   value: unknown,
-  socket: SocketData,
+  socket: HamiltonianControlSocketData,
   workerIdentity: string,
   workerRuntimeIncarnation: string,
   workerCodeVersion: string,
@@ -462,9 +444,9 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
   })
   let serverAuthority = placement === "server" ? makeServerAuthority(serverFencingToken) : null
   const topology = new HostTopology(hostEpoch)
-  const sockets = new Map<string, Bun.ServerWebSocket<SocketData>>()
+  const sockets = new Map<string, Bun.ServerWebSocket<HamiltonianControlSocketData>>()
   const serviceWorkerAdmission = new HamiltonianServiceWorkerAdmissionRegistry()
-  let controlConnectionGeneration = 0
+  const controlEndpoint = new HamiltonianControlEndpoint((suppliedToken) => safeEqual(suppliedToken, token))
   const sourceWatchers: FSWatcher[] = []
   let sourceUpdateTimer: ReturnType<typeof setTimeout> | null = null
   let sourceUpdateGeneration = 0
@@ -488,13 +470,13 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
   const currentServiceWorkerRelease = async (): Promise<HamiltonianServiceWorkerRelease> => {
     return hamiltonianServiceWorkerRelease(await getServiceWorkerBundle())
   }
-  const applyServiceWorkerUpdateState = (socket: Bun.ServerWebSocket<SocketData>) => {
+  const applyServiceWorkerUpdateState = (socket: Bun.ServerWebSocket<HamiltonianControlSocketData>) => {
     socket.data.identityConfirmed = false
     socket.data.retainAuthorityOnClose = false
     socket.data.workerUpdateRequired = true
   }
   const sendServiceWorkerUpdate = (
-    socket: Bun.ServerWebSocket<SocketData>,
+    socket: Bun.ServerWebSocket<HamiltonianControlSocketData>,
     target: HamiltonianServiceWorkerRelease,
   ) => {
     sendControl(socket, {kind: "service-worker-update", target})
@@ -506,7 +488,7 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
     })
   }
   const revokeServiceWorkerApplication = async (
-    staleSockets: ReadonlyArray<Bun.ServerWebSocket<SocketData>>,
+    staleSockets: ReadonlyArray<Bun.ServerWebSocket<HamiltonianControlSocketData>>,
   ) => {
     for (const socket of staleSockets) topology.disconnect(socket.data.connectionId)
     if (staleSockets.length === 0) return
@@ -644,7 +626,7 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
   })))
 
   const sendNodeSystemDeclaration = (
-    socket: Bun.ServerWebSocket<SocketData>,
+    socket: Bun.ServerWebSocket<HamiltonianControlSocketData>,
     declaration: HamiltonianNodeSystemDeclaration,
   ) => {
     if (socket.getBufferedAmount() > 256_000) return
@@ -662,7 +644,7 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
     envelope.sourceIncarnation === workerRuntimeIncarnation)?.sourceStartedAt ?? -1
   const browserDeclarationForSnapshot = (
     snapshot: HamiltonianLifecycleSnapshot,
-    socket: SocketData,
+    socket: HamiltonianControlSocketData,
     workerRuntimeIncarnation: string,
     supplied?: HamiltonianNodeSystemDeclaration,
   ): HamiltonianNodeSystemDeclaration | null => {
@@ -755,7 +737,7 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
     broadcastNodeSystemDeclaration(declaration)
     return declaration
   }
-  const sendCurrentNodeSystemDeclarations = (socket: Bun.ServerWebSocket<SocketData>) => {
+  const sendCurrentNodeSystemDeclarations = (socket: Bun.ServerWebSocket<HamiltonianControlSocketData>) => {
     sendNodeSystemDeclaration(
       socket,
       hamiltonianServerBootstrapDeclaration(refreshServerDeclaration()),
@@ -891,7 +873,7 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
     })))
   }
   const sendControl = (
-    socket: Bun.ServerWebSocket<SocketData>,
+    socket: Bun.ServerWebSocket<HamiltonianControlSocketData>,
     message: Readonly<{kind: string}> & Record<string, unknown>,
   ) => {
     const messageId = `message:${encodeURIComponent(crypto.randomUUID())}`
@@ -912,13 +894,13 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
     }
     socket.send(JSON.stringify({...message, monitor}))
   }
-  const clearHeartbeatTimers = (socket: Bun.ServerWebSocket<SocketData>) => {
+  const clearHeartbeatTimers = (socket: Bun.ServerWebSocket<HamiltonianControlSocketData>) => {
     if (socket.data.nextHeartbeatTimer !== null) clearTimeout(socket.data.nextHeartbeatTimer)
     if (socket.data.heartbeatTimeoutTimer !== null) clearTimeout(socket.data.heartbeatTimeoutTimer)
     socket.data.nextHeartbeatTimer = null
     socket.data.heartbeatTimeoutTimer = null
   }
-  const challengeHeartbeat = (socket: Bun.ServerWebSocket<SocketData>) => {
+  const challengeHeartbeat = (socket: Bun.ServerWebSocket<HamiltonianControlSocketData>) => {
     if (stopping || sockets.get(socket.data.connectionId) !== socket) return
     if (socket.data.lastChallengeSeq > socket.data.lastAckSeq) return
     socket.data.nextHeartbeatTimer = null
@@ -937,7 +919,7 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
       socket.close(4000, "heartbeat timeout")
     }, Math.max(1, expiresAt - Date.now()))
   }
-  const scheduleHeartbeatAfterAck = (socket: Bun.ServerWebSocket<SocketData>) => {
+  const scheduleHeartbeatAfterAck = (socket: Bun.ServerWebSocket<HamiltonianControlSocketData>) => {
     if (socket.data.nextHeartbeatTimer !== null) clearTimeout(socket.data.nextHeartbeatTimer)
     socket.data.nextHeartbeatTimer = setTimeout(() => challengeHeartbeat(socket), heartbeatMs)
   }
@@ -1236,7 +1218,7 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
   })
 
   const tryResumeDetachedAuthority = (
-    socket: Bun.ServerWebSocket<SocketData>,
+    socket: Bun.ServerWebSocket<HamiltonianControlSocketData>,
     windows: WindowCandidate[],
   ): boolean => {
     const leader = topology.snapshot().leader
@@ -1369,7 +1351,7 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
     ? {tls: {cert: Bun.file(tlsCertPath), key: Bun.file(tlsKeyPath)}}
     : {}
 
-  const httpHandlers: HamiltonianHttpHandlers<Bun.Server<SocketData>> = {
+  const httpHandlers: HamiltonianHttpHandlers<Bun.Server<HamiltonianControlSocketData>> = {
     version,
     async navigation({request, bunServer}) {
       const localJoinToken = isLoopbackAddress(bunServer.requestIP(request)?.address) ? token : ""
@@ -1414,42 +1396,7 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
       }
     },
     control({request, url, bunServer}) {
-      const suppliedToken = url.searchParams.get("token") ?? ""
-      const deviceId = url.searchParams.get("device") ?? ""
-      const lifecycleTransportId = url.searchParams.get("transport") ?? ""
-      const workerEntityId = url.searchParams.get("worker") ?? ""
-      if (
-        !safeEqual(suppliedToken, token) ||
-        !deviceId || deviceId.length > 128 ||
-        !lifecycleTransportId.startsWith("websocket:") || lifecycleTransportId.length > 512 ||
-        !workerEntityId.startsWith("service-worker:") || workerEntityId.length > 512
-      ) {
-        return new Response("Unauthorized", {status: 401})
-      }
-      const upgraded = bunServer.upgrade(request, {
-        data: {
-          connectionId: crypto.randomUUID(),
-          connectionGeneration: ++controlConnectionGeneration,
-          deviceId,
-          lifecycleTransportId,
-          workerEntityId,
-          openedAt: Date.now(),
-          lastPongAt: Date.now(),
-          lastChallengeSeq: 0,
-          lastAckSeq: 0,
-          nextHeartbeatTimer: null,
-          heartbeatTimeoutTimer: null,
-          workerIdentity: null,
-          workerRuntimeIncarnation: null,
-          workerCodeVersion: null,
-          resumeNonce: null,
-          identityConfirmed: false,
-          workerUpdateRequired: false,
-          retainAuthorityOnClose: false,
-          reportedEmptyWindowInventory: false,
-        },
-      })
-      return upgraded ? undefined : new Response("WebSocket upgrade required", {status: 426})
+      return controlEndpoint.upgrade(request, url, bunServer)
     },
     vapidPublicKey({request}) {
       if (!authorized(request, token)) return new Response("Unauthorized", {status: 401})
@@ -1490,7 +1437,7 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
         wakeId,
         wakeProof,
         armedAt: Date.now(),
-        armedAfterConnectionGeneration: controlConnectionGeneration,
+        armedAfterConnectionGeneration: controlEndpoint.currentConnectionGeneration,
       }
       pendingWakes.set(workerEntityId, wake)
       pendingWakeTimers.set(workerEntityId, setTimeout(() => {
@@ -1565,7 +1512,7 @@ export function createHamiltonianHost(options: HamiltonianHostOptions = {}) {
     },
   }
 
-  const server = Bun.serve<SocketData>({
+  const server = Bun.serve<HamiltonianControlSocketData>({
     hostname,
     port,
     ...tls,

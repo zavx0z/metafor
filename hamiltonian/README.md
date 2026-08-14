@@ -739,9 +739,14 @@ supervisor запускает соседний process entrypoint. Child entrypo
 Входной договор control WebSocket и его чистая проверка находятся в
 `hamiltonian/server/control/protocol.ts`. Модуль перечисляет допустимые
 control messages и распознаёт запрещённый здесь realtime Oracle/Force payload,
-но не владеет
-socket, authorization, admission, timers, состоянием или эффектами handlers.
-Проверка этой границы: `bun test ./server/control/protocol.spec.ts
+но не владеет socket, authorization, admission, timers, состоянием или
+эффектами handlers.
+Transport endpoint находится в `hamiltonian/server/control/endpoint.ts`: он
+проверяет query identity через переданный host token predicate, создаёт
+начальное socket data, монотонную connection generation и выполняет Bun
+upgrade. WebSocket callbacks, admission, heartbeat и lifecycle-эффекты остаются
+у host composition. Проверка этой границы: `bun test
+./server/control/endpoint.spec.ts ./server/control/protocol.spec.ts
 ./server/control/package-boundary.spec.ts`.
 
 Каждый рабочий модуль имеет одного владельца и одну среду исполнения: общий
