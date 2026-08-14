@@ -125,9 +125,10 @@ stylesheet нодового canvas без изменения визуально�
 path/method dispatch в одном server adapter. `HAM-003.4` собрала supervisor и
 executable entry Bun-воплощений под одним `server/process` owner, а
 `HAM-003.5` — peer supervisor, process entry и Werift adapter под одним
-`server/peer` owner. Текущий `HAM-003.6` отделяет чистый contract и validation
-control WebSocket до переноса stateful adapter; последующие срезы меняют по
-одному механизму и сохраняют договоры `HAM-002` и `UPD-002`.
+`server/peer` owner. `HAM-003.6` отделила чистый contract и validation control
+WebSocket. Текущий `HAM-003.7` отделяет `/control` upgrade и начальное socket
+state до переноса message effects; последующие срезы меняют по одному механизму
+и сохраняют договоры `HAM-002` и `UPD-002`.
 
 | ID     | Состояние   | Зависимости | Карточка                   |
 | ------ | ----------- | ----------- | -------------------------- |
