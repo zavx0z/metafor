@@ -135,14 +135,6 @@ export class BunEmbodimentSupervisor {
     })
   }
 
-  crashForTest(): number | null {
-    const child = this.#child
-    if (!child || this.#terminated) return null
-    const pid = child.pid
-    child.kill("SIGKILL")
-    return pid
-  }
-
   async #birth(payload: VersionPayload): Promise<BunEmbodimentSnapshot> {
     const incarnation = crypto.randomUUID()
     const processEntityId = hamiltonianLifecycleEntityId("bun-process", incarnation)
@@ -360,12 +352,6 @@ export class BunEmbodimentSet {
     const supervisor = this.#supervisors.get(role)
     if (!supervisor) throw new Error(`Unknown Bun embodiment role: ${role}`)
     return await supervisor.rebirth(payload)
-  }
-
-  crashForTest(role: string): number | null {
-    const supervisor = this.#supervisors.get(role)
-    if (!supervisor) return null
-    return supervisor.crashForTest()
   }
 
   async stopAll(): Promise<void> {

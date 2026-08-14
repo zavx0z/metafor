@@ -49,6 +49,8 @@ describe("Hamiltonian singleton server boundary", () => {
   test("declares the only Bun server and the complete routes object in server.ts", async () => {
     const source = await Bun.file(serverPath).text()
     const runtime = await Bun.file(runtimePath).text()
+    const bunEmbodiment = await Bun.file(`${hamiltonianRoot}/bun-embodiment.ts`).text()
+    const peerSupervisor = await Bun.file(`${hamiltonianRoot}/peer-supervisor.ts`).text()
     const packageJson = await Bun.file(`${hamiltonianRoot}/package.json`).json() as {scripts?: {start?: string}}
 
     expect(packageJson.scripts?.start).toBe("bun run server.ts")
@@ -58,6 +60,14 @@ describe("Hamiltonian singleton server boundary", () => {
     expect(runtime).not.toContain("Bun.serve")
     expect(source).not.toContain("class ")
     expect(existsSync(`${hamiltonianRoot}/host.ts`)).toBeFalse()
+    expect(existsSync(`${hamiltonianRoot}/server-test-client.ts`)).toBeFalse()
+    expect(existsSync(`${hamiltonianRoot}/server-test-process.ts`)).toBeFalse()
+    expect(existsSync(`${hamiltonianRoot}/fixture/server-test-client.ts`)).toBeTrue()
+    expect(existsSync(`${hamiltonianRoot}/fixture/server-test-process.ts`)).toBeTrue()
+    for (const production of [source, runtime, bunEmbodiment, peerSupervisor]) {
+      expect(production).not.toMatch(/ForTest|HAMILTONIAN_(?:TEST|FIXTURE)|NODE_ENV\s*[!=]=+\s*["']test["']/)
+      expect(production).not.toContain("fixture/")
+    }
 
     const declarations = [...source.matchAll(/^\s{4}("\/[^"]+"|"\/"|\[versionedModulePath\]):/gm)]
       .map((match) => match[1])

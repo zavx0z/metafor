@@ -21,8 +21,7 @@ import {HamiltonianLifecycleProjection} from "./browser/orchestration/lifecycle-
 import {HAMILTONIAN_SERVICE_WORKER_CODE_VERSION} from "./update/browser/service-worker-code-version.ts"
 import {
   createHamiltonianTestServer as createHamiltonianHost,
-} from "./server-test-client.ts"
-import {hamiltonianServerBootstrapDeclaration} from "./server-runtime.ts"
+} from "./fixture/server-test-client.ts"
 import {WeriftPeer, type PeerSignal} from "./peer/werift-peer.ts"
 
 const running: Array<Awaited<ReturnType<typeof createHamiltonianHost>>> = []
@@ -412,7 +411,7 @@ describe("isolated Hamiltonian host", () => {
     const emptyRegistry = new HamiltonianNodeSystemDeclarationRegistry()
     expect(emptyRegistry.accept(declaration)).toBeNull()
 
-    const bootstrap = hamiltonianServerBootstrapDeclaration(declaration)
+    const bootstrap = createHamiltonianNodeSystemDeclaration({...declaration, boundaryTransports: []})
     expect(bootstrap).toMatchObject({
       logicalContourId: declaration.logicalContourId,
       incarnation: declaration.incarnation,
@@ -2359,7 +2358,7 @@ describe("isolated Hamiltonian host", () => {
     surviving.close()
   })
 
-  test("cold-rebirths the Bun embodiment as a new OS process without another listener", async () => {
+  test("auto-rebirths the Bun embodiment after a process crash without another listener", async () => {
     const host = await createHamiltonianHost({port: 0, token: "test-token", version: "v-process"})
     running.push(host)
     const first = requireValue((await host.bunReady)["main-probe"], "initial main Bun lifecycle probe")
@@ -2489,7 +2488,7 @@ describe("isolated Hamiltonian host", () => {
     retained.close()
   }, 10_000)
 
-  test("serializes concurrent rebirths of one Bun role", async () => {
+  test("recovers one Bun role from consecutive process crashes", async () => {
     const host = await createHamiltonianHost({port: 0, token: "test-token", version: "v-race"})
     running.push(host)
     const initial = requireValue((await host.bunReady)["main-probe"], "initial main Bun lifecycle probe")
@@ -2570,13 +2569,11 @@ describe("isolated Hamiltonian host", () => {
     socket.close()
   })
 
-  test("does not birth a Bun process after host shutdown has started", async () => {
+  test("does not retain a Bun process after host shutdown has started", async () => {
     const host = await createHamiltonianHost({port: 0, token: "test-token", placement: "server"})
     running.push(host)
     await host.bunReady
-    const stopping = host.stop()
-    await expect(host.rebirthBunEmbodiment("main")).rejects.toThrow("Hamiltonian host is stopping")
-    await stopping
+    await host.stop()
     expect(host.bunEmbodiments.snapshot().main?.pid).toBeNull()
     running.splice(running.indexOf(host), 1)
   })
@@ -3398,10 +3395,22 @@ describe("isolated Hamiltonian host", () => {
       tabId: "begin-error-window",
     })
     const firstAssignment = requireValue(host.getStatus().peer.assignment, "initial peer assignment")
-    const failedAssignment = requireValue(
-      await host.requestPeerRepairForTest("prepare begin failure"),
-      "failed peer assignment",
-    )
+    await host.failNextPeerBeginForTest("fixture begin failed before peer-state")
+    fixture.socket.send(JSON.stringify({
+      kind: "peer-failed",
+      peerId: firstAssignment.peerId,
+      sessionEpoch: firstAssignment.sessionEpoch,
+      peerGeneration: firstAssignment.peerGeneration,
+      authorityKey: firstAssignment.authorityKey,
+      tabId: firstAssignment.tabId,
+      reason: "prepare begin failure",
+    }))
+    await waitUntil(() => {
+      const current = host.getStatus()
+      return current.peer.assignment?.peerGeneration === firstAssignment.peerGeneration + 1 &&
+        current.peer.error === "fixture begin failed before peer-state"
+    }, "failed peer begin")
+    const failedAssignment = requireValue(host.getStatus().peer.assignment, "failed peer assignment")
     expect(failedAssignment.peerGeneration).toBe(firstAssignment.peerGeneration + 1)
     expect(host.getStatus().peer.snapshot?.peerId).not.toBe(failedAssignment.peerId)
 

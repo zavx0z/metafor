@@ -138,18 +138,6 @@ export class PeerProcessSupervisor {
     await this.#send({kind: "close-peer", peerId})
   }
 
-  crashForTest(): number | null {
-    const child = this.#child
-    if (!child || this.#stopped) return null
-    const pid = child.pid
-    child.kill("SIGKILL")
-    return pid
-  }
-
-  reportErrorForTest(peerId: string, error: string): void {
-    this.#onState(this.snapshot(), error, peerId)
-  }
-
   async stop(): Promise<void> {
     if (this.#stopped) return
     this.#stopped = true

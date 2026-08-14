@@ -35,7 +35,6 @@ import {
   isHamiltonianPushSubscription,
   validWorkerIdentity,
   type HamiltonianPushSubscriptionInput,
-  type HamiltonianWebPushOptions,
 } from "./web-push.ts"
 import type {WebPushLifecycleEvent, WebPushLifecycleHook} from "@metafor/web-push/lifecycle"
 import {isHamiltonianServiceWorkerCodeVersion} from "./update/shared/service-worker-release.js"
@@ -73,14 +72,6 @@ export interface HamiltonianServerSocketData {
 export interface ClientTabsMessage {
   kind: "tabs"
   windows: WindowCandidate[]
-}
-
-export function hamiltonianServerBootstrapDeclaration(
-  declaration: HamiltonianNodeSystemDeclaration,
-): HamiltonianNodeSystemDeclaration {
-  return declaration.boundaryTransports.length === 0
-    ? declaration
-    : createHamiltonianNodeSystemDeclaration({...declaration, boundaryTransports: []})
 }
 
 export interface ClientPongMessage {
@@ -734,45 +725,14 @@ export const placement = Bun.env.HAMILTONIAN_PLACEMENT ?? "browser"
 const configuredVapidPublicKey = Bun.env.HAMILTONIAN_VAPID_PUBLIC_KEY
 const configuredVapidPrivateKey = Bun.env.HAMILTONIAN_VAPID_PRIVATE_KEY
 const configuredVapidSubject = Bun.env.HAMILTONIAN_VAPID_SUBJECT
-const webPushStoragePath = Bun.env.HAMILTONIAN_WEB_PUSH_STORAGE_PATH ?? (
-  Bun.env.NODE_ENV === "test" ? undefined : `${repositoryRoot}/.metafor/hamiltonian-web-push.json`
-)
-const pendingTestWebPush = new Map<number, {
-  resolve(value: unknown): void
-  reject(error: Error): void
-}>()
-let nextTestWebPushRequestId = 0
-const testWebPushSend: HamiltonianWebPushOptions["send"] = Bun.env.HAMILTONIAN_TEST_WEB_PUSH_IPC === "1"
-  ? (subscription, payload, requestOptions) => new Promise((resolve, reject) => {
-      const requestId = ++nextTestWebPushRequestId
-      pendingTestWebPush.set(requestId, {resolve, reject})
-      process.send?.({kind: "hamiltonian-test-web-push", requestId, subscription, payload, requestOptions})
-    })
-  : undefined
-if (testWebPushSend !== undefined) {
-  process.on("message", (rawMessage) => {
-    const message = rawMessage as {
-      kind?: string
-      requestId?: number
-      ok?: boolean
-      value?: unknown
-      error?: string
-    }
-    if (message.kind !== "hamiltonian-test-web-push-result" || typeof message.requestId !== "number") return
-    const pending = pendingTestWebPush.get(message.requestId)
-    if (!pending) return
-    pendingTestWebPush.delete(message.requestId)
-    if (message.ok) pending.resolve(message.value)
-    else pending.reject(new Error(message.error ?? "test Web Push failed"))
-  })
-}
+const webPushStoragePath = Bun.env.HAMILTONIAN_WEB_PUSH_STORAGE_PATH ??
+  `${repositoryRoot}/.metafor/hamiltonian-web-push.json`
   let observeWebPushLifecycle: WebPushLifecycleHook = () => {}
   const webPush = new HamiltonianWebPush({
     ...(configuredVapidPublicKey === undefined ? {} : {publicKey: configuredVapidPublicKey}),
     ...(configuredVapidPrivateKey === undefined ? {} : {privateKey: configuredVapidPrivateKey}),
     ...(configuredVapidSubject === undefined ? {} : {subject: configuredVapidSubject}),
-    ...(webPushStoragePath === undefined ? {} : {storagePath: webPushStoragePath}),
-    ...(testWebPushSend === undefined ? {} : {send: testWebPushSend}),
+    storagePath: webPushStoragePath,
     onLifecycle: (event) => observeWebPushLifecycle(event),
   })
   if (placement !== "browser" && placement !== "server") {
@@ -1093,9 +1053,12 @@ if (testWebPushSend !== undefined) {
     return declaration
   }
   const sendCurrentNodeSystemDeclarations = (socket: Bun.ServerWebSocket<HamiltonianServerSocketData>) => {
+    const declaration = refreshServerDeclaration()
     sendNodeSystemDeclaration(
       socket,
-      hamiltonianServerBootstrapDeclaration(refreshServerDeclaration()),
+      declaration.boundaryTransports.length === 0
+        ? declaration
+        : createHamiltonianNodeSystemDeclaration({...declaration, boundaryTransports: []}),
     )
   }
   const observeServiceWorkerAvailability = (
@@ -1309,44 +1272,15 @@ if (testWebPushSend !== undefined) {
       })
     }, 120)
   }
-  const pendingTestBundles = new Map<string, PromiseWithResolvers<string>>()
-
   invalidateBrowserBundles()
-  orchestrationBundle = testBundle("HAMILTONIAN_TEST_ORCHESTRATION_BUNDLE_BASE64")
-  layoutWorkerBundle = testBundle("HAMILTONIAN_TEST_LAYOUT_WORKER_BUNDLE_BASE64")
-  serviceWorkerBundle = testBundle("HAMILTONIAN_TEST_SERVICE_WORKER_BUNDLE_BASE64")
-  webPushClientBundle = testBundle("HAMILTONIAN_TEST_WEB_PUSH_CLIENT_BUNDLE_BASE64")
-  if (Bun.env.NODE_ENV !== "test") {
-    // Build once as soon as the host incarnation starts. A first navigation
-    // must not pay the browser bundle compilation cost on its module request.
-    void Promise.all([
-      getOrchestrationBundle(),
-      getLayoutWorkerBundle(),
-      getServiceWorkerBundle(),
-      getWebPushClientBundle(),
-    ]).catch(() => {})
-  }
-
-function testBundle(name: string): Promise<string> | null {
-  const encoded = Bun.env[name]
-  if (encoded !== undefined) return Promise.resolve(Buffer.from(encoded, "base64").toString("utf8"))
-  if (Bun.env[`${name}_PENDING`] !== "1") return null
-  const pending = Promise.withResolvers<string>()
-  pendingTestBundles.set(name, pending)
-  return pending.promise
-}
-
-/** Завершает отложенную browser-сборку только в изолированном test process. */
-export function settleHamiltonianTestBundle(
-  name: string,
-  result: {ok: true; source: string} | {ok: false; error: string},
-): void {
-  const pending = pendingTestBundles.get(name)
-  if (!pending) throw new Error(`Unknown pending Hamiltonian test bundle: ${name}`)
-  pendingTestBundles.delete(name)
-  if (result.ok) pending.resolve(result.source)
-  else pending.reject(new Error(result.error))
-}
+  // Build once as soon as the host incarnation starts. A first navigation
+  // must not pay the browser bundle compilation cost on its module request.
+  void Promise.all([
+    getOrchestrationBundle(),
+    getLayoutWorkerBundle(),
+    getServiceWorkerBundle(),
+    getWebPushClientBundle(),
+  ]).catch(() => {})
   let peerSnapshot: WeriftPeerSnapshot | null = null
   let peerError: string | null = null
   let peerAssignment: {
@@ -2447,28 +2381,26 @@ export function handleControlDrain(socket: ControlSocket): void {
 }
 
 function startSourceWatchers(): void {
-  if (Bun.env.NODE_ENV !== "test") {
-    for (const root of [
-      `${experimentRoot}/browser`,
-      `${experimentRoot}/public`,
-      `${experimentRoot}/core`,
-      updateRoot,
-      visualRoot,
-      uiRoot,
-      nodesRoot,
-      webPushRoot,
-    ]) {
-      try {
-        sourceWatchers.push(watch(root, {recursive: true}, (_event, filename) => {
-          scheduleSourceUpdate(filename)
-        }))
-      } catch (error) {
-        record({
-          at: Date.now(),
-          kind: "source-watch-failed",
-          detail: error instanceof Error ? error.message : String(error),
-        })
-      }
+  for (const root of [
+    `${experimentRoot}/browser`,
+    `${experimentRoot}/public`,
+    `${experimentRoot}/core`,
+    updateRoot,
+    visualRoot,
+    uiRoot,
+    nodesRoot,
+    webPushRoot,
+  ]) {
+    try {
+      sourceWatchers.push(watch(root, {recursive: true}, (_event, filename) => {
+        scheduleSourceUpdate(filename)
+      }))
+    } catch (error) {
+      record({
+        at: Date.now(),
+        kind: "source-watch-failed",
+        detail: error instanceof Error ? error.message : String(error),
+      })
     }
   }
 }
@@ -2503,8 +2435,6 @@ export let bunReady: Promise<ReturnType<typeof bunEmbodiments.snapshot>> =
   let stopPromise: Promise<void> | null = null
 let runtimeBound = false
 
-export {hostEpoch, topology, bunEmbodiments}
-
 export function bindHamiltonianServer(server: Bun.Server<HamiltonianServerSocketData>): void {
   if (runtimeBound) throw new Error("Hamiltonian server runtime is already bound")
   runtimeBound = true
@@ -2515,38 +2445,6 @@ export function bindHamiltonianServer(server: Bun.Server<HamiltonianServerSocket
 
 export function getHamiltonianStatus() {
   return observableState()
-}
-
-export function rebirthBunEmbodiment(role = serverMainRole) {
-  return rebirthBunEmbodimentInternal(role)
-}
-
-export function crashBunEmbodimentForTest(role = serverMainRole) {
-  return bunEmbodiments.crashForTest(role)
-}
-
-export function acceptsServerAuthorityForTest(candidate: EmbodimentAuthority | null): boolean {
-  return placement === "server" && authorityKey(candidate) === authorityKey(serverAuthority)
-}
-
-export function crashPeerProcessForTest() {
-  return peerSupervisor.crashForTest()
-}
-
-export function requestPeerRepairForTest(reason: string) {
-  requestPeerRepair(reason)
-  return peerAssignment
-}
-
-export function reportPeerErrorForTest(peerId: string, error: string): void {
-  peerSupervisor.reportErrorForTest(peerId, error)
-}
-
-export async function updateServiceWorkerReleaseForTest(nextSource: string) {
-  serviceWorkerBundle = Promise.resolve(nextSource)
-  const target = hamiltonianServiceWorkerRelease(nextSource)
-  await reconcileServiceWorkerReleases(target)
-  return target
 }
 
 export function stopHamiltonianRuntime(server: Bun.Server<HamiltonianServerSocketData>): Promise<void> {

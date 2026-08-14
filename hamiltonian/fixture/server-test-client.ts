@@ -1,8 +1,12 @@
-import type {EmbodimentAuthority} from "./bun-embodiment.ts"
-import type {HamiltonianWebPushOptions} from "./web-push.ts"
+import type {EmbodimentAuthority} from "../bun-embodiment.ts"
+import {authorityKey} from "../core/runtime.js"
+import type {HamiltonianWebPushOptions} from "../web-push.ts"
+import {mkdtempSync, rmSync} from "node:fs"
+import {tmpdir} from "node:os"
+import {join} from "node:path"
 
-type HamiltonianStatus = ReturnType<typeof import("./server-runtime.ts").getHamiltonianStatus>
-type BunEmbodiments = Awaited<typeof import("./server-runtime.ts").bunReady>
+type HamiltonianStatus = ReturnType<typeof import("../server-runtime.ts").getHamiltonianStatus>
+type BunEmbodiments = Awaited<typeof import("../server-runtime.ts").bunReady>
 
 export interface HamiltonianTestServerOptions {
   hostname?: string
@@ -42,7 +46,7 @@ export interface HamiltonianTestServer {
   crashBunEmbodimentForTest(role?: string): Promise<number | null>
   acceptsServerAuthorityForTest(candidate: EmbodimentAuthority | null): Promise<boolean>
   crashPeerProcessForTest(): Promise<number | null>
-  requestPeerRepairForTest(reason: string): Promise<HamiltonianStatus["peer"]["assignment"]>
+  failNextPeerBeginForTest(error: string): Promise<void>
   reportPeerErrorForTest(peerId: string, error: string): Promise<void>
   updateServiceWorkerReleaseForTest(source: string): Promise<{
     version: string
@@ -75,6 +79,9 @@ const experimentRoot = new URL(".", import.meta.url).pathname
 export async function createHamiltonianTestServer(
   options: HamiltonianTestServerOptions = {},
 ): Promise<HamiltonianTestServer> {
+  const ownedStorageDirectory = options.webPush?.storagePath === undefined
+    ? mkdtempSync(join(tmpdir(), "hamiltonian-server-fixture-"))
+    : null
   const environment: Record<string, string> = Object.fromEntries(
     Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined),
   )
@@ -91,30 +98,31 @@ export async function createHamiltonianTestServer(
   setOptionalEnvironment(environment, "HAMILTONIAN_VAPID_PUBLIC_KEY", options.webPush?.publicKey)
   setOptionalEnvironment(environment, "HAMILTONIAN_VAPID_PRIVATE_KEY", options.webPush?.privateKey)
   setOptionalEnvironment(environment, "HAMILTONIAN_VAPID_SUBJECT", options.webPush?.subject)
-  setOptionalEnvironment(environment, "HAMILTONIAN_WEB_PUSH_STORAGE_PATH", options.webPush?.storagePath)
-  if (options.webPush?.send === undefined) delete environment.HAMILTONIAN_TEST_WEB_PUSH_IPC
-  else environment.HAMILTONIAN_TEST_WEB_PUSH_IPC = "1"
+  environment.HAMILTONIAN_WEB_PUSH_STORAGE_PATH = options.webPush?.storagePath ??
+    join(ownedStorageDirectory!, "web-push.json")
+  if (options.webPush?.send === undefined) delete environment.HAMILTONIAN_FIXTURE_WEB_PUSH_IPC
+  else environment.HAMILTONIAN_FIXTURE_WEB_PUSH_IPC = "1"
 
   if (options.browserBundles === undefined) {
-    delete environment.HAMILTONIAN_TEST_ORCHESTRATION_BUNDLE_BASE64
-    delete environment.HAMILTONIAN_TEST_ORCHESTRATION_BUNDLE_BASE64_PENDING
-    delete environment.HAMILTONIAN_TEST_LAYOUT_WORKER_BUNDLE_BASE64
-    delete environment.HAMILTONIAN_TEST_LAYOUT_WORKER_BUNDLE_BASE64_PENDING
-    delete environment.HAMILTONIAN_TEST_SERVICE_WORKER_BUNDLE_BASE64
-    delete environment.HAMILTONIAN_TEST_SERVICE_WORKER_BUNDLE_BASE64_PENDING
-    delete environment.HAMILTONIAN_TEST_WEB_PUSH_CLIENT_BUNDLE_BASE64
-    delete environment.HAMILTONIAN_TEST_WEB_PUSH_CLIENT_BUNDLE_BASE64_PENDING
+    delete environment.HAMILTONIAN_FIXTURE_ORCHESTRATION_BUNDLE_BASE64
+    delete environment.HAMILTONIAN_FIXTURE_ORCHESTRATION_BUNDLE_BASE64_PENDING
+    delete environment.HAMILTONIAN_FIXTURE_LAYOUT_WORKER_BUNDLE_BASE64
+    delete environment.HAMILTONIAN_FIXTURE_LAYOUT_WORKER_BUNDLE_BASE64_PENDING
+    delete environment.HAMILTONIAN_FIXTURE_SERVICE_WORKER_BUNDLE_BASE64
+    delete environment.HAMILTONIAN_FIXTURE_SERVICE_WORKER_BUNDLE_BASE64_PENDING
+    delete environment.HAMILTONIAN_FIXTURE_WEB_PUSH_CLIENT_BUNDLE_BASE64
+    delete environment.HAMILTONIAN_FIXTURE_WEB_PUSH_CLIENT_BUNDLE_BASE64_PENDING
   } else {
-    configureTestBundle(environment, "HAMILTONIAN_TEST_ORCHESTRATION_BUNDLE_BASE64", options.browserBundles.orchestration)
-    configureTestBundle(environment, "HAMILTONIAN_TEST_LAYOUT_WORKER_BUNDLE_BASE64", options.browserBundles.layoutWorker)
-    configureTestBundle(environment, "HAMILTONIAN_TEST_SERVICE_WORKER_BUNDLE_BASE64", options.browserBundles.serviceWorker)
+    configureTestBundle(environment, "HAMILTONIAN_FIXTURE_ORCHESTRATION_BUNDLE_BASE64", options.browserBundles.orchestration)
+    configureTestBundle(environment, "HAMILTONIAN_FIXTURE_LAYOUT_WORKER_BUNDLE_BASE64", options.browserBundles.layoutWorker)
+    configureTestBundle(environment, "HAMILTONIAN_FIXTURE_SERVICE_WORKER_BUNDLE_BASE64", options.browserBundles.serviceWorker)
     if (options.browserBundles.webPushClient === undefined) {
-      delete environment.HAMILTONIAN_TEST_WEB_PUSH_CLIENT_BUNDLE_BASE64
-      delete environment.HAMILTONIAN_TEST_WEB_PUSH_CLIENT_BUNDLE_BASE64_PENDING
+      delete environment.HAMILTONIAN_FIXTURE_WEB_PUSH_CLIENT_BUNDLE_BASE64
+      delete environment.HAMILTONIAN_FIXTURE_WEB_PUSH_CLIENT_BUNDLE_BASE64_PENDING
     } else {
       configureTestBundle(
         environment,
-        "HAMILTONIAN_TEST_WEB_PUSH_CLIENT_BUNDLE_BASE64",
+        "HAMILTONIAN_FIXTURE_WEB_PUSH_CLIENT_BUNDLE_BASE64",
         options.browserBundles.webPushClient,
       )
     }
@@ -185,11 +193,11 @@ export async function createHamiltonianTestServer(
   })
 
   if (options.browserBundles !== undefined) {
-    forwardTestBundle(child, "HAMILTONIAN_TEST_ORCHESTRATION_BUNDLE_BASE64", options.browserBundles.orchestration)
-    forwardTestBundle(child, "HAMILTONIAN_TEST_LAYOUT_WORKER_BUNDLE_BASE64", options.browserBundles.layoutWorker)
-    forwardTestBundle(child, "HAMILTONIAN_TEST_SERVICE_WORKER_BUNDLE_BASE64", options.browserBundles.serviceWorker)
+    forwardTestBundle(child, "HAMILTONIAN_FIXTURE_ORCHESTRATION_BUNDLE_BASE64", options.browserBundles.orchestration)
+    forwardTestBundle(child, "HAMILTONIAN_FIXTURE_LAYOUT_WORKER_BUNDLE_BASE64", options.browserBundles.layoutWorker)
+    forwardTestBundle(child, "HAMILTONIAN_FIXTURE_SERVICE_WORKER_BUNDLE_BASE64", options.browserBundles.serviceWorker)
     if (options.browserBundles.webPushClient !== undefined) {
-      forwardTestBundle(child, "HAMILTONIAN_TEST_WEB_PUSH_CLIENT_BUNDLE_BASE64", options.browserBundles.webPushClient)
+      forwardTestBundle(child, "HAMILTONIAN_FIXTURE_WEB_PUSH_CLIENT_BUNDLE_BASE64", options.browserBundles.webPushClient)
     }
   }
 
@@ -202,6 +210,7 @@ export async function createHamiltonianTestServer(
   }
 
   void child.exited.then(async (exitCode) => {
+    if (ownedStorageDirectory !== null) rmSync(ownedStorageDirectory, {recursive: true, force: true})
     if (stopped && exitCode === 0) return
     const stderr = await new Response(child.stderr).text()
     const error = new Error(`Hamiltonian test process exited (${exitCode}): ${stderr.trim()}`)
@@ -254,15 +263,13 @@ export async function createHamiltonianTestServer(
     },
     rebirthBunEmbodiment: (role) => command("rebirth-bun", role === undefined ? [] : [role]),
     crashBunEmbodimentForTest: (role) => command("crash-bun", role === undefined ? [] : [role]),
-    acceptsServerAuthorityForTest: (candidate) => command("accepts-server-authority", [candidate]),
+    acceptsServerAuthorityForTest: async (candidate) => {
+      const current = readStatus(serverInfo.url, started.token).serverAuthority
+      return started.placement === "server" && authorityKey(candidate) === authorityKey(current)
+    },
     crashPeerProcessForTest: () => command("crash-peer"),
-    requestPeerRepairForTest: async (reason) => {
-      const result = await command<{
-        assignment: HamiltonianStatus["peer"]["assignment"]
-        status: HamiltonianStatus
-      }>("request-peer-repair", [reason])
-      bufferedStatus = result.status
-      return result.assignment
+    failNextPeerBeginForTest: async (error) => {
+      await command("fail-next-peer-begin", [error])
     },
     reportPeerErrorForTest: async (peerId, error) => {
       await command("report-peer-error", [peerId, error])
