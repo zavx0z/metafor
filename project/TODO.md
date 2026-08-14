@@ -28,7 +28,6 @@ flowchart LR
     HAM001["HAM-001 · декларации нодовой системы Hamiltonian"]
     NODES009["NODES-009 · универсальные границы node-system"]
     HAM002["HAM-002 · единый визуальный слой Hamiltonian"]
-    HAM003["HAM-003 · среды и механизмы Hamiltonian"]
     NODES006["NODES-006 · кратчайший законный маршрут"]
     NODES008["NODES-008 · убрать пустой compound-резерв"]
     MF425["MF-425 · одна Вселенная на одном устройстве"]
@@ -117,19 +116,6 @@ stylesheet нодового canvas без изменения визуально�
 одним полным выпуском, который Service Worker проверяет, сохраняет и выдаёт
 страницам после переключения.
 
-`HAM-003 — Разделить Hamiltonian по средам исполнения и механизмам` остаётся
-`IN_PROGRESS`. После owner review результаты `HAM-003.2-.7` признаны полезными
-промежуточными extractions, но недостаточными для исходной цели: созданная
-цепочка `server.ts -> createHamiltonianHost() -> Bun.serve` скрывает фактический
-сервер в 2168-строчном `host.ts`, а HTTP dispatcher вынес только условия путей.
-Корректирующий срез `HAM-003.8` делает `server.ts` непосредственным владельцем
-`Bun.serve`, собирает REST/HTTP bindings в `server/routes.ts`, распределяет
-состояние и эффекты host по browser publication,
-lifecycle, control, topology/authority, Web Push, process/peer и observation
-owners, документирует каждый route русским TSDoc и удаляет `host.ts` вместе с
-поверхностным router. Поведение `HAM-002` и
-`UPD-002` попутно не меняется.
-
 | ID     | Состояние   | Зависимости | Карточка                   |
 | ------ | ----------- | ----------- | -------------------------- |
 | MF-424 | IN_PROGRESS | нет         | [Открыть](tasks/MF-424.md) |
@@ -138,7 +124,6 @@ owners, документирует каждый route русским TSDoc и у
 | HAM-001 | IN_PROGRESS | нет         | [Открыть](tasks/HAM-001.md) |
 | NODES-009 | IN_PROGRESS | нет       | [Открыть](tasks/NODES-009.md) |
 | HAM-002 | IN_PROGRESS | нет         | [Открыть](tasks/HAM-002.md) |
-| HAM-003 | IN_PROGRESS | нет         | [Открыть](tasks/HAM-003.md) |
 | MF-411 | IN_PROGRESS | нет         | [Открыть](tasks/MF-411.md) |
 | NODES-006 | REVIEW      | нет       | [Открыть](tasks/NODES-006.md) |
 | NODES-008 | IN_PROGRESS | нет       | [Открыть](tasks/NODES-008.md) |

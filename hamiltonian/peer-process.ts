@@ -3,7 +3,7 @@ import {
   type PeerSignal,
   type WeriftPeerLifecycleEvent,
   type WeriftPeerSnapshot,
-} from "./werift-peer.ts"
+} from "./peer/werift-peer.ts"
 import type {RTCIceServer} from "werift"
 import {
   HamiltonianLifecycleSource,
@@ -12,7 +12,7 @@ import {
   hamiltonianLifecycleEntityId,
   hamiltonianLifecycleMessageId,
   hamiltonianRtcPeerEntityId,
-} from "../../core/lifecycle.js"
+} from "./core/lifecycle.js"
 
 type ParentMessage =
   | {kind: "begin"; peerId: string; sessionEpoch: string; iceServers?: RTCIceServer[]; iceLite?: boolean; monitor: {messageId: string}}

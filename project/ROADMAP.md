@@ -158,13 +158,6 @@ platform lifecycle и transport adapters могут различаться.
 [`hamiltonian/README.md`](../hamiltonian/README.md). Placement production-доменов
 и переход listener остаются отдельной будущей работой.
 
-Структурную границу самого Hamiltonian закрепляет
-[`HAM-003 — Разделить Hamiltonian по средам исполнения и механизмам`](tasks/HAM-003.md).
-Она сохраняет одну штатную команду запуска, но отделяет тонкие entrypoints и
-runtime composition от HTTP/REST, publication, control, lifecycle, process,
-peer, browser page и Worker-механизмов. Работа не меняет их предметную
-семантику попутно с переносом и не поглощает отдельные visual- и update-задачи.
-
 ### Наблюдаемость и управление Hamiltonian
 
 Доказанный standalone contour развивается в верхнеуровневый `/hamiltonian` с

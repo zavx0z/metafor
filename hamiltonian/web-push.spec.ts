@@ -2,7 +2,7 @@ import {afterEach, describe, expect, test} from "bun:test"
 import {mkdtempSync, rmSync, statSync} from "node:fs"
 import {tmpdir} from "node:os"
 import {join} from "node:path"
-import {HamiltonianWebPush} from "./service.ts"
+import {HamiltonianWebPush} from "./web-push.ts"
 
 const temporaryDirectories: string[] = []
 

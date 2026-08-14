@@ -3,7 +3,7 @@ import {
   createHamiltonianLifecycleObservation,
   hamiltonianLifecycleEntityId,
   hamiltonianLifecycleMessageId,
-} from "../../core/lifecycle.js"
+} from "./core/lifecycle.js"
 
 type BirthMessage = {
   kind: "birth"

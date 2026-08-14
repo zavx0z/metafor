@@ -710,81 +710,7 @@ page как владелец Worker handle причинно фиксирует `
 `img-src`; `script-src`, `connect-src` и остальные директивы этим не
 расширяются.
 
-## Закон организации исходников
-
-Hamiltonian сохраняет одну штатную команду запуска. `hamiltonian/server.ts`
-является не пустой CLI-оболочкой, а фактическим composition root Bun-сервера:
-он непосредственно объявляет `Bun.serve`, подключает полный Bun routes table
-из `hamiltonian/server/routes.ts`, задаёт WebSocket adapter и порядок
-запуска/остановки собранных механизмов. При этом предметное состояние и
-эффекты browser publication, update, control session, lifecycle aggregation,
-topology/authority, Web Push, process и peer не реализуются внутри route или
-socket callbacks: каждый механизм предоставляет серверной композиции точный
-adapter. Поэтому все REST/HTTP пути и методы находятся в одном `routes.ts`, а
-предметная операция каждого route — у одного owning mechanism.
-Каждая route declaration имеет русский TSDoc, который объясняет назначение,
-условия авторизации, наблюдаемый side effect и предметного владельца; комментарий
-не дублирует очевидные path, method или TypeScript-типы.
-
-Пара `server.ts -> createHamiltonianHost() -> Bun.serve` запрещена: она скрывает
-реальный сервер в импортируемой фабрике и оставляет все предметные области в
-одном host-файле. `routes.ts` экспортирует Bun routes table, а не универсальный
-`pathname` dispatcher с набором поверхностных callbacks. До завершения
-`HAM-003.8` существующие `host.ts` и `server/http-router.ts` являются явно
-зафиксированным расхождением с этим законом, а не целевой архитектурой.
-
-Принадлежащий серверу Bun process runtime находится в
-`hamiltonian/server/process`: server composition импортирует supervisor, а
-supervisor запускает соседний process entrypoint. Child entrypoint не
-импортируется обратно в composition и не становится общим runtime-модулем.
-
-Принадлежащий серверу peer process runtime находится в
-`hamiltonian/server/peer`: server composition импортирует supervisor и нужные
-ему adapter types, supervisor запускает соседний process entrypoint, а тот
-зависит от соседнего Werift adapter. Process entrypoint и adapter не
-импортируются обратно в composition.
-
-Входной договор control WebSocket и его чистая проверка находятся в
-`hamiltonian/server/control/protocol.ts`. Модуль перечисляет допустимые
-control messages и распознаёт запрещённый здесь realtime Oracle/Force payload,
-но не владеет socket, authorization, admission, timers, состоянием или
-эффектами handlers.
-Transport endpoint находится в `hamiltonian/server/control/endpoint.ts`: он
-проверяет query identity через переданный server token predicate, создаёт
-начальное socket data, монотонную connection generation и выполняет Bun
-upgrade. Stateful session adapter владеет WebSocket callbacks, admission и
-heartbeat, но передаёт lifecycle, topology, Web Push, update и peer операции их
-предметным владельцам. Проверка этой границы: `bun test
-./server/control/endpoint.spec.ts ./server/control/protocol.spec.ts
-./server/control/package-boundary.spec.ts`.
-
-Каждый рабочий модуль имеет одного владельца и одну среду исполнения: общий
-runtime-safe contract, Bun host, browser page, Service Worker, Dedicated Worker,
-layout Worker или peer process. Переход между средами проходит только через
-явный contract и adapter. Внутри среды код группируется по причинному механизму,
-а не по случайной близости файлов; entrypoint и composition могут импортировать
-механизмы, но механизм не импортирует entrypoint.
-
-Код, нужный только Hamiltonian, находится внутри `hamiltonian`. Отдельный
-workspace-пакет появляется только у действительно переиспользуемого механизма с
-самостоятельным договором и как минимум двумя фактическими потребителями;
-Hamiltonian-specific identity, policy и composition в такой пакет не выносятся.
-Историческое имя файла не является архитектурным договором: при рефакторинге
-название уточняется по фактической ответственности модуля.
-
-TypeScript является обычным форматом first-party source. JavaScript остаётся
-только там, где его прямое исполнение или публикация без TypeScript build
-является доказанной границей платформы; такая причина должна быть явной у
-владельца runtime. Текущая необъяснённая смесь `.js` и `.ts` является
-переходным расхождением, а не образцом структуры.
-
 ## Запуск
-
-Штатный Bun-сервер находится в `hamiltonian/server.ts`: этот файл содержит
-фактический `Bun.serve`, подключает `server/routes.ts`, задаёт socket
-композицию и operational вывод.
-Предметная реализация импортируется из соседних server-механизмов; отдельного
-корневого `host.ts` и скрытой host factory в целевой структуре нет.
 
 Локально:
 
@@ -887,7 +813,7 @@ cd /Users/zavx0z/repozitarium/metafor/hamiltonian
 bunx tsc --ignoreConfig --noEmit --strict --module preserve \
   --moduleResolution bundler --target es2022 --types bun,@webgpu/types \
   --allowImportingTsExtensions --allowJs --skipLibCheck \
-  ../types/module.d.ts types.d.ts *.ts server/**/*.ts soak/*.ts
+  ../types/module.d.ts types.d.ts *.ts peer/*.ts soak/*.ts
 bun build public/app.js public/embodiment-worker.js \
   --outdir /tmp/hamiltonian-build-check --target browser \
   --external /core/monitor.js \

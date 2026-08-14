@@ -1,4 +1,3 @@
-/** Hamiltonian-specific persistent Web Push service and subscription store. */
 import {
   WebPushService,
   type StoredWebPushSubscription,
