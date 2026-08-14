@@ -121,8 +121,11 @@ implementation после owner-решения не создавать новы�
 `LOAD-001.2 — Проверить loader через Bun Fullstack без отдельной сборки`
 доказывает минимальный HTML/main/Service Worker contour в обычных
 `web/import` и `web/service`: Bun может выполнять runtime bundling, но отдельный
-build pipeline и перенос старого кода запрещены. `UPD-002 — Обновлять всю
-клиентскую сборку через Service Worker` ждёт результата `LOAD-001`.
+build pipeline и перенос старого кода запрещены. Следующий согласованный срез
+`LOAD-001.3 — Подключить Service Worker к одному WebSocket` добавляет только
+само соединение с тем же Bun server после регистрации Worker, без code delivery,
+cache protocol и reconnect. `UPD-002 — Обновлять всю клиентскую сборку через
+Service Worker` ждёт результата `LOAD-001`.
 
 `HAM-003 — Разделить Hamiltonian по средам исполнения и механизмам` остаётся
 `IN_PROGRESS`. Широкий object-oriented срез `HAM-003.8` отклонён владельцем и

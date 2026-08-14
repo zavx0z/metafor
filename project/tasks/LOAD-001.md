@@ -208,9 +208,8 @@ Result checkpoint:
 
 ### LOAD-001.2 — Проверить loader через Bun Fullstack без отдельной сборки
 
-Статус и исполнитель: `IN_PROGRESS`; руководитель — текущая задача Codex,
-реализация после подготовительного project-коммита передаётся внутреннему
-субагенту этой задачи.
+Статус и исполнитель: `IN_PROGRESS`; выполняет руководитель текущей задачи
+Codex напрямую, без субагентов.
 
 Классификация: новый диагностический механизм после owner-отказа от packages;
 срез принимает воспроизводимый ответ, может ли Bun Fullstack стать первым
@@ -255,6 +254,36 @@ prototype продолжает запускаться через `server_proto.t
 Фактические действия:
 
 Результат и вывод:
+
+Подготовительный commit:
+
+Result checkpoint:
+
+### LOAD-001.3 — Подключить Service Worker к одному WebSocket
+
+Статус и исполнитель: `IN_PROGRESS`; выполняет руководитель текущей задачи
+Codex напрямую, без субагентов.
+
+Классификация: следующий минимальный runtime-механизм после регистрации Service
+Worker; он доказывает только принадлежность WebSocket соединения Worker-контексту.
+
+Требование: после успешной регистрации minimal main просит активный Service
+Worker подключиться к тому же Bun server. Worker выбирает `ws:` для HTTP и
+`wss:` для HTTPS, а server принимает upgrade на одном явном endpoint.
+
+Наблюдаемое расхождение: импорт `web/service` из HTML запускает его в main-потоке,
+а новый `server.ts` пока не выдаёт отдельный Service Worker script и не принимает
+WebSocket upgrade.
+
+Разрешённое изменение одного механизма: убрать прямой HTML import `web/service`,
+зарегистрировать его отдельный script URL из `web/import`, добавить минимальный
+message `connect` и принять WebSocket тем же `Bun.serve()`. Не добавлять payload
+protocol, delivery частей, cache, retry/reconnect, identity, authentication,
+update или imports из прототипа.
+
+Среда и критерий приёмки: после запуска владельцем browser регистрирует Worker,
+а Bun server наблюдает одно соединение от Service Worker. Консоль main-потока
+не должна выполнять `web/service` как обычный HTML module.
 
 Подготовительный commit:
 
