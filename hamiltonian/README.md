@@ -736,6 +736,14 @@ supervisor запускает соседний process entrypoint. Child entrypo
 зависит от соседнего Werift adapter. Process entrypoint и adapter не
 импортируются обратно в composition.
 
+Входной договор control WebSocket и его чистая проверка находятся в
+`hamiltonian/server/control/protocol.ts`. Модуль перечисляет допустимые
+control messages и распознаёт запрещённый здесь realtime Oracle/Force payload,
+но не владеет
+socket, authorization, admission, timers, состоянием или эффектами handlers.
+Проверка этой границы: `bun test ./server/control/protocol.spec.ts
+./server/control/package-boundary.spec.ts`.
+
 Каждый рабочий модуль имеет одного владельца и одну среду исполнения: общий
 runtime-safe contract, Bun host, browser page, Service Worker, Dedicated Worker,
 layout Worker или peer process. Переход между средами проходит только через
