@@ -20,6 +20,7 @@
 | BLK-002    | DRAFT     | Bulk / Nodes   | Нодовая система Bulk в Space                        | [Открыть](tasks/BLK-002.md)    |
 | BLK-003    | DRAFT     | Bulk / Visual  | Проекция Atom и обработчики на орбите State         | [Открыть](tasks/BLK-003.md)    |
 | DRK-002    | DRAFT     | Dark / Contour | Online-изменения без остановки мира                 | [Открыть](tasks/DRK-002.md)    |
+| HAM-004    | DRAFT     | Hamiltonian    | Целостные требования к загрузке и работе в сети     | [Открыть](tasks/HAM-004.md)    |
 | ENGINE-003 | DRAFT     | Engine / Skin  | Сквозной Renderer-тест матриц костей                | [Открыть](tasks/ENGINE-003.md) |
 | MF-408     | DRAFT     | Dark / Source  | Человеческий `meta.ts` authoring в live world       | [Открыть](tasks/MF-408.md)     |
 | MF-410     | DRAFT     | Связь доменов  | Прямой обмен командами и событиями после знакомства | [Открыть](tasks/MF-410.md)     |
