@@ -725,6 +725,11 @@ supervision, peer и другие механизмы не реализуются
 сохраняют собственное состояние у своих механизмов и передают router явные
 зависимости.
 
+Принадлежащий серверу Bun process runtime находится в
+`hamiltonian/server/process`: host composition импортирует supervisor, а
+supervisor запускает соседний process entrypoint. Child entrypoint не
+импортируется обратно в composition и не становится общим runtime-модулем.
+
 Каждый рабочий модуль имеет одного владельца и одну среду исполнения: общий
 runtime-safe contract, Bun host, browser page, Service Worker, Dedicated Worker,
 layout Worker или peer process. Переход между средами проходит только через
@@ -853,7 +858,7 @@ cd /Users/zavx0z/repozitarium/metafor/hamiltonian
 bunx tsc --ignoreConfig --noEmit --strict --module preserve \
   --moduleResolution bundler --target es2022 --types bun,@webgpu/types \
   --allowImportingTsExtensions --allowJs --skipLibCheck \
-  ../types/module.d.ts types.d.ts *.ts peer/*.ts soak/*.ts
+  ../types/module.d.ts types.d.ts *.ts peer/*.ts server/**/*.ts soak/*.ts
 bun build public/app.js public/embodiment-worker.js \
   --outdir /tmp/hamiltonian-build-check --target browser \
   --external /core/monitor.js \

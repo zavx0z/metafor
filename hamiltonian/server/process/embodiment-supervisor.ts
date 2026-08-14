@@ -3,7 +3,7 @@ import {
   hamiltonianLifecycleEntityId,
   hamiltonianLifecycleMessageId,
   hamiltonianLifecycleTransportId,
-} from "./core/lifecycle.js"
+} from "../../core/lifecycle.js"
 
 export interface VersionPayload {
   version: string
@@ -79,7 +79,7 @@ export interface BunProcessExitObservation {
   reason: string
 }
 
-const childEntry = fileURLToPath(new URL("./embodiment-process.ts", import.meta.url))
+const childEntry = fileURLToPath(new URL("./embodiment-entry.ts", import.meta.url))
 
 export class BunEmbodimentSupervisor {
   readonly role: string

@@ -24,7 +24,7 @@ import {fileURLToPath} from "node:url"
 import {
   BunEmbodimentSet,
   type EmbodimentAuthority,
-} from "./bun-embodiment.ts"
+} from "./server/process/embodiment-supervisor.ts"
 import {authorityKey, makeLeaseId} from "./core/runtime.js"
 import {hamiltonianBrowserNodeId} from "./core/orchestration.js"
 import {HostTopology, type WindowCandidate} from "./host-state.ts"
