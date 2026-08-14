@@ -125,9 +125,10 @@ literal routes, русским TSDoc, всеми HTTP conditions и полной
 поверхностью; `createHamiltonianHost`, server factory и второй listener
 отсутствуют. Полный Hamiltonian suite и перезапущенный persistent contour
 зелёные, peer восстановлен и подтверждён владельцем. Следующая предметная
-декомпозиция server runtime не смешивается с этим принятым входным boundary и
-будет выполняться отдельно под пошаговым owner review. Поведение `HAM-002` и
-`UPD-002` попутно не менялось.
+декомпозиция server runtime не смешивается с этим принятым входным boundary.
+Текущий корректирующий срез `HAM-003.10` переносит два test-only process
+adapter из корня в `hamiltonian/fixture/` без изменения product behavior.
+Поведение `HAM-002` и `UPD-002` попутно не менялось.
 
 | ID     | Состояние   | Зависимости | Карточка                   |
 | ------ | ----------- | ----------- | -------------------------- |
