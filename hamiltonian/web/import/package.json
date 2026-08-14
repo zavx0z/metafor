@@ -1,0 +1,9 @@
+{
+  "name": "@web/import",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --project tsconfig.json --pretty false",
+    "build": "bun run typecheck && bun build index.ts --target=browser --outfile=dist/index.js"
+  }
+}

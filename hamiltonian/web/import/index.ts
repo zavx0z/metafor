@@ -1,26 +1,29 @@
+/**
+ * Main-thread entrypoint минимального browser loader.
+ *
+ * При первой установке модуль ждёт появления Service Worker controller, а при
+ * уже controlled document использует текущий controller. Main сообщает только
+ * о готовности открыть transport; состав bootstrap cache принадлежит Worker.
+ *
+ * @packageDocumentation
+ */
+
 const registration = await navigator.serviceWorker.register("/service.js", {
   scope: "/",
   type: "module",
 })
 
-const serviceWorker = registration.installing ?? registration.waiting ?? registration.active
+await navigator.serviceWorker.ready
 
-if (!serviceWorker) {
-  throw new Error("Service Worker registration has no worker")
-}
-
-if (serviceWorker.state === "redundant") {
-  throw new Error("Service Worker became redundant")
-}
-
-if (serviceWorker.state !== "activated") {
-  await new Promise<void>((resolve, reject) => {
-    serviceWorker.addEventListener("statechange", () => {
-      if (serviceWorker.state === "activated") resolve()
-      if (serviceWorker.state === "redundant") reject(new Error("Service Worker became redundant"))
-    })
+if (!navigator.serviceWorker.controller) {
+  await new Promise<void>((resolve) => {
+    navigator.serviceWorker.addEventListener("controllerchange", () => resolve(), {once: true})
   })
 }
 
-serviceWorker.postMessage({ type: "connect" })
+const serviceWorker = navigator.serviceWorker.controller
+
+if (!serviceWorker) throw new Error("Service Worker does not control the page")
+
+serviceWorker.postMessage({type: "connect"})
 console.info("web/service registered", registration.scope)

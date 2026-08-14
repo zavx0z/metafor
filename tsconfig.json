@@ -45,6 +45,7 @@
     "**/docs/**/*",
     "*/dist/**/*",
     "*/node_modules/**/*",
+    "hamiltonian/web/import/**/*",
     "hamiltonian/web/service/**/*",
     "tests/tmp/**/*",
     "project/artifacts/**/*",

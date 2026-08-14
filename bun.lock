@@ -147,6 +147,9 @@
         "nodes": "workspace:*",
       },
     },
+    "hamiltonian/web/import": {
+      "name": "@web/import",
+    },
     "hamiltonian/web/service": {
       "name": "@web/service",
       "devDependencies": {
@@ -393,6 +396,8 @@
     "@ui/elements": ["@ui/elements@workspace:pkg/ui/elements"],
 
     "@ui/hud": ["@ui/hud@workspace:pkg/ui/hud"],
+
+    "@web/import": ["@web/import@workspace:hamiltonian/web/import"],
 
     "@web/service": ["@web/service@workspace:hamiltonian/web/service"],
 

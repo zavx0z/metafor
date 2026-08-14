@@ -1,4 +1,16 @@
-let socket: WebSocket | null = null
+/**
+ * Event entrypoint неизменяемой Service Worker оболочки.
+ *
+ * Install и activate немедленно передают новой инкарнации управление. Первое
+ * `connect` message продлевает жизнь события до подготовки bootstrap cache и
+ * одновременно открывает control WebSocket. Все GET requests после захвата
+ * страницы проходят через cache-first policy.
+ *
+ * @packageDocumentation
+ */
+
+import {cacheBootstrap, cacheFirst} from "./cache"
+import {connect} from "./socket"
 
 addEventListener("install", (event: ExtendableEvent) => {
   event.waitUntil(skipWaiting())
@@ -9,26 +21,12 @@ addEventListener("activate", (event: ExtendableEvent) => {
 })
 
 addEventListener("message", (event: ExtendableMessageEvent) => {
-  if (event.data?.type === "connect") connect()
+  if (event.data?.type !== "connect") return
+  event.waitUntil(cacheBootstrap())
+  connect()
 })
 
-function connect() {
-  if (socket && socket.readyState < WebSocket.CLOSING) return
-
-  const url = new URL("/service", location.origin)
-  url.protocol = location.protocol === "https:" ? "wss:" : "ws:"
-  socket = new WebSocket(url)
-
-  socket.addEventListener("open", () => {
-    console.info("web/service websocket connected")
-  })
-
-  socket.addEventListener("close", () => {
-    socket = null
-    console.info("web/service websocket disconnected")
-  })
-
-  socket.addEventListener("error", (error) => {
-    console.error("web/service websocket error", error)
-  })
-}
+addEventListener("fetch", (event: FetchEvent) => {
+  if (event.request.method !== "GET") return
+  event.respondWith(cacheFirst(event.request))
+})
