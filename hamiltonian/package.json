@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "bun run server.ts",
+    "start": "bun --port=4444 server",
     "tls:create": "bun run create-tls.ts",
     "test": "bun test"
   },

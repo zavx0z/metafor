@@ -160,7 +160,7 @@ process.on("message", (rawMessage) => {
   }
 })
 
-const {server, stopHamiltonianServer} = await import("../server.ts")
+const {server, stopHamiltonianServer} = await import("../server_proto.ts")
 const {
   bunReady,
   getHamiltonianStatus,
