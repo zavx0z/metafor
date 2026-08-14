@@ -712,26 +712,30 @@ page как владелец Worker handle причинно фиксирует `
 
 ## Закон организации исходников
 
-Hamiltonian сохраняет одну штатную команду запуска, но файл точки входа только
-выбирает конфигурацию и собирает runtime. HTTP/TLS listener, REST adapters,
-browser publication, control transport, lifecycle aggregation, process
-supervision, peer и другие механизмы не реализуются внутри точки входа. Поэтому
-место добавления REST API определяется явной HTTP-границей Bun-воплощения, а не
-поиском подходящего участка в общем host-файле.
+Hamiltonian сохраняет одну штатную команду запуска. `hamiltonian/server.ts`
+является не пустой CLI-оболочкой, а фактическим composition root Bun-сервера:
+он непосредственно объявляет `Bun.serve`, HTTP routes, WebSocket adapter и
+порядок запуска/остановки собранных механизмов. При этом предметное состояние и
+эффекты browser publication, update, control session, lifecycle aggregation,
+topology/authority, Web Push, process и peer не реализуются внутри route или
+socket callbacks: каждый механизм предоставляет серверной композиции точный
+adapter. Поэтому место добавления REST API видно в route table `server.ts`, а
+его предметная операция находится у одного owning mechanism.
 
-Действующий реестр `pathname + method` находится в
-`hamiltonian/server/http-router.ts`. Он определяет только порядок dispatch и
-имена handlers; Web Push, browser publication, update, lab status и control
-сохраняют собственное состояние у своих механизмов и передают router явные
-зависимости.
+Пара `server.ts -> createHamiltonianHost() -> Bun.serve` запрещена: она скрывает
+реальный сервер в импортируемой фабрике и оставляет все предметные области в
+одном host-файле. Универсальный `pathname` dispatcher с набором поверхностных
+callbacks также не является HTTP-границей Hamiltonian. До завершения
+`HAM-003.8` существующие `host.ts` и `server/http-router.ts` являются явно
+зафиксированным расхождением с этим законом, а не целевой архитектурой.
 
 Принадлежащий серверу Bun process runtime находится в
-`hamiltonian/server/process`: host composition импортирует supervisor, а
+`hamiltonian/server/process`: server composition импортирует supervisor, а
 supervisor запускает соседний process entrypoint. Child entrypoint не
 импортируется обратно в composition и не становится общим runtime-модулем.
 
 Принадлежащий серверу peer process runtime находится в
-`hamiltonian/server/peer`: host composition импортирует supervisor и нужные
+`hamiltonian/server/peer`: server composition импортирует supervisor и нужные
 ему adapter types, supervisor запускает соседний process entrypoint, а тот
 зависит от соседнего Werift adapter. Process entrypoint и adapter не
 импортируются обратно в composition.
@@ -742,10 +746,11 @@ control messages и распознаёт запрещённый здесь realt
 но не владеет socket, authorization, admission, timers, состоянием или
 эффектами handlers.
 Transport endpoint находится в `hamiltonian/server/control/endpoint.ts`: он
-проверяет query identity через переданный host token predicate, создаёт
+проверяет query identity через переданный server token predicate, создаёт
 начальное socket data, монотонную connection generation и выполняет Bun
-upgrade. WebSocket callbacks, admission, heartbeat и lifecycle-эффекты остаются
-у host composition. Проверка этой границы: `bun test
+upgrade. Stateful session adapter владеет WebSocket callbacks, admission и
+heartbeat, но передаёт lifecycle, topology, Web Push, update и peer операции их
+предметным владельцам. Проверка этой границы: `bun test
 ./server/control/endpoint.spec.ts ./server/control/protocol.spec.ts
 ./server/control/package-boundary.spec.ts`.
 
@@ -771,10 +776,10 @@ TypeScript является обычным форматом first-party source. 
 
 ## Запуск
 
-Штатная серверная точка входа находится в `hamiltonian/server.ts`. Она только
-создаёт host composition из `host.ts` и публикует operational адреса; listener,
-HTTP routes, control, lifecycle, process и peer mechanisms в entrypoint не
-реализуются.
+Штатный Bun-сервер находится в `hamiltonian/server.ts`: этот файл содержит
+фактический `Bun.serve`, видимую route/socket композицию и operational вывод.
+Предметная реализация импортируется из соседних server-механизмов; отдельного
+корневого `host.ts` и скрытой host factory в целевой структуре нет.
 
 Локально:
 

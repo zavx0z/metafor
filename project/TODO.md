@@ -117,19 +117,16 @@ stylesheet нодового canvas без изменения визуально�
 одним полным выпуском, который Service Worker проверяет, сохраняет и выдаёт
 страницам после переключения.
 
-`HAM-003 — Разделить Hamiltonian по средам исполнения и механизмам` начата как
-общая структурная линия. `HAM-003.1` зафиксировала все рабочие entrypoints,
-принадлежность Bun/browser/Worker/peer средам, import graph, HTTP/REST boundary
-и причины оставшегося JavaScript. `HAM-003.2` сделала корневой server entrypoint
-явным и тонким без изменения host mechanisms. `HAM-003.3` собрала HTTP
-path/method dispatch в одном server adapter. `HAM-003.4` собрала supervisor и
-executable entry Bun-воплощений под одним `server/process` owner, а
-`HAM-003.5` — peer supervisor, process entry и Werift adapter под одним
-`server/peer` owner. `HAM-003.6` отделила чистый contract и validation control
-WebSocket, а `HAM-003.7` — `/control` upgrade и начальное socket state. Следующий
-server-срез регистрируется после exact inventory зависимостей stateful control
-effects; browser publication, visual и update files не двигаются через активные
-границы `HAM-002` и `UPD-002`.
+`HAM-003 — Разделить Hamiltonian по средам исполнения и механизмам` остаётся
+`IN_PROGRESS`. После owner review результаты `HAM-003.2-.7` признаны полезными
+промежуточными extractions, но недостаточными для исходной цели: созданная
+цепочка `server.ts -> createHamiltonianHost() -> Bun.serve` скрывает фактический
+сервер в 2168-строчном `host.ts`, а HTTP dispatcher вынес только условия путей.
+Корректирующий срез `HAM-003.8` делает `server.ts` непосредственным владельцем
+`Bun.serve`, распределяет состояние и эффекты host по browser publication,
+lifecycle, control, topology/authority, Web Push, process/peer и observation
+owners и удаляет `host.ts` вместе с поверхностным router. Поведение `HAM-002` и
+`UPD-002` попутно не меняется.
 
 | ID     | Состояние   | Зависимости | Карточка                   |
 | ------ | ----------- | ----------- | -------------------------- |
