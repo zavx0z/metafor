@@ -236,21 +236,23 @@ model, validation, geometry, renderer primitives или layout laws из `nodes`
 Новая реализация создаётся с нуля рядом в source-директориях `web`, `server` и
 `interface`. Browser loader реализуют `web/import` и `web/service`; server-аналоги
 появляются позднее, а общий договор выделяется в `interface` только после двух
-фактических реализаций. Два минимальных browser entrypoint оформлены отдельными
-workspace-пакетами `@web/import` и `@web/service` со строгой проверкой и
-статической сборкой. Остальные вложенные `import`, `service` и `update` не
-становятся пакетами без отдельного решения владельца.
+фактических реализаций. Минимальные browser entrypoint оформлены отдельными
+workspace-пакетами `@web/import`, `@web/service` и `@web/main` со строгой
+проверкой и статической сборкой. Остальные вложенные `import`, `service` и
+`update` не становятся пакетами без отдельного решения владельца.
 
 Fullstack runtime bundling HTML/main отклонён после появления Bun HMR и
 неподходящего runtime URL importer. `server.ts` выдаёт неизменяемый HTML и
 заранее собранные `import.js` и `service.js`; сами browser-пакеты не владеют
-Hamiltonian server, WSS payload protocol или сменяемым functionality.
+Hamiltonian server, WebSocket update protocol или полным release mechanism.
 
 Отдельная линия `LOAD` владеет первоначальной загрузкой браузерного функционала
 Hamiltonian. Первый HTTPS response доставляет только минимальные HTML,
-main-процесс и неизменяемую Service Worker оболочку. Service Worker получает
-сменяемые части по WSS, целиком готовит их в origin-bound cache и предоставляет
-main-процессу кэшированные endpoints для запуска.
+importer и неизменяемую Service Worker оболочку. После получения управления
+Worker первоначальные сменяемые модули загружаются с того же HTTPS server через
+перехваченные requests, сохраняются в origin-bound cache и только затем
+возвращаются вызывающему import. WebSocket сообщает об обновлениях, но не
+является обязательным transport первоначального кода.
 
 Первый этап использует один signaling Hamiltonian peer и не проектирует каталог
 адресов нескольких peers. Его результатом владеет

@@ -125,10 +125,11 @@ Service Worker требует отдельного entrypoint; runtime `Bun.Tran
 Worker до штатного запуска Hamiltonian, а server только выдаёт готовые bytes.
 `LOAD-001.3 — Подключить Service Worker к одному WebSocket`, статический
 `@web/import` без HMR и постоянный offline bootstrap находятся в `REVIEW` после
-live-проверок владельца. Текущий `LOAD-001.7 — Встраивать static assets и
-кэшировать только использованные` заменяет полный precache manifest ресурсов
-build-time snapshot и cache-on-first-request; он ждёт повторной owner-проверки
-после очистки прежнего Cache Storage. `UPD-002 — Обновлять всю клиентскую
+live-проверок владельца. `LOAD-001.7` подтвердил build-time static assets и
+cache-on-first-request. Текущий `LOAD-001.8 — Импортировать управляющий main
+после захвата страницы` добавляет пакет `@web/main`: первоначальный artifact
+приходит через HTTP, сохраняется Worker до возврата в dynamic import, а
+WebSocket остаётся сигналом будущего update. `UPD-002 — Обновлять всю клиентскую
 сборку через Service Worker` ждёт результата `LOAD-001`.
 
 `HAM-003 — Разделить Hamiltonian по средам исполнения и механизмам` остаётся

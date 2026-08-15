@@ -2,9 +2,10 @@
 
 ## Коротко
 
-Новый браузер получает только минимальные HTML, main-процесс и Service Worker.
-Service Worker загружает сменяемый функционал по WSS, готовит его в cache и
-предоставляет main-процессу кэшированные endpoints для запуска.
+Новый браузер получает только минимальные HTML, importer и Service Worker.
+После захвата страницы Worker загружает сменяемый функционал с того же HTTPS
+server, сохраняет его в cache и только затем предоставляет main-процессу для
+запуска. WebSocket сообщает о будущих обновлениях.
 
 Прежний Hamiltonian остаётся отдельно запускаемым прототипом. Новый loader
 создаётся с нуля в чистых source-директориях и не получает перенесённый
@@ -14,8 +15,8 @@ prototype-код.
 
 Первоначальный HTTPS server может быть временным, поэтому настоящий browser
 functionality нельзя навсегда загружать напрямую с его static routes. В
-браузере должна остаться минимальная неизменяемая оболочка, способная получить
-и запустить функционал через действующий Hamiltonian signaling peer.
+браузере должна остаться минимальная неизменяемая оболочка, способная сохранить
+и повторно запустить первоначально полученный functionality без исходного host.
 
 Сначала нужен independently accepted loader с одним signaling peer. Только
 после него `UPD-002` может определить полный многосоставный browser release и
@@ -92,9 +93,10 @@ Evidence-backed gate выполнен в
 * Package состоит из минимальных HTML, main-процесса и неизменяемой Service
   Worker оболочки.
 * В первом контуре Service Worker знает один signaling Hamiltonian peer.
-* Service Worker загружает сменяемые части по WSS, готовит их в origin-bound
-  cache, предоставляет main-процессу кэшированные endpoints и запускает
-  предназначенную ему сменяемую часть.
+* Service Worker загружает первоначальные сменяемые части с того же HTTPS host,
+  готовит их в origin-bound cache, предоставляет main-процессу кэшированные
+  endpoints и запускает предназначенную ему сменяемую часть. WebSocket только
+  сигнализирует о будущем обновлении.
 * Minimal main устанавливает связь с Service Worker, запрашивает готовность
   подготовленного cache и запускает предназначенный Window functionality.
 * Сменяемый functionality состоит из нескольких частей, а не одного
@@ -106,19 +108,23 @@ Evidence-backed gate выполнен в
   прежние `browser`, `core`, `public`, `update`, `visual` и остальные исходники
   также принадлежат прототипу.
 * Новая реализация создаётся с нуля рядом в `web`, `server` и `interface`.
-  Минимальные browser entrypoint `web/import` и `web/service` оформлены
-  workspace-пакетами `@web/import` и `@web/service`, потому что оба требуют
-  строгой проверки и собственной статической сборки. Остальные вложенные
-  boundaries пакетами автоматически не становятся.
+  Минимальные browser entrypoint `web/import`, `web/service` и `web/main`
+  оформлены workspace-пакетами `@web/import`, `@web/service` и `@web/main`,
+  потому что каждый требует строгой проверки и собственной статической сборки.
+  Остальные вложенные boundaries пакетами автоматически не становятся.
 * Fullstack runtime bundling HTML/main отклонён из-за Bun HMR и неподходящего
   runtime URL importer. HTML остаётся статическим, оба browser entrypoint
   собираются заранее, а `server.ts` только выдаёт готовые bytes.
 * `web/import` владеет минимальным main-потоком: получает от Service Worker
   готовый кэшированный endpoint и импортирует модуль.
+* `web/main` владеет первым управляющим Window-модулем. После получения
+  controller importer запрашивает его обычным dynamic import; Worker на cache
+  miss получает artifact с того же server, сохраняет и только затем возвращает
+  response. Первоначальный код не передаётся по WebSocket.
 * `web/service` владеет минимальной неизменяемой оболочкой Service Worker:
-  получает код по WSS, проверяет его, готовит кэшированные endpoints и сообщает
-  main-потоку о готовности. Вместе `web/import` и `web/service` образуют
-  минимальный loader этой задачи.
+  перехватывает первоначальные requests, готовит кэшированные endpoints и
+  сообщает main-потоку о готовности. Вместе `web/import` и `web/service`
+  образуют минимальный loader этой задачи.
 * `server/import` и `server/service` позднее реализуют тот же принцип для Bun.
   Общий договор выделяется в `interface` только после появления обеих
   реализаций, а не проектируется заранее и не оформляется отдельным пакетом.
@@ -130,32 +136,33 @@ Evidence-backed gate выполнен в
 
 ## Целевой минимальный путь
 
-1. HTTPS host возвращает минимальные HTML, main и Service Worker.
+1. HTTPS host возвращает минимальные HTML, importer и Service Worker.
 1. Minimal main регистрирует Worker, дожидается управления страницей и
-   запрашивает подготовленный functionality.
+   импортирует управляющий Window functionality.
 1. Service Worker открывает WSS к единственному известному signaling peer.
-1. Worker получает сменяемые части, проверяет их и целиком готовит cache.
+1. Первый request functionality проходит через Worker к HTTPS host; Worker
+   сохраняет response до его возврата вызывающему import.
+1. Worker получает собственную сменяемую часть тем же HTTP/cache путём и
+   запускает её через согласованный ABI.
 1. Только готовый cache публикуется как набор same-origin endpoints.
-1. Minimal main получает Window entrypoint и запускает его.
-1. Service Worker восстанавливает и запускает собственную сменяемую часть из
-   того же подготовленного набора.
+1. После остановки Worker обе части восстанавливаются из подготовленного cache.
 
 ## Поведение процесса
 
 Первый широкий package-срез остановлен до product implementation: общая
 package architecture не создаётся. Диагностический Fullstack-срез также
-остановлен после доказанного Bun HMR; приняты только два необходимых browser
-пакета со статической сборкой.
+остановлен после доказанного Bun HMR; приняты только необходимые browser
+пакеты со статической сборкой.
 
 Первая navigation теперь доказала регистрацию, переход страницы под управление
 Worker, создание постоянного bootstrap cache и открытие control WebSocket.
-Следующий срез начинает payload loading: Worker должен получить по WSS первый
-сменяемый functionality, проверить его и опубликовать готовый cached endpoint.
+Текущий срез доказывает первый Window functionality: importer после получения
+controller импортирует `/main.js`, а Worker сохраняет первый network response
+до выполнения модуля. WebSocket остаётся сигналом будущего обновления.
 
-Затем по одному причинному механизму регистрируются WSS loading, cache
-preparation, cached endpoint serving, Window launch и Service Worker functional
-activation. Каждый новый механизм получает отдельную последовательную
-подзадачу и checkpoint.
+Затем отдельным причинным механизмом регистрируется загрузка и запуск
+Service Worker functionality через HTTP/cache. Каждый новый механизм получает
+отдельную последовательную подзадачу и checkpoint.
 
 ## Подзадачи
 
@@ -442,9 +449,9 @@ Result checkpoint: `8bc7a3774`.
 
 ### LOAD-001.7 — Встраивать static assets и кэшировать только использованные
 
-Статус и исполнитель: `IN_PROGRESS`; implementation checkpoint готовит
-руководитель текущей задачи Codex напрямую, без субагентов; остаётся повторная
-owner-проверка после очистки прежнего Cache Storage.
+Статус и исполнитель: `REVIEW`; implementation checkpoint подготовил
+руководитель текущей задачи Codex напрямую, без субагентов; повторную
+offline/manifest проверку подтвердил владелец.
 
 Классификация: отдельный static asset/cache mechanism после owner-наблюдения,
 что precache всего Web App Manifest занимает `2.6 MB`, хотя один browser
@@ -492,24 +499,73 @@ URL выдаётся как `application/manifest+json`. Bun macro сканир�
 через clone. Favicon и Apple touch link остаются в HTML и удалены из manifest.
 
 Результат и вывод: проверки build/typecheck подтверждают статический server
-bundle и Worker inventory без полного asset precache. Финальная повторная
-offline/manifest проверка владельца после очистки прежнего cache ещё не
-зафиксирована.
+bundle и Worker inventory без полного asset precache. После очистки прежнего
+Cache Storage владелец подтвердил online/offline загрузку и отсутствие прежних
+manifest/cache ошибок.
 
 Подготовительный commit: отдельный project-коммит до прямой owner-итерации не
 записывался.
 
-Result checkpoint: текущий result-коммит.
+Result checkpoint: `395029974`.
+
+### LOAD-001.8 — Импортировать управляющий main после захвата страницы
+
+Статус и исполнитель: `IN_PROGRESS`; выполняет руководитель текущей задачи
+Codex напрямую, без субагентов.
+
+Классификация: следующий loading mechanism после подтверждённого offline
+bootstrap; владелец выбрал первоначальную HTTP-доставку вместо передачи кода по
+WebSocket.
+
+Требование: `web/main` является workspace-пакетом `@web/main` и собирает первый
+управляющий Window-модуль в `/main.js`. `@web/import` начинает dynamic import
+только после появления Service Worker controller. Первый `/main.js` request
+перехватывается Worker: при cache miss response приходит с server, полностью
+сохраняется в Cache Storage и лишь затем возвращается в `import()`. Повторный
+offline import получает тот же response из cache.
+
+Основание и связанная история: `LOAD-001.5` создал неизменяемый importer,
+`LOAD-001.6` доказал контроль страницы и cache-first bootstrap, а
+`LOAD-001.7` — cache-on-first-request для browser assets. Передача Window-кода
+по WSS не нужна: WebSocket остаётся сигналом будущего update.
+
+Наблюдаемое расхождение: текущий importer после получения controller только
+посылает `connect`; управляющий functionality не запрашивается и не запускается.
+
+Причина: для первого Window entrypoint ещё нет отдельного build artifact,
+server route и точной cache-on-first-import policy.
+
+Разрешённое изменение одного механизма: добавить пакет `@web/main`, его build и
+статический `/main.js` response; после `connect` импортировать URL из
+`@web/import`; сохранять только exact `/main.js` network response до возврата.
+Не добавлять Worker functionality, version switching, update payload или новый
+message contract.
+
+Regression или опровергающее доказательство: `@web/main` проходит strict build;
+`@web/import` не импортирует модуль до controller; Worker bundle содержит exact
+`/main.js` cache rule; server выдаёт только готовый JavaScript artifact.
+
+Среда и критерий приёмки: после чистого online запуска console показывает
+`main process`, Cache Storage содержит `/main.js`; после offline reload тот же
+модуль выполняется без network error. Запуск и browser-проверку выполняет
+владелец.
+
+Фактические действия:
+
+Результат и вывод:
+
+Подготовительный commit: текущий project-коммит.
+
+Result checkpoint:
 
 ## Открытые вопросы
 
 * Как выглядит минимальный message contract между main и Service Worker?
-* Как WSS передаёт manifest и несколько частей первого proof functionality?
 * Как называются cached endpoints и как main получает предназначенный ему
   entrypoint?
 * Как Worker атомарно различает preparing, ready и active cache?
 * Как восстанавливается готовый functionality после остановки и нового запуска
-  Service Worker без доступного WSS?
+  Service Worker без доступного HTTPS host?
 * Какой минимальный ABI предоставляет сменяемая Worker-часть стабильным
   обработчикам событий?
 
@@ -518,11 +574,11 @@ Result checkpoint: текущий result-коммит.
 Входит:
 
 * source-директории `web`, `server`, `interface` и отдельные workspace-пакеты
-  `@web/import` и `@web/service` для browser entrypoints;
+  `@web/import`, `@web/service` и `@web/main` для browser entrypoints;
 * статические HTML/main/Service Worker artifacts без Bun HMR;
 * сохранение отдельно запускаемого прототипа через `server_proto.ts`;
 * минимальный HTML/main/Service Worker bootstrap;
-* один signaling peer и WSS code delivery;
+* один signaling peer и WebSocket update signal;
 * несколько сменяемых proof parts;
 * origin-bound cache и same-origin cached endpoints;
 * запуск Window- и Service Worker-частей;
@@ -532,7 +588,7 @@ Result checkpoint: текущий result-коммит.
 
 * рефакторинг или перенос прежнего Hamiltonian в новые source-директории;
 * другие package manifests, workspace packages и package exports новой
-  реализации кроме `@web/import` и `@web/service`;
+  реализации кроме `@web/import`, `@web/service` и `@web/main`;
 * создание общего `interface` contract до двух реализаций;
 * полный production artifact inventory и update-transition `UPD-002`;
 * каталог или выбор нескольких signaling peers;
@@ -547,8 +603,8 @@ Result checkpoint: текущий result-коммит.
 * Первый navigation получает только согласованный минимальный package.
 * Minimal main устанавливает Service Worker и не загружает прикладной
   functionality напрямую со static host routes.
-* Service Worker получает по WSS от одного signaling peer минимум отдельные
-  Window- и Worker-части, проверяет их и публикует только целиком готовый cache.
+* Service Worker получает первоначальные Window- и Worker-части с того же HTTPS
+  server, проверяет их и публикует только целиком готовый cache.
 * Main запускает Window entrypoint через cached endpoint Service Worker.
 * Service Worker запускает свою сменяемую часть через согласованный ABI.
 * Interrupted или неверная доставка не становится ready/active cache.
@@ -560,7 +616,7 @@ Result checkpoint: текущий result-коммит.
 ## Проверка результата
 
 * Frozen contract tests минимального package и main/Worker handoff.
-* WSS tests нескольких частей, interruption, invalid bytes и retry.
+* HTTP/cache tests нескольких частей, interruption, invalid bytes и retry.
 * Cache tests preparing/ready/active, atomic publication и cold restoration.
 * Service Worker fetch tests cached endpoints.
 * Browser test первого install, перехода под Worker control и запуска Window
@@ -574,7 +630,7 @@ Result checkpoint: текущий result-коммит.
 `LOAD-001` находится в `IN_PROGRESS`. Package-срез `LOAD-001.1` остановлен до
 implementation решением владельца, Fullstack-срез `LOAD-001.2` остановлен после
 диагностики HMR. Регистрация, control WebSocket, статические browser builds и
-offline bootstrap находятся в `REVIEW`. Текущий `LOAD-001.7 — Встраивать static
-assets и кэшировать только использованные` ждёт повторной owner-проверки после
-очистки прежнего Cache Storage. После неё следующий срез отдельно регистрирует
-доставку, проверку и публикацию первого сменяемого functionality по WSS.
+offline bootstrap находятся в `REVIEW`; `LOAD-001.7` подтверждён владельцем.
+Текущий `LOAD-001.8 — Импортировать управляющий main после захвата страницы`
+добавляет `@web/main` и первый cache-on-import Window functionality. Worker
+functionality остаётся следующим отдельным срезом.
