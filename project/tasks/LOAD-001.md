@@ -103,10 +103,20 @@ Evidence-backed gate выполнен в
 * Package состоит из минимальных HTML, main-процесса и неизменяемой Service
   Worker оболочки.
 * В первом контуре Service Worker знает один signaling Hamiltonian peer.
-* Startup Service Worker открывает WebSocket, а importers получают через
-  согласованные transports первоначальные runtime packages, проверяют и
-  готовят их в origin-bound cache. Первоначальные packages через
-  `@import/service` доставляются по WebSocket.
+* Startup Service Worker открывает WebSocket только для управления и RPC.
+  Указанный peer может менять адрес source, но code bytes loader получает
+  через `fetch`, проверяет и сохраняет до запуска.
+* `web/startup/service` содержит неизменяемые primitives
+  `fetch → verify → cache → read → Function` и с их помощью загружает и
+  запускает `@import/service`. Сам `@import/service` владеет логическими
+  адресами runtime packages, их placement и взаимодействием с `@import/main`,
+  но не дублирует эти primitives.
+* Cache Storage разделён по трём уровням: `startup` хранит минимальную оболочку
+  и реально использованные ею resources, `import` — importer artifacts,
+  `runtime` — функциональные packages. `import` и `runtime` создаются лениво
+  только при первой записи своего artifact.
+* Стабильный cache endpoint строится на исходном origin Service Worker и не
+  меняется вместе с внешним адресом, откуда loader выполняет `fetch`.
 * Minimal main устанавливает связь с Service Worker, запрашивает готовность
   подготовленного cache и запускает `@import/main`, но не runtime напрямую.
 * Сменяемый functionality состоит из нескольких частей, а не одного
@@ -136,10 +146,10 @@ Evidence-backed gate выполнен в
   Оба importer загружают runtime packages и не являются runtime; их имена
   определяют место работы importer, но не навсегда закрепляют placement
   загруженного package.
-* Service Worker importer получает первоначальные runtime packages через
-  открытый startup-оболочкой WebSocket. Точный message contract, проверка
-  bytes, выбор execution context, публикация cache и ABI запуска фиксируются
-  отдельными последовательными срезами.
+* Service Worker importer получает логические адреса и placement через
+  открытый startup-оболочкой RPC WebSocket. Загрузку, проверку, cache и запуск
+  самого importer выполняет loader в `web/startup/service`; точные contracts и
+  ABI фиксируются отдельными последовательными срезами.
 * `web/startup/service` владеет минимальной неизменяемой оболочкой Service
   Worker: перехватывает первоначальные requests, готовит кэшированные endpoints
   и сообщает main-потоку о готовности. Вместе `web/startup/main` и
@@ -158,9 +168,12 @@ Evidence-backed gate выполнен в
 1. HTTPS host возвращает минимальные HTML и startup entrypoints.
 1. Minimal main регистрирует Worker, дожидается управления страницей и
    запускает Window importer.
-1. Service Worker открывает WSS к единственному известному signaling peer.
-1. Importers получают runtime packages согласованным transport, проверяют и
-   сохраняют их до запуска.
+1. Service Worker открывает WSS для RPC с единственным известным signaling
+   peer и получает адрес требуемого source.
+1. Startup loader получает importer bytes через `fetch`, проверяет, сохраняет
+   и запускает Service Worker importer.
+1. Importers выбирают runtime packages и placement; loader primitives получают
+   и сохраняют package bytes до запуска.
 1. Каждый runtime package запускается через согласованный ABI в выбранном
    Window, Dedicated Worker или Service Worker context.
 1. Только готовый cache публикуется как набор same-origin endpoints.
@@ -1012,6 +1025,47 @@ canonical path. Package strict typecheck/build проходит и законо�
 
 Result checkpoint: `6f539f0fe`.
 
+### LOAD-001.17 — Хранить startup в отдельном cache
+
+Статус и исполнитель: `IN_PROGRESS`; выполняет руководитель текущей задачи
+Codex напрямую, без субагентов.
+
+Классификация: отдельное именование уже работающего Cache Storage после
+принятого владельцем разделения `startup`, `import` и `runtime`.
+
+Требование: текущие HTML, startup scripts, manifest и лениво запрошенные
+startup resources сохраняются в cache `startup`, а не в прежний `metafor`.
+Будущие caches `import` и `runtime` в этом срезе не открываются и появляются
+только при первой реальной записи соответствующего artifact.
+
+Основание и связанная история: `LOAD-001.6` ввёл один cache `metafor`, когда
+browser path ещё не был разделён на три уровня. После `LOAD-001.15` и
+`LOAD-001.16` владелец принял независимые cache boundaries для startup,
+importers и runtime packages.
+
+Наблюдаемое расхождение: действующий cache всё ещё называется `metafor` и не
+показывает принадлежность сохранённых entries уровню startup.
+
+Причина: имя cache было выбрано до принятия архитектуры
+`startup → import → runtime`.
+
+Разрешённое изменение одного механизма: заменить имя cache, открываемого
+startup Service Worker, с `metafor` на `startup`. Не переносить и не удалять
+старый cache автоматически, не создавать caches `import` и `runtime`, не
+менять inventory, fetch policy или responses.
+
+Regression или опровергающее доказательство: source и собранный Worker не
+открывают cache `metafor`, открывают только `startup` и не открывают `import`
+или `runtime`. Старые site data владелец очищает вручную перед live-проверкой.
+
+Среда и критерий приёмки: strict typecheck/build `@startup/service`, focused
+host check, server build, artifact inspection и `git diff --check` проходят.
+Runtime-проверку после ручной очистки прежнего cache выполняет владелец.
+
+Подготовительный commit: ожидается.
+
+Result checkpoint: ожидается.
+
 ## Открытые вопросы
 
 * Как выглядит минимальный message contract между main и Service Worker?
@@ -1033,7 +1087,7 @@ Result checkpoint: `6f539f0fe`.
 * статические HTML/main/Service Worker artifacts без Bun HMR;
 * сохранение отдельно запускаемого прототипа через `server_proto.ts`;
 * минимальный HTML/main/Service Worker startup;
-* один signaling peer и WebSocket transport первоначальных runtime packages;
+* один signaling peer и WebSocket RPC/control transport;
 * несколько сменяемых proof parts;
 * origin-bound cache и same-origin cached endpoints;
 * запуск runtime packages в выбранном browser execution context;
@@ -1106,3 +1160,6 @@ importer в слой import` находится в `REVIEW`: `@web/main` пер�
 `@import/main` без изменения endpoint или поведения. `LOAD-001.16 — Создать
 Service Worker importer в слое import` находится в `REVIEW`: companion package
 `@import/service` создан без подключения runtime behavior.
+`LOAD-001.17 — Хранить startup в отдельном cache` является текущим срезом:
+он заменяет прежнее имя `metafor` на `startup`, не создавая заранее caches
+`import` и `runtime`.

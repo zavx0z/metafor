@@ -254,10 +254,12 @@ mechanism.
 
 Отдельная линия `LOAD` владеет первоначальной загрузкой браузерного функционала
 Hamiltonian. Первый HTTPS response доставляет только минимальные HTML и startup
-entrypoints. Startup запускает importers в Window и Service Worker; они получают
-runtime packages согласованным transport, проверяют и сохраняют их до запуска в
-выбранном Window, Dedicated Worker или Service Worker context. Первоначальные
-runtime packages через Service Worker importer доставляются по WebSocket.
+entrypoints. Startup запускает importers в Window и Service Worker; WebSocket
+остаётся RPC/control transport и сообщает изменяемый адрес source, а loader
+получает code bytes через `fetch`, проверяет и сохраняет их до запуска в
+выбранном Window, Dedicated Worker или Service Worker context. Cache Storage
+разделён по уровням `startup`, `import` и `runtime`; стабильные cache endpoints
+остаются на исходном origin Service Worker независимо от адреса source.
 
 Первый этап использует один signaling Hamiltonian peer и не проектирует каталог
 адресов нескольких peers. Его результатом владеет
