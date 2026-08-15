@@ -30,6 +30,7 @@ test("HAM-005 creates one standard Window visual environment in the importer", a
   expect(main).toContain('import {GridHelper} from "@metafor/engine"')
   expect(main).toContain("visualEnvironment ??= createVisualEnvironment()")
   expect(main).toContain("await UiRuntime.create(canvas")
+  expect(main).toContain('initial: "far"')
   expect(main).toContain("surfaceDisplay: false")
   expect(main).toContain("grid: false")
   expect(main).toContain("new GridHelper(2400, 24)")

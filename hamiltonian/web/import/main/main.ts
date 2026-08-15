@@ -30,6 +30,7 @@ async function createVisualEnvironment() {
   const runtime = await UiRuntime.create(canvas, {
     fontUrl: VISUAL_FONT_URL,
     virtualDisplay: {
+      initial: "far",
       grid: false,
       surfaceDisplay: false,
     },
