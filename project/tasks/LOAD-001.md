@@ -1481,6 +1481,50 @@ module caches.
 default importer и содержит универсальный Window `importModule`, не зная
 состава modules. Live owner-проверка и checkpoint-коммит остаются открыты.
 
+### LOAD-001.24 — Подтвердить двусторонний обмен по RPC WebSocket
+
+Статус и исполнитель: `IN_PROGRESS`; выполняет руководитель текущей задачи
+Codex напрямую, без субагентов.
+
+Классификация: первый наблюдаемый обмен данными по уже открытому internal RPC
+WebSocket, отдельно от загрузки module и будущего RPC protocol.
+
+Требование: после события `open` Web-реализация `@internall/rpc` один раз
+отправляет точное сообщение `ping`. Bun-сторона отвечает на него точным
+сообщением `pong`, а Web-сторона подтверждает получение ответа в консоли.
+
+Основание и связанная история: `LOAD-001.22` загрузил internal RPC module и
+открыл принадлежащий ему WebSocket, но намеренно не добавлял RPC messages.
+Владелец подтвердил загрузку текущего контура и запросил минимальный ping/pong
+для проверки двустороннего канала.
+
+Наблюдаемое расхождение: текущие логи доказывают только WebSocket handshake;
+ни browser-to-server, ни server-to-browser message path ещё не наблюдались.
+
+Причина: `message` handler Bun-сервера пуст, а Web service после `open` ничего
+не отправляет и не обрабатывает входящие сообщения.
+
+Разрешённое изменение одного механизма: добавить один literal ping/pong обмен
+в `@internall/rpc/server` и `@internall/rpc/service/web`. Не вводить envelope,
+request id, сериализацию, heartbeat timer, timeout, reconnect policy или
+прикладные RPC methods.
+
+Regression или опровергающее доказательство: сервер отправляет `pong` только
+в ответ на точный `ping`; Web service подтверждает только точный `pong` и не
+выдаёт сам факт `open` за успешный обмен сообщениями.
+
+Среда и критерий приёмки: strict typecheck `@internall/rpc`, server build и
+`git diff --check` проходят. В live browser после подключения виден лог
+полученного `pong`, а server contour получает `ping` и отправляет ответ.
+
+Фактические действия:
+
+Результат и вывод:
+
+Подготовительный commit:
+
+Result checkpoint:
+
 ## Открытые вопросы
 
 * Как выглядит минимальный message contract между main и Service Worker?

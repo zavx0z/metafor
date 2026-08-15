@@ -164,7 +164,9 @@ startup API загружает служебную логику Hamiltonian из 
 `server.ts` endpoints, а `@internall/rpc` размещён в `hamiltonian/internal`.
 Текущий `LOAD-001.23 — Передавать Window
 importer универсальный module loader` делает `@import/main` симметричным
-оркестратором. Будущая среда MetaFor загружается теми же importers через
+оркестратором. `LOAD-001.24 — Подтвердить двусторонний обмен по RPC WebSocket`
+добавляет один проверочный `ping`/`pong` без формирования полного RPC protocol.
+Будущая среда MetaFor загружается теми же importers через
 отдельное пространство `/metafor/*` и cache `metafor`. `UPD-002 — Обновлять всю
 клиентскую сборку через Service Worker` ждёт результата `LOAD-001`.
 
