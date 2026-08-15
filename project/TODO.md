@@ -157,7 +157,7 @@ Window importer endpoint по слою import` находится в `REVIEW`: `
 заменён на `/import-main.js` без alias. Текущий `LOAD-001.21 — Передавать
 Service Worker importer универсальные функции загрузки` находится в `REVIEW`:
 startup primitives отделены от конкретной загрузки importer и передаются ему
-как явный `load` ABI; live online/offline проверяет владелец. `UPD-002 —
+как явный `loader` ABI; live online/offline проверяет владелец. `UPD-002 —
 Обновлять всю клиентскую сборку через Service Worker` ждёт результата
 `LOAD-001`.
 

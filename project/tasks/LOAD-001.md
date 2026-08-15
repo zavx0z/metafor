@@ -1264,11 +1264,12 @@ Codex напрямую, без субагентов.
 Классификация: разделение неизменяемых startup primitives и конкретной
 orchestration Service Worker importer перед первым runtime package.
 
-Требование: `web/startup/service/load.ts` предоставляет универсальные функции
-`fetch`, `verify`, `cache`, `read`, `remove` и `run`, которые не знают URL,
-cache name или lifecycle конкретного importer. `startup/service/index.ts` сам
+Требование: `web/startup/service/loader.ts` предоставляет универсальные функции
+`verify`, `cache`, `read`, `remove` и `run`, которые не знают URL, cache name
+или lifecycle конкретного importer. Обычный network request выполняется
+напрямую через browser `fetch`. `startup/service/index.ts` сам
 загружает `/import-service.js`, сохраняет и читает его из cache `import`, затем
-запускает artifact с явно переданным объектом `load`. `@import/service`
+запускает artifact с явно переданным объектом `loader`. `@import/service`
 получает эти функции как startup ABI для последующей загрузки runtime packages.
 
 Основание и связанная история: `LOAD-001.19` доказал загрузку и cold
@@ -1286,47 +1287,49 @@ Service Worker entrypoint и передавать primitives importer.
 Причина: первый executable handoff `.19` доказывал только сам переход
 `startup → import` и намеренно не определял переиспользуемый ABI.
 
-Разрешённое изменение одного механизма: заменить importer-specific
-`loader.ts` универсальным `load.ts`; перенести request, memoized Promise,
+Разрешённое изменение одного механизма: заменить importer-specific содержимое
+`loader.ts` универсальными функциями; перенести request, memoized Promise,
 cache `import`, retry и cleanup в `startup/service/index.ts`; выполнить
-importer source через `run(source, {load})` и дать `@import/service` строгий
+importer source через `run(source, {loader})` и дать `@import/service` строгий
 ambient contract переданного объекта. Не добавлять runtime packages, их адреса,
 RPC messages, digest contract, ready/active cache или update behavior.
 
-Regression или опровергающее доказательство: универсальный `load.ts` не
+Regression или опровергающее доказательство: универсальный `loader.ts` не
 содержит `/import-service.js`, имени cache `import` или singleton importer;
 `startup/service/index.ts` сохраняет прежние once-only, cold-cache и cleanup
-ветви; artifact `@import/service` запускается только при наличии переданного
-`load` API. Ошибочный HTTP response не сохраняется, а ошибка выполнения удаляет
-конкретный importer entry и допускает retry.
+ветви; startup передаёт `@import/service` точный namespace `loader`, а importer
+компилируется против его типа без дублирующих runtime-проверок. Ошибочный HTTP
+response не сохраняется, а ошибка выполнения удаляет конкретный importer entry
+и допускает retry.
 
 Среда и критерий приёмки: strict checks/builds `@startup/service` и
 `@import/service`, focused tests универсальных функций и передачи ABI, server
 build, artifact inspection и `git diff --check` проходят. Live online/offline
 поведение не должно измениться; повторно его проверяет владелец.
 
-Фактические действия: importer-specific `loader.ts` удалён. Новый `load.ts`
-экспортирует независимые `fetch`, `verify`, `cache`, `read`, `remove` и `run`;
+Фактические действия: importer-specific orchestration удалена из `loader.ts`.
+Модуль экспортирует независимые `verify`, `cache`, `read`, `remove` и `run`, а
+network request выполняется обычным browser `fetch` без лишней обёртки;
 конкретный request `/import-service.js`, cache `import`, singleton Promise,
 cold-cache path, cleanup и retry перенесены в `startup/service/index.ts`.
-Entrypoint выполняет сохранённый IIFE через `run(source, {load})`, а
+Entrypoint выполняет сохранённый IIFE через `run(source, {loader})`, а
 `@import/service` получает тип этого namespace из единственного startup source
-и отклоняет запуск без полного API.
+без дублирующих runtime-проверок гарантированного объекта.
 
 Результат и вывод: strict typecheck/build обоих пакетов прошли; standalone
-startup Service Worker занимает `4.60 KB`, importer — `336 bytes`. Focused
+startup Service Worker занимает `4.52 KB`, importer — `65 bytes`. Focused
 проверка подтвердила успешные `verify`, `cache`, `read`, `remove` и именованный
-binding `run`; importer запускается с `load` и отклоняет отсутствующий API.
+binding `run`; собранный startup передаёт importer namespace `loader`.
 Полный Worker lifecycle probe подтвердил один fetch/запуск при конкурентных
 messages, offline cold restoration, удаление ошибочного artifact и successful
 retry без раннего создания cache `runtime`. Server build прошёл и содержит
-передачу `load` в `/import-service.js`; `git diff --check` чист. `verify` пока
+передачу `loader` в `/import-service.js`; `git diff --check` чист. `verify` пока
 проверяет только успешный HTTP status: digest contract намеренно не входит в
 этот срез. Live online/offline проверка владельца остаётся открытой.
 
 Подготовительный commit: `38cd04de6`.
 
-Result checkpoint: `23011f66c`.
+Result checkpoint: `23011f66c`, review correction `8b8d32e1c`.
 
 ## Открытые вопросы
 
@@ -1437,5 +1440,5 @@ runtime packages и RPC contract; live online/offline подтвердил вл�
 поведения; live online/offline подтвердил владелец.
 `LOAD-001.21 — Передавать Service Worker importer универсальные функции
 загрузки` находится в `REVIEW`: startup primitives отделены от конкретной
-загрузки importer и передаются ему как явный `load` ABI; live online/offline
+загрузки importer и передаются ему как явный `loader` ABI; live online/offline
 проверяет владелец.
