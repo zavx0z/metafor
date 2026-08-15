@@ -3,7 +3,7 @@
  *
  * Install и activate немедленно передают новой инкарнации управление. Первое
  * `connect` message продлевает жизнь события до подготовки startup cache,
- * получает и запускает Service Worker importer через универсальный `load` API
+ * получает и запускает Service Worker importer через универсальный loader API
  * и одновременно открывает control WebSocket. Все GET requests после захвата
  * страницы проходят через cache-first policy.
  *
@@ -11,7 +11,7 @@
  */
 
 import {cacheFirst, cacheStartup} from "./cache"
-import * as load from "./load"
+import * as loader from "./loader"
 import {connect} from "./socket"
 
 const serviceImporterRequest = new Request(new URL("/import-service.js", location.origin))
@@ -57,20 +57,20 @@ async function loadServiceImporter() {
 /** Получает importer, сохраняет его bytes и передаёт ему универсальный API. */
 async function startServiceImporter() {
   try {
-    let response = await load.read("import", serviceImporterRequest)
+    let response = await loader.read("import", serviceImporterRequest)
 
     if (!response) {
-      response = load.verify(await load.fetch(serviceImporterRequest))
-      await load.cache("import", serviceImporterRequest, response)
-      response = await load.read("import", serviceImporterRequest)
+      response = loader.verify(await fetch(serviceImporterRequest))
+      await loader.cache("import", serviceImporterRequest, response)
+      response = await loader.read("import", serviceImporterRequest)
     }
 
     if (!response) throw new Error("Cached Service Worker importer is missing")
 
-    load.verify(response)
-    load.run(await response.text(), {load})
+    loader.verify(response)
+    loader.run(await response.text(), {loader})
   } catch (error) {
-    await load.remove("import", serviceImporterRequest)
+    await loader.remove("import", serviceImporterRequest)
     throw error
   }
 }

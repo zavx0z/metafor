@@ -1,13 +1,3 @@
-/**
- * Получает resource из network по готовому request.
- *
- * Функция не выбирает endpoint и не управляет retry: эти решения принадлежат
- * вызывающему importer или startup entrypoint.
- */
-export function fetch(request: Request) {
-  return globalThis.fetch(request)
-}
-
 /** Проверяет, что полученный HTTP response можно использовать дальше. */
 export function verify(response: Response) {
   if (!response.ok) throw new Error(`${response.url || "Resource"} returned ${response.status}`)
