@@ -117,11 +117,11 @@ Evidence-backed gate выполнен в
   принадлежит загружаемому internal module `@internall/rpc`; peer может
   менять адрес source, но module bytes loader получает через `fetch`, проверяет
   и сохраняет до запуска.
-* `web/startup/service` содержит неизменяемые primitives
-  `fetch → verify → cache → read → Function` и с их помощью загружает и
-  запускает `@import/service`. Сам `@import/service` владеет логическими
-  адресами modules, их placement и взаимодействием с `@import/main`, но не
-  дублирует эти primitives.
+* `web/startup/service` выполняет обычный browser `fetch` и содержит только
+  используемые неизменяемые primitives `verify`, `cache`, `read`, `remove` и
+  `run`. С их помощью startup загружает и запускает `@import/service`.
+  Сам `@import/service` владеет логическими адресами modules, их placement и
+  полной композицией этих primitives, но не дублирует их реализацию.
 * Cache Storage разделён по владельцам: `startup` хранит минимальную оболочку и
   реально использованные ею resources, `import` — importer artifacts,
   `internal` — modules Hamiltonian, а будущий `metafor` — modules среды
@@ -129,8 +129,10 @@ Evidence-backed gate выполнен в
   artifact.
 * Стабильный cache endpoint строится на исходном origin Service Worker и не
   меняется вместе с внешним адресом, откуда loader выполняет `fetch`.
-* Minimal main устанавливает связь с Service Worker, запрашивает готовность
-  подготовленного cache и запускает `@import/main`, но не modules напрямую.
+* Minimal main регистрирует Service Worker, дожидается его управления страницей,
+  отправляет `connect` и запускает `@import/main`, но не modules напрямую.
+  Fetch handler возвращает importer response только после его сохранения в
+  cache `import`; отдельный ready-message для этого не нужен.
 * Сменяемый functionality состоит из нескольких частей, а не одного
   обязательного bundle.
 * Каталог адресов нескольких signaling peers и peer-security обсуждаются и
@@ -150,21 +152,25 @@ Evidence-backed gate выполнен в
 * Fullstack runtime bundling HTML/main отклонён из-за Bun HMR и неподходящего
   runtime URL importer. HTML остаётся статическим, оба browser entrypoint
   собираются заранее, а `server.ts` только выдаёт готовые bytes.
-* `web/startup/main` владеет минимальным main-потоком: получает от Service
-  Worker готовый кэшированный endpoint и запускает `@import/main`.
+* `web/startup/main` владеет минимальным main-потоком: регистрирует Service
+  Worker, дожидается controller и запускает `@import/main` через
+  перехватываемый Worker endpoint `/import/main`.
 * `web/import/main` владеет Window importer, а `web/import/service` — Service
-  Worker importer. Текущий `web/main` и пакет `@web/main` являются заготовкой
-  первого из них и переименовываются в `web/import/main` и `@import/main`.
-  Оба importer загружают internal и Metafor modules; их имена определяют место
-  работы importer, но не навсегда закрепляют placement загруженного module.
-* Service Worker importer получает логические адреса и placement через
-  открытый startup-оболочкой RPC WebSocket. Загрузку, проверку, cache и запуск
-  самого importer выполняет loader в `web/startup/service`; точные contracts и
-  ABI фиксируются отдельными последовательными срезами.
+  Worker importer. Прежние `web/main` и `@web/main` уже перенесены в
+  `web/import/main` и `@import/main`. Service Worker importer загружает первый
+  internal module; Window importer остаётся пустым оркестратором до выбора
+  первого реального module. Имена importers определяют место их работы, но не
+  навсегда закрепляют placement загруженного module.
+* Service Worker importer хранит выбранные логические адреса, cache и placement
+  в собственном обновляемом слое. Первый адрес `/internal/rpc` уже материализован;
+  получение новых source addresses через RPC остаётся отдельным следующим
+  механизмом. Загрузку, проверку, cache и запуск самого importer выполняет
+  loader в `web/startup/service`.
 * `web/startup/service` владеет минимальной неизменяемой оболочкой Service
-  Worker: перехватывает первоначальные requests, готовит кэшированные endpoints
-  и сообщает main-потоку о готовности. Вместе `web/startup/main` и
-  `web/startup/service` образуют минимальный loader этой задачи.
+  Worker: перехватывает requests, готовит startup cache и загружает Service
+  Worker importer. `connect` event остаётся активным до завершения этой работы.
+  Вместе `web/startup/main` и `web/startup/service` образуют минимальный loader
+  этой задачи.
 * `server/import` и `server/service` позднее реализуют тот же принцип для Bun.
   Общий договор выделяется в `interface` только после появления обеих
   реализаций, а не проектируется заранее и не оформляется отдельным пакетом.
@@ -177,18 +183,19 @@ Evidence-backed gate выполнен в
 ## Целевой минимальный путь
 
 1. HTTPS host возвращает минимальные HTML и startup entrypoints.
-1. Minimal main регистрирует Worker, дожидается управления страницей и
-   запускает Window importer.
-1. Startup loader получает importer bytes через `fetch`, проверяет, сохраняет
-   и запускает Service Worker importer.
-1. Importers выбирают internal и Metafor modules и их placement; loader
-   primitives получают и сохраняют module bytes до запуска.
-1. Загруженный internal RPC module открывает WSS с единственным известным
-   signaling peer.
-1. Каждый module запускается через согласованный ABI в выбранном
-   Window, Dedicated Worker или Service Worker context.
-1. Только готовый cache публикуется как набор same-origin endpoints.
-1. После остановки Worker готовые packages восстанавливаются из cache.
+1. Minimal main регистрирует Worker, дожидается управления страницей, отправляет
+   `connect` и запускает Window importer через `/import/main`.
+1. Startup loader получает Service Worker importer через `/import/service`,
+   проверяет response, сохраняет его в cache `import` и запускает с переданными
+   primitives.
+1. Service Worker importer выбирает `/internal/rpc`, получает module через
+   собственный общий loader, сохраняет в cache `internal` и запускает.
+1. Загруженный internal RPC module открывает WebSocket `/sw` с единственным
+   известным peer и подтверждает двусторонний transport через `ping`/`pong`.
+1. Startup, importers и internal modules восстанавливаются из независимых
+   caches; `metafor` создаётся лениво только первым module этой среды.
+1. Первый реальный Window или Dedicated Worker module отдельно фиксирует ABI
+   и placement, не расширяя неизменяемый startup заранее.
 
 ## Поведение процесса
 
@@ -197,13 +204,17 @@ package architecture не создаётся. Диагностический Ful
 остановлен после доказанного Bun HMR; приняты только необходимые browser
 пакеты со статической сборкой.
 
-Первая navigation теперь доказала регистрацию, переход страницы под управление
-Worker, создание постоянного startup cache и открытие control WebSocket.
-Принятые срезы доказали получение `/main.js` после controller и сохранение его
-первого network response. Решение владельца уточнило его роль: этот artifact
-становится `@import/main`, а не Window runtime. Следующий срез переносит его в
-import-слой без изменения поведения; затем отдельно создаётся
-`@import/service` и только после этого реализуется загрузка runtime code.
+Первая navigation доказала регистрацию, переход страницы под управление
+Worker, постоянный offline startup и запуск обоих importers из cache `import`.
+Service Worker importer уже загружает первый module `@internall/rpc` через
+общий import-layer loader в cache `internal`; WebSocket находится внутри этого
+module и подтверждён повторяющимся двусторонним `ping`/`pong`. Startup не знает
+module endpoints, storage policy или WebSocket.
+
+Не доказаны cold offline restoration internal module в живом browser и запуск
+первого реального module через Window importer. Полный manifest с hashes,
+preparing/ready/active release и атомарное переключение относятся к `UPD-002`,
+а не расширяют минимальный loader этой задачи.
 
 Каждый новый механизм получает отдельную последовательную подзадачу и
 checkpoint.
@@ -1528,20 +1539,21 @@ Result checkpoint: `e5ce8bd62`.
 
 ## Открытые вопросы
 
-* Как выглядит минимальный message contract между main и Service Worker?
-* Как importer получает выбранные internal и Metafor modules и их placement?
-* Как Worker атомарно различает preparing, ready и active cache?
-* Как восстанавливается готовый functionality после остановки и нового запуска
-  Service Worker без доступного HTTPS host?
-* Какой минимальный ABI используют modules при запуске в Window,
-  Dedicated Worker и Service Worker?
+* Какой первый реальный module загружает `@import/main` и нужен ли он для
+  минимального proof `LOAD-001` либо относится к следующей предметной задаче?
+* Как RPC передаёт importer изменяемый source address, не меняя стабильный
+  same-origin endpoint Service Worker?
+* Какой минимальный ABI используют modules при запуске в Window и Dedicated
+  Worker? Service Worker сейчас получает IIFE/CommonJS source и запускает его
+  через переданный `run` primitive.
+* Какой первый module создаёт пространство и cache `metafor`?
 
 ## Границы
 
 Входит:
 
-* source-директории `web`, `server`, `interface`, `internal`, отдельные
-  workspace-пакеты
+* новые source-директории `web` и `internal`, заготовленные для поздних
+  реализаций `server` и `interface`, отдельные workspace-пакеты
   `@startup/main`, `@startup/service`, `@import/main` и `@import/service` для
   browser entrypoints и internal module `@internall/rpc`;
 * статические HTML/main/Service Worker artifacts без Bun HMR;
@@ -1549,9 +1561,10 @@ Result checkpoint: `e5ce8bd62`.
 * минимальный HTML/main/Service Worker startup;
 * один signaling peer и WebSocket RPC/control transport;
 * несколько сменяемых proof parts;
-* origin-bound cache и same-origin cached endpoints;
-* запуск modules в выбранном browser execution context;
-* повторный запуск из уже готового cache.
+* origin-bound caches `startup`, `import` и `internal`, а позднее ленивый
+  `metafor`;
+* запуск первого internal module в Service Worker context;
+* повторный запуск startup, importers и internal module из cache.
 
 Не входит:
 
@@ -1560,7 +1573,8 @@ Result checkpoint: `e5ce8bd62`.
   реализации кроме `@startup/main`, `@startup/service`, `@import/main`,
   `@import/service` и `@internall/rpc`;
 * создание общего `interface` contract до двух реализаций;
-* полный production artifact inventory и update-transition `UPD-002`;
+* полный production artifact inventory, cryptographic release manifest,
+  preparing/ready/active publication и update-transition `UPD-002`;
 * каталог или выбор нескольких signaling peers;
 * межсерверная координация, распределение VAPID authority и peer security;
 * Oracle/Force payload по control/code WSS;
@@ -1574,75 +1588,50 @@ Result checkpoint: `e5ce8bd62`.
 * Minimal main устанавливает Service Worker и не загружает прикладной
   functionality напрямую со static host routes.
 * Startup запускает `@import/main` и `@import/service`, но не modules напрямую.
-* Importers выбирают первоначальные internal и Metafor modules, а loader
-  получает, проверяет и сохраняет их в независимых caches.
-* Module запускается через согласованный ABI в выбранном Window, Dedicated
-  Worker или Service Worker context без привязки имени к placement.
-* Interrupted или неверная доставка не становится ready/active cache.
-* После остановки Worker новый execution восстанавливает готовый functionality
-  из cache без повторной обязательной доставки.
+* Service Worker importer выбирает первый internal module, а общий loader слоя
+  import получает, проверяет, сохраняет и запускает его в cache `internal`.
+* Неуспешный HTTP response не сохраняется, а ошибка выполнения удаляет только
+  повреждённую exact cache entry и допускает повторную загрузку.
+* После остановки Worker новый execution восстанавливает startup, оба importers
+  и internal module из caches без обязательной сети.
+* Неизменяемый startup не знает module endpoints, cache ownership, WebSocket
+  или состав будущего Window/Metafor-контура.
 * Доказательство явно отделяет minimal loader от будущего полного release и
   multi-peer extension.
 
 ## Проверка результата
 
-* Frozen contract tests минимального package и main/Worker handoff.
-* HTTP/WebSocket/cache tests нескольких packages, interruption, invalid bytes
-  и retry.
-* Cache tests preparing/ready/active, atomic publication и cold restoration.
-* Service Worker fetch tests cached endpoints.
-* Browser test первого install, перехода под Worker control и запуска module
-  через importer без прямой static загрузки.
-* Browser test остановки и нового запуска Worker с восстановлением cache.
+* Strict checks и builds `@startup/main`, `@startup/service`, `@import/main`,
+  `@import/service` и `@internall/rpc`.
+* HTTP route probes parameterized importer/internal responses, повторных clones
+  и правильного JavaScript MIME.
+* Focused cache tests successful response, execution failure, exact cleanup,
+  retry и cold restoration.
+* Browser test первого install, перехода под Worker control, запуска обоих
+  importers и internal RPC без прямой загрузки module из startup.
+* Browser test остановки Worker и offline восстановления caches `startup`,
+  `import` и `internal`.
+* Live WebSocket test минимум двух `ping`/`pong` с интервалом около 20 секунд.
 * Строгие host/WebWorker TypeScript checks и `git diff --check`.
 * Живой owner-сценарий в canonical Hamiltonian contour до объявления готовности.
 
 ## Текущее состояние и следующий шаг
 
-`LOAD-001` находится в `IN_PROGRESS`. Package-срез `LOAD-001.1` остановлен до
-implementation решением владельца, Fullstack-срез `LOAD-001.2` остановлен после
-диагностики HMR. Регистрация, control WebSocket, статические browser builds и
-offline startup находятся в `REVIEW`; `LOAD-001.7` подтверждён владельцем.
-`LOAD-001.8` находится в `REVIEW` после offline-получения управляющего main,
-`LOAD-001.9` — после реализации единого SPA navigation fallback, `LOAD-001.10` —
-после переноса сборки в route macro. `LOAD-001.11 — Принять startup как термин
-начальной загрузки` находится в `REVIEW`: новый loader и действующее описание
-его понятия переименованы без изменения поведения. `LOAD-001.12 — Поместить
-минимальные загрузчики внутрь startup` находится в `REVIEW`: два loader package
-перенесены под их принятого владельца без изменения HTTP и поведения.
-`LOAD-001.13 — Не отклонять запрос отсутствующего asset без сети` находится в
-`REVIEW`: expected offline failure ограничен одним контролируемым response.
-`LOAD-001.14 — Назвать startup scripts по их владельцу` находится в `REVIEW`:
-два HTTP script URL согласованы с package boundary без compatibility aliases;
-live-проверка владельца остаётся открытой. `LOAD-001.15 — Перенести Window
-importer в слой import` находится в `REVIEW`: `@web/main` перенесён в
-`@import/main` без изменения endpoint или поведения. `LOAD-001.16 — Создать
-Service Worker importer в слое import` находится в `REVIEW`: companion package
-`@import/service` создан без подключения executable behavior.
-`LOAD-001.17 — Хранить startup в отдельном cache` находится в `REVIEW`: прежнее
-имя `metafor` заменено на `startup` без раннего создания caches `import` и
-будущих module caches; владелец подтвердил Cache Storage без прежнего
-универсального `metafor`.
-`LOAD-001.18 — Хранить Window importer в cache import` находится в `REVIEW`:
-`/main.js` лениво создаёт и использует `import`, не меняя endpoint или поведение
-importer; владелец подтвердил live-запуск, caches `startup`, `import` и полное
-offline restoration startup вместе с Window importer.
-`LOAD-001.19 — Запускать Service Worker importer через startup loader` находится
-в `REVIEW`: startup loader получает, сохраняет и выполняет `@import/service` без
-internal/Metafor modules и RPC contract; live online/offline подтвердил
-владелец.
-`LOAD-001.20 — Назвать Window importer endpoint по слою import` находится в
-`REVIEW`: `/main.js` заменён на `/import-main.js` без alias и изменения
-поведения; live online/offline подтвердил владелец.
-`LOAD-001.21 — Передавать Service Worker importer универсальные функции
-загрузки` находится в `REVIEW`: startup primitives отделены от конкретной
-загрузки importer и передаются ему как явный `loader` ABI; live online/offline
-проверяет владелец.
-Текущий `LOAD-001.22 — Загружать Service Worker internal modules` переносит
-временный WebSocket из startup и корневого server в первый internal module
-`@internall/rpc`, размещённый в `hamiltonian/internal/rpc`. Generic startup
-loader обслуживает `/internal/*` через cache `internal` и уже различает будущий
-`/metafor/*` с отдельным ленивым cache `metafor`. `LOAD-001.23 — Передавать
-Window importer универсальный module loader` делает `@import/main` таким же
-обновляемым оркестратором. Focused проверки и live owner-проверка текущего diff
-ещё не зафиксированы checkpoint-коммитом.
+`LOAD-001` находится в `IN_PROGRESS`. Срезы `.1` и `.2` остановлены после
+owner-решений не создавать широкую package architecture и не использовать Bun
+Fullstack/HMR. Срезы `.3`–`.22` находятся в `REVIEW`; они последовательно
+доказали статический startup, Service Worker control, SPA/offline cache,
+раздельные packages и caches, запуск обоих importers и первый internal module
+`@internall/rpc`. Срез `.23` остановлен после удаления преждевременного Window
+loader из startup. Срез `.24` находится в `REVIEW`: владелец подтвердил
+повторяющийся двусторонний `ping`/`pong`.
+
+Текущий доказанный путь:
+`HTML → @startup/main → @startup/service → @import/main + @import/service →
+@internall/rpc → /sw`. Caches `startup` и `import` восстановлены владельцем
+offline; загрузка internal RPC и WebSocket подтверждены online. До перевода
+родителя в `REVIEW` остаётся live-доказательство cold offline restoration
+cache `internal`. После него владелец отдельно решает, входит ли первый реальный
+Window/Metafor module в минимальный proof этой задачи. Новый номер подзадачи до
+этого решения не создаётся. Versioned manifest, hashes и атомарная публикация
+полного release остаются в `UPD-002`.

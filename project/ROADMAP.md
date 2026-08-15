@@ -233,18 +233,20 @@ model, validation, geometry, renderer primitives или layout laws из `nodes`
 `visual` и остальные исходники сохраняют только границу прототипа и evidence;
 они не являются source base нового Hamiltonian.
 
-Новая реализация создаётся с нуля рядом в source-директориях `web`, `server` и
-`interface`. Browser code проходит три последовательных уровня: неизменяемый
-`startup`, environment-specific `import` и сменяемый `runtime`. Startup
-реализуют `web/startup/main` и `web/startup/service`, importers —
+Новая реализация создаётся с нуля рядом в source-директориях `web`, `server`,
+`interface` и `internal`. Browser code проходит три последовательных уровня:
+неизменяемый `startup`, environment-specific `import` и загружаемые modules.
+Startup реализуют `web/startup/main` и `web/startup/service`, importers —
 `web/import/main` и `web/import/service`; server-аналоги появляются позднее, а
 общий договор выделяется в `interface` только после двух фактических
 реализаций. Минимальные browser entrypoint оформлены отдельными
 workspace-пакетами `@startup/main`, `@startup/service`, `@import/main` и
-`@import/service` со строгой проверкой для своей среды. Runtime состоит из
-разных функциональных packages: их имена не зеркалят execution context, а один
-package может размещаться в Window, Dedicated Worker или Service Worker.
-Фиксированные runtime-пакеты `@web/main` и `@web/service` не создаются.
+`@import/service` со строгой проверкой для своей среды. Служебные изменяемые
+modules самого Hamiltonian живут в пространстве `internal`, а modules среды,
+ради которой он создан, — в отдельном пространстве `metafor`. Их имена не
+зеркалят execution context: один module может размещаться в Window, Dedicated
+Worker или Service Worker. Фиксированные пакеты `@web/main` и `@web/service`
+не создаются.
 
 Fullstack runtime bundling HTML/main отклонён после появления Bun HMR и
 неподходящего runtime URL importer. `server.ts` выдаёт неизменяемый HTML и
@@ -254,12 +256,16 @@ mechanism.
 
 Отдельная линия `LOAD` владеет первоначальной загрузкой браузерного функционала
 Hamiltonian. Первый HTTPS response доставляет только минимальные HTML и startup
-entrypoints. Startup запускает importers в Window и Service Worker; WebSocket
-остаётся RPC/control transport и сообщает изменяемый адрес source, а loader
-получает code bytes через `fetch`, проверяет и сохраняет их до запуска в
-выбранном Window, Dedicated Worker или Service Worker context. Cache Storage
-разделён по уровням `startup`, `import` и `runtime`; стабильные cache endpoints
-остаются на исходном origin Service Worker независимо от адреса source.
+entrypoints. Startup запускает importers в Window и Service Worker, а importers
+выбирают состав и placement загружаемых modules. Loader получает code bytes
+через `fetch`, проверяет и сохраняет их до запуска в выбранном Window,
+Dedicated Worker или Service Worker context. WebSocket принадлежит
+загруженному internal RPC/control module, а не неизменяемому startup; передача
+по нему изменяемого адреса source остаётся следующим отдельным механизмом.
+Cache Storage разделён по владельцам `startup`, `import`, `internal` и
+`metafor`; последний создаётся только при появлении первого module среды.
+Стабильные cache endpoints остаются на исходном origin Service Worker
+независимо от будущего внешнего адреса source.
 
 Первый этап использует один signaling Hamiltonian peer и не проектирует каталог
 адресов нескольких peers. Его результатом владеет

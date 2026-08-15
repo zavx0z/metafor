@@ -115,60 +115,21 @@ stylesheet нодового canvas без изменения визуально�
 Следующий structural срез ждёт координации с активным NODES-008 benchmark.
 
 Начата `LOAD-001 — Загружать браузерный функционал через минимальный Service
-Worker`. Весь прежний Hamiltonian зафиксирован как рабочий прототип без
-дальнейшего рефакторинга. Package-вариант `LOAD-001.1` остановлен до product
-implementation после owner-решения не создавать все задуманные packages.
-`LOAD-001.2` установил границу Bun Fullstack: HTML/main обрабатываются, но
-Service Worker требует отдельного entrypoint; runtime `Bun.Transpiler` в
-`server.ts` отклонён владельцем. `LOAD-001.4 — Собирать Service Worker пакетом
-@web/service` находится в `REVIEW`: workspace-пакет строго проверяет и собирает
-Worker до штатного запуска Hamiltonian, а server только выдаёт готовые bytes.
-`LOAD-001.3 — Подключить Service Worker к одному WebSocket`, статический
-`@web/import` без HMR и постоянный offline startup находятся в `REVIEW` после
-live-проверок владельца. `LOAD-001.7` подтвердил build-time static assets и
-cache-on-first-request. `LOAD-001.8 — Импортировать управляющий main после
-захвата страницы` находится в `REVIEW`: первоначальный `@web/main` artifact
-приходит через HTTP и сохраняется Worker до возврата в dynamic import. Текущий
-`LOAD-001.9 — Открывать вложенные адреса через offline HTML` находится в
-`REVIEW` после реализации единого SPA fallback. `LOAD-001.10` перенёс strict
-build `@web/import` и `@web/service` в route macro и удалил их отдельные
-build-команды из `start`. `LOAD-001.11 — Принять startup как термин начальной
-загрузки` находится в `REVIEW`. `LOAD-001.12 — Поместить минимальные загрузчики
-внутрь startup` находится в `REVIEW`: исходники и workspace membership
-перенесены в пакеты `@startup/main` и `@startup/service`; WebSocket остаётся
-сигналом будущего update. `LOAD-001.13 — Не отклонять запрос отсутствующего
-asset без сети` находится в `REVIEW`: lazy cache miss получает контролируемый
-response. `LOAD-001.14 — Назвать startup scripts по их владельцу` находится в
-`REVIEW`: два HTTP script URL переименованы без aliases; runtime-проверка
-владельца остаётся открытой. `LOAD-001.15 — Перенести Window importer в слой
-import` находится в `REVIEW`: `@web/main` перенесён в `@import/main` без
-изменения поведения и HTTP endpoint. `LOAD-001.16 — Создать Service Worker
-importer в слое import` находится в `REVIEW`: `@import/service` создан без
-подключения runtime behavior. `LOAD-001.17 — Хранить startup в отдельном
-cache` находится в `REVIEW`: действующий cache `metafor` переименован в
-`startup`, а владелец подтвердил Cache Storage без прежнего `metafor`.
-`LOAD-001.18 — Хранить Window importer в cache import` находится в `REVIEW`:
-владелец подтвердил выполнение importer, caches `startup`, `import` и полное
-offline restoration startup вместе с Window importer. `LOAD-001.19 —
-Запускать Service Worker importer через startup loader` находится в `REVIEW`:
-первый исполняемый переход `startup → import` внутри Worker реализован и вместе
-с `LOAD-001.20` подтверждён владельцем online и offline. `LOAD-001.20 — Назвать
-Window importer endpoint по слою import` находится в `REVIEW`: `/main.js`
-заменён на `/import-main.js` без alias. Текущий `LOAD-001.21 — Передавать
-Service Worker importer универсальные функции загрузки` находится в `REVIEW`:
-startup primitives отделены от конкретной загрузки importer и передаются ему
-как явный `loader` ABI; live online/offline проверяет владелец. Текущий
-`LOAD-001.22 — Загружать Service Worker internal modules` находится в `REVIEW`:
-Service Worker importer владеет module loader и storage policy, startup
-передаёт ему только реально используемые primitives, а `@internall/rpc`
-размещён в `hamiltonian/internal`. `LOAD-001.23 — Передавать Window importer
-универсальный module loader` остановлен: преждевременный loader удалён из
-startup до появления первого Window module. `LOAD-001.24 — Подтвердить
-двусторонний обмен по RPC WebSocket` находится в `REVIEW`: владелец подтвердил
-повторяющийся `ping`/`pong` каждые 20 секунд без полного RPC protocol.
-Будущая среда MetaFor загружается теми же importers через
-отдельное пространство `/metafor/*` и cache `metafor`. `UPD-002 — Обновлять всю
-клиентскую сборку через Service Worker` ждёт результата `LOAD-001`.
+Worker`. Весь прежний Hamiltonian остаётся отдельно запускаемым прототипом.
+Browser path уже разделён на неизменяемый `startup`, обновляемые importers и
+загружаемые modules. Пакеты `@startup/main` и `@startup/service` устанавливают
+Service Worker, восстанавливают HTML/startup offline и запускают
+`@import/main` и `@import/service` из cache `import`. Service Worker importer
+владеет module loader и storage policy; первый module `@internall/rpc`
+загружается через `/internal/rpc` в cache `internal`, открывает `/sw` и
+подтверждает двусторонний канал повторяющимся `ping`/`pong` каждые 20 секунд.
+Владелец подтвердил startup/import offline и текущий internal RPC/WebSocket
+online. `LOAD-001.23` остановлен: Window loader не расширяет startup до
+появления первого реального Window module. До перевода родителя в `REVIEW`
+остаётся подтвердить cold offline restoration internal module и отдельно
+выбрать первый Window/Metafor module либо явно исключить их из минимального
+browser proof. Полный versioned manifest, hashes и атомарное переключение
+многосоставного release принадлежат ожидающей `UPD-002`.
 
 `HAM-003 — Разделить Hamiltonian по средам исполнения и механизмам` остаётся
 `IN_PROGRESS`. Широкий object-oriented срез `HAM-003.8` отклонён владельцем и
