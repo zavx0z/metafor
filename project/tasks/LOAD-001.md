@@ -1199,7 +1199,7 @@ online/offline проверку выполняет владелец.
 
 Подготовительный commit: `181dc748c`.
 
-Result checkpoint: ожидается.
+Result checkpoint: `de20a6f34`.
 
 ## Открытые вопросы
 
