@@ -1252,7 +1252,7 @@ artifacts и server bundle содержат `/import-main.js`, сохраняю�
 
 Подготовительный commit: `297e5730a`.
 
-Result checkpoint: ожидается.
+Result checkpoint: `9bb109cdc`.
 
 ## Открытые вопросы
 
