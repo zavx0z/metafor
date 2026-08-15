@@ -510,7 +510,7 @@ Result checkpoint: `395029974`.
 
 ### LOAD-001.8 — Импортировать управляющий main после захвата страницы
 
-Статус и исполнитель: `IN_PROGRESS`; выполняет руководитель текущей задачи
+Статус и исполнитель: `REVIEW`; выполнял руководитель текущей задачи
 Codex напрямую, без субагентов.
 
 Классификация: следующий loading mechanism после подтверждённого offline
@@ -560,12 +560,59 @@ Importer после controller выполняет literal `import("/main.js")`; 
 
 Результат и вывод: отдельные builds `@web/main`, `@web/import` и `@web/service`,
 строгая host-проверка и server bundle проходят. Собранный importer сохраняет
-runtime `import("/main.js")` и не содержит `main process`; live online/offline
-проверка владельца остаётся открытой.
+runtime `import("/main.js")` и не содержит `main process`. При offline-проверке
+владельца `/main.js` получен со статусом `200` через Service Worker; переход на
+вложенный адрес выявил отдельный navigation-разрыв `LOAD-001.9`.
 
 Подготовительный commit: `20b1e140e`.
 
-Result checkpoint: текущий implementation-коммит.
+Result checkpoint: `efebc35cc`.
+
+### LOAD-001.9 — Открывать вложенные адреса через offline HTML
+
+Статус и исполнитель: `IN_PROGRESS`; выполняет руководитель текущей задачи
+Codex напрямую, без субагентов.
+
+Классификация: новый пользовательский navigation-сценарий поверх
+подтверждённого offline bootstrap и управляющего main.
+
+Требование: любой вложенный SPA-адрес внутри Service Worker scope, например
+`/net` или `/net/peer`, получает тот же HTML bootstrap, что `/`. При первом
+online-входе до захвата страницы HTML возвращает server; после захвата и
+offline — Service Worker из единственной cache-записи `/`. URL в браузере не
+меняется. Script, asset и другие не-navigation requests не получают HTML
+fallback.
+
+Основание и связанная история: `LOAD-001.6` сохраняет HTML только под `/`, а
+`LOAD-001.8` подтвердил offline-загрузку `/main.js`. Owner-проверка вложенного
+`/net` показала активный Service Worker со scope `/`, но exact cache miss
+завершился `Failed to fetch` при выключенной сети.
+
+Наблюдаемое расхождение: Service Worker контролирует `/net`, однако
+`cacheFirst` ищет cache entry по точному URL `/net`; в bootstrap cache есть
+только `/`, поэтому offline navigation обращается к недоступной сети.
+
+Причина: scope определяет право перехватить запрос, но не сопоставляет разные
+URL с одной SPA-оболочкой. Navigation fallback не объявлен ни в Worker, ни в
+server routes.
+
+Разрешённое изменение одного механизма: server возвращает статический HTML для
+неизвестного navigation pathname, а Worker сопоставляет каждый GET navigation
+request с cache entry `/`. Не создавать отдельные cache entries для вложенных
+адресов, не перехватывать non-navigation как HTML и не менять main/WebSocket.
+
+Regression или опровергающее доказательство: `/net` и `/net/peer` получают
+HTML online и offline; Cache Storage не содержит их дубликатов; неизвестный
+script или asset получает `404`, а не HTML.
+
+Среда и критерий приёмки: browser после одного online bootstrap открывает
+вложенные адреса при включённом offline без `Failed to fetch`; прямой первый
+online-вход на вложенный адрес также загружает bootstrap. Runtime запускает и
+проверяет владелец.
+
+Подготовительный commit: текущий project-коммит.
+
+Result checkpoint: ожидается.
 
 ## Открытые вопросы
 
@@ -640,6 +687,7 @@ Result checkpoint: текущий implementation-коммит.
 implementation решением владельца, Fullstack-срез `LOAD-001.2` остановлен после
 диагностики HMR. Регистрация, control WebSocket, статические browser builds и
 offline bootstrap находятся в `REVIEW`; `LOAD-001.7` подтверждён владельцем.
-Текущий `LOAD-001.8 — Импортировать управляющий main после захвата страницы`
-добавляет `@web/main` и первый cache-on-import Window functionality. Worker
+`LOAD-001.8` находится в `REVIEW` после offline-получения управляющего main.
+Текущий `LOAD-001.9 — Открывать вложенные адреса через offline HTML` добавляет
+единый SPA navigation fallback на server и в Service Worker. Worker
 functionality остаётся следующим отдельным срезом.

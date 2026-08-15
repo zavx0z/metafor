@@ -126,11 +126,13 @@ Worker до штатного запуска Hamiltonian, а server только 
 `LOAD-001.3 — Подключить Service Worker к одному WebSocket`, статический
 `@web/import` без HMR и постоянный offline bootstrap находятся в `REVIEW` после
 live-проверок владельца. `LOAD-001.7` подтвердил build-time static assets и
-cache-on-first-request. Текущий `LOAD-001.8 — Импортировать управляющий main
-после захвата страницы` добавляет пакет `@web/main`: первоначальный artifact
-приходит через HTTP, сохраняется Worker до возврата в dynamic import, а
-WebSocket остаётся сигналом будущего update. `UPD-002 — Обновлять всю клиентскую
-сборку через Service Worker` ждёт результата `LOAD-001`.
+cache-on-first-request. `LOAD-001.8 — Импортировать управляющий main после
+захвата страницы` находится в `REVIEW`: первоначальный `@web/main` artifact
+приходит через HTTP и сохраняется Worker до возврата в dynamic import. Текущий
+`LOAD-001.9 — Открывать вложенные адреса через offline HTML` сопоставляет все
+SPA navigation paths с единственной cache-записью HTML `/`; WebSocket остаётся
+сигналом будущего update. `UPD-002 — Обновлять всю клиентскую сборку через
+Service Worker` ждёт результата `LOAD-001`.
 
 `HAM-003 — Разделить Hamiltonian по средам исполнения и механизмам` остаётся
 `IN_PROGRESS`. Широкий object-oriented срез `HAM-003.8` отклонён владельцем и
