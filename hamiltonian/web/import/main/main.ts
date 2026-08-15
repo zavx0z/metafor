@@ -4,6 +4,7 @@
  * @packageDocumentation
  */
 
+import {GridHelper} from "@metafor/engine"
 import {UiRuntime} from "@ui/elements"
 
 const VISUAL_CANVAS_ID = "visual-canvas"
@@ -23,17 +24,18 @@ export default async function importMain() {
   await visualEnvironment
 }
 
-/** Создаёт один пустой explicit-display runtime на static canvas документа. */
+/** Создаёт один стандартный explicit-display runtime на static canvas документа. */
 async function createVisualEnvironment() {
   const canvas = requiredCanvas()
   const runtime = await UiRuntime.create(canvas, {
     fontUrl: VISUAL_FONT_URL,
     virtualDisplay: {
-      grid: true,
+      grid: false,
       surfaceDisplay: false,
     },
   })
 
+  prepareSpace(runtime)
   runtime.handleResize()
   canvasResizeObserver = new ResizeObserver(() => runtime.handleResize())
   canvasResizeObserver.observe(canvas)
@@ -45,6 +47,19 @@ async function createVisualEnvironment() {
   })
   console.info("main importer")
   return runtime
+}
+
+/** Добавляет Engine grid как пол Space и направляет на него стартовую камеру. */
+function prepareSpace(runtime: UiRuntime) {
+  const grid = new GridHelper(2400, 24)
+  grid.name = "SpaceFloorGrid"
+  grid.frustumCulled = false
+  runtime.space.add(grid)
+
+  runtime.viewPoint.position.set(1600, -1600, 1200)
+  runtime.viewPoint.getTarget().set(0, 0, 0)
+  runtime.viewPoint.alignUpToWorldZ()
+  runtime.viewPoint.update()
 }
 
 /** Возвращает единственный canvas, которым владеет static Window host. */

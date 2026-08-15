@@ -5,7 +5,7 @@ import {build} from "../macro"
 
 const hamiltonian = fileURLToPath(new URL("../", import.meta.url))
 
-test("HAM-005 creates one empty Window visual environment in the importer", async () => {
+test("HAM-005 creates one standard Window visual environment in the importer", async () => {
   const [html, main, mainPackage, mainBunfig, macro, staticRoutes, startupMain] = await Promise.all([
     Bun.file(join(hamiltonian, "web/static/index.html")).text(),
     Bun.file(join(hamiltonian, "web/import/main/main.ts")).text(),
@@ -25,11 +25,18 @@ test("HAM-005 creates one empty Window visual environment in the importer", asyn
   expect(html).toContain('src="/startup-main.js"')
 
   expect(mainPackage.dependencies?.["@ui/elements"]).toBe("workspace:*")
+  expect(mainPackage.dependencies?.["@metafor/engine"]).toBe("workspace:*")
   expect(main).toContain('import {UiRuntime} from "@ui/elements"')
+  expect(main).toContain('import {GridHelper} from "@metafor/engine"')
   expect(main).toContain("visualEnvironment ??= createVisualEnvironment()")
   expect(main).toContain("await UiRuntime.create(canvas")
   expect(main).toContain("surfaceDisplay: false")
-  expect(main).toContain("grid: true")
+  expect(main).toContain("grid: false")
+  expect(main).toContain("new GridHelper(2400, 24)")
+  expect(main).toContain('grid.name = "SpaceFloorGrid"')
+  expect(main).toContain("runtime.space.add(grid)")
+  expect(main).toContain("runtime.viewPoint.position.set(1600, -1600, 1200)")
+  expect(main).toContain("runtime.viewPoint.getTarget().set(0, 0, 0)")
   expect(main).toContain("runtime.handleResize()")
   expect(main).not.toContain("@hamiltonian/visual")
   expect(main).not.toContain("browser/orchestration")
