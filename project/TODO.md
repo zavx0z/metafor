@@ -29,6 +29,7 @@ flowchart LR
     NODES009["NODES-009 · универсальные границы node-system"]
     HAM002["HAM-002 · единый визуальный слой Hamiltonian"]
     HAM003["HAM-003 · среды и механизмы Hamiltonian"]
+    HAM005["HAM-005 · стандартное visual-окружение Window"]
     NODES006["NODES-006 · кратчайший законный маршрут"]
     NODES008["NODES-008 · убрать пустой compound-резерв"]
     MF425["MF-425 · одна Вселенная на одном устройстве"]
@@ -111,8 +112,9 @@ LaunchAgent и дала визуальное подтверждение canvas-o
 CDP Chrome.
 Все эти checkpoints теперь относятся к отдельно запускаемому прототипу.
 Следующего structural среза нет: prototype visual дальше не переносится в
-clean-room loader. Первый Window/Metafor module и место нового visual
-functionality должны быть отдельно выбраны в линии `LOAD-001`.
+clean-room loader. Владелец отдельно выбрал `HAM-005 — Собрать стандартное
+окружение визуализации Window`: новый `@import/main` сначала создаст пустые
+`Space` и `HUD`, а первый предметный Window module будет выбран позднее.
 
 Начата `LOAD-001 — Загружать браузерный функционал через минимальный Service
 Worker`. Весь прежний Hamiltonian остаётся отдельно запускаемым прототипом.
@@ -123,15 +125,14 @@ Service Worker, восстанавливают HTML/startup offline и запу�
 владеет module loader и storage policy; первый module `@internall/rpc`
 загружается через `/internal/rpc` в cache `internal`, открывает `/sw` и
 подтверждает двусторонний канал повторяющимся `ping`/`pong` каждые 20 секунд.
-Владелец подтвердил startup/import offline и текущий internal RPC/WebSocket
-online. `LOAD-001.23` остановлен: Window loader не расширяет startup до
-появления первого реального Window module. До перевода родителя в `REVIEW`
-автоматизированный изолированный Chrome regression уже подтвердил cold offline
-restoration `startup`/`import`/`internal`; остаются canonical live owner
-acceptance и отдельное решение — выбрать первый Window/Metafor module либо явно
-исключить его из минимального browser proof. Полный versioned manifest, hashes
-и атомарное переключение сменяемого набора `import`/`internal`/`metafor`
-принадлежат ожидающей `UPD-002`; неизменяемый startup в этот выпуск не входит.
+Владелец подтвердил startup/import offline, cold-восстановление `internal` и
+текущий internal RPC/WebSocket. `LOAD-001.23` остановлен: Window loader не
+расширяет startup до появления первого реального Window module. Стандартное
+пустое visual-окружение Window вынесено в самостоятельную `HAM-005`; оно не
+является дополнительным критерием minimal loader. Полный versioned manifest,
+hashes и атомарное переключение сменяемого набора
+`import`/`internal`/`metafor` принадлежат ожидающей `UPD-002`; неизменяемый
+startup в этот выпуск не входит.
 
 `HAM-003 — Разделить Hamiltonian по средам исполнения и механизмам` остаётся
 `IN_PROGRESS`, но активного среза не имеет. Широкий object-oriented срез
@@ -147,6 +148,7 @@ checkpoint и сохранён в `server_proto.ts`. Clean-room `server.ts`,
 | MF-424 | IN_PROGRESS | нет         | [Открыть](tasks/MF-424.md) |
 | MF-425 | IN_PROGRESS | нет         | [Открыть](tasks/MF-425.md) |
 | LOAD-001 | IN_PROGRESS | нет       | [Открыть](tasks/LOAD-001.md) |
+| HAM-005 | READY       | нет         | [Открыть](tasks/HAM-005.md) |
 | UPD-002 | WAITING   | LOAD-001    | [Открыть](tasks/UPD-002.md) |
 | HAM-001 | IN_PROGRESS | нет         | [Открыть](tasks/HAM-001.md) |
 | NODES-009 | IN_PROGRESS | нет       | [Открыть](tasks/NODES-009.md) |

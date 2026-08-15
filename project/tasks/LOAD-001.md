@@ -161,6 +161,11 @@ Evidence-backed gate выполнен в
   internal module; Window importer остаётся пустым оркестратором до выбора
   первого реального module. Имена importers определяют место их работы, но не
   навсегда закрепляют placement загруженного module.
+* Стандартное пустое окружение визуализации Window вынесено в отдельную
+  [`HAM-005`](HAM-005.md): `@import/main` создаёт общий `UiRuntime` с `Space` и
+  `HUD`, а `hamiltonian/web/static` обслуживает его HTML, style и font
+  resources. Это не первый `internal`/`metafor` module и не новый критерий
+  minimal loader.
 * Service Worker importer хранит выбранные логические адреса, cache и placement
   в собственном обновляемом слое. Первый адрес `/internal/rpc` уже материализован;
   получение новых source addresses через RPC остаётся отдельным следующим
@@ -211,10 +216,11 @@ Service Worker importer уже загружает первый module `@internal
 module и подтверждён повторяющимся двусторонним `ping`/`pong`. Startup не знает
 module endpoints, storage policy или WebSocket.
 
-Не доказаны cold offline restoration internal module в живом browser и запуск
-первого реального module через Window importer. Полный manifest с hashes,
-preparing/ready/active release и атомарное переключение относятся к `UPD-002`,
-а не расширяют минимальный loader этой задачи.
+Владелец подтвердил cold restoration internal module в живом browser.
+Стандартное пустое visual-окружение Window и последующий запуск первого
+реального module не расширяют minimal loader: окружение вынесено в `HAM-005`,
+а выбор module остаётся отдельным будущим решением. Полный manifest с hashes,
+preparing/ready/active release и атомарное переключение относятся к `UPD-002`.
 
 Каждый новый механизм получает отдельную последовательную подзадачу и
 checkpoint.
@@ -1539,8 +1545,8 @@ Result checkpoint: `e5ce8bd62`.
 
 ## Открытые вопросы
 
-* Какой первый реальный module загружает `@import/main` и нужен ли он для
-  минимального proof `LOAD-001` либо относится к следующей предметной задаче?
+* Какой первый реальный module после стандартного окружения `HAM-005` загружает
+  `@import/main`? Этот выбор не входит в minimal proof `LOAD-001`.
 * Как RPC передаёт importer изменяемый source address, не меняя стабильный
   same-origin endpoint Service Worker?
 * Какой минимальный ABI используют modules при запуске в Window и Dedicated
@@ -1635,12 +1641,12 @@ loader из startup. Срез `.24` находится в `REVIEW`: владел
 Текущий доказанный путь:
 `HTML → @startup/main → @startup/service → @import/main + @import/service →
 @internall/rpc → /sw`. Caches `startup` и `import` восстановлены владельцем
-offline; загрузка internal RPC и WebSocket подтверждены online. До перевода
-родителя в `REVIEW` остаётся live-доказательство cold offline restoration
-cache `internal`. После него владелец отдельно решает, входит ли первый реальный
-Window/Metafor module в минимальный proof этой задачи. Новый номер подзадачи до
-этого решения не создаётся. Versioned manifest, hashes и атомарная публикация
-полного release остаются в `UPD-002`.
+offline; владелец также подтвердил cold-восстановление cache `internal`,
+загрузку internal RPC и WebSocket. `LOAD-001` по решению владельца остаётся
+`IN_PROGRESS`, но стандартное пустое visual-окружение больше не является её
+незакрытым доказательством: оно зарегистрировано отдельной `HAM-005`. Первый
+предметный Window/Metafor module и его ABI остаются будущим решением. Versioned
+manifest, hashes и атомарная публикация полного release остаются в `UPD-002`.
 
 Test-only Puppeteer suite `bun run --cwd hamiltonian test:load` защищает уже
 принятую loader boundary без изменения product source. Два последовательных

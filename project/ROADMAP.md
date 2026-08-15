@@ -225,7 +225,10 @@ live presentation прототипа. Они не забирают generic model
 geometry, renderer primitives или layout laws из `nodes` и не заменяют
 поэтапную owner-приёмку `MF-424`. В clean-room loader этот source не
 переносится; первый новый Window/Metafor module выбирается отдельно в линии
-`LOAD-001`.
+`LOAD-001`. Первый clean-room visual-шаг уже выбран отдельно: в
+[`HAM-005 — Собрать стандартное окружение визуализации Window`](tasks/HAM-005.md)
+`@import/main` создаёт общий пустой `UiRuntime` с `Space` и `HUD`, не импортируя
+prototype visual и не выбирая предметный Window module.
 
 ### Загрузка Hamiltonian
 
@@ -268,6 +271,14 @@ Cache Storage разделён по владельцам `startup`, `import`, `i
 `metafor`; последний создаётся только при появлении первого module среды.
 Стабильные cache endpoints остаются на исходном origin Service Worker
 независимо от будущего внешнего адреса source.
+
+Стандартное Window-окружение визуализации является отдельным слоем поверх
+доказанного loader. `@import/main` создаёт один общий `UiRuntime`; встроенный
+surface-display отключён, а явно именованные `UIDisplay` и HUD surfaces позднее
+добавляют их предметные владельцы. HTML, style и font resources обслуживает
+существующий `hamiltonian/web/static`. Этим результатом владеет
+[`HAM-005 — Собрать стандартное окружение визуализации Window`](tasks/HAM-005.md),
+а не prototype `hamiltonian/visual` или первый `internal`/`metafor` module.
 
 Первый этап использует один signaling Hamiltonian peer и не проектирует каталог
 адресов нескольких peers. Его результатом владеет
