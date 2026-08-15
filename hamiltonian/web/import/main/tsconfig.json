@@ -6,10 +6,13 @@
       "DOM",
       "DOM.Iterable"
     ],
-    "types": []
+    "types": [
+      "@webgpu/types"
+    ]
   },
   "include": [
-    "main.ts"
+    "main.ts",
+    "wgsl-shim.d.ts"
   ],
   "exclude": []
 }

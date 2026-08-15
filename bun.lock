@@ -157,6 +157,9 @@
     },
     "hamiltonian/web/import/main": {
       "name": "@import/main",
+      "dependencies": {
+        "@ui/elements": "workspace:*",
+      },
     },
     "hamiltonian/web/import/service": {
       "name": "@import/service",

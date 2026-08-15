@@ -10,6 +10,13 @@ const embeddedAssets = new Map(
   ] as const),
 )
 
+embeddedAssets.set("/assets/fonts/JetBrainsMono-Bold.ttf", {
+  body: await Bun.file(
+    new URL("../../../pkg/engine/static/JetBrainsMono-Bold.ttf", import.meta.url),
+  ).arrayBuffer(),
+  type: "font/ttf",
+})
+
 export const statics = {
   html: new Response(String(html), {
     headers: {"Content-Type": "text/html; charset=utf-8"},
