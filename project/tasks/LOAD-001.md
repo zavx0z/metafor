@@ -108,23 +108,24 @@ Evidence-backed gate выполнен в
   прежние `browser`, `core`, `public`, `update`, `visual` и остальные исходники
   также принадлежат прототипу.
 * Новая реализация создаётся с нуля рядом в `web`, `server` и `interface`.
-  Минимальные browser entrypoint `web/import`, `web/service` и `web/main`
-  оформлены workspace-пакетами `@web/import`, `@web/service` и `@web/main`,
-  потому что каждый требует строгой проверки и собственной статической сборки.
-  Остальные вложенные boundaries пакетами автоматически не становятся.
+  Минимальные browser entrypoint `web/startup/main`, `web/startup/service` и
+  `web/main` оформлены workspace-пакетами `@startup/main`, `@startup/service`
+  и `@web/main`, потому что каждый требует строгой проверки и собственной
+  статической сборки. Остальные вложенные boundaries пакетами автоматически
+  не становятся.
 * Fullstack runtime bundling HTML/main отклонён из-за Bun HMR и неподходящего
   runtime URL importer. HTML остаётся статическим, оба browser entrypoint
   собираются заранее, а `server.ts` только выдаёт готовые bytes.
-* `web/import` владеет минимальным main-потоком: получает от Service Worker
-  готовый кэшированный endpoint и импортирует модуль.
+* `web/startup/main` владеет минимальным main-потоком: получает от Service
+  Worker готовый кэшированный endpoint и импортирует модуль.
 * `web/main` владеет первым управляющим Window-модулем. После получения
   controller importer запрашивает его обычным dynamic import; Worker на cache
   miss получает artifact с того же server, сохраняет и только затем возвращает
   response. Первоначальный код не передаётся по WebSocket.
-* `web/service` владеет минимальной неизменяемой оболочкой Service Worker:
-  перехватывает первоначальные requests, готовит кэшированные endpoints и
-  сообщает main-потоку о готовности. Вместе `web/import` и `web/service`
-  образуют минимальный loader этой задачи.
+* `web/startup/service` владеет минимальной неизменяемой оболочкой Service
+  Worker: перехватывает первоначальные requests, готовит кэшированные endpoints
+  и сообщает main-потоку о готовности. Вместе `web/startup/main` и
+  `web/startup/service` образуют минимальный loader этой задачи.
 * `server/import` и `server/service` позднее реализуют тот же принцип для Bun.
   Общий договор выделяется в `interface` только после появления обеих
   реализаций, а не проектируется заранее и не оформляется отдельным пакетом.
@@ -729,7 +730,7 @@ Result checkpoint: `303ab73b1`.
 
 ### LOAD-001.12 — Поместить минимальные загрузчики внутрь startup
 
-Статус и исполнитель: `IN_PROGRESS`; выполняет руководитель текущей задачи
+Статус и исполнитель: `REVIEW`; выполнял руководитель текущей задачи
 Codex напрямую, без субагентов.
 
 Классификация: уточнение физического и package-владельца двух неизменяемых
@@ -766,10 +767,26 @@ macro и server bundle собираются без прежних source paths �
 importer сохраняет внешний `import("/main.js")`, а Service Worker сохраняет
 свою fetch/cache/socket реализацию.
 
-Среда и критерий приёмки: package checks, root typecheck, startup macro/server
-build и `git diff --check` проходят. Runtime запускает и проверяет владелец.
+Среда и критерий приёмки: package checks, focused host check, startup
+macro/server build и `git diff --check` проходят. Общий typecheck сначала
+подтверждает оба startup package, затем сохраняет прежние ошибки неизменённого
+прототипного `hamiltonian/update`; они не исправляются этим срезом. Runtime
+запускает и проверяет владелец.
 
-Подготовительный commit: ожидается.
+Фактические действия: прежние package directories перенесены в
+`web/startup/main` и `web/startup/service`; package names, workspace membership,
+lockfile, root typecheck filters и диагностическое имя Service Worker обновлены.
+Startup macro собирает вложенные entrypoints и возвращает `main`/`service`
+routes, а `/import.js` продолжает выдавать startup main.
+
+Результат и вывод: Bun workspace видит `@startup/main`, `@startup/service` и
+отдельный `@web/main`. Оба startup package проходят strict typecheck/build;
+focused host check и server bundle проходят. Собранный main сохраняет внешний
+`import("/main.js")`, а Worker — fetch/cache/socket. Общий typecheck после трёх
+успешных package checks сообщает только прежние семь ошибок неизменённого
+`hamiltonian/update`. Runtime-проверка владельца остаётся открытой.
+
+Подготовительный commit: `1373c6059`.
 
 Result checkpoint: ожидается.
 
@@ -850,6 +867,6 @@ offline startup находятся в `REVIEW`; `LOAD-001.7` подтвержд�
 `LOAD-001.9` — после реализации единого SPA navigation fallback, `LOAD-001.10` —
 после переноса сборки в route macro. `LOAD-001.11 — Принять startup как термин
 начальной загрузки` находится в `REVIEW`: новый loader и действующее описание
-его понятия переименованы без изменения поведения. Текущий `LOAD-001.12 —
-Поместить минимальные загрузчики внутрь startup` переносит два loader package
-под их принятого владельца без изменения HTTP и runtime behavior.
+его понятия переименованы без изменения поведения. `LOAD-001.12 — Поместить
+минимальные загрузчики внутрь startup` находится в `REVIEW`: два loader package
+перенесены под их принятого владельца без изменения HTTP и runtime behavior.

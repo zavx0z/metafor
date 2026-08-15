@@ -5,7 +5,7 @@ const startup = [
 ]
 
 /**
- * Для navigation request возвращает единственный сохранённый HTML `/`, поэтому
+ * Startup service для navigation request возвращает сохранённый HTML `/`, поэтому
  * вложенный SPA-адрес не создаёт отдельную cache-запись. Для остальных
  * requests возвращает response точного URL и обращается к network только при
  * cache miss. Успешный network fallback для `/main.js` и `/assets/*`

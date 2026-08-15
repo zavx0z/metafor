@@ -1,17 +1,17 @@
 import routes from "./web/routes"
 
-Bun.serve<{ source: "web/service" }>({
+Bun.serve<{ source: "startup/service" }>({
   routes: {
     "/": routes.static.html,
     "/manifest.webmanifest": routes.static.manifest,
     "/assets/*": routes.static.assets,
-    "/import.js": routes.startup.importer,
+    "/import.js": routes.startup.main,
     "/service.js": routes.startup.service,
     "/main.js": new Response(await Bun.file("./web/main/dist/main.js").bytes(), {
       headers: {"Content-Type": "text/javascript; charset=utf-8"},
     }),
-    "/service": (request: Request, server: Bun.Server<{ source: "web/service" }>) => {
-      if (server.upgrade(request, {data: {source: "web/service"}})) return
+    "/service": (request: Request, server: Bun.Server<{ source: "startup/service" }>) => {
+      if (server.upgrade(request, {data: {source: "startup/service"}})) return
       return new Response("WebSocket upgrade required", {status: 426})
     },
   },

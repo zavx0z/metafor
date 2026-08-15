@@ -133,11 +133,11 @@ cache-on-first-request. `LOAD-001.8 — Импортировать управл�
 `REVIEW` после реализации единого SPA fallback. `LOAD-001.10` перенёс strict
 build `@web/import` и `@web/service` в route macro и удалил их отдельные
 build-команды из `start`. `LOAD-001.11 — Принять startup как термин начальной
-загрузки` находится в `REVIEW`. Текущий `LOAD-001.12 — Поместить минимальные
-загрузчики внутрь startup` переносит их в пакеты `@startup/main` и
-`@startup/service`; WebSocket остаётся сигналом будущего update. `UPD-002 —
-Обновлять всю клиентскую сборку через Service Worker` ждёт результата
-`LOAD-001`.
+загрузки` находится в `REVIEW`. `LOAD-001.12 — Поместить минимальные загрузчики
+внутрь startup` находится в `REVIEW`: исходники и workspace membership
+перенесены в пакеты `@startup/main` и `@startup/service`; WebSocket остаётся
+сигналом будущего update. `UPD-002 — Обновлять всю клиентскую сборку через
+Service Worker` ждёт результата `LOAD-001`.
 
 `HAM-003 — Разделить Hamiltonian по средам исполнения и механизмам` остаётся
 `IN_PROGRESS`. Широкий object-oriented срез `HAM-003.8` отклонён владельцем и

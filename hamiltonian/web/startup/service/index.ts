@@ -1,5 +1,5 @@
 /**
- * Event entrypoint неизменяемой Service Worker оболочки.
+ * Event entrypoint неизменяемой Service Worker оболочки `@startup/service`.
  *
  * Install и activate немедленно передают новой инкарнации управление. Первое
  * `connect` message продлевает жизнь события до подготовки startup cache и

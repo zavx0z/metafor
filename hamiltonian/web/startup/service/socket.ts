@@ -16,15 +16,15 @@ export function connect() {
   socket = new WebSocket(url)
 
   socket.addEventListener("open", () => {
-    console.info("web/service websocket connected")
+    console.info("startup/service websocket connected")
   })
 
   socket.addEventListener("close", () => {
     socket = null
-    console.info("web/service websocket disconnected")
+    console.info("startup/service websocket disconnected")
   })
 
   socket.addEventListener("error", (error) => {
-    console.error("web/service websocket error", error)
+    console.error("startup/service websocket error", error)
   })
 }

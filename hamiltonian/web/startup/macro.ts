@@ -1,7 +1,7 @@
 import {fileURLToPath} from "bun"
 
 interface StartupCode {
-  importer: string
+  main: string
   service: string
 }
 
@@ -11,20 +11,20 @@ interface StartupCode {
  * Сборки остаются в памяти и возвращаются владельцу routes готовым JavaScript,
  * поэтому server не читает промежуточные `dist` artifacts.
  *
- * @returns Готовый код importer и Service Worker.
+ * @returns Готовый код startup main и Service Worker.
  * @throws Если typecheck или browser build любого startup package завершился
  * неуспешно либо не создал entrypoint.
  */
 export async function buildStartup(): Promise<StartupCode> {
-  const web = fileURLToPath(new URL("..", import.meta.url))
-  const importer = `${web}/import`
-  const service = `${web}/service`
+  const startup = fileURLToPath(new URL(".", import.meta.url))
+  const main = `${startup}/main`
+  const service = `${startup}/service`
 
-  await Promise.all([typecheck(importer), typecheck(service)])
+  await Promise.all([typecheck(main), typecheck(service)])
 
   return {
-    importer: build(`${importer}/index.ts`, "@web/import", "/main.js"),
-    service: build(`${service}/index.ts`, "@web/service"),
+    main: build(`${main}/index.ts`, "@startup/main", "/main.js"),
+    service: build(`${service}/index.ts`, "@startup/service"),
   }
 }
 
