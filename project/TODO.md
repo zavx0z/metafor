@@ -147,7 +147,9 @@ importer в слое import` находится в `REVIEW`: `@import/service` �
 подключения runtime behavior. `LOAD-001.17 — Хранить startup в отдельном
 cache` находится в `REVIEW`: действующий cache `metafor` переименован в
 `startup`, а caches `import` и `runtime` не создаются заранее. Live-проверку
-после ручной очистки прежнего cache выполняет владелец. `UPD-002 — Обновлять всю
+после ручной очистки прежнего cache выполняет владелец. Текущий `LOAD-001.18 —
+Хранить Window importer в cache import` переносит только `/main.js` в лениво
+создаваемый cache `import`. `UPD-002 — Обновлять всю
 клиентскую сборку через Service Worker` ждёт результата `LOAD-001`.
 
 `HAM-003 — Разделить Hamiltonian по средам исполнения и механизмам` остаётся

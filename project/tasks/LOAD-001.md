@@ -1076,6 +1076,49 @@ lazy asset writes и offline responses не изменены.
 
 Result checkpoint: `b38946f51`.
 
+### LOAD-001.18 — Хранить Window importer в cache import
+
+Статус и исполнитель: `IN_PROGRESS`; выполняет руководитель текущей задачи
+Codex напрямую, без субагентов.
+
+Классификация: первый product-срез принятой cache boundary между уровнями
+`startup` и `import`.
+
+Требование: запрос существующего Window importer `/main.js` обслуживается через
+cache `import`. Этот cache создаётся лениво только при первом запросе importer;
+HTML, startup scripts, manifest и фактически использованные assets продолжают
+обслуживаться через cache `startup`.
+
+Основание и связанная история: `LOAD-001.8` добавил cache-on-first-request для
+`/main.js` в тогда ещё едином cache. `LOAD-001.15` определил этот artifact как
+`@import/main`, а `LOAD-001.17` переименовал общий действующий cache в
+`startup`, не меняя распределение entries.
+
+Наблюдаемое расхождение: `/main.js` принадлежит import-слою, но после первого
+запроса сохраняется в cache `startup`.
+
+Причина: cache rule `/main.js` появился раньше трёхуровневого разделения
+`startup → import → runtime`.
+
+Разрешённое изменение одного механизма: выбирать cache `import` только для
+точного pathname `/main.js`, а для остальных текущих requests сохранять cache
+`startup`. Не переименовывать endpoint, не добавлять `@import/service`, не
+создавать cache `runtime` и не менять network fallback, responses или запуск
+Window importer.
+
+Regression или опровергающее доказательство: cache `import` не открывается при
+startup navigation и создаётся только запросом `/main.js`; successful response
+`/main.js` сохраняется и повторно возвращается из `import`, а startup inventory
+и asset cache-on-first-request остаются в `startup`.
+
+Среда и критерий приёмки: strict typecheck/build `@startup/service`, focused
+host check, server build, artifact inspection и `git diff --check` проходят.
+Live Cache Storage и offline import после ручной очистки проверяет владелец.
+
+Подготовительный commit: ожидается.
+
+Result checkpoint: ожидается.
+
 ## Открытые вопросы
 
 * Как выглядит минимальный message contract между main и Service Worker?
@@ -1173,3 +1216,6 @@ Service Worker importer в слое import` находится в `REVIEW`: comp
 `LOAD-001.17 — Хранить startup в отдельном cache` находится в `REVIEW`: прежнее
 имя `metafor` заменено на `startup` без раннего создания caches `import` и
 `runtime`; live-проверка владельца требует ручной очистки прежнего cache.
+`LOAD-001.18 — Хранить Window importer в cache import` является текущим срезом:
+он лениво создаёт `import` только при запросе `/main.js`, не меняя endpoint или
+поведение importer.
