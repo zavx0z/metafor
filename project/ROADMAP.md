@@ -234,12 +234,13 @@ model, validation, geometry, renderer primitives или layout laws из `nodes`
 они не являются source base нового Hamiltonian.
 
 Новая реализация создаётся с нуля рядом в source-директориях `web`, `server` и
-`interface`. Browser loader реализуют `web/import` и `web/service`; server-аналоги
-появляются позднее, а общий договор выделяется в `interface` только после двух
-фактических реализаций. Минимальные browser entrypoint оформлены отдельными
-workspace-пакетами `@web/import`, `@web/service` и `@web/main` со строгой
-проверкой и статической сборкой. Остальные вложенные `import`, `service` и
-`update` не становятся пакетами без отдельного решения владельца.
+`interface`. Browser startup реализуют `web/startup/main` и
+`web/startup/service`; server-аналоги появляются позднее, а общий договор
+выделяется в `interface` только после двух фактических реализаций. Минимальные
+browser entrypoint оформлены отдельными workspace-пакетами `@startup/main`,
+`@startup/service` и `@web/main` со строгой проверкой и статической сборкой.
+Остальные вложенные механизмы не становятся пакетами без отдельного решения
+владельца.
 
 Fullstack runtime bundling HTML/main отклонён после появления Bun HMR и
 неподходящего runtime URL importer. `server.ts` выдаёт неизменяемый HTML и

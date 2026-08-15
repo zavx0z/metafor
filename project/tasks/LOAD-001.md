@@ -623,7 +623,7 @@ fallback, live online/offline проверка владельца остаётс
 
 Подготовительный commit: `0341c6eeb`.
 
-Result checkpoint: ожидается.
+Result checkpoint: `303ab73b1`.
 
 ### LOAD-001.10 — Собирать startup внутри владельца routes
 
@@ -678,7 +678,7 @@ bundle содержит оба startup artifacts и внешний `import("/mai
 
 Подготовительный commit: `ad60dee6a`.
 
-Result checkpoint: ожидается.
+Result checkpoint: `303ab73b1`.
 
 ### LOAD-001.11 — Принять startup как термин начальной загрузки
 
@@ -725,6 +725,52 @@ server, importer и Service Worker используют только identifiers
 
 Подготовительный commit: `42df060e9`.
 
+Result checkpoint: `303ab73b1`.
+
+### LOAD-001.12 — Поместить минимальные загрузчики внутрь startup
+
+Статус и исполнитель: `IN_PROGRESS`; выполняет руководитель текущей задачи
+Codex напрямую, без субагентов.
+
+Классификация: уточнение физического и package-владельца двух неизменяемых
+browser startup entrypoint после принятия общего термина `startup`.
+
+Требование: минимальный main-thread loader находится в `web/startup/main` и
+является workspace-пакетом `@startup/main`. Неизменяемая Service Worker
+оболочка находится в `web/startup/service` и является workspace-пакетом
+`@startup/service`. Управляющий Window-модуль `web/main` остаётся отдельным
+пакетом `@web/main` и не входит в startup.
+
+Основание и связанная история: `LOAD-001.4` и `LOAD-001.5` выделили прежние
+пакеты по среде `web`, `LOAD-001.10` передал их сборку владельцу
+`web/startup`, а `LOAD-001.11` принял `startup` как имя механизма. Владелец
+уточнил, что package scope и физическое расположение должны выражать того же
+владельца.
+
+Наблюдаемое расхождение: startup macro владеет сборкой, но исходники и package
+names всё ещё находятся в соседних `web/import`, `web/service`, `@web/import`
+и `@web/service`.
+
+Причина: package boundary была создана до появления единого владельца
+`web/startup` и сохранила прежнюю группировку по browser-среде.
+
+Разрешённое изменение одного механизма: перенести два существующих пакета под
+`web/startup`, переименовать package names и связанные workspace/typecheck/build
+ссылки, направить startup macro на новые entrypoints и обновить диагностическое
+имя Service Worker. Не менять `/import.js`, `/service.js`, `/main.js`, cache
+policy, WebSocket protocol и поведение модулей.
+
+Regression или опровергающее доказательство: workspace видит
+`@startup/main` и `@startup/service`; оба strict typecheck проходят; startup
+macro и server bundle собираются без прежних source paths и package names;
+importer сохраняет внешний `import("/main.js")`, а Service Worker сохраняет
+свою fetch/cache/socket реализацию.
+
+Среда и критерий приёмки: package checks, root typecheck, startup macro/server
+build и `git diff --check` проходят. Runtime запускает и проверяет владелец.
+
+Подготовительный commit: ожидается.
+
 Result checkpoint: ожидается.
 
 ## Открытые вопросы
@@ -743,7 +789,7 @@ Result checkpoint: ожидается.
 Входит:
 
 * source-директории `web`, `server`, `interface` и отдельные workspace-пакеты
-  `@web/import`, `@web/service` и `@web/main` для browser entrypoints;
+  `@startup/main`, `@startup/service` и `@web/main` для browser entrypoints;
 * статические HTML/main/Service Worker artifacts без Bun HMR;
 * сохранение отдельно запускаемого прототипа через `server_proto.ts`;
 * минимальный HTML/main/Service Worker startup;
@@ -757,7 +803,7 @@ Result checkpoint: ожидается.
 
 * рефакторинг или перенос прежнего Hamiltonian в новые source-директории;
 * другие package manifests, workspace packages и package exports новой
-  реализации кроме `@web/import`, `@web/service` и `@web/main`;
+  реализации кроме `@startup/main`, `@startup/service` и `@web/main`;
 * создание общего `interface` contract до двух реализаций;
 * полный production artifact inventory и update-transition `UPD-002`;
 * каталог или выбор нескольких signaling peers;
@@ -804,5 +850,6 @@ offline startup находятся в `REVIEW`; `LOAD-001.7` подтвержд�
 `LOAD-001.9` — после реализации единого SPA navigation fallback, `LOAD-001.10` —
 после переноса сборки в route macro. `LOAD-001.11 — Принять startup как термин
 начальной загрузки` находится в `REVIEW`: новый loader и действующее описание
-его понятия переименованы без изменения поведения. Следующее структурное
-уточнение регистрируется отдельным срезом.
+его понятия переименованы без изменения поведения. Текущий `LOAD-001.12 —
+Поместить минимальные загрузчики внутрь startup` переносит два loader package
+под их принятого владельца без изменения HTTP и runtime behavior.
