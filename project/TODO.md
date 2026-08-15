@@ -124,7 +124,7 @@ Service Worker требует отдельного entrypoint; runtime `Bun.Tran
 @web/service` находится в `REVIEW`: workspace-пакет строго проверяет и собирает
 Worker до штатного запуска Hamiltonian, а server только выдаёт готовые bytes.
 `LOAD-001.3 — Подключить Service Worker к одному WebSocket`, статический
-`@web/import` без HMR и постоянный offline bootstrap находятся в `REVIEW` после
+`@web/import` без HMR и постоянный offline startup находятся в `REVIEW` после
 live-проверок владельца. `LOAD-001.7` подтвердил build-time static assets и
 cache-on-first-request. `LOAD-001.8 — Импортировать управляющий main после
 захвата страницы` находится в `REVIEW`: первоначальный `@web/main` artifact

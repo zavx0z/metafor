@@ -2,14 +2,14 @@
  * Event entrypoint неизменяемой Service Worker оболочки.
  *
  * Install и activate немедленно передают новой инкарнации управление. Первое
- * `connect` message продлевает жизнь события до подготовки bootstrap cache и
+ * `connect` message продлевает жизнь события до подготовки startup cache и
  * одновременно открывает control WebSocket. Все GET requests после захвата
  * страницы проходят через cache-first policy.
  *
  * @packageDocumentation
  */
 
-import {cacheBootstrap, cacheFirst} from "./cache"
+import {cacheFirst, cacheStartup} from "./cache"
 import {connect} from "./socket"
 
 addEventListener("install", (event: ExtendableEvent) => {
@@ -22,7 +22,7 @@ addEventListener("activate", (event: ExtendableEvent) => {
 
 addEventListener("message", (event: ExtendableMessageEvent) => {
   if (event.data?.type !== "connect") return
-  event.waitUntil(cacheBootstrap())
+  event.waitUntil(cacheStartup())
   connect()
 })
 

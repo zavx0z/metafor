@@ -51,7 +51,7 @@
 - Dark передаёт Boundary отдельные Inflaton particles. Dark, Matrix, Energy и
   Bulk не читают Boundary или SQLite напрямую.
 - Одна изменённая entity передаётся одним `ForceMessage` с одной `Particle`.
-- Планируемый bootstrap короткой agent-сессии использует один RPC surface для
+- Планируемый startup короткой agent-сессии использует один RPC surface для
   всех агентов и явно передаёт rules/capabilities, Git/source revision и
   scoped RPC JSON snapshot. По умолчанию scope ограничен авторизованным
   внутренним Atom subtree/graph; full-world и Mass требуют отдельных

@@ -3,7 +3,7 @@
  *
  * При первой установке модуль ждёт появления Service Worker controller, а при
  * уже controlled document использует текущий controller. Main сообщает только
- * о готовности открыть transport; состав bootstrap cache принадлежит Worker.
+ * о готовности открыть transport; состав startup cache принадлежит Worker.
  *
  * @packageDocumentation
  */

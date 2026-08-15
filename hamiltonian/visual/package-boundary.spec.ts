@@ -46,7 +46,7 @@ describe("Hamiltonian visual package boundary", () => {
     }
   })
 
-  test("owns the node-canvas stylesheet outside public bootstrap assets", async () => {
+  test("owns the node-canvas stylesheet outside public startup assets", async () => {
     expect(await Bun.file(join(hamiltonianRoot, "public/styles.css")).exists()).toBeFalse()
     const styles = await Bun.file(join(packageRoot, "browser/styles.css")).text()
     expect(styles).toContain("#orchestration-canvas")
@@ -54,7 +54,7 @@ describe("Hamiltonian visual package boundary", () => {
     expect(styles).not.toContain(".legacy-debug")
   })
 
-  test("owns the isolated layout Worker entrypoint outside browser bootstrap", async () => {
+  test("owns the isolated layout Worker entrypoint outside browser startup", async () => {
     expect(await Bun.file(join(packageRoot, "browser/layout-worker.ts")).exists()).toBeTrue()
     expect(await Bun.file(join(hamiltonianRoot, "browser/layout-worker.ts")).exists()).toBeFalse()
   })

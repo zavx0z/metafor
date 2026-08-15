@@ -51,7 +51,7 @@ browser artifact set page не перезагружается; stale snapshot и
 
 В начале выполнения page-кода гарантированы ровно две сущности: Bun server,
 который отдал документ, и текущая page realm. Host identity и epoch приходят
-вместе с HTML, а page получает новую incarnation до прикладного bootstrap.
+вместе с HTML, а page получает новую incarnation до прикладного startup.
 Следующим собственным lifecycle-наблюдением page фиксирует текущий user-agent
 runtime. В локальном Chrome-контуре это реальная parent-нода `Chrome`, а не
 агрегат «Профиль браузера»: page становится её дочерней realm, и наблюдённый
@@ -172,7 +172,7 @@ transport.
 Главное представление topology — живая интерактивная WebGPU-сцена на
 `UIDisplay` внутри engine `Space`; отдельный camera-locked `HUD` содержит только
 окна управления поверх display. Первый причинный срез материализует server и текущую page
-непосредственно из navigation bootstrap. Service Worker, Service Worker API,
+непосредственно из navigation startup. Service Worker, Service Worker API,
 WebSocket, Dedicated Worker, два Bun process, отдельный WebRTC
 peer process, обе стороны RTCPeerConnection и два RTCDataChannel уже переведены
 на owner lifecycle. Одно сообщение Oracle/Force получает общую
@@ -191,7 +191,7 @@ Chrome появляется из browser lifecycle identity и не превра
 не зависит от выбранной стороны socket.
 
 Физически host держит ровно один listener. Control WebSocket (`ws:` на
-локальном HTTP contour, `wss:` только при TLS) переносит bootstrap-состояние,
+локальном HTTP contour, `wss:` только при TLS) переносит startup-состояние,
 heartbeat, election и WebRTC signaling. Realtime payload по нему запрещён
 валидатором. После знакомства один `RTCPeerConnection` имеет
 два нативных ordered/reliable DataChannel: `oracle` для request/response и
@@ -383,9 +383,9 @@ target `{version, sha256}`, Worker вызывает browser-managed
 подключился с новой execution incarnation и manifest version. Попытка заявить
 target version из уже отвергнутой incarnation отклоняется.
 
-Новая execution сначала получает server bootstrap declaration без browser
+Новая execution сначала получает server startup declaration без browser
 boundary: её пустой registry ещё не обязан знать прежнюю incarnation этого или
-другого профиля. Это только адресованная pre-identity bootstrap-проекция;
+другого профиля. Это только адресованная pre-identity startup-проекция;
 authoritative retained server declaration остаётся полной и не заменяется.
 После приёма собственной browser/profile declaration Host обязательно выдаёт
 обычную полную server declaration, где control boundary ссылается уже на exact
@@ -523,7 +523,7 @@ state. Эти границы не обрезают
 активное состояние или настоящий gap.
 Более новый snapshot заменяет покрытую им структуру: отсутствующая в нём
 entity или transport больше не считается активной. Capacity не обрезает
-структуру молча, а останавливает неверный bootstrap явной ошибкой. Эта
+структуру молча, а останавливает неверный startup явной ошибкой. Эта
 шина не переносит token, resume capability, SDP/ICE, RPC или Particle и не
 заменяет control WebSocket, Bun IPC либо прямые `oracle`/`force` DataChannel.
 
@@ -598,7 +598,7 @@ singleton.
 Hamiltonian. Браузер может остановить и позднее заново создать его внутреннее
 JS-исполнение; это не рождает второй Service Worker и не меняет его стабильную
 `identity`. Identity создаётся страницей один раз для browser origin, а
-control bootstrap (`deviceId`, token, resume capability, host и готовность
+control startup (`deviceId`, token, resume capability, host и готовность
 Push) хранится Service Worker в Cache Storage. Внутреннее исполнение имеет
 отдельный диагностический `runtimeIncarnation`, но не образует отдельную ноду.
 После получения browser identity владельцем этой сущности всегда остаётся
@@ -675,9 +675,9 @@ Host начинает causal heartbeat первым `ping` после откры
 Штатная тишина page-канала означает, что браузер приостановил внутреннее
 исполнение: стабильная Service Worker сущность переходит в `standby`, а её
 heartbeat — в `paused`, но это не состояние ошибки. При следующем
-`connect-window` новое исполнение сначала восстанавливает control bootstrap из
+`connect-window` новое исполнение сначала восстанавливает control startup из
 Cache Storage и только затем публикует текущее состояние. Фактически
-доставленный Web Push закрепляет `pushReady: true` в том же bootstrap, поэтому
+доставленный Web Push закрепляет `pushReady: true` в том же startup, поэтому
 последующий browser-managed restart не может превратить действующую подписку в
 ложное `unavailable`.
 
@@ -739,7 +739,7 @@ baseline, а каждый новый control host сообщает свой curr
 Страница сохраняет baseline в `sessionStorage` до открытия control path;
 повторное сообщение не создаёт reload-loop, а failed build не перезагружает
 UI. Самая первая регистрация Service Worker может один раз показать `reload
-required`: этот bootstrap reload нужен для получения controller и не является
+required`: этот startup reload нужен для получения controller и не является
 source auto-update.
 
 По умолчанию используется `HAMILTONIAN_PLACEMENT=browser`. Для server-only

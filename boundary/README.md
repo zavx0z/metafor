@@ -37,7 +37,7 @@ database.
 - Reaction lifecycle — `reaction.ts`.
 
 Initial reads проходят через Oracle RPC. Realtime changes после рождения идут
-поштучными Particle через Force; Boundary не рассылает bootstrap snapshot как
+поштучными Particle через Force; Boundary не рассылает startup snapshot как
 Graviton.
 
 ## Основные файлы

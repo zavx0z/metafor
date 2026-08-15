@@ -59,7 +59,7 @@ export const VISUAL_PAYLOAD_CURVE_LAW: VisualPayloadCurveLaw = Object.freeze({
 /**
  * One owner-local cubic Hermite arc.
  *
- * The tuple is deliberately positional to keep the bootstrap compact:
+ * The tuple is deliberately positional to keep the startup compact:
  * source point, target point, source derivative and target derivative. Layout
  * owns all twelve values; the browser only evaluates the versioned polynomial.
  */

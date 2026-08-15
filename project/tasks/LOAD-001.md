@@ -62,11 +62,11 @@ Evidence-backed gate выполнен в
 ## Подтверждённые факты
 
 * Первый navigation request не может обслужить ещё не установленный Service
-  Worker, поэтому HTTPS host обязан вернуть минимальный bootstrap.
+  Worker, поэтому HTTPS host обязан вернуть минимальный startup.
 * Текущие page JavaScript, CSS, orchestration и Worker resources загружаются
   напрямую с host; release cache Service Worker обслуживает только
   `/versions/...` synthetic module.
-* Service Worker уже открывает control WSS, сохраняет bootstrap в Cache Storage
+* Service Worker уже открывает control WSS, сохраняет startup в Cache Storage
   и может быть разбужен Web Push без открытой Hamiltonian Page.
 * Browser не позволяет динамически `import()` неизвестный module внутри
   Service Worker, но при разрешающей CSP Worker может выполнить уже проверенный
@@ -155,7 +155,7 @@ package architecture не создаётся. Диагностический Ful
 пакеты со статической сборкой.
 
 Первая navigation теперь доказала регистрацию, переход страницы под управление
-Worker, создание постоянного bootstrap cache и открытие control WebSocket.
+Worker, создание постоянного startup cache и открытие control WebSocket.
 Текущий срез доказывает первый Window functionality: importer после получения
 controller импортирует `/main.js`, а Worker сохраняет первый network response
 до выполнения модуля. WebSocket остаётся сигналом будущего обновления.
@@ -399,33 +399,33 @@ HTML перенесён в static source, а server буферизует его 
 
 Result checkpoint: `8bc7a3774`.
 
-### LOAD-001.6 — Восстанавливать минимальный bootstrap без сети
+### LOAD-001.6 — Восстанавливать минимальный startup без сети
 
 Статус и исполнитель: `REVIEW`; выполнял руководитель текущей задачи Codex
 напрямую, без субагентов; offline-сценарий проверил владелец.
 
-Классификация: новый cache-механизм после принятого статического bootstrap.
+Классификация: новый cache-механизм после принятого статического startup.
 
 Требование: после получения управления Worker один раз сохраняет HTML,
 `import.js` и Web App Manifest в постоянный Cache Storage. Последующие GET этих
 URL обслуживаются cache-first и не требуют доступного server; уже сохранённые
 bytes не заменяются текущим host response.
 
-Основание и связанная история: `LOAD-001.5` сделал bootstrap стабильными
+Основание и связанная история: `LOAD-001.5` сделал startup стабильными
 same-origin endpoints. Прототипный release cache не переносится, потому что он
 владеет synthetic `/versions/...` module и update behavior.
 
 Наблюдаемое расхождение: после первой регистрации navigation и main всё ещё
 зависели от доступности host.
 
-Причина: новый Worker не имел собственного bootstrap inventory и fetch policy.
+Причина: новый Worker не имел собственного startup inventory и fetch policy.
 
 Разрешённое изменение одного механизма: добавить постоянный cache только для
 HTML, importer и manifest; продлить `connect` message через `waitUntil`, пока
-bootstrap готовится. Не добавлять ready message, version switching, payload
+startup готовится. Не добавлять ready message, version switching, payload
 cache или update.
 
-Regression или опровергающее доказательство: bootstrap inventory содержит
+Regression или опровергающее доказательство: startup inventory содержит
 ровно `/`, `/import.js` и `/manifest.webmanifest`; отсутствующий endpoint не
 становится cached после unsuccessful response.
 
@@ -434,7 +434,7 @@ Regression или опровергающее доказательство: boots
 остаётся сетевым и не входит в offline criterion.
 
 Фактические действия: Worker получил cache-first fetch policy и идемпотентную
-подготовку трёх bootstrap endpoints в cache `metafor`. Main отправляет
+подготовку трёх startup endpoints в cache `metafor`. Main отправляет
 `connect` только после появления controller, а Worker удерживает message event
 до завершения подготовки cache.
 
@@ -465,7 +465,7 @@ browser request. Favicon и Apple touch icon принадлежат HTML, а Web
 содержит только PWA icons и install screenshots.
 
 Основание и связанная история: `LOAD-001.6` сначала включил все manifest
-resources в bootstrap cache. Owner-проверка Cache Storage показала `2.6 MB`, а
+resources в startup cache. Owner-проверка Cache Storage показала `2.6 MB`, а
 после полного исключения assets offline manifest requests стали падать.
 
 Наблюдаемое расхождение: полный precache хранит неиспользованные варианты icon
@@ -473,16 +473,16 @@ resources в bootstrap cache. Owner-проверка Cache Storage показа�
 resources offline. Manifest дополнительно объявлял multi-size ICO как PWA icon,
 из-за чего Chromium сравнивал его как один кадр `256x256` и выдавал warnings.
 
-Причина: manifest inventory ошибочно использовался как обязательный bootstrap
+Причина: manifest inventory ошибочно использовался как обязательный startup
 inventory, а runtime static scan смешивал подготовку assets с запуском server.
 
 Разрешённое изменение одного механизма: вынести filesystem scan в Bun macro,
-оставить handler в `web/static`, исключить manifest resources из bootstrap и
+оставить handler в `web/static`, исключить manifest resources из startup и
 записывать `/assets/*` cache-on-first-request. Не оптимизировать изображения,
 не добавлять release versions и не менять функциональный payload.
 
 Regression или опровергающее доказательство: собранный Worker содержит только
-три bootstrap URL; static asset macro не остаётся runtime filesystem code;
+три startup URL; static asset macro не остаётся runtime filesystem code;
 manifest не содержит favicon/Apple touch entries; неизвестный asset получает
 `404`.
 
@@ -495,7 +495,7 @@ manifest не содержит favicon/Apple touch entries; неизвестны
 URL выдаётся как `application/manifest+json`. Bun macro сканирует
 `hamiltonian/assets` при build и встраивает base64 bytes/MIME; `web/static`
 однократно декодирует snapshot и владеет wildcard handler. Worker precache
-оставляет только bootstrap, а успешный network fallback `/assets/*` сохраняет
+оставляет только startup, а успешный network fallback `/assets/*` сохраняет
 через clone. Favicon и Apple touch link остаются в HTML и удалены из manifest.
 
 Результат и вывод: проверки build/typecheck подтверждают статический server
@@ -514,7 +514,7 @@ Result checkpoint: `395029974`.
 Codex напрямую, без субагентов.
 
 Классификация: следующий loading mechanism после подтверждённого offline
-bootstrap; владелец выбрал первоначальную HTTP-доставку вместо передачи кода по
+startup; владелец выбрал первоначальную HTTP-доставку вместо передачи кода по
 WebSocket.
 
 Требование: `web/main` является workspace-пакетом `@web/main` и собирает первый
@@ -525,7 +525,7 @@ WebSocket.
 offline import получает тот же response из cache.
 
 Основание и связанная история: `LOAD-001.5` создал неизменяемый importer,
-`LOAD-001.6` доказал контроль страницы и cache-first bootstrap, а
+`LOAD-001.6` доказал контроль страницы и cache-first startup, а
 `LOAD-001.7` — cache-on-first-request для browser assets. Передача Window-кода
 по WSS не нужна: WebSocket остаётся сигналом будущего update.
 
@@ -574,10 +574,10 @@ Result checkpoint: `efebc35cc`.
 Codex напрямую, без субагентов.
 
 Классификация: новый пользовательский navigation-сценарий поверх
-подтверждённого offline bootstrap и управляющего main.
+подтверждённого offline startup и управляющего main.
 
 Требование: любой вложенный SPA-адрес внутри Service Worker scope, например
-`/net` или `/net/peer`, получает тот же HTML bootstrap, что `/`. При первом
+`/net` или `/net/peer`, получает тот же HTML startup, что `/`. При первом
 online-входе до захвата страницы HTML возвращает server; после захвата и
 offline — Service Worker из единственной cache-записи `/`. URL в браузере не
 меняется. Script, asset и другие не-navigation requests не получают HTML
@@ -589,7 +589,7 @@ fallback.
 завершился `Failed to fetch` при выключенной сети.
 
 Наблюдаемое расхождение: Service Worker контролирует `/net`, однако
-`cacheFirst` ищет cache entry по точному URL `/net`; в bootstrap cache есть
+`cacheFirst` ищет cache entry по точному URL `/net`; в startup cache есть
 только `/`, поэтому offline navigation обращается к недоступной сети.
 
 Причина: scope определяет право перехватить запрос, но не сопоставляет разные
@@ -605,9 +605,9 @@ Regression или опровергающее доказательство: `/net
 HTML online и offline; Cache Storage не содержит их дубликатов; неизвестный
 script или asset получает `404`, а не HTML.
 
-Среда и критерий приёмки: browser после одного online bootstrap открывает
+Среда и критерий приёмки: browser после одного online startup открывает
 вложенные адреса при включённом offline без `Failed to fetch`; прямой первый
-online-вход на вложенный адрес также загружает bootstrap. Runtime запускает и
+online-вход на вложенный адрес также загружает startup. Runtime запускает и
 проверяет владелец.
 
 Фактические действия: HTML и manifest импортируются Bun как raw text и входят в
@@ -625,54 +625,54 @@ fallback, live online/offline проверка владельца остаётс
 
 Result checkpoint: ожидается.
 
-### LOAD-001.10 — Собирать bootstrap внутри владельца routes
+### LOAD-001.10 — Собирать startup внутри владельца routes
 
 Статус и исполнитель: `REVIEW`; выполнял руководитель текущей задачи
 Codex напрямую, без субагентов.
 
-Классификация: уточнение build-владельца неизменяемого browser bootstrap после
+Классификация: уточнение build-владельца неизменяемого browser startup после
 выделения общего `web/routes`.
 
-Требование: macro рядом с bootstrap routes строго проверяет и собирает пакеты
+Требование: macro рядом с startup routes строго проверяет и собирает пакеты
 `@web/import` и `@web/service`, возвращает готовый JavaScript без промежуточного
-чтения `dist`. Bootstrap routes создают из результата статические responses для
+чтения `dist`. Startup routes создают из результата статические responses для
 `/import.js` и `/service.js`. Штатный `start` больше не запускает сборку этих
 двух пакетов отдельно; сборка `@web/main` остаётся отдельной.
 
 Основание и связанная история: `LOAD-001.4` и `LOAD-001.5` создали раздельные
 строгие browser packages, а текущая декомпозиция server routes выделила группы
-`static` и `bootstrap`. Владелец перенёс ответственность за bootstrap build в
+`static` и `startup`. Владелец перенёс ответственность за startup build в
 его route-группу и подтвердил удаление прежних package build-команд из `start`.
 
-Наблюдаемое расхождение: `routes.bootstrap` пока читает заранее записанные
+Наблюдаемое расхождение: `routes.startup` пока читает заранее записанные
 `web/import/dist/index.js` и `web/service/dist/index.js`, а `start` обязан
 сначала отдельно построить оба artifacts.
 
-Причина: сборка и выдача одного bootstrap разделены между package script,
+Причина: сборка и выдача одного startup разделены между package script,
 filesystem artifact и route owner.
 
-Разрешённое изменение одного механизма: создать рядом `bootstrap/macro.ts` и
-`bootstrap/routes.ts`, собрать оба entrypoint через Bun и вернуть их code
+Разрешённое изменение одного механизма: создать рядом `startup/macro.ts` и
+`startup/routes.ts`, собрать оба entrypoint через Bun и вернуть их code
 routes; убрать только две соответствующие build-команды из `start`. Не менять
 исходники packages, `/main.js`, cache policy и WebSocket.
 
 Regression или опровергающее доказательство: macro выполняет strict typecheck,
 сборка importer сохраняет внешний `import("/main.js")`, Service Worker code не
-попадает в importer, server bundle содержит оба готовых bootstrap artifacts и
+попадает в importer, server bundle содержит оба готовых startup artifacts и
 не читает их `dist`.
 
 Среда и критерий приёмки: strict host и package checks, macro/server builds и
 `git diff --check` проходят; штатный запуск выполняет владелец.
 
-Фактические действия: `web/bootstrap/macro.ts` запускает package-owned
+Фактические действия: `web/startup/macro.ts` запускает package-owned
 typechecks и отдельные Bun CLI browser builds через `Bun.spawnSync`, потому что
 вложенный `Bun.build` внутри macro запрещён самим bundler как deadlock. Macro
-возвращает JavaScript в `web/bootstrap/routes.ts`; `web/routes.ts` только
-собирает группы `static` и `bootstrap`. Из `start` удалены отдельные builds
+возвращает JavaScript в `web/startup/routes.ts`; `web/routes.ts` только
+собирает группы `static` и `startup`. Из `start` удалены отдельные builds
 `@web/import` и `@web/service`, а build `@web/main` сохранён.
 
 Результат и вывод: strict host/macro checks и server build проходят. Server
-bundle содержит оба bootstrap artifacts и внешний `import("/main.js")`, не
+bundle содержит оба startup artifacts и внешний `import("/main.js")`, не
 содержит чтения `web/import/dist` или `web/service/dist`. Штатный runtime
 владелец ещё не запускал.
 
@@ -682,16 +682,16 @@ Result checkpoint: ожидается.
 
 ### LOAD-001.11 — Принять startup как термин начальной загрузки
 
-Статус и исполнитель: `IN_PROGRESS`; выполняет руководитель текущей задачи
+Статус и исполнитель: `REVIEW`; выполнял руководитель текущей задачи
 Codex напрямую, без субагентов.
 
 Классификация: принятое владельцем терминологическое изменение нового loader и
 действующего архитектурного описания начальной загрузки.
 
-Требование: начальная неизменяемая загрузка Hamiltonian называется `startup`,
-а не `bootstrap`. Новый loader использует directory `web/startup`, identifiers
-`startup` и `Startup`, сообщения ошибок и TypeDoc с этим термином. Действующая
-документация использует `startup` в том же смысле.
+Требование: `startup` является единственным термином для начальной неизменяемой
+загрузки Hamiltonian. Новый loader использует directory `web/startup`,
+identifiers `startup` и `Startup`, сообщения ошибок и TypeDoc с этим термином.
+Действующая документация использует `startup` в том же смысле.
 
 Основание и связанная история: `LOAD-001.10` выделил отдельную route-группу с
 macro, importer и Service Worker code. Владелец выбрал `startup`, потому что это
@@ -699,7 +699,7 @@ macro, importer и Service Worker code. Владелец выбрал `startup`,
 Material Icons.
 
 Наблюдаемое расхождение: новый directory, code identifiers и документация пока
-используют прежнее слово `bootstrap`, хотя принято другое имя понятия.
+используют прежнее имя, хотя владельцем уже принят термин `startup`.
 
 Разрешённое изменение одного механизма: переименовать новый LOAD-001 directory,
 API, TSDoc и релевантную архитектурную прозу в `startup`. Не менять поведение,
@@ -707,13 +707,23 @@ URL endpoints и cache contents. Не рефакторить executable identifi
 прототипа и независимые одноимённые механизмы других доменов.
 
 Regression или опровергающее доказательство: в новом `hamiltonian/web`, его
-server bindings и LOAD-001 документации не остаётся `bootstrap`; build output и
-HTTP endpoints совпадают с предыдущим срезом; старый prototype diff отсутствует.
+server bindings и LOAD-001 документации не остаётся прежних identifiers; build
+output и HTTP endpoints совпадают с предыдущим срезом; старый prototype diff
+отсутствует.
 
 Среда и критерий приёмки: strict host/Worker checks, startup macro/server build
 и `git diff --check` проходят; `rg` подтверждает терминологическую границу.
 
-Подготовительный commit: текущий project-коммит.
+Фактические действия: route-группа и её macro находятся в `web/startup`;
+server, importer и Service Worker используют только identifiers `startup` и
+`Startup`. Термин принят в действующей архитектурной и проектной документации.
+Исполняемый старый прототип и независимые механизмы Bulk/Matrix не менялись.
+
+Результат и вывод: strict host/package checks, server build, boundary spec и
+`git diff --check` проходят. В новом loader, его server bundle и действующей
+документации прежнего термина нет; HTTP endpoints и cache policy не изменены.
+
+Подготовительный commit: `42df060e9`.
 
 Result checkpoint: ожидается.
 
@@ -736,7 +746,7 @@ Result checkpoint: ожидается.
   `@web/import`, `@web/service` и `@web/main` для browser entrypoints;
 * статические HTML/main/Service Worker artifacts без Bun HMR;
 * сохранение отдельно запускаемого прототипа через `server_proto.ts`;
-* минимальный HTML/main/Service Worker bootstrap;
+* минимальный HTML/main/Service Worker startup;
 * один signaling peer и WebSocket update signal;
 * несколько сменяемых proof parts;
 * origin-bound cache и same-origin cached endpoints;
@@ -789,10 +799,10 @@ Result checkpoint: ожидается.
 `LOAD-001` находится в `IN_PROGRESS`. Package-срез `LOAD-001.1` остановлен до
 implementation решением владельца, Fullstack-срез `LOAD-001.2` остановлен после
 диагностики HMR. Регистрация, control WebSocket, статические browser builds и
-offline bootstrap находятся в `REVIEW`; `LOAD-001.7` подтверждён владельцем.
+offline startup находятся в `REVIEW`; `LOAD-001.7` подтверждён владельцем.
 `LOAD-001.8` находится в `REVIEW` после offline-получения управляющего main,
 `LOAD-001.9` — после реализации единого SPA navigation fallback, `LOAD-001.10` —
-после переноса сборки в route macro. Текущий `LOAD-001.11 — Принять startup как
-термин начальной загрузки` переименовывает новый loader и действующее описание
-его понятия без изменения поведения. Worker functionality остаётся следующим
-отдельным срезом.
+после переноса сборки в route macro. `LOAD-001.11 — Принять startup как термин
+начальной загрузки` находится в `REVIEW`: новый loader и действующее описание
+его понятия переименованы без изменения поведения. Следующее структурное
+уточнение регистрируется отдельным срезом.

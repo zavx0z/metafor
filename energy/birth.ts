@@ -24,7 +24,7 @@ export type EnergyRuntimeBirth = {
 
 /**
  * Opens the Energy Oracle channel, hydrates canonical data, and only then creates
- * the mandatory ForceChannel. No bootstrap data is carried through Force.
+ * the mandatory ForceChannel. No startup data is carried through Force.
  */
 export async function birthEnergyRuntime(options: {
   oracle: EnergyOracle

@@ -197,7 +197,7 @@ historical reconstruction, rewind, write, commit или promotion RPC. Таки�
 методы не считаются существующими без отдельных public types, реализации и
 проверяющих тестов.
 
-### Планируемый bootstrap короткой agent-сессии
+### Планируемый startup короткой agent-сессии
 
 Qwen, Gem и другие агенты должны использовать один и тот же RPC surface и одни
 public contracts. Отдельные методы или формы ответа под конкретную модель не
@@ -205,7 +205,7 @@ public contracts. Отдельные методы или формы ответа
 граница графа; сервер обязан применять эту границу к каждому ответу и каждой
 capability.
 
-Каждая новая короткоживущая agent-сессия должна получить явный bootstrap из
+Каждая новая короткоживущая agent-сессия должна получить явный startup из
 трёх согласованных частей:
 
 1. стабильный RPC rules/capability contract с версией и перечнем действительно
@@ -214,9 +214,9 @@ capability.
    корень исходной проекции;
 3. сериализуемый RPC JSON world snapshot с явно указанным scope.
 
-Bootstrap является переданным новой сессии свидетельством. Агент не должен
+Startup является переданным новой сессии свидетельством. Агент не должен
 полагаться на скрытый долговременный context предыдущей сессии, не указанный в
-этом bootstrap, Git/source snapshot или RPC JSON snapshot.
+этом startup, Git/source snapshot или RPC JSON snapshot.
 
 ### Scope полной и частичной проекции
 
@@ -240,7 +240,7 @@ filesystem paths, `MassHandle` или живые Energy handles.
 
 ### Метаданные воспроизводимого snapshot
 
-Каждый bootstrap snapshot должен нести достаточно метаданных, чтобы другая
+Каждый startup snapshot должен нести достаточно метаданных, чтобы другая
 короткая сессия могла проверить, к какому свидетельству относится JSON:
 
 - версию rules/capability contract;
@@ -258,7 +258,7 @@ filesystem paths, `MassHandle` или живые Energy handles.
 усечёнными branches остаётся partial, даже если все данные внутри его
 объявленной границы имеют resolution `exact`.
 
-Имена bootstrap/projection методов, JSON schema, Boundary snapshot identity и
+Имена startup/projection методов, JSON schema, Boundary snapshot identity и
 frontier representation пока не реализованы и не входят в действующий public
 API. Текущий проверенный RPC surface остаётся перечисленным в разделе
 «Что реализовано и проверено сейчас».
@@ -266,7 +266,7 @@ API. Текущий проверенный RPC surface остаётся пере
 #### Проверенный первый локальный профиль
 
 Один доверенный локальный агент может выполнить полную рабочую сессию без
-нового bootstrap endpoint и без скрытого context. Внешний task envelope
+нового startup endpoint и без скрытого context. Внешний task envelope
 передаёт digest применимых документов-владельцев, Git revision, source
 revision, результат `meta.capabilities.read`, текущий `readGraph`, exact Force
 frontier, цель и root scope. На этом этапе используется полный Graph текущего
@@ -280,14 +280,14 @@ Mass result и Bulk viewport evidence по публичным RPC. Следую�
 Graph snapshot. Истиной результата остаются эти первичные проекции и
 существующая Particle-history, а не память агента и не второй журнал.
 
-### Gem на AI-server — планируемый bootstrap profile
+### Gem на AI-server — планируемый startup profile
 
 Gem на AI-server использует тот же RPC surface и contracts, что другие агенты.
-Это профиль bootstrap и budget, а не отдельный набор Gem endpoints. Он не
+Это профиль startup и budget, а не отдельный набор Gem endpoints. Он не
 считается реализованным, пока соответствующие public types, providers и tests
 не подтверждены.
 
-Начальный task bootstrap должен содержать:
+Начальный task startup должен содержать:
 
 - scoped JSON snapshot Dark templates/particles и минимального topology
   замыкания для авторизованного Atom subtree/graph;
@@ -295,7 +295,7 @@ Gem на AI-server использует тот же RPC surface и contracts, ч
   output или proposal, resource budget и явным owner gate для canonical commit;
 - capability registry, уже отфильтрованный по этому graph scope и task budget.
 
-После bootstrap сессия получает не повтор полного context, а компактный delta
+После startup сессия получает не повтор полного context, а компактный delta
 на каждый доступный logical tick. Delta содержит только изменившиеся
 templates/particles, минимальные topology consequences и новую causal frontier
 identity. Пропущенный frontier или разрыв последовательности требует явного
@@ -329,7 +329,7 @@ Resource budget ограничивает время, вычисление, об�
 
 ### Capability registry для авторинга Process
 
-Bootstrap Process-authoring агента должен включать явный capability registry.
+Startup Process-authoring агента должен включать явный capability registry.
 Registry описывает только действительно подключённые и проверенные tool
 contracts; отсутствие записи означает отсутствие capability. Нельзя считать
 tool доступным по имени агента, окружению, прошлой сессии или наличию кода в
