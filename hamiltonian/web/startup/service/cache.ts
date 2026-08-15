@@ -16,19 +16,25 @@ const startup = [
  * каждого startup endpoint.
  *
  * @param request - GET request, перехваченный Service Worker.
- * @returns Response из постоянного cache либо результат network fallback.
+ * @returns Response из постоянного cache, результат network fallback либо
+ * пустой `503` для недоступного asset.
  */
 export async function cacheFirst(request: Request) {
   const cache = await caches.open("metafor")
   const response = await cache.match(request.mode === "navigate" ? "/" : request, {ignoreVary: true})
   if (response) return response
 
-  const network = await fetch(request)
   const pathname = new URL(request.url).pathname
-  if (network.ok && (pathname === "/main.js" || pathname.startsWith("/assets/"))) {
-    await cache.put(request, network.clone())
+  try {
+    const network = await fetch(request)
+    if (network.ok && (pathname === "/main.js" || pathname.startsWith("/assets/"))) {
+      await cache.put(request, network.clone())
+    }
+    return network
+  } catch (error) {
+    if (!pathname.startsWith("/assets/")) throw error
+    return new Response(null, {status: 503})
   }
-  return network
 }
 
 /**

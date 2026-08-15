@@ -792,7 +792,7 @@ Result checkpoint: `9dd5030b4`.
 
 ### LOAD-001.13 — Не отклонять запрос отсутствующего asset без сети
 
-Статус и исполнитель: `IN_PROGRESS`; выполняет руководитель текущей задачи
+Статус и исполнитель: `REVIEW`; выполнял руководитель текущей задачи
 Codex напрямую, без субагентов.
 
 Классификация: отдельная error-handling граница lazy asset cache после
@@ -828,7 +828,18 @@ fetch возвращает status `503`; rejected non-asset fetch остаётс
 typecheck/build, startup macro/server build и `git diff --check` проходят.
 Runtime запускает и проверяет владелец.
 
-Подготовительный commit: ожидается.
+Фактические действия: `cacheFirst()` вычисляет pathname до network fallback и
+обрабатывает rejected `fetch()` только для `/assets/*`, возвращая пустой
+response со status `503`. Успешный cache/network path и ошибки других URL не
+изменены.
+
+Результат и вывод: focused probe подтвердил четыре ветви — cache hit без
+network, сохранение successful asset, `503` для rejected asset fetch и
+сохранённый reject для `/main.js`. Strict package typecheck/build, focused host
+check, startup macro/server build и `git diff --check` проходят. Runtime-проверка
+владельца остаётся открытой.
+
+Подготовительный commit: `5db70f04b`.
 
 Result checkpoint: ожидается.
 
@@ -912,5 +923,5 @@ offline startup находятся в `REVIEW`; `LOAD-001.7` подтвержд�
 его понятия переименованы без изменения поведения. `LOAD-001.12 — Поместить
 минимальные загрузчики внутрь startup` находится в `REVIEW`: два loader package
 перенесены под их принятого владельца без изменения HTTP и runtime behavior.
-Текущий `LOAD-001.13 — Не отклонять запрос отсутствующего asset без сети`
-ограничивает expected offline failure одним контролируемым response.
+`LOAD-001.13 — Не отклонять запрос отсутствующего asset без сети` находится в
+`REVIEW`: expected offline failure ограничен одним контролируемым response.
