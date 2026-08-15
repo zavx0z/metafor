@@ -570,7 +570,7 @@ Result checkpoint: `efebc35cc`.
 
 ### LOAD-001.9 — Открывать вложенные адреса через offline HTML
 
-Статус и исполнитель: `IN_PROGRESS`; выполняет руководитель текущей задачи
+Статус и исполнитель: `REVIEW`; выполнял руководитель текущей задачи
 Codex напрямую, без субагентов.
 
 Классификация: новый пользовательский navigation-сценарий поверх
@@ -609,6 +609,60 @@ script или asset получает `404`, а не HTML.
 вложенные адреса при включённом offline без `Failed to fetch`; прямой первый
 online-вход на вложенный адрес также загружает bootstrap. Runtime запускает и
 проверяет владелец.
+
+Фактические действия: HTML и manifest импортируются Bun как raw text и входят в
+готовые `staticRoutes`; корневые URL их browser resources не зависят от
+вложенного pathname. Unmatched GET с `Accept: text/html` получает clone
+статического HTML response; остальные unmatched requests получают `404`.
+Worker для `request.mode === "navigate"` ищет `/`, а non-navigation requests
+сохраняют прежнее exact cache matching.
+
+Результат и вывод: builds `@web/main`, `@web/import` и `@web/service`, строгая
+host-проверка и server bundle проходят. Собранные artifacts содержат оба SPA
+fallback, live online/offline проверка владельца остаётся открытой.
+
+Подготовительный commit: `0341c6eeb`.
+
+Result checkpoint: ожидается.
+
+### LOAD-001.10 — Собирать bootstrap внутри владельца routes
+
+Статус и исполнитель: `IN_PROGRESS`; выполняет руководитель текущей задачи
+Codex напрямую, без субагентов.
+
+Классификация: уточнение build-владельца неизменяемого browser bootstrap после
+выделения общего `web/routes`.
+
+Требование: macro рядом с bootstrap routes строго проверяет и собирает пакеты
+`@web/import` и `@web/service`, возвращает готовый JavaScript без промежуточного
+чтения `dist`. Bootstrap routes создают из результата статические responses для
+`/import.js` и `/service.js`. Штатный `start` больше не запускает сборку этих
+двух пакетов отдельно; сборка `@web/main` остаётся отдельной.
+
+Основание и связанная история: `LOAD-001.4` и `LOAD-001.5` создали раздельные
+строгие browser packages, а текущая декомпозиция server routes выделила группы
+`static` и `bootstrap`. Владелец перенёс ответственность за bootstrap build в
+его route-группу и подтвердил удаление прежних package build-команд из `start`.
+
+Наблюдаемое расхождение: `routes.bootstrap` пока читает заранее записанные
+`web/import/dist/index.js` и `web/service/dist/index.js`, а `start` обязан
+сначала отдельно построить оба artifacts.
+
+Причина: сборка и выдача одного bootstrap разделены между package script,
+filesystem artifact и route owner.
+
+Разрешённое изменение одного механизма: создать рядом `bootstrap/macro.ts` и
+`bootstrap/routes.ts`, собрать оба entrypoint через Bun и вернуть их code
+routes; убрать только две соответствующие build-команды из `start`. Не менять
+исходники packages, `/main.js`, cache policy и WebSocket.
+
+Regression или опровергающее доказательство: macro выполняет strict typecheck,
+сборка importer сохраняет внешний `import("/main.js")`, Service Worker code не
+попадает в importer, server bundle содержит оба готовых bootstrap artifacts и
+не читает их `dist`.
+
+Среда и критерий приёмки: strict host и package checks, macro/server builds и
+`git diff --check` проходят; штатный запуск выполняет владелец.
 
 Подготовительный commit: текущий project-коммит.
 
@@ -687,7 +741,8 @@ Result checkpoint: ожидается.
 implementation решением владельца, Fullstack-срез `LOAD-001.2` остановлен после
 диагностики HMR. Регистрация, control WebSocket, статические browser builds и
 offline bootstrap находятся в `REVIEW`; `LOAD-001.7` подтверждён владельцем.
-`LOAD-001.8` находится в `REVIEW` после offline-получения управляющего main.
-Текущий `LOAD-001.9 — Открывать вложенные адреса через offline HTML` добавляет
-единый SPA navigation fallback на server и в Service Worker. Worker
+`LOAD-001.8` находится в `REVIEW` после offline-получения управляющего main,
+`LOAD-001.9` — после реализации единого SPA navigation fallback. Текущий
+`LOAD-001.10 — Собирать bootstrap внутри владельца routes` переносит сборку
+`@web/import` и `@web/service` в macro рядом с bootstrap routes. Worker
 functionality остаётся следующим отдельным срезом.

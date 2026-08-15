@@ -129,10 +129,12 @@ live-проверок владельца. `LOAD-001.7` подтвердил buil
 cache-on-first-request. `LOAD-001.8 — Импортировать управляющий main после
 захвата страницы` находится в `REVIEW`: первоначальный `@web/main` artifact
 приходит через HTTP и сохраняется Worker до возврата в dynamic import. Текущий
-`LOAD-001.9 — Открывать вложенные адреса через offline HTML` сопоставляет все
-SPA navigation paths с единственной cache-записью HTML `/`; WebSocket остаётся
-сигналом будущего update. `UPD-002 — Обновлять всю клиентскую сборку через
-Service Worker` ждёт результата `LOAD-001`.
+`LOAD-001.9 — Открывать вложенные адреса через offline HTML` находится в
+`REVIEW` после реализации единого SPA fallback. Текущий `LOAD-001.10 — Собирать
+bootstrap внутри владельца routes` переносит strict build `@web/import` и
+`@web/service` в macro рядом с их routes и удаляет их отдельные build-команды
+из `start`; WebSocket остаётся сигналом будущего update. `UPD-002 — Обновлять
+всю клиентскую сборку через Service Worker` ждёт результата `LOAD-001`.
 
 `HAM-003 — Разделить Hamiltonian по средам исполнения и механизмам` остаётся
 `IN_PROGRESS`. Широкий object-oriented срез `HAM-003.8` отклонён владельцем и
