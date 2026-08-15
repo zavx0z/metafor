@@ -1258,7 +1258,7 @@ Result checkpoint: `9bb109cdc`.
 
 ### LOAD-001.21 — Передавать Service Worker importer универсальные функции загрузки
 
-Статус и исполнитель: `IN_PROGRESS`; выполняет руководитель текущей задачи
+Статус и исполнитель: `REVIEW`; выполнил руководитель текущей задачи
 Codex напрямую, без субагентов.
 
 Классификация: разделение неизменяемых startup primitives и конкретной
@@ -1305,9 +1305,28 @@ Regression или опровергающее доказательство: ун�
 build, artifact inspection и `git diff --check` проходят. Live online/offline
 поведение не должно измениться; повторно его проверяет владелец.
 
-Подготовительный commit:
+Фактические действия: importer-specific `loader.ts` удалён. Новый `load.ts`
+экспортирует независимые `fetch`, `verify`, `cache`, `read`, `remove` и `run`;
+конкретный request `/import-service.js`, cache `import`, singleton Promise,
+cold-cache path, cleanup и retry перенесены в `startup/service/index.ts`.
+Entrypoint выполняет сохранённый IIFE через `run(source, {load})`, а
+`@import/service` получает тип этого namespace из единственного startup source
+и отклоняет запуск без полного API.
 
-Result checkpoint:
+Результат и вывод: strict typecheck/build обоих пакетов прошли; standalone
+startup Service Worker занимает `4.60 KB`, importer — `336 bytes`. Focused
+проверка подтвердила успешные `verify`, `cache`, `read`, `remove` и именованный
+binding `run`; importer запускается с `load` и отклоняет отсутствующий API.
+Полный Worker lifecycle probe подтвердил один fetch/запуск при конкурентных
+messages, offline cold restoration, удаление ошибочного artifact и successful
+retry без раннего создания cache `runtime`. Server build прошёл и содержит
+передачу `load` в `/import-service.js`; `git diff --check` чист. `verify` пока
+проверяет только успешный HTTP status: digest contract намеренно не входит в
+этот срез. Live online/offline проверка владельца остаётся открытой.
+
+Подготовительный commit: `38cd04de6`.
+
+Result checkpoint: `23011f66c`.
 
 ## Открытые вопросы
 
@@ -1416,6 +1435,7 @@ runtime packages и RPC contract; live online/offline подтвердил вл�
 `LOAD-001.20 — Назвать Window importer endpoint по слою import` находится в
 `REVIEW`: `/main.js` заменён на `/import-main.js` без alias и изменения
 поведения; live online/offline подтвердил владелец.
-Текущий `LOAD-001.21 — Передавать Service Worker importer универсальные функции
-загрузки` находится в `IN_PROGRESS`: startup primitives отделяются от
-конкретной загрузки importer и передаются ему как явный `load` ABI.
+`LOAD-001.21 — Передавать Service Worker importer универсальные функции
+загрузки` находится в `REVIEW`: startup primitives отделены от конкретной
+загрузки importer и передаются ему как явный `load` ABI; live online/offline
+проверяет владелец.

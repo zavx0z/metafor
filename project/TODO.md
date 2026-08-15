@@ -155,9 +155,9 @@ offline restoration startup вместе с Window importer. `LOAD-001.19 —
 с `LOAD-001.20` подтверждён владельцем online и offline. `LOAD-001.20 — Назвать
 Window importer endpoint по слою import` находится в `REVIEW`: `/main.js`
 заменён на `/import-main.js` без alias. Текущий `LOAD-001.21 — Передавать
-Service Worker importer универсальные функции загрузки` отделяет startup
-primitives от конкретной загрузки importer и передаёт их importer как явный
-ABI. `UPD-002 —
+Service Worker importer универсальные функции загрузки` находится в `REVIEW`:
+startup primitives отделены от конкретной загрузки importer и передаются ему
+как явный `load` ABI; live online/offline проверяет владелец. `UPD-002 —
 Обновлять всю клиентскую сборку через Service Worker` ждёт результата
 `LOAD-001`.
 
