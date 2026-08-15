@@ -123,9 +123,13 @@ Service Worker требует отдельного entrypoint; runtime `Bun.Tran
 `server.ts` отклонён владельцем. `LOAD-001.4 — Собирать Service Worker пакетом
 @web/service` находится в `REVIEW`: workspace-пакет строго проверяет и собирает
 Worker до штатного запуска Hamiltonian, а server только выдаёт готовые bytes.
-Текущий `LOAD-001.3 — Подключить Service Worker к одному WebSocket` ждёт
-browser/runtime-проверки регистрации и соединения. `UPD-002 — Обновлять всю
-клиентскую сборку через Service Worker` ждёт результата `LOAD-001`.
+`LOAD-001.3 — Подключить Service Worker к одному WebSocket`, статический
+`@web/import` без HMR и постоянный offline bootstrap находятся в `REVIEW` после
+live-проверок владельца. Текущий `LOAD-001.7 — Встраивать static assets и
+кэшировать только использованные` заменяет полный precache manifest ресурсов
+build-time snapshot и cache-on-first-request; он ждёт повторной owner-проверки
+после очистки прежнего Cache Storage. `UPD-002 — Обновлять всю клиентскую
+сборку через Service Worker` ждёт результата `LOAD-001`.
 
 `HAM-003 — Разделить Hamiltonian по средам исполнения и механизмам` остаётся
 `IN_PROGRESS`. Широкий object-oriented срез `HAM-003.8` отклонён владельцем и

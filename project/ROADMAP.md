@@ -236,16 +236,15 @@ model, validation, geometry, renderer primitives или layout laws из `nodes`
 Новая реализация создаётся с нуля рядом в source-директориях `web`, `server` и
 `interface`. Browser loader реализуют `web/import` и `web/service`; server-аналоги
 появляются позднее, а общий договор выделяется в `interface` только после двух
-фактических реализаций. `web/service` оформляется отдельным workspace-пакетом
-`@web/service`, потому что Service Worker требует самостоятельного browser
-entrypoint и собственного build. Остальные вложенные `import`, `service` и
-`update` не становятся пакетами без отдельного решения владельца.
+фактических реализаций. Два минимальных browser entrypoint оформлены отдельными
+workspace-пакетами `@web/import` и `@web/service` со строгой проверкой и
+статической сборкой. Остальные вложенные `import`, `service` и `update` не
+становятся пакетами без отдельного решения владельца.
 
-`server.ts` использует Bun Fullstack Dev Server для HTML и main entrypoint.
-Service Worker не проходит через эту HTML-границу: `@web/service` отдельно
-собирает его командой `build`, а server только выдаёт готовый JavaScript с
-точными Service Worker headers. Build не переносит в пакет Hamiltonian server,
-main, WSS protocol или сменяемый functionality.
+Fullstack runtime bundling HTML/main отклонён после появления Bun HMR и
+неподходящего runtime URL importer. `server.ts` выдаёт неизменяемый HTML и
+заранее собранные `import.js` и `service.js`; сами browser-пакеты не владеют
+Hamiltonian server, WSS payload protocol или сменяемым functionality.
 
 Отдельная линия `LOAD` владеет первоначальной загрузкой браузерного функционала
 Hamiltonian. Первый HTTPS response доставляет только минимальные HTML,

@@ -1,11 +1,11 @@
-import {assets} from "./web/static/assets"
+import {assets} from "./web/static"
 
 Bun.serve<{ source: "web/service" }>({
   routes: {
     "/": new Response(await Bun.file("./web/static/index.html").bytes(), {
       headers: {"Content-Type": "text/html; charset=utf-8"},
     }),
-    "/manifest.webmanifest": new Response(await Bun.file("./web/static/manifest.webmanifest").bytes(), {
+    "/manifest.webmanifest": new Response(await Bun.file("./web/static/manifest.json").bytes(), {
       headers: {"Content-Type": "application/manifest+json"},
     }),
     "/assets/*": assets,

@@ -106,12 +106,13 @@ Evidence-backed gate выполнен в
   прежние `browser`, `core`, `public`, `update`, `visual` и остальные исходники
   также принадлежат прототипу.
 * Новая реализация создаётся с нуля рядом в `web`, `server` и `interface`.
-  Только `web/service` оформляется workspace-пакетом `@web/service`, потому что
-  Service Worker требует отдельного browser entrypoint и собственного build;
-  остальные вложенные boundaries пакетами автоматически не становятся.
-* HTML импортируется прямо в `Bun.serve()` как route и main получает runtime
-  bundling. `@web/service` отдельно собирает Service Worker в готовый JavaScript;
-  `server.ts` не транспилирует его и только выдаёт build artifact.
+  Минимальные browser entrypoint `web/import` и `web/service` оформлены
+  workspace-пакетами `@web/import` и `@web/service`, потому что оба требуют
+  строгой проверки и собственной статической сборки. Остальные вложенные
+  boundaries пакетами автоматически не становятся.
+* Fullstack runtime bundling HTML/main отклонён из-за Bun HMR и неподходящего
+  runtime URL importer. HTML остаётся статическим, оба browser entrypoint
+  собираются заранее, а `server.ts` только выдаёт готовые bytes.
 * `web/import` владеет минимальным main-потоком: получает от Service Worker
   готовый кэшированный endpoint и импортирует модуль.
 * `web/service` владеет минимальной неизменяемой оболочкой Service Worker:
@@ -141,14 +142,15 @@ Evidence-backed gate выполнен в
 
 ## Поведение процесса
 
-Первый зарегистрированный package-срез остановлен до product implementation:
-пакеты не создаются. Текущий срез проверяет один выбранный механизм — способен
-ли Bun Fullstack обслужить минимальный HTML/main/Service Worker contour без
-отдельного build-step. Runtime bundling самого Bun допустим и называется точно.
+Первый широкий package-срез остановлен до product implementation: общая
+package architecture не создаётся. Диагностический Fullstack-срез также
+остановлен после доказанного Bun HMR; приняты только два необходимых browser
+пакета со статической сборкой.
 
-Только после proof следующий срез фиксирует exact handoff первой navigation:
-что делает minimal main, когда страница становится controlled и каким запросом
-она узнаёт о готовности cache.
+Первая navigation теперь доказала регистрацию, переход страницы под управление
+Worker, создание постоянного bootstrap cache и открытие control WebSocket.
+Следующий срез начинает payload loading: Worker должен получить по WSS первый
+сменяемый functionality, проверить его и опубликовать готовый cached endpoint.
 
 Затем по одному причинному механизму регистрируются WSS loading, cache
 preparation, cached endpoint serving, Window launch и Service Worker functional
@@ -262,8 +264,8 @@ Result checkpoint:
 
 ### LOAD-001.3 — Подключить Service Worker к одному WebSocket
 
-Статус и исполнитель: `IN_PROGRESS`; build prerequisite готов в `LOAD-001.4`,
-выполняет руководитель текущей задачи Codex напрямую, без субагентов.
+Статус и исполнитель: `REVIEW`; выполнял руководитель текущей задачи Codex
+напрямую, без субагентов; live-сценарий проверил владелец.
 
 Классификация: следующий минимальный runtime-механизм после регистрации Service
 Worker; он доказывает только принадлежность WebSocket соединения Worker-контексту.
@@ -286,9 +288,20 @@ update или imports из прототипа.
 а Bun server наблюдает одно соединение от Service Worker. Консоль main-потока
 не должна выполнять `web/service` как обычный HTML module.
 
-Подготовительный commit:
+Фактические действия: main регистрирует module Worker, ждёт `ready` и при первой
+установке — `controllerchange`, после чего посылает единственный `connect`.
+Worker открывает один socket к `/service`, выбирая `ws:` или `wss:` по origin;
+тот же singleton `Bun.serve()` принимает upgrade и отмечает соединение как
+принадлежащее `web/service`.
 
-Result checkpoint:
+Результат и вывод: владелец подтвердил регистрацию Worker и WebSocket из его
+контекста в локальном Hamiltonian contour. Повторный `connect` не создаёт второй
+socket, пока первый находится в `CONNECTING` или `OPEN`; payload protocol,
+reconnect и доставка functionality не добавлены.
+
+Подготовительный commit: `e089719f9`.
+
+Result checkpoint: `9fb1b30dd`, `07f0d0254`, `1e8699597`.
 
 ### LOAD-001.4 — Собирать Service Worker пакетом @web/service
 
@@ -330,13 +343,166 @@ Worker и нового server/main contour проходят. Общий root typ
 
 Подготовительный commit: `14acb0071`.
 
+Result checkpoint: `9fb1b30dd`.
+
+### LOAD-001.5 — Собирать main-loader пакетом @web/import без HMR
+
+Статус и исполнитель: `REVIEW`; выполнял руководитель текущей задачи Codex
+напрямую, без субагентов; отсутствие HMR проверил владелец в browser contour.
+
+Классификация: новый build-механизм после остановленного Fullstack-среза
+`LOAD-001.2`.
+
+Требование: минимальный main является workspace-пакетом `@web/import`, проходит
+строгую проверку и заранее собирается в один `import.js`. Статический HTML
+подключает этот artifact напрямую, а штатный запуск не создаёт Bun HMR runtime.
+
+Основание и связанная история: `LOAD-001.2` доказал обработку HTML/main через
+Bun Fullstack, но владелец отклонил HMR и runtime bundling для неизменяемого
+loader. Отдельная сборка `@web/service` в `LOAD-001.4` дала применимый образец
+границы browser entrypoint.
+
+Наблюдаемое расхождение: Fullstack HTML route добавлял HMR socket и выдавал
+importer через runtime URL вместо стабильного `/import.js`.
+
+Причина: импорт HTML в Bun Fullstack передаёт main entrypoint runtime bundler,
+который намеренно добавляет development runtime.
+
+Разрешённое изменение одного механизма: оформить только `web/import` пакетом,
+добавить static build и заменить Fullstack HTML route готовыми HTML/import
+responses. Не добавлять payload delivery, update или prototype imports.
+
+Regression или опровергающее доказательство: собранный `import.js` не содержит
+Bun HMR runtime, HTML ссылается на стабильный `/import.js`, а `server.ts` не
+импортирует HTML как Fullstack module.
+
+Среда и критерий приёмки: strict typecheck и build обоих browser-пакетов
+проходят; в локальном browser main регистрирует Worker без HMR socket.
+
+Фактические действия: добавлены package manifest и strict `tsconfig` для
+`@web/import`; штатный Hamiltonian `start` сначала собирает оба browser-пакета.
+HTML перенесён в static source, а server буферизует его и оба готовых script при
+запуске.
+
+Результат и вывод: владелец подтвердил исчезновение Bun HMR; статический main
+продолжил регистрацию и handoff Worker.
+
+Подготовительный commit: отдельный project-коммит до прямой owner-итерации не
+записывался.
+
+Result checkpoint: `8bc7a3774`.
+
+### LOAD-001.6 — Восстанавливать минимальный bootstrap без сети
+
+Статус и исполнитель: `REVIEW`; выполнял руководитель текущей задачи Codex
+напрямую, без субагентов; offline-сценарий проверил владелец.
+
+Классификация: новый cache-механизм после принятого статического bootstrap.
+
+Требование: после получения управления Worker один раз сохраняет HTML,
+`import.js` и Web App Manifest в постоянный Cache Storage. Последующие GET этих
+URL обслуживаются cache-first и не требуют доступного server; уже сохранённые
+bytes не заменяются текущим host response.
+
+Основание и связанная история: `LOAD-001.5` сделал bootstrap стабильными
+same-origin endpoints. Прототипный release cache не переносится, потому что он
+владеет synthetic `/versions/...` module и update behavior.
+
+Наблюдаемое расхождение: после первой регистрации navigation и main всё ещё
+зависели от доступности host.
+
+Причина: новый Worker не имел собственного bootstrap inventory и fetch policy.
+
+Разрешённое изменение одного механизма: добавить постоянный cache только для
+HTML, importer и manifest; продлить `connect` message через `waitUntil`, пока
+bootstrap готовится. Не добавлять ready message, version switching, payload
+cache или update.
+
+Regression или опровергающее доказательство: bootstrap inventory содержит
+ровно `/`, `/import.js` и `/manifest.webmanifest`; отсутствующий endpoint не
+становится cached после unsuccessful response.
+
+Среда и критерий приёмки: после одного online запуска владелец включает offline
+и повторно получает HTML/importer через активный Worker; WebSocket закономерно
+остаётся сетевым и не входит в offline criterion.
+
+Фактические действия: Worker получил cache-first fetch policy и идемпотентную
+подготовку трёх bootstrap endpoints в cache `metafor`. Main отправляет
+`connect` только после появления controller, а Worker удерживает message event
+до завершения подготовки cache.
+
+Результат и вывод: owner-проверка подтвердила offline navigation и выполнение
+`import.js`; отсутствие PWA images выявило отдельную политику assets и вынесено
+в `LOAD-001.7`.
+
+Подготовительный commit: отдельный project-коммит до прямой owner-итерации не
+записывался.
+
+Result checkpoint: `8bc7a3774`.
+
+### LOAD-001.7 — Встраивать static assets и кэшировать только использованные
+
+Статус и исполнитель: `IN_PROGRESS`; implementation checkpoint готовит
+руководитель текущей задачи Codex напрямую, без субагентов; остаётся повторная
+owner-проверка после очистки прежнего Cache Storage.
+
+Классификация: отдельный static asset/cache mechanism после owner-наблюдения,
+что precache всего Web App Manifest занимает `2.6 MB`, хотя один browser
+запрашивает только часть ресурсов.
+
+Требование: server не читает static assets на каждый request и не содержит
+ручной перечень route каждого файла. Build-time Bun macro встраивает bytes и
+MIME types, один `/assets/*` handler выдаёт подготовленный snapshot. Worker не
+precache-ит весь manifest: успешный asset сохраняется только после фактического
+browser request. Favicon и Apple touch icon принадлежат HTML, а Web App Manifest
+содержит только PWA icons и install screenshots.
+
+Основание и связанная история: `LOAD-001.6` сначала включил все manifest
+resources в bootstrap cache. Owner-проверка Cache Storage показала `2.6 MB`, а
+после полного исключения assets offline manifest requests стали падать.
+
+Наблюдаемое расхождение: полный precache хранит неиспользованные варианты icon
+и screenshot; отсутствие любого asset cache ломает реально запрошенные PWA
+resources offline. Manifest дополнительно объявлял multi-size ICO как PWA icon,
+из-за чего Chromium сравнивал его как один кадр `256x256` и выдавал warnings.
+
+Причина: manifest inventory ошибочно использовался как обязательный bootstrap
+inventory, а runtime static scan смешивал подготовку assets с запуском server.
+
+Разрешённое изменение одного механизма: вынести filesystem scan в Bun macro,
+оставить handler в `web/static`, исключить manifest resources из bootstrap и
+записывать `/assets/*` cache-on-first-request. Не оптимизировать изображения,
+не добавлять release versions и не менять функциональный payload.
+
+Regression или опровергающее доказательство: собранный Worker содержит только
+три bootstrap URL; static asset macro не остаётся runtime filesystem code;
+manifest не содержит favicon/Apple touch entries; неизвестный asset получает
+`404`.
+
+Среда и критерий приёмки: strict host/Worker checks и обе browser builds
+проходят. После очистки cache один online запуск сохраняет только реально
+запрошенные browser assets, а повторный offline запуск использует их без
+повторного network fetch и без manifest size warnings.
+
+Фактические действия: manifest переведён в JSON source и по прежнему публичному
+URL выдаётся как `application/manifest+json`. Bun macro сканирует
+`hamiltonian/assets` при build и встраивает base64 bytes/MIME; `web/static`
+однократно декодирует snapshot и владеет wildcard handler. Worker precache
+оставляет только bootstrap, а успешный network fallback `/assets/*` сохраняет
+через clone. Favicon и Apple touch link остаются в HTML и удалены из manifest.
+
+Результат и вывод: проверки build/typecheck подтверждают статический server
+bundle и Worker inventory без полного asset precache. Финальная повторная
+offline/manifest проверка владельца после очистки прежнего cache ещё не
+зафиксирована.
+
+Подготовительный commit: отдельный project-коммит до прямой owner-итерации не
+записывался.
+
 Result checkpoint: текущий result-коммит.
 
 ## Открытые вопросы
 
-* Какие exact bytes входят в минимальные HTML, main и Service Worker?
-* Как первая страница дожидается `activate`/`clients.claim()` и отличает первый
-  install от повторного запуска?
 * Как выглядит минимальный message contract между main и Service Worker?
 * Как WSS передаёт manifest и несколько частей первого proof functionality?
 * Как называются cached endpoints и как main получает предназначенный ему
@@ -351,9 +517,9 @@ Result checkpoint: текущий result-коммит.
 
 Входит:
 
-* source-директории `web`, `server`, `interface` и отдельный workspace-пакет
-  `@web/service` в `web/service`;
-* Bun Fullstack HTML/main route и отдельный Service Worker build;
+* source-директории `web`, `server`, `interface` и отдельные workspace-пакеты
+  `@web/import` и `@web/service` для browser entrypoints;
+* статические HTML/main/Service Worker artifacts без Bun HMR;
 * сохранение отдельно запускаемого прототипа через `server_proto.ts`;
 * минимальный HTML/main/Service Worker bootstrap;
 * один signaling peer и WSS code delivery;
@@ -366,7 +532,7 @@ Result checkpoint: текущий result-коммит.
 
 * рефакторинг или перенос прежнего Hamiltonian в новые source-директории;
 * другие package manifests, workspace packages и package exports новой
-  реализации кроме `@web/service`;
+  реализации кроме `@web/import` и `@web/service`;
 * создание общего `interface` contract до двух реализаций;
 * полный production artifact inventory и update-transition `UPD-002`;
 * каталог или выбор нескольких signaling peers;
@@ -406,7 +572,9 @@ Result checkpoint: текущий result-коммит.
 ## Текущее состояние и следующий шаг
 
 `LOAD-001` находится в `IN_PROGRESS`. Package-срез `LOAD-001.1` остановлен до
-implementation решением владельца. Текущий срез — `LOAD-001.2 — Проверить
-loader через Bun Fullstack без отдельной сборки`. Сначала фиксируется этот
-подготовительный project-коммит; затем минимальный proof отдельно устанавливает
-поведение HTML/main и фактическую возможность зарегистрировать Service Worker.
+implementation решением владельца, Fullstack-срез `LOAD-001.2` остановлен после
+диагностики HMR. Регистрация, control WebSocket, статические browser builds и
+offline bootstrap находятся в `REVIEW`. Текущий `LOAD-001.7 — Встраивать static
+assets и кэшировать только использованные` ждёт повторной owner-проверки после
+очистки прежнего Cache Storage. После неё следующий срез отдельно регистрирует
+доставку, проверку и публикацию первого сменяемого functionality по WSS.
