@@ -5,7 +5,8 @@
   "scripts": {
     "start": "bun --port=4444 server",
     "tls:create": "bun run create-tls.ts",
-    "test": "bun test"
+    "test": "bun test",
+    "test:load": "tsc --project tests/tsconfig.json --pretty false && bun test tests/load-001.boundary.spec.ts tests/load-001.browser.spec.ts"
   },
   "dependencies": {
     "@internall/rpc": "workspace:*",
@@ -22,6 +23,7 @@
     "werift": "0.24.3"
   },
   "devDependencies": {
-    "@types/web-push": "3.6.4"
+    "@types/web-push": "3.6.4",
+    "puppeteer-core": "25.4.0"
   }
 }

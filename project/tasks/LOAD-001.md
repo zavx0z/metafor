@@ -1611,6 +1611,12 @@ Result checkpoint: `e5ce8bd62`.
   importers и internal RPC без прямой загрузки module из startup.
 * Browser test остановки Worker и offline восстановления caches `startup`,
   `import` и `internal`.
+* Автоматизированный Puppeteer regression запускает действующий `server.ts` в
+  изолированном test-профиле Chrome, проверяет HTTP routes, Service Worker
+  control, точные cache boundaries, ленивое сохранение asset, offline
+  navigation, cold relaunch того же профиля без доступной HTTP-доставки,
+  удаление ошибочного artifact и retry. Проверочный `ping`/`pong` в этот
+  regression contract не входит.
 * Live WebSocket test минимум двух `ping`/`pong` с интервалом около 20 секунд.
 * Строгие host/WebWorker TypeScript checks и `git diff --check`.
 * Живой owner-сценарий в canonical Hamiltonian contour до объявления готовности.
@@ -1635,3 +1641,14 @@ cache `internal`. После него владелец отдельно реша
 Window/Metafor module в минимальный proof этой задачи. Новый номер подзадачи до
 этого решения не создаётся. Versioned manifest, hashes и атомарная публикация
 полного release остаются в `UPD-002`.
+
+Test-only Puppeteer suite `bun run --cwd hamiltonian test:load` защищает уже
+принятую loader boundary без изменения product source. Два последовательных
+прогона на `a537b62ed23c6bccc544b7892bc26b5fe90a3051` завершились результатом
+`3 pass`, `0 fail`, `88 expect()` каждый. Cold-сценарий полностью закрывает
+изолированный Chrome, повторно открывает тот же профиль на том же origin и
+подменяет host test-only witness, который не отдаёт HTTP artifacts; успешная
+navigation, запуск Window importer и новое `/sw`-соединение доказывают
+восстановление `startup`, `import` и `internal` из Cache Storage. Это
+автоматизированное regression evidence изолированного контура, а не замена
+оставшемуся live owner-сценарию в canonical Hamiltonian contour.
