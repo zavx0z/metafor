@@ -841,7 +841,7 @@ check, startup macro/server build и `git diff --check` проходят. Runtim
 
 Подготовительный commit: `5db70f04b`.
 
-Result checkpoint: ожидается.
+Result checkpoint: `a4cc50c75`.
 
 ## Открытые вопросы
 
