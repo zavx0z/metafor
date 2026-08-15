@@ -13,48 +13,30 @@ const VISUAL_FONT_URL = "/assets/fonts/JetBrainsMono-Bold.ttf"
 const VISUAL_DISPLAY_ID = "main"
 const VISUAL_DISPLAY_CENTER_MM = {x: 0, y: 0, z: 900} as const
 
-let visualEnvironment: Promise<UiRuntime> | null = null
-let canvasResizeObserver: ResizeObserver | null = null
+const canvas = requiredCanvas()
+const runtime = await UiRuntime.create(canvas, {
+  fontUrl: VISUAL_FONT_URL,
+  virtualDisplay: {
+    initial: "far",
+    grid: false,
+    surfaceDisplay: false,
+  },
+})
 
-/**
- * Создаёт стандартную Window-среду до запуска будущих предметных modules.
- *
- * Повторный вызов использует тот же initialization Promise и не создаёт второй
- * canvas, Renderer, Space или HUD.
- */
-export default async function importMain() {
-  visualEnvironment ??= createVisualEnvironment()
-  await visualEnvironment
-}
+prepareSpace(runtime)
+runtime.handleResize()
+const display = prepareDisplay(runtime)
+prepareDisplayDock(runtime)
+const canvasResizeObserver = new ResizeObserver(() => resizeVisualEnvironment(runtime))
+canvasResizeObserver.observe(canvas)
 
-/** Создаёт один стандартный explicit-display runtime на static canvas документа. */
-async function createVisualEnvironment() {
-  const canvas = requiredCanvas()
-  const runtime = await UiRuntime.create(canvas, {
-    fontUrl: VISUAL_FONT_URL,
-    virtualDisplay: {
-      initial: "far",
-      grid: false,
-      surfaceDisplay: false,
-    },
-  })
-
-  prepareSpace(runtime)
-  runtime.handleResize()
-  const display = prepareDisplay(runtime)
-  prepareDisplayDock(runtime)
-  canvasResizeObserver = new ResizeObserver(() => resizeVisualEnvironment(runtime))
-  canvasResizeObserver.observe(canvas)
-
-  console.info("main visual environment", {
-    space: runtime.space,
-    hud: runtime.hud,
-    surfaceDisplay: runtime.display,
-    display,
-  })
-  console.info("main importer")
-  return runtime
-}
+console.info("main visual environment", {
+  space: runtime.space,
+  hud: runtime.hud,
+  surfaceDisplay: runtime.display,
+  display,
+})
+console.info("main importer")
 
 /** Добавляет Engine grid как пол Space и направляет на него стартовую камеру. */
 function prepareSpace(runtime: UiRuntime) {
