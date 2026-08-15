@@ -1194,8 +1194,9 @@ load, а Hamiltonian `start` больше не выполняет отдельн
 подтвердил один fetch и один запуск при конкурентных вызовах, cold cache
 restoration без fetch, удаление invalid artifact и successful retry. Focused
 host check и server build прошли; собранный server содержит новый route и
-loader, не читает importer `dist` и не открывает cache `runtime`. Live
-online/offline проверку выполняет владелец.
+loader, не читает importer `dist` и не открывает cache `runtime`. Владелец
+подтвердил live online/offline запуск обоих importers и восстановление их из
+cache `import`.
 
 Подготовительный commit: `181dc748c`.
 
@@ -1247,12 +1248,66 @@ TypeScript endpoint declaration и Service Worker cache rule переведен�
 Результат и вывод: strict builds startup main и Service Worker, focused cache
 routing, focused host check и server build прошли. Source, standalone startup
 artifacts и server bundle содержат `/import-main.js`, сохраняют его в `import`
-и не содержат старого route или literal dynamic import. Live online/offline
-проверку после очистки прежних entries выполняет владелец.
+и не содержат старого route или literal dynamic import. Владелец подтвердил
+live online/offline запуск `/import-main.js` и `/import-service.js` из cache
+`import`.
 
 Подготовительный commit: `297e5730a`.
 
 Result checkpoint: `9bb109cdc`.
+
+### LOAD-001.21 — Передавать Service Worker importer универсальные функции загрузки
+
+Статус и исполнитель: `IN_PROGRESS`; выполняет руководитель текущей задачи
+Codex напрямую, без субагентов.
+
+Классификация: разделение неизменяемых startup primitives и конкретной
+orchestration Service Worker importer перед первым runtime package.
+
+Требование: `web/startup/service/load.ts` предоставляет универсальные функции
+`fetch`, `verify`, `cache`, `read`, `remove` и `run`, которые не знают URL,
+cache name или lifecycle конкретного importer. `startup/service/index.ts` сам
+загружает `/import-service.js`, сохраняет и читает его из cache `import`, затем
+запускает artifact с явно переданным объектом `load`. `@import/service`
+получает эти функции как startup ABI для последующей загрузки runtime packages.
+
+Основание и связанная история: `LOAD-001.19` доказал загрузку и cold
+restoration Service Worker importer, но его `loader.ts` одновременно владеет
+универсальными операциями, конкретным endpoint, cache name и importer
+lifecycle. Владелец уточнил, что transport primitives должны оставаться в
+startup, а importer-specific orchestration — находиться непосредственно в
+Service Worker entrypoint и передавать primitives importer.
+
+Наблюдаемое расхождение: текущий `loadServiceImporter()` скрывает операции
+загрузки внутри importer-specific модуля и выполняет artifact без аргументов,
+поэтому `@import/service` ещё не получает startup-функции, которыми должен
+загружать runtime.
+
+Причина: первый executable handoff `.19` доказывал только сам переход
+`startup → import` и намеренно не определял переиспользуемый ABI.
+
+Разрешённое изменение одного механизма: заменить importer-specific
+`loader.ts` универсальным `load.ts`; перенести request, memoized Promise,
+cache `import`, retry и cleanup в `startup/service/index.ts`; выполнить
+importer source через `run(source, {load})` и дать `@import/service` строгий
+ambient contract переданного объекта. Не добавлять runtime packages, их адреса,
+RPC messages, digest contract, ready/active cache или update behavior.
+
+Regression или опровергающее доказательство: универсальный `load.ts` не
+содержит `/import-service.js`, имени cache `import` или singleton importer;
+`startup/service/index.ts` сохраняет прежние once-only, cold-cache и cleanup
+ветви; artifact `@import/service` запускается только при наличии переданного
+`load` API. Ошибочный HTTP response не сохраняется, а ошибка выполнения удаляет
+конкретный importer entry и допускает retry.
+
+Среда и критерий приёмки: strict checks/builds `@startup/service` и
+`@import/service`, focused tests универсальных функций и передачи ABI, server
+build, artifact inspection и `git diff --check` проходят. Live online/offline
+поведение не должно измениться; повторно его проверяет владелец.
+
+Подготовительный commit:
+
+Result checkpoint:
 
 ## Открытые вопросы
 
@@ -1357,7 +1412,10 @@ importer; владелец подтвердил live-запуск, caches `start
 offline restoration startup вместе с Window importer.
 `LOAD-001.19 — Запускать Service Worker importer через startup loader` находится
 в `REVIEW`: startup loader получает, сохраняет и выполняет `@import/service` без
-runtime packages и RPC contract; live online/offline проверяет владелец.
+runtime packages и RPC contract; live online/offline подтвердил владелец.
 `LOAD-001.20 — Назвать Window importer endpoint по слою import` находится в
 `REVIEW`: `/main.js` заменён на `/import-main.js` без alias и изменения
-поведения; live online/offline проверяет владелец.
+поведения; live online/offline подтвердил владелец.
+Текущий `LOAD-001.21 — Передавать Service Worker importer универсальные функции
+загрузки` находится в `IN_PROGRESS`: startup primitives отделяются от
+конкретной загрузки importer и передаются ему как явный `load` ABI.

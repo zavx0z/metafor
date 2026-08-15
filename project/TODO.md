@@ -151,10 +151,13 @@ cache` находится в `REVIEW`: действующий cache `metafor` п
 владелец подтвердил выполнение importer, caches `startup`, `import` и полное
 offline restoration startup вместе с Window importer. `LOAD-001.19 —
 Запускать Service Worker importer через startup loader` находится в `REVIEW`:
-первый исполняемый переход `startup → import` внутри Worker реализован и ждёт
-live online/offline проверки владельца. Текущий `LOAD-001.20 — Назвать Window
-importer endpoint по слою import` находится в `REVIEW`: `/main.js` заменён на
-`/import-main.js` без alias; live online/offline проверяет владелец. `UPD-002 —
+первый исполняемый переход `startup → import` внутри Worker реализован и вместе
+с `LOAD-001.20` подтверждён владельцем online и offline. `LOAD-001.20 — Назвать
+Window importer endpoint по слою import` находится в `REVIEW`: `/main.js`
+заменён на `/import-main.js` без alias. Текущий `LOAD-001.21 — Передавать
+Service Worker importer универсальные функции загрузки` отделяет startup
+primitives от конкретной загрузки importer и передаёт их importer как явный
+ABI. `UPD-002 —
 Обновлять всю клиентскую сборку через Service Worker` ждёт результата
 `LOAD-001`.
 
