@@ -160,10 +160,11 @@ platform lifecycle и transport adapters могут различаться.
 
 Структурную границу самого Hamiltonian закрепляет
 [`HAM-003 — Разделить Hamiltonian по средам исполнения и механизмам`](tasks/HAM-003.md).
-Она сохраняет одну штатную команду запуска, но отделяет тонкие entrypoints и
-runtime composition от HTTP/REST, publication, control, lifecycle, process,
-peer, browser page и Worker-механизмов. Работа не меняет их предметную
-семантику попутно с переносом и не поглощает отдельные visual- и update-задачи.
+Её выполненные checkpoints описывают отдельно запускаемый прототип и сохраняют
+его устройство как evidence. После принятия clean-room линии `LOAD-001`
+прототип больше не переносится и не раскладывается в новые `web`, `server`,
+`interface` или `internal`; будущий structural срез допустим только для
+самостоятельного механизма прототипа, который владелец выберет отдельно.
 
 ### Наблюдаемость и управление Hamiltonian
 
@@ -218,12 +219,13 @@ Hamiltonian contour. Дальнейшую детализацию topology и к�
 зафиксировали необходимую package-границу и разблокировали
 [`HAM-002 — Собрать визуальный слой Hamiltonian в одном контуре`](tasks/HAM-002.md)
 для независимого запуска, хотя родитель `NODES-009` остаётся открытым для
-дальнейшей работы владельца. `HAM-002` собирает под `hamiltonian/visual`
-оставленные после NODES-009 product-specific projection, composition, панели,
-стили и live presentation. Она не забирает generic
-model, validation, geometry, renderer primitives или layout laws из `nodes` и
-не заменяет поэтапную owner-приёмку `MF-424`. Старый fallback screen удаляется:
-нодовая система остаётся единственным отображением Hamiltonian.
+дальнейшей работы владельца. Выполненные `HAM-002` checkpoints собрали под
+`hamiltonian/visual` product-specific projection, composition, панели, стили и
+live presentation прототипа. Они не забирают generic model, validation,
+geometry, renderer primitives или layout laws из `nodes` и не заменяют
+поэтапную owner-приёмку `MF-424`. В clean-room loader этот source не
+переносится; первый новый Window/Metafor module выбирается отдельно в линии
+`LOAD-001`.
 
 ### Загрузка Hamiltonian
 
@@ -283,10 +285,13 @@ Worker`](tasks/LOAD-001.md). После доказанного loader contract �
 поведения.
 
 Следующий локальный update-шаг начинается после `LOAD-001` и передаёт Service
-Worker ответственность за весь многосоставный выпуск клиентской сборки. Host
-атомарно публикует manifest точных файлов и хешей, Service Worker загружает и
-проверяет полный выпуск, переключает обслуживаемую версию только после
-готовности всех файлов и сообщает страницам о необходимости одного reload.
+Worker ответственность за весь многосоставный сменяемый выпуск после startup:
+importers, `internal`/`metafor` modules и их resources. Неизменяемые HTML,
+`@startup/main` и `@startup/service` в этот выпуск не входят. Host атомарно
+публикует manifest точных artifacts, cache ownership и hashes, Service Worker
+получает bytes через `fetch`, проверяет полный выпуск, переключает
+обслуживаемую версию только после готовности всех artifacts и сообщает
+страницам о необходимости одного reload.
 Ручная версия отдельного испытательного модуля и самостоятельное решение
 страницы по host source fingerprint после этого не остаются параллельными
 механизмами браузерного обновления. Этим результатом владеет

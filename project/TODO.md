@@ -100,19 +100,19 @@ executable Service Worker обновлён до `1.1.3`. Родитель не �
 остаётся текущим местом дальнейшей работы владельца.
 Эти закрытые срезы полностью удовлетворяют прежнюю подготовительную зависимость
 `HAM-002`; открытый родитель `NODES-009` больше не блокирует Hamiltonian.
-`HAM-002` начата: Hamiltonian-specific отображение после `NODES-009` должно
-собраться под `hamiltonian/visual` без переноса lifecycle/control orchestration.
-Bulk и `pkg/visual` не входят в работу. `HAM-002.1` зафиксировала полный import
-graph и атомарную последовательность, `HAM-002.2` удалила legacy fallback
-screen вместе с DOM-only функциональностью. `HAM-002.3` создал приватный
-`@hamiltonian/visual` внутри Hamiltonian и перенёс туда очищенный
-stylesheet нодового canvas без изменения визуального поведения. Текущий
-`HAM-002.4` перенёс в пакет presentation leaf-модули с их unit specs. Текущий
-`HAM-002.5` перенёс Hamiltonian HUD/workspace composition. Текущий
-`HAM-002.6` перенёс изолированный layout Worker entrypoint. По прямому запросу
-владельца `HAM-002.7` поднял постоянный Hamiltonian host через LaunchAgent и
-дал визуальное подтверждение canvas-only нодового UI в dedicated CDP Chrome.
-Следующий structural срез ждёт координации с активным NODES-008 benchmark.
+`HAM-002` собрала Hamiltonian-specific отображение прототипа под
+`hamiltonian/visual` без переноса lifecycle/control orchestration; Bulk и
+`pkg/visual` в работу не входили. `HAM-002.1` зафиксировала import graph,
+`HAM-002.2` удалила legacy fallback screen, `HAM-002.3` создала приватный
+`@hamiltonian/visual`, а `HAM-002.4`–`HAM-002.6` перенесли presentation,
+HUD/workspace composition и изолированный layout Worker entrypoint. По прямому
+запросу владельца `HAM-002.7` подняла постоянный Hamiltonian host через
+LaunchAgent и дала визуальное подтверждение canvas-only нодового UI в dedicated
+CDP Chrome.
+Все эти checkpoints теперь относятся к отдельно запускаемому прототипу.
+Следующего structural среза нет: prototype visual дальше не переносится в
+clean-room loader. Первый Window/Metafor module и место нового visual
+functionality должны быть отдельно выбраны в линии `LOAD-001`.
 
 Начата `LOAD-001 — Загружать браузерный функционал через минимальный Service
 Worker`. Весь прежний Hamiltonian остаётся отдельно запускаемым прототипом.
@@ -126,22 +126,21 @@ Service Worker, восстанавливают HTML/startup offline и запу�
 Владелец подтвердил startup/import offline и текущий internal RPC/WebSocket
 online. `LOAD-001.23` остановлен: Window loader не расширяет startup до
 появления первого реального Window module. До перевода родителя в `REVIEW`
-остаётся подтвердить cold offline restoration internal module и отдельно
-выбрать первый Window/Metafor module либо явно исключить их из минимального
-browser proof. Полный versioned manifest, hashes и атомарное переключение
-многосоставного release принадлежат ожидающей `UPD-002`.
+автоматизированный изолированный Chrome regression уже подтвердил cold offline
+restoration `startup`/`import`/`internal`; остаются canonical live owner
+acceptance и отдельное решение — выбрать первый Window/Metafor module либо явно
+исключить его из минимального browser proof. Полный versioned manifest, hashes
+и атомарное переключение сменяемого набора `import`/`internal`/`metafor`
+принадлежат ожидающей `UPD-002`; неизменяемый startup в этот выпуск не входит.
 
 `HAM-003 — Разделить Hamiltonian по средам исполнения и механизмам` остаётся
-`IN_PROGRESS`. Широкий object-oriented срез `HAM-003.8` отклонён владельцем и
-полностью откачен. Корректирующий `HAM-003.9` находится в `REVIEW`: корневой
-`server.ts` непосредственно объявляет единственный singleton `Bun.serve` с
-literal routes, русским TSDoc, всеми HTTP conditions и полной WebSocket
-поверхностью; `createHamiltonianHost`, server factory и второй listener
-отсутствуют. Полный Hamiltonian suite и перезапущенный persistent contour
-зелёные, peer восстановлен и подтверждён владельцем. Следующая предметная
-декомпозиция server runtime не смешивается с этим принятым входным boundary и
-будет выполняться отдельно под пошаговым owner review. Поведение `HAM-002` и
-`UPD-002` попутно не менялось.
+`IN_PROGRESS`, но активного среза не имеет. Широкий object-oriented срез
+`HAM-003.8` отклонён и откачен; принятый `HAM-003.9` теперь является prototype
+checkpoint и сохранён в `server_proto.ts`. Clean-room `server.ts`,
+`web/startup`, `web/import` и `internal` принадлежат `LOAD-001` и не являются
+продолжением refactor старого Hamiltonian. Перед следующим срезом владелец
+отдельно выбирает механизм, который ещё нужен самому прототипу и не пересекает
+`LOAD-001`/`UPD-002`.
 
 | ID     | Состояние   | Зависимости | Карточка                   |
 | ------ | ----------- | ----------- | -------------------------- |
