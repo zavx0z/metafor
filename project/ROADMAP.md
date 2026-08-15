@@ -127,7 +127,7 @@ MetaFor Create. Она не является отдельным инфрастр
 и на скольких устройствах они воплощены.
 
 Hamiltonian может иметь Bun-, Service-Worker- и Window-воплощения, оставаясь
-одним целым. Он выдаёт bootstrap и versioned code, переносит signaling,
+одним целым. Он выдаёт startup и versioned code, переносит signaling,
 выбирает место запуска и инициирует новое воплощение. Он не становится
 каноническим Store, не принимает Particle вместо Dark и не остаётся relay
 обычного realtime-трафика после знакомства доменов.
@@ -185,7 +185,7 @@ waypoints; ручной drag остаётся отдельной generic воз�
 lifecycle actions остаётся у Hamiltonian.
 `pkg/visual` не становится владельцем инфраструктурного графа мира.
 Hamiltonian-specific projection, composition, presentation и HUD собираются в
-`hamiltonian/visual`; невизуальные lifecycle, control и bootstrap остаются в
+`hamiltonian/visual`; невизуальные lifecycle, control и startup остаются в
 orchestration.
 
 Browser-local realtime проекции идёт через versioned `BroadcastChannel`. Это

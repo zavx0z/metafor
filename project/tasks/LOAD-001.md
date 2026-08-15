@@ -627,7 +627,7 @@ Result checkpoint: ожидается.
 
 ### LOAD-001.10 — Собирать bootstrap внутри владельца routes
 
-Статус и исполнитель: `IN_PROGRESS`; выполняет руководитель текущей задачи
+Статус и исполнитель: `REVIEW`; выполнял руководитель текущей задачи
 Codex напрямую, без субагентов.
 
 Классификация: уточнение build-владельца неизменяемого browser bootstrap после
@@ -663,6 +663,55 @@ Regression или опровергающее доказательство: macro
 
 Среда и критерий приёмки: strict host и package checks, macro/server builds и
 `git diff --check` проходят; штатный запуск выполняет владелец.
+
+Фактические действия: `web/bootstrap/macro.ts` запускает package-owned
+typechecks и отдельные Bun CLI browser builds через `Bun.spawnSync`, потому что
+вложенный `Bun.build` внутри macro запрещён самим bundler как deadlock. Macro
+возвращает JavaScript в `web/bootstrap/routes.ts`; `web/routes.ts` только
+собирает группы `static` и `bootstrap`. Из `start` удалены отдельные builds
+`@web/import` и `@web/service`, а build `@web/main` сохранён.
+
+Результат и вывод: strict host/macro checks и server build проходят. Server
+bundle содержит оба bootstrap artifacts и внешний `import("/main.js")`, не
+содержит чтения `web/import/dist` или `web/service/dist`. Штатный runtime
+владелец ещё не запускал.
+
+Подготовительный commit: `ad60dee6a`.
+
+Result checkpoint: ожидается.
+
+### LOAD-001.11 — Принять startup как термин начальной загрузки
+
+Статус и исполнитель: `IN_PROGRESS`; выполняет руководитель текущей задачи
+Codex напрямую, без субагентов.
+
+Классификация: принятое владельцем терминологическое изменение нового loader и
+действующего архитектурного описания начальной загрузки.
+
+Требование: начальная неизменяемая загрузка Hamiltonian называется `startup`,
+а не `bootstrap`. Новый loader использует directory `web/startup`, identifiers
+`startup` и `Startup`, сообщения ошибок и TypeDoc с этим термином. Действующая
+документация использует `startup` в том же смысле.
+
+Основание и связанная история: `LOAD-001.10` выделил отдельную route-группу с
+macro, importer и Service Worker code. Владелец выбрал `startup`, потому что это
+канонический смысл начального запуска и имя получает отдельную Init icon в Atom
+Material Icons.
+
+Наблюдаемое расхождение: новый directory, code identifiers и документация пока
+используют прежнее слово `bootstrap`, хотя принято другое имя понятия.
+
+Разрешённое изменение одного механизма: переименовать новый LOAD-001 directory,
+API, TSDoc и релевантную архитектурную прозу в `startup`. Не менять поведение,
+URL endpoints и cache contents. Не рефакторить executable identifiers старого
+прототипа и независимые одноимённые механизмы других доменов.
+
+Regression или опровергающее доказательство: в новом `hamiltonian/web`, его
+server bindings и LOAD-001 документации не остаётся `bootstrap`; build output и
+HTTP endpoints совпадают с предыдущим срезом; старый prototype diff отсутствует.
+
+Среда и критерий приёмки: strict host/Worker checks, startup macro/server build
+и `git diff --check` проходят; `rg` подтверждает терминологическую границу.
 
 Подготовительный commit: текущий project-коммит.
 
@@ -742,7 +791,8 @@ implementation решением владельца, Fullstack-срез `LOAD-001
 диагностики HMR. Регистрация, control WebSocket, статические browser builds и
 offline bootstrap находятся в `REVIEW`; `LOAD-001.7` подтверждён владельцем.
 `LOAD-001.8` находится в `REVIEW` после offline-получения управляющего main,
-`LOAD-001.9` — после реализации единого SPA navigation fallback. Текущий
-`LOAD-001.10 — Собирать bootstrap внутри владельца routes` переносит сборку
-`@web/import` и `@web/service` в macro рядом с bootstrap routes. Worker
-functionality остаётся следующим отдельным срезом.
+`LOAD-001.9` — после реализации единого SPA navigation fallback, `LOAD-001.10` —
+после переноса сборки в route macro. Текущий `LOAD-001.11 — Принять startup как
+термин начальной загрузки` переименовывает новый loader и действующее описание
+его понятия без изменения поведения. Worker functionality остаётся следующим
+отдельным срезом.
