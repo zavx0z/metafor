@@ -1201,6 +1201,49 @@ online/offline проверку выполняет владелец.
 
 Result checkpoint: `de20a6f34`.
 
+### LOAD-001.20 — Назвать Window importer endpoint по слою import
+
+Статус и исполнитель: `IN_PROGRESS`; выполняет руководитель текущей задачи
+Codex напрямую, без субагентов.
+
+Классификация: согласование публичного HTTP-имени Window importer с уже
+принятыми package и cache boundaries.
+
+Требование: `@import/main` выдаётся и импортируется как `/import-main.js`.
+Server route, startup dynamic import, Bun external, TypeScript endpoint
+declaration и Service Worker cache rule используют одно имя.
+
+Основание и связанная история: `LOAD-001.15` перенёс package в `@import/main`,
+`LOAD-001.18` перенёс artifact в cache `import`, а `LOAD-001.19` добавил
+симметричный `/import-service.js`. Прежнее HTTP-имя `/main.js` осталось от
+двухуровневой архитектуры.
+
+Наблюдаемое расхождение: Service Worker importer уже называется
+`/import-service.js`, тогда как Window importer того же слоя всё ещё выдаётся
+без layer prefix как `/main.js`.
+
+Причина: package и cache ownership менялись отдельными срезами без изменения
+ранее доказанного HTTP endpoint.
+
+Разрешённое изменение одного механизма: заменить `/main.js` на
+`/import-main.js` во всех действующих producer и consumer нового loader. Не
+оставлять alias или redirect, не менять cache policy, importer code, RPC,
+runtime packages или update behavior.
+
+Regression или опровергающее доказательство: source и собранные artifacts не
+содержат literal `import("/main.js")`, route `/main.js` или cache condition для
+старого pathname. `/import-main.js` по-прежнему сохраняется в `import` и
+восстанавливается offline.
+
+Среда и критерий приёмки: strict checks/builds startup main и Service Worker,
+focused cache routing, server build, artifact inspection и `git diff --check`
+проходят. Live online/offline import после очистки прежних entries проверяет
+владелец.
+
+Подготовительный commit: ожидается.
+
+Result checkpoint: ожидается.
+
 ## Открытые вопросы
 
 * Как выглядит минимальный message contract между main и Service Worker?
@@ -1305,3 +1348,6 @@ offline restoration startup вместе с Window importer.
 `LOAD-001.19 — Запускать Service Worker importer через startup loader` находится
 в `REVIEW`: startup loader получает, сохраняет и выполняет `@import/service` без
 runtime packages и RPC contract; live online/offline проверяет владелец.
+`LOAD-001.20 — Назвать Window importer endpoint по слою import` является
+текущим срезом: `/main.js` заменяется на `/import-main.js` без alias и изменения
+поведения.

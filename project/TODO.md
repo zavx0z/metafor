@@ -152,7 +152,9 @@ cache` находится в `REVIEW`: действующий cache `metafor` п
 offline restoration startup вместе с Window importer. Текущий `LOAD-001.19 —
 Запускать Service Worker importer через startup loader` находится в `REVIEW`:
 первый исполняемый переход `startup → import` внутри Worker реализован и ждёт
-live online/offline проверки владельца. `UPD-002 — Обновлять всю
+live online/offline проверки владельца. Текущий `LOAD-001.20 — Назвать Window
+importer endpoint по слою import` переименовывает `/main.js` в
+`/import-main.js` без alias. `UPD-002 — Обновлять всю
 клиентскую сборку через Service Worker` ждёт результата `LOAD-001`.
 
 `HAM-003 — Разделить Hamiltonian по средам исполнения и механизмам` остаётся
