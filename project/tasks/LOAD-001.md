@@ -1027,8 +1027,8 @@ Result checkpoint: `6f539f0fe`.
 
 ### LOAD-001.17 — Хранить startup в отдельном cache
 
-Статус и исполнитель: `IN_PROGRESS`; выполняет руководитель текущей задачи
-Codex напрямую, без субагентов.
+Статус и исполнитель: `REVIEW`; выполнил руководитель текущей задачи Codex
+напрямую, без субагентов.
 
 Классификация: отдельное именование уже работающего Cache Storage после
 принятого владельцем разделения `startup`, `import` и `runtime`.
@@ -1062,7 +1062,17 @@ Regression или опровергающее доказательство: sourc
 host check, server build, artifact inspection и `git diff --check` проходят.
 Runtime-проверку после ручной очистки прежнего cache выполняет владелец.
 
-Подготовительный commit: ожидается.
+Фактические действия: оба открытия Cache Storage в startup Service Worker
+переведены с `metafor` на `startup`. Cache inventory, cache-first behavior,
+lazy asset writes и offline responses не изменены.
+
+Результат и вывод: strict package check, focused host check и server build
+прошли. Source, standalone Worker artifact и server bundle открывают только
+`startup`; ранних открытий `metafor`, `import` и `runtime` нет. Старый cache
+не удаляется и не переносится автоматически; live-проверка после ручной
+очистки остаётся за владельцем.
+
+Подготовительный commit: `70d500476`.
 
 Result checkpoint: ожидается.
 
@@ -1160,6 +1170,6 @@ importer в слой import` находится в `REVIEW`: `@web/main` пер�
 `@import/main` без изменения endpoint или поведения. `LOAD-001.16 — Создать
 Service Worker importer в слое import` находится в `REVIEW`: companion package
 `@import/service` создан без подключения runtime behavior.
-`LOAD-001.17 — Хранить startup в отдельном cache` является текущим срезом:
-он заменяет прежнее имя `metafor` на `startup`, не создавая заранее caches
-`import` и `runtime`.
+`LOAD-001.17 — Хранить startup в отдельном cache` находится в `REVIEW`: прежнее
+имя `metafor` заменено на `startup` без раннего создания caches `import` и
+`runtime`; live-проверка владельца требует ручной очистки прежнего cache.

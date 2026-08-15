@@ -144,10 +144,10 @@ response. `LOAD-001.14 — Назвать startup scripts по их владел
 import` находится в `REVIEW`: `@web/main` перенесён в `@import/main` без
 изменения поведения и HTTP endpoint. `LOAD-001.16 — Создать Service Worker
 importer в слое import` находится в `REVIEW`: `@import/service` создан без
-подключения runtime behavior. Текущий `LOAD-001.17 — Хранить startup в
-отдельном cache` переименовывает только действующий cache `metafor` в
-`startup`; caches `import` и `runtime` будут созданы лениво следующими
-механизмами. `UPD-002 — Обновлять всю
+подключения runtime behavior. `LOAD-001.17 — Хранить startup в отдельном
+cache` находится в `REVIEW`: действующий cache `metafor` переименован в
+`startup`, а caches `import` и `runtime` не создаются заранее. Live-проверку
+после ручной очистки прежнего cache выполняет владелец. `UPD-002 — Обновлять всю
 клиентскую сборку через Service Worker` ждёт результата `LOAD-001`.
 
 `HAM-003 — Разделить Hamiltonian по средам исполнения и механизмам` остаётся

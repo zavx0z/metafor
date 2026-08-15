@@ -20,7 +20,7 @@ const startup = [
  * пустой `503` для недоступного asset.
  */
 export async function cacheFirst(request: Request) {
-  const cache = await caches.open("metafor")
+  const cache = await caches.open("startup")
   const response = await cache.match(request.mode === "navigate" ? "/" : request, {ignoreVary: true})
   if (response) return response
 
@@ -51,7 +51,7 @@ export async function cacheFirst(request: Request) {
  * unsuccessful status.
  */
 export async function cacheStartup() {
-  const cache = await caches.open("metafor")
+  const cache = await caches.open("startup")
   await Promise.all(startup.map((resource) => cacheResource(cache, resource)))
 }
 
