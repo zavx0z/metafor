@@ -1,4 +1,4 @@
-import {moduleCacheName} from "./storage"
+import {moduleCacheName} from "./loader"
 
 const startup = [
   "/",
@@ -11,8 +11,8 @@ const startup = [
  * вложенный SPA-адрес не создаёт отдельную cache-запись. Для остальных
  * requests возвращает response точного URL и обращается к network только при
  * cache miss. `/import-main.js` обслуживается через cache `import`.
- * Module endpoints обслуживаются через cache, названный их слоем: `internal`
- * или будущий `metafor`. Остальные requests проходят через cache `startup`.
+ * Module endpoints обслуживаются через cache, ранее переданный importer.
+ * Остальные requests проходят через cache `startup`.
  * Успешный network fallback для `/import-main.js`, module endpoints и
  * `/assets/*` сохраняется после первого реального запроса браузера; остальные
  * startup endpoints добавляет только {@link cacheStartup}.

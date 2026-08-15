@@ -1,4 +1,18 @@
-import {moduleCacheName} from "./storage"
+/** Описание одного module, выбранное обновляемым importer. */
+export interface Module {
+  /** Стабильный HTTP endpoint module. */
+  endpoint: string
+
+  /** Cache Storage, принадлежащий module. */
+  cache: string
+}
+
+const modules = new Map<string, string>()
+
+/** Возвращает cache, ранее переданный importer для точного request. */
+export function moduleCacheName(request: Request) {
+  return modules.get(request.url) ?? null
+}
 
 /** Проверяет, что полученный HTTP response можно использовать дальше. */
 export function verify(response: Response) {
@@ -30,21 +44,20 @@ export async function remove(name: string, request: Request) {
  * повторяет механизм их доставки.
  * Ошибка удаляет только entry переданного module и допускает следующий retry.
  *
- * @param endpoint - Стабильный HTTP endpoint module.
+ * @param module - Endpoint и cache, выбранные обновляемым importer.
  * @returns Результат выполнения сохранённого source.
  */
-export async function importModule(endpoint: string) {
-  const request = new Request(new URL(endpoint, location.origin))
-  const cacheName = moduleCacheName(request)
-  if (!cacheName) throw new Error(`Unsupported module endpoint ${request.url}`)
+export async function importModule(module: Module) {
+  const request = new Request(new URL(module.endpoint, location.origin))
+  modules.set(request.url, module.cache)
 
   try {
-    let response = await read(cacheName, request)
+    let response = await read(module.cache, request)
 
     if (!response) {
       response = verify(await fetch(request))
-      await cache(cacheName, request, response)
-      response = await read(cacheName, request)
+      await cache(module.cache, request, response)
+      response = await read(module.cache, request)
     }
 
     if (!response) throw new Error(`Cached module ${request.url} is missing`)
@@ -52,7 +65,7 @@ export async function importModule(endpoint: string) {
     verify(response)
     return run(await response.text())
   } catch (error) {
-    await remove(cacheName, request)
+    await remove(module.cache, request)
     throw error
   }
 }

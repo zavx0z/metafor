@@ -7,6 +7,7 @@
  */
 
 import type * as Loader from "../../startup/service/loader"
+import {rpc} from "./storage"
 
 /**
  * Формирует Service Worker-контур из internal и будущих Metafor modules.
@@ -15,5 +16,5 @@ import type * as Loader from "../../startup/service/loader"
  */
 export default async function importService(loader: typeof Loader) {
   console.info("service importer", Object.keys(loader))
-  await loader.importModule("/internal/rpc")
+  await loader.importModule(rpc)
 }
