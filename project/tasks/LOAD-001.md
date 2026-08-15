@@ -2,10 +2,12 @@
 
 ## Коротко
 
-Новый браузер получает только минимальные HTML, importer и Service Worker.
-После захвата страницы Worker загружает сменяемый функционал с того же HTTPS
-server, сохраняет его в cache и только затем предоставляет main-процессу для
-запуска. WebSocket сообщает о будущих обновлениях.
+Новый browser code разделён на три последовательных уровня: `startup`,
+`import` и `runtime`. Минимальный startup получает управление, запускает
+importers в Window и Service Worker, а уже они загружают сменяемые runtime
+packages и запускают их в выбранном execution context. Runtime package не
+закрепляется именем за Window или Service Worker и может быть размещён также в
+Dedicated Worker.
 
 Прежний Hamiltonian остаётся отдельно запускаемым прототипом. Новый loader
 создаётся с нуля в чистых source-директориях и не получает перенесённый
@@ -89,16 +91,24 @@ Evidence-backed gate выполнен в
 ## Решения владельца
 
 * Направление называется `LOAD`, потому что владеет загрузкой, а не обновлением.
+* Browser code имеет три последовательных уровня: неизменяемый `startup`,
+  environment-specific `import` и сменяемый `runtime`. Startup не является
+  runtime и не исполняет его предметное поведение самостоятельно.
+* `main` и `service` в именах `@import/main` и `@import/service` обозначают
+  среду importer, а не вид загружаемого runtime package. Runtime состоит из
+  разных функциональных пакетов; их имена не зеркалят Window, Dedicated Worker
+  или Service Worker, а placement одного пакета может между ними меняться.
+  Фиксированные runtime-пакеты `@web/main` и `@web/service` не создаются.
 * Минимальный package определяется до полного browser functional release.
 * Package состоит из минимальных HTML, main-процесса и неизменяемой Service
   Worker оболочки.
 * В первом контуре Service Worker знает один signaling Hamiltonian peer.
-* Service Worker загружает первоначальные сменяемые части с того же HTTPS host,
-  готовит их в origin-bound cache, предоставляет main-процессу кэшированные
-  endpoints и запускает предназначенную ему сменяемую часть. WebSocket только
-  сигнализирует о будущем обновлении.
+* Startup Service Worker открывает WebSocket, а importers получают через
+  согласованные transports первоначальные runtime packages, проверяют и
+  готовят их в origin-bound cache. Первоначальные packages через
+  `@import/service` доставляются по WebSocket.
 * Minimal main устанавливает связь с Service Worker, запрашивает готовность
-  подготовленного cache и запускает предназначенный Window functionality.
+  подготовленного cache и запускает `@import/main`, но не runtime напрямую.
 * Сменяемый functionality состоит из нескольких частей, а не одного
   обязательного bundle.
 * Каталог адресов нескольких signaling peers и peer-security обсуждаются и
@@ -108,20 +118,28 @@ Evidence-backed gate выполнен в
   прежние `browser`, `core`, `public`, `update`, `visual` и остальные исходники
   также принадлежат прототипу.
 * Новая реализация создаётся с нуля рядом в `web`, `server` и `interface`.
-  Минимальные browser entrypoint `web/startup/main`, `web/startup/service` и
-  `web/main` оформлены workspace-пакетами `@startup/main`, `@startup/service`
-  и `@web/main`, потому что каждый требует строгой проверки и собственной
-  статической сборки. Остальные вложенные boundaries пакетами автоматически
-  не становятся.
+  Неизменяемые browser entrypoint находятся в `web/startup/main` и
+  `web/startup/service`, а environment-specific importers — в
+  `web/import/main` и `web/import/service`. Они оформляются workspace-пакетами
+  `@startup/main`, `@startup/service`, `@import/main` и `@import/service`, потому
+  что каждый требует строгой проверки в своей runtime-среде. Физическая и
+  package-граница сменяемого `runtime` определяется его функциональностью, а не
+  execution context, и уточняется последующими срезами.
 * Fullstack runtime bundling HTML/main отклонён из-за Bun HMR и неподходящего
   runtime URL importer. HTML остаётся статическим, оба browser entrypoint
   собираются заранее, а `server.ts` только выдаёт готовые bytes.
 * `web/startup/main` владеет минимальным main-потоком: получает от Service
-  Worker готовый кэшированный endpoint и импортирует модуль.
-* `web/main` владеет первым управляющим Window-модулем. После получения
-  controller importer запрашивает его обычным dynamic import; Worker на cache
-  miss получает artifact с того же server, сохраняет и только затем возвращает
-  response. Первоначальный код не передаётся по WebSocket.
+  Worker готовый кэшированный endpoint и запускает `@import/main`.
+* `web/import/main` владеет Window importer, а `web/import/service` — Service
+  Worker importer. Текущий `web/main` и пакет `@web/main` являются заготовкой
+  первого из них и переименовываются в `web/import/main` и `@import/main`.
+  Оба importer загружают runtime packages и не являются runtime; их имена
+  определяют место работы importer, но не навсегда закрепляют placement
+  загруженного package.
+* Service Worker importer получает первоначальные runtime packages через
+  открытый startup-оболочкой WebSocket. Точный message contract, проверка
+  bytes, выбор execution context, публикация cache и ABI запуска фиксируются
+  отдельными последовательными срезами.
 * `web/startup/service` владеет минимальной неизменяемой оболочкой Service
   Worker: перехватывает первоначальные requests, готовит кэшированные endpoints
   и сообщает main-потоку о готовности. Вместе `web/startup/main` и
@@ -137,16 +155,16 @@ Evidence-backed gate выполнен в
 
 ## Целевой минимальный путь
 
-1. HTTPS host возвращает минимальные HTML, importer и Service Worker.
+1. HTTPS host возвращает минимальные HTML и startup entrypoints.
 1. Minimal main регистрирует Worker, дожидается управления страницей и
-   импортирует управляющий Window functionality.
+   запускает Window importer.
 1. Service Worker открывает WSS к единственному известному signaling peer.
-1. Первый request functionality проходит через Worker к HTTPS host; Worker
-   сохраняет response до его возврата вызывающему import.
-1. Worker получает собственную сменяемую часть тем же HTTP/cache путём и
-   запускает её через согласованный ABI.
+1. Importers получают runtime packages согласованным transport, проверяют и
+   сохраняют их до запуска.
+1. Каждый runtime package запускается через согласованный ABI в выбранном
+   Window, Dedicated Worker или Service Worker context.
 1. Только готовый cache публикуется как набор same-origin endpoints.
-1. После остановки Worker обе части восстанавливаются из подготовленного cache.
+1. После остановки Worker готовые packages восстанавливаются из cache.
 
 ## Поведение процесса
 
@@ -157,13 +175,14 @@ package architecture не создаётся. Диагностический Ful
 
 Первая navigation теперь доказала регистрацию, переход страницы под управление
 Worker, создание постоянного startup cache и открытие control WebSocket.
-Текущий срез доказывает первый Window functionality: importer после получения
-controller импортирует `/main.js`, а Worker сохраняет первый network response
-до выполнения модуля. WebSocket остаётся сигналом будущего обновления.
+Принятые срезы доказали получение `/main.js` после controller и сохранение его
+первого network response. Решение владельца уточнило его роль: этот artifact
+становится `@import/main`, а не Window runtime. Следующий срез переносит его в
+import-слой без изменения поведения; затем отдельно создаётся
+`@import/service` и только после этого реализуется загрузка runtime code.
 
-Затем отдельным причинным механизмом регистрируется загрузка и запуск
-Service Worker functionality через HTTP/cache. Каждый новый механизм получает
-отдельную последовательную подзадачу и checkpoint.
+Каждый новый механизм получает отдельную последовательную подзадачу и
+checkpoint.
 
 ## Подзадачи
 
@@ -893,37 +912,81 @@ Runtime-проверка владельца требует очистить пр
 
 Result checkpoint: `335f321ad`.
 
+### LOAD-001.15 — Перенести Window importer в слой import
+
+Статус и исполнитель: `IN_PROGRESS`; выполняет руководитель текущей задачи
+Codex напрямую, без субагентов.
+
+Классификация: новый package-ownership срез после принятого владельцем
+трёхуровневого browser path `startup → import → runtime`.
+
+Требование: текущая заготовка `web/main` переносится в `web/import/main`, а
+workspace-пакет `@web/main` переименовывается в `@import/main`. Он становится
+Window importer между `@startup/main` и будущими runtime packages. Он не
+резервирует имя или placement runtime. HTTP endpoint `/main.js` и исполняемое
+поведение в этом срезе не изменяются.
+
+Основание и связанная история: `LOAD-001.8` ввёл `/main.js` как первый
+управляющий Window artifact, а `LOAD-001.12` оставил его отдельным
+`@web/main`. Владелец уточнил, что browser code состоит из трёх уровней и
+текущий artifact принадлежит промежуточному import-слою, а не runtime.
+
+Наблюдаемое расхождение: directory и package name называют artifact Window
+runtime, хотя в принятой архитектуре это Window importer.
+
+Причина: прежняя двухуровневая граница `startup → functionality` была заменена
+точной трёхуровневой границей `startup → import → runtime`.
+
+Разрешённое изменение одного механизма: перенести directory, переименовать
+package и обновить workspace, typecheck, build и server references. Не
+создавать `@import/service`, не реализовывать runtime import, не менять
+`/main.js`, cache policy, WebSocket protocol или executable behavior.
+
+Regression или опровергающее доказательство: Bun workspace обнаруживает
+`@import/main` и не обнаруживает `@web/main`; package проходит прежние strict
+typecheck/build, server bundle продолжает содержать внешний `import("/main.js")`.
+
+Среда и критерий приёмки: package typecheck/build, focused host check, server
+build, artifact inspection и `git diff --check` проходят. Runtime behavior не
+меняется и отдельно в этом package-only срезе не принимается.
+
+Подготовительный commit: ожидается.
+
+Result checkpoint: ожидается.
+
 ## Открытые вопросы
 
 * Как выглядит минимальный message contract между main и Service Worker?
-* Как называются cached endpoints и как main получает предназначенный ему
-  entrypoint?
+* Как называются cached endpoints и как importer получает выбранные runtime
+  packages и их placement?
 * Как Worker атомарно различает preparing, ready и active cache?
 * Как восстанавливается готовый functionality после остановки и нового запуска
   Service Worker без доступного HTTPS host?
-* Какой минимальный ABI предоставляет сменяемая Worker-часть стабильным
-  обработчикам событий?
+* Какой минимальный ABI используют runtime packages при запуске в Window,
+  Dedicated Worker и Service Worker?
 
 ## Границы
 
 Входит:
 
 * source-директории `web`, `server`, `interface` и отдельные workspace-пакеты
-  `@startup/main`, `@startup/service` и `@web/main` для browser entrypoints;
+  `@startup/main`, `@startup/service`, `@import/main` и `@import/service` для
+  browser entrypoints;
 * статические HTML/main/Service Worker artifacts без Bun HMR;
 * сохранение отдельно запускаемого прототипа через `server_proto.ts`;
 * минимальный HTML/main/Service Worker startup;
-* один signaling peer и WebSocket update signal;
+* один signaling peer и WebSocket transport первоначальных runtime packages;
 * несколько сменяемых proof parts;
 * origin-bound cache и same-origin cached endpoints;
-* запуск Window- и Service Worker-частей;
+* запуск runtime packages в выбранном browser execution context;
 * повторный запуск из уже готового cache.
 
 Не входит:
 
 * рефакторинг или перенос прежнего Hamiltonian в новые source-директории;
 * другие package manifests, workspace packages и package exports новой
-  реализации кроме `@startup/main`, `@startup/service` и `@web/main`;
+  реализации кроме `@startup/main`, `@startup/service`, `@import/main` и
+  `@import/service`;
 * создание общего `interface` contract до двух реализаций;
 * полный production artifact inventory и update-transition `UPD-002`;
 * каталог или выбор нескольких signaling peers;
@@ -938,10 +1001,12 @@ Result checkpoint: `335f321ad`.
 * Первый navigation получает только согласованный минимальный package.
 * Minimal main устанавливает Service Worker и не загружает прикладной
   functionality напрямую со static host routes.
-* Service Worker получает первоначальные Window- и Worker-части с того же HTTPS
-  server, проверяет их и публикует только целиком готовый cache.
-* Main запускает Window entrypoint через cached endpoint Service Worker.
-* Service Worker запускает свою сменяемую часть через согласованный ABI.
+* Startup запускает `@import/main` и `@import/service`, но не runtime напрямую.
+* Importers получают первоначальные runtime packages согласованным transport,
+  проверяют их и публикуют только целиком готовый cache.
+* Runtime package запускается через согласованный ABI в выбранном Window,
+  Dedicated Worker или Service Worker context без привязки package name к
+  placement.
 * Interrupted или неверная доставка не становится ready/active cache.
 * После остановки Worker новый execution восстанавливает готовый functionality
   из cache без повторной обязательной доставки.
@@ -951,11 +1016,12 @@ Result checkpoint: `335f321ad`.
 ## Проверка результата
 
 * Frozen contract tests минимального package и main/Worker handoff.
-* HTTP/cache tests нескольких частей, interruption, invalid bytes и retry.
+* HTTP/WebSocket/cache tests нескольких packages, interruption, invalid bytes
+  и retry.
 * Cache tests preparing/ready/active, atomic publication и cold restoration.
 * Service Worker fetch tests cached endpoints.
-* Browser test первого install, перехода под Worker control и запуска Window
-  functionality без прямой static загрузки.
+* Browser test первого install, перехода под Worker control и запуска runtime
+  package через importer без прямой static загрузки.
 * Browser test остановки и нового запуска Worker с восстановлением cache.
 * Строгие host/WebWorker TypeScript checks и `git diff --check`.
 * Живой owner-сценарий в canonical Hamiltonian contour до объявления готовности.
@@ -977,4 +1043,6 @@ offline startup находятся в `REVIEW`; `LOAD-001.7` подтвержд�
 `REVIEW`: expected offline failure ограничен одним контролируемым response.
 `LOAD-001.14 — Назвать startup scripts по их владельцу` находится в `REVIEW`:
 два HTTP script URL согласованы с package boundary без compatibility aliases;
-runtime-проверка владельца остаётся открытой.
+runtime-проверка владельца остаётся открытой. Текущий `LOAD-001.15 — Перенести
+Window importer в слой import` переносит `@web/main` в `@import/main` без
+изменения endpoint или поведения.

@@ -234,13 +234,17 @@ model, validation, geometry, renderer primitives или layout laws из `nodes`
 они не являются source base нового Hamiltonian.
 
 Новая реализация создаётся с нуля рядом в source-директориях `web`, `server` и
-`interface`. Browser startup реализуют `web/startup/main` и
-`web/startup/service`; server-аналоги появляются позднее, а общий договор
-выделяется в `interface` только после двух фактических реализаций. Минимальные
-browser entrypoint оформлены отдельными workspace-пакетами `@startup/main`,
-`@startup/service` и `@web/main` со строгой проверкой и статической сборкой.
-Остальные вложенные механизмы не становятся пакетами без отдельного решения
-владельца.
+`interface`. Browser code проходит три последовательных уровня: неизменяемый
+`startup`, environment-specific `import` и сменяемый `runtime`. Startup
+реализуют `web/startup/main` и `web/startup/service`, importers —
+`web/import/main` и `web/import/service`; server-аналоги появляются позднее, а
+общий договор выделяется в `interface` только после двух фактических
+реализаций. Минимальные browser entrypoint оформлены отдельными
+workspace-пакетами `@startup/main`, `@startup/service`, `@import/main` и
+`@import/service` со строгой проверкой для своей среды. Runtime состоит из
+разных функциональных packages: их имена не зеркалят execution context, а один
+package может размещаться в Window, Dedicated Worker или Service Worker.
+Фиксированные runtime-пакеты `@web/main` и `@web/service` не создаются.
 
 Fullstack runtime bundling HTML/main отклонён после появления Bun HMR и
 неподходящего runtime URL importer. `server.ts` выдаёт неизменяемый HTML и
@@ -249,12 +253,11 @@ Fullstack runtime bundling HTML/main отклонён после появлен�
 mechanism.
 
 Отдельная линия `LOAD` владеет первоначальной загрузкой браузерного функционала
-Hamiltonian. Первый HTTPS response доставляет только минимальные HTML,
-importer и неизменяемую Service Worker оболочку. После получения управления
-Worker первоначальные сменяемые модули загружаются с того же HTTPS server через
-перехваченные requests, сохраняются в origin-bound cache и только затем
-возвращаются вызывающему import. WebSocket сообщает об обновлениях, но не
-является обязательным transport первоначального кода.
+Hamiltonian. Первый HTTPS response доставляет только минимальные HTML и startup
+entrypoints. Startup запускает importers в Window и Service Worker; они получают
+runtime packages согласованным transport, проверяют и сохраняют их до запуска в
+выбранном Window, Dedicated Worker или Service Worker context. Первоначальные
+runtime packages через Service Worker importer доставляются по WebSocket.
 
 Первый этап использует один signaling Hamiltonian peer и не проектирует каталог
 адресов нескольких peers. Его результатом владеет
