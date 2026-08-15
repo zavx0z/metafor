@@ -790,6 +790,48 @@ focused host check и server bundle проходят. Собранный main с
 
 Result checkpoint: `9dd5030b4`.
 
+### LOAD-001.13 — Не отклонять запрос отсутствующего asset без сети
+
+Статус и исполнитель: `IN_PROGRESS`; выполняет руководитель текущей задачи
+Codex напрямую, без субагентов.
+
+Классификация: отдельная error-handling граница lazy asset cache после
+подтверждённой offline-загрузки startup.
+
+Требование: если `/assets/*` отсутствует в Cache Storage, а network request
+отклонён, Service Worker завершает `FetchEvent` контролируемым `503 Response`.
+Неуспешный response не сохраняется. Cache hit и успешная первоначальная загрузка
+asset сохраняют прежнее поведение; ошибки startup, navigation и `/main.js` этим
+срезом не скрываются.
+
+Основание и связанная история: `LOAD-001.7` оставил assets в политике
+cache-on-first-request, чтобы не сохранять весь тяжёлый manifest inventory.
+Owner-проверка offline показала rejected `FetchEvent` для отсутствующих icon
+assets; после изменения browser cache state ошибка исчезла, но исполняемая
+ветвь `fetch()` без обработки осталась.
+
+Наблюдаемое расхождение: при одновременном cache miss и недоступной сети
+`cacheFirst()` отклоняет promise, поэтому DevTools показывает `Uncaught (in
+promise)` для Service Worker event вместо контролируемого HTTP response.
+
+Причина: network fallback вызывается без обработки rejected `fetch()`.
+
+Разрешённое изменение одного механизма: обработать только network exception
+для pathname `/assets/*` и вернуть пустой `503 Response`. Не добавлять asset
+precache, placeholder, retry, logging, новый cache и обработку других URL.
+
+Regression или опровергающее доказательство: cached asset возвращается без
+network; успешный asset response возвращается и сохраняется; rejected asset
+fetch возвращает status `503`; rejected non-asset fetch остаётся rejected.
+
+Среда и критерий приёмки: focused cache probe, strict `@startup/service`
+typecheck/build, startup macro/server build и `git diff --check` проходят.
+Runtime запускает и проверяет владелец.
+
+Подготовительный commit: ожидается.
+
+Result checkpoint: ожидается.
+
 ## Открытые вопросы
 
 * Как выглядит минимальный message contract между main и Service Worker?
@@ -870,3 +912,5 @@ offline startup находятся в `REVIEW`; `LOAD-001.7` подтвержд�
 его понятия переименованы без изменения поведения. `LOAD-001.12 — Поместить
 минимальные загрузчики внутрь startup` находится в `REVIEW`: два loader package
 перенесены под их принятого владельца без изменения HTTP и runtime behavior.
+Текущий `LOAD-001.13 — Не отклонять запрос отсутствующего asset без сети`
+ограничивает expected offline failure одним контролируемым response.
