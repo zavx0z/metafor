@@ -14,9 +14,9 @@ Bun.serve<RpcSocketData>({
     "/import/:module": (request: BunRequest<"/import/:module">) => {
       switch (request.params.module) {
         case "main":
-          return imports.main
+          return imports.main.clone()
         case "service":
-          return imports.service
+          return imports.service.clone()
         default:
           return new Response(null, {status: 404})
       }
@@ -24,7 +24,7 @@ Bun.serve<RpcSocketData>({
     "/internal/:module": (request: BunRequest<"/internal/:module">) => {
       switch (request.params.module) {
         case "rpc":
-          return rpc.service
+          return rpc.service.clone()
         default:
           return new Response(null, {status: 404})
       }
