@@ -843,6 +843,48 @@ check, startup macro/server build и `git diff --check` проходят. Runtim
 
 Result checkpoint: `a4cc50c75`.
 
+### LOAD-001.14 — Назвать startup scripts по их владельцу
+
+Статус и исполнитель: `IN_PROGRESS`; выполняет руководитель текущей задачи
+Codex напрямую, без субагентов.
+
+Классификация: согласование публичных HTTP-имён неизменяемых startup scripts с
+принятой directory и package boundary.
+
+Требование: startup main выдаётся как `/startup-main.js`, а Service Worker —
+как `/startup-service.js`. HTML загружает первый URL, startup main регистрирует
+Worker по второму, а startup cache сохраняет `/startup-main.js`. Управляющий
+Window-модуль сохраняет отдельный endpoint `/main.js`.
+
+Основание и связанная история: `LOAD-001.12` перенёс loader packages в
+`@startup/main` и `@startup/service`, но сохранил прежние HTTP routes. Владелец
+указал, что имена двух server bindings также должны выражать startup owner.
+
+Наблюдаемое расхождение: package и source names уже используют startup, тогда
+как server, HTML, registration и cache всё ещё используют `/import.js` и
+`/service.js`.
+
+Причина: HTTP names были введены до принятия единой startup boundary и не были
+частью предыдущего package-only переноса.
+
+Разрешённое изменение одного механизма: переименовать два server routes и все
+их потребители в новом loader. Не добавлять aliases, redirects или
+compatibility cache entries; не менять `/main.js`, WebSocket `/service`, cache
+policy и поведение scripts.
+
+Regression или опровергающее доказательство: новый source и server bundle не
+содержат прежних script URLs; HTML содержит `/startup-main.js`; собранный main
+регистрирует `/startup-service.js` и сохраняет внешний `import("/main.js")`;
+Worker startup inventory содержит `/startup-main.js`.
+
+Среда и критерий приёмки: strict startup package checks, focused host check,
+server build, artifact inspection и `git diff --check` проходят. Runtime
+запускает и проверяет владелец.
+
+Подготовительный commit: ожидается.
+
+Result checkpoint: ожидается.
+
 ## Открытые вопросы
 
 * Как выглядит минимальный message contract между main и Service Worker?
@@ -925,3 +967,5 @@ offline startup находятся в `REVIEW`; `LOAD-001.7` подтвержд�
 перенесены под их принятого владельца без изменения HTTP и runtime behavior.
 `LOAD-001.13 — Не отклонять запрос отсутствующего asset без сети` находится в
 `REVIEW`: expected offline failure ограничен одним контролируемым response.
+Текущий `LOAD-001.14 — Назвать startup scripts по их владельцу` согласует два
+HTTP script URL с package boundary без compatibility aliases.

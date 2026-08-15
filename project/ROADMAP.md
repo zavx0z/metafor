@@ -244,8 +244,9 @@ browser entrypoint оформлены отдельными workspace-пакет�
 
 Fullstack runtime bundling HTML/main отклонён после появления Bun HMR и
 неподходящего runtime URL importer. `server.ts` выдаёт неизменяемый HTML и
-заранее собранные `import.js` и `service.js`; сами browser-пакеты не владеют
-Hamiltonian server, WebSocket update protocol или полным release mechanism.
+заранее собранные `startup-main.js` и `startup-service.js`; сами browser-пакеты
+не владеют Hamiltonian server, WebSocket update protocol или полным release
+mechanism.
 
 Отдельная линия `LOAD` владеет первоначальной загрузкой браузерного функционала
 Hamiltonian. Первый HTTPS response доставляет только минимальные HTML,
