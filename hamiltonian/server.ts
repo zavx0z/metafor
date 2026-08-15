@@ -7,9 +7,8 @@ Bun.serve<{ source: "startup/service" }>({
     "/assets/*": routes.static.assets,
     "/startup-main.js": routes.startup.main,
     "/startup-service.js": routes.startup.service,
-    "/main.js": new Response(await Bun.file("./web/import/main/dist/main.js").bytes(), {
-      headers: {"Content-Type": "text/javascript; charset=utf-8"},
-    }),
+    "/main.js": routes.import.main,
+    "/import-service.js": routes.import.service,
     "/service": (request: Request, server: Bun.Server<{ source: "startup/service" }>) => {
       if (server.upgrade(request, {data: {source: "startup/service"}})) return
       return new Response("WebSocket upgrade required", {status: 426})

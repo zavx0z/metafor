@@ -1138,8 +1138,8 @@ Result checkpoint: `4c1787606`.
 
 ### LOAD-001.19 — Запускать Service Worker importer через startup loader
 
-Статус и исполнитель: `IN_PROGRESS`; выполняет руководитель текущей задачи
-Codex напрямую, без субагентов.
+Статус и исполнитель: `REVIEW`; выполнил руководитель текущей задачи Codex
+напрямую, без субагентов.
 
 Классификация: первый исполняемый переход `startup → import` внутри Service
 Worker после доказанных раздельных caches.
@@ -1180,7 +1180,24 @@ Service Worker, focused loader execution, server build, artifact inspection и
 `git diff --check` проходят. Live online/offline запуск Service Worker importer
 проверяет владелец.
 
-Подготовительный commit: ожидается.
+Фактические действия: слой `web/import` получил macro и routes, которые при
+server build строго проверяют оба package и возвращают готовые `/main.js` и
+`/import-service.js` без runtime-чтения `dist`. `@import/service` собирается в
+минимальный IIFE и пишет `service importer`. Startup loader использует один
+Promise на инкарнацию, сохраняет successful response в `import`, повторно
+читает его оттуда и выполняет через `Function`; при ошибке удаляет entry и
+разрешает retry. Existing `connect` event удерживает startup cache и importer
+load, а Hamiltonian `start` больше не выполняет отдельный prebuild main.
+
+Результат и вывод: strict builds `@import/main`, `@import/service` и
+`@startup/service` прошли; IIFE importer занимает 65 bytes. Focused execution
+подтвердил один fetch и один запуск при конкурентных вызовах, cold cache
+restoration без fetch, удаление invalid artifact и successful retry. Focused
+host check и server build прошли; собранный server содержит новый route и
+loader, не читает importer `dist` и не открывает cache `runtime`. Live
+online/offline проверку выполняет владелец.
+
+Подготовительный commit: `181dc748c`.
 
 Result checkpoint: ожидается.
 
@@ -1285,6 +1302,6 @@ Service Worker importer в слое import` находится в `REVIEW`: comp
 `/main.js` лениво создаёт и использует `import`, не меняя endpoint или поведение
 importer; владелец подтвердил live-запуск, caches `startup`, `import` и полное
 offline restoration startup вместе с Window importer.
-`LOAD-001.19 — Запускать Service Worker importer через startup loader` является
-текущим срезом: startup loader должен получить, сохранить и выполнить
-`@import/service` без runtime packages и RPC contract.
+`LOAD-001.19 — Запускать Service Worker importer через startup loader` находится
+в `REVIEW`: startup loader получает, сохраняет и выполняет `@import/service` без
+runtime packages и RPC contract; live online/offline проверяет владелец.

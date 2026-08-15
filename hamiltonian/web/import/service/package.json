@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "typecheck": "tsc --project tsconfig.json --pretty false",
-    "build": "bun run typecheck && bun build index.ts --target=browser --outfile=dist/index.js"
+    "build": "bun run typecheck && bun build index.ts --target=browser --format=iife --outfile=dist/index.js"
   },
   "devDependencies": {
     "@types/serviceworker": "^0.0.200"

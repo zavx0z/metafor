@@ -1,7 +1,8 @@
 /**
- * Service Worker importer boundary между startup и runtime packages.
+ * Service Worker importer entrypoint между startup loader и runtime packages.
+ * Его IIFE artifact загружается и запускается внутри Service Worker.
  *
  * @packageDocumentation
  */
 
-export {}
+console.info("service importer")
