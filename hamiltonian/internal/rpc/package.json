@@ -1,5 +1,5 @@
 {
-  "name": "@internall/rpc",
+  "name": "@internal/rpc",
   "private": true,
   "type": "module",
   "exports": {
@@ -11,7 +11,7 @@
     "typecheck": "bun run typecheck:server && bun run typecheck:service:web",
     "typecheck:server": "tsc --project server/tsconfig.json --pretty false",
     "typecheck:service:web": "tsc --project service/web/tsconfig.json --pretty false",
-    "build": "bun run typecheck && bun build @internall/rpc/service/web --target=browser --format=iife --outfile=service/web/dist/index.js"
+    "build": "bun run typecheck && bun build @internal/rpc/service/web --target=browser --format=iife --outfile=service/web/dist/index.js"
   },
   "devDependencies": {
     "@types/serviceworker": "^0.0.200"

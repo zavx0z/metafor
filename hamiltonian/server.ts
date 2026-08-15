@@ -1,5 +1,5 @@
 import type {BunRequest} from "bun"
-import {rpc, type RpcSocketData} from "@internall/rpc/routes"
+import {rpc, type RpcSocketData} from "@internal/rpc/routes"
 import {statics} from "./web/static/routes"
 import {startups} from "./web/startup/routes"
 import {imports} from "./web/import/routes"

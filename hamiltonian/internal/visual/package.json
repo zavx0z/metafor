@@ -1,0 +1,14 @@
+{
+  "name": "@internal/visual",
+  "private": true,
+  "type": "module",
+  "exports": "./index.ts",
+  "scripts": {
+    "typecheck": "tsc --project tsconfig.json --pretty false"
+  },
+  "dependencies": {
+    "@metafor/engine": "workspace:*",
+    "@ui/elements": "workspace:*",
+    "@ui/hud": "workspace:*"
+  }
+}

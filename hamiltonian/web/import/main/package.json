@@ -8,8 +8,6 @@
     "build": "bun run typecheck && bun build @import/main --target=browser --outfile=dist/main.js"
   },
   "dependencies": {
-    "@metafor/engine": "workspace:*",
-    "@ui/elements": "workspace:*",
-    "@ui/hud": "workspace:*"
+    "@internal/visual": "workspace:*"
   }
 }

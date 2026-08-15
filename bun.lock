@@ -119,7 +119,7 @@
       "name": "@metafor/hamiltonian",
       "dependencies": {
         "@hamiltonian/visual": "workspace:*",
-        "@internall/rpc": "workspace:*",
+        "@internal/rpc": "workspace:*",
         "@metafor/engine": "workspace:*",
         "@metafor/web-push": "workspace:*",
         "@nodes/hud": "workspace:*",
@@ -137,9 +137,17 @@
       },
     },
     "hamiltonian/internal/rpc": {
-      "name": "@internall/rpc",
+      "name": "@internal/rpc",
       "devDependencies": {
         "@types/serviceworker": "^0.0.200",
+      },
+    },
+    "hamiltonian/internal/visual": {
+      "name": "@internal/visual",
+      "dependencies": {
+        "@metafor/engine": "workspace:*",
+        "@ui/elements": "workspace:*",
+        "@ui/hud": "workspace:*",
       },
     },
     "hamiltonian/visual": {
@@ -158,7 +166,7 @@
     "hamiltonian/web/import/main": {
       "name": "@import/main",
       "dependencies": {
-        "@ui/elements": "workspace:*",
+        "@internal/visual": "workspace:*",
       },
     },
     "hamiltonian/web/import/service": {
@@ -333,7 +341,9 @@
 
     "@import/service": ["@import/service@workspace:hamiltonian/web/import/service"],
 
-    "@internall/rpc": ["@internall/rpc@workspace:hamiltonian/internal/rpc"],
+    "@internal/rpc": ["@internal/rpc@workspace:hamiltonian/internal/rpc"],
+
+    "@internal/visual": ["@internal/visual@workspace:hamiltonian/internal/visual"],
 
     "@leichtgewicht/ip-codec": ["@leichtgewicht/ip-codec@2.0.5", "", {}, "sha512-Vo+PSpZG2/fmgmiNzYK9qWRh8h/CHrwD0mo1h1DzL4yzHNSfWYujGTYsWGreD000gcgmZ7K4Ys6Tx9TxtsKdDw=="],
 
