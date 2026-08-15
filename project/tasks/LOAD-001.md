@@ -1069,8 +1069,9 @@ lazy asset writes и offline responses не изменены.
 Результат и вывод: strict package check, focused host check и server build
 прошли. Source, standalone Worker artifact и server bundle открывают только
 `startup`; ранних открытий `metafor`, `import` и `runtime` нет. Старый cache
-не удаляется и не переносится автоматически; live-проверка после ручной
-очистки остаётся за владельцем.
+не удаляется и не переносится автоматически. Владелец очистил прежнее
+состояние и подтвердил в live browser, что `caches.keys()` возвращает только
+`startup` и `import`.
 
 Подготовительный commit: `70d500476`.
 
@@ -1124,7 +1125,9 @@ Live Cache Storage и offline import после ручной очистки пр
 записывает только `import`, а `/assets/*` — только `startup`. Strict package
 check, focused host check и server build прошли; source, standalone Worker и
 server bundle содержат ту же развилку и не открывают `runtime` или `metafor`.
-Live Cache Storage и offline import остаются owner-проверкой.
+В live browser владелец подтвердил подключение startup/service WebSocket,
+регистрацию Service Worker, выполнение `main importer` и Cache Storage ровно с
+`startup` и `import`. Offline restoration этим evidence отдельно не доказан.
 
 Подготовительный commit: `56d314a96`.
 
@@ -1226,7 +1229,8 @@ Service Worker importer в слое import` находится в `REVIEW`: comp
 `@import/service` создан без подключения runtime behavior.
 `LOAD-001.17 — Хранить startup в отдельном cache` находится в `REVIEW`: прежнее
 имя `metafor` заменено на `startup` без раннего создания caches `import` и
-`runtime`; live-проверка владельца требует ручной очистки прежнего cache.
+`runtime`; владелец подтвердил Cache Storage без прежнего `metafor`.
 `LOAD-001.18 — Хранить Window importer в cache import` находится в `REVIEW`:
 `/main.js` лениво создаёт и использует `import`, не меняя endpoint или поведение
-importer; live Cache Storage и offline import проверяет владелец.
+importer; владелец подтвердил live-запуск и caches `startup`, `import`, а
+offline restoration остаётся отдельным недоказанным сценарием.
