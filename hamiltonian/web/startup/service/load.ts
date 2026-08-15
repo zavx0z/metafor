@@ -1,0 +1,41 @@
+/**
+ * Получает resource из network по готовому request.
+ *
+ * Функция не выбирает endpoint и не управляет retry: эти решения принадлежат
+ * вызывающему importer или startup entrypoint.
+ */
+export function fetch(request: Request) {
+  return globalThis.fetch(request)
+}
+
+/** Проверяет, что полученный HTTP response можно использовать дальше. */
+export function verify(response: Response) {
+  if (!response.ok) throw new Error(`${response.url || "Resource"} returned ${response.status}`)
+  return response
+}
+
+/** Сохраняет response для точного request в выбранном Cache Storage. */
+export async function cache(name: string, request: Request, response: Response) {
+  await (await caches.open(name)).put(request, response)
+}
+
+/** Читает response точного request из выбранного Cache Storage. */
+export async function read(name: string, request: Request) {
+  return (await caches.open(name)).match(request, {ignoreVary: true})
+}
+
+/** Удаляет response точного request из выбранного Cache Storage. */
+export async function remove(name: string, request: Request) {
+  return (await caches.open(name)).delete(request, {ignoreVary: true})
+}
+
+/**
+ * Выполняет source с явно переданными именованными значениями.
+ *
+ * Startup использует эту границу для IIFE artifacts, которым нельзя сделать
+ * dynamic import внутри Service Worker.
+ */
+export function run(source: string, bindings: Readonly<Record<string, unknown>> = {}) {
+  const entries = Object.entries(bindings)
+  return Function(...entries.map(([name]) => name), source)(...entries.map(([, value]) => value))
+}

@@ -3,15 +3,20 @@
  *
  * Install и activate немедленно передают новой инкарнации управление. Первое
  * `connect` message продлевает жизнь события до подготовки startup cache,
- * загрузки Service Worker importer и одновременно открывает control WebSocket.
- * Все GET requests после захвата страницы проходят через cache-first policy.
+ * получает и запускает Service Worker importer через универсальный `load` API
+ * и одновременно открывает control WebSocket. Все GET requests после захвата
+ * страницы проходят через cache-first policy.
  *
  * @packageDocumentation
  */
 
 import {cacheFirst, cacheStartup} from "./cache"
-import {loadServiceImporter} from "./loader"
+import * as load from "./load"
 import {connect} from "./socket"
+
+const serviceImporterRequest = new Request(new URL("/import-service.js", location.origin))
+
+let serviceImporter: Promise<void> | null = null
 
 addEventListener("install", (event: ExtendableEvent) => {
   event.waitUntil(skipWaiting())
@@ -31,3 +36,41 @@ addEventListener("fetch", (event: FetchEvent) => {
   if (event.request.method !== "GET") return
   event.respondWith(cacheFirst(event.request))
 })
+
+/**
+ * Загружает и один раз за инкарнацию запускает Service Worker importer.
+ *
+ * Одновременные события используют один Promise. После ошибки ссылка
+ * освобождается, поэтому следующее событие может повторить полную загрузку.
+ */
+async function loadServiceImporter() {
+  serviceImporter ??= startServiceImporter()
+
+  try {
+    await serviceImporter
+  } catch (error) {
+    serviceImporter = null
+    throw error
+  }
+}
+
+/** Получает importer, сохраняет его bytes и передаёт ему универсальный API. */
+async function startServiceImporter() {
+  try {
+    let response = await load.read("import", serviceImporterRequest)
+
+    if (!response) {
+      response = load.verify(await load.fetch(serviceImporterRequest))
+      await load.cache("import", serviceImporterRequest, response)
+      response = await load.read("import", serviceImporterRequest)
+    }
+
+    if (!response) throw new Error("Cached Service Worker importer is missing")
+
+    load.verify(response)
+    load.run(await response.text(), {load})
+  } catch (error) {
+    await load.remove("import", serviceImporterRequest)
+    throw error
+  }
+}

@@ -9,7 +9,7 @@
     ]
   },
   "include": [
-    "index.ts"
+    "*.ts"
   ],
   "exclude": []
 }
