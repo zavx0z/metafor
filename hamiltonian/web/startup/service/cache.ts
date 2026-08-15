@@ -8,9 +8,10 @@ const startup = [
  * Startup service для navigation request возвращает сохранённый HTML `/`, поэтому
  * вложенный SPA-адрес не создаёт отдельную cache-запись. Для остальных
  * requests возвращает response точного URL и обращается к network только при
- * cache miss. Успешный network fallback для `/main.js` и `/assets/*`
- * сохраняется после первого реального запроса браузера; остальные endpoints
- * добавляет только {@link cacheStartup}.
+ * cache miss. `/main.js` обслуживается через cache `import`, остальные requests
+ * — через `startup`. Успешный network fallback для `/main.js` и `/assets/*`
+ * сохраняется после первого реального запроса браузера; остальные startup
+ * endpoints добавляет только {@link cacheStartup}.
  *
  * `Vary` игнорируется, потому что loader хранит одну неизменяемую репрезентацию
  * каждого startup endpoint.
@@ -20,11 +21,11 @@ const startup = [
  * пустой `503` для недоступного asset.
  */
 export async function cacheFirst(request: Request) {
-  const cache = await caches.open("startup")
+  const pathname = new URL(request.url).pathname
+  const cache = await caches.open(pathname === "/main.js" ? "import" : "startup")
   const response = await cache.match(request.mode === "navigate" ? "/" : request, {ignoreVary: true})
   if (response) return response
 
-  const pathname = new URL(request.url).pathname
   try {
     const network = await fetch(request)
     if (network.ok && (pathname === "/main.js" || pathname.startsWith("/assets/"))) {
@@ -39,7 +40,7 @@ export async function cacheFirst(request: Request) {
 
 /**
  * Один раз сохраняет отсутствующие startup endpoints в постоянный cache.
- * В startup входят только HTML, importer и Web App Manifest. Иконки и
+ * В startup входят только HTML, startup main и Web App Manifest. Иконки и
  * screenshots не загружаются заранее: только фактически запрошенные browser
  * assets позднее сохраняет {@link cacheFirst}.
  *

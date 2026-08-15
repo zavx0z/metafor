@@ -4,4 +4,4 @@
  * @packageDocumentation
  */
 
-console.info("main process")
+console.info("main importer")

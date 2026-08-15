@@ -1078,8 +1078,8 @@ Result checkpoint: `b38946f51`.
 
 ### LOAD-001.18 — Хранить Window importer в cache import
 
-Статус и исполнитель: `IN_PROGRESS`; выполняет руководитель текущей задачи
-Codex напрямую, без субагентов.
+Статус и исполнитель: `REVIEW`; выполнил руководитель текущей задачи Codex
+напрямую, без субагентов.
 
 Классификация: первый product-срез принятой cache boundary между уровнями
 `startup` и `import`.
@@ -1115,7 +1115,18 @@ startup navigation и создаётся только запросом `/main.js
 host check, server build, artifact inspection и `git diff --check` проходят.
 Live Cache Storage и offline import после ручной очистки проверяет владелец.
 
-Подготовительный commit: ожидается.
+Фактические действия: `cacheFirst` вычисляет pathname до открытия Cache Storage
+и для точного `/main.js` выбирает `import`; все остальные текущие requests
+продолжают использовать `startup`. Сохранение successful `/main.js` response и
+остальная cache-first policy не изменены.
+
+Результат и вывод: focused execution подтвердил, что `/main.js` открывает и
+записывает только `import`, а `/assets/*` — только `startup`. Strict package
+check, focused host check и server build прошли; source, standalone Worker и
+server bundle содержат ту же развилку и не открывают `runtime` или `metafor`.
+Live Cache Storage и offline import остаются owner-проверкой.
+
+Подготовительный commit: `56d314a96`.
 
 Result checkpoint: ожидается.
 
@@ -1216,6 +1227,6 @@ Service Worker importer в слое import` находится в `REVIEW`: comp
 `LOAD-001.17 — Хранить startup в отдельном cache` находится в `REVIEW`: прежнее
 имя `metafor` заменено на `startup` без раннего создания caches `import` и
 `runtime`; live-проверка владельца требует ручной очистки прежнего cache.
-`LOAD-001.18 — Хранить Window importer в cache import` является текущим срезом:
-он лениво создаёт `import` только при запросе `/main.js`, не меняя endpoint или
-поведение importer.
+`LOAD-001.18 — Хранить Window importer в cache import` находится в `REVIEW`:
+`/main.js` лениво создаёт и использует `import`, не меняя endpoint или поведение
+importer; live Cache Storage и offline import проверяет владелец.
