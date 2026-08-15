@@ -965,7 +965,7 @@ Result checkpoint: `03ef50fc9`.
 
 ### LOAD-001.16 — Создать Service Worker importer в слое import
 
-Статус и исполнитель: `IN_PROGRESS`; выполняет руководитель текущей задачи
+Статус и исполнитель: `REVIEW`; выполнял руководитель текущей задачи
 Codex напрямую, без субагентов.
 
 Классификация: следующий package-ownership срез трёхуровневого browser path;
@@ -999,7 +999,16 @@ workspace references и lockfile указывают на единственны�
 Среда и критерий приёмки: package typecheck/build, workspace inspection и
 `git diff --check` проходят. Runtime behavior отсутствует и не проверяется.
 
-Подготовительный commit: ожидается.
+Фактические действия: созданы `web/import/service/index.ts`, package manifest и
+strict Service Worker TypeScript project; workspace, root typecheck и Bun
+lockfile направлены на `@import/service`.
+
+Результат и вывод: Bun workspace обнаруживает `@import/service` по единственному
+canonical path. Package strict typecheck/build проходит и закономерно создаёт
+пустой bundle, потому что WebSocket и runtime behavior в этот structural срез
+не входят.
+
+Подготовительный commit: `02a26aad1`.
 
 Result checkpoint: ожидается.
 
@@ -1094,6 +1103,6 @@ offline startup находятся в `REVIEW`; `LOAD-001.7` подтвержд�
 два HTTP script URL согласованы с package boundary без compatibility aliases;
 runtime-проверка владельца остаётся открытой. `LOAD-001.15 — Перенести Window
 importer в слой import` находится в `REVIEW`: `@web/main` перенесён в
-`@import/main` без изменения endpoint или поведения. Текущий `LOAD-001.16 —
-Создать Service Worker importer в слое import` создаёт companion package
-`@import/service` без подключения runtime behavior.
+`@import/main` без изменения endpoint или поведения. `LOAD-001.16 — Создать
+Service Worker importer в слое import` находится в `REVIEW`: companion package
+`@import/service` создан без подключения runtime behavior.

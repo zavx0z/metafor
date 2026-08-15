@@ -150,6 +150,12 @@
     "hamiltonian/web/import/main": {
       "name": "@import/main",
     },
+    "hamiltonian/web/import/service": {
+      "name": "@import/service",
+      "devDependencies": {
+        "@types/serviceworker": "^0.0.200",
+      },
+    },
     "hamiltonian/web/startup/main": {
       "name": "@startup/main",
     },
@@ -313,6 +319,8 @@
     "@hamiltonian/visual": ["@hamiltonian/visual@workspace:hamiltonian/visual"],
 
     "@import/main": ["@import/main@workspace:hamiltonian/web/import/main"],
+
+    "@import/service": ["@import/service@workspace:hamiltonian/web/import/service"],
 
     "@leichtgewicht/ip-codec": ["@leichtgewicht/ip-codec@2.0.5", "", {}, "sha512-Vo+PSpZG2/fmgmiNzYK9qWRh8h/CHrwD0mo1h1DzL4yzHNSfWYujGTYsWGreD000gcgmZ7K4Ys6Tx9TxtsKdDw=="],
 
