@@ -1314,12 +1314,14 @@ network request выполняется обычным browser `fetch` без л�
 cold-cache path, cleanup и retry перенесены в `startup/service/index.ts`.
 Entrypoint выполняет сохранённый IIFE через `run(source, {loader})`, а
 `@import/service` получает тип этого namespace из единственного startup source
-без дублирующих runtime-проверок гарантированного объекта.
+без дублирующих runtime-проверок гарантированного объекта и выводит его ключи
+в диагностический лог.
 
 Результат и вывод: strict typecheck/build обоих пакетов прошли; standalone
-startup Service Worker занимает `4.52 KB`, importer — `65 bytes`. Focused
+startup Service Worker занимает `4.52 KB`, importer — `86 bytes`. Focused
 проверка подтвердила успешные `verify`, `cache`, `read`, `remove` и именованный
-binding `run`; собранный startup передаёт importer namespace `loader`.
+binding `run`; собранный startup передаёт importer namespace `loader`, а
+importer выводит ключи `cache`, `read`, `remove`, `run`, `verify`.
 Полный Worker lifecycle probe подтвердил один fetch/запуск при конкурентных
 messages, offline cold restoration, удаление ошибочного artifact и successful
 retry без раннего создания cache `runtime`. Server build прошёл и содержит
@@ -1329,7 +1331,7 @@ retry без раннего создания cache `runtime`. Server build пр�
 
 Подготовительный commit: `38cd04de6`.
 
-Result checkpoint: `23011f66c`, review correction `8b8d32e1c`.
+Result checkpoint: `23011f66c`, review corrections `8b8d32e1c`, `83493fa47`.
 
 ## Открытые вопросы
 
