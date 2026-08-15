@@ -114,7 +114,7 @@ Evidence-backed gate выполнен в
   Worker оболочки.
 * В первом контуре Service Worker знает один signaling Hamiltonian peer.
 * Startup Service Worker не открывает WebSocket и не содержит RPC. WebSocket
-  принадлежит загружаемому internal module `@internall/rpc`; peer может
+  принадлежит загружаемому internal module `@internal/rpc`; peer может
   менять адрес source, но module bytes loader получает через `fetch`, проверяет
   и сохраняет до запуска.
 * `web/startup/service` выполняет обычный browser `fetch` и содержит только
@@ -211,7 +211,7 @@ package architecture не создаётся. Диагностический Ful
 
 Первая navigation доказала регистрацию, переход страницы под управление
 Worker, постоянный offline startup и запуск обоих importers из cache `import`.
-Service Worker importer уже загружает первый module `@internall/rpc` через
+Service Worker importer уже загружает первый module `@internal/rpc` через
 общий import-layer loader в cache `internal`; WebSocket находится внутри этого
 module и подтверждён повторяющимся двусторонним `ping`/`pong`. Startup не знает
 module endpoints, storage policy или WebSocket.
@@ -1378,7 +1378,7 @@ checkpoint; специальная загрузка RPC заменяется о�
 importer только primitives, которыми сам загружает importer. Полную композицию
 `fetch → verify → cache → read → run`, endpoint, cache и cleanup module хранит
 слой `@import/service`. Первый выбранный internal module — Web service
-`@internall/rpc`.
+`@internal/rpc`.
 
 Основание и связанная история: `LOAD-001.21` передал Service Worker importer
 универсальные startup primitives. Первоначальная незакоммиченная попытка `.22`
@@ -1397,7 +1397,7 @@ cache lifecycle и особым route, поэтому добавление сл�
 Разрешённое изменение одного механизма: создать `hamiltonian/internal`;
 оставить в startup только используемые им `verify`, `cache`, `read`, `remove` и
 `run`; поместить универсальную загрузку Service Worker modules и их storage
-policy в `@import/service`; экспортировать из `@internall/rpc` готовый Web
+policy в `@import/service`; экспортировать из `@internal/rpc` готовый Web
 artifact, `/sw` upgrade-логику и WebSocket handlers; явно зарегистрировать их
 HTTP-адреса в `server.ts`; удалить общий internal registry, специальный
 `/rpc-service.js` и startup WebSocket. Не добавлять update protocol, reconnect
@@ -1410,16 +1410,16 @@ module registry, `importModule`, `/internal/*` или `/metafor/*`. Один loa
 требует network, а invalid artifact удаляет только свой entry. `server.ts`
 явно содержит exact internal endpoint и `/sw`, server bundle не содержит
 общего internal registry или `/rpc-service.js`, а WebSocket handlers
-принадлежат `@internall/rpc/server`.
+принадлежат `@internal/rpc/server`.
 
 Среда и критерий приёмки: strict checks/builds `@startup/service`,
-`@import/service` и `@internall/rpc`, focused generic loader probe минимум с
+`@import/service` и `@internal/rpc`, focused generic loader probe минимум с
 двумя module namespaces, exact server route probe, server build, artifact
 inspection и `git diff --check` проходят. Владелец проверяет online подключение
 RPC и offline восстановление internal artifact.
 
 Фактические действия: RPC размещён в `hamiltonian/internal/rpc` с package name
-`@internall/rpc`. `server.ts` связывает parameter `rpc` с artifact через
+`@internal/rpc`. `server.ts` связывает parameter `rpc` с artifact через
 `/internal/:module`, upgrade с `/sw` и подключает Bun WebSocket handlers.
 Startup WebSocket удалён. `@import/service` выбирает `/internal/rpc`, хранит
 описание cache `internal` и вызывает собственный `importModule`, составленный
@@ -1498,7 +1498,7 @@ Result checkpoint отклонённого варианта: `87928356f`; correc
 Классификация: первый наблюдаемый обмен данными по уже открытому internal RPC
 WebSocket, отдельно от загрузки module и будущего RPC protocol.
 
-Требование: после события `open` Web-реализация `@internall/rpc` сразу и затем
+Требование: после события `open` Web-реализация `@internal/rpc` сразу и затем
 каждые 20 секунд отправляет точное сообщение `ping`. Bun-сторона отвечает на
 каждое из них точным сообщением `pong`, а Web-сторона подтверждает получение
 ответа в консоли. Закрытие WebSocket останавливает interval.
@@ -1523,7 +1523,7 @@ Regression или опровергающее доказательство: се�
 последовательными отправками проходит 20 секунд, а после `close` timer больше
 не отправляет сообщения.
 
-Среда и критерий приёмки: strict typecheck `@internall/rpc`, server build и
+Среда и критерий приёмки: strict typecheck `@internal/rpc`, server build и
 `git diff --check` проходят. В live browser после подключения видны минимум
 два полученных `pong` с интервалом около 20 секунд, а server contour получает
 соответствующие `ping` и отправляет ответы.
@@ -1561,7 +1561,7 @@ Result checkpoint: `e5ce8bd62`.
 * новые source-директории `web` и `internal`, заготовленные для поздних
   реализаций `server` и `interface`, отдельные workspace-пакеты
   `@startup/main`, `@startup/service`, `@import/main` и `@import/service` для
-  browser entrypoints и internal module `@internall/rpc`;
+  browser entrypoints и internal module `@internal/rpc`;
 * статические HTML/main/Service Worker artifacts без Bun HMR;
 * сохранение отдельно запускаемого прототипа через `server_proto.ts`;
 * минимальный HTML/main/Service Worker startup;
@@ -1577,7 +1577,7 @@ Result checkpoint: `e5ce8bd62`.
 * рефакторинг или перенос прежнего Hamiltonian в новые source-директории;
 * другие package manifests, workspace packages и package exports новой
   реализации кроме `@startup/main`, `@startup/service`, `@import/main`,
-  `@import/service` и `@internall/rpc`;
+  `@import/service` и `@internal/rpc`;
 * создание общего `interface` contract до двух реализаций;
 * полный production artifact inventory, cryptographic release manifest,
   preparing/ready/active publication и update-transition `UPD-002`;
@@ -1608,7 +1608,7 @@ Result checkpoint: `e5ce8bd62`.
 ## Проверка результата
 
 * Strict checks и builds `@startup/main`, `@startup/service`, `@import/main`,
-  `@import/service` и `@internall/rpc`.
+  `@import/service` и `@internal/rpc`.
 * HTTP route probes parameterized importer/internal responses, повторных clones
   и правильного JavaScript MIME.
 * Focused cache tests successful response, execution failure, exact cleanup,
@@ -1634,13 +1634,13 @@ owner-решений не создавать широкую package architecture
 Fullstack/HMR. Срезы `.3`–`.22` находятся в `REVIEW`; они последовательно
 доказали статический startup, Service Worker control, SPA/offline cache,
 раздельные packages и caches, запуск обоих importers и первый internal module
-`@internall/rpc`. Срез `.23` остановлен после удаления преждевременного Window
+`@internal/rpc`. Срез `.23` остановлен после удаления преждевременного Window
 loader из startup. Срез `.24` находится в `REVIEW`: владелец подтвердил
 повторяющийся двусторонний `ping`/`pong`.
 
 Текущий доказанный путь:
 `HTML → @startup/main → @startup/service → @import/main + @import/service →
-@internall/rpc → /sw`. Caches `startup` и `import` восстановлены владельцем
+@internal/rpc → /sw`. Caches `startup` и `import` восстановлены владельцем
 offline; владелец также подтвердил cold-восстановление cache `internal`,
 загрузку internal RPC и WebSocket. `LOAD-001` по решению владельца остаётся
 `IN_PROGRESS`, но стандартное пустое visual-окружение больше не является её

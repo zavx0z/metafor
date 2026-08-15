@@ -116,7 +116,9 @@ clean-room loader. Владелец отдельно выбрал `HAM-005 — �
 окружение визуализации Window`: новый `@import/main` уже создаёт общий runtime,
 пол и управляемую обзорную камеру. Текущий срез `HAM-005.6` добавляет один
 пустой standard display в `Space` и его navigation dock в `HUD`; первый
-предметный Window module будет выбран позднее.
+ownership correction `HAM-005.7` переносит всё стандартное visual behavior в
+`@internal/visual`, оставляя `@import/main` только bare import. Первый
+предметный graph module будет выбран позднее.
 
 Начата `LOAD-001 — Загружать браузерный функционал через минимальный Service
 Worker`. Весь прежний Hamiltonian остаётся отдельно запускаемым прототипом.
@@ -124,7 +126,7 @@ Browser path уже разделён на неизменяемый `startup`, о
 загружаемые modules. Пакеты `@startup/main` и `@startup/service` устанавливают
 Service Worker, восстанавливают HTML/startup offline и запускают
 `@import/main` и `@import/service` из cache `import`. Service Worker importer
-владеет module loader и storage policy; первый module `@internall/rpc`
+владеет module loader и storage policy; первый module `@internal/rpc`
 загружается через `/internal/rpc` в cache `internal`, открывает `/sw` и
 подтверждает двусторонний канал повторяющимся `ping`/`pong` каждые 20 секунд.
 Владелец подтвердил startup/import offline, cold-восстановление `internal` и
