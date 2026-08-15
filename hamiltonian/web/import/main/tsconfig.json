@@ -12,7 +12,8 @@
   },
   "include": [
     "main.ts",
-    "wgsl-shim.d.ts"
+    "wgsl-shim.d.ts",
+    "../../../../types/hot.d.ts"
   ],
   "exclude": []
 }
