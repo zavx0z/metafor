@@ -142,7 +142,9 @@ response. `LOAD-001.14 — Назвать startup scripts по их владел
 `REVIEW`: два HTTP script URL переименованы без aliases; runtime-проверка
 владельца остаётся открытой. `LOAD-001.15 — Перенести Window importer в слой
 import` находится в `REVIEW`: `@web/main` перенесён в `@import/main` без
-изменения поведения и HTTP endpoint. `UPD-002 — Обновлять всю
+изменения поведения и HTTP endpoint. Текущий `LOAD-001.16 — Создать Service
+Worker importer в слое import` создаёт `@import/service` без подключения
+runtime behavior. `UPD-002 — Обновлять всю
 клиентскую сборку через Service Worker` ждёт результата `LOAD-001`.
 
 `HAM-003 — Разделить Hamiltonian по средам исполнения и механизмам` остаётся

@@ -961,6 +961,46 @@ Package strict typecheck/build и focused host check проходят, server bu
 
 Подготовительный commit: `544598550`.
 
+Result checkpoint: `03ef50fc9`.
+
+### LOAD-001.16 — Создать Service Worker importer в слое import
+
+Статус и исполнитель: `IN_PROGRESS`; выполняет руководитель текущей задачи
+Codex напрямую, без субагентов.
+
+Классификация: следующий package-ownership срез трёхуровневого browser path;
+он создаёт companion importer для другой browser runtime-среды.
+
+Требование: `web/import/service` является workspace-пакетом
+`@import/service`. Пакет владеет Service Worker importer entrypoint, строгими
+Service Worker types и собственной статической сборкой. В этом срезе он ещё не
+подключается к `@startup/service` и не получает runtime packages.
+
+Основание и связанная история: owner-решение о слоях
+`startup → import → runtime` определило два environment-specific importer.
+`LOAD-001.15` материализовал `@import/main`; симметричная Service Worker
+package-boundary ещё отсутствует.
+
+Наблюдаемое расхождение: `web/import/main` и `@import/main` существуют, а
+согласованные `web/import/service` и `@import/service` ещё не созданы.
+
+Причина: Service Worker importer был определён только после уточнения
+трёхуровневой границы и не входил в package-only перенос `LOAD-001.15`.
+
+Разрешённое изменение одного механизма: создать package source, manifest и
+strict TypeScript project, добавить workspace, root typecheck и lockfile
+references. Не подключать package к startup bundle, WebSocket message,
+Cache Storage, runtime bytes или execution ABI.
+
+Regression или опровергающее доказательство: Bun workspace обнаруживает
+`@import/service`; package проходит собственные strict typecheck/build, root
+workspace references и lockfile указывают на единственный canonical path.
+
+Среда и критерий приёмки: package typecheck/build, workspace inspection и
+`git diff --check` проходят. Runtime behavior отсутствует и не проверяется.
+
+Подготовительный commit: ожидается.
+
 Result checkpoint: ожидается.
 
 ## Открытые вопросы
@@ -1054,4 +1094,6 @@ offline startup находятся в `REVIEW`; `LOAD-001.7` подтвержд�
 два HTTP script URL согласованы с package boundary без compatibility aliases;
 runtime-проверка владельца остаётся открытой. `LOAD-001.15 — Перенести Window
 importer в слой import` находится в `REVIEW`: `@web/main` перенесён в
-`@import/main` без изменения endpoint или поведения.
+`@import/main` без изменения endpoint или поведения. Текущий `LOAD-001.16 —
+Создать Service Worker importer в слое import` создаёт companion package
+`@import/service` без подключения runtime behavior.
