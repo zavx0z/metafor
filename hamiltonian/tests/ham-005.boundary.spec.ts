@@ -6,9 +6,10 @@ import {build} from "../macro"
 const hamiltonian = fileURLToPath(new URL("../", import.meta.url))
 
 test("HAM-005 creates one standard Window visual environment in the importer", async () => {
-  const [html, main, mainPackage, mainBunfig, macro, staticRoutes, startupMain] = await Promise.all([
+  const [html, main, displayDock, mainPackage, mainBunfig, macro, staticRoutes, startupMain] = await Promise.all([
     Bun.file(join(hamiltonian, "web/static/index.html")).text(),
     Bun.file(join(hamiltonian, "web/import/main/main.ts")).text(),
+    Bun.file(join(hamiltonian, "web/import/main/display-dock.ts")).text(),
     Bun.file(join(hamiltonian, "web/import/main/package.json")).json() as Promise<{
       dependencies?: Record<string, string>
     }>,
@@ -26,8 +27,10 @@ test("HAM-005 creates one standard Window visual environment in the importer", a
 
   expect(mainPackage.dependencies?.["@ui/elements"]).toBe("workspace:*")
   expect(mainPackage.dependencies?.["@metafor/engine"]).toBe("workspace:*")
+  expect(mainPackage.dependencies?.["@ui/hud"]).toBe("workspace:*")
   expect(main).toContain('import {UiRuntime} from "@ui/elements"')
   expect(main).toContain('import {GridHelper} from "@metafor/engine"')
+  expect(main).toContain('import {DisplayDockSurface} from "./display-dock.ts"')
   expect(main).toContain("visualEnvironment ??= createVisualEnvironment()")
   expect(main).toContain("await UiRuntime.create(canvas")
   expect(main).toContain('initial: "far"')
@@ -39,6 +42,17 @@ test("HAM-005 creates one standard Window visual environment in the importer", a
   expect(main).toContain("runtime.viewPoint.position.set(1600, -1600, 1200)")
   expect(main).toContain("runtime.viewPoint.getTarget().set(0, 0, 0)")
   expect(main).toContain("runtime.handleResize()")
+  expect(main).toContain('const VISUAL_DISPLAY_ID = "main"')
+  expect(main).toContain("runtime.createDisplay({")
+  expect(main).toContain("runtime.viewportDisplayMetrics()")
+  expect(main).toContain("runtime.addHudSurface(dock")
+  expect(main).toContain("runtime.focusDisplay(VISUAL_DISPLAY_ID)")
+  expect(main).toContain('runtime.setDisplayMode("far")')
+  expect(main).toContain("runtime.resizeDisplay(VISUAL_DISPLAY_ID")
+  expect(displayDock).toContain('import {HudReturnDock, type HudRect} from "@ui/hud"')
+  expect(displayDock).toContain("export class DisplayDockSurface extends UiSurface")
+  expect(displayDock).toContain("containsPointer(localX: number, localY: number)")
+  expect(displayDock).toContain("HudReturnDock(this")
   expect(main).not.toContain("@hamiltonian/visual")
   expect(main).not.toContain("browser/orchestration")
   expect(mainBunfig).toContain('".wgsl" = "text"')

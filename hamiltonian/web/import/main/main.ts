@@ -6,9 +6,12 @@
 
 import {GridHelper} from "@metafor/engine"
 import {UiRuntime} from "@ui/elements"
+import {DisplayDockSurface} from "./display-dock.ts"
 
 const VISUAL_CANVAS_ID = "visual-canvas"
 const VISUAL_FONT_URL = "/assets/fonts/JetBrainsMono-Bold.ttf"
+const VISUAL_DISPLAY_ID = "main"
+const VISUAL_DISPLAY_CENTER_MM = {x: 0, y: 0, z: 900} as const
 
 let visualEnvironment: Promise<UiRuntime> | null = null
 let canvasResizeObserver: ResizeObserver | null = null
@@ -38,13 +41,16 @@ async function createVisualEnvironment() {
 
   prepareSpace(runtime)
   runtime.handleResize()
-  canvasResizeObserver = new ResizeObserver(() => runtime.handleResize())
+  const display = prepareDisplay(runtime)
+  prepareDisplayDock(runtime)
+  canvasResizeObserver = new ResizeObserver(() => resizeVisualEnvironment(runtime))
   canvasResizeObserver.observe(canvas)
 
   console.info("main visual environment", {
     space: runtime.space,
     hud: runtime.hud,
-    display: runtime.display,
+    surfaceDisplay: runtime.display,
+    display,
   })
   console.info("main importer")
   return runtime
@@ -61,6 +67,36 @@ function prepareSpace(runtime: UiRuntime) {
   runtime.viewPoint.getTarget().set(0, 0, 0)
   runtime.viewPoint.alignUpToWorldZ()
   runtime.viewPoint.update()
+}
+
+/** Создаёт один пустой explicit display стандартного Window environment. */
+function prepareDisplay(runtime: UiRuntime) {
+  return runtime.createDisplay({
+    id: VISUAL_DISPLAY_ID,
+    ...runtime.viewportDisplayMetrics(),
+    centerMm: VISUAL_DISPLAY_CENTER_MM,
+    background: 0x020617,
+    border: 0x334155,
+  })
+}
+
+/** Добавляет display navigation в HUD, не перекрывая input остального Space. */
+function prepareDisplayDock(runtime: UiRuntime) {
+  const dock = new DisplayDockSurface(() => {
+    if (runtime.displayMode === "far") {
+      runtime.focusDisplay(VISUAL_DISPLAY_ID)
+      return
+    }
+    runtime.setDisplayMode("far")
+  })
+  runtime.addHudSurface(dock, ({w, h}) => ({x: 0, y: 0, w, h}))
+}
+
+/** Согласует framebuffer и physical display с текущим размером canvas. */
+function resizeVisualEnvironment(runtime: UiRuntime) {
+  runtime.handleResize()
+  runtime.resizeDisplay(VISUAL_DISPLAY_ID, runtime.viewportDisplayMetrics())
+  if (runtime.displayMode === "near") runtime.refitDisplay(VISUAL_DISPLAY_ID)
 }
 
 /** Возвращает единственный canvas, которым владеет static Window host. */

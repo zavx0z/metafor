@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@metafor/engine": "workspace:*",
-    "@ui/elements": "workspace:*"
+    "@ui/elements": "workspace:*",
+    "@ui/hud": "workspace:*"
   }
 }
