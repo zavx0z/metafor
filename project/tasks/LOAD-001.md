@@ -914,7 +914,7 @@ Result checkpoint: `335f321ad`.
 
 ### LOAD-001.15 — Перенести Window importer в слой import
 
-Статус и исполнитель: `IN_PROGRESS`; выполняет руководитель текущей задачи
+Статус и исполнитель: `REVIEW`; выполнял руководитель текущей задачи
 Codex напрямую, без субагентов.
 
 Классификация: новый package-ownership срез после принятого владельцем
@@ -950,7 +950,16 @@ typecheck/build, server bundle продолжает содержать внеш�
 build, artifact inspection и `git diff --check` проходят. Runtime behavior не
 меняется и отдельно в этом package-only срезе не принимается.
 
-Подготовительный commit: ожидается.
+Фактические действия: directory перенесена в `web/import/main`, package
+переименован в `@import/main`; обновлены Bun workspace и lockfile, root и
+Hamiltonian scripts, TypeScript project и server artifact path.
+
+Результат и вывод: Bun workspace содержит `@import/main` вместо `@web/main`.
+Package strict typecheck/build и focused host check проходят, server bundle
+сохраняет внешний `import("/main.js")`; HTTP endpoint и executable behavior не
+изменены. Runtime-проверка для package-only переноса не выполнялась.
+
+Подготовительный commit: `544598550`.
 
 Result checkpoint: ожидается.
 
@@ -1043,6 +1052,6 @@ offline startup находятся в `REVIEW`; `LOAD-001.7` подтвержд�
 `REVIEW`: expected offline failure ограничен одним контролируемым response.
 `LOAD-001.14 — Назвать startup scripts по их владельцу` находится в `REVIEW`:
 два HTTP script URL согласованы с package boundary без compatibility aliases;
-runtime-проверка владельца остаётся открытой. Текущий `LOAD-001.15 — Перенести
-Window importer в слой import` переносит `@web/main` в `@import/main` без
-изменения endpoint или поведения.
+runtime-проверка владельца остаётся открытой. `LOAD-001.15 — Перенести Window
+importer в слой import` находится в `REVIEW`: `@web/main` перенесён в
+`@import/main` без изменения endpoint или поведения.

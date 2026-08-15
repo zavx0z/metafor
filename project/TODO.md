@@ -140,9 +140,9 @@ build-команды из `start`. `LOAD-001.11 — Принять startup ка�
 asset без сети` находится в `REVIEW`: lazy cache miss получает контролируемый
 response. `LOAD-001.14 — Назвать startup scripts по их владельцу` находится в
 `REVIEW`: два HTTP script URL переименованы без aliases; runtime-проверка
-владельца остаётся открытой. Текущий `LOAD-001.15 — Перенести Window importer в
-слой import` переименовывает `@web/main` в `@import/main` без изменения
-поведения и HTTP endpoint. `UPD-002 — Обновлять всю
+владельца остаётся открытой. `LOAD-001.15 — Перенести Window importer в слой
+import` находится в `REVIEW`: `@web/main` перенесён в `@import/main` без
+изменения поведения и HTTP endpoint. `UPD-002 — Обновлять всю
 клиентскую сборку через Service Worker` ждёт результата `LOAD-001`.
 
 `HAM-003 — Разделить Hamiltonian по средам исполнения и механизмам` остаётся

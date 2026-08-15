@@ -147,8 +147,8 @@
         "nodes": "workspace:*",
       },
     },
-    "hamiltonian/web/main": {
-      "name": "@web/main",
+    "hamiltonian/web/import/main": {
+      "name": "@import/main",
     },
     "hamiltonian/web/startup/main": {
       "name": "@startup/main",
@@ -312,6 +312,8 @@
 
     "@hamiltonian/visual": ["@hamiltonian/visual@workspace:hamiltonian/visual"],
 
+    "@import/main": ["@import/main@workspace:hamiltonian/web/import/main"],
+
     "@leichtgewicht/ip-codec": ["@leichtgewicht/ip-codec@2.0.5", "", {}, "sha512-Vo+PSpZG2/fmgmiNzYK9qWRh8h/CHrwD0mo1h1DzL4yzHNSfWYujGTYsWGreD000gcgmZ7K4Ys6Tx9TxtsKdDw=="],
 
     "@matrix/gravity": ["@matrix/gravity@workspace:matrix/gravity"],
@@ -403,8 +405,6 @@
     "@ui/elements": ["@ui/elements@workspace:pkg/ui/elements"],
 
     "@ui/hud": ["@ui/hud@workspace:pkg/ui/hud"],
-
-    "@web/main": ["@web/main@workspace:hamiltonian/web/main"],
 
     "@webgpu/types": ["@webgpu/types@0.1.68", "https://registry.yarnpkg.com/@webgpu/types/-/types-0.1.68.tgz", {}, "sha512-3ab1B59Ojb6RwjOspYLsTpCzbNB3ZaamIAxBMmvnNkiDoLTZUOBXZ9p5nAYVEkQlDdf6qAZWi1pqj9+ypiqznA=="],
 
