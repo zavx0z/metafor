@@ -29,7 +29,7 @@ test("HAM-005 creates one empty Window visual environment in the importer", asyn
   expect(main).toContain("visualEnvironment ??= createVisualEnvironment()")
   expect(main).toContain("await UiRuntime.create(canvas")
   expect(main).toContain("surfaceDisplay: false")
-  expect(main).toContain("grid: false")
+  expect(main).toContain("grid: true")
   expect(main).toContain("runtime.handleResize()")
   expect(main).not.toContain("@hamiltonian/visual")
   expect(main).not.toContain("browser/orchestration")
