@@ -1010,7 +1010,7 @@ canonical path. Package strict typecheck/build проходит и законо�
 
 Подготовительный commit: `02a26aad1`.
 
-Result checkpoint: ожидается.
+Result checkpoint: `6f539f0fe`.
 
 ## Открытые вопросы
 
