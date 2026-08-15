@@ -788,7 +788,7 @@ focused host check и server bundle проходят. Собранный main с
 
 Подготовительный commit: `1373c6059`.
 
-Result checkpoint: ожидается.
+Result checkpoint: `9dd5030b4`.
 
 ## Открытые вопросы
 
