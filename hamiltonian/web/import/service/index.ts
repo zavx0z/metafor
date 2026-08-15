@@ -5,4 +5,4 @@
  * @packageDocumentation
  */
 
-console.info("service importer")
+console.info("service importer", Object.keys(loader))
