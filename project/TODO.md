@@ -148,7 +148,7 @@ checkpoint и сохранён в `server_proto.ts`. Clean-room `server.ts`,
 | MF-424 | IN_PROGRESS | нет         | [Открыть](tasks/MF-424.md) |
 | MF-425 | IN_PROGRESS | нет         | [Открыть](tasks/MF-425.md) |
 | LOAD-001 | IN_PROGRESS | нет       | [Открыть](tasks/LOAD-001.md) |
-| HAM-005 | READY       | нет         | [Открыть](tasks/HAM-005.md) |
+| HAM-005 | IN_PROGRESS | нет         | [Открыть](tasks/HAM-005.md) |
 | UPD-002 | WAITING   | LOAD-001    | [Открыть](tasks/UPD-002.md) |
 | HAM-001 | IN_PROGRESS | нет         | [Открыть](tasks/HAM-001.md) |
 | NODES-009 | IN_PROGRESS | нет       | [Открыть](tasks/NODES-009.md) |
