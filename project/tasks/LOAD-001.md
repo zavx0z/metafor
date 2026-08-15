@@ -1128,7 +1128,7 @@ Live Cache Storage и offline import остаются owner-проверкой.
 
 Подготовительный commit: `56d314a96`.
 
-Result checkpoint: ожидается.
+Result checkpoint: `4c1787606`.
 
 ## Открытые вопросы
 
