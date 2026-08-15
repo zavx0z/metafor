@@ -1,5 +1,3 @@
-import {moduleCacheName} from "./loader"
-
 const startup = [
   "/",
   "/startup-main.js",
@@ -10,12 +8,10 @@ const startup = [
  * Startup service для navigation request возвращает сохранённый HTML `/`, поэтому
  * вложенный SPA-адрес не создаёт отдельную cache-запись. Для остальных
  * requests возвращает response точного URL и обращается к network только при
- * cache miss. `/import/*` обслуживается через cache `import`.
- * Module endpoints обслуживаются через cache, ранее переданный importer.
- * Остальные requests проходят через cache `startup`.
- * Успешный network fallback для `/import/*`, module endpoints и
- * `/assets/*` сохраняется после первого реального запроса браузера; остальные
- * startup endpoints добавляет только {@link cacheStartup}.
+ * cache miss. Для exact request ищет response во всех Cache Storage, не зная
+ * их владельцев. Успешный network fallback сохраняется только для `/import/*`
+ * и `/assets/*`; остальные startup endpoints добавляет только
+ * {@link cacheStartup}.
  *
  * `Vary` игнорируется, потому что loader хранит одну неизменяемую репрезентацию
  * каждого startup endpoint.
@@ -26,20 +22,16 @@ const startup = [
  */
 export async function cacheFirst(request: Request) {
   const pathname = new URL(request.url).pathname
-  const importModule = pathname.startsWith("/import/")
-  const moduleCache = moduleCacheName(request)
-  const cache = await caches.open(
-    importModule ? "import" : moduleCache ?? "startup",
-  )
-  const response = await cache.match(request.mode === "navigate" ? "/" : request, {ignoreVary: true})
+  const importer = pathname.startsWith("/import/")
+  const cache = await caches.open(importer ? "import" : "startup")
+  const response = request.mode === "navigate"
+    ? await cache.match("/", {ignoreVary: true})
+    : await caches.match(request, {ignoreVary: true})
   if (response) return response
 
   try {
     const network = await fetch(request)
-    if (
-      network.ok
-      && (importModule || moduleCache || pathname.startsWith("/assets/"))
-    ) {
+    if (network.ok && (importer || pathname.startsWith("/assets/"))) {
       await cache.put(request, network.clone())
     }
     return network

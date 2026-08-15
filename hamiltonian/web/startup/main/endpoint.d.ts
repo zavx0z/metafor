@@ -1,8 +1,6 @@
 /** Endpoint обновляемого Window importer для startup main. */
 declare module "/import/*" {
-  const importMain: (
-    loader: typeof import("./loader"),
-  ) => Promise<void>
+  const importMain: () => Promise<void>
 
   export default importMain
 }

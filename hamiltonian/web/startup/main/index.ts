@@ -3,13 +3,11 @@
  *
  * При первой установке модуль ждёт появления Service Worker controller, а при
  * уже controlled document использует текущий controller. Main просит Worker
- * запустить Service Worker importer, затем передаёт универсальный loader
- * обновляемому Window importer.
+ * запустить Service Worker importer, затем запускает обновляемый Window
+ * importer.
  *
  * @packageDocumentation
  */
-
-import * as loader from "./loader"
 
 const registration = await navigator.serviceWorker.register("/startup-service.js", {
   scope: "/",
@@ -30,5 +28,5 @@ if (!serviceWorker) throw new Error("Service Worker does not control the page")
 
 serviceWorker.postMessage({type: "connect"})
 const {default: importMain} = await import("/import/main")
-await importMain(loader)
+await importMain()
 console.info("startup/service registered", registration.scope)

@@ -7,6 +7,7 @@
  */
 
 import type * as Loader from "../../startup/service/loader"
+import {importModule} from "./loader"
 import {rpc} from "./storage"
 
 /**
@@ -16,5 +17,5 @@ import {rpc} from "./storage"
  */
 export default async function importService(loader: typeof Loader) {
   console.info("service importer", Object.keys(loader))
-  await loader.importModule(rpc)
+  await importModule(loader, rpc)
 }

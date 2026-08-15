@@ -1,19 +1,3 @@
-/** Описание одного module, выбранное обновляемым importer. */
-export interface Module {
-  /** Стабильный HTTP endpoint module. */
-  endpoint: string
-
-  /** Cache Storage, принадлежащий module. */
-  cache: string
-}
-
-const modules = new Map<string, string>()
-
-/** Возвращает cache, ранее переданный importer для точного request. */
-export function moduleCacheName(request: Request) {
-  return modules.get(request.url) ?? null
-}
-
 /** Проверяет, что полученный HTTP response можно использовать дальше. */
 export function verify(response: Response) {
   if (!response.ok) throw new Error(`${response.url || "Resource"} returned ${response.status}`)
@@ -33,41 +17,6 @@ export async function read(name: string, request: Request) {
 /** Удаляет response точного request из выбранного Cache Storage. */
 export async function remove(name: string, request: Request) {
   return (await caches.open(name)).delete(request, {ignoreVary: true})
-}
-
-/**
- * Загружает и запускает один Service Worker module.
- *
- * Endpoint выбирает обновляемый importer. Loader владеет общей цепочкой
- * network, проверки, выбранного endpoint cache, повторного чтения и выполнения
- * source. Поэтому importer задаёт состав internal и Metafor modules, но не
- * повторяет механизм их доставки.
- * Ошибка удаляет только entry переданного module и допускает следующий retry.
- *
- * @param module - Endpoint и cache, выбранные обновляемым importer.
- * @returns Результат выполнения сохранённого source.
- */
-export async function importModule(module: Module) {
-  const request = new Request(new URL(module.endpoint, location.origin))
-  modules.set(request.url, module.cache)
-
-  try {
-    let response = await read(module.cache, request)
-
-    if (!response) {
-      response = verify(await fetch(request))
-      await cache(module.cache, request, response)
-      response = await read(module.cache, request)
-    }
-
-    if (!response) throw new Error(`Cached module ${request.url} is missing`)
-
-    verify(response)
-    return run(await response.text())
-  } catch (error) {
-    await remove(module.cache, request)
-    throw error
-  }
 }
 
 /**

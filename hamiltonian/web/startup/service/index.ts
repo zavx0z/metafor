@@ -4,8 +4,8 @@
  * Install и activate немедленно передают новой инкарнации управление. Первое
  * `connect` message продлевает жизнь события до подготовки startup cache,
  * получает и запускает Service Worker importer через универсальный loader API
- * и ждёт подготовленные им modules. Все GET requests после захвата
- * страницы проходят через cache-first policy.
+ * и ждёт его завершения. Все GET requests после захвата страницы проходят
+ * через cache-first policy.
  *
  * @packageDocumentation
  */
