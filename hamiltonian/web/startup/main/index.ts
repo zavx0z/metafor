@@ -8,7 +8,7 @@
  * @packageDocumentation
  */
 
-const registration = await navigator.serviceWorker.register("/service.js", {
+const registration = await navigator.serviceWorker.register("/startup-service.js", {
   scope: "/",
   type: "module",
 })

@@ -138,8 +138,9 @@ build-команды из `start`. `LOAD-001.11 — Принять startup ка�
 перенесены в пакеты `@startup/main` и `@startup/service`; WebSocket остаётся
 сигналом будущего update. `LOAD-001.13 — Не отклонять запрос отсутствующего
 asset без сети` находится в `REVIEW`: lazy cache miss получает контролируемый
-response. Текущий `LOAD-001.14 — Назвать startup scripts по их владельцу`
-переименовывает два HTTP script URL без aliases. `UPD-002 — Обновлять всю
+response. `LOAD-001.14 — Назвать startup scripts по их владельцу` находится в
+`REVIEW`: два HTTP script URL переименованы без aliases; runtime-проверка
+владельца остаётся открытой. `UPD-002 — Обновлять всю
 клиентскую сборку через Service Worker` ждёт результата `LOAD-001`.
 
 `HAM-003 — Разделить Hamiltonian по средам исполнения и механизмам` остаётся

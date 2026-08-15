@@ -845,7 +845,7 @@ Result checkpoint: `a4cc50c75`.
 
 ### LOAD-001.14 — Назвать startup scripts по их владельцу
 
-Статус и исполнитель: `IN_PROGRESS`; выполняет руководитель текущей задачи
+Статус и исполнитель: `REVIEW`; выполнял руководитель текущей задачи
 Codex напрямую, без субагентов.
 
 Классификация: согласование публичных HTTP-имён неизменяемых startup scripts с
@@ -881,7 +881,15 @@ Worker startup inventory содержит `/startup-main.js`.
 server build, artifact inspection и `git diff --check` проходят. Runtime
 запускает и проверяет владелец.
 
-Подготовительный commit: ожидается.
+Результат и вывод: server выдаёт неизменяемые startup scripts как
+`/startup-main.js` и `/startup-service.js`; HTML, Service Worker registration и
+startup cache используют те же имена. `/main.js` и WebSocket `/service` не
+изменены; aliases прежних URL отсутствуют. Strict package checks, focused host
+check, server build, artifact inspection и `git diff --check` проходят.
+Runtime-проверка владельца требует очистить прежние Service Worker registration
+и Cache Storage, потому что старый неизменяемый HTML сохраняет `/import.js`.
+
+Подготовительный commit: `3f4a0e6bc`.
 
 Result checkpoint: ожидается.
 
@@ -967,5 +975,6 @@ offline startup находятся в `REVIEW`; `LOAD-001.7` подтвержд�
 перенесены под их принятого владельца без изменения HTTP и runtime behavior.
 `LOAD-001.13 — Не отклонять запрос отсутствующего asset без сети` находится в
 `REVIEW`: expected offline failure ограничен одним контролируемым response.
-Текущий `LOAD-001.14 — Назвать startup scripts по их владельцу` согласует два
-HTTP script URL с package boundary без compatibility aliases.
+`LOAD-001.14 — Назвать startup scripts по их владельцу` находится в `REVIEW`:
+два HTTP script URL согласованы с package boundary без compatibility aliases;
+runtime-проверка владельца остаётся открытой.

@@ -5,8 +5,8 @@ Bun.serve<{ source: "startup/service" }>({
     "/": routes.static.html,
     "/manifest.webmanifest": routes.static.manifest,
     "/assets/*": routes.static.assets,
-    "/import.js": routes.startup.main,
-    "/service.js": routes.startup.service,
+    "/startup-main.js": routes.startup.main,
+    "/startup-service.js": routes.startup.service,
     "/main.js": new Response(await Bun.file("./web/main/dist/main.js").bytes(), {
       headers: {"Content-Type": "text/javascript; charset=utf-8"},
     }),

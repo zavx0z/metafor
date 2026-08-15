@@ -1,6 +1,6 @@
 const startup = [
   "/",
-  "/import.js",
+  "/startup-main.js",
   "/manifest.webmanifest",
 ]
 
