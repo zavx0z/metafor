@@ -24,7 +24,10 @@ export const websocket: Bun.WebSocketHandler<RpcSocketData> = {
   open(socket) {
     console.info(`${socket.data.source} connected`)
   },
-  message() {
+  message(socket, message) {
+    if (message !== "ping") return
+    console.info(`${socket.data.source} ping`)
+    socket.send("pong")
   },
   close(socket) {
     console.info(`${socket.data.source} disconnected`)

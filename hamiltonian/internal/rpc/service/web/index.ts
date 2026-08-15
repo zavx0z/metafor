@@ -18,18 +18,28 @@ function connect() {
 
   const url = new URL("/sw", location.origin)
   url.protocol = location.protocol === "https:" ? "wss:" : "ws:"
-  socket = new WebSocket(url)
+  const connection = new WebSocket(url)
+  socket = connection
 
-  socket.addEventListener("open", () => {
+  connection.addEventListener("open", () => {
     console.info("rpc/service websocket connected")
+    connection.send("ping")
+
+    const interval = setInterval(() => connection.send("ping"), 20_000)
+    connection.addEventListener("close", () => clearInterval(interval), {once: true})
   })
 
-  socket.addEventListener("close", () => {
+  connection.addEventListener("message", (event) => {
+    if (event.data !== "pong") return
+    console.info("rpc/service websocket pong")
+  })
+
+  connection.addEventListener("close", () => {
     socket = null
     console.info("rpc/service websocket disconnected")
   })
 
-  socket.addEventListener("error", (error) => {
+  connection.addEventListener("error", (error) => {
     console.error("rpc/service websocket error", error)
   })
 }
