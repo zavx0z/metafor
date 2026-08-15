@@ -33,6 +33,8 @@ test("HAM-005 creates one standard Window visual environment in the importer", a
   expect(main).toContain('import {DisplayDockSurface} from "./display-dock.ts"')
   expect(main).not.toContain("visualEnvironment")
   expect(main).not.toContain("createVisualEnvironment")
+  expect(main).not.toContain("function prepare")
+  expect(main).not.toContain("requiredCanvas")
   expect(main).toContain("await UiRuntime.create(canvas")
   expect(main).toContain('initial: "far"')
   expect(main).toContain("surfaceDisplay: false")
