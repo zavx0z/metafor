@@ -1203,8 +1203,8 @@ Result checkpoint: `de20a6f34`.
 
 ### LOAD-001.20 — Назвать Window importer endpoint по слою import
 
-Статус и исполнитель: `IN_PROGRESS`; выполняет руководитель текущей задачи
-Codex напрямую, без субагентов.
+Статус и исполнитель: `REVIEW`; выполнил руководитель текущей задачи Codex
+напрямую, без субагентов.
 
 Классификация: согласование публичного HTTP-имени Window importer с уже
 принятыми package и cache boundaries.
@@ -1240,7 +1240,17 @@ focused cache routing, server build, artifact inspection и `git diff --check`
 проходят. Live online/offline import после очистки прежних entries проверяет
 владелец.
 
-Подготовительный commit: ожидается.
+Фактические действия: server route, startup dynamic import, Bun external,
+TypeScript endpoint declaration и Service Worker cache rule переведены с
+`/main.js` на `/import-main.js`. Старый route, alias и redirect не добавлены.
+
+Результат и вывод: strict builds startup main и Service Worker, focused cache
+routing, focused host check и server build прошли. Source, standalone startup
+artifacts и server bundle содержат `/import-main.js`, сохраняют его в `import`
+и не содержат старого route или literal dynamic import. Live online/offline
+проверку после очистки прежних entries выполняет владелец.
+
+Подготовительный commit: `297e5730a`.
 
 Result checkpoint: ожидается.
 
@@ -1348,6 +1358,6 @@ offline restoration startup вместе с Window importer.
 `LOAD-001.19 — Запускать Service Worker importer через startup loader` находится
 в `REVIEW`: startup loader получает, сохраняет и выполняет `@import/service` без
 runtime packages и RPC contract; live online/offline проверяет владелец.
-`LOAD-001.20 — Назвать Window importer endpoint по слою import` является
-текущим срезом: `/main.js` заменяется на `/import-main.js` без alias и изменения
-поведения.
+`LOAD-001.20 — Назвать Window importer endpoint по слою import` находится в
+`REVIEW`: `/main.js` заменён на `/import-main.js` без alias и изменения
+поведения; live online/offline проверяет владелец.

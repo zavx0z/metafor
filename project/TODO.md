@@ -149,13 +149,14 @@ cache` находится в `REVIEW`: действующий cache `metafor` п
 `startup`, а владелец подтвердил Cache Storage без прежнего `metafor`.
 `LOAD-001.18 — Хранить Window importer в cache import` находится в `REVIEW`:
 владелец подтвердил выполнение importer, caches `startup`, `import` и полное
-offline restoration startup вместе с Window importer. Текущий `LOAD-001.19 —
+offline restoration startup вместе с Window importer. `LOAD-001.19 —
 Запускать Service Worker importer через startup loader` находится в `REVIEW`:
 первый исполняемый переход `startup → import` внутри Worker реализован и ждёт
 live online/offline проверки владельца. Текущий `LOAD-001.20 — Назвать Window
-importer endpoint по слою import` переименовывает `/main.js` в
-`/import-main.js` без alias. `UPD-002 — Обновлять всю
-клиентскую сборку через Service Worker` ждёт результата `LOAD-001`.
+importer endpoint по слою import` находится в `REVIEW`: `/main.js` заменён на
+`/import-main.js` без alias; live online/offline проверяет владелец. `UPD-002 —
+Обновлять всю клиентскую сборку через Service Worker` ждёт результата
+`LOAD-001`.
 
 `HAM-003 — Разделить Hamiltonian по средам исполнения и механизмам` остаётся
 `IN_PROGRESS`. Широкий object-oriented срез `HAM-003.8` отклонён владельцем и

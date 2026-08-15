@@ -23,7 +23,7 @@ export async function buildStartup(): Promise<StartupCode> {
   await Promise.all([typecheck(main), typecheck(service)])
 
   return {
-    main: build(`${main}/index.ts`, "@startup/main", "/main.js"),
+    main: build(`${main}/index.ts`, "@startup/main", "/import-main.js"),
     service: build(`${service}/index.ts`, "@startup/service"),
   }
 }

@@ -26,5 +26,5 @@ const serviceWorker = navigator.serviceWorker.controller
 if (!serviceWorker) throw new Error("Service Worker does not control the page")
 
 serviceWorker.postMessage({type: "connect"})
-await import("/main.js")
+await import("/import-main.js")
 console.info("startup/service registered", registration.scope)

@@ -8,10 +8,10 @@ const startup = [
  * Startup service для navigation request возвращает сохранённый HTML `/`, поэтому
  * вложенный SPA-адрес не создаёт отдельную cache-запись. Для остальных
  * requests возвращает response точного URL и обращается к network только при
- * cache miss. `/main.js` обслуживается через cache `import`, остальные requests
- * — через `startup`. Успешный network fallback для `/main.js` и `/assets/*`
- * сохраняется после первого реального запроса браузера; остальные startup
- * endpoints добавляет только {@link cacheStartup}.
+ * cache miss. `/import-main.js` обслуживается через cache `import`, остальные
+ * requests — через `startup`. Успешный network fallback для `/import-main.js`
+ * и `/assets/*` сохраняется после первого реального запроса браузера; остальные
+ * startup endpoints добавляет только {@link cacheStartup}.
  *
  * `Vary` игнорируется, потому что loader хранит одну неизменяемую репрезентацию
  * каждого startup endpoint.
@@ -22,13 +22,13 @@ const startup = [
  */
 export async function cacheFirst(request: Request) {
   const pathname = new URL(request.url).pathname
-  const cache = await caches.open(pathname === "/main.js" ? "import" : "startup")
+  const cache = await caches.open(pathname === "/import-main.js" ? "import" : "startup")
   const response = await cache.match(request.mode === "navigate" ? "/" : request, {ignoreVary: true})
   if (response) return response
 
   try {
     const network = await fetch(request)
-    if (network.ok && (pathname === "/main.js" || pathname.startsWith("/assets/"))) {
+    if (network.ok && (pathname === "/import-main.js" || pathname.startsWith("/assets/"))) {
       await cache.put(request, network.clone())
     }
     return network
