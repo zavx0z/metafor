@@ -891,7 +891,7 @@ Runtime-проверка владельца требует очистить пр
 
 Подготовительный commit: `3f4a0e6bc`.
 
-Result checkpoint: ожидается.
+Result checkpoint: `335f321ad`.
 
 ## Открытые вопросы
 
