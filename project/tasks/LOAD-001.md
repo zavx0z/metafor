@@ -1127,7 +1127,10 @@ check, focused host check и server build прошли; source, standalone Worke
 server bundle содержат ту же развилку и не открывают `runtime` или `metafor`.
 В live browser владелец подтвердил подключение startup/service WebSocket,
 регистрацию Service Worker, выполнение `main importer` и Cache Storage ровно с
-`startup` и `import`. Offline restoration этим evidence отдельно не доказан.
+`startup` и `import`. Затем при включённом browser Offline владелец подтвердил
+`200` через Service Worker для navigation, startup main, manifest, `/main.js`
+и фактически использованных assets: startup и Window importer полностью
+восстанавливаются без network.
 
 Подготовительный commit: `56d314a96`.
 
@@ -1232,5 +1235,5 @@ Service Worker importer в слое import` находится в `REVIEW`: comp
 `runtime`; владелец подтвердил Cache Storage без прежнего `metafor`.
 `LOAD-001.18 — Хранить Window importer в cache import` находится в `REVIEW`:
 `/main.js` лениво создаёт и использует `import`, не меняя endpoint или поведение
-importer; владелец подтвердил live-запуск и caches `startup`, `import`, а
-offline restoration остаётся отдельным недоказанным сценарием.
+importer; владелец подтвердил live-запуск, caches `startup`, `import` и полное
+offline restoration startup вместе с Window importer.
