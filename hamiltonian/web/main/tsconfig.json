@@ -9,8 +9,7 @@
     "types": []
   },
   "include": [
-    "endpoint.d.ts",
-    "index.ts"
+    "main.ts"
   ],
   "exclude": []
 }

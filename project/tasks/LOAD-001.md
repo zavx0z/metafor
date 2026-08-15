@@ -550,13 +550,22 @@ Regression или опровергающее доказательство: `@web
 модуль выполняется без network error. Запуск и browser-проверку выполняет
 владелец.
 
-Фактические действия:
+Фактические действия: `web/main` зарегистрирован workspace-пакетом `@web/main`
+со strict typecheck и отдельным browser build в `dist/main.js`. Штатный start
+собирает пакет до запуска server, который буферизует artifact на `/main.js`.
+Importer после controller выполняет literal `import("/main.js")`; endpoint
+объявлен внешним для Bun build и строго типизирован узкой ambient declaration,
+поэтому main не встраивается в importer. Worker сохраняет successful exact
+`/main.js` response до его возврата вызывающему import.
 
-Результат и вывод:
+Результат и вывод: отдельные builds `@web/main`, `@web/import` и `@web/service`,
+строгая host-проверка и server bundle проходят. Собранный importer сохраняет
+runtime `import("/main.js")` и не содержит `main process`; live online/offline
+проверка владельца остаётся открытой.
 
-Подготовительный commit: текущий project-коммит.
+Подготовительный commit: `20b1e140e`.
 
-Result checkpoint:
+Result checkpoint: текущий implementation-коммит.
 
 ## Открытые вопросы
 

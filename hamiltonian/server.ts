@@ -12,6 +12,9 @@ Bun.serve<{ source: "web/service" }>({
     "/import.js": new Response(await Bun.file("./web/import/dist/index.js").bytes(), {
       headers: {"Content-Type": "text/javascript; charset=utf-8"},
     }),
+    "/main.js": new Response(await Bun.file("./web/main/dist/main.js").bytes(), {
+      headers: {"Content-Type": "text/javascript; charset=utf-8"},
+    }),
     "/service.js": new Response(await Bun.file("./web/service/dist/index.js").bytes(), {
       headers: {
         "Cache-Control": "no-cache",
