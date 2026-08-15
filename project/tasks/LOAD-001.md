@@ -1136,6 +1136,54 @@ server bundle содержат ту же развилку и не открыва
 
 Result checkpoint: `4c1787606`.
 
+### LOAD-001.19 — Запускать Service Worker importer через startup loader
+
+Статус и исполнитель: `IN_PROGRESS`; выполняет руководитель текущей задачи
+Codex напрямую, без субагентов.
+
+Классификация: первый исполняемый переход `startup → import` внутри Service
+Worker после доказанных раздельных caches.
+
+Требование: после получения `connect` message startup Service Worker получает
+готовый artifact `@import/service` обычным `fetch`, сохраняет его в cache
+`import`, повторно читает сохранённые bytes и один раз за инкарнацию выполняет
+их через `Function`. При повторном запуске с доступным cache network не нужен.
+
+Основание и связанная история: `LOAD-001.16` создал пустую package boundary
+`@import/service`, `LOAD-001.17` и `LOAD-001.18` доказали caches `startup` и
+`import`. Решение владельца закрепило transport кода за `fetch`, WebSocket — за
+RPC, а primitives загрузки и запуска — за `web/startup/service`.
+
+Наблюдаемое расхождение: package `@import/service` существует, но server не
+выдаёт её artifact, startup loader не сохраняет и не запускает её, поэтому
+Service Worker остаётся на уровне startup.
+
+Причина: structural package-срез намеренно не включал executable handoff между
+startup и import.
+
+Разрешённое изменение одного механизма: build-time macro слоя `web/import`
+строго проверяет и собирает `@import/main` и IIFE artifact `@import/service`;
+routes выдают их как `/main.js` и `/import-service.js`. Startup loader
+cache-first сохраняет второй endpoint в `import`, читает сохранённый response и
+выполняет source через `Function` при `connect`. Не добавлять runtime packages,
+RPC messages, digest contract, ready message или update behavior.
+
+Regression или опровергающее доказательство: первый successful load создаёт
+entry `/import-service.js` в `import` и пишет `service importer`; повторный load
+текущей Worker-инкарнации не выполняет importer второй раз. Invalid HTTP
+response не попадает в cache, а compile/runtime error удаляет его entry.
+`/main.js` и offline startup сохраняют прежнее поведение; cache `runtime` не
+создаётся.
+
+Среда и критерий приёмки: strict checks/builds обоих import packages и startup
+Service Worker, focused loader execution, server build, artifact inspection и
+`git diff --check` проходят. Live online/offline запуск Service Worker importer
+проверяет владелец.
+
+Подготовительный commit: ожидается.
+
+Result checkpoint: ожидается.
+
 ## Открытые вопросы
 
 * Как выглядит минимальный message contract между main и Service Worker?
@@ -1237,3 +1285,6 @@ Service Worker importer в слое import` находится в `REVIEW`: comp
 `/main.js` лениво создаёт и использует `import`, не меняя endpoint или поведение
 importer; владелец подтвердил live-запуск, caches `startup`, `import` и полное
 offline restoration startup вместе с Window importer.
+`LOAD-001.19 — Запускать Service Worker importer через startup loader` является
+текущим срезом: startup loader должен получить, сохранить и выполнить
+`@import/service` без runtime packages и RPC contract.

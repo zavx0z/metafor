@@ -149,7 +149,9 @@ cache` находится в `REVIEW`: действующий cache `metafor` п
 `startup`, а владелец подтвердил Cache Storage без прежнего `metafor`.
 `LOAD-001.18 — Хранить Window importer в cache import` находится в `REVIEW`:
 владелец подтвердил выполнение importer, caches `startup`, `import` и полное
-offline restoration startup вместе с Window importer. `UPD-002 — Обновлять всю
+offline restoration startup вместе с Window importer. Текущий `LOAD-001.19 —
+Запускать Service Worker importer через startup loader` добавляет первый
+исполняемый переход `startup → import` внутри Worker. `UPD-002 — Обновлять всю
 клиентскую сборку через Service Worker` ждёт результата `LOAD-001`.
 
 `HAM-003 — Разделить Hamiltonian по средам исполнения и механизмам` остаётся
