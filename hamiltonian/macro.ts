@@ -49,7 +49,7 @@ export async function build(moduleName: string, options: BuildOptions = {}): Pro
   for (const external of options.external ?? []) command.push(`--external=${external}`)
   if (options.minify) command.push("--minify")
 
-  const result = Bun.spawnSync(command)
+  const result = Bun.spawnSync(command, {cwd: owner.root})
 
   if (result.exitCode !== 0) {
     throw new Error(

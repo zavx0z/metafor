@@ -1,16 +1,19 @@
 import {expect, test} from "bun:test"
 import {fileURLToPath} from "node:url"
 import {join} from "node:path"
+import {build} from "../macro"
 
 const hamiltonian = fileURLToPath(new URL("../", import.meta.url))
 
 test("HAM-005 creates one empty Window visual environment in the importer", async () => {
-  const [html, main, mainPackage, staticRoutes, startupMain] = await Promise.all([
+  const [html, main, mainPackage, mainBunfig, macro, staticRoutes, startupMain] = await Promise.all([
     Bun.file(join(hamiltonian, "web/static/index.html")).text(),
     Bun.file(join(hamiltonian, "web/import/main/main.ts")).text(),
     Bun.file(join(hamiltonian, "web/import/main/package.json")).json() as Promise<{
       dependencies?: Record<string, string>
     }>,
+    Bun.file(join(hamiltonian, "web/import/main/bunfig.toml")).text(),
+    Bun.file(join(hamiltonian, "macro.ts")).text(),
     Bun.file(join(hamiltonian, "web/static/routes.ts")).text(),
     Bun.file(join(hamiltonian, "web/startup/main/index.ts")).text(),
   ])
@@ -30,9 +33,18 @@ test("HAM-005 creates one empty Window visual environment in the importer", asyn
   expect(main).toContain("runtime.handleResize()")
   expect(main).not.toContain("@hamiltonian/visual")
   expect(main).not.toContain("browser/orchestration")
+  expect(mainBunfig).toContain('".wgsl" = "text"')
+  expect(macro).toContain("Bun.spawnSync(command, {cwd: owner.root})")
 
   expect(staticRoutes).toContain('"/assets/fonts/JetBrainsMono-Bold.ttf"')
   expect(staticRoutes).toContain('type: "font/ttf"')
   expect(startupMain).toContain('import("/import/main")')
   expect(startupMain).not.toContain("UiRuntime")
+})
+
+test("HAM-005 bundles the visual importer as one JavaScript artifact", async () => {
+  const output = await build("@import/main")
+
+  expect(output.trim().length).toBeGreaterThan(0)
+  expect(output).toContain("visual-canvas")
 })
