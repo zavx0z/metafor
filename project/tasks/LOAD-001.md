@@ -1350,19 +1350,17 @@ Result checkpoint: `23011f66c`, review corrections `8b8d32e1c`, `83493fa47`.
 
 ### LOAD-001.22 — Загружать Service Worker internal modules
 
-Статус и исполнитель: `IN_PROGRESS`; выполняет руководитель текущей задачи
-Codex напрямую, без субагентов.
+Статус и исполнитель: `REVIEW`; выполнил руководитель текущей задачи Codex
+напрямую, без субагентов; live-сценарий проверил владелец.
 
 Классификация: исправление первого internal-среза после owner review до
 checkpoint; специальная загрузка RPC заменяется общим module contract.
 
 Требование: `server.ts` явно регистрирует стабильный endpoint каждого
-служебного module Hamiltonian под `/internal/…`. Универсальный startup loader
-API получает endpoint, по его пространству выбирает cache, выполняет полную
-цепочку `fetch → verify → cache → read → run` и удаляет только ошибочный module
-entry. Обновляемый `@import/service` является оркестратором Service Worker
-modules: он выбирает адреса и порядок internal и будущих Metafor modules, но не
-повторяет механизм их загрузки. Первый выбранный internal module — Web service
+служебного module Hamiltonian под `/internal/…`. Startup service передаёт
+importer только primitives, которыми сам загружает importer. Полную композицию
+`fetch → verify → cache → read → run`, endpoint, cache и cleanup module хранит
+слой `@import/service`. Первый выбранный internal module — Web service
 `@internall/rpc`.
 
 Основание и связанная история: `LOAD-001.21` передал Service Worker importer
@@ -1380,25 +1378,22 @@ cache lifecycle и особым route, поэтому добавление сл�
 доставку bytes и поведение конкретного package.
 
 Разрешённое изменение одного механизма: создать `hamiltonian/internal`;
-перенести полную загрузку одного Service Worker module в универсальный startup
-loader API; оставить в `@import/service` только оркестрацию адресов через этот
-API; экспортировать из `@internall/rpc` готовый Web artifact, `/service`
-upgrade-логику и WebSocket handlers; явно зарегистрировать их HTTP-адреса в
-`server.ts`; удалить общий internal registry, специальный `/rpc-service.js` и
-startup WebSocket. Loader
-также различает будущий `/metafor/*`, но этот срез не создаёт Metafor module
-или route. Не добавлять update protocol, RPC messages, reconnect policy,
-signaling payload, digest contract, server-side client implementation или
-multi-peer discovery.
+оставить в startup только используемые им `verify`, `cache`, `read`, `remove` и
+`run`; поместить универсальную загрузку Service Worker modules и их storage
+policy в `@import/service`; экспортировать из `@internall/rpc` готовый Web
+artifact, `/sw` upgrade-логику и WebSocket handlers; явно зарегистрировать их
+HTTP-адреса в `server.ts`; удалить общий internal registry, специальный
+`/rpc-service.js` и startup WebSocket. Не добавлять update protocol, reconnect
+policy, signaling payload, digest contract, server-side client implementation
+или multi-peer discovery.
 
-Regression или опровергающее доказательство: `@import/service` не содержит
-`fetch`, cache operations, `run` или имя специального RPC route; один generic
-loader загружает разные `/internal/*` и `/metafor/*` endpoints в раздельные
-caches, cold load не требует network, а invalid artifact удаляет только свой
-entry. `server.ts` явно содержит точный internal endpoint, server bundle не
-содержит общего internal registry или `/rpc-service.js`, а `/service` и
-WebSocket handlers принадлежат `@internall/rpc/server` внутри
-`hamiltonian/internal/rpc`.
+Regression или опровергающее доказательство: startup не содержит `Module`,
+module registry, `importModule`, `/internal/*` или `/metafor/*`. Один loader в
+`@import/service` загружает выбранный endpoint в переданный cache, cold load не
+требует network, а invalid artifact удаляет только свой entry. `server.ts`
+явно содержит exact internal endpoint и `/sw`, server bundle не содержит
+общего internal registry или `/rpc-service.js`, а WebSocket handlers
+принадлежат `@internall/rpc/server`.
 
 Среда и критерий приёмки: strict checks/builds `@startup/service`,
 `@import/service` и `@internall/rpc`, focused generic loader probe минимум с
@@ -1407,29 +1402,27 @@ inspection и `git diff --check` проходят. Владелец провер
 RPC и offline восстановление internal artifact.
 
 Фактические действия: RPC размещён в `hamiltonian/internal/rpc` с package name
-`@internall/rpc`. Его server-сторона предоставляет готовый Web artifact, HTTP
-upgrade `/service` и Bun WebSocket handlers, но не регистрирует их адреса.
-`server.ts` явно связывает wildcard path `rpc` с artifact через
-`/internal/rpc`, upgrade с `/service` и подключает handlers.
-Startup WebSocket удалён. `@import/service` выбирает
-`/internal/rpc` и вызывает один `importModule`, а
-startup loader владеет fetch, проверкой, cache, повторным чтением, запуском и
-cleanup. Endpoint определяет cache через единый structural contract:
-`/internal/*` → `internal`, будущий `/metafor/*` → `metafor`.
+`@internall/rpc`. `server.ts` связывает parameter `rpc` с artifact через
+`/internal/:module`, upgrade с `/sw` и подключает Bun WebSocket handlers.
+Startup WebSocket удалён. `@import/service` выбирает `/internal/rpc`, хранит
+описание cache `internal` и вызывает собственный `importModule`, составленный
+из переданных startup primitives. Из startup удалены module type, registry,
+storage policy и полная module-loading function; общий fetch path только ищет
+exact response во всех Cache Storage.
 
-Текущий результат: strict typecheck/build `@startup/service`,
-`@import/service` и `@internall/rpc` прошли; artifacts занимают `5.0 KB`,
-`0.73 KB` и `0.68 KB`. Focused probe двух пространств подтвердил по одному
-network fetch, независимые caches `internal`/`metafor`, offline повторный
-запуск и удаление только ошибочного entry. Server build прошёл, явно содержит
-точный internal RPC endpoint, package-owned WebSocket и не содержит общего
-internal registry, `/runtime/*` или `/rpc-service.js`. Live owner-проверка
-нового internal endpoint и checkpoint-коммит остаются открыты.
+Результат и вывод: strict typecheck всех startup/import/RPC packages и server
+build прошли; audit не нашёл module policy в startup. Повторные clones
+parameterized responses сохраняют JavaScript MIME и одинаковые непустые bytes.
+Владелец подтвердил загрузку importers, internal RPC module и работающий
+WebSocket после очистки caches.
+
+Result checkpoint: `87928356f`, corrections `43c7f9de1`, `7f203bf81`,
+`df3bcb663`, `a8a96d648`.
 
 ### LOAD-001.23 — Передавать Window importer универсальный module loader
 
-Статус и исполнитель: `IN_PROGRESS`; выполняет руководитель текущей задачи
-Codex напрямую, без субагентов после `.22`.
+Статус и исполнитель: `STOPPED`; преждевременный loader удалён после owner
+review, потому что startup main сам его не использует.
 
 Классификация: симметричный Window-механизм того же loader contract, отдельно
 от Service Worker execution.
@@ -1467,24 +1460,23 @@ Regression или опровергающее доказательство: start
 и `git diff --check` проходят. Live запуск Window orchestrator и offline
 restoration проверяет владелец.
 
-Фактические действия: `@startup/main` получил минимальный `importModule`,
-импортирует только `/import-main.js` и передаёт loader его async default
-entrypoint. `@import/main` принимает точный startup API и остаётся пустым
-оркестратором без адресов конкретных modules. Управляющий Service Worker
-направляет Window requests `/internal/*` и будущие `/metafor/*` в независимые
-module caches.
+Фактические действия: первоначально `@startup/main` получил `importModule` и
+передал его `@import/main`. Владелец отклонил этот placement: функция не
+использовалась startup и преждевременно расширяла неизменяемый слой.
+`startup/main/loader.ts` удалён, а Window importer запускается без loader до
+появления первого реального Window module.
 
-Текущий результат: strict typecheck/build `@startup/main` и `@import/main`
-прошли; artifacts занимают `1.62 KB` и `139 bytes`. Focused cache routing
-направил `/internal/window`, `/metafor/application`, `/import-main.js` и asset
-ровно в `internal`, `metafor`, `import` и `startup`. Server build ожидает
-default importer и содержит универсальный Window `importModule`, не зная
-состава modules. Live owner-проверка и checkpoint-коммит остаются открыты.
+Результат и вывод: startup main снова содержит только Service Worker
+registration/controller handoff и запуск Window importer. Strict typecheck и
+server build прошли, владелец подтвердил запуск. Универсальный Window loader
+будет определён в слое import только вместе с первым Window module.
+
+Result checkpoint отклонённого варианта: `87928356f`; correction: `df3bcb663`.
 
 ### LOAD-001.24 — Подтвердить двусторонний обмен по RPC WebSocket
 
-Статус и исполнитель: `IN_PROGRESS`; выполняет руководитель текущей задачи
-Codex напрямую, без субагентов.
+Статус и исполнитель: `REVIEW`; выполнил руководитель текущей задачи Codex
+напрямую, без субагентов; live heartbeat проверил владелец.
 
 Классификация: первый наблюдаемый обмен данными по уже открытому internal RPC
 WebSocket, отдельно от загрузки module и будущего RPC protocol.
@@ -1519,13 +1511,20 @@ Regression или опровергающее доказательство: се�
 два полученных `pong` с интервалом около 20 секунд, а server contour получает
 соответствующие `ping` и отправляет ответы.
 
-Фактические действия:
+Фактические действия: Web RPC service отправляет literal `ping` сразу после
+`open`, затем повторяет его через `setInterval(..., 20_000)` и очищает interval
+на `close`. Bun handler отвечает literal `pong` только на точный `ping`.
+Web service логирует каждый полученный `pong`.
 
-Результат и вывод:
+Результат и вывод: strict RPC typecheck, server typecheck/build и
+`git diff --check` прошли. Владелец подтвердил повторяющийся ping/pong в live
+контуре. DevTools Offline не обязан закрывать TCP/WebSocket, поэтому быстрые
+logical disconnect и reconnect остаются отдельной будущей policy с pong
+deadline; этот срез их не заявляет.
 
-Подготовительный commit:
+Подготовительные commits: `7496b4d42`, `fe2c7e979`.
 
-Result checkpoint:
+Result checkpoint: `e5ce8bd62`.
 
 ## Открытые вопросы
 

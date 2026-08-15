@@ -158,15 +158,14 @@ Window importer endpoint по слою import` находится в `REVIEW`: `
 Service Worker importer универсальные функции загрузки` находится в `REVIEW`:
 startup primitives отделены от конкретной загрузки importer и передаются ему
 как явный `loader` ABI; live online/offline проверяет владелец. Текущий
-`LOAD-001.22 — Загружать Service Worker internal modules` исправляет первую
-незакоммиченную попытку: Service Worker importer остаётся оркестратором, generic
-startup API загружает служебную логику Hamiltonian из явно зарегистрированных
-`server.ts` endpoints, а `@internall/rpc` размещён в `hamiltonian/internal`.
-Текущий `LOAD-001.23 — Передавать Window
-importer универсальный module loader` делает `@import/main` симметричным
-оркестратором. `LOAD-001.24 — Подтвердить двусторонний обмен по RPC WebSocket`
-повторяет проверочный `ping`/`pong` каждые 20 секунд без формирования полного
-RPC protocol.
+`LOAD-001.22 — Загружать Service Worker internal modules` находится в `REVIEW`:
+Service Worker importer владеет module loader и storage policy, startup
+передаёт ему только реально используемые primitives, а `@internall/rpc`
+размещён в `hamiltonian/internal`. `LOAD-001.23 — Передавать Window importer
+универсальный module loader` остановлен: преждевременный loader удалён из
+startup до появления первого Window module. `LOAD-001.24 — Подтвердить
+двусторонний обмен по RPC WebSocket` находится в `REVIEW`: владелец подтвердил
+повторяющийся `ping`/`pong` каждые 20 секунд без полного RPC protocol.
 Будущая среда MetaFor загружается теми же importers через
 отдельное пространство `/metafor/*` и cache `metafor`. `UPD-002 — Обновлять всю
 клиентскую сборку через Service Worker` ждёт результата `LOAD-001`.
