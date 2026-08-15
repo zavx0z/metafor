@@ -2,11 +2,14 @@
  * Main-thread entrypoint минимального browser loader.
  *
  * При первой установке модуль ждёт появления Service Worker controller, а при
- * уже controlled document использует текущий controller. Main сообщает только
- * о готовности открыть transport; состав startup cache принадлежит Worker.
+ * уже controlled document использует текущий controller. Main просит Worker
+ * запустить Service Worker importer, затем передаёт универсальный loader
+ * обновляемому Window importer.
  *
  * @packageDocumentation
  */
+
+import * as loader from "./loader"
 
 const registration = await navigator.serviceWorker.register("/startup-service.js", {
   scope: "/",
@@ -26,5 +29,6 @@ const serviceWorker = navigator.serviceWorker.controller
 if (!serviceWorker) throw new Error("Service Worker does not control the page")
 
 serviceWorker.postMessage({type: "connect"})
-await import("/import-main.js")
+const {default: importMain} = await import("/import-main.js")
+await importMain(loader)
 console.info("startup/service registered", registration.scope)

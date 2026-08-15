@@ -2,9 +2,10 @@
   "name": "@import/service",
   "private": true,
   "type": "module",
+  "exports": "./index.ts",
   "scripts": {
     "typecheck": "tsc --project tsconfig.json --pretty false",
-    "build": "bun run typecheck && bun build index.ts --target=browser --format=iife --outfile=dist/index.js"
+    "build": "bun run typecheck && bun build @import/service --target=browser --format=cjs --minify --outfile=dist/index.js"
   },
   "devDependencies": {
     "@types/serviceworker": "^0.0.200"

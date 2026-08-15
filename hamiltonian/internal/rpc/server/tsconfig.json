@@ -2,16 +2,14 @@
   "extends": "../../../../tsconfig.json",
   "compilerOptions": {
     "lib": [
-      "ESNext",
-      "DOM",
-      "DOM.Iterable"
+      "ESNext"
     ],
-    "types": []
+    "types": [
+      "bun"
+    ]
   },
   "include": [
-    "endpoint.d.ts",
-    "index.ts",
-    "loader.ts"
+    "*.ts"
   ],
   "exclude": []
 }

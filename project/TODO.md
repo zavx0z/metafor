@@ -157,9 +157,16 @@ Window importer endpoint по слою import` находится в `REVIEW`: `
 заменён на `/import-main.js` без alias. Текущий `LOAD-001.21 — Передавать
 Service Worker importer универсальные функции загрузки` находится в `REVIEW`:
 startup primitives отделены от конкретной загрузки importer и передаются ему
-как явный `loader` ABI; live online/offline проверяет владелец. `UPD-002 —
-Обновлять всю клиентскую сборку через Service Worker` ждёт результата
-`LOAD-001`.
+как явный `loader` ABI; live online/offline проверяет владелец. Текущий
+`LOAD-001.22 — Загружать Service Worker internal modules` исправляет первую
+незакоммиченную попытку: Service Worker importer остаётся оркестратором, generic
+startup API загружает служебную логику Hamiltonian из явно зарегистрированных
+`server.ts` endpoints, а `@internall/rpc` размещён в `hamiltonian/internal`.
+Текущий `LOAD-001.23 — Передавать Window
+importer универсальный module loader` делает `@import/main` симметричным
+оркестратором. Будущая среда MetaFor загружается теми же importers через
+отдельное пространство `/metafor/*` и cache `metafor`. `UPD-002 — Обновлять всю
+клиентскую сборку через Service Worker` ждёт результата `LOAD-001`.
 
 `HAM-003 — Разделить Hamiltonian по средам исполнения и механизмам` остаётся
 `IN_PROGRESS`. Широкий object-oriented срез `HAM-003.8` отклонён владельцем и

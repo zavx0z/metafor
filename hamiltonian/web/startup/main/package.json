@@ -2,8 +2,9 @@
   "name": "@startup/main",
   "private": true,
   "type": "module",
+  "exports": "./index.ts",
   "scripts": {
     "typecheck": "tsc --project tsconfig.json --pretty false",
-    "build": "bun run typecheck && bun build index.ts --target=browser --external=/import-main.js --outfile=dist/index.js"
+    "build": "bun run typecheck && bun build @startup/main --target=browser --external=/import-main.js --outfile=dist/index.js"
   }
 }

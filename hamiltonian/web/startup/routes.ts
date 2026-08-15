@@ -1,13 +1,11 @@
-import {buildStartup} from "./macro" with {type: "macro"}
-
-const startup = await buildStartup()
+import {build} from "../../macro" with {type: "macro"}
 
 /** Статические HTTP responses неизменяемого browser startup. */
 export const startupRoutes = {
-  main: new Response(startup.main, {
+  main: new Response(await build("@startup/main", {external: ["/import-main.js"]}), {
     headers: {"Content-Type": "text/javascript; charset=utf-8"},
   }),
-  service: new Response(startup.service, {
+  service: new Response(await build("@startup/service"), {
     headers: {
       "Cache-Control": "no-cache",
       "Content-Security-Policy": "script-src 'unsafe-eval'",

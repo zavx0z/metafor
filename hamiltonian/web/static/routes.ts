@@ -1,7 +1,7 @@
 import type {BunRequest} from "bun"
 import html from "./index.html" with {type: "text"}
 import manifest from "./manifest.json" with {type: "text"}
-import {staticAssets} from "./macro" with {type: "macro"}
+import {staticAssets} from "../../macro" with {type: "macro"}
 
 const embeddedAssets = new Map(
   (await staticAssets()).map(([path, asset]) => [

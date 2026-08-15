@@ -119,6 +119,7 @@
       "name": "@metafor/hamiltonian",
       "dependencies": {
         "@hamiltonian/visual": "workspace:*",
+        "@internall/rpc": "workspace:*",
         "@metafor/engine": "workspace:*",
         "@metafor/web-push": "workspace:*",
         "@nodes/hud": "workspace:*",
@@ -132,6 +133,12 @@
       },
       "devDependencies": {
         "@types/web-push": "3.6.4",
+      },
+    },
+    "hamiltonian/internal/rpc": {
+      "name": "@internall/rpc",
+      "devDependencies": {
+        "@types/serviceworker": "^0.0.200",
       },
     },
     "hamiltonian/visual": {
@@ -321,6 +328,8 @@
     "@import/main": ["@import/main@workspace:hamiltonian/web/import/main"],
 
     "@import/service": ["@import/service@workspace:hamiltonian/web/import/service"],
+
+    "@internall/rpc": ["@internall/rpc@workspace:hamiltonian/internal/rpc"],
 
     "@leichtgewicht/ip-codec": ["@leichtgewicht/ip-codec@2.0.5", "", {}, "sha512-Vo+PSpZG2/fmgmiNzYK9qWRh8h/CHrwD0mo1h1DzL4yzHNSfWYujGTYsWGreD000gcgmZ7K4Ys6Tx9TxtsKdDw=="],
 

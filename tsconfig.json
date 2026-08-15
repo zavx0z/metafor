@@ -49,6 +49,7 @@
     "hamiltonian/web/import/service/**/*",
     "hamiltonian/web/startup/main/**/*",
     "hamiltonian/web/startup/service/**/*",
+    "hamiltonian/internal/rpc/service/**/*",
     "tests/tmp/**/*",
     "project/artifacts/**/*",
     "cluster/**/*",

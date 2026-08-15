@@ -4,7 +4,7 @@
  * Install и activate немедленно передают новой инкарнации управление. Первое
  * `connect` message продлевает жизнь события до подготовки startup cache,
  * получает и запускает Service Worker importer через универсальный loader API
- * и одновременно открывает control WebSocket. Все GET requests после захвата
+ * и ждёт подготовленные им modules. Все GET requests после захвата
  * страницы проходят через cache-first policy.
  *
  * @packageDocumentation
@@ -12,7 +12,6 @@
 
 import {cacheFirst, cacheStartup} from "./cache"
 import * as loader from "./loader"
-import {connect} from "./socket"
 
 const serviceImporterRequest = new Request(new URL("/import-service.js", location.origin))
 
@@ -29,7 +28,6 @@ addEventListener("activate", (event: ExtendableEvent) => {
 addEventListener("message", (event: ExtendableMessageEvent) => {
   if (event.data?.type !== "connect") return
   event.waitUntil(Promise.all([cacheStartup(), loadServiceImporter()]))
-  connect()
 })
 
 addEventListener("fetch", (event: FetchEvent) => {
@@ -68,7 +66,11 @@ async function startServiceImporter() {
     if (!response) throw new Error("Cached Service Worker importer is missing")
 
     loader.verify(response)
-    loader.run(await response.text(), {loader})
+    const module = {exports: {}} as {
+      exports: {default: (loaderApi: typeof loader) => Promise<void>}
+    }
+    loader.run(await response.text(), {module})
+    await module.exports.default(loader)
   } catch (error) {
     await loader.remove("import", serviceImporterRequest)
     throw error

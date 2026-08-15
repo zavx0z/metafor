@@ -1,3 +1,5 @@
+import {moduleCacheName} from "./storage"
+
 /** Проверяет, что полученный HTTP response можно использовать дальше. */
 export function verify(response: Response) {
   if (!response.ok) throw new Error(`${response.url || "Resource"} returned ${response.status}`)
@@ -20,10 +22,46 @@ export async function remove(name: string, request: Request) {
 }
 
 /**
+ * Загружает и запускает один Service Worker module.
+ *
+ * Endpoint выбирает обновляемый importer. Loader владеет общей цепочкой
+ * network, проверки, выбранного endpoint cache, повторного чтения и выполнения
+ * source. Поэтому importer задаёт состав internal и Metafor modules, но не
+ * повторяет механизм их доставки.
+ * Ошибка удаляет только entry переданного module и допускает следующий retry.
+ *
+ * @param endpoint - Стабильный HTTP endpoint module.
+ * @returns Результат выполнения сохранённого source.
+ */
+export async function importModule(endpoint: string) {
+  const request = new Request(new URL(endpoint, location.origin))
+  const cacheName = moduleCacheName(request)
+  if (!cacheName) throw new Error(`Unsupported module endpoint ${request.url}`)
+
+  try {
+    let response = await read(cacheName, request)
+
+    if (!response) {
+      response = verify(await fetch(request))
+      await cache(cacheName, request, response)
+      response = await read(cacheName, request)
+    }
+
+    if (!response) throw new Error(`Cached module ${request.url} is missing`)
+
+    verify(response)
+    return run(await response.text())
+  } catch (error) {
+    await remove(cacheName, request)
+    throw error
+  }
+}
+
+/**
  * Выполняет source с явно переданными именованными значениями.
  *
- * Startup использует эту границу для IIFE artifacts, которым нельзя сделать
- * dynamic import внутри Service Worker.
+ * Startup и importer используют эту границу для сохранённых IIFE и CommonJS
+ * module bodies, которым нельзя сделать dynamic import внутри Service Worker.
  */
 export function run(source: string, bindings: Readonly<Record<string, unknown>> = {}) {
   const entries = Object.entries(bindings)

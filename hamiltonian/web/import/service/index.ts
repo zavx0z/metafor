@@ -1,8 +1,19 @@
 /**
- * Service Worker importer entrypoint между startup loader и runtime packages.
- * Его IIFE artifact загружается и запускается внутри Service Worker.
+ * Service Worker importer между startup loader и загружаемыми modules.
+ * Его artifact загружается и запускается внутри Service Worker, после чего
+ * importer включает Web RPC service в изменяемый internal-контур Hamiltonian.
  *
  * @packageDocumentation
  */
 
-console.info("service importer", Object.keys(loader))
+import type * as Loader from "../../startup/service/loader"
+
+/**
+ * Формирует Service Worker-контур из internal и будущих Metafor modules.
+ *
+ * @param loader - Универсальные primitives неизменяемого startup.
+ */
+export default async function importService(loader: typeof Loader) {
+  console.info("service importer", Object.keys(loader))
+  await loader.importModule("/internal/rpc")
+}
