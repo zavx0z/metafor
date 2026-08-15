@@ -1,7 +1,7 @@
 import {build} from "../../macro" with {type: "macro"}
 
 /** Статические HTTP responses browser importer artifacts. */
-export const importRoutes = {
+export const imports = {
   main: new Response(await build("@import/main"), {
     headers: {"Content-Type": "text/javascript; charset=utf-8"},
   }),

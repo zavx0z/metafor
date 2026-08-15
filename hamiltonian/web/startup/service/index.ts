@@ -13,7 +13,7 @@
 import {cacheFirst, cacheStartup} from "./cache"
 import * as loader from "./loader"
 
-const serviceImporterRequest = new Request(new URL("/import-service.js", location.origin))
+const serviceImporterRequest = new Request(new URL("/import/service", location.origin))
 
 let serviceImporter: Promise<void> | null = null
 

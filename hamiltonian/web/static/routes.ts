@@ -10,7 +10,7 @@ const embeddedAssets = new Map(
   ] as const),
 )
 
-export const staticRoutes = {
+export const statics = {
   html: new Response(String(html), {
     headers: {"Content-Type": "text/html; charset=utf-8"},
   }),

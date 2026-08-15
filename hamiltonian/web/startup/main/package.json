@@ -5,6 +5,6 @@
   "exports": "./index.ts",
   "scripts": {
     "typecheck": "tsc --project tsconfig.json --pretty false",
-    "build": "bun run typecheck && bun build @startup/main --target=browser --external=/import-main.js --outfile=dist/index.js"
+    "build": "bun run typecheck && bun build @startup/main --target=browser --external=/import/main --outfile=dist/index.js"
   }
 }

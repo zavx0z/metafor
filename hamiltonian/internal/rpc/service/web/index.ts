@@ -16,7 +16,7 @@ connect()
 function connect() {
   if (socket && socket.readyState < WebSocket.CLOSING) return
 
-  const url = new URL("/service", location.origin)
+  const url = new URL("/sw", location.origin)
   url.protocol = location.protocol === "https:" ? "wss:" : "ws:"
   socket = new WebSocket(url)
 

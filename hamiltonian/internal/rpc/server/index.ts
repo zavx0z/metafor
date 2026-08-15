@@ -13,13 +13,10 @@ export interface RpcSocketData {
   source: "rpc/service"
 }
 
-/** HTTP routes, которыми владеет server-сторона RPC. */
-export const routes = {
-  /** Переводит HTTP request `/service` в RPC WebSocket. */
-  service(request: Request, server: Bun.Server<RpcSocketData>) {
-    if (server.upgrade(request, {data: {source: "rpc/service"}})) return
-    return new Response("WebSocket upgrade required", {status: 426})
-  },
+/** Переводит HTTP request `/sw` в RPC WebSocket. */
+export const sw = (request: Request, server: Bun.Server<RpcSocketData>) => {
+  if (server.upgrade(request, {data: {source: "rpc/service"}})) return
+  return new Response("WebSocket upgrade required", {status: 426})
 }
 
 /** Server handlers единственного RPC WebSocket transport. */
