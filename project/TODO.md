@@ -145,7 +145,9 @@ build executor получает development-команду из единстве
 `scripts.build` пакета: сохраняет debug и добавляет inline source map;
 production удаляет `console.debug` и не публикует карту. Package contract
 находится динамически без реестра имён. Постоянный contour запускается через
-`bun run dev`.
+`bun run dev`. Текущий срез `UPD-002.5` добавляет owner-scoped development
+diagnostics полного пути `POST → build → WSS → fetch → cache → restart → новый
+page realm`, не меняя действующий update protocol.
 
 `HAM-003 — Разделить Hamiltonian по средам исполнения и механизмам` остаётся
 `IN_PROGRESS`, но активного среза не имеет. Широкий object-oriented срез
