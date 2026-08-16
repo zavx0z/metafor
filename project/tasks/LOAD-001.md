@@ -1545,6 +1545,51 @@ deadline; этот срез их не заявляет.
 
 Result checkpoint: `e5ce8bd62`.
 
+### LOAD-001.25 — Проверять первый importer по причинному результату
+
+Статус и исполнитель: `IN_PROGRESS`; выполняет руководитель текущей задачи
+Codex напрямую, без субагентов.
+
+Классификация: test-only correction принятого browser loader contract без
+изменения product source или поведения Service Worker.
+
+Требование: первый запуск `@import/main` после перехода текущей страницы под
+управление Service Worker доказывается точным controller, наблюдаемым request и
+появлением exact entry в принадлежащем importer cache `import`. Метаданные
+Puppeteer `HTTPResponse.fromServiceWorker()` не являются обязательным
+свидетельством для takeover уже открытого document через `clients.claim()`.
+
+Основание и связанная история: browser regression `LOAD-001` уже проверяет
+controller, запрос `/code?module=@import/main` и cache boundaries. Позднее к
+первому запуску добавили ещё одно ожидание `fromServiceWorker()`, которое не
+описывает отдельного принятого результата.
+
+Наблюдаемое расхождение: importer успешно запрашивается под точным controller
+и сохраняется в cache `import`, однако Puppeteer возвращает для первого
+response `fromServiceWorker() === false`, из-за чего suite сообщает один fail.
+
+Причина: CDP/Puppeteer response metadata не даёт надёжного свидетельства
+Service Worker для первого запроса во время takeover уже загруженного document,
+хотя причинный результат fetch handler виден в Cache Storage.
+
+Разрешённое изменение одного механизма: удалить только дублирующее ожидание
+`fromServiceWorker()` для первого importer request. Не менять product code,
+controller assertions, точный request, cache ownership и проверки offline/cold
+ответов, где network недоступна и Service Worker response является отдельным
+наблюдаемым результатом.
+
+Regression или опровергающее доказательство: полный `test:load` проходит;
+первый install по-прежнему требует точный controller, request и importer entry
+в cache `import`, а offline navigation и cold restoration сохраняют проверки
+ответов Service Worker.
+
+Среда и критерий приёмки: полный `bun run test:load` и `git diff --check`
+проходят. Production files не изменены.
+
+Подготовительный commit: этот commit.
+
+Result checkpoint: ожидается.
+
 ## Открытые вопросы
 
 * Какой первый реальный module после стандартного окружения `HAM-005` загружает
