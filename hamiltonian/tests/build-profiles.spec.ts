@@ -82,24 +82,39 @@ test("build executor derives development arguments from the production command",
 
 test("development keeps debug and source map while production drops both", async () => {
   const development = await build("development")
-  expect(development).toContain("console.debug")
-  expect(development).toContain("rpc/service websocket connected")
-  expect(development).toContain("sourceMappingURL=data:application/json")
+  expect(development.rpc).toContain("console.debug")
+  expect(development.rpc).toContain("подключились к серверу обновлений")
+  expect(development.rpc).toContain("получено уведомление об обновлении")
+  expect(development.rpc).toContain("перезагрузка страниц началась")
+  expect(development.importService).toContain("загрузка новой сборки началась")
+  expect(development.importService).toContain("запись кэша заменена")
+  expect(development.importService).toContain("начинаем повторную навигацию страниц")
+  expect(development.startupMain).toContain("страница готова к работе")
+  for (const artifact of Object.values(development)) {
+    expect(artifact).toContain("sourceMappingURL=data:application/json")
+  }
 
   const production = await build("production")
-  expect(production).not.toContain("console.debug")
-  expect(production).not.toContain("rpc/service websocket connected")
-  expect(production).not.toContain("rpc/service websocket disconnected")
-  expect(production).not.toContain("sourceMappingURL=")
-  expect(production).toContain("console.error")
-  expect(production).toContain("rpc/service websocket error")
+  expect(production.rpc).not.toContain("подключились к серверу обновлений")
+  expect(production.rpc).not.toContain("получено уведомление об обновлении")
+  expect(production.rpc).not.toContain("перезагрузка страниц началась")
+  expect(production.importService).not.toContain("загрузка новой сборки началась")
+  expect(production.importService).not.toContain("запись кэша заменена")
+  expect(production.importService).not.toContain("начинаем повторную навигацию страниц")
+  expect(production.importService).not.toContain("замена кэша завершилась с ошибкой")
+  expect(production.startupMain).not.toContain("страница готова к работе")
+  for (const artifact of Object.values(production)) {
+    expect(artifact).not.toContain("console.debug")
+    expect(artifact).not.toContain("sourceMappingURL=")
+    expect(artifact).not.toMatch(/\[@(?:startup|import|internal)\//)
+  }
 })
 
 async function build(mode: "development" | "production") {
   const child = Bun.spawn([
     Bun.which("bun") ?? "bun",
     "-e",
-    'import {buildPackage} from "./build.ts"; console.log(JSON.stringify(await buildPackage("@internal/rpc")))',
+    'import {buildPackage} from "./build.ts"; console.log(JSON.stringify(await Promise.all([buildPackage("@startup/main"), buildPackage("@import/service"), buildPackage("@internal/rpc")])))',
   ], {
     cwd: hamiltonian,
     env: {...process.env, NODE_ENV: mode},
@@ -111,11 +126,20 @@ async function build(mode: "development" | "production") {
     new Response(child.stdout).text(),
     new Response(child.stderr).text(),
   ])
-  const result = JSON.parse(stdout) as {success: boolean; exitCode: number | null}
+  const resultLine = stdout.trim().split("\n").at(-1)
+  if (!resultLine) throw new Error("Package build result is missing")
+  const result = JSON.parse(resultLine) as Array<{success: boolean; exitCode: number | null}>
   expect({processExitCode: exitCode, stderr, result}).toMatchObject({
     processExitCode: 0,
-    result: {success: true, exitCode: 0},
+    result: [
+      {success: true, exitCode: 0},
+      {success: true, exitCode: 0},
+      {success: true, exitCode: 0},
+    ],
   })
-  expect(result).toMatchObject({success: true, exitCode: 0})
-  return await Bun.file(join(hamiltonian, "internal/rpc/dist/index.js")).text()
+  return {
+    startupMain: await Bun.file(join(hamiltonian, "web/startup/main/dist/index.js")).text(),
+    importService: await Bun.file(join(hamiltonian, "web/import/service/dist/index.js")).text(),
+    rpc: await Bun.file(join(hamiltonian, "internal/rpc/dist/index.js")).text(),
+  }
 }

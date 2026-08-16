@@ -134,7 +134,7 @@ hashes и атомарное переключение сменяемого на�
 `import`/`internal`/`metafor` принадлежат начатой `UPD-002`; неизменяемый
 startup в этот выпуск не входит. Владелец признал текущий loader checkpoint
 достаточным для development update-срезов, не закрывая остальную `LOAD-001`.
-`UPD-002.2`–`UPD-002.4` находятся в `REVIEW`: групповой build, одно уведомление
+`UPD-002.2`–`UPD-002.5` находятся в `REVIEW`: групповой build, одно уведомление
 и один browser restart сохранены, а единственный внешний POST contract теперь
 использует JSON `{modules: string[]}`. Legacy query POST отклоняется; Service
 Worker delivery после parsing boundary не менялась. Package-owned development
@@ -142,9 +142,10 @@ build executor получает development-команду из единстве
 `scripts.build` пакета: сохраняет debug и добавляет inline source map;
 production удаляет `console.debug` и не публикует карту. Package contract
 находится динамически без реестра имён. Постоянный contour запускается через
-`bun run dev`. Текущий срез `UPD-002.5` добавляет owner-scoped development
-diagnostics полного пути `POST → build → WSS → fetch → cache → restart → новый
-page realm`, не меняя действующий update protocol.
+`bun run dev`. `UPD-002.5` добавил owner-scoped русские development diagnostics
+полного пути `POST → build → WSS → fetch → cache → restart → новый page realm`,
+не меняя действующий update protocol; production artifacts не содержат эти
+вызовы, аргументы и scope.
 
 `HAM-003 — Разделить Hamiltonian по средам исполнения и механизмам` остаётся
 `IN_PROGRESS`, но активного среза не имеет. Широкий object-oriented срез

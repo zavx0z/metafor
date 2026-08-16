@@ -26,11 +26,23 @@ export const sw = (request: Request, server: Bun.Server<RpcSocketData>) => {
 export const websocket: Bun.WebSocketHandler<RpcSocketData> = {
   open(socket) {
     socket.subscribe(rpcServiceTopic)
-    console.info(`${socket.data.source} connected`)
+    if (Bun.env.NODE_ENV === "development") {
+      console.debug("[@internal/rpc/server]", "Service Worker подключён", {
+        source: socket.data.source,
+        topic: rpcServiceTopic,
+      })
+    }
   },
   message() {},
-  close(socket) {
+  close(socket, code, reason) {
     socket.unsubscribe(rpcServiceTopic)
-    console.info(`${socket.data.source} disconnected`)
+    if (Bun.env.NODE_ENV === "development") {
+      console.debug("[@internal/rpc/server]", "Service Worker отключён", {
+        code,
+        reason,
+        source: socket.data.source,
+        topic: rpcServiceTopic,
+      })
+    }
   },
 }

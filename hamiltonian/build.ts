@@ -45,15 +45,40 @@ export async function packageResponse(module: BuildableModule) {
   let artifact = await readArtifact(owner)
 
   if (!artifact) {
+    if (Bun.env.NODE_ENV === "development") {
+      console.debug("[hamiltonian/server/build]", "готовой сборки нет, запускаем сборку", {
+        module,
+        path: owner.artifact,
+      })
+    }
     const result = await buildPackage(module)
-    if (!result.success) return Response.json(result, {status: 422})
+    if (!result.success) {
+      if (Bun.env.NODE_ENV === "development") {
+        console.debug("[hamiltonian/server/build]", "не удалось собрать модуль по запросу", {
+          module,
+          exitCode: result.exitCode,
+          stderr: result.stderr,
+        })
+      }
+      return Response.json(result, {status: 422})
+    }
 
     artifact = await readArtifact(owner)
     if (!artifact) {
-      return Response.json(buildContractFailure(result, owner.artifact), {status: 422})
+      const failure = buildContractFailure(result, owner.artifact)
+      if (Bun.env.NODE_ENV === "development") {
+        console.debug("[hamiltonian/server/build]", "сборка не создала готовый файл", {
+          module,
+          path: owner.artifact,
+        })
+      }
+      return Response.json(failure, {status: 422})
     }
   }
 
+  if (Bun.env.NODE_ENV === "development") {
+    console.debug("[hamiltonian/server/build]", "отдаём готовую сборку", {module, ...artifact})
+  }
   const responseHeaders = new Headers({"Cache-Control": "no-cache"})
   responseHeaders.set("Content-Type", artifact.type)
   for (const [name, value] of Object.entries(owner.headers)) responseHeaders.set(name, value)
@@ -109,8 +134,16 @@ export async function rebuildableModules(
  */
 export function buildPackage(module: BuildableModule): Promise<PackageBuildResult> {
   const pending = pendingBuilds.get(module)
-  if (pending) return pending
+  if (pending) {
+    if (Bun.env.NODE_ENV === "development") {
+      console.debug("[hamiltonian/server/build]", "ожидаем уже запущенную сборку пакета", {module})
+    }
+    return pending
+  }
 
+  if (Bun.env.NODE_ENV === "development") {
+    console.debug("[hamiltonian/server/build]", "запрошена сборка пакета", {module})
+  }
   const build = runPackageBuild(module)
   pendingBuilds.set(module, build)
   void build.then(
@@ -161,6 +194,12 @@ export function packageBuildCommand(
 async function runPackageBuild(module: BuildableModule): Promise<PackageBuildResult> {
   try {
     const owner = await packageOwner(module)
+    if (Bun.env.NODE_ENV === "development") {
+      console.debug("[hamiltonian/server/build]", "проверка пакета перед сборкой началась", {
+        module,
+        root: owner.root,
+      })
+    }
     const prebuild = Bun.spawn([Bun.which("bun") ?? "bun", "run", "--silent", "prebuild"], {
       cwd: owner.root,
       stdout: "pipe",
@@ -172,6 +211,13 @@ async function runPackageBuild(module: BuildableModule): Promise<PackageBuildRes
       new Response(prebuild.stderr).text(),
     ])
     if (prebuildExitCode !== 0) {
+      if (Bun.env.NODE_ENV === "development") {
+        console.debug("[hamiltonian/server/build]", "проверка пакета завершилась с ошибкой", {
+          module,
+          exitCode: prebuildExitCode,
+          stderr: prebuildStderr,
+        })
+      }
       return {
         module,
         success: false,
@@ -182,7 +228,22 @@ async function runPackageBuild(module: BuildableModule): Promise<PackageBuildRes
       }
     }
 
-    const child = Bun.spawn(packageBuildCommand(owner.build), {
+    if (Bun.env.NODE_ENV === "development") {
+      console.debug("[hamiltonian/server/build]", "проверка пакета завершена", {
+        module,
+        exitCode: prebuildExitCode,
+      })
+    }
+    const command = packageBuildCommand(owner.build)
+    if (Bun.env.NODE_ENV === "development") {
+      console.debug("[hamiltonian/server/build]", "сборка пакета началась", {
+        module,
+        command,
+        environment: Bun.env.NODE_ENV,
+        root: owner.root,
+      })
+    }
+    const child = Bun.spawn(command, {
       cwd: owner.root,
       stdout: "pipe",
       stderr: "pipe",
@@ -196,19 +257,43 @@ async function runPackageBuild(module: BuildableModule): Promise<PackageBuildRes
     const stderr = `${prebuildStderr}${buildStderr}`
 
     if (exitCode !== 0) {
+      if (Bun.env.NODE_ENV === "development") {
+        console.debug("[hamiltonian/server/build]", "сборка пакета завершилась с ошибкой", {
+          module,
+          exitCode,
+          stderr,
+        })
+      }
       return {module, success: false, exitCode, stdout, stderr, outputs: []}
     }
 
     const artifact = await readArtifact(owner)
     if (!artifact) {
-      return buildContractFailure(
+      const failure = buildContractFailure(
         {module, success: true, exitCode, stdout, stderr, outputs: []},
         owner.artifact,
       )
+      if (Bun.env.NODE_ENV === "development") {
+        console.debug("[hamiltonian/server/build]", "сборка пакета не создала готовый файл", {
+          module,
+          path: owner.artifact,
+        })
+      }
+      return failure
     }
 
+    if (Bun.env.NODE_ENV === "development") {
+      console.debug("[hamiltonian/server/build]", "сборка пакета завершена", {
+        module,
+        exitCode,
+        artifact,
+      })
+    }
     return {module, success: true, exitCode, stdout, stderr, outputs: [artifact]}
   } catch (error) {
+    if (Bun.env.NODE_ENV === "development") {
+      console.debug("[hamiltonian/server/build]", "сборка пакета завершилась с ошибкой", {module}, error)
+    }
     return {
       module,
       success: false,

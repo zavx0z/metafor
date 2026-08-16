@@ -28,4 +28,7 @@ if (!serviceWorker) throw new Error("Service Worker does not control the page")
 
 serviceWorker.postMessage({type: "connect"})
 await import("/code?module=@import/main")
-console.debug("startup/service registered", registration.scope)
+console.debug("[@startup/main]", "страница готова к работе", {
+  controller: serviceWorker.scriptURL,
+  registration: registration.scope,
+})

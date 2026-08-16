@@ -38,3 +38,47 @@ test("LOAD-001 keeps module policy and WebSocket outside immutable startup", asy
   expect(storage).toContain('endpoint: "/code?module=@internal/rpc"')
   expect(storage).toContain('cache: "internal"')
 })
+
+test("UPD-002 exposes the development update path through owner-scoped diagnostics", async () => {
+  const [server, build, rpcServer, rpcService, importService, updateLoader, startupMain] =
+    await Promise.all([
+      Bun.file(join(hamiltonian, "server.ts")).text(),
+      Bun.file(join(hamiltonian, "build.ts")).text(),
+      Bun.file(join(hamiltonian, "internal/rpc/server/index.ts")).text(),
+      Bun.file(join(hamiltonian, "internal/rpc/service/web/index.ts")).text(),
+      Bun.file(join(hamiltonian, "web/import/service/index.ts")).text(),
+      Bun.file(join(hamiltonian, "web/import/service/loader.ts")).text(),
+      Bun.file(join(hamiltonian, "web/startup/main/index.ts")).text(),
+    ])
+
+  expect(server).toContain(
+    'console.debug("[hamiltonian/server/code:delivery]", "получен запрос клиентского модуля"',
+  )
+  expect(server).toContain(
+    'console.debug("[hamiltonian/server/code:update]", "уведомление об обновлении отправлено"',
+  )
+  expect(build).toContain(
+    'console.debug("[hamiltonian/server/build]", "проверка пакета перед сборкой началась"',
+  )
+  expect(build).toContain(
+    'console.debug("[hamiltonian/server/build]", "сборка пакета завершена"',
+  )
+  expect(rpcServer).toContain('console.debug("[@internal/rpc/server]", "Service Worker подключён"')
+  expect(rpcService).toContain(
+    'console.debug("[@internal/rpc/service:update]", "получено уведомление об обновлении"',
+  )
+  expect(importService).toContain(
+    'console.debug("[@import/service:update]", "проверяем список модулей"',
+  )
+  expect(importService).toContain(
+    'console.debug("[@import/service:restart]", "начинаем перезагрузку страниц"',
+  )
+  expect(updateLoader).toContain(
+    'console.debug("[@import/service/loader:update]", "откат кэша завершён"',
+  )
+  expect(startupMain).toContain('console.debug("[@startup/main]", "страница готова к работе"')
+
+  for (const source of [server, build, rpcServer, rpcService, importService, updateLoader]) {
+    expect(source).not.toMatch(/const [A-Z_]*SCOPE/)
+  }
+})

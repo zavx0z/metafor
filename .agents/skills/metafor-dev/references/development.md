@@ -6,7 +6,17 @@ Hamiltonian работает постоянно на `http://127.0.0.1:4444/`. �
 Skill запускает development contour через `bun run dev`. Этот режим
 минифицирует browser artifacts, сохраняет `console.debug` и добавляет inline
 source map. Временные diagnostics писать через `console.debug`; не помещать в
-его аргументы обязательную рабочую логику.
+его аргументы обязательную рабочую логику. Первым аргументом передавать
+постоянный scope владельца в квадратных скобках, вторым — короткое событие,
+третьим — структурированные данные, например:
+
+```ts
+console.debug("[@import/service:update]", "новая сборка загружена", {
+  cache,
+  source,
+  status,
+})
+```
 
 `bun run build` собирает production artifacts: они также минифицированы, но
 `console.debug` вместе с аргументами удалён, а source map отсутствует.

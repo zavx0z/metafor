@@ -25,13 +25,50 @@ Bun.serve<RpcSocketData>({
     },
     "/code": {
       GET: async (request: Request) => {
-        const module = await buildableModule(new URL(request.url).searchParams.get("module"))
-        if (module === null) return new Response(null, {status: 404})
-        return packageResponse(module)
+        const requestedModule = new URL(request.url).searchParams.get("module")
+        if (Bun.env.NODE_ENV === "development") {
+          console.debug("[hamiltonian/server/code:delivery]", "получен запрос клиентского модуля", {
+            module: requestedModule,
+          })
+        }
+        const module = await buildableModule(requestedModule)
+        if (module === null) {
+          if (Bun.env.NODE_ENV === "development") {
+            console.debug("[hamiltonian/server/code:delivery]", "клиентский модуль не найден", {
+              module: requestedModule,
+              status: 404,
+            })
+          }
+          return new Response(null, {status: 404})
+        }
+        const response = await packageResponse(module)
+        if (Bun.env.NODE_ENV === "development") {
+          console.debug("[hamiltonian/server/code:delivery]", "клиентский модуль готов к отправке", {
+            module,
+            status: response.status,
+          })
+        }
+        return response
       },
       POST: async (request: Request, server: Bun.Server<RpcSocketData>) => {
+        if (Bun.env.NODE_ENV === "development") {
+          console.debug("[hamiltonian/server/code:update]", "получен запрос на обновление", {
+            contentType: request.headers.get("Content-Type"),
+            endpoint: new URL(request.url).pathname,
+          })
+        }
         const modules = await rebuildableModules(request)
-        if (modules instanceof Response) return modules
+        if (modules instanceof Response) {
+          if (Bun.env.NODE_ENV === "development") {
+            console.debug("[hamiltonian/server/code:update]", "запрос на обновление отклонён", {
+              status: modules.status,
+            })
+          }
+          return modules
+        }
+        if (Bun.env.NODE_ENV === "development") {
+          console.debug("[hamiltonian/server/code:update]", "модули приняты для обновления", {modules})
+        }
         return await buildModules(modules, server)
       },
     },
@@ -50,10 +87,52 @@ async function buildModules(
   modules: RebuildableModule[],
   server: Bun.Server<RpcSocketData>,
 ) {
+  if (Bun.env.NODE_ENV === "development") {
+    console.debug("[hamiltonian/server/code:update]", "сборка модулей началась", {modules})
+  }
   const results = await Promise.all(modules.map(buildPackage))
   const response = {success: results.every((result) => result.success), results}
-  if (!response.success) return Response.json(response, {status: 422})
+  if (!response.success) {
+    if (Bun.env.NODE_ENV === "development") {
+      console.debug("[hamiltonian/server/code:update]", "сборка модулей завершилась с ошибкой", {
+        modules,
+        results: results.map(({module, success, exitCode, outputs}) => ({
+          module,
+          success,
+          exitCode,
+          outputs,
+        })),
+      })
+    }
+    return Response.json(response, {status: 422})
+  }
 
-  server.publish(rpcServiceTopic, JSON.stringify({type: "build", modules}))
+  if (Bun.env.NODE_ENV === "development") {
+    console.debug("[hamiltonian/server/code:update]", "сборка модулей завершена", {
+      modules,
+      results: results.map(({module, success, exitCode, outputs}) => ({
+        module,
+        success,
+        exitCode,
+        outputs,
+      })),
+    })
+  }
+  const notification = JSON.stringify({type: "build", modules})
+  if (Bun.env.NODE_ENV === "development") {
+    console.debug("[hamiltonian/server/code:update]", "отправляем уведомление об обновлении", {
+      modules,
+      subscribers: server.subscriberCount(rpcServiceTopic),
+      topic: rpcServiceTopic,
+    })
+    const sendStatus = server.publish(rpcServiceTopic, notification)
+    console.debug("[hamiltonian/server/code:update]", "уведомление об обновлении отправлено", {
+      modules,
+      sendStatus,
+      topic: rpcServiceTopic,
+    })
+  } else {
+    server.publish(rpcServiceTopic, notification)
+  }
   return Response.json(response)
 }

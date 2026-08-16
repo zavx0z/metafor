@@ -23,35 +23,61 @@ function connect() {
   url.protocol = location.protocol === "https:" ? "wss:" : "ws:"
   const connection = new WebSocket(url)
   socket = connection
+  console.debug("[@internal/rpc/service]", "подключаемся к серверу обновлений", {
+    from: location.origin,
+    to: url.href,
+  })
 
   connection.addEventListener("open", () => {
-    console.debug("rpc/service websocket connected")
+    console.debug("[@internal/rpc/service]", "подключились к серверу обновлений", {
+      to: connection.url,
+    })
   })
 
   connection.addEventListener("message", (event) => {
     const message = buildMessage(event.data)
     if (message === null) return
+    console.debug("[@internal/rpc/service:update]", "получено уведомление об обновлении", {
+      from: connection.url,
+      modules: message.modules,
+    })
     void applyBuild(connection, message.modules)
   })
 
-  connection.addEventListener("close", () => {
+  connection.addEventListener("close", (event) => {
     socket = null
-    console.debug("rpc/service websocket disconnected")
+    console.debug("[@internal/rpc/service]", "отключились от сервера обновлений", {
+      code: event.code,
+      reason: event.reason,
+      wasClean: event.wasClean,
+    })
   })
 
   connection.addEventListener("error", (error) => {
-    console.error("rpc/service websocket error", error)
+    console.debug("[@internal/rpc/service]", "ошибка подключения к серверу обновлений", error)
+    console.error("Ошибка WebSocket сервиса обновлений", error)
   })
 }
 
 /** Применяет одну build-группу и завершает прежний transport перед restart. */
 async function applyBuild(connection: WebSocket, modules: string[]) {
   try {
+    console.debug("[@internal/rpc/service:update]", "обновление модулей началось", {modules})
     await updateModules(modules)
-    connection.close(1000, "browser update")
+    console.debug("[@internal/rpc/service:update]", "кэш модулей обновлён", {modules})
+    console.debug("[@internal/rpc/service:update]", "закрываем прежнее подключение", {
+      code: 1000,
+      modules,
+    })
+    connection.close(1000, "обновление модулей")
+    console.debug("[@internal/rpc/service:update]", "перезагрузка страниц началась", {modules})
     await restartBrowser()
+    console.debug("[@internal/rpc/service:update]", "перезагрузка страниц завершена", {modules})
   } catch (error) {
-    console.error(`rpc/service update failed ${modules.join(", ")}`, error)
+    console.debug("[@internal/rpc/service:update]", "обновление модулей завершилось с ошибкой", {
+      modules,
+    }, error)
+    console.error(`Не удалось обновить модули ${modules.join(", ")}`, error)
   }
 }
 

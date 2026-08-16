@@ -49,13 +49,14 @@ test.serial("UPD-002 updates one module group and restarts every Window once", a
     browser = await launchBrowser(profile)
     const firstWorkerObserver = observeStartupWorker(browser)
     const firstPage = await browser.newPage()
-    const connectionsBefore = countMatches(server.output(), "rpc/service connected")
+    const connectionsBefore = countMatches(server.output(), "Service Worker подключён")
 
     const firstNavigation = await firstPage.goto(server.root, {waitUntil: "load"})
     expect(firstNavigation?.status()).toBe(200)
     const firstWorker = await firstWorkerObserver.promise
     await waitForAcceptedCaches(firstPage)
-    await waitUntil(() => countMatches(server.output(), "rpc/service connected") > connectionsBefore)
+    await waitUntil(() =>
+      countMatches(server.output(), "Service Worker подключён") > connectionsBefore)
 
     const secondPage = await browser.newPage()
     const secondNavigation = await secondPage.goto(server.root, {waitUntil: "load"})
@@ -120,7 +121,8 @@ test.serial("UPD-002 updates one module group and restarts every Window once", a
     expect(nextWorker.target).not.toBe(firstWorker.target)
 
     await waitForAcceptedCaches(firstPage)
-    await waitUntil(() => countMatches(server.output(), "rpc/service connected") > connectionsBefore + 1)
+    await waitUntil(() =>
+      countMatches(server.output(), "Service Worker подключён") > connectionsBefore + 1)
     const sourceAfter = await updateSources(firstPage)
     expect(sourceAfter.importMain).not.toBe(sourceBefore.importMain)
     expect(sourceAfter.importMain).toContain("fixture @import/main 1")
@@ -194,7 +196,6 @@ test.serial("LOAD-001 restores accepted startup, importers and internal module f
     const serviceWorkerResponses: string[] = []
     const workerObserver = observeStartupWorker(browser)
     const page = await browser.newPage()
-    const connectionsBefore = countMatches(server.output(), "rpc/service connected")
 
     page.on("request", (request) => {
       const url = new URL(request.url())
@@ -211,7 +212,6 @@ test.serial("LOAD-001 restores accepted startup, importers and internal module f
     const firstWorker = await workerObserver.promise
     expect(new URL(firstWorker.target.url()).searchParams.get("module")).toBe("@startup/service")
     await waitForAcceptedCaches(page)
-    await waitUntil(() => countMatches(server.output(), "rpc/service connected") > connectionsBefore)
 
     const documentContract = await page.evaluate(async () => ({
       scripts: Array.from(document.scripts, (script) => script.getAttribute("src")),
@@ -424,6 +424,7 @@ async function startServer(
       ...process.env,
       LOAD_TEST_FAULT: fault,
       LOAD_TEST_PORT: String(port),
+      NODE_ENV: mode === "production" ? "production" : "development",
     },
     stdout: "pipe",
     stderr: "pipe",
