@@ -1547,7 +1547,7 @@ Result checkpoint: `e5ce8bd62`.
 
 ### LOAD-001.25 — Проверять первый importer по причинному результату
 
-Статус и исполнитель: `IN_PROGRESS`; выполняет руководитель текущей задачи
+Статус и исполнитель: `REVIEW`; выполнил руководитель текущей задачи
 Codex напрямую, без субагентов.
 
 Классификация: test-only correction принятого browser loader contract без
@@ -1586,9 +1586,19 @@ Regression или опровергающее доказательство: по�
 Среда и критерий приёмки: полный `bun run test:load` и `git diff --check`
 проходят. Production files не изменены.
 
-Подготовительный commit: этот commit.
+Фактические действия: из сценария первого install удалено только ожидание
+Puppeteer `fromServiceWorker()` для `/code?module=@import/main`. Проверки
+точного controller, request, cache `import`, offline navigation и cold
+restoration не изменены.
 
-Result checkpoint: ожидается.
+Результат и вывод: полный `bun run test:load` завершился результатом `5 pass`,
+`0 fail`, `134 expect()`. Первый takeover теперь проверяется по его причинному
+результату, а отдельные offline/cold ответы Service Worker по-прежнему
+проверяются через `fromServiceWorker()`. Production files не изменены.
+
+Подготовительный commit: `643c37fce`.
+
+Result checkpoint: этот commit.
 
 ## Открытые вопросы
 

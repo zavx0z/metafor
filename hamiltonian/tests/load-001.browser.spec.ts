@@ -225,7 +225,6 @@ test.serial("LOAD-001 restores accepted startup, importers and internal module f
     expect(requests).toContain("/code?module=@startup/main")
     expect(requests).toContain("/code?module=@import/main")
     expect(requests.some((path) => /hmr|_bun/i.test(path))).toBe(false)
-    expect(serviceWorkerResponses).toContain("/code?module=@import/main")
 
     const initial = await cacheSnapshot(page)
     expect(Object.keys(initial).sort()).toEqual(["import", "internal", "startup"])
