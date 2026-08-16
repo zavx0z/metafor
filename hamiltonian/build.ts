@@ -86,6 +86,28 @@ export function rebuildableModule(value: string | null): RebuildableModule | nul
   return null
 }
 
+/** Читает единственный JSON-контракт групповой повторной сборки. */
+export async function rebuildableModules(
+  request: Request,
+): Promise<RebuildableModule[] | Response> {
+  const mediaType = request.headers.get("Content-Type")?.split(";", 1)[0]?.trim().toLowerCase()
+  if (mediaType !== "application/json") return new Response(null, {status: 415})
+  if (new URL(request.url).search !== "") return new Response(null, {status: 400})
+
+  let input: unknown
+  try {
+    input = await request.json()
+  } catch {
+    return new Response(null, {status: 400})
+  }
+
+  if (!isBuildInput(input)) return new Response(null, {status: 400})
+
+  const modules = input.modules.map(rebuildableModule)
+  if (modules.some((module) => module === null)) return new Response(null, {status: 404})
+  return [...new Set(modules as RebuildableModule[])]
+}
+
 /**
  * Всегда запускает package-owned `scripts.build` и возвращает результат процесса.
  *
@@ -206,4 +228,13 @@ function buildContractFailure(
     stderr: [result.stderr.trimEnd(), message].filter(Boolean).join("\n"),
     outputs: [],
   }
+}
+
+function isBuildInput(value: unknown): value is {modules: string[]} {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return false
+  const input = value as Record<string, unknown>
+  return Object.keys(input).length === 1
+    && Array.isArray(input.modules)
+    && input.modules.length > 0
+    && input.modules.every((module) => typeof module === "string")
 }

@@ -38,6 +38,13 @@ stops. It also owns one Chrome CDP process on port 9222 with a stable profile.
 Do not use `runtime:universe`, ports 4000-4005, `launchd`, HMR, another Chrome
 profile, or a second CDP port for this contour.
 
+## Browser module development
+
+Before changing a Hamiltonian package that contributes client code, read and follow the Russian
+[development guide](references/development.md). Keep that reference aligned
+with every accepted change to the local development, code-delivery, or
+module-update mechanism.
+
 ## Browser verification
 
 Take the stable Hamiltonian origin and CDP target from dispatcher output. Reuse

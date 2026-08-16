@@ -76,6 +76,20 @@ test.serial("UPD-002 updates one module group and restarts every Window once", a
       if (frame === secondPage.mainFrame()) navigations.second += 1
     })
 
+    const legacyUrl = new URL("/code", server.root)
+    legacyUrl.searchParams.set("module", "@internal/rpc")
+    expect((await fetch(legacyUrl, {method: "POST"})).status).toBe(415)
+    expect((await fetch(new URL("/code", server.root), {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({modules: []}),
+    })).status).toBe(400)
+    expect((await fetch(new URL("/code", server.root), {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({modules: ["@startup/main"]}),
+    })).status).toBe(404)
+
     const failed = await requestBuild(server.root, modules)
     expect(failed.status).toBe(422)
     expect(failed.body.success).toBe(false)
@@ -589,9 +603,11 @@ async function fixtureRequests(root: string) {
 }
 
 async function requestBuild(root: string, modules: string[]) {
-  const url = new URL("/code", root)
-  for (const module of modules) url.searchParams.append("module", module)
-  const response = await fetch(url, {method: "POST"})
+  const response = await fetch(new URL("/code", root), {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({modules}),
+  })
   const body = await response.json() as {
     success: boolean
     results: Array<{module: string, success: boolean}>

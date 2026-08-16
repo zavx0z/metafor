@@ -2,7 +2,7 @@ import {rpcServiceTopic, sw, websocket, type RpcSocketData} from "@internal/rpc/
 import {
   buildableModule,
   packageResponse,
-  rebuildableModule,
+  rebuildableModules,
   type RebuildableModule,
 } from "../../build"
 
@@ -78,13 +78,9 @@ const server = Bun.serve<RpcSocketData>({
             return packageResponse(module)
         }
       },
-      POST: (request: Request) => {
-        const values = new URL(request.url).searchParams.getAll("module")
-        const selected = values.map(rebuildableModule)
-        if (selected.length === 0 || selected.some((module) => module === null))
-          return new Response(null, {status: 404})
-
-        const modules = [...new Set(selected as RebuildableModule[])]
+      POST: async (request: Request) => {
+        const modules = await rebuildableModules(request)
+        if (modules instanceof Response) return modules
         buildRequests += 1
         const failed = fault === "update-build-failure-once" && buildRequests === 1
         const results = modules.map((module, index) => ({

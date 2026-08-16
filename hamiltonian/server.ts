@@ -1,5 +1,11 @@
 import {rpcServiceTopic, sw, websocket, type RpcSocketData} from "@internal/rpc/server"
-import {buildableModule, buildPackage, packageResponse, rebuildableModule, type RebuildableModule} from "./build"
+import {
+  buildableModule,
+  buildPackage,
+  packageResponse,
+  rebuildableModules,
+  type RebuildableModule,
+} from "./build"
 
 Bun.serve<RpcSocketData>({
   routes: {
@@ -24,8 +30,8 @@ Bun.serve<RpcSocketData>({
         return packageResponse(module)
       },
       POST: async (request: Request, server: Bun.Server<RpcSocketData>) => {
-        const modules = rebuildableModules(new URL(request.url).searchParams.getAll("module"))
-        if (modules === null) return new Response(null, {status: 404})
+        const modules = await rebuildableModules(request)
+        if (modules instanceof Response) return modules
         return await buildModules(modules, server)
       },
     },
@@ -50,12 +56,4 @@ async function buildModules(
 
   server.publish(rpcServiceTopic, JSON.stringify({type: "build", modules}))
   return Response.json(response)
-}
-
-function rebuildableModules(values: string[]): RebuildableModule[] | null {
-  if (values.length === 0) return null
-
-  const modules = values.map(rebuildableModule)
-  if (modules.some((module) => module === null)) return null
-  return [...new Set(modules as RebuildableModule[])]
 }
