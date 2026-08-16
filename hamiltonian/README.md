@@ -16,8 +16,8 @@ runtime, а не картинкой, восстановленной из пос�
 
 ### Декларация нодовой системы каждого контура
 
-Целевой закон `HAM-001` распространяет причинный монитор на все Hamiltonian-
-контуры. Каждый независимо авторитетный контур публикует одну текущую
+Причинный монитор собирается из текущих деклараций Hamiltonian-контуров. Каждый
+независимо авторитетный контур публикует одну текущую
 декларацию своего участка нодовой системы: стабильную logical contour identity,
 incarnation, exact root, монотонную revision/frontier и принадлежащие root
 entity и transport. Это единый lifecycle contract, а не отдельная обработка
@@ -45,9 +45,10 @@ stale incarnation, non-monotonic revision/frontier и частичное сме�
 incarnation заменяет прежнее серверное поддерево, а exact current WSS и
 Oracle/Force DataChannel остаются связаны с current endpoints. При неизменном
 browser artifact set page не перезагружается; stale snapshot и live event не
-возвращают прежнюю incarnation. Общая родительская
-[`HAM-001`](../project/tasks/HAM-001.md) остаётся незавершённой, пока тот же закон не
-применён к остальным independently authoritative contours.
+возвращают прежнюю incarnation. Это доказательство относится к prototype
+server/browser-контуру и не означает автоматического применения закона к новым
+clean-room контурам: применение к каждому новому контуру оформляется отдельной
+точной работой.
 
 В начале выполнения page-кода гарантированы ровно две сущности: Bun server,
 который отдал документ, и текущая page realm. Host identity и epoch приходят
