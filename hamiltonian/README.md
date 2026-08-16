@@ -168,6 +168,24 @@ execution. Точный `WindowClient`, `tabId`, page incarnation и message ide
 проверяются в Worker; `worker-state` возвращается по тому же логическому
 transport.
 
+## Стандартная Window-среда clean-room loader
+
+Обновляемый `@import/main` только импортирует `@internal/visual`. Этот internal
+module создаёт один `UiRuntime` на единственном canvas и владеет его lifetime,
+`Space`, `HUD`, resize и стандартной навигацией. Неизменяемый startup visual
+runtime не создаёт и его implementation не импортирует.
+
+В `Space` находятся стандартный пол и один пустой явно именованный `UIDisplay`;
+встроенный surface-display отключён. Обзорная камера начинает в дальнем режиме
+и сохраняет штатные orbit, pan и zoom. Navigation dock принадлежит `HUD`: он
+приближает камеру к display и возвращает сохранённый обзор, не перехватывая
+input остальной сцены.
+
+HTML, layout canvas и font resource обслуживает `hamiltonian/web/static`.
+Стандартная среда не импортирует prototype `hamiltonian/visual`, Bulk или
+предметную node-system presentation. Последующие internal или MetaFor modules
+наполняют готовый display отдельно и не создают второй visual runtime.
+
 ## Текущее переходное состояние
 
 Главное представление topology — живая интерактивная WebGPU-сцена на

@@ -161,11 +161,11 @@ Evidence-backed gate выполнен в
   internal module; Window importer остаётся пустым оркестратором до выбора
   первого реального module. Имена importers определяют место их работы, но не
   навсегда закрепляют placement загруженного module.
-* Стандартное пустое окружение визуализации Window вынесено в отдельную
-  [`HAM-005`](HAM-005.md): `@import/main` создаёт общий `UiRuntime` с `Space` и
-  `HUD`, а `hamiltonian/web/static` обслуживает его HTML, style и font
-  resources. Это не первый `internal`/`metafor` module и не новый критерий
-  minimal loader.
+* Стандартное пустое окружение визуализации Window закреплено в
+  [Hamiltonian-контракте](../../hamiltonian/README.md#стандартная-window-среда-clean-room-loader):
+  `@import/main` импортирует `@internal/visual`, а `hamiltonian/web/static`
+  обслуживает HTML, style и font resources. Это не первый предметный
+  `internal`/`metafor` module и не новый критерий minimal loader.
 * Service Worker importer хранит выбранные логические адреса, cache и placement
   в собственном обновляемом слое. Первый адрес `/internal/rpc` уже материализован;
   получение новых source addresses через RPC остаётся отдельным следующим
@@ -220,9 +220,10 @@ endpoints, storage policy или WebSocket.
 
 Владелец подтвердил cold restoration internal module в живом browser.
 Стандартное пустое visual-окружение Window и последующий запуск первого
-реального module не расширяют minimal loader: окружение вынесено в `HAM-005`,
-а выбор module остаётся отдельным будущим решением. Полный manifest с hashes,
-preparing/ready/active release и атомарное переключение относятся к `UPD-002`.
+реального module не расширяют minimal loader: окружение закреплено в
+Hamiltonian-контракте, а выбор module остаётся отдельным будущим решением.
+Полный manifest с hashes, preparing/ready/active release и атомарное
+переключение относятся к `UPD-002`.
 
 Каждый новый механизм получает отдельную последовательную подзадачу и
 checkpoint.
@@ -1602,7 +1603,7 @@ Result checkpoint: этот commit.
 
 ## Открытые вопросы
 
-* Какой первый реальный module после стандартного окружения `HAM-005` загружает
+* Какой первый реальный module после стандартного Window-окружения загружает
   `@import/main`? Этот выбор не входит в minimal proof `LOAD-001`.
 * Как RPC передаёт importer изменяемый source address, не меняя стабильный
   same-origin endpoint Service Worker?
@@ -1703,9 +1704,10 @@ offline; владелец также подтвердил cold-восстано�
 `IN_PROGRESS`. Исторический срез `.24` доказал диагностический `ping`/`pong`,
 но этот heartbeat позднее удалён и больше не входит в действующий loader
 contract. Стандартное пустое visual-окружение больше не является её
-незакрытым доказательством: оно зарегистрировано отдельной `HAM-005`. Первый
-предметный Window/Metafor module и его ABI остаются будущим решением. Versioned
-manifest, hashes и атомарная публикация полного release остаются в `UPD-002`.
+незакрытым доказательством: оно закреплено в Hamiltonian-контракте. Первый
+предметный Window/Metafor module и его ABI остаются будущим решением.
+Versioned manifest, hashes и атомарная публикация полного release остаются в
+`UPD-002`.
 
 Test-only Puppeteer suite `bun run --cwd hamiltonian test:load` защищает уже
 принятую loader boundary без изменения product source. Два последовательных

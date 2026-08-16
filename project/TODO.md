@@ -25,7 +25,6 @@ flowchart LR
     MF414["MF-414 · где работают домены"]
     MF421["MF-421 · деактивация невидимого monitor display"]
     MF424["MF-424 · визуальная доводка Hamiltonian"]
-    HAM005["HAM-005 · стандартное visual-окружение Window"]
     NODES008["NODES-008 · убрать пустой compound-резерв"]
     MF425["MF-425 · одна Вселенная на одном устройстве"]
     LOAD001["LOAD-001 · минимальный browser loader"]
@@ -71,14 +70,6 @@ checkpoint NODES-008.4 с общим исправлением левых инт�
 интервала справа в `DOWN`. Реализация NODES-008.5 сохранена checkpoint-коммитом
 `e1b2aea50` и ожидает визуального подтверждения владельца.
 
-Владелец отдельно выбрал `HAM-005 — Собрать стандартное
-окружение визуализации Window`: новый `@import/main` уже создаёт общий runtime,
-пол и управляемую обзорную камеру. Текущий срез `HAM-005.6` добавляет один
-пустой standard display в `Space` и его navigation dock в `HUD`; первый
-ownership correction `HAM-005.7` переносит всё стандартное visual behavior в
-`@internal/visual`, оставляя `@import/main` только bare import. Первый
-предметный graph module будет выбран позднее.
-
 Начата `LOAD-001 — Загружать браузерный функционал через минимальный Service
 Worker`. Весь прежний Hamiltonian остаётся отдельно запускаемым прототипом.
 Browser path уже разделён на неизменяемый `startup`, обновляемые importers и
@@ -90,8 +81,8 @@ Service Worker, восстанавливают HTML/startup offline и запу�
 `/sw` для серверных уведомлений.
 Владелец подтвердил startup/import offline, cold-восстановление `internal` и
 текущий internal RPC/WebSocket. `LOAD-001.23` остановлен: Window loader не
-расширяет startup до появления первого реального Window module. Стандартное
-пустое visual-окружение Window вынесено в самостоятельную `HAM-005`; оно не
+расширяет startup до появления первого предметного Window module. Стандартное
+пустое visual-окружение Window уже закреплено в Hamiltonian-контракте и не
 является дополнительным критерием minimal loader. Полный versioned manifest,
 hashes и атомарное переключение сменяемого набора
 `import`/`internal`/`metafor` принадлежат начатой `UPD-002`; неизменяемый
@@ -116,7 +107,6 @@ production удаляет `console.debug` и не публикует карту.
 | MF-424 | IN_PROGRESS | нет         | [Открыть](tasks/MF-424.md) |
 | MF-425 | IN_PROGRESS | нет         | [Открыть](tasks/MF-425.md) |
 | LOAD-001 | IN_PROGRESS | нет       | [Открыть](tasks/LOAD-001.md) |
-| HAM-005 | IN_PROGRESS | нет         | [Открыть](tasks/HAM-005.md) |
 | UPD-002 | IN_PROGRESS | нет       | [Открыть](tasks/UPD-002.md) |
 | MF-411 | IN_PROGRESS | нет         | [Открыть](tasks/MF-411.md) |
 | NODES-008 | IN_PROGRESS | нет       | [Открыть](tasks/NODES-008.md) |

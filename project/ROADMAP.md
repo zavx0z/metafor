@@ -219,8 +219,9 @@ product-specific projection, composition, панели, стили и live prese
 прежнего Hamiltonian находятся в отдельно запускаемом прототипе под
 `hamiltonian/visual`. Clean-room loader не импортирует и не переносит этот
 source. Первый clean-room visual-шаг выбран отдельно: в
-[`HAM-005 — Собрать стандартное окружение визуализации Window`](tasks/HAM-005.md)
-`@import/main` создаёт общий пустой `UiRuntime` с `Space` и `HUD`, не импортируя
+действующем [Hamiltonian-контракте](../hamiltonian/README.md#стандартная-window-среда-clean-room-loader)
+`@import/main` импортирует `@internal/visual`, который создаёт общий пустой
+`UiRuntime` с `Space`, `HUD`, полом, display и navigation dock, не импортируя
 prototype visual и не выбирая предметный Window module.
 
 ### Загрузка Hamiltonian
@@ -266,12 +267,14 @@ Cache Storage разделён по владельцам `startup`, `import`, `i
 независимо от будущего внешнего адреса source.
 
 Стандартное Window-окружение визуализации является отдельным слоем поверх
-доказанного loader. `@import/main` создаёт один общий `UiRuntime`; встроенный
-surface-display отключён, а явно именованные `UIDisplay` и HUD surfaces позднее
-добавляют их предметные владельцы. HTML, style и font resources обслуживает
-существующий `hamiltonian/web/static`. Этим результатом владеет
-[`HAM-005 — Собрать стандартное окружение визуализации Window`](tasks/HAM-005.md),
-а не prototype `hamiltonian/visual` или первый `internal`/`metafor` module.
+доказанного loader. `@import/main` импортирует `@internal/visual`, который
+создаёт один общий `UiRuntime`; встроенный surface-display отключён, а один
+стандартный `UIDisplay` и navigation dock готовы для последующего предметного
+наполнения. HTML, style и font resources обслуживает существующий
+`hamiltonian/web/static`. Этим результатом владеет
+[Hamiltonian-контракт](../hamiltonian/README.md#стандартная-window-среда-clean-room-loader),
+а не prototype `hamiltonian/visual` или первый предметный `internal`/`metafor`
+module.
 
 Первый этап использует один signaling Hamiltonian peer и не проектирует каталог
 адресов нескольких peers. Его результатом владеет
