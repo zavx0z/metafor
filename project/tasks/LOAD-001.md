@@ -189,14 +189,15 @@ Evidence-backed gate выполнен в
 
 1. HTTPS host возвращает минимальные HTML и startup entrypoints.
 1. Minimal main регистрирует Worker, дожидается управления страницей, отправляет
-   `connect` и запускает Window importer через `/import/main`.
-1. Startup loader получает Service Worker importer через `/import/service`,
-   проверяет response, сохраняет его в cache `import` и запускает с переданными
-   primitives.
-1. Service Worker importer выбирает `/internal/rpc`, получает module через
-   собственный общий loader, сохраняет в cache `internal` и запускает.
+   `connect` и запускает Window importer через `/code?module=@import/main`.
+1. Startup loader получает Service Worker importer через
+   `/code?module=@import/service`, проверяет response, сохраняет его в cache
+   `import` и запускает с переданными primitives.
+1. Service Worker importer выбирает `/code?module=@internal/rpc`, получает
+   module через собственный общий loader, сохраняет в cache `internal` и
+   запускает.
 1. Загруженный internal RPC module открывает WebSocket `/sw` с единственным
-   известным peer и подтверждает двусторонний transport через `ping`/`pong`.
+   известным peer; прикладные сообщения принадлежат следующим механизмам.
 1. Startup, importers и internal modules восстанавливаются из независимых
    caches; `metafor` создаётся лениво только первым module этой среды.
 1. Первый реальный Window или Dedicated Worker module отдельно фиксирует ABI
@@ -213,8 +214,9 @@ package architecture не создаётся. Диагностический Ful
 Worker, постоянный offline startup и запуск обоих importers из cache `import`.
 Service Worker importer уже загружает первый module `@internal/rpc` через
 общий import-layer loader в cache `internal`; WebSocket находится внутри этого
-module и подтверждён повторяющимся двусторонним `ping`/`pong`. Startup не знает
-module endpoints, storage policy или WebSocket.
+module, а соединение подтверждено browser-сценарием. Диагностический
+`ping`/`pong` удалён и не является loader contract. Startup не знает module
+endpoints, storage policy или WebSocket.
 
 Владелец подтвердил cold restoration internal module в живом browser.
 Стандартное пустое visual-окружение Window и последующий запуск первого
@@ -1623,7 +1625,7 @@ Result checkpoint: `e5ce8bd62`.
   navigation, cold relaunch того же профиля без доступной HTTP-доставки,
   удаление ошибочного artifact и retry. Проверочный `ping`/`pong` в этот
   regression contract не входит.
-* Live WebSocket test минимум двух `ping`/`pong` с интервалом около 20 секунд.
+* Browser test открытия internal RPC WebSocket без диагностического heartbeat.
 * Строгие host/WebWorker TypeScript checks и `git diff --check`.
 * Живой owner-сценарий в canonical Hamiltonian contour до объявления готовности.
 
@@ -1643,7 +1645,9 @@ loader из startup. Срез `.24` находится в `REVIEW`: владел
 @internal/rpc → /sw`. Caches `startup` и `import` восстановлены владельцем
 offline; владелец также подтвердил cold-восстановление cache `internal`,
 загрузку internal RPC и WebSocket. `LOAD-001` по решению владельца остаётся
-`IN_PROGRESS`, но стандартное пустое visual-окружение больше не является её
+`IN_PROGRESS`. Исторический срез `.24` доказал диагностический `ping`/`pong`,
+но этот heartbeat позднее удалён и больше не входит в действующий loader
+contract. Стандартное пустое visual-окружение больше не является её
 незакрытым доказательством: оно зарегистрировано отдельной `HAM-005`. Первый
 предметный Window/Metafor module и его ABI остаются будущим решением. Versioned
 manifest, hashes и атомарная публикация полного release остаются в `UPD-002`.

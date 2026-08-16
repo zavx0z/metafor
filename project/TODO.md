@@ -127,8 +127,8 @@ Browser path уже разделён на неизменяемый `startup`, о
 Service Worker, восстанавливают HTML/startup offline и запускают
 `@import/main` и `@import/service` из cache `import`. Service Worker importer
 владеет module loader и storage policy; первый module `@internal/rpc`
-загружается через `/internal/rpc` в cache `internal`, открывает `/sw` и
-подтверждает двусторонний канал повторяющимся `ping`/`pong` каждые 20 секунд.
+загружается через `/code?module=@internal/rpc` в cache `internal` и открывает
+`/sw` для серверных уведомлений.
 Владелец подтвердил startup/import offline, cold-восстановление `internal` и
 текущий internal RPC/WebSocket. `LOAD-001.23` остановлен: Window loader не
 расширяет startup до появления первого реального Window module. Стандартное

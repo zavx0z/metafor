@@ -34,6 +34,56 @@ interface CacheSnapshot {
   [name: string]: string[]
 }
 
+type FixtureFault = "import-service-http-once" | "internal-invalid-once"
+type ServerMode = "production" | "update" | FixtureFault
+
+test.serial("UPD-002 refreshes a module cache after the build notification", async () => {
+  const profile = await mkdtemp(join(tmpdir(), "metafor-upd-002-"))
+  const server = await startServer("update")
+  let browser: Browser | null = null
+
+  try {
+    browser = await launchBrowser(profile)
+    const page = await browser.newPage()
+    const connectionsBefore = countMatches(server.output(), "rpc/service connected")
+
+    const navigation = await page.goto(server.root, {waitUntil: "load"})
+    expect(navigation?.status()).toBe(200)
+    await waitForAcceptedCaches(page)
+    await waitUntil(() => countMatches(server.output(), "rpc/service connected") > connectionsBefore)
+
+    const requestsBefore = await fixtureRequests(server.root)
+    const sourceBefore = await page.evaluate(async () => {
+      const response = await (await caches.open("import")).match("/code?module=@import/main")
+      return await response?.text() ?? null
+    })
+    expect(sourceBefore?.length).toBeGreaterThan(0)
+
+    const build = await page.evaluate(async () => {
+      const response = await fetch("/code?module=@import/main", {method: "POST"})
+      return {status: response.status, body: await response.json()}
+    })
+    expect(build).toEqual({
+      status: 200,
+      body: {success: true, module: "@import/main"},
+    })
+
+    await waitUntil(async () => {
+      const source = await page.evaluate(async () => {
+        const response = await (await caches.open("import")).match("/code?module=@import/main")
+        return await response?.text() ?? null
+      })
+      return source !== sourceBefore
+        && source?.includes("fixture @import/main 1") === true
+        && (await fixtureRequests(server.root)).importMain > requestsBefore.importMain
+    })
+  } finally {
+    if (browser) await browser.close().catch(() => {})
+    await server.stop().catch(() => {})
+    await rm(profile, {recursive: true, force: true})
+  }
+})
+
 test.serial("LOAD-001 restores accepted startup, importers and internal module from caches", async () => {
   const profile = await mkdtemp(join(tmpdir(), "metafor-load-001-"))
   const server = await startServer()
@@ -288,12 +338,15 @@ test.serial("LOAD-001 rejects failed or invalid artifacts and retries exact entr
   }
 })
 
-async function startServer(fault: "none" | "import-service-http-once" | "internal-invalid-once" = "none"): Promise<RunningServer> {
+async function startServer(
+  mode: ServerMode = "production",
+): Promise<RunningServer> {
   const port = await freePort()
   const bun = Bun.which("bun") ?? process.execPath
-  const command = fault === "none"
+  const command = mode === "production"
     ? [bun, `--port=${port}`, "server.ts"]
     : [bun, "tests/fixture/server.ts"]
+  const fault = mode === "production" || mode === "update" ? "none" : mode
   let stdout = ""
   let stderr = ""
 
@@ -470,6 +523,15 @@ async function cacheSnapshot(page: Page): Promise<CacheSnapshot> {
         .sort(),
     ]),
   )))
+}
+
+async function fixtureRequests(root: string) {
+  const response = await fetch(new URL("/__tests/state", root))
+  if (!response.ok) throw new Error(`Fixture state returned ${response.status}`)
+  const state = await response.json() as {
+    requests: {importMain: number, importService: number, internalRpc: number}
+  }
+  return state.requests
 }
 
 async function freePort() {

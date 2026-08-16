@@ -17,9 +17,14 @@ export interface Module {
  *
  * @param startup - Минимальные primitives, переданные startup service.
  * @param module - Endpoint и cache, выбранные importer.
+ * @param bindings
  * @returns Результат выполнения сохранённого source.
  */
-export async function importModule(startup: typeof Startup, module: Module) {
+export async function importModule(
+  startup: typeof Startup,
+  module: Module,
+  bindings: Readonly<Record<string, unknown>> = {},
+) {
   const request = new Request(new URL(module.endpoint, location.origin))
 
   try {
@@ -34,9 +39,19 @@ export async function importModule(startup: typeof Startup, module: Module) {
     if (!response) throw new Error(`Cached module ${request.url} is missing`)
 
     startup.verify(response)
-    return startup.run(await response.text())
+    return startup.run(await response.text(), bindings)
   } catch (error) {
     await startup.remove(module.cache, request)
     throw error
   }
+}
+
+/**
+ * Загружает свежий artifact и заменяет cache entry только после успешного
+ * HTTP response. Ошибка fetch или проверки сохраняет прежние bytes.
+ */
+export async function updateModule(startup: typeof Startup, module: Module) {
+  const request = new Request(new URL(module.endpoint, location.origin))
+  const response = startup.verify(await fetch(request))
+  await startup.cache(module.cache, request, response)
 }

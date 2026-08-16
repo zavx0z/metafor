@@ -1,5 +1,10 @@
-import {sw, websocket, type RpcSocketData} from "@internal/rpc/server"
-import {buildableModule, packageResponse} from "../../build"
+import {rpcServiceTopic, sw, websocket, type RpcSocketData} from "@internal/rpc/server"
+import {
+  buildableModule,
+  packageResponse,
+  rebuildableModule,
+  type RebuildableModule,
+} from "../../build"
 
 type Fault = "none" | "import-service-http-once" | "internal-invalid-once"
 
@@ -12,6 +17,11 @@ const requests = {
   importMain: 0,
   importService: 0,
   internalRpc: 0,
+}
+const revisions: Record<RebuildableModule, number> = {
+  "@import/main": 0,
+  "@import/service": 0,
+  "@internal/rpc": 0,
 }
 
 const javascriptHeaders = {"Content-Type": "text/javascript; charset=utf-8"}
@@ -35,32 +45,41 @@ const server = Bun.serve<RpcSocketData>({
       if (!await file.exists()) return new Response(null, {status: 404})
       return new Response(file)
     },
-    "/code": (request: Request) => {
-      const module = buildableModule(new URL(request.url).searchParams.get("module"))
-      if (module === null) return new Response(null, {status: 404})
+    "/code": {
+      GET: (request: Request) => {
+        const module = buildableModule(new URL(request.url).searchParams.get("module"))
+        if (module === null) return new Response(null, {status: 404})
 
-      switch (module) {
-        case "@import/main":
-          requests.importMain += 1
-          return packageResponse(module)
-        case "@import/service":
-          requests.importService += 1
-          if (fault === "import-service-http-once" && requests.importService === 1) {
-            return new Response("Service importer unavailable", {
-              status: 503,
-              headers: javascriptHeaders,
-            })
-          }
-          return packageResponse(module)
-        case "@internal/rpc":
-          requests.internalRpc += 1
-          if (fault === "internal-invalid-once" && requests.internalRpc === 1) {
-            return new Response(")", {headers: javascriptHeaders})
-          }
-          return packageResponse(module)
-        default:
-          return packageResponse(module)
-      }
+        switch (module) {
+          case "@import/main":
+            requests.importMain += 1
+            return updatedArtifact(module) ?? packageResponse(module)
+          case "@import/service":
+            requests.importService += 1
+            if (fault === "import-service-http-once" && requests.importService === 1) {
+              return new Response("Service importer unavailable", {
+                status: 503,
+                headers: javascriptHeaders,
+              })
+            }
+            return updatedArtifact(module) ?? packageResponse(module)
+          case "@internal/rpc":
+            requests.internalRpc += 1
+            if (fault === "internal-invalid-once" && requests.internalRpc === 1) {
+              return new Response(")", {headers: javascriptHeaders})
+            }
+            return updatedArtifact(module) ?? packageResponse(module)
+          default:
+            return packageResponse(module)
+        }
+      },
+      POST: (request: Request) => {
+        const module = rebuildableModule(new URL(request.url).searchParams.get("module"))
+        if (module === null) return new Response(null, {status: 404})
+        revisions[module] += 1
+        server.publish(rpcServiceTopic, JSON.stringify({type: "build", module}))
+        return Response.json({success: true, module})
+      },
     },
     "/sw": sw,
     "/__tests/state": () => Response.json({fault, requests}),
@@ -75,3 +94,11 @@ const server = Bun.serve<RpcSocketData>({
 })
 
 console.info(JSON.stringify({event: "ready", port: server.port, fault}))
+
+function updatedArtifact(module: RebuildableModule) {
+  const revision = revisions[module]
+  if (revision === 0) return null
+  return new Response(`console.info(${JSON.stringify(`fixture ${module} ${revision}`)})`, {
+    headers: javascriptHeaders,
+  })
+}

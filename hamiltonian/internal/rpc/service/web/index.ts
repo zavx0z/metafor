@@ -8,6 +8,8 @@
  * @packageDocumentation
  */
 
+declare const updateModule: (module: string) => Promise<void>
+
 let socket: WebSocket | null = null
 
 connect()
@@ -23,15 +25,15 @@ function connect() {
 
   connection.addEventListener("open", () => {
     console.info("rpc/service websocket connected")
-    connection.send("ping")
-
-    const interval = setInterval(() => connection.send("ping"), 20_000)
-    connection.addEventListener("close", () => clearInterval(interval), {once: true})
   })
 
   connection.addEventListener("message", (event) => {
-    if (event.data !== "pong") return
-    console.info("rpc/service websocket pong")
+    const message = buildMessage(event.data)
+    if (message === null) return
+    void updateModule(message.module).then(
+      () => console.info(`rpc/service updated ${message.module}`),
+      (error) => console.error(`rpc/service update failed ${message.module}`, error),
+    )
   })
 
   connection.addEventListener("close", () => {
@@ -42,4 +44,27 @@ function connect() {
   connection.addEventListener("error", (error) => {
     console.error("rpc/service websocket error", error)
   })
+}
+
+/** Принимает только host notification об успешной сборке package. */
+function buildMessage(data: unknown): {type: "build", module: string} | null {
+  if (typeof data !== "string") return null
+
+  let message: unknown
+  try {
+    message = JSON.parse(data)
+  } catch {
+    return null
+  }
+
+  if (
+    typeof message !== "object"
+    || message === null
+    || !("type" in message)
+    || message.type !== "build"
+    || !("module" in message)
+    || typeof message.module !== "string"
+  ) return null
+
+  return {type: "build", module: message.module}
 }

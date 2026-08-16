@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "build": "bun run --parallel --if-present --filter '@startup/*' --filter '@import/*' --filter '@internal/*' build",
     "start": "bun --port=4444 server",
     "tls:create": "bun run create-tls.ts",
     "test": "bun test",
