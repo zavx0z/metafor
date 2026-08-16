@@ -337,6 +337,32 @@ stop_contour() {
   printf 'hamiltonian: stopped %s\niterm: preserved %s\n' "$parent_pid" "${state#*$'\t'}"
 }
 
+clear_site_data() {
+  local port origin processes expected targets target_ids target_count target_id
+  port=$(package_port)
+  [[ $port =~ ^[0-9]+$ ]] || die "cannot derive Hamiltonian port from scripts.dev"
+  origin="http://127.0.0.1:$port"
+  processes=$(repo_processes)
+  [[ -n $processes ]] || die "managed Hamiltonian is not running"
+  ensure_process_ownership
+  cdp_ready || die "managed CDP Chrome is unavailable on port $chrome_port"
+  expected=$(expected_chrome_processes)
+  [[ -n $expected ]] || die "CDP port $chrome_port belongs to another Chrome profile"
+  [[ $(wc -l <<<"$expected" | tr -d ' ') == 1 ]] \
+    || die "multiple MetaFor CDP Chrome processes found"
+  wait_hamiltonian "$origin"
+  targets=$(curl -fsS --max-time 2 "http://127.0.0.1:$chrome_port/json/list")
+  target_ids=$(jq -r --arg origin "$origin" \
+    '.[] | select(.type == "page" and (.url | startswith($origin))) | .id' \
+    <<<"$targets")
+  target_count=$(grep -c . <<<"$target_ids" || true)
+  [[ $target_count == 1 ]] \
+    || die "expected exactly one Hamiltonian target for $origin, found $target_count"
+  target_id=$target_ids
+  bun "$script_dir/chrome-target.ts" clear-site-data \
+    "$chrome_port" "$target_id" "$origin"
+}
+
 print_status() {
   local port origin state processes chrome expected targets
   port=$(package_port)
@@ -395,6 +421,7 @@ case "$action" in
     stop_contour
     start_contour
     ;;
+  clear-site-data) clear_site_data ;;
   stop) stop_contour ;;
-  *) die "usage: $0 {start|status|focus|logs|restart|stop} [checkout]" ;;
+  *) die "usage: $0 {start|status|focus|logs|restart|clear-site-data|stop} [checkout]" ;;
 esac

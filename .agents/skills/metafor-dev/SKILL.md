@@ -14,6 +14,7 @@ scripts/metafor-dev.sh start <checkout>
 scripts/metafor-dev.sh focus <checkout>
 scripts/metafor-dev.sh logs <checkout>
 scripts/metafor-dev.sh restart <checkout>
+scripts/metafor-dev.sh clear-site-data <checkout>
 scripts/metafor-dev.sh stop <checkout>
 ```
 
@@ -55,6 +56,13 @@ module-update mechanism.
 Take the stable Hamiltonian origin and CDP target from dispatcher output. Reuse
 that target during the task. Verify functional state through CDP and server
 evidence; do not search ordinary Chrome windows on every operation.
+
+For a clean startup/release check, run `clear-site-data`. It performs the
+origin-scoped equivalent of DevTools `Clear site data`, clears the HTTP browser
+cache, reloads the same managed target, and waits for the new document. This is
+the permitted direct-CDP path owned by this skill and does not require the
+general-purpose `@meta/chrome` REST service. Do not reproduce its CDP calls by
+hand.
 
 Never attach Puppeteer to this persistent Chrome without
 `defaultViewport: null`: Puppeteer's default `800×600` viewport survives on the
