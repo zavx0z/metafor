@@ -1,17 +1,17 @@
 import {expect, test} from "bun:test"
 import {fileURLToPath} from "node:url"
 import {join} from "node:path"
-import {buildPackage} from "../build"
+import {buildPackage} from "../release/server"
 
 const hamiltonian = fileURLToPath(new URL("../", import.meta.url))
 
 test("HAM-005 creates one standard Window environment through internal visual", async () => {
   const [html, main, visual, displayDock, mainPackage, visualPackage, mainBunfig, packageBuild, server, startupMain] = await Promise.all([
     Bun.file(join(hamiltonian, "web/static/index.html")).text(),
-    Bun.file(join(hamiltonian, "web/import/main/main.ts")).text(),
+    Bun.file(join(hamiltonian, "web/release/main/main.ts")).text(),
     Bun.file(join(hamiltonian, "internal/visual/index.ts")).text(),
     Bun.file(join(hamiltonian, "internal/visual/display-dock.ts")).text(),
-    Bun.file(join(hamiltonian, "web/import/main/package.json")).json() as Promise<{
+    Bun.file(join(hamiltonian, "web/release/main/package.json")).json() as Promise<{
       dependencies?: Record<string, string>
       scripts?: Record<string, string>
     }>,
@@ -19,8 +19,8 @@ test("HAM-005 creates one standard Window environment through internal visual", 
       name?: string
       dependencies?: Record<string, string>
     }>,
-    Bun.file(join(hamiltonian, "web/import/main/bunfig.toml")).text(),
-    Bun.file(join(hamiltonian, "build.ts")).text(),
+    Bun.file(join(hamiltonian, "web/release/main/bunfig.toml")).text(),
+    Bun.file(join(hamiltonian, "release/server/package.ts")).text(),
     Bun.file(join(hamiltonian, "server.ts")).text(),
     Bun.file(join(hamiltonian, "web/startup/main/index.ts")).text(),
   ])
@@ -72,16 +72,16 @@ test("HAM-005 creates one standard Window environment through internal visual", 
   expect(mainPackage.scripts?.build).toBe(
     "bun build ./main.ts --target=browser --production --minify --drop console.debug --outfile=dist/index.js",
   )
-  expect(packageBuild).toContain("packageBuildCommand(owner.build)")
+  expect(packageBuild).toContain("packageArtifactPath(root, manifest.scripts.build)")
 
   expect(server).toContain('"/assets/fonts/JetBrainsMono-Bold.ttf"')
   expect(server).toContain('new URL("../pkg/engine/static/JetBrainsMono-Bold.ttf"')
-  expect(startupMain).toContain('import("/code?module=@import/main")')
+  expect(startupMain).toContain('import("/code?module=@release/main")')
   expect(startupMain).not.toContain("UiRuntime")
 })
 
-test("HAM-005 bundles the visual importer as one JavaScript artifact", async () => {
-  const result = await buildPackage("@import/main")
+test("HAM-005 bundles the visual release as one JavaScript artifact", async () => {
+  const result = await buildPackage("@release/main")
   const output = result.outputs[0]
 
   expect(result.success).toBeTrue()

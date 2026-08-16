@@ -3,16 +3,16 @@ import {
   nextPackageVersion,
   packageChanges,
   releasedPackages,
-} from "../release"
+} from "../release/server"
 
 test("package state comes from root caret dependencies", async () => {
   const packages = await releasedPackages()
   expect(packages.map(({name}) => name)).toEqual([
-    "@import/main",
-    "@import/service",
+    "@release/main",
+    "@release/service",
     "@internal/rpc",
   ])
-  expect(packages.map(({cache}) => cache)).toEqual(["import", "import", "internal"])
+  expect(packages.map(({cache}) => cache)).toEqual(["release", "release", "internal"])
   for (const entry of packages) {
     expect(entry.endpoint).toBe(`/code?module=${entry.name}&version=${entry.version}`)
     expect(entry.version).toMatch(/^\d+\.\d+\.\d+$/)
@@ -22,26 +22,26 @@ test("package state comes from root caret dependencies", async () => {
 test("POST accepts package names and SemVer change but never a ready version", async () => {
   const valid = await packageChanges(request({
     packages: [
-      {name: "@import/main", change: "patch"},
+      {name: "@release/main", change: "patch"},
       {name: "@internal/rpc", change: "minor"},
-      {name: "@import/main", change: "patch"},
+      {name: "@release/main", change: "patch"},
     ],
   }))
   expect(valid).toEqual([
-    {name: "@import/main", change: "patch"},
+    {name: "@release/main", change: "patch"},
     {name: "@internal/rpc", change: "minor"},
   ])
 
   const explicitVersion = await packageChanges(request({
-    packages: [{name: "@import/main", change: "patch", version: "9.9.9"}],
+    packages: [{name: "@release/main", change: "patch", version: "9.9.9"}],
   }))
   expect(explicitVersion).toBeInstanceOf(Response)
   expect((explicitVersion as Response).status).toBe(400)
 
   const conflicting = await packageChanges(request({
     packages: [
-      {name: "@import/main", change: "patch"},
-      {name: "@import/main", change: "major"},
+      {name: "@release/main", change: "patch"},
+      {name: "@release/main", change: "major"},
     ],
   }))
   expect(conflicting).toBeInstanceOf(Response)

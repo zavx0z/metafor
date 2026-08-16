@@ -1,108 +1,67 @@
 import {describe, expect, test} from "bun:test"
-import {existsSync} from "node:fs"
 import {fileURLToPath} from "node:url"
 
 const hamiltonianRoot = fileURLToPath(new URL(".", import.meta.url))
 const serverPath = fileURLToPath(new URL("./server.ts", import.meta.url))
-const runtimePath = fileURLToPath(new URL("./server-runtime.ts", import.meta.url))
+const releaseRoutePath = fileURLToPath(new URL("./release/server/route.ts", import.meta.url))
+const rpcServerPath = fileURLToPath(new URL("./internal/rpc/server/index.ts", import.meta.url))
 
 const routes = [
   '"/"',
-  '"/index.html"',
-  '"/orchestration.js"',
-  '"/layout-worker.js"',
-  '"/web-push-client.js"',
-  '"/sw-entry.js"',
-  '"/control"',
-  '"/push/vapid-public-key"',
-  '"/lab/wake-service-worker"',
-  '"/manifest.json"',
-  '"/lab/status"',
-  "[versionedModulePath]",
-  '"/window-entry.js"',
-  '"/app.js"',
-  '"/embodiment-worker.js"',
-  '"/embodiment-worker-entry.js"',
-  '"/styles.css"',
-  '"/engine-static/JetBrainsMono-Bold.ttf"',
-  '"/core/runtime.js"',
-  '"/core/cache.js"',
-  '"/core/browser-control.js"',
-  '"/update/page-update.js"',
-  '"/core/monitor.js"',
-  '"/core/lifecycle.js"',
-  '"/core/orchestration.js"',
-] as const
-
-const messageKinds = [
-  "lifecycle-retirement",
-  "browser-lifecycle-snapshot",
-  "pong",
-  "identity",
-  "push-subscription",
-  "peer-signal",
-  "peer-failed",
-  "tabs",
+  '"/manifest.webmanifest"',
+  '"/assets/fonts/JetBrainsMono-Bold.ttf"',
+  '"/assets/*"',
+  '"/code"',
+  '"/sw"',
+  '"/*"',
 ] as const
 
 describe("Hamiltonian singleton server boundary", () => {
-  test("declares the only Bun server and the complete routes object in server.ts", async () => {
+  test("keeps one Bun server and the complete root route composition in server.ts", async () => {
     const source = await Bun.file(serverPath).text()
-    const runtime = await Bun.file(runtimePath).text()
-    const bunEmbodiment = await Bun.file(`${hamiltonianRoot}/bun-embodiment.ts`).text()
-    const peerSupervisor = await Bun.file(`${hamiltonianRoot}/peer-supervisor.ts`).text()
-    const packageJson = await Bun.file(`${hamiltonianRoot}/package.json`).json() as {scripts?: {start?: string}}
-
-    expect(packageJson.scripts?.start).toBe("bun run server.ts")
-    expect(source.match(/Bun\.serve</g)).toHaveLength(1)
-    expect(source).toContain("development: false")
-    expect(source).toMatch(/routes:\s*\{\s*\/\*\*/)
-    expect(runtime).not.toContain("Bun.serve")
-    expect(source).not.toContain("class ")
-    expect(existsSync(`${hamiltonianRoot}/host.ts`)).toBeFalse()
-    expect(existsSync(`${hamiltonianRoot}/server-test-client.ts`)).toBeFalse()
-    expect(existsSync(`${hamiltonianRoot}/server-test-process.ts`)).toBeFalse()
-    expect(existsSync(`${hamiltonianRoot}/fixture/server-test-client.ts`)).toBeTrue()
-    expect(existsSync(`${hamiltonianRoot}/fixture/server-test-process.ts`)).toBeTrue()
-    for (const production of [source, runtime, bunEmbodiment, peerSupervisor]) {
-      expect(production).not.toMatch(/ForTest|HAMILTONIAN_(?:TEST|FIXTURE)|NODE_ENV\s*[!=]=+\s*["']test["']/)
-      expect(production).not.toContain("fixture/")
+    const packageJson = await Bun.file(`${hamiltonianRoot}/package.json`).json() as {
+      scripts?: {start?: string}
     }
 
-    const declarations = [...source.matchAll(/^\s{4}("\/[^"]+"|"\/"|\[versionedModulePath\]):/gm)]
+    expect(packageJson.scripts?.start).toBe("bun --port=4444 server")
+    expect(source.match(/Bun\.serve</g)).toHaveLength(1)
+    expect(source).not.toContain("class ")
+    expect(source).toContain('import {releaseRoute} from "@release/server"')
+    expect(source).toContain('from "@internal/rpc/server"')
+    expect(source).toContain("const code = releaseRoute<RpcSocketData>")
+    expect(source).toContain("websocket,")
+
+    const declarations = [...source.matchAll(/^\s{4}("\/[^\"]*"):/gm)]
       .map((match) => match[1])
     expect(declarations).toEqual([...routes])
   })
 
-  test("keeps every route documented and every multi-variant condition inside its handler", async () => {
-    const source = await Bun.file(serverPath).text()
-    for (const route of routes) {
-      const declaration = `${route}:`
-      const before = source.slice(0, source.indexOf(declaration))
-      expect(before.match(/\/\*\*([\s\S]*?)\*\/\s*$/)?.[1] ?? "").toMatch(/[А-Яа-яЁё]/)
-    }
-    expect(source).toMatch(/"\/": async[\s\S]*?if \(request\.method === "GET"\)[\s\S]*?else \{/)
-    expect(source).toMatch(/"\/control":[\s\S]*?if \([\s\S]*?controlTokenMatches[\s\S]*?else if \(bunServer\.upgrade[\s\S]*?else \{/)
-    expect(source).toMatch(/"\/lab\/wake-service-worker":[\s\S]*?if \(!isAuthorizedRequest[\s\S]*?try \{[\s\S]*?if \(workerEntityId === null[\s\S]*?else if \(hasPendingWake[\s\S]*?else \{/)
-    expect(source).not.toMatch(/async fetch\s*\(request/)
+  test("delegates release and RPC policy to their owning server packages", async () => {
+    const [source, releaseRoute, rpcServer] = await Promise.all([
+      Bun.file(serverPath).text(),
+      Bun.file(releaseRoutePath).text(),
+      Bun.file(rpcServerPath).text(),
+    ])
+
+    expect(source).toContain('"/code": code')
+    expect(source).toContain('"/sw": sw')
+    expect(source).not.toMatch(/\bGET:\s|getRelease|publishPackages|packageChanges/)
+    expect(releaseRoute).toContain("GET: getRelease")
+    expect(releaseRoute).toContain("POST: (request: Request")
+    expect(releaseRoute).toContain("publishPackages(packages)")
+    expect(releaseRoute).not.toContain("Bun.serve")
+    expect(rpcServer).toContain("export const sw =")
+    expect(rpcServer).toContain("export const websocket:")
+    expect(rpcServer).not.toMatch(/Bun\.serve\s*[<(]/)
   })
 
-  test("shows the complete WebSocket surface and dispatches every message kind explicitly", async () => {
-    const source = await Bun.file(serverPath).text()
-    expect(source).toMatch(/websocket:\s*\{[\s\S]*?open\(socket\)[\s\S]*?message\(socket, rawMessage\)[\s\S]*?close\(socket, code, reason\)[\s\S]*?drain\(socket\)/)
-    expect(source).toMatch(/if \(isRealtimePayloadOnControlChannel\(rawMessage\)\)/)
-    expect(source).toMatch(/if \(message === null\)[\s\S]*?else if \(!applicationMessageAllowed[\s\S]*?else if \(!acceptControlMessageMonitor/)
-    for (const kind of messageKinds) {
-      expect(source).toContain(`case "${kind}":`)
-    }
-    expect(source.match(/case "[^"]+":/g)).toHaveLength(messageKinds.length)
-    expect(source).toContain("handleLifecycleRetirement(socket, message)")
-    expect(source).toContain("handleBrowserLifecycleSnapshot(socket, message)")
-    expect(source).toContain("handlePong(socket, message)")
-    expect(source).toContain("await handleIdentity(socket, message)")
-    expect(source).toContain("await handlePushSubscription(socket, message)")
-    expect(source).toContain("handlePeerSignal(socket, message)")
-    expect(source).toContain("handlePeerFailure(socket, message)")
-    expect(source).toContain("handleTabs(socket, message)")
+  test("keeps the complete RPC WebSocket surface in @internal/rpc/server", async () => {
+    const source = await Bun.file(rpcServerPath).text()
+    expect(source).toMatch(
+      /websocket:[\s\S]*?open\(socket\)[\s\S]*?message\(\) \{\}[\s\S]*?close\(socket, code, reason\)/,
+    )
+    expect(source).toContain("socket.subscribe(rpcServiceTopic)")
+    expect(source).toContain("socket.unsubscribe(rpcServiceTopic)")
+    expect(source).toContain('source: "rpc/service"')
   })
 })

@@ -1,7 +1,7 @@
 /**
  * Web-реализация RPC service для Service Worker.
  *
- * Загруженный importer запускает artifact один раз за текущую инкарнацию
+ * Загруженный release запускает artifact один раз за текущую инкарнацию
  * Worker. Service открывает WebSocket исходного origin; transport protocol
  * повторяет security context страницы.
  *
@@ -102,7 +102,7 @@ async function applyRelease(connection: WebSocket, packages: ReleasedPackage[]) 
       packages: updated,
     })
     intentionalClosures.add(connection)
-    connection.close(1000, "обновление модулей")
+    connection.close(1000, "release применён")
     console.debug("[@internal/rpc/service:update]", "перезагрузка страниц началась", {
       packages: updated,
     })

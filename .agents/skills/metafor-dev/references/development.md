@@ -11,7 +11,7 @@ source map. Временные diagnostics писать через `console.debu
 третьим — структурированные данные, например:
 
 ```ts
-console.debug("[@import/service:update]", "новая сборка загружена", {
+console.debug("[@release/service:update]", "новая сборка загружена", {
   cache,
   source,
   status,
@@ -26,8 +26,12 @@ console.debug("[@import/service:update]", "новая сборка загруж�
 * `@internal/*` — внутренняя функциональность Hamiltonian. Один package может
   содержать и server-, и browser-entrypoints; новую функциональность размещать
   в принадлежащем ей internal package.
-* `@import/main` и `@import/service` — состав загружаемых модулей. Менять только
-  при изменении этого состава.
+* `@release/main` и `@release/service` — запускаемые Window- и Service
+  Worker-входы release. Они определяют состав используемых `@internal/*`
+  packages и меняются вместе с этим составом.
+* `@release/server` — server-владелец чтения package manifests, сборки,
+  версий, атомарной публикации release и `/code`. Browser-код из него не
+  загружается.
 * `@startup/main` и `@startup/service` — фиксированный startup. В обычной
   разработке не менять и через endpoint обновления не передавать.
 
@@ -36,7 +40,7 @@ console.debug("[@import/service:update]", "новая сборка загруж�
 Последние доказанные версии перечислены в dependencies корневого Hamiltonian
 package как `workspace:^<version>`.
 
-## Получить модуль
+## Получить пакет release
 
 ```http
 GET /code?module=<package-name>
@@ -59,7 +63,7 @@ endpoint без параметров:
 GET /code
 ```
 
-## Обновить модули
+## Опубликовать release
 
 ```http
 POST /code
@@ -68,7 +72,7 @@ Content-Type: application/json
 {"packages": [{"name": "<package-name>", "change": "patch"}]}
 ```
 
-Для нескольких зависимых модулей передать все имена в одном массиве:
+Для нескольких зависимых packages передать все имена в одном массиве:
 
 ```http
 POST /code
@@ -76,7 +80,7 @@ Content-Type: application/json
 
 {
   "packages": [
-    {"name": "@import/main", "change": "patch"},
+    {"name": "@release/main", "change": "patch"},
     {"name": "@internal/rpc", "change": "minor"}
   ]
 }
@@ -84,7 +88,7 @@ Content-Type: application/json
 
 `change` принимает только `patch`, `minor` или `major`. Готовый номер версии не
 передавать: host вычисляет его от последней доказанной версии. Передавать одной
-группой все изменённые взаимозависимые `@import/*` и `@internal/*` packages.
+группой все изменённые взаимозависимые `@release/*` и `@internal/*` packages.
 Query parameters для `POST` не использовать. После успешного ответа browser
 транзакционно обновит всю группу и перезагрузится сам.
 

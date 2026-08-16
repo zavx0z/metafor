@@ -1,6 +1,15 @@
 import type * as Startup from "../../startup/service/loader"
+import {
+  activateRelease,
+  discardInactiveReleases,
+  discardInterruptedRelease,
+  forgetRelease,
+  pendingRestart,
+  rememberRelease,
+  type ReleasePackage,
+} from "./state"
 
-/** Описание одного Service Worker module, выбранного importer. */
+/** Описание одного Service Worker module, выбранного release. */
 export interface Module {
   /** Стабильный HTTP endpoint module. */
   endpoint: string
@@ -12,15 +21,15 @@ export interface Module {
 /**
  * Загружает и запускает один Service Worker module.
  *
- * Importer владеет endpoint, cache и полной композицией переданных startup
+ * Release владеет endpoint, cache и полной композицией переданных startup
  * primitives. Ошибка удаляет только entry выбранного module и допускает retry.
  *
  * @param startup - Минимальные primitives, переданные startup service.
- * @param module - Endpoint и cache, выбранные importer.
+ * @param module - Endpoint и cache, выбранные release.
  * @param bindings
  * @returns Результат выполнения сохранённого source.
  */
-export async function importModule(
+export async function loadModule(
   startup: typeof Startup,
   module: Module,
   bindings: Readonly<Record<string, unknown>> = {},
@@ -47,11 +56,11 @@ export async function importModule(
 }
 
 /** Подготавливает package group и открывает её loader одним active-state write. */
-export async function updateModules(
+export async function updateRelease(
   startup: typeof Startup,
-  packages: Startup.UpdatePackage[],
+  packages: ReleasePackage[],
 ) {
-  await startup.discardInterruptedUpdate()
+  await discardInterruptedRelease()
   const targets = (await Promise.all(packages.map(async (entry) => {
     const stable = new Request(new URL(`/code?module=${entry.name}`, location.origin))
     const current = await startup.read(entry.cache, stable)
@@ -66,16 +75,16 @@ export async function updateModules(
     }
   }))).filter((target) => target !== null)
 
-  if (targets.length === 0) return await startup.pendingRestart()
+  if (targets.length === 0) return await pendingRestart()
 
   const transaction = crypto.randomUUID()
   const storages = new Map<string, string>()
   for (const {entry} of targets) {
     if (!storages.has(entry.cache))
-      storages.set(entry.cache, `${entry.cache}:update:${transaction}`)
+      storages.set(entry.cache, `${entry.cache}:release:${transaction}`)
   }
 
-  console.debug("[@import/service/loader:update]", "подготовка обновления началась", {
+  console.debug("[@release/service:prepare]", "подготовка обновления началась", {
     artifacts: targets.map(({entry, request}) => ({
       cache: entry.cache,
       name: entry.name,
@@ -84,7 +93,7 @@ export async function updateModules(
     })),
   })
 
-  await startup.rememberUpdate({
+  await rememberRelease({
     packages: targets.map(({entry}) => entry),
     storages: [...storages.values()],
   })
@@ -99,12 +108,12 @@ export async function updateModules(
 
   try {
     await Promise.all([...groups].map(async ([storage, requests]) => {
-      console.debug("[@import/service/loader:update]", "загрузка группы во временный кэш началась", {
+      console.debug("[@release/service:prepare]", "загрузка группы во временный кэш началась", {
         artifacts: requests.length,
         storage,
       })
       await (await caches.open(storage)).addAll(requests)
-      console.debug("[@import/service/loader:update]", "группа загружена во временный кэш", {
+      console.debug("[@release/service:prepare]", "группа загружена во временный кэш", {
         artifacts: requests.length,
         storage,
       })
@@ -122,17 +131,17 @@ export async function updateModules(
       return {...entry, storage}
     }))
 
-    await startup.activateUpdate(active)
-    await startup.forgetUpdate()
-    await startup.discardInactiveUpdates()
-    console.debug("[@import/service/loader:update]", "вся группа открыта в активном кэше", {
+    await activateRelease(active)
+    await forgetRelease()
+    await discardInactiveReleases()
+    console.debug("[@release/service:activate]", "вся группа открыта в активном кэше", {
       artifacts: active.map(({name, version}) => ({name, version})),
     })
     return active.map(({name}) => name)
   } catch (error) {
     await Promise.all([...storages.values()].map((storage) => caches.delete(storage)))
-    await startup.forgetUpdate()
-    console.debug("[@import/service/loader:update]", "подготовка кэша завершилась с ошибкой", {
+    await forgetRelease()
+    console.debug("[@release/service:prepare]", "подготовка кэша завершилась с ошибкой", {
       artifacts: targets.map(({entry}) => ({name: entry.name, version: entry.version})),
     }, error)
     throw error

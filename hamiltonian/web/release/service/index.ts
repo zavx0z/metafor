@@ -1,13 +1,14 @@
 /**
- * Service Worker importer между startup loader и загружаемыми modules.
+ * Сменяемый Service Worker release между startup loader и internal packages.
  * Его artifact загружается и запускается внутри Service Worker, после чего
- * importer включает Web RPC service в изменяемый internal-контур Hamiltonian.
+ * release включает Web RPC service в изменяемый internal-контур Hamiltonian.
  *
  * @packageDocumentation
  */
 
 import type * as Loader from "../../startup/service/loader"
-import {importModule, updateModules} from "./loader"
+import {loadModule, updateRelease} from "./loader"
+import {confirmRestart} from "./state"
 import {rpc, updatePackages} from "./storage"
 
 /**
@@ -15,19 +16,19 @@ import {rpc, updatePackages} from "./storage"
  *
  * @param loader - Универсальные primitives неизменяемого startup.
  */
-export default async function importService(loader: typeof Loader) {
-  console.debug("[@import/service]", "сервис загрузки модулей запущен", {module: rpc.endpoint})
-  await importModule(loader, rpc, {
+export default async function releaseService(loader: typeof Loader) {
+  console.debug("[@release/service]", "Service Worker release запущен", {module: rpc.endpoint})
+  await loadModule(loader, rpc, {
     updateModules: async (input: unknown) => {
-      console.debug("[@import/service:update]", "проверяем состояние пакетов", {packages: input})
+      console.debug("[@release/service:update]", "проверяем состояние пакетов", {packages: input})
       const packages = updatePackages(input)
       if (packages === null) {
-        console.debug("[@import/service:update]", "состояние пакетов не принято", {
+        console.debug("[@release/service:update]", "состояние пакетов не принято", {
           packages: input,
         })
         throw new Error("Некорректное состояние браузерных пакетов")
       }
-      console.debug("[@import/service:update]", "состояние пакетов принято", {
+      console.debug("[@release/service:update]", "состояние пакетов принято", {
         packages: packages.map((entry) => ({
           cache: entry.cache,
           endpoint: entry.endpoint,
@@ -35,42 +36,42 @@ export default async function importService(loader: typeof Loader) {
           version: entry.version,
         })),
       })
-      const updated = await updateModules(loader, packages)
-      console.debug("[@import/service:update]", "пакеты переключены в кэше", {packages: updated})
+      const updated = await updateRelease(loader, packages)
+      console.debug("[@release/service:update]", "пакеты переключены в кэше", {packages: updated})
       return updated
     },
-    restartBrowser: () => restartBrowser(loader),
+    restartBrowser,
   })
 }
 
 /** Создаёт новую Service Worker incarnation и один раз навигирует каждый Window. */
-async function restartBrowser(loader: typeof Loader) {
+async function restartBrowser() {
   const windows = await clients.matchAll({type: "window"})
   const targets = windows.map((client) => ({id: client.id, url: client.url}))
-  console.debug("[@import/service:restart]", "начинаем перезагрузку страниц", {
+  console.debug("[@release/service:restart]", "начинаем перезагрузку страниц", {
     registration: registration.scope,
     windows: targets,
   })
 
   try {
     const unregistered = await registration.unregister()
-    console.debug("[@import/service:restart]", "регистрация Service Worker удалена", {
+    console.debug("[@release/service:restart]", "регистрация Service Worker удалена", {
       registration: registration.scope,
       unregistered,
     })
     if (!unregistered) throw new Error("Service Worker registration was not removed")
 
-    console.debug("[@import/service:restart]", "начинаем повторную навигацию страниц", {
+    console.debug("[@release/service:restart]", "начинаем повторную навигацию страниц", {
       windows: targets,
     })
     const navigations = await Promise.all(windows.map((client) => client.navigate(client.url)))
-    console.debug("[@import/service:restart]", "повторная навигация страниц запущена", {
+    console.debug("[@release/service:restart]", "повторная навигация страниц запущена", {
       navigated: navigations.filter((client) => client !== null).length,
       requested: windows.length,
     })
-    await loader.confirmRestart()
+    await confirmRestart()
   } catch (error) {
-    console.debug("[@import/service:restart]", "не удалось перезагрузить страницы", {
+    console.debug("[@release/service:restart]", "не удалось перезагрузить страницы", {
       windows: targets,
     }, error)
     throw error

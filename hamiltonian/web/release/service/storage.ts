@@ -1,15 +1,15 @@
 import type {Module} from "./loader"
-import type {UpdatePackage} from "../../startup/service/loader"
+import type {ReleasePackage} from "./state"
 
 /** Сменяемые browser modules и принадлежащие им Cache Storage. */
 export const modules = {
-  "@import/main": {
-    endpoint: "/code?module=@import/main",
-    cache: "import",
+  "@release/main": {
+    endpoint: "/code?module=@release/main",
+    cache: "release",
   },
-  "@import/service": {
-    endpoint: "/code?module=@import/service",
-    cache: "import",
+  "@release/service": {
+    endpoint: "/code?module=@release/service",
+    cache: "release",
   },
   "@internal/rpc": {
     endpoint: "/code?module=@internal/rpc",
@@ -17,13 +17,13 @@ export const modules = {
   },
 } as const satisfies Record<string, Module>
 
-/** Internal RPC module, из которого importer формирует Service Worker-контур. */
+/** Internal RPC module, из которого release формирует Service Worker-контур. */
 export const rpc = modules["@internal/rpc"]
 
 /** Проверяет package state, полученный от того же Hamiltonian origin. */
-export function updatePackages(value: unknown): UpdatePackage[] | null {
+export function updatePackages(value: unknown): ReleasePackage[] | null {
   if (!Array.isArray(value) || value.length === 0) return null
-  const packages: UpdatePackage[] = []
+  const packages: ReleasePackage[] = []
   const names = new Set<string>()
 
   for (const entry of value) {
@@ -62,7 +62,7 @@ export function updatePackages(value: unknown): UpdatePackage[] | null {
 }
 
 function cacheOwner(name: string) {
-  if (name.startsWith("@import/")) return "import"
+  if (name.startsWith("@release/")) return "release"
   if (name.startsWith("@internal/")) return "internal"
   if (name.startsWith("@metafor/")) return "metafor"
   return null

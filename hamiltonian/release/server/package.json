@@ -1,0 +1,10 @@
+{
+  "name": "@release/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": "./index.ts",
+  "scripts": {
+    "typecheck": "tsc --project tsconfig.json --pretty false"
+  }
+}

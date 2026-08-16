@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "bun run --parallel --if-present --filter '@startup/*' --filter '@import/*' --filter '@internal/*' build",
+    "build": "bun run --parallel --if-present --filter '@startup/*' --filter '@release/*' --filter '@internal/*' build",
     "dev": "NODE_ENV=development bun --port=4444 server",
     "start": "bun --port=4444 server",
     "tls:create": "bun run create-tls.ts",
@@ -12,9 +12,10 @@
     "test:load": "tsc --project tests/tsconfig.json --pretty false && bun test tests/load-001.boundary.spec.ts tests/load-001.browser.spec.ts"
   },
   "dependencies": {
-    "@import/main": "workspace:^0.1.1",
-    "@import/service": "workspace:^0.1.1",
-    "@internal/rpc": "workspace:^0.1.2",
+    "@release/main": "workspace:^0.1.2",
+    "@release/service": "workspace:^0.1.1",
+    "@release/server": "workspace:*",
+    "@internal/rpc": "workspace:^0.1.3",
     "@hamiltonian/visual": "workspace:*",
     "@metafor/engine": "workspace:*",
     "@metafor/web-push": "workspace:*",

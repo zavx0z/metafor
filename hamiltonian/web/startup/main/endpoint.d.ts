@@ -1,6 +1,6 @@
-/** Endpoint обновляемого Window importer для startup main. */
+/** Endpoint обновляемого Window release для startup main. */
 declare module "/code?module=*" {
-  const importMain: () => Promise<void>
+  const releaseMain: () => Promise<void>
 
-  export default importMain
+  export default releaseMain
 }

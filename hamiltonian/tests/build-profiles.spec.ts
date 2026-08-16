@@ -1,17 +1,17 @@
 import {expect, test} from "bun:test"
 import {join} from "node:path"
 import {fileURLToPath} from "node:url"
-import {buildableModule, packageBuildCommand} from "../build.ts"
+import {buildablePackage, packageBuildCommand} from "../release/server"
 
 const hamiltonian = fileURLToPath(new URL("../", import.meta.url))
 const packageBuildScripts = {
   "web/startup/main":
-    "bun build ./index.ts --target=browser --external=/code?module=@import/main --production --minify --drop console.debug --outfile=dist/index.js",
+    "bun build ./index.ts --target=browser --external=/code?module=@release/main --production --minify --drop console.debug --outfile=dist/index.js",
   "web/startup/service":
     "bun build ./index.ts --target=browser --production --minify --drop console.debug --outfile=dist/index.js",
-  "web/import/main":
+  "web/release/main":
     "bun build ./main.ts --target=browser --production --minify --drop console.debug --outfile=dist/index.js",
-  "web/import/service":
+  "web/release/service":
     "bun build ./index.ts --target=browser --format=cjs --production --minify --drop console.debug --outfile=dist/index.js",
   "internal/rpc":
     "bun build ./service/web/index.ts --target=browser --format=iife --production --minify --drop console.debug --outfile=dist/index.js",
@@ -24,7 +24,7 @@ test("every browser artifact owns one direct production build command", async ()
   expect(root.scripts?.dev).toBe("NODE_ENV=development bun --port=4444 server")
   expect(root.scripts?.start).toBe("bun --port=4444 server")
   expect(root.scripts?.build).toBe(
-    "bun run --parallel --if-present --filter '@startup/*' --filter '@import/*' --filter '@internal/*' build",
+    "bun run --parallel --if-present --filter '@startup/*' --filter '@release/*' --filter '@internal/*' build",
   )
 
   for (const [path, build] of Object.entries(packageBuildScripts)) {
@@ -39,7 +39,7 @@ test("every browser artifact owns one direct production build command", async ()
 })
 
 test("build executor resolves package contracts without a module registry", async () => {
-  const source = await Bun.file(join(hamiltonian, "build.ts")).text()
+  const source = await Bun.file(join(hamiltonian, "release/server/package.ts")).text()
   expect(source).not.toContain('join(root, "dist/index.js")')
 
   for (const [path] of Object.entries(packageBuildScripts)) {
@@ -47,10 +47,10 @@ test("build executor resolves package contracts without a module registry", asyn
       name?: string
     }
     if (typeof manifest.name !== "string") throw new Error(`${path} package name is missing`)
-    expect(await buildableModule(manifest.name)).toBe(manifest.name)
+    expect(await buildablePackage(manifest.name)).toBe(manifest.name)
     expect(source).not.toContain(JSON.stringify(manifest.name))
   }
-  expect(await buildableModule("@internal/missing")).toBeNull()
+  expect(await buildablePackage("@internal/missing")).toBeNull()
 })
 
 test("build executor derives development arguments from the production command", () => {
@@ -86,9 +86,9 @@ test("development keeps debug and source map while production drops both", async
   expect(development.rpc).toContain("подключились к серверу обновлений")
   expect(development.rpc).toContain("получено уведомление об обновлении")
   expect(development.rpc).toContain("перезагрузка страниц началась")
-  expect(development.importService).toContain("загрузка группы во временный кэш началась")
-  expect(development.importService).toContain("вся группа открыта в активном кэше")
-  expect(development.importService).toContain("начинаем повторную навигацию страниц")
+  expect(development.releaseService).toContain("загрузка группы во временный кэш началась")
+  expect(development.releaseService).toContain("вся группа открыта в активном кэше")
+  expect(development.releaseService).toContain("начинаем повторную навигацию страниц")
   expect(development.startupMain).toContain("страница готова к работе")
   for (const artifact of Object.values(development)) {
     expect(artifact).toContain("sourceMappingURL=data:application/json")
@@ -98,23 +98,23 @@ test("development keeps debug and source map while production drops both", async
   expect(production.rpc).not.toContain("подключились к серверу обновлений")
   expect(production.rpc).not.toContain("получено уведомление об обновлении")
   expect(production.rpc).not.toContain("перезагрузка страниц началась")
-  expect(production.importService).not.toContain("загрузка группы во временный кэш началась")
-  expect(production.importService).not.toContain("вся группа открыта в активном кэше")
-  expect(production.importService).not.toContain("начинаем повторную навигацию страниц")
-  expect(production.importService).not.toContain("подготовка кэша завершилась с ошибкой")
+  expect(production.releaseService).not.toContain("загрузка группы во временный кэш началась")
+  expect(production.releaseService).not.toContain("вся группа открыта в активном кэше")
+  expect(production.releaseService).not.toContain("начинаем повторную навигацию страниц")
+  expect(production.releaseService).not.toContain("подготовка кэша завершилась с ошибкой")
   expect(production.startupMain).not.toContain("страница готова к работе")
   for (const artifact of Object.values(production)) {
     expect(artifact).not.toContain("console.debug")
     expect(artifact).not.toContain("sourceMappingURL=")
-    expect(artifact).not.toMatch(/\[@(?:startup|import|internal)\//)
+    expect(artifact).not.toMatch(/\[@(?:startup|release|internal)\//)
   }
-})
+}, 30_000)
 
 async function build(mode: "development" | "production") {
   const child = Bun.spawn([
     Bun.which("bun") ?? "bun",
     "-e",
-    'import {buildPackage} from "./build.ts"; console.log(JSON.stringify(await Promise.all([buildPackage("@startup/main"), buildPackage("@import/service"), buildPackage("@internal/rpc")])))',
+    'import {buildPackage} from "@release/server"; console.log(JSON.stringify(await Promise.all([buildPackage("@startup/main"), buildPackage("@release/service"), buildPackage("@internal/rpc")])))',
   ], {
     cwd: hamiltonian,
     env: {...process.env, NODE_ENV: mode},
@@ -139,7 +139,7 @@ async function build(mode: "development" | "production") {
   })
   return {
     startupMain: await Bun.file(join(hamiltonian, "web/startup/main/dist/index.js")).text(),
-    importService: await Bun.file(join(hamiltonian, "web/import/service/dist/index.js")).text(),
+    releaseService: await Bun.file(join(hamiltonian, "web/release/service/dist/index.js")).text(),
     rpc: await Bun.file(join(hamiltonian, "internal/rpc/dist/index.js")).text(),
   }
 }

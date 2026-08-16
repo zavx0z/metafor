@@ -220,7 +220,7 @@ product-specific projection, composition, панели, стили и live prese
 `hamiltonian/visual`. Clean-room loader не импортирует и не переносит этот
 source. Первый clean-room visual-шаг выбран отдельно: в
 действующем [Hamiltonian-контракте](../hamiltonian/README.md#стандартная-window-среда-clean-room-loader)
-`@import/main` импортирует `@internal/visual`, который создаёт общий пустой
+`@release/main` импортирует `@internal/visual`, который создаёт общий пустой
 `UiRuntime` с `Space`, `HUD`, полом, display и navigation dock, не импортируя
 prototype visual и не выбирая предметный Window module.
 
@@ -234,13 +234,13 @@ prototype visual и не выбирая предметный Window module.
 
 Новая реализация создаётся с нуля рядом в source-директориях `web`, `server`,
 `interface` и `internal`. Browser code проходит три последовательных уровня:
-неизменяемый `startup`, environment-specific `import` и загружаемые modules.
-Startup реализуют `web/startup/main` и `web/startup/service`, importers —
-`web/import/main` и `web/import/service`; server-аналоги появляются позднее, а
-общий договор выделяется в `interface` только после двух фактических
-реализаций. Минимальные browser entrypoint оформлены отдельными
-workspace-пакетами `@startup/main`, `@startup/service`, `@import/main` и
-`@import/service` со строгой проверкой для своей среды. Служебные изменяемые
+неизменяемый `startup`, запускаемый `release` и используемые им packages.
+Startup реализуют `web/startup/main` и `web/startup/service`, release-входы —
+`web/release/main` и `web/release/service`, а server-владелец package manifests,
+сборки, версий и атомарной публикации — `release/server`. Минимальные browser
+entrypoint оформлены отдельными workspace-пакетами `@startup/main`,
+`@startup/service`, `@release/main` и `@release/service` со строгой проверкой
+для своей среды. Служебные изменяемые
 modules самого Hamiltonian живут в пространстве `internal`, а modules среды,
 ради которой он создан, — в отдельном пространстве `metafor`. Их имена не
 зеркалят execution context: один module может размещаться в Window, Dedicated
@@ -255,19 +255,19 @@ mechanism.
 
 Отдельная линия `LOAD` владеет первоначальной загрузкой браузерного функционала
 Hamiltonian. Первый HTTPS response доставляет только минимальные HTML и startup
-entrypoints. Startup запускает importers в Window и Service Worker, а importers
-выбирают состав и placement загружаемых modules. Loader получает code bytes
+entrypoints. Startup запускает release в Window и Service Worker, а release
+выбирает состав и placement загружаемых packages. Loader получает code bytes
 через `fetch`, проверяет и сохраняет их до запуска в выбранном Window,
 Dedicated Worker или Service Worker context. WebSocket принадлежит
 загруженному internal RPC/control module, а не неизменяемому startup; передача
 по нему изменяемого адреса source остаётся следующим отдельным механизмом.
-Cache Storage разделён по владельцам `startup`, `import`, `internal` и
+Cache Storage разделён по владельцам `startup`, `release`, `internal` и
 `metafor`; последний создаётся только при появлении первого module среды.
 Стабильные cache endpoints остаются на исходном origin Service Worker
 независимо от будущего внешнего адреса source.
 
 Стандартное Window-окружение визуализации является отдельным слоем поверх
-доказанного loader. `@import/main` импортирует `@internal/visual`, который
+доказанного loader. `@release/main` импортирует `@internal/visual`, который
 создаёт один общий `UiRuntime`; встроенный surface-display отключён, а один
 стандартный `UIDisplay` и navigation dock готовы для последующего предметного
 наполнения. HTML, style и font resources обслуживает существующий
@@ -284,21 +284,21 @@ Worker`](tasks/LOAD-001.md). После доказанного loader contract �
 
 ### Обновления Hamiltonian
 
-`update` является отдельным от первоначального `import` механизмом обновления
-уже загруженного функционала. Существующий `hamiltonian/update` относится к
-прототипу и не переносится в новую реализацию. Новые `web/update`,
-`server/update` и `interface/update` начинают наполняться только собственными
-последовательными срезами после появления соответствующего загрузочного
-поведения.
+Существующий `hamiltonian/update` относится к прототипу и не переносится в
+новую реализацию. В clean-room Hamiltonian первоначальный запуск и последующая
+смена browser-кода принадлежат одному слою `release`: browser-входы находятся
+в `web/release`, а package discovery, build, SemVer и атомарная публикация — в
+`release/server`.
 
 Следующий локальный update-шаг начинается после `LOAD-001` и передаёт Service
 Worker ответственность за весь многосоставный сменяемый выпуск после startup:
-importers, `internal`/`metafor` modules и их resources. Неизменяемые HTML,
-`@startup/main` и `@startup/service` в этот выпуск не входят. Host атомарно
-публикует manifest точных artifacts, cache ownership и hashes, Service Worker
-получает bytes через `fetch`, проверяет полный выпуск, переключает
-обслуживаемую версию только после готовности всех artifacts и сообщает
-страницам о необходимости одного reload.
+`@release/*`, `@internal/*`/`@metafor/*` packages и их resources. Неизменяемые
+HTML, `@startup/main` и `@startup/service` в этот выпуск не входят. Точное
+состояние задают версии package manifests и корневые caret dependencies без
+отдельного release manifest. Host собирает группу во временное место и
+публикует её только после полного успеха. Service Worker получает versioned
+bytes через `fetch`, готовит их во временных caches, одним active-state write
+открывает весь набор и один раз перезагружает страницы.
 Ручная версия отдельного испытательного модуля и самостоятельное решение
 страницы по host source fingerprint после этого не остаются параллельными
 механизмами браузерного обновления. Этим результатом владеет

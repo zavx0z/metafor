@@ -120,14 +120,15 @@
       "version": "0.1.0",
       "dependencies": {
         "@hamiltonian/visual": "workspace:*",
-        "@import/main": "workspace:^0.1.0",
-        "@import/service": "workspace:^0.1.0",
-        "@internal/rpc": "workspace:^0.1.0",
+        "@internal/rpc": "workspace:^0.1.2",
         "@metafor/engine": "workspace:*",
         "@metafor/web-push": "workspace:*",
         "@nodes/hud": "workspace:*",
         "@nodes/layout": "workspace:*",
         "@nodes/ui": "workspace:*",
+        "@release/main": "workspace:^0.1.1",
+        "@release/server": "workspace:*",
+        "@release/service": "workspace:^0.1.1",
         "@ui/components": "workspace:*",
         "@ui/elements": "workspace:*",
         "nodes": "workspace:*",
@@ -141,7 +142,7 @@
     },
     "hamiltonian/internal/rpc": {
       "name": "@internal/rpc",
-      "version": "0.1.0",
+      "version": "0.1.2",
       "devDependencies": {
         "@types/serviceworker": "^0.0.200",
       },
@@ -154,6 +155,10 @@
         "@ui/elements": "workspace:*",
         "@ui/hud": "workspace:*",
       },
+    },
+    "hamiltonian/release/server": {
+      "name": "@release/server",
+      "version": "0.1.0",
     },
     "hamiltonian/visual": {
       "name": "@hamiltonian/visual",
@@ -168,16 +173,16 @@
         "nodes": "workspace:*",
       },
     },
-    "hamiltonian/web/import/main": {
-      "name": "@import/main",
-      "version": "0.1.0",
+    "hamiltonian/web/release/main": {
+      "name": "@release/main",
+      "version": "0.1.1",
       "dependencies": {
         "@internal/visual": "workspace:^0.1.0",
       },
     },
-    "hamiltonian/web/import/service": {
-      "name": "@import/service",
-      "version": "0.1.0",
+    "hamiltonian/web/release/service": {
+      "name": "@release/service",
+      "version": "0.1.1",
       "dependencies": {
         "@internal/rpc": "workspace:^0.1.0",
       },
@@ -349,10 +354,6 @@
 
     "@hamiltonian/visual": ["@hamiltonian/visual@workspace:hamiltonian/visual"],
 
-    "@import/main": ["@import/main@workspace:hamiltonian/web/import/main"],
-
-    "@import/service": ["@import/service@workspace:hamiltonian/web/import/service"],
-
     "@internal/rpc": ["@internal/rpc@workspace:hamiltonian/internal/rpc"],
 
     "@internal/visual": ["@internal/visual@workspace:hamiltonian/internal/visual"],
@@ -412,6 +413,12 @@
     "@peculiar/x509": ["@peculiar/x509@1.14.3", "", { "dependencies": { "@peculiar/asn1-cms": "^2.6.0", "@peculiar/asn1-csr": "^2.6.0", "@peculiar/asn1-ecc": "^2.6.0", "@peculiar/asn1-pkcs9": "^2.6.0", "@peculiar/asn1-rsa": "^2.6.0", "@peculiar/asn1-schema": "^2.6.0", "@peculiar/asn1-x509": "^2.6.0", "pvtsutils": "^1.3.6", "reflect-metadata": "^0.2.2", "tslib": "^2.8.1", "tsyringe": "^4.10.0" } }, "sha512-C2Xj8FZ0uHWeCXXqX5B4/gVFQmtSkiuOolzAgutjTfseNOHT3pUjljDZsTSxXFGgio54bCzVFqmEOUrIVk8RDA=="],
 
     "@puppeteer/browsers": ["@puppeteer/browsers@3.0.6", "", { "dependencies": { "modern-tar": "^0.7.6", "yargs": "^18.0.0" }, "peerDependencies": { "proxy-agent": ">=8.0.1", "yauzl": "^2.10.0 || ^3.4.0" }, "optionalPeers": ["proxy-agent", "yauzl"], "bin": { "browsers": "lib/main-cli.js" } }, "sha512-B/gKoqlFkzhvzsI6jo9K1cZz9o5ypviVv/xu8CwA4grZzyVwN+XfkT+tu8T1zrauuEXv6VhS2oGX+6NL95WcKA=="],
+
+    "@release/main": ["@release/main@workspace:hamiltonian/web/release/main"],
+
+    "@release/server": ["@release/server@workspace:hamiltonian/release/server"],
+
+    "@release/service": ["@release/service@workspace:hamiltonian/web/release/service"],
 
     "@shikijs/engine-oniguruma": ["@shikijs/engine-oniguruma@3.23.0", "", { "dependencies": { "@shikijs/types": "3.23.0", "@shikijs/vscode-textmate": "^10.0.2" } }, "sha512-1nWINwKXxKKLqPibT5f4pAFLej9oZzQTsby8942OTlsJzOBZ0MWKiwzMsd+jhzu8YPCHAswGnnN1YtQfirL35g=="],
 

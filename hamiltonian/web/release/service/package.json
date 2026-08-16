@@ -1,5 +1,5 @@
 {
-  "name": "@import/service",
+  "name": "@release/service",
   "version": "0.1.1",
   "private": true,
   "type": "module",
@@ -13,7 +13,7 @@
     "@internal/rpc": "workspace:^0.1.0"
   },
   "artifact": {
-    "cache": "import"
+    "cache": "release"
   },
   "devDependencies": {
     "@types/serviceworker": "^0.0.200"

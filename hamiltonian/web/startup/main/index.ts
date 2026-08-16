@@ -3,8 +3,7 @@
  *
  * При первой установке модуль ждёт появления Service Worker controller, а при
  * уже controlled document использует текущий controller. Main просит Worker
- * запустить Service Worker importer, затем запускает обновляемый Window
- * importer.
+ * запустить Service Worker release, затем запускает обновляемый Window release.
  *
  * @packageDocumentation
  */
@@ -26,7 +25,7 @@ const serviceWorker = navigator.serviceWorker.controller
 
 if (!serviceWorker) throw new Error("Service Worker does not control the page")
 
-await import("/code?module=@import/main")
+await import("/code?module=@release/main")
 serviceWorker.postMessage({type: "connect"})
 console.debug("[@startup/main]", "страница готова к работе", {
   controller: serviceWorker.scriptURL,

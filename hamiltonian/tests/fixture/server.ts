@@ -1,19 +1,17 @@
 import {rpcServiceTopic, sw, websocket, type RpcSocketData} from "@internal/rpc/server"
 import {
-  buildableModule,
+  buildablePackage,
   packageResponse,
-  type RebuildableModule,
-} from "../../build"
-import {
   packageChanges,
   releasedPackages,
+  type ReleasablePackage,
   type ReleasedPackage,
   type VersionChange,
-} from "../../release"
+} from "../../release/server"
 
 type Fault =
   | "none"
-  | "import-service-http-once"
+  | "release-service-http-once"
   | "internal-invalid-once"
   | "update-build-failure-once"
   | "update-fetch-failure-once"
@@ -24,13 +22,13 @@ const port = Number(process.env.LOAD_TEST_PORT)
 if (!Number.isInteger(port) || port <= 0) throw new Error("LOAD_TEST_PORT is required")
 
 const requests = {
-  importMain: 0,
-  importService: 0,
+  releaseMain: 0,
+  releaseService: 0,
   internalRpc: 0,
 }
-const revisions: Record<RebuildableModule, number> = {
-  "@import/main": 0,
-  "@import/service": 0,
+const revisions: Record<ReleasablePackage, number> = {
+  "@release/main": 0,
+  "@release/service": 0,
   "@internal/rpc": 0,
 }
 const versions = new Map((await releasedPackages()).map(({name, version}) => [name, version]))
@@ -65,17 +63,17 @@ const server = Bun.serve<RpcSocketData>({
         const url = new URL(request.url)
         const requestedModule = url.searchParams.get("module")
         if (requestedModule === null) return Response.json({packages: fixturePackages()})
-        const module = await buildableModule(requestedModule)
+        const module = await buildablePackage(requestedModule)
         if (module === null) return new Response(null, {status: 404})
 
         switch (module) {
-          case "@import/main":
-            requests.importMain += 1
+          case "@release/main":
+            requests.releaseMain += 1
             return await artifactResponse(module)
-          case "@import/service":
-            requests.importService += 1
-            if (fault === "import-service-http-once" && requests.importService === 1) {
-              return new Response("Service importer unavailable", {
+          case "@release/service":
+            requests.releaseService += 1
+            if (fault === "release-service-http-once" && requests.releaseService === 1) {
+              return new Response("Service release unavailable", {
                 status: 503,
                 headers: javascriptHeaders,
               })
@@ -156,7 +154,7 @@ const server = Bun.serve<RpcSocketData>({
 
 console.info(JSON.stringify({event: "ready", port: server.port, fault}))
 
-async function artifactResponse(module: RebuildableModule) {
+async function artifactResponse(module: ReleasablePackage) {
   const response = await packageResponse(module)
   const revision = revisions[module] ?? 0
   if (!response.ok) return response
@@ -174,13 +172,13 @@ function fixturePackages(): ReleasedPackage[] {
   return [...versions].map(([name]) => fixturePackage(name))
 }
 
-function fixturePackage(name: RebuildableModule): ReleasedPackage {
+function fixturePackage(name: ReleasablePackage): ReleasedPackage {
   const version = versions.get(name)!
   return {
     name,
     version,
     endpoint: `/code?module=${name}&version=${version}`,
-    cache: name.startsWith("@import/") ? "import" : "internal",
+    cache: name.startsWith("@release/") ? "release" : "internal",
   }
 }
 

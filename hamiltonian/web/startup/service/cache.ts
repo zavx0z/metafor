@@ -10,8 +10,8 @@ const startup = [
  * Startup service для navigation request возвращает сохранённый HTML `/`, поэтому
  * вложенный SPA-адрес не создаёт отдельную cache-запись. Для остальных
  * requests возвращает response точного URL и обращается к network только при
- * cache miss. Для exact request ищет response во всех Cache Storage, не зная
- * их владельцев. Успешный network fallback сохраняется только для `@import/*`
+ * cache miss. Для exact request использует cache его слоя. Успешный network
+ * fallback сохраняется только для `@release/*`
  * code и `/assets/*`; остальные startup endpoints добавляет только
  * {@link cacheStartup}.
  *
@@ -24,18 +24,18 @@ const startup = [
  */
 export async function cacheFirst(request: Request) {
   const url = new URL(request.url)
-  const importer = url.pathname === "/code"
-    && url.searchParams.get("module")?.startsWith("@import/") === true
-  const cache = await caches.open(importer ? "import" : "startup")
+  const release = url.pathname === "/code"
+    && url.searchParams.get("module")?.startsWith("@release/") === true
+  const cache = await caches.open(release ? "release" : "startup")
   const response = request.mode === "navigate"
     ? await cache.match("/", {ignoreVary: true})
-    : await read(importer ? "import" : "startup", request)
+    : await read(release ? "release" : "startup", request)
   if (response) return response
 
   try {
     const network = await fetch(request)
-    if (network.ok && (importer || url.pathname.startsWith("/assets/"))) {
-      await cacheResponse(importer ? "import" : "startup", request, network.clone())
+    if (network.ok && (release || url.pathname.startsWith("/assets/"))) {
+      await cacheResponse(release ? "release" : "startup", request, network.clone())
     }
     return network
   } catch (error) {
