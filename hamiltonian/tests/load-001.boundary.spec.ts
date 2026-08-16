@@ -29,8 +29,10 @@ test("LOAD-001 keeps module policy and WebSocket outside immutable startup", asy
   expect(startupService).not.toContain("importModule")
 
   expect(importService).toContain("importModule(loader, rpc, {")
-  expect(importService).toContain("moduleByName(name)")
-  expect(importService).toContain("updateModule(loader, module)")
+  expect(importService).toContain("names.map(moduleByName)")
+  expect(importService).toContain("updateModules(loader, modules")
+  expect(importService).toContain("registration.unregister()")
+  expect(importService).toContain("client.navigate(client.url)")
   expect(storage).toContain('"@import/main"')
   expect(storage).toContain('"@import/service"')
   expect(storage).toContain('endpoint: "/code?module=@internal/rpc"')

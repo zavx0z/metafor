@@ -8,7 +8,8 @@
  * @packageDocumentation
  */
 
-declare const updateModule: (module: string) => Promise<void>
+declare const updateModules: (modules: string[]) => Promise<void>
+declare const restartBrowser: () => Promise<void>
 
 let socket: WebSocket | null = null
 
@@ -30,10 +31,7 @@ function connect() {
   connection.addEventListener("message", (event) => {
     const message = buildMessage(event.data)
     if (message === null) return
-    void updateModule(message.module).then(
-      () => console.info(`rpc/service updated ${message.module}`),
-      (error) => console.error(`rpc/service update failed ${message.module}`, error),
-    )
+    void applyBuild(connection, message.modules)
   })
 
   connection.addEventListener("close", () => {
@@ -46,8 +44,19 @@ function connect() {
   })
 }
 
-/** Принимает только host notification об успешной сборке package. */
-function buildMessage(data: unknown): {type: "build", module: string} | null {
+/** Применяет одну build-группу и завершает прежний transport перед restart. */
+async function applyBuild(connection: WebSocket, modules: string[]) {
+  try {
+    await updateModules(modules)
+    connection.close(1000, "browser update")
+    await restartBrowser()
+  } catch (error) {
+    console.error(`rpc/service update failed ${modules.join(", ")}`, error)
+  }
+}
+
+/** Принимает только одно host notification с непустым массивом packages. */
+function buildMessage(data: unknown): {type: "build", modules: string[]} | null {
   if (typeof data !== "string") return null
 
   let message: unknown
@@ -62,9 +71,11 @@ function buildMessage(data: unknown): {type: "build", module: string} | null {
     || message === null
     || !("type" in message)
     || message.type !== "build"
-    || !("module" in message)
-    || typeof message.module !== "string"
+    || !("modules" in message)
+    || !Array.isArray(message.modules)
+    || message.modules.length === 0
+    || !message.modules.every((module) => typeof module === "string")
   ) return null
 
-  return {type: "build", module: message.module}
+  return {type: "build", modules: [...new Set(message.modules)]}
 }

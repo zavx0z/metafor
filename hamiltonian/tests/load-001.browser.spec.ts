@@ -34,49 +34,87 @@ interface CacheSnapshot {
   [name: string]: string[]
 }
 
-type FixtureFault = "import-service-http-once" | "internal-invalid-once"
+type FixtureFault =
+  | "import-service-http-once"
+  | "internal-invalid-once"
+  | "update-build-failure-once"
 type ServerMode = "production" | "update" | FixtureFault
 
-test.serial("UPD-002 refreshes a module cache after the build notification", async () => {
+test.serial("UPD-002 updates one module group and restarts every Window once", async () => {
   const profile = await mkdtemp(join(tmpdir(), "metafor-upd-002-"))
-  const server = await startServer("update")
+  const server = await startServer("update-build-failure-once")
   let browser: Browser | null = null
 
   try {
     browser = await launchBrowser(profile)
-    const page = await browser.newPage()
+    const firstWorkerObserver = observeStartupWorker(browser)
+    const firstPage = await browser.newPage()
     const connectionsBefore = countMatches(server.output(), "rpc/service connected")
 
-    const navigation = await page.goto(server.root, {waitUntil: "load"})
-    expect(navigation?.status()).toBe(200)
-    await waitForAcceptedCaches(page)
+    const firstNavigation = await firstPage.goto(server.root, {waitUntil: "load"})
+    expect(firstNavigation?.status()).toBe(200)
+    const firstWorker = await firstWorkerObserver.promise
+    await waitForAcceptedCaches(firstPage)
     await waitUntil(() => countMatches(server.output(), "rpc/service connected") > connectionsBefore)
 
+    const secondPage = await browser.newPage()
+    const secondNavigation = await secondPage.goto(server.root, {waitUntil: "load"})
+    expect(secondNavigation?.status()).toBe(200)
+    expect(await secondPage.evaluate(() => Boolean(navigator.serviceWorker.controller))).toBe(true)
+
+    const modules = ["@import/main", "@internal/rpc", "@import/main"]
     const requestsBefore = await fixtureRequests(server.root)
-    const sourceBefore = await page.evaluate(async () => {
-      const response = await (await caches.open("import")).match("/code?module=@import/main")
-      return await response?.text() ?? null
-    })
-    expect(sourceBefore?.length).toBeGreaterThan(0)
+    const sourceBefore = await updateSources(firstPage)
+    expect(sourceBefore.importMain.length).toBeGreaterThan(0)
+    expect(sourceBefore.internalRpc.length).toBeGreaterThan(0)
 
-    const build = await page.evaluate(async () => {
-      const response = await fetch("/code?module=@import/main", {method: "POST"})
-      return {status: response.status, body: await response.json()}
+    const navigations = {first: 0, second: 0}
+    firstPage.on("framenavigated", (frame) => {
+      if (frame === firstPage.mainFrame()) navigations.first += 1
     })
-    expect(build).toEqual({
-      status: 200,
-      body: {success: true, module: "@import/main"},
+    secondPage.on("framenavigated", (frame) => {
+      if (frame === secondPage.mainFrame()) navigations.second += 1
     })
 
-    await waitUntil(async () => {
-      const source = await page.evaluate(async () => {
-        const response = await (await caches.open("import")).match("/code?module=@import/main")
-        return await response?.text() ?? null
-      })
-      return source !== sourceBefore
-        && source?.includes("fixture @import/main 1") === true
-        && (await fixtureRequests(server.root)).importMain > requestsBefore.importMain
-    })
+    const failed = await requestBuild(server.root, modules)
+    expect(failed.status).toBe(422)
+    expect(failed.body.success).toBe(false)
+    await Bun.sleep(250)
+    expect(navigations).toEqual({first: 0, second: 0})
+    expect(await updateSources(firstPage)).toEqual(sourceBefore)
+
+    const nextWorkerObserver = observeStartupWorker(browser, firstWorker.target)
+    const firstReload = firstPage.waitForNavigation({waitUntil: "load", timeout: 30_000})
+    const secondReload = secondPage.waitForNavigation({waitUntil: "load", timeout: 30_000})
+    const build = await requestBuild(server.root, modules)
+    expect(build.status).toBe(200)
+    expect(build.body.success).toBe(true)
+    expect(build.body.results.map((result) => result.module)).toEqual([
+      "@import/main",
+      "@internal/rpc",
+    ])
+
+    const [firstReloadResponse, secondReloadResponse, nextWorker] = await Promise.all([
+      firstReload,
+      secondReload,
+      nextWorkerObserver.promise,
+    ])
+    if (!firstReloadResponse || !secondReloadResponse)
+      throw new Error("Updated Window navigation response is missing")
+    expect([200, 304]).toContain(firstReloadResponse.status())
+    expect([200, 304]).toContain(secondReloadResponse.status())
+    expect(nextWorker.target).not.toBe(firstWorker.target)
+
+    await waitForAcceptedCaches(firstPage)
+    await waitUntil(() => countMatches(server.output(), "rpc/service connected") > connectionsBefore + 1)
+    const sourceAfter = await updateSources(firstPage)
+    expect(sourceAfter.importMain).not.toBe(sourceBefore.importMain)
+    expect(sourceAfter.importMain).toContain("fixture @import/main 1")
+    expect(sourceAfter.internalRpc).not.toBe(sourceBefore.internalRpc)
+    expect(sourceAfter.internalRpc).toContain("fixture @internal/rpc 1")
+    expect((await fixtureRequests(server.root)).importMain).toBeGreaterThan(requestsBefore.importMain)
+    expect((await fixtureRequests(server.root)).internalRpc).toBeGreaterThan(requestsBefore.internalRpc)
+    expect(navigations).toEqual({first: 1, second: 1})
   } finally {
     if (browser) await browser.close().catch(() => {})
     await server.stop().catch(() => {})
@@ -403,13 +441,13 @@ async function launchBrowser(profile: string) {
   })
 }
 
-function observeStartupWorker(browser: Browser) {
+function observeStartupWorker(browser: Browser, excluded?: Target) {
   let resolve!: (handle: WorkerHandle) => void
   let settled = false
   const promise = new Promise<WorkerHandle>((ready) => { resolve = ready })
 
   const inspect = (target: Target) => {
-    if (settled || target.type() !== TargetType.SERVICE_WORKER) return
+    if (settled || target === excluded || target.type() !== TargetType.SERVICE_WORKER) return
     if (new URL(target.url()).searchParams.get("module") !== "@startup/service") return
     void target.worker()
       .then((worker) => {
@@ -532,6 +570,26 @@ async function fixtureRequests(root: string) {
     requests: {importMain: number, importService: number, internalRpc: number}
   }
   return state.requests
+}
+
+async function requestBuild(root: string, modules: string[]) {
+  const url = new URL("/code", root)
+  for (const module of modules) url.searchParams.append("module", module)
+  const response = await fetch(url, {method: "POST"})
+  const body = await response.json() as {
+    success: boolean
+    results: Array<{module: string, success: boolean}>
+  }
+  return {status: response.status, body}
+}
+
+async function updateSources(page: Page) {
+  return await page.evaluate(async () => ({
+    importMain: await (await (await caches.open("import"))
+      .match("/code?module=@import/main"))?.text() ?? "",
+    internalRpc: await (await (await caches.open("internal"))
+      .match("/code?module=@internal/rpc"))?.text() ?? "",
+  }))
 }
 
 async function freePort() {

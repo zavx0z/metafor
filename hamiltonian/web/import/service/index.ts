@@ -7,7 +7,7 @@
  */
 
 import type * as Loader from "../../startup/service/loader"
-import {importModule, updateModule} from "./loader"
+import {importModule, updateModules} from "./loader"
 import {moduleByName, rpc} from "./storage"
 
 /**
@@ -18,10 +18,20 @@ import {moduleByName, rpc} from "./storage"
 export default async function importService(loader: typeof Loader) {
   console.info("service importer", Object.keys(loader))
   await importModule(loader, rpc, {
-    updateModule: async (name: string) => {
-      const module = moduleByName(name)
-      if (module === null) throw new Error(`Unknown browser module ${name}`)
-      await updateModule(loader, module)
+    updateModules: async (names: string[]) => {
+      const modules = names.map(moduleByName)
+      if (modules.some((module) => module === null))
+        throw new Error(`Unknown browser modules ${names.join(", ")}`)
+      await updateModules(loader, modules as NonNullable<typeof modules[number]>[])
     },
+    restartBrowser,
   })
+}
+
+/** Создаёт новую Service Worker incarnation и один раз навигирует каждый Window. */
+async function restartBrowser() {
+  const windows = await clients.matchAll({type: "window"})
+  if (!await registration.unregister())
+    throw new Error("Service Worker registration was not removed")
+  await Promise.all(windows.map((client) => client.navigate(client.url)))
 }

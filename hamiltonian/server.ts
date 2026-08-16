@@ -24,9 +24,9 @@ Bun.serve<RpcSocketData>({
         return packageResponse(module)
       },
       POST: async (request: Request, server: Bun.Server<RpcSocketData>) => {
-        const module = rebuildableModule(new URL(request.url).searchParams.get("module"))
-        if (module === null) return new Response(null, {status: 404})
-        return await buildModule(module, server)
+        const modules = rebuildableModules(new URL(request.url).searchParams.getAll("module"))
+        if (modules === null) return new Response(null, {status: 404})
+        return await buildModules(modules, server)
       },
     },
     "/sw": sw,
@@ -40,13 +40,22 @@ Bun.serve<RpcSocketData>({
   websocket,
 })
 
-async function buildModule(
-  module: RebuildableModule,
+async function buildModules(
+  modules: RebuildableModule[],
   server: Bun.Server<RpcSocketData>,
 ) {
-  const result = await buildPackage(module)
-  if (!result.success) return Response.json(result, {status: 422})
+  const results = await Promise.all(modules.map(buildPackage))
+  const response = {success: results.every((result) => result.success), results}
+  if (!response.success) return Response.json(response, {status: 422})
 
-  server.publish(rpcServiceTopic, JSON.stringify({type: "build", module}))
-  return Response.json(result)
+  server.publish(rpcServiceTopic, JSON.stringify({type: "build", modules}))
+  return Response.json(response)
+}
+
+function rebuildableModules(values: string[]): RebuildableModule[] | null {
+  if (values.length === 0) return null
+
+  const modules = values.map(rebuildableModule)
+  if (modules.some((module) => module === null)) return null
+  return [...new Set(modules as RebuildableModule[])]
 }

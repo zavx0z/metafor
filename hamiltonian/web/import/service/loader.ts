@@ -46,12 +46,27 @@ export async function importModule(
   }
 }
 
-/**
- * Загружает свежий artifact и заменяет cache entry только после успешного
- * HTTP response. Ошибка fetch или проверки сохраняет прежние bytes.
- */
-export async function updateModule(startup: typeof Startup, module: Module) {
-  const request = new Request(new URL(module.endpoint, location.origin))
-  const response = startup.verify(await fetch(request))
-  await startup.cache(module.cache, request, response)
+/** Загружает и заменяет выбранные cache entries как одну update-группу. */
+export async function updateModules(startup: typeof Startup, modules: Module[]) {
+  const updates = await Promise.all(modules.map(async (module) => {
+    const request = new Request(new URL(module.endpoint, location.origin))
+    const [previous, response] = await Promise.all([
+      startup.read(module.cache, request),
+      fetch(request).then(startup.verify),
+    ])
+    return {module, request, previous, response}
+  }))
+
+  const applied: typeof updates = []
+  try {
+    for (const update of updates) {
+      await startup.cache(update.module.cache, update.request, update.response)
+      applied.push(update)
+    }
+  } catch (error) {
+    await Promise.allSettled(applied.map((update) => update.previous
+      ? startup.cache(update.module.cache, update.request, update.previous)
+      : startup.remove(update.module.cache, update.request)))
+    throw error
+  }
 }

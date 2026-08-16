@@ -6,7 +6,11 @@ import {
   type RebuildableModule,
 } from "../../build"
 
-type Fault = "none" | "import-service-http-once" | "internal-invalid-once"
+type Fault =
+  | "none"
+  | "import-service-http-once"
+  | "internal-invalid-once"
+  | "update-build-failure-once"
 
 const fault = (process.env.LOAD_TEST_FAULT ?? "none") as Fault
 const port = Number(process.env.LOAD_TEST_PORT)
@@ -23,6 +27,7 @@ const revisions: Record<RebuildableModule, number> = {
   "@import/service": 0,
   "@internal/rpc": 0,
 }
+let buildRequests = 0
 
 const javascriptHeaders = {"Content-Type": "text/javascript; charset=utf-8"}
 
@@ -46,14 +51,14 @@ const server = Bun.serve<RpcSocketData>({
       return new Response(file)
     },
     "/code": {
-      GET: (request: Request) => {
+      GET: async (request: Request) => {
         const module = buildableModule(new URL(request.url).searchParams.get("module"))
         if (module === null) return new Response(null, {status: 404})
 
         switch (module) {
           case "@import/main":
             requests.importMain += 1
-            return updatedArtifact(module) ?? packageResponse(module)
+            return await artifactResponse(module)
           case "@import/service":
             requests.importService += 1
             if (fault === "import-service-http-once" && requests.importService === 1) {
@@ -62,23 +67,40 @@ const server = Bun.serve<RpcSocketData>({
                 headers: javascriptHeaders,
               })
             }
-            return updatedArtifact(module) ?? packageResponse(module)
+            return await artifactResponse(module)
           case "@internal/rpc":
             requests.internalRpc += 1
             if (fault === "internal-invalid-once" && requests.internalRpc === 1) {
               return new Response(")", {headers: javascriptHeaders})
             }
-            return updatedArtifact(module) ?? packageResponse(module)
+            return await artifactResponse(module)
           default:
             return packageResponse(module)
         }
       },
       POST: (request: Request) => {
-        const module = rebuildableModule(new URL(request.url).searchParams.get("module"))
-        if (module === null) return new Response(null, {status: 404})
-        revisions[module] += 1
-        server.publish(rpcServiceTopic, JSON.stringify({type: "build", module}))
-        return Response.json({success: true, module})
+        const values = new URL(request.url).searchParams.getAll("module")
+        const selected = values.map(rebuildableModule)
+        if (selected.length === 0 || selected.some((module) => module === null))
+          return new Response(null, {status: 404})
+
+        const modules = [...new Set(selected as RebuildableModule[])]
+        buildRequests += 1
+        const failed = fault === "update-build-failure-once" && buildRequests === 1
+        const results = modules.map((module, index) => ({
+          module,
+          success: !failed || index !== modules.length - 1,
+          exitCode: !failed || index !== modules.length - 1 ? 0 : 1,
+          stdout: "",
+          stderr: !failed || index !== modules.length - 1 ? "" : "Fixture build failed",
+          outputs: [],
+        }))
+        const success = results.every((result) => result.success)
+        if (!success) return Response.json({success, results}, {status: 422})
+
+        for (const module of modules) revisions[module] += 1
+        server.publish(rpcServiceTopic, JSON.stringify({type: "build", modules}))
+        return Response.json({success, results})
       },
     },
     "/sw": sw,
@@ -95,10 +117,12 @@ const server = Bun.serve<RpcSocketData>({
 
 console.info(JSON.stringify({event: "ready", port: server.port, fault}))
 
-function updatedArtifact(module: RebuildableModule) {
+async function artifactResponse(module: RebuildableModule) {
+  const response = await packageResponse(module)
   const revision = revisions[module]
-  if (revision === 0) return null
-  return new Response(`console.info(${JSON.stringify(`fixture ${module} ${revision}`)})`, {
-    headers: javascriptHeaders,
+  if (revision === 0 || !response.ok) return response
+  const source = await response.text()
+  return new Response(`${source}\nconsole.info(${JSON.stringify(`fixture ${module} ${revision}`)})`, {
+    headers: response.headers,
   })
 }
