@@ -52,7 +52,6 @@ flowchart LR
     MF109 --> MF110
     MF405 --> MF406
     MF411 --> MF414
-    LOAD001 --> UPD002
     MF425 --> MF426
     MF426 --> MF427
 ```
@@ -135,8 +134,9 @@ Service Worker, восстанавливают HTML/startup offline и запу�
 пустое visual-окружение Window вынесено в самостоятельную `HAM-005`; оно не
 является дополнительным критерием minimal loader. Полный versioned manifest,
 hashes и атомарное переключение сменяемого набора
-`import`/`internal`/`metafor` принадлежат ожидающей `UPD-002`; неизменяемый
-startup в этот выпуск не входит.
+`import`/`internal`/`metafor` принадлежат начатой `UPD-002`; неизменяемый
+startup в этот выпуск не входит. Владелец признал текущий loader checkpoint
+достаточным для development update-срезов, не закрывая остальную `LOAD-001`.
 
 `HAM-003 — Разделить Hamiltonian по средам исполнения и механизмам` остаётся
 `IN_PROGRESS`, но активного среза не имеет. Широкий object-oriented срез
@@ -153,7 +153,7 @@ checkpoint и сохранён в `server_proto.ts`. Clean-room `server.ts`,
 | MF-425 | IN_PROGRESS | нет         | [Открыть](tasks/MF-425.md) |
 | LOAD-001 | IN_PROGRESS | нет       | [Открыть](tasks/LOAD-001.md) |
 | HAM-005 | IN_PROGRESS | нет         | [Открыть](tasks/HAM-005.md) |
-| UPD-002 | WAITING   | LOAD-001    | [Открыть](tasks/UPD-002.md) |
+| UPD-002 | IN_PROGRESS | нет       | [Открыть](tasks/UPD-002.md) |
 | HAM-001 | IN_PROGRESS | нет         | [Открыть](tasks/HAM-001.md) |
 | NODES-009 | IN_PROGRESS | нет       | [Открыть](tasks/NODES-009.md) |
 | HAM-002 | IN_PROGRESS | нет         | [Открыть](tasks/HAM-002.md) |
