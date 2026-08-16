@@ -131,12 +131,20 @@
 - Не утверждать прохождение runtime или визуального сценария без фактической
   проверки соответствующего пользовательского пути.
 
-## WebGPU Inspector для внешней диагностики
+## Локальная разработка и WebGPU Inspector
 
-- Перед локальной разработкой, runtime-проверкой и профилированием `Bulk` или
-  `Visual` использовать skill `$metafor-visual-profiling`: он задаёт единый
-  persistent contour, точное browser targeting, расположение Codex и CDP-Chrome
-  в одном macOS Space, чистые измерения и отдельный instrumented GPU capture.
+- Перед локальной разработкой MetaFor, runtime- и browser-проверкой, а также
+  профилированием `Bulk` или `Visual` использовать skill `$metafor-dev`: он
+  сохраняет один видимый владельцу Hamiltonian в помеченной iTerm-сессии, один
+  CDP Chrome и стабильный browser target. Существующий пользовательский процесс
+  не присваивать и не дублировать; lifecycle выполнять только через scripts
+  skill. Instrumented GPU capture остаётся отдельным дополнительным режимом.
+- По явному решению владельца bundled script
+  `.agents/skills/metafor-dev/scripts/metafor-dev.sh` может использовать
+  AppleScript только для поиска, создания, чтения и фокусировки собственной
+  iTerm-сессии с marker `user.metaforDev`. Это узкое исключение не разрешает
+  другим scripts или агенту напрямую управлять iTerm, Chrome либо иными
+  приложениями через AppleScript; Chrome этого contour управляется через CDP.
 - WebGPU Inspector остаётся только внешним диагностическим инструментом. Его
   script, bridge, package, loader, overlay и capture API запрещено добавлять в
   исходники, HTML, runtime, build или browser bundle MetaFor.

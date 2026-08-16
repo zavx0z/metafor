@@ -1,4 +1,0 @@
-interface:
-  display_name: "MetaFor Visual Profiling"
-  short_description: "Run and profile MetaFor Bulk and Visual safely"
-  default_prompt: "Use $metafor-visual-profiling to prepare the MetaFor contour and run a reproducible WebGPU profile."

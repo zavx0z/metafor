@@ -1,0 +1,4 @@
+interface:
+  display_name: "MetaFor Dev"
+  short_description: "Run and verify MetaFor in one visible contour"
+  default_prompt: "Use $metafor-dev to start or reuse the visible MetaFor development contour and verify my change."
