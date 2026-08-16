@@ -141,6 +141,9 @@ startup в этот выпуск не входит. Владелец призн�
 уведомление и один browser restart сохранены, а единственный внешний POST
 contract теперь использует JSON `{modules: string[]}`. Legacy query POST
 отклоняется; Service Worker delivery после parsing boundary не менялась.
+Текущий срез `UPD-002.4` разделяет package-owned development и production
+build: постоянный development contour сохраняет debug и source map, production
+удаляет `console.debug` и не публикует карту.
 
 `HAM-003 — Разделить Hamiltonian по средам исполнения и механизмам` остаётся
 `IN_PROGRESS`, но активного среза не имеет. Широкий object-oriented срез
