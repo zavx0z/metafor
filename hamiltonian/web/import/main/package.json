@@ -1,5 +1,6 @@
 {
   "name": "@import/main",
+  "version": "0.1.1",
   "private": true,
   "type": "module",
   "exports": "./main.ts",
@@ -9,6 +10,9 @@
     "build": "bun build ./main.ts --target=browser --production --minify --drop console.debug --outfile=dist/index.js"
   },
   "dependencies": {
-    "@internal/visual": "workspace:*"
+    "@internal/visual": "workspace:^0.1.0"
+  },
+  "artifact": {
+    "cache": "import"
   }
 }

@@ -8,7 +8,7 @@
 
 import type * as Loader from "../../startup/service/loader"
 import {importModule, updateModules} from "./loader"
-import {moduleByName, rpc} from "./storage"
+import {rpc, updatePackages} from "./storage"
 
 /**
  * Формирует Service Worker-контур из internal и будущих Metafor modules.
@@ -18,31 +18,33 @@ import {moduleByName, rpc} from "./storage"
 export default async function importService(loader: typeof Loader) {
   console.debug("[@import/service]", "сервис загрузки модулей запущен", {module: rpc.endpoint})
   await importModule(loader, rpc, {
-    updateModules: async (names: string[]) => {
-      console.debug("[@import/service:update]", "проверяем список модулей", {modules: names})
-      const modules = names.map(moduleByName)
-      if (modules.some((module) => module === null)) {
-        console.debug("[@import/service:update]", "в списке есть неизвестный модуль", {
-          modules: names,
+    updateModules: async (input: unknown) => {
+      console.debug("[@import/service:update]", "проверяем состояние пакетов", {packages: input})
+      const packages = updatePackages(input)
+      if (packages === null) {
+        console.debug("[@import/service:update]", "состояние пакетов не принято", {
+          packages: input,
         })
-        throw new Error(`Неизвестные браузерные модули: ${names.join(", ")}`)
+        throw new Error("Некорректное состояние браузерных пакетов")
       }
-      console.debug("[@import/service:update]", "модули найдены", {
-        modules: names,
-        targets: modules.map((module) => module && ({
-          cache: module.cache,
-          endpoint: module.endpoint,
+      console.debug("[@import/service:update]", "состояние пакетов принято", {
+        packages: packages.map((entry) => ({
+          cache: entry.cache,
+          endpoint: entry.endpoint,
+          name: entry.name,
+          version: entry.version,
         })),
       })
-      await updateModules(loader, modules as NonNullable<typeof modules[number]>[])
-      console.debug("[@import/service:update]", "модули заменены в кэше", {modules: names})
+      const updated = await updateModules(loader, packages)
+      console.debug("[@import/service:update]", "пакеты переключены в кэше", {packages: updated})
+      return updated
     },
-    restartBrowser,
+    restartBrowser: () => restartBrowser(loader),
   })
 }
 
 /** Создаёт новую Service Worker incarnation и один раз навигирует каждый Window. */
-async function restartBrowser() {
+async function restartBrowser(loader: typeof Loader) {
   const windows = await clients.matchAll({type: "window"})
   const targets = windows.map((client) => ({id: client.id, url: client.url}))
   console.debug("[@import/service:restart]", "начинаем перезагрузку страниц", {
@@ -66,6 +68,7 @@ async function restartBrowser() {
       navigated: navigations.filter((client) => client !== null).length,
       requested: windows.length,
     })
+    await loader.confirmRestart()
   } catch (error) {
     console.debug("[@import/service:restart]", "не удалось перезагрузить страницы", {
       windows: targets,

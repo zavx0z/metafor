@@ -19,6 +19,8 @@ test("LOAD-001 keeps module policy and WebSocket outside immutable startup", asy
   expect(html).not.toContain("@internal/")
 
   expect(startupMain).toContain('import("/code?module=@import/main")')
+  expect(startupMain.indexOf('await import("/code?module=@import/main")'))
+    .toBeLessThan(startupMain.indexOf('serviceWorker.postMessage({type: "connect"})'))
   expect(startupMain).not.toContain("@internal/")
   expect(startupMain).not.toContain("@metafor/")
 
@@ -29,8 +31,8 @@ test("LOAD-001 keeps module policy and WebSocket outside immutable startup", asy
   expect(startupService).not.toContain("importModule")
 
   expect(importService).toContain("importModule(loader, rpc, {")
-  expect(importService).toContain("names.map(moduleByName)")
-  expect(importService).toContain("updateModules(loader, modules")
+  expect(importService).toContain("updatePackages(input)")
+  expect(importService).toContain("updateModules(loader, packages)")
   expect(importService).toContain("registration.unregister()")
   expect(importService).toContain("client.navigate(client.url)")
   expect(storage).toContain('"@import/main"')
@@ -68,13 +70,13 @@ test("UPD-002 exposes the development update path through owner-scoped diagnosti
     'console.debug("[@internal/rpc/service:update]", "получено уведомление об обновлении"',
   )
   expect(importService).toContain(
-    'console.debug("[@import/service:update]", "проверяем список модулей"',
+    'console.debug("[@import/service:update]", "проверяем состояние пакетов"',
   )
   expect(importService).toContain(
     'console.debug("[@import/service:restart]", "начинаем перезагрузку страниц"',
   )
   expect(updateLoader).toContain(
-    'console.debug("[@import/service/loader:update]", "откат кэша завершён"',
+    'console.debug("[@import/service/loader:update]", "вся группа открыта в активном кэше"',
   )
   expect(startupMain).toContain('console.debug("[@startup/main]", "страница готова к работе"')
 

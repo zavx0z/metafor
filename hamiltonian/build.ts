@@ -1,5 +1,6 @@
 import {dirname, join, resolve} from "node:path"
 import {fileURLToPath} from "node:url"
+import {mkdir} from "node:fs/promises"
 
 /** Hamiltonian packages, которые предоставляют browser artifact. */
 export type BuildableModule = string
@@ -24,15 +25,23 @@ export interface PackageBuildResult {
   outputs: PackageBuildArtifact[]
 }
 
-interface PackageOwner {
+/** Необязательная цель package build, используемая серверной staging-транзакцией. */
+export interface PackageBuildOptions {
+  artifact?: string
+}
+
+/** Проверенный package-owned contract browser artifact. */
+export interface PackageOwner {
   root: string
+  manifest: string
   artifact: string
   build: string
+  cache: string | null
   headers: Record<string, string>
 }
 
 const packageOwners = new Map<BuildableModule, Promise<PackageOwner>>()
-const pendingBuilds = new Map<BuildableModule, Promise<PackageBuildResult>>()
+const pendingBuilds = new Map<string, Promise<PackageBuildResult>>()
 
 /**
  * Возвращает package artifact, лениво собирая его при отсутствии или пустом файле.
@@ -96,44 +105,19 @@ export async function buildableModule(value: string | null): Promise<BuildableMo
   }
 }
 
-/** Принимает только package, которому разрешена явная повторная сборка. */
-export async function rebuildableModule(
-  value: string | null,
-): Promise<RebuildableModule | null> {
-  const module = await buildableModule(value)
-  if (module !== null && isRebuildableModule(module)) return module
-  return null
-}
-
-/** Читает единственный JSON-контракт групповой повторной сборки. */
-export async function rebuildableModules(
-  request: Request,
-): Promise<RebuildableModule[] | Response> {
-  const mediaType = request.headers.get("Content-Type")?.split(";", 1)[0]?.trim().toLowerCase()
-  if (mediaType !== "application/json") return new Response(null, {status: 415})
-  if (new URL(request.url).search !== "") return new Response(null, {status: 400})
-
-  let input: unknown
-  try {
-    input = await request.json()
-  } catch {
-    return new Response(null, {status: 400})
-  }
-
-  if (!isBuildInput(input)) return new Response(null, {status: 400})
-
-  const modules = await Promise.all(input.modules.map(rebuildableModule))
-  if (modules.some((module) => module === null)) return new Response(null, {status: 404})
-  return [...new Set(modules as RebuildableModule[])]
-}
-
 /**
  * Всегда запускает package-owned `scripts.build` и возвращает результат процесса.
  *
- * Если тот же package уже собирается, вызывающие используют его pending Promise.
+ * Если тот же package уже собирается в ту же цель, вызывающие используют его
+ * pending Promise.
  */
-export function buildPackage(module: BuildableModule): Promise<PackageBuildResult> {
-  const pending = pendingBuilds.get(module)
+export function buildPackage(
+  module: BuildableModule,
+  options: PackageBuildOptions = {},
+): Promise<PackageBuildResult> {
+  const {artifact} = options
+  const key = `${module}\u0000${artifact ?? "default"}`
+  const pending = pendingBuilds.get(key)
   if (pending) {
     if (Bun.env.NODE_ENV === "development") {
       console.debug("[hamiltonian/server/build]", "ожидаем уже запущенную сборку пакета", {module})
@@ -144,11 +128,11 @@ export function buildPackage(module: BuildableModule): Promise<PackageBuildResul
   if (Bun.env.NODE_ENV === "development") {
     console.debug("[hamiltonian/server/build]", "запрошена сборка пакета", {module})
   }
-  const build = runPackageBuild(module)
-  pendingBuilds.set(module, build)
+  const build = runPackageBuild(module, artifact)
+  pendingBuilds.set(key, build)
   void build.then(
-    () => pendingBuilds.delete(module),
-    () => pendingBuilds.delete(module),
+    () => pendingBuilds.delete(key),
+    () => pendingBuilds.delete(key),
   )
   return build
 }
@@ -191,7 +175,10 @@ export function packageBuildCommand(
   return development
 }
 
-async function runPackageBuild(module: BuildableModule): Promise<PackageBuildResult> {
+async function runPackageBuild(
+  module: BuildableModule,
+  artifactOverride?: string,
+): Promise<PackageBuildResult> {
   try {
     const owner = await packageOwner(module)
     if (Bun.env.NODE_ENV === "development") {
@@ -234,7 +221,9 @@ async function runPackageBuild(module: BuildableModule): Promise<PackageBuildRes
         exitCode: prebuildExitCode,
       })
     }
-    const command = packageBuildCommand(owner.build)
+    const artifactPath = artifactOverride ?? owner.artifact
+    await mkdir(dirname(artifactPath), {recursive: true})
+    const command = packageBuildOutput(packageBuildCommand(owner.build), artifactPath)
     if (Bun.env.NODE_ENV === "development") {
       console.debug("[hamiltonian/server/build]", "сборка пакета началась", {
         module,
@@ -267,16 +256,16 @@ async function runPackageBuild(module: BuildableModule): Promise<PackageBuildRes
       return {module, success: false, exitCode, stdout, stderr, outputs: []}
     }
 
-    const artifact = await readArtifact(owner)
+    const artifact = await readArtifactPath(artifactPath)
     if (!artifact) {
       const failure = buildContractFailure(
         {module, success: true, exitCode, stdout, stderr, outputs: []},
-        owner.artifact,
+        artifactPath,
       )
       if (Bun.env.NODE_ENV === "development") {
         console.debug("[hamiltonian/server/build]", "сборка пакета не создала готовый файл", {
           module,
-          path: owner.artifact,
+          path: artifactPath,
         })
       }
       return failure
@@ -305,7 +294,7 @@ async function runPackageBuild(module: BuildableModule): Promise<PackageBuildRes
   }
 }
 
-async function packageOwner(module: BuildableModule) {
+export async function packageOwner(module: BuildableModule) {
   let owner = packageOwners.get(module)
   if (!owner) {
     owner = findPackage(module).catch((error: unknown) => {
@@ -329,7 +318,7 @@ async function findPackage(module: BuildableModule): Promise<PackageOwner> {
       const manifest = await manifestFile.json() as {
         name?: unknown
         scripts?: Record<string, unknown>
-        artifact?: {headers?: Record<string, unknown>}
+        artifact?: {cache?: unknown, headers?: Record<string, unknown>}
       }
 
       if (manifest.name !== module)
@@ -351,10 +340,16 @@ async function findPackage(module: BuildableModule): Promise<PackageOwner> {
         headers[name] = value
       }
 
+      const cache = manifest.artifact?.cache
+      if (cache !== undefined && typeof cache !== "string")
+        throw new Error(`${module} artifact cache must be a string`)
+
       return {
         root,
+        manifest: join(root, "package.json"),
         artifact,
         build,
+        cache: cache ?? null,
         headers,
       }
     }
@@ -368,9 +363,13 @@ async function findPackage(module: BuildableModule): Promise<PackageOwner> {
 }
 
 async function readArtifact(owner: PackageOwner): Promise<PackageBuildArtifact | null> {
-  const artifact = Bun.file(owner.artifact, {type: "text/javascript; charset=utf-8"})
+  return await readArtifactPath(owner.artifact)
+}
+
+async function readArtifactPath(path: string): Promise<PackageBuildArtifact | null> {
+  const artifact = Bun.file(path, {type: "text/javascript; charset=utf-8"})
   if (!await artifact.exists() || artifact.size === 0) return null
-  return {path: owner.artifact, size: artifact.size, type: artifact.type}
+  return {path, size: artifact.size, type: artifact.type}
 }
 
 function buildContractFailure(
@@ -386,19 +385,6 @@ function buildContractFailure(
   }
 }
 
-function isBuildInput(value: unknown): value is {modules: string[]} {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) return false
-  const input = value as Record<string, unknown>
-  return Object.keys(input).length === 1
-    && Array.isArray(input.modules)
-    && input.modules.length > 0
-    && input.modules.every((module) => typeof module === "string")
-}
-
-function isRebuildableModule(module: BuildableModule): module is RebuildableModule {
-  return module.startsWith("@import/") || module.startsWith("@internal/")
-}
-
 function resolvePackageArtifact(root: string, command: readonly string[]) {
   let output: string | undefined
   for (let index = 0; index < command.length; index += 1) {
@@ -412,4 +398,20 @@ function resolvePackageArtifact(root: string, command: readonly string[]) {
   if (artifact !== root && !artifact.startsWith(`${root}/`))
     throw new Error("Package build outfile must stay inside package root")
   return artifact
+}
+
+function packageBuildOutput(command: readonly string[], artifact: string) {
+  const output = [...command]
+  for (let index = 0; index < output.length; index += 1) {
+    const argument = output[index]
+    if (argument === "--outfile") {
+      output[index + 1] = artifact
+      return output
+    }
+    if (argument?.startsWith("--outfile=")) {
+      output[index] = `--outfile=${artifact}`
+      return output
+    }
+  }
+  throw new Error("Package build script must define `--outfile`")
 }

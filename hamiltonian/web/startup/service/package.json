@@ -1,5 +1,6 @@
 {
   "name": "@startup/service",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "exports": "./index.ts",
@@ -9,6 +10,7 @@
     "build": "bun build ./index.ts --target=browser --production --minify --drop console.debug --outfile=dist/index.js"
   },
   "artifact": {
+    "cache": "startup",
     "headers": {
       "Content-Security-Policy": "script-src 'unsafe-eval'"
     }

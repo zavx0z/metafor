@@ -1,5 +1,6 @@
 {
   "name": "@internal/rpc",
+  "version": "0.1.2",
   "private": true,
   "type": "module",
   "exports": {
@@ -13,6 +14,9 @@
     "typecheck:service:web": "tsc --project service/web/tsconfig.json --pretty false",
     "prebuild": "bun run typecheck",
     "build": "bun build ./service/web/index.ts --target=browser --format=iife --production --minify --drop console.debug --outfile=dist/index.js"
+  },
+  "artifact": {
+    "cache": "internal"
   },
   "devDependencies": {
     "@types/serviceworker": "^0.0.200"

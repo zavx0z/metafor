@@ -1,5 +1,6 @@
 {
   "name": "@metafor/hamiltonian",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -11,7 +12,9 @@
     "test:load": "tsc --project tests/tsconfig.json --pretty false && bun test tests/load-001.boundary.spec.ts tests/load-001.browser.spec.ts"
   },
   "dependencies": {
-    "@internal/rpc": "workspace:*",
+    "@import/main": "workspace:^0.1.1",
+    "@import/service": "workspace:^0.1.1",
+    "@internal/rpc": "workspace:^0.1.2",
     "@hamiltonian/visual": "workspace:*",
     "@metafor/engine": "workspace:*",
     "@metafor/web-push": "workspace:*",

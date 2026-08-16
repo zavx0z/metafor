@@ -46,71 +46,95 @@ export async function importModule(
   }
 }
 
-/** Загружает и заменяет выбранные cache entries как одну update-группу. */
-export async function updateModules(startup: typeof Startup, modules: Module[]) {
-  const targets = modules.map((module) => ({
-    module,
-    request: new Request(new URL(module.endpoint, location.origin)),
-  }))
+/** Подготавливает package group и открывает её loader одним active-state write. */
+export async function updateModules(
+  startup: typeof Startup,
+  packages: Startup.UpdatePackage[],
+) {
+  await startup.discardInterruptedUpdate()
+  const targets = (await Promise.all(packages.map(async (entry) => {
+    const stable = new Request(new URL(`/code?module=${entry.name}`, location.origin))
+    const current = await startup.read(entry.cache, stable)
+    if (
+      current?.headers.get("X-Package-Name") === entry.name
+      && current.headers.get("X-Package-Version") === entry.version
+    ) return null
+    return {
+      entry,
+      stable,
+      request: new Request(new URL(entry.endpoint, location.origin), {cache: "no-store"}),
+    }
+  }))).filter((target) => target !== null)
+
+  if (targets.length === 0) return await startup.pendingRestart()
+
+  const transaction = crypto.randomUUID()
+  const storages = new Map<string, string>()
+  for (const {entry} of targets) {
+    if (!storages.has(entry.cache))
+      storages.set(entry.cache, `${entry.cache}:update:${transaction}`)
+  }
+
   console.debug("[@import/service/loader:update]", "подготовка обновления началась", {
-    artifacts: targets.map(({module, request}) => ({
-      cache: module.cache,
+    artifacts: targets.map(({entry, request}) => ({
+      cache: entry.cache,
+      name: entry.name,
       source: request.url,
+      version: entry.version,
     })),
   })
 
-  const updates = await Promise.all(targets.map(async ({module, request}) => {
-    console.debug("[@import/service/loader:update]", "загрузка новой сборки началась", {
-      cache: module.cache,
-      source: request.url,
-    })
-    const [previous, response] = await Promise.all([
-      startup.read(module.cache, request),
-      fetch(request).then(startup.verify),
-    ])
-    console.debug("[@import/service/loader:update]", "новая сборка загружена", {
-      cache: module.cache,
-      previous: previous !== undefined,
-      source: request.url,
-      status: response.status,
-    })
-    return {module, request, previous, response}
-  }))
-  console.debug("[@import/service/loader:update]", "все новые сборки загружены", {
-    artifacts: updates.length,
+  await startup.rememberUpdate({
+    packages: targets.map(({entry}) => entry),
+    storages: [...storages.values()],
   })
 
-  const applied: typeof updates = []
+  const groups = new Map<string, Request[]>()
+  for (const {entry, request} of targets) {
+    const storage = storages.get(entry.cache)!
+    const requests = groups.get(storage) ?? []
+    requests.push(request)
+    groups.set(storage, requests)
+  }
+
   try {
-    for (const update of updates) {
-      console.debug("[@import/service/loader:update]", "замена записи кэша началась", {
-        cache: update.module.cache,
-        source: update.request.url,
+    await Promise.all([...groups].map(async ([storage, requests]) => {
+      console.debug("[@import/service/loader:update]", "загрузка группы во временный кэш началась", {
+        artifacts: requests.length,
+        storage,
       })
-      await startup.cache(update.module.cache, update.request, update.response)
-      applied.push(update)
-      console.debug("[@import/service/loader:update]", "запись кэша заменена", {
-        cache: update.module.cache,
-        source: update.request.url,
+      await (await caches.open(storage)).addAll(requests)
+      console.debug("[@import/service/loader:update]", "группа загружена во временный кэш", {
+        artifacts: requests.length,
+        storage,
       })
-    }
-    console.debug("[@import/service/loader:update]", "все записи кэша заменены", {
-      artifacts: applied.length,
+    }))
+
+    const active = await Promise.all(targets.map(async ({entry, request}) => {
+      const storage = storages.get(entry.cache)!
+      const response = await (await caches.open(storage)).match(request)
+      if (!response) throw new Error(`Сборка ${entry.name}@${entry.version} отсутствует в кэше`)
+      startup.verify(response)
+      if (response.headers.get("X-Package-Name") !== entry.name)
+        throw new Error(`Ответ обновления принадлежит другому пакету: ${entry.name}`)
+      if (response.headers.get("X-Package-Version") !== entry.version)
+        throw new Error(`Ответ обновления имеет другую версию: ${entry.name}@${entry.version}`)
+      return {...entry, storage}
+    }))
+
+    await startup.activateUpdate(active)
+    await startup.forgetUpdate()
+    await startup.discardInactiveUpdates()
+    console.debug("[@import/service/loader:update]", "вся группа открыта в активном кэше", {
+      artifacts: active.map(({name, version}) => ({name, version})),
     })
+    return active.map(({name}) => name)
   } catch (error) {
-    console.debug("[@import/service/loader:update]", "замена кэша завершилась с ошибкой, начинаем откат", {
-      artifacts: applied.map((update) => ({
-        cache: update.module.cache,
-        source: update.request.url,
-      })),
+    await Promise.all([...storages.values()].map((storage) => caches.delete(storage)))
+    await startup.forgetUpdate()
+    console.debug("[@import/service/loader:update]", "подготовка кэша завершилась с ошибкой", {
+      artifacts: targets.map(({entry}) => ({name: entry.name, version: entry.version})),
     }, error)
-    const rollback = await Promise.allSettled(applied.map((update) => update.previous
-      ? startup.cache(update.module.cache, update.request, update.previous)
-      : startup.remove(update.module.cache, update.request)))
-    console.debug("[@import/service/loader:update]", "откат кэша завершён", {
-      failed: rollback.filter((result) => result.status === "rejected").length,
-      restored: rollback.length,
-    })
     throw error
   }
 }

@@ -90,9 +90,12 @@ startup в этот выпуск не входит. Владелец призн�
 достаточным для development update-срезов, не закрывая остальную `LOAD-001`.
 Development checkpoint `UPD-002.2`–`UPD-002.5` принят владельцем: групповой
 build, одно уведомление и один browser restart сохранены, а единственный
-внешний POST contract использует JSON `{modules: string[]}`. Legacy query POST
-отклоняется; Service
-Worker delivery после parsing boundary не менялась. Package-owned development
+внешний POST contract теперь развивается в `UPD-002.6`: JSON передаёт package
+name и вид SemVer-изменения `patch | minor | major`, но не готовый номер версии.
+Host и Service Worker публикуют и применяют всю группу транзакционно; отдельный
+release manifest не создаётся, доказанное состояние принадлежит package
+versions и корневым caret dependencies. Legacy query POST отклоняется.
+Package-owned development
 build executor получает development-команду из единственного production
 `scripts.build` пакета: сохраняет debug и добавляет inline source map;
 production удаляет `console.debug` и не публикует карту. Package contract

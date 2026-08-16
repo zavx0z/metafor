@@ -2,15 +2,21 @@ import {rpcServiceTopic, sw, websocket, type RpcSocketData} from "@internal/rpc/
 import {
   buildableModule,
   packageResponse,
-  rebuildableModules,
   type RebuildableModule,
 } from "../../build"
+import {
+  packageChanges,
+  releasedPackages,
+  type ReleasedPackage,
+  type VersionChange,
+} from "../../release"
 
 type Fault =
   | "none"
   | "import-service-http-once"
   | "internal-invalid-once"
   | "update-build-failure-once"
+  | "update-fetch-failure-once"
 
 const fault = (process.env.LOAD_TEST_FAULT ?? "none") as Fault
 const port = Number(process.env.LOAD_TEST_PORT)
@@ -27,7 +33,11 @@ const revisions: Record<RebuildableModule, number> = {
   "@import/service": 0,
   "@internal/rpc": 0,
 }
+const versions = new Map((await releasedPackages()).map(({name, version}) => [name, version]))
 let buildRequests = 0
+let updateFetchFailures = 0
+let connections = 0
+const sockets = new Set<Bun.ServerWebSocket<RpcSocketData>>()
 
 const javascriptHeaders = {"Content-Type": "text/javascript; charset=utf-8"}
 
@@ -52,7 +62,10 @@ const server = Bun.serve<RpcSocketData>({
     },
     "/code": {
       GET: async (request: Request) => {
-        const module = await buildableModule(new URL(request.url).searchParams.get("module"))
+        const url = new URL(request.url)
+        const requestedModule = url.searchParams.get("module")
+        if (requestedModule === null) return Response.json({packages: fixturePackages()})
+        const module = await buildableModule(requestedModule)
         if (module === null) return new Response(null, {status: 404})
 
         switch (module) {
@@ -73,34 +86,53 @@ const server = Bun.serve<RpcSocketData>({
             if (fault === "internal-invalid-once" && requests.internalRpc === 1) {
               return new Response(")", {headers: javascriptHeaders})
             }
+            if (
+              fault === "update-fetch-failure-once"
+              && (revisions[module] ?? 0) > 0
+              && url.searchParams.has("version")
+              && updateFetchFailures++ === 0
+            ) return new Response("Update artifact unavailable", {status: 503})
             return await artifactResponse(module)
           default:
             return packageResponse(module)
         }
       },
       POST: async (request: Request) => {
-        const modules = await rebuildableModules(request)
-        if (modules instanceof Response) return modules
+        const packages = await packageChanges(request)
+        if (packages instanceof Response) return packages
         buildRequests += 1
         const failed = fault === "update-build-failure-once" && buildRequests === 1
-        const results = modules.map((module, index) => ({
-          module,
-          success: !failed || index !== modules.length - 1,
-          exitCode: !failed || index !== modules.length - 1 ? 0 : 1,
+        const results = packages.map(({name, change}, index) => ({
+          module: name,
+          change,
+          previousVersion: versions.get(name)!,
+          version: changedVersion(versions.get(name)!, change),
+          success: !failed || index !== packages.length - 1,
+          exitCode: !failed || index !== packages.length - 1 ? 0 : 1,
           stdout: "",
-          stderr: !failed || index !== modules.length - 1 ? "" : "Fixture build failed",
+          stderr: !failed || index !== packages.length - 1 ? "" : "Fixture build failed",
           outputs: [],
         }))
         const success = results.every((result) => result.success)
-        if (!success) return Response.json({success, results}, {status: 422})
+        if (!success) return Response.json({success, results, packages: []}, {status: 422})
 
-        for (const module of modules) revisions[module] = (revisions[module] ?? 0) + 1
-        server.publish(rpcServiceTopic, JSON.stringify({type: "build", modules}))
-        return Response.json({success, results})
+        for (const result of results) {
+          versions.set(result.module, result.version)
+          revisions[result.module] = (revisions[result.module] ?? 0) + 1
+        }
+        const released = results.map(({module}) => fixturePackage(module))
+        server.publish(rpcServiceTopic, JSON.stringify({type: "release", packages: released}))
+        return Response.json({success, results, packages: released})
       },
     },
     "/sw": sw,
-    "/__tests/state": () => Response.json({fault, requests}),
+    "/__tests/state": () => Response.json({connections, fault, requests}),
+    "/__tests/rpc/close": {
+      POST: () => {
+        for (const socket of sockets) socket.close(1000, "fixture server restart")
+        return new Response(null, {status: 204})
+      },
+    },
     "/*": (request: Request) => {
       if (request.headers.get("Accept")?.includes("text/html"))
         return new Response(Bun.file(new URL("../../web/static/index.html", import.meta.url)))
@@ -108,7 +140,18 @@ const server = Bun.serve<RpcSocketData>({
     },
   },
   fetch: () => new Response(null, {status: 404}),
-  websocket,
+  websocket: {
+    ...websocket,
+    open(socket) {
+      connections += 1
+      sockets.add(socket)
+      websocket.open!(socket)
+    },
+    close(socket, code, reason) {
+      sockets.delete(socket)
+      websocket.close!(socket, code, reason)
+    },
+  },
 })
 
 console.info(JSON.stringify({event: "ready", port: server.port, fault}))
@@ -116,9 +159,42 @@ console.info(JSON.stringify({event: "ready", port: server.port, fault}))
 async function artifactResponse(module: RebuildableModule) {
   const response = await packageResponse(module)
   const revision = revisions[module] ?? 0
-  if (revision === 0 || !response.ok) return response
+  if (!response.ok) return response
+  const headers = new Headers(response.headers)
+  headers.set("X-Package-Name", module)
+  headers.set("X-Package-Version", versions.get(module)!)
+  if (revision === 0) return new Response(response.body, {headers})
   const source = await response.text()
   return new Response(`${source}\nconsole.info(${JSON.stringify(`fixture ${module} ${revision}`)})`, {
-    headers: response.headers,
+    headers,
   })
+}
+
+function fixturePackages(): ReleasedPackage[] {
+  return [...versions].map(([name]) => fixturePackage(name))
+}
+
+function fixturePackage(name: RebuildableModule): ReleasedPackage {
+  const version = versions.get(name)!
+  return {
+    name,
+    version,
+    endpoint: `/code?module=${name}&version=${version}`,
+    cache: name.startsWith("@import/") ? "import" : "internal",
+  }
+}
+
+function changedVersion(version: string, change: VersionChange) {
+  let [major, minor, patch] = version.split(".").map(Number) as [number, number, number]
+  if (change === "major") {
+    major += 1
+    minor = 0
+    patch = 0
+  } else if (change === "minor") {
+    minor += 1
+    patch = 0
+  } else {
+    patch += 1
+  }
+  return `${major}.${minor}.${patch}`
 }

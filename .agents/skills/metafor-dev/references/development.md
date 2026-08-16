@@ -32,6 +32,9 @@ console.debug("[@import/service:update]", "новая сборка загруж�
   разработке не менять и через endpoint обновления не передавать.
 
 Имя модуля брать только из поля `name` его `package.json`.
+Сменяемый artifact также объявляет точную `version` и `artifact.cache`.
+Последние доказанные версии перечислены в dependencies корневого Hamiltonian
+package как `workspace:^<version>`.
 
 ## Получить модуль
 
@@ -49,13 +52,20 @@ Endpoint возвращает собираемый клиентский artifact
 GET http://127.0.0.1:4444/code?module=@internal/rpc
 ```
 
+Текущее доказанное состояние всех сменяемых packages возвращает тот же
+endpoint без параметров:
+
+```http
+GET /code
+```
+
 ## Обновить модули
 
 ```http
 POST /code
 Content-Type: application/json
 
-{"modules": ["<package-name>"]}
+{"packages": [{"name": "<package-name>", "change": "patch"}]}
 ```
 
 Для нескольких зависимых модулей передать все имена в одном массиве:
@@ -64,24 +74,38 @@ Content-Type: application/json
 POST /code
 Content-Type: application/json
 
-{"modules": ["@import/main", "@internal/rpc"]}
+{
+  "packages": [
+    {"name": "@import/main", "change": "patch"},
+    {"name": "@internal/rpc", "change": "minor"}
+  ]
+}
 ```
 
-Передавать одной группой все изменённые взаимозависимые `@import/*` и
-`@internal/*` packages. Query parameters для `POST` не использовать. После
-успешного ответа browser обновится и перезагрузится сам.
+`change` принимает только `patch`, `minor` или `major`. Готовый номер версии не
+передавать: host вычисляет его от последней доказанной версии. Передавать одной
+группой все изменённые взаимозависимые `@import/*` и `@internal/*` packages.
+Query parameters для `POST` не использовать. После успешного ответа browser
+транзакционно обновит всю группу и перезагрузится сам.
 
 Ответ имеет форму:
 
 ```text
-{success: true, results: [{module, success, exitCode, stdout, stderr, outputs}]}
+{
+  success: true,
+  results: [{module, change, previousVersion, version, success, exitCode, stdout, stderr, outputs}],
+  packages: [{name, version, endpoint, cache}]
+}
 ```
 
 * `200` и `success: true` — обновление принято;
 * `400` — JSON или форма body неверны;
-* `422` — сборка не прошла, использовать `stdout` и `stderr` из `results`;
+* `422` — хотя бы одна сборка не прошла; версии и доступные artifacts не
+  изменились, использовать `stdout` и `stderr` из `results`;
 * `404` — имя неизвестно или не разрешено для обновления;
 * `415` — не указан `Content-Type: application/json`.
 
 После `200` проверить, что страница снова загрузилась и работает с ожидаемым
-изменением. Hamiltonian не перезапускать и страницу вручную не перезагружать.
+изменением. Если Worker спал или пропустил RPC, он сверится через `GET /code`
+после подключения и применит то же обновление. Hamiltonian не перезапускать и
+страницу вручную не перезагружать.

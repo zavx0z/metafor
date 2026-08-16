@@ -32,7 +32,7 @@ test("HAM-005 creates one standard Window environment through internal visual", 
   expect(html).toContain('src="/code?module=@startup/main"')
 
   expect(main.trim()).toBe('import "@internal/visual"')
-  expect(mainPackage.dependencies).toEqual({"@internal/visual": "workspace:*"})
+  expect(mainPackage.dependencies).toEqual({"@internal/visual": "workspace:^0.1.0"})
   expect(visualPackage.name).toBe("@internal/visual")
   expect(visualPackage.dependencies?.["@ui/elements"]).toBe("workspace:*")
   expect(visualPackage.dependencies?.["@metafor/engine"]).toBe("workspace:*")

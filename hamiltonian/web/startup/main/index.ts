@@ -26,8 +26,8 @@ const serviceWorker = navigator.serviceWorker.controller
 
 if (!serviceWorker) throw new Error("Service Worker does not control the page")
 
-serviceWorker.postMessage({type: "connect"})
 await import("/code?module=@import/main")
+serviceWorker.postMessage({type: "connect"})
 console.debug("[@startup/main]", "страница готова к работе", {
   controller: serviceWorker.scriptURL,
   registration: registration.scope,

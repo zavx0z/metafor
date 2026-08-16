@@ -38,6 +38,7 @@ type FixtureFault =
   | "import-service-http-once"
   | "internal-invalid-once"
   | "update-build-failure-once"
+  | "update-fetch-failure-once"
 type ServerMode = "production" | "update" | FixtureFault
 
 test.serial("UPD-002 updates one module group and restarts every Window once", async () => {
@@ -63,7 +64,11 @@ test.serial("UPD-002 updates one module group and restarts every Window once", a
     expect(secondNavigation?.status()).toBe(200)
     expect(await secondPage.evaluate(() => Boolean(navigator.serviceWorker.controller))).toBe(true)
 
-    const modules = ["@import/main", "@internal/rpc", "@import/main"]
+    const packages = [
+      {name: "@import/main", change: "patch"},
+      {name: "@internal/rpc", change: "minor"},
+      {name: "@import/main", change: "patch"},
+    ] as const
     const requestsBefore = await fixtureRequests(server.root)
     const sourceBefore = await updateSources(firstPage)
     expect(sourceBefore.importMain.length).toBeGreaterThan(0)
@@ -83,15 +88,15 @@ test.serial("UPD-002 updates one module group and restarts every Window once", a
     expect((await fetch(new URL("/code", server.root), {
       method: "POST",
       headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({modules: []}),
+      body: JSON.stringify({packages: []}),
     })).status).toBe(400)
     expect((await fetch(new URL("/code", server.root), {
       method: "POST",
       headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({modules: ["@startup/main"]}),
+      body: JSON.stringify({packages: [{name: "@startup/main", change: "patch"}]}),
     })).status).toBe(404)
 
-    const failed = await requestBuild(server.root, modules)
+    const failed = await requestBuild(server.root, packages)
     expect(failed.status).toBe(422)
     expect(failed.body.success).toBe(false)
     await Bun.sleep(250)
@@ -101,13 +106,16 @@ test.serial("UPD-002 updates one module group and restarts every Window once", a
     const nextWorkerObserver = observeStartupWorker(browser, firstWorker.target)
     const firstReload = firstPage.waitForNavigation({waitUntil: "load", timeout: 30_000})
     const secondReload = secondPage.waitForNavigation({waitUntil: "load", timeout: 30_000})
-    const build = await requestBuild(server.root, modules)
+    const build = await requestBuild(server.root, packages)
     expect(build.status).toBe(200)
     expect(build.body.success).toBe(true)
     expect(build.body.results.map((result) => result.module)).toEqual([
       "@import/main",
       "@internal/rpc",
     ])
+    expect(build.body.results.map((result) => result.version)).toEqual(
+      failed.body.results.map((result) => result.version),
+    )
 
     const [firstReloadResponse, secondReloadResponse, nextWorker] = await Promise.all([
       firstReload,
@@ -131,6 +139,111 @@ test.serial("UPD-002 updates one module group and restarts every Window once", a
     expect((await fixtureRequests(server.root)).importMain).toBeGreaterThan(requestsBefore.importMain)
     expect((await fixtureRequests(server.root)).internalRpc).toBeGreaterThan(requestsBefore.internalRpc)
     expect(navigations).toEqual({first: 1, second: 1})
+
+    await browser.close()
+    browser = null
+    const disconnectedBuild = await requestBuild(server.root, [
+      {name: "@import/main", change: "patch"},
+      {name: "@internal/rpc", change: "patch"},
+    ])
+    expect(disconnectedBuild.status).toBe(200)
+    expect(disconnectedBuild.body.results.map((result) => result.previousVersion)).toEqual(
+      build.body.results.map((result) => result.version),
+    )
+
+    browser = await launchBrowser(profile)
+    const restoredPage = await browser.newPage()
+    let restoredNavigations = 0
+    restoredPage.on("framenavigated", (frame) => {
+      if (frame === restoredPage.mainFrame()) restoredNavigations += 1
+    })
+    const restoredNavigation = await restoredPage.goto(server.root, {waitUntil: "load"})
+    expect(restoredNavigation?.status()).toBe(200)
+    await waitUntil(async () => {
+      try {
+        const sources = await updateSources(restoredPage)
+        return sources.importMain.includes("fixture @import/main 2")
+          && sources.internalRpc.includes("fixture @internal/rpc 2")
+      } catch {
+        return false
+      }
+    }, 30_000)
+    expect(restoredNavigations).toBeGreaterThanOrEqual(2)
+  } catch (error) {
+    throw withServerOutput(error, server.output())
+  } finally {
+    if (browser) await browser.close().catch(() => {})
+    await server.stop().catch(() => {})
+    await rm(profile, {recursive: true, force: true})
+  }
+})
+
+test.serial("UPD-002 keeps the active cache unchanged until every package is available", async () => {
+  const profile = await mkdtemp(join(tmpdir(), "metafor-upd-002-atomic-"))
+  const server = await startServer("update-fetch-failure-once")
+  let browser: Browser | null = null
+
+  try {
+    browser = await launchBrowser(profile)
+    const page = await browser.newPage()
+    const navigation = await page.goto(server.root, {waitUntil: "load"})
+    expect(navigation?.status()).toBe(200)
+    await waitForAcceptedCaches(page)
+    const sourceBefore = await updateSources(page)
+    let navigations = 0
+    page.on("framenavigated", (frame) => {
+      if (frame === page.mainFrame()) navigations += 1
+    })
+
+    const reload = page.waitForNavigation({waitUntil: "load", timeout: 30_000})
+    const build = await requestBuild(server.root, [
+      {name: "@import/main", change: "patch"},
+      {name: "@internal/rpc", change: "patch"},
+    ])
+    expect(build.status).toBe(200)
+
+    await Bun.sleep(300)
+    expect(navigations).toBe(0)
+    expect(await updateSources(page)).toEqual(sourceBefore)
+
+    expect(await reload).not.toBeNull()
+    await waitUntil(async () => {
+      try {
+        const sources = await updateSources(page)
+        return sources.importMain.includes("fixture @import/main 1")
+          && sources.internalRpc.includes("fixture @internal/rpc 1")
+      } catch {
+        return false
+      }
+    }, 30_000)
+    expect(navigations).toBe(1)
+  } catch (error) {
+    throw withServerOutput(error, server.output())
+  } finally {
+    if (browser) await browser.close().catch(() => {})
+    await server.stop().catch(() => {})
+    await rm(profile, {recursive: true, force: true})
+  }
+})
+
+test.serial("UPD-002 reconnects after a clean server-side WebSocket close", async () => {
+  const profile = await mkdtemp(join(tmpdir(), "metafor-upd-002-reconnect-"))
+  const server = await startServer("update")
+  let browser: Browser | null = null
+
+  try {
+    browser = await launchBrowser(profile)
+    const page = await browser.newPage()
+    const navigation = await page.goto(server.root, {waitUntil: "load"})
+    expect(navigation?.status()).toBe(200)
+    await waitForAcceptedCaches(page)
+    await waitUntil(async () => await fixtureConnections(server.root) === 1)
+
+    const close = await fetch(new URL("/__tests/rpc/close", server.root), {method: "POST"})
+    expect(close.status).toBe(204)
+    await waitUntil(async () => await fixtureConnections(server.root) >= 2)
+  } catch (error) {
+    throw withServerOutput(error, server.output())
   } finally {
     if (browser) await browser.close().catch(() => {})
     await server.stop().catch(() => {})
@@ -602,26 +715,57 @@ async function fixtureRequests(root: string) {
   return state.requests
 }
 
-async function requestBuild(root: string, modules: string[]) {
+async function fixtureConnections(root: string) {
+  const response = await fetch(new URL("/__tests/state", root))
+  if (!response.ok) throw new Error(`Fixture state returned ${response.status}`)
+  const state = await response.json() as {connections: number}
+  return state.connections
+}
+
+async function requestBuild(
+  root: string,
+  packages: readonly {name: string, change: "patch" | "minor" | "major"}[],
+) {
   const response = await fetch(new URL("/code", root), {
     method: "POST",
     headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({modules}),
+    body: JSON.stringify({packages}),
   })
   const body = await response.json() as {
     success: boolean
-    results: Array<{module: string, success: boolean}>
+    results: Array<{
+      module: string
+      success: boolean
+      previousVersion: string
+      version: string
+    }>
   }
   return {status: response.status, body}
 }
 
 async function updateSources(page: Page) {
-  return await page.evaluate(async () => ({
-    importMain: await (await (await caches.open("import"))
-      .match("/code?module=@import/main"))?.text() ?? "",
-    internalRpc: await (await (await caches.open("internal"))
-      .match("/code?module=@internal/rpc"))?.text() ?? "",
-  }))
+  return await page.evaluate(async () => {
+    const metadata = await caches.open("internal")
+    const activeResponse = await metadata.match("/code?state=active")
+    const active = activeResponse
+      ? await activeResponse.json() as {
+        packages: Record<string, {endpoint: string, storage: string}>
+      }
+      : {packages: {}}
+
+    const source = async (name: string, owner: string) => {
+      const entry = active.packages[name]
+      const response = entry
+        ? await (await caches.open(entry.storage)).match(entry.endpoint)
+        : await (await caches.open(owner)).match(`/code?module=${name}`)
+      return await response?.text() ?? ""
+    }
+
+    return {
+      importMain: await source("@import/main", "import"),
+      internalRpc: await source("@internal/rpc", "internal"),
+    }
+  })
 }
 
 async function freePort() {

@@ -1,3 +1,5 @@
+import {cache as cacheResponse, read} from "./loader"
+
 const startup = [
   "/",
   "/code?module=@startup/main",
@@ -27,13 +29,13 @@ export async function cacheFirst(request: Request) {
   const cache = await caches.open(importer ? "import" : "startup")
   const response = request.mode === "navigate"
     ? await cache.match("/", {ignoreVary: true})
-    : await caches.match(request, {ignoreVary: true})
+    : await read(importer ? "import" : "startup", request)
   if (response) return response
 
   try {
     const network = await fetch(request)
     if (network.ok && (importer || url.pathname.startsWith("/assets/"))) {
-      await cache.put(request, network.clone())
+      await cacheResponse(importer ? "import" : "startup", request, network.clone())
     }
     return network
   } catch (error) {
