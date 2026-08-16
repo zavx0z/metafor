@@ -170,10 +170,20 @@ transport.
 
 ## Стандартная Window-среда clean-room loader
 
-Обновляемый `@import/main` только импортирует `@internal/visual`. Этот internal
-module создаёт один `UiRuntime` на единственном canvas и владеет его lifetime,
-`Space`, `HUD`, resize и стандартной навигацией. Неизменяемый startup visual
-runtime не создаёт и его implementation не импортирует.
+Неизменяемый startup запускает один активный release и не знает состав
+`internal` packages. `@release/main` разворачивает Window-контур и использует
+`@internal/visual`. `@release/service` разворачивает сменяемый Service Worker-контур,
+загружает его `internal` packages и владеет подготовкой следующего release.
+
+`@release/server` — единственный server-side владелец release packages. Он находит и
+проверяет package-owned build contract, собирает artifacts, вычисляет следующие
+версии, атомарно публикует группу и обслуживает HTTP release endpoint.
+Корневой Hamiltonian server только подключает этот endpoint и передаёт ему точный
+RPC notification transport.
+
+`@internal/visual` создаёт один `UiRuntime` на единственном canvas и владеет его
+lifetime, `Space`, `HUD`, resize и стандартной навигацией. Startup visual runtime не
+создаёт и его implementation не импортирует.
 
 В `Space` находятся стандартный пол и один пустой явно именованный `UIDisplay`;
 встроенный surface-display отключён. Обзорная камера начинает в дальнем режиме

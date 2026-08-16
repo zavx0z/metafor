@@ -72,14 +72,14 @@ checkpoint NODES-008.4 с общим исправлением левых инт�
 
 Начата `LOAD-001 — Загружать браузерный функционал через минимальный Service
 Worker`. Весь прежний Hamiltonian остаётся отдельно запускаемым прототипом.
-Browser path уже разделён на неизменяемый `startup`, обновляемые importers и
-загружаемые modules. Пакеты `@startup/main` и `@startup/service` устанавливают
-Service Worker, восстанавливают HTML/startup offline и запускают
-`@import/main` и `@import/service` из cache `import`. Service Worker importer
-владеет module loader и storage policy; первый module `@internal/rpc`
-загружается через `/code?module=@internal/rpc` в cache `internal` и открывает
-`/sw` для серверных уведомлений.
-Владелец подтвердил startup/import offline, cold-восстановление `internal` и
+Browser path перестраивается в `UPD-002.7` как `startup → release → internal`.
+Пакеты `@startup/main` и `@startup/service` устанавливают Service Worker, восстанавливают
+HTML/startup offline и запускают `@release/main` и `@release/service` из cache
+`release`. Release packages разворачивают Window и Service Worker контуры и
+загружают `@internal/rpc` и другие internal packages. Новый `@release/server`
+владеет package discovery, build, SemVer, атомарной публикацией и HTTP release
+endpoint; корневой server лишён release policy.
+Ранее владелец подтвердил startup/import offline, cold-восстановление `internal` и
 текущий internal RPC/WebSocket. `LOAD-001.23` остановлен: Window loader не
 расширяет startup до появления первого предметного Window module. Стандартное
 пустое visual-окружение Window уже закреплено в Hamiltonian-контракте и не
