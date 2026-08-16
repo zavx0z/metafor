@@ -215,17 +215,12 @@ Hamiltonian contour. Дальнейшую детализацию topology и к�
 
 Физическая универсальность node-system принадлежит
 [`NODES-009 — Разделить библиотеку нод для разных способов представления
-графа`](tasks/NODES-009.md). Закрытые срезы `NODES-009.1`–`NODES-009.5` уже
-зафиксировали необходимую package-границу и разблокировали
-[`HAM-002 — Собрать визуальный слой Hamiltonian в одном контуре`](tasks/HAM-002.md)
-для независимого запуска, хотя родитель `NODES-009` остаётся открытым для
-дальнейшей работы владельца. Выполненные `HAM-002` checkpoints собрали под
-`hamiltonian/visual` product-specific projection, composition, панели, стили и
-live presentation прототипа. Они не забирают generic model, validation,
-geometry, renderer primitives или layout laws из `nodes` и не заменяют
-поэтапную owner-приёмку `MF-424`. В clean-room loader этот source не
-переносится; первый новый Window/Metafor module выбирается отдельно в линии
-`LOAD-001`. Первый clean-room visual-шаг уже выбран отдельно: в
+графа`](tasks/NODES-009.md). Generic model, validation, geometry, renderer
+primitives и layout laws остаются в `nodes`, а product-specific projection,
+composition, панели, стили и live presentation прежнего Hamiltonian находятся
+в отдельно запускаемом прототипе под `hamiltonian/visual`. Clean-room loader
+не импортирует и не переносит этот source. Первый clean-room visual-шаг выбран
+отдельно: в
 [`HAM-005 — Собрать стандартное окружение визуализации Window`](tasks/HAM-005.md)
 `@import/main` создаёт общий пустой `UiRuntime` с `Space` и `HUD`, не импортируя
 prototype visual и не выбирая предметный Window module.

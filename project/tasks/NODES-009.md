@@ -159,9 +159,10 @@ dependency graph, занимать память и усложнять поним
 4. `@nodes/hud` — необязательные HUD-компоненты вроде Inspector. Ни ядро, ни
    renderer не зависят от него.
 5. Hamiltonian владеет transport catalog, его палитрой, легендой, lifecycle
-   projection и composition этих универсальных частей. Необходимый перенос из
-   `nodes` выполняется сейчас; дальнейшее собирание всего visual-кода в единую
-   внутреннюю директорию принадлежит отдельной `HAM-002`.
+   projection и composition этих универсальных частей. Нужная граница `nodes`
+   уже отделена, а принятые prototype-срезы `HAM-002.1`–`HAM-002.7` собрали
+   Hamiltonian-specific visual-код под `hamiltonian/visual`. Clean-room loader
+   не использует этот source как основу.
 
 Общий `NodeSystemDocument` остаётся единственным смысловым договором. Fixed и
 будущий adaptive adapter выбирают placement socket, не создавая второй model.
@@ -278,8 +279,8 @@ cleanup.
    layout и memory cost.
 7. Подготовлен порядок миграции MetaFor/Bulk, Hamiltonian и стороннего consumer
    без временного монолитного fallback.
-8. Отдельная `HAM-002` зарегистрирована зависимой задачей; формы и поведение
-   новых socket types не реализованы скрыто внутри package refactor.
+8. Отдельная `HAM-002` сохранила Hamiltonian-specific visual work вне package
+   refactor; формы и поведение новых socket types не реализованы здесь скрыто.
 
 ## Проверка результата
 
@@ -325,7 +326,8 @@ cleanup.
 
 Runtime не перезапускался и live visual acceptance не выполнялась: этот result
 доказывает package/import equivalence, tests и browser build. Structural
-реорганизация всей Hamiltonian visualization остаётся в зависимой `HAM-002`.
+реорганизация Hamiltonian visualization не входила в этот result и позднее
+выполнялась отдельными prototype-срезами `HAM-002.1`–`HAM-002.7`.
 
 ## Артефакты
 

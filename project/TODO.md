@@ -27,7 +27,6 @@ flowchart LR
     MF424["MF-424 · визуальная доводка Hamiltonian"]
     HAM001["HAM-001 · декларации нодовой системы Hamiltonian"]
     NODES009["NODES-009 · универсальные границы node-system"]
-    HAM002["HAM-002 · единый визуальный слой Hamiltonian"]
     HAM003["HAM-003 · среды и механизмы Hamiltonian"]
     HAM005["HAM-005 · стандартное visual-окружение Window"]
     NODES008["NODES-008 · убрать пустой compound-резерв"]
@@ -95,20 +94,7 @@ canvas показали оба RTC endpoint и exact Oracle/Force lines. HAM-001
 NODES-009.1–NODES-009.5 закрыты после отдельной package/browser/live-проверки;
 executable Service Worker обновлён до `1.1.3`. Родитель не закрывается и
 остаётся текущим местом дальнейшей работы владельца.
-Эти закрытые срезы полностью удовлетворяют прежнюю подготовительную зависимость
-`HAM-002`; открытый родитель `NODES-009` больше не блокирует Hamiltonian.
-`HAM-002` собрала Hamiltonian-specific отображение прототипа под
-`hamiltonian/visual` без переноса lifecycle/control orchestration; Bulk и
-`pkg/visual` в работу не входили. `HAM-002.1` зафиксировала import graph,
-`HAM-002.2` удалила legacy fallback screen, `HAM-002.3` создала приватный
-`@hamiltonian/visual`, а `HAM-002.4`–`HAM-002.6` перенесли presentation,
-HUD/workspace composition и изолированный layout Worker entrypoint. По прямому
-запросу владельца `HAM-002.7` подняла постоянный Hamiltonian host через
-LaunchAgent и дала визуальное подтверждение canvas-only нодового UI в dedicated
-CDP Chrome.
-Все эти checkpoints теперь относятся к отдельно запускаемому прототипу.
-Следующего structural среза нет: prototype visual дальше не переносится в
-clean-room loader. Владелец отдельно выбрал `HAM-005 — Собрать стандартное
+Владелец отдельно выбрал `HAM-005 — Собрать стандартное
 окружение визуализации Window`: новый `@import/main` уже создаёт общий runtime,
 пол и управляемую обзорную камеру. Текущий срез `HAM-005.6` добавляет один
 пустой standard display в `Space` и его navigation dock в `HUD`; первый
@@ -165,7 +151,6 @@ checkpoint и сохранён в `server_proto.ts`. Clean-room `server.ts`,
 | UPD-002 | IN_PROGRESS | нет       | [Открыть](tasks/UPD-002.md) |
 | HAM-001 | IN_PROGRESS | нет         | [Открыть](tasks/HAM-001.md) |
 | NODES-009 | IN_PROGRESS | нет       | [Открыть](tasks/NODES-009.md) |
-| HAM-002 | IN_PROGRESS | нет         | [Открыть](tasks/HAM-002.md) |
 | HAM-003 | IN_PROGRESS | нет         | [Открыть](tasks/HAM-003.md) |
 | MF-411 | IN_PROGRESS | нет         | [Открыть](tasks/MF-411.md) |
 | NODES-008 | IN_PROGRESS | нет       | [Открыть](tasks/NODES-008.md) |
