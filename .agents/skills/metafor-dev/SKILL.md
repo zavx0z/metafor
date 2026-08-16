@@ -30,6 +30,8 @@ stops. It also owns one Chrome CDP process on port 9222 with a stable profile.
    and report the exact PIDs. Never start a duplicate or silently adopt it.
 4. Use `start` to create or reuse the visible iTerm window, ensure the singleton
    CDP Chrome, wait for Hamiltonian, and create or reuse its browser target.
+   Before entering a command in an existing session, the dispatcher cancels
+   any unfinished command line so user input cannot prefix the launch command.
    The dispatcher clears accidental virtual viewport overrides and enables
    Verbose messages in an already open DevTools Console. It does not change
    the DevTools docking chosen by the owner.

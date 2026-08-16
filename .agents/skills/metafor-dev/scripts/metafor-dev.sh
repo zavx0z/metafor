@@ -77,6 +77,8 @@ on run argv
         if (count of windows) is not 1 then return "ambiguous"
         set foundSession to current session of current tab of current window
         tell foundSession to set variable named "user.metaforDev" to markerValue
+        tell foundSession to write text (ASCII character 3) newline NO
+        delay 0.1
         tell foundSession to write text commandText
         return "adopted\t" & (tty of foundSession)
       else if operationName is "create" then
@@ -95,6 +97,8 @@ on run argv
     else if operationName is "write" then
       activate
       select foundSession
+      tell foundSession to write text (ASCII character 3) newline NO
+      delay 0.1
       tell foundSession to write text commandText
     else if operationName is "logs" then
       return contents of foundSession
