@@ -73,6 +73,8 @@ checkpoint NODES-008.4 с общим исправлением левых инт�
 Начата `LOAD-001 — Загружать браузерный функционал через минимальный Service
 Worker`. Весь прежний Hamiltonian остаётся отдельно запускаемым прототипом.
 Browser path перестраивается в `UPD-002.7` как `startup → release → internal`.
+`UPD-002.8` добавляет в `metafor-dev` одну безопасную команду очистки site data
+точного managed CDP target для повторной проверки startup/release migration.
 Пакеты `@startup/main` и `@startup/service` устанавливают Service Worker, восстанавливают
 HTML/startup offline и запускают `@release/main` и `@release/service` из cache
 `release`. Release packages разворачивают Window и Service Worker контуры и
