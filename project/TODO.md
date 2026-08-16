@@ -141,8 +141,11 @@ startup в этот выпуск не входит. Владелец призн�
 и один browser restart сохранены, а единственный внешний POST contract теперь
 использует JSON `{modules: string[]}`. Legacy query POST отклоняется; Service
 Worker delivery после parsing boundary не менялась. Package-owned development
-build сохраняет debug и inline source map, production удаляет `console.debug`
-и не публикует карту; постоянный contour запускается через `bun run dev`.
+build executor получает development-команду из единственного production
+`scripts.build` пакета: сохраняет debug и добавляет inline source map;
+production удаляет `console.debug` и не публикует карту. Package contract
+находится динамически без реестра имён. Постоянный contour запускается через
+`bun run dev`.
 
 `HAM-003 — Разделить Hamiltonian по средам исполнения и механизмам` остаётся
 `IN_PROGRESS`, но активного среза не имеет. Широкий object-oriented срез

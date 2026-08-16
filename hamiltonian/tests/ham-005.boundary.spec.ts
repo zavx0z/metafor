@@ -70,15 +70,9 @@ test("HAM-005 creates one standard Window environment through internal visual", 
   expect(mainBunfig).toContain('".wgsl" = "text"')
   expect(mainPackage.scripts?.prebuild).toBe("bun run typecheck")
   expect(mainPackage.scripts?.build).toBe(
-    "if [ \"$NODE_ENV\" = development ]; then bun run build:development; else bun run build:production; fi",
-  )
-  expect(mainPackage.scripts?.["build:development"]).toBe(
-    "bun build ./main.ts --target=browser --minify --sourcemap=inline --outfile=dist/index.js",
-  )
-  expect(mainPackage.scripts?.["build:production"]).toBe(
     "bun build ./main.ts --target=browser --production --minify --drop console.debug --outfile=dist/index.js",
   )
-  expect(packageBuild).toContain('"run", "--silent", "build"')
+  expect(packageBuild).toContain("packageBuildCommand(owner.build)")
 
   expect(server).toContain('"/assets/fonts/JetBrainsMono-Bold.ttf"')
   expect(server).toContain('new URL("../pkg/engine/static/JetBrainsMono-Bold.ttf"')

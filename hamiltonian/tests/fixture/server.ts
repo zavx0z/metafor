@@ -52,7 +52,7 @@ const server = Bun.serve<RpcSocketData>({
     },
     "/code": {
       GET: async (request: Request) => {
-        const module = buildableModule(new URL(request.url).searchParams.get("module"))
+        const module = await buildableModule(new URL(request.url).searchParams.get("module"))
         if (module === null) return new Response(null, {status: 404})
 
         switch (module) {
@@ -94,7 +94,7 @@ const server = Bun.serve<RpcSocketData>({
         const success = results.every((result) => result.success)
         if (!success) return Response.json({success, results}, {status: 422})
 
-        for (const module of modules) revisions[module] += 1
+        for (const module of modules) revisions[module] = (revisions[module] ?? 0) + 1
         server.publish(rpcServiceTopic, JSON.stringify({type: "build", modules}))
         return Response.json({success, results})
       },
@@ -115,7 +115,7 @@ console.info(JSON.stringify({event: "ready", port: server.port, fault}))
 
 async function artifactResponse(module: RebuildableModule) {
   const response = await packageResponse(module)
-  const revision = revisions[module]
+  const revision = revisions[module] ?? 0
   if (revision === 0 || !response.ok) return response
   const source = await response.text()
   return new Response(`${source}\nconsole.info(${JSON.stringify(`fixture ${module} ${revision}`)})`, {

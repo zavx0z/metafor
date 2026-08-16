@@ -24,8 +24,8 @@ Bun.serve<RpcSocketData>({
       return new Response(file)
     },
     "/code": {
-      GET: (request: Request) => {
-        const module = buildableModule(new URL(request.url).searchParams.get("module"))
+      GET: async (request: Request) => {
+        const module = await buildableModule(new URL(request.url).searchParams.get("module"))
         if (module === null) return new Response(null, {status: 404})
         return packageResponse(module)
       },

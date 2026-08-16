@@ -3,9 +3,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "NODE_ENV=production bun run --parallel --if-present --filter '@startup/*' --filter '@import/*' --filter '@internal/*' build",
+    "build": "bun run --parallel --if-present --filter '@startup/*' --filter '@import/*' --filter '@internal/*' build",
     "dev": "NODE_ENV=development bun --port=4444 server",
-    "start": "NODE_ENV=production bun --port=4444 server",
+    "start": "bun --port=4444 server",
     "tls:create": "bun run create-tls.ts",
     "test": "bun test",
     "test:load": "tsc --project tests/tsconfig.json --pretty false && bun test tests/load-001.boundary.spec.ts tests/load-001.browser.spec.ts"

@@ -1,24 +1,11 @@
-import {dirname, join} from "node:path"
+import {dirname, join, resolve} from "node:path"
 import {fileURLToPath} from "node:url"
 
-const packages = {
-  "@startup/main": {rebuild: false},
-  "@startup/service": {
-    rebuild: false,
-    contentSecurityPolicy: "script-src 'unsafe-eval'",
-  },
-  "@import/main": {rebuild: true},
-  "@import/service": {rebuild: true},
-  "@internal/rpc": {rebuild: true},
-} as const
-
 /** Hamiltonian packages, которые предоставляют browser artifact. */
-export type BuildableModule = keyof typeof packages
+export type BuildableModule = string
 
 /** Packages, которые можно явно пересобрать во время работы host. */
-export type RebuildableModule = {
-  [Module in BuildableModule]: typeof packages[Module]["rebuild"] extends true ? Module : never
-}[BuildableModule]
+export type RebuildableModule = string
 
 /** Готовый package-owned browser artifact. */
 export interface PackageBuildArtifact {
@@ -40,6 +27,8 @@ export interface PackageBuildResult {
 interface PackageOwner {
   root: string
   artifact: string
+  build: string
+  headers: Record<string, string>
 }
 
 const packageOwners = new Map<BuildableModule, Promise<PackageOwner>>()
@@ -67,22 +56,27 @@ export async function packageResponse(module: BuildableModule) {
 
   const responseHeaders = new Headers({"Cache-Control": "no-cache"})
   responseHeaders.set("Content-Type", artifact.type)
-  const policy = packages[module]
-  if ("contentSecurityPolicy" in policy)
-    responseHeaders.set("Content-Security-Policy", policy.contentSecurityPolicy)
+  for (const [name, value] of Object.entries(owner.headers)) responseHeaders.set(name, value)
   return new Response(Bun.file(artifact.path), {headers: responseHeaders})
 }
 
-/** Преобразует внешний query parameter в каноническое package name. */
-export function buildableModule(value: string | null): BuildableModule | null {
-  if (value !== null && Object.hasOwn(packages, value)) return value as BuildableModule
-  return null
+/** Разрешает внешний query parameter как package с полным browser build contract. */
+export async function buildableModule(value: string | null): Promise<BuildableModule | null> {
+  if (value === null) return null
+  try {
+    await packageOwner(value)
+    return value
+  } catch {
+    return null
+  }
 }
 
 /** Принимает только package, которому разрешена явная повторная сборка. */
-export function rebuildableModule(value: string | null): RebuildableModule | null {
-  const module = buildableModule(value)
-  if (module !== null && packages[module].rebuild) return module as RebuildableModule
+export async function rebuildableModule(
+  value: string | null,
+): Promise<RebuildableModule | null> {
+  const module = await buildableModule(value)
+  if (module !== null && isRebuildableModule(module)) return module
   return null
 }
 
@@ -103,7 +97,7 @@ export async function rebuildableModules(
 
   if (!isBuildInput(input)) return new Response(null, {status: 400})
 
-  const modules = input.modules.map(rebuildableModule)
+  const modules = await Promise.all(input.modules.map(rebuildableModule))
   if (modules.some((module) => module === null)) return new Response(null, {status: 404})
   return [...new Set(modules as RebuildableModule[])]
 }
@@ -126,19 +120,80 @@ export function buildPackage(module: BuildableModule): Promise<PackageBuildResul
   return build
 }
 
+/**
+ * Читает production build command пакета и адаптирует только общий development profile.
+ *
+ * Параметры entrypoint, target, format, external и outfile всегда принадлежат
+ * package-owned `scripts.build` и не дублируются в host.
+ */
+export function packageBuildCommand(
+  script: string,
+  environment = Bun.env.NODE_ENV,
+): string[] {
+  const command = script.trim().split(/\s+/)
+  if (command[0] !== "bun" || command[1] !== "build")
+    throw new Error("Package build script must be a direct `bun build` command")
+  if (environment !== "development") return command
+
+  const development: string[] = []
+  for (let index = 0; index < command.length; index += 1) {
+    const argument = command[index]
+    if (argument === undefined) continue
+    if (argument === "--production") continue
+    if (argument === "--drop" && command[index + 1] === "console.debug") {
+      index += 1
+      continue
+    }
+    if (argument === "--drop=console.debug") continue
+    if (argument === "--sourcemap") {
+      index += 1
+      continue
+    }
+    if (argument.startsWith("--sourcemap=")) continue
+    development.push(argument)
+  }
+
+  const output = development.findIndex((argument) => argument.startsWith("--outfile"))
+  development.splice(output === -1 ? development.length : output, 0, "--sourcemap=inline")
+  return development
+}
+
 async function runPackageBuild(module: BuildableModule): Promise<PackageBuildResult> {
   try {
     const owner = await packageOwner(module)
-    const child = Bun.spawn([Bun.which("bun") ?? "bun", "run", "--silent", "build"], {
+    const prebuild = Bun.spawn([Bun.which("bun") ?? "bun", "run", "--silent", "prebuild"], {
       cwd: owner.root,
       stdout: "pipe",
       stderr: "pipe",
     })
-    const [exitCode, stdout, stderr] = await Promise.all([
+    const [prebuildExitCode, prebuildStdout, prebuildStderr] = await Promise.all([
+      prebuild.exited,
+      new Response(prebuild.stdout).text(),
+      new Response(prebuild.stderr).text(),
+    ])
+    if (prebuildExitCode !== 0) {
+      return {
+        module,
+        success: false,
+        exitCode: prebuildExitCode,
+        stdout: prebuildStdout,
+        stderr: prebuildStderr,
+        outputs: [],
+      }
+    }
+
+    const child = Bun.spawn(packageBuildCommand(owner.build), {
+      cwd: owner.root,
+      stdout: "pipe",
+      stderr: "pipe",
+    })
+    const [exitCode, buildStdout, buildStderr] = await Promise.all([
       child.exited,
       new Response(child.stdout).text(),
       new Response(child.stderr).text(),
     ])
+    const stdout = `${prebuildStdout}${buildStdout}`
+    const stderr = `${prebuildStderr}${buildStderr}`
 
     if (exitCode !== 0) {
       return {module, success: false, exitCode, stdout, stderr, outputs: []}
@@ -189,6 +244,7 @@ async function findPackage(module: BuildableModule): Promise<PackageOwner> {
       const manifest = await manifestFile.json() as {
         name?: unknown
         scripts?: Record<string, unknown>
+        artifact?: {headers?: Record<string, unknown>}
       }
 
       if (manifest.name !== module)
@@ -200,7 +256,22 @@ async function findPackage(module: BuildableModule): Promise<PackageOwner> {
       if (typeof manifest.scripts.build !== "string")
         throw new Error(`${module} build script is missing`)
 
-      return {root, artifact: join(root, "dist/index.js")}
+      const build = manifest.scripts.build
+      const artifact = resolvePackageArtifact(root, packageBuildCommand(build, "production"))
+
+      const headers: Record<string, string> = {}
+      for (const [name, value] of Object.entries(manifest.artifact?.headers ?? {})) {
+        if (typeof value !== "string")
+          throw new Error(`${module} artifact header ${name} must be a string`)
+        headers[name] = value
+      }
+
+      return {
+        root,
+        artifact,
+        build,
+        headers,
+      }
     }
 
     const parent = dirname(root)
@@ -237,4 +308,23 @@ function isBuildInput(value: unknown): value is {modules: string[]} {
     && Array.isArray(input.modules)
     && input.modules.length > 0
     && input.modules.every((module) => typeof module === "string")
+}
+
+function isRebuildableModule(module: BuildableModule): module is RebuildableModule {
+  return module.startsWith("@import/") || module.startsWith("@internal/")
+}
+
+function resolvePackageArtifact(root: string, command: readonly string[]) {
+  let output: string | undefined
+  for (let index = 0; index < command.length; index += 1) {
+    const argument = command[index]
+    if (argument === "--outfile") output = command[index + 1]
+    else if (argument?.startsWith("--outfile=")) output = argument.slice("--outfile=".length)
+  }
+  if (!output) throw new Error("Package build script must define `--outfile`")
+
+  const artifact = resolve(root, output)
+  if (artifact !== root && !artifact.startsWith(`${root}/`))
+    throw new Error("Package build outfile must stay inside package root")
+  return artifact
 }
