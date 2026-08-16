@@ -70,7 +70,13 @@ test("HAM-005 creates one standard Window environment through internal visual", 
   expect(mainBunfig).toContain('".wgsl" = "text"')
   expect(mainPackage.scripts?.prebuild).toBe("bun run typecheck")
   expect(mainPackage.scripts?.build).toBe(
-    "bun build ./main.ts --target=browser --outfile=dist/index.js",
+    "if [ \"$NODE_ENV\" = development ]; then bun run build:development; else bun run build:production; fi",
+  )
+  expect(mainPackage.scripts?.["build:development"]).toBe(
+    "bun build ./main.ts --target=browser --minify --sourcemap=inline --outfile=dist/index.js",
+  )
+  expect(mainPackage.scripts?.["build:production"]).toBe(
+    "bun build ./main.ts --target=browser --production --minify --drop console.debug --outfile=dist/index.js",
   )
   expect(packageBuild).toContain('"run", "--silent", "build"')
 

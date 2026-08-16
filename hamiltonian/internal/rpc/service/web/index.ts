@@ -25,7 +25,7 @@ function connect() {
   socket = connection
 
   connection.addEventListener("open", () => {
-    console.info("rpc/service websocket connected")
+    console.debug("rpc/service websocket connected")
   })
 
   connection.addEventListener("message", (event) => {
@@ -36,7 +36,7 @@ function connect() {
 
   connection.addEventListener("close", () => {
     socket = null
-    console.info("rpc/service websocket disconnected")
+    console.debug("rpc/service websocket disconnected")
   })
 
   connection.addEventListener("error", (error) => {

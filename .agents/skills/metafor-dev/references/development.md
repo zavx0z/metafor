@@ -3,6 +3,14 @@
 Hamiltonian работает постоянно на `http://127.0.0.1:4444/`. Для обновления
 клиентской сборки server не останавливать и не перезапускать.
 
+Skill запускает development contour через `bun run dev`. Этот режим
+минифицирует browser artifacts, сохраняет `console.debug` и добавляет inline
+source map. Временные diagnostics писать через `console.debug`; не помещать в
+его аргументы обязательную рабочую логику.
+
+`bun run build` собирает production artifacts: они также минифицированы, но
+`console.debug` вместе с аргументами удалён, а source map отсутствует.
+
 ## Пакеты
 
 * `@internal/*` — внутренняя функциональность Hamiltonian. Один package может

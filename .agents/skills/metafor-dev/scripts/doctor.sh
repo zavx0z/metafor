@@ -27,11 +27,11 @@ if [[ -d $repo ]] && git -C "$repo" rev-parse --show-toplevel >/dev/null 2>&1; t
   [[ $root == "$repo" ]] && ok "checkout $root" || fail "pass the exact checkout root: $repo"
   branch=$(git -C "$repo" branch --show-current 2>/dev/null || true)
   ok "branch ${branch:-detached}"
-  if jq -e '.scripts.start | type == "string" and length > 0' \
+  if jq -e '.scripts.dev | type == "string" and length > 0' \
     "$repo/hamiltonian/package.json" >/dev/null 2>&1; then
-    ok "hamiltonian scripts.start"
+    ok "hamiltonian scripts.dev"
   else
-    fail "hamiltonian scripts.start is missing"
+    fail "hamiltonian scripts.dev is missing"
   fi
 else
   fail "invalid MetaFor checkout: $repo"

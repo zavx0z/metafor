@@ -16,7 +16,7 @@ import {moduleByName, rpc} from "./storage"
  * @param loader - Универсальные primitives неизменяемого startup.
  */
 export default async function importService(loader: typeof Loader) {
-  console.info("service importer", Object.keys(loader))
+  console.debug("service importer", Object.keys(loader))
   await importModule(loader, rpc, {
     updateModules: async (names: string[]) => {
       const modules = names.map(moduleByName)

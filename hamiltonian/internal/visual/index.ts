@@ -56,7 +56,7 @@ const canvasResizeObserver = new ResizeObserver(() => {
 })
 canvasResizeObserver.observe(canvas)
 
-console.info("main visual environment", {
+console.debug("main visual environment", {
   space: runtime.space,
   hud: runtime.hud,
   surfaceDisplay: runtime.display,

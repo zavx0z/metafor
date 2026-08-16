@@ -18,7 +18,7 @@ scripts/metafor-dev.sh stop <checkout>
 ```
 
 The dispatcher owns one iTerm session marked for the exact checkout, runs
-`bun run start` from `hamiltonian/`, and preserves the window after the process
+`bun run dev` from `hamiltonian/`, and preserves the window after the process
 stops. It also owns one Chrome CDP process on port 9222 with a stable profile.
 
 ## Lifecycle

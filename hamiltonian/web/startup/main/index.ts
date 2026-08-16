@@ -28,4 +28,4 @@ if (!serviceWorker) throw new Error("Service Worker does not control the page")
 
 serviceWorker.postMessage({type: "connect"})
 await import("/code?module=@import/main")
-console.info("startup/service registered", registration.scope)
+console.debug("startup/service registered", registration.scope)

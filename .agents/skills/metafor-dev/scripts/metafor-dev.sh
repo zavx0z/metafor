@@ -24,13 +24,13 @@ validate_repo() {
   [[ $root == "$repo" ]] || die "pass the exact checkout root, got: $repo"
   [[ -f $hamiltonian/package.json && -f $hamiltonian/server.ts ]] \
     || die "Hamiltonian package is missing: $hamiltonian"
-  jq -e '.scripts.start | type == "string" and length > 0' \
+  jq -e '.scripts.dev | type == "string" and length > 0' \
     "$hamiltonian/package.json" >/dev/null \
-    || die "hamiltonian scripts.start is missing"
+    || die "hamiltonian scripts.dev is missing"
 }
 
 package_port() {
-  jq -r '.scripts.start | try capture("--port=(?<port>[0-9]+)").port catch ""' \
+  jq -r '.scripts.dev | try capture("--port=(?<port>[0-9]+)").port catch ""' \
     "$hamiltonian/package.json"
 }
 
@@ -139,7 +139,7 @@ repo_processes() {
     [[ $cwd == "$hamiltonian" ]] || continue
     command=$(ps -p "$pid" -o command= 2>/dev/null || true)
     case "$command" in
-      *"bun run start"*|*"bun run server.ts"*|*"bun --port=$expected_port server"*) ;;
+      *"bun run dev"*|*"bun run start"*|*"bun run server.ts"*|*"bun --port=$expected_port server"*) ;;
       *) continue ;;
     esac
     tty_value=$(ps -p "$pid" -o tty= 2>/dev/null | tr -d ' ' || true)
@@ -148,7 +148,7 @@ repo_processes() {
 }
 
 parent_processes() {
-  repo_processes | awk -F '\t' '$3 ~ /bun run start/ {print}'
+  repo_processes | awk -F '\t' '$3 ~ /bun run (dev|start)/ {print}'
 }
 
 ensure_process_ownership() {
@@ -267,7 +267,7 @@ ensure_target() {
 start_contour() {
   local port origin processes state command_text listeners window_count
   port=$(package_port)
-  [[ $port =~ ^[0-9]+$ ]] || die "cannot derive Hamiltonian port from scripts.start"
+  [[ $port =~ ^[0-9]+$ ]] || die "cannot derive Hamiltonian port from scripts.dev"
   origin="http://127.0.0.1:$port"
   processes=$(repo_processes)
   state=$(iterm_state)
