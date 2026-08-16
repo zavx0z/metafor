@@ -5,7 +5,8 @@
   "exports": "./main.ts",
   "scripts": {
     "typecheck": "tsc --project tsconfig.json --pretty false",
-    "build": "bun run typecheck && bun build @import/main --target=browser --outfile=dist/main.js"
+    "prebuild": "bun run typecheck",
+    "build": "bun build ./main.ts --target=browser --outfile=dist/index.js"
   },
   "dependencies": {
     "@internal/visual": "workspace:*"

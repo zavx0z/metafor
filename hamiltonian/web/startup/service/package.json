@@ -5,7 +5,8 @@
   "exports": "./index.ts",
   "scripts": {
     "typecheck": "tsc --project tsconfig.json --pretty false",
-    "build": "bun run typecheck && bun build @startup/service --target=browser --outfile=dist/index.js"
+    "prebuild": "bun run typecheck",
+    "build": "bun build ./index.ts --target=browser --outfile=dist/index.js"
   },
   "devDependencies": {
     "@types/serviceworker": "^0.0.200"

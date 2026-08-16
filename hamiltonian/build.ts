@@ -1,0 +1,185 @@
+import {dirname, join} from "node:path"
+import {fileURLToPath} from "node:url"
+
+/** Hamiltonian packages, которые предоставляют browser artifact. */
+export type BuildableModule =
+  | "@startup/main"
+  | "@startup/service"
+  | "@import/main"
+  | "@import/service"
+  | "@internal/rpc"
+
+/** Packages, которые можно явно пересобрать во время работы host. */
+export type RebuildableModule = "@import/main" | "@import/service" | "@internal/rpc"
+
+/** Готовый package-owned browser artifact. */
+export interface PackageBuildArtifact {
+  path: string
+  size: number
+  type: string
+}
+
+/** Результат запуска package-owned `scripts.build`. */
+export interface PackageBuildResult {
+  module: BuildableModule
+  success: boolean
+  exitCode: number | null
+  stdout: string
+  stderr: string
+  outputs: PackageBuildArtifact[]
+}
+
+interface PackageOwner {
+  root: string
+  artifact: string
+}
+
+const packageOwners = new Map<BuildableModule, Promise<PackageOwner>>()
+const pendingBuilds = new Map<BuildableModule, Promise<PackageBuildResult>>()
+
+/**
+ * Возвращает package artifact, лениво собирая его при отсутствии или пустом файле.
+ *
+ * Одновременные первые GET одного package используют одну сборку. После ошибки
+ * Promise удаляется, поэтому следующий GET может повторить сборку.
+ */
+export async function packageResponse(module: BuildableModule, headers?: HeadersInit) {
+  const owner = await packageOwner(module)
+  let artifact = await readArtifact(owner)
+
+  if (!artifact) {
+    const result = await buildPackage(module)
+    if (!result.success) return Response.json(result, {status: 422})
+
+    artifact = await readArtifact(owner)
+    if (!artifact) {
+      return Response.json(buildContractFailure(result, owner.artifact), {status: 422})
+    }
+  }
+
+  const responseHeaders = new Headers(headers)
+  responseHeaders.set("Content-Type", artifact.type)
+  return new Response(Bun.file(artifact.path), {headers: responseHeaders})
+}
+
+/**
+ * Всегда запускает package-owned `scripts.build` и возвращает результат процесса.
+ *
+ * Если тот же package уже собирается, вызывающие используют его pending Promise.
+ */
+export function buildPackage(module: BuildableModule): Promise<PackageBuildResult> {
+  const pending = pendingBuilds.get(module)
+  if (pending) return pending
+
+  const build = runPackageBuild(module)
+  pendingBuilds.set(module, build)
+  void build.then(
+    () => pendingBuilds.delete(module),
+    () => pendingBuilds.delete(module),
+  )
+  return build
+}
+
+async function runPackageBuild(module: BuildableModule): Promise<PackageBuildResult> {
+  try {
+    const owner = await packageOwner(module)
+    const child = Bun.spawn([Bun.which("bun") ?? "bun", "run", "--silent", "build"], {
+      cwd: owner.root,
+      stdout: "pipe",
+      stderr: "pipe",
+    })
+    const [exitCode, stdout, stderr] = await Promise.all([
+      child.exited,
+      new Response(child.stdout).text(),
+      new Response(child.stderr).text(),
+    ])
+
+    if (exitCode !== 0) {
+      return {module, success: false, exitCode, stdout, stderr, outputs: []}
+    }
+
+    const artifact = await readArtifact(owner)
+    if (!artifact) {
+      return buildContractFailure(
+        {module, success: true, exitCode, stdout, stderr, outputs: []},
+        owner.artifact,
+      )
+    }
+
+    return {module, success: true, exitCode, stdout, stderr, outputs: [artifact]}
+  } catch (error) {
+    return {
+      module,
+      success: false,
+      exitCode: null,
+      stdout: "",
+      stderr: error instanceof Error ? error.message : String(error),
+      outputs: [],
+    }
+  }
+}
+
+async function packageOwner(module: BuildableModule) {
+  let owner = packageOwners.get(module)
+  if (!owner) {
+    owner = findPackage(module).catch((error: unknown) => {
+      packageOwners.delete(module)
+      throw error
+    })
+    packageOwners.set(module, owner)
+  }
+  return await owner
+}
+
+/** Находит package-владельца через его корневой export и проверяет build contract. */
+async function findPackage(module: BuildableModule): Promise<PackageOwner> {
+  const boundary = dirname(fileURLToPath(import.meta.url))
+  const entrypoint = Bun.resolveSync(module, boundary)
+  let root = dirname(entrypoint)
+
+  while (root === boundary || root.startsWith(`${boundary}/`)) {
+    const manifestFile = Bun.file(join(root, "package.json"))
+    if (await manifestFile.exists()) {
+      const manifest = await manifestFile.json() as {
+        name?: unknown
+        scripts?: Record<string, unknown>
+      }
+
+      if (manifest.name !== module)
+        throw new Error(`Resolved package ${String(manifest.name)} does not match ${module}`)
+      if (typeof manifest.scripts?.typecheck !== "string")
+        throw new Error(`${module} typecheck script is missing`)
+      if (manifest.scripts.prebuild !== "bun run typecheck")
+        throw new Error(`${module} prebuild must run \`bun run typecheck\``)
+      if (typeof manifest.scripts.build !== "string")
+        throw new Error(`${module} build script is missing`)
+
+      return {root, artifact: join(root, "dist/index.js")}
+    }
+
+    const parent = dirname(root)
+    if (parent === root) break
+    root = parent
+  }
+
+  throw new Error(`Hamiltonian package is missing for ${module}`)
+}
+
+async function readArtifact(owner: PackageOwner): Promise<PackageBuildArtifact | null> {
+  const artifact = Bun.file(owner.artifact, {type: "text/javascript; charset=utf-8"})
+  if (!await artifact.exists() || artifact.size === 0) return null
+  return {path: owner.artifact, size: artifact.size, type: artifact.type}
+}
+
+function buildContractFailure(
+  result: PackageBuildResult,
+  artifact: string,
+): PackageBuildResult {
+  const message = `${result.module} build did not produce non-empty ${artifact}`
+  return {
+    ...result,
+    success: false,
+    stderr: [result.stderr.trimEnd(), message].filter(Boolean).join("\n"),
+    outputs: [],
+  }
+}

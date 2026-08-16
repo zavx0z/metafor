@@ -1,11 +1,7 @@
-import {build} from "../../macro" with {type: "macro"}
+import {packageResponse} from "../../build"
 
-/** Статические HTTP responses browser importer artifacts. */
+/** Ленивые HTTP responses browser importer artifacts. */
 export const imports = {
-  main: new Response(await build("@import/main"), {
-    headers: {"Content-Type": "text/javascript; charset=utf-8"},
-  }),
-  service: new Response(await build("@import/service", {format: "cjs", minify: true}), {
-    headers: {"Content-Type": "text/javascript; charset=utf-8"},
-  }),
+  main: () => packageResponse("@import/main", {"Cache-Control": "no-cache"}),
+  service: () => packageResponse("@import/service", {"Cache-Control": "no-cache"}),
 }

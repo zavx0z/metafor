@@ -32,7 +32,7 @@ const server = Bun.serve<RpcSocketData>({
       switch (request.params.module) {
         case "main":
           requests.importMain += 1
-          return imports.main.clone()
+          return imports.main()
         case "service":
           requests.importService += 1
           if (fault === "import-service-http-once" && requests.importService === 1) {
@@ -41,7 +41,7 @@ const server = Bun.serve<RpcSocketData>({
               headers: javascriptHeaders,
             })
           }
-          return imports.service.clone()
+          return imports.service()
         default:
           return new Response(null, {status: 404})
       }
@@ -53,7 +53,7 @@ const server = Bun.serve<RpcSocketData>({
           if (fault === "internal-invalid-once" && requests.internalRpc === 1) {
             return new Response(")", {headers: javascriptHeaders})
           }
-          return rpc.service.clone()
+          return rpc.service()
         default:
           return new Response(null, {status: 404})
       }

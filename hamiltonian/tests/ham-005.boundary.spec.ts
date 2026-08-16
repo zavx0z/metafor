@@ -1,25 +1,26 @@
 import {expect, test} from "bun:test"
 import {fileURLToPath} from "node:url"
 import {join} from "node:path"
-import {build} from "../macro"
+import {buildPackage} from "../build"
 
 const hamiltonian = fileURLToPath(new URL("../", import.meta.url))
 
 test("HAM-005 creates one standard Window environment through internal visual", async () => {
-  const [html, main, visual, displayDock, mainPackage, visualPackage, mainBunfig, macro, staticRoutes, startupMain] = await Promise.all([
+  const [html, main, visual, displayDock, mainPackage, visualPackage, mainBunfig, packageBuild, staticRoutes, startupMain] = await Promise.all([
     Bun.file(join(hamiltonian, "web/static/index.html")).text(),
     Bun.file(join(hamiltonian, "web/import/main/main.ts")).text(),
     Bun.file(join(hamiltonian, "internal/visual/index.ts")).text(),
     Bun.file(join(hamiltonian, "internal/visual/display-dock.ts")).text(),
     Bun.file(join(hamiltonian, "web/import/main/package.json")).json() as Promise<{
       dependencies?: Record<string, string>
+      scripts?: Record<string, string>
     }>,
     Bun.file(join(hamiltonian, "internal/visual/package.json")).json() as Promise<{
       name?: string
       dependencies?: Record<string, string>
     }>,
     Bun.file(join(hamiltonian, "web/import/main/bunfig.toml")).text(),
-    Bun.file(join(hamiltonian, "macro.ts")).text(),
+    Bun.file(join(hamiltonian, "build.ts")).text(),
     Bun.file(join(hamiltonian, "web/static/routes.ts")).text(),
     Bun.file(join(hamiltonian, "web/startup/main/index.ts")).text(),
   ])
@@ -67,7 +68,11 @@ test("HAM-005 creates one standard Window environment through internal visual", 
   expect(visual).not.toContain("@hamiltonian/visual")
   expect(visual).not.toContain("browser/orchestration")
   expect(mainBunfig).toContain('".wgsl" = "text"')
-  expect(macro).toContain("Bun.spawnSync(command, {cwd: owner.root})")
+  expect(mainPackage.scripts?.prebuild).toBe("bun run typecheck")
+  expect(mainPackage.scripts?.build).toBe(
+    "bun build ./main.ts --target=browser --outfile=dist/index.js",
+  )
+  expect(packageBuild).toContain('"run", "--silent", "build"')
 
   expect(staticRoutes).toContain('"/assets/fonts/JetBrainsMono-Bold.ttf"')
   expect(staticRoutes).toContain('type: "font/ttf"')
@@ -76,8 +81,10 @@ test("HAM-005 creates one standard Window environment through internal visual", 
 })
 
 test("HAM-005 bundles the visual importer as one JavaScript artifact", async () => {
-  const output = await build("@import/main")
+  const result = await buildPackage("@import/main")
+  const output = result.outputs[0]
 
-  expect(output.trim().length).toBeGreaterThan(0)
-  expect(output).toContain("visual-canvas")
+  expect(result.success).toBeTrue()
+  expect(output?.size).toBeGreaterThan(0)
+  expect(await Bun.file(output!.path).text()).toContain("visual-canvas")
 })

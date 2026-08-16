@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "exports": {
+    ".": "./service/web/index.ts",
     "./server": "./server/index.ts",
     "./service/web": "./service/web/index.ts",
     "./routes": "./routes.ts"
@@ -11,7 +12,8 @@
     "typecheck": "bun run typecheck:server && bun run typecheck:service:web",
     "typecheck:server": "tsc --project server/tsconfig.json --pretty false",
     "typecheck:service:web": "tsc --project service/web/tsconfig.json --pretty false",
-    "build": "bun run typecheck && bun build @internal/rpc/service/web --target=browser --format=iife --outfile=service/web/dist/index.js"
+    "prebuild": "bun run typecheck",
+    "build": "bun build ./service/web/index.ts --target=browser --format=iife --outfile=dist/index.js"
   },
   "devDependencies": {
     "@types/serviceworker": "^0.0.200"

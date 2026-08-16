@@ -13,6 +13,9 @@ export interface RpcSocketData {
   source: "rpc/service"
 }
 
+/** Общая тема сообщений host для подключённых RPC services. */
+export const rpcServiceTopic = "rpc/service"
+
 /** Переводит HTTP request `/sw` в RPC WebSocket. */
 export const sw = (request: Request, server: Bun.Server<RpcSocketData>) => {
   if (server.upgrade(request, {data: {source: "rpc/service"}})) return
@@ -22,6 +25,7 @@ export const sw = (request: Request, server: Bun.Server<RpcSocketData>) => {
 /** Server handlers единственного RPC WebSocket transport. */
 export const websocket: Bun.WebSocketHandler<RpcSocketData> = {
   open(socket) {
+    socket.subscribe(rpcServiceTopic)
     console.info(`${socket.data.source} connected`)
   },
   message(socket, message) {
@@ -30,6 +34,7 @@ export const websocket: Bun.WebSocketHandler<RpcSocketData> = {
     socket.send("pong")
   },
   close(socket) {
+    socket.unsubscribe(rpcServiceTopic)
     console.info(`${socket.data.source} disconnected`)
   },
 }

@@ -1,15 +1,16 @@
-import {build} from "../../macro" with {type: "macro"}
+import {packageResponse} from "../../build"
 
-/** Статические HTTP responses неизменяемого browser startup. */
+/** Ленивые HTTP responses неизменяемого browser startup. */
 export const startups = {
-  main: new Response(await build("@startup/main", {external: ["/import/main"]}), {
-    headers: {"Content-Type": "text/javascript; charset=utf-8"},
-  }),
-  service: new Response(await build("@startup/service"), {
-    headers: {
+  main: ({method}: Request) => {
+    if (method === "GET") return packageResponse("@startup/main")
+    else return new Response(null, {status: 405})
+  },
+  service: ({method}: Request) => {
+    if (method === "GET") return packageResponse("@startup/service", {
       "Cache-Control": "no-cache",
       "Content-Security-Policy": "script-src 'unsafe-eval'",
-      "Content-Type": "text/javascript; charset=utf-8",
-    },
-  }),
+    })
+    else return new Response(null, {status: 405})
+  },
 }
