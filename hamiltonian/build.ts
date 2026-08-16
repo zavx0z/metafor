@@ -1,16 +1,24 @@
 import {dirname, join} from "node:path"
 import {fileURLToPath} from "node:url"
 
+const packages = {
+  "@startup/main": {rebuild: false},
+  "@startup/service": {
+    rebuild: false,
+    contentSecurityPolicy: "script-src 'unsafe-eval'",
+  },
+  "@import/main": {rebuild: true},
+  "@import/service": {rebuild: true},
+  "@internal/rpc": {rebuild: true},
+} as const
+
 /** Hamiltonian packages, которые предоставляют browser artifact. */
-export type BuildableModule =
-  | "@startup/main"
-  | "@startup/service"
-  | "@import/main"
-  | "@import/service"
-  | "@internal/rpc"
+export type BuildableModule = keyof typeof packages
 
 /** Packages, которые можно явно пересобрать во время работы host. */
-export type RebuildableModule = "@import/main" | "@import/service" | "@internal/rpc"
+export type RebuildableModule = {
+  [Module in BuildableModule]: typeof packages[Module]["rebuild"] extends true ? Module : never
+}[BuildableModule]
 
 /** Готовый package-owned browser artifact. */
 export interface PackageBuildArtifact {
@@ -43,7 +51,7 @@ const pendingBuilds = new Map<BuildableModule, Promise<PackageBuildResult>>()
  * Одновременные первые GET одного package используют одну сборку. После ошибки
  * Promise удаляется, поэтому следующий GET может повторить сборку.
  */
-export async function packageResponse(module: BuildableModule, headers?: HeadersInit) {
+export async function packageResponse(module: BuildableModule) {
   const owner = await packageOwner(module)
   let artifact = await readArtifact(owner)
 
@@ -57,9 +65,25 @@ export async function packageResponse(module: BuildableModule, headers?: Headers
     }
   }
 
-  const responseHeaders = new Headers(headers)
+  const responseHeaders = new Headers({"Cache-Control": "no-cache"})
   responseHeaders.set("Content-Type", artifact.type)
+  const policy = packages[module]
+  if ("contentSecurityPolicy" in policy)
+    responseHeaders.set("Content-Security-Policy", policy.contentSecurityPolicy)
   return new Response(Bun.file(artifact.path), {headers: responseHeaders})
+}
+
+/** Преобразует внешний query parameter в каноническое package name. */
+export function buildableModule(value: string | null): BuildableModule | null {
+  if (value !== null && Object.hasOwn(packages, value)) return value as BuildableModule
+  return null
+}
+
+/** Принимает только package, которому разрешена явная повторная сборка. */
+export function rebuildableModule(value: string | null): RebuildableModule | null {
+  const module = buildableModule(value)
+  if (module !== null && packages[module].rebuild) return module as RebuildableModule
+  return null
 }
 
 /**

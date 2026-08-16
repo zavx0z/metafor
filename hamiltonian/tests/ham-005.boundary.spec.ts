@@ -6,7 +6,7 @@ import {buildPackage} from "../build"
 const hamiltonian = fileURLToPath(new URL("../", import.meta.url))
 
 test("HAM-005 creates one standard Window environment through internal visual", async () => {
-  const [html, main, visual, displayDock, mainPackage, visualPackage, mainBunfig, packageBuild, staticRoutes, startupMain] = await Promise.all([
+  const [html, main, visual, displayDock, mainPackage, visualPackage, mainBunfig, packageBuild, server, startupMain] = await Promise.all([
     Bun.file(join(hamiltonian, "web/static/index.html")).text(),
     Bun.file(join(hamiltonian, "web/import/main/main.ts")).text(),
     Bun.file(join(hamiltonian, "internal/visual/index.ts")).text(),
@@ -21,7 +21,7 @@ test("HAM-005 creates one standard Window environment through internal visual", 
     }>,
     Bun.file(join(hamiltonian, "web/import/main/bunfig.toml")).text(),
     Bun.file(join(hamiltonian, "build.ts")).text(),
-    Bun.file(join(hamiltonian, "web/static/routes.ts")).text(),
+    Bun.file(join(hamiltonian, "server.ts")).text(),
     Bun.file(join(hamiltonian, "web/startup/main/index.ts")).text(),
   ])
 
@@ -29,7 +29,7 @@ test("HAM-005 creates one standard Window environment through internal visual", 
   expect(html).toContain('<canvas id="visual-canvas"></canvas>')
   expect(html).toContain("#visual-canvas")
   expect(html.match(/<script\b[^>]*\bsrc=/g)).toHaveLength(1)
-  expect(html).toContain('src="/startup-main.js"')
+  expect(html).toContain('src="/code?module=@startup/main"')
 
   expect(main.trim()).toBe('import "@internal/visual"')
   expect(mainPackage.dependencies).toEqual({"@internal/visual": "workspace:*"})
@@ -74,9 +74,9 @@ test("HAM-005 creates one standard Window environment through internal visual", 
   )
   expect(packageBuild).toContain('"run", "--silent", "build"')
 
-  expect(staticRoutes).toContain('"/assets/fonts/JetBrainsMono-Bold.ttf"')
-  expect(staticRoutes).toContain('type: "font/ttf"')
-  expect(startupMain).toContain('import("/import/main")')
+  expect(server).toContain('"/assets/fonts/JetBrainsMono-Bold.ttf"')
+  expect(server).toContain('new URL("../pkg/engine/static/JetBrainsMono-Bold.ttf"')
+  expect(startupMain).toContain('import("/code?module=@import/main")')
   expect(startupMain).not.toContain("UiRuntime")
 })
 

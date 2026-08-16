@@ -1,8 +1,5 @@
-import type {BunRequest} from "bun"
-import {rpc, type RpcSocketData} from "@internal/rpc/routes"
-import {imports} from "../../web/import/routes"
-import {startups} from "../../web/startup/routes"
-import {statics} from "../../web/static/routes"
+import {sw, websocket, type RpcSocketData} from "@internal/rpc/server"
+import {buildableModule, packageResponse} from "../../build"
 
 type Fault = "none" | "import-service-http-once" | "internal-invalid-once"
 
@@ -23,17 +20,30 @@ const server = Bun.serve<RpcSocketData>({
   hostname: "127.0.0.1",
   port,
   routes: {
-    "/": statics.html,
-    "/manifest.webmanifest": statics.manifest,
-    "/assets/*": statics.assets,
-    "/startup-main.js": startups.main,
-    "/startup-service.js": startups.service,
-    "/import/:module": (request: BunRequest<"/import/:module">) => {
-      switch (request.params.module) {
-        case "main":
+    "/": Bun.file(new URL("../../web/static/index.html", import.meta.url)),
+    "/manifest.webmanifest": Bun.file(
+      new URL("../../web/static/manifest.json", import.meta.url),
+      {type: "application/manifest+json"},
+    ),
+    "/assets/fonts/JetBrainsMono-Bold.ttf": Bun.file(
+      new URL("../../../pkg/engine/static/JetBrainsMono-Bold.ttf", import.meta.url),
+    ),
+    "/assets/*": async (request: Request) => {
+      const asset = new URL(request.url).pathname.slice("/assets/".length)
+      if (asset.split("/").includes("..")) return new Response(null, {status: 404})
+      const file = Bun.file(new URL(`../../assets/${asset}`, import.meta.url))
+      if (!await file.exists()) return new Response(null, {status: 404})
+      return new Response(file)
+    },
+    "/code": (request: Request) => {
+      const module = buildableModule(new URL(request.url).searchParams.get("module"))
+      if (module === null) return new Response(null, {status: 404})
+
+      switch (module) {
+        case "@import/main":
           requests.importMain += 1
-          return imports.main()
-        case "service":
+          return packageResponse(module)
+        case "@import/service":
           requests.importService += 1
           if (fault === "import-service-http-once" && requests.importService === 1) {
             return new Response("Service importer unavailable", {
@@ -41,32 +51,27 @@ const server = Bun.serve<RpcSocketData>({
               headers: javascriptHeaders,
             })
           }
-          return imports.service()
-        default:
-          return new Response(null, {status: 404})
-      }
-    },
-    "/internal/:module": (request: BunRequest<"/internal/:module">) => {
-      switch (request.params.module) {
-        case "rpc":
+          return packageResponse(module)
+        case "@internal/rpc":
           requests.internalRpc += 1
           if (fault === "internal-invalid-once" && requests.internalRpc === 1) {
             return new Response(")", {headers: javascriptHeaders})
           }
-          return rpc.service()
+          return packageResponse(module)
         default:
-          return new Response(null, {status: 404})
+          return packageResponse(module)
       }
     },
-    "/sw": rpc.sw,
+    "/sw": sw,
     "/__tests/state": () => Response.json({fault, requests}),
+    "/*": (request: Request) => {
+      if (request.headers.get("Accept")?.includes("text/html"))
+        return new Response(Bun.file(new URL("../../web/static/index.html", import.meta.url)))
+      return new Response(null, {status: 404})
+    },
   },
-  fetch(request) {
-    if (request.method === "GET" && request.headers.get("Accept")?.includes("text/html"))
-      return statics.html.clone()
-    return new Response(null, {status: 404})
-  },
-  websocket: rpc.websocket,
+  fetch: () => new Response(null, {status: 404}),
+  websocket,
 })
 
 console.info(JSON.stringify({event: "ready", port: server.port, fault}))

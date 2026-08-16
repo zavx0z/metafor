@@ -50,7 +50,11 @@ test.serial("LOAD-001 restores accepted startup, importers and internal module f
     await probe.goto(server.root, {waitUntil: "domcontentloaded"})
 
     const routeProbes = await probe.evaluate(async () => {
-      const paths = ["/import/main", "/import/service", "/internal/rpc"]
+      const paths = [
+        "/code?module=@import/main",
+        "/code?module=@import/service",
+        "/code?module=@internal/rpc",
+      ]
       const current = await Promise.all(paths.map(async (path) => {
         const first = await fetch(path)
         const firstBody = await first.text()
@@ -92,16 +96,20 @@ test.serial("LOAD-001 restores accepted startup, importers and internal module f
     const connectionsBefore = countMatches(server.output(), "rpc/service connected")
 
     page.on("console", (message) => pageLogs.push(message.text()))
-    page.on("request", (request) => requests.push(new URL(request.url()).pathname))
+    page.on("request", (request) => {
+      const url = new URL(request.url())
+      requests.push(`${url.pathname}${url.search}`)
+    })
     page.on("response", (response) => {
-      responses.set(new URL(response.url()).pathname, response.fromServiceWorker())
+      const url = new URL(response.url())
+      responses.set(`${url.pathname}${url.search}`, response.fromServiceWorker())
     })
 
     const navigation = await page.goto(server.root, {waitUntil: "load"})
     expect(navigation?.status()).toBe(200)
 
     const firstWorker = await workerObserver.promise
-    expect(new URL(firstWorker.target.url()).pathname).toBe("/startup-service.js")
+    expect(new URL(firstWorker.target.url()).searchParams.get("module")).toBe("@startup/service")
     await waitForAcceptedCaches(page)
     await waitUntil(() => pageLogs.includes("main importer"))
     await waitUntil(() => countMatches(server.output(), "rpc/service connected") > connectionsBefore)
@@ -112,26 +120,29 @@ test.serial("LOAD-001 restores accepted startup, importers and internal module f
       scope: (await navigator.serviceWorker.getRegistration())?.scope ?? null,
     }))
 
-    expect(documentContract.scripts).toEqual(["/startup-main.js"])
-    expect(documentContract.controller).toBe(`${server.root}/startup-service.js`)
+    expect(documentContract.scripts).toEqual(["/code?module=@startup/main"])
+    expect(documentContract.controller).toBe(`${server.root}/code?module=@startup/service`)
     expect(documentContract.scope).toBe(`${server.root}/`)
-    expect(requests).toContain("/startup-main.js")
-    expect(requests).toContain("/import/main")
+    expect(requests).toContain("/code?module=@startup/main")
+    expect(requests).toContain("/code?module=@import/main")
     expect(requests.some((path) => /hmr|_bun/i.test(path))).toBe(false)
-    expect(responses.get("/import/main")).toBe(true)
+    expect(responses.get("/code?module=@import/main")).toBe(true)
 
     const initial = await cacheSnapshot(page)
     expect(Object.keys(initial).sort()).toEqual(["import", "internal", "startup"])
     expect(initial.startup).toEqual(expect.arrayContaining([
       "/",
       "/manifest.webmanifest",
-      "/startup-main.js",
+      "/code?module=@startup/main",
     ]))
-    expect(initial.startup).not.toContain("/import/main")
-    expect(initial.startup).not.toContain("/import/service")
-    expect(initial.startup).not.toContain("/internal/rpc")
-    expect(initial.import).toEqual(expect.arrayContaining(["/import/main", "/import/service"]))
-    expect(initial.internal).toContain("/internal/rpc")
+    expect(initial.startup).not.toContain("/code?module=@import/main")
+    expect(initial.startup).not.toContain("/code?module=@import/service")
+    expect(initial.startup).not.toContain("/code?module=@internal/rpc")
+    expect(initial.import).toEqual(expect.arrayContaining([
+      "/code?module=@import/main",
+      "/code?module=@import/service",
+    ]))
+    expect(initial.internal).toContain("/code?module=@internal/rpc")
     expect(initial.metafor).toBeUndefined()
 
     const missingScript = await page.evaluate(async () => {
@@ -200,18 +211,25 @@ test.serial("LOAD-001 restores accepted startup, importers and internal module f
     expect(coldNavigation?.fromServiceWorker()).toBe(true)
 
     const coldWorker = await coldWorkerObserver.promise
-    expect(new URL(coldWorker.target.url()).pathname).toBe("/startup-service.js")
+    expect(new URL(coldWorker.target.url()).searchParams.get("module")).toBe("@startup/service")
     await waitUntil(() => coldPageLogs.includes("main importer"))
     await waitUntil(() => witness!.connections() >= 1)
     expect(witness.requests).not.toContain("/")
-    expect(witness.requests).not.toContain("/import/main")
-    expect(witness.requests).not.toContain("/import/service")
-    expect(witness.requests).not.toContain("/internal/rpc")
+    expect(witness.requests).not.toContain("/code?module=@import/main")
+    expect(witness.requests).not.toContain("/code?module=@import/service")
+    expect(witness.requests).not.toContain("/code?module=@internal/rpc")
 
     const cold = await cacheSnapshot(coldPage)
-    expect(cold.startup).toEqual(expect.arrayContaining(["/", "/manifest.webmanifest", "/startup-main.js"]))
-    expect(cold.import).toEqual(expect.arrayContaining(["/import/main", "/import/service"]))
-    expect(cold.internal).toContain("/internal/rpc")
+    expect(cold.startup).toEqual(expect.arrayContaining([
+      "/",
+      "/manifest.webmanifest",
+      "/code?module=@startup/main",
+    ]))
+    expect(cold.import).toEqual(expect.arrayContaining([
+      "/code?module=@import/main",
+      "/code?module=@import/service",
+    ]))
+    expect(cold.internal).toContain("/code?module=@internal/rpc")
     expect(Object.values(cold).flat()).not.toContain("/cold/restored")
   } catch (error) {
     throw withServerOutput(error, server.output())
@@ -241,17 +259,24 @@ test.serial("LOAD-001 rejects failed or invalid artifacts and retries exact entr
       await waitForFailedEntries(page, scenario.fault)
 
       const failed = await cacheSnapshot(page)
-      expect(failed.startup).toEqual(expect.arrayContaining(["/", "/manifest.webmanifest", "/startup-main.js"]))
-      expect(failed.import).toContain("/import/main")
-      expect(failed.import).not.toContain("/import/service")
-      expect(failed.internal ?? []).not.toContain("/internal/rpc")
+      expect(failed.startup).toEqual(expect.arrayContaining([
+        "/",
+        "/manifest.webmanifest",
+        "/code?module=@startup/main",
+      ]))
+      expect(failed.import).toContain("/code?module=@import/main")
+      expect(failed.import).not.toContain("/code?module=@import/service")
+      expect(failed.internal ?? []).not.toContain("/code?module=@internal/rpc")
 
       await retryConnectUntil(page, scenario.failed, 2)
       await waitForAcceptedCaches(page)
 
       const recovered = await cacheSnapshot(page)
-      expect(recovered.import).toEqual(expect.arrayContaining(["/import/main", "/import/service"]))
-      expect(recovered.internal).toContain("/internal/rpc")
+      expect(recovered.import).toEqual(expect.arrayContaining([
+        "/code?module=@import/main",
+        "/code?module=@import/service",
+      ]))
+      expect(recovered.internal).toContain("/code?module=@internal/rpc")
       expect(recovered.metafor).toBeUndefined()
     } catch (error) {
       throw withServerOutput(error, server.output())
@@ -332,7 +357,7 @@ function observeStartupWorker(browser: Browser) {
 
   const inspect = (target: Target) => {
     if (settled || target.type() !== TargetType.SERVICE_WORKER) return
-    if (new URL(target.url()).pathname !== "/startup-service.js") return
+    if (new URL(target.url()).searchParams.get("module") !== "@startup/service") return
     void target.worker()
       .then((worker) => {
         if (!worker || settled) return
@@ -354,10 +379,10 @@ function startColdWitness(port: number) {
     hostname: "127.0.0.1",
     port,
     fetch(request, bunServer) {
-      const pathname = new URL(request.url).pathname
-      if (pathname === "/sw" && bunServer.upgrade(request, {data: {source: "cold-witness"}}))
+      const url = new URL(request.url)
+      if (url.pathname === "/sw" && bunServer.upgrade(request, {data: {source: "cold-witness"}}))
         return
-      requests.push(pathname)
+      requests.push(`${url.pathname}${url.search}`)
       return new Response(null, {status: 503})
     },
     websocket: {
@@ -382,11 +407,11 @@ async function waitForAcceptedCaches(page: Page) {
     const internal = await caches.open("internal")
     return Boolean(
       await startup.match("/")
-      && await startup.match("/startup-main.js")
+      && await startup.match("/code?module=@startup/main")
       && await startup.match("/manifest.webmanifest")
-      && await imports.match("/import/main")
-      && await imports.match("/import/service")
-      && await internal.match("/internal/rpc")
+      && await imports.match("/code?module=@import/main")
+      && await imports.match("/code?module=@import/service")
+      && await internal.match("/code?module=@internal/rpc")
     )
   }, {timeout: 30_000})
 }
@@ -402,9 +427,9 @@ async function waitForFailedEntries(page: Page, fault: "import-service-http-once
       ? state.requests.importService >= 1
       : state.requests.internalRpc >= 1
     return requestObserved
-      && Boolean(await imports.match("/import/main"))
-      && !await imports.match("/import/service")
-      && !await internal.match("/internal/rpc")
+      && Boolean(await imports.match("/code?module=@import/main"))
+      && !await imports.match("/code?module=@import/service")
+      && !await internal.match("/code?module=@internal/rpc")
   }, {timeout: 30_000}, fault)
 }
 
@@ -438,7 +463,10 @@ async function cacheSnapshot(page: Page): Promise<CacheSnapshot> {
     (await caches.keys()).sort().map(async (name) => [
       name,
       (await (await caches.open(name)).keys())
-        .map((request) => new URL(request.url).pathname)
+        .map((request) => {
+          const url = new URL(request.url)
+          return `${url.pathname}${url.search}`
+        })
         .sort(),
     ]),
   )))

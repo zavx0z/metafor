@@ -1,6 +1,6 @@
 const startup = [
   "/",
-  "/startup-main.js",
+  "/code?module=@startup/main",
   "/manifest.webmanifest",
 ]
 
@@ -9,8 +9,8 @@ const startup = [
  * вложенный SPA-адрес не создаёт отдельную cache-запись. Для остальных
  * requests возвращает response точного URL и обращается к network только при
  * cache miss. Для exact request ищет response во всех Cache Storage, не зная
- * их владельцев. Успешный network fallback сохраняется только для `/import/*`
- * и `/assets/*`; остальные startup endpoints добавляет только
+ * их владельцев. Успешный network fallback сохраняется только для `@import/*`
+ * code и `/assets/*`; остальные startup endpoints добавляет только
  * {@link cacheStartup}.
  *
  * `Vary` игнорируется, потому что loader хранит одну неизменяемую репрезентацию
@@ -21,8 +21,9 @@ const startup = [
  * пустой `503` для недоступного asset.
  */
 export async function cacheFirst(request: Request) {
-  const pathname = new URL(request.url).pathname
-  const importer = pathname.startsWith("/import/")
+  const url = new URL(request.url)
+  const importer = url.pathname === "/code"
+    && url.searchParams.get("module")?.startsWith("@import/") === true
   const cache = await caches.open(importer ? "import" : "startup")
   const response = request.mode === "navigate"
     ? await cache.match("/", {ignoreVary: true})
@@ -31,12 +32,12 @@ export async function cacheFirst(request: Request) {
 
   try {
     const network = await fetch(request)
-    if (network.ok && (importer || pathname.startsWith("/assets/"))) {
+    if (network.ok && (importer || url.pathname.startsWith("/assets/"))) {
       await cache.put(request, network.clone())
     }
     return network
   } catch (error) {
-    if (!pathname.startsWith("/assets/")) throw error
+    if (!url.pathname.startsWith("/assets/")) throw error
     return new Response(null, {status: 503})
   }
 }

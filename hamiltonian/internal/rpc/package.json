@@ -5,8 +5,7 @@
   "exports": {
     ".": "./service/web/index.ts",
     "./server": "./server/index.ts",
-    "./service/web": "./service/web/index.ts",
-    "./routes": "./routes.ts"
+    "./service/web": "./service/web/index.ts"
   },
   "scripts": {
     "typecheck": "bun run typecheck:server && bun run typecheck:service:web",
