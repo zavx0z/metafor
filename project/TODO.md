@@ -105,9 +105,10 @@ hashes и атомарное переключение сменяемого на�
 `import`/`internal`/`metafor` принадлежат начатой `UPD-002`; неизменяемый
 startup в этот выпуск не входит. Владелец признал текущий loader checkpoint
 достаточным для development update-срезов, не закрывая остальную `LOAD-001`.
-`UPD-002.2`–`UPD-002.5` находятся в `REVIEW`: групповой build, одно уведомление
-и один browser restart сохранены, а единственный внешний POST contract теперь
-использует JSON `{modules: string[]}`. Legacy query POST отклоняется; Service
+Development checkpoint `UPD-002.2`–`UPD-002.5` принят владельцем: групповой
+build, одно уведомление и один browser restart сохранены, а единственный
+внешний POST contract использует JSON `{modules: string[]}`. Legacy query POST
+отклоняется; Service
 Worker delivery после parsing boundary не менялась. Package-owned development
 build executor получает development-команду из единственного production
 `scripts.build` пакета: сохраняет debug и добавляет inline source map;
