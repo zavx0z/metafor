@@ -262,6 +262,7 @@ ensure_target() {
   fi
   curl -fsS --max-time 2 \
     "http://127.0.0.1:$chrome_port/json/activate/$target_id" >/dev/null
+  bun "$script_dir/chrome-target.ts" prepare "$chrome_port" "$target_id" "$origin"
 }
 
 start_contour() {

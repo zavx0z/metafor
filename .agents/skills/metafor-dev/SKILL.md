@@ -30,6 +30,9 @@ stops. It also owns one Chrome CDP process on port 9222 with a stable profile.
    and report the exact PIDs. Never start a duplicate or silently adopt it.
 4. Use `start` to create or reuse the visible iTerm window, ensure the singleton
    CDP Chrome, wait for Hamiltonian, and create or reuse its browser target.
+   The dispatcher clears accidental virtual viewport overrides and enables
+   Verbose messages in an already open DevTools Console. It does not change
+   the DevTools docking chosen by the owner.
 5. Use `logs` to read the same visible terminal contents. Use `focus` when the
    owner needs the window brought forward.
 6. Use `restart` or `stop` only when required by the requested work. Leave the
@@ -50,6 +53,12 @@ module-update mechanism.
 Take the stable Hamiltonian origin and CDP target from dispatcher output. Reuse
 that target during the task. Verify functional state through CDP and server
 evidence; do not search ordinary Chrome windows on every operation.
+
+Never attach Puppeteer to this persistent Chrome without
+`defaultViewport: null`: Puppeteer's default `800×600` viewport survives on the
+target and leaves gray space around the application. For an intentional
+emulated viewport, restore native metrics before handoff. Running `start` or
+`restart` performs the native reset mechanically.
 
 For a visual or performance proof, read `references/workflow.md`. For first
 Inspector installation or repair only, read `references/setup.md`. Keep all
