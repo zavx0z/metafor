@@ -30,7 +30,6 @@ flowchart LR
     HAM002["HAM-002 · единый визуальный слой Hamiltonian"]
     HAM003["HAM-003 · среды и механизмы Hamiltonian"]
     HAM005["HAM-005 · стандартное visual-окружение Window"]
-    NODES006["NODES-006 · кратчайший законный маршрут"]
     NODES008["NODES-008 · убрать пустой compound-резерв"]
     MF425["MF-425 · одна Вселенная на одном устройстве"]
     LOAD001["LOAD-001 · минимальный browser loader"]
@@ -70,9 +69,7 @@ flowchart LR
 `MF-411 — Определить, что делает Hamiltonian и где он работает` остаётся
 отдельной незавершённой работой. После неё начинается
 `MF-414 — Определить, где работают домены и какая их копия действующая`.
-Параллельно `NODES-006 — Выбирать кратчайший законный маршрут между равными
-вариантами` проходит closing review изменений `@nodes/layout`. `NODES-008 —
-Не оставлять пустой маршрутный резерв внутри compound` возвращена в работу:
+`NODES-008 — Не оставлять пустой маршрутный резерв внутри compound` возвращена в работу:
 checkpoint NODES-008.4 с общим исправлением левых интервалов сохранён отдельным
 коммитом `b0fee1ee0`; owner review открыл NODES-008.5 для зеркального лишнего
 интервала справа в `DOWN`. Реализация NODES-008.5 сохранена checkpoint-коммитом
@@ -170,7 +167,6 @@ checkpoint и сохранён в `server_proto.ts`. Clean-room `server.ts`,
 | HAM-002 | IN_PROGRESS | нет         | [Открыть](tasks/HAM-002.md) |
 | HAM-003 | IN_PROGRESS | нет         | [Открыть](tasks/HAM-003.md) |
 | MF-411 | IN_PROGRESS | нет         | [Открыть](tasks/MF-411.md) |
-| NODES-006 | REVIEW      | нет       | [Открыть](tasks/NODES-006.md) |
 | NODES-008 | IN_PROGRESS | нет       | [Открыть](tasks/NODES-008.md) |
 | MF-414 | WAITING     | MF-411      | [Открыть](tasks/MF-414.md) |
 | MF-426 | WAITING     | MF-425      | [Открыть](tasks/MF-426.md) |
