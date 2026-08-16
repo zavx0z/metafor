@@ -137,10 +137,10 @@ hashes и атомарное переключение сменяемого на�
 `import`/`internal`/`metafor` принадлежат начатой `UPD-002`; неизменяемый
 startup в этот выпуск не входит. Владелец признал текущий loader checkpoint
 достаточным для development update-срезов, не закрывая остальную `LOAD-001`.
-`UPD-002.2` находится в `REVIEW`: один `POST /code` принимает повторяемые
-`module`, параллельно собирает выбранную группу и публикует одно уведомление.
-Service Worker заменяет весь выбранный набор, снимает прежнюю registration и
-один раз навигирует каждый Window; новый Worker восстанавливает RPC из cache.
+`UPD-002.2` находится в `REVIEW`: групповой build, одно уведомление и один
+browser restart приняты. Текущий срез `UPD-002.3` меняет только внешний POST
+contract с повторяемых query parameters на JSON `{modules: string[]}` без
+совместимости; Service Worker delivery после parsing boundary не меняется.
 
 `HAM-003 — Разделить Hamiltonian по средам исполнения и механизмам` остаётся
 `IN_PROGRESS`, но активного среза не имеет. Широкий object-oriented срез
