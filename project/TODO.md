@@ -25,7 +25,6 @@ flowchart LR
     MF414["MF-414 · где работают домены"]
     MF421["MF-421 · деактивация невидимого monitor display"]
     MF424["MF-424 · визуальная доводка Hamiltonian"]
-    NODES009["NODES-009 · универсальные границы node-system"]
     HAM005["HAM-005 · стандартное visual-окружение Window"]
     NODES008["NODES-008 · убрать пустой compound-резерв"]
     MF425["MF-425 · одна Вселенная на одном устройстве"]
@@ -72,13 +71,6 @@ checkpoint NODES-008.4 с общим исправлением левых инт�
 интервала справа в `DOWN`. Реализация NODES-008.5 сохранена checkpoint-коммитом
 `e1b2aea50` и ожидает визуального подтверждения владельца.
 
-`NODES-009 — Разделить библиотеку нод для разных способов представления графа`
-остаётся `IN_PROGRESS`: лёгкое ядро `nodes`, чистая числовая геометрия
-`@nodes/layout`, HUD-free `@nodes/ui`, optional `@nodes/hud`, fixed card adapter
-и consumer-owned Hamiltonian palette физически разделены и проверены.
-NODES-009.1–NODES-009.5 закрыты после отдельной package/browser/live-проверки;
-executable Service Worker обновлён до `1.1.3`. Родитель не закрывается и
-остаётся текущим местом дальнейшей работы владельца.
 Владелец отдельно выбрал `HAM-005 — Собрать стандартное
 окружение визуализации Window`: новый `@import/main` уже создаёт общий runtime,
 пол и управляемую обзорную камеру. Текущий срез `HAM-005.6` добавляет один
@@ -126,7 +118,6 @@ production удаляет `console.debug` и не публикует карту.
 | LOAD-001 | IN_PROGRESS | нет       | [Открыть](tasks/LOAD-001.md) |
 | HAM-005 | IN_PROGRESS | нет         | [Открыть](tasks/HAM-005.md) |
 | UPD-002 | IN_PROGRESS | нет       | [Открыть](tasks/UPD-002.md) |
-| NODES-009 | IN_PROGRESS | нет       | [Открыть](tasks/NODES-009.md) |
 | MF-411 | IN_PROGRESS | нет         | [Открыть](tasks/MF-411.md) |
 | NODES-008 | IN_PROGRESS | нет       | [Открыть](tasks/NODES-008.md) |
 | MF-414 | WAITING     | MF-411      | [Открыть](tasks/MF-414.md) |

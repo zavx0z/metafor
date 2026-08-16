@@ -212,14 +212,13 @@ Hamiltonian contour. Дальнейшую детализацию topology и к�
 стороне одного устройства и строит его причинно точное визуальное
 представление. Она является частью `MF-425`, а не отдельной декоративной схемой.
 
-Физическая универсальность node-system принадлежит
-[`NODES-009 — Разделить библиотеку нод для разных способов представления
-графа`](tasks/NODES-009.md). Generic model, validation, geometry, renderer
-primitives и layout laws остаются в `nodes`, а product-specific projection,
-composition, панели, стили и live presentation прежнего Hamiltonian находятся
-в отдельно запускаемом прототипе под `hamiltonian/visual`. Clean-room loader
-не импортирует и не переносит этот source. Первый clean-room visual-шаг выбран
-отдельно: в
+Физические границы универсальной node-system закреплены в
+[`pkg/nodes/README.md`](../pkg/nodes/README.md). Generic model, validation,
+geometry, renderer primitives и layout laws остаются в `nodes`, а
+product-specific projection, composition, панели, стили и live presentation
+прежнего Hamiltonian находятся в отдельно запускаемом прототипе под
+`hamiltonian/visual`. Clean-room loader не импортирует и не переносит этот
+source. Первый clean-room visual-шаг выбран отдельно: в
 [`HAM-005 — Собрать стандартное окружение визуализации Window`](tasks/HAM-005.md)
 `@import/main` создаёт общий пустой `UiRuntime` с `Space` и `HUD`, не импортируя
 prototype visual и не выбирая предметный Window module.
