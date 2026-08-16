@@ -27,7 +27,6 @@ flowchart LR
     MF424["MF-424 · визуальная доводка Hamiltonian"]
     HAM001["HAM-001 · декларации нодовой системы Hamiltonian"]
     NODES009["NODES-009 · универсальные границы node-system"]
-    HAM003["HAM-003 · среды и механизмы Hamiltonian"]
     HAM005["HAM-005 · стандартное visual-окружение Window"]
     NODES008["NODES-008 · убрать пустой compound-резерв"]
     MF425["MF-425 · одна Вселенная на одном устройстве"]
@@ -133,15 +132,6 @@ production удаляет `console.debug` и не публикует карту.
 не меняя действующий update protocol; production artifacts не содержат эти
 вызовы, аргументы и scope.
 
-`HAM-003 — Разделить Hamiltonian по средам исполнения и механизмам` остаётся
-`IN_PROGRESS`, но активного среза не имеет. Широкий object-oriented срез
-`HAM-003.8` отклонён и откачен; принятый `HAM-003.9` теперь является prototype
-checkpoint и сохранён в `server_proto.ts`. Clean-room `server.ts`,
-`web/startup`, `web/import` и `internal` принадлежат `LOAD-001` и не являются
-продолжением refactor старого Hamiltonian. Перед следующим срезом владелец
-отдельно выбирает механизм, который ещё нужен самому прототипу и не пересекает
-`LOAD-001`/`UPD-002`.
-
 | ID     | Состояние   | Зависимости | Карточка                   |
 | ------ | ----------- | ----------- | -------------------------- |
 | MF-424 | IN_PROGRESS | нет         | [Открыть](tasks/MF-424.md) |
@@ -151,7 +141,6 @@ checkpoint и сохранён в `server_proto.ts`. Clean-room `server.ts`,
 | UPD-002 | IN_PROGRESS | нет       | [Открыть](tasks/UPD-002.md) |
 | HAM-001 | IN_PROGRESS | нет         | [Открыть](tasks/HAM-001.md) |
 | NODES-009 | IN_PROGRESS | нет       | [Открыть](tasks/NODES-009.md) |
-| HAM-003 | IN_PROGRESS | нет         | [Открыть](tasks/HAM-003.md) |
 | MF-411 | IN_PROGRESS | нет         | [Открыть](tasks/MF-411.md) |
 | NODES-008 | IN_PROGRESS | нет       | [Открыть](tasks/NODES-008.md) |
 | MF-414 | WAITING     | MF-411      | [Открыть](tasks/MF-414.md) |
