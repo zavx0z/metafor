@@ -56,8 +56,8 @@ test("UPD-002 exposes the development update path through owner-scoped diagnosti
   const [server, route, build, rpcServer, rpcService, releaseService, updateLoader, startupMain] =
     await Promise.all([
       Bun.file(join(hamiltonian, "server.ts")).text(),
-      Bun.file(join(hamiltonian, "release/server/route.ts")).text(),
-      Bun.file(join(hamiltonian, "release/server/build.ts")).text(),
+      Bun.file(join(hamiltonian, "web/release/server/route.ts")).text(),
+      Bun.file(join(hamiltonian, "web/release/server/build.ts")).text(),
       Bun.file(join(hamiltonian, "internal/rpc/server/index.ts")).text(),
       Bun.file(join(hamiltonian, "internal/rpc/service/web/index.ts")).text(),
       Bun.file(join(hamiltonian, "web/release/service/index.ts")).text(),

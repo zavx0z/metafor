@@ -7,7 +7,7 @@ import {
   type ReleasablePackage,
   type ReleasedPackage,
   type VersionChange,
-} from "../../release/server"
+} from "../../web/release/server"
 
 type Fault =
   | "none"

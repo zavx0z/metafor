@@ -31,7 +31,7 @@
     "hamiltonian",
     "hamiltonian/internal/rpc",
     "hamiltonian/internal/visual",
-    "hamiltonian/release/server",
+    "hamiltonian/web/release/server",
     "hamiltonian/web/release/main",
     "hamiltonian/web/release/service",
     "hamiltonian/web/startup/main",

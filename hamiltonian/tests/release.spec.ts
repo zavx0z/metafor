@@ -3,7 +3,7 @@ import {
   nextPackageVersion,
   packageChanges,
   releasedPackages,
-} from "../release/server"
+} from "../web/release/server"
 
 test("package state comes from root caret dependencies", async () => {
   const packages = await releasedPackages()

@@ -1,7 +1,7 @@
 import {expect, test} from "bun:test"
 import {join} from "node:path"
 import {fileURLToPath} from "node:url"
-import {buildablePackage, packageBuildCommand} from "../release/server"
+import {buildablePackage, packageBuildCommand} from "../web/release/server"
 
 const hamiltonian = fileURLToPath(new URL("../", import.meta.url))
 const packageBuildScripts = {
@@ -39,7 +39,7 @@ test("every browser artifact owns one direct production build command", async ()
 })
 
 test("build executor resolves package contracts without a module registry", async () => {
-  const source = await Bun.file(join(hamiltonian, "release/server/package.ts")).text()
+  const source = await Bun.file(join(hamiltonian, "web/release/server/package.ts")).text()
   expect(source).not.toContain('join(root, "dist/index.js")')
 
   for (const [path] of Object.entries(packageBuildScripts)) {

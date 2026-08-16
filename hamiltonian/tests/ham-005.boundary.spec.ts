@@ -1,7 +1,7 @@
 import {expect, test} from "bun:test"
 import {fileURLToPath} from "node:url"
 import {join} from "node:path"
-import {buildPackage} from "../release/server"
+import {buildPackage} from "../web/release/server"
 
 const hamiltonian = fileURLToPath(new URL("../", import.meta.url))
 
@@ -20,7 +20,7 @@ test("HAM-005 creates one standard Window environment through internal visual", 
       dependencies?: Record<string, string>
     }>,
     Bun.file(join(hamiltonian, "web/release/main/bunfig.toml")).text(),
-    Bun.file(join(hamiltonian, "release/server/package.ts")).text(),
+    Bun.file(join(hamiltonian, "web/release/server/package.ts")).text(),
     Bun.file(join(hamiltonian, "server.ts")).text(),
     Bun.file(join(hamiltonian, "web/startup/main/index.ts")).text(),
   ])

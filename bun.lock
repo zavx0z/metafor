@@ -120,13 +120,13 @@
       "version": "0.1.0",
       "dependencies": {
         "@hamiltonian/visual": "workspace:*",
-        "@internal/rpc": "workspace:^0.1.2",
+        "@internal/rpc": "workspace:^0.1.3",
         "@metafor/engine": "workspace:*",
         "@metafor/web-push": "workspace:*",
         "@nodes/hud": "workspace:*",
         "@nodes/layout": "workspace:*",
         "@nodes/ui": "workspace:*",
-        "@release/main": "workspace:^0.1.1",
+        "@release/main": "workspace:^0.1.2",
         "@release/server": "workspace:*",
         "@release/service": "workspace:^0.1.1",
         "@ui/components": "workspace:*",
@@ -142,7 +142,7 @@
     },
     "hamiltonian/internal/rpc": {
       "name": "@internal/rpc",
-      "version": "0.1.2",
+      "version": "0.1.3",
       "devDependencies": {
         "@types/serviceworker": "^0.0.200",
       },
@@ -155,10 +155,6 @@
         "@ui/elements": "workspace:*",
         "@ui/hud": "workspace:*",
       },
-    },
-    "hamiltonian/release/server": {
-      "name": "@release/server",
-      "version": "0.1.0",
     },
     "hamiltonian/visual": {
       "name": "@hamiltonian/visual",
@@ -175,10 +171,14 @@
     },
     "hamiltonian/web/release/main": {
       "name": "@release/main",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "dependencies": {
         "@internal/visual": "workspace:^0.1.0",
       },
+    },
+    "hamiltonian/web/release/server": {
+      "name": "@release/server",
+      "version": "0.1.0",
     },
     "hamiltonian/web/release/service": {
       "name": "@release/service",
@@ -416,7 +416,7 @@
 
     "@release/main": ["@release/main@workspace:hamiltonian/web/release/main"],
 
-    "@release/server": ["@release/server@workspace:hamiltonian/release/server"],
+    "@release/server": ["@release/server@workspace:hamiltonian/web/release/server"],
 
     "@release/service": ["@release/service@workspace:hamiltonian/web/release/service"],
 
