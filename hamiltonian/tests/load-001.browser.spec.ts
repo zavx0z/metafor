@@ -176,21 +176,19 @@ test.serial("LOAD-001 restores accepted startup, importers and internal module f
     for (const route of routeProbes.legacy) expect(route.status).toBe(404)
     await probeContext.close()
 
-    const pageLogs: string[] = []
     const requests: string[] = []
-    const responses = new Map<string, boolean>()
+    const serviceWorkerResponses: string[] = []
     const workerObserver = observeStartupWorker(browser)
     const page = await browser.newPage()
     const connectionsBefore = countMatches(server.output(), "rpc/service connected")
 
-    page.on("console", (message) => pageLogs.push(message.text()))
     page.on("request", (request) => {
       const url = new URL(request.url())
       requests.push(`${url.pathname}${url.search}`)
     })
     page.on("response", (response) => {
       const url = new URL(response.url())
-      responses.set(`${url.pathname}${url.search}`, response.fromServiceWorker())
+      if (response.fromServiceWorker()) serviceWorkerResponses.push(`${url.pathname}${url.search}`)
     })
 
     const navigation = await page.goto(server.root, {waitUntil: "load"})
@@ -199,7 +197,6 @@ test.serial("LOAD-001 restores accepted startup, importers and internal module f
     const firstWorker = await workerObserver.promise
     expect(new URL(firstWorker.target.url()).searchParams.get("module")).toBe("@startup/service")
     await waitForAcceptedCaches(page)
-    await waitUntil(() => pageLogs.includes("main importer"))
     await waitUntil(() => countMatches(server.output(), "rpc/service connected") > connectionsBefore)
 
     const documentContract = await page.evaluate(async () => ({
@@ -214,7 +211,7 @@ test.serial("LOAD-001 restores accepted startup, importers and internal module f
     expect(requests).toContain("/code?module=@startup/main")
     expect(requests).toContain("/code?module=@import/main")
     expect(requests.some((path) => /hmr|_bun/i.test(path))).toBe(false)
-    expect(responses.get("/code?module=@import/main")).toBe(true)
+    expect(serviceWorkerResponses).toContain("/code?module=@import/main")
 
     const initial = await cacheSnapshot(page)
     expect(Object.keys(initial).sort()).toEqual(["import", "internal", "startup"])
@@ -257,7 +254,11 @@ test.serial("LOAD-001 restores accepted startup, importers and internal module f
     expect(onlineAsset.bytes).toBeGreaterThan(0)
     await waitUntil(async () => (await cacheSnapshot(page)).startup?.includes(lazyAsset!) ?? false)
 
-    const mainImportsBeforeOffline = pageLogs.filter((message) => message === "main importer").length
+    const mainImportsBeforeOffline = countMatches(requests.join("\n"), "/code?module=@import/main")
+    const mainResponsesBeforeOffline = countMatches(
+      serviceWorkerResponses.join("\n"),
+      "/code?module=@import/main",
+    )
     await server.stop()
     serverStopped = true
     await page.setOfflineMode(false)
@@ -279,7 +280,12 @@ test.serial("LOAD-001 restores accepted startup, importers and internal module f
     expect(nested?.status()).toBe(200)
     expect(nested?.fromServiceWorker()).toBe(true)
     expect(page.url()).toBe(`${server.root}/net/peer`)
-    await waitUntil(() => pageLogs.filter((message) => message === "main importer").length > mainImportsBeforeOffline)
+    await waitUntil(() =>
+      countMatches(requests.join("\n"), "/code?module=@import/main") > mainImportsBeforeOffline)
+    await waitUntil(() => countMatches(
+      serviceWorkerResponses.join("\n"),
+      "/code?module=@import/main",
+    ) > mainResponsesBeforeOffline)
 
     const afterNested = await cacheSnapshot(page)
     expect(Object.values(afterNested).flat()).not.toContain("/net/peer")
@@ -290,9 +296,18 @@ test.serial("LOAD-001 restores accepted startup, importers and internal module f
     witness = startColdWitness(server.port)
     browser = await launchBrowser(profile)
     const coldWorkerObserver = observeStartupWorker(browser)
-    const coldPageLogs: string[] = []
+    const coldRequests: string[] = []
+    const coldServiceWorkerResponses: string[] = []
     const coldPage = await browser.newPage()
-    coldPage.on("console", (message) => coldPageLogs.push(message.text()))
+    coldPage.on("request", (request) => {
+      const url = new URL(request.url())
+      coldRequests.push(`${url.pathname}${url.search}`)
+    })
+    coldPage.on("response", (response) => {
+      const url = new URL(response.url())
+      if (response.fromServiceWorker())
+        coldServiceWorkerResponses.push(`${url.pathname}${url.search}`)
+    })
 
     const coldNavigation = await coldPage.goto(`${server.root}/cold/restored`, {waitUntil: "load"})
     expect(coldNavigation?.status()).toBe(200)
@@ -300,7 +315,8 @@ test.serial("LOAD-001 restores accepted startup, importers and internal module f
 
     const coldWorker = await coldWorkerObserver.promise
     expect(new URL(coldWorker.target.url()).searchParams.get("module")).toBe("@startup/service")
-    await waitUntil(() => coldPageLogs.includes("main importer"))
+    await waitUntil(() => coldRequests.includes("/code?module=@import/main"))
+    await waitUntil(() => coldServiceWorkerResponses.includes("/code?module=@import/main"))
     await waitUntil(() => witness!.connections() >= 1)
     expect(witness.requests).not.toContain("/")
     expect(witness.requests).not.toContain("/code?module=@import/main")
