@@ -144,6 +144,14 @@ managed iTerm/CDP contour оставлен владельцу. По следую
 boundary, recovery без повторной сборки завершённых artifacts, полный suite и
 live cold transaction с точными новыми cache URLs прошли; managed contour
 оставлен владельцу.
+Owner review обнаружил глобальную ошибку результата `.7`: после полной staging
+canonical commit заменяет slots по одному и удаляет old entry раньше, чем
+доказан полный new composition. В текущую задачу принят correction-срез
+`UPD-003.10`: сначала установить и проверить все candidates без old deletion,
+затем завершать cleanup только вперёд, удалить old service-worker release
+последним, а `transaction` — после финальной canonical проверки. Основным
+следующим предметом обсуждения остаётся минимальная граница startup/release без
+transaction policy и дублирования executable code в startup.
 Обновление уже работающего Bun runtime остаётся будущим большим этапом.
 Package `@hamiltonian/startup` устанавливает Service Worker, восстанавливает
 HTML/startup offline и запускает browser env package `@hamiltonian/release` из
