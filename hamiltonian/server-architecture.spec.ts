@@ -32,6 +32,8 @@ describe("Hamiltonian singleton server boundary", () => {
       "bun --conditions=metafor:server --port=4444 server",
     )
     expect(source.match(/Bun\.serve</g)).toHaveLength(1)
+    expect(source.indexOf("await recoverPublication()"))
+      .toBeLessThan(source.indexOf("Bun.serve<RpcSocketData>"))
     expect(source).not.toContain("class ")
     expect(source).toContain('from "@release/server"')
     expect(source).not.toContain("@internal/rpc")

@@ -240,6 +240,19 @@ Loader type принадлежит потребителю `@release/service`; st
 его только как public type по bare package name и предоставляет реализацию.
 Release не импортирует types относительным путём через границу startup package.
 
+Публикация сначала атомарно записывает target caret versions в корневой
+`hamiltonian/package.json`; это единственный durable host intent. Только затем
+выполняются env typechecks/builds, immutable artifact writes и exact version
+writes изменённых child manifests. Обычная ошибка того же процесса возвращает
+прежний root и children и не отправляет release signal.
+
+До открытия HTTP listener server воспроизводит все root members и сравнивает
+каждый env build с exact versioned artifact. Missing exact file публикуется,
+совпадающий переиспользуется, а другой SHA-256 или size под той же identity
+никогда не перезаписывается и останавливает startup. Если root уже содержит
+target, а child ещё старый, recovery следует root вперёд и последним обновляет
+child; отдельного journal, release ID или generation для этого нет.
+
 `@release/server` — единственный server-side владелец release packages и
 server-стороны RPC. Он находит и проверяет package-owned build contract,
 собирает artifacts, вычисляет следующие версии, атомарно публикует группу и

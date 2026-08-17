@@ -11,12 +11,25 @@ export interface ReleaseDependencyMember {
 }
 
 export interface ReleaseCompositionMember extends ReleaseDependencyMember {
+  childVersion: string
   manifest: string
   owners: PackageOwner[]
 }
 
 /** Читает и полностью проверяет действующий root membership. */
 export async function readReleaseComposition(): Promise<ReleaseCompositionMember[]> {
+  const members = await readReleaseIntentComposition()
+  for (const member of members) {
+    if (member.childVersion !== member.version)
+      throw new Error(
+        `Released package ${member.name} must have exact version ${member.version}, found ${member.childVersion}`,
+      )
+  }
+  return members
+}
+
+/** Читает target root intent, разрешая ещё не сошедшиеся child versions. */
+export async function readReleaseIntentComposition(): Promise<ReleaseCompositionMember[]> {
   const root = await packageManifest(hamiltonianManifest)
   const members = await Promise.all(Object.entries(root.dependencies ?? {}).flatMap(
     ([name, dependency]) => {
@@ -99,11 +112,12 @@ async function readReleaseMember(
   const manifestPath = owners[0]?.manifest
   if (manifestPath === undefined) throw new Error(`Released package ${name} has no environments`)
   const manifest = await packageManifest(manifestPath)
-  if (manifest.name !== name || manifest.version !== version)
-    throw new Error(`Released package ${name} must have exact version ${version}`)
+  if (manifest.name !== name || typeof manifest.version !== "string" || !isVersion(manifest.version))
+    throw new Error(`Released package ${name} has invalid child manifest version`)
   return {
     name,
     version,
+    childVersion: manifest.version,
     dependencies: dependencies(manifest),
     manifest: manifestPath,
     owners,

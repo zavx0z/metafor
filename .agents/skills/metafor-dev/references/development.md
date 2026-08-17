@@ -202,6 +202,13 @@ Content-Type: application/json
 Query parameters для `POST` не использовать. После успешного ответа browser
 транзакционно обновит всю группу и перезагрузится сам.
 
+Host сначала записывает target caret versions в корневой package manifest, а
+затем выполняет checks, builds, immutable artifacts и child version writes.
+Обычная ошибка откатывает root; после аварийной остановки следующий server
+startup до открытия listener доводит видимый root intent вперёд. Поэтому не
+исправлять child versions или `dist/versions` вручную и не заменять
+существующий exact artifact под тем же SemVer.
+
 Ответ имеет форму:
 
 ```text

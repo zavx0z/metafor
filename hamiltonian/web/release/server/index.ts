@@ -2,6 +2,7 @@ export {buildablePackage, buildPackage, packageResponse} from "./build"
 export {packageBuildCommand} from "./command"
 export {
   readReleaseComposition,
+  readReleaseIntentComposition,
   satisfiesWorkspaceRange,
   validateBrowserReleaseEnvironments,
   validateReleaseDependencyGraph,
@@ -36,7 +37,14 @@ export type {
 } from "../../package-environment"
 export {getPackage, getRelease} from "./delivery"
 export {packageEnvironmentExports, packageOwner, packageOwners} from "./package"
-export {publishPackages} from "./publish"
+export {
+  publishImmutableArtifact,
+  publishPackages,
+  recoverPublication,
+  restoreManifest,
+  writeRootVersions,
+} from "./publish"
+export type {RecoveryResult} from "./publish"
 export {packageChanges} from "./request"
 export {
   closeRpc,

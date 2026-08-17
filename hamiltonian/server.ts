@@ -5,10 +5,13 @@ import {
   messageRpc,
   openRpc,
   publishRelease,
+  recoverPublication,
   rpcServiceTopic,
   type RpcSocketData,
   upgradeRpc
 } from "@release/server"
+
+await recoverPublication()
 
 Bun.serve<RpcSocketData>({
   routes: {

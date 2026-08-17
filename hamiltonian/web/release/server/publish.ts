@@ -3,21 +3,26 @@ import {dirname, join} from "node:path"
 import {buildPackage} from "./build"
 import {
   readReleaseComposition,
+  readReleaseIntentComposition,
   validateTargetReleaseVersions,
+  type ReleaseCompositionMember,
 } from "./composition"
 import type {
+  PackageBuildArtifact,
   PackageChange,
   PackageEnvironment,
   PackageManifest,
+  PackageReleaseResult,
   PackageReleaseResultSet,
 } from "./contracts"
-import {packageArtifact, packageOwner, packageOwners} from "./package"
+import {packageArtifact} from "./package"
 import {hamiltonianManifest, hamiltonianRoot} from "./paths"
 import {serializePublication} from "./queue"
 import {readReleasedPackages, versionedArtifact} from "./state"
 import {nextPackageVersion} from "./version"
 
 interface ReleasePlan extends PackageChange {
+  member: ReleaseCompositionMember
   previousVersion: string
   version: string
   artifacts: ReleaseArtifactPlan[]
@@ -29,110 +34,198 @@ interface ReleaseArtifactPlan {
   publishedArtifact: string
 }
 
-/** Сериализует и выполняет одну атомарно публикуемую build-группу. */
+export interface RecoveryResult {
+  recovered: string[]
+  artifacts: PackageBuildArtifact[]
+}
+
+/** Сериализует и выполняет одну root-first publication. */
 export function publishPackages(changes: PackageChange[]): Promise<PackageReleaseResultSet> {
   return serializePublication(() => runPublication(changes))
 }
 
+/** До открытия listener доводит durable root intent до полного состояния. */
+export function recoverPublication(): Promise<RecoveryResult> {
+  return serializePublication(runRecovery)
+}
+
 async function runPublication(changes: PackageChange[]): Promise<PackageReleaseResultSet> {
-  const current = new Map((await readReleasedPackages()).map((entry) => [entry.name, entry]))
   const composition = await readReleaseComposition()
+  const members = new Map(composition.map((member) => [member.name, member]))
+  const plans = changes.map(({name, change}) => {
+    const member = members.get(name)
+    if (!member) throw new Error(`Released package ${name} is missing`)
+    return {
+      name,
+      change,
+      member,
+      previousVersion: member.version,
+      version: nextPackageVersion(member.version, change),
+      artifacts: [],
+    } satisfies ReleasePlan
+  })
+  validateTargetReleaseVersions(
+    composition,
+    new Map(plans.map(({name, version}) => [name, version])),
+  )
+
   const staging = await mkdtemp(join(hamiltonianRoot, ".package-update-"))
+  const rootSource = await Bun.file(hamiltonianManifest).text()
+  const childSources = new Map(await Promise.all(plans.map(async ({member}) => [
+    member.manifest,
+    await Bun.file(member.manifest).text(),
+  ] as const)))
+  let rootIntentWritten = false
+  let childrenWritten = false
 
   try {
-    const plans = await Promise.all(changes.map(async ({name, change}, packageIndex) => {
-      const released = current.get(name)
-      if (!released) throw new Error(`Released package ${name} is missing`)
-      const version = nextPackageVersion(released.version, change)
-      const owners = await packageOwners(name)
-      return {
-        name,
-        change,
-        previousVersion: released.version,
-        version,
-        artifacts: owners.map((owner, envIndex) => ({
-          env: owner.env,
-          stagedArtifact: join(staging, `${packageIndex}-${envIndex}.js`),
-          publishedArtifact: versionedArtifact(owner.artifact, version),
-        })),
-      } satisfies ReleasePlan
-    }))
-
-    validateTargetReleaseVersions(
-      composition,
+    assignArtifacts(plans, staging)
+    await writeRootVersions(
+      hamiltonianManifest,
       new Map(plans.map(({name, version}) => [name, version])),
     )
+    rootIntentWritten = true
 
-    const artifactPlans = plans.flatMap((plan) =>
-      plan.artifacts.map((artifact) => ({plan, artifact})))
-    const builds = await Promise.all(artifactPlans.map(({plan, artifact}) =>
-      buildPackage(plan.name, {env: artifact.env, artifact: artifact.stagedArtifact})))
-    const results = artifactPlans.map(({plan}, index) => ({
-      ...builds[index]!,
-      change: plan.change,
-      previousVersion: plan.previousVersion,
-      version: plan.version,
-    }))
-
-    if (results.some((result) => !result.success))
+    const results = await buildPlans(plans)
+    if (results.some((result) => !result.success)) {
+      await restoreManifest(hamiltonianManifest, rootSource)
+      rootIntentWritten = false
       return {success: false, results, packages: []}
+    }
 
-    for (const [index, {artifact}] of artifactPlans.entries())
-      results[index]!.outputs = [await publishArtifact(artifact)]
-    await publishVersions(plans)
-
-    const released = new Map((await readReleasedPackages()).map((entry) => [entry.name, entry]))
+    await materializePlans(plans, results)
+    childrenWritten = true
+    await writeChildVersions(plans)
+    const packages = await readReleasedPackages()
     return {
       success: true,
       results,
-      packages: plans.flatMap(({name}) =>
-        [...released.values()].filter((entry) => entry.name === name)),
+      packages: plans.flatMap(({name}) => packages.filter((entry) => entry.name === name)),
     }
+  } catch (error) {
+    if (childrenWritten)
+      await Promise.all([...childSources].map(([path, source]) => restoreManifest(path, source)))
+    if (rootIntentWritten) await restoreManifest(hamiltonianManifest, rootSource)
+    throw error
   } finally {
     await rm(staging, {recursive: true, force: true})
   }
 }
 
-async function publishArtifact(plan: ReleaseArtifactPlan) {
-  await mkdir(dirname(plan.publishedArtifact), {recursive: true})
-  const temporary = `${plan.publishedArtifact}.${crypto.randomUUID()}.tmp`
-  await copyFile(plan.stagedArtifact, temporary)
-  await rename(temporary, plan.publishedArtifact)
-  const artifact = await packageArtifact(plan.publishedArtifact)
-  if (!artifact) throw new Error(`Published artifact is missing: ${plan.publishedArtifact}`)
-  return artifact
-}
-
-/** Пишет package versions, а корневые dependencies — последним commit-point. */
-async function publishVersions(plans: ReleasePlan[]) {
-  const originals = new Map<string, string>()
-  const written: string[] = []
+async function runRecovery(): Promise<RecoveryResult> {
+  const intent = await readReleaseIntentComposition()
+  const staging = await mkdtemp(join(hamiltonianRoot, ".package-recovery-"))
 
   try {
-    for (const plan of plans) {
-      const owner = await packageOwner(plan.name)
-      const source = await Bun.file(owner.manifest).text()
-      originals.set(owner.manifest, source)
-      const manifest = JSON.parse(source) as PackageManifest
-      manifest.version = plan.version
-      await writeJsonAtomic(owner.manifest, manifest)
-      written.push(owner.manifest)
-    }
+    const plans = intent.map((member) => ({
+      name: member.name,
+      change: "patch" as const,
+      member,
+      previousVersion: member.childVersion,
+      version: member.version,
+      artifacts: [],
+    }))
+    assignArtifacts(plans, staging)
+    const results = await buildPlans(plans)
+    const failure = results.find((result) => !result.success)
+    if (failure)
+      throw new Error(`Recovery build failed for ${failure.module}:${failure.env}: ${failure.stderr}`)
 
-    const rootSource = await Bun.file(hamiltonianManifest).text()
-    const root = JSON.parse(rootSource) as PackageManifest
-    const dependencies = {...root.dependencies}
-    for (const plan of plans) dependencies[plan.name] = `workspace:^${plan.version}`
-    root.dependencies = dependencies
-    await writeJsonAtomic(hamiltonianManifest, root)
-  } catch (error) {
-    await Promise.allSettled(written.map((path) => Bun.write(path, originals.get(path)!)))
-    throw error
+    const artifacts = await materializePlans(plans, results)
+    const pending = plans.filter(({member, version}) => member.childVersion !== version)
+    await writeChildVersions(pending)
+    await readReleasedPackages()
+    return {recovered: pending.map(({name}) => name), artifacts}
+  } finally {
+    await rm(staging, {recursive: true, force: true})
   }
 }
 
-async function writeJsonAtomic(path: string, value: unknown) {
+function assignArtifacts(plans: ReleasePlan[], staging: string) {
+  let index = 0
+  for (const plan of plans) {
+    plan.artifacts = plan.member.owners.map((owner) => ({
+      env: owner.env,
+      stagedArtifact: join(staging, `${index++}.js`),
+      publishedArtifact: versionedArtifact(owner.artifact, plan.version),
+    }))
+  }
+}
+
+async function buildPlans(plans: ReleasePlan[]): Promise<PackageReleaseResult[]> {
+  const artifactPlans = plans.flatMap((plan) =>
+    plan.artifacts.map((artifact) => ({plan, artifact})))
+  const builds = await Promise.all(artifactPlans.map(({plan, artifact}) =>
+    buildPackage(plan.name, {env: artifact.env, artifact: artifact.stagedArtifact})))
+  return artifactPlans.map(({plan}, index) => ({
+    ...builds[index]!,
+    change: plan.change,
+    previousVersion: plan.previousVersion,
+    version: plan.version,
+  }))
+}
+
+async function materializePlans(
+  plans: ReleasePlan[],
+  results: PackageReleaseResult[],
+) {
+  const artifactPlans = plans.flatMap((plan) => plan.artifacts)
+  const artifacts: PackageBuildArtifact[] = []
+  for (const [index, plan] of artifactPlans.entries()) {
+    const artifact = await publishImmutableArtifact(plan.stagedArtifact, plan.publishedArtifact)
+    results[index]!.outputs = [artifact]
+    artifacts.push(artifact)
+  }
+  return artifacts
+}
+
+/** Публикует missing exact artifact, но никогда не заменяет существующую identity. */
+export async function publishImmutableArtifact(staged: string, target: string) {
+  const expected = await packageArtifact(staged)
+  if (!expected) throw new Error(`Staged artifact is missing: ${staged}`)
+  const existing = await packageArtifact(target)
+  if (existing) {
+    if (existing.sha256 !== expected.sha256 || existing.size !== expected.size)
+      throw new Error(`Immutable artifact conflict: ${target}`)
+    return existing
+  }
+
+  await mkdir(dirname(target), {recursive: true})
+  const temporary = `${target}.${crypto.randomUUID()}.tmp`
+  try {
+    await copyFile(staged, temporary)
+    await rename(temporary, target)
+  } finally {
+    await rm(temporary, {force: true})
+  }
+  const published = await packageArtifact(target)
+  if (!published) throw new Error(`Published artifact is missing: ${target}`)
+  return published
+}
+
+/** Первой durable записью меняет только target caret dependencies root. */
+export async function writeRootVersions(path: string, versions: ReadonlyMap<string, string>) {
+  const root = await Bun.file(path).json() as PackageManifest
+  const dependencies = {...root.dependencies}
+  for (const [name, version] of versions) dependencies[name] = `workspace:^${version}`
+  root.dependencies = dependencies
+  await writeJsonAtomic(path, root)
+}
+
+async function writeChildVersions(plans: ReleasePlan[]) {
+  for (const {member, version} of plans) {
+    const manifest = await Bun.file(member.manifest).json() as PackageManifest
+    manifest.version = version
+    await writeJsonAtomic(member.manifest, manifest)
+  }
+}
+
+export async function restoreManifest(path: string, source: string) {
   const temporary = `${path}.${crypto.randomUUID()}.tmp`
-  await Bun.write(temporary, `${JSON.stringify(value, null, 2)}\n`)
+  await Bun.write(temporary, source)
   await rename(temporary, path)
+}
+
+async function writeJsonAtomic(path: string, value: unknown) {
+  await restoreManifest(path, `${JSON.stringify(value, null, 2)}\n`)
 }
