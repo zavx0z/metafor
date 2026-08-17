@@ -137,17 +137,20 @@ owner-visible development update в единственном managed contour; de
 failure/crash остаются доказательствами своих изолированных сред. `.8` теперь в
 `REVIEW`: two-profile regression и две live development publications прошли,
 managed iTerm/CDP contour оставлен владельцу. По следующему прямому решению
-владельца начат `.9`: он объединяет release и startup env в packages
+владельца срез `.9` объединяет release и startup env в packages
 `@hamiltonian/release` и `@hamiltonian/startup`, закрепляет `<env>/index.ts`,
 один package-wide typecheck без prebuild и единый all-env build/update path.
+Срез находится в `REVIEW`: conditional type proof, all-env build failure
+boundary, recovery без повторной сборки завершённых artifacts, полный suite и
+live cold transaction с точными новыми cache URLs прошли; managed contour
+оставлен владельцу.
 Обновление уже работающего Bun runtime остаётся будущим большим этапом.
-Пакеты `@startup/main` и `@startup/service` устанавливают Service Worker, восстанавливают
-HTML/startup offline и запускают `@release/main` и `@release/service` из cache
-`release`. Release packages разворачивают Window и Service Worker контуры;
-RPC встроен в их server/service стороны, а другие internal packages остаются
-подключаемой функциональностью. `@release/server` владеет package discovery,
-build, SemVer, атомарной публикацией и внутренней реализацией HTTP/RPC, тогда
-как корневой `server.ts` явно показывает methods routes и WebSocket lifecycle.
+Package `@hamiltonian/startup` устанавливает Service Worker, восстанавливает
+HTML/startup offline и запускает browser env package `@hamiltonian/release` из
+cache `release`. Release package разворачивает Window и Service Worker
+контуры; RPC и host publication принадлежат его `server`/`service-worker` env,
+а другие internal packages остаются подключаемой функциональностью. Корневой
+`server.ts` явно показывает HTTP routes и WebSocket lifecycle.
 Ранее владелец подтвердил startup/import offline, cold-восстановление `internal` и
 текущий internal RPC/WebSocket. `LOAD-001.23` остановлен: Window loader не
 расширяет startup до появления первого предметного Window module. Стандартное

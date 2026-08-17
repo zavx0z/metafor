@@ -2,7 +2,8 @@
   "extends": "../../../tsconfig.json",
   "compilerOptions": {
     "customConditions": [
-      "metafor:main"
+      "internal:main",
+      "internal:server"
     ],
     "lib": [
       "ESNext",
@@ -14,8 +15,9 @@
     ]
   },
   "include": [
-    "index.ts",
-    "display-dock.ts",
+    "main/index.ts",
+    "main/display-dock.ts",
+    "server/index.ts",
     "../../../types/module.d.ts",
     "../../../types/hot.d.ts"
   ],

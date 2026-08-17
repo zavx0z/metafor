@@ -119,16 +119,15 @@
       "name": "@metafor/hamiltonian",
       "version": "0.1.0",
       "dependencies": {
+        "@hamiltonian/release": "workspace:^0.1.0",
+        "@hamiltonian/startup": "workspace:*",
         "@hamiltonian/visual": "workspace:*",
-        "@internal/visual": "workspace:^0.1.1",
+        "@internal/visual": "workspace:^0.1.8",
         "@metafor/engine": "workspace:*",
         "@metafor/web-push": "workspace:*",
         "@nodes/hud": "workspace:*",
         "@nodes/layout": "workspace:*",
         "@nodes/ui": "workspace:*",
-        "@release/main": "workspace:^0.1.3",
-        "@release/server": "workspace:*",
-        "@release/service": "workspace:^0.1.3",
         "@ui/components": "workspace:*",
         "@ui/elements": "workspace:*",
         "nodes": "workspace:*",
@@ -142,11 +141,31 @@
     },
     "hamiltonian/internal/visual": {
       "name": "@internal/visual",
-      "version": "0.1.1",
+      "version": "0.1.8",
       "dependencies": {
         "@metafor/engine": "workspace:*",
         "@ui/elements": "workspace:*",
         "@ui/hud": "workspace:*",
+      },
+    },
+    "hamiltonian/release": {
+      "name": "@hamiltonian/release",
+      "version": "0.1.0",
+      "dependencies": {
+        "@internal/visual": "workspace:^0.1.8",
+      },
+      "devDependencies": {
+        "@types/serviceworker": "^0.0.200",
+      },
+    },
+    "hamiltonian/startup": {
+      "name": "@hamiltonian/startup",
+      "version": "0.1.0",
+      "dependencies": {
+        "@hamiltonian/release": "workspace:^0.1.0",
+      },
+      "devDependencies": {
+        "@types/serviceworker": "^0.0.200",
       },
     },
     "hamiltonian/visual": {
@@ -160,35 +179,6 @@
         "@ui/elements": "workspace:*",
         "@ui/hud": "workspace:*",
         "nodes": "workspace:*",
-      },
-    },
-    "hamiltonian/web/release/main": {
-      "name": "@release/main",
-      "version": "0.1.3",
-      "dependencies": {
-        "@internal/visual": "workspace:^0.1.0",
-      },
-    },
-    "hamiltonian/web/release/server": {
-      "name": "@release/server",
-      "version": "0.1.0",
-    },
-    "hamiltonian/web/release/service": {
-      "name": "@release/service",
-      "version": "0.1.3",
-      "devDependencies": {
-        "@types/serviceworker": "^0.0.200",
-      },
-    },
-    "hamiltonian/web/startup/main": {
-      "name": "@startup/main",
-      "version": "0.1.0",
-    },
-    "hamiltonian/web/startup/service": {
-      "name": "@startup/service",
-      "version": "0.1.0",
-      "devDependencies": {
-        "@types/serviceworker": "^0.0.200",
       },
     },
     "matrix": {
@@ -342,6 +332,10 @@
 
     "@gerrit0/mini-shiki": ["@gerrit0/mini-shiki@3.23.0", "", { "dependencies": { "@shikijs/engine-oniguruma": "^3.23.0", "@shikijs/langs": "^3.23.0", "@shikijs/themes": "^3.23.0", "@shikijs/types": "^3.23.0", "@shikijs/vscode-textmate": "^10.0.2" } }, "sha512-bEMORlG0cqdjVyCEuU0cDQbORWX+kYCeo0kV1lbxF5bt4r7SID2l9bqsxJEM0zndaxpOUT7riCyIVEuqq/Ynxg=="],
 
+    "@hamiltonian/release": ["@hamiltonian/release@workspace:hamiltonian/release"],
+
+    "@hamiltonian/startup": ["@hamiltonian/startup@workspace:hamiltonian/startup"],
+
     "@hamiltonian/visual": ["@hamiltonian/visual@workspace:hamiltonian/visual"],
 
     "@internal/visual": ["@internal/visual@workspace:hamiltonian/internal/visual"],
@@ -402,12 +396,6 @@
 
     "@puppeteer/browsers": ["@puppeteer/browsers@3.0.6", "", { "dependencies": { "modern-tar": "^0.7.6", "yargs": "^18.0.0" }, "peerDependencies": { "proxy-agent": ">=8.0.1", "yauzl": "^2.10.0 || ^3.4.0" }, "optionalPeers": ["proxy-agent", "yauzl"], "bin": { "browsers": "lib/main-cli.js" } }, "sha512-B/gKoqlFkzhvzsI6jo9K1cZz9o5ypviVv/xu8CwA4grZzyVwN+XfkT+tu8T1zrauuEXv6VhS2oGX+6NL95WcKA=="],
 
-    "@release/main": ["@release/main@workspace:hamiltonian/web/release/main"],
-
-    "@release/server": ["@release/server@workspace:hamiltonian/web/release/server"],
-
-    "@release/service": ["@release/service@workspace:hamiltonian/web/release/service"],
-
     "@shikijs/engine-oniguruma": ["@shikijs/engine-oniguruma@3.23.0", "", { "dependencies": { "@shikijs/types": "3.23.0", "@shikijs/vscode-textmate": "^10.0.2" } }, "sha512-1nWINwKXxKKLqPibT5f4pAFLej9oZzQTsby8942OTlsJzOBZ0MWKiwzMsd+jhzu8YPCHAswGnnN1YtQfirL35g=="],
 
     "@shikijs/langs": ["@shikijs/langs@3.23.0", "", { "dependencies": { "@shikijs/types": "3.23.0" } }, "sha512-2Ep4W3Re5aB1/62RSYQInK9mM3HsLeB91cHqznAJMuylqjzNVAVCMnNWRHFtcNHXsoNRayP9z1qj4Sq3nMqYXg=="],
@@ -419,10 +407,6 @@
     "@shikijs/vscode-textmate": ["@shikijs/vscode-textmate@10.0.2", "https://registry.yarnpkg.com/@shikijs/vscode-textmate/-/vscode-textmate-10.0.2.tgz", {}, "sha512-83yeghZ2xxin3Nj8z1NMd/NCuca+gsYXswywDy5bHvwlWL8tpTQmzGeUuHd9FC3E/SBEMvzJRwWEOz5gGes9Qg=="],
 
     "@shinyoshiaki/binary-data": ["@shinyoshiaki/binary-data@0.6.1", "", { "dependencies": { "generate-function": "^2.3.1", "is-plain-object": "^2.0.3" } }, "sha512-7HDb/fQAop2bCmvDIzU5+69i+UJaFgIVp99h1VzK1mpg1JwSODOkjbqD7ilTYnqlnadF8C4XjpwpepxDsGY6+w=="],
-
-    "@startup/main": ["@startup/main@workspace:hamiltonian/web/startup/main"],
-
-    "@startup/service": ["@startup/service@workspace:hamiltonian/web/startup/service"],
 
     "@types/bun": ["@types/bun@1.3.14", "", { "dependencies": { "bun-types": "1.3.14" } }, "sha512-h1hFqFVcvAvD9j9K7ZW7vd82aSA+rTdznZa+5bwvCwqSB1jmmfLcbIWhOLx1/+boy/xmjgCs/OMUL8hRJSmnPw=="],
 

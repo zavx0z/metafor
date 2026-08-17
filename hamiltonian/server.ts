@@ -9,8 +9,7 @@ import {
   rpcServiceTopic,
   type RpcSocketData,
   upgradeRpc
-} from "@release/server"
-
+} from "@hamiltonian/release"
 await recoverPublication()
 
 Bun.serve<RpcSocketData>({
@@ -26,8 +25,7 @@ Bun.serve<RpcSocketData>({
       if (!await file.exists()) return new Response(null, {status: 404})
       return new Response(file)
     },
-    "/@startup/:module": {GET: getPackage},
-    "/@release/:module": {GET: getPackage},
+    "/@hamiltonian/:module": {GET: getPackage},
     "/@internal/:module": {GET: getPackage},
     "/@metafor/:module": {GET: getPackage},
     "/code": {

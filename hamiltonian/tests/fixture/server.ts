@@ -6,6 +6,7 @@ import {
   openRpc,
   packageResponse,
   packageChanges,
+  recoverPublication,
   releaseChangedMessage,
   releasedPackages,
   rpcServiceTopic,
@@ -14,7 +15,7 @@ import {
   type ReleasablePackage,
   type ReleasedPackage,
   type VersionChange,
-} from "../../web/release/server"
+} from "../../release/server"
 import {
   parseBrowserPackageUrl,
 } from "../../web/package-url"
@@ -39,12 +40,16 @@ const requests = {
 }
 const revisions: Record<ReleasablePackage, number> = {
   "@internal/visual": 0,
-  "@release/main": 0,
-  "@release/service": 0,
+  "@hamiltonian/release": 0,
 }
-const initialPackages = await releasedPackages()
+const initialPackages = await fixtureInitialPackages()
 const versions = new Map(initialPackages.map(({name, version}) => [name, version]))
-const environments = new Map(initialPackages.map(({name, env}) => [name, env]))
+const environments = new Map<ReleasablePackage, BrowserPackageEnvironment[]>()
+for (const {name, env} of initialPackages) {
+  const packageEnvironments = environments.get(name) ?? []
+  packageEnvironments.push(env)
+  environments.set(name, packageEnvironments)
+}
 let buildRequests = 0
 let updateFetchFailures = 0
 let connections = 0
@@ -76,8 +81,7 @@ const server = Bun.serve<RpcSocketData>({
       if (!await file.exists()) return new Response(null, {status: 404})
       return new Response(file)
     },
-    "/@startup/:module": {GET: fixtureArtifactResponse},
-    "/@release/:module": {GET: fixtureArtifactResponse},
+    "/@hamiltonian/:module": {GET: fixtureArtifactResponse},
     "/@internal/:module": {GET: fixtureArtifactResponse},
     "/@metafor/:module": {GET: fixtureArtifactResponse},
     "/code": {
@@ -91,26 +95,39 @@ const server = Bun.serve<RpcSocketData>({
         if (packages instanceof Response) return packages
         buildRequests += 1
         const failed = fault === "update-build-failure-once" && buildRequests === 1
-        const results = packages.map(({name, change}, index) => ({
-          module: name,
-          env: environments.get(name)!,
+        const plans = packages.map(({name, change}) => ({
+          name,
           change,
           previousVersion: versions.get(name)!,
           version: changedVersion(versions.get(name)!, change),
-          success: !failed || index !== packages.length - 1,
-          exitCode: !failed || index !== packages.length - 1 ? 0 : 1,
-          stdout: "",
-          stderr: !failed || index !== packages.length - 1 ? "" : "Fixture build failed",
-          outputs: [],
         }))
+        const results = plans.flatMap((plan) => (environments.get(plan.name) ?? []).map((env) => ({
+          module: plan.name,
+          env,
+          change: plan.change,
+          previousVersion: plan.previousVersion,
+          version: plan.version,
+          success: true,
+          exitCode: 0,
+          stdout: "",
+          stderr: "",
+          outputs: [],
+        })))
+        if (failed && results.length > 0) {
+          const result = results.at(-1)!
+          result.success = false
+          result.exitCode = 1
+          result.stderr = "Fixture build failed"
+        }
         const success = results.every((result) => result.success)
         if (!success) return Response.json({success, results, packages: []}, {status: 422})
 
-        for (const result of results) {
-          versions.set(result.module, result.version)
-          revisions[result.module] = (revisions[result.module] ?? 0) + 1
+        for (const plan of plans) {
+          versions.set(plan.name, plan.version)
+          revisions[plan.name] = (revisions[plan.name] ?? 0) + 1
         }
-        const released = await Promise.all(results.map(({module}) => fixturePackage(module)))
+        const released = (await Promise.all(plans.map(({name}) => fixturePackageEnvironments(name))))
+          .flat()
         server.publish(rpcServiceTopic, JSON.stringify(releaseChangedMessage()))
         return Response.json({success, results, packages: released})
       },
@@ -158,7 +175,7 @@ async function artifactResponse(
   const source = revision === 0
     ? original
     : `${original}\nconsole.info(${JSON.stringify(`fixture ${module} ${revision}`)})`
-  const integrity = await artifactIntegrity(new TextEncoder().encode(source).buffer)
+  const integrity = await artifactIntegrity(new TextEncoder().encode(source).buffer as ArrayBuffer)
   const headers = new Headers(response.headers)
   for (const [header, value] of Object.entries(packageIdentityHeaders({
     name: module,
@@ -177,10 +194,11 @@ async function fixtureArtifactResponse(request: Request) {
   if (module === null) return new Response(null, {status: 404})
 
   switch (module) {
-    case "@release/main":
-      requests.releaseMain += 1
-      return await artifactResponse(module, artifact.env)
-    case "@release/service":
+    case "@hamiltonian/release": {
+      if (artifact.env === "main") {
+        requests.releaseMain += 1
+        return await artifactResponse(module, artifact.env)
+      }
       requests.releaseService += 1
       if (fault === "release-service-http-once" && requests.releaseService === 1) {
         return new Response("Service release unavailable", {
@@ -191,10 +209,12 @@ async function fixtureArtifactResponse(request: Request) {
       if (
         fault === "update-fetch-failure-once"
         && (revisions[module] ?? 0) > 0
+        && artifact.env === "service-worker"
         && url.searchParams.has("version")
         && updateFetchFailures++ === 0
       ) return new Response("Update artifact unavailable", {status: 503})
       return await artifactResponse(module, artifact.env)
+    }
     case "@internal/visual":
       requests.internalVisual += 1
       return await artifactResponse(module, artifact.env)
@@ -204,12 +224,18 @@ async function fixtureArtifactResponse(request: Request) {
 }
 
 async function fixturePackages(): Promise<ReleasedPackage[]> {
-  return await Promise.all([...versions].map(([name]) => fixturePackage(name)))
+  return (await Promise.all([...versions].map(([name]) => fixturePackageEnvironments(name)))).flat()
 }
 
-async function fixturePackage(name: ReleasablePackage): Promise<ReleasedPackage> {
+async function fixturePackageEnvironments(name: ReleasablePackage) {
+  return await Promise.all((environments.get(name) ?? []).map((env) => fixturePackage(name, env)))
+}
+
+async function fixturePackage(
+  name: ReleasablePackage,
+  env: BrowserPackageEnvironment,
+): Promise<ReleasedPackage> {
   const version = versions.get(name)!
-  const env = environments.get(name)!
   const response = await artifactResponse(name, env)
   const sha256 = response.headers.get("X-Package-SHA256")
   const size = Number(response.headers.get("X-Package-Size"))
@@ -237,4 +263,20 @@ function changedVersion(version: string, change: VersionChange) {
     patch += 1
   }
   return `${major}.${minor}.${patch}`
+}
+
+async function fixtureInitialPackages() {
+  try {
+    return await releasedPackages()
+  } catch {
+    const environment = Bun.env.NODE_ENV
+    Bun.env.NODE_ENV = "production"
+    try {
+      await recoverPublication()
+      return await releasedPackages()
+    } finally {
+      if (environment === undefined) delete Bun.env.NODE_ENV
+      else Bun.env.NODE_ENV = environment
+    }
+  }
 }

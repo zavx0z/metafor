@@ -3,17 +3,16 @@ import {fileURLToPath} from "node:url"
 
 const hamiltonianRoot = fileURLToPath(new URL(".", import.meta.url))
 const serverPath = fileURLToPath(new URL("./server.ts", import.meta.url))
-const releaseDeliveryPath = fileURLToPath(new URL("./web/release/server/delivery.ts", import.meta.url))
-const releaseUpdatePath = fileURLToPath(new URL("./web/release/server/update.ts", import.meta.url))
-const rpcServerPath = fileURLToPath(new URL("./web/release/server/rpc/index.ts", import.meta.url))
+const releaseDeliveryPath = fileURLToPath(new URL("./release/server/delivery.ts", import.meta.url))
+const releaseUpdatePath = fileURLToPath(new URL("./release/server/update.ts", import.meta.url))
+const rpcServerPath = fileURLToPath(new URL("./release/server/rpc/index.ts", import.meta.url))
 
 const routes = [
   '"/"',
   '"/manifest.webmanifest"',
   '"/assets/fonts/JetBrainsMono-Bold.ttf"',
   '"/assets/*"',
-  '"/@startup/:module"',
-  '"/@release/:module"',
+  '"/@hamiltonian/:module"',
   '"/@internal/:module"',
   '"/@metafor/:module"',
   '"/code"',
@@ -29,13 +28,13 @@ describe("Hamiltonian singleton server boundary", () => {
     }
 
     expect(packageJson.scripts?.start).toBe(
-      "bun --conditions=metafor:server --port=4444 server",
+      "bun --conditions=hamiltonian:server --conditions=internal:server --port=4444 server",
     )
     expect(source.match(/Bun\.serve</g)).toHaveLength(1)
     expect(source.indexOf("await recoverPublication()"))
       .toBeLessThan(source.indexOf("Bun.serve<RpcSocketData>"))
     expect(source).not.toContain("class ")
-    expect(source).toContain('from "@release/server"')
+    expect(source).toContain('from "@hamiltonian/release"')
     expect(source).not.toContain("@internal/rpc")
     expect(source).toContain("GET: getRelease")
     expect(source).toMatch(/POST: \(request: Request, server: Bun\.Server<RpcSocketData>\) => publishRelease\(request/)
@@ -72,7 +71,7 @@ describe("Hamiltonian singleton server boundary", () => {
     expect(rpcServer).not.toMatch(/Bun\.serve\s*[<(]/)
   })
 
-  test("keeps the complete RPC implementation inside @release/server", async () => {
+  test("keeps the complete RPC implementation inside @hamiltonian/release server env", async () => {
     const source = await Bun.file(rpcServerPath).text()
     expect(source).toContain("socket.subscribe(rpcServiceTopic)")
     expect(source).toContain("socket.unsubscribe(rpcServiceTopic)")

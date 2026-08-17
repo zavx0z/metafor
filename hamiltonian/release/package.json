@@ -1,0 +1,25 @@
+{
+  "name": "@hamiltonian/release",
+  "version": "0.1.3",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "hamiltonian:main": "./main/index.ts",
+      "hamiltonian:service-worker": "./service-worker/index.ts",
+      "hamiltonian:server": "./server/index.ts"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --project tsconfig.json --pretty false",
+    "build:main": "bun build ./main/index.ts --conditions=hamiltonian:main --conditions=internal:main --target=browser --packages=external --production --minify --drop console.debug --outfile=dist/main.js",
+    "build:service-worker": "bun build ./service-worker/index.ts --conditions=hamiltonian:service-worker --target=browser --format=cjs --production --minify --drop console.debug --outfile=dist/service-worker.js",
+    "build:server": "bun build ./server/index.ts --conditions=hamiltonian:server --conditions=internal:server --target=bun --packages=external --production --minify --drop console.debug --outfile=dist/server.js"
+  },
+  "dependencies": {
+    "@internal/visual": "workspace:^0.1.10"
+  },
+  "devDependencies": {
+    "@types/serviceworker": "^0.0.200"
+  }
+}

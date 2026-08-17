@@ -1,0 +1,20 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "customConditions": [
+      "hamiltonian:service-worker"
+    ],
+    "lib": [
+      "ESNext",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "types": [
+      "serviceworker"
+    ]
+  },
+  "include": [
+    "**/*.ts"
+  ],
+  "exclude": []
+}

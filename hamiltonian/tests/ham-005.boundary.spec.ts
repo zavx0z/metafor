@@ -1,7 +1,7 @@
 import {expect, setDefaultTimeout, test} from "bun:test"
 import {fileURLToPath} from "node:url"
 import {join} from "node:path"
-import {buildPackage} from "../web/release/server"
+import {buildPackage} from "../release/server"
 
 const hamiltonian = fileURLToPath(new URL("../", import.meta.url))
 
@@ -10,46 +10,47 @@ setDefaultTimeout(30_000)
 test("HAM-005 creates one standard Window environment through internal visual", async () => {
   const [html, main, visual, displayDock, mainPackage, visualPackage, visualBunfig, packageBuild, server, startupMain] = await Promise.all([
     Bun.file(join(hamiltonian, "web/static/index.html")).text(),
-    Bun.file(join(hamiltonian, "web/release/main/main.ts")).text(),
-    Bun.file(join(hamiltonian, "internal/visual/index.ts")).text(),
-    Bun.file(join(hamiltonian, "internal/visual/display-dock.ts")).text(),
-    Bun.file(join(hamiltonian, "web/release/main/package.json")).json() as Promise<{
+    Bun.file(join(hamiltonian, "release/main/index.ts")).text(),
+    Bun.file(join(hamiltonian, "internal/visual/main/index.ts")).text(),
+    Bun.file(join(hamiltonian, "internal/visual/main/display-dock.ts")).text(),
+    Bun.file(join(hamiltonian, "release/package.json")).json() as Promise<{
       dependencies?: Record<string, string>
       scripts?: Record<string, string>
     }>,
     Bun.file(join(hamiltonian, "internal/visual/package.json")).json() as Promise<{
       name?: string
-      exports?: {"."?: {"metafor:main"?: {types?: string, browser?: string}}}
+      exports?: {"."?: Record<string, string>}
       dependencies?: Record<string, string>
       artifact?: unknown
       scripts?: Record<string, string>
     }>,
     Bun.file(join(hamiltonian, "internal/visual/bunfig.toml")).text(),
-    Bun.file(join(hamiltonian, "web/release/server/package.ts")).text(),
+    Bun.file(join(hamiltonian, "release/server/package.ts")).text(),
     Bun.file(join(hamiltonian, "server.ts")).text(),
-    Bun.file(join(hamiltonian, "web/startup/main/index.ts")).text(),
+    Bun.file(join(hamiltonian, "startup/main/index.ts")).text(),
   ])
 
   expect(html.match(/<canvas\b/g)).toHaveLength(1)
   expect(html).toContain('<canvas id="visual-canvas"></canvas>')
   expect(html).toContain("#visual-canvas")
   expect(html.match(/<script\b[^>]*\bsrc=/g)).toHaveLength(1)
-  expect(html).toContain('src="/@startup/main?env=main"')
-  expect(html).toContain('"@release/main": "/@release/main?env=main"')
+  expect(html).toContain('src="/@hamiltonian/startup?env=main"')
+  expect(html).toContain('"@hamiltonian/release": "/@hamiltonian/release?env=main"')
   expect(html).toContain('"@internal/visual": "/@internal/visual?env=main"')
 
   expect(main).toContain('const {runtime} = await import("@internal/visual")')
-  expect(main).toContain('console.debug("[@release/main]", "Visual runtime подключён", {')
+  expect(main).toContain('console.debug("[@hamiltonian/release:main]", "Visual runtime подключён", {')
   expect(main).toContain("runtime: Object.keys(runtime)")
-  expect(mainPackage.dependencies).toEqual({"@internal/visual": "workspace:^0.1.0"})
+  expect(mainPackage.dependencies).toEqual({"@internal/visual": "workspace:^0.1.10"})
   expect(visualPackage.name).toBe("@internal/visual")
   expect(visualPackage.exports?.["."]).toEqual({
-    "metafor:main": {types: "./index.ts", browser: "./index.ts"},
+    "internal:main": "./main/index.ts",
+    "internal:server": "./server/index.ts",
   })
   expect(visualPackage.artifact).toBeUndefined()
-  expect(visualPackage.scripts?.prebuild).toBe("bun run typecheck")
-  expect(visualPackage.scripts?.build).toBe(
-    "bun build ./index.ts --conditions=metafor:main --target=browser --production --minify --drop console.debug --outfile=dist/index.js",
+  expect(visualPackage.scripts?.prebuild).toBeUndefined()
+  expect(visualPackage.scripts?.["build:main"]).toBe(
+    "bun build ./main/index.ts --conditions=internal:main --target=browser --production --minify --drop console.debug --outfile=dist/main.js",
   )
   expect(visualPackage.dependencies?.["@ui/elements"]).toBe("workspace:*")
   expect(visualPackage.dependencies?.["@metafor/engine"]).toBe("workspace:*")
@@ -59,7 +60,7 @@ test("HAM-005 creates one standard Window environment through internal visual", 
   expect(visual).toContain('import {DisplayDockSurface} from "./display-dock.ts"')
   expect(visual).toContain("export const runtime = await UiRuntime.create(canvas")
   expect(visual).toContain(
-    'console.debug("[@internal/visual]", "основное visual-окружение создано", {',
+    'console.debug("[@internal/visual:main]", "основное visual-окружение создано", {',
   )
   expect(visual).not.toContain("visualEnvironment")
   expect(visual).not.toContain("createVisualEnvironment")
@@ -89,21 +90,21 @@ test("HAM-005 creates one standard Window environment through internal visual", 
   expect(visual).not.toContain("@hamiltonian/visual")
   expect(visual).not.toContain("browser/orchestration")
   expect(visualBunfig).toContain('".wgsl" = "text"')
-  expect(mainPackage.scripts?.prebuild).toBe("bun run typecheck")
-  expect(mainPackage.scripts?.build).toBe(
-    "bun build ./main.ts --conditions=metafor:main --target=browser --packages=external --production --minify --drop console.debug --outfile=dist/index.js",
+  expect(mainPackage.scripts?.prebuild).toBeUndefined()
+  expect(mainPackage.scripts?.["build:main"]).toBe(
+    "bun build ./main/index.ts --conditions=hamiltonian:main --conditions=internal:main --target=browser --packages=external --production --minify --drop console.debug --outfile=dist/main.js",
   )
   expect(packageBuild).toContain("packageArtifactPath(location.root, build)")
 
   expect(server).toContain('"/assets/fonts/JetBrainsMono-Bold.ttf"')
   expect(server).toContain('new URL("../pkg/engine/static/JetBrainsMono-Bold.ttf"')
-  expect(startupMain).toContain('import("@release/main")')
+  expect(startupMain).toContain('import("@hamiltonian/release")')
   expect(startupMain).not.toContain("UiRuntime")
 })
 
 test("UPD-002 builds Window release and internal visual as separate artifacts", async () => {
   const [main, visual] = await Promise.all([
-    buildPackage("@release/main", {env: "main"}),
+    buildPackage("@hamiltonian/release", {env: "main"}),
     buildPackage("@internal/visual", {env: "main"}),
   ])
   const mainOutput = main.outputs[0]

@@ -11,7 +11,7 @@ source map. Временные diagnostics писать через `console.debu
 третьим — структурированные данные, например:
 
 ```ts
-console.debug("[@release/service:update]", "новая сборка загружена", {
+console.debug("[@hamiltonian/release:service-worker:update]", "новая сборка загружена", {
   cache,
   source,
   status,
@@ -27,33 +27,33 @@ console.debug("[@release/service:update]", "новая сборка загруж
   содержать разные entrypoints для Window, browser Worker, Service Worker,
   Bun server и server Worker; новую функциональность размещать в принадлежащем
   ей internal package.
-* `@release/main` и `@release/service` — запускаемые Window- и Service
-  Worker-входы release. Они определяют состав используемых `@internal/*`
-  packages и меняются вместе с этим составом. RPC Service Worker является
-  внутренней частью `@release/service`, а не отдельным browser package.
+* `@hamiltonian/release` — один package с env `main`, `service-worker` и
+  `server`. Он определяет состав используемых `@internal/*` packages и
+  меняется вместе с этим составом. RPC Service Worker является внутренней
+  частью env `service-worker`, а не отдельным browser package.
   `@internal/visual` при этом остаётся самостоятельным artifact с cache owner
-  `internal`; source и готовая сборка `@release/main` импортируют его как
+  `internal`; source и готовая сборка release main импортируют его как
   `@internal/visual`, а import map разрешает specifier в
   `/@internal/visual?env=main`.
-* `@release/server` — server-владелец чтения package manifests, сборки,
-  версий, атомарной публикации release, namespace routes browser artifacts,
-  control endpoint `/code` и server-реализации RPC.
-  Browser-код из него не загружается.
-* `@startup/main` и `@startup/service` — фиксированный startup. В обычной
-  разработке не менять и через endpoint обновления не передавать. Они явно
-  объявляют загружаемые release dependencies; Loader type принадлежит
-  `@release/service`, а startup предоставляет его реализацию через type-only
-  bare import.
+  Env `server` того же package владеет чтением manifests, сборкой, версиями,
+  атомарной публикацией, routes, `/code` и server-реализацией RPC; его artifact
+  не загружается browser.
+* `@hamiltonian/startup` — один фиксированный package с env `main` и
+  `service-worker`. В обычной разработке его не менять и через endpoint
+  обновления не передавать. Он объявляет dependency на
+  `@hamiltonian/release`; Loader type принадлежит release, а startup
+  предоставляет реализацию через type-only bare import.
 
 Имя модуля брать только из поля `name` его `package.json`.
 Сменяемый package также объявляет точную `version`. Cache owner не записывать в
-manifest: он выводится из namespace package (`startup`, `release`, `internal`
-или `metafor`).
+manifest: `@hamiltonian/startup` принадлежит `startup`,
+`@hamiltonian/release` — `release`, `@internal/*` — `internal`, а
+`@metafor/*` — `metafor`.
 Последние доказанные версии перечислены в dependencies корневого Hamiltonian
 package как `workspace:^<version>`.
 
-Эти caret dependencies являются полным browser release membership. Runtime
-dependency `@release/*` или `@internal/*` каждого участника обязан находиться в
+Caret dependencies `@hamiltonian/release` и `@internal/*` являются полным
+browser release membership. Runtime dependency участника обязан находиться в
 том же membership, а выбранная version — удовлетворять его workspace range.
 Не обходить эту проверку ручным удалением либо несовместимым version bump.
 
@@ -66,34 +66,17 @@ subpath. Разные entrypoints одного package объявлять ста
 {
   "exports": {
     ".": {
-      "metafor:main": {
-        "types": "./main.ts",
-        "browser": "./main.ts"
-      },
-      "metafor:worker": {
-        "types": "./worker.ts",
-        "browser": "./worker.ts"
-      },
-      "metafor:service-worker": {
-        "types": "./service-worker.ts",
-        "browser": "./service-worker.ts"
-      },
-      "metafor:server": {
-        "types": "./server.ts",
-        "bun": "./server.ts"
-      },
-      "metafor:server-worker": {
-        "types": "./server-worker.ts",
-        "bun": "./server-worker.ts"
-      }
+      "internal:main": "./main/index.ts",
+      "internal:server": "./server/index.ts"
     }
   }
 }
 ```
 
-Package объявляет только поддерживаемые branches. `default` fallback не
-добавлять: builder выбирает одну condition `metafor:<env>`, а TypeScript — ту
-же condition через `customConditions`. Поддерживаемые env и цели:
+Condition всегда имеет вид `<scope>:<env>`, а entrypoint — только
+`./<env>/index.ts`. Package объявляет только поддерживаемые branches. `default`
+fallback не добавлять: builder и TypeScript выбирают нужную condition.
+Поддерживаемые env и цели:
 
 | Env | Исполнение | Target |
 | --- | ---------- | ------ |
@@ -104,23 +87,21 @@ Package объявляет только поддерживаемые branches. `
 | `server-worker` | Worker, созданный Bun server | `bun` |
 
 `server` и `server-worker` всегда являются разными env, даже если используют
-один target. Каждый объявленный env отдельно typecheck-ится и собирается. Один
-SemVer принадлежит всему package: изменение одного env требует новой package
-version и полного набора объявленных artifacts этой версии. Неизменившийся
-package не пересобирать и не заменять.
+один target. Package объявляет один `typecheck` для всего source composition и
+по одному `build:<env>`. `prebuild`, generic `build` и `typecheck:<env>` не
+объявляются. Executor запускает `typecheck` один раз и только после успеха —
+все нужные env builds. Один SemVer принадлежит всему package: изменение одного
+env требует новой package version и полного набора объявленных artifacts этой
+версии. Неизменившийся package не пересобирать и не заменять.
 
-Для каждого branch package объявляет `typecheck:<env>`, `prebuild:<env>` и
-`build:<env>`. `prebuild:<env>` запускает соответствующий typecheck, а direct
-production-команда `build:<env>` содержит ту же `--conditions=metafor:<env>` и
-target. Bun `1.3.14` не разрешает bare package specifier как CLI build
+Direct production-команда `build:<env>` повторяет `./<env>/index.ts`, выбирает
+condition `<scope>:<env>` и точный target. Bun `1.3.14` не разрешает bare package specifier как CLI build
 entrypoint, поэтому команда повторяет source path branch `exports`; release
 server принимает её только при точном совпадении. Bare imports внутри source и
 готового ESM artifact при этом сохраняются.
 
 Package-owned `--outfile` определяет внутренний путь artifact. Outfile разных
 env одного package не должен совпадать; обязательного `dist/<env>` layout нет.
-Общий `scripts.build` package собирает все его env для локального production
-build; у package с одним env он может совпадать с единственным `build:<env>`.
 Release server кеширует только найденные root и manifest path, а содержимое
 `package.json` перечитывает и проверяет перед каждым typecheck/build.
 
@@ -152,7 +133,7 @@ GET /<package-name>?env=<env>&version=<semver>
 ```
 
 Service Worker перехватывает стабильный package URL, но сохраняет code только
-по точному versioned endpoint в cache владельца namespace: `@release/*` —
+по точному versioned endpoint в cache владельца: `@hamiltonian/release` —
 `release`, `@internal/*` — `internal`, `@metafor/*` — `metafor`. Имя отдельного
 package в правила кэширования не добавлять. В каждом canonical owner cache
 допустима не более чем одна exact entry на `(package, env)`; постоянных stable
@@ -170,7 +151,7 @@ intent безопасно удаляется. Cache Storage вида `<owner>:re
 Пример:
 
 ```text
-GET http://127.0.0.1:4444/@release/service?env=service-worker
+GET http://127.0.0.1:4444/@hamiltonian/release?env=service-worker
 GET http://127.0.0.1:4444/@internal/visual?env=main&version=0.1.3
 ```
 
@@ -205,15 +186,16 @@ Content-Type: application/json
 
 {
   "packages": [
-    {"name": "@release/main", "change": "patch"},
-    {"name": "@release/service", "change": "minor"}
+    {"name": "@hamiltonian/release", "change": "patch"},
+    {"name": "@internal/visual", "change": "minor"}
   ]
 }
 ```
 
 `change` принимает только `patch`, `minor` или `major`. Готовый номер версии не
 передавать: host вычисляет его от последней доказанной версии. Передавать одной
-группой все изменённые взаимозависимые `@release/*` и `@internal/*` packages.
+группой все изменённые взаимозависимые `@hamiltonian/release` и `@internal/*`
+packages.
 Query parameters для `POST` не использовать. После успешного ответа browser
 транзакционно обновит всю группу и перезагрузится сам.
 

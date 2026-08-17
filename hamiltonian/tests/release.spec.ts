@@ -1,4 +1,4 @@
-import {expect, test} from "bun:test"
+import {beforeAll, expect, setDefaultTimeout, test} from "bun:test"
 import {
   getPackage,
   getRelease,
@@ -6,6 +6,7 @@ import {
   notifyRelease,
   packageChanges,
   packageOwners,
+  recoverPublication,
   readReleaseComposition,
   releaseDelta,
   parseReleaseChangedMessage,
@@ -17,7 +18,7 @@ import {
   validateBrowserReleaseEnvironments,
   validateReleaseDependencyGraph,
   validateTargetReleaseVersions,
-} from "../web/release/server"
+} from "../release/server"
 import {
   artifactIntegrity,
   packageIdentityHeaders,
@@ -28,13 +29,19 @@ import {
   browserPackageUrl,
   parseBrowserPackageUrl,
 } from "../web/package-url"
-import {cachedPackageIdentity} from "../web/release/service/current"
+import {cachedPackageIdentity} from "../release/service-worker/current"
+
+setDefaultTimeout(30_000)
+
+beforeAll(async () => {
+  await recoverPublication()
+})
 
 test("package state comes from root caret dependencies", async () => {
   const packages = await releasedPackages()
   expect(packages.map(({name}) => name)).toEqual([
-    "@release/main",
-    "@release/service",
+    "@hamiltonian/release",
+    "@hamiltonian/release",
     "@internal/visual",
   ])
   expect(packages.map(({env}) => env)).toEqual(["main", "service-worker", "main"])
@@ -54,35 +61,33 @@ test("package state comes from root caret dependencies", async () => {
 test("POST accepts package names and SemVer change but never a ready version", async () => {
   const valid = await packageChanges(request({
     packages: [
-      {name: "@release/main", change: "patch"},
-      {name: "@release/service", change: "minor"},
+      {name: "@hamiltonian/release", change: "patch"},
       {name: "@internal/visual", change: "patch"},
-      {name: "@release/main", change: "patch"},
+      {name: "@hamiltonian/release", change: "patch"},
     ],
   }))
   expect(valid).toEqual([
-    {name: "@release/main", change: "patch"},
-    {name: "@release/service", change: "minor"},
+    {name: "@hamiltonian/release", change: "patch"},
     {name: "@internal/visual", change: "patch"},
   ])
 
   const explicitVersion = await packageChanges(request({
-    packages: [{name: "@release/main", change: "patch", version: "9.9.9"}],
+    packages: [{name: "@hamiltonian/release", change: "patch", version: "9.9.9"}],
   }))
   expect(explicitVersion).toBeInstanceOf(Response)
   expect((explicitVersion as Response).status).toBe(400)
 
   const conflicting = await packageChanges(request({
     packages: [
-      {name: "@release/main", change: "patch"},
-      {name: "@release/main", change: "major"},
+      {name: "@hamiltonian/release", change: "patch"},
+      {name: "@hamiltonian/release", change: "major"},
     ],
   }))
   expect(conflicting).toBeInstanceOf(Response)
   expect((conflicting as Response).status).toBe(400)
 
   const startup = await packageChanges(request({
-    packages: [{name: "@startup/main", change: "patch"}],
+    packages: [{name: "@hamiltonian/startup", change: "patch"}],
   }))
   expect(startup).toBeInstanceOf(Response)
   expect((startup as Response).status).toBe(404)
@@ -91,8 +96,7 @@ test("POST accepts package names and SemVer change but never a ready version", a
 test("release membership is closed over compatible runtime dependencies", async () => {
   const current = await readReleaseComposition()
   expect(current.map(({name}) => name)).toEqual([
-    "@release/main",
-    "@release/service",
+    "@hamiltonian/release",
     "@internal/visual",
   ])
   expect(() => validateReleaseDependencyGraph(current)).not.toThrow()
@@ -120,10 +124,10 @@ test("release membership is closed over compatible runtime dependencies", async 
   expect(satisfiesWorkspaceRange("0.1.9", "workspace:^0.1.3")).toBeTrue()
   expect(satisfiesWorkspaceRange("0.2.0", "workspace:^0.1.3")).toBeFalse()
   expect(satisfiesWorkspaceRange("0.0.4", "workspace:^0.0.3")).toBeFalse()
-  const serverOwners = await packageOwners("@release/server")
+  const serverOwners = await packageOwners("@hamiltonian/release")
   expect(() => validateBrowserReleaseEnvironments(
-    "@release/server",
-    serverOwners,
+    "@hamiltonian/release",
+    serverOwners.filter(({env}) => env === "server"),
   )).toThrow("has no browser environment")
 })
 
@@ -169,7 +173,7 @@ test("Worker accepts only complete artifact identity without endpoint or cache",
     name: "@internal/visual",
     env: "main" as const,
     version: "1.2.3",
-    ...await artifactIntegrity(bytes.buffer),
+    ...await artifactIntegrity(bytes.buffer as ArrayBuffer),
   }
   expect(parseReleaseDeltaMessage({
     type: "release-delta",
@@ -252,7 +256,7 @@ test("server delta omits unchanged entries and separates update from removal", (
     size: 42,
   }
   const service = {
-    name: "@release/service",
+    name: "@hamiltonian/release",
     env: "service-worker" as const,
     version: "2.0.0",
     sha256: "b".repeat(64),
@@ -287,7 +291,7 @@ test("Worker reports only canonical cache entries with verified actual bytes", a
     name: "@internal/visual",
     env: "main" as const,
     version: "1.2.3",
-    ...await artifactIntegrity(bytes.buffer),
+    ...await artifactIntegrity(bytes.buffer as ArrayBuffer),
   }
   const request = new Request(
     `http://127.0.0.1:4444${browserPackageUrl(identity.name, identity.env, identity.version)}`,
@@ -320,30 +324,30 @@ test("successful publication notification contains no release state", () => {
 
 test("canonical package URLs separate artifact delivery from release control", async () => {
   const startup = await Bun.file(
-    new URL("../web/startup/main/package.json", import.meta.url),
+    new URL("../startup/package.json", import.meta.url),
   ).json() as {version: string}
   const [stable, exact, legacy, invalid, missingEnv, reordered] = await Promise.all([
-    getPackage(new Request("http://127.0.0.1:4444/@startup/main?env=main")),
+    getPackage(new Request("http://127.0.0.1:4444/@hamiltonian/startup?env=main")),
     getPackage(new Request(
-      `http://127.0.0.1:4444/@startup/main?env=main&version=${startup.version}`,
+      `http://127.0.0.1:4444/@hamiltonian/startup?env=main&version=${startup.version}`,
     )),
-    getRelease(new Request("http://127.0.0.1:4444/code?module=@startup/main")),
-    getPackage(new Request("http://127.0.0.1:4444/@startup/main?module=@startup/main")),
-    getPackage(new Request("http://127.0.0.1:4444/@startup/main")),
+    getRelease(new Request("http://127.0.0.1:4444/code?module=@hamiltonian/startup")),
+    getPackage(new Request("http://127.0.0.1:4444/@hamiltonian/startup?module=@hamiltonian/startup")),
+    getPackage(new Request("http://127.0.0.1:4444/@hamiltonian/startup")),
     getPackage(new Request(
-      `http://127.0.0.1:4444/@startup/main?version=${startup.version}&env=main`,
+      `http://127.0.0.1:4444/@hamiltonian/startup?version=${startup.version}&env=main`,
     )),
   ])
   const [stableSource, exactSource] = await Promise.all([stable.text(), exact.text()])
 
   expect(stable.status).toBe(200)
   expect(exact.status).toBe(200)
-  expect(stable.headers.get("X-Package-Name")).toBe("@startup/main")
+  expect(stable.headers.get("X-Package-Name")).toBe("@hamiltonian/startup")
   expect(stable.headers.get("X-Package-Env")).toBe("main")
   expect(stable.headers.get("X-Package-Version")).toBe(startup.version)
   expect(exact.headers.get("X-Package-Version")).toBe(startup.version)
   expect(exactSource).toBe(stableSource)
-  expect(stableSource).toContain('import("@release/main")')
+  expect(stableSource).toContain('import("@hamiltonian/release")')
   expect(stableSource).not.toContain("/code?module=")
   expect(legacy.status).toBe(404)
   expect(invalid.status).toBe(404)
@@ -353,16 +357,18 @@ test("canonical package URLs separate artifact delivery from release control", a
 
 test("current release main serves its exact standalone versioned artifact", async () => {
   const packages = await releasedPackages()
-  const releaseMain = packages.find(({name}) => name === "@release/main")
+  const releaseMain = packages.find(
+    ({name, env}) => name === "@hamiltonian/release" && env === "main",
+  )
   const visual = packages.find(({name}) => name === "@internal/visual")
   if (!releaseMain || !visual) throw new Error("Window release packages are missing")
 
   const [stableResponse, exactResponse, visualResponse, versionedBuild] = await Promise.all([
-    releasedPackageResponse("@release/main", "main", null),
-    releasedPackageResponse("@release/main", "main", releaseMain.version),
+    releasedPackageResponse("@hamiltonian/release", "main", null),
+    releasedPackageResponse("@hamiltonian/release", "main", releaseMain.version),
     releasedPackageResponse("@internal/visual", "main", visual.version),
     Bun.file(new URL(
-      `../web/release/main/dist/versions/${releaseMain.version}/index.js`,
+      `../release/dist/versions/${releaseMain.version}/main.js`,
       import.meta.url,
     )).text(),
   ])
@@ -382,7 +388,7 @@ test("current release main serves its exact standalone versioned artifact", asyn
   expect(stable).toContain("@internal/visual")
   expect(stable).not.toContain("visual-canvas")
   expect(stable.length).toBeLessThan(visualSource.length)
-  expect(await artifactIntegrity(new TextEncoder().encode(stable).buffer)).toEqual({
+  expect(await artifactIntegrity(new TextEncoder().encode(stable).buffer as ArrayBuffer)).toEqual({
     sha256: releaseMain.sha256,
     size: releaseMain.size,
   })

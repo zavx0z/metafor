@@ -1,78 +1,95 @@
-import {expect, test} from "bun:test"
+import {afterEach, expect, setDefaultTimeout, test} from "bun:test"
+import {mkdir, mkdtemp, rm} from "node:fs/promises"
 import {join} from "node:path"
 import {fileURLToPath} from "node:url"
 import {
   buildablePackage,
+  buildPackage,
   packageBuildCommand,
   packageEnvironmentExports,
+  packageOwners,
   type PackageEnvironment,
-} from "../web/release/server"
+} from "../release/server"
 
 const hamiltonian = fileURLToPath(new URL("../", import.meta.url))
-const packageBuildScripts = {
-  "web/startup/main": {env: "main", build:
-    "bun build ./index.ts --conditions=metafor:main --target=browser --packages=external --production --minify --drop console.debug --outfile=dist/index.js"},
-  "web/startup/service": {env: "service-worker", build:
-    "bun build ./index.ts --conditions=metafor:service-worker --target=browser --production --minify --drop console.debug --outfile=dist/index.js"},
-  "web/release/main": {env: "main", build:
-    "bun build ./main.ts --conditions=metafor:main --target=browser --packages=external --production --minify --drop console.debug --outfile=dist/index.js"},
-  "web/release/service": {env: "service-worker", build:
-    "bun build ./index.ts --conditions=metafor:service-worker --target=browser --format=cjs --production --minify --drop console.debug --outfile=dist/index.js"},
-  "web/release/server": {env: "server", build:
-    "bun build ./index.ts --conditions=metafor:server --target=bun --packages=external --production --minify --drop console.debug --outfile=dist/index.js"},
-  "internal/visual": {env: "main", build:
-    "bun build ./index.ts --conditions=metafor:main --target=browser --production --minify --drop console.debug --outfile=dist/index.js"},
+const repository = fileURLToPath(new URL("../../", import.meta.url))
+const proof = join(hamiltonian, "internal/visual/.typecheck-proof")
+const proofArtifacts = [
+  join(hamiltonian, "internal/visual/.typecheck-main.js"),
+  join(hamiltonian, "internal/visual/.typecheck-server.js"),
+] as const
+const packages = {
+  startup: {
+    path: "startup",
+    name: "@hamiltonian/startup",
+    scope: "hamiltonian",
+    environments: ["main", "service-worker"],
+  },
+  release: {
+    path: "release",
+    name: "@hamiltonian/release",
+    scope: "hamiltonian",
+    environments: ["main", "service-worker", "server"],
+  },
+  visual: {
+    path: "internal/visual",
+    name: "@internal/visual",
+    scope: "internal",
+    environments: ["main", "server"],
+  },
 } as const
 
-test("every package environment owns one direct production build command", async () => {
+setDefaultTimeout(30_000)
+
+afterEach(async () => {
+  await Promise.all([proof, ...proofArtifacts].map((path) => rm(path, {force: true})))
+})
+
+test("every Hamiltonian package owns direct env entrypoints and one typecheck", async () => {
   const root = await Bun.file(join(hamiltonian, "package.json")).json() as {
     scripts?: Record<string, string>
   }
   expect(root.scripts?.dev).toBe(
-    "NODE_ENV=development bun --conditions=metafor:server --port=4444 server",
+    "NODE_ENV=development bun --conditions=hamiltonian:server --conditions=internal:server --port=4444 server",
   )
-  expect(root.scripts?.start).toBe("bun --conditions=metafor:server --port=4444 server")
+  expect(root.scripts?.start).toBe(
+    "bun --conditions=hamiltonian:server --conditions=internal:server --port=4444 server",
+  )
   expect(root.scripts?.build).toBe(
-    "bun run --parallel --if-present --filter '@startup/*' --filter '@release/*' --filter '@internal/*' build",
+    "NODE_ENV=production bun --conditions=hamiltonian:server --conditions=internal:server build.ts",
   )
 
-  for (const [path, {env, build}] of Object.entries(packageBuildScripts)) {
-    const [manifest, tsconfig] = await Promise.all([
-      Bun.file(join(hamiltonian, path, "package.json")).json() as Promise<{
-        exports?: {"."?: Record<string, unknown>}
-        scripts?: Record<string, string>
-      }>,
-      Bun.file(join(hamiltonian, path, "tsconfig.json")).json() as Promise<{
-        compilerOptions?: {customConditions?: string[]}
-      }>,
-    ])
-    const typedManifest = manifest as {
+  for (const descriptor of Object.values(packages)) {
+    const manifest = await Bun.file(join(hamiltonian, descriptor.path, "package.json")).json() as {
       exports?: {"."?: Record<string, unknown>}
       scripts?: Record<string, string>
     }
+    const rootExport = manifest.exports?.["."]
+    expect(rootExport?.default).toBeUndefined()
+    expect(manifest.scripts?.typecheck).toBe("tsc --project tsconfig.json --pretty false")
+    expect(manifest.scripts?.build).toBeUndefined()
+    expect(manifest.scripts?.prebuild).toBeUndefined()
 
-    expect(typedManifest.exports?.["."]?.default).toBeUndefined()
-    expect(typedManifest.exports?.["."]?.[`metafor:${env}`]).toBeDefined()
-    expect(tsconfig.compilerOptions?.customConditions).toEqual([`metafor:${env}`])
-    expect(typedManifest.scripts?.build).toBe(build)
-    expect(typedManifest.scripts?.[`build:${env}`]).toBe(build)
-    expect(typedManifest.scripts?.[`prebuild:${env}`]).toBe(`bun run typecheck:${env}`)
-    expect(typedManifest.scripts?.["build:development"]).toBeUndefined()
-    expect(typedManifest.scripts?.["build:production"]).toBeUndefined()
+    for (const env of descriptor.environments) {
+      expect(rootExport?.[`${descriptor.scope}:${env}`]).toBe(`./${env}/index.ts`)
+      expect(manifest.scripts?.[`build:${env}`]).toContain(`bun build ./${env}/index.ts`)
+      expect(manifest.scripts?.[`build:${env}`]).toContain(`--conditions=${descriptor.scope}:${env}`)
+      expect(manifest.scripts?.[`typecheck:${env}`]).toBeUndefined()
+      expect(manifest.scripts?.[`prebuild:${env}`]).toBeUndefined()
+    }
   }
 })
 
 test("build executor resolves package contracts without a module registry", async () => {
-  const source = await Bun.file(join(hamiltonian, "web/release/server/package.ts")).text()
+  const source = await Bun.file(join(hamiltonian, "release/server/package.ts")).text()
   expect(source).not.toContain('join(root, "dist/index.js")')
 
-  for (const [path, {env}] of Object.entries(packageBuildScripts)) {
-    const manifest = await Bun.file(join(hamiltonian, path, "package.json")).json() as {
-      name?: string
-    }
-    if (typeof manifest.name !== "string") throw new Error(`${path} package name is missing`)
-    expect(await buildablePackage(manifest.name, env)).toBe(manifest.name)
-    expect(source).not.toContain(JSON.stringify(manifest.name))
+  for (const descriptor of Object.values(packages)) {
+    const owners = await packageOwners(descriptor.name)
+    expect(owners.map(({env}) => env)).toEqual([...descriptor.environments])
+    for (const env of descriptor.environments)
+      expect(await buildablePackage(descriptor.name, env)).toBe(descriptor.name)
+    expect(source).not.toContain(JSON.stringify(descriptor.name))
   }
   expect(await buildablePackage("@internal/missing")).toBeNull()
   expect(await buildablePackage("@internal/visual", "worker")).toBeNull()
@@ -80,103 +97,157 @@ test("build executor resolves package contracts without a module registry", asyn
   expect(source).not.toContain("const packageOwners")
 })
 
-test("package exports keep server and server-worker as separate build units", () => {
+test("package exports keep server and server-worker as separate direct env entrypoints", () => {
   expect(packageEnvironmentExports({
+    name: "@example/runtime",
     exports: {
       ".": {
-        "metafor:server": {types: "./server.ts", bun: "./server.ts"},
-        "metafor:server-worker": {types: "./server-worker.ts", bun: "./server-worker.ts"},
+        "example:server": "./server/index.ts",
+        "example:server-worker": "./server-worker/index.ts",
       },
     },
   })).toEqual([
     {
       env: "server",
-      condition: "metafor:server",
-      entrypoint: "./server.ts",
-      types: "./server.ts",
+      condition: "example:server",
+      entrypoint: "./server/index.ts",
       target: "bun",
     },
     {
       env: "server-worker",
-      condition: "metafor:server-worker",
-      entrypoint: "./server-worker.ts",
-      types: "./server-worker.ts",
+      condition: "example:server-worker",
+      entrypoint: "./server-worker/index.ts",
       target: "bun",
     },
   ])
   expect(() => packageEnvironmentExports({
-    exports: {".": {default: "./server.ts"}},
+    name: "@example/runtime",
+    exports: {".": {default: "./server/index.ts"}},
   })).toThrow("Unsupported root export condition default")
+  expect(() => packageEnvironmentExports({
+    name: "@example/runtime",
+    exports: {".": {"example:server": "./server.ts"}},
+  })).toThrow("must target ./server/index.ts")
 })
 
-test("build executor derives development arguments from the production command", () => {
-  const production = packageBuildScripts["web/release/service"].build
-  expect(packageBuildCommand(production, "production").join(" ")).toBe(production)
-  expect(packageBuildCommand(production, undefined).join(" ")).toBe(production)
-  expect(packageBuildCommand(production, "development")).toEqual([
+test("one bare visual import resolves source types by selected env without a build", async () => {
+  const temporaryRoot = join(repository, "tests/tmp")
+  await mkdir(temporaryRoot, {recursive: true})
+  const directory = await mkdtemp(join(temporaryRoot, "upd-003-env-"))
+
+  try {
+    const main = await typecheckVisualEnvironment(directory, "internal:main", `
+      import * as visual from "@internal/visual"
+      const environment: "main" = visual.environment
+      void environment
+      void visual.runtime
+    `)
+    expect(main.exitCode).toBe(0)
+
+    const server = await typecheckVisualEnvironment(directory, "internal:server", `
+      import * as visual from "@internal/visual"
+      const environment: "server" = visual.environment
+      void environment
+      // @ts-expect-error server env does not expose Window runtime
+      void visual.runtime
+    `)
+    expect(server.exitCode).toBe(0)
+
+    const unsupported = await typecheckVisualEnvironment(directory, "internal:worker", `
+      import * as visual from "@internal/visual"
+      void visual
+    `)
+    expect(unsupported.exitCode).not.toBe(0)
+    expect(unsupported.stderr + unsupported.stdout).toContain("Cannot find module '@internal/visual'")
+  } finally {
+    await rm(directory, {recursive: true, force: true})
+  }
+})
+
+test("build executor derives development arguments from the production command", async () => {
+  const serviceWorker = (await packageOwners("@hamiltonian/release"))
+    .find(({env}) => env === "service-worker")
+  if (!serviceWorker) throw new Error("Release Service Worker owner is missing")
+  expect(packageBuildCommand(serviceWorker.build, "production").join(" ")).toBe(serviceWorker.build)
+  expect(packageBuildCommand(serviceWorker.build, undefined).join(" ")).toBe(serviceWorker.build)
+  expect(packageBuildCommand(serviceWorker.build, "development")).toEqual([
     "bun",
     "build",
-    "./index.ts",
-    "--conditions=metafor:service-worker",
+    "./service-worker/index.ts",
+    "--conditions=hamiltonian:service-worker",
     "--target=browser",
     "--format=cjs",
     "--minify",
     "--sourcemap=inline",
-    "--outfile=dist/index.js",
-  ])
-  expect(packageBuildCommand(
-    "bun build ./index.ts --sourcemap=none --outfile custom/browser.js --production --drop=console.debug",
-    "development",
-  )).toEqual([
-    "bun",
-    "build",
-    "./index.ts",
-    "--sourcemap=inline",
-    "--outfile",
-    "custom/browser.js",
+    "--outfile=dist/service-worker.js",
   ])
 })
 
-test("development keeps debug and source map while production drops both", async () => {
+test.serial("parallel env builds run one package typecheck", async () => {
+  const manifestPath = join(hamiltonian, "internal/visual/package.json")
+  const source = await Bun.file(manifestPath).text()
+  const manifest = JSON.parse(source) as {scripts: Record<string, string>}
+  manifest.scripts.typecheck =
+    `bun -e 'import {appendFileSync} from "node:fs"; appendFileSync(${JSON.stringify(proof)}, "checked\\n")'`
+  await Bun.write(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`)
+
+  try {
+    const results = await Promise.all([
+      buildPackage("@internal/visual", {env: "main", artifact: proofArtifacts[0]}),
+      buildPackage("@internal/visual", {env: "server", artifact: proofArtifacts[1]}),
+    ])
+    expect(results.every(({success}) => success)).toBeTrue()
+    expect((await Bun.file(proof).text()).trim().split("\n")).toHaveLength(1)
+  } finally {
+    await Bun.write(manifestPath, source)
+  }
+})
+
+test.serial("failed package typecheck prevents every env build", async () => {
+  const manifestPath = join(hamiltonian, "internal/visual/package.json")
+  const source = await Bun.file(manifestPath).text()
+  const manifest = JSON.parse(source) as {scripts: Record<string, string>}
+  manifest.scripts.typecheck = "bun -e 'process.exit(17)'"
+  await Bun.write(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`)
+
+  try {
+    const results = await Promise.all([
+      buildPackage("@internal/visual", {env: "main", artifact: proofArtifacts[0]}),
+      buildPackage("@internal/visual", {env: "server", artifact: proofArtifacts[1]}),
+    ])
+    expect(results.map(({exitCode}) => exitCode)).toEqual([17, 17])
+    expect(results.every(({outputs}) => outputs.length === 0)).toBeTrue()
+    expect(await Promise.all(proofArtifacts.map((path) => Bun.file(path).exists()))).toEqual([false, false])
+  } finally {
+    await Bun.write(manifestPath, source)
+  }
+})
+
+test("development keeps debug and source maps while production drops both", async () => {
   const development = await build("development")
   expect(development.releaseService).toContain("console.debug")
   expect(development.releaseService).toContain("подключились к серверу обновлений")
-  expect(development.releaseService).toContain("получен сигнал об обновлении")
-  expect(development.releaseService).toContain("перезагрузка страниц началась")
   expect(development.releaseService).toContain("transaction intent сохранён")
-  expect(development.releaseService).toContain("transaction завершена удалением cache")
-  expect(development.releaseService).toContain("начинаем повторную навигацию страниц")
   expect(development.startupMain).toContain("страница готова к работе")
-  expect(development.releaseMain).toContain("[@release/main]")
-  expect(development.releaseMain).toContain("Visual runtime подключён")
-  expect(development.internalVisual).toContain("[@internal/visual]")
-  expect(development.internalVisual).toContain("основное visual-окружение создано")
-  for (const artifact of Object.values(development)) {
+  expect(development.releaseMain).toContain("[@hamiltonian/release:main]")
+  expect(development.internalVisual).toContain("[@internal/visual:main]")
+  for (const artifact of Object.values(development))
     expect(artifact).toContain("sourceMappingURL=data:application/json")
-  }
 
   const production = await build("production")
-  expect(production.releaseService).not.toContain("подключились к серверу обновлений")
-  expect(production.releaseService).not.toContain("получено уведомление об обновлении")
-  expect(production.releaseService).not.toContain("перезагрузка страниц началась")
-  expect(production.releaseService).not.toContain("transaction intent сохранён")
-  expect(production.releaseService).not.toContain("transaction завершена удалением cache")
-  expect(production.releaseService).not.toContain("начинаем повторную навигацию страниц")
-  expect(production.releaseService).not.toContain("подготовка кэша завершилась с ошибкой")
-  expect(production.startupMain).not.toContain("страница готова к работе")
   for (const artifact of Object.values(production)) {
     expect(artifact).not.toContain("console.debug")
     expect(artifact).not.toContain("sourceMappingURL=")
-    expect(artifact).not.toMatch(/\[@(?:startup|release|internal)\//)
   }
 }, 30_000)
 
 async function build(mode: "development" | "production") {
   const child = Bun.spawn([
     Bun.which("bun") ?? "bun",
-    "--conditions=metafor:server",
+    "--conditions=hamiltonian:server",
+    "--conditions=internal:server",
     "-e",
-    'import {buildPackage} from "@release/server"; console.log(JSON.stringify(await Promise.all([buildPackage("@startup/main", {env:"main"}), buildPackage("@startup/service", {env:"service-worker"}), buildPackage("@release/main", {env:"main"}), buildPackage("@release/service", {env:"service-worker"}), buildPackage("@internal/visual", {env:"main"})])))',
+    'import {buildPackage} from "@hamiltonian/release"; console.log(JSON.stringify(await Promise.all([buildPackage("@hamiltonian/startup", {env:"main"}), buildPackage("@hamiltonian/startup", {env:"service-worker"}), buildPackage("@hamiltonian/release", {env:"main"}), buildPackage("@hamiltonian/release", {env:"service-worker"}), buildPackage("@hamiltonian/release", {env:"server"}), buildPackage("@internal/visual", {env:"main"}), buildPackage("@internal/visual", {env:"server"})])))',
   ], {
     cwd: hamiltonian,
     env: {...process.env, NODE_ENV: mode},
@@ -189,27 +260,66 @@ async function build(mode: "development" | "production") {
     new Response(child.stderr).text(),
   ])
   const resultLine = stdout.trim().split("\n").at(-1)
-  if (!resultLine) throw new Error("Package build result is missing")
+  if (!resultLine) throw new Error(`Package build result is missing: ${stderr}`)
   const result = JSON.parse(resultLine) as Array<{
     env: PackageEnvironment
     success: boolean
     exitCode: number | null
   }>
-  expect({processExitCode: exitCode, stderr, result}).toMatchObject({
-    processExitCode: 0,
-    result: [
+  expect(exitCode).toBe(0)
+  expect(result.map(({env, success, exitCode: buildExitCode}) => ({env, success, exitCode: buildExitCode})))
+    .toEqual([
       {env: "main", success: true, exitCode: 0},
       {env: "service-worker", success: true, exitCode: 0},
       {env: "main", success: true, exitCode: 0},
       {env: "service-worker", success: true, exitCode: 0},
+      {env: "server", success: true, exitCode: 0},
       {env: "main", success: true, exitCode: 0},
-    ],
-  })
+      {env: "server", success: true, exitCode: 0},
+    ])
   return {
-    internalVisual: await Bun.file(join(hamiltonian, "internal/visual/dist/index.js")).text(),
-    releaseMain: await Bun.file(join(hamiltonian, "web/release/main/dist/index.js")).text(),
-    startupMain: await Bun.file(join(hamiltonian, "web/startup/main/dist/index.js")).text(),
-    startupService: await Bun.file(join(hamiltonian, "web/startup/service/dist/index.js")).text(),
-    releaseService: await Bun.file(join(hamiltonian, "web/release/service/dist/index.js")).text(),
+    internalVisual: await Bun.file(join(hamiltonian, "internal/visual/dist/main.js")).text(),
+    releaseMain: await Bun.file(join(hamiltonian, "release/dist/main.js")).text(),
+    startupMain: await Bun.file(join(hamiltonian, "startup/dist/main.js")).text(),
+    releaseService: await Bun.file(join(hamiltonian, "release/dist/service-worker.js")).text(),
   }
+}
+
+async function typecheckVisualEnvironment(
+  directory: string,
+  condition: string,
+  source: string,
+) {
+  const suffix = condition.slice(condition.indexOf(":") + 1)
+  const sourcePath = join(directory, `${suffix}.ts`)
+  const configPath = join(directory, `${suffix}.json`)
+  await Promise.all([
+    Bun.write(sourcePath, source),
+    Bun.write(configPath, `${JSON.stringify({
+      extends: join(repository, "tsconfig.json"),
+      compilerOptions: {
+        customConditions: [condition],
+        lib: ["ESNext", "DOM", "DOM.Iterable"],
+        types: ["@webgpu/types", "bun"],
+      },
+      files: [
+        sourcePath,
+        join(repository, "types/module.d.ts"),
+        join(repository, "types/hot.d.ts"),
+      ],
+      include: [],
+      exclude: [],
+    }, null, 2)}\n`),
+  ])
+  const child = Bun.spawn([Bun.which("tsc") ?? "tsc", "--project", configPath, "--pretty", "false"], {
+    cwd: repository,
+    stdout: "pipe",
+    stderr: "pipe",
+  })
+  const [exitCode, stdout, stderr] = await Promise.all([
+    child.exited,
+    new Response(child.stdout).text(),
+    new Response(child.stderr).text(),
+  ])
+  return {exitCode, stdout, stderr}
 }

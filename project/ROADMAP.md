@@ -220,7 +220,7 @@ product-specific projection, composition, панели, стили и live prese
 `hamiltonian/visual`. Clean-room loader не импортирует и не переносит этот
 source. Первый clean-room visual-шаг выбран отдельно: в
 действующем [Hamiltonian-контракте](../hamiltonian/README.md#стандартная-window-среда-clean-room-loader)
-`@release/main` импортирует `@internal/visual`, который создаёт общий пустой
+release env `main` импортирует `@internal/visual`, который создаёт общий пустой
 `UiRuntime` с `Space`, `HUD`, полом, display и navigation dock, не импортируя
 prototype visual и не выбирая предметный Window module.
 
@@ -232,15 +232,13 @@ prototype visual и не выбирая предметный Window module.
 `visual` и остальные исходники сохраняют только границу прототипа и evidence;
 они не являются source base нового Hamiltonian.
 
-Новая реализация создаётся с нуля рядом в source-директориях `web`, `server`,
-`interface` и `internal`. Browser code проходит три последовательных уровня:
-неизменяемый `startup`, запускаемый `release` и используемые им packages.
-Startup реализуют `web/startup/main` и `web/startup/service`, release-входы —
-`web/release/main` и `web/release/service`, а server-владелец package manifests,
-сборки, версий, атомарной публикации и RPC — `web/release/server`. Минимальные browser
-entrypoint оформлены отдельными workspace-пакетами `@startup/main`,
-`@startup/service`, `@release/main` и `@release/service` со строгой проверкой
-для своей среды. Служебные изменяемые
+Новая реализация создаётся с нуля рядом в source-директориях `startup`,
+`release`, `web`, `server`, `interface` и `internal`. Browser code проходит три
+последовательных уровня: неизменяемый `@hamiltonian/startup`, запускаемый
+`@hamiltonian/release` и используемые им packages. Каждый из двух Hamiltonian
+packages хранит среды в `<env>/index.ts`, объявляет их direct conditional
+exports и имеет один SemVer; `web` остаётся transport/static-директорией, а не
+владельцем packages. Служебные изменяемые
 modules самого Hamiltonian живут в пространстве `internal`, а modules среды,
 ради которой он создан, — в отдельном пространстве `metafor`. Их имена не
 зеркалят execution context: один module может размещаться в Window, Dedicated
@@ -268,7 +266,7 @@ Cache Storage разделён по владельцам `startup`, `release`, `
 независимо от будущего внешнего адреса source.
 
 Стандартное Window-окружение визуализации является отдельным слоем поверх
-доказанного loader. `@release/main` импортирует `@internal/visual`, который
+доказанного loader. Release env `main` импортирует `@internal/visual`, который
 создаёт один общий `UiRuntime`; встроенный surface-display отключён, а один
 стандартный `UIDisplay` и navigation dock готовы для последующего предметного
 наполнения. HTML, style и font resources обслуживает существующий
@@ -287,14 +285,14 @@ Worker`](tasks/LOAD-001.md). После доказанного loader contract �
 
 Существующий `hamiltonian/update` относится к прототипу и не переносится в
 новую реализацию. В clean-room Hamiltonian первоначальный запуск и последующая
-смена browser-кода принадлежат одному слою `release`: browser-входы находятся
-в `web/release`, а package discovery, build, SemVer и атомарная публикация — в
-`release/server`.
+смена browser-кода принадлежат package `@hamiltonian/release`: env `main` и
+`service-worker` работают в browser, а env `server` владеет package discovery,
+build, SemVer и атомарной публикацией.
 
 Локальный update-шаг после `LOAD-001` передал Service Worker ответственность за
-многосоставный сменяемый выпуск после startup: `@release/*` и
-`@internal/*` packages. Неизменяемые HTML, `@startup/main` и
-`@startup/service` в этот выпуск не входят. Package manifests и корневые caret
+многосоставный сменяемый выпуск после startup: `@hamiltonian/release` и
+`@internal/*` packages. Неизменяемые HTML и `@hamiltonian/startup` в этот
+выпуск не входят. Package manifests и корневые caret
 dependencies задают состояние без отдельного release manifest; versioned bytes
 загружаются через `fetch`, а namespace определяет постоянный owner cache.
 Ручная версия отдельного испытательного модуля и самостоятельное решение

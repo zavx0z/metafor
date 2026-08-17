@@ -171,40 +171,47 @@ transport.
 ## Стандартная Window-среда clean-room loader
 
 Неизменяемый startup запускает один активный release и не знает состав
-`internal` packages. `@release/main` разворачивает Window-контур и загружает
-`@internal/visual` как самостоятельный artifact по его каноническому package
-URL `/@internal/visual?env=main`.
+`internal` packages. `@hamiltonian/release` в env `main` разворачивает
+Window-контур и загружает `@internal/visual` как самостоятельный artifact по
+его каноническому package URL `/@internal/visual?env=main`.
 Visual хранится в cache owner `internal` и обновляется отдельно от bytes
-`@release/main`. `@release/service` разворачивает сменяемый Service Worker-контур,
-владеет RPC transport и подготовкой следующего release.
+release main. Тот же `@hamiltonian/release` в env `service-worker`
+разворачивает сменяемый Service Worker-контур, владеет RPC transport и
+подготовкой следующего release; env `server` владеет host-стороной механизма.
 
 Один package сохраняет одно каноническое имя и один SemVer во всех средах.
 Source всегда импортирует его bare specifier без env и transport path. Корневой
-`exports["."]` package объявляет только реально существующие project conditions
-`metafor:main`, `metafor:worker`, `metafor:service-worker`, `metafor:server` и
-`metafor:server-worker`; обязательного `default` fallback нет. Builder и
-TypeScript явно выбирают одну condition, поэтому неподдерживаемая среда
-останавливает build или typecheck, а не получает entrypoint другой среды.
+`exports["."]` package напрямую связывает только реально существующие project
+conditions `<scope>:<env>` с `./<env>/index.ts`, например `internal:main` или
+`hamiltonian:service-worker`. Вложенных `types/browser|bun`, env subpaths и
+обязательного `default` fallback нет. Builder и TypeScript явно выбирают
+condition, поэтому неподдерживаемая среда останавливает resolution, а не
+получает entrypoint другой среды.
 
 `main` означает Window realm, `worker` — browser Dedicated Worker,
 `service-worker` — browser Service Worker, `server` — основной Bun process, а
 `server-worker` — Worker, созданный Bun server. Две Bun-среды различаются даже
 при одинаковом build target: у них разные lifecycle, globals и entrypoints.
-Каждый объявленный env является отдельной build и typecheck единицей. Изменение
-одного env создаёт новую package version и полный набор объявленных artifacts
-этой версии; неизменившийся package не пересобирается.
+Каждый объявленный env является отдельной build-единицей, но весь package
+имеет один package-wide `typecheck`. Build executor запускает его ровно один
+раз перед группой `build:<env>`; `prebuild`, generic `build` и
+`typecheck:<env>` package не объявляет. Изменение одного env создаёт новую
+package version и полный набор объявленных artifacts этой версии;
+неизменившийся package не пересобирается.
 
 Browser artifact доступен по URL `/<package-name>?env=<env>`; exact version
 добавляет `version`, например
 `/@internal/visual?env=main&version=0.1.3`. Env является query parameter, а не
 package subpath. Статический import map направляет bare specifiers
-`@startup/*`, `@release/*`, `@internal/*` и `@metafor/*` в env-specific URL,
+`@hamiltonian/startup`, `@hamiltonian/release`, `@internal/*` и `@metafor/*`
+в env-specific URL,
 поэтому source и готовые Window ESM artifacts сохраняют package imports без
 transport adapter. `/code` не доставляет artifact: `GET /code` возвращает
 доказанное package state, а `POST /code` публикует группу обновления.
 
-Startup fetch-handler направляет package URL в cache владельца namespace:
-`@release/*` — `release`, `@internal/*` — `internal`, `@metafor/*` — `metafor`.
+Startup fetch-handler направляет `@hamiltonian/startup` в cache `startup`,
+`@hamiltonian/release` — в `release`, `@internal/*` — в `internal`, а
+`@metafor/*` — в `metafor`.
 Состав пакетов ему неизвестен: отдельного реестра имён или ветки для Visual в
 handler нет.
 
@@ -229,15 +236,16 @@ cache, переносит изменившиеся entries в canonical owners �
 identity. Если canonical state уже сошёлся, пустая fresh delta только удаляет
 оставшийся transaction и завершает один recovery reload. Пустой технический
 cache без intent безопасно удаляется. Startup во время recovery может запустить
-только подготовленный либо неизменившийся `@release/service`; другой stable
-package не разрешается из смешанного состояния до завершения transaction.
+только подготовленный либо неизменившийся
+`@hamiltonian/release:service-worker`; другой stable package не разрешается из
+смешанного состояния до завершения transaction.
 
 Endpoint всегда строится из package identity, а постоянный cache owner — из
-namespace; эти два значения в metadata и RPC не передаются. Изменение source,
+роли package; эти два значения в metadata и RPC не передаются. Изменение source,
 состава или bytes package всегда создаёт новую SemVer и новый immutable
-versioned artifact. Поэтому `@release/main` и `@internal/visual` обслуживаются
-как два физических artifact: ни текущая, ни versioned сборка `@release/main`
-не содержит implementation Visual.
+versioned artifact. Поэтому release main и `@internal/visual` обслуживаются как
+два физических artifact: ни текущая, ни versioned сборка release main не
+содержит implementation Visual.
 
 После успешной host publication server отправляет Service Worker только
 payload-free signal `release-changed`. При таком signal и при каждом новом RPC
@@ -254,18 +262,18 @@ transaction IDs отсутствуют. Signal не хранит состоян�
 повторяться: одна сверка идёт за раз, а следующий signal либо reconnect всегда
 начинает новое чтение текущих caches и root.
 
-Корневые caret dependencies Hamiltonian являются полным browser release
-membership. Перед чтением state и перед сборкой target versions server
-проверяет runtime dependencies всех `@release/*` и `@internal/*` участников:
+Корневые caret dependencies `@hamiltonian/release` и `@internal/*` являются
+полным browser release membership. Перед чтением state и перед сборкой target
+versions server проверяет runtime dependencies всех участников:
 каждый такой dependency присутствует в membership, а выбранная version
 удовлетворяет его `workspace:*` либо `workspace:^<semver>` range. Поэтому
 добавленный package принимается только с полной closure, требуемый package
 нельзя удалить, а несовместимый major/minor target не доходит до build.
 
-Startup packages не входят в сменяемый membership, но явно объявляют
-загружаемые `@release/main` и `@release/service` dependencies. Минимальный
-Loader type принадлежит потребителю `@release/service`; startup импортирует
-его только как public type по bare package name и предоставляет реализацию.
+`@hamiltonian/startup` не входит в сменяемый membership, но явно объявляет
+загружаемый `@hamiltonian/release`. Минимальный Loader type принадлежит release
+env `service-worker`; startup импортирует его только как public type по bare
+package name и предоставляет реализацию.
 Release не импортирует types относительным путём через границу startup package.
 
 Публикация сначала атомарно записывает target caret versions в корневой
@@ -281,8 +289,8 @@ writes изменённых child manifests. Обычная ошибка тог�
 target, а child ещё старый, recovery следует root вперёд и последним обновляет
 child; отдельного journal, release ID или generation для этого нет.
 
-`@release/server` — единственный server-side владелец release packages и
-server-стороны RPC. Он находит и проверяет package-owned build contract,
+Env `server` package `@hamiltonian/release` — единственный server-side владелец
+release packages и server-стороны RPC. Он находит и проверяет package-owned build contract,
 собирает artifacts, вычисляет следующие версии, атомарно публикует группу и
 реализует операции HTTP/RPC. Корневой `server.ts` остаётся явной картой
 сетевого интерфейса: namespace routes package artifacts, methods `/code` и
@@ -292,9 +300,9 @@ server-стороны RPC. Он находит и проверяет package-own
 дерево assets временно обслуживается явным безопасным file-handler без
 frontend framework dependencies.
 
-Service Worker-сторона RPC является внутренней директорией `@release/service`
-и входит в его единый artifact. Отдельного browser package, версии или cache
-entry для RPC нет. Release использует RPC для обновлений, signaling,
+Service Worker-сторона RPC является внутренней директорией env
+`service-worker` package `@hamiltonian/release` и входит в его artifact.
+Отдельного browser package, версии или cache entry для RPC нет. Release использует RPC для обновлений, signaling,
 управления и мониторинга, не превращая его в подключаемый `@internal/*` module.
 
 `@internal/visual` создаёт один `UiRuntime` на единственном canvas и владеет его

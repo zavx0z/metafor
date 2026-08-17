@@ -18,7 +18,8 @@
     // Bundler mode
     "moduleResolution": "bundler",
     "customConditions": [
-      "metafor:server"
+      "hamiltonian:server",
+      "internal:server"
     ],
     "resolveJsonModule": true,
     "allowImportingTsExtensions": true,
@@ -48,10 +49,8 @@
     "**/docs/**/*",
     "*/dist/**/*",
     "*/node_modules/**/*",
-    "hamiltonian/web/release/main/**/*",
-    "hamiltonian/web/release/service/**/*",
-    "hamiltonian/web/startup/main/**/*",
-    "hamiltonian/web/startup/service/**/*",
+    "hamiltonian/release/**/*",
+    "hamiltonian/startup/**/*",
     "tests/tmp/**/*",
     "project/artifacts/**/*",
     "cluster/**/*",
