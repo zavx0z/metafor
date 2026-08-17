@@ -151,13 +151,21 @@ Exact version использует тот же pathname:
 GET /<package-name>?env=<env>&version=<semver>
 ```
 
-Service Worker сохраняет стабильный package URL в cache владельца namespace:
-`@release/*` — `release`, `@internal/*` — `internal`, `@metafor/*` — `metafor`.
-Имя отдельного package в правила кэширования не добавлять.
-После обновления не должно оставаться Cache Storage вида
-`<owner>:release:<transaction>`: они существуют только во время подготовки.
-Active package хранится по точному versioned endpoint в каноническом cache
-владельца.
+Service Worker перехватывает стабильный package URL, но сохраняет code только
+по точному versioned endpoint в cache владельца namespace: `@release/*` —
+`release`, `@internal/*` — `internal`, `@metafor/*` — `metafor`. Имя отдельного
+package в правила кэширования не добавлять. В каждом canonical owner cache
+допустима не более чем одна exact entry на `(package, env)`; постоянных stable
+code entries, `/code?state=active` и `/code?state=pending` там нет.
+
+Во время обновления на origin существует не более одного технического Cache
+Storage с точным именем `transaction`. Первой entry Worker сохраняет fresh
+server delta под `/code?state=active`, затем кладёт туда только проверенные
+`update` artifacts. Успешный commit последней операцией удаляет весь cache.
+Наличие `transaction` после остановки означает незавершённую попытку, которую
+новый Worker продолжает по новой сверке current с server. Пустой cache без
+intent безопасно удаляется. Cache Storage вида `<owner>:release:<uuid>`,
+постоянный active manifest и дополнительные transaction IDs запрещены.
 
 Пример:
 
