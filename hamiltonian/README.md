@@ -182,6 +182,22 @@ namespace: `@release/*` — `release`, `@internal/*` — `internal`, `@metafor/*
 `metafor`. Состав пакетов ему неизвестен: отдельного реестра имён или ветки для
 Visual в handler нет.
 
+Постоянный Cache Storage называется только по владельцу: `startup`, `release`,
+`internal` или `metafor`; последний появляется только вместе с первым package
+среды. Release может подготовить группу в технических transaction caches, но
+они не являются поколениями active release. После проверки responses release
+сохраняет каждый exact versioned endpoint в каноническом cache его владельца,
+одним active-state write открывает всю группу и удаляет transaction caches и
+прежние entries обновлённых packages. Ошибка или остановка до switch удаляет
+неопубликованные owner entries и оставляет прежний active state доступным.
+
+Active state хранит для package точные `name`, `version`, `endpoint`, `cache` и
+канонический `storage`, равный `cache`; технического UUID storage в нём нет.
+Изменение source, состава или bytes package всегда создаёт новую SemVer и новый
+immutable versioned artifact. Поэтому `@release/main` и
+`@internal/visual` обслуживаются как два физических artifact: ни текущая, ни
+versioned сборка `@release/main` не содержит implementation Visual.
+
 `@release/server` — единственный server-side владелец release packages и
 server-стороны RPC. Он находит и проверяет package-owned build contract,
 собирает artifacts, вычисляет следующие версии, атомарно публикует группу и

@@ -42,6 +42,8 @@ console.debug("[@release/service:update]", "новая сборка загруж
 Сменяемый artifact также объявляет точную `version` и `artifact.cache`.
 Последние доказанные версии перечислены в dependencies корневого Hamiltonian
 package как `workspace:^<version>`.
+Изменение source, состава или bytes package требует новой версии и нового
+immutable artifact; прежний versioned artifact не заменять другими bytes.
 
 ## Получить пакет release
 
@@ -56,6 +58,10 @@ Endpoint возвращает собираемый клиентский artifact
 Service Worker сохраняет стабильный package URL в cache владельца namespace:
 `@release/*` — `release`, `@internal/*` — `internal`, `@metafor/*` — `metafor`.
 Имя отдельного package в правила кэширования не добавлять.
+После обновления не должно оставаться Cache Storage вида
+`<owner>:release:<transaction>`: они существуют только во время подготовки.
+Active package хранится по точному versioned endpoint в каноническом cache
+владельца.
 
 Пример:
 

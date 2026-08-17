@@ -15,6 +15,7 @@ export async function updateRelease(
   packages: ReleasePackage[],
 ) {
   await discardInterruptedRelease()
+  await discardInactiveReleases()
   const targets = (await Promise.all(packages.map(async (entry) => {
     const stable = new Request(new URL(`/code?module=${entry.name}`, location.origin))
     const current = await startup.read(entry.cache, stable)
@@ -73,7 +74,7 @@ export async function updateRelease(
       })
     }))
 
-    const active = await Promise.all(targets.map(async ({entry, request}) => {
+    const prepared = await Promise.all(targets.map(async ({entry, request}) => {
       const storage = storages.get(entry.cache)!
       const response = await (await caches.open(storage)).match(request)
       if (!response) throw new Error(`Сборка ${entry.name}@${entry.version} отсутствует в кэше`)
@@ -82,9 +83,14 @@ export async function updateRelease(
         throw new Error(`Ответ обновления принадлежит другому пакету: ${entry.name}`)
       if (response.headers.get("X-Package-Version") !== entry.version)
         throw new Error(`Ответ обновления имеет другую версию: ${entry.name}@${entry.version}`)
-      return {...entry, storage}
+      return {entry: {...entry, storage: entry.cache}, response}
     }))
 
+    await Promise.all(prepared.map(async ({entry, response}) => {
+      await (await caches.open(entry.cache)).put(entry.endpoint, response)
+    }))
+
+    const active = prepared.map(({entry}) => entry)
     await activateRelease(active)
     await forgetRelease()
     await discardInactiveReleases()
@@ -93,8 +99,8 @@ export async function updateRelease(
     })
     return active.map(({name}) => name)
   } catch (error) {
-    await Promise.all([...storages.values()].map((storage) => caches.delete(storage)))
-    await forgetRelease()
+    await discardInterruptedRelease()
+    await discardInactiveReleases()
     console.debug("[@release/service:prepare]", "подготовка кэша завершилась с ошибкой", {
       artifacts: targets.map(({entry}) => ({name: entry.name, version: entry.version})),
     }, error)

@@ -5,7 +5,7 @@ import {join} from "node:path"
 const hamiltonian = fileURLToPath(new URL("../", import.meta.url))
 
 test("LOAD-001 keeps release policy and WebSocket outside immutable startup", async () => {
-  const [startupMain, startupService, startupCache, startupLoader, releaseService, releaseState, storage, html] =
+  const [startupMain, startupService, startupCache, startupLoader, releaseService, releaseState, releaseLoader, storage, html] =
     await Promise.all([
     Bun.file(join(hamiltonian, "web/startup/main/index.ts")).text(),
     Bun.file(join(hamiltonian, "web/startup/service/index.ts")).text(),
@@ -13,6 +13,7 @@ test("LOAD-001 keeps release policy and WebSocket outside immutable startup", as
     Bun.file(join(hamiltonian, "web/startup/service/loader.ts")).text(),
     Bun.file(join(hamiltonian, "web/release/service/index.ts")).text(),
     Bun.file(join(hamiltonian, "web/release/service/state.ts")).text(),
+    Bun.file(join(hamiltonian, "web/release/service/loader.ts")).text(),
     Bun.file(join(hamiltonian, "web/release/service/storage.ts")).text(),
     Bun.file(join(hamiltonian, "web/static/index.html")).text(),
     ])
@@ -46,6 +47,10 @@ test("LOAD-001 keeps release policy and WebSocket outside immutable startup", as
   expect(releaseState).toContain("rememberRelease")
   expect(releaseState).toContain("activateRelease")
   expect(releaseState).toContain("discardInactiveReleases")
+  expect(releaseState).toContain("storage: entry.cache")
+  expect(releaseLoader).toContain("storage: entry.cache")
+  expect(releaseLoader).toContain("caches.open(entry.cache)")
+  expect(releaseLoader).not.toContain("return {...entry, storage}")
 
   expect(releaseService).toContain("startRpc({")
   expect(releaseService).toContain("updatePackages(input)")

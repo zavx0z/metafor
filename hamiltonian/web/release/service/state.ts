@@ -85,18 +85,73 @@ export async function discardInterruptedRelease() {
     activeRelease(),
   ])
   const used = new Set(Object.values(active.packages).map(({storage}) => storage))
-  await Promise.all(pending.storages
-    .filter((storage) => !used.has(storage))
-    .map((storage) => caches.delete(storage)))
+  await Promise.all([
+    ...pending.packages.map(async (entry) => {
+      const current = active.packages[entry.name]
+      if (current && sameRelease(current, entry)) return
+      await (await caches.open(entry.cache)).delete(entry.endpoint, {ignoreVary: true})
+    }),
+    ...pending.storages
+      .filter((storage) => !used.has(storage))
+      .map((storage) => caches.delete(storage)),
+  ])
   await metadata.delete(pendingRequest)
 }
 
-/** Удаляет прежние versioned caches после успешного active switch. */
+/** Переносит прежний active state в owner caches и удаляет неактивные entries. */
 export async function discardInactiveReleases() {
-  const active = await activeRelease()
-  const used = new Set(Object.values(active.packages).map(({storage}) => storage))
+  let active = await activeRelease()
+  const packages = {...active.packages}
+  let migrated = false
+
+  for (const [name, entry] of Object.entries(packages)) {
+    if (entry.storage === entry.cache) continue
+    const owner = await caches.open(entry.cache)
+    const cached = await owner.match(entry.endpoint, {ignoreVary: true})
+    if (!cached) {
+      const response = await (await caches.open(entry.storage)).match(entry.endpoint, {ignoreVary: true})
+      if (!response) throw new Error(`Активная сборка ${name}@${entry.version} отсутствует в кэше`)
+      await owner.put(entry.endpoint, response)
+    }
+    packages[name] = {...entry, storage: entry.cache}
+    migrated = true
+  }
+
+  if (migrated) {
+    active = {...active, packages}
+    await writeReleaseState(active)
+  }
+
+  await discardSupersededEntries(active)
   const names = await caches.keys()
   await Promise.all(names
-    .filter((name) => name.includes(":release:") && !used.has(name))
+    .filter((name) => name.includes(":release:"))
     .map((name) => caches.delete(name)))
+}
+
+async function discardSupersededEntries(active: ReleaseState) {
+  const owners = new Set(Object.values(active.packages).map(({cache}) => cache))
+  await Promise.all([...owners].map(async (owner) => {
+    const cache = await caches.open(owner)
+    const requests = await cache.keys()
+    await Promise.all(requests.map(async (request) => {
+      const module = new URL(request.url).searchParams.get("module")
+      if (module === null) return
+      const entry = active.packages[module]
+      if (!entry || entry.cache !== owner) return
+      const endpoint = new URL(entry.endpoint, location.origin).href
+      if (request.url !== endpoint) await cache.delete(request, {ignoreVary: true})
+    }))
+  }))
+}
+
+function sameRelease(active: ActiveReleasePackage, expected: ReleasePackage) {
+  return active.name === expected.name
+    && active.version === expected.version
+    && active.endpoint === expected.endpoint
+    && active.cache === expected.cache
+}
+
+async function writeReleaseState(state: ReleaseState) {
+  await (await caches.open(metadataCache)).put(activeRequest, Response.json(state))
 }

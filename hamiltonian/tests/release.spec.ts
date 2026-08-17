@@ -2,6 +2,7 @@ import {expect, test} from "bun:test"
 import {
   nextPackageVersion,
   packageChanges,
+  releasedPackageResponse,
   releasedPackages,
 } from "../web/release/server"
 
@@ -60,6 +61,33 @@ test("SemVer change resets the lower components", () => {
   expect(nextPackageVersion("1.2.3", "patch")).toBe("1.2.4")
   expect(nextPackageVersion("1.2.3", "minor")).toBe("1.3.0")
   expect(nextPackageVersion("1.2.3", "major")).toBe("2.0.0")
+})
+
+test("current release main serves its exact standalone versioned artifact", async () => {
+  const packages = await releasedPackages()
+  const releaseMain = packages.find(({name}) => name === "@release/main")
+  const visual = packages.find(({name}) => name === "@internal/visual")
+  if (!releaseMain || !visual) throw new Error("Window release packages are missing")
+
+  const [stableResponse, exactResponse, visualResponse, currentBuild] = await Promise.all([
+    releasedPackageResponse("@release/main", null),
+    releasedPackageResponse("@release/main", releaseMain.version),
+    releasedPackageResponse("@internal/visual", visual.version),
+    Bun.file(new URL("../web/release/main/dist/index.js", import.meta.url)).text(),
+  ])
+  const [stable, exact, visualSource] = await Promise.all([
+    stableResponse.text(),
+    exactResponse.text(),
+    visualResponse.text(),
+  ])
+
+  expect(stableResponse.headers.get("X-Package-Version")).toBe(releaseMain.version)
+  expect(exactResponse.headers.get("X-Package-Version")).toBe(releaseMain.version)
+  expect(stable).toBe(currentBuild)
+  expect(exact).toBe(currentBuild)
+  expect(stable).toContain("@internal/visual")
+  expect(stable).not.toContain("visual-canvas")
+  expect(stable.length).toBeLessThan(visualSource.length)
 })
 
 function request(body: unknown) {

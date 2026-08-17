@@ -120,15 +120,15 @@
       "version": "0.1.0",
       "dependencies": {
         "@hamiltonian/visual": "workspace:*",
-        "@internal/visual": "workspace:^0.1.0",
+        "@internal/visual": "workspace:^0.1.1",
         "@metafor/engine": "workspace:*",
         "@metafor/web-push": "workspace:*",
         "@nodes/hud": "workspace:*",
         "@nodes/layout": "workspace:*",
         "@nodes/ui": "workspace:*",
-        "@release/main": "workspace:^0.1.2",
+        "@release/main": "workspace:^0.1.3",
         "@release/server": "workspace:*",
-        "@release/service": "workspace:^0.1.2",
+        "@release/service": "workspace:^0.1.3",
         "@ui/components": "workspace:*",
         "@ui/elements": "workspace:*",
         "nodes": "workspace:*",
@@ -142,7 +142,7 @@
     },
     "hamiltonian/internal/visual": {
       "name": "@internal/visual",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "dependencies": {
         "@metafor/engine": "workspace:*",
         "@ui/elements": "workspace:*",
@@ -164,7 +164,7 @@
     },
     "hamiltonian/web/release/main": {
       "name": "@release/main",
-      "version": "0.1.2",
+      "version": "0.1.3",
       "dependencies": {
         "@internal/visual": "workspace:^0.1.0",
       },
@@ -175,7 +175,7 @@
     },
     "hamiltonian/web/release/service": {
       "name": "@release/service",
-      "version": "0.1.2",
+      "version": "0.1.3",
       "devDependencies": {
         "@types/serviceworker": "^0.0.200",
       },

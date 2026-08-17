@@ -144,6 +144,7 @@ test.serial("UPD-002 updates one module group and restarts every Window once", a
     expect(requestsAfter.releaseMain).toBeGreaterThan(requestsBefore.releaseMain)
     expect(requestsAfter.releaseService).toBeGreaterThan(requestsBefore.releaseService)
     expect(requestsAfter.internalVisual).toBeGreaterThan(requestsBefore.internalVisual)
+    await expectCanonicalReleaseCaches(firstPage)
     expect(navigations).toEqual({first: 1, second: 1})
 
     await browser.close()
@@ -176,6 +177,8 @@ test.serial("UPD-002 updates one module group and restarts every Window once", a
         return false
       }
     }, 30_000)
+    await waitForAcceptedCaches(restoredPage)
+    await expectCanonicalReleaseCaches(restoredPage)
     expect(restoredNavigations).toBeGreaterThanOrEqual(2)
   } catch (error) {
     throw withServerOutput(error, server.output())
@@ -213,6 +216,9 @@ test.serial("UPD-002 keeps the active cache unchanged until every package is ava
     await Bun.sleep(300)
     expect(navigations).toBe(0)
     expect(await updateSources(page)).toEqual(sourceBefore)
+    await waitUntil(async () =>
+      Object.keys(await cacheSnapshot(page)).every((name) => !name.includes(":release:")))
+    await expectCanonicalReleaseCaches(page)
 
     expect(await reload).not.toBeNull()
     await waitUntil(async () => {
@@ -224,6 +230,7 @@ test.serial("UPD-002 keeps the active cache unchanged until every package is ava
         return false
       }
     }, 30_000)
+    await expectCanonicalReleaseCaches(page)
     expect(navigations).toBe(1)
   } catch (error) {
     throw withServerOutput(error, server.output())
@@ -250,6 +257,58 @@ test.serial("UPD-002 reconnects after a clean server-side WebSocket close", asyn
     const close = await fetch(new URL("/__tests/rpc/close", server.root), {method: "POST"})
     expect(close.status).toBe(204)
     await waitUntil(async () => await fixtureConnections(server.root) >= 2)
+  } catch (error) {
+    throw withServerOutput(error, server.output())
+  } finally {
+    if (browser) await browser.close().catch(() => {})
+    await server.stop().catch(() => {})
+    await rm(profile, {recursive: true, force: true})
+  }
+})
+
+test.serial("UPD-002 migrates a legacy active transaction cache into its owner cache", async () => {
+  const profile = await mkdtemp(join(tmpdir(), "metafor-upd-002-migrate-cache-"))
+  const server = await startServer("update")
+  let browser: Browser | null = null
+
+  try {
+    browser = await launchBrowser(profile)
+    const page = await browser.newPage()
+    const navigation = await page.goto(server.root, {waitUntil: "load"})
+    expect(navigation?.status()).toBe(200)
+    await waitForAcceptedCaches(page)
+    await waitUntil(async () => await fixtureConnections(server.root) === 1)
+
+    await page.evaluate(async () => {
+      const state = await (await fetch("/code", {cache: "no-store"})).json() as {
+        packages: Array<{name: string, version: string, endpoint: string, cache: string}>
+      }
+      const visual = state.packages.find(({name}) => name === "@internal/visual")
+      if (!visual) throw new Error("Visual release state is missing")
+      const response = await fetch(visual.endpoint, {cache: "no-store"})
+      if (!response.ok) throw new Error(`Visual artifact returned ${response.status}`)
+
+      const legacyStorage = "internal:release:legacy-proof"
+      await (await caches.open(legacyStorage)).put(visual.endpoint, response)
+      await (await caches.open("internal")).delete("/code?module=@internal/visual")
+      await (await caches.open("release")).put(
+        "/code?state=active",
+        Response.json({
+          packages: {
+            [visual.name]: {...visual, storage: legacyStorage},
+          },
+          restart: [],
+        }),
+      )
+    })
+
+    expect(Object.keys(await cacheSnapshot(page))).toContain("internal:release:legacy-proof")
+    const close = await fetch(new URL("/__tests/rpc/close", server.root), {method: "POST"})
+    expect(close.status).toBe(204)
+    await waitUntil(async () => await fixtureConnections(server.root) >= 2)
+    await waitUntil(async () =>
+      Object.keys(await cacheSnapshot(page)).every((name) => !name.includes(":release:")))
+    await expectCanonicalReleaseCaches(page)
   } catch (error) {
     throw withServerOutput(error, server.output())
   } finally {
@@ -657,18 +716,24 @@ async function waitForAcceptedCaches(page: Page) {
               restart: string[]
             }
             : {packages: {}, restart: []}
-          const visual = active.packages["@internal/visual"]
-          const visualResponse = await internal.match("/code?module=@internal/visual")
-            ?? (visual?.cache === "internal"
-              ? await (await caches.open(visual.storage)).match(visual.endpoint)
-              : undefined)
+          const cachedPackage = async (name: string, owner: string, cache: Cache) => {
+            const entry = active.packages[name]
+            if (!entry) return await cache.match(`/code?module=${name}`)
+            if (entry.cache !== owner || entry.storage !== entry.cache) return
+            return await cache.match(entry.endpoint)
+          }
+          const [releaseMain, releaseService, visual] = await Promise.all([
+            cachedPackage("@release/main", "release", releases),
+            cachedPackage("@release/service", "release", releases),
+            cachedPackage("@internal/visual", "internal", internal),
+          ])
           return Boolean(
             await startup.match("/")
             && await startup.match("/code?module=@startup/main")
             && await startup.match("/manifest.webmanifest")
-            && await releases.match("/code?module=@release/main")
-            && await releases.match("/code?module=@release/service")
-            && visualResponse
+            && releaseMain
+            && releaseService
+            && visual
             && active.restart.length === 0
             && navigator.serviceWorker.controller
           )
@@ -738,9 +803,36 @@ async function cacheSnapshot(page: Page): Promise<CacheSnapshot> {
 }
 
 function hasCachedPackage(snapshot: CacheSnapshot, owner: string, name: string) {
-  return Object.entries(snapshot).some(([storage, paths]) =>
-    (storage === owner || storage.startsWith(`${owner}:release:`))
-    && paths.some((path) => new URL(path, "http://cache.test").searchParams.get("module") === name))
+  return snapshot[owner]?.some((path) =>
+    new URL(path, "http://cache.test").searchParams.get("module") === name) ?? false
+}
+
+async function expectCanonicalReleaseCaches(page: Page) {
+  const [snapshot, active] = await Promise.all([
+    cacheSnapshot(page),
+    page.evaluate(async () => {
+      const response = await (await caches.open("release")).match("/code?state=active")
+      return response
+        ? await response.json() as {
+          packages: Record<string, {
+            name: string
+            version: string
+            endpoint: string
+            cache: string
+            storage: string
+          }>
+        }
+        : {packages: {}}
+    }),
+  ])
+
+  expect(Object.keys(snapshot).sort()).toEqual(["internal", "release", "startup"])
+  for (const entry of Object.values(active.packages)) {
+    expect(entry.storage).toBe(entry.cache)
+    const packageEntries = snapshot[entry.cache]?.filter((path) =>
+      new URL(path, "http://cache.test").searchParams.get("module") === entry.name)
+    expect(packageEntries).toEqual([entry.endpoint])
+  }
 }
 
 async function fixtureRequests(root: string) {
