@@ -1,5 +1,16 @@
 export {buildablePackage, buildPackage, packageResponse} from "./build"
 export {packageBuildCommand} from "./command"
+export {
+  readReleaseComposition,
+  satisfiesWorkspaceRange,
+  validateBrowserReleaseEnvironments,
+  validateReleaseDependencyGraph,
+  validateTargetReleaseVersions,
+} from "./composition"
+export type {
+  ReleaseCompositionMember,
+  ReleaseDependencyMember,
+} from "./composition"
 export type {
   BuildablePackage,
   PackageBuildArtifact,

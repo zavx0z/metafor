@@ -13,7 +13,7 @@
   },
   "dependencies": {
     "@release/main": "workspace:^0.1.6",
-    "@release/service": "workspace:^0.1.6",
+    "@release/service": "workspace:^0.1.7",
     "@release/server": "workspace:*",
     "@internal/visual": "workspace:^0.1.4",
     "@hamiltonian/visual": "workspace:*",

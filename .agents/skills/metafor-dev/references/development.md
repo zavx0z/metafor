@@ -40,7 +40,10 @@ console.debug("[@release/service:update]", "новая сборка загруж
   control endpoint `/code` и server-реализации RPC.
   Browser-код из него не загружается.
 * `@startup/main` и `@startup/service` — фиксированный startup. В обычной
-  разработке не менять и через endpoint обновления не передавать.
+  разработке не менять и через endpoint обновления не передавать. Они явно
+  объявляют загружаемые release dependencies; Loader type принадлежит
+  `@release/service`, а startup предоставляет его реализацию через type-only
+  bare import.
 
 Имя модуля брать только из поля `name` его `package.json`.
 Сменяемый package также объявляет точную `version`. Cache owner не записывать в
@@ -48,6 +51,11 @@ manifest: он выводится из namespace package (`startup`, `release`, 
 или `metafor`).
 Последние доказанные версии перечислены в dependencies корневого Hamiltonian
 package как `workspace:^<version>`.
+
+Эти caret dependencies являются полным browser release membership. Runtime
+dependency `@release/*` или `@internal/*` каждого участника обязан находиться в
+том же membership, а выбранная version — удовлетворять его workspace range.
+Не обходить эту проверку ручным удалением либо несовместимым version bump.
 
 Source во всех средах импортирует один bare package specifier, например
 `@internal/visual`. Env не добавлять в specifier и не оформлять package

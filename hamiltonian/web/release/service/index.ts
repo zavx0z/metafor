@@ -6,7 +6,7 @@
  * @packageDocumentation
  */
 
-import type * as Loader from "../../startup/service/loader"
+import type {ReleaseLoader} from "./contract"
 import {updateRelease} from "./loader"
 import {startRpc} from "./rpc"
 import {confirmRestart} from "./state"
@@ -17,7 +17,7 @@ import {updatePackages} from "./storage"
  *
  * @param loader - Универсальные primitives неизменяемого startup.
  */
-export default async function releaseService(loader: typeof Loader) {
+export default async function releaseService(loader: ReleaseLoader) {
   console.debug("[@release/service]", "Service Worker release запущен", {rpc: "/sw"})
   startRpc({
     updateModules: async (input: unknown) => {
@@ -45,6 +45,8 @@ export default async function releaseService(loader: typeof Loader) {
     restartBrowser,
   })
 }
+
+export type {ReleaseLoader} from "./contract"
 
 /** Создаёт новую Service Worker incarnation и один раз навигирует каждый Window. */
 async function restartBrowser() {

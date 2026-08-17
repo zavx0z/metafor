@@ -119,8 +119,9 @@ browser transaction остаются следующими отдельными �
 versions: старые immutable bytes под прежним SemVer не подменяются. Срез `.3`
 находится в `REVIEW`: canonical URL, SHA-256/size и namespace cache ownership
 доказаны unit, exact-response и полным browser suite; result checkpoint
-`d47e89e96`. Срез `.4` выполняется: он проверяет membership/dependency closure
-и переносит Loader type boundary, не меняя publication/transaction lifecycle.
+`d47e89e96`. Срез `.4` находится в `REVIEW`: membership/dependency closure,
+startup dependencies и public Loader type boundary доказаны focused и полным
+suite; publication/transaction lifecycle не менялся.
 Пакеты `@startup/main` и `@startup/service` устанавливают Service Worker, восстанавливают
 HTML/startup offline и запускают `@release/main` и `@release/service` из cache
 `release`. Release packages разворачивают Window и Service Worker контуры;

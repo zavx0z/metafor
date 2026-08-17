@@ -226,6 +226,20 @@ immutable versioned artifact. Поэтому `@release/main` и
 `@internal/visual` обслуживаются как два физических artifact: ни текущая, ни
 versioned сборка `@release/main` не содержит implementation Visual.
 
+Корневые caret dependencies Hamiltonian являются полным browser release
+membership. Перед чтением state и перед сборкой target versions server
+проверяет runtime dependencies всех `@release/*` и `@internal/*` участников:
+каждый такой dependency присутствует в membership, а выбранная version
+удовлетворяет его `workspace:*` либо `workspace:^<semver>` range. Поэтому
+добавленный package принимается только с полной closure, требуемый package
+нельзя удалить, а несовместимый major/minor target не доходит до build.
+
+Startup packages не входят в сменяемый membership, но явно объявляют
+загружаемые `@release/main` и `@release/service` dependencies. Минимальный
+Loader type принадлежит потребителю `@release/service`; startup импортирует
+его только как public type по bare package name и предоставляет реализацию.
+Release не импортирует types относительным путём через границу startup package.
+
 `@release/server` — единственный server-side владелец release packages и
 server-стороны RPC. Он находит и проверяет package-owned build contract,
 собирает artifacts, вычисляет следующие версии, атомарно публикует группу и

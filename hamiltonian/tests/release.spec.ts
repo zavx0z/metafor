@@ -4,8 +4,14 @@ import {
   getRelease,
   nextPackageVersion,
   packageChanges,
+  packageOwners,
+  readReleaseComposition,
   releasedPackageResponse,
   releasedPackages,
+  satisfiesWorkspaceRange,
+  validateBrowserReleaseEnvironments,
+  validateReleaseDependencyGraph,
+  validateTargetReleaseVersions,
 } from "../web/release/server"
 import {
   artifactIntegrity,
@@ -75,6 +81,45 @@ test("POST accepts package names and SemVer change but never a ready version", a
   }))
   expect(startup).toBeInstanceOf(Response)
   expect((startup as Response).status).toBe(404)
+})
+
+test("release membership is closed over compatible runtime dependencies", async () => {
+  const current = await readReleaseComposition()
+  expect(current.map(({name}) => name)).toEqual([
+    "@release/main",
+    "@release/service",
+    "@internal/visual",
+  ])
+  expect(() => validateReleaseDependencyGraph(current)).not.toThrow()
+
+  const addition = {
+    name: "@internal/independent",
+    version: "0.1.0",
+    dependencies: {},
+  }
+  expect(() => validateReleaseDependencyGraph([...current, addition])).not.toThrow()
+  expect(() => validateReleaseDependencyGraph(
+    current.filter(({name}) => name !== "@internal/visual"),
+  )).toThrow("requires missing release package @internal/visual")
+  expect(() => validateTargetReleaseVersions(
+    current,
+    new Map([["@internal/visual", "0.2.0"]]),
+  )).toThrow("selected 0.2.0")
+  expect(() => validateTargetReleaseVersions(
+    current,
+    new Map([["@internal/not-a-member", "0.1.0"]]),
+  )).toThrow("is not in root membership")
+
+  expect(satisfiesWorkspaceRange("1.9.0", "workspace:^1.2.3")).toBeTrue()
+  expect(satisfiesWorkspaceRange("2.0.0", "workspace:^1.2.3")).toBeFalse()
+  expect(satisfiesWorkspaceRange("0.1.9", "workspace:^0.1.3")).toBeTrue()
+  expect(satisfiesWorkspaceRange("0.2.0", "workspace:^0.1.3")).toBeFalse()
+  expect(satisfiesWorkspaceRange("0.0.4", "workspace:^0.0.3")).toBeFalse()
+  const serverOwners = await packageOwners("@release/server")
+  expect(() => validateBrowserReleaseEnvironments(
+    "@release/server",
+    serverOwners,
+  )).toThrow("has no browser environment")
 })
 
 test("SemVer change resets the lower components", () => {

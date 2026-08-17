@@ -39,8 +39,16 @@ test("LOAD-001 keeps release policy and WebSocket outside immutable startup", as
 
   const startupServicePackage = await Bun.file(
     join(hamiltonian, "web/startup/service/package.json"),
-  ).json() as {artifact?: {headers?: Record<string, string>}}
+  ).json() as {
+    artifact?: {headers?: Record<string, string>}
+    dependencies?: Record<string, string>
+  }
+  const startupMainPackage = await Bun.file(
+    join(hamiltonian, "web/startup/main/package.json"),
+  ).json() as {dependencies?: Record<string, string>}
   expect(startupServicePackage.artifact?.headers?.["Service-Worker-Allowed"]).toBe("/")
+  expect(startupMainPackage.dependencies?.["@release/main"]).toBe("workspace:^0.1.6")
+  expect(startupServicePackage.dependencies?.["@release/service"]).toBe("workspace:^0.1.7")
 
   expect(packageUrl).toContain('name?.startsWith("@release/")')
   expect(packageUrl).toContain('name?.startsWith("@internal/")')
@@ -65,6 +73,11 @@ test("LOAD-001 keeps release policy and WebSocket outside immutable startup", as
   expect(releaseLoader).not.toContain("return {...entry, storage}")
 
   expect(releaseService).toContain("startRpc({")
+  expect(releaseService).toContain('import type {ReleaseLoader} from "./contract"')
+  expect(releaseLoader).toContain('import type {ReleaseLoader} from "./contract"')
+  expect(startupService).toContain('import type {ReleaseLoader} from "@release/service"')
+  expect(releaseService).not.toContain("../../startup/")
+  expect(releaseLoader).not.toContain("../../startup/")
   expect(releaseService).toContain("updatePackages(input)")
   expect(releaseService).toContain("updateRelease(loader, packages)")
   expect(releaseService).toContain("registration.unregister()")

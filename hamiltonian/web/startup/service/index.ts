@@ -12,10 +12,12 @@
 
 import {cacheFirst, cacheStartup} from "./cache"
 import * as loader from "./loader"
+import type {ReleaseLoader} from "@release/service"
 
 const serviceReleaseRequest = new Request(
   new URL("/@release/service?env=service-worker", location.origin),
 )
+const releaseLoader = loader satisfies ReleaseLoader
 
 let serviceRelease: Promise<void> | null = null
 
@@ -72,7 +74,7 @@ async function startServiceRelease() {
       exports: {default: (loaderApi: typeof loader) => Promise<void>}
     }
     loader.run(await response.text(), {module})
-    await module.exports.default(loader)
+    await module.exports.default(releaseLoader)
   } catch (error) {
     await loader.remove("release", serviceReleaseRequest)
     throw error

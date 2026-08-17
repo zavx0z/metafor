@@ -5,6 +5,7 @@ import {
 } from "../../package-environment"
 import {packageIdentityHeaders} from "../../package-integrity"
 import {packageResponse} from "./build"
+import {readReleaseComposition} from "./composition"
 import type {
   BuildablePackage,
   ReleasedPackage,
@@ -16,9 +17,8 @@ import {
   packageOwner,
   packageOwners,
 } from "./package"
-import {hamiltonianManifest} from "./paths"
 import {waitForPublication} from "./queue"
-import {caretVersion, isVersion} from "./version"
+import {isVersion} from "./version"
 
 /** Возвращает текущее доказанное состояние из корневых caret dependencies. */
 export async function releasedPackages(): Promise<ReleasedPackage[]> {
@@ -28,20 +28,10 @@ export async function releasedPackages(): Promise<ReleasedPackage[]> {
 
 /** Читает release state внутри уже сериализованной publication. */
 export async function readReleasedPackages(): Promise<ReleasedPackage[]> {
-  const root = await packageManifest(hamiltonianManifest)
+  const composition = await readReleaseComposition()
   const packages: ReleasedPackage[] = []
 
-  for (const [name, dependency] of Object.entries(root.dependencies ?? {})) {
-    if (!isReleasableName(name) || typeof dependency !== "string") continue
-    const version = caretVersion(dependency)
-    if (version === null) continue
-
-    const owners = await packageOwners(name)
-    const owner = owners[0]
-    if (owner === undefined) throw new Error(`Released package ${name} has no environments`)
-    const manifest = await packageManifest(owner.manifest)
-    if (manifest.name !== name || manifest.version !== version)
-      throw new Error(`Released package ${name} must have exact version ${version}`)
+  for (const {name, version, owners} of composition) {
     const environments = owners
       .filter(({env}) => browserPackageEnvironments.some((browserEnv) => browserEnv === env))
     for (const environmentOwner of environments) {
@@ -126,8 +116,4 @@ export async function releasedPackageResponse(
 /** Возвращает путь immutable artifact указанной package version. */
 export function versionedArtifact(artifact: string, version: string) {
   return join(dirname(artifact), "versions", version, basename(artifact))
-}
-
-function isReleasableName(value: string): value is ReleasablePackage {
-  return value.startsWith("@release/") || value.startsWith("@internal/")
 }

@@ -1,10 +1,10 @@
-import type * as Startup from "../../startup/service/loader"
 import {verifyPackageResponse} from "../../package-integrity"
 import {
   browserPackageCache,
   browserPackageSlot,
   browserPackageUrl,
 } from "../../package-url"
+import type {ReleaseLoader} from "./contract"
 import {
   activateRelease,
   discardInactiveReleases,
@@ -17,7 +17,7 @@ import {
 
 /** Подготавливает package group и открывает её loader одним active-state write. */
 export async function updateRelease(
-  startup: typeof Startup,
+  startup: ReleaseLoader,
   packages: ReleasePackage[],
 ) {
   await discardInterruptedRelease()

@@ -1,6 +1,10 @@
 import {copyFile, mkdir, mkdtemp, rename, rm} from "node:fs/promises"
 import {dirname, join} from "node:path"
 import {buildPackage} from "./build"
+import {
+  readReleaseComposition,
+  validateTargetReleaseVersions,
+} from "./composition"
 import type {
   PackageChange,
   PackageEnvironment,
@@ -32,6 +36,7 @@ export function publishPackages(changes: PackageChange[]): Promise<PackageReleas
 
 async function runPublication(changes: PackageChange[]): Promise<PackageReleaseResultSet> {
   const current = new Map((await readReleasedPackages()).map((entry) => [entry.name, entry]))
+  const composition = await readReleaseComposition()
   const staging = await mkdtemp(join(hamiltonianRoot, ".package-update-"))
 
   try {
@@ -52,6 +57,11 @@ async function runPublication(changes: PackageChange[]): Promise<PackageReleaseR
         })),
       } satisfies ReleasePlan
     }))
+
+    validateTargetReleaseVersions(
+      composition,
+      new Map(plans.map(({name, version}) => [name, version])),
+    )
 
     const artifactPlans = plans.flatMap((plan) =>
       plan.artifacts.map((artifact) => ({plan, artifact})))
