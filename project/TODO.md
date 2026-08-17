@@ -78,6 +78,9 @@ Browser path перестраивается в `UPD-002.7` как `startup → r
 `UPD-002.9` встраивает обе стороны RPC в release: server transport принадлежит
 `@release/server`, Service Worker transport входит в `@release/service`, а
 корневой `server.ts` снова явно показывает HTTP methods и WebSocket lifecycle.
+Текущий срез `UPD-002.10` перестаёт встраивать `@internal/visual` в
+`@release/main`: Visual получает собственные versioned artifact и cache owner
+`internal`, оставаясь доступным через тот же универсальный `/code`.
 Пакеты `@startup/main` и `@startup/service` устанавливают Service Worker, восстанавливают
 HTML/startup offline и запускают `@release/main` и `@release/service` из cache
 `release`. Release packages разворачивают Window и Service Worker контуры;
