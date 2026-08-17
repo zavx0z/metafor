@@ -36,9 +36,19 @@
       -webkit-touch-callout: none;
     }
   </style>
+  <script type="importmap">
+    {
+      "imports": {
+        "@startup/": "/@startup/",
+        "@release/": "/@release/",
+        "@internal/": "/@internal/",
+        "@metafor/": "/@metafor/"
+      }
+    }
+  </script>
 </head>
 <body>
   <canvas id="visual-canvas"></canvas>
-  <script type="module" src="/code?module=@startup/main"></script>
+  <script type="module" src="/@startup/main"></script>
 </body>
 </html>

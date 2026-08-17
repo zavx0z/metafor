@@ -290,7 +290,7 @@ test.serial("UPD-002 migrates a legacy active transaction cache into its owner c
 
       const legacyStorage = "internal:release:legacy-proof"
       await (await caches.open(legacyStorage)).put(visual.endpoint, response)
-      await (await caches.open("internal")).delete("/code?module=@internal/visual")
+      await (await caches.open("internal")).delete("/@internal/visual")
       await (await caches.open("release")).put(
         "/code?state=active",
         Response.json({
@@ -335,9 +335,9 @@ test.serial("LOAD-001 restores accepted startup and release from caches", async 
 
     const routeProbes = await probe.evaluate(async () => {
       const paths = [
-        "/code?module=@release/main",
-        "/code?module=@release/service",
-        "/code?module=@internal/visual",
+        "/@release/main",
+        "/@release/service",
+        "/@internal/visual",
       ]
       const current = await Promise.all(paths.map(async (path) => {
         const first = await fetch(path)
@@ -359,7 +359,8 @@ test.serial("LOAD-001 restores accepted startup and release from caches", async 
         "/release-service.js",
         "/rpc-service.js",
       ].map(async (path) => ({path, status: (await fetch(path)).status})))
-      return {current, legacy}
+      const queryArtifact = await fetch("/code?module=@release/main")
+      return {current, legacy, queryArtifactStatus: queryArtifact.status}
     })
 
     for (const route of routeProbes.current) {
@@ -369,6 +370,7 @@ test.serial("LOAD-001 restores accepted startup and release from caches", async 
       expect(route.secondBody).toBe(route.firstBody)
       expect(route.type).toStartWith("text/javascript")
     }
+    expect(routeProbes.queryArtifactStatus).toBe(404)
     for (const route of routeProbes.legacy) expect(route.status).toBe(404)
     await probeContext.close()
 
@@ -390,7 +392,7 @@ test.serial("LOAD-001 restores accepted startup and release from caches", async 
     expect(navigation?.status()).toBe(200)
 
     const firstWorker = await workerObserver.promise
-    expect(new URL(firstWorker.target.url()).searchParams.get("module")).toBe("@startup/service")
+    expect(new URL(firstWorker.target.url()).pathname).toBe("/@startup/service")
     await waitForAcceptedCaches(page)
 
     const documentContract = await page.evaluate(async () => ({
@@ -399,11 +401,11 @@ test.serial("LOAD-001 restores accepted startup and release from caches", async 
       scope: (await navigator.serviceWorker.getRegistration())?.scope ?? null,
     }))
 
-    expect(documentContract.scripts).toEqual(["/code?module=@startup/main"])
-    expect(documentContract.controller).toBe(`${server.root}/code?module=@startup/service`)
+    expect(documentContract.scripts).toEqual([null, "/@startup/main"])
+    expect(documentContract.controller).toBe(`${server.root}/@startup/service`)
     expect(documentContract.scope).toBe(`${server.root}/`)
-    expect(requests).toContain("/code?module=@startup/main")
-    expect(requests).toContain("/code?module=@release/main")
+    expect(requests).toContain("/@startup/main")
+    expect(requests).toContain("/@release/main")
     expect(requests.some((path) => /hmr|_bun/i.test(path))).toBe(false)
 
     const initial = await cacheSnapshot(page)
@@ -411,16 +413,16 @@ test.serial("LOAD-001 restores accepted startup and release from caches", async 
     expect(initial.startup).toEqual(expect.arrayContaining([
       "/",
       "/manifest.webmanifest",
-      "/code?module=@startup/main",
+      "/@startup/main",
     ]))
-    expect(initial.startup).not.toContain("/code?module=@release/main")
-    expect(initial.startup).not.toContain("/code?module=@release/service")
-    expect(initial.startup).not.toContain("/code?module=@internal/visual")
+    expect(initial.startup).not.toContain("/@release/main")
+    expect(initial.startup).not.toContain("/@release/service")
+    expect(initial.startup).not.toContain("/@internal/visual")
     expect(initial.release).toEqual(expect.arrayContaining([
-      "/code?module=@release/main",
-      "/code?module=@release/service",
+      "/@release/main",
+      "/@release/service",
     ]))
-    expect(initial.release).not.toContain("/code?module=@internal/visual")
+    expect(initial.release).not.toContain("/@internal/visual")
     expect(hasCachedPackage(initial, "internal", "@internal/visual")).toBe(true)
     expect(initial.metafor).toBeUndefined()
 
@@ -448,10 +450,10 @@ test.serial("LOAD-001 restores accepted startup and release from caches", async 
     expect(onlineAsset.bytes).toBeGreaterThan(0)
     await waitUntil(async () => (await cacheSnapshot(page)).startup?.includes(lazyAsset!) ?? false)
 
-    const mainReleaseRequestsBeforeOffline = countMatches(requests.join("\n"), "/code?module=@release/main")
+    const mainReleaseRequestsBeforeOffline = countMatches(requests.join("\n"), "/@release/main")
     const mainResponsesBeforeOffline = countMatches(
       serviceWorkerResponses.join("\n"),
-      "/code?module=@release/main",
+      "/@release/main",
     )
     await server.stop()
     serverStopped = true
@@ -475,10 +477,10 @@ test.serial("LOAD-001 restores accepted startup and release from caches", async 
     expect(nested?.fromServiceWorker()).toBe(true)
     expect(page.url()).toBe(`${server.root}/net/peer`)
     await waitUntil(() =>
-      countMatches(requests.join("\n"), "/code?module=@release/main") > mainReleaseRequestsBeforeOffline)
+      countMatches(requests.join("\n"), "/@release/main") > mainReleaseRequestsBeforeOffline)
     await waitUntil(() => countMatches(
       serviceWorkerResponses.join("\n"),
-      "/code?module=@release/main",
+      "/@release/main",
     ) > mainResponsesBeforeOffline)
 
     const afterNested = await cacheSnapshot(page)
@@ -508,24 +510,24 @@ test.serial("LOAD-001 restores accepted startup and release from caches", async 
     expect(coldNavigation?.fromServiceWorker()).toBe(true)
 
     const coldWorker = await coldWorkerObserver.promise
-    expect(new URL(coldWorker.target.url()).searchParams.get("module")).toBe("@startup/service")
-    await waitUntil(() => coldRequests.includes("/code?module=@release/main"))
-    await waitUntil(() => coldServiceWorkerResponses.includes("/code?module=@release/main"))
+    expect(new URL(coldWorker.target.url()).pathname).toBe("/@startup/service")
+    await waitUntil(() => coldRequests.includes("/@release/main"))
+    await waitUntil(() => coldServiceWorkerResponses.includes("/@release/main"))
     await waitUntil(() => witness!.connections() >= 1)
     expect(witness.requests).not.toContain("/")
-    expect(witness.requests).not.toContain("/code?module=@release/main")
-    expect(witness.requests).not.toContain("/code?module=@release/service")
-    expect(witness.requests).not.toContain("/code?module=@internal/visual")
+    expect(witness.requests).not.toContain("/@release/main")
+    expect(witness.requests).not.toContain("/@release/service")
+    expect(witness.requests).not.toContain("/@internal/visual")
 
     const cold = await cacheSnapshot(coldPage)
     expect(cold.startup).toEqual(expect.arrayContaining([
       "/",
       "/manifest.webmanifest",
-      "/code?module=@startup/main",
+      "/@startup/main",
     ]))
     expect(cold.release).toEqual(expect.arrayContaining([
-      "/code?module=@release/main",
-      "/code?module=@release/service",
+      "/@release/main",
+      "/@release/service",
     ]))
     expect(hasCachedPackage(cold, "internal", "@internal/visual")).toBe(true)
     expect(Object.values(cold).flat()).not.toContain("/cold/restored")
@@ -559,21 +561,21 @@ test.serial("LOAD-001 rejects a failed release artifact and retries its exact en
       expect(failed.startup).toEqual(expect.arrayContaining([
         "/",
         "/manifest.webmanifest",
-        "/code?module=@startup/main",
+        "/@startup/main",
       ]))
-      expect(failed.release).toContain("/code?module=@release/main")
-      expect(failed.release).not.toContain("/code?module=@release/service")
-      expect(failed.internal).toEqual(["/code?module=@internal/visual"])
+      expect(failed.release).toContain("/@release/main")
+      expect(failed.release).not.toContain("/@release/service")
+      expect(failed.internal).toEqual(["/@internal/visual"])
 
       await retryConnectUntil(page, scenario.failed, 2)
       await waitForAcceptedCaches(page)
 
       const recovered = await cacheSnapshot(page)
       expect(recovered.release).toEqual(expect.arrayContaining([
-        "/code?module=@release/main",
-        "/code?module=@release/service",
+        "/@release/main",
+        "/@release/service",
       ]))
-      expect(recovered.internal).toEqual(["/code?module=@internal/visual"])
+      expect(recovered.internal).toEqual(["/@internal/visual"])
       expect(recovered.metafor).toBeUndefined()
     } catch (error) {
       throw withServerOutput(error, server.output())
@@ -658,7 +660,7 @@ function observeStartupWorker(browser: Browser, excluded?: Target) {
 
   const inspect = (target: Target) => {
     if (settled || target === excluded || target.type() !== TargetType.SERVICE_WORKER) return
-    if (new URL(target.url()).searchParams.get("module") !== "@startup/service") return
+    if (new URL(target.url()).pathname !== "/@startup/service") return
     void target.worker()
       .then((worker) => {
         if (!worker || settled) return
@@ -718,7 +720,7 @@ async function waitForAcceptedCaches(page: Page) {
             : {packages: {}, restart: []}
           const cachedPackage = async (name: string, owner: string, cache: Cache) => {
             const entry = active.packages[name]
-            if (!entry) return await cache.match(`/code?module=${name}`)
+            if (!entry) return await cache.match(`/${name}`)
             if (entry.cache !== owner || entry.storage !== entry.cache) return
             return await cache.match(entry.endpoint)
           }
@@ -729,7 +731,7 @@ async function waitForAcceptedCaches(page: Page) {
           ])
           return Boolean(
             await startup.match("/")
-            && await startup.match("/code?module=@startup/main")
+            && await startup.match("/@startup/main")
             && await startup.match("/manifest.webmanifest")
             && releaseMain
             && releaseService
@@ -758,8 +760,8 @@ async function waitForFailedEntries(page: Page, fault: "release-service-http-onc
     const requestObserved = expectedFault === "release-service-http-once"
       && state.requests.releaseService >= 1
     return requestObserved
-      && Boolean(await releases.match("/code?module=@release/main"))
-      && !await releases.match("/code?module=@release/service")
+      && Boolean(await releases.match("/@release/main"))
+      && !await releases.match("/@release/service")
   }, {timeout: 30_000}, fault)
 }
 
@@ -804,7 +806,7 @@ async function cacheSnapshot(page: Page): Promise<CacheSnapshot> {
 
 function hasCachedPackage(snapshot: CacheSnapshot, owner: string, name: string) {
   return snapshot[owner]?.some((path) =>
-    new URL(path, "http://cache.test").searchParams.get("module") === name) ?? false
+    new URL(path, "http://cache.test").pathname === `/${name}`) ?? false
 }
 
 async function expectCanonicalReleaseCaches(page: Page) {
@@ -830,7 +832,7 @@ async function expectCanonicalReleaseCaches(page: Page) {
   for (const entry of Object.values(active.packages)) {
     expect(entry.storage).toBe(entry.cache)
     const packageEntries = snapshot[entry.cache]?.filter((path) =>
-      new URL(path, "http://cache.test").searchParams.get("module") === entry.name)
+      new URL(path, "http://cache.test").pathname === `/${entry.name}`)
     expect(packageEntries).toEqual([entry.endpoint])
   }
 }
@@ -886,7 +888,7 @@ async function updateSources(page: Page) {
       const entry = active.packages[name]
       const response = entry
         ? await (await caches.open(entry.storage)).match(entry.endpoint)
-        : await (await caches.open(owner)).match(`/code?module=${name}`)
+        : await (await caches.open(owner)).match(`/${name}`)
       return await response?.text() ?? ""
     }
 

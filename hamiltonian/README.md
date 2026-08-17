@@ -172,15 +172,23 @@ transport.
 
 Неизменяемый startup запускает один активный release и не знает состав
 `internal` packages. `@release/main` разворачивает Window-контур и загружает
-`@internal/visual` как самостоятельный artifact через универсальный `/code`.
+`@internal/visual` как самостоятельный artifact по его каноническому package
+URL `/@internal/visual`.
 Visual хранится в cache owner `internal` и обновляется отдельно от bytes
 `@release/main`. `@release/service` разворачивает сменяемый Service Worker-контур,
 владеет RPC transport и подготовкой следующего release.
 
-Startup fetch-handler направляет стабильный package URL в cache владельца
-namespace: `@release/*` — `release`, `@internal/*` — `internal`, `@metafor/*` —
-`metafor`. Состав пакетов ему неизвестен: отдельного реестра имён или ветки для
-Visual в handler нет.
+Browser artifact доступен по URL `/<package-name>`; exact version добавляет
+только query `version`. Статический import map направляет bare specifiers
+`@startup/*`, `@release/*`, `@internal/*` и `@metafor/*` в одноимённые URL,
+поэтому source и готовые Window ESM artifacts сохраняют package imports без
+transport adapter. `/code` не доставляет artifact: `GET /code` возвращает
+доказанное package state, а `POST /code` публикует группу обновления.
+
+Startup fetch-handler направляет package URL в cache владельца namespace:
+`@release/*` — `release`, `@internal/*` — `internal`, `@metafor/*` — `metafor`.
+Состав пакетов ему неизвестен: отдельного реестра имён или ветки для Visual в
+handler нет.
 
 Постоянный Cache Storage называется только по владельцу: `startup`, `release`,
 `internal` или `metafor`; последний появляется только вместе с первым package
@@ -202,9 +210,9 @@ versioned сборка `@release/main` не содержит implementation Visu
 server-стороны RPC. Он находит и проверяет package-owned build contract,
 собирает artifacts, вычисляет следующие версии, атомарно публикует группу и
 реализует операции HTTP/RPC. Корневой `server.ts` остаётся явной картой
-сетевого интерфейса: возле каждого endpoint видны HTTP methods, а возле
-WebSocket — `open`, `message` и `close`; фабрика, скрывающая целый route,
-запрещена. На используемом Bun 1.3.14 `{dir}` ещё распознаётся как
+сетевого интерфейса: namespace routes package artifacts, methods `/code` и
+возле WebSocket `open`, `message` и `close` видны непосредственно; фабрика,
+скрывающая целый route, запрещена. На используемом Bun 1.3.14 `{dir}` ещё распознаётся как
 `FrameworkRouter` и не является рабочим runtime directory route, поэтому
 дерево assets временно обслуживается явным безопасным file-handler без
 frontend framework dependencies.

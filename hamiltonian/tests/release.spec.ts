@@ -1,5 +1,7 @@
 import {expect, test} from "bun:test"
 import {
+  getPackage,
+  getRelease,
   nextPackageVersion,
   packageChanges,
   releasedPackageResponse,
@@ -15,7 +17,7 @@ test("package state comes from root caret dependencies", async () => {
   ])
   expect(packages.map(({cache}) => cache)).toEqual(["release", "release", "internal"])
   for (const entry of packages) {
-    expect(entry.endpoint).toBe(`/code?module=${entry.name}&version=${entry.version}`)
+    expect(entry.endpoint).toBe(`/${entry.name}?version=${entry.version}`)
     expect(entry.version).toMatch(/^\d+\.\d+\.\d+$/)
   }
 })
@@ -61,6 +63,26 @@ test("SemVer change resets the lower components", () => {
   expect(nextPackageVersion("1.2.3", "patch")).toBe("1.2.4")
   expect(nextPackageVersion("1.2.3", "minor")).toBe("1.3.0")
   expect(nextPackageVersion("1.2.3", "major")).toBe("2.0.0")
+})
+
+test("canonical package URLs separate artifact delivery from release control", async () => {
+  const [stable, exact, legacy, invalid] = await Promise.all([
+    getPackage(new Request("http://127.0.0.1:4444/@startup/main")),
+    getPackage(new Request("http://127.0.0.1:4444/@startup/main?version=0.1.1")),
+    getRelease(new Request("http://127.0.0.1:4444/code?module=@startup/main")),
+    getPackage(new Request("http://127.0.0.1:4444/@startup/main?module=@startup/main")),
+  ])
+  const [stableSource, exactSource] = await Promise.all([stable.text(), exact.text()])
+
+  expect(stable.status).toBe(200)
+  expect(exact.status).toBe(200)
+  expect(stable.headers.get("X-Package-Name")).toBe("@startup/main")
+  expect(stable.headers.get("X-Package-Version")).toBe("0.1.1")
+  expect(exactSource).toBe(stableSource)
+  expect(stableSource).toContain('import("@release/main")')
+  expect(stableSource).not.toContain("/code?module=")
+  expect(legacy.status).toBe(404)
+  expect(invalid.status).toBe(404)
 })
 
 test("current release main serves its exact standalone versioned artifact", async () => {

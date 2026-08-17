@@ -1,3 +1,5 @@
+import {browserPackageName} from "../../package-url"
+
 /** Минимальная ссылка startup на уже активный release artifact. */
 interface ActiveReleasePackage {
   endpoint: string
@@ -56,7 +58,7 @@ export function run(source: string, bindings: Readonly<Record<string, unknown>> 
 }
 
 async function activePackage(name: string, request: Request) {
-  const module = new URL(request.url).searchParams.get("module")
+  const module = browserPackageName(new URL(request.url).pathname)
   if (module === null) return null
   const entry = (await activeRelease()).packages[module]
   return entry?.cache === name ? entry : null

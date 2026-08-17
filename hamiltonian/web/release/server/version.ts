@@ -9,8 +9,8 @@ export function caretVersion(value: string) {
 }
 
 /** Проверяет точный стабильный SemVer без prerelease и build metadata. */
-export function isVersion(value: string) {
-  return workspaceCaret.test(`workspace:^${value}`)
+export function isVersion(value: unknown): value is string {
+  return typeof value === "string" && workspaceCaret.test(`workspace:^${value}`)
 }
 
 /** Вычисляет следующую стабильную SemVer без принятия номера извне. */

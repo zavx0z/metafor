@@ -8,7 +8,7 @@
  * @packageDocumentation
  */
 
-const registration = await navigator.serviceWorker.register("/code?module=@startup/service", {
+const registration = await navigator.serviceWorker.register("/@startup/service", {
   scope: "/",
   type: "module",
 })
@@ -25,7 +25,7 @@ const serviceWorker = navigator.serviceWorker.controller
 
 if (!serviceWorker) throw new Error("Service Worker does not control the page")
 
-await import("/code?module=@release/main")
+await import("@release/main")
 serviceWorker.postMessage({type: "connect"})
 console.debug("[@startup/main]", "страница готова к работе", {
   controller: serviceWorker.scriptURL,

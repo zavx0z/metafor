@@ -5,8 +5,9 @@ import {join} from "node:path"
 const hamiltonian = fileURLToPath(new URL("../", import.meta.url))
 
 test("LOAD-001 keeps release policy and WebSocket outside immutable startup", async () => {
-  const [startupMain, startupService, startupCache, startupLoader, releaseService, releaseState, releaseLoader, storage, html] =
+  const [packageUrl, startupMain, startupService, startupCache, startupLoader, releaseService, releaseState, releaseLoader, storage, html] =
     await Promise.all([
+    Bun.file(join(hamiltonian, "web/package-url.ts")).text(),
     Bun.file(join(hamiltonian, "web/startup/main/index.ts")).text(),
     Bun.file(join(hamiltonian, "web/startup/service/index.ts")).text(),
     Bun.file(join(hamiltonian, "web/startup/service/cache.ts")).text(),
@@ -19,26 +20,34 @@ test("LOAD-001 keeps release policy and WebSocket outside immutable startup", as
     ])
 
   expect(html.match(/<script\b[^>]*\bsrc=/g)).toHaveLength(1)
-  expect(html).toContain('src="/code?module=@startup/main"')
-  expect(html).not.toContain("@release/")
-  expect(html).not.toContain("@internal/")
+  expect(html).toContain('src="/@startup/main"')
+  expect(html).toContain('"@startup/": "/@startup/"')
+  expect(html).toContain('"@release/": "/@release/"')
+  expect(html).toContain('"@internal/": "/@internal/"')
+  expect(html).toContain('"@metafor/": "/@metafor/"')
 
-  expect(startupMain).toContain('import("/code?module=@release/main")')
-  expect(startupMain.indexOf('await import("/code?module=@release/main")'))
+  expect(startupMain).toContain('import("@release/main")')
+  expect(startupMain.indexOf('await import("@release/main")'))
     .toBeLessThan(startupMain.indexOf('serviceWorker.postMessage({type: "connect"})'))
   expect(startupMain).not.toContain("@internal/")
   expect(startupMain).not.toContain("@metafor/")
 
-  expect(startupService).toContain('new URL("/code?module=@release/service", location.origin)')
+  expect(startupService).toContain('new URL("/@release/service", location.origin)')
   expect(startupService).not.toContain("@internal/")
   expect(startupService).not.toContain("@metafor/")
   expect(startupService).not.toContain("WebSocket")
   expect(startupService).not.toContain("importModule")
 
-  expect(startupCache).toContain('name?.startsWith("@release/")')
-  expect(startupCache).toContain('name?.startsWith("@internal/")')
-  expect(startupCache).toContain('name?.startsWith("@metafor/")')
-  expect(startupCache).not.toContain("@internal/visual")
+  const startupServicePackage = await Bun.file(
+    join(hamiltonian, "web/startup/service/package.json"),
+  ).json() as {artifact?: {headers?: Record<string, string>}}
+  expect(startupServicePackage.artifact?.headers?.["Service-Worker-Allowed"]).toBe("/")
+
+  expect(packageUrl).toContain('name?.startsWith("@release/")')
+  expect(packageUrl).toContain('name?.startsWith("@internal/")')
+  expect(packageUrl).toContain('name?.startsWith("@metafor/")')
+  expect(packageUrl).not.toContain("@internal/visual")
+  expect(startupCache).not.toContain("/code?module=")
 
   expect(startupLoader).not.toContain("rememberRelease")
   expect(startupLoader).not.toContain("activateRelease")

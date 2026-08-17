@@ -12,7 +12,7 @@ export type {
   ReleasablePackage,
   VersionChange,
 } from "./contracts"
-export {getRelease} from "./delivery"
+export {getPackage, getRelease} from "./delivery"
 export {packageOwner} from "./package"
 export {publishPackages} from "./publish"
 export {packageChanges} from "./request"

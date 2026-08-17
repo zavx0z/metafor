@@ -19,6 +19,7 @@ test("HAM-005 creates one standard Window environment through internal visual", 
     }>,
     Bun.file(join(hamiltonian, "internal/visual/package.json")).json() as Promise<{
       name?: string
+      exports?: {"."?: {types?: string, default?: string}}
       dependencies?: Record<string, string>
       artifact?: {cache?: string}
       scripts?: Record<string, string>
@@ -33,11 +34,14 @@ test("HAM-005 creates one standard Window environment through internal visual", 
   expect(html).toContain('<canvas id="visual-canvas"></canvas>')
   expect(html).toContain("#visual-canvas")
   expect(html.match(/<script\b[^>]*\bsrc=/g)).toHaveLength(1)
-  expect(html).toContain('src="/code?module=@startup/main"')
+  expect(html).toContain('src="/@startup/main"')
+  expect(html).toContain('"@release/": "/@release/"')
+  expect(html).toContain('"@internal/": "/@internal/"')
 
   expect(main.trim()).toBe('await import("@internal/visual")')
   expect(mainPackage.dependencies).toEqual({"@internal/visual": "workspace:^0.1.0"})
   expect(visualPackage.name).toBe("@internal/visual")
+  expect(visualPackage.exports?.["."]).toEqual({types: "./index.d.ts", default: "./index.ts"})
   expect(visualPackage.artifact?.cache).toBe("internal")
   expect(visualPackage.scripts?.prebuild).toBe("bun run typecheck")
   expect(visualPackage.scripts?.build).toBe(
@@ -79,13 +83,13 @@ test("HAM-005 creates one standard Window environment through internal visual", 
   expect(visualBunfig).toContain('".wgsl" = "text"')
   expect(mainPackage.scripts?.prebuild).toBe("bun run typecheck")
   expect(mainPackage.scripts?.build).toBe(
-    "bun build ./main.ts --target=browser --production --minify --drop console.debug --outfile=dist/index.js",
+    "bun build ./main.ts --target=browser --packages=external --production --minify --drop console.debug --outfile=dist/index.js",
   )
   expect(packageBuild).toContain("packageArtifactPath(root, manifest.scripts.build)")
 
   expect(server).toContain('"/assets/fonts/JetBrainsMono-Bold.ttf"')
   expect(server).toContain('new URL("../pkg/engine/static/JetBrainsMono-Bold.ttf"')
-  expect(startupMain).toContain('import("/code?module=@release/main")')
+  expect(startupMain).toContain('import("@release/main")')
   expect(startupMain).not.toContain("UiRuntime")
 })
 
@@ -102,7 +106,8 @@ test("UPD-002 builds Window release and internal visual as separate artifacts", 
   expect(mainOutput?.size).toBeGreaterThan(0)
   expect(visualOutput?.size).toBeGreaterThan(0)
   expect(await Bun.file(mainOutput!.path).text()).not.toContain("visual-canvas")
-  expect(await Bun.file(mainOutput!.path).text()).toContain("/code?module=")
+  expect(await Bun.file(mainOutput!.path).text()).not.toContain("/code?module=")
+  expect(await Bun.file(mainOutput!.path).text()).toContain('import("@internal/visual")')
   expect(await Bun.file(mainOutput!.path).text()).toContain("@internal/visual")
   expect(await Bun.file(visualOutput!.path).text()).toContain("visual-canvas")
 })

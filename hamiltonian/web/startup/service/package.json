@@ -1,6 +1,6 @@
 {
   "name": "@startup/service",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "type": "module",
   "exports": "./index.ts",
@@ -12,7 +12,8 @@
   "artifact": {
     "cache": "startup",
     "headers": {
-      "Content-Security-Policy": "script-src 'unsafe-eval'"
+      "Content-Security-Policy": "script-src 'unsafe-eval'",
+      "Service-Worker-Allowed": "/"
     }
   },
   "devDependencies": {

@@ -1,4 +1,5 @@
 import type {ReleasePackage} from "./state"
+import {browserPackageCache, browserPackageName} from "../../package-url"
 
 /** Проверяет package state, полученный от того же Hamiltonian origin. */
 export function updatePackages(value: unknown): ReleasePackage[] | null {
@@ -16,16 +17,15 @@ export function updatePackages(value: unknown): ReleasePackage[] | null {
       || typeof item.endpoint !== "string"
       || typeof item.cache !== "string"
       || !/^\d+\.\d+\.\d+$/.test(item.version)
-      || cacheOwner(item.name) !== item.cache
+      || browserPackageCache(item.name) !== item.cache
     ) return null
 
     const endpoint = new URL(item.endpoint, location.origin)
     if (
       endpoint.origin !== location.origin
-      || endpoint.pathname !== "/code"
-      || endpoint.searchParams.get("module") !== item.name
+      || browserPackageName(endpoint.pathname) !== item.name
       || endpoint.searchParams.get("version") !== item.version
-      || [...endpoint.searchParams].length !== 2
+      || [...endpoint.searchParams].length !== 1
       || names.has(item.name)
     ) return null
 
@@ -39,11 +39,4 @@ export function updatePackages(value: unknown): ReleasePackage[] | null {
   }
 
   return packages
-}
-
-function cacheOwner(name: string) {
-  if (name.startsWith("@release/")) return "release"
-  if (name.startsWith("@internal/")) return "internal"
-  if (name.startsWith("@metafor/")) return "metafor"
-  return null
 }

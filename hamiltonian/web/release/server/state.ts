@@ -1,4 +1,5 @@
 import {dirname, join} from "node:path"
+import {browserPackageUrl} from "../../package-url"
 import {packageResponse} from "./build"
 import type {
   BuildablePackage,
@@ -53,12 +54,14 @@ export async function releasedPackageResponse(
 ) {
   const packages = await releasedPackages()
   const current = packages.find((entry) => entry.name === name)
-  if (!current) return await packageResponse(name)
+  const owner = await packageOwner(name)
+  const manifest = await packageManifest(owner.manifest)
+  const currentVersion = current?.version ?? (isVersion(manifest.version) ? manifest.version : null)
+  if (currentVersion === null) return new Response(null, {status: 404})
 
-  const version = requestedVersion ?? current.version
+  const version = requestedVersion ?? currentVersion
   if (!isVersion(version)) return new Response(null, {status: 404})
 
-  const owner = await packageOwner(name)
   const artifact = await packageArtifact(versionedArtifact(owner.artifact, version))
   if (artifact) {
     const headers = new Headers({
@@ -71,7 +74,7 @@ export async function releasedPackageResponse(
     return new Response(Bun.file(artifact.path), {headers})
   }
 
-  if (version !== current.version) return new Response(null, {status: 404})
+  if (version !== currentVersion) return new Response(null, {status: 404})
 
   const response = await packageResponse(name)
   if (!response.ok) return response
@@ -91,7 +94,7 @@ function releasedPackage(name: ReleasablePackage, version: string, cache: string
     name,
     version,
     cache,
-    endpoint: `/code?module=${name}&version=${version}`,
+    endpoint: browserPackageUrl(name, version),
   }
 }
 

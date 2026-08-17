@@ -9,7 +9,6 @@
     "types": []
   },
   "include": [
-    "endpoint.d.ts",
     "index.ts",
     "loader.ts"
   ],

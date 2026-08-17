@@ -13,6 +13,11 @@ import {
   type ReleasedPackage,
   type VersionChange,
 } from "../../web/release/server"
+import {
+  browserPackageCache,
+  browserPackageName,
+  browserPackageUrl,
+} from "../../web/package-url"
 
 type Fault =
   | "none"
@@ -67,39 +72,15 @@ const server = Bun.serve<RpcSocketData>({
       if (!await file.exists()) return new Response(null, {status: 404})
       return new Response(file)
     },
+    "/@startup/:module": {GET: fixtureArtifactResponse},
+    "/@release/:module": {GET: fixtureArtifactResponse},
+    "/@internal/:module": {GET: fixtureArtifactResponse},
+    "/@metafor/:module": {GET: fixtureArtifactResponse},
     "/code": {
       GET: async (request: Request) => {
         const url = new URL(request.url)
-        const requestedModule = url.searchParams.get("module")
-        if (requestedModule === null) return Response.json({packages: fixturePackages()})
-        const module = await buildablePackage(requestedModule)
-        if (module === null) return new Response(null, {status: 404})
-
-        switch (module) {
-          case "@release/main":
-            requests.releaseMain += 1
-            return await artifactResponse(module)
-          case "@release/service":
-            requests.releaseService += 1
-            if (fault === "release-service-http-once" && requests.releaseService === 1) {
-              return new Response("Service release unavailable", {
-                status: 503,
-                headers: javascriptHeaders,
-              })
-            }
-            if (
-              fault === "update-fetch-failure-once"
-              && (revisions[module] ?? 0) > 0
-              && url.searchParams.has("version")
-              && updateFetchFailures++ === 0
-            ) return new Response("Update artifact unavailable", {status: 503})
-            return await artifactResponse(module)
-          case "@internal/visual":
-            requests.internalVisual += 1
-            return await artifactResponse(module)
-          default:
-            return packageResponse(module)
-        }
+        if (url.search !== "") return new Response(null, {status: 404})
+        return Response.json({packages: fixturePackages()})
       },
       POST: async (request: Request) => {
         const packages = await packageChanges(request)
@@ -175,6 +156,38 @@ async function artifactResponse(module: ReleasablePackage) {
   })
 }
 
+async function fixtureArtifactResponse(request: Request) {
+  const url = new URL(request.url)
+  const module = await buildablePackage(browserPackageName(url.pathname))
+  if (module === null) return new Response(null, {status: 404})
+
+  switch (module) {
+    case "@release/main":
+      requests.releaseMain += 1
+      return await artifactResponse(module)
+    case "@release/service":
+      requests.releaseService += 1
+      if (fault === "release-service-http-once" && requests.releaseService === 1) {
+        return new Response("Service release unavailable", {
+          status: 503,
+          headers: javascriptHeaders,
+        })
+      }
+      if (
+        fault === "update-fetch-failure-once"
+        && (revisions[module] ?? 0) > 0
+        && url.searchParams.has("version")
+        && updateFetchFailures++ === 0
+      ) return new Response("Update artifact unavailable", {status: 503})
+      return await artifactResponse(module)
+    case "@internal/visual":
+      requests.internalVisual += 1
+      return await artifactResponse(module)
+    default:
+      return packageResponse(module)
+  }
+}
+
 function fixturePackages(): ReleasedPackage[] {
   return [...versions].map(([name]) => fixturePackage(name))
 }
@@ -184,16 +197,9 @@ function fixturePackage(name: ReleasablePackage): ReleasedPackage {
   return {
     name,
     version,
-    endpoint: `/code?module=${name}&version=${version}`,
-    cache: packageCache(name),
+    endpoint: browserPackageUrl(name, version),
+    cache: browserPackageCache(name)!,
   }
-}
-
-function packageCache(name: ReleasablePackage) {
-  if (name.startsWith("@release/")) return "release"
-  if (name.startsWith("@internal/")) return "internal"
-  if (name.startsWith("@metafor/")) return "metafor"
-  throw new Error(`Fixture package has no cache owner: ${name}`)
 }
 
 function changedVersion(version: string, change: VersionChange) {

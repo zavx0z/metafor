@@ -1,11 +1,20 @@
 import {buildablePackage} from "./build"
 import {releasedPackageResponse, releaseStateResponse} from "./state"
+import {browserPackageName} from "../../package-url"
 
-/** Возвращает состояние release либо один готовый browser artifact. */
+/** Возвращает текущее доказанное release state только без query parameters. */
 export async function getRelease(request: Request) {
   const url = new URL(request.url)
-  const requested = url.searchParams.get("module")
-  if (requested === null) return await releaseStateResponse()
+  if (url.search !== "") return new Response(null, {status: 404})
+  return await releaseStateResponse()
+}
+
+/** Возвращает browser artifact, чьё package name совпадает с pathname. */
+export async function getPackage(request: Request) {
+  const url = new URL(request.url)
+  if ([...url.searchParams].some(([name]) => name !== "version") || url.searchParams.size > 1)
+    return new Response(null, {status: 404})
+  const requested = browserPackageName(url.pathname)
 
   debug("получен запрос клиентского пакета", {package: requested})
   const name = await buildablePackage(requested)

@@ -6,11 +6,11 @@ import {buildablePackage, packageBuildCommand} from "../web/release/server"
 const hamiltonian = fileURLToPath(new URL("../", import.meta.url))
 const packageBuildScripts = {
   "web/startup/main":
-    "bun build ./index.ts --target=browser --external=/code?module=@release/main --production --minify --drop console.debug --outfile=dist/index.js",
+    "bun build ./index.ts --target=browser --packages=external --production --minify --drop console.debug --outfile=dist/index.js",
   "web/startup/service":
     "bun build ./index.ts --target=browser --production --minify --drop console.debug --outfile=dist/index.js",
   "web/release/main":
-    "bun build ./main.ts --target=browser --production --minify --drop console.debug --outfile=dist/index.js",
+    "bun build ./main.ts --target=browser --packages=external --production --minify --drop console.debug --outfile=dist/index.js",
   "web/release/service":
     "bun build ./index.ts --target=browser --format=cjs --production --minify --drop console.debug --outfile=dist/index.js",
   "internal/visual":

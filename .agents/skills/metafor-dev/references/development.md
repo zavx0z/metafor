@@ -31,9 +31,11 @@ console.debug("[@release/service:update]", "новая сборка загруж
   packages и меняются вместе с этим составом. RPC Service Worker является
   внутренней частью `@release/service`, а не отдельным browser package.
   `@internal/visual` при этом остаётся самостоятельным artifact с cache owner
-  `internal`, который `@release/main` загружает через универсальный `/code`.
+  `internal`; source и готовая сборка `@release/main` импортируют его как
+  `@internal/visual`, а import map разрешает specifier в `/@internal/visual`.
 * `@release/server` — server-владелец чтения package manifests, сборки,
-  версий, атомарной публикации release, `/code` и server-реализации RPC.
+  версий, атомарной публикации release, namespace routes browser artifacts,
+  control endpoint `/code` и server-реализации RPC.
   Browser-код из него не загружается.
 * `@startup/main` и `@startup/service` — фиксированный startup. В обычной
   разработке не менять и через endpoint обновления не передавать.
@@ -44,16 +46,25 @@ console.debug("[@release/service:update]", "новая сборка загруж
 package как `workspace:^<version>`.
 Изменение source, состава или bytes package требует новой версии и нового
 immutable artifact; прежний versioned artifact не заменять другими bytes.
+Window composition packages собираются с внешними package dependencies и
+сохраняют bare imports; transport URL, conditional browser adapter или имя
+отдельной зависимости в source build adapter не добавлять.
 
 ## Получить пакет release
 
 ```http
-GET /code?module=<package-name>
+GET /<package-name>
 ```
 
 Endpoint возвращает собираемый клиентский artifact выбранного package. Он не
 определяет весь состав package и не заменяет его server-entrypoints. Если
 готового artifact ещё нет, он собирается автоматически.
+
+Exact version использует тот же pathname:
+
+```http
+GET /<package-name>?version=<semver>
+```
 
 Service Worker сохраняет стабильный package URL в cache владельца namespace:
 `@release/*` — `release`, `@internal/*` — `internal`, `@metafor/*` — `metafor`.
@@ -66,11 +77,12 @@ Active package хранится по точному versioned endpoint в кан
 Пример:
 
 ```text
-GET http://127.0.0.1:4444/code?module=@release/service
+GET http://127.0.0.1:4444/@release/service
+GET http://127.0.0.1:4444/@internal/visual?version=0.1.2
 ```
 
-Текущее доказанное состояние всех сменяемых packages возвращает тот же
-endpoint без параметров:
+Текущее доказанное состояние всех сменяемых packages возвращает отдельный
+control endpoint без параметров:
 
 ```http
 GET /code

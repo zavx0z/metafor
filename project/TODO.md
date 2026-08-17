@@ -80,7 +80,7 @@ Browser path перестраивается в `UPD-002.7` как `startup → r
 корневой `server.ts` снова явно показывает HTTP methods и WebSocket lifecycle.
 Текущий срез `UPD-002.10` перестаёт встраивать `@internal/visual` в
 `@release/main`: Visual получает собственные versioned artifact и cache owner
-`internal`, оставаясь доступным через тот же универсальный `/code`.
+`internal` и не входит bytes в release main.
 Срез `UPD-002.11` направил стабильный package URL любого
 `@release/*`/`@internal/*`/`@metafor/*` в Cache Storage его владельца. Текущий
 correction-срез `UPD-002.12` завершает транзакцию в канонических owner caches,
@@ -88,11 +88,12 @@ correction-срез `UPD-002.12` завершает транзакцию в ка
 `@release/main` и `@release/service` под новыми точными версиями; main больше не
 содержит встроенные bytes Visual. Владелец проверил предъявленный patch и
 поручил зафиксировать result checkpoint.
-Текущий срез `UPD-002.13` отделяет package delivery от control endpoint:
+Result-срез `UPD-002.13` отделил package delivery от control endpoint:
 browser artifacts получают канонические URL `/<package-name>`, а `/code`
 остаётся только для чтения release state и групповой публикации. Import map по
 namespace сохраняет bare package imports в исходниках и готовых Window
-artifacts без package-specific browser adapters.
+artifacts без package-specific browser adapters. Реализация сохранена
+checkpoint-коммитом и ожидает проверки владельца в оставленном live contour.
 Пакеты `@startup/main` и `@startup/service` устанавливают Service Worker, восстанавливают
 HTML/startup offline и запускают `@release/main` и `@release/service` из cache
 `release`. Release packages разворачивают Window и Service Worker контуры;

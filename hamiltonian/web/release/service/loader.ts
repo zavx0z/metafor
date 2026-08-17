@@ -1,4 +1,5 @@
 import type * as Startup from "../../startup/service/loader"
+import {browserPackageUrl} from "../../package-url"
 import {
   activateRelease,
   discardInactiveReleases,
@@ -17,7 +18,7 @@ export async function updateRelease(
   await discardInterruptedRelease()
   await discardInactiveReleases()
   const targets = (await Promise.all(packages.map(async (entry) => {
-    const stable = new Request(new URL(`/code?module=${entry.name}`, location.origin))
+    const stable = new Request(new URL(browserPackageUrl(entry.name), location.origin))
     const current = await startup.read(entry.cache, stable)
     if (
       current?.headers.get("X-Package-Name") === entry.name

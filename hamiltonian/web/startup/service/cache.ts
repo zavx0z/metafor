@@ -1,8 +1,9 @@
 import {cache as cacheResponse, read} from "./loader"
+import {browserPackageCache, browserPackageName} from "../../package-url"
 
 const startup = [
   "/",
-  "/code?module=@startup/main",
+  "/@startup/main",
   "/manifest.webmanifest",
 ]
 
@@ -24,9 +25,9 @@ const startup = [
  */
 export async function cacheFirst(request: Request) {
   const url = new URL(request.url)
-  const owner = url.pathname === "/code"
-    ? packageCache(url.searchParams.get("module"))
-    : null
+  const name = browserPackageName(url.pathname)
+  const packageOwner = browserPackageCache(name)
+  const owner = packageOwner === "startup" ? null : packageOwner
   const cacheName = owner ?? "startup"
   const cache = await caches.open(cacheName)
   const response = request.mode === "navigate"
@@ -44,14 +45,6 @@ export async function cacheFirst(request: Request) {
     if (!url.pathname.startsWith("/assets/")) throw error
     return new Response(null, {status: 503})
   }
-}
-
-/** Возвращает Cache Storage владельца package namespace. */
-function packageCache(name: string | null) {
-  if (name?.startsWith("@release/")) return "release"
-  if (name?.startsWith("@internal/")) return "internal"
-  if (name?.startsWith("@metafor/")) return "metafor"
-  return null
 }
 
 /**

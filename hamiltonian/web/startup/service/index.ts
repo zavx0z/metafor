@@ -13,7 +13,7 @@
 import {cacheFirst, cacheStartup} from "./cache"
 import * as loader from "./loader"
 
-const serviceReleaseRequest = new Request(new URL("/code?module=@release/service", location.origin))
+const serviceReleaseRequest = new Request(new URL("/@release/service", location.origin))
 
 let serviceRelease: Promise<void> | null = null
 

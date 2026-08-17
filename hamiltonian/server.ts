@@ -1,5 +1,6 @@
 import {
   closeRpc,
+  getPackage,
   getRelease,
   messageRpc,
   openRpc,
@@ -22,6 +23,10 @@ Bun.serve<RpcSocketData>({
       if (!await file.exists()) return new Response(null, {status: 404})
       return new Response(file)
     },
+    "/@startup/:module": {GET: getPackage},
+    "/@release/:module": {GET: getPackage},
+    "/@internal/:module": {GET: getPackage},
+    "/@metafor/:module": {GET: getPackage},
     "/code": {
       GET: getRelease,
       POST: (request: Request, server: Bun.Server<RpcSocketData>) => publishRelease(request, {

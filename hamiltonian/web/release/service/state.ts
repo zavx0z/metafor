@@ -1,3 +1,5 @@
+import {browserPackageName} from "../../package-url"
+
 /** Точная версия package, подготовленная host для browser release. */
 export interface ReleasePackage {
   name: string
@@ -135,7 +137,7 @@ async function discardSupersededEntries(active: ReleaseState) {
     const cache = await caches.open(owner)
     const requests = await cache.keys()
     await Promise.all(requests.map(async (request) => {
-      const module = new URL(request.url).searchParams.get("module")
+      const module = browserPackageName(new URL(request.url).pathname)
       if (module === null) return
       const entry = active.packages[module]
       if (!entry || entry.cache !== owner) return
