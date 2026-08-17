@@ -88,6 +88,11 @@ correction-срез `UPD-002.12` завершает транзакцию в ка
 `@release/main` и `@release/service` под новыми точными версиями; main больше не
 содержит встроенные bytes Visual. Владелец проверил предъявленный patch и
 поручил зафиксировать result checkpoint.
+Текущий срез `UPD-002.13` отделяет package delivery от control endpoint:
+browser artifacts получают канонические URL `/<package-name>`, а `/code`
+остаётся только для чтения release state и групповой публикации. Import map по
+namespace сохраняет bare package imports в исходниках и готовых Window
+artifacts без package-specific browser adapters.
 Пакеты `@startup/main` и `@startup/service` устанавливают Service Worker, восстанавливают
 HTML/startup offline и запускают `@release/main` и `@release/service` из cache
 `release`. Release packages разворачивают Window и Service Worker контуры;
