@@ -49,7 +49,6 @@ flowchart LR
     MF411 --> MF414
     MF425 --> MF426
     MF426 --> MF427
-    UPD002 --> UPD003
 ```
 
 ## P1 — ближайшая работа
@@ -104,11 +103,12 @@ production/development contour после `.13`. Оба результата о�
 оставленном live contour.
 Отдельная следующая задача
 `UPD-003 — Синхронизировать пакетные сборки по среде и состоянию кэша`
-зарегистрирована по решению владельца и ждёт завершения `UPD-002`. Она не
-исправляет оставленный checkpoint: после его принятия она введёт env-specific
-entrypoints одного bare package import, cache-derived browser state, server
-delta `update/remove`, одну фиксированную восстанавливаемую transaction и
-root-first host intent без дополнительного release manifest или ID.
+зарегистрирована по решению владельца и открыта его прямым поручением до
+формального закрытия `UPD-002`. Она не исправляет оставленный checkpoint: её
+первый срез фиксирует env-контракт, а следующие введут cache-derived browser
+state, server delta `update/remove`, одну фиксированную восстанавливаемую
+transaction и root-first host intent без дополнительного release manifest или
+ID.
 Пакеты `@startup/main` и `@startup/service` устанавливают Service Worker, восстанавливают
 HTML/startup offline и запускают `@release/main` и `@release/service` из cache
 `release`. Release packages разворачивают Window и Service Worker контуры;
@@ -148,7 +148,7 @@ production удаляет `console.debug` и не публикует карту.
 | MF-425 | IN_PROGRESS | нет         | [Открыть](tasks/MF-425.md) |
 | LOAD-001 | IN_PROGRESS | нет       | [Открыть](tasks/LOAD-001.md) |
 | UPD-002 | IN_PROGRESS | нет       | [Открыть](tasks/UPD-002.md) |
-| UPD-003 | WAITING     | UPD-002   | [Открыть](tasks/UPD-003.md) |
+| UPD-003 | IN_PROGRESS | нет       | [Открыть](tasks/UPD-003.md) |
 | MF-411 | IN_PROGRESS | нет         | [Открыть](tasks/MF-411.md) |
 | NODES-008 | IN_PROGRESS | нет       | [Открыть](tasks/NODES-008.md) |
 | MF-414 | WAITING     | MF-411      | [Открыть](tasks/MF-414.md) |
