@@ -173,14 +173,32 @@ transport.
 Неизменяемый startup запускает один активный release и не знает состав
 `internal` packages. `@release/main` разворачивает Window-контур и загружает
 `@internal/visual` как самостоятельный artifact по его каноническому package
-URL `/@internal/visual`.
+URL `/@internal/visual?env=main`.
 Visual хранится в cache owner `internal` и обновляется отдельно от bytes
 `@release/main`. `@release/service` разворачивает сменяемый Service Worker-контур,
 владеет RPC transport и подготовкой следующего release.
 
-Browser artifact доступен по URL `/<package-name>`; exact version добавляет
-только query `version`. Статический import map направляет bare specifiers
-`@startup/*`, `@release/*`, `@internal/*` и `@metafor/*` в одноимённые URL,
+Один package сохраняет одно каноническое имя и один SemVer во всех средах.
+Source всегда импортирует его bare specifier без env и transport path. Корневой
+`exports["."]` package объявляет только реально существующие project conditions
+`metafor:main`, `metafor:worker`, `metafor:service-worker`, `metafor:server` и
+`metafor:server-worker`; обязательного `default` fallback нет. Builder и
+TypeScript явно выбирают одну condition, поэтому неподдерживаемая среда
+останавливает build или typecheck, а не получает entrypoint другой среды.
+
+`main` означает Window realm, `worker` — browser Dedicated Worker,
+`service-worker` — browser Service Worker, `server` — основной Bun process, а
+`server-worker` — Worker, созданный Bun server. Две Bun-среды различаются даже
+при одинаковом build target: у них разные lifecycle, globals и entrypoints.
+Каждый объявленный env является отдельной build и typecheck единицей. Изменение
+одного env создаёт новую package version и полный набор объявленных artifacts
+этой версии; неизменившийся package не пересобирается.
+
+Browser artifact доступен по URL `/<package-name>?env=<env>`; exact version
+добавляет `version`, например
+`/@internal/visual?env=main&version=0.1.3`. Env является query parameter, а не
+package subpath. Статический import map направляет bare specifiers
+`@startup/*`, `@release/*`, `@internal/*` и `@metafor/*` в env-specific URL,
 поэтому source и готовые Window ESM artifacts сохраняют package imports без
 transport adapter. `/code` не доставляет artifact: `GET /code` возвращает
 доказанное package state, а `POST /code` публикует группу обновления.

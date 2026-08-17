@@ -24,8 +24,9 @@ console.debug("[@release/service:update]", "новая сборка загруж
 ## Пакеты
 
 * `@internal/*` — внутренняя функциональность Hamiltonian. Один package может
-  содержать и server-, и browser-entrypoints; новую функциональность размещать
-  в принадлежащем ей internal package.
+  содержать разные entrypoints для Window, browser Worker, Service Worker,
+  Bun server и server Worker; новую функциональность размещать в принадлежащем
+  ей internal package.
 * `@release/main` и `@release/service` — запускаемые Window- и Service
   Worker-входы release. Они определяют состав используемых `@internal/*`
   packages и меняются вместе с этим составом. RPC Service Worker является
@@ -44,6 +45,59 @@ console.debug("[@release/service:update]", "новая сборка загруж
 Сменяемый artifact также объявляет точную `version` и `artifact.cache`.
 Последние доказанные версии перечислены в dependencies корневого Hamiltonian
 package как `workspace:^<version>`.
+
+Source во всех средах импортирует один bare package specifier, например
+`@internal/visual`. Env не добавлять в specifier и не оформлять package
+subpath. Разные entrypoints одного package объявлять стандартным conditional
+`exports` корневого subpath `"."`:
+
+```json
+{
+  "exports": {
+    ".": {
+      "metafor:main": {
+        "types": "./main.ts",
+        "browser": "./main.ts"
+      },
+      "metafor:worker": {
+        "types": "./worker.ts",
+        "browser": "./worker.ts"
+      },
+      "metafor:service-worker": {
+        "types": "./service-worker.ts",
+        "browser": "./service-worker.ts"
+      },
+      "metafor:server": {
+        "types": "./server.ts",
+        "bun": "./server.ts"
+      },
+      "metafor:server-worker": {
+        "types": "./server-worker.ts",
+        "bun": "./server-worker.ts"
+      }
+    }
+  }
+}
+```
+
+Package объявляет только поддерживаемые branches. `default` fallback не
+добавлять: builder выбирает одну condition `metafor:<env>`, а TypeScript — ту
+же condition через `customConditions`. Поддерживаемые env и цели:
+
+| Env | Исполнение | Target |
+| --- | ---------- | ------ |
+| `main` | Window main realm | `browser` |
+| `worker` | browser Dedicated Worker | `browser` |
+| `service-worker` | browser Service Worker | `browser` |
+| `server` | основной Bun server process | `bun` |
+| `server-worker` | Worker, созданный Bun server | `bun` |
+
+`server` и `server-worker` всегда являются разными env, даже если используют
+один target. Каждый объявленный env отдельно typecheck-ится и собирается. Один
+SemVer принадлежит всему package: изменение одного env требует новой package
+version и полного набора объявленных artifacts этой версии. Неизменившийся
+package не пересобирать и не заменять.
+
 Изменение source, состава или bytes package требует новой версии и нового
 immutable artifact; прежний versioned artifact не заменять другими bytes.
 Window composition packages собираются с внешними package dependencies и
@@ -57,17 +111,18 @@ named exports runtime entrypoint.
 ## Получить пакет release
 
 ```http
-GET /<package-name>
+GET /<package-name>?env=<env>
 ```
 
-Endpoint возвращает собираемый клиентский artifact выбранного package. Он не
+Endpoint возвращает artifact выбранного package и browser env. Path остаётся
+каноническим package name; env передаётся только query parameter. Endpoint не
 определяет весь состав package и не заменяет его server-entrypoints. Если
 готового artifact ещё нет, он собирается автоматически.
 
 Exact version использует тот же pathname:
 
 ```http
-GET /<package-name>?version=<semver>
+GET /<package-name>?env=<env>&version=<semver>
 ```
 
 Service Worker сохраняет стабильный package URL в cache владельца namespace:
@@ -81,8 +136,8 @@ Active package хранится по точному versioned endpoint в кан
 Пример:
 
 ```text
-GET http://127.0.0.1:4444/@release/service
-GET http://127.0.0.1:4444/@internal/visual?version=0.1.2
+GET http://127.0.0.1:4444/@release/service?env=service-worker
+GET http://127.0.0.1:4444/@internal/visual?env=main&version=0.1.3
 ```
 
 Текущее доказанное состояние всех сменяемых packages возвращает отдельный
