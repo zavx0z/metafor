@@ -77,10 +77,11 @@ Browser path перестраивается в `UPD-002.7` как `startup → r
 точного managed CDP target для повторной проверки startup/release migration.
 Пакеты `@startup/main` и `@startup/service` устанавливают Service Worker, восстанавливают
 HTML/startup offline и запускают `@release/main` и `@release/service` из cache
-`release`. Release packages разворачивают Window и Service Worker контуры и
-загружают `@internal/rpc` и другие internal packages. Новый `@release/server`
-владеет package discovery, build, SemVer, атомарной публикацией и HTTP release
-endpoint; корневой server лишён release policy.
+`release`. Release packages разворачивают Window и Service Worker контуры;
+RPC встроен в их server/service стороны, а другие internal packages остаются
+подключаемой функциональностью. `@release/server` владеет package discovery,
+build, SemVer, атомарной публикацией и внутренней реализацией HTTP/RPC, тогда
+как корневой `server.ts` явно показывает methods routes и WebSocket lifecycle.
 Ранее владелец подтвердил startup/import offline, cold-восстановление `internal` и
 текущий internal RPC/WebSocket. `LOAD-001.23` остановлен: Window loader не
 расширяет startup до появления первого предметного Window module. Стандартное

@@ -175,11 +175,18 @@ transport.
 `@internal/visual`. `@release/service` разворачивает сменяемый Service Worker-контур,
 загружает его `internal` packages и владеет подготовкой следующего release.
 
-`@release/server` — единственный server-side владелец release packages. Он находит и
-проверяет package-owned build contract, собирает artifacts, вычисляет следующие
-версии, атомарно публикует группу и обслуживает HTTP release endpoint.
-Корневой Hamiltonian server только подключает этот endpoint и передаёт ему точный
-RPC notification transport.
+`@release/server` — единственный server-side владелец release packages и
+server-стороны RPC. Он находит и проверяет package-owned build contract,
+собирает artifacts, вычисляет следующие версии, атомарно публикует группу и
+реализует операции HTTP/RPC. Корневой `server.ts` остаётся явной картой
+сетевого интерфейса: возле каждого endpoint видны HTTP methods, а возле
+WebSocket — `open`, `message` и `close`; фабрика, скрывающая целый route,
+запрещена. Обычное дерево assets объявляется встроенным directory route Bun.
+
+Service Worker-сторона RPC является внутренней директорией `@release/service`
+и входит в его единый artifact. Отдельного browser package, версии или cache
+entry для RPC нет. Release использует RPC для обновлений, signaling,
+управления и мониторинга, не превращая его в подключаемый `@internal/*` module.
 
 `@internal/visual` создаёт один `UiRuntime` на единственном canvas и владеет его
 lifetime, `Space`, `HUD`, resize и стандартной навигацией. Startup visual runtime не

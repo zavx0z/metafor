@@ -237,7 +237,7 @@ prototype visual и не выбирая предметный Window module.
 неизменяемый `startup`, запускаемый `release` и используемые им packages.
 Startup реализуют `web/startup/main` и `web/startup/service`, release-входы —
 `web/release/main` и `web/release/service`, а server-владелец package manifests,
-сборки, версий и атомарной публикации — `release/server`. Минимальные browser
+сборки, версий, атомарной публикации и RPC — `web/release/server`. Минимальные browser
 entrypoint оформлены отдельными workspace-пакетами `@startup/main`,
 `@startup/service`, `@release/main` и `@release/service` со строгой проверкой
 для своей среды. Служебные изменяемые
@@ -259,8 +259,9 @@ entrypoints. Startup запускает release в Window и Service Worker, а 
 выбирает состав и placement загружаемых packages. Loader получает code bytes
 через `fetch`, проверяет и сохраняет их до запуска в выбранном Window,
 Dedicated Worker или Service Worker context. WebSocket принадлежит
-загруженному internal RPC/control module, а не неизменяемому startup; передача
-по нему изменяемого адреса source остаётся следующим отдельным механизмом.
+RPC-подсистеме release, а не неизменяемому startup или отдельному internal
+package; передача по нему изменяемого адреса source остаётся следующим
+отдельным механизмом.
 Cache Storage разделён по владельцам `startup`, `release`, `internal` и
 `metafor`; последний создаётся только при появлении первого module среды.
 Стабильные cache endpoints остаются на исходном origin Service Worker
