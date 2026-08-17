@@ -5,10 +5,11 @@ import {join} from "node:path"
 const hamiltonian = fileURLToPath(new URL("../", import.meta.url))
 
 test("LOAD-001 keeps release policy and WebSocket outside immutable startup", async () => {
-  const [startupMain, startupService, startupLoader, releaseService, releaseState, storage, html] =
+  const [startupMain, startupService, startupCache, startupLoader, releaseService, releaseState, storage, html] =
     await Promise.all([
     Bun.file(join(hamiltonian, "web/startup/main/index.ts")).text(),
     Bun.file(join(hamiltonian, "web/startup/service/index.ts")).text(),
+    Bun.file(join(hamiltonian, "web/startup/service/cache.ts")).text(),
     Bun.file(join(hamiltonian, "web/startup/service/loader.ts")).text(),
     Bun.file(join(hamiltonian, "web/release/service/index.ts")).text(),
     Bun.file(join(hamiltonian, "web/release/service/state.ts")).text(),
@@ -32,6 +33,11 @@ test("LOAD-001 keeps release policy and WebSocket outside immutable startup", as
   expect(startupService).not.toContain("@metafor/")
   expect(startupService).not.toContain("WebSocket")
   expect(startupService).not.toContain("importModule")
+
+  expect(startupCache).toContain('name?.startsWith("@release/")')
+  expect(startupCache).toContain('name?.startsWith("@internal/")')
+  expect(startupCache).toContain('name?.startsWith("@metafor/")')
+  expect(startupCache).not.toContain("@internal/visual")
 
   expect(startupLoader).not.toContain("rememberRelease")
   expect(startupLoader).not.toContain("activateRelease")

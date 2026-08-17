@@ -66,12 +66,14 @@ test.serial("UPD-002 updates one module group and restarts every Window once", a
     const packages = [
       {name: "@release/main", change: "patch"},
       {name: "@release/service", change: "minor"},
+      {name: "@internal/visual", change: "patch"},
       {name: "@release/main", change: "patch"},
     ] as const
     const requestsBefore = await fixtureRequests(server.root)
     const sourceBefore = await updateSources(firstPage)
     expect(sourceBefore.releaseMain.length).toBeGreaterThan(0)
     expect(sourceBefore.releaseService.length).toBeGreaterThan(0)
+    expect(sourceBefore.internalVisual.length).toBeGreaterThan(0)
 
     const navigations = {first: 0, second: 0}
     firstPage.on("framenavigated", (frame) => {
@@ -111,6 +113,7 @@ test.serial("UPD-002 updates one module group and restarts every Window once", a
     expect(build.body.results.map((result) => result.module)).toEqual([
       "@release/main",
       "@release/service",
+      "@internal/visual",
     ])
     expect(build.body.results.map((result) => result.version)).toEqual(
       failed.body.results.map((result) => result.version),
@@ -135,8 +138,12 @@ test.serial("UPD-002 updates one module group and restarts every Window once", a
     expect(sourceAfter.releaseMain).toContain("fixture @release/main 1")
     expect(sourceAfter.releaseService).not.toBe(sourceBefore.releaseService)
     expect(sourceAfter.releaseService).toContain("fixture @release/service 1")
-    expect((await fixtureRequests(server.root)).releaseMain).toBeGreaterThan(requestsBefore.releaseMain)
-    expect((await fixtureRequests(server.root)).releaseService).toBeGreaterThan(requestsBefore.releaseService)
+    expect(sourceAfter.internalVisual).not.toBe(sourceBefore.internalVisual)
+    expect(sourceAfter.internalVisual).toContain("fixture @internal/visual 1")
+    const requestsAfter = await fixtureRequests(server.root)
+    expect(requestsAfter.releaseMain).toBeGreaterThan(requestsBefore.releaseMain)
+    expect(requestsAfter.releaseService).toBeGreaterThan(requestsBefore.releaseService)
+    expect(requestsAfter.internalVisual).toBeGreaterThan(requestsBefore.internalVisual)
     expect(navigations).toEqual({first: 1, second: 1})
 
     await browser.close()
@@ -144,6 +151,7 @@ test.serial("UPD-002 updates one module group and restarts every Window once", a
     const disconnectedBuild = await requestBuild(server.root, [
       {name: "@release/main", change: "patch"},
       {name: "@release/service", change: "patch"},
+      {name: "@internal/visual", change: "patch"},
     ])
     expect(disconnectedBuild.status).toBe(200)
     expect(disconnectedBuild.body.results.map((result) => result.previousVersion)).toEqual(
@@ -163,6 +171,7 @@ test.serial("UPD-002 updates one module group and restarts every Window once", a
         const sources = await updateSources(restoredPage)
         return sources.releaseMain.includes("fixture @release/main 2")
           && sources.releaseService.includes("fixture @release/service 2")
+          && sources.internalVisual.includes("fixture @internal/visual 2")
       } catch {
         return false
       }
@@ -269,6 +278,7 @@ test.serial("LOAD-001 restores accepted startup and release from caches", async 
       const paths = [
         "/code?module=@release/main",
         "/code?module=@release/service",
+        "/code?module=@internal/visual",
       ]
       const current = await Promise.all(paths.map(async (path) => {
         const first = await fetch(path)
@@ -338,7 +348,7 @@ test.serial("LOAD-001 restores accepted startup and release from caches", async 
     expect(requests.some((path) => /hmr|_bun/i.test(path))).toBe(false)
 
     const initial = await cacheSnapshot(page)
-    expect(Object.keys(initial).sort()).toEqual(["release", "startup"])
+    expect(Object.keys(initial)).toEqual(expect.arrayContaining(["internal", "release", "startup"]))
     expect(initial.startup).toEqual(expect.arrayContaining([
       "/",
       "/manifest.webmanifest",
@@ -346,10 +356,13 @@ test.serial("LOAD-001 restores accepted startup and release from caches", async 
     ]))
     expect(initial.startup).not.toContain("/code?module=@release/main")
     expect(initial.startup).not.toContain("/code?module=@release/service")
+    expect(initial.startup).not.toContain("/code?module=@internal/visual")
     expect(initial.release).toEqual(expect.arrayContaining([
       "/code?module=@release/main",
       "/code?module=@release/service",
     ]))
+    expect(initial.release).not.toContain("/code?module=@internal/visual")
+    expect(hasCachedPackage(initial, "internal", "@internal/visual")).toBe(true)
     expect(initial.metafor).toBeUndefined()
 
     const missingScript = await page.evaluate(async () => {
@@ -443,6 +456,7 @@ test.serial("LOAD-001 restores accepted startup and release from caches", async 
     expect(witness.requests).not.toContain("/")
     expect(witness.requests).not.toContain("/code?module=@release/main")
     expect(witness.requests).not.toContain("/code?module=@release/service")
+    expect(witness.requests).not.toContain("/code?module=@internal/visual")
 
     const cold = await cacheSnapshot(coldPage)
     expect(cold.startup).toEqual(expect.arrayContaining([
@@ -454,6 +468,7 @@ test.serial("LOAD-001 restores accepted startup and release from caches", async 
       "/code?module=@release/main",
       "/code?module=@release/service",
     ]))
+    expect(hasCachedPackage(cold, "internal", "@internal/visual")).toBe(true)
     expect(Object.values(cold).flat()).not.toContain("/cold/restored")
   } catch (error) {
     throw withServerOutput(error, server.output())
@@ -489,6 +504,7 @@ test.serial("LOAD-001 rejects a failed release artifact and retries its exact en
       ]))
       expect(failed.release).toContain("/code?module=@release/main")
       expect(failed.release).not.toContain("/code?module=@release/service")
+      expect(failed.internal).toEqual(["/code?module=@internal/visual"])
 
       await retryConnectUntil(page, scenario.failed, 2)
       await waitForAcceptedCaches(page)
@@ -498,6 +514,7 @@ test.serial("LOAD-001 rejects a failed release artifact and retries its exact en
         "/code?module=@release/main",
         "/code?module=@release/service",
       ]))
+      expect(recovered.internal).toEqual(["/code?module=@internal/visual"])
       expect(recovered.metafor).toBeUndefined()
     } catch (error) {
       throw withServerOutput(error, server.output())
@@ -626,17 +643,45 @@ function startColdWitness(port: number) {
 }
 
 async function waitForAcceptedCaches(page: Page) {
-  await page.waitForFunction(async () => {
-    const startup = await caches.open("startup")
-    const releases = await caches.open("release")
-    return Boolean(
-      await startup.match("/")
-      && await startup.match("/code?module=@startup/main")
-      && await startup.match("/manifest.webmanifest")
-      && await releases.match("/code?module=@release/main")
-      && await releases.match("/code?module=@release/service")
-    )
-  }, {timeout: 30_000})
+  try {
+    await waitUntil(async () => {
+      try {
+        return await page.evaluate(async () => {
+          const startup = await caches.open("startup")
+          const releases = await caches.open("release")
+          const internal = await caches.open("internal")
+          const activeResponse = await releases.match("/code?state=active")
+          const active = activeResponse
+            ? await activeResponse.json() as {
+              packages: Record<string, {cache: string, endpoint: string, storage: string}>
+              restart: string[]
+            }
+            : {packages: {}, restart: []}
+          const visual = active.packages["@internal/visual"]
+          const visualResponse = await internal.match("/code?module=@internal/visual")
+            ?? (visual?.cache === "internal"
+              ? await (await caches.open(visual.storage)).match(visual.endpoint)
+              : undefined)
+          return Boolean(
+            await startup.match("/")
+            && await startup.match("/code?module=@startup/main")
+            && await startup.match("/manifest.webmanifest")
+            && await releases.match("/code?module=@release/main")
+            && await releases.match("/code?module=@release/service")
+            && visualResponse
+            && active.restart.length === 0
+            && navigator.serviceWorker.controller
+          )
+        })
+      } catch {
+        return false
+      }
+    }, 30_000)
+  } catch (error) {
+    throw new Error(`Browser caches did not become ready: ${JSON.stringify(await cacheSnapshot(page))}`, {
+      cause: error,
+    })
+  }
 }
 
 async function waitForFailedEntries(page: Page, fault: "release-service-http-once") {
@@ -692,11 +737,17 @@ async function cacheSnapshot(page: Page): Promise<CacheSnapshot> {
   )))
 }
 
+function hasCachedPackage(snapshot: CacheSnapshot, owner: string, name: string) {
+  return Object.entries(snapshot).some(([storage, paths]) =>
+    (storage === owner || storage.startsWith(`${owner}:release:`))
+    && paths.some((path) => new URL(path, "http://cache.test").searchParams.get("module") === name))
+}
+
 async function fixtureRequests(root: string) {
   const response = await fetch(new URL("/__tests/state", root))
   if (!response.ok) throw new Error(`Fixture state returned ${response.status}`)
   const state = await response.json() as {
-    requests: {releaseMain: number, releaseService: number}
+    requests: {internalVisual: number, releaseMain: number, releaseService: number}
   }
   return state.requests
 }
@@ -748,6 +799,7 @@ async function updateSources(page: Page) {
     }
 
     return {
+      internalVisual: await source("@internal/visual", "internal"),
       releaseMain: await source("@release/main", "release"),
       releaseService: await source("@release/service", "release"),
     }

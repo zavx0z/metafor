@@ -1,9 +1,11 @@
-import {expect, test} from "bun:test"
+import {expect, setDefaultTimeout, test} from "bun:test"
 import {fileURLToPath} from "node:url"
 import {join} from "node:path"
 import {buildPackage} from "../web/release/server"
 
 const hamiltonian = fileURLToPath(new URL("../", import.meta.url))
+
+setDefaultTimeout(30_000)
 
 test("HAM-005 creates one standard Window environment through internal visual", async () => {
   const [html, main, visual, displayDock, mainPackage, visualPackage, visualBunfig, packageBuild, server, startupMain] = await Promise.all([

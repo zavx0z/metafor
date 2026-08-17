@@ -53,6 +53,10 @@ Endpoint возвращает собираемый клиентский artifact
 определяет весь состав package и не заменяет его server-entrypoints. Если
 готового artifact ещё нет, он собирается автоматически.
 
+Service Worker сохраняет стабильный package URL в cache владельца namespace:
+`@release/*` — `release`, `@internal/*` — `internal`, `@metafor/*` — `metafor`.
+Имя отдельного package в правила кэширования не добавлять.
+
 Пример:
 
 ```text

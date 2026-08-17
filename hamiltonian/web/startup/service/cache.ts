@@ -10,8 +10,8 @@ const startup = [
  * Startup service для navigation request возвращает сохранённый HTML `/`, поэтому
  * вложенный SPA-адрес не создаёт отдельную cache-запись. Для остальных
  * requests возвращает response точного URL и обращается к network только при
- * cache miss. Для exact request использует cache его слоя. Успешный network
- * fallback сохраняется только для `@release/*`
+ * cache miss. Для exact request использует cache его владельца. Успешный
+ * network fallback сохраняется для `@release/*`, `@internal/*`, `@metafor/*`
  * code и `/assets/*`; остальные startup endpoints добавляет только
  * {@link cacheStartup}.
  *
@@ -24,24 +24,34 @@ const startup = [
  */
 export async function cacheFirst(request: Request) {
   const url = new URL(request.url)
-  const release = url.pathname === "/code"
-    && url.searchParams.get("module")?.startsWith("@release/") === true
-  const cache = await caches.open(release ? "release" : "startup")
+  const owner = url.pathname === "/code"
+    ? packageCache(url.searchParams.get("module"))
+    : null
+  const cacheName = owner ?? "startup"
+  const cache = await caches.open(cacheName)
   const response = request.mode === "navigate"
     ? await cache.match("/", {ignoreVary: true})
-    : await read(release ? "release" : "startup", request)
+    : await read(cacheName, request)
   if (response) return response
 
   try {
     const network = await fetch(request)
-    if (network.ok && (release || url.pathname.startsWith("/assets/"))) {
-      await cacheResponse(release ? "release" : "startup", request, network.clone())
+    if (network.ok && (owner !== null || url.pathname.startsWith("/assets/"))) {
+      await cacheResponse(cacheName, request, network.clone())
     }
     return network
   } catch (error) {
     if (!url.pathname.startsWith("/assets/")) throw error
     return new Response(null, {status: 503})
   }
+}
+
+/** Возвращает Cache Storage владельца package namespace. */
+function packageCache(name: string | null) {
+  if (name?.startsWith("@release/")) return "release"
+  if (name?.startsWith("@internal/")) return "internal"
+  if (name?.startsWith("@metafor/")) return "metafor"
+  return null
 }
 
 /**

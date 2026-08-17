@@ -177,6 +177,11 @@ Visual хранится в cache owner `internal` и обновляется от
 `@release/main`. `@release/service` разворачивает сменяемый Service Worker-контур,
 владеет RPC transport и подготовкой следующего release.
 
+Startup fetch-handler направляет стабильный package URL в cache владельца
+namespace: `@release/*` — `release`, `@internal/*` — `internal`, `@metafor/*` —
+`metafor`. Состав пакетов ему неизвестен: отдельного реестра имён или ветки для
+Visual в handler нет.
+
 `@release/server` — единственный server-side владелец release packages и
 server-стороны RPC. Он находит и проверяет package-owned build contract,
 собирает artifacts, вычисляет следующие версии, атомарно публикует группу и

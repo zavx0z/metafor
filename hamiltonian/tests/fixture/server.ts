@@ -26,10 +26,12 @@ const port = Number(process.env.LOAD_TEST_PORT)
 if (!Number.isInteger(port) || port <= 0) throw new Error("LOAD_TEST_PORT is required")
 
 const requests = {
+  internalVisual: 0,
   releaseMain: 0,
   releaseService: 0,
 }
 const revisions: Record<ReleasablePackage, number> = {
+  "@internal/visual": 0,
   "@release/main": 0,
   "@release/service": 0,
 }
@@ -91,6 +93,9 @@ const server = Bun.serve<RpcSocketData>({
               && url.searchParams.has("version")
               && updateFetchFailures++ === 0
             ) return new Response("Update artifact unavailable", {status: 503})
+            return await artifactResponse(module)
+          case "@internal/visual":
+            requests.internalVisual += 1
             return await artifactResponse(module)
           default:
             return packageResponse(module)
@@ -180,8 +185,15 @@ function fixturePackage(name: ReleasablePackage): ReleasedPackage {
     name,
     version,
     endpoint: `/code?module=${name}&version=${version}`,
-    cache: "release",
+    cache: packageCache(name),
   }
+}
+
+function packageCache(name: ReleasablePackage) {
+  if (name.startsWith("@release/")) return "release"
+  if (name.startsWith("@internal/")) return "internal"
+  if (name.startsWith("@metafor/")) return "metafor"
+  throw new Error(`Fixture package has no cache owner: ${name}`)
 }
 
 function changedVersion(version: string, change: VersionChange) {
