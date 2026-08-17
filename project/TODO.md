@@ -114,7 +114,9 @@ Contract-срез `UPD-003.1` закреплён result-коммитом `6509a4
 env-specific build/typecheck units и свежее чтение manifests; результат
 закреплён result-коммитом `9573865d1`. Срез `UPD-003.3` выполняется: он меняет
 только canonical browser URL и artifact identity; RPC delta, host recovery и
-browser transaction остаются следующими отдельными механизмами.
+browser transaction остаются следующими отдельными механизмами. Проверка
+перехода подтвердила, что изменённые package contracts требуют новых patch
+versions: старые immutable bytes под прежним SemVer не подменяются.
 Пакеты `@startup/main` и `@startup/service` устанавливают Service Worker, восстанавливают
 HTML/startup offline и запускают `@release/main` и `@release/service` из cache
 `release`. Release packages разворачивают Window и Service Worker контуры;
