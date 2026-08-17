@@ -67,7 +67,7 @@ describe("Hamiltonian singleton server boundary", () => {
     expect(update).not.toContain("Bun.serve")
     expect(rpcServer).toContain("export function upgradeRpc")
     expect(rpcServer).toContain("export function openRpc")
-    expect(rpcServer).toContain("export function messageRpc")
+    expect(rpcServer).toContain("export async function messageRpc")
     expect(rpcServer).toContain("export function closeRpc")
     expect(rpcServer).not.toMatch(/Bun\.serve\s*[<(]/)
   })

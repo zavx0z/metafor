@@ -6,6 +6,7 @@ import {
   openRpc,
   packageResponse,
   packageChanges,
+  releaseChangedMessage,
   releasedPackages,
   rpcServiceTopic,
   upgradeRpc,
@@ -110,7 +111,7 @@ const server = Bun.serve<RpcSocketData>({
           revisions[result.module] = (revisions[result.module] ?? 0) + 1
         }
         const released = await Promise.all(results.map(({module}) => fixturePackage(module)))
-        server.publish(rpcServiceTopic, JSON.stringify({type: "release", packages: released}))
+        server.publish(rpcServiceTopic, JSON.stringify(releaseChangedMessage()))
         return Response.json({success, results, packages: released})
       },
     },
@@ -136,7 +137,7 @@ const server = Bun.serve<RpcSocketData>({
       sockets.add(socket)
       openRpc(socket)
     },
-    message: messageRpc,
+    message: (socket, message) => messageRpc(socket, message, fixturePackages),
     close(socket, code, reason) {
       sockets.delete(socket)
       closeRpc(socket, code, reason)

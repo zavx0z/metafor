@@ -141,7 +141,7 @@ test("development keeps debug and source map while production drops both", async
   const development = await build("development")
   expect(development.releaseService).toContain("console.debug")
   expect(development.releaseService).toContain("подключились к серверу обновлений")
-  expect(development.releaseService).toContain("получено уведомление об обновлении")
+  expect(development.releaseService).toContain("получен сигнал об обновлении")
   expect(development.releaseService).toContain("перезагрузка страниц началась")
   expect(development.releaseService).toContain("загрузка группы во временный кэш началась")
   expect(development.releaseService).toContain("вся группа открыта в активном кэше")

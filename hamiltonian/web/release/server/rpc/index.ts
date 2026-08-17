@@ -1,3 +1,11 @@
+import {
+  parseReleaseCurrentMessage,
+  releaseDeltaMessage,
+} from "../../protocol"
+import type {ReleasedPackage} from "../contracts"
+import {releaseDelta} from "../delta"
+import {releasedPackages} from "../state"
+
 /** Данные одного подключённого release service. */
 export interface RpcSocketData {
   source: "release/service"
@@ -23,11 +31,34 @@ export function openRpc(socket: Bun.ServerWebSocket<RpcSocketData>) {
   }
 }
 
-/** Принимает будущие управляющие сообщения release service. */
-export function messageRpc(
-  _socket: Bun.ServerWebSocket<RpcSocketData>,
-  _message: string | Buffer,
-) {}
+/** Принимает фактический browser current и отвечает только update/remove delta. */
+export async function messageRpc(
+  socket: Bun.ServerWebSocket<RpcSocketData>,
+  message: string | Buffer,
+  desired: () => Promise<ReleasedPackage[]> = releasedPackages,
+) {
+  const current = parseReleaseCurrentMessage(parseMessage(message))
+  if (current === null) {
+    socket.close(1008, "invalid release current")
+    return
+  }
+
+  try {
+    const response = releaseDeltaMessage(releaseDelta(await desired(), current.current))
+    socket.send(JSON.stringify(response))
+    if (Bun.env.NODE_ENV === "development") {
+      console.debug("[@release/server:rpc:update]", "состояние browser cache сверено", {
+        current: current.current,
+        remove: response.remove,
+        update: response.update,
+      })
+    }
+  } catch (error) {
+    if (Bun.env.NODE_ENV === "development")
+      console.debug("[@release/server:rpc:update]", "сверка browser cache завершилась с ошибкой", error)
+    socket.close(1011, "release state unavailable")
+  }
+}
 
 /** Отключает release service от общей темы обновлений. */
 export function closeRpc(
@@ -43,5 +74,13 @@ export function closeRpc(
       source: socket.data.source,
       topic: rpcServiceTopic,
     })
+  }
+}
+
+function parseMessage(message: string | Buffer) {
+  try {
+    return JSON.parse(typeof message === "string" ? message : message.toString()) as unknown
+  } catch {
+    return null
   }
 }

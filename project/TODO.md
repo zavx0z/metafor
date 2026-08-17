@@ -124,9 +124,11 @@ startup dependencies и public Loader type boundary доказаны focused и 
 suite; result checkpoint `4b71b61f9`. Срез `.5` находится в `REVIEW`:
 root-first host intent, normal rollback, immutable exact checks и cold-start
 forward recovery до открытия routes доказаны focused и полным suite; result
-checkpoint `5d35a7818`. Срез `.6` выполняется: payload-free release signal,
+checkpoint `5d35a7818`. Срез `.6` находится в `REVIEW`: payload-free release signal,
 фактический current state из canonical browser caches и server delta только из
-`update/remove` без desired state или дополнительных IDs.
+`update/remove` без desired state или дополнительных IDs. Результат доказан
+focused, development/production build и полным browser suite; срез находится в
+`REVIEW`, result checkpoint — текущий commit.
 Пакеты `@startup/main` и `@startup/service` устанавливают Service Worker, восстанавливают
 HTML/startup offline и запускают `@release/main` и `@release/service` из cache
 `release`. Release packages разворачивают Window и Service Worker контуры;

@@ -25,6 +25,22 @@ export type {
   ReleasablePackage,
   VersionChange,
 } from "./contracts"
+export {releaseDelta} from "./delta"
+export {
+  parseReleaseChangedMessage,
+  parseReleaseCurrentMessage,
+  parseReleaseDeltaMessage,
+  releaseChangedMessage,
+  releaseCurrentMessage,
+  releaseDeltaMessage,
+} from "../protocol"
+export type {
+  ReleaseChangedMessage,
+  ReleaseCurrentMessage,
+  ReleaseDelta,
+  ReleaseDeltaMessage,
+  ReleaseRemoval,
+} from "../protocol"
 export {
   browserPackageEnvironments,
   isBrowserPackageEnvironment,
@@ -55,6 +71,6 @@ export {
 } from "./rpc"
 export type {RpcSocketData} from "./rpc"
 export {releasedPackageResponse, releasedPackages, releaseStateResponse} from "./state"
-export {publishRelease} from "./update"
+export {notifyRelease, publishRelease} from "./update"
 export type {ReleaseNotification} from "./update"
 export {nextPackageVersion} from "./version"

@@ -1,10 +1,22 @@
+import {
+  parseReleaseChangedMessage,
+  parseReleaseDeltaMessage,
+  releaseCurrentMessage,
+  type ReleaseDelta,
+} from "../../protocol"
 import type {ReleasePackage} from "../state"
-import {updatePackages} from "../storage"
 
-/** Release operations, которые запускаются по RPC-сообщению. */
+/** Release operations, которые запускаются по свежей server delta. */
 export interface RpcBindings {
+  currentPackages(): Promise<ReleasePackage[]>
+  confirmCurrent(): Promise<void>
   updateModules(packages: ReleasePackage[]): Promise<string[]>
   restartBrowser(): Promise<void>
+}
+
+interface SynchronizationState {
+  awaitingDelta: boolean
+  resynchronize: boolean
 }
 
 /** Запускает единственное RPC-подключение текущей Service Worker incarnation. */
@@ -12,14 +24,50 @@ export function startRpc(bindings: RpcBindings) {
   let socket: WebSocket | null = null
   let updates = Promise.resolve()
   const intentionalClosures = new WeakSet<WebSocket>()
+  const states = new WeakMap<WebSocket, SynchronizationState>()
 
-  const applyRelease = async (connection: WebSocket, packages: ReleasePackage[]) => {
+  const enqueueUpdate = (connection: WebSocket, update: () => Promise<void>) => {
+    updates = updates.then(update, update).catch((error) => {
+      const state = states.get(connection)
+      if (state) state.awaitingDelta = false
+      console.debug("[@release/service:rpc:update]", "не удалось синхронизировать пакеты", error)
+      console.error("Не удалось синхронизировать браузерные пакеты", error)
+      if (connection === socket && connection.readyState === WebSocket.OPEN)
+        setTimeout(() => requestSynchronization(connection), 1_000)
+    })
+  }
+
+  const requestSynchronization = (connection: WebSocket) => {
+    const state = states.get(connection)
+    if (!state || connection !== socket) return
+    if (state.awaitingDelta) {
+      state.resynchronize = true
+      return
+    }
+    state.awaitingDelta = true
+    enqueueUpdate(connection, async () => {
+      if (connection !== socket || connection.readyState !== WebSocket.OPEN) return
+      const current = await bindings.currentPackages()
+      connection.send(JSON.stringify(releaseCurrentMessage(current)))
+      console.debug("[@release/service:rpc:update]", "отправлено фактическое состояние кэша", {
+        current,
+        to: connection.url,
+      })
+    })
+  }
+
+  const applyDelta = async (connection: WebSocket, delta: ReleaseDelta) => {
     try {
-      console.debug("[@release/service:rpc:update]", "обновление пакетов началось", {packages})
-      const updated = await bindings.updateModules(packages)
+      console.debug("[@release/service:rpc:update]", "получена delta браузерных пакетов", delta)
+      if (delta.update.length === 0 && delta.remove.length === 0) {
+        await bindings.confirmCurrent()
+        console.debug("[@release/service:rpc:update]", "фактический кэш уже совпадает с server state")
+        return
+      }
+      const updated = await bindings.updateModules(delta.update)
       if (updated.length === 0) {
         console.debug("[@release/service:rpc:update]", "кэш уже содержит доказанные версии", {
-          packages: packages.map(({name, version}) => ({name, version})),
+          remove: delta.remove,
         })
         return
       }
@@ -38,33 +86,13 @@ export function startRpc(bindings: RpcBindings) {
         packages: updated,
       })
     } catch (error) {
-      console.debug("[@release/service:rpc:update]", "обновление пакетов завершилось с ошибкой", {
-        packages,
-      }, error)
-      console.error(`Не удалось обновить пакеты ${packages.map(({name}) => name).join(", ")}`, error)
+      console.debug("[@release/service:rpc:update]", "обновление пакетов завершилось с ошибкой", delta, error)
+      console.error(
+        `Не удалось обновить пакеты ${delta.update.map(({name}) => name).join(", ")}`,
+        error,
+      )
       throw error
     }
-  }
-
-  const synchronize = async (connection: WebSocket) => {
-    const response = await fetch("/code", {cache: "no-store"})
-    if (!response.ok) throw new Error(`Состояние пакетов недоступно: ${response.status}`)
-    const state = await response.json() as {packages?: unknown}
-    const message = releaseMessage({type: "release", packages: state.packages})
-    if (message === null) throw new Error("Сервер вернул некорректное состояние пакетов")
-    console.debug("[@release/service:rpc:update]", "получено текущее состояние пакетов", {
-      packages: message.packages,
-    })
-    await applyRelease(connection, message.packages)
-  }
-
-  const enqueueUpdate = (connection: WebSocket, update: () => Promise<void>) => {
-    updates = updates.then(update, update).catch((error) => {
-      console.debug("[@release/service:rpc:update]", "не удалось синхронизировать пакеты", error)
-      console.error("Не удалось синхронизировать браузерные пакеты", error)
-      if (connection.readyState === WebSocket.OPEN)
-        setTimeout(() => enqueueUpdate(connection, () => synchronize(connection)), 1_000)
-    })
   }
 
   const connect = () => {
@@ -73,7 +101,9 @@ export function startRpc(bindings: RpcBindings) {
     const url = new URL("/sw", location.origin)
     url.protocol = location.protocol === "https:" ? "wss:" : "ws:"
     const connection = new WebSocket(url)
+    const state: SynchronizationState = {awaitingDelta: false, resynchronize: false}
     socket = connection
+    states.set(connection, state)
     console.debug("[@release/service:rpc]", "подключаемся к серверу обновлений", {
       from: location.origin,
       to: url.href,
@@ -83,21 +113,33 @@ export function startRpc(bindings: RpcBindings) {
       console.debug("[@release/service:rpc]", "подключились к серверу обновлений", {
         to: connection.url,
       })
-      enqueueUpdate(connection, () => synchronize(connection))
+      requestSynchronization(connection)
     })
 
     connection.addEventListener("message", (event) => {
-      const message = buildMessage(event.data)
-      if (message === null) return
-      console.debug("[@release/service:rpc:update]", "получено уведомление об обновлении", {
-        from: connection.url,
-        packages: message.packages,
+      const message = parseMessage(event.data)
+      if (parseReleaseChangedMessage(message) !== null) {
+        console.debug("[@release/service:rpc:update]", "получен сигнал об обновлении", {
+          from: connection.url,
+        })
+        requestSynchronization(connection)
+        return
+      }
+
+      const delta = parseReleaseDeltaMessage(message)
+      if (delta === null || !state.awaitingDelta) return
+      state.awaitingDelta = false
+      enqueueUpdate(connection, async () => {
+        await applyDelta(connection, delta)
+        if (state.resynchronize && connection === socket) {
+          state.resynchronize = false
+          requestSynchronization(connection)
+        }
       })
-      enqueueUpdate(connection, () => applyRelease(connection, message.packages))
     })
 
     connection.addEventListener("close", (event) => {
-      socket = null
+      if (socket === connection) socket = null
       const intentional = intentionalClosures.delete(connection)
       console.debug("[@release/service:rpc]", "отключились от сервера обновлений", {
         code: event.code,
@@ -117,30 +159,11 @@ export function startRpc(bindings: RpcBindings) {
   connect()
 }
 
-/** Принимает только одно host notification с точным package state. */
-function buildMessage(data: unknown): {type: "release", packages: ReleasePackage[]} | null {
+function parseMessage(data: unknown) {
   if (typeof data !== "string") return null
-
-  let message: unknown
   try {
-    message = JSON.parse(data)
+    return JSON.parse(data) as unknown
   } catch {
     return null
   }
-
-  return releaseMessage(message)
-}
-
-function releaseMessage(
-  message: unknown,
-): {type: "release", packages: ReleasePackage[]} | null {
-  if (typeof message !== "object" || message === null || Array.isArray(message)) return null
-  const input = message as Record<string, unknown>
-  if (input.type !== "release" || !Array.isArray(input.packages) || input.packages.length === 0)
-    return null
-
-  const packages = updatePackages(input.packages)
-  if (packages === null) return null
-
-  return {type: "release", packages}
 }

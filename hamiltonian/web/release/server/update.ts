@@ -1,4 +1,4 @@
-import type {ReleasedPackage} from "./contracts"
+import {releaseChangedMessage} from "../protocol"
 import {publishPackages} from "./publish"
 import {packageChanges} from "./request"
 
@@ -40,20 +40,18 @@ export async function publishRelease(
     packages: response.packages,
     results: releaseResults(response.results),
   })
-  notifyRelease(notification, response.packages)
+  notifyRelease(notification)
   return Response.json(response)
 }
 
-function notifyRelease(notification: ReleaseNotification, packages: ReleasedPackage[]) {
-  const message = JSON.stringify({type: "release", packages})
+export function notifyRelease(notification: ReleaseNotification) {
+  const message = JSON.stringify(releaseChangedMessage())
   debug("отправляем уведомление об обновлении", {
-    packages,
     subscribers: notification.subscriberCount(),
     topic: notification.topic,
   })
   const sendStatus = notification.publish(message)
   debug("уведомление об обновлении отправлено", {
-    packages,
     sendStatus,
     topic: notification.topic,
   })

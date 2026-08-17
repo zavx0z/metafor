@@ -7,6 +7,7 @@
  */
 
 import type {ReleaseLoader} from "./contract"
+import {currentReleasePackages} from "./current"
 import {updateRelease} from "./loader"
 import {startRpc} from "./rpc"
 import {confirmRestart} from "./state"
@@ -20,6 +21,8 @@ import {updatePackages} from "./storage"
 export default async function releaseService(loader: ReleaseLoader) {
   console.debug("[@release/service]", "Service Worker release запущен", {rpc: "/sw"})
   startRpc({
+    confirmCurrent: confirmRestart,
+    currentPackages: currentReleasePackages,
     updateModules: async (input: unknown) => {
       console.debug("[@release/service:update]", "проверяем состояние пакетов", {packages: input})
       const packages = updatePackages(input)

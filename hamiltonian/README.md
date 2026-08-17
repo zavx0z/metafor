@@ -226,6 +226,21 @@ immutable versioned artifact. Поэтому `@release/main` и
 `@internal/visual` обслуживаются как два физических artifact: ни текущая, ни
 versioned сборка `@release/main` не содержит implementation Visual.
 
+После успешной host publication server отправляет Service Worker только
+payload-free signal `release-changed`. При таком signal и при каждом новом RPC
+connection Worker заново читает фактические exact entries постоянных code
+caches, проверяет identity headers и вычисляет SHA-256/byte size из body. Этот
+полный current state отправляется server; готовый host package list в signal не
+вкладывается и через `GET /code` Worker не запрашивается.
+
+Server в момент запроса перечитывает действующий root desired composition и
+возвращает только delta: полные identities в `update` и `name`, `env`,
+`version` в `remove`. Совпавшие entries и полный desired list в ответ не входят.
+URL и cache owner выводятся локально, а release, request, generation и
+transaction IDs отсутствуют. Signal не хранит состояние и может безопасно
+повторяться: одна сверка идёт за раз, а следующий signal либо reconnect всегда
+начинает новое чтение текущих caches и root.
+
 Корневые caret dependencies Hamiltonian являются полным browser release
 membership. Перед чтением state и перед сборкой target versions server
 проверяет runtime dependencies всех `@release/*` и `@internal/*` участников:

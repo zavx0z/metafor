@@ -116,7 +116,7 @@ test("UPD-002 exposes the development update path through owner-scoped diagnosti
   )
   expect(rpcServer).toContain('console.debug("[@release/server:rpc]", "Service Worker подключён к серверу обновлений"')
   expect(rpcService).toContain(
-    'console.debug("[@release/service:rpc:update]", "получено уведомление об обновлении"',
+    'console.debug("[@release/service:rpc:update]", "получен сигнал об обновлении"',
   )
   expect(releaseService).toContain(
     'console.debug("[@release/service:update]", "проверяем состояние пакетов"',

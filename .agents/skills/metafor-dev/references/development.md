@@ -173,6 +173,13 @@ control endpoint без параметров:
 GET /code
 ```
 
+Это диагностическое чтение server state, а не источник current state для
+Service Worker. После RPC connect и каждого payload-free `release-changed`
+Worker заново сканирует exact entries caches `release`, `internal` и
+существующий `metafor`, вычисляет фактические SHA-256/size и отправляет полный
+current. Server отвечает только `update` и `remove`; URL, cache owner, полный
+desired list и release/request/transaction IDs не передаются.
+
 ## Опубликовать release
 
 ```http

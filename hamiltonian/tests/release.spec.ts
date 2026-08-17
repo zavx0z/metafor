@@ -3,9 +3,14 @@ import {
   getPackage,
   getRelease,
   nextPackageVersion,
+  notifyRelease,
   packageChanges,
   packageOwners,
   readReleaseComposition,
+  releaseDelta,
+  parseReleaseChangedMessage,
+  parseReleaseCurrentMessage,
+  parseReleaseDeltaMessage,
   releasedPackageResponse,
   releasedPackages,
   satisfiesWorkspaceRange,
@@ -24,6 +29,7 @@ import {
   parseBrowserPackageUrl,
 } from "../web/package-url"
 import {updatePackages} from "../web/release/service/storage"
+import {cachedPackageIdentity} from "../web/release/service/current"
 
 test("package state comes from root caret dependencies", async () => {
   const packages = await releasedPackages()
@@ -180,6 +186,124 @@ test("Worker accepts only complete artifact identity without endpoint or cache",
     new Response("changed", {headers: packageIdentityHeaders(identity)}),
     identity,
   )).rejects.toThrow("Bytes не совпадают")
+})
+
+test("release RPC carries only a payload-free signal, full current, and update/remove delta", () => {
+  const identity = {
+    name: "@internal/visual",
+    env: "main" as const,
+    version: "1.2.3",
+    sha256: "a".repeat(64),
+    size: 42,
+  }
+
+  expect(parseReleaseChangedMessage({type: "release-changed"})).toEqual({
+    type: "release-changed",
+  })
+  expect(parseReleaseChangedMessage({type: "release-changed", packages: []})).toBeNull()
+  expect(parseReleaseCurrentMessage({type: "release-current", current: []})).toEqual({
+    type: "release-current",
+    current: [],
+  })
+  expect(parseReleaseCurrentMessage({
+    type: "release-current",
+    current: [identity, identity],
+  })).toBeNull()
+  expect(parseReleaseCurrentMessage({
+    type: "release-current",
+    current: [{...identity, endpoint: "/@internal/visual"}],
+  })).toBeNull()
+  expect(parseReleaseDeltaMessage({
+    type: "release-delta",
+    update: [],
+    remove: [],
+  })).toEqual({type: "release-delta", update: [], remove: []})
+  expect(parseReleaseDeltaMessage({
+    type: "release-delta",
+    update: [identity],
+    remove: [],
+    desired: [identity],
+  })).toBeNull()
+  expect(parseReleaseDeltaMessage({
+    type: "release-delta",
+    update: [identity],
+    remove: [{name: identity.name, env: identity.env, version: identity.version}],
+  })).toBeNull()
+})
+
+test("server delta omits unchanged entries and separates update from removal", () => {
+  const visual = {
+    name: "@internal/visual",
+    env: "main" as const,
+    version: "1.2.3",
+    sha256: "a".repeat(64),
+    size: 42,
+  }
+  const service = {
+    name: "@release/service",
+    env: "service-worker" as const,
+    version: "2.0.0",
+    sha256: "b".repeat(64),
+    size: 84,
+  }
+
+  expect(releaseDelta([visual, service], [])).toEqual({
+    update: [visual, service],
+    remove: [],
+  })
+  expect(releaseDelta([visual, service], [visual, service])).toEqual({
+    update: [],
+    remove: [],
+  })
+  expect(releaseDelta([visual, service], [
+    visual,
+    {...service, sha256: "c".repeat(64)},
+    {...service, version: "1.9.0"},
+    {...visual, name: "@internal/removed"},
+  ])).toEqual({
+    update: [service],
+    remove: [
+      {name: service.name, env: service.env, version: "1.9.0"},
+      {name: "@internal/removed", env: visual.env, version: visual.version},
+    ],
+  })
+})
+
+test("Worker reports only canonical cache entries with verified actual bytes", async () => {
+  const bytes = new TextEncoder().encode("export const value = 1")
+  const identity = {
+    name: "@internal/visual",
+    env: "main" as const,
+    version: "1.2.3",
+    ...await artifactIntegrity(bytes.buffer),
+  }
+  const request = new Request(
+    `http://127.0.0.1:4444${browserPackageUrl(identity.name, identity.env, identity.version)}`,
+  )
+  const response = new Response(bytes, {headers: packageIdentityHeaders(identity)})
+
+  expect(await cachedPackageIdentity("internal", request, response.clone())).toEqual(identity)
+  expect(await cachedPackageIdentity("release", request, response.clone())).toBeNull()
+  expect(await cachedPackageIdentity(
+    "internal",
+    request,
+    new Response("changed", {headers: packageIdentityHeaders(identity)}),
+  )).toBeNull()
+  expect(await cachedPackageIdentity(
+    "internal",
+    new Request("http://127.0.0.1:4444/@internal/visual?env=main"),
+    response.clone(),
+  )).toBeNull()
+})
+
+test("successful publication notification contains no release state", () => {
+  const messages: string[] = []
+  notifyRelease({
+    topic: "release/service",
+    subscriberCount: () => 2,
+    publish: (message) => messages.push(message),
+  })
+  expect(messages).toEqual([JSON.stringify({type: "release-changed"})])
 })
 
 test("canonical package URLs separate artifact delivery from release control", async () => {
