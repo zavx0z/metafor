@@ -291,22 +291,30 @@ Worker`](tasks/LOAD-001.md). После доказанного loader contract �
 в `web/release`, а package discovery, build, SemVer и атомарная публикация — в
 `release/server`.
 
-Следующий локальный update-шаг начинается после `LOAD-001` и передаёт Service
-Worker ответственность за весь многосоставный сменяемый выпуск после startup:
-`@release/*`, `@internal/*`/`@metafor/*` packages и их resources. Неизменяемые
-HTML, `@startup/main` и `@startup/service` в этот выпуск не входят. Точное
-состояние задают версии package manifests и корневые caret dependencies без
-отдельного release manifest. Host собирает группу во временное место и
-публикует её только после полного успеха. Service Worker получает versioned
-bytes через `fetch`, готовит их во временных caches, переносит проверенные
-responses в постоянные caches владельцев, одним active-state write открывает
-весь набор и один раз перезагружает страницы. Технические transaction caches
-после commit или rollback удаляются и не становятся active поколениями.
+Локальный update-шаг после `LOAD-001` передал Service Worker ответственность за
+многосоставный сменяемый выпуск после startup: `@release/*` и
+`@internal/*` packages. Неизменяемые HTML, `@startup/main` и
+`@startup/service` в этот выпуск не входят. Package manifests и корневые caret
+dependencies задают состояние без отдельного release manifest; versioned bytes
+загружаются через `fetch`, а namespace определяет постоянный owner cache.
 Ручная версия отдельного испытательного модуля и самостоятельное решение
-страницы по host source fingerprint после этого не остаются параллельными
-механизмами браузерного обновления. Этим результатом владеет
+страницы по host source fingerprint больше не являются параллельными
+механизмами браузерного обновления. Этим доказанным checkpoint владеет
 [`UPD-002 — Обновлять всю клиентскую сборку через Service
 Worker`](tasks/UPD-002.md).
+
+Следующий этап различает несколько сред одного package без изменения bare
+import: стандартный conditional `exports` выбирает `main`, `worker`,
+`service-worker`, `server` или `server-worker`, а env входит в artifact и
+browser cache identity. Service Worker сообщает server фактический полный
+состав постоянных code caches, получает только `update/remove` и применяет
+различия через один фиксированный восстанавливаемый transaction cache. Root
+Hamiltonian manifest записывает host intent до действий и остаётся единственным
+источником восстановления; отдельные active/release manifests, endpoints,
+generation, release ID и transaction UUID не добавляются. Живые Bun processes
+этот browser release не заменяет. Этим следующим результатом владеет
+[`UPD-003 — Синхронизировать пакетные сборки по среде и состоянию
+кэша`](tasks/UPD-003.md).
 
 ## Oracle и Force
 
