@@ -121,7 +121,8 @@ versions: старые immutable bytes под прежним SemVer не под�
 доказаны unit, exact-response и полным browser suite; result checkpoint
 `d47e89e96`. Срез `.4` находится в `REVIEW`: membership/dependency closure,
 startup dependencies и public Loader type boundary доказаны focused и полным
-suite; publication/transaction lifecycle не менялся.
+suite; result checkpoint `4b71b61f9`. Срез `.5` выполняется: root-first host
+intent, normal rollback и cold-start forward recovery до открытия routes.
 Пакеты `@startup/main` и `@startup/service` устанавливают Service Worker, восстанавливают
 HTML/startup offline и запускают `@release/main` и `@release/service` из cache
 `release`. Release packages разворачивают Window и Service Worker контуры;
