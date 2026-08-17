@@ -28,10 +28,11 @@ console.debug("[@release/service:update]", "новая сборка загруж
   в принадлежащем ей internal package.
 * `@release/main` и `@release/service` — запускаемые Window- и Service
   Worker-входы release. Они определяют состав используемых `@internal/*`
-  packages и меняются вместе с этим составом.
+  packages и меняются вместе с этим составом. RPC Service Worker является
+  внутренней частью `@release/service`, а не отдельным browser package.
 * `@release/server` — server-владелец чтения package manifests, сборки,
-  версий, атомарной публикации release и `/code`. Browser-код из него не
-  загружается.
+  версий, атомарной публикации release, `/code` и server-реализации RPC.
+  Browser-код из него не загружается.
 * `@startup/main` и `@startup/service` — фиксированный startup. В обычной
   разработке не менять и через endpoint обновления не передавать.
 
@@ -53,7 +54,7 @@ Endpoint возвращает собираемый клиентский artifact
 Пример:
 
 ```text
-GET http://127.0.0.1:4444/code?module=@internal/rpc
+GET http://127.0.0.1:4444/code?module=@release/service
 ```
 
 Текущее доказанное состояние всех сменяемых packages возвращает тот же
@@ -81,7 +82,7 @@ Content-Type: application/json
 {
   "packages": [
     {"name": "@release/main", "change": "patch"},
-    {"name": "@internal/rpc", "change": "minor"}
+    {"name": "@release/service", "change": "minor"}
   ]
 }
 ```

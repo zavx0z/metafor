@@ -13,9 +13,8 @@
   },
   "dependencies": {
     "@release/main": "workspace:^0.1.2",
-    "@release/service": "workspace:^0.1.1",
+    "@release/service": "workspace:^0.1.2",
     "@release/server": "workspace:*",
-    "@internal/rpc": "workspace:^0.1.3",
     "@hamiltonian/visual": "workspace:*",
     "@metafor/engine": "workspace:*",
     "@metafor/web-push": "workspace:*",

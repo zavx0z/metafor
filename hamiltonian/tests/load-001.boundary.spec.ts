@@ -41,43 +41,46 @@ test("LOAD-001 keeps release policy and WebSocket outside immutable startup", as
   expect(releaseState).toContain("activateRelease")
   expect(releaseState).toContain("discardInactiveReleases")
 
-  expect(releaseService).toContain("loadModule(loader, rpc, {")
+  expect(releaseService).toContain("startRpc({")
   expect(releaseService).toContain("updatePackages(input)")
   expect(releaseService).toContain("updateRelease(loader, packages)")
   expect(releaseService).toContain("registration.unregister()")
   expect(releaseService).toContain("client.navigate(client.url)")
-  expect(storage).toContain('"@release/main"')
-  expect(storage).toContain('"@release/service"')
-  expect(storage).toContain('endpoint: "/code?module=@internal/rpc"')
-  expect(storage).toContain('cache: "internal"')
+  expect(storage).not.toContain("@internal/rpc")
+  expect(releaseService).not.toContain("loadModule")
 })
 
 test("UPD-002 exposes the development update path through owner-scoped diagnostics", async () => {
-  const [server, route, build, rpcServer, rpcService, releaseService, updateLoader, startupMain] =
+  const [server, delivery, update, build, rpcServer, rpcService, releaseService, updateLoader, startupMain] =
     await Promise.all([
       Bun.file(join(hamiltonian, "server.ts")).text(),
-      Bun.file(join(hamiltonian, "web/release/server/route.ts")).text(),
+      Bun.file(join(hamiltonian, "web/release/server/delivery.ts")).text(),
+      Bun.file(join(hamiltonian, "web/release/server/update.ts")).text(),
       Bun.file(join(hamiltonian, "web/release/server/build.ts")).text(),
-      Bun.file(join(hamiltonian, "internal/rpc/server/index.ts")).text(),
-      Bun.file(join(hamiltonian, "internal/rpc/service/web/index.ts")).text(),
+      Bun.file(join(hamiltonian, "web/release/server/rpc/index.ts")).text(),
+      Bun.file(join(hamiltonian, "web/release/service/rpc/index.ts")).text(),
       Bun.file(join(hamiltonian, "web/release/service/index.ts")).text(),
       Bun.file(join(hamiltonian, "web/release/service/loader.ts")).text(),
       Bun.file(join(hamiltonian, "web/startup/main/index.ts")).text(),
     ])
 
-  expect(server).toContain('import {releaseRoute} from "@release/server"')
-  expect(server).not.toContain("publishPackages")
-  expect(route).toContain('debug("delivery", "получен запрос клиентского пакета"')
-  expect(route).toContain('debug("update", "уведомление об обновлении отправлено"')
+  expect(server).toContain("GET: getRelease")
+  expect(server).toMatch(/POST: \(request: Request, server: Bun\.Server<RpcSocketData>\) => publishRelease\(request/)
+  expect(server).toContain("open: openRpc")
+  expect(server).toContain("message: messageRpc")
+  expect(server).toContain("close: closeRpc")
+  expect(server).not.toContain("releaseRoute")
+  expect(delivery).toContain('debug("получен запрос клиентского пакета"')
+  expect(update).toContain('debug("уведомление об обновлении отправлено"')
   expect(build).toContain(
     'debug("проверка пакета перед сборкой началась"',
   )
   expect(build).toContain(
     'debug("сборка пакета завершена"',
   )
-  expect(rpcServer).toContain('console.debug("[@internal/rpc/server]", "Service Worker подключён"')
+  expect(rpcServer).toContain('console.debug("[@release/server:rpc]", "Service Worker подключён к серверу обновлений"')
   expect(rpcService).toContain(
-    'console.debug("[@internal/rpc/service:update]", "получено уведомление об обновлении"',
+    'console.debug("[@release/service:rpc:update]", "получено уведомление об обновлении"',
   )
   expect(releaseService).toContain(
     'console.debug("[@release/service:update]", "проверяем состояние пакетов"',
@@ -90,7 +93,7 @@ test("UPD-002 exposes the development update path through owner-scoped diagnosti
   )
   expect(startupMain).toContain('console.debug("[@startup/main]", "страница готова к работе"')
 
-  for (const source of [server, route, build, rpcServer, rpcService, releaseService, updateLoader]) {
+  for (const source of [server, delivery, update, build, rpcServer, rpcService, releaseService, updateLoader]) {
     expect(source).not.toMatch(/const [A-Z_]*SCOPE/)
   }
 })

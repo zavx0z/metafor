@@ -36,7 +36,6 @@ interface CacheSnapshot {
 
 type FixtureFault =
   | "release-service-http-once"
-  | "internal-invalid-once"
   | "update-build-failure-once"
   | "update-fetch-failure-once"
 type ServerMode = "production" | "update" | FixtureFault
@@ -66,13 +65,13 @@ test.serial("UPD-002 updates one module group and restarts every Window once", a
 
     const packages = [
       {name: "@release/main", change: "patch"},
-      {name: "@internal/rpc", change: "minor"},
+      {name: "@release/service", change: "minor"},
       {name: "@release/main", change: "patch"},
     ] as const
     const requestsBefore = await fixtureRequests(server.root)
     const sourceBefore = await updateSources(firstPage)
     expect(sourceBefore.releaseMain.length).toBeGreaterThan(0)
-    expect(sourceBefore.internalRpc.length).toBeGreaterThan(0)
+    expect(sourceBefore.releaseService.length).toBeGreaterThan(0)
 
     const navigations = {first: 0, second: 0}
     firstPage.on("framenavigated", (frame) => {
@@ -83,7 +82,7 @@ test.serial("UPD-002 updates one module group and restarts every Window once", a
     })
 
     const legacyUrl = new URL("/code", server.root)
-    legacyUrl.searchParams.set("module", "@internal/rpc")
+    legacyUrl.searchParams.set("module", "@release/service")
     expect((await fetch(legacyUrl, {method: "POST"})).status).toBe(415)
     expect((await fetch(new URL("/code", server.root), {
       method: "POST",
@@ -111,7 +110,7 @@ test.serial("UPD-002 updates one module group and restarts every Window once", a
     expect(build.body.success).toBe(true)
     expect(build.body.results.map((result) => result.module)).toEqual([
       "@release/main",
-      "@internal/rpc",
+      "@release/service",
     ])
     expect(build.body.results.map((result) => result.version)).toEqual(
       failed.body.results.map((result) => result.version),
@@ -134,17 +133,17 @@ test.serial("UPD-002 updates one module group and restarts every Window once", a
     const sourceAfter = await updateSources(firstPage)
     expect(sourceAfter.releaseMain).not.toBe(sourceBefore.releaseMain)
     expect(sourceAfter.releaseMain).toContain("fixture @release/main 1")
-    expect(sourceAfter.internalRpc).not.toBe(sourceBefore.internalRpc)
-    expect(sourceAfter.internalRpc).toContain("fixture @internal/rpc 1")
+    expect(sourceAfter.releaseService).not.toBe(sourceBefore.releaseService)
+    expect(sourceAfter.releaseService).toContain("fixture @release/service 1")
     expect((await fixtureRequests(server.root)).releaseMain).toBeGreaterThan(requestsBefore.releaseMain)
-    expect((await fixtureRequests(server.root)).internalRpc).toBeGreaterThan(requestsBefore.internalRpc)
+    expect((await fixtureRequests(server.root)).releaseService).toBeGreaterThan(requestsBefore.releaseService)
     expect(navigations).toEqual({first: 1, second: 1})
 
     await browser.close()
     browser = null
     const disconnectedBuild = await requestBuild(server.root, [
       {name: "@release/main", change: "patch"},
-      {name: "@internal/rpc", change: "patch"},
+      {name: "@release/service", change: "patch"},
     ])
     expect(disconnectedBuild.status).toBe(200)
     expect(disconnectedBuild.body.results.map((result) => result.previousVersion)).toEqual(
@@ -163,7 +162,7 @@ test.serial("UPD-002 updates one module group and restarts every Window once", a
       try {
         const sources = await updateSources(restoredPage)
         return sources.releaseMain.includes("fixture @release/main 2")
-          && sources.internalRpc.includes("fixture @internal/rpc 2")
+          && sources.releaseService.includes("fixture @release/service 2")
       } catch {
         return false
       }
@@ -198,7 +197,7 @@ test.serial("UPD-002 keeps the active cache unchanged until every package is ava
     const reload = page.waitForNavigation({waitUntil: "load", timeout: 30_000})
     const build = await requestBuild(server.root, [
       {name: "@release/main", change: "patch"},
-      {name: "@internal/rpc", change: "patch"},
+      {name: "@release/service", change: "patch"},
     ])
     expect(build.status).toBe(200)
 
@@ -211,7 +210,7 @@ test.serial("UPD-002 keeps the active cache unchanged until every package is ava
       try {
         const sources = await updateSources(page)
         return sources.releaseMain.includes("fixture @release/main 1")
-          && sources.internalRpc.includes("fixture @internal/rpc 1")
+          && sources.releaseService.includes("fixture @release/service 1")
       } catch {
         return false
       }
@@ -251,7 +250,7 @@ test.serial("UPD-002 reconnects after a clean server-side WebSocket close", asyn
   }
 })
 
-test.serial("LOAD-001 restores accepted startup, releases and internal module from caches", async () => {
+test.serial("LOAD-001 restores accepted startup and release from caches", async () => {
   const profile = await mkdtemp(join(tmpdir(), "metafor-load-001-"))
   const server = await startServer()
   let browser: Browser | null = null
@@ -270,7 +269,6 @@ test.serial("LOAD-001 restores accepted startup, releases and internal module fr
       const paths = [
         "/code?module=@release/main",
         "/code?module=@release/service",
-        "/code?module=@internal/rpc",
       ]
       const current = await Promise.all(paths.map(async (path) => {
         const first = await fetch(path)
@@ -340,7 +338,7 @@ test.serial("LOAD-001 restores accepted startup, releases and internal module fr
     expect(requests.some((path) => /hmr|_bun/i.test(path))).toBe(false)
 
     const initial = await cacheSnapshot(page)
-    expect(Object.keys(initial).sort()).toEqual(["internal", "release", "startup"])
+    expect(Object.keys(initial).sort()).toEqual(["release", "startup"])
     expect(initial.startup).toEqual(expect.arrayContaining([
       "/",
       "/manifest.webmanifest",
@@ -348,12 +346,10 @@ test.serial("LOAD-001 restores accepted startup, releases and internal module fr
     ]))
     expect(initial.startup).not.toContain("/code?module=@release/main")
     expect(initial.startup).not.toContain("/code?module=@release/service")
-    expect(initial.startup).not.toContain("/code?module=@internal/rpc")
     expect(initial.release).toEqual(expect.arrayContaining([
       "/code?module=@release/main",
       "/code?module=@release/service",
     ]))
-    expect(initial.internal).toContain("/code?module=@internal/rpc")
     expect(initial.metafor).toBeUndefined()
 
     const missingScript = await page.evaluate(async () => {
@@ -447,7 +443,6 @@ test.serial("LOAD-001 restores accepted startup, releases and internal module fr
     expect(witness.requests).not.toContain("/")
     expect(witness.requests).not.toContain("/code?module=@release/main")
     expect(witness.requests).not.toContain("/code?module=@release/service")
-    expect(witness.requests).not.toContain("/code?module=@internal/rpc")
 
     const cold = await cacheSnapshot(coldPage)
     expect(cold.startup).toEqual(expect.arrayContaining([
@@ -459,7 +454,6 @@ test.serial("LOAD-001 restores accepted startup, releases and internal module fr
       "/code?module=@release/main",
       "/code?module=@release/service",
     ]))
-    expect(cold.internal).toContain("/code?module=@internal/rpc")
     expect(Object.values(cold).flat()).not.toContain("/cold/restored")
   } catch (error) {
     throw withServerOutput(error, server.output())
@@ -471,10 +465,9 @@ test.serial("LOAD-001 restores accepted startup, releases and internal module fr
   }
 })
 
-test.serial("LOAD-001 rejects failed or invalid artifacts and retries exact entries", async () => {
+test.serial("LOAD-001 rejects a failed release artifact and retries its exact entry", async () => {
   for (const scenario of [
     {fault: "release-service-http-once", failed: "releaseService"},
-    {fault: "internal-invalid-once", failed: "internalRpc"},
   ] as const) {
     const profile = await mkdtemp(join(tmpdir(), `metafor-load-001-${scenario.fault}-`))
     const server = await startServer(scenario.fault)
@@ -496,7 +489,6 @@ test.serial("LOAD-001 rejects failed or invalid artifacts and retries exact entr
       ]))
       expect(failed.release).toContain("/code?module=@release/main")
       expect(failed.release).not.toContain("/code?module=@release/service")
-      expect(failed.internal ?? []).not.toContain("/code?module=@internal/rpc")
 
       await retryConnectUntil(page, scenario.failed, 2)
       await waitForAcceptedCaches(page)
@@ -506,7 +498,6 @@ test.serial("LOAD-001 rejects failed or invalid artifacts and retries exact entr
         "/code?module=@release/main",
         "/code?module=@release/service",
       ]))
-      expect(recovered.internal).toContain("/code?module=@internal/rpc")
       expect(recovered.metafor).toBeUndefined()
     } catch (error) {
       throw withServerOutput(error, server.output())
@@ -638,36 +629,31 @@ async function waitForAcceptedCaches(page: Page) {
   await page.waitForFunction(async () => {
     const startup = await caches.open("startup")
     const releases = await caches.open("release")
-    const internal = await caches.open("internal")
     return Boolean(
       await startup.match("/")
       && await startup.match("/code?module=@startup/main")
       && await startup.match("/manifest.webmanifest")
       && await releases.match("/code?module=@release/main")
       && await releases.match("/code?module=@release/service")
-      && await internal.match("/code?module=@internal/rpc")
     )
   }, {timeout: 30_000})
 }
 
-async function waitForFailedEntries(page: Page, fault: "release-service-http-once" | "internal-invalid-once") {
+async function waitForFailedEntries(page: Page, fault: "release-service-http-once") {
   await page.waitForFunction(async (expectedFault) => {
     const state = await (await fetch("/__tests/state")).json() as {
-      requests: {releaseService: number; internalRpc: number}
+      requests: {releaseService: number}
     }
     const releases = await caches.open("release")
-    const internal = await caches.open("internal")
     const requestObserved = expectedFault === "release-service-http-once"
-      ? state.requests.releaseService >= 1
-      : state.requests.internalRpc >= 1
+      && state.requests.releaseService >= 1
     return requestObserved
       && Boolean(await releases.match("/code?module=@release/main"))
       && !await releases.match("/code?module=@release/service")
-      && !await internal.match("/code?module=@internal/rpc")
   }, {timeout: 30_000}, fault)
 }
 
-async function retryConnectUntil(page: Page, field: "releaseService" | "internalRpc", count: number) {
+async function retryConnectUntil(page: Page, field: "releaseService", count: number) {
   const deadline = Date.now() + 20_000
   while (Date.now() < deadline) {
     await page.evaluate(() => navigator.serviceWorker.controller?.postMessage({type: "connect"}))
@@ -683,7 +669,7 @@ async function retryConnectUntil(page: Page, field: "releaseService" | "internal
   throw new Error(`Retry did not reach ${field} request ${count}`)
 }
 
-async function waitForRequestCount(page: Page, field: "releaseService" | "internalRpc", count: number) {
+async function waitForRequestCount(page: Page, field: "releaseService", count: number) {
   await page.waitForFunction(async ({field, count}) => {
     const state = await (await fetch("/__tests/state")).json() as {
       requests: Record<string, number>
@@ -710,7 +696,7 @@ async function fixtureRequests(root: string) {
   const response = await fetch(new URL("/__tests/state", root))
   if (!response.ok) throw new Error(`Fixture state returned ${response.status}`)
   const state = await response.json() as {
-    requests: {releaseMain: number, releaseService: number, internalRpc: number}
+    requests: {releaseMain: number, releaseService: number}
   }
   return state.requests
 }
@@ -763,7 +749,7 @@ async function updateSources(page: Page) {
 
     return {
       releaseMain: await source("@release/main", "release"),
-      internalRpc: await source("@internal/rpc", "internal"),
+      releaseService: await source("@release/service", "release"),
     }
   })
 }

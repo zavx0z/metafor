@@ -1,24 +1,25 @@
 /**
- * Сменяемый Service Worker release между startup loader и internal packages.
- * Его artifact загружается и запускается внутри Service Worker, после чего
- * release включает Web RPC service в изменяемый internal-контур Hamiltonian.
+ * Сменяемый Service Worker release между startup loader и browser packages.
+ * Его artifact загружается и запускается внутри Service Worker и сам владеет
+ * RPC transport обновлений.
  *
  * @packageDocumentation
  */
 
 import type * as Loader from "../../startup/service/loader"
-import {loadModule, updateRelease} from "./loader"
+import {updateRelease} from "./loader"
+import {startRpc} from "./rpc"
 import {confirmRestart} from "./state"
-import {rpc, updatePackages} from "./storage"
+import {updatePackages} from "./storage"
 
 /**
- * Формирует Service Worker-контур из internal и будущих Metafor modules.
+ * Формирует изменяемый Service Worker-контур release.
  *
  * @param loader - Универсальные primitives неизменяемого startup.
  */
 export default async function releaseService(loader: typeof Loader) {
-  console.debug("[@release/service]", "Service Worker release запущен", {module: rpc.endpoint})
-  await loadModule(loader, rpc, {
+  console.debug("[@release/service]", "Service Worker release запущен", {rpc: "/sw"})
+  startRpc({
     updateModules: async (input: unknown) => {
       console.debug("[@release/service:update]", "проверяем состояние пакетов", {packages: input})
       const packages = updatePackages(input)

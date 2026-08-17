@@ -3,8 +3,9 @@ import {fileURLToPath} from "node:url"
 
 const hamiltonianRoot = fileURLToPath(new URL(".", import.meta.url))
 const serverPath = fileURLToPath(new URL("./server.ts", import.meta.url))
-const releaseRoutePath = fileURLToPath(new URL("./web/release/server/route.ts", import.meta.url))
-const rpcServerPath = fileURLToPath(new URL("./internal/rpc/server/index.ts", import.meta.url))
+const releaseDeliveryPath = fileURLToPath(new URL("./web/release/server/delivery.ts", import.meta.url))
+const releaseUpdatePath = fileURLToPath(new URL("./web/release/server/update.ts", import.meta.url))
+const rpcServerPath = fileURLToPath(new URL("./web/release/server/rpc/index.ts", import.meta.url))
 
 const routes = [
   '"/"',
@@ -26,42 +27,47 @@ describe("Hamiltonian singleton server boundary", () => {
     expect(packageJson.scripts?.start).toBe("bun --port=4444 server")
     expect(source.match(/Bun\.serve</g)).toHaveLength(1)
     expect(source).not.toContain("class ")
-    expect(source).toContain('import {releaseRoute} from "@release/server"')
-    expect(source).toContain('from "@internal/rpc/server"')
-    expect(source).toContain("const code = releaseRoute<RpcSocketData>")
-    expect(source).toContain("websocket,")
+    expect(source).toContain('from "@release/server"')
+    expect(source).not.toContain("@internal/rpc")
+    expect(source).toContain("GET: getRelease")
+    expect(source).toMatch(/POST: \(request: Request, server: Bun\.Server<RpcSocketData>\) => publishRelease\(request/)
+    expect(source).toContain("open: openRpc")
+    expect(source).toContain("message: messageRpc")
+    expect(source).toContain("close: closeRpc")
+    expect(source).toContain('"/assets/*": async (request: Request) =>')
 
     const declarations = [...source.matchAll(/^\s{4}("\/[^\"]*"):/gm)]
       .map((match) => match[1])
     expect(declarations).toEqual([...routes])
   })
 
-  test("delegates release and RPC policy to their owning server packages", async () => {
-    const [source, releaseRoute, rpcServer] = await Promise.all([
+  test("shows transport wiring while release package owns its implementation", async () => {
+    const [source, delivery, update, rpcServer] = await Promise.all([
       Bun.file(serverPath).text(),
-      Bun.file(releaseRoutePath).text(),
+      Bun.file(releaseDeliveryPath).text(),
+      Bun.file(releaseUpdatePath).text(),
       Bun.file(rpcServerPath).text(),
     ])
 
-    expect(source).toContain('"/code": code')
-    expect(source).toContain('"/sw": sw')
-    expect(source).not.toMatch(/\bGET:\s|getRelease|publishPackages|packageChanges/)
-    expect(releaseRoute).toContain("GET: getRelease")
-    expect(releaseRoute).toContain("POST: (request: Request")
-    expect(releaseRoute).toContain("publishPackages(packages)")
-    expect(releaseRoute).not.toContain("Bun.serve")
-    expect(rpcServer).toContain("export const sw =")
-    expect(rpcServer).toContain("export const websocket:")
+    expect(source).toContain('"/code": {')
+    expect(source).toMatch(/"\/sw": \(request: Request, server: Bun\.Server<RpcSocketData>\) => upgradeRpc\(request, server\)/)
+    expect(source).not.toContain("releaseRoute")
+    expect(delivery).toContain("export async function getRelease")
+    expect(update).toContain("export async function publishRelease")
+    expect(update).toContain("publishPackages(packages)")
+    expect(delivery).not.toContain("Bun.serve")
+    expect(update).not.toContain("Bun.serve")
+    expect(rpcServer).toContain("export function upgradeRpc")
+    expect(rpcServer).toContain("export function openRpc")
+    expect(rpcServer).toContain("export function messageRpc")
+    expect(rpcServer).toContain("export function closeRpc")
     expect(rpcServer).not.toMatch(/Bun\.serve\s*[<(]/)
   })
 
-  test("keeps the complete RPC WebSocket surface in @internal/rpc/server", async () => {
+  test("keeps the complete RPC implementation inside @release/server", async () => {
     const source = await Bun.file(rpcServerPath).text()
-    expect(source).toMatch(
-      /websocket:[\s\S]*?open\(socket\)[\s\S]*?message\(\) \{\}[\s\S]*?close\(socket, code, reason\)/,
-    )
     expect(source).toContain("socket.subscribe(rpcServiceTopic)")
     expect(source).toContain("socket.unsubscribe(rpcServiceTopic)")
-    expect(source).toContain('source: "rpc/service"')
+    expect(source).toContain('source: "release/service"')
   })
 })

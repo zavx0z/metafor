@@ -13,8 +13,6 @@ const packageBuildScripts = {
     "bun build ./main.ts --target=browser --production --minify --drop console.debug --outfile=dist/index.js",
   "web/release/service":
     "bun build ./index.ts --target=browser --format=cjs --production --minify --drop console.debug --outfile=dist/index.js",
-  "internal/rpc":
-    "bun build ./service/web/index.ts --target=browser --format=iife --production --minify --drop console.debug --outfile=dist/index.js",
 } as const
 
 test("every browser artifact owns one direct production build command", async () => {
@@ -54,15 +52,15 @@ test("build executor resolves package contracts without a module registry", asyn
 })
 
 test("build executor derives development arguments from the production command", () => {
-  const production = packageBuildScripts["internal/rpc"]
+  const production = packageBuildScripts["web/release/service"]
   expect(packageBuildCommand(production, "production").join(" ")).toBe(production)
   expect(packageBuildCommand(production, undefined).join(" ")).toBe(production)
   expect(packageBuildCommand(production, "development")).toEqual([
     "bun",
     "build",
-    "./service/web/index.ts",
+    "./index.ts",
     "--target=browser",
-    "--format=iife",
+    "--format=cjs",
     "--minify",
     "--sourcemap=inline",
     "--outfile=dist/index.js",
@@ -82,10 +80,10 @@ test("build executor derives development arguments from the production command",
 
 test("development keeps debug and source map while production drops both", async () => {
   const development = await build("development")
-  expect(development.rpc).toContain("console.debug")
-  expect(development.rpc).toContain("подключились к серверу обновлений")
-  expect(development.rpc).toContain("получено уведомление об обновлении")
-  expect(development.rpc).toContain("перезагрузка страниц началась")
+  expect(development.releaseService).toContain("console.debug")
+  expect(development.releaseService).toContain("подключились к серверу обновлений")
+  expect(development.releaseService).toContain("получено уведомление об обновлении")
+  expect(development.releaseService).toContain("перезагрузка страниц началась")
   expect(development.releaseService).toContain("загрузка группы во временный кэш началась")
   expect(development.releaseService).toContain("вся группа открыта в активном кэше")
   expect(development.releaseService).toContain("начинаем повторную навигацию страниц")
@@ -95,9 +93,9 @@ test("development keeps debug and source map while production drops both", async
   }
 
   const production = await build("production")
-  expect(production.rpc).not.toContain("подключились к серверу обновлений")
-  expect(production.rpc).not.toContain("получено уведомление об обновлении")
-  expect(production.rpc).not.toContain("перезагрузка страниц началась")
+  expect(production.releaseService).not.toContain("подключились к серверу обновлений")
+  expect(production.releaseService).not.toContain("получено уведомление об обновлении")
+  expect(production.releaseService).not.toContain("перезагрузка страниц началась")
   expect(production.releaseService).not.toContain("загрузка группы во временный кэш началась")
   expect(production.releaseService).not.toContain("вся группа открыта в активном кэше")
   expect(production.releaseService).not.toContain("начинаем повторную навигацию страниц")
@@ -114,7 +112,7 @@ async function build(mode: "development" | "production") {
   const child = Bun.spawn([
     Bun.which("bun") ?? "bun",
     "-e",
-    'import {buildPackage} from "@release/server"; console.log(JSON.stringify(await Promise.all([buildPackage("@startup/main"), buildPackage("@release/service"), buildPackage("@internal/rpc")])))',
+    'import {buildPackage} from "@release/server"; console.log(JSON.stringify(await Promise.all([buildPackage("@startup/main"), buildPackage("@release/service")])))',
   ], {
     cwd: hamiltonian,
     env: {...process.env, NODE_ENV: mode},
@@ -134,12 +132,10 @@ async function build(mode: "development" | "production") {
     result: [
       {success: true, exitCode: 0},
       {success: true, exitCode: 0},
-      {success: true, exitCode: 0},
     ],
   })
   return {
     startupMain: await Bun.file(join(hamiltonian, "web/startup/main/dist/index.js")).text(),
     releaseService: await Bun.file(join(hamiltonian, "web/release/service/dist/index.js")).text(),
-    rpc: await Bun.file(join(hamiltonian, "internal/rpc/dist/index.js")).text(),
   }
 }

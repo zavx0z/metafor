@@ -75,6 +75,9 @@ Worker`. Весь прежний Hamiltonian остаётся отдельно �
 Browser path перестраивается в `UPD-002.7` как `startup → release → internal`.
 `UPD-002.8` добавляет в `metafor-dev` одну безопасную команду очистки site data
 точного managed CDP target для повторной проверки startup/release migration.
+`UPD-002.9` встраивает обе стороны RPC в release: server transport принадлежит
+`@release/server`, Service Worker transport входит в `@release/service`, а
+корневой `server.ts` снова явно показывает HTTP methods и WebSocket lifecycle.
 Пакеты `@startup/main` и `@startup/service` устанавливают Service Worker, восстанавливают
 HTML/startup offline и запускают `@release/main` и `@release/service` из cache
 `release`. Release packages разворачивают Window и Service Worker контуры;

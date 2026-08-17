@@ -1,9 +1,14 @@
-import {rpcServiceTopic, sw, websocket, type RpcSocketData} from "@internal/rpc/server"
 import {
   buildablePackage,
+  closeRpc,
+  messageRpc,
+  openRpc,
   packageResponse,
   packageChanges,
   releasedPackages,
+  rpcServiceTopic,
+  upgradeRpc,
+  type RpcSocketData,
   type ReleasablePackage,
   type ReleasedPackage,
   type VersionChange,
@@ -12,7 +17,6 @@ import {
 type Fault =
   | "none"
   | "release-service-http-once"
-  | "internal-invalid-once"
   | "update-build-failure-once"
   | "update-fetch-failure-once"
 
@@ -24,12 +28,10 @@ if (!Number.isInteger(port) || port <= 0) throw new Error("LOAD_TEST_PORT is req
 const requests = {
   releaseMain: 0,
   releaseService: 0,
-  internalRpc: 0,
 }
 const revisions: Record<ReleasablePackage, number> = {
   "@release/main": 0,
   "@release/service": 0,
-  "@internal/rpc": 0,
 }
 const versions = new Map((await releasedPackages()).map(({name, version}) => [name, version]))
 let buildRequests = 0
@@ -53,7 +55,12 @@ const server = Bun.serve<RpcSocketData>({
     ),
     "/assets/*": async (request: Request) => {
       const asset = new URL(request.url).pathname.slice("/assets/".length)
-      if (asset.split("/").includes("..")) return new Response(null, {status: 404})
+      if (
+        !asset
+        || asset.includes("%")
+        || asset.split("/").some((part) => !part || part === "." || part === "..")
+      )
+        return new Response(null, {status: 404})
       const file = Bun.file(new URL(`../../assets/${asset}`, import.meta.url))
       if (!await file.exists()) return new Response(null, {status: 404})
       return new Response(file)
@@ -77,12 +84,6 @@ const server = Bun.serve<RpcSocketData>({
                 status: 503,
                 headers: javascriptHeaders,
               })
-            }
-            return await artifactResponse(module)
-          case "@internal/rpc":
-            requests.internalRpc += 1
-            if (fault === "internal-invalid-once" && requests.internalRpc === 1) {
-              return new Response(")", {headers: javascriptHeaders})
             }
             if (
               fault === "update-fetch-failure-once"
@@ -123,7 +124,8 @@ const server = Bun.serve<RpcSocketData>({
         return Response.json({success, results, packages: released})
       },
     },
-    "/sw": sw,
+    "/sw": (request: Request, bunServer: Bun.Server<RpcSocketData>) =>
+      upgradeRpc(request, bunServer),
     "/__tests/state": () => Response.json({connections, fault, requests}),
     "/__tests/rpc/close": {
       POST: () => {
@@ -139,15 +141,15 @@ const server = Bun.serve<RpcSocketData>({
   },
   fetch: () => new Response(null, {status: 404}),
   websocket: {
-    ...websocket,
     open(socket) {
       connections += 1
       sockets.add(socket)
-      websocket.open!(socket)
+      openRpc(socket)
     },
+    message: messageRpc,
     close(socket, code, reason) {
       sockets.delete(socket)
-      websocket.close!(socket, code, reason)
+      closeRpc(socket, code, reason)
     },
   },
 })
@@ -178,7 +180,7 @@ function fixturePackage(name: ReleasablePackage): ReleasedPackage {
     name,
     version,
     endpoint: `/code?module=${name}&version=${version}`,
-    cache: name.startsWith("@release/") ? "release" : "internal",
+    cache: "release",
   }
 }
 

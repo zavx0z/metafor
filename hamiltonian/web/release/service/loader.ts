@@ -9,52 +9,6 @@ import {
   type ReleasePackage,
 } from "./state"
 
-/** Описание одного Service Worker module, выбранного release. */
-export interface Module {
-  /** Стабильный HTTP endpoint module. */
-  endpoint: string
-
-  /** Cache Storage, принадлежащий module. */
-  cache: string
-}
-
-/**
- * Загружает и запускает один Service Worker module.
- *
- * Release владеет endpoint, cache и полной композицией переданных startup
- * primitives. Ошибка удаляет только entry выбранного module и допускает retry.
- *
- * @param startup - Минимальные primitives, переданные startup service.
- * @param module - Endpoint и cache, выбранные release.
- * @param bindings
- * @returns Результат выполнения сохранённого source.
- */
-export async function loadModule(
-  startup: typeof Startup,
-  module: Module,
-  bindings: Readonly<Record<string, unknown>> = {},
-) {
-  const request = new Request(new URL(module.endpoint, location.origin))
-
-  try {
-    let response = await startup.read(module.cache, request)
-
-    if (!response) {
-      response = startup.verify(await fetch(request))
-      await startup.cache(module.cache, request, response)
-      response = await startup.read(module.cache, request)
-    }
-
-    if (!response) throw new Error(`Cached module ${request.url} is missing`)
-
-    startup.verify(response)
-    return startup.run(await response.text(), bindings)
-  } catch (error) {
-    await startup.remove(module.cache, request)
-    throw error
-  }
-}
-
 /** Подготавливает package group и открывает её loader одним active-state write. */
 export async function updateRelease(
   startup: typeof Startup,

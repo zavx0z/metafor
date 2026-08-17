@@ -1,24 +1,4 @@
-import type {Module} from "./loader"
 import type {ReleasePackage} from "./state"
-
-/** Сменяемые browser modules и принадлежащие им Cache Storage. */
-export const modules = {
-  "@release/main": {
-    endpoint: "/code?module=@release/main",
-    cache: "release",
-  },
-  "@release/service": {
-    endpoint: "/code?module=@release/service",
-    cache: "release",
-  },
-  "@internal/rpc": {
-    endpoint: "/code?module=@internal/rpc",
-    cache: "internal",
-  },
-} as const satisfies Record<string, Module>
-
-/** Internal RPC module, из которого release формирует Service Worker-контур. */
-export const rpc = modules["@internal/rpc"]
 
 /** Проверяет package state, полученный от того же Hamiltonian origin. */
 export function updatePackages(value: unknown): ReleasePackage[] | null {

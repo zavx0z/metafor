@@ -173,7 +173,7 @@ transport.
 Неизменяемый startup запускает один активный release и не знает состав
 `internal` packages. `@release/main` разворачивает Window-контур и использует
 `@internal/visual`. `@release/service` разворачивает сменяемый Service Worker-контур,
-загружает его `internal` packages и владеет подготовкой следующего release.
+владеет RPC transport и подготовкой следующего release.
 
 `@release/server` — единственный server-side владелец release packages и
 server-стороны RPC. Он находит и проверяет package-owned build contract,
@@ -181,7 +181,10 @@ server-стороны RPC. Он находит и проверяет package-own
 реализует операции HTTP/RPC. Корневой `server.ts` остаётся явной картой
 сетевого интерфейса: возле каждого endpoint видны HTTP methods, а возле
 WebSocket — `open`, `message` и `close`; фабрика, скрывающая целый route,
-запрещена. Обычное дерево assets объявляется встроенным directory route Bun.
+запрещена. На используемом Bun 1.3.14 `{dir}` ещё распознаётся как
+`FrameworkRouter` и не является рабочим runtime directory route, поэтому
+дерево assets временно обслуживается явным безопасным file-handler без
+frontend framework dependencies.
 
 Service Worker-сторона RPC является внутренней директорией `@release/service`
 и входит в его единый artifact. Отдельного browser package, версии или cache
