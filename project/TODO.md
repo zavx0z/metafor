@@ -131,9 +131,10 @@ focused, development/production build и полным browser suite; срез н
 `REVIEW`, result checkpoint `81d5d8269`. Срез `.7` выполняется: один fixed
 `transaction`, first intent write, guarded canonical apply/recovery, removal и
 полное удаление постоянной active metadata и UUID caches. Результат `.7`
-закреплён checkpoint `a8dbf5059`; correction `.7.1` синхронизирует обязательный
-development guide с уже реализованным fixed-transaction законом до live-среза
-`.8`.
+закреплён checkpoint `a8dbf5059`, а guide correction `.7.1` — checkpoint
+`7ef8e87d7`. Closing-срез `.8` выполняет двухпрофильный automated proof и
+owner-visible development update в единственном managed contour; destructive
+failure/crash остаются доказательствами своих изолированных сред.
 Пакеты `@startup/main` и `@startup/service` устанавливают Service Worker, восстанавливают
 HTML/startup offline и запускают `@release/main` и `@release/service` из cache
 `release`. Release packages разворачивают Window и Service Worker контуры;
