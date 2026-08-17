@@ -6,7 +6,6 @@ export type {
   PackageBuildOptions,
   PackageBuildResult,
   PackageChange,
-  PackageEnvironment,
   PackageEnvironmentExport,
   PackageReleaseResult,
   PackageReleaseResultSet,
@@ -14,9 +13,18 @@ export type {
   ReleasablePackage,
   VersionChange,
 } from "./contracts"
-export {packageEnvironments} from "./contracts"
+export {
+  browserPackageEnvironments,
+  isBrowserPackageEnvironment,
+  isPackageEnvironment,
+  packageEnvironments,
+} from "../../package-environment"
+export type {
+  BrowserPackageEnvironment,
+  PackageEnvironment,
+} from "../../package-environment"
 export {getPackage, getRelease} from "./delivery"
-export {packageEnvironmentExports, packageOwner} from "./package"
+export {packageEnvironmentExports, packageOwner, packageOwners} from "./package"
 export {publishPackages} from "./publish"
 export {packageChanges} from "./request"
 export {

@@ -1,12 +1,21 @@
-import {dirname, join} from "node:path"
-import {browserPackageUrl} from "../../package-url"
+import {basename, dirname, join} from "node:path"
+import {
+  browserPackageEnvironments,
+  type BrowserPackageEnvironment,
+} from "../../package-environment"
+import {packageIdentityHeaders} from "../../package-integrity"
 import {packageResponse} from "./build"
 import type {
   BuildablePackage,
   ReleasedPackage,
   ReleasablePackage,
 } from "./contracts"
-import {packageArtifact, packageManifest, packageOwner} from "./package"
+import {
+  packageArtifact,
+  packageManifest,
+  packageOwner,
+  packageOwners,
+} from "./package"
 import {hamiltonianManifest} from "./paths"
 import {waitForPublication} from "./queue"
 import {caretVersion, isVersion} from "./version"
@@ -27,13 +36,28 @@ export async function readReleasedPackages(): Promise<ReleasedPackage[]> {
     const version = caretVersion(dependency)
     if (version === null) continue
 
-    const owner = await packageOwner(name)
-    if (owner.cache === null)
-      throw new Error(`Released package ${name} must declare artifact.cache`)
+    const owners = await packageOwners(name)
+    const owner = owners[0]
+    if (owner === undefined) throw new Error(`Released package ${name} has no environments`)
     const manifest = await packageManifest(owner.manifest)
     if (manifest.name !== name || manifest.version !== version)
       throw new Error(`Released package ${name} must have exact version ${version}`)
-    packages.push(releasedPackage(name, version, owner.cache))
+    const environments = owners
+      .filter(({env}) => browserPackageEnvironments.some((browserEnv) => browserEnv === env))
+    for (const environmentOwner of environments) {
+      const {env} = environmentOwner
+      const browserEnv = env as BrowserPackageEnvironment
+      const artifact = await packageArtifact(versionedArtifact(environmentOwner.artifact, version))
+      if (!artifact)
+        throw new Error(`Released artifact ${name}:${browserEnv}@${version} is missing`)
+      packages.push({
+        name,
+        env: browserEnv,
+        version,
+        sha256: artifact.sha256,
+        size: artifact.size,
+      })
+    }
   }
 
   return packages
@@ -50,11 +74,12 @@ export async function releaseStateResponse() {
 /** Отдаёт точную versioned сборку либо текущий initial artifact package. */
 export async function releasedPackageResponse(
   name: BuildablePackage,
+  env: BrowserPackageEnvironment,
   requestedVersion: string | null,
 ) {
   const packages = await releasedPackages()
-  const current = packages.find((entry) => entry.name === name)
-  const owner = await packageOwner(name)
+  const current = packages.find((entry) => entry.name === name && entry.env === env)
+  const owner = await packageOwner(name, env)
   const manifest = await packageManifest(owner.manifest)
   const currentVersion = current?.version ?? (isVersion(manifest.version) ? manifest.version : null)
   if (currentVersion === null) return new Response(null, {status: 404})
@@ -67,35 +92,40 @@ export async function releasedPackageResponse(
     const headers = new Headers({
       "Cache-Control": "no-cache",
       "Content-Type": artifact.type,
-      "X-Package-Name": name,
-      "X-Package-Version": version,
+      ...packageIdentityHeaders({
+        name,
+        env,
+        version,
+        sha256: artifact.sha256,
+        size: artifact.size,
+      }),
     })
     for (const [header, value] of Object.entries(owner.headers)) headers.set(header, value)
     return new Response(Bun.file(artifact.path), {headers})
   }
 
-  if (version !== currentVersion) return new Response(null, {status: 404})
+  if (current !== undefined || version !== currentVersion) return new Response(null, {status: 404})
 
-  const response = await packageResponse(name)
+  const response = await packageResponse(name, env)
   if (!response.ok) return response
   const headers = new Headers(response.headers)
-  headers.set("X-Package-Name", name)
-  headers.set("X-Package-Version", version)
+  const sha256 = headers.get("X-Package-SHA256")
+  const size = Number(headers.get("X-Package-Size"))
+  if (sha256 === null || !Number.isSafeInteger(size) || size <= 0)
+    return new Response(null, {status: 500})
+  for (const [header, value] of Object.entries(packageIdentityHeaders({
+    name,
+    env,
+    version,
+    sha256,
+    size,
+  }))) headers.set(header, value)
   return new Response(response.body, {status: response.status, headers})
 }
 
 /** Возвращает путь immutable artifact указанной package version. */
 export function versionedArtifact(artifact: string, version: string) {
-  return join(dirname(artifact), "versions", version, "index.js")
-}
-
-function releasedPackage(name: ReleasablePackage, version: string, cache: string) {
-  return {
-    name,
-    version,
-    cache,
-    endpoint: browserPackageUrl(name, version),
-  }
+  return join(dirname(artifact), "versions", version, basename(artifact))
 }
 
 function isReleasableName(value: string): value is ReleasablePackage {

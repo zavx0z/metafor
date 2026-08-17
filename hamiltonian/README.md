@@ -217,8 +217,10 @@ handler нет.
 прежние entries обновлённых packages. Ошибка или остановка до switch удаляет
 неопубликованные owner entries и оставляет прежний active state доступным.
 
-Active state хранит для package точные `name`, `version`, `endpoint`, `cache` и
-канонический `storage`, равный `cache`; технического UUID storage в нём нет.
+Пока действует прежний active-state switch, его временная metadata хранит для
+artifact точные `name`, `env`, `version`, `sha256`, `size` и фактический
+`storage`. Endpoint каждый раз строится из package identity, а постоянный cache
+owner — из namespace; эти два значения в metadata и RPC не передаются.
 Изменение source, состава или bytes package всегда создаёт новую SemVer и новый
 immutable versioned artifact. Поэтому `@release/main` и
 `@internal/visual` обслуживаются как два физических artifact: ни текущая, ни

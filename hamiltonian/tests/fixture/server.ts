@@ -1,6 +1,7 @@
 import {
   buildablePackage,
   closeRpc,
+  getPackage,
   messageRpc,
   openRpc,
   packageResponse,
@@ -14,10 +15,10 @@ import {
   type VersionChange,
 } from "../../web/release/server"
 import {
-  browserPackageCache,
-  browserPackageName,
-  browserPackageUrl,
+  parseBrowserPackageUrl,
 } from "../../web/package-url"
+import {artifactIntegrity, packageIdentityHeaders} from "../../web/package-integrity"
+import type {BrowserPackageEnvironment} from "../../web/package-environment"
 
 type Fault =
   | "none"
@@ -40,7 +41,9 @@ const revisions: Record<ReleasablePackage, number> = {
   "@release/main": 0,
   "@release/service": 0,
 }
-const versions = new Map((await releasedPackages()).map(({name, version}) => [name, version]))
+const initialPackages = await releasedPackages()
+const versions = new Map(initialPackages.map(({name, version}) => [name, version]))
+const environments = new Map(initialPackages.map(({name, env}) => [name, env]))
 let buildRequests = 0
 let updateFetchFailures = 0
 let connections = 0
@@ -80,7 +83,7 @@ const server = Bun.serve<RpcSocketData>({
       GET: async (request: Request) => {
         const url = new URL(request.url)
         if (url.search !== "") return new Response(null, {status: 404})
-        return Response.json({packages: fixturePackages()})
+        return Response.json({packages: await fixturePackages()})
       },
       POST: async (request: Request) => {
         const packages = await packageChanges(request)
@@ -89,6 +92,7 @@ const server = Bun.serve<RpcSocketData>({
         const failed = fault === "update-build-failure-once" && buildRequests === 1
         const results = packages.map(({name, change}, index) => ({
           module: name,
+          env: environments.get(name)!,
           change,
           previousVersion: versions.get(name)!,
           version: changedVersion(versions.get(name)!, change),
@@ -105,7 +109,7 @@ const server = Bun.serve<RpcSocketData>({
           versions.set(result.module, result.version)
           revisions[result.module] = (revisions[result.module] ?? 0) + 1
         }
-        const released = results.map(({module}) => fixturePackage(module))
+        const released = await Promise.all(results.map(({module}) => fixturePackage(module)))
         server.publish(rpcServiceTopic, JSON.stringify({type: "release", packages: released}))
         return Response.json({success, results, packages: released})
       },
@@ -142,29 +146,39 @@ const server = Bun.serve<RpcSocketData>({
 
 console.info(JSON.stringify({event: "ready", port: server.port, fault}))
 
-async function artifactResponse(module: ReleasablePackage) {
-  const response = await packageResponse(module)
+async function artifactResponse(
+  module: ReleasablePackage,
+  env: BrowserPackageEnvironment,
+) {
+  const response = await packageResponse(module, env)
   const revision = revisions[module] ?? 0
   if (!response.ok) return response
+  const original = await response.text()
+  const source = revision === 0
+    ? original
+    : `${original}\nconsole.info(${JSON.stringify(`fixture ${module} ${revision}`)})`
+  const integrity = await artifactIntegrity(new TextEncoder().encode(source).buffer)
   const headers = new Headers(response.headers)
-  headers.set("X-Package-Name", module)
-  headers.set("X-Package-Version", versions.get(module)!)
-  if (revision === 0) return new Response(response.body, {headers})
-  const source = await response.text()
-  return new Response(`${source}\nconsole.info(${JSON.stringify(`fixture ${module} ${revision}`)})`, {
-    headers,
-  })
+  for (const [header, value] of Object.entries(packageIdentityHeaders({
+    name: module,
+    env,
+    version: versions.get(module)!,
+    ...integrity,
+  }))) headers.set(header, value)
+  return new Response(source, {headers})
 }
 
 async function fixtureArtifactResponse(request: Request) {
   const url = new URL(request.url)
-  const module = await buildablePackage(browserPackageName(url.pathname))
+  const artifact = parseBrowserPackageUrl(url)
+  if (artifact === null) return new Response(null, {status: 404})
+  const module = await buildablePackage(artifact.name, artifact.env)
   if (module === null) return new Response(null, {status: 404})
 
   switch (module) {
     case "@release/main":
       requests.releaseMain += 1
-      return await artifactResponse(module)
+      return await artifactResponse(module, artifact.env)
     case "@release/service":
       requests.releaseService += 1
       if (fault === "release-service-http-once" && requests.releaseService === 1) {
@@ -179,26 +193,33 @@ async function fixtureArtifactResponse(request: Request) {
         && url.searchParams.has("version")
         && updateFetchFailures++ === 0
       ) return new Response("Update artifact unavailable", {status: 503})
-      return await artifactResponse(module)
+      return await artifactResponse(module, artifact.env)
     case "@internal/visual":
       requests.internalVisual += 1
-      return await artifactResponse(module)
+      return await artifactResponse(module, artifact.env)
     default:
-      return packageResponse(module)
+      return await getPackage(request)
   }
 }
 
-function fixturePackages(): ReleasedPackage[] {
-  return [...versions].map(([name]) => fixturePackage(name))
+async function fixturePackages(): Promise<ReleasedPackage[]> {
+  return await Promise.all([...versions].map(([name]) => fixturePackage(name)))
 }
 
-function fixturePackage(name: ReleasablePackage): ReleasedPackage {
+async function fixturePackage(name: ReleasablePackage): Promise<ReleasedPackage> {
   const version = versions.get(name)!
+  const env = environments.get(name)!
+  const response = await artifactResponse(name, env)
+  const sha256 = response.headers.get("X-Package-SHA256")
+  const size = Number(response.headers.get("X-Package-Size"))
+  if (sha256 === null || !Number.isSafeInteger(size) || size <= 0)
+    throw new Error(`Fixture identity is missing for ${name}:${env}`)
   return {
     name,
+    env,
     version,
-    endpoint: browserPackageUrl(name, version),
-    cache: browserPackageCache(name)!,
+    sha256,
+    size,
   }
 }
 

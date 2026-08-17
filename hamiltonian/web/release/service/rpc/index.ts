@@ -1,4 +1,5 @@
 import type {ReleasePackage} from "../state"
+import {updatePackages} from "../storage"
 
 /** Release operations, которые запускаются по RPC-сообщению. */
 export interface RpcBindings {
@@ -138,24 +139,8 @@ function releaseMessage(
   if (input.type !== "release" || !Array.isArray(input.packages) || input.packages.length === 0)
     return null
 
-  const packages: ReleasePackage[] = []
-  for (const entry of input.packages) {
-    if (typeof entry !== "object" || entry === null || Array.isArray(entry)) return null
-    const item = entry as Record<string, unknown>
-    if (
-      Object.keys(item).length !== 4
-      || typeof item.name !== "string"
-      || typeof item.version !== "string"
-      || typeof item.endpoint !== "string"
-      || typeof item.cache !== "string"
-    ) return null
-    packages.push({
-      name: item.name,
-      version: item.version,
-      endpoint: item.endpoint,
-      cache: item.cache,
-    })
-  }
+  const packages = updatePackages(input.packages)
+  if (packages === null) return null
 
   return {type: "release", packages}
 }

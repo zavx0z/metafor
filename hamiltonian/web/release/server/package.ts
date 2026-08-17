@@ -1,11 +1,15 @@
 import {realpath} from "node:fs/promises"
 import {dirname, join, resolve} from "node:path"
+import {
+  browserPackageEnvironments,
+  isPackageEnvironment,
+  type PackageEnvironment,
+} from "../../package-environment"
+import {artifactIntegrity} from "../../package-integrity"
 import {packageArtifactPath, packageBuildCommand} from "./command"
 import {
-  packageEnvironments,
   type BuildablePackage,
   type PackageBuildArtifact,
-  type PackageEnvironment,
   type PackageEnvironmentExport,
   type PackageManifest,
   type PackageOwner,
@@ -19,22 +23,30 @@ interface PackageLocation {
 
 const repositoryRoot = dirname(hamiltonianRoot)
 const packageLocations = new Map<BuildablePackage, Promise<PackageLocation>>()
-const browserEnvironments = new Set<PackageEnvironment>(["main", "worker", "service-worker"])
+const browserEnvironments = new Set<PackageEnvironment>(browserPackageEnvironments)
 
 /** Возвращает свежий env-specific package build contract. */
 export async function packageOwner(
   name: BuildablePackage,
   requestedEnv?: PackageEnvironment,
 ): Promise<PackageOwner> {
+  const owners = await packageOwners(name)
+  const env = requestedEnv ?? singleBrowserEnvironment(name, owners)
+  const selected = owners.find((owner) => owner.env === env)
+  if (selected === undefined) throw new Error(`${name} does not export metafor:${env}`)
+  return selected
+}
+
+/** Возвращает свежие проверенные build contracts всех объявленных env. */
+export async function packageOwners(name: BuildablePackage): Promise<PackageOwner[]> {
   const location = await packageLocation(name)
   const manifest = await packageManifest(location.manifest)
   if (manifest.name !== name)
     throw new Error(`Resolved package ${String(manifest.name)} does not match ${name}`)
 
   const environments = packageEnvironmentExports(manifest)
-  const env = requestedEnv ?? singleBrowserEnvironment(name, environments)
   const artifacts = new Map<string, PackageEnvironment>()
-  let selected: PackageOwner | null = null
+  const owners: PackageOwner[] = []
 
   for (const environment of environments) {
     const contract = await environmentOwner(name, location, manifest, environment)
@@ -42,18 +54,18 @@ export async function packageOwner(
     if (previous !== undefined)
       throw new Error(`${name} env ${previous} and ${environment.env} share build outfile`)
     artifacts.set(contract.artifact, environment.env)
-    if (environment.env === env) selected = contract
+    owners.push(contract)
   }
 
-  if (selected === null) throw new Error(`${name} does not export metafor:${env}`)
-  return selected
+  return owners
 }
 
 /** Читает непустой JavaScript artifact. */
 export async function packageArtifact(path: string): Promise<PackageBuildArtifact | null> {
   const artifact = Bun.file(path, {type: "text/javascript; charset=utf-8"})
   if (!await artifact.exists() || artifact.size === 0) return null
-  return {path, size: artifact.size, type: artifact.type}
+  const integrity = await artifactIntegrity(await artifact.arrayBuffer())
+  return {path, ...integrity, type: artifact.type}
 }
 
 /** Читает package manifest заново, не кешируя изменяемое содержимое. */
@@ -161,10 +173,6 @@ async function environmentOwner(
     headers[header] = value
   }
 
-  const cache = artifact.cache
-  if (cache !== undefined && typeof cache !== "string")
-    throw new Error(`${name} artifact cache must be a string`)
-
   return {
     root: location.root,
     manifest: location.manifest,
@@ -173,13 +181,12 @@ async function environmentOwner(
     artifact: packageArtifactPath(location.root, build),
     build,
     prebuild: prebuildName,
-    cache: cache ?? null,
     headers,
   }
 }
 
-function singleBrowserEnvironment(name: string, environments: PackageEnvironmentExport[]) {
-  const browser = environments.filter(({env}) => browserEnvironments.has(env))
+function singleBrowserEnvironment(name: string, owners: PackageOwner[]) {
+  const browser = owners.filter(({env}) => browserEnvironments.has(env))
   if (browser.length !== 1)
     throw new Error(`${name} requires an explicit browser environment`)
   return browser[0]!.env
@@ -201,8 +208,4 @@ function relativeSource(value: unknown, label: string) {
 function record(value: unknown, message: string): Record<string, unknown> {
   if (typeof value !== "object" || value === null || Array.isArray(value)) throw new Error(message)
   return value as Record<string, unknown>
-}
-
-function isPackageEnvironment(value: string): value is PackageEnvironment {
-  return packageEnvironments.some((environment) => environment === value)
 }

@@ -33,7 +33,8 @@ console.debug("[@release/service:update]", "новая сборка загруж
   внутренней частью `@release/service`, а не отдельным browser package.
   `@internal/visual` при этом остаётся самостоятельным artifact с cache owner
   `internal`; source и готовая сборка `@release/main` импортируют его как
-  `@internal/visual`, а import map разрешает specifier в `/@internal/visual`.
+  `@internal/visual`, а import map разрешает specifier в
+  `/@internal/visual?env=main`.
 * `@release/server` — server-владелец чтения package manifests, сборки,
   версий, атомарной публикации release, namespace routes browser artifacts,
   control endpoint `/code` и server-реализации RPC.
@@ -42,7 +43,9 @@ console.debug("[@release/service:update]", "новая сборка загруж
   разработке не менять и через endpoint обновления не передавать.
 
 Имя модуля брать только из поля `name` его `package.json`.
-Сменяемый artifact также объявляет точную `version` и `artifact.cache`.
+Сменяемый package также объявляет точную `version`. Cache owner не записывать в
+manifest: он выводится из namespace package (`startup`, `release`, `internal`
+или `metafor`).
 Последние доказанные версии перечислены в dependencies корневого Hamiltonian
 package как `workspace:^<version>`.
 
@@ -197,9 +200,13 @@ Query parameters для `POST` не использовать. После усп�
 {
   success: true,
   results: [{module, change, previousVersion, version, success, exitCode, stdout, stderr, outputs}],
-  packages: [{name, version, endpoint, cache}]
+  packages: [{name, env, version, sha256, size}]
 }
 ```
+
+`endpoint` и cache owner в ответ не входят. Canonical URL строится из
+`name + env + version`, а cache owner — из namespace; SHA-256 и size относятся
+к фактическим опубликованным bytes.
 
 * `200` и `success: true` — обновление принято;
 * `400` — JSON или форма body неверны;

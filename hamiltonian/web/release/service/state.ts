@@ -1,12 +1,13 @@
-import {browserPackageName} from "../../package-url"
+import type {BrowserPackageIdentity} from "../../package-integrity"
+import {
+  browserPackageCache,
+  browserPackageSlot,
+  browserPackageUrl,
+  parseBrowserPackageUrl,
+} from "../../package-url"
 
 /** Точная версия package, подготовленная host для browser release. */
-export interface ReleasePackage {
-  name: string
-  version: string
-  endpoint: string
-  cache: string
-}
+export interface ReleasePackage extends BrowserPackageIdentity {}
 
 /** Активная cache entry package после транзакционного переключения. */
 export interface ActiveReleasePackage extends ReleasePackage {
@@ -47,12 +48,12 @@ export async function rememberRelease(release: PendingRelease) {
 export async function activateRelease(packages: ActiveReleasePackage[]) {
   const current = await activeRelease()
   const next = {...current.packages}
-  for (const entry of packages) next[entry.name] = entry
+  for (const entry of packages) next[browserPackageSlot(entry.name, entry.env)] = entry
   await (await caches.open(metadataCache)).put(
     activeRequest,
     Response.json({
       packages: next,
-      restart: packages.map(({name}) => name),
+      restart: packages.map(({name, env}) => browserPackageSlot(name, env)),
     } satisfies ReleaseState),
   )
 }
@@ -89,9 +90,13 @@ export async function discardInterruptedRelease() {
   const used = new Set(Object.values(active.packages).map(({storage}) => storage))
   await Promise.all([
     ...pending.packages.map(async (entry) => {
-      const current = active.packages[entry.name]
+      const current = active.packages[browserPackageSlot(entry.name, entry.env)]
       if (current && sameRelease(current, entry)) return
-      await (await caches.open(entry.cache)).delete(entry.endpoint, {ignoreVary: true})
+      const owner = requiredCacheOwner(entry.name)
+      await (await caches.open(owner)).delete(
+        browserPackageUrl(entry.name, entry.env, entry.version),
+        {ignoreVary: true},
+      )
     }),
     ...pending.storages
       .filter((storage) => !used.has(storage))
@@ -106,16 +111,19 @@ export async function discardInactiveReleases() {
   const packages = {...active.packages}
   let migrated = false
 
-  for (const [name, entry] of Object.entries(packages)) {
-    if (entry.storage === entry.cache) continue
-    const owner = await caches.open(entry.cache)
-    const cached = await owner.match(entry.endpoint, {ignoreVary: true})
+  for (const [slot, entry] of Object.entries(packages)) {
+    const cacheName = requiredCacheOwner(entry.name)
+    const endpoint = browserPackageUrl(entry.name, entry.env, entry.version)
+    if (entry.storage === cacheName) continue
+    const owner = await caches.open(cacheName)
+    const cached = await owner.match(endpoint, {ignoreVary: true})
     if (!cached) {
-      const response = await (await caches.open(entry.storage)).match(entry.endpoint, {ignoreVary: true})
-      if (!response) throw new Error(`Активная сборка ${name}@${entry.version} отсутствует в кэше`)
-      await owner.put(entry.endpoint, response)
+      const response = await (await caches.open(entry.storage)).match(endpoint, {ignoreVary: true})
+      if (!response)
+        throw new Error(`Активная сборка ${entry.name}:${entry.env}@${entry.version} отсутствует в кэше`)
+      await owner.put(endpoint, response)
     }
-    packages[name] = {...entry, storage: entry.cache}
+    packages[slot] = {...entry, storage: cacheName}
     migrated = true
   }
 
@@ -132,16 +140,19 @@ export async function discardInactiveReleases() {
 }
 
 async function discardSupersededEntries(active: ReleaseState) {
-  const owners = new Set(Object.values(active.packages).map(({cache}) => cache))
+  const owners = new Set(Object.values(active.packages).map(({name}) => requiredCacheOwner(name)))
   await Promise.all([...owners].map(async (owner) => {
     const cache = await caches.open(owner)
     const requests = await cache.keys()
     await Promise.all(requests.map(async (request) => {
-      const module = browserPackageName(new URL(request.url).pathname)
-      if (module === null) return
-      const entry = active.packages[module]
-      if (!entry || entry.cache !== owner) return
-      const endpoint = new URL(entry.endpoint, location.origin).href
+      const artifact = parseBrowserPackageUrl(new URL(request.url))
+      if (artifact === null) return
+      const entry = active.packages[browserPackageSlot(artifact.name, artifact.env)]
+      if (!entry || requiredCacheOwner(entry.name) !== owner) return
+      const endpoint = new URL(
+        browserPackageUrl(entry.name, entry.env, entry.version),
+        location.origin,
+      ).href
       if (request.url !== endpoint) await cache.delete(request, {ignoreVary: true})
     }))
   }))
@@ -149,11 +160,18 @@ async function discardSupersededEntries(active: ReleaseState) {
 
 function sameRelease(active: ActiveReleasePackage, expected: ReleasePackage) {
   return active.name === expected.name
+    && active.env === expected.env
     && active.version === expected.version
-    && active.endpoint === expected.endpoint
-    && active.cache === expected.cache
+    && active.sha256 === expected.sha256
+    && active.size === expected.size
 }
 
 async function writeReleaseState(state: ReleaseState) {
   await (await caches.open(metadataCache)).put(activeRequest, Response.json(state))
+}
+
+function requiredCacheOwner(name: string) {
+  const owner = browserPackageCache(name)
+  if (owner === null) throw new Error(`Package ${name} не имеет cache owner`)
+  return owner
 }

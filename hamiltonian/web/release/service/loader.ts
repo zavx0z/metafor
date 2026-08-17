@@ -1,5 +1,10 @@
 import type * as Startup from "../../startup/service/loader"
-import {browserPackageUrl} from "../../package-url"
+import {verifyPackageResponse} from "../../package-integrity"
+import {
+  browserPackageCache,
+  browserPackageSlot,
+  browserPackageUrl,
+} from "../../package-url"
 import {
   activateRelease,
   discardInactiveReleases,
@@ -18,16 +23,25 @@ export async function updateRelease(
   await discardInterruptedRelease()
   await discardInactiveReleases()
   const targets = (await Promise.all(packages.map(async (entry) => {
-    const stable = new Request(new URL(browserPackageUrl(entry.name), location.origin))
-    const current = await startup.read(entry.cache, stable)
-    if (
-      current?.headers.get("X-Package-Name") === entry.name
-      && current.headers.get("X-Package-Version") === entry.version
-    ) return null
+    const cache = requiredCacheOwner(entry.name)
+    const stable = new Request(new URL(browserPackageUrl(entry.name, entry.env), location.origin))
+    const current = await startup.read(cache, stable)
+    if (current) {
+      try {
+        await verifyPackageResponse(current, entry)
+        return null
+      } catch {
+        // Повреждённый либо устаревший response заменяется exact artifact ниже.
+      }
+    }
     return {
+      cache,
       entry,
       stable,
-      request: new Request(new URL(entry.endpoint, location.origin), {cache: "no-store"}),
+      request: new Request(
+        new URL(browserPackageUrl(entry.name, entry.env, entry.version), location.origin),
+        {cache: "no-store"},
+      ),
     }
   }))).filter((target) => target !== null)
 
@@ -35,14 +49,14 @@ export async function updateRelease(
 
   const transaction = crypto.randomUUID()
   const storages = new Map<string, string>()
-  for (const {entry} of targets) {
-    if (!storages.has(entry.cache))
-      storages.set(entry.cache, `${entry.cache}:release:${transaction}`)
+  for (const {cache} of targets) {
+    if (!storages.has(cache)) storages.set(cache, `${cache}:release:${transaction}`)
   }
 
   console.debug("[@release/service:prepare]", "подготовка обновления началась", {
-    artifacts: targets.map(({entry, request}) => ({
-      cache: entry.cache,
+    artifacts: targets.map(({cache, entry, request}) => ({
+      cache,
+      env: entry.env,
       name: entry.name,
       source: request.url,
       version: entry.version,
@@ -55,8 +69,8 @@ export async function updateRelease(
   })
 
   const groups = new Map<string, Request[]>()
-  for (const {entry, request} of targets) {
-    const storage = storages.get(entry.cache)!
+  for (const {cache, request} of targets) {
+    const storage = storages.get(cache)!
     const requests = groups.get(storage) ?? []
     requests.push(request)
     groups.set(storage, requests)
@@ -75,20 +89,21 @@ export async function updateRelease(
       })
     }))
 
-    const prepared = await Promise.all(targets.map(async ({entry, request}) => {
-      const storage = storages.get(entry.cache)!
+    const prepared = await Promise.all(targets.map(async ({cache, entry, request}) => {
+      const storage = storages.get(cache)!
       const response = await (await caches.open(storage)).match(request)
-      if (!response) throw new Error(`Сборка ${entry.name}@${entry.version} отсутствует в кэше`)
-      startup.verify(response)
-      if (response.headers.get("X-Package-Name") !== entry.name)
-        throw new Error(`Ответ обновления принадлежит другому пакету: ${entry.name}`)
-      if (response.headers.get("X-Package-Version") !== entry.version)
-        throw new Error(`Ответ обновления имеет другую версию: ${entry.name}@${entry.version}`)
-      return {entry: {...entry, storage: entry.cache}, response}
+      if (!response)
+        throw new Error(`Сборка ${entry.name}:${entry.env}@${entry.version} отсутствует в кэше`)
+      await verifyPackageResponse(startup.verify(response), entry)
+      return {entry: {...entry, storage: cache}, response}
     }))
 
     await Promise.all(prepared.map(async ({entry, response}) => {
-      await (await caches.open(entry.cache)).put(entry.endpoint, response)
+      const cache = requiredCacheOwner(entry.name)
+      await (await caches.open(cache)).put(
+        browserPackageUrl(entry.name, entry.env, entry.version),
+        response,
+      )
     }))
 
     const active = prepared.map(({entry}) => entry)
@@ -96,15 +111,25 @@ export async function updateRelease(
     await forgetRelease()
     await discardInactiveReleases()
     console.debug("[@release/service:activate]", "вся группа открыта в активном кэше", {
-      artifacts: active.map(({name, version}) => ({name, version})),
+      artifacts: active.map(({name, env, version}) => ({name, env, version})),
     })
-    return active.map(({name}) => name)
+    return active.map(({name, env}) => browserPackageSlot(name, env))
   } catch (error) {
     await discardInterruptedRelease()
     await discardInactiveReleases()
     console.debug("[@release/service:prepare]", "подготовка кэша завершилась с ошибкой", {
-      artifacts: targets.map(({entry}) => ({name: entry.name, version: entry.version})),
+      artifacts: targets.map(({entry}) => ({
+        name: entry.name,
+        env: entry.env,
+        version: entry.version,
+      })),
     }, error)
     throw error
   }
+}
+
+function requiredCacheOwner(name: string) {
+  const owner = browserPackageCache(name)
+  if (owner === null) throw new Error(`Package ${name} не имеет cache owner`)
+  return owner
 }

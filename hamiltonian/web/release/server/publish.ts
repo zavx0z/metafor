@@ -3,10 +3,11 @@ import {dirname, join} from "node:path"
 import {buildPackage} from "./build"
 import type {
   PackageChange,
+  PackageEnvironment,
   PackageManifest,
   PackageReleaseResultSet,
 } from "./contracts"
-import {packageArtifact, packageOwner} from "./package"
+import {packageArtifact, packageOwner, packageOwners} from "./package"
 import {hamiltonianManifest, hamiltonianRoot} from "./paths"
 import {serializePublication} from "./queue"
 import {readReleasedPackages, versionedArtifact} from "./state"
@@ -15,6 +16,11 @@ import {nextPackageVersion} from "./version"
 interface ReleasePlan extends PackageChange {
   previousVersion: string
   version: string
+  artifacts: ReleaseArtifactPlan[]
+}
+
+interface ReleaseArtifactPlan {
+  env: PackageEnvironment
   stagedArtifact: string
   publishedArtifact: string
 }
@@ -29,24 +35,29 @@ async function runPublication(changes: PackageChange[]): Promise<PackageReleaseR
   const staging = await mkdtemp(join(hamiltonianRoot, ".package-update-"))
 
   try {
-    const plans = await Promise.all(changes.map(async ({name, change}, index) => {
+    const plans = await Promise.all(changes.map(async ({name, change}, packageIndex) => {
       const released = current.get(name)
       if (!released) throw new Error(`Released package ${name} is missing`)
       const version = nextPackageVersion(released.version, change)
-      const owner = await packageOwner(name)
+      const owners = await packageOwners(name)
       return {
         name,
         change,
         previousVersion: released.version,
         version,
-        stagedArtifact: join(staging, `${index}.js`),
-        publishedArtifact: versionedArtifact(owner.artifact, version),
+        artifacts: owners.map((owner, envIndex) => ({
+          env: owner.env,
+          stagedArtifact: join(staging, `${packageIndex}-${envIndex}.js`),
+          publishedArtifact: versionedArtifact(owner.artifact, version),
+        })),
       } satisfies ReleasePlan
     }))
 
-    const builds = await Promise.all(plans.map((plan) =>
-      buildPackage(plan.name, {artifact: plan.stagedArtifact})))
-    const results = plans.map((plan, index) => ({
+    const artifactPlans = plans.flatMap((plan) =>
+      plan.artifacts.map((artifact) => ({plan, artifact})))
+    const builds = await Promise.all(artifactPlans.map(({plan, artifact}) =>
+      buildPackage(plan.name, {env: artifact.env, artifact: artifact.stagedArtifact})))
+    const results = artifactPlans.map(({plan}, index) => ({
       ...builds[index]!,
       change: plan.change,
       previousVersion: plan.previousVersion,
@@ -56,22 +67,23 @@ async function runPublication(changes: PackageChange[]): Promise<PackageReleaseR
     if (results.some((result) => !result.success))
       return {success: false, results, packages: []}
 
-    for (const [index, plan] of plans.entries())
-      results[index]!.outputs = [await publishArtifact(plan)]
+    for (const [index, {artifact}] of artifactPlans.entries())
+      results[index]!.outputs = [await publishArtifact(artifact)]
     await publishVersions(plans)
 
     const released = new Map((await readReleasedPackages()).map((entry) => [entry.name, entry]))
     return {
       success: true,
       results,
-      packages: plans.map(({name}) => released.get(name)!),
+      packages: plans.flatMap(({name}) =>
+        [...released.values()].filter((entry) => entry.name === name)),
     }
   } finally {
     await rm(staging, {recursive: true, force: true})
   }
 }
 
-async function publishArtifact(plan: ReleasePlan) {
+async function publishArtifact(plan: ReleaseArtifactPlan) {
   await mkdir(dirname(plan.publishedArtifact), {recursive: true})
   const temporary = `${plan.publishedArtifact}.${crypto.randomUUID()}.tmp`
   await copyFile(plan.stagedArtifact, temporary)

@@ -1,6 +1,6 @@
 import {buildablePackage} from "./build"
 import {releasedPackageResponse, releaseStateResponse} from "./state"
-import {browserPackageName} from "../../package-url"
+import {parseBrowserPackageUrl} from "../../package-url"
 
 /** Возвращает текущее доказанное release state только без query parameters. */
 export async function getRelease(request: Request) {
@@ -12,19 +12,22 @@ export async function getRelease(request: Request) {
 /** Возвращает browser artifact, чьё package name совпадает с pathname. */
 export async function getPackage(request: Request) {
   const url = new URL(request.url)
-  if ([...url.searchParams].some(([name]) => name !== "version") || url.searchParams.size > 1)
-    return new Response(null, {status: 404})
-  const requested = browserPackageName(url.pathname)
+  const requested = parseBrowserPackageUrl(url)
+  if (requested === null) return new Response(null, {status: 404})
 
-  debug("получен запрос клиентского пакета", {package: requested})
-  const name = await buildablePackage(requested)
+  debug("получен запрос клиентского пакета", {package: requested.name, env: requested.env})
+  const name = await buildablePackage(requested.name, requested.env)
   if (name === null) {
     debug("клиентский пакет не найден", {package: requested, status: 404})
     return new Response(null, {status: 404})
   }
 
-  const response = await releasedPackageResponse(name, url.searchParams.get("version"))
-  debug("клиентский пакет готов к отправке", {package: name, status: response.status})
+  const response = await releasedPackageResponse(name, requested.env, requested.version)
+  debug("клиентский пакет готов к отправке", {
+    package: name,
+    env: requested.env,
+    status: response.status,
+  })
   return response
 }
 

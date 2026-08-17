@@ -41,6 +41,9 @@ export async function packageResponse(name: BuildablePackage, env?: PackageEnvir
   const headers = new Headers({
     "Cache-Control": "no-cache",
     "Content-Type": artifact.type,
+    "X-Package-Env": owner.env,
+    "X-Package-SHA256": artifact.sha256,
+    "X-Package-Size": String(artifact.size),
   })
   for (const [header, value] of Object.entries(owner.headers)) headers.set(header, value)
   return new Response(Bun.file(artifact.path), {headers})

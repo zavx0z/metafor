@@ -1,19 +1,19 @@
+import type {
+  BrowserPackageEnvironment,
+  PackageEnvironment,
+} from "../../package-environment"
+import type {BrowserPackageIdentity} from "../../package-integrity"
+
+export type {
+  BrowserPackageEnvironment,
+  PackageEnvironment,
+} from "../../package-environment"
+
 /** Hamiltonian package, который предоставляет browser artifact. */
 export type BuildablePackage = string
 
 /** Package, который входит в сменяемый browser release. */
 export type ReleasablePackage = string
-
-/** Точная среда одного package entrypoint. */
-export const packageEnvironments = [
-  "main",
-  "worker",
-  "service-worker",
-  "server",
-  "server-worker",
-] as const
-
-export type PackageEnvironment = typeof packageEnvironments[number]
 
 export interface PackageEnvironmentExport {
   env: PackageEnvironment
@@ -26,6 +26,7 @@ export interface PackageEnvironmentExport {
 /** Готовый package-owned browser artifact. */
 export interface PackageBuildArtifact {
   path: string
+  sha256: string
   size: number
   type: string
 }
@@ -56,7 +57,6 @@ export interface PackageOwner {
   artifact: string
   build: string
   prebuild: string
-  cache: string | null
   headers: Record<string, string>
 }
 
@@ -70,11 +70,9 @@ export interface PackageChange {
 }
 
 /** Точное доказанное состояние browser artifact. */
-export interface ReleasedPackage {
+export interface ReleasedPackage extends BrowserPackageIdentity {
   name: ReleasablePackage
-  version: string
-  endpoint: string
-  cache: string
+  env: BrowserPackageEnvironment
 }
 
 /** Результат сборки и назначения следующей версии package. */
@@ -99,7 +97,6 @@ export interface PackageManifest {
   scripts?: Record<string, unknown>
   exports?: unknown
   artifact?: {
-    cache?: unknown
     headers?: Record<string, unknown>
   }
 }

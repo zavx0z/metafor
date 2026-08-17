@@ -1,6 +1,6 @@
 {
   "name": "@release/service",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "private": true,
   "type": "module",
   "exports": {
@@ -18,9 +18,6 @@
     "prebuild:service-worker": "bun run typecheck:service-worker",
     "build": "bun build ./index.ts --conditions=metafor:service-worker --target=browser --format=cjs --production --minify --drop console.debug --outfile=dist/index.js",
     "build:service-worker": "bun build ./index.ts --conditions=metafor:service-worker --target=browser --format=cjs --production --minify --drop console.debug --outfile=dist/index.js"
-  },
-  "artifact": {
-    "cache": "release"
   },
   "devDependencies": {
     "@types/serviceworker": "^0.0.200"

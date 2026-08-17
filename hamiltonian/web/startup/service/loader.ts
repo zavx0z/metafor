@@ -1,9 +1,13 @@
-import {browserPackageName} from "../../package-url"
+import {
+  browserPackageCache,
+  browserPackageSlot,
+  browserPackageUrl,
+  parseBrowserPackageUrl,
+} from "../../package-url"
+import type {BrowserPackageIdentity} from "../../package-integrity"
 
 /** Минимальная ссылка startup на уже активный release artifact. */
-interface ActiveReleasePackage {
-  endpoint: string
-  cache: string
+interface ActiveReleasePackage extends BrowserPackageIdentity {
   storage: string
 }
 
@@ -24,7 +28,7 @@ export function verify(response: Response) {
 export async function cache(name: string, request: Request, response: Response) {
   const active = await activePackage(name, request)
   if (active) {
-    await (await caches.open(active.storage)).put(active.endpoint, response)
+    await (await caches.open(active.storage)).put(exactPackageUrl(active), response)
     return
   }
   await (await caches.open(name)).put(request, response)
@@ -34,7 +38,7 @@ export async function cache(name: string, request: Request, response: Response) 
 export async function read(name: string, request: Request) {
   const active = await activePackage(name, request)
   if (active)
-    return (await caches.open(active.storage)).match(active.endpoint, {ignoreVary: true})
+    return (await caches.open(active.storage)).match(exactPackageUrl(active), {ignoreVary: true})
   return (await caches.open(name)).match(request, {ignoreVary: true})
 }
 
@@ -42,7 +46,7 @@ export async function read(name: string, request: Request) {
 export async function remove(name: string, request: Request) {
   const active = await activePackage(name, request)
   if (active)
-    return (await caches.open(active.storage)).delete(active.endpoint, {ignoreVary: true})
+    return (await caches.open(active.storage)).delete(exactPackageUrl(active), {ignoreVary: true})
   return (await caches.open(name)).delete(request, {ignoreVary: true})
 }
 
@@ -58,10 +62,10 @@ export function run(source: string, bindings: Readonly<Record<string, unknown>> 
 }
 
 async function activePackage(name: string, request: Request) {
-  const module = browserPackageName(new URL(request.url).pathname)
-  if (module === null) return null
-  const entry = (await activeRelease()).packages[module]
-  return entry?.cache === name ? entry : null
+  const artifact = parseBrowserPackageUrl(new URL(request.url))
+  if (artifact === null) return null
+  const entry = (await activeRelease()).packages[browserPackageSlot(artifact.name, artifact.env)]
+  return entry && browserPackageCache(entry.name) === name ? entry : null
 }
 
 /** Читает только указатель, необходимый startup для восстановления active release. */
@@ -70,4 +74,8 @@ async function activeRelease(): Promise<ActiveRelease> {
   if (!response) return {packages: {}}
   const state = await response.json() as Partial<ActiveRelease>
   return {packages: state.packages ?? {}}
+}
+
+function exactPackageUrl(entry: ActiveReleasePackage) {
+  return browserPackageUrl(entry.name, entry.env, entry.version)
 }

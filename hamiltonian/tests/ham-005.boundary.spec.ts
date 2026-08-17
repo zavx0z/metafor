@@ -21,7 +21,7 @@ test("HAM-005 creates one standard Window environment through internal visual", 
       name?: string
       exports?: {"."?: {"metafor:main"?: {types?: string, browser?: string}}}
       dependencies?: Record<string, string>
-      artifact?: {cache?: string}
+      artifact?: unknown
       scripts?: Record<string, string>
     }>,
     Bun.file(join(hamiltonian, "internal/visual/bunfig.toml")).text(),
@@ -34,9 +34,9 @@ test("HAM-005 creates one standard Window environment through internal visual", 
   expect(html).toContain('<canvas id="visual-canvas"></canvas>')
   expect(html).toContain("#visual-canvas")
   expect(html.match(/<script\b[^>]*\bsrc=/g)).toHaveLength(1)
-  expect(html).toContain('src="/@startup/main"')
-  expect(html).toContain('"@release/": "/@release/"')
-  expect(html).toContain('"@internal/": "/@internal/"')
+  expect(html).toContain('src="/@startup/main?env=main"')
+  expect(html).toContain('"@release/main": "/@release/main?env=main"')
+  expect(html).toContain('"@internal/visual": "/@internal/visual?env=main"')
 
   expect(main).toContain('const {runtime} = await import("@internal/visual")')
   expect(main).toContain('console.debug("[@release/main]", "Visual runtime подключён", {')
@@ -46,7 +46,7 @@ test("HAM-005 creates one standard Window environment through internal visual", 
   expect(visualPackage.exports?.["."]).toEqual({
     "metafor:main": {types: "./index.ts", browser: "./index.ts"},
   })
-  expect(visualPackage.artifact?.cache).toBe("internal")
+  expect(visualPackage.artifact).toBeUndefined()
   expect(visualPackage.scripts?.prebuild).toBe("bun run typecheck")
   expect(visualPackage.scripts?.build).toBe(
     "bun build ./index.ts --conditions=metafor:main --target=browser --production --minify --drop console.debug --outfile=dist/index.js",

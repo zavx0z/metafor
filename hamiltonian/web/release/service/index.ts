@@ -31,9 +31,10 @@ export default async function releaseService(loader: typeof Loader) {
       }
       console.debug("[@release/service:update]", "состояние пакетов принято", {
         packages: packages.map((entry) => ({
-          cache: entry.cache,
-          endpoint: entry.endpoint,
+          env: entry.env,
           name: entry.name,
+          sha256: entry.sha256,
+          size: entry.size,
           version: entry.version,
         })),
       })

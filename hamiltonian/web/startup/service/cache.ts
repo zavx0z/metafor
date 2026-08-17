@@ -1,9 +1,9 @@
 import {cache as cacheResponse, read} from "./loader"
-import {browserPackageCache, browserPackageName} from "../../package-url"
+import {browserPackageCache, parseBrowserPackageUrl} from "../../package-url"
 
 const startup = [
   "/",
-  "/@startup/main",
+  "/@startup/main?env=main",
   "/manifest.webmanifest",
 ]
 
@@ -25,8 +25,8 @@ const startup = [
  */
 export async function cacheFirst(request: Request) {
   const url = new URL(request.url)
-  const name = browserPackageName(url.pathname)
-  const packageOwner = browserPackageCache(name)
+  const browserPackage = parseBrowserPackageUrl(url)
+  const packageOwner = browserPackageCache(browserPackage?.name ?? null)
   const owner = packageOwner === "startup" ? null : packageOwner
   const cacheName = owner ?? "startup"
   const cache = await caches.open(cacheName)

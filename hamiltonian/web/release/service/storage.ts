@@ -1,40 +1,42 @@
 import type {ReleasePackage} from "./state"
-import {browserPackageCache, browserPackageName} from "../../package-url"
+import {isBrowserPackageEnvironment} from "../../package-environment"
+import {isSha256} from "../../package-integrity"
+import {browserPackageCache, browserPackageName, browserPackageSlot} from "../../package-url"
 
 /** Проверяет package state, полученный от того же Hamiltonian origin. */
 export function updatePackages(value: unknown): ReleasePackage[] | null {
   if (!Array.isArray(value) || value.length === 0) return null
   const packages: ReleasePackage[] = []
-  const names = new Set<string>()
+  const slots = new Set<string>()
 
   for (const entry of value) {
     if (typeof entry !== "object" || entry === null || Array.isArray(entry)) return null
     const item = entry as Record<string, unknown>
     if (
-      Object.keys(item).length !== 4
+      Object.keys(item).length !== 5
       || typeof item.name !== "string"
+      || typeof item.env !== "string"
       || typeof item.version !== "string"
-      || typeof item.endpoint !== "string"
-      || typeof item.cache !== "string"
+      || !isSha256(item.sha256)
+      || typeof item.size !== "number"
+      || !Number.isSafeInteger(item.size)
+      || item.size <= 0
       || !/^\d+\.\d+\.\d+$/.test(item.version)
-      || browserPackageCache(item.name) !== item.cache
+      || !isBrowserPackageEnvironment(item.env)
+      || browserPackageName(`/${item.name}`) !== item.name
+      || browserPackageCache(item.name) === null
     ) return null
 
-    const endpoint = new URL(item.endpoint, location.origin)
-    if (
-      endpoint.origin !== location.origin
-      || browserPackageName(endpoint.pathname) !== item.name
-      || endpoint.searchParams.get("version") !== item.version
-      || [...endpoint.searchParams].length !== 1
-      || names.has(item.name)
-    ) return null
+    const slot = browserPackageSlot(item.name, item.env)
+    if (slots.has(slot)) return null
 
-    names.add(item.name)
+    slots.add(slot)
     packages.push({
       name: item.name,
+      env: item.env,
       version: item.version,
-      endpoint: `${endpoint.pathname}${endpoint.search}`,
-      cache: item.cache,
+      sha256: item.sha256,
+      size: item.size,
     })
   }
 
