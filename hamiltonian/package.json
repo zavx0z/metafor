@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "build": "bun run --parallel --if-present --filter '@startup/*' --filter '@release/*' --filter '@internal/*' build",
-    "dev": "NODE_ENV=development bun --port=4444 server",
-    "start": "bun --port=4444 server",
+    "dev": "NODE_ENV=development bun --conditions=metafor:server --port=4444 server",
+    "start": "bun --conditions=metafor:server --port=4444 server",
     "tls:create": "bun run create-tls.ts",
     "test": "bun test",
     "test:load": "tsc --project tests/tsconfig.json --pretty false && bun test tests/load-001.boundary.spec.ts tests/load-001.browser.spec.ts"

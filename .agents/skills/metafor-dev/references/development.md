@@ -98,6 +98,21 @@ SemVer принадлежит всему package: изменение одног�
 version и полного набора объявленных artifacts этой версии. Неизменившийся
 package не пересобирать и не заменять.
 
+Для каждого branch package объявляет `typecheck:<env>`, `prebuild:<env>` и
+`build:<env>`. `prebuild:<env>` запускает соответствующий typecheck, а direct
+production-команда `build:<env>` содержит ту же `--conditions=metafor:<env>` и
+target. Bun `1.3.14` не разрешает bare package specifier как CLI build
+entrypoint, поэтому команда повторяет source path branch `exports`; release
+server принимает её только при точном совпадении. Bare imports внутри source и
+готового ESM artifact при этом сохраняются.
+
+Package-owned `--outfile` определяет внутренний путь artifact. Outfile разных
+env одного package не должен совпадать; обязательного `dist/<env>` layout нет.
+Общий `scripts.build` package собирает все его env для локального production
+build; у package с одним env он может совпадать с единственным `build:<env>`.
+Release server кеширует только найденные root и manifest path, а содержимое
+`package.json` перечитывает и проверяет перед каждым typecheck/build.
+
 Изменение source, состава или bytes package требует новой версии и нового
 immutable artifact; прежний versioned artifact не заменять другими bytes.
 Window composition packages собираются с внешними package dependencies и

@@ -593,7 +593,7 @@ async function startServer(
   const port = await freePort()
   const bun = Bun.which("bun") ?? process.execPath
   const command = mode === "production"
-    ? [bun, `--port=${port}`, "server.ts"]
+    ? [bun, "--conditions=metafor:server", `--port=${port}`, "server.ts"]
     : [bun, "tests/fixture/server.ts"]
   const fault = mode === "production" || mode === "update" ? "none" : mode
   let stdout = ""

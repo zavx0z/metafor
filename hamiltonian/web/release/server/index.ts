@@ -6,14 +6,17 @@ export type {
   PackageBuildOptions,
   PackageBuildResult,
   PackageChange,
+  PackageEnvironment,
+  PackageEnvironmentExport,
   PackageReleaseResult,
   PackageReleaseResultSet,
   ReleasedPackage,
   ReleasablePackage,
   VersionChange,
 } from "./contracts"
+export {packageEnvironments} from "./contracts"
 export {getPackage, getRelease} from "./delivery"
-export {packageOwner} from "./package"
+export {packageEnvironmentExports, packageOwner} from "./package"
 export {publishPackages} from "./publish"
 export {packageChanges} from "./request"
 export {

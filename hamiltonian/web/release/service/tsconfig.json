@@ -1,6 +1,9 @@
 {
   "extends": "../../../../tsconfig.json",
   "compilerOptions": {
+    "customConditions": [
+      "metafor:service-worker"
+    ],
     "lib": [
       "ESNext"
     ],

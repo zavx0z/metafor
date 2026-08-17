@@ -3,11 +3,21 @@
   "version": "0.1.5",
   "private": true,
   "type": "module",
-  "exports": "./index.ts",
+  "exports": {
+    ".": {
+      "metafor:service-worker": {
+        "types": "./index.ts",
+        "browser": "./index.ts"
+      }
+    }
+  },
   "scripts": {
     "typecheck": "tsc --project tsconfig.json --pretty false",
+    "typecheck:service-worker": "tsc --project tsconfig.json --pretty false",
     "prebuild": "bun run typecheck",
-    "build": "bun build ./index.ts --target=browser --format=cjs --production --minify --drop console.debug --outfile=dist/index.js"
+    "prebuild:service-worker": "bun run typecheck:service-worker",
+    "build": "bun build ./index.ts --conditions=metafor:service-worker --target=browser --format=cjs --production --minify --drop console.debug --outfile=dist/index.js",
+    "build:service-worker": "bun build ./index.ts --conditions=metafor:service-worker --target=browser --format=cjs --production --minify --drop console.debug --outfile=dist/index.js"
   },
   "artifact": {
     "cache": "release"

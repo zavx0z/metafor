@@ -3,8 +3,20 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "exports": "./index.ts",
+  "exports": {
+    ".": {
+      "metafor:server": {
+        "types": "./index.ts",
+        "bun": "./index.ts"
+      }
+    }
+  },
   "scripts": {
-    "typecheck": "tsc --project tsconfig.json --pretty false"
+    "typecheck": "tsc --project tsconfig.json --pretty false",
+    "typecheck:server": "tsc --project tsconfig.json --pretty false",
+    "prebuild": "bun run typecheck",
+    "prebuild:server": "bun run typecheck:server",
+    "build": "bun build ./index.ts --conditions=metafor:server --target=bun --packages=external --production --minify --drop console.debug --outfile=dist/index.js",
+    "build:server": "bun build ./index.ts --conditions=metafor:server --target=bun --packages=external --production --minify --drop console.debug --outfile=dist/index.js"
   }
 }

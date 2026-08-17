@@ -17,6 +17,9 @@
     "checkJs": true,
     // Bundler mode
     "moduleResolution": "bundler",
+    "customConditions": [
+      "metafor:server"
+    ],
     "resolveJsonModule": true,
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,

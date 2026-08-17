@@ -28,7 +28,9 @@ describe("Hamiltonian singleton server boundary", () => {
       scripts?: {start?: string}
     }
 
-    expect(packageJson.scripts?.start).toBe("bun --port=4444 server")
+    expect(packageJson.scripts?.start).toBe(
+      "bun --conditions=metafor:server --port=4444 server",
+    )
     expect(source.match(/Bun\.serve</g)).toHaveLength(1)
     expect(source).not.toContain("class ")
     expect(source).toContain('from "@release/server"')

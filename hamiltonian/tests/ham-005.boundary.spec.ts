@@ -19,7 +19,7 @@ test("HAM-005 creates one standard Window environment through internal visual", 
     }>,
     Bun.file(join(hamiltonian, "internal/visual/package.json")).json() as Promise<{
       name?: string
-      exports?: {"."?: {types?: string, default?: string}}
+      exports?: {"."?: {"metafor:main"?: {types?: string, browser?: string}}}
       dependencies?: Record<string, string>
       artifact?: {cache?: string}
       scripts?: Record<string, string>
@@ -43,11 +43,13 @@ test("HAM-005 creates one standard Window environment through internal visual", 
   expect(main).toContain("runtime: Object.keys(runtime)")
   expect(mainPackage.dependencies).toEqual({"@internal/visual": "workspace:^0.1.0"})
   expect(visualPackage.name).toBe("@internal/visual")
-  expect(visualPackage.exports?.["."]).toEqual({types: "./index.ts", default: "./index.ts"})
+  expect(visualPackage.exports?.["."]).toEqual({
+    "metafor:main": {types: "./index.ts", browser: "./index.ts"},
+  })
   expect(visualPackage.artifact?.cache).toBe("internal")
   expect(visualPackage.scripts?.prebuild).toBe("bun run typecheck")
   expect(visualPackage.scripts?.build).toBe(
-    "bun build ./index.ts --target=browser --production --minify --drop console.debug --outfile=dist/index.js",
+    "bun build ./index.ts --conditions=metafor:main --target=browser --production --minify --drop console.debug --outfile=dist/index.js",
   )
   expect(visualPackage.dependencies?.["@ui/elements"]).toBe("workspace:*")
   expect(visualPackage.dependencies?.["@metafor/engine"]).toBe("workspace:*")
@@ -89,9 +91,9 @@ test("HAM-005 creates one standard Window environment through internal visual", 
   expect(visualBunfig).toContain('".wgsl" = "text"')
   expect(mainPackage.scripts?.prebuild).toBe("bun run typecheck")
   expect(mainPackage.scripts?.build).toBe(
-    "bun build ./main.ts --target=browser --packages=external --production --minify --drop console.debug --outfile=dist/index.js",
+    "bun build ./main.ts --conditions=metafor:main --target=browser --packages=external --production --minify --drop console.debug --outfile=dist/index.js",
   )
-  expect(packageBuild).toContain("packageArtifactPath(root, manifest.scripts.build)")
+  expect(packageBuild).toContain("packageArtifactPath(location.root, build)")
 
   expect(server).toContain('"/assets/fonts/JetBrainsMono-Bold.ttf"')
   expect(server).toContain('new URL("../pkg/engine/static/JetBrainsMono-Bold.ttf"')
@@ -101,8 +103,8 @@ test("HAM-005 creates one standard Window environment through internal visual", 
 
 test("UPD-002 builds Window release and internal visual as separate artifacts", async () => {
   const [main, visual] = await Promise.all([
-    buildPackage("@release/main"),
-    buildPackage("@internal/visual"),
+    buildPackage("@release/main", {env: "main"}),
+    buildPackage("@internal/visual", {env: "main"}),
   ])
   const mainOutput = main.outputs[0]
   const visualOutput = visual.outputs[0]

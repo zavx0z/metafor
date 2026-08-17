@@ -5,19 +5,21 @@ import type {
   BuildablePackage,
   PackageBuildOptions,
   PackageBuildResult,
+  PackageEnvironment,
+  PackageOwner,
 } from "./contracts"
 import {packageArtifact, packageOwner} from "./package"
 
 const pendingBuilds = new Map<string, Promise<PackageBuildResult>>()
 
 /** Возвращает artifact, лениво собирая его при отсутствии или пустом файле. */
-export async function packageResponse(name: BuildablePackage) {
-  const owner = await packageOwner(name)
+export async function packageResponse(name: BuildablePackage, env?: PackageEnvironment) {
+  const owner = await packageOwner(name, env)
   let artifact = await packageArtifact(owner.artifact)
 
   if (!artifact) {
     debug("готовой сборки нет, запускаем сборку", {package: name, path: owner.artifact})
-    const result = await buildPackage(name)
+    const result = await buildPackage(name, {env: owner.env})
     if (!result.success) {
       debug("не удалось собрать пакет по запросу", {
         package: name,
@@ -45,10 +47,13 @@ export async function packageResponse(name: BuildablePackage) {
 }
 
 /** Разрешает внешнее имя как package с полным browser build contract. */
-export async function buildablePackage(value: string | null): Promise<BuildablePackage | null> {
+export async function buildablePackage(
+  value: string | null,
+  env?: PackageEnvironment,
+): Promise<BuildablePackage | null> {
   if (value === null) return null
   try {
-    await packageOwner(value)
+    await packageOwner(value, env)
     return value
   } catch {
     return null
@@ -56,19 +61,20 @@ export async function buildablePackage(value: string | null): Promise<BuildableP
 }
 
 /** Запускает package-owned `scripts.build`, схлопывая одинаковые pending builds. */
-export function buildPackage(
+export async function buildPackage(
   name: BuildablePackage,
   options: PackageBuildOptions = {},
 ): Promise<PackageBuildResult> {
-  const key = `${name}\u0000${options.artifact ?? "default"}`
+  const owner = await packageOwner(name, options.env)
+  const key = `${name}\u0000${owner.env}\u0000${options.artifact ?? "default"}`
   const pending = pendingBuilds.get(key)
   if (pending) {
     debug("ожидаем уже запущенную сборку пакета", {package: name})
     return pending
   }
 
-  debug("запрошена сборка пакета", {package: name})
-  const build = runPackageBuild(name, options.artifact)
+  debug("запрошена сборка пакета", {env: owner.env, package: name})
+  const build = runPackageBuild(name, owner, options.artifact)
   pendingBuilds.set(key, build)
   void build.then(
     () => pendingBuilds.delete(key),
@@ -79,13 +85,22 @@ export function buildPackage(
 
 async function runPackageBuild(
   name: BuildablePackage,
+  owner: PackageOwner,
   artifactOverride?: string,
 ): Promise<PackageBuildResult> {
   try {
-    const owner = await packageOwner(name)
-    debug("проверка пакета перед сборкой началась", {package: name, root: owner.root})
+    debug("проверка пакета перед сборкой началась", {
+      env: owner.env,
+      package: name,
+      root: owner.root,
+    })
 
-    const prebuild = Bun.spawn([Bun.which("bun") ?? "bun", "run", "--silent", "prebuild"], {
+    const prebuild = Bun.spawn([
+      Bun.which("bun") ?? "bun",
+      "run",
+      "--silent",
+      owner.prebuild,
+    ], {
       cwd: owner.root,
       stdout: "pipe",
       stderr: "pipe",
@@ -103,6 +118,7 @@ async function runPackageBuild(
       })
       return {
         module: name,
+        env: owner.env,
         success: false,
         exitCode: prebuildExitCode,
         stdout: prebuildStdout,
@@ -111,12 +127,17 @@ async function runPackageBuild(
       }
     }
 
-    debug("проверка пакета завершена", {package: name, exitCode: prebuildExitCode})
+    debug("проверка пакета завершена", {
+      env: owner.env,
+      package: name,
+      exitCode: prebuildExitCode,
+    })
     const artifactPath = artifactOverride ?? owner.artifact
     await mkdir(dirname(artifactPath), {recursive: true})
     const command = withPackageBuildOutput(packageBuildCommand(owner.build), artifactPath)
     debug("сборка пакета началась", {
       package: name,
+      env: owner.env,
       command,
       environment: Bun.env.NODE_ENV,
       root: owner.root,
@@ -137,25 +158,26 @@ async function runPackageBuild(
 
     if (exitCode !== 0) {
       debug("сборка пакета завершилась с ошибкой", {package: name, exitCode, stderr})
-      return {module: name, success: false, exitCode, stdout, stderr, outputs: []}
+      return {module: name, env: owner.env, success: false, exitCode, stdout, stderr, outputs: []}
     }
 
     const artifact = await packageArtifact(artifactPath)
     if (!artifact) {
       const failure = buildContractFailure(
-        {module: name, success: true, exitCode, stdout, stderr, outputs: []},
+        {module: name, env: owner.env, success: true, exitCode, stdout, stderr, outputs: []},
         artifactPath,
       )
       debug("сборка пакета не создала готовый файл", {package: name, path: artifactPath})
       return failure
     }
 
-    debug("сборка пакета завершена", {package: name, exitCode, artifact})
-    return {module: name, success: true, exitCode, stdout, stderr, outputs: [artifact]}
+    debug("сборка пакета завершена", {env: owner.env, package: name, exitCode, artifact})
+    return {module: name, env: owner.env, success: true, exitCode, stdout, stderr, outputs: [artifact]}
   } catch (error) {
     debug("сборка пакета завершилась с ошибкой", {package: name, error})
     return {
       module: name,
+      env: owner.env,
       success: false,
       exitCode: null,
       stdout: "",

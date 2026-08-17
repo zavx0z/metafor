@@ -4,6 +4,25 @@ export type BuildablePackage = string
 /** Package, который входит в сменяемый browser release. */
 export type ReleasablePackage = string
 
+/** Точная среда одного package entrypoint. */
+export const packageEnvironments = [
+  "main",
+  "worker",
+  "service-worker",
+  "server",
+  "server-worker",
+] as const
+
+export type PackageEnvironment = typeof packageEnvironments[number]
+
+export interface PackageEnvironmentExport {
+  env: PackageEnvironment
+  condition: `metafor:${PackageEnvironment}`
+  entrypoint: string
+  types: string
+  target: "browser" | "bun"
+}
+
 /** Готовый package-owned browser artifact. */
 export interface PackageBuildArtifact {
   path: string
@@ -14,6 +33,7 @@ export interface PackageBuildArtifact {
 /** Результат запуска package-owned `scripts.build`. */
 export interface PackageBuildResult {
   module: BuildablePackage
+  env: PackageEnvironment
   success: boolean
   exitCode: number | null
   stdout: string
@@ -24,14 +44,18 @@ export interface PackageBuildResult {
 /** Необязательная цель package build для staging-транзакции. */
 export interface PackageBuildOptions {
   artifact?: string
+  env?: PackageEnvironment
 }
 
 /** Проверенный package-owned contract browser artifact. */
 export interface PackageOwner {
   root: string
   manifest: string
+  env: PackageEnvironment
+  entrypoint: string
   artifact: string
   build: string
+  prebuild: string
   cache: string | null
   headers: Record<string, string>
 }
@@ -73,6 +97,7 @@ export interface PackageManifest {
   version?: unknown
   dependencies?: Record<string, unknown>
   scripts?: Record<string, unknown>
+  exports?: unknown
   artifact?: {
     cache?: unknown
     headers?: Record<string, unknown>
