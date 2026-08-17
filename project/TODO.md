@@ -130,7 +130,10 @@ checkpoint `5d35a7818`. Срез `.6` находится в `REVIEW`: payload-fr
 focused, development/production build и полным browser suite; срез находится в
 `REVIEW`, result checkpoint `81d5d8269`. Срез `.7` выполняется: один fixed
 `transaction`, first intent write, guarded canonical apply/recovery, removal и
-полное удаление постоянной active metadata и UUID caches.
+полное удаление постоянной active metadata и UUID caches. Результат `.7`
+закреплён checkpoint `a8dbf5059`; correction `.7.1` синхронизирует обязательный
+development guide с уже реализованным fixed-transaction законом до live-среза
+`.8`.
 Пакеты `@startup/main` и `@startup/service` устанавливают Service Worker, восстанавливают
 HTML/startup offline и запускают `@release/main` и `@release/service` из cache
 `release`. Release packages разворачивают Window и Service Worker контуры;
