@@ -128,7 +128,9 @@ checkpoint `5d35a7818`. Срез `.6` находится в `REVIEW`: payload-fr
 фактический current state из canonical browser caches и server delta только из
 `update/remove` без desired state или дополнительных IDs. Результат доказан
 focused, development/production build и полным browser suite; срез находится в
-`REVIEW`, result checkpoint — текущий commit.
+`REVIEW`, result checkpoint `81d5d8269`. Срез `.7` выполняется: один fixed
+`transaction`, first intent write, guarded canonical apply/recovery, removal и
+полное удаление постоянной active metadata и UUID caches.
 Пакеты `@startup/main` и `@startup/service` устанавливают Service Worker, восстанавливают
 HTML/startup offline и запускают `@release/main` и `@release/service` из cache
 `release`. Release packages разворачивают Window и Service Worker контуры;
