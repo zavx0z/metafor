@@ -3,129 +3,133 @@ import {
   browserPackageCache,
   browserPackageSlot,
   browserPackageUrl,
+  parseBrowserPackageUrl,
 } from "../../package-url"
+import type {ReleaseDelta} from "../protocol"
 import type {ReleaseLoader} from "./contract"
 import {
-  activateRelease,
-  discardInactiveReleases,
-  discardInterruptedRelease,
-  forgetRelease,
-  pendingRestart,
-  rememberRelease,
+  commitTransaction,
+  discardLegacyReleaseState,
+  pendingTransaction,
+  preparedPackage,
+  preparePackage,
+  rememberTransaction,
   type ReleasePackage,
 } from "./state"
 
-/** Подготавливает package group и открывает её loader одним active-state write. */
+/** Применяет fresh delta через один восстанавливаемый transaction cache. */
 export async function updateRelease(
   startup: ReleaseLoader,
-  packages: ReleasePackage[],
+  delta: ReleaseDelta,
 ) {
-  await discardInterruptedRelease()
-  await discardInactiveReleases()
-  const targets = (await Promise.all(packages.map(async (entry) => {
-    const cache = requiredCacheOwner(entry.name)
-    const stable = new Request(new URL(browserPackageUrl(entry.name, entry.env), location.origin))
-    const current = await startup.read(cache, stable)
-    if (current) {
-      try {
-        await verifyPackageResponse(current, entry)
-        return null
-      } catch {
-        // Повреждённый либо устаревший response заменяется exact artifact ниже.
-      }
-    }
-    return {
-      cache,
-      entry,
-      stable,
-      request: new Request(
-        new URL(browserPackageUrl(entry.name, entry.env, entry.version), location.origin),
-        {cache: "no-store"},
-      ),
-    }
-  }))).filter((target) => target !== null)
-
-  if (targets.length === 0) return await pendingRestart()
-
-  const transaction = crypto.randomUUID()
-  const storages = new Map<string, string>()
-  for (const {cache} of targets) {
-    if (!storages.has(cache)) storages.set(cache, `${cache}:release:${transaction}`)
+  const interrupted = await pendingTransaction() !== null
+  if (delta.update.length === 0 && delta.remove.length === 0) {
+    await discardLegacyReleaseState()
+    if (!interrupted) return []
+    await rememberTransaction(delta)
+    await commitTransaction()
+    return ["transaction"]
   }
 
-  console.debug("[@release/service:prepare]", "подготовка обновления началась", {
-    artifacts: targets.map(({cache, entry, request}) => ({
-      cache,
+  await rememberTransaction(delta)
+  console.debug("[@release/service:prepare]", "transaction intent сохранён", {
+    remove: delta.remove,
+    update: delta.update,
+  })
+
+  await Promise.all(delta.update.map(async (entry) => {
+    const cached = await preparedPackage(entry)
+    if (cached) {
+      try {
+        await verifyPackageResponse(cached, entry)
+        console.debug("[@release/service:prepare]", "prepared artifact переиспользован", {
+          env: entry.env,
+          name: entry.name,
+          version: entry.version,
+        })
+        return
+      } catch {
+        // Повреждённый prepared response заменяется тем же exact artifact ниже.
+      }
+    }
+
+    const request = exactRequest(entry)
+    console.debug("[@release/service:prepare]", "загрузка exact artifact началась", {
       env: entry.env,
       name: entry.name,
       source: request.url,
       version: entry.version,
-    })),
-  })
-
-  await rememberRelease({
-    packages: targets.map(({entry}) => entry),
-    storages: [...storages.values()],
-  })
-
-  const groups = new Map<string, Request[]>()
-  for (const {cache, request} of targets) {
-    const storage = storages.get(cache)!
-    const requests = groups.get(storage) ?? []
-    requests.push(request)
-    groups.set(storage, requests)
-  }
-
-  try {
-    await Promise.all([...groups].map(async ([storage, requests]) => {
-      console.debug("[@release/service:prepare]", "загрузка группы во временный кэш началась", {
-        artifacts: requests.length,
-        storage,
-      })
-      await (await caches.open(storage)).addAll(requests)
-      console.debug("[@release/service:prepare]", "группа загружена во временный кэш", {
-        artifacts: requests.length,
-        storage,
-      })
-    }))
-
-    const prepared = await Promise.all(targets.map(async ({cache, entry, request}) => {
-      const storage = storages.get(cache)!
-      const response = await (await caches.open(storage)).match(request)
-      if (!response)
-        throw new Error(`Сборка ${entry.name}:${entry.env}@${entry.version} отсутствует в кэше`)
-      await verifyPackageResponse(startup.verify(response), entry)
-      return {entry: {...entry, storage: cache}, response}
-    }))
-
-    await Promise.all(prepared.map(async ({entry, response}) => {
-      const cache = requiredCacheOwner(entry.name)
-      await (await caches.open(cache)).put(
-        browserPackageUrl(entry.name, entry.env, entry.version),
-        response,
-      )
-    }))
-
-    const active = prepared.map(({entry}) => entry)
-    await activateRelease(active)
-    await forgetRelease()
-    await discardInactiveReleases()
-    console.debug("[@release/service:activate]", "вся группа открыта в активном кэше", {
-      artifacts: active.map(({name, env, version}) => ({name, env, version})),
     })
-    return active.map(({name, env}) => browserPackageSlot(name, env))
-  } catch (error) {
-    await discardInterruptedRelease()
-    await discardInactiveReleases()
-    console.debug("[@release/service:prepare]", "подготовка кэша завершилась с ошибкой", {
-      artifacts: targets.map(({entry}) => ({
-        name: entry.name,
-        env: entry.env,
-        version: entry.version,
-      })),
-    }, error)
-    throw error
+    const response = await verifyPackageResponse(startup.verify(await fetch(request)), entry)
+    await preparePackage(entry, response)
+    console.debug("[@release/service:prepare]", "exact artifact сохранён в transaction", {
+      env: entry.env,
+      name: entry.name,
+      version: entry.version,
+    })
+  }))
+
+  const changed = new Set<string>()
+  for (const entry of delta.update) {
+    const response = await preparedPackage(entry)
+    if (!response)
+      throw new Error(`Prepared artifact ${entry.name}:${entry.env}@${entry.version} отсутствует`)
+    await verifyPackageResponse(response, entry)
+    const owner = requiredCacheOwner(entry.name)
+    const cache = await caches.open(owner)
+    const exact = exactRequest(entry)
+    await cache.put(exact, response)
+    await discardOtherSlotEntries(cache, entry, exact.url)
+    changed.add(browserPackageSlot(entry.name, entry.env))
+    console.debug("[@release/service:activate]", "exact artifact записан в canonical cache", {
+      cache: owner,
+      env: entry.env,
+      name: entry.name,
+      version: entry.version,
+    })
   }
+
+  for (const entry of delta.remove) {
+    const owner = requiredCacheOwner(entry.name)
+    await (await caches.open(owner)).delete(exactRequest(entry), {ignoreVary: true})
+    changed.add(browserPackageSlot(entry.name, entry.env))
+    console.debug("[@release/service:activate]", "лишний exact artifact удалён", {
+      cache: owner,
+      env: entry.env,
+      name: entry.name,
+      version: entry.version,
+    })
+  }
+
+  await discardLegacyReleaseState()
+  await commitTransaction()
+  console.debug("[@release/service:activate]", "transaction завершена удалением cache", {
+    changed: [...changed],
+  })
+  return [...changed]
+}
+
+async function discardOtherSlotEntries(
+  cache: Cache,
+  entry: ReleasePackage,
+  keep: string,
+) {
+  const slot = browserPackageSlot(entry.name, entry.env)
+  for (const request of await cache.keys()) {
+    const parsed = parseBrowserPackageUrl(new URL(request.url))
+    if (
+      parsed !== null
+      && browserPackageSlot(parsed.name, parsed.env) === slot
+      && request.url !== keep
+    ) await cache.delete(request, {ignoreVary: true})
+  }
+}
+
+function exactRequest(entry: Pick<ReleasePackage, "name" | "env" | "version">) {
+  return new Request(
+    new URL(browserPackageUrl(entry.name, entry.env, entry.version), location.origin),
+    {cache: "no-store"},
+  )
 }
 
 function requiredCacheOwner(name: string) {

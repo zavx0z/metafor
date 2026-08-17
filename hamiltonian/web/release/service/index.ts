@@ -10,8 +10,6 @@ import type {ReleaseLoader} from "./contract"
 import {currentReleasePackages} from "./current"
 import {updateRelease} from "./loader"
 import {startRpc} from "./rpc"
-import {confirmRestart} from "./state"
-import {updatePackages} from "./storage"
 
 /**
  * Формирует изменяемый Service Worker-контур release.
@@ -21,27 +19,13 @@ import {updatePackages} from "./storage"
 export default async function releaseService(loader: ReleaseLoader) {
   console.debug("[@release/service]", "Service Worker release запущен", {rpc: "/sw"})
   startRpc({
-    confirmCurrent: confirmRestart,
     currentPackages: currentReleasePackages,
-    updateModules: async (input: unknown) => {
-      console.debug("[@release/service:update]", "проверяем состояние пакетов", {packages: input})
-      const packages = updatePackages(input)
-      if (packages === null) {
-        console.debug("[@release/service:update]", "состояние пакетов не принято", {
-          packages: input,
-        })
-        throw new Error("Некорректное состояние браузерных пакетов")
-      }
-      console.debug("[@release/service:update]", "состояние пакетов принято", {
-        packages: packages.map((entry) => ({
-          env: entry.env,
-          name: entry.name,
-          sha256: entry.sha256,
-          size: entry.size,
-          version: entry.version,
-        })),
+    applyDelta: async (delta) => {
+      console.debug("[@release/service:update]", "применяем fresh server delta", {
+        remove: delta.remove,
+        update: delta.update,
       })
-      const updated = await updateRelease(loader, packages)
+      const updated = await updateRelease(loader, delta)
       console.debug("[@release/service:update]", "пакеты переключены в кэше", {packages: updated})
       return updated
     },
@@ -76,7 +60,6 @@ async function restartBrowser() {
       navigated: navigations.filter((client) => client !== null).length,
       requested: windows.length,
     })
-    await confirmRestart()
   } catch (error) {
     console.debug("[@release/service:restart]", "не удалось перезагрузить страницы", {
       windows: targets,

@@ -210,21 +210,34 @@ handler нет.
 
 Постоянный Cache Storage называется только по владельцу: `startup`, `release`,
 `internal` или `metafor`; последний появляется только вместе с первым package
-среды. Release может подготовить группу в технических transaction caches, но
-они не являются поколениями active release. После проверки responses release
-сохраняет каждый exact versioned endpoint в каноническом cache его владельца,
-одним active-state write открывает всю группу и удаляет transaction caches и
-прежние entries обновлённых packages. Ошибка или остановка до switch удаляет
-неопубликованные owner entries и оставляет прежний active state доступным.
+среды. Canonical caches содержат только exact package code: постоянных
+`/code?state=active` и `/code?state=pending` в них нет. Для незавершённого
+обновления существует не более одного технического Cache Storage с точным
+именем `transaction`; owner-specific caches и transaction UUID не создаются.
 
-Пока действует прежний active-state switch, его временная metadata хранит для
-artifact точные `name`, `env`, `version`, `sha256`, `size` и фактический
-`storage`. Endpoint каждый раз строится из package identity, а постоянный cache
-owner — из namespace; эти два значения в metadata и RPC не передаются.
-Изменение source, состава или bytes package всегда создаёт новую SemVer и новый
-immutable versioned artifact. Поэтому `@release/main` и
-`@internal/visual` обслуживаются как два физических artifact: ни текущая, ни
-versioned сборка `@release/main` не содержит implementation Visual.
+Первой entry `transaction` всегда становится fresh server delta под ключом
+`/code?state=active`. После этой intent write Worker загружает и полностью
+проверяет только `update` artifacts, временно хранит их exact responses в том же
+cache, переносит изменившиеся entries в canonical owners и применяет `remove`.
+Новая exact version записывается раньше удаления прежней version того же slot.
+Последняя commit-операция удаляет весь `transaction`; отсутствие этого cache и
+есть признак завершённого обновления.
+
+После остановки новый Worker видит `transaction`, заново собирает current из
+фактических canonical entries и получает свежую delta от server. Уже
+подготовленные bytes можно переиспользовать только после повторной проверки
+identity. Если canonical state уже сошёлся, пустая fresh delta только удаляет
+оставшийся transaction и завершает один recovery reload. Пустой технический
+cache без intent безопасно удаляется. Startup во время recovery может запустить
+только подготовленный либо неизменившийся `@release/service`; другой stable
+package не разрешается из смешанного состояния до завершения transaction.
+
+Endpoint всегда строится из package identity, а постоянный cache owner — из
+namespace; эти два значения в metadata и RPC не передаются. Изменение source,
+состава или bytes package всегда создаёт новую SemVer и новый immutable
+versioned artifact. Поэтому `@release/main` и `@internal/visual` обслуживаются
+как два физических artifact: ни текущая, ни versioned сборка `@release/main`
+не содержит implementation Visual.
 
 После успешной host publication server отправляет Service Worker только
 payload-free signal `release-changed`. При таком signal и при каждом новом RPC

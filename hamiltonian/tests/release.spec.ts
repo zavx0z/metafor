@@ -28,7 +28,6 @@ import {
   browserPackageUrl,
   parseBrowserPackageUrl,
 } from "../web/package-url"
-import {updatePackages} from "../web/release/service/storage"
 import {cachedPackageIdentity} from "../web/release/service/current"
 
 test("package state comes from root caret dependencies", async () => {
@@ -172,13 +171,26 @@ test("Worker accepts only complete artifact identity without endpoint or cache",
     version: "1.2.3",
     ...await artifactIntegrity(bytes.buffer),
   }
-  expect(updatePackages([identity])).toEqual([identity])
-  expect(updatePackages([{...identity, endpoint: "/@internal/visual"}])).toBeNull()
-  expect(updatePackages([{...identity, cache: "internal"}])).toBeNull()
-  expect(updatePackages([{...identity, env: "server"}])).toBeNull()
-  expect(updatePackages([{...identity, sha256: "0".repeat(64)}])).toEqual([
-    {...identity, sha256: "0".repeat(64)},
-  ])
+  expect(parseReleaseDeltaMessage({
+    type: "release-delta",
+    update: [identity],
+    remove: [],
+  })).toEqual({type: "release-delta", update: [identity], remove: []})
+  expect(parseReleaseDeltaMessage({
+    type: "release-delta",
+    update: [{...identity, endpoint: "/@internal/visual"}],
+    remove: [],
+  })).toBeNull()
+  expect(parseReleaseDeltaMessage({
+    type: "release-delta",
+    update: [{...identity, cache: "internal"}],
+    remove: [],
+  })).toBeNull()
+  expect(parseReleaseDeltaMessage({
+    type: "release-delta",
+    update: [{...identity, env: "server"}],
+    remove: [],
+  })).toBeNull()
 
   const response = new Response(bytes, {headers: packageIdentityHeaders(identity)})
   expect(await verifyPackageResponse(response, identity)).toBe(response)

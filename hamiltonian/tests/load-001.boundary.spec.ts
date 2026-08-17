@@ -5,7 +5,7 @@ import {join} from "node:path"
 const hamiltonian = fileURLToPath(new URL("../", import.meta.url))
 
 test("LOAD-001 keeps release policy and WebSocket outside immutable startup", async () => {
-  const [packageUrl, startupMain, startupService, startupCache, startupLoader, releaseService, releaseState, releaseLoader, storage, html] =
+  const [packageUrl, startupMain, startupService, startupCache, startupLoader, releaseService, releaseState, releaseLoader, transaction, html] =
     await Promise.all([
     Bun.file(join(hamiltonian, "web/package-url.ts")).text(),
     Bun.file(join(hamiltonian, "web/startup/main/index.ts")).text(),
@@ -15,7 +15,7 @@ test("LOAD-001 keeps release policy and WebSocket outside immutable startup", as
     Bun.file(join(hamiltonian, "web/release/service/index.ts")).text(),
     Bun.file(join(hamiltonian, "web/release/service/state.ts")).text(),
     Bun.file(join(hamiltonian, "web/release/service/loader.ts")).text(),
-    Bun.file(join(hamiltonian, "web/release/service/storage.ts")).text(),
+    Bun.file(join(hamiltonian, "web/release/transaction.ts")).text(),
     Bun.file(join(hamiltonian, "web/static/index.html")).text(),
     ])
 
@@ -48,7 +48,7 @@ test("LOAD-001 keeps release policy and WebSocket outside immutable startup", as
   ).json() as {dependencies?: Record<string, string>}
   expect(startupServicePackage.artifact?.headers?.["Service-Worker-Allowed"]).toBe("/")
   expect(startupMainPackage.dependencies?.["@release/main"]).toBe("workspace:^0.1.6")
-  expect(startupServicePackage.dependencies?.["@release/service"]).toBe("workspace:^0.1.7")
+  expect(startupServicePackage.dependencies?.["@release/service"]).toBe("workspace:^0.1.11")
 
   expect(packageUrl).toContain('name?.startsWith("@release/")')
   expect(packageUrl).toContain('name?.startsWith("@internal/")')
@@ -56,14 +56,20 @@ test("LOAD-001 keeps release policy and WebSocket outside immutable startup", as
   expect(packageUrl).not.toContain("@internal/visual")
   expect(startupCache).not.toContain("/code?module=")
 
+  expect(startupLoader).toContain("transactionRecoveryService")
+  expect(startupLoader).toContain("exactSlotResponse")
+  expect(startupLoader).toContain("await waitForTransaction()")
   expect(startupLoader).not.toContain("rememberRelease")
   expect(startupLoader).not.toContain("activateRelease")
   expect(startupLoader).not.toContain("pendingRestart")
   expect(startupLoader).not.toContain("discardInactiveReleases")
-  expect(releaseState).toContain("rememberRelease")
-  expect(releaseState).toContain("activateRelease")
-  expect(releaseState).toContain("discardInactiveReleases")
-  expect(releaseState).toContain("requiredCacheOwner(entry.name)")
+  expect(releaseState).toContain("rememberTransaction")
+  expect(releaseState).toContain("pendingTransaction")
+  expect(releaseState).toContain("commitTransaction")
+  expect(releaseState).toContain("discardLegacyReleaseState")
+  expect(releaseState).not.toContain("crypto.randomUUID")
+  expect(transaction).toContain('transactionCache = "transaction"')
+  expect(transaction).toContain('transactionIntentPath = "/code?state=active"')
   expect(releaseLoader).toContain("requiredCacheOwner(entry.name)")
   expect(releaseLoader).toContain("browserPackageUrl(entry.name, entry.env, entry.version)")
   expect(releaseState).not.toContain("entry.cache")
@@ -78,11 +84,13 @@ test("LOAD-001 keeps release policy and WebSocket outside immutable startup", as
   expect(startupService).toContain('import type {ReleaseLoader} from "@release/service"')
   expect(releaseService).not.toContain("../../startup/")
   expect(releaseLoader).not.toContain("../../startup/")
-  expect(releaseService).toContain("updatePackages(input)")
-  expect(releaseService).toContain("updateRelease(loader, packages)")
+  expect(releaseService).toContain("updateRelease(loader, delta)")
+  expect(releaseLoader).toContain("await rememberTransaction(delta)")
+  expect(releaseLoader).toContain("await commitTransaction()")
+  expect(releaseLoader.indexOf("await rememberTransaction(delta)"))
+    .toBeLessThan(releaseLoader.indexOf("await fetch(request)"))
   expect(releaseService).toContain("registration.unregister()")
   expect(releaseService).toContain("client.navigate(client.url)")
-  expect(storage).not.toContain("@internal/rpc")
   expect(releaseService).not.toContain("loadModule")
 })
 
@@ -119,13 +127,13 @@ test("UPD-002 exposes the development update path through owner-scoped diagnosti
     'console.debug("[@release/service:rpc:update]", "получен сигнал об обновлении"',
   )
   expect(releaseService).toContain(
-    'console.debug("[@release/service:update]", "проверяем состояние пакетов"',
+    'console.debug("[@release/service:update]", "применяем fresh server delta"',
   )
   expect(releaseService).toContain(
     'console.debug("[@release/service:restart]", "начинаем перезагрузку страниц"',
   )
   expect(updateLoader).toContain(
-    'console.debug("[@release/service:activate]", "вся группа открыта в активном кэше"',
+    'console.debug("[@release/service:activate]", "transaction завершена удалением cache"',
   )
   expect(startupMain).toContain('console.debug("[@startup/main]", "страница готова к работе"')
 

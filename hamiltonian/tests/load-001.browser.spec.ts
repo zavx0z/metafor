@@ -213,7 +213,7 @@ test.serial("UPD-002 updates one module group and restarts every Window once", a
   }
 })
 
-test.serial("UPD-002 keeps the active cache unchanged until every package is available", async () => {
+test.serial("UPD-003 keeps canonical caches unchanged and resumes one fixed transaction", async () => {
   const profile = await mkdtemp(join(tmpdir(), "metafor-upd-002-atomic-"))
   const server = await startServer("update-fetch-failure-once")
   let browser: Browser | null = null
@@ -240,9 +240,15 @@ test.serial("UPD-002 keeps the active cache unchanged until every package is ava
     await Bun.sleep(300)
     expect(navigations).toBe(0)
     expect(await updateSources(page)).toEqual(sourceBefore)
-    await waitUntil(async () =>
-      Object.keys(await cacheSnapshot(page)).every((name) => !name.includes(":release:")))
-    await expectCanonicalReleaseCaches(page)
+    await waitUntil(async () => {
+      const snapshot = await cacheSnapshot(page)
+      return snapshot.transaction?.includes("/code?state=active") ?? false
+    })
+    const interrupted = await cacheSnapshot(page)
+    expect(Object.keys(interrupted).filter((name) => name === "transaction")).toEqual([
+      "transaction",
+    ])
+    expect(Object.keys(interrupted).every((name) => !name.includes(":release:"))).toBe(true)
 
     expect(await reload).not.toBeNull()
     await waitUntil(async () => {
@@ -255,6 +261,7 @@ test.serial("UPD-002 keeps the active cache unchanged until every package is ava
       }
     }, 30_000)
     await expectCanonicalReleaseCaches(page)
+    expect((await cacheSnapshot(page)).transaction).toBeUndefined()
     expect(navigations).toBe(1)
   } catch (error) {
     throw withServerOutput(error, server.output())
@@ -277,6 +284,8 @@ test.serial("UPD-002 reconnects after a clean server-side WebSocket close", asyn
     expect(navigation?.status()).toBe(200)
     await waitForAcceptedCaches(page)
     await waitUntil(async () => await fixtureConnections(server.root) === 1)
+    await waitUntil(() => server.output().includes("состояние browser cache сверено"))
+    await Bun.sleep(250)
 
     const close = await fetch(new URL("/__tests/rpc/close", server.root), {method: "POST"})
     expect(close.status).toBe(204)
@@ -290,7 +299,51 @@ test.serial("UPD-002 reconnects after a clean server-side WebSocket close", asyn
   }
 })
 
-test.serial("UPD-002 migrates a legacy active transaction cache into its owner cache", async () => {
+test.serial("UPD-003 discards an empty transaction without reloading a Window", async () => {
+  const profile = await mkdtemp(join(tmpdir(), "metafor-upd-003-empty-transaction-"))
+  const server = await startServer("update")
+  let browser: Browser | null = null
+
+  try {
+    browser = await launchBrowser(profile)
+    const page = await browser.newPage()
+    const navigation = await page.goto(server.root, {waitUntil: "load"})
+    expect(navigation?.status()).toBe(200)
+    await waitForAcceptedCaches(page)
+    await waitUntil(() => server.output().includes("состояние browser cache сверено"))
+    await Bun.sleep(250)
+
+    let navigations = 0
+    page.on("framenavigated", (frame) => {
+      if (frame === page.mainFrame()) navigations += 1
+    })
+    await page.evaluate(async () => { await caches.open("transaction") })
+    expect((await cacheSnapshot(page)).transaction).toEqual([])
+
+    const connections = await fixtureConnections(server.root)
+    const close = await fetch(new URL("/__tests/rpc/close", server.root), {method: "POST"})
+    expect(close.status).toBe(204)
+    await waitUntil(async () => await fixtureConnections(server.root) > connections)
+    await waitUntil(async () => {
+      try {
+        return (await cacheSnapshot(page)).transaction === undefined
+      } catch {
+        return false
+      }
+    })
+    await Bun.sleep(250)
+    await expectCanonicalReleaseCaches(page)
+    expect(navigations).toBe(0)
+  } catch (error) {
+    throw withServerOutput(error, server.output())
+  } finally {
+    if (browser) await browser.close().catch(() => {})
+    await server.stop().catch(() => {})
+    await rm(profile, {recursive: true, force: true})
+  }
+})
+
+test.serial("UPD-003 removes legacy active metadata and UUID caches during synchronization", async () => {
   const profile = await mkdtemp(join(tmpdir(), "metafor-upd-002-migrate-cache-"))
   const server = await startServer("update")
   let browser: Browser | null = null
@@ -339,9 +392,92 @@ test.serial("UPD-002 migrates a legacy active transaction cache into its owner c
     const close = await fetch(new URL("/__tests/rpc/close", server.root), {method: "POST"})
     expect(close.status).toBe(204)
     await waitUntil(async () => await fixtureConnections(server.root) >= 2)
-    await waitUntil(async () =>
-      Object.keys(await cacheSnapshot(page)).every((name) => !name.includes(":release:")))
+    await waitForAcceptedCaches(page)
+    await waitUntil(async () => {
+      try {
+        return Object.keys(await cacheSnapshot(page)).every((name) => !name.includes(":release:"))
+      } catch {
+        return false
+      }
+    })
     await expectCanonicalReleaseCaches(page)
+  } catch (error) {
+    throw withServerOutput(error, server.output())
+  } finally {
+    if (browser) await browser.close().catch(() => {})
+    await server.stop().catch(() => {})
+    await rm(profile, {recursive: true, force: true})
+  }
+})
+
+test.serial("UPD-003 resumes after canonical put and commits a removal-only delta", async () => {
+  const profile = await mkdtemp(join(tmpdir(), "metafor-upd-003-remove-recovery-"))
+  const server = await startServer("update")
+  let browser: Browser | null = null
+
+  try {
+    browser = await launchBrowser(profile)
+    const page = await browser.newPage()
+    const navigation = await page.goto(server.root, {waitUntil: "load"})
+    expect(navigation?.status()).toBe(200)
+    await waitForAcceptedCaches(page)
+    await waitUntil(async () => await fixtureConnections(server.root) === 1)
+    await waitUntil(() => server.output().includes("состояние browser cache сверено"))
+    await Bun.sleep(250)
+
+    await page.evaluate(async () => {
+      const state = await (await fetch("/code", {cache: "no-store"})).json() as {
+        packages: Array<{
+          name: string
+          env: "main" | "worker" | "service-worker"
+          version: string
+          sha256: string
+          size: number
+        }>
+      }
+      const current = state.packages.find(({name}) => name === "@release/main")
+      if (!current) throw new Error("Release main state is missing")
+      const cache = await caches.open("release")
+      const currentUrl = `/@release/main?env=main&version=${current.version}`
+      const currentResponse = await cache.match(currentUrl)
+      if (!currentResponse) throw new Error("Release main exact response is missing")
+      const bytes = await currentResponse.clone().arrayBuffer()
+      const digest = [...new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))]
+        .map((value) => value.toString(16).padStart(2, "0"))
+        .join("")
+      const staleVersion = "0.0.1"
+      const headers = new Headers(currentResponse.headers)
+      headers.set("X-Package-Version", staleVersion)
+      headers.set("X-Package-SHA256", digest)
+      headers.set("X-Package-Size", String(bytes.byteLength))
+      await cache.put(
+        `/@release/main?env=main&version=${staleVersion}`,
+        new Response(bytes, {headers}),
+      )
+
+      await (await caches.open("transaction")).put(
+        "/code?state=active",
+        Response.json({type: "release-delta", update: [current], remove: []}),
+      )
+    })
+
+    const interrupted = await cacheSnapshot(page)
+    expect(interrupted.transaction).toEqual(["/code?state=active"])
+    expect((interrupted.release ?? []).filter((path) =>
+      new URL(path, "http://cache.test").pathname === "/@release/main")).toHaveLength(2)
+
+    let navigations = 0
+    page.on("framenavigated", (frame) => {
+      if (frame === page.mainFrame()) navigations += 1
+    })
+    const reload = page.waitForNavigation({waitUntil: "load", timeout: 30_000})
+    const close = await fetch(new URL("/__tests/rpc/close", server.root), {method: "POST"})
+    expect(close.status).toBe(204)
+    expect(await reload).not.toBeNull()
+    await waitForAcceptedCaches(page)
+    await expectCanonicalReleaseCaches(page)
+    expect(navigations).toBe(1)
+    expect(server.output()).toContain('version: "0.0.1"')
   } catch (error) {
     throw withServerOutput(error, server.output())
   } finally {
@@ -447,10 +583,10 @@ test.serial("LOAD-001 restores accepted startup and release from caches", async 
     expect(initial.startup).not.toContain(releaseMainUrl)
     expect(initial.startup).not.toContain(releaseServiceUrl)
     expect(initial.startup).not.toContain(internalVisualUrl)
-    expect(initial.release).toEqual(expect.arrayContaining([
-      releaseMainUrl,
-      releaseServiceUrl,
-    ]))
+    expect(hasCachedSlot(initial, "release", "@release/main", "main")).toBe(true)
+    expect(hasCachedSlot(initial, "release", "@release/service", "service-worker")).toBe(true)
+    expect(initial.release).not.toContain(releaseMainUrl)
+    expect(initial.release).not.toContain(releaseServiceUrl)
     expect(initial.release).not.toContain(internalVisualUrl)
     expect(hasCachedPackage(initial, "internal", "@internal/visual")).toBe(true)
     expect(initial.metafor).toBeUndefined()
@@ -555,10 +691,10 @@ test.serial("LOAD-001 restores accepted startup and release from caches", async 
       "/manifest.webmanifest",
       startupMainUrl,
     ]))
-    expect(cold.release).toEqual(expect.arrayContaining([
-      releaseMainUrl,
-      releaseServiceUrl,
-    ]))
+    expect(hasCachedSlot(cold, "release", "@release/main", "main")).toBe(true)
+    expect(hasCachedSlot(cold, "release", "@release/service", "service-worker")).toBe(true)
+    expect(cold.release).not.toContain(releaseMainUrl)
+    expect(cold.release).not.toContain(releaseServiceUrl)
     expect(hasCachedPackage(cold, "internal", "@internal/visual")).toBe(true)
     expect(Object.values(cold).flat()).not.toContain("/cold/restored")
   } catch (error) {
@@ -593,19 +729,17 @@ test.serial("LOAD-001 rejects a failed release artifact and retries its exact en
         "/manifest.webmanifest",
         startupMainUrl,
       ]))
-      expect(failed.release).toContain(releaseMainUrl)
-      expect(failed.release).not.toContain(releaseServiceUrl)
-      expect(failed.internal).toEqual([internalVisualUrl])
+      expect(hasCachedSlot(failed, "release", "@release/main", "main")).toBe(true)
+      expect(hasCachedSlot(failed, "release", "@release/service", "service-worker")).toBe(false)
+      expect(hasCachedSlot(failed, "internal", "@internal/visual", "main")).toBe(true)
 
       await retryConnectUntil(page, scenario.failed, 2)
       await waitForAcceptedCaches(page)
 
       const recovered = await cacheSnapshot(page)
-      expect(recovered.release).toEqual(expect.arrayContaining([
-        releaseMainUrl,
-        releaseServiceUrl,
-      ]))
-      expect(recovered.internal).toEqual([internalVisualUrl])
+      expect(hasCachedSlot(recovered, "release", "@release/main", "main")).toBe(true)
+      expect(hasCachedSlot(recovered, "release", "@release/service", "service-worker")).toBe(true)
+      expect(hasCachedSlot(recovered, "internal", "@internal/visual", "main")).toBe(true)
       expect(recovered.metafor).toBeUndefined()
     } catch (error) {
       throw withServerOutput(error, server.output())
@@ -742,36 +876,27 @@ async function waitForAcceptedCaches(page: Page) {
           const startup = await caches.open("startup")
           const releases = await caches.open("release")
           const internal = await caches.open("internal")
-          const activeResponse = await releases.match("/code?state=active")
-          const active = activeResponse
-            ? await activeResponse.json() as {
-              packages: Record<string, {
-                name: string
-                env: "main" | "worker" | "service-worker"
-                version: string
-                sha256: string
-                size: number
-                storage: string
-              }>
-              restart: string[]
-            }
-            : {packages: {}, restart: []}
           const cachedPackage = async (
             name: string,
             env: "main" | "worker" | "service-worker",
-            owner: string,
             cache: Cache,
           ) => {
-            const stable = `/${name}?env=${env}`
-            const entry = active.packages[stable]
-            if (!entry) return await cache.match(stable)
-            if (entry.storage !== owner) return
-            return await cache.match(`${stable}&version=${entry.version}`)
+            const matches = (await cache.keys()).filter((request) => {
+              const url = new URL(request.url)
+              return url.pathname === `/${name}`
+                && url.searchParams.get("env") === env
+                && /^\d+\.\d+\.\d+$/.test(url.searchParams.get("version") ?? "")
+                && [...url.searchParams.keys()].join(",") === "env,version"
+            })
+            const match = matches[0]
+            return matches.length === 1 && match
+              ? await cache.match(match, {ignoreVary: true})
+              : undefined
           }
           const [releaseMain, releaseService, visual] = await Promise.all([
-            cachedPackage("@release/main", "main", "release", releases),
-            cachedPackage("@release/service", "service-worker", "release", releases),
-            cachedPackage("@internal/visual", "main", "internal", internal),
+            cachedPackage("@release/main", "main", releases),
+            cachedPackage("@release/service", "service-worker", releases),
+            cachedPackage("@internal/visual", "main", internal),
           ])
           return Boolean(
             await startup.match("/")
@@ -780,7 +905,7 @@ async function waitForAcceptedCaches(page: Page) {
             && releaseMain
             && releaseService
             && visual
-            && active.restart.length === 0
+            && !(await caches.keys()).includes("transaction")
             && navigator.serviceWorker.controller
           )
         })
@@ -804,8 +929,18 @@ async function waitForFailedEntries(page: Page, fault: "release-service-http-onc
     const requestObserved = expectedFault === "release-service-http-once"
       && state.requests.releaseService >= 1
     return requestObserved
-      && Boolean(await releases.match("/@release/main?env=main"))
-      && !await releases.match("/@release/service?env=service-worker")
+      && (await releases.keys()).some((request) => {
+        const url = new URL(request.url)
+        return url.pathname === "/@release/main"
+          && url.searchParams.get("env") === "main"
+          && url.searchParams.has("version")
+      })
+      && !(await releases.keys()).some((request) => {
+        const url = new URL(request.url)
+        return url.pathname === "/@release/service"
+          && url.searchParams.get("env") === "service-worker"
+          && url.searchParams.has("version")
+      })
   }, {timeout: 30_000}, fault)
 }
 
@@ -853,35 +988,41 @@ function hasCachedPackage(snapshot: CacheSnapshot, owner: string, name: string) 
     new URL(path, "http://cache.test").pathname === `/${name}`) ?? false
 }
 
+function hasCachedSlot(
+  snapshot: CacheSnapshot,
+  owner: string,
+  name: string,
+  env: "main" | "worker" | "service-worker",
+) {
+  return snapshot[owner]?.some((path) => {
+    const url = new URL(path, "http://cache.test")
+    return url.pathname === `/${name}`
+      && url.searchParams.get("env") === env
+      && /^\d+\.\d+\.\d+$/.test(url.searchParams.get("version") ?? "")
+      && [...url.searchParams.keys()].join(",") === "env,version"
+  }) ?? false
+}
+
 async function expectCanonicalReleaseCaches(page: Page) {
-  const [snapshot, active] = await Promise.all([
-    cacheSnapshot(page),
-    page.evaluate(async () => {
-      const response = await (await caches.open("release")).match("/code?state=active")
-      return response
-        ? await response.json() as {
-          packages: Record<string, {
-            name: string
-            env: "main" | "worker" | "service-worker"
-            version: string
-            sha256: string
-            size: number
-            storage: string
-          }>
-        }
-        : {packages: {}}
-    }),
-  ])
+  const snapshot = await cacheSnapshot(page)
 
   expect(Object.keys(snapshot).sort()).toEqual(["internal", "release", "startup"])
-  for (const entry of Object.values(active.packages)) {
-    const owner = entry.name.startsWith("@internal/") ? "internal" : "release"
-    const endpoint = `/${entry.name}?env=${entry.env}&version=${entry.version}`
-    expect(entry.storage).toBe(owner)
-    const packageEntries = snapshot[owner]?.filter((path) =>
-      new URL(path, "http://cache.test").pathname === `/${entry.name}`)
-    expect(packageEntries).toEqual([endpoint])
+  for (const {name, env, owner} of [
+    {name: "@release/main", env: "main", owner: "release"},
+    {name: "@release/service", env: "service-worker", owner: "release"},
+    {name: "@internal/visual", env: "main", owner: "internal"},
+  ] as const) {
+    const packageEntries = snapshot[owner]?.filter((path) => {
+      const url = new URL(path, "http://cache.test")
+      return url.pathname === `/${name}` && url.searchParams.get("env") === env
+    })
+    expect(packageEntries).toHaveLength(1)
+    expect(packageEntries?.[0]).toMatch(
+      new RegExp(`^/${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\?env=${env}&version=\\d+\\.\\d+\\.\\d+$`),
+    )
   }
+  expect(Object.values(snapshot).flat()).not.toContain("/code?state=active")
+  expect(Object.values(snapshot).flat()).not.toContain("/code?state=pending")
 }
 
 async function fixtureRequests(root: string) {
@@ -923,29 +1064,23 @@ async function requestBuild(
 
 async function updateSources(page: Page) {
   return await page.evaluate(async () => {
-    const metadata = await caches.open("release")
-    const activeResponse = await metadata.match("/code?state=active")
-    const active = activeResponse
-      ? await activeResponse.json() as {
-        packages: Record<string, {
-          name: string
-          env: "main" | "worker" | "service-worker"
-          version: string
-          storage: string
-        }>
-      }
-      : {packages: {}}
-
     const source = async (
       name: string,
       env: "main" | "worker" | "service-worker",
       owner: string,
     ) => {
-      const stable = `/${name}?env=${env}`
-      const entry = active.packages[stable]
-      const response = entry
-        ? await (await caches.open(entry.storage)).match(`${stable}&version=${entry.version}`)
-        : await (await caches.open(owner)).match(stable)
+      const cache = await caches.open(owner)
+      const matches = (await cache.keys()).filter((request) => {
+        const url = new URL(request.url)
+        return url.pathname === `/${name}`
+          && url.searchParams.get("env") === env
+          && /^\d+\.\d+\.\d+$/.test(url.searchParams.get("version") ?? "")
+      })
+      if (matches.length !== 1)
+        throw new Error(`Package slot ${name}:${env} has ${matches.length} exact entries`)
+      const match = matches[0]
+      if (!match) throw new Error(`Package slot ${name}:${env} has no exact entry`)
+      const response = await cache.match(match, {ignoreVary: true})
       return await response?.text() ?? ""
     }
 

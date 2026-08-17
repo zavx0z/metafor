@@ -9,8 +9,7 @@ import type {ReleasePackage} from "../state"
 /** Release operations, которые запускаются по свежей server delta. */
 export interface RpcBindings {
   currentPackages(): Promise<ReleasePackage[]>
-  confirmCurrent(): Promise<void>
-  updateModules(packages: ReleasePackage[]): Promise<string[]>
+  applyDelta(delta: ReleaseDelta): Promise<string[]>
   restartBrowser(): Promise<void>
 }
 
@@ -59,16 +58,9 @@ export function startRpc(bindings: RpcBindings) {
   const applyDelta = async (connection: WebSocket, delta: ReleaseDelta) => {
     try {
       console.debug("[@release/service:rpc:update]", "получена delta браузерных пакетов", delta)
-      if (delta.update.length === 0 && delta.remove.length === 0) {
-        await bindings.confirmCurrent()
-        console.debug("[@release/service:rpc:update]", "фактический кэш уже совпадает с server state")
-        return
-      }
-      const updated = await bindings.updateModules(delta.update)
+      const updated = await bindings.applyDelta(delta)
       if (updated.length === 0) {
-        console.debug("[@release/service:rpc:update]", "кэш уже содержит доказанные версии", {
-          remove: delta.remove,
-        })
+        console.debug("[@release/service:rpc:update]", "кэш уже совпадает с server state")
         return
       }
       console.debug("[@release/service:rpc:update]", "кэш пакетов обновлён", {packages: updated})
@@ -88,7 +80,10 @@ export function startRpc(bindings: RpcBindings) {
     } catch (error) {
       console.debug("[@release/service:rpc:update]", "обновление пакетов завершилось с ошибкой", delta, error)
       console.error(
-        `Не удалось обновить пакеты ${delta.update.map(({name}) => name).join(", ")}`,
+        `Не удалось обновить пакеты ${[
+          ...delta.update.map(({name}) => name),
+          ...delta.remove.map(({name}) => name),
+        ].join(", ")}`,
         error,
       )
       throw error
