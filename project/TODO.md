@@ -96,9 +96,10 @@ artifacts без package-specific browser adapters. Реализация сох�
 checkpoint-коммитом и ожидает проверки владельца в оставленном live contour.
 Correction-срез `UPD-002.14` вернул named public types browser package
 непосредственно к source entrypoint: зависимый package видит новый export без
-build, результат ожидает review. Текущий `UPD-002.15` заново публикует
-development artifacts с inline source maps и owner-scoped diagnostics, устраняя
-смешанный production/development contour после `.13`.
+build. Срез `UPD-002.15` заново опубликовал development artifacts с inline
+source maps и owner-scoped diagnostics и устранил смешанный
+production/development contour после `.13`. Оба результата ожидают review в
+оставленном live contour.
 Пакеты `@startup/main` и `@startup/service` устанавливают Service Worker, восстанавливают
 HTML/startup offline и запускают `@release/main` и `@release/service` из cache
 `release`. Release packages разворачивают Window и Service Worker контуры;

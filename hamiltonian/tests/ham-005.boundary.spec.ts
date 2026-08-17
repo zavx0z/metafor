@@ -38,7 +38,9 @@ test("HAM-005 creates one standard Window environment through internal visual", 
   expect(html).toContain('"@release/": "/@release/"')
   expect(html).toContain('"@internal/": "/@internal/"')
 
-  expect(main.trim()).toBe('await import("@internal/visual")')
+  expect(main).toContain('const {runtime} = await import("@internal/visual")')
+  expect(main).toContain('console.debug("[@release/main]", "Visual runtime подключён", {')
+  expect(main).toContain("runtime: Object.keys(runtime)")
   expect(mainPackage.dependencies).toEqual({"@internal/visual": "workspace:^0.1.0"})
   expect(visualPackage.name).toBe("@internal/visual")
   expect(visualPackage.exports?.["."]).toEqual({types: "./index.ts", default: "./index.ts"})
@@ -54,6 +56,9 @@ test("HAM-005 creates one standard Window environment through internal visual", 
   expect(visual).toContain('import {GridHelper} from "@metafor/engine"')
   expect(visual).toContain('import {DisplayDockSurface} from "./display-dock.ts"')
   expect(visual).toContain("export const runtime = await UiRuntime.create(canvas")
+  expect(visual).toContain(
+    'console.debug("[@internal/visual]", "основное visual-окружение создано", {',
+  )
   expect(visual).not.toContain("visualEnvironment")
   expect(visual).not.toContain("createVisualEnvironment")
   expect(visual).not.toContain("function prepare")

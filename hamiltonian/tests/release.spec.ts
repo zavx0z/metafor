@@ -66,9 +66,14 @@ test("SemVer change resets the lower components", () => {
 })
 
 test("canonical package URLs separate artifact delivery from release control", async () => {
+  const startup = await Bun.file(
+    new URL("../web/startup/main/package.json", import.meta.url),
+  ).json() as {version: string}
   const [stable, exact, legacy, invalid] = await Promise.all([
     getPackage(new Request("http://127.0.0.1:4444/@startup/main")),
-    getPackage(new Request("http://127.0.0.1:4444/@startup/main?version=0.1.1")),
+    getPackage(new Request(
+      `http://127.0.0.1:4444/@startup/main?version=${startup.version}`,
+    )),
     getRelease(new Request("http://127.0.0.1:4444/code?module=@startup/main")),
     getPackage(new Request("http://127.0.0.1:4444/@startup/main?module=@startup/main")),
   ])
@@ -77,7 +82,8 @@ test("canonical package URLs separate artifact delivery from release control", a
   expect(stable.status).toBe(200)
   expect(exact.status).toBe(200)
   expect(stable.headers.get("X-Package-Name")).toBe("@startup/main")
-  expect(stable.headers.get("X-Package-Version")).toBe("0.1.1")
+  expect(stable.headers.get("X-Package-Version")).toBe(startup.version)
+  expect(exact.headers.get("X-Package-Version")).toBe(startup.version)
   expect(exactSource).toBe(stableSource)
   expect(stableSource).toContain('import("@release/main")')
   expect(stableSource).not.toContain("/code?module=")
@@ -91,11 +97,14 @@ test("current release main serves its exact standalone versioned artifact", asyn
   const visual = packages.find(({name}) => name === "@internal/visual")
   if (!releaseMain || !visual) throw new Error("Window release packages are missing")
 
-  const [stableResponse, exactResponse, visualResponse, currentBuild] = await Promise.all([
+  const [stableResponse, exactResponse, visualResponse, versionedBuild] = await Promise.all([
     releasedPackageResponse("@release/main", null),
     releasedPackageResponse("@release/main", releaseMain.version),
     releasedPackageResponse("@internal/visual", visual.version),
-    Bun.file(new URL("../web/release/main/dist/index.js", import.meta.url)).text(),
+    Bun.file(new URL(
+      `../web/release/main/dist/versions/${releaseMain.version}/index.js`,
+      import.meta.url,
+    )).text(),
   ])
   const [stable, exact, visualSource] = await Promise.all([
     stableResponse.text(),
@@ -105,8 +114,8 @@ test("current release main serves its exact standalone versioned artifact", asyn
 
   expect(stableResponse.headers.get("X-Package-Version")).toBe(releaseMain.version)
   expect(exactResponse.headers.get("X-Package-Version")).toBe(releaseMain.version)
-  expect(stable).toBe(currentBuild)
-  expect(exact).toBe(currentBuild)
+  expect(stable).toBe(versionedBuild)
+  expect(exact).toBe(versionedBuild)
   expect(stable).toContain("@internal/visual")
   expect(stable).not.toContain("visual-canvas")
   expect(stable.length).toBeLessThan(visualSource.length)

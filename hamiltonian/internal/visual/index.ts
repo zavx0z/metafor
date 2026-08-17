@@ -56,7 +56,7 @@ const canvasResizeObserver = new ResizeObserver(() => {
 })
 canvasResizeObserver.observe(canvas)
 
-console.debug("main visual environment", {
+console.debug("[@internal/visual]", "основное visual-окружение создано", {
   space: runtime.space,
   hud: runtime.hud,
   surfaceDisplay: runtime.display,
