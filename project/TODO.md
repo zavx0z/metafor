@@ -81,6 +81,9 @@ Browser path перестраивается в `UPD-002.7` как `startup → r
 Текущий срез `UPD-002.10` перестаёт встраивать `@internal/visual` в
 `@release/main`: Visual получает собственные versioned artifact и cache owner
 `internal`, оставаясь доступным через тот же универсальный `/code`.
+Следующий срез `UPD-002.11` направляет стабильный package URL любого
+`@release/*`/`@internal/*`/`@metafor/*` в Cache Storage его владельца, чтобы
+отдельный internal artifact работал online, offline и после active switch.
 Пакеты `@startup/main` и `@startup/service` устанавливают Service Worker, восстанавливают
 HTML/startup offline и запускают `@release/main` и `@release/service` из cache
 `release`. Release packages разворачивают Window и Service Worker контуры;
