@@ -1,1 +1,1 @@
-import "@internal/visual"
+await import("@internal/visual")

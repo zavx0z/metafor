@@ -120,6 +120,7 @@
       "version": "0.1.0",
       "dependencies": {
         "@hamiltonian/visual": "workspace:*",
+        "@internal/visual": "workspace:^0.1.0",
         "@metafor/engine": "workspace:*",
         "@metafor/web-push": "workspace:*",
         "@nodes/hud": "workspace:*",
@@ -127,7 +128,7 @@
         "@nodes/ui": "workspace:*",
         "@release/main": "workspace:^0.1.2",
         "@release/server": "workspace:*",
-        "@release/service": "workspace:^0.1.1",
+        "@release/service": "workspace:^0.1.2",
         "@ui/components": "workspace:*",
         "@ui/elements": "workspace:*",
         "nodes": "workspace:*",

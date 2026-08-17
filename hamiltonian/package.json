@@ -15,6 +15,7 @@
     "@release/main": "workspace:^0.1.2",
     "@release/service": "workspace:^0.1.2",
     "@release/server": "workspace:*",
+    "@internal/visual": "workspace:^0.1.0",
     "@hamiltonian/visual": "workspace:*",
     "@metafor/engine": "workspace:*",
     "@metafor/web-push": "workspace:*",

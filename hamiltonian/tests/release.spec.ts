@@ -10,8 +10,9 @@ test("package state comes from root caret dependencies", async () => {
   expect(packages.map(({name}) => name)).toEqual([
     "@release/main",
     "@release/service",
+    "@internal/visual",
   ])
-  expect(packages.map(({cache}) => cache)).toEqual(["release", "release"])
+  expect(packages.map(({cache}) => cache)).toEqual(["release", "release", "internal"])
   for (const entry of packages) {
     expect(entry.endpoint).toBe(`/code?module=${entry.name}&version=${entry.version}`)
     expect(entry.version).toMatch(/^\d+\.\d+\.\d+$/)
@@ -23,12 +24,14 @@ test("POST accepts package names and SemVer change but never a ready version", a
     packages: [
       {name: "@release/main", change: "patch"},
       {name: "@release/service", change: "minor"},
+      {name: "@internal/visual", change: "patch"},
       {name: "@release/main", change: "patch"},
     ],
   }))
   expect(valid).toEqual([
     {name: "@release/main", change: "patch"},
     {name: "@release/service", change: "minor"},
+    {name: "@internal/visual", change: "patch"},
   ])
 
   const explicitVersion = await packageChanges(request({

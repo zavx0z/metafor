@@ -6,7 +6,7 @@ import {buildPackage} from "../web/release/server"
 const hamiltonian = fileURLToPath(new URL("../", import.meta.url))
 
 test("HAM-005 creates one standard Window environment through internal visual", async () => {
-  const [html, main, visual, displayDock, mainPackage, visualPackage, mainBunfig, packageBuild, server, startupMain] = await Promise.all([
+  const [html, main, visual, displayDock, mainPackage, visualPackage, visualBunfig, packageBuild, server, startupMain] = await Promise.all([
     Bun.file(join(hamiltonian, "web/static/index.html")).text(),
     Bun.file(join(hamiltonian, "web/release/main/main.ts")).text(),
     Bun.file(join(hamiltonian, "internal/visual/index.ts")).text(),
@@ -18,8 +18,10 @@ test("HAM-005 creates one standard Window environment through internal visual", 
     Bun.file(join(hamiltonian, "internal/visual/package.json")).json() as Promise<{
       name?: string
       dependencies?: Record<string, string>
+      artifact?: {cache?: string}
+      scripts?: Record<string, string>
     }>,
-    Bun.file(join(hamiltonian, "web/release/main/bunfig.toml")).text(),
+    Bun.file(join(hamiltonian, "internal/visual/bunfig.toml")).text(),
     Bun.file(join(hamiltonian, "web/release/server/package.ts")).text(),
     Bun.file(join(hamiltonian, "server.ts")).text(),
     Bun.file(join(hamiltonian, "web/startup/main/index.ts")).text(),
@@ -31,9 +33,14 @@ test("HAM-005 creates one standard Window environment through internal visual", 
   expect(html.match(/<script\b[^>]*\bsrc=/g)).toHaveLength(1)
   expect(html).toContain('src="/code?module=@startup/main"')
 
-  expect(main.trim()).toBe('import "@internal/visual"')
+  expect(main.trim()).toBe('await import("@internal/visual")')
   expect(mainPackage.dependencies).toEqual({"@internal/visual": "workspace:^0.1.0"})
   expect(visualPackage.name).toBe("@internal/visual")
+  expect(visualPackage.artifact?.cache).toBe("internal")
+  expect(visualPackage.scripts?.prebuild).toBe("bun run typecheck")
+  expect(visualPackage.scripts?.build).toBe(
+    "bun build ./index.ts --target=browser --production --minify --drop console.debug --outfile=dist/index.js",
+  )
   expect(visualPackage.dependencies?.["@ui/elements"]).toBe("workspace:*")
   expect(visualPackage.dependencies?.["@metafor/engine"]).toBe("workspace:*")
   expect(visualPackage.dependencies?.["@ui/hud"]).toBe("workspace:*")
@@ -67,7 +74,7 @@ test("HAM-005 creates one standard Window environment through internal visual", 
   expect(displayDock).toContain("HudReturnDock(this")
   expect(visual).not.toContain("@hamiltonian/visual")
   expect(visual).not.toContain("browser/orchestration")
-  expect(mainBunfig).toContain('".wgsl" = "text"')
+  expect(visualBunfig).toContain('".wgsl" = "text"')
   expect(mainPackage.scripts?.prebuild).toBe("bun run typecheck")
   expect(mainPackage.scripts?.build).toBe(
     "bun build ./main.ts --target=browser --production --minify --drop console.debug --outfile=dist/index.js",
@@ -80,11 +87,20 @@ test("HAM-005 creates one standard Window environment through internal visual", 
   expect(startupMain).not.toContain("UiRuntime")
 })
 
-test("HAM-005 bundles the visual release as one JavaScript artifact", async () => {
-  const result = await buildPackage("@release/main")
-  const output = result.outputs[0]
+test("UPD-002 builds Window release and internal visual as separate artifacts", async () => {
+  const [main, visual] = await Promise.all([
+    buildPackage("@release/main"),
+    buildPackage("@internal/visual"),
+  ])
+  const mainOutput = main.outputs[0]
+  const visualOutput = visual.outputs[0]
 
-  expect(result.success).toBeTrue()
-  expect(output?.size).toBeGreaterThan(0)
-  expect(await Bun.file(output!.path).text()).toContain("visual-canvas")
+  expect(main.success).toBeTrue()
+  expect(visual.success).toBeTrue()
+  expect(mainOutput?.size).toBeGreaterThan(0)
+  expect(visualOutput?.size).toBeGreaterThan(0)
+  expect(await Bun.file(mainOutput!.path).text()).not.toContain("visual-canvas")
+  expect(await Bun.file(mainOutput!.path).text()).toContain("/code?module=")
+  expect(await Bun.file(mainOutput!.path).text()).toContain("@internal/visual")
+  expect(await Bun.file(visualOutput!.path).text()).toContain("visual-canvas")
 })

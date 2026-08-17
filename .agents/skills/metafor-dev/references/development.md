@@ -30,6 +30,8 @@ console.debug("[@release/service:update]", "новая сборка загруж
   Worker-входы release. Они определяют состав используемых `@internal/*`
   packages и меняются вместе с этим составом. RPC Service Worker является
   внутренней частью `@release/service`, а не отдельным browser package.
+  `@internal/visual` при этом остаётся самостоятельным artifact с cache owner
+  `internal`, который `@release/main` загружает через универсальный `/code`.
 * `@release/server` — server-владелец чтения package manifests, сборки,
   версий, атомарной публикации release, `/code` и server-реализации RPC.
   Browser-код из него не загружается.

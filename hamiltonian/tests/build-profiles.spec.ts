@@ -13,6 +13,8 @@ const packageBuildScripts = {
     "bun build ./main.ts --target=browser --production --minify --drop console.debug --outfile=dist/index.js",
   "web/release/service":
     "bun build ./index.ts --target=browser --format=cjs --production --minify --drop console.debug --outfile=dist/index.js",
+  "internal/visual":
+    "bun build ./index.ts --target=browser --production --minify --drop console.debug --outfile=dist/index.js",
 } as const
 
 test("every browser artifact owns one direct production build command", async () => {
@@ -112,7 +114,7 @@ async function build(mode: "development" | "production") {
   const child = Bun.spawn([
     Bun.which("bun") ?? "bun",
     "-e",
-    'import {buildPackage} from "@release/server"; console.log(JSON.stringify(await Promise.all([buildPackage("@startup/main"), buildPackage("@release/service")])))',
+    'import {buildPackage} from "@release/server"; console.log(JSON.stringify(await Promise.all([buildPackage("@startup/main"), buildPackage("@release/main"), buildPackage("@release/service"), buildPackage("@internal/visual")])))',
   ], {
     cwd: hamiltonian,
     env: {...process.env, NODE_ENV: mode},
@@ -132,9 +134,13 @@ async function build(mode: "development" | "production") {
     result: [
       {success: true, exitCode: 0},
       {success: true, exitCode: 0},
+      {success: true, exitCode: 0},
+      {success: true, exitCode: 0},
     ],
   })
   return {
+    internalVisual: await Bun.file(join(hamiltonian, "internal/visual/dist/index.js")).text(),
+    releaseMain: await Bun.file(join(hamiltonian, "web/release/main/dist/index.js")).text(),
     startupMain: await Bun.file(join(hamiltonian, "web/startup/main/dist/index.js")).text(),
     releaseService: await Bun.file(join(hamiltonian, "web/release/service/dist/index.js")).text(),
   }

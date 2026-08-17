@@ -11,6 +11,7 @@
     ]
   },
   "include": [
+    "endpoint.ts",
     "index.ts",
     "display-dock.ts",
     "../../../types/module.d.ts",

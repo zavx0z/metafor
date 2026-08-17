@@ -171,8 +171,10 @@ transport.
 ## Стандартная Window-среда clean-room loader
 
 Неизменяемый startup запускает один активный release и не знает состав
-`internal` packages. `@release/main` разворачивает Window-контур и использует
-`@internal/visual`. `@release/service` разворачивает сменяемый Service Worker-контур,
+`internal` packages. `@release/main` разворачивает Window-контур и загружает
+`@internal/visual` как самостоятельный artifact через универсальный `/code`.
+Visual хранится в cache owner `internal` и обновляется отдельно от bytes
+`@release/main`. `@release/service` разворачивает сменяемый Service Worker-контур,
 владеет RPC transport и подготовкой следующего release.
 
 `@release/server` — единственный server-side владелец release packages и
