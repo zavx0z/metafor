@@ -49,6 +49,10 @@ immutable artifact; прежний versioned artifact не заменять др
 Window composition packages собираются с внешними package dependencies и
 сохраняют bare imports; transport URL, conditional browser adapter или имя
 отдельной зависимости в source build adapter не добавлять.
+Named public types browser package доступны зависимому workspace package сразу
+из source и не требуют build или generated declaration. Side-effect type
+entrypoint допустим только для package без public exports; он не должен скрывать
+named exports runtime entrypoint.
 
 ## Получить пакет release
 

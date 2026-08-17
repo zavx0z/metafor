@@ -12,6 +12,7 @@
   },
   "include": [
     "main.ts",
+    "visual-contract.type.ts",
     "wgsl-shim.d.ts",
     "../../../../types/hot.d.ts"
   ],

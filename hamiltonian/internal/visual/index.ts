@@ -12,7 +12,7 @@ if (!(canvas instanceof HTMLCanvasElement)) {
   throw new Error(`Window visual canvas #${VISUAL_CANVAS_ID} is missing`)
 }
 
-const runtime = await UiRuntime.create(canvas, {
+export const runtime = await UiRuntime.create(canvas, {
   fontUrl: VISUAL_FONT_URL,
   virtualDisplay: {
     initial: "far",

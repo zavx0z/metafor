@@ -94,11 +94,11 @@ browser artifacts получают канонические URL `/<package-name>
 namespace сохраняет bare package imports в исходниках и готовых Window
 artifacts без package-specific browser adapters. Реализация сохранена
 checkpoint-коммитом и ожидает проверки владельца в оставленном live contour.
-Correction-срез `UPD-002.14` возвращает named public types browser package
-непосредственно к source entrypoint, чтобы зависимый package видел новый export
-без build. Следующий `UPD-002.15` после него заново публикует development
-artifacts с inline source maps и owner-scoped diagnostics, устраняя смешанный
-production/development contour после `.13`.
+Correction-срез `UPD-002.14` вернул named public types browser package
+непосредственно к source entrypoint: зависимый package видит новый export без
+build, результат ожидает review. Текущий `UPD-002.15` заново публикует
+development artifacts с inline source maps и owner-scoped diagnostics, устраняя
+смешанный production/development contour после `.13`.
 Пакеты `@startup/main` и `@startup/service` устанавливают Service Worker, восстанавливают
 HTML/startup offline и запускают `@release/main` и `@release/service` из cache
 `release`. Release packages разворачивают Window и Service Worker контуры;
