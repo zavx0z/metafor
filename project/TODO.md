@@ -136,7 +136,11 @@ focused, development/production build и полным browser suite; срез н
 owner-visible development update в единственном managed contour; destructive
 failure/crash остаются доказательствами своих изолированных сред. `.8` теперь в
 `REVIEW`: two-profile regression и две live development publications прошли,
-managed iTerm/CDP contour оставлен владельцу; закрытие ждёт owner acceptance.
+managed iTerm/CDP contour оставлен владельцу. По следующему прямому решению
+владельца начат `.9`: он объединяет release и startup env в packages
+`@hamiltonian/release` и `@hamiltonian/startup`, закрепляет `<env>/index.ts`,
+один package-wide typecheck без prebuild и единый all-env build/update path.
+Обновление уже работающего Bun runtime остаётся будущим большим этапом.
 Пакеты `@startup/main` и `@startup/service` устанавливают Service Worker, восстанавливают
 HTML/startup offline и запускают `@release/main` и `@release/service` из cache
 `release`. Release packages разворачивают Window и Service Worker контуры;
