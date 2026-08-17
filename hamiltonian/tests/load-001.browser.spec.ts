@@ -45,6 +45,85 @@ type FixtureFault =
   | "update-fetch-failure-once"
 type ServerMode = "production" | "update" | FixtureFault
 
+test.serial("UPD-003 updates two isolated browser profiles independently", async () => {
+  const firstProfile = await mkdtemp(join(tmpdir(), "metafor-upd-003-profile-a-"))
+  const secondProfile = await mkdtemp(join(tmpdir(), "metafor-upd-003-profile-b-"))
+  const server = await startServer("update")
+  let firstBrowser: Browser | null = null
+  let secondBrowser: Browser | null = null
+
+  try {
+    firstBrowser = await launchBrowser(firstProfile)
+    secondBrowser = await launchBrowser(secondProfile)
+    const [firstPage, secondPage] = await Promise.all([
+      firstBrowser.newPage(),
+      secondBrowser.newPage(),
+    ])
+    const [firstNavigation, secondNavigation] = await Promise.all([
+      firstPage.goto(server.root, {waitUntil: "load"}),
+      secondPage.goto(server.root, {waitUntil: "load"}),
+    ])
+    expect(firstNavigation?.status()).toBe(200)
+    expect(secondNavigation?.status()).toBe(200)
+    await Promise.all([
+      waitForAcceptedCaches(firstPage),
+      waitForAcceptedCaches(secondPage),
+    ])
+    await waitUntil(async () => await fixtureConnections(server.root) >= 2)
+
+    await firstPage.evaluate(async () => {
+      await (await caches.open("profile-proof")).put("/only-first-profile", new Response("first"))
+    })
+    expect((await cacheSnapshot(firstPage))["profile-proof"]).toEqual(["/only-first-profile"])
+    expect((await cacheSnapshot(secondPage))["profile-proof"]).toBeUndefined()
+    await firstPage.evaluate(async () => { await caches.delete("profile-proof") })
+
+    const firstBefore = await updateSources(firstPage)
+    const secondBefore = await updateSources(secondPage)
+    const navigations = {first: 0, second: 0}
+    firstPage.on("framenavigated", (frame) => {
+      if (frame === firstPage.mainFrame()) navigations.first += 1
+    })
+    secondPage.on("framenavigated", (frame) => {
+      if (frame === secondPage.mainFrame()) navigations.second += 1
+    })
+    const firstReload = firstPage.waitForNavigation({waitUntil: "load", timeout: 30_000})
+    const secondReload = secondPage.waitForNavigation({waitUntil: "load", timeout: 30_000})
+
+    const build = await requestBuild(server.root, [
+      {name: "@internal/visual", change: "patch"},
+    ])
+    expect(build.status).toBe(200)
+    expect(build.body.success).toBe(true)
+    expect(await firstReload).not.toBeNull()
+    expect(await secondReload).not.toBeNull()
+    await Promise.all([
+      waitForAcceptedCaches(firstPage),
+      waitForAcceptedCaches(secondPage),
+    ])
+
+    const firstAfter = await updateSources(firstPage)
+    const secondAfter = await updateSources(secondPage)
+    expect(firstAfter.internalVisual).toContain("fixture @internal/visual 1")
+    expect(secondAfter.internalVisual).toContain("fixture @internal/visual 1")
+    expect(firstAfter.releaseMain).toBe(firstBefore.releaseMain)
+    expect(secondAfter.releaseMain).toBe(secondBefore.releaseMain)
+    expect(firstAfter.releaseService).toBe(firstBefore.releaseService)
+    expect(secondAfter.releaseService).toBe(secondBefore.releaseService)
+    await expectCanonicalReleaseCaches(firstPage)
+    await expectCanonicalReleaseCaches(secondPage)
+    expect(navigations).toEqual({first: 1, second: 1})
+  } catch (error) {
+    throw withServerOutput(error, server.output())
+  } finally {
+    if (firstBrowser) await firstBrowser.close().catch(() => {})
+    if (secondBrowser) await secondBrowser.close().catch(() => {})
+    await server.stop().catch(() => {})
+    await rm(firstProfile, {recursive: true, force: true})
+    await rm(secondProfile, {recursive: true, force: true})
+  }
+})
+
 test.serial("UPD-002 updates one module group and restarts every Window once", async () => {
   const profile = await mkdtemp(join(tmpdir(), "metafor-upd-002-"))
   const server = await startServer("update-build-failure-once")

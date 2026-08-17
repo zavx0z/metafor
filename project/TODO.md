@@ -134,7 +134,9 @@ focused, development/production build и полным browser suite; срез н
 закреплён checkpoint `a8dbf5059`, а guide correction `.7.1` — checkpoint
 `7ef8e87d7`. Closing-срез `.8` выполняет двухпрофильный automated proof и
 owner-visible development update в единственном managed contour; destructive
-failure/crash остаются доказательствами своих изолированных сред.
+failure/crash остаются доказательствами своих изолированных сред. `.8` теперь в
+`REVIEW`: two-profile regression и две live development publications прошли,
+managed iTerm/CDP contour оставлен владельцу; закрытие ждёт owner acceptance.
 Пакеты `@startup/main` и `@startup/service` устанавливают Service Worker, восстанавливают
 HTML/startup offline и запускают `@release/main` и `@release/service` из cache
 `release`. Release packages разворачивают Window и Service Worker контуры;
