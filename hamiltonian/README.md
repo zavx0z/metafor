@@ -217,28 +217,31 @@ handler нет.
 
 Постоянный Cache Storage называется только по владельцу: `startup`, `release`,
 `internal` или `metafor`; последний появляется только вместе с первым package
-среды. Canonical caches содержат только exact package code: постоянных
-`/code?state=active` и `/code?state=pending` в них нет. Для незавершённого
-обновления существует не более одного технического Cache Storage с точным
-именем `transaction`; owner-specific caches и transaction UUID не создаются.
+среды. Canonical caches содержат только exact package code и не содержат
+постоянных state entries. Для незавершённого обновления существует не более одного
+технического Cache Storage с точным именем `transaction`. Его первой entry всегда
+становится marker `/transaction`; delta, desired composition и IDs в marker не хранятся.
 
-Первой entry `transaction` всегда становится fresh server delta под ключом
-`/code?state=active`. После этой intent write Worker загружает и полностью
-проверяет только `update` artifacts, временно хранит их exact responses в том же
-cache, переносит изменившиеся entries в canonical owners и применяет `remove`.
-Новая exact version записывается раньше удаления прежней version того же slot.
-Последняя commit-операция удаляет весь `transaction`; отсутствие этого cache и
-есть признак завершённого обновления.
+После marker release загружает и проверяет только `update` artifacts, сохраняет их
+в `transaction`, затем добавляет все new candidates в canonical caches без old deletion.
+Только после повторной проверки полного candidate composition начинается forward
+cleanup. Старый `@hamiltonian/release:service-worker` удаляется последним из old
+entries. После итоговой проверки ровно одной exact entry на каждый desired slot
+последняя durable операция удаляет весь `transaction`.
 
-После остановки новый Worker видит `transaction`, заново собирает current из
-фактических canonical entries и получает свежую delta от server. Уже
-подготовленные bytes можно переиспользовать только после повторной проверки
-identity. Если canonical state уже сошёлся, пустая fresh delta только удаляет
-оставшийся transaction и завершает один recovery reload. Пустой технический
-cache без intent безопасно удаляется. Startup во время recovery может запустить
-только подготовленный либо неизменившийся
-`@hamiltonian/release:service-worker`; другой stable package не разрешается из
-смешанного состояния до завершения transaction.
+После остановки release заново собирает current из фактических canonical
+entries и получает свежую delta от server. Сохранённую прежней попыткой delta
+он не читает. Уже подготовленные bytes можно переиспользовать только после
+повторной проверки identity. Если canonical state уже сошёлся, пустая fresh
+delta удаляет любые фактические entries вне полного проверенного composition,
+повторно проверяет итог и последней операцией удаляет `transaction`. Пустой
+технический cache без marker безопасно удаляется.
+
+Startup не знает о recovery. При временном overlap `[old, new]` он полностью
+проверяет и запускает первую exact service-worker entry в Cache order. После
+forward cleanup остаётся `[new]`, и следующий холодный запуск выбирает её без
+active pointer, SemVer-сравнения или чтения `transaction`. Повреждение первой
+entry завершается ошибкой и не разрешает молча перейти ко второй.
 
 Endpoint всегда строится из package identity, а постоянный cache owner — из
 роли package; эти два значения в metadata и RPC не передаются. Изменение source,

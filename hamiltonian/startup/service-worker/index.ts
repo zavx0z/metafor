@@ -76,7 +76,6 @@ async function startServiceRelease() {
     loader.run(await response.text(), {module})
     await module.exports.default(releaseLoader)
   } catch (error) {
-    await loader.remove("release", serviceReleaseRequest)
     throw error
   }
 }

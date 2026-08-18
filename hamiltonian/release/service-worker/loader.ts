@@ -7,37 +7,50 @@ import {
 } from "../../web/package-url"
 import type {ReleaseDelta} from "../protocol"
 import type {ReleaseLoader} from "./contract"
+import {currentReleasePackages} from "./current"
 import {
+  beginTransaction,
   commitTransaction,
-  discardLegacyReleaseState,
   pendingTransaction,
   preparedPackage,
   preparePackage,
-  rememberTransaction,
   type ReleasePackage,
 } from "./state"
 
-/** Применяет fresh delta через один восстанавливаемый transaction cache. */
+const codeCaches = ["release", "internal", "metafor"] as const
+
+/**
+ * Применяет только fresh server delta через одну durable transaction.
+ *
+ * До первого old deletion canonical caches сохраняют весь old
+ * composition. Cleanup начинается только после записи и повторной
+ * проверки всех new candidates. После этой границы операция
+ * движется только вперёд и последней удаляет transaction cache.
+ */
 export async function updateRelease(
   startup: ReleaseLoader,
   delta: ReleaseDelta,
 ) {
-  const interrupted = await pendingTransaction() !== null
+  const interrupted = await pendingTransaction()
   if (delta.update.length === 0 && delta.remove.length === 0) {
-    await discardLegacyReleaseState()
     if (!interrupted) return []
-    await rememberTransaction(delta)
+    const candidate = await currentReleasePackages()
+    await verifyCandidateComposition(candidate)
+    const removed = await cleanupCanonicalComposition(candidate)
+    await verifyFinalComposition(candidate)
     await commitTransaction()
-    return ["transaction"]
+    return removed.length === 0 ? ["transaction"] : removed
   }
 
-  await rememberTransaction(delta)
-  console.debug("[@hamiltonian/release:service-worker:prepare]", "transaction intent сохранён", {
+  await beginTransaction()
+  console.debug("[@hamiltonian/release:service-worker:prepare]", "transaction marker сохранён", {
     remove: delta.remove,
     update: delta.update,
   })
 
-  await Promise.all(delta.update.map(async (entry) => {
+  const candidate = deriveCandidateComposition(await currentReleasePackages(), delta)
+
+  for (const entry of delta.update) {
     const cached = await preparedPackage(entry)
     if (cached) {
       try {
@@ -47,9 +60,9 @@ export async function updateRelease(
           name: entry.name,
           version: entry.version,
         })
-        return
+        continue
       } catch {
-        // Повреждённый prepared response заменяется тем же exact artifact ниже.
+        // Повреждённый prepared response заменяется тем же exact artifact.
       }
     }
 
@@ -67,7 +80,7 @@ export async function updateRelease(
       name: entry.name,
       version: entry.version,
     })
-  }))
+  }
 
   const changed = new Set<string>()
   for (const entry of delta.update) {
@@ -75,13 +88,24 @@ export async function updateRelease(
     if (!response)
       throw new Error(`Prepared artifact ${entry.name}:${entry.env}@${entry.version} отсутствует`)
     await verifyPackageResponse(response, entry)
+
     const owner = requiredCacheOwner(entry.name)
     const cache = await caches.open(owner)
     const exact = exactRequest(entry)
+    const installed = await cache.match(exact, {ignoreVary: true})
+    if (installed) {
+      try {
+        await verifyPackageResponse(installed, entry)
+        changed.add(browserPackageSlot(entry.name, entry.env))
+        continue
+      } catch {
+        // Тот же exact URL не считается candidate без проверенных bytes.
+      }
+    }
+
     await cache.put(exact, response)
-    await discardOtherSlotEntries(cache, entry, exact.url)
     changed.add(browserPackageSlot(entry.name, entry.env))
-    console.debug("[@hamiltonian/release:service-worker:activate]", "exact artifact записан в canonical cache", {
+    console.debug("[@hamiltonian/release:service-worker:activate]", "candidate добавлен в canonical cache", {
       cache: owner,
       env: entry.env,
       name: entry.name,
@@ -89,19 +113,21 @@ export async function updateRelease(
     })
   }
 
-  for (const entry of delta.remove) {
-    const owner = requiredCacheOwner(entry.name)
-    await (await caches.open(owner)).delete(exactRequest(entry), {ignoreVary: true})
-    changed.add(browserPackageSlot(entry.name, entry.env))
-    console.debug("[@hamiltonian/release:service-worker:activate]", "лишний exact artifact удалён", {
-      cache: owner,
-      env: entry.env,
-      name: entry.name,
-      version: entry.version,
+  await verifyCandidateComposition(candidate)
+  console.debug("[@hamiltonian/release:service-worker:activate]", "полный candidate composition проверен", {
+    packages: candidate.map(({name, env, version}) => ({name, env, version})),
+  })
+
+  for (const entry of await canonicalCleanup(candidate)) {
+    await (await caches.open(entry.owner)).delete(entry.request, {ignoreVary: true})
+    changed.add(entry.slot ?? entry.request.url)
+    console.debug("[@hamiltonian/release:service-worker:activate]", "old exact artifact удалён", {
+      cache: entry.owner,
+      source: entry.request.url,
     })
   }
 
-  await discardLegacyReleaseState()
+  await verifyFinalComposition(candidate)
   await commitTransaction()
   console.debug("[@hamiltonian/release:service-worker:activate]", "transaction завершена удалением cache", {
     changed: [...changed],
@@ -109,20 +135,119 @@ export async function updateRelease(
   return [...changed]
 }
 
-async function discardOtherSlotEntries(
-  cache: Cache,
-  entry: ReleasePackage,
-  keep: string,
-) {
-  const slot = browserPackageSlot(entry.name, entry.env)
-  for (const request of await cache.keys()) {
-    const parsed = parseBrowserPackageUrl(new URL(request.url))
-    if (
-      parsed !== null
-      && browserPackageSlot(parsed.name, parsed.env) === slot
-      && request.url !== keep
-    ) await cache.delete(request, {ignoreVary: true})
+/** Выводит полный candidate из фактического current и свежей delta. */
+function deriveCandidateComposition(current: ReleasePackage[], delta: ReleaseDelta) {
+  const removed = new Set(delta.remove.map((entry) => exactRequest(entry).url))
+  const candidate = new Map<string, ReleasePackage>()
+
+  for (const entry of current) {
+    if (removed.has(exactRequest(entry).url)) continue
+    const slot = browserPackageSlot(entry.name, entry.env)
+    const existing = candidate.get(slot)
+    if (existing && exactRequest(existing).url !== exactRequest(entry).url)
+      throw new Error(`Fresh delta оставляет несколько candidates для ${slot}`)
+    candidate.set(slot, entry)
   }
+
+  for (const entry of delta.update) candidate.set(browserPackageSlot(entry.name, entry.env), entry)
+  return [...candidate.values()]
+}
+
+/** До cleanup доказывает наличие и bytes всех candidates, не запрещая old overlap. */
+async function verifyCandidateComposition(candidate: ReleasePackage[]) {
+  for (const expected of candidate) await verifyCanonicalEntry(expected)
+}
+
+/** После cleanup доказывает ровно одну exact entry на каждый target slot. */
+async function verifyFinalComposition(candidate: ReleasePackage[]) {
+  const expected = new Map(candidate.map((entry) => [browserPackageSlot(entry.name, entry.env), entry]))
+  const actual = new Map<string, Request[]>()
+  const available = new Set(await caches.keys())
+
+  for (const owner of codeCaches) {
+    if (!available.has(owner)) continue
+    for (const request of await (await caches.open(owner)).keys()) {
+      const parsed = parseBrowserPackageUrl(new URL(request.url))
+      if (parsed === null || parsed.version === null) continue
+      if (requiredCacheOwner(parsed.name) !== owner)
+        throw new Error(`Canonical entry ${request.url} находится в чужом cache ${owner}`)
+      const slot = browserPackageSlot(parsed.name, parsed.env)
+      const entries = actual.get(slot) ?? []
+      entries.push(request)
+      actual.set(slot, entries)
+    }
+  }
+
+  if (actual.size !== expected.size)
+    throw new Error("Final canonical composition не совпадает с candidate composition")
+
+  for (const [slot, entry] of expected) {
+    const entries = actual.get(slot)
+    if (entries?.length !== 1 || entries[0]?.url !== exactRequest(entry).url)
+      throw new Error(`Final package slot ${slot} не содержит одну candidate entry`)
+    await verifyCanonicalEntry(entry)
+  }
+}
+
+async function verifyCanonicalEntry(expected: ReleasePackage) {
+  const owner = requiredCacheOwner(expected.name)
+  const response = await (await caches.open(owner)).match(exactRequest(expected), {ignoreVary: true})
+  if (!response)
+    throw new Error(`Candidate ${expected.name}:${expected.env}@${expected.version} отсутствует`)
+  await verifyPackageResponse(response, expected)
+}
+
+/** Локально замыкает cleanup на фактических canonical keys, включая invalid stale bytes. */
+async function canonicalCleanup(candidate: ReleasePackage[]) {
+  const keep = new Set(candidate.map((entry) =>
+    canonicalKey(requiredCacheOwner(entry.name), exactRequest(entry).url)))
+  const available = new Set(await caches.keys())
+  const removals: Array<{
+    owner: string
+    request: Request
+    slot: string | null
+    serviceWorkerRelease: boolean
+  }> = []
+
+  for (const owner of codeCaches) {
+    if (!available.has(owner)) continue
+    for (const request of await (await caches.open(owner)).keys()) {
+      const parsed = parseBrowserPackageUrl(new URL(request.url))
+      if (
+        parsed !== null
+        && parsed.version !== null
+        && keep.has(canonicalKey(owner, request.url))
+      ) continue
+      removals.push({
+        owner,
+        request,
+        serviceWorkerRelease: parsed !== null && isServiceWorkerRelease(parsed),
+        slot: parsed === null ? null : browserPackageSlot(parsed.name, parsed.env),
+      })
+    }
+  }
+
+  return [
+    ...removals.filter((entry) => !entry.serviceWorkerRelease),
+    ...removals.filter((entry) => entry.serviceWorkerRelease),
+  ]
+}
+
+async function cleanupCanonicalComposition(candidate: ReleasePackage[]) {
+  const removed: string[] = []
+  for (const entry of await canonicalCleanup(candidate)) {
+    await (await caches.open(entry.owner)).delete(entry.request, {ignoreVary: true})
+    removed.push(entry.slot ?? entry.request.url)
+  }
+  return removed
+}
+
+function canonicalKey(owner: string, url: string) {
+  return `${owner}\u0000${url}`
+}
+
+function isServiceWorkerRelease(entry: Pick<ReleasePackage, "name" | "env">) {
+  return entry.name === "@hamiltonian/release" && entry.env === "service-worker"
 }
 
 function exactRequest(entry: Pick<ReleasePackage, "name" | "env" | "version">) {

@@ -1,11 +1,11 @@
 /** Единственный технический Cache Storage package update. */
 export const transactionCache = "transaction"
 
-/** Первая cache entry содержит выполняемую fresh server delta. */
-export const transactionIntentPath = "/code?state=active"
+/** Первая cache entry только отмечает незавершённую transaction. */
+export const transactionMarkerPath = "/transaction"
 
-export function transactionIntentRequest() {
-  return new Request(new URL(transactionIntentPath, location.origin))
+export function transactionMarkerRequest() {
+  return new Request(new URL(transactionMarkerPath, location.origin))
 }
 
 /** Проверяет существование transaction, не создавая пустой cache. */

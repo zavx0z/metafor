@@ -309,6 +309,16 @@ test.serial("UPD-003 keeps canonical caches unchanged and resumes one fixed tran
     })
 
     const reload = page.waitForNavigation({waitUntil: "load", timeout: 30_000})
+    const transactionStarted = (async () => {
+      let interrupted: CacheSnapshot | undefined
+      await waitUntil(async () => {
+        const snapshot = await cacheSnapshot(page)
+        if (!snapshot.transaction?.includes("/transaction")) return false
+        interrupted = snapshot
+        return true
+      })
+      return interrupted!
+    })()
     const build = await requestBuild(server.root, [
       {name: "@hamiltonian/release", change: "patch"},
       {name: "@hamiltonian/release", change: "patch"},
@@ -318,11 +328,7 @@ test.serial("UPD-003 keeps canonical caches unchanged and resumes one fixed tran
     await Bun.sleep(300)
     expect(navigations).toBe(0)
     expect(await updateSources(page)).toEqual(sourceBefore)
-    await waitUntil(async () => {
-      const snapshot = await cacheSnapshot(page)
-      return snapshot.transaction?.includes("/code?state=active") ?? false
-    })
-    const interrupted = await cacheSnapshot(page)
+    const interrupted = await transactionStarted
     expect(Object.keys(interrupted).filter((name) => name === "transaction")).toEqual([
       "transaction",
     ])
@@ -421,73 +427,6 @@ test.serial("UPD-003 discards an empty transaction without reloading a Window", 
   }
 })
 
-test.serial("UPD-003 removes legacy active metadata and UUID caches during synchronization", async () => {
-  const profile = await mkdtemp(join(tmpdir(), "metafor-upd-002-migrate-cache-"))
-  const server = await startServer("update")
-  let browser: Browser | null = null
-
-  try {
-    browser = await launchBrowser(profile)
-    const page = await browser.newPage()
-    const navigation = await page.goto(server.root, {waitUntil: "load"})
-    expect(navigation?.status()).toBe(200)
-    await waitForAcceptedCaches(page)
-    await waitUntil(async () => await fixtureConnections(server.root) === 1)
-
-    await page.evaluate(async () => {
-      const state = await (await fetch("/code", {cache: "no-store"})).json() as {
-        packages: Array<{
-          name: string
-          env: "main" | "worker" | "service-worker"
-          version: string
-          sha256: string
-          size: number
-        }>
-      }
-      const visual = state.packages.find(({name}) => name === "@internal/visual")
-      if (!visual) throw new Error("Visual release state is missing")
-      const stable = `/@internal/visual?env=${visual.env}`
-      const endpoint = `${stable}&version=${visual.version}`
-      const response = await fetch(endpoint, {cache: "no-store"})
-      if (!response.ok) throw new Error(`Visual artifact returned ${response.status}`)
-
-      const legacyStorage = "internal:release:legacy-proof"
-      await (await caches.open(legacyStorage)).put(endpoint, response)
-      await (await caches.open("internal")).delete(stable)
-      await (await caches.open("internal")).delete(endpoint)
-      await (await caches.open("release")).put(
-        "/code?state=active",
-        Response.json({
-          packages: {
-            [stable]: {...visual, storage: legacyStorage},
-          },
-          restart: [],
-        }),
-      )
-    })
-
-    expect(Object.keys(await cacheSnapshot(page))).toContain("internal:release:legacy-proof")
-    const close = await fetch(new URL("/__tests/rpc/close", server.root), {method: "POST"})
-    expect(close.status).toBe(204)
-    await waitUntil(async () => await fixtureConnections(server.root) >= 2)
-    await waitForAcceptedCaches(page)
-    await waitUntil(async () => {
-      try {
-        return Object.keys(await cacheSnapshot(page)).every((name) => !name.includes(":release:"))
-      } catch {
-        return false
-      }
-    })
-    await expectCanonicalReleaseCaches(page)
-  } catch (error) {
-    throw withServerOutput(error, server.output())
-  } finally {
-    if (browser) await browser.close().catch(() => {})
-    await server.stop().catch(() => {})
-    await rm(profile, {recursive: true, force: true})
-  }
-})
-
 test.serial("UPD-003 resumes after canonical put and commits a removal-only delta", async () => {
   const profile = await mkdtemp(join(tmpdir(), "metafor-upd-003-remove-recovery-"))
   const server = await startServer("update")
@@ -534,13 +473,13 @@ test.serial("UPD-003 resumes after canonical put and commits a removal-only delt
       )
 
       await (await caches.open("transaction")).put(
-        "/code?state=active",
-        Response.json({type: "release-delta", update: [current], remove: []}),
+        "/transaction",
+        new Response(null, {status: 204}),
       )
     })
 
     const interrupted = await cacheSnapshot(page)
-    expect(interrupted.transaction).toEqual(["/code?state=active"])
+    expect(interrupted.transaction).toEqual(["/transaction"])
     expect((interrupted.release ?? []).filter((path) =>
       new URL(path, "http://cache.test").pathname === "/@hamiltonian/release")).toHaveLength(3)
 
@@ -1068,17 +1007,25 @@ async function waitForRequestCount(page: Page, field: "releaseService", count: n
 }
 
 async function cacheSnapshot(page: Page): Promise<CacheSnapshot> {
-  return await page.evaluate(async () => Object.fromEntries(await Promise.all(
-    (await caches.keys()).sort().map(async (name) => [
-      name,
-      (await (await caches.open(name)).keys())
-        .map((request) => {
-          const url = new URL(request.url)
-          return `${url.pathname}${url.search}`
-        })
-        .sort(),
-    ]),
-  )))
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    try {
+      return await page.evaluate(async () => Object.fromEntries(await Promise.all(
+        (await caches.keys()).sort().map(async (name) => [
+          name,
+          (await (await caches.open(name)).keys())
+            .map((request) => {
+              const url = new URL(request.url)
+              return `${url.pathname}${url.search}`
+            })
+            .sort(),
+        ]),
+      )))
+    } catch (error) {
+      if (!String(error).includes("Execution context was destroyed") || attempt === 4) throw error
+      await Bun.sleep(50)
+    }
+  }
+  throw new Error("Cache snapshot was not read")
 }
 
 function hasCachedPackage(snapshot: CacheSnapshot, owner: string, name: string) {
@@ -1119,8 +1066,7 @@ async function expectCanonicalReleaseCaches(page: Page) {
       new RegExp(`^/${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\?env=${env}&version=\\d+\\.\\d+\\.\\d+$`),
     )
   }
-  expect(Object.values(snapshot).flat()).not.toContain("/code?state=active")
-  expect(Object.values(snapshot).flat()).not.toContain("/code?state=pending")
+  expect(Object.values(snapshot).flat()).not.toContain("/transaction")
 }
 
 async function fixtureRequests(root: string) {

@@ -1,40 +1,44 @@
 import type {BrowserPackageIdentity} from "../../web/package-integrity"
 import {browserPackageUrl} from "../../web/package-url"
 import {
-  parseReleaseDeltaMessage,
-  releaseDeltaMessage,
-  type ReleaseDelta,
-  type ReleaseDeltaMessage,
-} from "../protocol"
-import {
   transactionCache,
   transactionExists,
-  transactionIntentRequest,
+  transactionMarkerRequest,
 } from "../transaction"
 
 /** Точная версия package в browser release. */
 export interface ReleasePackage extends BrowserPackageIdentity {}
 
-/** Первой записью фиксирует fresh delta до fetch и canonical writes. */
-export async function rememberTransaction(delta: ReleaseDelta) {
-  await (await caches.open(transactionCache)).put(
-    transactionIntentRequest(),
-    Response.json(releaseDeltaMessage(delta)),
-  )
+/** Проверяет marker уже начатой transaction, не создавая новую. */
+export async function pendingTransaction() {
+  if (!await transactionExists()) return false
+  const cache = await caches.open(transactionCache)
+  const entries = await cache.keys()
+  if (entries.length === 0) {
+    await caches.delete(transactionCache)
+    return false
+  }
+
+  const marker = transactionMarkerRequest()
+  if (entries[0]?.url !== marker.url || !await cache.match(marker))
+    throw new Error("Transaction marker отсутствует в первой entry")
+  return true
 }
 
-/** Читает незавершённое намерение; пустой cache безопасно удаляет. */
-export async function pendingTransaction(): Promise<ReleaseDeltaMessage | null> {
-  if (!await transactionExists()) return null
-  const cache = await caches.open(transactionCache)
-  const response = await cache.match(transactionIntentRequest())
-  if (!response) {
-    await caches.delete(transactionCache)
-    return null
-  }
-  const delta = parseReleaseDeltaMessage(await response.json())
-  if (delta === null) throw new Error("Transaction содержит некорректное намерение")
-  return delta
+/**
+ * Первой entry создаёт marker до любой загрузки или code write.
+ * Существующая transaction не хранит server delta: release получает её заново.
+ *
+ * @returns `true`, если эта transaction уже существовала.
+ */
+export async function beginTransaction() {
+  if (await pendingTransaction()) return true
+
+  await (await caches.open(transactionCache)).put(
+    transactionMarkerRequest(),
+    new Response(null, {status: 204}),
+  )
+  return false
 }
 
 /** Возвращает ранее подготовленный exact response. */
@@ -54,23 +58,6 @@ export async function preparePackage(entry: ReleasePackage, response: Response) 
 /** Последняя commit-операция удаляет intent и все prepared bytes вместе. */
 export async function commitTransaction() {
   await caches.delete(transactionCache)
-}
-
-/** Удаляет metadata и storages прежнего active-switch protocol. */
-export async function discardLegacyReleaseState() {
-  const names = await caches.keys()
-  await Promise.all(["release", "internal", "metafor"]
-    .filter((name) => names.includes(name))
-    .map(async (name) => {
-      const cache = await caches.open(name)
-      await Promise.all([
-        cache.delete(new Request(new URL("/code?state=active", location.origin))),
-        cache.delete(new Request(new URL("/code?state=pending", location.origin))),
-      ])
-    }))
-  await Promise.all(names
-    .filter((name) => name.includes(":release:"))
-    .map((name) => caches.delete(name)))
 }
 
 function exactRequest(entry: ReleasePackage) {

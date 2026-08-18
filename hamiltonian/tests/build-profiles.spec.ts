@@ -227,7 +227,7 @@ test("development keeps debug and source maps while production drops both", asyn
   const development = await build("development")
   expect(development.releaseService).toContain("console.debug")
   expect(development.releaseService).toContain("подключились к серверу обновлений")
-  expect(development.releaseService).toContain("transaction intent сохранён")
+  expect(development.releaseService).toContain("transaction marker сохранён")
   expect(development.startupMain).toContain("страница готова к работе")
   expect(development.releaseMain).toContain("[@hamiltonian/release:main]")
   expect(development.internalVisual).toContain("[@internal/visual:main]")

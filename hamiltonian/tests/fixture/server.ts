@@ -212,7 +212,10 @@ async function fixtureArtifactResponse(request: Request) {
         && artifact.env === "service-worker"
         && url.searchParams.has("version")
         && updateFetchFailures++ === 0
-      ) return new Response("Update artifact unavailable", {status: 503})
+      ) {
+        await Bun.sleep(500)
+        return new Response("Update artifact unavailable", {status: 503})
+      }
       return await artifactResponse(module, artifact.env)
     }
     case "@internal/visual":

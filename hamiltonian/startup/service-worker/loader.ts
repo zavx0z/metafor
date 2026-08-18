@@ -6,17 +6,6 @@ import {
   parseBrowserPackageUrl,
   type BrowserPackageUrl,
 } from "../../web/package-url"
-import {parseReleaseDeltaMessage} from "../../release/protocol"
-import {
-  transactionCache,
-  transactionExists,
-  transactionIntentRequest,
-} from "../../release/transaction"
-
-const recoveryService = {
-  name: "@hamiltonian/release",
-  env: "service-worker",
-} as const
 
 /** Проверяет, что полученный HTTP response можно использовать дальше. */
 export function verify(response: Response) {
@@ -41,17 +30,11 @@ export async function read(name: string, request: Request) {
   if (artifact === null) return (await caches.open(name)).match(request, {ignoreVary: true})
   if (artifact.version !== null)
     return (await caches.open(name)).match(request, {ignoreVary: true})
-
-  if (await transactionExists()) {
-    if (sameSlot(artifact, recoveryService)) return await transactionRecoveryService(name, artifact)
-    await waitForTransaction()
-  }
   return await exactSlotResponse(name, artifact)
 }
 
-/** Удаляет package slot только вне recovery transaction. */
+/** Удаляет все exact entries package slot. */
 export async function remove(name: string, request: Request) {
-  if (await transactionExists()) return false
   const artifact = ownedPackage(name, request)
   if (artifact === null) return (await caches.open(name)).delete(request, {ignoreVary: true})
   const cache = await caches.open(name)
@@ -75,45 +58,16 @@ export function run(source: string, bindings: Readonly<Record<string, unknown>> 
   return Function(...entries.map(([name]) => name), source)(...entries.map(([, value]) => value))
 }
 
-async function transactionRecoveryService(name: string, artifact: BrowserPackageUrl) {
-  const transaction = await caches.open(transactionCache)
-  const intent = await transaction.match(transactionIntentRequest())
-  if (!intent) {
-    await caches.delete(transactionCache)
-    return await exactSlotResponse(name, artifact)
-  }
-  const delta = parseReleaseDeltaMessage(await intent.json())
-  if (delta === null) throw new Error("Transaction содержит некорректное намерение")
-  const expected = delta.update.find((entry) => sameSlot(entry, recoveryService))
-  if (!expected) return await exactSlotResponse(name, artifact)
-
-  const request = exactRequest(expected)
-  const prepared = await transaction.match(request, {ignoreVary: true})
-  if (prepared) {
-    try {
-      await verifyPackageResponse(prepared, expected)
-      return prepared
-    } catch {
-      // Повреждённый recovery executor заменяется exact network response.
-    }
-  }
-
-  const response = await verifyPackageResponse(verify(await fetch(request)), expected)
-  await transaction.put(request, response.clone())
-  return response
-}
-
 async function exactSlotResponse(name: string, artifact: BrowserPackageUrl) {
   const cache = await caches.open(name)
-  const matches: Request[] = []
   for (const request of await cache.keys()) {
     const parsed = parseBrowserPackageUrl(new URL(request.url))
-    if (parsed !== null && parsed.version !== null && sameSlot(parsed, artifact))
-      matches.push(request)
+    if (parsed === null || parsed.version === null || !sameSlot(parsed, artifact)) continue
+    const response = await cache.match(request, {ignoreVary: true})
+    if (!response) throw new Error(`Package slot ${artifact.name}:${artifact.env} потерял первую exact entry`)
+    await responseIdentity(artifact, response)
+    return response
   }
-  if (matches.length > 1)
-    throw new Error(`Package slot ${artifact.name}:${artifact.env} имеет несколько exact entries`)
-  return matches[0] ? await cache.match(matches[0], {ignoreVary: true}) : undefined
 }
 
 async function responseIdentity(
@@ -140,14 +94,6 @@ async function responseIdentity(
   const verified = identity as BrowserPackageIdentity
   await verifyPackageResponse(response, verified)
   return verified
-}
-
-async function waitForTransaction() {
-  const deadline = Date.now() + 30_000
-  while (await transactionExists()) {
-    if (Date.now() >= deadline) throw new Error("Browser package transaction не завершена")
-    await new Promise((resolve) => setTimeout(resolve, 25))
-  }
 }
 
 function ownedPackage(name: string, request: Request) {

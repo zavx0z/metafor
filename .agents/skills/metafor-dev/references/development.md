@@ -135,18 +135,24 @@ GET /<package-name>?env=<env>&version=<semver>
 Service Worker перехватывает стабильный package URL, но сохраняет code только
 по точному versioned endpoint в cache владельца: `@hamiltonian/release` —
 `release`, `@internal/*` — `internal`, `@metafor/*` — `metafor`. Имя отдельного
-package в правила кэширования не добавлять. В каждом canonical owner cache
-допустима не более чем одна exact entry на `(package, env)`; постоянных stable
-code entries, `/code?state=active` и `/code?state=pending` там нет.
+package в правила кэширования не добавлять. После commit каждый canonical owner cache
+содержит ровно одну exact entry на `(package, env)` и не содержит stable либо
+state entries.
 
 Во время обновления на origin существует не более одного технического Cache
-Storage с точным именем `transaction`. Первой entry Worker сохраняет fresh
-server delta под `/code?state=active`, затем кладёт туда только проверенные
-`update` artifacts. Успешный commit последней операцией удаляет весь cache.
-Наличие `transaction` после остановки означает незавершённую попытку, которую
-новый Worker продолжает по новой сверке current с server. Пустой cache без
-intent безопасно удаляется. Cache Storage вида `<owner>:release:<uuid>`,
-постоянный active manifest и дополнительные transaction IDs запрещены.
+Storage с точным именем `transaction`. Его первой entry всегда становится
+marker `/transaction`; delta, desired composition и IDs в marker не хранятся. Затем
+Worker сохраняет там только проверенные `update` artifacts, добавляет все
+candidates в canonical caches без old deletion и повторно проверяет полный
+candidate composition. После этого cleanup идёт только вперёд; старый
+`@hamiltonian/release:service-worker` удаляется последним из old entries,
+а `transaction` — последней durable операцией после final verification.
+
+После остановки release заново собирает canonical current и получает fresh
+delta от server. Startup не открывает `transaction`, не разбирает delta и не ждёт
+cleanup. Он полностью проверяет и запускает только первую exact service-worker
+entry в Cache order; повреждение первой entry завершается fail closed. Прежние
+state keys, UUID storages и migration-ветки в действующем source отсутствуют.
 
 Пример:
 
