@@ -147,13 +147,14 @@ live cold transaction с точными новыми cache URLs прошли; ma
 Owner review обнаружил глобальную ошибку результата `.7`: после полной staging
 canonical commit заменяет slots по одному и удаляет old entry раньше, чем
 доказан полный new composition. В текущую задачу принят correction-срез
-`UPD-003.10`: сначала установить и проверить все candidates без old deletion,
-затем завершать cleanup только вперёд, удалить old service-worker release
-последним, а `transaction` — после финальной canonical проверки. Срез `.11`
-фиксирует принятую минимальную границу startup/release: startup синхронно
-регистрирует browser event bridge и сразу запускает release, а release владеет
-transaction, RPC, application cache policy и self-update через переданные
-primitives с обязательным `destroy()` прежнего runtime. Следующий структурный
+`UPD-003.10` завершён result checkpoint `cd7712e69`: все candidates
+устанавливаются и проверяются без old deletion, cleanup идёт только вперёд,
+old service-worker release удаляется последним, а `transaction` — после
+финальной canonical проверки. Текущий срез `.11` реализует принятую минимальную
+границу startup/release: startup синхронно регистрирует browser event bridge и
+сразу запускает release, а release владеет transaction, RPC, application cache
+policy и self-update через переданные primitives с обязательным `destroy()`
+прежнего runtime. Следующий структурный
 срез `.12` удаляет `hamiltonian/web`, поднимает `static`, переносит общие
 package-функции в `shared/package` и раскладывает release server/service-worker
 по предметным директориям без изменения package identities.
