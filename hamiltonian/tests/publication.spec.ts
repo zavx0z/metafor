@@ -81,12 +81,17 @@ test("cold recovery reproduces and reuses every converged exact artifact", async
   try {
     const fixture = await runReleaseFixture("cold-recovery")
     const {stdout} = fixture
+    const recoveryOutput = afterRecoveryMarker(stdout)
     const result = fixture.result as unknown as {
       root: string
+      error: string | null
       recovered: string[]
+      rewritten: string[]
       artifacts: Array<{path: string, sha256: string, size: number}>
     }
+    expect(result.error).toBeNull()
     expect(result.recovered).toEqual([])
+    expect(result.rewritten).toEqual([])
     expect(existsSync(result.root)).toBeFalse()
     expect(result.artifacts).toHaveLength(5)
     for (const artifact of result.artifacts) {
@@ -94,10 +99,11 @@ test("cold recovery reproduces and reuses every converged exact artifact", async
       expect(artifact.sha256).toMatch(/^[0-9a-f]{64}$/)
       expect(artifact.size).toBeGreaterThan(0)
     }
-    const started = stdout.indexOf("восстановление публикации начато")
-    const completed = stdout.indexOf("восстановление публикации завершено")
+    const started = recoveryOutput.indexOf("восстановление публикации начато")
+    const completed = recoveryOutput.indexOf("восстановление публикации завершено")
     expect(started).toBeGreaterThan(-1)
     expect(completed).toBeGreaterThan(started)
+    expect(occurrences(recoveryOutput, "сборка artifact начата")).toBe(5)
   } finally {
     expect(await releaseWorkspaceState(hamiltonian)).toEqual(state)
   }
@@ -106,9 +112,29 @@ test("cold recovery reproduces and reuses every converged exact artifact", async
 test("converged publication state does not emit recovery diagnostics", async () => {
   const state = await releaseWorkspaceState(hamiltonian)
   try {
-    const {stdout} = await runReleaseFixture("converged-recovery")
-    expect(stdout).not.toContain("восстановление публикации начато")
-    expect(stdout).not.toContain("восстановление публикации завершено")
+    const {stdout, result} = await runReleaseFixture("converged-recovery")
+    const recoveryOutput = afterRecoveryMarker(stdout)
+    expect(result).toEqual(expect.objectContaining({error: null, rewritten: []}))
+    expect(occurrences(recoveryOutput, "сборка artifact начата")).toBe(5)
+    expect(recoveryOutput).not.toContain("восстановление публикации начато")
+    expect(recoveryOutput).not.toContain("восстановление публикации завершено")
+  } finally {
+    expect(await releaseWorkspaceState(hamiltonian)).toEqual(state)
+  }
+})
+
+test("cold recovery rejects changed source behind a complete exact composition", async () => {
+  const state = await releaseWorkspaceState(hamiltonian)
+  try {
+    const {stdout, output, result} = await runReleaseFixture("conflicting-recovery")
+    expect(result).toEqual(expect.objectContaining({
+      artifacts: [],
+      recovered: [],
+      rewritten: [],
+    }))
+    expect((result as {error: string | null}).error).toContain("Immutable artifact conflict")
+    expect(occurrences(afterRecoveryMarker(stdout), "сборка artifact начата")).toBe(5)
+    expect(output).toContain("восстановление публикации завершилось с ошибкой")
   } finally {
     expect(await releaseWorkspaceState(hamiltonian)).toEqual(state)
   }
@@ -190,4 +216,15 @@ function expectOrdered(source: string, events: string[]) {
     expect(next).toBeGreaterThan(cursor)
     cursor = next
   }
+}
+
+function occurrences(source: string, pattern: string) {
+  return source.split(pattern).length - 1
+}
+
+function afterRecoveryMarker(source: string) {
+  const marker = "=== recovery under test ==="
+  const index = source.indexOf(marker)
+  if (index < 0) throw new Error("Recovery fixture marker is missing")
+  return source.slice(index + marker.length)
 }

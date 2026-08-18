@@ -158,12 +158,12 @@ async function runRecovery(): Promise<RecoveryResult> {
     const pending = plans.filter(({member, version}) => member.childVersion !== version)
     const recoveryNeeded = incomplete.length > 0 || pending.length > 0
     if (recoveryNeeded) debug("восстановление публикации начато", {packages})
-    const results = await buildPlans(incomplete)
+    const results = await buildPlans(plans)
     const failure = results.find((result) => !result.success)
     if (failure)
       throw new Error(`Recovery build failed for ${failure.module}:${failure.env}: ${failure.stderr}`)
 
-    await materializePlans(incomplete, results)
+    await materializePlans(plans, results)
     await writeChildVersions(pending)
     await readReleasedPackages()
     const artifacts = await exactPlanArtifacts(plans)

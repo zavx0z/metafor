@@ -1,5 +1,5 @@
 import {mock, test} from "bun:test"
-import {mkdir, mkdtemp, realpath, rm, symlink} from "node:fs/promises"
+import {mkdir, mkdtemp, realpath, rm, stat, symlink} from "node:fs/promises"
 import {tmpdir} from "node:os"
 import {dirname, join} from "node:path"
 
@@ -8,6 +8,7 @@ let root = ""
 let repository = ""
 let hamiltonian = ""
 let proof = ""
+const targetVersion = "1.0.1"
 
 test("release workspace fixture", async () => {
   root = await realpath(await mkdtemp(join(tmpdir(), "metafor-release-fixture-")))
@@ -33,6 +34,14 @@ test("release workspace fixture", async () => {
     if (resolvedPaths.hamiltonianRoot !== hamiltonian)
       throw new Error(`Release paths fixture was not installed: ${resolvedPaths.hamiltonianRoot}`)
 
+    if (isRecoveryScenario()) await prepareRecoveryArtifacts()
+    if (scenario === "conflicting-recovery") {
+      await writeSource(
+        join(hamiltonian, "release", "main", "index.ts"),
+        'export const environment = "changed"\n',
+      )
+    }
+
     if (scenario === "parallel-typecheck" || scenario === "failed-typecheck") {
       const {buildPackage} = await import("../../release/server/package/build")
       const outputs = [join(root, "main.js"), join(root, "server.js")] as const
@@ -51,13 +60,28 @@ test("release workspace fixture", async () => {
         typechecks: proofSource.trim() === "" ? 0 : proofSource.trim().split("\n").length,
         artifacts: await Promise.all(outputs.map((path) => Bun.file(path).exists())),
       }))
-    } else if (scenario === "cold-recovery" || scenario === "converged-recovery") {
+    } else if (
+      scenario === "cold-recovery"
+      || scenario === "converged-recovery"
+      || scenario === "conflicting-recovery"
+    ) {
       const {recoverPublication} = await import("../../release/server/release/publication")
-      const result = await recoverPublication()
+      const before = await artifactStamps()
+      let result: Awaited<ReturnType<typeof recoverPublication>> | null = null
+      let error: string | null = null
+      console.log("=== recovery under test ===")
+      try {
+        result = await recoverPublication()
+      } catch (reason) {
+        error = reason instanceof Error ? reason.message : String(reason)
+      }
+      const after = await artifactStamps()
       console.log(JSON.stringify({
         root,
-        recovered: result.recovered,
-        artifacts: result.artifacts.map(({path, sha256, size}) => ({
+        error,
+        recovered: result?.recovered ?? [],
+        rewritten: Object.keys(before).filter((path) => after[path] !== before[path]),
+        artifacts: (result?.artifacts ?? []).map(({path, sha256, size}) => ({
           path: path.slice(hamiltonian.length),
           sha256,
           size,
@@ -108,12 +132,11 @@ test("release workspace fixture", async () => {
 })
 
 async function createWorkspace() {
-  const targetVersion = "1.0.1"
   const typecheck = scenario === "failed-typecheck"
     ? "bun -e 'process.exit(17)'"
     : scenario === "parallel-typecheck"
       ? `bun -e 'import {appendFileSync} from "node:fs"; appendFileSync(${JSON.stringify(proof)}, "checked\\n")'`
-      : scenario === "cold-recovery" || scenario === "publication"
+      : isRecoveryScenario() || scenario === "publication"
         ? "bun -e ''"
         : scenario === "failed-publication"
           ? "bun -e 'process.exit(17)'"
@@ -150,23 +173,17 @@ async function createWorkspace() {
   ])
 
   if (
-    scenario === "cold-recovery"
-    || scenario === "converged-recovery"
-    || scenario === "publication"
+    scenario === "publication"
     || scenario === "failed-publication"
     || scenario === "delivery"
   ) {
     const artifacts: Array<readonly [string, string]> = [
       ["internal/visual", "main"],
       ["internal/visual", "server"],
+      ["release", "main"],
+      ["release", "service"],
+      ["release", "server"],
     ]
-    if (scenario !== "cold-recovery") {
-      artifacts.push(
-        ["release", "main"],
-        ["release", "service"],
-        ["release", "server"],
-      )
-    }
     await Promise.all(artifacts.map(([path, env]) => writeArtifact(path, targetVersion, env)))
   }
 }
@@ -223,11 +240,59 @@ async function writeArtifact(path: string, version: string, env: string) {
   )
 }
 
+async function prepareRecoveryArtifacts() {
+  const {buildPackage} = await import("../../release/server/package/build")
+  const composition: Array<readonly [string, string, "main" | "service" | "server"]> = [
+    ["@hamiltonian/release", "release", "main"],
+    ["@hamiltonian/release", "release", "service"],
+    ["@hamiltonian/release", "release", "server"],
+    ["@internal/visual", "internal/visual", "main"],
+    ["@internal/visual", "internal/visual", "server"],
+  ]
+  const artifacts = composition.flatMap((artifact, index) =>
+    scenario === "cold-recovery" && artifact[0] === "@hamiltonian/release"
+      ? []
+      : [{artifact, index}])
+
+  const results = await Promise.all(artifacts.map(({artifact: [name, , env], index}) => buildPackage(name, {
+    env,
+    artifact: join(hamiltonian, ".fixture-publication", `${index}.js`),
+  })))
+  const failure = results.find(({success}) => !success)
+  if (failure) throw new Error(`Fixture preparation failed: ${failure.stderr}`)
+  await Promise.all(artifacts.map(async ({artifact: [, path, env], index}) => writeSource(
+    join(hamiltonian, path, "dist", "versions", targetVersion, `${env}.js`),
+    await Bun.file(join(hamiltonian, ".fixture-publication", `${index}.js`)).arrayBuffer(),
+  )))
+}
+
+function isRecoveryScenario() {
+  return scenario === "cold-recovery"
+    || scenario === "converged-recovery"
+    || scenario === "conflicting-recovery"
+}
+
+async function artifactStamps() {
+  const artifacts: Array<readonly [string, string]> = [
+    ["release", "main"],
+    ["release", "service"],
+    ["release", "server"],
+    ["internal/visual", "main"],
+    ["internal/visual", "server"],
+  ]
+  return Object.fromEntries((await Promise.all(artifacts.map(async ([path, env]) => {
+    const artifact = join(hamiltonian, path, "dist", "versions", targetVersion, `${env}.js`)
+    if (!await Bun.file(artifact).exists()) return null
+    const state = await stat(artifact, {bigint: true})
+    return [artifact, `${state.dev}:${state.ino}:${state.mtimeNs}:${state.size}`] as const
+  }))).filter((entry) => entry !== null))
+}
+
 async function writeJson(path: string, value: unknown) {
   await writeSource(path, `${JSON.stringify(value, null, 2)}\n`)
 }
 
-async function writeSource(path: string, source: string) {
+async function writeSource(path: string, source: string | ArrayBuffer) {
   await mkdir(dirname(path), {recursive: true})
   await Bun.write(path, source)
 }
