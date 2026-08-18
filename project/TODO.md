@@ -156,10 +156,15 @@ bridge, сразу запускает release, передаёт frozen one-way d
 inert runtime после durable commit без `unregister`; focused suite и browser
 update/recovery contour прошли, result checkpoint `d346b6dd6`; новый immutable
 artifact будет опубликован в финальном contour после структурного среза.
-Текущий срез `.12` удаляет
-`hamiltonian/web`, поднимает `static`, переносит общие
-package-функции в `shared/package` и раскладывает release server/service-worker
-по предметным директориям без изменения package identities.
+Срез `.12` находится в `REVIEW`, result checkpoint `e9cf6e3fb`:
+`hamiltonian/web` удалён, `static` поднят, общие package-функции перенесены в
+`shared/package`, release server/service-worker разложены по предметным
+директориям, а development `@hamiltonian/release 0.1.4` опубликован без
+изменения package identity law. Полный production cold browser proof открыл
+отдельный runtime-дефект: stale delta ошибочно считала уже установленную и
+проверенную exact entry изменением и выполняла лишнюю Window navigation.
+Текущий correction-срез `.13` отделяет фактические canonical mutations от
+входной delta и доказывает no-op без подавления настоящего reload.
 Обновление уже работающего Bun runtime остаётся будущим большим этапом.
 Package `@hamiltonian/startup` устанавливает Service Worker, восстанавливает
 HTML/startup offline и запускает browser env package `@hamiltonian/release` из
