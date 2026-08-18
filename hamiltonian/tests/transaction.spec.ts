@@ -10,6 +10,7 @@ import {releaseDelta} from "../release/server/release/delta"
 import {currentReleasePackages} from "../release/service/cache/current"
 import {updateRelease} from "../release/service/update"
 import {read} from "../startup/service/loader"
+import {captureDiagnostics} from "./fixture/diagnostics"
 
 const origin = "https://transaction.test"
 
@@ -33,9 +34,11 @@ test.serial("UPD-003 keeps a complete old or new composition after every durable
 
     interrupted.storage.failAfter = null
     interrupted.storage.resetMutations()
-    await withServiceWorkerGlobals(interrupted.storage, interrupted.network, async () => {
-      const current = await currentReleasePackages()
-      await updateRelease(loader, releaseDelta(interrupted.next, current))
+    await captureDiagnostics(async () => {
+      await withServiceWorkerGlobals(interrupted.storage, interrupted.network, async () => {
+        const current = await currentReleasePackages()
+        await updateRelease(loader, releaseDelta(interrupted.next, current))
+      })
     })
     await expectNewComposition(interrupted.storage, interrupted.next)
   }
@@ -88,8 +91,9 @@ test.serial("UPD-003 treats a stale update for an installed exact entry as a no-
   storage.resetMutations()
 
   const network = new Map([[exactUrl(installed.identity), installed.response]])
-  const changed = await withServiceWorkerGlobals(storage, network, async () =>
-    await updateRelease(loader, {update: [installed.identity], remove: []}))
+  const {result: changed} = await captureDiagnostics(async () =>
+    await withServiceWorkerGlobals(storage, network, async () =>
+      await updateRelease(loader, {update: [installed.identity], remove: []})))
 
   expect(changed).toEqual([])
   expect((await release.keys()).map(({url}) => url)).toEqual([exactUrl(installed.identity)])
@@ -105,28 +109,41 @@ test.serial("UPD-003 prepares release runtime before cleanup and activates it on
   const lifecycle: string[] = []
   const candidate = inertRuntime(lifecycle)
 
-  await withServiceWorkerGlobals(state.storage, state.network, async () => {
-    await updateRelease(loader, state.delta, {
-      async prepare(request) {
-        lifecycle.push(`prepare:${request.url}`)
-        const urls = await packageUrls(state.storage)
-        expect(state.previous.every((entry) => urls.has(exactUrl(entry)))).toBeTrue()
-        expect(state.next.every((entry) => urls.has(exactUrl(entry)))).toBeTrue()
-        expect(await state.storage.keys()).toContain("transaction")
-        return candidate
-      },
-      async activate(runtime) {
-        lifecycle.push("activate")
-        expect(runtime).toBe(candidate)
-        expect(await state.storage.keys()).not.toContain("transaction")
-        await expectNewComposition(state.storage, state.next)
-      },
+  const {diagnostics} = await captureDiagnostics(async () => {
+    await withServiceWorkerGlobals(state.storage, state.network, async () => {
+      await updateRelease(loader, state.delta, {
+        async prepare(request) {
+          lifecycle.push(`prepare:${request.url}`)
+          const urls = await packageUrls(state.storage)
+          expect(state.previous.every((entry) => urls.has(exactUrl(entry)))).toBeTrue()
+          expect(state.next.every((entry) => urls.has(exactUrl(entry)))).toBeTrue()
+          expect(await state.storage.keys()).toContain("transaction")
+          return candidate
+        },
+        async activate(runtime) {
+          lifecycle.push("activate")
+          expect(runtime).toBe(candidate)
+          expect(await state.storage.keys()).not.toContain("transaction")
+          await expectNewComposition(state.storage, state.next)
+        },
+      })
     })
   })
 
   const service = state.next.find(({name, env}) =>
     name === "@hamiltonian/release" && env === "service")!
   expect(lifecycle).toEqual([`prepare:${exactUrl(service)}`, "activate"])
+  expect(diagnostics.map(({event}) => event)).toEqual([
+    "transaction начата",
+    "exact artifact подготовлен",
+    "exact artifact подготовлен",
+    "exact artifact подготовлен",
+    "полный candidate composition проверен",
+    "release runtime candidate подготовлен",
+    "canonical cleanup завершён",
+    "transaction завершена",
+  ])
+  expect(diagnostics.at(-1)?.details).toEqual(expect.objectContaining({mode: "fresh"}))
 })
 
 test.serial("UPD-003 remove-only recovery prepares the installed target release before old cleanup", async () => {
@@ -157,14 +174,16 @@ test.serial("UPD-003 remove-only recovery prepares the installed target release 
   })
 
   const prepared = {url: ""}
-  await withServiceWorkerGlobals(state.storage, state.network, async () => {
-    await updateRelease(loader, delta, {
-      async prepare(request) {
-        prepared.url = request.url
-        expect(await state.storage.keys()).toContain("transaction")
-        return inertRuntime([])
-      },
-      async activate() {},
+  const {diagnostics} = await captureDiagnostics(async () => {
+    await withServiceWorkerGlobals(state.storage, state.network, async () => {
+      await updateRelease(loader, delta, {
+        async prepare(request) {
+          prepared.url = request.url
+          expect(await state.storage.keys()).toContain("transaction")
+          return inertRuntime([])
+        },
+        async activate() {},
+      })
     })
   })
 
@@ -172,6 +191,14 @@ test.serial("UPD-003 remove-only recovery prepares the installed target release 
     name === "@hamiltonian/release" && env === "service")!
   expect(prepared.url).toBe(exactUrl(target))
   await expectNewComposition(state.storage, state.next)
+  expect(diagnostics.map(({event}) => event)).toEqual([
+    "transaction начата",
+    "полный candidate composition проверен",
+    "release runtime candidate подготовлен",
+    "canonical cleanup завершён",
+    "transaction завершена",
+  ])
+  expect(diagnostics[0]?.details).toEqual(expect.objectContaining({mode: "recovery"}))
 })
 
 test.serial("UPD-003 startup uses Cache order and fails closed on a damaged first release", async () => {
@@ -266,12 +293,14 @@ async function fixture() {
 
 async function runUpdate(state: Awaited<ReturnType<typeof fixture>>) {
   let error: unknown = null
-  await withServiceWorkerGlobals(state.storage, state.network, async () => {
-    try {
-      await updateRelease(loader, state.delta)
-    } catch (caught) {
-      error = caught
-    }
+  await captureDiagnostics(async () => {
+    await withServiceWorkerGlobals(state.storage, state.network, async () => {
+      try {
+        await updateRelease(loader, state.delta)
+      } catch (caught) {
+        error = caught
+      }
+    })
   })
   return {error, mutations: [...state.storage.mutations], storage: state.storage}
 }

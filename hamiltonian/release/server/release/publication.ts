@@ -85,11 +85,26 @@ async function runPublication(changes: PackageChange[]): Promise<PackageReleaseR
       new Map(plans.map(({name, version}) => [name, version])),
     )
     rootIntentWritten = true
+    debug("root intent публикации сохранён", {
+      packages: plans.map(({name, previousVersion, version}) => ({
+        from: previousVersion,
+        name,
+        to: version,
+      })),
+    })
 
     const results = await buildPlans(plans)
     if (results.some((result) => !result.success)) {
       await restoreManifest(hamiltonianManifest, rootSource)
       rootIntentWritten = false
+      debug("публикация отменена с восстановлением root", {
+        packages: plans.map(({name, previousVersion, version}) => ({
+          from: previousVersion,
+          name,
+          to: version,
+        })),
+        reason: "build-failed",
+      })
       return {success: false, results, packages: []}
     }
 
@@ -106,6 +121,14 @@ async function runPublication(changes: PackageChange[]): Promise<PackageReleaseR
     if (childrenWritten)
       await Promise.all([...childSources].map(([path, source]) => restoreManifest(path, source)))
     if (rootIntentWritten) await restoreManifest(hamiltonianManifest, rootSource)
+    console.error("[@hamiltonian/release:server:update]", "публикация завершилась с ошибкой", {
+      error: errorMessage(error),
+      packages: plans.map(({name, previousVersion, version}) => ({
+        from: previousVersion,
+        name,
+        to: version,
+      })),
+    })
     throw error
   } finally {
     await rm(staging, {recursive: true, force: true})
@@ -115,6 +138,11 @@ async function runPublication(changes: PackageChange[]): Promise<PackageReleaseR
 async function runRecovery(): Promise<RecoveryResult> {
   const intent = await readReleaseIntentComposition()
   const staging = await mkdtemp(join(hamiltonianRoot, ".package-recovery-"))
+  const packages = intent.map(({name, childVersion, version}) => ({
+    from: childVersion,
+    name,
+    to: version,
+  }))
 
   try {
     const plans = intent.map((member) => ({
@@ -127,17 +155,32 @@ async function runRecovery(): Promise<RecoveryResult> {
     }))
     assignArtifacts(plans, staging)
     const incomplete = await incompletePlans(plans)
+    const pending = plans.filter(({member, version}) => member.childVersion !== version)
+    const recoveryNeeded = incomplete.length > 0 || pending.length > 0
+    if (recoveryNeeded) debug("восстановление публикации начато", {packages})
     const results = await buildPlans(incomplete)
     const failure = results.find((result) => !result.success)
     if (failure)
       throw new Error(`Recovery build failed for ${failure.module}:${failure.env}: ${failure.stderr}`)
 
     await materializePlans(incomplete, results)
-    const pending = plans.filter(({member, version}) => member.childVersion !== version)
     await writeChildVersions(pending)
     await readReleasedPackages()
     const artifacts = await exactPlanArtifacts(plans)
-    return {recovered: pending.map(({name}) => name), artifacts}
+    const recovered = pending.map(({name}) => name)
+    if (recoveryNeeded) {
+      debug("восстановление публикации завершено", {
+        artifacts: artifacts.map(({path, sha256, size}) => ({path, sha256, size})),
+        recovered,
+      })
+    }
+    return {recovered, artifacts}
+  } catch (error) {
+    console.error("[@hamiltonian/release:server:update]", "восстановление публикации завершилось с ошибкой", {
+      error: errorMessage(error),
+      packages,
+    })
+    throw error
   } finally {
     await rm(staging, {recursive: true, force: true})
   }
@@ -248,4 +291,13 @@ export async function restoreManifest(path: string, source: string) {
 
 async function writeJsonAtomic(path: string, value: unknown) {
   await restoreManifest(path, `${JSON.stringify(value, null, 2)}\n`)
+}
+
+function debug(event: string, details: unknown) {
+  if (Bun.env.NODE_ENV === "development")
+    console.debug("[@hamiltonian/release:server:update]", event, details)
+}
+
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error)
 }

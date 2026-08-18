@@ -48,20 +48,43 @@ export function createReleaseHost(
 
   const prepare = async (request = source) => {
     let response = await loaderApi.read("release", request)
-    if (!response) {
+    if (response) {
+      console.debug("[@hamiltonian/startup:service]", "release artifact выбран", {
+        env: response.headers.get("X-Package-Env"),
+        name: response.headers.get("X-Package-Name"),
+        request: request.url,
+        source: "cache",
+        version: response.headers.get("X-Package-Version"),
+      })
+    } else {
       response = loaderApi.verify(await fetch(request))
       await loaderApi.cache("release", request, response)
       response = await loaderApi.read("release", request)
+      if (response) {
+        console.debug("[@hamiltonian/startup:service]", "release artifact выбран", {
+          env: response.headers.get("X-Package-Env"),
+          name: response.headers.get("X-Package-Name"),
+          request: request.url,
+          source: "network",
+          version: response.headers.get("X-Package-Version"),
+        })
+      }
     }
-    if (!response) throw new Error("Cached Service Worker release is missing")
+    if (!response) throw new Error("Cached release service is missing")
 
     loaderApi.verify(response)
     const module = {exports: {}} as {exports: {default?: ReleaseFactory}}
     loaderApi.run(await response.text(), {module})
     const factory = module.exports.default
-    if (typeof factory !== "function") throw new Error("Service Worker release factory is missing")
+    if (typeof factory !== "function") throw new Error("Release service factory is missing")
     const candidate = await factory(dependencies)
     assertRuntime(candidate)
+    console.debug("[@hamiltonian/startup:service]", "release runtime подготовлен", {
+      env: response.headers.get("X-Package-Env"),
+      name: response.headers.get("X-Package-Name"),
+      request: request.url,
+      version: response.headers.get("X-Package-Version"),
+    })
     return candidate
   }
 
@@ -77,15 +100,32 @@ export function createReleaseHost(
     }
 
     active = candidate
-    if (!previous || previous === candidate) return
-    await drain(previous)
-    await previous.destroy()
-    inFlight.delete(previous)
+    if (previous && previous !== candidate) {
+      await drain(previous)
+      await previous.destroy()
+      inFlight.delete(previous)
+    }
+    console.debug("[@hamiltonian/startup:service]", "release runtime активирован", {
+      replaced: previous !== null && previous !== candidate,
+    })
   }
 
   const boot = async () => {
     if (active) return
-    booting ??= prepare().then(activate)
+    booting ??= (async () => {
+      console.debug("[@hamiltonian/startup:service]", "bootstrap release начат", {
+        request: source.url,
+      })
+      try {
+        await activate(await prepare())
+      } catch (error) {
+        console.error("[@hamiltonian/startup:service]", "bootstrap release завершился с ошибкой", {
+          error: errorMessage(error),
+          request: source.url,
+        })
+        throw error
+      }
+    })()
     const attempt = booting
     try {
       await attempt
@@ -97,14 +137,14 @@ export function createReleaseHost(
 
   const fetchEvent = async (event: FetchEvent) => {
     await boot()
-    if (!active) throw new Error("Service Worker release is not active")
+    if (!active) throw new Error("Release service is not active")
     const runtime = active
     return await track(runtime, runtime.fetch(event))
   }
 
   const messageEvent = async (event: ExtendableMessageEvent) => {
     await boot()
-    if (!active) throw new Error("Service Worker release is not active")
+    if (!active) throw new Error("Release service is not active")
     const runtime = active
     await track(runtime, runtime.message(event))
   }
@@ -147,9 +187,7 @@ export function registerReleaseListeners(scope: StartupEventScope, host: Release
   scope.addEventListener("activate", (event) => {
     event.waitUntil(Promise.all([
       scope.clients.claim(),
-      host.boot().catch((error) => {
-        console.error("Не удалось запустить Service Worker release при activate", error)
-      }),
+      host.boot().catch(() => {}),
     ]))
   })
 
@@ -172,5 +210,9 @@ function assertRuntime(runtime: unknown): asserts runtime is ReleaseRuntime {
     || typeof (runtime as ReleaseRuntime).fetch !== "function"
     || typeof (runtime as ReleaseRuntime).message !== "function"
     || typeof (runtime as ReleaseRuntime).destroy !== "function"
-  ) throw new Error("Service Worker release returned an invalid runtime")
+  ) throw new Error("Release service returned an invalid runtime")
+}
+
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error)
 }

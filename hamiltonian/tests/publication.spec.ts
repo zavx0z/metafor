@@ -79,25 +79,9 @@ test("immutable publication reuses equal bytes and rejects a conflict", async ()
 test("cold recovery reproduces and reuses every converged exact artifact", async () => {
   const state = await releaseWorkspaceState(hamiltonian)
   try {
-    const child = Bun.spawn([
-      Bun.which("bun") ?? "bun",
-      "test",
-      "./tests/fixture/release-workspace-process.ts",
-    ], {
-      cwd: hamiltonian,
-      env: {...process.env, RELEASE_FIXTURE_SCENARIO: "cold-recovery"},
-      stdout: "pipe",
-      stderr: "pipe",
-    })
-    const [exitCode, stdout, stderr] = await Promise.all([
-      child.exited,
-      new Response(child.stdout).text(),
-      new Response(child.stderr).text(),
-    ])
-    if (exitCode !== 0) throw new Error(`Cold recovery fixture failed: ${stderr || stdout}`)
-    const line = stdout.trim().split("\n").at(-1)
-    if (!line) throw new Error(`Cold recovery fixture result is missing: ${stderr}`)
-    const result = JSON.parse(line) as {
+    const fixture = await runReleaseFixture("cold-recovery")
+    const {stdout} = fixture
+    const result = fixture.result as unknown as {
       root: string
       recovered: string[]
       artifacts: Array<{path: string, sha256: string, size: number}>
@@ -110,7 +94,100 @@ test("cold recovery reproduces and reuses every converged exact artifact", async
       expect(artifact.sha256).toMatch(/^[0-9a-f]{64}$/)
       expect(artifact.size).toBeGreaterThan(0)
     }
+    const started = stdout.indexOf("восстановление публикации начато")
+    const completed = stdout.indexOf("восстановление публикации завершено")
+    expect(started).toBeGreaterThan(-1)
+    expect(completed).toBeGreaterThan(started)
   } finally {
     expect(await releaseWorkspaceState(hamiltonian)).toEqual(state)
   }
 })
+
+test("converged publication state does not emit recovery diagnostics", async () => {
+  const state = await releaseWorkspaceState(hamiltonian)
+  try {
+    const {stdout} = await runReleaseFixture("converged-recovery")
+    expect(stdout).not.toContain("восстановление публикации начато")
+    expect(stdout).not.toContain("восстановление публикации завершено")
+  } finally {
+    expect(await releaseWorkspaceState(hamiltonian)).toEqual(state)
+  }
+})
+
+test("production publication diagnostics preserve success and rollback order", async () => {
+  const state = await releaseWorkspaceState(hamiltonian)
+  try {
+    const success = await runReleaseFixture("publication")
+    expect((success.result as {status: number}).status).toBe(200)
+    expect((success.result as {notifications: string[]}).notifications).toEqual([
+      JSON.stringify({type: "release-changed"}),
+    ])
+    expectOrdered(success.stdout, [
+      "публикация release запрошена",
+      "root intent публикации сохранён",
+      "package typecheck начат",
+      "package typecheck завершён",
+      "сборка artifact начата",
+      "сборка artifact завершена",
+      "публикация release завершена",
+      "сигнал об обновлении отправлен",
+    ])
+
+    const failure = await runReleaseFixture("failed-publication")
+    expect((failure.result as {status: number}).status).toBe(422)
+    expect((failure.result as {notifications: string[]}).notifications).toEqual([])
+    expectOrdered(failure.output, [
+      "публикация release запрошена",
+      "root intent публикации сохранён",
+      "package typecheck начат",
+      "package typecheck завершён",
+      "публикация отменена с восстановлением root",
+      "публикация release завершилась с ошибкой",
+    ])
+    expect(failure.output).not.toContain("сигнал об обновлении отправлен")
+  } finally {
+    expect(await releaseWorkspaceState(hamiltonian)).toEqual(state)
+  }
+})
+
+test("production delivery diagnostics distinguish delivered and missing artifacts", async () => {
+  const state = await releaseWorkspaceState(hamiltonian)
+  try {
+    const {stdout, result} = await runReleaseFixture("delivery")
+    expect(result).toEqual(expect.objectContaining({delivered: 200, missing: 404}))
+    expectOrdered(stdout, ["browser artifact доставлен", "browser artifact не найден"])
+  } finally {
+    expect(await releaseWorkspaceState(hamiltonian)).toEqual(state)
+  }
+})
+
+async function runReleaseFixture(scenario: string) {
+  const child = Bun.spawn([
+    Bun.which("bun") ?? "bun",
+    "test",
+    "./tests/fixture/release-workspace-process.ts",
+  ], {
+    cwd: hamiltonian,
+    env: {...process.env, NODE_ENV: "development", RELEASE_FIXTURE_SCENARIO: scenario},
+    stdout: "pipe",
+    stderr: "pipe",
+  })
+  const [exitCode, stdout, stderr] = await Promise.all([
+    child.exited,
+    new Response(child.stdout).text(),
+    new Response(child.stderr).text(),
+  ])
+  if (exitCode !== 0) throw new Error(`${scenario} fixture failed: ${stderr || stdout}`)
+  const line = stdout.trim().split("\n").at(-1)
+  if (!line) throw new Error(`${scenario} fixture result is missing: ${stderr}`)
+  return {stdout, output: `${stdout}\n${stderr}`, result: JSON.parse(line) as Record<string, unknown>}
+}
+
+function expectOrdered(source: string, events: string[]) {
+  let cursor = -1
+  for (const event of events) {
+    const next = source.indexOf(event, cursor + 1)
+    expect(next).toBeGreaterThan(cursor)
+    cursor = next
+  }
+}

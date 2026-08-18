@@ -15,19 +15,33 @@ export async function getPackage(request: Request) {
   const requested = parseBrowserPackageUrl(url)
   if (requested === null) return new Response(null, {status: 404})
 
-  debug("получен запрос клиентского пакета", {package: requested.name, env: requested.env})
   const name = await buildablePackage(requested.name, requested.env)
   if (name === null) {
-    debug("клиентский пакет не найден", {package: requested, status: 404})
+    debug("browser artifact не найден", {
+      env: requested.env,
+      package: requested.name,
+      status: 404,
+      version: requested.version,
+    })
     return new Response(null, {status: 404})
   }
 
   const response = await releasedPackageResponse(name, requested.env, requested.version)
-  debug("клиентский пакет готов к отправке", {
-    package: name,
-    env: requested.env,
-    status: response.status,
-  })
+  if (response.ok) {
+    debug("browser artifact доставлен", {
+      env: requested.env,
+      package: name,
+      status: response.status,
+      version: requested.version ?? response.headers.get("X-Package-Version"),
+    })
+  } else {
+    debug("browser artifact не найден", {
+      env: requested.env,
+      package: name,
+      status: response.status,
+      version: requested.version,
+    })
+  }
   return response
 }
 

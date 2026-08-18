@@ -24,7 +24,7 @@ export function upgradeRpc(request: Request, server: Bun.Server<RpcSocketData>) 
 export function openRpc(socket: Bun.ServerWebSocket<RpcSocketData>) {
   socket.subscribe(rpcServiceTopic)
   if (Bun.env.NODE_ENV === "development") {
-    console.debug("[@hamiltonian/release:server:rpc]", "Service Worker подключён к серверу обновлений", {
+    console.debug("[@hamiltonian/release:server:rpc]", "подписка release service создана", {
       source: socket.data.source,
       topic: rpcServiceTopic,
     })
@@ -54,8 +54,10 @@ export async function messageRpc(
       })
     }
   } catch (error) {
-    if (Bun.env.NODE_ENV === "development")
-      console.debug("[@hamiltonian/release:server:rpc:update]", "сверка browser cache завершилась с ошибкой", error)
+    console.error("[@hamiltonian/release:server:rpc:update]", "сверка browser cache завершилась с ошибкой", {
+      error: errorMessage(error),
+      source: socket.data.source,
+    })
     socket.close(1011, "release state unavailable")
   }
 }
@@ -68,7 +70,7 @@ export function closeRpc(
 ) {
   socket.unsubscribe(rpcServiceTopic)
   if (Bun.env.NODE_ENV === "development") {
-    console.debug("[@hamiltonian/release:server:rpc]", "Service Worker отключён от сервера обновлений", {
+    console.debug("[@hamiltonian/release:server:rpc]", "подписка release service удалена", {
       code,
       reason,
       source: socket.data.source,
@@ -83,4 +85,8 @@ function parseMessage(message: string | Buffer) {
   } catch {
     return null
   }
+}
+
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error)
 }

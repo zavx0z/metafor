@@ -187,6 +187,10 @@ test.serial("parallel env builds run one package typecheck", async () => {
   expect(result.typechecks).toBe(1)
   expect(result.artifacts).toEqual([true, true])
   expect(existsSync(result.root)).toBeFalse()
+  expect(occurrences(result.output, "package typecheck начат")).toBe(1)
+  expect(occurrences(result.output, "package typecheck завершён")).toBe(1)
+  expect(occurrences(result.output, "сборка artifact начата")).toBe(2)
+  expect(occurrences(result.output, "сборка artifact завершена")).toBe(2)
 })
 
 test.serial("failed package typecheck prevents every env build", async () => {
@@ -198,6 +202,9 @@ test.serial("failed package typecheck prevents every env build", async () => {
   expect(result.typechecks).toBe(0)
   expect(result.artifacts).toEqual([false, false])
   expect(existsSync(result.root)).toBeFalse()
+  expect(occurrences(result.output, "package typecheck начат")).toBe(1)
+  expect(occurrences(result.output, "package typecheck завершён")).toBe(1)
+  expect(result.output).not.toContain("сборка artifact начата")
 })
 
 test("development keeps debug and source maps while production drops both", async () => {
@@ -205,8 +212,8 @@ test("development keeps debug and source maps while production drops both", asyn
   try {
     const development = await build("development")
     expect(development.releaseService).toContain("console.debug")
-    expect(development.releaseService).toContain("подключились к серверу обновлений")
-    expect(development.releaseService).toContain("transaction marker сохранён")
+    expect(development.releaseService).toContain("соединение с сервером обновлений установлено")
+    expect(development.releaseService).toContain("transaction начата")
     expect(development.startupMain).toContain("страница готова к работе")
     expect(development.releaseMain).toContain("[@hamiltonian/release:main]")
     expect(development.internalVisual).toContain("[@internal/visual:main]")
@@ -291,7 +298,7 @@ async function runReleaseFixture(scenario: "parallel-typecheck" | "failed-typech
     "./tests/fixture/release-workspace-process.ts",
   ], {
     cwd: hamiltonian,
-    env: {...process.env, RELEASE_FIXTURE_SCENARIO: scenario},
+    env: {...process.env, NODE_ENV: "development", RELEASE_FIXTURE_SCENARIO: scenario},
     stdout: "pipe",
     stderr: "pipe",
   })
@@ -303,12 +310,19 @@ async function runReleaseFixture(scenario: "parallel-typecheck" | "failed-typech
   if (exitCode !== 0) throw new Error(`Release fixture failed: ${stderr || stdout}`)
   const result = stdout.trim().split("\n").at(-1)
   if (!result) throw new Error(`Release fixture result is missing: ${stderr}`)
-  return JSON.parse(result) as {
-    root: string
-    results: Array<{success: boolean, exitCode: number | null, outputs: number}>
-    typechecks: number
-    artifacts: boolean[]
+  return {
+    ...(JSON.parse(result) as {
+      root: string
+      results: Array<{success: boolean, exitCode: number | null, outputs: number}>
+      typechecks: number
+      artifacts: boolean[]
+    }),
+    output: stdout,
   }
+}
+
+function occurrences(source: string, value: string) {
+  return source.split(value).length - 1
 }
 
 async function typecheckVisualEnvironment(

@@ -51,7 +51,7 @@ test("release workspace fixture", async () => {
         typechecks: proofSource.trim() === "" ? 0 : proofSource.trim().split("\n").length,
         artifacts: await Promise.all(outputs.map((path) => Bun.file(path).exists())),
       }))
-    } else if (scenario === "cold-recovery") {
+    } else if (scenario === "cold-recovery" || scenario === "converged-recovery") {
       const {recoverPublication} = await import("../../release/server/release/publication")
       const result = await recoverPublication()
       console.log(JSON.stringify({
@@ -62,6 +62,42 @@ test("release workspace fixture", async () => {
           sha256,
           size,
         })),
+      }))
+    } else if (scenario === "publication" || scenario === "failed-publication") {
+      const {publishRelease} = await import("../../release/server/release/update")
+      const notifications: string[] = []
+      const response = await publishRelease(new Request("https://fixture.test/code", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({
+          packages: [{name: "@hamiltonian/release", change: "patch"}],
+        }),
+      }), {
+        topic: "release/service",
+        subscriberCount: () => 1,
+        publish(message) {
+          notifications.push(message)
+          return 1
+        },
+      })
+      console.log(JSON.stringify({
+        root,
+        status: response.status,
+        body: await response.json(),
+        notifications,
+      }))
+    } else if (scenario === "delivery") {
+      const {getPackage} = await import("../../release/server/http/delivery")
+      const delivered = await getPackage(new Request(
+        "https://fixture.test/@hamiltonian/release?env=main",
+      ))
+      const missing = await getPackage(new Request(
+        "https://fixture.test/@internal/missing?env=main&version=1.0.1",
+      ))
+      console.log(JSON.stringify({
+        root,
+        delivered: delivered.status,
+        missing: missing.status,
       }))
     } else {
       throw new Error(`Unknown release fixture scenario ${String(scenario)}`)
@@ -77,7 +113,11 @@ async function createWorkspace() {
     ? "bun -e 'process.exit(17)'"
     : scenario === "parallel-typecheck"
       ? `bun -e 'import {appendFileSync} from "node:fs"; appendFileSync(${JSON.stringify(proof)}, "checked\\n")'`
-      : "bun -e 'process.exit(19)'"
+      : scenario === "cold-recovery" || scenario === "publication"
+        ? "bun -e ''"
+        : scenario === "failed-publication"
+          ? "bun -e 'process.exit(17)'"
+          : "bun -e 'process.exit(19)'"
 
   await Promise.all([
     writeJson(join(hamiltonian, "package.json"), {
@@ -109,14 +149,25 @@ async function createWorkspace() {
     linkPackage("@internal/visual", join(hamiltonian, "internal/visual")),
   ])
 
-  if (scenario === "cold-recovery") {
-    await Promise.all([
-      writeArtifact("release", targetVersion, "main"),
-      writeArtifact("release", targetVersion, "service"),
-      writeArtifact("release", targetVersion, "server"),
-      writeArtifact("internal/visual", targetVersion, "main"),
-      writeArtifact("internal/visual", targetVersion, "server"),
-    ])
+  if (
+    scenario === "cold-recovery"
+    || scenario === "converged-recovery"
+    || scenario === "publication"
+    || scenario === "failed-publication"
+    || scenario === "delivery"
+  ) {
+    const artifacts: Array<readonly [string, string]> = [
+      ["internal/visual", "main"],
+      ["internal/visual", "server"],
+    ]
+    if (scenario !== "cold-recovery") {
+      artifacts.push(
+        ["release", "main"],
+        ["release", "service"],
+        ["release", "server"],
+      )
+    }
+    await Promise.all(artifacts.map(([path, env]) => writeArtifact(path, targetVersion, env)))
   }
 }
 

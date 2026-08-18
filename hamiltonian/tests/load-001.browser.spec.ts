@@ -12,7 +12,6 @@ import puppeteer, {
   type Target,
   type WebWorker,
 } from "puppeteer-core"
-import {buildPackage} from "../release/server"
 import {releaseWorkspaceState} from "./fixture/workspace-state"
 
 setDefaultTimeout(180_000)
@@ -73,11 +72,10 @@ beforeAll(async () => {
     {name: "@hamiltonian/release", env: "service", version: release.version},
     {name: "@internal/visual", env: "main", version: visual.version},
   ] as const
-  const results = await Promise.all(plans.map((plan, index) => {
-    const path = join(fixtureDirectory, `${index}.js`)
-    return buildPackage(plan.name, {env: plan.env, artifact: path})
-      .then((result) => ({plan, path, result}))
-  }))
+  const results = await buildBrowserFixtures(plans.map((plan, index) => ({
+    plan,
+    path: join(fixtureDirectory, `${index}.js`),
+  })))
   const failure = results.find(({result}) => !result.success)
   if (failure) throw new Error(
     `Browser fixture build failed for ${failure.plan.name}:${failure.plan.env}: ${failure.result.stderr}`,
@@ -90,6 +88,53 @@ afterAll(async () => {
   expect(existsSync(fixtureDirectory)).toBeFalse()
   expect(await releaseWorkspaceState(hamiltonian)).toEqual(workingState)
 })
+
+async function buildBrowserFixtures(
+  fixtures: Array<{
+    plan: Pick<FixtureArtifact, "name" | "env" | "version">
+    path: string
+  }>,
+) {
+  const input = fixtures.map(({plan, path}) => ({
+    name: plan.name,
+    env: plan.env,
+    path,
+  }))
+  const child = Bun.spawn([
+    Bun.which("bun") ?? "bun",
+    "--conditions=hamiltonian:server",
+    "--conditions=internal:server",
+    "-e",
+    `import {buildPackage} from "./release/server"
+const plans=${JSON.stringify(input)}
+console.log(JSON.stringify(await Promise.all(plans.map(async ({name,env,path})=>({name,env,path,result:await buildPackage(name,{env,artifact:path})})))))`,
+  ], {
+    cwd: hamiltonian,
+    env: {...process.env, NODE_ENV: "development"},
+    stdout: "pipe",
+    stderr: "pipe",
+  })
+  const [exitCode, stdout, stderr] = await Promise.all([
+    child.exited,
+    new Response(child.stdout).text(),
+    new Response(child.stderr).text(),
+  ])
+  if (exitCode !== 0) throw new Error(`Browser fixture build process failed: ${stderr || stdout}`)
+  const line = stdout.trim().split("\n").at(-1)
+  if (!line) throw new Error(`Browser fixture build result is missing: ${stderr}`)
+  const results = JSON.parse(line) as Array<{
+    name: FixtureArtifact["name"]
+    env: FixtureArtifact["env"]
+    path: string
+    result: {success: boolean, stderr: string}
+  }>
+  return results.map(({name, env, path, result}) => ({
+    plan: fixtures.find((fixture) =>
+      fixture.plan.name === name && fixture.plan.env === env && fixture.path === path)!.plan,
+    path,
+    result,
+  }))
+}
 
 test.serial("UPD-003 updates two isolated browser profiles independently", async () => {
   const firstProfile = await mkdtemp(join(tmpdir(), "metafor-upd-003-profile-a-"))
@@ -174,17 +219,18 @@ test.serial("UPD-002 updates one module group and restarts every Window once", a
   const profile = await mkdtemp(join(tmpdir(), "metafor-upd-002-"))
   const server = await startServer("update-build-failure-once")
   let browser: Browser | null = null
+  const browserDiagnostics: string[] = []
 
   try {
     browser = await launchBrowser(profile)
-    const firstWorkerObserver = observeStartupWorker(browser)
+    const firstWorkerObserver = observeStartupWorker(browser, browserDiagnostics)
     const firstPage = await browser.newPage()
     const startupDiagnostics: string[] = []
     firstPage.on("console", (message) => startupDiagnostics.push(`console:${message.type()}:${message.text()}`))
     firstPage.on("pageerror", (error) => startupDiagnostics.push(`pageerror:${String(error)}`))
     firstPage.on("requestfailed", (request) =>
       startupDiagnostics.push(`requestfailed:${request.url()}:${request.failure()?.errorText ?? "unknown"}`))
-    const connectionsBefore = countMatches(server.output(), "Service Worker подключён")
+    const connectionsBefore = countMatches(server.output(), "подписка release service создана")
 
     const firstNavigation = await firstPage.goto(server.root, {waitUntil: "load"})
     expect(firstNavigation?.status()).toBe(200)
@@ -205,7 +251,7 @@ test.serial("UPD-002 updates one module group and restarts every Window once", a
     ])
     await waitForAcceptedCaches(firstPage)
     await waitUntil(() =>
-      countMatches(server.output(), "Service Worker подключён") > connectionsBefore)
+      countMatches(server.output(), "подписка release service создана") > connectionsBefore)
 
     const secondPage = await browser.newPage()
     const secondNavigation = await secondPage.goto(server.root, {waitUntil: "load"})
@@ -292,7 +338,7 @@ test.serial("UPD-002 updates one module group and restarts every Window once", a
 
     await waitForAcceptedCaches(firstPage)
     await waitUntil(() =>
-      countMatches(server.output(), "Service Worker подключён") > connectionsBefore + 1)
+      countMatches(server.output(), "подписка release service создана") > connectionsBefore + 1)
     const sourceAfter = await updateSources(firstPage)
     expect(sourceAfter.releaseMain).not.toBe(sourceBefore.releaseMain)
     expect(sourceAfter.releaseMain).toContain("fixture @hamiltonian/release 1")
@@ -306,6 +352,22 @@ test.serial("UPD-002 updates one module group and restarts every Window once", a
     expect(requestsAfter.internalVisual).toBeGreaterThan(requestsBefore.internalVisual)
     await expectCanonicalReleaseCaches(firstPage)
     expect(navigations).toEqual({first: 1, second: 1})
+    expectDiagnosticOrder(browserDiagnostics, [
+      "transaction начата",
+      "полный candidate composition проверен",
+      "release runtime candidate подготовлен",
+      "canonical cleanup завершён",
+      "transaction завершена",
+      "release service запущен",
+      "release service очищен",
+      "перезагрузка Window начата",
+      "перезагрузка Window завершена",
+    ])
+    expectDiagnosticOrder(startupDiagnostics, [
+      "основное visual-окружение создано",
+      "Visual runtime подключён",
+      "страница готова к работе",
+    ])
 
     await browser.close()
     browser = null
@@ -320,13 +382,24 @@ test.serial("UPD-002 updates one module group and restarts every Window once", a
     )
 
     browser = await launchBrowser(profile)
+    const restoredWorkerObserver = observeStartupWorker(browser, browserDiagnostics)
     const restoredPage = await browser.newPage()
+    restoredPage.on("console", (message) =>
+      browserDiagnostics.push(`page:${message.type()}:${message.text()}`))
+    restoredPage.on("pageerror", (error) =>
+      browserDiagnostics.push(`pageerror:${String(error)}`))
     let restoredNavigations = 0
     restoredPage.on("framenavigated", (frame) => {
       if (frame === restoredPage.mainFrame()) restoredNavigations += 1
     })
     const restoredNavigation = await restoredPage.goto(server.root, {waitUntil: "load"})
     expect(restoredNavigation?.status()).toBe(200)
+    await Promise.race([
+      restoredWorkerObserver.promise,
+      Bun.sleep(15_000).then(() => {
+        throw new Error("Restored startup Worker was not created")
+      }),
+    ])
     await waitUntil(async () => {
       try {
         const sources = await updateSources(restoredPage)
@@ -341,7 +414,8 @@ test.serial("UPD-002 updates one module group and restarts every Window once", a
     await expectCanonicalReleaseCaches(restoredPage)
     expect(restoredNavigations).toBeGreaterThanOrEqual(2)
   } catch (error) {
-    throw withServerOutput(error, server.output())
+    const failureState = browser ? await browserFailureState(browser).catch(String) : null
+    throw withServerOutput(error, `${server.output()}\n${browserDiagnostics.join("\n")}\n${JSON.stringify(failureState)}`)
   } finally {
     if (browser) await browser.close().catch(() => {})
     await server.stop().catch(() => {})
@@ -432,6 +506,10 @@ test.serial("UPD-002 reconnects after a clean server-side WebSocket close", asyn
     const close = await fetch(new URL("/__tests/rpc/close", server.root), {method: "POST"})
     expect(close.status).toBe(204)
     await waitUntil(async () => await fixtureConnections(server.root) >= 2)
+    await waitUntil(() => countMatches(server.output(), "состояние browser cache сверено") >= 2)
+    const output = server.output()
+    expect(countMatches(output, "подписка release service создана")).toBeGreaterThanOrEqual(2)
+    expect(countMatches(output, "подписка release service удалена")).toBeGreaterThanOrEqual(1)
   } catch (error) {
     throw withServerOutput(error, server.output())
   } finally {
@@ -888,7 +966,37 @@ async function launchBrowser(profile: string) {
   })
 }
 
-function observeStartupWorker(browser: Browser) {
+async function browserFailureState(browser: Browser) {
+  const pages = await Promise.all((await browser.pages())
+    .filter((page) => page.url().startsWith("http"))
+    .map(async (page) => ({
+    url: page.url(),
+    caches: await cacheSnapshot(page).catch((error: unknown) => ({error: String(error)})),
+    sources: await updateSources(page).then((sources) => Object.fromEntries(
+      Object.entries(sources).map(([name, source]) => [name, {
+        bytes: source.length,
+        revision: source.match(/fixture @[a-z/]+ \d+/)?.[0] ?? null,
+      }]),
+    )).catch((error: unknown) => ({error: String(error)})),
+    fixture: await page.evaluate(async () => await fetch("/__tests/state").then((response) => response.json()))
+      .catch((error: unknown) => ({error: String(error)})),
+    })))
+  const services = await Promise.all(browser.targets()
+    .filter((target) => target.type() === TargetType.SERVICE_WORKER)
+    .map(async (target) => ({
+      url: target.url(),
+      state: await target.worker().then(async (worker) => await worker?.evaluate(async () => ({
+        caches: Object.fromEntries(await Promise.all((await caches.keys()).map(async (name) => [
+          name,
+          (await (await caches.open(name)).keys()).map(({url}) => url),
+        ]))),
+        location: location.href,
+      }))).catch((error: unknown) => ({error: String(error)})),
+    })))
+  return {pages, services}
+}
+
+function observeStartupWorker(browser: Browser, diagnostics?: string[]) {
   let resolve!: (handle: WorkerHandle) => void
   let settled = false
   const promise = new Promise<WorkerHandle>((ready) => { resolve = ready })
@@ -900,6 +1008,12 @@ function observeStartupWorker(browser: Browser) {
     void target.worker()
       .then((worker) => {
         if (!worker || settled) return
+        if (diagnostics) {
+          worker.on("console", (message) =>
+            diagnostics.push(`service:${message.type()}:${message.text()}`))
+          worker.on("error", (error) =>
+            diagnostics.push(`service-error:${String(error)}`))
+        }
         settled = true
         resolve({target, worker})
       })
@@ -1182,4 +1296,14 @@ function withServerOutput(error: unknown, output: string) {
 
 function countMatches(value: string, expected: string) {
   return value.split(expected).length - 1
+}
+
+function expectDiagnosticOrder(diagnostics: string[], events: string[]) {
+  const source = diagnostics.join("\n")
+  let cursor = -1
+  for (const event of events) {
+    const next = source.indexOf(event, cursor + 1)
+    expect(next).toBeGreaterThan(cursor)
+    cursor = next
+  }
 }

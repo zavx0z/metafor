@@ -121,26 +121,26 @@ test("UPD-002 exposes the development update path through owner-scoped diagnosti
   expect(server).toContain("message: messageRpc")
   expect(server).toContain("close: closeRpc")
   expect(server).not.toContain("releaseRoute")
-  expect(delivery).toContain('debug("получен запрос клиентского пакета"')
-  expect(update).toContain('debug("уведомление об обновлении отправлено"')
+  expect(delivery).toContain('debug("browser artifact доставлен"')
+  expect(update).toContain('debug("сигнал об обновлении отправлен"')
   expect(build).toContain(
-    'debug("проверка пакета перед сборкой началась"',
+    'debug("package typecheck начат"',
   )
   expect(build).toContain(
-    'debug("сборка пакета завершена"',
+    'debug("сборка artifact завершена"',
   )
-  expect(rpcServer).toContain('console.debug("[@hamiltonian/release:server:rpc]", "Service Worker подключён к серверу обновлений"')
+  expect(rpcServer).toContain('console.debug("[@hamiltonian/release:server:rpc]", "подписка release service создана"')
   expect(rpcService).toContain(
     'console.debug("[@hamiltonian/release:service:rpc:update]", "получен сигнал об обновлении"',
   )
   expect(releaseService).toContain(
-    'console.debug("[@hamiltonian/release:service:update]", "применяем fresh server delta"',
+    'console.debug("[@hamiltonian/release:service]", "release service запущен"',
   )
   expect(releaseService).toContain(
-    'console.debug("[@hamiltonian/release:service:restart]", "начинаем перезагрузку страниц"',
+    'console.debug("[@hamiltonian/release:service:restart]", "перезагрузка Window начата"',
   )
   expect(updateLoader).toContain(
-    'console.debug("[@hamiltonian/release:service:activate]", "transaction завершена удалением cache"',
+    'console.debug("[@hamiltonian/release:service:activate]", "transaction завершена"',
   )
   expect(startupMain).toContain('console.debug("[@hamiltonian/startup:main]", "страница готова к работе"')
 

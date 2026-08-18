@@ -39,15 +39,26 @@ export async function updateRelease(
   if (delta.update.length === 0 && delta.remove.length === 0) {
     if (!interrupted) return []
     const candidate = await currentReleasePackages()
+    console.debug("[@hamiltonian/release:service:prepare]", "восстановление transaction начато", {
+      packages: candidate.map(({name, env, version}) => ({name, env, version})),
+    })
     await verifyCandidateComposition(candidate)
     const removed = await cleanupCanonicalComposition(candidate)
+    console.debug("[@hamiltonian/release:service:activate]", "canonical cleanup завершён", {
+      removed,
+    })
     await verifyFinalComposition(candidate)
     await commitTransaction()
+    console.debug("[@hamiltonian/release:service:activate]", "transaction завершена", {
+      changed: removed,
+      mode: "recovery",
+    })
     return removed.length === 0 ? ["transaction"] : removed
   }
 
-  await beginTransaction()
-  console.debug("[@hamiltonian/release:service:prepare]", "transaction marker сохранён", {
+  const resumed = await beginTransaction()
+  console.debug("[@hamiltonian/release:service:prepare]", "transaction начата", {
+    mode: resumed ? "recovery" : "fresh",
     remove: delta.remove,
     update: delta.update,
   })
@@ -59,9 +70,10 @@ export async function updateRelease(
     if (cached) {
       try {
         await verifyPackageResponse(cached, entry)
-        console.debug("[@hamiltonian/release:service:prepare]", "prepared artifact переиспользован", {
+        console.debug("[@hamiltonian/release:service:prepare]", "exact artifact подготовлен", {
           env: entry.env,
           name: entry.name,
+          source: "transaction",
           version: entry.version,
         })
         continue
@@ -71,21 +83,16 @@ export async function updateRelease(
     }
 
     const request = exactRequest(entry)
-    console.debug("[@hamiltonian/release:service:prepare]", "загрузка exact artifact началась", {
-      env: entry.env,
-      name: entry.name,
-      source: request.url,
-      version: entry.version,
-    })
     const network = await fetch(
       request,
       handover?.signal ? {signal: handover.signal} : undefined,
     )
     const response = await verifyPackageResponse(startup.verify(network), entry)
     await preparePackage(entry, response)
-    console.debug("[@hamiltonian/release:service:prepare]", "exact artifact сохранён в transaction", {
+    console.debug("[@hamiltonian/release:service:prepare]", "exact artifact подготовлен", {
       env: entry.env,
       name: entry.name,
+      source: request.url,
       version: entry.version,
     })
   }
@@ -112,12 +119,6 @@ export async function updateRelease(
 
     await cache.put(exact, response)
     changed.add(browserPackageSlot(entry.name, entry.env))
-    console.debug("[@hamiltonian/release:service:activate]", "candidate добавлен в canonical cache", {
-      cache: owner,
-      env: entry.env,
-      name: entry.name,
-      version: entry.version,
-    })
   }
 
   let runtimeCandidate: ReleaseRuntime | null = null
@@ -131,23 +132,30 @@ export async function updateRelease(
     const releaseTouched = [...delta.update, ...delta.remove].some(isServiceWorkerRelease)
     const nextRelease = candidate.find(isServiceWorkerRelease)
     if (releaseTouched && !nextRelease)
-      throw new Error("Candidate composition не содержит Service Worker release")
-    if (releaseTouched && nextRelease && handover)
+      throw new Error("Candidate composition не содержит release service")
+    if (releaseTouched && nextRelease && handover) {
       runtimeCandidate = await handover.prepare(exactRequest(nextRelease))
-
-    for (const entry of await canonicalCleanup(candidate)) {
-      await (await caches.open(entry.owner)).delete(entry.request, {ignoreVary: true})
-      changed.add(entry.slot ?? entry.request.url)
-      console.debug("[@hamiltonian/release:service:activate]", "old exact artifact удалён", {
-        cache: entry.owner,
-        source: entry.request.url,
+      console.debug("[@hamiltonian/release:service:activate]", "release runtime candidate подготовлен", {
+        env: nextRelease.env,
+        name: nextRelease.name,
+        version: nextRelease.version,
       })
     }
 
+    const removals = await canonicalCleanup(candidate)
+    for (const entry of removals) {
+      await (await caches.open(entry.owner)).delete(entry.request, {ignoreVary: true})
+      changed.add(entry.slot ?? entry.request.url)
+    }
+    console.debug("[@hamiltonian/release:service:activate]", "canonical cleanup завершён", {
+      removed: removals.map(({owner, request}) => ({cache: owner, source: request.url})),
+    })
+
     await verifyFinalComposition(candidate)
     await commitTransaction()
-    console.debug("[@hamiltonian/release:service:activate]", "transaction завершена удалением cache", {
+    console.debug("[@hamiltonian/release:service:activate]", "transaction завершена", {
       changed: [...changed],
+      mode: resumed ? "recovery" : "fresh",
     })
 
     if (runtimeCandidate && handover) {

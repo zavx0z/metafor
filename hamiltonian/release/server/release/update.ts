@@ -14,29 +14,26 @@ export async function publishRelease(
   request: Request,
   notification: ReleaseNotification,
 ) {
-  debug("получен запрос на обновление", {
-    contentType: request.headers.get("Content-Type"),
-    endpoint: new URL(request.url).pathname,
-  })
-
   const packages = await packageChanges(request)
   if (packages instanceof Response) {
-    debug("запрос на обновление отклонён", {status: packages.status})
+    debug("запрос публикации отклонён", {
+      endpoint: new URL(request.url).pathname,
+      status: packages.status,
+    })
     return packages
   }
 
-  debug("пакеты приняты для обновления", {packages})
-  debug("сборка пакетов началась", {packages})
+  debug("публикация release запрошена", {packages})
   const response = await publishPackages(packages)
   if (!response.success) {
-    debug("сборка пакетов завершилась с ошибкой", {
+    console.error("[@hamiltonian/release:server:update]", "публикация release завершилась с ошибкой", {
       packages,
       results: releaseResults(response.results),
     })
     return Response.json(response, {status: 422})
   }
 
-  debug("сборка и публикация пакетов завершены", {
+  debug("публикация release завершена", {
     packages: response.packages,
     results: releaseResults(response.results),
   })
@@ -46,13 +43,11 @@ export async function publishRelease(
 
 export function notifyRelease(notification: ReleaseNotification) {
   const message = JSON.stringify(releaseChangedMessage())
-  debug("отправляем уведомление об обновлении", {
-    subscribers: notification.subscriberCount(),
-    topic: notification.topic,
-  })
+  const subscribers = notification.subscriberCount()
   const sendStatus = notification.publish(message)
-  debug("уведомление об обновлении отправлено", {
+  debug("сигнал об обновлении отправлен", {
     sendStatus,
+    subscribers,
     topic: notification.topic,
   })
 }

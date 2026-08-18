@@ -18,6 +18,4 @@ const releaseLoader = loader satisfies ReleaseLoader
 const host = createReleaseHost(serviceReleaseRequest, releaseLoader)
 
 registerReleaseListeners(globalThis as unknown as StartupEventScope, host)
-void host.boot().catch((error) => {
-  console.error("Не удалось запустить Service Worker release", error)
-})
+void host.boot().catch(() => {})

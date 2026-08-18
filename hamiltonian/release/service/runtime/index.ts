@@ -24,7 +24,7 @@ export default function releaseService(
   let destroying: Promise<void> | null = null
 
   const start = async () => {
-    if (destroying) throw new Error("Destroyed Service Worker release cannot start")
+    if (destroying) throw new Error("Destroyed release service cannot start")
     starting ??= startRuntime()
     await starting
   }
@@ -38,25 +38,17 @@ export default function releaseService(
       rpc = startRpc({
         currentPackages: currentReleasePackages,
         applyDelta: async (delta) => {
-          console.debug("[@hamiltonian/release:service:update]", "применяем fresh server delta", {
-            remove: delta.remove,
-            update: delta.update,
-          })
-          const updated = await updateRelease(dependencies.loader, delta, {
+          return await updateRelease(dependencies.loader, delta, {
             prepare: dependencies.runtime.prepare,
             activate: dependencies.runtime.activate,
             signal: abort.signal,
           })
-          console.debug("[@hamiltonian/release:service:update]", "пакеты переключены в кэше", {
-            packages: updated,
-          })
-          return updated
         },
         restartBrowser: navigateWindows,
       })
       cleanups.push(() => rpc?.destroy())
       await cache.cacheStartup()
-      console.debug("[@hamiltonian/release:service]", "Service Worker release запущен", {
+      console.debug("[@hamiltonian/release:service]", "release service запущен", {
         rpc: "/sw",
       })
     } catch (error) {
@@ -67,9 +59,12 @@ export default function releaseService(
 
   const destroy = async () => {
     destroying ??= (async () => {
+      const resources = cleanups.length
       for (const cleanup of [...cleanups].reverse()) await cleanup()
       cleanups.length = 0
-      console.debug("[@hamiltonian/release:service]", "Service Worker release очищен")
+      console.debug("[@hamiltonian/release:service]", "release service очищен", {
+        resources,
+      })
     })()
     await destroying
   }
@@ -96,13 +91,13 @@ export type {
 async function navigateWindows() {
   const windows = await clients.matchAll({type: "window"})
   const targets = windows.map((client) => ({id: client.id, url: client.url}))
-  console.debug("[@hamiltonian/release:service:restart]", "начинаем перезагрузку страниц", {
+  console.debug("[@hamiltonian/release:service:restart]", "перезагрузка Window начата", {
     registration: registration.scope,
     windows: targets,
   })
 
   const navigations = await Promise.all(windows.map((client) => client.navigate(client.url)))
-  console.debug("[@hamiltonian/release:service:restart]", "повторная навигация страниц завершена", {
+  console.debug("[@hamiltonian/release:service:restart]", "перезагрузка Window завершена", {
     navigated: navigations.filter((client) => client !== null).length,
     requested: windows.length,
   })

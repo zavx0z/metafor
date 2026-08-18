@@ -182,11 +182,17 @@ legacy adapter, old cache env и незавершённой transaction. Result 
 мёртвых implementation modules; development release `0.1.7` установлен в
 чистом managed contour без transaction. Result checkpoint — текущий result
 commit.
-Observability-срез `UPD-003.16` находится в `IN_PROGRESS`: development-логи
-должны составлять минимально достаточную матрицу причинных сценариев, а tests —
-доказывать каждый checkpoint, его обязательные данные, порядок и отсутствие
-лишних diagnostics. Его prerequisite `UPD-003.17` доказан result commit
-`870fc73c7` и находится в `REVIEW`:
+Observability-срез `UPD-003.16` находится в `REVIEW`: permanent guide и
+исполняемая матрица закрепили `8` stories, `49` точных production checkpoints
+и `20` behavior proofs; AST inventory отвергает лишний, неизвестный либо
+неструктурированный log. Startup, publication success/rollback/recovery,
+delivery, RPC reconnect/no-op/failure, transaction/handover и Window realm
+проверены предметными tests. Согласованный host start не выдаётся за recovery,
+а repeated reconnect не создаёт spam. Development startup `0.1.2` и release
+`0.1.9` установлены в managed contour; полный suite прошёл `297/297`, рабочее
+и browser-состояние до/после tests совпало. Result checkpoint — текущий result
+commit. Prerequisite `UPD-003.17` доказан result commit `870fc73c7` и находится
+в `REVIEW`:
 build/publication/recovery/browser tests переведены на test-owned временные
 workspace, artifacts, origin и state, а production не получил test hooks.
 Focused regression прошёл `28/28`, browser — `8/8`, полный Hamiltonian suite —

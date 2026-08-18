@@ -21,6 +21,48 @@ console.debug("[@hamiltonian/release:service:update]", "новая сборка 
 `bun run build` собирает production artifacts: они также минифицированы, но
 `console.debug` вместе с аргументами удалён, а source map отсутствует.
 
+## Матрица diagnostics
+
+Development diagnostics описывают причинный lifecycle, а не каждую выполненную
+инструкцию. Один checkpoint имеет одного owner, один постоянный scope, одно
+событие и только обязательные поля. Одна причинная граница не повторяется в
+RPC, runtime и cache владельцах одновременно. Успешный исход, no-op,
+восстановление и точная ошибка различимы. Повторные reconnect attempts после
+первой ошибки не создают spam; новое сообщение появляется при восстановлении
+соединения либо изменении состояния.
+
+Обязательные stories:
+
+| Story | Причинные границы |
+|---|---|
+| startup release runtime | bootstrap → artifact из cache/network → inert runtime подготовлен → release запущен → runtime активирован; failure содержит request и error |
+| server build/publication | запрос → root intent → один package typecheck → env builds → publish или root restore → один signal |
+| server publication recovery | найден root intent → недостающие artifacts восстановлены → child manifests сошлись; failure содержит packages и error |
+| browser artifact delivery | package/env/version доставлен либо точный status отказа |
+| release RPC lifecycle | server subscription и browser connection созданы/закрыты; первый разрыв содержит retry, восстановление отмечено отдельно |
+| browser state synchronization | signal → actual current → server delta → no-op либо transaction; transport failure содержит endpoint и error |
+| browser cache transaction | fresh/recovery intent → exact artifacts подготовлены → полный candidate проверен → новый release подготовлен → aggregate cleanup → transaction удалена последней |
+| Window runtime lifecycle | Window reload start/result → visual environment → release main → controlled page ready |
+
+Исполняемая test-owned матрица хранит для каждого checkpoint точные
+`level/scope/event/details`, единственный story и поведенческие proofs. Test
+перечисляет все production `console.debug` и `console.error`: отсутствующий,
+лишний, неструктурированный либо не зарегистрированный log ломает regression.
+Отдельные behavior tests доказывают порядок startup, build/recovery,
+transaction/handover, reconnect и Window flows. Матрица не импортируется
+production code и не создаёт test hooks.
+
+`console.error` сохраняется для operational failure в production и использует
+тот же трёхчастный структурированный формат. Не дублировать одну ошибку рядом
+через `console.debug`. CLI output и platform diagnostics, не принадлежащие
+runtime release lifecycle, в эту матрицу не входят.
+
+Проверка уже согласованной host publication не называется recovery и ничего
+не пишет: recovery checkpoints появляются только при фактически расходящихся
+child versions либо отсутствующем artifact. `stderr` успешного typecheck может
+содержать platform warning и поэтому не называется `error`; исход typecheck
+однозначно задаёт `exitCode`.
+
 ## Изоляция тестов
 
 Тесты читают рабочий checkout только без изменений. Они не переписывают

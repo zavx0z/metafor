@@ -25,26 +25,16 @@ export async function packageResponse(name: BuildablePackage, env?: PackageEnvir
   let artifact = await packageArtifact(owner.artifact)
 
   if (!artifact) {
-    debug("готовой сборки нет, запускаем сборку", {package: name, path: owner.artifact})
     const result = await buildPackage(name, {env: owner.env})
-    if (!result.success) {
-      debug("не удалось собрать пакет по запросу", {
-        package: name,
-        exitCode: result.exitCode,
-        stderr: result.stderr,
-      })
-      return Response.json(result, {status: 422})
-    }
+    if (!result.success) return Response.json(result, {status: 422})
 
     artifact = await packageArtifact(owner.artifact)
     if (!artifact) {
       const failure = buildContractFailure(result, owner.artifact)
-      debug("сборка не создала готовый файл", {package: name, path: owner.artifact})
       return Response.json(failure, {status: 422})
     }
   }
 
-  debug("отдаём готовую сборку", {package: name, ...artifact})
   const headers = new Headers({
     "Cache-Control": "no-cache",
     "Content-Type": artifact.type,
@@ -78,12 +68,8 @@ export async function buildPackage(
   const owner = await packageOwner(name, options.env)
   const key = `${name}\u0000${owner.env}\u0000${options.artifact ?? "default"}`
   const pending = pendingBuilds.get(key)
-  if (pending) {
-    debug("ожидаем уже запущенную сборку пакета", {package: name})
-    return pending
-  }
+  if (pending) return pending
 
-  debug("запрошена сборка пакета", {env: owner.env, package: name})
   const build = runPackageBuild(name, owner, options.artifact)
   pendingBuilds.set(key, build)
   void build.then(
@@ -99,19 +85,8 @@ async function runPackageBuild(
   artifactOverride?: string,
 ): Promise<PackageBuildResult> {
   try {
-    debug("проверка пакета перед сборкой началась", {
-      env: owner.env,
-      package: name,
-      root: owner.root,
-    })
-
     const typecheck = await runPackageTypecheck(name, owner)
     if (typecheck.exitCode !== 0) {
-      debug("проверка пакета завершилась с ошибкой", {
-        package: name,
-        exitCode: typecheck.exitCode,
-        stderr: typecheck.stderr,
-      })
       return {
         module: name,
         env: owner.env,
@@ -123,19 +98,15 @@ async function runPackageBuild(
       }
     }
 
-    debug("проверка пакета завершена", {
-      env: owner.env,
-      package: name,
-      exitCode: typecheck.exitCode,
-    })
     const artifactPath = artifactOverride ?? owner.artifact
     await mkdir(dirname(artifactPath), {recursive: true})
     const command = withPackageBuildOutput(packageBuildCommand(owner.build), artifactPath)
-    debug("сборка пакета началась", {
-      package: name,
-      env: owner.env,
+    debug("сборка artifact начата", {
+      artifact: artifactPath,
       command,
-      environment: Bun.env.NODE_ENV,
+      env: owner.env,
+      package: name,
+      profile: Bun.env.NODE_ENV,
       root: owner.root,
     })
 
@@ -153,7 +124,12 @@ async function runPackageBuild(
     const stderr = `${typecheck.stderr}${buildStderr}`
 
     if (exitCode !== 0) {
-      debug("сборка пакета завершилась с ошибкой", {package: name, exitCode, stderr})
+      debug("сборка artifact завершилась с ошибкой", {
+        env: owner.env,
+        error: stderr,
+        exitCode,
+        package: name,
+      })
       return {module: name, env: owner.env, success: false, exitCode, stdout, stderr, outputs: []}
     }
 
@@ -163,14 +139,29 @@ async function runPackageBuild(
         {module: name, env: owner.env, success: true, exitCode, stdout, stderr, outputs: []},
         artifactPath,
       )
-      debug("сборка пакета не создала готовый файл", {package: name, path: artifactPath})
+      debug("сборка artifact завершилась с ошибкой", {
+        env: owner.env,
+        error: failure.stderr,
+        exitCode: failure.exitCode,
+        package: name,
+      })
       return failure
     }
 
-    debug("сборка пакета завершена", {env: owner.env, package: name, exitCode, artifact})
+    debug("сборка artifact завершена", {
+      artifact,
+      env: owner.env,
+      exitCode,
+      package: name,
+    })
     return {module: name, env: owner.env, success: true, exitCode, stdout, stderr, outputs: [artifact]}
   } catch (error) {
-    debug("сборка пакета завершилась с ошибкой", {package: name, error})
+    debug("сборка artifact завершилась с ошибкой", {
+      env: owner.env,
+      error: errorMessage(error),
+      exitCode: null,
+      package: name,
+    })
     return {
       module: name,
       env: owner.env,
@@ -188,13 +179,20 @@ async function runPackageTypecheck(name: BuildablePackage, owner: PackageOwner) 
   const pending = pendingTypechecks.get(owner.manifest)
   if (pending) return pending
 
-  const typecheck = executePackageTypecheck(owner)
+  debug("package typecheck начат", {package: name, root: owner.root})
+  const typecheck = executePackageTypecheck(owner).then((result) => {
+    debug("package typecheck завершён", {
+      exitCode: result.exitCode,
+      package: name,
+      stderr: result.stderr.trim() || null,
+    })
+    return result
+  })
   pendingTypechecks.set(owner.manifest, typecheck)
   void typecheck.then(
     () => pendingTypechecks.delete(owner.manifest),
     () => pendingTypechecks.delete(owner.manifest),
   )
-  debug("запущен единый package typecheck", {package: name, root: owner.root})
   return typecheck
 }
 
@@ -230,4 +228,8 @@ function buildContractFailure(result: PackageBuildResult, artifact: string): Pac
 function debug(event: string, details: unknown) {
   if (Bun.env.NODE_ENV === "development")
     console.debug("[@hamiltonian/release:server:build]", event, details)
+}
+
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error)
 }
