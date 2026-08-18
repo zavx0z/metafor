@@ -41,11 +41,11 @@ import type {TopologySnapshot} from "../host-state.ts"
 import {createWebPushWorkerHandlers} from "@metafor/web-push/worker"
 import type {WebPushLifecycleEvent} from "@metafor/web-push/lifecycle"
 import type {WebPushMessage} from "@metafor/web-push/protocol"
-import {HAMILTONIAN_SERVICE_WORKER_CODE_VERSION} from "../update/browser/service-worker-code-version.ts"
+import {HAMILTONIAN_SERVICE_WORKER_CODE_VERSION} from "../update/browser/service-code-version.ts"
 import {
   HamiltonianServiceWorkerUpdateController,
   type HamiltonianServiceWorkerRelease,
-} from "../update/browser/service-worker-update.ts"
+} from "../update/browser/service-update.ts"
 import {rejectHamiltonianControlSocket} from "./control-socket-rejection.ts"
 import {
   pageLifecycleChangesNodeSystem,
@@ -228,7 +228,7 @@ interface PendingPushRegistration {
 }
 
 interface PushWakePayload {
-  kind: "wake-service-worker"
+  kind: "wake-service"
   wakeId: string
   wakeProof: string
   token: string
@@ -301,7 +301,7 @@ let pendingPushWake: PendingPushWake | null = null
 subscribeHamiltonianLifecycle((envelope) => {
   if (
     workerEntityId &&
-    envelope.sourceId === hamiltonianLifecycleEntityId("service-worker", workerRuntimeIncarnation) &&
+    envelope.sourceId === hamiltonianLifecycleEntityId("service", workerRuntimeIncarnation) &&
     envelope.sourceIncarnation === workerRuntimeIncarnation
   ) {
     workerLifecycleJournal?.observe(envelope)
@@ -313,7 +313,7 @@ subscribeHamiltonianLifecycle((envelope) => {
     type: "entity",
     phase: "changed",
     subjectId: workerEntityId,
-    subjectKind: "service-worker",
+    subjectKind: "service",
     ownerId: currentBrowserEntityId,
     attributes: {
       ...workerEmbodimentAttributes(),
@@ -339,7 +339,7 @@ function initializeWorkerIdentity(identity: string, browserEntityId: string, pro
   if (!validControlIdentity(identity)) return false
   if (workerIdentity) return workerIdentity === identity
   workerIdentity = identity
-  workerEntityId = hamiltonianLifecycleEntityId("service-worker", workerIdentity)
+  workerEntityId = hamiltonianLifecycleEntityId("service", workerIdentity)
   workerLifecycleJournal = new HamiltonianLifecycleRetainedJournal(workerEntityId, {
     initialRevision: workerRuntime.startedAt * 1_024,
   })
@@ -359,7 +359,7 @@ function initializeWorkerIdentity(identity: string, browserEntityId: string, pro
     type: "entity",
     phase: "born",
     subjectId: workerEntityId,
-    subjectKind: "service-worker",
+    subjectKind: "service",
     ownerId: browserEntityId,
     attributes: {
       ...workerEmbodimentAttributes(),
@@ -404,7 +404,7 @@ function browserDeclarationIdentity(
   const rootEnvelope = entityEnvelopes.find(({observation}) =>
     observation.subjectId === declaration.rootId)
   const workerEnvelope = entityEnvelopes.find(({observation}) =>
-    observation.subjectKind === "service-worker")
+    observation.subjectKind === "service")
   const root = rootEnvelope?.observation
   const worker = workerEnvelope?.observation
   const profileId = root?.attributes.profileId
@@ -415,7 +415,7 @@ function browserDeclarationIdentity(
     typeof workerIdentity !== "string" ||
     declaration.logicalContourId !== hamiltonianLogicalContourId("browser-profile", profileId) ||
     worker?.ownerId !== declaration.rootId ||
-    worker.subjectId !== hamiltonianLifecycleEntityId("service-worker", workerIdentity) ||
+    worker.subjectId !== hamiltonianLifecycleEntityId("service", workerIdentity) ||
     worker.attributes.runtimeIncarnation !== declaration.incarnation ||
     workerEnvelope?.sourceIncarnation !== declaration.incarnation ||
     workerEnvelope.sourceStartedAt !== declaration.incarnationStartedAt
@@ -544,7 +544,7 @@ function observeWorkerAvailability(
     type: "entity",
     phase: "changed",
     subjectId: workerEntityId,
-    subjectKind: "service-worker",
+    subjectKind: "service",
     ownerId: currentBrowserEntityId,
     attributes: {
       ...workerEmbodimentAttributes(),
@@ -576,7 +576,7 @@ function observeWebPushLifecycle(event: WebPushLifecycleEvent): void {
     type: "entity",
     phase: "changed",
     subjectId: workerEntityId,
-    subjectKind: "service-worker",
+    subjectKind: "service",
     ownerId: currentBrowserEntityId,
     attributes,
   }))
@@ -638,7 +638,7 @@ function tellWindow(window: WindowChannel, message: MessageRecord): void {
       type: "message",
       phase: "sent",
       subjectId: messageId,
-      subjectKind: "service-worker-api-message",
+      subjectKind: "service-api-message",
       ownerId: workerEntityId,
       sourceEntityId: workerEntityId,
       targetEntityId: window.pageEntityId,
@@ -767,7 +767,7 @@ function observeWorkerHeartbeat(
     type: "entity",
     phase: "changed",
     subjectId: workerEntityId,
-    subjectKind: "service-worker",
+    subjectKind: "service",
     ownerId: currentBrowserEntityId,
     attributes: {
       ...workerEmbodimentAttributes(),
@@ -849,7 +849,7 @@ function isObservedSupersededServiceWorkerEnd(envelope: HamiltonianLifecycleEnve
     envelope?.sourceId === hamiltonianLifecycleEntityId("page", envelope?.sourceIncarnation) &&
     observation?.type === "entity" &&
     observation?.phase === "ended" &&
-    observation?.subjectKind === "service-worker" &&
+    observation?.subjectKind === "service" &&
     observation?.subjectId !== workerEntityId &&
     observation?.ownerId === currentBrowserEntityId &&
     observation?.attributes?.state === "ended" &&
@@ -1161,7 +1161,7 @@ function ensureSocket(): void {
       if (serviceWorkerUpdateController.applicationReady) tellAll(message)
       return
     }
-    if (message.kind === "service-worker-update") {
+    if (message.kind === "service-update") {
       const decision = serviceWorkerUpdateController.handleUpdateTarget(message.target)
       if (!decision.accepted) {
         rejectHamiltonianControlSocket(socketSlot, openedSocket, decision.reason)
@@ -1174,7 +1174,7 @@ function ensureSocket(): void {
       })
       return
     }
-    if (message.kind === "service-worker-current") {
+    if (message.kind === "service-current") {
       const decision = serviceWorkerUpdateController.handleCurrentTarget(message.target)
       if (!decision.accepted) {
         rejectHamiltonianControlSocket(socketSlot, openedSocket, decision.reason)
@@ -1278,7 +1278,7 @@ async function connectWindow(message: ConnectWindowMessage, client: HamiltonianW
   const nextServerEntityId = lifecycleIdentifier(message.serverEntityId, "server:")
   const nextServiceWorkerTransportId = lifecycleIdentifier(
     message.serviceWorkerTransportId,
-    "service-worker-api:",
+    "service-api:",
   )
   const connectMessageId = lifecycleMessageId(message)
   const pageLifecycleSnapshot = isHamiltonianLifecycleSnapshotFromSource(
@@ -1398,7 +1398,7 @@ async function connectWindow(message: ConnectWindowMessage, client: HamiltonianW
     type: "entity",
     phase: "changed",
     subjectId: workerEntityId,
-    subjectKind: "service-worker",
+    subjectKind: "service",
     ownerId: nextBrowserEntityId,
     attributes: {
       ...workerEmbodimentAttributes(),
@@ -1410,7 +1410,7 @@ async function connectWindow(message: ConnectWindowMessage, client: HamiltonianW
     type: "transport",
     phase: "opened",
     subjectId: nextServiceWorkerTransportId,
-    subjectKind: "service-worker-api",
+    subjectKind: "service-api",
     ownerId: workerEntityId,
     sourceEntityId: pageEntityId,
     targetEntityId: workerEntityId,
@@ -1424,7 +1424,7 @@ async function connectWindow(message: ConnectWindowMessage, client: HamiltonianW
     type: "message",
     phase: "received",
     subjectId: connectMessageId,
-    subjectKind: "service-worker-api-message",
+    subjectKind: "service-api-message",
     ownerId: workerEntityId,
     sourceEntityId: pageEntityId,
     targetEntityId: workerEntityId,
@@ -1454,7 +1454,7 @@ async function receiveWindowMessage(pageMessage: PageControlMessage, client: Ham
       type: "message",
       phase: "received",
       subjectId: pageMessageId,
-      subjectKind: "service-worker-api-message",
+      subjectKind: "service-api-message",
       ownerId: workerEntityId,
       sourceEntityId: window.pageEntityId,
       targetEntityId: workerEntityId,
@@ -1570,7 +1570,7 @@ async function handleHamiltonianPushMessage(message: WebPushMessage): Promise<vo
     })
     await serviceWorkerRuntime.registration.showNotification("Hamiltonian", {
       body: "Service Worker не смог восстановить связь с сервером",
-      tag: "hamiltonian-service-worker",
+      tag: "hamiltonian-service",
       data: {wakeId: payload.wakeId},
     })
     throw error
@@ -1634,14 +1634,14 @@ async function withTimeout(promise: Promise<void>, timeoutMs: number, message: s
 function parseWakePayload(value: unknown): PushWakePayload | null {
   try {
     return isRecord(value) &&
-      value.kind === "wake-service-worker" &&
+      value.kind === "wake-service" &&
       validControlIdentity(value.wakeId) &&
       validControlIdentity(value.wakeProof) &&
       typeof value.token === "string" && value.token.length > 0 && value.token.length <= 512 &&
       typeof value.serverEntityId === "string" &&
       value.serverEntityId.startsWith("server:") && value.serverEntityId.length <= 512
       ? {
-        kind: "wake-service-worker",
+        kind: "wake-service",
         wakeId: value.wakeId,
         wakeProof: value.wakeProof,
         token: value.token,
@@ -1667,7 +1667,7 @@ function closeWindowChannel(window: WindowChannel, reason: string, closeTranspor
     type: "transport",
     phase: "closed",
     subjectId: window.serviceWorkerTransportId,
-    subjectKind: "service-worker-api",
+    subjectKind: "service-api",
     ownerId: workerEntityId,
     sourceEntityId: window.pageEntityId,
     targetEntityId: workerEntityId,

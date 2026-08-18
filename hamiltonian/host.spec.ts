@@ -18,7 +18,7 @@ import {
 } from "./core/lifecycle.js"
 import {hamiltonianBrowserNodeId} from "./core/orchestration.js"
 import {HamiltonianLifecycleProjection} from "./browser/orchestration/lifecycle-projection.ts"
-import {HAMILTONIAN_SERVICE_WORKER_CODE_VERSION} from "./update/browser/service-worker-code-version.ts"
+import {HAMILTONIAN_SERVICE_WORKER_CODE_VERSION} from "./update/browser/service-code-version.ts"
 import {
   createHamiltonianTestServer as createHamiltonianHost,
 } from "./fixture/server-test-client.ts"
@@ -69,13 +69,13 @@ function browserProfileLifecycleSnapshot(
   workerCodeVersion = HAMILTONIAN_SERVICE_WORKER_CODE_VERSION,
 ) {
   const browserEntityId = hamiltonianBrowserNodeId(profileId)
-  const workerEntityId = hamiltonianLifecycleEntityId("service-worker", workerIdentity)
+  const workerEntityId = hamiltonianLifecycleEntityId("service", workerIdentity)
   const runtimeKey = `${profileId}\u0000${workerRuntimeIncarnation}`
   const startedAt = browserRuntimeStartedAt.get(runtimeKey) ?? nextBrowserRuntimeStartedAt++
   browserRuntimeStartedAt.set(runtimeKey, startedAt)
   const source = new HamiltonianLifecycleSource({
     id: workerEntityId,
-    kind: "service-worker",
+    kind: "service",
     incarnation: workerRuntimeIncarnation,
     startedAt,
   })
@@ -92,7 +92,7 @@ function browserProfileLifecycleSnapshot(
     type: "entity",
     phase: "born",
     subjectId: workerEntityId,
-    subjectKind: "service-worker",
+    subjectKind: "service",
     ownerId: browserEntityId,
     attributes: {
       identity: workerIdentity,
@@ -135,7 +135,7 @@ async function openSocket(
 ): Promise<WebSocket> {
   if (url.pathname === "/control") {
     url.searchParams.set("transport", url.searchParams.get("transport") ?? `websocket:${crypto.randomUUID()}`)
-    url.searchParams.set("worker", url.searchParams.get("worker") ?? `service-worker:${crypto.randomUUID()}`)
+    url.searchParams.set("worker", url.searchParams.get("worker") ?? `service:${crypto.randomUUID()}`)
   }
   const socket = new WebSocket(url)
   if (frames) {
@@ -169,7 +169,7 @@ async function registerTestPushSubscription(
   endpoint: string,
   frames?: Array<Record<string, unknown>>,
 ): Promise<WebSocket> {
-  const workerEntityId = hamiltonianLifecycleEntityId("service-worker", workerIdentity)
+  const workerEntityId = hamiltonianLifecycleEntityId("service", workerIdentity)
   const controlUrl = new URL("/control", host.server.url)
   controlUrl.protocol = "ws:"
   controlUrl.searchParams.set("token", host.token)
@@ -188,7 +188,7 @@ async function registerTestPushSubscription(
     `registration-runtime:${workerIdentity}`,
     `registration-resume:${workerIdentity}`,
   )))
-  await nextMessage(socket, "service-worker-current")
+  await nextMessage(socket, "service-current")
   const registrationId = crypto.randomUUID()
   const confirmed = nextMessage(socket, "push-subscription-confirmed", (message) =>
     message.registrationId === registrationId)
@@ -226,7 +226,7 @@ async function openDirectBrowserPeer(
   controlUrl.protocol = "ws:"
   controlUrl.searchParams.set("token", host.token)
   controlUrl.searchParams.set("device", deviceId)
-  controlUrl.searchParams.set("worker", hamiltonianLifecycleEntityId("service-worker", workerIdentity))
+  controlUrl.searchParams.set("worker", hamiltonianLifecycleEntityId("service", workerIdentity))
   const socket = await openSocket(controlUrl)
   const hello = await nextMessage(socket, "hello")
 
@@ -307,7 +307,7 @@ async function openDirectBrowserPeer(
     if (answerer) void answerer.signal(message.signal)
   })
 
-  const admitted = nextMessage(socket, "service-worker-current")
+  const admitted = nextMessage(socket, "service-current")
   socket.send(JSON.stringify(browserIdentityMessage(
     deviceId,
     workerIdentity,
@@ -343,7 +343,7 @@ describe("isolated Hamiltonian host", () => {
     )
     expect(defaultIdentity.workerCodeVersion).toBe(HAMILTONIAN_SERVICE_WORKER_CODE_VERSION)
     expect(defaultIdentity.lifecycleSnapshot.envelopes.find((envelope) =>
-      envelope.observation.subjectKind === "service-worker")?.observation.attributes?.codeVersion,
+      envelope.observation.subjectKind === "service")?.observation.attributes?.codeVersion,
     ).toBe(HAMILTONIAN_SERVICE_WORKER_CODE_VERSION)
 
     const explicitIdentity = browserIdentityMessage(
@@ -355,7 +355,7 @@ describe("isolated Hamiltonian host", () => {
     )
     expect(explicitIdentity.workerCodeVersion).toBe("1.0.0")
     expect(explicitIdentity.lifecycleSnapshot.envelopes.find((envelope) =>
-      envelope.observation.subjectKind === "service-worker")?.observation.attributes?.codeVersion,
+      envelope.observation.subjectKind === "service")?.observation.attributes?.codeVersion,
     ).toBe("1.0.0")
   })
 
@@ -363,7 +363,7 @@ describe("isolated Hamiltonian host", () => {
     const serverLogicalContourId = hamiltonianLogicalContourId("server", "bootstrap-host")
     const browserLogicalContourId = hamiltonianLogicalContourId("browser-profile", "old-profile")
     const serverEntityId = hamiltonianLifecycleEntityId("server", "bootstrap-host-runtime")
-    const workerEntityId = hamiltonianLifecycleEntityId("service-worker", "old-worker")
+    const workerEntityId = hamiltonianLifecycleEntityId("service", "old-worker")
     const source = new HamiltonianLifecycleSource({
       id: serverEntityId,
       kind: "server",
@@ -428,7 +428,7 @@ describe("isolated Hamiltonian host", () => {
     const browserBundles = {
       orchestration: "orchestration-a",
       layoutWorker: "layout-worker-a",
-      serviceWorker: 'const HAMILTONIAN_SERVICE_WORKER_CODE_VERSION = "1.1.0"; service-worker-a',
+      serviceWorker: 'const HAMILTONIAN_SERVICE_WORKER_CODE_VERSION = "1.1.0"; service-a',
       webPushClient: "web-push-client-a",
     }
     const hostA = await createHamiltonianHost({
@@ -462,7 +462,7 @@ describe("isolated Hamiltonian host", () => {
   test("does not publish browser source or release materialization after a rejected artifact", async () => {
     const orchestrationBundle = Promise.withResolvers<string>()
     const serviceWorkerSource =
-      'const HAMILTONIAN_SERVICE_WORKER_CODE_VERSION = "1.1.0"; service-worker-release'
+      'const HAMILTONIAN_SERVICE_WORKER_CODE_VERSION = "1.1.0"; service-release'
     const frames: Array<Record<string, unknown>> = []
     const host = await createHamiltonianHost({
       port: 0,
@@ -482,10 +482,10 @@ describe("isolated Hamiltonian host", () => {
     controlUrl.protocol = "ws:"
     controlUrl.searchParams.set("token", host.token)
     controlUrl.searchParams.set("device", "failed-source-profile")
-    controlUrl.searchParams.set("worker", "service-worker:failed-source-worker")
+    controlUrl.searchParams.set("worker", "service:failed-source-worker")
     const socket = await openSocket(controlUrl, frames)
     await waitUntil(() => frames.some(({kind}) => kind === "hello"), "failed source hello")
-    const admitted = nextMessage(socket, "service-worker-current")
+    const admitted = nextMessage(socket, "service-current")
     socket.send(JSON.stringify(browserIdentityMessage(
       "failed-source-profile",
       "failed-source-worker",
@@ -501,7 +501,7 @@ describe("isolated Hamiltonian host", () => {
 
     expect(frames.some(({kind}) => kind === "source-update")).toBeFalse()
     expect(host.getStatus().events.some(({kind}) => kind === "source-update")).toBeFalse()
-    expect(host.getStatus().events.some(({kind}) => kind === "service-worker-update-required")).toBeFalse()
+    expect(host.getStatus().events.some(({kind}) => kind === "service-update-required")).toBeFalse()
     expect(host.getStatus().events.find(({kind}) => kind === "source-update-failed")?.detail)
       .toContain("deterministic orchestration build failure")
 
@@ -523,7 +523,7 @@ describe("isolated Hamiltonian host", () => {
     controlUrl.protocol = "ws:"
     controlUrl.searchParams.set("token", host.token)
     controlUrl.searchParams.set("device", "invalid-version-profile")
-    controlUrl.searchParams.set("worker", "service-worker:invalid-version-worker")
+    controlUrl.searchParams.set("worker", "service:invalid-version-worker")
     const socket = await openSocket(controlUrl)
     await nextMessage(socket, "hello")
     const closed = new Promise<CloseEvent>((resolve) => socket.addEventListener("close", resolve, {once: true}))
@@ -544,7 +544,7 @@ describe("isolated Hamiltonian host", () => {
     controlUrl.protocol = "ws:"
     controlUrl.searchParams.set("token", host.token)
     controlUrl.searchParams.set("device", "mismatched-version-profile")
-    controlUrl.searchParams.set("worker", "service-worker:mismatched-version-worker")
+    controlUrl.searchParams.set("worker", "service:mismatched-version-worker")
     const socket = await openSocket(controlUrl)
     await nextMessage(socket, "hello")
     const closed = new Promise<CloseEvent>((resolve) => socket.addEventListener("close", resolve, {once: true}))
@@ -574,7 +574,7 @@ describe("isolated Hamiltonian host", () => {
       browserBundles: {
         orchestration: "orchestration",
         layoutWorker: "layout-worker",
-        serviceWorker: 'const HAMILTONIAN_SERVICE_WORKER_CODE_VERSION = "1.1.0"; service-worker-release',
+        serviceWorker: 'const HAMILTONIAN_SERVICE_WORKER_CODE_VERSION = "1.1.0"; service-release',
         webPushClient: "web-push-client",
       },
     })
@@ -583,7 +583,7 @@ describe("isolated Hamiltonian host", () => {
     controlUrl.protocol = "ws:"
     controlUrl.searchParams.set("token", host.token)
     controlUrl.searchParams.set("device", "stable-version-profile")
-    controlUrl.searchParams.set("worker", "service-worker:stable-version-worker")
+    controlUrl.searchParams.set("worker", "service:stable-version-worker")
 
     const first = await openSocket(controlUrl)
     await nextMessage(first, "hello")
@@ -591,7 +591,7 @@ describe("isolated Hamiltonian host", () => {
       const observation = (message.envelope as {
         observation?: {subjectId?: string; attributes?: {codeVersion?: string}}
       } | undefined)?.observation
-      return observation?.subjectId === "service-worker:stable-version-worker" &&
+      return observation?.subjectId === "service:stable-version-worker" &&
         observation.attributes?.codeVersion === "1.1.0"
     })
     first.send(JSON.stringify(browserIdentityMessage(
@@ -627,14 +627,14 @@ describe("isolated Hamiltonian host", () => {
       browserBundles: {
         orchestration: "orchestration",
         layoutWorker: "layout-worker",
-        serviceWorker: 'const HAMILTONIAN_SERVICE_WORKER_CODE_VERSION = "1.1.0"; service-worker-release',
+        serviceWorker: 'const HAMILTONIAN_SERVICE_WORKER_CODE_VERSION = "1.1.0"; service-release',
         webPushClient: "web-push-client",
       },
     })
     running.push(host)
     const profileId = "stale-profile"
     const workerIdentity = "stale-worker"
-    const workerEntityId = hamiltonianLifecycleEntityId("service-worker", workerIdentity)
+    const workerEntityId = hamiltonianLifecycleEntityId("service", workerIdentity)
     const controlUrl = new URL("/control", host.server.url)
     controlUrl.protocol = "ws:"
     controlUrl.searchParams.set("token", host.token)
@@ -650,7 +650,7 @@ describe("isolated Hamiltonian host", () => {
     }))
     await Bun.sleep(10)
     expect(host.getStatus().topology.peers.flatMap(({windows}) => windows)).toHaveLength(0)
-    const updateFrame = nextMessage(stale, "service-worker-update")
+    const updateFrame = nextMessage(stale, "service-update")
     stale.send(JSON.stringify(browserIdentityMessage(
       profileId,
       workerIdentity,
@@ -700,7 +700,7 @@ describe("isolated Hamiltonian host", () => {
     expect((await forgedClosed).code).toBe(1008)
 
     const current = await openSocket(controlUrl)
-    const acceptedFrame = nextMessage(current, "service-worker-current")
+    const acceptedFrame = nextMessage(current, "service-current")
     current.send(JSON.stringify(browserIdentityMessage(
       profileId,
       workerIdentity,
@@ -751,10 +751,10 @@ describe("isolated Hamiltonian host", () => {
       controlUrl.protocol = "ws:"
       controlUrl.searchParams.set("token", host.token)
       controlUrl.searchParams.set("device", profileId)
-      controlUrl.searchParams.set("worker", hamiltonianLifecycleEntityId("service-worker", workerIdentity))
+      controlUrl.searchParams.set("worker", hamiltonianLifecycleEntityId("service", workerIdentity))
       const socket = await openSocket(controlUrl)
       await nextMessage(socket, "hello")
-      const current = nextMessage(socket, "service-worker-current")
+      const current = nextMessage(socket, "service-current")
       socket.send(JSON.stringify(browserIdentityMessage(
         profileId,
         workerIdentity,
@@ -778,8 +778,8 @@ describe("isolated Hamiltonian host", () => {
     expect(host.getStatus().topology.leader).not.toBeNull()
     expect(host.getStatus().peer.assignment).not.toBeNull()
 
-    const updateA = nextMessage(profileA, "service-worker-update")
-    const updateB = nextMessage(profileB, "service-worker-update")
+    const updateA = nextMessage(profileA, "service-update")
+    const updateB = nextMessage(profileB, "service-update")
     const target = await host.updateServiceWorkerReleaseForTest(releaseB)
     const [sentA, sentB] = await Promise.all([updateA, updateB])
     expect(sentA.target).toEqual(target)
@@ -966,7 +966,7 @@ describe("isolated Hamiltonian host", () => {
     controlUrl.protocol = "ws:"
     controlUrl.searchParams.set("token", host.token)
     controlUrl.searchParams.set("device", "source-bootstrap-profile")
-    controlUrl.searchParams.set("worker", "service-worker:source-bootstrap-worker")
+    controlUrl.searchParams.set("worker", "service:source-bootstrap-worker")
     const controlSocket = await openSocket(controlUrl, controlFrames)
     controlSocket.send(JSON.stringify(browserIdentityMessage(
       "source-bootstrap-profile",
@@ -975,7 +975,7 @@ describe("isolated Hamiltonian host", () => {
       "source-bootstrap-resume",
       {workerCodeVersion: "1.1.0"},
     )))
-    await nextMessage(controlSocket, "service-worker-current")
+    await nextMessage(controlSocket, "service-current")
     const admittedSourceRevision = await fetch(host.server.url).then((response) => response.text()).then((html) =>
       requireValue(
         html.match(/meta name="hamiltonian-browser-source-revision" content="([^"]+)"/)?.[1],
@@ -1008,7 +1008,7 @@ describe("isolated Hamiltonian host", () => {
     const browserSource = await browserBootstrap.text()
     expect(browserSource).toContain('channel.label !== "oracle"')
     expect(browserSource).toContain("lanes: {oracle, force}")
-    expect(browserSource).toContain('localStorage.getItem("hamiltonian-service-worker-id")')
+    expect(browserSource).toContain('localStorage.getItem("hamiltonian-service-id")')
     expect(browserSource).toContain("attachedWorkerEntityId,")
     expect(browserSource).toContain("emitHamiltonianLifecycle(createHamiltonianLifecycleObservation")
     expect(browserSource).toContain('subjectKind: "browser-runtime"')
@@ -1040,7 +1040,7 @@ describe("isolated Hamiltonian host", () => {
     const serviceWorkerEntry = await fetch(new URL("/sw-entry.js", host.server.url))
     expect(serviceWorkerEntry.status).toBe(200)
     expect(serviceWorkerEntry.headers.get("content-security-policy")).toContain("connect-src 'self' ws: wss: data:")
-    expect(serviceWorkerEntry.headers.get("service-worker-allowed")).toBe("/")
+    expect(serviceWorkerEntry.headers.get("service-allowed")).toBe("/")
     expect(serviceWorkerEntry.headers.get("cache-control")).toBe("no-cache")
     const serviceWorkerEntrySource = await serviceWorkerEntry.text()
     expect(serviceWorkerEntrySource).toContain("testServiceWorkerBundle")
@@ -1137,8 +1137,8 @@ describe("isolated Hamiltonian host", () => {
         ownerId?: string
         attributes?: {push?: string}
       }} | undefined
-      return envelope?.observation?.subjectId === hamiltonianLifecycleEntityId("service-worker", workerIdentity) &&
-        envelope.observation.subjectKind === "service-worker" &&
+      return envelope?.observation?.subjectId === hamiltonianLifecycleEntityId("service", workerIdentity) &&
+        envelope.observation.subjectKind === "service" &&
         envelope.observation.attributes?.push === "ready"
     })
     expect(readyObservation).toBeDefined()
@@ -1154,12 +1154,12 @@ describe("isolated Hamiltonian host", () => {
       return observation?.type === "transport" &&
         observation.subjectKind === "web-push" &&
         observation.sourceEntityId === `server:${host.hostEpoch}` &&
-        observation.targetEntityId === hamiltonianLifecycleEntityId("service-worker", workerIdentity)
+        observation.targetEntityId === hamiltonianLifecycleEntityId("service", workerIdentity)
     })).toBe(true)
     registrationSocket.close()
     expect(host.getStatus().push.subscriptions).toHaveLength(1)
 
-    const wakeResponsePromise = fetch(new URL("/lab/wake-service-worker", host.server.url), {
+    const wakeResponsePromise = fetch(new URL("/lab/wake-service", host.server.url), {
       method: "POST",
       headers: {authorization: "Bearer test-token", "content-type": "application/json"},
       body: JSON.stringify({workerIdentity}),
@@ -1174,7 +1174,7 @@ describe("isolated Hamiltonian host", () => {
       serverEntityId: string
     }}).data
     expect(payload).toMatchObject({
-      kind: "wake-service-worker",
+      kind: "wake-service",
       token: "test-token",
       serverEntityId: `server:${host.hostEpoch}`,
     })
@@ -1189,7 +1189,7 @@ describe("isolated Hamiltonian host", () => {
     controlUrl.protocol = "ws:"
     controlUrl.searchParams.set("token", payload.token)
     controlUrl.searchParams.set("device", "push-device")
-    controlUrl.searchParams.set("worker", hamiltonianLifecycleEntityId("service-worker", workerIdentity))
+    controlUrl.searchParams.set("worker", hamiltonianLifecycleEntityId("service", workerIdentity))
     const socket = await openSocket(controlUrl)
     await nextMessage(socket, "hello")
     const confirmed = nextMessage(socket, "wake-confirmed", (message) => message.wakeId === payload.wakeId)
@@ -1243,7 +1243,7 @@ describe("isolated Hamiltonian host", () => {
       "https://push.example.test/subscription/failure",
     )
     registrationSocket.close()
-    const wakeResponse = await fetch(new URL("/lab/wake-service-worker", host.server.url), {
+    const wakeResponse = await fetch(new URL("/lab/wake-service", host.server.url), {
       method: "POST",
       headers: {authorization: "Bearer test-token", "content-type": "application/json"},
       body: JSON.stringify({workerIdentity}),
@@ -1262,7 +1262,7 @@ describe("isolated Hamiltonian host", () => {
     observerUrl.searchParams.set("token", "test-token")
     observerUrl.searchParams.set("device", "failure-observer-device")
     observerUrl.searchParams.set("transport", `websocket:${crypto.randomUUID()}`)
-    observerUrl.searchParams.set("worker", "service-worker:failure-observer")
+    observerUrl.searchParams.set("worker", "service:failure-observer")
     const observer = new WebSocket(observerUrl)
     const retainedFrame = nextMessage(observer, "lifecycle-snapshot")
     await new Promise<void>((resolve, reject) => {
@@ -1277,7 +1277,7 @@ describe("isolated Hamiltonian host", () => {
     }
     expect(JSON.stringify(retainedSnapshot)).not.toContain(secret)
     expect(retainedSnapshot.envelopes.find(({observation}) =>
-      observation.subjectId === hamiltonianLifecycleEntityId("service-worker", workerIdentity)
+      observation.subjectId === hamiltonianLifecycleEntityId("service", workerIdentity)
     )?.observation.attributes).toMatchObject({
       state: "error",
       push: "failed",
@@ -1320,7 +1320,7 @@ describe("isolated Hamiltonian host", () => {
     })
     running.push(restarted)
     expect(restarted.getStatus().push.subscriptions).toHaveLength(1)
-    const wakeResponse = await fetch(new URL("/lab/wake-service-worker", restarted.server.url), {
+    const wakeResponse = await fetch(new URL("/lab/wake-service", restarted.server.url), {
       method: "POST",
       headers: {authorization: "Bearer second-host-token", "content-type": "application/json"},
       body: JSON.stringify({workerIdentity}),
@@ -1340,7 +1340,7 @@ describe("isolated Hamiltonian host", () => {
     controlUrl.protocol = "ws:"
     controlUrl.searchParams.set("token", payload.token)
     controlUrl.searchParams.set("device", deviceId)
-    controlUrl.searchParams.set("worker", hamiltonianLifecycleEntityId("service-worker", workerIdentity))
+    controlUrl.searchParams.set("worker", hamiltonianLifecycleEntityId("service", workerIdentity))
     const socket = await openSocket(controlUrl)
     await nextMessage(socket, "hello")
     const confirmed = nextMessage(socket, "wake-confirmed", (message) => message.wakeId === payload.wakeId)
@@ -1382,7 +1382,7 @@ describe("isolated Hamiltonian host", () => {
       deviceId,
       "https://push.example.test/subscription/proof",
     )
-    const response = await fetch(new URL("/lab/wake-service-worker", host.server.url), {
+    const response = await fetch(new URL("/lab/wake-service", host.server.url), {
       method: "POST",
       headers: {authorization: "Bearer proof-test-token", "content-type": "application/json"},
       body: JSON.stringify({workerIdentity}),
@@ -1414,7 +1414,7 @@ describe("isolated Hamiltonian host", () => {
     controlUrl.protocol = "ws:"
     controlUrl.searchParams.set("token", host.token)
     controlUrl.searchParams.set("device", deviceId)
-    controlUrl.searchParams.set("worker", hamiltonianLifecycleEntityId("service-worker", workerIdentity))
+    controlUrl.searchParams.set("worker", hamiltonianLifecycleEntityId("service", workerIdentity))
     const forgedUrl = new URL(controlUrl)
     forgedUrl.searchParams.set("device", "forged-device")
     const forged = await openSocket(forgedUrl)
@@ -1434,7 +1434,7 @@ describe("isolated Hamiltonian host", () => {
     expect(host.getStatus().push.pendingWakeIds).toHaveLength(1)
 
     const observerUrl = new URL(controlUrl)
-    observerUrl.searchParams.set("worker", "service-worker:proof-observer")
+    observerUrl.searchParams.set("worker", "service:proof-observer")
     observerUrl.searchParams.set("transport", `websocket:${crypto.randomUUID()}`)
     const observer = new WebSocket(observerUrl)
     const retainedFrame = nextMessage(observer, "lifecycle-snapshot")
@@ -1452,7 +1452,7 @@ describe("isolated Hamiltonian host", () => {
       }}>
     }
     expect(retainedSnapshot.envelopes.find(({observation}) =>
-      observation.subjectId === hamiltonianLifecycleEntityId("service-worker", workerIdentity)
+      observation.subjectId === hamiltonianLifecycleEntityId("service", workerIdentity)
     )?.observation).toMatchObject({
       ownerId: hamiltonianBrowserNodeId(deviceId),
       attributes: {state: "waking", push: "accepted"},
@@ -1460,7 +1460,7 @@ describe("isolated Hamiltonian host", () => {
     expect(retainedSnapshot.envelopes.some(({observation}) =>
       observation.phase === "closed" &&
       observation.subjectKind === "websocket" &&
-      observation.ownerId === hamiltonianLifecycleEntityId("service-worker", workerIdentity)
+      observation.ownerId === hamiltonianLifecycleEntityId("service", workerIdentity)
     )).toBeFalse()
     observer.close()
 
@@ -1489,7 +1489,7 @@ describe("isolated Hamiltonian host", () => {
 
     const transportId = `websocket:${crypto.randomUUID()}`
     const workerIdentity = "journal-worker"
-    const workerEntityId = hamiltonianLifecycleEntityId("service-worker", workerIdentity)
+    const workerEntityId = hamiltonianLifecycleEntityId("service", workerIdentity)
     const controlUrl = new URL("/control", host.server.url)
     controlUrl.protocol = "ws:"
     controlUrl.searchParams.set("token", host.token)
@@ -1527,7 +1527,7 @@ describe("isolated Hamiltonian host", () => {
       "journal-runtime",
       "journal-resume",
     )))
-    await nextMessage(socket, "service-worker-current")
+    await nextMessage(socket, "service-current")
 
     const snapshotFrame = requireValue(
       frames.find((message) => message.kind === "lifecycle-snapshot"),
@@ -1592,14 +1592,14 @@ describe("isolated Hamiltonian host", () => {
       browserBundles: {
         orchestration: "orchestration",
         layoutWorker: "layout-worker",
-        serviceWorker: 'const HAMILTONIAN_SERVICE_WORKER_CODE_VERSION = "1.1.0"; service-worker-release',
+        serviceWorker: 'const HAMILTONIAN_SERVICE_WORKER_CODE_VERSION = "1.1.0"; service-release',
         webPushClient: "web-push-client",
       },
     })
     running.push(host)
     const profileId = "updated-profile"
     const workerIdentity = "updated-worker"
-    const workerEntityId = hamiltonianLifecycleEntityId("service-worker", workerIdentity)
+    const workerEntityId = hamiltonianLifecycleEntityId("service", workerIdentity)
     const oldRuntime = "updated-worker-runtime-old"
     const newRuntime = "updated-worker-runtime-new"
     const serverLogicalContourId = hamiltonianLogicalContourId("server", host.identity)
@@ -1616,7 +1616,7 @@ describe("isolated Hamiltonian host", () => {
     const oldFrames: Array<Record<string, unknown>> = []
     const oldSocket = await openSocket(oldUrl, oldFrames)
     await waitUntil(() => oldFrames.some(({kind}) => kind === "hello"), "old Worker hello")
-    const oldCurrent = nextMessage(oldSocket, "service-worker-current")
+    const oldCurrent = nextMessage(oldSocket, "service-current")
     const oldBoundaryFrame = nextMessage(oldSocket, "node-system-declaration", (message) => {
       const declaration = message.declaration as HamiltonianNodeSystemDeclaration | undefined
       return declaration?.logicalContourId === serverLogicalContourId &&
@@ -1659,7 +1659,7 @@ describe("isolated Hamiltonian host", () => {
       return declaration?.logicalContourId === serverLogicalContourId &&
         declaration.boundaryTransports.some(({transportId}) => transportId === newTransportId)
     })
-    const newCurrent = nextMessage(newSocket, "service-worker-current")
+    const newCurrent = nextMessage(newSocket, "service-current")
     newSocket.send(JSON.stringify(browserIdentityMessage(
       profileId,
       workerIdentity,
@@ -1695,7 +1695,7 @@ describe("isolated Hamiltonian host", () => {
     const profileId = "declared-wss-profile"
     const workerIdentity = "declared-wss-worker"
     const workerRuntimeIncarnation = "declared-wss-runtime"
-    const workerEntityId = hamiltonianLifecycleEntityId("service-worker", workerIdentity)
+    const workerEntityId = hamiltonianLifecycleEntityId("service", workerIdentity)
     const transportId = "websocket:declared-wss"
     const controlUrl = new URL("/control", host.server.url)
     controlUrl.protocol = "ws:"
@@ -1782,7 +1782,7 @@ describe("isolated Hamiltonian host", () => {
     const profileId = "host-restart-profile"
     const workerIdentity = "host-restart-worker"
     const workerRuntimeIncarnation = "host-restart-worker-runtime"
-    const workerEntityId = hamiltonianLifecycleEntityId("service-worker", workerIdentity)
+    const workerEntityId = hamiltonianLifecycleEntityId("service", workerIdentity)
     const identity = "stable-hamiltonian"
     const connect = async (
       host: Awaited<ReturnType<typeof createHamiltonianHost>>,
@@ -1872,7 +1872,7 @@ describe("isolated Hamiltonian host", () => {
     running.push(host)
     await host.bunReady
 
-    const unconfirmedWorkerId = "service-worker:unconfirmed-observer"
+    const unconfirmedWorkerId = "service:unconfirmed-observer"
     const unconfirmedTransportId = "websocket:unconfirmed-observer"
     const controlUrl = new URL("/control", host.server.url)
     controlUrl.protocol = "ws:"
@@ -1889,7 +1889,7 @@ describe("isolated Hamiltonian host", () => {
 
     const observerUrl = new URL(controlUrl)
     observerUrl.searchParams.set("device", "snapshot-observer-device")
-    observerUrl.searchParams.set("worker", "service-worker:snapshot-observer")
+    observerUrl.searchParams.set("worker", "service:snapshot-observer")
     observerUrl.searchParams.set("transport", "websocket:snapshot-observer")
     const observer = new WebSocket(observerUrl)
     const retainedFrame = nextMessage(observer, "lifecycle-snapshot")
@@ -1912,7 +1912,7 @@ describe("isolated Hamiltonian host", () => {
     await host.bunReady
 
     const connectProfile = async (profileId: string, workerIdentity: string) => {
-      const workerEntityId = hamiltonianLifecycleEntityId("service-worker", workerIdentity)
+      const workerEntityId = hamiltonianLifecycleEntityId("service", workerIdentity)
       const controlUrl = new URL("/control", host.server.url)
       controlUrl.protocol = "ws:"
       controlUrl.searchParams.set("token", host.token)
@@ -1937,7 +1937,7 @@ describe("isolated Hamiltonian host", () => {
     const profileA = await connectProfile("profile-a", "worker-a")
     const profileB = await connectProfile("profile-b", "worker-b")
     const profileAPageId = "page:profile-a-page"
-    const profileATransportId = "service-worker-api:profile-a-page"
+    const profileATransportId = "service-api:profile-a-page"
     const updated = nextMessage(profileA, "lifecycle-snapshot", (message) => {
       const snapshot = message.snapshot as {envelopes?: Array<{observation?: {subjectId?: string}}>} | undefined
       return snapshot?.envelopes?.some(({observation}) => observation?.subjectId === profileAPageId) === true
@@ -1961,10 +1961,10 @@ describe("isolated Hamiltonian host", () => {
             type: "transport",
             phase: "opened",
             subjectId: profileATransportId,
-            subjectKind: "service-worker-api",
-            ownerId: hamiltonianLifecycleEntityId("service-worker", "worker-a"),
+            subjectKind: "service-api",
+            ownerId: hamiltonianLifecycleEntityId("service", "worker-a"),
             sourceEntityId: profileAPageId,
-            targetEntityId: hamiltonianLifecycleEntityId("service-worker", "worker-a"),
+            targetEntityId: hamiltonianLifecycleEntityId("service", "worker-a"),
             transportId: profileATransportId,
             attributes: {state: "active"},
           }),
@@ -1977,7 +1977,7 @@ describe("isolated Hamiltonian host", () => {
     observerUrl.protocol = "ws:"
     observerUrl.searchParams.set("token", host.token)
     observerUrl.searchParams.set("device", "observer-profile")
-    observerUrl.searchParams.set("worker", "service-worker:observer")
+    observerUrl.searchParams.set("worker", "service:observer")
     observerUrl.searchParams.set("transport", "websocket:observer")
     const observer = new WebSocket(observerUrl)
     const retainedFrame = nextMessage(observer, "lifecycle-snapshot")
@@ -1998,7 +1998,7 @@ describe("isolated Hamiltonian host", () => {
     const entities = retained.envelopes
       .map(({observation}) => observation)
       .filter(({subjectKind}) =>
-        subjectKind === "browser-runtime" || subjectKind === "service-worker" || subjectKind === "page")
+        subjectKind === "browser-runtime" || subjectKind === "service" || subjectKind === "page")
     expect(entities).toEqual(expect.arrayContaining([
       expect.objectContaining({
         subjectId: hamiltonianBrowserNodeId("profile-a"),
@@ -2011,12 +2011,12 @@ describe("isolated Hamiltonian host", () => {
         attributes: expect.objectContaining({profileId: "profile-b"}),
       }),
       expect.objectContaining({
-        subjectId: hamiltonianLifecycleEntityId("service-worker", "worker-a"),
+        subjectId: hamiltonianLifecycleEntityId("service", "worker-a"),
         ownerId: hamiltonianBrowserNodeId("profile-a"),
         attributes: expect.objectContaining({codeVersion: HAMILTONIAN_SERVICE_WORKER_CODE_VERSION}),
       }),
       expect.objectContaining({
-        subjectId: hamiltonianLifecycleEntityId("service-worker", "worker-b"),
+        subjectId: hamiltonianLifecycleEntityId("service", "worker-b"),
         ownerId: hamiltonianBrowserNodeId("profile-b"),
         attributes: expect.objectContaining({codeVersion: HAMILTONIAN_SERVICE_WORKER_CODE_VERSION}),
       }),
@@ -2027,9 +2027,9 @@ describe("isolated Hamiltonian host", () => {
     ]))
     expect(retained.envelopes.map(({observation}) => observation)).toContainEqual(expect.objectContaining({
       subjectId: profileATransportId,
-      ownerId: hamiltonianLifecycleEntityId("service-worker", "worker-a"),
+      ownerId: hamiltonianLifecycleEntityId("service", "worker-a"),
       sourceEntityId: profileAPageId,
-      targetEntityId: hamiltonianLifecycleEntityId("service-worker", "worker-a"),
+      targetEntityId: hamiltonianLifecycleEntityId("service", "worker-a"),
     }))
 
     observer.close()
@@ -2049,7 +2049,7 @@ describe("isolated Hamiltonian host", () => {
     controlUrl.protocol = "ws:"
     controlUrl.searchParams.set("token", host.token)
     controlUrl.searchParams.set("device", profileId)
-    controlUrl.searchParams.set("worker", hamiltonianLifecycleEntityId("service-worker", workerIdentity))
+    controlUrl.searchParams.set("worker", hamiltonianLifecycleEntityId("service", workerIdentity))
     const socket = await openSocket(controlUrl)
     await nextMessage(socket, "hello")
     const identity = browserIdentityMessage(
@@ -2069,7 +2069,7 @@ describe("isolated Hamiltonian host", () => {
 
     const observerUrl = new URL(controlUrl)
     observerUrl.searchParams.set("device", "orphan-observer")
-    observerUrl.searchParams.set("worker", "service-worker:orphan-observer")
+    observerUrl.searchParams.set("worker", "service:orphan-observer")
     const observer = new WebSocket(observerUrl)
     const retainedFrame = nextMessage(observer, "lifecycle-snapshot")
     await new Promise<void>((resolve, reject) => {
@@ -2080,7 +2080,7 @@ describe("isolated Hamiltonian host", () => {
       envelopes: Array<{observation: {subjectId: string}}>
     }
     expect(retained.envelopes.some(({observation}) =>
-      observation.subjectId === hamiltonianLifecycleEntityId("service-worker", workerIdentity)
+      observation.subjectId === hamiltonianLifecycleEntityId("service", workerIdentity)
     )).toBeFalse()
     observer.close()
   })
@@ -2091,7 +2091,7 @@ describe("isolated Hamiltonian host", () => {
     await host.bunReady
 
     const connectProfile = async (profileId: string, workerIdentity: string) => {
-      const workerEntityId = hamiltonianLifecycleEntityId("service-worker", workerIdentity)
+      const workerEntityId = hamiltonianLifecycleEntityId("service", workerIdentity)
       const controlUrl = new URL("/control", host.server.url)
       controlUrl.protocol = "ws:"
       controlUrl.searchParams.set("token", host.token)
@@ -2116,7 +2116,7 @@ describe("isolated Hamiltonian host", () => {
     const profileB = await connectProfile("profile-b", "worker-b")
     const profileA = await connectProfile("profile-a", "worker-a")
     const profileAPageId = "page:profile-a-cross-profile-probe"
-    const crossProfileTransportId = "service-worker-api:cross-profile-probe"
+    const crossProfileTransportId = "service-api:cross-profile-probe"
     const closed = new Promise<CloseEvent>((resolve) =>
       profileA.addEventListener("close", resolve, {once: true}))
     profileA.send(JSON.stringify({
@@ -2138,10 +2138,10 @@ describe("isolated Hamiltonian host", () => {
             type: "transport",
             phase: "opened",
             subjectId: crossProfileTransportId,
-            subjectKind: "service-worker-api",
-            ownerId: hamiltonianLifecycleEntityId("service-worker", "worker-a"),
+            subjectKind: "service-api",
+            ownerId: hamiltonianLifecycleEntityId("service", "worker-a"),
             sourceEntityId: profileAPageId,
-            targetEntityId: hamiltonianLifecycleEntityId("service-worker", "worker-b"),
+            targetEntityId: hamiltonianLifecycleEntityId("service", "worker-b"),
             transportId: crossProfileTransportId,
             attributes: {state: "active"},
           }),
@@ -2154,7 +2154,7 @@ describe("isolated Hamiltonian host", () => {
     observerUrl.protocol = "ws:"
     observerUrl.searchParams.set("token", host.token)
     observerUrl.searchParams.set("device", "cross-profile-observer")
-    observerUrl.searchParams.set("worker", "service-worker:cross-profile-observer")
+    observerUrl.searchParams.set("worker", "service:cross-profile-observer")
     observerUrl.searchParams.set("transport", "websocket:cross-profile-observer")
     const observer = new WebSocket(observerUrl)
     const retainedFrame = nextMessage(observer, "lifecycle-snapshot")
@@ -2166,7 +2166,7 @@ describe("isolated Hamiltonian host", () => {
       envelopes: Array<{observation: {subjectId: string}}>
     }
     const retainedIds = retained.envelopes.map(({observation}) => observation.subjectId)
-    expect(retainedIds).toContain(hamiltonianLifecycleEntityId("service-worker", "worker-b"))
+    expect(retainedIds).toContain(hamiltonianLifecycleEntityId("service", "worker-b"))
     expect(retainedIds).not.toContain(crossProfileTransportId)
     expect(retainedIds).not.toContain(profileAPageId)
 
@@ -2180,7 +2180,7 @@ describe("isolated Hamiltonian host", () => {
     await host.bunReady
 
     const connectProfile = async (profileId: string, workerIdentity: string, tabId: string) => {
-      const workerEntityId = hamiltonianLifecycleEntityId("service-worker", workerIdentity)
+      const workerEntityId = hamiltonianLifecycleEntityId("service", workerIdentity)
       const controlUrl = new URL("/control", host.server.url)
       controlUrl.protocol = "ws:"
       controlUrl.searchParams.set("token", host.token)
@@ -2215,9 +2215,9 @@ describe("isolated Hamiltonian host", () => {
     const closingProfileId = "closing-profile"
     const closingWorkerIdentity = "closing-worker"
     const closingBrowserId = hamiltonianBrowserNodeId(closingProfileId)
-    const closingWorkerId = hamiltonianLifecycleEntityId("service-worker", closingWorkerIdentity)
+    const closingWorkerId = hamiltonianLifecycleEntityId("service", closingWorkerIdentity)
     const closingPageId = "page:closing-profile"
-    const closingTransportId = "service-worker-api:closing-profile"
+    const closingTransportId = "service-api:closing-profile"
     const closing = await connectProfile(closingProfileId, closingWorkerIdentity, "closing-tab")
     const surviving = await connectProfile("surviving-profile", "surviving-worker", "surviving-tab")
     const pageMerged = nextMessage(closing.socket, "lifecycle-snapshot", (message) => {
@@ -2243,7 +2243,7 @@ describe("isolated Hamiltonian host", () => {
             type: "transport",
             phase: "opened",
             subjectId: closingTransportId,
-            subjectKind: "service-worker-api",
+            subjectKind: "service-api",
             ownerId: closingWorkerId,
             sourceEntityId: closingPageId,
             targetEntityId: closingWorkerId,
@@ -2278,7 +2278,7 @@ describe("isolated Hamiltonian host", () => {
     expect(retainedIds).not.toContain(closingPageId)
     expect(retainedIds).not.toContain(closingTransportId)
     expect(retainedIds).toContain(hamiltonianBrowserNodeId("surviving-profile"))
-    expect(retainedIds).toContain(hamiltonianLifecycleEntityId("service-worker", "surviving-worker"))
+    expect(retainedIds).toContain(hamiltonianLifecycleEntityId("service", "surviving-worker"))
 
     surviving.socket.close()
   })
@@ -2295,7 +2295,7 @@ describe("isolated Hamiltonian host", () => {
       controlUrl.protocol = "ws:"
       controlUrl.searchParams.set("token", host.token)
       controlUrl.searchParams.set("device", profileId)
-      controlUrl.searchParams.set("worker", hamiltonianLifecycleEntityId("service-worker", workerIdentity))
+      controlUrl.searchParams.set("worker", hamiltonianLifecycleEntityId("service", workerIdentity))
       const socket = await openSocket(controlUrl)
       const hello = await nextMessage(socket, "hello")
       socket.addEventListener("message", (event) => {
@@ -2311,7 +2311,7 @@ describe("isolated Hamiltonian host", () => {
       })
       const observedWorker = nextMessage(socket, "lifecycle", (message) => {
         const envelope = message.envelope as {observation?: {subjectId?: string}} | undefined
-        return envelope?.observation?.subjectId === hamiltonianLifecycleEntityId("service-worker", workerIdentity)
+        return envelope?.observation?.subjectId === hamiltonianLifecycleEntityId("service", workerIdentity)
       })
       socket.send(JSON.stringify(browserIdentityMessage(
         profileId,
@@ -2336,7 +2336,7 @@ describe("isolated Hamiltonian host", () => {
     const closingProfileId = "abrupt-profile"
     const closingWorkerIdentity = "abrupt-worker"
     const closingBrowserId = hamiltonianBrowserNodeId(closingProfileId)
-    const closingWorkerId = hamiltonianLifecycleEntityId("service-worker", closingWorkerIdentity)
+    const closingWorkerId = hamiltonianLifecycleEntityId("service", closingWorkerIdentity)
     const closing = await connectProfile(closingProfileId, closingWorkerIdentity, "abrupt-tab")
     const surviving = await connectProfile("grace-survivor", "grace-surviving-worker", "surviving-tab")
     const retainedAfterGrace = nextMessage(surviving, "lifecycle-snapshot", (message) => {
@@ -2353,7 +2353,7 @@ describe("isolated Hamiltonian host", () => {
     expect(retainedIds).not.toContain(closingBrowserId)
     expect(retainedIds).not.toContain(closingWorkerId)
     expect(retainedIds).toContain(hamiltonianBrowserNodeId("grace-survivor"))
-    expect(retainedIds).toContain(hamiltonianLifecycleEntityId("service-worker", "grace-surviving-worker"))
+    expect(retainedIds).toContain(hamiltonianLifecycleEntityId("service", "grace-surviving-worker"))
 
     surviving.close()
   })
@@ -2393,7 +2393,7 @@ describe("isolated Hamiltonian host", () => {
     liveUrl.protocol = "ws:"
     liveUrl.searchParams.set("token", host.token)
     liveUrl.searchParams.set("device", "crash-observer")
-    liveUrl.searchParams.set("worker", "service-worker:crash-observer-worker")
+    liveUrl.searchParams.set("worker", "service:crash-observer-worker")
     const live = await openSocket(liveUrl)
     const liveEnvelopes: Array<{
       eventId: string
@@ -2406,7 +2406,7 @@ describe("isolated Hamiltonian host", () => {
         liveEnvelopes.push(message.envelope as typeof liveEnvelopes[number])
       }
     })
-    const admitted = nextMessage(live, "service-worker-current")
+    const admitted = nextMessage(live, "service-current")
     live.send(JSON.stringify(browserIdentityMessage(
       "crash-observer",
       "crash-observer-worker",
@@ -2463,7 +2463,7 @@ describe("isolated Hamiltonian host", () => {
     retainedUrl.searchParams.set("token", host.token)
     retainedUrl.searchParams.set("device", "retained-crash-observer")
     retainedUrl.searchParams.set("transport", `websocket:${crypto.randomUUID()}`)
-    retainedUrl.searchParams.set("worker", `service-worker:${crypto.randomUUID()}`)
+    retainedUrl.searchParams.set("worker", `service:${crypto.randomUUID()}`)
     let resolveSnapshot!: (snapshot: {envelopes: Array<{observation: {subjectId: string}}>}) => void
     const retainedSnapshot = new Promise<{envelopes: Array<{observation: {subjectId: string}}>}>(
       (resolve) => { resolveSnapshot = resolve },
@@ -2545,10 +2545,10 @@ describe("isolated Hamiltonian host", () => {
     controlUrl.protocol = "ws:"
     controlUrl.searchParams.set("token", host.token)
     controlUrl.searchParams.set("device", "browser-observer")
-    controlUrl.searchParams.set("worker", hamiltonianLifecycleEntityId("service-worker", "observer-sw"))
+    controlUrl.searchParams.set("worker", hamiltonianLifecycleEntityId("service", "observer-sw"))
     const socket = await openSocket(controlUrl)
     await nextMessage(socket, "hello")
-    const admitted = nextMessage(socket, "service-worker-current")
+    const admitted = nextMessage(socket, "service-current")
     const topologyMessage = nextMessage(socket, "topology", (message) =>
       (message.topology as {peers?: unknown[]}).peers?.length === 1
     )
@@ -2585,7 +2585,7 @@ describe("isolated Hamiltonian host", () => {
     controlUrl.protocol = "ws:"
     controlUrl.searchParams.set("token", "test-token")
     controlUrl.searchParams.set("device", "device-a")
-    controlUrl.searchParams.set("worker", "service-worker:leader-a")
+    controlUrl.searchParams.set("worker", "service:leader-a")
     const first = await openSocket(controlUrl)
     await nextMessage(first, "hello")
 
@@ -2595,7 +2595,7 @@ describe("isolated Hamiltonian host", () => {
       "leader-runtime-a",
       "leader-resume-a",
     )))
-    await nextMessage(first, "service-worker-current")
+    await nextMessage(first, "service-current")
     const firstTopologyFrame = nextMessage(first, "topology", (message) =>
       (message.topology as {leader?: {tabId?: string}}).leader?.tabId === "tab-a")
     first.send(JSON.stringify({
@@ -2606,7 +2606,7 @@ describe("isolated Hamiltonian host", () => {
     expect(firstTopology.topology).toMatchObject({leader: {deviceId: "device-a", tabId: "tab-a"}})
 
     controlUrl.searchParams.set("device", "device-b")
-    controlUrl.searchParams.set("worker", "service-worker:leader-b")
+    controlUrl.searchParams.set("worker", "service:leader-b")
     const second = await openSocket(controlUrl)
     await nextMessage(second, "hello")
     second.send(JSON.stringify(browserIdentityMessage(
@@ -2615,7 +2615,7 @@ describe("isolated Hamiltonian host", () => {
       "leader-runtime-b",
       "leader-resume-b",
     )))
-    await nextMessage(second, "service-worker-current")
+    await nextMessage(second, "service-current")
     const stableTopologyFrame = nextMessage(second, "topology", (message) =>
       (message.topology as {leader?: {tabId?: string}}).leader?.tabId === "tab-a")
     second.send(JSON.stringify({
@@ -2643,12 +2643,12 @@ describe("isolated Hamiltonian host", () => {
     controlUrl.searchParams.set("token", "test-token")
     controlUrl.searchParams.set("device", "stable-installation")
 
-    const workerIdentity = "stable-service-worker"
+    const workerIdentity = "stable-service"
     const connect = async (workerRuntimeIncarnation: string, workerCodeVersion: string) => {
       const url = new URL(controlUrl)
       const transportId = `websocket:${crypto.randomUUID()}`
       url.searchParams.set("transport", transportId)
-      url.searchParams.set("worker", `service-worker:${workerIdentity}`)
+      url.searchParams.set("worker", `service:${workerIdentity}`)
       const socket = new WebSocket(url)
       const snapshot = nextMessage(socket, "lifecycle-snapshot")
       const helloMessage = nextMessage(socket, "hello")
@@ -2672,7 +2672,7 @@ describe("isolated Hamiltonian host", () => {
         const observation = (message.envelope as {
           observation?: {subjectId?: string; attributes?: {codeVersion?: string; runtimeIncarnation?: string}}
         } | undefined)?.observation
-        return observation?.subjectId === `service-worker:${workerIdentity}` &&
+        return observation?.subjectId === `service:${workerIdentity}` &&
           observation.attributes?.runtimeIncarnation === workerRuntimeIncarnation &&
           observation.attributes.codeVersion === workerCodeVersion
       })
@@ -2683,7 +2683,7 @@ describe("isolated Hamiltonian host", () => {
         crypto.randomUUID(),
         {workerCodeVersion},
       )))
-      await Promise.all([workerObserved, nextMessage(socket, "service-worker-current")])
+      await Promise.all([workerObserved, nextMessage(socket, "service-current")])
       return {socket, connectionId: String(hello.connectionId), lifecycleSnapshot, transportId}
     }
 
@@ -2743,9 +2743,9 @@ describe("isolated Hamiltonian host", () => {
         socket.addEventListener("open", () => resolve(), {once: true})
         socket.addEventListener("error", () => reject(new Error("WebSocket open failed")), {once: true})
       })
-      const workerIdentity = decodeURIComponent(workerEntityId.slice("service-worker:".length))
+      const workerIdentity = decodeURIComponent(workerEntityId.slice("service:".length))
       const identityMessageId = `message:${crypto.randomUUID()}`
-      const current = nextMessage(socket, "service-worker-current")
+      const current = nextMessage(socket, "service-current")
       socket.send(JSON.stringify(browserIdentityMessage(
         "endpoint-retirement-browser",
         workerIdentity,
@@ -2759,13 +2759,13 @@ describe("isolated Hamiltonian host", () => {
       return {socket, snapshot: await snapshot}
     }
 
-    const oldWorkerEntityId = "service-worker:old-worker"
+    const oldWorkerEntityId = "service:old-worker"
     const oldTransportId = "websocket:old-worker"
     const first = await connect(oldWorkerEntityId, oldTransportId)
     first.socket.close()
     await Bun.sleep(10)
 
-    const currentWorkerEntityId = "service-worker:current-worker"
+    const currentWorkerEntityId = "service:current-worker"
     const currentTransportId = "websocket:current-worker"
     const current = await connect(currentWorkerEntityId, currentTransportId)
     const before = current.snapshot.snapshot as {
@@ -2783,7 +2783,7 @@ describe("isolated Hamiltonian host", () => {
       type: "entity",
       phase: "ended",
       subjectId: oldWorkerEntityId,
-      subjectKind: "service-worker",
+      subjectKind: "service",
       ownerId: hamiltonianBrowserNodeId("endpoint-retirement-browser"),
       attributes: {
         state: "ended",
@@ -2803,7 +2803,7 @@ describe("isolated Hamiltonian host", () => {
     }))
     await echoed
 
-    const observer = await connect("service-worker:observer", "websocket:observer")
+    const observer = await connect("service:observer", "websocket:observer")
     const after = observer.snapshot.snapshot as {
       frontier: Array<{sourceId: string}>
       envelopes: Array<{observation: {subjectId: string}}>
@@ -2817,7 +2817,7 @@ describe("isolated Hamiltonian host", () => {
   test("rejects a forged Service Worker retirement that does not name the current worker as successor", async () => {
     const host = await createHamiltonianHost({port: 0, token: "test-token", heartbeatMs: 10_000})
     running.push(host)
-    const workerEntityId = "service-worker:current-worker"
+    const workerEntityId = "service:current-worker"
     const transportId = "websocket:current-worker"
     const controlUrl = new URL("/control", host.server.url)
     controlUrl.protocol = "ws:"
@@ -2832,7 +2832,7 @@ describe("isolated Hamiltonian host", () => {
       "current-runtime",
       "current-resume",
     )))
-    await nextMessage(socket, "service-worker-current")
+    await nextMessage(socket, "service-current")
 
     const pageSource = new HamiltonianLifecycleSource({
       id: "page:page-a",
@@ -2843,12 +2843,12 @@ describe("isolated Hamiltonian host", () => {
     const forged = pageSource.next(createHamiltonianLifecycleObservation({
       type: "entity",
       phase: "ended",
-      subjectId: "service-worker:old-worker",
-      subjectKind: "service-worker",
+      subjectId: "service:old-worker",
+      subjectKind: "service",
       ownerId: hamiltonianBrowserNodeId("forged-retirement-browser"),
       attributes: {
         state: "ended",
-        successor: "service-worker:not-the-socket-owner",
+        successor: "service:not-the-socket-owner",
       },
     }))
     const closed = new Promise<CloseEvent>((resolve) => socket.addEventListener("close", resolve, {once: true}))
@@ -2872,7 +2872,7 @@ describe("isolated Hamiltonian host", () => {
     controlUrl.searchParams.set("token", "test-token")
     controlUrl.searchParams.set("device", "causal-heartbeat")
     controlUrl.searchParams.set("transport", `websocket:${crypto.randomUUID()}`)
-    controlUrl.searchParams.set("worker", "service-worker:causal-heartbeat")
+    controlUrl.searchParams.set("worker", "service:causal-heartbeat")
 
     const queuedPings: Array<{at: number; seq: number}> = []
     const pingWaiters: Array<(ping: {at: number; seq: number}) => void> = []
@@ -2939,7 +2939,7 @@ describe("isolated Hamiltonian host", () => {
     controlUrl.protocol = "ws:"
     controlUrl.searchParams.set("token", host.token)
     controlUrl.searchParams.set("device", "bound-identity")
-    controlUrl.searchParams.set("worker", hamiltonianLifecycleEntityId("service-worker", "expected-worker"))
+    controlUrl.searchParams.set("worker", hamiltonianLifecycleEntityId("service", "expected-worker"))
     const socket = await openSocket(controlUrl)
     await nextMessage(socket, "hello")
     const closed = new Promise<CloseEvent>((resolve) => socket.addEventListener("close", resolve, {once: true}))
@@ -2960,7 +2960,7 @@ describe("isolated Hamiltonian host", () => {
     controlUrl.searchParams.set("token", host.token)
     controlUrl.searchParams.set("device", "bound-heartbeat")
     controlUrl.searchParams.set("transport", `websocket:${crypto.randomUUID()}`)
-    controlUrl.searchParams.set("worker", hamiltonianLifecycleEntityId("service-worker", "expected-worker"))
+    controlUrl.searchParams.set("worker", hamiltonianLifecycleEntityId("service", "expected-worker"))
     const socket = new WebSocket(controlUrl)
     const challenged = nextMessage(socket, "ping")
     await new Promise<void>((resolve, reject) => {
@@ -3209,7 +3209,7 @@ describe("isolated Hamiltonian host", () => {
     const replacementWorkerRuntimeIncarnation = `${first.workerRuntimeIncarnation}:reborn`
     controlUrl.searchParams.set(
       "worker",
-      hamiltonianLifecycleEntityId("service-worker", first.workerIdentity),
+      hamiltonianLifecycleEntityId("service", first.workerIdentity),
     )
     const secondSocket = await openSocket(controlUrl)
     const hello = await nextMessage(secondSocket, "hello")
@@ -3227,7 +3227,7 @@ describe("isolated Hamiltonian host", () => {
     const resumed = nextMessage(secondSocket, "topology", (message) =>
       (message.topology as {leader?: {connectionId?: string}}).leader?.connectionId === hello.connectionId
     )
-    const admitted = nextMessage(secondSocket, "service-worker-current")
+    const admitted = nextMessage(secondSocket, "service-current")
     secondSocket.send(JSON.stringify(browserIdentityMessage(
       "stable-browser",
       first.workerIdentity,
@@ -3273,7 +3273,7 @@ describe("isolated Hamiltonian host", () => {
     const firstWorkerRuntimeIncarnation = "negotiating-runtime-a"
     const resumeNonce = "stable-profile-resume"
 
-    controlUrl.searchParams.set("worker", hamiltonianLifecycleEntityId("service-worker", workerIdentity))
+    controlUrl.searchParams.set("worker", hamiltonianLifecycleEntityId("service", workerIdentity))
     const firstSocket = await openSocket(controlUrl)
     await nextMessage(firstSocket, "hello")
     const firstOffer = nextMessage(
@@ -3282,7 +3282,7 @@ describe("isolated Hamiltonian host", () => {
       (message) => (message.signal as {type?: string})?.type === "description",
       10_000,
     )
-    const firstAdmitted = nextMessage(firstSocket, "service-worker-current")
+    const firstAdmitted = nextMessage(firstSocket, "service-current")
     firstSocket.send(JSON.stringify(browserIdentityMessage(
       "negotiating-browser",
       workerIdentity,
@@ -3305,7 +3305,7 @@ describe("isolated Hamiltonian host", () => {
     const replacementWorkerRuntimeIncarnation = "negotiating-runtime-b"
     controlUrl.searchParams.set(
       "worker",
-      hamiltonianLifecycleEntityId("service-worker", workerIdentity),
+      hamiltonianLifecycleEntityId("service", workerIdentity),
     )
     const secondSocket = await openSocket(controlUrl)
     const hello = await nextMessage(secondSocket, "hello")
@@ -3318,7 +3318,7 @@ describe("isolated Hamiltonian host", () => {
       (message) => Number(message.peerGeneration) > firstAssignment.peerGeneration,
       10_000,
     )
-    const replacementAdmitted = nextMessage(secondSocket, "service-worker-current")
+    const replacementAdmitted = nextMessage(secondSocket, "service-current")
     secondSocket.send(JSON.stringify(browserIdentityMessage(
       "negotiating-browser",
       workerIdentity,
@@ -3517,7 +3517,7 @@ describe("isolated Hamiltonian host", () => {
       inspectionUrl.protocol = "ws:"
       inspectionUrl.searchParams.set("token", host.token)
       inspectionUrl.searchParams.set("device", "process-recovery-inspector")
-      inspectionUrl.searchParams.set("worker", "service-worker:process-recovery-inspector")
+      inspectionUrl.searchParams.set("worker", "service:process-recovery-inspector")
       const inspectionSocket = await openSocket(inspectionUrl)
       const lifecycleSnapshot = await nextMessage(inspectionSocket, "lifecycle-snapshot")
       inspectionSocket.close()
@@ -3584,7 +3584,7 @@ describe("isolated Hamiltonian host", () => {
     const replacementWorkerRuntimeIncarnation = `${fixture.workerRuntimeIncarnation}:reborn`
     controlUrl.searchParams.set(
       "worker",
-      hamiltonianLifecycleEntityId("service-worker", fixture.workerIdentity),
+      hamiltonianLifecycleEntityId("service", fixture.workerIdentity),
     )
     const secondSocket = await openSocket(controlUrl)
     const hello = await nextMessage(secondSocket, "hello")
@@ -3597,7 +3597,7 @@ describe("isolated Hamiltonian host", () => {
       (message) => Number(message.peerGeneration) > firstAssignment.peerGeneration,
       10_000,
     )
-    const admitted = nextMessage(secondSocket, "service-worker-current")
+    const admitted = nextMessage(secondSocket, "service-current")
     secondSocket.send(JSON.stringify(browserIdentityMessage(
       "detached-process-recovery-browser",
       fixture.workerIdentity,

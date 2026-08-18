@@ -44,7 +44,7 @@ export function startRpc(bindings: RpcBindings) {
     updates = updates.then(update, update).catch((error) => {
       const state = states.get(connection)
       if (state) state.awaitingDelta = false
-      console.debug("[@hamiltonian/release:service-worker:rpc:update]", "не удалось синхронизировать пакеты", error)
+      console.debug("[@hamiltonian/release:service:rpc:update]", "не удалось синхронизировать пакеты", error)
       console.error("Не удалось синхронизировать браузерные пакеты", error)
       if (!destroyed && connection === socket && connection.readyState === WebSocket.OPEN)
         schedule(() => requestSynchronization(connection), 1_000)
@@ -64,7 +64,7 @@ export function startRpc(bindings: RpcBindings) {
       const current = await bindings.currentPackages()
       if (destroyed || connection !== socket || connection.readyState !== WebSocket.OPEN) return
       connection.send(JSON.stringify(releaseCurrentMessage(current)))
-      console.debug("[@hamiltonian/release:service-worker:rpc:update]", "отправлено фактическое состояние кэша", {
+      console.debug("[@hamiltonian/release:service:rpc:update]", "отправлено фактическое состояние кэша", {
         current,
         to: connection.url,
       })
@@ -73,22 +73,22 @@ export function startRpc(bindings: RpcBindings) {
 
   const applyDelta = async (connection: WebSocket, delta: ReleaseDelta) => {
     try {
-      console.debug("[@hamiltonian/release:service-worker:rpc:update]", "получена delta браузерных пакетов", delta)
+      console.debug("[@hamiltonian/release:service:rpc:update]", "получена delta браузерных пакетов", delta)
       const updated = await bindings.applyDelta(delta)
       if (updated.length === 0) {
-        console.debug("[@hamiltonian/release:service-worker:rpc:update]", "кэш уже совпадает с server state")
+        console.debug("[@hamiltonian/release:service:rpc:update]", "кэш уже совпадает с server state")
         return
       }
-      console.debug("[@hamiltonian/release:service-worker:rpc:update]", "кэш пакетов обновлён", {packages: updated})
-      console.debug("[@hamiltonian/release:service-worker:rpc:update]", "перезагрузка страниц началась", {
+      console.debug("[@hamiltonian/release:service:rpc:update]", "кэш пакетов обновлён", {packages: updated})
+      console.debug("[@hamiltonian/release:service:rpc:update]", "перезагрузка страниц началась", {
         packages: updated,
       })
       await bindings.restartBrowser()
-      console.debug("[@hamiltonian/release:service-worker:rpc:update]", "перезагрузка страниц завершена", {
+      console.debug("[@hamiltonian/release:service:rpc:update]", "перезагрузка страниц завершена", {
         packages: updated,
       })
     } catch (error) {
-      console.debug("[@hamiltonian/release:service-worker:rpc:update]", "обновление пакетов завершилось с ошибкой", delta, error)
+      console.debug("[@hamiltonian/release:service:rpc:update]", "обновление пакетов завершилось с ошибкой", delta, error)
       console.error(
         `Не удалось обновить пакеты ${[
           ...delta.update.map(({name}) => name),
@@ -110,14 +110,14 @@ export function startRpc(bindings: RpcBindings) {
     const state: SynchronizationState = {awaitingDelta: false, resynchronize: false}
     socket = connection
     states.set(connection, state)
-    console.debug("[@hamiltonian/release:service-worker:rpc]", "подключаемся к серверу обновлений", {
+    console.debug("[@hamiltonian/release:service:rpc]", "подключаемся к серверу обновлений", {
       from: location.origin,
       to: url.href,
     })
 
     connection.addEventListener("open", () => {
       if (destroyed) return
-      console.debug("[@hamiltonian/release:service-worker:rpc]", "подключились к серверу обновлений", {
+      console.debug("[@hamiltonian/release:service:rpc]", "подключились к серверу обновлений", {
         to: connection.url,
       })
       requestSynchronization(connection)
@@ -127,7 +127,7 @@ export function startRpc(bindings: RpcBindings) {
       if (destroyed) return
       const message = parseMessage(event.data)
       if (parseReleaseChangedMessage(message) !== null) {
-        console.debug("[@hamiltonian/release:service-worker:rpc:update]", "получен сигнал об обновлении", {
+        console.debug("[@hamiltonian/release:service:rpc:update]", "получен сигнал об обновлении", {
           from: connection.url,
         })
         requestSynchronization(connection)
@@ -148,7 +148,7 @@ export function startRpc(bindings: RpcBindings) {
 
     connection.addEventListener("close", (event) => {
       if (socket === connection) socket = null
-      console.debug("[@hamiltonian/release:service-worker:rpc]", "отключились от сервера обновлений", {
+      console.debug("[@hamiltonian/release:service:rpc]", "отключились от сервера обновлений", {
         code: event.code,
         intentional: destroyed,
         reason: event.reason,
@@ -158,7 +158,7 @@ export function startRpc(bindings: RpcBindings) {
     })
 
     connection.addEventListener("error", (error) => {
-      console.debug("[@hamiltonian/release:service-worker:rpc]", "ошибка подключения к серверу обновлений", error)
+      console.debug("[@hamiltonian/release:service:rpc]", "ошибка подключения к серверу обновлений", error)
       console.error("Ошибка WebSocket сервиса обновлений", error)
     })
   }

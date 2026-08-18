@@ -11,7 +11,7 @@ source map. Временные diagnostics писать через `console.debu
 третьим — структурированные данные, например:
 
 ```ts
-console.debug("[@hamiltonian/release:service-worker:update]", "новая сборка загружена", {
+console.debug("[@hamiltonian/release:service:update]", "новая сборка загружена", {
   cache,
   source,
   status,
@@ -27,10 +27,10 @@ console.debug("[@hamiltonian/release:service-worker:update]", "новая сбо
   содержать разные entrypoints для Window, browser Worker, Service Worker,
   Bun server и server Worker; новую функциональность размещать в принадлежащем
   ей internal package.
-* `@hamiltonian/release` — один package с env `main`, `service-worker` и
+* `@hamiltonian/release` — один package с env `main`, `service` и
   `server`. Он определяет состав используемых `@internal/*` packages и
   меняется вместе с этим составом. RPC Service Worker является внутренней
-  частью env `service-worker`, а не отдельным browser package.
+  частью env `service`, а не отдельным browser package.
   `@internal/visual` при этом остаётся самостоятельным artifact с cache owner
   `internal`; source и готовая сборка release main импортируют его как
   `@internal/visual`, а import map разрешает specifier в
@@ -39,7 +39,7 @@ console.debug("[@hamiltonian/release:service-worker:update]", "новая сбо
   атомарной публикацией, routes, `/code` и server-реализацией RPC; его artifact
   не загружается browser.
 * `@hamiltonian/startup` — один фиксированный package с env `main` и
-  `service-worker`. В обычной разработке его не менять и через endpoint
+  `service`. В обычной разработке его не менять и через endpoint
   обновления не передавать. Он объявляет dependency на
   `@hamiltonian/release`; public loader/dependencies/runtime types принадлежат
   release, а startup предоставляет реализацию через type-only bare import.
@@ -85,9 +85,16 @@ fallback не добавлять: builder и TypeScript выбирают нуж�
 | --- | ---------- | ------ |
 | `main` | Window main realm | `browser` |
 | `worker` | browser Dedicated Worker | `browser` |
-| `service-worker` | browser Service Worker | `browser` |
+| `service` | browser Service Worker | `browser` |
 | `server` | основной Bun server process | `bun` |
 | `server-worker` | Worker, созданный Bun server | `bun` |
+
+`Service Worker` остаётся полным названием браузерной технологии и стандартных
+Web API. Во всех управляемых Hamiltonian именах — env, condition, source path,
+build script, outfile, URL/cache identity, RPC metadata и lifecycle kind — её
+единственное сокращение имеет точный вид `service`. Проектный токен
+`service-worker` не поддерживается. `server-worker` является отдельной Bun-средой
+и этим правилом не сокращается.
 
 `server` и `server-worker` всегда являются разными env, даже если используют
 один target. Package объявляет один `typecheck` для всего source composition и
@@ -148,12 +155,12 @@ marker `/transaction`; delta, desired composition и IDs в marker не хран
 Worker сохраняет там только проверенные `update` artifacts, добавляет все
 candidates в canonical caches без old deletion и повторно проверяет полный
 candidate composition. После этого cleanup идёт только вперёд; старый
-`@hamiltonian/release:service-worker` удаляется последним из old entries,
+`@hamiltonian/release:service` удаляется последним из old entries,
 а `transaction` — последней durable операцией после final verification.
 
 После остановки release заново собирает canonical current и получает fresh
 delta от server. Startup не открывает `transaction`, не разбирает delta и не ждёт
-cleanup. Он полностью проверяет и запускает только первую exact service-worker
+cleanup. Он полностью проверяет и запускает только первую exact service
 entry в Cache order; повреждение первой entry завершается fail closed. Прежние
 state keys, UUID storages и migration-ветки в действующем source отсутствуют.
 
@@ -169,7 +176,7 @@ verification и удаления `transaction`. Затем startup направ�
 Пример:
 
 ```text
-GET http://127.0.0.1:4444/@hamiltonian/release?env=service-worker
+GET http://127.0.0.1:4444/@hamiltonian/release?env=service
 GET http://127.0.0.1:4444/@internal/visual?env=main&version=0.1.3
 ```
 

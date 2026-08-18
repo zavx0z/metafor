@@ -29,11 +29,11 @@ test("builds the real orchestration and isolated layout Worker bundles", async (
     expect(layoutWorkerSource).toContain('type: "layout-result"')
     expect(layoutWorkerSource).not.toContain("@nodes/ui")
 
-    await buildBrowserEntry("hamiltonian/browser/service-worker.ts", outdir)
-    const serviceWorkerSource = await Bun.file(join(outdir, "service-worker.js")).text()
-    expect(serviceWorkerSource).toContain('subjectKind: "service-worker"')
-    expect(serviceWorkerSource).toContain('subjectKind: "service-worker-api"')
-    expect(serviceWorkerSource).toContain('subjectKind: "service-worker-api-message"')
+    await buildBrowserEntry("hamiltonian/browser/service.ts", outdir)
+    const serviceWorkerSource = await Bun.file(join(outdir, "service.js")).text()
+    expect(serviceWorkerSource).toContain('subjectKind: "service"')
+    expect(serviceWorkerSource).toContain('subjectKind: "service-api"')
+    expect(serviceWorkerSource).toContain('subjectKind: "service-api-message"')
     expect(serviceWorkerSource).toContain('HAMILTONIAN_SERVICE_WORKER_CODE_VERSION = "1.1.3"')
     expect(serviceWorkerSource).toContain("registration.update()")
     expect(serviceWorkerSource).toContain("applicationReady")
@@ -69,7 +69,7 @@ test("builds the real orchestration and isolated layout Worker bundles", async (
     const watchRootsEnd = serverRuntimeTypeScript.indexOf("]) {", watchRootsStart)
     expect(serverRuntimeTypeScript.slice(watchRootsStart, watchRootsEnd)).toContain("updateRoot")
 
-    const serviceWorkerTypeScript = await Bun.file(join(repositoryRoot, "hamiltonian/browser/service-worker.ts")).text()
+    const serviceWorkerTypeScript = await Bun.file(join(repositoryRoot, "hamiltonian/browser/service.ts")).text()
     expect(serviceWorkerTypeScript).toContain("new HamiltonianServiceWorkerUpdateController(")
     expect(serviceWorkerTypeScript).toContain("new HamiltonianBrowserReleaseCacheController(")
     expect(serviceWorkerTypeScript).not.toContain("let applicationReady")
@@ -81,7 +81,7 @@ test("builds the real orchestration and isolated layout Worker bundles", async (
     expect(serviceWorkerTypeScript).not.toContain("selectRetainedCaches")
     const serviceWorkerUpdateSource = await Bun.file(join(
       repositoryRoot,
-      "hamiltonian/update/browser/service-worker-update.ts",
+      "hamiltonian/update/browser/service-update.ts",
     )).text()
     expect(serviceWorkerUpdateSource).toContain("this.#updateRegistration")
     expect(serviceWorkerUpdateSource).toContain("#applicationReady")
@@ -109,7 +109,7 @@ test("builds the real orchestration and isolated layout Worker bundles", async (
     expect(serviceWorkerTypeScript).toContain("currentPushReady = true")
     expect(serviceWorkerTypeScript).toContain("await restoreControlBootstrap()")
     expect(serviceWorkerTypeScript).toContain('...(state === "active" ? {reason: null} : {})')
-    expect(serviceWorkerTypeScript).toContain('hamiltonianLifecycleEntityId("service-worker", workerRuntimeIncarnation)')
+    expect(serviceWorkerTypeScript).toContain('hamiltonianLifecycleEntityId("service", workerRuntimeIncarnation)')
     const directBrowserCloseCodes = [...serviceWorkerTypeScript.matchAll(/\.close\(\s*(\d+)/g)]
       .map(([, code]) => Number(code))
     expect(directBrowserCloseCodes.filter((code) => code >= 1001 && code <= 2999)).toEqual([])

@@ -1,4 +1,4 @@
-import {isHamiltonianServiceWorkerCodeVersion} from "../shared/service-worker-release.js"
+import {isHamiltonianServiceWorkerCodeVersion} from "../shared/service-release.js"
 
 export interface HamiltonianBrowserSourceArtifacts {
   orchestrationBundle: string

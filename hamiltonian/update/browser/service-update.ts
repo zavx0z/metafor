@@ -1,7 +1,7 @@
 import {
   isHamiltonianServiceWorkerCodeVersion,
   isHamiltonianServiceWorkerRelease,
-} from "../shared/service-worker-release.js"
+} from "../shared/service-release.js"
 
 export interface HamiltonianServiceWorkerRelease {
   version: string

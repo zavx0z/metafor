@@ -175,7 +175,7 @@ transport.
 Window-контур и загружает `@internal/visual` как самостоятельный artifact по
 его каноническому package URL `/@internal/visual?env=main`.
 Visual хранится в cache owner `internal` и обновляется отдельно от bytes
-release main. Тот же `@hamiltonian/release` в env `service-worker`
+release main. Тот же `@hamiltonian/release` в env `service`
 разворачивает сменяемый Service Worker-контур, владеет RPC transport и
 подготовкой следующего release; env `server` владеет host-стороной механизма.
 
@@ -183,15 +183,21 @@ release main. Тот же `@hamiltonian/release` в env `service-worker`
 Source всегда импортирует его bare specifier без env и transport path. Корневой
 `exports["."]` package напрямую связывает только реально существующие project
 conditions `<scope>:<env>` с `./<env>/index.ts`, например `internal:main` или
-`hamiltonian:service-worker`. Вложенных `types/browser|bun`, env subpaths и
+`hamiltonian:service`. Вложенных `types/browser|bun`, env subpaths и
 обязательного `default` fallback нет. Builder и TypeScript явно выбирают
 condition, поэтому неподдерживаемая среда останавливает resolution, а не
 получает entrypoint другой среды.
 
 `main` означает Window realm, `worker` — browser Dedicated Worker,
-`service-worker` — browser Service Worker, `server` — основной Bun process, а
+`service` — browser Service Worker, `server` — основной Bun process, а
 `server-worker` — Worker, созданный Bun server. Две Bun-среды различаются даже
 при одинаковом build target: у них разные lifecycle, globals и entrypoints.
+`Service Worker` остаётся полным названием браузерной технологии и стандартных
+Web API. Во всех управляемых Hamiltonian именах — env, condition, source path,
+build script, outfile, URL/cache identity, RPC metadata и lifecycle kind — её
+единственное сокращение имеет точный вид `service`. Проектный токен
+`service-worker` не поддерживается. `server-worker` является отдельной Bun-средой
+и этим правилом не сокращается.
 Каждый объявленный env является отдельной build-единицей, но весь package
 имеет один package-wide `typecheck`. Build executor запускает его ровно один
 раз перед группой `build:<env>`; `prebuild`, generic `build` и
@@ -228,7 +234,7 @@ Startup не определяет cache-first policy: её исполняет re
 После marker release загружает и проверяет только `update` artifacts, сохраняет их
 в `transaction`, затем добавляет все new candidates в canonical caches без old deletion.
 Только после повторной проверки полного candidate composition начинается forward
-cleanup. Старый `@hamiltonian/release:service-worker` удаляется последним из old
+cleanup. Старый `@hamiltonian/release:service` удаляется последним из old
 entries. После итоговой проверки ровно одной exact entry на каждый desired slot
 последняя durable операция удаляет весь `transaction`.
 
@@ -252,7 +258,7 @@ delta удаляет любые фактические entries вне полно
 технический cache без marker безопасно удаляется.
 
 Startup не знает о recovery. При временном overlap `[old, new]` он полностью
-проверяет и запускает первую exact service-worker entry в Cache order. После
+проверяет и запускает первую exact service entry в Cache order. После
 forward cleanup остаётся `[new]`, и следующий холодный запуск выбирает её без
 active pointer, SemVer-сравнения или чтения `transaction`. Повреждение первой
 entry завершается ошибкой и не разрешает молча перейти ко второй.
@@ -296,7 +302,7 @@ versions server проверяет runtime dependencies всех участни�
 
 `@hamiltonian/startup` не входит в сменяемый membership, но явно объявляет
 загружаемый `@hamiltonian/release`. Public contracts loader, односторонних
-dependencies и возвращаемого runtime принадлежат release env `service-worker`;
+dependencies и возвращаемого runtime принадлежат release env `service`;
 startup импортирует их только как public types по bare package name и
 предоставляет реализацию primitives.
 Release не импортирует types относительным путём через границу startup package.
@@ -329,14 +335,14 @@ frontend framework dependencies.
 env и integrity contracts находятся в `hamiltonian/shared/package`, а HTML и
 Web App Manifest — в `hamiltonian/static`; transport-каталога `hamiltonian/web`
 нет. Внутри `release/server` раздельно находятся `package`, `release`, `http`,
-`rpc` и `shared`. Внутри `release/service-worker` раздельно находятся
+`rpc` и `shared`. Внутри `release/service` раздельно находятся
 `runtime`, `fetch`, `cache`, `update` и `rpc`; корневой `index.ts` этой среды
 остаётся только её entrypoint. Общий server/Service Worker wire protocol
 принадлежит `release/shared`, а transaction implementation — только
-`release/service-worker/update`.
+`release/service/update`.
 
 Service Worker-сторона RPC является внутренней директорией env
-`service-worker` package `@hamiltonian/release` и входит в его artifact.
+`service` package `@hamiltonian/release` и входит в его artifact.
 Отдельного browser package, версии или cache entry для RPC нет. Release использует RPC для обновлений, signaling,
 управления и мониторинга, не превращая его в подключаемый `@internal/*` module.
 
@@ -412,7 +418,7 @@ Transport catalog и его палитра принадлежат Hamiltonian: �
 `@nodes/ui` знает только opaque `connectionType` и универсальный fallback.
 Generic `parentId` задаёт только визуальный контейнер и не сообщает пакету
 предметный смысл ownership. В браузерной части Hamiltonian выставляет его для
-наблюдённых `page`, `service-worker`, `window-main`, `dedicated-worker` и
+наблюдённых `page`, `service`, `window-main`, `dedicated-worker` и
 `rtc-peer`, чей фактический `ownerId` уже присутствует в текущей причинной
 проекции. Сам `browser-runtime` становится root owner только после
 page-наблюдения, а Service Worker получает его как parent только после
@@ -561,10 +567,10 @@ module и не переименовываются в Worker version/hash.
 
 Каждое подключение локального Chrome/profile проходит profile-scoped admission.
 Host сравнивает заявленную Worker code version с текущим локальным manifest.
-Совпавшая версия получает `service-worker-current` и только после этого входит
+Совпавшая версия получает `service-current` и только после этого входит
 в retained browser lifecycle, topology, peer и иную прикладную работу. Stale
 execution допускается лишь к техническим declaration/identity, heartbeat и
-`service-worker-update`; его snapshot и окна не материализуются. Получив exact
+`service-update`; его snapshot и окна не материализуются. Получив exact
 target `{version, sha256}`, Worker вызывает browser-managed
 `ServiceWorkerRegistration.update()`. Отправка запроса и завершение `update()`
 не являются успехом: профиль подтверждён только когда тот же logical Worker
@@ -975,7 +981,7 @@ Private keys остаются в Git-ignored `.tls/`. Для Android серти�
 При одной зарегистрированной подписке явное пробуждение запускается так:
 
 ```bash
-curl -X POST https://127.0.0.1:4400/lab/wake-service-worker \
+curl -X POST https://127.0.0.1:4400/lab/wake-service \
   -H 'authorization: Bearer replace-with-a-test-secret' \
   -H 'content-type: application/json' \
   -d '{}'
@@ -1014,13 +1020,13 @@ bun build public/window-entry.js public/embodiment-worker-entry.js \
   --outdir /tmp/hamiltonian-entry-build-check --target browser \
   --external /core/monitor.js --external /app.js --external /orchestration.js \
   --external /embodiment-worker.js
-bun build browser/service-worker.ts --target browser --format esm \
+bun build browser/service.ts --target browser --format esm \
   --sourcemap=inline \
   --outfile /tmp/hamiltonian-entry-build-check/sw-entry.js
 bunx tsc --ignoreConfig --noEmit --strict --module preserve \
   --moduleResolution bundler --target es2022 --lib es2022,webworker \
   --allowImportingTsExtensions --allowJs --skipLibCheck \
-  browser/service-worker.ts types.d.ts
+  browser/service.ts types.d.ts
 
 HAMILTONIAN_TOKEN=local-test \
   bun run soak/run.ts http://127.0.0.1:4400

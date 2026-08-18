@@ -274,7 +274,7 @@ export async function createHamiltonianTestServer(
     reportPeerErrorForTest: async (peerId, error) => {
       await command("report-peer-error", [peerId, error])
     },
-    updateServiceWorkerReleaseForTest: (source) => command("update-service-worker-release", [source]),
+    updateServiceWorkerReleaseForTest: (source) => command("update-service-release", [source]),
     async stop() {
       if (stopped) return
       stopped = true

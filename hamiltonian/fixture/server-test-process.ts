@@ -55,7 +55,7 @@ type FixtureBundleName =
 const fixtureBundleByEntrypoint = new Map<string, FixtureBundleName>([
   ["/browser/orchestration.ts", "HAMILTONIAN_FIXTURE_ORCHESTRATION_BUNDLE_BASE64"],
   ["/visual/browser/layout-worker.ts", "HAMILTONIAN_FIXTURE_LAYOUT_WORKER_BUNDLE_BASE64"],
-  ["/browser/service-worker.ts", "HAMILTONIAN_FIXTURE_SERVICE_WORKER_BUNDLE_BASE64"],
+  ["/browser/service.ts", "HAMILTONIAN_FIXTURE_SERVICE_WORKER_BUNDLE_BASE64"],
   ["/pkg/web-push/src/client.ts", "HAMILTONIAN_FIXTURE_WEB_PUSH_CLIENT_BUNDLE_BASE64"],
 ])
 const pendingBundles = new Map<FixtureBundleName, PromiseWithResolvers<string>>()
@@ -202,7 +202,7 @@ async function updateFixtureServiceWorkerRelease(source: string) {
   const eventOffset = getHamiltonianStatus().events.length
   const listener = sourceWatchListeners.values().next().value
   if (listener === undefined) throw new Error("Hamiltonian source watcher was not captured by fixture")
-  listener("change", "service-worker.ts")
+  listener("change", "service.ts")
   const deadline = Date.now() + 10_000
   while (true) {
     const status = getHamiltonianStatus()
@@ -279,7 +279,7 @@ process.on("message", async (rawMessage) => {
         )
         value = null
         break
-      case "update-service-worker-release":
+      case "update-service-release":
         value = await updateFixtureServiceWorkerRelease(String(args[0] ?? ""))
         break
       case "stop":

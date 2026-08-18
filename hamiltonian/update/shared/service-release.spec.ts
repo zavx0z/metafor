@@ -2,7 +2,7 @@ import {describe, expect, test} from "bun:test"
 import {
   isHamiltonianServiceWorkerCodeVersion,
   isHamiltonianServiceWorkerRelease,
-} from "./service-worker-release.js"
+} from "./service-release.js"
 
 describe("Service Worker code version", () => {
   test("accepts exact SemVer 2.0.0 versions", () => {

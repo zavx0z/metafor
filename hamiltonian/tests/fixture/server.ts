@@ -209,7 +209,7 @@ async function fixtureArtifactResponse(request: Request) {
       if (
         fault === "update-fetch-failure-once"
         && (revisions[module] ?? 0) > 0
-        && artifact.env === "service-worker"
+        && artifact.env === "service"
         && url.searchParams.has("version")
         && updateFetchFailures++ === 0
       ) {

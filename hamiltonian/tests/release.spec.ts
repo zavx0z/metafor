@@ -29,7 +29,7 @@ import {
   browserPackageUrl,
   parseBrowserPackageUrl,
 } from "../shared/package/url"
-import {cachedPackageIdentity} from "../release/service-worker/cache/current"
+import {cachedPackageIdentity} from "../release/service/cache/current"
 
 setDefaultTimeout(30_000)
 
@@ -44,7 +44,7 @@ test("package state comes from root caret dependencies", async () => {
     "@hamiltonian/release",
     "@internal/visual",
   ])
-  expect(packages.map(({env}) => env)).toEqual(["main", "service-worker", "main"])
+  expect(packages.map(({env}) => env)).toEqual(["main", "service", "main"])
   for (const entry of packages) {
     expect(browserPackageUrl(entry.name, entry.env, entry.version)).toBe(
       `/${entry.name}?env=${entry.env}&version=${entry.version}`,
@@ -257,7 +257,7 @@ test("server delta omits unchanged entries and separates update from removal", (
   }
   const service = {
     name: "@hamiltonian/release",
-    env: "service-worker" as const,
+    env: "service" as const,
     version: "2.0.0",
     sha256: "b".repeat(64),
     size: 84,

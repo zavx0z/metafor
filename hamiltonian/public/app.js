@@ -48,13 +48,13 @@ if (!deviceId) {
   deviceId = crypto.randomUUID()
   localStorage.setItem("hamiltonian-device", deviceId)
 }
-let serviceWorkerIdentity = localStorage.getItem("hamiltonian-service-worker-id")
+let serviceWorkerIdentity = localStorage.getItem("hamiltonian-service-id")
 if (!serviceWorkerIdentity) {
   serviceWorkerIdentity = crypto.randomUUID()
-  localStorage.setItem("hamiltonian-service-worker-id", serviceWorkerIdentity)
+  localStorage.setItem("hamiltonian-service-id", serviceWorkerIdentity)
 }
 const browserEntityId = hamiltonianBrowserNodeId(deviceId)
-const stableServiceWorkerEntityId = hamiltonianLifecycleEntityId("service-worker", serviceWorkerIdentity)
+const stableServiceWorkerEntityId = hamiltonianLifecycleEntityId("service", serviceWorkerIdentity)
 const browserRuntimeName = hamiltonianBrowserRuntimeName(navigator.userAgent)
 let controlResumeNonce = localStorage.getItem("hamiltonian-control-resume")
 if (!controlResumeNonce) {
@@ -80,7 +80,7 @@ const token = bootstrapToken ?? localStorage.getItem("hamiltonian-token")
 
 let attachedController = null
 let attachedWorkerEntityId = null
-const serviceWorkerTransportId = hamiltonianLifecycleTransportId("service-worker-api", crypto.randomUUID())
+const serviceWorkerTransportId = hamiltonianLifecycleTransportId("service-api", crypto.randomUUID())
 let pendingControllerConnect = null
 let pendingPageMessages = []
 let supersededWorkerEntityId = null
@@ -179,7 +179,7 @@ function send(message) {
         type: "message",
         phase: "sent",
         subjectId: messageId,
-        subjectKind: "service-worker-api-message",
+        subjectKind: "service-api-message",
         ownerId: pageEntityId,
         sourceEntityId: pageEntityId,
         targetEntityId: attachedWorkerEntityId,
@@ -695,7 +695,7 @@ function observeAttachedWorkerQuiet(reason) {
     type: "entity",
     phase: "changed",
     subjectId: attachedWorkerEntityId,
-    subjectKind: "service-worker",
+    subjectKind: "service",
     ownerId: browserEntityId,
     attributes: {state: "standby", heartbeat: "paused", reason},
   }))
@@ -717,7 +717,7 @@ function receive(message) {
     return
   }
   if (message.kind === "worker-state" && typeof message.workerIdentity === "string" && message.workerIdentity) {
-    const nextWorkerEntityId = hamiltonianLifecycleEntityId("service-worker", message.workerIdentity)
+    const nextWorkerEntityId = hamiltonianLifecycleEntityId("service", message.workerIdentity)
     const previousWorkerEntityId = attachedWorkerEntityId ?? supersededWorkerEntityId
     supersededWorkerEntityId = null
     if (previousWorkerEntityId && previousWorkerEntityId !== nextWorkerEntityId) {
@@ -725,7 +725,7 @@ function receive(message) {
         type: "entity",
         phase: "ended",
         subjectId: previousWorkerEntityId,
-        subjectKind: "service-worker",
+        subjectKind: "service",
         ownerId: browserEntityId,
         attributes: {
           state: "ended",
@@ -742,7 +742,7 @@ function receive(message) {
         type: "message",
         phase: "sent",
         subjectId: pending.messageId,
-        subjectKind: "service-worker-api-message",
+        subjectKind: "service-api-message",
         ownerId: pageEntityId,
         sourceEntityId: pageEntityId,
         targetEntityId: nextWorkerEntityId,
@@ -756,7 +756,7 @@ function receive(message) {
         type: "message",
         phase: "sent",
         subjectId: pending.messageId,
-        subjectKind: "service-worker-api-message",
+        subjectKind: "service-api-message",
         ownerId: pageEntityId,
         sourceEntityId: pageEntityId,
         targetEntityId: nextWorkerEntityId,
@@ -772,7 +772,7 @@ function receive(message) {
       type: "message",
       phase: "received",
       subjectId: messageId,
-      subjectKind: "service-worker-api-message",
+      subjectKind: "service-api-message",
       ownerId: pageEntityId,
       sourceEntityId: attachedWorkerEntityId,
       targetEntityId: pageEntityId,
@@ -953,7 +953,7 @@ function observeWebPushLifecycle(event) {
     type: "entity",
     phase: "changed",
     subjectId: stableServiceWorkerEntityId,
-    subjectKind: "service-worker",
+    subjectKind: "service",
     ownerId: browserEntityId,
     attributes,
   }))
@@ -1121,7 +1121,7 @@ function closeCurrentServiceWorkerChannel(reason) {
       type: "transport",
       phase: "closed",
       subjectId: serviceWorkerTransportId,
-      subjectKind: "service-worker-api",
+      subjectKind: "service-api",
       ownerId: pageEntityId,
       sourceEntityId: pageEntityId,
       targetEntityId: attachedWorkerEntityId,

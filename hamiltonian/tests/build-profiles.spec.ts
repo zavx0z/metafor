@@ -23,13 +23,13 @@ const packages = {
     path: "startup",
     name: "@hamiltonian/startup",
     scope: "hamiltonian",
-    environments: ["main", "service-worker"],
+    environments: ["main", "service"],
   },
   release: {
     path: "release",
     name: "@hamiltonian/release",
     scope: "hamiltonian",
-    environments: ["main", "service-worker", "server"],
+    environments: ["main", "service", "server"],
   },
   visual: {
     path: "internal/visual",
@@ -128,6 +128,10 @@ test("package exports keep server and server-worker as separate direct env entry
     name: "@example/runtime",
     exports: {".": {"example:server": "./server.ts"}},
   })).toThrow("must target ./server/index.ts")
+  expect(() => packageEnvironmentExports({
+    name: "@example/runtime",
+    exports: {".": {"example:service-worker": "./service-worker/index.ts"}},
+  })).toThrow("Unsupported package environment service-worker")
 })
 
 test("one bare visual import resolves source types by selected env without a build", async () => {
@@ -166,20 +170,20 @@ test("one bare visual import resolves source types by selected env without a bui
 
 test("build executor derives development arguments from the production command", async () => {
   const serviceWorker = (await packageOwners("@hamiltonian/release"))
-    .find(({env}) => env === "service-worker")
+    .find(({env}) => env === "service")
   if (!serviceWorker) throw new Error("Release Service Worker owner is missing")
   expect(packageBuildCommand(serviceWorker.build, "production").join(" ")).toBe(serviceWorker.build)
   expect(packageBuildCommand(serviceWorker.build, undefined).join(" ")).toBe(serviceWorker.build)
   expect(packageBuildCommand(serviceWorker.build, "development")).toEqual([
     "bun",
     "build",
-    "./service-worker/index.ts",
-    "--conditions=hamiltonian:service-worker",
+    "./service/index.ts",
+    "--conditions=hamiltonian:service",
     "--target=browser",
     "--format=cjs",
     "--minify",
     "--sourcemap=inline",
-    "--outfile=dist/service-worker.js",
+    "--outfile=dist/service.js",
   ])
 })
 
@@ -247,7 +251,7 @@ async function build(mode: "development" | "production") {
     "--conditions=hamiltonian:server",
     "--conditions=internal:server",
     "-e",
-    'import {buildPackage} from "@hamiltonian/release"; console.log(JSON.stringify(await Promise.all([buildPackage("@hamiltonian/startup", {env:"main"}), buildPackage("@hamiltonian/startup", {env:"service-worker"}), buildPackage("@hamiltonian/release", {env:"main"}), buildPackage("@hamiltonian/release", {env:"service-worker"}), buildPackage("@hamiltonian/release", {env:"server"}), buildPackage("@internal/visual", {env:"main"}), buildPackage("@internal/visual", {env:"server"})])))',
+    'import {buildPackage} from "@hamiltonian/release"; console.log(JSON.stringify(await Promise.all([buildPackage("@hamiltonian/startup", {env:"main"}), buildPackage("@hamiltonian/startup", {env:"service"}), buildPackage("@hamiltonian/release", {env:"main"}), buildPackage("@hamiltonian/release", {env:"service"}), buildPackage("@hamiltonian/release", {env:"server"}), buildPackage("@internal/visual", {env:"main"}), buildPackage("@internal/visual", {env:"server"})])))',
   ], {
     cwd: hamiltonian,
     env: {...process.env, NODE_ENV: mode},
@@ -270,9 +274,9 @@ async function build(mode: "development" | "production") {
   expect(result.map(({env, success, exitCode: buildExitCode}) => ({env, success, exitCode: buildExitCode})))
     .toEqual([
       {env: "main", success: true, exitCode: 0},
-      {env: "service-worker", success: true, exitCode: 0},
+      {env: "service", success: true, exitCode: 0},
       {env: "main", success: true, exitCode: 0},
-      {env: "service-worker", success: true, exitCode: 0},
+      {env: "service", success: true, exitCode: 0},
       {env: "server", success: true, exitCode: 0},
       {env: "main", success: true, exitCode: 0},
       {env: "server", success: true, exitCode: 0},
@@ -281,7 +285,7 @@ async function build(mode: "development" | "production") {
     internalVisual: await Bun.file(join(hamiltonian, "internal/visual/dist/main.js")).text(),
     releaseMain: await Bun.file(join(hamiltonian, "release/dist/main.js")).text(),
     startupMain: await Bun.file(join(hamiltonian, "startup/dist/main.js")).text(),
-    releaseService: await Bun.file(join(hamiltonian, "release/dist/service-worker.js")).text(),
+    releaseService: await Bun.file(join(hamiltonian, "release/dist/service.js")).text(),
   }
 }
 

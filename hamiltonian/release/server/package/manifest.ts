@@ -166,7 +166,7 @@ async function environmentOwner(
     `${name} ${environment.env} entrypoint`,
   )
 
-  const headers = environment.env === "service-worker" ? {
+  const headers = environment.env === "service" ? {
     "Content-Security-Policy": "script-src 'unsafe-eval'",
     "Service-Worker-Allowed": "/",
   } : {}

@@ -47,7 +47,7 @@ export async function updateRelease(
   }
 
   await beginTransaction()
-  console.debug("[@hamiltonian/release:service-worker:prepare]", "transaction marker сохранён", {
+  console.debug("[@hamiltonian/release:service:prepare]", "transaction marker сохранён", {
     remove: delta.remove,
     update: delta.update,
   })
@@ -59,7 +59,7 @@ export async function updateRelease(
     if (cached) {
       try {
         await verifyPackageResponse(cached, entry)
-        console.debug("[@hamiltonian/release:service-worker:prepare]", "prepared artifact переиспользован", {
+        console.debug("[@hamiltonian/release:service:prepare]", "prepared artifact переиспользован", {
           env: entry.env,
           name: entry.name,
           version: entry.version,
@@ -71,7 +71,7 @@ export async function updateRelease(
     }
 
     const request = exactRequest(entry)
-    console.debug("[@hamiltonian/release:service-worker:prepare]", "загрузка exact artifact началась", {
+    console.debug("[@hamiltonian/release:service:prepare]", "загрузка exact artifact началась", {
       env: entry.env,
       name: entry.name,
       source: request.url,
@@ -83,7 +83,7 @@ export async function updateRelease(
     )
     const response = await verifyPackageResponse(startup.verify(network), entry)
     await preparePackage(entry, response)
-    console.debug("[@hamiltonian/release:service-worker:prepare]", "exact artifact сохранён в transaction", {
+    console.debug("[@hamiltonian/release:service:prepare]", "exact artifact сохранён в transaction", {
       env: entry.env,
       name: entry.name,
       version: entry.version,
@@ -112,7 +112,7 @@ export async function updateRelease(
 
     await cache.put(exact, response)
     changed.add(browserPackageSlot(entry.name, entry.env))
-    console.debug("[@hamiltonian/release:service-worker:activate]", "candidate добавлен в canonical cache", {
+    console.debug("[@hamiltonian/release:service:activate]", "candidate добавлен в canonical cache", {
       cache: owner,
       env: entry.env,
       name: entry.name,
@@ -124,7 +124,7 @@ export async function updateRelease(
   let runtimeActivated = false
   try {
     await verifyCandidateComposition(candidate)
-    console.debug("[@hamiltonian/release:service-worker:activate]", "полный candidate composition проверен", {
+    console.debug("[@hamiltonian/release:service:activate]", "полный candidate composition проверен", {
       packages: candidate.map(({name, env, version}) => ({name, env, version})),
     })
 
@@ -138,7 +138,7 @@ export async function updateRelease(
     for (const entry of await canonicalCleanup(candidate)) {
       await (await caches.open(entry.owner)).delete(entry.request, {ignoreVary: true})
       changed.add(entry.slot ?? entry.request.url)
-      console.debug("[@hamiltonian/release:service-worker:activate]", "old exact artifact удалён", {
+      console.debug("[@hamiltonian/release:service:activate]", "old exact artifact удалён", {
         cache: entry.owner,
         source: entry.request.url,
       })
@@ -146,7 +146,7 @@ export async function updateRelease(
 
     await verifyFinalComposition(candidate)
     await commitTransaction()
-    console.debug("[@hamiltonian/release:service-worker:activate]", "transaction завершена удалением cache", {
+    console.debug("[@hamiltonian/release:service:activate]", "transaction завершена удалением cache", {
       changed: [...changed],
     })
 
@@ -273,7 +273,7 @@ function canonicalKey(owner: string, url: string) {
 }
 
 function isServiceWorkerRelease(entry: Pick<ReleasePackage, "name" | "env">) {
-  return entry.name === "@hamiltonian/release" && entry.env === "service-worker"
+  return entry.name === "@hamiltonian/release" && entry.env === "service"
 }
 
 function exactRequest(entry: Pick<ReleasePackage, "name" | "env" | "version">) {

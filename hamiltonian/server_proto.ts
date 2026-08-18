@@ -154,7 +154,7 @@ export const server = Bun.serve<HamiltonianServerSocketData>({
         !controlTokenMatches(suppliedToken) ||
         deviceId.length === 0 || deviceId.length > 128 ||
         !lifecycleTransportId.startsWith("websocket:") || lifecycleTransportId.length > 512 ||
-        !workerEntityId.startsWith("service-worker:") || workerEntityId.length > 512
+        !workerEntityId.startsWith("service:") || workerEntityId.length > 512
       ) {
         return new Response("Unauthorized", {status: 401})
       } else if (bunServer.upgrade(request, {
@@ -188,7 +188,7 @@ export const server = Bun.serve<HamiltonianServerSocketData>({
      * доказательство пробуждения. Повторный wake запрещён, пока прежняя попытка
      * не подтверждена или не завершилась по timeout.
      */
-    "/lab/wake-service-worker": {
+    "/lab/wake-service": {
       POST: async (request: Request) => {
         if (!isAuthorizedRequest(request)) {
           return new Response("Unauthorized", {status: 401})

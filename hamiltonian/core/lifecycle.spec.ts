@@ -47,10 +47,10 @@ const pageBorn = createHamiltonianLifecycleObservation({
 describe("Hamiltonian owner lifecycle", () => {
   test("keeps the current Worker declaration authoritative when a page observes Web Push", () => {
     const browserId = "browser:profile-a"
-    const workerId = "service-worker:worker-a"
+    const workerId = "service:worker-a"
     const workerSource = new HamiltonianLifecycleSource({
       id: workerId,
-      kind: "service-worker",
+      kind: "service",
       incarnation: "worker-runtime-a",
       startedAt: 5,
     })
@@ -67,7 +67,7 @@ describe("Hamiltonian owner lifecycle", () => {
         ownerId: browserId, attributes: {profileId: "profile-a", runtime: "Chrome", state: "active"},
       })),
       workerSource.next(createHamiltonianLifecycleObservation({
-        type: "entity", phase: "born", subjectId: workerId, subjectKind: "service-worker",
+        type: "entity", phase: "born", subjectId: workerId, subjectKind: "service",
         ownerId: browserId, attributes: {
           identity: "worker-a",
           runtimeIncarnation: "worker-runtime-a",
@@ -83,7 +83,7 @@ describe("Hamiltonian owner lifecycle", () => {
       ownerId: browserId, attributes: {incarnation: "page-a", state: "live"},
     })))
     const rejected = pageSource.next(createHamiltonianLifecycleObservation({
-      type: "entity", phase: "changed", subjectId: workerId, subjectKind: "service-worker",
+      type: "entity", phase: "changed", subjectId: workerId, subjectKind: "service",
       ownerId: browserId, attributes: {
         webPushLifecycle: "client.registration-rejected",
         push: "registration-rejected",
@@ -95,7 +95,7 @@ describe("Hamiltonian owner lifecycle", () => {
     expect(browserJournal.merge(projectPageLifecycleForBrowserJournal(pageJournal.snapshot(), workerId))).toBeTrue()
     const retainedWorker = browserJournal.snapshot().envelopes.find(({observation}) =>
       observation.subjectId === workerId)
-    expect(retainedWorker?.sourceKind).toBe("service-worker")
+    expect(retainedWorker?.sourceKind).toBe("service")
     expect(retainedWorker?.sourceIncarnation).toBe("worker-runtime-a")
     expect(retainedWorker?.observation.attributes).toMatchObject({
       identity: "worker-a",
@@ -106,7 +106,7 @@ describe("Hamiltonian owner lifecycle", () => {
       observation.subjectId === "page:page-a")).toBeTrue()
 
     const supersededRetirement = pageSource.next(createHamiltonianLifecycleObservation({
-      type: "entity", phase: "ended", subjectId: "service-worker:worker-old", subjectKind: "service-worker",
+      type: "entity", phase: "ended", subjectId: "service:worker-old", subjectKind: "service",
       ownerId: browserId, attributes: {state: "ended", successor: workerId},
     }))
     expect(pageLifecycleMayEnterBrowserJournal(supersededRetirement, workerId)).toBeTrue()
@@ -114,14 +114,14 @@ describe("Hamiltonian owner lifecycle", () => {
 
   test("advances browser declarations only for structural page lifecycle", () => {
     const browserId = "browser:profile-a"
-    const workerId = "service-worker:worker-a"
+    const workerId = "service:worker-a"
     const pageId = "page:page-a"
     const mainId = "window-main:page-a"
     const rtcA = "rtc-peer:session-a%3Abrowser"
     const rtcB = "rtc-peer:session-b%3Abrowser"
     const workerSource = new HamiltonianLifecycleSource({
       id: workerId,
-      kind: "service-worker",
+      kind: "service",
       incarnation: "worker-runtime-a",
       startedAt: 5,
     })
@@ -138,7 +138,7 @@ describe("Hamiltonian owner lifecycle", () => {
         ownerId: browserId, attributes: {profileId: "profile-a"},
       })),
       workerSource.next(createHamiltonianLifecycleObservation({
-        type: "entity", phase: "born", subjectId: workerId, subjectKind: "service-worker",
+        type: "entity", phase: "born", subjectId: workerId, subjectKind: "service",
         ownerId: browserId, attributes: {runtimeIncarnation: "worker-runtime-a"},
       })),
       pageSource.next(createHamiltonianLifecycleObservation({
@@ -251,7 +251,7 @@ describe("Hamiltonian owner lifecycle", () => {
   })
 
   test("reports every missing owner sequence, including a trimmed initial backlog", () => {
-    const source = new HamiltonianLifecycleSource({id: "sw:a", kind: "service-worker", incarnation: "a", startedAt: 1})
+    const source = new HamiltonianLifecycleSource({id: "sw:a", kind: "service", incarnation: "a", startedAt: 1})
     const first = source.next(pageBorn, {at: 2})
     source.next(pageBorn, {at: 3})
     const third = source.next(pageBorn, {at: 4})
@@ -409,7 +409,7 @@ describe("Hamiltonian owner lifecycle", () => {
 
     const pageA = createPage("page-a")
     const pageB = createPage("page-b")
-    const aggregate = new HamiltonianLifecycleRetainedJournal("service-worker:worker-a")
+    const aggregate = new HamiltonianLifecycleRetainedJournal("service:worker-a")
     const snapshotA = pageA.journal.snapshot()
     expect(isHamiltonianLifecycleSnapshotFromSource(
       snapshotA,
@@ -445,10 +445,10 @@ describe("Hamiltonian owner lifecycle", () => {
 
   test("accepts only retained entity trees closed to their declared owner root", () => {
     const browserId = "browser:profile-a"
-    const workerId = "service-worker:worker-a"
+    const workerId = "service:worker-a"
     const source = new HamiltonianLifecycleSource({
       id: workerId,
-      kind: "service-worker",
+      kind: "service",
       incarnation: "runtime-a",
       startedAt: 1,
     })
@@ -465,7 +465,7 @@ describe("Hamiltonian owner lifecycle", () => {
       type: "entity",
       phase: "born",
       subjectId: workerId,
-      subjectKind: "service-worker",
+      subjectKind: "service",
       ownerId: browserId,
       attributes: {identity: "worker-a"},
     })))
@@ -481,12 +481,12 @@ describe("Hamiltonian owner lifecycle", () => {
     expect(isHamiltonianLifecycleOwnershipClosed(closed, [browserId])).toBeTrue()
     expect(isHamiltonianLifecycleOwnershipClosed(closed, ["browser:profile-b"])).toBeFalse()
 
-    const orphanJournal = new HamiltonianLifecycleRetainedJournal("service-worker:orphan")
+    const orphanJournal = new HamiltonianLifecycleRetainedJournal("service:orphan")
     orphanJournal.observe(source.next(createHamiltonianLifecycleObservation({
       type: "entity",
       phase: "changed",
-      subjectId: "service-worker:orphan",
-      subjectKind: "service-worker",
+      subjectId: "service:orphan",
+      subjectKind: "service",
       ownerId: "browser:missing",
       attributes: {identity: "orphan"},
     })))
@@ -531,11 +531,11 @@ describe("Hamiltonian owner lifecycle", () => {
       includeProfileB = false,
     ) => {
       const profileBId = "browser:profile-b"
-      const workerBId = "service-worker:worker-b"
+      const workerBId = "service:worker-b"
       const pageId = "page:profile-a"
       const transportSource = new HamiltonianLifecycleSource({
         id: workerId,
-        kind: "service-worker",
+        kind: "service",
         incarnation: `transport-${includeProfileB ? "two-roots" : "one-root"}`,
         startedAt: 2,
       })
@@ -553,7 +553,7 @@ describe("Hamiltonian owner lifecycle", () => {
           type: "entity",
           phase: "born",
           subjectId: workerId,
-          subjectKind: "service-worker",
+          subjectKind: "service",
           ownerId: browserId,
           attributes: {identity: "worker-a"},
         }),
@@ -578,7 +578,7 @@ describe("Hamiltonian owner lifecycle", () => {
             type: "entity",
             phase: "born",
             subjectId: workerBId,
-            subjectKind: "service-worker",
+            subjectKind: "service",
             ownerId: profileBId,
             attributes: {identity: "worker-b"},
           }),
@@ -586,12 +586,12 @@ describe("Hamiltonian owner lifecycle", () => {
         createHamiltonianLifecycleObservation({
           type: "transport",
           phase: "opened",
-          subjectId: "service-worker-api:profile-a",
-          subjectKind: "service-worker-api",
+          subjectId: "service-api:profile-a",
+          subjectKind: "service-api",
           ownerId: refs.ownerId,
           sourceEntityId: refs.sourceEntityId,
           targetEntityId: refs.targetEntityId,
-          transportId: "service-worker-api:profile-a",
+          transportId: "service-api:profile-a",
           attributes: {state: "active"},
         }),
       ]) transportJournal.observe(transportSource.next(observation))
@@ -603,9 +603,9 @@ describe("Hamiltonian owner lifecycle", () => {
       [browserId],
     )).toBeTrue()
     for (const invalidRefs of [
-      {...validRefs, ownerId: "service-worker:missing-owner"},
+      {...validRefs, ownerId: "service:missing-owner"},
       {...validRefs, sourceEntityId: "page:missing-source"},
-      {...validRefs, targetEntityId: "service-worker:missing-target"},
+      {...validRefs, targetEntityId: "service:missing-target"},
     ]) {
       expect(isHamiltonianLifecycleOwnershipClosed(
         profileTransportSnapshot(invalidRefs),
@@ -613,7 +613,7 @@ describe("Hamiltonian owner lifecycle", () => {
       )).toBeFalse()
     }
     expect(isHamiltonianLifecycleOwnershipClosed(
-      profileTransportSnapshot({...validRefs, targetEntityId: "service-worker:worker-b"}, true),
+      profileTransportSnapshot({...validRefs, targetEntityId: "service:worker-b"}, true),
       [browserId, "browser:profile-b"],
     )).toBeFalse()
   })
@@ -621,10 +621,10 @@ describe("Hamiltonian owner lifecycle", () => {
   test("retains one monotonic declaration per logical contour and validates exact boundary endpoints", () => {
     const browserLogicalId = hamiltonianLogicalContourId("browser-profile", "profile-a")
     const browserRootId = "browser:profile-a"
-    const workerId = "service-worker:worker-a"
+    const workerId = "service:worker-a"
     const browserSource = new HamiltonianLifecycleSource({
-      id: "service-worker:runtime-a",
-      kind: "service-worker",
+      id: "service:runtime-a",
+      kind: "service",
       incarnation: "runtime-a",
       startedAt: 5,
     })
@@ -635,7 +635,7 @@ describe("Hamiltonian owner lifecycle", () => {
         ownerId: browserRootId, attributes: {profileId: "profile-a"},
       }),
       createHamiltonianLifecycleObservation({
-        type: "entity", phase: "born", subjectId: workerId, subjectKind: "service-worker",
+        type: "entity", phase: "born", subjectId: workerId, subjectKind: "service",
         ownerId: browserRootId, attributes: {runtimeIncarnation: "runtime-a"},
       }),
     ]) browserJournal.observe(browserSource.next(observation))
@@ -962,14 +962,14 @@ describe("Hamiltonian owner lifecycle", () => {
 
   test("projects a browser ownership scope without its externally observed server transport", () => {
     const browserId = "browser:profile-a"
-    const workerId = "service-worker:worker-a"
+    const workerId = "service:worker-a"
     const pageId = "page:profile-a"
     const serverId = "server:host-a"
-    const serviceWorkerTransportId = "service-worker-api:profile-a"
+    const serviceWorkerTransportId = "service-api:profile-a"
     const webSocketTransportId = "websocket:profile-a"
     const source = new HamiltonianLifecycleSource({
       id: workerId,
-      kind: "service-worker",
+      kind: "service",
       incarnation: "runtime-a",
       startedAt: 1,
     })
@@ -987,7 +987,7 @@ describe("Hamiltonian owner lifecycle", () => {
         type: "entity",
         phase: "born",
         subjectId: workerId,
-        subjectKind: "service-worker",
+        subjectKind: "service",
         ownerId: browserId,
         attributes: {identity: "worker-a"},
       }),
@@ -1011,7 +1011,7 @@ describe("Hamiltonian owner lifecycle", () => {
         type: "transport",
         phase: "opened",
         subjectId: serviceWorkerTransportId,
-        subjectKind: "service-worker-api",
+        subjectKind: "service-api",
         ownerId: workerId,
         sourceEntityId: pageId,
         targetEntityId: workerId,
@@ -1051,14 +1051,14 @@ describe("Hamiltonian owner lifecycle", () => {
   test("forgets an unreachable ownership subtree without fencing its stable identity", () => {
     const browserId = "browser:stable-profile"
     const pageId = "page:stable-profile"
-    const transportId = "service-worker-api:stable-profile"
+    const transportId = "service-api:stable-profile"
     const source = new HamiltonianLifecycleSource({
-      id: "service-worker:stable-profile",
-      kind: "service-worker",
+      id: "service:stable-profile",
+      kind: "service",
       incarnation: "runtime-a",
       startedAt: 1,
     })
-    const journal = new HamiltonianLifecycleRetainedJournal("service-worker:stable-profile")
+    const journal = new HamiltonianLifecycleRetainedJournal("service:stable-profile")
     const observeTree = () => {
       journal.observe(source.next(createHamiltonianLifecycleObservation({
         type: "entity",
@@ -1080,10 +1080,10 @@ describe("Hamiltonian owner lifecycle", () => {
         type: "transport",
         phase: "opened",
         subjectId: transportId,
-        subjectKind: "service-worker-api",
+        subjectKind: "service-api",
         ownerId: pageId,
         sourceEntityId: pageId,
-        targetEntityId: "service-worker:stable-profile",
+        targetEntityId: "service:stable-profile",
         transportId,
         attributes: {state: "active"},
       })))
@@ -1103,19 +1103,19 @@ describe("Hamiltonian owner lifecycle", () => {
   })
 
   test("starts a restarted retained scope from an explicit monotonic revision base", () => {
-    const journal = new HamiltonianLifecycleRetainedJournal("service-worker:stable", {
+    const journal = new HamiltonianLifecycleRetainedJournal("service:stable", {
       initialRevision: 10_000,
     })
     expect(journal.snapshot().revision).toBe(10_000)
     const source = new HamiltonianLifecycleSource({
-      id: "service-worker:runtime-a",
-      kind: "service-worker",
+      id: "service:runtime-a",
+      kind: "service",
       incarnation: "runtime-a",
       startedAt: 1,
     })
     expect(journal.observe(source.next(pageBorn))).toBeTrue()
     expect(journal.snapshot().revision).toBe(10_001)
-    expect(() => new HamiltonianLifecycleRetainedJournal("service-worker:stable", {
+    expect(() => new HamiltonianLifecycleRetainedJournal("service:stable", {
       initialRevision: -1,
     })).toThrow("invalid Hamiltonian lifecycle initial revision")
   })
@@ -1259,10 +1259,10 @@ describe("Hamiltonian owner lifecycle", () => {
 
   test("retains one latest transport incarnation per logical slot, including closed state", () => {
     const serverId = "server:host-a"
-    const workerId = "service-worker:worker-a"
+    const workerId = "service:worker-a"
     const source = new HamiltonianLifecycleSource({
       id: workerId,
-      kind: "service-worker",
+      kind: "service",
       incarnation: "worker-a",
       startedAt: 1,
     })
@@ -1271,7 +1271,7 @@ describe("Hamiltonian owner lifecycle", () => {
       type: "entity",
       phase: "born",
       subjectId: workerId,
-      subjectKind: "service-worker",
+      subjectKind: "service",
       ownerId: workerId,
     })))
     const opened = source.next(createHamiltonianLifecycleObservation({
@@ -1318,7 +1318,7 @@ describe("Hamiltonian owner lifecycle", () => {
       type: "entity",
       phase: "ended",
       subjectId: workerId,
-      subjectKind: "service-worker",
+      subjectKind: "service",
       ownerId: workerId,
     })))
     expect(journal.snapshot().envelopes).toEqual([])
@@ -1326,7 +1326,7 @@ describe("Hamiltonian owner lifecycle", () => {
 
   test("materializes an externally observed endpoint end without retaining a foreign source frontier", () => {
     const serverId = "server:host-a"
-    const workerId = "service-worker:worker-old"
+    const workerId = "service:worker-old"
     const source = new HamiltonianLifecycleSource({
       id: serverId,
       kind: "server",
@@ -1397,13 +1397,13 @@ describe("Hamiltonian owner lifecycle", () => {
   })
 
   test("keeps reborn sources separate even when their sequence restarts", () => {
-    const oldSource = new HamiltonianLifecycleSource({id: "service-worker", kind: "service-worker", incarnation: "old", startedAt: 1})
-    const newSource = new HamiltonianLifecycleSource({id: "service-worker", kind: "service-worker", incarnation: "new", startedAt: 2})
+    const oldSource = new HamiltonianLifecycleSource({id: "service", kind: "service", incarnation: "old", startedAt: 1})
+    const newSource = new HamiltonianLifecycleSource({id: "service", kind: "service", incarnation: "new", startedAt: 2})
     const cursor = new HamiltonianLifecycleCursor()
 
     expect(cursor.accept(oldSource.next(pageBorn))?.gap).toBeNull()
     expect(cursor.accept(newSource.next(pageBorn))?.gap).toBeNull()
-    expect(cursor.snapshot()).toEqual({"service-worker\u0000old": 1, "service-worker\u0000new": 1})
+    expect(cursor.snapshot()).toEqual({"service\u0000old": 1, "service\u0000new": 1})
   })
 
   test("retires an ended source frontier behind a bounded stale-event tombstone", () => {
@@ -1434,12 +1434,12 @@ describe("Hamiltonian owner lifecycle", () => {
       subjectKind: "control-message",
       ownerId: "page:a",
       sourceEntityId: "page:a",
-      targetEntityId: "service-worker:b",
+      targetEntityId: "service:b",
       transportId: "controller:c",
       messageId: "message:42",
       messageClass: "connect-window",
     })
-    const received = createHamiltonianLifecycleObservation({...sent, phase: "received", ownerId: "service-worker:b"})
+    const received = createHamiltonianLifecycleObservation({...sent, phase: "received", ownerId: "service:b"})
     expect(sent.messageId).toBe(received.messageId)
     expect(sent.subjectId).toBe(received.subjectId)
   })
@@ -1533,18 +1533,18 @@ describe("Hamiltonian owner lifecycle", () => {
     channel.channel = {postMessage: (value: unknown) => broadcasts.push(value)}
     try {
       const source = new HamiltonianLifecycleSource({
-        id: "service-worker:retained",
-        kind: "service-worker",
+        id: "service:retained",
+        kind: "service",
         incarnation: "retained",
         startedAt: 1,
       })
-      const journal = new HamiltonianLifecycleRetainedJournal("service-worker:retained")
+      const journal = new HamiltonianLifecycleRetainedJournal("service:retained")
       journal.observe(source.next(createHamiltonianLifecycleObservation({
         type: "entity",
         phase: "born",
-        subjectId: "service-worker:retained",
-        subjectKind: "service-worker",
-        ownerId: "service-worker:retained",
+        subjectId: "service:retained",
+        subjectKind: "service",
+        ownerId: "service:retained",
       })))
       const snapshot = journal.snapshot()
       const localRevisions: number[] = []
@@ -1592,10 +1592,10 @@ describe("Hamiltonian owner lifecycle", () => {
   test("forgets a retained snapshot when its owning entity is observed ended", () => {
     const singleton = Symbol.for("metafor.hamiltonian.lifecycle.singleton.v1")
     delete (globalThis as Record<symbol, unknown>)[singleton]
-    const scopeId = "service-worker:retired"
+    const scopeId = "service:retired"
     const source = new HamiltonianLifecycleSource({
       id: scopeId,
-      kind: "service-worker",
+      kind: "service",
       incarnation: "retired",
       startedAt: 1,
     })
@@ -1604,7 +1604,7 @@ describe("Hamiltonian owner lifecycle", () => {
       type: "entity",
       phase: "born",
       subjectId: scopeId,
-      subjectKind: "service-worker",
+      subjectKind: "service",
       ownerId: scopeId,
     })))
     const snapshot = journal.snapshot()
@@ -1618,7 +1618,7 @@ describe("Hamiltonian owner lifecycle", () => {
       type: "entity",
       phase: "ended",
       subjectId: scopeId,
-      subjectKind: "service-worker",
+      subjectKind: "service",
       ownerId: scopeId,
       attributes: {reason: "superseded-by-observed-incarnation"},
     }))

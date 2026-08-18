@@ -8,7 +8,7 @@
  * @packageDocumentation
  */
 
-const registration = await navigator.serviceWorker.register("/@hamiltonian/startup?env=service-worker", {
+const registration = await navigator.serviceWorker.register("/@hamiltonian/startup?env=service", {
   scope: "/",
   type: "module",
 })

@@ -109,7 +109,7 @@ function retainAndPublish(state, value) {
 /** @param {any} global */
 function realmKind(global) {
   if (typeof global.document === "object") return "page"
-  if (typeof global.clients === "object" && typeof global.registration === "object") return "service-worker"
+  if (typeof global.clients === "object" && typeof global.registration === "object") return "service"
   if (typeof global.postMessage === "function") return "dedicated-worker"
   return "unknown"
 }

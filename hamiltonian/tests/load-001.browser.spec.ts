@@ -18,9 +18,9 @@ setDefaultTimeout(180_000)
 const hamiltonian = fileURLToPath(new URL("../", import.meta.url))
 const chrome = resolveChrome()
 const startupMainUrl = "/@hamiltonian/startup?env=main"
-const startupServiceUrl = "/@hamiltonian/startup?env=service-worker"
+const startupServiceUrl = "/@hamiltonian/startup?env=service"
 const releaseMainUrl = "/@hamiltonian/release?env=main"
-const releaseServiceUrl = "/@hamiltonian/release?env=service-worker"
+const releaseServiceUrl = "/@hamiltonian/release?env=service"
 const internalVisualUrl = "/@internal/visual?env=main"
 
 interface RunningServer {
@@ -458,7 +458,7 @@ test.serial("UPD-003 resumes after canonical put and commits a removal-only delt
       const state = await (await fetch("/code", {cache: "no-store"})).json() as {
         packages: Array<{
           name: string
-          env: "main" | "worker" | "service-worker"
+          env: "main" | "worker" | "service"
           version: string
           sha256: string
           size: number
@@ -575,7 +575,7 @@ test.serial("LOAD-001 restores accepted startup and release from caches", async 
     }
     expect(routeProbes.queryArtifactStatus).toBe(404)
     expect(routeProbes.serverEnvironmentStatus).toBe(404)
-    expect(routeProbes.releaseEnvironments).toEqual(["main", "service-worker"])
+    expect(routeProbes.releaseEnvironments).toEqual(["main", "service"])
     for (const route of routeProbes.legacy) expect(route.status).toBe(404)
     const requests: string[] = []
     const serviceWorkerResponses: string[] = []
@@ -623,7 +623,7 @@ test.serial("LOAD-001 restores accepted startup and release from caches", async 
     expect(initial.startup).not.toContain(releaseServiceUrl)
     expect(initial.startup).not.toContain(internalVisualUrl)
     expect(hasCachedSlot(initial, "release", "@hamiltonian/release", "main")).toBe(true)
-    expect(hasCachedSlot(initial, "release", "@hamiltonian/release", "service-worker")).toBe(true)
+    expect(hasCachedSlot(initial, "release", "@hamiltonian/release", "service")).toBe(true)
     expect(initial.release).not.toContain(releaseMainUrl)
     expect(initial.release).not.toContain(releaseServiceUrl)
     expect(initial.release).not.toContain(internalVisualUrl)
@@ -731,7 +731,7 @@ test.serial("LOAD-001 restores accepted startup and release from caches", async 
       startupMainUrl,
     ]))
     expect(hasCachedSlot(cold, "release", "@hamiltonian/release", "main")).toBe(true)
-    expect(hasCachedSlot(cold, "release", "@hamiltonian/release", "service-worker")).toBe(true)
+    expect(hasCachedSlot(cold, "release", "@hamiltonian/release", "service")).toBe(true)
     expect(cold.release).not.toContain(releaseMainUrl)
     expect(cold.release).not.toContain(releaseServiceUrl)
     expect(hasCachedPackage(cold, "internal", "@internal/visual")).toBe(true)
@@ -764,7 +764,7 @@ test.serial("LOAD-001 rejects a failed release artifact and retries its exact en
 
       const recovered = await cacheSnapshot(page)
       expect(hasCachedSlot(recovered, "release", "@hamiltonian/release", "main")).toBe(true)
-      expect(hasCachedSlot(recovered, "release", "@hamiltonian/release", "service-worker")).toBe(true)
+      expect(hasCachedSlot(recovered, "release", "@hamiltonian/release", "service")).toBe(true)
       expect(hasCachedSlot(recovered, "internal", "@internal/visual", "main")).toBe(true)
       expect(recovered.metafor).toBeUndefined()
     } catch (error) {
@@ -910,7 +910,7 @@ async function waitForAcceptedCaches(page: Page) {
           const internal = await caches.open("internal")
           const cachedPackage = async (
             name: string,
-            env: "main" | "worker" | "service-worker",
+            env: "main" | "worker" | "service",
             cache: Cache,
           ) => {
             const matches = (await cache.keys()).filter((request) => {
@@ -927,7 +927,7 @@ async function waitForAcceptedCaches(page: Page) {
           }
           const [releaseMain, releaseService, visual] = await Promise.all([
             cachedPackage("@hamiltonian/release", "main", releases),
-            cachedPackage("@hamiltonian/release", "service-worker", releases),
+            cachedPackage("@hamiltonian/release", "service", releases),
             cachedPackage("@internal/visual", "main", internal),
           ])
           return Boolean(
@@ -992,7 +992,7 @@ function hasCachedSlot(
   snapshot: CacheSnapshot,
   owner: string,
   name: string,
-  env: "main" | "worker" | "service-worker",
+  env: "main" | "worker" | "service",
 ) {
   return snapshot[owner]?.some((path) => {
     const url = new URL(path, "http://cache.test")
@@ -1009,7 +1009,7 @@ async function expectCanonicalReleaseCaches(page: Page) {
   expect(Object.keys(snapshot).sort()).toEqual(["internal", "release", "startup"])
   for (const {name, env, owner} of [
     {name: "@hamiltonian/release", env: "main", owner: "release"},
-    {name: "@hamiltonian/release", env: "service-worker", owner: "release"},
+    {name: "@hamiltonian/release", env: "service", owner: "release"},
     {name: "@internal/visual", env: "main", owner: "internal"},
   ] as const) {
     const packageEntries = snapshot[owner]?.filter((path) => {
@@ -1065,7 +1065,7 @@ async function updateSources(page: Page) {
   return await page.evaluate(async () => {
     const source = async (
       name: string,
-      env: "main" | "worker" | "service-worker",
+      env: "main" | "worker" | "service",
       owner: string,
     ) => {
       const cache = await caches.open(owner)
@@ -1086,7 +1086,7 @@ async function updateSources(page: Page) {
     return {
       internalVisual: await source("@internal/visual", "main", "internal"),
       releaseMain: await source("@hamiltonian/release", "main", "release"),
-      releaseService: await source("@hamiltonian/release", "service-worker", "release"),
+      releaseService: await source("@hamiltonian/release", "service", "release"),
     }
   })
 }

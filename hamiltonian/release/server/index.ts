@@ -80,4 +80,4 @@ export type {
   ReleaseFactory,
   ReleaseLoader,
   ReleaseRuntime,
-} from "../service-worker/runtime/contract"
+} from "../service/runtime/contract"

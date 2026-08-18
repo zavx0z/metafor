@@ -1,4 +1,4 @@
-/** Минимальный startup API, необходимый env `service-worker` release. */
+/** Минимальный startup API, необходимый env `service` release. */
 export interface ReleaseLoader {
   verify(response: Response): Response
   cache(name: string, request: Request, response: Response): Promise<void>

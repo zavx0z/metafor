@@ -2,7 +2,7 @@
   "extends": "../../tsconfig.json",
   "compilerOptions": {
     "customConditions": [
-      "hamiltonian:service-worker"
+      "hamiltonian:service"
     ],
     "lib": [
       "ESNext",

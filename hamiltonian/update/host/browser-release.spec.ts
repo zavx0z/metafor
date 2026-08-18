@@ -42,7 +42,7 @@ describe("Hamiltonian browser release projection", () => {
     const served = {
       orchestrationBundle: "orchestration-a",
       layoutWorkerBundle: "layout-worker-a",
-      serviceWorkerBundle: 'const HAMILTONIAN_SERVICE_WORKER_CODE_VERSION = "1.1.0"; service-worker-a',
+      serviceWorkerBundle: 'const HAMILTONIAN_SERVICE_WORKER_CODE_VERSION = "1.1.0"; service-a',
       webPushClientBundle: "web-push-client-a",
       directlyServedText: {
         "/app.js": "app-a",
@@ -60,12 +60,12 @@ describe("Hamiltonian browser release projection", () => {
         "/app.js": "app-a",
       },
     })).toBe(revision)
-    expect(revision).toBe("source:3f94320c2cf3d3136e6c54dd8379edb4df82554c7db1f09ce96e17cb1c7419b7")
+    expect(revision).toBe("source:fc8aed8779ec909a1371d1c74233680d32152e31b52545d35f54075a95409473")
 
     for (const changedArtifacts of [
       {...served, orchestrationBundle: "orchestration-b"},
       {...served, layoutWorkerBundle: "layout-worker-b"},
-      {...served, serviceWorkerBundle: 'const HAMILTONIAN_SERVICE_WORKER_CODE_VERSION = "1.1.0"; service-worker-b'},
+      {...served, serviceWorkerBundle: 'const HAMILTONIAN_SERVICE_WORKER_CODE_VERSION = "1.1.0"; service-b'},
       {...served, webPushClientBundle: "web-push-client-b"},
       {
         ...served,

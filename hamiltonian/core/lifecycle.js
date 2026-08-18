@@ -1146,7 +1146,7 @@ function boundaryTransportReferencesCurrentDeclarations(transport, declarations)
   if (transport.kind === "websocket") {
     const targetDeclaration = declarations.get(transport.target.logicalContourId)
     return sameNodeSystemEntityReference(transport.owner, transport.source) &&
-      source?.subjectKind === "service-worker" &&
+      source?.subjectKind === "service" &&
       target?.subjectKind === "server" &&
       target.ownerId === target.subjectId &&
       target.subjectId === targetDeclaration?.rootId

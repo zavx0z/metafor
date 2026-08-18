@@ -11,13 +11,13 @@ test("LOAD-001 keeps release policy and WebSocket outside immutable startup", as
     Bun.file(join(hamiltonian, "shared/package/url.ts")).text(),
     Bun.file(join(hamiltonian, "release/server/package/manifest.ts")).text(),
     Bun.file(join(hamiltonian, "startup/main/index.ts")).text(),
-    Bun.file(join(hamiltonian, "startup/service-worker/index.ts")).text(),
-    Bun.file(join(hamiltonian, "startup/service-worker/runtime.ts")).text(),
-    Bun.file(join(hamiltonian, "release/service-worker/fetch/index.ts")).text(),
-    Bun.file(join(hamiltonian, "startup/service-worker/loader.ts")).text(),
-    Bun.file(join(hamiltonian, "release/service-worker/runtime/index.ts")).text(),
-    Bun.file(join(hamiltonian, "release/service-worker/update/index.ts")).text(),
-    Bun.file(join(hamiltonian, "release/service-worker/update/transaction.ts")).text(),
+    Bun.file(join(hamiltonian, "startup/service/index.ts")).text(),
+    Bun.file(join(hamiltonian, "startup/service/runtime.ts")).text(),
+    Bun.file(join(hamiltonian, "release/service/fetch/index.ts")).text(),
+    Bun.file(join(hamiltonian, "startup/service/loader.ts")).text(),
+    Bun.file(join(hamiltonian, "release/service/runtime/index.ts")).text(),
+    Bun.file(join(hamiltonian, "release/service/update/index.ts")).text(),
+    Bun.file(join(hamiltonian, "release/service/update/transaction.ts")).text(),
     Bun.file(join(hamiltonian, "static/index.html")).text(),
     ])
 
@@ -32,7 +32,7 @@ test("LOAD-001 keeps release policy and WebSocket outside immutable startup", as
   expect(startupMain).not.toContain("@internal/")
   expect(startupMain).not.toContain("@metafor/")
 
-  expect(startupService).toContain('new URL("/@hamiltonian/release?env=service-worker", location.origin)')
+  expect(startupService).toContain('new URL("/@hamiltonian/release?env=service", location.origin)')
   expect(startupService).not.toContain("@internal/")
   expect(startupService).not.toContain("@metafor/")
   expect(startupService).not.toContain("WebSocket")
@@ -109,9 +109,9 @@ test("UPD-002 exposes the development update path through owner-scoped diagnosti
       Bun.file(join(hamiltonian, "release/server/release/update.ts")).text(),
       Bun.file(join(hamiltonian, "release/server/package/build.ts")).text(),
       Bun.file(join(hamiltonian, "release/server/rpc/index.ts")).text(),
-      Bun.file(join(hamiltonian, "release/service-worker/rpc/index.ts")).text(),
-      Bun.file(join(hamiltonian, "release/service-worker/runtime/index.ts")).text(),
-      Bun.file(join(hamiltonian, "release/service-worker/update/index.ts")).text(),
+      Bun.file(join(hamiltonian, "release/service/rpc/index.ts")).text(),
+      Bun.file(join(hamiltonian, "release/service/runtime/index.ts")).text(),
+      Bun.file(join(hamiltonian, "release/service/update/index.ts")).text(),
       Bun.file(join(hamiltonian, "startup/main/index.ts")).text(),
     ])
 
@@ -131,16 +131,16 @@ test("UPD-002 exposes the development update path through owner-scoped diagnosti
   )
   expect(rpcServer).toContain('console.debug("[@hamiltonian/release:server:rpc]", "Service Worker подключён к серверу обновлений"')
   expect(rpcService).toContain(
-    'console.debug("[@hamiltonian/release:service-worker:rpc:update]", "получен сигнал об обновлении"',
+    'console.debug("[@hamiltonian/release:service:rpc:update]", "получен сигнал об обновлении"',
   )
   expect(releaseService).toContain(
-    'console.debug("[@hamiltonian/release:service-worker:update]", "применяем fresh server delta"',
+    'console.debug("[@hamiltonian/release:service:update]", "применяем fresh server delta"',
   )
   expect(releaseService).toContain(
-    'console.debug("[@hamiltonian/release:service-worker:restart]", "начинаем перезагрузку страниц"',
+    'console.debug("[@hamiltonian/release:service:restart]", "начинаем перезагрузку страниц"',
   )
   expect(updateLoader).toContain(
-    'console.debug("[@hamiltonian/release:service-worker:activate]", "transaction завершена удалением cache"',
+    'console.debug("[@hamiltonian/release:service:activate]", "transaction завершена удалением cache"',
   )
   expect(startupMain).toContain('console.debug("[@hamiltonian/startup:main]", "страница готова к работе"')
 
@@ -153,7 +153,7 @@ test("UPD-003.12 keeps package, release and Service Worker subjects in canonical
   expect(existsSync(join(hamiltonian, "web"))).toBeFalse()
   expect(existsSync(join(hamiltonian, "release/protocol.ts"))).toBeFalse()
   expect(existsSync(join(hamiltonian, "release/transaction.ts"))).toBeFalse()
-  expect(existsSync(join(hamiltonian, "release/service-worker/cache/state.ts"))).toBeFalse()
+  expect(existsSync(join(hamiltonian, "release/service/cache/state.ts"))).toBeFalse()
 
   for (const source of [
     "static/index.html",
@@ -166,17 +166,17 @@ test("UPD-003.12 keeps package, release and Service Worker subjects in canonical
     "release/server/release/publication.ts",
     "release/server/http/delivery.ts",
     "release/server/shared/contracts.ts",
-    "release/service-worker/index.ts",
-    "release/service-worker/runtime/contract.ts",
-    "release/service-worker/runtime/index.ts",
-    "release/service-worker/fetch/index.ts",
-    "release/service-worker/cache/current.ts",
-    "release/service-worker/update/transaction.ts",
-    "release/service-worker/rpc/index.ts",
+    "release/service/index.ts",
+    "release/service/runtime/contract.ts",
+    "release/service/runtime/index.ts",
+    "release/service/fetch/index.ts",
+    "release/service/cache/current.ts",
+    "release/service/update/transaction.ts",
+    "release/service/rpc/index.ts",
   ]) expect(existsSync(join(hamiltonian, source))).toBeTrue()
 
   const serviceWorkerEntrypoint = await Bun.file(
-    join(hamiltonian, "release/service-worker/index.ts"),
+    join(hamiltonian, "release/service/index.ts"),
   ).text()
   expect(serviceWorkerEntrypoint).toContain('export {default} from "./runtime"')
   expect(serviceWorkerEntrypoint).not.toContain("startRpc")

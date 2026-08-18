@@ -46,12 +46,12 @@ describe("Hamiltonian topology layout transition", () => {
   })
 
   test("does not move the canvas when a runtime incarnation replaces the same visual slot", () => {
-    const previous = layout([node("service-worker:old", 40, 80), node("page", 300, 120)])
-    const replacement = layout([node("service-worker:new", 40, 80), node("page", 300, 120)])
+    const previous = layout([node("service:old", 40, 80), node("page", 300, 120)])
+    const replacement = layout([node("service:new", 40, 80), node("page", 300, 120)])
 
     expect(hamiltonianLayoutGeometryChanged(previous, replacement)).toBe(false)
     expect(hamiltonianLayoutGeometryChanged(previous, layout([
-      node("service-worker:new", 60, 80),
+      node("service:new", 60, 80),
       node("page", 300, 120),
     ]))).toBe(true)
   })

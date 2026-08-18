@@ -6,7 +6,7 @@ import type {ReleasedPackage} from "../shared/contracts"
 import {releaseDelta} from "../release/delta"
 import {releasedPackages} from "../release/state"
 
-/** Данные одного подключённого release env `service-worker`. */
+/** Данные одного подключённого release env `service`. */
 export interface RpcSocketData {
   source: "release/service"
 }

@@ -12,7 +12,7 @@ import {createReleaseHost, registerReleaseListeners, type StartupEventScope} fro
 import type {ReleaseLoader} from "@hamiltonian/release"
 
 const serviceReleaseRequest = new Request(
-  new URL("/@hamiltonian/release?env=service-worker", location.origin),
+  new URL("/@hamiltonian/release?env=service", location.origin),
 )
 const releaseLoader = loader satisfies ReleaseLoader
 const host = createReleaseHost(serviceReleaseRequest, releaseLoader)

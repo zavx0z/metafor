@@ -12,7 +12,7 @@
     "test:load": "tsc --project tests/tsconfig.json --pretty false && bun test tests/load-001.boundary.spec.ts tests/load-001.browser.spec.ts"
   },
   "dependencies": {
-    "@hamiltonian/release": "workspace:^0.1.5",
+    "@hamiltonian/release": "workspace:^0.1.6",
     "@hamiltonian/startup": "workspace:*",
     "@internal/visual": "workspace:^0.1.10",
     "@hamiltonian/visual": "workspace:*",

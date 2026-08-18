@@ -1,4 +1,4 @@
-/** Public API env `service-worker` package `@hamiltonian/release`. */
+/** Public API env `service` package `@hamiltonian/release`. */
 export {default} from "./runtime"
 export type {
   ReleaseDependencies,

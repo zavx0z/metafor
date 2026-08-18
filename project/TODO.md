@@ -168,12 +168,14 @@ Correction-срез `.13` находится в `REVIEW`: фактические
 cold и полный browser suite прошли. Development release `0.1.5` находится в
 чистом managed contour с одной registration, точными caches, debug/source maps
 и без transaction; result checkpoint — текущий result commit.
-По прямому решению владельца текущий срез `.14` закрепляет единое сокращение
-Service Worker как `service` во всех project-controlled env, paths, artifact
-URLs, diagnostics и lifecycle identities. Platform Web API сохраняет имя
-`ServiceWorker`, а отдельный `server-worker` env не меняется. Владелец уже
-переименовал source directories startup/release; срез доводит весь contract,
-tests, artifacts и clean live contour без legacy adapter.
+По прямому решению владельца срез `.14` закрепил единое сокращение Service
+Worker как `service` во всех project-controlled env, paths, artifact URLs,
+diagnostics и lifecycle identities. Platform Web API сохраняет имя
+`ServiceWorker`, а отдельный `server-worker` env не меняется. Срез находится в
+`REVIEW`: source directories/files, contracts и tests согласованы; development
+startup `0.1.1` и release `0.1.6` установлены в чистом managed contour без
+legacy adapter, old cache env и незавершённой transaction. Result checkpoint —
+текущий result commit.
 Обновление уже работающего Bun runtime остаётся будущим большим этапом.
 Package `@hamiltonian/startup` устанавливает Service Worker, восстанавливает
 HTML/startup offline и запускает browser env package `@hamiltonian/release` из

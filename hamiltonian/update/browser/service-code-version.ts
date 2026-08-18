@@ -1,4 +1,4 @@
-import {isHamiltonianServiceWorkerCodeVersion} from "../shared/service-worker-release.js"
+import {isHamiltonianServiceWorkerCodeVersion} from "../shared/service-release.js"
 
 // This version belongs only to the executable Service Worker bundle. It is
 // intentionally independent from the host/module version and source revision.

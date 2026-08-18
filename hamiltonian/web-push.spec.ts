@@ -16,7 +16,7 @@ describe("Hamiltonian Web Push persistence", () => {
     temporaryDirectories.push(directory)
     const storagePath = join(directory, "state.json")
     const first = new HamiltonianWebPush({storagePath, send: async () => {}})
-    await first.register("service-worker:stable", {
+    await first.register("service:stable", {
       workerIdentity: "stable",
       deviceId: "device-a",
       subscription: {
@@ -34,13 +34,13 @@ describe("Hamiltonian Web Push persistence", () => {
     })
     expect(restarted.publicKey).toBe(first.publicKey)
     expect(restarted.snapshots()).toEqual([expect.objectContaining({
-      workerEntityId: "service-worker:stable",
+      workerEntityId: "service:stable",
       deviceId: "device-a",
     })])
-    expect(restarted.deviceIdFor("service-worker:stable")).toBe("device-a")
-    expect(restarted.deviceIdFor("service-worker:unknown")).toBeNull()
-    await restarted.wake("service-worker:stable", {
-      kind: "wake-service-worker",
+    expect(restarted.deviceIdFor("service:stable")).toBe("device-a")
+    expect(restarted.deviceIdFor("service:unknown")).toBeNull()
+    await restarted.wake("service:stable", {
+      kind: "wake-service",
       wakeId: "wake-one",
       wakeProof: "push-only-proof",
       token: "next-host-token",
@@ -53,11 +53,11 @@ describe("Hamiltonian Web Push persistence", () => {
       notification: {
         title: "Hamiltonian",
         body: "Service Worker восстановил связь с сервером",
-        tag: "hamiltonian-service-worker",
+        tag: "hamiltonian-service",
         data: {wakeId: "wake-one"},
       },
       data: {
-        kind: "wake-service-worker",
+        kind: "wake-service",
         wakeId: "wake-one",
         wakeProof: "push-only-proof",
         token: "next-host-token",

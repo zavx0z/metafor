@@ -33,7 +33,7 @@ describe("Hamiltonian local orchestration actions", () => {
       "tab 1",
       "page/1",
     )).toEqual({nodeId: pageNodeId, actionId: "reload"})
-    const serviceWorkerNodeId = "service-worker:stable"
+    const serviceWorkerNodeId = "service:stable"
     expect(parseLocalHamiltonianWindowAction(
       {nodeId: serviceWorkerNodeId, actionId: "enable-push"},
       "device/1",

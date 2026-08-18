@@ -1,5 +1,5 @@
 import {describe, expect, test} from "bun:test"
-import {HamiltonianServiceWorkerUpdateController} from "./service-worker-update.ts"
+import {HamiltonianServiceWorkerUpdateController} from "./service-update.ts"
 
 const currentRelease = {
   version: "1.1.3",

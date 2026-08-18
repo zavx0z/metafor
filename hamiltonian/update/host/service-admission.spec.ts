@@ -1,5 +1,5 @@
 import {describe, expect, test} from "bun:test"
-import {HamiltonianServiceWorkerAdmissionRegistry} from "./service-worker-admission.ts"
+import {HamiltonianServiceWorkerAdmissionRegistry} from "./service-admission.ts"
 
 const release = (version: string) => ({version, sha256: `sha256:${version}`})
 const claim = (
@@ -9,7 +9,7 @@ const claim = (
   applicationAdmitted = false,
 ) => ({
   profileId,
-  workerEntityId: `service-worker:${profileId}`,
+  workerEntityId: `service:${profileId}`,
   runtimeIncarnation,
   codeVersion,
   applicationAdmitted,

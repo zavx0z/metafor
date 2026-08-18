@@ -37,7 +37,7 @@ import {
   type HamiltonianPushSubscriptionInput,
 } from "./web-push.ts"
 import type {WebPushLifecycleEvent, WebPushLifecycleHook} from "@metafor/web-push/lifecycle"
-import {isHamiltonianServiceWorkerCodeVersion} from "./update/shared/service-worker-release.js"
+import {isHamiltonianServiceWorkerCodeVersion} from "./update/shared/service-release.js"
 import {
   hamiltonianBrowserManifest,
   hamiltonianBrowserSourceRevision,
@@ -45,7 +45,7 @@ import {
   hamiltonianVersionedModuleRelease,
   type HamiltonianServiceWorkerRelease,
 } from "./update/host/browser-release.ts"
-import {HamiltonianServiceWorkerAdmissionRegistry} from "./update/host/service-worker-admission.ts"
+import {HamiltonianServiceWorkerAdmissionRegistry} from "./update/host/service-admission.ts"
 
 export interface HamiltonianServerSocketData {
   connectionId: string
@@ -170,7 +170,7 @@ const updateRoot = `${experimentRoot}/update`
 const visualRoot = `${experimentRoot}/visual`
 const orchestrationEntry = `${experimentRoot}/browser/orchestration.ts`
 const layoutWorkerEntry = `${visualRoot}/browser/layout-worker.ts`
-const serviceWorkerEntry = `${experimentRoot}/browser/service-worker.ts`
+const serviceWorkerEntry = `${experimentRoot}/browser/service.ts`
 const webPushClientEntry = `${repositoryRoot}/pkg/web-push/src/client.ts`
 const engineFont = fileURLToPath(new URL("../pkg/engine/static/JetBrainsMono-Bold.ttf", import.meta.url))
 const uiRoot = fileURLToPath(new URL("../pkg/ui/", import.meta.url))
@@ -334,13 +334,13 @@ function isBrowserProfileLifecycleSnapshot(
   const browser = entities.find(({subjectId}) => subjectId === browserEntityId)
   const worker = entities.find(({subjectId}) => subjectId === socket.workerEntityId)
   return entities.filter(({subjectKind}) => subjectKind === "browser-runtime").length === 1 &&
-    entities.filter(({subjectKind}) => subjectKind === "service-worker").length === 1 &&
+    entities.filter(({subjectKind}) => subjectKind === "service").length === 1 &&
     browser?.subjectKind === "browser-runtime" &&
     browser.ownerId === browserEntityId &&
     browser.attributes.profileId === socket.deviceId &&
     typeof browser.attributes.runtime === "string" &&
     browser.attributes.runtime.length > 0 &&
-    worker?.subjectKind === "service-worker" &&
+    worker?.subjectKind === "service" &&
     worker.ownerId === browserEntityId &&
     worker.attributes.identity === workerIdentity &&
     worker.attributes.runtimeIncarnation === workerRuntimeIncarnation &&
@@ -557,7 +557,7 @@ function isObservedSupersededServiceWorkerEnd(
     envelope.sourceId === hamiltonianLifecycleEntityId("page", envelope.sourceIncarnation) &&
     observation.type === "entity" &&
     observation.phase === "ended" &&
-    observation.subjectKind === "service-worker" &&
+    observation.subjectKind === "service" &&
     observation.subjectId !== successorWorkerEntityId &&
     observation.ownerId === browserEntityId &&
     observation.attributes.state === "ended" &&
@@ -794,10 +794,10 @@ const webPushStoragePath = Bun.env.HAMILTONIAN_WEB_PUSH_STORAGE_PATH ??
     socket: Bun.ServerWebSocket<HamiltonianServerSocketData>,
     target: HamiltonianServiceWorkerRelease,
   ) => {
-    sendControl(socket, {kind: "service-worker-update", target})
+    sendControl(socket, {kind: "service-update", target})
     record({
       at: Date.now(),
-      kind: "service-worker-update-required",
+      kind: "service-update-required",
       connectionId: socket.data.connectionId,
       detail: `${socket.data.workerEntityId} ${socket.data.workerCodeVersion ?? "unknown"} -> ${target.version}`,
     })
@@ -1072,7 +1072,7 @@ const webPushStoragePath = Bun.env.HAMILTONIAN_WEB_PUSH_STORAGE_PATH ??
       type: "entity",
       phase: "changed",
       subjectId: workerEntityId,
-      subjectKind: "service-worker",
+      subjectKind: "service",
       ownerId: hamiltonianBrowserNodeId(webPush.deviceIdFor(workerEntityId) ?? deviceId),
       attributes: {
         ...attributes,
@@ -1087,7 +1087,7 @@ const webPushStoragePath = Bun.env.HAMILTONIAN_WEB_PUSH_STORAGE_PATH ??
     const candidate = event.subjectId ?? (
       detail && "subscriptionId" in detail ? detail.subscriptionId : null
     )
-    return typeof candidate === "string" && candidate.startsWith("service-worker:")
+    return typeof candidate === "string" && candidate.startsWith("service:")
       ? candidate
       : null
   }
@@ -1676,7 +1676,7 @@ export async function handleServiceWorkerBundle(): Promise<Response> {
   try {
     const headers = new Headers(securityHeaders("text/javascript; charset=utf-8"))
     headers.set("content-security-policy", CONTENT_SECURITY_POLICY)
-    headers.set("service-worker-allowed", "/")
+    headers.set("service-allowed", "/")
     headers.set("cache-control", "no-cache")
     return new Response(await getServiceWorkerBundle(), {headers})
   } catch (error) {
@@ -1736,7 +1736,7 @@ export async function readWakeWorkerIdentity(request: Request): Promise<string |
 export function wakeWorkerEntityId(workerIdentity: string | null): string | null {
   return workerIdentity === null
     ? webPush.onlyWorkerEntityId()
-    : hamiltonianLifecycleEntityId("service-worker", workerIdentity)
+    : hamiltonianLifecycleEntityId("service", workerIdentity)
 }
 
 export function hasPushSubscription(workerEntityId: string): boolean {
@@ -1781,7 +1781,7 @@ export async function handleWakeServiceWorker(workerEntityId: string, workerDevi
   })
   try {
     await webPush.wake(workerEntityId, {
-      kind: "wake-service-worker",
+      kind: "wake-service",
       wakeId,
       wakeProof,
       token,
@@ -1986,7 +1986,7 @@ export function handlePong(socket: ControlSocket, message: ClientPongMessage): v
   if (
     message.seq !== socket.data.lastChallengeSeq ||
     message.seq <= socket.data.lastAckSeq ||
-    socket.data.workerEntityId !== hamiltonianLifecycleEntityId("service-worker", message.workerIdentity) ||
+    socket.data.workerEntityId !== hamiltonianLifecycleEntityId("service", message.workerIdentity) ||
     (socket.data.workerIdentity !== null && socket.data.workerIdentity !== message.workerIdentity) ||
     (socket.data.workerRuntimeIncarnation !== null &&
       socket.data.workerRuntimeIncarnation !== message.workerRuntimeIncarnation)
@@ -2029,7 +2029,7 @@ export function handlePong(socket: ControlSocket, message: ClientPongMessage): v
 export async function handleIdentity(socket: ControlSocket, message: ClientIdentityMessage): Promise<void> {
   socket.data.workerUpdateRequired = true
   if (
-    socket.data.workerEntityId !== hamiltonianLifecycleEntityId("service-worker", message.workerIdentity) ||
+    socket.data.workerEntityId !== hamiltonianLifecycleEntityId("service", message.workerIdentity) ||
     (socket.data.workerIdentity !== null && socket.data.workerIdentity !== message.workerIdentity) ||
     (socket.data.workerRuntimeIncarnation !== null &&
       socket.data.workerRuntimeIncarnation !== message.workerRuntimeIncarnation) ||
@@ -2129,7 +2129,7 @@ export async function handleIdentity(socket: ControlSocket, message: ClientIdent
     connectionId: socket.data.connectionId,
     detail: `${message.workerIdentity} runtime ${message.workerRuntimeIncarnation} code ${message.workerCodeVersion}`,
   })
-  sendControl(socket, {kind: "service-worker-current", target: targetServiceWorker})
+  sendControl(socket, {kind: "service-current", target: targetServiceWorker})
   void currentHamiltonianBrowserSourceRevision().then((revision) => {
     if (sockets.get(socket.data.connectionId) === socket && socket.data.identityConfirmed) {
       sendControl(socket, {kind: "source-update", revision})

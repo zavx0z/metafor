@@ -26,7 +26,7 @@ export interface HamiltonianPushSubscriptionInput {
 }
 
 export interface HamiltonianPushWakePayload {
-  kind: "wake-service-worker"
+  kind: "wake-service"
   wakeId: string
   wakeProof: string
   token: string
@@ -125,10 +125,10 @@ export class HamiltonianWebPush {
     input: HamiltonianPushSubscriptionInput,
     operationId: string = crypto.randomUUID(),
   ): Promise<HamiltonianPushSubscriptionSnapshot> {
-    if (!workerEntityId.startsWith("service-worker:") || !validPublicId(input.workerIdentity) || !validPublicId(input.deviceId)) {
+    if (!workerEntityId.startsWith("service:") || !validPublicId(input.workerIdentity) || !validPublicId(input.deviceId)) {
       throw new Error("Invalid Hamiltonian PushSubscription identity")
     }
-    const expectedWorkerEntityId = `service-worker:${input.workerIdentity}`
+    const expectedWorkerEntityId = `service:${input.workerIdentity}`
     if (workerEntityId !== expectedWorkerEntityId) {
       throw new Error("PushSubscription worker identity does not match its entity")
     }
@@ -180,7 +180,7 @@ export class HamiltonianWebPush {
       notification: {
         title: "Hamiltonian",
         body: "Service Worker восстановил связь с сервером",
-        tag: "hamiltonian-service-worker",
+        tag: "hamiltonian-service",
         data: {wakeId: payload.wakeId},
       },
       data: {...payload},
@@ -298,14 +298,14 @@ function metadataString(
 function toStoredSubscription(value: LegacyStoredSubscription): StoredWebPushSubscription[] {
   try {
     const subscription = validateWebPushSubscription(value.subscription)
-    if (!value.workerEntityId.startsWith("service-worker:") || !validPublicId(value.deviceId)) return []
+    if (!value.workerEntityId.startsWith("service:") || !validPublicId(value.deviceId)) return []
     return [{
       schema: 1,
       subscriptionId: value.workerEntityId,
       subscription,
       metadata: {
         deviceId: value.deviceId,
-        workerIdentity: value.workerEntityId.slice("service-worker:".length),
+        workerIdentity: value.workerEntityId.slice("service:".length),
       },
       registeredAt: value.registeredAt,
       updatedAt: value.registeredAt,
@@ -328,7 +328,7 @@ function readStoredState(storagePath: string): StoredWebPushState | null {
     ) return null
     const subscriptions = value.subscriptions.filter((entry): entry is LegacyStoredSubscription =>
       isRecord(entry) &&
-      typeof entry.workerEntityId === "string" && entry.workerEntityId.startsWith("service-worker:") &&
+      typeof entry.workerEntityId === "string" && entry.workerEntityId.startsWith("service:") &&
       typeof entry.deviceId === "string" &&
       typeof entry.endpointOrigin === "string" &&
       typeof entry.registeredAt === "number" &&

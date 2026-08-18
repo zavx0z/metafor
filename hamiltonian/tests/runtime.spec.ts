@@ -3,15 +3,15 @@ import type {
   ReleaseFactory,
   ReleaseLoader,
   ReleaseRuntime,
-} from "../release/service-worker"
+} from "../release/service"
 import {
   createReleaseHost,
   registerReleaseListeners,
   type StartupEventScope,
-} from "../startup/service-worker/runtime"
+} from "../startup/service/runtime"
 
 const releaseRequest = new Request(
-  "http://127.0.0.1:4444/@hamiltonian/release?env=service-worker",
+  "http://127.0.0.1:4444/@hamiltonian/release?env=service",
 )
 
 test("startup cold boot is immediate, shared, and retriable", async () => {
@@ -112,7 +112,7 @@ test("runtime swap sends new events to candidate and destroys old after in-fligh
   await host.boot()
   const pendingOld = host.fetch({request: new Request("http://127.0.0.1:4444/old")} as FetchEvent)
   const candidate = await host.prepare(new Request(
-    "http://127.0.0.1:4444/@hamiltonian/release?env=service-worker&version=0.1.4",
+    "http://127.0.0.1:4444/@hamiltonian/release?env=service&version=0.1.4",
   ))
   const activation = host.activate(candidate)
   await Promise.resolve()

@@ -2,7 +2,7 @@
 export const packageEnvironments = [
   "main",
   "worker",
-  "service-worker",
+  "service",
   "server",
   "server-worker",
 ] as const
@@ -13,7 +13,7 @@ export type PackageEnvironment = typeof packageEnvironments[number]
 export const browserPackageEnvironments = [
   "main",
   "worker",
-  "service-worker",
+  "service",
 ] as const
 
 export type BrowserPackageEnvironment = typeof browserPackageEnvironments[number]

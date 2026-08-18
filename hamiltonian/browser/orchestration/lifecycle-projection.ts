@@ -419,7 +419,7 @@ export class HamiltonianLifecycleProjection {
     for (const [index, transport] of activeTransports.entries()) {
       const label = transportLabel(transport.kind, transport.attributes)
       const connectionType = transportConnectionType(transport.kind, transport.attributes)
-      const directedPair = transport.kind === "service-worker-api"
+      const directedPair = transport.kind === "service-api"
       const sharedParameterRole = transport.kind === "websocket"
         ? "duplex"
         : directedPair ? "channel" : null
@@ -514,7 +514,7 @@ export class HamiltonianLifecycleProjection {
           title: entityTitle(presentedEntity, this.#pageId),
           kind: presentedEntity.kind === "browser-runtime"
             ? browserProfileHeader(presentedEntity)
-            : presentedEntity.kind === "service-worker"
+            : presentedEntity.kind === "service"
               ? serviceWorkerHeader(presentedEntity)
               : entityKindLabel(presentedEntity.kind),
           tone: nodeTone(presentedEntity.state, this.#hasGap(presentedEntity)),
@@ -532,7 +532,7 @@ export class HamiltonianLifecycleProjection {
               {id: "reload", label: "Перезагрузить это окно", tone: "neutral" as const},
             ],
           } : {}),
-          ...(presentedEntity.kind === "service-worker" ? {
+          ...(presentedEntity.kind === "service" ? {
             actions: [
               {id: "enable-push", label: "Настроить Web Push", tone: "neutral" as const},
             ],
@@ -667,7 +667,7 @@ export class HamiltonianLifecycleProjection {
         observation.subjectId,
       )
       this.#retiredTransports.add(observation.subjectId)
-      if (observation.subjectKind === "service-worker-api") {
+      if (observation.subjectKind === "service-api") {
         this.#retiredTransports.add(serviceWorkerApiReverseEdgeId(observation.subjectId))
       }
     }
@@ -699,7 +699,7 @@ export class HamiltonianLifecycleProjection {
       observation.targetEntityId === transport.sourceEntityId
     if (!forward && !reverse) return null
     this.#retainMessageIdentity(observation.messageId)
-    const directedPair = transport.kind === "service-worker-api"
+    const directedPair = transport.kind === "service-api"
     return {
       messageId: observation.messageId,
       edgeId: directedPair && reverse
@@ -839,7 +839,7 @@ export class HamiltonianLifecycleProjection {
     )
     this.#structuralEvents.delete(structuralEventKey("transport", transportId))
     this.#retiredTransports.add(transportId)
-    if (transport?.kind === "service-worker-api") {
+    if (transport?.kind === "service-api") {
       this.#retiredTransports.add(serviceWorkerApiReverseEdgeId(transportId))
     }
     if (transport && this.#transportSlots.get(transport.slot) === transportId) {
@@ -852,7 +852,7 @@ export class HamiltonianLifecycleProjection {
     const transport = this.#transports.get(transportId)
     this.#structuralEvents.delete(structuralEventKey("transport", transportId))
     this.#retiredTransports.add(transportId)
-    if (transport?.kind === "service-worker-api") {
+    if (transport?.kind === "service-api") {
       this.#retiredTransports.add(serviceWorkerApiReverseEdgeId(transportId))
     }
     if (transport && this.#transportSlots.get(transport.slot) === transportId) {
@@ -884,7 +884,7 @@ export class HamiltonianLifecycleProjection {
         entity.ownerId === entity.id &&
         (
           entity.kind === "browser-runtime" ||
-          entity.kind === "service-worker" ||
+          entity.kind === "service" ||
           entity.kind === "dedicated-worker"
         )
       ) visible.add(entity.id)
@@ -1152,7 +1152,7 @@ function strongerTransportTone(
 function entityFacts(entity: LifecycleEntity, gaps: HamiltonianLifecycleGap[]) {
   const facts: Array<NonNullable<NodeSystemNode["facts"]>[number]> = Object.entries(entity.attributes)
     .filter(([key, value]) =>
-      !(entity.kind === "service-worker" && key === "identity") &&
+      !(entity.kind === "service" && key === "identity") &&
       value !== null &&
       value !== "")
     .map(([key, value]) => ({id: key, label: factLabel(key, entity.kind), value: compactValue(value ?? "")}))
@@ -1172,7 +1172,7 @@ function entityTitle(entity: LifecycleEntity, pageId: string): string {
   if (entity.kind === "page") return "Страница"
   if (entity.kind === "server") return "Hamiltonian"
   if (entity.kind === "browser-runtime") return stringAttribute(entity.attributes.runtime) || "Браузер"
-  if (entity.kind === "service-worker") return "Service Worker"
+  if (entity.kind === "service") return "Service Worker"
   if (entity.kind === "dedicated-worker") return "Dedicated Worker"
   if (entity.kind === "window-main") return "main"
   if (entity.kind === "bun-process") return stringAttribute(entity.attributes.role) || "Процесс Bun"
@@ -1205,13 +1205,13 @@ function browserProfileHeader(entity: LifecycleEntity): string {
 
 function serviceWorkerHeader(entity: LifecycleEntity): string {
   const identity = stringAttribute(entity.attributes.identity) ||
-    entity.id.replace(/^service-worker:/, "")
+    entity.id.replace(/^service:/, "")
   return compactValue(identity)
 }
 
 function transportLabel(kind: string, attributes: Record<string, string | number | boolean | null>): string {
   if (kind === "websocket") return attributes.protocol === "wss" ? "WSS" : "WS"
-  if (kind === "service-worker-api") return "Service Worker API"
+  if (kind === "service-api") return "Service Worker API"
   if (kind === "controller") return "ServiceWorker controller"
   if (kind === "message-port") return "MessagePort"
   if (kind === "worker-message") return "Worker messaging"
@@ -1232,8 +1232,8 @@ function transportConnectionType(
   attributes: Record<string, string | number | boolean | null>,
 ): string {
   if (kind === "websocket") return "websocket"
-  if (kind === "service-worker-api") return "service-worker-api"
-  if (kind === "controller") return "service-worker-controller"
+  if (kind === "service-api") return "service-api"
+  if (kind === "controller") return "service-controller"
   if (kind === "message-port") return "message-port"
   if (kind === "worker-message") return "worker-messaging"
   if (kind === "broadcast-channel") return "broadcast-channel"
@@ -1259,7 +1259,7 @@ function entityOrder(kind: string): number {
   if (kind === "server") return 0
   if (kind === "browser-runtime") return 5
   if (kind === "page") return 10
-  if (kind === "service-worker") return 20
+  if (kind === "service") return 20
   if (kind === "window-main") return 31
   if (kind === "bun-process") return 30
   if (kind === "peer-process") return 35
@@ -1284,7 +1284,7 @@ function visualParentId(
     !visible.has(entity.ownerId)
   ) return null
   return entity.kind === "page" ||
-    entity.kind === "service-worker" ||
+    entity.kind === "service" ||
     entity.kind === "window-main" ||
     entity.kind === "dedicated-worker" ||
     entity.kind === "rtc-peer"
@@ -1350,7 +1350,7 @@ function requiredLayoutId(layoutIds: ReadonlyMap<string, string>, entityId: stri
 
 function isLifecycleSourceEntityKind(kind: string): boolean {
   return kind === "page" ||
-    kind === "service-worker" ||
+    kind === "service" ||
     kind === "dedicated-worker" ||
     kind === "bun-process" ||
     kind === "peer-process" ||
@@ -1396,7 +1396,7 @@ function serviceWorkerControlFailed(
   entity: LifecycleEntity,
   transports: readonly LifecycleTransport[],
 ): boolean {
-  if (entity.kind !== "service-worker") return false
+  if (entity.kind !== "service") return false
   const push = stringAttribute(entity.attributes.push)
   if (push === "ready" || push === "received" || push === "sent") return false
   let latest: LifecycleTransport | null = null
