@@ -182,6 +182,14 @@ legacy adapter, old cache env и незавершённой transaction. Result 
 мёртвых implementation modules; development release `0.1.7` установлен в
 чистом managed contour без transaction. Result checkpoint — текущий result
 commit.
+Новый observability-срез `UPD-003.16` принят владельцем: development-логи
+должны составлять минимально достаточную матрицу причинных сценариев, а tests —
+доказывать каждый checkpoint, его обязательные данные, порядок и отсутствие
+лишних diagnostics. Он ожидает `UPD-003.17`, потому что аудит обнаружил
+неизолированные build/publication/browser tests. Срез `.17` выполняется первым:
+тесты не изменяют рабочие manifests, versions, artifacts, Cache Storage или
+постоянный origin, не добавляют test hooks в production runtime и после любого
+исхода удаляют только собственные fixtures.
 Обновление уже работающего Bun runtime остаётся будущим большим этапом.
 Package `@hamiltonian/startup` устанавливает Service Worker, восстанавливает
 HTML/startup offline и запускает browser env package `@hamiltonian/release` из
