@@ -526,16 +526,11 @@ test.serial("LOAD-001 restores accepted startup and release from caches", async 
   try {
     browser = await launchBrowser(profile)
 
-    const probeContext = await browser.createBrowserContext()
-    const probe = await probeContext.newPage()
-    await probe.setBypassServiceWorker(true)
-    await probe.goto(server.root, {waitUntil: "domcontentloaded"})
-
-    const routeProbes = await probe.evaluate(async (paths) => {
+    const routeProbes = await (async (paths: string[]) => {
       const current = await Promise.all(paths.map(async (path) => {
-        const first = await fetch(path)
+        const first = await fetch(new URL(path, server.root))
         const firstBody = await first.text()
-        const second = await fetch(path)
+        const second = await fetch(new URL(path, server.root))
         const secondBody = await second.text()
         return {
           path,
@@ -551,10 +546,13 @@ test.serial("LOAD-001 restores accepted startup and release from caches", async 
         "/release-main.js",
         "/release-service.js",
         "/rpc-service.js",
-      ].map(async (path) => ({path, status: (await fetch(path)).status})))
-      const queryArtifact = await fetch("/code?module=@hamiltonian/release")
-      const serverEnvironment = await fetch("/@hamiltonian/release?env=server")
-      const releaseState = await (await fetch("/code")).json() as {
+      ].map(async (path) => ({
+        path,
+        status: (await fetch(new URL(path, server.root))).status,
+      })))
+      const queryArtifact = await fetch(new URL("/code?module=@hamiltonian/release", server.root))
+      const serverEnvironment = await fetch(new URL("/@hamiltonian/release?env=server", server.root))
+      const releaseState = await (await fetch(new URL("/code", server.root))).json() as {
         packages: Array<{name: string, env: string}>
       }
       return {
@@ -566,7 +564,7 @@ test.serial("LOAD-001 restores accepted startup and release from caches", async 
           .filter(({name}) => name === "@hamiltonian/release")
           .map(({env}) => env),
       }
-    }, [releaseMainUrl, releaseServiceUrl, internalVisualUrl])
+    })([releaseMainUrl, releaseServiceUrl, internalVisualUrl])
 
     for (const route of routeProbes.current) {
       expect(route.firstStatus).toBe(200)
@@ -579,8 +577,6 @@ test.serial("LOAD-001 restores accepted startup and release from caches", async 
     expect(routeProbes.serverEnvironmentStatus).toBe(404)
     expect(routeProbes.releaseEnvironments).toEqual(["main", "service-worker"])
     for (const route of routeProbes.legacy) expect(route.status).toBe(404)
-    await probeContext.close()
-
     const requests: string[] = []
     const serviceWorkerResponses: string[] = []
     const workerObserver = observeStartupWorker(browser)

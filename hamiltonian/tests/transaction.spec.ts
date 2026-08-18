@@ -80,6 +80,26 @@ test.serial("UPD-003 installs every candidate before cleanup and deletes service
   expect(result.mutations.at(-1)).toEqual({cache: "transaction", kind: "delete-cache"})
 })
 
+test.serial("UPD-003 treats a stale update for an installed exact entry as a no-op", async () => {
+  const installed = await artifact("@hamiltonian/release", "main", "1.0.0", "installed main")
+  const storage = new MemoryCacheStorage()
+  const release = await storage.open("release")
+  await release.put(exactUrl(installed.identity), installed.response)
+  storage.resetMutations()
+
+  const network = new Map([[exactUrl(installed.identity), installed.response]])
+  const changed = await withServiceWorkerGlobals(storage, network, async () =>
+    await updateRelease(loader, {update: [installed.identity], remove: []}))
+
+  expect(changed).toEqual([])
+  expect((await release.keys()).map(({url}) => url)).toEqual([exactUrl(installed.identity)])
+  expect(storage.mutations.some((mutation) =>
+    mutation.cache === "release" && (mutation.kind === "put" || mutation.kind === "delete")))
+    .toBe(false)
+  expect(storage.mutations.at(-1)).toEqual({cache: "transaction", kind: "delete-cache"})
+  expect(await storage.keys()).not.toContain("transaction")
+})
+
 test.serial("UPD-003 prepares release runtime before cleanup and activates it only after durable commit", async () => {
   const state = await fixture()
   const lifecycle: string[] = []

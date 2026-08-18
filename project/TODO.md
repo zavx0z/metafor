@@ -163,8 +163,11 @@ artifact будет опубликован в финальном contour пос�
 изменения package identity law. Полный production cold browser proof открыл
 отдельный runtime-дефект: stale delta ошибочно считала уже установленную и
 проверенную exact entry изменением и выполняла лишнюю Window navigation.
-Текущий correction-срез `.13` отделяет фактические canonical mutations от
-входной delta и доказывает no-op без подавления настоящего reload.
+Correction-срез `.13` находится в `REVIEW`: фактические canonical mutations
+отделены от входной delta, stale exact update доказана как no-op, production
+cold и полный browser suite прошли. Development release `0.1.5` находится в
+чистом managed contour с одной registration, точными caches, debug/source maps
+и без transaction; result checkpoint — текущий result commit.
 Обновление уже работающего Bun runtime остаётся будущим большим этапом.
 Package `@hamiltonian/startup` устанавливает Service Worker, восстанавливает
 HTML/startup offline и запускает browser env package `@hamiltonian/release` из

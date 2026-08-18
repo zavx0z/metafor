@@ -104,7 +104,6 @@ export async function updateRelease(
     if (installed) {
       try {
         await verifyPackageResponse(installed, entry)
-        changed.add(browserPackageSlot(entry.name, entry.env))
         continue
       } catch {
         // Тот же exact URL не считается candidate без проверенных bytes.

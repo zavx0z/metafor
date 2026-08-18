@@ -279,6 +279,13 @@ transaction IDs отсутствуют. Signal не хранит состоян�
 повторяться: одна сверка идёт за раз, а следующий signal либо reconnect всегда
 начинает новое чтение текущих caches и root.
 
+Delta относится к отправленному current snapshot, а не блокирует другие
+canonical fetch. Если к моменту apply та же exact entry уже находится в
+правильном owner cache и повторно проходит identity/bytes verification, release
+переиспользует её без canonical mutation. Такой stale update не входит в
+`changed` и сам по себе не навигирует Window. Реальный candidate `put` или
+cleanup лишней entry остаётся изменением и сохраняет предусмотренный reload.
+
 Корневые caret dependencies `@hamiltonian/release` и `@internal/*` являются
 полным browser release membership. Перед чтением state и перед сборкой target
 versions server проверяет runtime dependencies всех участников:
