@@ -1676,7 +1676,7 @@ export async function handleServiceWorkerBundle(): Promise<Response> {
   try {
     const headers = new Headers(securityHeaders("text/javascript; charset=utf-8"))
     headers.set("content-security-policy", CONTENT_SECURITY_POLICY)
-    headers.set("service-allowed", "/")
+    headers.set("Service-Worker-Allowed", "/")
     headers.set("cache-control", "no-cache")
     return new Response(await getServiceWorkerBundle(), {headers})
   } catch (error) {
