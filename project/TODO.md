@@ -154,8 +154,9 @@ old service-worker release удаляется последним, а `transactio
 синхронно регистрирует browser event
 bridge, сразу запускает release, передаёт frozen one-way dependencies и меняет
 inert runtime после durable commit без `unregister`; focused suite и browser
-update/recovery contour прошли, а новый immutable artifact будет опубликован в
-финальном contour после структурного среза. Следующий срез `.12` удаляет
+update/recovery contour прошли, result checkpoint `d346b6dd6`; новый immutable
+artifact будет опубликован в финальном contour после структурного среза.
+Текущий срез `.12` удаляет
 `hamiltonian/web`, поднимает `static`, переносит общие
 package-функции в `shared/package` и раскладывает release server/service-worker
 по предметным директориям без изменения package identities.
