@@ -199,21 +199,28 @@ Focused regression прошёл `28/28`, browser — `8/8`, полный Hamilto
 `289/289`; рабочие digests, PID/TTY/Chrome target, registration/controller и
 Cache Storage постоянного contour совпали до и после полного прогона. Result
 checkpoint — текущий result commit.
+Родительский результат `UPD-003` повторно проверен на `580b0be94`: strict
+typechecks startup/release/Visual/tests и полный Hamiltonian suite прошли
+`297/297`; managed PID, TTY, Chrome target, controller, server state и
+побайтовые SHA каждого browser code artifact не изменились. В Cache Storage
+остались только `startup`, `release`, `internal`, технический `transaction`
+отсутствует. Задача переведена в `REVIEW` для независимой закрывающей проверки;
+owner-visible contour оставлен работающим.
 Обновление уже работающего Bun runtime остаётся будущим большим этапом.
 Package `@hamiltonian/startup` устанавливает Service Worker, восстанавливает
 HTML/startup offline и запускает browser env package `@hamiltonian/release` из
 cache `release`. Release package разворачивает Window и Service Worker
-контуры; RPC и host publication принадлежат его `server`/`service-worker` env,
+контуры; RPC и host publication принадлежат его `server`/`service` env,
 а другие internal packages остаются подключаемой функциональностью. Корневой
 `server.ts` явно показывает HTTP routes и WebSocket lifecycle.
 Ранее владелец подтвердил startup/import offline, cold-восстановление `internal` и
 текущий internal RPC/WebSocket. `LOAD-001.23` остановлен: Window loader не
 расширяет startup до появления первого предметного Window module. Стандартное
 пустое visual-окружение Window уже закреплено в Hamiltonian-контракте и не
-является дополнительным критерием minimal loader. Полный versioned manifest,
-hashes и атомарное переключение сменяемого набора
-`import`/`internal`/`metafor` принадлежат начатой `UPD-002`; неизменяемый
-startup в этот выпуск не входит. Владелец признал текущий loader checkpoint
+является дополнительным критерием minimal loader. Package SemVer, integrity,
+canonical owner caches и атомарное переключение сменяемого набора принадлежат
+`UPD-002`/`UPD-003`; неизменяемый startup в этот выпуск не входит. Владелец
+признал текущий loader checkpoint
 достаточным для development update-срезов, не закрывая остальную `LOAD-001`.
 Development checkpoint `UPD-002.2`–`UPD-002.5` принят владельцем: групповой
 build, одно уведомление и один browser restart сохранены, а единственный
@@ -238,7 +245,7 @@ production удаляет `console.debug` и не публикует карту.
 | MF-425 | IN_PROGRESS | нет         | [Открыть](tasks/MF-425.md) |
 | LOAD-001 | IN_PROGRESS | нет       | [Открыть](tasks/LOAD-001.md) |
 | UPD-002 | IN_PROGRESS | нет       | [Открыть](tasks/UPD-002.md) |
-| UPD-003 | IN_PROGRESS | нет       | [Открыть](tasks/UPD-003.md) |
+| UPD-003 | REVIEW      | нет       | [Открыть](tasks/UPD-003.md) |
 | MF-411 | IN_PROGRESS | нет         | [Открыть](tasks/MF-411.md) |
 | NODES-008 | IN_PROGRESS | нет       | [Открыть](tasks/NODES-008.md) |
 | MF-414 | WAITING     | MF-411      | [Открыть](tasks/MF-414.md) |

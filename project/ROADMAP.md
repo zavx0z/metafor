@@ -233,12 +233,13 @@ prototype visual и не выбирая предметный Window module.
 они не являются source base нового Hamiltonian.
 
 Новая реализация создаётся с нуля рядом в source-директориях `startup`,
-`release`, `web`, `server`, `interface` и `internal`. Browser code проходит три
+`release`, `shared`, `static` и `internal`, а корневой `server.ts` остаётся
+явной картой HTTP routes и WebSocket lifecycle. Browser code проходит три
 последовательных уровня: неизменяемый `@hamiltonian/startup`, запускаемый
 `@hamiltonian/release` и используемые им packages. Каждый из двух Hamiltonian
 packages хранит среды в `<env>/index.ts`, объявляет их direct conditional
-exports и имеет один SemVer; `web` остаётся transport/static-директорией, а не
-владельцем packages. Служебные изменяемые
+exports и имеет один SemVer; transport-каталога `hamiltonian/web` в clean-room
+реализации нет. Служебные изменяемые
 modules самого Hamiltonian живут в пространстве `internal`, а modules среды,
 ради которой он создан, — в отдельном пространстве `metafor`. Их имена не
 зеркалят execution context: один module может размещаться в Window, Dedicated
@@ -247,9 +248,8 @@ Worker или Service Worker. Фиксированные пакеты `@web/main
 
 Fullstack runtime bundling HTML/main отклонён после появления Bun HMR и
 неподходящего runtime URL importer. `server.ts` выдаёт неизменяемый HTML и
-заранее собранные `startup-main.js` и `startup-service.js`; сами browser-пакеты
-не владеют Hamiltonian server, WebSocket update protocol или полным release
-mechanism.
+заранее собранные env artifacts package `@hamiltonian/startup`; startup не
+владеет Hamiltonian server, WebSocket update protocol или release policy.
 
 Отдельная линия `LOAD` владеет первоначальной загрузкой браузерного функционала
 Hamiltonian. Первый HTTPS response доставляет только минимальные HTML и startup
@@ -258,8 +258,7 @@ entrypoints. Startup запускает release в Window и Service Worker, а 
 через `fetch`, проверяет и сохраняет их до запуска в выбранном Window,
 Dedicated Worker или Service Worker context. WebSocket принадлежит
 RPC-подсистеме release, а не неизменяемому startup или отдельному internal
-package; передача по нему изменяемого адреса source остаётся следующим
-отдельным механизмом.
+package; code bytes через него не передаются.
 Cache Storage разделён по владельцам `startup`, `release`, `internal` и
 `metafor`; последний создаётся только при появлении первого module среды.
 Стабильные cache endpoints остаются на исходном origin Service Worker
@@ -269,8 +268,8 @@ Cache Storage разделён по владельцам `startup`, `release`, `
 доказанного loader. Release env `main` импортирует `@internal/visual`, который
 создаёт один общий `UiRuntime`; встроенный surface-display отключён, а один
 стандартный `UIDisplay` и navigation dock готовы для последующего предметного
-наполнения. HTML, style и font resources обслуживает существующий
-`hamiltonian/web/static`. Этим результатом владеет
+наполнения. HTML, style и font resources обслуживает `hamiltonian/static`.
+Этим результатом владеет
 [Hamiltonian-контракт](../hamiltonian/README.md#стандартная-window-среда-clean-room-loader),
 а не prototype `hamiltonian/visual` или первый предметный `internal`/`metafor`
 module.
@@ -286,7 +285,7 @@ Worker`](tasks/LOAD-001.md). После доказанного loader contract �
 Существующий `hamiltonian/update` относится к прототипу и не переносится в
 новую реализацию. В clean-room Hamiltonian первоначальный запуск и последующая
 смена browser-кода принадлежат package `@hamiltonian/release`: env `main` и
-`service-worker` работают в browser, а env `server` владеет package discovery,
+`service` работают в browser, а env `server` владеет package discovery,
 build, SemVer и атомарной публикацией.
 
 Локальный update-шаг после `LOAD-001` передал Service Worker ответственность за
@@ -303,7 +302,7 @@ Worker`](tasks/UPD-002.md).
 
 Следующий этап различает несколько сред одного package без изменения bare
 import: стандартный conditional `exports` выбирает `main`, `worker`,
-`service-worker`, `server` или `server-worker`, а env входит в artifact и
+`service`, `server` или `server-worker`, а env входит в artifact и
 browser cache identity. Service Worker сообщает server фактический полный
 состав постоянных code caches, получает только `update/remove` и применяет
 различия через один фиксированный восстанавливаемый transaction cache. Root
