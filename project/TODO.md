@@ -176,10 +176,12 @@ diagnostics и lifecycle identities. Platform Web API сохраняет имя
 startup `0.1.1` и release `0.1.6` установлены в чистом managed contour без
 legacy adapter, old cache env и незавершённой transaction. Result checkpoint —
 текущий result commit.
-После IDE evidence `TS6196` открыт correction-срез `UPD-003.15`: он сохраняет
-правку владельца в type import, удаляет подтверждённые unused-остатки
-startup/release, включает строгий compiler regression и проверяет, что все
-исполняемые source modules действительно входят в package bundles.
+После IDE evidence `TS6196` correction-срез `UPD-003.15` находится в `REVIEW`:
+правка владельца в type import сохранена, четыре подтверждённых unused-остатка
+удалены, strict startup/test compiler regression проходит. Metafile не нашёл
+мёртвых implementation modules; development release `0.1.7` установлен в
+чистом managed contour без transaction. Result checkpoint — текущий result
+commit.
 Обновление уже работающего Bun runtime остаётся будущим большим этапом.
 Package `@hamiltonian/startup` устанавливает Service Worker, восстанавливает
 HTML/startup offline и запускает browser env package `@hamiltonian/release` из

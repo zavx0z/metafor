@@ -8,7 +8,6 @@
 import {createReleaseCache} from "../fetch"
 import type {
   ReleaseDependencies,
-  ReleaseLoader,
   ReleaseRuntime,
 } from "./contract"
 import {currentReleasePackages} from "../cache/current"

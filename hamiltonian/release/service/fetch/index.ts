@@ -1,5 +1,5 @@
 import {browserPackageCache, parseBrowserPackageUrl} from "../../../shared/package/url"
-import type {ReleaseLoader} from "../runtime/contract"
+import type {ReleaseLoader} from "../runtime"
 
 const startupResources = [
   "/",

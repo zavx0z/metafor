@@ -3,6 +3,8 @@
   "compilerOptions": {
     "allowJs": false,
     "checkJs": false,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
     "types": [
       "bun",
       "node",

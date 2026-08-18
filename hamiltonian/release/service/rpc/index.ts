@@ -71,7 +71,7 @@ export function startRpc(bindings: RpcBindings) {
     })
   }
 
-  const applyDelta = async (connection: WebSocket, delta: ReleaseDelta) => {
+  const applyDelta = async (delta: ReleaseDelta) => {
     try {
       console.debug("[@hamiltonian/release:service:rpc:update]", "получена delta браузерных пакетов", delta)
       const updated = await bindings.applyDelta(delta)
@@ -138,7 +138,7 @@ export function startRpc(bindings: RpcBindings) {
       if (delta === null || !state.awaitingDelta) return
       state.awaitingDelta = false
       enqueueUpdate(connection, async () => {
-        await applyDelta(connection, delta)
+        await applyDelta(delta)
         if (state.resynchronize && connection === socket) {
           state.resynchronize = false
           requestSynchronization(connection)

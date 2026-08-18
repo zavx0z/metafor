@@ -9,13 +9,11 @@ import {readReleaseComposition} from "./composition"
 import type {
   BuildablePackage,
   ReleasedPackage,
-  ReleasablePackage,
 } from "../shared/contracts"
 import {
   packageArtifact,
   packageManifest,
   packageOwner,
-  packageOwners,
 } from "../package/manifest"
 import {waitForPublication} from "./queue"
 import {isVersion} from "../package/version"

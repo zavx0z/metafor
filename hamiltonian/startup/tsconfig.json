@@ -9,6 +9,8 @@
       "DOM",
       "DOM.Iterable"
     ],
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
     "types": [
       "serviceworker"
     ]
