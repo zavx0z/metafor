@@ -199,13 +199,15 @@ Focused regression прошёл `28/28`, browser — `8/8`, полный Hamilto
 `289/289`; рабочие digests, PID/TTY/Chrome target, registration/controller и
 Cache Storage постоянного contour совпали до и после полного прогона. Result
 checkpoint — текущий result commit.
-Родительский результат `UPD-003` повторно проверен на `580b0be94`: strict
+Родительский результат `UPD-003` был повторно проверен на `580b0be94`: strict
 typechecks startup/release/Visual/tests и полный Hamiltonian suite прошли
 `297/297`; managed PID, TTY, Chrome target, controller, server state и
-побайтовые SHA каждого browser code artifact не изменились. В Cache Storage
-остались только `startup`, `release`, `internal`, технический `transaction`
-отсутствует. Задача переведена в `REVIEW` для независимой закрывающей проверки;
-owner-visible contour оставлен работающим.
+побайтовые SHA каждого browser code artifact не изменились. Независимая
+closing review на `205c72cdb` вернула задачу в `IN_PROGRESS`: cold recovery не
+сверяет полностью существующий exact composition с fresh source build, а `.14`
+повредила standard header `Service-Worker-Allowed` отдельно запускаемого
+prototype. Исправления зарегистрированы как `UPD-003.18` и `UPD-003.19`;
+owner-visible contour оставлен работающим и в их приёмку не входит.
 Обновление уже работающего Bun runtime остаётся будущим большим этапом.
 Package `@hamiltonian/startup` устанавливает Service Worker, восстанавливает
 HTML/startup offline и запускает browser env package `@hamiltonian/release` из
@@ -245,7 +247,7 @@ production удаляет `console.debug` и не публикует карту.
 | MF-425 | IN_PROGRESS | нет         | [Открыть](tasks/MF-425.md) |
 | LOAD-001 | IN_PROGRESS | нет       | [Открыть](tasks/LOAD-001.md) |
 | UPD-002 | IN_PROGRESS | нет       | [Открыть](tasks/UPD-002.md) |
-| UPD-003 | REVIEW      | нет       | [Открыть](tasks/UPD-003.md) |
+| UPD-003 | IN_PROGRESS | нет       | [Открыть](tasks/UPD-003.md) |
 | MF-411 | IN_PROGRESS | нет         | [Открыть](tasks/MF-411.md) |
 | NODES-008 | IN_PROGRESS | нет       | [Открыть](tasks/NODES-008.md) |
 | MF-414 | WAITING     | MF-411      | [Открыть](tasks/MF-414.md) |

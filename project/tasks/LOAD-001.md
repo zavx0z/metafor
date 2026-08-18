@@ -1696,18 +1696,22 @@ Fullstack/HMR. Срезы `.3`–`.22` находятся в `REVIEW`; они п
 loader из startup. Срез `.24` находится в `REVIEW`: владелец подтвердил
 повторяющийся двусторонний `ping`/`pong`.
 
-Текущий доказанный путь:
-`HTML → @startup/main → @startup/service → @import/main + @import/service →
-@internal/rpc → /sw`. Caches `startup` и `import` восстановлены владельцем
-offline; владелец также подтвердил cold-восстановление cache `internal`,
-загрузку internal RPC и WebSocket. `LOAD-001` по решению владельца остаётся
-`IN_PROGRESS`. Исторический срез `.24` доказал диагностический `ping`/`pong`,
-но этот heartbeat позднее удалён и больше не входит в действующий loader
-contract. Стандартное пустое visual-окружение больше не является её
-незакрытым доказательством: оно закреплено в Hamiltonian-контракте. Первый
-предметный Window/Metafor module и его ABI остаются будущим решением.
-Versioned manifest, hashes и атомарная публикация полного release остаются в
-`UPD-002`.
+Имена `@startup/*`, `@import/*`, cache `import` и отдельный `@internal/rpc`
+ниже сохраняются только как история первоначального loader proof. После
+`UPD-002`/`UPD-003` текущий реализованный путь имеет вид
+`HTML → @hamiltonian/startup(main/service) →
+@hamiltonian/release(main/service) → @internal/visual`; RPC входит в env
+`service` release package, а постоянные code caches принадлежат `startup`,
+`release` и `internal`. Действующим законом этой формы владеет
+`hamiltonian/README.md`, а не исторические записи подзадач.
+
+Исторический срез `.24` доказал диагностический `ping`/`pong`, но этот heartbeat
+позднее удалён и больше не входит в действующий loader contract. Стандартное
+пустое visual-окружение больше не является незакрытым доказательством: оно
+закреплено в Hamiltonian-контракте. Первый предметный Window/Metafor module и
+его ABI остаются будущим решением вне minimal loader proof. `LOAD-001` остаётся
+`IN_PROGRESS` до отдельного parent reconciliation после закрывающей проверки
+package/release линии.
 
 Test-only Puppeteer suite `bun run --cwd hamiltonian test:load` защищает уже
 принятую loader boundary без изменения product source. Два последовательных
@@ -1716,6 +1720,6 @@ Test-only Puppeteer suite `bun run --cwd hamiltonian test:load` защищает
 изолированный Chrome, повторно открывает тот же профиль на том же origin и
 подменяет host test-only witness, который не отдаёт HTTP artifacts; успешная
 navigation, запуск Window importer и новое `/sw`-соединение доказывают
-восстановление `startup`, `import` и `internal` из Cache Storage. Это
+восстановление тогдашних `startup`, `import` и `internal` из Cache Storage. Это
 автоматизированное regression evidence изолированного контура, а не замена
 оставшемуся live owner-сценарию в canonical Hamiltonian contour.
