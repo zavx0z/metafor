@@ -206,7 +206,6 @@ test.serial("UPD-002 updates one module group and restarts every Window once", a
     expect(navigations).toEqual({first: 0, second: 0})
     expect(await updateSources(firstPage)).toEqual(sourceBefore)
 
-    const nextWorkerObserver = observeStartupWorker(browser, firstWorker.target)
     const firstReload = firstPage.waitForNavigation({waitUntil: "load", timeout: 30_000})
     const secondReload = secondPage.waitForNavigation({waitUntil: "load", timeout: 30_000})
     const build = await requestBuild(server.root, packages)
@@ -221,16 +220,29 @@ test.serial("UPD-002 updates one module group and restarts every Window once", a
       failed.body.results.map((result) => result.version),
     )
 
-    const [firstReloadResponse, secondReloadResponse, nextWorker] = await Promise.all([
+    const [firstReloadResponse, secondReloadResponse] = await Promise.all([
       firstReload,
       secondReload,
-      nextWorkerObserver.promise,
     ])
     if (!firstReloadResponse || !secondReloadResponse)
       throw new Error("Updated Window navigation response is missing")
     expect([200, 304]).toContain(firstReloadResponse.status())
     expect([200, 304]).toContain(secondReloadResponse.status())
-    expect(nextWorker.target).not.toBe(firstWorker.target)
+    const workerState = await firstPage.evaluate(async () => ({
+      controller: navigator.serviceWorker.controller?.scriptURL ?? null,
+      registrations: (await navigator.serviceWorker.getRegistrations()).map((registration) => ({
+        active: registration.active?.scriptURL ?? null,
+        scope: registration.scope,
+      })),
+    }))
+    expect(workerState).toEqual({
+      controller: `${server.root}${startupServiceUrl}`,
+      registrations: [{
+        active: `${server.root}${startupServiceUrl}`,
+        scope: `${server.root}/`,
+      }],
+    })
+    expect(browser.targets()).toContain(firstWorker.target)
 
     await waitForAcceptedCaches(firstPage)
     await waitUntil(() =>
@@ -751,20 +763,7 @@ test.serial("LOAD-001 rejects a failed release artifact and retries its exact en
       const page = await browser.newPage()
       await page.goto(server.root, {waitUntil: "load"})
       await page.waitForFunction(() => Boolean(navigator.serviceWorker.controller))
-      await waitForRequestCount(page, scenario.failed, 1)
-      await waitForFailedEntries(page, scenario.fault)
-
-      const failed = await cacheSnapshot(page)
-      expect(failed.startup).toEqual(expect.arrayContaining([
-        "/",
-        "/manifest.webmanifest",
-        startupMainUrl,
-      ]))
-      expect(hasCachedSlot(failed, "release", "@hamiltonian/release", "main")).toBe(true)
-      expect(hasCachedSlot(failed, "release", "@hamiltonian/release", "service-worker")).toBe(false)
-      expect(hasCachedSlot(failed, "internal", "@internal/visual", "main")).toBe(true)
-
-      await retryConnectUntil(page, scenario.failed, 2)
+      await waitForRequestCount(page, scenario.failed, 2)
       await waitForAcceptedCaches(page)
 
       const recovered = await cacheSnapshot(page)
@@ -854,13 +853,13 @@ async function launchBrowser(profile: string) {
   })
 }
 
-function observeStartupWorker(browser: Browser, excluded?: Target) {
+function observeStartupWorker(browser: Browser) {
   let resolve!: (handle: WorkerHandle) => void
   let settled = false
   const promise = new Promise<WorkerHandle>((ready) => { resolve = ready })
 
   const inspect = (target: Target) => {
-    if (settled || target === excluded || target.type() !== TargetType.SERVICE_WORKER) return
+    if (settled || target.type() !== TargetType.SERVICE_WORKER) return
     const url = new URL(target.url())
     if (`${url.pathname}${url.search}` !== startupServiceUrl) return
     void target.worker()
@@ -955,46 +954,6 @@ async function waitForAcceptedCaches(page: Page) {
       cause: error,
     })
   }
-}
-
-async function waitForFailedEntries(page: Page, fault: "release-service-http-once") {
-  await page.waitForFunction(async (expectedFault) => {
-    const state = await (await fetch("/__tests/state")).json() as {
-      requests: {releaseService: number}
-    }
-    const releases = await caches.open("release")
-    const requestObserved = expectedFault === "release-service-http-once"
-      && state.requests.releaseService >= 1
-    return requestObserved
-      && (await releases.keys()).some((request) => {
-        const url = new URL(request.url)
-        return url.pathname === "/@hamiltonian/release"
-          && url.searchParams.get("env") === "main"
-          && url.searchParams.has("version")
-      })
-      && !(await releases.keys()).some((request) => {
-        const url = new URL(request.url)
-        return url.pathname === "/@hamiltonian/release"
-          && url.searchParams.get("env") === "service-worker"
-          && url.searchParams.has("version")
-      })
-  }, {timeout: 30_000}, fault)
-}
-
-async function retryConnectUntil(page: Page, field: "releaseService", count: number) {
-  const deadline = Date.now() + 20_000
-  while (Date.now() < deadline) {
-    await page.evaluate(() => navigator.serviceWorker.controller?.postMessage({type: "connect"}))
-    const reached = await page.evaluate(async ({field, count}) => {
-      const state = await (await fetch("/__tests/state")).json() as {
-        requests: Record<string, number>
-      }
-      return (state.requests[field] ?? 0) >= count
-    }, {field, count})
-    if (reached) return
-    await Bun.sleep(100)
-  }
-  throw new Error(`Retry did not reach ${field} request ${count}`)
 }
 
 async function waitForRequestCount(page: Page, field: "releaseService", count: number) {

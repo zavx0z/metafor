@@ -5,7 +5,8 @@
     "checkJs": false,
     "types": [
       "bun",
-      "node"
+      "node",
+      "serviceworker"
     ]
   },
   "include": [

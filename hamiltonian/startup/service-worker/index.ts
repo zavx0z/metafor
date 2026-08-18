@@ -1,81 +1,23 @@
 /**
- * Event entrypoint неизменяемой Service Worker оболочки `@hamiltonian/startup`.
+ * Неизменяемая Service Worker оболочка `@hamiltonian/startup`.
  *
- * Install и activate немедленно передают новой инкарнации управление. Первое
- * `connect` message продлевает жизнь события до подготовки startup cache,
- * получает и запускает Service Worker release через универсальный loader API
- * и ждёт его завершения. Все GET requests после захвата страницы проходят
- * через cache-first policy.
+ * Она синхронно регистрирует browser listeners, сразу запускает release и
+ * оставляет всё прикладное поведение самому release.
  *
  * @packageDocumentation
  */
 
-import {cacheFirst, cacheStartup} from "./cache"
 import * as loader from "./loader"
+import {createReleaseHost, registerReleaseListeners, type StartupEventScope} from "./runtime"
 import type {ReleaseLoader} from "@hamiltonian/release"
 
 const serviceReleaseRequest = new Request(
   new URL("/@hamiltonian/release?env=service-worker", location.origin),
 )
 const releaseLoader = loader satisfies ReleaseLoader
+const host = createReleaseHost(serviceReleaseRequest, releaseLoader)
 
-let serviceRelease: Promise<void> | null = null
-
-addEventListener("install", (event: ExtendableEvent) => {
-  event.waitUntil(skipWaiting())
+registerReleaseListeners(globalThis as unknown as StartupEventScope, host)
+void host.boot().catch((error) => {
+  console.error("Не удалось запустить Service Worker release", error)
 })
-
-addEventListener("activate", (event: ExtendableEvent) => {
-  event.waitUntil(clients.claim())
-})
-
-addEventListener("message", (event: ExtendableMessageEvent) => {
-  if (event.data?.type !== "connect") return
-  event.waitUntil(Promise.all([cacheStartup(), loadServiceRelease()]))
-})
-
-addEventListener("fetch", (event: FetchEvent) => {
-  if (event.request.method !== "GET") return
-  event.respondWith(cacheFirst(event.request))
-})
-
-/**
- * Загружает и один раз за инкарнацию запускает Service Worker release.
- *
- * Одновременные события используют один Promise. После ошибки ссылка
- * освобождается, поэтому следующее событие может повторить полную загрузку.
- */
-async function loadServiceRelease() {
-  serviceRelease ??= startServiceRelease()
-
-  try {
-    await serviceRelease
-  } catch (error) {
-    serviceRelease = null
-    throw error
-  }
-}
-
-/** Получает release, сохраняет его bytes и передаёт ему универсальный API. */
-async function startServiceRelease() {
-  try {
-    let response = await loader.read("release", serviceReleaseRequest)
-
-    if (!response) {
-      response = loader.verify(await fetch(serviceReleaseRequest))
-      await loader.cache("release", serviceReleaseRequest, response)
-      response = await loader.read("release", serviceReleaseRequest)
-    }
-
-    if (!response) throw new Error("Cached Service Worker release is missing")
-
-    loader.verify(response)
-    const module = {exports: {}} as {
-      exports: {default: (loaderApi: typeof loader) => Promise<void>}
-    }
-    loader.run(await response.text(), {module})
-    await module.exports.default(releaseLoader)
-  } catch (error) {
-    throw error
-  }
-}

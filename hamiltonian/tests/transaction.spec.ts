@@ -80,6 +80,80 @@ test.serial("UPD-003 installs every candidate before cleanup and deletes service
   expect(result.mutations.at(-1)).toEqual({cache: "transaction", kind: "delete-cache"})
 })
 
+test.serial("UPD-003 prepares release runtime before cleanup and activates it only after durable commit", async () => {
+  const state = await fixture()
+  const lifecycle: string[] = []
+  const candidate = inertRuntime(lifecycle)
+
+  await withServiceWorkerGlobals(state.storage, state.network, async () => {
+    await updateRelease(loader, state.delta, {
+      async prepare(request) {
+        lifecycle.push(`prepare:${request.url}`)
+        const urls = await packageUrls(state.storage)
+        expect(state.previous.every((entry) => urls.has(exactUrl(entry)))).toBeTrue()
+        expect(state.next.every((entry) => urls.has(exactUrl(entry)))).toBeTrue()
+        expect(await state.storage.keys()).toContain("transaction")
+        return candidate
+      },
+      async activate(runtime) {
+        lifecycle.push("activate")
+        expect(runtime).toBe(candidate)
+        expect(await state.storage.keys()).not.toContain("transaction")
+        await expectNewComposition(state.storage, state.next)
+      },
+    })
+  })
+
+  const service = state.next.find(({name, env}) =>
+    name === "@hamiltonian/release" && env === "service-worker")!
+  expect(lifecycle).toEqual([`prepare:${exactUrl(service)}`, "activate"])
+})
+
+test.serial("UPD-003 remove-only recovery prepares the installed target release before old cleanup", async () => {
+  const state = await fixture()
+  for (const entry of state.next) {
+    const response = state.network.get(exactUrl(entry))
+    if (!response) throw new Error(`Missing fixture artifact ${exactUrl(entry)}`)
+    await (await state.storage.open(browserPackageCache(entry.name)!))
+      .put(exactUrl(entry), response)
+  }
+  await (await state.storage.open("transaction"))
+    .put(`${origin}/transaction`, new Response(null, {status: 204}))
+  state.storage.resetMutations()
+
+  const current = await withServiceWorkerGlobals(
+    state.storage,
+    state.network,
+    currentReleasePackages,
+  )
+  const delta = releaseDelta(state.next, current)
+  expect(delta.update).toEqual([])
+  const previousService = state.previous.find(({name, env}) =>
+    name === "@hamiltonian/release" && env === "service-worker")!
+  expect(delta.remove).toContainEqual({
+    name: previousService.name,
+    env: previousService.env,
+    version: previousService.version,
+  })
+
+  const prepared = {url: ""}
+  await withServiceWorkerGlobals(state.storage, state.network, async () => {
+    await updateRelease(loader, delta, {
+      async prepare(request) {
+        prepared.url = request.url
+        expect(await state.storage.keys()).toContain("transaction")
+        return inertRuntime([])
+      },
+      async activate() {},
+    })
+  })
+
+  const target = state.next.find(({name, env}) =>
+    name === "@hamiltonian/release" && env === "service-worker")!
+  expect(prepared.url).toBe(exactUrl(target))
+  await expectNewComposition(state.storage, state.next)
+})
+
 test.serial("UPD-003 startup uses Cache order and fails closed on a damaged first release", async () => {
   const storage = new MemoryCacheStorage()
   const previous = await artifact("@hamiltonian/release", "service-worker", "1.0.0", "old release")
@@ -92,6 +166,15 @@ test.serial("UPD-003 startup uses Cache order and fails closed on a damaged firs
   await withServiceWorkerGlobals(storage, new Map(), async () => {
     const stable = new Request(`${origin}${browserPackageUrl("@hamiltonian/release", "service-worker")}`)
     expect(await (await read("release", stable))?.text()).toBe("old release")
+
+    const mismatched = new Request(`${origin}${browserPackageUrl(
+      "@hamiltonian/release",
+      "service-worker",
+      "9.9.9",
+    )}`)
+    await release.put(mismatched, previous.response)
+    await expect(read("release", mismatched)).rejects.toThrow("имеет другую version")
+    await release.delete(mismatched)
 
     const damagedHeaders = new Headers(previous.response.headers)
     await release.put(exactUrl(previous.identity), new Response("damaged", {headers: damagedHeaders}))
@@ -314,6 +397,15 @@ class MemoryCache {
 
   async keys() {
     return [...this.entries.keys()].map((url) => new Request(url))
+  }
+}
+
+function inertRuntime(lifecycle: string[]) {
+  return {
+    async start() { lifecycle.push("start") },
+    async fetch() { return new Response(null, {status: 503}) },
+    async message() {},
+    async destroy() { lifecycle.push("destroy") },
   }
 }
 

@@ -2,8 +2,8 @@
  * Main-thread entrypoint минимального browser loader.
  *
  * При первой установке модуль ждёт появления Service Worker controller, а при
- * уже controlled document использует текущий controller. Main просит Worker
- * запустить Service Worker release, затем запускает обновляемый Window release.
+ * уже controlled document использует текущий controller. Service Worker
+ * release запускается самой startup-оболочкой, а Window запускает свой release.
  *
  * @packageDocumentation
  */
@@ -26,7 +26,6 @@ const serviceWorker = navigator.serviceWorker.controller
 if (!serviceWorker) throw new Error("Service Worker does not control the page")
 
 await import("@hamiltonian/release")
-serviceWorker.postMessage({type: "connect"})
 console.debug("[@hamiltonian/startup:main]", "страница готова к работе", {
   controller: serviceWorker.scriptURL,
   registration: registration.scope,

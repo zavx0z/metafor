@@ -18,12 +18,27 @@ interface SynchronizationState {
   resynchronize: boolean
 }
 
+/** Живые ресурсы одного RPC runtime release. */
+export interface RpcRuntime {
+  destroy(): Promise<void>
+}
+
 /** Запускает единственное RPC-подключение текущей Service Worker incarnation. */
 export function startRpc(bindings: RpcBindings) {
   let socket: WebSocket | null = null
   let updates = Promise.resolve()
-  const intentionalClosures = new WeakSet<WebSocket>()
+  let destroyed = false
+  const timers = new Set<ReturnType<typeof setTimeout>>()
   const states = new WeakMap<WebSocket, SynchronizationState>()
+
+  const schedule = (callback: () => void, delay: number) => {
+    if (destroyed) return
+    const timer = setTimeout(() => {
+      timers.delete(timer)
+      if (!destroyed) callback()
+    }, delay)
+    timers.add(timer)
+  }
 
   const enqueueUpdate = (connection: WebSocket, update: () => Promise<void>) => {
     updates = updates.then(update, update).catch((error) => {
@@ -31,14 +46,14 @@ export function startRpc(bindings: RpcBindings) {
       if (state) state.awaitingDelta = false
       console.debug("[@hamiltonian/release:service-worker:rpc:update]", "не удалось синхронизировать пакеты", error)
       console.error("Не удалось синхронизировать браузерные пакеты", error)
-      if (connection === socket && connection.readyState === WebSocket.OPEN)
-        setTimeout(() => requestSynchronization(connection), 1_000)
+      if (!destroyed && connection === socket && connection.readyState === WebSocket.OPEN)
+        schedule(() => requestSynchronization(connection), 1_000)
     })
   }
 
   const requestSynchronization = (connection: WebSocket) => {
     const state = states.get(connection)
-    if (!state || connection !== socket) return
+    if (destroyed || !state || connection !== socket) return
     if (state.awaitingDelta) {
       state.resynchronize = true
       return
@@ -47,6 +62,7 @@ export function startRpc(bindings: RpcBindings) {
     enqueueUpdate(connection, async () => {
       if (connection !== socket || connection.readyState !== WebSocket.OPEN) return
       const current = await bindings.currentPackages()
+      if (destroyed || connection !== socket || connection.readyState !== WebSocket.OPEN) return
       connection.send(JSON.stringify(releaseCurrentMessage(current)))
       console.debug("[@hamiltonian/release:service-worker:rpc:update]", "отправлено фактическое состояние кэша", {
         current,
@@ -64,12 +80,6 @@ export function startRpc(bindings: RpcBindings) {
         return
       }
       console.debug("[@hamiltonian/release:service-worker:rpc:update]", "кэш пакетов обновлён", {packages: updated})
-      console.debug("[@hamiltonian/release:service-worker:rpc:update]", "закрываем прежнее подключение", {
-        code: 1000,
-        packages: updated,
-      })
-      intentionalClosures.add(connection)
-      connection.close(1000, "release применён")
       console.debug("[@hamiltonian/release:service-worker:rpc:update]", "перезагрузка страниц началась", {
         packages: updated,
       })
@@ -91,6 +101,7 @@ export function startRpc(bindings: RpcBindings) {
   }
 
   const connect = () => {
+    if (destroyed) return
     if (socket && socket.readyState < WebSocket.CLOSING) return
 
     const url = new URL("/sw", location.origin)
@@ -105,6 +116,7 @@ export function startRpc(bindings: RpcBindings) {
     })
 
     connection.addEventListener("open", () => {
+      if (destroyed) return
       console.debug("[@hamiltonian/release:service-worker:rpc]", "подключились к серверу обновлений", {
         to: connection.url,
       })
@@ -112,6 +124,7 @@ export function startRpc(bindings: RpcBindings) {
     })
 
     connection.addEventListener("message", (event) => {
+      if (destroyed) return
       const message = parseMessage(event.data)
       if (parseReleaseChangedMessage(message) !== null) {
         console.debug("[@hamiltonian/release:service-worker:rpc:update]", "получен сигнал об обновлении", {
@@ -135,14 +148,13 @@ export function startRpc(bindings: RpcBindings) {
 
     connection.addEventListener("close", (event) => {
       if (socket === connection) socket = null
-      const intentional = intentionalClosures.delete(connection)
       console.debug("[@hamiltonian/release:service-worker:rpc]", "отключились от сервера обновлений", {
         code: event.code,
-        intentional,
+        intentional: destroyed,
         reason: event.reason,
         wasClean: event.wasClean,
       })
-      if (!intentional) setTimeout(connect, 1_000)
+      if (!destroyed) schedule(connect, 1_000)
     })
 
     connection.addEventListener("error", (error) => {
@@ -152,6 +164,19 @@ export function startRpc(bindings: RpcBindings) {
   }
 
   connect()
+
+  return Object.freeze({
+    async destroy() {
+      if (destroyed) return
+      destroyed = true
+      for (const timer of timers) clearTimeout(timer)
+      timers.clear()
+      const connection = socket
+      socket = null
+      if (connection && connection.readyState < WebSocket.CLOSING)
+        connection.close(1000, "release runtime destroyed")
+    },
+  }) satisfies RpcRuntime
 }
 
 function parseMessage(data: unknown) {

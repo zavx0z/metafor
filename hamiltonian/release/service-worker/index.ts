@@ -1,42 +1,100 @@
 /**
- * Сменяемый Service Worker release между startup loader и browser packages.
- * Его artifact загружается и запускается внутри Service Worker и сам владеет
- * RPC transport обновлений.
+ * Сменяемый Service Worker release между startup bridge и browser packages.
+ * Factory возвращает inert runtime; RPC и timers появляются только в start().
  *
  * @packageDocumentation
  */
 
-import type {ReleaseLoader} from "./contract"
+import {createReleaseCache} from "./cache"
+import type {
+  ReleaseDependencies,
+  ReleaseLoader,
+  ReleaseRuntime,
+} from "./contract"
 import {currentReleasePackages} from "./current"
 import {updateRelease} from "./loader"
-import {startRpc} from "./rpc"
+import {startRpc, type RpcRuntime} from "./rpc"
 
-/**
- * Формирует изменяемый Service Worker-контур release.
- *
- * @param loader - Универсальные primitives неизменяемого startup.
- */
-export default async function releaseService(loader: ReleaseLoader) {
-  console.debug("[@hamiltonian/release:service-worker]", "Service Worker release запущен", {rpc: "/sw"})
-  startRpc({
-    currentPackages: currentReleasePackages,
-    applyDelta: async (delta) => {
-      console.debug("[@hamiltonian/release:service-worker:update]", "применяем fresh server delta", {
-        remove: delta.remove,
-        update: delta.update,
+/** Создаёт release без постоянных side effects до явного start(). */
+export default function releaseService(
+  dependencies: ReleaseDependencies,
+): ReleaseRuntime {
+  const cache = createReleaseCache(dependencies.loader)
+  const cleanups: Array<() => void | Promise<void>> = []
+  let starting: Promise<void> | null = null
+  let destroying: Promise<void> | null = null
+
+  const start = async () => {
+    if (destroying) throw new Error("Destroyed Service Worker release cannot start")
+    starting ??= startRuntime()
+    await starting
+  }
+
+  const startRuntime = async () => {
+    const abort = new AbortController()
+    cleanups.push(() => abort.abort())
+    let rpc: RpcRuntime | null = null
+
+    try {
+      rpc = startRpc({
+        currentPackages: currentReleasePackages,
+        applyDelta: async (delta) => {
+          console.debug("[@hamiltonian/release:service-worker:update]", "применяем fresh server delta", {
+            remove: delta.remove,
+            update: delta.update,
+          })
+          const updated = await updateRelease(dependencies.loader, delta, {
+            prepare: dependencies.runtime.prepare,
+            activate: dependencies.runtime.activate,
+            signal: abort.signal,
+          })
+          console.debug("[@hamiltonian/release:service-worker:update]", "пакеты переключены в кэше", {
+            packages: updated,
+          })
+          return updated
+        },
+        restartBrowser: navigateWindows,
       })
-      const updated = await updateRelease(loader, delta)
-      console.debug("[@hamiltonian/release:service-worker:update]", "пакеты переключены в кэше", {packages: updated})
-      return updated
+      cleanups.push(() => rpc?.destroy())
+      await cache.cacheStartup()
+      console.debug("[@hamiltonian/release:service-worker]", "Service Worker release запущен", {
+        rpc: "/sw",
+      })
+    } catch (error) {
+      await rpc?.destroy()
+      throw error
+    }
+  }
+
+  const destroy = async () => {
+    destroying ??= (async () => {
+      for (const cleanup of [...cleanups].reverse()) await cleanup()
+      cleanups.length = 0
+      console.debug("[@hamiltonian/release:service-worker]", "Service Worker release очищен")
+    })()
+    await destroying
+  }
+
+  return Object.freeze({
+    start,
+    async fetch(event: FetchEvent) {
+      if (event.request.method !== "GET") return await fetch(event.request)
+      return await cache.cacheFirst(event.request)
     },
-    restartBrowser,
+    async message(_event: ExtendableMessageEvent) {},
+    destroy,
   })
 }
 
-export type {ReleaseLoader} from "./contract"
+export type {
+  ReleaseDependencies,
+  ReleaseFactory,
+  ReleaseLoader,
+  ReleaseRuntime,
+} from "./contract"
 
-/** Создаёт новую Service Worker incarnation и один раз навигирует каждый Window. */
-async function restartBrowser() {
+/** Навигирует каждый управляемый Window ровно один раз без удаления registration. */
+async function navigateWindows() {
   const windows = await clients.matchAll({type: "window"})
   const targets = windows.map((client) => ({id: client.id, url: client.url}))
   console.debug("[@hamiltonian/release:service-worker:restart]", "начинаем перезагрузку страниц", {
@@ -44,26 +102,9 @@ async function restartBrowser() {
     windows: targets,
   })
 
-  try {
-    const unregistered = await registration.unregister()
-    console.debug("[@hamiltonian/release:service-worker:restart]", "регистрация Service Worker удалена", {
-      registration: registration.scope,
-      unregistered,
-    })
-    if (!unregistered) throw new Error("Service Worker registration was not removed")
-
-    console.debug("[@hamiltonian/release:service-worker:restart]", "начинаем повторную навигацию страниц", {
-      windows: targets,
-    })
-    const navigations = await Promise.all(windows.map((client) => client.navigate(client.url)))
-    console.debug("[@hamiltonian/release:service-worker:restart]", "повторная навигация страниц запущена", {
-      navigated: navigations.filter((client) => client !== null).length,
-      requested: windows.length,
-    })
-  } catch (error) {
-    console.debug("[@hamiltonian/release:service-worker:restart]", "не удалось перезагрузить страницы", {
-      windows: targets,
-    }, error)
-    throw error
-  }
+  const navigations = await Promise.all(windows.map((client) => client.navigate(client.url)))
+  console.debug("[@hamiltonian/release:service-worker:restart]", "повторная навигация страниц завершена", {
+    navigated: navigations.filter((client) => client !== null).length,
+    requested: windows.length,
+  })
 }

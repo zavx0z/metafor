@@ -75,3 +75,9 @@ export {releasedPackageResponse, releasedPackages, releaseStateResponse} from ".
 export {notifyRelease, publishRelease} from "./update"
 export type {ReleaseNotification} from "./update"
 export {nextPackageVersion} from "./version"
+export type {
+  ReleaseDependencies,
+  ReleaseFactory,
+  ReleaseLoader,
+  ReleaseRuntime,
+} from "../service-worker/contract"

@@ -6,7 +6,7 @@ import {
   parseBrowserPackageUrl,
 } from "../../web/package-url"
 import type {ReleaseDelta} from "../protocol"
-import type {ReleaseLoader} from "./contract"
+import type {ReleaseLoader, ReleaseRuntime} from "./contract"
 import {currentReleasePackages} from "./current"
 import {
   beginTransaction,
@@ -30,6 +30,11 @@ const codeCaches = ["release", "internal", "metafor"] as const
 export async function updateRelease(
   startup: ReleaseLoader,
   delta: ReleaseDelta,
+  handover?: Readonly<{
+    prepare(request: Request): Promise<ReleaseRuntime>
+    activate(candidate: ReleaseRuntime): Promise<void>
+    signal?: AbortSignal
+  }>,
 ) {
   const interrupted = await pendingTransaction()
   if (delta.update.length === 0 && delta.remove.length === 0) {
@@ -73,7 +78,11 @@ export async function updateRelease(
       source: request.url,
       version: entry.version,
     })
-    const response = await verifyPackageResponse(startup.verify(await fetch(request)), entry)
+    const network = await fetch(
+      request,
+      handover?.signal ? {signal: handover.signal} : undefined,
+    )
+    const response = await verifyPackageResponse(startup.verify(network), entry)
     await preparePackage(entry, response)
     console.debug("[@hamiltonian/release:service-worker:prepare]", "exact artifact сохранён в transaction", {
       env: entry.env,
@@ -113,26 +122,45 @@ export async function updateRelease(
     })
   }
 
-  await verifyCandidateComposition(candidate)
-  console.debug("[@hamiltonian/release:service-worker:activate]", "полный candidate composition проверен", {
-    packages: candidate.map(({name, env, version}) => ({name, env, version})),
-  })
-
-  for (const entry of await canonicalCleanup(candidate)) {
-    await (await caches.open(entry.owner)).delete(entry.request, {ignoreVary: true})
-    changed.add(entry.slot ?? entry.request.url)
-    console.debug("[@hamiltonian/release:service-worker:activate]", "old exact artifact удалён", {
-      cache: entry.owner,
-      source: entry.request.url,
+  let runtimeCandidate: ReleaseRuntime | null = null
+  let runtimeActivated = false
+  try {
+    await verifyCandidateComposition(candidate)
+    console.debug("[@hamiltonian/release:service-worker:activate]", "полный candidate composition проверен", {
+      packages: candidate.map(({name, env, version}) => ({name, env, version})),
     })
-  }
 
-  await verifyFinalComposition(candidate)
-  await commitTransaction()
-  console.debug("[@hamiltonian/release:service-worker:activate]", "transaction завершена удалением cache", {
-    changed: [...changed],
-  })
-  return [...changed]
+    const releaseTouched = [...delta.update, ...delta.remove].some(isServiceWorkerRelease)
+    const nextRelease = candidate.find(isServiceWorkerRelease)
+    if (releaseTouched && !nextRelease)
+      throw new Error("Candidate composition не содержит Service Worker release")
+    if (releaseTouched && nextRelease && handover)
+      runtimeCandidate = await handover.prepare(exactRequest(nextRelease))
+
+    for (const entry of await canonicalCleanup(candidate)) {
+      await (await caches.open(entry.owner)).delete(entry.request, {ignoreVary: true})
+      changed.add(entry.slot ?? entry.request.url)
+      console.debug("[@hamiltonian/release:service-worker:activate]", "old exact artifact удалён", {
+        cache: entry.owner,
+        source: entry.request.url,
+      })
+    }
+
+    await verifyFinalComposition(candidate)
+    await commitTransaction()
+    console.debug("[@hamiltonian/release:service-worker:activate]", "transaction завершена удалением cache", {
+      changed: [...changed],
+    })
+
+    if (runtimeCandidate && handover) {
+      await handover.activate(runtimeCandidate)
+      runtimeActivated = true
+    }
+    return [...changed]
+  } catch (error) {
+    if (runtimeCandidate && !runtimeActivated) await runtimeCandidate.destroy().catch(() => {})
+    throw error
+  }
 }
 
 /** Выводит полный candidate из фактического current и свежей delta. */

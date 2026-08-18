@@ -150,12 +150,13 @@ canonical commit заменяет slots по одному и удаляет old 
 `UPD-003.10` завершён result checkpoint `cd7712e69`: все candidates
 устанавливаются и проверяются без old deletion, cleanup идёт только вперёд,
 old service-worker release удаляется последним, а `transaction` — после
-финальной canonical проверки. Текущий срез `.11` реализует принятую минимальную
-границу startup/release: startup синхронно регистрирует browser event bridge и
-сразу запускает release, а release владеет transaction, RPC, application cache
-policy и self-update через переданные primitives с обязательным `destroy()`
-прежнего runtime. Следующий структурный
-срез `.12` удаляет `hamiltonian/web`, поднимает `static`, переносит общие
+финальной canonical проверки. Срез `.11` находится в `REVIEW`: startup
+синхронно регистрирует browser event
+bridge, сразу запускает release, передаёт frozen one-way dependencies и меняет
+inert runtime после durable commit без `unregister`; focused suite и browser
+update/recovery contour прошли, а новый immutable artifact будет опубликован в
+финальном contour после структурного среза. Следующий срез `.12` удаляет
+`hamiltonian/web`, поднимает `static`, переносит общие
 package-функции в `shared/package` и раскладывает release server/service-worker
 по предметным директориям без изменения package identities.
 Обновление уже работающего Bun runtime остаётся будущим большим этапом.

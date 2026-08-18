@@ -209,11 +209,14 @@ package subpath. Статический import map направляет bare spe
 transport adapter. `/code` не доставляет artifact: `GET /code` возвращает
 доказанное package state, а `POST /code` публикует группу обновления.
 
-Startup fetch-handler направляет `@hamiltonian/startup` в cache `startup`,
-`@hamiltonian/release` — в `release`, `@internal/*` — в `internal`, а
-`@metafor/*` — в `metafor`.
-Состав пакетов ему неизвестен: отдельного реестра имён или ветки для Visual в
-handler нет.
+Startup при initial evaluation синхронно регистрирует только `install`,
+`activate`, `fetch` и `message`, затем сразу загружает и запускает release без
+Window `connect`. Для `fetch` один Promise release синхронно передаётся и в
+`respondWith`, и в `waitUntil`; `message` так же продлевается через `waitUntil`.
+Startup не определяет cache-first policy: её исполняет release, который
+направляет `@hamiltonian/startup` в cache `startup`, `@hamiltonian/release` — в
+`release`, `@internal/*` — в `internal`, а `@metafor/*` — в `metafor` без
+реестра отдельных package names.
 
 Постоянный Cache Storage называется только по владельцу: `startup`, `release`,
 `internal` или `metafor`; последний появляется только вместе с первым package
@@ -228,6 +231,17 @@ handler нет.
 cleanup. Старый `@hamiltonian/release:service-worker` удаляется последним из old
 entries. После итоговой проверки ровно одной exact entry на каждый desired slot
 последняя durable операция удаляет весь `transaction`.
+
+Startup передаёт release один замороженный объект низкоуровневых loader и
+runtime primitives только вниз. Release factory возвращает отдельный inert
+runtime без WebSocket и timers. При self-update target runtime создаётся после
+проверки полного candidate composition, но до первой old deletion; запускается
+он только после final verification и удаления `transaction`. Startup сначала
+направляет новые events кандидату, ждёт уже начатые старым runtime `fetch` и
+`message`, затем один раз вызывает его централизованный `destroy()`. Destroy
+закрывает RPC socket, отменяет reconnect timers и AbortController. Service
+Worker registration не удаляется; после обновления release один раз навигирует
+каждый управляемый Window.
 
 После остановки release заново собирает current из фактических canonical
 entries и получает свежую delta от server. Сохранённую прежней попыткой delta
@@ -274,9 +288,10 @@ versions server проверяет runtime dependencies всех участни�
 нельзя удалить, а несовместимый major/minor target не доходит до build.
 
 `@hamiltonian/startup` не входит в сменяемый membership, но явно объявляет
-загружаемый `@hamiltonian/release`. Минимальный Loader type принадлежит release
-env `service-worker`; startup импортирует его только как public type по bare
-package name и предоставляет реализацию.
+загружаемый `@hamiltonian/release`. Public contracts loader, односторонних
+dependencies и возвращаемого runtime принадлежат release env `service-worker`;
+startup импортирует их только как public types по bare package name и
+предоставляет реализацию primitives.
 Release не импортирует types относительным путём через границу startup package.
 
 Публикация сначала атомарно записывает target caret versions в корневой

@@ -28,23 +28,12 @@ export async function cache(name: string, request: Request, response: Response) 
 export async function read(name: string, request: Request) {
   const artifact = ownedPackage(name, request)
   if (artifact === null) return (await caches.open(name)).match(request, {ignoreVary: true})
-  if (artifact.version !== null)
-    return (await caches.open(name)).match(request, {ignoreVary: true})
-  return await exactSlotResponse(name, artifact)
-}
-
-/** Удаляет все exact entries package slot. */
-export async function remove(name: string, request: Request) {
-  const artifact = ownedPackage(name, request)
-  if (artifact === null) return (await caches.open(name)).delete(request, {ignoreVary: true})
-  const cache = await caches.open(name)
-  let removed = false
-  for (const candidate of await cache.keys()) {
-    const parsed = parseBrowserPackageUrl(new URL(candidate.url))
-    if (parsed !== null && sameSlot(parsed, artifact))
-      removed = await cache.delete(candidate, {ignoreVary: true}) || removed
+  if (artifact.version !== null) {
+    const response = await (await caches.open(name)).match(request, {ignoreVary: true})
+    if (response) await responseIdentity(artifact, response)
+    return response
   }
-  return removed
+  return await exactSlotResponse(name, artifact)
 }
 
 /**
@@ -92,6 +81,8 @@ async function responseIdentity(
     || identity.size <= 0
   ) throw new Error(`Package response ${artifact.name}:${artifact.env} имеет некорректную identity`)
   const verified = identity as BrowserPackageIdentity
+  if (artifact.version !== null && artifact.version !== verified.version)
+    throw new Error(`Package response ${artifact.name}:${artifact.env} имеет другую version`)
   await verifyPackageResponse(response, verified)
   return verified
 }

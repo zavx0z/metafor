@@ -41,8 +41,11 @@ console.debug("[@hamiltonian/release:service-worker:update]", "новая сбо
 * `@hamiltonian/startup` — один фиксированный package с env `main` и
   `service-worker`. В обычной разработке его не менять и через endpoint
   обновления не передавать. Он объявляет dependency на
-  `@hamiltonian/release`; Loader type принадлежит release, а startup
-  предоставляет реализацию через type-only bare import.
+  `@hamiltonian/release`; public loader/dependencies/runtime types принадлежат
+  release, а startup предоставляет реализацию через type-only bare import.
+  Startup синхронно регистрирует `install`, `activate`, `fetch`, `message`,
+  сразу запускает release и только связывает browser event с текущим runtime.
+  Cache policy, transaction, RPC и self-update startup не принадлежат.
 
 Имя модуля брать только из поля `name` его `package.json`.
 Сменяемый package также объявляет точную `version`. Cache owner не записывать в
@@ -153,6 +156,15 @@ delta от server. Startup не открывает `transaction`, не разб�
 cleanup. Он полностью проверяет и запускает только первую exact service-worker
 entry в Cache order; повреждение первой entry завершается fail closed. Прежние
 state keys, UUID storages и migration-ветки в действующем source отсутствуют.
+
+Startup передаёт release один замороженный dependency object только вниз, а
+release factory возвращает отдельный inert runtime с `start`, `fetch`,
+`message`, `destroy`. При self-update новый runtime готовится после проверки
+всех canonical candidates и до cleanup, но запускается только после final
+verification и удаления `transaction`. Затем startup направляет новые events
+ему, ждёт in-flight events прежнего runtime и вызывает его `destroy`, который
+закрывает RPC, timers и AbortController. Registration не удаляется; release
+один раз навигирует каждый Window.
 
 Пример:
 

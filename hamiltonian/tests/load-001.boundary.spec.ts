@@ -5,13 +5,14 @@ import {join} from "node:path"
 const hamiltonian = fileURLToPath(new URL("../", import.meta.url))
 
 test("LOAD-001 keeps release policy and WebSocket outside immutable startup", async () => {
-  const [packageUrl, packageBuild, startupMain, startupService, startupCache, startupLoader, releaseService, releaseState, releaseLoader, transaction, html] =
+  const [packageUrl, packageBuild, startupMain, startupService, startupRuntime, releaseCache, startupLoader, releaseService, releaseState, releaseLoader, transaction, html] =
     await Promise.all([
     Bun.file(join(hamiltonian, "web/package-url.ts")).text(),
     Bun.file(join(hamiltonian, "release/server/package.ts")).text(),
     Bun.file(join(hamiltonian, "startup/main/index.ts")).text(),
     Bun.file(join(hamiltonian, "startup/service-worker/index.ts")).text(),
-    Bun.file(join(hamiltonian, "startup/service-worker/cache.ts")).text(),
+    Bun.file(join(hamiltonian, "startup/service-worker/runtime.ts")).text(),
+    Bun.file(join(hamiltonian, "release/service-worker/cache.ts")).text(),
     Bun.file(join(hamiltonian, "startup/service-worker/loader.ts")).text(),
     Bun.file(join(hamiltonian, "release/service-worker/index.ts")).text(),
     Bun.file(join(hamiltonian, "release/service-worker/state.ts")).text(),
@@ -27,8 +28,7 @@ test("LOAD-001 keeps release policy and WebSocket outside immutable startup", as
   expect(html).not.toContain('"@release/":')
 
   expect(startupMain).toContain('import("@hamiltonian/release")')
-  expect(startupMain.indexOf('await import("@hamiltonian/release")'))
-    .toBeLessThan(startupMain.indexOf('serviceWorker.postMessage({type: "connect"})'))
+  expect(startupMain).not.toContain('postMessage({type: "connect"})')
   expect(startupMain).not.toContain("@internal/")
   expect(startupMain).not.toContain("@metafor/")
 
@@ -37,6 +37,12 @@ test("LOAD-001 keeps release policy and WebSocket outside immutable startup", as
   expect(startupService).not.toContain("@metafor/")
   expect(startupService).not.toContain("WebSocket")
   expect(startupService).not.toContain("importModule")
+  expect(startupService).toContain("registerReleaseListeners")
+  expect(startupService).toContain("host.boot()")
+  expect(startupRuntime).toContain("event.respondWith(operation)")
+  expect(startupRuntime).toContain("event.waitUntil(operation)")
+  expect(startupRuntime).toContain("await drain(previous)")
+  expect(startupRuntime).toContain("await previous.destroy()")
 
   const startupPackage = await Bun.file(join(hamiltonian, "startup/package.json")).json() as {
     artifact?: unknown
@@ -51,7 +57,9 @@ test("LOAD-001 keeps release policy and WebSocket outside immutable startup", as
   expect(packageUrl).toContain('name?.startsWith("@internal/")')
   expect(packageUrl).toContain('name?.startsWith("@metafor/")')
   expect(packageUrl).not.toContain("@internal/visual")
-  expect(startupCache).not.toContain("/code?module=")
+  expect(releaseCache).not.toContain("/code?module=")
+  expect(releaseCache).toContain("cacheFirst")
+  expect(releaseCache).toContain("cacheStartup")
 
   expect(startupLoader).toContain("exactSlotResponse")
   expect(startupLoader).not.toContain("transaction")
@@ -75,17 +83,20 @@ test("LOAD-001 keeps release policy and WebSocket outside immutable startup", as
   expect(releaseLoader).not.toContain("return {...entry, storage}")
 
   expect(releaseService).toContain("startRpc({")
-  expect(releaseService).toContain('import type {ReleaseLoader} from "./contract"')
-  expect(releaseLoader).toContain('import type {ReleaseLoader} from "./contract"')
+  expect(releaseService).toContain("ReleaseDependencies")
+  expect(releaseService).toContain("ReleaseRuntime")
+  expect(releaseLoader).toContain('import type {ReleaseLoader, ReleaseRuntime} from "./contract"')
   expect(startupService).toContain('import type {ReleaseLoader} from "@hamiltonian/release"')
   expect(releaseService).not.toContain("../../startup/")
   expect(releaseLoader).not.toContain("../../startup/")
-  expect(releaseService).toContain("updateRelease(loader, delta)")
+  expect(releaseService).toContain("updateRelease(dependencies.loader, delta")
+  expect(releaseService).toContain("prepare: dependencies.runtime.prepare")
+  expect(releaseService).toContain("activate: dependencies.runtime.activate")
   expect(releaseLoader).toContain("await beginTransaction()")
   expect(releaseLoader).toContain("await commitTransaction()")
   expect(releaseLoader.indexOf("await beginTransaction()"))
-    .toBeLessThan(releaseLoader.indexOf("await fetch(request)"))
-  expect(releaseService).toContain("registration.unregister()")
+    .toBeLessThan(releaseLoader.indexOf("await fetch("))
+  expect(releaseService).not.toContain("registration.unregister()")
   expect(releaseService).toContain("client.navigate(client.url)")
   expect(releaseService).not.toContain("loadModule")
 })
