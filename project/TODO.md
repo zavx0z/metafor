@@ -149,9 +149,14 @@ canonical commit заменяет slots по одному и удаляет old 
 доказан полный new composition. В текущую задачу принят correction-срез
 `UPD-003.10`: сначала установить и проверить все candidates без old deletion,
 затем завершать cleanup только вперёд, удалить old service-worker release
-последним, а `transaction` — после финальной canonical проверки. Основным
-следующим предметом обсуждения остаётся минимальная граница startup/release без
-transaction policy и дублирования executable code в startup.
+последним, а `transaction` — после финальной canonical проверки. Срез `.11`
+фиксирует принятую минимальную границу startup/release: startup синхронно
+регистрирует browser event bridge и сразу запускает release, а release владеет
+transaction, RPC, application cache policy и self-update через переданные
+primitives с обязательным `destroy()` прежнего runtime. Следующий структурный
+срез `.12` удаляет `hamiltonian/web`, поднимает `static`, переносит общие
+package-функции в `shared/package` и раскладывает release server/service-worker
+по предметным директориям без изменения package identities.
 Обновление уже работающего Bun runtime остаётся будущим большим этапом.
 Package `@hamiltonian/startup` устанавливает Service Worker, восстанавливает
 HTML/startup offline и запускает browser env package `@hamiltonian/release` из
