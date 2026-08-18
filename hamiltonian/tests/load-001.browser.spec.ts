@@ -1,4 +1,4 @@
-import {expect, setDefaultTimeout, test} from "bun:test"
+import {afterAll, beforeAll, expect, setDefaultTimeout, test} from "bun:test"
 import {existsSync} from "node:fs"
 import {mkdtemp, rm} from "node:fs/promises"
 import {createServer} from "node:net"
@@ -12,6 +12,8 @@ import puppeteer, {
   type Target,
   type WebWorker,
 } from "puppeteer-core"
+import {buildPackage} from "../release/server"
+import {releaseWorkspaceState} from "./fixture/workspace-state"
 
 setDefaultTimeout(180_000)
 
@@ -43,7 +45,51 @@ type FixtureFault =
   | "release-service-http-once"
   | "update-build-failure-once"
   | "update-fetch-failure-once"
-type ServerMode = "production" | "update" | FixtureFault
+type ServerMode = "production-fixture" | "update" | FixtureFault
+
+interface FixtureArtifact {
+  name: "@hamiltonian/startup" | "@hamiltonian/release" | "@internal/visual"
+  env: "main" | "service"
+  version: string
+  path: string
+}
+
+let fixtureDirectory = ""
+let fixtureArtifacts: FixtureArtifact[] = []
+let workingState: Awaited<ReturnType<typeof releaseWorkspaceState>> = {}
+
+beforeAll(async () => {
+  workingState = await releaseWorkspaceState(hamiltonian)
+  fixtureDirectory = await mkdtemp(join(tmpdir(), "metafor-load-artifacts-"))
+  const [startup, release, visual] = await Promise.all([
+    Bun.file(join(hamiltonian, "startup/package.json")).json() as Promise<{version: string}>,
+    Bun.file(join(hamiltonian, "release/package.json")).json() as Promise<{version: string}>,
+    Bun.file(join(hamiltonian, "internal/visual/package.json")).json() as Promise<{version: string}>,
+  ])
+  const plans = [
+    {name: "@hamiltonian/startup", env: "main", version: startup.version},
+    {name: "@hamiltonian/startup", env: "service", version: startup.version},
+    {name: "@hamiltonian/release", env: "main", version: release.version},
+    {name: "@hamiltonian/release", env: "service", version: release.version},
+    {name: "@internal/visual", env: "main", version: visual.version},
+  ] as const
+  const results = await Promise.all(plans.map((plan, index) => {
+    const path = join(fixtureDirectory, `${index}.js`)
+    return buildPackage(plan.name, {env: plan.env, artifact: path})
+      .then((result) => ({plan, path, result}))
+  }))
+  const failure = results.find(({result}) => !result.success)
+  if (failure) throw new Error(
+    `Browser fixture build failed for ${failure.plan.name}:${failure.plan.env}: ${failure.result.stderr}`,
+  )
+  fixtureArtifacts = results.map(({plan, path}) => ({...plan, path}))
+})
+
+afterAll(async () => {
+  if (fixtureDirectory !== "") await rm(fixtureDirectory, {recursive: true, force: true})
+  expect(existsSync(fixtureDirectory)).toBeFalse()
+  expect(await releaseWorkspaceState(hamiltonian)).toEqual(workingState)
+})
 
 test.serial("UPD-003 updates two isolated browser profiles independently", async () => {
   const firstProfile = await mkdtemp(join(tmpdir(), "metafor-upd-003-profile-a-"))
@@ -778,20 +824,12 @@ test.serial("LOAD-001 rejects a failed release artifact and retries its exact en
 })
 
 async function startServer(
-  mode: ServerMode = "production",
+  mode: ServerMode = "production-fixture",
 ): Promise<RunningServer> {
   const port = await freePort()
   const bun = Bun.which("bun") ?? process.execPath
-  const command = mode === "production"
-    ? [
-      bun,
-      "--conditions=hamiltonian:server",
-      "--conditions=internal:server",
-      `--port=${port}`,
-      "server.ts",
-    ]
-    : [bun, "tests/fixture/server.ts"]
-  const fault = mode === "production" || mode === "update" ? "none" : mode
+  const command = [bun, "tests/fixture/server.ts"]
+  const fault = mode === "production-fixture" || mode === "update" ? "none" : mode
   let stdout = ""
   let stderr = ""
 
@@ -801,7 +839,8 @@ async function startServer(
       ...process.env,
       LOAD_TEST_FAULT: fault,
       LOAD_TEST_PORT: String(port),
-      NODE_ENV: mode === "production" ? "production" : "development",
+      LOAD_TEST_ARTIFACTS: JSON.stringify(fixtureArtifacts),
+      NODE_ENV: mode === "production-fixture" ? "production" : "development",
     },
     stdout: "pipe",
     stderr: "pipe",

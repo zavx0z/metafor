@@ -21,6 +21,23 @@ console.debug("[@hamiltonian/release:service:update]", "новая сборка 
 `bun run build` собирает production artifacts: они также минифицированы, но
 `console.debug` вместе с аргументами удалён, а source map отсутствует.
 
+## Изоляция тестов
+
+Тесты читают рабочий checkout только без изменений. Они не переписывают
+package manifests и versions, не собирают в рабочие `dist`, не публикуют
+canonical artifacts и не обращаются к постоянному origin `127.0.0.1:4444`,
+его browser profile или Cache Storage. Сценарии build, publication, recovery,
+fault и browser update используют собственные временные artifacts, manifests,
+origin и profile. Временное восстановление настоящего файла после теста не
+считается изоляцией: рабочий файл вообще не должен изменяться.
+
+Fixture владеет всеми test-only routes, fault controls и состоянием. Production
+server, browser artifacts и runtime не получают ветки, globals, endpoints или
+environment flags только ради тестирования. После success, failure, timeout
+или interruption fixture останавливает только свои processes и удаляет только
+свои временные files/profile; managed development contour остаётся в том же
+состоянии, что до запуска tests.
+
 ## Пакеты
 
 * `@internal/*` — внутренняя функциональность Hamiltonian. Один package может

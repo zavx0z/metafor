@@ -185,11 +185,13 @@ commit.
 Новый observability-срез `UPD-003.16` принят владельцем: development-логи
 должны составлять минимально достаточную матрицу причинных сценариев, а tests —
 доказывать каждый checkpoint, его обязательные данные, порядок и отсутствие
-лишних diagnostics. Он ожидает `UPD-003.17`, потому что аудит обнаружил
-неизолированные build/publication/browser tests. Срез `.17` выполняется первым:
-тесты не изменяют рабочие manifests, versions, artifacts, Cache Storage или
-постоянный origin, не добавляют test hooks в production runtime и после любого
-исхода удаляют только собственные fixtures.
+лишних diagnostics. Его prerequisite `UPD-003.17` находится в `REVIEW`:
+build/publication/recovery/browser tests переведены на test-owned временные
+workspace, artifacts, origin и state, а production не получил test hooks.
+Focused regression прошёл `28/28`, browser — `8/8`, полный Hamiltonian suite —
+`289/289`; рабочие digests, PID/TTY/Chrome target, registration/controller и
+Cache Storage постоянного contour совпали до и после полного прогона. Result
+checkpoint — текущий result commit.
 Обновление уже работающего Bun runtime остаётся будущим большим этапом.
 Package `@hamiltonian/startup` устанавливает Service Worker, восстанавливает
 HTML/startup offline и запускает browser env package `@hamiltonian/release` из

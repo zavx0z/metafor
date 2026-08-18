@@ -1,4 +1,4 @@
-import {beforeAll, expect, setDefaultTimeout, test} from "bun:test"
+import {expect, setDefaultTimeout, test} from "bun:test"
 import {
   getPackage,
   getRelease,
@@ -6,7 +6,6 @@ import {
   notifyRelease,
   packageChanges,
   packageOwners,
-  recoverPublication,
   readReleaseComposition,
   releaseDelta,
   parseReleaseChangedMessage,
@@ -32,10 +31,6 @@ import {
 import {cachedPackageIdentity} from "../release/service/cache/current"
 
 setDefaultTimeout(30_000)
-
-beforeAll(async () => {
-  await recoverPublication()
-})
 
 test("package state comes from root caret dependencies", async () => {
   const packages = await releasedPackages()
@@ -323,31 +318,32 @@ test("successful publication notification contains no release state", () => {
 })
 
 test("canonical package URLs separate artifact delivery from release control", async () => {
-  const startup = await Bun.file(
-    new URL("../startup/package.json", import.meta.url),
-  ).json() as {version: string}
+  const release = (await releasedPackages()).find(
+    ({name, env}) => name === "@hamiltonian/release" && env === "main",
+  )
+  if (!release) throw new Error("Release main package is missing")
   const [stable, exact, legacy, invalid, missingEnv, reordered] = await Promise.all([
-    getPackage(new Request("http://127.0.0.1:4444/@hamiltonian/startup?env=main")),
+    getPackage(new Request("http://127.0.0.1:4444/@hamiltonian/release?env=main")),
     getPackage(new Request(
-      `http://127.0.0.1:4444/@hamiltonian/startup?env=main&version=${startup.version}`,
+      `http://127.0.0.1:4444/@hamiltonian/release?env=main&version=${release.version}`,
     )),
-    getRelease(new Request("http://127.0.0.1:4444/code?module=@hamiltonian/startup")),
-    getPackage(new Request("http://127.0.0.1:4444/@hamiltonian/startup?module=@hamiltonian/startup")),
-    getPackage(new Request("http://127.0.0.1:4444/@hamiltonian/startup")),
+    getRelease(new Request("http://127.0.0.1:4444/code?module=@hamiltonian/release")),
+    getPackage(new Request("http://127.0.0.1:4444/@hamiltonian/release?module=@hamiltonian/release")),
+    getPackage(new Request("http://127.0.0.1:4444/@hamiltonian/release")),
     getPackage(new Request(
-      `http://127.0.0.1:4444/@hamiltonian/startup?version=${startup.version}&env=main`,
+      `http://127.0.0.1:4444/@hamiltonian/release?version=${release.version}&env=main`,
     )),
   ])
   const [stableSource, exactSource] = await Promise.all([stable.text(), exact.text()])
 
   expect(stable.status).toBe(200)
   expect(exact.status).toBe(200)
-  expect(stable.headers.get("X-Package-Name")).toBe("@hamiltonian/startup")
+  expect(stable.headers.get("X-Package-Name")).toBe("@hamiltonian/release")
   expect(stable.headers.get("X-Package-Env")).toBe("main")
-  expect(stable.headers.get("X-Package-Version")).toBe(startup.version)
-  expect(exact.headers.get("X-Package-Version")).toBe(startup.version)
+  expect(stable.headers.get("X-Package-Version")).toBe(release.version)
+  expect(exact.headers.get("X-Package-Version")).toBe(release.version)
   expect(exactSource).toBe(stableSource)
-  expect(stableSource).toContain('import("@hamiltonian/release")')
+  expect(stableSource).toContain("@internal/visual")
   expect(stableSource).not.toContain("/code?module=")
   expect(legacy.status).toBe(404)
   expect(invalid.status).toBe(404)

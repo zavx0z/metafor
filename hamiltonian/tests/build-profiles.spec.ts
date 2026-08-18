@@ -1,23 +1,20 @@
-import {afterEach, expect, setDefaultTimeout, test} from "bun:test"
-import {mkdir, mkdtemp, rm} from "node:fs/promises"
+import {expect, setDefaultTimeout, test} from "bun:test"
+import {existsSync} from "node:fs"
+import {mkdtemp, rm, symlink} from "node:fs/promises"
 import {join} from "node:path"
+import {tmpdir} from "node:os"
 import {fileURLToPath} from "node:url"
 import {
   buildablePackage,
-  buildPackage,
   packageBuildCommand,
   packageEnvironmentExports,
   packageOwners,
   type PackageEnvironment,
 } from "../release/server"
+import {releaseWorkspaceState} from "./fixture/workspace-state"
 
 const hamiltonian = fileURLToPath(new URL("../", import.meta.url))
 const repository = fileURLToPath(new URL("../../", import.meta.url))
-const proof = join(hamiltonian, "internal/visual/.typecheck-proof")
-const proofArtifacts = [
-  join(hamiltonian, "internal/visual/.typecheck-main.js"),
-  join(hamiltonian, "internal/visual/.typecheck-server.js"),
-] as const
 const packages = {
   startup: {
     path: "startup",
@@ -40,10 +37,6 @@ const packages = {
 } as const
 
 setDefaultTimeout(30_000)
-
-afterEach(async () => {
-  await Promise.all([proof, ...proofArtifacts].map((path) => rm(path, {force: true})))
-})
 
 test("every Hamiltonian package owns direct env entrypoints and one typecheck", async () => {
   const root = await Bun.file(join(hamiltonian, "package.json")).json() as {
@@ -135,9 +128,7 @@ test("package exports keep server and server-worker as separate direct env entry
 })
 
 test("one bare visual import resolves source types by selected env without a build", async () => {
-  const temporaryRoot = join(repository, "tests/tmp")
-  await mkdir(temporaryRoot, {recursive: true})
-  const directory = await mkdtemp(join(temporaryRoot, "upd-003-env-"))
+  const directory = await mkdtemp(join(tmpdir(), "metafor-upd-003-env-"))
 
   try {
     const main = await typecheckVisualEnvironment(directory, "internal:main", `
@@ -188,73 +179,119 @@ test("build executor derives development arguments from the production command",
 })
 
 test.serial("parallel env builds run one package typecheck", async () => {
-  const manifestPath = join(hamiltonian, "internal/visual/package.json")
-  const source = await Bun.file(manifestPath).text()
-  const manifest = JSON.parse(source) as {scripts: Record<string, string>}
-  manifest.scripts.typecheck =
-    `bun -e 'import {appendFileSync} from "node:fs"; appendFileSync(${JSON.stringify(proof)}, "checked\\n")'`
-  await Bun.write(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`)
-
-  try {
-    const results = await Promise.all([
-      buildPackage("@internal/visual", {env: "main", artifact: proofArtifacts[0]}),
-      buildPackage("@internal/visual", {env: "server", artifact: proofArtifacts[1]}),
-    ])
-    expect(results.every(({success}) => success)).toBeTrue()
-    expect((await Bun.file(proof).text()).trim().split("\n")).toHaveLength(1)
-  } finally {
-    await Bun.write(manifestPath, source)
-  }
+  const result = await runReleaseFixture("parallel-typecheck")
+  expect(result.results).toEqual([
+    {success: true, exitCode: 0, outputs: 1},
+    {success: true, exitCode: 0, outputs: 1},
+  ])
+  expect(result.typechecks).toBe(1)
+  expect(result.artifacts).toEqual([true, true])
+  expect(existsSync(result.root)).toBeFalse()
 })
 
 test.serial("failed package typecheck prevents every env build", async () => {
-  const manifestPath = join(hamiltonian, "internal/visual/package.json")
-  const source = await Bun.file(manifestPath).text()
-  const manifest = JSON.parse(source) as {scripts: Record<string, string>}
-  manifest.scripts.typecheck = "bun -e 'process.exit(17)'"
-  await Bun.write(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`)
-
-  try {
-    const results = await Promise.all([
-      buildPackage("@internal/visual", {env: "main", artifact: proofArtifacts[0]}),
-      buildPackage("@internal/visual", {env: "server", artifact: proofArtifacts[1]}),
-    ])
-    expect(results.map(({exitCode}) => exitCode)).toEqual([17, 17])
-    expect(results.every(({outputs}) => outputs.length === 0)).toBeTrue()
-    expect(await Promise.all(proofArtifacts.map((path) => Bun.file(path).exists()))).toEqual([false, false])
-  } finally {
-    await Bun.write(manifestPath, source)
-  }
+  const result = await runReleaseFixture("failed-typecheck")
+  expect(result.results).toEqual([
+    {success: false, exitCode: 17, outputs: 0},
+    {success: false, exitCode: 17, outputs: 0},
+  ])
+  expect(result.typechecks).toBe(0)
+  expect(result.artifacts).toEqual([false, false])
+  expect(existsSync(result.root)).toBeFalse()
 })
 
 test("development keeps debug and source maps while production drops both", async () => {
-  const development = await build("development")
-  expect(development.releaseService).toContain("console.debug")
-  expect(development.releaseService).toContain("подключились к серверу обновлений")
-  expect(development.releaseService).toContain("transaction marker сохранён")
-  expect(development.startupMain).toContain("страница готова к работе")
-  expect(development.releaseMain).toContain("[@hamiltonian/release:main]")
-  expect(development.internalVisual).toContain("[@internal/visual:main]")
-  for (const artifact of Object.values(development))
-    expect(artifact).toContain("sourceMappingURL=data:application/json")
+  const state = await releaseWorkspaceState(hamiltonian)
+  try {
+    const development = await build("development")
+    expect(development.releaseService).toContain("console.debug")
+    expect(development.releaseService).toContain("подключились к серверу обновлений")
+    expect(development.releaseService).toContain("transaction marker сохранён")
+    expect(development.startupMain).toContain("страница готова к работе")
+    expect(development.releaseMain).toContain("[@hamiltonian/release:main]")
+    expect(development.internalVisual).toContain("[@internal/visual:main]")
+    for (const artifact of Object.values(development))
+      expect(artifact).toContain("sourceMappingURL=data:application/json")
 
-  const production = await build("production")
-  for (const artifact of Object.values(production)) {
-    expect(artifact).not.toContain("console.debug")
-    expect(artifact).not.toContain("sourceMappingURL=")
+    const production = await build("production")
+    for (const artifact of Object.values(production)) {
+      expect(artifact).not.toContain("console.debug")
+      expect(artifact).not.toContain("sourceMappingURL=")
+      expect(artifact).not.toContain("/__tests")
+      expect(artifact).not.toContain("LOAD_TEST_")
+      expect(artifact).not.toContain("RELEASE_FIXTURE_")
+    }
+  } finally {
+    expect(await releaseWorkspaceState(hamiltonian)).toEqual(state)
   }
 }, 30_000)
 
 async function build(mode: "development" | "production") {
+  const directory = await mkdtemp(join(tmpdir(), `metafor-build-profile-${mode}-`))
+  const artifacts = {
+    startupMain: join(directory, "startup-main.js"),
+    startupService: join(directory, "startup-service.js"),
+    releaseMain: join(directory, "release-main.js"),
+    releaseService: join(directory, "release-service.js"),
+    releaseServer: join(directory, "release-server.js"),
+    internalVisual: join(directory, "visual-main.js"),
+    internalVisualServer: join(directory, "visual-server.js"),
+  }
   const child = Bun.spawn([
     Bun.which("bun") ?? "bun",
     "--conditions=hamiltonian:server",
     "--conditions=internal:server",
     "-e",
-    'import {buildPackage} from "@hamiltonian/release"; console.log(JSON.stringify(await Promise.all([buildPackage("@hamiltonian/startup", {env:"main"}), buildPackage("@hamiltonian/startup", {env:"service"}), buildPackage("@hamiltonian/release", {env:"main"}), buildPackage("@hamiltonian/release", {env:"service"}), buildPackage("@hamiltonian/release", {env:"server"}), buildPackage("@internal/visual", {env:"main"}), buildPackage("@internal/visual", {env:"server"})])))',
+    `import {buildPackage} from "@hamiltonian/release"; const artifacts = ${JSON.stringify(artifacts)}; console.log(JSON.stringify(await Promise.all([buildPackage("@hamiltonian/startup", {env:"main",artifact:artifacts.startupMain}), buildPackage("@hamiltonian/startup", {env:"service",artifact:artifacts.startupService}), buildPackage("@hamiltonian/release", {env:"main",artifact:artifacts.releaseMain}), buildPackage("@hamiltonian/release", {env:"service",artifact:artifacts.releaseService}), buildPackage("@hamiltonian/release", {env:"server",artifact:artifacts.releaseServer}), buildPackage("@internal/visual", {env:"main",artifact:artifacts.internalVisual}), buildPackage("@internal/visual", {env:"server",artifact:artifacts.internalVisualServer})])))`,
   ], {
     cwd: hamiltonian,
     env: {...process.env, NODE_ENV: mode},
+    stdout: "pipe",
+    stderr: "pipe",
+  })
+  try {
+    const [exitCode, stdout, stderr] = await Promise.all([
+      child.exited,
+      new Response(child.stdout).text(),
+      new Response(child.stderr).text(),
+    ])
+    const resultLine = stdout.trim().split("\n").at(-1)
+    if (!resultLine) throw new Error(`Package build result is missing: ${stderr}`)
+    const result = JSON.parse(resultLine) as Array<{
+      env: PackageEnvironment
+      success: boolean
+      exitCode: number | null
+    }>
+    expect(exitCode).toBe(0)
+    expect(result.map(({env, success, exitCode: buildExitCode}) => ({env, success, exitCode: buildExitCode})))
+      .toEqual([
+        {env: "main", success: true, exitCode: 0},
+        {env: "service", success: true, exitCode: 0},
+        {env: "main", success: true, exitCode: 0},
+        {env: "service", success: true, exitCode: 0},
+        {env: "server", success: true, exitCode: 0},
+        {env: "main", success: true, exitCode: 0},
+        {env: "server", success: true, exitCode: 0},
+      ])
+    return {
+      internalVisual: await Bun.file(artifacts.internalVisual).text(),
+      releaseMain: await Bun.file(artifacts.releaseMain).text(),
+      startupMain: await Bun.file(artifacts.startupMain).text(),
+      releaseService: await Bun.file(artifacts.releaseService).text(),
+    }
+  } finally {
+    await rm(directory, {recursive: true, force: true})
+  }
+}
+
+async function runReleaseFixture(scenario: "parallel-typecheck" | "failed-typecheck") {
+  const child = Bun.spawn([
+    Bun.which("bun") ?? "bun",
+    "test",
+    "./tests/fixture/release-workspace-process.ts",
+  ], {
+    cwd: hamiltonian,
+    env: {...process.env, RELEASE_FIXTURE_SCENARIO: scenario},
     stdout: "pipe",
     stderr: "pipe",
   })
@@ -263,29 +300,14 @@ async function build(mode: "development" | "production") {
     new Response(child.stdout).text(),
     new Response(child.stderr).text(),
   ])
-  const resultLine = stdout.trim().split("\n").at(-1)
-  if (!resultLine) throw new Error(`Package build result is missing: ${stderr}`)
-  const result = JSON.parse(resultLine) as Array<{
-    env: PackageEnvironment
-    success: boolean
-    exitCode: number | null
-  }>
-  expect(exitCode).toBe(0)
-  expect(result.map(({env, success, exitCode: buildExitCode}) => ({env, success, exitCode: buildExitCode})))
-    .toEqual([
-      {env: "main", success: true, exitCode: 0},
-      {env: "service", success: true, exitCode: 0},
-      {env: "main", success: true, exitCode: 0},
-      {env: "service", success: true, exitCode: 0},
-      {env: "server", success: true, exitCode: 0},
-      {env: "main", success: true, exitCode: 0},
-      {env: "server", success: true, exitCode: 0},
-    ])
-  return {
-    internalVisual: await Bun.file(join(hamiltonian, "internal/visual/dist/main.js")).text(),
-    releaseMain: await Bun.file(join(hamiltonian, "release/dist/main.js")).text(),
-    startupMain: await Bun.file(join(hamiltonian, "startup/dist/main.js")).text(),
-    releaseService: await Bun.file(join(hamiltonian, "release/dist/service.js")).text(),
+  if (exitCode !== 0) throw new Error(`Release fixture failed: ${stderr || stdout}`)
+  const result = stdout.trim().split("\n").at(-1)
+  if (!result) throw new Error(`Release fixture result is missing: ${stderr}`)
+  return JSON.parse(result) as {
+    root: string
+    results: Array<{success: boolean, exitCode: number | null, outputs: number}>
+    typechecks: number
+    artifacts: boolean[]
   }
 }
 
@@ -297,6 +319,8 @@ async function typecheckVisualEnvironment(
   const suffix = condition.slice(condition.indexOf(":") + 1)
   const sourcePath = join(directory, `${suffix}.ts`)
   const configPath = join(directory, `${suffix}.json`)
+  const modules = join(directory, "node_modules")
+  if (!existsSync(modules)) await symlink(join(repository, "node_modules"), modules, "dir")
   await Promise.all([
     Bun.write(sourcePath, source),
     Bun.write(configPath, `${JSON.stringify({

@@ -1,15 +1,18 @@
 import {expect, setDefaultTimeout, test} from "bun:test"
+import {existsSync} from "node:fs"
 import {mkdtemp, rm} from "node:fs/promises"
 import {tmpdir} from "node:os"
 import {join} from "node:path"
+import {fileURLToPath} from "node:url"
 import {
   publishImmutableArtifact,
-  recoverPublication,
   restoreManifest,
   writeRootVersions,
 } from "../release/server"
+import {releaseWorkspaceState} from "./fixture/workspace-state"
 
 setDefaultTimeout(30_000)
+const hamiltonian = fileURLToPath(new URL("../", import.meta.url))
 
 test("root intent write precedes build and child writes in the host transaction", async () => {
   const source = await Bun.file(new URL("../release/server/release/publication.ts", import.meta.url)).text()
@@ -74,26 +77,40 @@ test("immutable publication reuses equal bytes and rejects a conflict", async ()
 })
 
 test("cold recovery reproduces and reuses every converged exact artifact", async () => {
-  const manifests = [
-    new URL("../release/package.json", import.meta.url),
-    new URL("../internal/visual/package.json", import.meta.url),
-  ]
-  const sources = await Promise.all(manifests.map((manifest) => Bun.file(manifest).text()))
-
+  const state = await releaseWorkspaceState(hamiltonian)
   try {
-    await Promise.all(manifests.map(async (manifest, index) => {
-      const value = JSON.parse(sources[index]!) as {scripts: Record<string, string>}
-      value.scripts.typecheck = "bun -e 'process.exit(19)'"
-      await Bun.write(manifest, `${JSON.stringify(value, null, 2)}\n`)
-    }))
-    const result = await recoverPublication()
+    const child = Bun.spawn([
+      Bun.which("bun") ?? "bun",
+      "test",
+      "./tests/fixture/release-workspace-process.ts",
+    ], {
+      cwd: hamiltonian,
+      env: {...process.env, RELEASE_FIXTURE_SCENARIO: "cold-recovery"},
+      stdout: "pipe",
+      stderr: "pipe",
+    })
+    const [exitCode, stdout, stderr] = await Promise.all([
+      child.exited,
+      new Response(child.stdout).text(),
+      new Response(child.stderr).text(),
+    ])
+    if (exitCode !== 0) throw new Error(`Cold recovery fixture failed: ${stderr || stdout}`)
+    const line = stdout.trim().split("\n").at(-1)
+    if (!line) throw new Error(`Cold recovery fixture result is missing: ${stderr}`)
+    const result = JSON.parse(line) as {
+      root: string
+      recovered: string[]
+      artifacts: Array<{path: string, sha256: string, size: number}>
+    }
     expect(result.recovered).toEqual([])
+    expect(existsSync(result.root)).toBeFalse()
     expect(result.artifacts).toHaveLength(5)
     for (const artifact of result.artifacts) {
+      expect(artifact.path).toStartWith("/")
       expect(artifact.sha256).toMatch(/^[0-9a-f]{64}$/)
       expect(artifact.size).toBeGreaterThan(0)
     }
   } finally {
-    await Promise.all(manifests.map((manifest, index) => Bun.write(manifest, sources[index]!)))
+    expect(await releaseWorkspaceState(hamiltonian)).toEqual(state)
   }
 })

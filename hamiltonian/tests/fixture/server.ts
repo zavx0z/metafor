@@ -1,14 +1,9 @@
 import {
-  buildablePackage,
   closeRpc,
-  getPackage,
   messageRpc,
   openRpc,
-  packageResponse,
   packageChanges,
-  recoverPublication,
   releaseChangedMessage,
-  releasedPackages,
   rpcServiceTopic,
   upgradeRpc,
   type RpcSocketData,
@@ -30,6 +25,7 @@ type Fault =
 
 const fault = (process.env.LOAD_TEST_FAULT ?? "none") as Fault
 const port = Number(process.env.LOAD_TEST_PORT)
+const artifactConfig = parseArtifactConfig(process.env.LOAD_TEST_ARTIFACTS)
 
 if (!Number.isInteger(port) || port <= 0) throw new Error("LOAD_TEST_PORT is required")
 
@@ -42,10 +38,14 @@ const revisions: Record<ReleasablePackage, number> = {
   "@internal/visual": 0,
   "@hamiltonian/release": 0,
 }
-const initialPackages = await fixtureInitialPackages()
-const versions = new Map(initialPackages.map(({name, version}) => [name, version]))
+const versions = new Map<ReleasablePackage, string>()
 const environments = new Map<ReleasablePackage, BrowserPackageEnvironment[]>()
-for (const {name, env} of initialPackages) {
+for (const {name, env, version} of artifactConfig.values()) {
+  if (name !== "@hamiltonian/release" && name !== "@internal/visual") continue
+  const previousVersion = versions.get(name)
+  if (previousVersion !== undefined && previousVersion !== version)
+    throw new Error(`Fixture package ${name} mixes versions ${previousVersion} and ${version}`)
+  versions.set(name, version)
   const packageEnvironments = environments.get(name) ?? []
   packageEnvironments.push(env)
   environments.set(name, packageEnvironments)
@@ -168,15 +168,15 @@ async function artifactResponse(
   module: ReleasablePackage,
   env: BrowserPackageEnvironment,
 ) {
-  const response = await packageResponse(module, env)
+  const artifact = artifactConfig.get(artifactKey(module, env))
+  if (!artifact) return new Response(null, {status: 404})
+  const original = await Bun.file(artifact.path).text()
   const revision = revisions[module] ?? 0
-  if (!response.ok) return response
-  const original = await response.text()
   const source = revision === 0
     ? original
     : `${original}\nconsole.info(${JSON.stringify(`fixture ${module} ${revision}`)})`
   const integrity = await artifactIntegrity(new TextEncoder().encode(source).buffer as ArrayBuffer)
-  const headers = new Headers(response.headers)
+  const headers = artifactHeaders(env)
   for (const [header, value] of Object.entries(packageIdentityHeaders({
     name: module,
     env,
@@ -190,14 +190,21 @@ async function fixtureArtifactResponse(request: Request) {
   const url = new URL(request.url)
   const artifact = parseBrowserPackageUrl(url)
   if (artifact === null) return new Response(null, {status: 404})
-  const module = await buildablePackage(artifact.name, artifact.env)
-  if (module === null) return new Response(null, {status: 404})
+  const configured = artifactConfig.get(artifactKey(artifact.name, artifact.env))
+  if (!configured) return new Response(null, {status: 404})
+  const currentVersion = artifact.name === "@hamiltonian/startup"
+    ? configured.version
+    : versions.get(artifact.name as ReleasablePackage)
+  if (artifact.version !== null && artifact.version !== currentVersion)
+    return new Response(null, {status: 404})
 
-  switch (module) {
+  switch (artifact.name) {
+    case "@hamiltonian/startup":
+      return await staticArtifactResponse(configured)
     case "@hamiltonian/release": {
       if (artifact.env === "main") {
         requests.releaseMain += 1
-        return await artifactResponse(module, artifact.env)
+        return await artifactResponse(artifact.name, artifact.env)
       }
       requests.releaseService += 1
       if (fault === "release-service-http-once" && requests.releaseService === 1) {
@@ -208,7 +215,7 @@ async function fixtureArtifactResponse(request: Request) {
       }
       if (
         fault === "update-fetch-failure-once"
-        && (revisions[module] ?? 0) > 0
+        && (revisions[artifact.name] ?? 0) > 0
         && artifact.env === "service"
         && url.searchParams.has("version")
         && updateFetchFailures++ === 0
@@ -216,14 +223,24 @@ async function fixtureArtifactResponse(request: Request) {
         await Bun.sleep(500)
         return new Response("Update artifact unavailable", {status: 503})
       }
-      return await artifactResponse(module, artifact.env)
+      return await artifactResponse(artifact.name, artifact.env)
     }
     case "@internal/visual":
       requests.internalVisual += 1
-      return await artifactResponse(module, artifact.env)
+      return await artifactResponse(artifact.name, artifact.env)
     default:
-      return await getPackage(request)
+      return new Response(null, {status: 404})
   }
+}
+
+async function staticArtifactResponse(
+  artifact: {name: string, env: BrowserPackageEnvironment, version: string, path: string},
+) {
+  const source = await Bun.file(artifact.path).text()
+  const integrity = await artifactIntegrity(new TextEncoder().encode(source).buffer as ArrayBuffer)
+  return new Response(source, {
+    headers: mergeHeaders(artifactHeaders(artifact.env), packageIdentityHeaders({...artifact, ...integrity})),
+  })
 }
 
 async function fixturePackages(): Promise<ReleasedPackage[]> {
@@ -268,18 +285,31 @@ function changedVersion(version: string, change: VersionChange) {
   return `${major}.${minor}.${patch}`
 }
 
-async function fixtureInitialPackages() {
-  try {
-    return await releasedPackages()
-  } catch {
-    const environment = Bun.env.NODE_ENV
-    Bun.env.NODE_ENV = "production"
-    try {
-      await recoverPublication()
-      return await releasedPackages()
-    } finally {
-      if (environment === undefined) delete Bun.env.NODE_ENV
-      else Bun.env.NODE_ENV = environment
-    }
+function parseArtifactConfig(value: string | undefined) {
+  if (value === undefined) throw new Error("LOAD_TEST_ARTIFACTS is required")
+  const entries = JSON.parse(value) as Array<{
+    name: string
+    env: BrowserPackageEnvironment
+    version: string
+    path: string
+  }>
+  return new Map(entries.map((entry) => [artifactKey(entry.name, entry.env), entry]))
+}
+
+function artifactKey(name: string, env: BrowserPackageEnvironment) {
+  return `${name}\u0000${env}`
+}
+
+function artifactHeaders(env: BrowserPackageEnvironment) {
+  const headers = new Headers(javascriptHeaders)
+  if (env === "service") {
+    headers.set("Content-Security-Policy", "script-src 'unsafe-eval'")
+    headers.set("Service-Worker-Allowed", "/")
   }
+  return headers
+}
+
+function mergeHeaders(headers: Headers, values: Record<string, string>) {
+  for (const [name, value] of Object.entries(values)) headers.set(name, value)
+  return headers
 }

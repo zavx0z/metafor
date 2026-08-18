@@ -1,7 +1,10 @@
 import {expect, setDefaultTimeout, test} from "bun:test"
+import {mkdtemp, rm} from "node:fs/promises"
+import {tmpdir} from "node:os"
 import {fileURLToPath} from "node:url"
 import {join} from "node:path"
 import {buildPackage} from "../release/server"
+import {releaseWorkspaceState} from "./fixture/workspace-state"
 
 const hamiltonian = fileURLToPath(new URL("../", import.meta.url))
 
@@ -103,20 +106,33 @@ test("HAM-005 creates one standard Window environment through internal visual", 
 })
 
 test("UPD-002 builds Window release and internal visual as separate artifacts", async () => {
-  const [main, visual] = await Promise.all([
-    buildPackage("@hamiltonian/release", {env: "main"}),
-    buildPackage("@internal/visual", {env: "main"}),
-  ])
-  const mainOutput = main.outputs[0]
-  const visualOutput = visual.outputs[0]
+  const state = await releaseWorkspaceState(hamiltonian)
+  const directory = await mkdtemp(join(tmpdir(), "metafor-ham-005-build-"))
+  try {
+    const [main, visual] = await Promise.all([
+      buildPackage("@hamiltonian/release", {
+        env: "main",
+        artifact: join(directory, "release-main.js"),
+      }),
+      buildPackage("@internal/visual", {
+        env: "main",
+        artifact: join(directory, "visual-main.js"),
+      }),
+    ])
+    const mainOutput = main.outputs[0]
+    const visualOutput = visual.outputs[0]
 
-  expect(main.success).toBeTrue()
-  expect(visual.success).toBeTrue()
-  expect(mainOutput?.size).toBeGreaterThan(0)
-  expect(visualOutput?.size).toBeGreaterThan(0)
-  expect(await Bun.file(mainOutput!.path).text()).not.toContain("visual-canvas")
-  expect(await Bun.file(mainOutput!.path).text()).not.toContain("/code?module=")
-  expect(await Bun.file(mainOutput!.path).text()).toContain('import("@internal/visual")')
-  expect(await Bun.file(mainOutput!.path).text()).toContain("@internal/visual")
-  expect(await Bun.file(visualOutput!.path).text()).toContain("visual-canvas")
+    expect(main.success).toBeTrue()
+    expect(visual.success).toBeTrue()
+    expect(mainOutput?.size).toBeGreaterThan(0)
+    expect(visualOutput?.size).toBeGreaterThan(0)
+    expect(await Bun.file(mainOutput!.path).text()).not.toContain("visual-canvas")
+    expect(await Bun.file(mainOutput!.path).text()).not.toContain("/code?module=")
+    expect(await Bun.file(mainOutput!.path).text()).toContain('import("@internal/visual")')
+    expect(await Bun.file(mainOutput!.path).text()).toContain("@internal/visual")
+    expect(await Bun.file(visualOutput!.path).text()).toContain("visual-canvas")
+  } finally {
+    await rm(directory, {recursive: true, force: true})
+    expect(await releaseWorkspaceState(hamiltonian)).toEqual(state)
+  }
 })
