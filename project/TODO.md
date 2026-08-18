@@ -182,10 +182,11 @@ legacy adapter, old cache env и незавершённой transaction. Result 
 мёртвых implementation modules; development release `0.1.7` установлен в
 чистом managed contour без transaction. Result checkpoint — текущий result
 commit.
-Новый observability-срез `UPD-003.16` принят владельцем: development-логи
+Observability-срез `UPD-003.16` находится в `IN_PROGRESS`: development-логи
 должны составлять минимально достаточную матрицу причинных сценариев, а tests —
 доказывать каждый checkpoint, его обязательные данные, порядок и отсутствие
-лишних diagnostics. Его prerequisite `UPD-003.17` находится в `REVIEW`:
+лишних diagnostics. Его prerequisite `UPD-003.17` доказан result commit
+`870fc73c7` и находится в `REVIEW`:
 build/publication/recovery/browser tests переведены на test-owned временные
 workspace, artifacts, origin и state, а production не получил test hooks.
 Focused regression прошёл `28/28`, browser — `8/8`, полный Hamiltonian suite —
