@@ -23,13 +23,13 @@ import {
   artifactIntegrity,
   packageIdentityHeaders,
   verifyPackageResponse,
-} from "../web/package-integrity"
+} from "../shared/package/integrity"
 import {
   browserPackageCache,
   browserPackageUrl,
   parseBrowserPackageUrl,
-} from "../web/package-url"
-import {cachedPackageIdentity} from "../release/service-worker/current"
+} from "../shared/package/url"
+import {cachedPackageIdentity} from "../release/service-worker/cache/current"
 
 setDefaultTimeout(30_000)
 

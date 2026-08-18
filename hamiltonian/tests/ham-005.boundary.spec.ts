@@ -9,7 +9,7 @@ setDefaultTimeout(30_000)
 
 test("HAM-005 creates one standard Window environment through internal visual", async () => {
   const [html, main, visual, displayDock, mainPackage, visualPackage, visualBunfig, packageBuild, server, startupMain] = await Promise.all([
-    Bun.file(join(hamiltonian, "web/static/index.html")).text(),
+    Bun.file(join(hamiltonian, "static/index.html")).text(),
     Bun.file(join(hamiltonian, "release/main/index.ts")).text(),
     Bun.file(join(hamiltonian, "internal/visual/main/index.ts")).text(),
     Bun.file(join(hamiltonian, "internal/visual/main/display-dock.ts")).text(),
@@ -25,7 +25,7 @@ test("HAM-005 creates one standard Window environment through internal visual", 
       scripts?: Record<string, string>
     }>,
     Bun.file(join(hamiltonian, "internal/visual/bunfig.toml")).text(),
-    Bun.file(join(hamiltonian, "release/server/package.ts")).text(),
+    Bun.file(join(hamiltonian, "release/server/package/manifest.ts")).text(),
     Bun.file(join(hamiltonian, "server.ts")).text(),
     Bun.file(join(hamiltonian, "startup/main/index.ts")).text(),
   ])

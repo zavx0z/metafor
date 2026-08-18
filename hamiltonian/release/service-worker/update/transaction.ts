@@ -1,13 +1,20 @@
-import type {BrowserPackageIdentity} from "../../web/package-integrity"
-import {browserPackageUrl} from "../../web/package-url"
-import {
-  transactionCache,
-  transactionExists,
-  transactionMarkerRequest,
-} from "../transaction"
+import type {BrowserPackageIdentity} from "../../../shared/package/integrity"
+import {browserPackageUrl} from "../../../shared/package/url"
 
-/** Точная версия package в browser release. */
-export interface ReleasePackage extends BrowserPackageIdentity {}
+/** Единственный технический Cache Storage package update. */
+export const transactionCache = "transaction"
+
+/** Первая cache entry только отмечает незавершённую transaction. */
+export const transactionMarkerPath = "/transaction"
+
+export function transactionMarkerRequest() {
+  return new Request(new URL(transactionMarkerPath, location.origin))
+}
+
+/** Проверяет существование transaction, не создавая пустой cache. */
+export async function transactionExists() {
+  return (await caches.keys()).includes(transactionCache)
+}
 
 /** Проверяет marker уже начатой transaction, не создавая новую. */
 export async function pendingTransaction() {
@@ -42,7 +49,7 @@ export async function beginTransaction() {
 }
 
 /** Возвращает ранее подготовленный exact response. */
-export async function preparedPackage(entry: ReleasePackage) {
+export async function preparedPackage(entry: BrowserPackageIdentity) {
   if (!await transactionExists()) return
   return await (await caches.open(transactionCache)).match(
     exactRequest(entry),
@@ -51,7 +58,7 @@ export async function preparedPackage(entry: ReleasePackage) {
 }
 
 /** Сохраняет verified response только внутри фиксированной transaction. */
-export async function preparePackage(entry: ReleasePackage, response: Response) {
+export async function preparePackage(entry: BrowserPackageIdentity, response: Response) {
   await (await caches.open(transactionCache)).put(exactRequest(entry), response)
 }
 
@@ -60,7 +67,7 @@ export async function commitTransaction() {
   await caches.delete(transactionCache)
 }
 
-function exactRequest(entry: ReleasePackage) {
+function exactRequest(entry: BrowserPackageIdentity) {
   return new Request(
     new URL(browserPackageUrl(entry.name, entry.env, entry.version), location.origin),
     {cache: "no-store"},

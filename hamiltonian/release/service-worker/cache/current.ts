@@ -1,10 +1,16 @@
-import {artifactIntegrity, verifyPackageResponse} from "../../web/package-integrity"
+import {
+  artifactIntegrity,
+  verifyPackageResponse,
+  type BrowserPackageIdentity,
+} from "../../../shared/package/integrity"
 import {
   browserPackageCache,
   browserPackageUrl,
   parseBrowserPackageUrl,
-} from "../../web/package-url"
-import type {ReleasePackage} from "./state"
+} from "../../../shared/package/url"
+
+/** Точная версия package в browser release. */
+export interface ReleasePackage extends BrowserPackageIdentity {}
 
 const codeCaches = ["release", "internal", "metafor"] as const
 

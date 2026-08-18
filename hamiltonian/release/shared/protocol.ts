@@ -1,9 +1,9 @@
 import {
   isBrowserPackageEnvironment,
   type BrowserPackageEnvironment,
-} from "../web/package-environment"
-import {isSha256, type BrowserPackageIdentity} from "../web/package-integrity"
-import {browserPackageCache, browserPackageSlot, browserPackageUrl} from "../web/package-url"
+} from "../../shared/package/environment"
+import {isSha256, type BrowserPackageIdentity} from "../../shared/package/integrity"
+import {browserPackageCache, browserPackageSlot, browserPackageUrl} from "../../shared/package/url"
 
 /** Exact cache entry, которую server должен удалить из browser release. */
 export interface ReleaseRemoval {

@@ -1,5 +1,5 @@
-import {releaseChangedMessage} from "../protocol"
-import {publishPackages} from "./publish"
+import {releaseChangedMessage} from "../../shared/protocol"
+import {publishPackages} from "./publication"
 import {packageChanges} from "./request"
 
 /** Доставка package signal через transport корневого server. */

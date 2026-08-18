@@ -1,6 +1,6 @@
-import {browserPackageSlot} from "../../web/package-url"
-import type {BrowserPackageIdentity} from "../../web/package-integrity"
-import type {ReleaseDelta} from "../protocol"
+import {browserPackageSlot} from "../../../shared/package/url"
+import type {BrowserPackageIdentity} from "../../../shared/package/integrity"
+import type {ReleaseDelta} from "../../shared/protocol"
 
 /** Сравнивает полный browser current с полным server desired и возвращает только delta. */
 export function releaseDelta(

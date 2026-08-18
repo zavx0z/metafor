@@ -14,8 +14,8 @@ await recoverPublication()
 
 Bun.serve<RpcSocketData>({
   routes: {
-    "/": Bun.file(new URL("./web/static/index.html", import.meta.url)),
-    "/manifest.webmanifest": Bun.file(new URL("./web/static/manifest.json", import.meta.url), {type: "application/manifest+json"}),
+    "/": Bun.file(new URL("./static/index.html", import.meta.url)),
+    "/manifest.webmanifest": Bun.file(new URL("./static/manifest.json", import.meta.url), {type: "application/manifest+json"}),
     "/assets/fonts/JetBrainsMono-Bold.ttf": Bun.file(new URL("../pkg/engine/static/JetBrainsMono-Bold.ttf", import.meta.url)),
     "/assets/*": async (request: Request) => {
       const asset = new URL(request.url).pathname.slice("/assets/".length)
@@ -39,7 +39,7 @@ Bun.serve<RpcSocketData>({
     "/sw": (request: Request, server: Bun.Server<RpcSocketData>) => upgradeRpc(request, server),
     "/*": (request: Request) => {
       if (request.headers.get("Accept")?.includes("text/html"))
-        return new Response(Bun.file(new URL("./web/static/index.html", import.meta.url)))
+        return new Response(Bun.file(new URL("./static/index.html", import.meta.url)))
       return new Response(null, {status: 404})
     },
   },

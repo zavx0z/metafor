@@ -1,4 +1,4 @@
-import type {BrowserPackageEnvironment} from "./package-environment"
+import type {BrowserPackageEnvironment} from "./environment"
 
 /** Полная проверяемая identity одного browser artifact. */
 export interface BrowserPackageIdentity {

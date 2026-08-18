@@ -1,11 +1,11 @@
-import {verifyPackageResponse, type BrowserPackageIdentity} from "../../web/package-integrity"
+import {verifyPackageResponse, type BrowserPackageIdentity} from "../../shared/package/integrity"
 import {
   browserPackageCache,
   browserPackageSlot,
   browserPackageUrl,
   parseBrowserPackageUrl,
   type BrowserPackageUrl,
-} from "../../web/package-url"
+} from "../../shared/package/url"
 
 /** Проверяет, что полученный HTTP response можно использовать дальше. */
 export function verify(response: Response) {

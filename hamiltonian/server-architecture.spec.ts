@@ -3,8 +3,8 @@ import {fileURLToPath} from "node:url"
 
 const hamiltonianRoot = fileURLToPath(new URL(".", import.meta.url))
 const serverPath = fileURLToPath(new URL("./server.ts", import.meta.url))
-const releaseDeliveryPath = fileURLToPath(new URL("./release/server/delivery.ts", import.meta.url))
-const releaseUpdatePath = fileURLToPath(new URL("./release/server/update.ts", import.meta.url))
+const releaseDeliveryPath = fileURLToPath(new URL("./release/server/http/delivery.ts", import.meta.url))
+const releaseUpdatePath = fileURLToPath(new URL("./release/server/release/update.ts", import.meta.url))
 const rpcServerPath = fileURLToPath(new URL("./release/server/rpc/index.ts", import.meta.url))
 
 const routes = [

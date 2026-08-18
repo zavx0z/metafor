@@ -3,8 +3,8 @@ import {
   parseReleaseDeltaMessage,
   releaseCurrentMessage,
   type ReleaseDelta,
-} from "../../protocol"
-import type {ReleasePackage} from "../state"
+} from "../../shared/protocol"
+import type {ReleasePackage} from "../cache/current"
 
 /** Service Worker release operations, запускаемые по свежей server delta. */
 export interface RpcBindings {

@@ -81,7 +81,7 @@ test("every Hamiltonian package owns direct env entrypoints and one typecheck", 
 })
 
 test("build executor resolves package contracts without a module registry", async () => {
-  const source = await Bun.file(join(hamiltonian, "release/server/package.ts")).text()
+  const source = await Bun.file(join(hamiltonian, "release/server/package/manifest.ts")).text()
   expect(source).not.toContain('join(root, "dist/index.js")')
 
   for (const descriptor of Object.values(packages)) {

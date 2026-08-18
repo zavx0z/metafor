@@ -1,6 +1,6 @@
-import type {PackageChange, ReleasablePackage, VersionChange} from "./contracts"
+import type {PackageChange, ReleasablePackage, VersionChange} from "../shared/contracts"
 import {releasedPackages} from "./state"
-import {isVersionChange} from "./version"
+import {isVersionChange} from "../package/version"
 
 /** Разбирает JSON-контракт package version change группы. */
 export async function packageChanges(request: Request): Promise<PackageChange[] | Response> {

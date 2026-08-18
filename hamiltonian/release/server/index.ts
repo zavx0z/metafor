@@ -1,6 +1,6 @@
 /** Public API env `server` package `@hamiltonian/release`. */
-export {buildablePackage, buildPackage, packageResponse} from "./build"
-export {packageBuildCommand} from "./command"
+export {buildablePackage, buildPackage, packageResponse} from "./package/build"
+export {packageBuildCommand} from "./package/command"
 export {
   readReleaseComposition,
   readReleaseIntentComposition,
@@ -8,11 +8,11 @@ export {
   validateBrowserReleaseEnvironments,
   validateReleaseDependencyGraph,
   validateTargetReleaseVersions,
-} from "./composition"
+} from "./release/composition"
 export type {
   ReleaseCompositionMember,
   ReleaseDependencyMember,
-} from "./composition"
+} from "./release/composition"
 export type {
   BuildablePackage,
   PackageBuildArtifact,
@@ -25,8 +25,8 @@ export type {
   ReleasedPackage,
   ReleasablePackage,
   VersionChange,
-} from "./contracts"
-export {releaseDelta} from "./delta"
+} from "./shared/contracts"
+export {releaseDelta} from "./release/delta"
 export {
   parseReleaseChangedMessage,
   parseReleaseCurrentMessage,
@@ -34,35 +34,35 @@ export {
   releaseChangedMessage,
   releaseCurrentMessage,
   releaseDeltaMessage,
-} from "../protocol"
+} from "../shared/protocol"
 export type {
   ReleaseChangedMessage,
   ReleaseCurrentMessage,
   ReleaseDelta,
   ReleaseDeltaMessage,
   ReleaseRemoval,
-} from "../protocol"
+} from "../shared/protocol"
 export {
   browserPackageEnvironments,
   isBrowserPackageEnvironment,
   isPackageEnvironment,
   packageEnvironments,
-} from "../../web/package-environment"
+} from "../../shared/package/environment"
 export type {
   BrowserPackageEnvironment,
   PackageEnvironment,
-} from "../../web/package-environment"
-export {getPackage, getRelease} from "./delivery"
-export {packageEnvironmentExports, packageOwner, packageOwners} from "./package"
+} from "../../shared/package/environment"
+export {getPackage, getRelease} from "./http/delivery"
+export {packageEnvironmentExports, packageOwner, packageOwners} from "./package/manifest"
 export {
   publishImmutableArtifact,
   publishPackages,
   recoverPublication,
   restoreManifest,
   writeRootVersions,
-} from "./publish"
-export type {RecoveryResult} from "./publish"
-export {packageChanges} from "./request"
+} from "./release/publication"
+export type {RecoveryResult} from "./release/publication"
+export {packageChanges} from "./release/request"
 export {
   closeRpc,
   messageRpc,
@@ -71,13 +71,13 @@ export {
   upgradeRpc,
 } from "./rpc"
 export type {RpcSocketData} from "./rpc"
-export {releasedPackageResponse, releasedPackages, releaseStateResponse} from "./state"
-export {notifyRelease, publishRelease} from "./update"
-export type {ReleaseNotification} from "./update"
-export {nextPackageVersion} from "./version"
+export {releasedPackageResponse, releasedPackages, releaseStateResponse} from "./release/state"
+export {notifyRelease, publishRelease} from "./release/update"
+export type {ReleaseNotification} from "./release/update"
+export {nextPackageVersion} from "./package/version"
 export type {
   ReleaseDependencies,
   ReleaseFactory,
   ReleaseLoader,
   ReleaseRuntime,
-} from "../service-worker/contract"
+} from "../service-worker/runtime/contract"

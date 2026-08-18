@@ -1,6 +1,6 @@
-import {buildablePackage} from "./build"
-import {releasedPackageResponse, releaseStateResponse} from "./state"
-import {parseBrowserPackageUrl} from "../../web/package-url"
+import {buildablePackage} from "../package/build"
+import {releasedPackageResponse, releaseStateResponse} from "../release/state"
+import {parseBrowserPackageUrl} from "../../../shared/package/url"
 
 /** Возвращает текущее доказанное release state только без query parameters. */
 export async function getRelease(request: Request) {

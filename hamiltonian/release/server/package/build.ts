@@ -7,8 +7,8 @@ import type {
   PackageBuildResult,
   PackageEnvironment,
   PackageOwner,
-} from "./contracts"
-import {packageArtifact, packageOwner} from "./package"
+} from "../shared/contracts"
+import {packageArtifact, packageOwner} from "./manifest"
 
 const pendingBuilds = new Map<string, Promise<PackageBuildResult>>()
 const pendingTypechecks = new Map<string, Promise<PackageTypecheckResult>>()

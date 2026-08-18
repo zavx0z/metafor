@@ -1,6 +1,6 @@
 import {copyFile, mkdir, mkdtemp, rename, rm} from "node:fs/promises"
 import {dirname, join} from "node:path"
-import {buildPackage} from "./build"
+import {buildPackage} from "../package/build"
 import {
   readReleaseComposition,
   readReleaseIntentComposition,
@@ -14,12 +14,12 @@ import type {
   PackageManifest,
   PackageReleaseResult,
   PackageReleaseResultSet,
-} from "./contracts"
-import {packageArtifact} from "./package"
-import {hamiltonianManifest, hamiltonianRoot} from "./paths"
+} from "../shared/contracts"
+import {packageArtifact} from "../package/manifest"
+import {hamiltonianManifest, hamiltonianRoot} from "../shared/paths"
 import {serializePublication} from "./queue"
 import {readReleasedPackages, versionedArtifact} from "./state"
-import {nextPackageVersion} from "./version"
+import {nextPackageVersion} from "../package/version"
 
 interface ReleasePlan extends PackageChange {
   member: ReleaseCompositionMember

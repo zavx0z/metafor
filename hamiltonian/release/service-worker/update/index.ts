@@ -1,21 +1,20 @@
-import {verifyPackageResponse} from "../../web/package-integrity"
+import {verifyPackageResponse} from "../../../shared/package/integrity"
 import {
   browserPackageCache,
   browserPackageSlot,
   browserPackageUrl,
   parseBrowserPackageUrl,
-} from "../../web/package-url"
-import type {ReleaseDelta} from "../protocol"
-import type {ReleaseLoader, ReleaseRuntime} from "./contract"
-import {currentReleasePackages} from "./current"
+} from "../../../shared/package/url"
+import type {ReleaseDelta} from "../../shared/protocol"
+import type {ReleaseLoader, ReleaseRuntime} from "../runtime/contract"
+import {currentReleasePackages, type ReleasePackage} from "../cache/current"
 import {
   beginTransaction,
   commitTransaction,
   pendingTransaction,
   preparedPackage,
   preparePackage,
-  type ReleasePackage,
-} from "./state"
+} from "./transaction"
 
 const codeCaches = ["release", "internal", "metafor"] as const
 

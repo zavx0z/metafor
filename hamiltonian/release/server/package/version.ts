@@ -1,4 +1,4 @@
-import type {VersionChange} from "./contracts"
+import type {VersionChange} from "../shared/contracts"
 
 const workspaceCaret = /^workspace:\^(\d+)\.(\d+)\.(\d+)$/
 

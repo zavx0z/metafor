@@ -2,23 +2,23 @@ import {basename, dirname, join} from "node:path"
 import {
   browserPackageEnvironments,
   type BrowserPackageEnvironment,
-} from "../../web/package-environment"
-import {packageIdentityHeaders} from "../../web/package-integrity"
-import {packageResponse} from "./build"
+} from "../../../shared/package/environment"
+import {packageIdentityHeaders} from "../../../shared/package/integrity"
+import {packageResponse} from "../package/build"
 import {readReleaseComposition} from "./composition"
 import type {
   BuildablePackage,
   ReleasedPackage,
   ReleasablePackage,
-} from "./contracts"
+} from "../shared/contracts"
 import {
   packageArtifact,
   packageManifest,
   packageOwner,
   packageOwners,
-} from "./package"
+} from "../package/manifest"
 import {waitForPublication} from "./queue"
-import {isVersion} from "./version"
+import {isVersion} from "../package/version"
 
 /** Возвращает текущее доказанное состояние из корневых caret dependencies. */
 export async function releasedPackages(): Promise<ReleasedPackage[]> {

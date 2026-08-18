@@ -1,10 +1,10 @@
 import {
   parseReleaseCurrentMessage,
   releaseDeltaMessage,
-} from "../../protocol"
-import type {ReleasedPackage} from "../contracts"
-import {releaseDelta} from "../delta"
-import {releasedPackages} from "../state"
+} from "../../shared/protocol"
+import type {ReleasedPackage} from "../shared/contracts"
+import {releaseDelta} from "../release/delta"
+import {releasedPackages} from "../release/state"
 
 /** Данные одного подключённого release env `service-worker`. */
 export interface RpcSocketData {

@@ -1,7 +1,7 @@
 import {
   isBrowserPackageEnvironment,
   type BrowserPackageEnvironment,
-} from "./package-environment"
+} from "./environment"
 
 /** Browser package namespaces, доступные через одноимённые origin paths. */
 export type BrowserPackageNamespace = "startup" | "release" | "internal" | "metafor"

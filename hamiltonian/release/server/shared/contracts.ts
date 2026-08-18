@@ -1,13 +1,13 @@
 import type {
   BrowserPackageEnvironment,
   PackageEnvironment,
-} from "../../web/package-environment"
-import type {BrowserPackageIdentity} from "../../web/package-integrity"
+} from "../../../shared/package/environment"
+import type {BrowserPackageIdentity} from "../../../shared/package/integrity"
 
 export type {
   BrowserPackageEnvironment,
   PackageEnvironment,
-} from "../../web/package-environment"
+} from "../../../shared/package/environment"
 
 /** Hamiltonian package, который предоставляет browser artifact. */
 export type BuildablePackage = string

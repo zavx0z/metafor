@@ -18,9 +18,9 @@ import {
 } from "../../release/server"
 import {
   parseBrowserPackageUrl,
-} from "../../web/package-url"
-import {artifactIntegrity, packageIdentityHeaders} from "../../web/package-integrity"
-import type {BrowserPackageEnvironment} from "../../web/package-environment"
+} from "../../shared/package/url"
+import {artifactIntegrity, packageIdentityHeaders} from "../../shared/package/integrity"
+import type {BrowserPackageEnvironment} from "../../shared/package/environment"
 
 type Fault =
   | "none"
@@ -61,9 +61,9 @@ const server = Bun.serve<RpcSocketData>({
   hostname: "127.0.0.1",
   port,
   routes: {
-    "/": Bun.file(new URL("../../web/static/index.html", import.meta.url)),
+    "/": Bun.file(new URL("../../static/index.html", import.meta.url)),
     "/manifest.webmanifest": Bun.file(
-      new URL("../../web/static/manifest.json", import.meta.url),
+      new URL("../../static/manifest.json", import.meta.url),
       {type: "application/manifest+json"},
     ),
     "/assets/fonts/JetBrainsMono-Bold.ttf": Bun.file(
@@ -143,7 +143,7 @@ const server = Bun.serve<RpcSocketData>({
     },
     "/*": (request: Request) => {
       if (request.headers.get("Accept")?.includes("text/html"))
-        return new Response(Bun.file(new URL("../../web/static/index.html", import.meta.url)))
+        return new Response(Bun.file(new URL("../../static/index.html", import.meta.url)))
       return new Response(null, {status: 404})
     },
   },

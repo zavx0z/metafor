@@ -4,8 +4,8 @@ import {
   browserPackageEnvironments,
   isPackageEnvironment,
   type PackageEnvironment,
-} from "../../web/package-environment"
-import {artifactIntegrity} from "../../web/package-integrity"
+} from "../../../shared/package/environment"
+import {artifactIntegrity} from "../../../shared/package/integrity"
 import {packageArtifactPath, packageBuildCommand} from "./command"
 import {
   type BuildablePackage,
@@ -13,8 +13,8 @@ import {
   type PackageEnvironmentExport,
   type PackageManifest,
   type PackageOwner,
-} from "./contracts"
-import {hamiltonianRoot} from "./paths"
+} from "../shared/contracts"
+import {hamiltonianRoot} from "../shared/paths"
 
 interface PackageLocation {
   root: string

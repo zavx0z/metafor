@@ -318,6 +318,16 @@ release packages и server-стороны RPC. Он находит и прове
 дерево assets временно обслуживается явным безопасным file-handler без
 frontend framework dependencies.
 
+Файловая структура следует тем же предметным владельцам. Общие package URL,
+env и integrity contracts находятся в `hamiltonian/shared/package`, а HTML и
+Web App Manifest — в `hamiltonian/static`; transport-каталога `hamiltonian/web`
+нет. Внутри `release/server` раздельно находятся `package`, `release`, `http`,
+`rpc` и `shared`. Внутри `release/service-worker` раздельно находятся
+`runtime`, `fetch`, `cache`, `update` и `rpc`; корневой `index.ts` этой среды
+остаётся только её entrypoint. Общий server/Service Worker wire protocol
+принадлежит `release/shared`, а transaction implementation — только
+`release/service-worker/update`.
+
 Service Worker-сторона RPC является внутренней директорией env
 `service-worker` package `@hamiltonian/release` и входит в его artifact.
 Отдельного browser package, версии или cache entry для RPC нет. Release использует RPC для обновлений, signaling,
@@ -333,7 +343,7 @@ lifetime, `Space`, `HUD`, resize и стандартной навигацией.
 приближает камеру к display и возвращает сохранённый обзор, не перехватывая
 input остальной сцены.
 
-HTML, layout canvas и font resource обслуживает `hamiltonian/web/static`.
+HTML, layout canvas и font resource обслуживает `hamiltonian/static`.
 Стандартная среда не импортирует prototype `hamiltonian/visual`, Bulk или
 предметную node-system presentation. Последующие internal или MetaFor modules
 наполняют готовый display отдельно и не создают второй visual runtime.

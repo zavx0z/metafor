@@ -1,8 +1,8 @@
-import {isBrowserPackageEnvironment} from "../../web/package-environment"
-import type {PackageManifest, PackageOwner, ReleasablePackage} from "./contracts"
-import {packageManifest, packageOwners} from "./package"
-import {hamiltonianManifest} from "./paths"
-import {caretVersion, isVersion} from "./version"
+import {isBrowserPackageEnvironment} from "../../../shared/package/environment"
+import type {PackageManifest, PackageOwner, ReleasablePackage} from "../shared/contracts"
+import {packageManifest, packageOwners} from "../package/manifest"
+import {hamiltonianManifest} from "../shared/paths"
+import {caretVersion, isVersion} from "../package/version"
 
 export interface ReleaseDependencyMember {
   name: ReleasablePackage

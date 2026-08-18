@@ -12,7 +12,7 @@ import {
 setDefaultTimeout(30_000)
 
 test("root intent write precedes build and child writes in the host transaction", async () => {
-  const source = await Bun.file(new URL("../release/server/publish.ts", import.meta.url)).text()
+  const source = await Bun.file(new URL("../release/server/release/publication.ts", import.meta.url)).text()
   const server = await Bun.file(new URL("../server.ts", import.meta.url)).text()
   const rootWrite = source.indexOf("await writeRootVersions(")
   const build = source.indexOf("const results = await buildPlans(plans)", rootWrite)

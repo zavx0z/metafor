@@ -1,14 +1,14 @@
 import {expect, test} from "bun:test"
-import type {BrowserPackageEnvironment} from "../web/package-environment"
+import type {BrowserPackageEnvironment} from "../shared/package/environment"
 import {
   artifactIntegrity,
   packageIdentityHeaders,
   type BrowserPackageIdentity,
-} from "../web/package-integrity"
-import {browserPackageCache, browserPackageUrl} from "../web/package-url"
-import {releaseDelta} from "../release/server/delta"
-import {currentReleasePackages} from "../release/service-worker/current"
-import {updateRelease} from "../release/service-worker/loader"
+} from "../shared/package/integrity"
+import {browserPackageCache, browserPackageUrl} from "../shared/package/url"
+import {releaseDelta} from "../release/server/release/delta"
+import {currentReleasePackages} from "../release/service-worker/cache/current"
+import {updateRelease} from "../release/service-worker/update"
 import {read} from "../startup/service-worker/loader"
 
 const origin = "https://transaction.test"
