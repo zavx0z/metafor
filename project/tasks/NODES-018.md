@@ -294,9 +294,59 @@ Result checkpoint: `0f511a5758c381c3f2c814df793ef6b0c286c340`.
 
 ### NODES-018.4 — Согласовать clipping, culling и input transforms
 
-Viewport clip, culling, selection hit corridors, pointer/touch pan и pinch
-используют world/inverse matrices той же hierarchy. Visual children не получают
-screen minima; отдельные hit targets могут иметь документированный screen-size.
+Статус и исполнитель: `IN_PROGRESS`, внутренний исполнитель
+`NODES-018.4 — Согласовать clipping, culling и input transforms`.
+
+Классификация: следующий implementation-срез; он меняет один projection-
+механизм наблюдения retained hierarchy для clip, visibility и input.
+
+Требование: viewport clip, component culling, selection hit corridors,
+pointer/wheel pan/zoom и touch pinch переводят surface points и local component
+geometry через `matrixWorld`/inverse тех же engine parents, которые рисует
+renderer. Transform-only input не планирует и не materializes subtree.
+
+Основание и связанная история: NODES-018.2 result `57c665558` дал retained
+lifecycle, NODES-018.3 result `0f511a575` создал один content-root и local
+components с counters `{2,1,0} → {2,1,3}`. Input/clip/culling были явно
+оставлены этому следующему срезу.
+
+Наблюдаемое расхождение: retained visuals уже наследуют content-root transform,
+но selection hits временно не регистрируются, materials retained subtree не
+получают fixed viewport clip, а component parents не меняют visibility при
+pan/zoom. Runtime wheel/pinch anchor ещё вычисляется из отдельной числовой
+формулы, а не из inverse фактического content-root.
+
+Причина: подтверждена — прежний immediate hit/clip path хранит flat surface
+rects и не владеет lifecycle/matrix association retained parent.
+
+Разрешённое изменение одного механизма: `UiSurface` связывает staged retained
+hits/clip regions с exact owned `Object3D`, атомарно заменяет и удаляет их вместе
+с subtree и даёт protected surface↔retained point conversion через actual
+world/inverse matrices. `NodeCanvas` использует эту проекцию для culling,
+Frame/Link/Node selection и anchor-preserving wheel/pinch. Screen-space minimum
+допустим только явно отдельной невидимой hit-area policy и не меняет visual
+Socket/stroke/text geometry. Semantic model/layout, materialization hierarchy,
+Blender visual corrections и Hamiltonian/Card не меняются.
+
+Regression: после нескольких transforms clip bounds остаются viewport-owned,
+offscreen component parents становятся invisible без rematerialization и не
+перехватывают input; transformed Frame/Link/Node points выбирают exact IDs;
+link/mobile hit minimum существует только в retained hit record. Wheel и pinch
+сохраняют один local anchor по matrix conversion. Dirty/remove/dispose не
+оставляют stale retained hits, а counters первых двух стадий не растут.
+
+Среда и критерий приёмки: focused `UiSurface` retained clip/hit lifecycle и
+NodeCanvas matrix/culling/input tests, affected UI/Node suites и typechecks,
+package-boundary, exact Engine source typecheck и `git diff --check`. Exact
+browser desktop/mobile behavior и captures остаются NODES-018.5.
+
+Фактические действия: ещё не выполнены.
+
+Результат и вывод: ещё не получены.
+
+Подготовительный commit: текущий project-коммит после этой регистрации.
+
+Result checkpoint: ещё не записан.
 
 ### NODES-018.5 — Доказать correctness и performance
 
@@ -329,6 +379,6 @@ pan/zoom frames: layout/materialization counters не растут при чис
 
 ## Состояние
 
-`IN_PROGRESS`: подготовительный project baseline создаётся до запуска отдельного
-пользовательского чата. Первый срез — NODES-018.1; visual corrections NODES-017
-не выполняются параллельно на старом flat path.
+`IN_PROGRESS`: NODES-018.1–.3 завершены result checkpoints. Текущий срез —
+NODES-018.4; browser correctness/performance proof выполняется только после него
+в NODES-018.5. Visual corrections NODES-017 не выполняются параллельно.
