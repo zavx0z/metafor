@@ -41,6 +41,8 @@
   один полный Bulk scene snapshot.
 * [Engine](../pkg/engine/CONTRACT.md) — координаты и единицы сцены, правила
   обычных и скелетных mesh и материалы renderer.
+* [UI elements](../pkg/ui/elements/REQUIREMENTS.md) — обязательный Flex-закон
+  всей UI-композиции и граница низкоуровневого drawing.
 * [UI components](../pkg/ui/components/REQUIREMENTS.md) — универсальные
   WebGPU-поля и составные controls, пригодные внутри node editor и вне него.
 * [Web Push](../pkg/web-push/CONTRACT.md) — runtime-разделённые permission,

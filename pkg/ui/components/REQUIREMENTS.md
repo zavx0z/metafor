@@ -23,6 +23,9 @@
    состояния не регистрируют mutating hit target.
 7. Числовая нормализация, enum selection, color conversion, vector dimensions
    и field measurement являются pure helpers с отдельными tests.
+8. Вся внутренняя композиция Field и его controls выполняется только через
+   существующие `@ui/elements` `flexRow`/`flexColumn`. Ручные cursor/column/row
+   offsets для размещения дочерних UI-компонентов запрещены.
 
 ## Источник терминов
 

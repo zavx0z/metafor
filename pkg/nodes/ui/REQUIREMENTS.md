@@ -29,6 +29,9 @@ format и автоматическое размещение принадлежа
    изменения NodeEditor или central switch.
 5. Поля внутри Node и standalone controls вызывают один renderer из
    `@ui/components`; node package не копирует field implementation.
+6. Вся внутренняя композиция Node, Socket labels/default fields, catalog panels
+   и playground regions выполняется существующими `flexRow`/`flexColumn` либо
+   `flexRowCss`/`flexColumnCss`. Ручные UI-grid offsets запрещены.
 
 ## Blender presets
 
@@ -52,6 +55,8 @@ format и автоматическое размещение принадлежа
    возвращаются в geometry.
 4. Controlled selection и canvas transform сообщаются consumer callback-ами;
    скрытого product state нет.
+5. Ручными координатами остаются только входная positioned Node geometry,
+   exact Socket centers и Link route points. Это scene data, не layout children.
 
 ## Package boundary и удаление legacy
 

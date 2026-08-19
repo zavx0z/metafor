@@ -23,6 +23,12 @@ WebGPU playground показывает полный component catalog.
   адаптацию к существующему верхнеуровневому коду. Card/HUD/NodeSystemSurface
   удаляются; новый layout format и consumer integration принадлежат следующему
   этапу.
+* Владелец также установил обязательный composition law: полностью вся новая
+  UI-композиция строится существующим project Flex. Ручные offsets допустимы
+  только для positioned geometry и Link routes, которые приходят как данные.
+* Закон повышен до общего правила всего UI: если Flex не выражает нужную
+  композицию, исполнитель дорабатывает pure Flex и его tests/docs вместо
+  локальных вычислений и костылей.
 
 ## Источники Blender
 
@@ -90,6 +96,8 @@ package typechecks/tests, browser DOM, console и visual evidence. Hamiltonian
 * Card/HUD/NodeSystemSurface legacy удаляется, а не deprecated/re-exported.
 * Generic Surface не импортирует старый NodeSystem, HUD или product code.
 * Fields принадлежат `@ui/components`; `@nodes/ui` не создаёт их копии.
+* Field, Node preset, catalog surfaces и playground regions используют только
+  `flexRow`/`flexColumn`/`flexCss` для дочерних UI slots.
 
 ## Критерии готовности
 
@@ -99,8 +107,10 @@ package typechecks/tests, browser DOM, console и visual evidence. Hamiltonian
 3. Catalog содержит не менее 18 socket kinds, 6 shapes и 9 field kinds.
 4. Каждый field kind показан standalone и хотя бы один раз внутри Node.
 5. Fit/pan/zoom, selection, Link drawing и containment compositing проверены.
-6. `@nodes/ui` exports и bundles не содержат Card/Fact/NodeSystemSurface symbols.
-7. `@ui/components`, `@nodes/ui`, playground typechecks, package tests, browser
+6. Structural tests доказывают Flex composition fields, Nodes и playground
+   regions; ручная child-grid arithmetic отсутствует.
+7. `@nodes/ui` exports и bundles не содержат Card/Fact/NodeSystemSurface symbols.
+8. `@ui/components`, `@nodes/ui`, playground typechecks, package tests, browser
    console и `git diff --check` проходят; старые root consumer errors перечислены
    exact и не маскируются compatibility-кодом.
 8. Component playground открыт владельцу через `ai-macos`; Hamiltonian process
