@@ -44,8 +44,13 @@
 * [Web Push](../pkg/web-push/CONTRACT.md) — runtime-разделённые permission,
   подписка, доставка, receipt и необязательные lifecycle hooks без встроенного
   transport наблюдения.
-* [Hamiltonian](../hamiltonian/README.md) — причинный монитор, clean-room
-  loader и стандартная Window-среда визуализации оркестратора.
+* [Hamiltonian](../hamiltonian/README.md) — общий закон распределённой доставки,
+  размещения, знакомства, обновления и повторного воплощения. Package owners:
+  [`startup`](../hamiltonian/startup/README.md),
+  [`release`](../hamiltonian/release/README.md),
+  [стандартная Window-среда](../hamiltonian/internal/visual/README.md) и
+  [причинная visual-проекция](../hamiltonian/visual/README.md). Отдельно
+  описана [доказанная граница рабочего прототипа](../hamiltonian/PROTOTYPE.md).
 * [Node system](../pkg/nodes/README.md) — универсальная model/geometry граница,
   минимальная раскладка `@nodes/layout`, HUD-free renderer `@nodes/ui` и
   необязательная HUD-интеграция `@nodes/hud`. Model и Worker transport
