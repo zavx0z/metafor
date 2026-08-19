@@ -96,3 +96,8 @@
    leaf topology и на topology с source/target compounds в `RIGHT`/`DOWN`.
    Оба вида вызывают один public adaptive entrypoint и не создают playground
    solver или fixture-specific routing.
+7. Каждый playground scenario является полным preset и владеет одной typed
+   fixed/adaptive policy вместе с topology, viewport и expected direction.
+   Независимый policy switch запрещён: run/reset/RIGHT-DOWN comparison получают
+   policy только из scenario, а UI показывает её read-only. Cross-policy
+   comparison требует отдельного явного действия и собственной matrix.
