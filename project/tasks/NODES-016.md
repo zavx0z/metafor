@@ -37,6 +37,10 @@ WebGPU playground показывает полный component catalog.
 color, vector/rotation, matrix, reference и read-only fields с pure helpers и
 tests. Ни один type/import не содержит node vocabulary.
 
+`COMPLETE`: checkpoint `316a16e37`; 10 field kinds, shared renderer,
+normalization/measurement helpers, 6 tests / 21 assertions и component
+typecheck зелёные.
+
 ### NODES-016.2 — Generic Node Editor contracts
 
 Добавить typed `Node`, `Socket`, `Link`, positioned NodeTree, renderer contracts
@@ -86,4 +90,4 @@ console и visual evidence.
 
 ## Состояние
 
-`IN_PROGRESS`, исполнитель `/root`; текущий срез NODES-016.1.
+`IN_PROGRESS`, исполнитель `/root`; текущий срез NODES-016.2.
