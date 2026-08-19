@@ -34,6 +34,9 @@
 * Владелец задал собственный selection law: Node имеет нейтральную тень со всех
   четырёх сторон; selection не рисует отдельный border, а окрашивает эту тень в
   оттенок header конкретной Node.
+* Владелец уточнил терминологию layout: система называется `FlexBox`; CSS —
+  только привычная декларативная форма описания её размеров и flow. `FlexCss`
+  не является отдельной системой или допустимым архитектурным термином.
 * На машине установлен Blender `4.5.5 LTS`. Создан изолированный reference
   `/tmp/blender-node-reference.blend` с Texture Coordinate, Mapping, Noise
   Texture, Color Ramp, Principled BSDF, Material Output, Links и Frame.
@@ -239,9 +242,9 @@ reference rows. После NODES-017.8.2 измерить исправленны
 результатом своей Parameter либо loose Socket Flex row и лежит на border Node,
 чтобы половина shape находилась снаружи. Fixture-specific offsets запрещены.
 
-`IN_PROGRESS`: исправленный row order позволяет измерить reference/live Socket.
-Срез меняет только common Socket presentation, comparison fit и проверки exact
-row/border centers.
+`READY`: исправленный row order позволяет измерить reference/live Socket, но
+срез отложен до NODES-017.8.8: общий inherited scale меняет visual diameter и
+должен предшествовать окончательной Socket calibration.
 
 #### NODES-017.8.4 — Согласовать collapse chevron и title в header
 
@@ -288,6 +291,39 @@ connected Field не меняются. Center alignment для такого со
 
 `READY`: выполнять после NODES-017.8.6 и проверить одновременно left-only и
 двусторонний Parameter, не выводя text alignment из `direction` Socket.
+
+#### NODES-017.8.8 — Ввести единый inherited scale для Node subtree
+
+Повторяющаяся ошибка zoom исследована до причины. `NodeEditor` уже преобразует
+Node/Socket/Link geometry общим canvas transform, но Node, Frame и universal
+Field затем вручную пересчитывают visual metrics и вводят независимые floors:
+Node text не меньше 6 px, Field text не меньше 7 px, Socket/stroke/radius имеют
+другие minima. Поэтому parent продолжает уменьшаться, а children после порога —
+нет. FlexBox slots при этом вычисляются правильно.
+
+Закрепить один закон: scene child непрерывно наследует scale parent для visual
+geometry, текста, gap, radius, stroke и Socket. Screen-space minimum разрешён
+только невидимому hit target и должен быть отделён от visual metrics. Удалить
+локальные visual floors, собрать общие Node scale metrics и доказать одинаковое
+отношение parent/child на нескольких scales. Одновременно исключить двойное
+планирование одной Node в background/foreground passes: intrinsic FlexBox plan
+вычисляется один раз на render cycle и переиспользуется обоими passes.
+
+`IN_PROGRESS`: простые умножения scale сами по себе дёшевы; performance-риск
+создают повторный viewport projection, двойной `planBlenderNode` и повторная
+materialization draw operations при pan/zoom. Срез не вводит DOM/CSS transform
+и не переносит scene geometry в layout.
+
+#### NODES-017.8.9 — Закрепить имя FlexBox и CSS-style description
+
+Удалить из node/project документации `FlexCss` как имя системы. Единственная
+система layout называется `FlexBox`; low-level numeric и CSS-style `%`/`fr`/
+`grow` entrypoints являются двумя формами описания одного FlexBox. Технические
+имена `flexRowCss`/`flexColumnCss` могут оставаться именами adapter-функций, но
+не образуют отдельный public concept.
+
+`READY`: выполнить после scaling contract NODES-017.8.8 и проверить owner docs,
+TypeDoc и component playground terminology.
 
 ## Визуальный контракт
 
@@ -340,7 +376,8 @@ connected Field не меняются. Center alignment для такого со
 ## Состояние
 
 `IN_PROGRESS`: row order, texture header и полноширинные enums исправлены.
-Текущий NODES-017.8.3 согласует общие size и centers Socket с тем же reference.
+Текущий NODES-017.8.8 устраняет системное расхождение parent/child scaling и
+двойное Node planning; после него NODES-017.8.3 согласует Socket с reference.
 NODES-017.8.4 сохраняет rounded header, но исправляет collapse chevron и title
 alignment. NODES-017.8.5 переносит selection с border на четырёхстороннюю тень
 в оттенке header. NODES-017.8.6 устраняет пустые Node при zoom-out без отказа от
