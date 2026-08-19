@@ -4,6 +4,35 @@
 и управлению видом. `@nodes/ui` не рассчитывает автоматическое размещение и не
 меняет semantic topology.
 
+## Blender-подобная компонентная граница
+
+1. Публичный UI-словарь строится вокруг `NodeTree`, `Node`, `Socket`, `Link` и
+   `NodeEditor`. `Card` не является второй сущностью рядом с Node: это один
+   compatibility renderer preset прямоугольной Node.
+2. Generic `NodeEditor` принимает готовую positioned geometry и typed
+   `NodeRenderer`, `SocketRenderer`, `LinkRenderer`. Он не импортирует Card
+   model, Card layout, Card metrics, Hamiltonian или product code.
+3. `Socket` является видимым input/output/bidirectional endpoint. Низкоуровневый
+   layout protocol может продолжать использовать `Port`; публичный component
+   API не смешивает оба термина в одном слое.
+4. `Link` является видимой связью sockets; `Edge` остаётся допустимым
+   алгоритмическим термином layout/core. Link renderer не меняет exact endpoints
+   или готовый route.
+5. Node renderer владеет measurement и внутренними slots, но использует поля из
+   `@ui/components`. Node-specific `Fact` запрещён в generic API; независимая
+   key/value-строка называется `Property`, вычислительный вход — `Parameter`.
+6. Socket type preset задаёт только имя типа, shape/color и optional default
+   field. Consumer может зарегистрировать собственный renderer/type без
+   изменения NodeEditor.
+7. Первый Blender-подобный catalog покрывает `boolean`, `float`, `integer`,
+   `vector`, `rotation`, `color`, `string`, `menu`, `object`, `collection`,
+   `image`, `material`, `texture`, `geometry`, `matrix`, `shader`, `bundle`,
+   `closure` и `custom`; shapes — `circle`, `square`, `diamond` и их dot-варианты.
+8. Existing `NodeSystemSurface` и Card types остаются compatibility API до
+   отдельной migration. Новая библиотека не маскирует Card под generic proof.
+9. Dev-only component playground показывает поля standalone и те же экземпляры
+   внутри Node; package не должен иметь отдельную копию field renderer.
+
 ## Intrinsic measurement
 
 1. Card Model является presentation preset `@nodes/ui`, а не частью semantic

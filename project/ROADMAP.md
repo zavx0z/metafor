@@ -173,7 +173,20 @@ platform lifecycle и transport adapters могут различаться.
 статическую документационную диаграмму.
 
 Универсальная модель и логика node-system принадлежат пакету `nodes`.
-`@nodes/ui` владеет intrinsic card measurement, viewport и renderer-компонентами,
+Публичный словарь компонентной библиотеки следует Blender-подобной границе
+`NodeTree → Node → Socket → Link`; интерактивный компонент называется
+`NodeEditor`, а read-only вариант — `NodeCanvas`. `@nodes/ui` владеет generic
+viewport/editor renderer contracts и подключаемыми Node/Socket/Link renderers.
+Текущая Card остаётся compatibility preset до отдельной consumer migration, но
+generic editor физически не импортирует Card model, Card measurement или Card
+metrics.
+
+Универсальные поля принадлежат `@ui/components`, а не node-system: text,
+number/slider, boolean, enum, color, vector/rotation, matrix и resource reference
+используются одинаково внутри Node properties/socket defaults и в обычных
+панелях. `@nodes/ui` владеет только их размещением внутри Node preset.
+
+`@nodes/ui` также сохраняет intrinsic Card measurement, viewport и compatibility renderer-компоненты,
 а `@nodes/layout` получает минимальный ELK-like `LayoutGraph` с уже измеренными
 node sizes и port offsets, единолично вычисляет node/compound/gateway/edge
 coordinates и возвращает exact parameter-socket routes. В Hamiltonian renderer
@@ -196,6 +209,10 @@ policies физически независимы, используют общи�
 core и возвращают resolved side каждого port; edge source/target не подменяют
 capability либо направление живого сообщения. До product integration обе
 policies проверяются через dev-only SVG playground без WebGPU и Engine imports.
+Отдельный component playground `@nodes/ui` показывает Blender-подобный catalog:
+универсальные fields standalone и внутри Node, socket type/shape presets,
+Links, containment и generic renderer boundary. Этот catalog не заменяет
+layout playground и не является product acceptance Hamiltonian.
 
 Browser-local realtime проекции идёт через versioned `BroadcastChannel`. Это
 не новый Oracle или Force transport: channel не переносит причинные payload,
