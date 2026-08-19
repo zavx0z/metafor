@@ -3,6 +3,29 @@
 `@ui/components` владеет универсальными WebGPU-controls поверх `@ui/elements`.
 Они не знают о Node, Socket, Link, Card, Hamiltonian или layout.
 
+## Retained parent boundary
+
+1. Components остаются function-based композициями Elements и не создают
+   собственные классы component, `Object3D` parents либо параллельный scene
+   graph. Consumer создаёт один устойчивый retained parent для самостоятельно
+   изменяемого component subtree и materialize-ит вызов Component внутри него;
+   все visual children, hit, wheel и clip автоматически stage-ятся под exact
+   parent действующей transaction.
+2. Content, available size, style и controlled interaction делают dirty только
+   consumer-owned parent этого Component. Consumer повторяет его local FlexBox
+   plan и атомарную materialization; соседние parents не перестраиваются.
+   Keyboard/caret TextField и programmatic/smooth List/Table scroll используют
+   тот же keyed render path Elements, а не отдельный Component-механизм.
+3. Pure transform общего или component parent меняет только inherited
+   `matrixWorld`: local plan/materialization counters, children и geometry
+   identities сохраняются. Regular и compact Field, вложенные TextField,
+   Checkbox и Switcher наследуют один и тот же parent transform без локального
+   scale floor.
+4. Component, вызванный напрямую на standalone immediate Surface, остаётся
+   flat и может перестраиваться вместе с Surface. Это допустимый fallback для
+   subtree без независимого transform и dirty lifecycle; missing либо
+   неоднозначный render key не выбирает случайный retained owner.
+
 ## Универсальные поля
 
 1. `Field` является discriminated union с устойчивым `id`, `label`, optional
