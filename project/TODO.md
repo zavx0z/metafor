@@ -28,9 +28,7 @@ flowchart LR
     HAM006["HAM-006 · принять и очистить прототип"]
     NODES008["NODES-008 · убрать пустой compound-резерв"]
     UI004["UI-004 · интегрировать retained UI в main"]
-    NODES019["NODES-019 · разделить playground на каталог"]
     UI001["UI-001 · playground универсальных UI Components"]
-    UI003["UI-003 · общий skill UI development"]
     NODES017["NODES-017 · визуально воспроизвести Blender Node Editor"]
     MF425["MF-425 · одна Вселенная на одном устройстве"]
     MF426["MF-426 · одна Вселенная на нескольких устройствах"]
@@ -85,21 +83,10 @@ checkpoint NODES-008.4 с общим исправлением левых инт�
 Elements/Components/consumers и возвращает NODES-017 к visual corrections без
 подмены physical-device и owner-acceptance gates.
 
-[`UI-003 — Создать общий skill разработки UI и Node playground`](tasks/UI-003.md)
-находится в `REVIEW`: единый `ui-dev` перенесён в `pkg/ui`, registry-driven
-lifecycle, background exact-CDP capture и structured profiling повторно доказаны
-на integrated main. Старый skill/path отсутствует, Node asset принадлежит UI
-owner; задача передана на независимую closing review.
-
 [`UI-001 — Создать playground универсальных UI Components`](tasks/UI-001.md)
 сохраняет historical visual geometry, universal Field routes и уже использует
 public retained shell. Desktop/mobile proof завершён; отдельным незавершённым
 результатом остаётся полная русская локализация catalog.
-
-[`NODES-019 — Разделить playground Node System на каталог компонентов`](tasks/NODES-019.md)
-находится в `REVIEW`: отдельные routes полного Node Editor, Socket catalog и
-Blender comparison работают на public retained shell; Fields отсутствуют из
-Socket catalog, reference загружен из UI owner.
 
 [`NODES-017 — Визуально воспроизвести Blender Node Editor`](tasks/NODES-017.md)
 возвращена в работу на integrated retained foundation. Следующий срез —
@@ -114,9 +101,7 @@ owner acceptance остаются отдельными gates.
 | MF-411 | IN_PROGRESS | нет         | [Открыть](tasks/MF-411.md) |
 | NODES-008 | IN_PROGRESS | нет       | [Открыть](tasks/NODES-008.md) |
 | UI-004 | IN_PROGRESS | нет         | [Открыть](tasks/UI-004.md) |
-| NODES-019 | REVIEW   | нет         | [Открыть](tasks/NODES-019.md) |
 | UI-001 | READY       | нет         | [Открыть](tasks/UI-001.md) |
-| UI-003 | REVIEW      | нет        | [Открыть](tasks/UI-003.md) |
 | NODES-017 | IN_PROGRESS | нет      | [Открыть](tasks/NODES-017.md) |
 | MF-414 | WAITING     | MF-411      | [Открыть](tasks/MF-414.md) |
 | MF-426 | WAITING     | MF-425      | [Открыть](tasks/MF-426.md) |
