@@ -47,6 +47,10 @@ typecheck зелёные.
 и generic `NodeEditorSurface`. Surface поддерживает fit/pan/zoom, selection,
 containment paint order и exact routes, но не импортирует Card.
 
+`COMPLETE`: checkpoint `91bb456d8`; generic positioned NodeTree, renderer
+contracts, four-side sockets, validation, fit/pan/zoom, selection and paint
+plan; 3 tests / 9 assertions и `@nodes/ui` typecheck зелёные.
+
 ### NODES-016.3 — Blender presets
 
 Добавить standard Node renderer, Socket type/color/shape registry и Link
@@ -90,4 +94,4 @@ console и visual evidence.
 
 ## Состояние
 
-`IN_PROGRESS`, исполнитель `/root`; текущий срез NODES-016.2.
+`IN_PROGRESS`, исполнитель `/root`; текущий срез NODES-016.3.
