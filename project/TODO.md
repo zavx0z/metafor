@@ -29,6 +29,7 @@ flowchart LR
     NODES018["NODES-018 · retained parent/child UI transforms"]
     NODES019["NODES-019 · разделить playground на каталог"]
     UI001["UI-001 · playground универсальных UI Components"]
+    UI003["UI-003 · общий skill UI development"]
     NODES017["NODES-017 · визуально воспроизвести Blender Node Editor"]
     MF425["MF-425 · одна Вселенная на одном устройстве"]
     LOAD001["LOAD-001 · минимальный browser loader"]
@@ -53,6 +54,7 @@ flowchart LR
     MF411 --> MF414
     NODES018 --> NODES017
     NODES018 --> UI001
+    UI003 --> NODES017
     NODES019 --> NODES017
     UI001 --> NODES017
     MF425 --> MF426
@@ -98,6 +100,11 @@ rotation/matrix/reference/read-only Fields. Node playground больше не в
 standalone input examples и только импортирует components в Node. Checkpoint
 `d0f6f702d` восстановил historical shell и Field route на exact target 4017;
 localization/mobile proof остаются текущим UI-001.3.
+
+[`UI-003 — Создать общий skill разработки UI и Node playground`](tasks/UI-003.md)
+переносит node-system-dev в `pkg/ui`, добавляет package-aware lifecycle dispatcher,
+background exact-CDP capture и visual/performance profiling по законам
+`$metafor-dev`. Implementation ведёт прежний skill-author чат в отдельном worktree.
 
 [`NODES-017 — Визуально воспроизвести Blender Node Editor`](tasks/NODES-017.md)
 уже получила equal-scale comparison, correct row order, texture header и
@@ -306,7 +313,8 @@ production удаляет `console.debug` и не публикует карту.
 | NODES-018 | IN_PROGRESS | нет       | [Открыть](tasks/NODES-018.md) |
 | NODES-019 | IN_PROGRESS | нет       | [Открыть](tasks/NODES-019.md) |
 | UI-001 | WAITING     | NODES-018 | [Открыть](tasks/UI-001.md) |
-| NODES-017 | WAITING     | NODES-018, NODES-019, UI-001 | [Открыть](tasks/NODES-017.md) |
+| UI-003 | IN_PROGRESS | нет       | [Открыть](tasks/UI-003.md) |
+| NODES-017 | WAITING     | NODES-018, NODES-019, UI-001, UI-003 | [Открыть](tasks/NODES-017.md) |
 | MF-414 | WAITING     | MF-411      | [Открыть](tasks/MF-414.md) |
 | MF-426 | WAITING     | MF-425      | [Открыть](tasks/MF-426.md) |
 | MF-427 | WAITING     | MF-426      | [Открыть](tasks/MF-427.md) |

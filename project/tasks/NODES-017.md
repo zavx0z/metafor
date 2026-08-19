@@ -48,6 +48,10 @@
   Components до интеграции NODES-018. Принятый UI-002 result `efbad1689`
   создал общий `@ui/playground`; NODES-019 собирает Node playground как
   consumer без изменения Blender-style Node.
+* Автоматические browser captures больше не имеют права фокусировать Chrome.
+  UI-003 переносит node-system-dev в общий `pkg/ui` skill, добавляет dispatcher
+  по образцу metafor-dev и background visual/performance profiling; прежний
+  skill-author чат выполняет это независимо.
 * На машине установлен Blender `4.5.5 LTS`. Создан изолированный reference
   `/tmp/blender-node-reference.blend` с Texture Coordinate, Mapping, Noise
   Texture, Color Ramp, Principled BSDF, Material Output, Links и Frame.
