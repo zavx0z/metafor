@@ -168,6 +168,7 @@ export function input(surface: UiSurface, x: number, y: number, width: number, h
   const paddingX = px(style.paddingX, 10)
   const runtime = inputRuntimeFor(surface)
   const key = props.key ?? inputKeyFor(x, y, width, height)
+  surface.registerRenderKey(key)
   const initialValue = props.value ?? (typeof props.children === "string" || typeof props.children === "number" ? String(props.children) : "")
   const controlled = props.onChange !== undefined
   const state = inputStateFor(runtime, key, initialValue, controlled, props)
@@ -215,7 +216,7 @@ export function input(surface: UiSurface, x: number, y: number, width: number, h
         resetInputBlink(surface, runtime, key)
         props.onActivate?.()
         props.onPointerDown?.(localX, _localY, event)
-        surface.requestRender()
+        surface.requestKeyedRender(key)
       },
       onPointerMove: (localX, localY, event) => {
         if (runtime.drag?.key !== key) return
@@ -226,7 +227,7 @@ export function input(surface: UiSurface, x: number, y: number, width: number, h
         applyInputResult(surface, key, {value: current.value, cursor: nextCursor, selectionAnchor: runtime.drag.anchor}, runtime.configs.get(key))
         resetInputBlink(surface, runtime, key)
         props.onPointerMove?.(localX, localY, event)
-        surface.requestRender()
+        surface.requestKeyedRender(key)
       },
       onPointerUp: (event) => {
         runtime.drag = null
@@ -272,7 +273,7 @@ function applyInputResult(surface: UiSurface, key: string, state: InputEditState
   const runtime = inputRuntimeFor(surface)
   runtime.values.set(key, state)
   config?.onChange?.(state.value, state)
-  surface.requestRender()
+  surface.requestKeyedRender(key)
 }
 
 function inputRuntimeFor(surface: UiSurface): InputRuntimeState {
@@ -291,16 +292,17 @@ function ensureInputBlink(surface: UiSurface, runtime: InputRuntimeState, key: s
   }
   if (runtime.blinkTimer !== null || typeof setInterval !== "function") return
   runtime.blinkTimer = setInterval(() => {
-    if (runtime.blinkKey === null) return
+    const activeKey = runtime.blinkKey
+    if (activeKey === null) return
     runtime.caretVisible = !runtime.caretVisible
-    surface.requestRender()
+    surface.requestKeyedRender(activeKey)
   }, INPUT_CARET_BLINK_MS)
 }
 
 function resetInputBlink(surface: UiSurface, runtime: InputRuntimeState, key: string): void {
   runtime.blinkKey = key
   runtime.caretVisible = true
-  surface.requestRender()
+  surface.requestKeyedRender(key)
 }
 
 function inputStateFor(runtime: InputRuntimeState, key: string, value: string, controlled: boolean, props: InputProps): InputEditState {

@@ -86,6 +86,7 @@ type RetainedMaterialization = {
   provisionalParents: Set<Object3D>
   hits: RetainedHitRecord[]
   wheelHits: RetainedWheelHitRecord[]
+  renderKeys: Set<string>
 }
 
 const scheduleUiFrame = (callback: FrameRequestCallback): UiFrameHandle => {
@@ -414,6 +415,8 @@ export abstract class UiSurface implements UiSurfaceNode {
   readonly #retainedParents = new Set<Object3D>()
   readonly #retainedHits = new Map<Object3D, readonly RetainedHitRecord[]>()
   readonly #retainedWheelHits = new Map<Object3D, readonly RetainedWheelHitRecord[]>()
+  readonly #retainedRenderKeys = new Map<Object3D, ReadonlySet<string>>()
+  readonly #retainedDraws = new Map<Object3D, () => void>()
   readonly #retainedViewportClips = new Map<Object3D, ClipLocalRect>()
   #retainedMaterialization: RetainedMaterialization | null = null
   #drawLayer: UiSurfaceDrawLayer = "main"
@@ -439,6 +442,8 @@ export abstract class UiSurface implements UiSurfaceNode {
   #pendingTooltipDraws: PendingTooltipDraw[] = []
   #backgroundImage: BackgroundImageOpts | null = null
   #rerenderRafId: UiFrameHandle | null = null
+  #keyedRerenderRafId: UiFrameHandle | null = null
+  readonly #keyedRerenderParents = new Set<Object3D>()
   #layerRerenderRafId: UiFrameHandle | null = null
   readonly #layerRerenderLayers = new Set<UiSurfaceDrawLayer>()
   #layerRerenderDraw: (() => void) | null = null
@@ -686,15 +691,41 @@ export abstract class UiSurface implements UiSurfaceNode {
     this.requestRender()
   }
 
+  /**
+   * Binds one delayed/programmatic state key to the exact retained transaction.
+   * Immediate-mode calls deliberately stay unbound and keep full-Surface fallback.
+   */
+  registerRenderKey(key: string): void {
+    this.#retainedMaterialization?.renderKeys.add(key)
+  }
+
+  /**
+   * Schedules only the retained owner previously staged with this key.
+   * Missing or ambiguous ownership falls back to the ordinary Surface render.
+   */
+  requestKeyedRender(key: string): void {
+    const parent = this.#retainedParentForKey(key)
+    if (parent === null || !this.#retainedDraws.has(parent) || this.font === null) {
+      this.requestRender()
+      return
+    }
+    this.#keyedRerenderParents.add(parent)
+    if (this.#keyedRerenderRafId === null) {
+      this.#keyedRerenderRafId = scheduleUiFrame(() => {
+        this.#redrawKeyedRetainedParents()
+        this.canvas?.requestRender()
+      })
+    }
+    this.canvas?.requestRender()
+  }
+
   /** Subclasses can dirty the exact existing component parent without a second graph. */
   protected onRetainedInteractionChange(_parent: Object3D): void {}
 
   flushPendingRender(): void {
     if (this.font === null) return
-    if (this.#rerenderRafId !== null) {
-      this.#rerenderNow()
-      return
-    }
+    if (this.#rerenderRafId !== null) this.#rerenderNow()
+    if (this.#keyedRerenderRafId !== null) this.#redrawKeyedRetainedParents()
     if (this.#layerRerenderRafId !== null) this.#redrawRequestedLayers()
   }
 
@@ -772,6 +803,7 @@ export abstract class UiSurface implements UiSurfaceNode {
       provisionalParents: new Set<Object3D>(),
       hits: [],
       wheelHits: [],
+      renderKeys: new Set<string>(),
     }
     const previousClipStack = this.#clipStack
     this.#retainedMaterialization = transaction
@@ -797,9 +829,12 @@ export abstract class UiSurface implements UiSurfaceNode {
       parent.add(child)
     }
     for (const retainedParent of transaction.provisionalParents) this.#retainedParents.add(retainedParent)
+    this.#retainedDraws.set(parent, draw)
     this.#replaceRetainedHits(parent, transaction.hits)
     this.#replaceRetainedWheelHits(parent, transaction.wheelHits)
+    this.#replaceRetainedRenderKeys(parent, transaction.renderKeys)
     this.#disposeSubtrees(previousChildren)
+    this.#keyedRerenderParents.delete(parent)
     this.canvas?.requestRender()
   }
 
@@ -933,6 +968,7 @@ export abstract class UiSurface implements UiSurfaceNode {
       record.screenMinimum = {width, height}
     }
     transaction.hits.push(record)
+    transaction.renderKeys.add(record.key)
   }
 
   /** Removes a retained parent and its complete owned subtree. Repeated removal is a no-op. */
@@ -1431,6 +1467,7 @@ export abstract class UiSurface implements UiSurfaceNode {
         key: key ?? hitKeyFor(x, y, w, h),
         onWheel,
       })
+      transaction.renderKeys.add(key ?? hitKeyFor(x, y, w, h))
       return
     }
     this.#wheelHits.push({
@@ -1531,6 +1568,7 @@ export abstract class UiSurface implements UiSurfaceNode {
 
   dispose(): void {
     this.#cancelPendingRerender()
+    this.#cancelPendingKeyedRerender()
     this.#cancelPendingLayerRerender()
     this.#hits = []
     this.#wheelHits = []
@@ -1688,6 +1726,37 @@ export abstract class UiSurface implements UiSurfaceNode {
     if (this.#rerenderRafId === null) return
     cancelUiFrame(this.#rerenderRafId)
     this.#rerenderRafId = null
+  }
+
+  #redrawKeyedRetainedParents(): void {
+    if (this.#keyedRerenderRafId !== null) {
+      cancelUiFrame(this.#keyedRerenderRafId)
+      this.#keyedRerenderRafId = null
+    }
+    const parents = [...this.#keyedRerenderParents]
+    this.#keyedRerenderParents.clear()
+    if (this.font === null) return
+    for (const [index, parent] of parents.entries()) {
+      if (!this.#retainedParents.has(parent)) continue
+      const draw = this.#retainedDraws.get(parent)
+      if (draw === undefined) continue
+      try {
+        this.materializeRetainedParent(parent, draw)
+      } catch (error) {
+        for (const pending of parents.slice(index)) {
+          if (this.#retainedParents.has(pending)) this.#keyedRerenderParents.add(pending)
+        }
+        throw error
+      }
+    }
+  }
+
+  #cancelPendingKeyedRerender(): void {
+    if (this.#keyedRerenderRafId !== null) {
+      cancelUiFrame(this.#keyedRerenderRafId)
+      this.#keyedRerenderRafId = null
+    }
+    this.#keyedRerenderParents.clear()
   }
 
   #cancelPendingLayerRerender(): void {
@@ -2091,6 +2160,21 @@ export abstract class UiSurface implements UiSurfaceNode {
     else this.#retainedWheelHits.set(parent, [...hits])
   }
 
+  #replaceRetainedRenderKeys(parent: Object3D, keys: ReadonlySet<string>): void {
+    if (keys.size === 0) this.#retainedRenderKeys.delete(parent)
+    else this.#retainedRenderKeys.set(parent, new Set(keys))
+  }
+
+  #retainedParentForKey(key: string): Object3D | null {
+    let owner: Object3D | null = null
+    for (const [parent, keys] of this.#retainedRenderKeys) {
+      if (!keys.has(key)) continue
+      if (owner !== null && owner !== parent) return null
+      owner = parent
+    }
+    return owner
+  }
+
   #notifyRetainedInteraction(parent: Object3D, key: string): void {
     if (!this.#retainedParents.has(parent)) return
     this.#lastRetainedInteraction = {key, parent}
@@ -2155,6 +2239,9 @@ export abstract class UiSurface implements UiSurfaceNode {
       this.#releaseRetainedHitState(obj)
       this.#retainedHits.delete(obj)
       this.#retainedWheelHits.delete(obj)
+      this.#retainedRenderKeys.delete(obj)
+      this.#retainedDraws.delete(obj)
+      this.#keyedRerenderParents.delete(obj)
       this.#retainedViewportClips.delete(obj)
       this.#retainedParents.delete(obj)
       if (this.#lastRetainedInteraction?.parent === obj) this.#lastRetainedInteraction = null

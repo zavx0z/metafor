@@ -88,7 +88,7 @@ export function divScrollTo(surface: UiSurface, key: string, next: {left?: numbe
       changed = true
     }
   }
-  if (changed) surface.requestRender()
+  if (changed) surface.requestKeyedRender(key)
 }
 
 export function divScrollPosition(surface: UiSurface, key: string): {left: number; top: number} {
@@ -297,6 +297,7 @@ function divScrollLayout(
   const contentW = Math.max(viewportW, intrinsicW)
   const contentH = Math.max(viewportH, intrinsicH)
   const key = opts.key ?? `div:${opts.x}:${opts.y}:${opts.width}:${opts.height}`
+  surface.registerRenderKey(key)
   const state = divScrollState(surface, key)
   const maxScrollX = Math.max(0, contentW - viewportW)
   const maxScrollY = Math.max(0, contentH - viewportH)
@@ -346,8 +347,8 @@ function renderDivScrollbars(surface: UiSurface, layout: DivScrollLayout): void 
       state.wheelAxis = locked.axis
       state.lastWheelAtMs = eventAtMs
       let handled = false
-      if (locked.x !== 0) handled = applyWheelScroll(surface, state, "left", locked.x, event.deltaMode, layout.maxScrollX, eventAtMs) || handled
-      if (locked.y !== 0) handled = applyWheelScroll(surface, state, "top", locked.y, event.deltaMode, layout.maxScrollY, eventAtMs) || handled
+      if (locked.x !== 0) handled = applyWheelScroll(surface, state, layout.key, "left", locked.x, event.deltaMode, layout.maxScrollX, eventAtMs) || handled
+      if (locked.y !== 0) handled = applyWheelScroll(surface, state, layout.key, "top", locked.y, event.deltaMode, layout.maxScrollY, eventAtMs) || handled
       if (handled) event.preventDefault()
     }, layout.key)
   }
@@ -374,7 +375,7 @@ function renderDivScrollbars(surface: UiSurface, layout: DivScrollLayout): void 
         stopDivScrollAnimation(state)
         state.top = clamp(state.top + direction * layout.viewportH * 0.85, 0, layout.maxScrollY)
         state.targetTop = state.top
-        surface.requestRender()
+        surface.requestKeyedRender(layout.key)
       },
     })
     surface.hit(scrollbarX, thumbY, layout.trackWidth, thumb.h, () => {}, {
@@ -392,7 +393,7 @@ function renderDivScrollbars(surface: UiSurface, layout: DivScrollLayout): void 
         const next = state.dragY.startTop + ((localY - state.dragY.startY) / range) * contentRange
         state.top = clamp(next, 0, layout.maxScrollY)
         state.targetTop = state.top
-        surface.requestRender()
+        surface.requestKeyedRender(layout.key)
       },
       onPointerUp: () => {
         state.dragY = null
@@ -430,7 +431,7 @@ function renderDivScrollbars(surface: UiSurface, layout: DivScrollLayout): void 
         stopDivScrollAnimation(state)
         state.left = clamp(state.left + direction * layout.viewportW * 0.85, 0, layout.maxScrollX)
         state.targetLeft = state.left
-        surface.requestRender()
+        surface.requestKeyedRender(layout.key)
       },
     })
     surface.hit(thumbX, scrollbarY, thumb.h, layout.trackWidth, () => {}, {
@@ -448,7 +449,7 @@ function renderDivScrollbars(surface: UiSurface, layout: DivScrollLayout): void 
         const next = state.dragX.startLeft + ((localX - state.dragX.startX) / range) * contentRange
         state.left = clamp(next, 0, layout.maxScrollX)
         state.targetLeft = state.left
-        surface.requestRender()
+        surface.requestKeyedRender(layout.key)
       },
       onPointerUp: () => {
         state.dragX = null
@@ -610,7 +611,7 @@ export function applyWheelAxisLock(deltaX: number, deltaY: number, axis: ScrollA
   return {x: deltaX, y: deltaY, axis}
 }
 
-function applyWheelScroll(surface: UiSurface, state: DivScrollState, axis: "left" | "top", deltaPx: number, deltaMode: number, maxScroll: number, eventAtMs: number): boolean {
+function applyWheelScroll(surface: UiSurface, state: DivScrollState, key: string, axis: "left" | "top", deltaPx: number, deltaMode: number, maxScroll: number, eventAtMs: number): boolean {
   if (!Number.isFinite(deltaPx) || deltaPx === 0) return false
   const pendingKey = axis === "left" ? "pendingLeft" : "pendingTop"
   const targetKey = axis === "left" ? "targetLeft" : "targetTop"
@@ -622,7 +623,7 @@ function applyWheelScroll(surface: UiSurface, state: DivScrollState, axis: "left
   state[targetKey] = target
   state[pendingKey] = nextPending
   state[tauKey] = wheelQueueTauMs(deltaMode)
-  startDivScrollAnimation(surface, state, eventAtMs)
+  startDivScrollAnimation(surface, state, key, eventAtMs)
   return true
 }
 
@@ -636,7 +637,7 @@ function isFiniteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value)
 }
 
-function startDivScrollAnimation(surface: UiSurface, state: DivScrollState, eventAtMs = animationTimeMs()): void {
+function startDivScrollAnimation(surface: UiSurface, state: DivScrollState, key: string, eventAtMs = animationTimeMs()): void {
   if (state.animationRafId !== null) return
   if (typeof requestAnimationFrame !== "function") {
     state.left = state.targetLeft
@@ -644,7 +645,7 @@ function startDivScrollAnimation(surface: UiSurface, state: DivScrollState, even
     state.pendingLeft = 0
     state.pendingTop = 0
     state.animationLastAtMs = null
-    surface.requestRender()
+    surface.requestKeyedRender(key)
     return
   }
   state.animationLastAtMs = eventAtMs
@@ -664,7 +665,7 @@ function startDivScrollAnimation(surface: UiSurface, state: DivScrollState, even
     state.pendingTop = nextTop.pending
     state.targetLeft = state.left + state.pendingLeft
     state.targetTop = state.top + state.pendingTop
-    if (changed) surface.requestRender()
+    if (changed) surface.requestKeyedRender(key)
     if (state.pendingLeft !== 0 || state.pendingTop !== 0) {
       state.animationRafId = requestAnimationFrame(tick)
     } else {

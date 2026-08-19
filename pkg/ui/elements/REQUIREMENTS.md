@@ -51,6 +51,22 @@ FlexBox единолично вычисляет local child slots, а child то
    пересекается с matrix-projected local clip material-а. Move, resize и
    transform-only frame обновляют framebuffer clip и visibility без нового
    FlexBox plan либо materialization.
+10. Function-based Elements не создают component tree. Вызов внутри
+    materialization автоматически stage-ит visual children, hit, wheel и
+    clip под exact engine parent текущей transaction. Тот же вызов на
+    standalone Surface остаётся плоским immediate content и может
+    перестраиваться целиком.
+11. Element с delayed либо programmatic state регистрирует устойчивый
+    render key в той же retained transaction. Успешная materialization
+    атомарно заменяет subtree, input records, набор keys и функцию
+    его локальной materialization. Поздний keyboard/caret либо
+    smooth/programmatic scroll по однозначному key повторяет
+    materialization только exact owner; siblings и их geometry сохраняют
+    identity. Отсутствующий или неоднозначный key не выбирает
+    случайного owner и сохраняет full-Surface fallback.
+12. Pure FlexBox/style helpers, screen-space tooltip overlay и статические
+    decorative helpers остаются flat: у них нет собственного
+    transform, dirty lifecycle или пользы от partial rematerialization.
 
 ## Обязательный Flex-закон
 

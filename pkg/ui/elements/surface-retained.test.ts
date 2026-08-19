@@ -13,6 +13,11 @@ import {
 import {UiSurface} from "./surface.ts"
 import type {RetainedHitOptions} from "./surface.ts"
 import type {UiRuntime} from "./runtime.ts"
+import {div, divScrollPosition, divScrollTo} from "./div.ts"
+import {drawIcon} from "./icon.ts"
+import {createInputEditState, focusInput, handleActiveInputKey, input} from "./input.ts"
+import {li, liY, ul, ulContentHeight} from "./list.ts"
+import {flexColumn, flexRow} from "./flex.ts"
 
 class RetainedTestSurface extends UiSurface {
   constructor() {
@@ -63,6 +68,116 @@ class RetainedTestSurface extends UiSurface {
   }
 
   protected render(): void {}
+}
+
+class RetainedElementsSurface extends UiSurface {
+  readonly root: Object3D
+  readonly elements: Object3D
+  readonly sibling: Object3D
+  surfaceRenderPasses = 0
+  readonly counters = {
+    elementsLayoutPlans: 0,
+    elementsMaterializations: 0,
+    siblingLayoutPlans: 0,
+    siblingMaterializations: 0,
+  }
+  #mounted = false
+
+  constructor() {
+    super({bgColor: null, borderColor: null})
+    this.root = this.createRetainedParent()
+    this.root.name = "RetainedElements.root"
+    this.elements = this.createRetainedParent(this.root)
+    this.elements.name = "RetainedElements.elements"
+    this.sibling = this.createRetainedParent(this.root)
+    this.sibling.name = "RetainedElements.sibling"
+  }
+
+  transformRoot(update: (parent: Object3D) => void): void {
+    this.updateRetainedTransform(this.root, update)
+  }
+
+  protected render(): void {
+    this.surfaceRenderPasses += 1
+    if (this.#mounted) return
+    this.#mounted = true
+    this.materializeRetainedParent(this.elements, this.#drawElements)
+    this.materializeRetainedParent(this.sibling, this.#drawSibling)
+  }
+
+  readonly #drawElements = (): void => {
+    this.counters.elementsLayoutPlans += 1
+    this.counters.elementsMaterializations += 1
+    this.registerRenderKey("ambiguous-owner")
+    div(this, 8, 8, 284, 160, {
+      key: "elements-panel",
+      style: {background: "bgPanel", borderColor: "border", borderRadius: 10, padding: 6},
+      children: () => {
+        flexColumn({
+          x: 16,
+          y: 14,
+          w: 250,
+          h: 140,
+          gap: 4,
+          items: [
+            {height: 18, draw: (x, y, width, height) => flexRow({
+              x,
+              y,
+              w: width,
+              h: height,
+              gap: 4,
+              alignItems: "center",
+              items: [
+                {width: "grow", height, draw: (tx, ty, tw) => {
+                  this.drawText("Text", tx, ty, {fontPx: 12, material: this.materials.text, maxWidthPx: tw})
+                }},
+                {width: 16, height: 16, draw: (ix, iy, iw) => {
+                  drawIcon(this, "ui-elements:test-icon", ix, iy, iw)
+                }},
+              ],
+            })},
+            {height: 24, draw: (x, y, width, height) => {
+              input(this, x, y, width, height, {key: "editor", children: "seed"})
+            }},
+            {height: "grow", draw: (x, y, width, height) => ul(this, x, y, width, height, {
+              key: "items",
+              itemHeight: 28,
+              itemGap: 2,
+              scrollContentHeight: ulContentHeight(6, {
+                itemHeight: 28,
+                itemGap: 2,
+                paddingTop: 4,
+                paddingBottom: 4,
+              }),
+              style: {paddingY: 4, scrollbarWidth: 6},
+              children: ({itemX, itemY, itemWidth, itemHeight}) => {
+                for (let index = 0; index < 6; index += 1) {
+                  li(this, itemX, liY(index, {startY: itemY, itemHeight, itemGap: 2}), itemWidth, itemHeight, {
+                    key: `item:${index}`,
+                    children: `Item ${index}`,
+                  })
+                }
+              },
+            })},
+            {height: 10, draw: (x, y, width, height) => {
+              this.drawPolyline([
+                {x, y: y + height / 2},
+                {x: x + width / 2, y: y + height},
+                {x: x + width, y},
+              ], new Color(0.2, 0.8, 1, 1), 2)
+            }},
+          ],
+        })
+      },
+    })
+  }
+
+  readonly #drawSibling = (): void => {
+    this.counters.siblingLayoutPlans += 1
+    this.counters.siblingMaterializations += 1
+    this.registerRenderKey("ambiguous-owner")
+    this.drawRect(296, 8, 16, 160, new Color(0.7, 0.3, 0.2, 1))
+  }
 }
 
 type FakeRuntime = {
@@ -224,9 +339,13 @@ describe("UiSurface retained component parent", () => {
     surface.attachCanvas(fake.runtime)
     surface.setRect({x: 0, y: 0, w: 160, h: 90}, 0.001, font)
     const root = surface.createParent("root")
-    surface.materialize(root, () => {
+    let keyedFailure = false
+    const draw = () => {
+      surface.registerRenderKey("failure-owner")
       surface.drawRect(4, 4, 32, 16, new Color(0.2, 0.7, 0.4, 1))
-    })
+      if (keyedFailure) throw new Error("keyed failure")
+    }
+    surface.materialize(root, draw)
 
     const currentMesh = root.children[0] as Mesh
     const currentGeometry = currentMesh.geometry
@@ -244,6 +363,15 @@ describe("UiSurface retained component parent", () => {
     expect(countGeometry(fake.invalidated, currentGeometry)).toBe(0)
     expect(fake.invalidated).toHaveLength(1)
     expect(fake.frameCount()).toBe(framesBeforeFailure)
+
+    keyedFailure = true
+    surface.requestKeyedRender("failure-owner")
+    expect(() => surface.flushPendingRender()).toThrow("keyed failure")
+    expect(root.children).toEqual([currentMesh])
+    expect(currentMesh.parent).toBe(root)
+    expect(currentMesh.geometry).toBe(currentGeometry)
+    expect(countGeometry(fake.invalidated, currentGeometry)).toBe(0)
+    expect(fake.invalidated).toHaveLength(2)
 
     surface.removeParent(root)
     expect(countGeometry(fake.invalidated, currentGeometry)).toBe(1)
@@ -487,5 +615,133 @@ describe("UiSurface retained component parent", () => {
     const roundTrip = surface.toSurface(component, retainedPoint)
     expect(roundTrip.x).toBeCloseTo(point.x, 6)
     expect(roundTrip.y).toBeCloseTo(point.y, 6)
+  })
+
+  test("keeps nested Elements stable on transform and rematerializes only the keyed owner", () => {
+    const fake = createFakeRuntime()
+    const surface = new RetainedElementsSurface()
+    surface.attachCanvas(fake.runtime)
+    surface.setRect({x: 0, y: 0, w: 320, h: 180}, 0.001, font)
+
+    expect(surface.counters).toEqual({
+      elementsLayoutPlans: 1,
+      elementsMaterializations: 1,
+      siblingLayoutPlans: 1,
+      siblingMaterializations: 1,
+    })
+    expect(surface.elements.children.length).toBeGreaterThan(10)
+    const elementChildren = [...surface.elements.children]
+    const elementGeometries = elementChildren.map((child) => (child as {geometry?: BufferGeometry}).geometry)
+    const siblingChildren = [...surface.sibling.children]
+    const siblingGeometry = (siblingChildren[0] as Mesh).geometry
+
+    surface.transformRoot((parent) => {
+      parent.position.set(0.04, -0.03, 0)
+      parent.scale.set(1.25, 1.25, 1)
+    })
+
+    expect(surface.counters).toEqual({
+      elementsLayoutPlans: 1,
+      elementsMaterializations: 1,
+      siblingLayoutPlans: 1,
+      siblingMaterializations: 1,
+    })
+    expect(surface.elements.children).toEqual(elementChildren)
+    expect(surface.elements.children.map((child) => (child as {geometry?: BufferGeometry}).geometry)).toEqual(elementGeometries)
+    expect(surface.sibling.children).toEqual(siblingChildren)
+    expect((surface.sibling.children[0] as Mesh).geometry).toBe(siblingGeometry)
+
+    surface.requestKeyedRender("ambiguous-owner")
+    surface.flushPendingRender()
+    expect(surface.surfaceRenderPasses).toBe(2)
+    expect(surface.counters).toEqual({
+      elementsLayoutPlans: 1,
+      elementsMaterializations: 1,
+      siblingLayoutPlans: 1,
+      siblingMaterializations: 1,
+    })
+    expect(surface.elements.children).toEqual(elementChildren)
+    expect(surface.sibling.children).toEqual(siblingChildren)
+
+    const originalSetInterval = globalThis.setInterval
+    globalThis.setInterval = (() => 1) as unknown as typeof setInterval
+    try {
+      focusInput(surface, "editor", createInputEditState("seed", 4))
+      surface.flushPendingRender()
+      expect(surface.counters.elementsMaterializations).toBe(2)
+      expect(surface.counters.elementsLayoutPlans).toBe(2)
+      expect(surface.counters.siblingMaterializations).toBe(1)
+      expect(surface.surfaceRenderPasses).toBe(2)
+      expect(surface.sibling.children).toEqual(siblingChildren)
+      expect((surface.sibling.children[0] as Mesh).geometry).toBe(siblingGeometry)
+
+      const keyboardEvent = {
+        key: "ArrowLeft",
+        metaKey: false,
+        ctrlKey: false,
+        shiftKey: false,
+        preventDefault() {},
+      } as KeyboardEvent
+      expect(handleActiveInputKey(surface, keyboardEvent)).toBe(true)
+      surface.flushPendingRender()
+      expect(surface.counters.elementsMaterializations).toBe(3)
+      expect(surface.counters.elementsLayoutPlans).toBe(3)
+      expect(surface.counters.siblingMaterializations).toBe(1)
+      expect(surface.surfaceRenderPasses).toBe(2)
+      expect(surface.sibling.children).toEqual(siblingChildren)
+    } finally {
+      globalThis.setInterval = originalSetInterval
+    }
+
+    divScrollTo(surface, "items", {top: 36})
+    surface.flushPendingRender()
+    expect(divScrollPosition(surface, "items").top).toBe(36)
+    expect(surface.counters.elementsMaterializations).toBe(4)
+    expect(surface.counters.elementsLayoutPlans).toBe(4)
+    expect(surface.counters.siblingMaterializations).toBe(1)
+    expect(surface.sibling.children).toEqual(siblingChildren)
+
+    const originalRequestAnimationFrame = globalThis.requestAnimationFrame
+    const originalCancelAnimationFrame = globalThis.cancelAnimationFrame
+    const callbacks = new Map<number, FrameRequestCallback>()
+    let nextFrameId = 1
+    globalThis.requestAnimationFrame = ((callback: FrameRequestCallback): number => {
+      const id = nextFrameId++
+      callbacks.set(id, callback)
+      return id
+    }) as typeof requestAnimationFrame
+    globalThis.cancelAnimationFrame = ((id: number): void => {
+      callbacks.delete(id)
+    }) as typeof cancelAnimationFrame
+    try {
+      let prevented = 0
+      surface.onWheel({
+        deltaX: 0,
+        deltaY: 48,
+        deltaMode: 0,
+        shiftKey: false,
+        timeStamp: 100,
+        preventDefault: () => { prevented += 1 },
+      } as unknown as WheelEvent, 80, 130)
+      for (let frame = 0; callbacks.size > 0 && frame < 200; frame += 1) {
+        const queued = [...callbacks.entries()]
+        callbacks.clear()
+        for (const [, callback] of queued) callback(116 + frame * 16)
+        surface.flushPendingRender()
+      }
+      expect(callbacks.size).toBe(0)
+      expect(prevented).toBe(1)
+      expect(divScrollPosition(surface, "items").top).toBeGreaterThan(36)
+      expect(surface.counters.elementsMaterializations).toBeGreaterThan(4)
+      expect(surface.counters.elementsLayoutPlans).toBe(surface.counters.elementsMaterializations)
+      expect(surface.counters.siblingMaterializations).toBe(1)
+      expect(surface.counters.siblingLayoutPlans).toBe(1)
+      expect(surface.sibling.children).toEqual(siblingChildren)
+      expect((surface.sibling.children[0] as Mesh).geometry).toBe(siblingGeometry)
+    } finally {
+      globalThis.requestAnimationFrame = originalRequestAnimationFrame
+      globalThis.cancelAnimationFrame = originalCancelAnimationFrame
+      surface.dispose()
+    }
   })
 })
