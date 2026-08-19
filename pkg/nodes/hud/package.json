@@ -14,6 +14,7 @@
     "typecheck": "tsc --noEmit --pretty false"
   },
   "dependencies": {
+    "@nodes/ui": "workspace:*",
     "@ui/components": "workspace:*",
     "@ui/elements": "workspace:*",
     "@ui/hud": "workspace:*",

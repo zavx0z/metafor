@@ -1,24 +1,30 @@
 import {flexColumn, flexRow} from "@ui/elements/flex"
 import type {
-  NodeSystemFact,
-  NodeSystemDocument,
+  MeasuredNodeSystem,
+  NodeSystemEdge,
   NodeSystemNode,
   NodeSystemPort,
   NodeSystemPortSide,
   NodeSystemRect,
 } from "nodes/types"
+import type {
+  NodeSystemCardFact,
+  NodeSystemCardNode,
+  NodeSystemCardPort,
+  NodeSystemCardPreset,
+} from "./card-model.ts"
 
 /** Intrinsic card size measured on the main thread. */
 export type NodeSystemCardSize = Readonly<{width: number; height: number}>
 export type NodeSystemTextMeasurer = (value: string, fontPx: number) => number
 export type NodeSystemCardFactSlot = Readonly<{
-  fact: NodeSystemFact
+  fact: NodeSystemCardFact
   row: NodeSystemRect
   label: NodeSystemRect
   value: NodeSystemRect
 }>
 export type NodeSystemCardPortSlot = Readonly<{
-  port: NodeSystemPort
+  port: NodeSystemCardPort
   row: NodeSystemRect
   marker: NodeSystemRect
 }>
@@ -70,7 +76,7 @@ export const NODE_SYSTEM_PORT_PITCH =
  * are minimum requests: a card expands instead of compressing its content.
  */
 export function measureNodeSystemCard(
-  node: NodeSystemNode,
+  node: NodeSystemCardNode,
   measureText?: NodeSystemTextMeasurer,
 ): NodeSystemCardSize {
   return measureCard(node, measureText).size
@@ -81,7 +87,7 @@ export function measureNodeSystemCard(
  * Число не включает декоративный нижний padding и позволяет владельцу
  * compound-layout выдержать один портовый ритм до первого child.
  */
-export function measureNodeSystemCardContentHeight(node: NodeSystemNode): number {
+export function measureNodeSystemCardContentHeight(node: NodeSystemCardNode): number {
   const metrics = NODE_SYSTEM_CARD_METRICS
   const rows = [
     ...(node.summary === undefined ? [] : [metrics.summaryRowHeight]),
@@ -96,7 +102,7 @@ export function measureNodeSystemCardContentHeight(node: NodeSystemNode): number
 
 /** Stable geometry fingerprint for deciding whether layout must run again. */
 export function nodeSystemGeometryKey(
-  document: Pick<NodeSystemDocument, "nodes">,
+  document: Pick<NodeSystemCardPreset, "nodes">,
   measureText?: NodeSystemTextMeasurer,
 ): string {
   const measured = memoizedTextMeasurer(measureText)
@@ -121,8 +127,38 @@ export function nodeSystemGeometryKey(
     }))
 }
 
+/** Projects Card measurement into the shared UI-independent numeric contract. */
+export function measureNodeSystemCardPreset(
+  preset: NodeSystemCardPreset,
+  measureText?: NodeSystemTextMeasurer,
+): MeasuredNodeSystem {
+  const measuredText = memoizedTextMeasurer(measureText)
+  const geometryKey = nodeSystemGeometryKey(preset, measuredText)
+  const nodes = preset.nodes.map((node) => {
+    const size = measureNodeSystemCard(node, measuredText)
+    const plan = planNodeSystemCard(node, {x: 0, y: 0, w: size.width, h: size.height}, 1, measuredText)
+    const semanticNode = semanticCardNode(node)
+    return {
+      node: semanticNode,
+      width: size.width,
+      height: size.height,
+      contentHeight: measureNodeSystemCardContentHeight(node),
+      ports: plan.ports.map(({port, marker}) => ({
+        port: semanticCardPort(port),
+        offsetY: marker.y + marker.h / 2,
+      })),
+    }
+  })
+  return {
+    ...(preset.revision === undefined ? {} : {revision: preset.revision}),
+    geometryKey,
+    nodes,
+    edges: preset.edges.map(semanticCardEdge),
+  }
+}
+
 function measureCard(
-  node: NodeSystemNode,
+  node: NodeSystemCardNode,
   measureText?: NodeSystemTextMeasurer,
 ): NodeSystemCardMeasurement {
   const metrics = NODE_SYSTEM_CARD_METRICS
@@ -179,7 +215,7 @@ function measureCard(
 
 /** Builds every internal card slot through the project Flex layout engine. */
 export function planNodeSystemCard(
-  node: NodeSystemNode,
+  node: NodeSystemCardNode,
   frame: NodeSystemRect,
   scale = 1,
   measureText?: NodeSystemTextMeasurer,
@@ -311,7 +347,7 @@ export function planNodeSystemCard(
 }
 
 function planParameterPort(
-  port: NodeSystemPort,
+  port: NodeSystemCardPort,
   row: NodeSystemRect,
   metrics: ReturnType<typeof scaledMetrics>,
 ): NodeSystemCardPortSlot {
@@ -328,13 +364,13 @@ function planParameterPort(
   }
 }
 
-function parameterPorts(node: NodeSystemNode, parameterId: string): readonly NodeSystemPort[] {
+function parameterPorts(node: NodeSystemCardNode, rowId: string): readonly NodeSystemCardPort[] {
   return (node.ports ?? [])
-    .filter((port) => port.parameterId === parameterId)
+    .filter((port) => port.rowId === rowId)
     .sort((left, right) => portVisualSide(left).localeCompare(portVisualSide(right)) || compareIds(left.id, right.id))
 }
 
-function portVisualSide(port: NodeSystemPort): NodeSystemPortSide {
+function portVisualSide(port: NodeSystemCardPort): NodeSystemPortSide {
   if (port.side !== undefined) return port.side
   return port.direction === "in" ? "left" : "right"
 }
@@ -355,6 +391,35 @@ function compareIds(left: string, right: string): number {
 
 function rounded(value: number): number {
   return Math.round(value * 1_000) / 1_000
+}
+
+function semanticCardNode(node: NodeSystemCardNode): NodeSystemNode {
+  return {
+    id: node.id,
+    ...(node.layoutId === undefined ? {} : {layoutId: node.layoutId}),
+    ...(node.parentId === undefined ? {} : {parentId: node.parentId}),
+    ...(node.order === undefined ? {} : {order: node.order}),
+    ...(node.ports === undefined ? {} : {ports: node.ports.map(semanticCardPort)}),
+  }
+}
+
+function semanticCardPort(port: NodeSystemCardPort): NodeSystemPort {
+  return {
+    id: port.id,
+    direction: port.direction,
+    ...(port.connectionType === undefined ? {} : {connectionType: port.connectionType}),
+    ...(port.side === undefined ? {} : {side: port.side}),
+  }
+}
+
+function semanticCardEdge(edge: NodeSystemCardPreset["edges"][number]): NodeSystemEdge {
+  return {
+    id: edge.id,
+    source: edge.source,
+    target: edge.target,
+    ...(edge.connectionType === undefined ? {} : {connectionType: edge.connectionType}),
+    ...(edge.order === undefined ? {} : {order: edge.order}),
+  }
 }
 
 /** Per-pass cache: font or scale changes get a fresh cache and therefore a fresh key. */

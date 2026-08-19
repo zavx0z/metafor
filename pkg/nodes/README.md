@@ -1,7 +1,8 @@
 # nodes
 
-`nodes` — лёгкое ядро модели и общей логики node-system. Оно проверяет
-serializable document, строит containment index, предоставляет
+`nodes` — лёгкое ядро semantic topology и общей логики node-system. Оно
+проверяет serializable document без обязательной UI-анатомии, строит
+containment index, задаёт нормализованный measured contract, предоставляет
 positioned-geometry helpers и владеет транспортом layout Worker.
 
 Над общим договором независимо собираются:
@@ -12,10 +13,11 @@ positioned-geometry helpers и владеет транспортом layout Work
   moving-message markers без зависимости от HUD;
 * `@nodes/hud` предоставляет необязательные HUD-компоненты, включая Inspector.
 
-Потребители передают в `nodes` собственный `NodeSystemDocument`. Смысл domain
-facts, actions, connection types и их visual mapping остаётся у приложения:
-node-system только проверяет presentation model и связывает её IDs с готовой
-геометрией. Сменяемый runtime `id` не обязан быть layout identity: producer
+Потребители передают в `nodes` один `NodeSystemDocument`, в котором port
+принадлежит node и не обязан ссылаться на строку, карточку или другой UI-element.
+`@nodes/ui` предоставляет Card presentation preset: он связывает semantic ports
+с Card rows по ID, измеряет preset и передаёт дальше только topology и числовую
+geometry. Сменяемый runtime `id` не обязан быть layout identity: producer
 может передать стабильный `layoutId` того же visual slot, а adapter вернёт
 рассчитанную геометрию к исходным domain IDs.
 
@@ -28,33 +30,41 @@ import {
   type NodeSystemDocument,
 } from "nodes"
 
+import {adaptNodeSystemCardPresentation} from "@nodes/ui/card-model"
 import {FixedNodeSystemCardWorkerLayouter} from "@nodes/ui/fixed-card-layout"
 import {NodeSystemSurface} from "@nodes/ui/surface"
 import {NodeInspectorSurface} from "@nodes/hud/inspector"
 ```
 
-Публичные model- и Worker-типы находятся в [`types`](types/index.ts). Только
+Публичные semantic, measured, positioned и Worker-типы находятся в
+[`types`](types/index.ts). Только
 числовые типы layout protocol принадлежат
-[`layout/types`](layout/types/index.ts); UI-компоненты не создают параллельную
-модель нод.
+[`layout/types`](layout/types/index.ts); UI Card preset ссылается на эту topology
+по IDs и не создаёт параллельную semantic model.
 
 ## Границы
 
-* `nodes` содержит model validation, containment, incremental positioned
-  geometry и Worker transport adapter. Он не импортирует renderer или HUD.
+* `nodes` содержит semantic model validation, normalized measurement,
+  containment, incremental positioned geometry и Worker transport adapter. Он
+  не импортирует Card, renderer или HUD.
 * `NodeSystemNode.id` остаётся domain identity; optional `layoutId` используется
   только внутри layout adapter и обязан быть уникальным в document.
-* `@nodes/layout` не читает UI document, текст, DOM или WebGPU state.
+* `@nodes/layout` не читает Card presentation, текст, DOM или WebGPU state.
+* `@nodes/ui/card-model` владеет `title`, `summary`, `tone`, facts, actions и
+  явными `portId → rowId` anchors. Эти значения не входят в semantic node.
 * `@nodes/ui/fixed-card-layout` является явным fixed-port adapter: он измеряет
-  generic card preset и передаёт числовой graph в `@nodes/layout`.
-* `@nodes/ui/surface` принимает готовый `PositionedNodeSystem`; consumer со
-  своей adaptive policy не импортирует fixed adapter.
+  Card preset в общий `MeasuredNodeSystem` и передаёт числовой graph в
+  `@nodes/layout`.
+* `@nodes/ui/surface` принимает готовый `PositionedNodeSystemCard`; consumer со
+  своей Card geometry не импортирует fixed adapter. Bare/другой presentation
+  consumer работает с общим `PositionedNodeSystem` без этой surface.
 * `@nodes/hud` необязателен; `nodes` и `@nodes/ui` от него не зависят.
 * `connectionType` является opaque consumer value, общей для semantic edge и
   обоих его exact sockets. Consumer-provided resolver задаёт предметный цвет;
   generic UI предоставляет только deterministic fallback. `direction`
-  определяет универсальную capability сокета, `side` или выбранный adapter —
-  его placement, а `tone` отдельно показывает состояние.
+  определяет универсальную capability сокета, `side` ограничивает допустимое
+  placement, а resolved `PositionedNodeSystemPort.side` фиксирует фактически
+  выбранную сторону. Card `tone` отдельно показывает состояние.
 * Renderer может скруглить готовый маршрут для рисования, но не меняет exact
   endpoint, gateway или bend ownership.
 * Перед вторым layout-pass adapter может переставить только связанные

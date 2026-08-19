@@ -123,9 +123,9 @@ independent subpath entrypoints внутри `@nodes/layout` и `@nodes/ui`, а 
 
 | ID | Срез | Состояние |
 | --- | --- | --- |
-| NODES-010.1 | Закрепить semantic, Card, measured и positioned contracts | IN_PROGRESS |
-| NODES-010.2 | Отделить fixed policy от общего placement/routing core | WAITING |
-| NODES-010.3 | Создать dev-only SVG playground и fixed baseline | WAITING |
+| NODES-010.1 | Закрепить semantic, Card, measured и positioned contracts | REVIEW |
+| NODES-010.2 | Отделить fixed policy от общего placement/routing core | READY |
+| NODES-010.3 | Создать dev-only SVG playground и fixed baseline | READY |
 | NODES-010.4 | Реализовать bounded adaptive side-selection | WAITING |
 | NODES-010.5 | Разделить fixed/adaptive Worker и bundle entrypoints | WAITING |
 | NODES-010.6 | Доказать adapters, performance, playground и package boundary | WAITING |
@@ -133,6 +133,36 @@ independent subpath entrypoints внутри `@nodes/layout` и `@nodes/ui`, а 
 Каждый срез получает отдельный result checkpoint. `.2` и `.3` начинаются после
 `.1`; `.4` зависит от `.2` и playground baseline `.3`; `.5` зависит от `.4`;
 `.6` закрывает все предыдущие результаты.
+
+## Результат NODES-010.1
+
+* Kernel `NodeSystemDocument` больше не содержит обязательную Card anatomy:
+  `title`, `summary`, `tone`, facts, actions, размеры и row anchor принадлежат
+  `@nodes/ui/card-model`.
+* `NodeSystemCardPresentation` связывает semantic node/edge/port с Card content
+  по ID; `portId → rowId` materialization проверяет полноту и ambiguity до
+  измерения.
+* Общий `MeasuredNodeSystem` содержит только semantic topology, intrinsic
+  размеры, content boundary и числовые `offsetY`. Card content физически не
+  попадает в measured result.
+* `PositionedNodeSystemPort.side` обязателен и валидируется относительно
+  фактической границы ноды. Move, resize и viewport transform сохраняют
+  resolved side независимо от optional semantic constraint.
+* Existing fixed solver, row-order search, Worker path и renderer переведены на
+  новые contracts без adaptive implementation. Все прежние focused node tests
+  и новые contract regressions проходят: `96 pass`, `0 fail`, `1707 expect()`.
+  Typecheck `nodes`, `@nodes/ui`, `@nodes/hud` и `bun run docs:layout` успешны.
+* Root `tsc --project tsconfig.json` намеренно остаётся красным на старом
+  Hamiltonian consumer: `orchestration.ts`, `layout-transition.ts`,
+  `lifecycle-projection.ts` и их tests всё ещё импортируют Card fields из
+  `nodes/types`, передают `parameterId` и не materialize resolved side.
+  Product migration запрещена границей NODES-010 и должна быть зарегистрирована
+  отдельным consumer-срезом; этот isolated package result не является live или
+  visual acceptance Hamiltonian.
+* Gate NODES-010.2: public `@nodes/layout` protocol и общий router пока всё ещё
+  выводят `source=out/EAST`, `target=in/WEST`; следующий срез должен принимать
+  уже resolved endpoints из fixed policy, не добавляя adaptive и не копируя
+  placement/routing/validation core.
 
 ## Поведение процесса
 

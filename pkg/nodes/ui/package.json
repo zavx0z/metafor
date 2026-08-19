@@ -8,6 +8,7 @@
   "types": "index.ts",
   "exports": {
     ".": "./index.ts",
+    "./card-model": "./card-model.ts",
     "./card-layout": "./card-layout.ts",
     "./fixed-card-layout": "./fixed-card-layout.ts",
     "./edge-curve": "./edge-curve.ts",

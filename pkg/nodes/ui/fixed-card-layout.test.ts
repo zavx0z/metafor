@@ -11,9 +11,9 @@ import {
   FixedNodeSystemCardWorkerLayouter,
   orderFixedNodeSystemCardPortFactsForLayout,
 } from "./fixed-card-layout.ts"
-import type {NodeSystemDocument, PositionedNodeSystem} from "nodes/types"
+import type {NodeSystemCardPreset, PositionedNodeSystemCard} from "./card-model.ts"
 
-const document: NodeSystemDocument = {
+const document: NodeSystemCardPreset = {
   revision: "fixed-card-layout:1",
   nodes: [
     {id: "owner", title: "Owner"},
@@ -22,14 +22,14 @@ const document: NodeSystemDocument = {
       parentId: "owner",
       title: "Source",
       facts: [{id: "message", label: "Message", value: "out"}],
-      ports: [{id: "out", parameterId: "message", direction: "out"}],
+      ports: [{id: "out", rowId: "message", direction: "out"}],
     },
     {
       id: "target",
       parentId: "owner",
       title: "Target",
       facts: [{id: "message", label: "Message", value: "in"}],
-      ports: [{id: "in", parameterId: "message", direction: "in"}],
+      ports: [{id: "in", rowId: "message", direction: "in"}],
     },
   ],
   edges: [{
@@ -57,11 +57,11 @@ describe("Fixed node-system card layout", () => {
   })
 
   test("keeps geometry when runtime incarnations retain their layout identities", () => {
-    const stable: NodeSystemDocument = {
+    const stable: NodeSystemCardPreset = {
       ...document,
       nodes: document.nodes.map((entry) => ({...entry, layoutId: `slot:${entry.id}`})),
     }
-    const reincarnated: NodeSystemDocument = {
+    const reincarnated: NodeSystemCardPreset = {
       ...stable,
       revision: "fixed-card-layout:reloaded",
       nodes: stable.nodes.map((entry) => ({
@@ -113,7 +113,7 @@ describe("Fixed node-system card layout", () => {
 
   test("keeps measured compound content and children on one socket-pitch rhythm", () => {
     for (const ownerFacts of [undefined, [{id: "status", label: "Status", value: "active"}]]) {
-      const compact: NodeSystemDocument = {
+      const compact: NodeSystemCardPreset = {
         nodes: [
           {id: "owner", title: "Owner", ...(ownerFacts === undefined ? {} : {facts: ownerFacts})},
           {id: "child-a", parentId: "owner", title: "Child A"},
@@ -139,19 +139,19 @@ describe("Fixed node-system card layout", () => {
   })
 
   test("reserves a deterministic landscape corridor for multi-edge fanout", () => {
-    const fanout: NodeSystemDocument = {
+    const fanout: NodeSystemCardPreset = {
       nodes: [
         {
           id: "source",
           title: "Source",
           facts: ["a", "b", "c"].map((id) => ({id, label: id, value: "out"})),
-          ports: ["a", "b", "c"].map((id) => ({id, parameterId: id, direction: "out" as const})),
+          ports: ["a", "b", "c"].map((id) => ({id, rowId: id, direction: "out" as const})),
         },
         ...["a", "b", "c"].map((id) => ({
           id: `target-${id}`,
           title: `Target ${id}`,
           facts: [{id: "in", label: "In", value: id}],
-          ports: [{id: "in", parameterId: "in", direction: "in" as const}],
+          ports: [{id: "in", rowId: "in", direction: "in" as const}],
         })),
       ],
       edges: ["a", "b", "c"].map((id) => ({
@@ -174,7 +174,7 @@ describe("Fixed node-system card layout", () => {
   })
 
   test("packs equal portrait cards into a balanced flow instead of an empty row or column", () => {
-    const wideLayer: NodeSystemDocument = {
+    const wideLayer: NodeSystemCardPreset = {
       nodes: ["a", "b", "c", "d", "e", "f", "g", "h"].map((id) => ({
         id,
         title: `Card ${id}`,
@@ -211,11 +211,11 @@ describe("Fixed node-system card layout", () => {
       })),
       ports: parameters.map(([parameterId, direction]) => ({
         id: parameterId,
-        parameterId,
+        rowId: parameterId,
         direction,
       })),
     })
-    const transition: NodeSystemDocument = {
+    const transition: NodeSystemCardPreset = {
       nodes: [
         {id: "browser", title: "Browser"},
         nodeWithPorts("page", "browser", "Current page realm", [
@@ -282,7 +282,7 @@ describe("Fixed node-system card layout", () => {
   }, 60_000)
 
   test("proposes counterpart row order but keeps the lower-crossing routed order", () => {
-    const sortable: NodeSystemDocument = {
+    const sortable: NodeSystemCardPreset = {
       nodes: [
         {
           id: "source",
@@ -293,19 +293,19 @@ describe("Fixed node-system card layout", () => {
             {id: "left", label: "Left", value: "out"},
           ],
           ports: [
-            {id: "right-port", parameterId: "right", direction: "out"},
-            {id: "left-port", parameterId: "left", direction: "out"},
+            {id: "right-port", rowId: "right", direction: "out"},
+            {id: "left-port", rowId: "left", direction: "out"},
           ],
         },
-        {id: "right-target", title: "Right target", facts: [{id: "in", label: "In", value: "in"}], ports: [{id: "in", parameterId: "in", direction: "in"}]},
-        {id: "left-target", title: "Left target", facts: [{id: "in", label: "In", value: "in"}], ports: [{id: "in", parameterId: "in", direction: "in"}]},
+        {id: "right-target", title: "Right target", facts: [{id: "in", label: "In", value: "in"}], ports: [{id: "in", rowId: "in", direction: "in"}]},
+        {id: "left-target", title: "Left target", facts: [{id: "in", label: "In", value: "in"}], ports: [{id: "in", rowId: "in", direction: "in"}]},
       ],
       edges: [
         {id: "right-edge", source: {nodeId: "source", portId: "right-port"}, target: {nodeId: "right-target", portId: "in"}},
         {id: "left-edge", source: {nodeId: "source", portId: "left-port"}, target: {nodeId: "left-target", portId: "in"}},
       ],
     }
-    const observed: PositionedNodeSystem = {
+    const observed: PositionedNodeSystemCard = {
       bounds: {x: 0, y: 0, w: 400, h: 300},
       nodes: sortable.nodes.map((entry) => ({
         node: entry,
@@ -315,12 +315,12 @@ describe("Fixed node-system card layout", () => {
             ? {x: 260, y: 200, w: 100, h: 80}
             : {x: 150, y: 20, w: 100, h: 100},
         ports: entry.id === "left-target"
-          ? [{port: entry.ports![0]!, center: {x: 40, y: 210}}]
+          ? [{port: entry.ports![0]!, side: "left" as const, center: {x: 40, y: 210}}]
           : entry.id === "right-target"
-            ? [{port: entry.ports![0]!, center: {x: 260, y: 260}}]
+            ? [{port: entry.ports![0]!, side: "left" as const, center: {x: 260, y: 260}}]
             : [
-              {port: entry.ports![0]!, center: {x: 250, y: 60}},
-              {port: entry.ports![1]!, center: {x: 250, y: 90}},
+              {port: entry.ports![0]!, side: "right" as const, center: {x: 250, y: 60}},
+              {port: entry.ports![1]!, side: "right" as const, center: {x: 250, y: 90}},
             ],
       })),
       edges: [],
@@ -345,7 +345,7 @@ describe("Fixed node-system card layout", () => {
   })
 
   test("prefers an exact opposite socket row before shorter nonzero offsets", () => {
-    const exact: NodeSystemDocument = {
+    const exact: NodeSystemCardPreset = {
       nodes: [
         {
           id: "source",
@@ -355,30 +355,30 @@ describe("Fixed node-system card layout", () => {
             {id: "exact", label: "Exact", value: "out"},
           ],
           ports: [
-            {id: "far-port", parameterId: "far", direction: "out"},
-            {id: "exact-port", parameterId: "exact", direction: "out"},
+            {id: "far-port", rowId: "far", direction: "out"},
+            {id: "exact-port", rowId: "exact", direction: "out"},
           ],
         },
-        {id: "far-target", title: "Far", facts: [{id: "in", label: "In", value: "in"}], ports: [{id: "in", parameterId: "in", direction: "in"}]},
-        {id: "exact-target", title: "Exact", facts: [{id: "in", label: "In", value: "in"}], ports: [{id: "in", parameterId: "in", direction: "in"}]},
+        {id: "far-target", title: "Far", facts: [{id: "in", label: "In", value: "in"}], ports: [{id: "in", rowId: "in", direction: "in"}]},
+        {id: "exact-target", title: "Exact", facts: [{id: "in", label: "In", value: "in"}], ports: [{id: "in", rowId: "in", direction: "in"}]},
       ],
       edges: [
         {id: "far", source: {nodeId: "source", portId: "far-port"}, target: {nodeId: "far-target", portId: "in"}},
         {id: "exact", source: {nodeId: "source", portId: "exact-port"}, target: {nodeId: "exact-target", portId: "in"}},
       ],
     }
-    const positioned: PositionedNodeSystem = {
+    const positioned: PositionedNodeSystemCard = {
       bounds: {x: 0, y: 0, w: 300, h: 300},
       nodes: [
         {node: exact.nodes[0]!, rect: {x: 0, y: 0, w: 100, h: 150}, ports: [
-          {port: exact.nodes[0]!.ports![0]!, center: {x: 100, y: 100}},
-          {port: exact.nodes[0]!.ports![1]!, center: {x: 100, y: 130}},
+          {port: exact.nodes[0]!.ports![0]!, side: "right", center: {x: 100, y: 100}},
+          {port: exact.nodes[0]!.ports![1]!, side: "right", center: {x: 100, y: 130}},
         ]},
         {node: exact.nodes[1]!, rect: {x: 200, y: 0, w: 100, h: 100}, ports: [
-          {port: exact.nodes[1]!.ports![0]!, center: {x: 200, y: 0}},
+          {port: exact.nodes[1]!.ports![0]!, side: "left", center: {x: 200, y: 0}},
         ]},
         {node: exact.nodes[2]!, rect: {x: 200, y: 60, w: 100, h: 100}, ports: [
-          {port: exact.nodes[2]!.ports![0]!, center: {x: 200, y: 100}},
+          {port: exact.nodes[2]!.ports![0]!, side: "left", center: {x: 200, y: 100}},
         ]},
       ],
       edges: [],
@@ -388,11 +388,11 @@ describe("Fixed node-system card layout", () => {
   })
 
   test("rejects endpoint roles that violate out/EAST to in/WEST", () => {
-    const invalid: NodeSystemDocument = {
+    const invalid: NodeSystemCardPreset = {
       ...document,
       nodes: document.nodes.map((entry) => entry.id !== "source" ? entry : {
         ...entry,
-        ports: [{id: "out", parameterId: "message", direction: "out", side: "left"}],
+        ports: [{id: "out", rowId: "message", direction: "out", side: "left"}],
       }),
     }
     expect(() => new FixedNodeSystemCardLayouter().layout(
@@ -448,7 +448,7 @@ class InlineLayoutWorkerEndpoint {
   terminate(): void {}
 }
 
-function geometryByLayoutIdentity(layout: PositionedNodeSystem) {
+function geometryByLayoutIdentity(layout: PositionedNodeSystemCard) {
   const layoutIdByNodeId = new Map(layout.nodes.map(({node}) => [node.id, node.layoutId ?? node.id]))
   return {
     bounds: layout.bounds,
@@ -469,7 +469,7 @@ function geometryByLayoutIdentity(layout: PositionedNodeSystem) {
   }
 }
 
-function expectExactEdgeEndpoints(layout: PositionedNodeSystem): void {
+function expectExactEdgeEndpoints(layout: PositionedNodeSystemCard): void {
   const edge = layout.edges[0]!
   const source = node(layout, edge.edge.source.nodeId).ports.find(
     ({port}) => port.id === edge.edge.source.portId,
@@ -481,7 +481,7 @@ function expectExactEdgeEndpoints(layout: PositionedNodeSystem): void {
   expect(edge.points.at(-1)).toEqual(target)
 }
 
-function countProperEdgeCrossings(layout: PositionedNodeSystem): number {
+function countProperEdgeCrossings(layout: PositionedNodeSystemCard): number {
   let crossings = 0
   for (let leftIndex = 0; leftIndex < layout.edges.length; leftIndex += 1) {
     const left = layout.edges[leftIndex]!.points
@@ -511,7 +511,7 @@ function countProperEdgeCrossings(layout: PositionedNodeSystem): number {
   return crossings
 }
 
-function expectNoEdgeIntersectsUnrelatedNodeContent(layout: PositionedNodeSystem): void {
+function expectNoEdgeIntersectsUnrelatedNodeContent(layout: PositionedNodeSystemCard): void {
   const entries = new Map(layout.nodes.map((entry) => [entry.node.id, entry]))
   const ancestors = (nodeId: string): ReadonlySet<string> => {
     const result = new Set<string>()
@@ -553,7 +553,7 @@ function segmentIntersectsOpenRect(
 }
 
 function expectParallelEdgeClearanceOnBothAxes(
-  layout: PositionedNodeSystem,
+  layout: PositionedNodeSystemCard,
   clearance: number,
 ): void {
   const edgesById = new Map(layout.edges.map(({edge}) => [edge.id, edge]))
@@ -602,7 +602,7 @@ function expectParallelEdgeClearanceOnBothAxes(
   }
 }
 
-function expectAllExactEdgeEndpoints(layout: PositionedNodeSystem): void {
+function expectAllExactEdgeEndpoints(layout: PositionedNodeSystemCard): void {
   for (const edge of layout.edges) {
     const source = node(layout, edge.edge.source.nodeId).ports.find(
       ({port}) => port.id === edge.edge.source.portId,
@@ -615,7 +615,7 @@ function expectAllExactEdgeEndpoints(layout: PositionedNodeSystem): void {
   }
 }
 
-function expectOrthogonal(layout: PositionedNodeSystem): void {
+function expectOrthogonal(layout: PositionedNodeSystemCard): void {
   for (const {points} of layout.edges) {
     for (let index = 1; index < points.length; index += 1) {
       const previous = points[index - 1]!
@@ -625,6 +625,6 @@ function expectOrthogonal(layout: PositionedNodeSystem): void {
   }
 }
 
-function node(layout: PositionedNodeSystem, id: string) {
+function node(layout: PositionedNodeSystemCard, id: string) {
   return layout.nodes.find((entry) => entry.node.id === id)!
 }

@@ -16,20 +16,18 @@ import {
 function node(id: string, x: number, y: number, order: number): PositionedNodeSystemNode {
   const model = {
     id,
-    title: id,
     order,
-    facts: [{id: "in", label: "In", value: ""}, {id: "out", label: "Out", value: ""}],
     ports: [
-      {id: "in", parameterId: "in", direction: "in" as const},
-      {id: "out", parameterId: "out", direction: "out" as const},
+      {id: "in", direction: "in" as const},
+      {id: "out", direction: "out" as const},
     ],
   }
   return {
     node: model,
     rect: {x, y, w: 100, h: 60},
     ports: [
-      {port: model.ports[0]!, center: {x, y: y + 30}},
-      {port: model.ports[1]!, center: {x: x + 100, y: y + 30}},
+      {port: model.ports[0]!, side: "left", center: {x, y: y + 30}},
+      {port: model.ports[1]!, side: "right", center: {x: x + 100, y: y + 30}},
     ],
   }
 }

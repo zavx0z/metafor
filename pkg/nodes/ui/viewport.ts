@@ -1,5 +1,8 @@
 import type {
+  NodeSystemEdge,
+  NodeSystemNode,
   NodeSystemPoint,
+  NodeSystemPort,
   NodeSystemRect,
   PositionedNodeSystem,
   PositionedNodeSystemEdge,
@@ -57,11 +60,15 @@ export function zoomNodeSystemCanvasTransformAt(
   }
 }
 
-export function planNodeSystemCanvasViewport(
-  layout: PositionedNodeSystem,
+export function planNodeSystemCanvasViewport<
+  TNode extends NodeSystemNode,
+  TPort extends NodeSystemPort,
+  TEdge extends NodeSystemEdge,
+>(
+  layout: PositionedNodeSystem<TNode, TPort, TEdge>,
   canvasTransform: NodeSystemCanvasTransform,
   clip?: NodeSystemRect,
-): NodeSystemRenderPlan {
+): NodeSystemRenderPlan<TNode, TPort, TEdge> {
   const nodes = layout.nodes
     .map((entry) => transformNode(entry, canvasTransform))
     .filter((entry) => clip === undefined || intersects(entry.rect, clip))
@@ -76,10 +83,14 @@ export function planNodeSystemCanvasViewport(
   return {canvasTransform, nodes, edges}
 }
 
-export function hitTestNodeSystem(
-  plan: NodeSystemRenderPlan,
+export function hitTestNodeSystem<
+  TNode extends NodeSystemNode,
+  TPort extends NodeSystemPort,
+  TEdge extends NodeSystemEdge,
+>(
+  plan: NodeSystemRenderPlan<TNode, TPort, TEdge>,
   point: NodeSystemPoint,
-): PositionedNodeSystemNode | null {
+): PositionedNodeSystemNode<TNode, TPort> | null {
   for (let index = plan.nodes.length - 1; index >= 0; index -= 1) {
     const node = plan.nodes[index]!
     if (contains(node.rect, point)) return node
@@ -94,24 +105,25 @@ export function transformNodeSystemPoint(
   return {x: transform.x + point.x * transform.scale, y: transform.y + point.y * transform.scale}
 }
 
-function transformNode(
-  entry: PositionedNodeSystemNode,
+function transformNode<TNode extends NodeSystemNode, TPort extends NodeSystemPort>(
+  entry: PositionedNodeSystemNode<TNode, TPort>,
   transform: NodeSystemCanvasTransform,
-): PositionedNodeSystemNode {
+): PositionedNodeSystemNode<TNode, TPort> {
   return {
     node: entry.node,
     rect: transformRect(entry.rect, transform),
-    ports: entry.ports.map(({port, center}) => ({
+    ports: entry.ports.map(({port, side, center}) => ({
       port,
+      side,
       center: transformNodeSystemPoint(center, transform),
     })),
   }
 }
 
-function transformEdge(
-  entry: PositionedNodeSystemEdge,
+function transformEdge<TEdge extends NodeSystemEdge>(
+  entry: PositionedNodeSystemEdge<TEdge>,
   transform: NodeSystemCanvasTransform,
-): PositionedNodeSystemEdge {
+): PositionedNodeSystemEdge<TEdge> {
   return {
     edge: entry.edge,
     points: entry.points.map((point) => transformNodeSystemPoint(point, transform)),

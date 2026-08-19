@@ -6,7 +6,7 @@ import {
   planNodeSystemCanvasViewport,
   zoomNodeSystemCanvasTransformAt,
 } from "./index.ts"
-import type {PositionedNodeSystem} from "nodes/types"
+import type {PositionedNodeSystemCard} from "./card-model.ts"
 import {
   NodeSystemSurface,
   nodeSystemScreenPresentationMetrics,
@@ -14,7 +14,7 @@ import {
   planNodeSystemContainmentPaintSteps,
 } from "./surface.ts"
 
-const layout: PositionedNodeSystem = {
+const layout: PositionedNodeSystemCard = {
   revision: 1,
   bounds: {x: 10, y: 20, w: 400, h: 200},
   nodes: [
@@ -24,16 +24,16 @@ const layout: PositionedNodeSystem = {
         title: "Host",
         kind: "runtime",
         facts: [{id: "status", label: "Status", value: "ready"}, {id: "link", label: "Link", value: "out"}],
-        ports: [{id: "link", parameterId: "link", direction: "out"}],
+        ports: [{id: "link", rowId: "link", direction: "out"}],
         actions: [{id: "restart", label: "Restart", enabled: false}],
       },
       rect: {x: 10, y: 20, w: 100, h: 80},
-      ports: [{port: {id: "link", parameterId: "link", direction: "out"}, center: {x: 110, y: 60}}],
+      ports: [{port: {id: "link", direction: "out"}, side: "right", center: {x: 110, y: 60}}],
     },
     {
-      node: {id: "peer", title: "Peer", facts: [{id: "link", label: "Link", value: "in"}], ports: [{id: "link", parameterId: "link", direction: "in"}]},
+      node: {id: "peer", title: "Peer", facts: [{id: "link", label: "Link", value: "in"}], ports: [{id: "link", rowId: "link", direction: "in"}]},
       rect: {x: 310, y: 140, w: 100, h: 80},
-      ports: [{port: {id: "link", parameterId: "link", direction: "in"}, center: {x: 310, y: 180}}],
+      ports: [{port: {id: "link", direction: "in"}, side: "left", center: {x: 310, y: 180}}],
     },
   ],
   edges: [{edge: {id: "link", source: {nodeId: "host", portId: "link"}, target: {nodeId: "peer", portId: "link"}}, points: [{x: 114, y: 60}, {x: 306, y: 180}]}],

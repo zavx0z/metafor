@@ -12,11 +12,12 @@ import {
   type UiSurfaceOpts,
 } from "@ui/elements"
 import type {
-  NodeSystemTone,
-  PositionedNodeSystem,
-  PositionedNodeSystemEdge,
-  PositionedNodeSystemNode,
-} from "nodes/types"
+  NodeSystemCardRenderPlan,
+  NodeSystemCardTone,
+  PositionedNodeSystemCard,
+  PositionedNodeSystemCardEdge,
+  PositionedNodeSystemCardNode,
+} from "./card-model.ts"
 import {
   NODE_SYSTEM_CARD_METRICS,
   NODE_SYSTEM_PORT_PITCH,
@@ -52,7 +53,6 @@ import {
 import type {
   NodeSystemCanvasTransform,
   NodeSystemCanvasTransformLimits,
-  NodeSystemRenderPlan,
 } from "nodes/types"
 
 export type NodeSystemSurfaceOptions = UiSurfaceOpts & Readonly<{
@@ -75,21 +75,21 @@ export type NodeSystemNodeMoveEvent = Readonly<{
   nodeId: string
   nodeIds: readonly string[]
   phase: "move" | "end"
-  layout: PositionedNodeSystem
+  layout: PositionedNodeSystemCard
 }>
 
 export type NodeSystemNodeResizeEvent = Readonly<{
   nodeId: string
   side: "left" | "right"
   phase: "resize" | "end"
-  layout: PositionedNodeSystem
+  layout: PositionedNodeSystemCard
 }>
 
 export type NodeSystemWheelGesture =
   | Readonly<{kind: "pan"; dx: number; dy: number}>
   | Readonly<{kind: "zoom"; factor: number}>
 
-const EMPTY_LAYOUT: PositionedNodeSystem = Object.freeze({
+const EMPTY_LAYOUT: PositionedNodeSystemCard = Object.freeze({
   bounds: {x: 0, y: 0, w: 1, h: 1},
   nodes: [],
   edges: [],
@@ -140,7 +140,7 @@ type RetainedFlowMarkerVisual = Readonly<{
 }>
 
 type EdgeFlowMarkerRoute = Readonly<{
-  entry: PositionedNodeSystemEdge
+  entry: PositionedNodeSystemCardEdge
   stroke: readonly Readonly<{x: number; y: number}>[]
 }>
 
@@ -155,8 +155,8 @@ export type NodeSystemContainmentPaintStep =
  * of the real route that lies inside the owner.
  */
 export function planNodeSystemContainmentPaintSteps(
-  allNodes: readonly PositionedNodeSystemNode[],
-  visibleNodes: readonly PositionedNodeSystemNode[] = allNodes,
+  allNodes: readonly PositionedNodeSystemCardNode[],
+  visibleNodes: readonly PositionedNodeSystemCardNode[] = allNodes,
 ): readonly NodeSystemContainmentPaintStep[] {
   const byId = new Map(allNodes.map((entry) => [entry.node.id, entry] as const))
   const ownerIds = new Set(allNodes.flatMap(({node}) => node.parentId === undefined ? [] : [node.parentId]))
@@ -196,7 +196,7 @@ export function planNodeSystemContainmentPaintSteps(
 
 /** Compound containment is structural chrome, not a transport or live-state stroke. */
 export function nodeSystemNodeBorderColor(
-  tone: NodeSystemTone,
+  tone: NodeSystemCardTone,
   selected: boolean,
   compound: boolean,
 ): Color {
@@ -218,13 +218,13 @@ export class NodeSystemSurface extends UiSurface {
   readonly #onNodeResize: ((event: NodeSystemNodeResizeEvent) => void) | undefined
   readonly #onCanvasTransformChange: ((transform: NodeSystemCanvasTransform) => void) | undefined
   readonly #onEdgeMessageCountChange: ((count: number) => void) | undefined
-  #layout: PositionedNodeSystem = EMPTY_LAYOUT
+  #layout: PositionedNodeSystemCard = EMPTY_LAYOUT
   #canvasTransform: NodeSystemCanvasTransform = DEFAULT_NODE_SYSTEM_CANVAS_TRANSFORM
   #selectedNodeId: string | null = null
   #selectedNodeIds = new Set<string>()
   #fitPending = true
   #notifyCanvasTransformAfterFit = false
-  #canvasTransformLayout: PositionedNodeSystem | null = null
+  #canvasTransformLayout: PositionedNodeSystemCard | null = null
   #lastFrame = {w: 0, h: 0}
   #panDrag: Readonly<{x: number; y: number; origin: NodeSystemCanvasTransform}> | null = null
   #nodeDrag: Readonly<{
@@ -280,7 +280,7 @@ export class NodeSystemSurface extends UiSurface {
     this.node.name = "NodeSystemSurface"
   }
 
-  get layout(): PositionedNodeSystem {
+  get layout(): PositionedNodeSystemCard {
     return this.#layout
   }
 
@@ -296,7 +296,7 @@ export class NodeSystemSurface extends UiSurface {
     return new Set(this.#selectedNodeIds)
   }
 
-  get selectedNode(): PositionedNodeSystemNode | null {
+  get selectedNode(): PositionedNodeSystemCardNode | null {
     return this.#layout.nodes.find((entry) => entry.node.id === this.#selectedNodeId) ?? null
   }
 
@@ -382,7 +382,7 @@ export class NodeSystemSurface extends UiSurface {
     return !this.#fitPending && this.#canvasTransformLayout === this.#layout
   }
 
-  setLayout(layout: PositionedNodeSystem): void {
+  setLayout(layout: PositionedNodeSystemCard): void {
     this.#layout = layout
     this.#canvasTransformLayout = null
     const available = new Set(layout.nodes.map(({node}) => node.id))
@@ -478,7 +478,7 @@ export class NodeSystemSurface extends UiSurface {
     return true
   }
 
-  renderPlan(): NodeSystemRenderPlan {
+  renderPlan(): NodeSystemCardRenderPlan {
     return planNodeSystemCanvasViewport(this.#layout, this.#canvasTransform, this.#contentRect())
   }
 
@@ -701,7 +701,7 @@ export class NodeSystemSurface extends UiSurface {
     for (const visual of this.#flowMarkerVisuals) setFlowMarkerVisualVisible(visual, false)
   }
 
-  #drawNodeBackground(entry: PositionedNodeSystemNode, scale: number, compound = false): void {
+  #drawNodeBackground(entry: PositionedNodeSystemCardNode, scale: number, compound = false): void {
     const {node, rect} = entry
     const selected = this.#selectedNodeIds.has(node.id)
     const tone = node.tone ?? "neutral"
@@ -741,7 +741,7 @@ export class NodeSystemSurface extends UiSurface {
     })
   }
 
-  #drawNodeForeground(entry: PositionedNodeSystemNode, scale: number): void {
+  #drawNodeForeground(entry: PositionedNodeSystemCardNode, scale: number): void {
     const {node, rect} = entry
     const contained = node.parentId !== undefined
     const selected = this.#selectedNodeIds.has(node.id)
@@ -856,7 +856,7 @@ export class NodeSystemSurface extends UiSurface {
   }
 
   #registerResizeHandle(
-    entry: PositionedNodeSystemNode,
+    entry: PositionedNodeSystemCardNode,
     rect: Readonly<{x: number; y: number; w: number; h: number}>,
     scale: number,
     side: "left" | "right",
@@ -1091,7 +1091,7 @@ function setsEqual<T>(left: ReadonlySet<T>, right: ReadonlySet<T>): boolean {
 
 function drawEdge(
   host: UiSurface,
-  entry: PositionedNodeSystemEdge,
+  entry: PositionedNodeSystemCardEdge,
   scale: number,
   stroke: readonly Readonly<{x: number; y: number}>[],
   hitRects: readonly Readonly<{x: number; y: number; w: number; h: number}>[],
@@ -1232,12 +1232,12 @@ function nodeBodyFill(selected: boolean): Color {
   return selected ? palette.bgHot : palette.bgElevated
 }
 
-function nodeHeaderFill(tone: NodeSystemTone, selected: boolean): Color {
+function nodeHeaderFill(tone: NodeSystemCardTone, selected: boolean): Color {
   if (tone === "neutral") return selected ? palette.bgHot : palette.bgPanel
   return toneFill(tone)
 }
 
-function toneTextColor(tone: NodeSystemTone): CssColor {
+function toneTextColor(tone: NodeSystemCardTone): CssColor {
   if (tone === "live") return "green"
   if (tone === "paused") return "orange"
   if (tone === "warn") return "red"

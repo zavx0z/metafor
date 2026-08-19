@@ -6,6 +6,7 @@ import type {
   NodeSystemRect,
   PositionedNodeSystem,
 } from "./types/model.ts"
+import type {MeasuredNodeSystem} from "./types/measured.ts"
 import type {NodeSystemIndex} from "./types/validation.ts"
 
 /** Rejects ambiguity instead of silently dropping nodes, ports or edges. */
@@ -21,42 +22,22 @@ export function validateNodeSystemDocument(document: NodeSystemDocument): NodeSy
     requireIdentifier(layoutId, `layout node on ${node.id}`)
     if (layoutIds.has(layoutId)) throw new Error(`Duplicate node layoutId: ${layoutId}`)
     layoutIds.add(layoutId)
-    if (node.title.trim().length === 0) throw new Error(`Node title must be non-empty: ${node.id}`)
-    requirePositiveSize(node.width, `Node width must be positive: ${node.id}`)
-    requirePositiveSize(node.height, `Node height must be positive: ${node.id}`)
     requireFiniteOrder(node.order, `Node order must be finite: ${node.id}`)
 
-    const factIds = new Set<string>()
-    for (const fact of node.facts ?? []) {
-      requireIdentifier(fact.id, `fact on ${node.id}`)
-      if (factIds.has(fact.id)) throw new Error(`Duplicate fact id: ${node.id}/${fact.id}`)
-      factIds.add(fact.id)
-    }
     const nodePorts = new Map<string, NodeSystemPort>()
-    const occupiedParameterSides = new Set<string>()
     for (const port of node.ports ?? []) {
       requireIdentifier(port.id, `port on ${node.id}`)
-      requireIdentifier(port.parameterId, `parameter on port ${node.id}/${port.id}`)
-      if (!factIds.has(port.parameterId)) {
-        throw new Error(`Unknown port parameter: ${node.id}/${port.id}/${port.parameterId}`)
-      }
       if (nodePorts.has(port.id)) throw new Error(`Duplicate port id: ${node.id}/${port.id}`)
+      if (port.direction !== "in" && port.direction !== "out" && port.direction !== "inout") {
+        throw new Error(`Invalid port direction: ${node.id}/${port.id}`)
+      }
+      if (port.side !== undefined && port.side !== "left" && port.side !== "right") {
+        throw new Error(`Invalid port side: ${node.id}/${port.id}`)
+      }
       if (port.connectionType !== undefined) {
         requireIdentifier(port.connectionType, `connection type on port ${node.id}/${port.id}`)
       }
-      const side = port.side ?? (port.direction === "in" ? "left" : "right")
-      const parameterSide = `${port.parameterId}\u0000${side}`
-      if (occupiedParameterSides.has(parameterSide)) {
-        throw new Error(`Duplicate port side on parameter: ${node.id}/${port.parameterId}/${side}`)
-      }
-      occupiedParameterSides.add(parameterSide)
       nodePorts.set(port.id, port)
-    }
-    const actionIds = new Set<string>()
-    for (const action of node.actions ?? []) {
-      requireIdentifier(action.id, `action on ${node.id}`)
-      if (actionIds.has(action.id)) throw new Error(`Duplicate action id: ${node.id}/${action.id}`)
-      actionIds.add(action.id)
     }
     nodes.set(node.id, node)
     ports.set(node.id, nodePorts)
@@ -132,6 +113,13 @@ export function validatePositionedNodeSystem(layout: PositionedNodeSystem): Node
       positionedPortIds.add(id)
       if (!expectedPorts.has(id)) throw new Error(`Unknown positioned port: ${entry.node.id}/${id}`)
       requirePoint(entryPort.center.x, entryPort.center.y, `Positioned port center: ${entry.node.id}/${id}`)
+      if (entryPort.side !== "left" && entryPort.side !== "right") {
+        throw new Error(`Invalid positioned port side: ${entry.node.id}/${id}`)
+      }
+      const expectedX = entryPort.side === "left" ? entry.rect.x : entry.rect.x + entry.rect.w
+      if (Math.abs(entryPort.center.x - expectedX) > 1e-6) {
+        throw new Error(`Positioned port is detached from resolved side: ${entry.node.id}/${id}`)
+      }
     }
     if (positionedPortIds.size !== expectedPorts.size) throw new Error(`Positioned ports are incomplete: ${entry.node.id}`)
   }
@@ -157,6 +145,41 @@ export function validatePositionedNodeSystem(layout: PositionedNodeSystem): Node
   return index
 }
 
+/** Validates the UI-independent numeric boundary consumed by layout policies. */
+export function validateMeasuredNodeSystem(measured: MeasuredNodeSystem): NodeSystemIndex {
+  if (measured.geometryKey.length === 0) throw new Error("Measured geometry key must be non-empty")
+  const document: NodeSystemDocument = {
+    ...(measured.revision === undefined ? {} : {revision: measured.revision}),
+    nodes: measured.nodes.map(({node}) => node),
+    edges: measured.edges,
+  }
+  const index = validateNodeSystemDocument(document)
+  const measuredNodeIds = new Set<string>()
+  for (const entry of measured.nodes) {
+    if (measuredNodeIds.has(entry.node.id)) throw new Error(`Duplicate measured node id: ${entry.node.id}`)
+    measuredNodeIds.add(entry.node.id)
+    requirePositiveSize(entry.width, `Measured node width must be positive: ${entry.node.id}`)
+    requirePositiveSize(entry.height, `Measured node height must be positive: ${entry.node.id}`)
+    if (!Number.isFinite(entry.contentHeight) || entry.contentHeight < 0 || entry.contentHeight > entry.height) {
+      throw new Error(`Measured node content height is invalid: ${entry.node.id}`)
+    }
+    const expectedPorts = index.ports.get(entry.node.id) ?? new Map()
+    const measuredPortIds = new Set<string>()
+    for (const entryPort of entry.ports) {
+      const id = entryPort.port.id
+      if (measuredPortIds.has(id)) throw new Error(`Duplicate measured port id: ${entry.node.id}/${id}`)
+      measuredPortIds.add(id)
+      if (!expectedPorts.has(id)) throw new Error(`Unknown measured port: ${entry.node.id}/${id}`)
+      if (!Number.isFinite(entryPort.offsetY) || entryPort.offsetY < 0 || entryPort.offsetY > entry.height) {
+        throw new Error(`Measured port offset is invalid: ${entry.node.id}/${id}`)
+      }
+    }
+    if (measuredPortIds.size !== expectedPorts.size) throw new Error(`Measured ports are incomplete: ${entry.node.id}`)
+  }
+  if (measuredNodeIds.size !== index.nodes.size) throw new Error("Measured nodes are incomplete")
+  return index
+}
+
 function validateEndpoint(
   endpoint: NodeSystemEndpoint,
   role: "source" | "target",
@@ -175,8 +198,8 @@ function requireIdentifier(value: string, label: string): void {
   if (value.trim().length === 0) throw new Error(`${label} id must be non-empty`)
 }
 
-function requirePositiveSize(value: number | undefined, message: string): void {
-  if (value !== undefined && (!Number.isFinite(value) || value <= 0)) throw new Error(message)
+function requirePositiveSize(value: number, message: string): void {
+  if (!Number.isFinite(value) || value <= 0) throw new Error(message)
 }
 
 function requireFiniteOrder(value: number | undefined, message: string): void {

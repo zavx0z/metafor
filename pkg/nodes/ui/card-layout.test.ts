@@ -1,5 +1,6 @@
 import {describe, expect, test} from "bun:test"
-import type {NodeSystemNode, NodeSystemRect} from "nodes/types"
+import type {NodeSystemRect} from "nodes/types"
+import type {NodeSystemCardNode} from "./card-model.ts"
 import {
   NODE_SYSTEM_CARD_METRICS,
   NODE_SYSTEM_PORT_PITCH,
@@ -10,7 +11,7 @@ import {
   type NodeSystemTextMeasurer,
 } from "./card-layout.ts"
 
-const denseNode: NodeSystemNode = {
+const denseNode: NodeSystemCardNode = {
   id: "dense",
   title: "Dense node with a title that must remain inside its slot",
   kind: "runtime",
@@ -23,16 +24,16 @@ const denseNode: NodeSystemNode = {
     {id: "placement", label: "Placement", value: "local"},
   ],
   ports: [
-    {id: "input", parameterId: "state", direction: "in"},
-    {id: "events", parameterId: "revision", direction: "out"},
-    {id: "control", parameterId: "placement", direction: "inout"},
+    {id: "input", rowId: "state", direction: "in"},
+    {id: "events", rowId: "revision", direction: "out"},
+    {id: "control", rowId: "placement", direction: "inout"},
   ],
 }
 
 describe("Flex node-card metric plan", () => {
   test("reports occupied content without decorative trailing body padding", () => {
-    const headerOnly: NodeSystemNode = {id: "header", title: "Header"}
-    const oneFact: NodeSystemNode = {
+    const headerOnly: NodeSystemCardNode = {id: "header", title: "Header"}
+    const oneFact: NodeSystemCardNode = {
       id: "fact",
       title: "Fact",
       facts: [{id: "state", label: "State", value: "ready"}],
@@ -121,7 +122,7 @@ describe("Flex node-card metric plan", () => {
 
   test("does not truncate measured text while the card has enough room", () => {
     const exact: NodeSystemTextMeasurer = (value, fontPx) => value.length * fontPx
-    const node: NodeSystemNode = {
+    const node: NodeSystemCardNode = {
       id: "intrinsic-slots",
       title: "Hamiltonian",
       kind: "distributed coordinator",
@@ -130,7 +131,7 @@ describe("Flex node-card metric plan", () => {
         {id: "supervision", label: "Supervision", value: "input"},
       ],
       ports: [
-        {id: "supervision", parameterId: "supervision", direction: "inout"},
+        {id: "supervision", rowId: "supervision", direction: "inout"},
       ],
     }
     const size = measureNodeSystemCard(node, exact)
@@ -147,7 +148,7 @@ describe("Flex node-card metric plan", () => {
   })
 
   test("keeps data direction independent from the requested visual side", () => {
-    const node: NodeSystemNode = {
+    const node: NodeSystemCardNode = {
       id: "sides",
       title: "Sides",
       facts: [
@@ -155,8 +156,8 @@ describe("Flex node-card metric plan", () => {
         {id: "right", label: "Right", value: "in"},
       ],
       ports: [
-        {id: "out-left", parameterId: "left", direction: "out", side: "left"},
-        {id: "in-right", parameterId: "right", direction: "in", side: "right"},
+        {id: "out-left", rowId: "left", direction: "out", side: "left"},
+        {id: "in-right", rowId: "right", direction: "in", side: "right"},
       ],
     }
     const size = measureNodeSystemCard(node)

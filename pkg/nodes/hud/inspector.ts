@@ -7,7 +7,7 @@ import {
   type HudPaneFrameChange,
   type HudWindowTitleBarAction,
 } from "@ui/hud"
-import type {NodeSystemAction, NodeSystemNode} from "nodes/types"
+import type {NodeSystemCardAction, NodeSystemCardNode} from "@nodes/ui/card-model"
 
 export type NodeInspectorSurfaceOptions = UiSurfaceOpts & Readonly<{
   title?: string
@@ -16,7 +16,7 @@ export type NodeInspectorSurfaceOptions = UiSurfaceOpts & Readonly<{
   onFrameRectChange?: (change: HudPaneFrameChange) => void
   onStickFrameRectChange?: (change: HudPaneFrameChange) => void
   titleBarActions?: readonly HudWindowTitleBarAction[]
-  onAction?: (node: NodeSystemNode, action: NodeSystemAction) => void
+  onAction?: (node: NodeSystemCardNode, action: NodeSystemCardAction) => void
 }>
 
 export type NodeInspectorRow = Readonly<{
@@ -25,7 +25,7 @@ export type NodeInspectorRow = Readonly<{
   value: string
 }>
 
-export function nodeInspectorRows(node: NodeSystemNode): readonly NodeInspectorRow[] {
+export function nodeInspectorRows(node: NodeSystemCardNode): readonly NodeInspectorRow[] {
   return [
     {id: "identity", label: "Идентификатор", value: node.id},
     ...(node.kind === undefined ? [] : [{id: "kind", label: "Тип", value: node.kind}]),
@@ -78,8 +78,8 @@ export class NodeInspectorSurface extends UiSurface {
   readonly #onFrameRectChange: ((change: HudPaneFrameChange) => void) | undefined
   readonly #onStickFrameRectChange: ((change: HudPaneFrameChange) => void) | undefined
   readonly #titleBarActions: readonly HudWindowTitleBarAction[]
-  readonly #onAction: ((node: NodeSystemNode, action: NodeSystemAction) => void) | undefined
-  #node: NodeSystemNode | null = null
+  readonly #onAction: ((node: NodeSystemCardNode, action: NodeSystemCardAction) => void) | undefined
+  #node: NodeSystemCardNode | null = null
   #open: boolean
 
   constructor(options: NodeInspectorSurfaceOptions = {}) {
@@ -100,7 +100,7 @@ export class NodeInspectorSurface extends UiSurface {
     this.node.name = "NodeInspectorSurface"
   }
 
-  get inspectedNode(): NodeSystemNode | null {
+  get inspectedNode(): NodeSystemCardNode | null {
     return this.#node
   }
 
@@ -120,7 +120,7 @@ export class NodeInspectorSurface extends UiSurface {
     return this.setOpen(!this.#open)
   }
 
-  inspect(node: NodeSystemNode | null): void {
+  inspect(node: NodeSystemCardNode | null): void {
     if (this.#node === node) return
     this.#node = node
     this.requestRender()
@@ -221,9 +221,9 @@ export class NodeInspectorSurface extends UiSurface {
   }
 
   #drawNodeContent(
-    node: NodeSystemNode,
+    node: NodeSystemCardNode,
     rows: readonly NodeInspectorRow[],
-    actions: readonly NodeSystemAction[],
+    actions: readonly NodeSystemCardAction[],
     x: number,
     y: number,
     w: number,
@@ -311,8 +311,8 @@ export class NodeInspectorSurface extends UiSurface {
   }
 
   #drawActions(
-    node: NodeSystemNode,
-    actions: readonly NodeSystemAction[],
+    node: NodeSystemCardNode,
+    actions: readonly NodeSystemCardAction[],
     x: number,
     y: number,
     w: number,

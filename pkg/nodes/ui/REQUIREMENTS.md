@@ -6,16 +6,19 @@
 
 ## Intrinsic measurement
 
-1. `@nodes/ui` до вызова layout измеряет фактические intrinsic width/height
-   карточки, нижнюю границу занятого собственного content и offsets центров
-   видимых parameter sockets. Измерение использует тот же card plan, шрифты и
-   содержимое, которые затем отображаются.
-2. `contentHeight` заканчивается на последней занятой строке карточки либо на
+1. Card Model является presentation preset `@nodes/ui`, а не частью semantic
+   `NodeSystemDocument`. Она владеет `title`, `summary`, `tone`, facts, actions,
+   размерами и явными anchors `semantic port ID → Card row ID`.
+2. Card adapter проверяет полноту ссылок и до вызова layout измеряет фактические
+   intrinsic width/height карточки, нижнюю границу занятого собственного content
+   и offsets центров видимых sockets. Измерение использует тот же card plan,
+   шрифты и содержимое, которые затем отображаются.
+3. `contentHeight` заканчивается на последней занятой строке карточки либо на
    нижней границе header, если собственных строк нет. Декоративный нижний
    padding в эту величину не входит.
-3. Расстояние между центрами соседних parameter sockets передаётся владельцу
+4. Расстояние между центрами соседних sockets передаётся владельцу
    layout как единый socket pitch. UI не добавляет к нему скрытый spacing.
-4. Масштабирование одинаково применяется к card slots и socket offsets. UI не
+5. Масштабирование одинаково применяется к card slots и socket offsets. UI не
    выбирает координаты нод, compound, gateways или bends.
 
 ## Отображение geometry
@@ -42,7 +45,8 @@
    consumer-provided resolver по их общему `connectionType`; без resolver
    применяется детерминированный универсальный fallback. Вход и выход одного
    типа имеют одинаковый цвет. `direction` задаёт универсальную capability,
-   placement side выбирает adapter или явный `side`; состояние
+   optional semantic `side` ограничивает placement, а renderer использует
+   обязательный resolved side из positioned result; состояние
    `neutral / live / paused / warn` передаётся отдельным признаком и не меняет
    цветовую identity типа соединения.
 

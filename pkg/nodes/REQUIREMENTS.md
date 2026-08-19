@@ -1,26 +1,33 @@
 # Требования пакета nodes
 
-Этот документ владеет требованиями к общей model/geometry границе и fixed card
-adapter. Алгоритмические законы находятся отдельно в `@nodes/layout`: [общие](layout/requirements/COMMON.md),
+Этот документ владеет требованиями к общей semantic/measured/positioned
+границе. Card presentation и fixed Card adapter принадлежат `@nodes/ui`.
+Алгоритмические законы находятся отдельно в `@nodes/layout`: [общие](layout/requirements/COMMON.md),
 [`RIGHT`](layout/requirements/RIGHT.md) и [`DOWN`](layout/requirements/DOWN.md).
 
 ## Projection и измерение
 
-1. `nodes` владеет validation node-system model и containment index.
-   `@nodes/ui/fixed-card-layout` владеет преобразованием измеренного generic
-   card preset в минимальный `LayoutGraph`.
-2. Загруженный renderer font и card plan измеряются до вызова layout. В graph
-   передаются только числовые intrinsic sizes, content boundary и port offsets;
-   текст, facts, actions, Flex и `NodeSystemDocument` границу не пересекают.
-3. Fixed card adapter связывает layout result с исходным document по semantic IDs без
+1. `nodes` владеет validation единой semantic topology и containment index.
+   Semantic port принадлежит node; Card row, label, action или другой
+   presentation element не является его владельцем.
+2. `NodeSystemDocument` не требует `title`, `summary`, `tone`, facts, actions,
+   размеров либо UI-anchor. Presentation adapter связывает semantic IDs со
+   своим содержимым без создания параллельной topology.
+3. Общий `MeasuredNodeSystem` содержит ту же topology, числовые intrinsic
+   размеры, content boundary и offsets anchors. В нём нет Card, текста, DOM,
+   Flex, WebGPU или product vocabulary.
+4. Layout result возвращает resolved side каждого port отдельно от optional
+   semantic side constraint. Renderer не выводит side из координаты и adapter
+   не мутирует semantic port после layout.
+5. Fixed card adapter связывает layout result с исходным document по semantic IDs без
    post-routing и без изменения рассчитанной geometry.
-4. Domain `NodeSystemNode.id` остаётся exact identity факта, action и endpoint.
+6. Domain `NodeSystemNode.id` остаётся exact identity node и endpoint.
    Если runtime incarnation меняется, но visual slot остаётся тем же, producer
    передаёт отдельный уникальный `layoutId`. Adapter использует его только как
    стабильную identity минимального `LayoutGraph`, а результат связывает
    обратно с domain IDs. Runtime UUID, время появления и порядок lifecycle
    событий сами по себе не являются сигналом для другой geometry.
-5. Fixed card adapter может переставлять только связанные parameter rows,
+7. Presentation adapter может переставлять только связанные Card rows,
    чтобы прежде всего уменьшить edge-edge crossings, затем bends и Manhattan
    length. ID параметров и edges не меняются, обычные и несвязанные строки
    сохраняют исходный порядок. Если crossing устраняется перестановкой строк,

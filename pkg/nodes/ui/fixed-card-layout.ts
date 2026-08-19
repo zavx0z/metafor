@@ -8,28 +8,31 @@ import type {
 import {layout as calculateLayout} from "@nodes/layout"
 import type {LayoutWorkerClient} from "nodes/layout-worker"
 import type {
-  NodeSystemDocument,
-  NodeSystemEdge,
-  NodeSystemNode,
+  MeasuredNodeSystem,
+  MeasuredNodeSystemNode,
   NodeSystemPort,
-  PositionedNodeSystem,
-  PositionedNodeSystemEdge,
-  PositionedNodeSystemNode,
   PositionedNodeSystemPort,
 } from "nodes/types"
 import {
   NODE_SYSTEM_PORT_PITCH,
-  measureNodeSystemCard,
-  measureNodeSystemCardContentHeight,
+  measureNodeSystemCardPreset,
   memoizedTextMeasurer,
-  nodeSystemGeometryKey,
   planNodeSystemCard,
   type NodeSystemTextMeasurer,
 } from "./card-layout.ts"
-import {validateNodeSystemDocument, validatePositionedNodeSystem} from "nodes/validation"
+import type {
+  NodeSystemCardEdge,
+  NodeSystemCardNode,
+  NodeSystemCardPort,
+  NodeSystemCardPreset,
+  PositionedNodeSystemCard,
+  PositionedNodeSystemCardEdge,
+  PositionedNodeSystemCardNode,
+} from "./card-model.ts"
+import {validateMeasuredNodeSystem, validateNodeSystemDocument, validatePositionedNodeSystem} from "nodes/validation"
 
 type LayoutPass = Readonly<{
-  positioned: PositionedNodeSystem
+  positioned: PositionedNodeSystemCard
   result: LayoutResult
 }>
 
@@ -53,9 +56,9 @@ export class FixedNodeSystemCardLayouter {
   constructor(private readonly options: FixedNodeSystemCardLayoutOptions = {}) {}
 
   layout(
-    document: NodeSystemDocument,
+    document: NodeSystemCardPreset,
     request: FixedNodeSystemCardLayoutRequest,
-  ): PositionedNodeSystem {
+  ): PositionedNodeSystemCard {
     validateNodeSystemDocument(document)
     const viewport = {
       width: positiveViewport(request.viewport.width, "viewport width"),
@@ -80,7 +83,7 @@ export class FixedNodeSystemCardLayouter {
   }
 
   private layoutPass(
-    document: NodeSystemDocument,
+    document: NodeSystemCardPreset,
     viewport: Readonly<{width: number; height: number}>,
     measureText?: NodeSystemTextMeasurer,
   ): LayoutPass {
@@ -100,10 +103,10 @@ export class FixedNodeSystemCardWorkerLayouter {
   ) {}
 
   async layout(
-    document: NodeSystemDocument,
+    document: NodeSystemCardPreset,
     request: FixedNodeSystemCardLayoutRequest,
     generation: number,
-  ): Promise<PositionedNodeSystem> {
+  ): Promise<PositionedNodeSystemCard> {
     validateNodeSystemDocument(document)
     const viewport = {
       width: positiveViewport(request.viewport.width, "viewport width"),
@@ -126,7 +129,7 @@ export class FixedNodeSystemCardWorkerLayouter {
   }
 
   private async layoutPass(
-    document: NodeSystemDocument,
+    document: NodeSystemCardPreset,
     viewport: Readonly<{width: number; height: number}>,
     measureText: NodeSystemTextMeasurer | undefined,
     generation: number,
@@ -138,9 +141,10 @@ export class FixedNodeSystemCardWorkerLayouter {
 }
 
 type PreparedLayoutPass = Readonly<{
-  document: NodeSystemDocument
-  nodes: readonly NodeSystemNode[]
-  edges: readonly NodeSystemEdge[]
+  document: NodeSystemCardPreset
+  nodes: readonly NodeSystemCardNode[]
+  edges: readonly NodeSystemCardEdge[]
+  measured: MeasuredNodeSystem
   graph: LayoutGraph
   layoutNodeIdByNodeId: ReadonlyMap<string, string>
   layoutEdgeIdByEdgeId: ReadonlyMap<string, string>
@@ -149,23 +153,18 @@ type PreparedLayoutPass = Readonly<{
 }>
 
 function prepareLayoutPass(
-  document: NodeSystemDocument,
+  document: NodeSystemCardPreset,
   viewport: Readonly<{width: number; height: number}>,
   options: FixedNodeSystemCardLayoutOptions,
   measureText?: NodeSystemTextMeasurer,
 ): PreparedLayoutPass {
-  const index = validateNodeSystemDocument(document)
+  const measured = measureNodeSystemCardPreset(document, measureText)
+  const index = validateMeasuredNodeSystem(measured)
   const nodes = [...document.nodes].sort(compareOrdered)
   const edges = [...document.edges].sort(compareOrdered)
   const layoutNodeIdByNodeId = new Map(nodes.map((node) => [node.id, node.layoutId ?? node.id]))
   const layoutEdgeIdByEdgeId = stableLayoutEdgeIds(edges, layoutNodeIdByNodeId)
-  const cards = new Map(nodes.map((node) => {
-    const size = measureNodeSystemCard(node, measureText)
-    return [node.id, {
-      size,
-      plan: planNodeSystemCard(node, {x: 0, y: 0, w: size.width, h: size.height}, 1, measureText),
-    }] as const
-  }))
+  const measuredNodes = new Map(measured.nodes.map((entry) => [entry.node.id, entry]))
   const ports = new Map<string, LayoutPort>()
   const layoutEdges: LayoutEdge[] = edges.map((edge) => {
     const source = endpointPort(edge, "source", index.ports)
@@ -175,7 +174,7 @@ function prepareLayoutPass(
       edge.source.nodeId,
       required(layoutNodeIdByNodeId.get(edge.source.nodeId), `Missing source layout identity: ${edge.id}`),
       source,
-      cards,
+      measuredNodes,
       "out",
       "EAST",
       edge.id,
@@ -185,7 +184,7 @@ function prepareLayoutPass(
       edge.target.nodeId,
       required(layoutNodeIdByNodeId.get(edge.target.nodeId), `Missing target layout identity: ${edge.id}`),
       target,
-      cards,
+      measuredNodes,
       "in",
       "WEST",
       edge.id,
@@ -206,15 +205,15 @@ function prepareLayoutPass(
       padding: positiveOption(options.padding, NODE_SYSTEM_PORT_PITCH),
     },
     nodes: nodes.map((node) => {
-      const size = cards.get(node.id)!.size
+      const entry = required(measuredNodes.get(node.id), `Missing measured node: ${node.id}`)
       return {
         id: required(layoutNodeIdByNodeId.get(node.id), `Missing node layout identity: ${node.id}`),
         ...(node.parentId === undefined ? {} : {
           parentId: required(layoutNodeIdByNodeId.get(node.parentId), `Missing parent layout identity: ${node.id}`),
         }),
-        width: size.width,
-        height: size.height,
-        contentHeight: measureNodeSystemCardContentHeight(node),
+        width: entry.width,
+        height: entry.height,
+        contentHeight: entry.contentHeight,
       }
     }),
     ports: [...ports.values()].sort((left, right) => compareIds(left.id, right.id)),
@@ -224,10 +223,11 @@ function prepareLayoutPass(
     document,
     nodes,
     edges,
+    measured,
     graph,
     layoutNodeIdByNodeId,
     layoutEdgeIdByEdgeId,
-    geometryKey: nodeSystemGeometryKey(document, measureText),
+    geometryKey: measured.geometryKey,
     ...(measureText === undefined ? {} : {measureText}),
   }
 }
@@ -253,15 +253,15 @@ function materializeLayoutPass(prepared: PreparedLayoutPass, result: LayoutResul
  * remain unchanged.
  */
 export function orderFixedNodeSystemCardPortFactsForLayout(
-  document: NodeSystemDocument,
-  positioned: PositionedNodeSystem,
+  document: NodeSystemCardPreset,
+  positioned: PositionedNodeSystemCard,
   _direction: LayoutDirection,
-): NodeSystemDocument {
+): NodeSystemCardPreset {
   const positionedNodes = new Map(positioned.nodes.map((entry) => [entry.node.id, entry]))
   const parameterByPort = new Map<string, string>()
   for (const node of document.nodes) {
     for (const port of node.ports ?? []) {
-      parameterByPort.set(enginePortId(node.id, port.id), port.parameterId)
+      parameterByPort.set(enginePortId(node.id, port.id), port.rowId)
     }
   }
 
@@ -272,15 +272,15 @@ export function orderFixedNodeSystemCardPortFactsForLayout(
     counterpartNodeId: string,
     counterpartPortId: string,
   ): void => {
-    const parameterId = parameterByPort.get(enginePortId(nodeId, portId))
+    const rowId = parameterByPort.get(enginePortId(nodeId, portId))
     const counterpart = positionedNodes.get(counterpartNodeId)
-    if (parameterId === undefined || counterpart === undefined) return
+    if (rowId === undefined || counterpart === undefined) return
     // Every semantic endpoint is on WEST/EAST in both responsive directions,
     // so parameter rows must follow the exact longitudinal Y of the opposite
     // socket. Sorting DOWN by node X leaves avoidable vertical doglegs intact.
     const coordinate = counterpart.ports.find(({port}) => port.id === counterpartPortId)?.center.y
     if (coordinate === undefined) return
-    const key = enginePortId(nodeId, parameterId)
+    const key = enginePortId(nodeId, rowId)
     const values = coordinates.get(key) ?? []
     values.push(coordinate)
     coordinates.set(key, values)
@@ -291,7 +291,7 @@ export function orderFixedNodeSystemCardPortFactsForLayout(
   }
 
   let changed = false
-  const nodes = document.nodes.map((node): NodeSystemNode => {
+  const nodes = document.nodes.map((node): NodeSystemCardNode => {
     const facts = node.facts ?? []
     const connectedSlots = facts.flatMap((fact, index) =>
       coordinates.has(enginePortId(node.id, fact.id)) ? [index] : [])
@@ -300,11 +300,11 @@ export function orderFixedNodeSystemCardPortFactsForLayout(
     if (positionedNode === undefined) return node
     const portRows = new Map<string, number[]>()
     for (const entry of positionedNode.ports) {
-      const parameterId = parameterByPort.get(enginePortId(node.id, entry.port.id))
-      if (parameterId === undefined) continue
-      const rows = portRows.get(parameterId) ?? []
+      const rowId = parameterByPort.get(enginePortId(node.id, entry.port.id))
+      if (rowId === undefined) continue
+      const rows = portRows.get(rowId) ?? []
       rows.push(entry.center.y)
-      portRows.set(parameterId, rows)
+      portRows.set(rowId, rows)
     }
     const slotYs = connectedSlots.map((index) => median(portRows.get(facts[index]!.id) ?? []))
     if (slotYs.some((value) => value === null)) return node
@@ -330,21 +330,21 @@ export function orderFixedNodeSystemCardPortFactsForLayout(
  * Raw lifecycle order is not presentation state. Canonicalize only connected
  * facts inside their existing slots; unrelated rows keep their exact position.
  */
-function canonicalizeConnectedNodeSystemFacts(document: NodeSystemDocument): NodeSystemDocument {
+function canonicalizeConnectedNodeSystemFacts(document: NodeSystemCardPreset): NodeSystemCardPreset {
   const parameterByPort = new Map(document.nodes.flatMap((node) =>
-    (node.ports ?? []).map((port) => [enginePortId(node.id, port.id), port.parameterId] as const)))
+    (node.ports ?? []).map((port) => [enginePortId(node.id, port.id), port.rowId] as const)))
   const connectedParameters = new Map<string, Set<string>>()
   for (const edge of document.edges) {
     for (const endpoint of [edge.source, edge.target]) {
-      const parameterId = parameterByPort.get(enginePortId(endpoint.nodeId, endpoint.portId))
-      if (parameterId === undefined) continue
+      const rowId = parameterByPort.get(enginePortId(endpoint.nodeId, endpoint.portId))
+      if (rowId === undefined) continue
       const parameters = connectedParameters.get(endpoint.nodeId) ?? new Set<string>()
-      parameters.add(parameterId)
+      parameters.add(rowId)
       connectedParameters.set(endpoint.nodeId, parameters)
     }
   }
   let changed = false
-  const nodes = document.nodes.map((node): NodeSystemNode => {
+  const nodes = document.nodes.map((node): NodeSystemCardNode => {
     const connected = connectedParameters.get(node.id)
     if (connected === undefined || connected.size < 2 || node.facts === undefined) return node
     const slots = node.facts.flatMap((fact, index) => connected.has(fact.id) ? [index] : [])
@@ -364,13 +364,13 @@ function canonicalizeConnectedNodeSystemFacts(document: NodeSystemDocument): Nod
  * the median/barycenter proposal is the fallback when no such swap exists.
  */
 function nodeSystemPortFactOrderCandidates(
-  document: NodeSystemDocument,
+  document: NodeSystemCardPreset,
   first: LayoutPass,
-): readonly NodeSystemDocument[] {
-  const candidates = new Map<string, NodeSystemDocument>()
+): readonly NodeSystemCardPreset[] {
+  const candidates = new Map<string, NodeSystemCardPreset>()
   const originalKey = nodeSystemFactOrderKey(document)
   candidates.set(originalKey, document)
-  const add = (candidate: NodeSystemDocument): void => {
+  const add = (candidate: NodeSystemCardPreset): void => {
     if (candidates.size >= MAX_CONNECTED_ROW_ORDER_CANDIDATES) return
     const key = nodeSystemFactOrderKey(candidate)
     if (!candidates.has(key)) candidates.set(key, candidate)
@@ -392,8 +392,8 @@ function nodeSystemPortFactOrderCandidates(
     for (const leftEndpoint of [left.source, left.target]) {
       for (const rightEndpoint of [right.source, right.target]) {
         if (leftEndpoint.nodeId !== rightEndpoint.nodeId) continue
-        const leftParameterId = portByEndpoint.get(enginePortId(leftEndpoint.nodeId, leftEndpoint.portId))?.parameterId
-        const rightParameterId = portByEndpoint.get(enginePortId(rightEndpoint.nodeId, rightEndpoint.portId))?.parameterId
+        const leftParameterId = portByEndpoint.get(enginePortId(leftEndpoint.nodeId, leftEndpoint.portId))?.rowId
+        const rightParameterId = portByEndpoint.get(enginePortId(rightEndpoint.nodeId, rightEndpoint.portId))?.rowId
         if (leftParameterId === undefined || rightParameterId === undefined || leftParameterId === rightParameterId) continue
         const orderedParameterIds = [leftParameterId, rightParameterId].sort(compareIds)
         const firstParameterId = orderedParameterIds[0]!
@@ -437,7 +437,7 @@ function nodeSystemPortFactOrderCandidates(
     .map(([, candidate]) => candidate)
 }
 
-function crossingEdgePairs(positioned: PositionedNodeSystem): readonly (readonly [string, string])[] {
+function crossingEdgePairs(positioned: PositionedNodeSystemCard): readonly (readonly [string, string])[] {
   const pairs = new Set<string>()
   const edges = [...positioned.edges].sort((left, right) => compareIds(left.edge.id, right.edge.id))
   for (let leftIndex = 0; leftIndex < edges.length; leftIndex += 1) {
@@ -465,13 +465,13 @@ function crossingEdgePairs(positioned: PositionedNodeSystem): readonly (readonly
 }
 
 function swapNodeSystemFacts(
-  document: NodeSystemDocument,
+  document: NodeSystemCardPreset,
   nodeId: string,
   leftParameterId: string,
   rightParameterId: string,
-): NodeSystemDocument {
+): NodeSystemCardPreset {
   let changed = false
-  const nodes = document.nodes.map((node): NodeSystemNode => {
+  const nodes = document.nodes.map((node): NodeSystemCardNode => {
     if (node.id !== nodeId || node.facts === undefined) return node
     const leftIndex = node.facts.findIndex(({id}) => id === leftParameterId)
     const rightIndex = node.facts.findIndex(({id}) => id === rightParameterId)
@@ -486,7 +486,7 @@ function swapNodeSystemFacts(
   return changed ? {...document, nodes} : document
 }
 
-function nodeSystemFactOrderKey(document: NodeSystemDocument): string {
+function nodeSystemFactOrderKey(document: NodeSystemCardPreset): string {
   return JSON.stringify([...document.nodes]
     .sort((left, right) => compareIds(left.id, right.id))
     .map((node) => [node.id, (node.facts ?? []).map(({id}) => id)]))
@@ -501,10 +501,10 @@ type RowAssignment = Readonly<{
 
 function assignFactsToRows(
   nodeId: string,
-  facts: readonly NonNullable<NodeSystemNode["facts"]>[number][],
+  facts: readonly NonNullable<NodeSystemCardNode["facts"]>[number][],
   slotYs: readonly number[],
   coordinates: ReadonlyMap<string, readonly number[]>,
-): readonly NonNullable<NodeSystemNode["facts"]>[number][] {
+): readonly NonNullable<NodeSystemCardNode["facts"]>[number][] {
   if (facts.length > 10) {
     return [...facts].sort((left, right) => {
       const leftMedian = median(coordinates.get(enginePortId(nodeId, left.id)) ?? []) ?? 0
@@ -647,7 +647,7 @@ function properPerpendicularLayoutCrossing(
 }
 
 function endpointPort(
-  edge: NodeSystemEdge,
+  edge: NodeSystemCardEdge,
   role: "source" | "target",
   ports: ReadonlyMap<string, ReadonlyMap<string, NodeSystemPort>>,
 ): NodeSystemPort {
@@ -662,7 +662,7 @@ function addLayoutPort(
   nodeId: string,
   layoutNodeId: string,
   port: NodeSystemPort,
-  cards: ReadonlyMap<string, Readonly<{plan: ReturnType<typeof planNodeSystemCard>}>>,
+  measuredNodes: ReadonlyMap<string, MeasuredNodeSystemNode>,
   direction: "in" | "out",
   side: "WEST" | "EAST",
   edgeId: string,
@@ -673,12 +673,12 @@ function addLayoutPort(
     throw new Error(`${direction === "out" ? "source" : "target"} must be ${direction}/${side}: ${edgeId}`)
   }
   const id = enginePortId(layoutNodeId, port.id)
-  const marker = cards.get(nodeId)?.plan.ports.find((entry) => entry.port.id === port.id)?.marker
-  if (marker === undefined) throw new Error(`Card omitted parameter socket: ${nodeId}/${port.id}`)
+  const measuredPort = measuredNodes.get(nodeId)?.ports.find((entry) => entry.port.id === port.id)
+  if (measuredPort === undefined) throw new Error(`Measurement omitted socket: ${nodeId}/${port.id}`)
   const candidate: LayoutPort = {
     id,
     nodeId: layoutNodeId,
-    y: marker.y + marker.h / 2,
+    y: measuredPort.offsetY,
   }
   const existing = layoutPorts.get(id)
   if (existing !== undefined && JSON.stringify(existing) !== JSON.stringify(candidate)) {
@@ -688,15 +688,15 @@ function addLayoutPort(
 }
 
 function positionedDocument(
-  document: NodeSystemDocument,
-  nodes: readonly NodeSystemNode[],
-  edges: readonly NodeSystemEdge[],
+  document: NodeSystemCardPreset,
+  nodes: readonly NodeSystemCardNode[],
+  edges: readonly NodeSystemCardEdge[],
   result: LayoutResult,
   geometryKey: string,
   layoutNodeIdByNodeId: ReadonlyMap<string, string>,
   layoutEdgeIdByEdgeId: ReadonlyMap<string, string>,
   measureText?: NodeSystemTextMeasurer,
-): PositionedNodeSystem {
+): PositionedNodeSystemCard {
   const rects = new Map(result.nodes.map((node) => [node.id, {
     x: node.x,
     y: node.y,
@@ -707,7 +707,7 @@ function positionedDocument(
     x: port.x,
     y: port.y,
   }]))
-  const positionedNodes = nodes.map((node): PositionedNodeSystemNode => {
+  const positionedNodes = nodes.map((node): PositionedNodeSystemCardNode => {
     const layoutNodeId = required(layoutNodeIdByNodeId.get(node.id), `Missing positioned layout identity: ${node.id}`)
     const rect = required(rects.get(layoutNodeId), `Layout omitted node: ${node.id}`)
     const card = planNodeSystemCard(node, rect, 1, measureText)
@@ -716,8 +716,10 @@ function positionedDocument(
         card.ports.find((entry) => entry.port.id === port.id)?.marker,
         `Card omitted positioned socket: ${node.id}/${port.id}`,
       )
+      const side = port.side ?? (port.direction === "in" ? "left" : "right")
       return {
-        port,
+        port: semanticPort(port),
+        side,
         center: exactEndpointCenters.get(enginePortId(layoutNodeId, port.id)) ?? {
           x: marker.x + marker.w / 2,
           y: marker.y + marker.h / 2,
@@ -727,7 +729,7 @@ function positionedDocument(
     return {node, rect, ports}
   })
   const sections = new Map(result.edges.map((edge) => [edge.id, edge.sections[0]]))
-  const positionedEdges = edges.map((edge): PositionedNodeSystemEdge => {
+  const positionedEdges = edges.map((edge): PositionedNodeSystemCardEdge => {
     const layoutEdgeId = required(layoutEdgeIdByEdgeId.get(edge.id), `Missing positioned edge identity: ${edge.id}`)
     const section = required(sections.get(layoutEdgeId), `Layout omitted edge: ${edge.id}`)
     return {
@@ -750,10 +752,10 @@ function positionedDocument(
 }
 
 function stableLayoutEdgeIds(
-  edges: readonly NodeSystemEdge[],
+  edges: readonly NodeSystemCardEdge[],
   layoutNodeIdByNodeId: ReadonlyMap<string, string>,
 ): ReadonlyMap<string, string> {
-  const key = (edge: NodeSystemEdge): string => JSON.stringify([
+  const key = (edge: NodeSystemCardEdge): string => JSON.stringify([
     required(layoutNodeIdByNodeId.get(edge.source.nodeId), `Missing source layout identity: ${edge.id}`),
     edge.source.portId,
     required(layoutNodeIdByNodeId.get(edge.target.nodeId), `Missing target layout identity: ${edge.id}`),
@@ -767,6 +769,15 @@ function stableLayoutEdgeIds(
 
 function enginePortId(nodeId: string, portId: string): string {
   return `${nodeId}\u0000${portId}`
+}
+
+function semanticPort(port: NodeSystemCardPort): NodeSystemPort {
+  return {
+    id: port.id,
+    direction: port.direction,
+    ...(port.connectionType === undefined ? {} : {connectionType: port.connectionType}),
+    ...(port.side === undefined ? {} : {side: port.side}),
+  }
 }
 
 function positiveViewport(value: number, label: string): number {

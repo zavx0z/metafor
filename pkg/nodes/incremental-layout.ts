@@ -1,6 +1,9 @@
 import type {
+  NodeSystemEdge,
   NodeSystemEndpoint,
+  NodeSystemNode,
   NodeSystemPoint,
+  NodeSystemPort,
   NodeSystemRect,
   PositionedNodeSystem,
   PositionedNodeSystemEdge,
@@ -140,21 +143,29 @@ function median(values: readonly number[]): number {
 }
 
 /** Moves one fixed node and its ports without changing any other node. */
-export function moveNodeSystemNode(
-  layout: PositionedNodeSystem,
+export function moveNodeSystemNode<
+  TNode extends NodeSystemNode,
+  TPort extends NodeSystemPort,
+  TEdge extends NodeSystemEdge,
+>(
+  layout: PositionedNodeSystem<TNode, TPort, TEdge>,
   nodeId: string,
   position: NodeSystemPoint,
   options: Pick<StableNodeSystemLayoutOptions, "padding"> = {},
-): PositionedNodeSystem {
+): PositionedNodeSystem<TNode, TPort, TEdge> {
   return moveNodeSystemNodes(layout, new Map([[nodeId, position]]), options)
 }
 
 /** Moves a fixed group atomically and updates every connected endpoint once. */
-export function moveNodeSystemNodes(
-  layout: PositionedNodeSystem,
+export function moveNodeSystemNodes<
+  TNode extends NodeSystemNode,
+  TPort extends NodeSystemPort,
+  TEdge extends NodeSystemEdge,
+>(
+  layout: PositionedNodeSystem<TNode, TPort, TEdge>,
   positions: ReadonlyMap<string, NodeSystemPoint>,
   options: Pick<StableNodeSystemLayoutOptions, "padding"> = {},
-): PositionedNodeSystem {
+): PositionedNodeSystem<TNode, TPort, TEdge> {
   validatePositionedNodeSystem(layout)
   const expandedPositions = new Map(positions)
   const currentById = new Map(layout.nodes.map((entry) => [entry.node.id, entry]))
@@ -182,14 +193,14 @@ export function moveNodeSystemNodes(
     return position === undefined ? entry : translateNode(entry, position.x, position.y)
   })
   const nodeIndex = new Map(nodes.map((entry) => [entry.node.id, entry]))
-  const edges = layout.edges.map((entry): PositionedNodeSystemEdge => {
+  const edges = layout.edges.map((entry): PositionedNodeSystemEdge<TEdge> => {
     if (!expandedPositions.has(entry.edge.source.nodeId) && !expandedPositions.has(entry.edge.target.nodeId)) return entry
     const points = [...entry.points]
     if (expandedPositions.has(entry.edge.source.nodeId)) points[0] = endpointCenter(entry.edge.source, nodeIndex)
     if (expandedPositions.has(entry.edge.target.nodeId)) points[points.length - 1] = endpointCenter(entry.edge.target, nodeIndex)
     return {...entry, points}
   })
-  const result: PositionedNodeSystem = {
+  const result: PositionedNodeSystem<TNode, TPort, TEdge> = {
     ...layout,
     bounds: contentBounds(nodes, finiteNonNegative(options.padding, 40)),
     nodes,
@@ -204,25 +215,30 @@ export function moveNodeSystemNodes(
  * their normalized horizontal position, so left/right sockets stay attached
  * to the resized border and connected edge endpoints follow immediately.
  */
-export function resizeNodeSystemNode(
-  layout: PositionedNodeSystem,
+export function resizeNodeSystemNode<
+  TNode extends NodeSystemNode,
+  TPort extends NodeSystemPort,
+  TEdge extends NodeSystemEdge,
+>(
+  layout: PositionedNodeSystem<TNode, TPort, TEdge>,
   nodeId: string,
   rect: Readonly<{x: number; w: number}>,
   options: Pick<StableNodeSystemLayoutOptions, "padding"> = {},
-): PositionedNodeSystem {
+): PositionedNodeSystem<TNode, TPort, TEdge> {
   validatePositionedNodeSystem(layout)
   if (!Number.isFinite(rect.x) || !Number.isFinite(rect.w) || rect.w <= 0) {
     throw new Error(`Invalid node width: ${nodeId}`)
   }
   const current = required(layout.nodes.find(({node}) => node.id === nodeId), `Missing positioned node: ${nodeId}`)
   if (current.node.parentId !== undefined) throw new Error(`Contained node width is controlled by its parent: ${nodeId}`)
-  const resized: PositionedNodeSystemNode = {
+  const resized: PositionedNodeSystemNode<TNode, TPort> = {
     node: current.node,
     rect: {...current.rect, x: rect.x, w: rect.w},
-    ports: current.ports.map(({port, center}) => {
+    ports: current.ports.map(({port, side, center}) => {
       const horizontalRatio = (center.x - current.rect.x) / current.rect.w
       return {
         port,
+        side,
         center: {
           x: rect.x + horizontalRatio * rect.w,
           y: center.y,
@@ -230,7 +246,7 @@ export function resizeNodeSystemNode(
       }
     }),
   }
-  const translatedChildren = new Map<string, PositionedNodeSystemNode>()
+  const translatedChildren = new Map<string, PositionedNodeSystemNode<TNode, TPort>>()
   const directDeltas = new Map<string, NodeSystemPoint>()
   for (const child of layout.nodes) {
     if (child.node.parentId !== nodeId) continue
@@ -253,14 +269,14 @@ export function resizeNodeSystemNode(
     entry.node.id === nodeId ? resized : translatedChildren.get(entry.node.id) ?? entry)
   const nodeIndex = new Map(nodes.map((entry) => [entry.node.id, entry]))
   const changedNodeIds = new Set([nodeId, ...translatedChildren.keys()])
-  const edges = layout.edges.map((entry): PositionedNodeSystemEdge => {
+  const edges = layout.edges.map((entry): PositionedNodeSystemEdge<TEdge> => {
     if (!changedNodeIds.has(entry.edge.source.nodeId) && !changedNodeIds.has(entry.edge.target.nodeId)) return entry
     const points = [...entry.points]
     if (changedNodeIds.has(entry.edge.source.nodeId)) points[0] = endpointCenter(entry.edge.source, nodeIndex)
     if (changedNodeIds.has(entry.edge.target.nodeId)) points[points.length - 1] = endpointCenter(entry.edge.target, nodeIndex)
     return {...entry, points}
   })
-  const result: PositionedNodeSystem = {
+  const result: PositionedNodeSystem<TNode, TPort, TEdge> = {
     ...layout,
     bounds: contentBounds(nodes, finiteNonNegative(options.padding, 40)),
     nodes,
@@ -311,14 +327,19 @@ export function applyNodeSystemAnchors(
   return result
 }
 
-function translateNode(entry: PositionedNodeSystemNode, x: number, y: number): PositionedNodeSystemNode {
+function translateNode<TNode extends NodeSystemNode, TPort extends NodeSystemPort>(
+  entry: PositionedNodeSystemNode<TNode, TPort>,
+  x: number,
+  y: number,
+): PositionedNodeSystemNode<TNode, TPort> {
   const dx = x - entry.rect.x
   const dy = y - entry.rect.y
   return {
     node: entry.node,
     rect: {...entry.rect, x, y},
-    ports: entry.ports.map(({port, center}) => ({
+    ports: entry.ports.map(({port, side, center}) => ({
       port,
+      side,
       center: {x: center.x + dx, y: center.y + dy},
     })),
   }

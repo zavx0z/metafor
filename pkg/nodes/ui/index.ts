@@ -5,6 +5,7 @@
  */
 
 export * from "./card-layout.ts"
+export * from "./card-model.ts"
 export * from "./viewport.ts"
 export * from "./edge-curve.ts"
 export * from "./edge-flow-marker.ts"

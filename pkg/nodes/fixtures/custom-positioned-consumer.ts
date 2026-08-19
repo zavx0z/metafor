@@ -1,7 +1,7 @@
 import {NodeSystemSurface} from "@nodes/ui/surface"
-import type {PositionedNodeSystem} from "nodes/types"
+import type {PositionedNodeSystemCard} from "@nodes/ui/card-model"
 
-export function renderCustomPositionedConsumer(layout: PositionedNodeSystem): NodeSystemSurface {
+export function renderCustomPositionedConsumer(layout: PositionedNodeSystemCard): NodeSystemSurface {
   const surface = new NodeSystemSurface()
   surface.setLayout(layout)
   return surface
