@@ -40,6 +40,13 @@
 визуальные токены и сохранить side-by-side defect matrix с текущим playground.
 До этого не менять renderer на глаз.
 
+`COMPLETE`: owner screenshot Blender 4.5.5 и rejected playground сохранены в
+`project/artifacts/NODES-017`. Official Blender 4.5 source sparse checkout,
+rendered Manual/API и bounded offline Manual snapshot исследованы; source
+revisions, node families/inventory, UI constants, Socket types/shapes/states,
+Frame laws, project divergences и defect matrix записаны в
+`blender-research.md`.
+
 ### NODES-017.2 — Реализовать Frame и настоящую вложенность Node
 
 Добавить отдельные public `Frame` contract/renderer/positioned geometry.
@@ -123,5 +130,5 @@ console, DOM и visual matrix, затем оставить contour владел�
 
 ## Состояние
 
-`IN_PROGRESS`, исполнитель `/root`; текущий срез NODES-017.1. Системный раздел
-Accessibility открыт `ai-macos`; reference screenshot ожидает разрешения.
+`IN_PROGRESS`, исполнитель `/root`; текущий срез NODES-017.2 — first-class
+Frame и nested containment.
