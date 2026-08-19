@@ -45,8 +45,8 @@
   [`UI-001 — Создать playground универсальных UI Components`](UI-001.md) в
   `pkg/ui/components/playground`, а Node playground только импортирует их.
 * Следующее owner-решение заморозило Node/Parameter/Field и UI Elements/
-  Components до интеграции NODES-018. Независимая UI-002 создаёт общий
-  `@ui/playground`; только после неё NODES-019 собирает Node playground как
+  Components до интеграции NODES-018. Принятый UI-002 result `efbad1689`
+  создал общий `@ui/playground`; NODES-019 собирает Node playground как
   consumer без изменения Blender-style Node.
 * На машине установлен Blender `4.5.5 LTS`. Создан изолированный reference
   `/tmp/blender-node-reference.blend` с Texture Coordinate, Mapping, Noise

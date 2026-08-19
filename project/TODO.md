@@ -29,7 +29,6 @@ flowchart LR
     NODES018["NODES-018 · retained parent/child UI transforms"]
     NODES019["NODES-019 · разделить playground на каталог"]
     UI001["UI-001 · playground универсальных UI Components"]
-    UI002["UI-002 · общий пакет Playground"]
     NODES017["NODES-017 · визуально воспроизвести Blender Node Editor"]
     MF425["MF-425 · одна Вселенная на одном устройстве"]
     LOAD001["LOAD-001 · минимальный browser loader"]
@@ -56,7 +55,6 @@ flowchart LR
     NODES018 --> UI001
     NODES019 --> NODES017
     UI001 --> NODES017
-    UI002 --> NODES019
     MF425 --> MF426
     MF426 --> MF427
 ```
@@ -100,12 +98,6 @@ rotation/matrix/reference/read-only Fields. Node playground больше не в
 standalone input examples и только импортирует components в Node. Checkpoint
 `d0f6f702d` восстановил historical shell и Field route на exact target 4017;
 localization/mobile proof остаются текущим UI-001.3.
-
-[`UI-002 — Создать общий пакет Playground для UI-каталогов`](tasks/UI-002.md)
-выносит historical router и пятипанельный FlexBox shell в отдельный
-`@ui/playground`. Elements/Components и Node implementation заморожены; первым
-новым consumer после package proof станет NODES-019. Result `efbad1689` находится
-в closing review: router/layout/shell/server fixture и package boundary зелёные.
 
 [`NODES-017 — Визуально воспроизвести Blender Node Editor`](tasks/NODES-017.md)
 уже получила equal-scale comparison, correct row order, texture header и
@@ -312,8 +304,7 @@ production удаляет `console.debug` и не публикует карту.
 | MF-411 | IN_PROGRESS | нет         | [Открыть](tasks/MF-411.md) |
 | NODES-008 | IN_PROGRESS | нет       | [Открыть](tasks/NODES-008.md) |
 | NODES-018 | IN_PROGRESS | нет       | [Открыть](tasks/NODES-018.md) |
-| UI-002 | REVIEW      | нет       | [Открыть](tasks/UI-002.md) |
-| NODES-019 | WAITING     | UI-002     | [Открыть](tasks/NODES-019.md) |
+| NODES-019 | IN_PROGRESS | нет       | [Открыть](tasks/NODES-019.md) |
 | UI-001 | WAITING     | NODES-018 | [Открыть](tasks/UI-001.md) |
 | NODES-017 | WAITING     | NODES-018, NODES-019, UI-001 | [Открыть](tasks/NODES-017.md) |
 | MF-414 | WAITING     | MF-411      | [Открыть](tasks/MF-414.md) |

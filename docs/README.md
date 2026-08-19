@@ -45,6 +45,9 @@
   всей UI-композиции и граница низкоуровневого drawing.
 * [UI components](../pkg/ui/components/REQUIREMENTS.md) — универсальные
   WebGPU-поля и составные controls, пригодные внутри node editor и вне него.
+* [UI playground](../pkg/ui/playground/REQUIREMENTS.md) — общий typed router,
+  historical five-panel FlexBox shell и no-HMR dev lifecycle для package-owned
+  playground без consumer semantics.
 * [Web Push](../pkg/web-push/CONTRACT.md) — runtime-разделённые permission,
   подписка, доставка, receipt и необязательные lifecycle hooks без встроенного
   transport наблюдения.
