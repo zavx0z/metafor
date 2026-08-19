@@ -74,9 +74,13 @@ checkpoint NODES-008.4 с общим исправлением левых инт�
 
 [`NODES-017 — Визуально воспроизвести Blender Node Editor`](tasks/NODES-017.md)
 исправляет отклонённый владельцем visual result NODES-016. Текущий срез
-предъявляет side-by-side owner acceptance; corrected `node-system-dev`,
-Frame/Parameter/visual rhythm/Links и isolated mobile proof уже закреплены
-checkpoint-коммитами. Physical mobile и owner acceptance остаются gate.
+NODES-017.8.1 исправляет несопоставимый side-by-side: Blender reference
+показывал одну крупную Noise Texture, а live panel — всю уменьшенную Frame-сцену.
+Верхний comparison должен показывать одну representative Node в одинаковом
+масштабе; полная Frame-сцена остаётся отдельной областью. Corrected
+`node-system-dev`, Frame/Parameter/visual rhythm/Links и isolated mobile proof
+уже закреплены checkpoint-коммитами. Physical mobile и owner acceptance
+остаются gate после correction.
 
 Начата `LOAD-001 — Загружать браузерный функционал через минимальный Service
 Worker`. Весь прежний Hamiltonian остаётся отдельно запускаемым прототипом.
@@ -276,7 +280,7 @@ production удаляет `console.debug` и не публикует карту.
 | UPD-003 | REVIEW      | нет       | [Открыть](tasks/UPD-003.md) |
 | MF-411 | IN_PROGRESS | нет         | [Открыть](tasks/MF-411.md) |
 | NODES-008 | IN_PROGRESS | нет       | [Открыть](tasks/NODES-008.md) |
-| NODES-017 | GATE        | owner acceptance / physical mobile | [Открыть](tasks/NODES-017.md) |
+| NODES-017 | IN_PROGRESS | нет       | [Открыть](tasks/NODES-017.md) |
 | MF-414 | WAITING     | MF-411      | [Открыть](tasks/MF-414.md) |
 | MF-426 | WAITING     | MF-425      | [Открыть](tasks/MF-426.md) |
 | MF-427 | WAITING     | MF-426      | [Открыть](tasks/MF-427.md) |

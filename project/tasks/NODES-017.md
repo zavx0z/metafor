@@ -183,8 +183,25 @@ Live correction на текущем срезе добавила dev-only `Refere
 maintained owner screenshot в skill assets. Desktop playground теперь сам
 показывает крупный Blender Node crop и live NodeEditor в одной Flex row; DOM
 marker `comparison=blender-reference-live-editor`, console 0. Mobile сохраняет
-только editor. Exact comparison capture сохранён в final-captures; текущий
-long-lived PTY PID 68355, target сфокусирован. Owner acceptance ещё не выдан.
+только editor. Повторная визуальная сверка владельцем выявила, что comparison
+несопоставим: reference показывает одну крупную Noise Texture, а live panel —
+всю уменьшенную Frame-сцену. Такой кадр не доказывает похожесть Node. Exact
+comparison capture сохранён как evidence дефекта; текущий long-lived PTY PID
+68355, target сфокусирован. Owner acceptance ещё не выдан.
+
+#### NODES-017.8.1 — Сравнить одну representative Node в одинаковом масштабе
+
+Заменить live половину верхнего comparison на отдельный interactive NodeEditor
+с Noise-подобной Node, теми же видами controls и подключённым Vector Socket,
+что видны на Blender reference. Обе верхние панели получают одинаковый Flex
+slot и сопоставимый видимый масштаб. Полная Frame-сцена и Socket catalog
+остаются отдельными нижними Flex regions, чтобы проверка одной Node не подменяла
+демонстрацию всей component system. На mobile все вспомогательные regions
+скрываются и остаётся прежний полный NodeEditor.
+
+`IN_PROGRESS`: причиной correction является неверная область сравнения, а не
+новый renderer или layout policy. Реализация не вводит fixture-specific rect
+арифметику: page regions и Node rows остаются под общим Flex/FlexCss.
 
 ## Визуальный контракт
 
@@ -236,8 +253,7 @@ long-lived PTY PID 68355, target сфокусирован. Owner acceptance ещ
 
 ## Состояние
 
-`GATE`: implementation, live side-by-side, desktop/mobile emulation, touch,
-tests и package checks завершены. Exact target 4016 остаётся focused/healthy.
-Для продолжения требуется внешнее событие: явное owner acceptance либо
-конкретный visual defect; physical proof также ждёт Android device
-(`@meta/android devices: []`).
+`IN_PROGRESS`: владелец отклонил несопоставимый live comparison. Текущий срез
+NODES-017.8.1 строит representative Node в одинаковом масштабе, повторяет
+desktop/mobile evidence и заново предъявляет exact target 4016. Physical proof
+по-прежнему ждёт Android device (`@meta/android devices: []`).
