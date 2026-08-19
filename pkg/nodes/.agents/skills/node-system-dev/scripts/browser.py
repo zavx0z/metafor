@@ -109,6 +109,7 @@ return {
   visibility: document.visibilityState,
   focused: document.hasFocus(),
   ready: document.documentElement.dataset.nodeComponentPlayground ?? null,
+  comparison: document.documentElement.dataset.comparison ?? null,
   selection: {
     kind: document.documentElement.dataset.selectedKind ?? null,
     id: document.documentElement.dataset.selectedId ?? null,

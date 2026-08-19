@@ -97,7 +97,10 @@ format и автоматическое размещение принадлежа
    exact root consumer compile gap фиксируется как вход следующего этапа.
 4. Dev-only component playground показывает fields standalone и те же instances
    внутри Node, все socket presets/shapes, Links и containment. Он не заменяет
-   будущую product integration.
+   будущую product integration. На desktop dev-only `ReferenceSurface` показывает
+   maintained Blender screenshot рядом с live NodeEditor через тот же FlexCss;
+   asset и Surface не экспортируются production package. На mobile reference и
+   catalogs скрываются, оставляя NodeEditor.
 
 ## Источник терминов
 

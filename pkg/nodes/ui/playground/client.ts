@@ -11,7 +11,7 @@ import {
 import {NodeEditor} from "../node-editor.ts"
 import {STANDALONE_FIELD_KINDS, createCatalogNodeTree} from "./fixtures.ts"
 import {planNodeComponentPlaygroundFrames} from "./layout.ts"
-import {FieldCatalogSurface, SocketCatalogSurface} from "./surfaces.ts"
+import {BlenderReferenceSurface, FieldCatalogSurface, SocketCatalogSurface} from "./surfaces.ts"
 
 const canvas = document.getElementById("node-component-canvas")
 const status = document.getElementById("status")
@@ -26,6 +26,7 @@ try {
   runtime.handleResize()
 
   const fields = new FieldCatalogSurface()
+  const reference = new BlenderReferenceSurface()
   const sockets = new SocketCatalogSurface()
   const editor = new NodeEditor<BlenderNode, BlenderSocket, BlenderLink, BlenderFrame>({
     renderers: createBlenderNodeRenderers(),
@@ -46,12 +47,14 @@ try {
   editor.select({kind: "link", id: "matrix-shader"})
 
   runtime.addSurface(fields, ({w, h}) => planNodeComponentPlaygroundFrames(w, h).fields)
+  runtime.addSurface(reference, ({w, h}) => planNodeComponentPlaygroundFrames(w, h).reference)
   runtime.addSurface(editor, ({w, h}) => planNodeComponentPlaygroundFrames(w, h).editor)
   runtime.addSurface(sockets, ({w, h}) => planNodeComponentPlaygroundFrames(w, h).sockets)
 
   const resizeObserver = new ResizeObserver(() => runtime.handleResize())
   resizeObserver.observe(canvas)
   document.documentElement.dataset.nodeComponentPlayground = "ready"
+  document.documentElement.dataset.comparison = "blender-reference-live-editor"
   document.documentElement.dataset.fieldKinds = String(STANDALONE_FIELD_KINDS.length)
   document.documentElement.dataset.socketKinds = String(BLENDER_SOCKET_KINDS.length)
   document.documentElement.dataset.socketShapes = String(BLENDER_SOCKET_SHAPES.length)

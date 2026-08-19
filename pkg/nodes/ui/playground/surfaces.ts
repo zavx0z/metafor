@@ -1,3 +1,4 @@
+import {Color} from "@metafor/engine"
 import {
   Field,
   Pane,
@@ -15,6 +16,53 @@ import {
   type BlenderSocket,
 } from "../blender-node.ts"
 import {SOCKET_CATALOG, createStandaloneFields} from "./fixtures.ts"
+
+export class BlenderReferenceSurface extends UiSurface {
+  constructor() {
+    super({bgColor: null, borderColor: null})
+    this.setBackgroundImage({
+      src: "/node-system-dev/blender-reference.png",
+      fit: "cover",
+      opacity: 1,
+      scale: 0.98,
+      viewBox: {x: 0, y: 0.42, w: 0.65, h: 0.38},
+    })
+    this.node.name = "BlenderReferenceSurface"
+  }
+
+  protected override render(): void {
+    this.drawRoundedRect(0, 0, this.rectW, this.rectH, {
+      radius: 10,
+      fill: new Color(0, 0, 0, 0),
+      border: palette.border,
+      borderWidth: 1,
+      z: Z.CONTAINER,
+    })
+    this.drawRoundedRect(0, 0, this.rectW, 30, {
+      radius: 10,
+      fill: new Color(0.035, 0.04, 0.05, 0.88),
+      border: null,
+      z: Z.ELEMENT,
+    })
+    flexRow({
+      x: 0,
+      y: 0,
+      w: this.rectW,
+      h: 30,
+      paddingX: 12,
+      alignItems: "center",
+      items: [{
+        width: "grow",
+        height: 24,
+        draw: (x, y, w, h) => Typography(this, x, y, w, h, {
+          children: "BLENDER 4.5.5 · REFERENCE",
+          variant: "caption",
+          color: "muted",
+        }),
+      }],
+    })
+  }
+}
 
 export class FieldCatalogSurface extends UiSurface {
   #fields: readonly FieldDefinition[]

@@ -179,6 +179,13 @@ validation и diff check зелёные. Root gate неизменен: 240 casca
 8 Hamiltonian Card-consumer files. Exact target `1E982…` сфокусирован,
 `visibility=visible`, `focused=true`. Owner acceptance ещё не выдан.
 
+Live correction на текущем срезе добавила dev-only `ReferenceSurface` и
+maintained owner screenshot в skill assets. Desktop playground теперь сам
+показывает крупный Blender Node crop и live NodeEditor в одной Flex row; DOM
+marker `comparison=blender-reference-live-editor`, console 0. Mobile сохраняет
+только editor. Exact comparison capture сохранён в final-captures; текущий
+long-lived PTY PID 68355, target сфокусирован. Owner acceptance ещё не выдан.
+
 ## Визуальный контракт
 
 1. Reference — локальный Blender `4.5.5 LTS`, не приблизительный mockup.

@@ -95,9 +95,12 @@
 * Источник: corrected `$node-system-dev` viewport matrix на long-lived PTY
   server PID 64921 и exact target `1E982…`.
 * Состав: `node-system-desktop.png`, `node-system-portrait.png`,
-  `node-system-landscape.png`.
+  `node-system-landscape.png`, `node-system-live-comparison.png`.
 * Фактическое наблюдение: DOM ready, horizontal overflow отсутствует, console
   0 во всех viewports; native metrics `1920×1088 @2` восстановлены.
+* `node-system-live-comparison.png`: desktop Flex split с крупным cropped
+  Blender reference и live MetaFor editor; SHA-256
+  `c4055509a2ed4d3db51cf31700b9d2c9f5579f181cb0f5d9ac1211cdf519b2a6`.
 
 ## visual-comparison.md
 

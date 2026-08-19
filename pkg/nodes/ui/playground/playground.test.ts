@@ -38,6 +38,7 @@ describe("Blender-like Node component playground", () => {
   test("uses one Card-free WebGPU component graph and disables HMR", async () => {
     const server = await Bun.file(join(playgroundRoot, "server.ts")).text()
     expect(server).toContain("development: {hmr: false}")
+    expect(server).toContain("/node-system-dev/blender-reference.png")
     const build = await Bun.build({
       entrypoints: [join(playgroundRoot, "client.ts")],
       target: "browser",
@@ -58,6 +59,7 @@ describe("Blender-like Node component playground", () => {
     ]) expect(source).not.toContain(forbidden)
     expect(source).toContain("NodeEditor")
     expect(source).toContain("NodeCanvas")
+    expect(source).toContain("BlenderReferenceSurface")
     expect(source).toContain("FieldCatalogSurface")
     expect(source).toContain("SocketCatalogSurface")
   })

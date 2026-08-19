@@ -16,6 +16,9 @@ Manual.
   `48f79b7e9246f670283b043da8c6f4240e547241`. This checkout is an unofficial
   Markdown mirror; verify every normative conclusion against the official
   rendered Blender 4.5 Manual, API, or source.
+- Maintained owner screenshot:
+  `pkg/nodes/.agents/skills/node-system-dev/assets/blender-4.5.5-reference.png`,
+  SHA-256 `a493e1c03591800bb05644963369fca49669aa27f98e67a9971fd91735f2531d`.
 - Current NODES-017 owner screenshot and research, while that task exists:
   `project/artifacts/NODES-017/blender-4.5.5-reference.png` and
   `project/artifacts/NODES-017/blender-research.md`.

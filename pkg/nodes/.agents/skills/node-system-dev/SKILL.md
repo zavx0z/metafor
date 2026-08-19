@@ -36,6 +36,9 @@ Blender GPL source, Manual text, or assets into MetaFor.
   divergences, or a visual defect comparison, read
   [references/blender-reference.md](references/blender-reference.md).
 
+The maintained owner reference screenshot is versioned in `assets/` and served
+only by the dev playground comparison route. It is not a production UI asset.
+
 Use the bundled lifecycle helper instead of ad hoc background processes:
 
 ```bash

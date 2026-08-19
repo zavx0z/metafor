@@ -14,6 +14,9 @@
   `a718e01f2e22d390cb8b408628f6e574b79854995a4eb70370b7d05814f795c0`.
 * Landscape canvas: `844×390 @2`, SHA-256
   `4fa99340d6a13a441222421a426e3b9dd084542486d364a9740e4e2d79c2bff9`.
+* Live desktop comparison canvas: SHA-256
+  `c4055509a2ed4d3db51cf31700b9d2c9f5579f181cb0f5d9ac1211cdf519b2a6`;
+  DOM marker `comparison=blender-reference-live-editor`.
 * All three targets: readiness `ready`, `scrollWidth=innerWidth`, console errors
   `0`; viewport helper restored native `1920×1088 @2`.
 
@@ -31,6 +34,7 @@
 | Link | Exact endpoints and selected layer | Exact centers, selected-last layer, rounded orthogonal routes | project divergence accepted by owner |
 | Controls | Shared compact height and aligned labels | Universal scale-aware compact Field and inline Slider | match |
 | Mobile | No Blender requirement | Same tree/renderers; responsive overview LOD, pan/pinch, no overflow | project requirement matched in emulation |
+| Live comparison | Reference must remain visible while inspecting current UI | Dev-only cropped Blender reference and live editor share one desktop Flex row | match |
 
 ## Explicitly open
 
