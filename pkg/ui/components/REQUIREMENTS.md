@@ -32,6 +32,9 @@
 10. Inline Slider является общим layout `SliderControl`, а не локальной
     имитацией внутри Node. Vector/rotation/matrix compact rows также планируются
     nested Flex.
+11. Semantic `label` Field остаётся обязательным независимо от presentation.
+    Compact presentation может явно скрыть visual label и отдать control всю
+    строку; это универсальная возможность Field, а не специальная Node-имитация.
 
 ## Источник терминов
 

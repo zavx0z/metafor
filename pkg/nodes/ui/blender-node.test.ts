@@ -6,6 +6,7 @@ import {
   blenderSocketPreset,
   createBlenderNodeRenderers,
   measureBlenderNode,
+  planBlenderNode,
   type BlenderNode,
 } from "./blender-node.ts"
 
@@ -66,5 +67,27 @@ describe("Blender-like Node presets", () => {
     expect(typeof renderers.node.renderForeground).toBe("function")
     expect(typeof renderers.socket.render).toBe("function")
     expect(typeof renderers.link.render).toBe("function")
+  })
+
+  test("places loose right sockets above properties and loose left sockets below parameters", () => {
+    const node: BlenderNode = {
+      id: "ordered",
+      title: "Ordered",
+      properties: [{id: "mode", label: "Mode", kind: "enum", value: "a", options: [{value: "a", label: "A"}]}],
+      parameters: [{id: "value", label: "Value", field: {id: "value", label: "Value", kind: "number", value: 1}}],
+      sockets: [
+        {id: "input", label: "Input", direction: "output", socketType: "float", side: "left"},
+        {id: "output", label: "Output", direction: "input", socketType: "float", side: "right"},
+      ],
+    }
+    const plan = planBlenderNode(node, {x: 20, y: 30, w: 240, h: measureBlenderNode(node).height})
+    const property = plan.fields.find(({field}) => field.id === "mode")!.rect
+    const parameter = plan.fields.find(({field}) => field.id === "value")!.rect
+    const output = plan.sockets.find(({socket}) => socket.id === "output")!
+    const input = plan.sockets.find(({socket}) => socket.id === "input")!
+    expect(output.center.y).toBeLessThan(property.y)
+    expect(input.center.y).toBeGreaterThan(parameter.y + parameter.h)
+    expect(output.side).toBe("right")
+    expect(input.side).toBe("left")
   })
 })

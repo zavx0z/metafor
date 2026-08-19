@@ -16,6 +16,8 @@ export type FieldBase = Readonly<{
   /** Optional render-instance identity when the same field id appears in several owners. */
   key?: string
   label: string
+  /** Keeps the semantic label while allowing a compact control-only row. */
+  compactLabel?: "inline" | "hidden"
   description?: string
   disabled?: boolean
   readOnly?: boolean
@@ -306,6 +308,10 @@ function drawCompactSingleRow(
   field: Exclude<FieldDefinition, BooleanFieldDefinition | VectorFieldDefinition | RotationFieldDefinition | MatrixFieldDefinition>,
   metrics: CompactMetrics,
 ): void {
+  if (field.compactLabel === "hidden") {
+    drawCompactControl(host, x, y, width, height, field, metrics)
+    return
+  }
   flexRow({
     x,
     y,

@@ -34,6 +34,20 @@ describe("universal UI fields", () => {
     expect(field.key).toBe("node-a:value")
   })
 
+  test("keeps a semantic label when compact presentation hides it", () => {
+    const field: FieldDefinition = {
+      id: "dimensions",
+      label: "Dimensions",
+      compactLabel: "hidden",
+      kind: "enum",
+      value: "3d",
+      options: [{value: "3d", label: "3D"}],
+    }
+    expect(field.label).toBe("Dimensions")
+    expect(field.compactLabel).toBe("hidden")
+    expect(measureFieldHeight(field, {density: "compact"})).toBe(22)
+  })
+
   test("normalizes finite integer, float, range and step contracts", () => {
     expect(normalizeNumberFieldValue(3.1415927)).toBe(3.141593)
     expect(normalizeNumberFieldValue(7.8, {numberKind: "integer"})).toBe(8)

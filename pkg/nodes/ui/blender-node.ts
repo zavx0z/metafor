@@ -385,14 +385,18 @@ type BlenderNodeRow = Readonly<{
 
 function blenderNodeRows(node: BlenderNode): readonly BlenderNodeRow[] {
   const rows: BlenderNodeRow[] = []
+  const looseSockets = (node.sockets ?? []).filter((socket) => socket.parameterId === undefined)
+  for (const socket of looseSockets.filter((socket) => socketSide(socket) === "right")) {
+    rows.push({sockets: [socket]})
+  }
   for (const field of node.properties ?? []) rows.push({field, sockets: []})
   for (const parameter of node.parameters ?? []) rows.push({
     parameter,
     ...(parameter.field === undefined ? {} : {field: parameter.field}),
     sockets: (node.sockets ?? []).filter((socket) => socket.parameterId === parameter.id),
   })
-  for (const socket of node.sockets ?? []) {
-    if (socket.parameterId === undefined) rows.push({sockets: [socket]})
+  for (const socket of looseSockets.filter((socket) => socketSide(socket) === "left")) {
+    rows.push({sockets: [socket]})
   }
   return rows
 }

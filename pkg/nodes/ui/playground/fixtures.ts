@@ -66,13 +66,13 @@ export function createNoiseComparisonTree(): PositionedNodeTree<BlenderNode, Ble
     collapsed: true,
   }
   const noise = blenderNode("comparison-noise", "Noise Texture", "Texture", [
-    {id: "dimensions", label: "Dimensions", kind: "enum", value: "3d", options: [
+    {id: "dimensions", label: "Dimensions", compactLabel: "hidden", kind: "enum", value: "3d", options: [
       {value: "1d", label: "1D"},
       {value: "2d", label: "2D"},
       {value: "3d", label: "3D"},
       {value: "4d", label: "4D"},
     ]},
-    {id: "noise-type", label: "Noise", kind: "enum", value: "fbm", options: [
+    {id: "noise-type", label: "Noise", compactLabel: "hidden", kind: "enum", value: "fbm", options: [
       {value: "fbm", label: "fBM"},
       {value: "multifractal", label: "Multifractal"},
       {value: "hybrid", label: "Hybrid Multifractal"},
@@ -248,6 +248,7 @@ function categoryHeaderColor(category: string): Readonly<{r: number; g: number; 
   if (category === "Vector") return {r: 0.24, g: 0.32, b: 0.58, a: 1}
   if (category === "Shader") return {r: 0.20, g: 0.47, b: 0.22, a: 1}
   if (category === "Resource") return {r: 0.55, g: 0.25, b: 0.20, a: 1}
+  if (category === "Texture") return {r: 0.55, g: 0.27, b: 0.08, a: 1}
   return {r: 0.18, g: 0.45, b: 0.48, a: 1}
 }
 

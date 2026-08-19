@@ -60,6 +60,9 @@ format и автоматическое размещение принадлежа
 4. Unconnected Parameter может показать default Field независимо от того,
    находится его Socket слева, справа или с обеих сторон. Connected state не
    меняет Parameter identity.
+5. Loose right-side Socket рисуются над Properties и Parameters, loose
+   left-side Socket — под ними. Порядок является visual-side presentation и не
+   выводит `direction` из стороны; Socket Parameter остаются на своей общей row.
 
 ## View и compositing
 
@@ -84,8 +87,8 @@ format и автоматическое размещение принадлежа
 9. Mobile NodeEditor использует тот же positioned tree и renderers. Один touch
    панорамирует canvas, два touch выполняют anchor-preserving pinch; responsive
    FlexCss скрывает catalog surfaces, но не создаёт отдельную mobile Node.
-10. На overview-scale детали Parameter скрываются LOD-порогом, сохраняя headers,
-    Socket, Links и Frame. После pinch тот же renderer показывает controls.
+10. На overview-scale Node сохраняет структуру body через progressive LOD в тех
+    же Flex rows; детали controls возвращаются после pinch без второй Node model.
 
 ## Package boundary и удаление legacy
 
