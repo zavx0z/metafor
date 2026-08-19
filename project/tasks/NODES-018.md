@@ -290,8 +290,7 @@ source typecheck — pass; `git diff --check` — pass.
 
 Подготовительный commit: `92840ecda2342d6ecfb82084a4e9b56247cb838e`.
 
-Result checkpoint: следующий result commit этого среза; exact hash записывается
-отдельным project-only checkpoint.
+Result checkpoint: `0f511a5758c381c3f2c814df793ef6b0c286c340`.
 
 ### NODES-018.4 — Согласовать clipping, culling и input transforms
 
