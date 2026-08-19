@@ -538,7 +538,7 @@ typecheck и strict exact Engine source typecheck — pass; helper syntax/help �
 
 Подготовительный commit: `09cb592839147b16d4912ae093f74010f3c756be`.
 
-Result checkpoint: текущий result commit.
+Result checkpoint: `0a4ce7f810d4b5731d1fc7db7a47dc52f675e35c`.
 
 ## Границы
 

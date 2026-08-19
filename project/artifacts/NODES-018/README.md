@@ -5,6 +5,8 @@
 * Источник: checkout `/Users/zavx0z/repozitarium/metafor-nodes-018`, branch
   `codex/nodes-018`, preparation checkpoint
   `09cb592839147b16d4912ae093f74010f3c756be`.
+* Result checkpoint NODES-018.5:
+  `0a4ce7f810d4b5731d1fc7db7a47dc52f675e35c`.
 * Standalone origin: `http://127.0.0.1:4018/`.
 * Exact CDP target: `8A6231C66CBD889C40FA2B6677BAC369`, exact URL
   `http://127.0.0.1:4018/`.
