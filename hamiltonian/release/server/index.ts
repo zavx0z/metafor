@@ -48,10 +48,6 @@ export {
   isPackageEnvironment,
   packageEnvironments,
 } from "../../shared/package/environment"
-export type {
-  BrowserPackageEnvironment,
-  PackageEnvironment,
-} from "../../shared/package/environment"
 export {getPackage, getRelease} from "./http/delivery"
 export {packageEnvironmentExports, packageOwner, packageOwners} from "./package/manifest"
 export {

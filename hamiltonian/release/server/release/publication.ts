@@ -1,5 +1,6 @@
 import {copyFile, mkdir, mkdtemp, rename, rm} from "node:fs/promises"
 import {dirname, join} from "node:path"
+import type {PackageEnvironment} from "../../../shared/package/environment"
 import {buildPackage} from "../package/build"
 import {
   readReleaseComposition,
@@ -10,7 +11,6 @@ import {
 import type {
   PackageBuildArtifact,
   PackageChange,
-  PackageEnvironment,
   PackageManifest,
   PackageReleaseResult,
   PackageReleaseResultSet,

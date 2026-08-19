@@ -1,16 +1,17 @@
 import {expect, setDefaultTimeout, test} from "bun:test"
 import {existsSync} from "node:fs"
-import {mkdtemp, rm, symlink} from "node:fs/promises"
-import {join} from "node:path"
+import {mkdtemp, readdir, rm, symlink} from "node:fs/promises"
+import {dirname, join, relative} from "node:path"
 import {tmpdir} from "node:os"
 import {fileURLToPath} from "node:url"
+import * as ts from "typescript"
 import {
   buildablePackage,
   packageBuildCommand,
   packageEnvironmentExports,
   packageOwners,
-  type PackageEnvironment,
 } from "../release/server"
+import type {PackageEnvironment} from "../shared/package/environment"
 import {releaseWorkspaceState} from "./fixture/workspace-state"
 
 const hamiltonian = fileURLToPath(new URL("../", import.meta.url))
@@ -70,6 +71,53 @@ test("every Hamiltonian package owns direct env entrypoints and one typecheck", 
       expect(manifest.scripts?.[`typecheck:${env}`]).toBeUndefined()
       expect(manifest.scripts?.[`prebuild:${env}`]).toBeUndefined()
     }
+  }
+})
+
+test("Hamiltonian packages do not re-export types owned by another package", async () => {
+  expect(await crossPackageTypeReexports()).toEqual([])
+})
+
+test("type re-export ownership covers every supported export form", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "metafor-type-ownership-"))
+  const owner = join(directory, "owner")
+  const consumer = join(directory, "consumer")
+
+  try {
+    await Promise.all([
+      Bun.write(join(owner, "package.json"), '{"name":"@fixture/owner"}\n'),
+      Bun.write(join(owner, "contracts.ts"), "export interface Owned {}\n"),
+      Bun.write(join(consumer, "package.json"), '{"name":"@fixture/consumer"}\n'),
+      Bun.write(join(consumer, "local.ts"), "export interface Local {}\n"),
+      Bun.write(join(consumer, "direct.ts"), "export interface Direct {}\n"),
+      Bun.write(join(consumer, "same-package.ts"), [
+        'export type {Local} from "./local"',
+        'export {type Local as Alias} from "./local"',
+        'export * from "./local"',
+        'import type {Local} from "./local"',
+        "export {Local}",
+      ].join("\n")),
+      Bun.write(join(consumer, "export-type.ts"),
+        'export type {Owned} from "../owner/contracts"\n'),
+      Bun.write(join(consumer, "named-type.ts"),
+        'export {type Owned} from "../owner/contracts"\n'),
+      Bun.write(join(consumer, "export-star.ts"),
+        'export * from "../owner/contracts"\n'),
+      Bun.write(join(consumer, "import-export.ts"), [
+        'import type {Owned} from "../owner/contracts"',
+        "export {Owned}",
+      ].join("\n")),
+    ])
+
+    const violations = await crossPackageTypeReexports([consumer])
+    expect(violations.map(({file}) => file.split("/").at(-1)).sort()).toEqual([
+      "export-star.ts",
+      "export-type.ts",
+      "import-export.ts",
+      "named-type.ts",
+    ])
+  } finally {
+    await rm(directory, {recursive: true, force: true})
   }
 })
 
@@ -440,4 +488,113 @@ async function typecheckPackageEnvironment(
     new Response(child.stderr).text(),
   ])
   return {exitCode, stdout, stderr}
+}
+
+async function crossPackageTypeReexports(
+  roots = ["startup", "release", "internal"].map((path) => join(hamiltonian, path)),
+) {
+  const files = (await Promise.all(roots.map(sourceFiles))).flat()
+  const violations = (await Promise.all(files.map(readTypeReexports))).flat()
+  return violations.sort((left, right) =>
+    left.file.localeCompare(right.file) || left.line - right.line)
+}
+
+async function sourceFiles(root: string): Promise<string[]> {
+  const entries = await readdir(root, {withFileTypes: true})
+  const files: string[] = []
+  for (const entry of entries) {
+    if (entry.name === "dist" || entry.name === "node_modules") continue
+    const path = join(root, entry.name)
+    if (entry.isDirectory()) files.push(...await sourceFiles(path))
+    else if (entry.isFile() && entry.name.endsWith(".ts")) files.push(path)
+  }
+  return files
+}
+
+async function readTypeReexports(path: string) {
+  const source = await Bun.file(path).text()
+  const tree = ts.createSourceFile(path, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS)
+  const importedTypes = new Map<string, string>()
+
+  for (const statement of tree.statements) {
+    if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier)) continue
+    const clause = statement.importClause
+    if (!clause) continue
+    if (clause.name && clause.isTypeOnly) importedTypes.set(clause.name.text, statement.moduleSpecifier.text)
+    const bindings = clause.namedBindings
+    if (bindings && ts.isNamespaceImport(bindings) && clause.isTypeOnly)
+      importedTypes.set(bindings.name.text, statement.moduleSpecifier.text)
+    if (bindings && ts.isNamedImports(bindings)) {
+      for (const element of bindings.elements) {
+        if (clause.isTypeOnly || element.isTypeOnly)
+          importedTypes.set(element.name.text, statement.moduleSpecifier.text)
+      }
+    }
+  }
+
+  const owner = await nearestPackage(path)
+  const violations: Array<{
+    file: string
+    line: number
+    sourceOwner: string
+    targetOwner: string
+  }> = []
+  for (const statement of tree.statements) {
+    if (!ts.isExportDeclaration(statement)) continue
+    const specifiers = new Set<string>()
+    if (statement.moduleSpecifier && ts.isStringLiteral(statement.moduleSpecifier)) {
+      const clause = statement.exportClause
+      if (
+        !clause
+        || ts.isNamespaceExport(clause)
+        || statement.isTypeOnly
+        || clause.elements.some((element) => element.isTypeOnly)
+      ) specifiers.add(statement.moduleSpecifier.text)
+    } else if (statement.exportClause && ts.isNamedExports(statement.exportClause)) {
+      for (const element of statement.exportClause.elements) {
+        const imported = importedTypes.get(element.propertyName?.text ?? element.name.text)
+        if (imported) specifiers.add(imported)
+      }
+    }
+
+    for (const specifier of specifiers) {
+      const target = resolveModule(specifier, path)
+      if (!target) throw new Error(`Cannot resolve ${specifier} from ${relative(hamiltonian, path)}`)
+      const targetOwner = await nearestPackage(target)
+      if (owner.path === targetOwner.path) continue
+      violations.push({
+        file: relative(hamiltonian, path),
+        line: tree.getLineAndCharacterOfPosition(statement.getStart(tree)).line + 1,
+        sourceOwner: owner.name,
+        targetOwner: targetOwner.name,
+      })
+    }
+  }
+  return violations
+}
+
+function resolveModule(specifier: string, containingFile: string) {
+  return ts.resolveModuleName(specifier, containingFile, {
+    allowImportingTsExtensions: true,
+    customConditions: ["hamiltonian:server", "internal:server"],
+    module: ts.ModuleKind.ESNext,
+    moduleResolution: ts.ModuleResolutionKind.Bundler,
+    target: ts.ScriptTarget.ESNext,
+  }, ts.sys).resolvedModule?.resolvedFileName
+}
+
+async function nearestPackage(path: string) {
+  let directory = dirname(path)
+  while (true) {
+    const manifest = join(directory, "package.json")
+    if (existsSync(manifest)) {
+      const value = await Bun.file(manifest).json() as {name?: unknown}
+      if (typeof value.name !== "string") throw new Error(`Package name is missing in ${manifest}`)
+      return {name: value.name, path: manifest}
+    }
+    const parent = dirname(directory)
+    if (parent === directory) break
+    directory = parent
+  }
+  throw new Error(`Package owner is missing for ${path}`)
 }

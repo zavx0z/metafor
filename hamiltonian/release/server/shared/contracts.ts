@@ -4,11 +4,6 @@ import type {
 } from "../../../shared/package/environment"
 import type {BrowserPackageIdentity} from "../../../shared/package/integrity"
 
-export type {
-  BrowserPackageEnvironment,
-  PackageEnvironment,
-} from "../../../shared/package/environment"
-
 /** Hamiltonian package, который предоставляет browser artifact. */
 export type BuildablePackage = string
 

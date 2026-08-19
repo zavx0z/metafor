@@ -1,11 +1,11 @@
 import {mkdir} from "node:fs/promises"
 import {dirname} from "node:path"
 import {packageBuildCommand, withPackageBuildOutput} from "./command"
+import type {PackageEnvironment} from "../../../shared/package/environment"
 import type {
   BuildablePackage,
   PackageBuildOptions,
   PackageBuildResult,
-  PackageEnvironment,
   PackageOwner,
 } from "../shared/contracts"
 import {packageArtifact, packageOwner} from "./manifest"
