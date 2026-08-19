@@ -27,6 +27,7 @@ flowchart LR
     MF424["MF-424 · визуальная доводка Hamiltonian"]
     HAM006["HAM-006 · принять и очистить прототип"]
     NODES008["NODES-008 · убрать пустой compound-резерв"]
+    UI004["UI-004 · интегрировать retained UI в main"]
     MF425["MF-425 · одна Вселенная на одном устройстве"]
     MF426["MF-426 · одна Вселенная на нескольких устройствах"]
     MF427["MF-427 · несколько Вселенных"]
@@ -73,6 +74,13 @@ checkpoint NODES-008.4 с общим исправлением левых инт�
 интервала справа в `DOWN`. Реализация NODES-008.5 сохранена checkpoint-коммитом
 `e1b2aea50` и ожидает визуального подтверждения владельца.
 
+[`UI-004 — Интегрировать retained UI и общий UI skill в main`](tasks/UI-004.md)
+ведёт owner-directed integration прямо в canonical `main`: сначала принимает
+общий `UI dev` и проверяет все уже существующие package playgrounds, затем
+интегрирует закрытый retained результат NODES-018, завершает миграцию
+Elements/Components/consumers и возвращает NODES-017 к visual corrections без
+подмены physical-device и owner-acceptance gates.
+
 | ID     | Состояние   | Зависимости | Карточка                   |
 | ------ | ----------- | ----------- | -------------------------- |
 | MF-424 | IN_PROGRESS | нет         | [Открыть](tasks/MF-424.md) |
@@ -80,6 +88,7 @@ checkpoint NODES-008.4 с общим исправлением левых инт�
 | MF-425 | IN_PROGRESS | нет         | [Открыть](tasks/MF-425.md) |
 | MF-411 | IN_PROGRESS | нет         | [Открыть](tasks/MF-411.md) |
 | NODES-008 | IN_PROGRESS | нет       | [Открыть](tasks/NODES-008.md) |
+| UI-004 | IN_PROGRESS | нет         | [Открыть](tasks/UI-004.md) |
 | MF-414 | WAITING     | MF-411      | [Открыть](tasks/MF-414.md) |
 | MF-426 | WAITING     | MF-425      | [Открыть](tasks/MF-426.md) |
 | MF-427 | WAITING     | MF-426      | [Открыть](tasks/MF-427.md) |
