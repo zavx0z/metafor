@@ -707,7 +707,13 @@ export class NodeSystemSurface extends UiSurface {
     const tone = node.tone ?? "neutral"
     const border = nodeSystemNodeBorderColor(tone, selected, compound)
     const fill = nodeBodyFill(selected)
-    const card = planNodeSystemCard(node, rect, scale, this.textMeasurer)
+    const card = planNodeSystemCard(
+      node,
+      rect,
+      scale,
+      this.textMeasurer,
+      new Map(entry.ports.map(({port, side}) => [port.id, side])),
+    )
     const screen = nodeSystemScreenPresentationMetrics(scale)
     const radius = 10 * scale
 
@@ -745,7 +751,13 @@ export class NodeSystemSurface extends UiSurface {
     const {node, rect} = entry
     const contained = node.parentId !== undefined
     const selected = this.#selectedNodeIds.has(node.id)
-    const card = planNodeSystemCard(node, rect, scale, this.textMeasurer)
+    const card = planNodeSystemCard(
+      node,
+      rect,
+      scale,
+      this.textMeasurer,
+      new Map(entry.ports.map(({port, side}) => [port.id, side])),
+    )
     const screen = nodeSystemScreenPresentationMetrics(scale)
     Typography(this, card.title.x, card.title.y, card.title.w, card.title.h, {
       children: node.title,

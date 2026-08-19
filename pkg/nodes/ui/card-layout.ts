@@ -219,6 +219,7 @@ export function planNodeSystemCard(
   frame: NodeSystemRect,
   scale = 1,
   measureText?: NodeSystemTextMeasurer,
+  resolvedPortSides?: ReadonlyMap<string, NodeSystemPortSide>,
 ): NodeSystemCardPlan {
   const unit = Number.isFinite(scale) && scale > 0 ? scale : 1
   const metrics = scaledMetrics(unit)
@@ -322,8 +323,13 @@ export function planNodeSystemCard(
                     ],
                   })
                   facts.push({fact, row, label, value})
-                  for (const port of parameterPorts(node, fact.id)) {
-                    ports.push(planParameterPort(port, row, metrics))
+                  for (const port of parameterPorts(node, fact.id, resolvedPortSides)) {
+                    ports.push(planParameterPort(
+                      port,
+                      row,
+                      metrics,
+                      resolvedPortSides?.get(port.id),
+                    ))
                   }
                 },
               })),
@@ -350,8 +356,9 @@ function planParameterPort(
   port: NodeSystemCardPort,
   row: NodeSystemRect,
   metrics: ReturnType<typeof scaledMetrics>,
+  resolvedSide?: NodeSystemPortSide,
 ): NodeSystemCardPortSlot {
-  const left = port.side === "left" || (port.side === undefined && port.direction === "in")
+  const left = (resolvedSide ?? portVisualSide(port)) === "left"
   return {
     port,
     row,
@@ -364,10 +371,17 @@ function planParameterPort(
   }
 }
 
-function parameterPorts(node: NodeSystemCardNode, rowId: string): readonly NodeSystemCardPort[] {
+function parameterPorts(
+  node: NodeSystemCardNode,
+  rowId: string,
+  resolvedPortSides?: ReadonlyMap<string, NodeSystemPortSide>,
+): readonly NodeSystemCardPort[] {
   return (node.ports ?? [])
     .filter((port) => port.rowId === rowId)
-    .sort((left, right) => portVisualSide(left).localeCompare(portVisualSide(right)) || compareIds(left.id, right.id))
+    .sort((left, right) =>
+      (resolvedPortSides?.get(left.id) ?? portVisualSide(left)).localeCompare(
+        resolvedPortSides?.get(right.id) ?? portVisualSide(right),
+      ) || compareIds(left.id, right.id))
 }
 
 function portVisualSide(port: NodeSystemCardPort): NodeSystemPortSide {

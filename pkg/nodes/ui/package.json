@@ -11,6 +11,7 @@
     "./card-model": "./card-model.ts",
     "./card-layout": "./card-layout.ts",
     "./fixed-card-layout": "./fixed-card-layout.ts",
+    "./adaptive-card-layout": "./adaptive-card-layout.ts",
     "./edge-curve": "./edge-curve.ts",
     "./edge-flow-marker": "./edge-flow-marker.ts",
     "./connection-color": "./connection-color.ts",

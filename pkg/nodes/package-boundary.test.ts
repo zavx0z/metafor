@@ -1,5 +1,6 @@
 import {describe, expect, test} from "bun:test"
-import {readdir} from "node:fs/promises"
+import {mkdtemp, readdir, rm} from "node:fs/promises"
+import {tmpdir} from "node:os"
 import {join, relative} from "node:path"
 import {fileURLToPath} from "node:url"
 
@@ -57,10 +58,12 @@ describe("universal node-system package boundaries", () => {
     }
   })
 
-  test("builds independent core, fixed, adaptive and custom-positioned consumers", async () => {
+  test("builds independent core, fixed/adaptive policy, Card and custom-positioned consumers", async () => {
     const core = await buildFixture("core-consumer.ts")
     const fixed = await buildFixture("fixed-card-consumer.ts")
     const adaptive = await buildFixture("adaptive-layout-consumer.ts")
+    const adaptiveMeasured = await buildFixture("adaptive-measured-consumer.ts")
+    const adaptiveCard = await buildFixture("adaptive-card-consumer.ts")
     const custom = await buildFixture("custom-positioned-consumer.ts")
 
     expect(core.source).not.toContain("struct GlobalUniforms")
@@ -76,32 +79,63 @@ describe("universal node-system package boundaries", () => {
     expect(adaptive.source).not.toContain("NodeSystemSurface")
     expect(adaptive.source).not.toContain("NodeInspectorSurface")
     expect(adaptive.source).not.toContain("struct GlobalUniforms")
+    expect(adaptiveMeasured.source).toContain("NO_LEGAL_ADAPTIVE_SIDE_ASSIGNMENT")
+    expect(adaptiveMeasured.source).not.toContain("Card title must be non-empty")
+    expect(adaptiveMeasured.source).not.toContain("defaultWidth:260")
+    expect(adaptiveMeasured.source).not.toContain("NodeSystemSurface")
+    expect(adaptiveMeasured.source).not.toContain("struct GlobalUniforms")
+    expect(adaptiveCard.source).toContain("NO_LEGAL_ADAPTIVE_SIDE_ASSIGNMENT")
+    expect(adaptiveCard.source).toContain("NO_LEGAL_LAYOUT")
+    expect(adaptiveCard.source).not.toContain("source must be out/EAST")
+    expect(adaptiveCard.source).not.toContain("NodeSystemSurface")
+    expect(adaptiveCard.source).not.toContain("NodeInspectorSurface")
+    expect(adaptiveCard.source).not.toContain("struct GlobalUniforms")
     expect(custom.source).toContain("NodeSystemSurface")
     expect(custom.source).not.toContain("NO_LEGAL_LAYOUT")
     expect(custom.source).not.toContain("NodeInspectorSurface")
 
     expect(core.bytes).toBeLessThan(8_000)
     expect(fixed.bytes).toBeLessThan(115_000)
+    expect(fixed.gzipBytes).toBeLessThan(36_000)
     expect(adaptive.bytes).toBeLessThan(120_000)
+    expect(adaptive.gzipBytes).toBeLessThan(36_000)
+    expect(adaptiveMeasured.bytes).toBeLessThan(120_000)
+    expect(adaptiveMeasured.gzipBytes).toBeLessThan(38_000)
+    expect(adaptiveCard.bytes).toBeLessThan(130_000)
+    expect(adaptiveCard.gzipBytes).toBeLessThan(38_000)
     expect(custom.bytes).toBeLessThan(300_000)
+    expect(custom.gzipBytes).toBeLessThan(90_000)
   })
 })
 
-async function buildFixture(name: string): Promise<{source: string; bytes: number}> {
-  const result = await Bun.build({
-    entrypoints: [join(packageRoot, "fixtures", name)],
-    target: "browser",
-    format: "esm",
-    minify: true,
-    sourcemap: "none",
-  })
-  if (!result.success) {
-    throw new Error(result.logs.map((entry) => entry.message).join("\n"))
+async function buildFixture(name: string): Promise<{source: string; bytes: number; gzipBytes: number}> {
+  const directory = await mkdtemp(join(tmpdir(), "nodes-package-bundle-"))
+  const output = join(directory, "bundle.js")
+  try {
+    const childProcess = Bun.spawn([
+      process.execPath,
+      "build",
+      join(packageRoot, "fixtures", name),
+      "--target=browser",
+      "--format=esm",
+      "--minify",
+      `--outfile=${output}`,
+    ], {cwd: repositoryRoot, stdout: "pipe", stderr: "pipe"})
+    const [exitCode, stdout, stderr] = await Promise.all([
+      childProcess.exited,
+      new Response(childProcess.stdout).text(),
+      new Response(childProcess.stderr).text(),
+    ])
+    if (exitCode !== 0) throw new Error(`${stdout}\n${stderr}`.trim())
+    const bytes = new Uint8Array(await Bun.file(output).arrayBuffer())
+    return {
+      source: new TextDecoder().decode(bytes),
+      bytes: bytes.byteLength,
+      gzipBytes: Bun.gzipSync(bytes).byteLength,
+    }
+  } finally {
+    await rm(directory, {recursive: true, force: true})
   }
-  const output = result.outputs[0]
-  if (output === undefined) throw new Error(`Missing bundle output: ${name}`)
-  const bytes = await output.arrayBuffer()
-  return {source: new TextDecoder().decode(bytes), bytes: bytes.byteLength}
 }
 
 async function sourceFiles(root: string): Promise<string[]> {

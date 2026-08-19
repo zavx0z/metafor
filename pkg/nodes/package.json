@@ -11,6 +11,8 @@
     "./types": "./types/index.ts",
     "./validation": "./validation.ts",
     "./containment": "./containment.ts",
+    "./measured-layout": "./measured-layout.ts",
+    "./adaptive-layout": "./adaptive-layout.ts",
     "./layout-worker": "./layout-worker.ts",
     "./layout-worker/transport": "./layout-worker/transport.ts",
     "./layout-worker/fixed/client": "./layout-worker/fixed/client.ts",
