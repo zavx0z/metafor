@@ -135,10 +135,53 @@ Result checkpoint: `d15d66671810a5a483e64ae1782c89dae29be025`.
 
 ### NODES-018.2 — Добавить retained component parent в UiSurface
 
-Дать `UiSurface` один lifecycle-safe способ materialize локальный subtree под
-точным `Object3D` parent. Parent transform обновляется без очистки children;
-dirty subtree освобождает geometry/text resources ровно один раз. Не создавать
-параллельный scene graph вне engine `Object3D`.
+Статус и исполнитель: `IN_PROGRESS`, внутренний исполнитель
+`NODES-018.2 — Добавить retained component parent в UiSurface`.
+
+Классификация: следующий implementation-срез того же UI owner contract; он
+изменяет только retained lifecycle одного component parent.
+
+Требование: `UiSurface` даёт subclass один lifecycle-safe путь создать точный
+engine `Object3D` parent, materialize в нём локальные drawing primitives и
+обновлять transform без очистки неизменённых children.
+
+Основание и связанная история: NODES-018.1 result `d15d66671` закрепил
+`dirty local plan → changed subtree materialization → transform-only frame` и
+baseline counters `{3,1,0} → {6,2,0}`. Текущий неиспользуемый
+`addRetainedObject` только прикрепляет готовый object и не владеет локальной
+materialization либо recursive resource disposal.
+
+Наблюдаемое расхождение: drawing primitives всегда попадают в общие плоские
+layers, а `#clearLayer` освобождает только direct children. Вложенный retained
+subtree нельзя атомарно заменить или удалить без orphan parent references и
+риска оставить GPU geometry живой.
+
+Причина: подтверждена — у `UiSurface` нет bounded materialization context и
+единого recursive disposal владельца поверх существующего engine graph.
+
+Разрешённое изменение одного механизма: общий protected retained-parent API
+в `@ui/elements`, который использует только engine `Object3D`, направляет
+primitive draw в выбранный owned parent, рекурсивно освобождает заменённый
+subtree и отдельно запрашивает transform-only presentation frame. NodeCanvas,
+его model/layout/culling/input и Blender visual policy не меняются.
+
+Regression: identity parent и прежних children/geometry сохраняется после
+transform-only frame; повторная dirty materialization освобождает каждый
+вложенный geometry/text resource ровно один раз; remove/dispose отсоединяет
+parent/children и повторный cleanup не вызывает double invalidation.
+
+Среда и критерий приёмки: focused `@ui/elements` lifecycle tests, package
+typecheck, применимые Node UI tests и typecheck, exact Engine source typecheck,
+`git diff --check`. Browser и NodeCanvas performance относятся к
+NODES-018.3–.5.
+
+Фактические действия: ещё не выполнены.
+
+Результат и вывод: ещё не получены.
+
+Подготовительный commit: текущий project-коммит после этой регистрации.
+
+Result checkpoint: ещё не записан.
 
 ### NODES-018.3 — Перевести NodeCanvas на retained content hierarchy
 
