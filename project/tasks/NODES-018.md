@@ -205,7 +205,7 @@ typecheck — pass; `git diff --check` — pass.
 
 Подготовительный commit: `da884b2daf7ad467d6c7b85e6dbb7af5c5e45044`.
 
-Result checkpoint: будет записан следующим project-only commit.
+Result checkpoint: `57c66555848fda99c8d102a11a0d7c9ca67a3f62`.
 
 ### NODES-018.3 — Перевести NodeCanvas на retained content hierarchy
 
