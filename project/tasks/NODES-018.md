@@ -431,8 +431,7 @@ Result checkpoint: `a4d611767094611ff7a233adc57adf94e643bbd0`.
 
 Correction preparation: `1531868b8a0994cea21751d8aaf065be6da04b50`.
 
-Correction result checkpoint: текущий correction result commit; exact hash
-записывается следующим project-only commit.
+Correction result checkpoint: `00d982041e99f260241fcd4df7e6b0c31853f0ae`.
 
 ### NODES-018.5 — Доказать correctness и performance
 
