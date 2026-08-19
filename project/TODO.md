@@ -81,7 +81,9 @@ checkpoint NODES-008.4 с общим исправлением левых инт�
 общий `UI dev` и проверяет все уже существующие package playgrounds, затем
 интегрирует закрытый retained результат NODES-018, завершает миграцию
 Elements/Components/consumers и возвращает NODES-017 к visual corrections без
-подмены physical-device и owner-acceptance gates.
+подмены physical-device и owner-acceptance gates. Closing review вернула задачу
+в работу только для герметизации UI dev test: он не должен зависеть от
+обязательного работающего Elements playground на registry port.
 
 [`UI-001 — Создать playground универсальных UI Components`](tasks/UI-001.md)
 сохраняет historical visual geometry, universal Field routes и уже использует
@@ -100,7 +102,7 @@ owner acceptance остаются отдельными gates.
 | MF-425 | IN_PROGRESS | нет         | [Открыть](tasks/MF-425.md) |
 | MF-411 | IN_PROGRESS | нет         | [Открыть](tasks/MF-411.md) |
 | NODES-008 | IN_PROGRESS | нет       | [Открыть](tasks/NODES-008.md) |
-| UI-004 | REVIEW      | нет         | [Открыть](tasks/UI-004.md) |
+| UI-004 | IN_PROGRESS | нет         | [Открыть](tasks/UI-004.md) |
 | UI-001 | READY       | нет         | [Открыть](tasks/UI-001.md) |
 | NODES-017 | IN_PROGRESS | нет      | [Открыть](tasks/NODES-017.md) |
 | MF-414 | WAITING     | MF-411      | [Открыть](tasks/MF-414.md) |
