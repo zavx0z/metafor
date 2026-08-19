@@ -131,8 +131,7 @@ NODES-016 Hamiltonian/Card consumer gap; ошибок изменённых Engin
 
 Подготовительный commit: `e3775ec107a9b69ff933c8b9a9ec43b434552afc`.
 
-Result checkpoint: текущий result commit NODES-018.1; точный hash записывается
-следующим project record после создания commit.
+Result checkpoint: `d15d66671810a5a483e64ae1782c89dae29be025`.
 
 ### NODES-018.2 — Добавить retained component parent в UiSurface
 
