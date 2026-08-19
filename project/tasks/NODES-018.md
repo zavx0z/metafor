@@ -150,8 +150,7 @@ history сохраняет это имя только как явно отвер
 `git diff --check` проходит.
 
 Correction preparation: `d0231f3e982a13e2b7898e38f7e7fe2e2598f622`.
-Correction result: текущий correction result commit; точный hash записывается
-следующим project-only record после создания commit.
+Correction result: `a2a44e14449d0e3eeb06ed9c09951629cad2a2a3`.
 
 ### NODES-018.2 — Добавить retained component parent в UiSurface
 
