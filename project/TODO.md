@@ -100,7 +100,7 @@ owner acceptance остаются отдельными gates.
 | MF-425 | IN_PROGRESS | нет         | [Открыть](tasks/MF-425.md) |
 | MF-411 | IN_PROGRESS | нет         | [Открыть](tasks/MF-411.md) |
 | NODES-008 | IN_PROGRESS | нет       | [Открыть](tasks/NODES-008.md) |
-| UI-004 | BLOCKED     | owner decision: Hamiltonian prototype root typecheck | [Открыть](tasks/UI-004.md) |
+| UI-004 | IN_PROGRESS | нет         | [Открыть](tasks/UI-004.md) |
 | UI-001 | READY       | нет         | [Открыть](tasks/UI-001.md) |
 | NODES-017 | IN_PROGRESS | нет      | [Открыть](tasks/NODES-017.md) |
 | MF-414 | WAITING     | MF-411      | [Открыть](tasks/MF-414.md) |
