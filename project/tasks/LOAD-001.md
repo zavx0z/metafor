@@ -31,7 +31,7 @@ functionality нельзя навсегда загружать напрямую 
 Задача является первым срезом отдельной линии
 [`Загрузка Hamiltonian`](../ROADMAP.md#загрузка-hamiltonian) и предшествует
 [`UPD-002 — Обновлять всю клиентскую сборку через Service
-Worker`](UPD-002.md).
+Worker`](https://github.com/zavx0z/metafor/blob/c6e2692b2b164240ca84e6dc98b4bfc4fa370ac1/project/tasks/UPD-002.md).
 
 Она развивает первый однодевайсный этап
 [`MF-425 — Управлять одной Вселенной на одном устройстве`](MF-425.md), но не

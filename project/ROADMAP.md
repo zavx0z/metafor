@@ -297,8 +297,7 @@ dependencies задают состояние без отдельного release
 Ручная версия отдельного испытательного модуля и самостоятельное решение
 страницы по host source fingerprint больше не являются параллельными
 механизмами браузерного обновления. Этим доказанным checkpoint владеет
-[`UPD-002 — Обновлять всю клиентскую сборку через Service
-Worker`](tasks/UPD-002.md).
+[Hamiltonian-контракт](../hamiltonian/README.md#стандартная-window-среда-clean-room-loader).
 
 Действующий clean-room release различает несколько сред одного package без
 изменения bare import: стандартный conditional `exports` выбирает `main`, `worker`,

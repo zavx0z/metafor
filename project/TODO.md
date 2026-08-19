@@ -28,7 +28,6 @@ flowchart LR
     NODES008["NODES-008 · убрать пустой compound-резерв"]
     MF425["MF-425 · одна Вселенная на одном устройстве"]
     LOAD001["LOAD-001 · минимальный browser loader"]
-    UPD002["UPD-002 · клиентская сборка через Service Worker"]
     MF426["MF-426 · одна Вселенная на нескольких устройствах"]
     MF427["MF-427 · несколько Вселенных"]
     MTX001["MTX-001 · причинный порядок"]
@@ -72,47 +71,6 @@ checkpoint NODES-008.4 с общим исправлением левых инт�
 
 Начата `LOAD-001 — Загружать браузерный функционал через минимальный Service
 Worker`. Весь прежний Hamiltonian остаётся отдельно запускаемым прототипом.
-Browser path перестраивается в `UPD-002.7` как `startup → release → internal`.
-`UPD-002.8` добавляет в `metafor-dev` одну безопасную команду очистки site data
-точного managed CDP target для повторной проверки startup/release migration.
-`UPD-002.9` встраивает обе стороны RPC в release: server transport принадлежит
-`@release/server`, Service Worker transport входит в `@release/service`, а
-корневой `server.ts` снова явно показывает HTTP methods и WebSocket lifecycle.
-Текущий срез `UPD-002.10` перестаёт встраивать `@internal/visual` в
-`@release/main`: Visual получает собственные versioned artifact и cache owner
-`internal` и не входит bytes в release main.
-Срез `UPD-002.11` направил стабильный package URL любого
-`@release/*`/`@internal/*`/`@metafor/*` в Cache Storage его владельца. Текущий
-correction-срез `UPD-002.12` завершает транзакцию в канонических owner caches,
-удаляет технические storages после switch и публикует изменённые
-`@release/main` и `@release/service` под новыми точными версиями; main больше не
-содержит встроенные bytes Visual. Владелец проверил предъявленный patch и
-поручил зафиксировать result checkpoint.
-Result-срез `UPD-002.13` отделил package delivery от control endpoint:
-browser artifacts получают канонические URL `/<package-name>`, а `/code`
-остаётся только для чтения release state и групповой публикации. Import map по
-namespace сохраняет bare package imports в исходниках и готовых Window
-artifacts без package-specific browser adapters. Реализация сохранена
-checkpoint-коммитом и ожидает проверки владельца в оставленном live contour.
-Correction-срез `UPD-002.14` вернул named public types browser package
-непосредственно к source entrypoint: зависимый package видит новый export без
-build. Срез `UPD-002.15` заново опубликовал development artifacts с inline
-source maps и owner-scoped diagnostics и устранил смешанный
-production/development contour после `.13`. Оба результата ожидают review в
-оставленном live contour.
-Текущий срез `UPD-002.16` закрепляет уточнённый owner-law type boundaries:
-внутрипакетный type re-export допустим, cross-package type re-export запрещён.
-AST-аудит `startup`/`release`/`internal` нашёл ровно два нарушения для
-environment types package `@metafor/hamiltonian` в server barrel package
-`@hamiltonian/release`. Срез находится в `REVIEW`: checkpoint `f656c394a`
-удалил оба нарушения, сохранил восемь внутрипакетных re-export и закрепил
-общий AST-regression; typecheck и Hamiltonian `301/301` проходят. Runtime и
-browser в correction не менялись.
-Родительский результат подготовлен к `REVIEW`: текущий Hamiltonian-contract
-сохраняет доказанный outcome `UPD-002`, исторические active-state/package names
-явно отделены, closing handoff перечисляет clean-room packages, public owners,
-tests и будущие scope. До независимого verdict карточка остаётся в графе.
-Обновление уже работающего Bun runtime остаётся будущим большим этапом.
 Package `@hamiltonian/startup` устанавливает Service Worker, восстанавливает
 HTML/startup offline и запускает browser env package `@hamiltonian/release` из
 cache `release`. Release package разворачивает Window и Service Worker
@@ -128,29 +86,12 @@ canonical owner caches и атомарное переключение сменя
 действующим Hamiltonian-контрактом; неизменяемый startup в этот выпуск не
 входит. Владелец признал текущий loader checkpoint
 достаточным для development update-срезов, не закрывая остальную `LOAD-001`.
-Development checkpoint `UPD-002.2`–`UPD-002.5` принят владельцем: групповой
-build, одно уведомление и один browser restart сохранены, а единственный
-внешний POST contract теперь развивается в `UPD-002.6`: JSON передаёт package
-name и вид SemVer-изменения `patch | minor | major`, но не готовый номер версии.
-Host и Service Worker публикуют и применяют всю группу транзакционно; отдельный
-release manifest не создаётся, доказанное состояние принадлежит package
-versions и корневым caret dependencies. Legacy query POST отклоняется.
-Package-owned development
-build executor получает development-команду из единственного production
-`scripts.build` пакета: сохраняет debug и добавляет inline source map;
-production удаляет `console.debug` и не публикует карту. Package contract
-находится динамически без реестра имён. Постоянный contour запускается через
-`bun run dev`. `UPD-002.5` добавил owner-scoped русские development diagnostics
-полного пути `POST → build → WSS → fetch → cache → restart → новый page realm`,
-не меняя действующий update protocol; production artifacts не содержат эти
-вызовы, аргументы и scope.
 
 | ID     | Состояние   | Зависимости | Карточка                   |
 | ------ | ----------- | ----------- | -------------------------- |
 | MF-424 | IN_PROGRESS | нет         | [Открыть](tasks/MF-424.md) |
 | MF-425 | IN_PROGRESS | нет         | [Открыть](tasks/MF-425.md) |
 | LOAD-001 | IN_PROGRESS | нет       | [Открыть](tasks/LOAD-001.md) |
-| UPD-002 | REVIEW      | нет       | [Открыть](tasks/UPD-002.md) |
 | MF-411 | IN_PROGRESS | нет         | [Открыть](tasks/MF-411.md) |
 | NODES-008 | IN_PROGRESS | нет       | [Открыть](tasks/NODES-008.md) |
 | MF-414 | WAITING     | MF-411      | [Открыть](tasks/MF-414.md) |
