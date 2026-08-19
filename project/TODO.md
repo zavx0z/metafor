@@ -210,8 +210,13 @@ prototype. `UPD-003.18` исправила complete-source recovery checkpoint
 `49ccff514`, а `UPD-003.19` восстановила platform header checkpoint
 `27f821e55`. Совмещённые focused regressions, strict release/test/prototype
 typechecks и полный Hamiltonian suite прошли `298/298`; managed contour и
-browser code caches не изменились. Родитель снова находится в `REVIEW` и ждёт
-повторной независимой closing review; owner-visible contour оставлен работающим.
+browser code caches не изменились. Повторная closing review подтвердила эти
+исправления, но вернула родителя в `IN_PROGRESS`: canonical `bun run typecheck`
+смешивает service/server TypeScript environments и сохраняет strict errors
+prototype update, а точный счётчик `expect()` оказался неустойчивым evidence.
+Validation-срезы зарегистрированы как `UPD-003.20` и `UPD-003.21`; assertion
+count больше не является acceptance-инвариантом. Owner-visible contour оставлен
+работающим и в эти срезы не входит.
 Обновление уже работающего Bun runtime остаётся будущим большим этапом.
 Package `@hamiltonian/startup` устанавливает Service Worker, восстанавливает
 HTML/startup offline и запускает browser env package `@hamiltonian/release` из
@@ -251,7 +256,7 @@ production удаляет `console.debug` и не публикует карту.
 | MF-425 | IN_PROGRESS | нет         | [Открыть](tasks/MF-425.md) |
 | LOAD-001 | IN_PROGRESS | нет       | [Открыть](tasks/LOAD-001.md) |
 | UPD-002 | IN_PROGRESS | нет       | [Открыть](tasks/UPD-002.md) |
-| UPD-003 | REVIEW      | нет       | [Открыть](tasks/UPD-003.md) |
+| UPD-003 | IN_PROGRESS | нет       | [Открыть](tasks/UPD-003.md) |
 | MF-411 | IN_PROGRESS | нет         | [Открыть](tasks/MF-411.md) |
 | NODES-008 | IN_PROGRESS | нет       | [Открыть](tasks/NODES-008.md) |
 | MF-414 | WAITING     | MF-411      | [Открыть](tasks/MF-414.md) |
