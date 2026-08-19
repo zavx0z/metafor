@@ -104,7 +104,8 @@ localization/mobile proof остаются текущим UI-001.3.
 [`UI-002 — Создать общий пакет Playground для UI-каталогов`](tasks/UI-002.md)
 выносит historical router и пятипанельный FlexBox shell в отдельный
 `@ui/playground`. Elements/Components и Node implementation заморожены; первым
-новым consumer после package proof станет NODES-019.
+новым consumer после package proof станет NODES-019. Result `efbad1689` находится
+в closing review: router/layout/shell/server fixture и package boundary зелёные.
 
 [`NODES-017 — Визуально воспроизвести Blender Node Editor`](tasks/NODES-017.md)
 уже получила equal-scale comparison, correct row order, texture header и
@@ -311,7 +312,7 @@ production удаляет `console.debug` и не публикует карту.
 | MF-411 | IN_PROGRESS | нет         | [Открыть](tasks/MF-411.md) |
 | NODES-008 | IN_PROGRESS | нет       | [Открыть](tasks/NODES-008.md) |
 | NODES-018 | IN_PROGRESS | нет       | [Открыть](tasks/NODES-018.md) |
-| UI-002 | IN_PROGRESS | нет       | [Открыть](tasks/UI-002.md) |
+| UI-002 | REVIEW      | нет       | [Открыть](tasks/UI-002.md) |
 | NODES-019 | WAITING     | UI-002     | [Открыть](tasks/NODES-019.md) |
 | UI-001 | WAITING     | NODES-018 | [Открыть](tasks/UI-001.md) |
 | NODES-017 | WAITING     | NODES-018, NODES-019, UI-001 | [Открыть](tasks/NODES-017.md) |
