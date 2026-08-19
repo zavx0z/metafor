@@ -108,6 +108,10 @@ environment types package `@metafor/hamiltonian` в server barrel package
 удалил оба нарушения, сохранил восемь внутрипакетных re-export и закрепил
 общий AST-regression; typecheck и Hamiltonian `301/301` проходят. Runtime и
 browser в correction не менялись.
+Родительский результат подготовлен к `REVIEW`: текущий Hamiltonian-contract
+сохраняет доказанный outcome `UPD-002`, исторические active-state/package names
+явно отделены, closing handoff перечисляет clean-room packages, public owners,
+tests и будущие scope. До независимого verdict карточка остаётся в графе.
 Обновление уже работающего Bun runtime остаётся будущим большим этапом.
 Package `@hamiltonian/startup` устанавливает Service Worker, восстанавливает
 HTML/startup offline и запускает browser env package `@hamiltonian/release` из
@@ -146,7 +150,7 @@ production удаляет `console.debug` и не публикует карту.
 | MF-424 | IN_PROGRESS | нет         | [Открыть](tasks/MF-424.md) |
 | MF-425 | IN_PROGRESS | нет         | [Открыть](tasks/MF-425.md) |
 | LOAD-001 | IN_PROGRESS | нет       | [Открыть](tasks/LOAD-001.md) |
-| UPD-002 | IN_PROGRESS | нет       | [Открыть](tasks/UPD-002.md) |
+| UPD-002 | REVIEW      | нет       | [Открыть](tasks/UPD-002.md) |
 | MF-411 | IN_PROGRESS | нет         | [Открыть](tasks/MF-411.md) |
 | NODES-008 | IN_PROGRESS | нет       | [Открыть](tasks/NODES-008.md) |
 | MF-414 | WAITING     | MF-411      | [Открыть](tasks/MF-414.md) |
