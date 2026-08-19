@@ -27,6 +27,9 @@ Owner-visible playground NODES-017 оказался перегруженным: 
   компонентная граница: один catalog section — одна ответственность.
 * UI-001 создаёт `pkg/ui/components/playground` и принимает standalone input
   catalog; Node playground только импортирует production components внутри Node.
+* По следующему решению владельца реализация ожидает
+  [`UI-002 — Создать общий пакет Playground для UI-каталогов`](UI-002.md).
+  Node package станет первым новым consumer public router/shell contracts.
 * NODES-018 параллельно переводит engine/UI на retained hierarchy в отдельном
   worktree. NODES-019 не меняет engine, `UiSurface`, `NodeCanvas`, renderer API
   или production component code; затрагивается только dev playground shell.
@@ -63,6 +66,7 @@ browser proof может открыть и проверить конкретны
 * Не брать visual corrections Socket/header/shadow/LOD/alignment NODES-017 —
   они ждут retained prerequisite NODES-018.
 * Не создавать отдельные реализации universal fields или sockets для catalog.
+* До результата UI-002 не менять файлы Node playground.
 
 ## Критерии готовности
 
@@ -82,5 +86,5 @@ browser proof может открыть и проверить конкретны
 
 ## Состояние
 
-`IN_PROGRESS`: задача выполняется в `/Users/zavx0z/repozitarium/metafor-node-layot`
-параллельно NODES-018, с dev-playground-only file boundary.
+`WAITING`: зависит от UI-002. Blender-style Node, Parameter и current Field
+composition заморожены; после package result меняется только dev playground.
