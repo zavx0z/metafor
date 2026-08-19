@@ -81,7 +81,9 @@ Bounded adaptive side-selection через тот же common core реализ�
 Существующий Hamiltonian Card consumer переведён на новый explicit presentation
 contract и сохранил fixed behavior. Текущий финальный срез собирает benchmark,
 bundle, SVG/browser и полные test/typecheck evidence; adaptive product
-integration не входит в эту задачу.
+integration не входит в эту задачу. Owner review вернул тот же SVG-срез в
+работу: port ID labels в RIGHT comparison должны перестать перекрываться, после
+чего visual evidence повторяется.
 
 Начата `LOAD-001 — Загружать браузерный функционал через минимальный Service
 Worker`. Весь прежний Hamiltonian остаётся отдельно запускаемым прототипом.

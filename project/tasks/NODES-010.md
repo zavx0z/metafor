@@ -130,7 +130,7 @@ independent subpath entrypoints внутри `@nodes/layout` и `@nodes/ui`, а 
 | NODES-010.5 | Подключить adaptive через measured и Card adapters | CLOSED |
 | NODES-010.6 | Разделить fixed/adaptive Worker и bundle entrypoints | CLOSED |
 | NODES-010.7 | Перевести существующий Card consumer без изменения поведения | CLOSED |
-| NODES-010.8 | Доказать adapters, performance, playground и package boundary · `/root/nodes_010_8` | REVIEW |
+| NODES-010.8 | Доказать adapters, performance, playground и package boundary · `/root/nodes_010_8` | IN_PROGRESS |
 
 Каждый срез получает отдельный result checkpoint. `.2` и `.3` начинаются после
 `.1`; `.4` зависит от `.2` и playground baseline `.3`; `.5` и `.6` независимо
@@ -335,6 +335,17 @@ lifecycle не менялись. Compile gate закрыт; финальный `
 
 Полный набор воспроизводимых evidence находится в
 [`project/artifacts/NODES-010/`](../artifacts/NODES-010/README.md).
+
+### Owner review NODES-010.8
+
+Root визуально перечитал обе сохранённые browser matrices. Layout geometry,
+resolved sides, comparison status и отсутствие Canvas/WebGPU подтверждены, но
+в `RIGHT` некоторые port ID labels перекрываются между собой и route strokes.
+Для inspectable debug playground это дефект того же требования, SVG renderer и
+той же browser-среды. `.8` возвращён в `IN_PROGRESS`: labels должны получить
+детерминированное collision-free размещение с точной привязкой к port, после
+чего SVG hashes, screenshots, DOM/console evidence и связанные artifacts
+пересобираются. Layout policies, results и benchmark не меняются.
 
 ## Поведение процесса
 
