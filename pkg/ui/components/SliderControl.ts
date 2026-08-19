@@ -2,7 +2,7 @@ import {Color} from "@metafor/engine"
 import {Z, flexColumn, flexRow, palette, uiIcons, type UiSurface} from "@ui/elements"
 import {IconButton, type IconButtonProps} from "./Button.ts"
 
-export type SliderControlLayout = "header" | "track"
+export type SliderControlLayout = "header" | "track" | "inline"
 
 export type SliderControlTone = "text" | "muted" | "cyan"
 export type SliderControlTrackTone = "cyan" | "warm"
@@ -35,8 +35,62 @@ export type SliderControlProps = {
 
 export function SliderControl(host: UiSurface, x: number, y: number, w: number, props: SliderControlProps): number {
   const layout = props.layout ?? "header"
+  if (layout === "inline") return drawInlineLayout(host, x, y, w, props)
   if (layout === "track") return drawTrackLayout(host, x, y, w, props)
   return drawHeaderLayout(host, x, y, w, props)
+}
+
+function drawInlineLayout(host: UiSurface, x: number, y: number, w: number, props: SliderControlProps): number {
+  const bounds = sliderBounds(props)
+  const value = normalizedSliderValue(props.value, bounds.min, bounds.max)
+  const ratio = sliderRatio(value, bounds.min, bounds.max)
+  const height = props.buttonHeight ?? 22
+  const zBase = props.zBase ?? Z.ELEMENT
+  const textZ = props.textZ ?? Z.TEXT
+  host.drawRoundedRect(x, y, w, height, {
+    radius: Math.max(2, height * 0.16),
+    fill: new Color(0.235, 0.235, 0.235, 1),
+    border: new Color(0.11, 0.11, 0.11, 1),
+    borderWidth: 1,
+    z: zBase,
+  })
+  host.drawRoundedRect(x + 1, y + 1, Math.max(0, (w - 2) * ratio), Math.max(1, height - 2), {
+    radius: Math.max(1, height * 0.12),
+    fill: new Color(0.25, 0.47, 0.76, 0.92),
+    border: null,
+    z: zBase + 0.01,
+  })
+  flexRow({
+    x,
+    y,
+    w,
+    h: height,
+    paddingX: Math.max(5, height * 0.28),
+    gap: 6,
+    alignItems: "center",
+    items: [
+      {width: "grow", height, draw: (slotX, slotY, slotW) => host.drawText(props.label, slotX, slotY + (height - (props.labelFontPx ?? 11)) / 2, {
+        fontPx: props.labelFontPx ?? 11,
+        material: materialForTone(host, props.labelTone ?? "text"),
+        maxWidthPx: slotW,
+        z: textZ,
+      })},
+      {width: Math.max(40, height * 2.4), height, draw: (slotX, slotY, slotW) => host.drawText(formatSliderValue(props, value), slotX, slotY + (height - (props.valueFontPx ?? 11)) / 2, {
+        fontPx: props.valueFontPx ?? 11,
+        material: materialForTone(host, props.valueTone ?? "text"),
+        maxWidthPx: slotW,
+        z: textZ,
+      })},
+    ],
+  })
+  const setFromPointer = (localX: number): void => setSliderValue(host, props, bounds.min + ((localX - x) / Math.max(1, w)) * bounds.range, bounds.min, bounds.max)
+  host.hit(x, y, w, height, () => undefined, {
+    key: `${props.key}:inline`,
+    cursor: "pointer",
+    onPointerDown: (localX) => setFromPointer(localX),
+    onPointerMove: (localX) => setFromPointer(localX),
+  })
+  return y + height
 }
 
 function drawHeaderLayout(host: UiSurface, x: number, y: number, w: number, props: SliderControlProps): number {

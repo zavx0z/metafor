@@ -4,6 +4,7 @@ import {
   NodeEditor,
   fitNodeEditorTransform,
   nodeEditorRegions,
+  planNodeEditorGrid,
   planNodeEditorPaintSteps,
   planNodeEditorViewport,
   validatePositionedNodeTree,
@@ -171,5 +172,10 @@ describe("generic Blender-like Node Editor contracts", () => {
       toolbar: {x: 0, y: 0, w: 800, h: 0},
       content: {x: 0, y: 0, w: 800, h: 600},
     })
+    const grid = planNodeEditorGrid({x: 0, y: 0, w: 390, h: 844}, {x: 7, y: 11, scale: 0.5})
+    expect(grid.length).toBeGreaterThan(0)
+    expect(grid.length).toBeLessThanOrEqual(5000)
+    expect(grid.every(({x, y}) => x >= 0 && x <= 390 && y >= 0 && y <= 844)).toBeTrue()
+    expect(grid.some(({major}) => major)).toBeTrue()
   })
 })

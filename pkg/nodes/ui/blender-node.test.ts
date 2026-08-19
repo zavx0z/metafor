@@ -53,8 +53,8 @@ describe("Blender-like Node presets", () => {
       }],
     }
     const measured = measureBlenderNode(node)
-    expect(measured.width).toBeGreaterThanOrEqual(190)
-    expect(measured.height).toBeGreaterThan(100)
+    expect(measured.width).toBeGreaterThanOrEqual(180)
+    expect(measured.height).toBeGreaterThan(80)
   })
 
   test("provides independent Node, Socket and Link renderers", () => {

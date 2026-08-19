@@ -47,3 +47,14 @@
   срезом.
 * Контрольная сумма: SHA-256
   `41752d246d0dc56176d6ee9376bb095a1564bd29ca6c1a8a86a4e6df8caabe7f`.
+
+## visual-rhythm-checkpoint.png
+
+* Источник: exact WebGPU canvas после NODES-017.4.
+* Ожидание: dot grid, category headers, compact controls, connected-state rows,
+  nested Frame, collapsed Node и отсутствие label/control overlaps.
+* Фактическое наблюдение: перечисленные states видимы; linked Parameters
+  показывают label без default control; nested Frame и collapsed Node отдельны;
+  exact endpoints сохранены. Link selection и mobile не входят в этот proof.
+* Контрольная сумма: SHA-256
+  `fd2791cf9850dd18fcf8c0089b280094fc25d0628cd99a5eb9de2893dbecf31f`.

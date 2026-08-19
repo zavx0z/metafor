@@ -1,6 +1,7 @@
 import type {FieldDefinition} from "@ui/components"
 import {
   BLENDER_SOCKET_KINDS,
+  measureBlenderNode,
   positionBlenderNode,
   type BlenderFrame,
   type BlenderLink,
@@ -56,6 +57,13 @@ export const SOCKET_CATALOG = BLENDER_SOCKET_KINDS.map((kind, index): BlenderSoc
 
 export function createCatalogNodeTree(): PositionedNodeTree<BlenderNode, BlenderSocket, BlenderLink, BlenderFrame> {
   const frame: BlenderFrame = {id: "catalog-frame", label: "Node component system"}
+  const nestedFrame: BlenderFrame = {
+    id: "data-frame",
+    parentFrameId: "catalog-frame",
+    label: "Data Processing",
+    color: {r: 0.16, g: 0.28, b: 0.48, a: 1},
+    labelSize: 15,
+  }
   const scalar = blenderNode("scalar", "Scalar Math", "Converter", [
     {id: "operation", label: "Operation", kind: "enum", value: "multiply", options: [
       {value: "add", label: "Add"},
@@ -109,18 +117,30 @@ export function createCatalogNodeTree(): PositionedNodeTree<BlenderNode, Blender
     socket("bundle", "Bundle", "bidirectional", "bundle"),
     socket("closure", "Closure", "output", "closure"),
   ])
+  const collapsed: BlenderNode = {
+    ...blenderNode("collapsed", "Compact Mix", "Converter", [], [], [
+      socket("factor-a", "A", "input", "float"),
+      socket("factor-b", "B", "input", "float"),
+      socket("mixed", "Result", "output", "float"),
+    ]),
+    collapsed: true,
+  }
 
   const nodes: PositionedNode<BlenderNode, BlenderSocket>[] = [
-    positionBlenderNode(scalar, {x: 40, y: 70, w: 260, h: 250}),
-    positionBlenderNode(transform, {x: 340, y: 60, w: 310, h: 240}),
-    positionBlenderNode(shader, {x: 720, y: 65, w: 330, h: 250}),
-    positionBlenderNode(asset, {x: 130, y: 360, w: 300, h: 260}),
-    positionBlenderNode(matrix, {x: 590, y: 350, w: 390, h: 280}),
+    positionCatalogNode(scalar, 40, 70, 260),
+    positionCatalogNode(transform, 340, 60, 310),
+    positionCatalogNode(shader, 720, 65, 330),
+    positionCatalogNode(asset, 130, 360, 300),
+    positionCatalogNode(collapsed, 450, 420, 120),
+    positionCatalogNode(matrix, 590, 350, 390),
   ]
 
   return {
     bounds: {x: 0, y: 0, w: 1120, h: 650},
-    frames: [{frame, rect: {x: 0, y: 0, w: 1120, h: 650}}],
+    frames: [
+      {frame, rect: {x: 0, y: 0, w: 1120, h: 650}},
+      {frame: nestedFrame, rect: {x: 80, y: 320, w: 950, h: 300}},
+    ],
     nodes,
     links: [
       link("scalar-transform", "scalar", "result", "transform", "vector", "float", nodes),
@@ -131,6 +151,15 @@ export function createCatalogNodeTree(): PositionedNodeTree<BlenderNode, Blender
   }
 }
 
+function positionCatalogNode(
+  node: BlenderNode,
+  x: number,
+  y: number,
+  width: number,
+): PositionedNode<BlenderNode, BlenderSocket> {
+  return positionBlenderNode(node, {x, y, w: width, h: measureBlenderNode(node).height})
+}
+
 function blenderNode(
   id: string,
   title: string,
@@ -139,7 +168,24 @@ function blenderNode(
   parameters: readonly BlenderParameter[],
   sockets: readonly BlenderSocket[],
 ): BlenderNode {
-  return {id, frameId: "catalog-frame", title, category, properties, parameters, sockets}
+  return {
+    id,
+    frameId: id === "asset" || id === "matrix" || id === "collapsed" ? "data-frame" : "catalog-frame",
+    title,
+    category,
+    headerColor: categoryHeaderColor(category),
+    properties,
+    parameters,
+    sockets,
+  }
+}
+
+function categoryHeaderColor(category: string): Readonly<{r: number; g: number; b: number; a: number}> {
+  if (category === "Converter") return {r: 0.36, g: 0.28, b: 0.55, a: 1}
+  if (category === "Vector") return {r: 0.24, g: 0.32, b: 0.58, a: 1}
+  if (category === "Shader") return {r: 0.20, g: 0.47, b: 0.22, a: 1}
+  if (category === "Resource") return {r: 0.55, g: 0.25, b: 0.20, a: 1}
+  return {r: 0.18, g: 0.45, b: 0.48, a: 1}
 }
 
 function parameter(field: FieldDefinition): BlenderParameter {

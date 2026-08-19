@@ -44,6 +44,8 @@ format и автоматическое размещение принадлежа
 6. Вся внутренняя композиция Node, Socket labels/default fields, catalog panels
    и playground regions выполняется существующими `flexRow`/`flexColumn` либо
    `flexRowCss`/`flexColumnCss`. Ручные UI-grid offsets запрещены.
+7. Blender preset использует scale-aware compact Field density. Parameter Field
+   и его left/right Socket получают одну Flex row и один viewport transform.
 
 ## Blender presets
 
@@ -70,6 +72,11 @@ format и автоматическое размещение принадлежа
    скрытого product state нет.
 5. Ручными координатами остаются только входная positioned Node geometry,
    exact Socket centers и Link route points. Это scene data, не layout children.
+6. NodeCanvas рисует scale-aware dot grid. Linked Parameter определяется из
+   `NodeTree.links`: его default control скрывается без дублирования connected
+   state во входной модели.
+7. Collapsed Node сохраняет exact Socket endpoints вокруг compact header;
+   Frame может быть вложен в другой Frame.
 
 ## Package boundary и удаление legacy
 

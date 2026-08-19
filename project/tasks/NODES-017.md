@@ -86,6 +86,14 @@ header/body, one-unit row rhythm, labels, connected/disabled controls,
 selection, collapse и shadow. Проектный шрифт сохраняется; вся child geometry
 вычисляется Flex.
 
+`COMPLETE`: universal Field получил scale-aware compact density, SliderControl
+— общий inline layout. Node использует one-unit row rhythm, compact header,
+category color, shadow, connected-state suppression, dot grid и aligned exact
+Socket. Добавлены visible nested Frame и collapsed Node. Focused package suite
+32/32, components/UI/playground typechecks, package boundary, browser console
+и diff check зелёные; exact canvas сохранён в artifacts. Project font и
+ортогональные routes сохранены по решению владельца.
+
 ### NODES-017.5 — Довести ортогональные Links и interaction states
 
 Сохранить ортогональные route points и скруглённые углы, но согласовать
@@ -153,5 +161,5 @@ console, DOM и visual matrix, затем оставить contour владел�
 
 ## Состояние
 
-`IN_PROGRESS`, исполнитель `/root`; текущий срез NODES-017.4 — Blender-like
-Node/Parameter visual rhythm при сохранении ортогональных Links.
+`IN_PROGRESS`, исполнитель `/root`; текущий срез NODES-017.5 — selected и
+interaction states ортогональных Links.

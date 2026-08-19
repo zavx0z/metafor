@@ -1,4 +1,4 @@
-import type {Color} from "@metafor/engine"
+import {Color} from "@metafor/engine"
 import {Typography} from "@ui/components"
 import {
   UiSurface,
@@ -114,6 +114,7 @@ export type FrameRendererContext<TFrame extends Frame> = Readonly<{
 export type NodeRendererContext<TNode extends Node, TSocket extends Socket> = Readonly<{
   host: UiSurface
   entry: PositionedNode<TNode, TSocket>
+  connectedSocketIds: ReadonlySet<string>
   scale: number
   selected: boolean
 }>
@@ -182,6 +183,8 @@ export type NodeEditorPaintStep =
   | Readonly<{kind: "frame-foreground"; frameId: string}>
   | Readonly<{kind: "node"; nodeId: string}>
 
+export type NodeEditorGridPoint = Readonly<{x: number; y: number; major: boolean}>
+
 export type NodeCanvasOptions<
   TNode extends Node,
   TSocket extends Socket,
@@ -207,6 +210,7 @@ export type NodeEditorOptions<
 
 const DEFAULT_TRANSFORM: NodeCanvasTransform = Object.freeze({x: 0, y: 0, scale: 1})
 const TOOLBAR_HEIGHT = 38
+const EMPTY_IDS: ReadonlySet<string> = new Set()
 
 /** Read-only Blender-like Node canvas with no layout or product dependency. */
 export class NodeCanvas<
@@ -338,14 +342,16 @@ export class NodeCanvas<
       this.#fitPending = false
       this.#transform = fitNodeEditorTransform(this.#tree, this.#contentRect(), 34, this.#minScale, this.#maxScale)
     }
-    this.withLayer("underlay", () => this.drawRect(0, 0, this.rectW, this.rectH, palette.bg, Z.CONTAINER))
+    this.withLayer("underlay", () => this.drawRect(0, 0, this.rectW, this.rectH, new Color(0.075, 0.073, 0.071, 1), Z.CONTAINER))
     if (this.#toolbar) this.#drawToolbar()
     const content = this.#contentRect()
+    this.withLayer("underlay", () => drawNodeEditorGrid(this, content, this.#transform))
     this.pushClip(content.x, content.y, content.w, content.h)
     try {
       const plan = this.renderPlan()
       const visibleById = new Map(plan.nodes.map((entry) => [entry.node.id, entry] as const))
       const visibleFramesById = new Map(plan.frames.map((entry) => [entry.frame.id, entry] as const))
+      const connectedByNode = connectedSocketIdsByNode(this.#tree.links)
       if (this.interactive()) this.hit(content.x, content.y, content.w, content.h, () => this.select(null), {
         key: "node-editor:background",
         cursor: "default",
@@ -392,6 +398,7 @@ export class NodeCanvas<
         const context: NodeRendererContext<TNode, TSocket> = {
           host: this,
           entry,
+          connectedSocketIds: connectedByNode.get(entry.node.id) ?? EMPTY_IDS,
           scale: plan.transform.scale,
           selected: isSelected(this.#selection, "node", entry.node.id),
         }
@@ -502,6 +509,21 @@ export function nodeEditorRegions(width: number, height: number, toolbar: boolea
     ],
   })
   return {toolbar: toolbarRect, content}
+}
+
+export function planNodeEditorGrid(frame: NodeRect, transform: NodeCanvasTransform): readonly NodeEditorGridPoint[] {
+  let step = 24 * Math.max(0.01, transform.scale)
+  while (step < 16) step *= 2
+  while (step > 32) step /= 2
+  const startX = frame.x + positiveModulo(transform.x - frame.x, step)
+  const startY = frame.y + positiveModulo(transform.y - frame.y, step)
+  const points: NodeEditorGridPoint[] = []
+  for (let y = startY, row = 0; y <= frame.y + frame.h && points.length < 5000; y += step, row += 1) {
+    for (let x = startX, column = 0; x <= frame.x + frame.w && points.length < 5000; x += step, column += 1) {
+      points.push({x, y, major: row % 4 === 0 && column % 4 === 0})
+    }
+  }
+  return points
 }
 
 export function planNodeEditorPaintSteps<
@@ -756,6 +778,41 @@ function sameSelection(left: NodeEditorSelection, right: NodeEditorSelection): b
 
 function isSelected(selection: NodeEditorSelection, kind: Exclude<NodeEditorSelection, null>["kind"], id: string): boolean {
   return selection?.kind === kind && selection.id === id
+}
+
+function connectedSocketIdsByNode<TLink extends Link>(links: readonly PositionedLink<TLink>[]): ReadonlyMap<string, ReadonlySet<string>> {
+  const mutable = new Map<string, Set<string>>()
+  for (const {link} of links) {
+    for (const endpoint of [link.from, link.to]) {
+      let ids = mutable.get(endpoint.nodeId)
+      if (ids === undefined) {
+        ids = new Set()
+        mutable.set(endpoint.nodeId, ids)
+      }
+      ids.add(endpoint.socketId)
+    }
+  }
+  return mutable
+}
+
+function drawNodeEditorGrid(host: UiSurface, frame: NodeRect, transform: NodeCanvasTransform): void {
+  host.drawRect(frame.x, frame.y, frame.w, frame.h, new Color(0.075, 0.073, 0.071, 1), Z.CONTAINER)
+  for (const point of planNodeEditorGrid(frame, transform)) {
+    const size = point.major ? 1.8 : 1.1
+    const color = point.major
+      ? new Color(0.22, 0.22, 0.22, 0.72)
+      : new Color(0.16, 0.16, 0.16, 0.52)
+    host.drawRoundedRect(point.x - size / 2, point.y - size / 2, size, size, {
+      radius: size / 2,
+      fill: color,
+      border: null,
+      z: Z.CONTAINER + 0.01,
+    })
+  }
+}
+
+function positiveModulo(value: number, divisor: number): number {
+  return ((value % divisor) + divisor) % divisor
 }
 
 function pointOnRectSide(point: NodePoint, side: SocketSide, rect: NodeRect): boolean {

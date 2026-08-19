@@ -107,6 +107,11 @@ export type FieldDefinition =
   | ReferenceFieldDefinition
   | ReadonlyFieldDefinition
 
+export type FieldRenderOptions = Readonly<{
+  density?: "regular" | "compact"
+  scale?: number
+}>
+
 export const FIELD_KINDS = Object.freeze([
   "text",
   "number",
@@ -131,8 +136,10 @@ export function Field(
   y: number,
   width: number,
   definition: FieldDefinition,
+  options: FieldRenderOptions = {},
 ): number {
-  const height = measureFieldHeight(definition)
+  if (options.density === "compact") return drawCompactField(host, x, y, width, definition, options)
+  const height = measureFieldHeight(definition, options)
   if (definition.kind === "number" && definition.presentation === "slider" && definition.max !== undefined) {
     drawNumberSlider(host, x, y, width, definition)
     return height
@@ -173,11 +180,351 @@ function drawFieldControl(
   else drawReadonlyField(host, x, y, width, height, definition)
 }
 
-export function measureFieldHeight(definition: FieldDefinition): number {
+export function measureFieldHeight(definition: FieldDefinition, options: FieldRenderOptions = {}): number {
+  if (options.density === "compact") return compactFieldHeight(definition, options)
   if (definition.kind === "boolean") return CONTROL_HEIGHT
   if (definition.kind === "number" && definition.presentation === "slider") return 66
   if (definition.kind === "matrix") return LABEL_HEIGHT + FIELD_GAP + matrixRows(definition.value).length * 28
   return LABEL_HEIGHT + FIELD_GAP + CONTROL_HEIGHT
+}
+
+function compactFieldHeight(definition: FieldDefinition, options: FieldRenderOptions): number {
+  const metrics = compactMetrics(options)
+  if (definition.kind === "vector" || definition.kind === "rotation") {
+    const dimensions = definition.dimensions ?? Math.min(4, Math.max(2, definition.value.length))
+    return metrics.control * (dimensions + 1) + metrics.gap * dimensions
+  }
+  if (definition.kind === "matrix") {
+    const rows = matrixRows(definition.value).length
+    return metrics.control * (rows + 1) + metrics.gap * rows
+  }
+  return metrics.control
+}
+
+function drawCompactField(
+  host: UiSurface,
+  x: number,
+  y: number,
+  width: number,
+  field: FieldDefinition,
+  options: FieldRenderOptions,
+): number {
+  const metrics = compactMetrics(options)
+  const height = compactFieldHeight(field, options)
+  if (field.kind === "vector" || field.kind === "rotation") {
+    drawCompactVectorField(host, x, y, width, height, field, metrics)
+    return height
+  }
+  if (field.kind === "matrix") {
+    drawCompactMatrixField(host, x, y, width, height, field, metrics)
+    return height
+  }
+  if (field.kind === "number" && field.presentation === "slider" && field.max !== undefined) {
+    const props: Parameters<typeof SliderControl>[4] = {
+      key: fieldKey(field),
+      label: field.label,
+      layout: "inline",
+      value: normalizeNumberFieldValue(field.value, field),
+      max: field.max,
+      step: field.step ?? (field.numberKind === "integer" ? 1 : 0.01),
+      buttonHeight: metrics.control,
+      labelFontPx: metrics.font,
+      valueFontPx: metrics.font,
+      format: (value) => `${value}${field.unit ?? ""}`,
+      onChange: (value) => {
+        if (!isFieldDisabled(field)) field.onChange?.(normalizeNumberFieldValue(value, field))
+      },
+    }
+    if (field.min !== undefined) props.min = field.min
+    SliderControl(host, x, y, width, props)
+    return height
+  }
+  if (field.kind === "boolean") {
+    const disabled = isFieldDisabled(field)
+    flexRow({
+      x,
+      y,
+      w: width,
+      h: height,
+      gap: metrics.gap * 2,
+      alignItems: "center",
+      items: [
+        {width: "grow", height, draw: (slotX, slotY, slotW, slotH) => Typography(host, slotX, slotY, slotW, slotH, {
+          children: field.label,
+          fontPx: metrics.font,
+          color: disabled ? "muted" : "text",
+        })},
+        {width: metrics.control * 1.6, height: metrics.control * 0.82, draw: (slotX, slotY, slotW, slotH) => {
+          const onChange = !disabled && field.onChange !== undefined ? (value: boolean) => field.onChange!(value) : undefined
+          if (field.presentation === "checkbox") {
+            const props: Parameters<typeof Checkbox>[5] = {checked: field.value, disabled}
+            if (onChange !== undefined) props.onChange = onChange
+            Checkbox(host, slotX, slotY, slotW, slotH, props)
+          } else {
+            const props: Parameters<typeof Switcher>[5] = {checked: field.value, disabled}
+            if (onChange !== undefined) props.onChange = onChange
+            Switcher(host, slotX, slotY, slotW, slotH, props)
+          }
+        }},
+      ],
+    })
+    return height
+  }
+  drawCompactSingleRow(host, x, y, width, height, field, metrics)
+  return height
+}
+
+type CompactMetrics = Readonly<{control: number; gap: number; font: number; radius: number}>
+
+function compactMetrics(options: FieldRenderOptions): CompactMetrics {
+  const scale = Math.min(2.5, Math.max(0.45, options.scale ?? 1))
+  return {
+    control: 22 * scale,
+    gap: 3 * scale,
+    font: Math.max(7, 11 * scale),
+    radius: Math.max(2, 3 * scale),
+  }
+}
+
+function compactTextStyle(metrics: CompactMetrics) {
+  return {
+    background: new Color(0.235, 0.235, 0.235, 1),
+    borderColor: new Color(0.11, 0.11, 0.11, 1),
+    borderWidth: 1,
+    borderRadius: metrics.radius,
+    color: "#E6E6E6" as const,
+    fontSize: metrics.font,
+  }
+}
+
+function drawCompactSingleRow(
+  host: UiSurface,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  field: Exclude<FieldDefinition, BooleanFieldDefinition | VectorFieldDefinition | RotationFieldDefinition | MatrixFieldDefinition>,
+  metrics: CompactMetrics,
+): void {
+  flexRow({
+    x,
+    y,
+    w: width,
+    h: height,
+    gap: metrics.gap * 2,
+    alignItems: "stretch",
+    items: [
+      {width: "2fr", height, draw: (slotX, slotY, slotW, slotH) => Typography(host, slotX, slotY, slotW, slotH, {
+        children: field.label,
+        fontPx: metrics.font,
+        color: isFieldDisabled(field) ? "muted" : "text",
+      })},
+      {width: "3fr", height, draw: (slotX, slotY, slotW, slotH) => drawCompactControl(host, slotX, slotY, slotW, slotH, field, metrics)},
+    ],
+  })
+}
+
+function drawCompactControl(
+  host: UiSurface,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  field: Exclude<FieldDefinition, BooleanFieldDefinition | VectorFieldDefinition | RotationFieldDefinition | MatrixFieldDefinition>,
+  metrics: CompactMetrics,
+): void {
+  const disabled = isFieldDisabled(field)
+  if (field.kind === "enum") {
+    const selected = field.options.find((option) => option.value === field.value)
+    Button(host, x, y, width, height, {
+      children: selected?.label ?? field.value,
+      variant: "contained",
+      fill: new Color(0.235, 0.235, 0.235, 1),
+      border: new Color(0.11, 0.11, 0.11, 1),
+      radius: metrics.radius,
+      fontPx: metrics.font,
+      disabled: disabled || field.options.length === 0,
+      action: () => field.onChange?.(nextEnumFieldValue(field.value, field.options)),
+    })
+    return
+  }
+  if (field.kind === "color") {
+    const value = normalizeFieldColor(field.value)
+    flexRow({
+      x,
+      y,
+      w: width,
+      h: height,
+      gap: metrics.gap,
+      alignItems: "stretch",
+      items: [
+        {width: height, height, draw: (slotX, slotY, slotW, slotH) => host.drawRoundedRect(slotX, slotY, slotW, slotH, {
+          radius: metrics.radius,
+          fill: new Color(value.r, value.g, value.b, value.a),
+          border: new Color(0.11, 0.11, 0.11, 1),
+          borderWidth: 1,
+          z: Z.ELEMENT,
+        })},
+        {width: "grow", height, draw: (slotX, slotY, slotW, slotH) => {
+          const props: Parameters<typeof TextField>[5] = {
+            key: fieldKey(field),
+            value: fieldColorToHex(value),
+            disabled,
+            submitOnEnter: true,
+            fontPx: metrics.font,
+            sx: compactTextStyle(metrics),
+          }
+          if (!disabled) props.onSubmit = (text) => {
+            const parsed = parseFieldColor(text)
+            if (parsed !== null) field.onChange?.(parsed)
+          }
+          TextField(host, slotX, slotY, slotW, slotH, props)
+        }},
+      ],
+    })
+    return
+  }
+  if (field.kind === "reference") {
+    Button(host, x, y, width, height, {
+      children: field.value?.label ?? field.placeholder ?? "Не выбрано",
+      variant: "contained",
+      fill: new Color(0.235, 0.235, 0.235, 1),
+      border: new Color(0.11, 0.11, 0.11, 1),
+      radius: metrics.radius,
+      fontPx: metrics.font,
+      disabled,
+      action: () => field.onActivate?.(),
+    })
+    return
+  }
+  const value = field.kind === "readonly"
+    ? String(field.value)
+    : field.kind === "number"
+      ? `${normalizeNumberFieldValue(field.value, field)}${field.unit ?? ""}`
+      : field.value
+  const props: Parameters<typeof TextField>[5] = {
+    key: fieldKey(field),
+    value,
+    disabled: disabled || field.kind === "readonly",
+    submitOnEnter: true,
+    fontPx: metrics.font,
+    sx: compactTextStyle(metrics),
+  }
+  if (!disabled && field.kind === "text") props.onChange = (text) => field.onChange?.(text)
+  if (!disabled && field.kind === "number") props.onSubmit = (text) => {
+    const parsed = Number(text.replace(field.unit ?? "", "").trim())
+    if (Number.isFinite(parsed)) field.onChange?.(normalizeNumberFieldValue(parsed, field))
+  }
+  TextField(host, x, y, width, height, props)
+}
+
+function drawCompactVectorField(
+  host: UiSurface,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  field: VectorFieldDefinition | RotationFieldDefinition,
+  metrics: CompactMetrics,
+): void {
+  const dimensions = field.dimensions ?? Math.min(4, Math.max(2, field.value.length)) as 2 | 3 | 4
+  const values = normalizeVectorFieldValue(field.value, dimensions, field)
+  const axes = field.axes ?? (field.kind === "rotation" ? ["X°", "Y°", "Z°", "W°"] : ["X", "Y", "Z", "W"])
+  flexColumn({
+    x,
+    y,
+    w: width,
+    h: height,
+    gap: metrics.gap,
+    items: [
+      {height: metrics.control, draw: (slotX, slotY, slotW, slotH) => Typography(host, slotX, slotY, slotW, slotH, {children: field.label, fontPx: metrics.font})},
+      ...Array.from({length: dimensions}, (_, index) => ({
+        height: metrics.control,
+        draw: (rowX: number, rowY: number, rowW: number, rowH: number) => flexRow({
+          x: rowX,
+          y: rowY,
+          w: rowW,
+          h: rowH,
+          gap: metrics.gap,
+          items: [
+            {width: metrics.control, height: rowH, draw: (slotX, slotY, slotW, slotH) => Typography(host, slotX, slotY, slotW, slotH, {children: axes[index] ?? String(index), fontPx: metrics.font, color: "muted"})},
+            {width: "grow" as const, height: rowH, draw: (slotX: number, slotY: number, slotW: number, slotH: number) => {
+              const props: Parameters<typeof TextField>[5] = {
+                key: `${fieldKey(field)}:${index}`,
+                value: `${values[index]}${field.unit ?? ""}`,
+                disabled: isFieldDisabled(field),
+                submitOnEnter: true,
+                fontPx: metrics.font,
+                sx: compactTextStyle(metrics),
+              }
+              if (!isFieldDisabled(field)) props.onSubmit = (text) => {
+                const parsed = Number(text.replace(field.unit ?? "", "").trim())
+                if (!Number.isFinite(parsed)) return
+                const next = [...values]
+                next[index] = normalizeNumberFieldValue(parsed, field)
+                field.onChange?.(next)
+              }
+              TextField(host, slotX, slotY, slotW, slotH, props)
+            }},
+          ],
+        }),
+      })),
+    ],
+  })
+}
+
+function drawCompactMatrixField(
+  host: UiSurface,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  field: MatrixFieldDefinition,
+  metrics: CompactMetrics,
+): void {
+  const matrix = normalizeMatrixFieldValue(field.value)
+  flexColumn({
+    x,
+    y,
+    w: width,
+    h: height,
+    gap: metrics.gap,
+    items: [
+      {height: metrics.control, draw: (slotX, slotY, slotW, slotH) => Typography(host, slotX, slotY, slotW, slotH, {children: field.label, fontPx: metrics.font})},
+      ...matrix.map((values, row) => ({
+        height: metrics.control,
+        draw: (rowX: number, rowY: number, rowW: number, rowH: number) => flexRow({
+          x: rowX,
+          y: rowY,
+          w: rowW,
+          h: rowH,
+          gap: metrics.gap,
+          items: values.map((value, column) => ({
+            width: "1fr" as const,
+            height: rowH,
+            draw: (cellX: number, cellY: number, cellW: number, cellH: number) => {
+              const props: Parameters<typeof TextField>[5] = {
+                key: `${fieldKey(field)}:${row}:${column}`,
+                value: value.toFixed(2),
+                disabled: isFieldDisabled(field),
+                submitOnEnter: true,
+                fontPx: metrics.font,
+                sx: compactTextStyle(metrics),
+              }
+              if (!isFieldDisabled(field)) props.onSubmit = (text) => {
+                const parsed = Number(text)
+                if (!Number.isFinite(parsed)) return
+                const next = matrix.map((entries) => [...entries])
+                next[row]![column] = rounded(parsed)
+                field.onChange?.(next)
+              }
+              TextField(host, cellX, cellY, cellW, cellH, props)
+            },
+          })),
+        }),
+      })),
+    ],
+  })
 }
 
 export function normalizeNumberFieldValue(

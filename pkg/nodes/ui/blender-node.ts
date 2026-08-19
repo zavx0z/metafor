@@ -110,7 +110,7 @@ export type BlenderLink = Link & Readonly<{
 export type BlenderNodePlan = Readonly<{
   header: NodeRect
   body: NodeRect
-  fields: readonly Readonly<{field: FieldDefinition; rect: NodeRect}>[]
+  fields: readonly Readonly<{field: FieldDefinition; rect: NodeRect; parameterId?: string}>[]
   parameters: readonly Readonly<{parameter: BlenderParameter; rect: NodeRect}>[]
   sockets: readonly PositionedSocket<BlenderSocket>[]
 }>
@@ -137,17 +137,25 @@ export const BLENDER_SOCKET_PRESETS: Readonly<Record<BlenderSocketKind, BlenderS
   custom: preset("custom", "Custom", [0.84, 0.35, 0.82], "circle-dot"),
 })
 
-const NODE_HEADER_HEIGHT = 34
-const NODE_PADDING = 10
-const NODE_GAP = 7
-const NODE_MIN_WIDTH = 190
-const NODE_MIN_HEIGHT = 72
+const NODE_HEADER_HEIGHT = 24
+const NODE_PADDING = 8
+const NODE_GAP = 3
+const NODE_MIN_WIDTH = 180
+const NODE_MIN_HEIGHT = 52
 
 export function blenderSocketPreset(kind: BlenderSocketKind): BlenderSocketPreset {
   return BLENDER_SOCKET_PRESETS[kind]
 }
 
 export function measureBlenderNode(node: BlenderNode): Readonly<{width: number; height: number}> {
+  if (node.collapsed) {
+    const sockets = node.sockets ?? []
+    const maxSideCount = Math.max(
+      sockets.filter((socket) => socketSide(socket) === "left").length,
+      sockets.filter((socket) => socketSide(socket) === "right").length,
+    )
+    return {width: NODE_MIN_WIDTH, height: Math.max(NODE_HEADER_HEIGHT, maxSideCount * 8 + 10)}
+  }
   const rows = blenderNodeRows(node)
   const rowsHeight = rows.reduce((height, row) => height + rowHeight(row), 0)
     + Math.max(0, rows.length - 1) * NODE_GAP
@@ -158,9 +166,10 @@ export function measureBlenderNode(node: BlenderNode): Readonly<{width: number; 
 }
 
 /** Plans Standard Node child slots and exact Socket anchors through shared Flex. */
-export function planBlenderNode(node: BlenderNode, frame: NodeRect, scale = 1): BlenderNodePlan {
-  const regions = blenderNodeRegions(frame, scale)
-  const fields: Array<{field: FieldDefinition; rect: NodeRect}> = []
+export function planBlenderNode(node: BlenderNode, frame: NodeRect): BlenderNodePlan {
+  if (node.collapsed) return planCollapsedBlenderNode(node, frame)
+  const regions = blenderNodeRegions(frame)
+  const fields: Array<{field: FieldDefinition; rect: NodeRect; parameterId?: string}> = []
   const parameters: Array<{parameter: BlenderParameter; rect: NodeRect}> = []
   const sockets: PositionedSocket<BlenderSocket>[] = []
   const rows = blenderNodeRows(node)
@@ -169,14 +178,18 @@ export function planBlenderNode(node: BlenderNode, frame: NodeRect, scale = 1): 
     y: regions.body.y,
     w: regions.body.w,
     h: regions.body.h,
-    paddingX: NODE_PADDING * scale,
-    paddingY: NODE_PADDING * scale,
-    gap: NODE_GAP * scale,
+    paddingX: NODE_PADDING,
+    paddingY: NODE_PADDING,
+    gap: NODE_GAP,
     items: rows.map((row) => ({
       height: rowHeight(row),
       draw: (x: number, y: number, w: number, h: number) => {
         const rect = {x, y, w, h}
-        if (row.field !== undefined) fields.push({field: row.field, rect})
+        if (row.field !== undefined) fields.push({
+          field: row.field,
+          rect,
+          ...(row.parameter === undefined ? {} : {parameterId: row.parameter.id}),
+        })
         if (row.parameter !== undefined) parameters.push({parameter: row.parameter, rect})
         for (const socket of row.sockets) sockets.push({
           socket,
@@ -187,6 +200,22 @@ export function planBlenderNode(node: BlenderNode, frame: NodeRect, scale = 1): 
     })),
   })
   return {header: regions.header, body: regions.body, fields, parameters, sockets}
+}
+
+function planCollapsedBlenderNode(node: BlenderNode, frame: NodeRect): BlenderNodePlan {
+  const sockets: PositionedSocket<BlenderSocket>[] = []
+  for (const side of ["left", "right"] as const) {
+    const entries = (node.sockets ?? []).filter((socket) => socketSide(socket) === side)
+    entries.forEach((socket, index) => sockets.push({
+      socket,
+      side,
+      center: {
+        x: side === "left" ? frame.x : frame.x + frame.w,
+        y: frame.y + frame.h / 2 + (index - (entries.length - 1) / 2) * 8,
+      },
+    }))
+  }
+  return {header: frame, body: {...frame, h: 0}, fields: [], parameters: [], sockets}
 }
 
 export function positionBlenderNode(node: BlenderNode, rect: NodeRect): PositionedNode<BlenderNode, BlenderSocket> {
@@ -214,7 +243,7 @@ export const blenderFrameRenderer: FrameRenderer<BlenderFrame> = Object.freeze({
       fill: fade(color, 0.42),
       border: selected ? palette.orange : fade(color, 0.88),
       borderWidth: Math.max(1, selected ? 2 * scale : scale),
-      z: Z.CONTAINER + 0.01,
+      z: Z.CONTAINER + 0.04,
     })
   },
   renderForeground({host, entry, scale, selected}) {
@@ -243,69 +272,77 @@ export const blenderNodeRenderer: NodeRenderer<BlenderNode, BlenderSocket> = Obj
   measure: measureBlenderNode,
   renderBackground({host, entry, scale, selected}) {
     const {rect, node} = entry
-    const radius = Math.max(5, 9 * scale)
+    const radius = Math.max(3, 6 * scale)
     const header = nodeHeaderColor(node)
-    const regions = blenderNodeRegions(rect, scale)
+    const plan = renderedBlenderNodePlan(node, rect, scale)
+    host.drawRoundedRect(rect.x + 3 * scale, rect.y + 5 * scale, rect.w, rect.h, {
+      radius,
+      fill: new Color(0, 0, 0, 0.34),
+      border: null,
+      z: Z.ELEMENT - 0.02,
+    })
     host.drawRoundedRect(rect.x, rect.y, rect.w, rect.h, {
       radius,
-      fill: palette.bgPanel,
-      border: selected ? palette.windowActiveBorder : palette.borderDim,
+      fill: new Color(0.188, 0.188, 0.188, 1),
+      border: selected ? palette.orange : new Color(0.075, 0.075, 0.075, 1),
       borderWidth: selected ? Math.max(1.5, 2 * scale) : Math.max(1, scale),
       z: Z.ELEMENT,
     })
-    host.drawRoundedRect(regions.header.x, regions.header.y, regions.header.w, regions.header.h, {
+    host.drawRoundedRect(plan.header.x, plan.header.y, plan.header.w, plan.header.h, {
       radius,
-      fill: fade(header, 0.58),
+      fill: fade(header, 0.82),
       border: null,
       z: Z.ELEMENT + 0.01,
     })
   },
-  renderForeground({host, entry, scale, selected}) {
+  renderForeground({host, entry, connectedSocketIds, scale, selected}) {
     const {rect, node} = entry
-    const regions = blenderNodeRegions(rect, scale)
+    const plan = renderedBlenderNodePlan(node, rect, scale)
     flexRow({
-      x: regions.header.x,
-      y: regions.header.y,
-      w: regions.header.w,
-      h: regions.header.h,
-      paddingX: 11 * scale,
-      gap: 8 * scale,
+      x: plan.header.x,
+      y: plan.header.y,
+      w: plan.header.w,
+      h: plan.header.h,
+      paddingX: 6 * scale,
+      gap: 4 * scale,
       alignItems: "stretch",
       items: [
-        {width: "grow", height: regions.header.h, draw: (slotX, slotY, slotW, slotH) => Typography(host, slotX, slotY, slotW, slotH, {
-          children: node.label ?? node.title,
-          fontPx: Math.max(9, 12 * scale),
-          color: selected ? "cyan" : "text",
+        {width: 12 * scale, height: plan.header.h, draw: (slotX, slotY, slotW, slotH) => Typography(host, slotX, slotY, slotW, slotH, {
+          children: node.collapsed ? "›" : "⌄",
+          fontPx: Math.max(8, 10 * scale),
+          color: "text",
         })},
-        node.category === undefined ? false : {width: "1fr", height: regions.header.h, draw: (slotX: number, slotY: number, slotW: number, slotH: number) => Typography(host, slotX, slotY, slotW, slotH, {
-          children: node.category!,
-          fontPx: Math.max(8, 9 * scale),
-          color: "muted",
-          sx: {textAlign: "right"},
+        {width: "grow", height: plan.header.h, draw: (slotX, slotY, slotW, slotH) => Typography(host, slotX, slotY, slotW, slotH, {
+          children: node.label ?? node.title,
+          fontPx: Math.max(8, 11 * scale),
+          color: selected ? "orange" : "text",
         })},
       ],
     })
-    const plan = planBlenderNode(node, rect, scale)
+    const connectedParameterIds = new Set((node.sockets ?? []).flatMap((socket) =>
+      socket.parameterId !== undefined && connectedSocketIds.has(socket.id) ? [socket.parameterId] : []))
     if (!node.collapsed && scale >= 0.68) {
-      for (const {field, rect: slot} of plan.fields) {
-        Field(host, slot.x, slot.y, slot.w, {...field, key: `${node.id}:${field.id}`})
+      for (const {field, rect: slot, parameterId} of plan.fields) {
+        if (parameterId !== undefined && connectedParameterIds.has(parameterId)) continue
+        Field(host, slot.x, slot.y, slot.w, {...field, key: `${node.id}:${field.id}`}, {density: "compact", scale})
       }
       for (const {parameter, rect: slot} of plan.parameters) {
-        if (parameter.field !== undefined) continue
+        if (parameter.field !== undefined && !connectedParameterIds.has(parameter.id)) continue
         Typography(host, slot.x, slot.y, slot.w, slot.h, {
           children: parameter.label,
-          variant: "caption",
+          fontPx: Math.max(8, 11 * scale),
           sx: {textAlign: "center"},
         })
       }
     }
     for (const positioned of entry.sockets) {
+      if (node.collapsed) continue
       const {socket, center, side} = positioned
       if (socket.parameterId !== undefined) continue
       if (side === "left") {
-        drawSideSocketLabel(host, rect, center.y, socket.label, "left")
+        drawSideSocketLabel(host, rect, center.y, socket.label, "left", scale)
       } else {
-        drawSideSocketLabel(host, rect, center.y, socket.label, "right")
+        drawSideSocketLabel(host, rect, center.y, socket.label, "right", scale)
       }
     }
   },
@@ -318,7 +355,7 @@ export const blenderSocketRenderer: SocketRenderer<BlenderSocket> = Object.freez
       host,
       entry.center.x,
       entry.center.y,
-      Math.max(7, 10 * scale),
+      Math.max(5.5, 8 * scale),
       entry.socket.shape ?? socketPreset.shape,
       colorFrom(socketPreset.color),
       selected,
@@ -355,7 +392,7 @@ function blenderNodeRows(node: BlenderNode): readonly BlenderNodeRow[] {
 }
 
 function rowHeight(row: BlenderNodeRow): number {
-  return row.field === undefined ? 24 : measureFieldHeight(row.field)
+  return row.field === undefined ? 22 : measureFieldHeight(row.field, {density: "compact"})
 }
 
 function socketSide(socket: BlenderSocket): SocketSide {
@@ -375,7 +412,35 @@ function socketCenter(
   return {x: nodeRect.x + nodeRect.w, y: controlCenterY}
 }
 
-function blenderNodeRegions(rect: Readonly<{x: number; y: number; w: number; h: number}>, scale: number): Readonly<{
+function renderedBlenderNodePlan(node: BlenderNode, rect: NodeRect, scale: number): BlenderNodePlan {
+  const safeScale = Math.max(0.01, scale)
+  const plan = planBlenderNode(node, {x: 0, y: 0, w: rect.w / safeScale, h: rect.h / safeScale})
+  const transformRect = (entry: NodeRect): NodeRect => ({
+    x: rect.x + entry.x * safeScale,
+    y: rect.y + entry.y * safeScale,
+    w: entry.w * safeScale,
+    h: entry.h * safeScale,
+  })
+  return {
+    header: transformRect(plan.header),
+    body: transformRect(plan.body),
+    fields: plan.fields.map(({field, rect: slot, parameterId}) => ({
+      field,
+      rect: transformRect(slot),
+      ...(parameterId === undefined ? {} : {parameterId}),
+    })),
+    parameters: plan.parameters.map(({parameter, rect: slot}) => ({parameter, rect: transformRect(slot)})),
+    sockets: plan.sockets.map((entry) => ({
+      ...entry,
+      center: {
+        x: rect.x + entry.center.x * safeScale,
+        y: rect.y + entry.center.y * safeScale,
+      },
+    })),
+  }
+}
+
+function blenderNodeRegions(rect: Readonly<{x: number; y: number; w: number; h: number}>): Readonly<{
   header: Readonly<{x: number; y: number; w: number; h: number}>
   body: Readonly<{x: number; y: number; w: number; h: number}>
 }> {
@@ -387,7 +452,7 @@ function blenderNodeRegions(rect: Readonly<{x: number; y: number; w: number; h: 
     w: rect.w,
     h: rect.h,
     items: [
-      {height: NODE_HEADER_HEIGHT * scale, draw: (x, y, w, h) => { header = {x, y, w, h} }},
+      {height: NODE_HEADER_HEIGHT, draw: (x, y, w, h) => { header = {x, y, w, h} }},
       {height: "grow", draw: (x, y, w, h) => { body = {x, y, w, h} }},
     ],
   })
@@ -400,20 +465,22 @@ function drawSideSocketLabel(
   centerY: number,
   label: string,
   side: "left" | "right",
+  scale: number,
 ): void {
+  const height = Math.max(12, 18 * scale)
   flexRow({
     x: rect.x,
-    y: centerY - 9,
+    y: centerY - height / 2,
     w: rect.w,
-    h: 18,
-    paddingX: 10,
-    gap: 10,
+    h: height,
+    paddingX: 8 * scale,
+    gap: 8 * scale,
     items: side === "left" ? [
-      {width: "1fr", height: 18, draw: (x, y, w, h) => Typography(host, x, y, w, h, {children: label, variant: "caption"})},
-      {width: "1fr", height: 18, draw: () => {}},
+      {width: "1fr", height, draw: (x, y, w, h) => Typography(host, x, y, w, h, {children: label, fontPx: Math.max(8, 11 * scale)})},
+      {width: "1fr", height, draw: () => {}},
     ] : [
-      {width: "1fr", height: 18, draw: () => {}},
-      {width: "1fr", height: 18, draw: (x, y, w, h) => Typography(host, x, y, w, h, {children: label, variant: "caption", sx: {textAlign: "right"}})},
+      {width: "1fr", height, draw: () => {}},
+      {width: "1fr", height, draw: (x, y, w, h) => Typography(host, x, y, w, h, {children: label, fontPx: Math.max(8, 11 * scale), sx: {textAlign: "right"}})},
     ],
   })
 }
