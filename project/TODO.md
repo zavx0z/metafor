@@ -104,7 +104,10 @@ production/development contour после `.13`. Оба результата о�
 внутрипакетный type re-export допустим, cross-package type re-export запрещён.
 AST-аудит `startup`/`release`/`internal` нашёл ровно два нарушения для
 environment types package `@metafor/hamiltonian` в server barrel package
-`@hamiltonian/release`; runtime и browser в correction не меняются.
+`@hamiltonian/release`. Срез находится в `REVIEW`: checkpoint `f656c394a`
+удалил оба нарушения, сохранил восемь внутрипакетных re-export и закрепил
+общий AST-regression; typecheck и Hamiltonian `301/301` проходят. Runtime и
+browser в correction не менялись.
 Обновление уже работающего Bun runtime остаётся будущим большим этапом.
 Package `@hamiltonian/startup` устанавливает Service Worker, восстанавливает
 HTML/startup offline и запускает browser env package `@hamiltonian/release` из
