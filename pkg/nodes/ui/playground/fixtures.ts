@@ -55,6 +55,66 @@ export const SOCKET_CATALOG = BLENDER_SOCKET_KINDS.map((kind, index): BlenderSoc
   socketType: kind,
 }))
 
+/** One representative live Node used only for same-scale Blender comparison. */
+export function createNoiseComparisonTree(): PositionedNodeTree<BlenderNode, BlenderSocket, BlenderLink, BlenderFrame> {
+  const mapping: BlenderNode = {
+    id: "comparison-mapping",
+    title: "Mapping",
+    category: "Vector",
+    headerColor: categoryHeaderColor("Vector"),
+    sockets: [socket("vector", "Vector", "output", "vector")],
+    collapsed: true,
+  }
+  const noise = blenderNode("comparison-noise", "Noise Texture", "Texture", [
+    {id: "dimensions", label: "Dimensions", kind: "enum", value: "3d", options: [
+      {value: "1d", label: "1D"},
+      {value: "2d", label: "2D"},
+      {value: "3d", label: "3D"},
+      {value: "4d", label: "4D"},
+    ]},
+    {id: "noise-type", label: "Noise", kind: "enum", value: "fbm", options: [
+      {value: "fbm", label: "fBM"},
+      {value: "multifractal", label: "Multifractal"},
+      {value: "hybrid", label: "Hybrid Multifractal"},
+    ]},
+    {id: "normalize", label: "Normalize", kind: "boolean", value: true},
+  ], [
+    {id: "vector-value", label: "Vector"},
+    parameter({id: "scale", label: "Scale", kind: "number", presentation: "slider", value: 5, min: 0, max: 10, step: 0.1}),
+    parameter({id: "detail", label: "Detail", kind: "number", presentation: "slider", value: 2, min: 0, max: 15, step: 0.1}),
+    parameter({id: "roughness", label: "Roughness", kind: "number", presentation: "slider", value: 0.5, min: 0, max: 1, step: 0.01}),
+    parameter({id: "lacunarity", label: "Lacunarity", kind: "number", presentation: "slider", value: 2, min: 0, max: 4, step: 0.1}),
+    parameter({id: "distortion", label: "Distortion", kind: "number", presentation: "slider", value: 0, min: 0, max: 10, step: 0.1}),
+  ], [
+    socket("vector", "Vector", "input", "vector", "vector-value", "left"),
+    socket("scale", "Scale", "input", "float", "scale", "left"),
+    socket("detail", "Detail", "input", "float", "detail", "left"),
+    socket("roughness", "Roughness", "input", "float", "roughness", "left"),
+    socket("lacunarity", "Lacunarity", "input", "float", "lacunarity", "left"),
+    socket("distortion", "Distortion", "input", "float", "distortion", "left"),
+    socket("fac", "Fac", "output", "float"),
+    socket("color", "Color", "output", "color"),
+  ], false)
+  const nodes: PositionedNode<BlenderNode, BlenderSocket>[] = [
+    positionBlenderNode(mapping, {x: 10, y: 142, w: 120, h: 24}),
+    positionCatalogNode(noise, 180, 34, 260),
+  ]
+  return {
+    bounds: {x: 0, y: 0, w: 500, h: 350},
+    frames: [],
+    nodes,
+    links: [link(
+      "comparison-vector-noise",
+      "comparison-mapping",
+      "vector",
+      "comparison-noise",
+      "vector",
+      "vector",
+      nodes,
+    )],
+  }
+}
+
 export function createCatalogNodeTree(): PositionedNodeTree<BlenderNode, BlenderSocket, BlenderLink, BlenderFrame> {
   const frame: BlenderFrame = {id: "catalog-frame", label: "Node component system"}
   const nestedFrame: BlenderFrame = {
@@ -167,10 +227,13 @@ function blenderNode(
   properties: readonly FieldDefinition[],
   parameters: readonly BlenderParameter[],
   sockets: readonly BlenderSocket[],
+  attachToCatalogFrame = true,
 ): BlenderNode {
   return {
     id,
-    frameId: id === "asset" || id === "matrix" || id === "collapsed" ? "data-frame" : "catalog-frame",
+    ...(attachToCatalogFrame ? {
+      frameId: id === "asset" || id === "matrix" || id === "collapsed" ? "data-frame" : "catalog-frame",
+    } : {}),
     title,
     category,
     headerColor: categoryHeaderColor(category),

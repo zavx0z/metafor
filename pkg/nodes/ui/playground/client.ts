@@ -9,7 +9,7 @@ import {
   type BlenderSocket,
 } from "../blender-node.ts"
 import {NodeEditor} from "../node-editor.ts"
-import {STANDALONE_FIELD_KINDS, createCatalogNodeTree} from "./fixtures.ts"
+import {STANDALONE_FIELD_KINDS, createCatalogNodeTree, createNoiseComparisonTree} from "./fixtures.ts"
 import {planNodeComponentPlaygroundFrames} from "./layout.ts"
 import {BlenderReferenceSurface, FieldCatalogSurface, SocketCatalogSurface} from "./surfaces.ts"
 
@@ -28,9 +28,19 @@ try {
   const fields = new FieldCatalogSurface()
   const reference = new BlenderReferenceSurface()
   const sockets = new SocketCatalogSurface()
+  const detail = new NodeEditor<BlenderNode, BlenderSocket, BlenderLink, BlenderFrame>({
+    renderers: createBlenderNodeRenderers(),
+    title: "СРАВНЕНИЕ · ЖИВАЯ НОДА",
+    minScale: 0.6,
+    maxScale: 2.4,
+    onCanvasTransformChange(transform) {
+      document.documentElement.dataset.comparisonScale = String(transform.scale)
+    },
+  })
+  detail.setTree(createNoiseComparisonTree())
   const editor = new NodeEditor<BlenderNode, BlenderSocket, BlenderLink, BlenderFrame>({
     renderers: createBlenderNodeRenderers(),
-    title: "NODE EDITOR · COMPONENT COMPOSITION",
+    title: "РЕДАКТОР НОД · КОМПОНЕНТНАЯ СЦЕНА",
     minScale: 0.26,
     maxScale: 2.4,
     onSelectionChange(selection) {
@@ -48,6 +58,7 @@ try {
 
   runtime.addSurface(fields, ({w, h}) => planNodeComponentPlaygroundFrames(w, h).fields)
   runtime.addSurface(reference, ({w, h}) => planNodeComponentPlaygroundFrames(w, h).reference)
+  runtime.addSurface(detail, ({w, h}) => planNodeComponentPlaygroundFrames(w, h).detail)
   runtime.addSurface(editor, ({w, h}) => planNodeComponentPlaygroundFrames(w, h).editor)
   runtime.addSurface(sockets, ({w, h}) => planNodeComponentPlaygroundFrames(w, h).sockets)
 
@@ -60,6 +71,8 @@ try {
   document.documentElement.dataset.socketShapes = String(BLENDER_SOCKET_SHAPES.length)
   document.documentElement.dataset.nodeCount = String(editor.tree.nodes.length)
   document.documentElement.dataset.linkCount = String(editor.tree.links.length)
+  document.documentElement.dataset.comparisonNodeCount = String(detail.tree.nodes.length)
+  document.documentElement.dataset.comparisonLinkCount = String(detail.tree.links.length)
   status.value = `${STANDALONE_FIELD_KINDS.length} fields · ${BLENDER_SOCKET_KINDS.length} sockets · ${BLENDER_SOCKET_SHAPES.length} shapes`
 } catch (error) {
   status.dataset.state = "error"

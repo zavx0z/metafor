@@ -55,7 +55,7 @@ export class BlenderReferenceSurface extends UiSurface {
         width: "grow",
         height: 24,
         draw: (x, y, w, h) => Typography(this, x, y, w, h, {
-          children: "BLENDER 4.5.5 · REFERENCE",
+          children: "BLENDER 4.5.5 · РЕФЕРЕНС",
           variant: "caption",
           color: "muted",
         }),
@@ -167,8 +167,8 @@ export class SocketCatalogSurface extends UiSurface {
       paddingBottom: 12,
       gap: 6,
       items: [
-        {height: 24, draw: (x, y, w, h) => Typography(this, x, y, w, h, {children: "Socket types и shapes", variant: "title"})},
-        {height: 18, draw: (x, y, w, h) => Typography(this, x, y, w, h, {children: `${SOCKET_CATALOG.length} типов · ${BLENDER_SOCKET_SHAPES.length} shapes`, variant: "caption", color: "muted"})},
+        {height: 24, draw: (x, y, w, h) => Typography(this, x, y, w, h, {children: "Типы и формы сокетов", variant: "title"})},
+        {height: 18, draw: (x, y, w, h) => Typography(this, x, y, w, h, {children: `${SOCKET_CATALOG.length} типов · ${BLENDER_SOCKET_SHAPES.length} форм`, variant: "caption", color: "muted"})},
         {height: "grow", draw: (gridX, gridY, gridW, gridH) => flexColumn({
           x: gridX,
           y: gridY,

@@ -8,6 +8,7 @@ import {
   SOCKET_CATALOG,
   STANDALONE_FIELD_KINDS,
   createCatalogNodeTree,
+  createNoiseComparisonTree,
 } from "./fixtures.ts"
 
 const playgroundRoot = fileURLToPath(new URL(".", import.meta.url))
@@ -33,6 +34,24 @@ describe("Blender-like Node component playground", () => {
     expect(tree.nodes).toHaveLength(6)
     expect(tree.nodes.find(({node}) => node.id === "collapsed")?.node.collapsed).toBeTrue()
     expect(tree.links).toHaveLength(4)
+  })
+
+  test("compares one live Noise-style Node at its own scene scale", () => {
+    const tree = createNoiseComparisonTree()
+    expect(() => validatePositionedNodeTree(tree)).not.toThrow()
+    expect(tree.frames).toHaveLength(0)
+    expect(tree.nodes.map(({node}) => node.id)).toEqual(["comparison-mapping", "comparison-noise"])
+    expect(tree.links).toHaveLength(1)
+    const noise = tree.nodes.find(({node}) => node.id === "comparison-noise")!
+    expect(noise.node.parameters?.map(({label}) => label)).toEqual([
+      "Vector",
+      "Scale",
+      "Detail",
+      "Roughness",
+      "Lacunarity",
+      "Distortion",
+    ])
+    expect(noise.sockets.find(({socket}) => socket.id === "vector")?.center).toEqual(tree.links[0]!.points.at(-1))
   })
 
   test("uses one Card-free WebGPU component graph and disables HMR", async () => {
