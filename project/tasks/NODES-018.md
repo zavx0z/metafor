@@ -567,8 +567,7 @@ contracts, retained implementation, regressions и exact standalone evidence;
 задача переводится в `REVIEW` без closing, удаления артефактов, интеграции в
 другую ветку либо разблокировки NODES-017.
 
-Parent result commit: текущий result commit; exact hash записывается следующим
-project-only record.
+Parent result commit: `da0cd0bbcc7f0732bd8a678c1383ce28754be08a`.
 
 ## Closing handoff для REVIEW
 
