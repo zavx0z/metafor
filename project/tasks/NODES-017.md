@@ -55,6 +55,13 @@ Frame laws, project divergences и defect matrix записаны в
 но не притворяется Node с header/body/sockets. Вся child-композиция остаётся на
 общем Flex.
 
+`COMPLETE`: public `Frame`, `PositionedFrame`, `FrameRenderer`, typed selection
+и `frames[]` добавлены отдельно от Node. Nested cycles, unknown parent,
+out-of-bounds descendants и Node/Frame ID collision отклоняются validation.
+Paint order: Frame backgrounds → Links → Frame foregrounds → Nodes. Focused
+tests 12/12, UI/playground typechecks и package-boundary 4/4 зелёные; exact
+Frame canvas сохранён в artifacts.
+
 ### NODES-017.3 — Разделить Parameter и двусторонние Socket
 
 Добавить first-class Parameter с одним universal Field и ссылками Socket через
@@ -130,5 +137,5 @@ console, DOM и visual matrix, затем оставить contour владел�
 
 ## Состояние
 
-`IN_PROGRESS`, исполнитель `/root`; текущий срез NODES-017.2 — first-class
-Frame и nested containment.
+`IN_PROGRESS`, исполнитель `/root`; текущий срез NODES-017.3 — first-class
+Parameter и left/right Socket на одной Flex row.

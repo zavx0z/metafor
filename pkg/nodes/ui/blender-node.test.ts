@@ -51,6 +51,8 @@ describe("Blender-like Node presets", () => {
 
   test("provides independent Node, Socket and Link renderers", () => {
     const renderers = createBlenderNodeRenderers()
+    expect(typeof renderers.frame.renderBackground).toBe("function")
+    expect(typeof renderers.frame.renderForeground).toBe("function")
     expect(typeof renderers.node.measure).toBe("function")
     expect(typeof renderers.node.renderBackground).toBe("function")
     expect(typeof renderers.node.renderForeground).toBe("function")

@@ -16,7 +16,13 @@ export type NodeCanvasTransform = Readonly<{x: number; y: number; scale: number}
 /** Minimal Blender-like component identity; domain data is carried by TNode. */
 export type Node = Readonly<{
   id: string
-  parentId?: string
+  frameId?: string
+}>
+
+/** Visual owner of nested Frames and Nodes; it is not a computation Node. */
+export type Frame = Readonly<{
+  id: string
+  parentFrameId?: string
 }>
 
 export type SocketDirection = "input" | "output" | "bidirectional"
@@ -41,8 +47,10 @@ export type Link = Readonly<{
 export type NodeTree<
   TNode extends Node = Node,
   TLink extends Link = Link,
+  TFrame extends Frame = Frame,
 > = Readonly<{
   revision?: string | number
+  frames: readonly TFrame[]
   nodes: readonly TNode[]
   links: readonly TLink[]
 }>
@@ -62,6 +70,11 @@ export type PositionedNode<
   sockets: readonly PositionedSocket<TSocket>[]
 }>
 
+export type PositionedFrame<TFrame extends Frame = Frame> = Readonly<{
+  frame: TFrame
+  rect: NodeRect
+}>
+
 export type PositionedLink<TLink extends Link = Link> = Readonly<{
   link: TLink
   points: readonly NodePoint[]
@@ -71,11 +84,25 @@ export type PositionedNodeTree<
   TNode extends Node = Node,
   TSocket extends Socket = Socket,
   TLink extends Link = Link,
+  TFrame extends Frame = Frame,
 > = Readonly<{
   revision?: string | number
   bounds: NodeRect
+  frames: readonly PositionedFrame<TFrame>[]
   nodes: readonly PositionedNode<TNode, TSocket>[]
   links: readonly PositionedLink<TLink>[]
+}>
+
+export type NodeEditorSelection =
+  | Readonly<{kind: "frame"; id: string}>
+  | Readonly<{kind: "node"; id: string}>
+  | null
+
+export type FrameRendererContext<TFrame extends Frame> = Readonly<{
+  host: UiSurface
+  entry: PositionedFrame<TFrame>
+  scale: number
+  selected: boolean
 }>
 
 export type NodeRendererContext<TNode extends Node, TSocket extends Socket> = Readonly<{
@@ -83,7 +110,6 @@ export type NodeRendererContext<TNode extends Node, TSocket extends Socket> = Re
   entry: PositionedNode<TNode, TSocket>
   scale: number
   selected: boolean
-  container: boolean
 }>
 
 export type SocketRendererContext<TSocket extends Socket> = Readonly<{
@@ -107,6 +133,11 @@ export type NodeRenderer<TNode extends Node, TSocket extends Socket> = Readonly<
   renderForeground(context: NodeRendererContext<TNode, TSocket>): void
 }>
 
+export type FrameRenderer<TFrame extends Frame> = Readonly<{
+  renderBackground(context: FrameRendererContext<TFrame>): void
+  renderForeground(context: FrameRendererContext<TFrame>): void
+}>
+
 export type SocketRenderer<TSocket extends Socket> = Readonly<{
   render(context: SocketRendererContext<TSocket>): void
 }>
@@ -119,7 +150,9 @@ export type NodeEditorRenderers<
   TNode extends Node,
   TSocket extends Socket,
   TLink extends Link,
+  TFrame extends Frame = Frame,
 > = Readonly<{
+  frame: FrameRenderer<TFrame>
   node: NodeRenderer<TNode, TSocket>
   socket: SocketRenderer<TSocket>
   link: LinkRenderer<TLink>
@@ -129,29 +162,33 @@ export type NodeEditorRenderPlan<
   TNode extends Node,
   TSocket extends Socket,
   TLink extends Link,
+  TFrame extends Frame = Frame,
 > = Readonly<{
   transform: NodeCanvasTransform
+  frames: readonly PositionedFrame<TFrame>[]
   nodes: readonly PositionedNode<TNode, TSocket>[]
   links: readonly PositionedLink<TLink>[]
 }>
 
 export type NodeEditorPaintStep =
-  | Readonly<{kind: "container-background"; nodeId: string}>
+  | Readonly<{kind: "frame-background"; frameId: string}>
   | Readonly<{kind: "links"}>
-  | Readonly<{kind: "node"; nodeId: string; includeBackground: boolean}>
+  | Readonly<{kind: "frame-foreground"; frameId: string}>
+  | Readonly<{kind: "node"; nodeId: string}>
 
 export type NodeCanvasOptions<
   TNode extends Node,
   TSocket extends Socket,
   TLink extends Link,
+  TFrame extends Frame = Frame,
 > = UiSurfaceOpts & Readonly<{
-  renderers: NodeEditorRenderers<TNode, TSocket, TLink>
+  renderers: NodeEditorRenderers<TNode, TSocket, TLink, TFrame>
   title?: string
   toolbar?: boolean
   minScale?: number
   maxScale?: number
   messages?: Readonly<{empty?: string; interactionHint?: string}>
-  onSelectionChange?(nodeId: string | null): void
+  onSelectionChange?(selection: NodeEditorSelection): void
   onCanvasTransformChange?(transform: NodeCanvasTransform): void
 }>
 
@@ -159,7 +196,8 @@ export type NodeEditorOptions<
   TNode extends Node,
   TSocket extends Socket,
   TLink extends Link,
-> = NodeCanvasOptions<TNode, TSocket, TLink>
+  TFrame extends Frame = Frame,
+> = NodeCanvasOptions<TNode, TSocket, TLink, TFrame>
 
 const DEFAULT_TRANSFORM: NodeCanvasTransform = Object.freeze({x: 0, y: 0, scale: 1})
 const TOOLBAR_HEIGHT = 38
@@ -169,23 +207,24 @@ export class NodeCanvas<
   TNode extends Node,
   TSocket extends Socket,
   TLink extends Link,
+  TFrame extends Frame = Frame,
 > extends UiSurface {
-  readonly #renderers: NodeEditorRenderers<TNode, TSocket, TLink>
+  readonly #renderers: NodeEditorRenderers<TNode, TSocket, TLink, TFrame>
   readonly #title: string
   readonly #toolbar: boolean
   readonly #minScale: number
   readonly #maxScale: number
   readonly #emptyMessage: string
   readonly #interactionHint: string
-  readonly #onSelectionChange: ((nodeId: string | null) => void) | undefined
+  readonly #onSelectionChange: ((selection: NodeEditorSelection) => void) | undefined
   readonly #onCanvasTransformChange: ((transform: NodeCanvasTransform) => void) | undefined
-  #tree: PositionedNodeTree<TNode, TSocket, TLink>
+  #tree: PositionedNodeTree<TNode, TSocket, TLink, TFrame>
   #transform = DEFAULT_TRANSFORM
-  #selectedNodeId: string | null = null
+  #selection: NodeEditorSelection = null
   #fitPending = true
   #lastFrame = {w: 0, h: 0}
 
-  constructor(options: NodeCanvasOptions<TNode, TSocket, TLink>) {
+  constructor(options: NodeCanvasOptions<TNode, TSocket, TLink, TFrame>) {
     super({
       bgColor: options.bgColor ?? palette.bg,
       borderColor: options.borderColor ?? null,
@@ -202,11 +241,11 @@ export class NodeCanvas<
     this.#interactionHint = options.messages?.interactionHint ?? "Только просмотр"
     this.#onSelectionChange = options.onSelectionChange
     this.#onCanvasTransformChange = options.onCanvasTransformChange
-    this.#tree = emptyNodeTree<TNode, TSocket, TLink>()
+    this.#tree = emptyNodeTree<TNode, TSocket, TLink, TFrame>()
     this.node.name = "NodeCanvas"
   }
 
-  get tree(): PositionedNodeTree<TNode, TSocket, TLink> {
+  get tree(): PositionedNodeTree<TNode, TSocket, TLink, TFrame> {
     return this.#tree
   }
 
@@ -214,26 +253,26 @@ export class NodeCanvas<
     return this.#transform
   }
 
-  get selectedNodeId(): string | null {
-    return this.#selectedNodeId
+  get selection(): NodeEditorSelection {
+    return this.#selection
   }
 
-  setTree(tree: PositionedNodeTree<TNode, TSocket, TLink>): void {
+  setTree(tree: PositionedNodeTree<TNode, TSocket, TLink, TFrame>): void {
     validatePositionedNodeTree(tree)
     this.#tree = tree
-    if (this.#selectedNodeId !== null && !tree.nodes.some(({node}) => node.id === this.#selectedNodeId)) {
-      this.#selectedNodeId = null
+    if (this.#selection !== null && !selectionExists(tree, this.#selection)) {
+      this.#selection = null
       this.#onSelectionChange?.(null)
     }
     this.#fitPending = true
     this.requestRender()
   }
 
-  select(nodeId: string | null): boolean {
-    if (nodeId !== null && !this.#tree.nodes.some(({node}) => node.id === nodeId)) return false
-    if (nodeId === this.#selectedNodeId) return true
-    this.#selectedNodeId = nodeId
-    this.#onSelectionChange?.(nodeId)
+  select(selection: NodeEditorSelection): boolean {
+    if (selection !== null && !selectionExists(this.#tree, selection)) return false
+    if (sameSelection(selection, this.#selection)) return true
+    this.#selection = selection
+    this.#onSelectionChange?.(selection)
     this.requestRender()
     return true
   }
@@ -256,7 +295,7 @@ export class NodeCanvas<
     return true
   }
 
-  renderPlan(): NodeEditorRenderPlan<TNode, TSocket, TLink> {
+  renderPlan(): NodeEditorRenderPlan<TNode, TSocket, TLink, TFrame> {
     return planNodeEditorViewport(this.#tree, this.#transform, this.#contentRect())
   }
 
@@ -300,21 +339,19 @@ export class NodeCanvas<
     try {
       const plan = this.renderPlan()
       const visibleById = new Map(plan.nodes.map((entry) => [entry.node.id, entry] as const))
-      const containerIds = new Set(this.#tree.nodes.flatMap(({node}) =>
-        node.parentId === undefined ? [] : [node.parentId]))
+      const visibleFramesById = new Map(plan.frames.map((entry) => [entry.frame.id, entry] as const))
       if (this.interactive()) this.hit(content.x, content.y, content.w, content.h, () => this.select(null), {
         key: "node-editor:background",
         cursor: "default",
       })
-      for (const step of planNodeEditorPaintSteps(this.#tree.nodes, plan.nodes)) {
-        if (step.kind === "container-background") {
-          const entry = visibleById.get(step.nodeId)
-          if (entry !== undefined) this.withLayer("underlay", () => this.#renderers.node.renderBackground({
+      for (const step of planNodeEditorPaintSteps(this.#tree.frames, plan.frames, plan.nodes)) {
+        if (step.kind === "frame-background") {
+          const entry = visibleFramesById.get(step.frameId)
+          if (entry !== undefined) this.withLayer("underlay", () => this.#renderers.frame.renderBackground({
             host: this,
             entry,
             scale: plan.transform.scale,
-            selected: this.#selectedNodeId === entry.node.id,
-            container: true,
+            selected: isSelected(this.#selection, "frame", entry.frame.id),
           }))
           continue
         }
@@ -329,16 +366,30 @@ export class NodeCanvas<
           })
           continue
         }
+        if (step.kind === "frame-foreground") {
+          const entry = visibleFramesById.get(step.frameId)
+          if (entry === undefined) continue
+          this.#renderers.frame.renderForeground({
+            host: this,
+            entry,
+            scale: plan.transform.scale,
+            selected: isSelected(this.#selection, "frame", entry.frame.id),
+          })
+          if (this.interactive()) this.hit(entry.rect.x, entry.rect.y, entry.rect.w, entry.rect.h, () => this.select({kind: "frame", id: entry.frame.id}), {
+            key: `node-editor:frame:${entry.frame.id}`,
+            cursor: "pointer",
+          })
+          continue
+        }
         const entry = visibleById.get(step.nodeId)
         if (entry === undefined) continue
         const context: NodeRendererContext<TNode, TSocket> = {
           host: this,
           entry,
           scale: plan.transform.scale,
-          selected: this.#selectedNodeId === entry.node.id,
-          container: containerIds.has(entry.node.id),
+          selected: isSelected(this.#selection, "node", entry.node.id),
         }
-        if (step.includeBackground) this.#renderers.node.renderBackground(context)
+        this.#renderers.node.renderBackground(context)
         this.#renderers.node.renderForeground(context)
         for (const socket of entry.sockets) this.#renderers.socket.render({
           host: this,
@@ -347,7 +398,7 @@ export class NodeCanvas<
           selected: context.selected,
           nodeId: entry.node.id,
         })
-        if (this.interactive()) this.hit(entry.rect.x, entry.rect.y, entry.rect.w, entry.rect.h, () => this.select(entry.node.id), {
+        if (this.interactive()) this.hit(entry.rect.x, entry.rect.y, entry.rect.w, entry.rect.h, () => this.select({kind: "node", id: entry.node.id}), {
           key: `node-editor:node:${entry.node.id}`,
           cursor: "pointer",
         })
@@ -409,8 +460,9 @@ export class NodeEditor<
   TNode extends Node,
   TSocket extends Socket,
   TLink extends Link,
-> extends NodeCanvas<TNode, TSocket, TLink> {
-  constructor(options: NodeEditorOptions<TNode, TSocket, TLink>) {
+  TFrame extends Frame = Frame,
+> extends NodeCanvas<TNode, TSocket, TLink, TFrame> {
+  constructor(options: NodeEditorOptions<TNode, TSocket, TLink, TFrame>) {
     super({
       ...options,
       title: options.title ?? "NODE EDITOR",
@@ -449,39 +501,43 @@ export function nodeEditorRegions(width: number, height: number, toolbar: boolea
 export function planNodeEditorPaintSteps<
   TNode extends Node,
   TSocket extends Socket,
+  TFrame extends Frame,
 >(
-  allNodes: readonly PositionedNode<TNode, TSocket>[],
-  visibleNodes: readonly PositionedNode<TNode, TSocket>[] = allNodes,
+  allFrames: readonly PositionedFrame<TFrame>[],
+  visibleFrames: readonly PositionedFrame<TFrame>[] = allFrames,
+  visibleNodes: readonly PositionedNode<TNode, TSocket>[] = [],
 ): readonly NodeEditorPaintStep[] {
-  const allById = new Map(allNodes.map((entry) => [entry.node.id, entry] as const))
-  const containerIds = new Set(allNodes.flatMap(({node}) => node.parentId === undefined ? [] : [node.parentId]))
-  const order = new Map(visibleNodes.map((entry, index) => [entry.node.id, index] as const))
+  const allById = new Map(allFrames.map((entry) => [entry.frame.id, entry] as const))
+  const order = new Map(visibleFrames.map((entry, index) => [entry.frame.id, index] as const))
   const depthMemo = new Map<string, number>()
-  const depth = (nodeId: string, visiting = new Set<string>()): number => {
-    const cached = depthMemo.get(nodeId)
+  const depth = (frameId: string, visiting = new Set<string>()): number => {
+    const cached = depthMemo.get(frameId)
     if (cached !== undefined) return cached
-    if (visiting.has(nodeId)) return 0
-    const parentId = allById.get(nodeId)?.node.parentId
+    if (visiting.has(frameId)) return 0
+    const parentId = allById.get(frameId)?.frame.parentFrameId
     if (parentId === undefined || !allById.has(parentId)) return 0
     const next = new Set(visiting)
-    next.add(nodeId)
+    next.add(frameId)
     const value = depth(parentId, next) + 1
-    depthMemo.set(nodeId, value)
+    depthMemo.set(frameId, value)
     return value
   }
-  const nodes = [...visibleNodes].sort((left, right) =>
-    depth(left.node.id) - depth(right.node.id) ||
-    (order.get(left.node.id) ?? 0) - (order.get(right.node.id) ?? 0))
+  const frames = [...visibleFrames].sort((left, right) =>
+    depth(left.frame.id) - depth(right.frame.id) ||
+    (order.get(left.frame.id) ?? 0) - (order.get(right.frame.id) ?? 0))
   return [
-    ...nodes.filter(({node}) => containerIds.has(node.id)).map(({node}) => ({
-      kind: "container-background" as const,
-      nodeId: node.id,
+    ...frames.map(({frame}) => ({
+      kind: "frame-background" as const,
+      frameId: frame.id,
     })),
     {kind: "links" as const},
-    ...nodes.map(({node}) => ({
+    ...frames.map(({frame}) => ({
+      kind: "frame-foreground" as const,
+      frameId: frame.id,
+    })),
+    ...visibleNodes.map(({node}) => ({
       kind: "node" as const,
       nodeId: node.id,
-      includeBackground: !containerIds.has(node.id),
     })),
   ]
 }
@@ -490,11 +546,15 @@ export function planNodeEditorViewport<
   TNode extends Node,
   TSocket extends Socket,
   TLink extends Link,
+  TFrame extends Frame,
 >(
-  tree: PositionedNodeTree<TNode, TSocket, TLink>,
+  tree: PositionedNodeTree<TNode, TSocket, TLink, TFrame>,
   transform: NodeCanvasTransform,
   clip?: NodeRect,
-): NodeEditorRenderPlan<TNode, TSocket, TLink> {
+): NodeEditorRenderPlan<TNode, TSocket, TLink, TFrame> {
+  const frames = tree.frames
+    .map((entry) => transformPositionedFrame(entry, transform))
+    .filter(({rect}) => clip === undefined || intersects(rect, clip))
   const nodes = tree.nodes
     .map((entry) => transformPositionedNode(entry, transform))
     .filter(({rect}) => clip === undefined || intersects(rect, clip))
@@ -505,7 +565,7 @@ export function planNodeEditorViewport<
       visibleNodeIds.has(entry.link.from.nodeId) ||
       visibleNodeIds.has(entry.link.to.nodeId) ||
       intersects(pointsBounds(entry.points), clip))
-  return {transform, nodes, links}
+  return {transform, frames, nodes, links}
 }
 
 export function fitNodeEditorTransform(
@@ -531,12 +591,34 @@ export function fitNodeEditorTransform(
 
 export function validatePositionedNodeTree(tree: PositionedNodeTree): void {
   requireRect(tree.bounds, "NodeTree bounds")
+  const frameIds = new Set<string>()
+  const frameById = new Map<string, PositionedFrame>()
+  for (const entry of tree.frames) {
+    if (!entry.frame.id || frameIds.has(entry.frame.id)) throw new Error(`Duplicate or empty Frame id: ${entry.frame.id}`)
+    frameIds.add(entry.frame.id)
+    frameById.set(entry.frame.id, entry)
+    requireRect(entry.rect, `Frame rect: ${entry.frame.id}`)
+  }
+  for (const entry of tree.frames) {
+    const parentFrameId = entry.frame.parentFrameId
+    if (parentFrameId === undefined) continue
+    const parent = frameById.get(parentFrameId)
+    if (parent === undefined) throw new Error(`Unknown parent Frame: ${entry.frame.id}/${parentFrameId}`)
+    if (!rectContains(parent.rect, entry.rect)) throw new Error(`Nested Frame is outside parent: ${entry.frame.id}/${parentFrameId}`)
+  }
+  for (const frameId of frameIds) validateFrameAncestry(frameId, frameById)
   const nodeIds = new Set<string>()
   const sockets = new Map<string, Set<string>>()
   for (const entry of tree.nodes) {
     if (!entry.node.id || nodeIds.has(entry.node.id)) throw new Error(`Duplicate or empty Node id: ${entry.node.id}`)
+    if (frameIds.has(entry.node.id)) throw new Error(`Frame and Node ids must be distinct: ${entry.node.id}`)
     nodeIds.add(entry.node.id)
     requireRect(entry.rect, `Node rect: ${entry.node.id}`)
+    if (entry.node.frameId !== undefined) {
+      const frame = frameById.get(entry.node.frameId)
+      if (frame === undefined) throw new Error(`Unknown Node Frame: ${entry.node.id}/${entry.node.frameId}`)
+      if (!rectContains(frame.rect, entry.rect)) throw new Error(`Node is outside Frame: ${entry.node.id}/${entry.node.frameId}`)
+    }
     const socketIds = new Set<string>()
     for (const positioned of entry.sockets) {
       if (!positioned.socket.id || socketIds.has(positioned.socket.id)) {
@@ -549,9 +631,6 @@ export function validatePositionedNodeTree(tree: PositionedNodeTree): void {
       }
     }
     sockets.set(entry.node.id, socketIds)
-  }
-  for (const {node} of tree.nodes) {
-    if (node.parentId !== undefined && !nodeIds.has(node.parentId)) throw new Error(`Unknown parent Node: ${node.id}/${node.parentId}`)
   }
   const linkIds = new Set<string>()
   for (const entry of tree.links) {
@@ -571,8 +650,16 @@ function emptyNodeTree<
   TNode extends Node,
   TSocket extends Socket,
   TLink extends Link,
->(): PositionedNodeTree<TNode, TSocket, TLink> {
-  return {bounds: {x: 0, y: 0, w: 1, h: 1}, nodes: [], links: []}
+  TFrame extends Frame,
+>(): PositionedNodeTree<TNode, TSocket, TLink, TFrame> {
+  return {bounds: {x: 0, y: 0, w: 1, h: 1}, frames: [], nodes: [], links: []}
+}
+
+function transformPositionedFrame<TFrame extends Frame>(
+  entry: PositionedFrame<TFrame>,
+  transform: NodeCanvasTransform,
+): PositionedFrame<TFrame> {
+  return {frame: entry.frame, rect: transformRect(entry.rect, transform)}
 }
 
 function transformPositionedNode<TNode extends Node, TSocket extends Socket>(
@@ -614,6 +701,37 @@ function pointsBounds(points: readonly NodePoint[]): NodeRect {
 function intersects(left: NodeRect, right: NodeRect): boolean {
   return left.x + left.w >= right.x && right.x + right.w >= left.x &&
     left.y + left.h >= right.y && right.y + right.h >= left.y
+}
+
+function rectContains(parent: NodeRect, child: NodeRect): boolean {
+  const epsilon = 1e-6
+  return child.x >= parent.x - epsilon && child.y >= parent.y - epsilon &&
+    child.x + child.w <= parent.x + parent.w + epsilon &&
+    child.y + child.h <= parent.y + parent.h + epsilon
+}
+
+function validateFrameAncestry(frameId: string, frames: ReadonlyMap<string, PositionedFrame>): void {
+  const visited = new Set<string>([frameId])
+  let parentFrameId = frames.get(frameId)?.frame.parentFrameId
+  while (parentFrameId !== undefined) {
+    if (visited.has(parentFrameId)) throw new Error(`Cyclic Frame ancestry: ${frameId}/${parentFrameId}`)
+    visited.add(parentFrameId)
+    parentFrameId = frames.get(parentFrameId)?.frame.parentFrameId
+  }
+}
+
+function selectionExists(tree: PositionedNodeTree, selection: Exclude<NodeEditorSelection, null>): boolean {
+  if (selection.kind === "frame") return tree.frames.some(({frame}) => frame.id === selection.id)
+  return tree.nodes.some(({node}) => node.id === selection.id)
+}
+
+function sameSelection(left: NodeEditorSelection, right: NodeEditorSelection): boolean {
+  if (left === null || right === null) return left === right
+  return left.kind === right.kind && left.id === right.id
+}
+
+function isSelected(selection: NodeEditorSelection, kind: Exclude<NodeEditorSelection, null>["kind"], id: string): boolean {
+  return selection?.kind === kind && selection.id === id
 }
 
 function pointOnRectSide(point: NodePoint, side: SocketSide, rect: NodeRect): boolean {

@@ -26,3 +26,13 @@
 * Источник: официальные Blender 4.5 source/API/rendered Manual и локальный
   bounded offline Manual snapshot; точные revisions указаны внутри.
 * Назначение: evidence и defect/contract matrix для реализации NODES-017.
+
+## frame-checkpoint.png
+
+* Источник: exact WebGPU canvas после NODES-017.2.
+* Ожидание: отдельный Frame без Node header/body; Frame background под Links и
+  пять обычных Node поверх.
+* Фактическое наблюдение: Frame отделён от Node component и paint order верен.
+  Старые дефекты Parameter rows остаются и принадлежат NODES-017.3.
+* Контрольная сумма: SHA-256
+  `acf2d478ebf52a0c81d9793def59ac9bbe2143f2d931768b2c9a2a92410023c2`.

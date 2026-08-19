@@ -1,18 +1,20 @@
 # @nodes/ui
 
 `@nodes/ui` — Blender-подобная WebGPU-библиотека компонентов Node Editor.
-Публичный словарь намеренно мал: `NodeTree → Node → Socket → Link`.
+Публичный словарь:
+`NodeTree → Frame / Node → Parameter → Socket → Link`.
 
 ```ts
 import {NodeEditor} from "@nodes/ui/node-editor"
 import {
   createBlenderNodeRenderers,
+  type BlenderFrame,
   type BlenderLink,
   type BlenderNode,
   type BlenderSocket,
 } from "@nodes/ui/blender-node"
 
-const editor = new NodeEditor<BlenderNode, BlenderSocket, BlenderLink>({
+const editor = new NodeEditor<BlenderNode, BlenderSocket, BlenderLink, BlenderFrame>({
   renderers: createBlenderNodeRenderers(),
 })
 ```
@@ -22,6 +24,11 @@ pan/zoom и selection и вызывает независимые `NodeRenderer`,
 `LinkRenderer`. Библиотека не владеет автоматической раскладкой и не импортирует
 старый `NodeSystemDocument`, Card/HUD или продуктовый код. `NodeCanvas`
 предоставляет ту же renderer boundary без пользовательского редактирования.
+
+`Frame` является отдельным positioned component и visual owner вложенности.
+Обычная Node ссылается на него через `frameId`; Frame может быть вложен в другой
+Frame через `parentFrameId`. Validation отвергает cycles, неизвестного parent и
+children за пределами direct Frame.
 
 `blender-node` предоставляет стандартный Node renderer, 19 Socket presets,
 6 Socket shapes и Link renderer. Это сменяемый preset: consumer может передать

@@ -3,7 +3,7 @@
 Node-направление разделено на две независимые границы:
 
 * [`@nodes/ui`](ui/README.md) — Blender-подобная компонентная библиотека
-  `NodeTree → Node → Socket → Link` с WebGPU Node Editor и собственным
+  `NodeTree → Frame / Node → Parameter → Socket → Link` с WebGPU Node Editor и собственным
   component playground;
 * [`@nodes/layout`](layout/README.md) и корневой `nodes` — временно сохранённое
   чистое semantic/measured/positioned ядро текущей автоматической раскладки.

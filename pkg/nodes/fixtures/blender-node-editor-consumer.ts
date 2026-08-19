@@ -5,6 +5,7 @@ import {
 import {
   createBlenderNodeRenderers,
   positionBlenderNode,
+  type BlenderFrame,
   type BlenderLink,
   type BlenderNode,
   type BlenderSocket,
@@ -55,8 +56,9 @@ const targetEntry = positionBlenderNode(target, {x: 330, y: 40, w: 190, h: 150})
 const from = sourceEntry.sockets[0]!.center
 const to = targetEntry.sockets[0]!.center
 
-export const tree: PositionedNodeTree<BlenderNode, BlenderSocket, BlenderLink> = {
+export const tree: PositionedNodeTree<BlenderNode, BlenderSocket, BlenderLink, BlenderFrame> = {
   bounds: {x: 0, y: 0, w: 560, h: 230},
+  frames: [],
   nodes: [sourceEntry, targetEntry],
   links: [{
     link: {
@@ -69,7 +71,7 @@ export const tree: PositionedNodeTree<BlenderNode, BlenderSocket, BlenderLink> =
   }],
 }
 
-export const editor = new NodeEditor<BlenderNode, BlenderSocket, BlenderLink>({
+export const editor = new NodeEditor<BlenderNode, BlenderSocket, BlenderLink, BlenderFrame>({
   renderers: createBlenderNodeRenderers(),
 })
 

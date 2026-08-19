@@ -3,6 +3,7 @@ import {
   BLENDER_SOCKET_KINDS,
   BLENDER_SOCKET_SHAPES,
   createBlenderNodeRenderers,
+  type BlenderFrame,
   type BlenderLink,
   type BlenderNode,
   type BlenderSocket,
@@ -26,13 +27,14 @@ try {
 
   const fields = new FieldCatalogSurface()
   const sockets = new SocketCatalogSurface()
-  const editor = new NodeEditor<BlenderNode, BlenderSocket, BlenderLink>({
+  const editor = new NodeEditor<BlenderNode, BlenderSocket, BlenderLink, BlenderFrame>({
     renderers: createBlenderNodeRenderers(),
     title: "NODE EDITOR · COMPONENT COMPOSITION",
     minScale: 0.58,
     maxScale: 2.4,
-    onSelectionChange(nodeId) {
-      document.documentElement.dataset.selectedNode = nodeId ?? ""
+    onSelectionChange(selection) {
+      document.documentElement.dataset.selectedKind = selection?.kind ?? ""
+      document.documentElement.dataset.selectedId = selection?.id ?? ""
     },
   })
   editor.setTree(createCatalogNodeTree())

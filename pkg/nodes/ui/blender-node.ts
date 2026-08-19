@@ -9,6 +9,8 @@ import {
 import {Z, flexColumn, flexRow, palette} from "@ui/elements"
 import {sampleLinkBezierPath} from "./link-curve.ts"
 import type {
+  Frame,
+  FrameRenderer,
   Link,
   LinkRenderer,
   Node,
@@ -64,6 +66,12 @@ export type BlenderSocketPreset = Readonly<{
   color: FieldColor
   shape: BlenderSocketShape
   defaultFieldKind?: FieldDefinition["kind"]
+}>
+
+export type BlenderFrame = Frame & Readonly<{
+  label: string
+  color?: FieldColor
+  labelSize?: number
 }>
 
 export type BlenderSocket = Socket & Readonly<{
@@ -173,27 +181,69 @@ export function positionBlenderNode(node: BlenderNode, rect: NodeRect): Position
   return {node, rect, sockets: planBlenderNode(node, rect).sockets}
 }
 
-export function createBlenderNodeRenderers(): NodeEditorRenderers<BlenderNode, BlenderSocket, BlenderLink> {
-  return {node: blenderNodeRenderer, socket: blenderSocketRenderer, link: blenderLinkRenderer}
+export function createBlenderNodeRenderers(): NodeEditorRenderers<BlenderNode, BlenderSocket, BlenderLink, BlenderFrame> {
+  return {frame: blenderFrameRenderer, node: blenderNodeRenderer, socket: blenderSocketRenderer, link: blenderLinkRenderer}
 }
+
+export const blenderFrameRenderer: FrameRenderer<BlenderFrame> = Object.freeze({
+  renderBackground({host, entry, scale, selected}) {
+    const color = entry.frame.color === undefined
+      ? new Color(0.16, 0.34, 0.24, 1)
+      : colorFrom(entry.frame.color)
+    const radius = Math.max(4, 7 * scale)
+    host.drawRoundedRect(entry.rect.x + 3 * scale, entry.rect.y + 5 * scale, entry.rect.w, entry.rect.h, {
+      radius,
+      fill: new Color(0, 0, 0, 0.28),
+      border: null,
+      z: Z.CONTAINER,
+    })
+    host.drawRoundedRect(entry.rect.x, entry.rect.y, entry.rect.w, entry.rect.h, {
+      radius,
+      fill: fade(color, 0.42),
+      border: selected ? palette.orange : fade(color, 0.88),
+      borderWidth: Math.max(1, selected ? 2 * scale : scale),
+      z: Z.CONTAINER + 0.01,
+    })
+  },
+  renderForeground({host, entry, scale, selected}) {
+    flexRow({
+      x: entry.rect.x,
+      y: entry.rect.y,
+      w: entry.rect.w,
+      h: Math.max(26, 34 * scale),
+      justifyContent: "center",
+      alignItems: "center",
+      items: [{
+        width: "grow",
+        height: Math.max(22, 30 * scale),
+        draw: (x, y, w, h) => Typography(host, x, y, w, h, {
+          children: entry.frame.label,
+          fontPx: Math.max(12, (entry.frame.labelSize ?? 17) * scale),
+          color: selected ? "orange" : "text",
+          sx: {textAlign: "center"},
+        }),
+      }],
+    })
+  },
+})
 
 export const blenderNodeRenderer: NodeRenderer<BlenderNode, BlenderSocket> = Object.freeze({
   measure: measureBlenderNode,
-  renderBackground({host, entry, scale, selected, container}) {
+  renderBackground({host, entry, scale, selected}) {
     const {rect, node} = entry
     const radius = Math.max(5, 9 * scale)
     const header = nodeHeaderColor(node)
     const regions = blenderNodeRegions(rect, scale)
     host.drawRoundedRect(rect.x, rect.y, rect.w, rect.h, {
       radius,
-      fill: container ? fade(palette.bgPanelDim, 0.72) : palette.bgPanel,
-      border: selected ? palette.windowActiveBorder : container ? palette.border : palette.borderDim,
+      fill: palette.bgPanel,
+      border: selected ? palette.windowActiveBorder : palette.borderDim,
       borderWidth: selected ? Math.max(1.5, 2 * scale) : Math.max(1, scale),
       z: Z.ELEMENT,
     })
     host.drawRoundedRect(regions.header.x, regions.header.y, regions.header.w, regions.header.h, {
       radius,
-      fill: fade(header, container ? 0.35 : 0.58),
+      fill: fade(header, 0.58),
       border: null,
       z: Z.ELEMENT + 0.01,
     })

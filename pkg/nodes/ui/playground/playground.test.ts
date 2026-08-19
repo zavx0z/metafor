@@ -28,7 +28,8 @@ describe("Blender-like Node component playground", () => {
     expect(new Set(BLENDER_SOCKET_SHAPES).size).toBe(6)
     const tree = createCatalogNodeTree()
     expect(() => validatePositionedNodeTree(tree)).not.toThrow()
-    expect(tree.nodes).toHaveLength(6)
+    expect(tree.frames).toHaveLength(1)
+    expect(tree.nodes).toHaveLength(5)
     expect(tree.links).toHaveLength(4)
   })
 

@@ -2,6 +2,7 @@ import type {FieldDefinition} from "@ui/components"
 import {
   BLENDER_SOCKET_KINDS,
   positionBlenderNode,
+  type BlenderFrame,
   type BlenderLink,
   type BlenderNode,
   type BlenderSocket,
@@ -52,8 +53,8 @@ export const SOCKET_CATALOG = BLENDER_SOCKET_KINDS.map((kind, index): BlenderSoc
   socketType: kind,
 }))
 
-export function createCatalogNodeTree(): PositionedNodeTree<BlenderNode, BlenderSocket, BlenderLink> {
-  const frame: BlenderNode = {id: "catalog-frame", title: "Node component system", category: "Container"}
+export function createCatalogNodeTree(): PositionedNodeTree<BlenderNode, BlenderSocket, BlenderLink, BlenderFrame> {
+  const frame: BlenderFrame = {id: "catalog-frame", label: "Node component system"}
   const scalar = blenderNode("scalar", "Scalar Math", "Converter", [
     {id: "operation", label: "Operation", kind: "enum", value: "multiply", options: [
       {value: "add", label: "Add"},
@@ -97,7 +98,6 @@ export function createCatalogNodeTree(): PositionedNodeTree<BlenderNode, Blender
   ])
 
   const nodes: PositionedNode<BlenderNode, BlenderSocket>[] = [
-    positionBlenderNode(frame, {x: 0, y: 0, w: 1120, h: 650}),
     positionBlenderNode(scalar, {x: 40, y: 70, w: 260, h: 250}),
     positionBlenderNode(transform, {x: 340, y: 60, w: 310, h: 240}),
     positionBlenderNode(shader, {x: 720, y: 65, w: 330, h: 250}),
@@ -107,6 +107,7 @@ export function createCatalogNodeTree(): PositionedNodeTree<BlenderNode, Blender
 
   return {
     bounds: {x: 0, y: 0, w: 1120, h: 650},
+    frames: [{frame, rect: {x: 0, y: 0, w: 1120, h: 650}}],
     nodes,
     links: [
       link("scalar-transform", "scalar", "result", "transform", "vector", "float", nodes),
@@ -124,7 +125,7 @@ function blenderNode(
   properties: readonly FieldDefinition[],
   sockets: readonly BlenderSocket[],
 ): BlenderNode {
-  return {id, parentId: "catalog-frame", title, category, properties, sockets}
+  return {id, frameId: "catalog-frame", title, category, properties, sockets}
 }
 
 function socket(
