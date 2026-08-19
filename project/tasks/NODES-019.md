@@ -86,6 +86,21 @@ browser proof может открыть и проверить конкретны
 
 ## Состояние
 
-`IN_PROGRESS`: UI-002 prerequisite закрыт. Меняется только dev playground через
-public `@ui/playground`; Blender-style Node, Parameter и current Field
-composition остаются без изменений до интеграции NODES-018.
+`REVIEW`: merge/result `24af6c2a5` перевёл Node dev consumer на public retained
+`@ui/playground`. Routes `editor/{scene,frames,links}`,
+`socket/{types,shapes,states}`, `comparison/blender` показывают один section;
+Socket catalog содержит 19 типов и 8 форм без standalone Fields/Parameters,
+comparison — UI-owned Blender reference и одну live Noise Node. Shared server
+entry root cause исправлена через `output.kind === "entry-point"`.
+
+Focused proof `10/10`, общий integration slice `51/51`, typechecks/boundaries и
+standalone build прошли. Exact background targets `A0D82E…`, `9AD7D3…`,
+`9A322F…` дали ready DOM, console 0 и non-black desktop/portrait/landscape
+canvas с native restore. Captures и SHA-256 находятся в
+[`project/artifacts/UI-004`](../artifacts/UI-004/README.md). Physical mobile и
+visual owner acceptance принадлежат NODES-017, не этой задаче.
+
+Closing handoff: затронуты только `@nodes/ui` dev playground, public
+`@ui/playground` server contract и `UI dev` route/asset registry. Production
+Node/Parameter/Field semantics не менялись. Ожидается независимый closing
+verdict перед удалением карточки.

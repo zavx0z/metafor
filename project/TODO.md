@@ -51,11 +51,6 @@ flowchart LR
     MF405 --> MF406
     MF411 --> MF414
     MF424 --> HAM006
-    UI004 --> UI001
-    UI004 --> NODES017
-    UI003 --> NODES017
-    NODES019 --> NODES017
-    UI001 --> NODES017
     MF425 --> MF426
     MF426 --> MF427
 ```
@@ -92,24 +87,24 @@ Elements/Components/consumers и возвращает NODES-017 к visual correc
 
 [`UI-003 — Создать общий skill разработки UI и Node playground`](tasks/UI-003.md)
 находится в `REVIEW`: единый `ui-dev` перенесён в `pkg/ui`, registry-driven
-lifecycle, background exact-CDP capture и structured profiling доказаны на
-Node UI и Components. Integrated acceptance и закрытие выполняются в UI-004;
-Node asset route остаётся следующим integration gate, а не compatibility alias.
+lifecycle, background exact-CDP capture и structured profiling повторно доказаны
+на integrated main. Старый skill/path отсутствует, Node asset принадлежит UI
+owner; задача передана на независимую closing review.
 
 [`UI-001 — Создать playground универсальных UI Components`](tasks/UI-001.md)
-сохраняет восстановленный historical Components shell и universal Field route.
-Localization/mobile proof и перевод на общий shell ждут интеграции принятого
-retained результата в UI-004.
+сохраняет historical visual geometry, universal Field routes и уже использует
+public retained shell. Desktop/mobile proof завершён; отдельным незавершённым
+результатом остаётся полная русская локализация catalog.
 
 [`NODES-019 — Разделить playground Node System на каталог компонентов`](tasks/NODES-019.md)
-продолжает только dev playground на public `@ui/playground`: отдельные sections
-для полного Node Editor, Socket и Blender comparison не меняют Blender-style
-Node, Parameter и current Field до retained integration.
+находится в `REVIEW`: отдельные routes полного Node Editor, Socket catalog и
+Blender comparison работают на public retained shell; Fields отсутствуют из
+Socket catalog, reference загружен из UI owner.
 
 [`NODES-017 — Визуально воспроизвести Blender Node Editor`](tasks/NODES-017.md)
-сохраняет принятые row order, texture header и полноширинные enums. Остальные
-Socket/header/shadow/LOD/alignment corrections ждут UI-004, NODES-019, UI-001 и
-закрытия UI-003; physical mobile и owner acceptance остаются отдельными gates.
+возвращена в работу на integrated retained foundation. Следующий срез —
+Socket/header/shadow/LOD/alignment corrections; physical mobile и явная visual
+owner acceptance остаются отдельными gates.
 
 | ID     | Состояние   | Зависимости | Карточка                   |
 | ------ | ----------- | ----------- | -------------------------- |
@@ -119,10 +114,10 @@ Socket/header/shadow/LOD/alignment corrections ждут UI-004, NODES-019, UI-00
 | MF-411 | IN_PROGRESS | нет         | [Открыть](tasks/MF-411.md) |
 | NODES-008 | IN_PROGRESS | нет       | [Открыть](tasks/NODES-008.md) |
 | UI-004 | IN_PROGRESS | нет         | [Открыть](tasks/UI-004.md) |
-| NODES-019 | IN_PROGRESS | нет       | [Открыть](tasks/NODES-019.md) |
-| UI-001 | WAITING     | UI-004     | [Открыть](tasks/UI-001.md) |
+| NODES-019 | REVIEW   | нет         | [Открыть](tasks/NODES-019.md) |
+| UI-001 | READY       | нет         | [Открыть](tasks/UI-001.md) |
 | UI-003 | REVIEW      | нет        | [Открыть](tasks/UI-003.md) |
-| NODES-017 | WAITING  | UI-004, NODES-019, UI-001, UI-003 | [Открыть](tasks/NODES-017.md) |
+| NODES-017 | IN_PROGRESS | нет      | [Открыть](tasks/NODES-017.md) |
 | MF-414 | WAITING     | MF-411      | [Открыть](tasks/MF-414.md) |
 | MF-426 | WAITING     | MF-425      | [Открыть](tasks/MF-426.md) |
 | MF-427 | WAITING     | MF-426      | [Открыть](tasks/MF-427.md) |

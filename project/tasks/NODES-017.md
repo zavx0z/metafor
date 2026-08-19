@@ -402,11 +402,10 @@ engine/UI contract, а не исправляется локально в Node re
 
 ## Состояние
 
-`WAITING`: row order, texture header и полноширинные enums исправлены. Принятый
-engine parent/child result NODES-018 интегрируется в UI-004; Node catalog shell
-остаётся в NODES-019, а owner-local input catalog — в UI-001. До этих
-результатов NODES-017 не продолжает
-Socket/header/shadow/LOD/alignment corrections на старом flat path.
+`IN_PROGRESS`: row order, texture header и полноширинные enums исправлены;
+retained Engine/UI/Node foundation, public Node catalog и owner-local Components
+playground интегрированы в main. NODES-017 возвращается к
+Socket/header/shadow/LOD/alignment corrections уже без старого flat path.
 NODES-017.8.4 сохраняет rounded header, но исправляет collapse chevron и title
 alignment. NODES-017.8.5 переносит selection с border на четырёхстороннюю тень
 в оттенке header. NODES-017.8.6 устраняет пустые Node при zoom-out без отказа от

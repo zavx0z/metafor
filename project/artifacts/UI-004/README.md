@@ -1,36 +1,95 @@
 # UI-004 — Артефакты integrated retained UI
 
-Дата: 20 августа 2026 года. Версия до capture:
-`41970d955994ec90fbbf22231ddf2d6c7ed71e7b`.
+Дата: 20 августа 2026 года. Версия capture:
+`677871d9ba018daeb135fa8b5e3c52c6bd324a30`.
 
-## components-desktop.png
+## components/{desktop,portrait,landscape}.png
 
 * Источник: background exact-CDP canvas `@ui/components` через `UI dev`.
 * Ожидание: historical five-panel public shell, активный Components route и
   package-owned preview видимы без пустого либо чёрного canvas.
+* Фактическое наблюдение: desktop показывает public five-panel shell и Button
+  preview; portrait/landscape показывают только preview, horizontal overflow
+  отсутствует, console 0, native `1920×1088 @2` восстановлен.
 * Чувствительные сведения: нет.
+* Контрольные суммы: desktop
+  `300ecdcee9967a55bc77af5b18d5f6f47e937ed4dd6f6918dd11f6594a016859`;
+  portrait `9d0602642acaad8f39b98eec1160e31981de174ce01ad597faf2a39456d7a594`;
+  landscape `a704755f4da0376602c8e6f4ea8a7f38e70884f4c3b93c76520cd37624d83fb3`.
 
-## components-portrait.png и components-landscape.png
-
-* Источник: background exact-CDP viewport matrix `@ui/components` через
-  `UI dev`, с обязательным native restore.
-* Ожидание: portrait/landscape показывают только активный preview, без
-  horizontal overflow; после capture возвращаются исходные native metrics.
-* Чувствительные сведения: нет.
-
-## components-field.png
+## components-field/{desktop,portrait,landscape}.png
 
 * Источник: background exact-CDP route `/field/values` через `UI dev`.
 * Ожидание: universal Field controls видимы внутри package-owned retained
   preview, shell остаётся на месте, readiness и bounded counters опубликованы.
+* Фактическое наблюдение: desktop показывает public shell и Values Field
+  controls; mobile показывает только Field preview. DOM публикует exact Field
+  owners/counters, console 0, native metrics восстановлены.
 * Чувствительные сведения: нет.
+* Контрольные суммы: desktop
+  `c4f89d917dae7631972d396700988cf7cee86ecef0d463a5d952e3c867e04ac6`;
+  portrait `b38aea655848c3d4760965f243f70ab60fac1abb9cfa5ecfee3ae8d994b5a5c3`;
+  landscape `7d10d448e661740b69369d29c3e9e0c5fb7ebf709fbccff927e08d653c346dab`.
 
-## fixture-desktop.png, fixture-portrait.png и fixture-landscape.png
+## fixture/{desktop,portrait,landscape}.png
 
 * Источник: background exact-CDP canvas общего `@ui/playground` fixture через
   `UI dev`, с обязательным native restore.
 * Ожидание: reusable shell/preview видимы; mobile показывает только preview,
   console чиста, native metrics восстановлены.
+* Фактическое наблюдение: desktop показывает reusable shell, mobile — только
+  preview; bounded retained counters опубликованы, console 0, native metrics
+  восстановлены.
 * Чувствительные сведения: нет.
+* Контрольные суммы: desktop
+  `90ef3aac532f85329ff310f7080c2472e077014eb29303874a1c53723b53a741`;
+  portrait `d5ae41ee846b11484c1a37d69ece67044a3e21ce870c42837690c40bfd6f4a80`;
+  landscape `b02ad7e580b24916f24508a949d275b38262f15878d7ab4931f41968286e7e41`.
 
-Фактические наблюдения и SHA-256 добавляются после просмотра каждого файла.
+## node-editor/desktop.png, portrait.png и landscape.png
+
+* Источник: background exact-CDP viewport matrix route `/editor/scene` через
+  `UI dev`, с обязательным native restore.
+* Ожидание: полный retained Node Editor видим на desktop и mobile, Node bodies,
+  text, Socket/Link endpoints не исчезают, horizontal overflow отсутствует.
+* Фактическое наблюдение: полный Frame/Node/Socket/Link scene видим во всех
+  viewport, body/text/endpoints сохранены, console 0, native metrics
+  восстановлены. Это emulation, не physical-device proof.
+* Чувствительные сведения: нет.
+* Контрольные суммы: desktop
+  `01ea4007b90160169963726d97461a1cbe11f84262b57dc9c649d56f514be379`;
+  portrait `880b571d59e0fd7b19e34d19ff81e9c70d792d3fb07d712637dbd5b76404da0a`;
+  landscape `2dfd6bcc07f497e4c578d84f0da1dfc499d9f4c36a2c6aef11b9c9b39ae6b885`.
+
+## node-sockets/{desktop,portrait,landscape}.png
+
+* Источник: background exact-CDP canvas route `/socket/types` через `UI dev`.
+* Ожидание: виден только Socket catalog; standalone Fields и Parameters в
+  preview отсутствуют.
+* Фактическое наблюдение: показаны `19` Socket types и route-local catalog;
+  standalone Fields/Parameters отсутствуют, console 0, native metrics
+  восстановлены.
+* Чувствительные сведения: нет.
+* Контрольные суммы: desktop
+  `39b43ea7e3816ac2feac74ea266094f0f86b243f13230a6d167deeac3d655254`;
+  portrait `e6659ce6b86e37cf96e76a7b266bf8aab56f972ae55849e34d841de3122b13af`;
+  landscape `7b33176368c3929caf329d78607ddaabb0aaae8ecb064fd8f7c541dee6461085`.
+
+## node-comparison/{desktop,portrait,landscape}.png
+
+* Источник: background exact-CDP canvas route `/comparison/blender` через
+  `UI dev`.
+* Ожидание: UI-owned Blender reference загружен рядом ровно с одной live
+  representative Node; full scene и Socket catalog не примешаны.
+* Фактическое наблюдение: desktop показывает загруженный Blender 4.5.5
+  reference и одну live Noise Texture Node в равных slots; full scene/Socket
+  catalog отсутствуют, console 0, native metrics восстановлены.
+* Чувствительные сведения: нет.
+* Контрольные суммы: desktop
+  `bb169812100c7b2ea86984c6453138392186263474947a9c7cdbc3d833b4bb94`;
+  portrait `fdc30313ed5cbe62fb0177b8368007c40fa599995e29ac2d92fbe1e1787d0ef0`;
+  landscape `700bfba8aa435ea0c4c68587cf4866a9ec9837bc68e4ea39649e0ed9227cd915`.
+
+Все captures созданы через background exact target; renderer activity emulation
+не меняла OS/browser focus. `visible/focused` внутри отдельных capture phases —
+CDP focus emulation, final restored targets вернулись в `hidden/unfocused`.
