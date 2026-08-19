@@ -30,11 +30,16 @@ try {
   const editor = new NodeEditor<BlenderNode, BlenderSocket, BlenderLink, BlenderFrame>({
     renderers: createBlenderNodeRenderers(),
     title: "NODE EDITOR · COMPONENT COMPOSITION",
-    minScale: 0.58,
+    minScale: 0.26,
     maxScale: 2.4,
     onSelectionChange(selection) {
       document.documentElement.dataset.selectedKind = selection?.kind ?? ""
       document.documentElement.dataset.selectedId = selection?.id ?? ""
+    },
+    onCanvasTransformChange(transform) {
+      document.documentElement.dataset.canvasX = String(transform.x)
+      document.documentElement.dataset.canvasY = String(transform.y)
+      document.documentElement.dataset.canvasScale = String(transform.scale)
     },
   })
   editor.setTree(createCatalogNodeTree())

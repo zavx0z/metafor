@@ -63,3 +63,7 @@ bun run nodes:components
 Dev-only playground показывает все universal fields отдельно и внутри Node,
 полный Socket catalog, Links и visual containment. Он не импортирует layout
 solver или продуктовый consumer.
+
+На mobile breakpoint playground отдаёт viewport NodeEditor целиком. NodeEditor
+поддерживает single-touch pan и two-touch pinch; overview LOD скрывает только
+детали controls, не меняя NodeTree или renderer identity.

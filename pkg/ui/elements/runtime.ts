@@ -50,6 +50,8 @@ export type UiDisplayHoverOutline = {
   bottomLeft: {x: number; y: number}
 }
 
+export type UiTouchPoint = Readonly<{id: number; x: number; y: number}>
+
 export type UiRuntimeDisplaySnapshot = {
   id: UiDisplayId
   active: boolean
@@ -80,12 +82,16 @@ export interface UiSurfaceNode {
   onPointerMove?(event: MouseEvent, localX: number, localY: number): void
   onPointerDown?(event: MouseEvent, localX: number, localY: number): void
   onPointerUp?(event: MouseEvent, localX: number, localY: number): void
+  onMultiTouchStart?(points: readonly UiTouchPoint[]): void
+  onMultiTouchMove?(points: readonly UiTouchPoint[]): void
+  onMultiTouchEnd?(): void
   onContextMenu?(event: MouseEvent, localX: number, localY: number): void
   flushPendingRender?(): void
   requestRender?(): void
   acceptsPointerEvents?(): boolean
   containsPointer?(localX: number, localY: number): boolean
   preserveNativeTouchActivation?(): boolean
+  capturesTouchNavigation?(): boolean
   softKeyboardInputMode?(): VirtualInputSoftKeyboardMode
   setFramebufferClipSpace?(space: "display" | "screen"): void
   setFramebufferDisplayId?(displayId: UiDisplayId): void
@@ -318,6 +324,7 @@ export class UiRuntime {
   #pressedSlot: SurfaceSlot | null = null
   #hoveredSlot: SurfaceSlot | null = null
   #activeTouchId: number | null = null
+  #multiTouchSlot: SurfaceSlot | null = null
   #displayTouchGesture: DisplayTouchGesture | null = null
   #lastTouchEventAt = 0
   #claimNextClick = false
@@ -1458,6 +1465,7 @@ export class UiRuntime {
     this.#pressedSlot = null
     this.#hoveredSlot = null
     this.#activeTouchId = null
+    this.#multiTouchSlot = null
     this.#claimNextClick = false
     this.#cancelDisplayDragCandidate()
     this.#cancelDisplayTouchGesture()
@@ -1683,6 +1691,33 @@ export class UiRuntime {
   #localCoordsFromTouch(touch: Touch): {x: number; y: number} {
     const rect = this.canvas.getBoundingClientRect()
     return {x: touch.clientX - rect.left, y: touch.clientY - rect.top}
+  }
+
+  #surfaceSlotForTouch(touch: Touch): SurfaceSlot | undefined {
+    const local = this.#localCoordsFromTouch(touch)
+    const hudSlot = this.#surfaceAt(local.x, local.y, "hud")
+    if (hudSlot !== undefined) return hudSlot
+    const displayCoords = this.#displayCoords(local.x, local.y)
+    if (displayCoords === null) return undefined
+    return this.#surfaceAt(displayCoords.x, displayCoords.y, "display", displayCoords.displayId)
+  }
+
+  #touchPointsForSlot(touches: TouchList, slot: SurfaceSlot): readonly UiTouchPoint[] {
+    const points: UiTouchPoint[] = []
+    for (let index = 0; index < touches.length; index += 1) {
+      const touch = touches.item(index)
+      if (touch === null) continue
+      const local = this.#localCoordsFromTouch(touch)
+      if (slot.target === "hud") {
+        points.push({id: touch.identifier, x: local.x - slot.rect.x, y: local.y - slot.rect.y})
+        continue
+      }
+      const displayCoords = this.#displayCoords(local.x, local.y, false, slot.displayId)
+      if (displayCoords !== null) {
+        points.push({id: touch.identifier, x: displayCoords.x - slot.rect.x, y: displayCoords.y - slot.rect.y})
+      }
+    }
+    return points
   }
 
   #clientToCanvasCoords(clientX: number, clientY: number): {x: number; y: number} {
@@ -2032,6 +2067,26 @@ export class UiRuntime {
   }
 
   #onTouchStart(event: TouchEvent): void {
+    if (event.touches.length >= 2) {
+      const first = event.touches.item(0)
+      const slot = this.#multiTouchSlot ?? this.#pressedSlot ?? (first === null ? undefined : this.#surfaceSlotForTouch(first))
+      if (slot !== undefined && slot !== null && slot.surface.onMultiTouchStart !== undefined) {
+        this.#rememberTouchEvent()
+        event.preventDefault()
+        this.#claimPointerEvent(event)
+        if (this.#multiTouchSlot === null) {
+          const active = first === null ? null : this.#mouseEventFromTouch("mouseup", first)
+          if (active !== null) this.#pressedSlot?.surface.onPointerUp?.(active, -1, -1)
+          this.#pressedSlot = null
+          this.#activeTouchId = null
+          this.#multiTouchSlot = slot
+          slot.surface.onMultiTouchStart(this.#touchPointsForSlot(event.touches, slot))
+        } else {
+          slot.surface.onMultiTouchMove?.(this.#touchPointsForSlot(event.touches, slot))
+        }
+        return
+      }
+    }
     if (this.#activeTouchId !== null || event.changedTouches.length === 0) return
     const touch = event.changedTouches[0]!
     const local = this.#localCoordsFromTouch(touch)
@@ -2045,7 +2100,8 @@ export class UiRuntime {
     const displaySlot = displayCoords === null
       ? undefined
       : this.#surfaceAt(displayCoords.x, displayCoords.y, "display", displayCoords.displayId)
-    if (!this.#isDisplayNavigationMode() && displayCoords !== null && displaySlot !== undefined) {
+    if (displayCoords !== null && displaySlot !== undefined &&
+      (!this.#isDisplayNavigationMode() || displaySlot.surface.capturesTouchNavigation?.() === true)) {
       this.#beginSurfaceTouch(event, touch, displaySlot, displayCoords.x - displaySlot.rect.x, displayCoords.y - displaySlot.rect.y)
       return
     }
@@ -2055,6 +2111,18 @@ export class UiRuntime {
   }
 
   #onTouchMove(event: TouchEvent): void {
+    if (this.#multiTouchSlot !== null) {
+      this.#rememberTouchEvent()
+      event.preventDefault()
+      this.#claimPointerEvent(event)
+      const points = this.#touchPointsForSlot(event.touches, this.#multiTouchSlot)
+      if (points.length >= 2) this.#multiTouchSlot.surface.onMultiTouchMove?.(points)
+      else {
+        this.#multiTouchSlot.surface.onMultiTouchEnd?.()
+        this.#multiTouchSlot = null
+      }
+      return
+    }
     if (this.#activeTouchId === null) return
     this.#rememberTouchEvent()
     const touch = this.#changedTouch(event)
@@ -2090,6 +2158,18 @@ export class UiRuntime {
   }
 
   #onTouchEnd(event: TouchEvent): void {
+    if (this.#multiTouchSlot !== null) {
+      this.#rememberTouchEvent()
+      event.preventDefault()
+      this.#claimPointerEvent(event)
+      const points = this.#touchPointsForSlot(event.touches, this.#multiTouchSlot)
+      if (points.length >= 2) this.#multiTouchSlot.surface.onMultiTouchMove?.(points)
+      else {
+        this.#multiTouchSlot.surface.onMultiTouchEnd?.()
+        this.#multiTouchSlot = null
+      }
+      return
+    }
     if (this.#activeTouchId === null) return
     this.#rememberTouchEvent()
     const touch = this.#changedTouch(event)
@@ -2113,6 +2193,15 @@ export class UiRuntime {
   }
 
   #onTouchCancel(event: TouchEvent): void {
+    if (this.#multiTouchSlot !== null) {
+      event.preventDefault()
+      this.#claimPointerEvent(event)
+      this.#multiTouchSlot.surface.onMultiTouchEnd?.()
+      this.#multiTouchSlot = null
+      this.#activeTouchId = null
+      this.#pressedSlot = null
+      return
+    }
     if (this.#activeTouchId === null) return
     this.#rememberTouchEvent()
     const touch = this.#changedTouch(event)

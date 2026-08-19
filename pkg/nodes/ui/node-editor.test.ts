@@ -7,6 +7,7 @@ import {
   orderNodeEditorLinksForPaint,
   planNodeEditorGrid,
   planNodeEditorLinkHitRects,
+  planNodeEditorPinchTransform,
   planNodeEditorPaintSteps,
   planNodeEditorViewport,
   validatePositionedNodeTree,
@@ -195,5 +196,23 @@ describe("generic Blender-like Node Editor contracts", () => {
     expect(grid.length).toBeLessThanOrEqual(5000)
     expect(grid.every(({x, y}) => x >= 0 && x <= 390 && y >= 0 && y <= 844)).toBeTrue()
     expect(grid.some(({major}) => major)).toBeTrue()
+  })
+
+  test("keeps the touched world point stable during mobile pinch zoom", () => {
+    const transformed = planNodeEditorPinchTransform(
+      {x: 10, y: 20, scale: 1},
+      [{id: 1, x: 100, y: 100}, {id: 2, x: 200, y: 100}],
+      [{id: 1, x: 50, y: 120}, {id: 2, x: 250, y: 120}],
+      0.4,
+      3,
+    )
+    expect(transformed).toEqual({x: -130, y: -40, scale: 2})
+    expect(planNodeEditorPinchTransform(
+      {x: 0, y: 0, scale: 1},
+      [{id: 1, x: 0, y: 0}, {id: 2, x: 10, y: 0}],
+      [{id: 1, x: 0, y: 0}, {id: 2, x: 100, y: 0}],
+      0.4,
+      2.5,
+    ).scale).toBe(2.5)
   })
 })

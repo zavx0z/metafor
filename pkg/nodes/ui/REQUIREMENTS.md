@@ -80,6 +80,11 @@ format и автоматическое размещение принадлежа
 8. Selection различает Frame, Node и Link. Link получает hit corridors по
    готовым route segments; selected Link рисуется отдельным последним проходом
    поверх ordinary Links, но под Node.
+9. Mobile NodeEditor использует тот же positioned tree и renderers. Один touch
+   панорамирует canvas, два touch выполняют anchor-preserving pinch; responsive
+   FlexCss скрывает catalog surfaces, но не создаёт отдельную mobile Node.
+10. На overview-scale детали Parameter скрываются LOD-порогом, сохраняя headers,
+    Socket, Links и Frame. После pinch тот же renderer показывает controls.
 
 ## Package boundary и удаление legacy
 

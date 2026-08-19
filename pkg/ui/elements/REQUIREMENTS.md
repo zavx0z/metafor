@@ -28,6 +28,11 @@ Flex adapter. Этот документ задаёт обязательный la
    если одновременно размещается несколько UI surfaces.
 7. Structural tests каждой новой UI-системы доказывают использование Flex на
    уровне page/region, component и вложенных controls.
+8. Surface, которая осознанно владеет touch canvas, объявляет
+   `capturesTouchNavigation()`. Только такая Surface перехватывает single-touch
+   у virtual display; остальные сохраняют общий display navigation.
+9. Multi-touch передаётся Surface одной typed последовательностью
+   `start/move/end`, а не несколькими несвязанными mouse emulation events.
 
 ## Выбор primitive
 

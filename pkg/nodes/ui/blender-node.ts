@@ -251,15 +251,15 @@ export const blenderFrameRenderer: FrameRenderer<BlenderFrame> = Object.freeze({
       x: entry.rect.x,
       y: entry.rect.y,
       w: entry.rect.w,
-      h: Math.max(26, 34 * scale),
+      h: Math.max(12, 34 * scale),
       justifyContent: "center",
       alignItems: "center",
       items: [{
         width: "grow",
-        height: Math.max(22, 30 * scale),
+        height: Math.max(10, 30 * scale),
         draw: (x, y, w, h) => Typography(host, x, y, w, h, {
           children: entry.frame.label,
-          fontPx: Math.max(12, (entry.frame.labelSize ?? 17) * scale),
+          fontPx: Math.max(7, (entry.frame.labelSize ?? 17) * scale),
           color: selected ? "orange" : "text",
           sx: {textAlign: "center"},
         }),
@@ -309,19 +309,19 @@ export const blenderNodeRenderer: NodeRenderer<BlenderNode, BlenderSocket> = Obj
       items: [
         {width: 12 * scale, height: plan.header.h, draw: (slotX, slotY, slotW, slotH) => Typography(host, slotX, slotY, slotW, slotH, {
           children: node.collapsed ? "›" : "⌄",
-          fontPx: Math.max(8, 10 * scale),
+          fontPx: Math.max(6, 10 * scale),
           color: "text",
         })},
         {width: "grow", height: plan.header.h, draw: (slotX, slotY, slotW, slotH) => Typography(host, slotX, slotY, slotW, slotH, {
           children: node.label ?? node.title,
-          fontPx: Math.max(8, 11 * scale),
+          fontPx: Math.max(6, 11 * scale),
           color: selected ? "orange" : "text",
         })},
       ],
     })
     const connectedParameterIds = new Set((node.sockets ?? []).flatMap((socket) =>
       socket.parameterId !== undefined && connectedSocketIds.has(socket.id) ? [socket.parameterId] : []))
-    if (!node.collapsed && scale >= 0.68) {
+    if (!node.collapsed && scale >= 0.38) {
       for (const {field, rect: slot, parameterId} of plan.fields) {
         if (parameterId !== undefined && connectedParameterIds.has(parameterId)) continue
         Field(host, slot.x, slot.y, slot.w, {...field, key: `${node.id}:${field.id}`}, {density: "compact", scale})
@@ -330,13 +330,14 @@ export const blenderNodeRenderer: NodeRenderer<BlenderNode, BlenderSocket> = Obj
         if (parameter.field !== undefined && !connectedParameterIds.has(parameter.id)) continue
         Typography(host, slot.x, slot.y, slot.w, slot.h, {
           children: parameter.label,
-          fontPx: Math.max(8, 11 * scale),
+          fontPx: Math.max(6, 11 * scale),
           sx: {textAlign: "center"},
         })
       }
     }
     for (const positioned of entry.sockets) {
       if (node.collapsed) continue
+      if (scale < 0.38) continue
       const {socket, center, side} = positioned
       if (socket.parameterId !== undefined) continue
       if (side === "left") {
@@ -481,11 +482,11 @@ function drawSideSocketLabel(
     paddingX: 8 * scale,
     gap: 8 * scale,
     items: side === "left" ? [
-      {width: "1fr", height, draw: (x, y, w, h) => Typography(host, x, y, w, h, {children: label, fontPx: Math.max(8, 11 * scale)})},
+      {width: "1fr", height, draw: (x, y, w, h) => Typography(host, x, y, w, h, {children: label, fontPx: Math.max(6, 11 * scale)})},
       {width: "1fr", height, draw: () => {}},
     ] : [
       {width: "1fr", height, draw: () => {}},
-      {width: "1fr", height, draw: (x, y, w, h) => Typography(host, x, y, w, h, {children: label, fontPx: Math.max(8, 11 * scale), sx: {textAlign: "right"}})},
+      {width: "1fr", height, draw: (x, y, w, h) => Typography(host, x, y, w, h, {children: label, fontPx: Math.max(6, 11 * scale), sx: {textAlign: "right"}})},
     ],
   })
 }

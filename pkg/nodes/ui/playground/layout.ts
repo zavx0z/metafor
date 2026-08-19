@@ -1,6 +1,6 @@
 import {flexColumnCss, flexRowCss} from "@ui/elements"
 
-export type PlaygroundFrame = Readonly<{x: number; y: number; w: number; h: number}>
+export type PlaygroundFrame = Readonly<{x: number; y: number; w: number; h: number; visible?: boolean}>
 export type NodeComponentPlaygroundFrames = Readonly<{
   fields: PlaygroundFrame
   editor: PlaygroundFrame
@@ -12,6 +12,30 @@ export function planNodeComponentPlaygroundFrames(width: number, height: number)
   let fields: PlaygroundFrame = {x: 0, y: 0, w: 0, h: 0}
   let editor: PlaygroundFrame = {x: 0, y: 0, w: 0, h: 0}
   let sockets: PlaygroundFrame = {x: 0, y: 0, w: 0, h: 0}
+  if (width <= 720 || height <= 500) {
+    fields = {x: 0, y: 0, w: 0, h: 0, visible: false}
+    sockets = {x: 0, y: 0, w: 0, h: 0, visible: false}
+    flexColumnCss({
+      x: 0,
+      y: 0,
+      w: width,
+      h: height,
+      items: [
+        {height: 70, draw: () => {}},
+        {height: "1fr", draw: (bodyX, bodyY, bodyW, bodyH) => flexColumnCss({
+          x: bodyX,
+          y: bodyY,
+          w: bodyW,
+          h: bodyH,
+          paddingLeft: 8,
+          paddingRight: 8,
+          paddingBottom: 8,
+          items: [{height: "1fr", draw: (x, y, w, h) => { editor = {x, y, w, h} }}],
+        })},
+      ],
+    })
+    return {fields, editor, sockets}
+  }
   flexColumnCss({
     x: 0,
     y: 0,

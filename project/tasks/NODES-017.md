@@ -111,7 +111,17 @@ canvas сохранён в artifacts.
 
 Добавить responsive component layout, touch pan, two-pointer pinch zoom,
 selection и mobile-sized hit targets без изменения scene geometry. Проверить
-минимум `390×844 @3x`, portrait/landscape и отсутствие horizontal UI overflow.
+минимум `390×844` в high-DPR viewport, portrait/landscape и отсутствие
+horizontal UI overflow.
+
+`IMPLEMENTED`: общий UiRuntime получил opt-in touch capture и typed multi-touch
+sequence; NodeEditor — single-touch pan и pure anchor-preserving pinch.
+Responsive FlexCss показывает только editor при width ≤720 либо height ≤500,
+mobile fit/LOD сохраняют полный scene overview. Portrait `390×844` и landscape
+`844×390` имеют exact `scrollWidth=innerWidth`, console 0; synthetic browser
+sequence доказала pan (`x≈42,y≈340`) и pinch (`scale 0.3125→0.5529`). Chrome
+service фактически применил DPR 2, несмотря на запрос 3. Android service имеет
+`devices: []`, поэтому physical-device acceptance остаётся открытым gate.
 
 ### NODES-017.7 — Side-by-side playground и owner acceptance
 
@@ -163,10 +173,12 @@ console, DOM и visual matrix, затем оставить contour владел�
 3. Structural Flex regressions и component tests проходят.
 4. Browser DOM/console и package typechecks проходят.
 5. Playground оставлен владельцу на 4016 в exact CDP target.
-6. Browser proof проходит на desktop и mobile `390×844 @3x`.
-7. Владелец явно принял визуальный результат.
+6. Browser proof проходит на desktop и mobile `390×844` high-DPR viewport.
+7. Physical mobile proof проходит при доступном устройстве либо остаётся явно
+   незакрытым owner gate.
+8. Владелец явно принял визуальный результат.
 
 ## Состояние
 
-`IN_PROGRESS`, исполнитель `/root`; текущий срез NODES-017.6 — responsive mobile
-layout и touch pan/pinch.
+`IN_PROGRESS`, исполнитель `/root`; NODES-017.6 implemented, physical mobile
+gate открыт; текущий срез NODES-017.7 — side-by-side и owner acceptance.

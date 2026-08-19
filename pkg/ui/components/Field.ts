@@ -277,7 +277,7 @@ function drawCompactField(
 type CompactMetrics = Readonly<{control: number; gap: number; font: number; radius: number}>
 
 function compactMetrics(options: FieldRenderOptions): CompactMetrics {
-  const scale = Math.min(2.5, Math.max(0.45, options.scale ?? 1))
+  const scale = Math.min(2.5, Math.max(0.25, options.scale ?? 1))
   return {
     control: 22 * scale,
     gap: 3 * scale,

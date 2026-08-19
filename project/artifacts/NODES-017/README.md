@@ -69,3 +69,23 @@
   под Node; Frame hit area не блокирует Link selection.
 * Контрольная сумма: SHA-256
   `4c380f703b0f290680bfaf2a47a35834da76f1e246146c4e0412ff6ee972726e`.
+
+## mobile-portrait-emulation.png
+
+* Источник: exact canvas Chrome mobile emulation `390×844`, фактический DPR 2.
+* Ожидание: только NodeEditor, full-scene overview, без horizontal overflow и
+  unreadable control collisions.
+* Фактическое наблюдение: `inner/scroll=390×844`, вся scene и nested Frame
+  видимы; overview LOD оставляет headers, Socket и Links.
+* Контрольная сумма: SHA-256
+  `a718e01f2e22d390cb8b408628f6e574b79854995a4eb70370b7d05814f795c0`.
+
+## mobile-landscape-emulation.png
+
+* Источник: exact canvas Chrome mobile emulation `844×390`, DPR 2.
+* Ожидание: height breakpoint оставляет только NodeEditor и не включает desktop
+  catalog matrix.
+* Фактическое наблюдение: `inner/scroll=844×390`, full scene помещается и
+  остается читаемой в landscape.
+* Контрольная сумма: SHA-256
+  `4fa99340d6a13a441222421a426e3b9dd084542486d364a9740e4e2d79c2bff9`.

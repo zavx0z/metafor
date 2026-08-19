@@ -14,4 +14,12 @@ describe("Node component playground Flexbox regions", () => {
     expect(frames.sockets.w).toBe(1352)
     expect(frames.sockets.h).toBeCloseTo(327.333, 3)
   })
+
+  test("gives the mobile viewport to NodeEditor without overflowing catalogs", () => {
+    const frames = planNodeComponentPlaygroundFrames(390, 844)
+    expect(frames.fields).toEqual({x: 0, y: 0, w: 0, h: 0, visible: false})
+    expect(frames.sockets).toEqual({x: 0, y: 0, w: 0, h: 0, visible: false})
+    expect(frames.editor).toEqual({x: 8, y: 70, w: 374, h: 766})
+    expect(planNodeComponentPlaygroundFrames(844, 390).editor).toEqual({x: 8, y: 70, w: 828, h: 312})
+  })
 })

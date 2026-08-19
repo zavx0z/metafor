@@ -6,6 +6,7 @@ import {
   flexColumn,
   flexRow,
   palette,
+  type UiTouchPoint,
   type UiSurfaceOpts,
 } from "@ui/elements"
 
@@ -186,6 +187,11 @@ export type NodeEditorPaintStep =
 
 export type NodeEditorGridPoint = Readonly<{x: number; y: number; major: boolean}>
 
+export type NodeEditorPinchState = Readonly<{
+  transform: NodeCanvasTransform
+  points: readonly [UiTouchPoint, UiTouchPoint]
+}>
+
 export type NodeCanvasOptions<
   TNode extends Node,
   TSocket extends Socket,
@@ -232,6 +238,8 @@ export class NodeCanvas<
   #tree: PositionedNodeTree<TNode, TSocket, TLink, TFrame>
   #transform = DEFAULT_TRANSFORM
   #selection: NodeEditorSelection = null
+  #pan: Readonly<{x: number; y: number; transform: NodeCanvasTransform}> | null = null
+  #pinch: NodeEditorPinchState | null = null
   #fitPending = true
   #lastFrame = {w: 0, h: 0}
 
@@ -334,6 +342,33 @@ export class NodeCanvas<
     this.requestRender()
   }
 
+  onMultiTouchStart(points: readonly UiTouchPoint[]): void {
+    const pair = touchPair(points)
+    if (!this.interactive() || pair === null) return
+    this.#pan = null
+    this.#pinch = {transform: this.#transform, points: pair}
+  }
+
+  onMultiTouchMove(points: readonly UiTouchPoint[]): void {
+    const pair = touchPair(points)
+    if (this.#pinch === null || pair === null) return
+    this.#applyGestureTransform(planNodeEditorPinchTransform(
+      this.#pinch.transform,
+      this.#pinch.points,
+      pair,
+      this.#minScale,
+      this.#maxScale,
+    ))
+  }
+
+  onMultiTouchEnd(): void {
+    this.#pinch = null
+  }
+
+  capturesTouchNavigation(): boolean {
+    return this.interactive()
+  }
+
   protected override render(): void {
     if (this.rectW !== this.#lastFrame.w || this.rectH !== this.#lastFrame.h) {
       this.#lastFrame = {w: this.rectW, h: this.rectH}
@@ -341,7 +376,13 @@ export class NodeCanvas<
     }
     if (this.#fitPending) {
       this.#fitPending = false
-      this.#transform = fitNodeEditorTransform(this.#tree, this.#contentRect(), 34, this.#minScale, this.#maxScale)
+      this.#transform = fitNodeEditorTransform(
+        this.#tree,
+        this.#contentRect(),
+        this.rectW < 480 ? 12 : 34,
+        this.#minScale,
+        this.#maxScale,
+      )
     }
     this.withLayer("underlay", () => this.drawRect(0, 0, this.rectW, this.rectH, new Color(0.075, 0.073, 0.071, 1), Z.CONTAINER))
     if (this.#toolbar) this.#drawToolbar()
@@ -355,7 +396,22 @@ export class NodeCanvas<
       const connectedByNode = connectedSocketIdsByNode(this.#tree.links)
       if (this.interactive()) this.hit(content.x, content.y, content.w, content.h, () => this.select(null), {
         key: "node-editor:background",
-        cursor: "default",
+        cursor: "grab",
+        activeCursor: "grabbing",
+        onPointerDown: (x, y) => {
+          this.#pan = {x, y, transform: this.#transform}
+        },
+        onPointerMove: (x, y) => {
+          if (this.#pan === null) return
+          this.#applyGestureTransform({
+            x: this.#pan.transform.x + x - this.#pan.x,
+            y: this.#pan.transform.y + y - this.#pan.y,
+            scale: this.#pan.transform.scale,
+          })
+        },
+        onPointerUp: () => {
+          this.#pan = null
+        },
       })
       for (const step of planNodeEditorPaintSteps(this.#tree.frames, plan.frames, plan.nodes)) {
         if (step.kind === "frame-background") {
@@ -435,6 +491,7 @@ export class NodeCanvas<
   }
 
   #drawToolbar(): void {
+    const compact = this.rectW < 480
     this.drawRect(0, 0, this.rectW, TOOLBAR_HEIGHT, palette.bgToolbar, Z.ELEMENT)
     this.drawRect(0, TOOLBAR_HEIGHT - 1, this.rectW, 1, palette.borderDim, Z.SEPARATOR)
     flexRow({
@@ -447,11 +504,11 @@ export class NodeCanvas<
       alignItems: "stretch",
       items: [
         {width: "1fr", height: TOOLBAR_HEIGHT, draw: (x, y, w, h) => Typography(this, x, y, w, h, {
-          children: this.#title,
+          children: compact ? this.#title.split(" · ")[0] ?? this.#title : this.#title,
           variant: "caption",
           color: "cyan",
         })},
-        {width: "1fr", height: TOOLBAR_HEIGHT, draw: (x, y, w, h) => Typography(this, x, y, w, h, {
+        !compact && {width: "1fr", height: TOOLBAR_HEIGHT, draw: (x, y, w, h) => Typography(this, x, y, w, h, {
           children: this.#interactionHint,
           variant: "caption",
           color: "muted",
@@ -467,6 +524,17 @@ export class NodeCanvas<
 
   #headerHeight(): number {
     return nodeEditorRegions(this.rectW, this.rectH, this.#toolbar).toolbar.h
+  }
+
+  #applyGestureTransform(transform: NodeCanvasTransform): void {
+    this.#transform = {
+      x: finite(transform.x),
+      y: finite(transform.y),
+      scale: clamp(transform.scale, this.#minScale, this.#maxScale),
+    }
+    this.#fitPending = false
+    this.#onCanvasTransformChange?.(this.#transform)
+    this.requestRender()
   }
 
   protected interactive(): boolean {
@@ -558,6 +626,28 @@ export function orderNodeEditorLinksForPaint<TLink extends Link>(
     ...links.filter(({link}) => link.id !== selection.id),
     ...links.filter(({link}) => link.id === selection.id),
   ]
+}
+
+export function planNodeEditorPinchTransform(
+  start: NodeCanvasTransform,
+  startPoints: readonly [UiTouchPoint, UiTouchPoint],
+  currentPoints: readonly [UiTouchPoint, UiTouchPoint],
+  minScale = 0.16,
+  maxScale = 3,
+): NodeCanvasTransform {
+  const startDistance = pointDistance(startPoints[0], startPoints[1])
+  const currentDistance = pointDistance(currentPoints[0], currentPoints[1])
+  if (startDistance <= Number.EPSILON || !Number.isFinite(currentDistance)) return start
+  const startMidpoint = pointMidpoint(startPoints[0], startPoints[1])
+  const currentMidpoint = pointMidpoint(currentPoints[0], currentPoints[1])
+  const scale = clamp(start.scale * currentDistance / startDistance, minScale, maxScale)
+  const worldX = (startMidpoint.x - start.x) / start.scale
+  const worldY = (startMidpoint.y - start.y) / start.scale
+  return {
+    x: currentMidpoint.x - worldX * scale,
+    y: currentMidpoint.y - worldY * scale,
+    scale,
+  }
 }
 
 export function planNodeEditorPaintSteps<
@@ -848,6 +938,20 @@ function drawNodeEditorGrid(host: UiSurface, frame: NodeRect, transform: NodeCan
 
 function positiveModulo(value: number, divisor: number): number {
   return ((value % divisor) + divisor) % divisor
+}
+
+function touchPair(points: readonly UiTouchPoint[]): readonly [UiTouchPoint, UiTouchPoint] | null {
+  if (points.length < 2) return null
+  const sorted = [...points].sort((left, right) => left.id - right.id)
+  return [sorted[0]!, sorted[1]!]
+}
+
+function pointDistance(left: NodePoint, right: NodePoint): number {
+  return Math.hypot(right.x - left.x, right.y - left.y)
+}
+
+function pointMidpoint(left: NodePoint, right: NodePoint): NodePoint {
+  return {x: (left.x + right.x) / 2, y: (left.y + right.y) / 2}
 }
 
 function pointOnRectSide(point: NodePoint, side: SocketSide, rect: NodeRect): boolean {
