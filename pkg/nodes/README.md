@@ -30,8 +30,12 @@ import {
   type NodeSystemDocument,
 } from "nodes"
 
+import {layoutMeasuredNodeSystemAdaptive} from "nodes/adaptive-layout"
+import {FixedLayoutWorkerClient} from "nodes/layout-worker/fixed/client"
+import {AdaptiveLayoutWorkerClient} from "nodes/layout-worker/adaptive/client"
 import {adaptNodeSystemCardPresentation} from "@nodes/ui/card-model"
 import {FixedNodeSystemCardWorkerLayouter} from "@nodes/ui/fixed-card-layout"
+import {AdaptiveNodeSystemCardLayouter} from "@nodes/ui/adaptive-card-layout"
 import {NodeSystemSurface} from "@nodes/ui/surface"
 import {NodeInspectorSurface} from "@nodes/hud/inspector"
 ```
@@ -50,15 +54,23 @@ import {NodeInspectorSurface} from "@nodes/hud/inspector"
 * `NodeSystemNode.id` остаётся domain identity; optional `layoutId` используется
   только внутри layout adapter и обязан быть уникальным в document.
 * `@nodes/layout` не читает Card presentation, текст, DOM или WebGPU state.
+  Fixed и adaptive policy доступны через независимые
+  `@nodes/layout/fixed` и `@nodes/layout/adaptive`; общий корень сохраняет
+  только fixed compatibility contract.
 * `@nodes/ui/card-model` владеет `title`, `summary`, `tone`, facts, actions и
   явными `portId → rowId` anchors. Эти значения не входят в semantic node.
 * `@nodes/ui/fixed-card-layout` является явным fixed-port adapter: он измеряет
   Card preset в общий `MeasuredNodeSystem` и передаёт числовой graph в
-  `@nodes/layout`.
+  `@nodes/layout/fixed`. `@nodes/ui/adaptive-card-layout` использует то же
+  measurement/materialization ядро и отдельный `@nodes/layout/adaptive`.
 * `@nodes/ui/surface` принимает готовый `PositionedNodeSystemCard`; consumer со
   своей Card geometry не импортирует fixed adapter. Bare/другой presentation
   consumer работает с общим `PositionedNodeSystem` без этой surface.
 * `@nodes/hud` необязателен; `nodes` и `@nodes/ui` от него не зависят.
+* Generic Worker lifecycle принадлежит `nodes/layout-worker/transport`, а
+  fixed/adaptive clients и executors публикуются отдельными subpath entrypoints.
+  Узкий client не содержит solver, а executor не содержит противоположную
+  policy.
 * `connectionType` является opaque consumer value, общей для semantic edge и
   обоих его exact sockets. Consumer-provided resolver задаёт предметный цвет;
   generic UI предоставляет только deterministic fallback. `direction`
@@ -80,6 +92,17 @@ import {NodeInspectorSurface} from "@nodes/hud/inspector"
 
 ```bash
 bun run --cwd pkg/nodes typecheck
+bun run --cwd pkg/nodes/layout typecheck:playground
 bun test pkg/nodes
 bun run docs:layout
 ```
+
+Dev-only SVG playground запускает реальные public policies без Card, WebGPU,
+HUD или product renderer:
+
+```bash
+bun run nodes:playground
+```
+
+Он является изолированным доказательством layout input/result и не заменяет
+визуальную либо runtime-приёмку конкретного consumer.

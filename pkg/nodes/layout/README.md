@@ -212,7 +212,8 @@ compound corridor и каждого фактического межслойно�
 
 Общие hard laws и порядок оптимизации принадлежат
 [`requirements/COMMON.md`](requirements/COMMON.md). Responsive-правила находятся
-отдельно в [`RIGHT.md`](requirements/RIGHT.md) и
+отдельно в [`ADAPTIVE.md`](requirements/ADAPTIVE.md),
+[`RIGHT.md`](requirements/RIGHT.md) и
 [`DOWN.md`](requirements/DOWN.md). Интеграция и Worker принадлежат
 [`nodes`](../REQUIREMENTS.md), а renderer/view —
 [`@nodes/ui`](../ui/REQUIREMENTS.md).
@@ -230,7 +231,19 @@ bun run docs:layout
 ```bash
 bun test pkg/nodes/layout/src
 bun run --cwd pkg/nodes/layout typecheck
+bun run --cwd pkg/nodes/layout typecheck:playground
 ```
+
+Лёгкий dev-only SVG playground запускается из корня репозитория:
+
+```bash
+bun run nodes:playground
+```
+
+Он вызывает public fixed/adaptive entrypoints через private registry,
+сравнивает `RIGHT`/`DOWN` fixtures и показывает готовую geometry без Card,
+WebGPU, HUD и product renderer. Playground не экспортируется из package и не
+заменяет runtime-проверку consumer.
 
 ## Обязательный benchmark перед REVIEW
 
@@ -244,7 +257,7 @@ objectives или поисковый бюджет, готова к перево�
 1. Запускает один final benchmark на принятых frozen `RIGHT` и `DOWN` inputs.
 2. Сохраняет machine-readable result в
    `project/artifacts/<ID>/benchmark-current.json`. Результат содержит все
-   samples, min/median/max, hashes inputs и geometry, runtime environment и
+   samples, min/median/p95/max, hashes inputs и geometry, runtime environment и
    точную Git revision или hash изменённого layout source.
 3. Записывает итоговые числа и ссылку на artifact в карточке задачи.
 4. Включает код, final benchmark и обязательную документацию в result-коммит,

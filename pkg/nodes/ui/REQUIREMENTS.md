@@ -57,8 +57,12 @@
 3. `@nodes/ui/surface` принимает готовую geometry и не импортирует fixed card
    adapter. Поэтому custom/adaptive consumer не загружает fixed policy.
 4. `@nodes/ui/fixed-card-layout` явно владеет fixed placement exact sockets и
-   может импортировать `@nodes/layout`; этот import не проходит через renderer
-   surface entrypoint.
+   импортирует только `@nodes/layout/fixed`; этот import не проходит через
+   renderer surface entrypoint.
+5. `@nodes/ui/fixed-card-layout` и `@nodes/ui/adaptive-card-layout` являются
+   независимыми тонкими policy adapters над общими Card measurement,
+   identity/row projection и result materialization. Каждый импортирует только
+   собственный public layout entrypoint и не копирует общий adapter.
 
 ## View
 

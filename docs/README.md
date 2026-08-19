@@ -48,8 +48,9 @@
   loader и стандартная Window-среда визуализации оркестратора.
 * [Node system](../pkg/nodes/README.md) — универсальная model/geometry граница,
   минимальная раскладка `@nodes/layout`, HUD-free renderer `@nodes/ui` и
-  необязательная HUD-интеграция `@nodes/hud`. Model и Worker transport
-  принадлежат [`nodes`](../pkg/nodes/REQUIREMENTS.md), fixed card adapter,
+  необязательная HUD-интеграция `@nodes/hud`; dev-only SVG playground
+  сравнивает public fixed/adaptive policies без WebGPU. Model и Worker transport
+  принадлежат [`nodes`](../pkg/nodes/REQUIREMENTS.md), fixed/adaptive Card adapters,
   отображение и view — [`@nodes/ui`](../pkg/nodes/ui/REQUIREMENTS.md), а алгоритмические законы
   разделены на [общие](../pkg/nodes/layout/requirements/COMMON.md),
   [adaptive side-selection](../pkg/nodes/layout/requirements/ADAPTIVE.md),

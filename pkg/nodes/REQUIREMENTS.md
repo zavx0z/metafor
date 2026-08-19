@@ -1,8 +1,10 @@
 # Требования пакета nodes
 
 Этот документ владеет требованиями к общей semantic/measured/positioned
-границе. Card presentation и fixed Card adapter принадлежат `@nodes/ui`.
+границе. Card presentation и fixed/adaptive Card adapters принадлежат
+`@nodes/ui`.
 Алгоритмические законы находятся отдельно в `@nodes/layout`: [общие](layout/requirements/COMMON.md),
+[adaptive side-selection](layout/requirements/ADAPTIVE.md),
 [`RIGHT`](layout/requirements/RIGHT.md) и [`DOWN`](layout/requirements/DOWN.md).
 
 ## Projection и измерение
@@ -61,3 +63,22 @@
    и не передаётся как input новой раскладки.
 7. Ни Worker transport, ни корневой barrel `nodes` не импортируют и не
    реэкспортируют `@nodes/ui` или `@nodes/hud`.
+8. Fixed и adaptive используют один policy-neutral transport lifecycle, но
+   имеют отдельные clients и executors. Fixed executor импортирует только
+   `@nodes/layout/fixed`, adaptive executor — только `@nodes/layout/adaptive`;
+   client не импортирует ни один solver.
+
+## Package и playground boundary
+
+1. Core, fixed/adaptive layout policies, fixed/adaptive Card adapters, custom
+   positioned Surface и оба Worker executors/clients имеют физически независимые
+   browser entrypoints. Узкий consumer не загружает противоположную policy,
+   Card, Surface, HUD или WebGPU без своего явного import.
+2. Dev-only SVG playground вызывает public `@nodes/layout/fixed` и
+   `@nodes/layout/adaptive` через один private registry. Он не экспортируется
+   production package, не владеет собственным placement/routing/validator и не
+   импортирует Card, UI/HUD, Engine или product code.
+3. Playground показывает normalized numeric input, public result, resolved
+   sides, nodes/compounds, edges/bends/gateways, bounds и policy diagnostics для
+   `RIGHT`/`DOWN`. Его SVG и browser screenshot доказывают только этот
+   изолированный путь и не являются WebGPU или product acceptance.

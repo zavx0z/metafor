@@ -1,0 +1,282 @@
+{
+  "schemaVersion": 1,
+  "task": "NODES-010",
+  "sourceRevision": "d8563124b8f4c28ad0b80d9f9c3b039b70469c80",
+  "sourceSha256": "1f77c6e97dfa31db2e234cef668a07ab18659f7522f030bd0effd0f563e92443",
+  "sourceFiles": [
+    "pkg/nodes/layout/src/adaptive.ts",
+    "pkg/nodes/layout/src/fixed.ts",
+    "pkg/nodes/layout/src/index.ts",
+    "pkg/nodes/layout/src/layout.ts",
+    "pkg/nodes/layout/src/place-graph.ts",
+    "pkg/nodes/layout/src/route-graph.ts",
+    "pkg/nodes/layout/types/engine.ts",
+    "pkg/nodes/layout/types/index.ts",
+    "pkg/nodes/layout/types/placement.ts",
+    "pkg/nodes/layout/types/protocol.ts",
+    "pkg/nodes/layout/types/routing.ts"
+  ],
+  "runtime": {
+    "bun": "1.3.14",
+    "javascript": "v24.3.0",
+    "platform": "darwin",
+    "release": "22.6.0",
+    "arch": "x64",
+    "cpu": "Intel(R) Core(TM) i7-7820HQ CPU @ 2.90GHz"
+  },
+  "method": {
+    "warmups": 3,
+    "samples": 20,
+    "coldSamples": 5,
+    "percentile": "nearest-rank p95",
+    "timer": "performance.now()"
+  },
+  "results": [
+    {
+      "policy": "fixed",
+      "fixture": "fixed-baseline-right",
+      "direction": "RIGHT",
+      "inputSha256": "49ba83e1939a7874c86c77d36dbc93e420edff90654b291fe9779d8bf10f12b0",
+      "resultSha256": "78d036df9a386533218936d0f2366e32f233f28a4f28d892d17bf1bb0fb4c844",
+      "candidateCounts": {
+        "candidateCount": 1
+      },
+      "warm": {
+        "samplesMs": [
+          9.475767000000005,
+          9.299146000000007,
+          9.394932000000011,
+          5.957860000000011,
+          5.784570000000002,
+          5.927231000000006,
+          5.937900999999982,
+          5.320598000000018,
+          6.285043000000002,
+          8.00923899999998,
+          4.304445000000015,
+          4.006448000000006,
+          4.054620999999997,
+          4.273104999999987,
+          3.7574659999999938,
+          3.8717900000000043,
+          4.8865570000000105,
+          5.867939000000007,
+          3.521113000000014,
+          3.3819780000000037
+        ],
+        "minMs": 3.3819780000000037,
+        "medianMs": 5.320598000000018,
+        "p95Ms": 9.394932000000011,
+        "maxMs": 9.475767000000005
+      },
+      "coldImportAndLayout": {
+        "samplesMs": [
+          45.432083000000006,
+          45.284282,
+          45.136763,
+          44.955524999999994,
+          45.908865999999996
+        ],
+        "minMs": 44.955524999999994,
+        "medianMs": 45.284282,
+        "p95Ms": 45.908865999999996,
+        "maxMs": 45.908865999999996
+      }
+    },
+    {
+      "policy": "fixed",
+      "fixture": "fixed-baseline-down",
+      "direction": "DOWN",
+      "inputSha256": "231fb0de3d61cfeb08769af5e0d99e222dfab854d055e930595e377545ac9e9a",
+      "resultSha256": "bb8fd47580182a40198e6aff388dcf7d26b28651ed9d592fa825efc02b4929c1",
+      "candidateCounts": {
+        "candidateCount": 1
+      },
+      "warm": {
+        "samplesMs": [
+          31.139036000000033,
+          30.93661499999996,
+          31.561056000000008,
+          31.438181999999983,
+          34.263959,
+          31.838171999999986,
+          32.317263000000025,
+          25.50708499999996,
+          21.866318999999976,
+          25.034642000000076,
+          22.658781999999974,
+          26.139458999999988,
+          25.934461000000056,
+          24.558750000000146,
+          23.890728999999965,
+          22.81292899999994,
+          23.393410999999787,
+          24.05144200000018,
+          23.393551000000116,
+          23.312109999999848
+        ],
+        "minMs": 21.866318999999976,
+        "medianMs": 25.034642000000076,
+        "p95Ms": 32.317263000000025,
+        "maxMs": 34.263959
+      },
+      "coldImportAndLayout": {
+        "samplesMs": [
+          117.334979,
+          115.624042,
+          116.169636,
+          118.01664800000002,
+          117.20133799999999
+        ],
+        "minMs": 115.624042,
+        "medianMs": 117.20133799999999,
+        "p95Ms": 118.01664800000002,
+        "maxMs": 118.01664800000002
+      }
+    },
+    {
+      "policy": "adaptive",
+      "fixture": "adaptive-shared-right",
+      "direction": "RIGHT",
+      "inputSha256": "cc23c311b549a2ee649c0e197ba1e9c2b8025579d3ea14f8e8313fa4df7161b8",
+      "resultSha256": "908e21c560fc58850a831e4b865123d650e4d1b6c72917476d23ed033aee115a",
+      "candidateCounts": {
+        "candidateBudget": 16,
+        "theoreticalCandidateCount": "2",
+        "fixedPortCount": 2,
+        "dynamicPortCount": 1,
+        "generatedCandidates": 2,
+        "attemptedCandidates": 2,
+        "routableCandidates": 2,
+        "rejectedCandidates": 0,
+        "selectedSides": [
+          {
+            "portId": "source/shared",
+            "side": "EAST"
+          },
+          {
+            "portId": "target-a/in",
+            "side": "WEST"
+          },
+          {
+            "portId": "target-b/in",
+            "side": "WEST"
+          }
+        ]
+      },
+      "warm": {
+        "samplesMs": [
+          3.9319430000000466,
+          5.845626999999695,
+          3.9829650000001493,
+          3.678102000000308,
+          3.7457110000000284,
+          3.840726000000359,
+          4.084370999999919,
+          3.895933000000241,
+          4.049939999999879,
+          6.1248350000000755,
+          3.681253000000197,
+          3.697685999999976,
+          3.79090000000042,
+          3.7432490000001053,
+          3.6735680000001594,
+          3.6438420000004044,
+          5.500329999999849,
+          3.776340999999775,
+          3.7507359999999608,
+          3.7527369999997973
+        ],
+        "minMs": 3.6438420000004044,
+        "medianMs": 3.776340999999775,
+        "p95Ms": 5.845626999999695,
+        "maxMs": 6.1248350000000755
+      },
+      "coldImportAndLayout": {
+        "samplesMs": [
+          47.281873000000004,
+          45.595494,
+          47.059378,
+          45.880414,
+          45.164708000000005
+        ],
+        "minMs": 45.164708000000005,
+        "medianMs": 45.880414,
+        "p95Ms": 47.281873000000004,
+        "maxMs": 47.281873000000004
+      }
+    },
+    {
+      "policy": "adaptive",
+      "fixture": "adaptive-shared-down",
+      "direction": "DOWN",
+      "inputSha256": "d985d11ffcb491df44f64e429b10236dfc06e2b00fef8cd14707b7046297df34",
+      "resultSha256": "5c50a710cb8f79b6c42cc79b9eb7ea219798e1700f2606952bc97f8a4899af3d",
+      "candidateCounts": {
+        "candidateBudget": 16,
+        "theoreticalCandidateCount": "2",
+        "fixedPortCount": 2,
+        "dynamicPortCount": 1,
+        "generatedCandidates": 2,
+        "attemptedCandidates": 2,
+        "routableCandidates": 2,
+        "rejectedCandidates": 0,
+        "selectedSides": [
+          {
+            "portId": "source/shared",
+            "side": "WEST"
+          },
+          {
+            "portId": "target-a/in",
+            "side": "WEST"
+          },
+          {
+            "portId": "target-b/in",
+            "side": "WEST"
+          }
+        ]
+      },
+      "warm": {
+        "samplesMs": [
+          16.707045000000107,
+          15.895125999999891,
+          17.31655499999988,
+          15.577084000000013,
+          17.907334999999875,
+          15.038363000000118,
+          16.11131000000023,
+          13.211461999999756,
+          17.90474600000016,
+          15.07847000000038,
+          16.148657000000185,
+          14.158963000000313,
+          16.428621999999905,
+          14.52506399999993,
+          15.997678999999607,
+          14.092478000000028,
+          15.889210000000276,
+          13.172176000000036,
+          13.932636000000002,
+          16.570084999999835
+        ],
+        "minMs": 13.172176000000036,
+        "medianMs": 15.889210000000276,
+        "p95Ms": 17.90474600000016,
+        "maxMs": 17.907334999999875
+      },
+      "coldImportAndLayout": {
+        "samplesMs": [
+          85.623485,
+          84.730707,
+          85.888132,
+          86.091241,
+          84.84565099999999
+        ],
+        "minMs": 84.730707,
+        "medianMs": 85.623485,
+        "p95Ms": 86.091241,
+        "maxMs": 86.091241
+      }
+    }
+  ]
+}

@@ -1,0 +1,170 @@
+{
+  "schemaVersion": 1,
+  "task": "NODES-010",
+  "sourceRevision": "d8563124b8f4c28ad0b80d9f9c3b039b70469c80",
+  "bun": "1.3.14",
+  "target": "browser",
+  "format": "esm",
+  "minified": true,
+  "bundles": [
+    {
+      "name": "core",
+      "fixture": "pkg/nodes/fixtures/core-consumer.ts",
+      "entrypointSha256": "0fbd879bf12c1bdcab77728d6664ba00eb8b4be5f67e9cba1da9c69b382cea5c",
+      "bundleSha256": "d7f68d7c57eadbac9daad3e39e919588b14fa5f574bd3be67c8defa45fb4717f",
+      "rawBytes": 2381,
+      "gzipBytes": 874,
+      "requiredSymbols": {},
+      "forbiddenSymbols": {
+        "NO_LEGAL_LAYOUT": false,
+        "NO_LEGAL_ADAPTIVE_SIDE_ASSIGNMENT": false,
+        "NodeSystemSurface": false,
+        "struct GlobalUniforms": false
+      }
+    },
+    {
+      "name": "fixed-layout",
+      "fixture": "pkg/nodes/fixtures/fixed-layout-consumer.ts",
+      "entrypointSha256": "0025fbee358a645bbd884fdb9cf8b5794d80110e2cc0837c7b119b783aa78fff",
+      "bundleSha256": "7e714d219ff3c13b64a02a89ee17c71d6c44554fc026f3cd49deaaa80024557f",
+      "rawBytes": 75622,
+      "gzipBytes": 23715,
+      "requiredSymbols": {
+        "Port has conflicting edge roles": true,
+        "NO_LEGAL_LAYOUT": true
+      },
+      "forbiddenSymbols": {
+        "NO_LEGAL_ADAPTIVE_SIDE_ASSIGNMENT": false,
+        "NodeSystemSurface": false
+      }
+    },
+    {
+      "name": "adaptive-layout",
+      "fixture": "pkg/nodes/fixtures/adaptive-layout-consumer.ts",
+      "entrypointSha256": "d4c7b915069c750ce9e1b7b93ff543f8b233dcd3dbc61a3302ec0774418ac57f",
+      "bundleSha256": "9d62ff3e77884a1b5f02debe19da700bcde7cdc359411092e829e0e473b1f48f",
+      "rawBytes": 81119,
+      "gzipBytes": 25569,
+      "requiredSymbols": {
+        "NO_LEGAL_ADAPTIVE_SIDE_ASSIGNMENT": true,
+        "NO_LEGAL_LAYOUT": true
+      },
+      "forbiddenSymbols": {
+        "Port has conflicting edge roles": false,
+        "NodeSystemSurface": false
+      }
+    },
+    {
+      "name": "fixed-card",
+      "fixture": "pkg/nodes/fixtures/fixed-card-consumer.ts",
+      "entrypointSha256": "21b3db48ebb00509d8f9ff5a2fea2f9203ff13b619b0a2a868016fc711652e23",
+      "bundleSha256": "ff86e327fd550d95b8d0251397688bae797195a099a9e9ec2a36f2ff41066d99",
+      "rawBytes": 101188,
+      "gzipBytes": 31744,
+      "requiredSymbols": {
+        "NO_LEGAL_LAYOUT": true
+      },
+      "forbiddenSymbols": {
+        "NO_LEGAL_ADAPTIVE_SIDE_ASSIGNMENT": false,
+        "NodeSystemSurface": false,
+        "struct GlobalUniforms": false
+      }
+    },
+    {
+      "name": "adaptive-card",
+      "fixture": "pkg/nodes/fixtures/adaptive-card-consumer.ts",
+      "entrypointSha256": "7dbb5e55e7aaea9b5e0eb7ba809a6f56bcfdff856d6c9f3fcb18b205f64aebd5",
+      "bundleSha256": "01d7e97a305ed84631d5e5e779beeca0fe625fd7352edf2c0ea53c98f28007c1",
+      "rawBytes": 106546,
+      "gzipBytes": 33439,
+      "requiredSymbols": {
+        "NO_LEGAL_ADAPTIVE_SIDE_ASSIGNMENT": true,
+        "NO_LEGAL_LAYOUT": true
+      },
+      "forbiddenSymbols": {
+        "source must be out/EAST": false,
+        "NodeSystemSurface": false,
+        "struct GlobalUniforms": false
+      }
+    },
+    {
+      "name": "custom-surface",
+      "fixture": "pkg/nodes/fixtures/custom-positioned-consumer.ts",
+      "entrypointSha256": "47a5642cb479908a7bdd74d7b08be75fbbf0dcc6cefbcc97b9d2ff2c5c023b8d",
+      "bundleSha256": "64420fd92e2fa8b1e22e27fe384ebb9edac9c4abb16453409eaea7375534312f",
+      "rawBytes": 293578,
+      "gzipBytes": 81967,
+      "requiredSymbols": {
+        "NodeSystemSurface": true,
+        "struct GlobalUniforms": true
+      },
+      "forbiddenSymbols": {
+        "NO_LEGAL_LAYOUT": false,
+        "NO_LEGAL_ADAPTIVE_SIDE_ASSIGNMENT": false,
+        "NodeInspectorSurface": false
+      }
+    },
+    {
+      "name": "fixed-worker-executor",
+      "fixture": "pkg/nodes/fixtures/fixed-layout-worker-executor-consumer.ts",
+      "entrypointSha256": "ad0abe88ae97f12c83b19f3b07ded57543c6e5691227d189571585f4586d1cfb",
+      "bundleSha256": "a6d5fffe5d48090fa5124a5a118cb97821c231ded14793292f07ab8ec6909b8b",
+      "rawBytes": 75979,
+      "gzipBytes": 23867,
+      "requiredSymbols": {
+        "Port has conflicting edge roles": true,
+        "NO_LEGAL_LAYOUT": true
+      },
+      "forbiddenSymbols": {
+        "NO_LEGAL_ADAPTIVE_SIDE_ASSIGNMENT": false
+      }
+    },
+    {
+      "name": "adaptive-worker-executor",
+      "fixture": "pkg/nodes/fixtures/adaptive-layout-worker-executor-consumer.ts",
+      "entrypointSha256": "e2d873359b155d492208a393968a73d95c3607645f921a27669e2052923d9451",
+      "bundleSha256": "857c3570148c3e43af1315976759af7c702a0cb5dc862d834463caa0a4bd19ab",
+      "rawBytes": 81563,
+      "gzipBytes": 25729,
+      "requiredSymbols": {
+        "NO_LEGAL_ADAPTIVE_SIDE_ASSIGNMENT": true,
+        "NO_LEGAL_LAYOUT": true
+      },
+      "forbiddenSymbols": {
+        "Port has conflicting edge roles": false
+      }
+    },
+    {
+      "name": "fixed-worker-client",
+      "fixture": "pkg/nodes/fixtures/fixed-layout-worker-client-consumer.ts",
+      "entrypointSha256": "49538d0a4f3c489312fdf1d09165ce79ffbf7671ae68e663eb229053f58d2a59",
+      "bundleSha256": "e7b798714761129a3286f72fd16353beb19c769fca8b66872a49762ad764fa43",
+      "rawBytes": 1527,
+      "gzipBytes": 694,
+      "requiredSymbols": {
+        "Stale layout generation": true
+      },
+      "forbiddenSymbols": {
+        "NO_LEGAL_LAYOUT": false,
+        "NO_LEGAL_ADAPTIVE_SIDE_ASSIGNMENT": false,
+        "Port has conflicting edge roles": false
+      }
+    },
+    {
+      "name": "adaptive-worker-client",
+      "fixture": "pkg/nodes/fixtures/adaptive-layout-worker-client-consumer.ts",
+      "entrypointSha256": "f93b24303c079da3db6da428ddcfc035997557f93a542fbb0c07f6e3f4a4f2fd",
+      "bundleSha256": "dfae508626fefebbf24c5dd42c39dd4c92b19e6f49f574dcacf98a7fecdaf536",
+      "rawBytes": 1530,
+      "gzipBytes": 696,
+      "requiredSymbols": {
+        "Stale layout generation": true
+      },
+      "forbiddenSymbols": {
+        "NO_LEGAL_LAYOUT": false,
+        "NO_LEGAL_ADAPTIVE_SIDE_ASSIGNMENT": false,
+        "Port has conflicting edge roles": false
+      }
+    }
+  ]
+}

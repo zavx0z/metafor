@@ -1,0 +1,98 @@
+{
+  "schemaVersion": 1,
+  "task": "NODES-010",
+  "evidence": [
+    {
+      "policy": "fixed",
+      "fixture": "fixed-baseline-right",
+      "output": "fixed-right.svg",
+      "direction": "RIGHT",
+      "inputSha256": "49ba83e1939a7874c86c77d36dbc93e420edff90654b291fe9779d8bf10f12b0",
+      "resultSha256": "78d036df9a386533218936d0f2366e32f233f28a4f28d892d17bf1bb0fb4c844",
+      "svgSha256": "74f285a031c17bc185df52c0e3585118d81a3b60a6d62094f196dd8710194b08",
+      "diagnostics": {
+        "kind": "fixed",
+        "candidateCount": 1
+      }
+    },
+    {
+      "policy": "fixed",
+      "fixture": "fixed-baseline-down",
+      "output": "fixed-down.svg",
+      "direction": "DOWN",
+      "inputSha256": "231fb0de3d61cfeb08769af5e0d99e222dfab854d055e930595e377545ac9e9a",
+      "resultSha256": "bb8fd47580182a40198e6aff388dcf7d26b28651ed9d592fa825efc02b4929c1",
+      "svgSha256": "6e015db009a1e9fe3b154319e9c4562a73db8f2a6be014050a70d89f50e0c900",
+      "diagnostics": {
+        "kind": "fixed",
+        "candidateCount": 1
+      }
+    },
+    {
+      "policy": "adaptive",
+      "fixture": "adaptive-shared-right",
+      "output": "adaptive-right.svg",
+      "direction": "RIGHT",
+      "inputSha256": "cc23c311b549a2ee649c0e197ba1e9c2b8025579d3ea14f8e8313fa4df7161b8",
+      "resultSha256": "908e21c560fc58850a831e4b865123d650e4d1b6c72917476d23ed033aee115a",
+      "svgSha256": "8bb338ee361160901bc20fc6a84c1b1045661b51794570f3e5dc8148c6b5b85e",
+      "diagnostics": {
+        "candidateBudget": 16,
+        "theoreticalCandidateCount": "2",
+        "fixedPortCount": 2,
+        "dynamicPortCount": 1,
+        "generatedCandidates": 2,
+        "attemptedCandidates": 2,
+        "routableCandidates": 2,
+        "rejectedCandidates": 0,
+        "selectedSides": [
+          {
+            "portId": "source/shared",
+            "side": "EAST"
+          },
+          {
+            "portId": "target-a/in",
+            "side": "WEST"
+          },
+          {
+            "portId": "target-b/in",
+            "side": "WEST"
+          }
+        ]
+      }
+    },
+    {
+      "policy": "adaptive",
+      "fixture": "adaptive-shared-down",
+      "output": "adaptive-down.svg",
+      "direction": "DOWN",
+      "inputSha256": "d985d11ffcb491df44f64e429b10236dfc06e2b00fef8cd14707b7046297df34",
+      "resultSha256": "5c50a710cb8f79b6c42cc79b9eb7ea219798e1700f2606952bc97f8a4899af3d",
+      "svgSha256": "1b5c4b5dfd83f08e0d2df68c289a31c7c93a379366999e0c54f898133bae63cb",
+      "diagnostics": {
+        "candidateBudget": 16,
+        "theoreticalCandidateCount": "2",
+        "fixedPortCount": 2,
+        "dynamicPortCount": 1,
+        "generatedCandidates": 2,
+        "attemptedCandidates": 2,
+        "routableCandidates": 2,
+        "rejectedCandidates": 0,
+        "selectedSides": [
+          {
+            "portId": "source/shared",
+            "side": "WEST"
+          },
+          {
+            "portId": "target-a/in",
+            "side": "WEST"
+          },
+          {
+            "portId": "target-b/in",
+            "side": "WEST"
+          }
+        ]
+      }
+    }
+  ]
+}

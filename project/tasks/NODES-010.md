@@ -130,7 +130,7 @@ independent subpath entrypoints внутри `@nodes/layout` и `@nodes/ui`, а 
 | NODES-010.5 | Подключить adaptive через measured и Card adapters | CLOSED |
 | NODES-010.6 | Разделить fixed/adaptive Worker и bundle entrypoints | CLOSED |
 | NODES-010.7 | Перевести существующий Card consumer без изменения поведения | CLOSED |
-| NODES-010.8 | Доказать adapters, performance, playground и package boundary · `/root/nodes_010_8` | IN_PROGRESS |
+| NODES-010.8 | Доказать adapters, performance, playground и package boundary · `/root/nodes_010_8` | REVIEW |
 
 Каждый срез получает отдельный result checkpoint. `.2` и `.3` начинаются после
 `.1`; `.4` зависит от `.2` и playground baseline `.3`; `.5` и `.6` независимо
@@ -292,6 +292,49 @@ refresh/interpolation resolved-side path и exact fixed Worker imports. Изме
 является mechanical adoption: adaptive Hamiltonian behavior, topology и
 lifecycle не менялись. Compile gate закрыт; финальный `.8` проверяет всю
 композицию и браузерный SVG playground отдельно.
+
+## Результат NODES-010.8
+
+* Постоянные владельцы `nodes`, `@nodes/layout` и `@nodes/ui` согласованы с
+  итоговой архитектурой semantic → presentation measurement → independent
+  fixed/adaptive policy → common solver → positioned result. Документация
+  различает exact layout/Card/Worker entrypoints, solver-free Surface и
+  dev-only SVG playground. Корневой `bun run nodes:playground` запускает private
+  tool; production exports playground не содержат.
+* Package regression и machine-readable `bundles-current.json` доказали десять
+  отдельных browser builds: core `2381/874 gzip`, fixed/adaptive layout
+  `75622/23715` и `81119/25569`, fixed/adaptive Card `101188/31744` и
+  `106546/33439`, custom Surface `293578/81967`, Worker executors
+  `75979/23867` и `81563/25729`, clients `1527/694` и `1530/696` bytes.
+  Required symbols присутствуют, противоположные policy, solver, Card/HUD и
+  WebGPU symbols отсутствуют в соответствующих узких consumers.
+* `benchmark-current.json` фиксирует Bun/runtime, implementation baseline
+  `d8563124b`, exact source/input/result hashes, `20` warm и `5` fresh-process
+  cold import+layout samples с min/median/p95/max. Warm median: fixed
+  `RIGHT 5.32 ms`, `DOWN 25.03 ms`; adaptive `RIGHT 3.78 ms`, `DOWN 15.89 ms`.
+  Оба adaptive fixtures рассмотрели `2` candidates при hard budget `16` и
+  выбрали один shared port `EAST`/`WEST` для `RIGHT`/`DOWN`.
+* Четыре SVG evidence и две browser screenshots показывают actual public
+  fixed/adaptive policies в `RIGHT`/`DOWN`. Отдельный dev-only target дал по две
+  SVG-панели, status `Compared RIGHT / DOWN`, `canvasCount=0`, без UI errors;
+  console capture — `0` entries. Временная вкладка и server закрыты. Это
+  isolated SVG proof, не WebGPU/Hamiltonian owner acceptance.
+* `bun test pkg/nodes`: `125 pass`, `0 fail`; focused bundle/playground:
+  `12/12`; focused Hamiltonian lifecycle/transition/browser build/host:
+  `94/94`. Typecheck всех node packages и playground, TypeDoc, canonical root
+  `bun run typecheck`, direct root `tsc` и `git diff --check` прошли.
+* Открытый внешний gate полного Hamiltonian suite: `292 pass`, `8 fail`,
+  `3 errors`. Первичная одинаковая причина release failures — отсутствующий в
+  новом worktree ignored immutable artifact
+  `@hamiltonian/release:main@0.1.9`; следующие browser failures получили
+  `500`/detached frames. Этот срез не меняет release/test-infrastructure и не
+  материализует immutable artifact вручную. Node-specific и consumer-adoption
+  regressions в полном прогоне прошли; parent остаётся `IN_PROGRESS` до решения
+  этого чужого verification prerequisite либо успешного полного прогона в
+  подготовленном contour.
+
+Полный набор воспроизводимых evidence находится в
+[`project/artifacts/NODES-010/`](../artifacts/NODES-010/README.md).
 
 ## Поведение процесса
 
