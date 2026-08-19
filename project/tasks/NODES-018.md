@@ -294,7 +294,7 @@ Result checkpoint: `0f511a5758c381c3f2c814df793ef6b0c286c340`.
 
 ### NODES-018.4 — Согласовать clipping, culling и input transforms
 
-Статус и исполнитель: `COMPLETE`, внутренний исполнитель
+Статус и исполнитель: `IN_PROGRESS`, внутренний исполнитель
 `NODES-018.4 — Согласовать clipping, culling и input transforms`.
 
 Классификация: следующий implementation-срез; он меняет один projection-
@@ -318,6 +318,14 @@ pan/zoom. Runtime wheel/pinch anchor ещё вычисляется из отде
 
 Причина: подтверждена — прежний immediate hit/clip path хранит flat surface
 rects и не владеет lifecycle/matrix association retained parent.
+
+Correction evidence после result `a4d611767`: root review вызвал ordinary
+universal control внутри retained Node и доказал, что public `hit()`/`wheel()`
+по-прежнему попадали в flat Surface arrays. Component-local rect не наследовал
+content-root inverse, Node container record, зарегистрированная последней,
+маскировала control, а `hoveredPointer()` возвращал surface point вместо local.
+Это тот же global retained input lifecycle и та же среда приёмки NODES-018.4;
+новый номер и другой механизм не требуются.
 
 Разрешённое изменение одного механизма: `UiSurface` связывает staged retained
 hits/clip regions с exact owned `Object3D`, атомарно заменяет и удаляет их вместе
@@ -385,6 +393,9 @@ desktop/mobile correctness и visual/performance capture не выполняли
 Подготовительный commit: `bbffb817f2bea9c0ccabebca77cb7b6340e5c8b0`.
 
 Result checkpoint: `a4d611767094611ff7a233adc57adf94e643bbd0`.
+
+Correction preparation: текущий project commit; correction result ещё не
+записан.
 
 ### NODES-018.5 — Доказать correctness и performance
 

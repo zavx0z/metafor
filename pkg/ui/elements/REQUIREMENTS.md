@@ -36,7 +36,11 @@ FlexBox единолично вычисляет local child slots, а child то
 7. Retained hit и local clip evidence принадлежат точному retained parent и
    staging lifecycle его materialization: успешная materialization атомарно
    заменяет subtree и records, ошибка сохраняет оба прежних, а remove/dispose
-   не оставляют hover, press, tooltip либо material clip старого target.
+   не оставляют hover, press, tooltip, wheel либо material clip старого target.
+   Обычные public `hit()` и `wheel()`, вызванные component-ом внутри retained
+   materialization, автоматически становятся records exact parent; component
+   не выбирает отдельный input API. Его hovered pointer возвращается в local
+   coordinates того же parent.
 8. Surface point/rect переводится в retained local space и обратно только через
    actual `matrixWorld`/inverse chain тех же engine parents. Hit testing
    уважает ancestor visibility и фактический порядок `Object3D.children`.

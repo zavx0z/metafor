@@ -100,7 +100,10 @@ format и автоматическое размещение принадлежа
     content-root для culling Frame, Link и Node. Те же retained parents владеют
     selection hits: invisible ancestor не принимает input, actual paint order
     определяет победивший target, а selected Link остаётся последним среди
-    Links.
+    Links. Node container регистрируется перед внутренними controls, поэтому
+    поздний control получает input первым. Frame выбирается только своей
+    intrinsic header area высотой не более `36` local px; body не перекрывает
+    Links и вложенные controls.
 12. Wheel и pinch получают local anchor через Surface↔content-root matrix
     conversion и меняют тот же retained root. Transform-only input обновляет
     culling, hit mapping и material clip, не увеличивая layout или
