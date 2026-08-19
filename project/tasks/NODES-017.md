@@ -17,6 +17,10 @@
 * Владелец явно не принял визуальный результат и потребовал брать реальные
   Blender Nodes как reference, сравнивать и пытаться воспроизвести их один в
   один.
+* После получения реального reference владелец уточнил допустимые расхождения:
+  ортогональные Link routes с углами и проектный шрифт сохраняются. Обязательны
+  Blender-подобная визуальная дисциплина, первый класс `Frame` для вложенности
+  Node и полноценное использование на мобильном устройстве.
 * На машине установлен Blender `4.5.5 LTS`. Создан изолированный reference
   `/tmp/blender-node-reference.blend` с Texture Coordinate, Mapping, Noise
   Texture, Color Ramp, Principled BSDF, Material Output, Links и Frame.
@@ -32,11 +36,13 @@
 визуальные токены и сохранить side-by-side defect matrix с текущим playground.
 До этого не менять renderer на глаз.
 
-### NODES-017.2 — Воспроизвести canvas, Node и Frame
+### NODES-017.2 — Реализовать Frame и настоящую вложенность Node
 
-Сделать Blender-подобные grid/background, компактные node body/header,
-corner radii, shadow, selection, collapse affordance и translucent Frame.
-Вся child-композиция остаётся на общем Flex.
+Добавить отдельные public `Frame` contract/renderer/positioned geometry.
+`parentId` Node обязан ссылаться на Frame, а не на обычную Node. Frame рисует
+полупрозрачную область, label и border, владеет child clipping/selection order,
+но не притворяется Node с header/body/sockets. Вся child-композиция остаётся на
+общем Flex.
 
 ### NODES-017.3 — Воспроизвести Socket rows и controls
 
@@ -44,12 +50,19 @@ corner radii, shadow, selection, collapse affordance и translucent Frame.
 output labels, connected/disabled states, Socket sizes/shapes и UI controls.
 Если Flex не выражает нужный layout, расширять общий Flex и его tests.
 
-### NODES-017.4 — Воспроизвести Blender Links и interaction states
+### NODES-017.4 — Довести ортогональные Links и interaction states
 
-Рисовать Blender-подобные smooth Bézier Links, selected/highlight states и
-точное присоединение к центрам Socket без ортогонального вида layout router.
+Сохранить ортогональные route points и скруглённые углы, но согласовать
+толщину, contrast, selected/highlight states, слой и точное присоединение к
+центрам Socket. Blender Bézier не копируется.
 
-### NODES-017.5 — Side-by-side playground и owner acceptance
+### NODES-017.5 — Сделать Node Editor пригодным для mobile
+
+Добавить responsive component layout, touch pan, two-pointer pinch zoom,
+selection и mobile-sized hit targets без изменения scene geometry. Проверить
+минимум `390×844 @3x`, portrait/landscape и отсутствие horizontal UI overflow.
+
+### NODES-017.6 — Side-by-side playground и owner acceptance
 
 Playground показывает одну сопоставимую Blender scene при одинаковом масштабе,
 а catalog остаётся отдельной областью. Зафиксировать reference/current кадры,
@@ -60,17 +73,22 @@ console, DOM и visual matrix, затем оставить contour владел�
 
 1. Reference — локальный Blender `4.5.5 LTS`, не приблизительный mockup.
 2. Сравнение выполняется при сопоставимом viewport и масштабе `100%`.
-3. Отдельно проверяются canvas grid, типографика, node geometry, header/body,
+3. Отдельно проверяются canvas grid, node geometry, header/body,
    row spacing, Socket, default controls, Links, Frame, selection и collapse.
 4. Socket label/control не пересекают друг друга, Node border или соседнюю row.
-5. Link приходит в exact Socket center, уходит по горизонтальной tangent и
-   проходит под Node body; selected Link поднимается над обычными Links.
+5. Ортогональный Link приходит в exact Socket center и проходит под Node body;
+   selected Link поднимается над обычными Links.
 6. Input default control показывается только в законном состоянии; output
    label выравнивается к правому Socket внутри Node.
 7. Внутренняя UI-композиция строится только `flexRow`/`flexColumn`/FlexCss.
    Scene geometry Socket center и Link curve не является child layout.
 8. Визуальная плотность, шрифт, контраст, radii и controls образуют один theme,
    а не набор независимых демонстрационных styles.
+9. Проектный шрифт является осознанным identity и не заменяется Blender font.
+10. `Frame` является отдельным component kind и единственным visual owner
+    вложенности Node.
+11. Mobile viewport использует тот же component API и Flex composition, а не
+    отдельную урезанную Node implementation.
 
 ## Границы
 
@@ -90,7 +108,8 @@ console, DOM и visual matrix, затем оставить contour владел�
 3. Structural Flex regressions и component tests проходят.
 4. Browser DOM/console и package typechecks проходят.
 5. Playground оставлен владельцу на 4016 в exact CDP target.
-6. Владелец явно принял визуальный результат.
+6. Browser proof проходит на desktop и mobile `390×844 @3x`.
+7. Владелец явно принял визуальный результат.
 
 ## Состояние
 

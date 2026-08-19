@@ -218,6 +218,13 @@ controls, Links и interaction states проверяются side-by-side при
 масштабе. Automated screenshot не является visual acceptance: завершение
 этого направления требует явного принятия владельца.
 
+Эталон не отменяет project identity: сохраняются проектный шрифт и
+ортогональные Link routes со скруглёнными углами. Blender Frame становится
+отдельным first-class component и единственным visual owner вложенности Node;
+обычная Node не подменяет Frame. Тот же Node Editor обязан работать на mobile:
+responsive Flex composition, touch pan/pinch и достаточные hit targets
+проверяются отдельно от desktop.
+
 Browser-local realtime проекции идёт через versioned `BroadcastChannel`. Это
 не новый Oracle или Force transport: channel не переносит причинные payload,
 signaling, secrets или authority и не заменяет существующие WSS, MessagePort,
