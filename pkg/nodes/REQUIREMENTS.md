@@ -89,3 +89,7 @@
 5. SVG playground рисует semantic routes и debug leaders под нодами, каждый
    compound — до всех его descendants, а exact ports и внешние label boxes —
    поверх нод. Этот presentation order не меняет layout input/result geometry.
+6. Adaptive playground matrix отдельно доказывает shared exact port на root
+   leaf topology и на topology с source/target compounds в `RIGHT`/`DOWN`.
+   Оба вида вызывают один public adaptive entrypoint и не создают playground
+   solver или fixture-specific routing.
