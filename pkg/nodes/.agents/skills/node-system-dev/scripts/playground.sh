@@ -96,17 +96,13 @@ print_status() {
     "$ORIGIN" "$state" "$health" "$owner" "$pid" "${listeners:-none}" "$LOG_FILE"
 }
 
-start_playground() {
-  local listeners pid attempt
+serve_playground() {
+  local listeners pid attempt exit_code
   listeners="$(listener_pids | paste -sd, -)"
   if is_owned; then
-    if probe_health; then
-      print_status
-      return 0
-    fi
-    echo "Owned listener is present but health failed; stop it explicitly before restart" >&2
+    echo "Owned listener already exists; preserve its long-lived PTY session" >&2
     print_status >&2
-    return 1
+    return 2
   fi
   if [[ -n "$listeners" ]]; then
     echo "Preserving unowned listener on $ORIGIN (pid ${listeners})" >&2
@@ -116,20 +112,36 @@ start_playground() {
 
   mkdir -p "$STATE_DIR"
   rm -f "$PID_FILE"
-  (
-    cd "$CHECKOUT"
-    nohup env \
-      NODES_COMPONENT_PLAYGROUND_HOST="$HOST" \
-      NODES_COMPONENT_PLAYGROUND_PORT="$PORT" \
-      bun pkg/nodes/ui/playground/server.ts >"$LOG_FILE" 2>&1 &
-    printf '%s\n' "$!" >"$PID_FILE"
-  )
-  pid="$(recorded_pid)"
+  : >"$LOG_FILE"
+  cd "$CHECKOUT"
+  env \
+    NODES_COMPONENT_PLAYGROUND_HOST="$HOST" \
+    NODES_COMPONENT_PLAYGROUND_PORT="$PORT" \
+    bun pkg/nodes/ui/playground/server.ts >"$LOG_FILE" 2>&1 &
+  pid="$!"
+  printf '%s\n' "$pid" >"$PID_FILE"
+
+  cleanup_serve() {
+    local serve_pid="$1"
+    if kill -0 "$serve_pid" 2>/dev/null; then
+      kill -TERM "$serve_pid" 2>/dev/null || true
+      wait "$serve_pid" 2>/dev/null || true
+    fi
+    if [[ "$(recorded_pid)" == "$serve_pid" ]]; then
+      rm -f "$PID_FILE"
+    fi
+  }
+  trap "cleanup_serve '$pid'" EXIT
+  trap 'exit 130' INT TERM
 
   for attempt in {1..50}; do
     if probe_health && is_owned; then
       print_status
-      return 0
+      set +e
+      wait "$pid"
+      exit_code="$?"
+      set -e
+      return "$exit_code"
     fi
     if ! kill -0 "$pid" 2>/dev/null; then
       echo "Playground exited during startup; log: $LOG_FILE" >&2
@@ -140,7 +152,7 @@ start_playground() {
     sleep 0.2
   done
 
-  echo "Playground did not become healthy; preserving pid $pid for explicit inspection or stop" >&2
+  echo "Playground did not become healthy; terminating exact owned pid $pid" >&2
   print_status >&2
   return 1
 }
@@ -173,6 +185,14 @@ stop_playground() {
   print_status
 }
 
+print_logs() {
+  if [[ ! -f "$LOG_FILE" ]]; then
+    echo "No playground log for $ORIGIN" >&2
+    return 1
+  fi
+  tail -200 "$LOG_FILE"
+}
+
 case "${1:-}" in
   status)
     print_status
@@ -185,14 +205,17 @@ case "${1:-}" in
       exit 1
     fi
     ;;
-  start)
-    start_playground
+  serve)
+    serve_playground
+    ;;
+  logs)
+    print_logs
     ;;
   stop)
     stop_playground
     ;;
   *)
-    echo "Usage: $0 {status|health|start|stop}" >&2
+    echo "Usage: $0 {status|health|serve|logs|stop}" >&2
     exit 64
     ;;
 esac

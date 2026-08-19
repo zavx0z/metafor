@@ -11,16 +11,22 @@ From the repository root:
 SKILL=pkg/nodes/.agents/skills/node-system-dev
 "$SKILL/scripts/playground.sh" status
 "$SKILL/scripts/playground.sh" health
-"$SKILL/scripts/playground.sh" start
+"$SKILL/scripts/playground.sh" serve
 ```
 
 The server is `pkg/nodes/ui/playground/server.ts` on
 `http://127.0.0.1:4016/`. Its Bun configuration explicitly disables HMR.
-`start` refuses to replace or adopt any listener not recorded as its exact
-checkout-owned process and returns status `2` after preserving one. `stop`
-preserves an unowned listener. Use
+Run `serve` through a long-lived `exec_command` PTY and keep its session ID.
+It refuses to replace or adopt any listener not recorded as its exact
+checkout-owned process and returns status `2` after preserving one. It does
+not use `nohup`: Codex may reap detached children with the tool process group.
+`stop` preserves an unowned listener. Use
 `NODE_SYSTEM_DEV_PORT` only for an isolated lifecycle test; normal development
 uses `4016`.
+
+At every new turn run `status`. A stale browser target is not server health;
+if listener/health is absent, start a fresh foreground `serve` PTY and reload
+the exact target before collecting evidence.
 
 ## Exact Chrome target
 

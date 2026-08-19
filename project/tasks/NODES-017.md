@@ -152,6 +152,14 @@ exact target `1E982…`, touch и native restore зелёные. Production Node
 проверять точный checkout-owned PID. Повторить cross-command status, reload,
 touch и viewport matrix, не называя helper persistent между отдельными задачами.
 
+`COMPLETE`: `nohup start` удалён; foreground `serve` запускается только в
+long-lived PTY, exact child PID записывается для `status/health/stop`, EXIT trap
+привязан к literal PID. Изолированный port 4117 доказал cross-command ownership,
+stop и чистое закрытие исходной PTY без stale state. Реальный 4016 работает в
+PTY session `39297`, owned PID `64921`; reload и полный viewport matrix прошли,
+native metrics восстановлены. Skill прямо запрещает обещать persistence между
+отдельными Codex tasks.
+
 ### NODES-017.8 — Side-by-side playground и owner acceptance
 
 Playground показывает одну сопоставимую Blender scene при одинаковом масштабе,
@@ -210,4 +218,4 @@ console, DOM и visual matrix, затем оставить contour владел�
 ## Состояние
 
 `IN_PROGRESS`, исполнитель `/root`; physical mobile gate открыт; текущий срез
-NODES-017.7.1 исправляет lifecycle skill перед NODES-017.8.
+NODES-017.8 — side-by-side и owner acceptance.

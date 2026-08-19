@@ -41,13 +41,18 @@ Use the bundled lifecycle helper instead of ad hoc background processes:
 ```bash
 pkg/nodes/.agents/skills/node-system-dev/scripts/playground.sh status
 pkg/nodes/.agents/skills/node-system-dev/scripts/playground.sh health
-pkg/nodes/.agents/skills/node-system-dev/scripts/playground.sh start
+pkg/nodes/.agents/skills/node-system-dev/scripts/playground.sh serve
+pkg/nodes/.agents/skills/node-system-dev/scripts/playground.sh logs
 pkg/nodes/.agents/skills/node-system-dev/scripts/playground.sh stop
 ```
 
-The helper defaults to `127.0.0.1:4016`, starts Bun without HMR, and stops only
-the exact process it owns. An existing unowned listener is evidence to preserve,
-not permission to adopt or kill it.
+Launch `serve` in a long-lived PTY tool session and retain that session ID; the
+command intentionally stays in the foreground. A detached `nohup` child is not
+persistent under the Codex tool process group and is forbidden. The helper
+defaults to `127.0.0.1:4016`, runs Bun without HMR, and stops only the exact
+process it owns. An existing unowned listener is evidence to preserve, not
+permission to adopt or kill it. Re-check `status` at the start of every turn;
+do not promise that a tool PTY survives a separate Codex task.
 
 Use `scripts/browser.py` for the repeated fragile browser operations. It
 selects one page whose URL is exactly `http://127.0.0.1:4016/`; it never falls
