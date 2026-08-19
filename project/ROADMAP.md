@@ -165,6 +165,13 @@ platform lifecycle и transport adapters могут различаться.
 `internal`. Новая структурная работа получает собственного владельца только
 после выбора самостоятельного механизма новой реализации.
 
+После завершения живой visual acceptance `MF-424` отдельная
+[`HAM-006 — Принять прототип Hamiltonian и очистить packages`](tasks/HAM-006.md)
+закрывает prototype line. Она сначала сохраняет временное evidence и точный
+inventory, затем отдельными commits удаляет prototype-only source и очищает
+dependencies/tests/docs, после чего требует clean-room live acceptance.
+Prototype source не переносится в новую реализацию во время cleanup.
+
 ### Наблюдаемость и управление Hamiltonian
 
 Доказанный standalone contour развивается в верхнеуровневый `/hamiltonian` с
