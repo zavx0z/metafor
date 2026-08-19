@@ -35,7 +35,7 @@ afterAll(async () => {
 })
 
 describe("ui-dev registry", () => {
-  test("publishes only maintained runnable selectors and typed Elements unsupported state", async () => {
+  test("publishes every maintained runnable selector including Elements", async () => {
     const registry = await Bun.file(registryPath).json() as {
       selectors: Record<string, {
         supported: boolean
@@ -63,24 +63,28 @@ describe("ui-dev registry", () => {
       routes: {mode: "path", default: "/button/basic"},
     })
     expect(registry.selectors["ui-fixture"]).toMatchObject({supported: true, port: 4192, command: ["bun", "fixture/server.ts"], canvas: {capability: "webgpu-diagnostic"}})
-    expect(registry.selectors.elements).toEqual({
-      supported: false,
+    expect(registry.selectors.elements).toMatchObject({
+      supported: true,
       package: "@ui/elements",
-      reason: "@ui/elements has no maintained runnable playground command or port",
+      port: 7901,
+      command: ["bun", "playground/server.ts"],
+      canvas: {capability: "webgpu"},
+      routes: {mode: "path", default: "/div"},
     })
     expect(registry.selectors["node-layout"]).toBeUndefined()
 
     const result = await run("status", "elements", undefined, await stateRoot())
-    expect(result.exitCode).toBe(3)
-    expect(parseStatus(result).status).toBe("unsupported")
+    expect(result.exitCode).toBe(0)
+    expect(parseStatus(result)).toMatchObject({selector: "elements", supported: true, status: "stopped"})
   })
 
-  test("builds exact Node hash targets while Components remain pathname targets", async () => {
+  test("builds exact Node hash targets while UI packages remain pathname targets", async () => {
     const registry = await Bun.file(registryPath).json() as {
       selectors: Record<string, {routes?: {mode: "none" | "path" | "hash"; default: string}}>
     }
     const nodeRoutes = registry.selectors["node-ui"]!.routes!
     const componentRoutes = registry.selectors.components!.routes!
+    const elementRoutes = registry.selectors.elements!.routes!
 
     expect(playgroundTargetUrl("http://127.0.0.1:4016", nodeRoutes.default, nodeRoutes.mode))
       .toBe("http://127.0.0.1:4016/#/editor/scene")
@@ -92,6 +96,8 @@ describe("ui-dev registry", () => {
       .not.toBe("http://127.0.0.1:4016/editor/scene")
     expect(playgroundTargetUrl("http://127.0.0.1:4017", componentRoutes.default, componentRoutes.mode))
       .toBe("http://127.0.0.1:4017/button/basic")
+    expect(playgroundTargetUrl("http://127.0.0.1:7901", "/layout/flex-css", elementRoutes.mode))
+      .toBe("http://127.0.0.1:7901/layout/flex-css")
   })
 
   test("keeps automated browser source background-only", async () => {
@@ -117,6 +123,40 @@ describe("ui-dev registry", () => {
 })
 
 describe("ui-dev lifecycle dispatcher", () => {
+  test("runs exact Elements lifecycle and preserves one owned package listener", async () => {
+    const port = await freePort()
+    const root = await stateRoot()
+    const start = spawnLong("start", "elements", port, root)
+    try {
+      const status = await waitOwned("elements", port, root)
+      expect(status).toMatchObject({
+        selector: "elements",
+        package: "@ui/elements",
+        ownership: "skill",
+        managedHealthy: true,
+        port,
+        testOverride: true,
+        command: ["bun", "playground/server.ts"],
+      })
+      expect(status.cwd).toBe(join(checkout, "pkg/ui/elements"))
+      expect(status.processStart).toBeString()
+      expect(status.log).toEndWith("/elements.log")
+      const health = await run("health", "elements", port, root)
+      expect(health.exitCode).toBe(0)
+      expect(parseStatus(health).pid).toBe(status.pid)
+      const logs = await run("logs", "elements", port, root)
+      expect(logs.exitCode).toBe(0)
+      expect(logs.stdout).toContain("[@ui/elements playground]")
+      const stopped = await run("stop", "elements", port, root)
+      expect(stopped.exitCode).toBe(0)
+      expect(parseStatus(stopped)).toMatchObject({status: "stopped", ownership: "none", pid: null})
+      await start.exited
+    } finally {
+      await run("stop", "elements", port, root)
+      start.kill()
+    }
+  }, 30000)
+
   test("runs exact Node UI lifecycle and preserves structured log ownership", async () => {
     const port = await freePort()
     const root = await stateRoot()

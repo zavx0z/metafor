@@ -12,7 +12,7 @@ The executable registry is `scripts/playgrounds.json`.
 | `node-ui` | `@nodes/ui`, `pkg/nodes/ui` | `http://127.0.0.1:4016` | `nodeComponentPlayground=ready`, WebGPU canvas, touch, hash routes |
 | `components` | `@ui/components`, `pkg/ui/components` | `http://127.0.0.1:4017` | loaded `#stage-canvas`, WebGPU canvas, path routes |
 | `ui-fixture` | diagnostic `@ui/playground` fixture | `http://127.0.0.1:4192` | `playgroundReady=ready`, WebGPU canvas, path routes |
-| `elements` | `@ui/elements` | none | typed `unsupported`; no runnable playground exists |
+| `elements` | `@ui/elements`, `pkg/ui/elements` | `http://127.0.0.1:7901` | `elementsPlayground=ready`, WebGPU canvas, path routes |
 
 `@nodes/layout` is intentionally not a selector. Its current SVG server is a
 separate solver-only contour and still enables HMR. Add it only after an owner
@@ -36,7 +36,7 @@ child. A detached child is not persistent under the Codex tool process group.
 Every action resolves cwd, argv, port environment, origin, HTTP marker, DOM
 ready marker, canvas capability, state key, PID and log from the registry. An
 unowned listener returns a typed `foreign` outcome and remains untouched.
-`elements` returns typed `unsupported` instead of a guessed lifecycle.
+Elements uses the same exact package ownership and singleton target rules.
 
 Use `UI_DEV_TEST_MODE=1 UI_DEV_TEST_PORT=<free-port>` only for isolated tests;
 normal work always uses the registry port.
@@ -53,6 +53,9 @@ bun "$SKILL/scripts/ui-browser.ts" dom "$PWD" components --route /button/basic/t
 bun "$SKILL/scripts/ui-browser.ts" console "$PWD" components --route /button/basic/text
 bun "$SKILL/scripts/ui-browser.ts" canvas "$PWD" components \
   --route /button/basic/text --output /tmp/components-text.png
+bun "$SKILL/scripts/ui-browser.ts" dom "$PWD" elements --route /layout/flex-css
+bun "$SKILL/scripts/ui-browser.ts" canvas "$PWD" elements \
+  --route /layout/flex-css --output /tmp/elements-flex-css.png
 bun "$SKILL/scripts/ui-browser.ts" dom "$PWD" node-ui --route /editor/scene
 bun "$SKILL/scripts/ui-browser.ts" canvas "$PWD" node-ui \
   --route /comparison/blender --output /tmp/node-comparison.png

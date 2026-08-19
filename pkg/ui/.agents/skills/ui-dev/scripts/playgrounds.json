@@ -51,9 +51,20 @@
       "logName": "ui-fixture.log"
     },
     "elements": {
-      "supported": false,
+      "supported": true,
       "package": "@ui/elements",
-      "reason": "@ui/elements has no maintained runnable playground command or port"
+      "cwd": "pkg/ui/elements",
+      "command": ["bun", "playground/server.ts"],
+      "host": "127.0.0.1",
+      "port": 7901,
+      "portEnv": "ELEMENTS_PLAYGROUND_PORT",
+      "origin": "http://127.0.0.1:7901",
+      "httpMarker": "<title>@ui/elements playground</title>",
+      "ready": {"kind": "dataset", "name": "elementsPlayground", "value": "ready"},
+      "canvas": {"selector": "#stage-canvas", "capability": "webgpu", "touch": false},
+      "routes": {"mode": "path", "default": "/div"},
+      "stateKey": "elements",
+      "logName": "elements.log"
     }
   }
 }

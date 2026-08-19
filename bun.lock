@@ -260,6 +260,9 @@
       "dependencies": {
         "@metafor/engine": "workspace:*",
       },
+      "devDependencies": {
+        "@ui/playground": "workspace:*",
+      },
     },
     "pkg/ui/hud": {
       "name": "@ui/hud",

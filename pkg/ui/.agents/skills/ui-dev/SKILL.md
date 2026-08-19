@@ -34,8 +34,8 @@ Foreign listeners are reported and preserved; a second process is never
 started or adopted.
 
 Current selectors and exact usage are in
-[references/playgrounds.md](references/playgrounds.md). `elements` is a typed
-unsupported selector until that package owns a real runnable playground.
+[references/playgrounds.md](references/playgrounds.md). `elements` owns the
+restored public-shell playground on its package contour.
 
 ## Route detail only when needed
 
