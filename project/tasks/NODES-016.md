@@ -61,6 +61,10 @@ plan; 3 tests / 9 assertions и `@nodes/ui` typecheck зелёные.
 renderer. Node properties/default socket fields используют только
 `@ui/components` fields.
 
+`COMPLETE`: checkpoint `e8da77746`; 19 socket kinds, 6 shapes, shared type/color
+registry, Standard Node measurement и независимые Node/Socket/Link renderers;
+3 preset tests / 12 assertions, общий focused gate 6/21 и UI typecheck зелёные.
+
 ### NODES-016.4 — Component playground
 
 Добавить отдельный dev-only WebGPU playground и root script. Catalog показывает
@@ -104,4 +108,4 @@ package typechecks/tests, browser DOM, console и visual evidence. Hamiltonian
 
 ## Состояние
 
-`IN_PROGRESS`, исполнитель `/root`; текущий срез NODES-016.3.
+`IN_PROGRESS`, исполнитель `/root`; текущий срез NODES-016.4.
