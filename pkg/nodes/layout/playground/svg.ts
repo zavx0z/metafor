@@ -98,9 +98,11 @@ export function renderLayoutSvg(
       "</g>",
     ].join("")
   }).join("")
-  const portLabelMarkup = portLabels.map(({portId, side, text, box, leader}) => [
+  const portLabelLeaderMarkup = portLabels.map(({portId, side, leader}) =>
+    `<line class="port-label-leader" data-label-port-id="${escapeXml(portId)}" data-side="${side}" x1="${formatNumber(leader.startPoint.x)}" y1="${formatNumber(leader.startPoint.y)}" x2="${formatNumber(leader.endPoint.x)}" y2="${formatNumber(leader.endPoint.y)}"/>`).join("")
+
+  const portLabelMarkup = portLabels.map(({portId, side, text, box}) => [
     `<g class="port-label" data-kind="port-label" data-label-port-id="${escapeXml(portId)}" data-side="${side}" data-label-x="${formatNumber(box.x)}" data-label-y="${formatNumber(box.y)}" data-label-width="${formatNumber(box.width)}" data-label-height="${formatNumber(box.height)}">`,
-    `<line class="port-label-leader" x1="${formatNumber(leader.startPoint.x)}" y1="${formatNumber(leader.startPoint.y)}" x2="${formatNumber(leader.endPoint.x)}" y2="${formatNumber(leader.endPoint.y)}"/>`,
     `<rect class="port-label-box" x="${formatNumber(box.x)}" y="${formatNumber(box.y)}" width="${formatNumber(box.width)}" height="${formatNumber(box.height)}" rx="5"/>`,
     `<text class="port-label-text" x="${formatNumber(box.x + PORT_LABEL_HORIZONTAL_PADDING)}" y="${formatNumber(box.y + 15)}">${escapeXml(text)}</text>`,
     "</g>",
@@ -117,9 +119,11 @@ export function renderLayoutSvg(
     "</defs>",
     `<rect class="bounds" data-kind="layout-bounds" x="${formatNumber(result.bounds.x)}" y="${formatNumber(result.bounds.y)}" width="${formatNumber(result.bounds.width)}" height="${formatNumber(result.bounds.height)}"/>`,
     `<g data-layer="edges">${edgeMarkup}</g>`,
+    `<g data-layer="port-label-leaders" data-layer-owner="ports">${portLabelLeaderMarkup}</g>`,
     `<g data-layer="nodes">${nodeMarkup}</g>`,
     `<g data-layer="gateways">${gatewayMarkup}</g>`,
-    `<g data-layer="ports">${portMarkup}${portLabelMarkup}</g>`,
+    `<g data-layer="ports">${portMarkup}</g>`,
+    `<g data-layer="port-labels" data-layer-owner="ports">${portLabelMarkup}</g>`,
     "</svg>",
   ].join("")
 }

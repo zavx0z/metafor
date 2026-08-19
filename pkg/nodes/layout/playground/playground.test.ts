@@ -15,13 +15,13 @@ const BASELINES = {
     direction: "RIGHT",
     bounds: {x: 0, y: 0, width: 632, height: 446},
     resultHash: "78d036df9a386533218936d0f2366e32f233f28a4f28d892d17bf1bb0fb4c844",
-    svgHash: "669cfd905908e7f6caffd2a64174c7083fdf70750c54d18c7294dfb6b0be54e9",
+    svgHash: "dfa2925688d8aeb17fcf58a9ce8ba73e0603c4d9a16c11eede5d4f5632c4deb0",
   },
   "fixed-baseline-down": {
     direction: "DOWN",
     bounds: {x: 0, y: 0, width: 396, height: 830},
     resultHash: "bb8fd47580182a40198e6aff388dcf7d26b28651ed9d592fa825efc02b4929c1",
-    svgHash: "59186f691751ee1650baeb5f66c0efb6cdc6cd20eee1fb678f1e625f27eaad81",
+    svgHash: "293bba82e7953e25e5969c722e4dd435182b16e90cd06d411f414c19fb098cd8",
   },
 } as const
 
@@ -31,14 +31,14 @@ const ADAPTIVE_BASELINES = {
     side: "EAST",
     bounds: {x: 0, y: 0, width: 540, height: 330},
     resultHash: "908e21c560fc58850a831e4b865123d650e4d1b6c72917476d23ed033aee115a",
-    svgHash: "34fbaa72de71ff1139b7ea87af878e09686ba47970ea1b74bbab4f25d168b75b",
+    svgHash: "c04b91b7fc1f10ed2e22df6b80dac78261d9ce2ba85e539195ed3028d3acc2cd",
   },
   "adaptive-shared-down": {
     direction: "DOWN",
     side: "WEST",
     bounds: {x: 0, y: 0, width: 280, height: 400},
     resultHash: "5c50a710cb8f79b6c42cc79b9eb7ea219798e1700f2606952bc97f8a4899af3d",
-    svgHash: "c7716c25c22f0c71e08a3a7be72f1d0fdca93a8c4afdb724c8c5dcdee2ea9d21",
+    svgHash: "fe9f73910bfdf9f00357392b7c4fe4f35fddc3d96e25764710b237b57e45c169",
   },
 } as const
 
@@ -134,6 +134,21 @@ describe("dev-only nodes layout playground", () => {
       expect(labels).toHaveLength(run.result.ports.length)
       expect(run.svg).toContain("data-kind=\"port-label\"")
       expect(run.svg).toContain("class=\"port-label-leader\"")
+
+      const layerOrder = [
+        "edges",
+        "port-label-leaders",
+        "nodes",
+        "gateways",
+        "ports",
+        "port-labels",
+      ].map((layer) => run.svg.indexOf(`data-layer="${layer}"`))
+      expect(layerOrder.every((index) => index >= 0)).toBeTrue()
+      expect([...layerOrder].sort((left, right) => left - right)).toEqual(layerOrder)
+      expect(layerContents(run.svg, "port-label-leaders")).toContain("port-label-leader")
+      expect(layerContents(run.svg, "port-label-leaders")).not.toContain("port-label-box")
+      expect(layerContents(run.svg, "port-labels")).not.toContain("port-label-leader")
+      expect(layerContents(run.svg, "port-labels")).toContain("port-label-box")
 
       for (const label of labels) {
         const port = portById.get(label.portId)
@@ -283,6 +298,12 @@ function overlaps(
     && left.x + left.width > right.x
     && left.y < right.y + right.height
     && left.y + left.height > right.y
+}
+
+function layerContents(svg: string, layer: string): string {
+  const match = svg.match(new RegExp(`<g data-layer="${layer}"[^>]*>(.*?)</g>`))
+  expect(match, `missing SVG layer ${layer}`).not.toBeNull()
+  return match![1]!
 }
 
 async function sourceFiles(root: string): Promise<string[]> {

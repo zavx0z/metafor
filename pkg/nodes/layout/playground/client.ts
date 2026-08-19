@@ -208,7 +208,9 @@ function applyLayerVisibility(): void {
   for (const checkbox of document.querySelectorAll<HTMLInputElement>("[data-layer-toggle]")) {
     const layer = checkbox.dataset.layerToggle
     if (layer === undefined) continue
-    for (const element of document.querySelectorAll<SVGGElement>(`[data-layer="${layer}"]`)) {
+    for (const element of document.querySelectorAll<SVGGElement>(
+      `[data-layer="${layer}"], [data-layer-owner="${layer}"]`,
+    )) {
       element.classList.toggle("hidden-layer", !checkbox.checked)
     }
   }
