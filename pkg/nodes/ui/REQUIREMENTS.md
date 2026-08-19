@@ -18,7 +18,7 @@ format и автоматическое размещение принадлежа
 
 ## Component contracts
 
-1. `NodeEditorSurface<TNode, TSocket, TLink>` принимает независимые typed
+1. `NodeEditor<TNode, TSocket, TLink>` и read-only `NodeCanvas` принимают независимые typed
    `NodeRenderer`, `SocketRenderer`, `LinkRenderer` и `PositionedNodeTree`.
 2. Renderer contracts сохраняют consumer fields и не импортируют старые
    `NodeSystemDocument`, Card model/layout/metrics, HUD, Hamiltonian или product

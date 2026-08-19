@@ -36,7 +36,6 @@
     "pkg/engine",
     "pkg/web-push",
     "pkg/nodes",
-    "pkg/nodes/hud",
     "pkg/nodes/layout",
     "pkg/nodes/ui",
     "pkg/template",

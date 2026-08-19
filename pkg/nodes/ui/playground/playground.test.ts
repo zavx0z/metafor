@@ -53,7 +53,8 @@ describe("Blender-like Node component playground", () => {
       "Hamiltonian",
       "Bulk",
     ]) expect(source).not.toContain(forbidden)
-    expect(source).toContain("NodeEditorSurface")
+    expect(source).toContain("NodeEditor")
+    expect(source).toContain("NodeCanvas")
     expect(source).toContain("FieldCatalogSurface")
     expect(source).toContain("SocketCatalogSurface")
   })

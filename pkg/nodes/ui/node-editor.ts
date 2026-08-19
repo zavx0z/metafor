@@ -140,7 +140,7 @@ export type NodeEditorPaintStep =
   | Readonly<{kind: "links"}>
   | Readonly<{kind: "node"; nodeId: string; includeBackground: boolean}>
 
-export type NodeEditorSurfaceOptions<
+export type NodeCanvasOptions<
   TNode extends Node,
   TSocket extends Socket,
   TLink extends Link,
@@ -155,11 +155,17 @@ export type NodeEditorSurfaceOptions<
   onCanvasTransformChange?(transform: NodeCanvasTransform): void
 }>
 
+export type NodeEditorOptions<
+  TNode extends Node,
+  TSocket extends Socket,
+  TLink extends Link,
+> = NodeCanvasOptions<TNode, TSocket, TLink>
+
 const DEFAULT_TRANSFORM: NodeCanvasTransform = Object.freeze({x: 0, y: 0, scale: 1})
 const TOOLBAR_HEIGHT = 38
 
-/** Generic Blender-like Node Editor component with no Card dependency. */
-export class NodeEditorSurface<
+/** Read-only Blender-like Node canvas with no layout or product dependency. */
+export class NodeCanvas<
   TNode extends Node,
   TSocket extends Socket,
   TLink extends Link,
@@ -179,7 +185,7 @@ export class NodeEditorSurface<
   #fitPending = true
   #lastFrame = {w: 0, h: 0}
 
-  constructor(options: NodeEditorSurfaceOptions<TNode, TSocket, TLink>) {
+  constructor(options: NodeCanvasOptions<TNode, TSocket, TLink>) {
     super({
       bgColor: options.bgColor ?? palette.bg,
       borderColor: options.borderColor ?? null,
@@ -188,16 +194,16 @@ export class NodeEditorSurface<
       ...(options.padding === undefined ? {} : {padding: options.padding}),
     })
     this.#renderers = options.renderers
-    this.#title = options.title ?? "NODE EDITOR"
+    this.#title = options.title ?? "NODE CANVAS"
     this.#toolbar = options.toolbar ?? true
     this.#minScale = Math.max(0.01, options.minScale ?? 0.16)
     this.#maxScale = Math.max(this.#minScale, options.maxScale ?? 3)
     this.#emptyMessage = options.messages?.empty ?? "Нет нод"
-    this.#interactionHint = options.messages?.interactionHint ?? "2 пальца — панорама · щипок — масштаб"
+    this.#interactionHint = options.messages?.interactionHint ?? "Только просмотр"
     this.#onSelectionChange = options.onSelectionChange
     this.#onCanvasTransformChange = options.onCanvasTransformChange
     this.#tree = emptyNodeTree<TNode, TSocket, TLink>()
-    this.node.name = "NodeEditorSurface"
+    this.node.name = "NodeCanvas"
   }
 
   get tree(): PositionedNodeTree<TNode, TSocket, TLink> {
@@ -255,6 +261,7 @@ export class NodeEditorSurface<
   }
 
   override onWheel(event: WheelEvent, localX: number, localY: number): void {
+    if (!this.interactive()) return
     if (localY < this.#headerHeight()) return
     event.preventDefault()
     const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? 800 : 1
@@ -295,7 +302,7 @@ export class NodeEditorSurface<
       const visibleById = new Map(plan.nodes.map((entry) => [entry.node.id, entry] as const))
       const containerIds = new Set(this.#tree.nodes.flatMap(({node}) =>
         node.parentId === undefined ? [] : [node.parentId]))
-      this.hit(content.x, content.y, content.w, content.h, () => this.select(null), {
+      if (this.interactive()) this.hit(content.x, content.y, content.w, content.h, () => this.select(null), {
         key: "node-editor:background",
         cursor: "default",
       })
@@ -340,7 +347,7 @@ export class NodeEditorSurface<
           selected: context.selected,
           nodeId: entry.node.id,
         })
-        this.hit(entry.rect.x, entry.rect.y, entry.rect.w, entry.rect.h, () => this.select(entry.node.id), {
+        if (this.interactive()) this.hit(entry.rect.x, entry.rect.y, entry.rect.w, entry.rect.h, () => this.select(entry.node.id), {
           key: `node-editor:node:${entry.node.id}`,
           cursor: "pointer",
         })
@@ -390,6 +397,33 @@ export class NodeEditorSurface<
 
   #headerHeight(): number {
     return nodeEditorRegions(this.rectW, this.rectH, this.#toolbar).toolbar.h
+  }
+
+  protected interactive(): boolean {
+    return false
+  }
+}
+
+/** Interactive Blender-like Node Editor. */
+export class NodeEditor<
+  TNode extends Node,
+  TSocket extends Socket,
+  TLink extends Link,
+> extends NodeCanvas<TNode, TSocket, TLink> {
+  constructor(options: NodeEditorOptions<TNode, TSocket, TLink>) {
+    super({
+      ...options,
+      title: options.title ?? "NODE EDITOR",
+      messages: {
+        ...options.messages,
+        interactionHint: options.messages?.interactionHint ?? "2 пальца — панорама · щипок — масштаб",
+      },
+    })
+    this.node.name = "NodeEditor"
+  }
+
+  protected override interactive(): boolean {
+    return true
   }
 }
 

@@ -7,7 +7,7 @@ import {
   type BlenderNode,
   type BlenderSocket,
 } from "../blender-node.ts"
-import {NodeEditorSurface} from "../node-editor.ts"
+import {NodeEditor} from "../node-editor.ts"
 import {STANDALONE_FIELD_KINDS, createCatalogNodeTree} from "./fixtures.ts"
 import {planNodeComponentPlaygroundFrames} from "./layout.ts"
 import {FieldCatalogSurface, SocketCatalogSurface} from "./surfaces.ts"
@@ -26,7 +26,7 @@ try {
 
   const fields = new FieldCatalogSurface()
   const sockets = new SocketCatalogSurface()
-  const editor = new NodeEditorSurface<BlenderNode, BlenderSocket, BlenderLink>({
+  const editor = new NodeEditor<BlenderNode, BlenderSocket, BlenderLink>({
     renderers: createBlenderNodeRenderers(),
     title: "NODE EDITOR · COMPONENT COMPOSITION",
     minScale: 0.58,

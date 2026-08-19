@@ -1,8 +1,9 @@
 # Требования пакета nodes
 
-Этот документ владеет требованиями к общей semantic/measured/positioned
-границе. Card presentation и fixed/adaptive Card adapters принадлежат
-`@nodes/ui`.
+Этот документ владеет требованиями к текущей общей
+semantic/measured/positioned layout-границе. Новая Blender-подобная component
+library принадлежит [`@nodes/ui`](ui/REQUIREMENTS.md) и намеренно не
+адаптируется к этому формату до следующего этапа layout integration.
 Алгоритмические законы находятся отдельно в `@nodes/layout`: [общие](layout/requirements/COMMON.md),
 [adaptive side-selection](layout/requirements/ADAPTIVE.md),
 [`RIGHT`](layout/requirements/RIGHT.md) и [`DOWN`](layout/requirements/DOWN.md).
@@ -10,18 +11,18 @@
 ## Projection и измерение
 
 1. `nodes` владеет validation единой semantic topology и containment index.
-   Semantic port принадлежит node; Card row, label, action или другой
+   Semantic port принадлежит node; UI row, label, action или другой
    presentation element не является его владельцем.
-2. `NodeSystemDocument` не требует `title`, `summary`, `tone`, facts, actions,
-   размеров либо UI-anchor. Presentation adapter связывает semantic IDs со
-   своим содержимым без создания параллельной topology.
+2. `NodeSystemDocument` не требует `title`, `summary`, `tone`, rows, actions,
+   размеров либо UI-anchor. Этот временно сохранённый layout contract не
+   является моделью нового Node Editor.
 3. Общий `MeasuredNodeSystem` содержит ту же topology, числовые intrinsic
-   размеры, content boundary и offsets anchors. В нём нет Card, текста, DOM,
+   размеры, content boundary и offsets anchors. В нём нет UI, текста, DOM,
    Flex, WebGPU или product vocabulary.
 4. Layout result возвращает resolved side каждого port отдельно от optional
    semantic side constraint. Renderer не выводит side из координаты и adapter
    не мутирует semantic port после layout.
-5. Fixed card adapter связывает layout result с исходным document по semantic IDs без
+5. Layout result связывается с исходным document по semantic IDs без
    post-routing и без изменения рассчитанной geometry.
 6. Domain `NodeSystemNode.id` остаётся exact identity node и endpoint.
    Если runtime incarnation меняется, но visual slot остаётся тем же, producer
@@ -29,16 +30,8 @@
    стабильную identity минимального `LayoutGraph`, а результат связывает
    обратно с domain IDs. Runtime UUID, время появления и порядок lifecycle
    событий сами по себе не являются сигналом для другой geometry.
-7. Presentation adapter может переставлять только связанные Card rows,
-   чтобы прежде всего уменьшить edge-edge crossings, затем bends и Manhattan
-   length. ID параметров и edges не меняются, обычные и несвязанные строки
-   сохраняют исходный порядок. Если crossing устраняется перестановкой строк,
-   целые карточки ради этого не перемещаются. Перестановка принимается только
-   при улучшении общей лексикографической оценки и одинаковой hard validity.
-   Порядок прихода связанных lifecycle facts не является presentation state:
-   перед scored candidates они канонизируются по semantic ID только внутри
-   уже занятых ими slots. Поэтому одинаковая topology даёт одну geometry в
-   `RIGHT` и `DOWN` независимо от порядка событий и входных массивов.
+7. Порядок входных semantic arrays не меняет детерминированную geometry
+   одинаковой topology в `RIGHT` и `DOWN`.
 
 ## Layout Worker
 
@@ -62,7 +55,7 @@
 6. Предыдущая geometry может быть только начальным кадром presentation-анимации
    и не передаётся как input новой раскладки.
 7. Ни Worker transport, ни корневой barrel `nodes` не импортируют и не
-   реэкспортируют `@nodes/ui` или `@nodes/hud`.
+   реэкспортируют `@nodes/ui`.
 8. Fixed и adaptive используют один policy-neutral transport lifecycle, но
    имеют отдельные clients и executors. Fixed executor импортирует только
    `@nodes/layout/fixed`, adaptive executor — только `@nodes/layout/adaptive`;
@@ -70,14 +63,14 @@
 
 ## Package и playground boundary
 
-1. Core, fixed/adaptive layout policies, fixed/adaptive Card adapters, custom
-   positioned Surface и оба Worker executors/clients имеют физически независимые
-   browser entrypoints. Узкий consumer не загружает противоположную policy,
-   Card, Surface, HUD или WebGPU без своего явного import.
+1. Core, fixed/adaptive layout policies, новый Node Editor consumer и оба
+   Worker executors/clients имеют физически независимые browser entrypoints.
+   Узкий layout consumer не загружает противоположную policy, UI или WebGPU без
+   своего явного import; Node Editor consumer не загружает layout solver.
 2. Dev-only SVG playground вызывает public `@nodes/layout/fixed` и
    `@nodes/layout/adaptive` через один private registry. Он не экспортируется
    production package, не владеет собственным placement/routing/validator и не
-   импортирует Card, UI/HUD, Engine или product code.
+   импортирует Node Editor, Engine или product code.
 3. Playground показывает normalized numeric input, public result, resolved
    sides, nodes/compounds, edges/bends/gateways, bounds и policy diagnostics для
    `RIGHT`/`DOWN`. Его SVG и browser screenshot доказывают только этот

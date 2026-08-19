@@ -1,24 +1,16 @@
 {
   "name": "@nodes/ui",
   "version": "0.0.1",
-  "description": "Node-system card, viewport and WebGPU components.",
+  "description": "Blender-like NodeTree, Node, Socket and Link WebGPU components.",
   "type": "module",
   "private": true,
   "main": "index.ts",
   "types": "index.ts",
   "exports": {
     ".": "./index.ts",
-    "./card-model": "./card-model.ts",
-    "./card-layout": "./card-layout.ts",
-    "./fixed-card-layout": "./fixed-card-layout.ts",
-    "./adaptive-card-layout": "./adaptive-card-layout.ts",
-    "./edge-curve": "./edge-curve.ts",
-    "./edge-flow-marker": "./edge-flow-marker.ts",
-    "./connection-color": "./connection-color.ts",
-    "./viewport": "./viewport.ts",
-    "./surface": "./surface.ts",
     "./node-editor": "./node-editor.ts",
-    "./blender-node": "./blender-node.ts"
+    "./blender-node": "./blender-node.ts",
+    "./link-curve": "./link-curve.ts"
   },
   "scripts": {
     "playground": "bun playground/server.ts",
@@ -27,9 +19,7 @@
   },
   "dependencies": {
     "@metafor/engine": "workspace:*",
-    "@nodes/layout": "workspace:*",
     "@ui/components": "workspace:*",
-    "@ui/elements": "workspace:*",
-    "nodes": "workspace:*"
+    "@ui/elements": "workspace:*"
   }
 }

@@ -1,18 +1,18 @@
 import type {
-  NodeSystemPoint,
-  NodeSystemRect,
-} from "nodes/types"
+  NodePoint,
+  NodeRect,
+} from "./node-editor.ts"
 
-export type NodeSystemCubicBezier = Readonly<{
-  from: NodeSystemPoint
-  control1: NodeSystemPoint
-  control2: NodeSystemPoint
-  to: NodeSystemPoint
+export type LinkCubicBezier = Readonly<{
+  from: NodePoint
+  control1: NodePoint
+  control2: NodePoint
+  to: NodePoint
 }>
 
-export type NodeSystemEdgeHitTarget = Readonly<{
-  edgeId: string
-  rects: readonly NodeSystemRect[]
+export type LinkHitTarget = Readonly<{
+  linkId: string
+  rects: readonly NodeRect[]
 }>
 
 /**
@@ -20,13 +20,13 @@ export type NodeSystemEdgeHitTarget = Readonly<{
  * Curves remain inside a bounded radius around the original route instead of
  * replacing it with one unconstrained source-to-target spline.
  */
-export function planNodeSystemBezierPath(
-  points: readonly NodeSystemPoint[],
+export function planLinkBezierPath(
+  points: readonly NodePoint[],
   cornerRadius = 10,
-): readonly NodeSystemCubicBezier[] {
+): readonly LinkCubicBezier[] {
   if (points.length < 2) return []
   const radius = Number.isFinite(cornerRadius) ? Math.max(0, cornerRadius) : 10
-  const segments: NodeSystemCubicBezier[] = []
+  const segments: LinkCubicBezier[] = []
   let cursor = points[0]!
   for (let index = 1; index < points.length; index += 1) {
     const corner = points[index]!
@@ -51,25 +51,25 @@ export function planNodeSystemBezierPath(
   return segments
 }
 
-export function sampleNodeSystemCubicBezier(
-  segment: NodeSystemCubicBezier,
+export function sampleLinkCubicBezier(
+  segment: LinkCubicBezier,
   steps = 6,
-): readonly NodeSystemPoint[] {
+): readonly NodePoint[] {
   const count = Number.isFinite(steps) ? Math.max(1, Math.floor(steps)) : 6
-  const points: NodeSystemPoint[] = [segment.from]
+  const points: NodePoint[] = [segment.from]
   for (let index = 1; index <= count; index += 1) points.push(cubicPoint(segment, index / count))
   return points
 }
 
 /** Produces one connected stroke: straight runs stay single segments. */
-export function sampleNodeSystemBezierPath(
-  points: readonly NodeSystemPoint[],
+export function sampleLinkBezierPath(
+  points: readonly NodePoint[],
   cornerRadius = 10,
   curveSteps = 6,
-): readonly NodeSystemPoint[] {
-  const sampled: NodeSystemPoint[] = []
-  for (const segment of planNodeSystemBezierPath(points, cornerRadius)) {
-    const next = sampleNodeSystemCubicBezier(segment, isStraight(segment) ? 1 : curveSteps)
+): readonly NodePoint[] {
+  const sampled: NodePoint[] = []
+  for (const segment of planLinkBezierPath(points, cornerRadius)) {
+    const next = sampleLinkCubicBezier(segment, isStraight(segment) ? 1 : curveSteps)
     for (const point of next) {
       const previous = sampled.at(-1)
       if (previous === undefined || distance(previous, point) > Number.EPSILON) sampled.push(point)
@@ -79,12 +79,12 @@ export function sampleNodeSystemBezierPath(
 }
 
 /** Narrow axis-aligned hover corridors over the sampled connected stroke. */
-export function planNodeSystemEdgeHitRects(
-  stroke: readonly NodeSystemPoint[],
+export function planLinkHitRects(
+  stroke: readonly NodePoint[],
   radius = 6,
-): readonly NodeSystemRect[] {
+): readonly NodeRect[] {
   const padding = Number.isFinite(radius) ? Math.max(1, radius) : 6
-  const rects: NodeSystemRect[] = []
+  const rects: NodeRect[] = []
   for (let index = 1; index < stroke.length; index += 1) {
     const from = stroke[index - 1]!
     const to = stroke[index]!
@@ -100,20 +100,20 @@ export function planNodeSystemEdgeHitRects(
 }
 
 /** All semantic edges whose visible hover corridors contain the pointer. */
-export function hitTestNodeSystemEdges(
-  targets: readonly NodeSystemEdgeHitTarget[],
-  point: NodeSystemPoint,
-  blockingRects: readonly NodeSystemRect[] = [],
+export function hitTestLinks(
+  targets: readonly LinkHitTarget[],
+  point: NodePoint,
+  blockingRects: readonly NodeRect[] = [],
 ): readonly string[] {
   if (blockingRects.some((rect) => pointInsideRect(point, rect))) return []
-  const edgeIds = new Set<string>()
+  const linkIds = new Set<string>()
   for (const target of targets) {
-    if (target.rects.some((rect) => pointInsideRect(point, rect))) edgeIds.add(target.edgeId)
+    if (target.rects.some((rect) => pointInsideRect(point, rect))) linkIds.add(target.linkId)
   }
-  return [...edgeIds].sort(stableIdCompare)
+  return [...linkIds].sort(stableIdCompare)
 }
 
-function cubicPoint(segment: NodeSystemCubicBezier, t: number): NodeSystemPoint {
+function cubicPoint(segment: LinkCubicBezier, t: number): NodePoint {
   const u = 1 - t
   return {
     x: u ** 3 * segment.from.x + 3 * u ** 2 * t * segment.control1.x + 3 * u * t ** 2 * segment.control2.x + t ** 3 * segment.to.x,
@@ -121,36 +121,36 @@ function cubicPoint(segment: NodeSystemCubicBezier, t: number): NodeSystemPoint 
   }
 }
 
-function isStraight(segment: NodeSystemCubicBezier): boolean {
+function isStraight(segment: LinkCubicBezier): boolean {
   return collinear(segment.from, segment.control1, segment.to) &&
     collinear(segment.from, segment.control2, segment.to)
 }
 
-function lineBezier(from: NodeSystemPoint, to: NodeSystemPoint): NodeSystemCubicBezier {
+function lineBezier(from: NodePoint, to: NodePoint): LinkCubicBezier {
   return {from, control1: lerp(from, to, 1 / 3), control2: lerp(from, to, 2 / 3), to}
 }
 
-function appendSegment(segments: NodeSystemCubicBezier[], segment: NodeSystemCubicBezier): void {
+function appendSegment(segments: LinkCubicBezier[], segment: LinkCubicBezier): void {
   if (distance(segment.from, segment.to) <= Number.EPSILON) return
   segments.push(segment)
 }
 
-function toward(from: NodeSystemPoint, to: NodeSystemPoint, amount: number): NodeSystemPoint {
+function toward(from: NodePoint, to: NodePoint, amount: number): NodePoint {
   const length = distance(from, to)
   if (length <= Number.EPSILON) return from
   const ratio = amount / length
   return {x: from.x + (to.x - from.x) * ratio, y: from.y + (to.y - from.y) * ratio}
 }
 
-function lerp(from: NodeSystemPoint, to: NodeSystemPoint, t: number): NodeSystemPoint {
+function lerp(from: NodePoint, to: NodePoint, t: number): NodePoint {
   return {x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t}
 }
 
-function distance(left: NodeSystemPoint, right: NodeSystemPoint): number {
+function distance(left: NodePoint, right: NodePoint): number {
   return Math.hypot(right.x - left.x, right.y - left.y)
 }
 
-function pointInsideRect(point: NodeSystemPoint, rect: NodeSystemRect): boolean {
+function pointInsideRect(point: NodePoint, rect: NodeRect): boolean {
   return point.x >= rect.x && point.x <= rect.x + rect.w &&
     point.y >= rect.y && point.y <= rect.y + rect.h
 }
@@ -159,7 +159,7 @@ function stableIdCompare(left: string, right: string): number {
   return left < right ? -1 : left > right ? 1 : 0
 }
 
-function collinear(previous: NodeSystemPoint, corner: NodeSystemPoint, next: NodeSystemPoint): boolean {
+function collinear(previous: NodePoint, corner: NodePoint, next: NodePoint): boolean {
   const cross = (corner.x - previous.x) * (next.y - corner.y) - (corner.y - previous.y) * (next.x - corner.x)
   return Math.abs(cross) < 1e-6
 }

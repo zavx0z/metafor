@@ -125,7 +125,6 @@
         "@internal/visual": "workspace:^0.1.8",
         "@metafor/engine": "workspace:*",
         "@metafor/web-push": "workspace:*",
-        "@nodes/hud": "workspace:*",
         "@nodes/layout": "workspace:*",
         "@nodes/ui": "workspace:*",
         "@ui/components": "workspace:*",
@@ -173,7 +172,6 @@
       "version": "0.0.1",
       "dependencies": {
         "@metafor/engine": "workspace:*",
-        "@nodes/hud": "workspace:*",
         "@nodes/ui": "workspace:*",
         "@ui/components": "workspace:*",
         "@ui/elements": "workspace:*",
@@ -222,16 +220,6 @@
       "version": "0.0.1",
       "dependencies": {
         "@nodes/layout": "workspace:*",
-      },
-    },
-    "pkg/nodes/hud": {
-      "name": "@nodes/hud",
-      "version": "0.0.1",
-      "dependencies": {
-        "@ui/components": "workspace:*",
-        "@ui/elements": "workspace:*",
-        "@ui/hud": "workspace:*",
-        "nodes": "workspace:*",
       },
     },
     "pkg/nodes/layout": {
@@ -363,8 +351,6 @@
     "@noble/curves": ["@noble/curves@1.9.7", "", { "dependencies": { "@noble/hashes": "1.8.0" } }, "sha512-gbKGcRUYIjA3/zCCNaWDciTMFI0dCkvou3TL8Zmy5Nc7sJ47a0jtOeZoTaMxkuqRo9cRhjOdZJXegxYE5FN/xw=="],
 
     "@noble/hashes": ["@noble/hashes@1.8.0", "", {}, "sha512-jCs9ldd7NwzpgXDIf6P3+NrHh9/sD6CQdxHyjQI+h/6rDNo88ypBxxz45UDuZHz9r3tNz7N/VInSVoVdtXEI4A=="],
-
-    "@nodes/hud": ["@nodes/hud@workspace:pkg/nodes/hud"],
 
     "@nodes/layout": ["@nodes/layout@workspace:pkg/nodes/layout"],
 

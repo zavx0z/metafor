@@ -54,7 +54,7 @@ typecheck зелёные.
 ### NODES-016.2 — Generic Node Editor contracts
 
 Добавить typed `Node`, `Socket`, `Link`, positioned NodeTree, renderer contracts
-и generic `NodeEditorSurface`. Surface поддерживает fit/pan/zoom, selection,
+и generic `NodeEditor`/`NodeCanvas`. Editor поддерживает fit/pan/zoom, selection,
 containment paint order и exact routes, но не импортирует Card.
 
 `COMPLETE`: checkpoint `91bb456d8`; generic positioned NodeTree, renderer
@@ -91,6 +91,20 @@ package typechecks/tests, browser DOM, console и visual evidence. Hamiltonian
 и другие старые consumers не мигрируются; exact root compile gap фиксируется
 как вход следующего layout/integration этапа.
 
+`COMPLETE`: Card model/layout/surface, Card HUD, fixtures, exports и workspace
+entries удалены без aliases. `NodeEditor` и read-only `NodeCanvas` являются
+точными public components; независимый browser fixture не содержит layout
+solver или legacy symbols. Полный `pkg/nodes`: 89 tests / 1033 assertions;
+focused component gate: 33 / 212; четыре package/playground typechecks,
+TypeDoc и `git diff --check` зелёные. Browser target 4016: canvas 3840×2176,
+console 0, visual proof сохранён в `project/artifacts/NODES-016`.
+
+Root consumer gate намеренно красный: 13 missing-import diagnostics в 8 старых
+Hamiltonian-файлах для удалённых `card-model`, `card-layout`,
+`fixed-card-layout`, `surface`, `viewport`, `connection-color`,
+`edge-flow-marker` и `@nodes/hud/inspector`; всего 240 cascading diagnostics.
+Их migration является входом следующего layout/integration этапа.
+
 ## Границы
 
 * Не мигрировать Hamiltonian или другой верхнеуровневый consumer в этой задаче.
@@ -100,14 +114,14 @@ package typechecks/tests, browser DOM, console и visual evidence. Hamiltonian
 * Не копировать Blender source/assets; используются термины, типовые категории
   и UX-законы.
 * Card/HUD/NodeSystemSurface legacy удаляется, а не deprecated/re-exported.
-* Generic Surface не импортирует старый NodeSystem, HUD или product code.
+* Generic Node Editor не импортирует старый NodeSystem, HUD или product code.
 * Fields принадлежат `@ui/components`; `@nodes/ui` не создаёт их копии.
 * Field, Node preset, catalog surfaces и playground regions используют только
   `flexRow`/`flexColumn`/`flexCss` для дочерних UI slots.
 
 ## Критерии готовности
 
-1. Non-Card consumer собирает `NodeEditorSurface` без Card symbols в bundle.
+1. Non-Card consumer собирает `NodeEditor`/`NodeCanvas` без Card symbols в bundle.
 2. Renderer contracts generic по Node/Socket/Link и сохраняют exact positioned
    geometry.
 3. Catalog содержит не менее 18 socket kinds, 6 shapes и 9 field kinds.
@@ -119,9 +133,9 @@ package typechecks/tests, browser DOM, console и visual evidence. Hamiltonian
 8. `@ui/components`, `@nodes/ui`, playground typechecks, package tests, browser
    console и `git diff --check` проходят; старые root consumer errors перечислены
    exact и не маскируются compatibility-кодом.
-8. Component playground открыт владельцу через `ai-macos`; Hamiltonian process
+9. Component playground открыт владельцу через `ai-macos`; Hamiltonian process
    не запускается без отдельной необходимости.
 
 ## Состояние
 
-`IN_PROGRESS`, исполнитель `/root`; текущий срез NODES-016.5.
+`REVIEW`, result готов; component playground оставлен на 4016 для владельца.

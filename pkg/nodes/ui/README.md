@@ -1,49 +1,53 @@
 # @nodes/ui
 
-`@nodes/ui` — HUD-free пакет компонентов node-system. Здесь находятся
-измерение/план универсальной карточки, явно названные fixed/adaptive Card
-adapters, viewport, edge/flow presentation и WebGPU surface.
-
-Card adapter получает независимые `NodeSystemDocument` и
-`NodeSystemCardPresentation`, связывает semantic ports с rows по ID и создаёт
-UI-owned Card preset. Измерение preset возвращает общий `MeasuredNodeSystem`, а
-fixed layout — `PositionedNodeSystemCard` с явной resolved side каждого socket.
-`@nodes/ui` не владеет semantic validation, containment или автоматической
-раскладкой.
+`@nodes/ui` — Blender-подобная WebGPU-библиотека компонентов Node Editor.
+Публичный словарь намеренно мал: `NodeTree → Node → Socket → Link`.
 
 ```ts
+import {NodeEditor} from "@nodes/ui/node-editor"
 import {
-  NodeSystemSurface,
-  fitNodeSystemCanvasTransform,
-} from "@nodes/ui"
+  createBlenderNodeRenderers,
+  type BlenderLink,
+  type BlenderNode,
+  type BlenderSocket,
+} from "@nodes/ui/blender-node"
 
-import {
-  adaptNodeSystemCardPresentation,
-  type NodeSystemCardPresentation,
-} from "@nodes/ui/card-model"
-import {FixedNodeSystemCardLayouter} from "@nodes/ui/fixed-card-layout"
-import {AdaptiveNodeSystemCardLayouter} from "@nodes/ui/adaptive-card-layout"
+const editor = new NodeEditor<BlenderNode, BlenderSocket, BlenderLink>({
+  renderers: createBlenderNodeRenderers(),
+})
 ```
 
-`NodeSystemSurface` рисует exact sockets и готовые waypoints, поддерживает
-selection, pan/zoom и необязательные explicit move/resize для generic editor.
-Потребитель может передать `connectionColor`, чтобы сопоставить собственную
-семантику соединений цветам; без resolver используется детерминированный
-универсальный fallback.
+`NodeEditor` получает готовый `PositionedNodeTree`, управляет fit,
+pan/zoom и selection и вызывает независимые `NodeRenderer`, `SocketRenderer` и
+`LinkRenderer`. Библиотека не владеет автоматической раскладкой и не импортирует
+старый `NodeSystemDocument`, Card/HUD или продуктовый код. `NodeCanvas`
+предоставляет ту же renderer boundary без пользовательского редактирования.
 
-HUD-инспектор является необязательным adapter и экспортируется отдельно из
-`@nodes/hud`.
+`blender-node` предоставляет стандартный Node renderer, 19 Socket presets,
+6 Socket shapes и Link renderer. Это сменяемый preset: consumer может передать
+собственные typed Node/Socket/Link renderer-ы без изменения editor.
 
-`NodeSystemSurface` принимает готовый `PositionedNodeSystemCard`, поэтому
-consumer со своей custom/adaptive geometry не импортирует fixed card adapter.
-Bare/SVG consumer может работать непосредственно с `MeasuredNodeSystem` и
-обычным `PositionedNodeSystem`, вообще не импортируя Card или WebGPU surface.
+Поля Node properties и default values Socket используют тот же универсальный
+`Field` из `@ui/components`, что и обычные панели вне Node Editor.
 
-Fixed и adaptive Card adapters являются отдельными entrypoints над общими
-measurement, identity projection, row-order scoring и result materialization.
-Они импортируют только собственную layout policy; Surface не импортирует ни
-один автоматический solver.
+## Flexbox-закон
 
-Требования к точному отображению geometry, containment-aware compositing,
-auto-fit и ручному управлению видом находятся в
-[`REQUIREMENTS.md`](REQUIREMENTS.md).
+Внутренняя композиция toolbar, Node header/body, Socket rows, полей и catalog
+panels выполняется только общими `flexRow`/`flexColumn`/`flexCss` из
+`@ui/elements`. Если нужного поведения нет, расширяется общий Flex и его тесты.
+
+Ручной геометрией остаются только входные rect нод, exact center сокетов,
+маршрут Link и низкоуровневые drawing primitives. Это scene geometry, а не
+альтернативная система UI-вёрстки.
+
+Нормативные контракты находятся в [`REQUIREMENTS.md`](REQUIREMENTS.md).
+
+## Playground
+
+```bash
+bun run nodes:components
+```
+
+Dev-only playground показывает все universal fields отдельно и внутри Node,
+полный Socket catalog, Links и visual containment. Он не импортирует layout
+solver или продуктовый consumer.

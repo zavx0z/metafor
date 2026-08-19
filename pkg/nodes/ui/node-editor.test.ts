@@ -1,5 +1,7 @@
 import {describe, expect, test} from "bun:test"
 import {
+  NodeCanvas,
+  NodeEditor,
   fitNodeEditorTransform,
   nodeEditorRegions,
   planNodeEditorPaintSteps,
@@ -54,6 +56,18 @@ const tree: PositionedNodeTree<TestNode, TestSocket, TestLink> = {
 }
 
 describe("generic Blender-like Node Editor contracts", () => {
+  test("publishes exact read-only Canvas and interactive Editor component names", () => {
+    const renderers = {
+      node: {renderBackground() {}, renderForeground() {}},
+      socket: {render() {}},
+      link: {render() {}},
+    }
+    const canvas = new NodeCanvas<TestNode, TestSocket, TestLink>({renderers})
+    const editor = new NodeEditor<TestNode, TestSocket, TestLink>({renderers})
+    expect(canvas.node.name).toBe("NodeCanvas")
+    expect(editor.node.name).toBe("NodeEditor")
+  })
+
   test("validates exact sockets and links without Card vocabulary", () => {
     expect(() => validatePositionedNodeTree(tree)).not.toThrow()
     expect(() => validatePositionedNodeTree({

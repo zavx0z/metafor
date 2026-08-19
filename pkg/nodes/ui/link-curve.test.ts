@@ -1,15 +1,15 @@
 import {describe, expect, test} from "bun:test"
 import {
-  hitTestNodeSystemEdges,
-  planNodeSystemBezierPath,
-  planNodeSystemEdgeHitRects,
-  sampleNodeSystemBezierPath,
-  sampleNodeSystemCubicBezier,
-} from "./edge-curve.ts"
+  hitTestLinks,
+  planLinkBezierPath,
+  planLinkHitRects,
+  sampleLinkBezierPath,
+  sampleLinkCubicBezier,
+} from "./link-curve.ts"
 
-describe("node-system Bézier edge rendering", () => {
+describe("Bézier Link rendering", () => {
   test("preserves exact routed endpoints and rounds an orthogonal corner", () => {
-    const curves = planNodeSystemBezierPath([
+    const curves = planLinkBezierPath([
       {x: 0, y: 0},
       {x: 100, y: 0},
       {x: 100, y: 80},
@@ -18,21 +18,21 @@ describe("node-system Bézier edge rendering", () => {
     expect(curves.at(-1)?.to).toEqual({x: 100, y: 80})
     const corner = curves.find(({control1, control2}) => control1.x !== control2.x && control1.y !== control2.y)
     expect(corner).toBeDefined()
-    const samples = sampleNodeSystemCubicBezier(corner!, 8)
+    const samples = sampleLinkCubicBezier(corner!, 8)
     expect(samples.some(({x, y}) => x > 88 && x < 100 && y > 0 && y < 12)).toBe(true)
     expect(samples.every(({x, y}) => x >= 88 && x <= 100 && y >= 0 && y <= 12)).toBe(true)
   })
 
   test("keeps a direct route direct and ignores duplicate zero-length pieces", () => {
-    const curves = planNodeSystemBezierPath([{x: 5, y: 7}, {x: 5, y: 7}, {x: 25, y: 7}], 10)
+    const curves = planLinkBezierPath([{x: 5, y: 7}, {x: 5, y: 7}, {x: 25, y: 7}], 10)
     expect(curves).toHaveLength(1)
     expect(curves[0]?.from).toEqual({x: 5, y: 7})
     expect(curves[0]?.to).toEqual({x: 25, y: 7})
-    expect(sampleNodeSystemCubicBezier(curves[0]!, 4).every(({y}) => y === 7)).toBe(true)
+    expect(sampleLinkCubicBezier(curves[0]!, 4).every(({y}) => y === 7)).toBe(true)
   })
 
   test("emits one continuous stroke and does not subdivide straight runs", () => {
-    const stroke = sampleNodeSystemBezierPath([
+    const stroke = sampleLinkBezierPath([
       {x: 0, y: 0},
       {x: 80, y: 0},
       {x: 80, y: 60},
@@ -47,20 +47,20 @@ describe("node-system Bézier edge rendering", () => {
   })
 
   test("builds narrow tooltip corridors along the sampled edge", () => {
-    const stroke = sampleNodeSystemBezierPath([{x: 10, y: 20}, {x: 90, y: 20}], 10, 6)
-    expect(planNodeSystemEdgeHitRects(stroke, 5)).toEqual([
+    const stroke = sampleLinkBezierPath([{x: 10, y: 20}, {x: 90, y: 20}], 10, 6)
+    expect(planLinkHitRects(stroke, 5)).toEqual([
       {x: 5, y: 15, w: 90, h: 10},
     ])
   })
 
   test("returns every overlapping semantic edge independently of input order", () => {
     const targets = [
-      {edgeId: "edge-b", rects: [{x: 10, y: 10, w: 40, h: 10}]},
-      {edgeId: "edge-a", rects: [{x: 20, y: 5, w: 10, h: 30}]},
-      {edgeId: "edge-c", rects: [{x: 80, y: 80, w: 10, h: 10}]},
+      {linkId: "link-b", rects: [{x: 10, y: 10, w: 40, h: 10}]},
+      {linkId: "link-a", rects: [{x: 20, y: 5, w: 10, h: 30}]},
+      {linkId: "link-c", rects: [{x: 80, y: 80, w: 10, h: 10}]},
     ]
-    expect(hitTestNodeSystemEdges(targets, {x: 25, y: 15})).toEqual(["edge-a", "edge-b"])
-    expect(hitTestNodeSystemEdges([...targets].reverse(), {x: 25, y: 15})).toEqual(["edge-a", "edge-b"])
-    expect(hitTestNodeSystemEdges(targets, {x: 25, y: 15}, [{x: 22, y: 12, w: 6, h: 6}])).toEqual([])
+    expect(hitTestLinks(targets, {x: 25, y: 15})).toEqual(["link-a", "link-b"])
+    expect(hitTestLinks([...targets].reverse(), {x: 25, y: 15})).toEqual(["link-a", "link-b"])
+    expect(hitTestLinks(targets, {x: 25, y: 15}, [{x: 22, y: 12, w: 6, h: 6}])).toEqual([])
   })
 })

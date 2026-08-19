@@ -7,7 +7,7 @@ import {
   type FieldDefinition,
 } from "@ui/components"
 import {Z, flexColumn, flexRow, palette} from "@ui/elements"
-import {sampleNodeSystemBezierPath} from "./edge-curve.ts"
+import {sampleLinkBezierPath} from "./link-curve.ts"
 import type {
   Link,
   LinkRenderer,
@@ -271,7 +271,7 @@ export const blenderSocketRenderer: SocketRenderer<BlenderSocket> = Object.freez
 export const blenderLinkRenderer: LinkRenderer<BlenderLink> = Object.freeze({
   render({host, entry, scale, selected}) {
     const socketPreset = blenderSocketPreset(entry.link.socketType ?? "custom")
-    const stroke = sampleNodeSystemBezierPath(entry.points, 10 * scale, 6)
+    const stroke = sampleLinkBezierPath(entry.points, 10 * scale, 6)
     host.drawPolyline(stroke, colorFrom(socketPreset.color), Math.max(selected ? 3 : 2, 2.2 * scale), Z.ELEMENT + 0.02)
   },
 })

@@ -27,7 +27,7 @@ describe("universal node-system package boundaries", () => {
     expect(source).not.toContain("Hamiltonian")
   })
 
-  test("keeps the renderer HUD-free and free of Hamiltonian vocabulary", async () => {
+  test("keeps the Node Editor free of legacy Card, HUD and product vocabulary", async () => {
     const uiRoot = join(packageRoot, "ui")
     const packageJson = await Bun.file(join(uiRoot, "package.json")).json() as {
       dependencies?: Record<string, string>
@@ -35,6 +35,8 @@ describe("universal node-system package boundaries", () => {
     expect(packageJson.dependencies?.["@ui/hud"]).toBeUndefined()
     const source = await readAll((await sourceFiles(uiRoot)).filter((path) => !path.endsWith(".test.ts")))
     expect(source).not.toMatch(/from ["']@ui\/hud/)
+    expect(source).not.toMatch(/from ["'](?:nodes|@nodes\/layout)/)
+    expect(source).not.toMatch(/\b(?:NodeSystemSurface|NodeSystemCard|NodeSystemFact)\b/)
     for (const productTerm of [
       "service-worker-api",
       "oracle-rtc-data-channel",
@@ -44,7 +46,7 @@ describe("universal node-system package boundaries", () => {
   })
 
   test("publishes only existing independent entrypoints", async () => {
-    for (const packagePath of ["pkg/nodes", "pkg/nodes/ui", "pkg/nodes/hud", "pkg/nodes/layout"]) {
+    for (const packagePath of ["pkg/nodes", "pkg/nodes/ui", "pkg/nodes/layout"]) {
       const root = join(repositoryRoot, packagePath)
       const packageJson = await Bun.file(join(root, "package.json")).json() as {
         exports?: Record<string, string | Readonly<{default?: string; types?: string}>>
@@ -58,14 +60,12 @@ describe("universal node-system package boundaries", () => {
     }
   })
 
-  test("builds independent core, fixed/adaptive policy, Card and custom-positioned consumers", async () => {
+  test("builds independent core, layout policies and Blender Node Editor consumer", async () => {
     const core = await buildFixture("core-consumer.ts")
     const fixedLayout = await buildFixture("fixed-layout-consumer.ts")
     const adaptiveLayout = await buildFixture("adaptive-layout-consumer.ts")
     const adaptiveMeasured = await buildFixture("adaptive-measured-consumer.ts")
-    const fixedCard = await buildFixture("fixed-card-consumer.ts")
-    const adaptiveCard = await buildFixture("adaptive-card-consumer.ts")
-    const custom = await buildFixture("custom-positioned-consumer.ts")
+    const nodeEditor = await buildFixture("blender-node-editor-consumer.ts")
 
     expect(core.source).not.toContain("struct GlobalUniforms")
     expect(core.source).not.toContain("NO_LEGAL_LAYOUT")
@@ -85,19 +85,17 @@ describe("universal node-system package boundaries", () => {
     expect(adaptiveMeasured.source).not.toContain("defaultWidth:260")
     expect(adaptiveMeasured.source).not.toContain("NodeSystemSurface")
     expect(adaptiveMeasured.source).not.toContain("struct GlobalUniforms")
-    expect(fixedCard.source).toContain("NO_LEGAL_LAYOUT")
-    expect(fixedCard.source).not.toContain("NodeInspectorSurface")
-    expect(fixedCard.source).not.toContain("struct GlobalUniforms")
-    expect(fixedCard.source).not.toContain("NO_LEGAL_ADAPTIVE_SIDE_ASSIGNMENT")
-    expect(adaptiveCard.source).toContain("NO_LEGAL_ADAPTIVE_SIDE_ASSIGNMENT")
-    expect(adaptiveCard.source).toContain("NO_LEGAL_LAYOUT")
-    expect(adaptiveCard.source).not.toContain("source must be out/EAST")
-    expect(adaptiveCard.source).not.toContain("NodeSystemSurface")
-    expect(adaptiveCard.source).not.toContain("NodeInspectorSurface")
-    expect(adaptiveCard.source).not.toContain("struct GlobalUniforms")
-    expect(custom.source).toContain("NodeSystemSurface")
-    expect(custom.source).not.toContain("NO_LEGAL_LAYOUT")
-    expect(custom.source).not.toContain("NodeInspectorSurface")
+    expect(nodeEditor.source).toContain("NodeEditor")
+    expect(nodeEditor.source).toContain("NodeCanvas")
+    expect(nodeEditor.source).toContain("Socket is detached")
+    expect(nodeEditor.source).not.toContain("NO_LEGAL_LAYOUT")
+    expect(nodeEditor.source).not.toContain("NO_LEGAL_ADAPTIVE_SIDE_ASSIGNMENT")
+    for (const legacy of [
+      "NodeSystemSurface",
+      "NodeSystemCard",
+      "NodeSystemFact",
+      "NodeInspectorSurface",
+    ]) expect(nodeEditor.source).not.toContain(legacy)
 
     expect(core.bytes).toBeLessThan(8_000)
     expect(fixedLayout.bytes).toBeLessThan(100_000)
@@ -106,12 +104,8 @@ describe("universal node-system package boundaries", () => {
     expect(adaptiveLayout.gzipBytes).toBeLessThan(36_000)
     expect(adaptiveMeasured.bytes).toBeLessThan(120_000)
     expect(adaptiveMeasured.gzipBytes).toBeLessThan(38_000)
-    expect(fixedCard.bytes).toBeLessThan(115_000)
-    expect(fixedCard.gzipBytes).toBeLessThan(36_000)
-    expect(adaptiveCard.bytes).toBeLessThan(130_000)
-    expect(adaptiveCard.gzipBytes).toBeLessThan(38_000)
-    expect(custom.bytes).toBeLessThan(300_000)
-    expect(custom.gzipBytes).toBeLessThan(90_000)
+    expect(nodeEditor.bytes).toBeLessThan(350_000)
+    expect(nodeEditor.gzipBytes).toBeLessThan(100_000)
   })
 })
 
