@@ -133,6 +133,16 @@ touch sequences, desktop/mobile viewport restore и Blender reference research.
 `quick_validate.py`. Skill не заменяет `$metafor-dev` для Hamiltonian и не
 выдаёт emulation/screenshot за physical-device либо owner acceptance.
 
+`COMPLETE`: отдельная пользовательская задача создала result commit
+`7fd390923` и ровно шесть versioned files в
+`pkg/nodes/.agents/skills/node-system-dev`: entrypoint/metadata, Blender и
+browser references, ownership-safe lifecycle helper и exact-target browser
+helper. `quick_validate.py`, Bash/Python syntax, focused UI/package checks,
+isolated lifecycle, desktop/portrait/landscape captures и atomic pan/pinch
+прошли. Независимая проверка `/root` повторно запустила skill: owned PID 61329,
+exact target `1E982…`, touch и native restore зелёные. Production Node/UI не
+менялись; physical-device и owner acceptance не подменены.
+
 ### NODES-017.8 — Side-by-side playground и owner acceptance
 
 Playground показывает одну сопоставимую Blender scene при одинаковом масштабе,
@@ -190,6 +200,5 @@ console, DOM и visual matrix, затем оставить contour владел�
 
 ## Состояние
 
-`IN_PROGRESS`, исполнитель `/root`; NODES-017.6 implemented, physical mobile
-gate открыт; текущий срез NODES-017.7 передан отдельной пользовательской задаче
-после project checkpoint.
+`IN_PROGRESS`, исполнитель `/root`; NODES-017.7 complete, physical mobile gate
+открыт; текущий срез NODES-017.8 — side-by-side и owner acceptance.
