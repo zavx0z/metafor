@@ -15,9 +15,9 @@
    offsets target sockets не поднимают отдельную карточку и не увеличивают
    высоту всего ряда; bends получают только фактически занятый межрядный
    corridor.
-5. Вертикальный flow не меняет стороны parameter ports: source остаётся
-   `EAST`, target — `WEST`, а все compound transitions проходят через
-   `WEST`/`EAST`, никогда через верх или низ.
+5. Вертикальный flow не меняет уже разрешённые policy стороны parameter ports.
+   В fixed policy source остаётся `EAST`, target — `WEST`; все compound
+   transitions проходят через `WEST`/`EAST`, никогда через верх или низ.
 6. Внутри каждого уровня hierarchy применяется та же `DOWN` policy, а не только
    к root. Compound не оставляет широкую или высокую пустую область ради
    сохранения landscape-позиции children.

@@ -1,6 +1,6 @@
 import type {
-  LayoutGraph,
   LayoutResult,
+  ResolvedLayoutGraph,
 } from "../types/protocol.ts"
 import type {EngineResult} from "../types/engine.ts"
 import type {PlacementInput, PlacementResult} from "../types/placement.ts"
@@ -14,31 +14,32 @@ const MAX_ROUTED_PLACEMENTS = 8
 const MAX_FALLBACK_ROUTED_PLACEMENTS = 24
 
 /**
- * Вычисляет всю геометрию graph: placement, compound compaction и routing.
+ * Вычисляет всю геометрию graph с уже выбранными сторонами портов: placement,
+ * compound compaction и routing.
  * Функция синхронна, детерминирована и не обращается к DOM, Worker или времени.
  *
- * @param graph - Уже измеренный ELK-like graph. Все размеры и offsets задаются
- * в логических пикселях и должны быть конечными положительными числами.
+ * @param graph - Уже измеренный policy result. Все размеры и offsets задаются
+ * в логических пикселях, а каждый port содержит resolved `WEST`/`EAST` side.
  * @returns Геометрию в логических пикселях с одним route section на edge.
  * @throws Если graph противоречив или для него не существует законной геометрии.
  *
  * @example
  * ```ts
- * const result = layout({
+ * const result = layoutResolved({
  *   viewport: {width: 900, height: 600},
  *   nodes: [
  *     {id: "source", width: 180, height: 100},
  *     {id: "target", width: 180, height: 100},
  *   ],
  *   ports: [
- *     {id: "source/out", nodeId: "source", y: 72},
- *     {id: "target/in", nodeId: "target", y: 72},
+ *     {id: "source/out", nodeId: "source", y: 72, side: "EAST"},
+ *     {id: "target/in", nodeId: "target", y: 72, side: "WEST"},
  *   ],
  *   edges: [{id: "message", sourcePortId: "source/out", targetPortId: "target/in"}],
  * })
  * ```
  */
-export function layout(graph: LayoutGraph): LayoutResult {
+export function layoutResolved(graph: ResolvedLayoutGraph): LayoutResult {
   const input = toPlacementInput(graph)
   return toLayoutResult(layoutEngine(input))
 }
@@ -1199,7 +1200,12 @@ function measureCompactedPlacement(
     return total + entries.reduce((sum, {sourceId, targetId}) => {
       const source = portById.get(sourceId)!
       const target = portById.get(targetId)!
-      return sum + Math.max(0, source.center.x + requiredRunway - target.center.x)
+      return sum + sourceRunwayDeficit(
+        source.center.x,
+        target.center.x,
+        source.side,
+        requiredRunway,
+      )
     }, 0)
   }, 0)
   return {
@@ -1210,6 +1216,17 @@ function measureCompactedPlacement(
     maxCompoundEmptyRatio: Math.max(0, ...compoundEmptyRatios),
     sourceCorridorDeficit,
   }
+}
+
+function sourceRunwayDeficit(
+  sourceX: number,
+  targetX: number,
+  side: "WEST" | "EAST",
+  requiredRunway: number,
+): number {
+  return side === "EAST"
+    ? Math.max(0, sourceX + requiredRunway - targetX)
+    : Math.max(0, targetX + requiredRunway - sourceX)
 }
 
 function findUnusedCompoundBottomReserves(
@@ -1327,17 +1344,14 @@ function boundedPlacements(
   return [...selected].sort((left, right) => left - right).map((index) => ordered[index]!)
 }
 
-function toPlacementInput(graph: LayoutGraph): PlacementInput {
+function toPlacementInput(graph: ResolvedLayoutGraph): PlacementInput {
   const spacing = positive(graph.layoutOptions?.spacing, DEFAULT_SPACING, "spacing")
   const clearance = positive(graph.layoutOptions?.clearance, spacing, "clearance")
   const padding = positive(graph.layoutOptions?.padding, spacing, "padding")
   const layerSpacing = Math.max(positive(graph.layoutOptions?.layerSpacing, spacing, "layerSpacing"), clearance)
   const portById = new Map(graph.ports.map((port) => [port.id, port]))
   if (portById.size !== graph.ports.length) throw new Error("Layout port ids must be globally unique")
-  const roles = new Map<string, "in" | "out">()
   for (const edge of graph.edges) {
-    setPortRole(roles, edge.sourcePortId, "out", edge.id)
-    setPortRole(roles, edge.targetPortId, "in", edge.id)
     if (!portById.has(edge.sourcePortId)) throw new Error(`Unknown source port: ${edge.id}/${edge.sourcePortId}`)
     if (!portById.has(edge.targetPortId)) throw new Error(`Unknown target port: ${edge.id}/${edge.targetPortId}`)
   }
@@ -1363,17 +1377,12 @@ function toPlacementInput(graph: LayoutGraph): PlacementInput {
         contentHeight,
       }
     }),
-    ports: graph.ports.flatMap((port) => {
-      const direction = roles.get(port.id)
-      if (direction === undefined) return []
-      return [{
-        id: port.id,
-        nodeId: port.nodeId,
-        offsetY: scaled(port.y),
-        side: direction === "out" ? "EAST" as const : "WEST" as const,
-        direction,
-      }]
-    }),
+    ports: graph.ports.map((port) => ({
+      id: port.id,
+      nodeId: port.nodeId,
+      offsetY: scaled(port.y),
+      side: port.side,
+    })),
     edges: graph.edges.map((edge) => ({
       id: edge.id,
       sourcePortId: edge.sourcePortId,
@@ -1391,6 +1400,7 @@ function toLayoutResult(result: EngineResult): LayoutResult {
       id: port.id,
       x: pixels(port.center.x),
       y: pixels(port.center.y),
+      side: port.side,
     })),
     edges: result.routing.sections.map((section) => ({
       id: section.edgeId,
@@ -1401,12 +1411,6 @@ function toLayoutResult(result: EngineResult): LayoutResult {
       }],
     })),
   }
-}
-
-function setPortRole(roles: Map<string, "in" | "out">, portId: string, role: "in" | "out", edgeId: string): void {
-  const previous = roles.get(portId)
-  if (previous !== undefined && previous !== role) throw new Error(`Port has conflicting edge roles: ${edgeId}/${portId}`)
-  roles.set(portId, role)
 }
 
 function positive(value: number | undefined, fallback: number | undefined, label: string): number {

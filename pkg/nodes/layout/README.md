@@ -17,6 +17,19 @@ Worker, UI, управление видом и traffic presentation не при�
 Layout ничего не знает о тексте карточки, Flex, `NodeSystemDocument`, DOM,
 WebGPU, конкретном consumer или способе отображения результата.
 
+## Policies и общий solver
+
+`@nodes/layout/fixed` является узким public entrypoint действующей fixed policy:
+он разрешает каждый source-port в `EAST`, target-port в `WEST`, отклоняет один
+port в обеих ролях и только затем передаёт graph общему solver. Корневой
+`layout` остаётся compatibility alias `layoutFixed`.
+
+Общий placement/routing/validation core получает `ResolvedLayoutGraph`, где у
+каждого measured port уже есть одна сторона `WEST | EAST`. Он не читает и не
+выводит socket capability и не содержит adaptive side-selection. Это позволяет
+следующим policies переиспользовать geometry laws без копирования router и
+validators.
+
 ## Протокол
 
 Публичный договор находится в [`types/protocol.ts`](types/protocol.ts) и
@@ -54,16 +67,16 @@ type LayoutGraph = {
 ```
 
 Все числа во внешнем протоколе — логические пиксели. Внутреннее целочисленное
-представление является деталью алгоритма и не входит в public API. Сторона и
-направление порта тоже не передаются: роль edge однозначно задаёт source=EAST и
-target=WEST.
+представление является деталью алгоритма и не входит в public API. Fixed input
+не передаёт сторону: её явно разрешает fixed policy. Общий resolved contract
+содержит только выбранную `WEST`/`EAST` сторону, но не capability `in/out/inout`.
 
 `LayoutResult` содержит только:
 
 * `direction` — `RIGHT` для landscape/square и `DOWN` для portrait;
 * `bounds`;
 * окончательные `x/y/width/height` каждой ноды и compound;
-* абсолютные `x/y` исходных портов;
+* абсолютные `x/y` и resolved side исходных портов;
 * один ортогональный `section` каждого semantic edge.
 
 Исходный graph, текст, UI-состояние и внутренние поисковые метрики в ответ не
@@ -72,9 +85,9 @@ target=WEST.
 ## Синхронный вызов
 
 ```ts
-import {layout, type LayoutGraph} from "@nodes/layout"
+import {layoutFixed, type FixedLayoutGraph} from "@nodes/layout/fixed"
 
-const graph: LayoutGraph = {
+const graph: FixedLayoutGraph = {
   viewport: {width: 900, height: 600},
   nodes: [
     {id: "source", width: 180, height: 100},
@@ -91,7 +104,7 @@ const graph: LayoutGraph = {
   }],
 }
 
-const result = layout(graph)
+const result = layoutFixed(graph)
 ```
 
 Синхронная pure function нужна для offline tests и других небраузерных

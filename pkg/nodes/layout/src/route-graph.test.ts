@@ -14,6 +14,57 @@ const base = (input: Omit<RouteGraphInput, "direction" | "unitsPerPixel" | "clea
 })
 
 describe("rectilinear semantic-edge router", () => {
+  test("routes already resolved WEST to EAST endpoints without capability policy", () => {
+    const input = base({
+      bounds: {x: 0, y: 0, w: 500, h: 300},
+      nodes: [
+        {id: "target", rect: {x: 100, y: 100, w: 60, h: 60}},
+        {id: "source", rect: {x: 300, y: 100, w: 60, h: 60}},
+      ],
+      ports: [
+        {id: "source/west", nodeId: "source", center: {x: 300, y: 130}, side: "WEST"},
+        {id: "target/east", nodeId: "target", center: {x: 160, y: 130}, side: "EAST"},
+      ],
+      edges: [{id: "edge", sourcePortId: "source/west", targetPortId: "target/east"}],
+    })
+
+    const result = routeGraph(input)
+
+    expect(result.sections).toEqual([{
+      edgeId: "edge",
+      startPoint: {x: 300, y: 130},
+      bendPoints: [],
+      endPoint: {x: 160, y: 130},
+    }])
+    expect(validateRouteGraphResult(input, result)).toEqual([])
+  })
+
+  test("uses resolved sides even when both endpoints are EAST", () => {
+    const input = base({
+      bounds: {x: 0, y: 0, w: 500, h: 300},
+      nodes: [
+        {id: "source", rect: {x: 100, y: 100, w: 60, h: 60}},
+        {id: "target", rect: {x: 300, y: 100, w: 60, h: 60}},
+      ],
+      ports: [
+        {id: "source/east", nodeId: "source", center: {x: 160, y: 130}, side: "EAST"},
+        {id: "target/east", nodeId: "target", center: {x: 360, y: 130}, side: "EAST"},
+      ],
+      edges: [{id: "edge", sourcePortId: "source/east", targetPortId: "target/east"}],
+    })
+
+    const result = routeGraph(input)
+    const points = [
+      result.sections[0]!.startPoint,
+      ...result.sections[0]!.bendPoints,
+      result.sections[0]!.endPoint,
+    ]
+
+    expect(points[1]!.x).toBeGreaterThan(points[0]!.x)
+    expect(points.at(-2)!.x).toBeGreaterThan(points.at(-1)!.x)
+    expect(validateRouteGraphResult(input, result)).toEqual([])
+  })
+
   test("connects exact EAST to WEST sockets directly when the row is visible", () => {
     const input = base({
       bounds: {x: 0, y: 0, w: 500, h: 300},
@@ -22,8 +73,8 @@ describe("rectilinear semantic-edge router", () => {
         {id: "target", rect: {x: 220, y: 100, w: 60, h: 60}},
       ],
       ports: [
-        {id: "out", nodeId: "source", center: {x: 100, y: 130}, side: "EAST", direction: "out"},
-        {id: "in", nodeId: "target", center: {x: 220, y: 130}, side: "WEST", direction: "in"},
+        {id: "out", nodeId: "source", center: {x: 100, y: 130}, side: "EAST"},
+        {id: "in", nodeId: "target", center: {x: 220, y: 130}, side: "WEST"},
       ],
       edges: [{id: "edge", sourcePortId: "out", targetPortId: "in"}],
     })
@@ -45,8 +96,8 @@ describe("rectilinear semantic-edge router", () => {
         {id: "target", rect: {x: 110, y: 40, w: 100, h: 100}},
       ],
       ports: [
-        {id: "source:out", nodeId: "source", center: {x: 100, y: 40}, side: "EAST", direction: "out"},
-        {id: "target:in", nodeId: "target", center: {x: 110, y: 80}, side: "WEST", direction: "in"},
+        {id: "source:out", nodeId: "source", center: {x: 100, y: 40}, side: "EAST"},
+        {id: "target:in", nodeId: "target", center: {x: 110, y: 80}, side: "WEST"},
       ],
       edges: [{id: "edge", sourcePortId: "source:out", targetPortId: "target:in"}],
     })
@@ -68,10 +119,10 @@ describe("rectilinear semantic-edge router", () => {
         {id: "target", rect: {x: 110, y: 100, w: 100, h: 100}},
       ],
       ports: [
-        {id: "source:a", nodeId: "source", center: {x: 100, y: 40}, side: "EAST", direction: "out"},
-        {id: "source:b", nodeId: "source", center: {x: 100, y: 80}, side: "EAST", direction: "out"},
-        {id: "target:a", nodeId: "target", center: {x: 110, y: 160}, side: "WEST", direction: "in"},
-        {id: "target:b", nodeId: "target", center: {x: 110, y: 120}, side: "WEST", direction: "in"},
+        {id: "source:a", nodeId: "source", center: {x: 100, y: 40}, side: "EAST"},
+        {id: "source:b", nodeId: "source", center: {x: 100, y: 80}, side: "EAST"},
+        {id: "target:a", nodeId: "target", center: {x: 110, y: 160}, side: "WEST"},
+        {id: "target:b", nodeId: "target", center: {x: 110, y: 120}, side: "WEST"},
       ],
       edges: [
         {id: "a-prior", sourcePortId: "source:a", targetPortId: "target:a"},
@@ -94,8 +145,8 @@ describe("rectilinear semantic-edge router", () => {
         {id: "target", rect: {x: 100, y: 220, w: 50, h: 60}},
       ],
       ports: [
-        {id: "out", nodeId: "source", center: {x: 350, y: 110}, side: "EAST", direction: "out"},
-        {id: "in", nodeId: "target", center: {x: 100, y: 250}, side: "WEST", direction: "in"},
+        {id: "out", nodeId: "source", center: {x: 350, y: 110}, side: "EAST"},
+        {id: "in", nodeId: "target", center: {x: 100, y: 250}, side: "WEST"},
       ],
       edges: [{id: "reverse", sourcePortId: "out", targetPortId: "in"}],
     })
@@ -123,10 +174,10 @@ describe("rectilinear semantic-edge router", () => {
           {id: "source:lower", rect: {x: 500, y: 260, w: 120, h: 72}},
         ],
         ports: [
-          {id: "source:upper/out", nodeId: "source:upper", center: {x: 620, y: 116}, side: "EAST", direction: "out"},
-          {id: "source:lower/out", nodeId: "source:lower", center: {x: 620, y: 296}, side: "EAST", direction: "out"},
-          {id: "target:upper/in", nodeId: "target:upper", center: {x: 100, y: 356}, side: "WEST", direction: "in"},
-          {id: "target:lower/in", nodeId: "target:lower", center: {x: 100, y: 176}, side: "WEST", direction: "in"},
+          {id: "source:upper/out", nodeId: "source:upper", center: {x: 620, y: 116}, side: "EAST"},
+          {id: "source:lower/out", nodeId: "source:lower", center: {x: 620, y: 296}, side: "EAST"},
+          {id: "target:upper/in", nodeId: "target:upper", center: {x: 100, y: 356}, side: "WEST"},
+          {id: "target:lower/in", nodeId: "target:lower", center: {x: 100, y: 176}, side: "WEST"},
         ],
         edges: [
           {id: "edge:upper", sourcePortId: "source:upper/out", targetPortId: "target:upper/in"},
@@ -163,8 +214,8 @@ describe("rectilinear semantic-edge router", () => {
           {id: "source", rect: {x: 360, y: 0, w: 100, h: 140}},
         ],
         ports: ranks.flatMap((rank) => [
-          {id: `source:${rank}`, nodeId: "source", center: {x: 460, y: 40 + rank * 30}, side: "EAST" as const, direction: "out" as const},
-          {id: `target:${rank}`, nodeId: "target", center: {x: 100, y: 40 + rank * 30}, side: "WEST" as const, direction: "in" as const},
+          {id: `source:${rank}`, nodeId: "source", center: {x: 460, y: 40 + rank * 30}, side: "EAST" as const},
+          {id: `target:${rank}`, nodeId: "target", center: {x: 100, y: 40 + rank * 30}, side: "WEST" as const},
         ]),
         edges: ranks.map((rank) => ({
           id: `edge:${rank}`,
@@ -200,8 +251,8 @@ describe("rectilinear semantic-edge router", () => {
         {id: "target", rect: {x: 400, y: 210, w: 70, h: 60}},
       ],
       ports: [
-        {id: "out", nodeId: "source", center: {x: 150, y: 150}, side: "EAST", direction: "out"},
-        {id: "in", nodeId: "target", center: {x: 400, y: 240}, side: "WEST", direction: "in"},
+        {id: "out", nodeId: "source", center: {x: 150, y: 150}, side: "EAST"},
+        {id: "in", nodeId: "target", center: {x: 400, y: 240}, side: "WEST"},
       ],
       edges: [{id: "compound-edge", sourcePortId: "out", targetPortId: "in"}],
     })
@@ -230,8 +281,8 @@ describe("rectilinear semantic-edge router", () => {
             {id: "target", rect: {x: 400, y: 70, w: 80, h: 60}},
           ],
           ports: [
-            {id: "out", nodeId: "source", center: {x: 160, y: 240}, side: "EAST", direction: "out"},
-            {id: "in", nodeId: "target", center: {x: 400, y: 100}, side: "WEST", direction: "in"},
+            {id: "out", nodeId: "source", center: {x: 160, y: 240}, side: "EAST"},
+            {id: "in", nodeId: "target", center: {x: 400, y: 100}, side: "WEST"},
           ],
           edges: [{id: "nested-edge", sourcePortId: "out", targetPortId: "in"}],
         }),
@@ -265,10 +316,10 @@ describe("rectilinear semantic-edge router", () => {
         {id: "target:c", parentId: "compound", rect: {x: 520, y: 470, w: 100, h: 80}},
       ],
       ports: [
-        {id: "source:IPC:out", nodeId: "source", center: {x: 370, y: 190}, side: "EAST", direction: "out"},
-        {id: "target:a:IPC:in", nodeId: "target:a", center: {x: 100, y: 510}, side: "WEST", direction: "in"},
-        {id: "target:b:IPC:in", nodeId: "target:b", center: {x: 310, y: 510}, side: "WEST", direction: "in"},
-        {id: "target:c:IPC:in", nodeId: "target:c", center: {x: 520, y: 510}, side: "WEST", direction: "in"},
+        {id: "source:IPC:out", nodeId: "source", center: {x: 370, y: 190}, side: "EAST"},
+        {id: "target:a:IPC:in", nodeId: "target:a", center: {x: 100, y: 510}, side: "WEST"},
+        {id: "target:b:IPC:in", nodeId: "target:b", center: {x: 310, y: 510}, side: "WEST"},
+        {id: "target:c:IPC:in", nodeId: "target:c", center: {x: 520, y: 510}, side: "WEST"},
       ],
       edges: [
         {id: "ipc:a", sourcePortId: "source:IPC:out", targetPortId: "target:a:IPC:in"},
@@ -321,9 +372,9 @@ describe("rectilinear semantic-edge router", () => {
             {id: "target:lower", rect: {x: 320, y: 150, w: 100, h: 80}},
           ],
           ports: [
-            {id: "source:out", nodeId: "source", center: {x: 140, y: 250}, side: "EAST", direction: "out"},
-            {id: "target:upper", nodeId: "target:upper", center: {x: 320, y: 100}, side: "WEST", direction: "in"},
-            {id: "target:lower", nodeId: "target:lower", center: {x: 320, y: 190}, side: "WEST", direction: "in"},
+            {id: "source:out", nodeId: "source", center: {x: 140, y: 250}, side: "EAST"},
+            {id: "target:upper", nodeId: "target:upper", center: {x: 320, y: 100}, side: "WEST"},
+            {id: "target:lower", nodeId: "target:lower", center: {x: 320, y: 190}, side: "WEST"},
           ],
           edges: [
             {id: "edge:upper", sourcePortId: "source:out", targetPortId: "target:upper"},
@@ -370,10 +421,10 @@ describe("rectilinear semantic-edge router", () => {
         {id: "target:b", rect: {x: 320, y: 150, w: 100, h: 80}},
       ],
       ports: [
-        {id: "source:a/out", nodeId: "source", center: {x: 140, y: 230}, side: "EAST", direction: "out"},
-        {id: "source:b/out", nodeId: "source", center: {x: 140, y: 290}, side: "EAST", direction: "out"},
-        {id: "target:a/in", nodeId: "target:a", center: {x: 320, y: 100}, side: "WEST", direction: "in"},
-        {id: "target:b/in", nodeId: "target:b", center: {x: 320, y: 190}, side: "WEST", direction: "in"},
+        {id: "source:a/out", nodeId: "source", center: {x: 140, y: 230}, side: "EAST"},
+        {id: "source:b/out", nodeId: "source", center: {x: 140, y: 290}, side: "EAST"},
+        {id: "target:a/in", nodeId: "target:a", center: {x: 320, y: 100}, side: "WEST"},
+        {id: "target:b/in", nodeId: "target:b", center: {x: 320, y: 190}, side: "WEST"},
       ],
       edges: [
         {id: "edge:a", sourcePortId: "source:a/out", targetPortId: "target:a/in"},

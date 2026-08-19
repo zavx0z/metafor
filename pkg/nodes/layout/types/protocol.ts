@@ -10,6 +10,9 @@ export type LayoutPoint = Readonly<{x: number; y: number}>
 /** Прямоугольник в логических пикселях. */
 export type LayoutRectangle = Readonly<{x: number; y: number; width: number; height: number}>
 
+/** Resolved horizontal side of a measured socket. */
+export type LayoutPortSide = "WEST" | "EAST"
+
 /**
  * Уже измеренная нода. Layout не читает её содержимое и не меняет размеры
  * листовой карточки; compound может быть расширен для своих children.
@@ -30,13 +33,21 @@ export type LayoutNode = Readonly<{
 /**
  * Видимый порт, заранее измеренный владельцем UI.
  * `y` — вертикальный offset центра сокета от верхней границы ноды.
- * Сторона не передаётся: source всегда EAST, target всегда WEST.
+ * Fixed policy resolves source to EAST and target to WEST before the common
+ * placement/routing core sees this graph.
  */
 export type LayoutPort = Readonly<{
   id: string
   nodeId: string
   y: number
 }>
+
+/**
+ * Measured port whose side has already been selected by a layout policy.
+ * The common solver treats `side` only as resolved geometry and never infers
+ * socket capability from an edge role.
+ */
+export type ResolvedLayoutPort = Readonly<LayoutPort & {side: LayoutPortSide}>
 
 /**
  * Одно semantic edge между двумя точными портами.
@@ -74,11 +85,16 @@ export type LayoutGraph = Readonly<{
   layoutOptions?: LayoutOptions
 }>
 
+/** Policy output consumed by the shared placement, routing and validation core. */
+export type ResolvedLayoutGraph = Readonly<Omit<LayoutGraph, "ports"> & {
+  ports: readonly ResolvedLayoutPort[]
+}>
+
 /** Окончательная геометрия ноды или compound-контейнера. */
 export type LayoutNodeGeometry = Readonly<LayoutRectangle & {id: string}>
 
-/** Абсолютный центр исходного видимого порта. */
-export type LayoutPortGeometry = Readonly<{id: string; x: number; y: number}>
+/** Абсолютный центр исходного видимого порта и выбранная policy сторона. */
+export type LayoutPortGeometry = Readonly<{id: string; x: number; y: number; side: LayoutPortSide}>
 
 /** Один ортогональный участок semantic edge. */
 export type LayoutEdgeSection = Readonly<{

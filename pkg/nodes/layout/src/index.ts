@@ -10,4 +10,9 @@
  */
 
 export * from "../types/index.ts"
-export {layout} from "./layout.ts"
+export {
+  layoutFixed,
+  layoutFixed as layout,
+  type FixedLayoutGraph,
+  type FixedLayoutResult,
+} from "./fixed.ts"

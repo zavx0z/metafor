@@ -3,7 +3,6 @@ export type FixedPoint = Readonly<{x: number; y: number}>
 export type FixedRect = Readonly<{x: number; y: number; w: number; h: number}>
 export type RouteDirection = "RIGHT" | "DOWN"
 export type RoutePortSide = "WEST" | "EAST"
-export type RoutePortDirection = "in" | "out"
 export type RouteNode = Readonly<{
   id: string
   parentId?: string
@@ -11,7 +10,8 @@ export type RouteNode = Readonly<{
   /** Own intrinsic card band; children occupy only the remaining compound area. */
   contentRect?: FixedRect
 }>
-export type RoutePort = Readonly<{id: string; nodeId: string; center: FixedPoint; side: RoutePortSide; direction: RoutePortDirection}>
+/** Endpoint side already resolved by the owning layout policy. */
+export type RoutePort = Readonly<{id: string; nodeId: string; center: FixedPoint; side: RoutePortSide}>
 export type RouteEdge = Readonly<{id: string; sourcePortId: string; targetPortId: string}>
 export type RouteGraphInput = Readonly<{
   direction: RouteDirection
