@@ -20,6 +20,8 @@ import {
 } from "@ui/playground"
 ```
 
-Node и Components playground являются public-shell consumers. Components
-сохраняет package-owned route/data/preview и устойчивые retained Field parents;
-historical Elements playground автоматически не восстанавливается.
+Node, Components и восстановленный historical Elements playground являются
+public-shell consumers. Каждый сохраняет package-owned routes/data/preview;
+Components владеет устойчивыми retained Field parents, Elements — одним
+retained preview parent. Solver-only Node layout playground остаётся отдельным
+не-WebGPU contour и в этот shell не входит.
