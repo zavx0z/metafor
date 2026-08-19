@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Nodes layout playground</title>
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <header>
+      <div>
+        <p class="eyebrow">@nodes/layout · dev only</p>
+        <h1>Layout playground</h1>
+        <p class="lede">Public policy in, inspectable SVG out. No Card, WebGPU or product renderer.</p>
+      </div>
+      <div id="run-status" class="status" data-status="idle">Готов к запуску</div>
+    </header>
+
+    <main>
+      <aside class="controls">
+        <label>Fixture
+          <select id="fixture"></select>
+        </label>
+        <p id="fixture-description" class="hint"></p>
+
+        <label>Policy / variant
+          <select id="policy"></select>
+        </label>
+        <p id="policy-description" class="hint"></p>
+
+        <label for="input-json">Normalized numeric input</label>
+        <textarea id="input-json" spellcheck="false"></textarea>
+
+        <div class="button-row">
+          <button id="run" class="primary">Run</button>
+          <button id="reset">Reset</button>
+          <button id="compare">Compare RIGHT / DOWN</button>
+        </div>
+
+        <fieldset>
+          <legend>SVG layers</legend>
+          <label><input type="checkbox" data-layer-toggle="edges" checked> edges + bends</label>
+          <label><input type="checkbox" data-layer-toggle="nodes" checked> nodes + compounds</label>
+          <label><input type="checkbox" data-layer-toggle="gateways" checked> gateways</label>
+          <label><input type="checkbox" data-layer-toggle="ports" checked> ports + sides</label>
+        </fieldset>
+
+        <div class="button-row exports">
+          <button id="export-input">Export input</button>
+          <button id="export-result" disabled>Export result</button>
+          <button id="export-svg" disabled>Export SVG</button>
+        </div>
+      </aside>
+
+      <section class="workspace">
+        <section id="single-view" class="view-card">
+          <div class="view-heading">
+            <h2 id="view-title">Preview</h2>
+            <output id="metrics" class="metrics"></output>
+          </div>
+          <div id="svg-view" class="svg-view"></div>
+        </section>
+
+        <section id="comparison" class="comparison" hidden></section>
+
+        <section class="data-grid">
+          <article>
+            <h2>Result JSON</h2>
+            <pre id="result-json">Run a fixture to inspect the public result.</pre>
+          </article>
+          <article>
+            <h2>Diagnostics</h2>
+            <pre id="diagnostics">No diagnostics yet.</pre>
+          </article>
+        </section>
+      </section>
+    </main>
+
+    <script type="module" src="./client.ts"></script>
+  </body>
+</html>
