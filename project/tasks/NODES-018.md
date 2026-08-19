@@ -294,7 +294,7 @@ Result checkpoint: `0f511a5758c381c3f2c814df793ef6b0c286c340`.
 
 ### NODES-018.4 — Согласовать clipping, culling и input transforms
 
-Статус и исполнитель: `IN_PROGRESS`, внутренний исполнитель
+Статус и исполнитель: `COMPLETE`, внутренний исполнитель
 `NODES-018.4 — Согласовать clipping, culling и input transforms`.
 
 Классификация: следующий implementation-срез; он меняет один projection-
@@ -435,10 +435,60 @@ Correction result checkpoint: `00d982041e99f260241fcd4df7e6b0c31853f0ae`.
 
 ### NODES-018.5 — Доказать correctness и performance
 
-На desktop и mobile доказать одинаковое parent/child scale ratio, отсутствие
-пустых Node из-за detached text scale и неизменные exact Socket/Link centers.
-Performance proof сравнивает dirty materialization и серию transform-only
-pan/zoom frames: layout/materialization counters не растут при чистом transform.
+Статус и исполнитель: `IN_PROGRESS`, внутренний исполнитель
+`NODES-018.5 — Доказать correctness и performance`.
+
+Классификация: финальный verification/evidence-срез; production mechanism не
+меняется, dev-only playground и skill helper только наблюдают уже реализованный
+retained contract.
+
+Требование: exact standalone Node playground на desktop и emulated mobile
+доказывает retained scale, полные Node bodies, exact Socket/Link endpoints,
+fixed viewport clip, transformed selection/touch и отсутствие horizontal
+overflow/console errors. Отдельный performance proof выполняет серию чистых
+pan/zoom transforms и подтверждает неизменные layout/materialization counters
+при растущем `transformOnlyFrames`.
+
+Основание и связанная история: NODES-018.1 result `d15d66671` зафиксировал flat
+baseline `{3,1,0} → {6,2,0}`; NODES-018.2 `57c665558`, NODES-018.3
+`0f511a575`, NODES-018.4 `a4d611767` и correction `00d982041` реализовали
+retained lifecycle, local components, matrix projection и exact controls.
+
+Наблюдаемое расхождение: unit/type evidence закрывает contracts, но ещё нет
+фактического WebGPU browser proof актуального worktree, exact target,
+desktop/portrait/landscape captures и browser-observed counters/scale ratios.
+
+Причина: это оставленный evidence gate, а не подтверждённый production defect.
+Если browser path опровергнет реализованный механизм, исправление сначала
+возвращается в соответствующую NODES-018.3/.4 correction и не маскируется этим
+verification-срезом.
+
+Разрешённое изменение одного механизма: dev-only playground публикует bounded
+read-only retained diagnostics/proof, а versioned `node-system-dev` browser
+helper выполняет exact-target performance/scale/endpoint checks. Production
+NodeTree/layout/renderer semantics и NODES-017 visual corrections не меняются.
+
+Regression и evidence: focused/full affected suites и typechecks; exact Engine
+clip/source checks; browser DOM+console; native desktop и `390×844`/
+`844×390 @2` exact canvas PNG; atomic synthetic touch; dirty-vs-transform
+counters; matrix scale ratios на нескольких zoom levels; exact raw Socket
+centers равны Link endpoints и Node body остаётся materialized на overview.
+
+Среда и критерий приёмки: normal port `4016` занят внешним preserved PID
+`68355` другого checkout, поэтому NODES-018 использует изолированный
+checkout-owned `http://127.0.0.1:4018/` и exact CDP target этого URL. Это
+evidence только standalone origin. Mobile emulation и synthetic TouchEvent не
+выдаются за physical device, а captures — за owner visual acceptance.
+
+Артефакты: [`project/artifacts/NODES-018`](../artifacts/NODES-018/README.md).
+
+Фактические действия: ещё не выполнены.
+
+Результат и вывод: ещё не получены.
+
+Подготовительный commit: текущий project-коммит после этой регистрации.
+
+Result checkpoint: ещё не записан.
 
 ## Границы
 
@@ -464,7 +514,6 @@ pan/zoom frames: layout/materialization counters не растут при чис
 
 ## Состояние
 
-`IN_PROGRESS`: NODES-018.1–.4 завершены result checkpoints. Следующий
-разрешённый срез — NODES-018.5 после отдельного project preparation; только он
-выполняет browser correctness/performance proof. Visual corrections NODES-017
-не выполняются параллельно.
+`IN_PROGRESS`: NODES-018.1–.4 завершены result checkpoints. Текущий финальный
+срез — NODES-018.5 browser correctness/performance proof. Visual corrections
+NODES-017 не выполняются параллельно.
