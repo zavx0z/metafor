@@ -19,6 +19,7 @@ export type Node = Readonly<{
 
 export type SocketDirection = "input" | "output" | "bidirectional"
 export type SocketSide = "left" | "right" | "top" | "bottom"
+export type SocketShape = "circle" | "square" | "diamond" | "circle-dot" | "square-dot" | "diamond-dot"
 
 /** Visible connection endpoint; layout Port remains an independent lower-level term. */
 export type Socket = Readonly<{
@@ -99,6 +100,7 @@ export type LinkRendererContext<TLink extends Link> = Readonly<{
 }>
 
 export type NodeRenderer<TNode extends Node, TSocket extends Socket> = Readonly<{
+  measure?(node: TNode): Readonly<{width: number; height: number}>
   renderBackground(context: NodeRendererContext<TNode, TSocket>): void
   renderForeground(context: NodeRendererContext<TNode, TSocket>): void
 }>

@@ -17,7 +17,8 @@
     "./connection-color": "./connection-color.ts",
     "./viewport": "./viewport.ts",
     "./surface": "./surface.ts",
-    "./node-editor": "./node-editor.ts"
+    "./node-editor": "./node-editor.ts",
+    "./blender-node": "./blender-node.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --pretty false"
