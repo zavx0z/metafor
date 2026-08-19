@@ -110,3 +110,8 @@ capture `f1b69ebd9`; hash+active hash и singleton target `9e87c9bac`; generic
 keyboard focus/activation `3a48eab2f`. Один Node target `809BF…` навигирует
 editor/socket/comparison hashes, console 0. До повторного положительного verdict
 задача остаётся в REVIEW.
+
+Repeat independent closing verdict на `f628d58b2` положительный: visible
+reference/readiness, hash+active hash, singleton target и keyboard activation
+подтверждены; Node/Parameter/Field semantics не менялись. Root Hamiltonian
+prototype typecheck gap признан внешним для NODES-019 и не блокирует её closing.
