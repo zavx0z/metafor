@@ -165,7 +165,8 @@ platform lifecycle и transport adapters могут различаться.
 `internal`. Новая структурная работа получает собственного владельца только
 после выбора самостоятельного механизма новой реализации.
 
-После завершения живой visual acceptance `MF-424` отдельная
+После завершения живой visual acceptance
+[`MF-424`](tasks/MF-424.md) отдельная
 [`HAM-006 — Принять прототип Hamiltonian и очистить packages`](tasks/HAM-006.md)
 закрывает prototype line. Она сначала сохраняет временное evidence и точный
 inventory, затем отдельными commits удаляет prototype-only source и очищает

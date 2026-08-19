@@ -1,5 +1,8 @@
 # Артефакты HAM-006
 
+Владелец материалов —
+[`HAM-006 — Принять прототип Hamiltonian и очистить packages`](../../tasks/HAM-006.md).
+
 * [`prototype-evidence.md`](prototype-evidence.md) — временный evidence pack
   отдельно запускаемого прототипа, перенесённый из постоянной документации.
 
