@@ -1,3 +1,4 @@
+import {type Object3D} from "@metafor/engine"
 import {Pane, Typography} from "@ui/components"
 import {UiRuntime, UiSurface} from "@ui/elements"
 import {
@@ -19,23 +20,52 @@ const items: readonly PlaygroundNavigationItem<Route>[] = [
 
 class FixturePreviewSurface extends UiSurface {
   #route: Route
+  readonly #previewParent: Object3D
+  #materialized: Readonly<{route: Route; w: number; h: number; pixelScale: number; font: unknown}> | null = null
+  #layoutPlans = 0
+  #materializations = 0
 
   constructor(route: Route) {
     super({bgColor: null, borderColor: null})
     this.#route = route
+    this.#previewParent = this.createRetainedParent()
+    this.#previewParent.name = "FixturePreviewSurface.preview"
+  }
+
+  get diagnostics(): Readonly<{layoutPlans: number; materializations: number}> {
+    return Object.freeze({layoutPlans: this.#layoutPlans, materializations: this.#materializations})
   }
 
   setRoute(route: Route): void {
+    if (this.#route === route) return
     this.#route = route
     this.requestRender()
   }
 
   protected override render(): void {
-    Pane(this, 0, 0, this.rectW, this.rectH, {
-      variant: "glass",
-      sx: {background: "rgba(8, 13, 22, 0.72)", borderColor: "rgba(214, 231, 255, 0.22)", borderRadius: 38},
+    const previous = this.#materialized
+    const geometryChanged = previous === null || previous.w !== this.rectW || previous.h !== this.rectH ||
+      previous.pixelScale !== this.pixelScale || previous.font !== this.font
+    if (!geometryChanged && previous.route === this.#route) return
+    if (geometryChanged) this.#layoutPlans += 1
+    this.materializeRetainedParent(this.#previewParent, () => {
+      Pane(this, 0, 0, this.rectW, this.rectH, {
+        variant: "glass",
+        sx: {background: "rgba(8, 13, 22, 0.72)", borderColor: "rgba(214, 231, 255, 0.22)", borderRadius: 38},
+      })
+      Typography(this, 42, 42, this.rectW - 84, 42, {
+        children: this.#route === "overview" ? "Reusable playground shell" : "Consumer-owned preview",
+        variant: "title",
+      })
     })
-    Typography(this, 42, 42, this.rectW - 84, 42, {children: this.#route === "overview" ? "Reusable playground shell" : "Consumer-owned preview", variant: "title"})
+    this.#materializations += 1
+    this.#materialized = {
+      route: this.#route,
+      w: this.rectW,
+      h: this.rectH,
+      pixelScale: this.pixelScale,
+      font: this.font,
+    }
   }
 }
 
@@ -62,6 +92,17 @@ runtime.addSurface(preview, ({w, h}) => frames(w, h).preview)
 runtime.addSurface(dock, ({w, h}) => frames(w, h).dock)
 runtime.addSurface(info, ({w, h}) => frames(w, h).info)
 
+const publishRetainedDiagnostics = (): void => {
+  for (const surface of [catalog, sections, dock, info, preview]) surface.flushPendingRender()
+  document.documentElement.dataset.playgroundRetained = JSON.stringify({
+    catalog: catalog.diagnostics,
+    sections: sections.diagnostics,
+    dock: dock.diagnostics,
+    info: info.diagnostics,
+    preview: preview.diagnostics,
+  })
+}
+
 router.subscribe((route) => {
   catalog.setOptions({title: "Playground", items, route, onNavigate: navigate})
   sections.setOptions({title: "Sections", items, route, onNavigate: navigate})
@@ -69,8 +110,13 @@ router.subscribe((route) => {
   info.setOptions({title: "Package contract", lines: ["Generic shell", "Consumer preview"], status: route})
   preview.setRoute(route)
   document.documentElement.dataset.playgroundRoute = route
+  publishRetainedDiagnostics()
 })
 document.documentElement.dataset.playgroundReady = "ready"
 document.documentElement.dataset.playgroundRoute = router.current
-new ResizeObserver(() => runtime.handleResize()).observe(canvas)
+new ResizeObserver(() => {
+  runtime.handleResize()
+  publishRetainedDiagnostics()
+}).observe(canvas)
 runtime.handleResize()
+publishRetainedDiagnostics()

@@ -19,3 +19,17 @@ playground. Он не владеет production semantics UI Components либо
    persistent runtime process.
 7. Playground package не входит production bundle consumer без его прямого
    import.
+8. Navigation, dock и info владеют одним retained root и устойчивыми exact
+   engine parents, keyed generic descriptor-ами. Изменение размера либо списка
+   повторяет локальный FlexBox plan и reconciliate-ит parents; active, disabled,
+   title, line и status state материализуют только изменённый owner. Transform
+   выше чистого retained root сохраняет plan/materialization counters, child и
+   geometry identity.
+9. Retained materialization одного playground owner атомарна, а remove и
+   dispose рекурсивно очищают его subtree. Диагностика dev-пакета хранит только
+   текущие bounded owner keys и накопительные counters, не создаёт второй graph
+   и не становится production dependency.
+10. Статический backdrop остаётся осознанно flat: у него нет изменяемого
+    descriptor state, независимого transform либо пользы от partial
+    materialization. Consumer preview остаётся отдельной consumer-owned Surface
+    и может иметь один retained parent без переноса consumer vocabulary в shell.
