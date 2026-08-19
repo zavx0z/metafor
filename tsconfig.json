@@ -53,6 +53,11 @@
     "hamiltonian/startup/**/*",
     "hamiltonian/internal/visual/**/*",
     "hamiltonian/tests/**/*",
+    // Old separately runnable prototype. It still depends on the removed
+    // Card/HUD Node API and is intentionally outside the current root check.
+    "hamiltonian/browser/**/*",
+    "hamiltonian/visual/**/*",
+    "hamiltonian/host.spec.ts",
     "tests/tmp/**/*",
     "project/artifacts/**/*",
     "cluster/**/*",
