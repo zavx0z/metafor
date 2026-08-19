@@ -104,3 +104,9 @@ Closing handoff: затронуты только `@nodes/ui` dev playground, pub
 `@ui/playground` server contract и `UI dev` route/asset registry. Production
 Node/Parameter/Field semantics не менялись. Ожидается независимый closing
 verdict перед удалением карточки.
+
+Первый closing verdict отрицательный: сохранённый Blender slot пуст из-за
+неполного readiness/crop; pathname расходится с требуемым card hash contract;
+generic shell не имеет keyboard activation. Corrections зарегистрированы
+отдельно как UI-004.13, UI-004.14 и UI-004.15. До повторного положительного
+verdict задача остаётся в REVIEW.
