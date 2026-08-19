@@ -111,7 +111,6 @@ export type FieldDefinition =
 
 export type FieldRenderOptions = Readonly<{
   density?: "regular" | "compact"
-  scale?: number
 }>
 
 export const FIELD_KINDS = Object.freeze([
@@ -183,15 +182,15 @@ function drawFieldControl(
 }
 
 export function measureFieldHeight(definition: FieldDefinition, options: FieldRenderOptions = {}): number {
-  if (options.density === "compact") return compactFieldHeight(definition, options)
+  if (options.density === "compact") return compactFieldHeight(definition)
   if (definition.kind === "boolean") return CONTROL_HEIGHT
   if (definition.kind === "number" && definition.presentation === "slider") return 66
   if (definition.kind === "matrix") return LABEL_HEIGHT + FIELD_GAP + matrixRows(definition.value).length * 28
   return LABEL_HEIGHT + FIELD_GAP + CONTROL_HEIGHT
 }
 
-function compactFieldHeight(definition: FieldDefinition, options: FieldRenderOptions): number {
-  const metrics = compactMetrics(options)
+function compactFieldHeight(definition: FieldDefinition): number {
+  const metrics = compactMetrics()
   if (definition.kind === "vector" || definition.kind === "rotation") {
     const dimensions = definition.dimensions ?? Math.min(4, Math.max(2, definition.value.length))
     return metrics.control * (dimensions + 1) + metrics.gap * dimensions
@@ -211,8 +210,8 @@ function drawCompactField(
   field: FieldDefinition,
   options: FieldRenderOptions,
 ): number {
-  const metrics = compactMetrics(options)
-  const height = compactFieldHeight(field, options)
+  const metrics = compactMetrics()
+  const height = compactFieldHeight(field)
   if (field.kind === "vector" || field.kind === "rotation") {
     drawCompactVectorField(host, x, y, width, height, field, metrics)
     return height
@@ -278,13 +277,12 @@ function drawCompactField(
 
 type CompactMetrics = Readonly<{control: number; gap: number; font: number; radius: number}>
 
-function compactMetrics(options: FieldRenderOptions): CompactMetrics {
-  const scale = Math.min(2.5, Math.max(0.25, options.scale ?? 1))
+function compactMetrics(): CompactMetrics {
   return {
-    control: 22 * scale,
-    gap: 3 * scale,
-    font: Math.max(7, 11 * scale),
-    radius: Math.max(2, 3 * scale),
+    control: 22,
+    gap: 3,
+    font: 11,
+    radius: 3,
   }
 }
 

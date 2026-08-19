@@ -34,9 +34,12 @@ format и автоматическое размещение принадлежа
 2. Renderer contracts сохраняют consumer fields и не импортируют старые
    `NodeSystemDocument`, Card model/layout/metrics, HUD, Hamiltonian или product
    code.
-3. Node renderer владеет intrinsic measurement и Parameter slots. Socket type
-   preset задаёт только имя типа, shape/color и endpoint presentation; default
-   Field принадлежит Parameter.
+3. Node renderer владеет intrinsic measurement и Parameter slots. За один
+   dirty cycle он выполняет один typed local plan и одну materialization всей
+   Node вместе с background/foreground; независимые paint phases не могут
+   повторно планировать тот же subtree. Socket type preset задаёт только имя
+   типа, shape/color и endpoint presentation; default Field принадлежит
+   Parameter.
 4. Consumer может зарегистрировать собственный Node/Socket/Link renderer без
    изменения NodeEditor или central switch.
 5. Поля внутри Node и standalone controls вызывают один renderer из
@@ -44,8 +47,9 @@ format и автоматическое размещение принадлежа
 6. Вся внутренняя композиция Node, Socket labels/default fields, catalog panels
    и playground regions выполняется существующими `flexRow`/`flexColumn` либо
    `flexRowCss`/`flexColumnCss`. Ручные UI-grid offsets запрещены.
-7. Blender preset использует scale-aware compact Field density. Parameter Field
-   и его left/right Socket получают одну Flex row и один viewport transform.
+7. Blender preset использует intrinsic compact Field density. Parameter Field
+   и его left/right Socket получают одну local Flex row и вместе наследуют
+   transform retained Node parent; renderer context не передаёт canvas scale.
 
 ## Blender presets
 
@@ -67,18 +71,21 @@ format и автоматическое размещение принадлежа
 ## View и compositing
 
 1. NodeEditor поддерживает fit, pan, zoom, culling и selection независимо от
-   конкретного renderer preset.
+   конкретного renderer preset. NodeCanvas хранит один retained content-root:
+   pan/zoom меняет только его engine position/scale, а Grid, Frame passes, Links
+   и Nodes остаются устойчивыми children с локальной geometry.
 2. Frame background рисуется под Links, его label/chrome и child Nodes — над
    Links. Link stroke доходит до exact Socket center.
-3. Screen-visible minima strokes/sockets являются renderer policy и не
-   возвращаются в geometry.
+3. Stroke, Socket, text, padding, radius и другие visual metrics являются
+   intrinsic local geometry и непрерывно наследуют parent transform.
+   Screen-visible minimum допустим только отдельному невидимому hit target.
 4. Controlled selection и canvas transform сообщаются consumer callback-ами;
    скрытого product state нет.
 5. Ручными координатами остаются только входная positioned Node geometry,
    exact Socket centers и Link route points. Это scene data, не layout children.
-6. NodeCanvas рисует scale-aware dot grid. Linked Parameter определяется из
-   `NodeTree.links`: его default control скрывается без дублирования connected
-   state во входной модели.
+6. NodeCanvas рисует intrinsic dot grid как retained child того же content-root.
+   Linked Parameter определяется из `NodeTree.links`: его default control
+   скрывается без дублирования connected state во входной модели.
 7. Collapsed Node сохраняет exact Socket endpoints вокруг compact header;
    Frame может быть вложен в другой Frame.
 8. Selection различает Frame, Node и Link. Link получает hit corridors по

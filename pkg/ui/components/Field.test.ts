@@ -104,6 +104,5 @@ describe("universal UI fields", () => {
     expect(measureFieldHeight(fields[2]!, {density: "compact"})).toBe(22)
     expect(measureFieldHeight(fields[6]!, {density: "compact"})).toBe(97)
     expect(measureFieldHeight(fields[8]!, {density: "compact"})).toBe(72)
-    expect(measureFieldHeight(fields[1]!, {density: "compact", scale: 0.5})).toBe(11)
   })
 })

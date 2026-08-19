@@ -18,12 +18,14 @@ Node-направление разделено на две независимы�
 import {NodeEditor} from "@nodes/ui/node-editor"
 import {
   createBlenderNodeRenderers,
+  type BlenderFrame,
   type BlenderLink,
   type BlenderNode,
+  type BlenderNodePlan,
   type BlenderSocket,
 } from "@nodes/ui/blender-node"
 
-const editor = new NodeEditor<BlenderNode, BlenderSocket, BlenderLink>({
+const editor = new NodeEditor<BlenderNode, BlenderSocket, BlenderLink, BlenderFrame, BlenderNodePlan>({
   renderers: createBlenderNodeRenderers(),
 })
 ```

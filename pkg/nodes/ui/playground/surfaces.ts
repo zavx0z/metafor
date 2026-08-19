@@ -197,7 +197,7 @@ export class SocketCatalogSurface extends UiSurface {
                     gap: 8,
                     alignItems: "center",
                     items: [
-                      {width: 16, height: 16, draw: (slotX, slotY, slotW, slotH) => blenderSocketRenderer.render({host: this, entry: {socket, side: socket.direction === "output" ? "right" : "left", center: {x: slotX + slotW / 2, y: slotY + slotH / 2}}, scale: 1, selected: false, nodeId: "socket-catalog"})},
+                      {width: 16, height: 16, draw: (slotX, slotY, slotW, slotH) => blenderSocketRenderer.render({host: this, entry: {socket, side: socket.direction === "output" ? "right" : "left", center: {x: slotX + slotW / 2, y: slotY + slotH / 2}}, selected: false, nodeId: "socket-catalog"})},
                       {width: "grow", height: 18, draw: (slotX, slotY, slotW, slotH) => Typography(this, slotX, slotY, slotW, slotH, {children: blenderSocketPreset(socket.socketType).label, variant: "caption"})},
                     ],
                   }),
@@ -226,7 +226,7 @@ export class SocketCatalogSurface extends UiSurface {
                 gap: 6,
                 alignItems: "center",
                 items: [
-                  {width: 18, height: 18, draw: (slotX, slotY, slotW, slotH) => blenderSocketRenderer.render({host: this, entry: {socket, side: "right", center: {x: slotX + slotW / 2, y: slotY + slotH / 2}}, scale: 1.1, selected: false, nodeId: "shape-catalog"})},
+                  {width: 18, height: 18, draw: (slotX, slotY, slotW, slotH) => blenderSocketRenderer.render({host: this, entry: {socket, side: "right", center: {x: slotX + slotW / 2, y: slotY + slotH / 2}}, selected: false, nodeId: "shape-catalog"})},
                   {width: "grow", height: 18, draw: (slotX, slotY, slotW, slotH) => Typography(this, slotX, slotY, slotW, slotH, {children: shape, variant: "caption", color: "muted"})},
                 ],
               })

@@ -209,7 +209,7 @@ Result checkpoint: `57c66555848fda99c8d102a11a0d7c9ca67a3f62`.
 
 ### NODES-018.3 — Перевести NodeCanvas на retained content hierarchy
 
-Статус и исполнитель: `IN_PROGRESS`, внутренний исполнитель
+Статус и исполнитель: `COMPLETE`, внутренний исполнитель
 `NODES-018.3 — Перевести NodeCanvas на retained content hierarchy`.
 
 Классификация: следующий implementation-срез; он меняет один render-механизм
@@ -256,13 +256,42 @@ semantic/style cycle materializes изменившийся subtree, а одна 
 source typecheck, package-boundary regressions и `git diff --check`. Browser
 interaction/visual proof выполняется после NODES-018.4 в NODES-018.5.
 
-Фактические действия: ещё не выполнены.
+Фактические действия: Node/UI owner contracts закрепили один typed local Node
+plan, одну materialization background+foreground и intrinsic Field/visual
+metrics без canvas scale. `NodeCanvas` создаёт один Surface-owned engine
+content-root и устойчивые component parents для Grid, двух Frame passes, Link и
+Node. ID maps удаляют, создают и materialize только изменённые components, а
+actual `Object3D.children` order сохраняет Grid → Frame backgrounds → Links с
+selected последним → Frame foregrounds → Nodes. `setCanvasTransform`, wheel и
+pinch обновляют только position/scale content-root через retained Surface API;
+render path больше не вызывает `planNodeEditorViewport`, который остался
+явной read-only projection. Public Node renderer заменён одним typed
+`plan`/`render` contract, Blender renderer использует переданный plan один раз,
+а Frame/Node/Socket/Link contexts и compact Field больше не принимают canvas
+scale.
 
-Результат и вывод: ещё не получены.
+Результат и вывод: generic Frame/two-Link/two-Node regression видит точные
+engine parents и paint order. После initial dirty counters равны `{2,1,0}`;
+после `setCanvasTransform` + wheel + pinch остаются `{2,1,3}`, а identities всех
+component parents, children и geometry не меняются. Следующий tree dirty
+materialize только изменённую Node и даёт `{3,2,3}` при сохранении geometry
+второй Node; Link selection меняет actual child order и даёт `{3,3,3}` без
+нового Node plan. Отдельный regression оборачивает настоящий public Blender
+planner: initial dirty вызывает его один раз, две transform-only presentations
+оставляют один вызов, следующий dirty Node увеличивает число до двух. Raw
+Positioned Link points и Socket centers приходят renderer без CPU transform.
+Clipping, culling и transformed hit/input не реализовывались и остаются
+NODES-018.4; browser proof остаётся NODES-018.5.
 
-Подготовительный commit: текущий project-коммит после этой регистрации.
+Проверки: общий affected suite `@ui/components` + `@ui/elements` + `@nodes/ui`
+— `92/92`, `1326` assertions; три package typecheck — pass; Node playground
+typecheck — pass; package-boundary — `4/4`, `70` assertions; strict exact Engine
+source typecheck — pass; `git diff --check` — pass.
 
-Result checkpoint: ещё не записан.
+Подготовительный commit: `92840ecda2342d6ecfb82084a4e9b56247cb838e`.
+
+Result checkpoint: следующий result commit этого среза; exact hash записывается
+отдельным project-only checkpoint.
 
 ### NODES-018.4 — Согласовать clipping, culling и input transforms
 

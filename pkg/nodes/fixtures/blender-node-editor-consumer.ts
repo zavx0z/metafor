@@ -8,6 +8,7 @@ import {
   type BlenderFrame,
   type BlenderLink,
   type BlenderNode,
+  type BlenderNodePlan,
   type BlenderSocket,
 } from "@nodes/ui/blender-node"
 
@@ -77,7 +78,7 @@ export const tree: PositionedNodeTree<BlenderNode, BlenderSocket, BlenderLink, B
   }],
 }
 
-export const editor = new NodeEditor<BlenderNode, BlenderSocket, BlenderLink, BlenderFrame>({
+export const editor = new NodeEditor<BlenderNode, BlenderSocket, BlenderLink, BlenderFrame, BlenderNodePlan>({
   renderers: createBlenderNodeRenderers(),
 })
 

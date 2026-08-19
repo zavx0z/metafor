@@ -6,6 +6,7 @@ import {
   type BlenderFrame,
   type BlenderLink,
   type BlenderNode,
+  type BlenderNodePlan,
   type BlenderSocket,
 } from "../blender-node.ts"
 import {NodeEditor} from "../node-editor.ts"
@@ -28,7 +29,7 @@ try {
   const fields = new FieldCatalogSurface()
   const reference = new BlenderReferenceSurface()
   const sockets = new SocketCatalogSurface()
-  const detail = new NodeEditor<BlenderNode, BlenderSocket, BlenderLink, BlenderFrame>({
+  const detail = new NodeEditor<BlenderNode, BlenderSocket, BlenderLink, BlenderFrame, BlenderNodePlan>({
     renderers: createBlenderNodeRenderers(),
     title: "СРАВНЕНИЕ · ЖИВАЯ НОДА",
     minScale: 0.6,
@@ -38,7 +39,7 @@ try {
     },
   })
   detail.setTree(createNoiseComparisonTree())
-  const editor = new NodeEditor<BlenderNode, BlenderSocket, BlenderLink, BlenderFrame>({
+  const editor = new NodeEditor<BlenderNode, BlenderSocket, BlenderLink, BlenderFrame, BlenderNodePlan>({
     renderers: createBlenderNodeRenderers(),
     title: "РЕДАКТОР НОД · КОМПОНЕНТНАЯ СЦЕНА",
     minScale: 0.26,
